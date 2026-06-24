@@ -6,7 +6,6 @@ import yaml
 
 from schema.taxonomy import TaxonomySpec
 
-
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 

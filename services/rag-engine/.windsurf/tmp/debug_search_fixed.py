@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
+
 import requests
-import json
 
 # Configuration
 API_URL = 'http://127.0.0.1:18001'
@@ -64,7 +64,7 @@ def debug_search(collection_name, drive_folder_id):
             print(f"  {i+1}. {hit['id'][:30]}... | {metadata.get('title', 'Sans titre')[:50]}...")
             print(f"     Source: {source}")
     
-    print(f"\nTypes de sources trouvés:")
+    print("\nTypes de sources trouvés:")
     for source_type, count in sources.items():
         print(f"  - {source_type}: {count}")
     
@@ -75,7 +75,7 @@ def debug_search(collection_name, drive_folder_id):
         print(f"\n✗ Aucun document du dossier Drive {drive_folder_id} trouvé")
         
         # Chercher des documents avec des IDs de dossier similaires
-        print(f"\nRecherche d'IDs de dossier similaires...")
+        print("\nRecherche d'IDs de dossier similaires...")
         for hit in hits:
             metadata = hit.get('metadata', {})
             source = metadata.get('source', '')
@@ -127,7 +127,7 @@ def move_found_documents(docs, target_collection):
         print(f"Insertion réussie: {result}")
         
         # Supprimer les documents de la collection source
-        print(f"Suppression des documents de rag_education...")
+        print("Suppression des documents de rag_education...")
         delete_url = f'{API_URL}/collections/rag_education/delete'
         delete_payload = {
             'ids': ids_to_add
@@ -154,9 +154,9 @@ found_docs = debug_search(source_collection, drive_folder_id)
 if found_docs:
     success = move_found_documents(found_docs, target_collection)
     if success:
-        print(f"\nOpération terminée avec succès!")
+        print("\nOpération terminée avec succès!")
         print(f"Les {len(found_docs)} documents ont été déplacés de {source_collection} vers {target_collection}")
     else:
-        print(f"\nÉchec du déplacement")
+        print("\nÉchec du déplacement")
 else:
-    print(f"\nAucun document trouvé à déplacer")
+    print("\nAucun document trouvé à déplacer")

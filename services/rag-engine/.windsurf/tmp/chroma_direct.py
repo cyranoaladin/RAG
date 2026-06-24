@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 import sys
-import os
 
 # Ajouter le chemin de l'API
 sys.path.append('/app')
 
 try:
-    from ingestor.api import get_chroma_client
     import chromadb
+
+    from ingestor.api import get_chroma_client
     
     # Connexion à ChromaDB
     client = get_chroma_client()
@@ -66,7 +66,7 @@ try:
             with open('/tmp/docs_to_move.txt', 'w') as f:
                 for doc_id in found_ids:
                     f.write(f"{doc_id}\n")
-            print(f"\nIDs sauvegardés dans /tmp/docs_to_move.txt")
+            print("\nIDs sauvegardés dans /tmp/docs_to_move.txt")
         else:
             print("Aucun document trouvé provenant de ce dossier Drive")
             
@@ -84,7 +84,7 @@ try:
         # Lister toutes les collections disponibles
         try:
             collections = client.list_collections()
-            print(f'\nCollections disponibles:')
+            print('\nCollections disponibles:')
             for coll in collections:
                 print(f'  - {coll.name}: {coll.count()} documents')
         except Exception as e2:

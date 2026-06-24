@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
+
 import requests
-import json
 
 # Configuration
 API_URL = 'http://127.0.0.1:18001'
@@ -80,17 +80,17 @@ def main():
     ]
     
     print(f"Recherche des {len(task_files)} documents de la tâche Drive")
-    print(f"Dossier Drive cible: 1YMGGaLUafNjHdXi03JVpjzntPa310HeR")
+    print("Dossier Drive cible: 1YMGGaLUafNjHdXi03JVpjzntPa310HeR")
     
     # Chercher dans rag_education
-    print(f"\nRecherche dans rag_education...")
+    print("\nRecherche dans rag_education...")
     found_docs = search_by_title('rag_education', task_files)
     
     if found_docs:
         print(f"\n✓ {len(found_docs)} documents trouvés dans rag_education")
         
         # Afficher les sources pour vérifier
-        print(f"\nSources des documents trouvés:")
+        print("\nSources des documents trouvés:")
         for doc in found_docs:
             metadata = doc.get('metadata', {})
             source = metadata.get('source', '')
@@ -100,7 +100,7 @@ def main():
         # Déplacer les documents
         return move_documents(found_docs, 'rag_maths_3e_dnb')
     else:
-        print(f"\n✗ Aucun document trouvé dans rag_education")
+        print("\n✗ Aucun document trouvé dans rag_education")
         
         # Chercher dans d'autres collections
         collections = ['rag_francais_premiere', 'rag_maths_premiere', 'rag_divers', 'ressources_pedagogiques_terminale']
@@ -112,7 +112,7 @@ def main():
                 print(f"✓ {len(found_docs)} documents trouvés dans {coll}")
                 return move_documents(found_docs, 'rag_maths_3e_dnb')
         
-        print(f"\n✗ Aucun document trouvé dans aucune collection")
+        print("\n✗ Aucun document trouvé dans aucune collection")
         return False
 
 def move_documents(docs, target_collection):
@@ -153,7 +153,7 @@ def move_documents(docs, target_collection):
         print(f"Insertion réussie: {result}")
         
         # Supprimer les documents de la collection source
-        print(f"Suppression des documents de la collection source...")
+        print("Suppression des documents de la collection source...")
         
         # Identifier la collection source
         source_collection = None
@@ -181,6 +181,6 @@ def move_documents(docs, target_collection):
 if __name__ == "__main__":
     success = main()
     if success:
-        print(f"\nOpération terminée avec succès!")
+        print("\nOpération terminée avec succès!")
     else:
-        print(f"\nÉchec de l'opération")
+        print("\nÉchec de l'opération")

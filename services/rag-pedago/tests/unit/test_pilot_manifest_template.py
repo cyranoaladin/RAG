@@ -4,7 +4,6 @@ import builtins
 import sys
 from pathlib import Path
 
-import pytest
 import yaml
 
 from rag_pedago.imports import pilot_manifest_template
@@ -17,7 +16,6 @@ from rag_pedago.imports.pilot_manifest_template import (
     validate_no_real_source_access,
 )
 from rag_pedago.paths import RAG_LOCAL_ROOT
-
 
 ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE_DIR = ROOT / "docs/templates/pilot_math_terminale"

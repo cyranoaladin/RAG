@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from schema.document import SourceType
 from schema.source import SourceAuthorityLevel, SourceTrust, VerificationStatus
@@ -11,7 +11,7 @@ def test_official_verified_source_trust_allows_retrieval() -> None:
         {
             "source_type": SourceType.eduscol,
             "authority_level": SourceAuthorityLevel.official_verified,
-            "last_verified_at": datetime(2026, 6, 13, tzinfo=timezone.utc),
+            "last_verified_at": datetime(2026, 6, 13, tzinfo=UTC),
             "verification_status": VerificationStatus.verified,
             "official_url": "https://eduscol.education.fr/",
             "retrieval_allowed": True,

@@ -5,7 +5,6 @@ from pathlib import Path
 
 from rag_pedago.imports.coverage import build_coverage_report
 
-
 DEFAULT_TAXONOMIES = [
     Path("taxonomy/maths/terminale_specialite.yml"),
     Path("taxonomy/nsi/terminale.yml"),

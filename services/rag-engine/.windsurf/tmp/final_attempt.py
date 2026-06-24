@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
+
 import requests
-import json
 
 # Configuration
 API_URL = 'http://127.0.0.1:18001'
@@ -82,7 +82,7 @@ def main():
                     found_docs.append(doc)
                     print(f"  ✓ Trouvé: {doc.get('metadata', {}).get('title', 'Sans titre')}")
                 else:
-                    print(f"  ✗ Non trouvé")
+                    print("  ✗ Non trouvé")
     
     print(f"\nDocuments trouvés: {len(found_docs)}")
     

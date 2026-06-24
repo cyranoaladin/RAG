@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from schema.document import AccessContext, DocumentMeta, Rights, SourceType, TypeDoc
 
@@ -12,7 +12,7 @@ def document_with_rights(rights: Rights) -> DocumentMeta:
             "source_uri": "file:///data/raw/test.md",
             "source_type": SourceType.nexus,
             "sha256": "c" * 64,
-            "discovered_at": datetime(2026, 6, 13, tzinfo=timezone.utc),
+            "discovered_at": datetime(2026, 6, 13, tzinfo=UTC),
             "rights": rights,
             "visibility": "internal",
             "matiere": "mathematiques",

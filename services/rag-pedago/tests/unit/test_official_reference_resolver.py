@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from rag_pedago.reference.loader import load_official_reference_index
 from rag_pedago.reference.resolver import OfficialReferenceResolver
 from schema.document import DocumentMeta
-
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -25,7 +24,7 @@ def meta(
         "source_uri": f"fixture://resolver/{doc_id}",
         "source_type": "upload",
         "sha256": "1" * 64,
-        "discovered_at": datetime(2026, 6, 14, 12, 0, tzinfo=timezone.utc).isoformat(),
+        "discovered_at": datetime(2026, 6, 14, 12, 0, tzinfo=UTC).isoformat(),
         "rights": "officiel_public",
         "visibility": "public",
         "niveau": "terminale",

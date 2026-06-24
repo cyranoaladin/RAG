@@ -7,7 +7,6 @@ from typing import Any
 
 from rag_pedago.paths import PRODUCTION_RAG_UI_ROOT, RAG_LOCAL_ROOT
 
-
 APPROVED_STATUS = "approved_for_metadata_only_next_step"
 EXPECTED_VALUES = {
     "decision": "approved",

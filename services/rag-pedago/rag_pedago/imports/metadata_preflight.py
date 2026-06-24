@@ -13,7 +13,6 @@ from rag_pedago.imports.real_draft_guard import build_real_draft_guard_report
 from rag_pedago.imports.real_draft_unlock_gate import build_unlock_gate_report
 from rag_pedago.paths import REPO_ROOT
 
-
 TEMPLATE_PATH = REPO_ROOT / "docs/templates/pilot_math_terminale/pilot_manifest.template.yml"
 FILLED_DRAFT_PATH = (
     REPO_ROOT

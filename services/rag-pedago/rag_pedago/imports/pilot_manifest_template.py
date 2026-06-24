@@ -10,7 +10,6 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from rag_pedago.paths import PRODUCTION_RAG_UI_ROOT, RAG_LOCAL_ROOT
 
-
 PLACEHOLDER_PREFIXES = ("A_REMPLIR", "A_CONFIRMER")
 FORBIDDEN_SOURCE_PATHS = (
     str(PRODUCTION_RAG_UI_ROOT),

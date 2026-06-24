@@ -14,7 +14,6 @@ from rag_pedago.imports.readiness import ReadinessStatus, build_readiness_report
 from rag_pedago.imports.review import ReviewStatus, build_review_package
 from schema.document import DocumentMeta
 
-
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURE_ROOT = ROOT / "data/fixtures/pilot_math_terminale"
 MANIFEST_DIR = FIXTURE_ROOT / "manifests"

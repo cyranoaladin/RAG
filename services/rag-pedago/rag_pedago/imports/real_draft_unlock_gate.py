@@ -11,7 +11,6 @@ from rag_pedago.imports.human_unlock_guard import (
 )
 from rag_pedago.imports.real_draft_guard import build_real_draft_guard_report
 
-
 APPROVED_GATE_STATUS = "approved_for_real_metadata_draft_preparation"
 DRAFT_READY_STATUS = "ready_for_human_locked_metadata_validation"
 

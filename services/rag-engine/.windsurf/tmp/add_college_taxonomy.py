@@ -9,7 +9,7 @@ def add_college_to_taxonomy():
     ui_file = '/srv/nexusreussite/rag-ui/compose/ui/app_v2.py'
     
     # Lire le fichier
-    with open(ui_file, 'r', encoding='utf-8') as f:
+    with open(ui_file, encoding='utf-8') as f:
         content = f.read()
     
     # Définir la nouvelle taxonomie pour le collège
@@ -78,7 +78,7 @@ def add_rag_maths_3e_dnb_to_collections():
     
     ui_file = '/srv/nexusreussite/rag-ui/compose/ui/app_v2.py'
     
-    with open(ui_file, 'r', encoding='utf-8') as f:
+    with open(ui_file, encoding='utf-8') as f:
         content = f.read()
     
     # Pattern pour trouver la liste ALL_COLLECTIONS
@@ -108,7 +108,7 @@ def add_college_levels():
     
     ui_file = '/srv/nexusreussite/rag-ui/compose/ui/app_v2.py'
     
-    with open(ui_file, 'r', encoding='utf-8') as f:
+    with open(ui_file, encoding='utf-8') as f:
         content = f.read()
     
     # Pattern pour trouver la liste NIVEAUX

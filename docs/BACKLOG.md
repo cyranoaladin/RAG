@@ -25,6 +25,19 @@
 |---|---|---|
 | Mapping `audience` incomplet | `status_detail == unknown` ou statuts hors-cible (système tunisien, double cursus, hors-AEFE) produit `aefe` par défaut sans warning | Affiner le mapping et émettre un warning pour les cas ambigus |
 
+## Lint legacy isolé (per-file-ignores)
+
+### rag-pedago
+| Règle | Fichiers | Raison de l'isolation |
+|---|---|---|
+| UP042 (str+Enum → StrEnum) | 9 fichiers governance/schema | Migration StrEnum sur code sensible, risque régression |
+| B017 (bare pytest.raises) | 3 fichiers test ledger | Raffinement des assertions nécessaire |
+
+### rag-engine
+| Règle | Fichiers | Raison de l'isolation |
+|---|---|---|
+| F401/F841/B007 | `.windsurf/tmp/*`, `tests/*` | Scripts temporaires et fixtures de test legacy |
+
 ## Process
 
 | Point | Détail |

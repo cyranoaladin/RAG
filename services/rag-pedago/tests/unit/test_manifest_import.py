@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -22,7 +22,7 @@ def document_payload(doc_id: str, rights: str = "officiel_public", source_uri: s
         "source_uri": source_uri or f"file:///does/not/exist/{doc_id}.pdf",
         "source_type": SourceType.eduscol.value,
         "sha256": "a" * 64,
-        "discovered_at": datetime(2026, 6, 14, 12, 0, tzinfo=timezone.utc).isoformat(),
+        "discovered_at": datetime(2026, 6, 14, 12, 0, tzinfo=UTC).isoformat(),
         "rights": rights,
         "visibility": "public" if rights == "officiel_public" else "internal",
         "niveau": Niveau.terminale.value,

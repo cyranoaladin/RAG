@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -88,7 +88,7 @@ class DirectoryImportReport(BaseModel):
 
 
 def _new_run_id() -> str:
-    return f"manifest-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S')}-{uuid4().hex[:8]}"
+    return f"manifest-{datetime.now(UTC).strftime('%Y%m%dT%H%M%S')}-{uuid4().hex[:8]}"
 
 
 def _report_path_for(run_id: str) -> Path:
@@ -96,7 +96,7 @@ def _report_path_for(run_id: str) -> Path:
 
 
 def _new_batch_id() -> str:
-    return f"batch-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S')}-{uuid4().hex[:8]}"
+    return f"batch-{datetime.now(UTC).strftime('%Y%m%dT%H%M%S')}-{uuid4().hex[:8]}"
 
 
 def _directory_report_path(batch_id: str) -> Path:
@@ -461,7 +461,7 @@ def import_manifest(
     repo.create_run(
         RunRecord(
             run_id=run_id,
-            started_at=datetime.now(timezone.utc),
+            started_at=datetime.now(UTC),
             status=RunStatus.running,
             command=f"import_manifest {manifest_path}",
         )
@@ -490,7 +490,7 @@ def import_manifest(
                         state=DocumentState.discovered,
                         run_id=run_id,
                         input_sha256=meta.sha256,
-                        updated_at=datetime.now(timezone.utc),
+                        updated_at=datetime.now(UTC),
                     )
                 )
                 documents_valid += 1
@@ -511,7 +511,7 @@ def import_manifest(
                         step="manifest_import",
                         message=f"{error.error_type}: {error.message}",
                         recoverable=True,
-                        created_at=datetime.now(timezone.utc),
+                        created_at=datetime.now(UTC),
                     )
                 )
 

@@ -4,10 +4,8 @@ import argparse
 import json
 import re
 from pathlib import Path
-from typing import Any
 
 from rag_pedago.paths import PRODUCTION_RAG_UI_ROOT, RAG_LOCAL_ROOT
-
 
 FORBIDDEN_SOURCE_ROOTS = (
     str(PRODUCTION_RAG_UI_ROOT),

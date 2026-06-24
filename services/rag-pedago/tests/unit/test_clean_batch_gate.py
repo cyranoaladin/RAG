@@ -10,7 +10,6 @@ from rag_pedago.imports.quality import QualityPolicy
 from rag_pedago.imports.readiness import ReadinessStatus, build_readiness_report
 from rag_pedago.ledger.migrations import initialize_database
 
-
 ROOT = Path(__file__).resolve().parents[2]
 BATCH_PROBLEM = ROOT / "data/fixtures/manifests/batch_001"
 BATCH_CLEAN = ROOT / "data/fixtures/manifests/batch_clean_001"

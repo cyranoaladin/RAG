@@ -18,6 +18,9 @@ preview = false
 "src/ingestor/audit_logger.py" = ["UP017"]
 "src/ingestor/admin_api.py" = ["UP007"]
 "src/ingestor/catalog.py" = ["UP017"]
+# legacy lint debt — windsurf tmp scripts, test fixtures
+".windsurf/tmp/*" = ["F401", "F841", "B007"]
+"tests/*" = ["B007", "F841"]
 
 [tool.mypy]
 python_version = "3.11"

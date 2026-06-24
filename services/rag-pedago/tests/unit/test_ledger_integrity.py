@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -21,7 +21,7 @@ def make_repo(tmp_path) -> LedgerRepository:
 def make_run(run_id: str = "run-001") -> RunRecord:
     return RunRecord(
         run_id=run_id,
-        started_at=datetime(2026, 6, 14, 12, 0, tzinfo=timezone.utc),
+        started_at=datetime(2026, 6, 14, 12, 0, tzinfo=UTC),
         status=RunStatus.running,
     )
 
@@ -33,7 +33,7 @@ def make_document(doc_id: str = "doc-001", sha: str = "a") -> DocumentMeta:
             "source_uri": f"file:///data/raw/{doc_id}.md",
             "source_type": SourceType.nexus,
             "sha256": sha * 64,
-            "discovered_at": datetime(2026, 6, 14, 12, 0, tzinfo=timezone.utc),
+            "discovered_at": datetime(2026, 6, 14, 12, 0, tzinfo=UTC),
             "rights": Rights.officiel_public,
             "visibility": "public",
             "matiere": "mathematiques",
@@ -87,7 +87,7 @@ def test_record_error_unknown_run_fails(tmp_path) -> None:
                 run_id="missing-run",
                 step="parse",
                 message="No run",
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             )
         )
 
@@ -104,7 +104,7 @@ def test_record_error_unknown_document_fails_if_doc_id_given(tmp_path) -> None:
                 doc_id="missing-doc",
                 step="parse",
                 message="No doc",
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             )
         )
 

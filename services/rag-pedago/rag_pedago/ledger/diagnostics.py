@@ -5,7 +5,6 @@ from typing import Any
 
 from rag_pedago.ledger.db import connect
 
-
 EXPECTED_TABLES = {
     "schema_migrations",
     "runs",

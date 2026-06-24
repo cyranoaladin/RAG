@@ -17,11 +17,6 @@ import pytest
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from ingestor.pedagogical_chunker import (
-    TaggingConfig,
-    chunk_file,
-    parse_sections,
-)
 
 # ChunkMetadata from nexus-contracts
 try:

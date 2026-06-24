@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
 from uuid import uuid4
@@ -207,7 +207,7 @@ def _write_json_report(report: ControlledImportReport) -> None:
             for issue in _compatibility_issues(report)
             if issue.compatibility_explanation is not None
         ],
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "guarantees": {
             "gate_evaluated_before_import": True,
             "no_source_uri_opened": True,

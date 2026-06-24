@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -19,7 +19,7 @@ def make_repo(tmp_path) -> LedgerRepository:
 def make_run(run_id: str) -> RunRecord:
     return RunRecord(
         run_id=run_id,
-        started_at=datetime(2026, 6, 14, 10, 0, tzinfo=timezone.utc),
+        started_at=datetime(2026, 6, 14, 10, 0, tzinfo=UTC),
         status=RunStatus.running,
     )
 
@@ -31,7 +31,7 @@ def make_document() -> DocumentMeta:
             "source_uri": "file:///data/raw/recovery.md",
             "source_type": SourceType.nexus,
             "sha256": "f" * 64,
-            "discovered_at": datetime(2026, 6, 14, 10, 0, tzinfo=timezone.utc),
+            "discovered_at": datetime(2026, 6, 14, 10, 0, tzinfo=UTC),
             "rights": Rights.usage_interne,
             "visibility": "internal",
             "matiere": "nsi",
@@ -46,7 +46,7 @@ def state(run_id: str, value: DocumentState, minute: int) -> DocumentStateRecord
         state=value,
         run_id=run_id,
         input_sha256="f" * 64,
-        updated_at=datetime(2026, 6, 14, 10, minute, tzinfo=timezone.utc),
+        updated_at=datetime(2026, 6, 14, 10, minute, tzinfo=UTC),
     )
 
 
@@ -63,7 +63,7 @@ def test_recovery_after_failed_run(tmp_path) -> None:
             step="parse",
             message="Temporary parser failure",
             recoverable=True,
-            created_at=datetime(2026, 6, 14, 10, 2, tzinfo=timezone.utc),
+            created_at=datetime(2026, 6, 14, 10, 2, tzinfo=UTC),
         )
     )
     repo.finish_run("run-1", RunStatus.failed)
