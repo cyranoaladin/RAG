@@ -95,6 +95,9 @@ run_target "services/rag-engine" run_engine
 # --- governance locks ---
 run_target "governance-locks" bash scripts/check-governance-locks.sh
 
+# --- governance guard tests ---
+run_target "governance-guard-tests" bash scripts/tests/test-governance-locks.sh
+
 # --- Summary ---
 echo ""
 echo "=============================="

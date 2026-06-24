@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 # check-governance-locks.sh — Fail if any governance lock has been weakened
 # without an ADR reference on an added line in the diff.
+#
+# Override paths for testing:
+#   GOVERNANCE_CONTRACT_FILE  — path to the contract YAML
+#   GOVERNANCE_BASELINE_FILE  — path to the baseline file
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONTRACT_FILE="services/rag-pedago/configs/pedago_interface_contract.yml"
-BASELINE_FILE="$SCRIPT_DIR/governance-locks.baseline"
+CONTRACT_FILE="${GOVERNANCE_CONTRACT_FILE:-services/rag-pedago/configs/pedago_interface_contract.yml}"
+BASELINE_FILE="${GOVERNANCE_BASELINE_FILE:-$SCRIPT_DIR/governance-locks.baseline}"
 
 if [ ! -f "$CONTRACT_FILE" ]; then
     echo "ERROR: $CONTRACT_FILE not found"
@@ -17,17 +21,27 @@ if [ ! -f "$BASELINE_FILE" ]; then
     exit 1
 fi
 
-# Extract current locks (sorted)
-CURRENT=$(grep -E '^\s*\w+_allowed:\s*false' "$CONTRACT_FILE" | sed 's/^[[:space:]]*//' | sort)
+# Extract current locks (sorted). Tolerate zero matches from grep.
+CURRENT=$( { grep -E '^\s*\w+_allowed:\s*false' "$CONTRACT_FILE" || true; } | sed 's/^[[:space:]]*//' | sort )
 BASELINE=$(sort "$BASELINE_FILE")
 
-BASELINE_COUNT=$(echo "$BASELINE" | wc -l)
-CURRENT_COUNT=$(echo "$CURRENT" | wc -l)
+# Count non-empty lines (echo on empty string still produces 1 line with wc -l)
+count_lines() {
+    local text="$1"
+    if [ -z "$text" ]; then
+        echo 0
+    else
+        echo "$text" | wc -l | tr -d ' '
+    fi
+}
+
+BASELINE_COUNT=$(count_lines "$BASELINE")
+CURRENT_COUNT=$(count_lines "$CURRENT")
 
 echo "Governance locks: baseline=$BASELINE_COUNT, current=$CURRENT_COUNT"
 
 # Key-by-key comparison: every baseline line must be present in current
-MISSING=$(comm -23 <(echo "$BASELINE") <(echo "$CURRENT"))
+MISSING=$(comm -23 <(echo "$BASELINE") <( if [ -n "$CURRENT" ]; then echo "$CURRENT"; fi ) )
 
 if [ -n "$MISSING" ]; then
     echo "FAIL: the following locks from baseline are missing or weakened:"
