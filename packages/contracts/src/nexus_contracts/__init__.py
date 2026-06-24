@@ -1,5 +1,9 @@
 """nexus-contracts — Shared retrieval contract for the Nexus RAG platform."""
 
+from nexus_contracts.chunk import (
+    Audience,
+    ChunkMetadata,
+)
 from nexus_contracts.document import (
     AccessContext,
     Candidat,
@@ -31,8 +35,10 @@ from nexus_contracts.student_profile import (
 
 __all__ = [
     "AccessContext",
+    "Audience",
     "Candidat",
     "ChunkMeta",
+    "ChunkMetadata",
     "Citation",
     "DocumentMeta",
     "Epreuve",

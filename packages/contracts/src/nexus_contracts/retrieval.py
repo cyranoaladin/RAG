@@ -49,6 +49,7 @@ class RetrievalRequest(BaseModel):
             "matiere": self.student_profile.primary_matiere,
             "statut_enseignement": self.student_profile.statut_enseignement.value,
             "candidat": self.student_profile.candidat.value,
+            "audience": self.student_profile.audience,
         }
 
 
