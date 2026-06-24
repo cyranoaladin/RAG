@@ -102,11 +102,11 @@ def run_project_doctor(root: Path | None = None) -> ProjectDoctorResult:
     if tracked_env:
         errors.append(f"tracked env files are forbidden: {', '.join(sorted(tracked_env))}")
 
-    for relative in tracked:
+    for relative in tracked:  # type: ignore[assignment]
         if (
             relative == Path(".env.example")
             or relative == Path("rag_pedago/project_doctor.py")
-            or relative.parts[:1] == ("docs",)
+            or relative.parts[:1] == ("docs",)  # type: ignore[attr-defined]
         ):
             continue
         text = _read_text(root / relative)
@@ -118,11 +118,11 @@ def run_project_doctor(root: Path | None = None) -> ProjectDoctorResult:
     if imports_dir.is_dir():
         for path in imports_dir.rglob("*.py"):
             text = _read_text(path)
-            for pattern in NETWORK_IMPORT_PATTERNS:
-                if pattern.search(text):
+            for pattern in NETWORK_IMPORT_PATTERNS:  # type: ignore[assignment]
+                if pattern.search(text):  # type: ignore[attr-defined]
                     errors.append(f"network import forbidden in imports module: {path.relative_to(root)}")
-            for pattern in SOURCE_URI_OPEN_PATTERNS:
-                if pattern.search(text):
+            for pattern in SOURCE_URI_OPEN_PATTERNS:  # type: ignore[assignment]
+                if pattern.search(text):  # type: ignore[attr-defined]
                     errors.append(f"source_uri opening pattern forbidden: {path.relative_to(root)}")
     else:
         warnings.append("imports directory not found")

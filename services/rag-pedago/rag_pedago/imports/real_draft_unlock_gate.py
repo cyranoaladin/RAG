@@ -39,10 +39,10 @@ def load_draft_items(path: Path) -> list[dict]:
 def _item_value(item: dict, field: str) -> object:
     if field == "extra.zone":
         extra = item.get("extra") if isinstance(item.get("extra"), dict) else {}
-        return extra.get("zone")
+        return extra.get("zone")  # type: ignore[union-attr]
     if field == "extra.manual_human_review_required":
         extra = item.get("extra") if isinstance(item.get("extra"), dict) else {}
-        return extra.get("manual_human_review_required")
+        return extra.get("manual_human_review_required")  # type: ignore[union-attr]
     return item.get(field)
 
 

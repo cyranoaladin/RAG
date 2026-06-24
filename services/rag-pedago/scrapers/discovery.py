@@ -260,7 +260,7 @@ def build_discovery_plan(
                         "source_label": source.source_id,
                         "source_uri": source.url,
                         "rights": manifest.rights.value,
-                        "type_doc": manifest.detected_type_doc.value,
+                        "type_doc": manifest.detected_type_doc.value,  # type: ignore[union-attr]
                         "audience": _infer_audience(source),
                         "source_manifest": manifest.model_dump(mode="json"),
                     }

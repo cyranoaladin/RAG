@@ -5,7 +5,7 @@
 | Test | Symptôme | Antériorité | Action |
 |---|---|---|---|
 | `test_real_draft_guard::test_valid_fixture_passes_and_invalid_fixtures_fail` | Assertion de statut (`ready_for_human_locked_metadata_validation` != `blocked`) | Prouvé sur commit `e16cbed` (avant Lot 0) | Lot dédié |
-| `test_real_draft_unlock_gate` (tous) | ~~INTERNALERROR pytest~~ **Résolu** (lot-0.5 cache cleanup + lot-0.6 élucidation). 11/11 pass. | Prouvé sur commit `e16cbed` | Résolu — monkeypatch global documenté comme acceptable |
+| `test_real_draft_unlock_gate` (tous) | ~~INTERNALERROR pytest~~ **Résolu** (lot-0.7). Cause réelle : monkeypatch global de `Path.exists` interceptait le reporting de pytest <9.x. Fix : monkeypatch scopé au module sous test. 11/11 pass. | Prouvé sur commit `e16cbed` | Résolu — monkeypatch scopé (lot-0.7) |
 
 ## Garde-fou de gouvernance
 
@@ -25,16 +25,17 @@
 |---|---|---|
 | Mapping `audience` incomplet | `status_detail == unknown` ou statuts hors-cible (système tunisien, double cursus, hors-AEFE) produit `aefe` par défaut sans warning | Affiner le mapping et émettre un warning pour les cas ambigus |
 
-## Typecheck legacy isolé (mypy overrides)
+## Typecheck — inline `# type: ignore` ciblés (lot-0.7)
 
-### rag-pedago
-| Module | Erreurs isolées | Raison |
-|---|---|---|
-| `rag_pedago.project_doctor` | assignment, attr-defined (6) | Variable reuse shadows types (str→Path, str→Pattern) |
-| `rag_pedago.imports.real_draft_guard` | union-attr (2) | yaml.safe_load returns Any/dict/None |
-| `rag_pedago.imports.real_draft_unlock_gate` | union-attr (2) | Idem |
-| `rag_pedago.imports.pilot_manifest_template` | union-attr (1) | Idem |
-| `scrapers.discovery` | union-attr (1) | enum .value on Optional |
+### rag-pedago (12 occurrences, plus d'overrides par module)
+| Fichier | Ligne(s) | Code | Raison |
+|---|---|---|---|
+| `rag_pedago/project_doctor.py` | 105,121,124 | `assignment` | Variable reuse (str→Path, str→Pattern) |
+| `rag_pedago/project_doctor.py` | 109,122,125 | `attr-defined` | Idem — .parts/.search sur str inféré |
+| `rag_pedago/imports/real_draft_guard.py` | 105,150 | `union-attr` | yaml.safe_load returns Any/dict/None |
+| `rag_pedago/imports/real_draft_unlock_gate.py` | 42,45 | `union-attr` | Idem |
+| `rag_pedago/imports/pilot_manifest_template.py` | 170 | `union-attr` | Idem |
+| `scrapers/discovery.py` | 263 | `union-attr` | enum .value on Optional |
 
 ## Lint legacy isolé (per-file-ignores)
 

@@ -56,8 +56,9 @@ def test_pyproject_declares_project_and_dev_tools() -> None:
 
     assert pyproject["project"]["name"] == "nexus-rag-pedago"
     assert pyproject["project"]["requires-python"] == ">=3.11"
-    assert "pytest" in pyproject["project"]["optional-dependencies"]["dev"]
-    assert "ruff" in pyproject["project"]["optional-dependencies"]["dev"]
+    dev_deps = pyproject["project"]["optional-dependencies"]["dev"]
+    assert any(d.startswith("pytest") for d in dev_deps), f"pytest not in dev deps: {dev_deps}"
+    assert any(d.startswith("ruff") for d in dev_deps), f"ruff not in dev deps: {dev_deps}"
 
 
 def test_doctor_script_is_importable() -> None:

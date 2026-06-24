@@ -102,7 +102,7 @@ def validate_real_draft_metadata(item: dict) -> list[dict]:
         )
 
     extra = item.get("extra") if isinstance(item.get("extra"), dict) else {}
-    if extra.get("zone") == "aefe_tunisie" and item.get("establishment_context_ref") != "aefe":
+    if extra.get("zone") == "aefe_tunisie" and item.get("establishment_context_ref") != "aefe":  # type: ignore[union-attr]
         issues.append(
             _issue(
                 code="aefe_context_mismatch",
@@ -147,7 +147,7 @@ def validate_real_draft_metadata(item: dict) -> list[dict]:
             )
         )
 
-    if extra.get("manual_human_review_required") is not True:
+    if extra.get("manual_human_review_required") is not True:  # type: ignore[union-attr]
         issues.append(
             _issue(
                 code="missing_human_review_unlock",
