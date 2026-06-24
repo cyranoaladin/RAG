@@ -117,12 +117,6 @@ def test_no_heading_lost(md_file, jsonl_file):
     headings = _extract_headings(md_text)
 
     chunks = _load_jsonl(CHUNKS_DIR / jsonl_file)
-    all_chunk_text = " ".join(c["text"] for c in chunks)
-    # Also check section paths
-    all_paths = []
-    for c in chunks:
-        # Section titles appear in chunk_id or in the breadcrumb prefix
-        pass
 
     # Every heading should appear somewhere in the chunk texts or be a parent
     # in the section path (which gets prefixed on subdivision)

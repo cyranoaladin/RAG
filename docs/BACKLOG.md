@@ -5,7 +5,7 @@
 | Test | Symptôme | Antériorité | Action |
 |---|---|---|---|
 | `test_real_draft_guard::test_valid_fixture_passes_and_invalid_fixtures_fail` | Assertion de statut (`ready_for_human_locked_metadata_validation` != `blocked`) | Prouvé sur commit `e16cbed` (avant Lot 0) | Lot dédié |
-| `test_real_draft_unlock_gate` (tous) | INTERNALERROR pytest (monkeypatch `Path.exists` global) | Prouvé sur commit `e16cbed` | Lot dédié — scoper le monkeypatch |
+| `test_real_draft_unlock_gate` (tous) | ~~INTERNALERROR pytest~~ **Résolu** (lot-0.5 cache cleanup + lot-0.6 élucidation). 11/11 pass. | Prouvé sur commit `e16cbed` | Résolu — monkeypatch global documenté comme acceptable |
 
 ## Garde-fou de gouvernance
 
@@ -24,6 +24,17 @@
 | Point | Détail | Action |
 |---|---|---|
 | Mapping `audience` incomplet | `status_detail == unknown` ou statuts hors-cible (système tunisien, double cursus, hors-AEFE) produit `aefe` par défaut sans warning | Affiner le mapping et émettre un warning pour les cas ambigus |
+
+## Typecheck legacy isolé (mypy overrides)
+
+### rag-pedago
+| Module | Erreurs isolées | Raison |
+|---|---|---|
+| `rag_pedago.project_doctor` | assignment, attr-defined (6) | Variable reuse shadows types (str→Path, str→Pattern) |
+| `rag_pedago.imports.real_draft_guard` | union-attr (2) | yaml.safe_load returns Any/dict/None |
+| `rag_pedago.imports.real_draft_unlock_gate` | union-attr (2) | Idem |
+| `rag_pedago.imports.pilot_manifest_template` | union-attr (1) | Idem |
+| `scrapers.discovery` | union-attr (1) | enum .value on Optional |
 
 ## Lint legacy isolé (per-file-ignores)
 
