@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
+from datetime import datetime
+
 import requests
-import json
-from datetime import datetime, timedelta
 
 # Configuration
 API_URL = 'http://127.0.0.1:18001'
@@ -161,7 +161,7 @@ def move_documents(docs, target_collection):
         print(f"Insertion réussie: {result}")
         
         # Supprimer les documents de rag_education
-        print(f"Suppression des documents de rag_education...")
+        print("Suppression des documents de rag_education...")
         delete_url = f'{API_URL}/collections/rag_education/delete'
         delete_payload = {'ids': ids_to_add}
         

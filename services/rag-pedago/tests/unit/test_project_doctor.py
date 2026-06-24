@@ -4,7 +4,6 @@ from pathlib import Path
 
 from rag_pedago.project_doctor import run_project_doctor
 
-
 ROOT = Path(__file__).resolve().parents[2]
 
 

@@ -7,7 +7,6 @@ from rag_pedago.imports.controlled_import import controlled_import_manifest_dire
 from rag_pedago.imports.quality import QualityPolicy, strict_quality_policy
 from rag_pedago.ledger.migrations import DEFAULT_LEDGER_PATH
 
-
 DEFAULT_TAXONOMIES = [
     Path("taxonomy/maths/terminale_specialite.yml"),
     Path("taxonomy/nsi/terminale.yml"),

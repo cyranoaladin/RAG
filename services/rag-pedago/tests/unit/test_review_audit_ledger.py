@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 
-from rag_pedago.imports.approve_review_cli import main as approve_review_main
 from rag_pedago.imports.controlled_import import (
     ControlledImportStatus,
     controlled_import_manifest_directory,
@@ -14,10 +13,8 @@ from rag_pedago.imports.controlled_import import (
 from rag_pedago.imports.quality import QualityPolicy
 from rag_pedago.imports.review import approve_review_package, build_review_package
 from rag_pedago.imports.review_package_cli import main as review_package_main
-from rag_pedago.imports.review_package_cli import main as review_package_main
 from rag_pedago.ledger.migrations import initialize_database
 from rag_pedago.ledger.repository import LedgerRepository
-
 
 ROOT = Path(__file__).resolve().parents[2]
 BATCH_CLEAN = ROOT / "data/fixtures/manifests/batch_official_profiles_clean"

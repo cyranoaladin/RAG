@@ -1,5 +1,5 @@
+
 import requests
-import json
 
 # Configuration
 CHROMA_URL = 'http://localhost:8000'
@@ -65,7 +65,7 @@ if results and results.get('ids'):
         print(f'  ... et {len(results["ids"]) - 5} autres documents')
     
     # Afficher tous les IDs pour le déplacement
-    print(f'\nIDs des documents à déplacer:')
+    print('\nIDs des documents à déplacer:')
     for i, doc_id in enumerate(results['ids']):
         print(f'  {i+1}. {doc_id}')
 else:
@@ -94,8 +94,8 @@ else:
         print(f'\nTotal trouvé: {found_count}')
         
         if found_ids:
-            print(f'\nIDs des documents à déplacer:')
-            for i, (doc_id, title) in enumerate(zip(found_ids, found_titles)):
+            print('\nIDs des documents à déplacer:')
+            for i, (doc_id, title) in enumerate(zip(found_ids, found_titles, strict=False)):
                 print(f'  {i+1}. {doc_id} | {title}')
     else:
         print('Impossible de récupérer les documents')

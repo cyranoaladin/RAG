@@ -40,6 +40,23 @@ target-version = "py311"
 select = ["E", "F", "I", "UP", "B"]
 ignore = ["E501"]
 
+[tool.ruff.lint.per-file-ignores]
+# legacy lint debt — UP042 (str+Enum -> StrEnum) requires Python 3.11 StrEnum
+# migration; deferred to avoid regressions on governance code — see BACKLOG
+"rag_pedago/imports/controlled_import.py" = ["UP042"]
+"rag_pedago/imports/coverage.py" = ["UP042"]
+"rag_pedago/imports/gate.py" = ["UP042"]
+"rag_pedago/imports/quality.py" = ["UP042"]
+"rag_pedago/imports/readiness.py" = ["UP042"]
+"rag_pedago/imports/review.py" = ["UP042"]
+"schema/exam_profile.py" = ["UP042"]
+"schema/ledger.py" = ["UP042"]
+"schema/source.py" = ["UP042"]
+# legacy lint debt — B017 (bare pytest.raises) in ledger tests
+"tests/unit/test_ledger_integrity.py" = ["B017"]
+"tests/unit/test_ledger_recovery.py" = ["B017"]
+"tests/unit/test_ledger_repository.py" = ["B017"]
+
 [tool.mypy]
 python_version = "3.11"
 ignore_missing_imports = true

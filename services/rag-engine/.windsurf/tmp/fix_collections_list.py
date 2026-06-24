@@ -5,13 +5,14 @@ Script pour corriger la liste des collections cibles et inclure rag_maths_3e_dnb
 
 import re
 
+
 def fix_collections_list():
     """Corriger la liste des collections cibles dans le fichier UI"""
     
     ui_file = '/srv/nexusreussite/rag-ui/compose/ui/app_v2.py'
     
     # Lire le fichier
-    with open(ui_file, 'r', encoding='utf-8') as f:
+    with open(ui_file, encoding='utf-8') as f:
         content = f.read()
     
     # Pattern pour trouver la liste des collections cibles
@@ -36,7 +37,7 @@ def fix_collections_list():
         print(f"✅ Fichier {ui_file} mis à jour")
         
         # Vérifier la modification
-        with open(ui_file, 'r', encoding='utf-8') as f:
+        with open(ui_file, encoding='utf-8') as f:
             updated_content = f.read()
         
         if 'rag_maths_3e_dnb' in updated_content and 'Collection cible' in updated_content:
@@ -54,7 +55,7 @@ def update_help_text():
     
     ui_file = '/srv/nexusreussite/rag-ui/compose/ui/app_v2.py'
     
-    with open(ui_file, 'r', encoding='utf-8') as f:
+    with open(ui_file, encoding='utf-8') as f:
         content = f.read()
     
     # Pattern pour trouver le texte d'aide

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -34,7 +34,7 @@ def payload(
         "source_uri": f"fixture://{doc_id}",
         "source_type": SourceType.upload.value,
         "sha256": sha * 64,
-        "discovered_at": datetime(2026, 6, 14, 12, 0, tzinfo=timezone.utc).isoformat(),
+        "discovered_at": datetime(2026, 6, 14, 12, 0, tzinfo=UTC).isoformat(),
         "rights": rights,
         "visibility": "restricted" if rights == Rights.unknown.value else "public",
         "matiere": "mathematiques",

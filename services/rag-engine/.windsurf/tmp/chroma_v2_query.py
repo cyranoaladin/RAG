@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
+
 import requests
-import json
 
 # Configuration
 CHROMA_URL = 'http://localhost:8000'
@@ -91,7 +91,7 @@ if results and results.get('ids'):
         with open('/tmp/docs_to_move.txt', 'w') as f:
             for doc_id in found_ids:
                 f.write(f"{doc_id}\n")
-        print(f"\nIDs sauvegardés dans /tmp/docs_to_move.txt")
+        print("\nIDs sauvegardés dans /tmp/docs_to_move.txt")
     else:
         print("Aucun document trouvé provenant de ce dossier Drive")
         

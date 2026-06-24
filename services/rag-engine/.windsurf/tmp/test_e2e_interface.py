@@ -4,10 +4,9 @@ Tests e2e pour vérifier que l'interface utilisateur affiche bien
 le groupe "Collège" et que les changements sont visibles
 """
 
+from typing import Any
+
 import requests
-import json
-import re
-from typing import Dict, List, Any
 
 # Configuration
 UI_URL = 'http://127.0.0.1:18501'
@@ -252,7 +251,7 @@ class TestE2EInterface:
             self.log_result("UI Error Handling", False, f"Exception: {e}")
             return False
     
-    def run_all_tests(self) -> Dict[str, Any]:
+    def run_all_tests(self) -> dict[str, Any]:
         """Exécuter tous les tests e2e"""
         print("🧪 Démarrage des tests e2e pour l'interface utilisateur...")
         print("=" * 60)
@@ -269,7 +268,7 @@ class TestE2EInterface:
         
         # Résultats
         print("=" * 60)
-        print(f"📊 Résultats des tests e2e:")
+        print("📊 Résultats des tests e2e:")
         print(f"   ✅ Réussis: {self.passed}")
         print(f"   ❌ Échoués: {self.failed}")
         print(f"   📈 Taux de réussite: {self.passed/(self.passed+self.failed)*100:.1f}%")

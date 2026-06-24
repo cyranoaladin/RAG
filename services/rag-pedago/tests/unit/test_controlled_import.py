@@ -11,8 +11,6 @@ from rag_pedago.imports.controlled_import import (
 )
 from rag_pedago.imports.controlled_import_cli import main
 from rag_pedago.imports.quality import QualityPolicy
-from rag_pedago.ledger.migrations import initialize_database
-
 
 ROOT = Path(__file__).resolve().parents[2]
 BATCH_PROBLEM = ROOT / "data/fixtures/manifests/batch_001"

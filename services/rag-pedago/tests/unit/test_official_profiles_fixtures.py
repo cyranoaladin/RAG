@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from rag_pedago.imports.controlled_import import (
@@ -12,7 +12,6 @@ from rag_pedago.imports.gate import GateStatus, build_gate_report
 from rag_pedago.imports.manifest import import_manifest_directory
 from rag_pedago.imports.quality import QualityPolicy, Severity, evaluate_manifest_directory_quality
 from schema.document import SourceType, TypeDoc
-
 
 ROOT = Path(__file__).resolve().parents[2]
 BATCH_OFFICIAL_PROFILES = ROOT / "data/fixtures/manifests/batch_official_profiles_clean"
@@ -42,7 +41,7 @@ def payload(
         "source_uri": f"fixture://official-profiles/{doc_id}",
         "source_type": SourceType.upload.value,
         "sha256": sha * 64,
-        "discovered_at": datetime(2026, 6, 14, 12, 0, tzinfo=timezone.utc).isoformat(),
+        "discovered_at": datetime(2026, 6, 14, 12, 0, tzinfo=UTC).isoformat(),
         "rights": "officiel_public",
         "visibility": "public",
         "niveau": "terminale",

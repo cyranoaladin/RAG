@@ -10,7 +10,6 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
@@ -141,7 +140,7 @@ def _subdivide(text: str, path: list[str], title: str) -> list[RawChunk]:
     current_tokens = 0
     idx = 0
 
-    for i, sent in enumerate(sentences):
+    for _i, sent in enumerate(sentences):
         sent_tokens = _estimate_tokens(sent)
         if current and current_tokens + sent_tokens > TARGET_MAX_TOKENS:
             chunk_text = f"[{prefix_str}]\n\n" + ' '.join(current)

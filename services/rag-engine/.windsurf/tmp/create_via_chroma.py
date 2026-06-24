@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-import requests
 import json
 import subprocess
+
+import requests
 
 # Configuration
 API_URL = 'http://127.0.0.1:18001'
@@ -159,13 +160,13 @@ print(f"Création de la collection {target_collection}...")
 if create_collection_via_chroma(target_collection):
     print(f"Collection {target_collection} prête")
     
-    print(f"\nDéplacement des documents...")
+    print("\nDéplacement des documents...")
     success = move_documents(source_collection, target_collection, drive_folder_id)
     
     if success:
-        print(f"\nOpération terminée avec succès!")
+        print("\nOpération terminée avec succès!")
         print(f"Les documents ont été déplacés de {source_collection} vers {target_collection}")
     else:
-        print(f"\nÉchec de l'opération")
+        print("\nÉchec de l'opération")
 else:
     print(f"Impossible de créer la collection {target_collection}")

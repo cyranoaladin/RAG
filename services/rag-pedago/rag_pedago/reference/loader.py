@@ -17,7 +17,6 @@ from schema.official_reference import (
     SubjectReference,
 )
 
-
 ModelT = TypeVar("ModelT", bound=BaseModel)
 ROOT = Path(__file__).resolve().parents[2]
 

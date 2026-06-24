@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -19,7 +19,7 @@ def make_repo(tmp_path) -> LedgerRepository:
 def make_run(run_id: str = "run-001") -> RunRecord:
     return RunRecord(
         run_id=run_id,
-        started_at=datetime(2026, 6, 14, 10, 0, tzinfo=timezone.utc),
+        started_at=datetime(2026, 6, 14, 10, 0, tzinfo=UTC),
         status=RunStatus.running,
         command="pytest",
         created_by="test",
@@ -33,7 +33,7 @@ def make_document(doc_id: str = "doc-001", rights: Rights = Rights.officiel_publ
             "source_uri": f"file:///data/raw/{doc_id}.md",
             "source_type": SourceType.nexus,
             "sha256": "d" * 64,
-            "discovered_at": datetime(2026, 6, 14, 10, 0, tzinfo=timezone.utc),
+            "discovered_at": datetime(2026, 6, 14, 10, 0, tzinfo=UTC),
             "rights": rights,
             "visibility": "internal",
             "matiere": "mathematiques",
@@ -106,7 +106,7 @@ def test_record_state_requires_existing_document_and_run(tmp_path) -> None:
                 state=DocumentState.discovered,
                 run_id="missing-run",
                 input_sha256="d" * 64,
-                updated_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(UTC),
             )
         )
 
@@ -122,7 +122,7 @@ def test_record_state_and_latest_state(tmp_path) -> None:
             state=DocumentState.discovered,
             run_id="run-001",
             input_sha256="d" * 64,
-            updated_at=datetime(2026, 6, 14, 10, 1, tzinfo=timezone.utc),
+            updated_at=datetime(2026, 6, 14, 10, 1, tzinfo=UTC),
         )
     )
     repo.record_state(
@@ -131,7 +131,7 @@ def test_record_state_and_latest_state(tmp_path) -> None:
             state=DocumentState.parsed,
             run_id="run-001",
             input_sha256="d" * 64,
-            updated_at=datetime(2026, 6, 14, 10, 2, tzinfo=timezone.utc),
+            updated_at=datetime(2026, 6, 14, 10, 2, tzinfo=UTC),
         )
     )
 
@@ -165,7 +165,7 @@ def test_record_error_and_list_errors(tmp_path) -> None:
             step="parse",
             message="Parsing impossible",
             recoverable=True,
-            created_at=datetime(2026, 6, 14, 10, 3, tzinfo=timezone.utc),
+            created_at=datetime(2026, 6, 14, 10, 3, tzinfo=UTC),
         )
     )
 

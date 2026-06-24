@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
 
@@ -199,7 +199,7 @@ def _write_json_report(report: ReadinessReport) -> None:
             "warnings": [issue.model_dump(mode="json") for issue in report.warning_issues],
         },
         "recommended_actions": report.recommended_actions,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "guarantees": {
             "no_source_uri_opened": True,
             "no_network_call": True,

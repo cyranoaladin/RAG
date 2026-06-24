@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import builtins
-from pathlib import Path
 
 import pytest
 

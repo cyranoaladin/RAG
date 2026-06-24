@@ -5,6 +5,8 @@ from pathlib import Path
 
 import pytest
 
+from rag_pedago.imports.approve_review_cli import main as approve_review_main
+from rag_pedago.imports.quality import QualityPolicy
 from rag_pedago.imports.review import (
     ReviewStatus,
     approve_review_package,
@@ -12,9 +14,6 @@ from rag_pedago.imports.review import (
     sha256_directory_yaml,
 )
 from rag_pedago.imports.review_package_cli import main as review_package_main
-from rag_pedago.imports.approve_review_cli import main as approve_review_main
-from rag_pedago.imports.quality import QualityPolicy
-
 
 ROOT = Path(__file__).resolve().parents[2]
 BATCH_CLEAN = ROOT / "data/fixtures/manifests/batch_official_profiles_clean"

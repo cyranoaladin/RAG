@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-import subprocess
 import json
-import sys
+import subprocess
+
 
 # Exécuter curl pour interroger l'API search
 def search_documents(collection, limit=100):

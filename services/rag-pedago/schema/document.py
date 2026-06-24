@@ -2,6 +2,7 @@
 
 from nexus_contracts.document import *  # noqa: F401,F403
 from nexus_contracts.document import (
+    RIGHTS_ALLOWED_CONTEXTS,
     AccessContext,
     Candidat,
     ChunkMeta,
@@ -10,7 +11,6 @@ from nexus_contracts.document import (
     Modality,
     Niveau,
     Rights,
-    RIGHTS_ALLOWED_CONTEXTS,
     SourceType,
     StatutEnseignement,
     StrictBaseModel,

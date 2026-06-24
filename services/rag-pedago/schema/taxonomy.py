@@ -6,7 +6,6 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_vali
 
 from schema.document import Niveau, StatutEnseignement, Voie
 
-
 NonEmptyStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
 

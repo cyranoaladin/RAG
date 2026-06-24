@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
+
 import requests
-import json
 
 # Configuration
 API_URL = 'http://127.0.0.1:18001'
@@ -62,7 +62,7 @@ def debug_search(collection_name, drive_folder_id):
             print(f"  {i+1}. {hit['id'][:30]}... | {metadata.get('title', 'Sans titre')[:50]}...")
             print(f"     Source: {source}")
     
-    print(f"\nTypes de sources trouvés:")
+    print("\nTypes de sources trouvés:")
     for source_type, count in sources.items():
         print(f"  - {source_type}: {count}")
     
@@ -72,7 +72,7 @@ def debug_search(collection_name, drive_folder_id):
         print(f"\n✗ Aucun document du dossier Drive {drive_folder_id} trouvé")
         
         # Chercher des documents avec des IDs de dossier similaires
-        print(f"\nRecherche d'IDs de dossier similaires...")
+        print("\nRecherche d'IDs de dossier similaires...")
         for hit in hits[:50]:
             metadata = hit.get('metadata', {})
             source = metadata.get('source', '')

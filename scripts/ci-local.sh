@@ -45,33 +45,41 @@ run_pedago() {
     python3 -m venv .venv
     source .venv/bin/activate
     make install > /dev/null 2>&1
+
     echo "--- lint ---"
-    make lint
+    if ! make lint; then
+        echo "FAIL: rag-pedago lint failed"
+        deactivate 2>/dev/null || true; cd "$REPO_ROOT"; return 1
+    fi
+
     echo "--- typecheck ---"
-    make typecheck
+    if ! make typecheck; then
+        echo "FAIL: rag-pedago typecheck failed"
+        deactivate 2>/dev/null || true; cd "$REPO_ROOT"; return 1
+    fi
+
     echo "--- test ---"
-    # Allow 1 pre-existing failure (test_real_draft_guard)
     local output
-    output=$(make test 2>&1) || true
+    set +e
+    output=$(make test 2>&1)
+    local test_exit=$?
+    set -e
     echo "$output" | tail -3
-    if echo "$output" | grep -qE '^FAILED|failed'; then
+
+    if [ "$test_exit" -ne 0 ]; then
+        # Allow up to 1 pre-existing failure (test_real_draft_guard)
         local failed_count
-        failed_count=$(echo "$output" | grep -oP '\d+ failed' | grep -oP '\d+')
+        failed_count=$(echo "$output" | grep -oP '\d+ failed' | grep -oP '\d+' || echo "0")
         if [ "$failed_count" -le 1 ]; then
             echo "rag-pedago: $failed_count pre-existing failure(s) — acceptable"
-            deactivate 2>/dev/null || true
-            cd "$REPO_ROOT"
-            return 0
+            deactivate 2>/dev/null || true; cd "$REPO_ROOT"; return 0
         fi
+        echo "FAIL: rag-pedago tests failed ($failed_count failures)"
+        deactivate 2>/dev/null || true; cd "$REPO_ROOT"; return 1
     fi
-    if echo "$output" | grep -qE '\d+ passed'; then
-        deactivate 2>/dev/null || true
-        cd "$REPO_ROOT"
-        return 0
-    fi
+
     deactivate 2>/dev/null || true
     cd "$REPO_ROOT"
-    return 1
 }
 run_target "services/rag-pedago" run_pedago
 
@@ -81,12 +89,25 @@ run_engine() {
     rm -rf .venv
     make install > /dev/null 2>&1
     source .venv/bin/activate
+
     echo "--- lint ---"
-    make lint
+    if ! make lint; then
+        echo "FAIL: rag-engine lint failed"
+        deactivate 2>/dev/null || true; cd "$REPO_ROOT"; return 1
+    fi
+
     echo "--- typecheck ---"
-    make typecheck
+    if ! make typecheck; then
+        echo "FAIL: rag-engine typecheck failed"
+        deactivate 2>/dev/null || true; cd "$REPO_ROOT"; return 1
+    fi
+
     echo "--- test ---"
-    make test
+    if ! make test; then
+        echo "FAIL: rag-engine tests failed"
+        deactivate 2>/dev/null || true; cd "$REPO_ROOT"; return 1
+    fi
+
     deactivate 2>/dev/null || true
     cd "$REPO_ROOT"
 }
@@ -97,6 +118,9 @@ run_target "governance-locks" bash scripts/check-governance-locks.sh
 
 # --- governance guard tests ---
 run_target "governance-guard-tests" bash scripts/tests/test-governance-locks.sh
+
+# --- ci failsafe tests ---
+run_target "ci-failsafe-tests" bash scripts/tests/test-ci-local-failsafe.sh
 
 # --- Summary ---
 echo ""

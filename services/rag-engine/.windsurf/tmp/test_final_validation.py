@@ -4,7 +4,7 @@ Test final de validation pour confirmer que les changements sont bien déployés
 """
 
 import subprocess
-import json
+
 
 def test_code_deployment():
     """Test 1: Vérifier que le code contient les changements"""
@@ -129,7 +129,7 @@ def main():
             failed += 1
     
     print("=" * 60)
-    print(f"📊 Résultats de la validation finale:")
+    print("📊 Résultats de la validation finale:")
     print(f"   ✅ Réussis: {passed}")
     print(f"   ❌ Échoués: {failed}")
     print(f"   📈 Taux de réussite: {passed/(passed+failed)*100:.1f}%")

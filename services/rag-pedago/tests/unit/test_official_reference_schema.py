@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from pydantic import ValidationError
@@ -21,7 +21,7 @@ def test_official_source_accepts_verified_institutional_source() -> None:
         url="https://www.education.gouv.fr/reussir-au-lycee/le-baccalaureat-general-10457",
         authority_level="official_verified",
         verification_status="verified",
-        last_verified_at=datetime(2026, 6, 14, tzinfo=timezone.utc),
+        last_verified_at=datetime(2026, 6, 14, tzinfo=UTC),
         applies_to=["bac_general", "terminale_generale"],
     )
 
@@ -37,7 +37,7 @@ def test_official_source_rejects_unknown_status_as_official_verified() -> None:
             url="https://example.invalid",
             authority_level="official_verified",
             verification_status="unknown",
-            last_verified_at=datetime(2026, 6, 14, tzinfo=timezone.utc),
+            last_verified_at=datetime(2026, 6, 14, tzinfo=UTC),
             applies_to=["bac_general"],
         )
 

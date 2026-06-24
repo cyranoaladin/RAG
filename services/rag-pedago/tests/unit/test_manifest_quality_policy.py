@@ -2,15 +2,14 @@ from __future__ import annotations
 
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
 from rag_pedago.imports.import_manifest_dir import main
 from rag_pedago.imports.manifest import import_manifest_directory
 from rag_pedago.imports.quality import QualityPolicy, Severity, evaluate_manifest_directory_quality
-from rag_pedago.ledger.repository import LedgerRepository
-from schema.document import Rights, SourceType, TypeDoc
+from schema.document import Rights, SourceType
 
 
 @pytest.fixture(autouse=True)
@@ -34,7 +33,7 @@ def payload(
         "source_uri": source_uri or f"fixture://{doc_id}",
         "source_type": SourceType.upload.value,
         "sha256": sha * 64,
-        "discovered_at": datetime(2026, 6, 14, 12, 0, tzinfo=timezone.utc).isoformat(),
+        "discovered_at": datetime(2026, 6, 14, 12, 0, tzinfo=UTC).isoformat(),
         "rights": rights,
         "visibility": "restricted" if rights == Rights.unknown.value else "public",
         "matiere": "mathematiques",

@@ -8,7 +8,6 @@ import pytest
 
 from rag_pedago.paths import RAG_LOCAL_ROOT, REPO_ROOT
 
-
 ROOT = REPO_ROOT
 RAG_LOCAL = RAG_LOCAL_ROOT
 FIXTURE_DIR = ROOT / "data/fixtures/pilot_math_terminale/real_draft_guard"

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from pydantic import ValidationError
@@ -26,7 +26,7 @@ def valid_document_payload() -> dict[str, object]:
         "source_uri": "file:///data/raw/nexus/math-ts/suites.pdf",
         "source_type": SourceType.nexus,
         "sha256": "a" * 64,
-        "discovered_at": datetime(2026, 6, 13, tzinfo=timezone.utc),
+        "discovered_at": datetime(2026, 6, 13, tzinfo=UTC),
         "rights": Rights.nexus_proprietaire,
         "visibility": "internal",
         "niveau": Niveau.terminale,

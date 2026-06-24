@@ -4,7 +4,6 @@ import importlib.util
 import pathlib
 import tomllib
 
-
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 

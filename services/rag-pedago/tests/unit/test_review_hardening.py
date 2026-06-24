@@ -18,7 +18,6 @@ from rag_pedago.imports.review import (
     sha256_canonical_json,
 )
 
-
 ROOT = Path(__file__).resolve().parents[2]
 BATCH_CLEAN = ROOT / "data/fixtures/manifests/batch_official_profiles_clean"
 TAXONOMIES = [

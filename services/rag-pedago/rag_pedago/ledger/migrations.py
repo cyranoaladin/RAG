@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from pathlib import Path
 import sqlite3
+from datetime import UTC, datetime
+from pathlib import Path
 
 from rag_pedago.ledger.db import transaction
 from rag_pedago.ledger.models import DOCUMENT_STATES, RUN_STATUSES, Migration
-
 
 DEFAULT_LEDGER_PATH = Path("data/ledger/rag_pedago.sqlite")
 
@@ -20,7 +19,7 @@ def _apply_v1(conn: sqlite3.Connection) -> None:
     document_states = _quoted_values(DOCUMENT_STATES)
 
     conn.execute(
-        """
+        f"""
         CREATE TABLE IF NOT EXISTS runs (
             run_id TEXT PRIMARY KEY,
             started_at TEXT NOT NULL,
@@ -32,7 +31,7 @@ def _apply_v1(conn: sqlite3.Connection) -> None:
             created_by TEXT,
             notes TEXT
         )
-        """.format(run_statuses=run_statuses)
+        """
     )
     conn.execute(
         """
@@ -58,7 +57,7 @@ def _apply_v1(conn: sqlite3.Connection) -> None:
         """
     )
     conn.execute(
-        """
+        f"""
         CREATE TABLE IF NOT EXISTS document_states (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             doc_id TEXT NOT NULL,
@@ -69,7 +68,7 @@ def _apply_v1(conn: sqlite3.Connection) -> None:
             FOREIGN KEY (doc_id) REFERENCES documents(doc_id),
             FOREIGN KEY (run_id) REFERENCES runs(run_id)
         )
-        """.format(document_states=document_states)
+        """
     )
     conn.execute(
         """
@@ -222,7 +221,7 @@ def initialize_database(db_path: Path = DEFAULT_LEDGER_PATH) -> None:
                 """,
                 (
                     migration.version,
-                    datetime.now(timezone.utc).isoformat(),
+                    datetime.now(UTC).isoformat(),
                     migration.description,
                 ),
             )

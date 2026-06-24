@@ -4,10 +4,9 @@ Tests unitaires et e2e pour vérifier le déploiement de la taxonomie "Collège"
 et l'intégration de rag_maths_3e_dnb
 """
 
+from typing import Any
+
 import requests
-import json
-import time
-from typing import Dict, List, Any
 
 # Configuration
 API_URL = 'http://127.0.0.1:18001'
@@ -188,7 +187,7 @@ class TestTaxonomyDeployment:
             self.log_result("Docker Logs", False, f"Exception: {e}")
             return False
     
-    def run_all_tests(self) -> Dict[str, Any]:
+    def run_all_tests(self) -> dict[str, Any]:
         """Exécuter tous les tests"""
         print("🧪 Démarrage des tests de déploiement de la taxonomie 'Collège'...")
         print("=" * 60)
@@ -206,7 +205,7 @@ class TestTaxonomyDeployment:
         
         # Résultats
         print("=" * 60)
-        print(f"📊 Résultats des tests:")
+        print("📊 Résultats des tests:")
         print(f"   ✅ Réussis: {self.passed}")
         print(f"   ❌ Échoués: {self.failed}")
         print(f"   📈 Taux de réussite: {self.passed/(self.passed+self.failed)*100:.1f}%")

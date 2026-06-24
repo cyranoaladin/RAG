@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
+
 import requests
-import json
 
 # Configuration
 API_URL = 'http://127.0.0.1:18001'
@@ -135,7 +135,7 @@ def search_and_move():
     
     # Supprimer les documents de rag_education
     if total_inserted > 0:
-        print(f"\nSuppression des documents de rag_education...")
+        print("\nSuppression des documents de rag_education...")
         delete_url = f'{API_URL}/collections/rag_education/delete'
         delete_payload = {'ids': ids_to_add}
         

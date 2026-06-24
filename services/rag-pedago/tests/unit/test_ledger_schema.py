@@ -4,7 +4,6 @@ import sqlite3
 
 from rag_pedago.ledger.migrations import initialize_database
 
-
 EXPECTED_TABLES = {
     "schema_migrations",
     "runs",

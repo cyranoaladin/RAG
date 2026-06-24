@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
+
 import requests
-import json
 
 # Configuration
 API_URL = 'http://127.0.0.1:18001/search'
@@ -67,7 +67,7 @@ if data and 'hits' in data:
         with open('/tmp/docs_to_move.txt', 'w') as f:
             for doc in found_docs:
                 f.write(f"{doc.get('id', '')}\n")
-        print(f"\nIDs sauvegardés dans /tmp/docs_to_move.txt")
+        print("\nIDs sauvegardés dans /tmp/docs_to_move.txt")
     else:
         print("Aucun document trouvé provenant de ce dossier Drive")
         

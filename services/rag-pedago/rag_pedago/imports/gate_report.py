@@ -6,7 +6,6 @@ from pathlib import Path
 from rag_pedago.imports.gate import build_gate_report
 from rag_pedago.imports.quality import QualityPolicy, strict_quality_policy
 
-
 DEFAULT_TAXONOMIES = [
     Path("taxonomy/maths/terminale_specialite.yml"),
     Path("taxonomy/nsi/terminale.yml"),

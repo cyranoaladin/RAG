@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import tempfile
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator
 
 from pydantic import BaseModel, ConfigDict
 

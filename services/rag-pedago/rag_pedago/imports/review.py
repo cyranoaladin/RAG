@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import subprocess
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any, Literal
@@ -230,7 +230,7 @@ def build_review_package(
         official_reference_sha256=sha256_directory_yaml(Path("data/reference")),
         taxonomy_sha256={str(path): sha256_file(path) for path in taxonomy_paths},
         git_commit=_git_commit(),
-        generated_at=datetime.now(timezone.utc),
+        generated_at=datetime.now(UTC),
         markdown_path=output_dir / f"review_package_{batch_id}.md",
         json_path=output_dir / f"review_package_{batch_id}.json",
         recommended_actions=gate_report.recommended_actions,
@@ -282,7 +282,7 @@ def approve_review_package(
         batch_id=package.batch_id,
         decision=decision,  # type: ignore[arg-type]
         reviewer=reviewer,
-        reviewed_at=datetime.now(timezone.utc),
+        reviewed_at=datetime.now(UTC),
         review_package_sha256=sha256_canonical_json(package),
         gate_json_sha256=package.gate_json_sha256,
         notes=notes,
