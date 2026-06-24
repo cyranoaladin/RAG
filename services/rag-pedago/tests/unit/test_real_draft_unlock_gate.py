@@ -140,6 +140,9 @@ def test_gate_does_not_open_source_uri_calculate_hash_or_check_source_existence(
             raise AssertionError("PDF must not be opened")
         return original_open(path, *args, **kwargs)
 
+    # NOTE: global Path.exists monkeypatch — acceptable because pytest restores
+    # it after the test. The INTERNALERROR was caused by stale __pycache__ from
+    # the pre-monorepo era; resolved by lot-0.5 cache cleanup.
     monkeypatch.setattr(Path, "exists", fail_exists)
     monkeypatch.setattr(builtins, "open", fail_pdf_open)
 
