@@ -6,7 +6,7 @@
 
 ## Overview
 
-`rag-local` is a 100% local RAG (Retrieval-Augmented Generation) solution, designed for VPS (no GPU required), with modular architecture: resource ingestion (web, files, GDrive), vector indexing (ChromaDB), local embeddings & LLM (Ollama), search UI (Streamlit), automations (n8n, optional), and Prometheus observability. Everything is orchestrated by Docker Compose, secured by Nginx, and production-ready.
+`rag-local` is a 100% local RAG (Retrieval-Augmented Generation) solution, designed for VPS (no GPU required), with modular architecture: resource ingestion (web, files, GDrive), vector indexing (ChromaDB by default, pgvector target — see Lot 1.2), local embeddings & LLM (Ollama), search UI (Streamlit), automations (n8n, optional), and Prometheus observability. Everything is orchestrated by Docker Compose, secured by Nginx, and production-ready.
 
 **Goals:**
 - Zero cloud/LLM dependency
@@ -20,12 +20,14 @@
 
 ```
 [n8n/UI] --HTTP--> [Ingestor FastAPI] --RPC--> [Ollama Embeddings]
-                                      \--REST--> [ChromaDB]
+                                      \--REST--> [ChromaDB]  (default)
+                                      \--SQL---> [PostgreSQL/pgvector]  (target, Lot 1.2)
                                              \--> [Streamlit UI]
 ```
 
 - **Ingestor** (FastAPI): `/ingest` (URL, files, GDrive), `/health`, `/metrics` (Prometheus)
-- **ChromaDB**: vector storage, single collection
+- **ChromaDB**: vector storage, single collection (current default)
+- **PostgreSQL + pgvector**: target vector storage, HNSW + GIN indexing (see `infra/postgres/init.sql`, `docker-compose.v2.yml`). Switch planned at Lot 1.2
 - **Ollama**: embeddings (`nomic-embed-text`), LLM (`llama3.2`)
 - **UI** (Streamlit): semantic search, top-k, metadata
 - **n8n** (optional): automations, webhooks, scheduling

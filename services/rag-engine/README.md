@@ -17,7 +17,7 @@ make nginx-down
 
 ## Présentation générale
 
-`rag-local` est une solution RAG (Retrieval-Augmented Generation) 100% locale, conçue pour fonctionner sur un VPS sans GPU, avec une architecture modulaire : ingestion de ressources (web, fichiers, GDrive), indexation vectorielle (pgvector), embeddings et LLM locaux (Ollama), UI de recherche (Streamlit), orchestrations (n8n, optionnel), et observabilité Prometheus. Le tout est orchestré par Docker Compose, sécurisé par Nginx, et prêt pour la production.
+`rag-local` est une solution RAG (Retrieval-Augmented Generation) 100% locale, conçue pour fonctionner sur un VPS sans GPU, avec une architecture modulaire : ingestion de ressources (web, fichiers, GDrive), indexation vectorielle (ChromaDB par défaut, pgvector en cible — voir Lot 1.2), embeddings et LLM locaux (Ollama), UI de recherche (Streamlit), orchestrations (n8n, optionnel), et observabilité Prometheus. Le tout est orchestré par Docker Compose, sécurisé par Nginx, et prêt pour la production.
 
 **Objectifs** :
 - Zéro dépendance cloud/LLM externe
@@ -31,12 +31,14 @@ make nginx-down
 
 ```
 [n8n/UI] --HTTP--> [Ingestor FastAPI] --RPC--> [Ollama Embeddings]
-												  \--SQL---> [PostgreSQL/pgvector]
+												  \--REST--> [ChromaDB]  (défaut)
+												  \--SQL---> [PostgreSQL/pgvector]  (cible Lot 1.2)
 															\--> [Streamlit UI]
 ```
 
 - **Ingestor** (FastAPI) : endpoint `/ingest` (URL, fichiers, GDrive), `/health`, `/metrics` (Prometheus)
-- **PostgreSQL + pgvector** : stockage vectoriel, indexation HNSW + GIN (voir `infra/postgres/init.sql`)
+- **ChromaDB** : stockage vectoriel par défaut (`docker-compose.yml`)
+- **PostgreSQL + pgvector** : stockage vectoriel cible, indexation HNSW + GIN (voir `infra/postgres/init.sql`, `docker-compose.v2.yml`). Bascule planifiée au Lot 1.2
 - **Ollama** : embeddings (`nomic-embed-text`), LLM (`llama3.2`)
 - **UI** (Streamlit) : recherche sémantique, top-k borné, métadonnées
 - **n8n** (optionnel) : automatisations, webhooks, planifications

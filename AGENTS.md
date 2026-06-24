@@ -44,9 +44,10 @@ Par service (depuis `services/<svc>`) : `make install` (installe le contrat puis
 
 ## Garde-fous CI (non négociables, vérifiés automatiquement)
 
-- Suites de tests de `rag-pedago` et `rag-engine` vertes sur le runner CI (pas seulement en local).
+- Aucun lot ne fait régresser les tests : aucun test vert ne passe au rouge. Un lot peut être livré avec des échecs **préexistants**, à condition qu'ils soient tracés dans `docs/reports/*_dettes.md` avec antériorité prouvée contre le commit parent.
 - Test de contrat sur `nexus-contracts` (import + golden queries de `rag-pedago/tests/golden_queries/`).
-- `scripts/check-governance-locks.sh` : le compte de `allowed: false` dans `pedago_interface_contract.yml` ne diminue pas sans ADR référencé.
+- `scripts/check-governance-locks.sh` : comparaison clé par clé des verrous de gouvernance contre `scripts/governance-locks.baseline`. Aucune clé verrouillée ne peut passer à `true` sans ADR référencé sur une ligne ajoutée.
+- Tant que GitHub Actions est indisponible, la CI locale (`scripts/ci-local.sh`) verte et consignée dans le rapport de lot tient lieu de garde-fou.
 
 ## Escalade
 
