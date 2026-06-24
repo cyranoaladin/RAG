@@ -1,0 +1,17 @@
+answer_generation_allowed: false
+answer_without_source_allowed: false
+answer_without_source_allowed: false
+answer_without_source_allowed: false
+answer_without_source_allowed: false
+chunking_allowed: false
+data_staging_allowed: false
+embeddings_allowed: false
+ingestion_allowed: false
+network_allowed: false
+parsing_allowed: false
+pdf_allowed: false
+qdrant_allowed: false
+real_documents_allowed: false
+runtime_api_allowed: false
+server_start_allowed: false
+ui_runtime_allowed: false

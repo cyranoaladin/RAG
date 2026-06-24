@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nexus-rag-pedago"
+version = "0.1.0"
+description = "RAG pédagogique local déterministe pour Nexus Réussite"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+  { name = "Nexus Réussite" }
+]
+dependencies = [
+  "pydantic>=2.7",
+  "PyYAML>=6.0",
+  "nexus-contracts",
+]
+
+[project.optional-dependencies]
+dev = [
+  "mypy",
+  "pytest",
+  "ruff",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["rag_pedago*", "schema*", "pipeline*", "retrieval*", "scrapers*", "services*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unused_configs = true
+no_implicit_optional = true
+strict_optional = true
