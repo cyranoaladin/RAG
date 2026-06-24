@@ -80,6 +80,8 @@ class TypeDoc(str, Enum):
     scan = "scan"
     copie = "copie"
     rapport = "rapport"
+    referentiel = "referentiel"
+    modalite_examen = "modalite_examen"
     autre = "autre"
 
 

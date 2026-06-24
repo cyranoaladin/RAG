@@ -103,5 +103,16 @@ class StudentProfile(BaseModel):
         return self.matieres[0]
 
     @property
+    def audience(self) -> str:
+        """Derive the audience dimension from candidat/status_detail."""
+        if self.status_detail is StatusDetail.candidat_libre:
+            return "libre"
+        if self.candidat in {Candidat.individuel, Candidat.libre, Candidat.cned_libre}:
+            return "libre"
+        if self.status_detail is StatusDetail.aefe:
+            return "aefe"
+        return "aefe"
+
+    @property
     def warning_codes(self) -> list[str]:
         return self.warnings
