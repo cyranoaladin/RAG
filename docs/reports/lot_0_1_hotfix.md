@@ -39,4 +39,20 @@ Le solde est inchangé par rapport au Lot 0 (le delta 975→986 vient de l'inclu
 
 ## CI GitHub Actions
 
-Statut à vérifier après push (voir `gh run view` ci-dessous).
+```
+$ gh run view 28119817596
+X lot-0/fondations CI — Nexus RAG Platform #1 · 28119817596
+
+JOBS
+X services/rag-engine in 2s
+X governance locks guard in 3s
+X packages/contracts in 2s
+- services/rag-pedago in 0s
+
+ANNOTATIONS
+X The job was not started because your account is locked due to a billing issue.
+```
+
+**Blocage externe** : les jobs ne démarrent pas car le compte GitHub est verrouillé pour cause de facturation. Ce n'est pas un problème de code.
+
+**Action requise** : résoudre le problème de facturation GitHub, puis relancer la CI (`gh run rerun 28119817596`). Le code est prêt (tests locaux verts).
