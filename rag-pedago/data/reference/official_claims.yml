@@ -1,0 +1,114 @@
+official_claims:
+  - claim_id: bac_general_40_60
+    statement: Le baccalauréat général repose sur 40 % de contrôle continu et 60 % d'épreuves terminales.
+    source_id: education_bac_calcul_note
+    verification_status: verified
+    applies_to:
+      - bac_general
+      - terminale_generale
+    fields_supported:
+      - bac_general.control_continu_weight
+      - bac_general.terminal_weight
+  - claim_id: premiere_generale_three_specialties
+    statement: En première générale, l'élève suit trois enseignements de spécialité.
+    source_id: education_voie_generale
+    verification_status: verified
+    applies_to:
+      - premiere_generale
+    fields_supported:
+      - premiere_generale.expected_specialties_count
+  - claim_id: terminale_generale_two_specialties
+    statement: En terminale générale, l'élève conserve deux enseignements de spécialité.
+    source_id: education_voie_generale
+    verification_status: verified
+    applies_to:
+      - terminale_generale
+    fields_supported:
+      - terminale_generale.expected_specialties_count
+  - claim_id: eaf_written_oral
+    statement: Les épreuves anticipées de français comportent un écrit et un oral.
+    source_id: education_bac_general
+    verification_status: verified
+    applies_to:
+      - eaf
+    fields_supported:
+      - eaf.exam_parts
+  - claim_id: grand_oral_terminal
+    statement: Le Grand oral est une épreuve terminale du baccalauréat général liée aux enseignements de spécialité.
+    source_id: education_bac_general
+    verification_status: verified
+    applies_to:
+      - grand_oral
+    fields_supported:
+      - grand_oral.is_terminal
+      - grand_oral.related_subject_refs
+  - claim_id: dnb_individual_foreign_language
+    statement: Les candidats individuels au DNB passent une épreuve écrite de langue vivante étrangère.
+    source_id: bo_dnb_2025
+    verification_status: verified
+    applies_to:
+      - dnb_candidat_individuel
+    fields_supported:
+      - dnb_candidat_individuel.exam_parts
+      - dnb_candidat_individuel.coefficients
+  - claim_id: dnb_scolaire_official_parts
+    statement: Le DNB scolaire comporte les épreuves terminales et l'épreuve orale selon les modalités officielles.
+    source_id: education_dnb
+    verification_status: verified
+    applies_to:
+      - dnb_scolaire
+      - troisieme_generale
+    fields_supported:
+      - dnb_scolaire.exam_parts
+  - claim_id: anticipee_maths_2027
+    statement: Une épreuve anticipée de mathématiques est prévue pour les élèves de première générale à compter de la session 2027.
+    source_id: education_bac_questions
+    verification_status: verified
+    applies_to:
+      - anticipee_maths
+      - premiere_generale
+    fields_supported:
+      - anticipee_maths.exam_parts
+  - claim_id: bac_specialite_terminal
+    statement: Les deux enseignements de spécialité conservés en terminale font partie des épreuves terminales du baccalauréat général.
+    source_id: education_bac_general
+    verification_status: verified
+    applies_to:
+      - bac_specialite_ecrit
+      - terminale_generale
+    fields_supported:
+      - bac_specialite_ecrit.exam_parts
+  - claim_id: philosophie_terminal
+    statement: La philosophie est une épreuve terminale du baccalauréat général.
+    source_id: education_bac_general
+    verification_status: verified
+    applies_to:
+      - philosophie
+      - terminale_generale
+    fields_supported:
+      - philosophie.is_terminal
+  - claim_id: seconde_gt_common_subjects
+    statement: La seconde générale et technologique comprend des enseignements communs et peut comporter des enseignements optionnels.
+    source_id: education_seconde_gt
+    verification_status: verified
+    applies_to:
+      - seconde_generale_technologique
+    fields_supported:
+      - seconde_generale_technologique.common_subjects
+  - claim_id: candidat_individuel_exam_card_required
+    statement: Le candidat individuel doit se référer à son inscription, sa convocation et sa carte d'examen.
+    source_id: eduscol_inscriptions_bac
+    verification_status: verified
+    applies_to:
+      - candidat_individuel
+    fields_supported:
+      - candidate_status.carte_examen
+  - claim_id: tunisie_ift_local_documents_pending
+    statement: Les documents locaux à fournir à l'IFT doivent être confirmés manuellement.
+    source_id: ift_examens_concours
+    verification_status: pending
+    applies_to:
+      - tunisie
+    fields_supported:
+      - tunisie.documents_required
+    notes: Information locale non confirmée — à vérifier manuellement par Nexus.

@@ -1,0 +1,16 @@
+exam_id: grand_oral
+label: Grand oral
+level_id: terminale_generale
+candidate_types:
+  - scolarise
+  - candidat_individuel
+  - cned_reglemente
+  - cned_libre
+exam_parts:
+  - grand_oral
+is_terminal: true
+related_subject_refs:
+  - enseignements_de_specialite
+official_sources:
+  - education_bac_general
+  - education_bac_questions

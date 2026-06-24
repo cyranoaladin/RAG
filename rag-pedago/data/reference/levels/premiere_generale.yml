@@ -1,0 +1,43 @@
+level_id: premiere_generale
+label: Première générale
+cycle: lycee_gt
+voie: generale
+school_year: "2026-2027"
+common_subjects:
+  - francais
+  - histoire_geographie
+  - emc
+  - langues_vivantes_a_b
+  - enseignement_scientifique
+  - eps
+optional_subjects:
+  - lca_latin
+  - lca_grec
+  - langue_vivante_c
+  - arts
+  - eps_option
+specialties_available:
+  - mathematiques
+  - nsi
+  - physique_chimie
+  - svt
+  - ses
+  - hggsp
+  - humanites_litterature_philosophie
+  - langues_litteratures_cultures_etrangeres
+  - arts
+  - sciences_ingenieur
+  - litterature_langues_cultures_antiquite
+  - education_physique_pratiques_culture_sportives
+expected_specialties_count: 3
+expected_outcomes_ref:
+  - trois_enseignements_specialite
+  - specialite_abandonnee_en_fin_premiere
+exam_refs:
+  - eaf
+  - anticipee_maths
+  - bac_general
+official_sources:
+  - education_voie_generale
+  - education_bac_general
+  - education_bac_questions

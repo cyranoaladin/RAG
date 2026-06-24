@@ -1,0 +1,21 @@
+exam_id: dnb_candidat_individuel
+label: Diplôme national du brevet - candidat individuel
+level_id: troisieme_generale
+session: 2026
+candidate_types:
+  - candidat_individuel
+exam_parts:
+  - francais
+  - mathematiques
+  - histoire_geographie_emc
+  - sciences
+  - langue_vivante_etrangere_candidats_individuels
+is_terminal: true
+coefficients:
+  langue_vivante_etrangere_candidats_individuels: 2
+durations:
+  langue_vivante_etrangere_candidats_individuels: "1 heure 30"
+official_sources:
+  - bo_dnb_2025
+warnings:
+  - Les candidats individuels ne passent pas l'épreuve orale selon la source officielle consultée.

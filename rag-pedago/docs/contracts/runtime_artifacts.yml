@@ -1,0 +1,25 @@
+version: 1
+gitignored_runtime_patterns:
+  - data/ledger/**
+  - data/reports/manifest_import_*.md
+  - data/reports/manifest_directory_import_*.md
+  - data/reports/readiness_*.md
+  - data/reports/readiness_*.json
+  - data/reports/coverage_*.md
+  - data/reports/coverage_*.json
+  - data/reports/gate_*.md
+  - data/reports/gate_*.json
+  - data/reports/controlled_import_*.md
+  - data/reports/controlled_import_*.json
+  - data/reports/review_package_*.md
+  - data/reports/review_package_*.json
+  - data/reviews/review_*.json
+  - data/reviews/review_registry.jsonl
+versioned_report_patterns:
+  - data/reports/codex_lot_*.md
+versioned_keep_files:
+  - data/ledger/.gitkeep
+  - data/reports/.gitkeep
+notes:
+  - Runtime reports are regenerated locally.
+  - Codex reports are project history and must remain versioned.

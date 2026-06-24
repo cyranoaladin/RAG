@@ -1,0 +1,28 @@
+exam_id: dnb
+label: Diplôme national du brevet
+level_id: troisieme_generale
+session: 2026
+candidate_types:
+  - scolarise
+  - candidat_individuel
+exam_parts:
+  - controle_continu
+  - francais
+  - mathematiques
+  - histoire_geographie_emc
+  - sciences
+  - oral
+  - langue_vivante_etrangere_candidats_individuels
+is_anticipated: false
+is_terminal: true
+control_continu_weight: 40
+terminal_weight: 60
+coefficients:
+  langue_vivante_etrangere_candidats_individuels: 2
+durations:
+  langue_vivante_etrangere_candidats_individuels: "durée officielle à vérifier dans le BO applicable"
+official_sources:
+  - education_dnb
+  - bo_dnb_2025
+warnings:
+  - Les modalités exactes de session et calendrier doivent être vérifiées pour l'année concernée.

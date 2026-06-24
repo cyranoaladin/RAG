@@ -1,0 +1,79 @@
+id: nsi_terminale
+matiere: nsi
+niveau: terminale
+voie: generale
+statut_enseignement: specialite
+programme_version: "terminale-nsi-2020"
+themes:
+  - id: structures_de_donnees
+    label: Structures de donnees
+    notions:
+      - id: listes
+        label: Listes
+      - id: piles
+        label: Piles
+      - id: files
+        label: Files
+      - id: arbres
+        label: Arbres
+      - id: graphes
+        label: Graphes
+      - id: dictionnaires
+        label: Dictionnaires
+  - id: algorithmique
+    label: Algorithmique
+    notions:
+      - id: recursivite
+        label: Recursivite
+      - id: diviser_pour_regner
+        label: Diviser pour regner
+      - id: programmation_dynamique
+        label: Programmation dynamique
+      - id: parcours_graphes
+        label: Parcours de graphes
+      - id: recherche
+        label: Recherche
+      - id: tri
+        label: Tri
+  - id: bases_de_donnees
+    label: Bases de donnees
+    notions:
+      - id: modele_relationnel
+        label: Modele relationnel
+      - id: sql
+        label: SQL
+      - id: contraintes
+        label: Contraintes
+      - id: jointures
+        label: Jointures
+  - id: architectures
+    label: Architectures materielles et reseaux
+    notions:
+      - id: processus
+        label: Processus
+      - id: protocoles
+        label: Protocoles
+      - id: reseaux
+        label: Reseaux
+      - id: routage
+        label: Routage
+      - id: securisation
+        label: Securisation
+  - id: programmation
+    label: Programmation
+    notions:
+      - id: poo
+        label: Programmation orientee objet
+        subnotions:
+          - classes
+          - methodes
+          - attributs
+          - tests
+          - invariants
+competences:
+  - analyser
+  - raisonner
+  - programmer
+  - experimenter
+  - communiquer
+

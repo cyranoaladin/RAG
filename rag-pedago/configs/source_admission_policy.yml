@@ -1,0 +1,122 @@
+policy_id: source_admission_metadata_policy_v1
+status: metadata_only_source_admission_policy
+pilot_scope_ref: math_terminale_specialite_metadata_only_v1
+retrieval_eval_ref: math_terminale_specialite_metadata_retrieval_eval_v1
+pedago_interface_ref: pedago_interface_metadata_contract_v1
+
+real_documents_allowed: false
+pdf_allowed: false
+docx_allowed: false
+pptx_allowed: false
+xlsx_allowed: false
+ingestion_allowed: false
+parsing_allowed: false
+chunking_allowed: false
+embeddings_allowed: false
+qdrant_allowed: false
+network_allowed: false
+server_start_allowed: false
+runtime_api_allowed: false
+data_staging_allowed: false
+
+allowed_source_kinds:
+  - official_reference_metadata
+  - synthetic_learning_resource
+  - teacher_authored_metadata
+  - taxonomy_reference
+  - codex_report
+  - internal_protocol
+
+forbidden_source_kinds:
+  - real_document_file
+  - pdf_file
+  - docx_file
+  - pptx_file
+  - xlsx_file
+  - unknown_rights
+  - private_student_data
+  - external_url_unreviewed
+  - parsing_required
+  - embeddings_required
+  - qdrant_required
+
+required_source_fields:
+  - source_id
+  - title
+  - source_kind
+  - subject
+  - level
+  - track
+  - teaching_status
+  - provenance
+  - rights_status
+  - license_status
+  - visibility
+  - pii_status
+  - real_file_attached
+  - external_url_required
+  - human_review_required
+  - admission_decision
+  - refusal_reason
+
+allowed_admission_decisions:
+  - admit_metadata_only
+  - refuse_real_document
+  - refuse_unknown_rights
+  - refuse_private_data
+  - require_human_review
+
+candidate_sources:
+  - source_id: official_programme_metadata_reference
+    title: Programme officiel mathématiques terminale spécialité — référence metadata-only
+    source_kind: official_reference_metadata
+    subject: mathematiques
+    level: terminale
+    track: generale
+    teaching_status: specialite
+    provenance: official_reference_metadata
+    rights_status: allowed_for_metadata_reference
+    license_status: metadata_reference_only
+    visibility: internal_review_only
+    pii_status: no_personal_data
+    real_file_attached: false
+    external_url_required: false
+    human_review_required: true
+    admission_decision: admit_metadata_only
+    refusal_reason: none
+
+  - source_id: synthetic_exercise_metadata_sample
+    title: Descripteur synthétique d’exercice sur les suites
+    source_kind: synthetic_learning_resource
+    subject: mathematiques
+    level: terminale
+    track: generale
+    teaching_status: specialite
+    provenance: synthetic_metadata
+    rights_status: owned_or_synthetic
+    license_status: internal_metadata_only
+    visibility: internal_review_only
+    pii_status: no_personal_data
+    real_file_attached: false
+    external_url_required: false
+    human_review_required: true
+    admission_decision: admit_metadata_only
+    refusal_reason: none
+
+  - source_id: refused_unknown_rights_example
+    title: Exemple refusé pour droits inconnus
+    source_kind: unknown_rights
+    subject: mathematiques
+    level: terminale
+    track: generale
+    teaching_status: specialite
+    provenance: unknown
+    rights_status: unknown
+    license_status: unknown
+    visibility: blocked
+    pii_status: unknown
+    real_file_attached: false
+    external_url_required: false
+    human_review_required: true
+    admission_decision: refuse_unknown_rights
+    refusal_reason: rights_unknown

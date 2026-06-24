@@ -1,0 +1,26 @@
+version: 1
+commands:
+  - command: make doctor
+    purpose: Verify base scaffold and obvious secret exclusions.
+  - command: make test
+    purpose: Run the full pytest suite.
+  - command: make project-doctor
+    purpose: Verify agent-ready docs, contracts and security invariants.
+  - command: make ledger-init
+    purpose: Initialize the local SQLite ledger.
+  - command: make ledger-doctor
+    purpose: Initialize and diagnose the SQLite ledger.
+  - command: make manifest-readiness
+    purpose: Generate readiness report for the problem fixture.
+  - command: make manifest-coverage
+    purpose: Generate coverage report for the problem fixture.
+  - command: make manifest-gate
+    purpose: Generate gate report for the problem fixture.
+  - command: make manifest-gate-clean
+    purpose: Generate gate report for a clean fixture.
+  - command: make review-package-clean-audited
+    purpose: Generate an audited review package for the official profiles fixture.
+  - command: python -m rag_pedago.imports.controlled_import_cli
+    purpose: Run controlled manifest import, optionally with review and audit ledger.
+  - command: python -m rag_pedago.project_doctor
+    purpose: Run extended project checks.

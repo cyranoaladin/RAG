@@ -1,0 +1,108 @@
+contract_id: pedago_interface_metadata_contract_v1
+status: metadata_only_interface_contract
+pilot_scope_ref: math_terminale_specialite_metadata_only_v1
+retrieval_eval_ref: math_terminale_specialite_metadata_retrieval_eval_v1
+
+runtime_api_allowed: false
+server_start_allowed: false
+ui_runtime_allowed: false
+real_documents_allowed: false
+pdf_allowed: false
+ingestion_allowed: false
+parsing_allowed: false
+chunking_allowed: false
+embeddings_allowed: false
+qdrant_allowed: false
+network_allowed: false
+answer_generation_allowed: false
+data_staging_allowed: false
+
+allowed_personas:
+  - eleve
+  - enseignant
+  - administrateur_pedagogique
+
+required_personas:
+  - eleve
+  - enseignant
+  - administrateur_pedagogique
+
+required_interaction_fields:
+  - interaction_id
+  - persona
+  - intent
+  - input_kind
+  - expected_behavior
+  - citation_policy
+  - refusal_policy
+  - metadata_filters_required
+  - human_review_required
+
+citation_policy:
+  citations_required: true
+  answer_without_source_allowed: false
+  source_trace_required: true
+
+refusal_policy:
+  refusal_required_when_no_source: true
+  refusal_required_for_real_document_request: true
+  refusal_required_for_unknown_rights: true
+  no_answer_generation_on_refusal: true
+
+interactions:
+  - interaction_id: eleve_recherche_fiche_cours
+    persona: eleve
+    intent: search_learning_resource
+    input_kind: synthetic_query
+    expected_behavior: metadata_filter_preview
+    metadata_filters_required:
+      - niveau
+      - voie
+      - matiere
+      - statut_enseignement
+      - type_doc
+      - rights
+      - visibility
+      - notions
+    citation_policy:
+      citations_required: true
+      answer_without_source_allowed: false
+    refusal_policy:
+      refusal_required_when_no_source: true
+      no_answer_generation_on_refusal: true
+    human_review_required: false
+
+  - interaction_id: enseignant_revue_resultat
+    persona: enseignant
+    intent: review_retrieval_candidate
+    input_kind: synthetic_review_case
+    expected_behavior: human_review_required
+    metadata_filters_required:
+      - niveau
+      - voie
+      - matiere
+      - statut_enseignement
+      - rights
+      - visibility
+    citation_policy:
+      citations_required: true
+      answer_without_source_allowed: false
+    refusal_policy:
+      refusal_required_when_no_source: true
+      no_answer_generation_on_refusal: true
+    human_review_required: true
+
+  - interaction_id: administrateur_validation_refus
+    persona: administrateur_pedagogique
+    intent: validate_controlled_refusal
+    input_kind: synthetic_refusal_case
+    expected_behavior: controlled_refusal
+    metadata_filters_required: []
+    citation_policy:
+      citations_required: true
+      answer_without_source_allowed: false
+    refusal_policy:
+      refusal_required_for_real_document_request: true
+      refusal_required_for_unknown_rights: true
+      no_answer_generation_on_refusal: true
+    human_review_required: true

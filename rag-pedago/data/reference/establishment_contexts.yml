@@ -1,0 +1,38 @@
+establishment_contexts:
+  - context_id: aefe
+    label: AEFE
+    description: Élève scolarisé dans un établissement du réseau AEFE ou assimilé selon la zone.
+    official_sources:
+      - education_bac_general
+      - aix_marseille_bac_tunisie
+    warnings:
+      - Le contexte AEFE ne remplace pas le statut candidat d'examen.
+  - context_id: systeme_francais_hors_aefe
+    label: Système français hors AEFE
+    description: Élève suivant un cursus français hors réseau AEFE confirmé.
+    official_sources:
+      - education_bac_general
+    warnings:
+      - Vérifier l'établissement et le centre d'examen.
+  - context_id: systeme_tunisien
+    label: Système tunisien
+    description: Élève scolarisé dans le système tunisien préparant une certification française.
+    official_sources:
+      - aix_marseille_bac_tunisie
+    verification_status: pending
+    warnings:
+      - Information locale non confirmée — à vérifier manuellement par Nexus.
+  - context_id: double_cursus
+    label: Double cursus
+    description: Élève suivant deux cadres scolaires ou pédagogiques simultanément.
+    official_sources:
+      - education_bac_general
+    warnings:
+      - La carte d'examen doit trancher les épreuves applicables.
+  - context_id: cned
+    label: CNED
+    description: Élève inscrit au CNED réglementé ou libre.
+    official_sources:
+      - eduscol_candidats_individuels_bac
+    warnings:
+      - Distinguer CNED réglementé et CNED libre.

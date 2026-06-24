@@ -1,0 +1,32 @@
+types_documents:
+  - programme_officiel
+  - ressource_officielle
+  - cours
+  - fiche_synthese
+  - fiche_methode
+  - td
+  - tp
+  - exercice
+  - exercice_corrige
+  - devoir
+  - devoir_corrige
+  - evaluation
+  - evaluation_corrigee
+  - bac_blanc
+  - brevet_blanc
+  - annale
+  - sujet_zero
+  - corrige
+  - bareme
+  - grille_evaluation
+  - grille_grand_oral
+  - oral
+  - diaporama
+  - latex
+  - notebook
+  - code
+  - image
+  - scan
+  - copie
+  - rapport
+

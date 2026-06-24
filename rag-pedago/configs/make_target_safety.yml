@@ -1,0 +1,70 @@
+SAFE_DIAGNOSTIC:
+  - doctor
+  - project-doctor
+  - make-target-safety-audit
+
+SAFE_METADATA_ONLY:
+  - metadata-preflight
+  - pilot-template-check
+  - pilot-compile-check
+  - pilot-rehearsal
+  - real-draft-guard-check
+  - human-unlock-check
+  - real-draft-unlock-gate-check
+  - pilot-corpus-scope-audit
+  - retrieval-metadata-eval-audit
+  - pedago-interface-contract-audit
+  - source-admission-policy-audit
+  - human-source-review-audit
+  - controlled-readiness-audit
+  - transition-authorization-audit
+  - metadata-governance-chain-audit
+  - metadata-review-handoff-audit
+
+SAFE_CLEANUP_REVIEW:
+  - cleanup-dry-run
+  - cleanup-review
+  - cleanup-decision-draft
+
+SAFE_TESTING:
+  - test
+  - lint
+  - typecheck
+
+RESTRICTED_METADATA_IMPORT:
+  - ledger-init
+  - ledger-doctor
+  - manifest-import-fixture
+  - manifest-dir-dry-run
+  - manifest-dir-import-fixture
+  - manifest-readiness
+  - manifest-coverage
+  - manifest-gate
+  - manifest-readiness-clean
+  - manifest-coverage-clean
+  - manifest-gate-clean
+  - manifest-controlled-import-clean
+  - manifest-controlled-import-problem
+  - review-package-clean-audited
+
+RESTRICTED_RUNTIME:
+  - watch
+  - api
+
+RESTRICTED_NETWORK:
+  - install
+  - scrape-official
+
+RESTRICTED_DESTRUCTIVE_OR_BACKUP:
+  - format
+  - backup
+
+FUTURE_NOT_READY:
+  - init
+  - ingest
+  - ingest-official
+  - ingest-internal
+  - verify
+  - eval-retrieval
+
+UNKNOWN: []

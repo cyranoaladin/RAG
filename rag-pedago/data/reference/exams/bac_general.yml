@@ -1,0 +1,30 @@
+exam_id: bac_general
+label: Baccalauréat général
+level_id: terminale_generale
+session: 2027
+candidate_types:
+  - scolarise
+  - candidat_individuel
+  - cned_libre
+  - cned_reglemente
+exam_parts:
+  - controle_continu
+  - eaf_ecrit
+  - eaf_oral
+  - anticipee_maths
+  - bac_specialite_ecrit
+  - philosophie
+  - grand_oral
+is_anticipated: false
+is_terminal: true
+control_continu_weight: 40
+terminal_weight: 60
+coefficients: {}
+durations: {}
+official_sources:
+  - education_bac_general
+  - education_bac_questions
+  - education_bac_calcul_note
+  - eduscol_candidats_individuels_bac
+warnings:
+  - Les convocations et textes de session font foi pour chaque candidat.

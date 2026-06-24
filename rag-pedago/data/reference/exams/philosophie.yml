@@ -1,0 +1,14 @@
+exam_id: philosophie
+label: Philosophie
+level_id: terminale_generale
+candidate_types:
+  - scolarise
+  - candidat_individuel
+  - cned_reglemente
+  - cned_libre
+exam_parts:
+  - philosophie
+is_terminal: true
+official_sources:
+  - education_bac_general
+  - education_bac_questions

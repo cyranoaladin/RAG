@@ -1,0 +1,47 @@
+level_id: seconde_generale_technologique
+label: Seconde générale et technologique
+cycle: lycee_gt
+voie: generale_technologique
+school_year: "2026-2027"
+common_subjects:
+  - francais
+  - histoire_geographie
+  - emc
+  - langues_vivantes_a_b
+  - ses
+  - mathematiques
+  - physique_chimie
+  - svt
+  - eps
+  - snt
+optional_subjects:
+  - lca_latin
+  - lca_grec
+  - langue_vivante_c
+  - arts
+  - eps_option
+  - management_gestion
+  - sante_social
+  - biotechnologies
+  - sciences_laboratoire
+  - sciences_ingenieur
+  - creation_innovation_technologiques
+specialties_available:
+  - mathematiques
+  - nsi
+  - physique_chimie
+  - svt
+  - ses
+  - hggsp
+  - humanites_litterature_philosophie
+  - langues_litteratures_cultures_etrangeres
+  - arts
+  - sciences_ingenieur
+  - litterature_langues_cultures_antiquite
+  - education_physique_pratiques_culture_sportives
+expected_outcomes_ref:
+  - orientation_vers_premiere
+exam_refs: []
+official_sources:
+  - education_seconde_gt
+  - education_voie_generale

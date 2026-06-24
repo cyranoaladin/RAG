@@ -1,0 +1,117 @@
+/srv/nexusreussite/rag-ui
+├── app
+│   └── public
+│       ├── index.html
+│       └── robots.txt
+├── backups
+├── compose
+│   ├── .env
+│   ├── creds
+│   ├── docker-compose.yml
+│   ├── docker-compose.yml.bak
+│   ├── ingestor
+│   │   ├── Dockerfile
+│   │   ├── __init__.py
+│   │   ├── __pycache__
+│   │   │   ├── api.cpython-312.pyc
+│   │   │   └── drive_sync.cpython-312.pyc
+│   │   ├── admin_api.py
+│   │   ├── api.py
+│   │   ├── api.py.bak_
+│   │   ├── api.py.bak_20260317
+│   │   ├── api.py.bak_20260418_102840
+│   │   ├── api.py.bak_20260418_180047
+│   │   ├── api.py.bak_20260419_021806
+│   │   ├── api.py.bak_20260419_023429
+│   │   ├── api.py.bak_20260419_085531
+│   │   ├── api.py.bak_20260419_090324
+│   │   ├── api.py.bak_20260419_093136
+│   │   ├── api.py.bak_20260419_094222
+│   │   ├── audit_logger.py
+│   │   ├── catalog.py
+│   │   ├── database.py
+│   │   ├── drive_sync.py
+│   │   ├── drive_sync.py.bak_20260418_102840
+│   │   ├── drive_sync.py.bak_20260419_023429
+│   │   ├── embedding_service.py
+│   │   ├── hybrid_search.py
+│   │   ├── metrics.py
+│   │   ├── mm_adapter.py
+│   │   ├── requirements.txt
+│   │   ├── requirements.v2.txt
+│   │   ├── search_api.py
+│   │   └── tasks.py
+│   ├── prometheus
+│   │   ├── prometheus.yml
+│   │   └── rules
+│   │       ├── ingestor.rules.yml
+│   │       └── rag-alerts.yml
+│   ├── prometheus.yml
+│   ├── scripts
+│   │   └── backfill_dedicated_collection.py
+│   └── ui
+│       ├── .streamlit
+│       │   └── config.toml
+│       ├── Dockerfile
+│       ├── __pycache__
+│       │   └── app_v2.cpython-312.pyc
+│       ├── app.py
+│       ├── app_v2.py
+│       ├── app_v2.py.bak_
+│       ├── app_v2.py.bak_20260317
+│       ├── app_v2.py.bak_20260418_105020
+│       ├── app_v2.py.bak_20260418_180047
+│       ├── app_v2.py.bak_20260419_021806
+│       └── requirements.txt
+├── creds
+│   └── gdrive-sa.json
+├── data
+│   └── uploads
+│       ├── 0745e1dd2a9e4b0483a02bf459515a8a-rubric_json#content-80e30fa937b188fc447e66efd6e240db5bec8d41fdd2c4adbc0e4bf89bbdbf82-chunk-20.md
+│       ├── 07876b15757a49a199036fe29862eb54-exams_97692e55-bbce-41ad-b2c3-f5776f541e73_rubric.pdf#content-e7b932ee017ba5b603de987c98ffe715ab65e41c8a8c050f3c7b4134019c0e00-chunk-1.md
+│       ├── 09fdcb7bc63541fb9ff545e148516f39-exams_c63a17f0-b77f-45a8-9a1f-dcd7ee36ccbf_correction.pdf#content-f9838ed8795ef6a5b66946fb062cadddff0e6f631944caaa3575c31d2a428878-chunk-0.md
+│       ├── 0ad9cdac1a494bf0ae618cce939c8f70-rubric_json#content-80e30fa937b188fc447e66efd6e240db5bec8d41fdd2c4adbc0e4bf89bbdbf82-chunk-13.md
+│       ├── 132c6c38215a4c9ebd56307264014e0e-rubric_json#content-80e30fa937b188fc447e66efd6e240db5bec8d41fdd2c4adbc0e4bf89bbdbf82-chunk-6.md
+│       ├── 13d082b3847f4824be1556887581dde4-rubric_json#content-80e30fa937b188fc447e66efd6e240db5bec8d41fdd2c4adbc0e4bf89bbdbf82-chunk-5.md
+│       ├── 22e74ef425074eddb1a5d9e25b2fa7db-rubric_json#content-80e30fa937b188fc447e66efd6e240db5bec8d41fdd2c4adbc0e4bf89bbdbf82-chunk-3.md
+│       ├── 2890e8d9eb4b4b3091a4e12d76ff0371-rubric_json#content-80e30fa937b188fc447e66efd6e240db5bec8d41fdd2c4adbc0e4bf89bbdbf82-chunk-25.md
+│       ├── 2edc7664ec2546999bc07f2345f5f6b2-rubric_json#content-80e30fa937b188fc447e66efd6e240db5bec8d41fdd2c4adbc0e4bf89bbdbf82-chunk-8.md
+│       ├── 342941d73a5e4f0cb6b1d8d32e228e6e-rubric_json#content-80e30fa937b188fc447e66efd6e240db5bec8d41fdd2c4adbc0e4bf89bbdbf82-chunk-14.md
+│       ├── 3952f4a11c294b46bac1941157c6d561-rubric_json#content-f7819dbd2386cdd02962abda70e45271c7a9cba2c3c31b30559d393b47c0ea87-chunk-1.md
+│       ├── 3b5843d623b9419cb3f7f180d602330e-rubric_json#content-80e30fa937b188fc447e66efd6e240db5bec8d41fdd2c4adbc0e4bf89bbdbf82-chunk-11.md
+│       ├── 3ed6db75104b4083aa5564617718d65a-rubric_json#content-80e30fa937b188fc447e66efd6e240db5bec8d41fdd2c4adbc0e4bf89bbdbf82-chunk-28.md
+│       ├── 48f1b6c8fe9e4071a21abdacddb42959-rubric_json#content-80e30fa937b188fc447e66efd6e240db5bec8d41fdd2c4adbc0e4bf89bbdbf82-chunk-7.md
+│       ├── 4906ae56269d4678ad04ae086f6bcb8e-rubric_json#content-80e30fa937b188fc447e66efd6e240db5bec8d41fdd2c4adbc0e4bf89bbdbf82-chunk-31.md
+│       ├── 4a55411d50bb483cbcad2c41e55cde0e-exams_97692e55-bbce-41ad-b2c3-f5776f541e73_rubric.pdf#content-e7b932ee017ba5b603de987c98ffe715ab65e41c8a8c050f3c7b4134019c0e00-chunk-2.md
+│       ├── 4b689c95c8ec467f93bf2cafae74b710-exams_97692e55-bbce-41ad-b2c3-f5776f541e73_correction.pdf#content-9faaba866b99d5e0905eedc17e2900c8e51a6e80b82ddea0f1b7aa52093b5c49-chunk-1.md
+│       ├── 4ffdac6b03874234b1b15b05af99e3f0-rubric_json#content-80e30fa937b188fc447e66efd6e240db5bec8d41fdd2c4adbc0e4bf89bbdbf82-chunk-32.md
+│       ├── 5511570cde7b4dbab4a2791e9ccea74b-rubric_json#content-80e30fa937b188fc447e66efd6e240db5bec8d41fdd2c4adbc0e4bf89bbdbf82-chunk-27.md
+│       ├── 5923bea5c7024b6bbf781694d868368a-rubric_json#content-80e30fa937b188fc447e66efd6e240db5bec8d41fdd2c4adbc0e4bf89bbdbf82-chunk-24.md
+│       ├── 5d0d55342fa24316bd6d5e996230cff5-rubric_json#content-80e30fa937b188fc447e66efd6e240db5bec8d41fdd2c4adbc0e4bf89bbdbf82-chunk-18.md
+│       ├── 5f59be2fce6444908ec08b509542fe9a-rubric_json#content-80e30fa937b188fc447e66efd6e240db5bec8d41fdd2c4adbc0e4bf89bbdbf82-chunk-4.md
+│       ├── 66be188378024ddd8455fb2877384971-rubric_json#content-80e30fa937b188fc447e66efd6e240db5bec8d41fdd2c4adbc0e4bf89bbdbf82-chunk-10.md
+│       ├── 67e8baa1ee70452baa611896c94e0113-rubric_json#content-80e30fa937b188fc447e66efd6e240db5bec8d41fdd2c4adbc0e4bf89bbdbf82-chunk-29.md
+│       ├── 737970bef2604cbe8a6bae20be88e4f9-rubric_json#content-f7819dbd2386cdd02962abda70e45271c7a9cba2c3c31b30559d393b47c0ea87-chunk-0.md
+│       ├── 7ee505c2c3834c2abd31b191879203bc-rubric_json#content-80e30fa937b188fc447e66efd6e240db5bec8d41fdd2c4adbc0e4bf89bbdbf82-chunk-21.md
+│       ├── 82ebc29101344906b968833309991808-rubric_json#content-80e30fa937b188fc447e66efd6e240db5bec8d41fdd2c4adbc0e4bf89bbdbf82-chunk-19.md
+│       ├── 8d7f1ce8757747399a538f234177b0e6-rubric_json#content-80e30fa937b188fc447e66efd6e240db5bec8d41fdd2c4adbc0e4bf89bbdbf82-chunk-0.md
+│       ├── 8d8faf00669e4bbaac42bfa19aa1524b-rubric_json#content-80e30fa937b188fc447e66efd6e240db5bec8d41fdd2c4adbc0e4bf89bbdbf82-chunk-23.md
+│       ├── 96cddd5ff4624531997c12583df828c3-rubric_json#content-80e30fa937b188fc447e66efd6e240db5bec8d41fdd2c4adbc0e4bf89bbdbf82-chunk-30.md
+│       ├── 9d0f0f7e9b244d9faca87efa1b91c24e-rubric_json#content-80e30fa937b188fc447e66efd6e240db5bec8d41fdd2c4adbc0e4bf89bbdbf82-chunk-12.md
+│       ├── a87a3a238a3d451e94333566b1a33b79-exams_97692e55-bbce-41ad-b2c3-f5776f541e73_correction.pdf#content-9faaba866b99d5e0905eedc17e2900c8e51a6e80b82ddea0f1b7aa52093b5c49-chunk-2.md
+│       ├── b137008a12184f04ac9d8f6c31919855-test_rag_maths_3e_dnb.txt
+│       ├── b25bf365b98a43098cbd4615af3104cd-rubric_json#content-80e30fa937b188fc447e66efd6e240db5bec8d41fdd2c4adbc0e4bf89bbdbf82-chunk-26.md
+│       ├── b3a4705e63a045b18924dae98bb6537f-rubric_json#content-80e30fa937b188fc447e66efd6e240db5bec8d41fdd2c4adbc0e4bf89bbdbf82-chunk-16.md
+│       ├── bdd8169540014de2b1a4ca6c111d7c1b-exams_c63a17f0-b77f-45a8-9a1f-dcd7ee36ccbf_correction.pdf#content-f9838ed8795ef6a5b66946fb062cadddff0e6f631944caaa3575c31d2a428878-chunk-1.md
+│       ├── bf17fafe0f674f568082c66ae4872821-exams_97692e55-bbce-41ad-b2c3-f5776f541e73_correction.pdf#content-9faaba866b99d5e0905eedc17e2900c8e51a6e80b82ddea0f1b7aa52093b5c49-chunk-3.md
+│       ├── bf1e066074b84f01861ffb9c5db03192-rubric_json#content-80e30fa937b188fc447e66efd6e240db5bec8d41fdd2c4adbc0e4bf89bbdbf82-chunk-2.md
+│       ├── c0a2f105cd694276b23dde2abbe80c41-exams_97692e55-bbce-41ad-b2c3-f5776f541e73_correction.pdf#content-9faaba866b99d5e0905eedc17e2900c8e51a6e80b82ddea0f1b7aa52093b5c49-chunk-0.md
+│       ├── cc52db87ae37407e90c1555333e5d8b4-rubric_json#content-80e30fa937b188fc447e66efd6e240db5bec8d41fdd2c4adbc0e4bf89bbdbf82-chunk-17.md
+│       ├── ccf9f0173434443dae70ba5bb8fbb02e-rubric_json#content-80e30fa937b188fc447e66efd6e240db5bec8d41fdd2c4adbc0e4bf89bbdbf82-chunk-9.md
+│       ├── d398e2dc58444e889fa603b8b85988c4-exams_97692e55-bbce-41ad-b2c3-f5776f541e73_rubric.pdf#content-e7b932ee017ba5b603de987c98ffe715ab65e41c8a8c050f3c7b4134019c0e00-chunk-0.md
+│       ├── d76c4727ce564a2f8eae462d9d11b876-rubric_json#content-80e30fa937b188fc447e66efd6e240db5bec8d41fdd2c4adbc0e4bf89bbdbf82-chunk-1.md
+│       ├── e22ad7b378434a7b82cde9d9f353fa5e-rubric_json#content-80e30fa937b188fc447e66efd6e240db5bec8d41fdd2c4adbc0e4bf89bbdbf82-chunk-15.md
+│       └── ea2d9b0c1d9347bc93c11f7880559f37-rubric_json#content-80e30fa937b188fc447e66efd6e240db5bec8d41fdd2c4adbc0e4bf89bbdbf82-chunk-22.md
+└── logs
+
+18 directories, 97 files

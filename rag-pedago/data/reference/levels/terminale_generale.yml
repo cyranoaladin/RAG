@@ -1,0 +1,47 @@
+level_id: terminale_generale
+label: Terminale générale
+cycle: lycee_gt
+voie: generale
+school_year: "2026-2027"
+common_subjects:
+  - philosophie
+  - histoire_geographie
+  - emc
+  - langues_vivantes_a_b
+  - enseignement_scientifique
+  - eps
+optional_subjects:
+  - maths_expertes
+  - maths_complementaires
+  - dgemc
+  - lca_latin
+  - lca_grec
+  - langue_vivante_c
+  - arts
+  - eps_option
+specialties_available:
+  - mathematiques
+  - nsi
+  - physique_chimie
+  - svt
+  - ses
+  - hggsp
+  - humanites_litterature_philosophie
+  - langues_litteratures_cultures_etrangeres
+  - arts
+  - sciences_ingenieur
+  - litterature_langues_cultures_antiquite
+  - education_physique_pratiques_culture_sportives
+expected_specialties_count: 2
+expected_outcomes_ref:
+  - deux_enseignements_specialite_conserves
+exam_refs:
+  - bac_general
+  - bac_specialite_ecrit
+  - philosophie
+  - grand_oral
+  - controle_continu_bac
+official_sources:
+  - education_voie_generale
+  - education_bac_general
+  - education_bac_questions

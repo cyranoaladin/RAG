@@ -1,0 +1,214 @@
+eval_id: math_terminale_specialite_metadata_retrieval_eval_v1
+status: metadata_only_eval
+pilot_scope_ref: math_terminale_specialite_metadata_only_v1
+real_documents_allowed: false
+pdf_allowed: false
+docx_allowed: false
+pptx_allowed: false
+xlsx_allowed: false
+ingestion_allowed: false
+parsing_allowed: false
+chunking_allowed: false
+embeddings_allowed: false
+qdrant_allowed: false
+network_allowed: false
+answer_generation_allowed: false
+data_staging_allowed: false
+
+required_filter_fields:
+  - niveau
+  - voie
+  - matiere
+  - statut_enseignement
+  - type_doc
+  - epreuve
+  - candidat
+  - rights
+  - visibility
+  - official_refs
+  - notions
+  - competences
+
+required_case_fields:
+  - case_id
+  - query
+  - student_profile
+  - expected_filters
+  - expected_citation_policy
+  - expected_behavior
+  - pedagogical_relevance_criteria
+
+citation_policy:
+  citations_required: true
+  answer_without_source_allowed: false
+  source_trace_required: true
+
+cases:
+  - case_id: cours_limites_continuite
+    query: "Je cherche une fiche de cours sur les limites et la continuité en terminale spécialité maths."
+    student_profile:
+      niveau: terminale
+      voie: generale
+      matiere: mathematiques
+      statut_enseignement: specialite
+      candidat: scolarise
+    expected_filters:
+      niveau: terminale
+      voie: generale
+      matiere: mathematiques
+      statut_enseignement: specialite
+      type_doc: fiche_synthese
+      epreuve: aucune
+      candidat: scolarise
+      rights: allowed_for_retrieval
+      visibility: student_visible
+      official_refs: required_if_available
+      notions:
+        - limites
+        - continuite
+      competences:
+        - raisonner
+        - communiquer
+    expected_citation_policy:
+      citations_required: true
+      answer_without_source_allowed: false
+    expected_behavior: metadata_filter_only
+    pedagogical_relevance_criteria:
+      - notion_match
+      - level_match
+      - teaching_match
+      - citation_required
+
+  - case_id: exercice_probabilites_conditionnelles
+    query: "Je veux un exercice progressif sur les probabilités conditionnelles."
+    student_profile:
+      niveau: terminale
+      voie: generale
+      matiere: mathematiques
+      statut_enseignement: specialite
+      candidat: scolarise
+    expected_filters:
+      niveau: terminale
+      voie: generale
+      matiere: mathematiques
+      statut_enseignement: specialite
+      type_doc: exercice
+      epreuve: aucune
+      candidat: scolarise
+      rights: allowed_for_retrieval
+      visibility: student_visible
+      official_refs: optional
+      notions:
+        - probabilites_conditionnelles
+      competences:
+        - chercher
+        - calculer
+    expected_citation_policy:
+      citations_required: true
+      answer_without_source_allowed: false
+    expected_behavior: metadata_filter_only
+    pedagogical_relevance_criteria:
+      - notion_match
+      - difficulty_progression
+      - citation_required
+
+  - case_id: sujet_type_bac_suites
+    query: "Je prépare le bac et je veux un sujet type sur les suites."
+    student_profile:
+      niveau: terminale
+      voie: generale
+      matiere: mathematiques
+      statut_enseignement: specialite
+      candidat: scolarise
+    expected_filters:
+      niveau: terminale
+      voie: generale
+      matiere: mathematiques
+      statut_enseignement: specialite
+      type_doc: annale
+      epreuve: bac_specialite_ecrit
+      candidat: scolarise
+      rights: allowed_for_retrieval
+      visibility: student_visible
+      official_refs: required
+      notions:
+        - suites
+      competences:
+        - raisonner
+        - calculer
+    expected_citation_policy:
+      citations_required: true
+      answer_without_source_allowed: false
+    expected_behavior: metadata_filter_only
+    pedagogical_relevance_criteria:
+      - exam_match
+      - notion_match
+      - citation_required
+
+  - case_id: correction_recurrence
+    query: "Je cherche une correction expliquée sur un raisonnement par récurrence."
+    student_profile:
+      niveau: terminale
+      voie: generale
+      matiere: mathematiques
+      statut_enseignement: specialite
+      candidat: scolarise
+    expected_filters:
+      niveau: terminale
+      voie: generale
+      matiere: mathematiques
+      statut_enseignement: specialite
+      type_doc: exercice_corrige
+      epreuve: aucune
+      candidat: scolarise
+      rights: allowed_for_retrieval
+      visibility: student_visible
+      official_refs: optional
+      notions:
+        - recurrence
+      competences:
+        - raisonner
+        - communiquer
+    expected_citation_policy:
+      citations_required: true
+      answer_without_source_allowed: false
+    expected_behavior: metadata_filter_only
+    pedagogical_relevance_criteria:
+      - correction_expected
+      - notion_match
+      - citation_required
+
+  - case_id: refus_document_reel_requis
+    query: "Donne-moi le contenu exact du dernier PDF importé."
+    student_profile:
+      niveau: terminale
+      voie: generale
+      matiere: mathematiques
+      statut_enseignement: specialite
+      candidat: scolarise
+    expected_filters: {}
+    expected_citation_policy:
+      citations_required: true
+      answer_without_source_allowed: false
+    expected_behavior: refuse_no_real_document_access
+    pedagogical_relevance_criteria:
+      - must_refuse_real_document_access
+      - no_answer_generation
+
+  - case_id: refus_droits_inconnus
+    query: "Utilise une ressource dont les droits ne sont pas renseignés."
+    student_profile:
+      niveau: terminale
+      voie: generale
+      matiere: mathematiques
+      statut_enseignement: specialite
+      candidat: scolarise
+    expected_filters: {}
+    expected_citation_policy:
+      citations_required: true
+      answer_without_source_allowed: false
+    expected_behavior: refuse_rights_unknown
+    pedagogical_relevance_criteria:
+      - must_refuse_unknown_rights
+      - citation_required
+      - no_answer_generation

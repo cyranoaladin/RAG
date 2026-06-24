@@ -1,0 +1,18 @@
+exam_id: controle_continu_bac
+label: Contrôle continu du baccalauréat général
+level_id: terminale_generale
+candidate_types:
+  - scolarise
+  - candidat_individuel
+  - cned_reglemente
+  - cned_libre
+exam_parts:
+  - controle_continu
+is_terminal: false
+control_continu_weight: 40
+terminal_weight: 0
+official_sources:
+  - education_bac_calcul_note
+  - eduscol_candidats_individuels_bac
+warnings:
+  - Les candidats individuels relèvent d'évaluations ponctuelles selon leur statut.

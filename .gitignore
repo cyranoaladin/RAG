@@ -1,2 +1,9 @@
-rag-local/
-rag-pedago/
+.venv/
+__pycache__/
+*.pyc
+*.db
+*.egg-info/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+node_modules/

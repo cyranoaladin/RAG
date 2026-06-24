@@ -1,0 +1,31 @@
+version: 1
+absolute_interdictions:
+  - No current step may open a source_uri.
+  - No current step may use network access.
+  - No current step may parse a document or PDF.
+  - No current step may perform OCR.
+  - No current step may connect Qdrant.
+  - No current step may connect PostgreSQL.
+  - No current step may call an LLM runtime.
+  - No current step may copy secrets, credentials, production env files or uploads.
+  - No current step may modify /home/alaeddine/Bureau/RAG/rag-local.
+  - No current step may modify /srv/nexusreussite/rag-ui.
+  - Ne jamais modifier schema/document.py sans tâche dédiée explicite.
+  - Ne jamais modifier à la main des taxonomies officielles déjà validées.
+  - Ne jamais réécrire un document source.
+  - Ne jamais modifier un fichier brut dans data/raw.
+  - Ne jamais retraiter si le hash d'entrée n'a pas changé.
+  - Ne jamais créer de doublon vectoriel pour un même chunk_id.
+  - Ne jamais lancer de scraping massif non limité.
+  - Toujours respecter robots.txt lorsque la source l'exige.
+  - Ne jamais mélanger ressources propriétaires Nexus et ressources publiques sans rights et visibility.
+  - Ne jamais exposer une ressource propriétaire dans un contexte public.
+  - Un document avec rights=unknown doit être bloqué tant qu'il n'est pas qualifié.
+  - Ne jamais utiliser un LLM comme source de vérité finale sans validation.
+required_guarantees:
+  - Manifest workflows are metadata-only.
+  - Review approval is bound to hashes.
+  - Controlled import must run the gate before metadata ledger writes.
+  - Runtime audit writes are distinct from document ingestion writes.
+  - Toute étape d'ingestion doit être reprenable après interruption.
+  - Le ledger est la source de vérité de l'état du pipeline.

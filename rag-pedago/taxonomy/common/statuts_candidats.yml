@@ -1,0 +1,16 @@
+candidats:
+  - id: scolarise
+    controle_continu_applicable: true
+  - id: individuel
+    controle_continu_applicable: false
+  - id: libre
+    controle_continu_applicable: false
+  - id: cned_reglemente
+    controle_continu_applicable: true
+  - id: cned_libre
+    controle_continu_applicable: false
+  - id: aefe
+    controle_continu_applicable: true
+  - id: both
+    controle_continu_applicable: null
+

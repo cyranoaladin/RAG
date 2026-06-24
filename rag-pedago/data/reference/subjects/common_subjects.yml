@@ -1,0 +1,168 @@
+common_subjects:
+  - subject_id: francais
+    label: Français
+    level_id: troisieme_generale
+    is_common: true
+    allowed_level_ids:
+      - troisieme_generale
+      - seconde_generale_technologique
+      - premiere_generale
+    verification_status: pending
+    official_sources:
+      - education_programmes_college
+  - subject_id: mathematiques
+    label: Mathématiques
+    level_id: troisieme_generale
+    is_common: true
+    allowed_level_ids:
+      - troisieme_generale
+      - seconde_generale_technologique
+      - premiere_generale
+      - terminale_generale
+    verification_status: pending
+    official_sources:
+      - education_programmes_college
+  - subject_id: histoire_geographie
+    label: Histoire-géographie
+    level_id: troisieme_generale
+    is_common: true
+    allowed_level_ids:
+      - troisieme_generale
+      - seconde_generale_technologique
+      - premiere_generale
+      - terminale_generale
+    verification_status: pending
+    official_sources:
+      - education_programmes_college
+  - subject_id: emc
+    label: Enseignement moral et civique
+    level_id: troisieme_generale
+    is_common: true
+    allowed_level_ids:
+      - troisieme_generale
+      - seconde_generale_technologique
+      - premiere_generale
+      - terminale_generale
+    verification_status: pending
+    official_sources:
+      - education_programmes_college
+  - subject_id: langues_vivantes
+    label: Langues vivantes
+    level_id: troisieme_generale
+    is_common: true
+    allowed_level_ids:
+      - troisieme_generale
+      - seconde_generale_technologique
+      - premiere_generale
+      - terminale_generale
+    verification_status: pending
+    official_sources:
+      - education_programmes_college
+  - subject_id: physique_chimie
+    label: Physique-chimie
+    level_id: troisieme_generale
+    is_common: true
+    allowed_level_ids:
+      - troisieme_generale
+      - seconde_generale_technologique
+    verification_status: pending
+    official_sources:
+      - education_programmes_college
+  - subject_id: svt
+    label: Sciences de la vie et de la Terre
+    level_id: troisieme_generale
+    is_common: true
+    allowed_level_ids:
+      - troisieme_generale
+      - seconde_generale_technologique
+    verification_status: pending
+    official_sources:
+      - education_programmes_college
+  - subject_id: technologie
+    label: Technologie
+    level_id: troisieme_generale
+    is_common: true
+    allowed_level_ids:
+      - troisieme_generale
+      - seconde_generale_technologique
+    verification_status: pending
+    official_sources:
+      - education_programmes_college
+  - subject_id: arts_plastiques
+    label: Arts plastiques
+    level_id: troisieme_generale
+    is_common: true
+    allowed_level_ids:
+      - troisieme_generale
+    verification_status: pending
+    official_sources:
+      - education_programmes_college
+  - subject_id: education_musicale
+    label: Éducation musicale
+    level_id: troisieme_generale
+    is_common: true
+    allowed_level_ids:
+      - troisieme_generale
+    verification_status: pending
+    official_sources:
+      - education_programmes_college
+  - subject_id: eps
+    label: Éducation physique et sportive
+    level_id: troisieme_generale
+    is_common: true
+    allowed_level_ids:
+      - troisieme_generale
+      - seconde_generale_technologique
+      - premiere_generale
+      - terminale_generale
+    verification_status: pending
+    official_sources:
+      - education_programmes_college
+  - subject_id: langues_vivantes_a_b
+    label: Langues vivantes A et B
+    level_id: seconde_generale_technologique
+    is_common: true
+    allowed_level_ids:
+      - seconde_generale_technologique
+      - premiere_generale
+      - terminale_generale
+    verification_status: pending
+    official_sources:
+      - education_seconde_gt
+  - subject_id: ses
+    label: Sciences économiques et sociales
+    level_id: seconde_generale_technologique
+    is_common: true
+    allowed_level_ids:
+      - seconde_generale_technologique
+    verification_status: pending
+    official_sources:
+      - education_seconde_gt
+  - subject_id: snt
+    label: Sciences numériques et technologie
+    level_id: seconde_generale_technologique
+    is_common: true
+    allowed_level_ids:
+      - seconde_generale_technologique
+    verification_status: pending
+    official_sources:
+      - education_seconde_gt
+  - subject_id: enseignement_scientifique
+    label: Enseignement scientifique
+    level_id: premiere_generale
+    is_common: true
+    allowed_level_ids:
+      - premiere_generale
+      - terminale_generale
+    verification_status: pending
+    official_sources:
+      - education_voie_generale
+  - subject_id: philosophie
+    label: Philosophie
+    level_id: terminale_generale
+    is_common: true
+    allowed_level_ids:
+      - terminale_generale
+    verification_status: pending
+    official_sources:
+      - education_bac_general

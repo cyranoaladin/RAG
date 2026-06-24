@@ -1,0 +1,15 @@
+epreuves:
+  - dnb
+  - eaf_ecrit
+  - eaf_oral
+  - anticipee_maths
+  - bac_specialite_ecrit
+  - bac_specialite_pratique
+  - philosophie
+  - grand_oral
+  - controle_continu
+  - epreuve_ponctuelle
+  - epreuve_remplacement
+  - rattrapage
+  - aucune
+

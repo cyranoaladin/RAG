@@ -1,0 +1,21 @@
+id: anticipee_maths
+label: Epreuve anticipee de mathematiques
+niveau: premiere
+voie:
+  - generale
+  - technologique
+epreuve: anticipee_maths
+candidats:
+  - scolarise
+  - individuel
+  - libre
+  - cned_reglemente
+  - cned_libre
+  - aefe
+metadata_required:
+  - session
+  - school_year_start
+  - school_year_end
+  - candidat
+  - voie
+

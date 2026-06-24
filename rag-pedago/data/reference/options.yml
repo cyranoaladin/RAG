@@ -1,0 +1,56 @@
+options:
+  - subject_id: maths_expertes
+    label: Mathématiques expertes
+    level_id: terminale_generale
+    is_option: true
+    weekly_hours: 3
+    programme_version: terminale-expertes-2020
+    taxonomy_id: maths_terminale_expertes
+    allowed_level_ids:
+      - terminale_generale
+    requires_subjects:
+      - mathematiques
+    official_sources:
+      - education_maths_reforme_lycee
+      - education_bac_general
+  - subject_id: maths_complementaires
+    label: Mathématiques complémentaires
+    level_id: terminale_generale
+    is_option: true
+    weekly_hours: 3
+    programme_version: terminale-complementaires-2020
+    taxonomy_id: maths_terminale_complementaires
+    allowed_level_ids:
+      - terminale_generale
+    excludes_terminal_specialties:
+      - mathematiques
+    official_sources:
+      - education_maths_reforme_lycee
+      - bo_maths_complementaires
+  - subject_id: dgemc
+    label: Droit et grands enjeux du monde contemporain
+    level_id: terminale_generale
+    is_option: true
+    weekly_hours: 3
+    allowed_level_ids:
+      - terminale_generale
+    official_sources:
+      - education_bac_general
+  - subject_id: lca_latin
+    label: Langues et cultures de l'Antiquité - latin
+    level_id: terminale_generale
+    is_option: true
+    allowed_level_ids:
+      - premiere_generale
+      - terminale_generale
+    official_sources:
+      - education_bac_general
+  - subject_id: lca_grec
+    label: Langues et cultures de l'Antiquité - grec
+    level_id: terminale_generale
+    is_option: true
+    allowed_level_ids:
+      - premiere_generale
+      - terminale_generale
+    official_sources:
+      - education_bac_general

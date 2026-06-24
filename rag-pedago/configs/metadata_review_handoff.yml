@@ -1,0 +1,99 @@
+handoff_id: metadata_review_handoff_17C_17J_v1
+status: metadata_only_review_handoff
+governance_chain_ref: metadata_governance_chain_17C_17I_v1
+latest_lot_ref: 17J
+latest_commit_ref: d78b5dbae68d493266e89257781a3ec7df47e44b
+
+real_documents_allowed: false
+pdf_allowed: false
+docx_allowed: false
+pptx_allowed: false
+xlsx_allowed: false
+ingestion_allowed: false
+parsing_allowed: false
+chunking_allowed: false
+embeddings_allowed: false
+qdrant_allowed: false
+network_allowed: false
+server_start_allowed: false
+runtime_api_allowed: false
+data_staging_allowed: false
+
+required_review_roles:
+  - reviewer_pedagogique
+  - reviewer_droits
+  - reviewer_technique
+  - responsable_validation
+
+required_handoff_fields:
+  - handoff_case_id
+  - reviewed_chain_ref
+  - decision
+  - decision_reason
+  - reviewer_role
+  - human_review_required
+  - real_action_allowed
+  - real_file_allowed
+  - pipeline_allowed
+  - followup_lot_required
+  - rollback_later_required
+  - checksum_later_required
+
+allowed_handoff_decisions:
+  - ready_for_human_metadata_review
+  - require_more_metadata_hardening
+  - block_any_real_action
+  - defer_until_named_followup_lot
+
+handoff_cases:
+  - handoff_case_id: governance_chain_ready_for_review
+    reviewed_chain_ref: metadata_governance_chain_17C_17I_v1
+    decision: ready_for_human_metadata_review
+    decision_reason: governance_chain_complete_metadata_only
+    reviewer_role: responsable_validation
+    human_review_required: true
+    real_action_allowed: false
+    real_file_allowed: false
+    pipeline_allowed: false
+    followup_lot_required: true
+    rollback_later_required: true
+    checksum_later_required: true
+
+  - handoff_case_id: no_real_action_allowed
+    reviewed_chain_ref: metadata_governance_chain_17C_17I_v1
+    decision: block_any_real_action
+    decision_reason: real_action_not_authorized_by_handoff
+    reviewer_role: reviewer_technique
+    human_review_required: true
+    real_action_allowed: false
+    real_file_allowed: false
+    pipeline_allowed: false
+    followup_lot_required: true
+    rollback_later_required: true
+    checksum_later_required: true
+
+  - handoff_case_id: metadata_hardening_required
+    reviewed_chain_ref: metadata_governance_chain_17C_17I_v1
+    decision: require_more_metadata_hardening
+    decision_reason: metadata_hardening_required_before_handoff
+    reviewer_role: reviewer_technique
+    human_review_required: true
+    real_action_allowed: false
+    real_file_allowed: false
+    pipeline_allowed: false
+    followup_lot_required: true
+    rollback_later_required: true
+    checksum_later_required: true
+
+  - handoff_case_id: followup_lot_required
+    reviewed_chain_ref: metadata_governance_chain_17C_17I_v1
+    decision: defer_until_named_followup_lot
+    decision_reason: followup_lot_must_be_named_and_scoped
+    reviewer_role: responsable_validation
+    human_review_required: true
+    real_action_allowed: false
+    real_file_allowed: false
+    pipeline_allowed: false
+    followup_lot_required: true
+    rollback_later_required: true
+    checksum_later_required: true

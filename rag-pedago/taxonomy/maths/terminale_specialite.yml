@@ -1,0 +1,113 @@
+id: maths_terminale_specialite
+matiere: mathematiques
+niveau: terminale
+voie: generale
+statut_enseignement: specialite
+programme_version: "terminale-specialite-2020"
+themes:
+  - id: suites
+    label: Suites
+    notions:
+      - id: suites
+        label: Suites
+        subnotions:
+          - recurrence
+          - limites_de_suites
+          - suites_monotones
+          - suites_geometriques
+          - raisonnement_par_recurrence
+  - id: fonctions
+    label: Fonctions
+    notions:
+      - id: fonctions
+        label: Fonctions
+        subnotions:
+          - limites
+          - continuite
+          - derivation
+          - convexite
+          - asymptotes
+  - id: exponentielle_logarithme
+    label: Exponentielle et logarithme
+    notions:
+      - id: fonction_exponentielle
+        label: Fonction exponentielle
+        subnotions:
+          - equations_exponentielles
+          - inequations_exponentielles
+          - derivees_exponentielles
+          - limites_exponentielles
+      - id: fonction_logarithme
+        label: Fonction logarithme
+        subnotions:
+          - equations_logarithmiques
+          - inequations_logarithmiques
+          - derivees_logarithmiques
+          - limites_logarithmiques
+  - id: integration
+    label: Integration
+    notions:
+      - id: primitives
+        label: Primitives
+      - id: integrales
+        label: Integrales
+        subnotions:
+          - aire_sous_courbe
+          - valeur_moyenne
+          - methodes_de_calcul
+  - id: equations_differentielles
+    label: Equations differentielles
+    notions:
+      - id: equations_differentielles_y_prime_ay_plus_b
+        label: "Equations differentielles y' = ay + b"
+        subnotions:
+          - resolution_equations_differentielles
+          - conditions_initiales
+          - modelisation_equations_differentielles
+  - id: probabilites
+    label: Probabilites
+    notions:
+      - id: probabilites_conditionnelles
+        label: Probabilites conditionnelles
+        subnotions:
+          - independance
+          - arbres_ponderes
+          - formule_des_probabilites_totales
+      - id: loi_binomiale
+        label: Loi binomiale
+      - id: variables_aleatoires
+        label: Variables aleatoires
+        subnotions:
+          - esperance
+          - variance
+          - concentration
+  - id: geometrie_espace
+    label: Geometrie dans l'espace
+    notions:
+      - id: geometrie_espace_vecteurs
+        label: Vecteurs de l'espace
+        subnotions:
+          - droites
+          - plans
+          - produit_scalaire
+          - orthogonalite
+          - distances
+          - representations_parametriques
+  - id: algorithmique
+    label: Algorithmique
+    notions:
+      - id: algorithmique_suites
+        label: Suites et algorithmes
+        subnotions:
+          - simulations
+          - algorithmique_python
+          - seuils
+          - approximations
+competences:
+  - chercher
+  - modeliser
+  - representer
+  - raisonner
+  - calculer
+  - communiquer
+

@@ -1,0 +1,120 @@
+review_policy_id: human_source_review_metadata_policy_v1
+status: metadata_only_human_source_review
+source_admission_policy_ref: source_admission_metadata_policy_v1
+pilot_scope_ref: math_terminale_specialite_metadata_only_v1
+retrieval_eval_ref: math_terminale_specialite_metadata_retrieval_eval_v1
+pedago_interface_ref: pedago_interface_metadata_contract_v1
+
+real_documents_allowed: false
+pdf_allowed: false
+docx_allowed: false
+pptx_allowed: false
+xlsx_allowed: false
+ingestion_allowed: false
+parsing_allowed: false
+chunking_allowed: false
+embeddings_allowed: false
+qdrant_allowed: false
+network_allowed: false
+server_start_allowed: false
+runtime_api_allowed: false
+data_staging_allowed: false
+
+required_review_roles:
+  - reviewer_pedagogique
+  - reviewer_droits
+  - reviewer_technique
+  - responsable_validation
+
+allowed_review_decisions:
+  - approve_metadata_only
+  - reject_real_document
+  - reject_unknown_rights
+  - reject_private_data
+  - request_more_information
+  - defer_until_real_source_lot
+
+required_review_fields:
+  - review_id
+  - source_id
+  - reviewer_role
+  - decision
+  - decision_reason
+  - rights_checked
+  - provenance_checked
+  - pii_checked
+  - visibility_checked
+  - no_real_file_confirmed
+  - no_external_url_confirmed
+  - human_validation_required
+
+known_source_ids:
+  - official_programme_metadata_reference
+  - refused_unknown_rights_example
+  - future_real_source_placeholder
+
+review_cases:
+  - review_id: review_official_programme_metadata_reference
+    source_id: official_programme_metadata_reference
+    reviewer_role: responsable_validation
+    decision: approve_metadata_only
+    decision_reason: metadata_only_scope_valid
+    rights_checked: true
+    provenance_checked: true
+    pii_checked: true
+    visibility_checked: true
+    no_real_file_confirmed: true
+    no_external_url_confirmed: true
+    human_validation_required: true
+
+  - review_id: review_official_programme_pedagogique
+    source_id: official_programme_metadata_reference
+    reviewer_role: reviewer_pedagogique
+    decision: request_more_information
+    decision_reason: metadata_only_scope_valid
+    rights_checked: true
+    provenance_checked: true
+    pii_checked: true
+    visibility_checked: true
+    no_real_file_confirmed: true
+    no_external_url_confirmed: true
+    human_validation_required: true
+
+  - review_id: review_official_programme_technique
+    source_id: official_programme_metadata_reference
+    reviewer_role: reviewer_technique
+    decision: request_more_information
+    decision_reason: metadata_only_scope_valid
+    rights_checked: true
+    provenance_checked: true
+    pii_checked: true
+    visibility_checked: true
+    no_real_file_confirmed: true
+    no_external_url_confirmed: true
+    human_validation_required: true
+
+  - review_id: review_refused_unknown_rights_example
+    source_id: refused_unknown_rights_example
+    reviewer_role: reviewer_droits
+    decision: reject_unknown_rights
+    decision_reason: rights_unknown
+    rights_checked: true
+    provenance_checked: true
+    pii_checked: true
+    visibility_checked: true
+    no_real_file_confirmed: true
+    no_external_url_confirmed: true
+    human_validation_required: true
+
+  - review_id: review_defer_real_source_lot
+    source_id: future_real_source_placeholder
+    reviewer_role: responsable_validation
+    decision: defer_until_real_source_lot
+    decision_reason: real_source_requires_separate_lot
+    rights_checked: false
+    provenance_checked: false
+    pii_checked: false
+    visibility_checked: false
+    no_real_file_confirmed: true
+    no_external_url_confirmed: true
+    human_validation_required: true

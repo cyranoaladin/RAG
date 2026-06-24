@@ -1,0 +1,105 @@
+chain_id: metadata_governance_chain_17C_17I_v1
+status: metadata_only_governance_chain
+latest_committed_lot: 17I
+latest_commit_ref: cbc4655e51c9e09e396cff957620359c9005b2e9
+
+real_documents_allowed: false
+pdf_allowed: false
+docx_allowed: false
+pptx_allowed: false
+xlsx_allowed: false
+ingestion_allowed: false
+parsing_allowed: false
+chunking_allowed: false
+embeddings_allowed: false
+qdrant_allowed: false
+network_allowed: false
+server_start_allowed: false
+runtime_api_allowed: false
+data_staging_allowed: false
+
+required_chain_lots:
+  - lot_id: 17C
+    config_ref: configs/pilot_corpus_scope.yml
+    protocol_ref: docs/PILOT_CORPUS_SCOPE_PROTOCOL.md
+    script_ref: scripts/pilot_corpus_scope_audit.py
+    test_ref: tests/unit/test_pilot_corpus_scope_audit.py
+    report_ref: data/reports/codex_lot_17C_pilot_corpus_scope.md
+    make_target: pilot-corpus-scope-audit
+    expected_status: metadata_only_scope
+    expected_ready_marker: "scope_ready_for_review: true"
+
+  - lot_id: 17D
+    config_ref: configs/retrieval_metadata_eval.yml
+    protocol_ref: docs/RETRIEVAL_METADATA_EVAL_PROTOCOL.md
+    script_ref: scripts/retrieval_metadata_eval_audit.py
+    test_ref: tests/unit/test_retrieval_metadata_eval_audit.py
+    report_ref: data/reports/codex_lot_17D_retrieval_metadata_eval.md
+    make_target: retrieval-metadata-eval-audit
+    expected_status: metadata_only_eval
+    expected_ready_marker: "eval_ready_for_review: true"
+
+  - lot_id: 17E
+    config_ref: configs/pedago_interface_contract.yml
+    protocol_ref: docs/PEDAGO_INTERFACE_CONTRACT_PROTOCOL.md
+    script_ref: scripts/pedago_interface_contract_audit.py
+    test_ref: tests/unit/test_pedago_interface_contract_audit.py
+    report_ref: data/reports/codex_lot_17E_pedago_interface_contract.md
+    make_target: pedago-interface-contract-audit
+    expected_status: metadata_only_interface_contract
+    expected_ready_marker: "interface_ready_for_review: true"
+
+  - lot_id: 17F
+    config_ref: configs/source_admission_policy.yml
+    protocol_ref: docs/SOURCE_ADMISSION_POLICY_PROTOCOL.md
+    script_ref: scripts/source_admission_policy_audit.py
+    test_ref: tests/unit/test_source_admission_policy_audit.py
+    report_ref: data/reports/codex_lot_17F_source_admission_policy.md
+    make_target: source-admission-policy-audit
+    expected_status: metadata_only_source_admission_policy
+    expected_ready_marker: "policy_ready_for_review: true"
+
+  - lot_id: 17G
+    config_ref: configs/human_source_review.yml
+    protocol_ref: docs/HUMAN_SOURCE_REVIEW_PROTOCOL.md
+    script_ref: scripts/human_source_review_audit.py
+    test_ref: tests/unit/test_human_source_review_audit.py
+    report_ref: data/reports/codex_lot_17G_human_source_review.md
+    make_target: human-source-review-audit
+    expected_status: metadata_only_human_source_review
+    expected_ready_marker: "review_ready_for_review: true"
+
+  - lot_id: 17H
+    config_ref: configs/controlled_readiness.yml
+    protocol_ref: docs/CONTROLLED_READINESS_PROTOCOL.md
+    script_ref: scripts/controlled_readiness_audit.py
+    test_ref: tests/unit/test_controlled_readiness_audit.py
+    report_ref: data/reports/codex_lot_17H_controlled_readiness.md
+    make_target: controlled-readiness-audit
+    expected_status: metadata_only_controlled_readiness
+    expected_ready_marker: "readiness_ready_for_review: true"
+
+  - lot_id: 17I
+    config_ref: configs/transition_authorization.yml
+    protocol_ref: docs/TRANSITION_AUTHORIZATION_PROTOCOL.md
+    script_ref: scripts/transition_authorization_audit.py
+    test_ref: tests/unit/test_transition_authorization_audit.py
+    report_ref: data/reports/codex_lot_17I_transition_authorization.md
+    make_target: transition-authorization-audit
+    expected_status: metadata_only_transition_authorization
+    expected_ready_marker: "authorization_ready_for_review: true"
+
+allowed_chain_decisions:
+  - chain_ready_for_metadata_review
+  - chain_requires_human_review
+  - chain_blocked_for_real_corpus
+  - chain_requires_followup_metadata_lot
+
+chain_decision:
+  decision: chain_ready_for_metadata_review
+  decision_reason: metadata_governance_chain_complete
+  real_corpus_allowed: false
+  real_file_allowed: false
+  pipeline_allowed: false
+  human_review_required: true
+  followup_lot_required: true

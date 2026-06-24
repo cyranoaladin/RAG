@@ -1,0 +1,17 @@
+exam_id: anticipee_maths
+label: Épreuve anticipée de mathématiques
+level_id: premiere_generale
+session: 2027
+candidate_types:
+  - scolarise
+  - candidat_individuel
+  - cned_reglemente
+  - cned_libre
+exam_parts:
+  - anticipee_maths
+is_anticipated: true
+is_terminal: false
+official_sources:
+  - education_bac_questions
+warnings:
+  - Applicable à compter de la session 2027 selon les sources consultées.

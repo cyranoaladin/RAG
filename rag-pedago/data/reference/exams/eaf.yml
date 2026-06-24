@@ -1,0 +1,16 @@
+exam_id: eaf
+label: Épreuves anticipées de français
+level_id: premiere_generale
+candidate_types:
+  - scolarise
+  - candidat_individuel
+  - cned_reglemente
+  - cned_libre
+exam_parts:
+  - eaf_ecrit
+  - eaf_oral
+is_anticipated: true
+is_terminal: false
+official_sources:
+  - education_bac_general
+  - education_bac_questions

@@ -1,0 +1,103 @@
+candidate_statuses:
+  - status_id: scolarise
+    label: Candidat scolarisé
+    applies_to_levels:
+      - troisieme_generale
+      - premiere_generale
+      - terminale_generale
+    control_continu_mode: livret_scolaire_et_controle_continu
+    exam_mode: inscription_par_etablissement
+    registration_notes:
+      - L'inscription est généralement effectuée par l'établissement.
+    documents_required: []
+    warnings:
+      - Les informations de convocation font foi.
+    deprecated: false
+    aliases: []
+    official_sources:
+      - education_dnb
+      - education_bac_general
+  - status_id: candidat_individuel
+    label: Candidat individuel
+    applies_to_levels:
+      - troisieme_generale
+      - premiere_generale
+      - terminale_generale
+    control_continu_mode: evaluations_ponctuelles
+    exam_mode: epreuves_terminales_et_ponctuelles
+    registration_notes:
+      - Inscription individuelle via Cyclades ou portail indiqué par l'autorité compétente.
+      - Pour la Tunisie, la source académique indique Cyclades puis Institut français de Tunisie.
+    documents_required:
+      - recapitulation_inscription
+      - pieces_justificatives_selon_portail
+      - convocation
+    warnings:
+      - carte d'examen obligatoire
+      - Information locale non confirmée — à vérifier manuellement par Nexus.
+    deprecated: false
+    aliases:
+      - individuel
+      - libre
+    official_sources:
+      - bo_dnb_2025
+      - eduscol_candidats_individuels_bac
+      - eduscol_inscriptions_bac
+      - aix_marseille_bac_tunisie
+      - cyclades
+  - status_id: cned_reglemente
+    label: CNED réglementé
+    applies_to_levels:
+      - premiere_generale
+      - terminale_generale
+    control_continu_mode: selon_statut_reglemente
+    exam_mode: inscription_cned_ou_autorite_competente
+    registration_notes:
+      - Les candidats en classe complète réglementée au CNED peuvent être inscrits par le CNED selon les modalités officielles.
+    documents_required: []
+    warnings:
+      - Vérifier les modalités annuelles dans Cyclades et auprès du CNED.
+    deprecated: false
+    aliases: []
+    official_sources:
+      - eduscol_candidats_individuels_bac
+      - aix_marseille_bac_tunisie
+  - status_id: cned_libre
+    label: CNED libre
+    applies_to_levels:
+      - premiere_generale
+      - terminale_generale
+    control_continu_mode: evaluations_ponctuelles
+    exam_mode: candidat_individuel
+    registration_notes:
+      - Le CNED libre relève du régime candidat individuel selon les informations officielles consultées.
+    documents_required:
+      - recapitulation_inscription
+      - convocation
+    warnings:
+      - carte d'examen obligatoire
+    deprecated: false
+    aliases: []
+    official_sources:
+      - eduscol_candidats_individuels_bac
+      - eduscol_inscriptions_bac
+  - status_id: aefe
+    label: Élève du réseau AEFE
+    applies_to_levels:
+      - troisieme_generale
+      - premiere_generale
+      - terminale_generale
+    control_continu_mode: selon_etablissement_homologue
+    exam_mode: selon_zone_et_centre_examen
+    registration_notes:
+      - Les modalités dépendent du statut de l'établissement et du centre d'examen.
+    documents_required:
+      - convocation
+    warnings:
+      - Vérifier la zone, le centre d'examen et le calendrier local.
+      - aefe is an establishment context, not an exam candidate type.
+    deprecated: true
+    aliases: []
+    official_sources:
+      - education_bac_general
+      - aix_marseille_bac_tunisie

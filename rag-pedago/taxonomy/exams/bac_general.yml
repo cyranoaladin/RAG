@@ -1,0 +1,21 @@
+id: bac_general
+label: Baccalaureat general
+levels:
+  - premiere
+  - terminale
+epreuves:
+  - philosophie
+  - bac_specialite_ecrit
+  - bac_specialite_pratique
+  - grand_oral
+  - eaf_ecrit
+  - eaf_oral
+  - anticipee_maths
+candidats:
+  - scolarise
+  - individuel
+  - libre
+  - cned_reglemente
+  - cned_libre
+  - aefe
+

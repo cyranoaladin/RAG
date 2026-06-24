@@ -1,0 +1,56 @@
+specialties:
+  - subject_id: mathematiques
+    label: Mathématiques
+    level_id: terminale_generale
+    is_specialty: true
+    weekly_hours: 6
+    programme_version: terminale-specialite-2020
+    taxonomy_id: maths_terminale_specialite
+    allowed_level_ids:
+      - premiere_generale
+      - terminale_generale
+    official_sources:
+      - education_voie_generale
+      - education_maths_reforme_lycee
+  - subject_id: nsi
+    label: Numérique et sciences informatiques
+    level_id: terminale_generale
+    is_specialty: true
+    weekly_hours: 6
+    programme_version: terminale-nsi-2020
+    taxonomy_id: nsi_terminale
+    allowed_level_ids:
+      - premiere_generale
+      - terminale_generale
+    official_sources:
+      - education_voie_generale
+  - subject_id: physique_chimie
+    label: Physique-chimie
+    level_id: terminale_generale
+    is_specialty: true
+    weekly_hours: 6
+    allowed_level_ids:
+      - premiere_generale
+      - terminale_generale
+    official_sources:
+      - education_voie_generale
+  - subject_id: svt
+    label: Sciences de la vie et de la Terre
+    level_id: terminale_generale
+    is_specialty: true
+    weekly_hours: 6
+    allowed_level_ids:
+      - premiere_generale
+      - terminale_generale
+    official_sources:
+      - education_voie_generale
+  - subject_id: ses
+    label: Sciences économiques et sociales
+    level_id: terminale_generale
+    is_specialty: true
+    weekly_hours: 6
+    allowed_level_ids:
+      - premiere_generale
+      - terminale_generale
+    official_sources:
+      - education_voie_generale

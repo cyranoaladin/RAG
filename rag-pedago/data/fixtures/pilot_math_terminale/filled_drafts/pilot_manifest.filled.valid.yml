@@ -1,0 +1,294 @@
+items:
+  - doc_id: "pilot-filled-maths-ts-programme-ref"
+    source_uri: "synthetic://pilot/maths-terminale/filled/programme-ref-001"
+    source_type: "officiel"
+    sha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    discovered_at: "2026-06-15T10:00:00+00:00"
+    rights: "officiel_public"
+    visibility: "public"
+    niveau: "terminale"
+    voie: "generale"
+    matiere: "mathematiques"
+    statut_enseignement: "specialite"
+    type_doc: "programme_officiel"
+    epreuve: "aucune"
+    candidat: "scolarise"
+    school_year_start: 2026
+    school_year_end: 2027
+    session: 2027
+    programme_version: "terminale-specialite-2020"
+    bo_reference: "synthetic-official-reference"
+    official_level_ref: "terminale_generale"
+    official_subject_ref: "mathematiques"
+    candidate_status_ref: "scolarise"
+    establishment_context_ref: "aefe"
+    official_source_refs:
+      - "education_maths_reforme_lycee"
+    official_claim_refs:
+      - "terminale_generale_two_specialties"
+    title: "Programme de reference rempli synthetique - mathematiques terminale specialite"
+    notions:
+      - "suites"
+      - "recurrence"
+      - "limites_de_suites"
+      - "probabilites_conditionnelles"
+      - "loi_binomiale"
+      - "algorithmique_python"
+    competences:
+      - "chercher"
+      - "modeliser"
+      - "raisonner"
+      - "calculer"
+      - "communiquer"
+    modality: "text"
+    extra:
+      zone: "aefe_tunisie"
+      pilot_corpus: "maths_terminale_specialite"
+      synthetic: true
+      filled_draft: true
+
+  - doc_id: "pilot-filled-maths-ts-cours-suites"
+    source_uri: "synthetic://pilot/maths-terminale/filled/cours-suites-001"
+    source_type: "nexus"
+    sha256: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    discovered_at: "2026-06-15T10:05:00+00:00"
+    rights: "nexus_proprietaire"
+    visibility: "internal"
+    niveau: "terminale"
+    voie: "generale"
+    matiere: "mathematiques"
+    statut_enseignement: "specialite"
+    type_doc: "cours"
+    epreuve: "aucune"
+    candidat: "scolarise"
+    school_year_start: 2026
+    school_year_end: 2027
+    session: 2027
+    programme_version: "terminale-specialite-2020"
+    official_level_ref: "terminale_generale"
+    official_subject_ref: "mathematiques"
+    candidate_status_ref: "scolarise"
+    establishment_context_ref: "aefe"
+    official_source_refs:
+      - "education_maths_reforme_lycee"
+    title: "Cours rempli synthetique - suites et limites"
+    notions:
+      - "suites"
+      - "limites_de_suites"
+    competences:
+      - "chercher"
+      - "raisonner"
+      - "calculer"
+      - "communiquer"
+    modality: "text"
+    extra:
+      zone: "aefe_tunisie"
+      pilot_corpus: "maths_terminale_specialite"
+      synthetic: true
+      filled_draft: true
+
+  - doc_id: "pilot-filled-maths-ts-fiche-recurrence"
+    source_uri: "synthetic://pilot/maths-terminale/filled/fiche-recurrence-001"
+    source_type: "nexus"
+    sha256: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    discovered_at: "2026-06-15T10:10:00+00:00"
+    rights: "usage_interne"
+    visibility: "internal"
+    niveau: "terminale"
+    voie: "generale"
+    matiere: "mathematiques"
+    statut_enseignement: "specialite"
+    type_doc: "fiche_methode"
+    epreuve: "aucune"
+    candidat: "scolarise"
+    school_year_start: 2026
+    school_year_end: 2027
+    session: 2027
+    programme_version: "terminale-specialite-2020"
+    official_level_ref: "terminale_generale"
+    official_subject_ref: "mathematiques"
+    candidate_status_ref: "scolarise"
+    establishment_context_ref: "aefe"
+    official_source_refs:
+      - "education_maths_reforme_lycee"
+    title: "Fiche methode remplie synthetique - recurrence"
+    notions:
+      - "suites"
+      - "recurrence"
+    competences:
+      - "raisonner"
+      - "communiquer"
+    modality: "text"
+    extra:
+      zone: "aefe_tunisie"
+      pilot_corpus: "maths_terminale_specialite"
+      synthetic: true
+      filled_draft: true
+
+  - doc_id: "pilot-filled-maths-ts-exercices-probas-corriges"
+    source_uri: "synthetic://pilot/maths-terminale/filled/exercices-probas-corriges-001"
+    source_type: "nexus"
+    sha256: "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    discovered_at: "2026-06-15T10:15:00+00:00"
+    rights: "usage_interne"
+    visibility: "internal"
+    niveau: "terminale"
+    voie: "generale"
+    matiere: "mathematiques"
+    statut_enseignement: "specialite"
+    type_doc: "exercice_corrige"
+    epreuve: "bac_specialite_ecrit"
+    candidat: "scolarise"
+    school_year_start: 2026
+    school_year_end: 2027
+    session: 2027
+    programme_version: "terminale-specialite-2020"
+    official_level_ref: "terminale_generale"
+    official_subject_ref: "mathematiques"
+    official_exam_ref: "bac_specialite_ecrit"
+    candidate_status_ref: "scolarise"
+    establishment_context_ref: "aefe"
+    official_source_refs:
+      - "education_bac_general"
+    title: "Exercices corriges remplis synthetiques - probabilites conditionnelles"
+    notions:
+      - "probabilites_conditionnelles"
+      - "loi_binomiale"
+    competences:
+      - "chercher"
+      - "modeliser"
+      - "raisonner"
+      - "calculer"
+    has_corrige: true
+    modality: "text"
+    extra:
+      zone: "aefe_tunisie"
+      pilot_corpus: "maths_terminale_specialite"
+      synthetic: true
+      filled_draft: true
+
+  - doc_id: "pilot-filled-maths-ts-annale-bac"
+    source_uri: "synthetic://pilot/maths-terminale/filled/annale-bac-001"
+    source_type: "examens"
+    sha256: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+    discovered_at: "2026-06-15T10:20:00+00:00"
+    rights: "officiel_public"
+    visibility: "public"
+    niveau: "terminale"
+    voie: "generale"
+    matiere: "mathematiques"
+    statut_enseignement: "specialite"
+    type_doc: "annale"
+    epreuve: "bac_specialite_ecrit"
+    candidat: "scolarise"
+    school_year_start: 2026
+    school_year_end: 2027
+    session: 2027
+    programme_version: "terminale-specialite-2020"
+    official_level_ref: "terminale_generale"
+    official_subject_ref: "mathematiques"
+    official_exam_ref: "bac_specialite_ecrit"
+    candidate_status_ref: "scolarise"
+    establishment_context_ref: "aefe"
+    official_source_refs:
+      - "education_bac_general"
+    official_claim_refs:
+      - "bac_specialite_terminal"
+    title: "Sujet type bac rempli synthetique - specialite mathematiques"
+    notions:
+      - "suites"
+      - "probabilites_conditionnelles"
+      - "loi_binomiale"
+    competences:
+      - "chercher"
+      - "modeliser"
+      - "raisonner"
+      - "calculer"
+      - "communiquer"
+    modality: "text"
+    extra:
+      zone: "aefe_tunisie"
+      pilot_corpus: "maths_terminale_specialite"
+      synthetic: true
+      filled_draft: true
+
+  - doc_id: "pilot-filled-maths-ts-bareme-bac"
+    source_uri: "synthetic://pilot/maths-terminale/filled/bareme-bac-001"
+    source_type: "examens"
+    sha256: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    discovered_at: "2026-06-15T10:25:00+00:00"
+    rights: "officiel_public"
+    visibility: "public"
+    niveau: "terminale"
+    voie: "generale"
+    matiere: "mathematiques"
+    statut_enseignement: "specialite"
+    type_doc: "bareme"
+    epreuve: "bac_specialite_ecrit"
+    candidat: "scolarise"
+    school_year_start: 2026
+    school_year_end: 2027
+    session: 2027
+    programme_version: "terminale-specialite-2020"
+    official_level_ref: "terminale_generale"
+    official_subject_ref: "mathematiques"
+    official_exam_ref: "bac_specialite_ecrit"
+    candidate_status_ref: "scolarise"
+    establishment_context_ref: "aefe"
+    official_source_refs:
+      - "education_bac_general"
+    official_claim_refs:
+      - "bac_specialite_terminal"
+    title: "Bareme rempli synthetique - sujet type bac mathematiques"
+    notions:
+      - "suites"
+      - "probabilites_conditionnelles"
+    competences:
+      - "calculer"
+      - "communiquer"
+    modality: "text"
+    extra:
+      zone: "aefe_tunisie"
+      pilot_corpus: "maths_terminale_specialite"
+      synthetic: true
+      filled_draft: true
+
+  - doc_id: "pilot-filled-maths-ts-algo-python"
+    source_uri: "synthetic://pilot/maths-terminale/filled/algo-python-001"
+    source_type: "nexus"
+    sha256: "9999999999999999999999999999999999999999999999999999999999999999"
+    discovered_at: "2026-06-15T10:30:00+00:00"
+    rights: "nexus_proprietaire"
+    visibility: "internal"
+    niveau: "terminale"
+    voie: "generale"
+    matiere: "mathematiques"
+    statut_enseignement: "specialite"
+    type_doc: "fiche_methode"
+    epreuve: "aucune"
+    candidat: "scolarise"
+    school_year_start: 2026
+    school_year_end: 2027
+    session: 2027
+    programme_version: "terminale-specialite-2020"
+    official_level_ref: "terminale_generale"
+    official_subject_ref: "mathematiques"
+    candidate_status_ref: "scolarise"
+    establishment_context_ref: "aefe"
+    official_source_refs:
+      - "education_maths_reforme_lycee"
+    title: "Ressource remplie synthetique - algorithmique Python et seuils"
+    notions:
+      - "suites"
+      - "algorithmique_python"
+    competences:
+      - "chercher"
+      - "modeliser"
+      - "calculer"
+      - "programmer"
+    modality: "code"
+    extra:
+      zone: "aefe_tunisie"
+      pilot_corpus: "maths_terminale_specialite"
+      synthetic: true
+      filled_draft: true

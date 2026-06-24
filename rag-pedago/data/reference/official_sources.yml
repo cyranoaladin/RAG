@@ -1,0 +1,172 @@
+official_sources:
+  - source_id: eduscol_cycle4
+    title: Enseigner au cycle 4
+    url: https://eduscol.education.gouv.fr/4362/enseigner-au-cycle-4
+    authority_level: official_verified
+    verification_status: verified
+    last_verified_at: "2026-06-14T00:00:00+00:00"
+    applies_to:
+      - cycle4
+      - troisieme_generale
+    notes: Programmes, attendus de fin d'année, repères annuels de progression et ressources associées.
+  - source_id: education_programmes_college
+    title: Les programmes du collège
+    url: https://www.education.gouv.fr/les-programmes-du-college-470408
+    authority_level: official_verified
+    verification_status: verified
+    last_verified_at: "2026-06-14T00:00:00+00:00"
+    applies_to:
+      - cycle4
+      - troisieme_generale
+  - source_id: bo_reperes_2019
+    title: Attendus de fin d'année et repères annuels de progression
+    url: https://www.education.gouv.fr/bo/19/Hebdo22/MENE1913283N.htm
+    authority_level: official_verified
+    verification_status: verified
+    last_verified_at: "2026-06-14T00:00:00+00:00"
+    applies_to:
+      - cycle4
+      - attendus_fin_annee
+  - source_id: education_dnb
+    title: Le diplôme national du brevet
+    url: https://www.education.gouv.fr/le-diplome-national-du-brevet-10613
+    authority_level: official_verified
+    verification_status: verified
+    last_verified_at: "2026-06-14T00:00:00+00:00"
+    applies_to:
+      - dnb
+      - dnb_scolaire
+      - dnb_candidat_individuel
+      - troisieme_generale
+  - source_id: bo_dnb_2025
+    title: Modalités d'attribution du diplôme national du brevet à compter de la session 2026
+    url: https://www.education.gouv.fr/bo/2025/Hebdo33/MENE2515977N
+    authority_level: official_verified
+    verification_status: verified
+    last_verified_at: "2026-06-14T00:00:00+00:00"
+    applies_to:
+      - dnb
+      - dnb_scolaire
+      - dnb_candidat_individuel
+      - candidat_individuel
+  - source_id: education_seconde_gt
+    title: Les enseignements de la seconde générale et technologique
+    url: https://www.education.gouv.fr/reussir-au-lycee/les-enseignements-de-la-seconde-generale-et-technologique-41651
+    authority_level: official_verified
+    verification_status: verified
+    last_verified_at: "2026-06-14T00:00:00+00:00"
+    applies_to:
+      - seconde_generale_technologique
+      - snt
+      - mathematiques
+  - source_id: education_voie_generale
+    title: La voie générale au lycée
+    url: https://www.education.gouv.fr/reussir-au-lycee/la-voie-generale-au-lycee-9749
+    authority_level: official_verified
+    verification_status: verified
+    last_verified_at: "2026-06-14T00:00:00+00:00"
+    applies_to:
+      - premiere_generale
+      - terminale_generale
+  - source_id: education_bac_general
+    title: Le baccalauréat général
+    url: https://www.education.gouv.fr/reussir-au-lycee/le-baccalaureat-general-10457
+    authority_level: official_verified
+    verification_status: verified
+    last_verified_at: "2026-06-14T00:00:00+00:00"
+    applies_to:
+      - bac_general
+      - premiere_generale
+      - terminale_generale
+      - eaf
+      - bac_specialite_ecrit
+      - philosophie
+      - grand_oral
+  - source_id: education_bac_questions
+    title: Tout savoir sur le baccalauréat, les réponses à vos questions
+    url: https://www.education.gouv.fr/reussir-au-lycee/tout-savoir-sur-le-baccalaureat-les-reponses-vos-questions-325499
+    authority_level: official_verified
+    verification_status: verified
+    last_verified_at: "2026-06-14T00:00:00+00:00"
+    applies_to:
+      - bac_general
+      - premiere_generale
+      - anticipee_maths
+      - eaf
+  - source_id: education_bac_calcul_note
+    title: Comment calculer votre note au baccalauréat
+    url: https://www.education.gouv.fr/reussir-au-lycee/comment-calculer-votre-note-au-baccalaureat-325511
+    authority_level: official_verified
+    verification_status: verified
+    last_verified_at: "2026-06-14T00:00:00+00:00"
+    applies_to:
+      - bac_general
+      - controle_continu
+  - source_id: eduscol_candidats_individuels_bac
+    title: Candidats individuels au baccalauréat général et technologique
+    url: https://eduscol.education.gouv.fr/5694/candidats-individuels-au-baccalaureat-general-et-au-baccalaureat-technologique
+    authority_level: official_verified
+    verification_status: verified
+    last_verified_at: "2026-06-14T00:00:00+00:00"
+    applies_to:
+      - candidat_individuel
+      - bac_general
+      - bac_specialite_ecrit
+  - source_id: eduscol_inscriptions_bac
+    title: Inscriptions au baccalauréat général et technologique
+    url: https://eduscol.education.gouv.fr/5682/inscriptions-au-baccalaureat-general-et-technologique
+    authority_level: official_verified
+    verification_status: verified
+    last_verified_at: "2026-06-14T00:00:00+00:00"
+    applies_to:
+      - candidat_individuel
+      - inscription_bac
+  - source_id: education_maths_reforme_lycee
+    title: L'enseignement des mathématiques dans la réforme du lycée
+    url: https://www.education.gouv.fr/l-enseignement-des-mathematiques-dans-la-reforme-du-lycee-en-classe-de-premiere-et-terminale-de-la-454023
+    authority_level: official_verified
+    verification_status: verified
+    last_verified_at: "2026-06-14T00:00:00+00:00"
+    applies_to:
+      - mathematiques
+      - terminale_generale
+      - maths_expertes
+      - maths_complementaires
+  - source_id: bo_maths_complementaires
+    title: Baccalauréat général - enseignement optionnel de mathématiques complémentaires
+    url: https://www.education.gouv.fr/bo/22/Hebdo30/MENE2215445N.htm
+    authority_level: official_verified
+    verification_status: verified
+    last_verified_at: "2026-06-14T00:00:00+00:00"
+    applies_to:
+      - maths_complementaires
+  - source_id: aix_marseille_bac_tunisie
+    title: Inscriptions aux baccalauréats général et technologique 2026 - candidats isolés de Tunisie
+    url: https://www.ac-aix-marseille.fr/inscriptions-aux-baccalaureats-general-et-technologique-2026-121766
+    authority_level: institutional_verified
+    verification_status: verified
+    last_verified_at: "2026-06-14T00:00:00+00:00"
+    applies_to:
+      - tunisie
+      - candidat_individuel
+      - bac_general
+    notes: Source académique indiquant Cyclades puis Institut français de Tunisie pour les candidats isolés de Tunisie.
+  - source_id: cyclades
+    title: Cyclades - portail candidat examens et concours
+    url: https://candidat.examens-concours.gouv.fr/
+    authority_level: official_verified
+    verification_status: verified
+    last_verified_at: "2026-06-14T00:00:00+00:00"
+    applies_to:
+      - inscription_examens
+      - candidat_individuel
+  - source_id: ift_examens_concours
+    title: Institut français de Tunisie - examens et concours
+    url: https://www.institutfrancais-tunisie.com/examens-concours
+    authority_level: institutional_unverified
+    verification_status: pending
+    last_verified_at: "2026-06-14T00:00:00+00:00"
+    applies_to:
+      - tunisie
+      - centre_examen
+    notes: "Information locale non confirmée — à vérifier manuellement par Nexus."

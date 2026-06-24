@@ -1,0 +1,33 @@
+level_id: troisieme_generale
+label: Troisième générale
+cycle: cycle4
+voie: college
+school_year: "2026-2027"
+common_subjects:
+  - francais
+  - mathematiques
+  - histoire_geographie
+  - emc
+  - langues_vivantes
+  - physique_chimie
+  - svt
+  - technologie
+  - arts_plastiques
+  - education_musicale
+  - eps
+optional_subjects:
+  - lca
+  - langues_cultures_europeennes
+  - lsf
+expected_outcomes_ref:
+  - attendus_fin_annee_troisieme
+  - reperes_annuels_progression_cycle4
+exam_refs:
+  - dnb
+  - dnb_scolaire
+  - dnb_candidat_individuel
+official_sources:
+  - eduscol_cycle4
+  - education_programmes_college
+  - bo_reperes_2019
+  - education_dnb

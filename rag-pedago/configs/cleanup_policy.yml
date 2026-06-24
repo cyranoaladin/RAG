@@ -1,0 +1,59 @@
+workspace_root: /home/alaeddine/Bureau/RAG
+active_repo: rag-pedago
+readonly_repos:
+  - rag-local
+
+deep_scan_exclusions:
+  - "rag-local/.venv/**"
+  - "rag-local/.mypy_cache/**"
+  - "rag-local/.pytest_cache/**"
+  - "rag-local/.ruff_cache/**"
+  - "**/.git/**"
+
+summarize_only_roots:
+  - "rag-local/.venv"
+  - "rag-local/.mypy_cache"
+  - "rag-local/.pytest_cache"
+  - "rag-local/.ruff_cache"
+
+safe_delete_candidates:
+  - "**/__pycache__/"
+  - "**/*.pyc"
+  - "**/.pytest_cache/"
+  - "**/.ruff_cache/"
+  - "**/.mypy_cache/"
+
+archive_candidates:
+  - "rag-pedago/data/reports/manifest_directory_import_batch-*.md"
+  - "rag-pedago/data/reports/coverage_batch-*.md"
+  - "rag-pedago/data/reports/gate_batch-*.md"
+  - "rag-pedago/data/reports/controlled_import_batch-*.md"
+  - "rag-pedago/data/reports/*.json"
+  - "rag-local/*.diff"
+  - "rag-local/*.patch"
+  - "rag-local/*tree*.txt"
+
+never_delete:
+  - "**/.git/**"
+  - "**/.env"
+  - "**/.env.*"
+  - "**/*secret*"
+  - "**/*credential*"
+  - "**/*creds*"
+  - "**/*.pem"
+  - "**/*.key"
+  - "**/*.sqlite"
+  - "**/*.sqlite3"
+  - "**/*.db"
+  - "**/uploads/**"
+  - "**/raw/**"
+  - "**/infra/creds/**"
+  - "**/creds/**"
+
+always_keep:
+  - "rag-pedago/data/reports/codex_lot_*.md"
+  - "rag-pedago/docs/**"
+  - "rag-pedago/tests/**"
+  - "rag-pedago/schema/**"
+  - "rag-pedago/taxonomy/**"
+  - "rag-pedago/data/fixtures/**"

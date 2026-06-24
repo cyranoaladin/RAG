@@ -1,0 +1,93 @@
+version: 1
+description: Metadata-only pipeline contract for the current Nexus RAG Pedago state.
+steps:
+  - id: manifest_import
+    inputs: [manifest_jsonl]
+    outputs: [ledger_documents, ledger_states, manifest_import_report]
+    may_write_ledger: true
+    may_read_source_uri: false
+    may_use_network: false
+    may_parse_document: false
+    requires_human_review: false
+    status_values: [success, partial, failed]
+  - id: manifest_directory_import
+    inputs: [manifest_directory]
+    outputs: [ledger_documents, ledger_states, directory_import_report]
+    may_write_ledger: true
+    may_read_source_uri: false
+    may_use_network: false
+    may_parse_document: false
+    requires_human_review: false
+    status_values: [success, partial, failed, dry_run_success, dry_run_partial, dry_run_failed, dry_run_blocked, quality_blocked]
+  - id: quality
+    inputs: [directory_import_report, official_reference, quality_policy]
+    outputs: [quality_report]
+    may_write_ledger: false
+    may_read_source_uri: false
+    may_use_network: false
+    may_parse_document: false
+    requires_human_review: false
+    status_values: [quality_pass, quality_warn, quality_blocked]
+  - id: readiness
+    inputs: [manifest_directory, quality_policy]
+    outputs: [readiness_markdown, readiness_json]
+    may_write_ledger: false
+    may_read_source_uri: false
+    may_use_network: false
+    may_parse_document: false
+    requires_human_review: false
+    status_values: [ready, ready_with_warnings, blocked]
+  - id: coverage
+    inputs: [manifest_directory, taxonomy_paths, priority_notions]
+    outputs: [coverage_markdown, coverage_json]
+    may_write_ledger: false
+    may_read_source_uri: false
+    may_use_network: false
+    may_parse_document: false
+    requires_human_review: false
+    status_values: [coverage_ok, coverage_partial, coverage_insufficient]
+  - id: gate
+    inputs: [readiness_report, coverage_report]
+    outputs: [gate_markdown, gate_json]
+    may_write_ledger: false
+    may_read_source_uri: false
+    may_use_network: false
+    may_parse_document: false
+    requires_human_review: false
+    status_values: [ready_for_controlled_import, review_required, blocked]
+  - id: review_package
+    inputs: [manifest_directory, gate_json, readiness_json, coverage_json, taxonomy_paths, official_reference]
+    outputs: [review_package_markdown, review_package_json]
+    may_write_ledger: true
+    may_read_source_uri: false
+    may_use_network: false
+    may_parse_document: false
+    requires_human_review: false
+    status_values: [ready_for_review, blocked_before_review]
+  - id: approval
+    inputs: [review_package_json, reviewer, decision]
+    outputs: [review_decision_json, review_registry_entry]
+    may_write_ledger: true
+    may_read_source_uri: false
+    may_use_network: false
+    may_parse_document: false
+    requires_human_review: true
+    status_values: [approved, rejected]
+  - id: controlled_import
+    inputs: [manifest_directory, gate, optional_review_decision, optional_review_package]
+    outputs: [ledger_runs, ledger_documents, ledger_states, controlled_import_report]
+    may_write_ledger: true
+    may_read_source_uri: false
+    may_use_network: false
+    may_parse_document: false
+    requires_human_review: configurable
+    status_values: [imported, blocked_by_gate, failed]
+  - id: audit_ledger
+    inputs: [review_package, review_decision, controlled_import_report]
+    outputs: [review_packages, review_decisions, controlled_import_attempts, controlled_import_verifications]
+    may_write_ledger: true
+    may_read_source_uri: false
+    may_use_network: false
+    may_parse_document: false
+    requires_human_review: false
+    status_values: [recorded, skipped]

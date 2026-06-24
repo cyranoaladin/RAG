@@ -1,0 +1,73 @@
+pilot_id: math_terminale_specialite_metadata_only_v1
+status: metadata_only_scope
+subject: mathematiques
+level: terminale
+track: generale
+teaching: specialite_mathematiques
+teaching_status: specialite
+context: aefe_tunisie
+establishment_context_ref: aefe
+candidate_status: candidat_scolarise
+candidate_ref: scolarise
+usage: preparation_pedagogique_encadree_nexus_reussite
+real_documents_allowed: false
+pdf_allowed: false
+docx_allowed: false
+pptx_allowed: false
+xlsx_allowed: false
+ingestion_allowed: false
+parsing_allowed: false
+chunking_allowed: false
+embeddings_allowed: false
+qdrant_allowed: false
+network_allowed: false
+data_staging_allowed: false
+allowed_resource_kinds:
+  - synthetic_metadata
+  - versioned_fixture
+  - official_reference_metadata
+  - taxonomy_reference
+  - codex_report
+required_metadata_fields:
+  - doc_id
+  - source_type
+  - source_uri
+  - sha256
+  - niveau
+  - voie
+  - matiere
+  - statut_enseignement
+  - type_doc
+  - epreuve
+  - candidat
+  - rights
+  - visibility
+  - official_refs
+  - official_level_ref
+  - official_subject_ref
+  - official_exam_ref
+  - candidate_status_ref
+  - establishment_context_ref
+  - notions
+  - competences
+  - objectifs
+  - difficulty
+  - school_year
+  - session
+acceptance_checks:
+  - no_real_document
+  - rights_explicit
+  - visibility_explicit
+  - taxonomy_linked
+  - official_refs_checked
+  - metadata_only
+excluded_resource_kinds:
+  - real_document
+  - pdf
+  - docx
+  - pptx
+  - xlsx
+  - private_student_data
+  - unknown_rights
+  - qdrant_required
+  - embeddings_required

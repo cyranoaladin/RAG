@@ -1,0 +1,106 @@
+authorization_id: transition_authorization_metadata_policy_v1
+status: metadata_only_transition_authorization
+controlled_readiness_ref: controlled_readiness_metadata_gate_v1
+human_source_review_ref: human_source_review_metadata_policy_v1
+source_admission_policy_ref: source_admission_metadata_policy_v1
+pedago_interface_ref: pedago_interface_metadata_contract_v1
+retrieval_eval_ref: math_terminale_specialite_metadata_retrieval_eval_v1
+pilot_scope_ref: math_terminale_specialite_metadata_only_v1
+
+real_documents_allowed: false
+pdf_allowed: false
+docx_allowed: false
+pptx_allowed: false
+xlsx_allowed: false
+ingestion_allowed: false
+parsing_allowed: false
+chunking_allowed: false
+embeddings_allowed: false
+qdrant_allowed: false
+network_allowed: false
+server_start_allowed: false
+runtime_api_allowed: false
+data_staging_allowed: false
+
+required_authorization_fields:
+  - authorization_case_id
+  - readiness_gate
+  - decision
+  - decision_reason
+  - final_human_signoff_required
+  - rights_confirmation_required
+  - provenance_confirmation_required
+  - pii_absence_required
+  - rollback_plan_required
+  - checksum_plan_required
+  - separate_real_lot_required
+  - real_corpus_authorized
+  - real_file_authorized
+  - pipeline_authorized
+
+allowed_authorization_decisions:
+  - authorize_metadata_only_preparation
+  - require_final_human_signoff
+  - block_real_corpus_transition
+  - defer_to_separate_real_lot
+
+authorization_cases:
+  - authorization_case_id: metadata_preparation_authorized
+    readiness_gate: controlled_readiness_metadata_gate_v1
+    decision: authorize_metadata_only_preparation
+    decision_reason: metadata_only_preparation_allowed
+    final_human_signoff_required: true
+    rights_confirmation_required: true
+    provenance_confirmation_required: true
+    pii_absence_required: true
+    rollback_plan_required: true
+    checksum_plan_required: true
+    separate_real_lot_required: true
+    real_corpus_authorized: false
+    real_file_authorized: false
+    pipeline_authorized: false
+
+  - authorization_case_id: real_corpus_blocked_until_separate_lot
+    readiness_gate: controlled_readiness_metadata_gate_v1
+    decision: block_real_corpus_transition
+    decision_reason: real_corpus_requires_separate_authorization
+    final_human_signoff_required: true
+    rights_confirmation_required: true
+    provenance_confirmation_required: true
+    pii_absence_required: true
+    rollback_plan_required: true
+    checksum_plan_required: true
+    separate_real_lot_required: true
+    real_corpus_authorized: false
+    real_file_authorized: false
+    pipeline_authorized: false
+
+  - authorization_case_id: final_human_signoff_required
+    readiness_gate: controlled_readiness_metadata_gate_v1
+    decision: require_final_human_signoff
+    decision_reason: final_human_signoff_missing
+    final_human_signoff_required: true
+    rights_confirmation_required: true
+    provenance_confirmation_required: true
+    pii_absence_required: true
+    rollback_plan_required: true
+    checksum_plan_required: true
+    separate_real_lot_required: true
+    real_corpus_authorized: false
+    real_file_authorized: false
+    pipeline_authorized: false
+
+  - authorization_case_id: separate_real_lot_deferred
+    readiness_gate: controlled_readiness_metadata_gate_v1
+    decision: defer_to_separate_real_lot
+    decision_reason: separate_real_lot_required
+    final_human_signoff_required: true
+    rights_confirmation_required: true
+    provenance_confirmation_required: true
+    pii_absence_required: true
+    rollback_plan_required: true
+    checksum_plan_required: true
+    separate_real_lot_required: true
+    real_corpus_authorized: false
+    real_file_authorized: false
+    pipeline_authorized: false

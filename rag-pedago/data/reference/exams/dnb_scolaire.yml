@@ -1,0 +1,19 @@
+exam_id: dnb_scolaire
+label: Diplôme national du brevet - candidat scolaire
+level_id: troisieme_generale
+session: 2026
+candidate_types:
+  - scolarise
+exam_parts:
+  - controle_continu
+  - francais
+  - mathematiques
+  - histoire_geographie_emc
+  - sciences
+  - oral
+is_terminal: true
+control_continu_weight: 40
+terminal_weight: 60
+official_sources:
+  - education_dnb
+  - bo_dnb_2025

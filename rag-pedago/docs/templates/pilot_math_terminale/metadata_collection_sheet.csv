@@ -1,0 +1,29 @@
+field,required,example,notes
+doc_id,yes,A_REMPLIR_COURS_SUITES,Identifiant stable et unique.
+source_uri,yes,A_REMPLIR_APRES_VALIDATION_LOCALE,Ne pas ouvrir automatiquement; renseigner apres validation locale.
+source_type,yes,upload,Valeurs typiques: upload officiel examens nexus.
+sha256,yes,A_REMPLIR_SHA256_64_HEX,Calculer plus tard sur les octets du fichier source.
+discovered_at,yes,A_REMPLIR_ISO8601,Date ISO 8601 de preparation metadata.
+rights,yes,usage_interne,Ne jamais laisser unknown pour une ressource exploitable.
+visibility,yes,internal,public internal restricted ou private.
+niveau,yes,terminale,Profil pilote.
+voie,yes,generale,Profil pilote.
+matiere,yes,mathematiques,Profil pilote.
+statut_enseignement,yes,specialite,Profil pilote.
+type_doc,yes,fiche_methode,Programme cours fiche_methode exercice_corrige annale bareme.
+epreuve,conditional,bac_specialite_ecrit,Obligatoire pour annale corrige bareme et sujet bac.
+candidat,yes,scolarise,Ne pas utiliser aefe comme candidat.
+candidate_status_ref,yes,scolarise,Doit rester coherent avec candidat.
+establishment_context_ref,yes,aefe,AEFE est un contexte d'etablissement.
+extra.zone,yes,aefe_tunisie,Zone locale du pilote.
+programme_version,yes,A_CONFIRMER,Confirmer avant import.
+bo_reference,conditional,A_CONFIRMER,Obligatoire si document officiel ou reglementaire.
+official_level_ref,yes,terminale_generale,Reference officielle locale.
+official_subject_ref,yes,mathematiques,Reference officielle locale.
+official_exam_ref,conditional,bac_specialite_ecrit,Obligatoire pour documents d'examen.
+official_source_refs,conditional,education_bac_general,Source verifiee si document officiel ou examen.
+official_claim_refs,conditional,bac_specialite_terminal,Claim verifiee si reglementaire.
+title,yes,A_REMPLIR_TITRE,Titre humain lisible.
+notions,yes,suites;recurrence,IDs de taxonomie uniquement.
+competences,yes,raisonner;calculer,Competences controlees.
+modality,yes,text,text ou code pour ce pilote.

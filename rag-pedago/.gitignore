@@ -1,0 +1,65 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+
+# Python/runtime caches
+workspace/scratch/
+*.tmp
+*.bak
+*~
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+creds/
+**/creds/
+*.key
+*.pem
+*service-account*.json
+gdrive-sa.json
+
+# Runtime data
+data/raw/**
+data/normalized/**
+data/extracted_assets/**
+data/manifests/**
+data/quarantine/**
+data/ledger.sqlite
+data/ledger/**
+data/qdrant/
+!data/raw/.gitkeep
+!data/normalized/.gitkeep
+!data/extracted_assets/.gitkeep
+!data/manifests/.gitkeep
+!data/quarantine/.gitkeep
+!data/reports/
+!data/reports/.gitkeep
+!data/reports/codex_lot_1_socle.md
+data/reports/manifest_import_*.md
+data/reports/manifest_directory_import_*.md
+data/reports/readiness_*.md
+data/reports/readiness_*.json
+data/reports/coverage_*.md
+data/reports/coverage_*.json
+data/reports/gate_*.md
+data/reports/gate_*.json
+data/reports/controlled_import_*.md
+data/reports/controlled_import_*.json
+data/reports/review_package_*.md
+data/reports/review_package_*.json
+data/reviews/review_*.json
+data/reviews/review_registry.jsonl
+!data/ledger/
+!data/ledger/.gitkeep
+
+# OS/editor
+.DS_Store
+.idea/
+.vscode/

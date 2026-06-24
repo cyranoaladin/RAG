@@ -1,0 +1,19 @@
+levels:
+  - id: troisieme
+    label: Troisieme
+    cycle: cycle4
+  - id: seconde
+    label: Seconde
+    cycle: lycee_gt
+  - id: premiere
+    label: Premiere
+    cycle: lycee_gt
+  - id: terminale
+    label: Terminale
+    cycle: lycee_gt
+groups:
+  - cycle4
+  - lycee_gt
+  - voie_generale
+  - voie_technologique
+

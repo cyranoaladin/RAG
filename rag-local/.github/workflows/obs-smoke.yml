@@ -1,0 +1,11 @@
+name: Observability Smoke
+on:
+  workflow_dispatch: {}
+jobs:
+  obs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show readme note
+        run: |
+          echo "Run obs profile smoke locally on the VPS/dev host."

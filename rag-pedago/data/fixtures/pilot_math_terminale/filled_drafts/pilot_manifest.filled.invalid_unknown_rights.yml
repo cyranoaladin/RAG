@@ -1,0 +1,34 @@
+items:
+  - doc_id: "pilot-filled-invalid-unknown-rights"
+    source_uri: "synthetic://pilot/maths-terminale/filled/invalid-unknown-rights-001"
+    source_type: "nexus"
+    sha256: "2222222222222222222222222222222222222222222222222222222222222222"
+    discovered_at: "2026-06-15T11:05:00+00:00"
+    rights: "unknown"
+    visibility: "restricted"
+    niveau: "terminale"
+    voie: "generale"
+    matiere: "mathematiques"
+    statut_enseignement: "specialite"
+    type_doc: "cours"
+    epreuve: "aucune"
+    candidat: "scolarise"
+    school_year_start: 2026
+    school_year_end: 2027
+    session: 2027
+    programme_version: "terminale-specialite-2020"
+    official_level_ref: "terminale_generale"
+    official_subject_ref: "mathematiques"
+    candidate_status_ref: "scolarise"
+    establishment_context_ref: "aefe"
+    title: "Brouillon invalide avec droits inconnus"
+    notions:
+      - "suites"
+    competences:
+      - "raisonner"
+    modality: "text"
+    extra:
+      zone: "aefe_tunisie"
+      pilot_corpus: "maths_terminale_specialite"
+      synthetic: true
+      filled_draft: true

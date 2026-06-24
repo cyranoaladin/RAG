@@ -1,0 +1,171 @@
+readiness_id: controlled_readiness_metadata_gate_v1
+status: metadata_only_controlled_readiness
+pilot_scope_ref: math_terminale_specialite_metadata_only_v1
+retrieval_eval_ref: math_terminale_specialite_metadata_retrieval_eval_v1
+pedago_interface_ref: pedago_interface_metadata_contract_v1
+source_admission_policy_ref: source_admission_metadata_policy_v1
+human_source_review_ref: human_source_review_metadata_policy_v1
+
+real_documents_allowed: false
+pdf_allowed: false
+docx_allowed: false
+pptx_allowed: false
+xlsx_allowed: false
+ingestion_allowed: false
+parsing_allowed: false
+chunking_allowed: false
+embeddings_allowed: false
+qdrant_allowed: false
+network_allowed: false
+server_start_allowed: false
+runtime_api_allowed: false
+data_staging_allowed: false
+
+required_gates:
+  - pilot_scope_gate
+  - retrieval_metadata_eval_gate
+  - pedago_interface_contract_gate
+  - source_admission_policy_gate
+  - human_source_review_gate
+  - make_target_safety_gate
+  - metadata_preflight_gate
+  - project_doctor_gate
+
+allowed_transition_decisions:
+  - continue_metadata_only
+  - require_human_signoff
+  - defer_real_corpus_lot
+  - do_not_proceed
+
+required_transition_fields:
+  - transition_id
+  - gate_id
+  - gate_status
+  - decision
+  - decision_reason
+  - human_signoff_required
+  - real_corpus_allowed
+  - real_file_allowed
+  - external_url_allowed
+  - rollback_required
+  - next_lot_required
+
+required_gate_evidence_fields:
+  - gate_id
+  - evidence_kind
+  - evidence_ref
+  - safe_target
+  - expected_status
+  - destructive_action_allowed
+  - real_document_allowed
+  - network_allowed
+
+gate_evidence:
+  - gate_id: pilot_scope_gate
+    evidence_kind: codex_report_and_make_target
+    evidence_ref: data/reports/codex_lot_17C_pilot_corpus_scope.md
+    safe_target: pilot-corpus-scope-audit
+    expected_status: passed
+    destructive_action_allowed: false
+    real_document_allowed: false
+    network_allowed: false
+
+  - gate_id: retrieval_metadata_eval_gate
+    evidence_kind: codex_report_and_make_target
+    evidence_ref: data/reports/codex_lot_17D_retrieval_metadata_eval.md
+    safe_target: retrieval-metadata-eval-audit
+    expected_status: passed
+    destructive_action_allowed: false
+    real_document_allowed: false
+    network_allowed: false
+
+  - gate_id: pedago_interface_contract_gate
+    evidence_kind: codex_report_and_make_target
+    evidence_ref: data/reports/codex_lot_17E_pedago_interface_contract.md
+    safe_target: pedago-interface-contract-audit
+    expected_status: passed
+    destructive_action_allowed: false
+    real_document_allowed: false
+    network_allowed: false
+
+  - gate_id: source_admission_policy_gate
+    evidence_kind: codex_report_and_make_target
+    evidence_ref: data/reports/codex_lot_17F_source_admission_policy.md
+    safe_target: source-admission-policy-audit
+    expected_status: passed
+    destructive_action_allowed: false
+    real_document_allowed: false
+    network_allowed: false
+
+  - gate_id: human_source_review_gate
+    evidence_kind: codex_report_and_make_target
+    evidence_ref: data/reports/codex_lot_17G_human_source_review.md
+    safe_target: human-source-review-audit
+    expected_status: passed
+    destructive_action_allowed: false
+    real_document_allowed: false
+    network_allowed: false
+
+  - gate_id: make_target_safety_gate
+    evidence_kind: make_target
+    evidence_ref: configs/make_target_safety.yml
+    safe_target: make-target-safety-audit
+    expected_status: passed
+    destructive_action_allowed: false
+    real_document_allowed: false
+    network_allowed: false
+
+  - gate_id: metadata_preflight_gate
+    evidence_kind: make_target
+    evidence_ref: Makefile
+    safe_target: metadata-preflight
+    expected_status: passed
+    destructive_action_allowed: false
+    real_document_allowed: false
+    network_allowed: false
+
+  - gate_id: project_doctor_gate
+    evidence_kind: make_target
+    evidence_ref: rag_pedago/project_doctor.py
+    safe_target: project-doctor
+    expected_status: passed
+    destructive_action_allowed: false
+    real_document_allowed: false
+    network_allowed: false
+
+transition_checks:
+  - transition_id: all_metadata_gates_green
+    gate_id: human_source_review_gate
+    gate_status: passed
+    decision: continue_metadata_only
+    decision_reason: metadata_only_gates_valid
+    human_signoff_required: true
+    real_corpus_allowed: false
+    real_file_allowed: false
+    external_url_allowed: false
+    rollback_required: true
+    next_lot_required: true
+
+  - transition_id: real_corpus_deferred
+    gate_id: source_admission_policy_gate
+    gate_status: deferred
+    decision: defer_real_corpus_lot
+    decision_reason: real_corpus_requires_separate_lot
+    human_signoff_required: true
+    real_corpus_allowed: false
+    real_file_allowed: false
+    external_url_allowed: false
+    rollback_required: true
+    next_lot_required: true
+
+  - transition_id: missing_human_signoff
+    gate_id: human_source_review_gate
+    gate_status: blocked
+    decision: require_human_signoff
+    decision_reason: human_signoff_missing
+    human_signoff_required: true
+    real_corpus_allowed: false
+    real_file_allowed: false
+    external_url_allowed: false
+    rollback_required: true
+    next_lot_required: true
