@@ -18,6 +18,14 @@ La priorité actuelle est la qualité des métadonnées et de la gouvernance ava
 ingestion : référentiels officiels, taxonomies, manifests, gate de décision,
 revue humaine, import contrôlé et audit SQLite.
 
+## Installation
+
+Le contrat partagé `nexus-contracts` s'installe en éditable depuis le monorepo :
+
+```bash
+make install   # installe nexus-contracts puis rag-pedago[dev]
+```
+
 ## Ce que le projet fait actuellement
 
 - valide des schémas Pydantic métier ;
@@ -109,7 +117,7 @@ python -m rag_pedago.imports.controlled_import_cli --help
 - Aucune connexion Qdrant ou PostgreSQL ne doit être ajoutée sans lot dédié.
 - Aucun LLM runtime ne doit être utilisé sans validation explicite.
 - Les secrets, `.env` réels, credentials et uploads historiques sont interdits.
-- Le dépôt historique `/home/alaeddine/Bureau/RAG/rag-local` est lecture seule.
+- Le service `services/rag-engine/` (ex `rag-local`) n'est pas modifié par `rag-pedago`.
 - Les chemins de production `/srv/nexusreussite/rag-ui` ne doivent pas être modifiés.
 
 ## État actuel des lots

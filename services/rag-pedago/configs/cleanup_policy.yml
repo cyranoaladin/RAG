@@ -1,4 +1,4 @@
-workspace_root: /home/alaeddine/Bureau/RAG
+workspace_root: ${NEXUS_WORKSPACE_ROOT:-.}
 active_repo: rag-pedago
 readonly_repos:
   - rag-local

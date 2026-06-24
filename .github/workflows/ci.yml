@@ -27,9 +27,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install -e packages/contracts
       - working-directory: services/rag-pedago
-        run: pip install -e ".[dev]"
+        run: make install
       - working-directory: services/rag-pedago
         run: make lint
       - working-directory: services/rag-pedago

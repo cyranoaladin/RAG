@@ -14,7 +14,6 @@ authors = [
 dependencies = [
   "pydantic>=2.7",
   "PyYAML>=6.0",
-  "nexus-contracts",
 ]
 
 [project.optional-dependencies]

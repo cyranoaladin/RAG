@@ -8,7 +8,7 @@ absolute_interdictions:
   - No current step may connect PostgreSQL.
   - No current step may call an LLM runtime.
   - No current step may copy secrets, credentials, production env files or uploads.
-  - No current step may modify /home/alaeddine/Bureau/RAG/rag-local.
+  - No current step may modify services/rag-engine/ from rag-pedago.
   - No current step may modify /srv/nexusreussite/rag-ui.
   - Ne jamais modifier schema/document.py sans tâche dédiée explicite.
   - Ne jamais modifier à la main des taxonomies officielles déjà validées.
