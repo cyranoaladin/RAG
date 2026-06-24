@@ -6,7 +6,7 @@ production.
 
 ## Règles d'or
 
-- Travailler uniquement dans `/home/alaeddine/Bureau/RAG/rag-pedago`.
+- Travailler uniquement dans `/home/alaeddine/Bureau/RAG/services/rag-pedago`.
 - Lire le code et les contrats avant de modifier.
 - Ne modifier qu'un lot atomique à la fois.
 - Écrire les tests avant le code pour tout comportement nouveau.
@@ -33,7 +33,7 @@ production.
 - Ne jamais utiliser un LLM runtime dans ce dépôt sans lot dédié.
 - Ne jamais parser de PDF, OCRiser ou lire un document source dans les lots metadata-only.
 - Ne jamais copier de secrets, credentials, `.env` réels, dumps ou uploads.
-- Ne jamais modifier `/home/alaeddine/Bureau/RAG/rag-local`.
+- Ne jamais modifier `/home/alaeddine/Bureau/RAG/services/rag-engine`.
 - Ne jamais modifier `/srv/nexusreussite/rag-ui`.
 - Ne jamais supprimer un fichier brut de `data/raw/`.
 - Ne jamais contourner robots.txt.

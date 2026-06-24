@@ -4,8 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from schema.document import TypeDoc
-from schema.student_profile import StudentProfile
+from nexus_contracts.document import TypeDoc
+from nexus_contracts.student_profile import StudentProfile
 
 
 class RetrievalNeed(BaseModel):
@@ -79,4 +79,3 @@ class RetrievalResponse(BaseModel):
     results: list[RetrievalResult] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     filters_applied: dict[str, object] = Field(default_factory=dict)
-
