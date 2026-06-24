@@ -8,6 +8,8 @@ from pathlib import Path, PurePosixPath
 
 import yaml
 
+from rag_pedago.paths import WORKSPACE_ROOT
+
 DEFAULT_CONFIG = Path(__file__).resolve().parents[1] / "configs/cleanup_policy.yml"
 SAMPLE_LIMIT = 20
 
@@ -41,7 +43,7 @@ def load_policy(config_path: Path) -> CleanupPolicy:
     if not isinstance(payload, dict):
         raise ValueError(f"cleanup policy must be a mapping: {config_path}")
     return CleanupPolicy(
-        workspace_root=Path(str(payload["workspace_root"])),
+        workspace_root=Path(str(payload["workspace_root"])) if payload.get("workspace_root") else WORKSPACE_ROOT,
         active_repo=str(payload["active_repo"]),
         readonly_repos=[str(item) for item in payload.get("readonly_repos", [])],
         deep_scan_exclusions=[str(item) for item in payload.get("deep_scan_exclusions", [])],

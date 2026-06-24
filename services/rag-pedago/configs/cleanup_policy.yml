@@ -1,4 +1,6 @@
-workspace_root: ${NEXUS_WORKSPACE_ROOT:-.}
+# workspace_root is resolved at runtime by rag_pedago.paths.WORKSPACE_ROOT.
+# This key is kept as optional override only; do not use shell syntax here.
+workspace_root: null
 active_repo: rag-pedago
 readonly_repos:
   - rag-local

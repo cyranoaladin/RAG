@@ -14,7 +14,7 @@ RUFF   := $(PY) -m ruff
 MYPY   := $(PY) -m mypy
 PYTEST := $(PY) -m pytest
 
-.PHONY: help venv install-dev lint typecheck test test-integration smoke \
+.PHONY: help venv install install-dev lint typecheck test test-integration smoke \
     obs-up obs-down obs-smoke obs-quickcheck obs-restart obs-status \
     compose-test-up compose-test-down print-tools dev compose-up compose-down compose-restart
 
@@ -30,7 +30,11 @@ venv:
 		"$(PY_VENV)" -m pip install -U pip; \
 	fi
 
-# Installe dependances runtime + dev si dispo
+# Installe le contrat partagé puis les dépendances runtime + dev
+install: venv
+	"$(PY_VENV)" -m pip install -e ../../packages/contracts
+	@$(MAKE) install-dev
+
 install-dev: venv
 	@if [ -f requirements.txt ]; then "$(PY)" -m pip install -r requirements.txt; fi
 	@if [ -f requirements-dev.txt ]; then "$(PY)" -m pip install -r requirements-dev.txt; fi

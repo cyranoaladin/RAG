@@ -79,14 +79,8 @@ run_target "services/rag-pedago" run_pedago
 run_engine() {
     cd "$REPO_ROOT/services/rag-engine"
     rm -rf .venv
-    python3 -m venv .venv
+    make install > /dev/null 2>&1
     source .venv/bin/activate
-    pip install -q -U pip
-    if [ -f requirements-dev.txt ]; then
-        pip install -q -r requirements-dev.txt 2>/dev/null || pip install -q ruff mypy pytest
-    else
-        pip install -q ruff mypy pytest
-    fi
     echo "--- lint ---"
     make lint
     echo "--- typecheck ---"

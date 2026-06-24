@@ -40,7 +40,11 @@ Décision fondatrice : ADR-0001 (séparation plan de contrôle / plan de donnée
 
 ## Commandes
 
-Par service (depuis `services/<svc>`) : `make install` (installe le contrat puis le service), `make lint`, `make typecheck`, `make test`, `make smoke` quand disponible.
+Par service (depuis `services/<svc>`) :
+- `make install` — installe `nexus-contracts` en éditable puis le service (disponible sur `rag-pedago` et `rag-engine`).
+- `make lint`, `make typecheck`, `make test` — qualité et tests.
+- `make smoke` — quand disponible (rag-engine).
+- CI locale : `bash scripts/ci-local.sh` depuis la racine.
 
 ## Garde-fous CI (non négociables, vérifiés automatiquement)
 

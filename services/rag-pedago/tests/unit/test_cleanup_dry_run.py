@@ -161,6 +161,16 @@ def test_cleanup_policy_files_exist() -> None:
     assert SCRIPT.is_file()
 
 
+def test_workspace_root_resolves_to_real_path() -> None:
+    """workspace_root must resolve to a real Path, never a shell variable string."""
+    module = _load_cleanup_module()
+    policy = module.load_policy(POLICY_CONFIG)
+    root = policy.workspace_root
+    assert isinstance(root, Path)
+    assert "${" not in str(root), f"workspace_root is a literal shell variable: {root}"
+    assert root.is_dir(), f"workspace_root does not exist: {root}"
+
+
 def test_cleanup_script_has_no_destructive_api_or_apply_options() -> None:
     text = SCRIPT.read_text(encoding="utf-8")
 

@@ -20,11 +20,13 @@ revue humaine, import contrôlé et audit SQLite.
 
 ## Installation
 
-Le contrat partagé `nexus-contracts` s'installe en éditable depuis le monorepo :
+Le point d'entrée d'installation supporté est `make install` (installe `nexus-contracts` en éditable depuis le monorepo, puis le service) :
 
 ```bash
 make install   # installe nexus-contracts puis rag-pedago[dev]
 ```
+
+> `pip install -e ".[dev]"` seul échouera si `nexus-contracts` n'est pas déjà installé.
 
 ## Ce que le projet fait actuellement
 
