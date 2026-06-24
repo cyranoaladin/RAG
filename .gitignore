@@ -1,9 +1,32 @@
+# Environments & secrets
 .venv/
+.env
+.env.*
+**/.env
+**/.env.*
+
+# Python
 __pycache__/
 *.pyc
-*.db
 *.egg-info/
 .mypy_cache/
 .ruff_cache/
 .pytest_cache/
+.coverage
+
+# Node
 node_modules/
+
+# Data & artifacts
+*.db
+*.sqlite
+**/data/
+*.bak*
+*.log
+.DS_Store
+
+# Credentials
+**/creds/
+
+# HTTP debug files containing API responses
+rag-local/dev/http/rest-settings.http
