@@ -21,6 +21,7 @@ node_modules/
 *.db
 *.sqlite
 **/data/
+!services/rag-engine/data/chunks/
 *.bak*
 *.log
 .DS_Store

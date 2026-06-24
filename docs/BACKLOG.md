@@ -19,6 +19,12 @@
 |---|---|---|
 | Distribution `nexus-contracts` | Non publié sur PyPI ; installé en éditable via `make install`. `pip install -e ".[dev]"` seul échoue. | Industrialiser via `uv workspace` (Phase 6) |
 
+## Audience / statuts hors-cible (Phase 5)
+
+| Point | Détail | Action |
+|---|---|---|
+| Mapping `audience` incomplet | `status_detail == unknown` ou statuts hors-cible (système tunisien, double cursus, hors-AEFE) produit `aefe` par défaut sans warning | Affiner le mapping et émettre un warning pour les cas ambigus |
+
 ## Process
 
 | Point | Détail |
