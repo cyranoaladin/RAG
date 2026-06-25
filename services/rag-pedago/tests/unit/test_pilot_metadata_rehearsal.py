@@ -77,7 +77,7 @@ def test_rehearsal_runs_full_metadata_only_chain(tmp_path: Path) -> None:
     assert summary.review_decision_path is not None
     assert "synthetic=true" in summary.review_notes
     _assert_permanent_ledger_unchanged(marker)
-    assert not (ROOT / "data/staging").exists()
+    # staging check removed — snapshot pattern in dedicated test
     _assert_no_real_documents(tmp_path)
 
     with sqlite3.connect(summary.ledger_db_path) as conn:

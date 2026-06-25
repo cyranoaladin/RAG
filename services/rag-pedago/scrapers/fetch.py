@@ -190,9 +190,12 @@ def governed_fetch(url: str) -> FetchResult | FetchRefusal:
 # ---------------------------------------------------------------------------
 
 def extract_text_from_html(html: str) -> str:
-    """Extract readable text from HTML. Basic — no JS rendering."""
-    # Remove script/style tags
-    text = re.sub(r"<(script|style)[^>]*>.*?</\1>", "", html, flags=re.DOTALL | re.IGNORECASE)
+    """Extract readable text from HTML, stripping navigation/menus."""
+    # Remove script/style/nav/header/footer tags
+    text = re.sub(
+        r"<(script|style|nav|header|footer)[^>]*>.*?</\1>",
+        "", html, flags=re.DOTALL | re.IGNORECASE,
+    )
     # Remove all HTML tags
     text = re.sub(r"<[^>]+>", " ", text)
     # Collapse whitespace
@@ -219,9 +222,21 @@ def quality_check(text: str, notion_id: str) -> dict[str, Any]:
     if fr_ratio < 0.05:
         issues.append(f"low French content ratio ({fr_ratio:.2%})")
 
+    # Anti-navigation check
+    nav_markers = {"chapitres", "voir aussi", "catégorie :", "modifier les liens",
+                   "outils personnels", "menu principal", "aller au contenu",
+                   "rechercher", "faire un don", "créer un compte", "se connecter"}
+    lower_text = text.lower()
+    nav_hits = sum(1 for m in nav_markers if m in lower_text)
+    navigation_suspected = nav_hits >= 4
+
+    if navigation_suspected:
+        issues.append(f"navigation_suspected ({nav_hits} nav markers found)")
+
     return {
         "ok": len(issues) == 0,
         "issues": issues,
         "text_length": len(text),
         "fr_ratio": round(fr_ratio, 3),
+        "navigation_suspected": navigation_suspected,
     }

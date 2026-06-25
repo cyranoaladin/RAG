@@ -276,12 +276,15 @@ def test_cleanup_dry_run_does_not_modify_git_status_staging_or_ledger() -> None:
     module = _load_cleanup_module()
     before_status = _git_status()
     ledger_existed, ledger_mtime = _ledger_marker()
+    _staging_before = set(DATA_STAGING.rglob("*")) if DATA_STAGING.exists() else set()
 
     status = module.main([])
 
     assert status == 0
     assert _git_status() == before_status
-    assert not DATA_STAGING.exists()
+    # Staging may exist (legitimate content); verify module didn't modify it
+    _staging_after = set(DATA_STAGING.rglob("*")) if DATA_STAGING.exists() else set()
+    assert _staging_after == _staging_before, "module must not create/modify staging"
     assert PERMANENT_LEDGER.exists() is ledger_existed
     if ledger_existed:
         assert PERMANENT_LEDGER.stat().st_mtime_ns == ledger_mtime

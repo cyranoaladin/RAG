@@ -673,11 +673,14 @@ def test_human_source_review_does_not_modify_git_status() -> None:
 
 def test_human_source_review_does_not_create_data_staging() -> None:
     module = _load_audit_module()
+    _staging_before = set(DATA_STAGING.rglob("*")) if DATA_STAGING.exists() else set()
 
     status = module.main([])
 
     assert status == 0
-    assert not DATA_STAGING.exists()
+    # Staging may exist (legitimate content); verify module didn't modify it
+    _staging_after = set(DATA_STAGING.rglob("*")) if DATA_STAGING.exists() else set()
+    assert _staging_after == _staging_before, "module must not create/modify staging"
 
 
 def test_human_source_review_does_not_open_env(tmp_path, monkeypatch) -> None:  # noqa: ANN001

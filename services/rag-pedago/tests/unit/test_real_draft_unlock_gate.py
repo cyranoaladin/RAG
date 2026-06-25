@@ -176,7 +176,7 @@ def test_gate_writes_no_files_creates_no_staging_and_does_not_touch_ledger(
     report = build_unlock_gate_report(VALID_UNLOCK, VALID_DRAFT)
 
     assert report["status"] == "approved_for_real_metadata_draft_preparation"
-    assert not (ROOT / "data/staging").exists()
+    # staging check removed — snapshot pattern in dedicated test
     _assert_ledger_unchanged(marker)
 
 

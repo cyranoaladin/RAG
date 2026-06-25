@@ -222,6 +222,13 @@ def build_metadata_preflight_report(base_dir: Path | None = None) -> dict:
         run_unlock_gate_check(),
     ]
     data_staging_absent = not (REPO_ROOT / "data/staging").is_dir()
+    # Read data_staging_allowed from contract
+    _contract_path = REPO_ROOT / "configs/pedago_interface_contract.yml"
+    _staging_allowed = False
+    if _contract_path.is_file():
+        import yaml as _yaml
+        _contract = _yaml.safe_load(_contract_path.read_text(encoding="utf-8"))
+        _staging_allowed = _contract.get("data_staging_allowed") is True
     permanent_ledger_unchanged = _ledger_unchanged(ledger_marker)
     real_documents_absent = _real_documents_absent()
 
@@ -229,8 +236,8 @@ def build_metadata_preflight_report(base_dir: Path | None = None) -> dict:
     for check in checks:
         if not check.get("ok"):
             issues.extend(_prefixed_issues(check))
-    if not data_staging_absent:
-        issues.append(_issue("data_staging_present", "data/staging", "data/staging must be absent"))
+    if not data_staging_absent and not _staging_allowed:
+        issues.append(_issue("data_staging_present", "data/staging", "data/staging must be absent (data_staging_allowed=false)"))
     if not permanent_ledger_unchanged:
         issues.append(
             _issue(

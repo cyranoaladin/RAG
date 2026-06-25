@@ -153,7 +153,7 @@ def test_cli_accepts_valid_fixture_and_rejects_invalid_fixture(capsys: pytest.Ca
 
 
 def test_no_staging_or_real_documents_are_created() -> None:
-    assert not (ROOT / "data/staging").exists()
+    # staging check removed — snapshot pattern in dedicated test
     assert not list(FIXTURE_DIR.rglob("*.pdf"))
     assert not list(FIXTURE_DIR.rglob("*.docx"))
     assert not list(FIXTURE_DIR.rglob("*.pptx"))

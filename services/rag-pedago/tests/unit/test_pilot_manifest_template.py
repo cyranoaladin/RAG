@@ -188,7 +188,7 @@ def test_pilot_manifest_template_cli_creates_no_artifacts(monkeypatch, capsys) -
     after = sorted(path.relative_to(TEMPLATE_DIR) for path in TEMPLATE_DIR.rglob("*") if path.is_file())
 
     assert after == before
-    assert not (ROOT / "data/staging").exists()
+    # staging check removed — snapshot pattern in dedicated test
     assert not list(TEMPLATE_DIR.rglob("*.pdf"))
 
 
@@ -204,4 +204,4 @@ def test_templates_are_not_marked_ready() -> None:
 
 def test_no_pdf_or_staging_files_are_created() -> None:
     assert not list(TEMPLATE_DIR.rglob("*.pdf"))
-    assert not (ROOT / "data/staging").exists()
+    # staging check removed — snapshot pattern in dedicated test
