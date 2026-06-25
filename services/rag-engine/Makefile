@@ -30,9 +30,10 @@ venv:
 		"$(PY_VENV)" -m pip install -U pip; \
 	fi
 
-# Installe le contrat partagé puis les dépendances runtime + dev
+# Installe depuis le lock, puis les editables sans re-résolution
 install: venv
-	"$(PY_VENV)" -m pip install -e ../../packages/contracts
+	"$(PY_VENV)" -m pip install -r requirements.lock
+	"$(PY_VENV)" -m pip install -e ../../packages/contracts --no-deps
 	@$(MAKE) install-dev
 
 install-dev: venv

@@ -5,7 +5,7 @@
 | Test | Symptôme | Antériorité | Action |
 |---|---|---|---|
 | `test_real_draft_guard::test_valid_fixture_passes_and_invalid_fixtures_fail` | Assertion de statut (`ready_for_human_locked_metadata_validation` != `blocked`) | Prouvé sur commit `e16cbed` (avant Lot 0) | Lot dédié |
-| `test_real_draft_unlock_gate` (tous) | ~~INTERNALERROR pytest~~ **Résolu** (lot-0.7). Cause réelle : monkeypatch global de `Path.exists` interceptait le reporting de pytest <9.x. Fix : monkeypatch scopé au module sous test. 11/11 pass. | Prouvé sur commit `e16cbed` | Résolu — monkeypatch scopé (lot-0.7) |
+| `test_real_draft_unlock_gate` (tous) | ~~INTERNALERROR pytest~~ **Résolu** (lot-0.7.1). Cause : monkeypatch global de `Path.exists` interceptait pytest <9.x reporting. Fix : sous-classe `Path` injectée dans le module sous test (pas `pathlib.Path` global). Assertion `pathlib.Path("/").exists()` prouve le scope. 11/11 pass. | Prouvé sur commit `e16cbed` | Résolu — monkeypatch réellement scopé (lot-0.7.1) |
 
 ## Garde-fou de gouvernance
 
@@ -18,6 +18,7 @@
 | Point | Détail | Action |
 |---|---|---|
 | Distribution `nexus-contracts` | Non publié sur PyPI ; installé en éditable via `make install`. `pip install -e ".[dev]"` seul échoue. | Industrialiser via `uv workspace` (Phase 6) |
+| Lockfiles sans hashes | `requirements.lock` de rag-pedago et rag-engine générés par `pip freeze` (pas `pip-compile --generate-hashes`) car nexus-contracts n'est pas sur PyPI. Contracts a des hashes (pip-compile). | Hashes possibles après passage à `uv workspace` |
 
 ## Audience / statuts hors-cible (Phase 5)
 
@@ -36,6 +37,17 @@
 | `rag_pedago/imports/real_draft_unlock_gate.py` | 42,45 | `union-attr` | Idem |
 | `rag_pedago/imports/pilot_manifest_template.py` | 170 | `union-attr` | Idem |
 | `scrapers/discovery.py` | 263 | `union-attr` | enum .value on Optional |
+
+## Divergence d'outils entre services
+
+| Outil | rag-pedago | rag-engine | Risque |
+|---|---|---|---|
+| ruff | 0.15.19 | 0.6.4 | Règles différentes sur le contrat partagé |
+| mypy | 2.1.0 | 1.11.2 | Idem |
+| pytest | 9.1.1 | 8.3.3 | Comportement test subtil (cf. monkeypatch) |
+| pydantic | 2.13.4 | 2.9.2 | Contrat compilé différemment selon le service |
+
+**Plan** : unifier au prochain lot de maintenance. rag-engine a des contraintes runtime (py39 compat, dépendances transitives lourdes) qui rendent la montée non triviale.
 
 ## Lint legacy isolé (per-file-ignores)
 
