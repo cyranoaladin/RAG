@@ -74,8 +74,14 @@ def test_report_contains_expected_statuses_and_limits() -> None:
     assert report["real_draft_guard_status"] == "ready_for_human_locked_metadata_validation"
     assert report["human_unlock_status"] == "approved_for_metadata_only_next_step"
     assert report["unlock_gate_status"] == "approved_for_real_metadata_draft_preparation"
-    # data_staging_absent may be False when data_staging_allowed=true (legitimate content)
-    assert report["data_staging_absent"] in (True, False)
+    # data_staging_absent reflects filesystem state; staging is allowed when data_staging_allowed=true
+    import yaml
+    contract = yaml.safe_load((REPO_ROOT / "configs/pedago_interface_contract.yml").read_text())
+    staging_allowed = contract.get("data_staging_allowed") is True
+    if staging_allowed:
+        assert isinstance(report["data_staging_absent"], bool)
+    else:
+        assert report["data_staging_absent"] is True
     assert report["permanent_ledger_unchanged"] is True
     assert report["real_documents_absent"] is True
     assert report["limitations"]["pedagogical_content_validated"] is False

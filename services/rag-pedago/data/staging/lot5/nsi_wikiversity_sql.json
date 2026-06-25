@@ -1,0 +1,19 @@
+{
+  "notion_id": "sql",
+  "matiere": "nsi",
+  "url": "https://fr.wikiversity.org/wiki/Structured_Query_Language",
+  "source_label": "wikiversity_sql",
+  "rights": "CC-BY-SA 4.0",
+  "audience": "tous",
+  "status": "ok",
+  "text_length": 3454,
+  "text_preview": "Structured Query Language — Wikiversité Aller au contenu Une page de Wikiversité, la communauté pédagogique libre. Structured Query Language Autres leçons d'informatique Département Programmation informatique Chapitres Chap. 1 : Introduction (14) Chap. 2 : Modélisation (14) Chap. 3 : Instruction CREATE TABLE (14) Chap. 4 : Requêtes SELECT (14) Chap. 5 : Intégrité référentielle (14) Chap. 6 : Vues (14) Chap. 7 : Modification des données (14) Annexes Annexe : Glossaire (14) Quiz Quiz 1 : QCM SQL (",
+  "quality": {
+    "ok": true,
+    "issues": [],
+    "text_length": 3454,
+    "fr_ratio": 0.068,
+    "navigation_suspected": false
+  },
+  "page_type": "content"
+}
