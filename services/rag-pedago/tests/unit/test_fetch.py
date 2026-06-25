@@ -191,14 +191,14 @@ def test_robots_failure_refuses(mock_robots):
 
 def test_pilot_fetch_refuses_when_staging_not_allowed(tmp_path, monkeypatch):
     """pilot_fetch must refuse to write staging when data_staging_allowed=false."""
-    from scrapers.pilot_fetch import run_pilot_fetch
+    from scrapers import pilot_fetch
 
     # Write a contract with data_staging_allowed=false
     fake_contract = tmp_path / "contract.yml"
     fake_contract.write_text("data_staging_allowed: false\n", encoding="utf-8")
-    monkeypatch.setattr("scrapers.pilot_fetch.CONTRACT_PATH", fake_contract)
+    monkeypatch.setattr(pilot_fetch, "CONTRACT_PATH", fake_contract)
 
-    report = run_pilot_fetch()
+    report = pilot_fetch.run_pilot_fetch()
 
     assert "error" in report
     assert "staging refused" in report["error"]

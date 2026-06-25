@@ -120,6 +120,9 @@ run_target "services/rag-engine" run_engine
 # --- governance locks ---
 run_target "governance-locks" bash scripts/check-governance-locks.sh
 
+# --- taxonomy validation ---
+run_target "taxonomy-validation" bash -c "cd $REPO_ROOT/services/rag-pedago && source .venv/bin/activate && python scripts/validate_taxonomy.py"
+
 # --- governance guard tests ---
 run_target "governance-guard-tests" bash scripts/tests/test-governance-locks.sh
 

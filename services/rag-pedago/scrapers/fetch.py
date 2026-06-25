@@ -226,13 +226,16 @@ def quality_check(text: str, notion_id: str) -> dict[str, Any]:
     if fr_ratio < 0.05:
         issues.append(f"low French content ratio ({fr_ratio:.2%})")
 
-    # Anti-navigation check
+    # Anti-navigation check (calibrated on real Wikiversity/Wikipedia pages)
     nav_markers = {"chapitres", "voir aussi", "catégorie :", "modifier les liens",
                    "outils personnels", "menu principal", "aller au contenu",
-                   "rechercher", "faire un don", "créer un compte", "se connecter"}
+                   "rechercher", "faire un don", "créer un compte", "se connecter",
+                   "autres leçons", "département"}
     lower_text = text.lower()
     nav_hits = sum(1 for m in nav_markers if m in lower_text)
-    navigation_suspected = nav_hits >= 4
+    # Short pages with many nav markers are likely indexes
+    words_count = len(text.split())
+    navigation_suspected = nav_hits >= 3 or (nav_hits >= 2 and words_count < 500)
 
     if navigation_suspected:
         issues.append(f"navigation_suspected ({nav_hits} nav markers found)")
