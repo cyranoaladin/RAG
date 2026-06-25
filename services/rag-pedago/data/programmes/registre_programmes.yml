@@ -1,0 +1,108 @@
+# Registre des programmes officiels — source de vérité
+# Chaque entrée pointe vers le PDF du programme publié au BO.
+# statut_recuperation: recuperable | manuel | a_verifier
+
+programmes:
+  - matiere: mathematiques
+    niveau: terminale
+    voie: generale
+    statut: specialite
+    boen_reference: "BOEN spécial n°8 du 25 juillet 2019, arrêté du 19-7-2019"
+    url_pdf: "https://cache.media.education.gouv.fr/file/SPE8_MENJ_25_7_2019/90/7/spe247_annexe_1158907.pdf"
+    statut_recuperation: recuperable
+
+  - matiere: nsi
+    niveau: terminale
+    voie: generale
+    statut: specialite
+    boen_reference: "BOEN spécial n°8 du 25 juillet 2019, arrêté du 19-7-2019"
+    url_pdf: "https://cache.media.education.gouv.fr/file/SPE8_MENJ_25_7_2019/93/5/spe248_annexe_1158935.pdf"
+    statut_recuperation: recuperable
+
+  - matiere: philosophie
+    niveau: terminale
+    voie: generale
+    statut: tronc_commun
+    boen_reference: "BOEN spécial n°8 du 25 juillet 2019"
+    url_pdf: "https://cache.media.education.gouv.fr/file/SPE8_MENJ_25_7_2019/84/5/spe245_annexe_1158845.pdf"
+    statut_recuperation: recuperable
+
+  - matiere: mathematiques
+    niveau: premiere
+    voie: generale
+    statut: tronc_commun
+    boen_reference: "BOEN spécial n°1 du 22 janvier 2019"
+    url_pdf: "https://cache.media.education.gouv.fr/file/SP1-MEN-22-1-2019/16/8/spe630_annexe2_1063168.pdf"
+    statut_recuperation: recuperable
+
+  - matiere: mathematiques
+    niveau: seconde
+    voie: generale
+    statut: enseignement_commun
+    boen_reference: "BOEN spécial n°1 du 22 janvier 2019"
+    url_pdf: "https://cache.media.education.gouv.fr/file/SP1-MEN-22-1-2019/95/7/spe631_annexe_1062957.pdf"
+    statut_recuperation: recuperable
+
+  - matiere: nsi
+    niveau: premiere
+    voie: generale
+    statut: specialite
+    boen_reference: "BOEN spécial n°1 du 22 janvier 2019"
+    url_pdf: "https://cache.media.education.gouv.fr/file/SP1-MEN-22-1-2019/26/8/spe633_annexe_1063268.pdf"
+    statut_recuperation: recuperable
+
+  - matiere: histoire_geo
+    niveau: terminale
+    voie: generale
+    statut: tronc_commun
+    boen_reference: "BOEN spécial n°8 du 25 juillet 2019"
+    url_pdf: ""
+    statut_recuperation: a_verifier
+
+  - matiere: physique_chimie
+    niveau: premiere
+    voie: generale
+    statut: specialite
+    boen_reference: "BOEN spécial n°1 du 22 janvier 2019"
+    url_pdf: ""
+    statut_recuperation: a_verifier
+
+  - matiere: svt
+    niveau: premiere
+    voie: generale
+    statut: specialite
+    boen_reference: "BOEN spécial n°1 du 22 janvier 2019"
+    url_pdf: ""
+    statut_recuperation: a_verifier
+
+  - matiere: ses
+    niveau: premiere
+    voie: generale
+    statut: specialite
+    boen_reference: "BOEN spécial n°1 du 22 janvier 2019"
+    url_pdf: ""
+    statut_recuperation: a_verifier
+
+  - matiere: francais
+    niveau: premiere
+    voie: generale
+    statut: tronc_commun
+    boen_reference: "BOEN spécial n°1 du 22 janvier 2019"
+    url_pdf: ""
+    statut_recuperation: a_verifier
+
+  - matiere: mathematiques
+    niveau: troisieme
+    voie: college
+    statut: enseignement_commun
+    boen_reference: "BOEN spécial n°11 du 26 novembre 2015"
+    url_pdf: ""
+    statut_recuperation: a_verifier
+
+  - matiere: snt
+    niveau: seconde
+    voie: generale
+    statut: enseignement_commun
+    boen_reference: "BOEN spécial n°1 du 22 janvier 2019"
+    url_pdf: ""
+    statut_recuperation: a_verifier
