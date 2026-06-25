@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
-# check-governance-locks.sh — Fail if any governance lock has been weakened
+# check-governance-locks.sh — Fail if any governance lock has changed value
 # without an ADR reference on an added line in the diff.
+#
+# The baseline records the EXPECTED state of each lock (false or true).
+# A lock at true in the baseline must have an ADR comment on its baseline line.
+# Any deviation from baseline → fail (unless ADR on added diff line).
 #
 # Override paths for testing:
 #   GOVERNANCE_CONTRACT_FILE  — path to the contract YAML
@@ -21,18 +25,26 @@ if [ ! -f "$BASELINE_FILE" ]; then
     exit 1
 fi
 
-# Extract current locks (sorted). Tolerate zero matches from grep.
-CURRENT=$( { grep -E '^\s*\w+_allowed:\s*false' "$CONTRACT_FILE" || true; } | sed 's/^[[:space:]]*//' | sort )
-BASELINE=$(sort "$BASELINE_FILE")
+# Extract all *_allowed lines from contract (strip comments, whitespace)
+extract_locks() {
+    local file="$1"
+    { grep -E '^\s*\w+_allowed:\s*(true|false)' "$file" || true; } \
+        | sed 's/#.*//' | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//' | sort
+}
 
-# Count non-empty lines (echo on empty string still produces 1 line with wc -l)
+# Extract baseline (strip comments for comparison)
+extract_baseline() {
+    local file="$1"
+    grep -E '\w+_allowed:\s*(true|false)' "$file" \
+        | sed 's/#.*//' | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//' | sort
+}
+
+CURRENT=$(extract_locks "$CONTRACT_FILE")
+BASELINE=$(extract_baseline "$BASELINE_FILE")
+
 count_lines() {
     local text="$1"
-    if [ -z "$text" ]; then
-        echo 0
-    else
-        echo "$text" | wc -l | tr -d ' '
-    fi
+    if [ -z "$text" ]; then echo 0; else echo "$text" | wc -l | tr -d ' '; fi
 }
 
 BASELINE_COUNT=$(count_lines "$BASELINE")
@@ -40,11 +52,11 @@ CURRENT_COUNT=$(count_lines "$CURRENT")
 
 echo "Governance locks: baseline=$BASELINE_COUNT, current=$CURRENT_COUNT"
 
-# Key-by-key comparison: every baseline line must be present in current
-MISSING=$(comm -23 <(echo "$BASELINE") <( if [ -n "$CURRENT" ]; then echo "$CURRENT"; fi ) )
+# Key-by-key: every baseline entry must match in current
+MISSING=$(comm -23 <(echo "$BASELINE") <( if [ -n "$CURRENT" ]; then echo "$CURRENT"; fi ))
 
 if [ -n "$MISSING" ]; then
-    echo "FAIL: the following locks from baseline are missing or weakened:"
+    echo "FAIL: the following locks deviate from baseline:"
     echo "$MISSING"
 
     # Check if an ADR is referenced on an added line in the diff
@@ -57,10 +69,4 @@ if [ -n "$MISSING" ]; then
     exit 1
 fi
 
-# Also check count hasn't decreased
-if [ "$CURRENT_COUNT" -lt "$BASELINE_COUNT" ]; then
-    echo "FAIL: lock count decreased from $BASELINE_COUNT to $CURRENT_COUNT."
-    exit 1
-fi
-
-echo "OK: all governance locks intact ($CURRENT_COUNT keys verified)."
+echo "OK: all governance locks match baseline ($CURRENT_COUNT keys verified)."

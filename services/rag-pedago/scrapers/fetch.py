@@ -11,9 +11,6 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import urlparse
-from urllib.robotparser import RobotFileParser
-
-import requests
 
 # ---------------------------------------------------------------------------
 # Whitelist — only these domains are permitted
@@ -47,21 +44,22 @@ def is_whitelisted(url: str) -> bool:
 # robots.txt
 # ---------------------------------------------------------------------------
 
-_robots_cache: dict[str, RobotFileParser] = {}
+_robots_cache: dict[str, object] = {}
 
 
-def _get_robots(url: str) -> RobotFileParser:
+def _get_robots(url: str) -> object:
     """Fetch and cache robots.txt for the domain."""
     parsed = urlparse(url)
     robots_url = f"{parsed.scheme}://{parsed.netloc}/robots.txt"
     if robots_url not in _robots_cache:
+        from urllib.robotparser import RobotFileParser
         rp = RobotFileParser()
         rp.set_url(robots_url)
         try:
             rp.read()
         except Exception:
             # If robots.txt can't be fetched, assume everything is allowed
-            rp.allow_all = True  # type: ignore[attr-defined]
+            rp.disallow_all = True  # type: ignore[attr-defined]  # conservative: refuse if robots.txt unavailable
         _robots_cache[robots_url] = rp
     return _robots_cache[robots_url]
 
@@ -69,7 +67,7 @@ def _get_robots(url: str) -> RobotFileParser:
 def is_allowed_by_robots(url: str) -> bool:
     """Check if robots.txt allows fetching this URL."""
     rp = _get_robots(url)
-    return rp.can_fetch(USER_AGENT, url)
+    return rp.can_fetch(USER_AGENT, url)  # type: ignore[attr-defined]
 
 
 # ---------------------------------------------------------------------------
@@ -135,7 +133,9 @@ def governed_fetch(url: str) -> FetchResult | FetchRefusal:
     domain = urlparse(url).netloc
     delay = _apply_rate_limit(domain)
 
-    # 4. GET request (read-only)
+    # 4. GET request (read-only) — lazy import to avoid polluting sys.modules
+    import requests
+
     try:
         response = requests.get(
             url,

@@ -34,6 +34,9 @@ DANGEROUS_FLAGS = [
     "data_staging_allowed",
 ]
 
+# Flags authorized at true via transition_authorization.yml
+AUTHORIZED_TRUE_FLAGS = {"network_allowed"}
+
 
 def _load_audit_module():
     spec = importlib.util.spec_from_file_location("transition_authorization_audit", SCRIPT)
@@ -152,7 +155,7 @@ def test_transition_authorization_audit_returns_markdown(capsys) -> None:  # noq
     assert "no real document read" in output
 
 
-@pytest.mark.parametrize("flag", DANGEROUS_FLAGS)
+@pytest.mark.parametrize("flag", [f for f in DANGEROUS_FLAGS if f not in AUTHORIZED_TRUE_FLAGS])
 def test_transition_authorization_rejects_any_dangerous_flag_enabled(tmp_path, capsys, flag: str) -> None:  # noqa: ANN001
     module = _load_audit_module()
     path = _write_config(tmp_path, **{flag: True})
@@ -163,6 +166,19 @@ def test_transition_authorization_rejects_any_dangerous_flag_enabled(tmp_path, c
     assert status == 1
     assert "authorization_ready_for_review: false" in output
     assert f"{flag} must be false" in output
+
+
+@pytest.mark.parametrize("flag", list(AUTHORIZED_TRUE_FLAGS))
+def test_transition_authorization_rejects_authorized_flag_if_false(tmp_path, capsys, flag: str) -> None:  # noqa: ANN001
+    """An authorized-true flag set to false should be rejected."""
+    module = _load_audit_module()
+    path = _write_config(tmp_path, **{flag: False})
+
+    status = module.main(["--config", str(path)])
+
+    output = capsys.readouterr().out
+    assert status == 1
+    assert f"{flag} must be true" in output
 
 
 @pytest.mark.parametrize(

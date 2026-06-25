@@ -44,7 +44,7 @@ def test_robots_refusal(mock_robots):
 
 
 @patch("scrapers.fetch._get_robots")
-@patch("scrapers.fetch.requests.get")
+@patch("requests.get")
 @patch("scrapers.fetch._apply_rate_limit", return_value=0.0)
 def test_robots_allowed_proceeds_to_fetch(mock_rate, mock_get, mock_robots):
     rp = MagicMock()
@@ -65,7 +65,7 @@ def test_robots_allowed_proceeds_to_fetch(mock_rate, mock_get, mock_robots):
 # --- Rate limit ---
 
 @patch("scrapers.fetch._get_robots")
-@patch("scrapers.fetch.requests.get")
+@patch("requests.get")
 def test_rate_limit_applied(mock_get, mock_robots):
     rp = MagicMock()
     rp.can_fetch.return_value = True
@@ -77,16 +77,14 @@ def test_rate_limit_applied(mock_get, mock_robots):
     mock_response.iter_content.return_value = [b"<html>ok</html>"]
     mock_get.return_value = mock_response
 
-    # First fetch — no delay
     r1 = governed_fetch("https://eduscol.education.gouv.fr/page1")
     assert isinstance(r1, FetchResult)
-    # delay_applied is captured — for mocked time it may be 0
 
 
 # --- Read-only ---
 
 @patch("scrapers.fetch._get_robots")
-@patch("scrapers.fetch.requests.get")
+@patch("requests.get")
 @patch("scrapers.fetch._apply_rate_limit", return_value=0.0)
 def test_only_get_requests(mock_rate, mock_get, mock_robots):
     """Verify that only GET is called, never POST/PUT/DELETE."""
@@ -103,7 +101,6 @@ def test_only_get_requests(mock_rate, mock_get, mock_robots):
     governed_fetch("https://eduscol.education.gouv.fr/page")
 
     mock_get.assert_called_once()
-    # requests.post / requests.put / requests.delete never called
 
 
 # --- Text extraction ---
@@ -129,3 +126,16 @@ def test_quality_check_too_short():
     qc = quality_check("court", "suites")
     assert not qc["ok"]
     assert any("too short" in i for i in qc["issues"])
+
+
+# --- robots.txt failure → refusal (conservative) ---
+
+@patch("scrapers.fetch._get_robots")
+def test_robots_failure_refuses(mock_robots):
+    """If robots.txt can't be fetched, refuse by default (conservative)."""
+    rp = MagicMock()
+    rp.can_fetch.return_value = False  # conservative default
+    mock_robots.return_value = rp
+
+    result = governed_fetch("https://eduscol.education.gouv.fr/page")
+    assert isinstance(result, FetchRefusal)

@@ -68,13 +68,11 @@ run_pedago() {
     echo "$output" | tail -3
 
     if [ "$test_exit" -ne 0 ]; then
-        # Allow up to 2 known failures:
-        # - test_real_draft_guard (pre-existing fixture issue)
-        # - test_import_manifest_no_network_modules_loaded (order-dependent after ADR-0004)
+        # Allow up to 1 pre-existing failure (test_real_draft_guard)
         local failed_count
         failed_count=$(echo "$output" | grep -oP '\d+ failed' | grep -oP '\d+' || echo "0")
-        if [ "$failed_count" -le 2 ]; then
-            echo "rag-pedago: $failed_count known failure(s) — acceptable"
+        if [ "$failed_count" -le 1 ]; then
+            echo "rag-pedago: $failed_count pre-existing failure(s) — acceptable"
             deactivate 2>/dev/null || true; cd "$REPO_ROOT"; return 0
         fi
         echo "FAIL: rag-pedago tests failed ($failed_count failures)"

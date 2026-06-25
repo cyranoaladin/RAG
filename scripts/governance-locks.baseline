@@ -7,6 +7,7 @@ chunking_allowed: false
 data_staging_allowed: false
 embeddings_allowed: false
 ingestion_allowed: false
+network_allowed: true  # ADR-0004
 parsing_allowed: false
 pdf_allowed: false
 qdrant_allowed: false

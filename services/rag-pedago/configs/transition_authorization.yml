@@ -17,7 +17,7 @@ parsing_allowed: false
 chunking_allowed: false
 embeddings_allowed: false
 qdrant_allowed: false
-network_allowed: false
+network_allowed: true  # ADR-0004 — scoped to scrapers/fetch.py (GET-only, whitelist, robots.txt, rate limit). Does NOT authorize network in imports, readiness, or corpus ingestion.
 server_start_allowed: false
 runtime_api_allowed: false
 data_staging_allowed: false
@@ -94,6 +94,21 @@ authorization_cases:
     readiness_gate: controlled_readiness_metadata_gate_v1
     decision: defer_to_separate_real_lot
     decision_reason: separate_real_lot_required
+    final_human_signoff_required: true
+    rights_confirmation_required: true
+    provenance_confirmation_required: true
+    pii_absence_required: true
+    rollback_plan_required: true
+    checksum_plan_required: true
+    separate_real_lot_required: true
+    real_corpus_authorized: false
+    real_file_authorized: false
+    pipeline_authorized: false
+
+  - authorization_case_id: network_fetch_authorized_adr_0004
+    readiness_gate: controlled_readiness_metadata_gate_v1
+    decision: authorize_metadata_only_preparation
+    decision_reason: metadata_only_preparation_allowed
     final_human_signoff_required: true
     rights_confirmation_required: true
     provenance_confirmation_required: true

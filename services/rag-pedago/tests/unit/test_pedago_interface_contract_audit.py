@@ -28,10 +28,13 @@ DANGEROUS_FLAGS = [
     "chunking_allowed",
     "embeddings_allowed",
     "qdrant_allowed",
-    # network_allowed: lifted under ADR-0004 (scoped fetch, lot 4.2)
+    "network_allowed",
     "answer_generation_allowed",
     "data_staging_allowed",
 ]
+
+# Flags authorized at true via transition_authorization.yml
+AUTHORIZED_TRUE_FLAGS = {"network_allowed"}
 
 
 def _load_audit_module():
@@ -161,7 +164,7 @@ def test_pedago_interface_contract_audit_returns_markdown(capsys) -> None:  # no
         assert section in output
 
 
-@pytest.mark.parametrize("flag", DANGEROUS_FLAGS)
+@pytest.mark.parametrize("flag", [f for f in DANGEROUS_FLAGS if f not in AUTHORIZED_TRUE_FLAGS])
 def test_pedago_interface_contract_rejects_any_dangerous_flag_enabled(
     tmp_path,
     capsys,
@@ -176,6 +179,23 @@ def test_pedago_interface_contract_rejects_any_dangerous_flag_enabled(
     assert status == 1
     assert "interface_ready_for_review: false" in output
     assert f"{flag} must be false" in output
+
+
+@pytest.mark.parametrize("flag", list(AUTHORIZED_TRUE_FLAGS))
+def test_pedago_interface_contract_rejects_authorized_flag_if_false(
+    tmp_path,
+    capsys,
+    flag: str,
+) -> None:  # noqa: ANN001
+    """An authorized-true flag set to false should be rejected."""
+    module = _load_audit_module()
+    config = _write_config(tmp_path, **{flag: False})
+
+    status = module.main(["--config", str(config)])
+
+    output = capsys.readouterr().out
+    assert status == 1
+    assert f"{flag} must be true" in output
 
 
 def test_pedago_interface_contract_rejects_missing_required_persona(tmp_path, capsys) -> None:  # noqa: ANN001

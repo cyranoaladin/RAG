@@ -26,10 +26,15 @@ REQUIRED_FALSE_FLAGS = [
     "chunking_allowed",
     "embeddings_allowed",
     "qdrant_allowed",
-    # network_allowed: lifted under ADR-0004 (scoped fetch, lot 4.2)
+    "network_allowed",
     "answer_generation_allowed",
     "data_staging_allowed",
 ]
+
+# Flags authorized at true via transition_authorization.yml + ADR
+AUTHORIZED_TRUE_FLAGS: dict[str, str] = {
+    "network_allowed": "ADR-0004",  # scoped fetch (GET-only, whitelist, robots.txt)
+}
 REQUIRED_PERSONAS = [
     "eleve",
     "enseignant",
@@ -175,7 +180,13 @@ def audit_config(config: dict[str, Any]) -> dict[str, list[str]]:
             invalid_contract_values.append(f"{field} must be {expected_value}")
 
     for flag in REQUIRED_FALSE_FLAGS:
-        if config.get(flag) is not False:
+        if flag in AUTHORIZED_TRUE_FLAGS:
+            # This flag is authorized at true under an ADR
+            if config.get(flag) is not True:
+                dangerous_flags_enabled.append(
+                    f"{flag} must be true (authorized under {AUTHORIZED_TRUE_FLAGS[flag]})"
+                )
+        elif config.get(flag) is not False:
             dangerous_flags_enabled.append(f"{flag} must be false")
 
     allowed_personas = set(_string_list(config.get("allowed_personas")))

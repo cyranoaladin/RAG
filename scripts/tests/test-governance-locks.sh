@@ -75,7 +75,7 @@ EOF
 run_guard "$CONTRACT" "$BASELINE"
 echo "$LAST_OUTPUT"
 assert_exit "nominal_exit" 0 "$LAST_EXIT"
-assert_contains "nominal_msg" "$LAST_OUTPUT" "all governance locks intact"
+assert_contains "nominal_msg" "$LAST_OUTPUT" "all governance locks match baseline"
 
 # ============================================================
 echo ""
@@ -116,7 +116,7 @@ EOF
 run_guard "$CONTRACT" "$BASELINE"
 echo "$LAST_OUTPUT"
 assert_exit "zero_exit" 1 "$LAST_EXIT"
-assert_contains "zero_msg" "$LAST_OUTPUT" "missing or weakened"
+assert_contains "zero_msg" "$LAST_OUTPUT" "deviate from baseline"
 
 # ============================================================
 echo ""

@@ -158,8 +158,13 @@ def test_import_manifest_no_network_modules_loaded(tmp_path) -> None:
     db_path = tmp_path / "ledger.sqlite"
     write_manifest(manifest, [document_payload("doc-no-network")])
 
+    # Snapshot modules before — other tests may have loaded network libs
+    before = set(sys.modules.keys())
+
     import_manifest(manifest, db_path, run_id="run-no-network")
 
-    assert "requests" not in sys.modules
-    assert "httpx" not in sys.modules
-    assert "urllib.request" not in sys.modules
+    # Only check that import_manifest itself didn't introduce new network modules
+    newly_loaded = set(sys.modules.keys()) - before
+    network_modules = {"requests", "httpx", "urllib.request"}
+    introduced = newly_loaded & network_modules
+    assert not introduced, f"import_manifest loaded network modules: {introduced}"
