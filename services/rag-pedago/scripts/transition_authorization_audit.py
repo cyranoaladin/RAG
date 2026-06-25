@@ -35,6 +35,12 @@ REQUIRED_FALSE_FLAGS = [
     "runtime_api_allowed",
     "data_staging_allowed",
 ]
+
+# Flags authorized at true via transition_authorization.yml + ADR
+AUTHORIZED_TRUE_FLAGS: dict[str, str] = {
+    "network_allowed": "ADR-0004",
+}
+
 REQUIRED_AUTHORIZATION_FIELDS = [
     "authorization_case_id",
     "readiness_gate",
@@ -142,7 +148,12 @@ def audit_config(config: dict[str, Any]) -> dict[str, list[str]]:
             invalid_authorization_values.append(f"{field} must be {expected_value}")
 
     for flag in REQUIRED_FALSE_FLAGS:
-        if config.get(flag) is not False:
+        if flag in AUTHORIZED_TRUE_FLAGS:
+            if config.get(flag) is not True:
+                dangerous_flags_enabled.append(
+                    f"{flag} must be true (authorized under {AUTHORIZED_TRUE_FLAGS[flag]})"
+                )
+        elif config.get(flag) is not False:
             dangerous_flags_enabled.append(f"{flag} must be false")
 
     configured_decisions = set(_string_list(config.get("allowed_authorization_decisions")))

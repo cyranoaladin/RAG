@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
-# check-governance-locks.sh — Fail if any governance lock has been weakened
-# without an ADR reference on an added line in the diff.
+# check-governance-locks.sh — Strict config-vs-baseline governance guard.
+#
+# Rules:
+# 1. Every key in baseline must appear in config with the SAME value.
+#    Any deviation → FAIL. No exceptions, no diff-based ADR bypass.
+# 2. Every key at `true` in the baseline MUST have an ADR reference
+#    (ADR-[0-9]+) on its own baseline line. A `true` without ADR → FAIL.
+# 3. The baseline IS the registry of authorized states. Changing a lock
+#    requires editing BOTH the baseline and the config in the same PR.
 #
 # Override paths for testing:
 #   GOVERNANCE_CONTRACT_FILE  — path to the contract YAML
@@ -12,55 +19,74 @@ CONTRACT_FILE="${GOVERNANCE_CONTRACT_FILE:-services/rag-pedago/configs/pedago_in
 BASELINE_FILE="${GOVERNANCE_BASELINE_FILE:-$SCRIPT_DIR/governance-locks.baseline}"
 
 if [ ! -f "$CONTRACT_FILE" ]; then
-    echo "ERROR: $CONTRACT_FILE not found"
-    exit 1
+    echo "ERROR: $CONTRACT_FILE not found"; exit 1
 fi
-
 if [ ! -f "$BASELINE_FILE" ]; then
-    echo "ERROR: $BASELINE_FILE not found"
-    exit 1
+    echo "ERROR: $BASELINE_FILE not found"; exit 1
 fi
 
-# Extract current locks (sorted). Tolerate zero matches from grep.
-CURRENT=$( { grep -E '^\s*\w+_allowed:\s*false' "$CONTRACT_FILE" || true; } | sed 's/^[[:space:]]*//' | sort )
-BASELINE=$(sort "$BASELINE_FILE")
-
-# Count non-empty lines (echo on empty string still produces 1 line with wc -l)
-count_lines() {
-    local text="$1"
-    if [ -z "$text" ]; then
-        echo 0
-    else
-        echo "$text" | wc -l | tr -d ' '
-    fi
+# --- Extract key:value from config (strip comments + whitespace) ---
+extract_config() {
+    { grep -E '^\s*\w+_allowed:\s*(true|false)' "$1" || true; } \
+        | sed 's/#.*//' | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//' | sort
 }
 
-BASELINE_COUNT=$(count_lines "$BASELINE")
-CURRENT_COUNT=$(count_lines "$CURRENT")
+# --- Extract key:value from baseline (strip comments for value comparison) ---
+extract_baseline_values() {
+    grep -E '\w+_allowed:\s*(true|false)' "$1" \
+        | sed 's/#.*//' | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//' | sort
+}
 
-echo "Governance locks: baseline=$BASELINE_COUNT, current=$CURRENT_COUNT"
+CONFIG_STATE=$(extract_config "$CONTRACT_FILE")
+BASELINE_STATE=$(extract_baseline_values "$BASELINE_FILE")
 
-# Key-by-key comparison: every baseline line must be present in current
-MISSING=$(comm -23 <(echo "$BASELINE") <( if [ -n "$CURRENT" ]; then echo "$CURRENT"; fi ) )
+count_lines() {
+    local text="$1"
+    if [ -z "$text" ]; then echo 0; else echo "$text" | wc -l | tr -d ' '; fi
+}
 
-if [ -n "$MISSING" ]; then
-    echo "FAIL: the following locks from baseline are missing or weakened:"
-    echo "$MISSING"
+BASELINE_COUNT=$(count_lines "$BASELINE_STATE")
+CONFIG_COUNT=$(count_lines "$CONFIG_STATE")
+echo "Governance locks: baseline=$BASELINE_COUNT, config=$CONFIG_COUNT"
 
-    # Check if an ADR is referenced on an added line in the diff
-    if git diff origin/main...HEAD -- "$CONTRACT_FILE" 2>/dev/null | grep '^+' | grep -Eq 'ADR-[0-9]+'; then
-        echo "ADR reference found on an added line in the diff — allowing."
-        exit 0
+ERRORS=0
+
+# --- Rule 1: strict config == baseline ---
+DEVIATIONS=$(comm -3 <(echo "$BASELINE_STATE") <(echo "$CONFIG_STATE"))
+if [ -n "$DEVIATIONS" ]; then
+    echo "FAIL: config deviates from baseline:"
+    # Show what's in baseline but not config
+    MISSING=$(comm -23 <(echo "$BASELINE_STATE") <(echo "$CONFIG_STATE"))
+    if [ -n "$MISSING" ]; then
+        echo "  Expected but missing/changed in config:"
+        echo "$MISSING" | sed 's/^/    /'
     fi
+    # Show what's in config but not baseline
+    EXTRA=$(comm -13 <(echo "$BASELINE_STATE") <(echo "$CONFIG_STATE"))
+    if [ -n "$EXTRA" ]; then
+        echo "  In config but not matching baseline:"
+        echo "$EXTRA" | sed 's/^/    /'
+    fi
+    ERRORS=$((ERRORS + 1))
+fi
 
-    echo "No ADR reference found on added lines. Blocking."
+# --- Rule 2: every `true` in baseline must have ADR on its line ---
+while IFS= read -r line; do
+    key=$(echo "$line" | sed 's/#.*//' | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
+    value=$(echo "$key" | grep -oP ':\s*\K(true|false)')
+    keyname=$(echo "$key" | grep -oP '^\w+')
+    if [ "$value" = "true" ]; then
+        # Check that the ORIGINAL baseline line (with comments) has ADR-[0-9]+
+        if ! echo "$line" | grep -qE 'ADR-[0-9]+'; then
+            echo "FAIL: $keyname is true in baseline without ADR reference on its line."
+            ERRORS=$((ERRORS + 1))
+        fi
+    fi
+done < "$BASELINE_FILE"
+
+if [ "$ERRORS" -gt 0 ]; then
+    echo "BLOCKED: $ERRORS governance violation(s)."
     exit 1
 fi
 
-# Also check count hasn't decreased
-if [ "$CURRENT_COUNT" -lt "$BASELINE_COUNT" ]; then
-    echo "FAIL: lock count decreased from $BASELINE_COUNT to $CURRENT_COUNT."
-    exit 1
-fi
-
-echo "OK: all governance locks intact ($CURRENT_COUNT keys verified)."
+echo "OK: all governance locks match baseline ($BASELINE_COUNT keys verified)."

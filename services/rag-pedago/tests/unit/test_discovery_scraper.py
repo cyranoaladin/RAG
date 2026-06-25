@@ -258,3 +258,26 @@ def test_source_manifest_is_valid(tmp_path) -> None:
         for candidate in notion["candidates"]:
             manifest = SourceManifestItem.model_validate(candidate["source_manifest"])
             assert manifest.source_name == candidate["source_label"]
+
+
+def test_stopwords_excluded_from_matching(tmp_path) -> None:
+    """Notion 'formule_des_probabilites_totales' must NOT match a generic source
+    just because of the stopword 'des'."""
+    maths = tmp_path / "taxonomy" / "maths.yml"
+    _write_yaml(maths, _taxonomy_payload(notion_ids=["formule_des_probabilites_totales"]))
+
+    # Source with "des" in title but not "formule"/"probabilites"/"totales"
+    generic = _official_source(
+        source_id="education_maths_reforme_lycee",
+        title="Reforme des programmes mathematiques lycee",
+        applies_to=["mathematiques", "terminale_generale"],
+    )
+
+    plan = build_discovery_plan(
+        taxonomy_paths=[maths],
+        discovered_at=datetime(2026, 6, 25, 12, 0, tzinfo=UTC),
+        sources_override={"generic": generic},
+    )
+
+    notion_by_id = {n["notion_id"]: n for n in plan["notions"]}
+    assert notion_by_id["formule_des_probabilites_totales"]["candidates"] == []

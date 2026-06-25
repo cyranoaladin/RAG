@@ -13,7 +13,7 @@ parsing_allowed: false
 chunking_allowed: false
 embeddings_allowed: false
 qdrant_allowed: false
-network_allowed: false
+network_allowed: true  # ADR-0004 — scoped fetch (GET-only, whitelist, robots.txt, rate limit)
 answer_generation_allowed: false
 data_staging_allowed: false
 
