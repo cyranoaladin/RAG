@@ -53,6 +53,10 @@ Par service (depuis `services/<svc>`) :
 - `scripts/check-governance-locks.sh` : comparaison clé par clé des verrous de gouvernance contre `scripts/governance-locks.baseline`. Aucune clé verrouillée ne peut passer à `true` sans ADR référencé sur une ligne ajoutée.
 - Tant que GitHub Actions est indisponible, la CI locale (`scripts/ci-local.sh`) verte et consignée dans le rapport de lot tient lieu de garde-fou.
 
+## Qualité des métriques
+
+- Une métrique de couverture ou de complétude doit mesurer la **substance** (une ressource qui enseigne réellement la notion), jamais la simple présence d'une référence générique. Un contrôle de qualité doit s'exercer sur **tout** son périmètre, pas un échantillon. Tout « vert » non démontré sur son périmètre réel est suspect et doit être prouvé.
+
 ## Escalade
 
 Si un lot exige de toucher une logique métier hors de son périmètre, ou de lever un verrou de gouvernance : s'arrêter et le signaler dans le rapport de lot. Ne pas l'implémenter de sa propre initiative.

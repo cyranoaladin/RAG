@@ -22,6 +22,7 @@ node_modules/
 *.sqlite
 **/data/
 !services/rag-engine/data/chunks/
+!services/rag-pedago/data/acquisition/
 *.bak*
 *.log
 .DS_Store

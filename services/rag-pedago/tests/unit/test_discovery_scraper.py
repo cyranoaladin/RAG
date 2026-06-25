@@ -71,73 +71,190 @@ def _official_source(**updates: object) -> OfficialSource:
     return OfficialSource.model_validate(payload)
 
 
-def test_discovery_plan_matches_local_sources_without_network(tmp_path) -> None:
+def test_strict_matching_requires_notion_token_in_source(tmp_path) -> None:
+    """A generic programme source should NOT match all notions."""
+    maths = tmp_path / "taxonomy" / "maths.yml"
+    _write_yaml(maths, _taxonomy_payload(notion_ids=["suites", "convexite"]))
+
+    # This source has "mathematiques" and "terminale" but NOT "suites" or "convexite"
+    generic_source = _official_source(
+        source_id="math_programme_terminale",
+        title="Programme de mathematiques en terminale",
+        applies_to=["mathematiques", "terminale_generale"],
+    )
+
+    plan = build_discovery_plan(
+        taxonomy_paths=[maths],
+        discovered_at=datetime(2026, 6, 25, 12, 0, tzinfo=UTC),
+        sources_override={"generic": generic_source},
+    )
+
+    notion_by_id = {n["notion_id"]: n for n in plan["notions"]}
+    # Neither notion should match — no notion-specific token in generic source
+    assert notion_by_id["suites"]["candidates"] == []
+    assert notion_by_id["convexite"]["candidates"] == []
+
+
+def test_notion_specific_source_matches(tmp_path) -> None:
+    """A source mentioning the notion explicitly should match."""
+    maths = tmp_path / "taxonomy" / "maths.yml"
+    _write_yaml(maths, _taxonomy_payload(notion_ids=["suites", "convexite"]))
+
+    # Source that mentions "suites" in its title
+    suites_source = _official_source(
+        source_id="math_suites_terminale",
+        title="Suites et recurrence en terminale mathematiques",
+        applies_to=["mathematiques", "terminale_generale"],
+    )
+
+    plan = build_discovery_plan(
+        taxonomy_paths=[maths],
+        discovered_at=datetime(2026, 6, 25, 12, 0, tzinfo=UTC),
+        sources_override={"suites": suites_source},
+    )
+
+    notion_by_id = {n["notion_id"]: n for n in plan["notions"]}
+    assert len(notion_by_id["suites"]["candidates"]) == 1
+    assert notion_by_id["convexite"]["candidates"] == []
+
+
+def test_no_asymmetry_between_maths_and_nsi(tmp_path) -> None:
+    """Both maths and nsi should use the same strict matching — no special curriculum fallback."""
     maths = tmp_path / "taxonomy" / "maths.yml"
     nsi = tmp_path / "taxonomy" / "nsi.yml"
-
-    _write_yaml(maths, _taxonomy_payload(notion_ids=["suites", "limites"]))
+    _write_yaml(maths, _taxonomy_payload(notion_ids=["suites"]))
     _write_yaml(nsi, _nsi_payload())
 
+    # Generic sources for both subjects (no notion-specific tokens)
     sources = {
-        "math_programme_terminale": _official_source(),
-        "nsi_portail": _official_source(
-            source_id="nsi_portail",
-            title="Ressources NSI",
-            url="https://eduscol.education.gouv.fr/nsi",
-            authority_level="official_verified",
+        "math_generic": _official_source(
+            source_id="math_programme_terminale",
+            title="Programme de mathematiques en terminale",
+            applies_to=["mathematiques", "terminale_generale"],
+        ),
+        "nsi_generic": _official_source(
+            source_id="nsi_programme_terminale",
+            title="Programme NSI en terminale",
+            url="https://education.gouv.fr/nsi",
             applies_to=["nsi", "terminale_generale"],
         ),
     }
 
     plan = build_discovery_plan(
         taxonomy_paths=[maths, nsi],
-        discovered_at=datetime(2026, 6, 24, 12, 0, tzinfo=UTC),
+        discovered_at=datetime(2026, 6, 25, 12, 0, tzinfo=UTC),
         sources_override=sources,
     )
 
-    notion_by_id = {notion["notion_id"]: notion for notion in plan["notions"]}
-
-    assert notion_by_id["suites"]["candidates"]
+    notion_by_id = {n["notion_id"]: n for n in plan["notions"]}
+    # Both should be uncovered — strict matching, no fallback
+    assert notion_by_id["suites"]["candidates"] == []
     assert notion_by_id["listes"]["candidates"] == []
 
-    for notion in plan["notions"]:
-        for candidate in notion["candidates"]:
-            manifest = SourceManifestItem.model_validate(candidate["source_manifest"])
-            assert manifest.source_name == candidate["source_label"]
-            assert manifest.source_uri == candidate["source_uri"]
 
-
-def test_coverage_counts_identify_uncovered_notions(tmp_path) -> None:
+def test_coverage_with_strict_matching_shows_uncovered(tmp_path) -> None:
+    """Coverage should honestly show uncovered notions."""
     maths = tmp_path / "taxonomy" / "maths.yml"
     nsi = tmp_path / "taxonomy" / "nsi.yml"
-
     _write_yaml(maths, _taxonomy_payload(notion_ids=["suites", "limites"]))
     _write_yaml(nsi, _nsi_payload())
 
     plan = build_discovery_plan(
         taxonomy_paths=[maths, nsi],
-        discovered_at=datetime(2026, 6, 24, 12, 0, tzinfo=UTC),
+        discovered_at=datetime(2026, 6, 25, 12, 0, tzinfo=UTC),
         sources_override={
-            "math_programme_terminale": _official_source(),
+            "math_generic": _official_source(),  # generic — won't match any notion
         },
     )
 
     coverage = compute_coverage(plan)
+    assert coverage["total_notions"] == 3
+    assert coverage["covered_notions"] == 0  # strict: generic source covers nothing
+    assert coverage["uncovered_notions"] == 3
 
-    assert coverage == {
-        "total_notions": 3,
-        "covered_notions": 2,
-        "uncovered_notions": 1,
-        "by_matiere": {
-            "mathematiques": {
-                "total": 2,
-                "covered": 2,
-                "uncovered": [],
-            },
-            "nsi": {
-                "total": 1,
-                "covered": 0,
-                "uncovered": ["listes"],
-            },
-        },
-    }
+
+def test_audience_derives_libre(tmp_path) -> None:
+    """A candidat libre source should get audience=libre."""
+    maths = tmp_path / "taxonomy" / "maths.yml"
+    _write_yaml(maths, _taxonomy_payload(notion_ids=["suites"]))
+
+    source = _official_source(
+        source_id="candidat_libre_suites",
+        title="Suites pour le candidat libre",
+        applies_to=["mathematiques", "terminale_generale", "candidat_individuel"],
+    )
+
+    plan = build_discovery_plan(
+        taxonomy_paths=[maths],
+        discovered_at=datetime(2026, 6, 25, 12, 0, tzinfo=UTC),
+        sources_override={"libre": source},
+    )
+
+    notion_by_id = {n["notion_id"]: n for n in plan["notions"]}
+    assert len(notion_by_id["suites"]["candidates"]) == 1
+    assert notion_by_id["suites"]["candidates"][0]["audience"] == "libre"
+
+
+def test_audience_derives_aefe(tmp_path) -> None:
+    """An AEFE source should get audience=aefe."""
+    maths = tmp_path / "taxonomy" / "maths.yml"
+    _write_yaml(maths, _taxonomy_payload(notion_ids=["suites"]))
+
+    source = _official_source(
+        source_id="aefe_suites_terminale",
+        title="Suites mathematiques AEFE terminale",
+        applies_to=["mathematiques", "terminale_generale"],
+    )
+
+    plan = build_discovery_plan(
+        taxonomy_paths=[maths],
+        discovered_at=datetime(2026, 6, 25, 12, 0, tzinfo=UTC),
+        sources_override={"aefe": source},
+    )
+
+    notion_by_id = {n["notion_id"]: n for n in plan["notions"]}
+    assert len(notion_by_id["suites"]["candidates"]) == 1
+    assert notion_by_id["suites"]["candidates"][0]["audience"] == "aefe"
+
+
+def test_audience_defaults_to_tous(tmp_path) -> None:
+    """A standard disciplinary source should get audience=tous."""
+    maths = tmp_path / "taxonomy" / "maths.yml"
+    _write_yaml(maths, _taxonomy_payload(notion_ids=["suites"]))
+
+    source = _official_source(
+        source_id="math_suites_terminale",
+        title="Suites en terminale mathematiques",
+        applies_to=["mathematiques", "terminale_generale"],
+    )
+
+    plan = build_discovery_plan(
+        taxonomy_paths=[maths],
+        discovered_at=datetime(2026, 6, 25, 12, 0, tzinfo=UTC),
+        sources_override={"standard": source},
+    )
+
+    notion_by_id = {n["notion_id"]: n for n in plan["notions"]}
+    assert notion_by_id["suites"]["candidates"][0]["audience"] == "tous"
+
+
+def test_source_manifest_is_valid(tmp_path) -> None:
+    """Produced source manifests must validate."""
+    maths = tmp_path / "taxonomy" / "maths.yml"
+    _write_yaml(maths, _taxonomy_payload(notion_ids=["suites"]))
+
+    source = _official_source(
+        source_id="math_suites_terminale",
+        title="Suites en terminale mathematiques",
+    )
+
+    plan = build_discovery_plan(
+        taxonomy_paths=[maths],
+        discovered_at=datetime(2026, 6, 25, 12, 0, tzinfo=UTC),
+        sources_override={"s": source},
+    )
+
+    for notion in plan["notions"]:
+        for candidate in notion["candidates"]:
+            manifest = SourceManifestItem.model_validate(candidate["source_manifest"])
+            assert manifest.source_name == candidate["source_label"]
