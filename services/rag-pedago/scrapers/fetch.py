@@ -23,6 +23,7 @@ WHITELISTED_DOMAINS: frozenset[str] = frozenset({
     "cache.media.eduscol.education.gouv.fr",
     "cache.media.education.gouv.fr",
     "fr.wikiversity.org",  # CC-BY-SA 4.0
+    "fr.wikipedia.org",  # CC-BY-SA 4.0
 })
 
 USER_AGENT = "NexusReussiteBot/0.1 (+https://nexusreussite.academy; pedagogical-rag)"

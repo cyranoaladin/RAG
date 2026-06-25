@@ -17,6 +17,7 @@ from scrapers.fetch import (
     governed_fetch,
     quality_check,
 )
+from scrapers.subpage_extractor import extract_subpage_links
 
 ROOT = Path(__file__).resolve().parents[1]
 STAGING_DIR = ROOT / "data" / "staging" / "lot5"
@@ -35,9 +36,14 @@ WIKIVERSITY_PAGES: list[dict[str, str]] = [
     {"notion_id": "primitives", "matiere": "mathematiques",
      "url": "https://fr.wikiversity.org/wiki/Intégration_(mathématiques)"},
     {"notion_id": "recursivite", "matiere": "nsi",
-     "url": "https://fr.wikiversity.org/wiki/Récursivité"},
+     "url": "https://fr.wikipedia.org/wiki/Récursivité_(informatique)",
+     "rights": "CC-BY-SA 4.0", "source": "wikipedia"},
     {"notion_id": "arbres", "matiere": "nsi",
-     "url": "https://fr.wikiversity.org/wiki/Arbres_(informatique)"},
+     "url": "https://fr.wikipedia.org/wiki/Arbre_(structure_de_données)",
+     "rights": "CC-BY-SA 4.0", "source": "wikipedia"},
+    {"notion_id": "graphes", "matiere": "nsi",
+     "url": "https://fr.wikipedia.org/wiki/Théorie_des_graphes",
+     "rights": "CC-BY-SA 4.0", "source": "wikipedia"},
     {"notion_id": "sql", "matiere": "nsi",
      "url": "https://fr.wikiversity.org/wiki/Structured_Query_Language"},
 ]
@@ -51,41 +57,72 @@ def _check_staging_allowed() -> bool:
     return config.get("data_staging_allowed") is True
 
 
-def _fetch_page(page: dict[str, str]) -> dict[str, Any]:
-    """Fetch a Wikiversity page and extract text."""
+def _fetch_page(page: dict[str, str]) -> list[dict[str, Any]]:
+    """Fetch a page and its sub-pages. Returns a list of entries."""
     notion_id = page["notion_id"]
     url = page["url"]
+    rights = page.get("rights", "CC-BY-SA 4.0")
+    source = page.get("source", "wikiversity")
 
     result = governed_fetch(url)
 
     if isinstance(result, FetchRefusal):
-        return {"notion_id": notion_id, "matiere": page["matiere"],
-                "status": "refused", "reason": result.reason, "url": url}
+        return [{"notion_id": notion_id, "matiere": page["matiere"],
+                 "status": "refused", "reason": result.reason, "url": url}]
 
     if result.error:
-        return {"notion_id": notion_id, "matiere": page["matiere"],
-                "status": "error", "error": result.error, "url": url}
+        return [{"notion_id": notion_id, "matiere": page["matiere"],
+                 "status": "error", "error": result.error, "url": url}]
 
     if result.status_code != 200:
-        return {"notion_id": notion_id, "matiere": page["matiere"],
-                "status": "http_error", "status_code": result.status_code, "url": url}
+        return [{"notion_id": notion_id, "matiere": page["matiere"],
+                 "status": "http_error", "status_code": result.status_code, "url": url}]
 
     text = extract_text_from_html(result.text)
     qc = quality_check(text, notion_id)
 
-    return {
+    entries: list[dict[str, Any]] = []
+    index_entry = {
         "notion_id": notion_id,
         "matiere": page["matiere"],
         "url": url,
-        "source_label": f"wikiversity_{notion_id}",
-        "rights": "CC-BY-SA 4.0",
+        "source_label": f"{source}_{notion_id}",
+        "rights": rights,
         "audience": "tous",
         "status": "ok" if qc["ok"] else "quality_issues",
         "text_length": len(text),
         "text_preview": text[:500],
         "quality": qc,
-        "delay_applied": result.delay_applied,
+        "page_type": "index" if qc.get("navigation_suspected") else "content",
     }
+    entries.append(index_entry)
+
+    # For Wikiversity index pages, extract and fetch sub-pages
+    if source == "wikiversity" and qc.get("navigation_suspected"):
+        subpage_urls = extract_subpage_links(result.text, url)
+        for i, sub_url in enumerate(subpage_urls[:5]):  # limit to 5 sub-pages
+            sub_result = governed_fetch(sub_url)
+            if isinstance(sub_result, FetchRefusal) or sub_result.error:
+                continue
+            if sub_result.status_code != 200:
+                continue
+            sub_text = extract_text_from_html(sub_result.text)
+            sub_qc = quality_check(sub_text, notion_id)
+            entries.append({
+                "notion_id": notion_id,
+                "matiere": page["matiere"],
+                "url": sub_url,
+                "source_label": f"{source}_{notion_id}_ch{i + 1}",
+                "rights": rights,
+                "audience": "tous",
+                "status": "ok" if sub_qc["ok"] else "quality_issues",
+                "text_length": len(sub_text),
+                "text_preview": sub_text[:500],
+                "quality": sub_qc,
+                "page_type": "subpage",
+            })
+
+    return entries
 
 
 def run_pilot_fetch() -> dict[str, Any]:
@@ -100,24 +137,28 @@ def run_pilot_fetch() -> dict[str, Any]:
         notion_id = page["notion_id"]
         print(f"Fetching {notion_id} ({page['matiere']})...")
 
-        entry = _fetch_page(page)
-        results.append(entry)
+        entries = _fetch_page(page)
+        results.extend(entries)
 
-        # Deposit in staging if content was retrieved
-        if entry.get("status") in ("ok", "quality_issues"):
-            staging_file = STAGING_DIR / f"{page['matiere']}_{notion_id}.json"
-            staging_file.write_text(
-                json.dumps(entry, ensure_ascii=False, indent=2), encoding="utf-8"
-            )
-            print(f"  OK: {entry.get('text_length', 0)} chars → {staging_file.name}")
-        else:
-            print(f"  {entry.get('status', 'unknown')}: {entry.get('reason', entry.get('error', ''))}")
+        # Deposit in staging
+        for entry in entries:
+            if entry.get("status") in ("ok", "quality_issues"):
+                label = entry.get("source_label", notion_id)
+                staging_file = STAGING_DIR / f"{page['matiere']}_{label}.json"
+                staging_file.write_text(
+                    json.dumps(entry, ensure_ascii=False, indent=2), encoding="utf-8"
+                )
+                nav = "NAV" if entry.get("quality", {}).get("navigation_suspected") else "OK"
+                print(f"  {nav}: {entry.get('text_length', 0)} chars → {staging_file.name}")
+            else:
+                print(f"  {entry.get('status', 'unknown')}: {entry.get('reason', entry.get('error', ''))}")
 
     return {
         "pilot_fetch": True,
-        "source": "wikiversity",
-        "license": "CC-BY-SA 4.0",
-        "query_count": len(WIKIVERSITY_PAGES),
+        "sources": ["wikiversity", "wikipedia"],
+        "licenses": ["CC-BY-SA 4.0"],
+        "page_count": len(WIKIVERSITY_PAGES),
+        "entry_count": len(results),
         "results": results,
         "staging_dir": str(STAGING_DIR.relative_to(ROOT)),
     }

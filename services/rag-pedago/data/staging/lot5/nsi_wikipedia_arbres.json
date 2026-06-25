@@ -1,0 +1,21 @@
+{
+  "notion_id": "arbres",
+  "matiere": "nsi",
+  "url": "https://fr.wikipedia.org/wiki/Arbre_(structure_de_données)",
+  "source_label": "wikipedia_arbres",
+  "rights": "CC-BY-SA 4.0",
+  "audience": "tous",
+  "status": "quality_issues",
+  "text_length": 13507,
+  "text_preview": "Arbre enraciné — Wikipédia Aller au contenu Un article de Wikipédia, l&#039;encyclopédie libre. (Redirigé depuis Arbre (structure de données) ) Pour les articles homonymes, voir Arbre (homonymie) . Si ce bandeau n'est plus pertinent, retirez-le. Cliquez ici pour en savoir plus. Cet article ne cite pas suffisamment ses sources ( décembre 2020 ). Si vous disposez d'ouvrages ou d'articles de référence ou si vous connaissez des sites web de qualité traitant du thème abordé ici, merci de compléter l'",
+  "quality": {
+    "ok": false,
+    "issues": [
+      "navigation_suspected (4 nav markers found)"
+    ],
+    "text_length": 13507,
+    "fr_ratio": 0.087,
+    "navigation_suspected": true
+  },
+  "page_type": "index"
+}
