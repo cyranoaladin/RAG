@@ -5,6 +5,7 @@ No POST/PUT/DELETE. No JS execution. No authentication bypass.
 """
 from __future__ import annotations
 
+import html as html_module
 import re
 import time
 from dataclasses import dataclass
@@ -199,6 +200,8 @@ def extract_text_from_html(html: str) -> str:
     )
     # Remove all HTML tags
     text = re.sub(r"<[^>]+>", " ", text)
+    # Decode HTML entities (&#160; → space, &amp; → &, &eacute; → é, etc.)
+    text = html_module.unescape(text)
     # Collapse whitespace
     text = re.sub(r"\s+", " ", text).strip()
     return text

@@ -6,13 +6,13 @@
   "rights": "CC-BY-SA 4.0",
   "audience": "tous",
   "status": "ok",
-  "text_length": 59199,
-  "text_preview": "Théorie des graphes — Wikipédia Aller au contenu Un article de Wikipédia, l&#039;encyclopédie libre. Pour la notion mathématique utilisée en théorie des ensembles, voir Graphe d'une fonction . Un tracé de graphe. La théorie des graphes est la discipline mathématique et informatique qui étudie les graphes , lesquels sont des modèles abstraits de dessins de réseaux reliant des objets &#91; 1 &#93; . Ces modèles sont constitués par la donnée de sommets (aussi appelés nœuds ou points , en référence ",
+  "text_length": 56328,
+  "text_preview": "Théorie des graphes — Wikipédia Aller au contenu Un article de Wikipédia, l'encyclopédie libre. Pour la notion mathématique utilisée en théorie des ensembles, voir Graphe d'une fonction . Un tracé de graphe. La théorie des graphes est la discipline mathématique et informatique qui étudie les graphes , lesquels sont des modèles abstraits de dessins de réseaux reliant des objets [ 1 ] . Ces modèles sont constitués par la donnée de sommets (aussi appelés nœuds ou points , en référence aux polyèdres",
   "quality": {
     "ok": true,
     "issues": [],
-    "text_length": 59199,
-    "fr_ratio": 0.111,
+    "text_length": 56328,
+    "fr_ratio": 0.113,
     "navigation_suspected": false
   },
   "page_type": "content"

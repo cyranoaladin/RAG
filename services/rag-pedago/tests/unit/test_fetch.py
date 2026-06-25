@@ -114,6 +114,52 @@ def test_extract_text_from_html():
     assert "<h1>" not in text
 
 
+def test_extract_decodes_html_entities():
+    html = "<p>Aller au&#160;contenu</p><p>Cat&#233;gorie&#160;:</p><p>&amp; test</p>"
+    text = extract_text_from_html(html)
+    assert "Aller au\xa0contenu" in text or "Aller au contenu" in text
+    assert "Catégorie" in text
+    assert "& test" in text
+    assert "&#160;" not in text
+    assert "&amp;" not in text
+
+
+def test_navigation_detected_with_html_entities():
+    """Wikiversity nav with HTML entities must be flagged."""
+    html = """<body>
+    <div>Aller au&#160;contenu</div>
+    <div>Menu principal</div>
+    <div>Chapitres&#160;:</div>
+    <div>Outils personnels</div>
+    <div>Rechercher</div>
+    <div>Faire un don</div>
+    <div>Créer un compte</div>
+    <div>Se connecter</div>
+    <div>Modifier les liens</div>
+    </body>"""
+    text = extract_text_from_html(html)
+    qc = quality_check(text, "suites")
+    assert qc["navigation_suspected"] is True
+
+
+def test_course_content_not_flagged_as_navigation():
+    """Real course content must NOT be flagged as navigation."""
+    html = """<body>
+    <h1>Suites numériques</h1>
+    <p>Une suite numérique est une application de l'ensemble des entiers naturels
+    dans l'ensemble des réels. On note (u_n) la suite et u_n le terme de rang n.</p>
+    <h2>Définition</h2>
+    <p>La suite (u_n) est dite convergente si elle admet une limite finie l quand
+    n tend vers l'infini. On écrit alors lim u_n = l.</p>
+    <h2>Théorème</h2>
+    <p>Toute suite croissante et majorée converge. Toute suite décroissante et
+    minorée converge.</p>
+    </body>"""
+    text = extract_text_from_html(html)
+    qc = quality_check(text, "suites")
+    assert qc["navigation_suspected"] is False
+
+
 # --- Quality check ---
 
 def test_quality_check_pass():
