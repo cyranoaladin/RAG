@@ -163,6 +163,26 @@ assert_contains "noADR_msg" "$LAST_OUTPUT" "without ADR"
 
 # ============================================================
 echo ""
+echo "=== Test 8: ADR reference to nonexistent file ==="
+BASELINE8="$TMPDIR_TEST/bl8"
+CONTRACT8="$TMPDIR_TEST/ct8.yml"
+cat > "$BASELINE8" <<'EOF'
+chunking_allowed: false
+network_allowed: true  # ADR-9999
+parsing_allowed: false
+EOF
+cat > "$CONTRACT8" <<'EOF'
+chunking_allowed: false
+network_allowed: true  # ADR-9999
+parsing_allowed: false
+EOF
+run_guard "$CONTRACT8" "$BASELINE8"
+echo "$LAST_OUTPUT"
+assert_exit "nofile_exit" 1 "$LAST_EXIT"
+assert_contains "nofile_msg" "$LAST_OUTPUT" "ADR-9999"
+
+# ============================================================
+echo ""
 echo "=============================="
 echo "  GOVERNANCE GUARD TESTS"
 echo "=============================="

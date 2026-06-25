@@ -77,9 +77,17 @@ while IFS= read -r line; do
     keyname=$(echo "$key" | grep -oP '^\w+')
     if [ "$value" = "true" ]; then
         # Check that the ORIGINAL baseline line (with comments) has ADR-[0-9]+
-        if ! echo "$line" | grep -qE 'ADR-[0-9]+'; then
+        adr_id=$(echo "$line" | grep -oP 'ADR-\d+' || true)
+        if [ -z "$adr_id" ]; then
             echo "FAIL: $keyname is true in baseline without ADR reference on its line."
             ERRORS=$((ERRORS + 1))
+        else
+            # Verify the referenced ADR file exists
+            adr_file=$(find docs/adr/ -name "${adr_id}*" -type f 2>/dev/null | head -1)
+            if [ -z "$adr_file" ]; then
+                echo "FAIL: $keyname references $adr_id but no file docs/adr/${adr_id}*.md exists."
+                ERRORS=$((ERRORS + 1))
+            fi
         fi
     fi
 done < "$BASELINE_FILE"
