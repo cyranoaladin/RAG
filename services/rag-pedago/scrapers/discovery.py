@@ -36,12 +36,13 @@ DEFAULT_TAXONOMY_PATHS = [
 ]
 
 DISCOVERY_RULE = """
-Règle de matching déterministe utilisée pour le lot 4.1:
+Règle de matching stricte (lot 4.1 corrigé):
 1) Une source doit matcher la matière de la notion (maths/nsi).
 2) Une source doit matcher le niveau terminale ou ne pas imposer de niveau explicite.
-3) Elle est retenue si elle contient un token d'égalité avec notion_id / notion_label
-   dans source_id, titre, applies_to,
-   ou si elle est identifiée comme source curriculaire de la matière.
+3) Elle est retenue UNIQUEMENT si un token significatif de notion_id/notion_label
+   apparaît dans source_id, title, ou applies_to de la source.
+   Aucun fallback curriculaire : une source de programme générique ne couvre pas
+   automatiquement toutes les notions de la matière.
 4) Les champs de sortie (rights/type_doc/audience) sont inférés via des règles
    locales sur l'autorité et la structure des métadonnées source.
 """.strip()
@@ -102,17 +103,6 @@ def _matches_level(source: OfficialSource, niveau: str) -> bool:
     return not bool(terms.intersection(level_markers))
 
 
-def _is_curriculum_source(source_terms: set[str], subject: str) -> bool:
-    # Programme, réforme, repères et pages institutionnelles de cursus.
-    if subject == "mathematiques":
-        return bool(
-            source_terms.intersection(
-                {"programme", "eduscol", "enseignement", "reforme", "mathematiques"}
-            )
-        )
-    return "programme" in source_terms
-
-
 def _notion_tokens(notion_id: str, notion_label: str) -> set[str]:
     return _tokenize(notion_id) | _tokenize(notion_label)
 
@@ -129,10 +119,12 @@ def _matches_notion(
     source_subject = _detect_subject(source)
     if source_subject != subject:
         return False
-    tokens = _source_terms(source)
-    if _notion_tokens(notion_id, notion_label).intersection(tokens):
-        return True
-    return _is_curriculum_source(tokens, subject)
+    source_tokens = _source_terms(source)
+    notion_toks = _notion_tokens(notion_id, notion_label)
+    # Strict matching: at least one significant notion token must appear in source
+    # Exclude trivially short tokens (< 3 chars) to avoid false positives
+    significant = {t for t in notion_toks if len(t) >= 3}
+    return bool(significant.intersection(source_tokens))
 
 
 def _infer_rights(source: OfficialSource) -> Rights:
@@ -144,8 +136,14 @@ def _infer_rights(source: OfficialSource) -> Rights:
 
 
 def _infer_audience(source: OfficialSource) -> str:
-    tokens = {token for token in _source_terms(source)}
-    if tokens.intersection({"aefe", "tunisie", "candidat_individuel", "centre_examen"}):
+    """Infer audience per ADR-0003: libre, aefe, or tous."""
+    tokens = _source_terms(source)
+    libre_markers = {"candidat_individuel", "candidat_libre", "libre", "individuel",
+                     "ponctuelle", "evaluation_ponctuelle", "descriptif_eaf"}
+    aefe_markers = {"aefe", "etablissement_francais", "homologue"}
+    if tokens.intersection(libre_markers):
+        return "libre"
+    if tokens.intersection(aefe_markers):
         return "aefe"
     return "tous"
 

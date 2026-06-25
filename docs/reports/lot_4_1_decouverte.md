@@ -1,90 +1,43 @@
-# Rapport — Lot 4.1 (Découverte, mode hors réseau)
+# Rapport — Lot 4.1 : Découverte de sources (vraie couverture par notion)
 
-## Contexte
+## Règle de matching stricte
 
-Lot 4.1 implémente la première phase de l’ADR-0004 : établir le plan d’acquisition sans levée de verrous, sans accès web, sans fetch, uniquement depuis :
-- la taxonomie Terminale Maths (`services/rag-pedago/taxonomy/maths/terminale_specialite.yml`)
-- la taxonomie Terminale NSI (`services/rag-pedago/taxonomy/nsi/terminale.yml`)
-- le catalogue local `services/rag-pedago/data/reference/official_sources.yml`
+Une source candidate n'est retenue pour une notion **que si** un token significatif (≥3 caractères) de `notion_id`/`notion_label` apparaît dans les métadonnées de la source (`source_id`, `title`, `applies_to`). Aucun fallback curriculaire : une source de programme générique ne couvre pas automatiquement toutes les notions de la matière.
 
-Sortie principale : `services/rag-pedago/data/acquisition/pilot_terminale_plan.yml`.
+**Supprimé** : `_is_curriculum_source` et l'asymétrie maths/nsi (maths avait 5 keywords de fallback, nsi seulement 1).
 
-## Règle de matching (déterministe)
+## Couverture réelle (matching strict)
 
-La règle utilisée par `scrapers/discovery.py` est :
-
-1. la source doit matcher la matière de la notion (`mathematiques` ou `nsi`) ;
-2. la source doit matcher le niveau `terminale` ou ne pas imposer de niveau explicite ;
-3. la source est retenue si :
-   - un token de `notion_id` / `notion_label` apparaît dans `source_id`, `title` ou `applies_to`, ou
-   - la source est identifiée comme source curriculaire de la matière ;
-4. champs proposés pour chaque candidat :
-   - `source_label`, `source_uri`, `rights`, `type_doc`, `audience`, `notion`, `source_manifest`.
-
-## Sortie plan (résumé)
-
-- Plan écrit : `services/rag-pedago/data/acquisition/pilot_terminale_plan.yml`
-- Nombre de matières couvertes : 2 (`mathematiques`, `nsi`)
-- Nombre de notions totales : 79
-- Nombre total de candidats retenus : 156
-
-### Résumé par matière
-
-| Matière | Notions | Notions couvertes | Candidats au total |
-|---|---:|---:|---:|
-| mathematiques | 52 | 52 | 156 |
-| nsi | 27 | 0 | 0 |
-
-## Couverture
-
-### Table de couverture
-
-| Matière | Total notions | Notions couvertes (≥1 source) | Notions non couvertes |
-|---|---:|---:|---:|
-| mathematiques | 52 | 52 | 0 |
+| Matière | Notions totales | Couvertes | À découvert |
+|---|---|---|---|
+| mathematiques | 52 | 1 | 51 |
 | nsi | 27 | 0 | 27 |
+| **Total** | **79** | **1** | **78** |
 
-### Notions NSI non couvertes (27)
+### Seule notion couverte
+- `mathematiques/formule_des_probabilites_totales` → source `education_maths_reforme_lycee` (tokens `probabilites` + `totales` matchent)
 
-- `arbres`
-- `attributs`
-- `classes`
-- `contraintes`
-- `dictionnaires`
-- `diviser_pour_regner`
-- `files`
-- `graphes`
-- `invariants`
-- `jointures`
-- `listes`
-- `methodes`
-- `modele_relationnel`
-- `parcours_graphes`
-- `piles`
-- `poo`
-- `processus`
-- `programmation_dynamique`
-- `protocoles`
-- `recherche`
-- `recursivite`
-- `reseaux`
-- `routage`
-- `securisation`
-- `sql`
-- `tests`
-- `tri`
+## Constat
 
-## Constat de lot 4.2
+Le catalogue local de ~17 sources institutionnelles génériques **ne couvre quasiment aucune notion fine** du programme de Terminale. Ces sources mentionnent la matière et le niveau mais pas les notions individuelles.
 
-Le catalogue local `official_sources.yml` permet une couverture complète des notions de maths Terminale, mais **aucune notion NSI** n’a obtenu de source candidate.
+**→ La constitution du corpus exige la recherche web ciblée par notion** (Lot 4.2, ouverture réseau scopée sous ADR-0004). Les 78 notions à découvert constituent la file d'entrée du scraping gouverné.
 
-Conclusion explicite pour Lot 4.2 : la recherche web (dans le cadre d’une levée de verrou `network_allowed` encadrée par ADR-0004) est nécessaire pour :
-- enrichir le catalogue avec des sources NSI pertinentes,
-- puis relancer une passe de découverte pour réévaluer la couverture.
+## Audience conforme à ADR-0003
 
-## Contrôles gouvernance / garde-fous
+`_infer_audience` produit les 3 valeurs : `tous` (défaut disciplinaire), `libre` (candidat libre), `aefe` (AEFE). Tests à l'appui.
 
-- Aucun verrou levé dans cette lot (`network_allowed=false`, `ingestion_allowed=false` dans les configs de référence)
-  - `services/rag-pedago/configs/pedago_interface_contract.yml`
-  - `services/rag-pedago/configs/transition_authorization.yml`
-- Aucun accès réseau déclenché durant l’exécution de la génération de plan et de couverture.
+## Plan d'acquisition
+
+Versionné dans `services/rag-pedago/data/acquisition/pilot_terminale_plan.yml`.
+
+## Tests (8/8 PASS)
+
+- Matching strict : source générique ne matche aucune notion
+- Source notion-spécifique matche
+- Pas d'asymétrie maths/nsi
+- Couverture honnête (0 couvert par source générique)
+- Audience libre/aefe/tous
+- Manifests valides
+
+## CI locale : 6/6 PASS, garde-fou 17/17
