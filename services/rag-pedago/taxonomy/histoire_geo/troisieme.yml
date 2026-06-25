@@ -1,0 +1,47 @@
+# PREMIER JET — À RÉVISER par expert matière
+id: histoire_geo_troisieme
+matiere: histoire_geo
+niveau: troisieme
+voie: college
+statut_enseignement: enseignement_commun
+programme_version: BOEN_2018
+themes:
+  - id: guerres_totalitarismes
+    label: L'Europe, un théâtre majeur des guerres totales (1914-1945)
+    notions:
+      - id: premiere_guerre_mondiale_3e
+        label: Civils et militaires dans la Première Guerre mondiale
+      - id: regimes_totalitaires
+        label: Les régimes totalitaires dans les années 1930
+        subnotions:
+          - stalinisme
+          - nazisme
+      - id: seconde_guerre_mondiale_3e
+        label: La Seconde Guerre mondiale
+      - id: france_vichy_resistance
+        label: La France, défaite et occupation, Vichy et la Résistance
+
+  - id: monde_depuis_1945
+    label: Le monde depuis 1945
+    notions:
+      - id: guerre_froide_3e
+        label: Un monde bipolaire au temps de la guerre froide
+      - id: decolonisation
+        label: Indépendances et construction de nouveaux États
+      - id: ve_republique
+        label: La Ve République, de la République gaullienne à nos jours
+
+  - id: geographie_france_europe
+    label: La France et l'Union européenne
+    notions:
+      - id: amenagement_territoire
+        label: L'aménagement du territoire
+      - id: espaces_productifs
+        label: Les espaces productifs et leurs évolutions
+      - id: france_ue
+        label: La France et l'Union européenne
+
+competences:
+  - se_reperer_dans_le_temps
+  - analyser_documents
+  - raisonner_argumenter

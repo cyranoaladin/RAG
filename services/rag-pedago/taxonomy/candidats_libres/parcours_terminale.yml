@@ -1,0 +1,46 @@
+# PREMIER JET — À RÉVISER par expert matière
+id: candidats_libres_parcours_terminale
+matiere: orientation
+niveau: terminale
+voie: generale
+statut_enseignement: examen
+programme_version: BOEN_special_1_2019-01-22
+themes:
+  - id: inscriptions
+    label: Inscriptions et démarches administratives
+    notions:
+      - id: inscription_cyclades
+        label: Inscription via Cyclades
+      - id: pieces_justificatives
+        label: Pièces justificatives et dossier
+      - id: calendrier_inscriptions
+        label: Calendrier des inscriptions
+
+  - id: epreuves
+    label: Épreuves du baccalauréat
+    notions:
+      - id: modalite_a
+        label: "Modalité A : épreuves terminales seules"
+      - id: modalite_b
+        label: "Modalité B : épreuves terminales et contrôle continu"
+      - id: descriptif_eaf
+        label: Descriptif EAF et liste d'œuvres
+      - id: epreuves_anticipees
+        label: Épreuves anticipées de français
+
+  - id: modalites
+    label: Modalités pratiques et organisation
+    notions:
+      - id: centres_examen
+        label: Centres d'examen et convocations
+      - id: amenagements
+        label: Aménagements pour situation de handicap
+      - id: resultats_releve_notes
+        label: Résultats et relevé de notes
+      - id: session_rattrapage
+        label: Session de rattrapage
+
+competences:
+  - organiser_demarches
+  - planifier
+  - communiquer_administration

@@ -1,0 +1,72 @@
+# PREMIER JET — À RÉVISER par expert matière
+id: nsi_premiere_specialite
+matiere: nsi
+niveau: premiere
+voie: generale
+statut_enseignement: specialite
+programme_version: BOEN_special_1_2019-01-22
+themes:
+  - id: representation_donnees
+    label: Représentation des données
+    notions:
+      - id: types_base
+        label: Types de base
+        subnotions:
+          - entiers
+          - flottants
+          - booleens
+      - id: representation_texte
+        label: Représentation du texte
+      - id: types_construits
+        label: Types construits
+        subnotions:
+          - tableaux
+          - dictionnaires
+          - tuples
+
+  - id: algorithmique
+    label: Algorithmique
+    notions:
+      - id: algorithmes_tri
+        label: Algorithmes de tri
+        subnotions:
+          - tri_selection
+          - tri_insertion
+      - id: recherche_dichotomique
+        label: Recherche dichotomique
+      - id: complexite
+        label: Complexité algorithmique
+      - id: algorithmes_gloutons
+        label: Algorithmes gloutons
+
+  - id: web
+    label: Interactions entre l'homme et la machine sur le Web
+    notions:
+      - id: html_css
+        label: HTML et CSS
+      - id: interactions_client_serveur
+        label: Interactions client-serveur
+      - id: formulaires_evenements
+        label: Formulaires et événements
+
+  - id: architectures
+    label: Architectures matérielles et systèmes d'exploitation
+    notions:
+      - id: modele_von_neumann
+        label: Modèle d'architecture von Neumann
+      - id: systemes_exploitation
+        label: Systèmes d'exploitation
+        subnotions:
+          - commandes_shell
+          - systeme_fichiers
+      - id: reseaux
+        label: Réseaux et protocoles
+        subnotions:
+          - tcp_ip
+          - adressage
+
+competences:
+  - analyser
+  - programmer
+  - experimenter
+  - communiquer
