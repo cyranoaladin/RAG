@@ -3,7 +3,7 @@ matiere: nsi
 niveau: terminale
 voie: generale
 statut_enseignement: specialite
-programme_version: "terminale-nsi-2020"
+programme_version: BOEN_special_8_2019-07-25
 themes:
   - id: structures_de_donnees
     label: Structures de donnees
@@ -68,8 +68,27 @@ themes:
           - classes
           - methodes
           - attributs
-          - tests
+          - heritage
+          - encapsulation
           - invariants
+      - id: tests_mise_au_point
+        label: Tests et mise au point
+        subnotions:
+          - assertions
+          - doctest
+          - debogage
+      - id: gestion_modules
+        label: Modularité et gestion de modules
+      - id: paradigme_fonctionnel
+        label: Paradigme fonctionnel
+  - id: calculabilite
+    label: Calculabilité et décidabilité
+    notions:
+      - id: calculabilite_decidabilite
+        label: Calculabilité et décidabilité
+        subnotions:
+          - probleme_arret
+          - machine_turing
 competences:
   - analyser
   - raisonner

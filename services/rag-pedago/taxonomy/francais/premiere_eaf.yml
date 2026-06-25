@@ -1,0 +1,70 @@
+# PREMIER JET — À RÉVISER par expert matière
+id: francais_premiere_eaf
+matiere: francais
+niveau: premiere
+voie: generale
+statut_enseignement: tronc_commun
+programme_version: BOEN_special_1_2019-01-22
+themes:
+  - id: poesie
+    label: La poésie du XIXe au XXIe siècle
+    notions:
+      - id: versification
+        label: La versification et les formes poétiques
+        subnotions:
+          - sonnet
+          - vers_libre
+          - prose_poetique
+      - id: lyrisme
+        label: Le lyrisme et l'expression des sentiments
+      - id: modernite_poetique
+        label: La modernité poétique
+      - id: engagement_poetique
+        label: La poésie engagée
+
+  - id: roman
+    label: Le roman et le récit du Moyen Âge au XXIe siècle
+    notions:
+      - id: personnage_romanesque
+        label: Le personnage romanesque
+        subnotions:
+          - construction_personnage
+          - evolution_personnage
+      - id: narration
+        label: Les techniques narratives
+      - id: realisme_naturalisme
+        label: Réalisme et naturalisme
+      - id: roman_moderne
+        label: Les mutations du roman au XXe siècle
+
+  - id: theatre
+    label: Le théâtre du XVIIe au XXIe siècle
+    notions:
+      - id: tragedie
+        label: La tragédie classique
+      - id: comedie
+        label: La comédie
+        subnotions:
+          - comedie_moeurs
+          - comedie_caractere
+      - id: theatre_moderne
+        label: Le renouvellement du théâtre au XXe siècle
+
+  - id: litterature_idees
+    label: La littérature d'idées du XVIe au XVIIIe siècle
+    notions:
+      - id: essai_argumentation
+        label: L'essai et les formes de l'argumentation
+      - id: lumieres
+        label: Les Lumières et la critique sociale
+        subnotions:
+          - conte_philosophique
+          - encyclopedie
+      - id: humanisme
+        label: L'humanisme
+
+competences:
+  - lire_interpreter
+  - ecrire_argumenter
+  - oral_lecture
+  - connaitre_histoire_litteraire

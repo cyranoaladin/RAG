@@ -1,0 +1,50 @@
+# PREMIER JET — À RÉVISER par expert matière
+id: histoire_geo_seconde_tronc_commun
+matiere: histoire_geo
+niveau: seconde
+voie: generale
+statut_enseignement: tronc_commun
+programme_version: BOEN_special_1_2019-01-22
+themes:
+  - id: monde_mediterraneen
+    label: Le monde méditerranéen, empreintes de l'Antiquité et du Moyen Âge
+    notions:
+      - id: mediterranee_antique
+        label: La Méditerranée antique
+        subnotions:
+          - grece_classique
+          - rome_republique_empire
+      - id: mediterranee_medievale
+        label: La Méditerranée médiévale
+      - id: renaissance_humanisme
+        label: Renaissance et humanisme
+
+  - id: etat_moderne
+    label: XVe-XVIIIe siècle, l'affirmation de l'État moderne
+    notions:
+      - id: pouvoir_royal
+        label: L'affirmation du pouvoir royal
+      - id: societe_ancien_regime
+        label: La société d'Ancien Régime
+      - id: revolution_francaise
+        label: La Révolution française
+        subnotions:
+          - ddhc
+          - abolition_privileges
+      - id: lumieres
+        label: Les Lumières et le développement des sciences
+
+  - id: geographie_environnement
+    label: Sociétés et environnements, des équilibres fragiles
+    notions:
+      - id: risques_societes
+        label: Les sociétés face aux risques
+      - id: ressources_majeures
+        label: Des ressources majeures sous pression
+      - id: changement_climatique
+        label: Le changement climatique et ses effets
+
+competences:
+  - se_reperer_dans_le_temps
+  - analyser_documents
+  - raisonner_argumenter

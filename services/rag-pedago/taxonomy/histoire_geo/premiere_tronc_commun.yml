@@ -1,0 +1,65 @@
+# PREMIER JET — À RÉVISER par expert matière
+id: histoire_geo_premiere_tronc_commun
+matiere: histoire_geo
+niveau: premiere
+voie: generale
+statut_enseignement: tronc_commun
+programme_version: BOEN_special_1_2019-01-22
+themes:
+  - id: nations_etats
+    label: Nations, empires, nationalités
+    notions:
+      - id: europe_nations
+        label: L'Europe entre restauration et révolution
+      - id: unifications
+        label: Les unifications nationales
+        subnotions:
+          - unification_italienne
+          - unification_allemande
+      - id: empires_coloniaux
+        label: Les empires coloniaux
+      - id: societe_industrielle
+        label: La société industrielle
+
+  - id: france_19e
+    label: La France au XIXe siècle
+    notions:
+      - id: difficile_entree_republique
+        label: La difficile entrée dans l'âge démocratique
+      - id: troisieme_republique
+        label: La Troisième République
+        subnotions:
+          - lois_ferry
+          - affaire_dreyfus
+      - id: industrialisation_france
+        label: L'industrialisation et ses transformations sociales
+
+  - id: premiere_guerre_mondialisation
+    label: La Première Guerre mondiale et la fin des empires
+    notions:
+      - id: grande_guerre
+        label: La Grande Guerre
+        subnotions:
+          - experience_combattant
+          - arriere
+          - bilan
+      - id: bouleversements_geopolitiques
+        label: Les bouleversements géopolitiques
+      - id: traites_paix
+        label: Les traités de paix
+
+  - id: geographie_dynamiques_territoriales
+    label: Les dynamiques d'un monde en recomposition
+    notions:
+      - id: metropolisation
+        label: La métropolisation
+      - id: espaces_ruraux
+        label: Les espaces ruraux
+      - id: espaces_maritimes
+        label: Les espaces maritimes
+
+competences:
+  - se_reperer_dans_le_temps
+  - analyser_documents
+  - raisonner_argumenter
+  - cooperer_mutualiser

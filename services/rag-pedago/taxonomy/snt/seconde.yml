@@ -1,0 +1,54 @@
+# PREMIER JET — À RÉVISER par expert matière
+id: snt_seconde
+matiere: snt
+niveau: seconde
+voie: generale
+statut_enseignement: enseignement_commun
+programme_version: BOEN_special_1_2019-01-22
+themes:
+  - id: internet
+    label: Internet
+    notions:
+      - id: internet_protocoles
+        label: Internet et ses protocoles
+
+  - id: web
+    label: Le Web
+    notions:
+      - id: web_langages
+        label: Le Web et ses langages
+
+  - id: reseaux_sociaux
+    label: Les réseaux sociaux
+    notions:
+      - id: reseaux_sociaux_graphes
+        label: Les réseaux sociaux et les graphes
+
+  - id: donnees_structurees
+    label: Les données structurées et leur traitement
+    notions:
+      - id: donnees_traitement
+        label: Données structurées et traitement
+
+  - id: localisation
+    label: Localisation, cartographie et mobilité
+    notions:
+      - id: localisation_cartographie
+        label: Localisation, cartographie et mobilité
+
+  - id: photographie_numerique
+    label: Informatique et photographie numérique
+    notions:
+      - id: photo_numerique
+        label: Photographie numérique et traitement d'image
+
+  - id: informatique_embarquee
+    label: Informatique embarquée et objets connectés
+    notions:
+      - id: objets_connectes
+        label: Informatique embarquée et objets connectés
+
+competences:
+  - analyser
+  - programmer
+  - communiquer

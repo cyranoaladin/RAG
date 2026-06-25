@@ -1,0 +1,73 @@
+# PREMIER JET — À RÉVISER par expert matière
+id: histoire_geo_terminale_tronc_commun
+matiere: histoire_geo
+niveau: terminale
+voie: generale
+statut_enseignement: tronc_commun
+programme_version: BOEN_special_1_2019-01-22
+themes:
+  - id: puissances_internationales
+    label: Les puissances internationales
+    notions:
+      - id: etats_unis
+        label: Les États-Unis et le monde
+        subnotions:
+          - puissance_militaire
+          - soft_power
+          - unilateralisme
+      - id: chine
+        label: La Chine et le nouveau monde
+        subnotions:
+          - ouverture_economique
+          - routes_soie
+      - id: multipolarite
+        label: Un monde multipolaire
+
+  - id: europe
+    label: L'Europe et la construction européenne
+    notions:
+      - id: construction_europeenne
+        label: La construction européenne
+        subnotions:
+          - traites_fondateurs
+          - elargissement
+      - id: defis_ue
+        label: Les défis de l'Union européenne
+      - id: europe_puissance
+        label: L'Europe, puissance internationale
+
+  - id: france
+    label: La France dans le monde
+    notions:
+      - id: republique_francaise
+        label: La République française
+        subnotions:
+          - valeurs_republicaines
+          - laicite
+      - id: france_rayonnement
+        label: Le rayonnement de la France
+      - id: france_defense
+        label: La France et la défense nationale
+
+  - id: guerres
+    label: Les guerres au XXe siècle
+    notions:
+      - id: guerres_mondiales
+        label: Les guerres mondiales
+        subnotions:
+          - premiere_guerre_mondiale
+          - seconde_guerre_mondiale
+          - genocide
+      - id: guerre_froide
+        label: La guerre froide
+        subnotions:
+          - bipolarisation
+          - crises_majeures
+      - id: nouveaux_conflits
+        label: Les nouveaux conflits
+
+competences:
+  - se_reperer_dans_le_temps
+  - analyser_documents
+  - raisonner_argumenter
+  - construire_autonomie

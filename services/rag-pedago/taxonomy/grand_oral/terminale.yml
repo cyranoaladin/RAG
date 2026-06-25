@@ -1,0 +1,43 @@
+# PREMIER JET — À RÉVISER par expert matière
+id: grand_oral_terminale
+matiere: grand_oral
+niveau: terminale
+voie: generale
+statut_enseignement: examen
+programme_version: BOEN_special_1_2019-01-22
+themes:
+  - id: preparation
+    label: Préparation du Grand oral
+    notions:
+      - id: choix_questions
+        label: Choix des deux questions
+      - id: transversalite
+        label: Transversalité entre les deux spécialités
+      - id: recherche_documentation
+        label: Recherche documentaire et construction du propos
+
+  - id: presentation
+    label: Présentation orale
+    notions:
+      - id: argumentation_orale
+        label: Argumentation et structuration du discours
+      - id: expression_orale
+        label: Expression orale et posture
+        subnotions:
+          - voix_regard
+          - gestion_temps
+      - id: support_eventuel
+        label: Utilisation éventuelle d'un support
+
+  - id: echange
+    label: Échange avec le jury
+    notions:
+      - id: interaction_jury
+        label: Interaction avec le jury et écoute active
+      - id: projet_orientation
+        label: Lien avec le projet d'orientation
+
+competences:
+  - argumenter
+  - communiquer_oral
+  - synthetiser

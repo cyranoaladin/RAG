@@ -3,7 +3,7 @@ matiere: mathematiques
 niveau: terminale
 voie: generale
 statut_enseignement: specialite
-programme_version: "terminale-specialite-2020"
+programme_version: BOEN_special_8_2019-07-25
 themes:
   - id: suites
     label: Suites
@@ -19,14 +19,28 @@ themes:
   - id: fonctions
     label: Fonctions
     notions:
-      - id: fonctions
-        label: Fonctions
+      - id: limites
+        label: Limites de fonctions
         subnotions:
-          - limites
-          - continuite
-          - derivation
-          - convexite
+          - limites_infinies
+          - limites_en_un_point
           - asymptotes
+      - id: continuite
+        label: Continuité
+        subnotions:
+          - theoreme_valeurs_intermediaires
+      - id: derivation
+        label: Dérivation
+        subnotions:
+          - derivee_composee
+          - derivee_quotient
+          - applications_variations
+      - id: convexite
+        label: Convexité
+        subnotions:
+          - derivee_seconde
+          - point_inflexion
+          - inegalite_convexite
   - id: exponentielle_logarithme
     label: Exponentielle et logarithme
     notions:
@@ -81,6 +95,12 @@ themes:
           - esperance
           - variance
           - concentration
+      - id: loi_normale
+        label: Loi normale
+        subnotions:
+          - esperance_variance_loi_normale
+          - intervalle_fluctuation
+          - estimation
   - id: geometrie_espace
     label: Geometrie dans l'espace
     notions:

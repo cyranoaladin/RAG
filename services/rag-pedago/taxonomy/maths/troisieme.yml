@@ -1,0 +1,73 @@
+# PREMIER JET — À RÉVISER par expert matière
+id: maths_troisieme
+matiere: mathematiques
+niveau: troisieme
+voie: college
+statut_enseignement: enseignement_commun
+programme_version: BOEN_2018
+themes:
+  - id: nombres_calculs
+    label: Nombres et calculs
+    notions:
+      - id: arithmetique
+        label: Arithmétique
+        subnotions:
+          - divisibilite
+          - nombres_premiers
+          - pgcd
+      - id: puissances
+        label: Puissances et notation scientifique
+      - id: calcul_litteral_3e
+        label: Calcul littéral
+        subnotions:
+          - developper
+          - factoriser
+          - identites_remarquables
+      - id: equations_3e
+        label: Équations et inéquations du premier degré
+
+  - id: organisation_donnees
+    label: Organisation et gestion de données, fonctions
+    notions:
+      - id: proportionnalite
+        label: Proportionnalité
+      - id: statistiques_3e
+        label: Statistiques
+        subnotions:
+          - moyenne
+          - mediane
+          - etendue
+      - id: probabilites_3e
+        label: Probabilités
+      - id: notion_fonction_3e
+        label: Notion de fonction
+
+  - id: geometrie
+    label: Géométrie
+    notions:
+      - id: theoreme_thales
+        label: Théorème de Thalès
+      - id: trigonometrie
+        label: Trigonométrie dans le triangle rectangle
+      - id: geometrie_espace
+        label: Géométrie dans l'espace
+        subnotions:
+          - volumes
+          - sections
+      - id: transformations
+        label: Transformations du plan
+
+  - id: grandeurs_mesures
+    label: Grandeurs et mesures
+    notions:
+      - id: grandeurs_composees
+        label: Grandeurs composées (vitesse, débit)
+      - id: aires_volumes
+        label: Aires et volumes
+
+competences:
+  - chercher
+  - modeliser
+  - representer
+  - raisonner
+  - calculer

@@ -16,12 +16,12 @@ ROOT = Path(__file__).resolve().parents[1]
 STAGING_DIR = ROOT / "data" / "staging" / "lot7"
 CONTRACT_PATH = ROOT / "configs" / "pedago_interface_contract.yml"
 
-# Taxonomy files to process (pilot scope)
-TAXONOMY_FILES = [
-    ROOT / "taxonomy/maths/terminale_specialite.yml",
-    ROOT / "taxonomy/nsi/terminale.yml",
-    ROOT / "taxonomy/philosophie/terminale_tronc_commun.yml",
-]
+# Auto-discover taxonomy files (exclude common/exams metadata)
+TAXONOMY_ROOT = ROOT / "taxonomy"
+TAXONOMY_FILES = sorted(
+    f for f in TAXONOMY_ROOT.rglob("*.yml")
+    if f.parent.name not in ("common", "exams", "proposals")
+)
 
 # Limit per taxonomy to keep pilot manageable
 MAX_NOTIONS_PER_TAXONOMY = 5

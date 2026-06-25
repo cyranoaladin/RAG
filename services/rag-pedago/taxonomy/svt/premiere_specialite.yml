@@ -1,0 +1,55 @@
+# PREMIER JET — À RÉVISER par expert matière
+id: svt_premiere_specialite
+matiere: svt
+niveau: premiere
+voie: generale
+statut_enseignement: specialite
+programme_version: BOEN_special_1_2019-01-22
+themes:
+  - id: genetique
+    label: Transmission, variation et expression du patrimoine génétique
+    notions:
+      - id: adn_gene
+        label: ADN et gène
+        subnotions:
+          - replication
+          - mutations
+      - id: expression_genetique
+        label: L'expression du patrimoine génétique
+        subnotions:
+          - transcription
+          - traduction
+      - id: mutations_sante
+        label: Mutations et santé
+      - id: heritage_genetique
+        label: L'hérédité et la transmission des caractères
+
+  - id: ecologie
+    label: Écosystèmes et services environnementaux
+    notions:
+      - id: ecosystemes
+        label: Les écosystèmes et leur dynamique
+      - id: flux_matiere_energie
+        label: Flux de matière et d'énergie
+      - id: services_ecosystemiques
+        label: Les services écosystémiques
+      - id: evolution_biodiversite
+        label: L'évolution de la biodiversité
+
+  - id: geologie
+    label: La dynamique interne de la Terre
+    notions:
+      - id: structure_globe
+        label: La structure du globe terrestre
+      - id: tectonique_plaques
+        label: La tectonique des plaques
+        subnotions:
+          - divergence
+          - convergence
+          - points_chauds
+
+competences:
+  - pratiquer_demarche_scientifique
+  - modeliser
+  - recenser_extraire_organiser
+  - communiquer

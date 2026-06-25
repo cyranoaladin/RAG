@@ -1,0 +1,69 @@
+# PREMIER JET — À RÉVISER par expert matière
+id: physique_chimie_premiere_specialite
+matiere: physique_chimie
+niveau: premiere
+voie: generale
+statut_enseignement: specialite
+programme_version: BOEN_special_1_2019-01-22
+themes:
+  - id: mouvement
+    label: Mouvement et interactions
+    notions:
+      - id: description_mouvement
+        label: Description d'un mouvement
+        subnotions:
+          - vecteur_vitesse
+          - vecteur_acceleration
+      - id: lois_newton
+        label: Les lois de Newton
+      - id: interactions_fondamentales
+        label: Interactions fondamentales
+        subnotions:
+          - gravitation
+          - interaction_electrique
+
+  - id: ondes
+    label: Ondes et signaux
+    notions:
+      - id: ondes_mecaniques
+        label: Ondes mécaniques
+        subnotions:
+          - propagation
+          - periode_frequence
+      - id: lumiere
+        label: La lumière
+        subnotions:
+          - spectre_electromagnétique
+          - refraction
+      - id: signaux_sonores
+        label: Signaux sonores
+
+  - id: chimie
+    label: Constitution et transformations de la matière
+    notions:
+      - id: structure_atome
+        label: Structure de l'atome et configuration électronique
+      - id: liaisons_chimiques
+        label: Les liaisons chimiques
+        subnotions:
+          - liaison_covalente
+          - geometrie_molecules
+      - id: reactions_chimiques
+        label: Réactions chimiques et quantité de matière
+      - id: synthese_organique
+        label: Synthèse organique
+
+  - id: energie
+    label: L'énergie, conversions et transferts
+    notions:
+      - id: aspects_energetiques
+        label: Aspects énergétiques des transformations
+      - id: transferts_thermiques
+        label: Transferts thermiques
+
+competences:
+  - pratiquer_demarche_scientifique
+  - modeliser
+  - experimenter
+  - analyser
+  - communiquer

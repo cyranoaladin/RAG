@@ -1,0 +1,76 @@
+# PREMIER JET — À RÉVISER par expert matière
+id: maths_seconde_tronc_commun
+matiere: mathematiques
+niveau: seconde
+voie: generale
+statut_enseignement: enseignement_commun
+programme_version: BOEN_special_1_2019-01-22
+themes:
+  - id: nombres_calculs
+    label: Nombres et calculs
+    notions:
+      - id: ensembles_nombres
+        label: Ensembles de nombres et calculs
+        subnotions:
+          - intervalles
+          - valeur_absolue
+      - id: equations_inequations
+        label: Équations et inéquations
+      - id: calcul_litteral
+        label: Calcul littéral et identités remarquables
+
+  - id: geometrie
+    label: Géométrie
+    notions:
+      - id: geometrie_plane
+        label: Géométrie plane
+        subnotions:
+          - vecteurs
+          - coordonnees
+      - id: droites_plan
+        label: Droites du plan
+        subnotions:
+          - equations_droites
+          - parallelisme_perpendicularite
+      - id: configurations_plan
+        label: Configurations du plan
+
+  - id: fonctions
+    label: Fonctions
+    notions:
+      - id: notion_fonction
+        label: Notion de fonction
+        subnotions:
+          - image_antecedent
+          - courbe_representative
+      - id: variations_extremums
+        label: Variations et extremums
+      - id: fonctions_reference
+        label: Fonctions de référence
+        subnotions:
+          - fonction_carre
+          - fonction_inverse
+          - fonction_cube
+      - id: resolution_graphique
+        label: Résolution graphique d'équations et d'inéquations
+
+  - id: statistiques_probabilites
+    label: Statistiques et probabilités
+    notions:
+      - id: statistiques_descriptives
+        label: Statistiques descriptives
+        subnotions:
+          - moyenne
+          - mediane
+          - ecart_type
+      - id: probabilites
+        label: Probabilités
+      - id: echantillonnage
+        label: Échantillonnage
+
+competences:
+  - chercher
+  - modeliser
+  - representer
+  - raisonner
+  - calculer

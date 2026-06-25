@@ -1,0 +1,53 @@
+# PREMIER JET — À RÉVISER par expert matière
+id: francais_troisieme
+matiere: francais
+niveau: troisieme
+voie: college
+statut_enseignement: enseignement_commun
+programme_version: BOEN_2018
+themes:
+  - id: recit
+    label: Se raconter, se représenter — Récit
+    notions:
+      - id: autobiographie
+        label: L'autobiographie et les écritures de soi
+      - id: recit_realiste
+        label: Le récit réaliste et naturaliste
+      - id: recit_guerre
+        label: Récits de guerre et témoignages
+
+  - id: poesie
+    label: Visions poétiques du monde
+    notions:
+      - id: lyrisme_3e
+        label: Le lyrisme et l'expression des sentiments
+      - id: poesie_engagee_3e
+        label: La poésie engagée
+      - id: formes_poetiques
+        label: Les formes poétiques fixes et libres
+
+  - id: theatre
+    label: Agir dans la cité — Théâtre
+    notions:
+      - id: tragedie_3e
+        label: La tragédie antique et classique
+      - id: comedie_3e
+        label: La comédie classique et moderne
+      - id: mise_en_scene
+        label: La mise en scène et le jeu théâtral
+
+  - id: argumentation
+    label: Dénoncer les travers de la société
+    notions:
+      - id: satire
+        label: La satire et l'ironie
+      - id: argumentation_directe_indirecte
+        label: Argumentation directe et indirecte
+      - id: presse_medias
+        label: La presse et les médias
+
+competences:
+  - lire_interpreter
+  - ecrire
+  - oral
+  - maitriser_langue
