@@ -22,6 +22,7 @@ WHITELISTED_DOMAINS: frozenset[str] = frozenset({
     "www.education.gouv.fr",
     "cache.media.eduscol.education.gouv.fr",
     "cache.media.education.gouv.fr",
+    "fr.wikiversity.org",  # CC-BY-SA 4.0
 })
 
 USER_AGENT = "NexusReussiteBot/0.1 (+https://nexusreussite.academy; pedagogical-rag)"
@@ -48,7 +49,7 @@ _robots_cache: dict[str, object] = {}
 
 
 def _get_robots(url: str) -> object:
-    """Fetch and cache robots.txt for the domain."""
+    """Fetch and cache robots.txt for the domain, using our identified UA."""
     parsed = urlparse(url)
     robots_url = f"{parsed.scheme}://{parsed.netloc}/robots.txt"
     if robots_url not in _robots_cache:
@@ -56,10 +57,15 @@ def _get_robots(url: str) -> object:
         rp = RobotFileParser()
         rp.set_url(robots_url)
         try:
-            rp.read()
+            # Fetch robots.txt with our identified UA (some sites block default urllib UA)
+            import requests as _req
+            resp = _req.get(robots_url, headers={"User-Agent": USER_AGENT}, timeout=10)
+            if resp.status_code == 200:
+                rp.parse(resp.text.splitlines())
+            else:
+                rp.disallow_all = True  # type: ignore[attr-defined]
         except Exception:
-            # If robots.txt can't be fetched, assume everything is allowed
-            rp.disallow_all = True  # type: ignore[attr-defined]  # conservative: refuse if robots.txt unavailable
+            rp.disallow_all = True  # type: ignore[attr-defined]  # conservative: refuse if unavailable
         _robots_cache[robots_url] = rp
     return _robots_cache[robots_url]
 

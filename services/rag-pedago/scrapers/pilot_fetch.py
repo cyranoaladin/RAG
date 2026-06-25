@@ -1,14 +1,15 @@
-"""Pilot fetch — seed-list for 5 notions (3 maths + 2 NSI).
+"""Pilot fetch — governed acquisition from libre sources.
 
-Fetches whitelisted URLs, extracts text, deposits in staging.
-Does NOT import to corpus (ingestion_allowed=false).
+Fetches from whitelisted+licensed sources, deposits in staging.
+Respects data_staging_allowed verrou. Does NOT import to corpus.
 """
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+import yaml
 
 from scrapers.fetch import (
     FetchRefusal,
@@ -18,133 +19,110 @@ from scrapers.fetch import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
-STAGING_DIR = ROOT / "data" / "staging" / "pilot_4_2"
+STAGING_DIR = ROOT / "data" / "staging" / "lot5"
+CONTRACT_PATH = ROOT / "configs" / "pedago_interface_contract.yml"
 
-# Seed-list: 5 notions × official/CC URLs (whitelisted domains only)
-SEED_LIST: list[dict[str, str]] = [
-    {
-        "notion_id": "suites",
-        "matiere": "mathematiques",
-        "url": "https://eduscol.education.gouv.fr/2068/programmes-et-ressources-en-mathematiques-voie-gt",
-        "source_label": "eduscol_maths_gt_programmes",
-    },
-    {
-        "notion_id": "derivation",
-        "matiere": "mathematiques",
-        "url": "https://eduscol.education.gouv.fr/1723/programmes-et-ressources-en-mathematiques-voie-g",
-        "source_label": "eduscol_maths_g_programmes",
-    },
-    {
-        "notion_id": "probabilites_conditionnelles",
-        "matiere": "mathematiques",
-        "url": "https://eduscol.education.gouv.fr/2068/programmes-et-ressources-en-mathematiques-voie-gt",
-        "source_label": "eduscol_maths_gt_programmes",
-    },
-    {
-        "notion_id": "recursivite",
-        "matiere": "nsi",
-        "url": "https://eduscol.education.gouv.fr/2068/programmes-et-ressources-en-nsi",
-        "source_label": "eduscol_nsi_programmes",
-    },
-    {
-        "notion_id": "arbres",
-        "matiere": "nsi",
-        "url": "https://eduscol.education.gouv.fr/2068/programmes-et-ressources-en-nsi",
-        "source_label": "eduscol_nsi_programmes",
-    },
+# Wikiversity direct page URLs per notion (robots-allowed /wiki/ paths)
+WIKIVERSITY_PAGES: list[dict[str, str]] = [
+    {"notion_id": "suites", "matiere": "mathematiques",
+     "url": "https://fr.wikiversity.org/wiki/Suites_et_récurrence"},
+    {"notion_id": "fonction_exponentielle", "matiere": "mathematiques",
+     "url": "https://fr.wikiversity.org/wiki/Fonction_exponentielle"},
+    {"notion_id": "derivation", "matiere": "mathematiques",
+     "url": "https://fr.wikiversity.org/wiki/Fonction_dérivée"},
+    {"notion_id": "probabilites_conditionnelles", "matiere": "mathematiques",
+     "url": "https://fr.wikiversity.org/wiki/Probabilités_conditionnelles"},
+    {"notion_id": "primitives", "matiere": "mathematiques",
+     "url": "https://fr.wikiversity.org/wiki/Intégration_(mathématiques)"},
+    {"notion_id": "recursivite", "matiere": "nsi",
+     "url": "https://fr.wikiversity.org/wiki/Récursivité"},
+    {"notion_id": "arbres", "matiere": "nsi",
+     "url": "https://fr.wikiversity.org/wiki/Arbres_(informatique)"},
+    {"notion_id": "sql", "matiere": "nsi",
+     "url": "https://fr.wikiversity.org/wiki/Structured_Query_Language"},
 ]
+
+
+def _check_staging_allowed() -> bool:
+    """Check data_staging_allowed verrou."""
+    if not CONTRACT_PATH.is_file():
+        return False
+    config = yaml.safe_load(CONTRACT_PATH.read_text(encoding="utf-8"))
+    return config.get("data_staging_allowed") is True
+
+
+def _fetch_page(page: dict[str, str]) -> dict[str, Any]:
+    """Fetch a Wikiversity page and extract text."""
+    notion_id = page["notion_id"]
+    url = page["url"]
+
+    result = governed_fetch(url)
+
+    if isinstance(result, FetchRefusal):
+        return {"notion_id": notion_id, "matiere": page["matiere"],
+                "status": "refused", "reason": result.reason, "url": url}
+
+    if result.error:
+        return {"notion_id": notion_id, "matiere": page["matiere"],
+                "status": "error", "error": result.error, "url": url}
+
+    if result.status_code != 200:
+        return {"notion_id": notion_id, "matiere": page["matiere"],
+                "status": "http_error", "status_code": result.status_code, "url": url}
+
+    text = extract_text_from_html(result.text)
+    qc = quality_check(text, notion_id)
+
+    return {
+        "notion_id": notion_id,
+        "matiere": page["matiere"],
+        "url": url,
+        "source_label": f"wikiversity_{notion_id}",
+        "rights": "CC-BY-SA 4.0",
+        "audience": "tous",
+        "status": "ok" if qc["ok"] else "quality_issues",
+        "text_length": len(text),
+        "text_preview": text[:500],
+        "quality": qc,
+        "delay_applied": result.delay_applied,
+    }
 
 
 def run_pilot_fetch() -> dict[str, Any]:
     """Execute the pilot fetch and deposit results in staging."""
+    if not _check_staging_allowed():
+        return {"error": "data_staging_allowed is false — staging refused", "results": []}
+
     STAGING_DIR.mkdir(parents=True, exist_ok=True)
 
     results: list[dict[str, Any]] = []
-    for seed in SEED_LIST:
-        notion_id = seed["notion_id"]
-        url = seed["url"]
-        print(f"Fetching {notion_id} from {url}...")
+    for page in WIKIVERSITY_PAGES:
+        notion_id = page["notion_id"]
+        print(f"Fetching {notion_id} ({page['matiere']})...")
 
-        result = governed_fetch(url)
-
-        entry: dict[str, Any]
-        if isinstance(result, FetchRefusal):
-            entry = {
-                "notion_id": notion_id,
-                "matiere": seed["matiere"],
-                "url": url,
-                "source_label": seed["source_label"],
-                "status": "refused",
-                "reason": result.reason,
-                "fetched_at": datetime.now(UTC).isoformat(),
-            }
-            results.append(entry)
-            print(f"  REFUSED: {result.reason}")
-            continue
-
-        if result.error:
-            entry = {
-                "notion_id": notion_id,
-                "matiere": seed["matiere"],
-                "url": url,
-                "source_label": seed["source_label"],
-                "status": "error",
-                "error": result.error,
-                "status_code": result.status_code,
-                "fetched_at": result.fetched_at.isoformat(),
-            }
-            results.append(entry)
-            print(f"  ERROR: {result.error}")
-            continue
-
-        # Extract text
-        text = extract_text_from_html(result.text)
-        qc = quality_check(text, notion_id)
-
-        # Deposit in staging
-        staging_file = STAGING_DIR / f"{seed['matiere']}_{notion_id}.json"
-        staging_data = {
-            "notion_id": notion_id,
-            "matiere": seed["matiere"],
-            "url": url,
-            "source_label": seed["source_label"],
-            "audience": "tous",
-            "rights": "officiel_public",
-            "status_code": result.status_code,
-            "content_type": result.content_type,
-            "text_length": len(text),
-            "text_preview": text[:500],
-            "quality": qc,
-            "delay_applied": result.delay_applied,
-            "fetched_at": result.fetched_at.isoformat(),
-        }
-        staging_file.write_text(
-            json.dumps(staging_data, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
-
-        entry = {
-            "notion_id": notion_id,
-            "matiere": seed["matiere"],
-            "url": url,
-            "status": "ok" if qc["ok"] else "quality_issues",
-            "text_length": len(text),
-            "quality": qc,
-            "staging_file": str(staging_file.relative_to(ROOT)),
-            "delay_applied": result.delay_applied,
-        }
+        entry = _fetch_page(page)
         results.append(entry)
-        print(f"  OK: {len(text)} chars, quality={'PASS' if qc['ok'] else 'ISSUES'}")
+
+        # Deposit in staging if content was retrieved
+        if entry.get("status") in ("ok", "quality_issues"):
+            staging_file = STAGING_DIR / f"{page['matiere']}_{notion_id}.json"
+            staging_file.write_text(
+                json.dumps(entry, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+            print(f"  OK: {entry.get('text_length', 0)} chars → {staging_file.name}")
+        else:
+            print(f"  {entry.get('status', 'unknown')}: {entry.get('reason', entry.get('error', ''))}")
 
     return {
         "pilot_fetch": True,
-        "seed_count": len(SEED_LIST),
+        "source": "wikiversity",
+        "license": "CC-BY-SA 4.0",
+        "query_count": len(WIKIVERSITY_PAGES),
         "results": results,
         "staging_dir": str(STAGING_DIR.relative_to(ROOT)),
     }
 
 
 if __name__ == "__main__":
-    import yaml
     report = run_pilot_fetch()
-    print("\n" + yaml.safe_dump(report, allow_unicode=True, sort_keys=False))
+    print(yaml.safe_dump(report, allow_unicode=True, sort_keys=False))

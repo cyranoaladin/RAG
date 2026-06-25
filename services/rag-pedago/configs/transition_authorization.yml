@@ -20,7 +20,7 @@ qdrant_allowed: false
 network_allowed: true  # ADR-0004 — scoped to scrapers/fetch.py (GET-only, whitelist, robots.txt, rate limit). Does NOT authorize network in imports, readiness, or corpus ingestion.
 server_start_allowed: false
 runtime_api_allowed: false
-data_staging_allowed: false
+data_staging_allowed: true  # ADR-0004 — candidate content staging before human review
 
 required_authorization_fields:
   - authorization_case_id

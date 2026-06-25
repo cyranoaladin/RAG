@@ -35,7 +35,7 @@ DANGEROUS_FLAGS = [
 ]
 
 # Flags authorized at true via transition_authorization.yml
-AUTHORIZED_TRUE_FLAGS = {"network_allowed"}
+AUTHORIZED_TRUE_FLAGS = {"network_allowed", "data_staging_allowed"}
 
 
 def _load_audit_module():
