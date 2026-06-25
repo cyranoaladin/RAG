@@ -1,0 +1,73 @@
+id: maths_premiere_tronc_commun
+matiere: mathematiques
+niveau: premiere
+voie: generale
+statut_enseignement: enseignement_commun
+programme_version: BO_2019-01-22
+themes:
+  - id: algebre
+    label: Algèbre
+    notions:
+      - id: suites_numeriques
+        label: Suites numériques
+        subnotions:
+          - suite_arithmetique
+          - suite_geometrique
+          - sens_variation
+      - id: second_degre
+        label: Second degré
+        subnotions:
+          - discriminant
+          - racines
+          - factorisation
+
+  - id: analyse
+    label: Analyse
+    notions:
+      - id: derivation_premiere
+        label: Dérivation
+        subnotions:
+          - nombre_derive
+          - fonction_derivee
+          - variations
+      - id: fonction_exponentielle_premiere
+        label: Fonction exponentielle
+      - id: fonctions_trigonometriques
+        label: Fonctions trigonométriques
+
+  - id: geometrie
+    label: Géométrie
+    notions:
+      - id: calcul_vectoriel
+        label: Calcul vectoriel
+      - id: produit_scalaire_premiere
+        label: Produit scalaire
+      - id: geometrie_reperee
+        label: Géométrie repérée
+
+  - id: probabilites_statistiques
+    label: Probabilités et statistiques
+    notions:
+      - id: probabilites_conditionnelles_premiere
+        label: Probabilités conditionnelles
+        subnotions:
+          - independance
+          - arbres_ponderes
+      - id: variables_aleatoires_premiere
+        label: Variables aléatoires
+      - id: loi_binomiale_premiere
+        label: Loi binomiale
+
+  - id: algorithmique_programmation
+    label: Algorithmique et programmation
+    notions:
+      - id: python_premiere
+        label: "Python : fonctions, boucles, conditions"
+
+competences:
+  - chercher
+  - modeliser
+  - representer
+  - raisonner
+  - calculer
+  - communiquer

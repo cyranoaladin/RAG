@@ -1,0 +1,77 @@
+id: philosophie_terminale_tronc_commun
+matiere: philosophie
+niveau: terminale
+voie: generale
+statut_enseignement: tronc_commun
+programme_version: BO_2019-01-22
+themes:
+  - id: morale_politique
+    label: "La morale et la politique"
+    notions:
+      - id: justice
+        label: La justice
+      - id: etat
+        label: "L'État"
+      - id: devoir
+        label: Le devoir
+      - id: liberte
+        label: La liberté
+      - id: droit
+        label: Le droit
+
+  - id: connaissance
+    label: "La connaissance"
+    notions:
+      - id: verite
+        label: La vérité
+      - id: raison
+        label: La raison
+      - id: science
+        label: La science
+      - id: nature
+        label: La nature
+
+  - id: existence_culture
+    label: "L'existence humaine et la culture"
+    notions:
+      - id: conscience
+        label: La conscience
+      - id: inconscient
+        label: "L'inconscient"
+      - id: temps
+        label: Le temps
+      - id: travail
+        label: Le travail
+      - id: technique
+        label: La technique
+      - id: art
+        label: "L'art"
+      - id: langage
+        label: Le langage
+      - id: religion
+        label: La religion
+      - id: bonheur
+        label: Le bonheur
+
+  - id: methode
+    label: "Méthode philosophique"
+    notions:
+      - id: dissertation
+        label: La dissertation
+        subnotions:
+          - problematisation
+          - argumentation
+          - plan_dialectique
+      - id: explication_texte
+        label: "L'explication de texte"
+        subnotions:
+          - these_auteur
+          - structure_texte
+          - enjeux
+
+competences:
+  - problematiser
+  - argumenter
+  - analyser_texte
+  - mobiliser_references
+  - structurer_pensee
