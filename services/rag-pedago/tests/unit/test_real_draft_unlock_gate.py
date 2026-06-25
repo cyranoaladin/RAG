@@ -128,10 +128,14 @@ def test_gate_reuses_unlock_and_draft_guard_reports(monkeypatch: pytest.MonkeyPa
 def test_gate_does_not_open_source_uri_calculate_hash_or_check_source_existence(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    import pathlib
+
+    import rag_pedago.imports.real_draft_unlock_gate as _gate_mod
     from rag_pedago.imports.real_draft_unlock_gate import build_unlock_gate_report
 
-    def fail_exists(*args, **kwargs):  # noqa: ANN002, ANN003
-        raise AssertionError("source existence must not be checked")
+    class _GuardedPath(_gate_mod.Path):  # type: ignore[name-defined]
+        def exists(self, *a, **k):  # noqa: ANN002, ANN003
+            raise AssertionError("source existence must not be checked")
 
     original_open = builtins.open
 
@@ -140,11 +144,12 @@ def test_gate_does_not_open_source_uri_calculate_hash_or_check_source_existence(
             raise AssertionError("PDF must not be opened")
         return original_open(path, *args, **kwargs)
 
-    # NOTE: global Path.exists monkeypatch — acceptable because pytest restores
-    # it after the test. The INTERNALERROR was caused by stale __pycache__ from
-    # the pre-monorepo era; resolved by lot-0.5 cache cleanup.
-    monkeypatch.setattr(Path, "exists", fail_exists)
+    # Replace the Path reference in the module, NOT pathlib.Path globally.
+    monkeypatch.setattr(_gate_mod, "Path", _GuardedPath)
     monkeypatch.setattr(builtins, "open", fail_pdf_open)
+
+    # Prove pathlib.Path is unaffected globally
+    assert pathlib.Path("/").exists(), "global pathlib.Path must remain intact"
 
     report = build_unlock_gate_report(VALID_UNLOCK, VALID_DRAFT)
 
@@ -154,15 +159,19 @@ def test_gate_does_not_open_source_uri_calculate_hash_or_check_source_existence(
 def test_gate_writes_no_files_creates_no_staging_and_does_not_touch_ledger(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    import rag_pedago.imports.real_draft_unlock_gate as _gate_mod
     from rag_pedago.imports.real_draft_unlock_gate import build_unlock_gate_report
 
     marker = _ledger_marker()
 
-    def fail_write(*args, **kwargs):  # noqa: ANN002, ANN003
-        raise AssertionError("gate must not write files")
+    class _NoWritePath(_gate_mod.Path):  # type: ignore[name-defined]
+        def write_text(self, *a, **k):  # noqa: ANN002, ANN003
+            raise AssertionError("gate must not write files")
+        def write_bytes(self, *a, **k):  # noqa: ANN002, ANN003
+            raise AssertionError("gate must not write files")
 
-    monkeypatch.setattr(Path, "write_text", fail_write)
-    monkeypatch.setattr(Path, "write_bytes", fail_write)
+    # Replace the Path reference in the module, NOT pathlib.Path globally.
+    monkeypatch.setattr(_gate_mod, "Path", _NoWritePath)
 
     report = build_unlock_gate_report(VALID_UNLOCK, VALID_DRAFT)
 

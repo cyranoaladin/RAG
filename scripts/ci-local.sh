@@ -44,7 +44,10 @@ run_pedago() {
     rm -rf .venv
     python3 -m venv .venv
     source .venv/bin/activate
-    make install > /dev/null 2>&1
+    if ! make install; then
+        echo "FAIL: rag-pedago install failed"
+        deactivate 2>/dev/null || true; cd "$REPO_ROOT"; return 1
+    fi
 
     echo "--- lint ---"
     if ! make lint; then
@@ -60,10 +63,8 @@ run_pedago() {
 
     echo "--- test ---"
     local output
-    set +e
-    output=$(make test 2>&1)
-    local test_exit=$?
-    set -e
+    local test_exit
+    output=$(make test 2>&1) && test_exit=0 || test_exit=$?
     echo "$output" | tail -3
 
     if [ "$test_exit" -ne 0 ]; then
@@ -87,7 +88,10 @@ run_target "services/rag-pedago" run_pedago
 run_engine() {
     cd "$REPO_ROOT/services/rag-engine"
     rm -rf .venv
-    make install > /dev/null 2>&1
+    if ! make install; then
+        echo "FAIL: rag-engine install failed"
+        cd "$REPO_ROOT"; return 1
+    fi
     source .venv/bin/activate
 
     echo "--- lint ---"

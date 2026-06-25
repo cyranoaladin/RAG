@@ -12,16 +12,16 @@ authors = [
   { name = "Nexus Réussite" }
 ]
 dependencies = [
-  "pydantic>=2.7",
-  "PyYAML>=6.0",
+  "pydantic==2.13.4",
+  "PyYAML==6.0.3",
   "nexus-contracts",
 ]
 
 [project.optional-dependencies]
 dev = [
-  "mypy",
-  "pytest",
-  "ruff",
+  "mypy==2.1.0",
+  "pytest==9.1.1",
+  "ruff==0.15.19",
 ]
 
 [tool.setuptools.packages.find]
@@ -66,21 +66,3 @@ warn_unused_configs = true
 no_implicit_optional = true
 strict_optional = true
 
-# legacy typecheck debt — variable reuse shadows types; governance code, not rewritten
-[[tool.mypy.overrides]]
-module = "rag_pedago.project_doctor"
-disable_error_code = ["assignment", "attr-defined"]
-
-# legacy typecheck debt — yaml.safe_load returns Any|dict|None
-[[tool.mypy.overrides]]
-module = [
-    "rag_pedago.imports.real_draft_guard",
-    "rag_pedago.imports.real_draft_unlock_gate",
-    "rag_pedago.imports.pilot_manifest_template",
-]
-disable_error_code = ["union-attr"]
-
-# legacy typecheck debt — enum .value on Optional
-[[tool.mypy.overrides]]
-module = "scrapers.discovery"
-disable_error_code = ["union-attr"]

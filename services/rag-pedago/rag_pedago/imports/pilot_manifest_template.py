@@ -167,7 +167,7 @@ def validate_manual_metadata_rules(item: dict[str, Any]) -> list[dict[str, str]]
         )
 
     extra = item.get("extra") if isinstance(item.get("extra"), dict) else {}
-    zone = extra.get("zone")
+    zone = extra.get("zone")  # type: ignore[union-attr]
     establishment_context_ref = item.get("establishment_context_ref")
     if zone == "aefe_tunisie" and establishment_context_ref != "aefe":
         issues.append(
