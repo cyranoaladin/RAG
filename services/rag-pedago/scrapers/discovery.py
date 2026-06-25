@@ -48,6 +48,17 @@ Règle de matching stricte (lot 4.1 corrigé):
 """.strip()
 
 
+# French stopwords excluded from notion matching to avoid false positives
+STOPWORDS = frozenset({
+    "de", "des", "du", "la", "le", "les", "l", "un", "une", "et", "ou",
+    "a", "au", "aux", "en", "dans", "par", "pour", "sur", "avec", "sans",
+    "ce", "ces", "son", "ses", "sa", "leur", "leurs", "que", "qui", "dont",
+    "est", "sont", "pas", "ne", "ni", "si", "se", "y", "il", "elle", "on",
+    "nous", "vous", "ils", "elles", "etre", "avoir", "faire", "dire",
+    "comme", "mais", "plus", "tout", "tous", "bien", "aussi", "entre",
+    "sous", "vers", "chez", "apres", "avant", "depuis",
+})
+
 MATIERE_KEYWORDS = {
     "mathematiques": {"math", "mathematiques", "maths", "mathematique"},
     "nsi": {"nsi", "informatique", "numerique", "numeriques", "sciences", "snt"},
@@ -121,9 +132,9 @@ def _matches_notion(
         return False
     source_tokens = _source_terms(source)
     notion_toks = _notion_tokens(notion_id, notion_label)
-    # Strict matching: at least one significant notion token must appear in source
-    # Exclude trivially short tokens (< 3 chars) to avoid false positives
-    significant = {t for t in notion_toks if len(t) >= 3}
+    # Strict matching: at least one significant content token must appear in source.
+    # Exclude short tokens (< 3 chars) and French stopwords.
+    significant = {t for t in notion_toks if len(t) >= 3 and t not in STOPWORDS}
     return bool(significant.intersection(source_tokens))
 
 

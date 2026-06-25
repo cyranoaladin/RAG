@@ -26,7 +26,7 @@ REQUIRED_FALSE_FLAGS = [
     "chunking_allowed",
     "embeddings_allowed",
     "qdrant_allowed",
-    "network_allowed",
+    # network_allowed: lifted under ADR-0004 (scoped fetch, lot 4.2)
     "answer_generation_allowed",
     "data_staging_allowed",
 ]

@@ -7,7 +7,7 @@ matching_rule: "Règle de matching stricte (lot 4.1 corrigé):\n1) Une source do
   \ générique ne couvre pas\n   automatiquement toutes les notions de la matière.\n\
   4) Les champs de sortie (rights/type_doc/audience) sont inférés via des règles\n\
   \   locales sur l'autorité et la structure des métadonnées source."
-generated_at: '2026-06-25T03:04:03.840538+00:00'
+generated_at: '2026-06-25T03:20:16.969600+00:00'
 scope:
   pilot: terminale
   matieres:
@@ -129,25 +129,7 @@ notions:
   niveau: terminale
   notion_id: formule_des_probabilites_totales
   notion_label: formule_des_probabilites_totales
-  candidates:
-  - notion: formule_des_probabilites_totales
-    source_label: education_maths_reforme_lycee
-    source_uri: https://www.education.gouv.fr/l-enseignement-des-mathematiques-dans-la-reforme-du-lycee-en-classe-de-premiere-et-terminale-de-la-454023
-    rights: officiel_public
-    type_doc: ressource_officielle
-    audience: tous
-    source_manifest:
-      source_name: education_maths_reforme_lycee
-      source_uri: https://www.education.gouv.fr/l-enseignement-des-mathematiques-dans-la-reforme-du-lycee-en-classe-de-premiere-et-terminale-de-la-454023
-      title: L'enseignement des mathématiques dans la réforme du lycée
-      detected_matiere: mathematiques
-      detected_niveau: terminale
-      detected_type_doc: ressource_officielle
-      source_type: officiel
-      rights: officiel_public
-      fetched: false
-      sha256: null
-      discovered_at: '2026-06-25T03:04:03.840538Z'
+  candidates: []
 - matiere: mathematiques
   niveau: terminale
   notion_id: geometrie_espace_vecteurs
