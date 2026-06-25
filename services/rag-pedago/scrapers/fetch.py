@@ -22,6 +22,7 @@ WHITELISTED_DOMAINS: frozenset[str] = frozenset({
     "www.education.gouv.fr",
     "cache.media.eduscol.education.gouv.fr",
     "cache.media.education.gouv.fr",
+    "fr.wikiversity.org",  # CC-BY-SA 4.0
 })
 
 USER_AGENT = "NexusReussiteBot/0.1 (+https://nexusreussite.academy; pedagogical-rag)"
@@ -48,7 +49,7 @@ _robots_cache: dict[str, object] = {}
 
 
 def _get_robots(url: str) -> object:
-    """Fetch and cache robots.txt for the domain."""
+    """Fetch and cache robots.txt for the domain, using our identified UA."""
     parsed = urlparse(url)
     robots_url = f"{parsed.scheme}://{parsed.netloc}/robots.txt"
     if robots_url not in _robots_cache:
@@ -56,10 +57,15 @@ def _get_robots(url: str) -> object:
         rp = RobotFileParser()
         rp.set_url(robots_url)
         try:
-            rp.read()
+            # Fetch robots.txt with our identified UA (some sites block default urllib UA)
+            import requests as _req
+            resp = _req.get(robots_url, headers={"User-Agent": USER_AGENT}, timeout=10)
+            if resp.status_code == 200:
+                rp.parse(resp.text.splitlines())
+            else:
+                rp.disallow_all = True  # type: ignore[attr-defined]
         except Exception:
-            # If robots.txt can't be fetched, assume everything is allowed
-            rp.disallow_all = True  # type: ignore[attr-defined]  # conservative: refuse if robots.txt unavailable
+            rp.disallow_all = True  # type: ignore[attr-defined]  # conservative: refuse if unavailable
         _robots_cache[robots_url] = rp
     return _robots_cache[robots_url]
 
@@ -184,9 +190,12 @@ def governed_fetch(url: str) -> FetchResult | FetchRefusal:
 # ---------------------------------------------------------------------------
 
 def extract_text_from_html(html: str) -> str:
-    """Extract readable text from HTML. Basic — no JS rendering."""
-    # Remove script/style tags
-    text = re.sub(r"<(script|style)[^>]*>.*?</\1>", "", html, flags=re.DOTALL | re.IGNORECASE)
+    """Extract readable text from HTML, stripping navigation/menus."""
+    # Remove script/style/nav/header/footer tags
+    text = re.sub(
+        r"<(script|style|nav|header|footer)[^>]*>.*?</\1>",
+        "", html, flags=re.DOTALL | re.IGNORECASE,
+    )
     # Remove all HTML tags
     text = re.sub(r"<[^>]+>", " ", text)
     # Collapse whitespace
@@ -213,9 +222,21 @@ def quality_check(text: str, notion_id: str) -> dict[str, Any]:
     if fr_ratio < 0.05:
         issues.append(f"low French content ratio ({fr_ratio:.2%})")
 
+    # Anti-navigation check
+    nav_markers = {"chapitres", "voir aussi", "catégorie :", "modifier les liens",
+                   "outils personnels", "menu principal", "aller au contenu",
+                   "rechercher", "faire un don", "créer un compte", "se connecter"}
+    lower_text = text.lower()
+    nav_hits = sum(1 for m in nav_markers if m in lower_text)
+    navigation_suspected = nav_hits >= 4
+
+    if navigation_suspected:
+        issues.append(f"navigation_suspected ({nav_hits} nav markers found)")
+
     return {
         "ok": len(issues) == 0,
         "issues": issues,
         "text_length": len(text),
         "fr_ratio": round(fr_ratio, 3),
+        "navigation_suspected": navigation_suspected,
     }

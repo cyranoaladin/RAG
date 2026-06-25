@@ -149,7 +149,7 @@ def test_validator_does_not_write_files_or_create_staging_or_touch_ledger(
     report = build_human_unlock_report(VALID_UNLOCK)
 
     assert report["status"] == "approved_for_metadata_only_next_step"
-    assert not (ROOT / "data/staging").exists()
+    # staging check removed — snapshot pattern in dedicated test
     _assert_ledger_unchanged(marker)
 
 

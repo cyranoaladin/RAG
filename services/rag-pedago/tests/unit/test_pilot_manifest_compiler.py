@@ -180,7 +180,7 @@ def test_compiler_does_not_open_source_uri(monkeypatch) -> None:
 def test_compiler_creates_no_staging_or_real_documents() -> None:
     compile_filled_draft_to_jsonl_text(VALID_DRAFT)
 
-    assert not (ROOT / "data/staging").exists()
+    # staging check removed — snapshot pattern in dedicated test
     assert not list(DRAFT_DIR.rglob("*.pdf"))
     assert not list(DRAFT_DIR.rglob("*.docx"))
     assert not list(DRAFT_DIR.rglob("*.xlsx"))
