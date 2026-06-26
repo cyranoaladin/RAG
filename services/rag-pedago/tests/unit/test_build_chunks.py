@@ -125,6 +125,49 @@ def test_chunks_deterministic() -> None:
         assert c1 == c2
 
 
+def test_multi_niveau_no_collision(tmp_path) -> None:
+    """Same matiere+notion on two niveaux must produce two distinct files."""
+    module = _load_module()
+
+    staging = tmp_path / "staging"
+    for niveau in ["premiere", "terminale"]:
+        d = staging / niveau / "mathematiques"
+        d.mkdir(parents=True)
+        (d / "mathematiques_suites.json").write_text(json.dumps({
+            "notion_id": "suites", "matiere": "mathematiques", "niveau": niveau,
+            "voie": "generale", "statut_enseignement": "specialite",
+            "audience": "tous", "source": "wikipedia", "source_label": f"wp_{niveau}",
+            "rights": "CC-BY-SA 4.0", "chosen_url": f"https://example.com/{niveau}",
+            "text": f"Les suites en {niveau}. " * 50,
+        }), encoding="utf-8")
+
+    chunks_dir = tmp_path / "chunks"
+    # Patch paths
+    orig_staging = module.STAGING_DIR
+    orig_chunks = module.CHUNKS_DIR
+    module.STAGING_DIR = staging
+    module.CHUNKS_DIR = chunks_dir
+    try:
+        module.main()
+    finally:
+        module.STAGING_DIR = orig_staging
+        module.CHUNKS_DIR = orig_chunks
+
+    # Two distinct files
+    premiere_file = chunks_dir / "premiere" / "mathematiques_suites.jsonl"
+    terminale_file = chunks_dir / "terminale" / "mathematiques_suites.jsonl"
+    assert premiere_file.is_file(), "Missing premiere chunks file"
+    assert terminale_file.is_file(), "Missing terminale chunks file"
+
+    # doc_id and chunk_id must differ
+    p_chunk = json.loads(premiere_file.read_text().strip().split("\n")[0])
+    t_chunk = json.loads(terminale_file.read_text().strip().split("\n")[0])
+    assert p_chunk["doc_id"] != t_chunk["doc_id"]
+    assert p_chunk["chunk_id"] != t_chunk["chunk_id"]
+    assert "premiere" in p_chunk["doc_id"]
+    assert "terminale" in t_chunk["doc_id"]
+
+
 def test_sidecars_have_retrieval_fields(all_sidecars) -> None:
     """Sidecars must carry tenant/niveau/voie/audience/matiere for retrieval filtering."""
     for i, sc in enumerate(all_sidecars):

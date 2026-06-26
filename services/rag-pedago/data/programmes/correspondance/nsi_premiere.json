@@ -10,7 +10,7 @@
   "found_partial": 3,
   "not_found": 11,
   "exact_pct": 44.0,
-  "bo_only_count": 124,
+  "bo_only_count": 118,
   "details_found_exact": [
     {
       "theme": "representation_donnees",
@@ -143,14 +143,8 @@
     }
   ],
   "bo_only": [
-    "Annexe",
-    "Programme de numérique et sciences informatiques de",
-    "Préambule",
-    "Démarche de projet",
     "Modalités de mise en œuvre",
-    "Éléments de programme",
     "Histoire de l’informatique",
-    "Contenus Capacités attendues Commentaires",
     "Événements clés de",
     "Situer dans le temps les",
     "Ces repères historiques seront",
@@ -172,6 +166,12 @@
     "Exemples des",
     "ISO-8859-1, Unicode",
     "Identifier l’intérêt des différents",
-    "Convertir un fichier texte dans"
+    "Convertir un fichier texte dans",
+    "Aucune connaissance précise des",
+    "Écrire une fonction renvoyant",
+    "Tableau indexé, tableau",
+    "Lire et modifier les éléments",
+    "Construire un tableau par",
+    "Itérer sur les éléments d’un"
   ]
 }

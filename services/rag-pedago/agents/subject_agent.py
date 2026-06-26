@@ -172,7 +172,7 @@ class SubjectAgent(AcquisitionAgent):
         }
 
     def report(self) -> dict[str, Any]:
-        found = [e for e in self._results if e.get("status") in ("ok", "quality_issues")]
+        found = [e for e in self._results if e.get("status") in ACCEPTED_STATUSES]
         not_found = [e for e in self._results if e.get("status") == "not_found"]
         found_by_notion = {e.get("notion_id"): e for e in found}
         not_found_by_notion = {e.get("notion_id"): e for e in not_found}

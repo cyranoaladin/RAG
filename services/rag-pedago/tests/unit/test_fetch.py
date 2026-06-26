@@ -267,6 +267,19 @@ def test_no_false_positive_categorie_maths():
     assert qc["navigation_suspected"] is False
 
 
+def test_pollution_detected_in_middle():
+    """Chrome markers in the MIDDLE of text must be detected."""
+    text = (
+        "La dérivation est une opération fondamentale en analyse. "
+        "Elle permet de calculer la pente de la tangente en un point. "
+        "modifier le code Aller au contenu "
+        "La dérivée de x^n est nx^(n-1). "
+        "Les applications sont nombreuses en physique et en économie. " * 5
+    )
+    qc = quality_check(text, "derivation")
+    assert qc["navigation_suspected"] is True, "Middle chrome not detected"
+
+
 # --- Quality check ---
 
 def test_quality_check_pass():

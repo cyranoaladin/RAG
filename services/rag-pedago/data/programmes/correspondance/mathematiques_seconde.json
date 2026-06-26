@@ -10,7 +10,7 @@
   "found_partial": 3,
   "not_found": 4,
   "exact_pct": 74.1,
-  "bo_only_count": 20,
+  "bo_only_count": 6,
   "details_found_exact": [
     {
       "theme": "nombres_calculs",
@@ -153,25 +153,11 @@
     }
   ],
   "bo_only": [
-    "Annexe",
-    "Programme de mathématiques de seconde générale et",
-    "Sommaire",
-    "Préambule",
-    "Intentions majeures",
-    "Quelques lignes directrices pour l’enseignement",
-    "Organisation du programme",
-    "Programme",
     "Algorithmique et programmation",
     "Vocabulaire ensembliste et logique",
-    "Contenus",
-    "Capacités attendues",
-    "Démonstrations",
     "Exemple d’algorithme",
-    "Approfondissements possibles",
     "Exemples d’algorithme",
     "Relation",
-    "Démonstration",
-    "Approfondissement possible",
-    "Csinab2"
+    "Approfondissement possible"
   ]
 }

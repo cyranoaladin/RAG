@@ -112,14 +112,19 @@ def find_notion_in_text(
     return "not_found"
 
 
-def _extract_bo_headings(text: str) -> list[str]:
-    """Extract likely section headings from BO programme text.
+# Stop-list of structural headings (DETTE-9.1-B resolved)
+_STRUCTURAL_HEADINGS = {
+    "annexe", "sommaire", "preambule", "programme", "contenus",
+    "capacites attendues", "commentaires", "demonstrations", "demonstration",
+    "organisation du programme", "intentions majeures",
+    "quelques lignes directrices", "elements de programme",
+    "modalites de mise en oeuvre", "demarche de projet",
+    "approfondissements possibles", "exemple d'algorithme", "exemples d'algorithme",
+}
 
-    BO programmes have patterns like:
-    - Lines in ALL CAPS or Title Case that are short
-    - Lines starting with bullets followed by concept names
-    - Patterns: "Contenus", "Capacités attendues", theme titles
-    """
+
+def _extract_bo_headings(text: str) -> list[str]:
+    """Extract likely section headings from BO programme text."""
     headings: list[str] = []
     seen: set[str] = set()
 
@@ -130,6 +135,13 @@ def _extract_bo_headings(text: str) -> list[str]:
 
         # Skip common non-heading patterns
         if line.startswith(("•", "-", "–", "→", "Page", "©")):
+            continue
+
+        # Filter non-word tokens and PDF artefacts (e.g., Csinab2)
+        if not re.search(r"[aeiouyàâéèêëîïôùûü]", line, re.IGNORECASE):
+            continue
+        # Single words with digits are likely PDF artefacts
+        if len(line.split()) == 1 and re.search(r"\d", line):
             continue
 
         # Detect section-like lines (short, capitalized, no punctuation at end)
@@ -204,6 +216,9 @@ def build_correspondence_report(
     bo_only: list[str] = []
     for heading in bo_headings:
         h_norm = _normalize(heading)
+        # Skip structural headings (DETTE-9.1-B)
+        if any(s in h_norm for s in _STRUCTURAL_HEADINGS):
+            continue
         h_words = set(_tokenize_words(heading))
         # Check if any taxonomy notion covers this heading
         if not any(_normalize(kid) in h_norm or h_norm in _normalize(kid) for kid in known_ids):
