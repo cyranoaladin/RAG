@@ -11,7 +11,7 @@ pdf_allowed: true  # ADR-0004 — parsing programmes officiels en staging
 ingestion_allowed: false
 parsing_allowed: true  # ADR-0004 — parsing programmes officiels en staging
 chunking_allowed: true  # ADR-0006 — chunking contenu propre staging
-embeddings_allowed: false
+embeddings_allowed: true  # ADR-0007 — calcul embeddings sur chunks conformes
 qdrant_allowed: false
 network_allowed: true  # ADR-0004 — scoped fetch (GET-only, whitelist, robots.txt, rate limit)
 answer_generation_allowed: false
