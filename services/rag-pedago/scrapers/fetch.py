@@ -220,6 +220,8 @@ def extract_text_from_html(html: str) -> str:
         "navbox", "infobox", "metadata", "reference", "references",
         "mw-editsection", "hatnote", "bandeau-container", "bandeau",
         "homonymie", "catlinks", "printfooter", "mw-authority-control",
+        "sister-project", "sistersitebox", "side-box", "navbox-wikimedia",
+        "mw-references-wrap", "reflist", "refbegin",
     ]
     for cls_name in _REMOVE_CLASSES:
         for tag in content.find_all(class_=lambda c, cn=cls_name: c and cn in c):
@@ -232,34 +234,41 @@ def extract_text_from_html(html: str) -> str:
             tag.decompose()
 
     # Remove terminal sections: Notes et références, Voir aussi, etc.
+    # Handle both h2 and h3 headings
     _TERMINAL_SECTIONS = {
         "notes et références", "voir aussi", "liens externes",
         "bibliographie", "articles connexes", "notes", "annexes",
+        "sur les autres projets", "références",
     }
-    for h2 in content.find_all("h2"):
-        heading_text = h2.get_text(strip=True).lower()
+    for heading in content.find_all(["h2", "h3"]):
+        heading_text = heading.get_text(strip=True).lower()
         if any(section in heading_text for section in _TERMINAL_SECTIONS):
-            # Remove h2 and all siblings until next h2
-            for sibling in list(h2.find_next_siblings()):
-                if sibling.name == "h2":
+            same_level = heading.name  # h2 or h3
+            for sibling in list(heading.find_next_siblings()):
+                if sibling.name == same_level:
                     break
                 sibling.decompose()
-            h2.decompose()
+            heading.decompose()
 
-    # Remove footer patterns: "Portail …", "Catégorie …", "Récupérée de"
-    for div in content.find_all("div"):
-        text_start = div.get_text(strip=True)[:50].lower()
-        if any(text_start.startswith(p) for p in ["portail", "catégorie", "récupérée de"]):
-            div.decompose()
+    # Remove footer/sister-project containers by text content
+    for el in content.find_all(["div", "table", "ul"]):
+        text_start = el.get_text(strip=True)[:80].lower()
+        if any(text_start.startswith(p) for p in [
+            "portail :", "catégorie :", "récupérée de", "sur les autres projets",
+            "ce document provient", "dernière modification",
+        ]):
+            el.decompose()
 
     # Extract text
     text = content.get_text(separator=" ", strip=True)
     text = html_module.unescape(text)
     text = re.sub(r"\s+", " ", text).strip()
 
-    # Post-extraction: truncate at residual footer markers
+    # Post-extraction safety net: truncate at first residual tail marker
     _FOOTER_MARKERS = [
-        "Notices d'autorité", "Liens externes", "Récupérée de",
+        "Voir aussi", "Articles connexes", "Sur les autres projets",
+        "Notes et références", "Bibliographie", "Liens externes",
+        "Notices d'autorité", "Récupérée de",
         "Ce document provient de", "Dernière modification",
     ]
     for marker in _FOOTER_MARKERS:
@@ -294,7 +303,9 @@ def quality_check(text: str, notion_id: str) -> dict[str, Any]:
     chrome_markers = {"aller au contenu", "modifier le code", "outils personnels",
                       "menu principal", "faire un don", "créer un compte",
                       "se connecter", "modifier les liens", "récupérée de",
-                      "portail", "catégorie :", "autres leçons", "département"}
+                      "portail :", "catégorie :", "autres leçons", "département",
+                      "sur les autres projets", "articles connexes",
+                      "wiktionnaire", "sur wikiversity", "notices d'autorité"}
     lower_text = text.lower()
     chrome_hits = sum(1 for m in chrome_markers if m in lower_text)
     # Any chrome marker = suspected (post-extraction, these should be absent)
