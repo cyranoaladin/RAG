@@ -31,7 +31,10 @@ def check_parsing_allowed(contract_path: Path | None = None) -> bool:
     path = contract_path or CONTRACT
     if not path.is_file():
         return False
-    config = yaml.safe_load(path.read_text(encoding="utf-8"))
+    try:
+        config = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except Exception:
+        return False
     if not isinstance(config, dict):
         return False
     return config.get("pdf_allowed") is True and config.get("parsing_allowed") is True
@@ -62,13 +65,21 @@ def main() -> int:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     produced = 0
 
+    KNOWN_NIVEAUX = {"troisieme", "seconde", "premiere", "terminale"}
+
     for pdf in sorted(PROGRAMMES_DIR.glob("*.pdf")):
         # Parse filename: {matiere}_{niveau}_{statut}.pdf
+        # matiere may contain underscores (e.g., histoire_geo, physique_chimie)
         parts = pdf.stem.split("_")
         if len(parts) < 2:
             continue
-        matiere = parts[0]
-        niveau = parts[1]
+        # Find the niveau token and split accordingly
+        niveau_idx = next((i for i, p in enumerate(parts) if p in KNOWN_NIVEAUX), None)
+        if niveau_idx is None:
+            print(f"  SKIP {pdf.name}: no known niveau in filename")
+            continue
+        matiere = "_".join(parts[:niveau_idx])
+        niveau = parts[niveau_idx]
 
         taxo = _find_taxonomy(matiere, niveau)
         if not taxo:

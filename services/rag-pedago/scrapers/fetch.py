@@ -211,10 +211,18 @@ def extract_text_from_html(html: str) -> str:
         content = soup.find("body") or soup
 
     # Remove unwanted elements BEFORE extracting text
-    _REMOVE_TAGS = ["script", "style", "nav", "header", "footer", "sup"]
+    _REMOVE_TAGS = ["script", "style", "nav", "header", "footer"]
     for tag_name in _REMOVE_TAGS:
         for tag in content.find_all(tag_name):
             tag.decompose()
+
+    # Handle <sup>: remove reference sups, UNWRAP (keep text) content sups like x²
+    for sup in content.find_all("sup"):
+        classes: list[str] = sup.get("class") or []  # type: ignore[assignment]
+        if "reference" in classes or sup.find("a", class_="reference"):
+            sup.decompose()
+        else:
+            sup.unwrap()  # keeps the text content (e.g., "2" from <sup>2</sup>)
 
     _REMOVE_CLASSES = [
         "navbox", "infobox", "metadata", "reference", "references",
@@ -312,9 +320,12 @@ def quality_check(text: str, notion_id: str) -> dict[str, Any]:
     if len(text) < MIN_TEXT_LENGTH:
         issues.append(f"text too short ({len(text)} chars, min {MIN_TEXT_LENGTH})")
 
-    # Check for French content (simple heuristic)
+    # Check for French content (sample from whole text, not just first 100 words)
     fr_markers = {"le", "la", "les", "de", "des", "du", "en", "un", "une", "est", "sont"}
-    words = set(text.lower().split()[:100])
+    all_words = text.lower().split()
+    # Sample: first 50 + middle 50 + last 50
+    sample = all_words[:50] + all_words[len(all_words) // 2 : len(all_words) // 2 + 50] + all_words[-50:]
+    words = set(sample)
     fr_ratio = len(words.intersection(fr_markers)) / max(len(words), 1)
     if fr_ratio < 0.05:
         issues.append(f"low French content ratio ({fr_ratio:.2%})")
