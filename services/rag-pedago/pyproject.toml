@@ -16,6 +16,7 @@ dependencies = [
   "PyYAML==6.0.3",
   "requests>=2.31",
   "pypdf>=4.0",
+  "beautifulsoup4>=4.12",
   "nexus-contracts",
 ]
 

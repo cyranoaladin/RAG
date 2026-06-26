@@ -192,80 +192,82 @@ def governed_fetch(url: str) -> FetchResult | FetchRefusal:
 # ---------------------------------------------------------------------------
 
 def extract_text_from_html(html: str) -> str:
-    """Extract the main article content from HTML (MediaWiki-aware).
+    """Extract the main article content from HTML using BeautifulSoup.
 
-    For Wikipedia/Wikiversity pages, extracts only the article body
-    (mw-parser-output / mw-content-text), stripping navigation, menus,
-    infoboxes, references, see-also, and external links.
-    Falls back to generic extraction for non-MediaWiki pages.
+    For MediaWiki pages: extracts only #mw-content-text / .mw-parser-output,
+    removes navigation, infoboxes, references, terminal sections, and footer chrome.
+    Falls back to generic body extraction for non-MediaWiki pages.
     """
-    # Try MediaWiki-specific extraction first
-    content = _extract_mediawiki_body(html)
-    if content and len(content) > 100:
-        return content
+    from bs4 import BeautifulSoup
 
-    # Fallback: generic extraction
-    text = re.sub(
-        r"<(script|style|nav|header|footer)[^>]*>.*?</\1>",
-        "", html, flags=re.DOTALL | re.IGNORECASE,
-    )
-    text = re.sub(r"<[^>]+>", " ", text)
+    soup = BeautifulSoup(html, "html.parser")
+
+    # Try MediaWiki content container
+    content = soup.find("div", class_="mw-parser-output")
+    if not content:
+        content = soup.find("div", id="mw-content-text")
+    if not content:
+        # Fallback: use body
+        content = soup.find("body") or soup
+
+    # Remove unwanted elements BEFORE extracting text
+    _REMOVE_TAGS = ["script", "style", "nav", "header", "footer", "sup"]
+    for tag_name in _REMOVE_TAGS:
+        for tag in content.find_all(tag_name):
+            tag.decompose()
+
+    _REMOVE_CLASSES = [
+        "navbox", "infobox", "metadata", "reference", "references",
+        "mw-editsection", "hatnote", "bandeau-container", "bandeau",
+        "homonymie", "catlinks", "printfooter", "mw-authority-control",
+    ]
+    for cls_name in _REMOVE_CLASSES:
+        for tag in content.find_all(class_=lambda c, cn=cls_name: c and cn in c):
+            tag.decompose()
+
+    _REMOVE_IDS = ["toc", "catlinks", "mw-navigation"]
+    for id_val in _REMOVE_IDS:
+        tag = content.find(id=id_val)  # type: ignore[assignment]
+        if tag:
+            tag.decompose()
+
+    # Remove terminal sections: Notes et références, Voir aussi, etc.
+    _TERMINAL_SECTIONS = {
+        "notes et références", "voir aussi", "liens externes",
+        "bibliographie", "articles connexes", "notes", "annexes",
+    }
+    for h2 in content.find_all("h2"):
+        heading_text = h2.get_text(strip=True).lower()
+        if any(section in heading_text for section in _TERMINAL_SECTIONS):
+            # Remove h2 and all siblings until next h2
+            for sibling in list(h2.find_next_siblings()):
+                if sibling.name == "h2":
+                    break
+                sibling.decompose()
+            h2.decompose()
+
+    # Remove footer patterns: "Portail …", "Catégorie …", "Récupérée de"
+    for div in content.find_all("div"):
+        text_start = div.get_text(strip=True)[:50].lower()
+        if any(text_start.startswith(p) for p in ["portail", "catégorie", "récupérée de"]):
+            div.decompose()
+
+    # Extract text
+    text = content.get_text(separator=" ", strip=True)
     text = html_module.unescape(text)
-    return re.sub(r"\s+", " ", text).strip()
+    text = re.sub(r"\s+", " ", text).strip()
 
+    # Post-extraction: truncate at residual footer markers
+    _FOOTER_MARKERS = [
+        "Notices d'autorité", "Liens externes", "Récupérée de",
+        "Ce document provient de", "Dernière modification",
+    ]
+    for marker in _FOOTER_MARKERS:
+        idx = text.find(marker)
+        if idx > len(text) // 2:  # only if in the second half (not article content)
+            text = text[:idx].rstrip()
 
-def _extract_mediawiki_body(html: str) -> str:
-    """Extract article body from a MediaWiki page."""
-    # Find the main content container
-    # MediaWiki uses <div id="mw-content-text"> or <div class="mw-parser-output">
-    body = ""
-    for pattern in [
-        r'<div[^>]*class="mw-parser-output"[^>]*>(.*)',
-        r'<div[^>]*id="mw-content-text"[^>]*>(.*)',
-    ]:
-        m = re.search(pattern, html, re.DOTALL | re.IGNORECASE)
-        if m:
-            body = m.group(1)
-            break
-
-    if not body:
-        return ""
-
-    # Remove unwanted sections by their container patterns
-    # Table of contents
-    body = re.sub(r'<div[^>]*id="toc"[^>]*>.*?</div>\s*</div>', "", body, flags=re.DOTALL)
-    # Infoboxes
-    body = re.sub(r'<table[^>]*class="[^"]*infobox[^"]*"[^>]*>.*?</table>', "", body, flags=re.DOTALL)
-    # Navigation boxes
-    body = re.sub(r'<div[^>]*class="[^"]*navbox[^"]*"[^>]*>.*?</div>\s*</div>', "", body, flags=re.DOTALL)
-    body = re.sub(r'<div[^>]*class="[^"]*navbox[^"]*"[^>]*>.*?</div>', "", body, flags=re.DOTALL)
-    body = re.sub(r'<table[^>]*class="[^"]*navbox[^"]*"[^>]*>.*?</table>', "", body, flags=re.DOTALL)
-    # Disambiguation banners
-    body = re.sub(r'<div[^>]*class="[^"]*homonymie[^"]*"[^>]*>.*?</div>', "", body, flags=re.DOTALL)
-    body = re.sub(r'<div[^>]*class="[^"]*bandeau[^"]*"[^>]*>.*?</div>', "", body, flags=re.DOTALL)
-    # References section
-    body = re.sub(r'<div[^>]*class="[^"]*references[^"]*"[^>]*>.*?</div>', "", body, flags=re.DOTALL)
-    body = re.sub(r'<ol[^>]*class="references"[^>]*>.*?</ol>', "", body, flags=re.DOTALL)
-
-    # Remove specific sections: Notes, Références, Voir aussi, Liens externes
-    for section_title in ["Notes et références", "Voir aussi", "Liens externes",
-                          "Bibliographie", "Articles connexes", "Notes"]:
-        # Remove from <h2>Section</h2> to next <h2> or end
-        pattern = (
-            rf'<h2[^>]*>\s*<span[^>]*>\s*{re.escape(section_title)}\s*</span>.*?'
-            r'(?=<h2|$)'
-        )
-        body = re.sub(pattern, "", body, flags=re.DOTALL | re.IGNORECASE)
-
-    # Remove script/style tags
-    body = re.sub(r"<(script|style)[^>]*>.*?</\1>", "", body, flags=re.DOTALL | re.IGNORECASE)
-    # Remove sup tags (footnote markers [1], [2])
-    body = re.sub(r"<sup[^>]*>.*?</sup>", "", body, flags=re.DOTALL)
-
-    # Strip all remaining tags
-    text = re.sub(r"<[^>]+>", " ", body)
-    text = html_module.unescape(text)
-    return re.sub(r"\s+", " ", text).strip()
+    return text
 
 
 # ---------------------------------------------------------------------------
@@ -287,20 +289,19 @@ def quality_check(text: str, notion_id: str) -> dict[str, Any]:
     if fr_ratio < 0.05:
         issues.append(f"low French content ratio ({fr_ratio:.2%})")
 
-    # Anti-navigation check (calibrated on real Wikiversity/Wikipedia pages)
-    nav_markers = {"chapitres", "voir aussi", "catégorie :", "modifier les liens",
-                   "outils personnels", "menu principal", "aller au contenu",
-                   "rechercher", "faire un don", "créer un compte", "se connecter",
-                   "autres leçons", "département"}
+    # Anti-navigation / chrome residue check (length-independent)
+    # After BeautifulSoup extraction, residual chrome indicates extraction failure
+    chrome_markers = {"aller au contenu", "modifier le code", "outils personnels",
+                      "menu principal", "faire un don", "créer un compte",
+                      "se connecter", "modifier les liens", "récupérée de",
+                      "portail", "catégorie :", "autres leçons", "département"}
     lower_text = text.lower()
-    nav_hits = sum(1 for m in nav_markers if m in lower_text)
-    # Short pages with many nav markers are likely indexes. Long articles often
-    # retain a few footer labels after extraction; those are not blocking.
-    words_count = len(text.split())
-    navigation_suspected = nav_hits >= 3 and words_count < 500
+    chrome_hits = sum(1 for m in chrome_markers if m in lower_text)
+    # Any chrome marker = suspected (post-extraction, these should be absent)
+    navigation_suspected = chrome_hits >= 2
 
     if navigation_suspected:
-        issues.append(f"navigation_suspected ({nav_hits} nav markers found)")
+        issues.append(f"navigation_suspected ({chrome_hits} chrome markers found)")
 
     return {
         "ok": len(issues) == 0,
