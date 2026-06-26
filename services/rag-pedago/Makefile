@@ -156,7 +156,7 @@ format:
 	$(PY) -m ruff format .
 
 typecheck:
-	$(PY) -m mypy schema pipeline retrieval services rag_pedago scrapers
+	$(PY) -m mypy schema pipeline retrieval services rag_pedago scrapers agents
 
 backup:
 	bash ops/backup/backup.sh
