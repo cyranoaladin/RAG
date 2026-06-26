@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import UTC, datetime
 from textwrap import dedent
 from urllib.parse import quote
@@ -241,3 +242,120 @@ def test_notion_articles_contains_required_lot_11_entries() -> None:
 
     assert ("algorithmique_suites", "mathematiques") in keys
     assert ("dictionnaires", "nsi") in keys
+    assert taxonomy_fetcher._get_article_urls("algorithmique_suites", "mathematiques") == [
+        (
+            taxonomy_fetcher.WIKIPEDIA_URL.format(title=quote("Suite_(mathématiques)")),
+            "wikipedia",
+        ),
+        (
+            taxonomy_fetcher.WIKIVERSITY_URL.format(title=quote("Suites_et_récurrence")),
+            "wikiversity",
+        ),
+    ]
+    assert taxonomy_fetcher._get_article_urls("dictionnaires", "nsi") == [
+        (taxonomy_fetcher.WIKIPEDIA_URL.format(title=quote("Tableau_associatif")), "wikipedia"),
+        (taxonomy_fetcher.WIKIPEDIA_URL.format(title=quote("Table_de_hachage")), "wikipedia"),
+    ]
+
+
+def test_fetch_taxonomy_writes_only_canonical_notion_file(tmp_path, monkeypatch) -> None:
+    taxonomy = tmp_path / "taxo.yml"
+    taxonomy.write_text(
+        dedent("""\
+            id: test_math
+            matiere: mathematiques
+            niveau: terminale
+            voie: generale
+            statut_enseignement: specialite
+            programme_version: test
+            themes:
+              - id: suites
+                label: Suites
+                notions:
+                  - id: suites
+                    label: Suites
+            competences:
+              - raisonner
+        """),
+        encoding="utf-8",
+    )
+    staging = tmp_path / "staging"
+    staging.mkdir()
+    stale = staging / "mathematiques_suites_wikipedia_suites.json"
+    stale.write_text("stale", encoding="utf-8")
+    chosen_url = taxonomy_fetcher.WIKIPEDIA_URL.format(title=quote("Suite_(mathématiques)"))
+
+    monkeypatch.setattr(taxonomy_fetcher, "_check_staging_allowed", lambda: True)
+    monkeypatch.setattr(
+        taxonomy_fetcher,
+        "fetch_notion",
+        lambda **kwargs: [
+            {
+                "notion_id": "suites",
+                "notion_label": "Suites",
+                "matiere": "mathematiques",
+                "niveau": "terminale",
+                "voie": "generale",
+                "statut_enseignement": "specialite",
+                "url": chosen_url,
+                "chosen_url": chosen_url,
+                "source": "wikipedia",
+                "source_label": "wikipedia_suites",
+                "status": "ok",
+                "candidate_urls": [chosen_url],
+                "ignored_candidate_urls": [],
+            }
+        ],
+    )
+
+    result = taxonomy_fetcher.fetch_taxonomy(taxonomy, staging)
+
+    canonical = staging / "mathematiques_suites.json"
+    files = sorted(path.name for path in staging.glob("mathematiques_suites*.json"))
+    written = json.loads(canonical.read_text(encoding="utf-8"))
+
+    assert result["found"] == 1
+    assert files == ["mathematiques_suites.json"]
+    assert written["chosen_url"] == chosen_url
+    assert not stale.exists()
+
+
+def test_cleanup_previous_notion_files_is_scoped_to_exact_notion(tmp_path) -> None:
+    staging = tmp_path / "staging"
+    staging.mkdir()
+    removed = [
+        staging / "mathematiques_suites.json",
+        staging / "mathematiques_suites_wikipedia_suites.json",
+        staging / "mathematiques_suites_wikiversity_suites_ch1.json",
+    ]
+    kept = [
+        staging / "mathematiques_suites_de_reelles.json",
+        staging / "mathematiques_suites_de_reelles_wikipedia_suites.json",
+        staging / "nsi_suites_wikipedia_suites.json",
+        staging / "mathematiques_limites_wikipedia_suites.json",
+    ]
+    for path in removed + kept:
+        path.write_text(path.name, encoding="utf-8")
+
+    taxonomy_fetcher.cleanup_previous_notion_files(staging, "mathematiques", "suites")
+
+    assert all(not path.exists() for path in removed)
+    assert all(path.exists() for path in kept)
+
+
+def test_no_source_suffixed_staging_file_for_canonical_notion() -> None:
+    staging = taxonomy_fetcher.ROOT / "data" / "staging"
+    source_suffix = re.compile(r"^(?P<prefix>.+)_(?:wikipedia|wikiversity).*\.json$")
+    violations: list[str] = []
+
+    for path in sorted(staging.rglob("*.json")):
+        if path.name.endswith(".meta.json"):
+            continue
+        match = source_suffix.match(path.name)
+        if not match:
+            continue
+        canonical = path.with_name(f"{match.group('prefix')}.json")
+        if canonical.exists():
+            violations.append(str(path.relative_to(staging)))
+
+    assert violations == []

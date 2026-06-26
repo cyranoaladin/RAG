@@ -79,6 +79,20 @@ def test_review_package_contains_reference_and_taxonomy_hashes(tmp_path) -> None
     assert all(len(value) == 64 for value in package.taxonomy_sha256.values())
 
 
+def test_review_package_hash_is_cwd_independent(tmp_path, monkeypatch) -> None:
+    reference = tmp_path / "reference"
+    reference.mkdir()
+    (reference / "a.yml").write_text("id: a\n", encoding="utf-8")
+    other_cwd = tmp_path / "elsewhere"
+    other_cwd.mkdir()
+
+    digest_before = sha256_directory_yaml(reference)
+    monkeypatch.chdir(other_cwd)
+    digest_after = sha256_directory_yaml(reference)
+
+    assert digest_after == digest_before
+
+
 def test_approve_review_package_creates_decision(tmp_path) -> None:
     package = build_review_package(
         BATCH_CLEAN,

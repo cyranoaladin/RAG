@@ -236,7 +236,7 @@ def test_cleanup_decision_rejects_invalid_sample_limit(tmp_path) -> None:
 
     result = subprocess.run(
         [
-            "python3",
+            sys.executable,
             "scripts/cleanup_decision_draft.py",
             "--config",
             str(config),
@@ -259,7 +259,7 @@ def test_cleanup_decision_rejects_too_large_sample_limit(tmp_path) -> None:
 
     result = subprocess.run(
         [
-            "python3",
+            sys.executable,
             "scripts/cleanup_decision_draft.py",
             "--config",
             str(config),
@@ -282,7 +282,7 @@ def test_cleanup_decision_cli_python_optimized_mode_outputs_markdown(tmp_path) -
 
     result = subprocess.run(
         [
-            "python3",
+            sys.executable,
             "-O",
             "scripts/cleanup_decision_draft.py",
             "--config",

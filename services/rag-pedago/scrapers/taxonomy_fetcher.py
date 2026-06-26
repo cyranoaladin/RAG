@@ -374,7 +374,8 @@ def _accepted_entries(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [entry for entry in entries if entry.get("status") in ACCEPTED_STATUSES]
 
 
-def _cleanup_previous_notion_files(staging_dir: Path, matiere: str, notion_id: str) -> None:
+def cleanup_previous_notion_files(staging_dir: Path, matiere: str, notion_id: str) -> None:
+    """Remove only canonical and legacy source-suffixed files for one notion."""
     filenames = [staging_dir / f"{matiere}_{notion_id}.json"]
     filenames.extend(staging_dir.glob(f"{matiere}_{notion_id}_wikipedia*.json"))
     filenames.extend(staging_dir.glob(f"{matiere}_{notion_id}_wikiversity*.json"))
@@ -418,7 +419,7 @@ def fetch_taxonomy(
 
             accepted = _accepted_entries(entries)
             if accepted:
-                _cleanup_previous_notion_files(staging_dir, spec.matiere, notion.id)
+                cleanup_previous_notion_files(staging_dir, spec.matiere, notion.id)
                 fname = f"{spec.matiere}_{notion.id}.json"
                 (staging_dir / fname).write_text(
                     json.dumps(accepted[0], ensure_ascii=False, indent=2), encoding="utf-8"

@@ -16,7 +16,7 @@ from agents.base import ROOT, AcquisitionAgent
 from schema.taxonomy import TaxonomySpec
 from scrapers.taxonomy_fetcher import (
     ACCEPTED_STATUSES,
-    _cleanup_previous_notion_files,
+    cleanup_previous_notion_files,
     fetch_notion,
 )
 
@@ -142,7 +142,7 @@ class SubjectAgent(AcquisitionAgent):
 
             accepted = [entry for entry in entries if entry.get("status") in ACCEPTED_STATUSES]
             if accepted:
-                _cleanup_previous_notion_files(self.staging_dir, self.spec.matiere, notion_id)
+                cleanup_previous_notion_files(self.staging_dir, self.spec.matiere, notion_id)
                 fname = f"{self.spec.matiere}_{notion_id}.json"
                 (self.staging_dir / fname).write_text(
                     json.dumps(accepted[0], ensure_ascii=False, indent=2),

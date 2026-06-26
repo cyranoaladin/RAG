@@ -52,6 +52,7 @@ RESTRICTED_RUNTIME:
   - api
 
 RESTRICTED_NETWORK:
+  - venv
   - install
   - scrape-official
 

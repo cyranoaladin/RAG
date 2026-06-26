@@ -232,7 +232,7 @@ def test_cleanup_review_cli_subprocess_outputs_markdown(tmp_path) -> None:
 
     result = subprocess.run(
         [
-            "python3",
+            sys.executable,
             "scripts/cleanup_review_package.py",
             "--config",
             str(config),
@@ -260,7 +260,7 @@ def test_cleanup_review_cli_python_optimized_mode_outputs_markdown(tmp_path) -> 
 
     result = subprocess.run(
         [
-            "python3",
+            sys.executable,
             "-O",
             "scripts/cleanup_review_package.py",
             "--config",
@@ -287,7 +287,7 @@ def test_cleanup_review_rejects_invalid_sample_limit(tmp_path) -> None:
 
     result = subprocess.run(
         [
-            "python3",
+            sys.executable,
             "scripts/cleanup_review_package.py",
             "--config",
             str(config),
@@ -310,7 +310,7 @@ def test_cleanup_review_rejects_too_large_sample_limit(tmp_path) -> None:
 
     result = subprocess.run(
         [
-            "python3",
+            sys.executable,
             "scripts/cleanup_review_package.py",
             "--config",
             str(config),
