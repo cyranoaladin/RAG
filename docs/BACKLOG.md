@@ -62,6 +62,13 @@
 |---|---|---|
 | F401/F841/B007 | `.windsurf/tmp/*`, `tests/*` | Scripts temporaires et fixtures de test legacy |
 
+## Correspondance programme (lot 9.1)
+
+| ID | Détail | Action |
+|---|---|---|
+| DETTE-9.1-A | `find_notion_in_text` — un label mono-mot ≥ 8 caractères compté `found_exact` même hors-sujet. Ex: "continuite" matcherait n'importe quel texte mathématique. | Rétrograder en `found_partial` ou exiger co-occurrence avec un terme du thème parent |
+| DETTE-9.1-B | `_extract_bo_headings` ramasse le bruit structurel ("Annexe", "Sommaire", "Contenus Capacités attendues"). | Ajouter une stop-list de headings structurels ; cibler les sections "Contenus"/"Capacités attendues" |
+
 ## Process
 
 | Point | Détail |

@@ -28,7 +28,7 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["rag_pedago*", "schema*", "pipeline*", "retrieval*", "scrapers*", "services*"]
+include = ["rag_pedago*", "schema*", "pipeline*", "retrieval*", "scrapers*", "services*", "agents*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

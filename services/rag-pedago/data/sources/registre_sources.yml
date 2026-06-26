@@ -1,0 +1,65 @@
+# Registre des sources libres par matière
+# Chaque source a : domaine, licence vérifiée, robots.txt status, URL template
+
+sources:
+  - matiere: mathematiques
+    domaine: fr.wikipedia.org
+    licence: CC-BY-SA 4.0
+    robots_wiki_allowed: true
+    url_template: "https://fr.wikipedia.org/wiki/{title}"
+    notes: "Articles encyclopédiques. /wiki/ autorisé par robots.txt."
+
+  - matiere: mathematiques
+    domaine: fr.wikiversity.org
+    licence: CC-BY-SA 4.0
+    robots_wiki_allowed: true
+    url_template: "https://fr.wikiversity.org/wiki/{title}"
+    notes: "Leçons structurées par chapitre. /wiki/ autorisé, /w/api.php interdit."
+
+  - matiere: nsi
+    domaine: fr.wikipedia.org
+    licence: CC-BY-SA 4.0
+    robots_wiki_allowed: true
+    url_template: "https://fr.wikipedia.org/wiki/{title}"
+
+  - matiere: nsi
+    domaine: fr.wikiversity.org
+    licence: CC-BY-SA 4.0
+    robots_wiki_allowed: true
+    url_template: "https://fr.wikiversity.org/wiki/{title}"
+
+  - matiere: philosophie
+    domaine: fr.wikipedia.org
+    licence: CC-BY-SA 4.0
+    robots_wiki_allowed: true
+    url_template: "https://fr.wikipedia.org/wiki/{title}"
+
+  - matiere: histoire_geo
+    domaine: fr.wikipedia.org
+    licence: CC-BY-SA 4.0
+    robots_wiki_allowed: true
+    url_template: "https://fr.wikipedia.org/wiki/{title}"
+
+  - matiere: physique_chimie
+    domaine: fr.wikipedia.org
+    licence: CC-BY-SA 4.0
+    robots_wiki_allowed: true
+    url_template: "https://fr.wikipedia.org/wiki/{title}"
+
+  - matiere: svt
+    domaine: fr.wikipedia.org
+    licence: CC-BY-SA 4.0
+    robots_wiki_allowed: true
+    url_template: "https://fr.wikipedia.org/wiki/{title}"
+
+  - matiere: ses
+    domaine: fr.wikipedia.org
+    licence: CC-BY-SA 4.0
+    robots_wiki_allowed: true
+    url_template: "https://fr.wikipedia.org/wiki/{title}"
+
+  - matiere: francais
+    domaine: fr.wikipedia.org
+    licence: CC-BY-SA 4.0
+    robots_wiki_allowed: true
+    url_template: "https://fr.wikipedia.org/wiki/{title}"
