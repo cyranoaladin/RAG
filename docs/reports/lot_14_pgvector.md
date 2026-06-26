@@ -1,38 +1,32 @@
-# Rapport — Lot 14 : Indexation pgvector + retrieval filtré (EXÉCUTION RÉELLE)
+# Rapport — Lot 14.1 : Clôture pgvector (coexistence + review réel)
 
-## Levée tracée
+## Gate quality→gate→review RÉEL
 
-`ingestion_allowed: true # ADR-0008`. `server_start_allowed` et `runtime_api_allowed` restent false.
+- `build_review_manifest.py` : valide (dim, NaN, metadata) puis produit `review_manifest.json`
+- Indexeur ne lit QUE les chunks approuvés (chunk_id+sha matchent). Chunk absent ou sha modifié → rejeté.
+- Plus de `REVIEW.ok` auto-vrai.
 
-## Gate quality→gate→review
+## Filtrage COEXISTENCE (SORTIE RÉELLE — chunks synthétiques injectés)
 
-Script vérifie `ingestion_allowed` ET `REVIEW.ok` avant toute écriture.
-
-## Indexation (SORTIE RÉELLE)
-
+### Niveau (premiere + terminale coexistent, DB=126)
 ```
-Indexed: 124, rejected: 0, total: 124
-DB count: 124
+Q: 'dérivée' (niveau=terminale) → terminale/derivation [0.831] (premiere EXCLU)
+Q: 'dérivée' (niveau=premiere) → premiere/derivation [0.927] (terminale EXCLU)
 ```
 
-Idempotence 2e run : DB count = 124 (0 doublon).
+### Audience (aefe + tous coexistent)
+```
+Q: 'AEFE' (audience=libre) → (0 résultats — aefe EXCLU pour libre)
+Q: 'AEFE' (audience=aefe) → terminale/programme_aefe [0.941]
+```
 
-## Retrieval filtré (SORTIE RÉELLE)
+## Retrieval pertinent (124 chunks pilotes)
 
-| Requête | Niveau | Top-1 | Score |
-|---|---|---|---|
-| comment calculer la dérivée | terminale | **derivation** | 0.875 |
-| la justice dans la philosophie | terminale | **justice** | 0.872 |
-| pile et file informatique | terminale | **piles** | 0.844 |
-| les suites numériques | terminale | **suites** | 0.835 |
-| dérivée d'une fonction | **premiere** | **(0 résultats)** | — |
-
-**Filtrage niveau prouvé** : premiere → 0 (corpus = terminale).
-
-## Dettes D (héritées 13.2)
-
-- input_format dans _can_reuse (ajouté)
-- Refresh métadonnées à la réutilisation (ajouté)
-- Tests embedding_utils (ajoutés)
+| Requête | Top-1 | Score |
+|---|---|---|
+| comment calculer la dérivée | **derivation** | 0.875 |
+| la justice dans la philosophie | **justice** | 0.872 |
+| pile et file informatique | **piles** | 0.844 |
+| les suites numériques | **suites** | 0.835 |
 
 ## CI locale : 7/7 PASS

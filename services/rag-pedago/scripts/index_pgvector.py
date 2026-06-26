@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CONTRACT = ROOT / "configs" / "pedago_interface_contract.yml"
 EMBEDDINGS_DIR = ROOT / "data" / "embeddings"
 CHUNKS_DIR = ROOT / "data" / "chunks"
-REVIEW_ARTEFACT = ROOT / "data" / "embeddings" / "REVIEW.ok"
+REVIEW_MANIFEST = ROOT / "data" / "embeddings" / "review_manifest.json"
 
 PG_DSN = os.environ.get("PG_DSN", "postgresql://nexus:nexus@localhost:5432/nexus_rag")
 VECTOR_DIM = 1024
@@ -40,10 +40,19 @@ def check_ingestion_allowed(contract_path: Path | None = None) -> bool:
     return config.get("ingestion_allowed") is True
 
 
-def check_review_approved(review_path: Path | None = None) -> bool:
-    """Gate: review artefact must exist (quality→gate→review per AGENTS.md)."""
-    path = review_path or REVIEW_ARTEFACT
-    return path.is_file()
+def load_review_manifest(manifest_path: Path | None = None) -> dict[str, str]:
+    """Load review manifest: approved chunk_id → chunk_sha256.
+
+    Returns empty dict if manifest missing (blocks indexation).
+    """
+    path = manifest_path or REVIEW_MANIFEST
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return {e["chunk_id"]: e["chunk_sha256"] for e in data.get("approved", [])}
+    except Exception:
+        return {}
 
 
 def _create_schema(conn: Any) -> None:
@@ -106,14 +115,28 @@ def _validate_embedding(entry: dict) -> list[str]:
     return issues
 
 
-def index_embeddings(conn: Any) -> dict[str, int]:
+def index_embeddings(conn: Any, manifest: dict[str, str] | None = None) -> dict[str, int]:
     texts = _preload_texts()
     entries = _load_embeddings()
     indexed = 0
     rejected = 0
+    not_in_manifest = 0
 
     with conn.cursor() as cur:
         for entry in entries:
+            chunk_id = entry.get("chunk_id", "")
+            chunk_sha = entry.get("chunk_sha256", "")
+
+            # Review gate: chunk must be in approved manifest with matching sha
+            if manifest is not None:
+                if chunk_id not in manifest:
+                    not_in_manifest += 1
+                    continue
+                if manifest[chunk_id] != chunk_sha:
+                    print(f"  REJECT {chunk_id}: sha mismatch (manifest vs entry)")
+                    rejected += 1
+                    continue
+
             issues = _validate_embedding(entry)
             if issues:
                 print(f"  REJECT {entry.get('chunk_id', '?')}: {issues}")
@@ -144,7 +167,7 @@ def index_embeddings(conn: Any) -> dict[str, int]:
             indexed += 1
 
     conn.commit()
-    return {"indexed": indexed, "rejected": rejected, "total": len(entries)}
+    return {"indexed": indexed, "rejected": rejected, "not_in_manifest": not_in_manifest, "total": len(entries)}
 
 
 def search(
@@ -198,10 +221,12 @@ def main() -> int:
         print("BLOCKED: ingestion_allowed is false")
         return 1
 
-    if not check_review_approved():
-        print("BLOCKED: review artefact not found (data/embeddings/REVIEW.ok)")
-        print("Run quality check and create the artefact before indexing.")
+    manifest = load_review_manifest()
+    if not manifest:
+        print("BLOCKED: review manifest not found or empty (data/embeddings/review_manifest.json)")
+        print("Run: python scripts/build_review_manifest.py")
         return 1
+    print(f"Review manifest: {len(manifest)} approved chunks")
 
     import psycopg
     conn = psycopg.connect(PG_DSN)
@@ -210,8 +235,9 @@ def main() -> int:
     _create_schema(conn)
 
     print("Indexing embeddings...")
-    stats = index_embeddings(conn)
-    print(f"Indexed: {stats['indexed']}, rejected: {stats['rejected']}, total: {stats['total']}")
+    stats = index_embeddings(conn, manifest=manifest)
+    print(f"Indexed: {stats['indexed']}, rejected: {stats['rejected']}, "
+          f"not_in_manifest: {stats['not_in_manifest']}, total: {stats['total']}")
 
     # Count in DB
     with conn.cursor() as cur:

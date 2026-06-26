@@ -1,0 +1,503 @@
+{
+  "approved_count": 124,
+  "rejected_count": 0,
+  "approved": [
+    {
+      "chunk_id": "terminale_grand_oral_expression_orale#0",
+      "chunk_sha256": "b1cdb9d6cc5a5d241afff42cae783f5fcd4a0847ebb6feef920403b4dda0dc9a"
+    },
+    {
+      "chunk_id": "terminale_grand_oral_transversalite#0",
+      "chunk_sha256": "9fd0074554eec9f5d4437543d1f766c2c9e69b08ff0d2d476a11d43bd31d952d"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_continuite#0",
+      "chunk_sha256": "733310d17948db0f5119603c2b2b6aab94bcab6a2873b2d7c810e6ed6c6231ff"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_continuite#1",
+      "chunk_sha256": "b932a95e3fcf3eb52efd0da1111b998f601ca473f8ccfcc175498c343f20b421"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_continuite#2",
+      "chunk_sha256": "5e758913b7650399fbfcbefdf5d528f9287cea406b084cf7a922ab6a332eb856"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_continuite#3",
+      "chunk_sha256": "bacd73e9e71a370eb1e8192a277f325aba569304806b4de77e2baa42b8d1f182"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_continuite#4",
+      "chunk_sha256": "86d14bf2ed6b2c5ce02f3ef3b45d2984c36ac35effcd49776555dc7fe8fde9b7"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_continuite#5",
+      "chunk_sha256": "ddf43287f386f430b8cd5fd34b376fd96de0b4a78988c5bd321c51704174528f"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_continuite#6",
+      "chunk_sha256": "e17108d1ffa42dfb9155b263bdf9b61bb129b87a6f054982ff6b35b41f5fe142"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_continuite#7",
+      "chunk_sha256": "85a52636b4a014d1a796c357e7a6a83ccef4c67d6282625e865e846696f57145"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_convexite#0",
+      "chunk_sha256": "18dfdc7011437f405d5ac9d0fcb36334988c38b1d54bedfdc295f64def343ad6"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_convexite#1",
+      "chunk_sha256": "27baa7ac6c01098f213e223550dcb9529e84576f910f1d570b5f05f508881559"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_convexite#2",
+      "chunk_sha256": "44f1f4d4328a3731319da49edbfeeedda2bbb7b1425a17e28c4ccf8ca34bc039"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_convexite#3",
+      "chunk_sha256": "111f716d5ec5c95c276c8c8e920885de83b5ca564aac64f36db4594e409bb169"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_convexite#4",
+      "chunk_sha256": "e9c5b63406623248b2abe1a54a779fdcd6b923b591f5ab64b570f4a782b5a314"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_convexite#5",
+      "chunk_sha256": "759f3571ffb9918ad3e3b8601cee1e1dfd9c77f1bb6d975f0dbb9755a4756cc8"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_convexite#6",
+      "chunk_sha256": "d2a3ae0b0a684bf98f24db9ef797331b7859b0895bbbcd94a71746d431fd5718"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_convexite#7",
+      "chunk_sha256": "542aa1bd2bbc0cc5fb47406a01807d5b3bd187dc119c0de0fe5d99e446ae99a3"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_convexite#8",
+      "chunk_sha256": "25f5b0ce8122c1208140f5978c715d8c48593dd7984c06ddfe1ab5c905b37cbb"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_convexite#9",
+      "chunk_sha256": "71cd776eea1a9b3d257825ee4aac9a6b75769725e5d38f765f89741e9b83aece"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_convexite#10",
+      "chunk_sha256": "da98ce8ce05faca856b5b33224e77957b5bb3af274067da742d6bcdc274e333d"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_convexite#11",
+      "chunk_sha256": "9d49ed1b0092149b7225827ffe26cbc19e75e1711cfeb66840fb04d635d672c7"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_convexite#12",
+      "chunk_sha256": "dc83c39acee8fcf658cd94fbc00d820b17f8329b79635b96ccf54a1ae878427e"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_convexite#13",
+      "chunk_sha256": "acd07a0e14941cb4861396e29b3db1f5f2469ccd20b5d7eb043ad598b370ce2c"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_convexite#14",
+      "chunk_sha256": "c0a11195ae2947c7f1d0b8fdf959f57e5cbecd04b51854388df0209111f85d02"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_convexite#15",
+      "chunk_sha256": "04a4b1df36e93b0d89ac94c3812c2cf58aefb5ad863560bd2a799d9c715271aa"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_derivation#0",
+      "chunk_sha256": "fb72296b922efd95c1d3f546bd2adacacadc9a983b2712919fc737ba1beec31b"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_derivation#1",
+      "chunk_sha256": "81f9d118a727a2c485a989dc073a915e3dd029e84538c95ac5a9421890c7c40d"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_derivation#2",
+      "chunk_sha256": "a34d4f66f95cd48049f0ba2992291f078222e4563e342e550ddc1b6e38d7132d"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_derivation#3",
+      "chunk_sha256": "5384a5019a4a0f88e58d6a417356bce8a8b422674dadd668d11437b8305f2a83"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_derivation#4",
+      "chunk_sha256": "f8b42eb13b1038a850c7bd6bd7e6463a5ac18674ff97a5921014de64ae220a34"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_derivation#5",
+      "chunk_sha256": "cc7d9bb8b2cc7bbe8a91f1fa14dfc46a4397a3a7e968a0ba0e5b78aa1c47cc68"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_derivation#6",
+      "chunk_sha256": "508a779c41f2fa93e4d773bfc9d4f2142708743960a40ebf38651073972ac2da"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_derivation#7",
+      "chunk_sha256": "ef1864cfbccdee8b9c096d13f6307ffb150e4352187b688df4e44a945e0c8a89"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_derivation#8",
+      "chunk_sha256": "5f297efd9709e9ddd68ffd548f5626ad15cd5db3049fe636f6d5ea6db69f24a2"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_derivation#9",
+      "chunk_sha256": "a7d7d4f03b21e09039e75a6aae98c8421273f6416d1b884f090d910053346da1"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_derivation#10",
+      "chunk_sha256": "0b5e8a4efa68464fbd4ffcf26351f13a112988332435b09e9f87863d24aac0be"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_derivation#11",
+      "chunk_sha256": "57a2660f356c723b30a34956207504d1f0b0ace1e6c4d156eac18d2f19bb54df"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_limites#0",
+      "chunk_sha256": "fe02a33a05bbe712b616a0e527d6a2576fe20d9e9b016a966b2d11093941ef2c"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_limites#1",
+      "chunk_sha256": "2c21d5df357f700dcd4fa2ac9fd3996023b9434540838f9de35aac3382660e4e"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_limites#2",
+      "chunk_sha256": "4a66edadc7f448ce04e75c92615c68002030e8ec25ca87a978509f507d26a744"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_limites#3",
+      "chunk_sha256": "f5f371f446cf16037d0c0ce205a46d9df4991225c3f38ac06c2ad58635af2618"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_limites#4",
+      "chunk_sha256": "494ee1a008cccb1d907bbb46952db95112640a35a0bf2f6efbfe5c258477af66"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_limites#5",
+      "chunk_sha256": "01634d9b4a308a3ca2bd053c43e2ba444a4e01a375fc29ddbae76a23f8822e4c"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_limites#6",
+      "chunk_sha256": "c773216a7f7801ab385a75c678843395a6ca54192f065dfbc0283df5311022f3"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_limites#7",
+      "chunk_sha256": "8a2b8cf12e2366f1f05a51554ca95a5fe025f5a56ec2c6c6b7479440bd24f5da"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_limites#8",
+      "chunk_sha256": "a1c6b5bf04cc878e0294dd6d193acbbdd94450cbb98968088ff669e9c24f3c49"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_limites#9",
+      "chunk_sha256": "db3675a38e054c09b155792acf4d36fa19db4b3a19a1e3682d3c57236a2e43ee"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_limites#10",
+      "chunk_sha256": "8fb0de8b1255b14a00590ead1fabb94d860c65d97ae45e51ef3cbb6c765ced2c"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_suites#0",
+      "chunk_sha256": "d9d004960dc4144ff84e4e593b8fa002300bac45c06f70e375b3b197e2a3eb43"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_suites#1",
+      "chunk_sha256": "b08b4ca4eb189406eed35e913bc9fd74918e172956b10e8cb803b3a52ea1f04e"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_suites#2",
+      "chunk_sha256": "0481ee1439b983264fb8b7b7936a6bc087ccd9550434ba3adbd003a2d9388c4f"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_suites#3",
+      "chunk_sha256": "ce7377b4b6488551309885f9d2bb576d6cc8d85d6d4d5fa21901b783e5184513"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_suites#4",
+      "chunk_sha256": "cacd93d33fda3339b57387701d44b9d7d0b03cec69fd58399d2765eab4879128"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_suites#5",
+      "chunk_sha256": "0f1e789b12522c351071e6515a11203ffc9db486c9d0b10a09581c00471b43ca"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_suites#6",
+      "chunk_sha256": "98c31c671090d32c15ddbb193da59e93f4da5120ea1368ff12febd70a6007353"
+    },
+    {
+      "chunk_id": "terminale_mathematiques_suites#7",
+      "chunk_sha256": "7596b1f1441f58f0f134e57f2c8b55ba1e6d1c574f17432bf8c0dac4dab7f3ae"
+    },
+    {
+      "chunk_id": "terminale_nsi_arbres#0",
+      "chunk_sha256": "d3544cdd79307d3370eeed1be94011ed97ed294427dcf92d8fbde3d4fe034bca"
+    },
+    {
+      "chunk_id": "terminale_nsi_arbres#1",
+      "chunk_sha256": "19364c5ed98af169cae04132342d3eec265b50c5a8edc4a44246772b68e693e3"
+    },
+    {
+      "chunk_id": "terminale_nsi_files#0",
+      "chunk_sha256": "4c7c2363bc564ef98a74f22d820c53e12b6b73da00293da0495ea9ad7acedc7b"
+    },
+    {
+      "chunk_id": "terminale_nsi_files#1",
+      "chunk_sha256": "3cd77906f51604b76d2b4a3b3ed41bee547fba74f299952413dc71705319c58e"
+    },
+    {
+      "chunk_id": "terminale_nsi_graphes#0",
+      "chunk_sha256": "96f1dcc53a8581de0ddb07e53704eae91443cdecd0aa6b6b74435c99906f5264"
+    },
+    {
+      "chunk_id": "terminale_nsi_graphes#1",
+      "chunk_sha256": "f525f8669b5f9ee6183296e8c7d2006bd70cd9de3c10f56aad2d7d1b1fa989db"
+    },
+    {
+      "chunk_id": "terminale_nsi_graphes#2",
+      "chunk_sha256": "000e806fb97781dd9d5434ebce516233e64a49b7431ce580899db1dd74d47c01"
+    },
+    {
+      "chunk_id": "terminale_nsi_graphes#3",
+      "chunk_sha256": "533a688476a74cb325653ae99a8ca389e454acc5247b3f6405b7abc711ee02e2"
+    },
+    {
+      "chunk_id": "terminale_nsi_graphes#4",
+      "chunk_sha256": "aa4f81831cf5c79cffd49d364aa9f900ed00535f9f6cc4f40f5be9e2a0da4470"
+    },
+    {
+      "chunk_id": "terminale_nsi_graphes#5",
+      "chunk_sha256": "990f9a833854b65ee037c2ef09e9092c95b1aadaa627424d460730c81083c6e8"
+    },
+    {
+      "chunk_id": "terminale_nsi_graphes#6",
+      "chunk_sha256": "ae2475fdcffaa99940c6c74276dffd36ec1b49f39fbba88bf97d57d9c73f16da"
+    },
+    {
+      "chunk_id": "terminale_nsi_graphes#7",
+      "chunk_sha256": "72991f02bd0be4985087889cf7d7e5f85f97ac9fe9bec8c25aec4627548f611e"
+    },
+    {
+      "chunk_id": "terminale_nsi_graphes#8",
+      "chunk_sha256": "2313cf8c9f39d74dd4d8401ef645eeaf4888f77828c621e5c6fae82ba87a94c0"
+    },
+    {
+      "chunk_id": "terminale_nsi_graphes#9",
+      "chunk_sha256": "cd2088766bf62381edbb8480a1543372efeafb2e0d94fe259a50ba2dad5591de"
+    },
+    {
+      "chunk_id": "terminale_nsi_graphes#10",
+      "chunk_sha256": "1cb8758d8ad47eb95b7682a6dcd72437c5276fef69dccda947f549fc44e2289d"
+    },
+    {
+      "chunk_id": "terminale_nsi_graphes#11",
+      "chunk_sha256": "86e35211e952f3ecacfec083a7913d88d19c1ec57a6bf32356c4ffe270d7a90d"
+    },
+    {
+      "chunk_id": "terminale_nsi_graphes#12",
+      "chunk_sha256": "0112304c3df6600b0c9ae548ca7f8c21f6cf6d4dbb819662cb1a7f8e89eda51a"
+    },
+    {
+      "chunk_id": "terminale_nsi_graphes#13",
+      "chunk_sha256": "203ca841f7ff3641138b5caa7ac407b45d1bb28a501ccc965087d51dd000dece"
+    },
+    {
+      "chunk_id": "terminale_nsi_listes#0",
+      "chunk_sha256": "34d36ece4cd1f82108b40c7e319be9e3c1b345038b72b102d3de604af1f4e74f"
+    },
+    {
+      "chunk_id": "terminale_nsi_piles#0",
+      "chunk_sha256": "ed65fdb1795c4b8084bbca2674d05853495118c38fe9a9bf9d0d1584c104b885"
+    },
+    {
+      "chunk_id": "terminale_nsi_piles#1",
+      "chunk_sha256": "39a9102a4f1226cc35c33cb749f6bf31773ad9471d9625d20e1623901f1b4d21"
+    },
+    {
+      "chunk_id": "terminale_philosophie_droit#0",
+      "chunk_sha256": "65b9013746f1a7c27da69ad0bcfbfe748ef94762933a6313f0180e31b6a18012"
+    },
+    {
+      "chunk_id": "terminale_philosophie_droit#1",
+      "chunk_sha256": "e9927755058c3290fa4f5e5a2123aa8401378c89e9bc1d15c13269062a561453"
+    },
+    {
+      "chunk_id": "terminale_philosophie_droit#2",
+      "chunk_sha256": "4b11e724afe938cbec46bab000dcc1f208f094d69b473f03dcc42ccc4aab1e90"
+    },
+    {
+      "chunk_id": "terminale_philosophie_etat#0",
+      "chunk_sha256": "1667db4473af7255a6b2e989e6a86c5867afd8f6a3b3fdb7f5698e9c5f128690"
+    },
+    {
+      "chunk_id": "terminale_philosophie_etat#1",
+      "chunk_sha256": "8f952df8dd8933bbee429c7d3f023adf04246484c8a420e76e3e84e840b38278"
+    },
+    {
+      "chunk_id": "terminale_philosophie_etat#2",
+      "chunk_sha256": "91f02780adaafef192833e5e35acdcd89c191e04c9da87be7cc3bd9aac23fae7"
+    },
+    {
+      "chunk_id": "terminale_philosophie_etat#3",
+      "chunk_sha256": "bcfad217168a29f99154c8be47f2bd247d02bd011bff5901dcf0ed0c91ffafd1"
+    },
+    {
+      "chunk_id": "terminale_philosophie_etat#4",
+      "chunk_sha256": "4c653da6f46378df37b5c24e113a0349e49dbf4c688d4cc3fa9b1185141a5b6c"
+    },
+    {
+      "chunk_id": "terminale_philosophie_etat#5",
+      "chunk_sha256": "ebf90a97536d19f4b4ec5fd35fdddfc8bb9951e428fef0ef5d8c306c8af1ff2a"
+    },
+    {
+      "chunk_id": "terminale_philosophie_etat#6",
+      "chunk_sha256": "cf8dd7e9f14aef8c92f127e82b41ad880bf46244830bb483caf3b6478c96cdb9"
+    },
+    {
+      "chunk_id": "terminale_philosophie_etat#7",
+      "chunk_sha256": "467ed6b46b1a5cb49d954915f041f9e37405c8573f1bdb9fde45e90a3a345f85"
+    },
+    {
+      "chunk_id": "terminale_philosophie_etat#8",
+      "chunk_sha256": "c838f67111875c3240ddce785b9cd79106bb2f27a36ab0bf0c3ef9025af57f4e"
+    },
+    {
+      "chunk_id": "terminale_philosophie_etat#9",
+      "chunk_sha256": "af7791cfb45c99bc687a26c707d1b523ef1679d3eb440b54b7e0066af2909cd0"
+    },
+    {
+      "chunk_id": "terminale_philosophie_etat#10",
+      "chunk_sha256": "9878f7ac8f1e012e40660d40785f76fdbf87039db873dc4b5d7545130f7813e2"
+    },
+    {
+      "chunk_id": "terminale_philosophie_etat#11",
+      "chunk_sha256": "8ad50e0ae15ff6cd0047b9e3738a9919f6d996b9e0c57b322ec1833fa2a82f9c"
+    },
+    {
+      "chunk_id": "terminale_philosophie_etat#12",
+      "chunk_sha256": "72dacb0c8119ce184dcfff973894ea89636458f2f0616418bae4fae69d035725"
+    },
+    {
+      "chunk_id": "terminale_philosophie_etat#13",
+      "chunk_sha256": "18e4d12818e537e43210060932a6664ee87a260c0aa52e76f95757c5508f512d"
+    },
+    {
+      "chunk_id": "terminale_philosophie_etat#14",
+      "chunk_sha256": "8c2c9dc47ea76c1dfe67f108481aa9c65c2e8b88d1318fdd4888898d4d97936b"
+    },
+    {
+      "chunk_id": "terminale_philosophie_etat#15",
+      "chunk_sha256": "6d0ab0821c6d21957c54915ad51d2b5156d15c0731bd59e300e297214cbd2099"
+    },
+    {
+      "chunk_id": "terminale_philosophie_etat#16",
+      "chunk_sha256": "c856e162730c151b2cc72722c061d01635af2cf37b524183289ec2a723b3fc3a"
+    },
+    {
+      "chunk_id": "terminale_philosophie_justice#0",
+      "chunk_sha256": "6fa834f776542ad2d04545d94af9866588cd14d195cf64160baadab20984bfed"
+    },
+    {
+      "chunk_id": "terminale_philosophie_justice#1",
+      "chunk_sha256": "10bdc5b240aeb460e9b7bbf7541e9be1af606978c04df3b6281421f1d8e1f889"
+    },
+    {
+      "chunk_id": "terminale_philosophie_justice#2",
+      "chunk_sha256": "5175136a991c7c0143f7f81d6fb649b55c2b0bf4bc2168b741a155f24bff2bb7"
+    },
+    {
+      "chunk_id": "terminale_philosophie_justice#3",
+      "chunk_sha256": "ad43c984ad98bc759de286e67759093fb01ca63adbf1fc87862d9b3e446096d2"
+    },
+    {
+      "chunk_id": "terminale_philosophie_justice#4",
+      "chunk_sha256": "677ecda5c8d135000b07e92e85fbca3ba412bffc508c52dfe41060e97b5440e3"
+    },
+    {
+      "chunk_id": "terminale_philosophie_justice#5",
+      "chunk_sha256": "84814864248d725020823145f7ce560c21445d93db46bcfcd12693afa4b165b6"
+    },
+    {
+      "chunk_id": "terminale_philosophie_justice#6",
+      "chunk_sha256": "4f3407633a6b82eae24599468f9ff5876c68fcad0e289c10f671cda4846fa65e"
+    },
+    {
+      "chunk_id": "terminale_philosophie_justice#7",
+      "chunk_sha256": "b5e51e130dcb9412711247827cc128847b3213ad0d0788c4276a39f907d357fe"
+    },
+    {
+      "chunk_id": "terminale_philosophie_justice#8",
+      "chunk_sha256": "6078336aa1ca0e4b7fcdc51b6abfc401e6ef334fa54e6393a59ef3143044229c"
+    },
+    {
+      "chunk_id": "terminale_philosophie_justice#9",
+      "chunk_sha256": "f44b041fb6180131a8397cef64b30f1b853469e8c3e595a2cfeb8d97d68f2ef0"
+    },
+    {
+      "chunk_id": "terminale_philosophie_justice#10",
+      "chunk_sha256": "810f25b0318b023d0be72f89e9e84736e8e5050e8049c5cc3bfd26c3c0b3181a"
+    },
+    {
+      "chunk_id": "terminale_philosophie_justice#11",
+      "chunk_sha256": "04f56f13c11eabcbdb6d9a9dd161e96c6ee05f71faa22141d8033ec2e5d4f22d"
+    },
+    {
+      "chunk_id": "terminale_philosophie_justice#12",
+      "chunk_sha256": "0088cdb3dc3189a04ec19211541cbfdddb7d1509cf2b6b62c51dd179517b4e50"
+    },
+    {
+      "chunk_id": "terminale_philosophie_justice#13",
+      "chunk_sha256": "b8af39649541555ce31a47173d8d032456d160c2a726307daa8a312c53447012"
+    },
+    {
+      "chunk_id": "terminale_philosophie_justice#14",
+      "chunk_sha256": "9999448f9dda9d078372052c0c376afda0688bc757a917e22005591482fe470f"
+    },
+    {
+      "chunk_id": "terminale_philosophie_justice#15",
+      "chunk_sha256": "a2d8b0194d1268a3acda2f2b79f3367779131c5fe0a5f3402475268fb0e7037e"
+    },
+    {
+      "chunk_id": "terminale_philosophie_justice#16",
+      "chunk_sha256": "f74fba6fef1cf947ccaa5caaf478d992d5233a285a0ecd91559ba5d219074f93"
+    },
+    {
+      "chunk_id": "terminale_philosophie_liberte#0",
+      "chunk_sha256": "b9788375586ac782a84eafa66f4e2b8ac86475403337795a52c8a8dc24bf2531"
+    },
+    {
+      "chunk_id": "terminale_philosophie_liberte#1",
+      "chunk_sha256": "b9f04aa510b7032a2b097ac8d2ca97bdf8b37d1e5b45e2bf7e6222052fdbefc6"
+    },
+    {
+      "chunk_id": "terminale_philosophie_liberte#2",
+      "chunk_sha256": "cb23a42422e27b32a68449cb40bb329bc9338005a6f55e9a288731ab21d85af7"
+    },
+    {
+      "chunk_id": "terminale_philosophie_liberte#3",
+      "chunk_sha256": "ce6e7f0fd391b2bd05850e291a461174436c81d2f5abfc95be0c3fb92e3c3ef7"
+    },
+    {
+      "chunk_id": "terminale_philosophie_liberte#4",
+      "chunk_sha256": "ed36f33fc6e1da959c41dcb20e6204928c903c11525c8aa70e233d0cc5b6dafe"
+    },
+    {
+      "chunk_id": "terminale_philosophie_liberte#5",
+      "chunk_sha256": "c78d2d6fe6ed9721640a9d00bf3718d2901f6202b67e4c948e6c0ca675a8d86f"
+    },
+    {
+      "chunk_id": "terminale_philosophie_liberte#6",
+      "chunk_sha256": "a4eb0add5decdda0ab69a6a27f6d76dbebdfe8b039a73f2da8e82ee5341de5d7"
+    },
+    {
+      "chunk_id": "terminale_philosophie_liberte#7",
+      "chunk_sha256": "9fbd7dd92daf798603bc17e4405314cdee545db930ee9136de18c5bf595167e3"
+    },
+    {
+      "chunk_id": "terminale_philosophie_liberte#8",
+      "chunk_sha256": "1495bc1b9ef59470854d43b4b8b92fb47613fb517790f873ed8fef9dc6725222"
+    }
+  ],
+  "rejected": []
+}
