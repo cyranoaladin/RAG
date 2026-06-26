@@ -22,7 +22,8 @@ EMBEDDINGS_DIR = ROOT / "data" / "embeddings"
 CHUNKS_DIR = ROOT / "data" / "chunks"
 REVIEW_MANIFEST = ROOT / "data" / "embeddings" / "review_manifest.json"
 
-PG_DSN = os.environ.get("PG_DSN", "postgresql://nexus:nexus@localhost:5432/nexus_rag")
+_PG_PORT = os.environ.get("PGVECTOR_PORT", "5433")
+PG_DSN = os.environ.get("PG_DSN", f"postgresql://nexus:nexus@localhost:{_PG_PORT}/nexus_rag")
 VECTOR_DIM = 1024
 
 
