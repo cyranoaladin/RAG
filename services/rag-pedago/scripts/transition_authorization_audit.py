@@ -40,6 +40,8 @@ REQUIRED_FALSE_FLAGS = [
 AUTHORIZED_TRUE_FLAGS: dict[str, str] = {
     "network_allowed": "ADR-0004",
     "data_staging_allowed": "ADR-0004",
+    "pdf_allowed": "ADR-0004",
+    "parsing_allowed": "ADR-0004",
 }
 
 REQUIRED_AUTHORIZATION_FIELDS = [

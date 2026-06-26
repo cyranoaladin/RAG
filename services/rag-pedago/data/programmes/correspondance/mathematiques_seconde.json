@@ -1,0 +1,177 @@
+{
+  "taxonomy": "seconde_tronc_commun.yml",
+  "programme": "mathematiques_seconde_enseignement_commun.pdf",
+  "matiere": "mathematiques",
+  "niveau": "seconde",
+  "extraction_status": "ok",
+  "pdf_text_length": 43828,
+  "total_notions_checked": 27,
+  "found_exact": 20,
+  "found_partial": 3,
+  "not_found": 4,
+  "exact_pct": 74.1,
+  "bo_only_count": 20,
+  "details_found_exact": [
+    {
+      "theme": "nombres_calculs",
+      "notion_id": "ensembles_nombres",
+      "label": "Ensembles de nombres et calculs"
+    },
+    {
+      "theme": "nombres_calculs",
+      "notion_id": "ensembles_nombres/intervalles",
+      "label": "intervalles"
+    },
+    {
+      "theme": "nombres_calculs",
+      "notion_id": "ensembles_nombres/valeur_absolue",
+      "label": "valeur_absolue"
+    },
+    {
+      "theme": "nombres_calculs",
+      "notion_id": "equations_inequations",
+      "label": "Équations et inéquations"
+    },
+    {
+      "theme": "nombres_calculs",
+      "notion_id": "calcul_litteral",
+      "label": "Calcul littéral et identités remarquables"
+    },
+    {
+      "theme": "geometrie",
+      "notion_id": "geometrie_plane",
+      "label": "Géométrie plane"
+    },
+    {
+      "theme": "geometrie",
+      "notion_id": "geometrie_plane/vecteurs",
+      "label": "vecteurs"
+    },
+    {
+      "theme": "geometrie",
+      "notion_id": "geometrie_plane/coordonnees",
+      "label": "coordonnees"
+    },
+    {
+      "theme": "geometrie",
+      "notion_id": "droites_plan",
+      "label": "Droites du plan"
+    },
+    {
+      "theme": "geometrie",
+      "notion_id": "droites_plan/equations_droites",
+      "label": "equations_droites"
+    },
+    {
+      "theme": "geometrie",
+      "notion_id": "configurations_plan",
+      "label": "Configurations du plan"
+    },
+    {
+      "theme": "fonctions",
+      "notion_id": "notion_fonction",
+      "label": "Notion de fonction"
+    },
+    {
+      "theme": "fonctions",
+      "notion_id": "notion_fonction/courbe_representative",
+      "label": "courbe_representative"
+    },
+    {
+      "theme": "fonctions",
+      "notion_id": "variations_extremums",
+      "label": "Variations et extremums"
+    },
+    {
+      "theme": "fonctions",
+      "notion_id": "fonctions_reference",
+      "label": "Fonctions de référence"
+    },
+    {
+      "theme": "fonctions",
+      "notion_id": "fonctions_reference/fonction_carre",
+      "label": "fonction_carre"
+    },
+    {
+      "theme": "fonctions",
+      "notion_id": "fonctions_reference/fonction_inverse",
+      "label": "fonction_inverse"
+    },
+    {
+      "theme": "statistiques_probabilites",
+      "notion_id": "statistiques_descriptives/ecart_type",
+      "label": "ecart_type"
+    },
+    {
+      "theme": "statistiques_probabilites",
+      "notion_id": "probabilites",
+      "label": "Probabilités"
+    },
+    {
+      "theme": "statistiques_probabilites",
+      "notion_id": "echantillonnage",
+      "label": "Échantillonnage"
+    }
+  ],
+  "details_found_partial": [
+    {
+      "theme": "fonctions",
+      "notion_id": "notion_fonction/image_antecedent",
+      "label": "image_antecedent"
+    },
+    {
+      "theme": "fonctions",
+      "notion_id": "fonctions_reference/fonction_cube",
+      "label": "fonction_cube"
+    },
+    {
+      "theme": "fonctions",
+      "notion_id": "resolution_graphique",
+      "label": "Résolution graphique d'équations et d'inéquations"
+    }
+  ],
+  "details_not_found": [
+    {
+      "theme": "geometrie",
+      "notion_id": "droites_plan/parallelisme_perpendicularite",
+      "label": "parallelisme_perpendicularite"
+    },
+    {
+      "theme": "statistiques_probabilites",
+      "notion_id": "statistiques_descriptives",
+      "label": "Statistiques descriptives"
+    },
+    {
+      "theme": "statistiques_probabilites",
+      "notion_id": "statistiques_descriptives/moyenne",
+      "label": "moyenne"
+    },
+    {
+      "theme": "statistiques_probabilites",
+      "notion_id": "statistiques_descriptives/mediane",
+      "label": "mediane"
+    }
+  ],
+  "bo_only": [
+    "Annexe",
+    "Programme de mathématiques de seconde générale et",
+    "Sommaire",
+    "Préambule",
+    "Intentions majeures",
+    "Quelques lignes directrices pour l’enseignement",
+    "Organisation du programme",
+    "Programme",
+    "Algorithmique et programmation",
+    "Vocabulaire ensembliste et logique",
+    "Contenus",
+    "Capacités attendues",
+    "Démonstrations",
+    "Exemple d’algorithme",
+    "Approfondissements possibles",
+    "Exemples d’algorithme",
+    "Relation",
+    "Démonstration",
+    "Approfondissement possible",
+    "Csinab2"
+  ]
+}

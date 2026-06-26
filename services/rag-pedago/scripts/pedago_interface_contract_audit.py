@@ -34,7 +34,9 @@ REQUIRED_FALSE_FLAGS = [
 # Flags authorized at true via transition_authorization.yml + ADR
 AUTHORIZED_TRUE_FLAGS: dict[str, str] = {
     "network_allowed": "ADR-0004",
-    "data_staging_allowed": "ADR-0004",  # scoped fetch (GET-only, whitelist, robots.txt)
+    "data_staging_allowed": "ADR-0004",
+    "pdf_allowed": "ADR-0004",
+    "parsing_allowed": "ADR-0004",  # scoped fetch (GET-only, whitelist, robots.txt)
 }
 REQUIRED_PERSONAS = [
     "eleve",

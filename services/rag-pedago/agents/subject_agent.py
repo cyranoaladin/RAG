@@ -16,42 +16,21 @@ from agents.base import ROOT, AcquisitionAgent
 from schema.taxonomy import TaxonomySpec
 from scrapers.taxonomy_fetcher import fetch_notion
 
-PROGRAMMES_DIR = ROOT / "data" / "staging" / "programmes"
+CORRESPONDANCE_DIR = ROOT / "data" / "programmes" / "correspondance"
 
 
 def _load_correspondence(matiere: str, niveau: str) -> dict[str, str] | None:
-    """Try to load a pre-computed BO correspondence for this (matiere, niveau).
+    """Load pre-computed BO correspondence artefact (JSON, no PDF parsing).
 
     Returns a dict mapping notion_id → status (found_exact/found_partial/not_found),
-    or None if no programme PDF is available.
+    or None if no artefact exists.
     """
-    # Look for the programme PDF
-    pattern = f"{matiere}_{niveau}_*.pdf"
-    pdfs = list(PROGRAMMES_DIR.glob(pattern)) if PROGRAMMES_DIR.is_dir() else []
-    if not pdfs:
+    artefact = CORRESPONDANCE_DIR / f"{matiere}_{niveau}.json"
+    if not artefact.is_file():
         return None
 
-    # Find matching taxonomy
-    taxonomy_root = ROOT / "taxonomy"
-    taxo_candidates = list(taxonomy_root.rglob("*.yml"))
-    taxo_path = None
-    for t in taxo_candidates:
-        try:
-            data = yaml.safe_load(t.read_text(encoding="utf-8"))
-            spec = TaxonomySpec.model_validate(data)
-            if spec.matiere == matiere and spec.niveau.value == niveau:
-                taxo_path = t
-                break
-        except Exception:
-            continue
-
-    if not taxo_path:
-        return None
-
-    # Build correspondence
     try:
-        from scrapers.programme_parser import build_correspondence_report
-        report = build_correspondence_report(taxo_path, pdfs[0])
+        report = json.loads(artefact.read_text(encoding="utf-8"))
         if report.get("extraction_status") == "failed":
             return None
 
@@ -139,7 +118,7 @@ class SubjectAgent(AcquisitionAgent):
         count = 0
 
         for notion_entry in notions_ordered:
-            if max_notions and count >= max_notions:
+            if max_notions is not None and count >= max_notions:
                 break
             notion_id = notion_entry["notion_id"]
             label = notion_entry["label"]
@@ -157,10 +136,11 @@ class SubjectAgent(AcquisitionAgent):
                 entry["priority"] = priority
             self._results.extend(entries)
 
-            # Deposit in staging
-            for entry in entries:
+            # Deposit in staging (unique filename per entry)
+            for idx, entry in enumerate(entries):
                 if entry.get("status") in ("ok", "quality_issues"):
-                    fname = f"{self.spec.matiere}_{notion_id}.json"
+                    source = entry.get("source_label", f"src{idx}")
+                    fname = f"{self.spec.matiere}_{notion_id}_{source}.json"
                     (self.staging_dir / fname).write_text(
                         json.dumps(entry, ensure_ascii=False, indent=2),
                         encoding="utf-8",

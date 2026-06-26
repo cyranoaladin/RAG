@@ -36,7 +36,8 @@ class LevelAgent(AcquisitionAgent):
                 if spec.niveau.value == self.niveau:
                     staging = self.staging_root / spec.matiere
                     self._subjects.append(SubjectAgent(yml, staging))
-            except Exception:
+            except Exception as e:
+                print(f"  SKIP {yml.name}: {e}")
                 continue
 
     def plan(self) -> dict[str, Any]:

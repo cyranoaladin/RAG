@@ -7,7 +7,7 @@
 
 ## Contexte
 
-L'acquisition de contenu couvre ~420 notions sur 19 taxonomies (11 matières × 4 niveaux). Un script monolithique (`pilot_fetch.py`) ne scale pas : il mélange les responsabilités (découverte de sources, fetch, qualité, staging) et ne priorise pas selon les rapports de correspondance du Lot 9.
+L'acquisition de contenu couvre ~420 notions sur 19 taxonomies (pas toutes les combinaisons matière×niveau sont couvertes). Un script monolithique (`pilot_fetch.py`) ne scale pas : il mélange les responsabilités (découverte de sources, fetch, qualité, staging) et ne priorise pas selon les rapports de correspondance du Lot 9.
 
 ## Décision
 

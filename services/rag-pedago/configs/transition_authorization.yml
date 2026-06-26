@@ -8,12 +8,12 @@ retrieval_eval_ref: math_terminale_specialite_metadata_retrieval_eval_v1
 pilot_scope_ref: math_terminale_specialite_metadata_only_v1
 
 real_documents_allowed: false
-pdf_allowed: false
+pdf_allowed: true  # ADR-0004
 docx_allowed: false
 pptx_allowed: false
 xlsx_allowed: false
 ingestion_allowed: false
-parsing_allowed: false
+parsing_allowed: true  # ADR-0004
 chunking_allowed: false
 embeddings_allowed: false
 qdrant_allowed: false
