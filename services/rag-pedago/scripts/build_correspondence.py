@@ -23,11 +23,15 @@ OUTPUT_DIR = ROOT / "data" / "programmes" / "correspondance"
 TAXONOMY_ROOT = ROOT / "taxonomy"
 
 
-def _check_allowed() -> bool:
-    """Gate: pdf_allowed AND parsing_allowed must be true."""
-    if not CONTRACT.is_file():
+def check_parsing_allowed(contract_path: Path | None = None) -> bool:
+    """Gate: pdf_allowed AND parsing_allowed must be true.
+
+    Accepts an optional contract_path for testing.
+    """
+    path = contract_path or CONTRACT
+    if not path.is_file():
         return False
-    config = yaml.safe_load(CONTRACT.read_text(encoding="utf-8"))
+    config = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(config, dict):
         return False
     return config.get("pdf_allowed") is True and config.get("parsing_allowed") is True
@@ -51,7 +55,7 @@ def _find_taxonomy(matiere: str, niveau: str) -> Path | None:
 
 
 def main() -> int:
-    if not _check_allowed():
+    if not check_parsing_allowed():
         print("BLOCKED: pdf_allowed or parsing_allowed is false")
         return 1
 

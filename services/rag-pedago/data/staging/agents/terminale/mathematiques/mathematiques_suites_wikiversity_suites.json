@@ -1,0 +1,32 @@
+{
+  "notion_id": "suites",
+  "notion_label": "Suites",
+  "matiere": "mathematiques",
+  "niveau": "terminale",
+  "voie": "generale",
+  "statut_enseignement": "specialite",
+  "url": "https://fr.wikiversity.org/wiki/Suites_et_r%C3%A9currence",
+  "source": "wikiversity",
+  "source_label": "wikiversity_suites",
+  "rights": "CC-BY-SA 4.0",
+  "audience": "tous",
+  "status": "quality_issues",
+  "text_length": 1741,
+  "text_preview": "Suites et récurrence — Wikiversité Aller au contenu Une page de Wikiversité, la communauté pédagogique libre. Suites et récurrence Autres leçons de mathématiques Département Analyse Cours : Suite numérique Terminale S en France Chapitres Chap. 1 : Limite d'une suite Chap. 2 : Comparaison de suites Chap. 3 : Opérations sur les limites Chap. 4 : Démonstration par récurrence Exercices Exos. 1 : Limites Exos. 2 : Suite récurrente Exos. 3 : Sujet de bac S Exos. 4 : Démonstration par récurrence Interw",
+  "quality": {
+    "ok": false,
+    "issues": [
+      "navigation_suspected (5 nav markers found)"
+    ],
+    "text_length": 1741,
+    "fr_ratio": 0.082,
+    "navigation_suspected": true
+  },
+  "search_method": "article_table",
+  "candidate_urls": [
+    "https://fr.wikipedia.org/wiki/Suite_%28math%C3%A9matiques%29",
+    "https://fr.wikiversity.org/wiki/Suites_et_r%C3%A9currence"
+  ],
+  "chosen_url": "https://fr.wikiversity.org/wiki/Suites_et_r%C3%A9currence",
+  "priority": "no_correspondence"
+}

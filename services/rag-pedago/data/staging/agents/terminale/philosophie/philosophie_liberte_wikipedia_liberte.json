@@ -1,0 +1,31 @@
+{
+  "notion_id": "liberte",
+  "notion_label": "La liberté",
+  "matiere": "philosophie",
+  "niveau": "terminale",
+  "voie": "generale",
+  "statut_enseignement": "tronc_commun",
+  "url": "https://fr.wikipedia.org/wiki/Libert%C3%A9",
+  "source": "wikipedia",
+  "source_label": "wikipedia_liberte",
+  "rights": "CC-BY-SA 4.0",
+  "audience": "tous",
+  "status": "quality_issues",
+  "text_length": 36929,
+  "text_preview": "Liberté — Wikipédia Aller au contenu Un article de Wikipédia, l'encyclopédie libre. Pour les articles homonymes, voir Liberté (homonymie) et Libre . Si ce bandeau n'est plus pertinent, retirez-le. Cliquez ici pour en savoir plus. Cet article ne cite pas suffisamment ses sources ( juin 2025 ). Si vous disposez d'ouvrages ou d'articles de référence ou si vous connaissez des sites web de qualité traitant du thème abordé ici, merci de compléter l'article en donnant les références utiles à sa vérifia",
+  "quality": {
+    "ok": false,
+    "issues": [
+      "navigation_suspected (3 nav markers found)"
+    ],
+    "text_length": 36929,
+    "fr_ratio": 0.1,
+    "navigation_suspected": true
+  },
+  "search_method": "article_table",
+  "candidate_urls": [
+    "https://fr.wikipedia.org/wiki/Libert%C3%A9"
+  ],
+  "chosen_url": "https://fr.wikipedia.org/wiki/Libert%C3%A9",
+  "priority": "no_correspondence"
+}

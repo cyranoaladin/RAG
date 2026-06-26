@@ -1,0 +1,33 @@
+{
+  "notion_id": "derivation",
+  "notion_label": "Dérivation",
+  "matiere": "mathematiques",
+  "niveau": "terminale",
+  "voie": "generale",
+  "statut_enseignement": "specialite",
+  "url": "https://fr.wikiversity.org/wiki/Fonction_d%C3%A9riv%C3%A9e/%C3%89quation_d%27une_tangente",
+  "source": "wikiversity",
+  "source_label": "wikiversity_derivation_ch2",
+  "rights": "CC-BY-SA 4.0",
+  "audience": "tous",
+  "status": "quality_issues",
+  "text_length": 4540,
+  "text_preview": "Fonction dérivée/Équation d'une tangente — Wikiversité Aller au contenu Une page de Wikiversité, la communauté pédagogique libre. < Fonction dérivée Début de la boite de navigation du chapitre Équation d'une tangente Chapitre n o 2 Leçon : Fonction dérivée Chap. préc. : Nombre dérivé Chap. suiv. : Fonction dérivée Exercices : Approximation affine locale fin de la boite de navigation du chapitre En raison de limitations techniques, la typographie souhaitable du titre, « Fonction dérivée : Équatio",
+  "quality": {
+    "ok": false,
+    "issues": [
+      "navigation_suspected (3 nav markers found)"
+    ],
+    "text_length": 4540,
+    "fr_ratio": 0.094,
+    "navigation_suspected": true
+  },
+  "search_method": "article_table",
+  "candidate_urls": [
+    "https://fr.wikipedia.org/wiki/D%C3%A9riv%C3%A9e",
+    "https://fr.wikiversity.org/wiki/Fonction_d%C3%A9riv%C3%A9e"
+  ],
+  "chosen_url": "https://fr.wikiversity.org/wiki/Fonction_d%C3%A9riv%C3%A9e",
+  "page_type": "subpage",
+  "priority": "no_correspondence"
+}

@@ -1,0 +1,33 @@
+{
+  "notion_id": "derivation",
+  "notion_label": "Dérivation",
+  "matiere": "mathematiques",
+  "niveau": "terminale",
+  "voie": "generale",
+  "statut_enseignement": "specialite",
+  "url": "https://fr.wikiversity.org/wiki/Fonction_d%C3%A9riv%C3%A9e/Fonction_d%C3%A9riv%C3%A9e",
+  "source": "wikiversity",
+  "source_label": "wikiversity_derivation_ch3",
+  "rights": "CC-BY-SA 4.0",
+  "audience": "tous",
+  "status": "quality_issues",
+  "text_length": 3222,
+  "text_preview": "Fonction dérivée/Fonction dérivée — Wikiversité Aller au contenu Une page de Wikiversité, la communauté pédagogique libre. < Fonction dérivée Début de la boite de navigation du chapitre Fonction dérivée Chapitre n o 3 Leçon : Fonction dérivée Chap. préc. : Équation d'une tangente Chap. suiv. : Dérivées usuelles fin de la boite de navigation du chapitre En raison de limitations techniques, la typographie souhaitable du titre, « Fonction dérivée : Fonction dérivée Fonction dérivée/Fonction dérivée",
+  "quality": {
+    "ok": false,
+    "issues": [
+      "navigation_suspected (3 nav markers found)"
+    ],
+    "text_length": 3222,
+    "fr_ratio": 0.106,
+    "navigation_suspected": true
+  },
+  "search_method": "article_table",
+  "candidate_urls": [
+    "https://fr.wikipedia.org/wiki/D%C3%A9riv%C3%A9e",
+    "https://fr.wikiversity.org/wiki/Fonction_d%C3%A9riv%C3%A9e"
+  ],
+  "chosen_url": "https://fr.wikiversity.org/wiki/Fonction_d%C3%A9riv%C3%A9e",
+  "page_type": "subpage",
+  "priority": "no_correspondence"
+}

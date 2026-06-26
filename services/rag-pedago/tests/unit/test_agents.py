@@ -108,3 +108,41 @@ def test_no_correspondence_preserves_taxonomy_order(tmp_path) -> None:
     # All should be no_correspondence, order preserved
     assert all(n["priority"] == "no_correspondence" for n in notions)
     assert [n["notion_id"] for n in notions] == ["notion_a", "notion_b", "notion_c"]
+
+
+def test_subject_agent_metadata_only_no_pdf_opened(tmp_path, monkeypatch) -> None:
+    """SubjectAgent must not open any PDF — it reads JSON artefacts only."""
+    taxo = tmp_path / "taxo.yml"
+    taxo.write_text(_taxonomy_yaml(), encoding="utf-8")
+
+    # Create a fake correspondence JSON artefact
+    corr_dir = tmp_path / "correspondance"
+    corr_dir.mkdir()
+    import json
+    (corr_dir / "mathematiques_terminale.json").write_text(json.dumps({
+        "extraction_status": "ok",
+        "details_found_exact": [{"notion_id": "notion_a", "label": "A"}],
+        "details_found_partial": [],
+        "details_not_found": [{"notion_id": "notion_b", "label": "B"}],
+    }), encoding="utf-8")
+
+    # Patch the correspondance directory
+    monkeypatch.setattr("agents.subject_agent.CORRESPONDANCE_DIR", corr_dir)
+
+    # Monkeypatch pypdf to fail if accessed
+    import builtins
+    original_import = builtins.__import__
+
+    def fail_pypdf(name, *args, **kwargs):  # noqa: ANN002, ANN003
+        if name == "pypdf":
+            raise AssertionError("SubjectAgent must not import pypdf")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fail_pypdf)
+
+    agent = SubjectAgent(taxo, tmp_path / "staging")
+    plan = agent.plan()
+
+    # Agent loaded correspondence from JSON, not PDF
+    assert plan["has_bo_correspondence"] is True
+    assert plan["notions"][0]["priority"] == "bo_not_found"  # notion_b first

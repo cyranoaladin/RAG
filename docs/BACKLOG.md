@@ -75,6 +75,7 @@
 |---|---|---|
 | DETTE-10.1-A | `_load_correspondence` cherche `{matiere}_{niveau}_*.pdf` ; le nommage produit par `programme_fetcher` est `{matiere}_{niveau}_{statut}.pdf`. Le pattern glob fonctionne mais la convention n'est pas documentée. | Aligner/documenter la convention de nommage |
 | DETTE-10.1-B | Matching titre pédagogique → article : devine un titre exact au lieu de chercher. Résolu au Lot 11 (recherche réelle). | Résolu |
+| DETTE-11.1-A | `build_correspondence_report`/`extract_text_from_pdf` ne sont pas gated au niveau fonction (seul le script appelant gate). Acceptable tant que le script est le seul appelant. À traiter si un second appelant apparaît. | Défense en profondeur à ajouter si besoin |
 
 ## Process
 
