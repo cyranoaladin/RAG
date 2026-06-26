@@ -1,0 +1,11 @@
+{
+  "matiere": "mathematiques",
+  "niveau": "seconde",
+  "voie": "generale",
+  "statut": "enseignement_commun",
+  "boen_reference": "BOEN spécial n°1 du 22 janvier 2019",
+  "url_pdf": "https://cache.media.education.gouv.fr/file/SP1-MEN-22-1-2019/95/7/spe631_annexe_1062957.pdf",
+  "sha256": "7f4fe9747468bc08e188cfa798edac2ad621426c59d512c151c6d9f4e93ca8e4",
+  "size_bytes": 410341,
+  "content_type": "application/pdf"
+}
