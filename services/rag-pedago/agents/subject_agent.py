@@ -14,44 +14,27 @@ import yaml
 
 from agents.base import ROOT, AcquisitionAgent
 from schema.taxonomy import TaxonomySpec
-from scrapers.taxonomy_fetcher import fetch_notion
+from scrapers.taxonomy_fetcher import (
+    ACCEPTED_STATUSES,
+    cleanup_previous_notion_files,
+    fetch_notion,
+)
 
-PROGRAMMES_DIR = ROOT / "data" / "staging" / "programmes"
+CORRESPONDANCE_DIR = ROOT / "data" / "programmes" / "correspondance"
 
 
 def _load_correspondence(matiere: str, niveau: str) -> dict[str, str] | None:
-    """Try to load a pre-computed BO correspondence for this (matiere, niveau).
+    """Load pre-computed BO correspondence artefact (JSON, no PDF parsing).
 
     Returns a dict mapping notion_id → status (found_exact/found_partial/not_found),
-    or None if no programme PDF is available.
+    or None if no artefact exists.
     """
-    # Look for the programme PDF
-    pattern = f"{matiere}_{niveau}_*.pdf"
-    pdfs = list(PROGRAMMES_DIR.glob(pattern)) if PROGRAMMES_DIR.is_dir() else []
-    if not pdfs:
+    artefact = CORRESPONDANCE_DIR / f"{matiere}_{niveau}.json"
+    if not artefact.is_file():
         return None
 
-    # Find matching taxonomy
-    taxonomy_root = ROOT / "taxonomy"
-    taxo_candidates = list(taxonomy_root.rglob("*.yml"))
-    taxo_path = None
-    for t in taxo_candidates:
-        try:
-            data = yaml.safe_load(t.read_text(encoding="utf-8"))
-            spec = TaxonomySpec.model_validate(data)
-            if spec.matiere == matiere and spec.niveau.value == niveau:
-                taxo_path = t
-                break
-        except Exception:
-            continue
-
-    if not taxo_path:
-        return None
-
-    # Build correspondence
     try:
-        from scrapers.programme_parser import build_correspondence_report
-        report = build_correspondence_report(taxo_path, pdfs[0])
+        report = json.loads(artefact.read_text(encoding="utf-8"))
         if report.get("extraction_status") == "failed":
             return None
 
@@ -139,7 +122,7 @@ class SubjectAgent(AcquisitionAgent):
         count = 0
 
         for notion_entry in notions_ordered:
-            if max_notions and count >= max_notions:
+            if max_notions is not None and count >= max_notions:
                 break
             notion_id = notion_entry["notion_id"]
             label = notion_entry["label"]
@@ -157,18 +140,26 @@ class SubjectAgent(AcquisitionAgent):
                 entry["priority"] = priority
             self._results.extend(entries)
 
-            # Deposit in staging
-            for entry in entries:
-                if entry.get("status") in ("ok", "quality_issues"):
-                    fname = f"{self.spec.matiere}_{notion_id}.json"
-                    (self.staging_dir / fname).write_text(
-                        json.dumps(entry, ensure_ascii=False, indent=2),
-                        encoding="utf-8",
-                    )
+            accepted = [entry for entry in entries if entry.get("status") in ACCEPTED_STATUSES]
+            if accepted:
+                cleanup_previous_notion_files(self.staging_dir, self.spec.matiere, notion_id)
+                fname = f"{self.spec.matiere}_{notion_id}.json"
+                (self.staging_dir / fname).write_text(
+                    json.dumps(accepted[0], ensure_ascii=False, indent=2),
+                    encoding="utf-8",
+                )
             count += 1
 
-        found = sum(1 for e in self._results if e.get("status") in ("ok", "quality_issues"))
-        not_found = sum(1 for e in self._results if e.get("status") == "not_found")
+        found = len({
+            e.get("notion_id")
+            for e in self._results
+            if e.get("status") in ACCEPTED_STATUSES
+        })
+        not_found = len({
+            e.get("notion_id")
+            for e in self._results
+            if e.get("status") == "not_found"
+        })
 
         return {
             "matiere": self.spec.matiere,
@@ -182,18 +173,29 @@ class SubjectAgent(AcquisitionAgent):
     def report(self) -> dict[str, Any]:
         found = [e for e in self._results if e.get("status") in ("ok", "quality_issues")]
         not_found = [e for e in self._results if e.get("status") == "not_found"]
+        found_by_notion = {e.get("notion_id"): e for e in found}
+        not_found_by_notion = {e.get("notion_id"): e for e in not_found}
         return {
             "matiere": self.spec.matiere,
             "niveau": self.spec.niveau.value,
             "has_bo_correspondence": self._correspondence is not None,
-            "found_count": len(found),
-            "not_found_count": len(not_found),
+            "found_count": len(found_by_notion),
+            "not_found_count": len(not_found_by_notion),
             "found_notions": [
-                {"notion_id": e.get("notion_id"), "priority": e.get("priority")}
-                for e in found
+                {
+                    "notion_id": e.get("notion_id"),
+                    "priority": e.get("priority"),
+                    "chosen_url": e.get("chosen_url"),
+                    "source_label": e.get("source_label"),
+                    "candidate_urls": e.get("candidate_urls", []),
+                    "ignored_candidate_urls": e.get("ignored_candidate_urls", []),
+                    "selection_reason": e.get("selection_reason"),
+                    "fallback_used": e.get("fallback_used", False),
+                }
+                for e in found_by_notion.values()
             ],
             "not_found_notions": [
                 {"notion_id": e.get("notion_id"), "priority": e.get("priority")}
-                for e in not_found
+                for e in not_found_by_notion.values()
             ],
         }

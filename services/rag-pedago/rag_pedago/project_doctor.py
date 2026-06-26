@@ -74,7 +74,7 @@ def _tracked_files(root: Path) -> list[Path]:
 def _read_text(path: Path) -> str:
     try:
         return path.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
+    except (FileNotFoundError, UnicodeDecodeError):
         return ""
 
 

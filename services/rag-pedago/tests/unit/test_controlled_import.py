@@ -194,3 +194,19 @@ def test_controlled_import_report_contains_gate_and_import_paths(tmp_path) -> No
     assert report.import_report_path is not None
     assert str(report.import_report_path) in content
     assert "Gate was evaluated before import." in content
+
+
+def test_controlled_import_hash_is_cwd_independent(tmp_path, monkeypatch) -> None:
+    from rag_pedago.imports import controlled_import
+
+    batch = tmp_path / "batch"
+    batch.mkdir()
+    (batch / "sample.jsonl").write_text('{"doc_id": "a"}\n', encoding="utf-8")
+    other_cwd = tmp_path / "elsewhere"
+    other_cwd.mkdir()
+
+    hashes_before = controlled_import._manifest_hashes(batch)
+    monkeypatch.chdir(other_cwd)
+    hashes_after = controlled_import._manifest_hashes(batch)
+
+    assert hashes_after == hashes_before

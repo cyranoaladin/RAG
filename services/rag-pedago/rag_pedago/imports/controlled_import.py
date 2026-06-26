@@ -19,6 +19,7 @@ from rag_pedago.imports.review import (
     sha256_directory_yaml,
     sha256_file,
 )
+from rag_pedago.paths import REPO_ROOT
 
 
 class ControlledImportStatus(str, Enum):
@@ -322,7 +323,7 @@ def _verify_review_hashes(
         raise ValueError("manifest hashes mismatch between review package and current manifests")
     if _taxonomy_hashes(taxonomy_paths) != package.taxonomy_sha256:
         raise ValueError("taxonomy hashes mismatch between review package and current taxonomies")
-    if sha256_directory_yaml(Path("data/reference")) != package.official_reference_sha256:
+    if sha256_directory_yaml(REPO_ROOT / "data/reference") != package.official_reference_sha256:
         raise ValueError("official_reference_sha256 mismatch between review package and current reference")
 
 

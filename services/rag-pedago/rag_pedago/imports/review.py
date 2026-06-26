@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from rag_pedago.imports.gate import GateStatus, build_gate_report
 from rag_pedago.imports.quality import QualityPolicy
+from rag_pedago.paths import REPO_ROOT
 
 
 class ReviewStatus(str, Enum):
@@ -227,7 +228,7 @@ def build_review_package(
         gate_json_sha256=sha256_file(gate_report.json_path),
         readiness_json_sha256=sha256_file(readiness_json),
         coverage_json_sha256=sha256_file(coverage_json),
-        official_reference_sha256=sha256_directory_yaml(Path("data/reference")),
+        official_reference_sha256=sha256_directory_yaml(REPO_ROOT / "data/reference"),
         taxonomy_sha256={str(path): sha256_file(path) for path in taxonomy_paths},
         git_commit=_git_commit(),
         generated_at=datetime.now(UTC),

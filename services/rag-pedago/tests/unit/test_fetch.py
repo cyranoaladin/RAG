@@ -160,6 +160,113 @@ def test_course_content_not_flagged_as_navigation():
     assert qc["navigation_suspected"] is False
 
 
+def test_long_article_with_minor_nav_markers_not_flagged_as_navigation():
+    """A substantial article must not be rejected for a few footer markers."""
+    text = (
+        "La dérivée d'une fonction est une notion centrale de l'analyse. "
+        "Les définitions, les exemples et les propriétés permettent de calculer "
+        "la variation locale d'une fonction réelle. "
+    ) * 80
+    text += " Voir aussi Catégorie : Rechercher"
+
+    qc = quality_check(text, "derivation")
+
+    assert qc["navigation_suspected"] is False
+    assert qc["ok"] is True
+
+
+def test_mediawiki_extraction_strips_chrome():
+    """MediaWiki HTML: only article body extracted, no navigation chrome."""
+    html = """<html><head><title>Test</title></head><body>
+    <div id="mw-navigation">Navigation menu aller au contenu rechercher</div>
+    <div id="mw-content-text">
+      <div class="mw-parser-output">
+        <div class="bandeau-container">Si ce bandeau n'est plus pertinent</div>
+        <p>La <b>continuité</b> d'une fonction est une propriété fondamentale
+        en analyse mathématique. Une fonction continue est une fonction dont
+        la courbe peut être tracée sans lever le crayon.</p>
+        <h2><span>Définition formelle</span></h2>
+        <p>Soit f une fonction définie sur un intervalle I. On dit que f est
+        continue en a si la limite de f(x) quand x tend vers a est égale à f(a).</p>
+        <div id="toc"><h2>Sommaire</h2><ul><li>1 Définition</li></ul></div>
+        <h2><span>Notes et références</span></h2>
+        <ol class="references"><li>Ref 1</li></ol>
+        <h2><span>Voir aussi</span></h2>
+        <p>Articles connexes blah blah</p>
+      </div>
+    </div>
+    <div class="navbox">Navigation box footer</div>
+    </body></html>"""
+    text = extract_text_from_html(html)
+    # Article content present
+    assert "continuité" in text.lower()
+    assert "analyse mathématique" in text.lower()
+    assert "Définition formelle" in text or "définition formelle" in text.lower()
+    # Chrome absent
+    assert "Navigation menu" not in text
+    assert "aller au contenu" not in text.lower()
+    assert "rechercher" not in text.lower()
+    assert "bandeau" not in text.lower()
+    assert "Notes et références" not in text
+    assert "Voir aussi" not in text
+    assert "Navigation box" not in text
+    assert "Articles connexes" not in text
+
+
+def test_mediawiki_extraction_strips_tail_chrome():
+    """Tail chrome (Voir aussi, Articles connexes, Sur les autres projets) must be removed."""
+    html = """<html><body>
+    <div class="mw-parser-output">
+        <p>La convexité est une propriété importante des fonctions réelles.</p>
+        <h2><span>Propriétés</span></h2>
+        <p>Une fonction convexe sur un intervalle admet un minimum global.</p>
+        <h2><span>Voir aussi</span></h2>
+        <ul><li>Concavité</li><li>Inégalité de Jensen</li></ul>
+        <h3><span>Articles connexes</span></h3>
+        <ul><li>Fonction affine</li></ul>
+        <div class="sistersitebox">
+            <p>Sur les autres projets Wikimedia :</p>
+            <ul><li>Wiktionnaire</li><li>sur Wikiversity</li></ul>
+        </div>
+        <h2><span>Bibliographie</span></h2>
+        <p>Rudin, Analyse réelle et complexe</p>
+    </div>
+    </body></html>"""
+    text = extract_text_from_html(html)
+    assert "convexité" in text.lower()
+    assert "minimum global" in text
+    # Tail chrome absent
+    assert "Voir aussi" not in text
+    assert "Articles connexes" not in text
+    assert "Sur les autres projets" not in text
+    assert "Wiktionnaire" not in text
+    assert "sur Wikiversity" not in text
+    assert "Bibliographie" not in text
+    # Last chars should be article content
+    assert text.rstrip().endswith("global.")
+
+
+def test_no_false_positive_portail_nsi():
+    """An NSI text mentioning 'portail web' must NOT be flagged as navigation."""
+    text = ("Un portail web est une application qui offre un point d'accès unique "
+            "à diverses ressources en ligne. Les portails sont utilisés dans de "
+            "nombreuses organisations pour centraliser l'information. " * 5)
+    qc = quality_check(text, "portail_web")
+    assert qc["navigation_suspected"] is False
+
+
+def test_no_false_positive_categorie_maths():
+    """A maths text mentioning 'catégorie' must NOT be flagged."""
+    text = ("En mathématiques, une catégorie est une structure algébrique constituée "
+            "d'objets et de morphismes. La théorie des catégories unifie plusieurs "
+            "branches des mathématiques. " * 5)
+    qc = quality_check(text, "categorie")
+    assert qc["navigation_suspected"] is False
+    # Quality check should NOT flag as navigation
+    qc = quality_check(text, "continuite")
+    assert qc["navigation_suspected"] is False
+
+
 # --- Quality check ---
 
 def test_quality_check_pass():

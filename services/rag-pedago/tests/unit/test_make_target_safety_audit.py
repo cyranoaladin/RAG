@@ -409,6 +409,18 @@ def test_real_makefile_has_consistent_phony_rules_and_config(capsys) -> None:  #
     assert "targets_executed: false" in output
 
 
+def test_typecheck_target_has_mypy_available_after_install() -> None:
+    makefile_text = MAKEFILE.read_text(encoding="utf-8")
+    requirements_text = (REPO_ROOT / "requirements.lock").read_text(encoding="utf-8")
+
+    assert "VENVDIR ?= .venv" in makefile_text
+    assert "PY_VENV := $(VENVDIR)/bin/python" in makefile_text
+    assert "\ninstall: venv\n" in makefile_text
+    assert '"$(PY_VENV)" -m pip install -r requirements.lock' in makefile_text
+    assert "\ntypecheck:\n\t$(PY) -m mypy" in makefile_text
+    assert any(line.startswith("mypy==") for line in requirements_text.splitlines())
+
+
 def test_unknown_category_fails_audit(tmp_path, capsys) -> None:  # noqa: ANN001
     status, output = _run_audit_for_files(
         tmp_path,

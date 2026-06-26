@@ -192,18 +192,111 @@ def governed_fetch(url: str) -> FetchResult | FetchRefusal:
 # ---------------------------------------------------------------------------
 
 def extract_text_from_html(html: str) -> str:
-    """Extract readable text from HTML, stripping navigation/menus."""
-    # Remove script/style/nav/header/footer tags
-    text = re.sub(
-        r"<(script|style|nav|header|footer)[^>]*>.*?</\1>",
-        "", html, flags=re.DOTALL | re.IGNORECASE,
-    )
-    # Remove all HTML tags
-    text = re.sub(r"<[^>]+>", " ", text)
-    # Decode HTML entities (&#160; → space, &amp; → &, &eacute; → é, etc.)
+    """Extract the main article content from HTML using BeautifulSoup.
+
+    For MediaWiki pages: extracts only #mw-content-text / .mw-parser-output,
+    removes navigation, infoboxes, references, terminal sections, and footer chrome.
+    Falls back to generic body extraction for non-MediaWiki pages.
+    """
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(html, "html.parser")
+
+    # Try MediaWiki content container
+    content = soup.find("div", class_="mw-parser-output")
+    if not content:
+        content = soup.find("div", id="mw-content-text")
+    if not content:
+        # Fallback: use body
+        content = soup.find("body") or soup
+
+    # Remove unwanted elements BEFORE extracting text
+    _REMOVE_TAGS = ["script", "style", "nav", "header", "footer", "sup"]
+    for tag_name in _REMOVE_TAGS:
+        for tag in content.find_all(tag_name):
+            tag.decompose()
+
+    _REMOVE_CLASSES = [
+        "navbox", "infobox", "metadata", "reference", "references",
+        "mw-editsection", "hatnote", "bandeau-container", "bandeau",
+        "homonymie", "catlinks", "printfooter", "mw-authority-control",
+        "sister-project", "sistersitebox", "side-box", "navbox-wikimedia",
+        "mw-references-wrap", "reflist", "refbegin",
+    ]
+    for cls_name in _REMOVE_CLASSES:
+        for tag in content.find_all(class_=lambda c, cn=cls_name: c and cn in c):
+            tag.decompose()
+
+    _REMOVE_IDS = ["toc", "catlinks", "mw-navigation"]
+    for id_val in _REMOVE_IDS:
+        tag = content.find(id=id_val)  # type: ignore[assignment]
+        if tag:
+            tag.decompose()
+
+    # Remove terminal sections: Notes et références, Voir aussi, etc.
+    # Handle both h2 and h3 headings.
+    # Use find_all_next() to catch content in nested containers, not just direct siblings.
+    _TERMINAL_SECTIONS = {
+        "notes et références", "voir aussi", "liens externes",
+        "bibliographie", "articles connexes", "notes", "annexes",
+        "sur les autres projets", "références",
+    }
+    for heading in content.find_all(["h2", "h3"]):
+        heading_text = heading.get_text(strip=True).lower()
+        if any(section in heading_text for section in _TERMINAL_SECTIONS):
+            same_level = heading.name
+            # Remove ALL following elements until next heading of same level
+            for following in list(heading.find_all_next()):
+                if following.name == same_level and following != heading:
+                    break
+                # Only decompose if it's still in the document (not already removed)
+                if following.parent is not None:
+                    try:
+                        following.decompose()
+                    except Exception:
+                        pass
+            if heading.parent is not None:
+                heading.decompose()
+
+    # Remove footer/sister-project containers by text content
+    for el in content.find_all(["div", "table", "ul"]):
+        text_start = el.get_text(strip=True)[:80].lower()
+        if any(text_start.startswith(p) for p in [
+            "portail :", "catégorie :", "récupérée de", "sur les autres projets",
+            "ce document provient", "dernière modification",
+        ]):
+            el.decompose()
+
+    # Extract text
+    text = content.get_text(separator=" ", strip=True)
     text = html_module.unescape(text)
-    # Collapse whitespace
     text = re.sub(r"\s+", " ", text).strip()
+
+    # Post-extraction safety net: truncate at first residual tail marker
+    _FOOTER_MARKERS = [
+        "Voir aussi", "Articles connexes", "Sur les autres projets",
+        "Notes et références", "Bibliographie", "Liens externes",
+        "Notices d'autorité", "Récupérée de", "Références",
+        "Ce document provient de", "Dernière modification",
+    ]
+    for marker in _FOOTER_MARKERS:
+        idx = text.find(marker)
+        if idx > len(text) // 2:
+            text = text[:idx].rstrip()
+
+    # Bibliographic residue safety net: truncate at dense ISBN/reference patterns
+    # in the last quarter of text
+    _BIBLIO_PATTERNS = ["ISBN", "(en)", "lire en ligne", "coll.", "éd.)"]
+    last_quarter_start = len(text) * 3 // 4
+    for pattern in _BIBLIO_PATTERNS:
+        idx = text.find(pattern, last_quarter_start)
+        if idx > 0:
+            # Find the start of the line/sentence containing the pattern
+            line_start = text.rfind(". ", 0, idx)
+            if line_start > last_quarter_start:
+                text = text[:line_start + 1].rstrip()
+                break
+
     return text
 
 
@@ -226,19 +319,22 @@ def quality_check(text: str, notion_id: str) -> dict[str, Any]:
     if fr_ratio < 0.05:
         issues.append(f"low French content ratio ({fr_ratio:.2%})")
 
-    # Anti-navigation check (calibrated on real Wikiversity/Wikipedia pages)
-    nav_markers = {"chapitres", "voir aussi", "catégorie :", "modifier les liens",
-                   "outils personnels", "menu principal", "aller au contenu",
-                   "rechercher", "faire un don", "créer un compte", "se connecter",
-                   "autres leçons", "département"}
+    # Anti-navigation / chrome residue check (length-independent)
+    # After BeautifulSoup extraction, residual chrome indicates extraction failure
+    chrome_markers = {"aller au contenu", "modifier le code", "outils personnels",
+                      "menu principal", "faire un don", "créer un compte",
+                      "se connecter", "modifier les liens", "récupérée de",
+                      "portail :", "catégorie :", "autres leçons", "département",
+                      "sur les autres projets", "articles connexes",
+                      "wiktionnaire", "sur wikiversity", "notices d'autorité",
+                      "lire en ligne"}
     lower_text = text.lower()
-    nav_hits = sum(1 for m in nav_markers if m in lower_text)
-    # Short pages with many nav markers are likely indexes
-    words_count = len(text.split())
-    navigation_suspected = nav_hits >= 3 or (nav_hits >= 2 and words_count < 500)
+    chrome_hits = sum(1 for m in chrome_markers if m in lower_text)
+    # Any chrome marker = suspected (post-extraction, these should be absent)
+    navigation_suspected = chrome_hits >= 2
 
     if navigation_suspected:
-        issues.append(f"navigation_suspected ({nav_hits} nav markers found)")
+        issues.append(f"navigation_suspected ({chrome_hits} chrome markers found)")
 
     return {
         "ok": len(issues) == 0,

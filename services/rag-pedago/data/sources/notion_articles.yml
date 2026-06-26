@@ -1,0 +1,262 @@
+# Table notion→article Wikipedia/Wikiversité
+# Titres d'articles vérifiés (200 confirmé ou page existante connue).
+# Les endpoints de recherche API sont interdits par robots.txt.
+# Cette table est la solution de repli documentée.
+
+articles:
+  # === MATHS TERMINALE SPÉ ===
+  - notion_id: suites
+    matiere: mathematiques
+    articles:
+      - source: wikipedia
+        title: "Suite_(mathématiques)"
+      - source: wikiversity
+        title: "Suites_et_récurrence"
+
+  - notion_id: limites
+    matiere: mathematiques
+    articles:
+      - source: wikipedia
+        title: "Limite_(mathématiques)"
+
+  - notion_id: derivation
+    matiere: mathematiques
+    articles:
+      - source: wikipedia
+        title: "Dérivée"
+      - source: wikiversity
+        title: "Fonction_dérivée"
+
+  - notion_id: convexite
+    matiere: mathematiques
+    articles:
+      - source: wikipedia
+        title: "Fonction_convexe"
+
+  - notion_id: continuite
+    matiere: mathematiques
+    articles:
+      - source: wikipedia
+        title: "Continuité_(mathématiques)"
+
+  - notion_id: fonction_exponentielle
+    matiere: mathematiques
+    articles:
+      - source: wikipedia
+        title: "Fonction_exponentielle"
+      - source: wikiversity
+        title: "Fonction_exponentielle"
+
+  - notion_id: fonction_logarithme
+    matiere: mathematiques
+    articles:
+      - source: wikipedia
+        title: "Logarithme_népérien"
+
+  - notion_id: primitives
+    matiere: mathematiques
+    articles:
+      - source: wikipedia
+        title: "Primitive_(mathématiques)"
+
+  - notion_id: integrales
+    matiere: mathematiques
+    articles:
+      - source: wikipedia
+        title: "Intégrale"
+
+  - notion_id: probabilites_conditionnelles
+    matiere: mathematiques
+    articles:
+      - source: wikipedia
+        title: "Probabilité_conditionnelle"
+      - source: wikiversity
+        title: "Probabilités_conditionnelles"
+
+  - notion_id: loi_binomiale
+    matiere: mathematiques
+    articles:
+      - source: wikipedia
+        title: "Loi_binomiale"
+
+  - notion_id: loi_normale
+    matiere: mathematiques
+    articles:
+      - source: wikipedia
+        title: "Loi_normale"
+
+  - notion_id: variables_aleatoires
+    matiere: mathematiques
+    articles:
+      - source: wikipedia
+        title: "Variable_aléatoire"
+
+  - notion_id: geometrie_espace_vecteurs
+    matiere: mathematiques
+    articles:
+      - source: wikipedia
+        title: "Vecteur"
+
+  - notion_id: equations_differentielles_y_prime_ay_plus_b
+    matiere: mathematiques
+    articles:
+      - source: wikipedia
+        title: "Équation_différentielle_linéaire"
+
+  - notion_id: algorithmique_suites
+    matiere: mathematiques
+    articles:
+      - source: wikipedia
+        title: "Suite_(mathématiques)"
+      - source: wikiversity
+        title: "Suites_et_récurrence"
+
+  # === NSI TERMINALE ===
+  - notion_id: listes
+    matiere: nsi
+    articles:
+      - source: wikipedia
+        title: "Liste_(informatique)"
+
+  - notion_id: piles
+    matiere: nsi
+    articles:
+      - source: wikipedia
+        title: "Pile_(informatique)"
+
+  - notion_id: files
+    matiere: nsi
+    articles:
+      - source: wikipedia
+        title: "File_(structure_de_données)"
+
+  - notion_id: dictionnaires
+    matiere: nsi
+    articles:
+      - source: wikipedia
+        title: "Tableau_associatif"
+      - source: wikipedia
+        title: "Table_de_hachage"
+
+  - notion_id: arbres
+    matiere: nsi
+    articles:
+      - source: wikipedia
+        title: "Arbre_(structure_de_données)"
+
+  - notion_id: graphes
+    matiere: nsi
+    articles:
+      - source: wikipedia
+        title: "Théorie_des_graphes"
+
+  - notion_id: recursivite
+    matiere: nsi
+    articles:
+      - source: wikipedia
+        title: "Récursivité_(informatique)"
+
+  - notion_id: diviser_pour_regner
+    matiere: nsi
+    articles:
+      - source: wikipedia
+        title: "Diviser_pour_régner_(informatique)"
+
+  - notion_id: programmation_dynamique
+    matiere: nsi
+    articles:
+      - source: wikipedia
+        title: "Programmation_dynamique"
+
+  - notion_id: sql
+    matiere: nsi
+    articles:
+      - source: wikipedia
+        title: "Structured_Query_Language"
+      - source: wikiversity
+        title: "Structured_Query_Language"
+
+  - notion_id: poo
+    matiere: nsi
+    articles:
+      - source: wikipedia
+        title: "Programmation_orientée_objet"
+
+  - notion_id: modele_relationnel
+    matiere: nsi
+    articles:
+      - source: wikipedia
+        title: "Modèle_relationnel"
+
+  - notion_id: routage
+    matiere: nsi
+    articles:
+      - source: wikipedia
+        title: "Routage"
+
+  # === PHILOSOPHIE TERMINALE ===
+  - notion_id: justice
+    matiere: philosophie
+    articles:
+      - source: wikipedia
+        title: "Justice"
+
+  - notion_id: liberte
+    matiere: philosophie
+    articles:
+      - source: wikipedia
+        title: "Liberté"
+
+  - notion_id: verite
+    matiere: philosophie
+    articles:
+      - source: wikipedia
+        title: "Vérité"
+
+  - notion_id: conscience
+    matiere: philosophie
+    articles:
+      - source: wikipedia
+        title: "Conscience"
+
+  - notion_id: etat
+    matiere: philosophie
+    articles:
+      - source: wikipedia
+        title: "État"
+
+  - notion_id: devoir
+    matiere: philosophie
+    articles:
+      - source: wikipedia
+        title: "Devoir_(philosophie)"
+
+  - notion_id: travail
+    matiere: philosophie
+    articles:
+      - source: wikipedia
+        title: "Travail_(philosophie)"
+
+  - notion_id: temps
+    matiere: philosophie
+    articles:
+      - source: wikipedia
+        title: "Temps"
+
+  - notion_id: art
+    matiere: philosophie
+    articles:
+      - source: wikipedia
+        title: "Art"
+
+  - notion_id: religion
+    matiere: philosophie
+    articles:
+      - source: wikipedia
+        title: "Religion"
+
+  - notion_id: bonheur
+    matiere: philosophie
+    articles:
+      - source: wikipedia
+        title: "Bonheur"

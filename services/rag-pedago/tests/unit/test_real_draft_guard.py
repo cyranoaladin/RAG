@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from rag_pedago.paths import RAG_LOCAL_ROOT, REPO_ROOT
+from rag_pedago.paths import RAG_LOCAL_ROOT, REPO_ROOT, WORKSPACE_ROOT
 
 ROOT = REPO_ROOT
 RAG_LOCAL = RAG_LOCAL_ROOT
@@ -96,6 +96,18 @@ def test_source_uri_guard_refuses_forbidden_roots_and_sensitive_markers() -> Non
     for marker in [".env", ".pem", ".key", "gdrive", "credential", "secret"]:
         assert "sensitive_source_uri" in _issue_codes(
             validate_candidate_source_uri(f"synthetic://pilot/{marker}/resource")
+        )
+
+
+def test_real_draft_guard_blocks_legacy_rag_local_paths() -> None:
+    from rag_pedago.imports.real_draft_guard import validate_candidate_source_uri
+
+    for source_uri in [
+        f"file://{RAG_LOCAL_ROOT}/private.pdf",
+        f"file://{WORKSPACE_ROOT / 'rag-local'}/private.pdf",
+    ]:
+        assert "forbidden_source_uri_path" in _issue_codes(
+            validate_candidate_source_uri(source_uri)
         )
 
 

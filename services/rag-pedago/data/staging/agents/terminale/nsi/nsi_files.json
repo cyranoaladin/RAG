@@ -1,0 +1,34 @@
+{
+  "notion_id": "files",
+  "notion_label": "Files",
+  "matiere": "nsi",
+  "niveau": "terminale",
+  "voie": "generale",
+  "statut_enseignement": "specialite",
+  "url": "https://fr.wikipedia.org/wiki/File_%28structure_de_donn%C3%A9es%29",
+  "chosen_url": "https://fr.wikipedia.org/wiki/File_%28structure_de_donn%C3%A9es%29",
+  "source": "wikipedia",
+  "source_label": "wikipedia_files",
+  "rights": "CC-BY-SA 4.0",
+  "audience": "tous",
+  "status": "ok",
+  "page_type": "article",
+  "text": "En informatique , une file dite aussi file d'attente (en anglais queue ) est un type abstrait basé sur le principe « premier entré, premier sorti » ou PEPS, désigné en anglais par l'acronyme FIFO ( « first in, first out » ) : les premiers éléments ajoutés à la file seront les premiers à en être retirés. Description First In First Out - Premier Entré Premier Sorti. Le type décrit le fonctionnement d'une file d'attente : les premiers arrivés seront les premiers à sortir ( PEPS , FIFO en anglais pour First in, first out ). Quand le dernier entré est le premier à sortir (DEPS, LIFO pour Last in, first out en anglais), c'est une pile ( stack ). Par exemple, les algorithmes basés sur le principe des files, et utilisés pour suivre les stocks, se doivent d'être cohérents avec la méthode utilisée en gestion des stocks . Une liste chaînée dont on n'utilise que les opérations ajouterQueue et retirerTête constitue une queue. Si la queue se base sur un tableau , la structure enregistre deux indices, l'un correspondant au dernier arrivé, l'autre au prochain à sortir . Les queues servent à organiser le traitement séquentiel des blocs de données d'origines diverses. La théorie des files d'attente , élaborée pour le dimensionnement des réseaux téléphoniques, relie le nombre d'usagers, le nombre de canaux disponibles, le temps d'occupation moyen du canal, et les temps d'attente à prévoir . Limites de la méthode Dans un logiciel informatique , l'avantage de cet ordonnancement réside dans sa relative simplicité ; cependant elle pénalise les processus à temps bref d'exécution : en effet, si on lance, à la suite d'un processus qui demande beaucoup de temps de calcul, une petite tâche (par exemple, dans un serveur qui ne gère qu'une imprimante, imprimer une page), la petite tâche devra attendre la fin de la tache qui demande beaucoup plus de temps (imprimer cent pages) avant de s'exécuter. À l'époque des machines à un seul processeur , c’était la technique la plus fiable pour être sûr d'effectuer les opérations dans un ordre logique . Cet algorithme est également utilisé comme politique de remplacement des lignes de cache en raison de sa simplicité d' implémentation et de son faible coût. Néanmoins, il présente dans cet usage une anomalie connue sous le nom d' anomalie de Belady : augmenter le nombre d'étages de la file peut avoir un effet négatif sur la performance. Applications Ce type est utilisé par exemple : en général, pour mémoriser temporairement des transactions qui doivent attendre pour être traitées ; les serveurs d'impression , qui traitent ainsi les requêtes dans l'ordre dans lequel elles arrivent, et les insèrent dans une file d'attente (dite aussi queue ou spool ) ; certains moteurs multitâches , dans un système d'exploitation , qui doivent accorder du temps-machine à chaque tâche, sans en privilégier aucune ; un algorithme de parcours en largeur utilise une file pour mémoriser les nœuds visités ; pour créer toutes sortes de mémoires tampons (en anglais « buffers » ) ; En gestion des stocks les algorithmes doivent respecter la gestion physique des stocks pour assurer la cohérence physique/valorisation. Primitives Les deux primitives de base Voici les primitives communément utilisées pour manipuler des files. Il n'existe pas de normalisation pour les primitives de manipulation de file. Leurs noms sont donc indiqués de manière informelle . « Enfiler » : ajoute un élément dans la file. Le terme anglais correspondant est enqueue . « Défiler » : renvoie le prochain élément de la file, et le retire de la file. Le terme anglais correspondant est dequeue . « La file est-elle vide ? » : renvoie « vrai » si la file est vide, « faux » sinon. « Nombre d'éléments dans la file » : renvoie le nombre d'éléments dans la file. Exemple en C# Exemple en C# using System ; namespace ExempleFile { public class File { private object [] _File ; private int _PointeurDeTete ; private int _PointeurDeQueue ; private int _Taille ; private int _NbreElements ; #region Constructeur public File ( int Taille ) { this . _Taille = Taille ; this . _File = new object [ Taille ]; this . _PointeurDeTete = 0 ; this . _PointeurDeQueue = 0 ; this . _NbreElements = 0 ; } #endregion #region Fonctions public virtual void Enfiler ( object item ) { lock ( this ) { if ( this . EstPleine ()) { throw new Exception ( \"La file est pleine !\" ); } else { this . _File [ this . _PointeurDeQueue ] = item ; this . _NbreElements ++ ; // Pointer sur le prochain elément libre, // revenir à zéro si on est au bout de la file this . _PointeurDeQueue = this . _PointeurDeQueue + 1 ; if ( this . _PointeurDeQueue >= this . _File . Length ) { this . _PointeurDeQueue = 0 ; } } } } public virtual object Defiler () { lock ( this ) { object item = null ; if ( this . EstVide ()) { throw new Exception ( \"La file est vide !\" ); } else { item = this . _File [ this . _PointeurDeTete ]; this . _NbreElements -- ; // Faire pointer le pointeur de queue sur le prochain élément valide, // revenir à zéro si on est au bout de la file this . _PointeurDeTete = this . _PointeurDeTete + 1 ; if ( this . _PointeurDeTete >= this . _File . Length ) { this . _PointeurDeTete = 0 ; } } return item ; } } public virtual bool EstVide () { return ( this . _NbreElements == 0 ); } public virtual bool EstPleine () { return ( this . _NbreElements == this . _Taille ); } public int NbreElements { get { return this . _NbreElements ; } } #endregion } }",
+  "text_length": 5437,
+  "text_preview": "En informatique , une file dite aussi file d'attente (en anglais queue ) est un type abstrait basé sur le principe « premier entré, premier sorti » ou PEPS, désigné en anglais par l'acronyme FIFO ( « first in, first out » ) : les premiers éléments ajoutés à la file seront les premiers à en être retirés. Description First In First Out - Premier Entré Premier Sorti. Le type décrit le fonctionnement d'une file d'attente : les premiers arrivés seront les premiers à sortir ( PEPS , FIFO en anglais po",
+  "quality": {
+    "ok": true,
+    "issues": [],
+    "text_length": 5437,
+    "fr_ratio": 0.117,
+    "navigation_suspected": false
+  },
+  "search_method": "article_table",
+  "fallback_used": false,
+  "candidate_urls": [
+    "https://fr.wikipedia.org/wiki/File_%28structure_de_donn%C3%A9es%29"
+  ],
+  "ignored_candidate_urls": [],
+  "selection_reason": "first_acceptable_candidate",
+  "priority": "no_correspondence"
+}

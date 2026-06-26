@@ -1,0 +1,177 @@
+{
+  "taxonomy": "premiere_specialite.yml",
+  "programme": "nsi_premiere_specialite.pdf",
+  "matiere": "nsi",
+  "niveau": "premiere",
+  "extraction_status": "ok",
+  "pdf_text_length": 23059,
+  "total_notions_checked": 25,
+  "found_exact": 11,
+  "found_partial": 3,
+  "not_found": 11,
+  "exact_pct": 44.0,
+  "bo_only_count": 124,
+  "details_found_exact": [
+    {
+      "theme": "representation_donnees",
+      "notion_id": "types_base",
+      "label": "Types de base"
+    },
+    {
+      "theme": "representation_donnees",
+      "notion_id": "types_base/flottants",
+      "label": "flottants"
+    },
+    {
+      "theme": "representation_donnees",
+      "notion_id": "types_base/booleens",
+      "label": "booleens"
+    },
+    {
+      "theme": "representation_donnees",
+      "notion_id": "representation_texte",
+      "label": "Représentation du texte"
+    },
+    {
+      "theme": "representation_donnees",
+      "notion_id": "types_construits",
+      "label": "Types construits"
+    },
+    {
+      "theme": "representation_donnees",
+      "notion_id": "types_construits/tableaux",
+      "label": "tableaux"
+    },
+    {
+      "theme": "representation_donnees",
+      "notion_id": "types_construits/dictionnaires",
+      "label": "dictionnaires"
+    },
+    {
+      "theme": "algorithmique",
+      "notion_id": "recherche_dichotomique",
+      "label": "Recherche dichotomique"
+    },
+    {
+      "theme": "algorithmique",
+      "notion_id": "algorithmes_gloutons",
+      "label": "Algorithmes gloutons"
+    },
+    {
+      "theme": "architectures",
+      "notion_id": "modele_von_neumann",
+      "label": "Modèle d'architecture von Neumann"
+    },
+    {
+      "theme": "architectures",
+      "notion_id": "systemes_exploitation",
+      "label": "Systèmes d'exploitation"
+    }
+  ],
+  "details_found_partial": [
+    {
+      "theme": "web",
+      "notion_id": "interactions_client_serveur",
+      "label": "Interactions client-serveur"
+    },
+    {
+      "theme": "architectures",
+      "notion_id": "systemes_exploitation/systeme_fichiers",
+      "label": "systeme_fichiers"
+    },
+    {
+      "theme": "architectures",
+      "notion_id": "reseaux",
+      "label": "Réseaux et protocoles"
+    }
+  ],
+  "details_not_found": [
+    {
+      "theme": "representation_donnees",
+      "notion_id": "types_base/entiers",
+      "label": "entiers"
+    },
+    {
+      "theme": "representation_donnees",
+      "notion_id": "types_construits/tuples",
+      "label": "tuples"
+    },
+    {
+      "theme": "algorithmique",
+      "notion_id": "algorithmes_tri",
+      "label": "Algorithmes de tri"
+    },
+    {
+      "theme": "algorithmique",
+      "notion_id": "algorithmes_tri/tri_selection",
+      "label": "tri_selection"
+    },
+    {
+      "theme": "algorithmique",
+      "notion_id": "algorithmes_tri/tri_insertion",
+      "label": "tri_insertion"
+    },
+    {
+      "theme": "algorithmique",
+      "notion_id": "complexite",
+      "label": "Complexité algorithmique"
+    },
+    {
+      "theme": "web",
+      "notion_id": "html_css",
+      "label": "HTML et CSS"
+    },
+    {
+      "theme": "web",
+      "notion_id": "formulaires_evenements",
+      "label": "Formulaires et événements"
+    },
+    {
+      "theme": "architectures",
+      "notion_id": "systemes_exploitation/commandes_shell",
+      "label": "commandes_shell"
+    },
+    {
+      "theme": "architectures",
+      "notion_id": "reseaux/tcp_ip",
+      "label": "tcp_ip"
+    },
+    {
+      "theme": "architectures",
+      "notion_id": "reseaux/adressage",
+      "label": "adressage"
+    }
+  ],
+  "bo_only": [
+    "Annexe",
+    "Programme de numérique et sciences informatiques de",
+    "Préambule",
+    "Démarche de projet",
+    "Modalités de mise en œuvre",
+    "Éléments de programme",
+    "Histoire de l’informatique",
+    "Contenus Capacités attendues Commentaires",
+    "Événements clés de",
+    "Situer dans le temps les",
+    "Ces repères historiques seront",
+    "Écriture d’un entier",
+    "Passer de la représentation",
+    "Les bases 2, 10 et 16 sont",
+    "Représentation binaire",
+    "Évaluer le nombre de bits",
+    "Il s’agit de décrire les tailles",
+    "Il est possible d’évoquer la",
+    "Calculer sur quelques",
+    "Il faut éviter de tester l’égalité de",
+    "Aucune connaissance précise de",
+    "Expressions booléennes",
+    "Dresser la table d’une",
+    "Quelques applications directes",
+    "L’attention des élèves est attirée",
+    "Représentation d’un",
+    "Exemples des",
+    "ISO-8859-1, Unicode",
+    "Identifier l’intérêt des différents",
+    "Convertir un fichier texte dans"
+  ]
+}

@@ -39,9 +39,11 @@ install: venv
 install-dev: venv
 	@if [ -f requirements.txt ]; then "$(PY)" -m pip install -r requirements.txt; fi
 	@if [ -f requirements-dev.txt ]; then "$(PY)" -m pip install -r requirements-dev.txt; fi
-	# Fallback minimal si requirements-dev.txt est absent/incomplet
 	@for mod in ruff mypy pytest; do \
-		$(PY) -c "import importlib; importlib.import_module('$$mod')" >/dev/null 2>&1 || $(PY) -m pip install $$mod; \
+		$(PY) -c "import importlib; importlib.import_module('$$mod')" >/dev/null 2>&1 || { \
+			echo "missing $$mod; update requirements.lock/requirements-dev.txt instead of implicit install"; \
+			exit 1; \
+		}; \
 	done
 
 lint: install-dev
