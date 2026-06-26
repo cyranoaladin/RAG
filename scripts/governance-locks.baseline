@@ -3,7 +3,7 @@ answer_without_source_allowed: false
 answer_without_source_allowed: false
 answer_without_source_allowed: false
 answer_without_source_allowed: false
-chunking_allowed: false
+chunking_allowed: true  # ADR-0006
 data_staging_allowed: true  # ADR-0004
 embeddings_allowed: false
 ingestion_allowed: false

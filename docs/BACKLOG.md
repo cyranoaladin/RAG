@@ -76,6 +76,15 @@
 | DETTE-10.1-A | `_load_correspondence` cherche `{matiere}_{niveau}_*.pdf` ; le nommage produit par `programme_fetcher` est `{matiere}_{niveau}_{statut}.pdf`. Le pattern glob fonctionne mais la convention n'est pas documentée. | Aligner/documenter la convention de nommage |
 | DETTE-10.1-B | Matching titre pédagogique → article : devine un titre exact au lieu de chercher. Résolu au Lot 11 (recherche réelle). | Résolu |
 | DETTE-11.1-A | `build_correspondence_report`/`extract_text_from_pdf` ne sont pas gated au niveau fonction (seul le script appelant gate). Acceptable tant que le script est le seul appelant. À traiter si un second appelant apparaît. | Défense en profondeur à ajouter si besoin |
+| DETTE-11.5-A | Filet troncature `(en)` / biblio peut sur-tronquer un article où « (en) » apparaît en plein contenu dans le dernier quart. Non observé sur les 16 fichiers actuels. | Motif plus strict à envisager à l'élargissement |
+| DETTE-11.5-B | Sections « culture populaire / œuvres » conservées (faible valeur pédagogique, pas du chrome). | Relève de la curation de source, pas de l'extraction |
+
+## Périmètre acquisition
+
+| Point | Détail | Action |
+|---|---|---|
+| notion_articles.yml | 40 entrées pour ~420 notions. | Élargissement à planifier (lot dédié) |
+| Sources conceptuelles/examen | STEM 100%, conceptuel 80%, examen 13%. | Décision Drive à trancher sur constat chiffré 11.3 |
 
 ## Process
 
