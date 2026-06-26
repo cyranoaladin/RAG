@@ -1,0 +1,18 @@
+{
+  "tenant": "terminale",
+  "niveau": "terminale",
+  "voie": "generale",
+  "matiere": "mathematiques",
+  "audience": [
+    "tous"
+  ],
+  "type_doc": "cours",
+  "notions": [
+    "continuite"
+  ],
+  "source_label": "wikipedia_continuite",
+  "source_uri": "https://fr.wikipedia.org/wiki/Continuit%C3%A9_%28math%C3%A9matiques%29",
+  "rights": "CC-BY-SA 4.0",
+  "official": false,
+  "doc_id": "terminale_mathematiques_continuite"
+}

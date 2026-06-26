@@ -320,9 +320,12 @@ def quality_check(text: str, notion_id: str) -> dict[str, Any]:
     if len(text) < MIN_TEXT_LENGTH:
         issues.append(f"text too short ({len(text)} chars, min {MIN_TEXT_LENGTH})")
 
-    # Check for French content (simple heuristic)
+    # Check for French content (sample from whole text, not just first 100 words)
     fr_markers = {"le", "la", "les", "de", "des", "du", "en", "un", "une", "est", "sont"}
-    words = set(text.lower().split()[:100])
+    all_words = text.lower().split()
+    # Sample: first 50 + middle 50 + last 50
+    sample = all_words[:50] + all_words[len(all_words) // 2 : len(all_words) // 2 + 50] + all_words[-50:]
+    words = set(sample)
     fr_ratio = len(words.intersection(fr_markers)) / max(len(words), 1)
     if fr_ratio < 0.05:
         issues.append(f"low French content ratio ({fr_ratio:.2%})")

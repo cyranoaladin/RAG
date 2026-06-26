@@ -1,4 +1,4 @@
-"""Tests for build_chunks — gating + chunk quality."""
+"""Tests for build_chunks — gating + contract conformity."""
 from __future__ import annotations
 
 import importlib.util
@@ -49,7 +49,7 @@ def test_gate_blocks_on_missing_contract(tmp_path) -> None:
     assert module.check_chunking_allowed(tmp_path / "nonexistent.yml") is False
 
 
-# --- Chunk quality tests (on real artefacts) ---
+# --- Contract conformity tests (model_validate) ---
 
 def _load_all_chunks() -> list[dict]:
     chunks = []
@@ -60,41 +60,76 @@ def _load_all_chunks() -> list[dict]:
     return chunks
 
 
+def _load_all_sidecars() -> list[dict]:
+    sidecars = []
+    for meta in sorted(CHUNKS_DIR.rglob("*.meta.json")):
+        sidecars.append(json.loads(meta.read_text(encoding="utf-8")))
+    return sidecars
+
+
 @pytest.fixture(scope="module")
 def all_chunks():
     return _load_all_chunks()
 
 
+@pytest.fixture(scope="module")
+def all_sidecars():
+    return _load_all_sidecars()
+
+
 def test_chunks_exist(all_chunks) -> None:
-    assert len(all_chunks) > 0, "No chunks produced"
+    assert len(all_chunks) > 0
 
 
-def test_all_chunks_have_required_metadata(all_chunks) -> None:
-    required = {"notion_id", "matiere", "niveau", "voie", "statut_enseignement",
-                "audience", "source", "rights", "chunk_index", "chunk_total"}
+def test_all_chunks_validate_chunkmeta(all_chunks) -> None:
+    """Every JSONL line must pass ChunkMeta.model_validate (not just field presence)."""
+    from nexus_contracts.document import ChunkMeta
     for i, chunk in enumerate(all_chunks):
-        missing = required - set(chunk.keys())
-        assert not missing, f"Chunk {i} missing keys: {missing}"
+        try:
+            ChunkMeta.model_validate(chunk)
+        except Exception as e:
+            pytest.fail(f"Chunk {i} ({chunk.get('chunk_id', '?')}): ChunkMeta validation failed: {e}")
+
+
+def test_all_sidecars_validate_chunkmetadata(all_sidecars) -> None:
+    """Every .meta.json must pass ChunkMetadata.model_validate."""
+    from nexus_contracts.chunk import ChunkMetadata
+    for i, sidecar in enumerate(all_sidecars):
+        try:
+            ChunkMetadata.model_validate(sidecar)
+        except Exception as e:
+            pytest.fail(f"Sidecar {i}: ChunkMetadata validation failed: {e}")
 
 
 def test_no_trivial_chunks(all_chunks) -> None:
     for i, chunk in enumerate(all_chunks):
-        assert len(chunk["text"]) >= 50, f"Chunk {i} too short: {len(chunk['text'])} chars"
+        text = chunk.get("text", "")
+        assert len(text) >= 50, f"Chunk {i} too short: {len(text)} chars"
 
 
 def test_no_chrome_in_chunks(all_chunks) -> None:
     from scrapers.fetch import quality_check
     for i, chunk in enumerate(all_chunks):
-        qc = quality_check(chunk["text"], chunk["notion_id"])
+        notion = chunk.get("notions", [""])[0]
+        qc = quality_check(chunk["text"], notion)
         assert not qc["navigation_suspected"], (
-            f"Chunk {i} ({chunk['notion_id']}) has chrome: {qc['issues']}"
+            f"Chunk {i} ({chunk.get('chunk_id')}): chrome detected: {qc['issues']}"
         )
 
 
 def test_chunks_deterministic() -> None:
-    """Two loads of the same JSONL files produce identical chunks."""
     chunks1 = _load_all_chunks()
     chunks2 = _load_all_chunks()
     assert len(chunks1) == len(chunks2)
     for c1, c2 in zip(chunks1, chunks2, strict=True):
         assert c1 == c2
+
+
+def test_sidecars_have_retrieval_fields(all_sidecars) -> None:
+    """Sidecars must carry tenant/niveau/voie/audience/matiere for retrieval filtering."""
+    for i, sc in enumerate(all_sidecars):
+        assert sc.get("tenant"), f"Sidecar {i} missing tenant"
+        assert sc.get("niveau"), f"Sidecar {i} missing niveau"
+        assert sc.get("voie"), f"Sidecar {i} missing voie"
+        assert sc.get("audience"), f"Sidecar {i} missing audience"
+        assert sc.get("matiere"), f"Sidecar {i} missing matiere"

@@ -1,0 +1,18 @@
+{
+  "tenant": "terminale",
+  "niveau": "terminale",
+  "voie": "generale",
+  "matiere": "philosophie",
+  "audience": [
+    "tous"
+  ],
+  "type_doc": "cours",
+  "notions": [
+    "etat"
+  ],
+  "source_label": "wikipedia_etat",
+  "source_uri": "https://fr.wikipedia.org/wiki/%C3%89tat",
+  "rights": "CC-BY-SA 4.0",
+  "official": false,
+  "doc_id": "terminale_philosophie_etat"
+}

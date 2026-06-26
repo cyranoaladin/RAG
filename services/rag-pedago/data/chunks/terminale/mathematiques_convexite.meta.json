@@ -1,0 +1,18 @@
+{
+  "tenant": "terminale",
+  "niveau": "terminale",
+  "voie": "generale",
+  "matiere": "mathematiques",
+  "audience": [
+    "tous"
+  ],
+  "type_doc": "cours",
+  "notions": [
+    "convexite"
+  ],
+  "source_label": "wikipedia_convexite",
+  "source_uri": "https://fr.wikipedia.org/wiki/Fonction_convexe",
+  "rights": "CC-BY-SA 4.0",
+  "official": false,
+  "doc_id": "terminale_mathematiques_convexite"
+}

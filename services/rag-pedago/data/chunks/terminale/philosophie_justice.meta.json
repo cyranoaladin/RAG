@@ -1,0 +1,18 @@
+{
+  "tenant": "terminale",
+  "niveau": "terminale",
+  "voie": "generale",
+  "matiere": "philosophie",
+  "audience": [
+    "tous"
+  ],
+  "type_doc": "cours",
+  "notions": [
+    "justice"
+  ],
+  "source_label": "wikipedia_justice",
+  "source_uri": "https://fr.wikipedia.org/wiki/Justice",
+  "rights": "CC-BY-SA 4.0",
+  "official": false,
+  "doc_id": "terminale_philosophie_justice"
+}

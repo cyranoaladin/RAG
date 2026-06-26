@@ -103,13 +103,13 @@ def chunk_text(text: str) -> list[str]:
     return chunks
 
 
-def build_chunks_for_notion(staging_file: Path) -> list[dict]:
-    """Build chunks from a staging file, preserving all metadata."""
+def build_chunks_for_notion(staging_file: Path) -> tuple[list[dict], dict]:
+    """Build chunks + sidecar metadata from a staging file."""
     data = json.loads(staging_file.read_text(encoding="utf-8"))
     text = data.get("text", data.get("text_preview", ""))
 
     if not text or len(text.strip()) < 50:
-        return []
+        return [], {}
 
     chunks = chunk_text(text)
     result = []
@@ -123,30 +123,39 @@ def build_chunks_for_notion(staging_file: Path) -> list[dict]:
         chunk_sha256 = hashlib.sha256(chunk_text_content.encode("utf-8")).hexdigest()
         chunk_id = f"{doc_id}#{i}"
 
+        # ChunkMeta-valid object (strict, extra=forbid)
         chunk_entry = {
             "chunk_id": chunk_id,
             "doc_id": doc_id,
             "chunk_sha256": chunk_sha256,
             "chunk_index": i,
-            "chunk_total": len(chunks),
+            "chunk_type": "text",  # Modality.text
             "text": chunk_text_content,
-            "text_length": len(chunk_text_content),
-            "tokens_est": _estimate_tokens(chunk_text_content),
-            # Preserve all metadata from staging
-            "notion_id": notion_id,
-            "matiere": matiere,
-            "niveau": niveau,
-            "voie": data.get("voie", ""),
-            "statut_enseignement": data.get("statut_enseignement", ""),
-            "audience": data.get("audience", "tous"),
-            "source": data.get("source", ""),
-            "source_label": data.get("source_label", ""),
-            "rights": data.get("rights", ""),
-            "chosen_url": data.get("chosen_url", data.get("url", "")),
+            "notions": [notion_id],
+            "token_count": _estimate_tokens(chunk_text_content),
+            "char_count": len(chunk_text_content),
+            "retrieval_title": f"{matiere} — {notion_id}",
+            "citation_label": data.get("source_label", ""),
         }
         result.append(chunk_entry)
 
-    return result
+    # Build sidecar metadata (ChunkMetadata-valid, for retrieval filtering)
+    sidecar = {
+        "tenant": niveau,
+        "niveau": niveau,
+        "voie": data.get("voie", "generale"),
+        "matiere": matiere,
+        "audience": [data.get("audience", "tous")],
+        "type_doc": "cours",
+        "notions": [notion_id],
+        "source_label": data.get("source_label", ""),
+        "source_uri": data.get("chosen_url", data.get("url", "")),
+        "rights": data.get("rights", "CC-BY-SA 4.0"),
+        "official": False,
+        "doc_id": doc_id,
+    }
+
+    return result, sidecar
 
 
 def main() -> int:
@@ -165,23 +174,30 @@ def main() -> int:
             if not matiere_dir.is_dir():
                 continue
             for staging_file in sorted(matiere_dir.glob("*.json")):
-                chunks = build_chunks_for_notion(staging_file)
+                chunks, sidecar = build_chunks_for_notion(staging_file)
                 if not chunks:
                     continue
 
-                matiere = chunks[0]["matiere"]
-                notion_id = chunks[0]["notion_id"]
-                niveau = chunks[0]["niveau"]
-                niveau_dir = CHUNKS_DIR / niveau
-                niveau_dir.mkdir(parents=True, exist_ok=True)
-                out_file = niveau_dir / f"{matiere}_{notion_id}.jsonl"
+                notion_id = chunks[0].get("notions", [""])[0]
+                niveau_val = sidecar.get("niveau", "unknown")
+                matiere_val = sidecar.get("matiere", "unknown")
+                out_dir = CHUNKS_DIR / niveau_val
+                out_dir.mkdir(parents=True, exist_ok=True)
+                out_file = out_dir / f"{matiere_val}_{notion_id}.jsonl"
                 with out_file.open("w", encoding="utf-8") as f:
                     for chunk in chunks:
                         f.write(json.dumps(chunk, ensure_ascii=False) + "\n")
 
+                # Write sidecar metadata
+                meta_file = out_dir / f"{matiere_val}_{notion_id}.meta.json"
+                meta_file.write_text(
+                    json.dumps(sidecar, ensure_ascii=False, indent=2),
+                    encoding="utf-8",
+                )
+
                 total_chunks += len(chunks)
                 total_notions += 1
-                print(f"  {matiere}/{notion_id}: {len(chunks)} chunks")
+                print(f"  {matiere_val}/{notion_id}: {len(chunks)} chunks")
 
     print(f"\n{total_notions} notions, {total_chunks} chunks total in {CHUNKS_DIR}")
     return 0

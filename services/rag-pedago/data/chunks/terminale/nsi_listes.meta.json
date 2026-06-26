@@ -1,0 +1,18 @@
+{
+  "tenant": "terminale",
+  "niveau": "terminale",
+  "voie": "generale",
+  "matiere": "nsi",
+  "audience": [
+    "tous"
+  ],
+  "type_doc": "cours",
+  "notions": [
+    "listes"
+  ],
+  "source_label": "wikipedia_listes",
+  "source_uri": "https://fr.wikipedia.org/wiki/Liste_%28informatique%29",
+  "rights": "CC-BY-SA 4.0",
+  "official": false,
+  "doc_id": "terminale_nsi_listes"
+}

@@ -1,0 +1,18 @@
+{
+  "tenant": "terminale",
+  "niveau": "terminale",
+  "voie": "generale",
+  "matiere": "mathematiques",
+  "audience": [
+    "tous"
+  ],
+  "type_doc": "cours",
+  "notions": [
+    "limites"
+  ],
+  "source_label": "wikipedia_limites",
+  "source_uri": "https://fr.wikipedia.org/wiki/Limite_%28math%C3%A9matiques%29",
+  "rights": "CC-BY-SA 4.0",
+  "official": false,
+  "doc_id": "terminale_mathematiques_limites"
+}
