@@ -35,7 +35,7 @@ DANGEROUS_FLAGS = [
 ]
 
 # Flags authorized at true via transition_authorization.yml
-AUTHORIZED_TRUE_FLAGS = {"network_allowed", "data_staging_allowed", "pdf_allowed", "parsing_allowed", "chunking_allowed", "embeddings_allowed"}
+AUTHORIZED_TRUE_FLAGS = {"network_allowed", "data_staging_allowed", "pdf_allowed", "parsing_allowed", "chunking_allowed", "embeddings_allowed", "ingestion_allowed"}
 
 
 def _load_audit_module():
@@ -146,7 +146,7 @@ def test_transition_authorization_audit_returns_markdown(capsys) -> None:  # noq
     assert "status: metadata_only_transition_authorization" in output
     assert "authorization_ready_for_review: true" in output
     assert "real_documents_allowed: false" in output
-    assert "ingestion_allowed: false" in output
+    assert "ingestion_allowed: true" in output
     assert "embeddings_allowed: true" in output
     assert "qdrant_allowed: false" in output
     assert "deferred_real_lot_count: 1" in output

@@ -16,10 +16,10 @@ SCOPED_ALLOWED_FLAGS = {
     "data_staging_allowed",
     "chunking_allowed",
     "embeddings_allowed",
+    "ingestion_allowed",
 }
 RUNTIME_AND_INGESTION_FLAGS = {
     "real_documents_allowed",
-    "ingestion_allowed",
     "qdrant_allowed",
     "server_start_allowed",
     "runtime_api_allowed",

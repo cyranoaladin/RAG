@@ -34,7 +34,7 @@ Le modèle e5 exige des préfixes pour séparer l'espace requêtes/passages :
 
 ### Idempotence
 
-- Clé = `chunk_id` + `chunk_sha256`. Si le sha n'a pas changé, le vecteur n'est pas recalculé.
+- Clé = `(chunk_sha256, MODEL_NAME, MODEL_DIM)`. Le vecteur n'est réutilisé que si les trois correspondent. Un changement de modèle/dimension force un recalcul complet.
 
 ### Métadonnées
 

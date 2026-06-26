@@ -12,7 +12,7 @@ pdf_allowed: true  # ADR-0004
 docx_allowed: false
 pptx_allowed: false
 xlsx_allowed: false
-ingestion_allowed: false
+ingestion_allowed: true  # ADR-0008
 parsing_allowed: true  # ADR-0004
 chunking_allowed: true  # ADR-0006
 embeddings_allowed: true  # ADR-0007
