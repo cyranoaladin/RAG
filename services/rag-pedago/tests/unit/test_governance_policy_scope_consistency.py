@@ -9,17 +9,17 @@ PEDAGO_INTERFACE = ROOT / "configs/pedago_interface_contract.yml"
 SOURCE_ADMISSION = ROOT / "configs/source_admission_policy.yml"
 TRANSITION_AUTHORIZATION = ROOT / "configs/transition_authorization.yml"
 
-SCOPED_FETCH_FLAGS = {
+SCOPED_ALLOWED_FLAGS = {
     "pdf_allowed",
     "parsing_allowed",
     "network_allowed",
     "data_staging_allowed",
+    "chunking_allowed",
+    "embeddings_allowed",
 }
 RUNTIME_AND_INGESTION_FLAGS = {
     "real_documents_allowed",
     "ingestion_allowed",
-    "chunking_allowed",
-    "embeddings_allowed",
     "qdrant_allowed",
     "server_start_allowed",
     "runtime_api_allowed",
@@ -42,7 +42,7 @@ def test_governance_related_locks_have_explicit_scope_boundaries() -> None:
         assert admission[flag] is False
         assert transition[flag] is False
 
-    for flag in SCOPED_FETCH_FLAGS:
+    for flag in SCOPED_ALLOWED_FLAGS:
         assert pedago[flag] is True
         assert transition[flag] is True
         assert admission[flag] is False

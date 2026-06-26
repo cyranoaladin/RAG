@@ -17,6 +17,7 @@ dependencies = [
   "requests>=2.31",
   "pypdf>=4.0",
   "beautifulsoup4>=4.12",
+  "sentence-transformers>=2.2",
   "nexus-contracts",
 ]
 

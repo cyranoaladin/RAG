@@ -15,7 +15,7 @@ xlsx_allowed: false
 ingestion_allowed: false
 parsing_allowed: true  # ADR-0004
 chunking_allowed: true  # ADR-0006
-embeddings_allowed: false
+embeddings_allowed: true  # ADR-0007
 qdrant_allowed: false
 network_allowed: true  # ADR-0004 — scoped to scrapers/fetch.py (GET-only, whitelist, robots.txt, rate limit). Does NOT authorize network in imports, readiness, or corpus ingestion.
 server_start_allowed: false

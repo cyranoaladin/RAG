@@ -43,6 +43,7 @@ AUTHORIZED_TRUE_FLAGS: dict[str, str] = {
     "pdf_allowed": "ADR-0004",
     "parsing_allowed": "ADR-0004",
     "chunking_allowed": "ADR-0006",
+    "embeddings_allowed": "ADR-0007",
 }
 
 REQUIRED_AUTHORIZATION_FIELDS = [
