@@ -53,7 +53,7 @@ def test_gate_blocks_on_missing_contract(tmp_path) -> None:
 
 def _load_all_chunks() -> list[dict]:
     chunks = []
-    for jsonl in sorted(CHUNKS_DIR.glob("*.jsonl")):
+    for jsonl in sorted(CHUNKS_DIR.rglob("*.jsonl")):
         for line in jsonl.read_text(encoding="utf-8").strip().split("\n"):
             if line.strip():
                 chunks.append(json.loads(line))

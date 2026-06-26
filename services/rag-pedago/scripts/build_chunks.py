@@ -6,6 +6,7 @@ Produces JSONL artefacts in data/chunks/.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import sys
@@ -30,7 +31,10 @@ def check_chunking_allowed(contract_path: Path | None = None) -> bool:
     path = contract_path or CONTRACT
     if not path.is_file():
         return False
-    config = yaml.safe_load(path.read_text(encoding="utf-8"))
+    try:
+        config = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except Exception:
+        return False
     if not isinstance(config, dict):
         return False
     return config.get("chunking_allowed") is True
@@ -110,17 +114,28 @@ def build_chunks_for_notion(staging_file: Path) -> list[dict]:
     chunks = chunk_text(text)
     result = []
 
+    notion_id = data.get("notion_id", "")
+    matiere = data.get("matiere", "")
+    niveau = data.get("niveau", "")
+    doc_id = f"{niveau}_{matiere}_{notion_id}"
+
     for i, chunk_text_content in enumerate(chunks):
+        chunk_sha256 = hashlib.sha256(chunk_text_content.encode("utf-8")).hexdigest()
+        chunk_id = f"{doc_id}#{i}"
+
         chunk_entry = {
+            "chunk_id": chunk_id,
+            "doc_id": doc_id,
+            "chunk_sha256": chunk_sha256,
             "chunk_index": i,
             "chunk_total": len(chunks),
             "text": chunk_text_content,
             "text_length": len(chunk_text_content),
             "tokens_est": _estimate_tokens(chunk_text_content),
             # Preserve all metadata from staging
-            "notion_id": data.get("notion_id", ""),
-            "matiere": data.get("matiere", ""),
-            "niveau": data.get("niveau", ""),
+            "notion_id": notion_id,
+            "matiere": matiere,
+            "niveau": niveau,
             "voie": data.get("voie", ""),
             "statut_enseignement": data.get("statut_enseignement", ""),
             "audience": data.get("audience", "tous"),
@@ -156,7 +171,10 @@ def main() -> int:
 
                 matiere = chunks[0]["matiere"]
                 notion_id = chunks[0]["notion_id"]
-                out_file = CHUNKS_DIR / f"{matiere}_{notion_id}.jsonl"
+                niveau = chunks[0]["niveau"]
+                niveau_dir = CHUNKS_DIR / niveau
+                niveau_dir.mkdir(parents=True, exist_ok=True)
+                out_file = niveau_dir / f"{matiere}_{notion_id}.jsonl"
                 with out_file.open("w", encoding="utf-8") as f:
                     for chunk in chunks:
                         f.write(json.dumps(chunk, ensure_ascii=False) + "\n")

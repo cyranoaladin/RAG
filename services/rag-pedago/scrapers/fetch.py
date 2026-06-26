@@ -211,10 +211,18 @@ def extract_text_from_html(html: str) -> str:
         content = soup.find("body") or soup
 
     # Remove unwanted elements BEFORE extracting text
-    _REMOVE_TAGS = ["script", "style", "nav", "header", "footer", "sup"]
+    _REMOVE_TAGS = ["script", "style", "nav", "header", "footer"]
     for tag_name in _REMOVE_TAGS:
         for tag in content.find_all(tag_name):
             tag.decompose()
+
+    # Handle <sup>: remove reference sups, UNWRAP (keep text) content sups like x²
+    for sup in content.find_all("sup"):
+        classes: list[str] = sup.get("class") or []  # type: ignore[assignment]
+        if "reference" in classes or sup.find("a", class_="reference"):
+            sup.decompose()
+        else:
+            sup.unwrap()  # keeps the text content (e.g., "2" from <sup>2</sup>)
 
     _REMOVE_CLASSES = [
         "navbox", "infobox", "metadata", "reference", "references",

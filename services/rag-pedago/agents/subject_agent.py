@@ -140,9 +140,10 @@ class SubjectAgent(AcquisitionAgent):
                 entry["priority"] = priority
             self._results.extend(entries)
 
+            # Always clean previous files for this notion (even if no result accepted)
+            cleanup_previous_notion_files(self.staging_dir, self.spec.matiere, notion_id)
             accepted = [entry for entry in entries if entry.get("status") in ACCEPTED_STATUSES]
             if accepted:
-                cleanup_previous_notion_files(self.staging_dir, self.spec.matiere, notion_id)
                 fname = f"{self.spec.matiere}_{notion_id}.json"
                 (self.staging_dir / fname).write_text(
                     json.dumps(accepted[0], ensure_ascii=False, indent=2),
