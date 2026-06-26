@@ -41,16 +41,24 @@ def check_embeddings_allowed(contract_path: Path | None = None) -> bool:
     return config.get("embeddings_allowed") is True
 
 
-def _load_existing_embeddings(emb_file: Path) -> dict[str, str]:
-    """Load existing embeddings index: chunk_id → chunk_sha256."""
+def _load_existing_embeddings(emb_file: Path) -> dict[str, dict]:
+    """Load existing embeddings: chunk_id → full entry (for idempotence check)."""
     if not emb_file.is_file():
         return {}
-    result: dict[str, str] = {}
+    result: dict[str, dict] = {}
     for line in emb_file.read_text(encoding="utf-8").strip().split("\n"):
         if line.strip():
             entry = json.loads(line)
-            result[entry["chunk_id"]] = entry.get("chunk_sha256", "")
+            result[entry["chunk_id"]] = entry
     return result
+
+
+def _can_reuse(existing_entry: dict) -> bool:
+    """Check if an existing embedding can be reused (same model + dim)."""
+    return (
+        existing_entry.get("model") == MODEL_NAME
+        and existing_entry.get("dim") == MODEL_DIM
+    )
 
 
 def _load_model():
@@ -79,7 +87,7 @@ def build_embeddings_for_notion(
     if sidecar_file.is_file():
         sidecar = json.loads(sidecar_file.read_text(encoding="utf-8"))
 
-    # Check existing embeddings for idempotence
+    # Idempotence check: (chunk_sha256, model, dim) must all match
     existing = _load_existing_embeddings(emb_file)
 
     to_compute: list[dict] = []
@@ -88,28 +96,27 @@ def build_embeddings_for_notion(
     for chunk in chunks:
         chunk_id = chunk["chunk_id"]
         chunk_sha = chunk.get("chunk_sha256", "")
-        if existing.get(chunk_id) == chunk_sha and chunk_sha:
-            # Reuse existing — read from file
-            reused_entry = None
-            if emb_file.is_file():
-                for line in emb_file.read_text(encoding="utf-8").strip().split("\n"):
-                    entry = json.loads(line)
-                    if entry["chunk_id"] == chunk_id:
-                        reused_entry = entry
-                        break
-            if reused_entry:
-                reused.append(reused_entry)
-                continue
-        to_compute.append(chunk)
+        existing_entry = existing.get(chunk_id)
+        if (
+            existing_entry
+            and existing_entry.get("chunk_sha256") == chunk_sha
+            and chunk_sha
+            and _can_reuse(existing_entry)
+        ):
+            reused.append(existing_entry)
+        else:
+            to_compute.append(chunk)
 
-    # Compute new embeddings
+    # Compute new embeddings with "passage: " prefix (e5 convention)
+    from scrapers.embedding_utils import format_passage
+
     computed_entries: list[dict] = []
     if to_compute:
-        texts = [c["text"] for c in to_compute]
-        vectors = model.encode(texts, normalize_embeddings=True).tolist()
+        prefixed_texts = [format_passage(c["text"]) for c in to_compute]
+        vectors = model.encode(prefixed_texts, normalize_embeddings=True).tolist()
 
-        for chunk, vector in zip(texts, vectors, strict=False):
-            chunk_data = to_compute[texts.index(chunk)]
+        for i, vector in enumerate(vectors):
+            chunk_data = to_compute[i]
             computed_entries.append({
                 "chunk_id": chunk_data["chunk_id"],
                 "doc_id": chunk_data["doc_id"],

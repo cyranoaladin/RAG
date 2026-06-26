@@ -24,6 +24,14 @@
 - Vecteurs normalisés L2 (norme = 1.0).
 - `MODEL_NAME` + `MODEL_DIM` figés dans `scripts/build_embeddings.py`.
 
+### Préfixes e5 (OBLIGATOIRE)
+
+Le modèle e5 exige des préfixes pour séparer l'espace requêtes/passages :
+- **Embedding de chunks** : `passage: {texte}` (via `format_passage()`)
+- **Requêtes au retrieval** : `query: {texte}` (via `format_query()`)
+- Utilitaires centralisés dans `scrapers/embedding_utils.py`.
+- Toute requête au retrieval (Lot 14+) DOIT utiliser `format_query()` sous peine de dégradation silencieuse.
+
 ### Idempotence
 
 - Clé = `chunk_id` + `chunk_sha256`. Si le sha n'a pas changé, le vecteur n'est pas recalculé.

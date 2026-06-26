@@ -96,6 +96,28 @@ def test_no_null_nan_vectors() -> None:
         assert any(x != 0 for x in v)
 
 
+def test_model_change_forces_full_recompute(tmp_path) -> None:
+    """Changing MODEL_NAME must invalidate the cache (0 skip)."""
+    module = _load_module()
+
+    # Create a fake embedding file with a different model
+    emb_file = tmp_path / "test.jsonl"
+    emb_file.write_text(json.dumps({
+        "chunk_id": "test#0", "doc_id": "test",
+        "chunk_sha256": "abc123",
+        "dim": 1024, "vector": [0.1] * 1024,
+        "model": "DIFFERENT_MODEL",
+        "niveau": "terminale", "voie": "generale",
+        "audience": ["tous"], "matiere": "test", "notions": ["test"],
+    }) + "\n", encoding="utf-8")
+
+    existing = module._load_existing_embeddings(emb_file)
+    entry = existing.get("test#0")
+    assert entry is not None
+    # _can_reuse must return False (different model)
+    assert module._can_reuse(entry) is False
+
+
 def test_filtering_metadata_present() -> None:
     entries = _load_all_embeddings()
     if not entries:
