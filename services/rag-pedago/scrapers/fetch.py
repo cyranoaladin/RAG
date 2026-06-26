@@ -234,7 +234,8 @@ def extract_text_from_html(html: str) -> str:
             tag.decompose()
 
     # Remove terminal sections: Notes et références, Voir aussi, etc.
-    # Handle both h2 and h3 headings
+    # Handle both h2 and h3 headings.
+    # Use find_all_next() to catch content in nested containers, not just direct siblings.
     _TERMINAL_SECTIONS = {
         "notes et références", "voir aussi", "liens externes",
         "bibliographie", "articles connexes", "notes", "annexes",
@@ -243,12 +244,19 @@ def extract_text_from_html(html: str) -> str:
     for heading in content.find_all(["h2", "h3"]):
         heading_text = heading.get_text(strip=True).lower()
         if any(section in heading_text for section in _TERMINAL_SECTIONS):
-            same_level = heading.name  # h2 or h3
-            for sibling in list(heading.find_next_siblings()):
-                if sibling.name == same_level:
+            same_level = heading.name
+            # Remove ALL following elements until next heading of same level
+            for following in list(heading.find_all_next()):
+                if following.name == same_level and following != heading:
                     break
-                sibling.decompose()
-            heading.decompose()
+                # Only decompose if it's still in the document (not already removed)
+                if following.parent is not None:
+                    try:
+                        following.decompose()
+                    except Exception:
+                        pass
+            if heading.parent is not None:
+                heading.decompose()
 
     # Remove footer/sister-project containers by text content
     for el in content.find_all(["div", "table", "ul"]):
@@ -268,13 +276,26 @@ def extract_text_from_html(html: str) -> str:
     _FOOTER_MARKERS = [
         "Voir aussi", "Articles connexes", "Sur les autres projets",
         "Notes et références", "Bibliographie", "Liens externes",
-        "Notices d'autorité", "Récupérée de",
+        "Notices d'autorité", "Récupérée de", "Références",
         "Ce document provient de", "Dernière modification",
     ]
     for marker in _FOOTER_MARKERS:
         idx = text.find(marker)
-        if idx > len(text) // 2:  # only if in the second half (not article content)
+        if idx > len(text) // 2:
             text = text[:idx].rstrip()
+
+    # Bibliographic residue safety net: truncate at dense ISBN/reference patterns
+    # in the last quarter of text
+    _BIBLIO_PATTERNS = ["ISBN", "(en)", "lire en ligne", "coll.", "éd.)"]
+    last_quarter_start = len(text) * 3 // 4
+    for pattern in _BIBLIO_PATTERNS:
+        idx = text.find(pattern, last_quarter_start)
+        if idx > 0:
+            # Find the start of the line/sentence containing the pattern
+            line_start = text.rfind(". ", 0, idx)
+            if line_start > last_quarter_start:
+                text = text[:line_start + 1].rstrip()
+                break
 
     return text
 
@@ -305,7 +326,8 @@ def quality_check(text: str, notion_id: str) -> dict[str, Any]:
                       "se connecter", "modifier les liens", "récupérée de",
                       "portail :", "catégorie :", "autres leçons", "département",
                       "sur les autres projets", "articles connexes",
-                      "wiktionnaire", "sur wikiversity", "notices d'autorité"}
+                      "wiktionnaire", "sur wikiversity", "notices d'autorité",
+                      "lire en ligne"}
     lower_text = text.lower()
     chrome_hits = sum(1 for m in chrome_markers if m in lower_text)
     # Any chrome marker = suspected (post-extraction, these should be absent)
