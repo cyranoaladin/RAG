@@ -69,6 +69,13 @@
 | DETTE-9.1-A | `find_notion_in_text` — un label mono-mot ≥ 8 caractères compté `found_exact` même hors-sujet. Ex: "continuite" matcherait n'importe quel texte mathématique. | Rétrograder en `found_partial` ou exiger co-occurrence avec un terme du thème parent |
 | DETTE-9.1-B | `_extract_bo_headings` ramasse le bruit structurel ("Annexe", "Sommaire", "Contenus Capacités attendues"). | Ajouter une stop-list de headings structurels ; cibler les sections "Contenus"/"Capacités attendues" |
 
+## Agents (lot 10.1)
+
+| ID | Détail | Action |
+|---|---|---|
+| DETTE-10.1-A | `_load_correspondence` cherche `{matiere}_{niveau}_*.pdf` ; le nommage produit par `programme_fetcher` est `{matiere}_{niveau}_{statut}.pdf`. Le pattern glob fonctionne mais la convention n'est pas documentée. | Aligner/documenter la convention de nommage |
+| DETTE-10.1-B | Matching titre pédagogique → article : devine un titre exact au lieu de chercher. Résolu au Lot 11 (recherche réelle). | Résolu |
+
 ## Process
 
 | Point | Détail |

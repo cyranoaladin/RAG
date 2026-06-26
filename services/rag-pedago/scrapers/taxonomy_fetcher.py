@@ -29,6 +29,24 @@ CONTRACT_PATH = ROOT / "configs" / "pedago_interface_contract.yml"
 WIKIPEDIA_URL = "https://fr.wikipedia.org/wiki/{title}"
 WIKIVERSITY_URL = "https://fr.wikiversity.org/wiki/{title}"
 
+# Notion→article table (robots blocks search API)
+ARTICLES_TABLE_PATH = ROOT / "data" / "sources" / "notion_articles.yml"
+_articles_cache: dict[tuple[str, str], list[dict[str, str]]] | None = None
+
+
+def _load_articles_table() -> dict[tuple[str, str], list[dict[str, str]]]:
+    """Load the notion→article mapping table."""
+    global _articles_cache  # noqa: PLW0603
+    if _articles_cache is not None:
+        return _articles_cache
+    _articles_cache = {}
+    if ARTICLES_TABLE_PATH.is_file():
+        data = yaml.safe_load(ARTICLES_TABLE_PATH.read_text(encoding="utf-8"))
+        for entry in data.get("articles", []):
+            key = (entry["notion_id"], entry["matiere"])
+            _articles_cache[key] = entry.get("articles", [])
+    return _articles_cache
+
 
 def _check_staging_allowed() -> bool:
     if not CONTRACT_PATH.is_file():
@@ -37,20 +55,33 @@ def _check_staging_allowed() -> bool:
     return config.get("data_staging_allowed") is True
 
 
-def _notion_search_titles(notion_id: str, label: str | None, matiere: str) -> list[str]:
-    """Generate candidate page titles for a notion."""
-    titles = []
-    # Use label if available, else notion_id with underscores→spaces
-    name = (label or notion_id).replace("_", " ")
-    # Capitalized version for Wikipedia
-    cap = name[0].upper() + name[1:] if name else name
-    titles.append(cap)
-    # With matiere qualifier
-    titles.append(f"{cap} ({matiere})")
-    # With informatique for NSI
+def _get_article_urls(notion_id: str, matiere: str) -> list[tuple[str, str]]:
+    """Get verified article URLs from the notion→article table.
+
+    Returns list of (url, source_name) tuples.
+    Falls back to title guessing if no table entry exists.
+    """
+    table = _load_articles_table()
+    key = (notion_id, matiere)
+    urls: list[tuple[str, str]] = []
+
+    if key in table:
+        for article in table[key]:
+            source = article.get("source", "wikipedia")
+            title = article["title"]
+            if source == "wikiversity":
+                urls.append((WIKIVERSITY_URL.format(title=quote(title)), "wikiversity"))
+            else:
+                urls.append((WIKIPEDIA_URL.format(title=quote(title)), "wikipedia"))
+        return urls
+
+    # Fallback: guess titles (legacy behavior, less reliable)
+    label_or_id = notion_id.replace("_", " ")
+    cap = label_or_id[0].upper() + label_or_id[1:] if label_or_id else label_or_id
+    urls.append((WIKIPEDIA_URL.format(title=quote(cap)), "wikipedia"))
     if matiere == "nsi":
-        titles.append(f"{cap} (informatique)")
-    return titles
+        urls.append((WIKIPEDIA_URL.format(title=quote(f"{cap} (informatique)")), "wikipedia"))
+    return urls
 
 
 def fetch_notion(
@@ -61,13 +92,17 @@ def fetch_notion(
     voie: str,
     statut: str,
 ) -> list[dict[str, Any]]:
-    """Try to fetch content for a notion from Wikipedia/Wikiversity."""
-    entries: list[dict[str, Any]] = []
-    titles = _notion_search_titles(notion_id, label, matiere)
+    """Fetch content for a notion using the verified article table.
 
-    for title in titles:
-        # Try Wikipedia first (richer content)
-        url = WIKIPEDIA_URL.format(title=quote(title))
+    Uses notion_articles.yml for verified titles (robots blocks search API).
+    Falls back to title guessing if no table entry exists.
+    Traces: search method, candidate URLs, chosen URL.
+    """
+    entries: list[dict[str, Any]] = []
+    article_urls = _get_article_urls(notion_id, matiere)
+    candidate_urls = [u for u, _ in article_urls]
+
+    for url, source_name in article_urls:
         result = governed_fetch(url)
 
         if isinstance(result, FetchRefusal):
@@ -88,70 +123,37 @@ def fetch_notion(
             "voie": voie,
             "statut_enseignement": statut,
             "url": url,
-            "source": "wikipedia",
-            "source_label": f"wikipedia_{notion_id}",
+            "source": source_name,
+            "source_label": f"{source_name}_{notion_id}",
             "rights": "CC-BY-SA 4.0",
             "audience": "tous",
             "status": "ok" if qc["ok"] else "quality_issues",
             "text_length": len(text),
             "text_preview": text[:500],
             "quality": qc,
+            "search_method": "article_table" if (notion_id, matiere) in _load_articles_table() else "title_guess",
+            "candidate_urls": candidate_urls,
+            "chosen_url": url,
         })
-        break  # Found content, stop trying titles
 
-    if not entries:
-        # Try Wikiversity
-        for title in titles:
-            url = WIKIVERSITY_URL.format(title=quote(title))
-            result = governed_fetch(url)
-
-            if isinstance(result, FetchRefusal):
-                continue
-            if result.error or result.status_code != 200:
-                continue
-
-            text = extract_text_from_html(result.text)
-            if len(text) < 100:
-                continue
-
-            qc = quality_check(text, notion_id)
-            entry: dict[str, Any] = {
-                "notion_id": notion_id,
-                "notion_label": label or notion_id,
-                "matiere": matiere,
-                "niveau": niveau,
-                "voie": voie,
-                "statut_enseignement": statut,
-                "url": url,
-                "source": "wikiversity",
-                "source_label": f"wikiversity_{notion_id}",
-                "rights": "CC-BY-SA 4.0",
-                "audience": "tous",
-                "status": "ok" if qc["ok"] else "quality_issues",
-                "text_length": len(text),
-                "text_preview": text[:500],
-                "quality": qc,
-            }
-            entries.append(entry)
-
-            # If it's a nav page, try sub-pages
-            if qc.get("navigation_suspected"):
-                subpages = extract_subpage_links(result.text, url)
-                for i, sub_url in enumerate(subpages[:3]):
-                    sub_r = governed_fetch(sub_url)
-                    if isinstance(sub_r, FetchRefusal) or sub_r.error or sub_r.status_code != 200:
-                        continue
-                    sub_text = extract_text_from_html(sub_r.text)
-                    sub_qc = quality_check(sub_text, notion_id)
-                    entries.append({
-                        **entry,
-                        "url": sub_url,
-                        "source_label": f"wikiversity_{notion_id}_ch{i + 1}",
-                        "text_length": len(sub_text),
-                        "text_preview": sub_text[:500],
-                        "quality": sub_qc,
-                        "page_type": "subpage",
-                    })
+        # For Wikiversity nav pages, try sub-pages
+        if source_name == "wikiversity" and qc.get("navigation_suspected"):
+            subpages = extract_subpage_links(result.text, url)
+            for i, sub_url in enumerate(subpages[:3]):
+                sub_r = governed_fetch(sub_url)
+                if isinstance(sub_r, FetchRefusal) or sub_r.error or sub_r.status_code != 200:
+                    continue
+                sub_text = extract_text_from_html(sub_r.text)
+                sub_qc = quality_check(sub_text, notion_id)
+                entries.append({
+                    **entries[-1],
+                    "url": sub_url,
+                    "source_label": f"wikiversity_{notion_id}_ch{i + 1}",
+                    "text_length": len(sub_text),
+                    "text_preview": sub_text[:500],
+                    "quality": sub_qc,
+                    "page_type": "subpage",
+                })
             break
 
     if not entries:

@@ -1,0 +1,31 @@
+{
+  "notion_id": "files",
+  "notion_label": "Files",
+  "matiere": "nsi",
+  "niveau": "terminale",
+  "voie": "generale",
+  "statut_enseignement": "specialite",
+  "url": "https://fr.wikipedia.org/wiki/File_%28structure_de_donn%C3%A9es%29",
+  "source": "wikipedia",
+  "source_label": "wikipedia_files",
+  "rights": "CC-BY-SA 4.0",
+  "audience": "tous",
+  "status": "quality_issues",
+  "text_length": 9335,
+  "text_preview": "File (structure de données) — Wikipédia Aller au contenu Un article de Wikipédia, l'encyclopédie libre. Pour les articles homonymes, voir File . Pour les articles ayant des titres homophones, voir Fil et Phil . En informatique , une file dite aussi file d'attente (en anglais queue [ a ] ) est un type abstrait basé sur le principe « premier entré, premier sorti » ou PEPS, désigné en anglais par l'acronyme FIFO ( « first in, first out » ) : les premiers éléments ajoutés à la file seront les premie",
+  "quality": {
+    "ok": false,
+    "issues": [
+      "navigation_suspected (4 nav markers found)"
+    ],
+    "text_length": 9335,
+    "fr_ratio": 0.12,
+    "navigation_suspected": true
+  },
+  "search_method": "article_table",
+  "candidate_urls": [
+    "https://fr.wikipedia.org/wiki/File_%28structure_de_donn%C3%A9es%29"
+  ],
+  "chosen_url": "https://fr.wikipedia.org/wiki/File_%28structure_de_donn%C3%A9es%29",
+  "priority": "no_correspondence"
+}

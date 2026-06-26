@@ -1,0 +1,31 @@
+{
+  "notion_id": "piles",
+  "notion_label": "Piles",
+  "matiere": "nsi",
+  "niveau": "terminale",
+  "voie": "generale",
+  "statut_enseignement": "specialite",
+  "url": "https://fr.wikipedia.org/wiki/Pile_%28informatique%29",
+  "source": "wikipedia",
+  "source_label": "wikipedia_piles",
+  "rights": "CC-BY-SA 4.0",
+  "audience": "tous",
+  "status": "quality_issues",
+  "text_length": 13313,
+  "text_preview": "Pile (informatique) — Wikipédia Aller au contenu Un article de Wikipédia, l'encyclopédie libre. Pour les articles homonymes, voir pile . En informatique , une pile (en anglais stack ) est une structure de données fondée sur le principe « dernier arrivé, premier sorti » (en anglais LIFO pour last in, first out ), ce qui veut dire qu'en général, le dernier élément ajouté à la pile est le premier à en sortir [ 1 ] . Schémas d'une pile gérée en '' last in, first out . Pile système [ modifier | modif",
+  "quality": {
+    "ok": false,
+    "issues": [
+      "navigation_suspected (4 nav markers found)"
+    ],
+    "text_length": 13313,
+    "fr_ratio": 0.127,
+    "navigation_suspected": true
+  },
+  "search_method": "article_table",
+  "candidate_urls": [
+    "https://fr.wikipedia.org/wiki/Pile_%28informatique%29"
+  ],
+  "chosen_url": "https://fr.wikipedia.org/wiki/Pile_%28informatique%29",
+  "priority": "no_correspondence"
+}
