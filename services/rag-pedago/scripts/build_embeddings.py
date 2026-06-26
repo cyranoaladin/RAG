@@ -21,9 +21,10 @@ CONTRACT = ROOT / "configs" / "pedago_interface_contract.yml"
 CHUNKS_DIR = ROOT / "data" / "chunks"
 EMBEDDINGS_DIR = ROOT / "data" / "embeddings"
 
-# Model config (pilot: lightweight; production: BGE-M3)
-MODEL_NAME = "all-MiniLM-L6-v2"
-MODEL_DIM = 384
+# Production model: multilingual-e5-large (1024 dims, multilingue FR)
+# Dimension is DEFINITIVE (conditions pgvector schema at Lot 14)
+MODEL_NAME = "intfloat/multilingual-e5-large"
+MODEL_DIM = 1024
 
 
 def check_embeddings_allowed(contract_path: Path | None = None) -> bool:

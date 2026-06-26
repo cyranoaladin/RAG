@@ -15,12 +15,14 @@
 - N'autorise PAS l'indexation pgvector (`qdrant_allowed` et `ingestion_allowed` restent false).
 - Le script vérifie le verrou avant d'agir (gating réel).
 
-### Modèle
+### Modèle (DÉFINITIF)
 
-- **Pilote** : `all-MiniLM-L6-v2` (384 dims, sentence-transformers, ~80MB).
-- **Production** : BGE-M3 (1024 dims, multilingue) — à basculer au lot de mise à l'échelle.
-- Téléchargement modèle via HuggingFace (réseau déjà autorisé sous ADR-0004).
-- Modèle figé par nom + révision ; vecteurs normalisés L2.
+- **Production** : `intfloat/multilingual-e5-large` (1024 dims, multilingue FR/EN/etc., ~1.3GB).
+- **Dimension** : **1024** — définitive, conditionne le schéma pgvector (Lot 14). Ne plus changer.
+- BGE-M3 écarté (poids ~2.3GB, overhead XPU sans gain mesurable vs e5-large sur le corpus FR).
+- Téléchargement via HuggingFace — réseau autorisé sous ADR-0004 (scope « téléchargement modèle »).
+- Vecteurs normalisés L2 (norme = 1.0).
+- `MODEL_NAME` + `MODEL_DIM` figés dans `scripts/build_embeddings.py`.
 
 ### Idempotence
 
