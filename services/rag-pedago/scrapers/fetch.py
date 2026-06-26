@@ -192,19 +192,80 @@ def governed_fetch(url: str) -> FetchResult | FetchRefusal:
 # ---------------------------------------------------------------------------
 
 def extract_text_from_html(html: str) -> str:
-    """Extract readable text from HTML, stripping navigation/menus."""
-    # Remove script/style/nav/header/footer tags
+    """Extract the main article content from HTML (MediaWiki-aware).
+
+    For Wikipedia/Wikiversity pages, extracts only the article body
+    (mw-parser-output / mw-content-text), stripping navigation, menus,
+    infoboxes, references, see-also, and external links.
+    Falls back to generic extraction for non-MediaWiki pages.
+    """
+    # Try MediaWiki-specific extraction first
+    content = _extract_mediawiki_body(html)
+    if content and len(content) > 100:
+        return content
+
+    # Fallback: generic extraction
     text = re.sub(
         r"<(script|style|nav|header|footer)[^>]*>.*?</\1>",
         "", html, flags=re.DOTALL | re.IGNORECASE,
     )
-    # Remove all HTML tags
     text = re.sub(r"<[^>]+>", " ", text)
-    # Decode HTML entities (&#160; → space, &amp; → &, &eacute; → é, etc.)
     text = html_module.unescape(text)
-    # Collapse whitespace
-    text = re.sub(r"\s+", " ", text).strip()
-    return text
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _extract_mediawiki_body(html: str) -> str:
+    """Extract article body from a MediaWiki page."""
+    # Find the main content container
+    # MediaWiki uses <div id="mw-content-text"> or <div class="mw-parser-output">
+    body = ""
+    for pattern in [
+        r'<div[^>]*class="mw-parser-output"[^>]*>(.*)',
+        r'<div[^>]*id="mw-content-text"[^>]*>(.*)',
+    ]:
+        m = re.search(pattern, html, re.DOTALL | re.IGNORECASE)
+        if m:
+            body = m.group(1)
+            break
+
+    if not body:
+        return ""
+
+    # Remove unwanted sections by their container patterns
+    # Table of contents
+    body = re.sub(r'<div[^>]*id="toc"[^>]*>.*?</div>\s*</div>', "", body, flags=re.DOTALL)
+    # Infoboxes
+    body = re.sub(r'<table[^>]*class="[^"]*infobox[^"]*"[^>]*>.*?</table>', "", body, flags=re.DOTALL)
+    # Navigation boxes
+    body = re.sub(r'<div[^>]*class="[^"]*navbox[^"]*"[^>]*>.*?</div>\s*</div>', "", body, flags=re.DOTALL)
+    body = re.sub(r'<div[^>]*class="[^"]*navbox[^"]*"[^>]*>.*?</div>', "", body, flags=re.DOTALL)
+    body = re.sub(r'<table[^>]*class="[^"]*navbox[^"]*"[^>]*>.*?</table>', "", body, flags=re.DOTALL)
+    # Disambiguation banners
+    body = re.sub(r'<div[^>]*class="[^"]*homonymie[^"]*"[^>]*>.*?</div>', "", body, flags=re.DOTALL)
+    body = re.sub(r'<div[^>]*class="[^"]*bandeau[^"]*"[^>]*>.*?</div>', "", body, flags=re.DOTALL)
+    # References section
+    body = re.sub(r'<div[^>]*class="[^"]*references[^"]*"[^>]*>.*?</div>', "", body, flags=re.DOTALL)
+    body = re.sub(r'<ol[^>]*class="references"[^>]*>.*?</ol>', "", body, flags=re.DOTALL)
+
+    # Remove specific sections: Notes, Références, Voir aussi, Liens externes
+    for section_title in ["Notes et références", "Voir aussi", "Liens externes",
+                          "Bibliographie", "Articles connexes", "Notes"]:
+        # Remove from <h2>Section</h2> to next <h2> or end
+        pattern = (
+            rf'<h2[^>]*>\s*<span[^>]*>\s*{re.escape(section_title)}\s*</span>.*?'
+            r'(?=<h2|$)'
+        )
+        body = re.sub(pattern, "", body, flags=re.DOTALL | re.IGNORECASE)
+
+    # Remove script/style tags
+    body = re.sub(r"<(script|style)[^>]*>.*?</\1>", "", body, flags=re.DOTALL | re.IGNORECASE)
+    # Remove sup tags (footnote markers [1], [2])
+    body = re.sub(r"<sup[^>]*>.*?</sup>", "", body, flags=re.DOTALL)
+
+    # Strip all remaining tags
+    text = re.sub(r"<[^>]+>", " ", body)
+    text = html_module.unescape(text)
+    return re.sub(r"\s+", " ", text).strip()
 
 
 # ---------------------------------------------------------------------------
@@ -233,9 +294,10 @@ def quality_check(text: str, notion_id: str) -> dict[str, Any]:
                    "autres leçons", "département"}
     lower_text = text.lower()
     nav_hits = sum(1 for m in nav_markers if m in lower_text)
-    # Short pages with many nav markers are likely indexes
+    # Short pages with many nav markers are likely indexes. Long articles often
+    # retain a few footer labels after extraction; those are not blocking.
     words_count = len(text.split())
-    navigation_suspected = nav_hits >= 3 or (nav_hits >= 2 and words_count < 500)
+    navigation_suspected = nav_hits >= 3 and words_count < 500
 
     if navigation_suspected:
         issues.append(f"navigation_suspected ({nav_hits} nav markers found)")

@@ -14,7 +14,11 @@ import yaml
 
 from agents.base import ROOT, AcquisitionAgent
 from schema.taxonomy import TaxonomySpec
-from scrapers.taxonomy_fetcher import fetch_notion
+from scrapers.taxonomy_fetcher import (
+    ACCEPTED_STATUSES,
+    _cleanup_previous_notion_files,
+    fetch_notion,
+)
 
 CORRESPONDANCE_DIR = ROOT / "data" / "programmes" / "correspondance"
 
@@ -136,19 +140,26 @@ class SubjectAgent(AcquisitionAgent):
                 entry["priority"] = priority
             self._results.extend(entries)
 
-            # Deposit in staging (unique filename per entry)
-            for idx, entry in enumerate(entries):
-                if entry.get("status") in ("ok", "quality_issues"):
-                    source = entry.get("source_label", f"src{idx}")
-                    fname = f"{self.spec.matiere}_{notion_id}_{source}.json"
-                    (self.staging_dir / fname).write_text(
-                        json.dumps(entry, ensure_ascii=False, indent=2),
-                        encoding="utf-8",
-                    )
+            accepted = [entry for entry in entries if entry.get("status") in ACCEPTED_STATUSES]
+            if accepted:
+                _cleanup_previous_notion_files(self.staging_dir, self.spec.matiere, notion_id)
+                fname = f"{self.spec.matiere}_{notion_id}.json"
+                (self.staging_dir / fname).write_text(
+                    json.dumps(accepted[0], ensure_ascii=False, indent=2),
+                    encoding="utf-8",
+                )
             count += 1
 
-        found = sum(1 for e in self._results if e.get("status") in ("ok", "quality_issues"))
-        not_found = sum(1 for e in self._results if e.get("status") == "not_found")
+        found = len({
+            e.get("notion_id")
+            for e in self._results
+            if e.get("status") in ACCEPTED_STATUSES
+        })
+        not_found = len({
+            e.get("notion_id")
+            for e in self._results
+            if e.get("status") == "not_found"
+        })
 
         return {
             "matiere": self.spec.matiere,
@@ -162,18 +173,29 @@ class SubjectAgent(AcquisitionAgent):
     def report(self) -> dict[str, Any]:
         found = [e for e in self._results if e.get("status") in ("ok", "quality_issues")]
         not_found = [e for e in self._results if e.get("status") == "not_found"]
+        found_by_notion = {e.get("notion_id"): e for e in found}
+        not_found_by_notion = {e.get("notion_id"): e for e in not_found}
         return {
             "matiere": self.spec.matiere,
             "niveau": self.spec.niveau.value,
             "has_bo_correspondence": self._correspondence is not None,
-            "found_count": len(found),
-            "not_found_count": len(not_found),
+            "found_count": len(found_by_notion),
+            "not_found_count": len(not_found_by_notion),
             "found_notions": [
-                {"notion_id": e.get("notion_id"), "priority": e.get("priority")}
-                for e in found
+                {
+                    "notion_id": e.get("notion_id"),
+                    "priority": e.get("priority"),
+                    "chosen_url": e.get("chosen_url"),
+                    "source_label": e.get("source_label"),
+                    "candidate_urls": e.get("candidate_urls", []),
+                    "ignored_candidate_urls": e.get("ignored_candidate_urls", []),
+                    "selection_reason": e.get("selection_reason"),
+                    "fallback_used": e.get("fallback_used", False),
+                }
+                for e in found_by_notion.values()
             ],
             "not_found_notions": [
                 {"notion_id": e.get("notion_id"), "priority": e.get("priority")}
-                for e in not_found
+                for e in not_found_by_notion.values()
             ],
         }

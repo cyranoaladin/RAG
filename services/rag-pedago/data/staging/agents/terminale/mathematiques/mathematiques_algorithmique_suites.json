@@ -1,6 +1,6 @@
 {
-  "notion_id": "suites",
-  "notion_label": "Suites",
+  "notion_id": "algorithmique_suites",
+  "notion_label": "Suites et algorithmes",
   "matiere": "mathematiques",
   "niveau": "terminale",
   "voie": "generale",
@@ -8,7 +8,7 @@
   "url": "https://fr.wikipedia.org/wiki/Suite_%28math%C3%A9matiques%29",
   "chosen_url": "https://fr.wikipedia.org/wiki/Suite_%28math%C3%A9matiques%29",
   "source": "wikipedia",
-  "source_label": "wikipedia_suites",
+  "source_label": "wikipedia_algorithmique_suites",
   "rights": "CC-BY-SA 4.0",
   "audience": "tous",
   "status": "ok",

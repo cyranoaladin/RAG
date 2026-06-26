@@ -103,6 +103,14 @@ articles:
       - source: wikipedia
         title: "Équation_différentielle_linéaire"
 
+  - notion_id: algorithmique_suites
+    matiere: mathematiques
+    articles:
+      - source: wikipedia
+        title: "Suite_(mathématiques)"
+      - source: wikiversity
+        title: "Suites_et_récurrence"
+
   # === NSI TERMINALE ===
   - notion_id: listes
     matiere: nsi
@@ -121,6 +129,14 @@ articles:
     articles:
       - source: wikipedia
         title: "File_(structure_de_données)"
+
+  - notion_id: dictionnaires
+    matiere: nsi
+    articles:
+      - source: wikipedia
+        title: "Tableau_associatif"
+      - source: wikipedia
+        title: "Table_de_hachage"
 
   - notion_id: arbres
     matiere: nsi

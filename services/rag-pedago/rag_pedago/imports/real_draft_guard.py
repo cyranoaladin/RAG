@@ -5,11 +5,12 @@ import json
 import re
 from pathlib import Path
 
-from rag_pedago.paths import PRODUCTION_RAG_UI_ROOT, RAG_LOCAL_ROOT
+from rag_pedago.paths import PRODUCTION_RAG_UI_ROOT, RAG_LOCAL_ROOT, WORKSPACE_ROOT
 
 FORBIDDEN_SOURCE_ROOTS = (
     str(PRODUCTION_RAG_UI_ROOT),
     str(RAG_LOCAL_ROOT),
+    str(WORKSPACE_ROOT / "rag-local"),
 )
 SENSITIVE_SOURCE_MARKERS = (
     ".env",
