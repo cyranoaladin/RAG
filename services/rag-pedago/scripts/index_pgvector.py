@@ -116,6 +116,20 @@ def _validate_embedding(entry: dict) -> list[str]:
     return issues
 
 
+def is_admitted(
+    chunk_id: str, chunk_sha: str, manifest: dict[str, str]
+) -> tuple[bool, str]:
+    """Decide if a chunk is admitted for indexation.
+
+    Returns (admitted, reason) where reason ∈ {ok, not_in_manifest, sha_mismatch}.
+    """
+    if chunk_id not in manifest:
+        return False, "not_in_manifest"
+    if manifest[chunk_id] != chunk_sha:
+        return False, "sha_mismatch"
+    return True, "ok"
+
+
 def index_embeddings(conn: Any, manifest: dict[str, str] | None = None) -> dict[str, int]:
     texts = _preload_texts()
     entries = _load_embeddings()
@@ -128,14 +142,15 @@ def index_embeddings(conn: Any, manifest: dict[str, str] | None = None) -> dict[
             chunk_id = entry.get("chunk_id", "")
             chunk_sha = entry.get("chunk_sha256", "")
 
-            # Review gate: chunk must be in approved manifest with matching sha
+            # Review gate via is_admitted
             if manifest is not None:
-                if chunk_id not in manifest:
-                    not_in_manifest += 1
-                    continue
-                if manifest[chunk_id] != chunk_sha:
-                    print(f"  REJECT {chunk_id}: sha mismatch (manifest vs entry)")
-                    rejected += 1
+                admitted, reason = is_admitted(chunk_id, chunk_sha, manifest)
+                if not admitted:
+                    if reason == "not_in_manifest":
+                        not_in_manifest += 1
+                    else:
+                        print(f"  REJECT {chunk_id}: {reason}")
+                        rejected += 1
                     continue
 
             issues = _validate_embedding(entry)
