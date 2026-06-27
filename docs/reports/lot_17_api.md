@@ -2,7 +2,7 @@
 
 ## Objectif
 
-Exposer le retrieval pgvector derrière une API HTTP, en lecture seule, avec filtrage niveau/audience IMPOSÉ par le serveur selon le profil — pas choisi par le client.
+Exposer le retrieval pgvector derrière une API HTTP, en lecture seule, avec filtrage niveau/audience IMPOSÉ par le serveur selon un profil **cryptographiquement signé** (HMAC-SHA256) — pas choisi par le client.
 
 ## Levée de verrous
 
@@ -19,9 +19,7 @@ Baseline : 18 clés (inchangé, mêmes clés, valeurs mises à jour).
 
 ```
 === REAL CONTRACT ===
-server_start_allowed: True
-runtime_api_allowed:  True
-→ API démarre
+server_start_allowed: True → API démarre
 
 === MUTATION: server_start_allowed=false ===
 BLOCKED: server_start_allowed is false
@@ -45,14 +43,20 @@ sys.exit(1) — API refuse de démarrer
 - `top_k` : 1-20 (défaut 5)
 - **PAS de niveau/audience dans le body** — le schéma `SearchRequest` n'a que `query` et `top_k`
 
-### Profil serveur
+### Authentification du profil (Lot 17.1 — HMAC-SHA256)
 
-Le profil est résolu côté serveur via l'en-tête `X-Student-Profile` (mapped à un `StudentProfile(niveau, audience)` depuis un registre contrôlé). En production : JWT decode ou session lookup.
+Le profil est transporté dans un jeton signé HMAC-SHA256 :
 
-Le client NE PEUT PAS forger un niveau/audience arbitraire :
-- L'en-tête map vers des profils pré-définis
-- Un profil inconnu → 403
-- Le body n'accepte pas de champs niveau/audience (Pydantic les ignore)
+```
+Authorization: Bearer {"niveau":"terminale","audience":"libre"}.<hmac_hex>
+```
+
+- Le payload encode `{niveau, audience}` en JSON canonique
+- Le HMAC est calculé avec `PROFILE_SECRET` (variable d'environnement serveur, jamais commitée)
+- `resolve_profile` **recalcule** le HMAC côté serveur et **rejette (401)** si la signature ne correspond pas
+- Un client **sans le secret** ne peut pas produire une signature valide pour AUCUN profil
+
+`GET /test/token?niveau=...&audience=...` : utilitaire de test pour émettre un jeton valide (non destiné à la production).
 
 ### Sortie
 
@@ -65,36 +69,61 @@ Le client NE PEUT PAS forger un niveau/audience arbitraire :
 }
 ```
 
-## Filtrage non contournable — preuves réelles
+## Filtrage non contournable — preuves réelles (Lot 17.1)
 
-### Résultats normaux
-
-```
-terminale-libre → 3 résultats dérivation (similarity 0.890, 0.867, 0.866)
-terminale-aefe  → 3 résultats + accès contenu aefe
-premiere-libre  → 1 résultat premiere uniquement
-```
-
-### Tentatives de contournement — TOUTES ÉCHOUENT
+### PROOF 1 — Jeton valide premiere-libre
 
 ```
-BYPASS 1: Body injecte niveau=terminale, profil=premiere-libre
-→ Résultat: SEULS chunks premiere retournés. Body ignoré.
-
-BYPASS 2: Body injecte audience=aefe, profil=terminale-libre
-→ Résultat: profile_audience="libre". Body ignoré.
-
-BYPASS 3: Pas d'en-tête X-Student-Profile
-→ 422: Field required
-
-BYPASS 4: Profil fictif "admin-all-access"
-→ 403: Unknown profile
-
-BYPASS 5: premiere-libre cherche "justice philosophie" (chunks terminale)
-→ 0 chunks terminale. Seul premiere retourné.
+profile: premiere/libre
+count: 1
+  [0.861] premiere/mathematiques
+→ Accès premiere uniquement. OK.
 ```
 
-### Validation d'entrée
+### PROOF 2 — USURPATION : token premiere-libre + body revendique terminale
+
+```
+Token signé pour: premiere/libre
+Body envoie: {"niveau": "terminale", "audience": "aefe"}
+→ profile: premiere/libre (du token SIGNÉ, PAS du body)
+→ count: 1 (premiere uniquement)
+→ Le contenu suit le profil signé, pas la prétention du client.
+```
+
+### PROOF 3 — FORGERIE : token signé avec MAUVAIS secret
+
+```
+Forged token for terminale-aefe with "attacker-secret"
+→ {"detail": "invalid signature"}
+→ 401 REJETÉ. Sans le secret serveur, on ne peut pas forger de profil.
+```
+
+### PROOF 4 — ALTÉRATION : payload modifié après signature
+
+```
+Token original: terminale/libre
+Tampered: libre→aefe dans le payload, signature inchangée
+→ {"detail": "invalid signature"}
+→ 401 REJETÉ. La modification du payload invalide le HMAC.
+```
+
+### PROOF 5 — Pas de token
+
+```
+→ 422: Field required (Authorization header)
+```
+
+### PROOF 6 — Token valide terminale-libre
+
+```
+profile: terminale/libre
+count: 3
+  [0.8897] terminale/mathematiques (dérivation)
+  [0.8668] terminale/mathematiques (dérivation)
+→ Accès normal avec profil vérifié.
+```
+
+### Validation d'entrée (acquis Lot 17)
 
 ```
 Requête vide → 422: String should have at least 1 character
@@ -107,14 +136,16 @@ DELETE      → 405: Method Not Allowed
 
 Routes exposées :
 - `GET /health`
+- `GET /test/token` (utilitaire de test)
 - `POST /search`
 
-Pas de PUT, DELETE, PATCH. Pas d'ingestion. `ingestion_allowed` reste géré côté script gouverné (`index_pgvector.py`).
+Pas de PUT, DELETE, PATCH. Pas d'ingestion via l'API.
 
-## Tests (17 tests unitaires)
+## Tests (25 tests unitaires)
 
 - 5 tests gating (server_start false/true, runtime_api false/true, missing, malformed)
-- 3 tests profil (résolution, inconnu → 403, frozen)
+- 7 tests HMAC (roundtrip, forgerie wrong secret, payload tampered, malformed, invalid niveau, invalid audience, frozen)
+- 4 tests resolve_profile (bearer valide, prefix manquant, token forgé → 401, secret absent → 500)
 - 4 tests validation (vide, oversized, top_k bounds)
 - 2 tests injection body (extra fields ignorés, schéma strict)
 - 1 test read-only (aucune route d'écriture)

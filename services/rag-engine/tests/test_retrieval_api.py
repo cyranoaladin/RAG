@@ -1,15 +1,18 @@
-"""Tests for retrieval_api — governance gating + non-contournable filtering.
+"""Tests for retrieval_api — governance gating + HMAC-signed profile + filtering.
 
 Tests the API contract:
 - Governance: server refuses to start if locks are false
-- Profile resolution: server-side only, not from client body
-- Filtering: niveau/audience IMPOSED by profile, bypass attempts fail
+- Profile: HMAC-signed, server-verified, forgery rejected
+- Filtering: niveau/audience IMPOSED by signed profile, bypass impossible
 - Read-only: no write routes exist
 - Validation: empty query, oversized query, top_k bounds
 """
 from __future__ import annotations
 
+import hashlib
+import hmac
 import importlib.util
+import json
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -17,6 +20,7 @@ from unittest.mock import MagicMock
 import pytest
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "retrieval_api.py"
+TEST_SECRET = "test-secret-for-unit-tests"
 
 
 def _load_module():
@@ -77,30 +81,104 @@ class TestGovernanceGating:
 
 
 # ---------------------------------------------------------------------------
-# Profile resolution — server-side
+# HMAC signing + verification
 # ---------------------------------------------------------------------------
 
 
-class TestProfileResolution:
-    def test_known_profile_resolves(self) -> None:
+class TestHmacSigning:
+    def test_sign_and_verify_roundtrip(self) -> None:
         mod = _load_module()
-        profile = mod.resolve_profile("terminale-libre")
+        token = mod.sign_profile("terminale", "libre", TEST_SECRET)
+        profile = mod.verify_profile(token, TEST_SECRET)
         assert profile.niveau == "terminale"
         assert profile.audience == "libre"
 
-    def test_unknown_profile_raises_403(self) -> None:
+    def test_forgery_wrong_secret_rejected(self) -> None:
+        """A token signed with a different secret is REJECTED."""
         mod = _load_module()
-        from fastapi import HTTPException
+        token = mod.sign_profile("terminale", "aefe", "attacker-secret")
+        with pytest.raises(ValueError, match="invalid signature"):
+            mod.verify_profile(token, TEST_SECRET)
 
-        with pytest.raises(HTTPException) as exc_info:
-            mod.resolve_profile("hacker-all-access")
-        assert exc_info.value.status_code == 403
+    def test_tampered_payload_rejected(self) -> None:
+        """Modifying the payload after signing invalidates the HMAC."""
+        mod = _load_module()
+        token = mod.sign_profile("premiere", "libre", TEST_SECRET)
+        payload, sig = token.rsplit(".", 1)
+        # Tamper: change premiere → terminale in payload
+        tampered_payload = payload.replace("premiere", "terminale")
+        tampered_token = f"{tampered_payload}.{sig}"
+        with pytest.raises(ValueError, match="invalid signature"):
+            mod.verify_profile(tampered_token, TEST_SECRET)
+
+    def test_malformed_token_rejected(self) -> None:
+        mod = _load_module()
+        with pytest.raises(ValueError, match="malformed token"):
+            mod.verify_profile("no-dot-separator", TEST_SECRET)
+
+    def test_invalid_niveau_rejected(self) -> None:
+        mod = _load_module()
+        payload = json.dumps({"niveau": "doctorat", "audience": "libre"}, separators=(",", ":"))
+        sig = hmac.new(TEST_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
+        with pytest.raises(ValueError, match="invalid niveau"):
+            mod.verify_profile(f"{payload}.{sig}", TEST_SECRET)
+
+    def test_invalid_audience_rejected(self) -> None:
+        mod = _load_module()
+        payload = json.dumps({"niveau": "terminale", "audience": "vip"}, separators=(",", ":"))
+        sig = hmac.new(TEST_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
+        with pytest.raises(ValueError, match="invalid audience"):
+            mod.verify_profile(f"{payload}.{sig}", TEST_SECRET)
 
     def test_profile_is_frozen(self) -> None:
         mod = _load_module()
-        profile = mod.resolve_profile("terminale-aefe")
+        token = mod.sign_profile("terminale", "aefe", TEST_SECRET)
+        profile = mod.verify_profile(token, TEST_SECRET)
         with pytest.raises(AttributeError):
             profile.niveau = "premiere"  # type: ignore[misc]
+
+
+# ---------------------------------------------------------------------------
+# resolve_profile — header-level verification
+# ---------------------------------------------------------------------------
+
+
+class TestResolveProfile:
+    def test_valid_bearer_resolves(self, monkeypatch) -> None:
+        mod = _load_module()
+        monkeypatch.setattr(mod, "PROFILE_SECRET", TEST_SECRET)
+        token = mod.sign_profile("terminale", "libre", TEST_SECRET)
+        profile = mod.resolve_profile(f"Bearer {token}")
+        assert profile.niveau == "terminale"
+        assert profile.audience == "libre"
+
+    def test_missing_bearer_prefix_rejected(self, monkeypatch) -> None:
+        mod = _load_module()
+        monkeypatch.setattr(mod, "PROFILE_SECRET", TEST_SECRET)
+        from fastapi import HTTPException
+
+        with pytest.raises(HTTPException) as exc_info:
+            mod.resolve_profile("just-a-token")
+        assert exc_info.value.status_code == 401
+
+    def test_forged_token_rejected(self, monkeypatch) -> None:
+        mod = _load_module()
+        monkeypatch.setattr(mod, "PROFILE_SECRET", TEST_SECRET)
+        forged = mod.sign_profile("terminale", "aefe", "wrong-secret")
+        from fastapi import HTTPException
+
+        with pytest.raises(HTTPException) as exc_info:
+            mod.resolve_profile(f"Bearer {forged}")
+        assert exc_info.value.status_code == 401
+
+    def test_no_secret_configured_rejects(self, monkeypatch) -> None:
+        mod = _load_module()
+        monkeypatch.setattr(mod, "PROFILE_SECRET", "")
+        from fastapi import HTTPException
+
+        with pytest.raises(HTTPException) as exc_info:
+            mod.resolve_profile("Bearer anything")
+        assert exc_info.value.status_code == 500
 
 
 # ---------------------------------------------------------------------------
@@ -145,12 +223,7 @@ class TestBodyInjection:
     def test_schema_ignores_extra_fields(self) -> None:
         """Client sends niveau/audience in body → silently ignored."""
         mod = _load_module()
-        # Pydantic model_config doesn't include extra fields by default
-        req = mod.SearchRequest(
-            query="test",
-            top_k=5,
-            # These extra fields are NOT in the schema
-        )
+        req = mod.SearchRequest(query="test", top_k=5)
         assert not hasattr(req, "niveau")
         assert not hasattr(req, "audience")
 
@@ -185,19 +258,13 @@ class TestReadOnly:
 
 
 # ---------------------------------------------------------------------------
-# _search_pgvector — filters are MANDATORY (not optional like index_pgvector)
+# _search_pgvector — filters are MANDATORY
 # ---------------------------------------------------------------------------
 
 
 class TestSearchFiltering:
     def test_search_always_filters_by_niveau_and_audience(self) -> None:
-        """The API search function ALWAYS applies niveau+audience filters.
-
-        Unlike index_pgvector.search() where filters are optional,
-        _search_pgvector() requires them — they come from the profile.
-        """
         mod = _load_module()
-        # Mock connection to verify the SQL query includes WHERE clause
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_conn.cursor.return_value.__enter__ = MagicMock(
@@ -212,7 +279,6 @@ class TestSearchFiltering:
             niveau="terminale", audience="libre", top_k=5,
         )
 
-        # Verify the SQL was called with niveau + audience in params
         call_args = mock_cursor.execute.call_args
         sql = call_args[0][0]
         params = call_args[0][1]

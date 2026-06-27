@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 """Retrieval API — read-only search over pgvector (ADR-0011).
 
-Filtrage niveau/audience IMPOSÉ par le serveur selon le profil résolu.
+Filtrage niveau/audience IMPOSÉ par le serveur selon le profil SIGNÉ (HMAC).
 Le client fournit uniquement la requête textuelle. Aucune route d'écriture.
+Le profil est transporté via un jeton signé HMAC-SHA256 avec un secret serveur.
 
 Gated by server_start_allowed AND runtime_api_allowed (rag-pedago contract).
 """
 from __future__ import annotations
 
+import hashlib
+import hmac
+import json
 import logging
 import os
 import sys
@@ -58,38 +62,74 @@ def check_runtime_allowed(contract_path: Path | None = None) -> dict[str, bool]:
 
 
 # ---------------------------------------------------------------------------
-# Profile resolution — server-side, NOT from client body
+# Profile resolution — HMAC-signed, server-verified
 # ---------------------------------------------------------------------------
+
+PROFILE_SECRET = os.environ.get("PROFILE_SECRET", "")
+VALID_NIVEAUX = {"terminale", "premiere", "seconde", "troisieme"}
+VALID_AUDIENCES = {"libre", "aefe", "tous"}
+
 
 @dataclass(frozen=True)
 class StudentProfile:
-    """Server-resolved profile. Determines filtering — never from client."""
+    """Server-verified profile. Determines filtering — cryptographically bound."""
     niveau: str
     audience: str
 
 
-# Profile registry: maps token/header → profile.
-# In production, this would query a user database or decode a JWT.
-# For this lot: header-based resolution with known profiles.
-PROFILE_REGISTRY: dict[str, StudentProfile] = {
-    "terminale-libre": StudentProfile(niveau="terminale", audience="libre"),
-    "terminale-aefe": StudentProfile(niveau="terminale", audience="aefe"),
-    "premiere-libre": StudentProfile(niveau="premiere", audience="libre"),
-    "premiere-aefe": StudentProfile(niveau="premiere", audience="aefe"),
-}
+def sign_profile(niveau: str, audience: str, secret: str) -> str:
+    """Create a signed profile token: base64(payload).hmac_hex.
 
-
-def resolve_profile(x_student_profile: str = Header(...)) -> StudentProfile:
-    """Resolve profile from server-controlled header.
-
-    In production: JWT decode or session lookup.
-    For this lot: X-Student-Profile header maps to known profiles.
-    The client cannot forge arbitrary niveau/audience.
+    The payload is a JSON object {"niveau": ..., "audience": ...}.
+    The HMAC is computed over the raw payload bytes with the server secret.
     """
-    profile = PROFILE_REGISTRY.get(x_student_profile)
-    if profile is None:
-        raise HTTPException(status_code=403, detail="Unknown profile")
-    return profile
+    payload = json.dumps({"niveau": niveau, "audience": audience}, separators=(",", ":"))
+    sig = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
+    return f"{payload}.{sig}"
+
+
+def verify_profile(token: str, secret: str) -> StudentProfile:
+    """Verify a signed profile token and return the profile.
+
+    Raises ValueError if the signature is invalid or payload is malformed.
+    """
+    parts = token.rsplit(".", 1)
+    if len(parts) != 2:
+        raise ValueError("malformed token")
+    payload_str, provided_sig = parts
+    expected_sig = hmac.new(secret.encode(), payload_str.encode(), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(provided_sig, expected_sig):
+        raise ValueError("invalid signature")
+    try:
+        data = json.loads(payload_str)
+    except json.JSONDecodeError as exc:
+        raise ValueError("malformed payload") from exc
+    niveau = data.get("niveau", "")
+    audience = data.get("audience", "")
+    if niveau not in VALID_NIVEAUX:
+        raise ValueError(f"invalid niveau: {niveau}")
+    if audience not in VALID_AUDIENCES:
+        raise ValueError(f"invalid audience: {audience}")
+    return StudentProfile(niveau=niveau, audience=audience)
+
+
+def resolve_profile(authorization: str = Header(...)) -> StudentProfile:
+    """Resolve profile from HMAC-signed Authorization header.
+
+    Format: Authorization: Bearer <payload>.<hmac>
+    The server recalculates the HMAC with PROFILE_SECRET and rejects if
+    the signature doesn't match. A client without the secret cannot forge
+    a valid token for any profile.
+    """
+    if not PROFILE_SECRET:
+        raise HTTPException(status_code=500, detail="PROFILE_SECRET not configured")
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Expected Bearer token")
+    token = authorization[7:]
+    try:
+        return verify_profile(token, PROFILE_SECRET)
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
 
 
 # ---------------------------------------------------------------------------
@@ -215,6 +255,19 @@ app = FastAPI(
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/test/token")
+def test_token(niveau: str, audience: str):
+    """Generate a signed token for testing. NOT for production use."""
+    if not PROFILE_SECRET:
+        raise HTTPException(status_code=500, detail="PROFILE_SECRET not configured")
+    if niveau not in VALID_NIVEAUX:
+        raise HTTPException(status_code=400, detail=f"invalid niveau: {niveau}")
+    if audience not in VALID_AUDIENCES:
+        raise HTTPException(status_code=400, detail=f"invalid audience: {audience}")
+    token = sign_profile(niveau, audience, PROFILE_SECRET)
+    return {"token": token, "usage": f"Authorization: Bearer {token}"}
 
 
 _resolve_profile_dep = Depends(resolve_profile)
