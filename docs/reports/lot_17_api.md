@@ -207,12 +207,23 @@ Altération (payload b64url modifié) → invalid signature (rejeté)
 
 `rag_chunks_pilote` est **provisionnée par `init.sql`** (CREATE TABLE IF NOT EXISTS + index HNSW) pour cohérence avec la table historique. L'index_pgvector.py continue de créer la table si absente (double filet).
 
-CLI `issue_profile_token.py` autonome (pas d'import de `retrieval_api` — évite la dépendance psycopg pour l'émission de tokens).
+CLI `issue_profile_token.py` autonome (importe `nexus_contracts.profile_auth`, pas `retrieval_api` — pas de dépendance psycopg).
 
-## Tests (30 tests unitaires)
+### Lot 17.4 — Signature en source unique
+
+`sign_profile`, `verify_profile`, `StudentProfile`, `VALID_NIVEAUX`, `VALID_AUDIENCES`, `TOKEN_RE` extraits dans `packages/contracts/src/nexus_contracts/profile_auth.py` (module pur, pas de psycopg/fastapi).
+
+- `retrieval_api.py` importe depuis `nexus_contracts.profile_auth` (plus de définition locale)
+- `issue_profile_token.py` importe depuis `nexus_contracts.profile_auth` (plus de réimplémentation)
+- `grep -rn "def sign_profile"` → 1 seule définition (`profile_auth.py`)
+- `except` resserré : `(json.JSONDecodeError, binascii.Error, UnicodeDecodeError)` au lieu de `Exception`
+- Test `TestSourceUnique` prouve qu'un jeton émis par le CLI est accepté par l'API (même `sign_profile`/`verify_profile`)
+
+## Tests (32 tests unitaires)
 
 - 5 tests gating (server_start false/true, runtime_api false/true, missing, malformed)
 - 8 tests HMAC (roundtrip, header-safe, forgerie, tampering, malformed, raw JSON rejeté, invalid niveau/audience, frozen)
+- 2 tests source unique (CLI↔API roundtrip, resolve_profile délègue à verify_profile partagé)
 - 4 tests resolve_profile (bearer valide, prefix manquant, token forgé → 401, secret absent → 500)
 - 4 tests validation (vide, oversized, top_k bounds)
 - 2 tests injection body (extra fields ignorés, schéma strict)

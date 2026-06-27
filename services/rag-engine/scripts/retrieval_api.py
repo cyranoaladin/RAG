@@ -9,16 +9,10 @@ Gated by server_start_allowed AND runtime_api_allowed (rag-pedago contract).
 """
 from __future__ import annotations
 
-import base64
-import hashlib
-import hmac
-import json
 import logging
 import os
-import re
 import sys
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +20,10 @@ import psycopg
 import psycopg.errors
 import yaml
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from nexus_contracts.profile_auth import (
+    StudentProfile,
+    verify_profile,
+)
 from pydantic import BaseModel, Field
 
 # ---------------------------------------------------------------------------
@@ -66,77 +64,10 @@ def check_runtime_allowed(contract_path: Path | None = None) -> dict[str, bool]:
 
 # ---------------------------------------------------------------------------
 # Profile resolution — HMAC-signed, server-verified
+# Source unique: nexus_contracts.profile_auth (sign_profile, verify_profile)
 # ---------------------------------------------------------------------------
 
 PROFILE_SECRET = os.environ.get("PROFILE_SECRET", "")
-VALID_NIVEAUX = {"terminale", "premiere", "seconde", "troisieme"}
-VALID_AUDIENCES = {"libre", "aefe", "tous"}
-
-
-@dataclass(frozen=True)
-class StudentProfile:
-    """Server-verified profile. Determines filtering — cryptographically bound."""
-    niveau: str
-    audience: str
-
-
-def _b64url_encode(data: bytes) -> str:
-    """Base64url encode without padding (RFC 7515)."""
-    return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
-
-
-def _b64url_decode(s: str) -> bytes:
-    """Base64url decode with padding restoration."""
-    s += "=" * (4 - len(s) % 4)
-    return base64.urlsafe_b64decode(s)
-
-
-# Token characters: [A-Za-z0-9_-] for base64url + hex + the dot separator.
-_TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]+\.[0-9a-f]{64}$")
-
-
-def sign_profile(niveau: str, audience: str, secret: str) -> str:
-    """Create a signed profile token: b64url(payload_json).hmac_hex.
-
-    The payload is a canonical JSON {"niveau":...,"audience":...} encoded as
-    base64url (no padding). The HMAC-SHA256 is computed over the encoded
-    payload string. The resulting token contains only header-safe characters.
-    """
-    payload_json = json.dumps(
-        {"niveau": niveau, "audience": audience}, separators=(",", ":")
-    )
-    encoded = _b64url_encode(payload_json.encode())
-    sig = hmac.new(secret.encode(), encoded.encode(), hashlib.sha256).hexdigest()
-    return f"{encoded}.{sig}"
-
-
-def verify_profile(token: str, secret: str) -> StudentProfile:
-    """Verify a signed profile token and return the profile.
-
-    Token format: b64url(payload_json).hmac_hex
-    HMAC is recomputed over the b64url-encoded payload and compared in
-    constant time. Raises ValueError on any mismatch or malformation.
-    """
-    if not _TOKEN_RE.fullmatch(token):
-        raise ValueError("malformed token")
-    encoded_payload, provided_sig = token.rsplit(".", 1)
-    expected_sig = hmac.new(
-        secret.encode(), encoded_payload.encode(), hashlib.sha256
-    ).hexdigest()
-    if not hmac.compare_digest(provided_sig, expected_sig):
-        raise ValueError("invalid signature")
-    try:
-        payload_bytes = _b64url_decode(encoded_payload)
-        data = json.loads(payload_bytes)
-    except (json.JSONDecodeError, Exception) as exc:
-        raise ValueError("malformed payload") from exc
-    niveau = data.get("niveau", "")
-    audience = data.get("audience", "")
-    if niveau not in VALID_NIVEAUX:
-        raise ValueError(f"invalid niveau: {niveau}")
-    if audience not in VALID_AUDIENCES:
-        raise ValueError(f"invalid audience: {audience}")
-    return StudentProfile(niveau=niveau, audience=audience)
 
 
 def resolve_profile(authorization: str = Header(...)) -> StudentProfile:

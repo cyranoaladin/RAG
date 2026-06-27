@@ -2,32 +2,17 @@
 """CLI tool to issue HMAC-signed profile tokens (base64url format).
 
 Reads PROFILE_SECRET from environment. Never exposed via HTTP.
-Self-contained: does not import retrieval_api (avoids psycopg dependency).
+Imports from nexus_contracts.profile_auth (source unique, no psycopg).
 
 Usage:
     PROFILE_SECRET=... python scripts/issue_profile_token.py terminale libre
 """
 from __future__ import annotations
 
-import base64
-import hashlib
-import hmac
-import json
 import os
 import sys
 
-VALID_NIVEAUX = {"terminale", "premiere", "seconde", "troisieme"}
-VALID_AUDIENCES = {"libre", "aefe", "tous"}
-
-
-def sign_profile(niveau: str, audience: str, secret: str) -> str:
-    """Create a signed token: b64url(payload_json).hmac_hex."""
-    payload_json = json.dumps(
-        {"niveau": niveau, "audience": audience}, separators=(",", ":")
-    )
-    encoded = base64.urlsafe_b64encode(payload_json.encode()).rstrip(b"=").decode("ascii")
-    sig = hmac.new(secret.encode(), encoded.encode(), hashlib.sha256).hexdigest()
-    return f"{encoded}.{sig}"
+from nexus_contracts.profile_auth import VALID_AUDIENCES, VALID_NIVEAUX, sign_profile
 
 
 def main() -> int:

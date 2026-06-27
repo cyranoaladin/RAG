@@ -7,10 +7,10 @@ Tests the API contract:
 - Read-only: no write routes exist
 - Validation: empty query, oversized query, top_k bounds
 - Robustness: missing table → 503
+- Source unique: sign/verify from nexus_contracts.profile_auth
 """
 from __future__ import annotations
 
-import base64
 import hashlib
 import hmac
 import importlib.util
@@ -21,6 +21,12 @@ from unittest.mock import MagicMock
 
 import psycopg.errors
 import pytest
+from nexus_contracts.profile_auth import (
+    TOKEN_RE,
+    _b64url_encode,
+    sign_profile,
+    verify_profile,
+)
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "retrieval_api.py"
 TEST_SECRET = "test-secret-for-unit-tests"
@@ -37,7 +43,7 @@ def _load_module():
 
 def _b64url(data: str) -> str:
     """Helper: base64url-encode a string without padding."""
-    return base64.urlsafe_b64encode(data.encode()).rstrip(b"=").decode("ascii")
+    return _b64url_encode(data.encode())
 
 
 # ---------------------------------------------------------------------------
@@ -88,84 +94,98 @@ class TestGovernanceGating:
 
 
 # ---------------------------------------------------------------------------
-# HMAC signing + verification (base64url format)
+# HMAC signing + verification (base64url, source unique profile_auth)
 # ---------------------------------------------------------------------------
 
 
 class TestHmacSigning:
     def test_sign_and_verify_roundtrip(self) -> None:
-        mod = _load_module()
-        token = mod.sign_profile("terminale", "libre", TEST_SECRET)
-        profile = mod.verify_profile(token, TEST_SECRET)
+        token = sign_profile("terminale", "libre", TEST_SECRET)
+        profile = verify_profile(token, TEST_SECRET)
         assert profile.niveau == "terminale"
         assert profile.audience == "libre"
 
     def test_token_is_header_safe(self) -> None:
         """Token contains only [A-Za-z0-9_-] and one dot separator."""
-        mod = _load_module()
-        token = mod.sign_profile("terminale", "aefe", TEST_SECRET)
-        assert mod._TOKEN_RE.fullmatch(token), f"Token not header-safe: {token}"
-        # No braces, quotes, colons
+        token = sign_profile("terminale", "aefe", TEST_SECRET)
+        assert TOKEN_RE.fullmatch(token), f"Token not header-safe: {token}"
         assert "{" not in token
         assert "}" not in token
         assert '"' not in token
         assert ":" not in token
 
     def test_forgery_wrong_secret_rejected(self) -> None:
-        mod = _load_module()
-        token = mod.sign_profile("terminale", "aefe", "attacker-secret")
+        token = sign_profile("terminale", "aefe", "attacker-secret")
         with pytest.raises(ValueError, match="invalid signature"):
-            mod.verify_profile(token, TEST_SECRET)
+            verify_profile(token, TEST_SECRET)
 
     def test_tampered_payload_rejected(self) -> None:
         """Modifying the base64url payload after signing invalidates the HMAC."""
-        mod = _load_module()
-        token = mod.sign_profile("premiere", "libre", TEST_SECRET)
+        token = sign_profile("premiere", "libre", TEST_SECRET)
         encoded_payload, sig = token.rsplit(".", 1)
-        # Tamper: re-encode a different payload
         tampered_encoded = _b64url(
             json.dumps({"niveau": "terminale", "audience": "libre"}, separators=(",", ":"))
         )
         tampered_token = f"{tampered_encoded}.{sig}"
         with pytest.raises(ValueError, match="invalid signature"):
-            mod.verify_profile(tampered_token, TEST_SECRET)
+            verify_profile(tampered_token, TEST_SECRET)
 
     def test_malformed_token_rejected(self) -> None:
-        mod = _load_module()
         with pytest.raises(ValueError, match="malformed token"):
-            mod.verify_profile("no-dot-separator", TEST_SECRET)
+            verify_profile("no-dot-separator", TEST_SECRET)
 
     def test_raw_json_token_rejected(self) -> None:
         """Old-format raw JSON tokens are rejected (not base64url)."""
-        mod = _load_module()
         raw = '{"niveau":"terminale","audience":"libre"}'
         sig = hmac.new(TEST_SECRET.encode(), raw.encode(), hashlib.sha256).hexdigest()
-        # Braces/quotes/colons fail the regex
         with pytest.raises(ValueError, match="malformed token"):
-            mod.verify_profile(f"{raw}.{sig}", TEST_SECRET)
+            verify_profile(f"{raw}.{sig}", TEST_SECRET)
 
     def test_invalid_niveau_rejected(self) -> None:
-        mod = _load_module()
         payload_json = json.dumps({"niveau": "doctorat", "audience": "libre"}, separators=(",", ":"))
         encoded = _b64url(payload_json)
         sig = hmac.new(TEST_SECRET.encode(), encoded.encode(), hashlib.sha256).hexdigest()
         with pytest.raises(ValueError, match="invalid niveau"):
-            mod.verify_profile(f"{encoded}.{sig}", TEST_SECRET)
+            verify_profile(f"{encoded}.{sig}", TEST_SECRET)
 
     def test_invalid_audience_rejected(self) -> None:
-        mod = _load_module()
         payload_json = json.dumps({"niveau": "terminale", "audience": "vip"}, separators=(",", ":"))
         encoded = _b64url(payload_json)
         sig = hmac.new(TEST_SECRET.encode(), encoded.encode(), hashlib.sha256).hexdigest()
         with pytest.raises(ValueError, match="invalid audience"):
-            mod.verify_profile(f"{encoded}.{sig}", TEST_SECRET)
+            verify_profile(f"{encoded}.{sig}", TEST_SECRET)
 
     def test_profile_is_frozen(self) -> None:
-        mod = _load_module()
-        token = mod.sign_profile("terminale", "aefe", TEST_SECRET)
-        profile = mod.verify_profile(token, TEST_SECRET)
+        token = sign_profile("terminale", "aefe", TEST_SECRET)
+        profile = verify_profile(token, TEST_SECRET)
         with pytest.raises(AttributeError):
             profile.niveau = "premiere"  # type: ignore[misc]
+
+
+# ---------------------------------------------------------------------------
+# Source unique: CLI and API share the same sign/verify implementation
+# ---------------------------------------------------------------------------
+
+
+class TestSourceUnique:
+    def test_cli_token_accepted_by_api_verify(self) -> None:
+        """A token emitted by the CLI (sign_profile) is accepted by the API
+        (verify_profile) — guaranteed by construction since both import from
+        nexus_contracts.profile_auth."""
+        token = sign_profile("premiere", "aefe", TEST_SECRET)
+        profile = verify_profile(token, TEST_SECRET)
+        assert profile.niveau == "premiere"
+        assert profile.audience == "aefe"
+
+    def test_api_resolve_uses_shared_verify(self, monkeypatch) -> None:
+        """resolve_profile in retrieval_api delegates to verify_profile
+        from profile_auth — same function the CLI uses for signing."""
+        mod = _load_module()
+        monkeypatch.setattr(mod, "PROFILE_SECRET", TEST_SECRET)
+        token = sign_profile("terminale", "libre", TEST_SECRET)
+        profile = mod.resolve_profile(f"Bearer {token}")
+        assert profile.niveau == "terminale"
+        assert profile.audience == "libre"
 
 
 # ---------------------------------------------------------------------------
@@ -177,7 +197,7 @@ class TestResolveProfile:
     def test_valid_bearer_resolves(self, monkeypatch) -> None:
         mod = _load_module()
         monkeypatch.setattr(mod, "PROFILE_SECRET", TEST_SECRET)
-        token = mod.sign_profile("terminale", "libre", TEST_SECRET)
+        token = sign_profile("terminale", "libre", TEST_SECRET)
         profile = mod.resolve_profile(f"Bearer {token}")
         assert profile.niveau == "terminale"
         assert profile.audience == "libre"
@@ -194,7 +214,7 @@ class TestResolveProfile:
     def test_forged_token_rejected(self, monkeypatch) -> None:
         mod = _load_module()
         monkeypatch.setattr(mod, "PROFILE_SECRET", TEST_SECRET)
-        forged = mod.sign_profile("terminale", "aefe", "wrong-secret")
+        forged = sign_profile("terminale", "aefe", "wrong-secret")
         from fastapi import HTTPException
 
         with pytest.raises(HTTPException) as exc_info:
@@ -310,16 +330,11 @@ class TestSearchFiltering:
         mod = _load_module()
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
-        mock_conn.cursor.return_value.__enter__ = MagicMock(
-            return_value=mock_cursor
-        )
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
         mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
         mock_cursor.fetchall.return_value = []
 
-        mod._search_pgvector(
-            mock_conn, [0.1] * 1024,
-            niveau="terminale", audience="libre", top_k=5,
-        )
+        mod._search_pgvector(mock_conn, [0.1] * 1024, niveau="terminale", audience="libre", top_k=5)
 
         sql = mock_cursor.execute.call_args[0][0]
         params = mock_cursor.execute.call_args[0][1]
@@ -331,16 +346,11 @@ class TestSearchFiltering:
         mod = _load_module()
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
-        mock_conn.cursor.return_value.__enter__ = MagicMock(
-            return_value=mock_cursor
-        )
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
         mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
         mock_cursor.fetchall.return_value = []
 
-        mod._search_pgvector(
-            mock_conn, [0.1] * 1024,
-            niveau="terminale", audience="libre", top_k=5,
-        )
+        mod._search_pgvector(mock_conn, [0.1] * 1024, niveau="terminale", audience="libre", top_k=5)
         sql = mock_cursor.execute.call_args[0][0]
         assert "rag_chunks_pilote" in sql
         assert "FROM rag_chunks " not in sql.replace("rag_chunks_pilote", "")
@@ -352,18 +362,13 @@ class TestSearchFiltering:
 
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
-        mock_conn.cursor.return_value.__enter__ = MagicMock(
-            return_value=mock_cursor
-        )
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
         mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
         mock_cursor.execute.side_effect = psycopg.errors.UndefinedTable(
             "relation \"rag_chunks_pilote\" does not exist"
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            mod._search_pgvector(
-                mock_conn, [0.1] * 1024,
-                niveau="terminale", audience="libre", top_k=5,
-            )
+            mod._search_pgvector(mock_conn, [0.1] * 1024, niveau="terminale", audience="libre", top_k=5)
         assert exc_info.value.status_code == 503
         assert "not ready" in exc_info.value.detail
