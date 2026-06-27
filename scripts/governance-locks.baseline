@@ -4,6 +4,7 @@ answer_without_source_allowed: false
 answer_without_source_allowed: false
 answer_without_source_allowed: false
 chunking_allowed: true  # ADR-0006
+curated_ingestion_allowed: false
 data_staging_allowed: true  # ADR-0004
 embeddings_allowed: true  # ADR-0007
 ingestion_allowed: true  # ADR-0008

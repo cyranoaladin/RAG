@@ -16,6 +16,7 @@ qdrant_allowed: false
 network_allowed: true  # ADR-0004 — scoped fetch (GET-only, whitelist, robots.txt, rate limit)
 answer_generation_allowed: false
 data_staging_allowed: true  # ADR-0004 — candidate content deposit before review, not corpus
+curated_ingestion_allowed: false
 
 allowed_personas:
   - eleve

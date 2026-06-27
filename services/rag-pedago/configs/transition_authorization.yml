@@ -21,6 +21,7 @@ network_allowed: true  # ADR-0004 — scoped to scrapers/fetch.py (GET-only, whi
 server_start_allowed: false
 runtime_api_allowed: false
 data_staging_allowed: true  # ADR-0004 — candidate content staging before human review
+curated_ingestion_allowed: false
 
 required_authorization_fields:
   - authorization_case_id

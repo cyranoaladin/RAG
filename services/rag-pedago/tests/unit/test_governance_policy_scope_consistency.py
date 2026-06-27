@@ -23,6 +23,7 @@ RUNTIME_AND_INGESTION_FLAGS = {
     "qdrant_allowed",
     "server_start_allowed",
     "runtime_api_allowed",
+    "curated_ingestion_allowed",
 }
 
 
