@@ -1,20 +1,29 @@
-# Registre exhaustif des programmes officiels — inventaire de vérité
+# Registre exhaustif des programmes officiels du secondaire général français
 # Énumère TOUS les programmes attendus (niveaux × types × matières)
-# statut_recuperation: pdf_fetched | a_verifier | manuel
-# statut_taxonomie: revise | premier_jet
-# Un programme listé sans notion sourcée = 0% remplissage (visible, pas masqué)
+# ~75 entrées : Terminale, Première, Seconde (voie générale) + Troisième (collège)
+#
+# statut_recuperation : pdf_fetched | recuperable | a_verifier | manuel
+# statut_taxonomie   : premier_jet | non_demarre
+#   (jamais "revise" — seule une relecture experte peut valider ce statut)
+#
+# Un programme listé sans notion sourcée = 0 % remplissage (visible, pas masqué)
 
 programmes:
-  # === TERMINALE GÉNÉRALE ===
 
-  # Tronc commun
+  # ╔══════════════════════════════════════════════════════════════════╗
+  # ║                    TERMINALE GÉNÉRALE                          ║
+  # ╚══════════════════════════════════════════════════════════════════╝
+
+  # --- Tronc commun Terminale (7 matières) ---
+
   - matiere: philosophie
     niveau: terminale
     voie: generale
     type: tronc_commun
     boen_reference: "BOEN spécial n°8 du 25 juillet 2019"
-    statut_recuperation: a_verifier
-    statut_taxonomie: revise
+    url_pdf: "https://cache.media.education.gouv.fr/file/SPE8_MENJ_25_7_2019/84/5/spe245_annexe_1158845.pdf"
+    statut_recuperation: recuperable
+    statut_taxonomie: premier_jet
 
   - matiere: histoire_geo
     niveau: terminale
@@ -24,15 +33,7 @@ programmes:
     statut_recuperation: a_verifier
     statut_taxonomie: premier_jet
 
-  - matiere: langues_vivantes
-    niveau: terminale
-    voie: generale
-    type: tronc_commun
-    boen_reference: "BOEN spécial n°1 du 22 janvier 2019"
-    statut_recuperation: a_verifier
-    statut_taxonomie: premier_jet
-
-  - matiere: enseignement_scientifique
+  - matiere: lva
     niveau: terminale
     voie: generale
     type: tronc_commun
@@ -40,7 +41,15 @@ programmes:
     statut_recuperation: a_verifier
     statut_taxonomie: premier_jet
 
-  - matiere: emc
+  - matiere: lvb
+    niveau: terminale
+    voie: generale
+    type: tronc_commun
+    boen_reference: "BOEN spécial n°8 du 25 juillet 2019"
+    statut_recuperation: a_verifier
+    statut_taxonomie: premier_jet
+
+  - matiere: enseignement_scientifique
     niveau: terminale
     voie: generale
     type: tronc_commun
@@ -56,22 +65,33 @@ programmes:
     statut_recuperation: a_verifier
     statut_taxonomie: premier_jet
 
-  # Spécialités Terminale
+  - matiere: emc
+    niveau: terminale
+    voie: generale
+    type: tronc_commun
+    boen_reference: "BOEN spécial n°8 du 25 juillet 2019"
+    statut_recuperation: a_verifier
+    statut_taxonomie: premier_jet
+
+  # --- Spécialités Terminale (13 matières) ---
+
   - matiere: mathematiques
     niveau: terminale
     voie: generale
     type: specialite
     boen_reference: "BOEN spécial n°8 du 25 juillet 2019"
-    statut_recuperation: a_verifier
-    statut_taxonomie: revise
+    url_pdf: "https://cache.media.education.gouv.fr/file/SPE8_MENJ_25_7_2019/90/7/spe247_annexe_1158907.pdf"
+    statut_recuperation: recuperable
+    statut_taxonomie: premier_jet
 
   - matiere: nsi
     niveau: terminale
     voie: generale
     type: specialite
     boen_reference: "BOEN spécial n°8 du 25 juillet 2019"
-    statut_recuperation: a_verifier
-    statut_taxonomie: revise
+    url_pdf: "https://cache.media.education.gouv.fr/file/SPE8_MENJ_25_7_2019/93/5/spe248_annexe_1158935.pdf"
+    statut_recuperation: recuperable
+    statut_taxonomie: premier_jet
 
   - matiere: physique_chimie
     niveau: terminale
@@ -121,6 +141,14 @@ programmes:
     statut_recuperation: a_verifier
     statut_taxonomie: premier_jet
 
+  - matiere: llca
+    niveau: terminale
+    voie: generale
+    type: specialite
+    boen_reference: "BOEN spécial n°8 du 25 juillet 2019"
+    statut_recuperation: a_verifier
+    statut_taxonomie: non_demarre
+
   - matiere: arts
     niveau: terminale
     voie: generale
@@ -137,7 +165,26 @@ programmes:
     statut_recuperation: a_verifier
     statut_taxonomie: premier_jet
 
-  # Grand Oral
+  - matiere: eppcs
+    niveau: terminale
+    voie: generale
+    type: specialite
+    perimetre: hors_pilote
+    boen_reference: "BOEN spécial n°8 du 25 juillet 2019"
+    statut_recuperation: a_verifier
+    statut_taxonomie: non_demarre
+
+  - matiere: biologie_ecologie
+    niveau: terminale
+    voie: generale
+    type: specialite
+    perimetre: hors_pilote
+    boen_reference: "BOEN spécial n°8 du 25 juillet 2019"
+    statut_recuperation: a_verifier
+    statut_taxonomie: non_demarre
+
+  # --- Grand Oral ---
+
   - matiere: grand_oral
     niveau: terminale
     voie: generale
@@ -146,7 +193,8 @@ programmes:
     statut_recuperation: a_verifier
     statut_taxonomie: premier_jet
 
-  # Options Terminale
+  # --- Options Terminale (7 options) ---
+
   - matiere: maths_complementaires
     niveau: terminale
     voie: generale
@@ -163,7 +211,48 @@ programmes:
     statut_recuperation: a_verifier
     statut_taxonomie: premier_jet
 
-  # Candidat libre Terminale
+  - matiere: dgemc
+    niveau: terminale
+    voie: generale
+    type: option
+    boen_reference: "BOEN spécial n°8 du 25 juillet 2019"
+    statut_recuperation: a_verifier
+    statut_taxonomie: non_demarre
+
+  - matiere: llca_option
+    niveau: terminale
+    voie: generale
+    type: option
+    boen_reference: "BOEN spécial n°8 du 25 juillet 2019"
+    statut_recuperation: a_verifier
+    statut_taxonomie: non_demarre
+
+  - matiere: lv3
+    niveau: terminale
+    voie: generale
+    type: option
+    boen_reference: "BOEN spécial n°8 du 25 juillet 2019"
+    statut_recuperation: a_verifier
+    statut_taxonomie: non_demarre
+
+  - matiere: arts_option
+    niveau: terminale
+    voie: generale
+    type: option
+    boen_reference: "BOEN spécial n°8 du 25 juillet 2019"
+    statut_recuperation: a_verifier
+    statut_taxonomie: non_demarre
+
+  - matiere: eps_option
+    niveau: terminale
+    voie: generale
+    type: option
+    boen_reference: "BOEN spécial n°8 du 25 juillet 2019"
+    statut_recuperation: a_verifier
+    statut_taxonomie: non_demarre
+
+  # --- Candidat libre Terminale ---
+
   - matiere: candidats_libres
     niveau: terminale
     voie: generale
@@ -172,9 +261,12 @@ programmes:
     statut_recuperation: a_verifier
     statut_taxonomie: premier_jet
 
-  # === PREMIÈRE GÉNÉRALE ===
+  # ╔══════════════════════════════════════════════════════════════════╗
+  # ║                    PREMIÈRE GÉNÉRALE                           ║
+  # ╚══════════════════════════════════════════════════════════════════╝
 
-  # Tronc commun
+  # --- Tronc commun Première (8 matières) ---
+
   - matiere: francais
     niveau: premiere
     voie: generale
@@ -191,13 +283,30 @@ programmes:
     statut_recuperation: a_verifier
     statut_taxonomie: premier_jet
 
+  - matiere: lva
+    niveau: premiere
+    voie: generale
+    type: tronc_commun
+    boen_reference: "BOEN spécial n°1 du 22 janvier 2019"
+    statut_recuperation: a_verifier
+    statut_taxonomie: premier_jet
+
+  - matiere: lvb
+    niveau: premiere
+    voie: generale
+    type: tronc_commun
+    boen_reference: "BOEN spécial n°1 du 22 janvier 2019"
+    statut_recuperation: a_verifier
+    statut_taxonomie: premier_jet
+
   - matiere: mathematiques
     niveau: premiere
     voie: generale
     type: tronc_commun
     boen_reference: "BOEN spécial n°1 du 22 janvier 2019"
-    statut_recuperation: pdf_fetched
-    statut_taxonomie: revise
+    url_pdf: "https://cache.media.education.gouv.fr/file/SP1-MEN-22-1-2019/16/8/spe630_annexe2_1063168.pdf"
+    statut_recuperation: recuperable
+    statut_taxonomie: premier_jet
 
   - matiere: enseignement_scientifique
     niveau: premiere
@@ -207,12 +316,38 @@ programmes:
     statut_recuperation: a_verifier
     statut_taxonomie: premier_jet
 
-  # Spécialités Première
+  - matiere: eps
+    niveau: premiere
+    voie: generale
+    type: tronc_commun
+    boen_reference: "BOEN spécial n°1 du 22 janvier 2019"
+    statut_recuperation: a_verifier
+    statut_taxonomie: premier_jet
+
+  - matiere: emc
+    niveau: premiere
+    voie: generale
+    type: tronc_commun
+    boen_reference: "BOEN spécial n°1 du 22 janvier 2019"
+    statut_recuperation: a_verifier
+    statut_taxonomie: premier_jet
+
+  # --- Spécialités Première (13 matières) ---
+
+  - matiere: mathematiques
+    niveau: premiere
+    voie: generale
+    type: specialite
+    boen_reference: "BOEN spécial n°1 du 22 janvier 2019"
+    statut_recuperation: a_verifier
+    statut_taxonomie: premier_jet
+
   - matiere: nsi
     niveau: premiere
     voie: generale
     type: specialite
     boen_reference: "BOEN spécial n°1 du 22 janvier 2019"
+    url_pdf: "https://cache.media.education.gouv.fr/file/SP1-MEN-22-1-2019/26/8/spe633_annexe_1063268.pdf"
     statut_recuperation: pdf_fetched
     statut_taxonomie: premier_jet
 
@@ -240,7 +375,7 @@ programmes:
     statut_recuperation: a_verifier
     statut_taxonomie: premier_jet
 
-  - matiere: mathematiques
+  - matiere: hggsp
     niveau: premiere
     voie: generale
     type: specialite
@@ -248,7 +383,66 @@ programmes:
     statut_recuperation: a_verifier
     statut_taxonomie: premier_jet
 
-  # Épreuves anticipées Première
+  - matiere: hlp
+    niveau: premiere
+    voie: generale
+    type: specialite
+    boen_reference: "BOEN spécial n°1 du 22 janvier 2019"
+    statut_recuperation: a_verifier
+    statut_taxonomie: premier_jet
+
+  - matiere: llcer
+    niveau: premiere
+    voie: generale
+    type: specialite
+    boen_reference: "BOEN spécial n°1 du 22 janvier 2019"
+    statut_recuperation: a_verifier
+    statut_taxonomie: premier_jet
+
+  - matiere: llca
+    niveau: premiere
+    voie: generale
+    type: specialite
+    boen_reference: "BOEN spécial n°1 du 22 janvier 2019"
+    statut_recuperation: a_verifier
+    statut_taxonomie: non_demarre
+
+  - matiere: arts
+    niveau: premiere
+    voie: generale
+    type: specialite
+    boen_reference: "BOEN spécial n°1 du 22 janvier 2019"
+    statut_recuperation: a_verifier
+    statut_taxonomie: premier_jet
+
+  - matiere: si
+    niveau: premiere
+    voie: generale
+    type: specialite
+    boen_reference: "BOEN spécial n°1 du 22 janvier 2019"
+    statut_recuperation: a_verifier
+    statut_taxonomie: premier_jet
+
+  - matiere: eppcs
+    niveau: premiere
+    voie: generale
+    type: specialite
+    perimetre: hors_pilote
+    boen_reference: "BOEN spécial n°1 du 22 janvier 2019"
+    statut_recuperation: a_verifier
+    statut_taxonomie: non_demarre
+
+  - matiere: biologie_ecologie
+    niveau: premiere
+    voie: generale
+    type: specialite
+    perimetre: hors_pilote
+    boen_reference: "BOEN spécial n°1 du 22 janvier 2019"
+    statut_recuperation: a_verifier
+    statut_taxonomie: non_demarre
+
+  # --- Épreuves anticipées Première ---
+
   - matiere: eaf_ecrit
     niveau: premiere
     voie: generale
@@ -273,17 +467,96 @@ programmes:
     statut_recuperation: a_verifier
     statut_taxonomie: premier_jet
 
-  # === SECONDE GÉNÉRALE ===
+  # --- Candidat libre Première ---
+
+  - matiere: candidats_libres
+    niveau: premiere
+    voie: generale
+    type: candidat_libre
+    boen_reference: "eduscol — Candidats individuels au baccalauréat"
+    statut_recuperation: a_verifier
+    statut_taxonomie: premier_jet
+
+  # ╔══════════════════════════════════════════════════════════════════╗
+  # ║                    SECONDE GÉNÉRALE                            ║
+  # ╚══════════════════════════════════════════════════════════════════╝
+
+  # --- Tronc commun Seconde (11 matières) ---
+
+  - matiere: francais
+    niveau: seconde
+    voie: generale
+    type: tronc_commun
+    boen_reference: "BOEN spécial n°1 du 22 janvier 2019"
+    statut_recuperation: a_verifier
+    statut_taxonomie: premier_jet
+
+  - matiere: histoire_geo
+    niveau: seconde
+    voie: generale
+    type: tronc_commun
+    boen_reference: "BOEN spécial n°1 du 22 janvier 2019"
+    statut_recuperation: a_verifier
+    statut_taxonomie: premier_jet
+
+  - matiere: lva
+    niveau: seconde
+    voie: generale
+    type: tronc_commun
+    boen_reference: "BOEN spécial n°1 du 22 janvier 2019"
+    statut_recuperation: a_verifier
+    statut_taxonomie: premier_jet
+
+  - matiere: lvb
+    niveau: seconde
+    voie: generale
+    type: tronc_commun
+    boen_reference: "BOEN spécial n°1 du 22 janvier 2019"
+    statut_recuperation: a_verifier
+    statut_taxonomie: premier_jet
 
   - matiere: mathematiques
     niveau: seconde
     voie: generale
     type: tronc_commun
     boen_reference: "BOEN spécial n°1 du 22 janvier 2019"
+    url_pdf: "https://cache.media.education.gouv.fr/file/SP1-MEN-22-1-2019/95/7/spe631_annexe_1062957.pdf"
     statut_recuperation: pdf_fetched
     statut_taxonomie: premier_jet
 
-  - matiere: histoire_geo
+  - matiere: physique_chimie
+    niveau: seconde
+    voie: generale
+    type: tronc_commun
+    boen_reference: "BOEN spécial n°1 du 22 janvier 2019"
+    statut_recuperation: a_verifier
+    statut_taxonomie: premier_jet
+
+  - matiere: svt
+    niveau: seconde
+    voie: generale
+    type: tronc_commun
+    boen_reference: "BOEN spécial n°1 du 22 janvier 2019"
+    statut_recuperation: a_verifier
+    statut_taxonomie: premier_jet
+
+  - matiere: ses
+    niveau: seconde
+    voie: generale
+    type: tronc_commun
+    boen_reference: "BOEN spécial n°1 du 22 janvier 2019"
+    statut_recuperation: a_verifier
+    statut_taxonomie: premier_jet
+
+  - matiere: eps
+    niveau: seconde
+    voie: generale
+    type: tronc_commun
+    boen_reference: "BOEN spécial n°1 du 22 janvier 2019"
+    statut_recuperation: a_verifier
+    statut_taxonomie: premier_jet
+
+  - matiere: emc
     niveau: seconde
     voie: generale
     type: tronc_commun
@@ -299,15 +572,19 @@ programmes:
     statut_recuperation: a_verifier
     statut_taxonomie: premier_jet
 
+  # ╔══════════════════════════════════════════════════════════════════╗
+  # ║                    TROISIÈME (COLLÈGE)                         ║
+  # ╚══════════════════════════════════════════════════════════════════╝
+
+  # --- Tronc commun Troisième (11 matières) ---
+
   - matiere: francais
-    niveau: seconde
-    voie: generale
+    niveau: troisieme
+    voie: college
     type: tronc_commun
-    boen_reference: "BOEN spécial n°1 du 22 janvier 2019"
+    boen_reference: "BOEN spécial n°11 du 26 novembre 2015"
     statut_recuperation: a_verifier
     statut_taxonomie: premier_jet
-
-  # === TROISIÈME (COLLÈGE) ===
 
   - matiere: mathematiques
     niveau: troisieme
@@ -317,7 +594,7 @@ programmes:
     statut_recuperation: a_verifier
     statut_taxonomie: premier_jet
 
-  - matiere: francais
+  - matiere: histoire_geo_emc
     niveau: troisieme
     voie: college
     type: tronc_commun
@@ -325,7 +602,63 @@ programmes:
     statut_recuperation: a_verifier
     statut_taxonomie: premier_jet
 
-  - matiere: histoire_geo
+  - matiere: lva
+    niveau: troisieme
+    voie: college
+    type: tronc_commun
+    boen_reference: "BOEN spécial n°11 du 26 novembre 2015"
+    statut_recuperation: a_verifier
+    statut_taxonomie: premier_jet
+
+  - matiere: lvb
+    niveau: troisieme
+    voie: college
+    type: tronc_commun
+    boen_reference: "BOEN spécial n°11 du 26 novembre 2015"
+    statut_recuperation: a_verifier
+    statut_taxonomie: premier_jet
+
+  - matiere: physique_chimie
+    niveau: troisieme
+    voie: college
+    type: tronc_commun
+    boen_reference: "BOEN spécial n°11 du 26 novembre 2015"
+    statut_recuperation: a_verifier
+    statut_taxonomie: premier_jet
+
+  - matiere: svt
+    niveau: troisieme
+    voie: college
+    type: tronc_commun
+    boen_reference: "BOEN spécial n°11 du 26 novembre 2015"
+    statut_recuperation: a_verifier
+    statut_taxonomie: premier_jet
+
+  - matiere: technologie
+    niveau: troisieme
+    voie: college
+    type: tronc_commun
+    boen_reference: "BOEN spécial n°11 du 26 novembre 2015"
+    statut_recuperation: a_verifier
+    statut_taxonomie: premier_jet
+
+  - matiere: eps
+    niveau: troisieme
+    voie: college
+    type: tronc_commun
+    boen_reference: "BOEN spécial n°11 du 26 novembre 2015"
+    statut_recuperation: a_verifier
+    statut_taxonomie: premier_jet
+
+  - matiere: arts_plastiques
+    niveau: troisieme
+    voie: college
+    type: tronc_commun
+    boen_reference: "BOEN spécial n°11 du 26 novembre 2015"
+    statut_recuperation: a_verifier
+    statut_taxonomie: premier_jet
+
+  - matiere: education_musicale
     niveau: troisieme
     voie: college
     type: tronc_commun

@@ -66,6 +66,14 @@ allowed_admission_decisions:
   - refuse_private_data
   - require_human_review
 
+# Canal ressources curées (ADR-0009) — porte posée, non alimentée
+curated_resources:
+  origin: enseignant
+  admission_decision: require_human_review
+  human_review_required: true
+  curated_ingestion_allowed: false
+  resources: []
+
 candidate_sources:
   - source_id: official_programme_metadata_reference
     title: Programme officiel mathématiques terminale spécialité — référence metadata-only
