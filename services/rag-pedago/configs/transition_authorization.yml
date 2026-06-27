@@ -18,8 +18,8 @@ chunking_allowed: true  # ADR-0006
 embeddings_allowed: true  # ADR-0007
 qdrant_allowed: false
 network_allowed: true  # ADR-0004 — scoped to scrapers/fetch.py (GET-only, whitelist, robots.txt, rate limit). Does NOT authorize network in imports, readiness, or corpus ingestion.
-server_start_allowed: false
-runtime_api_allowed: false
+server_start_allowed: true  # ADR-0011
+runtime_api_allowed: true  # ADR-0011
 data_staging_allowed: true  # ADR-0004 — candidate content staging before human review
 curated_ingestion_allowed: false
 

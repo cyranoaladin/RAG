@@ -17,12 +17,12 @@ SCOPED_ALLOWED_FLAGS = {
     "chunking_allowed",
     "embeddings_allowed",
     "ingestion_allowed",
+    "server_start_allowed",   # ADR-0011 — lecture seule
+    "runtime_api_allowed",    # ADR-0011 — lecture seule
 }
 RUNTIME_AND_INGESTION_FLAGS = {
     "real_documents_allowed",
     "qdrant_allowed",
-    "server_start_allowed",
-    "runtime_api_allowed",
     "curated_ingestion_allowed",
 }
 

@@ -34,7 +34,7 @@ DANGEROUS_FLAGS = [
 ]
 
 # Flags authorized at true via transition_authorization.yml
-AUTHORIZED_TRUE_FLAGS = {"network_allowed", "data_staging_allowed", "pdf_allowed", "parsing_allowed", "chunking_allowed", "embeddings_allowed", "ingestion_allowed"}
+AUTHORIZED_TRUE_FLAGS = {"network_allowed", "data_staging_allowed", "pdf_allowed", "parsing_allowed", "chunking_allowed", "embeddings_allowed", "ingestion_allowed", "server_start_allowed", "runtime_api_allowed"}
 
 
 def _load_audit_module():
@@ -139,8 +139,8 @@ def test_pedago_interface_contract_audit_returns_markdown(capsys) -> None:  # no
     assert "# Pedagogical interface contract audit" in output
     assert "status: metadata_only_interface_contract" in output
     assert "interface_ready_for_review: true" in output
-    assert "runtime_api_allowed: false" in output
-    assert "server_start_allowed: false" in output
+    assert "runtime_api_allowed: true" in output
+    assert "server_start_allowed: true" in output
     assert "ui_runtime_allowed: false" in output
     assert "answer_generation_allowed: false" in output
     assert "embeddings_allowed: true" in output

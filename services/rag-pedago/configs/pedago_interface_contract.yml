@@ -3,8 +3,8 @@ status: metadata_only_interface_contract
 pilot_scope_ref: math_terminale_specialite_metadata_only_v1
 retrieval_eval_ref: math_terminale_specialite_metadata_retrieval_eval_v1
 
-runtime_api_allowed: false
-server_start_allowed: false
+runtime_api_allowed: true  # ADR-0011 — retrieval API lecture seule, filtrage imposé serveur
+server_start_allowed: true  # ADR-0011 — retrieval API lecture seule, pas d'écriture pgvector
 ui_runtime_allowed: false
 real_documents_allowed: false
 pdf_allowed: true  # ADR-0004 — parsing programmes officiels en staging

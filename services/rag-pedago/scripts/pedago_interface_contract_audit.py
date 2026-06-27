@@ -39,7 +39,9 @@ AUTHORIZED_TRUE_FLAGS: dict[str, str] = {
     "parsing_allowed": "ADR-0004",
     "chunking_allowed": "ADR-0006",
     "embeddings_allowed": "ADR-0007",
-    "ingestion_allowed": "ADR-0008",  # scoped fetch (GET-only, whitelist, robots.txt)
+    "ingestion_allowed": "ADR-0008",
+    "server_start_allowed": "ADR-0011",
+    "runtime_api_allowed": "ADR-0011",
 }
 REQUIRED_PERSONAS = [
     "eleve",
