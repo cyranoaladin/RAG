@@ -132,24 +132,62 @@ PUT /search → 405: Method Not Allowed
 DELETE      → 405: Method Not Allowed
 ```
 
+## Lot 17.2 — Oracle fermé, table isolée, deps corrigées
+
+### Oracle de signature supprimé
+
+`GET /test/token` supprimé. L'émission de tokens est un acte d'administration via CLI :
+
+```bash
+PROFILE_SECRET=... python scripts/issue_profile_token.py terminale libre
+# → {"niveau":"terminale","audience":"libre"}.<hmac>
+```
+
+L'API n'expose AUCUN moyen d'obtenir une signature :
+```
+GET /test/token?niveau=terminale&audience=aefe → 404 Not Found
+```
+
+Routes exposées : `GET /health` + `POST /search` uniquement.
+
+### Table pilote isolée
+
+Table renommée `rag_chunks` → `rag_chunks_pilote` dans index_pgvector.py et retrieval_api.py.
+
+```
+rag_chunks_pilote: 124 rows (1024d, pilote)
+rag_chunks:        126 rows (768d, historique RagDatabase)
+```
+
+Les deux tables coexistent sans collision. `init.sql` / `RagDatabase` intacts.
+
+Scores iso-Lot 14 sur `rag_chunks_pilote` :
+- dérivée : 0.875
+- justice : 0.872
+- piles : 0.844
+- suites : 0.835
+
+### sentence-transformers dans requirements.lock
+
+`sentence-transformers==5.6.0` ajouté au lockfile. `make install` neuf installe le modèle sans pip manuel.
+
 ## Lecture seule — aucune route d'écriture
 
 Routes exposées :
 - `GET /health`
-- `GET /test/token` (utilitaire de test)
 - `POST /search`
 
-Pas de PUT, DELETE, PATCH. Pas d'ingestion via l'API.
+Pas de PUT, DELETE, PATCH. Pas d'ingestion via l'API. Pas d'oracle de signature.
 
-## Tests (25 tests unitaires)
+## Tests (27 tests unitaires)
 
 - 5 tests gating (server_start false/true, runtime_api false/true, missing, malformed)
-- 7 tests HMAC (roundtrip, forgerie wrong secret, payload tampered, malformed, invalid niveau, invalid audience, frozen)
+- 7 tests HMAC (roundtrip, forgerie, tampering, malformed, invalid niveau/audience, frozen)
 - 4 tests resolve_profile (bearer valide, prefix manquant, token forgé → 401, secret absent → 500)
 - 4 tests validation (vide, oversized, top_k bounds)
 - 2 tests injection body (extra fields ignorés, schéma strict)
-- 1 test read-only (aucune route d'écriture)
-- 1 test filtrage SQL (WHERE clause obligatoire niveau+audience)
+- 2 tests read-only (aucune route d'écriture, aucun endpoint token)
+- 2 tests filtrage SQL (WHERE obligatoire, table `rag_chunks_pilote`)
 - 1 test schéma (SearchRequest n'a que query+top_k)
 
 ## CI locale : 7/7 PASS

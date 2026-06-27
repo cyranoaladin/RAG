@@ -65,7 +65,7 @@ def _create_schema(conn: Any) -> None:
     with conn.cursor() as cur:
         cur.execute("CREATE EXTENSION IF NOT EXISTS vector")
         cur.execute(f"""
-            CREATE TABLE IF NOT EXISTS rag_chunks (
+            CREATE TABLE IF NOT EXISTS rag_chunks_pilote (
                 chunk_id TEXT PRIMARY KEY,
                 doc_id TEXT NOT NULL,
                 vector vector({VECTOR_DIM}),
@@ -79,8 +79,8 @@ def _create_schema(conn: Any) -> None:
             )
         """)
         cur.execute("""
-            CREATE INDEX IF NOT EXISTS idx_rag_chunks_vector
-            ON rag_chunks USING hnsw (vector vector_cosine_ops)
+            CREATE INDEX IF NOT EXISTS idx_rag_chunks_pilote_vector
+            ON rag_chunks_pilote USING hnsw (vector vector_cosine_ops)
             WITH (m = 16, ef_construction = 64)
         """)
         conn.commit()
@@ -172,7 +172,7 @@ def index_embeddings(conn: Any, manifest: dict[str, str] | None = None) -> dict[
             text = texts.get(entry["chunk_id"], "")
 
             cur.execute("""
-                INSERT INTO rag_chunks (chunk_id, doc_id, vector, niveau, voie, audience, matiere, notions, text, model)
+                INSERT INTO rag_chunks_pilote (chunk_id, doc_id, vector, niveau, voie, audience, matiere, notions, text, model)
                 VALUES (%s, %s, %s::vector, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (chunk_id) DO UPDATE SET
                     vector = EXCLUDED.vector, niveau = EXCLUDED.niveau,
@@ -217,7 +217,7 @@ def search(
         SELECT chunk_id, doc_id, niveau, matiere, notions,
                1 - (vector <=> %s::vector) AS similarity,
                LEFT(text, 200) AS preview
-        FROM rag_chunks
+        FROM rag_chunks_pilote
         {where_clause}
         ORDER BY vector <=> %s::vector
         LIMIT %s
@@ -262,7 +262,7 @@ def main() -> int:
 
     # Count in DB
     with conn.cursor() as cur:
-        cur.execute("SELECT count(*) FROM rag_chunks")
+        cur.execute("SELECT count(*) FROM rag_chunks_pilote")
         count = cur.fetchone()[0]  # type: ignore[index]
         print(f"DB count: {count}")
 

@@ -150,7 +150,7 @@ def _search_pgvector(
         SELECT chunk_id, doc_id, niveau, matiere, notions,
                1 - (vector <=> %s::vector) AS similarity,
                LEFT(text, 200) AS preview
-        FROM rag_chunks
+        FROM rag_chunks_pilote
         WHERE niveau = %s AND (%s = ANY(audience) OR 'tous' = ANY(audience))
         ORDER BY vector <=> %s::vector
         LIMIT %s
@@ -255,19 +255,6 @@ app = FastAPI(
 @app.get("/health")
 def health():
     return {"status": "ok"}
-
-
-@app.get("/test/token")
-def test_token(niveau: str, audience: str):
-    """Generate a signed token for testing. NOT for production use."""
-    if not PROFILE_SECRET:
-        raise HTTPException(status_code=500, detail="PROFILE_SECRET not configured")
-    if niveau not in VALID_NIVEAUX:
-        raise HTTPException(status_code=400, detail=f"invalid niveau: {niveau}")
-    if audience not in VALID_AUDIENCES:
-        raise HTTPException(status_code=400, detail=f"invalid audience: {audience}")
-    token = sign_profile(niveau, audience, PROFILE_SECRET)
-    return {"token": token, "usage": f"Authorization: Bearer {token}"}
 
 
 _resolve_profile_dep = Depends(resolve_profile)

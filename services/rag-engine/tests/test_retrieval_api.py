@@ -256,6 +256,22 @@ class TestReadOnly:
         post_routes = [p for p, m in routes if "POST" in m]
         assert post_routes == ["/search"], f"Unexpected POST routes: {post_routes}"
 
+    def test_no_token_endpoint(self) -> None:
+        """No route can issue a signed token — oracle is closed."""
+        mod = _load_module()
+        route_paths = [
+            r.path for r in mod.app.routes if hasattr(r, "methods")
+        ]
+        for path in route_paths:
+            assert "token" not in path.lower(), (
+                f"Token-issuing route found: {path}"
+            )
+        # Only /health and /search as app routes (exclude FastAPI built-ins)
+        app_routes = {p for p in route_paths if not p.startswith(("/docs", "/openapi", "/redoc"))}
+        assert app_routes == {"/health", "/search"}, (
+            f"Unexpected app routes: {app_routes}"
+        )
+
 
 # ---------------------------------------------------------------------------
 # _search_pgvector — filters are MANDATORY
@@ -285,3 +301,22 @@ class TestSearchFiltering:
         assert "WHERE niveau = %s AND (%s = ANY(audience) OR 'tous' = ANY(audience))" in sql
         assert "terminale" in params
         assert "libre" in params
+
+    def test_uses_pilote_table_not_historical(self) -> None:
+        """The API queries rag_chunks_pilote, not the historical rag_chunks."""
+        mod = _load_module()
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__ = MagicMock(
+            return_value=mock_cursor
+        )
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+        mock_cursor.fetchall.return_value = []
+
+        mod._search_pgvector(
+            mock_conn, [0.1] * 1024,
+            niveau="terminale", audience="libre", top_k=5,
+        )
+        sql = mock_cursor.execute.call_args[0][0]
+        assert "rag_chunks_pilote" in sql
+        assert "FROM rag_chunks " not in sql.replace("rag_chunks_pilote", "")
