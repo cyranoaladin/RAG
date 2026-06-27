@@ -25,6 +25,7 @@ EMBEDDINGS_DIR = ROOT / "data" / "embeddings"
 # Dimension is DEFINITIVE (conditions pgvector schema at Lot 14)
 MODEL_NAME = "intfloat/multilingual-e5-large"
 MODEL_DIM = 1024
+INPUT_FORMAT = "e5-passage-v1"  # tracks the prefix convention
 
 
 def check_embeddings_allowed(contract_path: Path | None = None) -> bool:
@@ -54,10 +55,11 @@ def _load_existing_embeddings(emb_file: Path) -> dict[str, dict]:
 
 
 def _can_reuse(existing_entry: dict) -> bool:
-    """Check if an existing embedding can be reused (same model + dim)."""
+    """Check if an existing embedding can be reused (same model + dim + format)."""
     return (
         existing_entry.get("model") == MODEL_NAME
         and existing_entry.get("dim") == MODEL_DIM
+        and existing_entry.get("input_format") == INPUT_FORMAT
     )
 
 
@@ -103,6 +105,11 @@ def build_embeddings_for_notion(
             and chunk_sha
             and _can_reuse(existing_entry)
         ):
+            # Refresh metadata from current sidecar (audience/niveau may have changed)
+            existing_entry["niveau"] = sidecar.get("niveau", existing_entry.get("niveau", ""))
+            existing_entry["voie"] = sidecar.get("voie", existing_entry.get("voie", ""))
+            existing_entry["audience"] = sidecar.get("audience", existing_entry.get("audience", []))
+            existing_entry["matiere"] = sidecar.get("matiere", existing_entry.get("matiere", ""))
             reused.append(existing_entry)
         else:
             to_compute.append(chunk)
@@ -124,6 +131,7 @@ def build_embeddings_for_notion(
                 "dim": len(vector),
                 "vector": vector,
                 "model": MODEL_NAME,
+                "input_format": INPUT_FORMAT,
                 # Filtering metadata from sidecar
                 "niveau": sidecar.get("niveau", ""),
                 "voie": sidecar.get("voie", ""),

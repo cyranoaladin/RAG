@@ -8,7 +8,7 @@ server_start_allowed: false
 ui_runtime_allowed: false
 real_documents_allowed: false
 pdf_allowed: true  # ADR-0004 — parsing programmes officiels en staging
-ingestion_allowed: false
+ingestion_allowed: true  # ADR-0008 — indexation pgvector pilote, retrieval local
 parsing_allowed: true  # ADR-0004 — parsing programmes officiels en staging
 chunking_allowed: true  # ADR-0006 — chunking contenu propre staging
 embeddings_allowed: true  # ADR-0007 — calcul embeddings sur chunks conformes

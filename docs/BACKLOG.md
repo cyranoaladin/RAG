@@ -92,6 +92,12 @@
 | VIGILANCE-RETRIEVAL | `statut_enseignement` non porté par `ChunkMetadata`. Filtrage par statut (spé/tronc/option) impossible. | Étendre contrat au lot retrieval |
 | DETTE-9.1-B | `bo_only` : stop-list structurelle + filtre non-mots appliqués (lot 12.3). | Résolu |
 
+## pgvector / indexation (lot 14)
+
+| ID | Détail | Action |
+|---|---|---|
+| DETTE-14-RAGENGINE | Indexation+retrieval pgvector résident dans rag-pedago ; doivent migrer dans rag-engine (plan de données, AGENTS.md) AVANT toute exposition derrière le contrat d'API. | Lot dédié de refactoring structurel |
+
 ## Périmètre acquisition
 
 | Point | Détail | Action |
