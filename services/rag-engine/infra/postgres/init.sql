@@ -49,6 +49,25 @@ CREATE TABLE IF NOT EXISTS rag_chunks (
     UNIQUE(document_id, chunk_index)
 );
 
+-- Table pilote pedagogique (1024d, intfloat/multilingual-e5-large)
+-- Isolée de rag_chunks historique (768d) — pas de collision
+CREATE TABLE IF NOT EXISTS rag_chunks_pilote (
+    chunk_id TEXT PRIMARY KEY,
+    doc_id TEXT NOT NULL,
+    vector vector(1024),
+    niveau TEXT NOT NULL,
+    voie TEXT NOT NULL DEFAULT 'generale',
+    audience TEXT[] NOT NULL DEFAULT '{"tous"}',
+    matiere TEXT NOT NULL,
+    notions TEXT[] NOT NULL DEFAULT '{}',
+    text TEXT,
+    model TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_rag_chunks_pilote_vector
+    ON rag_chunks_pilote USING hnsw (vector vector_cosine_ops)
+    WITH (m = 16, ef_construction = 64);
+
 -- Table API keys (sécurité)
 CREATE TABLE IF NOT EXISTS rag_api_keys (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -13,6 +13,6 @@ parsing_allowed: true  # ADR-0004
 pdf_allowed: true  # ADR-0004
 qdrant_allowed: false
 real_documents_allowed: false
-runtime_api_allowed: false
-server_start_allowed: false
+runtime_api_allowed: true  # ADR-0011
+server_start_allowed: true  # ADR-0011
 ui_runtime_allowed: false
