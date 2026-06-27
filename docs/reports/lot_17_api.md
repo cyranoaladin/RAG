@@ -140,7 +140,7 @@ DELETE      → 405: Method Not Allowed
 
 ```bash
 PROFILE_SECRET=... python scripts/issue_profile_token.py terminale libre
-# → {"niveau":"terminale","audience":"libre"}.<hmac>
+# → eyJuaXZlYXUiOiJ0ZXJtaW5hbGUiLCJhdWRpZW5jZSI6ImxpYnJlIn0.<hmac_hex>
 ```
 
 L'API n'expose AUCUN moyen d'obtenir une signature :
@@ -179,16 +179,46 @@ Routes exposées :
 
 Pas de PUT, DELETE, PATCH. Pas d'ingestion via l'API. Pas d'oracle de signature.
 
-## Tests (27 tests unitaires)
+## Lot 17.3 — Format base64url + robustesse table absente
+
+### Format jeton base64url
+
+Le payload JSON est encodé en **base64url** (RFC 7515, sans padding) avant signature :
+
+```
+Token: eyJuaXZlYXUiOiJ0ZXJtaW5hbGUiLCJhdWRpZW5jZSI6ImxpYnJlIn0.4ebe00a8...
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ ^^^^^^^
+       base64url({"niveau":"terminale","audience":"libre"})             hmac_hex
+```
+
+Caractères : `[A-Za-z0-9_-]` + `.` uniquement. Pas de `{}`, `""`, `:` — sûr pour proxies/WAF.
+
+Le HMAC-SHA256 est calculé sur le payload **encodé** (pas le JSON brut). Le regex `_TOKEN_RE` rejette les jetons au format ancien (JSON brut).
+
+```
+Ancien format (raw JSON) → malformed token (rejeté)
+Forgerie (mauvais secret, b64url) → invalid signature (rejeté)
+Altération (payload b64url modifié) → invalid signature (rejeté)
+```
+
+### Robustesse `/search` face à l'absence de table
+
+`_search_pgvector` attrape `psycopg.errors.UndefinedTable` et retourne **503** « retrieval index not ready » au lieu d'un crash 500 opaque.
+
+`rag_chunks_pilote` est **provisionnée par `init.sql`** (CREATE TABLE IF NOT EXISTS + index HNSW) pour cohérence avec la table historique. L'index_pgvector.py continue de créer la table si absente (double filet).
+
+CLI `issue_profile_token.py` autonome (pas d'import de `retrieval_api` — évite la dépendance psycopg pour l'émission de tokens).
+
+## Tests (30 tests unitaires)
 
 - 5 tests gating (server_start false/true, runtime_api false/true, missing, malformed)
-- 7 tests HMAC (roundtrip, forgerie, tampering, malformed, invalid niveau/audience, frozen)
+- 8 tests HMAC (roundtrip, header-safe, forgerie, tampering, malformed, raw JSON rejeté, invalid niveau/audience, frozen)
 - 4 tests resolve_profile (bearer valide, prefix manquant, token forgé → 401, secret absent → 500)
 - 4 tests validation (vide, oversized, top_k bounds)
 - 2 tests injection body (extra fields ignorés, schéma strict)
 - 2 tests read-only (aucune route d'écriture, aucun endpoint token)
-- 2 tests filtrage SQL (WHERE obligatoire, table `rag_chunks_pilote`)
-- 1 test schéma (SearchRequest n'a que query+top_k)
+- 3 tests filtrage SQL (WHERE obligatoire, table `rag_chunks_pilote`, table absente → 503)
+- 2 tests schéma (SearchRequest n'a que query+top_k)
 
 ## CI locale : 7/7 PASS
 

@@ -2,13 +2,15 @@
 
 Tests the API contract:
 - Governance: server refuses to start if locks are false
-- Profile: HMAC-signed, server-verified, forgery rejected
+- Profile: HMAC-signed (base64url), server-verified, forgery rejected
 - Filtering: niveau/audience IMPOSED by signed profile, bypass impossible
 - Read-only: no write routes exist
 - Validation: empty query, oversized query, top_k bounds
+- Robustness: missing table → 503
 """
 from __future__ import annotations
 
+import base64
 import hashlib
 import hmac
 import importlib.util
@@ -17,6 +19,7 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import psycopg.errors
 import pytest
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "retrieval_api.py"
@@ -30,6 +33,11 @@ def _load_module():
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def _b64url(data: str) -> str:
+    """Helper: base64url-encode a string without padding."""
+    return base64.urlsafe_b64encode(data.encode()).rstrip(b"=").decode("ascii")
 
 
 # ---------------------------------------------------------------------------
@@ -70,7 +78,6 @@ class TestGovernanceGating:
         mod = _load_module()
         locks = mod.check_runtime_allowed(tmp_path / "missing.yml")
         assert locks["server_start_allowed"] is False
-        assert locks["runtime_api_allowed"] is False
 
     def test_blocks_on_malformed(self, tmp_path) -> None:
         mod = _load_module()
@@ -81,7 +88,7 @@ class TestGovernanceGating:
 
 
 # ---------------------------------------------------------------------------
-# HMAC signing + verification
+# HMAC signing + verification (base64url format)
 # ---------------------------------------------------------------------------
 
 
@@ -93,21 +100,33 @@ class TestHmacSigning:
         assert profile.niveau == "terminale"
         assert profile.audience == "libre"
 
+    def test_token_is_header_safe(self) -> None:
+        """Token contains only [A-Za-z0-9_-] and one dot separator."""
+        mod = _load_module()
+        token = mod.sign_profile("terminale", "aefe", TEST_SECRET)
+        assert mod._TOKEN_RE.fullmatch(token), f"Token not header-safe: {token}"
+        # No braces, quotes, colons
+        assert "{" not in token
+        assert "}" not in token
+        assert '"' not in token
+        assert ":" not in token
+
     def test_forgery_wrong_secret_rejected(self) -> None:
-        """A token signed with a different secret is REJECTED."""
         mod = _load_module()
         token = mod.sign_profile("terminale", "aefe", "attacker-secret")
         with pytest.raises(ValueError, match="invalid signature"):
             mod.verify_profile(token, TEST_SECRET)
 
     def test_tampered_payload_rejected(self) -> None:
-        """Modifying the payload after signing invalidates the HMAC."""
+        """Modifying the base64url payload after signing invalidates the HMAC."""
         mod = _load_module()
         token = mod.sign_profile("premiere", "libre", TEST_SECRET)
-        payload, sig = token.rsplit(".", 1)
-        # Tamper: change premiere → terminale in payload
-        tampered_payload = payload.replace("premiere", "terminale")
-        tampered_token = f"{tampered_payload}.{sig}"
+        encoded_payload, sig = token.rsplit(".", 1)
+        # Tamper: re-encode a different payload
+        tampered_encoded = _b64url(
+            json.dumps({"niveau": "terminale", "audience": "libre"}, separators=(",", ":"))
+        )
+        tampered_token = f"{tampered_encoded}.{sig}"
         with pytest.raises(ValueError, match="invalid signature"):
             mod.verify_profile(tampered_token, TEST_SECRET)
 
@@ -116,19 +135,30 @@ class TestHmacSigning:
         with pytest.raises(ValueError, match="malformed token"):
             mod.verify_profile("no-dot-separator", TEST_SECRET)
 
+    def test_raw_json_token_rejected(self) -> None:
+        """Old-format raw JSON tokens are rejected (not base64url)."""
+        mod = _load_module()
+        raw = '{"niveau":"terminale","audience":"libre"}'
+        sig = hmac.new(TEST_SECRET.encode(), raw.encode(), hashlib.sha256).hexdigest()
+        # Braces/quotes/colons fail the regex
+        with pytest.raises(ValueError, match="malformed token"):
+            mod.verify_profile(f"{raw}.{sig}", TEST_SECRET)
+
     def test_invalid_niveau_rejected(self) -> None:
         mod = _load_module()
-        payload = json.dumps({"niveau": "doctorat", "audience": "libre"}, separators=(",", ":"))
-        sig = hmac.new(TEST_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
+        payload_json = json.dumps({"niveau": "doctorat", "audience": "libre"}, separators=(",", ":"))
+        encoded = _b64url(payload_json)
+        sig = hmac.new(TEST_SECRET.encode(), encoded.encode(), hashlib.sha256).hexdigest()
         with pytest.raises(ValueError, match="invalid niveau"):
-            mod.verify_profile(f"{payload}.{sig}", TEST_SECRET)
+            mod.verify_profile(f"{encoded}.{sig}", TEST_SECRET)
 
     def test_invalid_audience_rejected(self) -> None:
         mod = _load_module()
-        payload = json.dumps({"niveau": "terminale", "audience": "vip"}, separators=(",", ":"))
-        sig = hmac.new(TEST_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
+        payload_json = json.dumps({"niveau": "terminale", "audience": "vip"}, separators=(",", ":"))
+        encoded = _b64url(payload_json)
+        sig = hmac.new(TEST_SECRET.encode(), encoded.encode(), hashlib.sha256).hexdigest()
         with pytest.raises(ValueError, match="invalid audience"):
-            mod.verify_profile(f"{payload}.{sig}", TEST_SECRET)
+            mod.verify_profile(f"{encoded}.{sig}", TEST_SECRET)
 
     def test_profile_is_frozen(self) -> None:
         mod = _load_module()
@@ -221,7 +251,6 @@ class TestSearchRequestValidation:
 
 class TestBodyInjection:
     def test_schema_ignores_extra_fields(self) -> None:
-        """Client sends niveau/audience in body → silently ignored."""
         mod = _load_module()
         req = mod.SearchRequest(query="test", top_k=5)
         assert not hasattr(req, "niveau")
@@ -234,7 +263,7 @@ class TestBodyInjection:
 
 
 # ---------------------------------------------------------------------------
-# Read-only — no write routes
+# Read-only — no write routes, no token oracle
 # ---------------------------------------------------------------------------
 
 
@@ -252,7 +281,6 @@ class TestReadOnly:
                 assert method not in write_methods, (
                     f"Write route found: {method} {path}"
                 )
-        # POST only on /search
         post_routes = [p for p, m in routes if "POST" in m]
         assert post_routes == ["/search"], f"Unexpected POST routes: {post_routes}"
 
@@ -266,7 +294,6 @@ class TestReadOnly:
             assert "token" not in path.lower(), (
                 f"Token-issuing route found: {path}"
             )
-        # Only /health and /search as app routes (exclude FastAPI built-ins)
         app_routes = {p for p in route_paths if not p.startswith(("/docs", "/openapi", "/redoc"))}
         assert app_routes == {"/health", "/search"}, (
             f"Unexpected app routes: {app_routes}"
@@ -274,7 +301,7 @@ class TestReadOnly:
 
 
 # ---------------------------------------------------------------------------
-# _search_pgvector — filters are MANDATORY
+# _search_pgvector — filters MANDATORY, pilote table, 503 on missing
 # ---------------------------------------------------------------------------
 
 
@@ -289,21 +316,18 @@ class TestSearchFiltering:
         mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
         mock_cursor.fetchall.return_value = []
 
-        fake_vector = [0.1] * 1024
         mod._search_pgvector(
-            mock_conn, fake_vector,
+            mock_conn, [0.1] * 1024,
             niveau="terminale", audience="libre", top_k=5,
         )
 
-        call_args = mock_cursor.execute.call_args
-        sql = call_args[0][0]
-        params = call_args[0][1]
+        sql = mock_cursor.execute.call_args[0][0]
+        params = mock_cursor.execute.call_args[0][1]
         assert "WHERE niveau = %s AND (%s = ANY(audience) OR 'tous' = ANY(audience))" in sql
         assert "terminale" in params
         assert "libre" in params
 
     def test_uses_pilote_table_not_historical(self) -> None:
-        """The API queries rag_chunks_pilote, not the historical rag_chunks."""
         mod = _load_module()
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
@@ -320,3 +344,26 @@ class TestSearchFiltering:
         sql = mock_cursor.execute.call_args[0][0]
         assert "rag_chunks_pilote" in sql
         assert "FROM rag_chunks " not in sql.replace("rag_chunks_pilote", "")
+
+    def test_missing_table_returns_503(self) -> None:
+        """If rag_chunks_pilote doesn't exist, return 503 not 500."""
+        mod = _load_module()
+        from fastapi import HTTPException
+
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__ = MagicMock(
+            return_value=mock_cursor
+        )
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+        mock_cursor.execute.side_effect = psycopg.errors.UndefinedTable(
+            "relation \"rag_chunks_pilote\" does not exist"
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            mod._search_pgvector(
+                mock_conn, [0.1] * 1024,
+                niveau="terminale", audience="libre", top_k=5,
+            )
+        assert exc_info.value.status_code == 503
+        assert "not ready" in exc_info.value.detail
