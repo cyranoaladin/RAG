@@ -18,6 +18,7 @@ network_allowed: false
 server_start_allowed: false
 runtime_api_allowed: false
 data_staging_allowed: false
+curated_ingestion_allowed: false
 
 allowed_source_kinds:
   - official_reference_metadata

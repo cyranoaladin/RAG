@@ -16,11 +16,16 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-ROOT = Path(__file__).resolve().parents[1]
-CONTRACT = ROOT / "configs" / "pedago_interface_contract.yml"
-EMBEDDINGS_DIR = ROOT / "data" / "embeddings"
-CHUNKS_DIR = ROOT / "data" / "chunks"
-REVIEW_MANIFEST = ROOT / "data" / "embeddings" / "review_manifest.json"
+# rag-engine reads data produced by rag-pedago (cross-service, ADR-0010)
+WORKSPACE_ROOT = Path(__file__).resolve().parents[3]  # repo root
+PEDAGO_ROOT = WORKSPACE_ROOT / "services" / "rag-pedago"
+ENGINE_ROOT = Path(__file__).resolve().parents[1]
+
+# Governance: read verrou from rag-pedago's contract (single source of truth)
+CONTRACT = PEDAGO_ROOT / "configs" / "pedago_interface_contract.yml"
+EMBEDDINGS_DIR = PEDAGO_ROOT / "data" / "embeddings"
+CHUNKS_DIR = PEDAGO_ROOT / "data" / "chunks"
+REVIEW_MANIFEST = PEDAGO_ROOT / "data" / "embeddings" / "review_manifest.json"
 
 _PG_PORT = os.environ.get("PGVECTOR_PORT", "5433")
 PG_DSN = os.environ.get("PG_DSN", f"postgresql://nexus:nexus@localhost:{_PG_PORT}/nexus_rag")
@@ -262,9 +267,8 @@ def main() -> int:
         print(f"DB count: {count}")
 
     # Demo retrieval
+    from nexus_contracts.embedding_utils import format_query
     from sentence_transformers import SentenceTransformer
-
-    from scrapers.embedding_utils import format_query
 
     model = SentenceTransformer("intfloat/multilingual-e5-large")
 
