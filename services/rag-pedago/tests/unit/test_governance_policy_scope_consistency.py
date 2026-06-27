@@ -39,9 +39,9 @@ def test_governance_related_locks_have_explicit_scope_boundaries() -> None:
     transition = _load(TRANSITION_AUTHORIZATION)
 
     for flag in RUNTIME_AND_INGESTION_FLAGS:
-        assert pedago[flag] is False
-        assert admission[flag] is False
-        assert transition[flag] is False
+        assert pedago[flag] is False, f"{flag} should be False in pedago"
+        assert admission[flag] is False, f"{flag} should be False in admission"
+        assert transition[flag] is False, f"{flag} should be False in transition"
 
     for flag in SCOPED_ALLOWED_FLAGS:
         assert pedago[flag] is True

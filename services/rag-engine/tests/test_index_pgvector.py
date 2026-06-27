@@ -6,7 +6,7 @@ import json
 import sys
 from pathlib import Path
 
-SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "index_pgvector.py"
+SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "index_pgvector.py"
 
 
 def _load_module():

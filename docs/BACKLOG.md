@@ -96,7 +96,13 @@
 
 | ID | Détail | Action |
 |---|---|---|
-| DETTE-14-RAGENGINE | Indexation+retrieval pgvector résident dans rag-pedago ; doivent migrer dans rag-engine (plan de données, AGENTS.md) AVANT toute exposition derrière le contrat d'API. | Lot dédié de refactoring structurel |
+| DETTE-14-RAGENGINE | ~~Indexation+retrieval dans rag-pedago~~ **Résolu** (Lot 16). Migré dans rag-engine. Gouvernance cross-service via ADR-0010. | Résolu |
+
+## Retrieval / rag-engine (lot 16)
+
+| ID | Détail | Action |
+|---|---|---|
+| DETTE-16-ITEST-RETRIEVAL | Pas de test d'intégration automatisé dédié au retrieval déplacé (`index_pgvector.py`). `tests/integration/test_pgvector.py` couvre `ingestor.database.RagDatabase` (système historique), pas le script migré. Iso-fonctionnalité prouvée par exécution manuelle (scores identiques Lot 14). | Ajouter un test d'intégration marqué `integration` lançable contre le pgvector docker |
 
 ## Périmètre acquisition
 
