@@ -294,7 +294,7 @@ class TestVerifyProfileNonDictPayload:
             except AttributeError:
                 raise AssertionError(
                     f"Got AttributeError for {payload!r} — isinstance guard missing"
-                )
+                ) from None
 
 
 class TestNoSecretError:
