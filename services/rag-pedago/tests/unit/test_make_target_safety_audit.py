@@ -91,7 +91,7 @@ def _run_audit_for_files(tmp_path: Path, capsys, makefile_text: str, config_text
 
 
 def _run_audit_cli(makefile: Path, config: Path, *, optimized: bool = False) -> subprocess.CompletedProcess[str]:
-    command = ["python3"]
+    command = [sys.executable]
     if optimized:
         command.append("-O")
     command.extend(
@@ -539,7 +539,7 @@ def test_non_string_category_entry_fails_audit_without_traceback(tmp_path, capsy
 
 def test_make_target_safety_cli_outputs_markdown() -> None:
     result = subprocess.run(
-        ["python3", "scripts/make_target_safety_audit.py"],
+        [sys.executable, "scripts/make_target_safety_audit.py"],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
@@ -555,7 +555,7 @@ def test_make_target_safety_cli_outputs_markdown() -> None:
 
 def test_make_target_safety_cli_python_optimized_mode_outputs_markdown() -> None:
     result = subprocess.run(
-        ["python3", "-O", "scripts/make_target_safety_audit.py"],
+        [sys.executable, "-O", "scripts/make_target_safety_audit.py"],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,

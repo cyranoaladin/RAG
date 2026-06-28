@@ -69,7 +69,7 @@ def _write_raw_config(tmp_path: Path, content: str) -> Path:
 
 
 def _run_cli(*, optimized: bool = False, config: Path = CONFIG) -> subprocess.CompletedProcess[str]:
-    command = ["python3"]
+    command = [sys.executable]
     if optimized:
         command.append("-O")
     command.extend(["scripts/pilot_corpus_scope_audit.py", "--config", str(config)])

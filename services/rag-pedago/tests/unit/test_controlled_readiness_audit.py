@@ -93,7 +93,7 @@ def _evidence_by_gate(config: dict[str, object], gate_id: str) -> dict[str, obje
 
 
 def _run_cli(*, optimized: bool = False, config: Path = CONFIG) -> subprocess.CompletedProcess[str]:
-    command = ["python3"]
+    command = [sys.executable]
     if optimized:
         command.append("-O")
     command.extend(["scripts/controlled_readiness_audit.py", "--config", str(config)])

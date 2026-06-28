@@ -87,7 +87,7 @@ def _approval_case(config: dict[str, object]) -> dict[str, object]:
 
 
 def _run_cli(*, optimized: bool = False, config: Path = CONFIG) -> subprocess.CompletedProcess[str]:
-    command = ["python3"]
+    command = [sys.executable]
     if optimized:
         command.append("-O")
     command.extend(["scripts/human_source_review_audit.py", "--config", str(config)])

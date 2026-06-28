@@ -82,7 +82,7 @@ def _case_by_id(config: dict[str, object], authorization_case_id: str) -> dict[s
 
 
 def _run_cli(*, optimized: bool = False, config: Path = CONFIG) -> subprocess.CompletedProcess[str]:
-    command = ["python3"]
+    command = [sys.executable]
     if optimized:
         command.append("-O")
     command.extend(["scripts/transition_authorization_audit.py", "--config", str(config)])

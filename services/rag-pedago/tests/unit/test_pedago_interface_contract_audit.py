@@ -77,7 +77,7 @@ def _refusal_interaction(config: dict[str, object]) -> dict[str, object]:
 
 
 def _run_cli(*, optimized: bool = False, config: Path = CONFIG) -> subprocess.CompletedProcess[str]:
-    command = ["python3"]
+    command = [sys.executable]
     if optimized:
         command.append("-O")
     command.extend(["scripts/pedago_interface_contract_audit.py", "--config", str(config)])

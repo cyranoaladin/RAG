@@ -81,7 +81,7 @@ def _unknown_rights_source(config: dict[str, object]) -> dict[str, object]:
 
 
 def _run_cli(*, optimized: bool = False, config: Path = CONFIG) -> subprocess.CompletedProcess[str]:
-    command = ["python3"]
+    command = [sys.executable]
     if optimized:
         command.append("-O")
     command.extend(["scripts/source_admission_policy_audit.py", "--config", str(config)])

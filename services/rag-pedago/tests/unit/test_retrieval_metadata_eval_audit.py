@@ -88,7 +88,7 @@ def _refusal_case(config: dict[str, object], case_id: str = "refus_document_reel
 
 
 def _run_cli(*, optimized: bool = False, config: Path = CONFIG) -> subprocess.CompletedProcess[str]:
-    command = ["python3"]
+    command = [sys.executable]
     if optimized:
         command.append("-O")
     command.extend(["scripts/retrieval_metadata_eval_audit.py", "--config", str(config)])

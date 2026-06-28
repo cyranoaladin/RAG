@@ -93,7 +93,7 @@ def _case_by_decision(config: dict[str, object], decision: str) -> dict[str, obj
 
 
 def _run_cli(*, optimized: bool = False, config: Path = CONFIG) -> subprocess.CompletedProcess[str]:
-    command = ["python3"]
+    command = [sys.executable]
     if optimized:
         command.append("-O")
     command.extend(["scripts/metadata_review_handoff_audit.py", "--config", str(config)])
