@@ -77,6 +77,8 @@ def verify_profile(token: str, secret: str) -> StudentProfile:
         data = json.loads(payload_bytes)
     except (json.JSONDecodeError, binascii.Error, UnicodeDecodeError) as exc:
         raise ValueError("malformed payload") from exc
+    if not isinstance(data, dict):
+        raise ValueError("malformed payload")
     niveau = data.get("niveau", "")
     audience = data.get("audience", "")
     if niveau not in VALID_NIVEAUX:

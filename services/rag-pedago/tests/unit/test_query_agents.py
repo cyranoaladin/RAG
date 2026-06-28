@@ -259,6 +259,44 @@ class TestFilteringByApi:
         assert len(context["passages"]) == len(api_response["results"])
 
 
+class TestVerifyProfileNonDictPayload:
+    """P1 fix: verify_profile raises ValueError (not AttributeError) for
+    non-dict JSON payloads. resolve_profile (rag-engine) catches ValueError
+    → 401. Without the isinstance guard, AttributeError would escape → 500.
+    """
+
+    def test_non_dict_signed_token_raises_valueerror(self) -> None:
+        """A correctly-signed token with a non-dict payload must raise
+        ValueError, which resolve_profile catches → 401."""
+        import base64
+        import hashlib
+        import hmac
+        import json
+
+        from nexus_contracts.profile_auth import verify_profile
+
+        secret = "test-secret"
+        for payload in (123, [1, 2], "x", None):
+            payload_json = json.dumps(payload, separators=(",", ":"))
+            encoded = base64.urlsafe_b64encode(
+                payload_json.encode()
+            ).rstrip(b"=").decode("ascii")
+            sig = hmac.new(
+                secret.encode(), encoded.encode(), hashlib.sha256
+            ).hexdigest()
+            token = f"{encoded}.{sig}"
+
+            try:
+                verify_profile(token, secret)
+                raise AssertionError(f"Should have raised for {payload!r}")
+            except ValueError as exc:
+                assert "malformed payload" in str(exc)
+            except AttributeError:
+                raise AssertionError(
+                    f"Got AttributeError for {payload!r} — isinstance guard missing"
+                )
+
+
 class TestNoSecretError:
     """Verify graceful handling when PROFILE_SECRET is missing."""
 
