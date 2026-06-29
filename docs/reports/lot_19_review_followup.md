@@ -128,8 +128,15 @@ Resultats :
 
 Avant correction follow-up, les checks GitHub Actions etaient verts sur `f71f64a1f94bb6e80cebcef0eb85d8f65c963ec2`.
 
-Statut du SHA follow-up : a verifier apres push. Ne pas merger tant que GitHub Actions n'est pas vert sur le dernier SHA de la PR.
+Apres correction follow-up, le SHA code `b068e82479f892f430edf9e5c2ee32b7169e2abb` a ete pousse puis verifie par GitHub Actions :
+
+- Run GitHub Actions : `28352887825`.
+- Resultat : SUCCESS.
+- Jobs verifies : `governance locks guard`, `packages/contracts`, `services/rag-engine`, `services/rag-pedago`.
+- Annotation non bloquante observee : avertissements GitHub Actions sur la deprecation Node.js 20 de certaines actions.
+
+Un eventuel commit documentaire final doit lui aussi rester vert sur le HEAD de PR avant merge. Aucun merge et aucun deploiement prod n'ont ete effectues pendant cette revue.
 
 ## Statut final
 
-`CHANGES_REQUESTED` tant que le SHA follow-up n'est pas pousse et verifie vert par GitHub Actions.
+`READY_TO_MERGE` sous reserve stricte que GitHub Actions reste vert sur le HEAD final de la PR.
