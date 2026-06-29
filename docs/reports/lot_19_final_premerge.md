@@ -76,6 +76,7 @@ La PR n'avait pas bouge au moment de l'audit local. Les corrections ci-dessous p
 | cubic second passage | P2 : overrides explicites de config doivent echouer fermes si absents | P2 | Traite et renforce dans cette passe | `CollectionConfigLoadError`; tests `test_explicit_collection_config_file_env_fails_closed_when_missing`, `test_explicit_legacy_mapping_file_env_fails_closed_when_missing`, `test_explicit_config_dir_env_fails_closed_when_files_are_missing`, `test_explicit_config_dir_env_missing_mapping_fails_closed`. | Vrai positif corrige. |
 | cubic troisieme passage | P2 : validation du bind mount Compose trop faible avec `grep` independants | P2 | Traite dans cette passe | Plan prod remplace la validation faible par `docker compose config --format json` et verification Python d'un meme objet volume `ingestor` avec source, target et `read_only=true`. | Vrai positif corrige. |
 | cubic quatrieme passage | P1 : le rendu `docker compose config` dans `/tmp` peut persister des secrets interpoles | P1 | Traite apres push `f0e4f7a` | Plan prod parse le rendu Compose en memoire via `subprocess.run(..., stdout=subprocess.PIPE)` sans ecrire le JSON dans `/tmp`; test documentaire ajoute dans `test_prod_compose_config_mount.py`. | Vrai positif corrige. |
+| cubic cinquieme passage | P3 : total agrege des tests cibles obsolete apres ajout d'un second test compose | P3 | Traite apres push `2c18e03` | Le total cible est `29 passed`, coherent avec `2 + 16 + 5 + 6`. | Vrai positif corrige. |
 | Revue locale anti-angle mort | Config serveur absente retournee en 400 | P1 | Traite dans cette passe | `CollectionRoutingError` -> 400 ; `CollectionConfigLoadError` -> 503 generique ; tests `test_search_config_file_missing_is_server_error`, `test_rag_query_config_dir_missing_mapping_is_server_error`. | Vrai positif corrige. |
 
 ## Cohérence des layouts configs
@@ -153,7 +154,7 @@ source .venv/bin/activate
 python -m pytest tests/test_prod_compose_config_mount.py tests/test_rag_collections_config.py tests/test_search_api.py tests/test_rag_query_api.py -q
 ```
 
-Resultat : `28 passed`.
+Resultat : `29 passed`.
 
 Bloc obligatoire execute :
 
