@@ -15,9 +15,16 @@ make nginx-down
 
 ---
 
+> Avertissement Lot 19 — document historique/prod actuelle.
+> Ce README decrit le moteur `rag-local` encore represente en production par `rag-ui.nexusreussite.academy` : Streamlit, FastAPI ingestor, ChromaDB, Ollama, uploads, Google Drive et catalogue admin. Ce n'est pas la source de verite du chemin Nexus gouverné pgvector/HMAC. Pour la transition, lire aussi `docs/rag_dual_engine_transition.md`, `docs/retrieval_api_convergence.md`, `configs/rag_collections.yml` et `configs/legacy_collection_mapping.yml`.
+
 ## Présentation générale
 
 `rag-local` est une solution RAG (Retrieval-Augmented Generation) 100% locale, conçue pour fonctionner sur un VPS sans GPU, avec une architecture modulaire : ingestion de ressources (web, fichiers, GDrive), indexation vectorielle (ChromaDB par défaut, pgvector en cible — voir Lot 1.2), embeddings et LLM locaux (Ollama), UI de recherche (Streamlit), orchestrations (n8n, optionnel), et observabilité Prometheus. Le tout est orchestré par Docker Compose, sécurisé par Nginx, et prêt pour la production.
+
+Depuis le Lot 19, les collections Chroma historiques restent supportees uniquement via mapping :
+`rag_education`, `rag_francais_premiere`, `rag_maths_premiere`, `rag_web3`, `rag_divers`
+vers `rag_nexus_education`, `rag_nexus_web3` ou `rag_nexus_quarantine`. `rag_divers` est une quarantaine non retrievable.
 
 **Objectifs** :
 - Zéro dépendance cloud/LLM externe

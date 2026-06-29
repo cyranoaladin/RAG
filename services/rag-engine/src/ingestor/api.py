@@ -40,6 +40,21 @@ try:
 except (ImportError, ValueError):
     from drive_sync import DriveSyncManager  # type: ignore[no-redef]
 
+try:
+    from .collection_config import (
+        CollectionConfigError,
+        CollectionConfigLoadError,
+        CollectionRoutingError,
+        resolve_collection,
+    )
+except (ImportError, ValueError):
+    from collection_config import (  # type: ignore[no-redef]
+        CollectionConfigError,
+        CollectionConfigLoadError,
+        CollectionRoutingError,
+        resolve_collection,
+    )
+
 if TYPE_CHECKING:
     from langchain.schema import Document
 else:
@@ -74,14 +89,11 @@ OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 EMBED_MODEL = os.getenv("EMBED_MODEL", "nomic-embed-text")
 COLLECTION_NAME = os.getenv("COLLECTION_NAME", "rag_education")
 
-# ── Multi-collection architecture ──────────────────────────────────
-# Collections are organized by major section:
-#   - rag_education        : all education resources (filtered by matiere/niveau/groupe via metadata)
-#   - rag_francais_premiere: dedicated Français Première corpus
-#   - rag_maths_premiere   : dedicated Mathématiques Première corpus (spécialité)
-#   - rag_web3             : blockchain, DeFi, NFT, Solana, etc.
-#   - rag_divers           : miscellaneous resources, always queried in "all" searches
-# Within each collection, metadata filters provide fine-grained retrieval.
+# ── Legacy Chroma routing ───────────────────────────────────────────
+# These names are the current production Chroma collections. They are no longer
+# the business source of truth: `configs/rag_collections.yml` defines the Nexus
+# target collections, and `legacy_collection_mapping.yml` is the only accepted
+# bridge from historical names to Nexus domains.
 COLLECTION_MAP: dict[str, str] = {
     "education": "rag_education",
     "web3": "rag_web3",
@@ -98,12 +110,34 @@ MATHS_PREMIERE_FALLBACK_FILTERS: dict[str, str] = {
 }
 
 
-def resolve_collection_name(section: str | None = None, collection: str | None = None) -> str:
-    """Resolve the ChromaDB collection name from section or explicit collection name."""
-    if collection and collection.strip():
-        return collection.strip().lower()
-    sec = (section or "default").strip().lower()
-    return COLLECTION_MAP.get(sec, COLLECTION_MAP["default"])
+def resolve_collection_name(
+    section: str | None = None,
+    collection: str | None = None,
+    *,
+    allow_quarantine: bool = True,
+) -> str:
+    """Resolve a ChromaDB collection only through the versioned Nexus mapping."""
+    try:
+        resolution = resolve_collection(
+            section=section,
+            collection=collection,
+            allow_non_retrievable=allow_quarantine,
+        )
+    except CollectionRoutingError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except CollectionConfigLoadError as exc:
+        logger.exception("Collection configuration unavailable")
+        raise HTTPException(
+            status_code=503,
+            detail="Collection configuration unavailable",
+        ) from exc
+    except CollectionConfigError as exc:
+        logger.exception("Collection configuration error")
+        raise HTTPException(
+            status_code=503,
+            detail="Collection configuration unavailable",
+        ) from exc
+    return resolution.physical_collection
 
 
 def _resolve_search_target(
@@ -114,6 +148,7 @@ def _resolve_search_target(
     requested_collection = resolve_collection_name(
         section=payload.section,
         collection=payload.collection or None,
+        allow_quarantine=False,
     )
     effective_filters = dict(payload.filters)
     maths_fallback_applied = False
@@ -1900,10 +1935,11 @@ def collection_stats(collection_name: str, request: Request) -> dict[str, Any]:
     """Get statistics for a specific collection."""
     _require_api_token_configured()
     _enforce_security(request, None)
+    target_collection = resolve_collection_name(collection=collection_name, allow_quarantine=True)
     try:
         client = get_chroma_client()
         collection = client.get_or_create_collection(
-            name=collection_name, metadata={"hnsw:space": "cosine"}
+            name=target_collection, metadata={"hnsw:space": "cosine"}
         )
         count = collection.count()
         # Sample metadata across the full collection to extract unique field values.
@@ -1953,7 +1989,7 @@ def collection_stats(collection_name: str, request: Request) -> dict[str, Any]:
                 pass
         
         return {
-            "collection": collection_name,
+            "collection": target_collection,
             "doc_count": count,
             "embed_model": EMBED_MODEL,
             "matieres": sorted(unique_matieres),
@@ -1985,6 +2021,8 @@ def search_kb(payload: SearchRequest, request: Request) -> dict[str, Any]:
         client = get_chroma_client()
         target_col, effective_filters, maths_fallback_applied = _resolve_search_target(client, payload)
         collection = client.get_or_create_collection(name=target_col, metadata={"hnsw:space": "cosine"})
+    except HTTPException:
+        raise
     except Exception as exc:  # pragma: no cover - defensive
         raise HTTPException(status_code=500, detail=f"Chroma client error: {exc}") from exc
 
@@ -2086,10 +2124,24 @@ def rag_query(payload: RagQuery, request: Request) -> dict[str, Any]:
     _require_api_token_configured()
     _enforce_security(request, payload)
 
+    # Resolve routing before touching Chroma so arbitrary client collections fail closed.
+    try:
+        target_collection = resolve_collection_name(
+            collection=payload.collection,
+            allow_quarantine=False,
+        )
+    except HTTPException:
+        raise
+
     # Prepare chroma collection
     try:
         client = get_chroma_client()
-        collection = client.get_or_create_collection(name=payload.collection, metadata={"hnsw:space": "cosine"})
+        collection = client.get_or_create_collection(
+            name=target_collection,
+            metadata={"hnsw:space": "cosine"},
+        )
+    except HTTPException:
+        raise
     except Exception as exc:  # pragma: no cover - defensive
         raise HTTPException(status_code=500, detail=f"Chroma client error: {exc}") from exc
 
@@ -2156,7 +2208,7 @@ def rag_query(payload: RagQuery, request: Request) -> dict[str, Any]:
 
     return {
         "query": payload.query,
-        "collection": payload.collection,
+        "collection": target_collection,
         "k": n_results,
         "filters": where,
         "hits": hits,

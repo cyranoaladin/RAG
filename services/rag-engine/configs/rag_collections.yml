@@ -1,0 +1,89 @@
+version: 1
+physical_backends:
+  chroma:
+    collections:
+      rag_nexus_education:
+        description: "Corpus pedagogique general Nexus"
+        allowed_domains: ["education"]
+      rag_nexus_official:
+        description: "Programmes, BO et textes officiels"
+        allowed_domains: ["official"]
+      rag_nexus_exams:
+        description: "Annales, sujets, corriges et grilles"
+        allowed_domains: ["exam"]
+      rag_nexus_owned:
+        description: "Ressources proprietaires Nexus validees"
+        allowed_domains: ["nexus_owned"]
+      rag_nexus_web3:
+        description: "Blockchain, Web3, Solana et ecosystemes associes"
+        allowed_domains: ["web3"]
+      rag_nexus_quarantine:
+        description: "Sources non encore admises ou a revoir"
+        allowed_domains: ["quarantine"]
+  pgvector:
+    table: rag_chunks
+    legacy_table: rag_chunks_pilote
+metadata_required:
+  - domain
+  - audience
+  - niveau
+  - voie
+  - matiere
+  - statut_enseignement
+  - type_doc
+  - source_kind
+  - rights
+  - review_status
+  - source_label
+  - source_uri
+  - doc_id
+  - chunk_id
+  - chunk_sha256
+domains:
+  education:
+    audiences: ["libre", "aefe", "tous"]
+    retrievable: true
+  official:
+    audiences: ["tous"]
+    retrievable: true
+  exam:
+    audiences: ["libre", "aefe", "tous"]
+    retrievable: true
+  nexus_owned:
+    audiences: ["libre", "aefe"]
+    retrievable: true
+  web3:
+    audiences: ["tous"]
+    retrievable: true
+  quarantine:
+    retrievable: false
+routing:
+  sections:
+    education:
+      nexus_collection: rag_nexus_education
+      legacy_collection: rag_education
+      domain: education
+    francais_premiere:
+      nexus_collection: rag_nexus_education
+      legacy_collection: rag_francais_premiere
+      domain: education
+    maths_premiere:
+      nexus_collection: rag_nexus_education
+      legacy_collection: rag_maths_premiere
+      domain: education
+    web3:
+      nexus_collection: rag_nexus_web3
+      legacy_collection: rag_web3
+      domain: web3
+    blockchain:
+      nexus_collection: rag_nexus_web3
+      legacy_collection: rag_web3
+      domain: web3
+    divers:
+      nexus_collection: rag_nexus_quarantine
+      legacy_collection: rag_divers
+      domain: quarantine
+    default:
+      nexus_collection: rag_nexus_education
+      legacy_collection: rag_education
+      domain: education

@@ -32,6 +32,8 @@ essential_doc_payload = {
 
 def test_admin_crud_and_ingest_flow(monkeypatch) -> None:
     with tempfile.TemporaryDirectory() as td:
+        monkeypatch.setenv("INGESTOR_API_TOKEN", "test-token")
+        monkeypatch.setenv("INGEST_AUTH_TOKEN", "test-token")
         os.environ["ADMIN_DB_PATH"] = os.path.join(td, "catalog.sqlite")
         os.environ["ADMIN_UPLOAD_DIR"] = os.path.join(td, "uploads")
         os.makedirs(os.environ["ADMIN_UPLOAD_DIR"], exist_ok=True)
@@ -91,6 +93,8 @@ def test_admin_crud_and_ingest_flow(monkeypatch) -> None:
 
 def test_admin_upload_ingest_false_and_true(monkeypatch) -> None:
     with tempfile.TemporaryDirectory() as td:
+        monkeypatch.setenv("INGESTOR_API_TOKEN", "test-token")
+        monkeypatch.setenv("INGEST_AUTH_TOKEN", "test-token")
         os.environ["ADMIN_DB_PATH"] = os.path.join(td, "catalog.sqlite")
         os.environ["ADMIN_UPLOAD_DIR"] = os.path.join(td, "uploads")
         os.makedirs(os.environ["ADMIN_UPLOAD_DIR"], exist_ok=True)

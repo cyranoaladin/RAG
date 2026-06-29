@@ -2,6 +2,9 @@
 
 Statut: V1 implémentée (Admin CRUD complet, endpoint global /admin/ingestions, upload via dashboard, ingestion URL & Google Drive opérationnelles).
 
+> Avertissement Lot 19 — document historique/prod actuelle.
+> Ce cahier des charges decrit les dashboards d'ingestion `rag-local`/Streamlit encore proches de la production `rag-ui.nexusreussite.academy`. Le chemin Nexus gouverne est separe : contrat `nexus-contracts`, pipeline `quality -> gate -> review`, pgvector et retrieval filtre. Les evolutions de dashboards doivent passer par les collections cible `rag_nexus_*` et les metadonnees obligatoires de `services/rag-engine/configs/rag_collections.yml`.
+
 ## 1. Contexte
 
 `rag-local` est un moteur RAG 100 % local (FastAPI + Ollama + ChromaDB + Streamlit) déployé sur VPS, sans dépendance à des LLM externes.  
@@ -429,4 +432,3 @@ Avec ces trois éléments (cahier des charges court, schémas, plan d’issues),
 * ce qu’il doit construire dans `rag-local`,
 * comment les domaines "Lycée" et "Web3" sont modélisés,
 * quelle API RAG générique devra être exposée pour que, plus tard, d’autres projets (simulateurs, agents IA) puissent se brancher sans modification supplémentaire du cœur RAG.
-

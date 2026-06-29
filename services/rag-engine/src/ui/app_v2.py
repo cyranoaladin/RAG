@@ -1,10 +1,10 @@
 """
 Dashboard RAG v3 — Streamlit
 Architecture multi-collection optimisée pour agents IA :
-  - rag_education        : accompagnement scolaire, cours, soutien, ressources pédagogiques
-  - rag_francais_premiere: corpus dédié Français Première
-  - rag_web3             : blockchain, DeFi, NFT, Solana, smart-contracts
-  - rag_divers           : ressources variées consultées automatiquement sur toute requête
+  - rag_education        : collection Chroma historique, mappee vers rag_nexus_education
+  - rag_francais_premiere: collection Chroma historique, mappee vers rag_nexus_education
+  - rag_web3             : collection Chroma historique, mappee vers rag_nexus_web3
+  - rag_divers           : collection Chroma historique, mappee vers rag_nexus_quarantine
 Ingestion multi-méthodes : Upload fichiers, URLs, Google Drive
 Taxonomie complète : Enseignements communs, EDS, options, Grand Oral
 """
@@ -106,7 +106,6 @@ ALL_COLLECTIONS = [
     "rag_maths_premiere",
     "rag_education",
     "rag_web3",
-    "rag_divers",
 ]
 
 WEB3_CATEGORIES = [
@@ -762,9 +761,8 @@ elif page == "📦 Divers":
     st.title("📦 Divers — Ressources variées")
     st.markdown(
         "Ingérez ici des ressources de **types variés** sans catégorisation stricte. "
-        "Cette collection (**`rag_divers`**) est **consultée automatiquement** "
-        "lors de toute recherche multi-collection (mode *Toutes*). "
-        "Utile pour des documents transversaux, notes internes, références générales."
+        "Cette collection historique (**`rag_divers`**) est désormais traitée comme "
+        "**quarantaine Nexus** (`rag_nexus_quarantine`) et n'est pas consultée par la recherche."
     )
 
     st.subheader("📂 Classification optionnelle")
@@ -873,7 +871,7 @@ elif page == "🔍 Recherche":
     # Section ciblée
     search_section = st.radio(
         "Collection cible",
-        ["📚 Français Première", "📐 Maths 1ère", "🎓 Éducation", "🔗 Web3", "📦 Divers", "📦 Toutes"],
+        ["📚 Français Première", "📐 Maths 1ère", "🎓 Éducation", "🔗 Web3", "📦 Toutes"],
         horizontal=True,
     )
 
@@ -938,9 +936,6 @@ elif page == "🔍 Recherche":
             f_cat = st.selectbox("Catégorie", ["Tous"] + WEB3_CATEGORIES, key="s_w3cat")
             if f_cat != "Tous":
                 filters["categorie"] = f_cat
-    elif search_section == "📦 Divers":
-        section_key = "divers"
-        collection_key = "rag_divers"
     else:
         section_key = "all"
         collection_key = ""

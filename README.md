@@ -56,6 +56,8 @@ L'etat courant correspond aux lots 0 a 18 :
 
 Le cockpit applicatif reste un placeholder. La generation de reponse reste explicitement interdite (`answer_generation_allowed: false`).
 
+Lot 19 ajoute l'alignement documentaire entre la production historique `rag-ui.nexusreussite.academy` et le chemin Nexus gouverne. La production publique observee le 29 juin 2026 sert encore l'UI historique Streamlit/ingestor (`HTTP 200` sur `rag-ui`, `/health` healthy sur `rag-api`, `/collections` protege par `401` sans token). Elle ne doit pas etre confondue avec le pilote Nexus pgvector/HMAC.
+
 ## 2. Logique metier
 
 ### 2.1 Probleme traite
@@ -647,6 +649,33 @@ Le dossier `src/ingestor/` conserve des composants importants :
 
 Ce code est teste et reutilisable, mais il ne constitue pas encore l'API Nexus filtree par profil signe. La surface Nexus pilote est `scripts/retrieval_api.py`.
 
+### 8.7 Collections RAG et transition Lot 19
+
+L'architecture cible des collections est versionnee dans `services/rag-engine/configs/rag_collections.yml`. Les collections physiques cibles sont limitees :
+
+| Collection cible | Domaine | Statut |
+|---|---|---|
+| `rag_nexus_education` | `education` | Corpus pedagogique general. |
+| `rag_nexus_official` | `official` | Programmes, BO et textes officiels. |
+| `rag_nexus_exams` | `exam` | Annales, sujets, corriges et grilles. |
+| `rag_nexus_owned` | `nexus_owned` | Ressources proprietaires Nexus validees. |
+| `rag_nexus_web3` | `web3` | Blockchain, Web3, Solana. |
+| `rag_nexus_quarantine` | `quarantine` | Non retrievable. |
+
+Les noms Chroma de production ne sont pas supprimes ni renommes physiquement. Ils passent par `services/rag-engine/configs/legacy_collection_mapping.yml` :
+
+| Legacy Chroma | Nexus cible |
+|---|---|
+| `rag_education` | `rag_nexus_education` |
+| `rag_francais_premiere` | `rag_nexus_education` |
+| `rag_maths_premiere` | `rag_nexus_education` |
+| `rag_web3` | `rag_nexus_web3` |
+| `rag_divers` | `rag_nexus_quarantine` |
+
+Le moteur historique `/search` accepte seulement une collection Nexus connue ou un nom legacy mappe. Un client ne peut plus elargir arbitrairement le perimetre avec `collection=anything`. `rag_divers` reste ingestible comme legacy/quarantaine mais n'est plus retrievable.
+
+Le backend pgvector cible declare `rag_chunks` comme table non pilote et conserve `rag_chunks_pilote` comme table legacy pilote jusqu'a migration explicite.
+
 ## 9. Service `cockpit`
 
 `services/cockpit/` contient seulement :
@@ -1163,7 +1192,7 @@ Le profil signe actuel ne porte que `niveau` et `audience`. Il ne transporte pas
 
 Quelques documents internes sont historiques :
 
-- `services/rag-engine/README.md`, `README-PROD.md`, `SPEC.md` parlent encore fortement de `rag-local`, ChromaDB et Ollama.
+- `services/rag-engine/README.md`, `README-PROD.md`, `SPEC.md` parlent de `rag-local`, ChromaDB et Ollama parce qu'ils documentent la prod historique ; ils portent des avertissements Lot 19 pour eviter la confusion avec Nexus.
 - `services/rag-pedago/README.md` decrit encore un etat metadata-only plus strict que l'etat courant.
 - `docs/ROADMAP.md` mentionne une nomenclature initiale de tenants `{population}_{niveau}`.
 
@@ -1172,6 +1201,7 @@ L'etat courant du code et des ADR recents est :
 - tenant pilote = niveau (`terminale`, `premiere`, etc.) ;
 - audience = metadonnee filtrable (`libre`, `aefe`, `tous`) ;
 - pgvector pilote = `rag_chunks_pilote` en 1024 dimensions ;
+- collections cible = `rag_nexus_*` avec mapping legacy explicite ;
 - API runtime lecture seule autorisee ;
 - generation de reponse interdite.
 

@@ -85,3 +85,69 @@ def test_search_embedding_404(monkeypatch: pytest.MonkeyPatch) -> None:
         headers={"Authorization": "Bearer tok"},
     )
     assert r.status_code == 503
+
+
+def test_search_rejects_unknown_collection_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    api = _load_api(monkeypatch)
+
+    class FakeClient:
+        def get_or_create_collection(self, *_, **__):
+            pytest.fail("unknown collection must be rejected before Chroma collection access")
+
+    monkeypatch.setattr(api, "get_chroma_client", lambda: FakeClient())
+
+    client = TestClient(api.app)
+    r = client.post(
+        "/search",
+        json={"q": "hello", "collection": "anything"},
+        headers={"Authorization": "Bearer tok"},
+    )
+
+    assert r.status_code == 400
+    assert "collection" in r.json()["detail"].lower()
+
+
+def test_search_rejects_unknown_section_as_client_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    api = _load_api(monkeypatch)
+
+    class FakeClient:
+        def get_or_create_collection(self, *_, **__):
+            pytest.fail("unknown section must be rejected before Chroma collection access")
+
+    monkeypatch.setattr(api, "get_chroma_client", lambda: FakeClient())
+
+    client = TestClient(api.app)
+    r = client.post(
+        "/search",
+        json={"q": "hello", "section": "hacked"},
+        headers={"Authorization": "Bearer tok"},
+    )
+
+    assert r.status_code == 400
+    assert "section" in r.json()["detail"].lower()
+
+
+def test_search_config_file_missing_is_server_error(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("RAG_COLLECTIONS_CONFIG", str(tmp_path / "missing.yml"))
+    monkeypatch.delenv("RAG_LEGACY_COLLECTION_MAPPING", raising=False)
+    monkeypatch.delenv("RAG_ENGINE_CONFIG_DIR", raising=False)
+    api = _load_api(monkeypatch)
+
+    class FakeClient:
+        def get_or_create_collection(self, *_, **__):
+            pytest.fail("missing config must fail before Chroma collection access")
+
+    monkeypatch.setattr(api, "get_chroma_client", lambda: FakeClient())
+
+    client = TestClient(api.app)
+    r = client.post(
+        "/search",
+        json={"q": "hello"},
+        headers={"Authorization": "Bearer tok"},
+    )
+
+    assert r.status_code == 503
+    assert r.json()["detail"] == "Collection configuration unavailable"
+    assert str(tmp_path) not in r.text
