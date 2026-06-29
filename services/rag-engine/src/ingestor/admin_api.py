@@ -49,13 +49,25 @@ def _get_request_id(request: Request) -> Optional[str]:
 
 # --- Security: reuse same token as /ingest (Bearer or X-API-Token) ---
 
+def _rag_env() -> str:
+    return (os.getenv("RAG_ENV", "development") or "development").strip().lower()
+
+
 def _admin_guard(request: Request) -> None:
     token_env = os.getenv("INGESTOR_API_TOKEN") or os.getenv("INGEST_AUTH_TOKEN")
     client_ip = _get_client_ip(request)
     request_id = _get_request_id(request)
     
     if not token_env:
-        return  # no guard configured
+        if _rag_env() == "production":
+            _audit.log_security_violation(
+                violation_type="missing_admin_token",
+                client_ip=client_ip,
+                details={"rag_env": "production"},
+                request_id=request_id,
+            )
+            raise HTTPException(status_code=503, detail="Admin token not configured")
+        return
     header_token = request.headers.get("X-API-Token") or request.headers.get("x-api-token")
     if not header_token:
         auth = request.headers.get("Authorization") or request.headers.get("authorization")
@@ -260,11 +272,12 @@ def ingest_document(document_id: str, request: Request) -> dict[str, Any]:
 
 @router.post("/reindex")
 def trigger_reindex(request: Request, payload: Optional[dict[str, Any]] = None) -> dict[str, str]:
-    """Placeholder endpoint for batch reindex orchestration (no auth required).
+    """Placeholder endpoint for batch reindex orchestration.
 
     The actual implementation is environment-specific; for now we acknowledge the
     call so that automation hooks can validate connectivity.
     """
+    _admin_guard(request)
     _ = payload
     _ensure_upload_dir()
     _logger.info("Received reindex request via admin API")

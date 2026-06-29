@@ -32,9 +32,9 @@ def test_admin_endpoints_cover(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
     # /admin/health should be ok
     r = client.get("/admin/health")
     assert r.status_code == 200
-    # /admin/reindex should be 503 (not configured)
+    # /admin/reindex is a placeholder, but it must still enforce admin auth.
     r = client.post("/admin/reindex")
-    assert r.status_code == 503
+    assert r.status_code == 401
 
 
 def test_helpers_cover(monkeypatch: pytest.MonkeyPatch) -> None:

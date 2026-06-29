@@ -1,8 +1,13 @@
 # rag-local — Déploiement Production (VPS)
 
+> Avertissement Lot 19 — prod historique, pas deploiement Nexus final.
+> Ce document reste utile pour comprendre et operer l'UI historique `rag-ui.nexusreussite.academy` (Streamlit + FastAPI ingestor + ChromaDB + Ollama). Il ne doit pas etre lu comme un plan de deploiement du futur RAG Nexus pgvector. Avant toute mise a jour de prod, utiliser `docs/reports/lot_19_prod_deployment_plan.md` : backup, diff prod/repo, rsync cible, post-check et rollback.
+
 Ce projet fournit un **RAG 100% local** (LLM & embeddings via **Ollama**) avec **ingestion multi-sources** et **UI de recherche**. L’architecture est prête à être exposée en **HTTPS** via **Nginx + Let's Encrypt**, sans dépendance à des API externes.
 
 > ℹ️ n8n a été retiré du déploiement. L’ingestion se fait directement via l’API (Authorization: Bearer) et un petit utilitaire CLI (`scripts/ingest-cli.py`).
+
+Collections Lot 19 : les noms Chroma historiques ne sont pas renommes physiquement en prod. La couche applicative mappe `rag_education`, `rag_francais_premiere`, `rag_maths_premiere`, `rag_web3`, `rag_divers` vers les collections Nexus versionnees dans `configs/rag_collections.yml`. `rag_divers` correspond a `rag_nexus_quarantine` et ne doit pas etre expose a la recherche.
 
 ## Prérequis VPS
 - Ubuntu 22.04/24.04, accès sudo, ports 80/443 ouverts, DNS des domaines pointés sur le VPS.

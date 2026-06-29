@@ -85,3 +85,23 @@ def test_search_embedding_404(monkeypatch: pytest.MonkeyPatch) -> None:
         headers={"Authorization": "Bearer tok"},
     )
     assert r.status_code == 503
+
+
+def test_search_rejects_unknown_collection_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    api = _load_api(monkeypatch)
+
+    class FakeClient:
+        def get_or_create_collection(self, *_, **__):
+            pytest.fail("unknown collection must be rejected before Chroma collection access")
+
+    monkeypatch.setattr(api, "get_chroma_client", lambda: FakeClient())
+
+    client = TestClient(api.app)
+    r = client.post(
+        "/search",
+        json={"q": "hello", "collection": "anything"},
+        headers={"Authorization": "Bearer tok"},
+    )
+
+    assert r.status_code == 400
+    assert "collection" in r.json()["detail"].lower()
