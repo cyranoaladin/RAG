@@ -177,6 +177,7 @@ Source : `services/rag-engine/configs/legacy_collection_mapping.yml`.
 - Adaptateur contractuel ajoute.
 - Docs historiques balisees.
 - `packages/contracts` est testable depuis son dossier avec `python -m pytest -q`.
+- Le job GitHub Actions `services/rag-engine` utilise maintenant `make install`, comme la CI locale, afin d'installer `nexus-contracts` avant les tests.
 
 ## 12. Dettes restantes
 
@@ -247,6 +248,9 @@ services/rag-engine make typecheck
 
 services/rag-engine make test
   exit 0
+
+services/rag-engine make install && make test
+  exit 0, verification du correctif GitHub Actions
 
 services/rag-pedago make lint && make typecheck && make test
   All checks passed
