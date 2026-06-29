@@ -6,8 +6,10 @@ from pathlib import Path
 import yaml
 
 ENGINE_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = ENGINE_ROOT.parents[1]
 COMPOSE_PATH = ENGINE_ROOT / "infra" / "docker-compose.prod.yml"
 CONFIGS_DIR = ENGINE_ROOT / "configs"
+DEPLOYMENT_PLAN = REPO_ROOT / "docs" / "reports" / "lot_19_prod_deployment_plan.md"
 
 
 def _load_compose() -> dict:
@@ -54,3 +56,12 @@ def test_versioned_prod_compose_mounts_configs_structurally() -> None:
     assert resolved_source.is_dir()
     assert (resolved_source / "rag_collections.yml").is_file()
     assert (resolved_source / "legacy_collection_mapping.yml").is_file()
+
+
+def test_prod_deployment_plan_does_not_persist_rendered_compose_secrets() -> None:
+    plan = DEPLOYMENT_PLAN.read_text(encoding="utf-8")
+
+    assert "/tmp/rag-ui-compose.rendered" not in plan
+    assert "docker compose config --format json >" not in plan
+    assert '["docker", "compose", "config", "--format", "json"]' in plan
+    assert "stdout=subprocess.PIPE" in plan

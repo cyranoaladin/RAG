@@ -41,12 +41,17 @@ grep -q '^RAG_CONFIGS_HOST_DIR=./configs$' .env
 grep -q '^ALLOW_UNAUTHENTICATED_ADMIN_DEV=false$' .env
 test -f configs/rag_collections.yml
 test -f configs/legacy_collection_mapping.yml
-docker compose config --format json >/tmp/rag-ui-compose.rendered.json
 python3 - <<'PY'
 import json
-from pathlib import Path
+import subprocess
 
-config = json.loads(Path("/tmp/rag-ui-compose.rendered.json").read_text())
+rendered = subprocess.run(
+    ["docker", "compose", "config", "--format", "json"],
+    check=True,
+    stdout=subprocess.PIPE,
+    text=True,
+).stdout
+config = json.loads(rendered)
 volumes = config["services"]["ingestor"].get("volumes", [])
 expected = {
     "type": "bind",
@@ -144,12 +149,17 @@ Copier uniquement les fichiers necessaires :
 
 ```bash
 ssh <serveur> 'cd /srv/nexusreussite/rag-ui/compose && mkdir -p configs && grep -q "^RAG_ENV=production$" .env && grep -q "^RAG_ENGINE_CONFIG_DIR=/app/configs$" .env && grep -q "^RAG_CONFIGS_HOST_DIR=./configs$" .env && grep -q "^ALLOW_UNAUTHENTICATED_ADMIN_DEV=false$" .env'
-ssh <serveur> 'cd /srv/nexusreussite/rag-ui/compose && docker compose config --format json >/tmp/rag-ui-compose.rendered.json'
-ssh <serveur> 'python3 - <<'"'"'PY'"'"'
+ssh <serveur> 'cd /srv/nexusreussite/rag-ui/compose && python3 - <<'"'"'PY'"'"'
 import json
-from pathlib import Path
+import subprocess
 
-config = json.loads(Path("/tmp/rag-ui-compose.rendered.json").read_text())
+rendered = subprocess.run(
+    ["docker", "compose", "config", "--format", "json"],
+    check=True,
+    stdout=subprocess.PIPE,
+    text=True,
+).stdout
+config = json.loads(rendered)
 volumes = config["services"]["ingestor"].get("volumes", [])
 expected = {
     "type": "bind",
