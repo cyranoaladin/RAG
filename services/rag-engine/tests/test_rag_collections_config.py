@@ -8,12 +8,18 @@ from pathlib import Path
 import pytest
 import yaml
 
-from src.ingestor.collection_config import CollectionConfigError, resolve_collection
+from src.ingestor.collection_config import (
+    CollectionConfigError,
+    load_collection_config,
+    load_legacy_mapping,
+    resolve_collection,
+)
 
 ENGINE_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = ENGINE_ROOT / "configs" / "rag_collections.yml"
 MAPPING_PATH = ENGINE_ROOT / "configs" / "legacy_collection_mapping.yml"
 COLLECTION_CONFIG_MODULE = ENGINE_ROOT / "src" / "ingestor" / "collection_config.py"
+DOCKER_COMPOSE_PROD = ENGINE_ROOT / "infra" / "docker-compose.prod.yml"
 
 
 def _load_yaml(path: Path) -> dict:
@@ -156,6 +162,58 @@ def test_collection_config_uses_config_dir_env(tmp_path, monkeypatch) -> None:
 
     assert module.load_collection_config()["version"] == 1
     assert module.load_legacy_mapping()["rag_education"] == "rag_nexus_education"
+
+
+def test_explicit_collection_config_file_env_fails_closed_when_missing(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setenv("RAG_COLLECTIONS_CONFIG", str(tmp_path / "missing.yml"))
+    monkeypatch.delenv("RAG_LEGACY_COLLECTION_MAPPING", raising=False)
+    monkeypatch.delenv("RAG_ENGINE_CONFIG_DIR", raising=False)
+
+    with pytest.raises(CollectionConfigError, match="RAG_COLLECTIONS_CONFIG"):
+        load_collection_config()
+
+
+def test_explicit_legacy_mapping_file_env_fails_closed_when_missing(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.delenv("RAG_COLLECTIONS_CONFIG", raising=False)
+    monkeypatch.setenv("RAG_LEGACY_COLLECTION_MAPPING", str(tmp_path / "missing.yml"))
+    monkeypatch.delenv("RAG_ENGINE_CONFIG_DIR", raising=False)
+
+    with pytest.raises(CollectionConfigError, match="RAG_LEGACY_COLLECTION_MAPPING"):
+        load_legacy_mapping()
+
+
+def test_explicit_config_dir_env_fails_closed_when_files_are_missing(
+    tmp_path, monkeypatch
+) -> None:
+    config_dir = tmp_path / "configs"
+    config_dir.mkdir()
+    monkeypatch.delenv("RAG_COLLECTIONS_CONFIG", raising=False)
+    monkeypatch.delenv("RAG_LEGACY_COLLECTION_MAPPING", raising=False)
+    monkeypatch.setenv("RAG_ENGINE_CONFIG_DIR", str(config_dir))
+
+    with pytest.raises(CollectionConfigError, match="RAG_ENGINE_CONFIG_DIR"):
+        load_collection_config()
+
+
+def test_prod_compose_mounts_existing_repo_configs_dir() -> None:
+    compose = _load_yaml(DOCKER_COMPOSE_PROD)
+    volumes = compose["services"]["ingestor"]["volumes"]
+    config_mounts = [
+        volume
+        for volume in volumes
+        if isinstance(volume, str) and volume.endswith(":/app/configs:ro")
+    ]
+
+    assert config_mounts == ["../configs:/app/configs:ro"]
+    source = config_mounts[0].split(":", maxsplit=1)[0]
+    resolved_source = (DOCKER_COMPOSE_PROD.parent / source).resolve()
+    assert resolved_source == (ENGINE_ROOT / "configs").resolve()
+    assert (resolved_source / "rag_collections.yml").is_file()
+    assert (resolved_source / "legacy_collection_mapping.yml").is_file()
 
 
 def test_unknown_section_is_rejected_without_default_fallback() -> None:

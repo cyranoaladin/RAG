@@ -33,6 +33,22 @@ def _candidate_config_paths(filename: str, file_env: str) -> list[Path]:
 
 
 def _resolve_config_path(filename: str, file_env: str) -> Path:
+    env_path = os.getenv(file_env)
+    if env_path:
+        candidate = Path(env_path).expanduser()
+        if candidate.is_file():
+            return candidate
+        raise CollectionConfigError(f"{file_env} points to missing config file: {candidate}")
+
+    env_dir = os.getenv(CONFIG_DIR_ENV)
+    if env_dir:
+        candidate = Path(env_dir).expanduser() / filename
+        if candidate.is_file():
+            return candidate
+        raise CollectionConfigError(
+            f"{CONFIG_DIR_ENV} does not contain {filename}: {candidate}"
+        )
+
     candidates = _candidate_config_paths(filename, file_env)
     for candidate in candidates:
         if candidate.is_file():

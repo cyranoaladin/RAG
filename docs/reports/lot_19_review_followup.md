@@ -26,12 +26,12 @@ Revue initiale observee sur le SHA `f71f64a1f94bb6e80cebcef0eb85d8f65c963ec2` :
 | Codex Review - config collections non chargeable dans image ingestor / layout `/app` | `services/rag-engine/src/ingestor/collection_config.py` | P1 | Vrai positif | Resolution robuste par `RAG_COLLECTIONS_CONFIG`, `RAG_LEGACY_COLLECTION_MAPPING`, `RAG_ENGINE_CONFIG_DIR`, fallback repo et fallback prod plat `../configs`; test layout prod simule. |
 | Codex Review - fail-open admin si `RAG_ENV` absent en prod | `services/rag-engine/src/ingestor/admin_api.py` | P1 | Vrai positif | Defaut fail-closed, admin sans token autorise uniquement avec `RAG_ENV=development` + `ALLOW_UNAUTHENTICATED_ADMIN_DEV=true`; compose/env prod mis a jour. |
 | cubic - grammaire `gouverne` -> `gouverné` | `services/rag-engine/README.md` | P3 | Vrai positif | Correction README historique. |
-| cubic - `curl -k` dans les checks prod | `docs/reports/lot_19_prod_deployment_plan.md` | P2 | Vrai positif | Remplacement par `curl -sS --fail`; TLS non desactive dans le plan prod. |
+| cubic - option curl TLS insecure dans les checks prod | `docs/reports/lot_19_prod_deployment_plan.md` | P2 | Vrai positif | Remplacement par `curl -sS --fail`; TLS non desactive dans le plan prod. |
 | cubic - rollback incomplet des nouveaux modules/configs | `docs/reports/lot_19_prod_deployment_plan.md` | P1 | Vrai positif | Backup et rollback de `collection_config.py`, `retrieval_contract_adapter.py`, `rag_collections.yml`, `legacy_collection_mapping.yml`; suppression au rollback si absents du backup. |
 | cubic - conversion page citation non numerique | `services/rag-engine/src/ingestor/retrieval_contract_adapter.py` | P2 | Vrai positif | Page numerique conservee/convertie, page invalide ignoree sans crash, citation sans champs requis retourne `None`. |
 | cubic - section inconnue routée vers default | `services/rag-engine/src/ingestor/collection_config.py` | P2 | Vrai positif | Suppression du fallback silencieux; seules `None`, `""`, `default` et sections declarees sont acceptees. |
 | cubic - fail-open admin si `RAG_ENV` absent | `services/rag-engine/src/ingestor/admin_api.py` | P1 | Vrai positif, doublon du point Codex | Meme correction que le point Codex. |
-| Verification A - layout prod plat `/srv/nexusreussite/rag-ui/compose` | `collection_config.py`, `docker-compose.prod.yml`, plan prod | P1 | Vrai positif | Test prod plat sous `/tmp/rag-ui/compose`; montage `./configs:/app/configs:ro`; `RAG_ENGINE_CONFIG_DIR=/app/configs`. |
+| Verification A - layout prod plat `/srv/nexusreussite/rag-ui/compose` | `collection_config.py`, `docker-compose.prod.yml`, plan prod | P1 | Vrai positif | Test prod plat sous `/tmp/rag-ui/compose`; montage repo `../configs:/app/configs:ro` et montage plat prod `./configs:/app/configs:ro`; `RAG_ENGINE_CONFIG_DIR=/app/configs`. |
 | Verification B - `RAG_ENV` par defaut | `admin_api.py`, templates env, README-PROD | P1 | Vrai positif | Test `RAG_ENV` absent + token absent => 503; dev explicite seulement avec opt-in. |
 | Verification C - section inconnue | `collection_config.py` | P2 | Vrai positif | Test `section="hacked"` sans collection => `CollectionConfigError`. |
 | Verification D - citations page invalide | `retrieval_contract_adapter.py` | P2 | Vrai positif | Tests `page=3`, `page="4"`, `page="p.4"`, `page="4-5"`, champs manquants. |
@@ -45,7 +45,7 @@ Revue initiale observee sur le SHA `f71f64a1f94bb6e80cebcef0eb85d8f65c963ec2` :
 - `/rag/query` resout la collection avant tout appel Chroma.
 - Les citations ignorent une page non numerique au lieu de lever `ValueError`.
 - Le plan prod couvre configs, rollback et checks TLS sans `-k`.
-- `docker-compose.prod.yml` monte les configs dans `/app/configs`.
+- `docker-compose.prod.yml` monte les configs versionnees dans `/app/configs` via `../configs:/app/configs:ro`, car le fichier compose vit sous `infra/`.
 - Les fichiers `services/rag-engine/infra/.env.*` sont ignores par `.gitignore` et ne sont pas suivis ; les variables prod obligatoires sont donc documentees dans `README-PROD.md`, `docker-compose.prod.yml` et le plan de deploiement, sans ajouter de fichier `.env` au depot.
 
 ## Tests ajoutes

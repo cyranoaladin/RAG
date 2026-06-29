@@ -9,7 +9,7 @@ Ce projet fournit un **RAG 100% local** (LLM & embeddings via **Ollama**) avec *
 
 Collections Lot 19 : les noms Chroma historiques ne sont pas renommes physiquement en prod. La couche applicative mappe `rag_education`, `rag_francais_premiere`, `rag_maths_premiere`, `rag_web3`, `rag_divers` vers les collections Nexus versionnees dans `configs/rag_collections.yml`. `rag_divers` correspond a `rag_nexus_quarantine` et ne doit pas etre expose a la recherche.
 
-Securite admin Lot 19 follow-up : `RAG_ENV=production` doit etre explicite dans l'environnement prod. En l'absence de `INGESTOR_API_TOKEN`/`INGEST_AUTH_TOKEN`, `/admin/*` retourne 503. Le mode admin sans token est reserve au developpement local et exige `RAG_ENV=development` plus `ALLOW_UNAUTHENTICATED_ADMIN_DEV=true`. En prod Docker, monter `./configs:/app/configs:ro` et definir `RAG_ENGINE_CONFIG_DIR=/app/configs` pour charger `rag_collections.yml` et `legacy_collection_mapping.yml`. Si les fichiers sont separes, utiliser les overrides explicites `RAG_COLLECTIONS_CONFIG` et `RAG_LEGACY_COLLECTION_MAPPING`.
+Securite admin Lot 19 follow-up : `RAG_ENV=production` doit etre explicite dans l'environnement prod. En l'absence de `INGESTOR_API_TOKEN`/`INGEST_AUTH_TOKEN`, `/admin/*` retourne 503. Le mode admin sans token est reserve au developpement local et exige `RAG_ENV=development` plus `ALLOW_UNAUTHENTICATED_ADMIN_DEV=true`. En prod Docker, monter `../configs:/app/configs:ro` avec `infra/docker-compose.prod.yml` depuis le repo, ou `./configs:/app/configs:ro` dans le layout historique plat `/srv/nexusreussite/rag-ui/compose`. Definir `RAG_ENGINE_CONFIG_DIR=/app/configs` pour charger `rag_collections.yml` et `legacy_collection_mapping.yml`. Si les fichiers sont separes, utiliser les overrides explicites `RAG_COLLECTIONS_CONFIG` et `RAG_LEGACY_COLLECTION_MAPPING`; ces overrides echouent fermes si le chemin configure est absent.
 
 ## Prérequis VPS
 - Ubuntu 22.04/24.04, accès sudo, ports 80/443 ouverts, DNS des domaines pointés sur le VPS.
@@ -111,16 +111,16 @@ set -euo pipefail
 API_DOMAIN=$(sed -n 's/^[[:space:]]*server_name[[:space:]]\+\([^;]*\).*/\1/p' /etc/nginx/conf.d/rag-api.conf | head -n1)
 UI_DOMAIN=$(sed -n 's/^[[:space:]]*server_name[[:space:]]\+\([^;]*\).*/\1/p'  /etc/nginx/conf.d/rag-ui.conf  | head -n1)
 
-# API via SNI (boucle locale)
-HC=$(curl -k -sS -o /dev/null -w '%{http_code}' --resolve "${API_DOMAIN}:443:127.0.0.1" "https://${API_DOMAIN}/health")
-MC=$(curl -k -sS -I --resolve "${API_DOMAIN}:443:127.0.0.1" "https://${API_DOMAIN}/metrics" | awk '/^HTTP/{print $2}' | head -n1)
+# API via SNI (boucle locale, validation TLS conservee)
+HC=$(curl -sS -o /dev/null -w '%{http_code}' --resolve "${API_DOMAIN}:443:127.0.0.1" "https://${API_DOMAIN}/health")
+MC=$(curl -sS -I --resolve "${API_DOMAIN}:443:127.0.0.1" "https://${API_DOMAIN}/metrics" | awk '/^HTTP/{print $2}' | head -n1)
 echo "API: /health=$HC (200 attendu), /metrics HEAD=$MC (200 attendu côté localhost; FastAPI peut renvoyer 405 sur HEAD — utilisez GET si besoin)"
 
 # UI BasicAuth — renseignez un compte valide côté Nginx
 UI_USER={{UI_USER}}
 UI_PASS={{UI_PASS}}
-UC1=$(curl -k -sS -o /dev/null -w '%{http_code}' --resolve "${UI_DOMAIN}:443:127.0.0.1" "https://${UI_DOMAIN}/")
-UC2=$(curl -k -sS -o /dev/null -w '%{http_code}' --user "$UI_USER:$UI_PASS" --resolve "${UI_DOMAIN}:443:127.0.0.1" "https://${UI_DOMAIN}/")
+UC1=$(curl -sS -o /dev/null -w '%{http_code}' --resolve "${UI_DOMAIN}:443:127.0.0.1" "https://${UI_DOMAIN}/")
+UC2=$(curl -sS -o /dev/null -w '%{http_code}' --user "$UI_USER:$UI_PASS" --resolve "${UI_DOMAIN}:443:127.0.0.1" "https://${UI_DOMAIN}/")
 echo "UI: sans creds=$UC1 (401 attendu), avec creds=$UC2 (200 attendu)"
 ```
 

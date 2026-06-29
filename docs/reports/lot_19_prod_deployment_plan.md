@@ -40,6 +40,9 @@ grep -q '^RAG_ENGINE_CONFIG_DIR=/app/configs$' .env
 grep -q '^ALLOW_UNAUTHENTICATED_ADMIN_DEV=false$' .env
 test -f configs/rag_collections.yml
 test -f configs/legacy_collection_mapping.yml
+docker compose config >/tmp/rag-ui-compose.rendered.yml
+grep -q '/srv/nexusreussite/rag-ui/compose/configs' /tmp/rag-ui-compose.rendered.yml
+grep -q '/app/configs' /tmp/rag-ui-compose.rendered.yml
 ```
 
 Ne jamais afficher `.env`, tokens, cles Google Drive ou secrets HMAC.
@@ -121,7 +124,7 @@ Copier uniquement les fichiers necessaires :
 
 ```bash
 ssh <serveur> 'cd /srv/nexusreussite/rag-ui/compose && mkdir -p configs && grep -q "^RAG_ENV=production$" .env && grep -q "^RAG_ENGINE_CONFIG_DIR=/app/configs$" .env && grep -q "^ALLOW_UNAUTHENTICATED_ADMIN_DEV=false$" .env'
-ssh <serveur> 'cd /srv/nexusreussite/rag-ui/compose && docker compose config >/tmp/rag-ui-compose.rendered.yml && grep -q "/app/configs" /tmp/rag-ui-compose.rendered.yml'
+ssh <serveur> 'cd /srv/nexusreussite/rag-ui/compose && docker compose config >/tmp/rag-ui-compose.rendered.yml && grep -q "/srv/nexusreussite/rag-ui/compose/configs" /tmp/rag-ui-compose.rendered.yml && grep -q "/app/configs" /tmp/rag-ui-compose.rendered.yml'
 
 rsync -av \
   services/rag-engine/src/ingestor/api.py \
@@ -149,6 +152,8 @@ docker compose up -d ingestor ui
 ```
 
 Ne pas toucher a Chroma si aucune migration n'est executee.
+
+Note chemin configs : dans le compose historique plat execute depuis `/srv/nexusreussite/rag-ui/compose`, le bind mount attendu est `./configs:/app/configs:ro`, rendu par Compose comme `/srv/nexusreussite/rag-ui/compose/configs`. Dans le compose versionne du repo `services/rag-engine/infra/docker-compose.prod.yml`, le bind mount est `../configs:/app/configs:ro` car le fichier compose vit sous `infra/`.
 
 ## 5. Post-check
 
