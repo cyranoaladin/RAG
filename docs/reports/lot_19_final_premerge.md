@@ -129,7 +129,16 @@ threads bloquants non obsoletes connus: 0
 anciens threads Codex ouverts mais obsoletes: acceptes comme non bloquants
 ```
 
-Une nouvelle verification GraphQL doit etre executee apres push du nouveau HEAD. Le statut `READY_TO_MERGE_CONFIRMED` est interdit tant qu'un thread non obsolete reste ouvert.
+Verification GraphQL finale executee apres push du HEAD `76a4b790682222a163454e84e41be5d68759d5ed` :
+
+```text
+reviewDecision=null
+threads bloquants non obsoletes non resolus: 0
+anciens threads Codex ouverts mais obsoletes: 2
+threads cubic pertinents: resolus ou obsoletes
+```
+
+Les anciens threads Codex non resolus sont obsoletes. Les threads cubic encore non obsoletes sont marques resolus par GitHub apres les commits correctifs.
 
 ## Verifications locales
 
@@ -221,7 +230,18 @@ GitGuardian: SUCCESS
 cubic: SUCCESS
 ```
 
-Apres commit/push de cette passe, un nouveau HEAD doit etre verifie. Le rapport ne declare pas `READY_TO_MERGE_CONFIRMED` avant ce controle.
+Etat GitHub apres corrections et push `76a4b790682222a163454e84e41be5d68759d5ed` :
+
+```text
+HEAD_SHA=76a4b790682222a163454e84e41be5d68759d5ed
+RUN_ID=28377157378
+GITHUB_ACTIONS=SUCCESS_ON_HEAD
+jobs verts: packages/contracts, governance locks guard, services/rag-engine, services/rag-pedago
+GitGuardian: SUCCESS
+cubic: SUCCESS
+```
+
+Note de consignation : le SHA exact du commit contenant cette mise a jour finale du rapport doit etre relu via `gh pr view 35 --repo cyranoaladin/RAG --json headRefOid --jq .headRefOid`, puis verifie contre le run GitHub Actions correspondant. Un fichier versionne ne peut pas inscrire son propre hash final sans le modifier.
 
 ## Secrets, PII et prod
 
@@ -232,19 +252,20 @@ Apres commit/push de cette passe, un nouveau HEAD doit etre verifie. Le rapport 
 
 ## Decision
 
-Statut courant du rapport : `DO_NOT_MERGE`.
-
-Raisons :
-
-- les corrections locales de cette derniere passe doivent encore etre commitees et poussees ;
-- GitHub Actions, GitGuardian, cubic et les review threads doivent etre reverifies sur le nouveau HEAD.
-
-Conditions obligatoires avant merge :
+Statut courant du rapport : `READY_TO_MERGE_CONFIRMED` apres verification du HEAD PR et sous reserve stricte que le dernier `headRefOid` relu apres ce commit de consignation ait :
 
 ```text
 READY_TO_MERGE_CONFIRMED
-HEAD_SHA=<nouveau headRefOid apres push>
+HEAD_SHA=<dernier headRefOid lu par gh pr view>
 GITHUB_ACTIONS=SUCCESS_ON_HEAD
 REVIEW_THREADS=NO_BLOCKING_THREADS
 PROD_DEPLOYMENT=NOT_EXECUTED
 ```
+
+Decision :
+
+- PR #35 ouverte, non mergee, mergeable.
+- Aucune prod deployee.
+- Aucun secret ou PII introduit.
+- Les layouts configs repo/prod historique sont explicites et controles structurellement.
+- Le merge reste interdit sans confirmation explicite utilisateur.
