@@ -38,14 +38,16 @@ def _resolve_config_path(filename: str, file_env: str) -> Path:
         candidate = Path(env_path).expanduser()
         if candidate.is_file():
             return candidate
-        raise CollectionConfigError(f"{file_env} points to missing config file: {candidate}")
+        raise CollectionConfigLoadError(
+            f"{file_env} points to missing config file: {candidate}"
+        )
 
     env_dir = os.getenv(CONFIG_DIR_ENV)
     if env_dir:
         candidate = Path(env_dir).expanduser() / filename
         if candidate.is_file():
             return candidate
-        raise CollectionConfigError(
+        raise CollectionConfigLoadError(
             f"{CONFIG_DIR_ENV} does not contain {filename}: {candidate}"
         )
 
@@ -54,7 +56,7 @@ def _resolve_config_path(filename: str, file_env: str) -> Path:
         if candidate.is_file():
             return candidate
     checked = ", ".join(str(candidate) for candidate in candidates)
-    raise CollectionConfigError(f"Config file {filename} not found; checked: {checked}")
+    raise CollectionConfigLoadError(f"Config file {filename} not found; checked: {checked}")
 
 
 CONFIG_PATH = _candidate_config_paths(CONFIG_FILENAME, CONFIG_ENV)[0]
@@ -65,6 +67,14 @@ logger = logging.getLogger(__name__)
 
 class CollectionConfigError(ValueError):
     """Raised when a collection or routing key is outside the versioned config."""
+
+
+class CollectionConfigLoadError(CollectionConfigError):
+    """Raised when the server cannot load or validate collection configuration."""
+
+
+class CollectionRoutingError(CollectionConfigError):
+    """Raised when a client asks for an unknown or non-retrievable route."""
 
 
 @dataclass(frozen=True)
@@ -81,7 +91,7 @@ class CollectionResolution:
 def _read_yaml(path: Path) -> dict[str, Any]:
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
-        raise CollectionConfigError(f"Invalid YAML mapping in {path.name}")
+        raise CollectionConfigLoadError(f"Invalid YAML mapping in {path.name}")
     return cast(dict[str, Any], data)
 
 
@@ -94,7 +104,9 @@ def load_legacy_mapping(path: Path | None = None) -> dict[str, str]:
     mapping: dict[str, str] = {}
     for legacy, target in raw.items():
         if not isinstance(legacy, str) or not isinstance(target, str):
-            raise CollectionConfigError("Legacy collection mapping must be string -> string")
+            raise CollectionConfigLoadError(
+                "Legacy collection mapping must be string -> string"
+            )
         mapping[legacy] = target
     return mapping
 
@@ -102,30 +114,30 @@ def load_legacy_mapping(path: Path | None = None) -> dict[str, str]:
 def _chroma_collections(config: Mapping[str, Any]) -> Mapping[str, Any]:
     backends = config.get("physical_backends")
     if not isinstance(backends, Mapping):
-        raise CollectionConfigError("Missing physical_backends")
+        raise CollectionConfigLoadError("Missing physical_backends")
     chroma = backends.get("chroma")
     if not isinstance(chroma, Mapping):
-        raise CollectionConfigError("Missing chroma backend")
+        raise CollectionConfigLoadError("Missing chroma backend")
     collections = chroma.get("collections")
     if not isinstance(collections, Mapping):
-        raise CollectionConfigError("Missing chroma collections")
+        raise CollectionConfigLoadError("Missing chroma collections")
     return collections
 
 
 def _routing_sections(config: Mapping[str, Any]) -> Mapping[str, Any]:
     routing = config.get("routing")
     if not isinstance(routing, Mapping):
-        raise CollectionConfigError("Missing routing")
+        raise CollectionConfigLoadError("Missing routing")
     sections = routing.get("sections")
     if not isinstance(sections, Mapping):
-        raise CollectionConfigError("Missing routing sections")
+        raise CollectionConfigLoadError("Missing routing sections")
     return sections
 
 
 def _domains(config: Mapping[str, Any]) -> Mapping[str, Any]:
     domains = config.get("domains")
     if not isinstance(domains, Mapping):
-        raise CollectionConfigError("Missing domains")
+        raise CollectionConfigLoadError("Missing domains")
     return domains
 
 
@@ -133,22 +145,28 @@ def _collection_domain(config: Mapping[str, Any], nexus_collection: str) -> str:
     collections = _chroma_collections(config)
     definition = collections.get(nexus_collection)
     if not isinstance(definition, Mapping):
-        raise CollectionConfigError(f"Unknown Nexus collection: {nexus_collection}")
+        raise CollectionConfigLoadError(f"Unknown Nexus collection: {nexus_collection}")
     allowed_domains = definition.get("allowed_domains")
     if not isinstance(allowed_domains, list) or not allowed_domains:
-        raise CollectionConfigError(f"Collection {nexus_collection} has no allowed domains")
+        raise CollectionConfigLoadError(
+            f"Collection {nexus_collection} has no allowed domains"
+        )
     if len(allowed_domains) != 1:
-        raise CollectionConfigError(f"Collection {nexus_collection} mixes multiple domains")
+        raise CollectionConfigLoadError(
+            f"Collection {nexus_collection} mixes multiple domains"
+        )
     domain = allowed_domains[0]
     if not isinstance(domain, str):
-        raise CollectionConfigError(f"Collection {nexus_collection} has an invalid domain")
+        raise CollectionConfigLoadError(
+            f"Collection {nexus_collection} has an invalid domain"
+        )
     return domain
 
 
 def _domain_is_retrievable(config: Mapping[str, Any], domain: str) -> bool:
     definition = _domains(config).get(domain)
     if not isinstance(definition, Mapping):
-        raise CollectionConfigError(f"Unknown domain: {domain}")
+        raise CollectionConfigLoadError(f"Unknown domain: {domain}")
     return definition.get("retrievable", True) is not False
 
 
@@ -160,12 +178,12 @@ def _section_resolution(
     key = section.strip().lower() if section and section.strip() else "default"
     route = sections.get(key)
     if not isinstance(route, Mapping):
-        raise CollectionConfigError(f"Unknown section: {section}")
+        raise CollectionRoutingError(f"Unknown section: {section}")
     nexus_collection = route.get("nexus_collection")
     legacy_collection = route.get("legacy_collection")
     domain = route.get("domain")
     if not isinstance(nexus_collection, str) or not isinstance(legacy_collection, str):
-        raise CollectionConfigError(f"Invalid routing for section: {section}")
+        raise CollectionConfigLoadError(f"Invalid routing for section: {section}")
     if not isinstance(domain, str):
         domain = _collection_domain(config, nexus_collection)
     return CollectionResolution(
@@ -220,12 +238,12 @@ def resolve_collection(
                 retrievable=_domain_is_retrievable(cfg, domain),
             )
         else:
-            raise CollectionConfigError(f"Unknown collection: {raw_collection}")
+            raise CollectionRoutingError(f"Unknown collection: {raw_collection}")
     else:
         resolution = _section_resolution(section or "default", cfg)
 
     if not allow_non_retrievable and not resolution.retrievable:
-        raise CollectionConfigError(
+        raise CollectionRoutingError(
             f"Collection {resolution.nexus_collection} is not retrievable"
         )
     if resolution.used_legacy:

@@ -41,9 +41,19 @@ except (ImportError, ValueError):
     from drive_sync import DriveSyncManager  # type: ignore[no-redef]
 
 try:
-    from .collection_config import CollectionConfigError, resolve_collection
+    from .collection_config import (
+        CollectionConfigError,
+        CollectionConfigLoadError,
+        CollectionRoutingError,
+        resolve_collection,
+    )
 except (ImportError, ValueError):
-    from collection_config import CollectionConfigError, resolve_collection  # type: ignore[no-redef]
+    from collection_config import (  # type: ignore[no-redef]
+        CollectionConfigError,
+        CollectionConfigLoadError,
+        CollectionRoutingError,
+        resolve_collection,
+    )
 
 if TYPE_CHECKING:
     from langchain.schema import Document
@@ -113,8 +123,20 @@ def resolve_collection_name(
             collection=collection,
             allow_non_retrievable=allow_quarantine,
         )
-    except CollectionConfigError as exc:
+    except CollectionRoutingError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except CollectionConfigLoadError as exc:
+        logger.exception("Collection configuration unavailable")
+        raise HTTPException(
+            status_code=503,
+            detail="Collection configuration unavailable",
+        ) from exc
+    except CollectionConfigError as exc:
+        logger.exception("Collection configuration error")
+        raise HTTPException(
+            status_code=503,
+            detail="Collection configuration unavailable",
+        ) from exc
     return resolution.physical_collection
 
 

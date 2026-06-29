@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import importlib
+import shutil
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -18,6 +20,10 @@ def _load_api(monkeypatch: pytest.MonkeyPatch):
             sys.modules.pop(m)
     monkeypatch.setenv("INGESTOR_API_TOKEN", "tok")
     return importlib.import_module(mod)
+
+
+ENGINE_ROOT = Path(__file__).resolve().parents[1]
+CONFIG_PATH = ENGINE_ROOT / "configs" / "rag_collections.yml"
 
 
 def test_rag_query_success(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -153,3 +159,31 @@ def test_rag_query_accepts_legacy_web3_mapping(monkeypatch: pytest.MonkeyPatch) 
     assert r.status_code == 200
     assert r.json()["collection"] == "rag_web3"
     assert requested_collections == ["rag_web3"]
+
+
+def test_rag_query_config_dir_missing_mapping_is_server_error(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config_dir = tmp_path / "configs"
+    config_dir.mkdir()
+    shutil.copyfile(CONFIG_PATH, config_dir / "rag_collections.yml")
+    monkeypatch.delenv("RAG_COLLECTIONS_CONFIG", raising=False)
+    monkeypatch.delenv("RAG_LEGACY_COLLECTION_MAPPING", raising=False)
+    monkeypatch.setenv("RAG_ENGINE_CONFIG_DIR", str(config_dir))
+    api = _load_api(monkeypatch)
+
+    def fail_if_called():
+        pytest.fail("missing mapping must fail before Chroma access")
+
+    monkeypatch.setattr(api, "get_chroma_client", fail_if_called)
+
+    client = TestClient(api.app)
+    r = client.post(
+        "/rag/query",
+        json={"query": "hello", "collection": "rag_web3"},
+        headers={"Authorization": "Bearer tok"},
+    )
+
+    assert r.status_code == 503
+    assert r.json()["detail"] == "Collection configuration unavailable"
+    assert str(tmp_path) not in r.text

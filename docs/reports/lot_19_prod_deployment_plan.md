@@ -37,6 +37,7 @@ curl -sS --fail -I https://rag-ui.nexusreussite.academy/
 test -f .env
 grep -q '^RAG_ENV=production$' .env
 grep -q '^RAG_ENGINE_CONFIG_DIR=/app/configs$' .env
+grep -q '^RAG_CONFIGS_HOST_DIR=./configs$' .env
 grep -q '^ALLOW_UNAUTHENTICATED_ADMIN_DEV=false$' .env
 test -f configs/rag_collections.yml
 test -f configs/legacy_collection_mapping.yml
@@ -142,8 +143,29 @@ La commande exacte doit etre ajustee a l'arborescence image/volume de prod. Ne p
 Copier uniquement les fichiers necessaires :
 
 ```bash
-ssh <serveur> 'cd /srv/nexusreussite/rag-ui/compose && mkdir -p configs && grep -q "^RAG_ENV=production$" .env && grep -q "^RAG_ENGINE_CONFIG_DIR=/app/configs$" .env && grep -q "^ALLOW_UNAUTHENTICATED_ADMIN_DEV=false$" .env'
-ssh <serveur> 'cd /srv/nexusreussite/rag-ui/compose && docker compose config >/tmp/rag-ui-compose.rendered.yml && grep -q "/srv/nexusreussite/rag-ui/compose/configs" /tmp/rag-ui-compose.rendered.yml && grep -q "/app/configs" /tmp/rag-ui-compose.rendered.yml'
+ssh <serveur> 'cd /srv/nexusreussite/rag-ui/compose && mkdir -p configs && grep -q "^RAG_ENV=production$" .env && grep -q "^RAG_ENGINE_CONFIG_DIR=/app/configs$" .env && grep -q "^RAG_CONFIGS_HOST_DIR=./configs$" .env && grep -q "^ALLOW_UNAUTHENTICATED_ADMIN_DEV=false$" .env'
+ssh <serveur> 'cd /srv/nexusreussite/rag-ui/compose && docker compose config --format json >/tmp/rag-ui-compose.rendered.json'
+ssh <serveur> 'python3 - <<'"'"'PY'"'"'
+import json
+from pathlib import Path
+
+config = json.loads(Path("/tmp/rag-ui-compose.rendered.json").read_text())
+volumes = config["services"]["ingestor"].get("volumes", [])
+expected = {
+    "type": "bind",
+    "source": "/srv/nexusreussite/rag-ui/compose/configs",
+    "target": "/app/configs",
+    "read_only": True,
+}
+if not any(
+    volume.get("type") == expected["type"]
+    and volume.get("source") == expected["source"]
+    and volume.get("target") == expected["target"]
+    and volume.get("read_only") == expected["read_only"]
+    for volume in volumes
+):
+    raise SystemExit("missing read-only ingestor configs bind mount")
+PY'
 
 rsync -av \
   services/rag-engine/src/ingestor/api.py \
@@ -172,7 +194,11 @@ docker compose up -d ingestor ui
 
 Ne pas toucher a Chroma si aucune migration n'est executee.
 
-Note chemin configs : dans le compose historique plat execute depuis `/srv/nexusreussite/rag-ui/compose`, le bind mount attendu est `./configs:/app/configs:ro`, rendu par Compose comme `/srv/nexusreussite/rag-ui/compose/configs`. Dans le compose versionne du repo `services/rag-engine/infra/docker-compose.prod.yml`, le bind mount est `../configs:/app/configs:ro` car le fichier compose vit sous `infra/`.
+Note chemin configs :
+
+- Layout repo versionne : le compose est execute depuis `services/rag-engine/infra`; la source hote attendue est `services/rag-engine/configs`; la syntaxe compose versionnee est `${RAG_CONFIGS_HOST_DIR:-../configs}:/app/configs:ro`, avec le defaut `../configs`.
+- Layout prod historique : le compose est execute depuis `/srv/nexusreussite/rag-ui/compose`; la source hote attendue est `/srv/nexusreussite/rag-ui/compose/configs`; la syntaxe attendue dans `.env` est `RAG_CONFIGS_HOST_DIR=./configs`, rendue par Compose comme `/srv/nexusreussite/rag-ui/compose/configs`.
+- Si `services/rag-engine/infra/docker-compose.prod.yml` est copie tel quel dans `/srv/nexusreussite/rag-ui/compose`, il ne doit pas etre utilise sans `RAG_CONFIGS_HOST_DIR=./configs`, sinon le defaut `../configs` pointerait vers `/srv/nexusreussite/rag-ui/configs`.
 
 ## 5. Post-check
 

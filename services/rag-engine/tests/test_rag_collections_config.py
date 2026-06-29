@@ -199,21 +199,27 @@ def test_explicit_config_dir_env_fails_closed_when_files_are_missing(
         load_collection_config()
 
 
-def test_prod_compose_mounts_existing_repo_configs_dir() -> None:
-    compose = _load_yaml(DOCKER_COMPOSE_PROD)
-    volumes = compose["services"]["ingestor"]["volumes"]
-    config_mounts = [
-        volume
-        for volume in volumes
-        if isinstance(volume, str) and volume.endswith(":/app/configs:ro")
-    ]
+def test_explicit_config_dir_env_missing_mapping_fails_closed(
+    tmp_path, monkeypatch
+) -> None:
+    config_dir = tmp_path / "configs"
+    config_dir.mkdir()
+    shutil.copyfile(CONFIG_PATH, config_dir / "rag_collections.yml")
+    monkeypatch.delenv("RAG_COLLECTIONS_CONFIG", raising=False)
+    monkeypatch.delenv("RAG_LEGACY_COLLECTION_MAPPING", raising=False)
+    monkeypatch.setenv("RAG_ENGINE_CONFIG_DIR", str(config_dir))
 
-    assert config_mounts == ["../configs:/app/configs:ro"]
-    source = config_mounts[0].split(":", maxsplit=1)[0]
-    resolved_source = (DOCKER_COMPOSE_PROD.parent / source).resolve()
-    assert resolved_source == (ENGINE_ROOT / "configs").resolve()
-    assert (resolved_source / "rag_collections.yml").is_file()
-    assert (resolved_source / "legacy_collection_mapping.yml").is_file()
+    with pytest.raises(CollectionConfigError, match="RAG_ENGINE_CONFIG_DIR"):
+        load_legacy_mapping()
+
+
+def test_repo_fallback_without_env(monkeypatch) -> None:
+    monkeypatch.delenv("RAG_COLLECTIONS_CONFIG", raising=False)
+    monkeypatch.delenv("RAG_LEGACY_COLLECTION_MAPPING", raising=False)
+    monkeypatch.delenv("RAG_ENGINE_CONFIG_DIR", raising=False)
+
+    assert load_collection_config()["version"] == 1
+    assert load_legacy_mapping()["rag_web3"] == "rag_nexus_web3"
 
 
 def test_unknown_section_is_rejected_without_default_fallback() -> None:
