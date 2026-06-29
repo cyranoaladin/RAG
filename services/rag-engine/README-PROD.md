@@ -9,10 +9,12 @@ Ce projet fournit un **RAG 100% local** (LLM & embeddings via **Ollama**) avec *
 
 Collections Lot 19 : les noms Chroma historiques ne sont pas renommes physiquement en prod. La couche applicative mappe `rag_education`, `rag_francais_premiere`, `rag_maths_premiere`, `rag_web3`, `rag_divers` vers les collections Nexus versionnees dans `configs/rag_collections.yml`. `rag_divers` correspond a `rag_nexus_quarantine` et ne doit pas etre expose a la recherche.
 
+Securite admin Lot 19 follow-up : `RAG_ENV=production` doit etre explicite dans l'environnement prod. En l'absence de `INGESTOR_API_TOKEN`/`INGEST_AUTH_TOKEN`, `/admin/*` retourne 503. Le mode admin sans token est reserve au developpement local et exige `RAG_ENV=development` plus `ALLOW_UNAUTHENTICATED_ADMIN_DEV=true`. En prod Docker, monter `./configs:/app/configs:ro` et definir `RAG_ENGINE_CONFIG_DIR=/app/configs` pour charger `rag_collections.yml` et `legacy_collection_mapping.yml`. Si les fichiers sont separes, utiliser les overrides explicites `RAG_COLLECTIONS_CONFIG` et `RAG_LEGACY_COLLECTION_MAPPING`.
+
 ## Prérequis VPS
 - Ubuntu 22.04/24.04, accès sudo, ports 80/443 ouverts, DNS des domaines pointés sur le VPS.
 - Docker Engine ≥ 24.0 + plugin Compose ≥ 2.24 (`docker compose version`).
-- Cloner le repo et copier `infra/.env.example` vers `infra/.env`, puis éditer `RAG_UI_EXTERNAL_DOMAIN`, `RAG_API_EXTERNAL_DOMAIN`, `NGINX_API_PORT`, et un `INGESTOR_API_TOKEN` fort (ex: `openssl rand -hex 32`).
+- Cloner le repo et copier `infra/.env.example` vers `infra/.env`, puis éditer `RAG_UI_EXTERNAL_DOMAIN`, `RAG_API_EXTERNAL_DOMAIN`, `NGINX_API_PORT`, `RAG_ENV=production`, `RAG_ENGINE_CONFIG_DIR=/app/configs`, et un `INGESTOR_API_TOKEN` fort (ex: `openssl rand -hex 32`).
 
 ## Secrets à générer
 | Nom | Longueur conseillée | Usage | Où le renseigner |

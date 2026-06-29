@@ -20,6 +20,33 @@ def _client() -> TestClient:
 def test_admin_without_token_in_production_is_rejected(monkeypatch, tmp_path) -> None:
     _clear_tokens(monkeypatch)
     monkeypatch.setenv("RAG_ENV", "production")
+    monkeypatch.delenv("ALLOW_UNAUTHENTICATED_ADMIN_DEV", raising=False)
+    monkeypatch.setenv("ADMIN_DB_PATH", str(tmp_path / "catalog.sqlite"))
+    monkeypatch.setenv("ADMIN_UPLOAD_DIR", str(tmp_path / "uploads"))
+
+    client = _client()
+    response = client.get("/admin/documents")
+
+    assert response.status_code == 503
+
+
+def test_admin_without_token_and_without_rag_env_is_rejected(monkeypatch, tmp_path) -> None:
+    _clear_tokens(monkeypatch)
+    monkeypatch.delenv("RAG_ENV", raising=False)
+    monkeypatch.delenv("ALLOW_UNAUTHENTICATED_ADMIN_DEV", raising=False)
+    monkeypatch.setenv("ADMIN_DB_PATH", str(tmp_path / "catalog.sqlite"))
+    monkeypatch.setenv("ADMIN_UPLOAD_DIR", str(tmp_path / "uploads"))
+
+    client = _client()
+    response = client.get("/admin/documents")
+
+    assert response.status_code == 503
+
+
+def test_admin_without_token_in_development_requires_explicit_opt_in(monkeypatch, tmp_path) -> None:
+    _clear_tokens(monkeypatch)
+    monkeypatch.setenv("RAG_ENV", "development")
+    monkeypatch.delenv("ALLOW_UNAUTHENTICATED_ADMIN_DEV", raising=False)
     monkeypatch.setenv("ADMIN_DB_PATH", str(tmp_path / "catalog.sqlite"))
     monkeypatch.setenv("ADMIN_UPLOAD_DIR", str(tmp_path / "uploads"))
 
@@ -32,6 +59,7 @@ def test_admin_without_token_in_production_is_rejected(monkeypatch, tmp_path) ->
 def test_admin_without_token_in_development_is_explicitly_accepted(monkeypatch, tmp_path) -> None:
     _clear_tokens(monkeypatch)
     monkeypatch.setenv("RAG_ENV", "development")
+    monkeypatch.setenv("ALLOW_UNAUTHENTICATED_ADMIN_DEV", "true")
     monkeypatch.setenv("ADMIN_DB_PATH", str(tmp_path / "catalog.sqlite"))
     monkeypatch.setenv("ADMIN_UPLOAD_DIR", str(tmp_path / "uploads"))
 

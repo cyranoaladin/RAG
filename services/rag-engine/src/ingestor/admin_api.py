@@ -50,7 +50,12 @@ def _get_request_id(request: Request) -> Optional[str]:
 # --- Security: reuse same token as /ingest (Bearer or X-API-Token) ---
 
 def _rag_env() -> str:
-    return (os.getenv("RAG_ENV", "development") or "development").strip().lower()
+    return (os.getenv("RAG_ENV") or "production").strip().lower()
+
+
+def _allow_unauthenticated_admin_dev() -> bool:
+    value = os.getenv("ALLOW_UNAUTHENTICATED_ADMIN_DEV", "")
+    return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _admin_guard(request: Request) -> None:
@@ -58,16 +63,17 @@ def _admin_guard(request: Request) -> None:
     client_ip = _get_client_ip(request)
     request_id = _get_request_id(request)
     
+    rag_env = _rag_env()
     if not token_env:
-        if _rag_env() == "production":
-            _audit.log_security_violation(
-                violation_type="missing_admin_token",
-                client_ip=client_ip,
-                details={"rag_env": "production"},
-                request_id=request_id,
-            )
-            raise HTTPException(status_code=503, detail="Admin token not configured")
-        return
+        if rag_env == "development" and _allow_unauthenticated_admin_dev():
+            return
+        _audit.log_security_violation(
+            violation_type="missing_admin_token",
+            client_ip=client_ip,
+            details={"rag_env": rag_env},
+            request_id=request_id,
+        )
+        raise HTTPException(status_code=503, detail="Admin token not configured")
     header_token = request.headers.get("X-API-Token") or request.headers.get("x-api-token")
     if not header_token:
         auth = request.headers.get("Authorization") or request.headers.get("authorization")

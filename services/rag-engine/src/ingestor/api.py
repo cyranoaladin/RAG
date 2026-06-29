@@ -2102,13 +2102,18 @@ def rag_query(payload: RagQuery, request: Request) -> dict[str, Any]:
     _require_api_token_configured()
     _enforce_security(request, payload)
 
-    # Prepare chroma collection
+    # Resolve routing before touching Chroma so arbitrary client collections fail closed.
     try:
-        client = get_chroma_client()
         target_collection = resolve_collection_name(
             collection=payload.collection,
             allow_quarantine=False,
         )
+    except HTTPException:
+        raise
+
+    # Prepare chroma collection
+    try:
+        client = get_chroma_client()
         collection = client.get_or_create_collection(
             name=target_collection,
             metadata={"hnsw:space": "cosine"},

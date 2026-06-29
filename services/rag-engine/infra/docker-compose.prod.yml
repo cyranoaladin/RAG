@@ -58,6 +58,9 @@ services:
       - EMBED_MODEL=${EMBED_MODEL}
       - SMALL_LLM=${SMALL_LLM}
       - LOCAL_SOURCE_ROOT=/data/uploads
+      - RAG_ENV=${RAG_ENV:-production}
+      - RAG_ENGINE_CONFIG_DIR=${RAG_ENGINE_CONFIG_DIR:-/app/configs}
+      - ALLOW_UNAUTHENTICATED_ADMIN_DEV=false
       - METRICS_ENABLED=${METRICS_ENABLED:-true}
       - MULTIMODAL_ENABLED=${MULTIMODAL_ENABLED:-false}
       - INGESTOR_API_TOKEN=${INGESTOR_API_TOKEN}
@@ -72,6 +75,7 @@ services:
       - GDRIVE_MAX_DOCS=${GDRIVE_MAX_DOCS:-200}
       - ADMIN_INGEST_TIMEOUT_SECONDS=${ADMIN_INGEST_TIMEOUT_SECONDS:-1800}
     volumes:
+      - ./configs:/app/configs:ro
       - ./creds:/creds:ro
       - /srv/rag-data:/data/uploads:rw
       - rag_admin_data:/data

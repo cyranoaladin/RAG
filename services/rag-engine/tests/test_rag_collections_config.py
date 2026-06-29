@@ -1,12 +1,19 @@
 from __future__ import annotations
 
+import importlib.util
+import shutil
+import sys
 from pathlib import Path
 
+import pytest
 import yaml
+
+from src.ingestor.collection_config import CollectionConfigError, resolve_collection
 
 ENGINE_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = ENGINE_ROOT / "configs" / "rag_collections.yml"
 MAPPING_PATH = ENGINE_ROOT / "configs" / "legacy_collection_mapping.yml"
+COLLECTION_CONFIG_MODULE = ENGINE_ROOT / "src" / "ingestor" / "collection_config.py"
 
 
 def _load_yaml(path: Path) -> dict:
@@ -103,3 +110,58 @@ def test_pgvector_declares_target_and_legacy_tables() -> None:
     assert pgvector["table"] == "rag_chunks"
     assert pgvector["legacy_table"] == "rag_chunks_pilote"
     assert pgvector["table"] != pgvector["legacy_table"]
+
+
+def test_collection_config_loads_from_flat_prod_layout(tmp_path, monkeypatch) -> None:
+    compose_root = tmp_path / "rag-ui" / "compose"
+    ingestor_dir = compose_root / "ingestor"
+    config_dir = compose_root / "configs"
+    ingestor_dir.mkdir(parents=True)
+    config_dir.mkdir()
+
+    module_path = ingestor_dir / "collection_config.py"
+    shutil.copyfile(COLLECTION_CONFIG_MODULE, module_path)
+    shutil.copyfile(CONFIG_PATH, config_dir / "rag_collections.yml")
+    shutil.copyfile(MAPPING_PATH, config_dir / "legacy_collection_mapping.yml")
+    monkeypatch.delenv("RAG_COLLECTIONS_CONFIG", raising=False)
+    monkeypatch.delenv("RAG_LEGACY_COLLECTION_MAPPING", raising=False)
+    monkeypatch.delenv("RAG_ENGINE_CONFIG_DIR", raising=False)
+
+    spec = importlib.util.spec_from_file_location("flat_collection_config", module_path)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+
+    assert module.load_collection_config()["version"] == 1
+    assert module.load_legacy_mapping()["rag_web3"] == "rag_nexus_web3"
+
+
+def test_collection_config_uses_config_dir_env(tmp_path, monkeypatch) -> None:
+    config_dir = tmp_path / "configs"
+    config_dir.mkdir()
+    shutil.copyfile(CONFIG_PATH, config_dir / "rag_collections.yml")
+    shutil.copyfile(MAPPING_PATH, config_dir / "legacy_collection_mapping.yml")
+    monkeypatch.delenv("RAG_COLLECTIONS_CONFIG", raising=False)
+    monkeypatch.delenv("RAG_LEGACY_COLLECTION_MAPPING", raising=False)
+    monkeypatch.setenv("RAG_ENGINE_CONFIG_DIR", str(config_dir))
+
+    spec = importlib.util.spec_from_file_location("env_collection_config", COLLECTION_CONFIG_MODULE)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+
+    assert module.load_collection_config()["version"] == 1
+    assert module.load_legacy_mapping()["rag_education"] == "rag_nexus_education"
+
+
+def test_unknown_section_is_rejected_without_default_fallback() -> None:
+    with pytest.raises(CollectionConfigError, match="Unknown section"):
+        resolve_collection(
+            section="hacked",
+            config=_load_yaml(CONFIG_PATH),
+            legacy_mapping=_load_yaml(MAPPING_PATH),
+        )

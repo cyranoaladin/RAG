@@ -32,8 +32,14 @@ cd /srv/nexusreussite/rag-ui/compose
 docker compose ps
 docker compose logs --tail 100 ingestor
 docker compose logs --tail 100 ui
-curl -k -sS https://rag-api.nexusreussite.academy/health
-curl -k -sS -I https://rag-ui.nexusreussite.academy/
+curl -sS --fail https://rag-api.nexusreussite.academy/health
+curl -sS --fail -I https://rag-ui.nexusreussite.academy/
+test -f .env
+grep -q '^RAG_ENV=production$' .env
+grep -q '^RAG_ENGINE_CONFIG_DIR=/app/configs$' .env
+grep -q '^ALLOW_UNAUTHENTICATED_ADMIN_DEV=false$' .env
+test -f configs/rag_collections.yml
+test -f configs/legacy_collection_mapping.yml
 ```
 
 Ne jamais afficher `.env`, tokens, cles Google Drive ou secrets HMAC.
@@ -51,9 +57,14 @@ mkdir -p "$BACKUP"
 Fichiers applicatifs :
 
 ```bash
-cp -a /srv/nexusreussite/rag-ui/compose/ingestor/api.py "$BACKUP/api.py"
-cp -a /srv/nexusreussite/rag-ui/compose/ingestor/admin_api.py "$BACKUP/admin_api.py"
-cp -a /srv/nexusreussite/rag-ui/compose/ui/app_v2.py "$BACKUP/app_v2.py"
+mkdir -p "$BACKUP/ingestor" "$BACKUP/ui" "$BACKUP/configs"
+cp -a /srv/nexusreussite/rag-ui/compose/ingestor/api.py "$BACKUP/ingestor/api.py"
+cp -a /srv/nexusreussite/rag-ui/compose/ingestor/admin_api.py "$BACKUP/ingestor/admin_api.py"
+cp -a /srv/nexusreussite/rag-ui/compose/ui/app_v2.py "$BACKUP/ui/app_v2.py"
+[ -f /srv/nexusreussite/rag-ui/compose/ingestor/collection_config.py ] && cp -a /srv/nexusreussite/rag-ui/compose/ingestor/collection_config.py "$BACKUP/ingestor/collection_config.py" || true
+[ -f /srv/nexusreussite/rag-ui/compose/ingestor/retrieval_contract_adapter.py ] && cp -a /srv/nexusreussite/rag-ui/compose/ingestor/retrieval_contract_adapter.py "$BACKUP/ingestor/retrieval_contract_adapter.py" || true
+[ -f /srv/nexusreussite/rag-ui/compose/configs/rag_collections.yml ] && cp -a /srv/nexusreussite/rag-ui/compose/configs/rag_collections.yml "$BACKUP/configs/rag_collections.yml" || true
+[ -f /srv/nexusreussite/rag-ui/compose/configs/legacy_collection_mapping.yml ] && cp -a /srv/nexusreussite/rag-ui/compose/configs/legacy_collection_mapping.yml "$BACKUP/configs/legacy_collection_mapping.yml" || true
 ```
 
 Donnees :
@@ -88,12 +99,18 @@ Depuis un checkout local propre du commit a deployer :
 rsync -nci \
   services/rag-engine/src/ingestor/api.py \
   services/rag-engine/src/ingestor/admin_api.py \
-  services/rag-engine/src/ui/app_v2.py \
   services/rag-engine/src/ingestor/collection_config.py \
   services/rag-engine/src/ingestor/retrieval_contract_adapter.py \
+  <serveur>:/srv/nexusreussite/rag-ui/compose/ingestor/
+
+rsync -nci \
   services/rag-engine/configs/rag_collections.yml \
   services/rag-engine/configs/legacy_collection_mapping.yml \
-  <serveur>:/srv/nexusreussite/rag-ui/compose/
+  <serveur>:/srv/nexusreussite/rag-ui/compose/configs/
+
+rsync -nci \
+  services/rag-engine/src/ui/app_v2.py \
+  <serveur>:/srv/nexusreussite/rag-ui/compose/ui/
 ```
 
 La commande exacte doit etre ajustee a l'arborescence image/volume de prod. Ne pas utiliser `--delete`.
@@ -103,6 +120,9 @@ La commande exacte doit etre ajustee a l'arborescence image/volume de prod. Ne p
 Copier uniquement les fichiers necessaires :
 
 ```bash
+ssh <serveur> 'cd /srv/nexusreussite/rag-ui/compose && mkdir -p configs && grep -q "^RAG_ENV=production$" .env && grep -q "^RAG_ENGINE_CONFIG_DIR=/app/configs$" .env && grep -q "^ALLOW_UNAUTHENTICATED_ADMIN_DEV=false$" .env'
+ssh <serveur> 'cd /srv/nexusreussite/rag-ui/compose && docker compose config >/tmp/rag-ui-compose.rendered.yml && grep -q "/app/configs" /tmp/rag-ui-compose.rendered.yml'
+
 rsync -av \
   services/rag-engine/src/ingestor/api.py \
   services/rag-engine/src/ingestor/admin_api.py \
@@ -133,8 +153,8 @@ Ne pas toucher a Chroma si aucune migration n'est executee.
 ## 5. Post-check
 
 ```bash
-curl -k -sS https://rag-api.nexusreussite.academy/health
-curl -k -sS -I https://rag-ui.nexusreussite.academy/
+curl -sS --fail https://rag-api.nexusreussite.academy/health
+curl -sS --fail -I https://rag-ui.nexusreussite.academy/
 ```
 
 Checks fonctionnels :
@@ -153,9 +173,14 @@ Checks fonctionnels :
 ```bash
 cd /srv/nexusreussite/rag-ui/compose
 docker compose stop ingestor ui
-cp -a "$BACKUP/api.py" ingestor/api.py
-cp -a "$BACKUP/admin_api.py" ingestor/admin_api.py
-cp -a "$BACKUP/app_v2.py" ui/app_v2.py
+mkdir -p configs
+cp -a "$BACKUP/ingestor/api.py" ingestor/api.py
+cp -a "$BACKUP/ingestor/admin_api.py" ingestor/admin_api.py
+cp -a "$BACKUP/ui/app_v2.py" ui/app_v2.py
+[ -f "$BACKUP/ingestor/collection_config.py" ] && cp -a "$BACKUP/ingestor/collection_config.py" ingestor/collection_config.py || rm -f ingestor/collection_config.py
+[ -f "$BACKUP/ingestor/retrieval_contract_adapter.py" ] && cp -a "$BACKUP/ingestor/retrieval_contract_adapter.py" ingestor/retrieval_contract_adapter.py || rm -f ingestor/retrieval_contract_adapter.py
+[ -f "$BACKUP/configs/rag_collections.yml" ] && cp -a "$BACKUP/configs/rag_collections.yml" configs/rag_collections.yml || rm -f configs/rag_collections.yml
+[ -f "$BACKUP/configs/legacy_collection_mapping.yml" ] && cp -a "$BACKUP/configs/legacy_collection_mapping.yml" configs/legacy_collection_mapping.yml || rm -f configs/legacy_collection_mapping.yml
 cp -a "$BACKUP/catalog.sqlite" data/catalog.sqlite
 rsync -a --delete "$BACKUP/uploads/" data/uploads/
 docker compose up -d ingestor ui

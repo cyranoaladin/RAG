@@ -136,6 +136,8 @@ def build_citation_payload(metadata: Mapping[str, Any]) -> dict[str, Any] | None
         return None
     citation: dict[str, Any] = {key: str(metadata[key]) for key in required}
     page = metadata.get("page")
-    if page not in (None, ""):
-        citation["page"] = page if isinstance(page, int) else int(str(page))
+    if isinstance(page, int):
+        citation["page"] = page
+    elif isinstance(page, str) and page.strip().isdigit():
+        citation["page"] = int(page.strip())
     return citation

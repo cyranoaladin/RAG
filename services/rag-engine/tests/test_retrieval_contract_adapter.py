@@ -85,3 +85,43 @@ def test_citation_payload_uses_required_contract_fields() -> None:
         "rights": "officiel_public",
         "page": 3,
     }
+
+
+def test_citation_payload_converts_numeric_string_page() -> None:
+    citation = build_citation_payload(
+        {
+            "source_label": "BO specialite mathematiques",
+            "source_uri": "https://example.test/bo",
+            "rights": "officiel_public",
+            "page": "4",
+        }
+    )
+
+    assert citation == {
+        "source_label": "BO specialite mathematiques",
+        "source_uri": "https://example.test/bo",
+        "rights": "officiel_public",
+        "page": 4,
+    }
+
+
+@pytest.mark.parametrize("page", ["p.4", "4-5"])
+def test_citation_payload_ignores_invalid_page_without_crashing(page) -> None:
+    citation = build_citation_payload(
+        {
+            "source_label": "BO specialite mathematiques",
+            "source_uri": "https://example.test/bo",
+            "rights": "officiel_public",
+            "page": page,
+        }
+    )
+
+    assert citation == {
+        "source_label": "BO specialite mathematiques",
+        "source_uri": "https://example.test/bo",
+        "rights": "officiel_public",
+    }
+
+
+def test_citation_payload_returns_none_when_required_fields_are_missing() -> None:
+    assert build_citation_payload({"source_label": "BO"}) is None

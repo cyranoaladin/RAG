@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -8,9 +9,40 @@ from typing import Any, cast
 
 import yaml
 
-ENGINE_ROOT = Path(__file__).resolve().parents[2]
-CONFIG_PATH = ENGINE_ROOT / "configs" / "rag_collections.yml"
-MAPPING_PATH = ENGINE_ROOT / "configs" / "legacy_collection_mapping.yml"
+CONFIG_FILENAME = "rag_collections.yml"
+MAPPING_FILENAME = "legacy_collection_mapping.yml"
+CONFIG_ENV = "RAG_COLLECTIONS_CONFIG"
+MAPPING_ENV = "RAG_LEGACY_COLLECTION_MAPPING"
+CONFIG_DIR_ENV = "RAG_ENGINE_CONFIG_DIR"
+
+
+def _candidate_config_paths(filename: str, file_env: str) -> list[Path]:
+    candidates: list[Path] = []
+    env_path = os.getenv(file_env)
+    if env_path:
+        candidates.append(Path(env_path).expanduser())
+
+    env_dir = os.getenv(CONFIG_DIR_ENV)
+    if env_dir:
+        candidates.append(Path(env_dir).expanduser() / filename)
+
+    module_path = Path(__file__).resolve()
+    for root in (module_path.parent, *module_path.parents):
+        candidates.append(root / "configs" / filename)
+    return list(dict.fromkeys(candidates))
+
+
+def _resolve_config_path(filename: str, file_env: str) -> Path:
+    candidates = _candidate_config_paths(filename, file_env)
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    checked = ", ".join(str(candidate) for candidate in candidates)
+    raise CollectionConfigError(f"Config file {filename} not found; checked: {checked}")
+
+
+CONFIG_PATH = _candidate_config_paths(CONFIG_FILENAME, CONFIG_ENV)[0]
+MAPPING_PATH = _candidate_config_paths(MAPPING_FILENAME, MAPPING_ENV)[0]
 
 logger = logging.getLogger(__name__)
 
@@ -38,11 +70,11 @@ def _read_yaml(path: Path) -> dict[str, Any]:
 
 
 def load_collection_config(path: Path | None = None) -> dict[str, Any]:
-    return _read_yaml(path or CONFIG_PATH)
+    return _read_yaml(path or _resolve_config_path(CONFIG_FILENAME, CONFIG_ENV))
 
 
 def load_legacy_mapping(path: Path | None = None) -> dict[str, str]:
-    raw = _read_yaml(path or MAPPING_PATH)
+    raw = _read_yaml(path or _resolve_config_path(MAPPING_FILENAME, MAPPING_ENV))
     mapping: dict[str, str] = {}
     for legacy, target in raw.items():
         if not isinstance(legacy, str) or not isinstance(target, str):
@@ -110,7 +142,7 @@ def _section_resolution(
 ) -> CollectionResolution:
     sections = _routing_sections(config)
     key = section.strip().lower() if section and section.strip() else "default"
-    route = sections.get(key) or sections.get("default")
+    route = sections.get(key)
     if not isinstance(route, Mapping):
         raise CollectionConfigError(f"Unknown section: {section}")
     nexus_collection = route.get("nexus_collection")

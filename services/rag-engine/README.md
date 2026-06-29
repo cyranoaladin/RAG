@@ -16,7 +16,7 @@ make nginx-down
 ---
 
 > Avertissement Lot 19 — document historique/prod actuelle.
-> Ce README decrit le moteur `rag-local` encore represente en production par `rag-ui.nexusreussite.academy` : Streamlit, FastAPI ingestor, ChromaDB, Ollama, uploads, Google Drive et catalogue admin. Ce n'est pas la source de verite du chemin Nexus gouverne pgvector/HMAC. Pour la transition, lire aussi `docs/rag_dual_engine_transition.md`, `docs/retrieval_api_convergence.md`, `configs/rag_collections.yml` et `configs/legacy_collection_mapping.yml`.
+> Ce README decrit le moteur `rag-local` encore represente en production par `rag-ui.nexusreussite.academy` : Streamlit, FastAPI ingestor, ChromaDB, Ollama, uploads, Google Drive et catalogue admin. Ce n'est pas la source de verite du chemin Nexus gouverné pgvector/HMAC. Pour la transition, lire aussi `docs/rag_dual_engine_transition.md`, `docs/retrieval_api_convergence.md`, `configs/rag_collections.yml` et `configs/legacy_collection_mapping.yml`.
 
 ## Présentation générale
 
