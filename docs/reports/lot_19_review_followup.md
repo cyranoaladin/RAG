@@ -36,6 +36,7 @@ Revue initiale observee sur le SHA `f71f64a1f94bb6e80cebcef0eb85d8f65c963ec2` :
 | Verification C - section inconnue | `collection_config.py` | P2 | Vrai positif | Test `section="hacked"` sans collection => `CollectionConfigError`. |
 | Verification D - citations page invalide | `retrieval_contract_adapter.py` | P2 | Vrai positif | Tests `page=3`, `page="4"`, `page="p.4"`, `page="4-5"`, champs manquants. |
 | Verification E - route `/rag/query` | `api.py`, `tests/test_rag_query_api.py` | P1 | Vrai positif | Validation collection avant Chroma; tests `anything`/`rag_divers` => 400 sans appel Chroma, `rag_web3` mappe et passe. |
+| Cubic pre-merge final - validation Compose trop faible | `docs/reports/lot_19_prod_deployment_plan.md` | P2 | Vrai positif | Remplacement des `grep` independants par une validation structuree de `docker compose config --format json` : service `ingestor`, bind source, target `/app/configs` et `read_only=true` verifies sur la meme entree de volume. |
 
 ## Corrections appliquees
 
@@ -46,6 +47,7 @@ Revue initiale observee sur le SHA `f71f64a1f94bb6e80cebcef0eb85d8f65c963ec2` :
 - Les citations ignorent une page non numerique au lieu de lever `ValueError`.
 - Le plan prod couvre configs, rollback et checks TLS sans `-k`.
 - `docker-compose.prod.yml` monte les configs versionnees dans `/app/configs` via `../configs:/app/configs:ro`, car le fichier compose vit sous `infra/`.
+- Le plan prod valide le bind mount configs de facon structuree sur le rendu Compose JSON, au lieu de chercher source et cible separement.
 - Les fichiers `services/rag-engine/infra/.env.*` sont ignores par `.gitignore` et ne sont pas suivis ; les variables prod obligatoires sont donc documentees dans `README-PROD.md`, `docker-compose.prod.yml` et le plan de deploiement, sans ajouter de fichier `.env` au depot.
 
 ## Tests ajoutes

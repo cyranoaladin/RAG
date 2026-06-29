@@ -66,15 +66,16 @@ gh api repos/cyranoaladin/RAG/pulls/35/comments --paginate
 gh pr view 35 --repo cyranoaladin/RAG --json reviews,comments,reviewDecision,statusCheckRollup
 ```
 
-Un nouveau run cubic, identifie par cubic, etait present sur `b068e82479f892f430edf9e5c2ee32b7169e2abb` avec deux points non resolus/non obsoletes.
+Un nouveau run cubic, identifie par cubic, etait present sur `b068e82479f892f430edf9e5c2ee32b7169e2abb` avec deux points non resolus/non obsoletes. Apres correction et push de `8d35dac028022e0b48ac5a99663ee5813a850a06`, cubic a signale un dernier P2 documentaire sur le plan de deploiement prod.
 
 | Source | Fichier | Gravite | Commentaire | Verdict | Action |
 | --- | --- | ---: | --- | --- | --- |
 | cubic | `services/rag-engine/infra/docker-compose.prod.yml` | P0 | Le bind mount `./configs:/app/configs:ro` du compose versionne sous `infra/` pointe vers `infra/configs`, absent. | Vrai positif | Remplace par `../configs:/app/configs:ro`; test YAML Compose ajoute pour verifier que la source resolue est `services/rag-engine/configs`. |
 | cubic | `services/rag-engine/src/ingestor/collection_config.py` | P2 | Les overrides explicites de config retombent sur les fallbacks si le chemin configure est absent. | Vrai positif | Fail-closed pour `RAG_COLLECTIONS_CONFIG`, `RAG_LEGACY_COLLECTION_MAPPING` et `RAG_ENGINE_CONFIG_DIR`; tests rouges puis verts ajoutes. |
+| cubic | `docs/reports/lot_19_prod_deployment_plan.md` | P2 | Le plan prod validait source et cible du bind mount configs avec des `grep` independants. | Vrai positif | Remplace par une validation structuree de `docker compose config --format json` : service `ingestor`, source, target `/app/configs` et `read_only=true` verifies sur la meme entree de volume. |
 | Revue locale | `services/rag-engine/README-PROD.md` | P2 | Des commandes de checks prod contenaient encore une option curl desactivant la validation TLS. | Vrai positif | Option retiree des checks Nginx/API/UI ; le plan prod restait deja sans cette option. |
 
-Statut review avant push des corrections : `CHANGES_REQUIRED`.
+Statut review apres correction locale du dernier P2 : `CHANGES_REQUIRED` jusqu'au push et a la verification GitHub Actions/cubic du nouveau HEAD.
 
 ## Review threads
 
@@ -88,6 +89,17 @@ openOutdatedThreads=2
 ```
 
 Les 2 threads bloquants ouverts correspondent aux deux nouveaux points cubic ci-dessus. Les 2 threads ouverts mais obsoletes correspondent aux anciens commentaires Codex deja corriges par `b068e82`.
+
+Etat apres push de `8d35dac028022e0b48ac5a99663ee5813a850a06` et avant correction du dernier P2 :
+
+```text
+reviewDecision=null
+totalThreads=11
+blockingOpenThreads=1
+openOutdatedThreads=2
+```
+
+Le thread bloquant correspond au point cubic sur la validation structuree du bind mount Compose.
 
 ## Revue manuelle du diff final local
 
@@ -108,6 +120,7 @@ Constats :
 - `RAG_COLLECTIONS_CONFIG`, `RAG_LEGACY_COLLECTION_MAPPING` et `RAG_ENGINE_CONFIG_DIR` fonctionnent et echouent fermes si le chemin explicite manque.
 - Le fallback repo et le layout prod plat sont couverts par tests.
 - Le plan prod copie les YAML vers `/srv/nexusreussite/rag-ui/compose/configs` et verifie le rendu Compose vers `/app/configs`.
+- Le plan prod valide maintenant le volume configs dans le rendu Compose JSON sur le service `ingestor`, avec source, cible et lecture seule verifiees sur la meme entree.
 - Admin fail-closed si token absent et `RAG_ENV` absent.
 - Dev sans token autorise seulement avec `RAG_ENV=development` et `ALLOW_UNAUTHENTICATED_ADMIN_DEV=true`.
 - `/search` et `/rag/query` refusent une collection arbitraire ; `/rag/query` refuse `rag_divers` avant appel Chroma et accepte `rag_web3` via mapping.
@@ -175,6 +188,16 @@ Resultats :
 - `test-governance-locks.sh`: OK, 16 assertions.
 - `scripts/ci-local.sh`: OK, `7 passed, 0 failed`.
 
+Apres correction du dernier P2 documentaire cubic :
+
+- `git diff --check` : OK.
+- scan secret diff : aucune occurrence evidente.
+- scan de l'option TLS insecure dans les documents prod/review : aucune occurrence.
+- bloc local obligatoire relance : OK.
+- `services/rag-pedago`: `1086 passed`.
+- `packages/contracts`: `32 passed`.
+- `scripts/ci-local.sh`: OK, `7 passed, 0 failed`.
+
 ## Secrets, PII et prod
 
 Verification diff :
@@ -191,7 +214,16 @@ Resultat : aucune occurrence de secret evidente dans le diff inspecte.
 
 Avant correction finale, le HEAD GitHub `82e7cf103be1f0fdf5ec170d2aa20fafd615036f` etait vert sur le run `28353176968`.
 
-Les corrections de ce rapport doivent etre poussees puis revues par GitHub Actions sur le nouveau HEAD avant tout merge.
+Apres corrections `8d35dac028022e0b48ac5a99663ee5813a850a06`, le run GitHub Actions `28364961660` etait vert sur le meme SHA :
+
+- `packages/contracts`: SUCCESS.
+- `governance locks guard`: SUCCESS.
+- `services/rag-pedago`: SUCCESS.
+- `services/rag-engine`: SUCCESS.
+- `GitGuardian Security Checks`: SUCCESS.
+- `cubic - AI code reviewer`: SUCCESS, avec le P2 documentaire consigne ci-dessus.
+
+La correction du dernier P2 documentaire doit etre poussee puis revisee par GitHub Actions, GitGuardian, cubic et les review threads avant tout merge.
 
 ## Decision pre-merge
 
@@ -199,9 +231,9 @@ Statut courant : `DO_NOT_MERGE`.
 
 Raisons :
 
-- corrections locales non encore poussees au moment de cette redaction ;
+- correction locale du dernier P2 cubic non encore poussee au moment de cette redaction ;
 - GitHub Actions non encore relancees sur le futur HEAD ;
-- les deux threads cubic resteront visibles comme ouverts/non obsoletes tant que le nouveau HEAD n'est pas pousse.
+- le thread cubic restera visible comme ouvert/non obsolete tant que le nouveau HEAD n'est pas pousse.
 
 Conditions attendues apres push :
 

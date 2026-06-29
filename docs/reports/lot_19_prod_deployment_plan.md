@@ -40,9 +40,28 @@ grep -q '^RAG_ENGINE_CONFIG_DIR=/app/configs$' .env
 grep -q '^ALLOW_UNAUTHENTICATED_ADMIN_DEV=false$' .env
 test -f configs/rag_collections.yml
 test -f configs/legacy_collection_mapping.yml
-docker compose config >/tmp/rag-ui-compose.rendered.yml
-grep -q '/srv/nexusreussite/rag-ui/compose/configs' /tmp/rag-ui-compose.rendered.yml
-grep -q '/app/configs' /tmp/rag-ui-compose.rendered.yml
+docker compose config --format json >/tmp/rag-ui-compose.rendered.json
+python3 - <<'PY'
+import json
+from pathlib import Path
+
+config = json.loads(Path("/tmp/rag-ui-compose.rendered.json").read_text())
+volumes = config["services"]["ingestor"].get("volumes", [])
+expected = {
+    "type": "bind",
+    "source": "/srv/nexusreussite/rag-ui/compose/configs",
+    "target": "/app/configs",
+    "read_only": True,
+}
+if not any(
+    volume.get("type") == expected["type"]
+    and volume.get("source") == expected["source"]
+    and volume.get("target") == expected["target"]
+    and volume.get("read_only") == expected["read_only"]
+    for volume in volumes
+):
+    raise SystemExit("missing read-only ingestor configs bind mount")
+PY
 ```
 
 Ne jamais afficher `.env`, tokens, cles Google Drive ou secrets HMAC.
