@@ -95,3 +95,7 @@ emit_rsync "ui/" \
 emit_rsync "configs/" \
   "services/rag-engine/configs/rag_collections.yml" \
   "services/rag-engine/configs/legacy_collection_mapping.yml"
+
+emit_rsync "./" \
+  "services/rag-engine/infra/docker-compose.prod.yml" \
+  "services/rag-engine/infra/docker-compose.override.prod.yml"

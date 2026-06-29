@@ -92,7 +92,7 @@ Lot 19 a livre :
 | `RAG_ENGINE_CONFIG_DIR` | Doit valoir `/app/configs`. | Configs introuvables dans le conteneur. | Cle presente et valeur publique attendue. | Preflight refuse toute autre valeur. |
 | `RAG_ENV` | Production doit etre explicite. | Admin fail-open si environnement ambigu. | `RAG_ENV=production`. | Preflight refuse toute autre valeur. |
 | `ALLOW_UNAUTHENTICATED_ADMIN_DEV` | Doit etre `false` en prod. | Admin sans token. | Cle presente et valeur `false`. | Preflight refuse `true` ou absence. |
-| `INGESTOR_API_TOKEN` | Token requis, valeur non affichable. | `/admin/*` ou ingestion inutilisable, ou configuration insecure. | Presence de `INGESTOR_API_TOKEN` ou `INGEST_AUTH_TOKEN` sans afficher la valeur. | Preflight verifie seulement la presence. |
+| `INGESTOR_API_TOKEN` | Token requis, valeur non affichable. | `/admin/*` ou ingestion inutilisable, ou configuration insecure. | Presence de `INGESTOR_API_TOKEN` au format 64 caracteres hexadecimaux, sans afficher la valeur. | Preflight refuse l'alias legacy seul et valide le format. |
 | `admin_api` | `_admin_guard()` fail-closed en production. | Exposition admin si token absent. | Tests Lot 19 + preflight env. | Tests existants conserves, preflight ajoute. |
 | `/admin/reindex` | Protege par `_admin_guard()`. | Contournement auth. | Tests Lot 19. | Pas de changement fonctionnel Lot 20. |
 | `/search` | Refuse collection arbitraire et quarantine. | Elargissement cross-domain. | Tests `test_search_api.py`. | CI Lot 20 relance les tests. |
@@ -120,10 +120,12 @@ Garanties :
 
 - ne lit que les cles `.env`, jamais les valeurs sensibles dans les sorties ;
 - verifie la presence d'un token admin sans l'afficher ;
+- exige `INGESTOR_API_TOKEN` au format 64 caracteres hexadecimaux ;
 - ne lit pas le contenu des credentials Google Drive ;
 - analyse `docker compose config --format json` en memoire via `stdout=subprocess.PIPE` ;
 - n'ecrit pas de rendu Compose dans `/tmp` ;
 - valide le mount configs sur le service `ingestor` ;
+- refuse les bindings de ports publics pour `ingestor` et `ui` ;
 - valide `rag_nexus_quarantine` non retrievable et `rag_divers` vers quarantine.
 
 ### `services/rag-engine/scripts/prod_deploy_dry_run.sh`
@@ -146,6 +148,17 @@ Garanties :
 - imprime uniquement des commandes `rsync -nci` ;
 - n'utilise pas `--delete` ;
 - n'inclut pas `.env`, credentials, Chroma ou `catalog.sqlite`.
+- couvre les fichiers applicatifs, les configs et les fichiers Compose versionnes `docker-compose.prod.yml` et `docker-compose.override.prod.yml`.
+
+## Retours Cubic PR #36
+
+| Source | Point | Gravite | Verdict | Action |
+| --- | --- | ---: | --- | --- |
+| Cubic | `prod_preflight_check.py` acceptait `INGEST_AUTH_TOKEN` comme alias suffisant. | P1 | Vrai positif. | `INGESTOR_API_TOKEN` est maintenant obligatoire et valide comme 64 caracteres hexadecimaux ; tests dedies ajoutes. |
+| Cubic | `prod_preflight_check.py` ne rejetait pas les ports host publics. | P1 | Vrai positif. | Le rendu Compose est inspecte en memoire et les ports `ingestor`/`ui` doivent etre loopback-only ; tests dedies ajoutes. |
+| Cubic | Le rollback n'attendait pas la readiness avant les post-checks. | P2 | Vrai positif. | Le runbook ajoute des boucles d'attente bornees avant les checks finaux. |
+| Cubic | Le dry-run n'incluait pas les fichiers Compose de production. | P2 | Vrai positif. | Le dry-run couvre `infra/docker-compose.prod.yml` et `infra/docker-compose.override.prod.yml`. |
+| Cubic | Le dry-run devrait simuler `rsync --delete`. | P2 | Faux positif pour Lot 20. | Rejete car la consigne Lot 20 impose explicitement de refuser `--delete` et de ne jamais l'inclure dans les commandes generees ; le test de refus est conserve. |
 
 ## Checks publics
 
@@ -208,8 +221,8 @@ git diff --check: OK
 services/rag-engine make lint: OK
 services/rag-engine make typecheck: OK
 services/rag-engine make test: OK
-tests/test_prod_preflight_check.py: 10 passed
-tests/test_prod_deploy_dry_run.py: 6 passed
+tests/test_prod_preflight_check.py: 14 passed
+tests/test_prod_deploy_dry_run.py: 7 passed
 tests/test_prod_compose_config_mount.py: 2 passed
 tests/test_rag_collections_config.py: 16 passed
 tests/test_admin_security.py: 6 passed

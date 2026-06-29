@@ -82,10 +82,19 @@ def test_dry_run_generates_only_rsync_nci_commands(tmp_path: Path) -> None:
     assert "services/rag-engine/src/ui/app_v2.py" in result.stdout
     assert "services/rag-engine/configs/rag_collections.yml" in result.stdout
     assert "services/rag-engine/configs/legacy_collection_mapping.yml" in result.stdout
+    assert "services/rag-engine/infra/docker-compose.prod.yml" in result.stdout
+    assert "services/rag-engine/infra/docker-compose.override.prod.yml" in result.stdout
     assert ".env" not in result.stdout
     assert "creds" not in result.stdout
     assert "chroma" not in result.stdout.lower()
     assert "catalog.sqlite" not in result.stdout
+
+
+def test_dry_run_refuses_delete_argument(tmp_path: Path) -> None:
+    result = _run_script(tmp_path, extra_args=["--delete"])
+
+    assert result.returncode != 0
+    assert "destructive" in result.stderr.lower()
 
 
 def test_dry_run_refuses_non_main_branch(tmp_path: Path) -> None:

@@ -146,6 +146,29 @@ NE PAS EXECUTER SANS CONFIRMATION HUMAINE.
 ```bash
 cd "$COMPOSE_DIR"
 docker compose up -d ingestor ui
+
+for attempt in $(seq 1 30); do
+  if curl -sS --fail https://rag-api.nexusreussite.academy/health >/dev/null; then
+    break
+  fi
+  if [ "$attempt" -eq 30 ]; then
+    echo "API healthcheck still failing after readiness wait" >&2
+    exit 1
+  fi
+  sleep 2
+done
+
+for attempt in $(seq 1 30); do
+  if curl -sS --fail -I https://rag-ui.nexusreussite.academy/ >/dev/null; then
+    break
+  fi
+  if [ "$attempt" -eq 30 ]; then
+    echo "UI still failing after readiness wait" >&2
+    exit 1
+  fi
+  sleep 2
+done
+
 curl -sS --fail https://rag-api.nexusreussite.academy/health
 curl -sS --fail -I https://rag-ui.nexusreussite.academy/
 curl -sS -i https://rag-api.nexusreussite.academy/collections | sed -n '1,20p'

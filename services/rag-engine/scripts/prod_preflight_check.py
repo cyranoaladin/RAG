@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from collections.abc import Sequence
@@ -17,6 +18,10 @@ COMPOSE_CANDIDATES = (
     "compose.yml",
     "compose.yaml",
 )
+ADMIN_TOKEN_KEY = "INGESTOR_API_TOKEN"
+ADMIN_TOKEN_PATTERN = re.compile(r"^[0-9a-fA-F]{64}$")
+LOOPBACK_HOSTS = {"127.0.0.1", "::1", "localhost"}
+PUBLIC_PORT_SERVICES = ("ingestor", "ui")
 
 
 class PreflightError(RuntimeError):
@@ -69,8 +74,9 @@ def _validate_env(env: dict[str, str], expected_target: str) -> None:
     _require_env(env, "RAG_CONFIGS_HOST_DIR")
     if _require_env(env, "ALLOW_UNAUTHENTICATED_ADMIN_DEV") != "false":
         raise PreflightError("ALLOW_UNAUTHENTICATED_ADMIN_DEV must be false")
-    if not (env.get("INGESTOR_API_TOKEN", "").strip() or env.get("INGEST_AUTH_TOKEN", "").strip()):
-        raise PreflightError("admin token key missing")
+    admin_token = _require_env(env, ADMIN_TOKEN_KEY)
+    if not ADMIN_TOKEN_PATTERN.fullmatch(admin_token):
+        raise PreflightError("INGESTOR_API_TOKEN must be a 64-character hex token")
 
 
 def _validate_config_files(config_dir: Path) -> None:
@@ -166,6 +172,51 @@ def _validate_ingestor_config_mount(
     )
 
 
+def _port_host_ip(port: Any) -> str | None:
+    if not isinstance(port, dict):
+        return None
+    for key in ("host_ip", "hostIp", "hostIP", "HostIp", "HostIP"):
+        value = port.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
+def _string_port_is_loopback(port: str) -> bool:
+    return (
+        port.startswith("127.0.0.1:")
+        or port.startswith("localhost:")
+        or port.startswith("[::1]:")
+        or port.startswith("::1:")
+    )
+
+
+def _validate_no_public_host_port_bindings(rendered: dict[str, Any]) -> None:
+    services = rendered.get("services")
+    if not isinstance(services, dict):
+        raise PreflightError("compose services missing")
+
+    for service_name in PUBLIC_PORT_SERVICES:
+        service = services.get(service_name)
+        if service is None:
+            continue
+        if not isinstance(service, dict):
+            raise PreflightError(f"{service_name} service must be a mapping")
+        ports = service.get("ports", [])
+        if ports is None:
+            continue
+        if not isinstance(ports, list):
+            raise PreflightError(f"{service_name} ports must be a list")
+        for port in ports:
+            if isinstance(port, str):
+                if _string_port_is_loopback(port):
+                    continue
+                raise PreflightError(f"{service_name} host port binding must be loopback-only")
+            host_ip = _port_host_ip(port)
+            if host_ip not in LOOPBACK_HOSTS:
+                raise PreflightError(f"{service_name} host port binding must be loopback-only")
+
+
 def run_preflight(
     *,
     compose_dir: Path,
@@ -185,6 +236,7 @@ def run_preflight(
         expected_source=expected_config_source,
         expected_target=expected_config_target,
     )
+    _validate_no_public_host_port_bindings(rendered)
 
 
 def main(argv: Sequence[str] | None = None) -> int:

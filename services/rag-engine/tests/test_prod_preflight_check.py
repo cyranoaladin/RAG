@@ -12,6 +12,7 @@ import pytest
 ENGINE_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_PATH = ENGINE_ROOT / "scripts" / "prod_preflight_check.py"
 ADMIN_TOKEN_KEY = "INGESTOR_API_TOKEN"
+ADMIN_TOKEN_VALUE = "a" * 64
 
 
 def _load_module() -> Any:
@@ -64,7 +65,7 @@ services:
                 "RAG_ENGINE_CONFIG_DIR=/app/configs",
                 "RAG_CONFIGS_HOST_DIR=./configs",
                 "ALLOW_UNAUTHENTICATED_ADMIN_DEV=false",
-                f"{ADMIN_TOKEN_KEY}=redacted-token-value",
+                f"{ADMIN_TOKEN_KEY}={ADMIN_TOKEN_VALUE}",
             ]
         ),
         encoding="utf-8",
@@ -77,7 +78,20 @@ def _compose_result(
     source: str | None = None,
     target: str = "/app/configs",
     read_only: bool = True,
+    ingestor_host_ip: str | None = "127.0.0.1",
+    ui_host_ip: str | None = "127.0.0.1",
 ) -> subprocess.CompletedProcess[str]:
+    def port(host_ip: str | None, published: str, target_port: int) -> dict[str, object]:
+        payload: dict[str, object] = {
+            "mode": "ingress",
+            "target": target_port,
+            "published": published,
+            "protocol": "tcp",
+        }
+        if host_ip is not None:
+            payload["host_ip"] = host_ip
+        return payload
+
     payload = {
         "services": {
             "ingestor": {
@@ -89,8 +103,12 @@ def _compose_result(
                         "read_only": read_only,
                     }
                 ],
-                "environment": {"INGESTOR_API_TOKEN": "redacted-token-value"},
-            }
+                "ports": [port(ingestor_host_ip, "8001", 8001)],
+                "environment": {"INGESTOR_API_TOKEN": ADMIN_TOKEN_VALUE},
+            },
+            "ui": {
+                "ports": [port(ui_host_ip, "8501", 8501)],
+            },
         }
     }
     return subprocess.CompletedProcess(
@@ -143,7 +161,7 @@ def test_env_absent_fails_without_secret(
 
     assert code != 0
     assert ".env" in output
-    assert "redacted-token-value" not in output
+    assert ADMIN_TOKEN_VALUE not in output
 
 
 def test_token_absent_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys) -> None:
@@ -160,7 +178,51 @@ def test_token_absent_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, cap
     code, output = _run_preflight(tmp_path, monkeypatch, capsys)
 
     assert code != 0
-    assert "admin token" in output.lower()
+    assert ADMIN_TOKEN_KEY in output
+
+
+def test_ingest_auth_token_alias_is_not_enough(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    compose_dir = tmp_path / "compose"
+    _write_valid_tree(compose_dir)
+    env_text = (compose_dir / ".env").read_text(encoding="utf-8")
+    without_ingestor_token = "\n".join(
+        line for line in env_text.splitlines() if not line.startswith(f"{ADMIN_TOKEN_KEY}=")
+    )
+    (compose_dir / ".env").write_text(
+        f"{without_ingestor_token}\nINGEST_AUTH_TOKEN={ADMIN_TOKEN_VALUE}\n",
+        encoding="utf-8",
+    )
+
+    code, output = _run_preflight(tmp_path, monkeypatch, capsys)
+
+    assert code != 0
+    assert ADMIN_TOKEN_KEY in output
+    assert ADMIN_TOKEN_VALUE not in output
+
+
+def test_admin_token_must_be_64_hex(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    compose_dir = tmp_path / "compose"
+    _write_valid_tree(compose_dir)
+    env_text = (compose_dir / ".env").read_text(encoding="utf-8")
+    (compose_dir / ".env").write_text(
+        env_text.replace(f"{ADMIN_TOKEN_KEY}={ADMIN_TOKEN_VALUE}", f"{ADMIN_TOKEN_KEY}=not-a-token"),
+        encoding="utf-8",
+    )
+
+    code, output = _run_preflight(tmp_path, monkeypatch, capsys)
+
+    assert code != 0
+    assert "64" in output
+    assert "hex" in output.lower()
+    assert "not-a-token" not in output
 
 
 def test_token_present_succeeds_without_printing_it(
@@ -173,7 +235,7 @@ def test_token_present_succeeds_without_printing_it(
     code, output = _run_preflight(tmp_path, monkeypatch, capsys)
 
     assert code == 0
-    assert "redacted-token-value" not in output
+    assert ADMIN_TOKEN_VALUE not in output
 
 
 def test_wrong_rag_env_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys) -> None:
@@ -266,6 +328,44 @@ def test_mount_source_must_match(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     assert "source" in output.lower()
 
 
+def test_public_host_port_binding_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    compose_dir = tmp_path / "compose"
+    _write_valid_tree(compose_dir)
+
+    code, output = _run_preflight(
+        tmp_path,
+        monkeypatch,
+        capsys,
+        compose_result=_compose_result(compose_dir, ingestor_host_ip="0.0.0.0"),
+    )
+
+    assert code != 0
+    assert "loopback" in output.lower()
+
+
+def test_missing_host_port_binding_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    compose_dir = tmp_path / "compose"
+    _write_valid_tree(compose_dir)
+
+    code, output = _run_preflight(
+        tmp_path,
+        monkeypatch,
+        capsys,
+        compose_result=_compose_result(compose_dir, ui_host_ip=None),
+    )
+
+    assert code != 0
+    assert "loopback" in output.lower()
+
+
 def test_rendered_compose_with_token_is_not_written_or_printed(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -277,5 +377,5 @@ def test_rendered_compose_with_token_is_not_written_or_printed(
     code, output = _run_preflight(tmp_path, monkeypatch, capsys)
 
     assert code == 0
-    assert "redacted-token-value" not in output
+    assert ADMIN_TOKEN_VALUE not in output
     assert not list(tmp_path.rglob("*compose.rendered*"))
