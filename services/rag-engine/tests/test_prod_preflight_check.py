@@ -366,6 +366,40 @@ def test_missing_host_port_binding_fails_closed(
     assert "loopback" in output.lower()
 
 
+def test_public_host_port_binding_on_any_service_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    compose_dir = tmp_path / "compose"
+    _write_valid_tree(compose_dir)
+    result = _compose_result(compose_dir)
+    payload = json.loads(result.stdout)
+    payload["services"]["metrics"] = {
+        "ports": [
+            {
+                "mode": "ingress",
+                "target": 9090,
+                "published": "9090",
+                "protocol": "tcp",
+                "host_ip": "0.0.0.0",
+            }
+        ]
+    }
+    result = subprocess.CompletedProcess(
+        args=result.args,
+        returncode=0,
+        stdout=json.dumps(payload),
+        stderr="",
+    )
+
+    code, output = _run_preflight(tmp_path, monkeypatch, capsys, compose_result=result)
+
+    assert code != 0
+    assert "metrics" in output
+    assert "loopback" in output.lower()
+
+
 def test_rendered_compose_with_token_is_not_written_or_printed(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

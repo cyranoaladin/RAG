@@ -159,6 +159,7 @@ Garanties :
 | Cubic | Le rollback n'attendait pas la readiness avant les post-checks. | P2 | Vrai positif. | Le runbook ajoute des boucles d'attente bornees avant les checks finaux. |
 | Cubic | Le dry-run n'incluait pas les fichiers Compose de production. | P2 | Vrai positif. | Le dry-run couvre `infra/docker-compose.prod.yml` et `infra/docker-compose.override.prod.yml`. |
 | Cubic | Le dry-run devrait simuler `rsync --delete`. | P2 | Faux positif pour Lot 20. | Rejete car la consigne Lot 20 impose explicitement de refuser `--delete` et de ne jamais l'inclure dans les commandes generees ; le test de refus est conserve. |
+| Cubic | Le controle des ports publics ne couvrait que `ingestor` et `ui`. | P1 | Vrai positif. | Le preflight inspecte maintenant tout service Compose qui declare des ports ; test dedie ajoute. |
 
 ## Checks publics
 
@@ -221,7 +222,7 @@ git diff --check: OK
 services/rag-engine make lint: OK
 services/rag-engine make typecheck: OK
 services/rag-engine make test: OK
-tests/test_prod_preflight_check.py: 14 passed
+tests/test_prod_preflight_check.py: 15 passed
 tests/test_prod_deploy_dry_run.py: 7 passed
 tests/test_prod_compose_config_mount.py: 2 passed
 tests/test_rag_collections_config.py: 16 passed

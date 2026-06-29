@@ -21,7 +21,6 @@ COMPOSE_CANDIDATES = (
 ADMIN_TOKEN_KEY = "INGESTOR_API_TOKEN"
 ADMIN_TOKEN_PATTERN = re.compile(r"^[0-9a-fA-F]{64}$")
 LOOPBACK_HOSTS = {"127.0.0.1", "::1", "localhost"}
-PUBLIC_PORT_SERVICES = ("ingestor", "ui")
 
 
 class PreflightError(RuntimeError):
@@ -196,10 +195,7 @@ def _validate_no_public_host_port_bindings(rendered: dict[str, Any]) -> None:
     if not isinstance(services, dict):
         raise PreflightError("compose services missing")
 
-    for service_name in PUBLIC_PORT_SERVICES:
-        service = services.get(service_name)
-        if service is None:
-            continue
+    for service_name, service in services.items():
         if not isinstance(service, dict):
             raise PreflightError(f"{service_name} service must be a mapping")
         ports = service.get("ports", [])
