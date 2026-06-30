@@ -131,6 +131,7 @@ def test_search_config_file_missing_is_server_error(
     tmp_path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("RAG_COLLECTIONS_CONFIG", str(tmp_path / "missing.yml"))
+    monkeypatch.setenv("RAG_LEGACY_COLLECTIONS_CONFIG", str(tmp_path / "missing_legacy.yml"))
     monkeypatch.delenv("RAG_LEGACY_COLLECTION_MAPPING", raising=False)
     monkeypatch.delenv("RAG_ENGINE_CONFIG_DIR", raising=False)
     api = _load_api(monkeypatch)

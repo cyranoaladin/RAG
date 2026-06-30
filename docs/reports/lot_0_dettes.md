@@ -26,3 +26,48 @@
 
 - Le commit `93f5ba8` (`docs: add project roadmap`) a été poussé directement sur `main`, en écart avec la règle « un lot = une branche = une PR ».
 - Écart de process noté. L'historique n'est pas réécrit.
+
+## Erreurs d'import rag-engine (préexistantes, LOT 21)
+
+**Date de constat** : 30 juin 2026 (LOT 21)
+**Statut** : préexistant, non régressé par LOT 21
+**Antériorité prouvée** : ces erreurs d'import existaient sur le commit parent `31020f8` (main, merge PR #36). L'exécution locale de `pytest tests/test_retrieval_contract_adapter.py` sur ce commit retourne `ModuleNotFoundError: No module named 'nexus_contracts'`. Même résultat pour les 9 autres modules (dépendances `chromadb`, `langchain`, `google.oauth2` etc. non installées localement). En CI (GitHub Actions run `28470205150`, job `84380555833`), ces tests passent car les dépendances sont installées dans le venv CI.
+
+Les 10 modules de test suivants échouent à l'import en environnement local (dépendances manquantes). En CI, ils passent car les dépendances sont installées.
+
+| Module de test | Dépendance manquante | Cause |
+|---|---|---|
+| `test_admin_api.py` | `chromadb`, `langchain` | Moteur historique, dépendances lourdes |
+| `test_admin_api_edges.py` | idem | idem |
+| `test_admin_health_reindex.py` | idem | idem |
+| `test_backfill_dedicated_collection.py` | idem | idem |
+| `test_drive_sync.py` | `google.oauth2` | Intégration GDrive |
+| `test_metrics.py` | `prometheus_client` | Instrumentation |
+| `test_metrics_gating.py` | idem | idem |
+| `test_retrieval_api.py` | `psycopg` | pgvector, pas installé localement |
+| `test_retrieval_contract_adapter.py` | `nexus_contracts` | Pas installé localement |
+| `test_security_ip_allowlist.py` | `chromadb` | Moteur historique |
+
+**Intention** : ces tests seront isolés ou remplacés à mesure que le moteur historique est décommissionné. Les tests v2 (`test_collection_config_v2.py`, `test_rag_collections_config.py`) n'ont pas ces dépendances.
+
+## api.py — moteur historique en sursis (LOT 22a)
+
+**Date de constat** : 30 juin 2026 (LOT 22a, S-04)
+**Statut** : dette active, moteur à décommissionner
+**Antériorité prouvée** : `api.py` (2215 lignes, monolithe Chroma/Ollama) existait dès le commit `b483c2c` (main, avant LOT 20). Constaté comme A-02 dans l'audit `AUDIT_RAG_cyranoaladin.md`.
+
+`api.py` et `retrieval_contract_adapter.py` constituent le moteur historique. Ils lisent `rag_collections_legacy.yml` (v1) via `resolve_collection()`. Le code neuf utilise `resolve_collection_v2()` + `rag_collections.yml` (v2). Les deux mondes sont étanches (D-LEGACY-ISOLE, ADR-0013).
+
+**Action** : décommissionner `api.py` quand le moteur gouverné (pgvector, e5-large) est opérationnel (post-LOT 25).
+
+## Vigilance : partage potentiel de table rag_chunks (T-02, LOT 22a)
+
+`rag_collections_legacy.yml` déclare `pgvector.table: rag_chunks`, la même table que le v2 va peupler dans l'instance pgvector dédiée. Cependant :
+- Le legacy (`api.py`) tourne sur **Chroma**, pas sur pgvector. Il n'exécute **aucun INSERT dans `rag_chunks`** (`grep INSERT.*rag_chunks api.py` = 0, `api.py` n'importe pas `database.py`).
+- `database.py` contient un `INSERT INTO rag_chunks` (ligne 153) mais n'est **pas appelé** par `api.py`.
+- Le v2 écrit dans `rag_chunks` de l'instance pgvector **dédiée** (séparée de `nexus_prod`, A-1).
+- **Aucun chemin legacy actif n'écrit dans `rag_chunks`.**
+
+## Décision D-LEGACY-CI (LOT 22a, T-03)
+
+Les tests `@pytest.mark.legacy_engine` restent **dans la CI** et doivent rester **verts** tant que `api.py` sert la prod (D-LEGACY-CI). Le marqueur isole le périmètre (legacy vs v2), il n'exclut pas de l'exécution. À décommissionner avec `api.py` (post-LOT 25). Un futur contributeur ne doit pas les désactiver en croyant le marqueur destiné à les exclure.

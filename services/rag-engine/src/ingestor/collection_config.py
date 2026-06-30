@@ -1,3 +1,12 @@
+"""Collection configuration — v2 (ADR-0013) + legacy isolation.
+
+Two separate worlds, no cross-contamination:
+- v2: resolve_collection_v2 reads rag_collections.yml (catalogue v2, instanciee flags)
+- legacy: resolve_collection reads rag_collections_legacy.yml (Chroma routing, v1)
+
+The v2 resolver is the ONLY path for new code. The legacy resolver exists solely
+for api.py (historical monolith) until it is decommissioned.
+"""
 from __future__ import annotations
 
 import logging
@@ -10,8 +19,10 @@ from typing import Any, cast
 import yaml
 
 CONFIG_FILENAME = "rag_collections.yml"
+LEGACY_CONFIG_FILENAME = "rag_collections_legacy.yml"
 MAPPING_FILENAME = "legacy_collection_mapping.yml"
 CONFIG_ENV = "RAG_COLLECTIONS_CONFIG"
+LEGACY_CONFIG_ENV = "RAG_LEGACY_COLLECTIONS_CONFIG"
 MAPPING_ENV = "RAG_LEGACY_COLLECTION_MAPPING"
 CONFIG_DIR_ENV = "RAG_ENGINE_CONFIG_DIR"
 
@@ -65,6 +76,10 @@ MAPPING_PATH = _candidate_config_paths(MAPPING_FILENAME, MAPPING_ENV)[0]
 logger = logging.getLogger(__name__)
 
 
+# ---------------------------------------------------------------------------
+# Exception hierarchy
+# ---------------------------------------------------------------------------
+
 class CollectionConfigError(ValueError):
     """Raised when a collection or routing key is outside the versioned config."""
 
@@ -77,6 +92,18 @@ class CollectionRoutingError(CollectionConfigError):
     """Raised when a client asks for an unknown or non-retrievable route."""
 
 
+class CollectionNotInstanciatedError(CollectionConfigError):
+    """Raised when a requested collection exists in the catalogue but is not instanciated."""
+
+
+class CollectionUnknownError(CollectionConfigError):
+    """Raised when a requested collection is not in the catalogue at all."""
+
+
+# ---------------------------------------------------------------------------
+# Shared types
+# ---------------------------------------------------------------------------
+
 @dataclass(frozen=True)
 class CollectionResolution:
     requested: str
@@ -88,6 +115,10 @@ class CollectionResolution:
     used_legacy: bool = False
 
 
+# ---------------------------------------------------------------------------
+# YAML loading
+# ---------------------------------------------------------------------------
+
 def _read_yaml(path: Path) -> dict[str, Any]:
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
@@ -96,7 +127,13 @@ def _read_yaml(path: Path) -> dict[str, Any]:
 
 
 def load_collection_config(path: Path | None = None) -> dict[str, Any]:
+    """Load the v2 catalogue (rag_collections.yml)."""
     return _read_yaml(path or _resolve_config_path(CONFIG_FILENAME, CONFIG_ENV))
+
+
+def load_legacy_collection_config(path: Path | None = None) -> dict[str, Any]:
+    """Load the legacy v1 config (rag_collections_legacy.yml)."""
+    return _read_yaml(path or _resolve_config_path(LEGACY_CONFIG_FILENAME, LEGACY_CONFIG_ENV))
 
 
 def load_legacy_mapping(path: Path | None = None) -> dict[str, str]:
@@ -111,26 +148,88 @@ def load_legacy_mapping(path: Path | None = None) -> dict[str, str]:
     return mapping
 
 
-def _chroma_collections(config: Mapping[str, Any]) -> Mapping[str, Any]:
-    # v1 path: physical_backends.chroma.collections (also used for legacy compat in v2)
-    backends = config.get("physical_backends")
-    if isinstance(backends, Mapping):
-        chroma = backends.get("chroma")
-        if isinstance(chroma, Mapping):
-            collections = chroma.get("collections")
-            if isinstance(collections, Mapping):
-                return collections
-    # v2 fallback: use top-level collections
+# ===================================================================
+# v2 — SOLE SOURCE FOR NEW CODE (ADR-0013)
+# ===================================================================
+
+
+def _v2_catalogue(config: Mapping[str, Any]) -> Mapping[str, Any]:
+    """Return the v2 collections catalogue."""
     cols = config.get("collections")
     if isinstance(cols, Mapping):
         return cols
-    raise CollectionConfigLoadError("Missing collections (no physical_backends.chroma nor top-level collections)")
+    raise CollectionConfigLoadError("Missing 'collections' in v2 config")
+
+
+def resolve_collection_v2(
+    collection_name: str,
+    config: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Resolve a collection against the v2 catalogue.
+
+    Gate: instanciee must be boolean True. No fallback, no guessing.
+    """
+    cfg = config or load_collection_config()
+    cols = _v2_catalogue(cfg)
+
+    if collection_name not in cols:
+        raise CollectionUnknownError(
+            f"Collection '{collection_name}' is not declared in rag_collections.yml. "
+            f"Known collections: {sorted(cols.keys())}"
+        )
+
+    definition = cols[collection_name]
+    if not isinstance(definition, Mapping):
+        raise CollectionConfigLoadError(
+            f"Invalid definition for collection '{collection_name}'"
+        )
+
+    if definition.get("instanciee") is not True:
+        raise CollectionNotInstanciatedError(
+            f"Collection '{collection_name}' is in the catalogue but not instanciated "
+            f"(instanciee: false). Populate it via the governance chain before exposing."
+        )
+
+    return dict(definition)
+
+
+def list_instanciated_collections(
+    config: Mapping[str, Any] | None = None,
+) -> list[str]:
+    """Return names of all instanciated collections (instanciee is True)."""
+    cfg = config or load_collection_config()
+    cols = _v2_catalogue(cfg)
+    return [
+        name for name, defn in cols.items()
+        if isinstance(defn, Mapping) and defn.get("instanciee") is True
+    ]
+
+
+# ===================================================================
+# LEGACY — api.py historical monolith ONLY (to be decommissioned)
+# Reads from rag_collections_legacy.yml, NEVER from the v2 catalogue.
+# ===================================================================
+
+
+def _chroma_collections(config: Mapping[str, Any]) -> Mapping[str, Any]:
+    """v1 only: read physical_backends.chroma.collections from LEGACY config."""
+    backends = config.get("physical_backends")
+    if not isinstance(backends, Mapping):
+        raise CollectionConfigLoadError("Missing physical_backends (legacy config required)")
+    chroma = backends.get("chroma")
+    if not isinstance(chroma, Mapping):
+        raise CollectionConfigLoadError("Missing chroma backend")
+    collections = chroma.get("collections")
+    if not isinstance(collections, Mapping):
+        raise CollectionConfigLoadError("Missing chroma collections")
+    return collections
 
 
 def _routing_sections(config: Mapping[str, Any]) -> Mapping[str, Any]:
+    """v1 only: read routing.sections from LEGACY config."""
     routing = config.get("routing")
     if not isinstance(routing, Mapping):
-        raise CollectionConfigLoadError("Missing routing")
+        raise CollectionConfigLoadError("Missing routing (legacy config required)")
     sections = routing.get("sections")
     if not isinstance(sections, Mapping):
         raise CollectionConfigLoadError("Missing routing sections")
@@ -145,6 +244,7 @@ def _domains(config: Mapping[str, Any]) -> Mapping[str, Any]:
 
 
 def _collection_domain(config: Mapping[str, Any], nexus_collection: str) -> str:
+    """v1 only: derive domain from allowed_domains in LEGACY config."""
     collections = _chroma_collections(config)
     definition = collections.get(nexus_collection)
     if not isinstance(definition, Mapping):
@@ -177,6 +277,7 @@ def _section_resolution(
     section: str,
     config: Mapping[str, Any],
 ) -> CollectionResolution:
+    """v1 only: resolve via routing.sections in LEGACY config."""
     sections = _routing_sections(config)
     key = section.strip().lower() if section and section.strip() else "default"
     route = sections.get(key)
@@ -207,13 +308,12 @@ def resolve_collection(
     config: Mapping[str, Any] | None = None,
     legacy_mapping: Mapping[str, str] | None = None,
 ) -> CollectionResolution:
-    """Resolve client-facing routing into a controlled Nexus collection.
+    """LEGACY resolver — reads from rag_collections_legacy.yml.
 
-    Legacy Chroma names remain accepted only when they are listed in
-    `legacy_collection_mapping.yml`. Unknown client-provided collections are
-    rejected instead of being passed to ChromaDB.
+    Used ONLY by api.py (historical monolith). New code MUST use
+    resolve_collection_v2. See ADR-0013.
     """
-    cfg = config or load_collection_config()
+    cfg = config or load_legacy_collection_config()
     mapping = legacy_mapping or load_legacy_mapping()
     raw_collection = (collection or "").strip().lower()
 
@@ -258,74 +358,5 @@ def resolve_collection(
 
 
 def nexus_collection_domain(collection_name: str, config: Mapping[str, Any] | None = None) -> str:
-    return _collection_domain(config or load_collection_config(), collection_name)
-
-
-# ---------------------------------------------------------------------------
-# v2 config (ADR-0013): catalogue taxonomique + flag instanciee
-# ---------------------------------------------------------------------------
-
-
-class CollectionNotInstanciatedError(CollectionConfigError):
-    """Raised when a requested collection exists in the catalogue but is not instanciated."""
-
-
-class CollectionUnknownError(CollectionConfigError):
-    """Raised when a requested collection is not in the catalogue at all."""
-
-
-def _v2_collections(config: Mapping[str, Any]) -> Mapping[str, Any]:
-    """Return the collections dict from a v2 config."""
-    cols = config.get("collections")
-    if not isinstance(cols, Mapping):
-        raise CollectionConfigLoadError("Missing 'collections' in v2 config")
-    return cols
-
-
-def resolve_collection_v2(
-    collection_name: str,
-    config: Mapping[str, Any] | None = None,
-) -> dict[str, Any]:
-    """Resolve a collection name against the v2 catalogue.
-
-    Returns the collection definition if and only if:
-    - The collection is declared in the catalogue
-    - The collection has instanciee: true
-
-    Raises CollectionUnknownError if not in catalogue.
-    Raises CollectionNotInstanciatedError if in catalogue but not instanciated.
-
-    This is the anti-auto-creation invariant (M-04, ADR-0013):
-    no get_or_create_collection — the moteur MUST reject unknown collections.
-    """
-    cfg = config or load_collection_config()
-    cols = _v2_collections(cfg)
-
-    if collection_name not in cols:
-        raise CollectionUnknownError(
-            f"Collection '{collection_name}' is not declared in rag_collections.yml. "
-            f"Known collections: {sorted(cols.keys())}"
-        )
-
-    definition = cols[collection_name]
-    if not isinstance(definition, Mapping):
-        raise CollectionConfigLoadError(
-            f"Invalid definition for collection '{collection_name}'"
-        )
-
-    if not definition.get("instanciee"):
-        raise CollectionNotInstanciatedError(
-            f"Collection '{collection_name}' is in the catalogue but not instanciated "
-            f"(instanciee: false). Populate it via the governance chain before exposing."
-        )
-
-    return dict(definition)
-
-
-def list_instanciated_collections(
-    config: Mapping[str, Any] | None = None,
-) -> list[str]:
-    """Return names of all instanciated collections."""
-    cfg = config or load_collection_config()
-    cols = _v2_collections(cfg)
-    return [name for name, defn in cols.items() if isinstance(defn, Mapping) and defn.get("instanciee")]
+    """LEGACY: derive domain from legacy config."""
+    return _collection_domain(config or load_legacy_collection_config(), collection_name)
