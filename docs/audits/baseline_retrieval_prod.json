@@ -1,0 +1,1207 @@
+{
+  "capture_timestamp": "2026-06-30T17:49:24Z",
+  "corpus_state": {
+    "rag_education": 7181,
+    "rag_francais_premiere": 5948,
+    "nsi_corpus": 4716,
+    "rag_math_correction": 67
+  },
+  "corpus_note": "Snapshot at capture time. Re-capture at cutover required (I-10).",
+  "sections_covered": [
+    "education",
+    "nsi",
+    "francais_premiere",
+    "maths_premiere"
+  ],
+  "total_queries": 16,
+  "queries": [
+    {
+      "query": "algorithme de tri par insertion",
+      "section_requested": "education",
+      "collection_reached": "rag_education",
+      "returned": 4,
+      "maths_premiere_fallback": false,
+      "score_threshold": null,
+      "hits": [
+        {
+          "id": "62580c73323afb09",
+          "score": 0.28893125,
+          "metadata_keys": [
+            "chunk_index",
+            "collection",
+            "drive_file_id",
+            "drive_file_name",
+            "drive_folder_id",
+            "groupe",
+            "matiere",
+            "mime_type",
+            "modality",
+            "niveau",
+            "section",
+            "sha256",
+            "source",
+            "source_type",
+            "type_ressource"
+          ]
+        },
+        {
+          "id": "1bcb4f124d97be7b",
+          "score": 0.31157017,
+          "metadata_keys": [
+            "chunk_index",
+            "collection",
+            "drive_file_id",
+            "drive_file_name",
+            "drive_folder_id",
+            "groupe",
+            "matiere",
+            "mime_type",
+            "modality",
+            "niveau",
+            "page",
+            "section",
+            "sha256",
+            "source",
+            "source_type",
+            "title",
+            "type_ressource"
+          ]
+        },
+        {
+          "id": "2fb069479acecac0",
+          "score": 0.32511485,
+          "metadata_keys": [
+            "chunk_index",
+            "drive_file_id",
+            "drive_file_name",
+            "drive_folder_id",
+            "mime_type",
+            "modality",
+            "page",
+            "section",
+            "sha256",
+            "source",
+            "source_type",
+            "title"
+          ]
+        },
+        {
+          "id": "3103a10a185d7afe",
+          "score": 0.3361628,
+          "metadata_keys": [
+            "chunk_index",
+            "collection",
+            "drive_file_id",
+            "drive_file_name",
+            "drive_folder_id",
+            "groupe",
+            "matiere",
+            "mime_type",
+            "modality",
+            "niveau",
+            "page",
+            "section",
+            "sha256",
+            "source",
+            "source_type",
+            "title",
+            "type_ressource"
+          ]
+        }
+      ]
+    },
+    {
+      "query": "programmation orientée objet Python",
+      "section_requested": "education",
+      "collection_reached": "rag_education",
+      "returned": 4,
+      "maths_premiere_fallback": false,
+      "score_threshold": null,
+      "hits": [
+        {
+          "id": "8d53f9e248934387",
+          "score": 0.20081574,
+          "metadata_keys": [
+            "chunk_index",
+            "drive_file_id",
+            "drive_file_name",
+            "drive_folder_id",
+            "mime_type",
+            "modality",
+            "page",
+            "section",
+            "sha256",
+            "source",
+            "source_type",
+            "title"
+          ]
+        },
+        {
+          "id": "13bc3e3a6b5d1d16",
+          "score": 0.34661317,
+          "metadata_keys": [
+            "chunk_index",
+            "drive_file_id",
+            "drive_file_name",
+            "drive_folder_id",
+            "mime_type",
+            "modality",
+            "page",
+            "section",
+            "sha256",
+            "source",
+            "source_type",
+            "title"
+          ]
+        },
+        {
+          "id": "a59ef4ef399a66bf",
+          "score": 0.3493386,
+          "metadata_keys": [
+            "chunk_index",
+            "collection",
+            "drive_file_id",
+            "drive_file_name",
+            "drive_folder_id",
+            "groupe",
+            "matiere",
+            "mime_type",
+            "modality",
+            "niveau",
+            "page",
+            "section",
+            "sha256",
+            "source",
+            "source_type",
+            "title",
+            "type_ressource"
+          ]
+        },
+        {
+          "id": "3c9fbe18274476c4",
+          "score": 0.3545521,
+          "metadata_keys": [
+            "chunk_index",
+            "collection",
+            "drive_file_id",
+            "drive_file_name",
+            "drive_folder_id",
+            "groupe",
+            "matiere",
+            "mime_type",
+            "modality",
+            "niveau",
+            "page",
+            "section",
+            "sha256",
+            "source",
+            "source_type",
+            "title",
+            "type_ressource"
+          ]
+        }
+      ]
+    },
+    {
+      "query": "récursivité et arbre binaire",
+      "section_requested": "education",
+      "collection_reached": "rag_education",
+      "returned": 4,
+      "maths_premiere_fallback": false,
+      "score_threshold": null,
+      "hits": [
+        {
+          "id": "1c0810ffbdcdf642",
+          "score": 0.30340248,
+          "metadata_keys": [
+            "chunk_index",
+            "collection",
+            "drive_file_id",
+            "drive_file_name",
+            "drive_folder_id",
+            "groupe",
+            "matiere",
+            "mime_type",
+            "modality",
+            "niveau",
+            "section",
+            "sha256",
+            "source",
+            "source_type",
+            "type_ressource"
+          ]
+        },
+        {
+          "id": "b9c548556b3aa24d",
+          "score": 0.32340395,
+          "metadata_keys": [
+            "chunk_index",
+            "collection",
+            "drive_file_id",
+            "drive_file_name",
+            "drive_folder_id",
+            "groupe",
+            "matiere",
+            "mime_type",
+            "modality",
+            "niveau",
+            "page",
+            "section",
+            "sha256",
+            "source",
+            "source_type",
+            "title",
+            "type_ressource"
+          ]
+        },
+        {
+          "id": "7b2f63659d453bca",
+          "score": 0.3249787,
+          "metadata_keys": [
+            "chunk_index",
+            "collection",
+            "drive_file_id",
+            "drive_file_name",
+            "drive_folder_id",
+            "groupe",
+            "matiere",
+            "mime_type",
+            "modality",
+            "niveau",
+            "page",
+            "section",
+            "sha256",
+            "source",
+            "source_type",
+            "title",
+            "type_ressource"
+          ]
+        },
+        {
+          "id": "2b3be3a4455f60eb",
+          "score": 0.3255189,
+          "metadata_keys": [
+            "chunk_index",
+            "collection",
+            "drive_file_id",
+            "drive_file_name",
+            "drive_folder_id",
+            "groupe",
+            "matiere",
+            "mime_type",
+            "modality",
+            "niveau",
+            "page",
+            "section",
+            "sha256",
+            "source",
+            "source_type",
+            "title",
+            "type_ressource"
+          ]
+        }
+      ]
+    },
+    {
+      "query": "base de données SQL requête SELECT",
+      "section_requested": "education",
+      "collection_reached": "rag_education",
+      "returned": 4,
+      "maths_premiere_fallback": false,
+      "score_threshold": null,
+      "hits": [
+        {
+          "id": "b72820faa1abb057",
+          "score": 0.2919824,
+          "metadata_keys": [
+            "chunk_index",
+            "collection",
+            "drive_file_id",
+            "drive_file_name",
+            "drive_folder_id",
+            "groupe",
+            "matiere",
+            "mime_type",
+            "modality",
+            "niveau",
+            "page",
+            "section",
+            "sha256",
+            "source",
+            "source_type",
+            "title",
+            "type_ressource"
+          ]
+        },
+        {
+          "id": "d23d3c4a35103460",
+          "score": 0.31989455,
+          "metadata_keys": [
+            "chunk_index",
+            "collection",
+            "drive_file_id",
+            "drive_file_name",
+            "drive_folder_id",
+            "groupe",
+            "matiere",
+            "mime_type",
+            "modality",
+            "niveau",
+            "page",
+            "section",
+            "sha256",
+            "source",
+            "source_type",
+            "title",
+            "type_ressource"
+          ]
+        },
+        {
+          "id": "ba3eacd8e9dca774",
+          "score": 0.32154715,
+          "metadata_keys": [
+            "chunk_index",
+            "collection",
+            "drive_file_id",
+            "drive_file_name",
+            "drive_folder_id",
+            "groupe",
+            "matiere",
+            "mime_type",
+            "modality",
+            "niveau",
+            "page",
+            "section",
+            "sha256",
+            "source",
+            "source_type",
+            "title",
+            "type_ressource"
+          ]
+        },
+        {
+          "id": "966f387286321409",
+          "score": 0.32775372,
+          "metadata_keys": [
+            "chunk_index",
+            "drive_file_id",
+            "drive_file_name",
+            "drive_folder_id",
+            "mime_type",
+            "modality",
+            "page",
+            "section",
+            "sha256",
+            "source",
+            "source_type",
+            "title"
+          ]
+        }
+      ]
+    },
+    {
+      "query": "architecture Von Neumann processeur",
+      "section_requested": "education",
+      "collection_reached": "rag_education",
+      "returned": 4,
+      "maths_premiere_fallback": false,
+      "score_threshold": null,
+      "hits": [
+        {
+          "id": "758d94afa697f091",
+          "score": 0.33304322,
+          "metadata_keys": [
+            "chunk_index",
+            "collection",
+            "drive_file_id",
+            "drive_file_name",
+            "drive_folder_id",
+            "groupe",
+            "matiere",
+            "mime_type",
+            "modality",
+            "niveau",
+            "page",
+            "section",
+            "sha256",
+            "source",
+            "source_type",
+            "title",
+            "type_ressource"
+          ]
+        },
+        {
+          "id": "2b37e200b72ac8fd",
+          "score": 0.33901346,
+          "metadata_keys": [
+            "chunk_index",
+            "collection",
+            "drive_file_id",
+            "drive_file_name",
+            "drive_folder_id",
+            "groupe",
+            "matiere",
+            "mime_type",
+            "modality",
+            "niveau",
+            "page",
+            "section",
+            "sha256",
+            "source",
+            "source_type",
+            "title",
+            "type_ressource"
+          ]
+        },
+        {
+          "id": "f1a39cc79aa41f62",
+          "score": 0.3680786,
+          "metadata_keys": [
+            "chunk_index",
+            "collection",
+            "drive_file_id",
+            "drive_file_name",
+            "drive_folder_id",
+            "groupe",
+            "matiere",
+            "mime_type",
+            "modality",
+            "niveau",
+            "page",
+            "section",
+            "sha256",
+            "source",
+            "source_type",
+            "title",
+            "type_ressource"
+          ]
+        },
+        {
+          "id": "0a9107dc89173226",
+          "score": 0.38721502,
+          "metadata_keys": [
+            "chunk_index",
+            "collection",
+            "drive_file_id",
+            "drive_file_name",
+            "drive_folder_id",
+            "groupe",
+            "matiere",
+            "mime_type",
+            "modality",
+            "niveau",
+            "page",
+            "section",
+            "sha256",
+            "source",
+            "source_type",
+            "title",
+            "type_ressource"
+          ]
+        }
+      ]
+    },
+    {
+      "query": "structure de données pile file",
+      "section_requested": "nsi",
+      "collection_reached": "nsi_corpus",
+      "returned": 4,
+      "maths_premiere_fallback": false,
+      "score_threshold": null,
+      "hits": [
+        {
+          "id": "88c6bd8ab6e964df",
+          "score": 0.23284924,
+          "metadata_keys": [
+            "anchor",
+            "capacities",
+            "chunk_index",
+            "collection",
+            "document_type",
+            "level",
+            "notion",
+            "path",
+            "sequence_id",
+            "sha256",
+            "source_type",
+            "status",
+            "theme"
+          ]
+        },
+        {
+          "id": "728d3ab319709c9d",
+          "score": 0.23527122,
+          "metadata_keys": [
+            "anchor",
+            "capacities",
+            "chunk_index",
+            "collection",
+            "document_type",
+            "level",
+            "notion",
+            "path",
+            "sequence_id",
+            "sha256",
+            "source_type",
+            "status",
+            "theme"
+          ]
+        },
+        {
+          "id": "1f22e3ee4c7f88c0",
+          "score": 0.24855292,
+          "metadata_keys": [
+            "anchor",
+            "capacities",
+            "chunk_index",
+            "collection",
+            "document_type",
+            "level",
+            "notion",
+            "path",
+            "sequence_id",
+            "sha256",
+            "source_type",
+            "status",
+            "theme"
+          ]
+        },
+        {
+          "id": "bf2bd2996d6bb26c",
+          "score": 0.26735067,
+          "metadata_keys": [
+            "anchor",
+            "capacities",
+            "chunk_index",
+            "collection",
+            "document_type",
+            "level",
+            "notion",
+            "path",
+            "sequence_id",
+            "sha256",
+            "source_type",
+            "status",
+            "theme"
+          ]
+        }
+      ]
+    },
+    {
+      "query": "réseau protocole TCP IP",
+      "section_requested": "nsi",
+      "collection_reached": "nsi_corpus",
+      "returned": 4,
+      "maths_premiere_fallback": false,
+      "score_threshold": null,
+      "hits": [
+        {
+          "id": "0955393ddff4c50e",
+          "score": 0.24819362,
+          "metadata_keys": [
+            "anchor",
+            "capacities",
+            "chunk_index",
+            "collection",
+            "document_type",
+            "level",
+            "notion",
+            "path",
+            "sequence_id",
+            "sha256",
+            "source_type",
+            "status",
+            "theme"
+          ]
+        },
+        {
+          "id": "64fef687efc651ba",
+          "score": 0.24822652,
+          "metadata_keys": [
+            "anchor",
+            "capacities",
+            "chunk_index",
+            "collection",
+            "document_type",
+            "level",
+            "notion",
+            "path",
+            "sequence_id",
+            "sha256",
+            "source_type",
+            "status",
+            "theme"
+          ]
+        },
+        {
+          "id": "dd17e2572d8c1a65",
+          "score": 0.25845242,
+          "metadata_keys": [
+            "anchor",
+            "capacities",
+            "chunk_index",
+            "collection",
+            "document_type",
+            "level",
+            "notion",
+            "path",
+            "sequence_id",
+            "sha256",
+            "source_type",
+            "status",
+            "theme"
+          ]
+        },
+        {
+          "id": "ba94d9c226e9d435",
+          "score": 0.2635373,
+          "metadata_keys": [
+            "anchor",
+            "capacities",
+            "chunk_index",
+            "collection",
+            "document_type",
+            "level",
+            "notion",
+            "path",
+            "sequence_id",
+            "sha256",
+            "source_type",
+            "status",
+            "theme"
+          ]
+        }
+      ]
+    },
+    {
+      "query": "système exploitation Linux processus",
+      "section_requested": "nsi",
+      "collection_reached": "nsi_corpus",
+      "returned": 4,
+      "maths_premiere_fallback": false,
+      "score_threshold": null,
+      "hits": [
+        {
+          "id": "98cc83646c773bc8",
+          "score": 0.39854378,
+          "metadata_keys": [
+            "anchor",
+            "capacities",
+            "chunk_index",
+            "collection",
+            "document_type",
+            "level",
+            "notion",
+            "path",
+            "sequence_id",
+            "sha256",
+            "source_type",
+            "status",
+            "theme"
+          ]
+        },
+        {
+          "id": "40850e2d93e8108e",
+          "score": 0.407391,
+          "metadata_keys": [
+            "anchor",
+            "capacities",
+            "chunk_index",
+            "collection",
+            "document_type",
+            "level",
+            "notion",
+            "path",
+            "sequence_id",
+            "sha256",
+            "source_type",
+            "status",
+            "theme"
+          ]
+        },
+        {
+          "id": "adb35ade6dda30ce",
+          "score": 0.42509615,
+          "metadata_keys": [
+            "anchor",
+            "capacities",
+            "chunk_index",
+            "collection",
+            "document_type",
+            "level",
+            "notion",
+            "path",
+            "sequence_id",
+            "sha256",
+            "source_type",
+            "status",
+            "theme"
+          ]
+        },
+        {
+          "id": "9e763d0e1fb43717",
+          "score": 0.42716408,
+          "metadata_keys": [
+            "anchor",
+            "capacities",
+            "chunk_index",
+            "collection",
+            "document_type",
+            "level",
+            "notion",
+            "path",
+            "sequence_id",
+            "sha256",
+            "source_type",
+            "status",
+            "theme"
+          ]
+        }
+      ]
+    },
+    {
+      "query": "figure de style métaphore comparaison",
+      "section_requested": "francais_premiere",
+      "collection_reached": "rag_francais_premiere",
+      "returned": 4,
+      "maths_premiere_fallback": false,
+      "score_threshold": null,
+      "hits": [
+        {
+          "id": "ae577f146d20bf97",
+          "score": 0.33309412,
+          "metadata_keys": [
+            "chunk_index",
+            "collection",
+            "drive_file_id",
+            "drive_file_name",
+            "drive_folder_id",
+            "groupe",
+            "matiere",
+            "mime_type",
+            "modality",
+            "niveau",
+            "page",
+            "section",
+            "sha256",
+            "source",
+            "source_type",
+            "title",
+            "type_ressource"
+          ]
+        },
+        {
+          "id": "3fe689a6886b883a",
+          "score": 0.33585727,
+          "metadata_keys": [
+            "chunk_index",
+            "collection",
+            "drive_file_id",
+            "drive_file_name",
+            "drive_folder_id",
+            "groupe",
+            "matiere",
+            "mime_type",
+            "modality",
+            "niveau",
+            "page",
+            "section",
+            "sha256",
+            "source",
+            "source_type",
+            "title",
+            "type_ressource"
+          ]
+        },
+        {
+          "id": "ca3b0866417c2280",
+          "score": 0.33586186,
+          "metadata_keys": [
+            "chunk_index",
+            "collection",
+            "drive_file_id",
+            "drive_file_name",
+            "drive_folder_id",
+            "groupe",
+            "matiere",
+            "mime_type",
+            "modality",
+            "niveau",
+            "page",
+            "section",
+            "sha256",
+            "source",
+            "source_type",
+            "title",
+            "type_ressource"
+          ]
+        },
+        {
+          "id": "85f48f1b1a2f978a",
+          "score": 0.3413865,
+          "metadata_keys": [
+            "chunk_index",
+            "collection",
+            "drive_file_id",
+            "drive_file_name",
+            "drive_folder_id",
+            "groupe",
+            "matiere",
+            "mime_type",
+            "modality",
+            "niveau",
+            "page",
+            "section",
+            "sha256",
+            "source",
+            "source_type",
+            "title",
+            "type_ressource"
+          ]
+        }
+      ]
+    },
+    {
+      "query": "commentaire de texte méthode",
+      "section_requested": "francais_premiere",
+      "collection_reached": "rag_francais_premiere",
+      "returned": 4,
+      "maths_premiere_fallback": false,
+      "score_threshold": null,
+      "hits": [
+        {
+          "id": "926525749707879b",
+          "score": 0.29782218,
+          "metadata_keys": [
+            "chunk_index",
+            "collection",
+            "drive_file_id",
+            "drive_file_name",
+            "drive_folder_id",
+            "groupe",
+            "matiere",
+            "mime_type",
+            "modality",
+            "niveau",
+            "page",
+            "section",
+            "sha256",
+            "source",
+            "source_type",
+            "title",
+            "type_ressource"
+          ]
+        },
+        {
+          "id": "1647b78587792002",
+          "score": 0.32737064,
+          "metadata_keys": [
+            "chunk_index",
+            "collection",
+            "drive_file_id",
+            "drive_file_name",
+            "drive_folder_id",
+            "groupe",
+            "matiere",
+            "mime_type",
+            "modality",
+            "niveau",
+            "page",
+            "section",
+            "sha256",
+            "source",
+            "source_type",
+            "title",
+            "type_ressource"
+          ]
+        },
+        {
+          "id": "478b5f5df95db3eb",
+          "score": 0.33534193,
+          "metadata_keys": [
+            "chunk_index",
+            "collection",
+            "drive_file_id",
+            "drive_file_name",
+            "drive_folder_id",
+            "groupe",
+            "matiere",
+            "mime_type",
+            "modality",
+            "niveau",
+            "page",
+            "section",
+            "sha256",
+            "source",
+            "source_type",
+            "title",
+            "type_ressource"
+          ]
+        },
+        {
+          "id": "c4d092b211980ffa",
+          "score": 0.33973515,
+          "metadata_keys": [
+            "chunk_index",
+            "collection",
+            "drive_file_id",
+            "drive_file_name",
+            "drive_folder_id",
+            "groupe",
+            "matiere",
+            "mime_type",
+            "modality",
+            "niveau",
+            "page",
+            "section",
+            "sha256",
+            "source",
+            "source_type",
+            "title",
+            "type_ressource"
+          ]
+        }
+      ]
+    },
+    {
+      "query": "analyse linéaire bac français",
+      "section_requested": "francais_premiere",
+      "collection_reached": "rag_francais_premiere",
+      "returned": 4,
+      "maths_premiere_fallback": false,
+      "score_threshold": null,
+      "hits": [
+        {
+          "id": "f7f7aaa6e0cf714a",
+          "score": 0.4186672,
+          "metadata_keys": [
+            "chunk_index",
+            "collection",
+            "drive_file_id",
+            "drive_file_name",
+            "drive_folder_id",
+            "groupe",
+            "matiere",
+            "mime_type",
+            "modality",
+            "niveau",
+            "page",
+            "section",
+            "sha256",
+            "source",
+            "source_type",
+            "title",
+            "type_ressource"
+          ]
+        },
+        {
+          "id": "8e7f11316fdc30ec",
+          "score": 0.4226365,
+          "metadata_keys": [
+            "chunk_index",
+            "collection",
+            "drive_file_id",
+            "drive_file_name",
+            "drive_folder_id",
+            "groupe",
+            "matiere",
+            "mime_type",
+            "modality",
+            "niveau",
+            "page",
+            "section",
+            "sha256",
+            "source",
+            "source_type",
+            "title",
+            "type_ressource"
+          ]
+        },
+        {
+          "id": "d6a65172dde84c58",
+          "score": 0.42399836,
+          "metadata_keys": [
+            "chunk_index",
+            "collection",
+            "drive_file_id",
+            "drive_file_name",
+            "drive_folder_id",
+            "groupe",
+            "matiere",
+            "mime_type",
+            "modality",
+            "niveau",
+            "page",
+            "section",
+            "sha256",
+            "source",
+            "source_type",
+            "title",
+            "type_ressource"
+          ]
+        },
+        {
+          "id": "c07276adb411cef6",
+          "score": 0.42905712,
+          "metadata_keys": [
+            "chunk_index",
+            "collection",
+            "drive_file_id",
+            "drive_file_name",
+            "drive_folder_id",
+            "groupe",
+            "matiere",
+            "mime_type",
+            "modality",
+            "niveau",
+            "page",
+            "section",
+            "sha256",
+            "source",
+            "source_type",
+            "title",
+            "type_ressource"
+          ]
+        }
+      ]
+    },
+    {
+      "query": "dissertation littérature argumentation",
+      "section_requested": "francais_premiere",
+      "collection_reached": "rag_francais_premiere",
+      "returned": 4,
+      "maths_premiere_fallback": false,
+      "score_threshold": null,
+      "hits": [
+        {
+          "id": "54b2a83f0666680a",
+          "score": 0.4590962,
+          "metadata_keys": [
+            "chunk_index",
+            "collection",
+            "drive_file_id",
+            "drive_file_name",
+            "drive_folder_id",
+            "groupe",
+            "matiere",
+            "mime_type",
+            "modality",
+            "niveau",
+            "page",
+            "section",
+            "sha256",
+            "source",
+            "source_type",
+            "title",
+            "type_ressource"
+          ]
+        },
+        {
+          "id": "9969671b5fd18e99",
+          "score": 0.4654246,
+          "metadata_keys": [
+            "chunk_index",
+            "collection",
+            "drive_file_id",
+            "drive_file_name",
+            "drive_folder_id",
+            "groupe",
+            "matiere",
+            "mime_type",
+            "modality",
+            "niveau",
+            "page",
+            "section",
+            "sha256",
+            "source",
+            "source_type",
+            "title",
+            "type_ressource"
+          ]
+        },
+        {
+          "id": "b18777bb6b0bccf2",
+          "score": 0.46891618,
+          "metadata_keys": [
+            "chunk_index",
+            "collection",
+            "drive_file_id",
+            "drive_file_name",
+            "drive_folder_id",
+            "groupe",
+            "matiere",
+            "mime_type",
+            "modality",
+            "niveau",
+            "page",
+            "section",
+            "sha256",
+            "source",
+            "source_type",
+            "title",
+            "type_ressource"
+          ]
+        },
+        {
+          "id": "be8b51636cbba921",
+          "score": 0.47138393,
+          "metadata_keys": [
+            "chunk_index",
+            "collection",
+            "drive_file_id",
+            "drive_file_name",
+            "drive_folder_id",
+            "groupe",
+            "matiere",
+            "mime_type",
+            "modality",
+            "niveau",
+            "page",
+            "section",
+            "sha256",
+            "source",
+            "source_type",
+            "title",
+            "type_ressource"
+          ]
+        }
+      ]
+    },
+    {
+      "query": "théorème de Pythagore démonstration",
+      "section_requested": "maths_premiere",
+      "collection_reached": "rag_education",
+      "returned": 0,
+      "maths_premiere_fallback": true,
+      "score_threshold": null,
+      "hits": []
+    },
+    {
+      "query": "fonction dérivée calcul limite",
+      "section_requested": "maths_premiere",
+      "collection_reached": "rag_education",
+      "returned": 0,
+      "maths_premiere_fallback": true,
+      "score_threshold": null,
+      "hits": []
+    },
+    {
+      "query": "probabilités loi binomiale",
+      "section_requested": "maths_premiere",
+      "collection_reached": "rag_education",
+      "returned": 0,
+      "maths_premiere_fallback": true,
+      "score_threshold": null,
+      "hits": []
+    },
+    {
+      "query": "suites arithmétiques géométriques",
+      "section_requested": "maths_premiere",
+      "collection_reached": "rag_education",
+      "returned": 0,
+      "maths_premiere_fallback": true,
+      "score_threshold": null,
+      "hits": []
+    }
+  ]
+}
