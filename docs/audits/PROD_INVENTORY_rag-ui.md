@@ -1,7 +1,7 @@
 # Inventaire de production — rag-ui.nexusreussite.academy
 
 **Date de reconnaissance** : 30 juin 2026
-**Méthode** : lecture seule via SSH (`root@88.99.254.59`), aucune mutation (hors rotation token A-8).
+**Méthode** : lecture seule via SSH, avec les mutations suivantes : rotation token A-8, recréation conteneurs ingestor+ui, auto-création involontaire de collections L-02, cleanup de 2 collections vides, suppression .env de rollback Q-07.
 **Lot** : LOT 20, itération 3 — branche `lot-20-prod-preflight-rag-ui`.
 **Règles** : R-01 (pas de secret en argument), R-02 (périmètre = pile RAG, hors PII), R-03 (commande incertaine non exécutée).
 

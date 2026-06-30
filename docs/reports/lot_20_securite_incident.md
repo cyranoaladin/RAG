@@ -87,5 +87,5 @@ Lines with POSTGRES_PASSWORD: 0
 - [x] Backup de l'ancien `.env` conservé (rollback possible)
 - [x] Aucun secret dans les fichiers versionnés (`grep` = 0)
 - [x] `/dev/shm` propre (aucun fichier d'en-tête résiduel — J-07)
-- [x] `.env` de rollback restreint (`chmod 600 root:nexus` — J-07). Suppression planifiée après fenêtre de surveillance J-01.
+- [x] `.env` de rollback : permissions réelles `-rw------- root:nexus` (600) vérifiées par `ls -la`. **Supprimé** (Q-07, 30/06/2026).
 - [ ] Rotation mot de passe PostgreSQL — échéance : avant fin LOT 22 (I-14), exécution lead/responsable Nexus

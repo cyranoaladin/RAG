@@ -1,0 +1,3 @@
+# Exclure le .env réel (secrets), garder .env.example
+.env
+!.env.example
