@@ -1,4 +1,8 @@
-"""Tests for v2 collection config: anti-auto-creation invariant (M-04, ADR-0013)."""
+"""Tests for v2 collection config: anti-auto-creation invariant (M-04, ADR-0013).
+
+These tests validate resolve_collection_v2 — the SOLE resolver for new code.
+No cross-contamination with legacy resolver.
+"""
 from __future__ import annotations
 
 import pytest
@@ -46,23 +50,48 @@ class TestResolveCollectionV2:
         result = resolve_collection_v2("rag_nexus_quarantine", V2_CONFIG)
         assert result["instanciee"] is True
 
-    def test_non_instanciated_collection_raises(self) -> None:
+    def test_non_instanciated_raises(self) -> None:
+        """S-03: instanciee:false MUST raise on ALL resolution paths."""
         with pytest.raises(CollectionNotInstanciatedError, match="not instanciated"):
             resolve_collection_v2("rag_nexus_maths_seconde_tc", V2_CONFIG)
 
-    def test_unknown_collection_raises(self) -> None:
+    def test_unknown_raises(self) -> None:
         with pytest.raises(CollectionUnknownError, match="not declared"):
             resolve_collection_v2("rag_nexus_fantasy_collection", V2_CONFIG)
 
     def test_auto_creation_blocked(self) -> None:
-        """The anti-auto-creation invariant: unknown names MUST raise, never create."""
+        """Anti-auto-creation: unknown names MUST raise, never create."""
         with pytest.raises(CollectionUnknownError):
             resolve_collection_v2("rag_web3", V2_CONFIG)
 
-    def test_catalogue_entry_without_instanciation_blocked(self) -> None:
-        """A catalogue entry with instanciee=false MUST NOT be served."""
+    # R-02/S-03: instanciee must be boolean True, not truthy
+    def test_truthy_string_rejected(self) -> None:
+        config = {
+            "version": 2,
+            "collections": {"test_col": {"matiere": "x", "instanciee": "true"}},
+        }
         with pytest.raises(CollectionNotInstanciatedError):
-            resolve_collection_v2("rag_nexus_maths_seconde_tc", V2_CONFIG)
+            resolve_collection_v2("test_col", config)
+
+    def test_truthy_int_rejected(self) -> None:
+        config = {
+            "version": 2,
+            "collections": {"test_col": {"matiere": "x", "instanciee": 1}},
+        }
+        with pytest.raises(CollectionNotInstanciatedError):
+            resolve_collection_v2("test_col", config)
+
+    # S-02: no fallback, no name-matching, no "first instanciated" guessing
+    def test_no_name_matching_fallback(self) -> None:
+        """section='education' must NOT silently match a collection containing 'education'."""
+        # resolve_collection_v2 takes a collection NAME, not a section — no matching.
+        with pytest.raises(CollectionUnknownError):
+            resolve_collection_v2("education", V2_CONFIG)
+
+    def test_no_first_instanciated_fallback(self) -> None:
+        """An unknown name must raise, not fall back to first instanciated."""
+        with pytest.raises(CollectionUnknownError):
+            resolve_collection_v2("default", V2_CONFIG)
 
 
 class TestListInstanciatedCollections:
@@ -76,3 +105,11 @@ class TestListInstanciatedCollections:
     def test_excludes_non_instanciated(self) -> None:
         result = list_instanciated_collections(V2_CONFIG)
         assert "rag_nexus_maths_seconde_tc" not in result
+
+    def test_truthy_string_excluded(self) -> None:
+        """instanciee: 'true' (string) must NOT be listed."""
+        config = {
+            "version": 2,
+            "collections": {"test_col": {"matiere": "x", "instanciee": "true"}},
+        }
+        assert list_instanciated_collections(config) == []

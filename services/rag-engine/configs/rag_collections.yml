@@ -10,62 +10,6 @@ physical_backend:
   dsn_env: PG_RAG_DSN
   vector_dim: 1024
 
-# Legacy compat (v1 tests) — DO NOT USE for new code. Will be removed when
-# v1 tests are migrated to v2 resolver. Kept to avoid test regression per AGENTS.md.
-physical_backends:
-  chroma:
-    collections:
-      rag_nexus_education:
-        description: "Legacy compat — use v2 collections"
-        allowed_domains: ["education"]
-      rag_nexus_official:
-        description: "Legacy compat"
-        allowed_domains: ["official"]
-      rag_nexus_exams:
-        description: "Legacy compat"
-        allowed_domains: ["exam"]
-      rag_nexus_owned:
-        description: "Legacy compat"
-        allowed_domains: ["nexus_owned"]
-      rag_nexus_web3:
-        description: "Legacy compat"
-        allowed_domains: ["web3"]
-      rag_nexus_quarantine:
-        description: "Legacy compat"
-        allowed_domains: ["quarantine"]
-  pgvector:
-    table: rag_chunks
-    legacy_table: rag_chunks_pilote
-routing:
-  sections:
-    education:
-      nexus_collection: rag_nexus_education
-      legacy_collection: rag_education
-      domain: education
-    francais_premiere:
-      nexus_collection: rag_nexus_education
-      legacy_collection: rag_francais_premiere
-      domain: education
-    maths_premiere:
-      nexus_collection: rag_nexus_education
-      legacy_collection: rag_maths_premiere
-      domain: education
-    web3:
-      nexus_collection: rag_nexus_web3
-      legacy_collection: rag_web3
-      domain: web3
-    blockchain:
-      nexus_collection: rag_nexus_web3
-      legacy_collection: rag_web3
-      domain: web3
-    divers:
-      nexus_collection: rag_nexus_quarantine
-      legacy_collection: rag_divers
-      domain: quarantine
-    default:
-      nexus_collection: rag_nexus_education
-      legacy_collection: rag_education
-      domain: education
 
 metadata_required:
   - domain
@@ -259,9 +203,6 @@ domains:
     retrievable: true
   nexus_owned:
     audiences: ["libre", "aefe"]
-    retrievable: true
-  web3:
-    audiences: ["tous"]
     retrievable: true
   quarantine:
     retrievable: false

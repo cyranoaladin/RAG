@@ -10,6 +10,7 @@ services:
       POSTGRES_DB: nexus_rag
       POSTGRES_USER: nexus_rag
       POSTGRES_PASSWORD: ${PG_RAG_PASSWORD:?PG_RAG_PASSWORD requis}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C"
     ports:
       - "127.0.0.1:${PG_RAG_PORT:-5436}:5432"
     volumes:
