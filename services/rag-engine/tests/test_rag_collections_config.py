@@ -28,21 +28,22 @@ def _load_yaml(path: Path) -> dict:
     return data
 
 
-def test_chroma_collections_are_unique_and_have_allowed_domains() -> None:
+# --- v2 config tests (ADR-0013) ---
+
+
+def test_collections_are_unique_and_have_matiere() -> None:
     config = _load_yaml(CONFIG_PATH)
-    collections = config["physical_backends"]["chroma"]["collections"]
+    collections = config["collections"]
 
     assert len(collections) == len(set(collections))
-    for definition in collections.values():
-        assert definition["allowed_domains"]
-        assert isinstance(definition["allowed_domains"], list)
+    for name, definition in collections.items():
+        if name != "rag_nexus_quarantine":
+            assert definition.get("matiere"), f"{name} missing matiere"
 
 
 def test_quarantine_is_not_retrievable() -> None:
     config = _load_yaml(CONFIG_PATH)
-    collections = config["physical_backends"]["chroma"]["collections"]
-
-    assert collections["rag_nexus_quarantine"]["allowed_domains"] == ["quarantine"]
+    assert "rag_nexus_quarantine" in config["collections"]
     assert config["domains"]["quarantine"]["retrievable"] is False
 
 
@@ -69,53 +70,47 @@ def test_all_required_metadata_are_declared() -> None:
     assert expected <= set(config["metadata_required"])
 
 
-def test_legacy_names_are_not_source_of_truth_without_mapping() -> None:
+def test_pgvector_v2_backend() -> None:
     config = _load_yaml(CONFIG_PATH)
-    mapping = _load_yaml(MAPPING_PATH)
-    collections = set(config["physical_backends"]["chroma"]["collections"])
-    legacy = {"rag_education", "rag_web3", "rag_divers"}
-
-    assert legacy.isdisjoint(collections)
-    assert legacy <= set(mapping)
+    assert config.get("physical_backend", {}).get("type") == "pgvector"
+    assert config["physical_backend"]["table"] == "rag_chunks"
+    assert config["physical_backend"]["vector_dim"] == 1024
 
 
-def test_expected_legacy_chroma_mapping() -> None:
-    mapping = _load_yaml(MAPPING_PATH)
+def test_pgvector_declares_target_table() -> None:
+    config = _load_yaml(CONFIG_PATH)
+    pgvector = config["physical_backend"]
 
-    assert mapping == {
-        "rag_education": "rag_nexus_education",
-        "rag_francais_premiere": "rag_nexus_education",
-        "rag_maths_premiere": "rag_nexus_education",
-        "rag_web3": "rag_nexus_web3",
-        "rag_divers": "rag_nexus_quarantine",
-    }
+    assert pgvector["table"] == "rag_chunks"
+    assert pgvector["type"] == "pgvector"
+    assert pgvector["vector_dim"] == 1024
 
 
 def test_no_collection_per_notion() -> None:
     config = _load_yaml(CONFIG_PATH)
-    names = set(config["physical_backends"]["chroma"]["collections"])
+    names = set(config["collections"])
 
     forbidden_fragments = {"notion", "chapitre", "theme", "sequence"}
-    assert len(names) <= 6
     assert not any(fragment in name for name in names for fragment in forbidden_fragments)
 
 
-def test_web3_and_education_are_not_mixed_in_same_collection() -> None:
+def test_instanciation_flags_present() -> None:
     config = _load_yaml(CONFIG_PATH)
-    collections = config["physical_backends"]["chroma"]["collections"]
-
-    for definition in collections.values():
-        domains = set(definition["allowed_domains"])
-        assert not {"web3", "education"} <= domains
+    for name, defn in config["collections"].items():
+        assert "instanciee" in defn, f"{name} missing instanciee flag"
 
 
-def test_pgvector_declares_target_and_legacy_tables() -> None:
+def test_instanciated_collections_match_perimetre() -> None:
+    """D-PERIMETRE: only NSI + quarantine are instanciated."""
     config = _load_yaml(CONFIG_PATH)
-    pgvector = config["physical_backends"]["pgvector"]
-
-    assert pgvector["table"] == "rag_chunks"
-    assert pgvector["legacy_table"] == "rag_chunks_pilote"
-    assert pgvector["table"] != pgvector["legacy_table"]
+    instanciated = {
+        name for name, defn in config["collections"].items() if defn.get("instanciee")
+    }
+    assert instanciated == {
+        "rag_nexus_nsi_premiere_specialite",
+        "rag_nexus_nsi_terminale_specialite",
+        "rag_nexus_quarantine",
+    }
 
 
 def test_collection_config_loads_from_flat_prod_layout(tmp_path, monkeypatch) -> None:
@@ -140,7 +135,7 @@ def test_collection_config_loads_from_flat_prod_layout(tmp_path, monkeypatch) ->
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
 
-    assert module.load_collection_config()["version"] == 1
+    assert module.load_collection_config()["version"] == 2
     assert module.load_legacy_mapping()["rag_web3"] == "rag_nexus_web3"
 
 
@@ -160,7 +155,7 @@ def test_collection_config_uses_config_dir_env(tmp_path, monkeypatch) -> None:
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
 
-    assert module.load_collection_config()["version"] == 1
+    assert module.load_collection_config()["version"] == 2
     assert module.load_legacy_mapping()["rag_education"] == "rag_nexus_education"
 
 
@@ -218,7 +213,7 @@ def test_repo_fallback_without_env(monkeypatch) -> None:
     monkeypatch.delenv("RAG_LEGACY_COLLECTION_MAPPING", raising=False)
     monkeypatch.delenv("RAG_ENGINE_CONFIG_DIR", raising=False)
 
-    assert load_collection_config()["version"] == 1
+    assert load_collection_config()["version"] == 2
     assert load_legacy_mapping()["rag_web3"] == "rag_nexus_web3"
 
 

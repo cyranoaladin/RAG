@@ -1,62 +1,41 @@
-version: 1
+version: 2
+# ADR-0013 — Convention: rag_nexus_{matiere}_{niveau}_{statut}
+# Exceptions nommées: grand_oral, exams, candidats_libres, quarantine (cf. ADR)
+# Flag instanciee: seules les collections true sont créées et exposées (M-04)
+# Pas d'auto-création: le moteur lève une erreur si la collection n'est pas déclarée instanciee
+
+physical_backend:
+  type: pgvector
+  table: rag_chunks
+  dsn_env: PG_RAG_DSN
+  vector_dim: 1024
+
+# Legacy compat (v1 tests) — DO NOT USE for new code. Will be removed when
+# v1 tests are migrated to v2 resolver. Kept to avoid test regression per AGENTS.md.
 physical_backends:
   chroma:
     collections:
       rag_nexus_education:
-        description: "Corpus pedagogique general Nexus"
+        description: "Legacy compat — use v2 collections"
         allowed_domains: ["education"]
       rag_nexus_official:
-        description: "Programmes, BO et textes officiels"
+        description: "Legacy compat"
         allowed_domains: ["official"]
       rag_nexus_exams:
-        description: "Annales, sujets, corriges et grilles"
+        description: "Legacy compat"
         allowed_domains: ["exam"]
       rag_nexus_owned:
-        description: "Ressources proprietaires Nexus validees"
+        description: "Legacy compat"
         allowed_domains: ["nexus_owned"]
       rag_nexus_web3:
-        description: "Blockchain, Web3, Solana et ecosystemes associes"
+        description: "Legacy compat"
         allowed_domains: ["web3"]
       rag_nexus_quarantine:
-        description: "Sources non encore admises ou a revoir"
+        description: "Legacy compat"
         allowed_domains: ["quarantine"]
   pgvector:
     table: rag_chunks
     legacy_table: rag_chunks_pilote
-metadata_required:
-  - domain
-  - audience
-  - niveau
-  - voie
-  - matiere
-  - statut_enseignement
-  - type_doc
-  - source_kind
-  - rights
-  - review_status
-  - source_label
-  - source_uri
-  - doc_id
-  - chunk_id
-  - chunk_sha256
-domains:
-  education:
-    audiences: ["libre", "aefe", "tous"]
-    retrievable: true
-  official:
-    audiences: ["tous"]
-    retrievable: true
-  exam:
-    audiences: ["libre", "aefe", "tous"]
-    retrievable: true
-  nexus_owned:
-    audiences: ["libre", "aefe"]
-    retrievable: true
-  web3:
-    audiences: ["tous"]
-    retrievable: true
-  quarantine:
-    retrievable: false
 routing:
   sections:
     education:
@@ -87,3 +66,202 @@ routing:
       nexus_collection: rag_nexus_education
       legacy_collection: rag_education
       domain: education
+
+metadata_required:
+  - domain
+  - audience
+  - niveau
+  - voie
+  - matiere
+  - statut_enseignement
+  - type_doc
+  - source_kind
+  - rights
+  - review_status
+  - source_label
+  - source_uri
+  - doc_id
+  - chunk_id
+  - chunk_sha256
+
+# Catalogue taxonomique (22 entrées)
+# Source de vérité: services/rag-pedago/taxonomy/
+collections:
+  # --- NSI ---
+  rag_nexus_nsi_premiere_specialite:
+    matiere: nsi
+    niveau: premiere
+    statut: specialite
+    taxonomy_file: nsi/premiere_specialite.yml
+    instanciee: true
+  rag_nexus_nsi_terminale_specialite:
+    matiere: nsi
+    niveau: terminale
+    statut: specialite
+    taxonomy_file: nsi/terminale.yml
+    instanciee: true
+
+  # --- Maths ---
+  rag_nexus_maths_troisieme_tc:
+    matiere: maths
+    niveau: troisieme
+    statut: tronc_commun
+    taxonomy_file: maths/troisieme.yml
+    instanciee: false
+  rag_nexus_maths_seconde_tc:
+    matiere: maths
+    niveau: seconde
+    statut: tronc_commun
+    taxonomy_file: maths/seconde_tronc_commun.yml
+    instanciee: false
+  rag_nexus_maths_premiere_tc:
+    matiere: maths
+    niveau: premiere
+    statut: tronc_commun
+    taxonomy_file: maths/premiere_tronc_commun.yml
+    instanciee: false
+  rag_nexus_maths_terminale_specialite:
+    matiere: maths
+    niveau: terminale
+    statut: specialite
+    taxonomy_file: maths/terminale_specialite.yml
+    instanciee: false
+
+  # --- Français ---
+  rag_nexus_francais_troisieme_tc:
+    matiere: francais
+    niveau: troisieme
+    statut: tronc_commun
+    taxonomy_file: francais/troisieme.yml
+    instanciee: false
+  rag_nexus_francais_premiere_tc:
+    matiere: francais
+    niveau: premiere
+    statut: tronc_commun
+    taxonomy_file: francais/premiere_eaf.yml
+    instanciee: false
+    # Note: EAF = épreuve anticipée de français, pas un statut d'enseignement.
+    # Si annales EAF ingérées, collection d'examens séparée (rag_nexus_exams_eaf).
+
+  # --- Histoire-Géo ---
+  rag_nexus_hg_troisieme_tc:
+    matiere: histoire_geo
+    niveau: troisieme
+    statut: tronc_commun
+    taxonomy_file: histoire_geo/troisieme.yml
+    instanciee: false
+  rag_nexus_hg_seconde_tc:
+    matiere: histoire_geo
+    niveau: seconde
+    statut: tronc_commun
+    taxonomy_file: histoire_geo/seconde_tronc_commun.yml
+    instanciee: false
+  rag_nexus_hg_premiere_tc:
+    matiere: histoire_geo
+    niveau: premiere
+    statut: tronc_commun
+    taxonomy_file: histoire_geo/premiere_tronc_commun.yml
+    instanciee: false
+  rag_nexus_hg_terminale_tc:
+    matiere: histoire_geo
+    niveau: terminale
+    statut: tronc_commun
+    taxonomy_file: histoire_geo/terminale_tronc_commun.yml
+    instanciee: false
+
+  # --- Physique-Chimie ---
+  rag_nexus_pc_premiere_specialite:
+    matiere: physique_chimie
+    niveau: premiere
+    statut: specialite
+    taxonomy_file: physique_chimie/premiere_specialite.yml
+    instanciee: false
+
+  # --- SVT ---
+  rag_nexus_svt_premiere_specialite:
+    matiere: svt
+    niveau: premiere
+    statut: specialite
+    taxonomy_file: svt/premiere_specialite.yml
+    instanciee: false
+
+  # --- SES ---
+  rag_nexus_ses_premiere_specialite:
+    matiere: ses
+    niveau: premiere
+    statut: specialite
+    taxonomy_file: ses/premiere_specialite.yml
+    instanciee: false
+
+  # --- Philosophie ---
+  rag_nexus_philo_terminale_tc:
+    matiere: philosophie
+    niveau: terminale
+    statut: tronc_commun
+    taxonomy_file: philosophie/terminale_tronc_commun.yml
+    instanciee: false
+
+  # --- SNT ---
+  rag_nexus_snt_seconde_tc:
+    matiere: snt
+    niveau: seconde
+    statut: tronc_commun
+    taxonomy_file: snt/seconde.yml
+    instanciee: false
+
+  # --- Grand Oral (exception: transversal, pas de statut suffixé) ---
+  rag_nexus_grand_oral_terminale:
+    matiere: grand_oral
+    niveau: terminale
+    statut: examen
+    taxonomy_file: grand_oral/terminale.yml
+    instanciee: false
+
+  # --- Examens (exception: transversal, matiere=exams) ---
+  rag_nexus_exams_bac_general:
+    matiere: exams
+    niveau: terminale
+    statut: examen
+    taxonomy_file: exams/bac_general.yml
+    instanciee: false
+  rag_nexus_exams_anticipee_maths:
+    matiere: exams
+    niveau: premiere
+    statut: examen
+    taxonomy_file: exams/anticipee_maths.yml
+    instanciee: false
+
+  # --- Candidats libres (exception: pas de statut suffixé) ---
+  rag_nexus_candidats_libres_terminale:
+    matiere: candidats_libres
+    niveau: terminale
+    statut: remediation
+    taxonomy_file: candidats_libres/parcours_terminale.yml
+    instanciee: false
+
+  # --- Quarantaine (exception: hors arborescence disciplinaire) ---
+  rag_nexus_quarantine:
+    matiere: null
+    niveau: null
+    statut: null
+    taxonomy_file: null
+    instanciee: true
+
+domains:
+  education:
+    audiences: ["libre", "aefe", "tous"]
+    retrievable: true
+  official:
+    audiences: ["tous"]
+    retrievable: true
+  exam:
+    audiences: ["libre", "aefe", "tous"]
+    retrievable: true
+  nexus_owned:
+    audiences: ["libre", "aefe"]
+    retrievable: true
+  web3:
+    audiences: ["tous"]
+    retrievable: true
+  quarantine:
+    retrievable: false

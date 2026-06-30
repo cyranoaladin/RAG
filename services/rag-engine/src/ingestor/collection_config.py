@@ -112,16 +112,19 @@ def load_legacy_mapping(path: Path | None = None) -> dict[str, str]:
 
 
 def _chroma_collections(config: Mapping[str, Any]) -> Mapping[str, Any]:
+    # v1 path: physical_backends.chroma.collections (also used for legacy compat in v2)
     backends = config.get("physical_backends")
-    if not isinstance(backends, Mapping):
-        raise CollectionConfigLoadError("Missing physical_backends")
-    chroma = backends.get("chroma")
-    if not isinstance(chroma, Mapping):
-        raise CollectionConfigLoadError("Missing chroma backend")
-    collections = chroma.get("collections")
-    if not isinstance(collections, Mapping):
-        raise CollectionConfigLoadError("Missing chroma collections")
-    return collections
+    if isinstance(backends, Mapping):
+        chroma = backends.get("chroma")
+        if isinstance(chroma, Mapping):
+            collections = chroma.get("collections")
+            if isinstance(collections, Mapping):
+                return collections
+    # v2 fallback: use top-level collections
+    cols = config.get("collections")
+    if isinstance(cols, Mapping):
+        return cols
+    raise CollectionConfigLoadError("Missing collections (no physical_backends.chroma nor top-level collections)")
 
 
 def _routing_sections(config: Mapping[str, Any]) -> Mapping[str, Any]:
@@ -181,17 +184,16 @@ def _section_resolution(
         raise CollectionRoutingError(f"Unknown section: {section}")
     nexus_collection = route.get("nexus_collection")
     legacy_collection = route.get("legacy_collection")
-    domain = route.get("domain")
+    route_domain = route.get("domain")
     if not isinstance(nexus_collection, str) or not isinstance(legacy_collection, str):
         raise CollectionConfigLoadError(f"Invalid routing for section: {section}")
-    if not isinstance(domain, str):
-        domain = _collection_domain(config, nexus_collection)
+    resolved_domain = route_domain if isinstance(route_domain, str) else _collection_domain(config, nexus_collection)
     return CollectionResolution(
         requested=key,
         nexus_collection=nexus_collection,
         physical_collection=legacy_collection,
-        domain=domain,
-        retrievable=_domain_is_retrievable(config, domain),
+        domain=resolved_domain,
+        retrievable=_domain_is_retrievable(config, resolved_domain),
         legacy_collection=legacy_collection,
         used_legacy=True,
     )
@@ -257,3 +259,73 @@ def resolve_collection(
 
 def nexus_collection_domain(collection_name: str, config: Mapping[str, Any] | None = None) -> str:
     return _collection_domain(config or load_collection_config(), collection_name)
+
+
+# ---------------------------------------------------------------------------
+# v2 config (ADR-0013): catalogue taxonomique + flag instanciee
+# ---------------------------------------------------------------------------
+
+
+class CollectionNotInstanciatedError(CollectionConfigError):
+    """Raised when a requested collection exists in the catalogue but is not instanciated."""
+
+
+class CollectionUnknownError(CollectionConfigError):
+    """Raised when a requested collection is not in the catalogue at all."""
+
+
+def _v2_collections(config: Mapping[str, Any]) -> Mapping[str, Any]:
+    """Return the collections dict from a v2 config."""
+    cols = config.get("collections")
+    if not isinstance(cols, Mapping):
+        raise CollectionConfigLoadError("Missing 'collections' in v2 config")
+    return cols
+
+
+def resolve_collection_v2(
+    collection_name: str,
+    config: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Resolve a collection name against the v2 catalogue.
+
+    Returns the collection definition if and only if:
+    - The collection is declared in the catalogue
+    - The collection has instanciee: true
+
+    Raises CollectionUnknownError if not in catalogue.
+    Raises CollectionNotInstanciatedError if in catalogue but not instanciated.
+
+    This is the anti-auto-creation invariant (M-04, ADR-0013):
+    no get_or_create_collection — the moteur MUST reject unknown collections.
+    """
+    cfg = config or load_collection_config()
+    cols = _v2_collections(cfg)
+
+    if collection_name not in cols:
+        raise CollectionUnknownError(
+            f"Collection '{collection_name}' is not declared in rag_collections.yml. "
+            f"Known collections: {sorted(cols.keys())}"
+        )
+
+    definition = cols[collection_name]
+    if not isinstance(definition, Mapping):
+        raise CollectionConfigLoadError(
+            f"Invalid definition for collection '{collection_name}'"
+        )
+
+    if not definition.get("instanciee"):
+        raise CollectionNotInstanciatedError(
+            f"Collection '{collection_name}' is in the catalogue but not instanciated "
+            f"(instanciee: false). Populate it via the governance chain before exposing."
+        )
+
+    return dict(definition)
+
+
+def list_instanciated_collections(
+    config: Mapping[str, Any] | None = None,
+) -> list[str]:
+    """Return names of all instanciated collections."""
+    cfg = config or load_collection_config()
+    cols = _v2_collections(cfg)
+    return [name for name, defn in cols.items() if isinstance(defn, Mapping) and defn.get("instanciee")]

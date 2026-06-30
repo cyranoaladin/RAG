@@ -1,0 +1,31 @@
+# ADR-0013: pgvector dédié au RAG (séparé de nexus_prod, A-1)
+# Usage: docker compose -f infra/docker-compose.pgvector-rag.yml up -d
+# Ne pas connecter à la prod. Instance dédiée pour l'index RAG gouverné.
+
+services:
+  pgvector-rag:
+    image: pgvector/pgvector:pg15
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: nexus_rag
+      POSTGRES_USER: nexus_rag
+      POSTGRES_PASSWORD: ${PG_RAG_PASSWORD:?PG_RAG_PASSWORD requis}
+    ports:
+      - "127.0.0.1:${PG_RAG_PORT:-5436}:5432"
+    volumes:
+      - pgvector_rag_data:/var/lib/postgresql/data
+      - ../scripts/schema_rag_chunks.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus_rag -d nexus_rag"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
+
+volumes:
+  pgvector_rag_data:

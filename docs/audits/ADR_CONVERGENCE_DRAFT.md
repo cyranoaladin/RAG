@@ -1,6 +1,6 @@
-# PROJET D'ADR — Convergence dual-engine
+# PROJET D'ADR — Convergence dual-engine (SUPERSEDED)
 
-**Statut** : BROUILLON v4 — décision-ready, J-04 intégré.
+**Statut** : SUPERSEDED par `docs/adr/ADR-0013-convergence-dual-engine.md`. Ce document est un historique figé. Ne plus le modifier — ADR-0013 + `rag_collections.yml` sont les seules sources de vérité.
 **Constats traités** : F-02, A-01, F-14, F-38.
 **Date** : 30 juin 2026.
 
