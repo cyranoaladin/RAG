@@ -116,6 +116,50 @@ Ajoutées à `lot_0_dettes.md` :
 | T-22-4 quarantaine | 70 en holding, 0 en collection quarantaine |
 | T-22-5 validation | F-01 satisfait, golden queries OK, quarantaine isolée |
 
+## W-02 — Non-gate review_status prouvé positivement
+
+Chemin de service : `resolve_collection_v2` → `SELECT FROM rag_chunks WHERE collection = ?`.
+
+Un chunk `review_status=needs_review` est retourné par le chemin de service :
+```
+chunk_id:      8b96dfd47c43...
+review_status: needs_review
+rights:        usage_interne
+source_label:  Asie_mai_2022_sujet_2.tex
+similarity:    0.8807
+```
+100 % des chunks sont `needs_review` et sortent par le chemin de service. Aucun gate ne bloque.
+
+## W-03 — Requêtes hors-domaine mesurées
+
+| Query | Domaine | Top-1 sim | Source |
+|---|---|---|---|
+| algorithme de tri par insertion | **in** | **0.8803** | tri_par_insertion.pdf |
+| arbre binaire parcours profondeur | **in** | **0.8823** | interro2_arbres_corrige.pdf |
+| protocole TCP IP réseau | **in** | **0.8719** | cours_ihm.pdf |
+| programmation dynamique sac à dos | **in** | **0.8907** | Programmation_dynamique_sac_a_dos.pdf |
+| Quelle est la capitale de la France ? | **out** | **0.7794** | sujet-B-29.pdf |
+| Expliquer la photosynthèse | **out** | **0.8503** | EpreuvePratiqueBoids.ipynb |
+| Quel est le théorème de Pythagore ? | **out** | **0.8205** | 5.Fonctions.ipynb |
+| Comment faire une dissertation en philosophie ? | **out** | **0.8238** | tnsi_12_processus_cours.pdf |
+
+**Analyse** : l'écart in-domain (0.87-0.89) vs hors-domaine (0.78-0.85) est **trop faible** pour un seuil discriminant fiable. Un seuil à 0.85 exclurait le théorème de Pythagore (0.82, hors-domaine) mais aussi certaines requêtes in-domain faibles. Un seuil à 0.80 ne filtrerait que la « capitale de la France » (0.78).
+
+**Seuil candidat** : **0.82** — compromis conservateur. Exclurait les requêtes manifestement hors-domaine (< 0.80) sans couper le retrieval in-domain (> 0.85). Mais le vrai levier est le **hybride BM25/RRF + rerank CrossEncoder** (LOT 24), pas le seuil seul.
+
+**État connu** : pas de seuil implémenté, pas de hybride, pas de rerank. Retrieval vectoriel pur. Renvoyé au LOT 24.
+
+## W-04 — Caractère provisoire de l'ingestion
+
+**Cette ingestion est provisoire.** Le chunker utilisé est un split par phrases/tokens avec comptage par tokenizer e5 réel (budget 480). Ce n'est **PAS** le chunker heading-aware cible (qui exploite la hiérarchie H1/H2/H3 des documents).
+
+**Conséquences** :
+- Les 22 518 chunks seront **ré-ingérés** au LOT 25 (unification chunker heading-aware + proxy remplacé par tokenizer réel globalement)
+- `notions[]` est vide sur 100 % des chunks — pas de routage thématique possible
+- La qualité de retrieval est limitée par l'absence de structure dans le découpage
+
+**Ce passage prouve la chaîne de bout en bout** (parsing → chunking → embedding → index → retrieval citable). La qualité sera améliorée par le re-chunking heading-aware (LOT 25), l'ajout de `notions` (lot enrichissement), et le hybride/rerank (LOT 24).
+
 ## Mutations prod
 
 Aucune. Tout tourne sur l'instance pgvector dédiée locale (port 5436).

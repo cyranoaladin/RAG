@@ -29,7 +29,7 @@ def main() -> None:
     with conn.cursor() as cur:
         cur.execute("SELECT count(*) FROM rag_chunks")
         total = cur.fetchone()[0]
-        print(f"=== VOLUMÉTRIE ===")
+        print("=== VOLUMÉTRIE ===")
         print(f"  Total chunks en base: {total}")
 
         cur.execute("SELECT collection, count(*) FROM rag_chunks GROUP BY collection ORDER BY collection")
@@ -42,12 +42,12 @@ def main() -> None:
 
         # Type doc distribution
         cur.execute("SELECT type_doc, count(*) FROM rag_chunks GROUP BY type_doc ORDER BY count(*) DESC")
-        print(f"\n=== TYPE_DOC ===")
+        print("\n=== TYPE_DOC ===")
         for row in cur.fetchall():
             print(f"  {row[0]}: {row[1]}")
 
     # --- F-01 citability ---
-    print(f"\n=== F-01 CITABILITÉ ===")
+    print("\n=== F-01 CITABILITÉ ===")
     with conn.cursor() as cur:
         cur.execute("SELECT count(*) FROM rag_chunks WHERE rights IS NULL OR rights = ''")
         no_rights = cur.fetchone()[0]
@@ -61,15 +61,15 @@ def main() -> None:
         print(f"  F-01 satisfait: {no_rights == 0 and no_label == 0 and no_docid == 0}")
 
     # --- Quarantine isolation ---
-    print(f"\n=== QUARANTAINE ===")
+    print("\n=== QUARANTAINE ===")
     with conn.cursor() as cur:
         cur.execute("SELECT count(*) FROM rag_chunks WHERE collection = 'rag_nexus_quarantine'")
         q_count = cur.fetchone()[0]
         print(f"  Chunks en quarantaine: {q_count}")
-        print(f"  Isolation: quarantaine vide = correct (aucun contenu douteux identifié)")
+        print("  Isolation: quarantaine vide = correct (aucun contenu douteux identifié)")
 
     # --- Golden queries (scoping) ---
-    print(f"\n=== GOLDEN QUERIES ===")
+    print("\n=== GOLDEN QUERIES ===")
     queries = [
         ("rag_nexus_nsi_premiere_specialite", "algorithme de tri par insertion"),
         ("rag_nexus_nsi_premiere_specialite", "protocole TCP IP réseau"),
@@ -79,8 +79,8 @@ def main() -> None:
         ("rag_nexus_nsi_terminale_specialite", "pile file structure de données"),
     ]
 
-    from sentence_transformers import SentenceTransformer
     from nexus_contracts.embedding_utils import format_query
+    from sentence_transformers import SentenceTransformer
 
     model = SentenceTransformer("intfloat/multilingual-e5-large")
 
@@ -102,7 +102,7 @@ def main() -> None:
 
         print(f"\n  Query: '{query}' → {collection}")
         if not rows:
-            print(f"    NO RESULTS")
+            print("    NO RESULTS")
         for row in rows:
             chunk_id, label, rights, doc_id, sim, preview = row
             citable = bool(rights and label and doc_id)
@@ -122,7 +122,7 @@ def main() -> None:
                 print(f"    WARNING: {quarantine_hits} quarantine hits within distance 0.5")
 
     conn.close()
-    print(f"\n=== VALIDATION TERMINÉE ===")
+    print("\n=== VALIDATION TERMINÉE ===")
 
 
 if __name__ == "__main__":

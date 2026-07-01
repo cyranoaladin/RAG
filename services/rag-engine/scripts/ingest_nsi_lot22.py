@@ -30,8 +30,7 @@ MANIFEST_PATH = REPO_ROOT / "docs" / "audits" / "manifest_nsi_dryrun.json.gz"
 sys.path.insert(0, str(ENGINE_ROOT / "src"))
 sys.path.insert(0, str(REPO_ROOT / "packages" / "contracts" / "src"))
 
-from ingestor.collection_config import resolve_collection_v2, load_collection_config
-
+from ingestor.collection_config import load_collection_config, resolve_collection_v2  # noqa: E402
 
 # --- Config ---
 CORPUS_ROOT = Path(os.environ.get(
@@ -144,7 +143,7 @@ def main() -> None:
     cfg = load_collection_config()
     for col in ["rag_nexus_nsi_premiere_specialite", "rag_nexus_nsi_terminale_specialite"]:
         resolve_collection_v2(col, cfg)
-    print(f"Collections v2 validated.")
+    print("Collections v2 validated.")
 
     # Load manifest
     manifest = load_manifest()
@@ -178,7 +177,7 @@ def main() -> None:
     # Load tokenizer
     from transformers import AutoTokenizer
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-    print(f"Tokenizer loaded.")
+    print("Tokenizer loaded.")
 
     from nexus_contracts.embedding_utils import format_passage
 
@@ -189,7 +188,6 @@ def main() -> None:
     t0 = time.time()
 
     for i, entry in enumerate(entries):
-        doc_id_short = entry["doc_id"]
         fpath = CORPUS_ROOT / entry["file"]
 
         if not fpath.exists():
@@ -231,7 +229,7 @@ def main() -> None:
 
         # Upsert
         with conn.cursor() as cur:
-            for ci, (chunk, emb) in enumerate(zip(chunks, embeddings)):
+            for ci, (chunk, emb) in enumerate(zip(chunks, embeddings, strict=False)):
                 chunk_id = f"{doc_id}:{ci}"
                 chunk_sha = hashlib.sha256(chunk.encode("utf-8")).hexdigest()
                 vec_str = "[" + ",".join(str(float(v)) for v in emb) + "]"
@@ -283,7 +281,7 @@ def main() -> None:
             print(f"  [{i+1}/{len(entries)}] {total_docs} docs, {total_chunks} chunks, {rate:.0f} ch/min")
 
     elapsed = time.time() - t0
-    print(f"\n=== DONE ===")
+    print("\n=== DONE ===")
     print(f"  Docs: {total_docs}, Chunks: {total_chunks}, Skipped: {skipped}, Errors: {errors}")
     print(f"  Duration: {elapsed/60:.1f} min")
 
