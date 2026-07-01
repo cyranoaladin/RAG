@@ -108,9 +108,9 @@ Le LOT 22 utilise le tokenizer e5 réel (budget 480) en local. Le `pedagogical_c
 **Renvoi** : revue lead (10 % par type_doc, avant LOT 25).
 
 ### R8 — Chunker heading-aware non implémenté → ré-ingestion LOT 25
-**Date de constat** : 1er juillet 2026 (LOT 22, W-04). Quantifié le 1er juillet (Z-02).
-**Statut** : dette active
-**Impact** : le LOT 22 utilise un split par phrases/tokens, PAS le chunker heading-aware cible. Les 22 518 chunks devront être ré-ingérés au LOT 25 avec le chunker unifié. Qualité de découpage limitée (pas d'exploitation de la structure H1/H2/H3). En outre, 187 chunks (0,9 % du servable) contiennent du base64 d'images ou des artefacts d'encodage PDF, non filtrés par le chunker actuel — le chunker LOT 25 devra jeter les outputs/images des `.ipynb` (dette B9) et filtrer les artefacts d'encodage PDF.
+**Date de constat** : 1er juillet 2026 (LOT 22, W-04). Quantifié et quarantiné le 1er juillet (AA-02).
+**Statut** : dette active. 187 chunks base64/artefacts **quarantinés** (écartés du service), ré-ingestion propre au LOT 25.
+**Impact** : le LOT 22 utilise un split par phrases/tokens, PAS le chunker heading-aware cible. Les chunks devront être ré-ingérés au LOT 25 avec le chunker unifié. Qualité de découpage limitée (pas d'exploitation de la structure H1/H2/H3). 187 chunks (base64 d'images, artefacts encodage PDF) ont été quarantinés en AA-02 pour ne pas polluer la mesure de pertinence du LOT 24. Le chunker LOT 25 devra jeter les outputs/images des `.ipynb` (dette B9) et filtrer les artefacts d'encodage PDF.
 **Renvoi** : LOT 25 (unification chunker + filtrage base64/artefacts).
 
 ### R9 — requirements-ingestion.txt non versionné
