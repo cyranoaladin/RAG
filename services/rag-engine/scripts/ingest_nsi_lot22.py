@@ -206,8 +206,8 @@ def main() -> None:
                     skipped += 1
                     continue
 
-        # Extract text
-        text = extract_text(fpath)
+        # Extract text (strip NUL bytes — PostgreSQL rejects \x00)
+        text = extract_text(fpath).replace("\x00", "")
         if len(text.strip()) < 50:
             continue
 

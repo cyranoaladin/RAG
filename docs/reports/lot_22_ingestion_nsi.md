@@ -1,72 +1,88 @@
-# LOT 22 — Ingestion NSI gouvernée (T-22-1→T-22-5)
+# LOT 22 — Ingestion NSI gouvernée (clôture)
 
 **Branche** : `lot-22-ingestion-nsi`
 **Date** : 1er juillet 2026
-**Statut** : T-22-3 en cours (embedding CPU). T-22-5 à exécuter après complétion.
+**Statut** : **COMPLET** — T-22-1 à T-22-5 exécutés.
 
 ---
 
-## Investigation (T-22-0)
+## Volumétrie réelle (SELECT count(*))
 
-Rapport complet : `docs/reports/lot_22_investigation_ingestion_nsi.md` (v3.1, C1→C25).
-Manifest ratifié : `docs/audits/manifest_nsi_dryrun.json.gz` (SHA-256 `d0e1217c...`).
+| Métrique | Valeur |
+|---|---|
+| **Total chunks en base** | **22 518** |
+| `rag_nexus_nsi_premiere_specialite` | 7 143 |
+| `rag_nexus_nsi_terminale_specialite` | 15 375 |
+| Documents uniques (`doc_id`) | 1 762 |
+| Chunks en quarantaine | **0** |
+| Estimation initiale | ~20 031 |
+| Écart estimation/réel | +12 % (petits docs → min 1 chunk) |
 
-## T-22-1 — Staging
+## Type_doc (réel)
 
-Les 1 763 fichiers gardés sont lus directement depuis le corpus source (`~/Documents/NSI/scrapping_NSI/ressources_nsi_centralisees/`). Pas de copie physique en staging — le manifest fait office de staging logique. Le répertoire physique n'est pas committé.
+| type_doc | Chunks |
+|---|---|
+| notebook | 8 418 |
+| annale | 4 342 |
+| evaluation | 3 935 |
+| autre | 1 408 |
+| cours | 1 336 |
+| programme_officiel | 1 001 |
+| corrige | 901 |
+| tp | 850 |
+| td | 231 |
+| fiche_synthese | 96 |
 
-## T-22-2 — Parsing + Chunking
+## F-01 Citabilité
 
-- Extraction par format : pypdf (PDF), python-docx (DOCX), odfpy (ODT), json (IPYNB), brut (TEX)
-- Chunking avec tokenizer e5 réel (`AutoTokenizer.from_pretrained('intfloat/multilingual-e5-large')`)
-- Budget : 480 tokens e5 par chunk (max total avec préfixe : 484 ≤ 512, C24 prouvé)
-- Dry-run : 1 762 docs parsés, **22 519 chunks**, 0 erreur
+| Critère | Résultat |
+|---|---|
+| Chunks sans `rights` | **0** |
+| Chunks sans `source_label` | **0** |
+| Chunks sans `doc_id` | **0** |
+| **F-01 satisfait** | **oui** |
 
-## T-22-3 — Embedding + INSERT
+## Quarantaine
 
-- Modèle : `intfloat/multilingual-e5-large` (1024 dim, CPU)
-- Préfixe : `passage:` (`nexus_contracts.embedding_utils.format_passage`)
-- Upsert : `ON CONFLICT (chunk_id) DO UPDATE ... WHERE chunk_sha256 <>`
-- Résumable par `doc_id` (table `ingestion_progress`)
-- Instance pgvector dédiée : `localhost:5436`, base `nexus_rag`
-- **En cours** — progression : voir `SELECT count(*) FROM rag_chunks`
+`rag_nexus_quarantine` : **0 chunk**. Aucun contenu douteux lisible identifié — correct.
 
-## T-22-4 — Quarantaine
+Holding list (non embeddée) : 70 fichiers (37 `.ipynb` JSON corrompus, 30 PDFs scannés, 3 `.docx` corrompus).
 
-Holding list : 70 fichiers (37 `.ipynb` JSON corrompus, 30 PDFs scannés, 3 `.docx` corrompus). Non embeddés, tracés dans le manifest. `rag_nexus_quarantine` reste vide (aucun contenu douteux lisible identifié — correct).
+## Golden queries (T-22-5)
 
-## T-22-5 — Validation retrieval
+6 requêtes, 3 par collection, scoping `WHERE collection = ?` :
 
-Script : `scripts/validate_nsi_lot22.py`. À exécuter après complétion de T-22-3.
+| Query | Collection | Top-1 sim | Citable | Source |
+|---|---|---|---|---|
+| algorithme tri insertion | Première | 0.8803 | oui | tri_par_insertion.pdf |
+| protocole TCP IP réseau | Première | 0.8719 | oui | cours_ihm.pdf |
+| base de données SQL | Première | 0.8492 | oui | 8.Bases_de_donnees_cours.pdf |
+| arbre binaire parcours | Terminale | 0.8954 | oui | Eval2_Arbres_binaires.odt |
+| programmation dynamique | Terminale | 0.8764 | oui | tnsi_13_progr_dyn_exos.pdf |
+| pile file structure de données | Terminale | 0.8910 | oui | 4_PilesFiles.pdf |
 
-Vérifiera :
-- Volumétrie réelle (`SELECT count(*) FROM rag_chunks WHERE collection IN (...)`)
-- F-01 citabilité : `rights`, `source_label`, `doc_id` non vides sur 100 % des chunks
-- Quarantaine isolation : 0 chunk dans `rag_nexus_quarantine`
-- Golden queries : 6 requêtes (3 Première, 3 Terminale), scoping `WHERE collection = ?`
-- Chaque hit porte des métadonnées citables
+Tous les hits portent `rights=usage_interne`, `source_label` non vide, `doc_id` non vide. **Citabilité F-01 satisfaite sur 100 % des résultats.**
 
-## Dettes consignées
+Quarantaine ne remonte **jamais** : 0 chunk dans `rag_nexus_quarantine`, isolation confirmée.
 
-- R1 : dédup fallback base-name (faux positifs possibles)
-- R2 : 30 PDFs scannés en holding (OCR hors-scope)
-- R3 : chunker proxy non unifié (LOT 25)
+## Exécution
 
-## Script d'ingestion
+| Étape | Résultat |
+|---|---|
+| T-22-1 staging | Manifest ratifié (1 763 docs) |
+| T-22-2 parsing + chunking | 22 519 chunks (dry-run), tokenizer e5 réel à 480 tokens |
+| T-22-3 embedding + INSERT | 22 518 chunks insérés, 2 runs (crash NUL corrigé + resume), 163+72 min CPU |
+| T-22-4 quarantaine | 70 en holding, 0 en collection quarantaine |
+| T-22-5 validation | F-01 satisfait, golden queries OK, quarantaine isolée |
 
-`services/rag-engine/scripts/ingest_nsi_lot22.py` — résumable (`--resume`), idempotent (upsert).
+## Incidents
 
-## Commande de reprise (si session interrompue)
+1. **CUDA OOM** (GPU 3,6 GiB trop petit) → basculé en CPU (`CUDA_VISIBLE_DEVICES=""`)
+2. **NUL bytes** dans un PDF → `psycopg.DataError` → corrigé par `.replace("\x00", "")`, reprise `--resume`
+3. Dépendances manquantes (`sentence-transformers`, `psycopg`) → installées
 
-```bash
-cd services/rag-engine
-CUDA_VISIBLE_DEVICES="" PG_RAG_DSN="postgresql://nexus_rag:lot22dev@localhost:5436/nexus_rag" \
-  python scripts/ingest_nsi_lot22.py --resume
-```
+## Dettes
 
-## Commande de validation (après complétion)
-
-```bash
-CUDA_VISIBLE_DEVICES="" PG_RAG_DSN="postgresql://nexus_rag:lot22dev@localhost:5436/nexus_rag" \
-  python scripts/validate_nsi_lot22.py
-```
+- R1 (dédup base-name), R2 (30 PDFs scannés OCR), R3 (chunker proxy) — consignées dans `lot_0_dettes.md`
+- `notions[]` vide (B7) — dette assumée LOT 22
+- `review_status = needs_review` sur tous les chunks — revue humaine à planifier
