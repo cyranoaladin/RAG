@@ -1,0 +1,212 @@
+{
+  "timestamp": "2026-07-01",
+  "corpus": "20835 servable, 0 base64",
+  "method": "vectoriel pur e5-large 1024",
+  "results": [
+    {
+      "query": "Pourquoi le tri par insertion est-il en O(n²) dans le pire c",
+      "section": "IN_PREMIERE",
+      "collection": "premiere",
+      "top1": 0.8704,
+      "top3_avg": 0.8656,
+      "source": "algos_parcours_cours_corrige.pdf"
+    },
+    {
+      "query": "Quelle est la différence entre une variable locale et une va",
+      "section": "IN_PREMIERE",
+      "collection": "premiere",
+      "top1": 0.8782,
+      "top3_avg": 0.8737,
+      "source": "Cours-Python_2020.pdf"
+    },
+    {
+      "query": "Comment fonctionne une boucle while et quand l'utiliser plut",
+      "section": "IN_PREMIERE",
+      "collection": "premiere",
+      "top1": 0.8692,
+      "top3_avg": 0.8629,
+      "source": "cours-python.pdf"
+    },
+    {
+      "query": "Qu'est-ce qu'une table dans une base de données relationnell",
+      "section": "IN_PREMIERE",
+      "collection": "premiere",
+      "top1": 0.8526,
+      "top3_avg": 0.8449,
+      "source": "8.Bases_de_donnees_cours.pdf"
+    },
+    {
+      "query": "Comment le codage binaire représente-t-il un entier négatif ",
+      "section": "IN_PREMIERE",
+      "collection": "premiere",
+      "top1": 0.8829,
+      "top3_avg": 0.8826,
+      "source": "entiers_relatifs_en_binaire_cours_e"
+    },
+    {
+      "query": "À quoi sert le protocole HTTP dans une communication client-",
+      "section": "IN_PREMIERE",
+      "collection": "premiere",
+      "top1": 0.8599,
+      "top3_avg": 0.8591,
+      "source": "IHM_web_cours_client_serveur.pdf"
+    },
+    {
+      "query": "Qu'est-ce qu'un type construit comme un tuple ou un dictionn",
+      "section": "IN_PREMIERE",
+      "collection": "premiere",
+      "top1": 0.8629,
+      "top3_avg": 0.8577,
+      "source": "1_Cours_Types_construits_Python.ipy"
+    },
+    {
+      "query": "Quelle est la différence entre une pile et une file ?",
+      "section": "IN_TERMINALE",
+      "collection": "terminale",
+      "top1": 0.8767,
+      "top3_avg": 0.86,
+      "source": "4_PilesFiles.pdf"
+    },
+    {
+      "query": "Comment un parcours en profondeur explore-t-il un graphe ?",
+      "section": "IN_TERMINALE",
+      "collection": "terminale",
+      "top1": 0.8872,
+      "top3_avg": 0.8701,
+      "source": "4_TD2_Parcours_graphes.pdf"
+    },
+    {
+      "query": "Qu'est-ce qu'un arbre binaire de recherche et quelle est sa ",
+      "section": "IN_TERMINALE",
+      "collection": "terminale",
+      "top1": 0.8604,
+      "top3_avg": 0.8581,
+      "source": "21NSIJ2ME2_Ex3.pdf"
+    },
+    {
+      "query": "Comment fonctionne la programmation dynamique sur l'exemple ",
+      "section": "IN_TERMINALE",
+      "collection": "terminale",
+      "top1": 0.8698,
+      "top3_avg": 0.8634,
+      "source": "Programmation_dynamique_sac_a_dos.p"
+    },
+    {
+      "query": "À quoi sert une clé étrangère dans une base de données relat",
+      "section": "IN_TERMINALE",
+      "collection": "terminale",
+      "top1": 0.844,
+      "top3_avg": 0.8429,
+      "source": "exercices_sql_revisions.pdf"
+    },
+    {
+      "query": "Qu'est-ce qu'un processus et comment un système d'exploitati",
+      "section": "IN_TERMINALE",
+      "collection": "terminale",
+      "top1": 0.8525,
+      "top3_avg": 0.8492,
+      "source": "NSI_Ter_S7.pdf"
+    },
+    {
+      "query": "Comment une requête SQL avec jointure combine-t-elle deux ta",
+      "section": "IN_TERMINALE",
+      "collection": "terminale",
+      "top1": 0.8655,
+      "top3_avg": 0.8598,
+      "source": "CentresEtrangers_mai_2022_sujet_2.t"
+    },
+    {
+      "query": "Qu'est-ce que la récursivité et comment éviter une récursion",
+      "section": "IN_TERMINALE",
+      "collection": "terminale",
+      "top1": 0.8548,
+      "top3_avg": 0.8505,
+      "source": "tnsi_02_exos_recursivite.pdf"
+    },
+    {
+      "query": "Quelle est la capitale de la France ?",
+      "section": "HORS_DOMAINE",
+      "collection": "premiere",
+      "top1": 0.7794,
+      "top3_avg": 0.7781,
+      "source": "sujet-B-29.pdf"
+    },
+    {
+      "query": "Expliquer la photosynthèse",
+      "section": "HORS_DOMAINE",
+      "collection": "terminale",
+      "top1": 0.8503,
+      "top3_avg": 0.843,
+      "source": "EpreuvePratiqueBoids.ipynb"
+    },
+    {
+      "query": "Quel est le théorème de Pythagore ?",
+      "section": "HORS_DOMAINE",
+      "collection": "premiere",
+      "top1": 0.8205,
+      "top3_avg": 0.8129,
+      "source": "5.Fonctions.ipynb"
+    },
+    {
+      "query": "Comment faire une dissertation en philosophie ?",
+      "section": "HORS_DOMAINE",
+      "collection": "terminale",
+      "top1": 0.823,
+      "top3_avg": 0.8182,
+      "source": "nsi_1_1_introduction.pdf"
+    },
+    {
+      "query": "Quelles sont les causes de la Révolution française ?",
+      "section": "HORS_DOMAINE",
+      "collection": "premiere",
+      "top1": 0.7812,
+      "top3_avg": 0.78,
+      "source": "sujet-B-15.pdf"
+    },
+    {
+      "query": "Comment conjuguer le subjonctif présent ?",
+      "section": "HORS_DOMAINE",
+      "collection": "terminale",
+      "top1": 0.8094,
+      "top3_avg": 0.8079,
+      "source": "TP_Graphe_Labyrinthe.ipynb"
+    },
+    {
+      "query": "Quel est le principe de la sélection naturelle ?",
+      "section": "HORS_DOMAINE",
+      "collection": "premiere",
+      "top1": 0.8198,
+      "top3_avg": 0.8114,
+      "source": "CORRIGE_26_07_DE_VILLELE.ipynb"
+    },
+    {
+      "query": "Résoudre une équation du second degré",
+      "section": "HORS_DOMAINE",
+      "collection": "terminale",
+      "top1": 0.8542,
+      "top3_avg": 0.851,
+      "source": "Training12.ipynb"
+    },
+    {
+      "query": "Quels sont les enjeux de la mondialisation ?",
+      "section": "HORS_DOMAINE",
+      "collection": "premiere",
+      "top1": 0.8143,
+      "top3_avg": 0.8107,
+      "source": "SNT-Internet-Cours2019V1.pdf"
+    },
+    {
+      "query": "Comment fonctionne un moteur thermique ?",
+      "section": "HORS_DOMAINE",
+      "collection": "terminale",
+      "top1": 0.8176,
+      "top3_avg": 0.8079,
+      "source": "tnsi_19_resume_lessentiel.pdf"
+    }
+  ],
+  "summary": {
+    "in_avg": 0.8658,
+    "out_avg": 0.817,
+    "ecart": 0.0488
+  }
+}

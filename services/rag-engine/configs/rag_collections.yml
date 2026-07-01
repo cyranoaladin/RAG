@@ -36,12 +36,14 @@ collections:
     matiere: nsi
     niveau: premiere
     statut: specialite
+    domain: education
     taxonomy_file: nsi/premiere_specialite.yml
     instanciee: true
   rag_nexus_nsi_terminale_specialite:
     matiere: nsi
     niveau: terminale
     statut: specialite
+    domain: education
     taxonomy_file: nsi/terminale.yml
     instanciee: true
 
@@ -188,6 +190,7 @@ collections:
     matiere: null
     niveau: null
     statut: null
+    domain: quarantine
     taxonomy_file: null
     instanciee: true
 

@@ -89,17 +89,16 @@ Le LOT 22 utilise le tokenizer e5 réel (budget 480) en local. Le `pedagogical_c
 **Impact** : aucun routage thématique possible ; le filtrage repose sur `collection` + `matiere` + `type_doc` uniquement. Les 22 518 chunks n'ont pas de dimension `notions`.
 **Renvoi** : lot d'enrichissement dédié (heuristique nom/dossier ou classification LLM).
 
-### R5 — Pas de seuil de similarité (score_threshold)
-**Date de constat** : 1er juillet 2026 (LOT 22, W-03)
-**Statut** : dette active
-**Impact** : le retrieval retourne des hits hors-domaine (photosynthèse sim=0.85, in-domain sim=0.88) sans filtrage. Le RAG ne sait pas se taire hors-programme.
-**Renvoi** : LOT 24 (pertinence). Seuil candidat 0.82 insuffisant seul.
+### R5 — Seuil de similarité (score_threshold)
+**Date de constat** : 1er juillet 2026 (LOT 22, W-03). **RÉSOLU** le 1er juillet (LOT 24).
+**Statut** : RÉSOLU
+**Solution** : seuil rerank **+1.90** (score CrossEncoder, recalé FF-02b après suppression troncature 512 chars). Marge : plancher in +2.30, plafond out +1.51. 15/15 in conservé, 10/10 out rejeté. Implémenté dans `retrieval_v2.py`. **Provisoire** : lié au chunking actuel, à réviser après LOT 25.
 
-### R6 — Pas de hybride BM25/RRF ni rerank CrossEncoder
-**Date de constat** : 1er juillet 2026 (LOT 22, W-03)
-**Statut** : dette active
-**Impact** : le retrieval vectoriel pur ne discrimine pas in-domain vs hors-domaine (écart ~3 centièmes). La pertinence dépend du hybride + rerank.
-**Renvoi** : LOT 24 (chantier central de pertinence).
+### R6 — Hybride BM25/RRF + rerank CrossEncoder
+**Date de constat** : 1er juillet 2026 (LOT 22, W-03). Mesuré le 1er juillet (LOT 24).
+**Statut** : rerank **RÉSOLU** (CrossEncoder ms-marco-MiniLM-L-6-v2, écart 10.18). Hybride **DIFFÉRÉ** (pas abandonné).
+**Rerank** : implémenté dans `retrieval_v2.py`. Écart in/out transformé de 0.05 à 10.18.
+**Hybride** : inutile/nuisible sur corpus NSI mono-matière (DD-01 : collision lexicale inter-domaine). Code présent (`hybrid_search.py`) mais désactivé. À **RE-TESTER** quand le corpus deviendra multi-matières.
 
 ### R7 — review_status=needs_review sur 100 % des chunks, servables
 **Date de constat** : 1er juillet 2026 (LOT 22, V-02/D-REVIEW)
@@ -108,10 +107,11 @@ Le LOT 22 utilise le tokenizer e5 réel (budget 480) en local. Le `pedagogical_c
 **Renvoi** : revue lead (10 % par type_doc, avant LOT 25).
 
 ### R8 — Chunker heading-aware non implémenté → ré-ingestion LOT 25
-**Date de constat** : 1er juillet 2026 (LOT 22, W-04)
-**Statut** : dette active
-**Impact** : le LOT 22 utilise un split par phrases/tokens, PAS le chunker heading-aware cible. Les 22 518 chunks devront être ré-ingérés au LOT 25 avec le chunker unifié. Qualité de découpage limitée (pas d'exploitation de la structure H1/H2/H3).
-**Renvoi** : LOT 25 (unification chunker).
+**Date de constat** : 1er juillet 2026 (LOT 22, W-04). Enrichi LOT 24 (DD-02).
+**Statut** : dette active. 187 chunks base64 quarantinés (lot 22b, quarantaine base64 du 1er juillet).
+**Impact** : le LOT 22 utilise un split par phrases/tokens, PAS le chunker heading-aware cible. Les chunks devront être ré-ingérés au LOT 25. DD-02 prouve que les scores in-domain bas (+2.99 à +3.81) sont causés par le chunking (passage adjacent remonté plutôt que la définition), pas par un manque de contenu.
+**Critère de succès LOT 25** (PRÉDICTION à valider) : les 4 questions faibles (clé étrangère, récursivité, jointure SQL, boucle while) doivent passer de +3 à > +5 après ré-ingestion heading-aware. Si non → investiguer.
+**Renvoi** : LOT 25 (unification chunker + filtrage base64 + validation DD-02).
 
 ### R9 — requirements-ingestion.txt non versionné
 **Date de constat** : 1er juillet 2026 (LOT 22, V-04)
