@@ -2,7 +2,11 @@
 
 **Branche** : `lot-22-ingestion-nsi`
 **Date** : 1er juillet 2026
-**Statut** : **COMPLET** — T-22-1 à T-22-5 exécutés, V-01→V-06 traités.
+**Statut** : **COMPLET** — T-22-1 à T-22-5 exécutés, V-01→V-06 et W-01→W-06 traités.
+
+## Constat principal
+
+**Ce lot prouve la chaîne technique (plomberie), PAS la pertinence.** Le retrieval vectoriel pur du LOT 22 ne discrimine PAS le hors-domaine : une question sur la photosynthèse (sim=0.85) score presque autant qu'une question NSI in-domain (sim=0.88). L'écart de ~3 centièmes est insuffisant pour un seuil discriminant. La pertinence dépend de l'hybride BM25/RRF + rerank CrossEncoder (LOT 24, chantier central post-merge). Le seuil candidat 0.82 est explicitement **insuffisant seul**.
 
 ---
 
@@ -91,9 +95,9 @@ Dépendances d'ingestion documentées dans le rapport. `python-docx`, `odfpy`, `
 
 `lot22dev` supprimé des scripts commités. Les deux scripts (`ingest_nsi_lot22.py`, `validate_nsi_lot22.py`) exigent maintenant `PG_RAG_DSN` via variable d'environnement, sans défaut. `grep lot22dev` sur le dépôt = 0.
 
-## V-06 — Dettes consignées
+## V-06 / W-05 — Dettes consignées
 
-Ajoutées à `lot_0_dettes.md` :
+**Toutes** transférées dans `lot_0_dettes.md` (R1→R9) :
 
 | Dette | Impact | Renvoi |
 |---|---|---|

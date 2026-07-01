@@ -82,3 +82,39 @@ Le fallback base-name (C23) suppose que deux fichiers même-nom même-dossier en
 
 ### R3 — Chunker : proxy mots×1.3 non unifié
 Le LOT 22 utilise le tokenizer e5 réel (budget 480) en local. Le `pedagogical_chunker.py` partagé garde le proxy `len(words)*1.3` défaillant (F-07). Unification au LOT 25.
+
+### R4 — notions[] vide sur 100 % des chunks LOT 22
+**Date de constat** : 1er juillet 2026 (LOT 22)
+**Statut** : dette active
+**Impact** : aucun routage thématique possible ; le filtrage repose sur `collection` + `matiere` + `type_doc` uniquement. Les 22 518 chunks n'ont pas de dimension `notions`.
+**Renvoi** : lot d'enrichissement dédié (heuristique nom/dossier ou classification LLM).
+
+### R5 — Pas de seuil de similarité (score_threshold)
+**Date de constat** : 1er juillet 2026 (LOT 22, W-03)
+**Statut** : dette active
+**Impact** : le retrieval retourne des hits hors-domaine (photosynthèse sim=0.85, in-domain sim=0.88) sans filtrage. Le RAG ne sait pas se taire hors-programme.
+**Renvoi** : LOT 24 (pertinence). Seuil candidat 0.82 insuffisant seul.
+
+### R6 — Pas de hybride BM25/RRF ni rerank CrossEncoder
+**Date de constat** : 1er juillet 2026 (LOT 22, W-03)
+**Statut** : dette active
+**Impact** : le retrieval vectoriel pur ne discrimine pas in-domain vs hors-domaine (écart ~3 centièmes). La pertinence dépend du hybride + rerank.
+**Renvoi** : LOT 24 (chantier central de pertinence).
+
+### R7 — review_status=needs_review sur 100 % des chunks, servables
+**Date de constat** : 1er juillet 2026 (LOT 22, V-02/D-REVIEW)
+**Statut** : dette active, décision tracée (D-REVIEW : mise en service sous autorité lead + revue a posteriori)
+**Impact** : contenu non revu servi en retrieval. answer_generation_allowed=false atténue le risque.
+**Renvoi** : revue lead (10 % par type_doc, avant LOT 25).
+
+### R8 — Chunker heading-aware non implémenté → ré-ingestion LOT 25
+**Date de constat** : 1er juillet 2026 (LOT 22, W-04)
+**Statut** : dette active
+**Impact** : le LOT 22 utilise un split par phrases/tokens, PAS le chunker heading-aware cible. Les 22 518 chunks devront être ré-ingérés au LOT 25 avec le chunker unifié. Qualité de découpage limitée (pas d'exploitation de la structure H1/H2/H3).
+**Renvoi** : LOT 25 (unification chunker).
+
+### R9 — requirements-ingestion.txt non versionné
+**Date de constat** : 1er juillet 2026 (LOT 22, V-04)
+**Statut** : dette active
+**Impact** : sentence-transformers, psycopg, torch, python-docx, odfpy installés ad hoc (--user --break-system-packages), hors environnement reproductible. Le prochain run d'ingestion ne retrouvera pas l'état.
+**Renvoi** : LOT 23 (fichier requirements-ingestion.txt versionné avec versions épinglées).
