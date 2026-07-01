@@ -1,0 +1,38 @@
+{
+  "_comment": "Jeu de test LOT 24 — pertinence. Baseline W-03 : in 0.87-0.89, out 0.78-0.85.",
+  "_objectif": "Après hybride+rerank, l'écart in/out doit se creuser (out < 0.60-0.70).",
+
+  "in_domain_premiere": [
+    {"query": "Pourquoi le tri par insertion est-il en O(n²) dans le pire cas ?", "source": "lead", "expected_topic": "algorithmes de tri"},
+    {"query": "Quelle est la différence entre une variable locale et une variable globale en Python ?", "source": "lead", "expected_topic": "programmation Python"},
+    {"query": "Comment fonctionne une boucle while et quand l'utiliser plutôt qu'une boucle for ?", "source": "lead", "expected_topic": "structures de contrôle"},
+    {"query": "Qu'est-ce qu'une table dans une base de données relationnelle ?", "source": "lead", "expected_topic": "bases de données"},
+    {"query": "Comment le codage binaire représente-t-il un entier négatif ?", "source": "lead", "expected_topic": "représentation des données"},
+    {"query": "À quoi sert le protocole HTTP dans une communication client-serveur ?", "source": "lead", "expected_topic": "web et réseaux"},
+    {"query": "Qu'est-ce qu'un type construit comme un tuple ou un dictionnaire en Python ?", "source": "lead", "expected_topic": "types construits"}
+  ],
+
+  "in_domain_terminale": [
+    {"query": "Quelle est la différence entre une pile et une file ?", "source": "lead", "expected_topic": "structures de données linéaires"},
+    {"query": "Comment un parcours en profondeur explore-t-il un graphe ?", "source": "lead", "expected_topic": "graphes"},
+    {"query": "Qu'est-ce qu'un arbre binaire de recherche et quelle est sa complexité de recherche ?", "source": "lead", "expected_topic": "arbres"},
+    {"query": "Comment fonctionne la programmation dynamique sur l'exemple du sac à dos ?", "source": "lead", "expected_topic": "programmation dynamique"},
+    {"query": "À quoi sert une clé étrangère dans une base de données relationnelle ?", "source": "lead", "expected_topic": "bases de données relationnelles"},
+    {"query": "Qu'est-ce qu'un processus et comment un système d'exploitation les ordonnance-t-il ?", "source": "lead", "expected_topic": "systèmes d'exploitation"},
+    {"query": "Comment une requête SQL avec jointure combine-t-elle deux tables ?", "source": "lead", "expected_topic": "SQL"},
+    {"query": "Qu'est-ce que la récursivité et comment éviter une récursion infinie ?", "source": "lead", "expected_topic": "récursivité"}
+  ],
+
+  "hors_domaine": [
+    {"query": "Quelle est la capitale de la France ?", "source": "agent", "expected_topic": "géographie", "baseline_sim": 0.7794},
+    {"query": "Expliquer la photosynthèse", "source": "agent", "expected_topic": "SVT", "baseline_sim": 0.8503},
+    {"query": "Quel est le théorème de Pythagore ?", "source": "agent", "expected_topic": "maths", "baseline_sim": 0.8205},
+    {"query": "Comment faire une dissertation en philosophie ?", "source": "agent", "expected_topic": "philo", "baseline_sim": 0.8238},
+    {"query": "Quelles sont les causes de la Révolution française ?", "source": "agent", "expected_topic": "histoire"},
+    {"query": "Comment conjuguer le subjonctif présent ?", "source": "agent", "expected_topic": "français"},
+    {"query": "Quel est le principe de la sélection naturelle ?", "source": "agent", "expected_topic": "SVT"},
+    {"query": "Résoudre une équation du second degré", "source": "agent", "expected_topic": "maths"},
+    {"query": "Quels sont les enjeux de la mondialisation ?", "source": "agent", "expected_topic": "géopolitique"},
+    {"query": "Comment fonctionne un moteur thermique ?", "source": "agent", "expected_topic": "physique"}
+  ]
+}

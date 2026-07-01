@@ -1,0 +1,236 @@
+{
+  "timestamp": "2026-07-01",
+  "method": "vectoriel + rerank CrossEncoder (ms-marco-MiniLM-L-6-v2)",
+  "results": [
+    {
+      "query": "Pourquoi le tri par insertion est-il en O(n²) dans le pire c",
+      "section": "IN_PREMIERE",
+      "collection": "premiere",
+      "dense_top1": 0.8704,
+      "rerank_top1": 4.8012,
+      "rerank_top3_avg": 3.5373,
+      "source": "algos_tris_cours.pdf"
+    },
+    {
+      "query": "Quelle est la différence entre une variable locale et une va",
+      "section": "IN_PREMIERE",
+      "collection": "premiere",
+      "dense_top1": 0.8782,
+      "rerank_top1": 7.5627,
+      "rerank_top3_avg": 6.6782,
+      "source": "Cours-Python_2020.pdf"
+    },
+    {
+      "query": "Comment fonctionne une boucle while et quand l'utiliser plut",
+      "section": "IN_PREMIERE",
+      "collection": "premiere",
+      "dense_top1": 0.8692,
+      "rerank_top1": 3.2462,
+      "rerank_top3_avg": 3.0006,
+      "source": "nsi_1_programmation_cours_exos.pdf"
+    },
+    {
+      "query": "Qu'est-ce qu'une table dans une base de données relationnell",
+      "section": "IN_PREMIERE",
+      "collection": "premiere",
+      "dense_top1": 0.8526,
+      "rerank_top1": 6.5342,
+      "rerank_top3_avg": 5.1663,
+      "source": "8.Bases_de_donnees_cours.pdf"
+    },
+    {
+      "query": "Comment le codage binaire représente-t-il un entier négatif ",
+      "section": "IN_PREMIERE",
+      "collection": "premiere",
+      "dense_top1": 0.8829,
+      "rerank_top1": 5.6262,
+      "rerank_top3_avg": 5.5033,
+      "source": "6_Representation_binaire_d_un_entie"
+    },
+    {
+      "query": "À quoi sert le protocole HTTP dans une communication client-",
+      "section": "IN_PREMIERE",
+      "collection": "premiere",
+      "dense_top1": 0.8599,
+      "rerank_top1": 5.237,
+      "rerank_top3_avg": 4.9032,
+      "source": "cours_ihm.pdf"
+    },
+    {
+      "query": "Qu'est-ce qu'un type construit comme un tuple ou un dictionn",
+      "section": "IN_PREMIERE",
+      "collection": "premiere",
+      "dense_top1": 0.8629,
+      "rerank_top1": 5.4054,
+      "rerank_top3_avg": 4.6284,
+      "source": "TD_construits_python.pdf"
+    },
+    {
+      "query": "Quelle est la différence entre une pile et une file ?",
+      "section": "IN_TERMINALE",
+      "collection": "terminale",
+      "dense_top1": 0.8767,
+      "rerank_top1": 4.2235,
+      "rerank_top3_avg": 2.5455,
+      "source": "tnsi_03_sdlin_piles_files.pdf"
+    },
+    {
+      "query": "Comment un parcours en profondeur explore-t-il un graphe ?",
+      "section": "IN_TERMINALE",
+      "collection": "terminale",
+      "dense_top1": 0.8872,
+      "rerank_top1": 6.7601,
+      "rerank_top3_avg": 5.2112,
+      "source": "NSI_Ter_S8.pdf"
+    },
+    {
+      "query": "Qu'est-ce qu'un arbre binaire de recherche et quelle est sa ",
+      "section": "IN_TERMINALE",
+      "collection": "terminale",
+      "dense_top1": 0.8604,
+      "rerank_top1": 6.4161,
+      "rerank_top3_avg": 6.2226,
+      "source": "21NSIJ2ME2_Ex3.pdf"
+    },
+    {
+      "query": "Comment fonctionne la programmation dynamique sur l'exemple ",
+      "section": "IN_TERMINALE",
+      "collection": "terminale",
+      "dense_top1": 0.8698,
+      "rerank_top1": 4.4871,
+      "rerank_top3_avg": 3.9148,
+      "source": "Programmation_dynamique_sac_a_dos.p"
+    },
+    {
+      "query": "À quoi sert une clé étrangère dans une base de données relat",
+      "section": "IN_TERMINALE",
+      "collection": "terminale",
+      "dense_top1": 0.844,
+      "rerank_top1": 6.2187,
+      "rerank_top3_avg": 5.7004,
+      "source": "Sujet_1.pdf"
+    },
+    {
+      "query": "Qu'est-ce qu'un processus et comment un système d'exploitati",
+      "section": "IN_TERMINALE",
+      "collection": "terminale",
+      "dense_top1": 0.8525,
+      "rerank_top1": 6.7783,
+      "rerank_top3_avg": 6.3405,
+      "source": "NSI_2021_metropole_candidats_libres"
+    },
+    {
+      "query": "Comment une requête SQL avec jointure combine-t-elle deux ta",
+      "section": "IN_TERMINALE",
+      "collection": "terminale",
+      "dense_top1": 0.8655,
+      "rerank_top1": 2.9868,
+      "rerank_top3_avg": 1.405,
+      "source": "NSI_Ter_S5.pdf"
+    },
+    {
+      "query": "Qu'est-ce que la récursivité et comment éviter une récursion",
+      "section": "IN_TERMINALE",
+      "collection": "terminale",
+      "dense_top1": 0.8548,
+      "rerank_top1": 3.8142,
+      "rerank_top3_avg": 3.5601,
+      "source": "NSI_Recursivite.pdf"
+    },
+    {
+      "query": "Quelle est la capitale de la France ?",
+      "section": "HORS_DOMAINE",
+      "collection": "premiere",
+      "dense_top1": 0.7794,
+      "rerank_top1": -0.177,
+      "rerank_top3_avg": -0.8699,
+      "source": "sujet-A-27.pdf"
+    },
+    {
+      "query": "Expliquer la photosynthèse",
+      "section": "HORS_DOMAINE",
+      "collection": "terminale",
+      "dense_top1": 0.8503,
+      "rerank_top1": -3.3063,
+      "rerank_top3_avg": -8.542,
+      "source": "SujetBac_BasesRecursivite.pdf"
+    },
+    {
+      "query": "Quel est le théorème de Pythagore ?",
+      "section": "HORS_DOMAINE",
+      "collection": "premiere",
+      "dense_top1": 0.8205,
+      "rerank_top1": -5.8896,
+      "rerank_top3_avg": -6.3999,
+      "source": "sujet-B-148.pdf"
+    },
+    {
+      "query": "Comment faire une dissertation en philosophie ?",
+      "section": "HORS_DOMAINE",
+      "collection": "terminale",
+      "dense_top1": 0.823,
+      "rerank_top1": -8.265,
+      "rerank_top3_avg": -8.9592,
+      "source": "EP-BAC-NSI-Sujet3.pdf"
+    },
+    {
+      "query": "Quelles sont les causes de la Révolution française ?",
+      "section": "HORS_DOMAINE",
+      "collection": "premiere",
+      "dense_top1": 0.7812,
+      "rerank_top1": -7.6015,
+      "rerank_top3_avg": -9.0307,
+      "source": "TP_Donnees_structurees.pdf"
+    },
+    {
+      "query": "Comment conjuguer le subjonctif présent ?",
+      "section": "HORS_DOMAINE",
+      "collection": "terminale",
+      "dense_top1": 0.8094,
+      "rerank_top1": -10.2988,
+      "rerank_top3_avg": -10.6223,
+      "source": "NSI_Ter_S3_DR.docx"
+    },
+    {
+      "query": "Quel est le principe de la sélection naturelle ?",
+      "section": "HORS_DOMAINE",
+      "collection": "premiere",
+      "dense_top1": 0.8198,
+      "rerank_top1": 1.508,
+      "rerank_top3_avg": 1.2212,
+      "source": "sujet-A-50.pdf"
+    },
+    {
+      "query": "Résoudre une équation du second degré",
+      "section": "HORS_DOMAINE",
+      "collection": "terminale",
+      "dense_top1": 0.8542,
+      "rerank_top1": -6.9375,
+      "rerank_top3_avg": -9.7287,
+      "source": "tnsi_13_progr_dyn.pdf"
+    },
+    {
+      "query": "Quels sont les enjeux de la mondialisation ?",
+      "section": "HORS_DOMAINE",
+      "collection": "premiere",
+      "dense_top1": 0.8143,
+      "rerank_top1": -2.1129,
+      "rerank_top3_avg": -5.1768,
+      "source": "12_-_Resume_cours_SNT.pdf"
+    },
+    {
+      "query": "Comment fonctionne un moteur thermique ?",
+      "section": "HORS_DOMAINE",
+      "collection": "terminale",
+      "dense_top1": 0.8176,
+      "rerank_top1": -5.3307,
+      "rerank_top3_avg": -6.9061,
+      "source": "033-SUJET.pdf"
+    }
+  ],
+  "summary": {
+    "in_avg": 5.3398,
+    "out_avg": -4.8411,
+    "ecart": 10.181
+  }
+}
