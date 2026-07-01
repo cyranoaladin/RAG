@@ -1,22 +1,26 @@
 {
-  "_comment": "Jeu de test élargi pour LOT 24 — pertinence. Le lead dépose ses questions in-domain ci-dessous.",
-  "_baseline": "W-03 LOT 22: in-domain 0.87-0.89, hors-domaine 0.78-0.85 (retrieval vectoriel pur)",
-  "_objectif": "Après hybride+rerank, l'écart in/out doit se creuser nettement (out < 0.60-0.70)",
+  "_comment": "Jeu de test LOT 24 — pertinence. Baseline W-03 : in 0.87-0.89, out 0.78-0.85.",
+  "_objectif": "Après hybride+rerank, l'écart in/out doit se creuser (out < 0.60-0.70).",
 
   "in_domain_premiere": [
-    {"query": "Comment écrire un algorithme de tri par insertion en Python ?", "source": "lead", "expected_topic": "algorithmes de tri"},
-    {"query": "À COMPLÉTER PAR LE LEAD", "source": "lead", "expected_topic": ""},
-    {"query": "À COMPLÉTER PAR LE LEAD", "source": "lead", "expected_topic": ""},
-    {"query": "À COMPLÉTER PAR LE LEAD", "source": "lead", "expected_topic": ""},
-    {"query": "À COMPLÉTER PAR LE LEAD", "source": "lead", "expected_topic": ""}
+    {"query": "Pourquoi le tri par insertion est-il en O(n²) dans le pire cas ?", "source": "lead", "expected_topic": "algorithmes de tri"},
+    {"query": "Quelle est la différence entre une variable locale et une variable globale en Python ?", "source": "lead", "expected_topic": "programmation Python"},
+    {"query": "Comment fonctionne une boucle while et quand l'utiliser plutôt qu'une boucle for ?", "source": "lead", "expected_topic": "structures de contrôle"},
+    {"query": "Qu'est-ce qu'une table dans une base de données relationnelle ?", "source": "lead", "expected_topic": "bases de données"},
+    {"query": "Comment le codage binaire représente-t-il un entier négatif ?", "source": "lead", "expected_topic": "représentation des données"},
+    {"query": "À quoi sert le protocole HTTP dans une communication client-serveur ?", "source": "lead", "expected_topic": "web et réseaux"},
+    {"query": "Qu'est-ce qu'un type construit comme un tuple ou un dictionnaire en Python ?", "source": "lead", "expected_topic": "types construits"}
   ],
 
   "in_domain_terminale": [
-    {"query": "Qu'est-ce qu'un arbre binaire de recherche et comment le parcourir ?", "source": "lead", "expected_topic": "arbres"},
-    {"query": "Comment fonctionne la programmation dynamique pour le problème du sac à dos ?", "source": "lead", "expected_topic": "programmation dynamique"},
-    {"query": "À COMPLÉTER PAR LE LEAD", "source": "lead", "expected_topic": ""},
-    {"query": "À COMPLÉTER PAR LE LEAD", "source": "lead", "expected_topic": ""},
-    {"query": "À COMPLÉTER PAR LE LEAD", "source": "lead", "expected_topic": ""}
+    {"query": "Quelle est la différence entre une pile et une file ?", "source": "lead", "expected_topic": "structures de données linéaires"},
+    {"query": "Comment un parcours en profondeur explore-t-il un graphe ?", "source": "lead", "expected_topic": "graphes"},
+    {"query": "Qu'est-ce qu'un arbre binaire de recherche et quelle est sa complexité de recherche ?", "source": "lead", "expected_topic": "arbres"},
+    {"query": "Comment fonctionne la programmation dynamique sur l'exemple du sac à dos ?", "source": "lead", "expected_topic": "programmation dynamique"},
+    {"query": "À quoi sert une clé étrangère dans une base de données relationnelle ?", "source": "lead", "expected_topic": "bases de données relationnelles"},
+    {"query": "Qu'est-ce qu'un processus et comment un système d'exploitation les ordonnance-t-il ?", "source": "lead", "expected_topic": "systèmes d'exploitation"},
+    {"query": "Comment une requête SQL avec jointure combine-t-elle deux tables ?", "source": "lead", "expected_topic": "SQL"},
+    {"query": "Qu'est-ce que la récursivité et comment éviter une récursion infinie ?", "source": "lead", "expected_topic": "récursivité"}
   ],
 
   "hors_domaine": [

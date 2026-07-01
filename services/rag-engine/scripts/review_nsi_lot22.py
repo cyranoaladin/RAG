@@ -25,7 +25,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 
 PG_DSN = os.environ.get("PG_RAG_DSN")
 if not PG_DSN:
@@ -111,7 +111,7 @@ def main() -> None:
         updated = cur.rowcount
         conn.commit()
 
-    timestamp = datetime.now(datetime.UTC).isoformat()
+    timestamp = datetime.now(timezone.utc).isoformat()  # noqa: UP017 — compat Python 3.11
     print(f"DONE: {updated} chunks passés reviewed à {timestamp}")
     print(f"  Critère: {where}")
     print(f"  Params: {params}")
