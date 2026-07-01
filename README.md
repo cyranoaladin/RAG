@@ -22,9 +22,10 @@ Ce README est le point d'entree racine pour un auditeur. Les regles imperatives 
 - [14. Qualite, CI et commandes](#14-qualite-ci-et-commandes)
 - [15. Installation et execution locale](#15-installation-et-execution-locale)
 - [16. Securite, conformite et limites](#16-securite-conformite-et-limites)
-- [17. ADR et historique des lots](#17-adr-et-historique-des-lots)
-- [18. Dettes et points d'attention](#18-dettes-et-points-dattention)
-- [19. Lecture rapide pour auditeur](#19-lecture-rapide-pour-auditeur)
+- [17. Production inventoriee (LOT 20)](#17-production-inventoriee-lot-20)
+- [18. ADR et historique des lots](#18-adr-et-historique-des-lots)
+- [19. Dettes et points d'attention](#19-dettes-et-points-dattention)
+- [20. Lecture rapide pour auditeur](#20-lecture-rapide-pour-auditeur)
 
 ## 1. Resume executif
 
@@ -54,9 +55,11 @@ L'etat courant correspond aux lots 0 a 18 :
 - API `/search` en lecture seule, filtree par profil signe HMAC ;
 - agents de requete `context_only`, sans generation de reponse.
 
-Le cockpit applicatif reste un placeholder. La generation de reponse reste explicitement interdite (`answer_generation_allowed: false`).
+Le cockpit applicatif reste un placeholder (cible : post-LOT 25). La generation de reponse reste explicitement interdite (`answer_generation_allowed: false`).
 
-Lot 19 ajoute l'alignement documentaire entre la production historique `rag-ui.nexusreussite.academy` et le chemin Nexus gouverne. La production publique observee le 29 juin 2026 sert encore l'UI historique Streamlit/ingestor (`HTTP 200` sur `rag-ui`, `/health` healthy sur `rag-api`, `/collections` protege par `401` sans token). Elle ne doit pas etre confondue avec le pilote Nexus pgvector/HMAC.
+Lot 19 aligne la documentation entre la production historique et le chemin Nexus gouverne. Lot 20 inventorie la production `rag-ui.nexusreussite.academy` (17 912 vecteurs ChromaDB 768 dim, 6 collections, 3 rubriques UI cassees, code prod divergent du depot). Lot 21 pose l'infrastructure de convergence : ADR-0013 (e5-large 1024 dim + pgvector dedie), catalogue de 22 collections `rag_nexus_*` avec flags d'instanciation, invariant anti-auto-creation, table `rag_chunks` citations-ready (F-01). Lot 22a isole le moteur legacy (config separee `rag_collections_legacy.yml`) du code neuf (resolveur v2 etanche).
+
+La production publique sert encore l'UI historique Streamlit/ingestor (ChromaDB, nomic-embed-text 768 dim, Ollama). Elle ne doit pas etre confondue avec le pilote Nexus pgvector/HMAC 1024 dim.
 
 ## 2. Logique metier
 
@@ -126,7 +129,7 @@ Etat mesure localement :
 | Notions principales | 246 |
 | Subnotions | 174 |
 | Identifiants notion/subnotion totaux | 420 |
-| Fichiers ADR racine | 12 |
+| Fichiers ADR racine | 13 |
 | Rapports de lots racine | 47 |
 | Chunks pilotes versionnes | 124 |
 | Embeddings pilotes versionnes | 124 |
@@ -177,13 +180,13 @@ Repartition taxonomique actuelle :
 
 ### 3.3 Ce qui n'est pas encore livre
 
-- Cockpit SaaS Next.js operationnel.
-- Generation de reponse eleve.
+- Cockpit SaaS Next.js operationnel (differe post-LOT 25, D-M03).
+- Generation de reponse eleve (`answer_generation_allowed: false`).
 - Interface de ressources curees.
 - Ingestion generale de vrais documents proprietaires.
-- Industrialisation complete de la distribution du package `nexus-contracts`.
-- Test d'integration automatise dedie a `scripts/index_pgvector.py` contre une vraie base pgvector Docker.
+- Migration du corpus prod vers le moteur gouverne (9 199 chunks admissibles sur 17 912, cf. LOT 20).
 - Deploiement production coherent de l'ensemble Nexus trois plans.
+- Ingestion NSI gouvernee de bout en bout (LOT 22, en cours).
 
 ## 4. Architecture generale
 
@@ -649,22 +652,73 @@ Le dossier `src/ingestor/` conserve des composants importants :
 
 Ce code est teste et reutilisable, mais il ne constitue pas encore l'API Nexus filtree par profil signe. La surface Nexus pilote est `scripts/retrieval_api.py`.
 
-### 8.7 Collections RAG et transition Lot 19
+### 8.7 Catalogue de collections v2 (ADR-0013, LOT 21/22a)
 
-L'architecture cible des collections est versionnee dans `services/rag-engine/configs/rag_collections.yml`. Les collections physiques cibles sont limitees :
+Le catalogue cible est versionne dans `services/rag-engine/configs/rag_collections.yml` (v2). Convention de nommage : `rag_nexus_{matiere}_{niveau}_{statut}`, avec 5 exceptions nommees (grand oral, examens, candidats libres, quarantaine).
 
-| Collection cible | Domaine | Statut |
+22 collections au catalogue taxonomique. Chaque collection porte un flag `instanciee: true|false`. Seules les collections instanciees sont creees et exposees (invariant M-04) :
+
+| Collections instanciees | Statut |
+|---|---|
+| `rag_nexus_nsi_premiere_specialite` | instanciee |
+| `rag_nexus_nsi_terminale_specialite` | instanciee |
+| `rag_nexus_quarantine` | instanciee |
+
+Les 19 autres (maths, francais, HG, PC, SVT, SES, philo, SNT, grand oral, examens, candidats libres) restent au catalogue comme perimetre cible, non instanciees tant que du contenu gouverne n'existe pas pour elles.
+
+**Invariant anti-auto-creation** : `resolve_collection_v2()` leve `CollectionUnknownError` si la collection n'est pas dans le catalogue, et `CollectionNotInstanciatedError` si elle est dans le catalogue mais pas instanciee. Pas de `get_or_create_collection`.
+
+### 8.8 Separation legacy / v2 (LOT 22a)
+
+Deux mondes etanches, aucune cross-contamination :
+
+| | Monde v2 (code neuf) | Monde legacy (api.py historique) |
 |---|---|---|
-| `rag_nexus_education` | `education` | Corpus pedagogique general. |
-| `rag_nexus_official` | `official` | Programmes, BO et textes officiels. |
-| `rag_nexus_exams` | `exam` | Annales, sujets, corriges et grilles. |
-| `rag_nexus_owned` | `nexus_owned` | Ressources proprietaires Nexus validees. |
-| `rag_nexus_web3` | `web3` | Blockchain, Web3, Solana. |
-| `rag_nexus_quarantine` | `quarantine` | Non retrievable. |
+| Config | `rag_collections.yml` (v2) | `rag_collections_legacy.yml` (v1) |
+| Resolveur | `resolve_collection_v2()` | `resolve_collection()` |
+| Collections | 22 du catalogue taxonomique | 6 silos Chroma (education, official, exams, owned, web3, quarantine) |
+| Routing | Pas de routing implicite | `routing.sections` |
+| Backend | pgvector dedie (instance separee) | ChromaDB prod |
 
-Les noms Chroma de production ne sont pas supprimes ni renommes physiquement. Ils passent par `services/rag-engine/configs/legacy_collection_mapping.yml` :
+Le code legacy (`api.py`, `retrieval_contract_adapter.py`) lit `rag_collections_legacy.yml`. Le code neuf lit `rag_collections.yml`. Aucun alias, aucun fallback entre les deux.
 
-| Legacy Chroma | Nexus cible |
+### 8.9 Table cible `rag_chunks` (LOT 21)
+
+La table cible `rag_chunks` (pas `rag_chunks_pilote`) est citations-ready (F-01) :
+
+```sql
+rag_chunks (
+  chunk_id text PRIMARY KEY,
+  doc_id text NOT NULL,        -- distinct de chunk_id
+  chunk_sha256 text NOT NULL,
+  vector vector(1024),
+  collection text NOT NULL,    -- rag_nexus_{matiere}_{niveau}_{statut}
+  niveau text NOT NULL,
+  voie text NOT NULL,
+  audience text[] NOT NULL,
+  matiere text NOT NULL,
+  source_label text NOT NULL,  -- Citation.source_label
+  source_uri text NOT NULL,    -- Citation.source_uri
+  rights text NOT NULL,        -- Citation.rights (par provenance, A-4)
+  type_doc text NOT NULL,      -- ChunkMetadata.type_doc
+  official boolean NOT NULL,
+  text text,
+  review_status text NOT NULL DEFAULT 'needs_review',
+  ...
+)
+```
+
+Index : HNSW cosine + 6 B-tree/GIN (collection, niveau, matiere, audience, rights, review_status).
+
+### 8.10 Infrastructure pgvector dedie (LOT 21)
+
+`services/rag-engine/infra/docker-compose.pgvector-rag.yml` : instance separee de `nexus_prod` (A-1), schema auto-applique a l'init, mot de passe obligatoire (pas de defaut), encodage UTF-8 / collation C.
+
+### 8.11 Moteur historique legacy
+
+Le mapping legacy est conserve dans `legacy_collection_mapping.yml` :
+
+| Legacy Chroma | Cible legacy |
 |---|---|
 | `rag_education` | `rag_nexus_education` |
 | `rag_francais_premiere` | `rag_nexus_education` |
@@ -672,9 +726,7 @@ Les noms Chroma de production ne sont pas supprimes ni renommes physiquement. Il
 | `rag_web3` | `rag_nexus_web3` |
 | `rag_divers` | `rag_nexus_quarantine` |
 
-Le moteur historique `/search` accepte seulement une collection Nexus connue ou un nom legacy mappe. Un client ne peut plus elargir arbitrairement le perimetre avec `collection=anything`. `rag_divers` reste ingestible comme legacy/quarantaine mais n'est plus retrievable.
-
-Le backend pgvector cible declare `rag_chunks` comme table non pilote et conserve `rag_chunks_pilote` comme table legacy pilote jusqu'a migration explicite.
+Les tests du moteur legacy sont marques `@pytest.mark.legacy_engine` et tournent sur `rag_collections_legacy.yml`. Ils restent en CI tant que `api.py` sert la prod (D-LEGACY-CI).
 
 ## 9. Service `cockpit`
 
@@ -1138,7 +1190,54 @@ Le profil signe actuel ne porte que `niveau` et `audience`. Il ne transporte pas
 - Les documents reels proprietaires restent bloques.
 - Les tests d'integration pgvector du chemin pilote doivent etre industrialises.
 
-## 17. ADR et historique des lots
+## 17. Production inventoriee (LOT 20)
+
+Le LOT 20 a inventorie la production `rag-ui.nexusreussite.academy` en lecture seule. Livrables dans `docs/audits/`.
+
+### 17.1 Topologie prod
+
+5 conteneurs Docker Compose (ingestor FastAPI, UI Streamlit, ChromaDB 1.1.1, Ollama 0.3.13, autoheal), reverse proxy nginx avec TLS Let's Encrypt.
+
+### 17.2 Corpus prod
+
+| Collection | Vecteurs | Dim (mesuree) | Modele |
+|---|---:|---|---|
+| `rag_education` | 7 181 | 768 | nomic-embed-text |
+| `rag_francais_premiere` | 5 948 | 768 | nomic-embed-text |
+| `nsi_corpus` | 4 716 | 768 | nomic-embed-text |
+| `rag_math_correction` | 67 | 768 | nomic-embed-text |
+| **Total** | **17 912** | **768** | |
+
+Incompatibilite avec le pilote gouverne : 768 dim (prod) vs 1024 dim (e5-large). Re-embedding complet requis.
+
+### 17.3 Admissibilite
+
+Critere : `matiere` ET `niveau` ET `source_uri` (URL) presents. Scan exhaustif :
+
+| Collection | Admissibles | % |
+|---|---:|---|
+| `rag_education` | 3 366 | 46 % |
+| `rag_francais_premiere` | 5 833 | 98 % |
+| `nsi_corpus` | 0 | 0 % (pas de source_uri) |
+| **Total** | **9 199** | **51 %** |
+
+`rights` = 0 % sur tout le corpus. Resolution par provenance (A-4), jamais par classification.
+
+### 17.4 Ecarts prod ↔ depot
+
+- Code ingestor divergent (91 501 o vs 90 357 o)
+- `COLLECTION_MAP` et fallback differents
+- `maths_premiere_fallback` a 3 filtres (non-fonctionnel par construction)
+- 3 rubriques UI cassees (Maths 1ère, Web3, Divers)
+- `nsi_corpus` 100 % non revu, routable via API
+
+### 17.5 Strategie de migration (ADR-0013)
+
+Shadow puis canary (D-4), rollback nginx en une ligne. Cockpit differe post-LOT 25. Instanciation initiale : NSI + quarantaine. Prealables : backup ChromaDB frais, docker save des images, verification acces GDrive, gel du corpus.
+
+Baseline de parite : `docs/audits/baseline_retrieval_prod.json` (16 requetes, 4 sections, sans texte non droite).
+
+## 18. ADR et historique des lots
 
 ### 17.1 ADR racine
 
@@ -1156,6 +1255,7 @@ Le profil signe actuel ne porte que `niveau` et `audience`. Il ne transporte pas
 | ADR-0010 | Gouvernance cross-service, verrous `rag-pedago` lus par `rag-engine`. |
 | ADR-0011 | API retrieval lecture seule. |
 | ADR-0012 | Agents de requete context-only branches sur l'API filtree. |
+| ADR-0013 | Convergence dual-engine : e5-large 1024 + pgvector dedie, shadow+canary, cockpit differe, catalogue 22 collections. |
 
 ### 17.2 Lots structurants
 
@@ -1174,21 +1274,31 @@ Le profil signe actuel ne porte que `niveau` et `audience`. Il ne transporte pas
 | 16 | Migration retrieval/indexation vers `rag-engine`. |
 | 17 | API `/search` lecture seule, HMAC, table pilote isolee. |
 | 18 | Agents de requete `context_only` branches sur l'API filtree. |
+| 19 | Alignement documentaire prod historique / Nexus gouverne. |
+| 20 | Inventaire prod read-only : 17 912 vecteurs 768 dim, 6 collections, ADR convergence decision-ready. Rotation token, 3 bugs prod decouverts. |
+| 21 | Infrastructure convergence : ADR-0013, `rag_collections.yml` v2, table `rag_chunks` citations-ready, pgvector dedie, invariant anti-auto-creation. |
+| 22a | Suppression schema dual Chroma/v2, separation etanche legacy/v2, 12 tests legacy isoles sur config dediee. |
 
-## 18. Dettes et points d'attention
+## 19. Dettes et points d'attention
 
-### 18.1 Dettes connues documentees
+### 19.1 Dettes connues documentees
 
-| Dette | Impact |
-|---|---|
-| `DETTE-16-ITEST-RETRIEVAL` | Pas encore de test d'integration automatise pour `scripts/index_pgvector.py` contre pgvector Docker. |
-| Mapping audience ambigu | Les statuts hors cible peuvent deriver vers `aefe` par defaut. |
-| Notion articles partiel | `data/sources/notion_articles.yml` couvre une partie des notions, pas les 420. |
-| Sources conceptuelles/examen incompletes | Les sujets examen et contenus specifiques restent moins couverts que STEM. |
-| Exposants HTML | Certains `<sup>` deviennent espaces (`x 2`) au lieu de `x^2`. |
-| Divergence outils | Versions ruff/mypy/pytest/pydantic differentes entre services. |
+| Dette | Impact | Ref |
+|---|---|---|
+| `DETTE-16-ITEST-RETRIEVAL` | Pas de test d'integration `index_pgvector.py` contre pgvector Docker. | LOT 23 cible |
+| Mapping audience ambigu | Statuts hors cible derivent vers `aefe` par defaut. | — |
+| Notion articles partiel | `data/sources/notion_articles.yml` couvre une partie des notions, pas les 420. | — |
+| Sources examen incompletes | Sujets examen moins couverts que STEM. | — |
+| Divergence outils | Versions ruff/mypy differentes entre services. | — |
+| `api.py` moteur legacy (2215 lignes) | Monolithe Chroma/Ollama en sursis, a decommissionner post-LOT 25. | A-02, lot_0_dettes.md |
+| 10 erreurs d'import preexistantes | Tests legacy avec deps lourdes (chromadb, langchain, etc.), preexistantes commit `31020f8`. | lot_0_dettes.md |
+| Taxonomie incomplete | Options hors maths, ens. scientifique, EMC manquent dans taxonomy/. Enums du contrat prets. | O-03 |
+| `nsi_corpus` non revu en prod | 100 % des 4 716 chunks NSI ont `status: needs_review`, routables via API directe (pas via UI). | I-06 |
+| 3 rubriques UI prod cassees | Maths 1ère (fallback non-fonctionnel), Web3 (collection vide), Divers (collection vide). | L-02, A-L03 |
+| Migration corpus prod | 9 199 chunks admissibles (51 %), rights=0 %, re-embedding 768→1024 requis. | LOT 20, ADR-0013 |
+| `rag_francais_premiere` etiquetage | `niveau=Sixième` (suspect, source unique), niveau reel a verifier. | J-06 |
 
-### 18.2 Ecarts de documentation interne
+### 19.2 Ecarts de documentation interne
 
 Quelques documents internes sont historiques :
 
@@ -1205,15 +1315,15 @@ L'etat courant du code et des ADR recents est :
 - API runtime lecture seule autorisee ;
 - generation de reponse interdite.
 
-### 18.3 Point sensible : conventions de tenant
+### 19.3 Point sensible : conventions de tenant
 
 `AGENTS.md` conserve la convention `{population}_{niveau}` comme nomenclature. ADR-0003 et le code courant revisent ce choix vers un tenant par niveau et un filtre `audience`. Tant que cette divergence n'est pas clarifiee par un lot documentaire ou ADR de consolidation, un contributeur doit suivre l'etat du code et des ADR pour le moteur pilote, et signaler toute modification de nomenclature dans un rapport de lot.
 
-### 18.4 Point sensible : baseline de gouvernance
+### 19.4 Point sensible : baseline de gouvernance
 
 `scripts/governance-locks.baseline` est l'autorite testee par CI. Il contient 18 entrees verifiees par le script, dont plusieurs lignes `answer_without_source_allowed: false`. Ne pas "nettoyer" ces lignes sans lot dedie, car le garde-fou compare l'etat attendu ligne par ligne.
 
-## 19. Lecture rapide pour auditeur
+## 20. Lecture rapide pour auditeur
 
 Pour comprendre le projet en moins d'une heure :
 
