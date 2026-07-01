@@ -94,6 +94,19 @@ answer_generation_allowed: false
 
 Implémenté dans `services/rag-engine/scripts/retrieval_v2.py`. Testé : in-domain → résultats citables, hors-domaine → 0 résultat.
 
+## Tests et CI locale (FF-03)
+
+```
+tests/test_retrieval_v2_gate.py ........   [8 passed]
+tests/test_collection_config_v2.py ............   [12 passed]
+tests/test_rag_collections_config.py ............................   [28 passed]
+Total: 48 passed in 0.14s
+
+ruff check scripts/ src/ingestor/collection_config.py → All checks passed!
+```
+
+CI GitHub Actions (6/6 verte sur commit `d75fe1a`) : GitGuardian, cubic, governance locks guard, packages/contracts, services/rag-engine, services/rag-pedago.
+
 ## Garde-fous
 
 - `resolve_collection_v2` seul chemin
