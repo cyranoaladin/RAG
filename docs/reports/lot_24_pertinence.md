@@ -2,13 +2,13 @@
 
 **Branche** : `lot-24-pertinence`
 **Date** : 1er juillet 2026
-**Config finale** : dense (e5-large 1024) → rerank CrossEncoder (ms-marco-MiniLM-L-6-v2) → seuil +2.25.
+**Config finale** : dense (e5-large 1024) → rerank CrossEncoder (ms-marco-MiniLM-L-6-v2) → seuil +1.90 (recalé FF-02b).
 
 ---
 
 ## Constat principal
 
-Le retrieval vectoriel pur ne discriminait pas in-domain vs hors-domaine (écart 0.05). Le rerank CrossEncoder seul **transforme** la discrimination (écart 10.18). Un seuil à +2.25 rejette **100 % du hors-domaine** et conserve **100 % de l'in-domain**.
+Le retrieval vectoriel pur ne discriminait pas in-domain vs hors-domaine (écart 0.05). Le rerank CrossEncoder seul **transforme** la discrimination (écart 10.18). Le seuil, initialement +2.25 (marge 1.48), a été recalé à **+1.90** après suppression de la troncature 512 chars (FF-02b, marge réduite à 0.79). **15/15 in-domain conservé, 10/10 hors-domaine rejeté.**
 
 L'hybride BM25/RRF **dégrade** la pertinence sur corpus mono-matière (collision lexicale inter-domaine). Il est désactivé mais conservé pour un futur test multi-matières.
 
@@ -51,6 +51,10 @@ Après suppression de la troncature 512 caractères (FF-02), la distribution des
 **PROVISOIRE** : le seuil +1.90 est lié au chunking actuel. Après ré-ingestion LOT 25, le plancher in-domain devrait monter → seuil à réviser.
 
 **PRÉDICTION à valider au LOT 25** : les 4 questions faibles doivent passer de +2.3-4.9 à > +5 après ré-ingestion heading-aware. Critère de succès mesurable.
+
+### Marge réduite — seuil serré (GG-03)
+
+Le recalage FF-02b a réduit la marge de **1.48 à 0.79** (−50 %). Le seuil +1.90 tient sur le jeu de test actuel (15/15 in, 10/10 out), mais la marge est **serrée** : robustesse plus faible face à des requêtes hors jeu de test. Une requête in-domain inhabituelle pourrait tomber sous le seuil. Le gain de robustesse est attendu du LOT 25 : le chunker heading-aware devrait relever le plancher in-domain → marge élargie → seuil relevable. Le seuil +1.90 n'est **pas confortable** — il est correct mais fragile.
 
 ## L24-B — Hybride BM25/RRF : DÉGRADE
 

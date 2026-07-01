@@ -43,28 +43,51 @@ HYBRID_ENABLED = False
 
 
 class CollectionNotRetrievableError(ValueError):
-    """Raised when a collection is not retrievable (FF-01, M-04/I-06)."""
+    """Raised when a collection is not retrievable (GG-01, fail-closed)."""
 
 
-def _check_retrievable(collection: str, cfg: dict) -> None:
-    """Gate retrievable : refuse les collections non-retrievable AVANT toute query.
+def _check_retrievable(collection: str, cfg: dict) -> dict:
+    """Gate retrievable FAIL-CLOSED (GG-01, D-GATE-FAIL-CLOSED).
 
-    FF-01 : rag_nexus_quarantine (domain=quarantine, retrievable:false) doit être
-    rejetée explicitement, pas seulement filtrée par review_status.
+    Reads domain from the collection's DECLARED definition (not guessed by name).
+    Refuses if:
+    - domain not declared in collection definition → REFUSE
+    - cfg["domains"] absent or not a dict → REFUSE
+    - domain entry absent or not a dict → REFUSE
+    - retrievable not explicitly True → REFUSE (default = refuse)
     """
     defn = resolve_collection_v2(collection, cfg)
-    # Derive domain from collection name
-    if "quarantine" in collection:
-        domain = "quarantine"
-    else:
-        domain = "education"
-    domains = cfg.get("domains", {})
-    domain_cfg = domains.get(domain, {})
-    if domain_cfg.get("retrievable") is False:
+
+    # Read domain from DECLARED definition (D-DOMAINE-DECLARE-PAS-DEVINE)
+    domain = defn.get("domain")
+    if not isinstance(domain, str) or not domain:
+        raise CollectionNotRetrievableError(
+            f"Collection '{collection}' has no declared domain — cannot verify "
+            f"retrievable. Add 'domain: <name>' to the collection definition."
+        )
+
+    # Fail-closed: domains section must exist and be well-formed
+    domains = cfg.get("domains")
+    if not isinstance(domains, dict):
+        raise CollectionNotRetrievableError(
+            f"Config 'domains' section absent or malformed — fail-closed. "
+            f"Cannot verify retrievable for domain '{domain}'."
+        )
+
+    domain_cfg = domains.get(domain)
+    if not isinstance(domain_cfg, dict):
+        raise CollectionNotRetrievableError(
+            f"Domain '{domain}' not found in config domains — fail-closed. "
+            f"Collection '{collection}' cannot be served."
+        )
+
+    # ONLY serve if retrievable is EXPLICITLY True (default = refuse)
+    if domain_cfg.get("retrievable") is not True:
         raise CollectionNotRetrievableError(
             f"Collection '{collection}' is not retrievable (domain '{domain}', "
-            f"retrievable:false). Quarantine collections cannot be searched."
+            f"retrievable:{domain_cfg.get('retrievable')}). Refused."
         )
+
     return defn
 
 
