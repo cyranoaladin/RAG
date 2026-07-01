@@ -15,7 +15,9 @@ ENGINE_ROOT = SCRIPT_DIR.parent
 sys.path.insert(0, str(ENGINE_ROOT / "src"))
 sys.path.insert(0, str(ENGINE_ROOT.parent.parent / "packages" / "contracts" / "src"))
 
-PG_DSN = os.environ.get("PG_RAG_DSN", "postgresql://nexus_rag:lot22dev@localhost:5436/nexus_rag")
+PG_DSN = os.environ.get("PG_RAG_DSN")
+if not PG_DSN:
+    raise RuntimeError("PG_RAG_DSN environment variable required (no default — R-01)")
 
 
 def main() -> None:

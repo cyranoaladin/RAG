@@ -38,7 +38,9 @@ CORPUS_ROOT = Path(os.environ.get(
     "NSI_CORPUS_ROOT",
     os.path.expanduser("~/Documents/NSI/scrapping_NSI/ressources_nsi_centralisees")
 ))
-PG_DSN = os.environ.get("PG_RAG_DSN", "postgresql://nexus_rag:lot22dev@localhost:5436/nexus_rag")
+PG_DSN = os.environ.get("PG_RAG_DSN")
+if not PG_DSN:
+    raise RuntimeError("PG_RAG_DSN environment variable required (no default — R-01)")
 BUDGET_TOKENS = 480
 MODEL_NAME = "intfloat/multilingual-e5-large"
 BATCH_SIZE = 32
