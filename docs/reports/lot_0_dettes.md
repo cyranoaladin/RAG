@@ -92,7 +92,7 @@ Le LOT 22 utilise le tokenizer e5 réel (budget 480) en local. Le `pedagogical_c
 ### R5 — Seuil de similarité (score_threshold)
 **Date de constat** : 1er juillet 2026 (LOT 22, W-03). **RÉSOLU** le 1er juillet (LOT 24).
 **Statut** : RÉSOLU
-**Solution** : seuil rerank +2.25 (score CrossEncoder, pas similarité dense). Fondé sur la marge BB-03 (plancher in +2.99, plafond out +1.51). 15/15 in conservé, 10/10 out rejeté. Implémenté dans `retrieval_v2.py`. **Provisoire** : lié au chunking actuel, à réviser après LOT 25.
+**Solution** : seuil rerank **+1.90** (score CrossEncoder, recalé FF-02b après suppression troncature 512 chars). Marge : plancher in +2.30, plafond out +1.51. 15/15 in conservé, 10/10 out rejeté. Implémenté dans `retrieval_v2.py`. **Provisoire** : lié au chunking actuel, à réviser après LOT 25.
 
 ### R6 — Hybride BM25/RRF + rerank CrossEncoder
 **Date de constat** : 1er juillet 2026 (LOT 22, W-03). Mesuré le 1er juillet (LOT 24).
@@ -108,7 +108,7 @@ Le LOT 22 utilise le tokenizer e5 réel (budget 480) en local. Le `pedagogical_c
 
 ### R8 — Chunker heading-aware non implémenté → ré-ingestion LOT 25
 **Date de constat** : 1er juillet 2026 (LOT 22, W-04). Enrichi LOT 24 (DD-02).
-**Statut** : dette active. 187 chunks base64 quarantinés (AA-02).
+**Statut** : dette active. 187 chunks base64 quarantinés (lot 22b, quarantaine base64 du 1er juillet).
 **Impact** : le LOT 22 utilise un split par phrases/tokens, PAS le chunker heading-aware cible. Les chunks devront être ré-ingérés au LOT 25. DD-02 prouve que les scores in-domain bas (+2.99 à +3.81) sont causés par le chunking (passage adjacent remonté plutôt que la définition), pas par un manque de contenu.
 **Critère de succès LOT 25** (PRÉDICTION à valider) : les 4 questions faibles (clé étrangère, récursivité, jointure SQL, boucle while) doivent passer de +3 à > +5 après ré-ingestion heading-aware. Si non → investiguer.
 **Renvoi** : LOT 25 (unification chunker + filtrage base64 + validation DD-02).

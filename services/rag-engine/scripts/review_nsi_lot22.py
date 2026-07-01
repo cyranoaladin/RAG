@@ -27,10 +27,6 @@ import os
 import sys
 from datetime import datetime, timezone
 
-PG_DSN = os.environ.get("PG_RAG_DSN")
-if not PG_DSN:
-    raise RuntimeError("PG_RAG_DSN environment variable required")
-
 
 def main() -> None:
     import psycopg
@@ -42,7 +38,13 @@ def main() -> None:
     parser.add_argument("--consult-high", action="store_true", help="Consulter la priorité HAUTE")
     args = parser.parse_args()
 
-    conn = psycopg.connect(PG_DSN)
+    # FF-07: DSN validation after argparse (--help works without DSN)
+    pg_dsn = os.environ.get("PG_RAG_DSN")
+    if not pg_dsn:
+        print("Error: PG_RAG_DSN environment variable required", file=sys.stderr)
+        sys.exit(1)
+
+    conn = psycopg.connect(pg_dsn)
 
     if args.consult_high:
         with conn.cursor() as cur:
@@ -68,6 +70,9 @@ def main() -> None:
     # Build WHERE clause
     if args.source_labels:
         labels = [s.strip() for s in args.source_labels.split(",") if s.strip()]
+        if not labels:
+            print("Error: --source-labels list is empty after parsing", file=sys.stderr)
+            sys.exit(1)
         placeholders = ",".join(["%s"] * len(labels))
         where = f"source_label IN ({placeholders})"
         params = labels

@@ -30,16 +30,27 @@ L'hybride BM25/RRF **dégrade** la pertinence sur corpus mono-matière (collisio
 | Hors-domaine (10) | **-4.84** | -10.30 — +1.51 |
 | **Écart** | **10.18** | **Discrimination transformée** |
 
-## Seuil +2.25
+## Seuil +1.90 (recalé FF-02b)
 
-Fondé sur la marge BB-03 : plus bas in-domain (+2.99, jointure SQL) vs plus haut hors-domaine (+1.51, sélection naturelle). Milieu de marge = +2.25.
+Après suppression de la troncature 512 caractères (FF-02), la distribution des scores a bougé. Nouveau plancher in-domain : +2.30 (jointure SQL), plafond hors-domaine : +1.51 (sélection naturelle). Marge : 0.79. Seuil = milieu de marge = **+1.90**.
 
 - In-domain conservé : **15/15** (100 %)
 - Hors-domaine rejeté : **10/10** (100 %)
 
-**PROVISOIRE** : ce seuil est lié au chunking actuel (proxy phrases/tokens). Les 4 questions in-domain basses (+2.99 à +3.81) traînent à cause du découpage (DD-02), pas du contenu. Après ré-ingestion LOT 25 (chunker heading-aware), le plancher in-domain devrait monter → seuil à réviser (probablement relevable).
+### Impact de la suppression de la troncature (FF-02b)
 
-**PRÉDICTION à valider au LOT 25** : les 4 questions faibles (clé étrangère, récursivité, jointure SQL, boucle while) doivent passer de +3 à un score franc (> +5) après ré-ingestion. Critère de succès mesurable.
+| Question | Avant ([:512] chars) | Après (texte complet) | Δ |
+|---|---|---|---|
+| Boucle while | +3.25 | **+4.86** | **+1.61** (le texte complet aide) |
+| Clé étrangère | +6.22 | +5.43 | -0.79 (texte complet dilue) |
+| Jointure SQL | +2.99 | **+2.30** | -0.69 (nouveau plancher) |
+| Récursivité | +3.81 | +3.77 | -0.04 (stable) |
+
+**Verdict DD-02 corrigé** : la troncature à 512 chars n'était PAS la cause des scores bas — elle AIDAIT certaines questions (en isolant le début du chunk, souvent la partie pertinente) et NUISAIT à d'autres (en coupant du contenu utile). Les scores bas sont **confirmés comme dette technique R8** (chunking proxy), pas un bug de troncature.
+
+**PROVISOIRE** : le seuil +1.90 est lié au chunking actuel. Après ré-ingestion LOT 25, le plancher in-domain devrait monter → seuil à réviser.
+
+**PRÉDICTION à valider au LOT 25** : les 4 questions faibles doivent passer de +2.3-4.9 à > +5 après ré-ingestion heading-aware. Critère de succès mesurable.
 
 ## L24-B — Hybride BM25/RRF : DÉGRADE
 
@@ -71,13 +82,13 @@ Les 4 questions in-domain basses pointent des sujets **PRÉSENTS** dans le corpu
 ```
 dense: intfloat/multilingual-e5-large (1024 dim)
 rerank: cross-encoder/ms-marco-MiniLM-L-6-v2
-seuil: +2.25 (score rerank, provisoire lié au chunking)
+seuil: +1.90 (score rerank, recalé FF-02b, provisoire lié au chunking)
 hybride: DÉSACTIVÉ (DD-01, collision lexicale mono-matière)
 scoping: WHERE collection = ? (une collection par requête)
 answer_generation_allowed: false
 ```
 
-Implémenté dans `scripts/retrieval_v2.py`. Testé : in-domain → résultats citables, hors-domaine → 0 résultat.
+Implémenté dans `services/rag-engine/scripts/retrieval_v2.py`. Testé : in-domain → résultats citables, hors-domaine → 0 résultat.
 
 ## Garde-fous
 
