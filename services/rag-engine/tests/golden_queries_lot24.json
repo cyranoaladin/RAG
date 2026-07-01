@@ -1,0 +1,34 @@
+{
+  "_comment": "Jeu de test élargi pour LOT 24 — pertinence. Le lead dépose ses questions in-domain ci-dessous.",
+  "_baseline": "W-03 LOT 22: in-domain 0.87-0.89, hors-domaine 0.78-0.85 (retrieval vectoriel pur)",
+  "_objectif": "Après hybride+rerank, l'écart in/out doit se creuser nettement (out < 0.60-0.70)",
+
+  "in_domain_premiere": [
+    {"query": "Comment écrire un algorithme de tri par insertion en Python ?", "source": "lead", "expected_topic": "algorithmes de tri"},
+    {"query": "À COMPLÉTER PAR LE LEAD", "source": "lead", "expected_topic": ""},
+    {"query": "À COMPLÉTER PAR LE LEAD", "source": "lead", "expected_topic": ""},
+    {"query": "À COMPLÉTER PAR LE LEAD", "source": "lead", "expected_topic": ""},
+    {"query": "À COMPLÉTER PAR LE LEAD", "source": "lead", "expected_topic": ""}
+  ],
+
+  "in_domain_terminale": [
+    {"query": "Qu'est-ce qu'un arbre binaire de recherche et comment le parcourir ?", "source": "lead", "expected_topic": "arbres"},
+    {"query": "Comment fonctionne la programmation dynamique pour le problème du sac à dos ?", "source": "lead", "expected_topic": "programmation dynamique"},
+    {"query": "À COMPLÉTER PAR LE LEAD", "source": "lead", "expected_topic": ""},
+    {"query": "À COMPLÉTER PAR LE LEAD", "source": "lead", "expected_topic": ""},
+    {"query": "À COMPLÉTER PAR LE LEAD", "source": "lead", "expected_topic": ""}
+  ],
+
+  "hors_domaine": [
+    {"query": "Quelle est la capitale de la France ?", "source": "agent", "expected_topic": "géographie", "baseline_sim": 0.7794},
+    {"query": "Expliquer la photosynthèse", "source": "agent", "expected_topic": "SVT", "baseline_sim": 0.8503},
+    {"query": "Quel est le théorème de Pythagore ?", "source": "agent", "expected_topic": "maths", "baseline_sim": 0.8205},
+    {"query": "Comment faire une dissertation en philosophie ?", "source": "agent", "expected_topic": "philo", "baseline_sim": 0.8238},
+    {"query": "Quelles sont les causes de la Révolution française ?", "source": "agent", "expected_topic": "histoire"},
+    {"query": "Comment conjuguer le subjonctif présent ?", "source": "agent", "expected_topic": "français"},
+    {"query": "Quel est le principe de la sélection naturelle ?", "source": "agent", "expected_topic": "SVT"},
+    {"query": "Résoudre une équation du second degré", "source": "agent", "expected_topic": "maths"},
+    {"query": "Quels sont les enjeux de la mondialisation ?", "source": "agent", "expected_topic": "géopolitique"},
+    {"query": "Comment fonctionne un moteur thermique ?", "source": "agent", "expected_topic": "physique"}
+  ]
+}
