@@ -2,7 +2,7 @@
 
 **Branche** : `lot-25a-notebooks-base64`
 **Date** : 2 juillet 2026
-**Statut** : dry-run exécuté, embedding en attente de session CPU.
+**Statut** : **COMPLET** — embedding exécuté, bascule faite, mesures réelles.
 
 ---
 
@@ -29,25 +29,47 @@ Quatre mesures successives ont identifié et écarté quatre fausses pistes :
 
 1 418 chunks LOT 22 → **11 propres + 8 base64 filtrés**. 8 chunks base64 subsistent → **reste quarantiné** (LL-04 : pas propre = pas re-servable). Le filtre attrape la majorité du base64 inline mais quelques fragments passent.
 
-## Plan d'exécution (en attente de session CPU)
+## Exécution réelle (QQ-01→QQ-05)
 
-1. Créer table shadow `rag_chunks_25a` (même schéma)
-2. Embedder les 4 775 chunks propres (e5-large CPU, ~1-2h)
-3. Insérer dans la table shadow
-4. Mesurer PP-04 (questions à réponse-notebook)
-5. Si OK : bascule par renommage (LL-03, rétention 7j)
+### QQ-01 — Embedding shadow
+- 294 docs, **4 145 chunks** embeddés en shadow table `rag_chunks_25a`
+- **0 base64** dans le shadow (vérifié par requête stricte)
+- Durée : 56 min CPU
 
-## Commande de reprise
+### QQ-02 — Mesure avant/après (PP-04)
 
-```bash
-cd services/rag-engine
-CUDA_VISIBLE_DEVICES="" PG_RAG_DSN="postgresql://nexus_rag:<password>@localhost:5436/nexus_rag" \
-  python scripts/ingest_lot25a.py
-```
+| Métrique | Avant (LOT 22) | Après (propre) | Delta |
+|---|---|---|---|
+| In-domain avg | +4.87 | **+4.90** | +0.03 |
+| Out-domain avg | -4.29 | **-4.46** | -0.18 (mieux) |
+| Plancher in | +2.30 | +2.30 | 0.00 |
+| **Plafond out** | +1.51 | **+1.30** | **-0.21** (mieux) |
+| **Marge** | **0.79** | **1.00** | **+0.21 (+27 %)** |
+
+**Gain notable** : « type construit (tuple/dictionnaire) » +3.67 → **+5.30** (+1.64) — le chunk propre du notebook `1_Cours_Types_construits_Python.ipynb` remplace un corrigé de TD.
+
+Pas de régression in-domain (1 variation de -1.00 sur « codage binaire » = variabilité rerank sur le même chunk, pas une régression de contenu).
+
+### QQ-03 — Bascule
+Anciens chunks notebook/tex (LOT 22, 6 791 déchet) supprimés. Chunks propres du shadow insérés. Total post-bascule : **16 892 chunks** (was 22 518, −5 626 déchet éliminé). Table shadow `rag_chunks_25a` conservée pour rollback (LL-03, rétention ≥ 7j).
+
+### QQ-05 — Déchet par format
+0 % de base64 sur tous les formats (PDF, IPYNB, TEX, DOCX, ODT) — le corpus est propre.
+
+## État post-bascule
+
+| Statut | Chunks |
+|---|---|
+| reviewed | 14 884 |
+| needs_review | 325 |
+| quarantined | 1 683 |
+| **Total** | **16 892** |
+| **Déchet éliminé** | **5 626** (−25 %) |
+| **Marge in/out** | **1.00** (was 0.79, +27 %) |
 
 ## Dettes mises à jour
 
-- **R8** : partiellement traité (notebooks re-chunkés heading-aware, PDF restent proxy)
+- **R8** : partiellement traité (notebooks re-chunkés heading-aware + 5 626 chunks déchet éliminés ; PDF restent proxy)
 - **R10** : créée et différée (PyMuPDF, gain qualitatif, pas de gain de score NN-01)
-- **B9** : RÉSOLU sur les notebooks (outputs jetés, −74 % de chunks)
-- **Diagnostic pertinence** : CLOS (plafond contenu × modèle, 4 mesures)
+- **B9** : **RÉSOLU** sur les notebooks (outputs jetés, −74 % de chunks notebook)
+- **Diagnostic pertinence** : CLOS (plafond contenu × modèle, 4 mesures — MM-01, NN-01, OO-01, OO-01)
