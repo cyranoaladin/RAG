@@ -186,9 +186,14 @@ def search_v2(payload: SearchV2Request, request: Request) -> SearchV2Response:
     # Auth: same Bearer token as legacy endpoints
     _enforce_security_v2(request)
 
-    # Gate: resolve + retrievable check
+    # Gate: resolve + retrievable check (fail-closed)
     cfg = load_collection_config()
-    _check_retrievable(payload.collection, cfg)
+    try:
+        _check_retrievable(payload.collection, cfg)
+    except HTTPException:
+        raise
+    except CollectionConfigError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
 
     # Get DSN (R-01: no default)
     pg_dsn = _get_pg_dsn()
