@@ -88,19 +88,15 @@ La bascule a été exécutée par DELETE/INSERT (pas le renommage atomique prév
 - **B9** : **re-statué** — les outputs .ipynb étaient DÉJÀ jetés au LOT 22 (`ingest_nsi_lot22.py` ne collectait que `cell.source`). B9 n'était pas ouvert au sens strict. La réduction de chunks vient du **regroupement par sections** (heading-aware vs sentence-split), pas du filtrage des outputs.
 - **Diagnostic pertinence** : CLOS (plafond contenu × modèle, 4 mesures — MM-01, NN-01, OO-01 L-12, OO-02 BGE)
 
-## UU-02 — Rétention table shadow
+## UU-02 — Rollback : INDISPONIBLE (VV-02)
 
-Table `rag_chunks_25a` conservée pour rollback. **Date de suppression prévue : 9 juillet 2026** (bascule + 7 jours).
+**La bascule LOT 25a est irréversible.** Les anciens chunks notebook/tex LOT 22 ont été supprimés par `DELETE FROM rag_chunks WHERE source_label LIKE '%.ipynb' OR '%.tex'` sans sauvegarde préalable. La table shadow `rag_chunks_25a` contient les chunks LOT **25a** (4 145), pas les anciens LOT 22.
 
-Commande de rollback (si nécessaire avant le 9/07) :
-```sql
--- Restaurer les notebooks LOT 22
-DELETE FROM rag_chunks WHERE source_label LIKE '%.ipynb' OR source_label LIKE '%.tex';
--- Réinsérer depuis la sauvegarde LOT 22 (nécessite une copie archivée)
--- Note : la table shadow contient les chunks LOT 25a, pas LOT 22
-```
+**Retour arrière** : la seule voie de retour serait une ré-ingestion depuis le corpus source avec le chunker LOT 22 (`chunk_text()` de `ingest_nsi_lot22.py`). Ce n'est pas un rollback instantané.
 
-Commande de suppression (après le 9/07) :
+**Leçon** : la bascule DELETE/INSERT sur table mixte (PDF + notebooks) sans archiver les anciens rend le rollback impossible. La prochaine bascule doit être un renommage atomique sur table dédiée par format, conservant l'ancienne table intacte.
+
+Table `rag_chunks_25a` à supprimer après le 9 juillet 2026 (plus de valeur de rollback) :
 ```sql
 DROP TABLE IF EXISTS rag_chunks_25a;
 ```
@@ -114,8 +110,20 @@ DROP TABLE IF EXISTS rag_chunks_25a;
 | **Corpus total** | **16 892 chunks** |
 | Reviewed | 14 884 |
 | Needs_review | 325 (36 mini-projets) |
-| Quarantined | 1 683 (ProjetPopArt + DMX + base64) |
-| **Servable** | **15 209** |
+| **Servable** | **15 209** (= 14 884 + 325) |
+| Quarantined | **1 683** (décomposition VV-01 ci-dessous) |
+
+### Composition de la quarantaine (VV-01, certifiée par requête)
+
+| Motif | Chunks | Docs |
+|---|---|---|
+| ProjetPopArt (base64 images inline) | 1 418 | 1 |
+| Notebooks base64 résiduels | 129 | 38 |
+| DMX (manuels matériel hors NSI) | 78 | 5 |
+| PDFs artefacts encodage | 58 | 16 |
+| **Total quarantaine** | **1 683** | **60** |
+
+Vérification : 15 209 + 1 683 = **16 892** ✓
 | **Marge in/out** | **1.00** |
 | **Seuil rerank** | **+1.90** (provisoire, lié au chunking) |
 | In-domain conservé | 15/15 (100 %) |
