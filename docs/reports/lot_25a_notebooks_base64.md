@@ -50,10 +50,22 @@ Quatre mesures successives ont identifié et écarté quatre fausses pistes :
 
 Pas de régression in-domain (1 variation de -1.00 sur « codage binaire » = variabilité rerank sur le même chunk, pas une régression de contenu).
 
-### QQ-03 — Bascule
-Anciens chunks notebook/tex LOT 22 (6 791, fragmentation excessive par sentence-split) remplacés par les chunks heading-aware (4 145, sections cohérentes) + 1 165 chunks de docs .tex non présents au LOT 22 ajoutés. Total post-bascule : **16 892 chunks** (was 22 518). Table shadow `rag_chunks_25a` conservée pour rollback (LL-03, rétention ≥ 7j).
+### QQ-03 — Bascule (TT-01 réconcilié)
 
-**Note** : la bascule a été exécutée par DELETE/INSERT (pas le renommage atomique prévu en LL-03) à cause de la coexistence des PDF LOT 22 dans la même table. L'état final est certifié propre (RR-02).
+Décomposition exacte (vérifiée par requête SQL, somme = −5 626) :
+
+| Composant | Chunks |
+|---|---|
+| LOT 22 total | 22 518 |
+| Non-notebook (PDF/DOCX/ODT) — **inchangés** | 11 248 |
+| LOT 22 notebook/tex (sentence-split) | 11 270 |
+| LOT 25a notebook/tex (heading-aware + filtre base64) | 5 644 |
+| **Réduction notebook** | **−5 626** (= 11 270 − 5 644) |
+| **LOT 25a total** | **16 892** (= 11 248 + 5 644) ✓ |
+
+La bascule a été exécutée par DELETE/INSERT (pas le renommage atomique prévu en LL-03) à cause de la coexistence des PDF LOT 22 dans la même table. L'état final est certifié propre (SS-01 : 0 NULL F-01, SS-02 : PDF intact, RR-02 : totaux cohérents).
+
+**Leçon** : prochaine bascule blue/green = table dédiée par format + renommage atomique, pas DELETE/INSERT sur table mixte.
 
 ### QQ-05 — Déchet par format
 0 % de base64 sur tous les formats (PDF, IPYNB, TEX, DOCX, ODT) — le corpus est propre.
@@ -66,7 +78,7 @@ Anciens chunks notebook/tex LOT 22 (6 791, fragmentation excessive par sentence-
 | needs_review | 325 |
 | quarantined | 1 683 |
 | **Total** | **16 892** |
-| **Réduction** | **5 626** (−25 %) = heading-aware regroupe les sections + 394 base64 filtrés |
+| **Réduction** | **−5 626** (−25 %) = 11 270 notebook/tex LOT 22 → 5 644 heading-aware (TT-01) |
 | **Marge in/out** | **1.00** (was 0.79, +27 %) |
 
 ## Dettes mises à jour
