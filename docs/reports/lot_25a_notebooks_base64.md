@@ -90,7 +90,7 @@ La bascule a été exécutée par DELETE/INSERT (pas le renommage atomique prév
 
 ## UU-02 — Rollback : INDISPONIBLE (VV-02)
 
-**La bascule LOT 25a est irréversible.** Les anciens chunks notebook/tex LOT 22 ont été supprimés par `DELETE FROM rag_chunks WHERE source_label LIKE '%.ipynb' OR '%.tex'` sans sauvegarde préalable. La table shadow `rag_chunks_25a` contient les chunks LOT **25a** (4 145), pas les anciens LOT 22.
+**La bascule LOT 25a est irréversible.** Les anciens chunks notebook/tex LOT 22 ont été supprimés (suppression ciblée par extension .ipynb/.tex) sans sauvegarde préalable. La table shadow `rag_chunks_25a` contient les chunks LOT **25a** (4 145), pas les anciens LOT 22.
 
 **Retour arrière** : la seule voie de retour serait une ré-ingestion depuis le corpus source avec le chunker LOT 22 (`chunk_text()` de `ingest_nsi_lot22.py`). Ce n'est pas un rollback instantané.
 
