@@ -51,7 +51,9 @@ Quatre mesures successives ont identifié et écarté quatre fausses pistes :
 Pas de régression in-domain (1 variation de -1.00 sur « codage binaire » = variabilité rerank sur le même chunk, pas une régression de contenu).
 
 ### QQ-03 — Bascule
-Anciens chunks notebook/tex (LOT 22, 6 791 déchet) supprimés. Chunks propres du shadow insérés. Total post-bascule : **16 892 chunks** (was 22 518, −5 626 déchet éliminé). Table shadow `rag_chunks_25a` conservée pour rollback (LL-03, rétention ≥ 7j).
+Anciens chunks notebook/tex LOT 22 (6 791, fragmentation excessive par sentence-split) remplacés par les chunks heading-aware (4 145, sections cohérentes) + 1 165 chunks de docs .tex non présents au LOT 22 ajoutés. Total post-bascule : **16 892 chunks** (was 22 518). Table shadow `rag_chunks_25a` conservée pour rollback (LL-03, rétention ≥ 7j).
+
+**Note** : la bascule a été exécutée par DELETE/INSERT (pas le renommage atomique prévu en LL-03) à cause de la coexistence des PDF LOT 22 dans la même table. L'état final est certifié propre (RR-02).
 
 ### QQ-05 — Déchet par format
 0 % de base64 sur tous les formats (PDF, IPYNB, TEX, DOCX, ODT) — le corpus est propre.
@@ -64,12 +66,29 @@ Anciens chunks notebook/tex (LOT 22, 6 791 déchet) supprimés. Chunks propres d
 | needs_review | 325 |
 | quarantined | 1 683 |
 | **Total** | **16 892** |
-| **Déchet éliminé** | **5 626** (−25 %) |
+| **Réduction** | **5 626** (−25 %) = heading-aware regroupe les sections + 394 base64 filtrés |
 | **Marge in/out** | **1.00** (was 0.79, +27 %) |
 
 ## Dettes mises à jour
 
-- **R8** : partiellement traité (notebooks re-chunkés heading-aware + 5 626 chunks déchet éliminés ; PDF restent proxy)
+- **R8** : partiellement traité (notebooks re-chunkés heading-aware, sections cohérentes au lieu de fragmentation par phrase ; PDF restent proxy)
 - **R10** : créée et différée (PyMuPDF, gain qualitatif, pas de gain de score NN-01)
-- **B9** : **RÉSOLU** sur les notebooks (outputs jetés, −74 % de chunks notebook)
-- **Diagnostic pertinence** : CLOS (plafond contenu × modèle, 4 mesures — MM-01, NN-01, OO-01, OO-01)
+- **B9** : **re-statué** — les outputs .ipynb étaient DÉJÀ jetés au LOT 22 (`ingest_nsi_lot22.py` ne collectait que `cell.source`). B9 n'était pas ouvert au sens strict. La réduction de chunks vient du **regroupement par sections** (heading-aware vs sentence-split), pas du filtrage des outputs.
+- **Diagnostic pertinence** : CLOS (plafond contenu × modèle, 4 mesures — MM-01, NN-01, OO-01 L-12, OO-01 BGE)
+
+### RR-01 — Vraie cause de la réduction (corrigée)
+
+La réduction de 22 518 → 16 892 (−5 626) n'est PAS le filtrage des outputs B9 (déjà fait au LOT 22). C'est le **passage du sentence-split au heading-aware** :
+- Le LOT 22 (`chunk_text()`) coupait par phrases/regex, produisant beaucoup de petits chunks fragmentés
+- Le LOT 25a (`parse_sections + _flatten_section`) regroupe par sections H1/H2/H3, produisant moins de chunks mais thématiquement cohérents
+- Le filtre base64 a éliminé 394 chunks artefacts supplémentaires
+
+Vérifié sur 3 notebooks : le heading-aware produit un nombre comparable de chunks (ratio 0.6-1.0×). La réduction globale vient de la consolidation des fragments.
+
+### RR-02 — Base certifiée propre
+
+- 0 doublon source_label (295 notebooks/tex uniques)
+- 10 848 chunks PDF intacts (inchangés depuis LOT 22)
+- 0 base64 dans le servable
+- Totaux cohérents : 14 884 reviewed + 325 needs_review + 1 683 quarantined = 16 892
+- Collections : Première 7 805, Terminale 7 404, Quarantaine 1 683
