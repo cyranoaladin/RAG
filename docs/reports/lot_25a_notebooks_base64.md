@@ -86,7 +86,78 @@ La bascule a été exécutée par DELETE/INSERT (pas le renommage atomique prév
 - **R8** : partiellement traité (notebooks re-chunkés heading-aware, sections cohérentes au lieu de fragmentation par phrase ; PDF restent proxy)
 - **R10** : créée et différée (PyMuPDF, gain qualitatif, pas de gain de score NN-01)
 - **B9** : **re-statué** — les outputs .ipynb étaient DÉJÀ jetés au LOT 22 (`ingest_nsi_lot22.py` ne collectait que `cell.source`). B9 n'était pas ouvert au sens strict. La réduction de chunks vient du **regroupement par sections** (heading-aware vs sentence-split), pas du filtrage des outputs.
-- **Diagnostic pertinence** : CLOS (plafond contenu × modèle, 4 mesures — MM-01, NN-01, OO-01 L-12, OO-01 BGE)
+- **Diagnostic pertinence** : CLOS (plafond contenu × modèle, 4 mesures — MM-01, NN-01, OO-01 L-12, OO-02 BGE)
+
+## UU-02 — Rétention table shadow
+
+Table `rag_chunks_25a` conservée pour rollback. **Date de suppression prévue : 9 juillet 2026** (bascule + 7 jours).
+
+Commande de rollback (si nécessaire avant le 9/07) :
+```sql
+-- Restaurer les notebooks LOT 22
+DELETE FROM rag_chunks WHERE source_label LIKE '%.ipynb' OR source_label LIKE '%.tex';
+-- Réinsérer depuis la sauvegarde LOT 22 (nécessite une copie archivée)
+-- Note : la table shadow contient les chunks LOT 25a, pas LOT 22
+```
+
+Commande de suppression (après le 9/07) :
+```sql
+DROP TABLE IF EXISTS rag_chunks_25a;
+```
+
+## État final du RAG NSI (UU-03)
+
+### Référence pour les lots futurs
+
+| Métrique | Valeur |
+|---|---|
+| **Corpus total** | **16 892 chunks** |
+| Reviewed | 14 884 |
+| Needs_review | 325 (36 mini-projets) |
+| Quarantined | 1 683 (ProjetPopArt + DMX + base64) |
+| **Servable** | **15 209** |
+| **Marge in/out** | **1.00** |
+| **Seuil rerank** | **+1.90** (provisoire, lié au chunking) |
+| In-domain conservé | 15/15 (100 %) |
+| Hors-domaine rejeté | 10/10 (100 %) |
+| Base64 servable | **0** |
+| F-01 (citabilité) | **satisfait** (0 NULL sur rights/source_label/doc_id) |
+
+### Config de retrieval
+
+```
+dense: intfloat/multilingual-e5-large (1024 dim)
+rerank: cross-encoder/ms-marco-MiniLM-L-6-v2
+seuil: +1.90 (score rerank, provisoire)
+hybride BM25/RRF: DÉSACTIVÉ (DD-01, collision lexicale mono-matière)
+gate retrievable: fail-closed, domaine déclaré (GG-01, 8 tests)
+scoping: WHERE collection = ? (une collection par requête)
+answer_generation_allowed: false
+```
+
+### Diagnostic pertinence — CLOS
+
+Les scores in-domain faibles (+2.30 à +5.59) sont le plafond réel du contenu croisé avec un cross-encoder léger (MiniLM-L-6). Prouvé par 4 mesures indépendantes : compteur tokens (MM-01, Δ=0.00), extracteur PDF (NN-01, Δ=+0.09), reranker L-12 (OO-01, marge stable), reranker BGE multilingue (OO-02, marge -0.49). Pas de défaut technique récupérable.
+
+### Dettes ouvertes (non urgentes)
+
+| Dette | Nature | Priorité |
+|---|---|---|
+| R10 — extraction PDF structurée (PyMuPDF) | Qualitative (meilleurs breadcrumbs) | Basse (NN-01 : pas de gain de score) |
+| R4 — notions[] vide | Fonctionnelle (routage thématique) | Moyenne |
+| Multi-matières + hybride | Fonctionnelle (DD-01 : hybride utile en multi-matières) | Dépend du besoin lead |
+| Reranker plus capable | Pertinence (plafond actuel) | Basse (cross-encoder FR dédié, non trivial) |
+
+### Lots livrés (LOT 20 → LOT 25a)
+
+| Lot | Livrable | PR |
+|---|---|---|
+| LOT 20 | Inventaire production rag-ui | #36 |
+| LOT 21 | Infrastructure convergence (ADR-0013, pgvector dédié) | #37 |
+| LOT 22a | Séparation legacy/v2 étanche | #38 |
+| LOT 22 | Ingestion NSI 22 518 chunks, F-01 satisfait | #39 |
+| LOT 24 | Pertinence : rerank + seuil +1.90, marge 0.79 | #40 |
+| LOT 25a | Notebooks heading-aware, −5 626 déchet, marge 1.00 | #41 |
 
 ### RR-01 — Vraie cause de la réduction (corrigée)
 
