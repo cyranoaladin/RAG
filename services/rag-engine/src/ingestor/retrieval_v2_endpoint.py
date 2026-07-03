@@ -45,8 +45,12 @@ _cache_misses = 0
 
 
 def _cache_key(query: str, collection: str, k: int) -> str:
-    """Normalized cache key. Lowercased, stripped query for near-duplicate hits."""
-    normalized = query.strip().lower()
+    """Normalized cache key. Lowercased, stripped, unicode-normalized."""
+    import unicodedata
+    normalized = unicodedata.normalize("NFKC", query).strip().lower()
+    # Collapse curly quotes/apostrophes to ASCII equivalents
+    normalized = normalized.replace("\u2019", "'").replace("\u2018", "'")
+    normalized = normalized.replace("\u201c", '"').replace("\u201d", '"')
     raw = f"{normalized}|{collection}|{k}"
     return hashlib.sha256(raw.encode()).hexdigest()
 
@@ -84,9 +88,9 @@ RERANK_SCORE_THRESHOLD = float(os.environ.get("RERANK_SCORE_THRESHOLD", "1.90"))
 RERANK_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 # Embedding: e5-large 1024 dim
 EMBED_MODEL = "intfloat/multilingual-e5-large"
-# Pool rerank: 20 candidats (LAT-01: top-10 perd 1 in-domain, top-20 = 15/15 in, 10/10 out)
-# Latence médiane 1.08s mono (84% rerank CPU, 14% embed, 1% dense HNSW)
-RERANK_CANDIDATES = 20
+# Pool rerank: 10 candidats (V1-5: 15/15 in, 10/10 out, marge +5.69 vs +4.07 à RC=20)
+# Latence miss: 0.43s rerank (vs 0.84s à RC=20) — divise le coût miss par 2
+RERANK_CANDIDATES = int(os.environ.get("RERANK_CANDIDATES", "10"))
 
 # --- Lazy-loaded models (cached at module level) ---
 _embed_model = None
@@ -213,6 +217,109 @@ def cache_invalidate(request: Request) -> dict[str, Any]:
     _enforce_security_v2(request)
     n = invalidate_cache()
     return {"invalidated": n}
+
+
+@router.post("/cache/v2/warmup")
+def cache_warmup(request: Request) -> dict[str, Any]:
+    """Pre-warm cache with common pedagogical queries (SCALE-V1-6).
+
+    Runs retrieval+rerank for a set of probable queries and caches results.
+    Call at startup or after invalidation to eliminate cold-start misses.
+    """
+    _enforce_security_v2(request)
+
+    cfg = load_collection_config()
+    collections = list_instanciated_collections(cfg)
+    # Only warm retrievable collections
+    domains = cfg.get("domains", {})
+    retrievable_cols = []
+    for name in collections:
+        try:
+            defn = resolve_collection_v2(name, cfg)
+        except Exception:
+            continue
+        domain = defn.get("domain")
+        if isinstance(domain, str) and isinstance(domains.get(domain), dict):
+            if domains[domain].get("retrievable") is True:
+                retrievable_cols.append(name)
+
+    # Common pedagogical queries derived from NSI programme
+    warmup_queries = [
+        "Comment fonctionne une boucle while en Python ?",
+        "Quelle est la différence entre une pile et une file ?",
+        "Qu'est-ce qu'un arbre binaire de recherche ?",
+        "Comment fonctionne la récursivité ?",
+        "Comment trier une liste en Python ?",
+        "Qu'est-ce qu'un dictionnaire en Python ?",
+        "Comment fonctionne une requête SQL avec jointure ?",
+        "Qu'est-ce qu'une clé étrangère ?",
+        "Comment parcourir un graphe en profondeur ?",
+        "Comment fonctionne la programmation dynamique ?",
+        "Qu'est-ce qu'un processus en système d'exploitation ?",
+        "Expliquer le tri par insertion",
+        "Comment représenter un entier en binaire ?",
+        "À quoi sert le protocole HTTP ?",
+        "Qu'est-ce qu'un type construit en Python ?",
+        "Comment fonctionne une boucle for en Python ?",
+        "Qu'est-ce qu'une variable locale et globale ?",
+        "Comment fonctionne le protocole TCP/IP ?",
+        "Qu'est-ce qu'un algorithme glouton ?",
+        "Comment fonctionne la recherche dichotomique ?",
+    ]
+
+    warmed = 0
+    for col in retrievable_cols:
+        for q in warmup_queries:
+            key = _cache_key(q, col, 5)
+            if _cache_get(key) is not None:
+                continue  # Already cached
+            # Full pipeline: embed → dense → rerank → cache
+            from nexus_contracts.embedding_utils import format_query
+            embed_model = _get_embed_model()
+            q_vec = embed_model.encode(format_query(q), normalize_embeddings=True)
+            vec_str = "[" + ",".join(str(float(v)) for v in q_vec) + "]"
+            pg_dsn = _get_pg_dsn()
+            try:
+                conn = psycopg.connect(pg_dsn)
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT chunk_id, doc_id, source_label, source_uri, rights, type_doc,
+                               text, 1 - (vector <=> %s::vector) AS sim, review_status
+                        FROM rag_chunks
+                        WHERE collection = %s AND review_status IN ('reviewed', 'needs_review')
+                        ORDER BY vector <=> %s::vector LIMIT %s
+                    """, (vec_str, col, vec_str, RERANK_CANDIDATES))
+                    candidates = cur.fetchall()
+                conn.close()
+            except Exception:
+                continue
+            if not candidates:
+                continue
+            reranker = _get_reranker()
+            pairs = [(q, c[6] or "") for c in candidates]
+            rerank_scores = reranker.predict(pairs)
+            hits_data = []
+            for candidate, score in sorted(
+                zip(candidates, rerank_scores, strict=False), key=lambda x: x[1], reverse=True
+            ):
+                if float(score) < RERANK_SCORE_THRESHOLD:
+                    continue
+                hits_data.append(SearchV2Hit(
+                    chunk_id=candidate[0], doc_id=candidate[1],
+                    source_label=candidate[2] or "", source_uri=candidate[3] or "",
+                    rights=candidate[4] or "", type_doc=candidate[5] or "",
+                    review_status=candidate[8] or "",
+                    preview=(candidate[6] or "")[:200],
+                    rerank_score=round(float(score), 4),
+                    dense_sim=round(float(candidate[7]), 4),
+                ).model_dump())
+                if len(hits_data) >= 5:
+                    break
+            if hits_data:
+                _cache_put(key, hits_data)
+                warmed += 1
+
+    return {"warmed": warmed, "collections": len(retrievable_cols), "queries": len(warmup_queries)}
 
 
 # --- Endpoint to list retrievable collections (for UI picker) ---
