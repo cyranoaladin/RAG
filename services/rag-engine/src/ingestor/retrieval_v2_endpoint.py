@@ -63,6 +63,7 @@ def _get_reranker():
     return _reranker
 
 
+
 def _get_pg_dsn() -> str:
     """Return pgvector DSN from environment. No default (R-01)."""
     dsn = os.environ.get("PG_RAG_DSN") or os.environ.get("DATABASE_URL_SYNC")
@@ -127,6 +128,7 @@ class SearchV2Hit(BaseModel):
     source_uri: str
     rights: str
     type_doc: str
+    review_status: str  # SCALE-04: reviewed | needs_review (quarantined never served)
     preview: str
     rerank_score: float
     dense_sim: float
@@ -221,7 +223,7 @@ def search_v2(payload: SearchV2Request, request: Request) -> SearchV2Response:
         with conn.cursor() as cur:
             cur.execute("""
                 SELECT chunk_id, doc_id, source_label, source_uri, rights, type_doc,
-                       text, 1 - (vector <=> %s::vector) AS sim
+                       text, 1 - (vector <=> %s::vector) AS sim, review_status
                 FROM rag_chunks
                 WHERE collection = %s AND review_status IN ('reviewed', 'needs_review')
                 ORDER BY vector <=> %s::vector
@@ -242,8 +244,8 @@ def search_v2(payload: SearchV2Request, request: Request) -> SearchV2Response:
 
     # Rerank with CrossEncoder
     # FF-02: pass FULL chunk text — let the model's max_length=512 TOKENS handle truncation.
-    reranker = _get_reranker()
     pairs = [(payload.q, c[6] or "") for c in candidates]
+    reranker = _get_reranker()
     rerank_scores = reranker.predict(pairs)
 
     # Filter by seuil + sort
@@ -260,6 +262,7 @@ def search_v2(payload: SearchV2Request, request: Request) -> SearchV2Response:
             source_uri=candidate[3] or "",
             rights=candidate[4] or "",
             type_doc=candidate[5] or "",
+            review_status=candidate[8] or "",
             preview=(candidate[6] or "")[:200],
             rerank_score=round(float(score), 4),
             dense_sim=round(float(candidate[7]), 4),

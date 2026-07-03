@@ -137,3 +137,20 @@ class TestResponseFormat:
             query="test", collection="test", seuil=1.90, returned=0, hits=[]
         )
         assert resp.answer_generation_allowed is False
+
+    def test_hit_exposes_review_status(self) -> None:
+        """SCALE-04: review_status in each hit for agent layer."""
+        from ingestor.retrieval_v2_endpoint import SearchV2Hit
+        hit = SearchV2Hit(
+            chunk_id="c1", doc_id="d1", source_label="s.pdf", source_uri="u",
+            rights="usage_interne", type_doc="cours", review_status="reviewed",
+            preview="text", rerank_score=5.0, dense_sim=0.85,
+        )
+        assert hit.review_status == "reviewed"
+
+        hit_nr = SearchV2Hit(
+            chunk_id="c2", doc_id="d2", source_label="s2.pdf", source_uri="u2",
+            rights="usage_interne", type_doc="cours", review_status="needs_review",
+            preview="text", rerank_score=3.0, dense_sim=0.80,
+        )
+        assert hit_nr.review_status == "needs_review"
