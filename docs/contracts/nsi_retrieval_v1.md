@@ -40,7 +40,7 @@ seul ce contrat définit la surface partagée.
 |-------|------|-------------|-------------|-------|
 | `query` | `str` | oui | `len >= 1` | Texte brut, sans préfixe e5 (cf. §5). |
 | `corpus` | `str` | oui | `"nsi"` | Nom logique, résolu côté service (cf. §4). |
-| `top_k` | `int` | non | `1..20`, défaut `8` | Appliqué APRÈS rerank (cf. pipeline ci-dessous). |
+| `top_k` | `int` | non | `1..20`, défaut `8` | Nombre de résultats finaux demandés. Appliqué APRÈS rerank (cf. pipeline ci-dessous). |
 | `filters` | `object` | non | — | Optionnel. |
 | `filters.doc_type` | `str[]` | non | Sous-ensemble de l'enum §3 `document_type` | Filtre inclusif sur type de document. |
 | `filters.level` | `str` | non | `"premiere"` ou `"terminale"` | Filtre par niveau. |
@@ -52,7 +52,7 @@ seul ce contrat définit la surface partagée.
   "hits": [
     {
       "text": "L'analyse d'un programme récursif consiste à identifier le cas de base…",
-      "score": 0.87,
+      "score": 4.23,
       "metadata": {
         "collection": "nsi_corpus_pgv1",
         "source_type": "nsi_corpus",
@@ -80,24 +80,65 @@ seul ce contrat définit la surface partagée.
 |---------------|------|-------|
 | `hits` | `object[]` | Triés par `score` décroissant post-rerank. |
 | `hits[].text` | `str` | Texte complet du chunk (pas un aperçu tronqué). |
-| `hits[].score` | `float` | Score rerank. Échelle : scores bruts CrossEncoder ; valeurs typiques dans `[−5, +12]`, seuil actuel `+1.90`. Un score plus élevé = plus pertinent. |
+| `hits[].score` | `float` | Score de pertinence. Garanties contractuelles : (a) tri décroissant — le premier hit est le plus pertinent ; (b) monotonie — un score plus élevé signifie toujours plus pertinent ; (c) type `float`. L'échelle absolue, le modèle de rerank et le seuil interne sont **non contractuels** (cf. encadré ci-dessous). |
 | `hits[].metadata` | `object` | Tous les champs §3, aucun omis. |
 | `corpus` | `str` | Écho du corpus demandé. |
 | `model` | `str` | Identifiant du modèle d'embedding (`"e5-large"`). |
 | `dim` | `int` | Dimension vecteur (`1024`). |
 
-### Pipeline de traitement
+### Pipeline de traitement (normatif)
 
 ```
 texte brut reçu
   → préfixe "query: " appliqué côté service (§5)
-  → dense retrieval pgvector (top RERANK_CANDIDATES, actuellement 10)
-  → filtres metadata (doc_type, level) appliqués sur les candidats
-  → rerank CrossEncoder ms-marco-MiniLM-L-6-v2
-  → seuil rerank >= +1.90
+  → dense retrieval pgvector avec pré-filtrage structurel :
+      WHERE collection = %s
+        AND (niveau = %s)          -- si filters.level fourni
+        AND (type_doc IN (%s,...))  -- si filters.doc_type fourni
+      ORDER BY vector <=> query LIMIT pool_size
+  → rerank CrossEncoder
+  → seuil interne (non contractuel)
   → tri décroissant par score rerank
   → top_k premiers résultats retournés
 ```
+
+**Contrainte contractuelle** : le pool de candidats dense (`pool_size`) DOIT
+être ≥ `top_k` demandé dans la requête, même après application des filtres
+SQL. Recommandation d'implémentation : `pool_size >= 3× top_k` pour absorber
+le filtrage par seuil de rerank ; la valeur exacte est non contractuelle et
+sera calibrée en LOT R2.
+
+**Pré-filtrage structurel** : les filtres `doc_type` et `level` sont poussés
+dans le `WHERE` SQL du dense retrieval (comme le filtre `collection` déjà
+présent dans `retrieval_v2_endpoint.py:434`), PAS appliqués en post-traitement.
+Justification : un post-filtrage sur N candidats denses vide silencieusement
+les réponses quand le type filtré n'est pas dans le top dense — or
+`doc_type_filter` est le chemin réel de `judge_role()`
+(`substance_judge.py:305`). Les colonnes `type_doc` et `niveau` existent dans
+le schéma `rag_chunks` (`schema_rag_chunks.sql` lignes 30, 18) et sont
+indexées (lignes 55-56), ce qui rend le pré-filtrage SQL possible sans
+modification de schéma.
+
+> **Internals (non contractuels, sujets à calibration)**
+>
+> Les éléments suivants sont des détails d'implémentation du fournisseur.
+> Le consommateur ne DOIT coder AUCUNE logique sur ces valeurs :
+>
+> - Échelle absolue des scores (actuellement scores bruts CrossEncoder,
+>   valeurs typiques `[−5, +12]`)
+> - Seuil interne de rerank (actuellement `+1.90`, LOT 24 FF-02b)
+> - Taille du pool de candidats (actuellement `RERANK_CANDIDATES=10`)
+> - Modèle de rerank (actuellement `cross-encoder/ms-marco-MiniLM-L-6-v2`)
+>
+> Un changement de ces valeurs = note de version (§10), PAS un bump v2,
+> tant que les garanties (a)/(b)/(c) sur `score` sont préservées.
+
+### Réponse vide
+
+Quand aucun hit ne passe le seuil interne ou que le corpus est vide pour les
+filtres demandés : HTTP 200, `{"hits": [], ...}`. Jamais une erreur HTTP.
+Le consommateur (juge) traite `hits == []` comme absence de preuve
+(`empty_evidence()` — `substance_judge.py:194-202`).
 
 ### Erreurs
 
@@ -133,7 +174,7 @@ Le consommateur s'appuie sur chacun d'eux — références NSI citées.
 | `collection` | `str` | `"nsi_corpus_pgv1"` | `substance_judge.py:32` — `INTERNAL_COVERAGE_COLLECTIONS` allowlist ; `substance_judge.py:35-37` — `is_internal_collection()` | Nom logique de collection (§4). Doit figurer dans l'allowlist NSI. |
 | `source_type` | `str` | `"nsi_corpus"` | `substance_judge.py:40-51` — `is_internal_hit()` Barrier B. `rag_core.py:118-120` — enum strict. | Enum STRICT : `{"nsi_corpus", "golden_example", "excluded"}`. Tout autre valeur ⇒ hit rejeté côté NSI (fail-closed). |
 | `private_data` | `bool` | `false` | `rag_core.py:128-129` — guard skip. Contrat hérité : `rag_v2_cutover_STATE.md` §"PII=0". | **Bool JSON natif** (`true`/`false`). JAMAIS la string `"false"` — le fail-closed NSI rejetterait tout silencieusement. |
-| `section_anchor` | `str` | `"à-savoir"` | `substance_judge.py:299` — `accepted_evidence()` lit `metadata.anchor` ; `rag_core.py:167` — stocké comme `section_anchor`. | Unicode PRÉSERVÉ. Ni slugification ASCII ni double-encodage. Exemple accentué ci-dessus obligatoire. Ancre dérivée du heading Markdown via `github_slug()` (`rag_core.py:27-34`). |
+| `section_anchor` | `str` | `"à-savoir"` | `nsi-enseignement/scripts/substance_judge.py:297` — `accepted_evidence()` lit `metadata.section_anchor` (priorité) ou `metadata.anchor` (fallback) ; `nsi-enseignement/scripts/rag_core.py:167` — stocké comme `section_anchor`. Voir E-06/E-09 pour l'écart entre les deux copies du consommateur. | Unicode PRÉSERVÉ. Ni slugification ASCII ni double-encodage. Exemple accentué ci-dessus obligatoire. Ancre dérivée du heading Markdown via `github_slug()` (`rag_core.py:27-34`). |
 | `capacity_ids` | `str` | `"T-LANG-01A,T-LANG-01B"` | `rag_core.py:158` — CSV à l'ingestion. | Format CSV figé à la frontière. Le consommateur adapte en liste si besoin. Peut être vide (`""`). |
 | `path` | `str` | `"03_progressions/supports/terminale/T06/T06_cours_recursivite.md"` | `substance_judge.py:296` — `accepted_evidence()` lit `metadata.path` pour vérifier la citation dans le fichier source. | Chemin relatif depuis la racine du dépôt NSI. |
 | `document_type` | `str` | `"cours"` | `substance_judge.py:174-178` — `doc_type_filter` filtre sur ce champ. `rag_smoke_test.py:109` — affiché. | Valeurs connues : `cours`, `fiche_cours`, `cours_eleve`, `trace`, `td`, `tp`, `starter_code`, `code`, `corrige`, `corrige_code`, `tests_code`, `evaluation`, `bareme`. Extensible (le consommateur filtre par inclusion). |
@@ -227,12 +268,32 @@ du corpus NSI dans pgvector. Voir §9 écart E-01.
 | Refus cross-corpus | Token NSI + corpus `"nexus"` ⇒ HTTP 403 `corpus_forbidden` |
 | Refus inverse | Token Nexus + corpus `"nsi"` ⇒ HTTP 403 `corpus_forbidden` |
 
+### Nomenclature canonique des variables consommateur
+
+Le fichier `.env.rag` côté consommateur est résolu par
+`rag_core.resolve_env_file()` (`nsi-enseignement/scripts/rag_core.py:17-24`).
+Les clés canoniques sont :
+
+| Variable `.env.rag` | Rôle | Référence NSI |
+|---------------------|------|---------------|
+| `RAG_API_BASE_URL` | URL du endpoint de recherche | `.env.rag.example:8`, `substance_judge.py:165`, `rag_smoke_test.py:30,75` |
+| `RAG_API_KEY` | Bearer token d'authentification | `.env.rag.example:9`, `substance_judge.py:167`, `rag_smoke_test.py:31,84` |
+| `RAG_COLLECTION` | Nom de collection par défaut | `.env.rag.example:10`, `substance_judge.py:166` |
+| `RAG_BACKEND` | Backend actif (`chroma` ou `nexus_rag`) | `.env.rag.example:7`, `rag_smoke_test.py:29` |
+| `RAG_VECTOR_DIM` | Dimension attendue des vecteurs | `.env.rag.example:12`, `rag_smoke_test.py:33` |
+
+**Justification** : `RAG_API_KEY` est le nom existant dans les deux dépôts
+(NSI : `.env.rag.example:9`, `substance_judge.py:167` ;
+RAG : `services/rag-pedago/.env.example:17`). `RAG_SERVICE_TOKEN` n'existe
+dans aucun des deux dépôts (vérifié par grep exhaustif). Le contrat conserve
+`RAG_API_KEY` comme nom définitif — une seule nomenclature, pas de renommage
+gratuit.
+
 ### Rotation
 
 - Le token est généré par l'administrateur du service RAG.
-- Côté consommateur, il vit dans le fichier `.env.rag` résolu par
-  `rag_core.resolve_env_file()` (`nsi-enseignement/scripts/rag_core.py:17-24`),
-  sous la clé `RAG_API_KEY`. Jamais en dur dans le code.
+- Côté consommateur, il vit dans `.env.rag` sous la clé `RAG_API_KEY`.
+  Jamais en dur dans le code.
 - Procédure : générer un nouveau token → mettre à jour côté service →
   mettre à jour `.env.rag` côté consommateur → valider par smoke test.
 
@@ -299,13 +360,17 @@ correctement implémenté.
 {
   "status": "ok",
   "corpus_counts": {
-    "nsi_corpus_pgv1": 5992
+    "nsi_corpus_pgv1": 6100
   },
   "embed_model": "e5-large",
   "dim": 1024,
   "reranker": "cross-encoder/ms-marco-MiniLM-L-6-v2"
 }
 ```
+
+> Le compte `6100` est **illustratif**. Le compte pgvector réel sera établi
+> en LOT R1 après ré-ingestion depuis les fichiers sources et réconcilié avec
+> les 5992 chunks Chroma (écart attendu : chunking différent, cf. §11).
 
 | Champ | Type | Notes |
 |-------|------|-------|
@@ -336,7 +401,7 @@ contient AUCUN des champs de métadonnées que NSI consomme. Comparaison :
 | `section_anchor` | — | **ABSENT**. Aucune colonne. |
 | `capacity_ids` | — | **ABSENT**. Aucune colonne. |
 | `path` | `source_uri` (ligne 28) | **Sémantique différente** : `source_uri` stocke une URI (URL GDrive, etc.), pas un chemin relatif depuis la racine du dépôt. |
-| `document_type` | `type_doc` (ligne 30) | **Nom différent** et enum différente. NSI : `cours`, `td`, `tp`, etc. RAG : enum `TypeDoc` de nexus-contracts (`exercice`, `annale`, `cours`, etc.). |
+| `document_type` | `type_doc` (ligne 30) | **Nom différent** et **enum incompatible**. 6 des 13 types NSI (`fiche_cours`, `cours_eleve`, `trace`, `starter_code`, `corrige_code`, `tests_code`) sont HORS de l'enum `TypeDoc` de nexus-contracts (`document.py:52-85`). La validation Pydantic (`chunk.py:24`) les REJETTERAIT à l'ingestion. 7 types acceptés : `cours`, `td`, `tp`, `code`, `corrige`, `evaluation`, `bareme`. Décision R1 : soit étendre `TypeDoc`, soit mapper dans l'adaptateur. |
 | `level` | `niveau` (ligne 18) | **Nom différent**. Mêmes valeurs sous-jacentes. |
 | `theme` | — | **ABSENT**. `notions TEXT[]` (ligne 23) couvre partiellement. |
 | `notion` | `notions TEXT[]` (ligne 23) | **Type différent** : string vs array. |
@@ -411,28 +476,43 @@ Options : (a) token dédié par corpus avec table de mapping token→corpus, ou
 pgvector RAG utilise `intfloat/multilingual-e5-large` (1024d,
 `retrieval_v2_endpoint.py:102`).
 
-**Impact** : la migration exige une ré-ingestion complète des 5992 chunks avec
-e5-large. Les vecteurs nomic et e5-large ne sont pas interopérables. Le
-backend Chroma reste disponible pour rollback mais ne peut pas coexister avec
-pgvector pour des recherches croisées.
+**Impact** : la migration exige une ré-ingestion depuis les **fichiers sources**
+du dépôt NSI (pas un transfert des vecteurs Chroma). Le chunking e5-large
+peut produire un compte différent des 5992 chunks Chroma (redécoupage,
+sections vides filtrées, PII exclus) — le §11 exige la réconciliation avec
+écart expliqué. Les vecteurs nomic et e5-large ne sont pas interopérables.
+Le backend Chroma reste disponible pour rollback (aucune modification).
 
-**Résolution** : LOT R1 — ingestion du corpus NSI dans pgvector avec e5-large.
-Le backend Chroma est conservé intact comme fallback (aucune modification).
+**Résolution** : LOT R1 — ingestion du corpus NSI depuis les fichiers sources
+dans pgvector avec e5-large. Le backend Chroma est conservé intact comme
+fallback.
 
-### E-06 : Champ `anchor` vs `section_anchor`
+### E-06 : Champ `anchor` vs `section_anchor` — BLOQUANT pour le chemin de preuve
 
-**Constat** : le consommateur `substance_judge.py` lit le champ `metadata.anchor`
-dans `accepted_evidence()` (ligne 299 du fichier racine `scripts/substance_judge.py`,
-ligne 268 du `nsi-enseignement/scripts/substance_judge.py:268`), tandis que
-`rag_core.extract_metadata()` stocke le champ comme `section_anchor`
-(`rag_core.py:167`).
+**Constat** : deux versions du consommateur lisent des noms de champ différents :
 
-**Impact** : il existe une incohérence DANS le dépôt NSI lui-même
-(deux versions du fichier avec des noms de champ différents). Le contrat fixe
-le nom canonique à `section_anchor` (§3). Le consommateur NSI devra harmoniser.
+| Fichier | Ligne | Champ lu | Comportement |
+|---------|-------|----------|--------------|
+| `scripts/substance_judge.py` (racine) | 267 | `metadata.get("anchor", "")` | Lit UNIQUEMENT `anchor`. |
+| `nsi-enseignement/scripts/substance_judge.py` | 297 | `metadata.get("section_anchor") or metadata.get("anchor", "")` | Lit `section_anchor` en priorité, fallback `anchor`. |
 
-**Résolution** : LOT R1 côté NSI — aligner le code consommateur sur
-`section_anchor`. Ce n'est PAS un changement côté fournisseur RAG.
+Or `rag_core.extract_metadata()` stocke le champ comme `section_anchor`
+(`nsi-enseignement/scripts/rag_core.py:167`).
+
+**Impact** : **BLOQUANT pour le chemin de preuve consommateur**. Si la version
+racine est exécutée, `accepted_evidence()` ne trouve JAMAIS d'ancre → veto
+silencieusement vide sur 100% des preuves. C'est le mode de défaillance
+silencieux n°1 de la série (pas d'erreur, pas de preuve, verdict
+`needs_content` systématique). Ce n'est pas un détail cosmétique — c'est la
+branche qui tue le rappel du juge.
+
+Le contrat fixe le nom canonique à `section_anchor` (§3). Le fournisseur RAG
+retournera `section_anchor` dans tous les hits.
+
+**Résolution** : prérequis LOT N1 (dépôt NSI) — harmoniser le code
+consommateur sur `section_anchor`. Ce n'est PAS un changement côté fournisseur
+RAG, mais la migration ne peut pas être validée tant que le consommateur n'est
+pas aligné.
 
 ### E-07 : Endpoint de santé minimal
 
@@ -461,18 +541,79 @@ interne au fournisseur.
 **Résolution** : LOT R1 — implémenter le mapping corpus→collection(s) dans
 l'endpoint adaptateur.
 
+### E-09 : Duplication du consommateur dans le dépôt NSI
+
+**Constat** : le dépôt NSI contient DEUX copies divergentes des scripts
+critiques dans des arborescences distinctes (`scripts/` racine et
+`nsi-enseignement/scripts/`). Diff factuel :
+
+#### substance_judge.py
+
+| Aspect | `scripts/` (racine) | `nsi-enseignement/scripts/` |
+|--------|--------------------|-----------------------------|
+| Barrière A (`INTERNAL_COVERAGE_COLLECTIONS`, `is_internal_collection`) | **ABSENTE** | Présente (lignes 32, 35-37) |
+| Barrière B (`is_internal_hit`) | **ABSENTE** | Présente (lignes 40-51) |
+| `search_rag()` — collection | Hardcodée `"nsi_corpus"` (ligne 137) | Via `env.get("RAG_COLLECTION")` (ligne 166) |
+| `search_rag()` — filtre interne | **Aucun** — tous les hits passent | `is_internal_hit()` appliqué AVANT `doc_type_filter` (ligne 172) |
+| `accepted_evidence()` — ancre | `metadata.get("anchor")` UNIQUEMENT (ligne 267) | `metadata.get("section_anchor") or metadata.get("anchor")` (ligne 297) |
+| Pré-vol collection | **Aucune validation** | Refuse `RAG_COLLECTION` hors allowlist (lignes 490-500) |
+| ENV resolution | Hardcodée `ROOT / ".env.rag"` (ligne 24) | Via `resolve_env_file(ROOT)` (ligne 28) |
+| Imports | `from check_substance_anchors import ...` (ligne 20) | `from scripts.check_substance_anchors import ...` (ligne 24) |
+
+#### rag_smoke_test.py
+
+| Aspect | `scripts/` (racine) | `nsi-enseignement/scripts/` |
+|--------|--------------------|-----------------------------|
+| Collection validation | **Aucune** | Strict : allowlist `{"nsi_corpus", "nsi_corpus_v2"}` (ligne 64) |
+| Dimension validation | **Aucune** | Vérifie `RAG_VECTOR_DIM == 768` (strict) |
+| Backend validation | **Aucune** | Vérifie `RAG_BACKEND == "chroma"` (strict) |
+| ENV resolution | Hardcodée (ligne 24) | Via `resolve_env_file()` |
+| Ancre dans metadata | Non vérifié | Vérifie `metadata.anchor or metadata.section_anchor` (ligne 54) |
+
+#### rag_core.py
+
+| Aspect | `scripts/` (racine) | `nsi-enseignement/scripts/` |
+|--------|--------------------|-----------------------------|
+| Existence | **N'EXISTE PAS** | Présent (209 lignes) — `extract_metadata()`, `resolve_env_file()`, `github_slug()` |
+
+#### Autres fichiers en double
+
+`check_substance_anchors.py` existe dans les deux arborescences (contenu
+identique vérifié). Les 27 fichiers de policy checkers et outils RAG
+avancés (dont `check_rag_collection_policy.py`, `check_rag_config.py`) sont
+**uniquement** dans `nsi-enseignement/scripts/`.
+
+**Impact** : **BLOQUANT — fragmentation de source de vérité**. Les barrières
+durcies (A+B), le policy checker AST (19 cas adverses), les guards
+`resolve_env_file()` et la validation stricte de collection gardent
+UNIQUEMENT la copie `nsi-enseignement/scripts/`. Si la copie racine
+`scripts/` est exécutée en production :
+- Aucune barrière source_type → des hits tierces (rag_education, etc.)
+  seraient acceptés comme preuves internes ;
+- Aucune validation de collection → un `RAG_COLLECTION` erroné passerait ;
+- `metadata.anchor` manquant → 100% des ancres perdues silencieusement ;
+- Toute la chaîne de hardening des PRs #40-56 est contournée.
+
+**Résolution** : **DÉCISION LEAD REQUISE** — désigner l'arbre canonique
+(`nsi-enseignement/scripts/` est le candidat évident au vu du hardening) et
+prévoir la suppression ou redirection du doublon en LOT N1. Tant que la
+duplication persiste, aucune garantie contractuelle ne tient côté
+consommateur : le contrat RAG livre les bons champs, mais si le mauvais
+script les consomme, le résultat est silencieusement vide.
+
 ### Tableau récapitulatif
 
 | Écart | Sévérité | Lot de résolution |
 |-------|----------|-------------------|
-| E-01 Métadonnées absentes | **Bloquant** | R1 |
+| E-01 Métadonnées absentes (+ enum `type_doc` incompatible) | **Bloquant** | R1 |
 | E-02 Endpoint inexistant | **Bloquant** | R1 |
 | E-03 Format réponse incompatible | **Bloquant** | R1 |
 | E-04 Auth non scopée | **Bloquant** | R1 |
-| E-05 Embedding mismatch | **Bloquant** | R1 (ingestion) |
-| E-06 anchor vs section_anchor | Mineur (côté NSI) | R1 (côté NSI) |
+| E-05 Embedding mismatch (ré-ingestion sources) | **Bloquant** | R1 |
+| E-06 `anchor` vs `section_anchor` | **Bloquant** (chemin de preuve) | Prérequis N1 (côté NSI) |
 | E-07 Health minimal | Modéré | R1 |
 | E-08 Nomenclature collection | Modéré | R1 |
+| E-09 Duplication consommateur NSI | **Bloquant** (source de vérité) | N1 (côté NSI, décision lead) |
 
 ---
 
@@ -484,10 +625,22 @@ l'endpoint adaptateur.
   d'enum `document_type`) : note de version en tête de fichier, pas de bump
   majeur.
 - **Changement cassant** (retrait de champ, changement de type, modification
-  d'endpoint, changement de sémantique de `score`) : v2 obligatoire + période
-  de double-service ou de compat. Le consommateur doit pouvoir continuer à
-  fonctionner avec v1 pendant la transition.
+  d'endpoint, rupture des garanties (a)/(b)/(c) sur `score`) : v2 obligatoire
+  + période de double-service ou de compat. Le consommateur doit pouvoir
+  continuer à fonctionner avec v1 pendant la transition.
+- **Recalibration interne** (changement de seuil de rerank, changement de
+  modèle de rerank, changement de pool de candidats) : note de version, PAS
+  un bump v2, tant que les garanties (a) tri décroissant, (b) monotonie,
+  (c) type float sont préservées.
 - Le consommateur épingle la version dans sa config (URL + SHA de commit).
+
+### Conséquence pour le consommateur
+
+Le smoke et le juge NSI ne DOIVENT appliquer AUCUN seuil absolu sur `score`.
+Le score sert uniquement au tri relatif entre hits d'une même requête.
+Leçon héritée : la métrique de distance change avec le modèle, le reranker
+ou le seuil — coder un seuil absolu côté consommateur est un mode de
+défaillance silencieux garanti lors de toute recalibration fournisseur.
 
 ---
 
@@ -521,12 +674,12 @@ l'endpoint adaptateur.
 
 ### Dépôt NSI (consommateur)
 
-| Fichier | Rôle |
-|---------|------|
-| `nsi-enseignement/scripts/substance_judge.py` | Juge de substance — consomme `search_rag()`, `is_internal_hit()`, `is_internal_collection()` |
-| `nsi-enseignement/scripts/rag_core.py` | Logique partagée RAG — `extract_metadata()`, `resolve_env_file()`, `github_slug()` |
-| `scripts/rag_smoke_test.py` | Smoke test connectivité RAG |
-| `nsi-enseignement/reports/closure2/rag_v2_cutover_STATE.md` | État prouvé Chroma v2 (5992 chunks, nomic 768d) |
+| Fichier | Rôle | Doublon ? |
+|---------|------|-----------|
+| `nsi-enseignement/scripts/substance_judge.py` | Juge de substance — copie **durcie** (barrières A+B, `resolve_env_file`) | Oui — `scripts/substance_judge.py` est la copie **non durcie** (cf. E-09) |
+| `nsi-enseignement/scripts/rag_core.py` | Logique partagée RAG — `extract_metadata()`, `resolve_env_file()`, `github_slug()` | Non — n'existe PAS dans `scripts/` racine |
+| `nsi-enseignement/scripts/rag_smoke_test.py` | Smoke test strict (allowlist, dim, backend) | Oui — `scripts/rag_smoke_test.py` est la version sans validation strict |
+| `nsi-enseignement/reports/closure2/rag_v2_cutover_STATE.md` | État prouvé Chroma v2 (5992 chunks, nomic 768d) | Non |
 
 ### Dépôt RAG (fournisseur)
 
