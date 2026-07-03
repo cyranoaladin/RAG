@@ -260,6 +260,15 @@ except Exception:  # pragma: no cover - flexible fallback
     except Exception:
         _ingest_v2_module = importlib.import_module("ingest_v2_endpoint")
 
+# Import review v2 router (agent needs_review: human review workflow)
+try:
+    from . import review_v2_endpoint as _review_v2_module
+except Exception:  # pragma: no cover - flexible fallback
+    try:
+        _review_v2_module = importlib.import_module("ingestor.review_v2_endpoint")
+    except Exception:
+        _review_v2_module = importlib.import_module("review_v2_endpoint")
+
 
 @dataclass
 class PreparedBatch:
@@ -296,6 +305,7 @@ app = FastAPI(title="RAG Ingestor API")
 app.include_router(admin_api.router)
 app.include_router(_retrieval_v2_module.router)
 app.include_router(_ingest_v2_module.router)
+app.include_router(_review_v2_module.router)
 
 _DRIVE_SYNC_DB = os.getenv("DRIVE_SYNC_DB_PATH", "/data/drive_sync_state.db")
 sync_manager = DriveSyncManager(db_path=_DRIVE_SYNC_DB)
