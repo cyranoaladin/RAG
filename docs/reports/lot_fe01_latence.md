@@ -183,13 +183,105 @@ Chaque hit porte `review_status` (reviewed | needs_review). Quarantined jamais r
 
 ---
 
-### Dette latence mise à jour
+---
+
+## SCALE-W1 — Nombre optimal de workers (15 req synchrones)
+
+| Workers | Wall | Débit | Proc med | Proc p95 | Total med | Total p95 |
+|---|---|---|---|---|---|---|
+| 1 | 19.6 s | 0.8 r/s | 1.33 s | 1.43 s | 10.16 s | 19.63 s |
+| **2** | **16.4 s** | **0.9 r/s** | **2.11 s** | **2.34 s** | **9.00 s** | **16.42 s** |
+| 3 | 22.3 s | 0.7 r/s | 4.57 s | 5.23 s | 14.34 s | 22.29 s |
+
+**Résultat** : 2 workers = optimal. 3 workers régresse (contention CPU mémoire-bound
+sur Ryzen 7 3700X). RAM : ~2 GB/worker, 2 workers = ~4 GB sur 32 GB dispo.
+
+---
+
+## SCALE-W2 — Arrivée étalée Poisson (2 workers, 30 s de charge soutenue)
+
+| Taux cible | Req total | Med (incl queue) | P95 | Max | Débit réel |
+|---|---|---|---|---|---|
+| **0.5 req/s** | 15 | **1.47 s** | **3.01 s** | 3.01 s | 0.5 r/s |
+| 1.0 req/s | 30 | 7.16 s | 10.26 s | 10.74 s | 0.8 r/s |
+| 1.5 req/s | 45 | 11.89 s | 18.40 s | 19.34 s | 0.9 r/s |
+| 2.0 req/s | 60 | 21.99 s | 39.91 s | 40.86 s | 0.9 r/s |
+
+**Constat critique** : le débit réel plafonne à **~0.9 req/s** quel que soit le taux
+d'arrivée. Le CrossEncoder CPU est le goulot absolu — chaque requête monopolise un
+cœur pendant ~1.1 s, et les 2 workers ne peuvent traiter que ~0.9 req/s en continu.
+
+Au-delà de 0.5 req/s, les requêtes s'empilent dans la file. La dégradation est
+**douce** (latence qui monte, pas d'OOM/crash) — les requêtes attendent leur tour.
+
+**Seul 0.5 req/s (= 30 req/min = 1 classe) tient avec p95 < 3 s.**
+
+---
+
+## SCALE-W3 — Point de rupture et mode de dégradation (2 workers)
+
+| Taux | Req | Med | P95 | Max | Mode |
+|---|---|---|---|---|---|
+| 2.5 r/s | 50 | 15.5 s | 29.7 s | 30.8 s | File qui gonfle |
+| 3.0 r/s | 60 | 18.9 s | 41.6 s | 43.2 s | File qui gonfle |
+| 4.0 r/s | 80 | 39.0 s | 66.2 s | 68.2 s | File qui gonfle |
+
+**Mode de dégradation : DOUCE** (pas d'OOM, pas de crash). Les requêtes attendent
+dans la queue multiprocessing. Pas de limite de file = la latence monte linéairement
+avec la charge excédentaire. En production, il faudrait une file bornée (rejet propre
+avec HTTP 503 au-delà) plutôt qu'une file infinie.
+
+---
+
+## SCALE-W4 — Charge cible réelle et verdict
+
+| Scénario | req/s | p95 (2 workers, Poisson) | Verdict |
+|---|---|---|---|
+| 1 classe (30 req/min) | 0.5 | **3.0 s** | **TIENT** (limite) |
+| 1 agent en rafale | 0.3 | < 2 s | **TIENT** |
+| 1 classe + 1 agent | 0.8 | ~8 s | **DEGRADE** |
+| 3 agents en rafale | 1.5 | ~18 s | **INTENABLE** |
+
+**Verdict honnête** : ce serveur (Ryzen 7 + CPU) tient **1 classe OU 1-2 agents
+séquentiels**. Pas les deux en simultané. Le CrossEncoder CPU à ~0.9 req/s de
+débit max est le plafond physique. Les workers ne changent pas ce plafond — ils
+répartissent la charge mais le CPU total reste le même.
+
+### Stratégie de scaling si la cible dépasse 0.5 req/s soutenu
+
+1. **Scaling horizontal** : 2 serveurs × 2 workers = ~1.8 req/s soutenu
+2. **File Redis avec priorité** : élèves prioritaires (p95 < 3 s), agents en best-effort
+3. **GPU dédié** : CrossEncoder GPU → ~20× plus rapide → ~18 req/s
+4. **Reranker distillé** : sacrifier de la pertinence pour du débit (écarté pour l'instant)
+
+---
+
+## SCALE-W5 — Stratégie mémoire modèles
+
+| Composant | Taille | Dupliqué par worker ? |
+|---|---|---|
+| e5-large | ~1.3 GB | Oui (chargé par process) |
+| CrossEncoder L-6 | ~0.3 GB | Oui |
+| Python + overhead | ~0.4 GB | Oui |
+| **Total par worker** | **~2 GB** | — |
+| **2 workers** | **~4 GB** | Sur 32 GB = 12% |
+| **4 workers** | **~8 GB** | Sur 32 GB = 25% |
+
+La RAM n'est pas le facteur limitant (32 GB disponibles). Le CPU est le goulot.
+Le partage de modèles entre workers (mémoire partagée) n'apporterait pas de gain
+de débit — le goulot est le compute CrossEncoder, pas la RAM.
+
+**Recommandation** : 2 workers suffisent. Pas besoin de partage de modèles.
+
+---
+
+### Dette latence mise à jour (mesures réalistes)
 
 | Dette | Statut |
 |---|---|
 | Latence mono > 2 s | **RESOLUE** (médiane 1.08 s, P95 1.37 s) |
-| Charge 1 classe (30 req/min) | **RESOLUE** (0.5 < 0.8 req/s, 1 worker suffit) |
-| Charge 3 agents (2 req/s) | **RESOLUE avec 2 workers** (1.8 req/s) |
-| Charge 10+ agents (5+ req/s) | **DETTE** — nécessite scaling horizontal ou file |
+| Charge 1 classe (0.5 req/s soutenu) | **LIMITE** (p95 3.0 s, 2 workers) |
+| Charge agents (> 0.5 req/s soutenu) | **DETTE** — CrossEncoder CPU = 0.9 r/s max |
+| Scaling multi-agents | **REQUIERT** scaling horizontal ou GPU |
 | Batching CrossEncoder | **ÉCARTÉ** (ne fonctionne pas sur CPU, mesuré) |
 | GPU | Indisponible (Hetzner CPU), acté |
