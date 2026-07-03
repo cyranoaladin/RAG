@@ -154,3 +154,97 @@ class TestResponseFormat:
             preview="text", rerank_score=3.0, dense_sim=0.80,
         )
         assert hit_nr.review_status == "needs_review"
+
+
+class TestCacheGateInvariant:
+    """Invariant C: cache never serves a chunk that became quarantined.
+
+    The gate (resolve_collection_v2 + domain retrievable) is checked BEFORE
+    the cache lookup. The cache is keyed by (query, collection, k) and only
+    stores results from retrievable collections. A quarantined collection
+    always hits the gate FIRST and is refused with 403.
+
+    Additionally:
+    - TTL ensures stale entries expire (default 5 min)
+    - invalidate_cache() purges all entries on review_status change
+    - SQL WHERE review_status IN ('reviewed', 'needs_review') excludes quarantined chunks
+    """
+
+    def test_gate_before_cache(self) -> None:
+        """Quarantine is refused by the gate BEFORE cache is even checked."""
+        import os
+
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+
+        from ingestor.retrieval_v2_endpoint import (
+            _cache_key,
+            _cache_put,
+            router,
+        )
+
+        os.environ.setdefault("INGESTOR_API_TOKEN", "test-inv-c")
+
+        test_app = FastAPI()
+        test_app.include_router(router)
+        test_client = TestClient(test_app)
+        h = {"Authorization": "Bearer test-inv-c"}
+
+        # Even if we artificially stuff the cache with quarantine results,
+        # the gate refuses BEFORE the cache is consulted.
+        fake_key = _cache_key("test query", "rag_nexus_quarantine", 5)
+        _cache_put(fake_key, [{"chunk_id": "fake", "doc_id": "fake",
+                               "source_label": "fake", "source_uri": "fake",
+                               "rights": "fake", "type_doc": "fake",
+                               "review_status": "quarantined", "preview": "fake",
+                               "rerank_score": 9.0, "dense_sim": 0.99}])
+
+        resp = test_client.post("/search/v2", json={
+            "q": "test query", "collection": "rag_nexus_quarantine", "k": 5,
+        }, headers=h)
+        assert resp.status_code == 403, "Gate must refuse quarantine even with cache populated"
+
+    def test_invalidation_purges_cache(self) -> None:
+        """invalidate_cache() removes all entries."""
+        from ingestor.retrieval_v2_endpoint import (
+            _cache_get,
+            _cache_key,
+            _cache_put,
+            invalidate_cache,
+        )
+
+        key = _cache_key("test", "test_col", 5)
+        _cache_put(key, [{"test": "data"}])
+        assert _cache_get(key) is not None
+
+        invalidate_cache()
+        assert _cache_get(key) is None, "Cache must be empty after invalidation"
+
+    def test_ttl_expires_entries(self) -> None:
+        """Entries expire after TTL seconds."""
+        import time
+        from unittest.mock import patch
+
+        from ingestor.retrieval_v2_endpoint import (
+            _cache_get,
+            _cache_key,
+            _cache_put,
+        )
+
+        key = _cache_key("ttl-test", "col", 5)
+        _cache_put(key, [{"test": "data"}])
+        assert _cache_get(key) is not None
+
+        # Simulate TTL expiration by patching time.monotonic
+        with patch("ingestor.retrieval_v2_endpoint.time.monotonic",
+                    return_value=time.monotonic() + 999):
+            assert _cache_get(key) is None, "Entry must expire after TTL"
+
+    def test_sql_excludes_quarantined(self) -> None:
+        """SQL WHERE clause never returns quarantined chunks."""
+        import inspect
+
+        from ingestor.retrieval_v2_endpoint import search_v2
+        source = inspect.getsource(search_v2)
+        assert "review_status IN ('reviewed', 'needs_review')" in source, \
+            "SQL must exclude quarantined chunks"
