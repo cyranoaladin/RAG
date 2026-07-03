@@ -10,8 +10,11 @@ answer_generation_allowed = false (retrieval only, no LLM generation).
 """
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
+import threading
+import time
 from typing import Any
 
 import psycopg
@@ -28,6 +31,51 @@ from .collection_config import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["retrieval_v2"])
+
+# --- Cache retrieval+rerank (SCALE-V1-1) ---
+# Key = normalized(query, collection, k). Value = (hits, timestamp).
+# Invalidation: TTL-based (chunks may change review_status).
+# A chunk that becomes quarantined is never served from cache after TTL expires.
+CACHE_TTL_S = int(os.environ.get("RERANK_CACHE_TTL", "300"))  # 5 min default
+CACHE_ENABLED = os.environ.get("RERANK_CACHE", "1") != "0"
+_cache: dict[str, tuple[list, float]] = {}
+_cache_lock = threading.Lock()
+_cache_hits = 0
+_cache_misses = 0
+
+
+def _cache_key(query: str, collection: str, k: int) -> str:
+    """Normalized cache key. Lowercased, stripped query for near-duplicate hits."""
+    normalized = query.strip().lower()
+    raw = f"{normalized}|{collection}|{k}"
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
+def _cache_get(key: str) -> list | None:
+    global _cache_hits
+    with _cache_lock:
+        entry = _cache.get(key)
+        if entry is None:
+            return None
+        hits, ts = entry
+        if time.monotonic() - ts > CACHE_TTL_S:
+            del _cache[key]
+            return None
+        _cache_hits += 1
+        return hits
+
+
+def _cache_put(key: str, hits: list) -> None:
+    with _cache_lock:
+        _cache[key] = (hits, time.monotonic())
+
+
+def invalidate_cache() -> int:
+    """Invalidate all cache entries. Called when review_status changes."""
+    with _cache_lock:
+        n = len(_cache)
+        _cache.clear()
+        return n
 
 # --- Configuration figée (D-CONFIG-RETRIEVAL-PREPROD, LAT-05) ---
 # Seuil rerank: +1.90 (LOT 24 FF-02b, marge 1.00 LOT 25a)
@@ -143,6 +191,30 @@ class SearchV2Response(BaseModel):
     hits: list[SearchV2Hit]
 
 
+# --- Cache management endpoints ---
+
+@router.get("/cache/v2/stats")
+def cache_stats() -> dict[str, Any]:
+    """Cache statistics for monitoring."""
+    with _cache_lock:
+        return {
+            "enabled": CACHE_ENABLED,
+            "ttl_s": CACHE_TTL_S,
+            "entries": len(_cache),
+            "hits": _cache_hits,
+            "misses": _cache_misses,
+            "hit_rate": round(_cache_hits / max(_cache_hits + _cache_misses, 1), 3),
+        }
+
+
+@router.post("/cache/v2/invalidate")
+def cache_invalidate(request: Request) -> dict[str, Any]:
+    """Invalidate all cache entries. Call when review_status changes."""
+    _enforce_security_v2(request)
+    n = invalidate_cache()
+    return {"invalidated": n}
+
+
 # --- Endpoint to list retrievable collections (for UI picker) ---
 
 @router.get("/collections/v2")
@@ -201,6 +273,21 @@ def search_v2(payload: SearchV2Request, request: Request) -> SearchV2Response:
         raise
     except CollectionConfigError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+    # Cache check (SCALE-V1-1)
+    global _cache_misses
+    cache_k = _cache_key(payload.q, payload.collection, payload.k) if CACHE_ENABLED else ""
+    if CACHE_ENABLED:
+        cached = _cache_get(cache_k)
+        if cached is not None:
+            return SearchV2Response(
+                query=payload.q,
+                collection=payload.collection,
+                seuil=RERANK_SCORE_THRESHOLD,
+                returned=len(cached),
+                hits=[SearchV2Hit(**h) for h in cached],
+            )
+        _cache_misses += 1
 
     # Get DSN (R-01: no default)
     pg_dsn = _get_pg_dsn()
@@ -269,6 +356,10 @@ def search_v2(payload: SearchV2Request, request: Request) -> SearchV2Response:
         ))
         if len(hits) >= payload.k:
             break
+
+    # Cache store (SCALE-V1-1)
+    if CACHE_ENABLED and hits:
+        _cache_put(cache_k, [h.model_dump() for h in hits])
 
     return SearchV2Response(
         query=payload.q,
