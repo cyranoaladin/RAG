@@ -17,16 +17,24 @@ import threading
 import time
 from typing import Any
 
-import psycopg
+import psycopg  # noqa: F811 — also in requirements.v2.txt
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from .collection_config import (
-    CollectionConfigError,
-    list_instanciated_collections,
-    load_collection_config,
-    resolve_collection_v2,
-)
+try:
+    from .collection_config import (
+        CollectionConfigError,
+        list_instanciated_collections,
+        load_collection_config,
+        resolve_collection_v2,
+    )
+except (ImportError, ValueError):
+    from collection_config import (  # type: ignore[no-redef]
+        CollectionConfigError,
+        list_instanciated_collections,
+        load_collection_config,
+        resolve_collection_v2,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +44,10 @@ router = APIRouter(tags=["retrieval_v2"])
 # Key = normalized(query, collection, k). Value = (hits, timestamp).
 # Invalidation: TTL-based (chunks may change review_status).
 # A chunk that becomes quarantined is never served from cache after TTL expires.
+# LIMITATION (P2 cubic): cache is per-process. With N uvicorn workers,
+# POST /cache/v2/invalidate only clears the worker handling that request.
+# Mitigation: TTL ensures all workers expire stale entries within CACHE_TTL_S.
+# For immediate cross-worker invalidation, use RERANK_CACHE=0 or shared cache (Redis).
 CACHE_TTL_S = int(os.environ.get("RERANK_CACHE_TTL", "300"))  # 5 min default
 CACHE_ENABLED = os.environ.get("RERANK_CACHE", "1") != "0"
 _cache: dict[str, tuple[list, float]] = {}
