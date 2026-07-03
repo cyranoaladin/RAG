@@ -1,8 +1,18 @@
 version: 2
 # ADR-0013 — Convention: rag_nexus_{matiere}_{niveau}_{statut}
-# Exceptions nommées: grand_oral, exams, candidats_libres, quarantine (cf. ADR)
+# Extension FE-06: rag_nexus_{matiere}_{niveau}_{voie}_{statut} quand voie pertinente
+# Exceptions nommées: grand_oral, exams, candidats_libres, quarantine, dnb (cf. ADR)
 # Flag instanciee: seules les collections true sont créées et exposées (M-04)
 # Pas d'auto-création: le moteur lève une erreur si la collection n'est pas déclarée instanciee
+#
+# Périmètre v1 (D-PERIMETRE-EXPLICITE):
+#   Voie générale + STMG + collège 3e.
+#   Autres séries technologiques (ST2S, STI2D, STL, STD2A, STHR, S2TMD) = hors scope v1.
+#   Convention voie extensible: ajouter un slug voie (st2s, sti2d...) sans refonte.
+#
+# Session (D-SESSION-DECLAREE-JAMAIS-DEVINEE):
+#   session_policy: declared_or_null — la session est déclarée depuis la source
+#   ou laissée NULL + needs_review. Jamais devinée par un agent.
 
 physical_backend:
   type: pgvector
@@ -28,169 +38,387 @@ metadata_required:
   - chunk_id
   - chunk_sha256
 
-# Catalogue taxonomique (22 entrées)
+# Catalogue taxonomique (38 entrées)
+# Schéma validé FE-05b: nom = matière×niveau×voie ; métadonnées = dispositif, session
 # Source de vérité: services/rag-pedago/taxonomy/
 collections:
-  # --- NSI ---
+
+  # =====================================================================
+  # NSI (instanciées — 16 892 chunks LOT 25a)
+  # =====================================================================
   rag_nexus_nsi_premiere_specialite:
     matiere: nsi
     niveau: premiere
+    voie: gen
     statut: specialite
     domain: education
+    session_policy: declared_or_null
     taxonomy_file: nsi/premiere_specialite.yml
     instanciee: true
   rag_nexus_nsi_terminale_specialite:
     matiere: nsi
     niveau: terminale
+    voie: gen
     statut: specialite
     domain: education
+    session_policy: declared_or_null
     taxonomy_file: nsi/terminale.yml
     instanciee: true
 
-  # --- Maths ---
+  # =====================================================================
+  # Maths — multi-nature (FE-05e: routage par niveau×voie×type_enseignement)
+  # =====================================================================
   rag_nexus_maths_troisieme_tc:
     matiere: maths
     niveau: troisieme
+    voie: null  # collège: pas de voie
     statut: tronc_commun
+    domain: education
+    session_policy: declared_or_null
     taxonomy_file: maths/troisieme.yml
     instanciee: false
   rag_nexus_maths_seconde_tc:
     matiere: maths
     niveau: seconde
+    voie: null  # 2de commune: pas de voie
     statut: tronc_commun
+    domain: education
+    session_policy: declared_or_null
     taxonomy_file: maths/seconde_tronc_commun.yml
     instanciee: false
-  rag_nexus_maths_premiere_tc:
+  rag_nexus_maths_premiere_gen_specialite:
     matiere: maths
     niveau: premiere
-    statut: tronc_commun
-    taxonomy_file: maths/premiere_tronc_commun.yml
+    voie: gen
+    statut: specialite
+    domain: education
+    session_policy: declared_or_null
+    taxonomy_file: maths/premiere_gen_specialite.yml
     instanciee: false
-  rag_nexus_maths_terminale_specialite:
+  rag_nexus_maths_premiere_gen_tc:
+    matiere: maths
+    niveau: premiere
+    voie: gen
+    statut: tronc_commun
+    domain: education
+    session_policy: declared_or_null
+    # Maths dans enseignement scientifique pour élèves SANS spé maths
+    taxonomy_file: maths/premiere_gen_tronc_commun.yml
+    instanciee: false
+  rag_nexus_maths_premiere_stmg_tc:
+    matiere: maths
+    niveau: premiere
+    voie: stmg
+    statut: tronc_commun
+    domain: education
+    session_policy: declared_or_null
+    taxonomy_file: maths/premiere_stmg_tc.yml
+    instanciee: false
+  rag_nexus_maths_terminale_gen_specialite:
     matiere: maths
     niveau: terminale
+    voie: gen
     statut: specialite
-    taxonomy_file: maths/terminale_specialite.yml
+    domain: education
+    session_policy: declared_or_null
+    taxonomy_file: maths/terminale_gen_specialite.yml
+    instanciee: false
+  rag_nexus_maths_terminale_gen_option_comp:
+    matiere: maths
+    niveau: terminale
+    voie: gen
+    statut: option
+    domain: education
+    session_policy: declared_or_null
+    # Maths complémentaires: élèves SANS spé maths en Tle
+    taxonomy_file: maths/terminale_gen_option_comp.yml
+    instanciee: false
+  rag_nexus_maths_terminale_gen_option_exp:
+    matiere: maths
+    niveau: terminale
+    voie: gen
+    statut: option
+    domain: education
+    session_policy: declared_or_null
+    # Maths expertes: élèves AVEC spé maths en Tle
+    taxonomy_file: maths/terminale_gen_option_exp.yml
+    instanciee: false
+  rag_nexus_maths_terminale_stmg_tc:
+    matiere: maths
+    niveau: terminale
+    voie: stmg
+    statut: tronc_commun
+    domain: education
+    session_policy: declared_or_null
+    taxonomy_file: maths/terminale_stmg_tc.yml
     instanciee: false
 
-  # --- Français ---
+  # =====================================================================
+  # Français
+  # =====================================================================
   rag_nexus_francais_troisieme_tc:
     matiere: francais
     niveau: troisieme
+    voie: null
     statut: tronc_commun
+    domain: education
+    session_policy: declared_or_null
     taxonomy_file: francais/troisieme.yml
+    instanciee: false
+  rag_nexus_francais_seconde_tc:
+    matiere: francais
+    niveau: seconde
+    voie: null
+    statut: tronc_commun
+    domain: education
+    session_policy: declared_or_null
+    taxonomy_file: francais/seconde_tc.yml
     instanciee: false
   rag_nexus_francais_premiere_tc:
     matiere: francais
     niveau: premiere
+    voie: gen
     statut: tronc_commun
+    domain: education
+    session_policy: declared_or_null
     taxonomy_file: francais/premiere_eaf.yml
     instanciee: false
-    # Note: EAF = épreuve anticipée de français, pas un statut d'enseignement.
-    # Si annales EAF ingérées, collection d'examens séparée (rag_nexus_exams_eaf).
 
-  # --- Histoire-Géo ---
+  # =====================================================================
+  # Histoire-Géo
+  # =====================================================================
   rag_nexus_hg_troisieme_tc:
     matiere: histoire_geo
     niveau: troisieme
+    voie: null
     statut: tronc_commun
+    domain: education
+    session_policy: declared_or_null
     taxonomy_file: histoire_geo/troisieme.yml
     instanciee: false
   rag_nexus_hg_seconde_tc:
     matiere: histoire_geo
     niveau: seconde
+    voie: null
     statut: tronc_commun
+    domain: education
+    session_policy: declared_or_null
     taxonomy_file: histoire_geo/seconde_tronc_commun.yml
     instanciee: false
   rag_nexus_hg_premiere_tc:
     matiere: histoire_geo
     niveau: premiere
+    voie: gen
     statut: tronc_commun
+    domain: education
+    session_policy: declared_or_null
     taxonomy_file: histoire_geo/premiere_tronc_commun.yml
     instanciee: false
   rag_nexus_hg_terminale_tc:
     matiere: histoire_geo
     niveau: terminale
+    voie: gen
     statut: tronc_commun
+    domain: education
+    session_policy: declared_or_null
     taxonomy_file: histoire_geo/terminale_tronc_commun.yml
     instanciee: false
 
-  # --- Physique-Chimie ---
+  # =====================================================================
+  # Physique-Chimie
+  # =====================================================================
   rag_nexus_pc_premiere_specialite:
     matiere: physique_chimie
     niveau: premiere
+    voie: gen
     statut: specialite
+    domain: education
+    session_policy: declared_or_null
     taxonomy_file: physique_chimie/premiere_specialite.yml
     instanciee: false
+  rag_nexus_pc_terminale_specialite:
+    matiere: physique_chimie
+    niveau: terminale
+    voie: gen
+    statut: specialite
+    domain: education
+    session_policy: declared_or_null
+    taxonomy_file: physique_chimie/terminale_specialite.yml
+    instanciee: false
 
-  # --- SVT ---
+  # =====================================================================
+  # SVT
+  # =====================================================================
   rag_nexus_svt_premiere_specialite:
     matiere: svt
     niveau: premiere
+    voie: gen
     statut: specialite
+    domain: education
+    session_policy: declared_or_null
     taxonomy_file: svt/premiere_specialite.yml
     instanciee: false
+  rag_nexus_svt_terminale_specialite:
+    matiere: svt
+    niveau: terminale
+    voie: gen
+    statut: specialite
+    domain: education
+    session_policy: declared_or_null
+    taxonomy_file: svt/terminale_specialite.yml
+    instanciee: false
 
-  # --- SES ---
+  # =====================================================================
+  # SES
+  # =====================================================================
   rag_nexus_ses_premiere_specialite:
     matiere: ses
     niveau: premiere
+    voie: gen
     statut: specialite
+    domain: education
+    session_policy: declared_or_null
     taxonomy_file: ses/premiere_specialite.yml
     instanciee: false
+  rag_nexus_ses_terminale_specialite:
+    matiere: ses
+    niveau: terminale
+    voie: gen
+    statut: specialite
+    domain: education
+    session_policy: declared_or_null
+    taxonomy_file: ses/terminale_specialite.yml
+    instanciee: false
 
-  # --- Philosophie ---
+  # =====================================================================
+  # Philosophie
+  # =====================================================================
   rag_nexus_philo_terminale_tc:
     matiere: philosophie
     niveau: terminale
+    voie: gen
     statut: tronc_commun
+    domain: education
+    session_policy: declared_or_null
     taxonomy_file: philosophie/terminale_tronc_commun.yml
     instanciee: false
 
-  # --- SNT ---
+  # =====================================================================
+  # SNT
+  # =====================================================================
   rag_nexus_snt_seconde_tc:
     matiere: snt
     niveau: seconde
+    voie: null
     statut: tronc_commun
+    domain: education
+    session_policy: declared_or_null
     taxonomy_file: snt/seconde.yml
     instanciee: false
 
-  # --- Grand Oral (exception: transversal, pas de statut suffixé) ---
+  # =====================================================================
+  # STMG — spécialités (périmètre v1, D-PERIMETRE-EXPLICITE)
+  # =====================================================================
+  rag_nexus_droiteco_premiere_stmg_specialite:
+    matiere: droit_economie
+    niveau: premiere
+    voie: stmg
+    statut: specialite
+    domain: education
+    session_policy: declared_or_null
+    taxonomy_file: stmg/droiteco_premiere.yml
+    instanciee: false
+  rag_nexus_droiteco_terminale_stmg_specialite:
+    matiere: droit_economie
+    niveau: terminale
+    voie: stmg
+    statut: specialite
+    domain: education
+    session_policy: declared_or_null
+    taxonomy_file: stmg/droiteco_terminale.yml
+    instanciee: false
+  rag_nexus_msdgn_terminale_stmg_specialite:
+    matiere: msdgn
+    niveau: terminale
+    voie: stmg
+    statut: specialite
+    domain: education
+    session_policy: declared_or_null
+    # Enseignement spécifique (GF/mercatique/RHC/SIG) en métadonnée de chunk
+    taxonomy_file: stmg/msdgn_terminale.yml
+    instanciee: false
+
+  # =====================================================================
+  # Grand Oral (transversal, niveau+voie+session en métadonnée)
+  # =====================================================================
   rag_nexus_grand_oral_terminale:
     matiere: grand_oral
     niveau: terminale
+    voie: null  # transversal gen+stmg, voie en métadonnée
     statut: examen
+    domain: exam
+    session_policy: declared_or_null
     taxonomy_file: grand_oral/terminale.yml
     instanciee: false
 
-  # --- Examens (exception: transversal, matiere=exams) ---
+  # =====================================================================
+  # Examens (transversal)
+  # =====================================================================
   rag_nexus_exams_bac_general:
     matiere: exams
     niveau: terminale
+    voie: gen
     statut: examen
+    domain: exam
+    session_policy: declared_or_null
     taxonomy_file: exams/bac_general.yml
     instanciee: false
   rag_nexus_exams_anticipee_maths:
     matiere: exams
     niveau: premiere
+    voie: null  # 3 sujets: gen+spe, gen-spe, techno
     statut: examen
+    domain: exam
+    session_policy: declared_or_null
     taxonomy_file: exams/anticipee_maths.yml
     instanciee: false
 
-  # --- Candidats libres (exception: pas de statut suffixé) ---
+  # =====================================================================
+  # DNB (collège, transversal par matière en métadonnée)
+  # =====================================================================
+  rag_nexus_dnb:
+    matiere: dnb
+    niveau: troisieme
+    voie: null
+    statut: examen
+    domain: exam
+    session_policy: declared_or_null
+    taxonomy_file: exams/dnb.yml
+    instanciee: false
+
+  # =====================================================================
+  # Candidats libres
+  # =====================================================================
   rag_nexus_candidats_libres_terminale:
     matiere: candidats_libres
     niveau: terminale
+    voie: null
     statut: remediation
+    domain: education
+    session_policy: declared_or_null
     taxonomy_file: candidats_libres/parcours_terminale.yml
     instanciee: false
 
-  # --- Quarantaine (exception: hors arborescence disciplinaire) ---
+  # =====================================================================
+  # Quarantaine (hors arborescence disciplinaire)
+  # =====================================================================
   rag_nexus_quarantine:
     matiere: null
     niveau: null
+    voie: null
     statut: null
     domain: quarantine
+    session_policy: null
     taxonomy_file: null
     instanciee: true
 
