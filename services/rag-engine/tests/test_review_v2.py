@@ -92,3 +92,22 @@ class TestGovernanceInvariant:
         from ingestor.review_v2_endpoint import review_decide
         source = inspect.getsource(review_decide)
         assert "invalidate_cache" in source
+
+    def test_reviewer_token_required_for_decide(self) -> None:
+        """D-AGENT-NEEDS-REVIEW enforced by code: ingestion token rejected."""
+        import inspect
+
+        from ingestor.review_v2_endpoint import _enforce_reviewer_security
+        source = inspect.getsource(_enforce_reviewer_security)
+        # Must check REVIEWER_API_TOKEN (distinct from INGESTOR_API_TOKEN)
+        assert "REVIEWER_API_TOKEN" in source
+        # Must explicitly reject ingestion token
+        assert "INGESTOR_API_TOKEN" in source or "INGEST_AUTH_TOKEN" in source
+
+    def test_reviewer_token_fail_closed(self) -> None:
+        """If REVIEWER_API_TOKEN is not set, review decisions are blocked."""
+        import inspect
+
+        from ingestor.review_v2_endpoint import _enforce_reviewer_security
+        source = inspect.getsource(_enforce_reviewer_security)
+        assert "fail-closed" in source.lower() or "503" in source

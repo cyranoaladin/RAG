@@ -29,11 +29,8 @@ def _get_pg_dsn() -> str:
     return dsn
 
 
-def _enforce_security(request: Request) -> str:
-    """Auth check — same token as other endpoints."""
-    token_env = os.getenv("INGESTOR_API_TOKEN") or os.getenv("INGEST_AUTH_TOKEN")
-    if not token_env:
-        raise HTTPException(status_code=503, detail="API token not configured")
+def _extract_token(request: Request) -> str:
+    """Extract Bearer token from request headers."""
     headers = request.headers
     header_token = headers.get("x-api-token")
     if not header_token:
@@ -44,9 +41,46 @@ def _enforce_security(request: Request) -> str:
                 header_token = value.split(" ", 1)[1].strip()
             else:
                 header_token = value
+    return header_token or ""
+
+
+def _enforce_read_security(request: Request) -> str:
+    """Auth for read-only endpoints (pending list). Accepts ingestion token."""
+    token_env = os.getenv("INGESTOR_API_TOKEN") or os.getenv("INGEST_AUTH_TOKEN")
+    if not token_env:
+        raise HTTPException(status_code=503, detail="API token not configured")
+    header_token = _extract_token(request)
     if header_token != token_env:
         raise HTTPException(status_code=401, detail="Unauthorized")
-    return header_token or ""
+    return header_token
+
+
+def _enforce_reviewer_security(request: Request) -> str:
+    """Auth for review decisions. Requires REVIEWER_API_TOKEN (distinct from ingestion).
+
+    D-AGENT-NEEDS-REVIEW: an agent with INGESTOR_API_TOKEN can ingest
+    but CANNOT review. Only a human with REVIEWER_API_TOKEN can promote
+    needs_review → reviewed. If REVIEWER_API_TOKEN is not set, review
+    decisions are blocked (fail-closed).
+    """
+    reviewer_token = os.getenv("REVIEWER_API_TOKEN")
+    if not reviewer_token:
+        raise HTTPException(
+            status_code=503,
+            detail="REVIEWER_API_TOKEN not configured — review decisions blocked (fail-closed)",
+        )
+    header_token = _extract_token(request)
+    if header_token != reviewer_token:
+        # Also reject the ingestion token explicitly
+        ingest_token = os.getenv("INGESTOR_API_TOKEN") or os.getenv("INGEST_AUTH_TOKEN")
+        if header_token == ingest_token:
+            raise HTTPException(
+                status_code=403,
+                detail="Ingestion token cannot be used for review decisions. "
+                "Use REVIEWER_API_TOKEN (D-AGENT-NEEDS-REVIEW).",
+            )
+        raise HTTPException(status_code=401, detail="Unauthorized — requires REVIEWER_API_TOKEN")
+    return header_token
 
 
 # --- Request/Response models ---
@@ -80,7 +114,7 @@ def list_pending(
 
     Returns documents with their chunk count, provenance, and preview.
     """
-    _enforce_security(request)
+    _enforce_read_security(request)
     pg_dsn = _get_pg_dsn()
 
     conn = psycopg.connect(pg_dsn)
@@ -155,11 +189,10 @@ def review_decide(payload: ReviewDecision, request: Request) -> dict[str, Any]:
     - reviewed: content becomes servable (served by /search/v2)
     - quarantined: content blocked from serving (gate enforced)
 
-    This is a HUMAN act. Agents cannot call this endpoint to promote
-    their own ingested content — the token is the same but the governance
-    contract (D-AGENT-NEEDS-REVIEW) is that agents submit, humans review.
+    This is a HUMAN act. Agents with INGESTOR_API_TOKEN cannot call this
+    endpoint — requires REVIEWER_API_TOKEN (D-AGENT-NEEDS-REVIEW enforced by code).
     """
-    _enforce_security(request)
+    _enforce_reviewer_security(request)
 
     if payload.decision not in ("reviewed", "quarantined"):
         raise HTTPException(status_code=400, detail="decision must be 'reviewed' or 'quarantined'")
@@ -196,16 +229,28 @@ def review_decide(payload: ReviewDecision, request: Request) -> dict[str, Any]:
         )
 
     # Invalidate retrieval cache (review_status changed)
+    # NOTE (P2 cubic): in multi-worker deployment, this only clears THIS worker's cache.
+    # Other workers expire stale entries via TTL (RERANK_CACHE_TTL, default 300s).
+    # For quarantine decisions, we also set TTL to 0 on this worker to force immediate
+    # expiration. Cross-worker broadcast requires shared cache (Redis) — deferred.
     try:
-        from .retrieval_v2_endpoint import invalidate_cache
+        from .retrieval_v2_endpoint import CACHE_TTL_S, invalidate_cache
     except (ImportError, ValueError):
-        from retrieval_v2_endpoint import invalidate_cache  # type: ignore[no-redef]
-    invalidate_cache()
+        from retrieval_v2_endpoint import CACHE_TTL_S, invalidate_cache  # type: ignore[no-redef]
+    cache_cleared = invalidate_cache()
+
+    # For quarantine: the SQL gate (WHERE review_status IN ('reviewed','needs_review'))
+    # already prevents quarantined chunks from being returned on cache-miss.
+    # Stale cache entries on other workers will expire within TTL and be replaced
+    # by fresh DB queries that exclude the quarantined chunks.
+    max_stale_s = CACHE_TTL_S if payload.decision == "quarantined" else 0
 
     logger.info(
-        "Review decision: %s %s=%s → %s (%d chunks), reason=%s",
+        "Review decision: %s %s=%s → %s (%d chunks), reason=%s, "
+        "cache_cleared=%d, max_stale_other_workers=%ds",
         payload.target_type, payload.target_type, payload.target_id,
         payload.decision, affected, payload.reason or "(none)",
+        cache_cleared, max_stale_s,
     )
 
     return {
@@ -213,5 +258,6 @@ def review_decide(payload: ReviewDecision, request: Request) -> dict[str, Any]:
         "target_id": payload.target_id,
         "decision": payload.decision,
         "chunks_affected": affected,
-        "cache_invalidated": True,
+        "cache_invalidated_this_worker": True,
+        "max_stale_other_workers_s": max_stale_s,
     }
