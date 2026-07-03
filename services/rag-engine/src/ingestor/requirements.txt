@@ -26,3 +26,6 @@ Pillow==10.4.0
 # Google Drive integration
 google-auth==2.34.0
 google-api-python-client==2.147.0
+
+# Retrieval v2 (pgvector, FE-01)
+psycopg[binary]>=3.1

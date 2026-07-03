@@ -863,161 +863,107 @@ elif page == "🔗 Web3 & Blockchain":
 
 
 # ═══════════════════════════════════════════════════════════════
-# PAGE RECHERCHE
+# PAGE RECHERCHE — v2 (pgvector + rerank, FE-01/FE-02)
 # ═══════════════════════════════════════════════════════════════
 elif page == "🔍 Recherche":
-    st.title("🔍 Recherche RAG")
+    st.title("🔍 Recherche RAG v2")
 
-    # Section ciblée
-    search_section = st.radio(
-        "Collection cible",
-        ["📚 Français Première", "📐 Maths 1ère", "🎓 Éducation", "🔗 Web3", "📦 Toutes"],
-        horizontal=True,
-    )
+    # Picker dérivé du catalogue (D-PICKER-DERIVE-CATALOGUE)
+    # Seules les collections instanciee:true ET retrievable:true apparaissent.
+    # Ajouter une collection instanciée = elle apparait sans toucher ce code.
+    @st.cache_data(ttl=300)
+    def _fetch_v2_collections() -> list[dict[str, Any]]:
+        r = api_get("/collections/v2")
+        if r and isinstance(r.get("collections"), list):
+            cols: list[dict[str, Any]] = r["collections"]
+            return cols
+        return []
 
-    query = st.text_input("Question", placeholder="Qu'est-ce qu'un smart contract ?")
-    k = st.slider("Nombre de résultats", 1, 20, 6)
-    use_score_threshold = st.checkbox("Activer un seuil de distance", value=True)
-    score_threshold = st.slider(
-        "Distance max",
-        min_value=0.0,
-        max_value=2.0,
-        value=0.55,
-        step=0.05,
-        disabled=not use_score_threshold,
-    )
-
-    # Filtres contextuels
-    filters: dict[str, Any] = {}
-    collection_key = ""
-    if search_section == "📚 Français Première":
-        section_key = "education"
-        collection_key = "rag_francais_premiere"
-        with st.expander("🔧 Filtres avancés", expanded=False):
-            all_matieres = []
-            for items in EDUCATION_TAXONOMY.values():
-                all_matieres.extend(items)
-            f_matiere = st.selectbox("Matière", ["Tous"] + sorted(set(all_matieres)), key="s_mat_fp")
-            f_niveau = st.selectbox("Niveau", ["Tous"] + NIVEAUX, key="s_niv_fp")
-            f_type = st.selectbox("Type", ["Tous"] + TYPES_RESSOURCE, key="s_type_fp")
-            if f_matiere != "Tous":
-                filters["matiere"] = f_matiere
-            if f_niveau != "Tous":
-                filters["niveau"] = f_niveau
-            if f_type != "Tous":
-                filters["type_ressource"] = f_type
-    elif search_section == "📐 Maths 1ère":
-        section_key = "maths_premiere"
-        collection_key = ""
-        st.caption(
-            "Recherche ciblée Maths 1ère. Si la collection dédiée est vide, "
-            "l'API bascule automatiquement sur `rag_education` avec les filtres adéquats."
-        )
-    elif search_section == "🎓 Éducation":
-        section_key = "education"
-        collection_key = "rag_education"
-        with st.expander("🔧 Filtres avancés", expanded=False):
-            all_matieres = []
-            for items in EDUCATION_TAXONOMY.values():
-                all_matieres.extend(items)
-            f_matiere = st.selectbox("Matière", ["Tous"] + sorted(set(all_matieres)), key="s_mat")
-            f_niveau = st.selectbox("Niveau", ["Tous"] + NIVEAUX, key="s_niv")
-            f_type = st.selectbox("Type", ["Tous"] + TYPES_RESSOURCE, key="s_type")
-            if f_matiere != "Tous":
-                filters["matiere"] = f_matiere
-            if f_niveau != "Tous":
-                filters["niveau"] = f_niveau
-            if f_type != "Tous":
-                filters["type_ressource"] = f_type
-    elif search_section == "🔗 Web3":
-        section_key = "web3"
-        collection_key = ""
-        with st.expander("🔧 Filtres avancés", expanded=False):
-            f_cat = st.selectbox("Catégorie", ["Tous"] + WEB3_CATEGORIES, key="s_w3cat")
-            if f_cat != "Tous":
-                filters["categorie"] = f_cat
+    v2_collections = _fetch_v2_collections()
+    if not v2_collections:
+        st.warning("Aucune collection v2 retrievable. Vérifiez la configuration du catalogue.")
     else:
-        section_key = "all"
-        collection_key = ""
+        # Build picker labels: "NSI Première (spécialité)" etc.
+        def _col_label(c: dict[str, Any]) -> str:
+            matiere = (c.get("matiere") or "").replace("_", " ").title()
+            niveau = (c.get("niveau") or "").replace("_", " ").title()
+            statut = c.get("statut") or ""
+            return f"{matiere} {niveau} ({statut})" if statut else f"{matiere} {niveau}"
 
-    if query and st.button("🔎 Rechercher"):
-        with st.spinner("Recherche en cours..."):
-            if section_key == "all":
-                # Recherche multi-collection : interroge chaque collection et fusionne par score
-                all_hits: list[dict[str, Any]] = []
-                searched_cols: list[str] = []
-                for col_name in ALL_COLLECTIONS:
-                    search_collection = col_name
-                    search_section = ""
-                    if col_name == "rag_maths_premiere":
-                        search_collection = ""
-                        search_section = "maths_premiere"
-                    payload_col = _build_search_payload(
-                        query=query,
-                        k=k,
-                        collection=search_collection,
-                        section=search_section,
-                        filters={},
-                        score_threshold=score_threshold if use_score_threshold else None,
-                    )
-                    r = api_post("/search", payload_col, timeout=60.0)
-                    if r and r.get("hits"):
-                        for h in r["hits"]:
-                            h["_collection"] = col_name
-                        all_hits.extend(r["hits"])
-                        searched_cols.append(col_name)
-                deduped_hits: dict[str, dict[str, Any]] = {}
-                for hit in all_hits:
-                    meta = hit.get("metadata", {})
-                    dedupe_key = str(
-                        meta.get("sha256")
-                        or hit.get("id")
-                        or meta.get("source")
-                        or ""
-                    ).strip()
-                    if not dedupe_key:
-                        dedupe_key = f"anon-{len(deduped_hits)}"
-                    current = deduped_hits.get(dedupe_key)
-                    if current is None or hit.get("score", 1.0) < current.get("score", 1.0):
-                        deduped_hits[dedupe_key] = hit
-                # Trier par score ascendant (distance cosinus — plus petit = meilleur)
-                merged_hits = sorted(deduped_hits.values(), key=lambda h: h.get("score", 1.0))[:k]
-                result: dict[str, Any] | None = {
-                    "hits": merged_hits,
-                    "collection": "toutes (" + ", ".join(searched_cols) + ")",
-                }
-            else:
-                payload = _build_search_payload(
-                    query=query,
-                    k=k,
-                    collection=collection_key,
-                    section=section_key,
-                    filters=filters,
-                    score_threshold=score_threshold if use_score_threshold else None,
+        col_labels = {_col_label(c): c["name"] for c in v2_collections}
+        # "Toutes" option queries each collection and merges
+        options = list(col_labels.keys()) + (["Toutes"] if len(col_labels) > 1 else [])
+
+        selected = st.radio("Collection cible", options, horizontal=True)
+
+        query = st.text_input("Question", placeholder="Qu'est-ce qu'un arbre binaire ?")
+        k = st.slider("Nombre de résultats", 1, 20, 5)
+
+        if query and st.button("Rechercher"):
+            with st.spinner("Recherche v2 en cours (dense + rerank)..."):
+                if selected == "Toutes":
+                    # Multi-collection: query each and merge by rerank_score descending
+                    all_hits: list[dict[str, Any]] = []
+                    searched_cols: list[str] = []
+                    for col_name in col_labels.values():
+                        r = api_post("/search/v2", {"q": query, "collection": col_name, "k": k}, timeout=120.0)
+                        if r and r.get("hits"):
+                            for h in r["hits"]:
+                                h["_collection"] = col_name
+                            all_hits.extend(r["hits"])
+                            searched_cols.append(col_name)
+                    # Deduplicate by chunk_id
+                    deduped: dict[str, dict[str, Any]] = {}
+                    for hit in all_hits:
+                        cid = hit.get("chunk_id", "")
+                        if cid not in deduped or hit.get("rerank_score", 0) > deduped[cid].get("rerank_score", 0):
+                            deduped[cid] = hit
+                    merged = sorted(deduped.values(), key=lambda h: h.get("rerank_score", 0), reverse=True)[:k]
+                    result: dict[str, Any] | None = {
+                        "hits": merged,
+                        "collection": "toutes (" + ", ".join(searched_cols) + ")",
+                        "seuil": merged[0].get("seuil", "") if merged else "",
+                        "returned": len(merged),
+                    }
+                else:
+                    target_col = col_labels[selected]
+                    result = api_post("/search/v2", {"q": query, "collection": target_col, "k": k}, timeout=120.0)
+
+            if result:
+                hits = result.get("hits", [])
+                seuil = result.get("seuil", "")
+                gen_allowed = result.get("answer_generation_allowed", False)
+                st.info(
+                    f"{len(hits)} résultat(s) dans `{result.get('collection', '?')}` "
+                    f"(seuil rerank: {seuil})"
                 )
-                result = api_post("/search", payload, timeout=60.0)
+                if gen_allowed is False:
+                    st.caption("Retrieval seul — answer_generation_allowed = false")
 
-        if result:
-            hits = result.get("hits", [])
-            st.info(f"{len(hits)} résultat(s) dans `{result.get('collection', '?')}`")
+                for i, h in enumerate(hits):
+                    h_col = h.pop("_collection", None)
+                    rerank_score = h.get("rerank_score", 0)
+                    source_label = h.get("source_label", "Sans titre")
+                    rights = h.get("rights", "")
+                    type_doc = h.get("type_doc", "")
+                    doc_id = h.get("doc_id", "")
+                    col_tag = f" | {h_col}" if h_col else ""
 
-            for i, h in enumerate(hits):
-                h_col = h.pop("_collection", None)
-                score = h.get("score", 0)
-                meta = h.get("metadata", {})
-                source = meta.get("source", meta.get("original_filename", "Sans titre"))
-                matiere_tag = f" | 📚 {meta['matiere']}" if meta.get("matiere") else ""
-                niveau_tag = f" | 🎯 {meta['niveau']}" if meta.get("niveau") else ""
-                cat_tag = f" | 🏷️ {meta['categorie']}" if meta.get("categorie") else ""
-                col_tag = f" | 🗄️ {h_col}" if h_col else ""
-
-                with st.expander(f"#{i+1} — {source} (score: {score:.4f}{matiere_tag}{niveau_tag}{cat_tag}{col_tag})"):
-                    doc_text = h.get("document", "")
-                    if doc_text:
-                        st.markdown(doc_text[:2000])
-                        if len(doc_text) > 2000:
-                            st.caption("... (tronqué)")
-                    st.caption(f"**Métadonnées** : {json.dumps(meta, ensure_ascii=False, indent=2)}")
+                    with st.expander(
+                        f"#{i+1} — {source_label} "
+                        f"(rerank: {rerank_score:+.2f}{col_tag})"
+                    ):
+                        preview = h.get("preview", "")
+                        if preview:
+                            st.markdown(preview)
+                        # Citations F-01
+                        st.markdown(
+                            f"**Source** : `{source_label}`  \n"
+                            f"**Droits** : `{rights}`  \n"
+                            f"**Type** : `{type_doc}`  \n"
+                            f"**doc_id** : `{doc_id}`  \n"
+                            f"**chunk_id** : `{h.get('chunk_id', '')}`"
+                        )
 
 
 # ═══════════════════════════════════════════════════════════════
