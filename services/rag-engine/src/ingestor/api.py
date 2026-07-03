@@ -251,6 +251,15 @@ except Exception:  # pragma: no cover - flexible fallback
     except Exception:
         _retrieval_v2_module = importlib.import_module("retrieval_v2_endpoint")
 
+# Import ingestion v2 router (FE-03: voies d'ingestion aux normes v2)
+try:
+    from . import ingest_v2_endpoint as _ingest_v2_module
+except Exception:  # pragma: no cover - flexible fallback
+    try:
+        _ingest_v2_module = importlib.import_module("ingestor.ingest_v2_endpoint")
+    except Exception:
+        _ingest_v2_module = importlib.import_module("ingest_v2_endpoint")
+
 
 @dataclass
 class PreparedBatch:
@@ -286,6 +295,7 @@ _drive_tasks_lock = threading.Lock()
 app = FastAPI(title="RAG Ingestor API")
 app.include_router(admin_api.router)
 app.include_router(_retrieval_v2_module.router)
+app.include_router(_ingest_v2_module.router)
 
 _DRIVE_SYNC_DB = os.getenv("DRIVE_SYNC_DB_PATH", "/data/drive_sync_state.db")
 sync_manager = DriveSyncManager(db_path=_DRIVE_SYNC_DB)
