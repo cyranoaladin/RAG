@@ -98,7 +98,8 @@ def list_pending(
                     "SELECT COUNT(DISTINCT doc_id) FROM rag_chunks "
                     "WHERE review_status = 'needs_review'",
                 )
-            total_docs = cur.fetchone()[0]
+            row = cur.fetchone()
+            total_docs = row[0] if row else 0
 
             # Get pending documents with summary
             query = """
