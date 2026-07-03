@@ -164,7 +164,7 @@ def ingest_document(
     # --- Generate doc_id ---
     if not doc_id:
         doc_id = hashlib.sha256(
-            f"{request.source_uri}|{request.source_label}".encode()
+            f"{request.collection}|{request.source_uri}|{request.source_label}".encode()
         ).hexdigest()
 
     # --- Chunk ---
@@ -247,11 +247,27 @@ def ingest_document(
                     ON CONFLICT (chunk_id) DO UPDATE SET
                         chunk_sha256 = EXCLUDED.chunk_sha256,
                         vector = EXCLUDED.vector,
+                        collection = EXCLUDED.collection,
+                        niveau = EXCLUDED.niveau,
+                        voie = EXCLUDED.voie,
+                        audience = EXCLUDED.audience,
+                        matiere = EXCLUDED.matiere,
+                        statut_enseignement = EXCLUDED.statut_enseignement,
+                        domain = EXCLUDED.domain,
+                        source_label = EXCLUDED.source_label,
+                        source_uri = EXCLUDED.source_uri,
+                        rights = EXCLUDED.rights,
+                        type_doc = EXCLUDED.type_doc,
+                        official = EXCLUDED.official,
                         text = EXCLUDED.text,
                         review_status = 'needs_review',
                         model = EXCLUDED.model,
+                        source_kind = EXCLUDED.source_kind,
                         indexed_at = NOW()
                     WHERE rag_chunks.chunk_sha256 <> EXCLUDED.chunk_sha256
+                       OR rag_chunks.collection <> EXCLUDED.collection
+                       OR rag_chunks.rights <> EXCLUDED.rights
+                       OR rag_chunks.review_status <> 'needs_review'
                 """, (
                     chunk_id, doc_id, chunk_sha, vec_str,
                     request.collection, request.niveau, request.voie,

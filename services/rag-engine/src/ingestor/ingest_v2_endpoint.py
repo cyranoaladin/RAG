@@ -27,8 +27,15 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/ingest/v2", tags=["ingestion_v2"])
 
 
+MAX_REMOTE_BYTES = 50 * 1024 * 1024  # 50 MB max per URL fetch
+
+_BLOCKED_HOSTS = {"localhost", "127.0.0.1", "0.0.0.0", "[::1]", "metadata.google.internal"}
+
+
 def _enforce_security(request: Request) -> str:
-    """Auth check. Returns token for provenance."""
+    """Auth + IP allowlist check. Returns token for provenance."""
+    import ipaddress
+
     token_env = os.getenv("INGESTOR_API_TOKEN") or os.getenv("INGEST_AUTH_TOKEN")
     if not token_env:
         raise HTTPException(status_code=503, detail="API token not configured")
@@ -44,7 +51,49 @@ def _enforce_security(request: Request) -> str:
                 header_token = value
     if header_token != token_env:
         raise HTTPException(status_code=401, detail="Unauthorized")
+
+    # IP allowlist (same as legacy endpoints)
+    allowlist = os.getenv("INGESTOR_IP_ALLOWLIST")
+    if allowlist:
+        client_ip = request.client.host if request.client else ""
+        if client_ip:
+            allowed = False
+            for network in allowlist.split(","):
+                network = network.strip()
+                if not network:
+                    continue
+                try:
+                    if ipaddress.ip_address(client_ip) in ipaddress.ip_network(network, strict=False):
+                        allowed = True
+                        break
+                except ValueError:
+                    continue
+            if not allowed:
+                raise HTTPException(status_code=403, detail="Forbidden")
+
     return header_token or ""
+
+
+def _validate_url(url: str) -> None:
+    """Block private/loopback/metadata URLs (SSRF protection)."""
+    import ipaddress
+    from urllib.parse import urlparse
+
+    parsed = urlparse(url)
+    hostname = parsed.hostname or ""
+    if not hostname:
+        raise HTTPException(status_code=400, detail=f"Invalid URL: {url}")
+    if hostname in _BLOCKED_HOSTS:
+        raise HTTPException(status_code=400, detail=f"Blocked host: {hostname}")
+    # Block private IP ranges
+    try:
+        ip = ipaddress.ip_address(hostname)
+        if ip.is_private or ip.is_loopback or ip.is_link_local:
+            raise HTTPException(status_code=400, detail=f"Private IP blocked: {hostname}")
+    except ValueError:
+        pass  # hostname is a domain name, not an IP — OK
+    if parsed.scheme not in ("http", "https"):
+        raise HTTPException(status_code=400, detail=f"Unsupported scheme: {parsed.scheme}")
 
 
 def _extract_text_from_file(file_path: Path) -> str:
@@ -162,7 +211,7 @@ def ingest_upload_v2(
                 niveau=niveau,
                 voie=voie,
             )
-            doc_id = hashlib.sha256(content).hexdigest()
+            doc_id = hashlib.sha256(f"{collection}|".encode() + content).hexdigest()
             result = ingest_document(text, req, provenance, doc_id=doc_id)
             results.append({
                 "file": fname,
@@ -194,9 +243,13 @@ def ingest_urls_v2(payload: UrlsV2Request, request: Request) -> dict[str, Any]:
     results: list[dict[str, Any]] = []
     for url in payload.urls:
         try:
+            _validate_url(url)
             import httpx
-            resp = httpx.get(url, timeout=30.0, follow_redirects=True)
+            resp = httpx.get(url, timeout=30.0, follow_redirects=True, headers={"Accept": "text/html,text/plain"})
             resp.raise_for_status()
+            if len(resp.content) > MAX_REMOTE_BYTES:
+                results.append({"url": url, "error": f"too large (>{MAX_REMOTE_BYTES} bytes)"})
+                continue
             text = resp.text
             if not text.strip():
                 results.append({"url": url, "error": "empty content"})
@@ -225,7 +278,7 @@ def ingest_urls_v2(payload: UrlsV2Request, request: Request) -> dict[str, Any]:
                 niveau=payload.niveau,
                 voie=payload.voie,
             )
-            doc_id = hashlib.sha256(url.encode()).hexdigest()
+            doc_id = hashlib.sha256(f"{payload.collection}|{url}".encode()).hexdigest()
             result = ingest_document(clean_text, req, provenance, doc_id=doc_id)
             results.append({
                 "url": url,
@@ -264,15 +317,13 @@ def ingest_drive_v2(payload: DriveV2Request, request: Request) -> dict[str, Any]
     except Exception as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
 
-    # Drive listing and ingestion would use DriveSyncManager
-    # For now, return a structured response indicating the route is ready
-    # but Drive integration requires the service account credentials
-    # which are only available on the production server.
-    return {
-        "route": "drive_v2",
-        "folder_id": payload.folder_id,
-        "collection": payload.collection,
-        "status": "ready",
-        "message": "Drive v2 route validated. Execute on production server with credentials.",
-        "review_status": "needs_review",
-    }
+    # Drive v2 ingestion requires the DriveSyncManager + service account credentials
+    # available only on the production server. Collection validated above.
+    raise HTTPException(
+        status_code=501,
+        detail=(
+            f"Drive v2 ingestion not yet implemented on this instance. "
+            f"Collection '{payload.collection}' validated. "
+            f"Deploy with Drive credentials to enable."
+        ),
+    )
