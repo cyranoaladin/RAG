@@ -29,10 +29,15 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["retrieval_v2"])
 
-# --- Configuration figée LOT 24 (D-CONFIG-FINALE-LOT24) ---
+# --- Configuration figée (D-CONFIG-RETRIEVAL-PREPROD, LAT-05) ---
+# Seuil rerank: +1.90 (LOT 24 FF-02b, marge 1.00 LOT 25a)
 RERANK_SCORE_THRESHOLD = float(os.environ.get("RERANK_SCORE_THRESHOLD", "1.90"))
+# Reranker: MiniLM-L-6 conservé (L-2 écarté: marge 1.00→0.71)
 RERANK_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+# Embedding: e5-large 1024 dim
 EMBED_MODEL = "intfloat/multilingual-e5-large"
+# Pool rerank: 20 candidats (LAT-01: top-10 perd 1 in-domain, top-20 = 15/15 in, 10/10 out)
+# Latence médiane 1.08s mono (84% rerank CPU, 14% embed, 1% dense HNSW)
 RERANK_CANDIDATES = 20
 
 # --- Lazy-loaded models (cached at module level) ---
