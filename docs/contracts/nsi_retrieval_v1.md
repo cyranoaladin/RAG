@@ -133,12 +133,17 @@ modification de schéma.
 > Un changement de ces valeurs = note de version (§10), PAS un bump v2,
 > tant que les garanties (a)/(b)/(c) sur `score` sont préservées.
 
-### Réponse vide
+### Réponses vides et partielles
 
 Quand aucun hit ne passe le seuil interne ou que le corpus est vide pour les
 filtres demandés : HTTP 200, `{"hits": [], ...}`. Jamais une erreur HTTP.
 Le consommateur (juge) traite `hits == []` comme absence de preuve
 (`empty_evidence()` — `substance_judge.py:194-202`).
+
+`len(hits)` PEUT être inférieur à `top_k` quand le corpus filtré contient
+moins de chunks correspondants ou que le seuil interne en élimine davantage.
+Ce n'est pas une erreur — le consommateur traite les hits reçus tels quels,
+sans vérifier que `len(hits) == top_k`.
 
 ### Erreurs
 
@@ -541,65 +546,125 @@ interne au fournisseur.
 **Résolution** : LOT R1 — implémenter le mapping corpus→collection(s) dans
 l'endpoint adaptateur.
 
-### E-09 : Duplication du consommateur dans le dépôt NSI
+### E-09 : « Duplication » du consommateur — artefact de workspace, pas du dépôt
 
-**Constat** : le dépôt NSI contient DEUX copies divergentes des scripts
-critiques dans des arborescences distinctes (`scripts/` racine et
-`nsi-enseignement/scripts/`). Diff factuel :
+**Constat initial** : le workspace local contient deux copies divergentes de
+`substance_judge.py` dans des arborescences distinctes (`scripts/` sous
+`/home/alaeddine/Documents/NSI/` et `scripts/` sous `.../NSI/nsi-enseignement/`).
+Le diff factuel de l'amendement précédent (barrières absentes, ancre
+`metadata.anchor` vs `section_anchor`, etc.) reste valide mais sa CAUSE est
+un artefact de poste de travail, pas une fragmentation du dépôt.
 
-#### substance_judge.py
+#### Preuve par commandes (read-only)
 
-| Aspect | `scripts/` (racine) | `nsi-enseignement/scripts/` |
-|--------|--------------------|-----------------------------|
-| Barrière A (`INTERNAL_COVERAGE_COLLECTIONS`, `is_internal_collection`) | **ABSENTE** | Présente (lignes 32, 35-37) |
-| Barrière B (`is_internal_hit`) | **ABSENTE** | Présente (lignes 40-51) |
-| `search_rag()` — collection | Hardcodée `"nsi_corpus"` (ligne 137) | Via `env.get("RAG_COLLECTION")` (ligne 166) |
-| `search_rag()` — filtre interne | **Aucun** — tous les hits passent | `is_internal_hit()` appliqué AVANT `doc_type_filter` (ligne 172) |
-| `accepted_evidence()` — ancre | `metadata.get("anchor")` UNIQUEMENT (ligne 267) | `metadata.get("section_anchor") or metadata.get("anchor")` (ligne 297) |
-| Pré-vol collection | **Aucune validation** | Refuse `RAG_COLLECTION` hors allowlist (lignes 490-500) |
-| ENV resolution | Hardcodée `ROOT / ".env.rag"` (ligne 24) | Via `resolve_env_file(ROOT)` (ligne 28) |
-| Imports | `from check_substance_anchors import ...` (ligne 20) | `from scripts.check_substance_anchors import ...` (ligne 24) |
+**(a) Racine git du répertoire de travail :**
 
-#### rag_smoke_test.py
+```
+$ git -C /home/alaeddine/Documents/NSI rev-parse --show-toplevel
+/home/alaeddine/Documents/NSI
+```
 
-| Aspect | `scripts/` (racine) | `nsi-enseignement/scripts/` |
-|--------|--------------------|-----------------------------|
-| Collection validation | **Aucune** | Strict : allowlist `{"nsi_corpus", "nsi_corpus_v2"}` (ligne 64) |
-| Dimension validation | **Aucune** | Vérifie `RAG_VECTOR_DIM == 768` (strict) |
-| Backend validation | **Aucune** | Vérifie `RAG_BACKEND == "chroma"` (strict) |
-| ENV resolution | Hardcodée (ligne 24) | Via `resolve_env_file()` |
-| Ancre dans metadata | Non vérifié | Vérifie `metadata.anchor or metadata.section_anchor` (ligne 54) |
+**(b) Dépôts git présents :**
 
-#### rag_core.py
+```
+$ find /home/alaeddine/Documents/NSI -maxdepth 2 -name .git -type d
+/home/alaeddine/Documents/NSI/nsi-enseignement/.git
+/home/alaeddine/Documents/NSI/.git
+```
 
-| Aspect | `scripts/` (racine) | `nsi-enseignement/scripts/` |
-|--------|--------------------|-----------------------------|
-| Existence | **N'EXISTE PAS** | Présent (209 lignes) — `extract_metadata()`, `resolve_env_file()`, `github_slug()` |
+Deux dépôts git distincts : un clone extérieur (racine) et un clone intérieur
+(`nsi-enseignement/`).
 
-#### Autres fichiers en double
+**(c) Fichiers trackés et remotes :**
 
-`check_substance_anchors.py` existe dans les deux arborescences (contenu
-identique vérifié). Les 27 fichiers de policy checkers et outils RAG
-avancés (dont `check_rag_collection_policy.py`, `check_rag_config.py`) sont
-**uniquement** dans `nsi-enseignement/scripts/`.
+```
+$ git -C /home/alaeddine/Documents/NSI ls-files scripts/substance_judge.py \
+    nsi-enseignement/scripts/substance_judge.py
+scripts/substance_judge.py
 
-**Impact** : **BLOQUANT — fragmentation de source de vérité**. Les barrières
-durcies (A+B), le policy checker AST (19 cas adverses), les guards
-`resolve_env_file()` et la validation stricte de collection gardent
-UNIQUEMENT la copie `nsi-enseignement/scripts/`. Si la copie racine
-`scripts/` est exécutée en production :
-- Aucune barrière source_type → des hits tierces (rag_education, etc.)
-  seraient acceptés comme preuves internes ;
-- Aucune validation de collection → un `RAG_COLLECTION` erroné passerait ;
-- `metadata.anchor` manquant → 100% des ancres perdues silencieusement ;
-- Toute la chaîne de hardening des PRs #40-56 est contournée.
+$ git -C /home/alaeddine/Documents/NSI/nsi-enseignement ls-files scripts/substance_judge.py
+scripts/substance_judge.py
 
-**Résolution** : **DÉCISION LEAD REQUISE** — désigner l'arbre canonique
-(`nsi-enseignement/scripts/` est le candidat évident au vu du hardening) et
-prévoir la suppression ou redirection du doublon en LOT N1. Tant que la
-duplication persiste, aucune garantie contractuelle ne tient côté
-consommateur : le contrat RAG livre les bons champs, mais si le mauvais
-script les consomme, le résultat est silencieusement vide.
+$ git -C /home/alaeddine/Documents/NSI remote -v
+origin	https://github.com/cyranoaladin/NSI.git (fetch)
+origin	https://github.com/cyranoaladin/NSI.git (push)
+
+$ git -C /home/alaeddine/Documents/NSI/nsi-enseignement remote -v
+origin	https://github.com/cyranoaladin/NSI.git (fetch)
+origin	https://github.com/cyranoaladin/NSI.git (push)
+```
+
+Les DEUX clones pointent vers le MÊME remote `cyranoaladin/NSI.git`. Chacun
+tracke `scripts/substance_judge.py` à sa propre racine. Le répertoire
+`nsi-enseignement/` n'est PAS tracké par le clone extérieur (pas de submodule,
+`ls-files` retourne vide pour `nsi-enseignement/`).
+
+```
+$ git -C /home/alaeddine/Documents/NSI rev-parse main origin/main
+0d886e0ff9b0a83515c3fa0fc79c0aed2854157e
+0d886e0ff9b0a83515c3fa0fc79c0aed2854157e
+
+$ git -C /home/alaeddine/Documents/NSI/nsi-enseignement rev-parse main origin/main
+58fcfa4b42a7d0c1607ef852ddb37db7f543578d
+58fcfa4b42a7d0c1607ef852ddb37db7f543578d
+```
+
+Le clone extérieur est sur `main@0d886e0` (ancien, pré-hardening). Le clone
+intérieur est sur `main@58fcfa4` (actuel, post-hardening PRs #40-56).
+Le clone extérieur n'a simplement pas fait `git fetch/pull` — son
+`origin/main` est périmé.
+
+**(d) CI et tests dans le dépôt actuel :**
+
+Le workflow CI (`.github/workflows/ci.yml`) exécute :
+- `pytest` (qui charge les 14 tests de barrière via
+  `tests/test_judge_collection_barriers.py:15` — `import scripts.substance_judge as judge`)
+- `python -m scripts.check_substance_anchors` (import package `scripts.`)
+
+Les tests de barrière (`test_judge_collection_barriers.py`) appellent
+directement `judge.is_internal_collection()`, `judge.is_internal_hit()`,
+et `judge.search_rag()` avec monkeypatch — ils ÉCHOUERAIENT si le module
+importé ne contenait pas ces fonctions.
+
+```
+$ git -C /home/alaeddine/Documents/NSI/nsi-enseignement log --oneline origin/main -5
+58fcfa4 Supports complets pour 14 capacites absentes (0 absent, CI verte)
+ad47534 Rattacher 8 capacites absentes aux supports (22 absent -> 14 absent + 8 partial)
+8ce500c Verdicts substance : 22 capacites absentes (8 needs_review, 14 needs_content)
+2409da8 Registre RAG v2 rejouable : placeholders corriges, ITEMS 1-5 CLOS
+e2b0b0f Merge pull request #56 from cyranoaladin/frontend/fe01-audit-final
+```
+
+Le HEAD actuel de `origin/main` (`58fcfa4`) est postérieur aux PRs #40-56
+de hardening — la CI les a intégrées, les tests des barrières sont verts
+sur ce HEAD.
+
+#### Conclusion
+
+Il n'y a qu'UN seul dépôt (`cyranoaladin/NSI.git`) avec UN seul fichier
+`scripts/substance_judge.py` tracké. La « duplication » vue dans le
+workspace est un artefact local : deux clones du même dépôt dans des
+répertoires imbriqués, le clone extérieur n'ayant pas été mis à jour
+(`main@0d886e0` vs `main@58fcfa4`).
+
+**La copie sans barrières (`/home/alaeddine/Documents/NSI/scripts/substance_judge.py`)
+est le même fichier que celui du dépôt, mais à un commit antérieur au
+hardening.** Elle n'est ni un fork, ni un doublon dans l'arbre git — c'est
+un clone local périmé.
+
+**Impact requalifié** : **hygiène de workspace**, pas fragmentation de source
+de vérité. Le dépôt `cyranoaladin/NSI.git` sur `main@58fcfa4` contient la
+version durcie avec barrières A+B, `resolve_env_file()`, et le fallback
+`section_anchor`. Les garanties du hardening (PRs #40-56) sont intactes et
+protégées par la CI (14 tests de barrière + 19 cas adverses policy checker).
+Aucun impact sur le contrat RAG ni sur les garanties du consommateur en
+production.
+
+**Résolution** : nettoyage du poste de travail — le clone périmé
+(`/home/alaeddine/Documents/NSI/` sur `main@0d886e0`) devrait être mis à
+jour (`git pull`) ou supprimé pour éviter toute confusion future. C'est une
+action d'hygiène locale, pas une décision architecturale — le lead n'a pas
+besoin de trancher.
 
 ### Tableau récapitulatif
 
@@ -613,7 +678,7 @@ script les consomme, le résultat est silencieusement vide.
 | E-06 `anchor` vs `section_anchor` | **Bloquant** (chemin de preuve) | Prérequis N1 (côté NSI) |
 | E-07 Health minimal | Modéré | R1 |
 | E-08 Nomenclature collection | Modéré | R1 |
-| E-09 Duplication consommateur NSI | **Bloquant** (source de vérité) | N1 (côté NSI, décision lead) |
+| E-09 « Duplication » consommateur | Hygiène workspace (clone périmé) | Nettoyage local (`git pull` ou suppression) |
 
 ---
 
@@ -672,14 +737,18 @@ défaillance silencieux garanti lors de toute recalibration fournisseur.
 
 ## Annexe A — Inventaire des fichiers de référence
 
-### Dépôt NSI (consommateur)
+### Dépôt NSI (consommateur) — `cyranoaladin/NSI.git`, `main@58fcfa4`
 
-| Fichier | Rôle | Doublon ? |
-|---------|------|-----------|
-| `nsi-enseignement/scripts/substance_judge.py` | Juge de substance — copie **durcie** (barrières A+B, `resolve_env_file`) | Oui — `scripts/substance_judge.py` est la copie **non durcie** (cf. E-09) |
-| `nsi-enseignement/scripts/rag_core.py` | Logique partagée RAG — `extract_metadata()`, `resolve_env_file()`, `github_slug()` | Non — n'existe PAS dans `scripts/` racine |
-| `nsi-enseignement/scripts/rag_smoke_test.py` | Smoke test strict (allowlist, dim, backend) | Oui — `scripts/rag_smoke_test.py` est la version sans validation strict |
-| `nsi-enseignement/reports/closure2/rag_v2_cutover_STATE.md` | État prouvé Chroma v2 (5992 chunks, nomic 768d) | Non |
+> Note : les chemins ci-dessous sont relatifs à la racine du dépôt.
+> Le workspace local contient deux clones (cf. E-09) ; les références
+> utilisent le clone à jour (`nsi-enseignement/` = racine du clone actuel).
+
+| Fichier (dans le dépôt) | Rôle |
+|--------------------------|------|
+| `scripts/substance_judge.py` | Juge de substance (version durcie : barrières A+B, `resolve_env_file`, fallback `section_anchor`) |
+| `scripts/rag_core.py` | Logique partagée RAG — `extract_metadata()`, `resolve_env_file()`, `github_slug()` |
+| `scripts/rag_smoke_test.py` | Smoke test strict (allowlist collection, dim, backend) |
+| `reports/closure2/rag_v2_cutover_STATE.md` | État prouvé Chroma v2 (5992 chunks, nomic 768d) |
 
 ### Dépôt RAG (fournisseur)
 
