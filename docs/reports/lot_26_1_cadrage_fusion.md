@@ -11,7 +11,7 @@
 
 Formaliser l’architecture de convergence autour du dépôt canonique et produire le cadrage documenté pour les lots LOT 26.2 → LOT 26.10.
 
-Référence de cadrage : `docs/reports/lot_26_cahier_charges_fusion_rag.md`, introduit par la PR #48. Cette PR #49 dépend de #48 si #48 n’est pas encore mergée.
+Référence de cadrage : `docs/reports/lot_26_cahier_charges_fusion_rag.md`, introduit par la PR #48 (mergée dans `main`).
 
 ## Travaux réalisés
 
@@ -28,7 +28,7 @@ Référence de cadrage : `docs/reports/lot_26_cahier_charges_fusion_rag.md`, int
 
 ### Corrections effectuées (suite à revue)
 
-- Référence de cadrage corrigée dans l’ADR pour indiquer explicitement la dépendance à la PR #48 (fichier référencé non encore dans `main`).
+- Référence de cadrage corrigée dans l’ADR pour indiquer explicitement la dépendance initiale à la PR #48, désormais mergée.
 - D6 corrigée :
   - suppression de la règle `{population}_{niveau}` comme règle opérationnelle v2 ;
   - base de vérité v2 alignée sur `services/rag-engine/configs/rag_collections.yml` et `packages/contracts` ;
@@ -37,6 +37,16 @@ Référence de cadrage : `docs/reports/lot_26_cahier_charges_fusion_rag.md`, int
   - ajout de la règle “La recherche élève des nouveaux parcours lit uniquement rag-engine v2.” ;
   - ajout de l’interdiction de fallback legacy silencieux ;
   - ajout de la contrainte d’usage legacy uniquement pour continuité ou migration.
+
+### 1.1) État d’alignement après validation du lot 26.1
+
+- PR #48 (cahier des charges LOT 26) est mergée dans `main`.
+- Branche PR #49 a été rebasée/synchronisée sur la nouvelle `main`.
+- Les garde-fous gouvernance ont été relancés après rebase.
+- Aucun runtime modifié.
+- Aucun verrou modifié.
+- Aucun secret ajouté.
+- Aucun déploiement production effectué.
 
 ### 2) Rapport de cadrage de lot
 
@@ -61,7 +71,7 @@ Résultats :
 - Aucun verrou de gouvernance n’a été touché.
 - Aucun secret n’a été ajouté.
 - Aucun déploiement production n’a été effectué.
-- Validation d’exploitation: PR #49 reste en draft tant que ces corrections sont intégrées et re-vérifiées.
+- Validation d’exploitation: PR #49 a été préparée pour revue business et est en attente de validation métier avant merge.
 
 ## Limites du lot
 

@@ -4,7 +4,7 @@
 - **Date** : 2026-07-09
 - **Décideur** : Lead engineering (Conduite LOT 26)
 - **Lot** : 26.1
-- **Référence de cadrage** : `docs/reports/lot_26_cahier_charges_fusion_rag.md`, introduit par la PR #48. Cette PR #49 dépend de #48 si #48 n’est pas encore mergée.
+- **Référence de cadrage** : `docs/reports/lot_26_cahier_charges_fusion_rag.md`, introduit par la PR #48, mergée.
 
 ---
 
@@ -113,8 +113,8 @@ Le déploiement de production n’est pas initié par ce lot.
 
 ## Références
 
-- `docs/reports/lot_26_cahier_charges_fusion_rag.md` (branche de cadrage `origin/codex/cdc-fusion-rag-unifie`).
-- Référence de cadrage à PR #48 : docs/reports/lot_26_cahier_charges_fusion_rag.md n’est pas dans la base tant que #48 n’est pas mergée.
+- `docs/reports/lot_26_cahier_charges_fusion_rag.md` (dans la base `main` suite au merge de #48).
+- Référence de cadrage à PR #48 : fichier disponible dans `main` (PR mergée).
 - `services/rag-engine/configs/rag_collections.yml` (contrat catalogue actif).
 - `services/rag-engine/src/ingestor/collection_config.py` (résolution v2).
 - `docs/adr/ADR-0001-separation-controle-donnees-cockpit.md`
