@@ -157,7 +157,7 @@ class TestResponseFormat:
 
 
 class TestCacheGateInvariant:
-    """Invariant C: cache never serves a chunk that became quarantined.
+    """Invariant C: cache never serves a chunk that became non-review.
 
     The gate (resolve_collection_v2 + domain retrievable) is checked BEFORE
     the cache lookup. The cache is keyed by (query, collection, k) and only
@@ -167,7 +167,7 @@ class TestCacheGateInvariant:
     Additionally:
     - TTL ensures stale entries expire (default 5 min)
     - invalidate_cache() purges all entries on review_status change
-    - SQL WHERE review_status IN ('reviewed', 'needs_review') excludes quarantined chunks
+    - SQL WHERE review_status = 'reviewed' excludes non-review statuses
     """
 
     def test_gate_before_cache(self) -> None:
@@ -246,5 +246,4 @@ class TestCacheGateInvariant:
 
         from ingestor.retrieval_v2_endpoint import search_v2
         source = inspect.getsource(search_v2)
-        assert "review_status IN ('reviewed', 'needs_review')" in source, \
-            "SQL must exclude quarantined chunks"
+        assert "review_status = 'reviewed'" in source, "Search must filter to reviewed only"

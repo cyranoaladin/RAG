@@ -192,7 +192,7 @@ class SearchV2Hit(BaseModel):
     source_uri: str
     rights: str
     type_doc: str
-    review_status: str  # SCALE-04: reviewed | needs_review (quarantined never served)
+    review_status: str  # SCALE-04: reviewed
     preview: str
     rerank_score: float
     dense_sim: float
@@ -298,7 +298,7 @@ def cache_warmup(request: Request) -> dict[str, Any]:
                         SELECT chunk_id, doc_id, source_label, source_uri, rights, type_doc,
                                text, 1 - (vector <=> %s::vector) AS sim, review_status
                         FROM rag_chunks
-                        WHERE collection = %s AND review_status IN ('reviewed', 'needs_review')
+                        WHERE collection = %s AND review_status = 'reviewed'
                         ORDER BY vector <=> %s::vector LIMIT %s
                     """, (vec_str, col, vec_str, RERANK_CANDIDATES))
                     candidates = cur.fetchall()
@@ -399,13 +399,20 @@ def search_v2(payload: SearchV2Request, request: Request) -> SearchV2Response:
     if CACHE_ENABLED:
         cached = _cache_get(cache_k)
         if cached is not None:
-            return SearchV2Response(
-                query=payload.q,
-                collection=payload.collection,
-                seuil=RERANK_SCORE_THRESHOLD,
-                returned=len(cached),
-                hits=[SearchV2Hit(**h) for h in cached],
-            )
+            reviewed_cached = [
+                candidate for candidate in cached
+                if isinstance(candidate, dict)
+                and candidate.get("review_status") == "reviewed"
+            ]
+            if len(reviewed_cached) == len(cached):
+                return SearchV2Response(
+                    query=payload.q,
+                    collection=payload.collection,
+                    seuil=RERANK_SCORE_THRESHOLD,
+                    returned=len(reviewed_cached),
+                    hits=[SearchV2Hit(**h) for h in reviewed_cached],
+                )
+            # If the cache contains stale statuses, fail-closed path recomputes.
         _cache_misses += 1
 
     # Get DSN (R-01: no default)
@@ -431,7 +438,7 @@ def search_v2(payload: SearchV2Request, request: Request) -> SearchV2Response:
                 SELECT chunk_id, doc_id, source_label, source_uri, rights, type_doc,
                        text, 1 - (vector <=> %s::vector) AS sim, review_status
                 FROM rag_chunks
-                WHERE collection = %s AND review_status IN ('reviewed', 'needs_review')
+                WHERE collection = %s AND review_status = 'reviewed'
                 ORDER BY vector <=> %s::vector
                 LIMIT %s
             """, (vec_str, payload.collection, vec_str, RERANK_CANDIDATES))
