@@ -3,7 +3,7 @@
 **Date** : 2026-07-09
 **Issue pilotage** : #50
 **Branche** : `codex/lot26-2-fail-closed-retrieval`
-**Statut** : prêt à revue
+**Statut** : prêt pour la revue
 
 ---
 
