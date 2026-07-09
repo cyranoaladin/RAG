@@ -327,7 +327,7 @@ def cache_warmup(request: Request) -> dict[str, Any]:
                     chunk_id=candidate[0], doc_id=candidate[1],
                     source_label=candidate[2] or "", source_uri=candidate[3] or "",
                     rights=candidate[4] or "", type_doc=candidate[5] or "",
-                    review_status=candidate[8] or "",
+                    review_status="reviewed",
                     preview=(candidate[6] or "")[:200],
                     rerank_score=round(float(score), 4),
                     dense_sim=round(float(candidate[7]), 4),
@@ -403,23 +403,11 @@ def search_v2(payload: SearchV2Request, request: Request) -> SearchV2Response:
     # Cache check (SCALE-V1-1)
     global _cache_misses
     cache_k = _cache_key(payload.q, payload.collection, payload.k) if CACHE_ENABLED else ""
+
+    # LOT 26.2 fail-closed: do not serve student/public search from cache.
+    # A cached hit may have lost review_status=reviewed after caching.
+    # Cache serving can be reintroduced only with DB revalidation of current statuses.
     if CACHE_ENABLED:
-        cached = _cache_get(cache_k)
-        if cached is not None:
-            reviewed_cached = [
-                candidate for candidate in cached
-                if isinstance(candidate, dict)
-                and candidate.get("review_status") == "reviewed"
-            ]
-            if len(reviewed_cached) == len(cached):
-                return SearchV2Response(
-                    query=payload.q,
-                    collection=payload.collection,
-                    seuil=RERANK_SCORE_THRESHOLD,
-                    returned=len(reviewed_cached),
-                    hits=[SearchV2Hit(**h) for h in reviewed_cached],
-                )
-            # If the cache contains stale statuses, fail-closed path recomputes.
         _cache_misses += 1
 
     # Get DSN (R-01: no default)
@@ -484,7 +472,7 @@ def search_v2(payload: SearchV2Request, request: Request) -> SearchV2Response:
             source_uri=candidate[3] or "",
             rights=candidate[4] or "",
             type_doc=candidate[5] or "",
-            review_status=candidate[8] or "",
+            review_status="reviewed",
             preview=(candidate[6] or "")[:200],
             rerank_score=round(float(score), 4),
             dense_sim=round(float(candidate[7]), 4),

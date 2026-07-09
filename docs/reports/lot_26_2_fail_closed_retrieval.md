@@ -1,7 +1,7 @@
 # LOT 26.2 — Fail-closed retrieval v2
 
 **Date** : 2026-07-09
-**Issue pilotage** : #47
+**Issue pilotage** : #50
 **Branche** : `codex/lot26-2-fail-closed-retrieval`
 **Statut** : prêt à revue
 
@@ -136,6 +136,29 @@ BLOCKED: 1 governance violation(s).
 - confirmation : aucun verrou modifié
 - confirmation : aucun secret ajouté
 - confirmation : aucun déploiement production
+
+## CI locale racine
+
+Commande :
+
+```bash
+bash scripts/ci-local.sh
+```
+
+Résultat :
+
+```text
+CI LOCAL — SUMMARY
+  PASS  packages/contracts
+  PASS  services/rag-pedago
+  PASS  services/rag-engine
+  PASS  governance-locks
+  PASS  taxonomy-validation
+  PASS  governance-guard-tests
+  PASS  ci-failsafe-tests
+
+Total: 7 passed, 0 failed
+```
 
 ## Prochaine étape
 
