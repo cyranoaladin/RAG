@@ -294,11 +294,15 @@ Rôles :
 
 | Rôle | Autorisations |
 |---|---|
-| `student` | search reviewed uniquement |
-| `teacher` | search reviewed + queue review |
-| `reviewer` | approve/reject/quarantine |
+| `student` | recherche sur contenus `reviewed` uniquement |
+| `teacher` | recherche `reviewed`, consultation des collections, consultation de la queue de review sans décision |
+| `reviewer` | droits `teacher` + décisions de review : approve/reject/quarantine |
 | `ingest_agent` | ingestion vers `needs_review` uniquement |
 | `admin` | toutes opérations v2 hors secrets |
+
+Le rôle `teacher` est volontairement distinct de `reviewer`.
+Un `teacher` peut inspecter la queue de review et préparer une validation pédagogique, mais il ne peut pas modifier `review_status`.
+Seuls `admin` et `reviewer` peuvent exécuter `approve`, `reject` ou `quarantine`.
 
 Approche acceptable en première étape : tokens séparés par variables d'environnement, sans système OAuth complet.
 
@@ -307,6 +311,7 @@ Variables proposées :
 ```text
 RAG_ADMIN_TOKEN
 RAG_REVIEWER_TOKEN
+RAG_TEACHER_TOKEN
 RAG_INGEST_AGENT_TOKEN
 RAG_STUDENT_PROFILE_SECRET
 ```
@@ -424,7 +429,7 @@ services/rag-engine/tests/test_security_v2.py
 Travaux :
 
 - Créer un module sécurité v2 centralisé.
-- Définir rôles `admin`, `reviewer`, `ingest_agent`, `student`.
+- Définir rôles `admin`, `reviewer`, `teacher`, `ingest_agent`, `student`.
 - Remplacer les copies locales `_enforce_security_v2` et `_enforce_security` par appels centralisés.
 - Accepter temporairement des tokens par variables d'environnement.
 - Refuser tout endpoint sensible si le token attendu n'est pas configuré.
@@ -433,14 +438,16 @@ Travaux :
 
 Matrice d'autorisation :
 
-| Endpoint | admin | reviewer | ingest_agent | student |
-|---|---:|---:|---:|---:|
-| `/search/v2` | oui | oui | non | oui |
-| `/ingest/v2/*` | oui | non | oui | non |
-| `/review/v2/queue` | oui | oui | non | non |
-| `/review/v2/approve` | oui | oui | non | non |
-| `/cache/v2/invalidate` | oui | oui | non | non |
-| `/collections/v2` | oui | oui | oui | oui |
+| Endpoint | admin | reviewer | teacher | ingest_agent | student |
+|---|---:|---:|---:|---:|---:|
+| `/search/v2` | oui | oui | oui | non | oui |
+| `/ingest/v2/*` | oui | non | non | oui | non |
+| `/review/v2/queue` | oui | oui | oui | non | non |
+| `/review/v2/approve` | oui | oui | non | non | non |
+| `/review/v2/reject` | oui | oui | non | non | non |
+| `/review/v2/quarantine` | oui | oui | non | non | non |
+| `/cache/v2/invalidate` | oui | oui | non | non | non |
+| `/collections/v2` | oui | oui | oui | oui | oui |
 
 Critères d'acceptation :
 
@@ -448,6 +455,11 @@ Critères d'acceptation :
 - Tests de refus 401/403 par rôle.
 - Aucun secret dans les tests.
 - Aucun token affiché dans logs.
+- `teacher` peut accéder à `/review/v2/queue`.
+- `teacher` ne peut pas appeler `/review/v2/approve`.
+- `teacher` ne peut pas appeler `/review/v2/reject`.
+- `teacher` ne peut pas appeler `/review/v2/quarantine`.
+- `teacher` ne peut pas appeler `/ingest/v2/*`.
 
 Commandes :
 
@@ -818,6 +830,8 @@ Codex Spark doit ajouter des tests qui échouent si :
 - un chunk sans `rights` est approuvé ;
 - un endpoint review est accessible avec token ingestion ;
 - un endpoint ingestion est accessible avec token élève ;
+- un token `teacher` ne peut pas modifier `review_status` ;
+- un token `teacher` ne peut pas ingérer ;
 - un endpoint cockpit accède directement à pgvector ;
 - un embedding 768d est inséré dans `rag_chunks` v2 ;
 - un agent passe un contenu en `reviewed`.
