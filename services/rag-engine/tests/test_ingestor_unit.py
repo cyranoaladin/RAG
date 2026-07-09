@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from starlette.datastructures import Headers
 
 from tests.test_ingestor_security import reload_api
 
@@ -20,7 +21,7 @@ class _DummySplitter:
 
 class _RequestStub:
     def __init__(self, headers: dict[str, str], host: str = "127.0.0.1") -> None:
-        self.headers = headers
+        self.headers = Headers(headers)
         self.client = types.SimpleNamespace(host=host)
 
 
@@ -73,6 +74,91 @@ def test_enforce_security_rejects_bad_token(monkeypatch: pytest.MonkeyPatch) -> 
         api._enforce_security(request, None)
 
     assert exc.value.status_code == 401
+
+
+def test_legacy_security_ignores_xff_without_trusted_proxy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    api = reload_api(monkeypatch, token="super-secret", allowlist="203.0.113.0/24")
+    monkeypatch.delenv("INGESTOR_TRUSTED_PROXY_CIDRS", raising=False)
+    request = _RequestStub(
+        headers={
+            "X-API-Token": "super-secret",
+            "X-Forwarded-For": "203.0.113.17",
+        },
+        host="198.51.100.200",
+    )
+
+    with pytest.raises(api.HTTPException) as exc:
+        api._enforce_security(request, None)
+
+    assert exc.value.status_code == 403
+
+
+def test_legacy_security_accepts_allowlisted_client_from_trusted_proxy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    api = reload_api(monkeypatch, token="super-secret", allowlist="203.0.113.0/24")
+    monkeypatch.setenv("INGESTOR_TRUSTED_PROXY_CIDRS", "198.51.100.200/32")
+    request = _RequestStub(
+        headers={
+            "X-API-Token": "super-secret",
+            "X-Forwarded-For": "203.0.113.17, 198.51.100.200",
+        },
+        host="198.51.100.200",
+    )
+
+    api._enforce_security(request, None)
+
+
+def test_legacy_security_rejects_malformed_xff_from_trusted_proxy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    api = reload_api(monkeypatch, token="super-secret", allowlist="203.0.113.0/24")
+    monkeypatch.setenv("INGESTOR_TRUSTED_PROXY_CIDRS", "198.51.100.200/32")
+    request = _RequestStub(
+        headers={
+            "X-API-Token": "super-secret",
+            "X-Forwarded-For": "203.0.113.17, malformed",
+        },
+        host="198.51.100.200",
+    )
+
+    with pytest.raises(api.HTTPException) as exc:
+        api._enforce_security(request, None)
+
+    assert exc.value.status_code == 403
+
+
+def test_legacy_security_authenticates_before_ip_allowlist(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    api = reload_api(monkeypatch, token="super-secret", allowlist="203.0.113.0/24")
+    request = _RequestStub(
+        headers={"X-API-Token": "invalid"},
+        host="198.51.100.200",
+    )
+
+    with pytest.raises(api.HTTPException) as exc:
+        api._enforce_security(request, None)
+
+    assert exc.value.status_code == 401
+
+
+def test_legacy_security_rejects_invalid_trusted_proxy_configuration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    api = reload_api(monkeypatch, token="super-secret", allowlist="203.0.113.0/24")
+    monkeypatch.setenv("INGESTOR_TRUSTED_PROXY_CIDRS", "not-a-cidr")
+    request = _RequestStub(
+        headers={"X-API-Token": "super-secret"},
+        host="198.51.100.200",
+    )
+
+    with pytest.raises(api.HTTPException) as exc:
+        api._enforce_security(request, None)
+
+    assert exc.value.status_code == 503
 
 
 def test_prepare_chunks_for_chroma_preserves_metadata(monkeypatch: pytest.MonkeyPatch) -> None:

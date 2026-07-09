@@ -20,7 +20,9 @@ from fastapi import HTTPException
 from ingestor.retrieval_v2_endpoint import (
     SearchV2Request,
     _check_retrievable,
-    list_retrievable_collections,
+)
+from ingestor.retrieval_v2_endpoint import (
+    _list_retrievable_collections as list_retrievable_collections,
 )
 
 # --- Fixtures ---
@@ -184,7 +186,7 @@ class TestCacheGateInvariant:
             router,
         )
 
-        os.environ.setdefault("INGESTOR_API_TOKEN", "test-inv-c")
+        os.environ.setdefault("RAG_STUDENT_TOKEN", "test-inv-c")
 
         test_app = FastAPI()
         test_app.include_router(router)

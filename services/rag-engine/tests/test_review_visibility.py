@@ -1,9 +1,10 @@
-"""Tests de visibilité review_status pour `/search/v2` (LOT 26.2)."""
+"""Tests de visibilité review_status pour `/search/v2` (LOT 26.2 + LOT 26.3)."""
+
+from __future__ import annotations
 
 import inspect
 import os
 import sys
-import types
 from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -65,12 +66,32 @@ def _setup_app() -> TestClient:
     return TestClient(app)
 
 
-def _nexus_contracts_modules() -> tuple[types.ModuleType, types.ModuleType]:
-    contracts = types.ModuleType("nexus_contracts")
-    embedding = types.ModuleType("nexus_contracts.embedding_utils")
+def _nexus_contracts_modules() -> tuple[object, object]:
+    contracts = __import__("types").ModuleType("nexus_contracts")
+    embedding = __import__("types").ModuleType("nexus_contracts.embedding_utils")
     embedding.format_query = lambda text: text  # type: ignore[attr-defined]
     contracts.embedding_utils = embedding  # type: ignore[attr-defined]
     return contracts, embedding
+
+
+def _set_search_tokens(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("RAG_ADMIN_TOKEN", "admin-token")
+    monkeypatch.setenv("RAG_REVIEWER_TOKEN", "reviewer-token")
+    monkeypatch.setenv("RAG_TEACHER_TOKEN", "teacher-token")
+    monkeypatch.setenv("RAG_INGEST_AGENT_TOKEN", "ingest-agent-token")
+    monkeypatch.setenv("RAG_STUDENT_TOKEN", "student-token")
+
+
+def test_search_token_setup_is_reverted_after_monkeypatch_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("RAG_STUDENT_TOKEN", raising=False)
+
+    with monkeypatch.context() as token_environment:
+        _set_search_tokens(token_environment)
+        assert os.environ["RAG_STUDENT_TOKEN"] == "student-token"
+
+    assert "RAG_STUDENT_TOKEN" not in os.environ
 
 
 def test_search_v2_source_filters_reviewed_only() -> None:
@@ -79,10 +100,59 @@ def test_search_v2_source_filters_reviewed_only() -> None:
     assert "review_status IN ('reviewed', 'needs_review')" not in source
 
 
-def test_student_search_does_not_return_non_reviewed() -> None:
-    """Search must return only reviewed status payload for `/search/v2`."""
+def test_search_v2_fails_closed_without_shared_query_formatter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _set_search_tokens(monkeypatch)
+    client = _setup_app()
 
-    os.environ["INGESTOR_API_TOKEN"] = "test-token"
+    contracts = __import__("types").ModuleType("nexus_contracts")
+    embedding = __import__("types").ModuleType("nexus_contracts.embedding_utils")
+    contracts.embedding_utils = embedding  # type: ignore[attr-defined]
+
+    with (
+        patch.dict(
+            sys.modules,
+            {
+                "nexus_contracts": contracts,
+                "nexus_contracts.embedding_utils": embedding,
+            },
+        ),
+        patch("ingestor.retrieval_v2_endpoint.load_collection_config", return_value=_base_cfg()),
+        patch(
+            "ingestor.retrieval_v2_endpoint._check_retrievable",
+            return_value={"domain": "education"},
+        ),
+        patch("ingestor.retrieval_v2_endpoint._get_pg_dsn", return_value="postgresql://x"),
+        patch("ingestor.retrieval_v2_endpoint._get_embed_model") as m_embed,
+        patch(
+            "ingestor.retrieval_v2_endpoint.psycopg.connect",
+            return_value=_build_fake_pg_conn([]),
+        ),
+    ):
+        m_embed.return_value = MagicMock(encode=lambda *args, **kwargs: [0.1])
+
+        response = client.post(
+            "/search/v2",
+            json={
+                "q": "algo",
+                "collection": "rag_nexus_nsi_terminale_specialite",
+                "k": 5,
+            },
+            headers={"Authorization": "Bearer student-token"},
+        )
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "detail": "/search/v2: embedding query formatter unavailable"
+    }
+    m_embed.assert_not_called()
+
+
+def test_all_roles_only_return_reviewed_chunks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _set_search_tokens(monkeypatch)
     client = _setup_app()
 
     fake_payload = [
@@ -94,38 +164,48 @@ def test_student_search_does_not_return_non_reviewed() -> None:
 
     contracts, embedding = _nexus_contracts_modules()
 
-    with (
-        patch.dict(sys.modules, {"nexus_contracts": contracts, "nexus_contracts.embedding_utils": embedding}),
-        patch("ingestor.retrieval_v2_endpoint.load_collection_config", return_value=_base_cfg()),
-        patch("ingestor.retrieval_v2_endpoint._check_retrievable", return_value={"domain": "education"}),
-        patch("ingestor.retrieval_v2_endpoint._get_pg_dsn", return_value="postgresql://x"),
-        patch("ingestor.retrieval_v2_endpoint._get_embed_model") as m_embed,
-        patch("ingestor.retrieval_v2_endpoint._get_reranker") as m_rerank,
-        patch("ingestor.retrieval_v2_endpoint.psycopg.connect", return_value=_build_fake_pg_conn(fake_payload)),
-    ):
+    actor_tokens = [
+        "admin-token",
+        "reviewer-token",
+        "teacher-token",
+        "ingest-agent-token",
+        "student-token",
+    ]
 
-        m_embed.return_value = MagicMock(encode=lambda *args, **kwargs: [0.1])
-        m_rerank.return_value = MagicMock(predict=lambda pairs: [2.4, 2.1, 2.05, 2.0])
+    for token in actor_tokens:
+        with (
+            patch.dict(sys.modules, {"nexus_contracts": contracts, "nexus_contracts.embedding_utils": embedding}),
+            patch("ingestor.retrieval_v2_endpoint.load_collection_config", return_value=_base_cfg()),
+            patch("ingestor.retrieval_v2_endpoint._check_retrievable", return_value={"domain": "education"}),
+            patch("ingestor.retrieval_v2_endpoint._get_pg_dsn", return_value="postgresql://x"),
+            patch("ingestor.retrieval_v2_endpoint._get_embed_model") as m_embed,
+            patch("ingestor.retrieval_v2_endpoint._get_reranker") as m_rerank,
+            patch("ingestor.retrieval_v2_endpoint.psycopg.connect", return_value=_build_fake_pg_conn(fake_payload)),
+        ):
 
-        resp = client.post(
-            "/search/v2",
-            json={"q": "algo", "collection": "rag_nexus_nsi_terminale_specialite", "k": 5},
-            headers={"Authorization": "Bearer test-token"},
-        )
+            m_embed.return_value = MagicMock(encode=lambda *args, **kwargs: [0.1])
+            m_rerank.return_value = MagicMock(predict=lambda pairs: [2.4, 2.1, 2.05, 2.0])
 
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["returned"] == 1
-    assert len(body["hits"]) == 1
-    assert body["hits"][0]["chunk_id"] == "c1"
-    assert body["hits"][0]["review_status"] == "reviewed"
-    assert {hit["review_status"] for hit in body["hits"]} == {"reviewed"}
+            response = client.post(
+                "/search/v2",
+                json={"q": "algo", "collection": "rag_nexus_nsi_terminale_specialite", "k": 5},
+                headers={"Authorization": f"Bearer {token}"},
+            )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["returned"] == 1
+        assert len(body["hits"]) == 1
+        assert body["hits"][0]["chunk_id"] == "c1"
+        assert {hit["review_status"] for hit in body["hits"]} == {"reviewed"}
 
 
-def test_search_v2_cache_stale_status_is_not_returned() -> None:
+def test_search_v2_cache_stale_status_is_not_returned(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """If cache contains non-reviewed hits, fail-closed path must recompute."""
 
-    os.environ["INGESTOR_API_TOKEN"] = "test-token"
+    _set_search_tokens(monkeypatch)
     client = _setup_app()
 
     cache_key = _cache_key("query", "rag_nexus_nsi_terminale_specialite", 5)
@@ -166,23 +246,25 @@ def test_search_v2_cache_stale_status_is_not_returned() -> None:
         m_embed.return_value = MagicMock(encode=lambda *args, **kwargs: [0.1])
         m_rerank.return_value = MagicMock(predict=lambda pairs: [2.4, 2.1, 2.05, 2.0])
 
-        resp = client.post(
+        response = client.post(
             "/search/v2",
             json={"q": "query", "collection": "rag_nexus_nsi_terminale_specialite", "k": 5},
-            headers={"Authorization": "Bearer test-token"},
+            headers={"Authorization": "Bearer student-token"},
         )
 
-    assert resp.status_code == 200
-    body = resp.json()
+    assert response.status_code == 200
+    body = response.json()
     assert body["returned"] == 1
     assert body["hits"][0]["chunk_id"] == "c1"
     assert body["hits"][0]["review_status"] == "reviewed"
 
 
-def test_search_v2_does_not_serve_reviewed_cache_without_current_db_review() -> None:
+def test_search_v2_does_not_serve_reviewed_cache_without_current_db_review(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Cache hits are ignored when DB has no current reviewed chunk."""
 
-    os.environ["INGESTOR_API_TOKEN"] = "test-token"
+    _set_search_tokens(monkeypatch)
     client = _setup_app()
 
     cache_key = _cache_key("query", "rag_nexus_nsi_terminale_specialite", 5)
@@ -222,22 +304,24 @@ def test_search_v2_does_not_serve_reviewed_cache_without_current_db_review() -> 
         m_embed.return_value = MagicMock(encode=lambda *args, **kwargs: [0.1])
         m_rerank.return_value = MagicMock(predict=lambda pairs: [2.2, 2.1, 2.0])
 
-        resp = client.post(
+        response = client.post(
             "/search/v2",
             json={"q": "query", "collection": "rag_nexus_nsi_terminale_specialite", "k": 5},
-            headers={"Authorization": "Bearer test-token"},
+            headers={"Authorization": "Bearer teacher-token"},
         )
 
-    assert resp.status_code == 200
-    body = resp.json()
+    assert response.status_code == 200
+    body = response.json()
     assert body["returned"] == 0
     assert body["hits"] == []
 
 
-def test_cache_warmup_ignores_non_reviewed_candidates() -> None:
+def test_cache_warmup_ignores_non_reviewed_candidates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Warmup must never cache non-reviewed candidates."""
 
-    os.environ["INGESTOR_API_TOKEN"] = "test-token"
+    _set_search_tokens(monkeypatch)
     client = _setup_app()
 
     fake_payload = [
@@ -261,13 +345,13 @@ def test_cache_warmup_ignores_non_reviewed_candidates() -> None:
         m_embed.return_value = MagicMock(encode=lambda *args, **kwargs: [0.1])
         m_rerank.return_value = MagicMock(predict=lambda pairs: [2.4, 2.1, 2.05, 2.0])
 
-        resp = client.post(
+        response = client.post(
             "/cache/v2/warmup",
-            headers={"Authorization": "Bearer test-token"},
+            headers={"Authorization": "Bearer admin-token"},
         )
 
-    assert resp.status_code == 200
-    payload = resp.json()
+    assert response.status_code == 200
+    payload = response.json()
     assert payload["warmed"] == payload["queries"]
 
     cached = _cache_get(_cache_key(

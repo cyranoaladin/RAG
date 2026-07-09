@@ -55,6 +55,11 @@ except (ImportError, ValueError):
         resolve_collection,
     )
 
+try:
+    from .security_v2 import enforce_ingestor_ip_allowlist
+except (ImportError, ValueError):
+    from security_v2 import enforce_ingestor_ip_allowlist  # type: ignore[no-redef]
+
 if TYPE_CHECKING:
     from langchain.schema import Document
 else:
@@ -464,39 +469,6 @@ def _resolve_local_path(raw_path: str) -> Path:
     return candidate
 
 
-def _get_client_ip(request: Any) -> str:
-    headers = getattr(request, "headers", {}) or {}
-    forwarded = headers.get("X-Forwarded-For") or headers.get("x-forwarded-for")
-    if isinstance(forwarded, str) and forwarded.strip():
-        primary = forwarded.split(",")[0].strip()
-        if primary:
-            return primary
-    client = getattr(request, "client", None)
-    host = getattr(client, "host", None)
-    if isinstance(host, str) and host:
-        return host
-    return "127.0.0.1"
-
-
-def _ip_allowed(ip_str: str, allowlist: str | None) -> bool:
-    if not allowlist:
-        return True
-    try:
-        ip_obj = ipaddress.ip_address(ip_str)
-    except ValueError:
-        return False
-    for cidr in allowlist.split(","):
-        network = cidr.strip()
-        if not network:
-            continue
-        try:
-            if ip_obj in ipaddress.ip_network(network, strict=False):
-                return True
-        except ValueError:
-            continue
-    return False
-
-
 def _enforce_security(request: Any, _req: Any) -> None:
     headers = getattr(request, "headers", {}) or {}
     token_env = os.getenv("INGESTOR_API_TOKEN") or os.getenv("INGEST_AUTH_TOKEN")
@@ -514,9 +486,7 @@ def _enforce_security(request: Any, _req: Any) -> None:
         if header_token != token_env:
             raise HTTPException(status_code=401, detail="Unauthorized")
 
-    allowlist = os.getenv("INGESTOR_IP_ALLOWLIST")
-    if allowlist and not _ip_allowed(_get_client_ip(request), allowlist):
-        raise HTTPException(status_code=403, detail="Forbidden")
+    enforce_ingestor_ip_allowlist(request)
 
 
 def _require_api_token_configured() -> str:

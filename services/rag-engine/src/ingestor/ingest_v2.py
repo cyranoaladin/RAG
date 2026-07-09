@@ -126,15 +126,8 @@ class Provenance:
     """Provenance tracking for each ingestion."""
     route: str  # "upload" | "urls" | "drive"
     timestamp: float
-    token_hash: str  # SHA256 of first 8 chars of token (not the full token, R-01)
+    token_hash: str  # Short SHA256 fingerprint of the complete token (R-01)
     source_type: str  # "file" | "url" | "gdrive"
-
-
-def _hash_token(token: str | None) -> str:
-    """Hash token for provenance (R-01: never store raw token)."""
-    if not token:
-        return "anonymous"
-    return hashlib.sha256(token[:8].encode()).hexdigest()[:16]
 
 
 def ingest_document(

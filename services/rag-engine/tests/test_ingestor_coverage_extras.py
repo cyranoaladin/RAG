@@ -561,7 +561,7 @@ def test_resolve_local_path_variants(monkeypatch: pytest.MonkeyPatch, tmp_path: 
     assert p.exists() and p.is_file()
 
 
-def test_client_ip_and_ip_allowlist(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_shared_ip_allowlist_security(monkeypatch: pytest.MonkeyPatch) -> None:
     api = _reload_api(monkeypatch, unset=["INGESTOR_API_TOKEN"])  # no token check
 
     class Req:
@@ -569,19 +569,10 @@ def test_client_ip_and_ip_allowlist(monkeypatch: pytest.MonkeyPatch) -> None:
             self.headers = headers or {}
             self.client = type("C", (), {"host": host})()
 
-    # X-Forwarded-For path
-    assert api._get_client_ip(Req(headers={"X-Forwarded-For": "1.2.3.4"})) == "1.2.3.4"
-    # client.host fallback
-    assert api._get_client_ip(Req(host="5.6.7.8")) == "5.6.7.8"
+    # No configured allowlist -> allowed.
+    api._enforce_security(Req(host="1.2.3.4"), None)
 
-    # allowlist None -> allowed
-    assert api._ip_allowed("1.2.3.4", None) is True
-    # invalid ip string
-    assert api._ip_allowed("bad-ip", "1.2.3.0/24") is False
-    # invalid cidr entries ignored
-    assert api._ip_allowed("1.2.3.4", "notA, 1.2.3.0/24") is True
-
-    # enforce security with restrictive allowlist -> forbidden
+    # Restrictive allowlist -> forbidden through the shared hardened helper.
     monkeypatch.setenv("INGESTOR_IP_ALLOWLIST", "10.0.0.0/8")
     with pytest.raises(api.HTTPException):
         api._enforce_security(Req(host="1.2.3.4"), None)

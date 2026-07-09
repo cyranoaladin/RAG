@@ -15,7 +15,7 @@ import logging
 import os
 import threading
 import time
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import psycopg  # noqa: F811 — also in requirements.v2.txt
 from fastapi import APIRouter, HTTPException, Request
@@ -28,6 +28,7 @@ try:
         load_collection_config,
         resolve_collection_v2,
     )
+    from .security_v2 import SecurityRole, require_role
 except (ImportError, ValueError):
     from collection_config import (  # type: ignore[no-redef]
         CollectionConfigError,
@@ -35,6 +36,7 @@ except (ImportError, ValueError):
         load_collection_config,
         resolve_collection_v2,
     )
+    from security_v2 import SecurityRole, require_role  # type: ignore[no-redef]
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +61,17 @@ _cache_misses = 0
 def _filter_reviewed_candidates(candidates: list[tuple]) -> list[tuple]:
     """Keep only reviewed candidates in case DB returns unexpected statuses."""
     return [candidate for candidate in candidates if candidate[8] == "reviewed"]
+
+
+def _format_embedding_query(text: str) -> str:
+    try:
+        from nexus_contracts.embedding_utils import format_query
+    except (ImportError, ModuleNotFoundError) as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="/search/v2: embedding query formatter unavailable",
+        ) from exc
+    return cast(str, format_query(text))
 
 
 def _cache_key(query: str, collection: str, k: int) -> str:
@@ -215,8 +228,19 @@ class SearchV2Response(BaseModel):
 # --- Cache management endpoints ---
 
 @router.get("/cache/v2/stats")
-def cache_stats() -> dict[str, Any]:
+def cache_stats(request: Request) -> dict[str, Any]:
     """Cache statistics for monitoring."""
+    _enforce_security_v2(
+        request,
+        allowed_roles={
+            SecurityRole.ADMIN,
+            SecurityRole.REVIEWER,
+            SecurityRole.TEACHER,
+            SecurityRole.INGEST_AGENT,
+            SecurityRole.STUDENT,
+        },
+        endpoint="/cache/v2/stats",
+    )
     with _cache_lock:
         return {
             "enabled": CACHE_ENABLED,
@@ -231,7 +255,11 @@ def cache_stats() -> dict[str, Any]:
 @router.post("/cache/v2/invalidate")
 def cache_invalidate(request: Request) -> dict[str, Any]:
     """Invalidate all cache entries. Call when review_status changes."""
-    _enforce_security_v2(request)
+    _enforce_security_v2(
+        request,
+        allowed_roles={SecurityRole.ADMIN, SecurityRole.REVIEWER},
+        endpoint="/cache/v2/invalidate",
+    )
     n = invalidate_cache()
     return {"invalidated": n}
 
@@ -243,7 +271,11 @@ def cache_warmup(request: Request) -> dict[str, Any]:
     Runs retrieval+rerank for a set of probable queries and caches results.
     Call at startup or after invalidation to eliminate cold-start misses.
     """
-    _enforce_security_v2(request)
+    _enforce_security_v2(
+        request,
+        allowed_roles={SecurityRole.ADMIN, SecurityRole.REVIEWER},
+        endpoint="/cache/v2/warmup",
+    )
 
     cfg = load_collection_config()
     collections = list_instanciated_collections(cfg)
@@ -343,8 +375,7 @@ def cache_warmup(request: Request) -> dict[str, Any]:
 
 # --- Endpoint to list retrievable collections (for UI picker) ---
 
-@router.get("/collections/v2")
-def list_retrievable_collections() -> dict[str, Any]:
+def _list_retrievable_collections() -> dict[str, Any]:
     """Return collections that are instanciee:true AND retrievable:true.
 
     The UI picker derives its list from this endpoint (D-PICKER-DERIVE-CATALOGUE).
@@ -379,6 +410,23 @@ def list_retrievable_collections() -> dict[str, Any]:
     return {"collections": retrievable}
 
 
+@router.get("/collections/v2")
+def list_retrievable_collections(request: Request) -> dict[str, Any]:
+    """Public alias kept for direct imports in tests."""
+    _enforce_security_v2(
+        request,
+        allowed_roles={
+            SecurityRole.ADMIN,
+            SecurityRole.REVIEWER,
+            SecurityRole.TEACHER,
+            SecurityRole.INGEST_AGENT,
+            SecurityRole.STUDENT,
+        },
+        endpoint="/collections/v2",
+    )
+    return _list_retrievable_collections()
+
+
 # --- Main search endpoint ---
 
 @router.post("/search/v2", response_model=SearchV2Response)
@@ -388,8 +436,18 @@ def search_v2(payload: SearchV2Request, request: Request) -> SearchV2Response:
     Certified pipeline LOT 24. Gate retrievable fail-closed (GG-01).
     answer_generation_allowed = false.
     """
-    # Auth: same Bearer token as legacy endpoints
-    _enforce_security_v2(request)
+    # Auth (LOT 26.3): all roles use reviewed-only visibility.
+    _enforce_security_v2(
+        request,
+        allowed_roles={
+            SecurityRole.ADMIN,
+            SecurityRole.REVIEWER,
+            SecurityRole.TEACHER,
+            SecurityRole.INGEST_AGENT,
+            SecurityRole.STUDENT,
+        },
+        endpoint="/search/v2",
+    )
 
     # Gate: resolve + retrievable check (fail-closed)
     cfg = load_collection_config()
@@ -414,10 +472,9 @@ def search_v2(payload: SearchV2Request, request: Request) -> SearchV2Response:
     pg_dsn = _get_pg_dsn()
 
     # Embedding
-    from nexus_contracts.embedding_utils import format_query
-
+    formatted_query = _format_embedding_query(payload.q)
     embed_model = _get_embed_model()
-    q_vec = embed_model.encode(format_query(payload.q), normalize_embeddings=True)
+    q_vec = embed_model.encode(formatted_query, normalize_embeddings=True)
     vec_str = "[" + ",".join(str(float(v)) for v in q_vec) + "]"
 
     # Dense retrieval (top RERANK_CANDIDATES)
@@ -493,21 +550,11 @@ def search_v2(payload: SearchV2Request, request: Request) -> SearchV2Response:
     )
 
 
-def _enforce_security_v2(request: Request) -> None:
-    """Auth check — same token as legacy endpoints."""
-    token_env = os.getenv("INGESTOR_API_TOKEN") or os.getenv("INGEST_AUTH_TOKEN")
-    if not token_env:
-        raise HTTPException(status_code=503, detail="API token not configured")
-
-    headers = request.headers
-    header_token = headers.get("x-api-token")
-    if not header_token:
-        auth = headers.get("authorization")
-        if isinstance(auth, str) and auth.strip():
-            value = auth.strip()
-            if value.lower().startswith("bearer "):
-                header_token = value.split(" ", 1)[1].strip()
-            else:
-                header_token = value
-    if header_token != token_env:
-        raise HTTPException(status_code=401, detail="Unauthorized")
+def _enforce_security_v2(
+    request: Request,
+    *,
+    allowed_roles: set[SecurityRole],
+    endpoint: str,
+) -> tuple[SecurityRole, str]:
+    """Auth check via centralized role gates."""
+    return require_role(request, allowed_roles=allowed_roles, endpoint=endpoint)

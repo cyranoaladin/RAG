@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import hashlib
 import logging
-import os
 import tempfile
 import time
 from pathlib import Path
@@ -19,8 +18,10 @@ from pydantic import BaseModel, Field
 
 try:
     from .ingest_v2 import IngestV2Request, Provenance, ingest_document
+    from .security_v2 import SecurityRole, require_role, token_hash
 except (ImportError, ValueError):
     from ingest_v2 import IngestV2Request, Provenance, ingest_document  # type: ignore[no-redef]
+    from security_v2 import SecurityRole, require_role, token_hash  # type: ignore[no-redef]
 
 logger = logging.getLogger(__name__)
 
@@ -34,44 +35,13 @@ _BLOCKED_HOSTS = {"localhost", "127.0.0.1", "0.0.0.0", "[::1]", "metadata.google
 
 def _enforce_security(request: Request) -> str:
     """Auth + IP allowlist check. Returns token for provenance."""
-    import ipaddress
-
-    token_env = os.getenv("INGESTOR_API_TOKEN") or os.getenv("INGEST_AUTH_TOKEN")
-    if not token_env:
-        raise HTTPException(status_code=503, detail="API token not configured")
-    headers = request.headers
-    header_token = headers.get("x-api-token")
-    if not header_token:
-        auth = headers.get("authorization")
-        if isinstance(auth, str) and auth.strip():
-            value = auth.strip()
-            if value.lower().startswith("bearer "):
-                header_token = value.split(" ", 1)[1].strip()
-            else:
-                header_token = value
-    if header_token != token_env:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-
-    # IP allowlist (same as legacy endpoints)
-    allowlist = os.getenv("INGESTOR_IP_ALLOWLIST")
-    if allowlist:
-        client_ip = request.client.host if request.client else ""
-        if client_ip:
-            allowed = False
-            for network in allowlist.split(","):
-                network = network.strip()
-                if not network:
-                    continue
-                try:
-                    if ipaddress.ip_address(client_ip) in ipaddress.ip_network(network, strict=False):
-                        allowed = True
-                        break
-                except ValueError:
-                    continue
-            if not allowed:
-                raise HTTPException(status_code=403, detail="Forbidden")
-
-    return header_token or ""
+    _role, token = require_role(
+        request,
+        allowed_roles={SecurityRole.ADMIN, SecurityRole.INGEST_AGENT},
+        endpoint="/ingest/v2/*",
+        enforce_ip_allowlist=True,
+    )
+    return token
 
 
 def _validate_url(url: str) -> None:
@@ -183,7 +153,7 @@ def ingest_upload_v2(
     provenance = Provenance(
         route="upload",
         timestamp=time.time(),
-        token_hash=hashlib.sha256(token[:8].encode()).hexdigest()[:16],
+        token_hash=token_hash(token),
         source_type="file",
     )
 
@@ -236,7 +206,7 @@ def ingest_urls_v2(payload: UrlsV2Request, request: Request) -> dict[str, Any]:
     provenance = Provenance(
         route="urls",
         timestamp=time.time(),
-        token_hash=hashlib.sha256(token[:8].encode()).hexdigest()[:16],
+        token_hash=token_hash(token),
         source_type="url",
     )
 

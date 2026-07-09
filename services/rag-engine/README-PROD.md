@@ -9,20 +9,36 @@ Ce projet fournit un **RAG 100% local** (LLM & embeddings via **Ollama**) avec *
 
 Collections Lot 19 : les noms Chroma historiques ne sont pas renommes physiquement en prod. La couche applicative mappe `rag_education`, `rag_francais_premiere`, `rag_maths_premiere`, `rag_web3`, `rag_divers` vers les collections Nexus versionnees dans `configs/rag_collections.yml`. `rag_divers` correspond a `rag_nexus_quarantine` et ne doit pas etre expose a la recherche.
 
-Securite admin Lot 19 follow-up : `RAG_ENV=production` doit etre explicite dans l'environnement prod. En l'absence de `INGESTOR_API_TOKEN`/`INGEST_AUTH_TOKEN`, `/admin/*` retourne 503. Le mode admin sans token est reserve au developpement local et exige `RAG_ENV=development` plus `ALLOW_UNAUTHENTICATED_ADMIN_DEV=true`. En prod Docker, le compose versionne monte `${RAG_CONFIGS_HOST_DIR:-../configs}:/app/configs:ro` : le defaut `../configs` convient depuis `services/rag-engine/infra`, tandis que le layout historique plat `/srv/nexusreussite/rag-ui/compose` doit definir `RAG_CONFIGS_HOST_DIR=./configs`. Definir aussi `RAG_ENGINE_CONFIG_DIR=/app/configs` pour charger `rag_collections.yml` et `legacy_collection_mapping.yml`. Si les fichiers sont separes, utiliser les overrides explicites `RAG_COLLECTIONS_CONFIG` et `RAG_LEGACY_COLLECTION_MAPPING`; ces overrides echouent fermes si le chemin configure est absent.
+Securite admin Lot 19 follow-up : `RAG_ENV=production` doit etre explicite dans l'environnement prod. En l'absence de `LEGACY_ADMIN_API_TOKEN`, `/admin/*` retourne 503 ; aucun fallback vers `INGESTOR_API_TOKEN` ou `INGEST_AUTH_TOKEN` n'est applique. Le mode admin sans token est reserve au developpement local et exige `RAG_ENV=development` plus `ALLOW_UNAUTHENTICATED_ADMIN_DEV=true`. En prod Docker, le compose versionne monte `${RAG_CONFIGS_HOST_DIR:-../configs}:/app/configs:ro` : le defaut `../configs` convient depuis `services/rag-engine/infra`, tandis que le layout historique plat `/srv/nexusreussite/rag-ui/compose` doit definir `RAG_CONFIGS_HOST_DIR=./configs`. Definir aussi `RAG_ENGINE_CONFIG_DIR=/app/configs` pour charger `rag_collections.yml` et `legacy_collection_mapping.yml`. Si les fichiers sont separes, utiliser les overrides explicites `RAG_COLLECTIONS_CONFIG` et `RAG_LEGACY_COLLECTION_MAPPING`; ces overrides echouent fermes si le chemin configure est absent.
 
 ## Prérequis VPS
 - Ubuntu 22.04/24.04, accès sudo, ports 80/443 ouverts, DNS des domaines pointés sur le VPS.
 - Docker Engine ≥ 24.0 + plugin Compose ≥ 2.24 (`docker compose version`).
-- Cloner le repo et copier `infra/.env.example` vers `infra/.env`, puis éditer `RAG_UI_EXTERNAL_DOMAIN`, `RAG_API_EXTERNAL_DOMAIN`, `NGINX_API_PORT`, `RAG_ENV=production`, `RAG_ENGINE_CONFIG_DIR=/app/configs`, `RAG_CONFIGS_HOST_DIR` si le compose n'est pas execute depuis `services/rag-engine/infra`, et un `INGESTOR_API_TOKEN` fort (ex: `openssl rand -hex 32`).
+- Cloner le repo et copier `infra/.env.example` vers `infra/.env`, puis éditer `RAG_UI_EXTERNAL_DOMAIN`, `RAG_API_EXTERNAL_DOMAIN`, `NGINX_API_PORT`, `RAG_ENV=production`, `RAG_ENGINE_CONFIG_DIR=/app/configs`, `RAG_CONFIGS_HOST_DIR` si le compose n'est pas execute depuis `services/rag-engine/infra`, `LEGACY_ADMIN_API_TOKEN`, les tokens v2 par role (`RAG_ADMIN_TOKEN`, `RAG_REVIEWER_TOKEN`, `REVIEWER_API_TOKEN`, `RAG_TEACHER_TOKEN`, `RAG_INGEST_AGENT_TOKEN`, `INGESTOR_API_TOKEN`, `INGEST_AUTH_TOKEN`, `RAG_STUDENT_TOKEN`), et `INGESTOR_TRUSTED_PROXY_CIDRS` si `INGESTOR_IP_ALLOWLIST` doit lire `X-Forwarded-For` derriere un reverse proxy de confiance. Les compose prod, par defaut et v2 (`make v2-up`) transmettent ces variables au conteneur `ingestor`.
 
 ## Secrets à générer
 | Nom | Longueur conseillée | Usage | Où le renseigner |
 |-----|---------------------|-------|------------------|
-| `INGESTOR_API_TOKEN` | 64 hex (`openssl rand -hex 32`) | Authentifier les appels `/ingest` (Authorization: Bearer) | `infra/.env` (`INGESTOR_API_TOKEN`) |
+| `LEGACY_ADMIN_API_TOKEN` | 64 hex (`openssl rand -hex 32`) | Auth dédiée des routes legacy `/admin/*` | `infra/.env` (`LEGACY_ADMIN_API_TOKEN`) |
+| `RAG_ADMIN_TOKEN` | 64 hex (`openssl rand -hex 32`) | Auth v2 admin | `infra/.env` (`RAG_ADMIN_TOKEN`) |
+| `RAG_REVIEWER_TOKEN` | 64 hex (`openssl rand -hex 32`) | Auth v2 reviewer | `infra/.env` (`RAG_REVIEWER_TOKEN`) |
+| `REVIEWER_API_TOKEN` | 64 hex (`openssl rand -hex 32`) | Alias legacy reviewer | `infra/.env` (`REVIEWER_API_TOKEN`) |
+| `RAG_TEACHER_TOKEN` | 64 hex (`openssl rand -hex 32`) | Auth v2 teacher | `infra/.env` (`RAG_TEACHER_TOKEN`) |
+| `RAG_INGEST_AGENT_TOKEN` | 64 hex (`openssl rand -hex 32`) | Auth v2 ingest_agent | `infra/.env` (`RAG_INGEST_AGENT_TOKEN`) |
+| `INGESTOR_API_TOKEN` | 64 hex (`openssl rand -hex 32`) | Alias legacy ingest_agent / UI vers API | `infra/.env` (`INGESTOR_API_TOKEN`) |
+| `INGEST_AUTH_TOKEN` | 64 hex (`openssl rand -hex 32`) | Alias legacy ingest_agent | `infra/.env` (`INGEST_AUTH_TOKEN`) |
+| `RAG_STUDENT_TOKEN` | 64 hex (`openssl rand -hex 32`) | Auth v2 student | `infra/.env` (`RAG_STUDENT_TOKEN`) |
 | `UI_BASIC_AUTH_USER_FILE_DIRECTIVE` | fichier htpasswd | Optionnel : restreindre l’UI Streamlit | `infra/.env` (`UI_BASIC_AUTH_*`) + templates Nginx |
 
 > Astuce : conserver les secrets hors dépôt (ex: `pass`, `1Password`) et régénérer à chaque rotation.
+
+Unicite des tokens v2 : chaque role v2 doit utiliser une valeur distincte. `RAG_REVIEWER_TOKEN` et `REVIEWER_API_TOKEN` peuvent partager une valeur pour le role reviewer. `INGESTOR_API_TOKEN` et `INGEST_AUTH_TOKEN` restent des alias de compatibilite ingest_agent v2, mais `RAG_INGEST_AGENT_TOKEN` devrait rester distinct des tokens d'ingestion legacy. Une collision entre roles v2 distincts, par exemple `RAG_ADMIN_TOKEN` identique a `RAG_STUDENT_TOKEN`, bloque `security_v2` en fail-closed `503`.
+
+Attention legacy : `INGESTOR_API_TOKEN` et `INGEST_AUTH_TOKEN` sont des tokens historiques d'ingestion. Ils ne doivent jamais etre reutilises pour les routes admin legacy `/admin/*`. Ces routes utilisent exclusivement `LEGACY_ADMIN_API_TOKEN`, qui doit aussi rester distinct de `RAG_ADMIN_TOKEN`. `RAG_ADMIN_TOKEN` protege les routes v2 admin et n'ouvre pas automatiquement `/admin/*`.
+
+Allowlist ingestion : les chemins `/ingest` legacy et `/ingest/v2` utilisent la resolution IP durcie partagee. Sans `INGESTOR_TRUSTED_PROXY_CIDRS`, l'allowlist n'utilise que le peer direct `request.client.host` et ignore `X-Forwarded-For` / `X-Real-IP`. Avec `INGESTOR_TRUSTED_PROXY_CIDRS`, `X-Forwarded-For` est accepte uniquement depuis un proxy de confiance, analyse de droite a gauche, et toute entree vide ou malformee rend la chaine non fiable. Une valeur explicitement non vide sans aucun CIDR valide bloque l'allowlist en fail-closed `503`, sans exposer la valeur invalide. `X-Real-IP` est ignore cote application. Le provisioning interactif propose par defaut `127.0.0.1/32,172.16.0.0/12` pour couvrir loopback et les bridges Docker, sans faire confiance aux LAN prives `10/8` ou `192.168/16` ; resserrer cette valeur si le CIDR exact du bridge est connu.
+
+Ne pas utiliser `proxy_add_x_forwarded_for` sans strategie anti-spoof cote application ou sans reecriture stricte du header par le proxy. Le durcissement applicatif LOT 26.3 ignore XFF depuis un peer non trusted et parcourt XFF de droite a gauche depuis un proxy trusted.
 
 ## Modèles Ollama conseillés
 - `EMBED_MODEL=nomic-embed-text` (cohérent avec la collection Chroma)
@@ -156,7 +172,7 @@ Voir `SPEC.md` pour l’architecture et le contrat d’API.
 - Assurez-vous que le répertoire des uploads est monté en écriture:
   - Volume: /srv/rag-data sur l’hôte mappé vers /data/uploads dans le conteneur ingestor (rw)
   - NGINX_CLIENT_MAX_BODY_SIZE (ex: 64m) si vous uploadez de gros PDF
-- Authentification: même jeton que /ingest (Authorization: Bearer ou X-API-Token)
+- Authentification: `Authorization: Bearer $LEGACY_ADMIN_API_TOKEN` (ou `X-API-Token: $LEGACY_ADMIN_API_TOKEN`)
 - Endpoint: POST /admin/upload (multipart/form-data)
   - Params: ingest=true|false, domain, title?, tags(JSON), metadata(JSON)
   - Réponse: chemin, type MIME, taille, guess du source_type
