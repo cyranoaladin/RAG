@@ -17,7 +17,7 @@ Formaliser l’architecture de convergence autour du dépôt canonique et produi
 
 - Création de l’ADR : `docs/adr/ADR-0014-fusion-rag-local-rag-anything.md`
 - Confirmation des décisions de convergence :
-  - dépôt canonique = `cyranoaladin/RAG` (seul.
+  - dépôt canonique = `cyranoaladin/RAG` (seul).
   - `rag-local` = legacy lisible/intégré en source (pas de fusion à plat).
   - `RAG-Anything` = adaptateur multimodal optionnel.
   - coexistence legacy/v2 planifiée via shadow puis canary.
