@@ -15,7 +15,7 @@ import logging
 import os
 import threading
 import time
-from typing import Any
+from typing import Any, Literal
 
 import psycopg  # noqa: F811 — also in requirements.v2.txt
 from fastapi import APIRouter, HTTPException, Request
@@ -54,6 +54,11 @@ _cache: dict[str, tuple[list, float]] = {}
 _cache_lock = threading.Lock()
 _cache_hits = 0
 _cache_misses = 0
+
+
+def _filter_reviewed_candidates(candidates: list[tuple]) -> list[tuple]:
+    """Keep only reviewed candidates in case DB returns unexpected statuses."""
+    return [candidate for candidate in candidates if candidate[8] == "reviewed"]
 
 
 def _cache_key(query: str, collection: str, k: int) -> str:
@@ -192,7 +197,7 @@ class SearchV2Hit(BaseModel):
     source_uri: str
     rights: str
     type_doc: str
-    review_status: str  # SCALE-04: reviewed
+    review_status: Literal["reviewed"]  # SCALE-04: reviewed only
     preview: str
     rerank_score: float
     dense_sim: float
@@ -301,7 +306,7 @@ def cache_warmup(request: Request) -> dict[str, Any]:
                         WHERE collection = %s AND review_status = 'reviewed'
                         ORDER BY vector <=> %s::vector LIMIT %s
                     """, (vec_str, col, vec_str, RERANK_CANDIDATES))
-                    candidates = cur.fetchall()
+                    candidates = _filter_reviewed_candidates(cur.fetchall())
                 conn.close()
             except Exception:
                 continue
@@ -314,6 +319,8 @@ def cache_warmup(request: Request) -> dict[str, Any]:
             for candidate, score in sorted(
                 zip(candidates, rerank_scores, strict=False), key=lambda x: x[1], reverse=True
             ):
+                if candidate[8] != "reviewed":
+                    continue
                 if float(score) < RERANK_SCORE_THRESHOLD:
                     continue
                 hits_data.append(SearchV2Hit(
@@ -442,7 +449,7 @@ def search_v2(payload: SearchV2Request, request: Request) -> SearchV2Response:
                 ORDER BY vector <=> %s::vector
                 LIMIT %s
             """, (vec_str, payload.collection, vec_str, RERANK_CANDIDATES))
-            candidates = cur.fetchall()
+            candidates = _filter_reviewed_candidates(cur.fetchall())
     finally:
         conn.close()
 
@@ -466,6 +473,8 @@ def search_v2(payload: SearchV2Request, request: Request) -> SearchV2Response:
     for candidate, score in sorted(
         zip(candidates, rerank_scores, strict=False), key=lambda x: x[1], reverse=True
     ):
+        if candidate[8] != "reviewed":
+            continue
         if float(score) < RERANK_SCORE_THRESHOLD:
             continue
         hits.append(SearchV2Hit(

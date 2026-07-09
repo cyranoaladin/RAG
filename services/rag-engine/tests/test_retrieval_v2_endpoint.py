@@ -10,6 +10,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+from pydantic import ValidationError
 
 # Ensure src/ is importable
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -148,12 +149,12 @@ class TestResponseFormat:
         )
         assert hit.review_status == "reviewed"
 
-        hit_nr = SearchV2Hit(
-            chunk_id="c2", doc_id="d2", source_label="s2.pdf", source_uri="u2",
-            rights="usage_interne", type_doc="cours", review_status="needs_review",
-            preview="text", rerank_score=3.0, dense_sim=0.80,
-        )
-        assert hit_nr.review_status == "needs_review"
+        with pytest.raises(ValidationError):
+            SearchV2Hit(
+                chunk_id="c2", doc_id="d2", source_label="s2.pdf", source_uri="u2",
+                rights="usage_interne", type_doc="cours", review_status="needs_review",
+                preview="text", rerank_score=3.0, dense_sim=0.80,
+            )
 
 
 class TestCacheGateInvariant:

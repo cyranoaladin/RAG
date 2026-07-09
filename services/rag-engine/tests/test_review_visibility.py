@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import sys
 import types
+from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -17,11 +18,15 @@ import inspect
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from ingestor.retrieval_v2_endpoint import (  # noqa: E402
+    _cache_get,
     _cache_key,
     _cache_put,
+    invalidate_cache,
     router,
     search_v2,
 )
+
+import pytest
 
 
 def _base_cfg() -> dict:
@@ -47,6 +52,15 @@ def _build_fake_pg_conn(candidates: list[tuple]) -> MagicMock:
     conn.cursor.return_value.__enter__.return_value = cursor
     cursor.fetchall.return_value = candidates
     return conn
+
+
+@pytest.fixture(autouse=True)
+def clear_cache_between_tests() -> Iterator[None]:
+    invalidate_cache()
+    try:
+        yield
+    finally:
+        invalidate_cache()
 
 
 def _setup_app() -> TestClient:
@@ -77,8 +91,9 @@ def test_student_search_does_not_return_non_reviewed() -> None:
 
     fake_payload = [
         ("c1", "d1", "l1", "u1", "rights", "cours", "chunk reviewed", 0.99, "reviewed"),
-        ("c2", "d2", "l2", "u2", "rights", "cours", "chunk pending", 0.98, "needs_review"),
-        ("c3", "d3", "l3", "u3", "rights", "cours", "chunk quarantined", 0.97, "quarantined"),
+        ("c2", "d2", "l2", "u2", "rights", "cours", "chunk needs", 0.98, "needs_review"),
+        ("c3", "d3", "l3", "u3", "rights", "cours", "chunk rejected", 0.97, "rejected"),
+        ("c4", "d4", "l4", "u4", "rights", "cours", "chunk quarantined", 0.96, "quarantined"),
     ]
 
     contracts, embedding = _nexus_contracts_modules()
@@ -94,7 +109,7 @@ def test_student_search_does_not_return_non_reviewed() -> None:
     ):
 
         m_embed.return_value = MagicMock(encode=lambda *args, **kwargs: [0.1])
-        m_rerank.return_value = MagicMock(predict=lambda pairs: [2.0, 1.8, 1.7])
+        m_rerank.return_value = MagicMock(predict=lambda pairs: [2.4, 2.1, 2.05, 2.0])
 
         resp = client.post(
             "/search/v2",
@@ -108,6 +123,7 @@ def test_student_search_does_not_return_non_reviewed() -> None:
     assert len(body["hits"]) == 1
     assert body["hits"][0]["chunk_id"] == "c1"
     assert body["hits"][0]["review_status"] == "reviewed"
+    assert {hit["review_status"] for hit in body["hits"]} == {"reviewed"}
 
 
 def test_search_v2_cache_stale_status_is_not_returned() -> None:
@@ -134,6 +150,9 @@ def test_search_v2_cache_stale_status_is_not_returned() -> None:
 
     db_candidates = [
         ("c1", "d1", "l1", "u1", "rights", "cours", "chunk reviewed", 0.99, "reviewed"),
+        ("c2", "d2", "l2", "u2", "rights", "cours", "chunk needs", 0.98, "needs_review"),
+        ("c3", "d3", "l3", "u3", "rights", "cours", "chunk rejected", 0.97, "rejected"),
+        ("c4", "d4", "l4", "u4", "rights", "cours", "chunk quarantined", 0.96, "quarantined"),
     ]
 
     contracts, embedding = _nexus_contracts_modules()
@@ -149,7 +168,7 @@ def test_search_v2_cache_stale_status_is_not_returned() -> None:
     ):
 
         m_embed.return_value = MagicMock(encode=lambda *args, **kwargs: [0.1])
-        m_rerank.return_value = MagicMock(predict=lambda pairs: [2.0])
+        m_rerank.return_value = MagicMock(predict=lambda pairs: [2.4, 2.1, 2.05, 2.0])
 
         resp = client.post(
             "/search/v2",
@@ -162,3 +181,48 @@ def test_search_v2_cache_stale_status_is_not_returned() -> None:
     assert body["returned"] == 1
     assert body["hits"][0]["chunk_id"] == "c1"
     assert body["hits"][0]["review_status"] == "reviewed"
+
+
+def test_cache_warmup_ignores_non_reviewed_candidates() -> None:
+    """Warmup must never cache non-reviewed candidates."""
+
+    os.environ["INGESTOR_API_TOKEN"] = "test-token"
+    client = _setup_app()
+
+    fake_payload = [
+        ("c1", "d1", "l1", "u1", "rights", "cours", "chunk reviewed", 0.99, "reviewed"),
+        ("c2", "d2", "l2", "u2", "rights", "cours", "chunk needs", 0.98, "needs_review"),
+        ("c3", "d3", "l3", "u3", "rights", "cours", "chunk rejected", 0.97, "rejected"),
+        ("c4", "d4", "l4", "u4", "rights", "cours", "chunk quarantined", 0.96, "quarantined"),
+    ]
+
+    contracts, embedding = _nexus_contracts_modules()
+
+    with (
+        patch.dict(sys.modules, {"nexus_contracts": contracts, "nexus_contracts.embedding_utils": embedding}),
+        patch("ingestor.retrieval_v2_endpoint.load_collection_config", return_value=_base_cfg()),
+        patch("ingestor.retrieval_v2_endpoint._get_pg_dsn", return_value="postgresql://x"),
+        patch("ingestor.retrieval_v2_endpoint._get_embed_model") as m_embed,
+        patch("ingestor.retrieval_v2_endpoint._get_reranker") as m_rerank,
+        patch("ingestor.retrieval_v2_endpoint.psycopg.connect", return_value=_build_fake_pg_conn(fake_payload)),
+    ):
+
+        m_embed.return_value = MagicMock(encode=lambda *args, **kwargs: [0.1])
+        m_rerank.return_value = MagicMock(predict=lambda pairs: [2.4, 2.1, 2.05, 2.0])
+
+        resp = client.post(
+            "/cache/v2/warmup",
+            headers={"Authorization": "Bearer test-token"},
+        )
+
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["warmed"] == payload["queries"]
+
+    cached = _cache_get(_cache_key(
+        "Comment fonctionne une boucle while en Python ?",
+        "rag_nexus_nsi_terminale_specialite",
+        5,
+    ))
+    assert cached is not None
+    assert all(item["review_status"] == "reviewed" for item in cached)
