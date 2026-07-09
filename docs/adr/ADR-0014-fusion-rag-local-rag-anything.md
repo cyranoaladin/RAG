@@ -4,7 +4,7 @@
 - **Date** : 2026-07-09
 - **Décideur** : Lead engineering (Conduite LOT 26)
 - **Lot** : 26.1
-- **Référence** : `docs/reports/lot_26_cahier_charges_fusion_rag.md`
+- **Référence de cadrage** : `docs/reports/lot_26_cahier_charges_fusion_rag.md`, introduit par la PR #48. Cette PR #49 dépend de #48 si #48 n’est pas encore mergée.
 
 ---
 
@@ -59,11 +59,11 @@ Le système reste en période de transition avec deux plans techniques coexistan
 - v2 = cible opérationnelle (pgvector 1024d, `review_status`, collection catalogue piloté).
 - legacy = continuité opérationnelle (pipeline historique).
 
-Règles d’isolation
+Règles d’isolation :
 
-- la récupération élève cible lit d’abord `rag-engine` v2;
-- legacy reste conservé pour opérations non encore portées;
-- aucun endpoint frontaux ne doit appeler indûment des routes legacy depuis du code nouveau.
+- La recherche élève des nouveaux parcours lit uniquement `rag-engine` v2.
+- Aucun fallback legacy silencieux n’est autorisé.
+- Legacy peut rester exploité uniquement pour continuité opérationnelle ou migration, jamais comme fallback invisible du flux élève v2.
 
 ### D5 — Collections : dérive historique vs catalogue courant
 
@@ -76,11 +76,19 @@ Le catalogue `services/rag-engine/configs/rag_collections.yml` est la référenc
 
 Les collections historiques connues en legacy restent listées pour compatibilité opérationnelle et migration, mais ne prévalent pas sur le contrat v2.
 
-### D6 — Nomenclature tenant / population
+### D6 — Nomenclature tenant / audience
 
-Le tenant logique attendu reste la forme `{population}_{niveau}` (ex. `libre_terminale`, `aefe_seconde`) pour la cohérence historique des lots.
+Le moteur v2 ne réintroduit pas `{population}_{niveau}` comme règle opérationnelle.
 
-`rag-engine` applique cette convention là où la notion de tenant demeure pertinente, sans changer la base de vérité des métadonnées métier.
+La base de vérité v2 reste `collection / niveau / audience / matière / statut` selon :
+- `services/rag-engine/configs/rag_collections.yml`
+- `packages/contracts`.
+
+`{population}_{niveau}` est une convention historique présente dans certains documents, traitée comme dette documentaire ou compatibilité legacy.
+
+Aucun nouveau lot v2 ne doit propager cette convention sans ADR dédié.
+
+Toute évolution de nomenclature tenant/audience doit être décidée par ADR séparé.
 
 ### D7 — Stratégie shadow/canary/rollback (obligatoire)
 
@@ -106,6 +114,7 @@ Le déploiement de production n’est pas initié par ce lot.
 ## Références
 
 - `docs/reports/lot_26_cahier_charges_fusion_rag.md` (branche de cadrage `origin/codex/cdc-fusion-rag-unifie`).
+- Référence de cadrage à PR #48 : docs/reports/lot_26_cahier_charges_fusion_rag.md n’est pas dans la base tant que #48 n’est pas mergée.
 - `services/rag-engine/configs/rag_collections.yml` (contrat catalogue actif).
 - `services/rag-engine/src/ingestor/collection_config.py` (résolution v2).
 - `docs/adr/ADR-0001-separation-controle-donnees-cockpit.md`

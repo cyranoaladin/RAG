@@ -11,6 +11,8 @@
 
 Formaliser l’architecture de convergence autour du dépôt canonique et produire le cadrage documenté pour les lots LOT 26.2 → LOT 26.10.
 
+Référence de cadrage : `docs/reports/lot_26_cahier_charges_fusion_rag.md`, introduit par la PR #48. Cette PR #49 dépend de #48 si #48 n’est pas encore mergée.
+
 ## Travaux réalisés
 
 ### 1) Documentation et ADR
@@ -22,7 +24,19 @@ Formaliser l’architecture de convergence autour du dépôt canonique et produi
   - `RAG-Anything` = adaptateur multimodal optionnel.
   - coexistence legacy/v2 planifiée via shadow puis canary.
   - `rag_nexus_*` + `instanciee` pour le pilotage v2 ; pas d’auto-création.
-  - tenant logique attendu en `{population}_{niveau}`.
+  - la nomenclature `{population}_{niveau}` n’est pas une règle opérationnelle v2 ; la base de vérité est `collection / niveau / audience / matière / statut`.
+
+### Corrections effectuées (suite à revue)
+
+- Référence de cadrage corrigée dans l’ADR pour indiquer explicitement la dépendance à la PR #48 (fichier référencé non encore dans `main`).
+- D6 corrigée :
+  - suppression de la règle `{population}_{niveau}` comme règle opérationnelle v2 ;
+  - base de vérité v2 alignée sur `services/rag-engine/configs/rag_collections.yml` et `packages/contracts` ;
+  - ajout de la contrainte : aucune propagation v2 de la convention sans ADR dédié.
+- D4 clarifiée :
+  - ajout de la règle “La recherche élève des nouveaux parcours lit uniquement rag-engine v2.” ;
+  - ajout de l’interdiction de fallback legacy silencieux ;
+  - ajout de la contrainte d’usage legacy uniquement pour continuité ou migration.
 
 ### 2) Rapport de cadrage de lot
 
@@ -31,16 +45,23 @@ Formaliser l’architecture de convergence autour du dépôt canonique et produi
 
 ### 3) Contrôle gouvernance
 
-Les scripts de garde-fous imposés ont été exécutés après création des documents :
+Les scripts de garde-fous imposés ont été exécutés après corrections :
 
 - `bash scripts/check-governance-locks.sh`
 - `bash scripts/tests/test-governance-locks.sh`
+
+Résultats :
+
+- `check-governance-locks.sh` : `Governance locks: baseline=18, config=18` puis `OK: all governance locks match baseline (18 keys verified).`
+- `test-governance-locks.sh` : `16 passed, 0 failed, 16 total` (cas de tests validés, dont tests de non-régression ADR/baseline).
 
 ## Vérifications de périmètre
 
 - Aucun fichier de runtime n’a été modifié.
 - Aucun verrou de gouvernance n’a été touché.
 - Aucun secret n’a été ajouté.
+- Aucun déploiement production n’a été effectué.
+- Validation d’exploitation: PR #49 reste en draft tant que ces corrections sont intégrées et re-vérifiées.
 
 ## Limites du lot
 
