@@ -15,7 +15,7 @@ import logging
 import os
 import threading
 import time
-from typing import Any
+from typing import Any, Literal
 
 import psycopg  # noqa: F811 — also in requirements.v2.txt
 from fastapi import APIRouter, HTTPException, Request
@@ -54,6 +54,11 @@ _cache: dict[str, tuple[list, float]] = {}
 _cache_lock = threading.Lock()
 _cache_hits = 0
 _cache_misses = 0
+
+
+def _filter_reviewed_candidates(candidates: list[tuple]) -> list[tuple]:
+    """Keep only reviewed candidates in case DB returns unexpected statuses."""
+    return [candidate for candidate in candidates if candidate[8] == "reviewed"]
 
 
 def _cache_key(query: str, collection: str, k: int) -> str:
@@ -192,7 +197,7 @@ class SearchV2Hit(BaseModel):
     source_uri: str
     rights: str
     type_doc: str
-    review_status: str  # SCALE-04: reviewed | needs_review (quarantined never served)
+    review_status: Literal["reviewed"]  # SCALE-04: reviewed only
     preview: str
     rerank_score: float
     dense_sim: float
@@ -298,10 +303,10 @@ def cache_warmup(request: Request) -> dict[str, Any]:
                         SELECT chunk_id, doc_id, source_label, source_uri, rights, type_doc,
                                text, 1 - (vector <=> %s::vector) AS sim, review_status
                         FROM rag_chunks
-                        WHERE collection = %s AND review_status IN ('reviewed', 'needs_review')
+                        WHERE collection = %s AND review_status = 'reviewed'
                         ORDER BY vector <=> %s::vector LIMIT %s
                     """, (vec_str, col, vec_str, RERANK_CANDIDATES))
-                    candidates = cur.fetchall()
+                    candidates = _filter_reviewed_candidates(cur.fetchall())
                 conn.close()
             except Exception:
                 continue
@@ -314,13 +319,15 @@ def cache_warmup(request: Request) -> dict[str, Any]:
             for candidate, score in sorted(
                 zip(candidates, rerank_scores, strict=False), key=lambda x: x[1], reverse=True
             ):
+                if candidate[8] != "reviewed":
+                    continue
                 if float(score) < RERANK_SCORE_THRESHOLD:
                     continue
                 hits_data.append(SearchV2Hit(
                     chunk_id=candidate[0], doc_id=candidate[1],
                     source_label=candidate[2] or "", source_uri=candidate[3] or "",
                     rights=candidate[4] or "", type_doc=candidate[5] or "",
-                    review_status=candidate[8] or "",
+                    review_status="reviewed",
                     preview=(candidate[6] or "")[:200],
                     rerank_score=round(float(score), 4),
                     dense_sim=round(float(candidate[7]), 4),
@@ -396,16 +403,11 @@ def search_v2(payload: SearchV2Request, request: Request) -> SearchV2Response:
     # Cache check (SCALE-V1-1)
     global _cache_misses
     cache_k = _cache_key(payload.q, payload.collection, payload.k) if CACHE_ENABLED else ""
+
+    # LOT 26.2 fail-closed: do not serve student/public search from cache.
+    # A cached hit may have lost review_status=reviewed after caching.
+    # Cache serving can be reintroduced only with DB revalidation of current statuses.
     if CACHE_ENABLED:
-        cached = _cache_get(cache_k)
-        if cached is not None:
-            return SearchV2Response(
-                query=payload.q,
-                collection=payload.collection,
-                seuil=RERANK_SCORE_THRESHOLD,
-                returned=len(cached),
-                hits=[SearchV2Hit(**h) for h in cached],
-            )
         _cache_misses += 1
 
     # Get DSN (R-01: no default)
@@ -431,11 +433,11 @@ def search_v2(payload: SearchV2Request, request: Request) -> SearchV2Response:
                 SELECT chunk_id, doc_id, source_label, source_uri, rights, type_doc,
                        text, 1 - (vector <=> %s::vector) AS sim, review_status
                 FROM rag_chunks
-                WHERE collection = %s AND review_status IN ('reviewed', 'needs_review')
+                WHERE collection = %s AND review_status = 'reviewed'
                 ORDER BY vector <=> %s::vector
                 LIMIT %s
             """, (vec_str, payload.collection, vec_str, RERANK_CANDIDATES))
-            candidates = cur.fetchall()
+            candidates = _filter_reviewed_candidates(cur.fetchall())
     finally:
         conn.close()
 
@@ -459,6 +461,8 @@ def search_v2(payload: SearchV2Request, request: Request) -> SearchV2Response:
     for candidate, score in sorted(
         zip(candidates, rerank_scores, strict=False), key=lambda x: x[1], reverse=True
     ):
+        if candidate[8] != "reviewed":
+            continue
         if float(score) < RERANK_SCORE_THRESHOLD:
             continue
         hits.append(SearchV2Hit(
@@ -468,7 +472,7 @@ def search_v2(payload: SearchV2Request, request: Request) -> SearchV2Response:
             source_uri=candidate[3] or "",
             rights=candidate[4] or "",
             type_doc=candidate[5] or "",
-            review_status=candidate[8] or "",
+            review_status="reviewed",
             preview=(candidate[6] or "")[:200],
             rerank_score=round(float(score), 4),
             dense_sim=round(float(candidate[7]), 4),

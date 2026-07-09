@@ -10,6 +10,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+from pydantic import ValidationError
 
 # Ensure src/ is importable
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -148,16 +149,16 @@ class TestResponseFormat:
         )
         assert hit.review_status == "reviewed"
 
-        hit_nr = SearchV2Hit(
-            chunk_id="c2", doc_id="d2", source_label="s2.pdf", source_uri="u2",
-            rights="usage_interne", type_doc="cours", review_status="needs_review",
-            preview="text", rerank_score=3.0, dense_sim=0.80,
-        )
-        assert hit_nr.review_status == "needs_review"
+        with pytest.raises(ValidationError):
+            SearchV2Hit(
+                chunk_id="c2", doc_id="d2", source_label="s2.pdf", source_uri="u2",
+                rights="usage_interne", type_doc="cours", review_status="needs_review",
+                preview="text", rerank_score=3.0, dense_sim=0.80,
+            )
 
 
 class TestCacheGateInvariant:
-    """Invariant C: cache never serves a chunk that became quarantined.
+    """Invariant C: cache never serves a chunk that became non-review.
 
     The gate (resolve_collection_v2 + domain retrievable) is checked BEFORE
     the cache lookup. The cache is keyed by (query, collection, k) and only
@@ -167,7 +168,7 @@ class TestCacheGateInvariant:
     Additionally:
     - TTL ensures stale entries expire (default 5 min)
     - invalidate_cache() purges all entries on review_status change
-    - SQL WHERE review_status IN ('reviewed', 'needs_review') excludes quarantined chunks
+    - SQL WHERE review_status = 'reviewed' excludes non-review statuses
     """
 
     def test_gate_before_cache(self) -> None:
@@ -246,5 +247,4 @@ class TestCacheGateInvariant:
 
         from ingestor.retrieval_v2_endpoint import search_v2
         source = inspect.getsource(search_v2)
-        assert "review_status IN ('reviewed', 'needs_review')" in source, \
-            "SQL must exclude quarantined chunks"
+        assert "review_status = 'reviewed'" in source, "Search must filter to reviewed only"
