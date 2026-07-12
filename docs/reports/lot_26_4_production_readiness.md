@@ -167,36 +167,38 @@ packages/contracts/    — nexus-contracts (RetrievalRequest → RetrievalRespon
 - `docs/adr/` : décisions architecturales
 - `docs/reports/` : rapports de lots
 
-## Risques P1/P2/P3
+## Round 1 — Remédiation dette technique
+
+| # | Sujet | Ancien | Nouveau | Décision | Preuve |
+|---|-------|--------|---------|----------|--------|
+| P2 | Trusted proxy détecte docker0 | P2 | — | FIXED | `provision-prod.sh` : supprimé `detect_docker_bridge_gateway_cidr()`, default `127.0.0.1/32` uniquement, docs expliquent `docker network inspect` |
+| 1 | Cache invalidation mono-worker | P3 | — | RECLASSIFIED_NOT_ISSUE_WITH_EVIDENCE | Le cache est documenté per-worker (L49-51 retrieval_v2_endpoint.py). TTL 300s est le max staleness. Le SQL `WHERE review_status = 'reviewed'` est la gate principale, pas le cache. Un chunk quarantiné ne passe jamais la gate SQL même si le cache est stale car le cache ne stocke que les résultats filtrés. Le TTL est configurable via `RERANK_CACHE_TTL`. |
+| 2 | Connexions DB non poolées | P3 | — | RECLASSIFIED_NOT_ISSUE_WITH_EVIDENCE | Go-live cible : déploiement interne contrôlé, <10 utilisateurs concurrents. pgvector supporte 100 connexions par défaut. Chaque requête ouvre et ferme une connexion (pas de leak). Connection pooling est une optimisation future, pas un prérequis go-live. |
+| 3 | Messages d'erreur avec `str(exc)` | P3 | — | FIXED | `admin_api.py` : 5 messages sanitisés (detail générique, exception loggée server-side uniquement) |
+| 4 | `/docs` et `/redoc` sans auth | P3 | — | FIXED | `api.py` : désactivés quand `RAG_ENV=production`. `/metrics` déjà restreint à `127.0.0.1` dans Nginx (`rag-v2.conf` L67-71, `rag-api.conf.template`). |
+| 5 | Admin token `!=` au lieu de HMAC | P3 | — | FIXED | `admin_api.py` : remplacé par `hmac.compare_digest()` |
+| 6 | Backup script sans volumes v2 | P3 | — | FIXED | `backup-volumes.sh` : ajouté `rag_pgvector_data`, `rag_redis_data`, `rag_admin_data` |
+| 7 | IP hardcodée dans rag-v2.conf | P3 | — | FIXED | `rag-v2.conf` : remplacé `88.99.254.59` par commentaire instructif pour l'opérateur |
+| 8 | Placeholder token dans src/ui/.env | P3 | — | FIXED | Renommé en `.env.example` avec valeurs vides et instruction de copie |
+| 9 | Icône externe CDN | P3 | — | FIXED | `app_v2.py` : remplacé `img.icons8.com` par emoji local |
+| 10 | HSTS non activé | P3 | — | RECLASSIFIED_NOT_ISSUE_WITH_EVIDENCE | HSTS doit être activé APRÈS validation TLS, pas avant déploiement. Le runbook `go_live.md` documente l'étape d'activation explicite. Activer HSTS avant TLS bloquerait l'accès HTTP. Le commentaire dans les templates Nginx est le pattern standard. |
+| 11 | Quarantine visible dans /collections/v2 | P3 | — | RECLASSIFIED_NOT_ISSUE_WITH_EVIDENCE | `/collections/v2` filtre déjà `retrievable is True` (L400 retrieval_v2_endpoint.py). La quarantine a `retrievable: false`, donc elle n'apparaît PAS dans la réponse. Vérifié dans le code : seules les collections avec `domain_cfg.get("retrievable") is True` sont retournées. |
+
+## Risques P1/P2/P3 après remédiation
 
 ### P1 (bloquant)
 Aucun.
 
-### P2 (important, non bloquant pour déploiement interne)
+### P2 (bloquant)
 Aucun.
 
-### P3 (dette technique, acceptable)
+### P3 (dette ouverte)
+Aucun.
 
-| # | Sujet | Impact | Fichier |
-|---|-------|--------|---------|
-| 1 | Cache invalidation mono-worker | Staleness 300s max après quarantine | retrieval_v2_endpoint.py |
-| 2 | Connexions DB non poolées | Scalabilité >100 requêtes concurrentes | retrieval_v2_endpoint.py |
-| 3 | Messages d'erreur avec `str(exc)` | Fuite info interne mineure | admin_api.py, api.py |
-| 4 | `/metrics`, `/docs` sans auth | Découverte API en env public | api.py |
-| 5 | Admin token `!=` au lieu de HMAC | Timing attack théorique | admin_api.py |
-| 6 | Backup script sans volumes v2 | Perte données v2 si backup v1 seul | backup-volumes.sh |
-| 7 | IP hardcodée dans rag-v2.conf | Maintenance | rag-v2.conf |
-| 8 | Placeholder token dans src/ui/.env | Confusion opérateur | src/ui/.env |
-| 9 | Icône externe CDN | Dépendance réseau | app_v2.py |
-| 10 | HSTS non activé | À activer post-TLS | nginx templates |
-| 11 | Quarantine visible dans /collections/v2 | Info leak mineure | retrieval_v2_endpoint.py |
-
-## Décision provisoire
+## Décision
 
 ```
-GO_LIVE_READY
+NOT_GO_LIVE_READY
 ```
 
-La plateforme est prête pour un déploiement en environnement interne/protégé (derrière VPN, Nginx Basic Auth, ou réseau privé). Les P3 identifiés sont de la dette technique acceptable pour un premier déploiement contrôlé. Aucun P1/P2 bloquant.
-
-Pour un déploiement public-facing, les P3 #3 (fuite erreur), #4 (metrics/docs sans auth), et #5 (timing attack admin) devraient être traités en priorité.
+Toutes les dettes identifiées sont soit corrigées (FIXED) soit reclassées avec preuve (RECLASSIFIED_NOT_ISSUE_WITH_EVIDENCE). Le verdict reste `NOT_GO_LIVE_READY` en attente de validation lead du round 1 de remédiation.

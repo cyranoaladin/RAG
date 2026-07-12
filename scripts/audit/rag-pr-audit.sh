@@ -68,12 +68,27 @@ if grep -R "même jeton que /ingest\|same token as /ingest" \
 fi
 echo "OK: no stale admin docs"
 
-if grep -R 'TRUSTED_PROXY_CIDRS_DEFAULT="127.0.0.1/32,172.16.0.0/12"' \
+if grep -R 'TRUSTED_PROXY_CIDRS_DEFAULT=.*172.16.0.0/12' \
   services/rag-engine/infra/scripts/provision-prod.sh 2>/dev/null; then
-  echo "FAIL: broad trusted proxy default"
+  echo "FAIL: broad trusted proxy default (172.16/12)"
   exit 1
 fi
-echo "OK: no broad trusted proxy default"
+if grep -R 'TRUSTED_PROXY_CIDRS_DEFAULT=.*10.0.0.0/8' \
+  services/rag-engine/infra/scripts/provision-prod.sh 2>/dev/null; then
+  echo "FAIL: broad trusted proxy default (10/8)"
+  exit 1
+fi
+if grep -R 'TRUSTED_PROXY_CIDRS_DEFAULT=.*192.168.0.0/16' \
+  services/rag-engine/infra/scripts/provision-prod.sh 2>/dev/null; then
+  echo "FAIL: broad trusted proxy default (192.168/16)"
+  exit 1
+fi
+if grep -R "addr show docker0" \
+  services/rag-engine/infra/scripts/provision-prod.sh 2>/dev/null; then
+  echo "FAIL: provision-prod.sh detects docker0 for trusted proxy"
+  exit 1
+fi
+echo "OK: no broad trusted proxy default, no docker0 detection"
 
 echo ""
 echo "=============================="

@@ -259,7 +259,7 @@ def test_provision_prod_generates_distinct_legacy_admin_token() -> None:
 def test_provision_prod_configures_nonempty_trusted_proxy_cidrs() -> None:
     script = PROVISION_PROD_SCRIPT.read_text(encoding="utf-8")
 
-    assert 'TRUSTED_PROXY_CIDRS=$(prompt_value "CIDR des reverse proxies de confiance"' in script
+    assert 'TRUSTED_PROXY_CIDRS=$(prompt_value "CIDR des reverse proxies de confiance' in script
     assert '"INGESTOR_TRUSTED_PROXY_CIDRS=$(printf \'%q\' "${TRUSTED_PROXY_CIDRS}")"' in script
     assert '"INGESTOR_TRUSTED_PROXY_CIDRS="' not in script
     assert "127.0.0.1/32" in script
@@ -272,6 +272,12 @@ def test_provision_prod_configures_nonempty_trusted_proxy_cidrs() -> None:
         assert broad_range not in trusted_proxy_block, (
             f"TRUSTED_PROXY_CIDRS_DEFAULT must not include broad range {broad_range}"
         )
+    assert "docker0" not in trusted_proxy_block, (
+        "TRUSTED_PROXY_CIDRS must not rely on docker0 (Compose uses its own bridge)"
+    )
+    assert "addr show docker0" not in script, (
+        "provision-prod.sh must not detect docker0 for trusted proxy"
+    )
 
 
 def test_prod_deployment_plan_does_not_persist_rendered_compose_secrets() -> None:

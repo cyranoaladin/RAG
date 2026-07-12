@@ -515,7 +515,7 @@ def _render_drive_tab(metadata: dict[str, str], key_prefix: str) -> None:
 # SIDEBAR NAVIGATION
 # ═══════════════════════════════════════════════════════════════
 
-st.sidebar.image("https://img.icons8.com/fluency/96/brain.png", width=60)
+st.sidebar.markdown("# \U0001f9e0")
 st.sidebar.title("RAG Nexus Réussite")
 
 page = st.sidebar.radio(

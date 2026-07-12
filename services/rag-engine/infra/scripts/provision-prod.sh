@@ -212,23 +212,17 @@ CERTBOT_EMAIL=$(prompt_value "Email for Let's Encrypt notifications")
 ALLOWLIST_DEFAULT="127.0.0.1/32,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
 INGEST_ALLOWLIST=$(prompt_value "CIDR allowlist for ingestor" "${ALLOWLIST_DEFAULT}")
 # INGESTOR_TRUSTED_PROXY_CIDRS must list only the IPs/CIDRs of reverse proxies
-# that set or pass through X-Forwarded-For. Never use broad LAN ranges
-# (10/8, 172.16/12, 192.168/16) — restrict to loopback and, if detectable,
-# the Docker bridge gateway in /32.
-detect_docker_bridge_gateway_cidr() {
-  local gateway
-  gateway="$(ip -o -4 addr show docker0 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -n 1)"
-  if [[ -n "${gateway}" ]]; then
-    printf "%s/32" "${gateway}"
-  fi
-}
-DOCKER_BRIDGE_GATEWAY_CIDR="$(detect_docker_bridge_gateway_cidr || true)"
-if [[ -n "${DOCKER_BRIDGE_GATEWAY_CIDR}" ]]; then
-  TRUSTED_PROXY_CIDRS_DEFAULT="127.0.0.1/32,${DOCKER_BRIDGE_GATEWAY_CIDR}"
-else
-  TRUSTED_PROXY_CIDRS_DEFAULT="127.0.0.1/32"
-fi
-TRUSTED_PROXY_CIDRS=$(prompt_value "CIDR des reverse proxies de confiance" "${TRUSTED_PROXY_CIDRS_DEFAULT}")
+# that set or control X-Forwarded-For. Never use broad LAN ranges
+# (10/8, 172.16/12, 192.168/16) and never trust docker0 — the Compose stack
+# creates its own bridge network (e.g. rag_net) with a different gateway.
+#
+# After 'docker compose up', find the real gateway with:
+#   docker network inspect <project>_rag_net --format '{{range .IPAM.Config}}{{.Gateway}}{{end}}'
+# Then set INGESTOR_TRUSTED_PROXY_CIDRS=<gateway>/32 in .env.
+#
+# Default: loopback only. The operator MUST add the actual reverse proxy IP.
+TRUSTED_PROXY_CIDRS_DEFAULT="127.0.0.1/32"
+TRUSTED_PROXY_CIDRS=$(prompt_value "CIDR des reverse proxies de confiance (ajouter la gateway Compose en /32)" "${TRUSTED_PROXY_CIDRS_DEFAULT}")
 read -r -p "Enable Basic Auth on Streamlit UI? [y/N]: " enable_ui_auth
 enable_ui_auth=${enable_ui_auth,,}
 UI_AUTH_USER=""

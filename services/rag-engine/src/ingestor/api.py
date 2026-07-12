@@ -306,7 +306,15 @@ class DriveTaskProgress:
 _drive_tasks: dict[str, DriveTaskProgress] = {}
 _drive_tasks_lock = threading.Lock()
 
-app = FastAPI(title="RAG Ingestor API")
+_rag_env = (os.getenv("RAG_ENV") or "").strip().lower()
+_openapi_url: str | None = "/openapi.json" if _rag_env != "production" else None
+
+app = FastAPI(
+    title="RAG Ingestor API",
+    docs_url="/docs" if _rag_env != "production" else None,
+    redoc_url="/redoc" if _rag_env != "production" else None,
+    openapi_url=_openapi_url,
+)
 app.include_router(admin_api.router)
 app.include_router(_retrieval_v2_module.router)
 app.include_router(_ingest_v2_module.router)
