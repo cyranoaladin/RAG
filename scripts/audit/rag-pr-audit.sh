@@ -114,6 +114,13 @@ if grep -R "https://img.icons8.com" \
 fi
 echo "OK: no external CDN icon"
 
+if grep -R "88\.99\.254\.59" \
+  services/rag-engine/infra/nginx 2>/dev/null; then
+  echo "FAIL: hardcoded IP in nginx config"
+  exit 1
+fi
+echo "OK: no hardcoded IP in nginx"
+
 if grep -R "changez_ceci_par_votre_token" \
   services/rag-engine/src/ui 2>/dev/null; then
   echo "FAIL: placeholder token in UI .env"
