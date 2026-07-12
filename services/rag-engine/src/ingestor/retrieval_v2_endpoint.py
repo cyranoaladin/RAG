@@ -45,13 +45,21 @@ router = APIRouter(tags=["retrieval_v2"])
 # --- Cache retrieval+rerank (SCALE-V1-1) ---
 # Key = normalized(query, collection, k). Value = (hits, timestamp).
 # Invalidation: TTL-based (chunks may change review_status).
-# A chunk that becomes quarantined is never served from cache after TTL expires.
-# LIMITATION (P2 cubic): cache is per-process. With N uvicorn workers,
+#
+# IMPORTANT: cache is per-process. With N uvicorn workers,
 # POST /cache/v2/invalidate only clears the worker handling that request.
-# Mitigation: TTL ensures all workers expire stale entries within CACHE_TTL_S.
-# For immediate cross-worker invalidation, use RERANK_CACHE=0 or shared cache (Redis).
+# A chunk quarantined after caching could still be served by other workers
+# until TTL expires.
+#
+# Safety rule: in production (RAG_ENV=production), cache is DISABLED by default
+# to guarantee zero stale-after-quarantine risk. To enable in production,
+# set RERANK_CACHE=1 explicitly (only if cross-worker invalidation is in place).
+_rag_env_cache = (os.environ.get("RAG_ENV") or "").strip().lower()
 CACHE_TTL_S = int(os.environ.get("RERANK_CACHE_TTL", "300"))  # 5 min default
-CACHE_ENABLED = os.environ.get("RERANK_CACHE", "1") != "0"
+if _rag_env_cache == "production":
+    CACHE_ENABLED = os.environ.get("RERANK_CACHE", "0") == "1"
+else:
+    CACHE_ENABLED = os.environ.get("RERANK_CACHE", "1") != "0"
 _cache: dict[str, tuple[list, float]] = {}
 _cache_lock = threading.Lock()
 _cache_hits = 0

@@ -90,6 +90,30 @@ if grep -R "addr show docker0" \
 fi
 echo "OK: no broad trusted proxy default, no docker0 detection"
 
+if grep -R 'ALLOWLIST_DEFAULT=.*10.0.0.0/8' \
+  services/rag-engine/infra/scripts/provision-prod.sh 2>/dev/null; then
+  echo "FAIL: broad allowlist default (10/8)"
+  exit 1
+fi
+if grep -R 'ALLOWLIST_DEFAULT=.*172.16.0.0/12' \
+  services/rag-engine/infra/scripts/provision-prod.sh 2>/dev/null; then
+  echo "FAIL: broad allowlist default (172.16/12)"
+  exit 1
+fi
+if grep -R 'ALLOWLIST_DEFAULT=.*192.168.0.0/16' \
+  services/rag-engine/infra/scripts/provision-prod.sh 2>/dev/null; then
+  echo "FAIL: broad allowlist default (192.168/16)"
+  exit 1
+fi
+echo "OK: no broad allowlist default"
+
+if grep -P "^(?!.*NOT_).*GO_LIVE_READY" \
+  docs/reports/lot_26_4_production_readiness.md 2>/dev/null; then
+  echo "FAIL: report still claims GO_LIVE_READY"
+  exit 1
+fi
+echo "OK: report does not claim GO_LIVE_READY"
+
 echo ""
 echo "=============================="
 echo "  RAG PR AUDIT — ALL PASS"

@@ -23,10 +23,11 @@
 - [ ] `RAG_ENV=production` dans `.env`
 - [ ] `ALLOW_UNAUTHENTICATED_ADMIN_DEV=false`
 - [ ] `RAG_ENGINE_CONFIG_DIR=/app/configs`
-- [ ] `INGESTOR_IP_ALLOWLIST` configuré selon réseau
-- [ ] `INGESTOR_TRUSTED_PROXY_CIDRS` restreint (loopback + bridge Docker en /32)
+- [ ] `INGESTOR_IP_ALLOWLIST` contient uniquement les CIDR clients réels autorisés
+- [ ] `INGESTOR_IP_ALLOWLIST` ne contient pas `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16` sauf justification écrite
+- [ ] `INGESTOR_TRUSTED_PROXY_CIDRS` contient uniquement la gateway Compose / reverse proxy exact en `/32`
 - [ ] `RERANK_SCORE_THRESHOLD=1.90`
-- [ ] `RERANK_CACHE_TTL=300` (ou 60 pour invalidation plus rapide)
+- [ ] Search cache production désactivé (`RERANK_CACHE` absent ou `0`) sauf si invalidation cross-worker validée
 
 ## Docker compose
 

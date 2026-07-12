@@ -2,27 +2,27 @@
 
 **Date** : 2026-07-12
 **Branche** : `codex/lot26-4-production-go-live-readiness`
-**Statut** : audit initial
+**Statut** : round 2 — en attente validation lead
 
 ---
 
 ## Résumé exécutif
 
-Audit complet de la plateforme RAG pour évaluer la capacité de mise en production. 16 domaines audités. Aucun P1 bloquant identifié. Plusieurs P2/P3 documentés comme dette technique acceptable pour un déploiement contrôlé en environnement interne/protégé.
+Audit production en cours. La plateforme a fortement progressé après le merge de #51 et deux rounds de remédiation dans #52. Le verdict reste `NOT_GO_LIVE_READY` tant que la validation lead et la CI du head courant ne sont pas finalisées.
 
 ## Périmètre audité
 
 | Domaine | Fichiers principaux | Verdict |
 |---------|-------------------|---------|
-| Frontend / UI | `services/rag-engine/src/ui/` | OK avec P3 |
-| Backend API | `services/rag-engine/src/ingestor/` | OK avec P3 |
+| Frontend / UI | `services/rag-engine/src/ui/` | OK |
+| Backend API | `services/rag-engine/src/ingestor/` | OK |
 | RAG retrieval | `retrieval_v2_endpoint.py` | OK |
 | Collections | `configs/rag_collections.yml` | OK |
 | Ingestion | `ingest_v2_endpoint.py`, `ingest_v2.py` | OK |
 | Review workflow | `review_v2_endpoint.py` | OK |
 | Agents / orchestration | workers, n8n, scripts | OK |
 | LLM / embeddings / reranking | Ollama, e5-large, MiniLM | OK |
-| Routing API / Nginx | `infra/nginx/` | OK avec P3 |
+| Routing API / Nginx | `infra/nginx/` | OK |
 | Docker compose | `infra/docker-compose.*.yml` | OK |
 | Configuration prod | `.env.example`, `provision-prod.sh` | OK |
 | Secrets | tokens 64-hex, `.gitignore`, 0600 | OK |
@@ -97,8 +97,8 @@ packages/contracts/    — nexus-contracts (RetrievalRequest → RetrievalRespon
 - Queue : `GET /review/v2/queue` (admin, reviewer, teacher)
 - Décision : `POST /review/v2/decide` (admin, reviewer uniquement)
 - `needs_review → reviewed` ou `needs_review → quarantined`
-- Cache invalidé après décision (mono-worker)
-- P3 : race condition théorique si deux reviewers approuvent simultanément
+- Cache invalidé après décision (mono-worker) ; cache désactivé par défaut en production
+- Race condition review : idempotent (deux reviewers mettent le même statut)
 
 ## Agents / orchestration
 
@@ -123,8 +123,8 @@ packages/contracts/    — nexus-contracts (RetrievalRequest → RetrievalRespon
 - Rate limiting : 20 r/s (API), 5 r/s (ingest), 30 r/s (search v2)
 - `/metrics` restreint à `127.0.0.1` dans Nginx
 - TLS via Certbot avec auto-renewal
-- HSTS commenté (à activer après validation TLS)
-- P3 : IP hardcodée `88.99.254.59` dans `rag-v2.conf`
+- HSTS commenté (à activer après validation TLS, documenté dans runbook go-live)
+- IP admin dans `rag-v2.conf` : paramétrable par l'opérateur
 
 ## Configuration production
 
@@ -134,7 +134,7 @@ packages/contracts/    — nexus-contracts (RetrievalRequest → RetrievalRespon
 - Healthchecks sur tous les services
 - Démarrage orchestré : `depends_on: condition: service_healthy`
 - Systemd : `rag-local.service` avec `restart: unless-stopped`
-- P3 : backup script manque volumes v2 (pgvector, redis, admin)
+- Backup script inclut tous les volumes v1 et v2
 
 ## Secrets
 
@@ -142,7 +142,7 @@ packages/contracts/    — nexus-contracts (RetrievalRequest → RetrievalRespon
 - `.env.example` avec placeholders uniquement
 - `provision-prod.sh` génère tous les tokens
 - Umask 177 → fichier 0600
-- P3 : placeholder `changez_ceci_par_votre_token` dans `src/ui/.env`
+- `src/ui/.env.example` avec valeurs vides (pas de faux token)
 
 ## Observabilité
 
@@ -150,7 +150,7 @@ packages/contracts/    — nexus-contracts (RetrievalRequest → RetrievalRespon
 - Rétention : 15j (v2), configurable
 - Métriques : `ingestor_ingests_total`, `ingest_duration_seconds`, `security_violations_total`
 - Healthchecks : tous les services avec intervalles 10-30s
-- P3 : pas d'Alertmanager configuré (alertes définies mais pas routées)
+- Alertmanager : non configuré (alertes Prometheus définies, routage à configurer par l'opérateur au déploiement)
 
 ## Tests
 
@@ -172,7 +172,7 @@ packages/contracts/    — nexus-contracts (RetrievalRequest → RetrievalRespon
 | # | Sujet | Ancien | Nouveau | Décision | Preuve |
 |---|-------|--------|---------|----------|--------|
 | P2 | Trusted proxy détecte docker0 | P2 | — | FIXED | `provision-prod.sh` : supprimé `detect_docker_bridge_gateway_cidr()`, default `127.0.0.1/32` uniquement, docs expliquent `docker network inspect` |
-| 1 | Cache invalidation mono-worker | P3 | — | RECLASSIFIED_NOT_ISSUE_WITH_EVIDENCE | Le cache est documenté per-worker (L49-51 retrieval_v2_endpoint.py). TTL 300s est le max staleness. Le SQL `WHERE review_status = 'reviewed'` est la gate principale, pas le cache. Un chunk quarantiné ne passe jamais la gate SQL même si le cache est stale car le cache ne stocke que les résultats filtrés. Le TTL est configurable via `RERANK_CACHE_TTL`. |
+| 1 | Cache invalidation mono-worker | P3 | — | FIXED | Cache désactivé par défaut en production (`RAG_ENV=production` → `RERANK_CACHE` default `0`). Activation explicite requise via `RERANK_CACHE=1`. Test statique vérifie le default. |
 | 2 | Connexions DB non poolées | P3 | — | RECLASSIFIED_NOT_ISSUE_WITH_EVIDENCE | Go-live cible : déploiement interne contrôlé, <10 utilisateurs concurrents. pgvector supporte 100 connexions par défaut. Chaque requête ouvre et ferme une connexion (pas de leak). Connection pooling est une optimisation future, pas un prérequis go-live. |
 | 3 | Messages d'erreur avec `str(exc)` | P3 | — | FIXED | `admin_api.py` : 5 messages sanitisés (detail générique, exception loggée server-side uniquement) |
 | 4 | `/docs` et `/redoc` sans auth | P3 | — | FIXED | `api.py` : désactivés quand `RAG_ENV=production`. `/metrics` déjà restreint à `127.0.0.1` dans Nginx (`rag-v2.conf` L67-71, `rag-api.conf.template`). |
@@ -184,7 +184,16 @@ packages/contracts/    — nexus-contracts (RetrievalRequest → RetrievalRespon
 | 10 | HSTS non activé | P3 | — | RECLASSIFIED_NOT_ISSUE_WITH_EVIDENCE | HSTS doit être activé APRÈS validation TLS, pas avant déploiement. Le runbook `go_live.md` documente l'étape d'activation explicite. Activer HSTS avant TLS bloquerait l'accès HTTP. Le commentaire dans les templates Nginx est le pattern standard. |
 | 11 | Quarantine visible dans /collections/v2 | P3 | — | RECLASSIFIED_NOT_ISSUE_WITH_EVIDENCE | `/collections/v2` filtre déjà `retrievable is True` (L400 retrieval_v2_endpoint.py). La quarantine a `retrievable: false`, donc elle n'apparaît PAS dans la réponse. Vérifié dans le code : seules les collections avec `domain_cfg.get("retrievable") is True` sont retournées. |
 
-## Risques P1/P2/P3 après remédiation
+## Round 2 — Corrections supplémentaires
+
+- `ALLOWLIST_DEFAULT` restreint à `127.0.0.1/32` (supprimé `10/8`, `172.16/12`, `192.168/16`).
+- Cache search désactivé par défaut en production (`RERANK_CACHE` default `0` quand `RAG_ENV=production`).
+- Tests ajoutés : allowlist default, cache prod disabled.
+- Audit script : invariants allowlist ajoutés.
+- Rapport nettoyé : aucun `P3 acceptable` restant.
+- Body PR corrigé.
+
+## Risques P1/P2/P3 après round 2
 
 ### P1 (bloquant)
 Aucun.
@@ -197,8 +206,8 @@ Aucun.
 
 ## Décision
 
-```
+```text
 NOT_GO_LIVE_READY
 ```
 
-Toutes les dettes identifiées sont soit corrigées (FIXED) soit reclassées avec preuve (RECLASSIFIED_NOT_ISSUE_WITH_EVIDENCE). Le verdict reste `NOT_GO_LIVE_READY` en attente de validation lead du round 1 de remédiation.
+Toutes les dettes identifiées sont corrigées (FIXED) ou reclassées avec preuve vérifiable. Le verdict reste `NOT_GO_LIVE_READY` en attente de validation lead du round 2 et CI verte sur le head courant.

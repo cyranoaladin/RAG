@@ -209,8 +209,12 @@ if [[ "${RAG_DOMAIN}" == *.* ]]; then
 fi
 N8N_DOMAIN=$(prompt_value "n8n domain (e.g. automations.example.com)" "${DEFAULT_N8N_DOMAIN}")
 CERTBOT_EMAIL=$(prompt_value "Email for Let's Encrypt notifications")
-ALLOWLIST_DEFAULT="127.0.0.1/32,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
-INGEST_ALLOWLIST=$(prompt_value "CIDR allowlist for ingestor" "${ALLOWLIST_DEFAULT}")
+# INGESTOR_IP_ALLOWLIST must list only the CIDRs of real ingestion clients.
+# Do NOT use broad private ranges (10/8, 172.16/12, 192.168/16) as defaults —
+# they mask the real client behind Docker/VPN peers and weaken CIDR filtering.
+# Add the exact client CIDRs that should be allowed to call /ingest endpoints.
+ALLOWLIST_DEFAULT="127.0.0.1/32"
+INGEST_ALLOWLIST=$(prompt_value "CIDR allowlist for real ingestion clients (not Docker/LAN ranges)" "${ALLOWLIST_DEFAULT}")
 # INGESTOR_TRUSTED_PROXY_CIDRS must list only the IPs/CIDRs of reverse proxies
 # that set or control X-Forwarded-For. Never use broad LAN ranges
 # (10/8, 172.16/12, 192.168/16) and never trust docker0 — the Compose stack
