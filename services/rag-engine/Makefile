@@ -177,8 +177,10 @@ v2-pull-models:
 ## v2: Évaluation qualité RAG
 v2-eval:
 	@echo "📊 Lancement de l'évaluation RAG..."
-	@curl -sf -H "Authorization: Bearer $${API_SECRET_KEY}" http://localhost:8001/eval/nsi | python3 -m json.tool || echo "⚠️  Eval nsi failed"
-	@curl -sf -H "Authorization: Bearer $${API_SECRET_KEY}" http://localhost:8001/eval/nexus | python3 -m json.tool || echo "⚠️  Eval nexus failed"
+	@TOKEN="$${INGESTOR_API_TOKEN:-$${API_SECRET_KEY}}"; \
+		curl -sf -H "Authorization: Bearer $${TOKEN}" http://localhost:8001/eval/nsi | python3 -m json.tool || echo "⚠️  Eval nsi failed"
+	@TOKEN="$${INGESTOR_API_TOKEN:-$${API_SECRET_KEY}}"; \
+		curl -sf -H "Authorization: Bearer $${TOKEN}" http://localhost:8001/eval/nexus | python3 -m json.tool || echo "⚠️  Eval nexus failed"
 
 ## v2: Tests
 v2-test:
@@ -203,8 +205,10 @@ v2-logs:
 
 ## v2: Stats en direct
 v2-stats:
-	@curl -sf -H "Authorization: Bearer $${API_SECRET_KEY}" http://localhost:8001/stats/nsi | python3 -m json.tool || echo "⚠️  Stats nsi unavailable"
-	@curl -sf -H "Authorization: Bearer $${API_SECRET_KEY}" http://localhost:8001/stats/nexus | python3 -m json.tool || echo "⚠️  Stats nexus unavailable"
+	@TOKEN="$${INGESTOR_API_TOKEN:-$${API_SECRET_KEY}}"; \
+		curl -sf -H "Authorization: Bearer $${TOKEN}" http://localhost:8001/stats/nsi | python3 -m json.tool || echo "⚠️  Stats nsi unavailable"
+	@TOKEN="$${INGESTOR_API_TOKEN:-$${API_SECRET_KEY}}"; \
+		curl -sf -H "Authorization: Bearer $${TOKEN}" http://localhost:8001/stats/nexus | python3 -m json.tool || echo "⚠️  Stats nexus unavailable"
 
 ## v2: Nettoyage des instances orphelines
 v2-cleanup:

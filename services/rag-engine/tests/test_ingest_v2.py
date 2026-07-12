@@ -6,8 +6,11 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -150,3 +153,61 @@ class TestEndpointRoutes:
         assert "/ingest/v2/upload-files" in routes
         assert "/ingest/v2/urls" in routes
         assert "/ingest/v2/drive" in routes
+
+    def test_upload_uses_shared_token_fingerprint(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from ingestor import ingest_v2_endpoint
+
+        captured: dict[str, Provenance] = {}
+
+        monkeypatch.setattr(
+            ingest_v2_endpoint,
+            "_enforce_security",
+            lambda request: "prefix01-sensitive-token",
+        )
+        monkeypatch.setattr(
+            ingest_v2_endpoint,
+            "token_hash",
+            lambda token: "shared-fingerprint",
+            raising=False,
+        )
+        monkeypatch.setattr(
+            ingest_v2_endpoint,
+            "_extract_text_from_file",
+            lambda path: "contenu pédagogique",
+        )
+
+        def fake_ingest_document(text, request, provenance, *, doc_id):
+            captured["provenance"] = provenance
+            return SimpleNamespace(
+                doc_id=doc_id,
+                chunks_written=1,
+                chunks_filtered=0,
+                chunks_dedup=0,
+                review_status="needs_review",
+            )
+
+        monkeypatch.setattr(
+            ingest_v2_endpoint,
+            "ingest_document",
+            fake_ingest_document,
+        )
+
+        app = FastAPI()
+        app.include_router(ingest_v2_endpoint.router)
+        response = TestClient(app).post(
+            "/ingest/v2/upload-files",
+            params={
+                "collection": "rag_nexus_nsi_terminale_specialite",
+                "rights": "usage_interne",
+                "matiere": "nsi",
+                "niveau": "terminale",
+            },
+            files={"files": ("cours.txt", b"contenu", "text/plain")},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["route"] == "upload_v2"
+        assert response.json()["results"][0]["review_status"] == "needs_review"
+        assert captured["provenance"].token_hash == "shared-fingerprint"

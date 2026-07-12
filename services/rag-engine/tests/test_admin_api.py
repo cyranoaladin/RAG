@@ -10,12 +10,12 @@ from src.ingestor.api import app as ingest_app
 
 
 def _auth() -> dict[str, str]:
-    return {"Authorization": "Bearer test-token"}
+    return {"Authorization": "Bearer legacy-admin-test-token"}
 
 
 def test_admin_guard_requires_token(monkeypatch, tmp_path) -> None:
     # Enforce guard presence and safe DB path
-    monkeypatch.setenv("INGESTOR_API_TOKEN", "test-token")
+    monkeypatch.setenv("LEGACY_ADMIN_API_TOKEN", "legacy-admin-test-token")
     monkeypatch.setenv("ADMIN_DB_PATH", str(tmp_path / "cat.sqlite"))
     client = TestClient(ingest_app)
     r = client.get("/admin/ingestions")
@@ -32,6 +32,7 @@ essential_doc_payload = {
 
 def test_admin_crud_and_ingest_flow(monkeypatch) -> None:
     with tempfile.TemporaryDirectory() as td:
+        monkeypatch.setenv("LEGACY_ADMIN_API_TOKEN", "legacy-admin-test-token")
         monkeypatch.setenv("INGESTOR_API_TOKEN", "test-token")
         monkeypatch.setenv("INGEST_AUTH_TOKEN", "test-token")
         os.environ["ADMIN_DB_PATH"] = os.path.join(td, "catalog.sqlite")
@@ -93,6 +94,7 @@ def test_admin_crud_and_ingest_flow(monkeypatch) -> None:
 
 def test_admin_upload_ingest_false_and_true(monkeypatch) -> None:
     with tempfile.TemporaryDirectory() as td:
+        monkeypatch.setenv("LEGACY_ADMIN_API_TOKEN", "legacy-admin-test-token")
         monkeypatch.setenv("INGESTOR_API_TOKEN", "test-token")
         monkeypatch.setenv("INGEST_AUTH_TOKEN", "test-token")
         os.environ["ADMIN_DB_PATH"] = os.path.join(td, "catalog.sqlite")

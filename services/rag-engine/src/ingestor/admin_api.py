@@ -47,7 +47,7 @@ def _get_request_id(request: Request) -> Optional[str]:
     return headers.get("X-Request-ID") or headers.get("x-request-id")
 
 
-# --- Security: reuse same token as /ingest (Bearer or X-API-Token) ---
+# --- Security: dedicated legacy-admin token (Bearer or X-API-Token) ---
 
 def _rag_env() -> str:
     return (os.getenv("RAG_ENV") or "production").strip().lower()
@@ -59,7 +59,7 @@ def _allow_unauthenticated_admin_dev() -> bool:
 
 
 def _admin_guard(request: Request) -> None:
-    token_env = os.getenv("INGESTOR_API_TOKEN") or os.getenv("INGEST_AUTH_TOKEN")
+    token_env = (os.getenv("LEGACY_ADMIN_API_TOKEN") or "").strip()
     client_ip = _get_client_ip(request)
     request_id = _get_request_id(request)
     
@@ -75,6 +75,8 @@ def _admin_guard(request: Request) -> None:
         )
         raise HTTPException(status_code=503, detail="Admin token not configured")
     header_token = request.headers.get("X-API-Token") or request.headers.get("x-api-token")
+    if isinstance(header_token, str):
+        header_token = header_token.strip()
     if not header_token:
         auth = request.headers.get("Authorization") or request.headers.get("authorization")
         if isinstance(auth, str) and auth.strip():

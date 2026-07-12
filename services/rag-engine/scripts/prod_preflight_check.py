@@ -18,8 +18,9 @@ COMPOSE_CANDIDATES = (
     "compose.yml",
     "compose.yaml",
 )
-ADMIN_TOKEN_KEY = "INGESTOR_API_TOKEN"
-ADMIN_TOKEN_PATTERN = re.compile(r"^[0-9a-fA-F]{64}$")
+ADMIN_TOKEN_KEY = "LEGACY_ADMIN_API_TOKEN"
+INGESTOR_TOKEN_KEY = "INGESTOR_API_TOKEN"
+TOKEN_PATTERN = re.compile(r"^[0-9a-fA-F]{64}$")
 LOOPBACK_HOSTS = {"127.0.0.1", "::1", "localhost"}
 
 
@@ -65,6 +66,35 @@ def _require_env(env: dict[str, str], key: str) -> str:
     return value
 
 
+_V2_ROLE_GROUPS: dict[str, tuple[str, ...]] = {
+    "admin": ("RAG_ADMIN_TOKEN",),
+    "reviewer": ("RAG_REVIEWER_TOKEN", "REVIEWER_API_TOKEN"),
+    "teacher": ("RAG_TEACHER_TOKEN",),
+    "ingest_agent": ("RAG_INGEST_AGENT_TOKEN", "INGESTOR_API_TOKEN", "INGEST_AUTH_TOKEN"),
+    "student": ("RAG_STUDENT_TOKEN",),
+}
+
+
+def _validate_v2_role_token_uniqueness(env: dict[str, str]) -> None:
+    """Reject any token value shared across distinct v2 roles."""
+    token_to_role: dict[str, str] = {}
+    for role, var_names in _V2_ROLE_GROUPS.items():
+        for var_name in var_names:
+            value = env.get(var_name, "").strip()
+            if not value:
+                continue
+            if not TOKEN_PATTERN.fullmatch(value):
+                raise PreflightError(
+                    f"{var_name} must be a 64-character hex token"
+                )
+            existing_role = token_to_role.get(value)
+            if existing_role is not None and existing_role != role:
+                raise PreflightError(
+                    "v2 role tokens must be distinct across roles"
+                )
+            token_to_role[value] = role
+
+
 def _validate_env(env: dict[str, str], expected_target: str) -> None:
     if _require_env(env, "RAG_ENV") != "production":
         raise PreflightError("RAG_ENV must be production")
@@ -74,8 +104,20 @@ def _validate_env(env: dict[str, str], expected_target: str) -> None:
     if _require_env(env, "ALLOW_UNAUTHENTICATED_ADMIN_DEV") != "false":
         raise PreflightError("ALLOW_UNAUTHENTICATED_ADMIN_DEV must be false")
     admin_token = _require_env(env, ADMIN_TOKEN_KEY)
-    if not ADMIN_TOKEN_PATTERN.fullmatch(admin_token):
+    if not TOKEN_PATTERN.fullmatch(admin_token):
+        raise PreflightError("LEGACY_ADMIN_API_TOKEN must be a 64-character hex token")
+    ingestor_token = _require_env(env, INGESTOR_TOKEN_KEY)
+    if not TOKEN_PATTERN.fullmatch(ingestor_token):
         raise PreflightError("INGESTOR_API_TOKEN must be a 64-character hex token")
+    v2_admin_token = _require_env(env, "RAG_ADMIN_TOKEN")
+    if not TOKEN_PATTERN.fullmatch(v2_admin_token):
+        raise PreflightError("RAG_ADMIN_TOKEN must be a 64-character hex token")
+    ingest_auth_token = env.get("INGEST_AUTH_TOKEN", "").strip()
+    if admin_token in {v2_admin_token, ingestor_token, ingest_auth_token}:
+        raise PreflightError(
+            "legacy admin, v2 admin, and ingestion tokens must be distinct"
+        )
+    _validate_v2_role_token_uniqueness(env)
 
 
 def _validate_config_files(config_dir: Path) -> None:

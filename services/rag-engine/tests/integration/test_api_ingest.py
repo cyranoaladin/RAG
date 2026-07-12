@@ -74,12 +74,11 @@ def test_ingest_rejects_ip_not_allowlisted(monkeypatch, ingestor_client, mocker)
     assert "Forbidden" in detail
 
 
-def test_ingest_allows_request_from_allowlisted_ip(monkeypatch, ingestor_client, fake_chroma_store, mocker) -> None:
+def test_ingest_ignores_allowlisted_xff_without_trusted_proxy(
+    monkeypatch,
+    ingestor_client,
+) -> None:
     monkeypatch.setenv("INGESTOR_IP_ALLOWLIST", "1.1.1.0/30")
-    mocker.patch(
-        "src.ingestor.api._load_source_documents",
-        return_value=_document("Cours de graphes avancés"),
-    )
 
     response = ingestor_client.post(
         INGEST_ENDPOINT,
@@ -87,5 +86,4 @@ def test_ingest_allows_request_from_allowlisted_ip(monkeypatch, ingestor_client,
         headers=_with_headers(token="test-token", forwarded_for="1.1.1.1"),
     )
 
-    assert response.status_code == 200
-    assert any("graphes" in item.document.lower() for item in fake_chroma_store.values())
+    assert response.status_code == 403

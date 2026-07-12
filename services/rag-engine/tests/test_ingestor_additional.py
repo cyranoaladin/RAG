@@ -19,6 +19,7 @@ def _load_api(monkeypatch: pytest.MonkeyPatch, pre_env: dict[str, str] | None = 
         if mod.startswith("src.ingestor"):
             sys.modules.pop(mod)
     # set env before import so module-level constants pick them up
+    monkeypatch.setenv("LEGACY_ADMIN_API_TOKEN", "legacy-admin-tok")
     monkeypatch.setenv("INGESTOR_API_TOKEN", "tok")
     monkeypatch.delenv("INGESTOR_IP_ALLOWLIST", raising=False)
     for k, v in (pre_env or {}).items():

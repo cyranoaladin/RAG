@@ -1,10 +1,10 @@
 """Review v2 endpoints — human review of ingested content (agent needs_review).
 
 Exposes:
-- GET  /review/v2/pending — list chunks awaiting review (grouped by doc_id)
-- POST /review/v2/decide  — teacher approves (reviewed) or rejects (quarantined)
+- GET  /review/v2/queue — list chunks awaiting review (grouped by doc_id)
+- POST /review/v2/decide  — admin/reviewer decide reviewed or quarantined
 
-Invariant: only a human (teacher) can promote needs_review → reviewed.
+Invariant: only admin/reviewer can promote needs_review → reviewed.
 An agent can ingest (→ needs_review) but NEVER promote to reviewed.
 """
 from __future__ import annotations
@@ -14,8 +14,13 @@ import os
 from typing import Any, Literal
 
 import psycopg
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
+
+try:
+    from .security_v2 import SecurityRole, require_role
+except (ImportError, ValueError):
+    from security_v2 import SecurityRole, require_role  # type: ignore[no-redef]
 
 logger = logging.getLogger(__name__)
 
@@ -29,58 +34,29 @@ def _get_pg_dsn() -> str:
     return dsn
 
 
-def _extract_token(request: Request) -> str:
-    """Extract Bearer token from request headers."""
-    headers = request.headers
-    header_token = headers.get("x-api-token")
-    if not header_token:
-        auth = headers.get("authorization")
-        if isinstance(auth, str) and auth.strip():
-            value = auth.strip()
-            if value.lower().startswith("bearer "):
-                header_token = value.split(" ", 1)[1].strip()
-            else:
-                header_token = value
-    return header_token or ""
-
-
-def _enforce_read_security(request: Request) -> str:
-    """Auth for read-only endpoints (pending list). Accepts ingestion token."""
-    token_env = os.getenv("INGESTOR_API_TOKEN") or os.getenv("INGEST_AUTH_TOKEN")
-    if not token_env:
-        raise HTTPException(status_code=503, detail="API token not configured")
-    header_token = _extract_token(request)
-    if header_token != token_env:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    return header_token
+def _enforce_queue_security(request: Request) -> str:
+    """Auth for review queue read access."""
+    _, token = require_role(
+        request,
+        allowed_roles={SecurityRole.ADMIN, SecurityRole.REVIEWER, SecurityRole.TEACHER},
+        endpoint="/review/v2/queue",
+    )
+    return token
 
 
 def _enforce_reviewer_security(request: Request) -> str:
-    """Auth for review decisions. Requires REVIEWER_API_TOKEN (distinct from ingestion).
+    """Auth for review decisions.
 
-    D-AGENT-NEEDS-REVIEW: an agent with INGESTOR_API_TOKEN can ingest
-    but CANNOT review. Only a human with REVIEWER_API_TOKEN can promote
-    needs_review → reviewed. If REVIEWER_API_TOKEN is not set, review
-    decisions are blocked (fail-closed).
+    Decisions are limited to admin and reviewer. The reviewer role accepts
+    RAG_REVIEWER_TOKEN and the legacy REVIEWER_API_TOKEN alias. An
+    ingest_agent token can ingest but cannot decide.
     """
-    reviewer_token = os.getenv("REVIEWER_API_TOKEN")
-    if not reviewer_token:
-        raise HTTPException(
-            status_code=503,
-            detail="REVIEWER_API_TOKEN not configured — review decisions blocked (fail-closed)",
-        )
-    header_token = _extract_token(request)
-    if header_token != reviewer_token:
-        # Also reject the ingestion token explicitly
-        ingest_token = os.getenv("INGESTOR_API_TOKEN") or os.getenv("INGEST_AUTH_TOKEN")
-        if header_token == ingest_token:
-            raise HTTPException(
-                status_code=403,
-                detail="Ingestion token cannot be used for review decisions. "
-                "Use REVIEWER_API_TOKEN (D-AGENT-NEEDS-REVIEW).",
-            )
-        raise HTTPException(status_code=401, detail="Unauthorized — requires REVIEWER_API_TOKEN")
-    return header_token
+    _, token = require_role(
+        request,
+        allowed_roles={SecurityRole.ADMIN, SecurityRole.REVIEWER},
+        endpoint="/review/v2/decide",
+    )
+    return token
 
 
 # --- Request/Response models ---
@@ -92,7 +68,7 @@ class PendingQuery(BaseModel):
 
 
 class ReviewDecision(BaseModel):
-    """A teacher's decision on a document or chunk."""
+    """An admin or reviewer decides on a document or chunk."""
     target_type: Literal["doc", "chunk"] = "doc"
     target_id: str = Field(..., min_length=1, description="doc_id or chunk_id")
     decision: Literal["reviewed", "quarantined"] = Field(
@@ -103,18 +79,18 @@ class ReviewDecision(BaseModel):
 
 # --- Endpoints ---
 
-@router.get("/pending")
-def list_pending(
+@router.get("/queue")
+def list_queue(
     request: Request,
     collection: str | None = None,
-    limit: int = 50,
-    offset: int = 0,
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
 ) -> dict[str, Any]:
     """List chunks in needs_review, grouped by doc_id.
 
     Returns documents with their chunk count, provenance, and preview.
     """
-    _enforce_read_security(request)
+    _enforce_queue_security(request)
     pg_dsn = _get_pg_dsn()
 
     conn = psycopg.connect(pg_dsn)
@@ -184,13 +160,12 @@ def list_pending(
 
 @router.post("/decide")
 def review_decide(payload: ReviewDecision, request: Request) -> dict[str, Any]:
-    """Teacher approves or rejects a document/chunk.
+    """Admin/reviewer approves or rejects a document/chunk.
 
     - reviewed: content becomes servable (served by /search/v2)
     - quarantined: content blocked from serving (gate enforced)
 
-    This is a HUMAN act. Agents with INGESTOR_API_TOKEN cannot call this
-    endpoint — requires REVIEWER_API_TOKEN (D-AGENT-NEEDS-REVIEW enforced by code).
+    This is a human act: only admin or reviewer may call this endpoint.
     """
     _enforce_reviewer_security(request)
 
@@ -239,8 +214,8 @@ def review_decide(payload: ReviewDecision, request: Request) -> dict[str, Any]:
         from retrieval_v2_endpoint import CACHE_TTL_S, invalidate_cache  # type: ignore[no-redef]
     cache_cleared = invalidate_cache()
 
-    # For quarantine: the SQL gate (WHERE review_status IN ('reviewed','needs_review'))
-    # already prevents quarantined chunks from being returned on cache-miss.
+    # For quarantine: the retrieval SQL gate (review_status = 'reviewed')
+    # already prevents quarantined chunks from being returned on cache miss.
     # Stale cache entries on other workers will expire within TTL and be replaced
     # by fresh DB queries that exclude the quarantined chunks.
     max_stale_s = CACHE_TTL_S if payload.decision == "quarantined" else 0

@@ -1,6 +1,6 @@
 # Admin API
 
-Auth: `Authorization: Bearer <token>` (ou `X-API-Token: <token>`). Même jeton que `/ingest`.
+Auth: `Authorization: Bearer $LEGACY_ADMIN_API_TOKEN` (ou `X-API-Token: $LEGACY_ADMIN_API_TOKEN`). Ce token est distinct des tokens d'ingestion.
 
 Base path: `/admin`
 

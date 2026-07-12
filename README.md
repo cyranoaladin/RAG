@@ -4,6 +4,8 @@ Plateforme RAG pedagogique multi-services pour Nexus Reussite. Le depot combine 
 
 Ce README est le point d'entree racine pour un auditeur. Les regles imperatives pour les agents restent dans `AGENTS.md`. Les decisions structurantes sont dans `docs/adr/`. Les rapports de lots sont dans `docs/reports/`.
 
+Note securite v2 LOT 26.3 : les tokens de roles doivent etre uniques entre roles distincts. `RAG_REVIEWER_TOKEN` et `REVIEWER_API_TOKEN` peuvent partager une valeur pour le role reviewer. `INGESTOR_API_TOKEN` et `INGEST_AUTH_TOKEN` restent des alias de compatibilite ingest_agent v2, mais `RAG_INGEST_AGENT_TOKEN` devrait rester distinct des tokens d'ingestion legacy. Les routes legacy `/admin/*` utilisent exclusivement `LEGACY_ADMIN_API_TOKEN`, qui doit etre distinct de `RAG_ADMIN_TOKEN`, `INGESTOR_API_TOKEN` et `INGEST_AUTH_TOKEN`. Une collision entre roles v2 distincts, par exemple `RAG_ADMIN_TOKEN` identique a `RAG_STUDENT_TOKEN`, bloque `security_v2` en fail-closed `503`. Les variables de securite, dont `LEGACY_ADMIN_API_TOKEN` et `INGESTOR_TRUSTED_PROXY_CIDRS`, sont transmises au conteneur `ingestor` par les compose prod, par defaut et v2 (`make v2-up`). Une configuration trusted-proxy explicitement non vide sans aucun CIDR valide bloque l'allowlist en fail-closed `503`. Depuis un peer non trusted, `X-Forwarded-For` et `X-Real-IP` sont ignores. Depuis un peer trusted, `X-Real-IP` reste ignore cote application tant qu'un template proxy versionne ne prouve pas sa reecriture stricte ; `X-Forwarded-For` est analyse de droite a gauche, jamais en premiere position naive. Ne pas utiliser `proxy_add_x_forwarded_for` sans strategie anti-spoof cote application ou sans reecriture stricte du header par le proxy.
+
 ## Sommaire
 
 - [1. Resume executif](#1-resume-executif)
@@ -994,6 +996,38 @@ Reponse :
 ```
 
 ### 13.2 Proprietes de securite
+
+#### Endpoints v2 — tokens de rôles statiques
+
+Les endpoints v2 de `rag-engine` appliquent les règles suivantes :
+
+- `/search/v2` reste `reviewed-only` pour tous les rôles autorisés.
+- `/review/v2/queue` est accessible à `admin`, `reviewer` et `teacher`.
+- `/review/v2/decide` est réservé à `admin` et `reviewer`.
+- `/ingest/v2` est réservé à `admin` et `ingest_agent`.
+
+Les variables de tokens v2 sont transmises sans valeur versionnée :
+
+- `RAG_ADMIN_TOKEN`
+- `RAG_REVIEWER_TOKEN`
+- `REVIEWER_API_TOKEN`
+- `RAG_TEACHER_TOKEN`
+- `RAG_INGEST_AGENT_TOKEN`
+- `INGESTOR_API_TOKEN`
+- `INGEST_AUTH_TOKEN`
+- `RAG_STUDENT_TOKEN`
+
+`REVIEWER_API_TOKEN` reste un alias du rôle reviewer. `INGESTOR_API_TOKEN` et
+`INGEST_AUTH_TOKEN` sont des alias de compatibilité ingest_agent v2, mais
+`RAG_INGEST_AGENT_TOKEN` devrait rester distinct des tokens d'ingestion legacy.
+Une même valeur configurée pour des rôles v2 distincts est une collision interdite
+et bloque l'authentification en fail-closed. Les routes legacy `/admin/*` utilisent
+exclusivement `LEGACY_ADMIN_API_TOKEN`, distinct des tokens v2 et d'ingestion.
+L'allowlist d'ingestion utilise `INGESTOR_IP_ALLOWLIST` ; les
+headers `X-Forwarded-For` ne sont acceptés que depuis les réseaux déclarés dans
+`INGESTOR_TRUSTED_PROXY_CIDRS`, sans fallback vers l'adresse du proxy trusted.
+
+#### Endpoints legacy / v1 — profil, niveau, audience, HMAC
 
 - Le client ne choisit pas son niveau dans le body.
 - Toute tentative d'ajouter `niveau` ou `audience` au body est ignoree par schema.

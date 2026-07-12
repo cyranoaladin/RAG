@@ -11,7 +11,7 @@ from src.ingestor.api import app as ingest_app
 
 
 def _auth() -> dict[str, str]:
-    return {"Authorization": "Bearer test-token"}
+    return {"Authorization": "Bearer legacy-admin-test-token"}
 
 
 @pytest.fixture(autouse=True)
@@ -20,6 +20,7 @@ def _admin_env(monkeypatch):
         monkeypatch.setenv("ADMIN_DB_PATH", os.path.join(td, "catalog.sqlite"))
         monkeypatch.setenv("ADMIN_UPLOAD_DIR", os.path.join(td, "uploads"))
         os.makedirs(os.environ["ADMIN_UPLOAD_DIR"], exist_ok=True)
+        monkeypatch.setenv("LEGACY_ADMIN_API_TOKEN", "legacy-admin-test-token")
         monkeypatch.setenv("INGESTOR_API_TOKEN", "test-token")
         yield
 

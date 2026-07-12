@@ -11,10 +11,42 @@ import sys
 from pathlib import Path
 
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from ingestor.review_v2_endpoint import ReviewDecision, router
+
+ROLE_TOKEN_ENV = (
+    "RAG_ADMIN_TOKEN",
+    "RAG_REVIEWER_TOKEN",
+    "REVIEWER_API_TOKEN",
+    "RAG_TEACHER_TOKEN",
+    "RAG_INGEST_AGENT_TOKEN",
+    "INGESTOR_API_TOKEN",
+    "INGEST_AUTH_TOKEN",
+    "RAG_STUDENT_TOKEN",
+)
+
+
+def _review_client() -> TestClient:
+    app = FastAPI()
+    app.include_router(router)
+    return TestClient(app)
+
+
+def _review_payload() -> dict[str, str]:
+    return {"target_type": "doc", "target_id": "doc123", "decision": "reviewed"}
+
+
+def _auth_headers(token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {token}"}
+
+
+def _clear_role_tokens(monkeypatch: pytest.MonkeyPatch) -> None:
+    for var in ROLE_TOKEN_ENV:
+        monkeypatch.delenv(var, raising=False)
 
 
 class TestReviewDecisionModel:
@@ -57,8 +89,65 @@ class TestRoutes:
 
     def test_routes_exist(self) -> None:
         routes = [r.path for r in router.routes]
-        assert "/review/v2/pending" in routes
+        assert "/review/v2/queue" in routes
         assert "/review/v2/decide" in routes
+
+
+class TestQueueQueryValidation:
+    """FastAPI validation for review queue pagination."""
+
+    def test_queue_rejects_zero_limit(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        _clear_role_tokens(monkeypatch)
+        monkeypatch.setenv("RAG_TEACHER_TOKEN", "teacher-token")
+        client = _review_client()
+
+        response = client.get(
+            "/review/v2/queue?limit=0",
+            headers=_auth_headers("teacher-token"),
+        )
+
+        assert response.status_code == 422
+
+    def test_queue_rejects_limit_above_cap(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        _clear_role_tokens(monkeypatch)
+        monkeypatch.setenv("RAG_TEACHER_TOKEN", "teacher-token")
+        client = _review_client()
+
+        response = client.get(
+            "/review/v2/queue?limit=501",
+            headers=_auth_headers("teacher-token"),
+        )
+
+        assert response.status_code == 422
+
+    def test_queue_rejects_negative_offset(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        _clear_role_tokens(monkeypatch)
+        monkeypatch.setenv("RAG_TEACHER_TOKEN", "teacher-token")
+        client = _review_client()
+
+        response = client.get(
+            "/review/v2/queue?offset=-1",
+            headers=_auth_headers("teacher-token"),
+        )
+
+        assert response.status_code == 422
+
+    def test_queue_accepts_valid_pagination_before_backend(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _clear_role_tokens(monkeypatch)
+        monkeypatch.setenv("RAG_TEACHER_TOKEN", "teacher-token")
+        monkeypatch.delenv("PG_RAG_DSN", raising=False)
+        monkeypatch.delenv("DATABASE_URL_SYNC", raising=False)
+        client = _review_client()
+
+        response = client.get(
+            "/review/v2/queue?limit=50&offset=0",
+            headers=_auth_headers("teacher-token"),
+        )
+
+        assert response.status_code == 503
+        assert response.status_code != 422
 
 
 class TestGovernanceInvariant:
@@ -100,14 +189,33 @@ class TestGovernanceInvariant:
         from ingestor.review_v2_endpoint import _enforce_reviewer_security
         source = inspect.getsource(_enforce_reviewer_security)
         # Must check REVIEWER_API_TOKEN (distinct from INGESTOR_API_TOKEN)
-        assert "REVIEWER_API_TOKEN" in source
-        # Must explicitly reject ingestion token
-        assert "INGESTOR_API_TOKEN" in source or "INGEST_AUTH_TOKEN" in source
+        assert "require_role" in source
+        assert "SecurityRole.REVIEWER" in source or "reviewer" in source.lower()
 
-    def test_reviewer_token_fail_closed(self) -> None:
-        """If REVIEWER_API_TOKEN is not set, review decisions are blocked."""
-        import inspect
+    def test_reviewer_token_fail_closed(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """If admin/reviewer tokens are not set, review decisions are blocked."""
+        _clear_role_tokens(monkeypatch)
+        client = _review_client()
 
-        from ingestor.review_v2_endpoint import _enforce_reviewer_security
-        source = inspect.getsource(_enforce_reviewer_security)
-        assert "fail-closed" in source.lower() or "503" in source
+        response = client.post(
+            "/review/v2/decide",
+            json=_review_payload(),
+            headers=_auth_headers("whatever"),
+        )
+
+        assert response.status_code == 503
+
+    def test_ingestor_token_cannot_decide(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """An ingest_agent token must never authorize review decisions."""
+        _clear_role_tokens(monkeypatch)
+        monkeypatch.setenv("RAG_REVIEWER_TOKEN", "reviewer-token")
+        monkeypatch.setenv("INGESTOR_API_TOKEN", "ingestor-token")
+        client = _review_client()
+
+        response = client.post(
+            "/review/v2/decide",
+            json=_review_payload(),
+            headers=_auth_headers("ingestor-token"),
+        )
+
+        assert response.status_code == 403

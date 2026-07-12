@@ -211,6 +211,24 @@ N8N_DOMAIN=$(prompt_value "n8n domain (e.g. automations.example.com)" "${DEFAULT
 CERTBOT_EMAIL=$(prompt_value "Email for Let's Encrypt notifications")
 ALLOWLIST_DEFAULT="127.0.0.1/32,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
 INGEST_ALLOWLIST=$(prompt_value "CIDR allowlist for ingestor" "${ALLOWLIST_DEFAULT}")
+# INGESTOR_TRUSTED_PROXY_CIDRS must list only the IPs/CIDRs of reverse proxies
+# that set or pass through X-Forwarded-For. Never use broad LAN ranges
+# (10/8, 172.16/12, 192.168/16) — restrict to loopback and, if detectable,
+# the Docker bridge gateway in /32.
+detect_docker_bridge_gateway_cidr() {
+  local gateway
+  gateway="$(ip -o -4 addr show docker0 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -n 1)"
+  if [[ -n "${gateway}" ]]; then
+    printf "%s/32" "${gateway}"
+  fi
+}
+DOCKER_BRIDGE_GATEWAY_CIDR="$(detect_docker_bridge_gateway_cidr || true)"
+if [[ -n "${DOCKER_BRIDGE_GATEWAY_CIDR}" ]]; then
+  TRUSTED_PROXY_CIDRS_DEFAULT="127.0.0.1/32,${DOCKER_BRIDGE_GATEWAY_CIDR}"
+else
+  TRUSTED_PROXY_CIDRS_DEFAULT="127.0.0.1/32"
+fi
+TRUSTED_PROXY_CIDRS=$(prompt_value "CIDR des reverse proxies de confiance" "${TRUSTED_PROXY_CIDRS_DEFAULT}")
 read -r -p "Enable Basic Auth on Streamlit UI? [y/N]: " enable_ui_auth
 enable_ui_auth=${enable_ui_auth,,}
 UI_AUTH_USER=""
@@ -238,8 +256,15 @@ else
 fi
 
 log "Generating secrets"
+LEGACY_ADMIN_API_TOKEN=$(generate_hex 32)
+RAG_ADMIN_TOKEN=$(generate_hex 32)
+RAG_REVIEWER_TOKEN=$(generate_hex 32)
+REVIEWER_API_TOKEN="${RAG_REVIEWER_TOKEN}"
+RAG_TEACHER_TOKEN=$(generate_hex 32)
+RAG_INGEST_AGENT_TOKEN=$(generate_hex 32)
 INGESTOR_API_TOKEN=$(generate_hex 32)
 INGEST_AUTH_TOKEN=$(generate_hex 32)
+RAG_STUDENT_TOKEN=$(generate_hex 32)
 N8N_ENCRYPTION_KEY=$(generate_hex 32)
 PROM_USER="prom_user"
 PROM_PASS=$(generate_hex 16)
@@ -264,8 +289,15 @@ ENV_LINES=(
   "RAG_EXTERNAL_DOMAIN=$(printf '%q' "${RAG_DOMAIN}")"
   "N8N_EXTERNAL_DOMAIN=$(printf '%q' "${N8N_DOMAIN}")"
   "TZ=$(printf '%q' "${TIMEZONE}")"
+  "LEGACY_ADMIN_API_TOKEN=$(printf '%q' "${LEGACY_ADMIN_API_TOKEN}")"
+  "RAG_ADMIN_TOKEN=$(printf '%q' "${RAG_ADMIN_TOKEN}")"
+  "RAG_REVIEWER_TOKEN=$(printf '%q' "${RAG_REVIEWER_TOKEN}")"
+  "REVIEWER_API_TOKEN=$(printf '%q' "${REVIEWER_API_TOKEN}")"
+  "RAG_TEACHER_TOKEN=$(printf '%q' "${RAG_TEACHER_TOKEN}")"
+  "RAG_INGEST_AGENT_TOKEN=$(printf '%q' "${RAG_INGEST_AGENT_TOKEN}")"
   "INGESTOR_API_TOKEN=$(printf '%q' "${INGESTOR_API_TOKEN}")"
   "INGEST_AUTH_TOKEN=$(printf '%q' "${INGEST_AUTH_TOKEN}")"
+  "RAG_STUDENT_TOKEN=$(printf '%q' "${RAG_STUDENT_TOKEN}")"
   "N8N_ENCRYPTION_KEY=$(printf '%q' "${N8N_ENCRYPTION_KEY}")"
   "N8N_BASIC_AUTH_USER=$(printf '%q' "${N8N_USER}")"
   "N8N_BASIC_AUTH_PASSWORD=$(printf '%q' "${N8N_PASSWORD}")"
@@ -287,6 +319,7 @@ ENV_LINES=(
   "INGEST_BASE_URL=$(printf '%q' "http://ingestor:8001")"
   "INGEST_AUTH_HEADER=$(printf '%q' "X-API-Token")"
   "INGESTOR_IP_ALLOWLIST=$(printf '%q' "${INGEST_ALLOWLIST}")"
+  "INGESTOR_TRUSTED_PROXY_CIDRS=$(printf '%q' "${TRUSTED_PROXY_CIDRS}")"
   "INGEST_CHUNK_SIZE=800"
   "INGEST_CHUNK_OVERLAP=120"
   "MAX_REMOTE_BYTES=26214400"

@@ -49,12 +49,18 @@ def test_search_allowed_with_loopback_client(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setenv("INGESTOR_API_TOKEN", "tok")
     monkeypatch.setenv("INGESTOR_IP_ALLOWLIST", "127.0.0.1/32")
     api = _load_api(monkeypatch)
+
+    @api.app.middleware("http")
+    async def use_loopback_peer(request, call_next):
+        request.scope["client"] = ("127.0.0.1", 50000)
+        return await call_next(request)
+
     _patch_ok_search(monkeypatch, api)
     client = TestClient(api.app)
     r = client.post(
         "/search",
         json={"q": "x", "k": 1, "include_documents": False, "collection": api.COLLECTION_NAME},
-        headers={"Authorization": "Bearer tok", "X-Forwarded-For": "127.0.0.1"},
+        headers={"Authorization": "Bearer tok"},
     )
     assert r.status_code == 200
 
