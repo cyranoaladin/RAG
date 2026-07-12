@@ -204,10 +204,36 @@ Aucun.
 ### P3 (dette ouverte)
 Aucun.
 
+## Round 3 — Evidence matrix et audits domaine par domaine
+
+- Evidence matrix complète : 56 exigences, 55 PASS, 1 NEEDS_OPERATOR_CONFIGURATION (Alertmanager).
+- Redis audité : composant actif (embedding cache + Celery), sécurisé, sauvegardé, fallback documenté.
+- Aucun retour Codex/Cubic/GPT sur le head courant.
+- CI GitHub verte (5/5).
+- Audit script renforcé (CDN, placeholder token, invariants).
+
+Livrables round 3 :
+- `docs/reports/lot_26_4_go_live_evidence_matrix.md`
+- `docs/reports/lot_26_4_redis_audit.md`
+
+## Risques P1/P2/P3 après round 3
+
+### P1 (bloquant)
+Aucun.
+
+### P2 (bloquant)
+Aucun.
+
+### P3 (dette ouverte)
+Aucun.
+
+### NEEDS_OPERATOR_CONFIGURATION
+- Alertmanager : alertes Prometheus définies dans `prometheus/rules/rag-alerts.yml`, routage à configurer par l'opérateur au déploiement. Non bloquant pour go-live.
+
 ## Décision
 
 ```text
 NOT_GO_LIVE_READY
 ```
 
-Toutes les dettes identifiées sont corrigées (FIXED) ou reclassées avec preuve vérifiable. Le verdict reste `NOT_GO_LIVE_READY` en attente de validation lead du round 2 et CI verte sur le head courant.
+Tous les domaines audités et prouvés. Aucun P1/P2/P3 ouvert. Le verdict reste `NOT_GO_LIVE_READY` en attente de validation lead du round 3.

@@ -107,6 +107,20 @@ if grep -R 'ALLOWLIST_DEFAULT=.*192.168.0.0/16' \
 fi
 echo "OK: no broad allowlist default"
 
+if grep -R "https://img.icons8.com" \
+  services/rag-engine/src/ui 2>/dev/null; then
+  echo "FAIL: external CDN icon in UI"
+  exit 1
+fi
+echo "OK: no external CDN icon"
+
+if grep -R "changez_ceci_par_votre_token" \
+  services/rag-engine/src/ui 2>/dev/null; then
+  echo "FAIL: placeholder token in UI .env"
+  exit 1
+fi
+echo "OK: no placeholder token in UI"
+
 if grep -P "^(?!.*NOT_).*GO_LIVE_READY" \
   docs/reports/lot_26_4_production_readiness.md 2>/dev/null; then
   echo "FAIL: report still claims GO_LIVE_READY"
