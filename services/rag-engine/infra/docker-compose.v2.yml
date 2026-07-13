@@ -119,10 +119,8 @@ services:
   # ════════════════════════════════════════
   ingestor:
     build:
-      context: ../src/ingestor
-      dockerfile: Dockerfile
-      args:
-        PYTHON_VERSION: "3.11"
+      context: ../../..
+      dockerfile: services/rag-engine/infra/Dockerfile.ingestor-v2
     container_name: rag_ingestor
     restart: unless-stopped
     depends_on:
@@ -218,8 +216,8 @@ services:
   # ════════════════════════════════════════
   worker:
     build:
-      context: ../src/ingestor
-      dockerfile: Dockerfile
+      context: ../../..
+      dockerfile: services/rag-engine/infra/Dockerfile.ingestor-v2
     container_name: rag_worker
     command: celery -A tasks worker --loglevel=info --concurrency=${CELERY_CONCURRENCY:-2}
     restart: unless-stopped

@@ -240,6 +240,37 @@ def test_v2_up_uses_wired_v2_compose() -> None:
     _assert_ingestor_has_v2_env(V2_COMPOSE_PATH)
 
 
+def test_v2_ingestor_uses_dedicated_dockerfile_with_contracts() -> None:
+    compose = _load_compose(V2_COMPOSE_PATH)
+    ingestor = compose["services"]["ingestor"]
+    build = ingestor["build"]
+
+    assert "Dockerfile.ingestor-v2" in str(build.get("dockerfile", "")), (
+        "v2 ingestor must use Dockerfile.ingestor-v2"
+    )
+
+    dockerfile_path = ENGINE_ROOT / "infra" / "Dockerfile.ingestor-v2"
+    assert dockerfile_path.is_file(), "Dockerfile.ingestor-v2 must exist"
+
+    content = dockerfile_path.read_text(encoding="utf-8")
+    assert "packages/contracts" in content, (
+        "Dockerfile.ingestor-v2 must install packages/contracts"
+    )
+    assert "requirements.v2.txt" in content, (
+        "Dockerfile.ingestor-v2 must install requirements.v2.txt"
+    )
+
+
+def test_v2_worker_uses_same_dockerfile_as_ingestor() -> None:
+    compose = _load_compose(V2_COMPOSE_PATH)
+    ingestor_build = compose["services"]["ingestor"]["build"]
+    worker_build = compose["services"]["worker"]["build"]
+
+    assert ingestor_build.get("dockerfile") == worker_build.get("dockerfile"), (
+        "worker must use the same Dockerfile as ingestor"
+    )
+
+
 def test_provision_prod_uses_wired_default_compose() -> None:
     script = PROVISION_PROD_SCRIPT.read_text(encoding="utf-8")
 
