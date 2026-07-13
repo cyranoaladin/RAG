@@ -44,7 +44,16 @@ BEGIN
             RAISE EXCEPTION 'MIGRATION BLOCKED: rag_chunks has legacy schema with % rows. Manual migration required.', row_count;
         END IF;
 
-        -- Empty legacy table: rename and proceed
+        -- Empty legacy table: free the primary-key constraint/index before rename
+        -- to avoid rag_chunks_pkey collision when creating the new table.
+        IF EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'rag_chunks_pkey' AND conrelid = 'rag_chunks'::regclass
+        ) THEN
+            RAISE NOTICE 'Renaming legacy constraint rag_chunks_pkey';
+            ALTER INDEX rag_chunks_pkey RENAME TO rag_chunks_legacy_pre_v2_001_pkey;
+        END IF;
+
         RAISE NOTICE 'Renaming empty legacy rag_chunks to rag_chunks_legacy_pre_v2_001';
         ALTER TABLE rag_chunks RENAME TO rag_chunks_legacy_pre_v2_001;
     END IF;

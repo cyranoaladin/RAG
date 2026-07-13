@@ -19,7 +19,7 @@ PGVECTOR_CONTAINER="${PGVECTOR_CONTAINER:-rag_pgvector}"
 PGVECTOR_DB="${PGVECTOR_DB:-ragdb}"
 PGVECTOR_USER="${PGVECTOR_USER:-raguser}"
 MIGRATIONS_DIR="postgres/migrations"
-BACKUP_ROOT="${BACKUP_ROOT:-/backup/rag}"
+: "${BACKUP_ROOT:?BACKUP_ROOT must be set to a persistent backup directory}"
 
 # ── Pre-flight checks ────────────────────────────────────────────────
 

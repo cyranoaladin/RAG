@@ -66,8 +66,10 @@ appliquer les migrations versionnées **avant** les smoke tests :
 ```bash
 cd services/rag-engine/infra
 chmod +x scripts/apply_pgvector_migrations.sh
-./scripts/apply_pgvector_migrations.sh
+BACKUP_ROOT=/backup/rag ./scripts/apply_pgvector_migrations.sh
 ```
+
+`BACKUP_ROOT` is required — the script will refuse to run without it.
 
 Le script :
 - crée un backup automatique (`pg_dump -Fc`) ;

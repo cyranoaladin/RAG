@@ -124,3 +124,37 @@ def test_upgrade_script_no_secret_leak() -> None:
         assert pattern not in content, (
             f"Script must not leak secrets via: {pattern}"
         )
+
+
+def test_upgrade_script_no_hardcoded_backup_root() -> None:
+    content = UPGRADE_SCRIPT.read_text(encoding="utf-8")
+    assert 'BACKUP_ROOT:-/backup' not in content, (
+        "Script must not default BACKUP_ROOT to an absolute path"
+    )
+    assert '${BACKUP_ROOT:-/backup/rag}' not in content
+
+
+def test_upgrade_script_requires_backup_root() -> None:
+    content = UPGRADE_SCRIPT.read_text(encoding="utf-8")
+    assert "BACKUP_ROOT:?" in content, (
+        "Script must require BACKUP_ROOT to be set"
+    )
+
+
+# ── Migration legacy pkey guard ──────────────────────────────────────
+
+
+def test_migration_renames_legacy_pkey_before_table_rename() -> None:
+    content = MIGRATION_SQL.read_text(encoding="utf-8")
+    assert "rag_chunks_pkey" in content, (
+        "Migration must handle legacy rag_chunks_pkey constraint"
+    )
+    assert "rag_chunks_legacy_pre_v2_001_pkey" in content, (
+        "Migration must rename pkey to rag_chunks_legacy_pre_v2_001_pkey"
+    )
+    # The pkey rename must appear before the table rename
+    pkey_pos = content.index("rag_chunks_legacy_pre_v2_001_pkey")
+    table_rename_pos = content.index("RENAME TO rag_chunks_legacy_pre_v2_001;")
+    assert pkey_pos < table_rename_pos, (
+        "pkey rename must occur before table rename"
+    )
