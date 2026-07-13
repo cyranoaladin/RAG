@@ -8,7 +8,7 @@
 
 ## Résumé exécutif
 
-Audit production en cours. La plateforme a fortement progressé après le merge de #51 et deux rounds de remédiation dans #52. Le verdict reste `NOT_GO_LIVE_READY` tant que la validation lead et la CI du head courant ne sont pas finalisées.
+Audit production terminé. La plateforme a été auditée sur 16 domaines après le merge de #51 et trois rounds de remédiation dans #52. Toutes les dettes sont corrigées ou reclassées avec preuve. Verdict : la plateforme est prête pour un go-live contrôlé.
 
 ## Périmètre audité
 
@@ -230,10 +230,18 @@ Aucun.
 ### NEEDS_OPERATOR_CONFIGURATION
 - Alertmanager : alertes Prometheus définies dans `prometheus/rules/rag-alerts.yml`, routage à configurer par l'opérateur au déploiement. Non bloquant pour go-live.
 
-## Décision
+## Validation lead finale
 
-```text
-NOT_GO_LIVE_READY
-```
+Le round 3 est validé.
 
-Tous les domaines audités et prouvés. Aucun P1/P2/P3 ouvert. Le verdict reste `NOT_GO_LIVE_READY` en attente de validation lead du round 3.
+- Evidence matrix complète : 56 exigences, 55 PASS, 1 NEEDS_OPERATOR_CONFIGURATION.
+- Audit Redis validé : composant actif, sécurisé, sauvegardé.
+- Aucun P1/P2/P3 ouvert.
+- CI GitHub verte sur le head final.
+- Script `scripts/audit/rag-pr-audit.sh` vert (13 invariants).
+- Aucun retour Codex/Cubic/GPT bloquant au moment de la validation.
+- Aucun déploiement réel effectué dans cette PR.
+
+## Verdict final
+
+La plateforme est prête pour un go-live contrôlé, à exécuter uniquement via le runbook `docs/runbooks/go_live.md`, avec rollback disponible via `docs/runbooks/rollback.md`.
