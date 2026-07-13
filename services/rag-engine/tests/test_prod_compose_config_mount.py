@@ -298,6 +298,19 @@ def test_v2_pydantic_pin_aligned_with_contracts() -> None:
     )
 
 
+def test_init_sql_has_v2_schema_columns() -> None:
+    init_sql = ENGINE_ROOT / "infra" / "postgres" / "init.sql"
+    assert init_sql.is_file()
+    content = init_sql.read_text(encoding="utf-8")
+
+    for column in ("chunk_id", "doc_id", "chunk_sha256", "review_status",
+                    "collection", "source_label", "source_uri", "rights", "type_doc"):
+        assert column in content, f"init.sql must define column {column}"
+
+    assert "vector(1024)" in content, "init.sql must use vector(1024) for e5-large"
+    assert "vector(768)" not in content, "init.sql must NOT use vector(768) (v1 schema)"
+
+
 def test_v2_dockerfile_runs_pip_check() -> None:
     dockerfile = ENGINE_ROOT / "infra" / "Dockerfile.ingestor-v2"
     assert dockerfile.is_file()
