@@ -197,7 +197,7 @@ services:
     tmpfs: ["/tmp", "/app/.cache", "/var/tmp"]
     security_opt: [no-new-privileges:true]
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8001/health | grep -q ok"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:8001/health | grep -q healthy"]
       interval: 15s
       timeout: 10s
       retries: 3
