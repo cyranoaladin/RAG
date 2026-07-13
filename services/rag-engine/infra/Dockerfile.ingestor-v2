@@ -21,17 +21,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Install shared contracts package first
-COPY packages/contracts /tmp/nexus-contracts
-RUN pip install --upgrade pip \
- && pip install --no-cache-dir /tmp/nexus-contracts \
- && rm -rf /tmp/nexus-contracts
-
 # Install ingestor dependencies (v1 + v2)
 COPY services/rag-engine/src/ingestor/requirements.txt /tmp/requirements.txt
 COPY services/rag-engine/src/ingestor/requirements.v2.txt /tmp/requirements.v2.txt
-RUN pip install --no-cache-dir -r /tmp/requirements.txt \
+RUN pip install --upgrade pip \
+ && pip install --no-cache-dir -r /tmp/requirements.txt \
  && pip install --no-cache-dir -r /tmp/requirements.v2.txt
+
+# Install shared contracts package (after requirements so its pydantic pin wins)
+COPY packages/contracts /tmp/nexus-contracts
+RUN pip install --no-cache-dir /tmp/nexus-contracts \
+ && python -m pip check \
+ && rm -rf /tmp/nexus-contracts
 
 # Copy ingestor application code
 COPY services/rag-engine/src/ingestor/ ./

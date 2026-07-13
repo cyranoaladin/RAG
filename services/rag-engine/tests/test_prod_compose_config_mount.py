@@ -271,6 +271,42 @@ def test_v2_worker_uses_same_dockerfile_as_ingestor() -> None:
     )
 
 
+def test_v2_pydantic_pin_aligned_with_contracts() -> None:
+    """Pydantic pin in requirements.v2.txt must match contracts pyproject.toml."""
+    contracts_toml = REPO_ROOT / "packages" / "contracts" / "pyproject.toml"
+    v2_reqs = ENGINE_ROOT / "src" / "ingestor" / "requirements.v2.txt"
+
+    assert contracts_toml.is_file()
+    assert v2_reqs.is_file()
+
+    # Extract pydantic pin from contracts
+    import re
+    contracts_text = contracts_toml.read_text(encoding="utf-8")
+    m = re.search(r'"pydantic==([^"]+)"', contracts_text)
+    assert m, "contracts pyproject.toml must pin pydantic"
+    contracts_pydantic = m.group(1)
+
+    # Extract pydantic pin from requirements.v2.txt
+    v2_text = v2_reqs.read_text(encoding="utf-8")
+    m2 = re.search(r"^pydantic==(.+)$", v2_text, re.MULTILINE)
+    assert m2, "requirements.v2.txt must pin pydantic"
+    v2_pydantic = m2.group(1).strip()
+
+    assert v2_pydantic == contracts_pydantic, (
+        f"pydantic pin mismatch: requirements.v2.txt={v2_pydantic} "
+        f"vs contracts={contracts_pydantic}"
+    )
+
+
+def test_v2_dockerfile_runs_pip_check() -> None:
+    dockerfile = ENGINE_ROOT / "infra" / "Dockerfile.ingestor-v2"
+    assert dockerfile.is_file()
+    content = dockerfile.read_text(encoding="utf-8")
+    assert "pip check" in content, (
+        "Dockerfile.ingestor-v2 must run pip check to verify dependency integrity"
+    )
+
+
 def test_repo_root_dockerignore_blocks_sensitive_paths() -> None:
     dockerignore = REPO_ROOT / ".dockerignore"
     assert dockerignore.is_file(), ".dockerignore must exist at repo root"
