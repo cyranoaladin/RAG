@@ -271,6 +271,26 @@ def test_v2_worker_uses_same_dockerfile_as_ingestor() -> None:
     )
 
 
+def test_repo_root_dockerignore_blocks_sensitive_paths() -> None:
+    dockerignore = REPO_ROOT / ".dockerignore"
+    assert dockerignore.is_file(), ".dockerignore must exist at repo root"
+
+    content = dockerignore.read_text(encoding="utf-8")
+
+    # Must deny-all by default
+    assert content.strip().startswith("# Deny all by default.\n**") or "**" in content.splitlines()[:3], (
+        ".dockerignore must deny all by default"
+    )
+
+    # Must block sensitive patterns
+    for pattern in (".git", ".env", "*secret*", "*credential*", "node_modules", "__pycache__", ".venv"):
+        assert pattern in content, f".dockerignore must block {pattern}"
+
+    # Must allow required paths
+    for required in ("packages/contracts", "services/rag-engine/src/ingestor", "Dockerfile.ingestor-v2"):
+        assert required in content, f".dockerignore must allow {required}"
+
+
 def test_provision_prod_uses_wired_default_compose() -> None:
     script = PROVISION_PROD_SCRIPT.read_text(encoding="utf-8")
 
