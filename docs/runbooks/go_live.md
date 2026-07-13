@@ -58,6 +58,27 @@ docker compose -f docker-compose.prod.yml --profile db --profile llm \
   --profile api --profile ui --profile obs up -d
 ```
 
+## 3b. Appliquer les migrations pgvector (volumes existants)
+
+Si le volume pgvector existe déjà (upgrade, pas premier déploiement),
+appliquer les migrations versionnées **avant** les smoke tests :
+
+```bash
+cd services/rag-engine/infra
+chmod +x scripts/apply_pgvector_migrations.sh
+BACKUP_ROOT=/backup/rag ./scripts/apply_pgvector_migrations.sh
+```
+
+`BACKUP_ROOT` is required — the script will refuse to run without it.
+
+Le script :
+- crée un backup automatique (`pg_dump -Fc`) ;
+- applique les migrations SQL triées depuis `postgres/migrations/` ;
+- vérifie que le schéma v2 est en place (colonnes + `vector(1024)`).
+
+Si la migration échoue (legacy avec données), elle bloque avec un message
+explicite. Ne pas poursuivre sans résolution.
+
 ## 4. Vérification des services
 
 ```bash

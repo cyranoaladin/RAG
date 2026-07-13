@@ -1,74 +1,80 @@
 -- ═══════════════════════════════════════════════════════════
 -- RAG Service v2 — Initialisation PostgreSQL + pgvector
 -- ═══════════════════════════════════════════════════════════
+-- Aligné sur nexus-contracts ChunkMetadata + Citation (F-01, ADR-0013)
 
 -- Activation des extensions
 CREATE EXTENSION IF NOT EXISTS vector;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS btree_gin;
 
 -- ═══════════════════════════
--- SCHÉMA PRINCIPAL
+-- TABLE PRINCIPALE v2
 -- ═══════════════════════════
 
-CREATE TABLE IF NOT EXISTS rag_documents (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant VARCHAR(64) NOT NULL,
-    source_type VARCHAR(32) NOT NULL,
-    source_path TEXT NOT NULL,
-    title TEXT,
-    label TEXT,
-    mime_type VARCHAR(64),
-    file_hash VARCHAR(64),
-    char_count INTEGER,
-    chunk_count INTEGER DEFAULT 0,
-    embed_model VARCHAR(128) NOT NULL DEFAULT 'nomic-embed-text:v1.5',
-    embed_dim INTEGER NOT NULL DEFAULT 768,
-    ingested_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
-    metadata JSONB DEFAULT '{}',
-    UNIQUE(source_path, tenant)
-);
-
 CREATE TABLE IF NOT EXISTS rag_chunks (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    document_id UUID NOT NULL REFERENCES rag_documents(id) ON DELETE CASCADE,
-    tenant VARCHAR(64) NOT NULL,
-    chunk_index INTEGER NOT NULL,
-    text TEXT NOT NULL,
-    embedding VECTOR(768),
-    text_tsv TSVECTOR GENERATED ALWAYS AS (
-        to_tsvector('french', coalesce(text, ''))
-    ) STORED,
-    char_start INTEGER,
-    char_end INTEGER,
-    page_number INTEGER,
-    metadata JSONB DEFAULT '{}',
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(document_id, chunk_index)
+    -- Identifiants
+    chunk_id        TEXT PRIMARY KEY,
+    doc_id          TEXT NOT NULL,
+    chunk_sha256    TEXT NOT NULL,
+
+    -- Vecteur (e5-large 1024 dim, ADR-0013)
+    vector          vector(1024),
+
+    -- Classification pédagogique (contrat ChunkMetadata)
+    collection      TEXT NOT NULL,
+    niveau          TEXT NOT NULL,
+    voie            TEXT NOT NULL DEFAULT 'generale',
+    audience        TEXT[] NOT NULL DEFAULT '{"tous"}',
+    matiere         TEXT NOT NULL,
+    statut_enseignement TEXT NOT NULL DEFAULT 'unknown',
+    notions         TEXT[] NOT NULL DEFAULT '{}',
+    domain          TEXT NOT NULL DEFAULT 'education',
+
+    -- Citations (F-01)
+    source_label    TEXT NOT NULL,
+    source_uri      TEXT NOT NULL,
+    rights          TEXT NOT NULL,
+    type_doc        TEXT NOT NULL,
+    official        BOOLEAN NOT NULL DEFAULT false,
+
+    -- Contenu
+    text            TEXT,
+    chunk_index     INTEGER NOT NULL DEFAULT 0,
+    page_start      INTEGER,
+    page_end        INTEGER,
+
+    -- Gouvernance
+    review_status   TEXT NOT NULL DEFAULT 'needs_review',
+    model           TEXT,
+    source_kind     TEXT NOT NULL DEFAULT 'unknown',
+
+    -- Horodatage
+    indexed_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Table pilote pedagogique (1024d, intfloat/multilingual-e5-large)
--- Isolée de rag_chunks historique (768d) — pas de collision
-CREATE TABLE IF NOT EXISTS rag_chunks_pilote (
-    chunk_id TEXT PRIMARY KEY,
-    doc_id TEXT NOT NULL,
-    vector vector(1024),
-    niveau TEXT NOT NULL,
-    voie TEXT NOT NULL DEFAULT 'generale',
-    audience TEXT[] NOT NULL DEFAULT '{"tous"}',
-    matiere TEXT NOT NULL,
-    notions TEXT[] NOT NULL DEFAULT '{}',
-    text TEXT,
-    model TEXT
-);
+-- ═══════════════════════════
+-- INDEX v2
+-- ═══════════════════════════
 
-CREATE INDEX IF NOT EXISTS idx_rag_chunks_pilote_vector
-    ON rag_chunks_pilote USING hnsw (vector vector_cosine_ops)
+-- HNSW pour la recherche vectorielle (cosine)
+CREATE INDEX IF NOT EXISTS idx_rag_chunks_vector
+    ON rag_chunks USING hnsw (vector vector_cosine_ops)
     WITH (m = 16, ef_construction = 64);
 
--- Table API keys (sécurité)
+-- Index sur les colonnes de filtre
+CREATE INDEX IF NOT EXISTS idx_rag_chunks_collection ON rag_chunks (collection);
+CREATE INDEX IF NOT EXISTS idx_rag_chunks_niveau ON rag_chunks (niveau);
+CREATE INDEX IF NOT EXISTS idx_rag_chunks_matiere ON rag_chunks (matiere);
+CREATE INDEX IF NOT EXISTS idx_rag_chunks_audience ON rag_chunks USING gin (audience);
+CREATE INDEX IF NOT EXISTS idx_rag_chunks_rights ON rag_chunks (rights);
+CREATE INDEX IF NOT EXISTS idx_rag_chunks_review ON rag_chunks (review_status);
+
+-- ═══════════════════════════
+-- TABLES AUXILIAIRES
+-- ═══════════════════════════
+
+-- API keys (sécurité)
 CREATE TABLE IF NOT EXISTS rag_api_keys (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant VARCHAR(64) NOT NULL,
@@ -80,7 +86,7 @@ CREATE TABLE IF NOT EXISTS rag_api_keys (
     is_active BOOLEAN DEFAULT true
 );
 
--- Table métriques qualité RAG (évaluation)
+-- Métriques qualité RAG (évaluation)
 CREATE TABLE IF NOT EXISTS rag_eval_runs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant VARCHAR(64) NOT NULL,
@@ -94,55 +100,3 @@ CREATE TABLE IF NOT EXISTS rag_eval_runs (
     gold_set_version VARCHAR(32),
     metadata JSONB DEFAULT '{}'
 );
-
--- ═══════════════════════════
--- INDEX OPTIMISÉS
--- ═══════════════════════════
-
--- HNSW pour similarité cosine (meilleur recall que IVFFlat)
-CREATE INDEX IF NOT EXISTS idx_chunks_embedding_hnsw
-    ON rag_chunks USING hnsw (embedding vector_cosine_ops)
-    WITH (m = 16, ef_construction = 64);
-
--- GIN pour BM25 / full-text search
-CREATE INDEX IF NOT EXISTS idx_chunks_text_tsv
-    ON rag_chunks USING GIN(text_tsv);
-
--- Index tenant pour filtrage
-CREATE INDEX IF NOT EXISTS idx_chunks_tenant ON rag_chunks(tenant);
-CREATE INDEX IF NOT EXISTS idx_docs_tenant ON rag_documents(tenant);
-CREATE INDEX IF NOT EXISTS idx_docs_hash ON rag_documents(file_hash, tenant);
-CREATE INDEX IF NOT EXISTS idx_docs_source ON rag_documents(source_path, tenant);
-
--- GIN index sur metadata JSONB pour filtrage rapide par taxonomie (section, matiere, niveau)
-CREATE INDEX IF NOT EXISTS idx_chunks_metadata_gin ON rag_chunks USING GIN(metadata);
-CREATE INDEX IF NOT EXISTS idx_docs_metadata_gin ON rag_documents USING GIN(metadata);
-
--- ═══════════════════════════
--- TRIGGERS
--- ═══════════════════════════
-
--- Mise à jour automatique updated_at
-CREATE OR REPLACE FUNCTION update_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN NEW.updated_at = NOW(); RETURN NEW; END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trg_documents_updated_at
-    BEFORE UPDATE ON rag_documents
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at();
-
--- Mise à jour chunk_count automatique
-CREATE OR REPLACE FUNCTION update_chunk_count()
-RETURNS TRIGGER AS $$
-BEGIN
-    UPDATE rag_documents
-    SET chunk_count = (SELECT COUNT(*) FROM rag_chunks WHERE document_id = COALESCE(NEW.document_id, OLD.document_id))
-    WHERE id = COALESCE(NEW.document_id, OLD.document_id);
-    RETURN NULL;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trg_update_chunk_count
-    AFTER INSERT OR DELETE ON rag_chunks
-    FOR EACH ROW EXECUTE FUNCTION update_chunk_count();
