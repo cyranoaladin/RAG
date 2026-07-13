@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hmac
 import logging
 import os
 from collections.abc import Mapping
@@ -85,7 +86,7 @@ def _admin_guard(request: Request) -> None:
                 header_token = value.split(" ", 1)[1].strip()
             else:
                 header_token = value
-    if header_token != token_env:
+    if not header_token or not hmac.compare_digest(header_token, token_env):
         # Log security violation
         _audit.log_security_violation(
             violation_type="invalid_admin_token",
@@ -275,7 +276,7 @@ def ingest_document(document_id: str, request: Request) -> dict[str, Any]:
             resource_id=document_id,
             request_id=request_id,
         )
-        raise HTTPException(status_code=500, detail=f"Admin ingest failed: {exc}") from exc
+        raise HTTPException(status_code=500, detail="Admin ingest failed") from exc
 
 
 @router.post("/reindex")
@@ -460,7 +461,7 @@ async def admin_upload(
                 size += len(chunk)
     except Exception as exc:  # pragma: no cover - filesystem hazards
         _logger.error("Upload failed: %s", exc, exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to save upload: {exc}") from exc
+        raise HTTPException(status_code=500, detail="Failed to save upload") from exc
 
     # Guess source type by extension / mime
     try:
@@ -501,7 +502,7 @@ async def admin_upload(
                 raise ValueError("tags must be a JSON array")
             parsed_tags = [str(x) for x in t]
         except Exception as exc:
-            raise HTTPException(status_code=400, detail=f"Invalid tags: {exc}") from exc
+            raise HTTPException(status_code=400, detail="Invalid tags format") from exc
     if metadata:
         try:
             import json as _json
@@ -510,7 +511,7 @@ async def admin_upload(
                 raise ValueError("metadata must be a JSON object")
             parsed_meta = {str(k): str(v) for k, v in m.items() if v is not None}
         except Exception as exc:
-            raise HTTPException(status_code=400, detail=f"Invalid metadata: {exc}") from exc
+            raise HTTPException(status_code=400, detail="Invalid metadata format") from exc
 
     db_path = os.getenv("ADMIN_DB_PATH")
     if not document_id:
@@ -538,6 +539,6 @@ async def admin_upload(
         raise
     except Exception as exc:
         _logger.exception("Admin upload-triggered ingest failed")
-        raise HTTPException(status_code=500, detail=f"Ingestion trigger failed: {exc}") from exc
+        raise HTTPException(status_code=500, detail="Ingestion trigger failed") from exc
 
     return info

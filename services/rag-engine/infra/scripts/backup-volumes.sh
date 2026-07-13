@@ -6,7 +6,7 @@ backup_root=${BACKUP_DIR:-./backups}
 timestamp=$(date -u +%Y%m%dT%H%M%SZ)
 mkdir -p "$backup_root"
 
-volumes=(rag_chroma_data rag_ollama_data rag_n8n_data)
+volumes=(rag_chroma_data rag_ollama_data rag_n8n_data rag_pgvector_data rag_redis_data rag_admin_data)
 for vol in "${volumes[@]}"; do
   archive="${backup_root}/${vol}-${timestamp}.tgz"
   echo "Creating archive ${archive}"

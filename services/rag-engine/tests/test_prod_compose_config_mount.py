@@ -259,7 +259,7 @@ def test_provision_prod_generates_distinct_legacy_admin_token() -> None:
 def test_provision_prod_configures_nonempty_trusted_proxy_cidrs() -> None:
     script = PROVISION_PROD_SCRIPT.read_text(encoding="utf-8")
 
-    assert 'TRUSTED_PROXY_CIDRS=$(prompt_value "CIDR des reverse proxies de confiance"' in script
+    assert 'TRUSTED_PROXY_CIDRS=$(prompt_value "CIDR des reverse proxies de confiance' in script
     assert '"INGESTOR_TRUSTED_PROXY_CIDRS=$(printf \'%q\' "${TRUSTED_PROXY_CIDRS}")"' in script
     assert '"INGESTOR_TRUSTED_PROXY_CIDRS="' not in script
     assert "127.0.0.1/32" in script
@@ -272,6 +272,38 @@ def test_provision_prod_configures_nonempty_trusted_proxy_cidrs() -> None:
         assert broad_range not in trusted_proxy_block, (
             f"TRUSTED_PROXY_CIDRS_DEFAULT must not include broad range {broad_range}"
         )
+    assert "docker0" not in trusted_proxy_block, (
+        "TRUSTED_PROXY_CIDRS must not rely on docker0 (Compose uses its own bridge)"
+    )
+    assert "addr show docker0" not in script, (
+        "provision-prod.sh must not detect docker0 for trusted proxy"
+    )
+
+
+def test_provision_prod_allowlist_default_has_no_broad_private_ranges() -> None:
+    script = PROVISION_PROD_SCRIPT.read_text(encoding="utf-8")
+
+    allowlist_lines = [
+        line for line in script.splitlines() if "ALLOWLIST_DEFAULT" in line
+    ]
+    assert allowlist_lines, "ALLOWLIST_DEFAULT must appear in script"
+    allowlist_block = "\n".join(allowlist_lines)
+    assert "127.0.0.1/32" in allowlist_block
+    for broad_range in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"):
+        assert broad_range not in allowlist_block, (
+            f"ALLOWLIST_DEFAULT must not include broad range {broad_range}"
+        )
+
+
+def test_search_cache_disabled_in_production() -> None:
+    """In RAG_ENV=production, search cache must default to disabled."""
+    source = (ENGINE_ROOT / "src" / "ingestor" / "retrieval_v2_endpoint.py").read_text(
+        encoding="utf-8"
+    )
+    # Static check: when RAG_ENV==production, RERANK_CACHE default must be "0"
+    assert 'CACHE_ENABLED = os.environ.get("RERANK_CACHE", "0") == "1"' in source, (
+        "Production cache must default to disabled (RERANK_CACHE default '0')"
+    )
 
 
 def test_prod_deployment_plan_does_not_persist_rendered_compose_secrets() -> None:
