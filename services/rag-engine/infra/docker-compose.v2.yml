@@ -98,11 +98,11 @@ services:
       - "127.0.0.1:${OLLAMA_PORT:-11435}:11434"
     networks: [rag_net]
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:11434/api/tags | grep -q 'models'"]
+      test: ["CMD", "ollama", "list"]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 60s
+      retries: 5
+      start_period: 30s
     logging:
       driver: json-file
       options:
@@ -134,6 +134,10 @@ services:
         condition: service_healthy
     environment:
       TZ: ${TZ:-UTC}
+      RAG_ENV: "${RAG_ENV:-production}"
+      ALLOW_UNAUTHENTICATED_ADMIN_DEV: "${ALLOW_UNAUTHENTICATED_ADMIN_DEV:-false}"
+      RAG_ENGINE_CONFIG_DIR: "${RAG_ENGINE_CONFIG_DIR:-/app/configs}"
+      RERANK_CACHE: "${RERANK_CACHE:-0}"
       # Vector store
       DATABASE_URL: "postgresql+asyncpg://${PGVECTOR_USER:-raguser}:${PGVECTOR_PASSWORD}@pgvector:5432/${PGVECTOR_DB:-ragdb}"
       DATABASE_URL_SYNC: "postgresql://${PGVECTOR_USER:-raguser}:${PGVECTOR_PASSWORD}@pgvector:5432/${PGVECTOR_DB:-ragdb}"
@@ -182,6 +186,7 @@ services:
       METRICS_ENABLED: "true"
       XDG_CACHE_HOME: /tmp
     volumes:
+      - ${RAG_CONFIGS_HOST_DIR:-../configs}:/app/configs:ro
       - ./creds:/creds:ro
       - ./data/uploads:/data/uploads:rw
     ports:
@@ -192,7 +197,7 @@ services:
     tmpfs: ["/tmp", "/app/.cache", "/var/tmp"]
     security_opt: [no-new-privileges:true]
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8001/health | grep -q 'ok'"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:8001/health | grep -q ok"]
       interval: 15s
       timeout: 10s
       retries: 3
