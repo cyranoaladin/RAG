@@ -561,6 +561,10 @@ def get_full_catalogue(request: Request) -> dict[str, Any]:
     """Full catalogue — all declared collections with status flags.
 
     Used by Dashboard and Administration. Read-only.
+    INGEST_AGENT included: the Streamlit UI connects with this role
+    (INGESTOR_API_TOKEN) and needs catalogue data for Dashboard,
+    Administration, and Ingestion pages.
+    STUDENT excluded: catalogue exposes governance details.
     """
     _enforce_security_v2(
         request,
@@ -568,6 +572,7 @@ def get_full_catalogue(request: Request) -> dict[str, Any]:
             SecurityRole.ADMIN,
             SecurityRole.REVIEWER,
             SecurityRole.TEACHER,
+            SecurityRole.INGEST_AGENT,
         },
         endpoint="/catalogue/v2",
     )
