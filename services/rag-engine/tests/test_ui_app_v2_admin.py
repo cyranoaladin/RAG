@@ -20,3 +20,9 @@ def test_administration_uses_v2_collections_label() -> None:
 
     assert "Collections ChromaDB" not in content
     assert "Collections RAG v2" in content
+
+
+def test_dashboard_does_not_use_legacy_stats_for_v2_collections() -> None:
+    content = APP_V2.read_text(encoding="utf-8")
+
+    assert 'api_get(f"/stats/{name}")' not in content

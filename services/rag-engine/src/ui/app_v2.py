@@ -561,28 +561,35 @@ if page == "📊 Dashboard":
             # Détails par collection
             for col_info in collections:
                 name = col_info.get("name", "?")
-                stats = api_get(f"/stats/{name}")
-                if stats:
-                    section_label = (
-                        "📚 Français 1ère" if name == "rag_francais_premiere"
-                        else "📐 Maths 1ère" if name == "rag_maths_premiere"
-                        else "🎓 Éducation" if "education" in name
-                        else "🔗 Web3" if "web3" in name
-                        else "📦 Divers" if "divers" in name
-                        else name
-                    )
-                    with st.expander(f"{section_label} — `{name}` ({stats.get('doc_count', 0)} chunks)", expanded=True):
-                        c1, c2 = st.columns(2)
-                        c1.write(f"**Modèle d'embedding** : `{stats.get('embed_model', '?')}`")
-                        c2.write(f"**Chunks** : {stats.get('doc_count', 0)}")
-                        if stats.get("matieres"):
-                            st.write(f"**Matières indexées** : {', '.join(stats['matieres'])}")
-                        if stats.get("niveaux"):
-                            st.write(f"**Niveaux** : {', '.join(stats['niveaux'])}")
-                        if stats.get("groupes"):
-                            st.write(f"**Groupes** : {', '.join(stats['groupes'])}")
-                        if stats.get("types_ressource"):
-                            st.write(f"**Types** : {', '.join(stats['types_ressource'])}")
+                matiere = col_info.get("matiere", "")
+                niveau = col_info.get("niveau", "")
+                statut = col_info.get("statut", "")
+                retrievable = col_info.get("retrievable", "")
+                instantiated = col_info.get("instantiated", "")
+                label = " ".join(
+                    part for part in (matiere, niveau, statut) if part
+                ) or name
+
+                with st.expander(f"{label} — `{name}`", expanded=True):
+                    st.write(f"**Nom** : `{name}`")
+                    if matiere:
+                        st.write(f"**Matière** : {matiere}")
+                    if niveau:
+                        st.write(f"**Niveau** : {niveau}")
+                    if statut:
+                        st.write(f"**Statut** : {statut}")
+                    if "retrievable" in col_info:
+                        st.write(f"**Retrievable** : {retrievable}")
+                    if "instantiated" in col_info:
+                        st.write(f"**Instantiated** : {instantiated}")
+                    for field, title in (
+                        ("rights", "Droits"),
+                        ("type_doc", "Type de document"),
+                        ("source_kind", "Type de source"),
+                    ):
+                        value = col_info.get(field)
+                        if value:
+                            st.write(f"**{title}** : {value}")
         else:
             st.info("Aucune collection créée. Commencez par ingérer des documents.")
     else:
