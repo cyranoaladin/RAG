@@ -30,6 +30,9 @@ node_modules/
 # IDE temp files
 **/.windsurf/tmp/
 
+# Local Git worktrees
+.worktrees/
+
 # Credentials
 **/creds/
 
