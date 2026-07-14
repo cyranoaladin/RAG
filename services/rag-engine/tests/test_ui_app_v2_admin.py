@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 ENGINE_ROOT = Path(__file__).resolve().parents[1]
 APP_V2 = ENGINE_ROOT / "src" / "ui" / "app_v2.py"
 
