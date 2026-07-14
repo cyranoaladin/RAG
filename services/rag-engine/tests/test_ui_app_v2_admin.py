@@ -72,6 +72,43 @@ def _called_routes(content: str) -> set[str]:
     return routes
 
 
+def _is_streamlit_render_call(func: ast.expr) -> bool:
+    if not isinstance(func, ast.Attribute):
+        return False
+    if func.attr not in {
+        "caption",
+        "error",
+        "info",
+        "markdown",
+        "metric",
+        "selectbox",
+        "subheader",
+        "success",
+        "title",
+        "warning",
+        "write",
+    }:
+        return False
+
+    target = func.value
+    while isinstance(target, ast.Attribute):
+        target = target.value
+    return isinstance(target, ast.Name) and target.id == "st"
+
+
+def _api_base_is_rendered(content: str) -> bool:
+    for node in ast.walk(ast.parse(content)):
+        if not isinstance(node, ast.Call) or not _is_streamlit_render_call(node.func):
+            continue
+        if any(
+            isinstance(name, ast.Name) and name.id == "API_BASE"
+            for argument in (*node.args, *(keyword.value for keyword in node.keywords))
+            for name in ast.walk(argument)
+        ):
+            return True
+    return False
+
+
 def test_ui_uses_only_v2_collections_catalogue() -> None:
     content = APP_V2.read_text(encoding="utf-8")
 
@@ -149,3 +186,11 @@ def test_ui_source_excludes_internal_address_and_legacy_collections() -> None:
     )
     for value in forbidden:
         assert value not in content
+
+    assert "/stats" not in content
+
+
+def test_ui_never_renders_the_api_base_address() -> None:
+    content = APP_V2.read_text(encoding="utf-8")
+
+    assert not _api_base_is_rendered(content)
