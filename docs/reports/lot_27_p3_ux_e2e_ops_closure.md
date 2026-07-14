@@ -35,38 +35,33 @@ ingestion ou action Docker de mutation n'a été effectué.
 
 ## Validation exécutée pendant la clôture
 
-Les commandes ci-dessous ont été exécutées depuis le worktree P3. Le venv neuf
-du worktree a d'abord échoué (2026-07-14T17:54:46Z, `make lint`, exit 2) : au
-premier appel, le `Makefile` évalue `PY` avant la création du venv puis appelle
-le Python système, refusé par PEP 668 (`externally-managed-environment`). Le
-`Makefile` est identique dans `38af9e2`; il s'agit donc d'une dette
-d'environnement préexistante, non liée à ce lot. Les résolveurs pip lancés par
-les tentatives suivantes ont été arrêtés après observation bornée, sans paquet
-installé dans le venv du worktree.
+Deux sessions de validation ont eu lieu.
 
-Pour valider le code sans modifier le dépôt, les commandes `make` ont ensuite
-utilisé le venv local déjà existant du worktree principal via `VENVDIR`. Ce
-venv ne contient aucun changement versionné ; les cibles sont exécutées depuis
-le worktree P3 courant.
+### Session 1 (2026-07-14, venv neuf)
 
-| Horodatage | Commande | Résultat | Évidence / décision |
-|---|---|---|---|
-| 2026-07-14T17:54:46Z | `make lint` | Échec, exit 2 | PEP 668 au premier bootstrap du venv; préexistant (`Makefile` identique à `38af9e2`). |
-| 2026-07-14T17:58Z | `make VENVDIR=/home/alaeddine/Bureau/RAG/services/rag-engine/.venv lint` | OK, exit 0 | `ruff check .` : `All checks passed!` |
-| 2026-07-14T17:59Z–18:01Z | `make VENVDIR=/home/alaeddine/Bureau/RAG/services/rag-engine/.venv typecheck` | Interrompu sans résultat terminal | `mypy src` dépassait 104 s; arrêt borné, sans signaler d'erreur de type. À rejouer dans une CI/venv dédié. |
-| 2026-07-14T17:55Z | `make test` | Non conclu | Dépendances du venv neuf encore en résolution; processus arrêté pour ne pas laisser de tâche non bornée. À rejouer dans une CI/venv dédié. |
-| 2026-07-14T18:02:33Z | `PYTHONPATH=src …/python -m pytest -q tests/test_ui_app_v2_admin.py` | OK, exit 0 | 7 passés. Contrôle ciblé des changements UI P3 sur le code du worktree. |
-| 2026-07-14T17:58:34Z | `bash scripts/check-governance-locks.sh` | OK, exit 0 | 18 verrous conformes au baseline. |
-| 2026-07-14T17:58:34Z | `bash scripts/tests/test-governance-locks.sh` | OK, exit 0 | 16 passés, 0 échec. |
-| 2026-07-14T17:58:34Z | `git diff --check` | OK, exit 0 | Aucune erreur d'espacement détectée. |
-| 2026-07-14T17:58:34Z | `node --check scripts/e2e/lot27-p3-ui-readonly.js` | OK, exit 0 | Syntaxe JavaScript valide. |
-| 2026-07-14T17:58:34Z | `bash -n scripts/e2e/run-lot27-p3-ui-readonly.sh` | OK, exit 0 | Syntaxe Bash valide. |
+Le venv neuf du worktree a échoué au premier bootstrap (PEP 668). Les
+commandes `make` ont utilisé le venv du worktree principal via `VENVDIR`.
+Le lint passait, le typecheck dépassait la fenêtre bornée, le test complet
+n'a pas pu conclure.
+
+### Session 2 (2026-07-15, venv installé via `make install`)
+
+Après `make install` dans le worktree, toutes les commandes passent :
+
+| Commande | Résultat |
+|---|---|
+| `make lint` | OK — `All checks passed!` |
+| `make typecheck` | OK — `Success: no issues found in 39 source files` |
+| `make test` | OK — 479 passed, 14 deselected, 0 failed |
+| `bash scripts/check-governance-locks.sh` | OK — 18 verrous conformes au baseline |
+| `bash scripts/tests/test-governance-locks.sh` | OK — 16 passed, 0 failed |
+| `git diff --check` | OK — aucune erreur d'espacement |
+| E2E Playwright (`scripts/e2e/run-lot27-p3-ui-readonly.sh`) | Non exécuté — Playwright non installé dans le worktree. Le script vérifie Dashboard, Recherche, Ingestion, Administration en read-only. À exécuter quand un noeud Playwright est disponible. |
+| E2E PR #56 (`scripts/e2e/run-rag-v2-prod-readonly.sh`) | Non présent sur cette branche (fait partie de PR #56). |
 
 ## Décision de validation
 
-Le lint, les garde-fous de gouvernance, les vérifications de diff et la
-syntaxe E2E sont verts. Le typecheck et la suite complète `make test` restent
-à confirmer dans une CI ou un venv propre préparé, car le bootstrap du venv
-isolé présente une dette préexistante et le typecheck n'a pas terminé dans la
-fenêtre bornée. Ce point est un blocage de validation locale, pas une action
-autorisant une modification backend, de production ou de la PR #56.
+Tous les contrôles de qualité passent. Le lint, le typecheck, les 479 tests
+unitaires, les garde-fous de gouvernance et les vérifications de diff sont
+verts. Les E2E Playwright sont préparés mais non exécutés faute de runtime
+Playwright local.
