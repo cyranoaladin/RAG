@@ -80,9 +80,11 @@ const PAGES = [
 ];
 
 const consoleLogs = [];
+const networkEvents = [];
 const networkFailures = [];
 const blockedRequests = [];
 const pageFailures = [];
+const responseDiagnostics = [];
 
 function isRelevant(url) {
   try {
@@ -102,23 +104,76 @@ function recordPageEvents(page, pageName) {
   });
 
   page.on("response", (response) => {
-    if (isRelevant(response.url()) && response.status() >= 400) {
-      networkFailures.push({
-        page: pageName,
-        status: response.status(),
-        url: response.url(),
-      });
-    }
+    responseDiagnostics.push(recordResponse(response, pageName));
   });
 
   page.on("requestfailed", (request) => {
     if (isRelevant(request.url())) {
       networkFailures.push({
         page: pageName,
+        method: request.method(),
         error: request.failure()?.errorText || "request failed",
         url: request.url(),
       });
     }
+  });
+}
+
+async function recordResponse(response, pageName) {
+  if (!isRelevant(response.url())) {
+    return;
+  }
+
+  const request = response.request();
+  const event = {
+    page: pageName,
+    method: request.method(),
+    status: response.status(),
+    url: response.url(),
+  };
+  networkEvents.push(event);
+  if (response.status() >= 400) {
+    networkFailures.push(event);
+  }
+
+  const contentType = response.headers()["content-type"] || "";
+  if (!/(?:text|json|javascript|xml)/i.test(contentType)) {
+    return;
+  }
+
+  try {
+    const text = await responseTextWithin(response, 2_000);
+    if (text === null) {
+      event.responseTextInspection = "timed_out";
+      return;
+    }
+    const forbidden = FORBIDDEN_RENDERED_TEXT.find((value) => text.includes(value));
+    if (forbidden) {
+      // Une chaîne dans un bundle JavaScript n'est pas du contenu rendu : la
+      // conserver comme diagnostic, sans la confondre avec une erreur HTTP.
+      event.forbiddenResponseText = forbidden;
+    }
+  } catch (error) {
+    networkFailures.push({
+      ...event,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+function responseTextWithin(response, timeoutMs) {
+  return new Promise((resolve) => {
+    const timeout = setTimeout(() => resolve(null), timeoutMs);
+    response
+      .text()
+      .then((text) => {
+        clearTimeout(timeout);
+        resolve(text);
+      })
+      .catch(() => {
+        clearTimeout(timeout);
+        resolve(null);
+      });
   });
 }
 
@@ -127,11 +182,7 @@ async function guardRequests(context) {
     const request = route.request();
     const method = request.method();
     const url = request.url();
-    const permitted =
-      method === "GET" ||
-      method === "HEAD" ||
-      method === "OPTIONS" ||
-      (method === "POST" && new URL(url).pathname === "/search/v2");
+    const permitted = method === "GET" || method === "HEAD" || method === "OPTIONS";
 
     if (permitted) {
       await route.continue();
@@ -209,6 +260,11 @@ function writeArtifacts() {
     "utf8",
   );
   fs.writeFileSync(
+    path.join(RESULTS_DIR, "network-events.json"),
+    `${JSON.stringify(networkEvents, null, 2)}\n`,
+    "utf8",
+  );
+  fs.writeFileSync(
     path.join(RESULTS_DIR, "network-failures.json"),
     `${JSON.stringify(networkFailures, null, 2)}\n`,
     "utf8",
@@ -235,6 +291,7 @@ async function main() {
       }
     }
   } finally {
+    await Promise.allSettled(responseDiagnostics);
     await context.close();
     await browser.close();
     writeArtifacts();
