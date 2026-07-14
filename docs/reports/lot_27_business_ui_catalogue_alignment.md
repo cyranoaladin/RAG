@@ -6,7 +6,7 @@ LOT_27_BUSINESS_UI_AND_CATALOGUE_ALIGNMENT
 
 ## A. Source metier attendue
 
-### rag_collections.yml (38 collections declarees)
+### rag_collections.yml (35 collections declarees)
 
 | Niveau | Matiere | Voie | Statut | Instanciee |
 |--------|---------|------|--------|------------|

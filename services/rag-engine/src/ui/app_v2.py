@@ -1,14 +1,16 @@
 """
 Dashboard RAG v2 — Streamlit
-Architecture scolaire Nexus Reussite alignee sur rag_collections.yml.
-Toute la navigation derive du catalogue v2 : /catalogue/v2 et /collections/v2.
+Architecture scolaire Nexus Réussite alignée sur rag_collections.yml.
+Toute la navigation dérive du catalogue v2 : /catalogue/v2 et /collections/v2.
 Aucune collection legacy. Aucun appel /stats.
+
+Ingestion : utilise exclusivement /ingest/v2/* (FE-03).
+Métadonnées serveur-side : source_kind, review_status, source_label,
+source_uri, doc_id, chunk_id, chunk_sha256 sont générés par le pipeline v2.
 """
 from __future__ import annotations
 
-import json
 import os
-import time
 from typing import Any
 
 import httpx
@@ -16,7 +18,7 @@ import pandas as pd
 import streamlit as st
 
 st.set_page_config(
-    page_title="RAG Dashboard — Nexus Reussite",
+    page_title="RAG Dashboard \u2014 Nexus R\u00e9ussite",
     page_icon="\U0001f9e0",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -26,46 +28,68 @@ API_BASE = os.getenv("INGEST_API_BASE", os.getenv("RAG_API_URL", "http://ingesto
 API_TOKEN = os.getenv("INGEST_API_TOKEN", os.getenv("RAG_API_TOKEN", ""))
 
 # Labels humains pour les niveaux, voies, statuts
-NIVEAU_LABELS = {
-    "troisieme": "3e",
+NIVEAU_LABELS: dict[str, str] = {
+    "troisieme": "3\u00e8me",
     "seconde": "Seconde",
-    "premiere": "Premiere",
+    "premiere": "Premi\u00e8re",
     "terminale": "Terminale",
 }
-VOIE_LABELS = {
-    "gen": "Generale",
+VOIE_LABELS: dict[str | None, str] = {
+    "gen": "G\u00e9n\u00e9rale",
     "stmg": "STMG",
     None: "Commun",
 }
-STATUT_LABELS = {
+STATUT_LABELS: dict[str, str] = {
     "tronc_commun": "Tronc commun",
-    "specialite": "Specialite",
+    "specialite": "Sp\u00e9cialit\u00e9",
     "option": "Option",
     "examen": "Examen",
-    "remediation": "Remediation",
+    "remediation": "Rem\u00e9diation",
 }
-DOMAIN_LABELS = {
-    "education": "Education",
+DOMAIN_LABELS: dict[str, str] = {
+    "education": "\u00c9ducation",
     "exam": "Examens",
     "quarantine": "Quarantaine",
     "official": "Officiel",
     "nexus_owned": "Nexus",
 }
 
-TYPES_RESSOURCE = [
-    "Cours",
-    "Exercices",
-    "Corrige",
-    "Annale",
-    "Fiche de revision",
-    "Methodologie",
-    "Sujet type bac",
-    "Ressource pedagogique",
-    "Lien web",
-    "Video educative",
-    "Document officiel",
-    "Autre",
+RIGHTS_OPTIONS = [
+    "nexus_owned",
+    "official",
+    "licensed",
+    "unknown",
 ]
+
+TYPES_RESSOURCE = [
+    "cours",
+    "exercices",
+    "corrig\u00e9",
+    "annale",
+    "fiche_revision",
+    "m\u00e9thodologie",
+    "sujet_bac",
+    "ressource_pedagogique",
+    "lien_web",
+    "vid\u00e9o",
+    "document_officiel",
+    "autre",
+]
+
+TYPES_RESSOURCE_LABELS: dict[str, str] = {
+    "cours": "Cours",
+    "exercices": "Exercices",
+    "corrig\u00e9": "Corrig\u00e9",
+    "annale": "Annale",
+    "fiche_revision": "Fiche de r\u00e9vision",
+    "m\u00e9thodologie": "M\u00e9thodologie",
+    "sujet_bac": "Sujet type bac",
+    "ressource_pedagogique": "Ressource p\u00e9dagogique",
+    "lien_web": "Lien web",
+    "vid\u00e9o": "Vid\u00e9o \u00e9ducative",
+    "document_officiel": "Document officiel",
+    "autre": "Autre",
+}
 
 
 # ===============================================================
@@ -88,7 +112,7 @@ def api_get(endpoint: str, timeout: float = 60.0) -> dict[str, Any] | None:
             return cast(dict[str, Any], resp.json())
         st.error(f"API {resp.status_code}: {resp.text[:200]}")
     except Exception as exc:
-        st.error(f"Connexion API echouee: {exc}")
+        st.error(f"Connexion API \u00e9chou\u00e9e : {exc}")
     return None
 
 
@@ -100,28 +124,31 @@ def api_post(endpoint: str, data: dict[str, Any], timeout: float = 60.0) -> dict
             return cast(dict[str, Any], resp.json())
         st.error(f"API {resp.status_code}: {resp.text[:200]}")
     except Exception as exc:
-        st.error(f"Connexion API echouee: {exc}")
+        st.error(f"Connexion API \u00e9chou\u00e9e : {exc}")
     return None
 
 
-def api_upload(
-    endpoint: str,
+def api_upload_v2(
     files: list[tuple[str, bytes, str]],
-    params: dict[str, str] | None = None,
+    params: dict[str, str],
     timeout: float = 900.0,
 ) -> dict[str, Any] | None:
+    """Upload fichiers vers /ingest/v2/upload-files avec query params v2."""
     try:
         multipart = [("files", (n, c, m)) for n, c, m in files]
         resp = httpx.post(
-            f"{API_BASE}{endpoint}", files=multipart,
-            params=params or {}, headers=_headers_upload(), timeout=timeout,
+            f"{API_BASE}/ingest/v2/upload-files",
+            files=multipart,
+            params=params,
+            headers=_headers_upload(),
+            timeout=timeout,
         )
         if resp.status_code in (200, 202):
             from typing import cast
             return cast(dict[str, Any], resp.json())
         st.error(f"API {resp.status_code}: {resp.text[:200]}")
     except Exception as exc:
-        st.error(f"Upload echoue: {exc}")
+        st.error(f"Upload \u00e9chou\u00e9 : {exc}")
     return None
 
 
@@ -152,94 +179,109 @@ def _collection_label(c: dict[str, Any]) -> str:
     voie = VOIE_LABELS.get(voie_key, voie_key)
     statut = STATUT_LABELS.get(statut_key, statut_key)
     parts = [p for p in (matiere, niveau, voie, statut) if p and p != "Commun"]
-    return " — ".join(parts) if parts else str(c.get("name", "?"))
+    return " \u2014 ".join(parts) if parts else str(c.get("name", "?"))
 
 
 # ===============================================================
-# COMPOSANTS REUTILISABLES
+# COMPOSANTS INGESTION v2
 # ===============================================================
+
+def _v2_params(meta: dict[str, str]) -> dict[str, str]:
+    """Construit les query params v2 depuis les m\u00e9tadonn\u00e9es UI."""
+    return {
+        "collection": meta["collection"],
+        "rights": meta["rights"],
+        "matiere": meta["matiere"],
+        "niveau": meta["niveau"],
+        "voie": meta.get("voie") or "gen",
+        "type_doc": meta.get("type_doc") or "cours",
+    }
+
 
 def _render_upload_tab(metadata: dict[str, str], key_prefix: str) -> None:
-    st.markdown("**Formats** : PDF, DOCX, Markdown, TXT, HTML")
+    st.markdown("**Formats** : PDF, DOCX, Markdown, TXT, HTML, Jupyter Notebook")
     uploaded = st.file_uploader(
-        "Glissez-deposez vos fichiers",
-        type=["pdf", "docx", "doc", "md", "txt", "csv", "html", "htm"],
+        "Glissez-d\u00e9posez vos fichiers",
+        type=["pdf", "docx", "doc", "md", "txt", "csv", "html", "htm", "ipynb", "tex"],
         accept_multiple_files=True,
         key=f"{key_prefix}_files",
     )
     if uploaded:
-        st.info(f"{len(uploaded)} fichier(s) selectionne(s)")
+        st.info(f"{len(uploaded)} fichier(s) s\u00e9lectionn\u00e9(s)")
         rows = [{"Nom": f.name, "Taille": f"{f.size / 1024:.1f} Ko", "Type": f.type or "?"} for f in uploaded]
         st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-        if st.button("Ingerer les fichiers", key=f"{key_prefix}_btn"):
-            total_added = 0
+        if st.button("Ing\u00e9rer les fichiers", key=f"{key_prefix}_btn"):
+            total_written = 0
             total_errors = 0
-            progress_bar = st.progress(0, text="Preparation...")
+            progress_bar = st.progress(0, text="Pr\u00e9paration\u2026")
+            params = _v2_params(metadata)
             for idx, f in enumerate(uploaded):
                 progress_bar.progress((idx + 1) / len(uploaded), text=f"Fichier {idx + 1}/{len(uploaded)}")
                 payload = [(f.name, f.read(), f.type or "application/octet-stream")]
-                result = api_upload("/ingest/upload-files", payload, params={"metadata": json.dumps(metadata)}, timeout=300.0)
+                result = api_upload_v2(payload, params=params, timeout=300.0)
                 if result:
-                    total_added += int(result.get("total_added", 0) or 0)
+                    for r in result.get("results", []):
+                        total_written += r.get("chunks_written", 0)
                 else:
                     total_errors += 1
-            progress_bar.progress(1.0, text="Termine !")
-            if total_added > 0:
-                st.success(f"{total_added} chunk(s) ajoute(s)")
+            progress_bar.progress(1.0, text="Termin\u00e9 !")
+            if total_written > 0:
+                st.success(f"{total_written} chunk(s) ajout\u00e9(s) (review_status=needs_review)")
             if total_errors > 0:
                 st.error(f"{total_errors} erreur(s)")
+            if total_written == 0 and total_errors == 0:
+                st.info("Aucun chunk \u00e9ligible.")
 
 
 def _render_urls_tab(metadata: dict[str, str], key_prefix: str) -> None:
     st.markdown("Une URL par ligne.")
-    urls_text = st.text_area("URLs", height=180, placeholder="https://...", key=f"{key_prefix}_urls")
+    urls_text = st.text_area("URLs", height=180, placeholder="https://\u2026", key=f"{key_prefix}_urls")
     if urls_text.strip():
         urls = [u.strip() for u in urls_text.strip().splitlines() if u.strip()]
         st.info(f"{len(urls)} URL(s)")
-        if st.button("Ingerer les URLs", key=f"{key_prefix}_go"):
-            total_added = 0
+        if st.button("Ing\u00e9rer les URLs", key=f"{key_prefix}_go"):
+            total_written = 0
             total_errors = 0
-            progress_bar = st.progress(0, text="Preparation...")
-            for idx, url in enumerate(urls):
-                progress_bar.progress((idx + 1) / len(urls), text=f"URL {idx + 1}/{len(urls)}")
-                result = api_post("/ingest/urls", {"urls": [url], "metadata": metadata}, timeout=120.0)
-                if result:
-                    total_added += result.get("total_added", 0)
-                else:
-                    total_errors += 1
-            progress_bar.progress(1.0, text="Termine !")
-            if total_added > 0:
-                st.success(f"{total_added} chunk(s) ajoute(s)")
+            progress_bar = st.progress(0, text="Pr\u00e9paration\u2026")
+            v2_payload = {
+                "urls": urls,
+                "collection": metadata["collection"],
+                "rights": metadata["rights"],
+                "matiere": metadata["matiere"],
+                "niveau": metadata["niveau"],
+                "voie": metadata.get("voie") or "gen",
+                "type_doc": metadata.get("type_doc") or "cours",
+            }
+            result = api_post("/ingest/v2/urls", v2_payload, timeout=300.0)
+            progress_bar.progress(1.0, text="Termin\u00e9 !")
+            if result:
+                for r in result.get("results", []):
+                    total_written += r.get("chunks_written", 0)
+                    if r.get("error"):
+                        total_errors += 1
+            else:
+                total_errors = len(urls)
+            if total_written > 0:
+                st.success(f"{total_written} chunk(s) ajout\u00e9(s) (review_status=needs_review)")
             if total_errors > 0:
                 st.error(f"{total_errors} erreur(s)")
+            if total_written == 0 and total_errors == 0:
+                st.info("Aucun chunk \u00e9ligible.")
 
 
 def _render_drive_tab(metadata: dict[str, str], key_prefix: str) -> None:
-    st.markdown("Entrez l'ID du dossier Google Drive.")
-    folder_id = st.text_input("ID du dossier Drive", key=f"{key_prefix}_drive")
-    if folder_id.strip() and st.button("Lancer l'ingestion Drive", key=f"{key_prefix}_drv_btn"):
-        result = api_post("/ingest/drive", {"folder_id": folder_id.strip(), "metadata": metadata}, timeout=30.0)
-        if not result or "task_id" not in result:
-            st.error(f"Erreur lors du lancement : {result}")
-            return
-        task_id = result["task_id"]
-        status_text = st.empty()
-        progress_bar = st.progress(0)
-        while True:
-            time.sleep(2)
-            status_resp = api_get(f"/ingest/drive/status/{task_id}", timeout=10.0)
-            if not status_resp:
-                status_text.warning("En attente de reponse...")
-                continue
-            task_status = status_resp.get("status", "pending")
-            progress_bar.progress(min(status_resp.get("progress_pct", 0), 100))
-            status_text.markdown(f"**{task_status}**")
-            if task_status in ("done", "error"):
-                if task_status == "done":
-                    st.success(f"Ingestion terminee — {status_resp.get('added_chunks', 0)} chunks")
-                else:
-                    st.error(f"Erreur: {status_resp.get('error_message', '?')}")
-                break
+    st.markdown(
+        "**Drive v2** : l\u2019ingestion Google Drive n\u00e9cessite un service account "
+        "configur\u00e9 sur le serveur. Cette fonctionnalit\u00e9 n\u2019est pas encore "
+        "activ\u00e9e sur cette instance."
+    )
+    st.info(
+        "Endpoint `/ingest/v2/drive` d\u00e9clar\u00e9 mais retourne 501 (Not Implemented). "
+        "Utilisez Upload fichiers ou URLs en attendant."
+    )
+    folder_id = st.text_input("ID du dossier Drive (informatif)", key=f"{key_prefix}_drive", disabled=True)
+    if folder_id:
+        pass  # Disabled — no legacy /ingest/drive call
 
 
 # ===============================================================
@@ -247,7 +289,7 @@ def _render_drive_tab(metadata: dict[str, str], key_prefix: str) -> None:
 # ===============================================================
 
 st.sidebar.markdown("# \U0001f9e0")
-st.sidebar.title("RAG Nexus Reussite")
+st.sidebar.title("RAG Nexus R\u00e9ussite")
 
 page = st.sidebar.radio(
     "Navigation",
@@ -268,11 +310,11 @@ st.sidebar.caption(f"API : `{API_BASE}`")
 # PAGE DASHBOARD
 # ===============================================================
 if page == "Dashboard":
-    st.title("Dashboard RAG v2 — Catalogue scolaire")
+    st.title("Dashboard RAG v2 \u2014 Catalogue scolaire")
 
     catalogue = _fetch_catalogue()
     if not catalogue:
-        st.warning("Impossible de charger le catalogue. Verifiez la connexion API.")
+        st.warning("Impossible de charger le catalogue. V\u00e9rifiez la connexion API.")
     else:
         collections = catalogue.get("collections", [])
         by_level = catalogue.get("by_level", {})
@@ -285,24 +327,24 @@ if page == "Dashboard":
         n_non_instanciees = total - n_instanciees
         n_quarantaine = sum(1 for c in collections if c.get("domain") == "quarantine")
 
-        # Metriques globales
+        # M\u00e9triques globales
         m1, m2, m3, m4, m5 = st.columns(5)
-        m1.metric("Declarees", total)
-        m2.metric("Instanciees", n_instanciees)
+        m1.metric("D\u00e9clar\u00e9es", total)
+        m2.metric("Instanci\u00e9es", n_instanciees)
         m3.metric("Retrievable", n_retrievable)
-        m4.metric("Non instanciees", n_non_instanciees)
+        m4.metric("Non instanci\u00e9es", n_non_instanciees)
         m5.metric("Quarantaine", n_quarantaine)
 
         st.markdown("---")
 
-        # Repartition par niveau
+        # R\u00e9partition par niveau
         st.subheader("Par niveau")
         level_cols = st.columns(len(by_level))
         for i, (level, names) in enumerate(sorted(by_level.items())):
             label = NIVEAU_LABELS.get(level, level.title())
             level_cols[i % len(level_cols)].metric(label, len(names))
 
-        # Repartition par voie
+        # R\u00e9partition par voie
         st.subheader("Par voie")
         voie_counts: dict[str, int] = {}
         for c in collections:
@@ -313,7 +355,7 @@ if page == "Dashboard":
             label = VOIE_LABELS.get(voie, voie.title()) if voie != "commun" else "Commun"
             voie_cols[i].metric(label, count)
 
-        # Repartition par statut
+        # R\u00e9partition par statut
         st.subheader("Par statut")
         statut_cols = st.columns(len(by_status))
         for i, (statut, names) in enumerate(sorted(by_status.items())):
@@ -332,9 +374,9 @@ if page == "Dashboard":
             f_voie = st.selectbox("Voie", ["Tous"] + all_voies)
         with fc3:
             all_matieres = sorted({c.get("matiere") or "" for c in collections if c.get("matiere")})
-            f_matiere = st.selectbox("Matiere", ["Toutes"] + all_matieres)
+            f_matiere = st.selectbox("Mati\u00e8re", ["Toutes"] + all_matieres)
         with fc4:
-            f_inst = st.selectbox("Instanciee", ["Toutes", "Oui", "Non"])
+            f_inst = st.selectbox("Instanci\u00e9e", ["Toutes", "Oui", "Non"])
 
         # Apply filters
         filtered = collections
@@ -359,27 +401,30 @@ if page == "Dashboard":
                 elif c.get("retrievable"):
                     badge = "Active recherche"
                 elif c.get("instanciee"):
-                    badge = "Instanciee"
+                    badge = "Instanci\u00e9e"
                 else:
-                    badge = "Declaree non instanciee"
+                    badge = "D\u00e9clar\u00e9e non instanci\u00e9e"
 
+                c_niveau = str(c.get("niveau") or "-")
+                c_voie = c.get("voie")
+                c_statut = str(c.get("statut") or "-")
                 rows.append({
                     "Collection": c["name"],
-                    "Matiere": (c.get("matiere") or "").replace("_", " ").title(),
-                    "Niveau": NIVEAU_LABELS.get(c.get("niveau"), c.get("niveau") or "-"),
-                    "Voie": VOIE_LABELS.get(c.get("voie"), c.get("voie") or "-"),
-                    "Statut": STATUT_LABELS.get(c.get("statut"), c.get("statut") or "-"),
+                    "Mati\u00e8re": (c.get("matiere") or "").replace("_", " ").title(),
+                    "Niveau": NIVEAU_LABELS.get(c_niveau, c_niveau),
+                    "Voie": VOIE_LABELS.get(c_voie, c_voie or "-"),
+                    "Statut": STATUT_LABELS.get(c_statut, c_statut),
                     "Badge": badge,
                 })
             st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
         else:
             st.info("Aucune collection ne correspond aux filtres.")
 
-    # Sante API
+    # Sant\u00e9 API
     st.markdown("---")
     health = api_get("/health")
     if health:
-        st.success("API operationnelle")
+        st.success("API op\u00e9rationnelle")
     else:
         st.error("API non joignable")
 
@@ -392,20 +437,19 @@ elif page == "Recherche":
 
     v2_collections = _fetch_v2_collections()
     if not v2_collections:
-        st.warning("Aucune collection v2 retrievable. Verifiez la configuration.")
+        st.warning("Aucune collection v2 retrievable. V\u00e9rifiez la configuration.")
     else:
         col_labels = {_collection_label(c): c["name"] for c in v2_collections}
         options = list(col_labels.keys()) + (["Toutes"] if len(col_labels) > 1 else [])
 
-        # Parcours scolaire
         st.subheader("Collection cible")
         selected = st.radio("Collection", options, horizontal=True)
 
-        query = st.text_input("Question", placeholder="Qu'est-ce qu'un arbre binaire ?")
-        k = st.slider("Nombre de resultats", 1, 20, 5)
+        query = st.text_input("Question", placeholder="Qu\u2019est-ce qu\u2019un arbre binaire ?")
+        k = st.slider("Nombre de r\u00e9sultats", 1, 20, 5)
 
         if query and st.button("Rechercher"):
-            with st.spinner("Recherche v2 en cours..."):
+            with st.spinner("Recherche v2 en cours\u2026"):
                 if selected == "Toutes":
                     all_hits: list[dict[str, Any]] = []
                     for col_name in col_labels.values():
@@ -433,19 +477,19 @@ elif page == "Recherche":
                 hits = result.get("hits", [])
                 seuil = result.get("seuil", "")
                 st.info(
-                    f"{len(hits)} resultat(s) dans `{result.get('collection', '?')}` "
-                    f"(seuil rerank: {seuil})"
+                    f"{len(hits)} r\u00e9sultat(s) dans `{result.get('collection', '?')}` "
+                    f"(seuil rerank : {seuil})"
                 )
                 gen_allowed = result.get("answer_generation_allowed", False)
                 if gen_allowed is False:
-                    st.caption("Retrieval seul — answer_generation_allowed = false")
+                    st.caption("Retrieval seul \u2014 answer_generation_allowed = false")
 
                 for i, h in enumerate(hits):
                     h_col = h.pop("_collection", None)
                     rerank_score = h.get("rerank_score", 0)
                     source_label = h.get("source_label", "Sans titre")
                     col_tag = f" | {h_col}" if h_col else ""
-                    with st.expander(f"#{i+1} — {source_label} (rerank: {rerank_score:+.2f}{col_tag})"):
+                    with st.expander(f"#{i+1} \u2014 {source_label} (rerank: {rerank_score:+.2f}{col_tag})"):
                         preview = h.get("preview", "")
                         if preview:
                             st.markdown(preview)
@@ -464,8 +508,13 @@ elif page == "Recherche":
 elif page == "Ingestion":
     st.title("Ingestion RAG v2")
     st.markdown(
-        "Ingerez des ressources dans les collections v2 instanciees. "
-        "Les collections non instanciees sont declarees mais pas encore activees."
+        "Ing\u00e9rez des ressources dans les collections v2 instanci\u00e9es. "
+        "Les collections non instanci\u00e9es sont d\u00e9clar\u00e9es mais pas encore activ\u00e9es."
+    )
+    st.caption(
+        "M\u00e9tadonn\u00e9es g\u00e9n\u00e9r\u00e9es c\u00f4t\u00e9 serveur : "
+        "source_kind, review_status (needs_review), source_label, source_uri, "
+        "doc_id, chunk_id, chunk_sha256."
     )
 
     catalogue = _fetch_catalogue()
@@ -477,7 +526,7 @@ elif page == "Ingestion":
         ingest_non_inst = [c for c in collections if not c.get("instanciee")]
 
         if not ingestion_targets:
-            st.warning("Aucune collection instanciee disponible pour l'ingestion.")
+            st.warning("Aucune collection instanci\u00e9e disponible pour l\u2019ingestion.")
         else:
             # Collection selector
             target_labels = {_collection_label(c): c["name"] for c in ingestion_targets}
@@ -485,36 +534,49 @@ elif page == "Ingestion":
             selected_name = target_labels[selected_label]
 
             # Find selected collection info
-            selected_col: dict[str, Any] = next((c for c in ingestion_targets if c["name"] == selected_name), {})
+            selected_col: dict[str, Any] = next(
+                (c for c in ingestion_targets if c["name"] == selected_name), {}
+            )
 
             sel_niveau = str(selected_col.get("niveau") or "-")
             st.info(
                 f"**Collection** : `{selected_name}`  \n"
-                f"**Domaine** : {selected_col.get('domain', '?')}  \n"
+                f"**Domaine** : {DOMAIN_LABELS.get(selected_col.get('domain', ''), selected_col.get('domain', '?'))}  \n"
                 f"**Niveau** : {NIVEAU_LABELS.get(sel_niveau, sel_niveau)}  \n"
-                f"**Matiere** : {(selected_col.get('matiere') or '-').replace('_', ' ').title()}"
+                f"**Mati\u00e8re** : {(selected_col.get('matiere') or '-').replace('_', ' ').title()}"
             )
 
-            col_t = st.columns(2)
+            col_t = st.columns(3)
             with col_t[0]:
-                type_ressource = st.selectbox("Type de ressource", TYPES_RESSOURCE)
+                type_doc = st.selectbox(
+                    "Type de document",
+                    TYPES_RESSOURCE,
+                    format_func=lambda x: TYPES_RESSOURCE_LABELS.get(x, x),
+                )
             with col_t[1]:
-                tag = st.text_input("Tag libre (optionnel)", placeholder="ex: suites, probabilites...")
+                rights = st.selectbox("Droits", RIGHTS_OPTIONS)
+            with col_t[2]:
+                tag = st.text_input("Tag libre (optionnel)", placeholder="ex : suites, probabilit\u00e9s\u2026")
 
             st.markdown("---")
 
             ingest_meta: dict[str, str] = {
                 "collection": selected_name,
+                "rights": rights,
                 "matiere": selected_col.get("matiere") or "",
                 "niveau": selected_col.get("niveau") or "",
-                "voie": selected_col.get("voie") or "",
+                "voie": selected_col.get("voie") or "gen",
                 "domain": selected_col.get("domain") or "",
-                "type_ressource": type_ressource,
+                "type_doc": type_doc,
             }
             if tag.strip():
                 ingest_meta["tag"] = tag.strip()
 
-            tab_up, tab_url, tab_drv = st.tabs(["Upload fichiers", "URLs", "Google Drive"])
+            tab_up, tab_url, tab_drv = st.tabs([
+                "Upload fichiers",
+                "URLs",
+                "Google Drive",
+            ])
             with tab_up:
                 _render_upload_tab(ingest_meta, "ingest")
             with tab_url:
@@ -522,16 +584,20 @@ elif page == "Ingestion":
             with tab_drv:
                 _render_drive_tab(ingest_meta, "ingest")
 
-        # Show non-instanciees
+        # Show non-instanci\u00e9es
         if ingest_non_inst:
             st.markdown("---")
-            with st.expander(f"Collections declarees non instanciees ({len(ingest_non_inst)})"):
+            with st.expander(
+                f"Collections d\u00e9clar\u00e9es non instanci\u00e9es ({len(ingest_non_inst)})"
+            ):
                 for c in ingest_non_inst:
+                    c_niv = str(c.get("niveau") or "?")
+                    c_stat = str(c.get("statut") or "?")
                     st.caption(
-                        f"`{c['name']}` — "
+                        f"`{c['name']}` \u2014 "
                         f"{(c.get('matiere') or '?').replace('_', ' ').title()} / "
-                        f"{NIVEAU_LABELS.get(c.get('niveau'), c.get('niveau') or '?')} / "
-                        f"{STATUT_LABELS.get(c.get('statut'), c.get('statut') or '?')}"
+                        f"{NIVEAU_LABELS.get(c_niv, c_niv)} / "
+                        f"{STATUT_LABELS.get(c_stat, c_stat)}"
                     )
 
 
@@ -541,11 +607,11 @@ elif page == "Ingestion":
 elif page == "Administration":
     st.title("Administration RAG v2")
 
-    # Sante API
-    st.subheader("Sante du service")
+    # Sant\u00e9 API
+    st.subheader("Sant\u00e9 du service")
     health = api_get("/health")
     if health:
-        st.success(f"API operationnelle — statut : {health.get('status', '?')}")
+        st.success(f"API op\u00e9rationnelle \u2014 statut : {health.get('status', '?')}")
     else:
         st.error("API non joignable")
 
@@ -557,27 +623,28 @@ elif page == "Administration":
 
         # Catalogue v2 complet
         st.subheader("Catalogue v2 complet")
-        st.write(f"**{len(collections)}** collections declarees")
+        st.write(f"**{len(collections)}** collections d\u00e9clar\u00e9es")
 
         admin_inst = [c for c in collections if c.get("instanciee")]
         admin_non_inst = [c for c in collections if not c.get("instanciee")]
         admin_retrievable = [c for c in collections if c.get("retrievable")]
         admin_quarantine = [c for c in collections if c.get("domain") == "quarantine"]
 
-        # Collections instanciees
-        st.subheader(f"Collections instanciees ({len(admin_inst)})")
+        # Collections instanci\u00e9es
+        st.subheader(f"Collections instanci\u00e9es ({len(admin_inst)})")
         for c in admin_inst:
             badge = "Retrievable" if c.get("retrievable") else "Non retrievable"
-            st.write(f"- `{c['name']}` — {badge}")
+            st.write(f"- `{c['name']}` \u2014 {badge}")
 
-        # Collections non instanciees
-        st.subheader(f"Collections declarees non instanciees ({len(admin_non_inst)})")
-        with st.expander("Voir les collections non instanciees"):
+        # Collections non instanci\u00e9es
+        st.subheader(f"Collections d\u00e9clar\u00e9es non instanci\u00e9es ({len(admin_non_inst)})")
+        with st.expander("Voir les collections non instanci\u00e9es"):
             for c in admin_non_inst:
+                c_niv = str(c.get("niveau") or "?")
                 st.write(
-                    f"- `{c['name']}` — "
+                    f"- `{c['name']}` \u2014 "
                     f"{(c.get('matiere') or '?').replace('_', ' ').title()} / "
-                    f"{NIVEAU_LABELS.get(c.get('niveau'), c.get('niveau') or '?')}"
+                    f"{NIVEAU_LABELS.get(c_niv, c_niv)}"
                 )
 
         # Collections retrievable
@@ -588,37 +655,44 @@ elif page == "Administration":
         # Quarantaine
         st.subheader(f"Quarantaine ({len(admin_quarantine)})")
         for c in admin_quarantine:
-            st.write(f"- `{c['name']}` — instanciee={c.get('instanciee')}, retrievable={c.get('retrievable')}")
+            st.write(
+                f"- `{c['name']}` \u2014 "
+                f"instanci\u00e9e={c.get('instanciee')}, retrievable={c.get('retrievable')}"
+            )
 
-        # Controles de coherence
-        st.subheader("Controles de coherence")
-        issues = []
+        # Contr\u00f4les de coh\u00e9rence
+        st.subheader("Contr\u00f4les de coh\u00e9rence")
+        issues: list[str] = []
 
         for c in collections:
             name = c["name"]
             if c.get("domain") == "quarantine":
                 continue
 
-            # Collection instanciee mais non retrievable
             if c.get("instanciee") and not c.get("retrievable"):
-                issues.append(f"`{name}` : instanciee mais non retrievable")
+                issues.append(f"`{name}` : instanci\u00e9e mais non retrievable")
 
-            # Retrievable mais pas instanciee (should be impossible)
             if c.get("retrievable") and not c.get("instanciee"):
-                issues.append(f"`{name}` : retrievable mais pas instanciee (incoherent)")
+                issues.append(f"`{name}` : retrievable mais pas instanci\u00e9e (incoh\u00e9rent)")
 
-            # Taxonomy file absent
             tf = c.get("taxonomy_file")
             if not tf:
-                issues.append(f"`{name}` : pas de taxonomy_file declare")
+                issues.append(f"`{name}` : pas de taxonomy_file d\u00e9clar\u00e9")
 
-            # Domain unknown
+            if not c.get("taxonomy_exists", True):
+                issues.append(f"`{name}` : taxonomy_file d\u00e9clar\u00e9 mais fichier absent")
+
             domain = c.get("domain")
             if domain and domain not in DOMAIN_LABELS:
-                issues.append(f"`{name}` : domaine inconnu '{domain}'")
+                issues.append(f"`{name}` : domaine inconnu \u00ab {domain} \u00bb")
+
+            ci = c.get("coherence_issues")
+            if ci and isinstance(ci, list):
+                for issue in ci:
+                    issues.append(f"`{name}` : {issue}")
 
         if issues:
             for issue in issues:
                 st.warning(issue)
         else:
-            st.success("Aucun probleme de coherence detecte.")
+            st.success("Aucun probl\u00e8me de coh\u00e9rence d\u00e9tect\u00e9.")

@@ -15,6 +15,7 @@ import logging
 import os
 import threading
 import time
+from pathlib import Path
 from typing import Any, Literal, cast
 
 import psycopg  # noqa: F811 — also in requirements.v2.txt
@@ -442,10 +443,15 @@ def _full_catalogue() -> dict[str, Any]:
 
     Unlike /collections/v2 (picker: instanciated+retrievable only),
     this returns ALL declared collections for Dashboard/Administration.
+    Includes taxonomy_exists and coherence_issues for governance.
     """
     cfg = load_collection_config()
     collections_raw = cfg.get("collections", {})
     domains = cfg.get("domains", {})
+    known_domains = set(domains.keys()) if isinstance(domains, dict) else set()
+
+    # Resolve taxonomy base dir
+    config_path = _resolve_taxonomy_base()
 
     collections = []
     by_level: dict[str, list[str]] = {}
@@ -467,6 +473,34 @@ def _full_catalogue() -> dict[str, Any]:
         voie = defn.get("voie")
         matiere = defn.get("matiere")
         statut = defn.get("statut")
+        taxonomy_file = defn.get("taxonomy_file")
+
+        # Check taxonomy file existence
+        taxonomy_exists = True
+        if taxonomy_file and config_path:
+            taxonomy_exists = (config_path / taxonomy_file).is_file()
+
+        # Coherence checks
+        coherence_issues: list[str] = []
+        if domain == "quarantine":
+            pass  # quarantine is special
+        else:
+            if not taxonomy_file:
+                coherence_issues.append("taxonomy_file absent")
+            elif not taxonomy_exists:
+                coherence_issues.append(f"taxonomy_file '{taxonomy_file}' non trouv\u00e9")
+            if domain not in known_domains:
+                coherence_issues.append(f"domaine inconnu: {domain}")
+            if instanciee and not domain_retrievable:
+                coherence_issues.append("instanci\u00e9e mais domaine non retrievable")
+            if retrievable and not instanciee:
+                coherence_issues.append("retrievable sans \u00eatre instanci\u00e9e")
+
+        # Reasons
+        ingestion_reason = "collection instanci\u00e9e" if instanciee else "collection non instanci\u00e9e"
+        search_reason = "instanci\u00e9e + domaine retrievable" if retrievable else (
+            "domaine non retrievable" if instanciee else "non instanci\u00e9e"
+        )
 
         entry = {
             "name": name,
@@ -477,9 +511,13 @@ def _full_catalogue() -> dict[str, Any]:
             "domain": domain,
             "instanciee": instanciee,
             "retrievable": retrievable,
-            "taxonomy_file": defn.get("taxonomy_file"),
+            "taxonomy_file": taxonomy_file,
+            "taxonomy_exists": taxonomy_exists,
             "ingestion_enabled": instanciee,
             "search_enabled": retrievable,
+            "ingestion_enabled_reason": ingestion_reason,
+            "search_enabled_reason": search_reason,
+            "coherence_issues": coherence_issues,
         }
         collections.append(entry)
 
@@ -501,6 +539,21 @@ def _full_catalogue() -> dict[str, Any]:
         "by_domain": by_domain,
         "by_status": by_status,
     }
+
+
+def _resolve_taxonomy_base() -> Path | None:
+    """Resolve taxonomy base directory (services/rag-pedago/taxonomy/)."""
+    # Navigate from this module: ingestor/ -> src/ -> rag-engine/ -> services/ -> rag-pedago/
+    module_dir = Path(__file__).resolve().parent
+    for parent in (module_dir, *module_dir.parents):
+        candidate = parent / "taxonomy"
+        if candidate.is_dir():
+            return candidate
+        # Also check peer service
+        peer = parent.parent / "rag-pedago" / "taxonomy"
+        if peer.is_dir():
+            return peer
+    return None
 
 
 @router.get("/catalogue/v2")

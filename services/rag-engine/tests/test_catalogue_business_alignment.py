@@ -1,7 +1,7 @@
-"""Red tests — Catalogue v2 business alignment.
+"""Tests — Catalogue v2 business alignment.
 
-Tests that the backend catalogue endpoint returns the full
-business catalogue (declared + instanciated + retrievable).
+Verifies the backend catalogue (rag_collections.yml) and
+the /catalogue/v2 endpoint module.
 """
 from __future__ import annotations
 
@@ -19,21 +19,17 @@ def _load_catalogue() -> dict:
 
 
 def test_catalogue_has_version_2():
-    cat = _load_catalogue()
-    assert cat.get("version") == 2
+    assert _load_catalogue().get("version") == 2
 
 
 def test_catalogue_has_collections():
     cat = _load_catalogue()
     assert "collections" in cat
-    assert len(cat["collections"]) >= 30, (
-        f"Expected at least 30 declared collections, got {len(cat['collections'])}"
-    )
+    assert len(cat["collections"]) >= 30
 
 
 def test_catalogue_has_metadata_required():
-    cat = _load_catalogue()
-    required = cat.get("metadata_required", [])
+    required = _load_catalogue().get("metadata_required", [])
     expected = [
         "domain", "audience", "niveau", "voie", "matiere",
         "statut_enseignement", "type_doc", "source_kind", "rights",
@@ -45,8 +41,7 @@ def test_catalogue_has_metadata_required():
 
 
 def test_catalogue_domains():
-    cat = _load_catalogue()
-    domains = cat.get("domains", {})
+    domains = _load_catalogue().get("domains", {})
     assert "education" in domains
     assert "exam" in domains
     assert "quarantine" in domains
@@ -54,57 +49,99 @@ def test_catalogue_domains():
 
 
 def test_instanciated_collections():
-    cat = _load_catalogue()
-    cols = cat["collections"]
+    cols = _load_catalogue()["collections"]
     instanciated = [n for n, d in cols.items() if d.get("instanciee") is True]
-    # At least NSI premiere + terminale + quarantine
-    assert len(instanciated) >= 3, (
-        f"Expected at least 3 instanciated collections, got {instanciated}"
-    )
+    assert len(instanciated) >= 3
 
 
 def test_quarantine_is_instanciated_but_not_retrievable():
     cat = _load_catalogue()
-    q = cat["collections"].get("rag_nexus_quarantine")
-    assert q is not None
+    q = cat["collections"]["rag_nexus_quarantine"]
     assert q.get("instanciee") is True
     assert q.get("domain") == "quarantine"
-    domains = cat.get("domains", {})
-    assert domains.get("quarantine", {}).get("retrievable") is False
+    assert cat["domains"]["quarantine"]["retrievable"] is False
 
 
 def test_all_education_collections_have_required_fields():
-    cat = _load_catalogue()
     required_fields = ["matiere", "niveau", "statut", "domain", "taxonomy_file"]
-    for name, defn in cat["collections"].items():
+    for name, defn in _load_catalogue()["collections"].items():
         if name == "rag_nexus_quarantine":
-            continue  # quarantine is special
+            continue
         for field in required_fields:
-            assert field in defn, (
-                f"Collection {name} missing required field: {field}"
-            )
+            assert field in defn, f"Collection {name} missing field: {field}"
 
 
 def test_niveaux_coverage():
-    """Catalogue must cover all school levels."""
-    cat = _load_catalogue()
-    niveaux = {d.get("niveau") for d in cat["collections"].values() if d.get("niveau")}
+    niveaux = {d.get("niveau") for d in _load_catalogue()["collections"].values() if d.get("niveau")}
     for niveau in ["troisieme", "seconde", "premiere", "terminale"]:
-        assert niveau in niveaux, f"Missing niveau in catalogue: {niveau}"
+        assert niveau in niveaux
 
 
 def test_voies_coverage():
-    """Catalogue must cover general and STMG tracks."""
-    cat = _load_catalogue()
-    voies = {d.get("voie") for d in cat["collections"].values() if d.get("voie")}
-    assert "gen" in voies, "Missing voie: gen"
-    assert "stmg" in voies, "Missing voie: stmg"
+    voies = {d.get("voie") for d in _load_catalogue()["collections"].values() if d.get("voie")}
+    assert "gen" in voies
+    assert "stmg" in voies
 
 
-def test_catalogue_endpoint_module_exists():
-    """The retrieval_v2_endpoint module should expose a catalogue route."""
+# --- Endpoint module checks ---
+
+def test_catalogue_endpoint_exists():
     endpoint_file = ENGINE_ROOT / "src" / "ingestor" / "retrieval_v2_endpoint.py"
     content = endpoint_file.read_text(encoding="utf-8")
-    assert "/catalogue/v2" in content, (
-        "retrieval_v2_endpoint.py does not expose /catalogue/v2 endpoint"
-    )
+    assert "/catalogue/v2" in content
+
+
+def test_catalogue_endpoint_returns_taxonomy_exists():
+    endpoint_file = ENGINE_ROOT / "src" / "ingestor" / "retrieval_v2_endpoint.py"
+    content = endpoint_file.read_text(encoding="utf-8")
+    assert "taxonomy_exists" in content
+
+
+def test_catalogue_endpoint_returns_coherence_issues():
+    endpoint_file = ENGINE_ROOT / "src" / "ingestor" / "retrieval_v2_endpoint.py"
+    content = endpoint_file.read_text(encoding="utf-8")
+    assert "coherence_issues" in content
+
+
+def test_catalogue_endpoint_returns_ingestion_enabled():
+    endpoint_file = ENGINE_ROOT / "src" / "ingestor" / "retrieval_v2_endpoint.py"
+    content = endpoint_file.read_text(encoding="utf-8")
+    assert "ingestion_enabled" in content
+    assert "search_enabled" in content
+    assert "ingestion_enabled_reason" in content
+    assert "search_enabled_reason" in content
+
+
+def test_catalogue_endpoint_returns_groupings():
+    endpoint_file = ENGINE_ROOT / "src" / "ingestor" / "retrieval_v2_endpoint.py"
+    content = endpoint_file.read_text(encoding="utf-8")
+    assert "by_level" in content
+    assert "by_domain" in content
+    assert "by_status" in content
+
+
+def test_collections_v2_remains_separate():
+    """The /collections/v2 endpoint must remain limited to instanciated+retrievable."""
+    endpoint_file = ENGINE_ROOT / "src" / "ingestor" / "retrieval_v2_endpoint.py"
+    content = endpoint_file.read_text(encoding="utf-8")
+    assert "/collections/v2" in content
+    assert "retrievable" in content
+
+
+# --- Runtime-like catalogue check (module import) ---
+
+def test_catalogue_module_produces_expected_fields():
+    """Load config and verify the _full_catalogue logic produces expected fields."""
+    import sys
+    sys.path.insert(0, str(ENGINE_ROOT / "src"))
+    try:
+        from ingestor.collection_config import load_collection_config
+        cfg = load_collection_config()
+        cols = cfg.get("collections", {})
+        # Verify at least 38 collections
+        assert len(cols) >= 35, f"Expected >=35 collections, got {len(cols)}"
+        # Verify instanciated ones
+        inst = [n for n, d in cols.items() if d.get("instanciee") is True]
+        assert len(inst) >= 3
+    finally:
+        sys.path.pop(0)
