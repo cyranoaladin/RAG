@@ -435,6 +435,92 @@ def list_retrievable_collections(request: Request) -> dict[str, Any]:
     return _list_retrievable_collections()
 
 
+# --- Full catalogue endpoint (LOT 27) ---
+
+def _full_catalogue() -> dict[str, Any]:
+    """Return the complete v2 catalogue with instanciation/retrievable status.
+
+    Unlike /collections/v2 (picker: instanciated+retrievable only),
+    this returns ALL declared collections for Dashboard/Administration.
+    """
+    cfg = load_collection_config()
+    collections_raw = cfg.get("collections", {})
+    domains = cfg.get("domains", {})
+
+    collections = []
+    by_level: dict[str, list[str]] = {}
+    by_domain: dict[str, list[str]] = {}
+    by_status: dict[str, list[str]] = {}
+
+    for name in sorted(collections_raw):
+        defn = collections_raw[name]
+        if not isinstance(defn, dict):
+            continue
+
+        domain = defn.get("domain") or "unknown"
+        domain_cfg = domains.get(domain, {}) if isinstance(domains, dict) else {}
+        domain_retrievable = domain_cfg.get("retrievable", False) is True
+        instanciee = defn.get("instanciee") is True
+        retrievable = instanciee and domain_retrievable
+
+        niveau = defn.get("niveau")
+        voie = defn.get("voie")
+        matiere = defn.get("matiere")
+        statut = defn.get("statut")
+
+        entry = {
+            "name": name,
+            "matiere": matiere,
+            "niveau": niveau,
+            "voie": voie,
+            "statut": statut,
+            "domain": domain,
+            "instanciee": instanciee,
+            "retrievable": retrievable,
+            "taxonomy_file": defn.get("taxonomy_file"),
+            "ingestion_enabled": instanciee,
+            "search_enabled": retrievable,
+        }
+        collections.append(entry)
+
+        # Group by level
+        level_key = niveau or "transversal"
+        by_level.setdefault(level_key, []).append(name)
+
+        # Group by domain
+        by_domain.setdefault(domain, []).append(name)
+
+        # Group by status
+        status_key = statut or "autre"
+        by_status.setdefault(status_key, []).append(name)
+
+    return {
+        "version": 2,
+        "collections": collections,
+        "by_level": by_level,
+        "by_domain": by_domain,
+        "by_status": by_status,
+    }
+
+
+@router.get("/catalogue/v2")
+def get_full_catalogue(request: Request) -> dict[str, Any]:
+    """Full catalogue — all declared collections with status flags.
+
+    Used by Dashboard and Administration. Read-only.
+    """
+    _enforce_security_v2(
+        request,
+        allowed_roles={
+            SecurityRole.ADMIN,
+            SecurityRole.REVIEWER,
+            SecurityRole.TEACHER,
+        },
+        endpoint="/catalogue/v2",
+    )
+    return _full_catalogue()
+
+
 # --- Main search endpoint ---
 
 @router.post("/search/v2", response_model=SearchV2Response)
