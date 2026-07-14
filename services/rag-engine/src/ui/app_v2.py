@@ -1,18 +1,16 @@
 """
-Dashboard RAG v3 — Streamlit
-Architecture multi-collection optimisée pour agents IA :
-  - rag_education        : collection Chroma historique, mappee vers rag_nexus_education
-  - rag_francais_premiere: collection Chroma historique, mappee vers rag_nexus_education
-  - rag_web3             : collection Chroma historique, mappee vers rag_nexus_web3
-  - rag_divers           : collection Chroma historique, mappee vers rag_nexus_quarantine
-Ingestion multi-méthodes : Upload fichiers, URLs, Google Drive
-Taxonomie complète : Enseignements communs, EDS, options, Grand Oral
+Dashboard RAG v2 — Streamlit
+Architecture scolaire Nexus Réussite alignée sur rag_collections.yml.
+Toute la navigation dérive du catalogue v2 : /catalogue/v2 et /collections/v2.
+Aucune collection legacy. Aucun appel /stats.
+
+Ingestion : utilise exclusivement /ingest/v2/* (FE-03).
+Métadonnées serveur-side : source_kind, review_status, source_label,
+source_uri, doc_id, chunk_id, chunk_sha256 sont générés par le pipeline v2.
 """
 from __future__ import annotations
 
-import json
 import os
-import time
 from typing import Any
 
 import httpx
@@ -20,8 +18,8 @@ import pandas as pd
 import streamlit as st
 
 st.set_page_config(
-    page_title="RAG Dashboard — Nexus Réussite",
-    page_icon="🧠",
+    page_title="RAG Dashboard \u2014 Nexus R\u00e9ussite",
+    page_icon="\U0001f9e0",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -29,120 +27,84 @@ st.set_page_config(
 API_BASE = os.getenv("INGEST_API_BASE", os.getenv("RAG_API_URL", "http://ingestor:8001"))
 API_TOKEN = os.getenv("INGEST_API_TOKEN", os.getenv("RAG_API_TOKEN", ""))
 
-# ═══════════════════════════════════════════════════════════════
-# TAXONOMIE ÉDUCATION — Programmes Lycée Général complet
-# ═══════════════════════════════════════════════════════════════
-
-EDUCATION_TAXONOMY: dict[str, list[str]] = {
-    "Enseignements communs": [
-        "Français",
-        "Philosophie",
-        "Histoire-géographie",
-        "LVA et LVB (enveloppe globalisée)",
-        "Enseignement scientifique",
-        "Éducation physique et sportive",
-        "Enseignement moral et civique",
-        "Accompagnement personnalisé",
-        "Accompagnement au choix de l'orientation",
-    ],
-    "Enseignements de spécialité (EDS)": [
-        "Arts",
-        "Biologie-écologie",
-        "Éducation physique, pratiques et culture sportives",
-        "Histoire-géographie, géopolitique et sciences politiques",
-        "Humanités, littérature et philosophie",
-        "Langues, littératures et cultures étrangères et régionales",
-        "Littératures et langues et cultures de l'Antiquité",
-        "Mathématiques",
-        "Numérique et sciences informatiques",
-        "Physique-chimie",
-        "Sciences de la vie et de la Terre",
-        "Sciences de l'ingénieur",
-        "Sciences économiques et sociales",
-    ],
-    "Options — Terminale uniquement": [
-        "Mathématiques complémentaires",
-        "Mathématiques expertes",
-        "Droits et grands enjeux du monde contemporain",
-    ],
-    "Options — 1ère et/ou Terminale": [
-        "Langue vivante C",
-        "LCA : latin",
-        "LCA : grec",
-        "Éducation physique et sportive",
-        "Arts",
-        "Langue des signes française",
-        "Hippologie et équitation",
-        "Agronomie, économie, territoires",
-        "Pratiques sociales et culturelles",
-    ],
-    "Épreuves et orientation": [
-        "Grand Oral",
-        "Aide à l'orientation",
-    ],
+# Labels humains pour les niveaux, voies, statuts
+NIVEAU_LABELS: dict[str, str] = {
+    "troisieme": "3\u00e8me",
+    "seconde": "Seconde",
+    "premiere": "Premi\u00e8re",
+    "terminale": "Terminale",
+}
+VOIE_LABELS: dict[str | None, str] = {
+    "gen": "G\u00e9n\u00e9rale",
+    "stmg": "STMG",
+    None: "Commun",
+}
+STATUT_LABELS: dict[str, str] = {
+    "tronc_commun": "Tronc commun",
+    "specialite": "Sp\u00e9cialit\u00e9",
+    "option": "Option",
+    "examen": "Examen",
+    "remediation": "Rem\u00e9diation",
+}
+DOMAIN_LABELS: dict[str, str] = {
+    "education": "\u00c9ducation",
+    "exam": "Examens",
+    "quarantine": "Quarantaine",
+    "official": "Officiel",
+    "nexus_owned": "Nexus",
 }
 
-NIVEAUX = ["Seconde", "Première", "Terminale", "Première et Terminale", "Tous niveaux"]
+RIGHTS_OPTIONS = [
+    "nexus_owned",
+    "official",
+    "licensed",
+    "unknown",
+]
 
 TYPES_RESSOURCE = [
-    "Cours",
-    "Exercices",
-    "Corrigé",
-    "Annale",
-    "Fiche de révision",
-    "Méthodologie",
-    "Sujet type bac",
-    "Ressource pédagogique",
-    "Lien web",
-    "Vidéo éducative",
-    "Document officiel",
-    "Autre",
-    "Divers",
+    "cours",
+    "exercices",
+    "corrig\u00e9",
+    "annale",
+    "fiche_revision",
+    "m\u00e9thodologie",
+    "sujet_bac",
+    "ressource_pedagogique",
+    "lien_web",
+    "vid\u00e9o",
+    "document_officiel",
+    "autre",
 ]
 
-# Collections consultées automatiquement sur toute requête "Toutes"
-ALL_COLLECTIONS = [
-    "rag_francais_premiere",
-    "rag_maths_premiere",
-    "rag_education",
-    "rag_web3",
-]
-
-WEB3_CATEGORIES = [
-    "Blockchain fondamentaux",
-    "Solana",
-    "Ethereum",
-    "Smart Contracts",
-    "DeFi",
-    "NFT",
-    "Tokenomics",
-    "Sécurité Web3",
-    "Développement dApp",
-    "Anchor Framework",
-    "Rust / Move",
-    "Wallets & Identité",
-    "DAO & Gouvernance",
-    "Layer 2 & Scaling",
-    "Autre Web3",
-]
+TYPES_RESSOURCE_LABELS: dict[str, str] = {
+    "cours": "Cours",
+    "exercices": "Exercices",
+    "corrig\u00e9": "Corrig\u00e9",
+    "annale": "Annale",
+    "fiche_revision": "Fiche de r\u00e9vision",
+    "m\u00e9thodologie": "M\u00e9thodologie",
+    "sujet_bac": "Sujet type bac",
+    "ressource_pedagogique": "Ressource p\u00e9dagogique",
+    "lien_web": "Lien web",
+    "vid\u00e9o": "Vid\u00e9o \u00e9ducative",
+    "document_officiel": "Document officiel",
+    "autre": "Autre",
+}
 
 
-# ═══════════════════════════════════════════════════════════════
+# ===============================================================
 # HELPERS API
-# ═══════════════════════════════════════════════════════════════
+# ===============================================================
 
 def _headers_json() -> dict[str, str]:
-    """Headers pour requêtes JSON."""
     return {"Authorization": f"Bearer {API_TOKEN}", "Content-Type": "application/json"}
 
 
 def _headers_upload() -> dict[str, str]:
-    """Headers pour uploads multipart."""
     return {"Authorization": f"Bearer {API_TOKEN}"}
 
 
 def api_get(endpoint: str, timeout: float = 60.0) -> dict[str, Any] | None:
-    """GET vers l'API RAG."""
     try:
         resp = httpx.get(f"{API_BASE}{endpoint}", headers=_headers_json(), timeout=timeout)
         if resp.status_code == 200:
@@ -150,12 +112,11 @@ def api_get(endpoint: str, timeout: float = 60.0) -> dict[str, Any] | None:
             return cast(dict[str, Any], resp.json())
         st.error(f"API {resp.status_code}: {resp.text[:200]}")
     except Exception as exc:
-        st.error(f"Connexion API échouée: {exc}")
+        st.error(f"Connexion API \u00e9chou\u00e9e : {exc}")
     return None
 
 
 def api_post(endpoint: str, data: dict[str, Any], timeout: float = 60.0) -> dict[str, Any] | None:
-    """POST JSON vers l'API RAG."""
     try:
         resp = httpx.post(f"{API_BASE}{endpoint}", json=data, headers=_headers_json(), timeout=timeout)
         if resp.status_code in (200, 202):
@@ -163,371 +124,180 @@ def api_post(endpoint: str, data: dict[str, Any], timeout: float = 60.0) -> dict
             return cast(dict[str, Any], resp.json())
         st.error(f"API {resp.status_code}: {resp.text[:200]}")
     except Exception as exc:
-        st.error(f"Connexion API échouée: {exc}")
+        st.error(f"Connexion API \u00e9chou\u00e9e : {exc}")
     return None
 
 
-def _build_search_payload(
-    *,
-    query: str,
-    k: int,
-    collection: str,
-    section: str,
-    filters: dict[str, Any],
-    score_threshold: float | None,
-) -> dict[str, Any]:
-    payload: dict[str, Any] = {"q": query, "k": k}
-    if collection:
-        payload["collection"] = collection
-    elif section and section != "all":
-        payload["section"] = section
-    if filters:
-        payload["filters"] = filters
-    if score_threshold is not None:
-        payload["score_threshold"] = score_threshold
-    return payload
-
-
-def api_upload(
-    endpoint: str,
+def api_upload_v2(
     files: list[tuple[str, bytes, str]],
-    params: dict[str, str] | None = None,
+    params: dict[str, str],
     timeout: float = 900.0,
 ) -> dict[str, Any] | None:
-    """Upload multipart vers l'API RAG."""
+    """Upload fichiers vers /ingest/v2/upload-files avec query params v2."""
     try:
         multipart = [("files", (n, c, m)) for n, c, m in files]
         resp = httpx.post(
-            f"{API_BASE}{endpoint}", files=multipart,
-            params=params or {}, headers=_headers_upload(), timeout=timeout,
+            f"{API_BASE}/ingest/v2/upload-files",
+            files=multipart,
+            params=params,
+            headers=_headers_upload(),
+            timeout=timeout,
         )
         if resp.status_code in (200, 202):
             from typing import cast
             return cast(dict[str, Any], resp.json())
         st.error(f"API {resp.status_code}: {resp.text[:200]}")
     except Exception as exc:
-        st.error(f"Upload échoué: {exc}")
+        st.error(f"Upload \u00e9chou\u00e9 : {exc}")
     return None
 
 
-# ═══════════════════════════════════════════════════════════════
-# COMPOSANTS RÉUTILISABLES
-# ═══════════════════════════════════════════════════════════════
+# ===============================================================
+# CATALOGUE CACHE
+# ===============================================================
 
-def _show_ingest_result(result: dict[str, Any] | None) -> None:
-    """Affiche le résultat d'une ingestion."""
-    if not result:
-        return
-    added = result.get("total_added", 0)
-    skipped = result.get("total_skipped", 0)
-    if added > 0:
-        st.success(f"✅ {added} chunk(s) ajouté(s), {skipped} doublon(s) ignoré(s)")
-    elif skipped > 0:
-        st.warning(f"⚠️ Tous les contenus étaient déjà ingérés ({skipped} doublons)")
-    else:
-        st.info("Aucun contenu éligible à l'ingestion.")
-    for item in result.get("results", []):
-        icon = {"ok": "✅", "duplicate": "⚠️", "empty": "⬜", "error": "❌"}.get(item.get("status", ""), "❓")
-        name = item.get("filename", item.get("url", "?"))
-        st.caption(f"{icon} **{name}** — {item.get('status', '?')} (ajoutés: {item.get('added', 0)})")
+@st.cache_data(ttl=300)
+def _fetch_catalogue() -> dict[str, Any] | None:
+    return api_get("/catalogue/v2")
+
+
+@st.cache_data(ttl=300)
+def _fetch_v2_collections() -> list[dict[str, Any]]:
+    r = api_get("/collections/v2")
+    if r and isinstance(r.get("collections"), list):
+        cols: list[dict[str, Any]] = r["collections"]
+        return cols
+    return []
+
+
+def _collection_label(c: dict[str, Any]) -> str:
+    matiere = (c.get("matiere") or "").replace("_", " ").title()
+    niveau_key = str(c.get("niveau") or "")
+    voie_key = str(c.get("voie") or "")
+    statut_key = str(c.get("statut") or "")
+    niveau = NIVEAU_LABELS.get(niveau_key, niveau_key)
+    voie = VOIE_LABELS.get(voie_key, voie_key)
+    statut = STATUT_LABELS.get(statut_key, statut_key)
+    parts = [p for p in (matiere, niveau, voie, statut) if p and p != "Commun"]
+    return " \u2014 ".join(parts) if parts else str(c.get("name", "?"))
+
+
+# ===============================================================
+# COMPOSANTS INGESTION v2
+# ===============================================================
+
+def _v2_params(meta: dict[str, str]) -> dict[str, str]:
+    """Construit les query params v2 depuis les m\u00e9tadonn\u00e9es UI."""
+    return {
+        "collection": meta["collection"],
+        "rights": meta["rights"],
+        "matiere": meta["matiere"],
+        "niveau": meta["niveau"],
+        "voie": meta.get("voie") or "gen",
+        "type_doc": meta.get("type_doc") or "cours",
+    }
 
 
 def _render_upload_tab(metadata: dict[str, str], key_prefix: str) -> None:
-    """Onglet Upload de fichiers réutilisable avec upload fichier par fichier."""
-    st.markdown("**Formats** : PDF, DOCX, Markdown, TXT, HTML, images (OCR), audio, vidéo")
+    st.markdown("**Formats** : PDF, DOCX, Markdown, TXT, HTML, Jupyter Notebook")
     uploaded = st.file_uploader(
-        "Glissez-déposez vos fichiers",
-        type=["pdf", "docx", "doc", "md", "txt", "csv", "html", "htm",
-              "jpg", "jpeg", "png", "gif", "bmp", "webp",
-              "mp3", "wav", "m4a", "mp4", "avi", "mkv"],
+        "Glissez-d\u00e9posez vos fichiers",
+        type=["pdf", "docx", "doc", "md", "txt", "csv", "html", "htm", "ipynb", "tex"],
         accept_multiple_files=True,
         key=f"{key_prefix}_files",
     )
     if uploaded:
-        st.info(f"{len(uploaded)} fichier(s) sélectionné(s)")
+        st.info(f"{len(uploaded)} fichier(s) s\u00e9lectionn\u00e9(s)")
         rows = [{"Nom": f.name, "Taille": f"{f.size / 1024:.1f} Ko", "Type": f.type or "?"} for f in uploaded]
         st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-        if st.button("🚀 Ingérer les fichiers", key=f"{key_prefix}_btn"):
-            total_files = len(uploaded)
-            total_added = 0
-            total_duplicates = 0
+        if st.button("Ing\u00e9rer les fichiers", key=f"{key_prefix}_btn"):
+            total_written = 0
             total_errors = 0
-            file_results: list[Any] = []
-            
-            progress_bar = st.progress(0, text="Préparation...")
-            status_container = st.container()
-            
+            progress_bar = st.progress(0, text="Pr\u00e9paration\u2026")
+            params = _v2_params(metadata)
             for idx, f in enumerate(uploaded):
-                progress = (idx + 1) / total_files
-                progress_bar.progress(progress, text=f"Fichier {idx + 1}/{total_files}")
-                
-                with status_container:
-                    st.text(f"📤 {f.name}...")
-                
+                progress_bar.progress((idx + 1) / len(uploaded), text=f"Fichier {idx + 1}/{len(uploaded)}")
                 payload = [(f.name, f.read(), f.type or "application/octet-stream")]
-                result = api_upload("/ingest/upload-files", payload, params={"metadata": json.dumps(metadata)}, timeout=300.0)
-                
+                result = api_upload_v2(payload, params=params, timeout=300.0)
                 if result:
-                    items = result.get("results", [])
-                    item = items[0] if items else {}
-                    added = int(result.get("total_added", item.get("added", 0) or 0) or 0)
-                    skipped = int(result.get("total_skipped", item.get("skipped", 0) or 0) or 0)
-                    detail = str(item.get("detail", "") or "")
-                    status = str(item.get("status", "") or "")
-                    if not status:
-                        status = "ok" if added > 0 else ("duplicate" if skipped > 0 else "error")
-                    total_added += added
-                    total_duplicates += skipped
-                    if status == "error":
-                        total_errors += 1
-                    file_results.append((f.name, status, added, skipped, detail))
+                    for r in result.get("results", []):
+                        total_written += r.get("chunks_written", 0)
                 else:
                     total_errors += 1
-                    file_results.append((f.name, "timeout", 0, 0, "Aucune réponse de l'API"))
-            
-            progress_bar.progress(1.0, text="Terminé !")
-            
-            # Summary
-            if total_added > 0:
-                st.success(f"✅ {total_added} chunk(s) ajouté(s)")
-            if total_duplicates > 0:
-                st.warning(f"⚠️ {total_duplicates} doublon(s) ignoré(s)")
+            progress_bar.progress(1.0, text="Termin\u00e9 !")
+            if total_written > 0:
+                st.success(f"{total_written} chunk(s) ajout\u00e9(s) (review_status=needs_review)")
             if total_errors > 0:
-                st.error(f"❌ {total_errors} erreur(s)")
-            
-            # Per-file details
-            with st.expander("📋 Détails par fichier"):
-                for fr in file_results:
-                    # Support both old tuple format and new dict format
-                    if isinstance(fr, dict):
-                        name = fr.get("name", "?")
-                        status = fr.get("status", "?")
-                        added = fr.get("added", 0)
-                        skipped = fr.get("skipped", 0)
-                        detail = fr.get("detail", "")
-                    else:
-                        # Legacy tuple format: (name, status, added)
-                        if len(fr) >= 3:
-                            name, status, added = fr[:3]
-                        else:
-                            name, status = fr[:2]
-                            added = 0
-                        skipped = 0
-                        detail = ""
-                    icon = {
-                        "ok": "✅", "empty": "⬜", "error": "❌", "duplicate": "⚠️", "unsupported": "⏭️", "invalid": "⚠️",
-                    }.get(status, "❓")
-                    if status == "ok" and added > 0:
-                        st.caption(f"{icon} **{name}** — {status} (ajoutés: {added})")
-                    elif status in {"duplicate", "unsupported", "invalid"} and skipped > 0:
-                        st.caption(f"{icon} **{name}** — {status} (ignorés: {skipped})")
-                    elif status == "error":
-                        st.caption(f"{icon} **{name}** — {status} ({detail})")
-                    else:
-                        st.caption(f"{icon} **{name}** — {status}")
+                st.error(f"{total_errors} erreur(s)")
+            if total_written == 0 and total_errors == 0:
+                st.info("Aucun chunk \u00e9ligible.")
 
 
 def _render_urls_tab(metadata: dict[str, str], key_prefix: str) -> None:
-    """Onglet ingestion par URLs réutilisable avec traitement URL par URL."""
-    st.markdown("Une URL par ligne. Les doublons sont automatiquement détectés.")
-    urls_text = st.text_area(
-        "URLs", height=180,
-        placeholder="https://eduscol.education.fr/...\nhttps://docs.solana.com/...",
-        key=f"{key_prefix}_urls",
-    )
+    st.markdown("Une URL par ligne.")
+    urls_text = st.text_area("URLs", height=180, placeholder="https://\u2026", key=f"{key_prefix}_urls")
     if urls_text.strip():
         urls = [u.strip() for u in urls_text.strip().splitlines() if u.strip()]
         st.info(f"{len(urls)} URL(s)")
-        c1, c2 = st.columns(2)
-        with c1:
-            if st.button("🔍 Vérifier doublons", key=f"{key_prefix}_chk"):
-                section = metadata.get("section", "education")
-                with st.spinner("Vérification..."):
-                    r = api_post("/ingest/check-duplicates", {"sources": urls, "section": section, "collection": metadata.get("collection", "")})
-                if r:
-                    for it in r.get("results", []):
-                        icon = "⚠️ Existant" if it.get("already_ingested") else "✅ Nouveau"
-                        st.caption(f"{icon} — `{it.get('source', '?')}`")
-        with c2:
-            if st.button("🚀 Ingérer les URLs", key=f"{key_prefix}_go"):
-                total_urls = len(urls)
-                total_added = 0
-                total_skipped = 0
-                total_errors = 0
-                url_results: list[tuple[str, str, int]] = []
-                
-                progress_bar = st.progress(0, text="Préparation...")
-                
-                for idx, url in enumerate(urls):
-                    progress = (idx + 1) / total_urls
-                    progress_bar.progress(progress, text=f"URL {idx + 1}/{total_urls}")
-                    
-                    result = api_post("/ingest/urls", {"urls": [url], "metadata": metadata}, timeout=120.0)
-                    
-                    if result:
-                        added = result.get("total_added", 0)
-                        skipped = result.get("total_skipped", 0)
-                        total_added += added
-                        total_skipped += skipped
-                        status = "ok" if added > 0 else ("duplicate" if skipped > 0 else "empty")
-                        url_results.append((url, status, added))
-                    else:
+        if st.button("Ing\u00e9rer les URLs", key=f"{key_prefix}_go"):
+            total_written = 0
+            total_errors = 0
+            progress_bar = st.progress(0, text="Pr\u00e9paration\u2026")
+            v2_payload = {
+                "urls": urls,
+                "collection": metadata["collection"],
+                "rights": metadata["rights"],
+                "matiere": metadata["matiere"],
+                "niveau": metadata["niveau"],
+                "voie": metadata.get("voie") or "gen",
+                "type_doc": metadata.get("type_doc") or "cours",
+            }
+            result = api_post("/ingest/v2/urls", v2_payload, timeout=300.0)
+            progress_bar.progress(1.0, text="Termin\u00e9 !")
+            if result:
+                for r in result.get("results", []):
+                    total_written += r.get("chunks_written", 0)
+                    if r.get("error"):
                         total_errors += 1
-                        url_results.append((url, "timeout", 0))
-                
-                progress_bar.progress(1.0, text="Terminé !")
-                
-                # Summary
-                if total_added > 0:
-                    st.success(f"✅ {total_added} chunk(s) ajouté(s)")
-                if total_skipped > 0:
-                    st.warning(f"⚠️ {total_skipped} doublon(s) ignoré(s)")
-                if total_errors > 0:
-                    st.error(f"❌ {total_errors} erreur(s)/timeout(s)")
-                
-                # Per-URL details
-                with st.expander("📋 Détails par URL"):
-                    for url, status, added in url_results:
-                        icon = {"ok": "✅", "duplicate": "⚠️", "empty": "⬜", "timeout": "⏱️"}.get(status, "❓")
-                        st.caption(f"{icon} **{url[:60]}...** — {status} (ajoutés: {added})")
+            else:
+                total_errors = len(urls)
+            if total_written > 0:
+                st.success(f"{total_written} chunk(s) ajout\u00e9(s) (review_status=needs_review)")
+            if total_errors > 0:
+                st.error(f"{total_errors} erreur(s)")
+            if total_written == 0 and total_errors == 0:
+                st.info("Aucun chunk \u00e9ligible.")
 
 
 def _render_drive_tab(metadata: dict[str, str], key_prefix: str) -> None:
-    """Onglet ingestion Google Drive avec suivi de progression en temps réel."""
     st.markdown(
-        "Entrez l'ID du dossier Google Drive. "
-        "Les fichiers déjà ingérés ou non modifiés seront ignorés."
+        "**Drive v2** : l\u2019ingestion Google Drive n\u00e9cessite un service account "
+        "configur\u00e9 sur le serveur. Cette fonctionnalit\u00e9 n\u2019est pas encore "
+        "activ\u00e9e sur cette instance."
     )
-    folder_id = st.text_input(
-        "ID du dossier Drive",
-        placeholder="1ABC2DEF3GHI4JKL5MNO...",
-        key=f"{key_prefix}_drive",
-        help="ID visible dans l'URL : drive.google.com/drive/folders/**<ID>**",
+    st.info(
+        "Endpoint `/ingest/v2/drive` d\u00e9clar\u00e9 mais retourne 501 (Not Implemented). "
+        "Utilisez Upload fichiers ou URLs en attendant."
     )
-
-    if folder_id.strip() and st.button("☁️ Lancer l'ingestion Drive", key=f"{key_prefix}_drv_btn"):
-        # Lancer l'ingestion et récupérer le task_id
-        result = api_post("/ingest/drive", {"folder_id": folder_id.strip(), "metadata": metadata}, timeout=30.0)
-        if not result or "task_id" not in result:
-            st.error(f"Erreur lors du lancement : {result}")
-            return
-
-        task_id = result["task_id"]
-        target_col = result.get("target_collection", "?")
-
-        st.info(f"📂 Collection cible : **`{target_col}`**")
-
-        # Conteneurs pour la progression dynamique
-        status_text = st.empty()
-        progress_bar = st.progress(0)
-        metrics_row = st.empty()
-        current_file_text = st.empty()
-        file_results_container = st.container()
-
-        # Polling de la progression
-        while True:
-            time.sleep(2)
-            try:
-                status_resp = api_get(f"/ingest/drive/status/{task_id}", timeout=10.0)
-            except Exception:
-                status_resp = None
-
-            if not status_resp:
-                status_text.warning("⏳ En attente de réponse du serveur...")
-                continue
-
-            task_status = status_resp.get("status", "pending")
-            total = status_resp.get("total_files", 0)
-            processed = status_resp.get("processed_files", 0)
-            added = status_resp.get("added_chunks", 0)
-            skipped = status_resp.get("skipped_files", 0)
-            errors = status_resp.get("error_files", 0)
-            current = status_resp.get("current_file", "")
-            progress_pct = status_resp.get("progress_pct", 0)
-            elapsed = status_resp.get("elapsed_seconds", 0)
-
-            # Mise à jour de la barre de progression
-            progress_bar.progress(min(progress_pct, 100))
-
-            # Statut textuel
-            status_labels = {
-                "pending": "⏳ En attente...",
-                "scanning": "🔍 Scan du dossier Drive en cours...",
-                "ingesting": f"⚙️ Ingestion en cours — {processed}/{total} fichier(s)",
-                "done": f"✅ Terminé — {processed}/{total} fichier(s) traité(s)",
-                "error": f"❌ Erreur : {status_resp.get('error_message', '?')}",
-            }
-            status_text.markdown(f"**{status_labels.get(task_status, task_status)}**")
-
-            # Métriques
-            if total > 0:
-                m1, m2, m3, m4 = metrics_row.columns(4)
-                m1.metric("Fichiers traités", f"{processed}/{total}")
-                m2.metric("Chunks ajoutés", added)
-                m3.metric("Ignorés", skipped)
-                m4.metric("Erreurs", errors)
-
-            # Fichier en cours
-            if current and task_status == "ingesting":
-                current_file_text.caption(f"📄 En cours : `{current}`")
-            else:
-                current_file_text.empty()
-
-            # Terminé ou erreur → sortir de la boucle
-            if task_status in ("done", "error"):
-                progress_bar.progress(100 if task_status == "done" else progress_pct)
-
-                # Résumé final
-                st.markdown("---")
-                if task_status == "done":
-                    st.success(
-                        f"✅ Ingestion terminée en **{elapsed:.1f}s** — "
-                        f"**{added}** chunks ajoutés, **{skipped}** fichier(s) ignoré(s), **{errors}** erreur(s) dans `{target_col}`"
-                    )
-                else:
-                    st.error(f"❌ Ingestion échouée : {status_resp.get('error_message', '?')}")
-
-                # Détail fichier par fichier
-                file_results = status_resp.get("file_results", [])
-                if file_results:
-                    with file_results_container.expander(
-                        f"📋 Détail des {len(file_results)} fichier(s)", expanded=False
-                    ):
-                        for fr in file_results:
-                            icon = {
-                                "ok": "✅", "empty": "⬜", "error": "❌", "duplicate": "⚠️", "unsupported": "⏭️", "invalid": "⚠️",
-                            }.get(fr.get("status", ""), "❓")
-                            name = fr.get("name", "?")
-                            detail = ""
-                            if fr.get("added"):
-                                detail = f" — {fr['added']} chunks ajoutés"
-                                if fr.get("skipped"):
-                                    detail += f", {fr['skipped']} ignorés"
-                            elif fr.get("skipped"):
-                                detail = f" — {fr['skipped']} doublon(s) ignoré(s)"
-                            elif fr.get("detail"):
-                                detail = f" — {fr['detail'][:80]}"
-                            st.caption(f"{icon} **{name}**{detail}")
-                break
+    folder_id = st.text_input("ID du dossier Drive (informatif)", key=f"{key_prefix}_drive", disabled=True)
+    if folder_id:
+        pass  # Disabled — no legacy /ingest/drive call
 
 
-# ═══════════════════════════════════════════════════════════════
+# ===============================================================
 # SIDEBAR NAVIGATION
-# ═══════════════════════════════════════════════════════════════
+# ===============================================================
 
 st.sidebar.markdown("# \U0001f9e0")
-st.sidebar.title("RAG Nexus Réussite")
+st.sidebar.title("RAG Nexus R\u00e9ussite")
 
 page = st.sidebar.radio(
     "Navigation",
     [
-        "📊 Dashboard",
-        "🎓 Éducation",
-        "� Maths 1ère",
-        "�🔗 Web3 & Blockchain",
-        "📦 Divers",
-        "🔍 Recherche",
-        "🔧 Administration",
+        "Dashboard",
+        "Recherche",
+        "Ingestion",
+        "Administration",
     ],
     label_visibility="collapsed",
 )
@@ -536,382 +306,158 @@ st.sidebar.markdown("---")
 st.sidebar.caption(f"API : `{API_BASE}`")
 
 
-# ═══════════════════════════════════════════════════════════════
+# ===============================================================
 # PAGE DASHBOARD
-# ═══════════════════════════════════════════════════════════════
-if page == "📊 Dashboard":
-    st.title("📊 Dashboard RAG — Vue d'ensemble")
+# ===============================================================
+if page == "Dashboard":
+    st.title("Dashboard RAG v2 \u2014 Catalogue scolaire")
 
-    # Charger le catalogue v2
-    cols_data = api_get("/collections/v2")
-    if cols_data:
-        collections = cols_data.get("collections", []) if isinstance(cols_data, dict) else cols_data
-        if isinstance(collections, list) and collections:
-            metrics_cols = st.columns(len(collections) + 1)
-            for i, col_info in enumerate(collections):
-                name = col_info.get("name", "?")
-                matiere = col_info.get("matiere", "")
-                niveau = col_info.get("niveau", "")
-                label = " ".join(part for part in (matiere, niveau) if part) or name
-                metrics_cols[i].metric(label, "Catalogue v2")
-            metrics_cols[-1].metric("📦 Total", f"{len(collections)} collections")
-
-            st.markdown("---")
-
-            # Détails par collection
-            for col_info in collections:
-                name = col_info.get("name", "?")
-                matiere = col_info.get("matiere", "")
-                niveau = col_info.get("niveau", "")
-                statut = col_info.get("statut", "")
-                retrievable = col_info.get("retrievable", "")
-                instantiated = col_info.get("instantiated", "")
-                label = " ".join(
-                    part for part in (matiere, niveau, statut) if part
-                ) or name
-
-                with st.expander(f"{label} — `{name}`", expanded=True):
-                    st.write(f"**Nom** : `{name}`")
-                    if matiere:
-                        st.write(f"**Matière** : {matiere}")
-                    if niveau:
-                        st.write(f"**Niveau** : {niveau}")
-                    if statut:
-                        st.write(f"**Statut** : {statut}")
-                    if "retrievable" in col_info:
-                        st.write(f"**Retrievable** : {retrievable}")
-                    if "instantiated" in col_info:
-                        st.write(f"**Instantiated** : {instantiated}")
-                    for field, title in (
-                        ("rights", "Droits"),
-                        ("type_doc", "Type de document"),
-                        ("source_kind", "Type de source"),
-                    ):
-                        value = col_info.get(field)
-                        if value:
-                            st.write(f"**{title}** : {value}")
-        else:
-            st.info("Aucune collection créée. Commencez par ingérer des documents.")
+    catalogue = _fetch_catalogue()
+    if not catalogue:
+        st.warning("Impossible de charger le catalogue. V\u00e9rifiez la connexion API.")
     else:
-        st.warning("Impossible de charger les collections. Vérifiez la connexion API.")
+        collections = catalogue.get("collections", [])
+        by_level = catalogue.get("by_level", {})
+        by_domain = catalogue.get("by_domain", {})
+        by_status = catalogue.get("by_status", {})
 
-    # Santé
+        total = len(collections)
+        n_instanciees = sum(1 for c in collections if c.get("instanciee"))
+        n_retrievable = sum(1 for c in collections if c.get("retrievable"))
+        n_non_instanciees = total - n_instanciees
+        n_quarantaine = sum(1 for c in collections if c.get("domain") == "quarantine")
+
+        # M\u00e9triques globales
+        m1, m2, m3, m4, m5 = st.columns(5)
+        m1.metric("D\u00e9clar\u00e9es", total)
+        m2.metric("Instanci\u00e9es", n_instanciees)
+        m3.metric("Retrievable", n_retrievable)
+        m4.metric("Non instanci\u00e9es", n_non_instanciees)
+        m5.metric("Quarantaine", n_quarantaine)
+
+        st.markdown("---")
+
+        # R\u00e9partition par niveau
+        st.subheader("Par niveau")
+        level_cols = st.columns(len(by_level))
+        for i, (level, names) in enumerate(sorted(by_level.items())):
+            label = NIVEAU_LABELS.get(level, level.title())
+            level_cols[i % len(level_cols)].metric(label, len(names))
+
+        # R\u00e9partition par voie
+        st.subheader("Par voie")
+        voie_counts: dict[str, int] = {}
+        for c in collections:
+            v = c.get("voie") or "commun"
+            voie_counts[v] = voie_counts.get(v, 0) + 1
+        voie_cols = st.columns(len(voie_counts))
+        for i, (voie, count) in enumerate(sorted(voie_counts.items())):
+            label = VOIE_LABELS.get(voie, voie.title()) if voie != "commun" else "Commun"
+            voie_cols[i].metric(label, count)
+
+        # R\u00e9partition par statut
+        st.subheader("Par statut")
+        statut_cols = st.columns(len(by_status))
+        for i, (statut, names) in enumerate(sorted(by_status.items())):
+            label = STATUT_LABELS.get(statut, statut.title())
+            statut_cols[i % len(statut_cols)].metric(label, len(names))
+
+        st.markdown("---")
+
+        # Filtres
+        st.subheader("Catalogue complet")
+        fc1, fc2, fc3, fc4 = st.columns(4)
+        with fc1:
+            f_niveau = st.selectbox("Niveau", ["Tous"] + list(by_level.keys()))
+        with fc2:
+            all_voies = sorted({c.get("voie") or "commun" for c in collections})
+            f_voie = st.selectbox("Voie", ["Tous"] + all_voies)
+        with fc3:
+            all_matieres = sorted({c.get("matiere") or "" for c in collections if c.get("matiere")})
+            f_matiere = st.selectbox("Mati\u00e8re", ["Toutes"] + all_matieres)
+        with fc4:
+            f_inst = st.selectbox("Instanci\u00e9e", ["Toutes", "Oui", "Non"])
+
+        # Apply filters
+        filtered = collections
+        if f_niveau != "Tous":
+            filtered = [c for c in filtered if c.get("niveau") == f_niveau]
+        if f_voie != "Tous":
+            filtered = [c for c in filtered if (c.get("voie") or "commun") == f_voie]
+        if f_matiere != "Toutes":
+            filtered = [c for c in filtered if c.get("matiere") == f_matiere]
+        if f_inst == "Oui":
+            filtered = [c for c in filtered if c.get("instanciee")]
+        elif f_inst == "Non":
+            filtered = [c for c in filtered if not c.get("instanciee")]
+
+        # Table
+        if filtered:
+            rows = []
+            for c in filtered:
+                badge = ""
+                if c.get("domain") == "quarantine":
+                    badge = "Quarantaine"
+                elif c.get("retrievable"):
+                    badge = "Active recherche"
+                elif c.get("instanciee"):
+                    badge = "Instanci\u00e9e"
+                else:
+                    badge = "D\u00e9clar\u00e9e non instanci\u00e9e"
+
+                c_niveau = str(c.get("niveau") or "-")
+                c_voie = c.get("voie")
+                c_statut = str(c.get("statut") or "-")
+                rows.append({
+                    "Collection": c["name"],
+                    "Mati\u00e8re": (c.get("matiere") or "").replace("_", " ").title(),
+                    "Niveau": NIVEAU_LABELS.get(c_niveau, c_niveau),
+                    "Voie": VOIE_LABELS.get(c_voie, c_voie or "-"),
+                    "Statut": STATUT_LABELS.get(c_statut, c_statut),
+                    "Badge": badge,
+                })
+            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        else:
+            st.info("Aucune collection ne correspond aux filtres.")
+
+    # Sant\u00e9 API
     st.markdown("---")
     health = api_get("/health")
     if health:
-        st.success("✅ API opérationnelle")
+        st.success("API op\u00e9rationnelle")
     else:
-        st.error("❌ API non joignable")
+        st.error("API non joignable")
 
 
-# ═══════════════════════════════════════════════════════════════
-# PAGE ÉDUCATION
-# ═══════════════════════════════════════════════════════════════
-elif page == "🎓 Éducation":
-    st.title("🎓 Éducation — Accompagnement scolaire")
-    st.markdown(
-        "Ingérez et organisez des ressources pédagogiques par matière, niveau et type. "
-        "Choisissez explicitement la collection cible pour refléter la structure réelle du RAG. "
-        "Par défaut, les contenus de Français Première sont envoyés dans **`rag_francais_premiere`**."
-    )
-
-    # ── Sélection catégorie / matière / niveau / type ──
-    st.subheader("📂 Classification de la ressource")
-
-    col_g, col_m = st.columns(2)
-    with col_g:
-        groupe = st.selectbox("Groupe d'enseignement", list(EDUCATION_TAXONOMY.keys()))
-    with col_m:
-        matiere = st.selectbox("Matière", EDUCATION_TAXONOMY.get(groupe, []))
-
-    col_n, col_t = st.columns(2)
-    with col_n:
-        niveau = st.selectbox("Niveau", NIVEAUX)
-    with col_t:
-        type_ressource = st.selectbox("Type de ressource", TYPES_RESSOURCE)
-
-    collection_education = st.selectbox(
-        "Collection cible",
-        ["rag_francais_premiere", "rag_maths_premiere", "rag_education"],
-        index=0,
-        help="`rag_francais_premiere` : Français 1ère | `rag_maths_premiere` : Maths 1ère spécialité | `rag_education` : corpus général",
-    )
-
-    st.markdown("---")
-
-    edu_meta = {
-        "section": "education",
-        "collection": collection_education,
-        "groupe": groupe,
-        "matiere": matiere,
-        "niveau": niveau,
-        "type_ressource": type_ressource,
-    }
-
-    # ── Onglets d'ingestion ──
-    tab_up, tab_url, tab_drv = st.tabs(["📁 Upload fichiers", "🔗 URLs", "☁️ Google Drive"])
-    with tab_up:
-        _render_upload_tab(edu_meta, "edu")
-    with tab_url:
-        _render_urls_tab(edu_meta, "edu")
-    with tab_drv:
-        _render_drive_tab(edu_meta, "edu")
-
-    # ── Statistiques collection éducation ──
-    st.markdown("---")
-    with st.expander(f"📊 Statistiques collection {collection_education}", expanded=False):
-        stats = api_get(f"/stats/{collection_education}")
-        if stats:
-            c1, c2, c3 = st.columns(3)
-            c1.metric("Chunks", stats.get("doc_count", 0))
-            c2.metric("Matières", len(stats.get("matieres", [])))
-            c3.metric("Embedding", stats.get("embed_model", "?"))
-            if stats.get("matieres"):
-                st.write(f"**Matières** : {', '.join(stats['matieres'])}")
-
-    # ── Référentiel ──
-    with st.expander("📋 Référentiel complet des enseignements", expanded=False):
-        for g, items in EDUCATION_TAXONOMY.items():
-            st.markdown(f"**{g}**")
-            for it in items:
-                st.caption(f"  • {it}")
-
-
-# ═══════════════════════════════════════════════════════════════
-# PAGE MATHS 1ÈRE
-# ═══════════════════════════════════════════════════════════════
-elif page == "📐 Maths 1ère":
-    st.title("📐 Maths Première — Spécialité")
-    maths_stats = api_get("/stats/rag_maths_premiere") or {}
-    maths_fallback_active = maths_stats.get("doc_count", 0) == 0
-    st.markdown(
-        "Collection dédiée **Mathématiques Première** (spécialité). "
-        "Les nouveaux documents ingérés ici sont indexés dans **`rag_maths_premiere`**."
-    )
-    if maths_fallback_active:
-        st.warning(
-            "La collection dédiée est actuellement vide. Les recherches **Maths 1ère** "
-            "basculent temporairement sur **`rag_education`** avec les filtres "
-            "`Mathématiques / Première / Enseignements de spécialité (EDS)`."
-        )
-    else:
-        st.info(
-            "La recherche **Maths 1ère** utilise la collection dédiée "
-            "**`rag_maths_premiere`**."
-        )
-
-    st.subheader("📂 Type de ressource")
-    col_t, col_d = st.columns(2)
-    with col_t:
-        maths_type = st.selectbox(
-            "Type de ressource",
-            TYPES_RESSOURCE,
-            index=TYPES_RESSOURCE.index("Exercices"),
-            key="maths_type",
-        )
-    with col_d:
-        maths_tag = st.text_input(
-            "Tag libre (optionnel)",
-            placeholder="ex: suites, second degré, probabilités…",
-            key="maths_tag",
-        )
-
-    st.markdown("---")
-
-    maths_meta: dict[str, str] = {
-        "section": "maths_premiere",
-        "collection": "rag_maths_premiere",
-        "matiere": "Mathématiques",
-        "niveau": "Première",
-        "groupe": "Enseignements de spécialité (EDS)",
-        "type_ressource": maths_type,
-    }
-    if maths_tag.strip():
-        maths_meta["tag"] = maths_tag.strip()
-
-    tab_up, tab_url, tab_drv = st.tabs(["📁 Upload fichiers", "🔗 URLs", "☁️ Google Drive"])
-    with tab_up:
-        _render_upload_tab(maths_meta, "maths")
-    with tab_url:
-        _render_urls_tab(maths_meta, "maths")
-    with tab_drv:
-        _render_drive_tab(maths_meta, "maths")
-
-    st.markdown("---")
-    with st.expander("📊 Statistiques collection Maths 1ère", expanded=False):
-        if maths_stats:
-            c1, c2, c3 = st.columns(3)
-            c1.metric("Chunks", maths_stats.get("doc_count", 0))
-            c2.metric("Types", len(maths_stats.get("types_ressource", [])))
-            c3.metric("Embedding", maths_stats.get("embed_model", "?"))
-            if maths_stats.get("types_ressource"):
-                st.write(f"**Types** : {', '.join(maths_stats['types_ressource'])}")
-            if maths_fallback_active:
-                st.caption(
-                    "Fallback actif: la recherche Maths 1ère est servie par "
-                    "`rag_education` avec filtres métier tant que cette collection reste vide."
-                )
-
-
-# ═══════════════════════════════════════════════════════════════
-# PAGE DIVERS
-# ═══════════════════════════════════════════════════════════════
-elif page == "📦 Divers":
-    st.title("📦 Divers — Ressources variées")
-    st.markdown(
-        "Ingérez ici des ressources de **types variés** sans catégorisation stricte. "
-        "Cette collection historique (**`rag_divers`**) est désormais traitée comme "
-        "**quarantaine Nexus** (`rag_nexus_quarantine`) et n'est pas consultée par la recherche."
-    )
-
-    st.subheader("📂 Classification optionnelle")
-    col_t, col_d = st.columns(2)
-    with col_t:
-        divers_type = st.selectbox(
-            "Type de ressource",
-            TYPES_RESSOURCE,
-            index=TYPES_RESSOURCE.index("Divers"),
-            key="divers_type",
-        )
-    with col_d:
-        divers_tag = st.text_input(
-            "Tag libre (optionnel)",
-            placeholder="ex: concours, orientation, transversal…",
-            key="divers_tag",
-        )
-
-    st.markdown("---")
-
-    divers_meta: dict[str, str] = {
-        "section": "divers",
-        "collection": "rag_divers",
-        "type_ressource": divers_type,
-    }
-    if divers_tag.strip():
-        divers_meta["tag"] = divers_tag.strip()
-
-    tab_up, tab_url, tab_drv = st.tabs(["📁 Upload fichiers", "🔗 URLs", "☁️ Google Drive"])
-    with tab_up:
-        _render_upload_tab(divers_meta, "div")
-    with tab_url:
-        _render_urls_tab(divers_meta, "div")
-    with tab_drv:
-        _render_drive_tab(divers_meta, "div")
-
-    st.markdown("---")
-    with st.expander("📊 Statistiques collection Divers", expanded=False):
-        stats = api_get("/stats/rag_divers")
-        if stats:
-            c1, c2 = st.columns(2)
-            c1.metric("Chunks", stats.get("doc_count", 0))
-            c2.metric("Embedding", stats.get("embed_model", "?"))
-            if stats.get("types_ressource"):
-                st.write(f"**Types** : {', '.join(stats['types_ressource'])}")
-
-
-# ═══════════════════════════════════════════════════════════════
-# PAGE WEB3 & BLOCKCHAIN
-# ═══════════════════════════════════════════════════════════════
-elif page == "🔗 Web3 & Blockchain":
-    st.title("🔗 Web3 & Blockchain")
-    st.markdown(
-        "Ingérez de la documentation Web3 : blockchain, DeFi, NFT, Solana, smart-contracts. "
-        "Collection cible : **`rag_web3`**."
-    )
-
-    st.subheader("📂 Classification")
-    col_cat, col_type = st.columns(2)
-    with col_cat:
-        web3_cat = st.selectbox("Catégorie Web3", WEB3_CATEGORIES)
-    with col_type:
-        web3_type = st.selectbox("Type de ressource", [
-            "Documentation officielle",
-            "Tutoriel",
-            "Article technique",
-            "Whitepaper",
-            "Code / Snippet",
-            "Guide développeur",
-            "Audit de sécurité",
-            "Autre",
-        ], key="web3_type")
-
-    st.markdown("---")
-
-    web3_meta = {
-        "section": "web3",
-        "categorie": web3_cat,
-        "type_ressource": web3_type,
-    }
-
-    tab_up, tab_url, tab_drv = st.tabs(["📁 Upload fichiers", "🔗 URLs", "☁️ Google Drive"])
-    with tab_up:
-        _render_upload_tab(web3_meta, "web3")
-    with tab_url:
-        _render_urls_tab(web3_meta, "web3")
-    with tab_drv:
-        _render_drive_tab(web3_meta, "web3")
-
-    # Stats Web3
-    st.markdown("---")
-    with st.expander("📊 Statistiques collection Web3", expanded=False):
-        stats = api_get("/stats/rag_web3")
-        if stats:
-            c1, c2 = st.columns(2)
-            c1.metric("Chunks", stats.get("doc_count", 0))
-            c2.metric("Embedding", stats.get("embed_model", "?"))
-
-
-# ═══════════════════════════════════════════════════════════════
-# PAGE RECHERCHE — v2 (pgvector + rerank, FE-01/FE-02)
-# ═══════════════════════════════════════════════════════════════
-elif page == "🔍 Recherche":
-    st.title("🔍 Recherche RAG v2")
-
-    # Picker dérivé du catalogue (D-PICKER-DERIVE-CATALOGUE)
-    # Seules les collections instanciee:true ET retrievable:true apparaissent.
-    # Ajouter une collection instanciée = elle apparait sans toucher ce code.
-    @st.cache_data(ttl=300)
-    def _fetch_v2_collections() -> list[dict[str, Any]]:
-        r = api_get("/collections/v2")
-        if r and isinstance(r.get("collections"), list):
-            cols: list[dict[str, Any]] = r["collections"]
-            return cols
-        return []
+# ===============================================================
+# PAGE RECHERCHE
+# ===============================================================
+elif page == "Recherche":
+    st.title("Recherche RAG v2")
 
     v2_collections = _fetch_v2_collections()
     if not v2_collections:
-        st.warning("Aucune collection v2 retrievable. Vérifiez la configuration du catalogue.")
+        st.warning("Aucune collection v2 retrievable. V\u00e9rifiez la configuration.")
     else:
-        # Build picker labels: "NSI Première (spécialité)" etc.
-        def _col_label(c: dict[str, Any]) -> str:
-            matiere = (c.get("matiere") or "").replace("_", " ").title()
-            niveau = (c.get("niveau") or "").replace("_", " ").title()
-            statut = c.get("statut") or ""
-            return f"{matiere} {niveau} ({statut})" if statut else f"{matiere} {niveau}"
-
-        col_labels = {_col_label(c): c["name"] for c in v2_collections}
-        # "Toutes" option queries each collection and merges
+        col_labels = {_collection_label(c): c["name"] for c in v2_collections}
         options = list(col_labels.keys()) + (["Toutes"] if len(col_labels) > 1 else [])
 
-        selected = st.radio("Collection cible", options, horizontal=True)
+        st.subheader("Collection cible")
+        selected = st.radio("Collection", options, horizontal=True)
 
-        query = st.text_input("Question", placeholder="Qu'est-ce qu'un arbre binaire ?")
-        k = st.slider("Nombre de résultats", 1, 20, 5)
+        query = st.text_input("Question", placeholder="Qu\u2019est-ce qu\u2019un arbre binaire ?")
+        k = st.slider("Nombre de r\u00e9sultats", 1, 20, 5)
 
         if query and st.button("Rechercher"):
-            with st.spinner("Recherche v2 en cours (dense + rerank)..."):
+            with st.spinner("Recherche v2 en cours\u2026"):
                 if selected == "Toutes":
-                    # Multi-collection: query each and merge by rerank_score descending
                     all_hits: list[dict[str, Any]] = []
-                    searched_cols: list[str] = []
                     for col_name in col_labels.values():
                         r = api_post("/search/v2", {"q": query, "collection": col_name, "k": k}, timeout=120.0)
                         if r and r.get("hits"):
                             for h in r["hits"]:
                                 h["_collection"] = col_name
                             all_hits.extend(r["hits"])
-                            searched_cols.append(col_name)
-                    # Deduplicate by chunk_id
                     deduped: dict[str, dict[str, Any]] = {}
                     for hit in all_hits:
                         cid = hit.get("chunk_id", "")
@@ -920,8 +466,7 @@ elif page == "🔍 Recherche":
                     merged = sorted(deduped.values(), key=lambda h: h.get("rerank_score", 0), reverse=True)[:k]
                     result: dict[str, Any] | None = {
                         "hits": merged,
-                        "collection": "toutes (" + ", ".join(searched_cols) + ")",
-                        "seuil": merged[0].get("seuil", "") if merged else "",
+                        "collection": "toutes",
                         "returned": len(merged),
                     }
                 else:
@@ -931,79 +476,223 @@ elif page == "🔍 Recherche":
             if result:
                 hits = result.get("hits", [])
                 seuil = result.get("seuil", "")
-                gen_allowed = result.get("answer_generation_allowed", False)
                 st.info(
-                    f"{len(hits)} résultat(s) dans `{result.get('collection', '?')}` "
-                    f"(seuil rerank: {seuil})"
+                    f"{len(hits)} r\u00e9sultat(s) dans `{result.get('collection', '?')}` "
+                    f"(seuil rerank : {seuil})"
                 )
+                gen_allowed = result.get("answer_generation_allowed", False)
                 if gen_allowed is False:
-                    st.caption("Retrieval seul — answer_generation_allowed = false")
+                    st.caption("Retrieval seul \u2014 answer_generation_allowed = false")
 
                 for i, h in enumerate(hits):
                     h_col = h.pop("_collection", None)
                     rerank_score = h.get("rerank_score", 0)
                     source_label = h.get("source_label", "Sans titre")
-                    rights = h.get("rights", "")
-                    type_doc = h.get("type_doc", "")
-                    doc_id = h.get("doc_id", "")
                     col_tag = f" | {h_col}" if h_col else ""
-
-                    with st.expander(
-                        f"#{i+1} — {source_label} "
-                        f"(rerank: {rerank_score:+.2f}{col_tag})"
-                    ):
+                    with st.expander(f"#{i+1} \u2014 {source_label} (rerank: {rerank_score:+.2f}{col_tag})"):
                         preview = h.get("preview", "")
                         if preview:
                             st.markdown(preview)
-                        # Citations F-01
                         st.markdown(
                             f"**Source** : `{source_label}`  \n"
-                            f"**Droits** : `{rights}`  \n"
-                            f"**Type** : `{type_doc}`  \n"
-                            f"**doc_id** : `{doc_id}`  \n"
+                            f"**Droits** : `{h.get('rights', '')}`  \n"
+                            f"**Type** : `{h.get('type_doc', '')}`  \n"
+                            f"**doc_id** : `{h.get('doc_id', '')}`  \n"
                             f"**chunk_id** : `{h.get('chunk_id', '')}`"
                         )
 
 
-# ═══════════════════════════════════════════════════════════════
-# PAGE ADMINISTRATION
-# ═══════════════════════════════════════════════════════════════
-elif page == "🔧 Administration":
-    st.title("🔧 Administration")
+# ===============================================================
+# PAGE INGESTION
+# ===============================================================
+elif page == "Ingestion":
+    st.title("Ingestion RAG v2")
+    st.markdown(
+        "Ing\u00e9rez des ressources dans les collections v2 instanci\u00e9es. "
+        "Les collections non instanci\u00e9es sont d\u00e9clar\u00e9es mais pas encore activ\u00e9es."
+    )
+    st.caption(
+        "M\u00e9tadonn\u00e9es g\u00e9n\u00e9r\u00e9es c\u00f4t\u00e9 serveur : "
+        "source_kind, review_status (needs_review), source_label, source_uri, "
+        "doc_id, chunk_id, chunk_sha256."
+    )
 
-    # Santé API
-    st.subheader("🏥 Santé du service")
+    catalogue = _fetch_catalogue()
+    if not catalogue:
+        st.warning("Impossible de charger le catalogue.")
+    else:
+        collections = catalogue.get("collections", [])
+        ingestion_targets = [c for c in collections if c.get("ingestion_enabled")]
+        ingest_non_inst = [c for c in collections if not c.get("instanciee")]
+
+        if not ingestion_targets:
+            st.warning("Aucune collection instanci\u00e9e disponible pour l\u2019ingestion.")
+        else:
+            # Collection selector
+            target_labels = {_collection_label(c): c["name"] for c in ingestion_targets}
+            selected_label = st.selectbox("Collection cible", list(target_labels.keys()))
+            selected_name = target_labels[selected_label]
+
+            # Find selected collection info
+            selected_col: dict[str, Any] = next(
+                (c for c in ingestion_targets if c["name"] == selected_name), {}
+            )
+
+            sel_niveau = str(selected_col.get("niveau") or "-")
+            st.info(
+                f"**Collection** : `{selected_name}`  \n"
+                f"**Domaine** : {DOMAIN_LABELS.get(selected_col.get('domain', ''), selected_col.get('domain', '?'))}  \n"
+                f"**Niveau** : {NIVEAU_LABELS.get(sel_niveau, sel_niveau)}  \n"
+                f"**Mati\u00e8re** : {(selected_col.get('matiere') or '-').replace('_', ' ').title()}"
+            )
+
+            col_t = st.columns(3)
+            with col_t[0]:
+                type_doc = st.selectbox(
+                    "Type de document",
+                    TYPES_RESSOURCE,
+                    format_func=lambda x: TYPES_RESSOURCE_LABELS.get(x, x),
+                )
+            with col_t[1]:
+                rights = st.selectbox("Droits", RIGHTS_OPTIONS)
+            with col_t[2]:
+                tag = st.text_input("Tag libre (optionnel)", placeholder="ex : suites, probabilit\u00e9s\u2026")
+
+            st.markdown("---")
+
+            ingest_meta: dict[str, str] = {
+                "collection": selected_name,
+                "rights": rights,
+                "matiere": selected_col.get("matiere") or "",
+                "niveau": selected_col.get("niveau") or "",
+                "voie": selected_col.get("voie") or "gen",
+                "domain": selected_col.get("domain") or "",
+                "type_doc": type_doc,
+            }
+            if tag.strip():
+                ingest_meta["tag"] = tag.strip()
+
+            tab_up, tab_url, tab_drv = st.tabs([
+                "Upload fichiers",
+                "URLs",
+                "Google Drive",
+            ])
+            with tab_up:
+                _render_upload_tab(ingest_meta, "ingest")
+            with tab_url:
+                _render_urls_tab(ingest_meta, "ingest")
+            with tab_drv:
+                _render_drive_tab(ingest_meta, "ingest")
+
+        # Show non-instanci\u00e9es
+        if ingest_non_inst:
+            st.markdown("---")
+            with st.expander(
+                f"Collections d\u00e9clar\u00e9es non instanci\u00e9es ({len(ingest_non_inst)})"
+            ):
+                for c in ingest_non_inst:
+                    c_niv = str(c.get("niveau") or "?")
+                    c_stat = str(c.get("statut") or "?")
+                    st.caption(
+                        f"`{c['name']}` \u2014 "
+                        f"{(c.get('matiere') or '?').replace('_', ' ').title()} / "
+                        f"{NIVEAU_LABELS.get(c_niv, c_niv)} / "
+                        f"{STATUT_LABELS.get(c_stat, c_stat)}"
+                    )
+
+
+# ===============================================================
+# PAGE ADMINISTRATION
+# ===============================================================
+elif page == "Administration":
+    st.title("Administration RAG v2")
+
+    # Sant\u00e9 API
+    st.subheader("Sant\u00e9 du service")
     health = api_get("/health")
     if health:
-        st.success(f"✅ API opérationnelle — statut : {health.get('status', '?')}")
+        st.success(f"API op\u00e9rationnelle \u2014 statut : {health.get('status', '?')}")
     else:
-        st.error("❌ API non joignable")
+        st.error("API non joignable")
 
-    # Collections
-    st.subheader("📦 Collections RAG v2")
-    cols_data = api_get("/collections/v2")
-    if cols_data:
-        collections = cols_data.get("collections", []) if isinstance(cols_data, dict) else cols_data
-        if isinstance(collections, list):
-            for c in collections:
-                name = c.get("name", "?")
-                details = [str(value) for value in (c.get("matiere"), c.get("niveau")) if value]
-                if "retrievable" in c:
-                    details.append(f"retrievable={c['retrievable']}")
-                if "instantiated" in c:
-                    details.append(f"instantiated={c['instantiated']}")
-                suffix = f" — {' — '.join(details)}" if details else ""
-                st.write(f"- **`{name}`**{suffix}")
+    catalogue = _fetch_catalogue()
+    if not catalogue:
+        st.warning("Impossible de charger le catalogue.")
+    else:
+        collections = catalogue.get("collections", [])
 
-    # Référentiel éducation complet
-    st.subheader("📋 Référentiel Éducation")
-    with st.expander("Voir toutes les matières et catégories"):
-        for g, items in EDUCATION_TAXONOMY.items():
-            st.markdown(f"**{g}**")
-            for it in items:
-                st.write(f"  - {it}")
+        # Catalogue v2 complet
+        st.subheader("Catalogue v2 complet")
+        st.write(f"**{len(collections)}** collections d\u00e9clar\u00e9es")
 
-    st.subheader("📋 Catégories Web3")
-    with st.expander("Voir toutes les catégories Web3"):
-        for cat in WEB3_CATEGORIES:
-            st.write(f"  - {cat}")
+        admin_inst = [c for c in collections if c.get("instanciee")]
+        admin_non_inst = [c for c in collections if not c.get("instanciee")]
+        admin_retrievable = [c for c in collections if c.get("retrievable")]
+        admin_quarantine = [c for c in collections if c.get("domain") == "quarantine"]
+
+        # Collections instanci\u00e9es
+        st.subheader(f"Collections instanci\u00e9es ({len(admin_inst)})")
+        for c in admin_inst:
+            badge = "Retrievable" if c.get("retrievable") else "Non retrievable"
+            st.write(f"- `{c['name']}` \u2014 {badge}")
+
+        # Collections non instanci\u00e9es
+        st.subheader(f"Collections d\u00e9clar\u00e9es non instanci\u00e9es ({len(admin_non_inst)})")
+        with st.expander("Voir les collections non instanci\u00e9es"):
+            for c in admin_non_inst:
+                c_niv = str(c.get("niveau") or "?")
+                st.write(
+                    f"- `{c['name']}` \u2014 "
+                    f"{(c.get('matiere') or '?').replace('_', ' ').title()} / "
+                    f"{NIVEAU_LABELS.get(c_niv, c_niv)}"
+                )
+
+        # Collections retrievable
+        st.subheader(f"Collections retrievable ({len(admin_retrievable)})")
+        for c in admin_retrievable:
+            st.write(f"- `{c['name']}`")
+
+        # Quarantaine
+        st.subheader(f"Quarantaine ({len(admin_quarantine)})")
+        for c in admin_quarantine:
+            st.write(
+                f"- `{c['name']}` \u2014 "
+                f"instanci\u00e9e={c.get('instanciee')}, retrievable={c.get('retrievable')}"
+            )
+
+        # Contr\u00f4les de coh\u00e9rence
+        st.subheader("Contr\u00f4les de coh\u00e9rence")
+        issues: list[str] = []
+
+        for c in collections:
+            name = c["name"]
+            if c.get("domain") == "quarantine":
+                continue
+
+            if c.get("instanciee") and not c.get("retrievable"):
+                issues.append(f"`{name}` : instanci\u00e9e mais non retrievable")
+
+            if c.get("retrievable") and not c.get("instanciee"):
+                issues.append(f"`{name}` : retrievable mais pas instanci\u00e9e (incoh\u00e9rent)")
+
+            tf = c.get("taxonomy_file")
+            if not tf:
+                issues.append(f"`{name}` : pas de taxonomy_file d\u00e9clar\u00e9")
+
+            if not c.get("taxonomy_exists", True):
+                issues.append(f"`{name}` : taxonomy_file d\u00e9clar\u00e9 mais fichier absent")
+
+            domain = c.get("domain")
+            if domain and domain not in DOMAIN_LABELS:
+                issues.append(f"`{name}` : domaine inconnu \u00ab {domain} \u00bb")
+
+            ci = c.get("coherence_issues")
+            if ci and isinstance(ci, list):
+                for issue in ci:
+                    issues.append(f"`{name}` : {issue}")
+
+        if issues:
+            for issue in issues:
+                st.warning(issue)
+        else:
+            st.success("Aucun probl\u00e8me de coh\u00e9rence d\u00e9tect\u00e9.")
