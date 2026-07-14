@@ -542,27 +542,19 @@ st.sidebar.caption(f"API : `{API_BASE}`")
 if page == "📊 Dashboard":
     st.title("📊 Dashboard RAG — Vue d'ensemble")
 
-    # Charger les collections
-    cols_data = api_get("/collections")
+    # Charger le catalogue v2
+    cols_data = api_get("/collections/v2")
     if cols_data:
-        collections = cols_data.get("collections", [])
-        if collections:
+        collections = cols_data.get("collections", []) if isinstance(cols_data, dict) else cols_data
+        if isinstance(collections, list) and collections:
             metrics_cols = st.columns(len(collections) + 1)
-            total_docs = 0
             for i, col_info in enumerate(collections):
                 name = col_info.get("name", "?")
-                count = col_info.get("count", 0)
-                total_docs += count
-                label = (
-                    "📚 Français 1ère" if name == "rag_francais_premiere"
-                    else "📐 Maths 1ère" if name == "rag_maths_premiere"
-                    else "🎓 Éducation" if "education" in name
-                    else "🔗 Web3" if "web3" in name
-                    else "📦 Divers" if "divers" in name
-                    else name
-                )
-                metrics_cols[i].metric(label, f"{count} chunks")
-            metrics_cols[-1].metric("📦 Total", f"{total_docs} chunks")
+                matiere = col_info.get("matiere", "")
+                niveau = col_info.get("niveau", "")
+                label = " ".join(part for part in (matiere, niveau) if part) or name
+                metrics_cols[i].metric(label, "Catalogue v2")
+            metrics_cols[-1].metric("📦 Total", f"{len(collections)} collections")
 
             st.markdown("---")
 
@@ -981,11 +973,20 @@ elif page == "🔧 Administration":
         st.error("❌ API non joignable")
 
     # Collections
-    st.subheader("📦 Collections ChromaDB")
-    cols_data = api_get("/collections")
+    st.subheader("📦 Collections RAG v2")
+    cols_data = api_get("/collections/v2")
     if cols_data:
-        for c in cols_data.get("collections", []):
-            st.write(f"- **`{c.get('name')}`** : {c.get('count', 0)} chunks")
+        collections = cols_data.get("collections", []) if isinstance(cols_data, dict) else cols_data
+        if isinstance(collections, list):
+            for c in collections:
+                name = c.get("name", "?")
+                details = [str(value) for value in (c.get("matiere"), c.get("niveau")) if value]
+                if "retrievable" in c:
+                    details.append(f"retrievable={c['retrievable']}")
+                if "instantiated" in c:
+                    details.append(f"instantiated={c['instantiated']}")
+                suffix = f" — {' — '.join(details)}" if details else ""
+                st.write(f"- **`{name}`**{suffix}")
 
     # Référentiel éducation complet
     st.subheader("📋 Référentiel Éducation")
