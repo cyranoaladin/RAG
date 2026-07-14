@@ -58,57 +58,87 @@ Après `make install` dans le worktree, toutes les commandes passent :
 | `git diff --check` | OK — aucune erreur d'espacement |
 | E2E PR #56 (`scripts/e2e/run-rag-v2-prod-readonly.sh`) | Non present sur cette branche (fait partie de PR #56). |
 
-### Session 3 (2026-07-15, E2E Playwright contre production)
+### Session 3 (2026-07-15, protocole E2E multi-mode)
 
-E2E execute via Playwright (chromium headless) contre `https://rag-ui.nexusreussite.academy`.
-4 runs effectues pour isoler le signal du bruit infra.
+Le script E2E a ete refactorise avec trois modes explicites :
 
-Artefacts : `/tmp/rag-lot27-p3-e2e-run4-20260714T232827Z/`
+- `current-prod` : valide la production actuelle (pre-P3)
+- `p3-preview` : valide une instance locale executant le code P3
+- `post-deploy` : valide la production apres deploiement P3
 
-| Page | Chargement | Screenshot | Assertions contenu |
-|---|---|---|---|
-| Dashboard | OK | `01-dashboard.png` | FAIL attendu : titre "Dashboard RAG v2 — Catalogue scolaire" (pre-P3), sidebar `http://ingestor:8001` visible |
-| Recherche | OK | `02-recherche.png` | FAIL attendu : info "Seules les collections instanciees..." absente (ajout P3 non deploye) |
-| Ingestion | OK | `03-ingestion.png` | FAIL attendu : "Drive v2 non active" absente (simplification P3 non deployee) |
-| Administration | OK (run 1) / timeout (run 4) | `04-administration.png` | FAIL attendu run 1 : `http://ingestor:8001` visible en sidebar. Run 4 : timeout transitoire reseau |
+Les echecs reseau sont categorises en 4 niveaux :
+`network_failures_blocking`, `network_warnings_non_blocking`,
+`third_party_blocked`, `streamlit_infra_noise`.
 
-**Verifications positives (run 1, toutes pages chargees) :**
+#### E2E current-prod — PASS
 
-| Verification | Resultat |
+Artefacts : `/tmp/rag-lot27-current-prod-e2e-20260714T234924Z/`
+
+| Page | Resultat | Screenshot |
+|---|---|---|
+| Dashboard | PASS | `01-dashboard.png` |
+| Recherche | PASS | `02-recherche.png` |
+| Ingestion | PASS | `03-ingestion.png` |
+| Administration | PASS | `04-administration.png` |
+
+| Categorie reseau | Nombre |
 |---|---|
-| Absence `rag_francais_premiere` | OK |
-| Absence `rag_maths_premiere` | OK |
-| Absence `rag_education` | OK |
-| Absence `rag_web3` | OK |
-| Absence `rag_divers` | OK |
-| Absence `/stats` | OK |
-| Absence `API 403` | OK |
-| Absence `Forbidden` | OK |
-| Presence `Catalogue v2 complet` (Administration) | OK |
-| `network-failures.json` | vide (0 echecs RAG metier) |
-| `blocked-requests.json` | 15 segment.io (telemetrie Streamlit hors host) |
+| network_failures_blocking | 0 |
+| network_warnings_non_blocking | 0 |
+| streamlit_infra_noise | 4 |
+| third_party_blocked | 52 (segment.io) |
+| RAG host bloques | 0 |
+| Console bloquant | 0 |
 
-**Analyse des echecs contenu :**
+Verifications positives : absence des 5 collections legacy, de `/stats`,
+de `API 403`, de `Forbidden`. Presence de `Catalogue v2 complet`.
 
-Les 3-4 assertions de contenu echouent parce que la production execute le code
-pre-P3 (`main` branche). La PR P3 n'est pas deployee (par conception : regle
-"ne deploie pas"). Les assertions E2E sont conçues pour valider le code P3
-**apres** deploiement. Elles echouent donc correctement en pre-deploiement.
+#### E2E p3-preview — NON CONCLUANT
 
-**Amelioration du script E2E :**
+Instance Streamlit locale demarree sur `127.0.0.1:18599` avec le code P3.
+L'UI rend correctement le titre, le sous-titre, la sidebar (sans URL interne).
+Screenshot confirme :
+- Titre `Dashboard RAG v2` + sous-titre `Catalogue scolaire Nexus Reussite`
+- Sidebar `API connectee` / `Backend RAG v2` (pas de `http://ingestor:8001`)
 
-Le script a ete ameliore pour filtrer le bruit d'infrastructure non-RAG :
-- `/_stcore/*` (health/host-config Streamlit proxy 502)
-- `/static/*` (assets CSS/JS/fonts via proxy)
-- `ERR_NETWORK_CHANGED`, `ERR_ABORTED` (transitoires)
-- Console : ChunkLoadError, 502, MIME mismatch, Segment snippet
+Les assertions data-dependantes (metriques, table, collections) echouent car
+aucun token API de production n'est disponible localement. L'API publique
+requiert un `Bearer` token pour `/catalogue/v2`. Le token de production est
+configure dans le Docker Compose distant, non accessible depuis le worktree.
+
+**Decision p3-preview** : structure UI validee visuellement, assertions
+data-dependantes bloquees par l'absence de token. Post-deploy E2E gate requise.
+
+### Session 4 (2026-07-15, tests CI finaux)
+
+| Commande | Resultat |
+|---|---|
+| `make lint` | OK — `All checks passed!` |
+| `make typecheck` | OK — `Success: no issues found in 39 source files` |
+| `make test` | OK — 498 passed, 14 deselected, 0 failed |
+| `bash scripts/check-governance-locks.sh` | OK — 18 verrous conformes |
+| `bash scripts/tests/test-governance-locks.sh` | OK — 16 passed, 0 failed |
+| `git diff --check` | OK |
+| `node --check scripts/e2e/lot27-p3-ui-readonly.js` | OK |
+| `bash -n scripts/e2e/run-lot27-p3-ui-readonly.sh` | OK |
+
+## Couverture metier
+
+Rapport detaille : `docs/reports/lot_27_business_coverage_matrix.md`
+
+| Indicateur | Valeur |
+|---|---|
+| Collections declarees | 35 |
+| Instanciees | 3 |
+| Retrievable | 2 (NSI 1re + Tle) |
+| Matieres couvertes en retrieval | NSI uniquement |
+| Gap principal | 32 collections declarees non instanciees |
 
 ## Decision de validation
 
-Tous les controles de qualite passent : lint, typecheck, 479 tests unitaires,
-garde-fous de gouvernance, git diff --check.
+E2E `current-prod` : **PASS** (4 pages, 0 echec, 0 reseau bloquant).
+E2E `p3-preview` : structure UI validee, assertions data bloquees par absence
+de token API. Post-deploy E2E gate `post-deploy` requise apres deploiement.
 
-L'E2E Playwright a ete execute (4 runs). Le script fonctionne correctement et
-valide l'absence de collections legacy, de `/stats`, de 403 et de `Forbidden`.
-Les assertions de contenu P3 echouent comme attendu car la production execute
-le code pre-P3. Le script passera une fois la PR deployee.
+La PR ne peut pas etre marquee ready tant que le mode `p3-preview` ou
+`post-deploy` n'a pas passe integralement.

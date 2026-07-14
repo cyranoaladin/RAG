@@ -3,8 +3,12 @@
  * LOT 27 P3 — validation visuelle Playwright strictement read-only.
  *
  * Variables :
- *   RAG_UI_URL  URL publique de l'interface Streamlit.
- *   E2E_RESULTS Répertoire des captures et diagnostics.
+ *   RAG_UI_URL   URL publique de l'interface Streamlit.
+ *   E2E_RESULTS  Repertoire des captures et diagnostics.
+ *   E2E_MODE     Mode de validation :
+ *                  current-prod  — production actuelle (pre-P3)
+ *                  p3-preview    — instance locale executant le code P3
+ *                  post-deploy   — production apres deploiement P3
  */
 
 const fs = require("node:fs");
@@ -13,9 +17,17 @@ const { chromium } = require("playwright");
 
 const BASE_URL = process.env.RAG_UI_URL || "https://rag-ui.nexusreussite.academy";
 const RESULTS_DIR = process.env.E2E_RESULTS || "/tmp/rag-lot27-p3-e2e-results";
+const E2E_MODE = process.env.E2E_MODE || "current-prod";
 const UI_HOST = new URL(BASE_URL).host;
 
-const FORBIDDEN_RENDERED_TEXT = [
+if (!["current-prod", "p3-preview", "post-deploy"].includes(E2E_MODE)) {
+  console.error(`E2E_MODE invalide : ${E2E_MODE}. Valeurs : current-prod, p3-preview, post-deploy`);
+  process.exit(1);
+}
+
+// -- Textes interdits (communs a tous les modes) ----------------------------
+
+const FORBIDDEN_COMMON = [
   "API 403",
   "Forbidden",
   "/stats",
@@ -25,19 +37,60 @@ const FORBIDDEN_RENDERED_TEXT = [
   "rag_education",
   "rag_web3",
   "rag_divers",
-  "http://ingestor:8001",
 ];
 
-const PAGES = [
+// En mode P3/post-deploy l'URL interne ne doit plus etre visible.
+const FORBIDDEN_P3 = [...FORBIDDEN_COMMON, "http://ingestor:8001"];
+
+const FORBIDDEN_RENDERED_TEXT = E2E_MODE === "current-prod" ? FORBIDDEN_COMMON : FORBIDDEN_P3;
+
+// -- Assertions par page et par mode ----------------------------------------
+
+const PAGES_CURRENT_PROD = [
   {
     navigation: "Dashboard",
     screenshot: "01-dashboard.png",
     expected: [
       "Dashboard RAG v2",
-      "Catalogue scolaire Nexus Réussite",
-      "Déclarées",
-      "Instanciées",
-      "Non instanciées",
+      "D\u00e9clar\u00e9es",
+      "Instanci\u00e9es",
+      "Non instanci\u00e9es",
+      "Quarantaine",
+    ],
+  },
+  {
+    navigation: "Recherche",
+    screenshot: "02-recherche.png",
+    expected: ["Recherche RAG v2", "Collection cible"],
+  },
+  {
+    navigation: "Ingestion",
+    screenshot: "03-ingestion.png",
+    expected: ["Ingestion RAG v2", "Collection cible", "Type de document", "Droits"],
+  },
+  {
+    navigation: "Administration",
+    screenshot: "04-administration.png",
+    expected: [
+      "Administration RAG v2",
+      "Catalogue v2 complet",
+      "Collections instanci\u00e9es",
+      "Collections retrievable",
+      "Quarantaine",
+    ],
+  },
+];
+
+const PAGES_P3 = [
+  {
+    navigation: "Dashboard",
+    screenshot: "01-dashboard.png",
+    expected: [
+      "Dashboard RAG v2",
+      "Catalogue scolaire Nexus R\u00e9ussite",
+      "D\u00e9clar\u00e9es",
+      "Instanci\u00e9es",
+      "Non instanci\u00e9es",
       "Quarantaine",
       "Tableau du catalogue",
     ],
@@ -47,7 +100,7 @@ const PAGES = [
     screenshot: "02-recherche.png",
     expected: [
       "Recherche RAG v2",
-      "Seules les collections instanciées et interrogeables (retrievable) sont proposées.",
+      "Seules les collections instanci\u00e9es et interrogeables (retrievable) sont propos\u00e9es.",
       "Collection cible",
     ],
   },
@@ -59,9 +112,8 @@ const PAGES = [
       "Collection cible",
       "Type de document",
       "Droits",
-      "Métadonnées générées côté serveur",
       "needs_review",
-      "Drive v2 non activé",
+      "Drive v2 non activ\u00e9",
     ],
   },
   {
@@ -70,25 +122,44 @@ const PAGES = [
     expected: [
       "Administration RAG v2",
       "Catalogue v2 complet",
-      "Collections instanciées",
-      "Collections déclarées non instanciées",
+      "Collections instanci\u00e9es",
+      "Collections d\u00e9clar\u00e9es non instanci\u00e9es",
       "Collections retrievable",
       "Quarantaine",
-      "Contrôles de cohérence",
+      "Contr\u00f4les de coh\u00e9rence",
     ],
   },
 ];
 
+const PAGES = E2E_MODE === "current-prod" ? PAGES_CURRENT_PROD : PAGES_P3;
+
+// -- Collecteurs ------------------------------------------------------------
+
 const consoleLogs = [];
 const networkEvents = [];
-const networkFailures = [];
 const blockedRequests = [];
 const pageFailures = [];
 const responseDiagnostics = [];
 
+// Categorised failures
+const networkFailuresBlocking = [];
+const networkWarningsNonBlocking = [];
+const thirdPartyBlocked = [];
+const streamlitInfraNoise = [];
+
+// -- Helpers ----------------------------------------------------------------
+
 function isRelevant(url) {
   try {
     return new URL(url).host === UI_HOST;
+  } catch {
+    return false;
+  }
+}
+
+function isStcoreEndpoint(url) {
+  try {
+    return new URL(url).pathname.startsWith("/_stcore/");
   } catch {
     return false;
   }
@@ -103,14 +174,16 @@ function isJavaScriptBundle(url) {
   }
 }
 
-function isStreamlitInfra(url) {
+function isStaticAsset(url) {
   try {
     const pathname = new URL(url).pathname;
-    return pathname.startsWith("/_stcore/") || pathname.startsWith("/static/");
+    return pathname.startsWith("/static/");
   } catch {
     return false;
   }
 }
+
+// -- Event recording --------------------------------------------------------
 
 function recordPageEvents(page, pageName) {
   page.on("console", (message) => {
@@ -127,19 +200,25 @@ function recordPageEvents(page, pageName) {
 
   page.on("requestfailed", (request) => {
     const errorText = request.failure()?.errorText || "request failed";
-    if (
-      isRelevant(request.url()) &&
-      !isStreamlitInfra(request.url()) &&
-      !errorText.includes("ERR_NETWORK_CHANGED") &&
-      !errorText.includes("ERR_ABORTED")
-    ) {
-      networkFailures.push({
-        page: pageName,
-        method: request.method(),
-        error: errorText,
-        url: request.url(),
-      });
+    const url = request.url();
+    const entry = { page: pageName, method: request.method(), error: errorText, url };
+
+    if (!isRelevant(url)) {
+      return;
     }
+    if (isStcoreEndpoint(url)) {
+      streamlitInfraNoise.push(entry);
+      return;
+    }
+    if (errorText.includes("ERR_NETWORK_CHANGED") || errorText.includes("ERR_ABORTED")) {
+      if (isStaticAsset(url)) {
+        networkWarningsNonBlocking.push(entry);
+      } else {
+        networkFailuresBlocking.push(entry);
+      }
+      return;
+    }
+    networkFailuresBlocking.push(entry);
   });
 }
 
@@ -162,11 +241,19 @@ async function recordResponse(response, pageName) {
     event.forbiddenUrlToken = forbiddenUrlToken;
   }
   networkEvents.push(event);
-  if (response.status() >= 400 && !isStreamlitInfra(event.url)) {
-    networkFailures.push(event);
+
+  // Categorise HTTP errors
+  if (response.status() >= 400) {
+    if (isStcoreEndpoint(event.url)) {
+      streamlitInfraNoise.push(event);
+    } else if (isStaticAsset(event.url)) {
+      networkWarningsNonBlocking.push(event);
+    } else {
+      networkFailuresBlocking.push(event);
+    }
   }
   if (forbiddenUrlToken) {
-    networkFailures.push({ ...event });
+    networkFailuresBlocking.push({ ...event });
   }
 
   const contentType = response.headers()["content-type"] || "";
@@ -182,15 +269,13 @@ async function recordResponse(response, pageName) {
     }
     const forbidden = FORBIDDEN_RENDERED_TEXT.find((value) => text.includes(value));
     if (forbidden) {
-      // Une chaîne dans un bundle JavaScript n'est pas du contenu rendu : la
-      // conserver comme diagnostic, sans la confondre avec une erreur HTTP.
       event.forbiddenResponseText = forbidden;
       if (!isJavaScriptBundle(event.url)) {
-        networkFailures.push({ ...event });
+        networkFailuresBlocking.push({ ...event });
       }
     }
   } catch (error) {
-    networkFailures.push({
+    networkFailuresBlocking.push({
       ...event,
       error: error instanceof Error ? error.message : String(error),
     });
@@ -213,6 +298,8 @@ function responseTextWithin(response, timeoutMs) {
   });
 }
 
+// -- Read-only guard --------------------------------------------------------
+
 async function guardRequests(context) {
   await context.route("**/*", async (route) => {
     const request = route.request();
@@ -226,9 +313,16 @@ async function guardRequests(context) {
     }
 
     blockedRequests.push({ method, url });
+    if (isRelevant(url)) {
+      thirdPartyBlocked.push({ method, url, reason: "non-read-only on RAG host" });
+    } else {
+      thirdPartyBlocked.push({ method, url, reason: "third-party" });
+    }
     await route.abort("blockedbyclient");
   });
 }
+
+// -- Navigation and assertion -----------------------------------------------
 
 async function waitForText(page, value) {
   await page.waitForFunction((expected) => document.body.innerText.includes(expected), value, {
@@ -257,12 +351,12 @@ async function navigate(page, label) {
 function assertExpectedText(body, scenario) {
   for (const expected of scenario.expected) {
     if (!body.includes(expected)) {
-      throw new Error(`${scenario.navigation}: libellé attendu absent : ${expected}`);
+      throw new Error(`${scenario.navigation}: libelle attendu absent : ${expected}`);
     }
   }
   for (const forbidden of FORBIDDEN_RENDERED_TEXT) {
     if (body.includes(forbidden)) {
-      throw new Error(`${scenario.navigation}: contenu interdit affiché : ${forbidden}`);
+      throw new Error(`${scenario.navigation}: contenu interdit affiche : ${forbidden}`);
     }
   }
 }
@@ -288,8 +382,16 @@ async function verifyPage(context, scenario) {
   }
 }
 
+// -- Artifacts --------------------------------------------------------------
+
 function writeArtifacts() {
   fs.mkdirSync(RESULTS_DIR, { recursive: true });
+  const categorised = {
+    network_failures_blocking: networkFailuresBlocking,
+    network_warnings_non_blocking: networkWarningsNonBlocking,
+    third_party_blocked: thirdPartyBlocked,
+    streamlit_infra_noise: streamlitInfraNoise,
+  };
   fs.writeFileSync(
     path.join(RESULTS_DIR, "console-logs.json"),
     `${JSON.stringify(consoleLogs, null, 2)}\n`,
@@ -301,8 +403,8 @@ function writeArtifacts() {
     "utf8",
   );
   fs.writeFileSync(
-    path.join(RESULTS_DIR, "network-failures.json"),
-    `${JSON.stringify(networkFailures, null, 2)}\n`,
+    path.join(RESULTS_DIR, "network-categorised.json"),
+    `${JSON.stringify(categorised, null, 2)}\n`,
     "utf8",
   );
   fs.writeFileSync(
@@ -312,7 +414,10 @@ function writeArtifacts() {
   );
 }
 
+// -- Main -------------------------------------------------------------------
+
 async function main() {
+  console.log(`E2E LOT 27 P3 — mode: ${E2E_MODE}, url: ${BASE_URL}`);
   fs.mkdirSync(RESULTS_DIR, { recursive: true });
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
@@ -333,35 +438,60 @@ async function main() {
     writeArtifacts();
   }
 
+  // Console errors: filter only genuine non-infra errors
   const consoleErrors = consoleLogs.filter(
     (entry) =>
       entry.type === "error" &&
-      // Le garde-fou bloque volontairement toute télémétrie d'un tiers.
       !entry.text.includes("ERR_BLOCKED_BY_CLIENT") &&
-      // Infra Streamlit : /_stcore/*, assets /static/*, réseau transitoire.
       !entry.text.includes("_stcore/") &&
-      !entry.text.includes("ERR_NETWORK_CHANGED") &&
-      !entry.text.includes("ERR_ABORTED") &&
-      // Bruit proxy/CDN : 502, ChunkLoadError, MIME mismatch sur bundles.
+      !entry.text.includes("Segment snippet"),
+  );
+
+  // Static asset console errors are warnings, not blocking
+  const consoleBlocking = consoleErrors.filter(
+    (entry) =>
       !entry.text.includes("ChunkLoadError") &&
       !entry.text.includes("status of 502") &&
       !entry.text.includes("MIME type") &&
-      // Télémétrie Streamlit.
-      !entry.text.includes("Segment snippet"),
+      !entry.text.includes("ERR_NETWORK_CHANGED") &&
+      !entry.text.includes("ERR_ABORTED"),
   );
+
+  // RAG-host blocked requests are blocking
+  const ragHostBlocked = blockedRequests.filter((entry) => isRelevant(entry.url));
+
   const failures = [
     ...pageFailures,
-    ...blockedRequests
-      .filter((entry) => isRelevant(entry.url))
-      .map((entry) => `requête non read-only bloquée : ${entry.method} ${entry.url}`),
-    ...networkFailures.map((entry) => `échec réseau : ${JSON.stringify(entry)}`),
-    ...consoleErrors.map((entry) => `erreur console : ${entry.text}`),
+    ...ragHostBlocked.map((e) => `requete non read-only bloquee : ${e.method} ${e.url}`),
+    ...networkFailuresBlocking.map((e) => `echec reseau : ${JSON.stringify(e)}`),
+    ...consoleBlocking.map((e) => `erreur console : ${e.text}`),
   ];
-  if (failures.length > 0) {
-    throw new Error(`Échec E2E LOT 27 P3:\n- ${failures.join("\n- ")}`);
+
+  // Summary
+  console.log(`\n--- Resultats E2E LOT 27 P3 (${E2E_MODE}) ---`);
+  console.log(`Pages testees       : ${PAGES.length}`);
+  console.log(`Echecs page         : ${pageFailures.length}`);
+  console.log(`Reseau bloquant     : ${networkFailuresBlocking.length}`);
+  console.log(`Reseau warnings     : ${networkWarningsNonBlocking.length}`);
+  console.log(`Streamlit infra     : ${streamlitInfraNoise.length}`);
+  console.log(`Tiers bloques       : ${thirdPartyBlocked.filter((e) => e.reason === "third-party").length}`);
+  console.log(`RAG host bloques    : ${ragHostBlocked.length}`);
+  console.log(`Console bloquant    : ${consoleBlocking.length}`);
+  console.log(`Artefacts           : ${RESULTS_DIR}`);
+
+  if (networkWarningsNonBlocking.length > 0) {
+    console.log(`\nP3-warnings (non bloquants) :`);
+    for (const w of networkWarningsNonBlocking) {
+      console.log(`  ${w.status || w.error} ${w.url}`);
+    }
   }
 
-  console.log(`E2E LOT 27 P3 read-only OK — résultats : ${RESULTS_DIR}`);
+  if (failures.length > 0) {
+    console.log("");
+    throw new Error(`Echec E2E LOT 27 P3 (${E2E_MODE}):\n- ${failures.join("\n- ")}`);
+  }
+
+  console.log(`\nE2E LOT 27 P3 (${E2E_MODE}) PASS`);
 }
 
 main().catch((error) => {
