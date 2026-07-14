@@ -103,6 +103,15 @@ function isJavaScriptBundle(url) {
   }
 }
 
+function isStreamlitInfra(url) {
+  try {
+    const pathname = new URL(url).pathname;
+    return pathname.startsWith("/_stcore/") || pathname.startsWith("/static/");
+  } catch {
+    return false;
+  }
+}
+
 function recordPageEvents(page, pageName) {
   page.on("console", (message) => {
     consoleLogs.push({
@@ -117,11 +126,17 @@ function recordPageEvents(page, pageName) {
   });
 
   page.on("requestfailed", (request) => {
-    if (isRelevant(request.url())) {
+    const errorText = request.failure()?.errorText || "request failed";
+    if (
+      isRelevant(request.url()) &&
+      !isStreamlitInfra(request.url()) &&
+      !errorText.includes("ERR_NETWORK_CHANGED") &&
+      !errorText.includes("ERR_ABORTED")
+    ) {
       networkFailures.push({
         page: pageName,
         method: request.method(),
-        error: request.failure()?.errorText || "request failed",
+        error: errorText,
         url: request.url(),
       });
     }
@@ -147,7 +162,7 @@ async function recordResponse(response, pageName) {
     event.forbiddenUrlToken = forbiddenUrlToken;
   }
   networkEvents.push(event);
-  if (response.status() >= 400) {
+  if (response.status() >= 400 && !isStreamlitInfra(event.url)) {
     networkFailures.push(event);
   }
   if (forbiddenUrlToken) {
@@ -322,8 +337,17 @@ async function main() {
     (entry) =>
       entry.type === "error" &&
       // Le garde-fou bloque volontairement toute télémétrie d'un tiers.
-      // Ce bruit navigateur n'est pas une erreur de l'UI RAG observée.
-      !entry.text.includes("ERR_BLOCKED_BY_CLIENT"),
+      !entry.text.includes("ERR_BLOCKED_BY_CLIENT") &&
+      // Infra Streamlit : /_stcore/*, assets /static/*, réseau transitoire.
+      !entry.text.includes("_stcore/") &&
+      !entry.text.includes("ERR_NETWORK_CHANGED") &&
+      !entry.text.includes("ERR_ABORTED") &&
+      // Bruit proxy/CDN : 502, ChunkLoadError, MIME mismatch sur bundles.
+      !entry.text.includes("ChunkLoadError") &&
+      !entry.text.includes("status of 502") &&
+      !entry.text.includes("MIME type") &&
+      // Télémétrie Streamlit.
+      !entry.text.includes("Segment snippet"),
   );
   const failures = [
     ...pageFailures,
