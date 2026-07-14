@@ -94,6 +94,15 @@ function isRelevant(url) {
   }
 }
 
+function isJavaScriptBundle(url) {
+  try {
+    const pathname = new URL(url).pathname;
+    return pathname.startsWith("/static/") && pathname.endsWith(".js");
+  } catch {
+    return false;
+  }
+}
+
 function recordPageEvents(page, pageName) {
   page.on("console", (message) => {
     consoleLogs.push({
@@ -131,9 +140,18 @@ async function recordResponse(response, pageName) {
     status: response.status(),
     url: response.url(),
   };
+  const forbiddenUrlToken = FORBIDDEN_RENDERED_TEXT.find((value) =>
+    event.url.includes(value),
+  );
+  if (forbiddenUrlToken) {
+    event.forbiddenUrlToken = forbiddenUrlToken;
+  }
   networkEvents.push(event);
   if (response.status() >= 400) {
     networkFailures.push(event);
+  }
+  if (forbiddenUrlToken) {
+    networkFailures.push({ ...event });
   }
 
   const contentType = response.headers()["content-type"] || "";
@@ -152,6 +170,9 @@ async function recordResponse(response, pageName) {
       // Une chaîne dans un bundle JavaScript n'est pas du contenu rendu : la
       // conserver comme diagnostic, sans la confondre avec une erreur HTTP.
       event.forbiddenResponseText = forbidden;
+      if (!isJavaScriptBundle(event.url)) {
+        networkFailures.push({ ...event });
+      }
     }
   } catch (error) {
     networkFailures.push({
