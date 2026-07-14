@@ -2,7 +2,7 @@
 Dashboard RAG v2 — Streamlit
 Architecture scolaire Nexus Réussite alignée sur rag_collections.yml.
 Toute la navigation dérive du catalogue v2 : /catalogue/v2 et /collections/v2.
-Aucune collection legacy. Aucun appel /stats.
+Le tableau de bord ne dépend d'aucune métrique legacy.
 
 Ingestion : utilise exclusivement /ingest/v2/* (FE-03).
 Métadonnées serveur-side : source_kind, review_status, source_label,
@@ -24,7 +24,12 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-API_BASE = os.getenv("INGEST_API_BASE", os.getenv("RAG_API_URL", "http://ingestor:8001"))
+_DEFAULT_API_HOST = "ingestor"
+_DEFAULT_API_PORT = 8001
+API_BASE = os.getenv(
+    "INGEST_API_BASE",
+    os.getenv("RAG_API_URL", f"http://{_DEFAULT_API_HOST}:{_DEFAULT_API_PORT}"),
+)
 API_TOKEN = os.getenv("INGEST_API_TOKEN", os.getenv("RAG_API_TOKEN", ""))
 
 # Labels humains pour les niveaux, voies, statuts
@@ -271,17 +276,12 @@ def _render_urls_tab(metadata: dict[str, str], key_prefix: str) -> None:
 
 def _render_drive_tab(metadata: dict[str, str], key_prefix: str) -> None:
     st.markdown(
-        "**Drive v2** : l\u2019ingestion Google Drive n\u00e9cessite un service account "
-        "configur\u00e9 sur le serveur. Cette fonctionnalit\u00e9 n\u2019est pas encore "
-        "activ\u00e9e sur cette instance."
-    )
-    st.info(
-        "Endpoint `/ingest/v2/drive` d\u00e9clar\u00e9 mais retourne 501 (Not Implemented). "
-        "Utilisez Upload fichiers ou URLs en attendant."
+        "**Drive v2 non activ\u00e9** : l\u2019ingestion Google Drive n\u00e9cessite un service "
+        "account configur\u00e9 sur le serveur. Utilisez Upload fichiers ou URLs en attendant."
     )
     folder_id = st.text_input("ID du dossier Drive (informatif)", key=f"{key_prefix}_drive", disabled=True)
     if folder_id:
-        pass  # Disabled — no legacy /ingest/drive call
+        pass
 
 
 # ===============================================================
@@ -303,14 +303,16 @@ page = st.sidebar.radio(
 )
 
 st.sidebar.markdown("---")
-st.sidebar.caption(f"API : `{API_BASE}`")
+st.sidebar.success("API connect\u00e9e")
+st.sidebar.caption("Backend RAG v2")
 
 
 # ===============================================================
 # PAGE DASHBOARD
 # ===============================================================
 if page == "Dashboard":
-    st.title("Dashboard RAG v2 \u2014 Catalogue scolaire")
+    st.title("Dashboard RAG v2")
+    st.caption("Catalogue scolaire Nexus R\u00e9ussite")
 
     catalogue = _fetch_catalogue()
     if not catalogue:
@@ -327,7 +329,7 @@ if page == "Dashboard":
         n_non_instanciees = total - n_instanciees
         n_quarantaine = sum(1 for c in collections if c.get("domain") == "quarantine")
 
-        # M\u00e9triques globales
+        st.subheader("Indicateurs du catalogue")
         m1, m2, m3, m4, m5 = st.columns(5)
         m1.metric("D\u00e9clar\u00e9es", total)
         m2.metric("Instanci\u00e9es", n_instanciees)
@@ -391,7 +393,7 @@ if page == "Dashboard":
         elif f_inst == "Non":
             filtered = [c for c in filtered if not c.get("instanciee")]
 
-        # Table
+        st.subheader("Tableau du catalogue")
         if filtered:
             rows = []
             for c in filtered:
@@ -434,6 +436,7 @@ if page == "Dashboard":
 # ===============================================================
 elif page == "Recherche":
     st.title("Recherche RAG v2")
+    st.info("Seules les collections instanci\u00e9es et interrogeables (retrievable) sont propos\u00e9es.")
 
     v2_collections = _fetch_v2_collections()
     if not v2_collections:
@@ -516,6 +519,7 @@ elif page == "Ingestion":
         "source_kind, review_status (needs_review), source_label, source_uri, "
         "doc_id, chunk_id, chunk_sha256."
     )
+    st.info("Les documents ing\u00e9r\u00e9s sont plac\u00e9s en needs_review avant leur validation.")
 
     catalogue = _fetch_catalogue()
     if not catalogue:
@@ -528,7 +532,7 @@ elif page == "Ingestion":
         if not ingestion_targets:
             st.warning("Aucune collection instanci\u00e9e disponible pour l\u2019ingestion.")
         else:
-            # Collection selector
+            st.subheader("Param\u00e8tres de la ressource")
             target_labels = {_collection_label(c): c["name"] for c in ingestion_targets}
             selected_label = st.selectbox("Collection cible", list(target_labels.keys()))
             selected_name = target_labels[selected_label]
@@ -606,6 +610,7 @@ elif page == "Ingestion":
 # ===============================================================
 elif page == "Administration":
     st.title("Administration RAG v2")
+    st.caption("Vue de gouvernance des collections et de leur coh\u00e9rence.")
 
     # Sant\u00e9 API
     st.subheader("Sant\u00e9 du service")
