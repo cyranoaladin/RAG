@@ -158,6 +158,53 @@ def test_ui_renders_lot27_p3_navigation_and_page_hierarchy() -> None:
         _assert_rendered_text(content, label)
 
 
+def test_sidebar_backend_status_is_gated_by_a_health_check() -> None:
+    tree = ast.parse(APP_V2.read_text(encoding="utf-8"))
+    functions = {
+        node.name: node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
+    }
+
+    health_check = functions["_backend_is_healthy"]
+    health_routes = {
+        _literal_text(call.args[0])
+        for call in ast.walk(health_check)
+        if isinstance(call, ast.Call)
+        and isinstance(call.func, ast.Name)
+        and call.func.id == "api_get"
+        and call.args
+    }
+    assert health_routes == {"/health"}
+
+    status_renderer = functions["_render_backend_status"]
+    assert any(
+        isinstance(call, ast.Call)
+        and isinstance(call.func, ast.Name)
+        and call.func.id == "_backend_is_healthy"
+        for call in ast.walk(status_renderer)
+    )
+
+    rendered_by_status = [
+        _literal_text(argument)
+        for call in ast.walk(status_renderer)
+        if isinstance(call, ast.Call) and _is_streamlit_render_call(call.func)
+        for argument in call.args
+    ]
+    assert "Backend RAG v2" in rendered_by_status
+    assert "API connectée" in rendered_by_status
+    assert "API non joignable" in rendered_by_status
+
+    top_level_successes = [
+        _literal_text(argument)
+        for node in tree.body
+        if isinstance(node, ast.Expr) and isinstance(node.value, ast.Call)
+        for argument in node.value.args
+        if isinstance(node.value.func, ast.Attribute) and node.value.func.attr == "success"
+    ]
+    assert "API connectée" not in top_level_successes
+
+
 def test_ui_exposes_only_supported_v2_presentation_routes() -> None:
     content = APP_V2.read_text(encoding="utf-8")
 
