@@ -20,6 +20,11 @@
 !packages/contracts/
 !packages/contracts/**
 
+# Required for the UI image dependency smoke.
+!scripts/
+!scripts/e2e/
+!scripts/e2e/smoke-ui-runtime-imports.sh
+
 # Hard-deny sensitive and heavy files even if they appear under allowed paths.
 .git
 .git/**
