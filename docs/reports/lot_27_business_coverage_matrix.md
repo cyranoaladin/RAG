@@ -118,8 +118,33 @@ Matieres declarees non instanciees (par ordre de priorite potentielle) :
 - PC/SVT/SES seconde
 - Series technologiques hors STMG (ST2S, STI2D, STL, STD2A, STHR, S2TMD)
 
-## Prochaine phase proposee
+## Transparence
 
-Instancier les collections par lot de matiere, en commencant par les matieres
-a fort volume de candidats (Mathematiques, Francais) et les examens (DNB, Bac).
+- Le catalogue couvre l'architecture cible (35 collections, 5 niveaux, 2 voies).
+- La recherche effective ne couvre actuellement que **NSI** (Premiere + Terminale specialite generale).
+- 32 collections declarees ne sont pas instanciees.
+- Le systeme n'est pas encore pedagogiquement complet pour toutes les matieres.
+- Un LOT 28 est requis pour instancier progressivement les matieres/niveaux.
+
+## LOT 28 requis — couverture pedagogique complete
+
+Matieres et niveaux a instancier :
+
+- **Mathematiques** : 3e, Seconde, Premiere (gen spe + tc, STMG tc), Terminale (gen spe + comp + exp, STMG tc)
+- **Francais** : 3e, Seconde, Premiere (EAF)
+- **Histoire-Geographie / EMC** : 3e, Seconde, Premiere, Terminale
+- **Physique-Chimie** : Premiere specialite, Terminale specialite
+- **SVT** : Premiere specialite, Terminale specialite
+- **SES** : Premiere specialite, Terminale specialite
+- **SNT** : Seconde
+- **NSI** : deja instanciee (Premiere + Terminale)
+- **Philosophie** : Terminale
+- **STMG specialites** : Droit-Economie (1re + Tle), MSDGN (Tle)
+- **DNB** : 3e (examen transversal)
+- **EAF** : Premiere (epreuves anticipees)
+- **Grand Oral** : Terminale
+- **Candidats libres** : Terminale
+- **Annales / Examens** : Bac general, Epreuves anticipees maths
+
 Chaque instanciation necessite un corpus ingere et valide (quality gate).
+Priorite suggeree : Mathematiques, Francais, puis examens (DNB, Bac).

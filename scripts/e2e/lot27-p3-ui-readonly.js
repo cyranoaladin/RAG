@@ -113,7 +113,9 @@ const PAGES_P3 = [
       "Type de document",
       "Droits",
       "needs_review",
-      "Drive v2 non activ\u00e9",
+      // "Drive v2 non activé" est dans l'onglet Google Drive, masqué par défaut.
+      // Streamlit innerText ne capture que l'onglet actif (Upload fichiers).
+      "Google Drive",
     ],
   },
   {

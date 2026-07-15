@@ -109,7 +109,38 @@ configure dans le Docker Compose distant, non accessible depuis le worktree.
 **Decision p3-preview** : structure UI validee visuellement, assertions
 data-dependantes bloquees par l'absence de token. Post-deploy E2E gate requise.
 
-### Session 4 (2026-07-15, tests CI finaux)
+### Session 4 (2026-07-15, P3 preview reel)
+
+Instance Streamlit locale demarree sur `127.0.0.1:18599` avec le code P3.
+Token API de production extrait via SSH (non affiche, non versionne).
+Fichier env temporaire `/tmp/rag-p3-preview.env` (chmod 600), supprime apres usage.
+
+#### E2E p3-preview — PASS
+
+Artefacts : `/tmp/rag-lot27-p3-preview-e2e-20260715T000650Z/`
+
+| Page | Resultat | Screenshot | Verifications |
+|---|---|---|---|
+| Dashboard | PASS | `01-dashboard.png` | Titre P3, sous-titre Nexus Reussite, metriques, sidebar propre |
+| Recherche | PASS | `02-recherche.png` | Texte retrievable, collection cible |
+| Ingestion | PASS | `03-ingestion.png` | Collection cible, type doc, droits, needs_review, onglet Google Drive |
+| Administration | PASS | `04-administration.png` | Catalogue v2 complet, instanciees, non instanciees, retrievable, quarantaine, coherence |
+
+| Categorie reseau | Nombre |
+|---|---|
+| network_failures_blocking | 0 |
+| network_warnings_non_blocking | 0 |
+| streamlit_infra_noise | 0 |
+| third_party_blocked | 0 |
+| RAG host bloques | 0 |
+| Console bloquant | 0 |
+
+Verifications visuelles confirmees :
+- Sidebar : "API connectee" / "Backend RAG v2" (pas de `http://ingestor:8001`)
+- Absence collections legacy, `/stats`, `API 403`, `Forbidden`
+- Donnees reelles : 35 declarees, 3 instanciees, 2 retrievable, 1 quarantaine
+
+### Session 5 (2026-07-15, tests CI finaux)
 
 | Commande | Resultat |
 |---|---|
@@ -136,9 +167,10 @@ Rapport detaille : `docs/reports/lot_27_business_coverage_matrix.md`
 
 ## Decision de validation
 
-E2E `current-prod` : **PASS** (4 pages, 0 echec, 0 reseau bloquant).
-E2E `p3-preview` : structure UI validee, assertions data bloquees par absence
-de token API. Post-deploy E2E gate `post-deploy` requise apres deploiement.
+- E2E `current-prod` : **PASS** (4 pages, 0 echec, 0 reseau bloquant).
+- E2E `p3-preview` : **PASS** (4 pages, 0 echec, 0 reseau bloquant).
+- Tests unitaires : **498 passed**, 0 failed.
+- Lint, typecheck, governance, diff check : tous verts.
+- Couverture metier documentee : 35 collections, 2 retrievable (NSI), 32 gaps explicites.
 
-La PR ne peut pas etre marquee ready tant que le mode `p3-preview` ou
-`post-deploy` n'a pas passe integralement.
+LOT_27_P3_READY_FOR_REVIEW
