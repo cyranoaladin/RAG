@@ -109,15 +109,22 @@ def _headers_upload() -> dict[str, str]:
     return {"Authorization": f"Bearer {API_TOKEN}"}
 
 
-def api_get(endpoint: str, timeout: float = 60.0) -> dict[str, Any] | None:
+def api_get(
+    endpoint: str,
+    timeout: float = 60.0,
+    *,
+    show_errors: bool = True,
+) -> dict[str, Any] | None:
     try:
         resp = httpx.get(f"{API_BASE}{endpoint}", headers=_headers_json(), timeout=timeout)
         if resp.status_code == 200:
             from typing import cast
             return cast(dict[str, Any], resp.json())
-        st.error(f"API {resp.status_code}: {resp.text[:200]}")
+        if show_errors:
+            st.error(f"API {resp.status_code}: {resp.text[:200]}")
     except Exception as exc:
-        st.error(f"Connexion API \u00e9chou\u00e9e : {exc}")
+        if show_errors:
+            st.error(f"Connexion API \u00e9chou\u00e9e : {exc}")
     return None
 
 
@@ -185,6 +192,20 @@ def _collection_label(c: dict[str, Any]) -> str:
     statut = STATUT_LABELS.get(statut_key, statut_key)
     parts = [p for p in (matiere, niveau, voie, statut) if p and p != "Commun"]
     return " \u2014 ".join(parts) if parts else str(c.get("name", "?"))
+
+
+def _backend_is_healthy() -> bool:
+    """Indique si le backend v2 répond au healthcheck, sans bruit dans la page."""
+    return api_get("/health", timeout=5.0, show_errors=False) is not None
+
+
+def _render_backend_status() -> None:
+    """Affiche un statut sidebar uniquement après vérification du backend."""
+    st.sidebar.caption("Backend RAG v2")
+    if _backend_is_healthy():
+        st.sidebar.success("API connectée")
+    else:
+        st.sidebar.warning("API non joignable")
 
 
 # ===============================================================
@@ -303,8 +324,7 @@ page = st.sidebar.radio(
 )
 
 st.sidebar.markdown("---")
-st.sidebar.success("API connect\u00e9e")
-st.sidebar.caption("Backend RAG v2")
+_render_backend_status()
 
 
 # ===============================================================

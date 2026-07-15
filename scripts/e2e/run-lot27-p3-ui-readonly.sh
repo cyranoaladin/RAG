@@ -6,14 +6,21 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+export SCRIPT_DIR
 
 export RAG_UI_URL="${RAG_UI_URL:-https://rag-ui.nexusreussite.academy}"
 export E2E_MODE="${E2E_MODE:-current-prod}"
 export E2E_RESULTS="${E2E_RESULTS:-/tmp/rag-lot27-p3-e2e-results}"
 
-# Un worktree n'embarque pas node_modules. Reutiliser, si present, celui du
-# worktree principal sans inscrire de chemin machine-local dans le depot.
-if ! node -e "require.resolve('playwright')" >/dev/null 2>&1; then
+# Preferer les dependances du worktree qui contient ce script. Le chemin est
+# derive du script et reste donc valable quel que soit le repertoire appelant.
+if [[ -d "$SCRIPT_DIR/node_modules" ]]; then
+  export NODE_PATH="$SCRIPT_DIR/node_modules${NODE_PATH:+:$NODE_PATH}"
+fi
+
+# Un worktree peut ne pas embarquer node_modules. Reutiliser alors, si present,
+# celui du worktree principal sans inscrire de chemin machine-local dans le depot.
+if ! node -e "require.resolve('playwright', { paths: [process.env.SCRIPT_DIR] })" >/dev/null 2>&1; then
   PRIMARY_WORKTREE="$(git -C "$REPO_ROOT" worktree list --porcelain | awk '/^worktree / { sub(/^worktree /, ""); print; exit }')"
   if [[ -n "$PRIMARY_WORKTREE" && -d "$PRIMARY_WORKTREE/scripts/e2e/node_modules" ]]; then
     export NODE_PATH="$PRIMARY_WORKTREE/scripts/e2e/node_modules${NODE_PATH:+:$NODE_PATH}"
