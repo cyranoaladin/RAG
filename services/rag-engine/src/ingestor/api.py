@@ -60,6 +60,17 @@ try:
 except (ImportError, ValueError):
     from security_v2 import enforce_ingestor_ip_allowlist  # type: ignore[no-redef]
 
+try:
+    from .embedding_contract import (
+        CANONICAL_EMBED_MODEL,
+        embedding_contract_health_from_environment,
+    )
+except (ImportError, ValueError):
+    from embedding_contract import (  # type: ignore[no-redef]
+        CANONICAL_EMBED_MODEL,
+        embedding_contract_health_from_environment,
+    )
+
 if TYPE_CHECKING:
     from langchain.schema import Document
 else:
@@ -91,7 +102,7 @@ ingest_metrics: ModuleType = _load_metrics_module()
 CHROMA_HOST = os.getenv("CHROMA_HOST", "localhost")
 CHROMA_PORT = int(os.getenv("CHROMA_PORT", "8000"))
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
-EMBED_MODEL = os.getenv("EMBED_MODEL", "nomic-embed-text")
+EMBED_MODEL = os.getenv("EMBED_MODEL", CANONICAL_EMBED_MODEL)
 COLLECTION_NAME = os.getenv("COLLECTION_NAME", "rag_education")
 
 # ── Legacy Chroma routing ───────────────────────────────────────────
@@ -1913,7 +1924,16 @@ def check_duplicates(
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy"}
+    pg_dsn = os.environ.get("PG_RAG_DSN") or os.environ.get("DATABASE_URL_SYNC")
+    contract = embedding_contract_health_from_environment(pg_dsn)
+    return {
+        "status": "healthy",
+        "embedding_model": contract["embedding_model"],
+        "embedding_dim_declared": contract["embedding_dim_declared"],
+        "embedding_dim_runtime": contract["embedding_dim_runtime"],
+        "pgvector_dim": contract["pgvector_dim"],
+        "embedding_contract_ok": contract["embedding_contract_ok"],
+    }
 
 
 @app.get("/collections")

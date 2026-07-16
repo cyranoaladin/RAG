@@ -12,6 +12,17 @@ import os
 import httpx
 import redis.asyncio as aioredis
 
+try:
+    from .embedding_contract import (
+        declared_embedding_dim,
+        declared_embedding_model,
+    )
+except (ImportError, ValueError):
+    from embedding_contract import (  # type: ignore[no-redef]
+        declared_embedding_dim,
+        declared_embedding_model,
+    )
+
 logger = logging.getLogger(__name__)
 
 
@@ -57,8 +68,9 @@ class EmbeddingService:
 
         self._http = httpx.AsyncClient(timeout=60.0)
 
-        # Télécharger le modèle si absent
-        await self._pull_model()
+        if self.model != declared_embedding_model():
+            raise RuntimeError("EMBEDDING_MODEL_CONTRACT_MISMATCH")
+        await self._assert_model_available()
 
     async def disconnect(self) -> None:
         """Ferme les connexions."""
@@ -72,20 +84,26 @@ class EmbeddingService:
             self._cache_misses,
         )
 
-    async def _pull_model(self) -> None:
-        """S'assure que le modèle est disponible dans Ollama."""
+    async def _assert_model_available(self) -> None:
+        """Refuse the task when Ollama does not already have the exact model."""
         if not self._http:
-            return
+            raise RuntimeError("EMBEDDING_MODEL_UNAVAILABLE")
         try:
-            resp = await self._http.post(
-                f"{self.ollama_url}/api/pull",
-                json={"name": self.model, "stream": False},
-                timeout=300.0,
-            )
+            resp = await self._http.get(f"{self.ollama_url}/api/tags")
             resp.raise_for_status()
-            logger.info("Ollama model '%s' ready", self.model)
+            payload = resp.json()
+            models = payload.get("models", []) if isinstance(payload, dict) else []
+            names = {
+                item.get("name")
+                for item in models
+                if isinstance(item, dict) and isinstance(item.get("name"), str)
+            }
+            if self.model not in names:
+                raise RuntimeError("EMBEDDING_MODEL_UNAVAILABLE")
         except Exception as exc:
-            logger.warning("Unable to pull model '%s': %s", self.model, exc)
+            if isinstance(exc, RuntimeError):
+                raise
+            raise RuntimeError("EMBEDDING_MODEL_UNAVAILABLE") from exc
 
     def _cache_key(self, text: str) -> str:
         """Génère une clé de cache déterministe pour un texte."""
@@ -139,6 +157,8 @@ class EmbeddingService:
         if not (isinstance(embedding_any, list) and all(isinstance(x, int | float) for x in embedding_any)):
             raise RuntimeError("Ollama returned an invalid embedding payload")
         embedding = [float(x) for x in embedding_any]
+        if len(embedding) != declared_embedding_dim():
+            raise RuntimeError("EMBEDDING_RUNTIME_DIMENSION_MISMATCH")
 
         # Mettre en cache
         if self._redis:

@@ -65,6 +65,12 @@ async def _run_ingestion(
         Dict avec status, document_id, chunk_count.
     """
     from database import RagDatabase
+    from embedding_contract import (
+        declared_embedding_dim,
+        declared_embedding_model,
+        load_embedding_model,
+        validate_runtime_embedding_contract,
+    )
     from embedding_service import EmbeddingService
 
     dsn = os.getenv("DATABASE_URL_SYNC", "postgresql://raguser:pass@pgvector:5432/ragdb")
@@ -78,9 +84,14 @@ async def _run_ingestion(
     db = RagDatabase(async_dsn)
     await db.connect(min_size=2, max_size=5)
 
+    # Refuse the worker before an upsert if the model or pgvector contract
+    # cannot be proven 1024d.  No conversion path is permitted.
+    contract_model = load_embedding_model()
+    validate_runtime_embedding_contract(contract_model, dsn)
+
     embed_svc = EmbeddingService(
         ollama_url=os.getenv("OLLAMA_BASE_URL", os.getenv("OLLAMA_URL", "http://ollama:11434")),
-        model=os.getenv("EMBED_MODEL", "nomic-embed-text:v1.5"),
+        model=declared_embedding_model(),
     )
     await embed_svc.connect()
 
@@ -111,8 +122,8 @@ async def _run_ingestion(
             }
 
         # 4. Upsert document
-        embed_model = os.getenv("EMBED_MODEL", "nomic-embed-text:v1.5")
-        embed_dim = int(os.getenv("EMBED_DIM", "768"))
+        embed_model = declared_embedding_model()
+        embed_dim = declared_embedding_dim()
 
         doc_id = await db.upsert_document(
             tenant=tenant,

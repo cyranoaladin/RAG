@@ -169,10 +169,10 @@ v2-migrate-qdrant:
 		--pg-dsn "$$DATABASE_URL_SYNC" \
 		--tenant nexus
 
-## v2: Pull modèles Ollama nécessaires
+## v2: Vérifier le prérequis du modèle d'embedding certifié
 v2-pull-models:
-	$(COMPOSE_V2) exec ollama ollama pull nomic-embed-text:v1.5
-	$(COMPOSE_V2) exec ollama ollama pull mistral:7b-instruct || true
+	@echo "intfloat/multilingual-e5-large (1024d) doit être préchargé dans l'image ingestor avant toute ingestion v2."
+	@echo "Aucun téléchargement ou fallback de modèle n'est effectué par cette cible."
 
 ## v2: Évaluation qualité RAG
 v2-eval:

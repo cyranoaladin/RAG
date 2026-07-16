@@ -28,6 +28,12 @@ try:
         load_collection_config,
         resolve_collection_v2,
     )
+    from .embedding_contract import (
+        CANONICAL_EMBED_MODEL,
+        EmbeddingContractError,
+        load_embedding_model,
+        validate_runtime_embedding_contract,
+    )
     from .pedagogical_chunker import (
         RawChunk,
         TaggingConfig,
@@ -41,6 +47,12 @@ except (ImportError, ValueError):
         load_collection_config,
         resolve_collection_v2,
     )
+    from embedding_contract import (  # type: ignore[no-redef]
+        CANONICAL_EMBED_MODEL,
+        EmbeddingContractError,
+        load_embedding_model,
+        validate_runtime_embedding_contract,
+    )
     from pedagogical_chunker import (  # type: ignore[no-redef]
         RawChunk,
         TaggingConfig,
@@ -51,16 +63,15 @@ except (ImportError, ValueError):
 
 logger = logging.getLogger(__name__)
 
-EMBED_MODEL = "intfloat/multilingual-e5-large"
+EMBED_MODEL = CANONICAL_EMBED_MODEL
 _embed_model = None
 
 
 def _get_embed_model():
     global _embed_model
     if _embed_model is None:
-        from sentence_transformers import SentenceTransformer
         logger.info("Loading embedding model %s (one-time, ingest)", EMBED_MODEL)
-        _embed_model = SentenceTransformer(EMBED_MODEL)
+        _embed_model = load_embedding_model()
     return _embed_model
 
 
@@ -204,11 +215,15 @@ def ingest_document(
 
     # --- Embed ---
     embed_model = _get_embed_model()
+    pg_dsn = _get_pg_dsn()
+    try:
+        validate_runtime_embedding_contract(embed_model, pg_dsn)
+    except EmbeddingContractError as exc:
+        raise ValueError(f"Embedding contract: {exc}") from exc
     texts_to_embed = [format_passage(c["text"]) for c in clean]
     vectors = embed_model.encode(texts_to_embed, normalize_embeddings=True)
 
     # --- Write to pgvector ---
-    pg_dsn = _get_pg_dsn()
     conn = psycopg.connect(pg_dsn)
 
     written = 0
