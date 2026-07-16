@@ -15,10 +15,21 @@
 !services/rag-engine/src/ingestor/
 !services/rag-engine/src/ingestor/**
 
+# Required UI image inputs. Keep this allowlist narrow because the Compose build
+# context is the repository root.
+!services/rag-engine/requirements.lock
+!services/rag-engine/src/ui/
+!services/rag-engine/src/ui/**
+
 # Required shared contracts package.
 !packages/
 !packages/contracts/
 !packages/contracts/**
+
+# Required for the UI image dependency smoke.
+!scripts/
+!scripts/e2e/
+!scripts/e2e/smoke-ui-runtime-imports.sh
 
 # Hard-deny sensitive and heavy files even if they appear under allowed paths.
 .git
