@@ -29,6 +29,10 @@ try:
         load_collection_config,
         resolve_collection_v2,
     )
+    from .embedding_contract import (
+        CANONICAL_EMBED_MODEL,
+        load_embedding_model,
+    )
     from .security_v2 import SecurityRole, require_role
 except (ImportError, ValueError):
     from collection_config import (  # type: ignore[no-redef]
@@ -36,6 +40,10 @@ except (ImportError, ValueError):
         list_instanciated_collections,
         load_collection_config,
         resolve_collection_v2,
+    )
+    from embedding_contract import (  # type: ignore[no-redef]
+        CANONICAL_EMBED_MODEL,
+        load_embedding_model,
     )
     from security_v2 import SecurityRole, require_role  # type: ignore[no-redef]
 
@@ -126,7 +134,7 @@ RERANK_SCORE_THRESHOLD = float(os.environ.get("RERANK_SCORE_THRESHOLD", "1.90"))
 # Reranker: MiniLM-L-6 conservé (L-2 écarté: marge 1.00→0.71)
 RERANK_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 # Embedding: e5-large 1024 dim
-EMBED_MODEL = "intfloat/multilingual-e5-large"
+EMBED_MODEL = CANONICAL_EMBED_MODEL
 # Pool rerank: 10 candidats (V1-5: 15/15 in, 10/10 out, marge +5.69 vs +4.07 à RC=20)
 # Latence miss: 0.43s rerank (vs 0.84s à RC=20) — divise le coût miss par 2
 RERANK_CANDIDATES = int(os.environ.get("RERANK_CANDIDATES", "10"))
@@ -139,9 +147,8 @@ _reranker = None
 def _get_embed_model():
     global _embed_model
     if _embed_model is None:
-        from sentence_transformers import SentenceTransformer
         logger.info("Loading embedding model %s (one-time)", EMBED_MODEL)
-        _embed_model = SentenceTransformer(EMBED_MODEL)
+        _embed_model = load_embedding_model()
     return _embed_model
 
 
@@ -333,10 +340,10 @@ def cache_warmup(request: Request) -> dict[str, Any]:
                 continue  # Already cached
             # Full pipeline: embed → dense → rerank → cache
             from nexus_contracts.embedding_utils import format_query
+            pg_dsn = _get_pg_dsn()
             embed_model = _get_embed_model()
             q_vec = embed_model.encode(format_query(q), normalize_embeddings=True)
             vec_str = "[" + ",".join(str(float(v)) for v in q_vec) + "]"
-            pg_dsn = _get_pg_dsn()
             try:
                 conn = psycopg.connect(pg_dsn)
                 with conn.cursor() as cur:
