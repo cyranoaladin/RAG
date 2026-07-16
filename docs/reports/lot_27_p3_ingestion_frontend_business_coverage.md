@@ -37,3 +37,8 @@ pour ingestion. Aucune auto-création n’est autorisée.
 Les autres séries technologiques hors STMG sont hors scope v1, sauf décision
 d’extension explicite. **LOT 28** reste obligatoire pour atteindre une
 couverture pédagogique complète de toutes les matières, EDS et niveaux.
+# Remédiation review inline
+
+La colonne « Voie / parcours » privilégie désormais toute voie, path ou parcours
+déclaré, y compris pour le domaine `exam`; « Transversal » ne sert qu'en absence
+de parcours déclaré hors éducation.

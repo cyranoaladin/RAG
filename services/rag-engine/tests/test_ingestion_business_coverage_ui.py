@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 
 import yaml
@@ -13,6 +14,18 @@ CATALOGUE = ENGINE_ROOT / "configs" / "rag_collections.yml"
 
 def _collections() -> dict[str, dict[str, object]]:
     return yaml.safe_load(CATALOGUE.read_text(encoding="utf-8"))["collections"]
+
+
+def _catalogue_parcours_label(entry: dict[str, object]) -> str:
+    tree = ast.parse(APP_V2.read_text(encoding="utf-8"))
+    function = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == "_catalogue_parcours_label"
+    )
+    namespace: dict[str, object] = {"VOIE_LABELS": {"gen": "Générale", "stmg": "STMG"}}
+    exec(compile(ast.Module(body=[function], type_ignores=[]), str(APP_V2), "exec"), namespace)
+    return namespace["_catalogue_parcours_label"](entry)  # type: ignore[operator]
 
 
 def test_catalogue_declares_the_v1_school_axes() -> None:
@@ -29,6 +42,12 @@ def test_catalogue_declares_the_v1_school_axes() -> None:
     assert {"tronc_commun", "specialite", "option", "examen", "remediation"} <= {
         item.get("statut") for item in collections
     }
+
+
+def test_exam_catalogue_keeps_declared_voie_in_parcours_label() -> None:
+    assert _catalogue_parcours_label(
+        {"name": "rag_nexus_exams_bac_general", "domain": "exam", "voie": "gen"}
+    ) == "Générale"
 
 
 def test_catalogue_declares_all_required_subjects_and_transversal_paths() -> None:

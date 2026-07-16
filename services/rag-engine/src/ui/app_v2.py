@@ -207,10 +207,12 @@ def _catalogue_parcours_label(c: dict[str, Any]) -> str:
     """Expose paths without maintaining a second business catalogue."""
     if c.get("matiere") == "candidats_libres":
         return "Candidats libres"
+    declared_path = c.get("voie") or c.get("path") or c.get("parcours")
+    if declared_path:
+        return VOIE_LABELS.get(str(declared_path), str(declared_path))
     if c.get("domain") != "education":
         return "Transversal"
-    voie = c.get("voie")
-    return VOIE_LABELS.get(voie, str(voie) if voie else "Commun")
+    return "Commun"
 
 
 def _catalogue_bool_label(value: object) -> str:
