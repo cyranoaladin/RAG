@@ -117,3 +117,11 @@ def test_smoke_script_is_present_and_read_only() -> None:
     assert "POST " not in source.upper()
     assert "EMBED_DIM" in source
     assert "vector" in source
+
+
+def test_smoke_imports_embedding_contract_from_compose_and_repo_contexts() -> None:
+    source = SMOKE.read_text(encoding="utf-8")
+
+    assert "from embedding_contract import" in source
+    assert "from src.ingestor.embedding_contract import" in source
+    assert 'error.name != "embedding_contract"' in source

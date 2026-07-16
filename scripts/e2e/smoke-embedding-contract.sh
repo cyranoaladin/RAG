@@ -10,16 +10,30 @@ api_container="${RAG_API_CONTAINER:-rag_ingestor}"
 docker exec "$api_container" python3 - <<'PY'
 import os
 
-from src.ingestor.embedding_contract import (
-    CANONICAL_EMBED_DIM,
-    CANONICAL_EMBED_MODEL,
-    declared_embedding_dim,
-    declared_embedding_model,
-    load_embedding_model,
-    pgvector_dimension,
-    runtime_embedding_dimension,
-    validate_embedding_contract,
-)
+try:
+    from embedding_contract import (
+        CANONICAL_EMBED_DIM,
+        CANONICAL_EMBED_MODEL,
+        declared_embedding_dim,
+        declared_embedding_model,
+        load_embedding_model,
+        pgvector_dimension,
+        runtime_embedding_dimension,
+        validate_embedding_contract,
+    )
+except ModuleNotFoundError as error:
+    if error.name != "embedding_contract":
+        raise
+    from src.ingestor.embedding_contract import (
+        CANONICAL_EMBED_DIM,
+        CANONICAL_EMBED_MODEL,
+        declared_embedding_dim,
+        declared_embedding_model,
+        load_embedding_model,
+        pgvector_dimension,
+        runtime_embedding_dimension,
+        validate_embedding_contract,
+    )
 
 model = declared_embedding_model()
 declared_dim = declared_embedding_dim()

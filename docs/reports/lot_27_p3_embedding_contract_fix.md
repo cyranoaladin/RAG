@@ -59,3 +59,8 @@ schéma, puis les E2E durcis et les contrôles de données seront rejoués.
 Le rollback est UI/API-only vers la release atomique précédente validée. Il ne
 doit jamais modifier pgvector, Chroma ou les corpus. Tant que la réingestion
 gouvernée n'est pas explicitement autorisée et revue, le go-live reste bloqué.
+# Remédiation review inline
+
+Le smoke essaie d'abord l'import direct `embedding_contract`, correspondant à
+l'image Compose qui copie l'ingestor dans `/app`, puis retombe uniquement sur
+`src.ingestor.embedding_contract` pour l'exécution depuis le dépôt.
