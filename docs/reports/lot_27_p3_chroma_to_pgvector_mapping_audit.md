@@ -84,8 +84,9 @@ Les dimensions proviennent d'échantillons API Chroma v2 de trois embeddings par
 3. Exporter hors production les IDs et métadonnées Chroma nécessaires, sans documents non autorisés, puis bâtir un manifeste de dédoublonnage par `sha256`, chemin source et hash de contenu normalisé.
 4. Qualifier humainement les chunks NSI sans niveau, les collections mixtes et les incohérences de niveau.
 5. Réingérer les sources approuvées via `quality → gate → review`, jamais par copie de vecteurs legacy.
-6. Écrire avec `review_status=needs_review`, contrôler les métadonnées v2 obligatoires et valider les collections v2 explicitement.
-7. Accepter la reprise seulement si les collections NSI Première et Terminale ont des chunks, les recherches de fumée retournent des hits, aucune collection legacy n'est exposée, et les backups sont vérifiés.
+6. Écrire avec `review_status=needs_review`, contrôler les métadonnées v2 obligatoires et vérifier leur présence dans la queue de revue ; aucun hit `/search/v2` n'est attendu à ce stade.
+7. Faire revoir humainement les chunks éligibles, puis les promouvoir explicitement vers `reviewed` selon la procédure gouvernée.
+8. Accepter la reprise seulement après promotion : les collections NSI Première et Terminale ont des chunks `reviewed`, les recherches de fumée `/search/v2` retournent des hits, aucune collection legacy n'est exposée, et les backups sont vérifiés.
 
 ## Risques ouverts
 
