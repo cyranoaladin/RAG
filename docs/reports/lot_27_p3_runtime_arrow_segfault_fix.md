@@ -42,3 +42,8 @@ La PR exige les tests de contrat, les validations qualité et un build local de
 l'image. Un déploiement ultérieur restera UI-only, par release atomique avec
 `RELEASE_READY`, suivi du gate E2E durci. Le rollback vise la release UI
 précédente validée.
+# Remédiation review inline
+
+Le contexte Compose reste volontairement fermé par défaut, mais réinclut explicitement
+`requirements.lock`, les sources `src/ui/**` et le smoke runtime afin que chaque
+instruction `COPY` du Dockerfile UI soit disponible lors d'un build depuis la racine.

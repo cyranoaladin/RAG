@@ -15,6 +15,12 @@
 !services/rag-engine/src/ingestor/
 !services/rag-engine/src/ingestor/**
 
+# Required UI image inputs. Keep this allowlist narrow because the Compose build
+# context is the repository root.
+!services/rag-engine/requirements.lock
+!services/rag-engine/src/ui/
+!services/rag-engine/src/ui/**
+
 # Required shared contracts package.
 !packages/
 !packages/contracts/

@@ -44,9 +44,11 @@ def test_ui_dockerfile_installs_requirements_with_central_lock() -> None:
     assert "python -m pip check" in content
 
 
-def test_docker_context_keeps_the_runtime_smoke_script() -> None:
+def test_docker_context_keeps_all_ui_build_inputs() -> None:
     content = DOCKERIGNORE_PATH.read_text(encoding="utf-8")
 
+    assert "!services/rag-engine/requirements.lock" in content
+    assert "!services/rag-engine/src/ui/**" in content
     assert "!scripts/e2e/smoke-ui-runtime-imports.sh" in content
 
 
