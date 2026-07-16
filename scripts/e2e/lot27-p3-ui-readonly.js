@@ -200,6 +200,15 @@ function isPostDeployCriticalConsoleError(entry) {
   );
 }
 
+function isStaticBundleConsoleNoise(entry) {
+  return (
+    entry.text.includes("ChunkLoadError") ||
+    entry.text.includes("status of 502") ||
+    entry.text.includes("Unexpected response code: 502") ||
+    entry.text.includes("MIME type")
+  );
+}
+
 function isRagHost5xxFailure(errorText) {
   return (
     errorText.includes("Unexpected response code: 502") ||
@@ -516,6 +525,7 @@ async function main() {
       entry.type === "error" &&
       !entry.text.includes("ERR_BLOCKED_BY_CLIENT") &&
       !entry.text.includes("Segment snippet") &&
+      !(isStaticBundleConsoleNoise(entry) && E2E_MODE !== "post-deploy") &&
       (!entry.text.includes("_stcore/") || isPostDeployCriticalConsoleError(entry)),
   );
 

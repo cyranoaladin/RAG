@@ -44,6 +44,16 @@ def test_post_deploy_console_502_and_chunk_load_errors_are_not_suppressed() -> N
     assert "if (isPostDeployCriticalConsoleError(entry))" in content
 
 
+def test_static_bundle_console_noise_is_non_blocking_before_post_deploy() -> None:
+    content = E2E_RUNNER.read_text(encoding="utf-8")
+
+    assert "function isStaticBundleConsoleNoise" in content
+    assert 'entry.text.includes("ChunkLoadError")' in content
+    assert 'entry.text.includes("status of 502")' in content
+    assert 'entry.text.includes("MIME type")' in content
+    assert "isStaticBundleConsoleNoise(entry) && E2E_MODE !== \"post-deploy\"" in content
+
+
 def test_rag_host_websocket_502_is_blocking_before_streamlit_noise() -> None:
     content = E2E_RUNNER.read_text(encoding="utf-8")
 

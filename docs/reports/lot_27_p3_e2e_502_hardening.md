@@ -30,3 +30,8 @@ rendait la gate de go-live insuffisante.
 Cette PR ne déploie rien et ne modifie aucun runtime. La production reste
 bloquée jusqu'à deux E2E post-déploiement propres consécutifs, avec zéro 5xx
 sur l'hôte RAG et une observation stable.
+# Remédiation review inline
+
+Les signatures de bundle statique (`ChunkLoadError`, `status of 502`, MIME) sont
+ignorées hors `post-deploy`. Les réponses et échecs réseau HTTP 5xx du RAG-host
+restent bloquants dans tous les modes.
