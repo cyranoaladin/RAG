@@ -266,8 +266,8 @@ services:
   # ════════════════════════════════════════
   ui:
     build:
-      context: ../src/ui
-      dockerfile: Dockerfile
+      context: ../../..
+      dockerfile: services/rag-engine/src/ui/Dockerfile
     container_name: rag_ui
     restart: unless-stopped
     depends_on:

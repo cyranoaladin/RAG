@@ -141,6 +141,8 @@ const consoleLogs = [];
 const networkEvents = [];
 const blockedRequests = [];
 const pageFailures = [];
+const screenshotFailures = [];
+const pageResults = [];
 const responseDiagnostics = [];
 
 // Categorised failures
@@ -185,6 +187,37 @@ function isStaticAsset(url) {
   }
 }
 
+function isPostDeployCriticalConsoleError(entry) {
+  if (E2E_MODE !== "post-deploy") {
+    return false;
+  }
+
+  return (
+    entry.text.includes("ChunkLoadError") ||
+    entry.text.includes("status of 502") ||
+    entry.text.includes("Unexpected response code: 502") ||
+    entry.text.includes("MIME type")
+  );
+}
+
+function isStaticBundleConsoleNoise(entry) {
+  return (
+    entry.text.includes("ChunkLoadError") ||
+    entry.text.includes("status of 502") ||
+    entry.text.includes("Unexpected response code: 502") ||
+    entry.text.includes("MIME type")
+  );
+}
+
+function isRagHost5xxFailure(errorText) {
+  return (
+    errorText.includes("Unexpected response code: 502") ||
+    /\b(?:HTTP\/?\d?(?:\.\d)?\s+|status(?:\s+code)?(?:\s+of)?\s*|response(?:\s+code)?\s*)5\d\d\b/i.test(
+      errorText,
+    )
+  );
+}
+
 // -- Event recording --------------------------------------------------------
 
 function recordPageEvents(page, pageName) {
@@ -206,6 +239,12 @@ function recordPageEvents(page, pageName) {
     const entry = { page: pageName, method: request.method(), error: errorText, url };
 
     if (!isRelevant(url)) {
+      return;
+    }
+    // A failed Streamlit WebSocket handshake can have no response event. Keep
+    // an upstream 5xx blocking before classifying /_stcore/ as infra noise.
+    if (isRagHost5xxFailure(errorText)) {
+      networkFailuresBlocking.push(entry);
       return;
     }
     if (isStcoreEndpoint(url)) {
@@ -244,8 +283,11 @@ async function recordResponse(response, pageName) {
   }
   networkEvents.push(event);
 
-  // Categorise HTTP errors
-  if (response.status() >= 400) {
+  // Every server error from the RAG UI host is a go-live failure. This branch
+  // intentionally precedes Streamlit and static-asset classifications.
+  if (response.status() >= 500) {
+    networkFailuresBlocking.push(event);
+  } else if (response.status() >= 400) {
     if (isStcoreEndpoint(event.url)) {
       streamlitInfraNoise.push(event);
     } else if (isStaticAsset(event.url)) {
@@ -376,15 +418,45 @@ async function verifyPage(context, scenario) {
     const body = await page.locator("body").innerText();
     assertExpectedText(body, scenario);
   } finally {
-    await page.screenshot({
-      path: path.join(RESULTS_DIR, scenario.screenshot),
-      fullPage: true,
-    });
+    const screenshotPath = path.join(RESULTS_DIR, scenario.screenshot);
+    try {
+      await page.screenshot({
+        path: screenshotPath,
+        fullPage: true,
+      });
+    } catch (error) {
+      screenshotFailures.push(
+        `${scenario.navigation}: capture impossible : ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
     await page.close();
   }
+
+  return { navigation: scenario.navigation, screenshot: scenario.screenshot };
 }
 
 // -- Artifacts --------------------------------------------------------------
+
+function validatePageArtifacts() {
+  const successfulPages = new Set(pageResults.map((result) => result.navigation));
+
+  if (pageResults.length !== PAGES.length || successfulPages.size !== PAGES.length) {
+    screenshotFailures.push(
+      `pages valides insuffisantes : ${successfulPages.size}/${PAGES.length}`,
+    );
+  }
+
+  for (const scenario of PAGES) {
+    const screenshotPath = path.join(RESULTS_DIR, scenario.screenshot);
+    if (!fs.existsSync(screenshotPath)) {
+      screenshotFailures.push(`${scenario.navigation}: capture absente`);
+      continue;
+    }
+    if (fs.statSync(screenshotPath).size === 0) {
+      screenshotFailures.push(`${scenario.navigation}: capture vide`);
+    }
+  }
+}
 
 function writeArtifacts() {
   fs.mkdirSync(RESULTS_DIR, { recursive: true });
@@ -414,6 +486,11 @@ function writeArtifacts() {
     `${JSON.stringify(blockedRequests, null, 2)}\n`,
     "utf8",
   );
+  fs.writeFileSync(
+    path.join(RESULTS_DIR, "e2e-summary.json"),
+    `${JSON.stringify({ page_results: pageResults, screenshot_failures: screenshotFailures }, null, 2)}\n`,
+    "utf8",
+  );
 }
 
 // -- Main -------------------------------------------------------------------
@@ -428,7 +505,7 @@ async function main() {
   try {
     for (const scenario of PAGES) {
       try {
-        await verifyPage(context, scenario);
+        pageResults.push(await verifyPage(context, scenario));
       } catch (error) {
         pageFailures.push(error instanceof Error ? error.message : String(error));
       }
@@ -437,26 +514,29 @@ async function main() {
     await Promise.allSettled(responseDiagnostics);
     await context.close();
     await browser.close();
-    writeArtifacts();
   }
+
+  validatePageArtifacts();
+  writeArtifacts();
 
   // Console errors: filter only genuine non-infra errors
   const consoleErrors = consoleLogs.filter(
     (entry) =>
       entry.type === "error" &&
       !entry.text.includes("ERR_BLOCKED_BY_CLIENT") &&
-      !entry.text.includes("_stcore/") &&
-      !entry.text.includes("Segment snippet"),
+      !entry.text.includes("Segment snippet") &&
+      !(isStaticBundleConsoleNoise(entry) && E2E_MODE !== "post-deploy") &&
+      (!entry.text.includes("_stcore/") || isPostDeployCriticalConsoleError(entry)),
   );
 
-  // Static asset console errors are warnings, not blocking
+  // Static assets may be noisy, except when a post-deploy bundle failed to load.
   const consoleBlocking = consoleErrors.filter(
-    (entry) =>
-      !entry.text.includes("ChunkLoadError") &&
-      !entry.text.includes("status of 502") &&
-      !entry.text.includes("MIME type") &&
-      !entry.text.includes("ERR_NETWORK_CHANGED") &&
-      !entry.text.includes("ERR_ABORTED"),
+    (entry) => {
+      if (isPostDeployCriticalConsoleError(entry)) {
+        return true;
+      }
+      return !entry.text.includes("ERR_NETWORK_CHANGED") && !entry.text.includes("ERR_ABORTED");
+    },
   );
 
   // RAG-host blocked requests are blocking
@@ -464,6 +544,7 @@ async function main() {
 
   const failures = [
     ...pageFailures,
+    ...screenshotFailures,
     ...ragHostBlocked.map((e) => `requete non read-only bloquee : ${e.method} ${e.url}`),
     ...networkFailuresBlocking.map((e) => `echec reseau : ${JSON.stringify(e)}`),
     ...consoleBlocking.map((e) => `erreur console : ${e.text}`),
@@ -493,6 +574,9 @@ async function main() {
     throw new Error(`Echec E2E LOT 27 P3 (${E2E_MODE}):\n- ${failures.join("\n- ")}`);
   }
 
+  for (const result of pageResults) {
+    console.log(`Page PASS : ${result.navigation} (${result.screenshot})`);
+  }
   console.log(`\nE2E LOT 27 P3 (${E2E_MODE}) PASS`);
 }
 
