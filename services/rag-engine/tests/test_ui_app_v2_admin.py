@@ -143,6 +143,7 @@ def test_ui_renders_lot27_p3_navigation_and_page_hierarchy() -> None:
         "Recherche RAG v2",
         "Seules les collections instanciées et interrogeables (retrievable) sont proposées.",
         "Ingestion RAG v2",
+        "Catalogue d’ingestion complet",
         "Collection cible",
         "Type de document",
         "Droits",

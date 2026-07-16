@@ -10,6 +10,9 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 MATRIX_PATH = REPO_ROOT / "docs" / "reports" / "lot_27_business_coverage_matrix.md"
+INGESTION_COVERAGE_PATH = (
+    REPO_ROOT / "docs" / "reports" / "lot_27_p3_ingestion_frontend_business_coverage.md"
+)
 
 REQUIRED_TERMS = [
     # Niveaux
@@ -51,3 +54,12 @@ def test_matrix_distinguishes_statut(statut: str) -> None:
     assert statut in content.lower(), (
         f"Le rapport doit distinguer le statut '{statut}'"
     )
+
+
+def test_ingestion_coverage_report_states_the_declared_and_runtime_limits() -> None:
+    assert INGESTION_COVERAGE_PATH.exists(), (
+        f"Rapport de couverture ingestion absent : {INGESTION_COVERAGE_PATH}"
+    )
+    content = INGESTION_COVERAGE_PATH.read_text(encoding="utf-8")
+    for term in ("35", "3 instanciées", "2 retrievable", "LOT 28"):
+        assert term in content

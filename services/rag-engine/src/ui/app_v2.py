@@ -194,6 +194,59 @@ def _collection_label(c: dict[str, Any]) -> str:
     return " \u2014 ".join(parts) if parts else str(c.get("name", "?"))
 
 
+def _catalogue_level_label(c: dict[str, Any]) -> str:
+    """Human label while retaining the level supplied by /catalogue/v2."""
+    niveau = c.get("niveau")
+    if niveau is None:
+        return "Transversal / non applicable"
+    niveau_key = str(niveau)
+    return NIVEAU_LABELS.get(niveau_key, niveau_key)
+
+
+def _catalogue_parcours_label(c: dict[str, Any]) -> str:
+    """Expose paths without maintaining a second business catalogue."""
+    if c.get("matiere") == "candidats_libres":
+        return "Candidats libres"
+    declared_path = c.get("voie") or c.get("path") or c.get("parcours")
+    if declared_path:
+        return VOIE_LABELS.get(str(declared_path), str(declared_path))
+    if c.get("domain") != "education":
+        return "Transversal"
+    return "Commun"
+
+
+def _catalogue_bool_label(value: object) -> str:
+    return "Oui" if value is True else "Non"
+
+
+def _catalogue_matiere_label(c: dict[str, Any]) -> str:
+    return (c.get("matiere") or "Non applicable").replace("_", " ").title()
+
+
+def _catalogue_statut_label(c: dict[str, Any]) -> str:
+    if c.get("domain") == "quarantine":
+        return "Quarantaine"
+    statut = c.get("statut")
+    return STATUT_LABELS.get(str(statut), str(statut) if statut else "Non applicable")
+
+
+def _catalogue_domaine_label(c: dict[str, Any]) -> str:
+    domaine = c.get("domain")
+    return DOMAIN_LABELS.get(str(domaine), str(domaine) if domaine else "Non applicable")
+
+
+def _ingestion_reason(c: dict[str, Any]) -> str:
+    """Use the API decision first; provide only a safe display fallback."""
+    reason = c.get("ingestion_enabled_reason")
+    if isinstance(reason, str) and reason:
+        return reason
+    if not c.get("instanciee"):
+        return "Collection déclarée mais non instanciée."
+    if not c.get("ingestion_enabled"):
+        return "Ingestion non activée dans le catalogue."
+    return "Activable pour ingestion."
+
+
 def _backend_is_healthy() -> bool:
     """Indique si le backend v2 répond au healthcheck, sans bruit dans la page."""
     return api_get("/health", timeout=5.0, show_errors=False) is not None
@@ -547,7 +600,103 @@ elif page == "Ingestion":
     else:
         collections = catalogue.get("collections", [])
         ingestion_targets = [c for c in collections if c.get("ingestion_enabled")]
-        ingest_non_inst = [c for c in collections if not c.get("instanciee")]
+        ingestion_catalogue = collections
+
+        st.subheader("Catalogue d’ingestion complet")
+        st.caption(
+            "Cette vue dérive exclusivement de /catalogue/v2. Les collections non "
+            "activables restent visibles avec leur raison ; aucune collection n’est créée."
+        )
+
+        filter_row_1 = st.columns(4)
+        with filter_row_1[0]:
+            f_niveau = st.selectbox(
+                "Niveau",
+                ["Tous"] + sorted({_catalogue_level_label(c) for c in ingestion_catalogue}),
+                key="ingest_catalogue_niveau",
+            )
+        with filter_row_1[1]:
+            f_parcours = st.selectbox(
+                "Voie / parcours",
+                ["Tous"] + sorted({_catalogue_parcours_label(c) for c in ingestion_catalogue}),
+                key="ingest_catalogue_parcours",
+            )
+        with filter_row_1[2]:
+            f_matiere = st.selectbox(
+                "Matière",
+                ["Toutes"] + sorted({_catalogue_matiere_label(c) for c in ingestion_catalogue}),
+                key="ingest_catalogue_matiere",
+            )
+        with filter_row_1[3]:
+            f_statut = st.selectbox(
+                "Statut",
+                ["Tous"] + sorted({_catalogue_statut_label(c) for c in ingestion_catalogue}),
+                key="ingest_catalogue_statut",
+            )
+
+        filter_row_2 = st.columns(4)
+        with filter_row_2[0]:
+            f_domaine = st.selectbox(
+                "Domaine",
+                ["Tous"] + sorted({_catalogue_domaine_label(c) for c in ingestion_catalogue}),
+                key="ingest_catalogue_domaine",
+            )
+        with filter_row_2[1]:
+            f_instanciee = st.selectbox(
+                "Instanciée",
+                ["Toutes", "Oui", "Non"],
+                key="ingest_catalogue_instanciee",
+            )
+        with filter_row_2[2]:
+            f_ingestion = st.selectbox(
+                "Ingestion activée",
+                ["Toutes", "Oui", "Non"],
+                key="ingest_catalogue_ingestion",
+            )
+        with filter_row_2[3]:
+            f_retrievable = st.selectbox(
+                "Retrievable",
+                ["Toutes", "Oui", "Non"],
+                key="ingest_catalogue_retrievable",
+            )
+
+        filtered_ingestion_catalogue = [
+            c
+            for c in ingestion_catalogue
+            if (f_niveau == "Tous" or _catalogue_level_label(c) == f_niveau)
+            and (f_parcours == "Tous" or _catalogue_parcours_label(c) == f_parcours)
+            and (f_matiere == "Toutes" or _catalogue_matiere_label(c) == f_matiere)
+            and (f_statut == "Tous" or _catalogue_statut_label(c) == f_statut)
+            and (f_domaine == "Tous" or _catalogue_domaine_label(c) == f_domaine)
+            and (
+                f_instanciee == "Toutes"
+                or _catalogue_bool_label(c.get("instanciee")) == f_instanciee
+            )
+            and (
+                f_ingestion == "Toutes"
+                or _catalogue_bool_label(c.get("ingestion_enabled")) == f_ingestion
+            )
+            and (
+                f_retrievable == "Toutes"
+                or _catalogue_bool_label(c.get("retrievable")) == f_retrievable
+            )
+        ]
+        catalogue_rows = [
+            {
+                "Collection": c.get("name", "?"),
+                "Niveau": _catalogue_level_label(c),
+                "Voie / parcours": _catalogue_parcours_label(c),
+                "Matière": _catalogue_matiere_label(c),
+                "Statut": _catalogue_statut_label(c),
+                "Domaine": _catalogue_domaine_label(c),
+                "Instanciée": _catalogue_bool_label(c.get("instanciee")),
+                "Ingestion activée": _catalogue_bool_label(c.get("ingestion_enabled")),
+                "Retrievable": _catalogue_bool_label(c.get("retrievable")),
+                "Raison": _ingestion_reason(c),
+            }
+            for c in filtered_ingestion_catalogue
+        ]
+        st.dataframe(pd.DataFrame(catalogue_rows), use_container_width=True, hide_index=True)
 
         if not ingestion_targets:
             st.warning("Aucune collection instanci\u00e9e disponible pour l\u2019ingestion.")
@@ -607,23 +756,6 @@ elif page == "Ingestion":
                 _render_urls_tab(ingest_meta, "ingest")
             with tab_drv:
                 _render_drive_tab(ingest_meta, "ingest")
-
-        # Show non-instanci\u00e9es
-        if ingest_non_inst:
-            st.markdown("---")
-            with st.expander(
-                f"Collections d\u00e9clar\u00e9es non instanci\u00e9es ({len(ingest_non_inst)})"
-            ):
-                for c in ingest_non_inst:
-                    c_niv = str(c.get("niveau") or "?")
-                    c_stat = str(c.get("statut") or "?")
-                    st.caption(
-                        f"`{c['name']}` \u2014 "
-                        f"{(c.get('matiere') or '?').replace('_', ' ').title()} / "
-                        f"{NIVEAU_LABELS.get(c_niv, c_niv)} / "
-                        f"{STATUT_LABELS.get(c_stat, c_stat)}"
-                    )
-
 
 # ===============================================================
 # PAGE ADMINISTRATION
