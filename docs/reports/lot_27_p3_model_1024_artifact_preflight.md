@@ -16,14 +16,60 @@ et reproductible avant le deploiement.
 1. Un repertoire modele pre-rempli par `scripts/e2e/prepare-embedding-model-artifact.sh`
 2. Un manifeste JSON (`manifest.json`) avec metadata verifiables
 3. Des checksums SHA256 (`SHA256SUMS`) pour chaque fichier
-4. Montage read-only dans les conteneurs ingestor/worker via `RAG_EMBEDDING_MODEL_CACHE_DIR`
+4. Montage read-only dans les conteneurs ingestor/worker
 
 Le runtime ne telecharge jamais le modele. Si le cache est absent, le service refuse de demarrer (fail-closed).
+
+## Semantique hote / conteneur
+
+Deux variables distinctes evitent toute confusion :
+
+| Variable | Scope | Valeur |
+|---|---|---|
+| `RAG_EMBEDDING_MODEL_ARTIFACT_HOST_DIR` | `.env` hote | Chemin absolu vers l'artefact sur la machine hote |
+| `RAG_EMBEDDING_MODEL_CACHE_DIR` | Conteneur | `/models/e5-large` (fixe, jamais un chemin hote) |
+
+Le volume Compose mappe l'un vers l'autre :
+```yaml
+volumes:
+  - ${RAG_EMBEDDING_MODEL_ARTIFACT_HOST_DIR:-./data/.no-model-cache}:/models/e5-large:ro
+environment:
+  RAG_EMBEDDING_MODEL_CACHE_DIR: "/models/e5-large"
+```
+
+## Comportement de `load_embedding_model()`
+
+1. Si `RAG_EMBEDDING_MODEL_CACHE_DIR` est defini :
+   - Verifie que le repertoire existe
+   - Charge `SentenceTransformer(cache_dir, local_files_only=True)`
+   - Echoue avec `EMBEDDING_MODEL_ARTIFACT_PATH_MISSING` si absent
+2. Sinon :
+   - Charge `SentenceTransformer("intfloat/multilingual-e5-large", local_files_only=True)`
+   - Echoue avec `EMBEDDING_MODEL_UNAVAILABLE` si pas en cache local
+
+Dans les deux cas : aucun telechargement, aucun fallback.
+
+## Statut de `EmbeddingService` (Ollama) — BLOCKER CONTROLE
+
+**`EMBEDDING_SERVICE_OLLAMA_PATH_STILL_ACTIVE`**
+
+Le worker d'ingestion (`tasks.py`) utilise encore `EmbeddingService` qui appelle
+Ollama (`/api/embeddings`) pour produire les vecteurs ecrits en pgvector.
+`load_embedding_model()` n'est utilise que pour la validation contractuelle
+(verification de dimension), pas pour l'embedding reel.
+
+Consequence : le montage de l'artefact local SentenceTransformer ne suffit PAS
+a rendre l'ingestion v2 fonctionnelle. L'ingestion reste dependante d'Ollama.
+
+Ce blocage est :
+- Documente ici et dans les tests de contrat
+- Expose par des tests explicites (`TestOllamaEmbeddingPathBlocker`)
+- A traiter dans un lot ulterieur (migration embedding ingestion vers SentenceTransformer local)
 
 ## Procedure de generation locale
 
 ```bash
-export MODEL_ARTIFACT_DIR=/path/to/artifact/e5-large-1024
+export MODEL_ARTIFACT_DIR=/path/to/artifact/e5-large-1024   # absolu, hors repo
 export EMBEDDING_MODEL_REVISION=main  # ou commit hash specifique
 bash scripts/e2e/prepare-embedding-model-artifact.sh
 ```
@@ -31,7 +77,7 @@ bash scripts/e2e/prepare-embedding-model-artifact.sh
 Prerequis :
 - Python 3.11+ avec `huggingface_hub` et `sentence_transformers`
 - Acces internet (uniquement pendant la preparation)
-- Le repertoire cible doit etre HORS du depot Git
+- Le repertoire cible doit etre un chemin absolu HORS du depot Git
 
 ## Procedure de verification offline
 
@@ -40,13 +86,6 @@ export MODEL_ARTIFACT_DIR=/path/to/artifact/e5-large-1024
 bash scripts/e2e/verify-embedding-model-artifact.sh
 ```
 
-Verifications :
-- `manifest.json` present et coherent (model_id, canonical_dim)
-- `SHA256SUMS` present, tous les checksums valides
-- Aucune reference Nomic dans l'artefact
-- Chargement offline du modele (`local_files_only=True`, `HF_HUB_OFFLINE=1`)
-- Dimension runtime == 1024
-
 ## Manifeste attendu
 
 ```json
@@ -54,8 +93,8 @@ Verifications :
   "model_id": "intfloat/multilingual-e5-large",
   "canonical_dim": 1024,
   "revision_requested": "<commit_or_tag>",
-  "file_count": <n>,
-  "total_size_bytes": <n>,
+  "file_count": "<n>",
+  "total_size_bytes": "<n>",
   "generated_at": "<ISO8601>",
   "repo_commit": "<git_sha>",
   "python_version": "<version>",
@@ -64,20 +103,6 @@ Verifications :
 }
 ```
 
-## Montage read-only dans Compose
-
-Le fichier `docker-compose.v2.yml` supporte un volume conditionnel :
-
-```yaml
-environment:
-  RAG_EMBEDDING_MODEL_CACHE_DIR: "${RAG_EMBEDDING_MODEL_CACHE_DIR:-}"
-volumes:
-  - ${RAG_EMBEDDING_MODEL_CACHE_DIR:-/dev/null}:/models/e5-large:ro
-```
-
-Le montage est un prerequis de deploiement, pas active implicitement.
-Sans `RAG_EMBEDDING_MODEL_CACHE_DIR` defini, le service reste fail-closed.
-
 ## Criteres d'acceptation avant deploiement
 
 - [ ] Artefact genere localement avec `prepare-embedding-model-artifact.sh`
@@ -85,13 +110,15 @@ Sans `RAG_EMBEDDING_MODEL_CACHE_DIR` defini, le service reste fail-closed.
 - [ ] Checksums SHA256 tous valides
 - [ ] Dimension confirmee a 1024
 - [ ] Aucune reference Nomic dans l'artefact
+- [ ] `RAG_EMBEDDING_MODEL_ARTIFACT_HOST_DIR` pointe vers l'artefact verifie
 - [ ] Volume monte read-only dans Compose
 - [ ] Smoke embedding contract passe dans la stack locale
+- [ ] **BLOCKER** : migration embedding ingestion hors Ollama (lot ulterieur)
 
 ## Criteres de rollback
 
-- Si le modele produit des embeddings incoherents : revenir au montage precedent (sans le volume)
-- Le runtime reste fail-closed : retirer `RAG_EMBEDDING_MODEL_CACHE_DIR` suffit a bloquer
+- Retirer `RAG_EMBEDDING_MODEL_ARTIFACT_HOST_DIR` du `.env` suffit a bloquer
+- Le runtime reste fail-closed
 - Les donnees pgvector ne sont pas touchees par ce lot
 
 ## Interdictions
@@ -100,8 +127,10 @@ Sans `RAG_EMBEDDING_MODEL_CACHE_DIR` defini, le service reste fail-closed.
 - Aucun fallback vers `nomic-embed-text:v1.5` (768d)
 - Aucun padding/truncation de vecteurs
 - Aucun commit du modele dans Git
+- Aucun deploiement dans ce lot
 
 ## Prochaine etape
 
-Generer reellement l'artefact hors production, puis tester la stack locale complete
-avec le modele monte en read-only.
+1. Generer reellement l'artefact hors production
+2. Tester la stack locale complete avec le modele monte en read-only
+3. Migrer le chemin d'embedding ingestion de Ollama vers SentenceTransformer local

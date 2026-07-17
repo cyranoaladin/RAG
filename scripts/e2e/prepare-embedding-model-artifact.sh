@@ -30,6 +30,16 @@ if [ -z "${MODEL_ARTIFACT_DIR:-}" ]; then
     exit 1
 fi
 
+# Must be an absolute path
+case "$MODEL_ARTIFACT_DIR" in
+    /*)  ;;
+    *)
+        echo "ERROR: MODEL_ARTIFACT_DIR must be an absolute path." >&2
+        echo "       Got: $MODEL_ARTIFACT_DIR" >&2
+        exit 1
+        ;;
+esac
+
 if [ -z "${EMBEDDING_MODEL_REVISION:-}" ]; then
     echo "ERROR: EMBEDDING_MODEL_REVISION is not set." >&2
     exit 1
@@ -42,11 +52,12 @@ if [ "$MODEL_ID" != "$CANONICAL_MODEL" ]; then
     exit 1
 fi
 
-# Refuse if artifact dir is inside the git repo
-REAL_ARTIFACT="$(realpath "$MODEL_ARTIFACT_DIR" 2>/dev/null || echo "$MODEL_ARTIFACT_DIR")"
+# Refuse if artifact dir is inside the git repo (realpath -m works even if
+# the directory does not exist yet)
+REAL_ARTIFACT="$(realpath -m "$MODEL_ARTIFACT_DIR" 2>/dev/null || echo "$MODEL_ARTIFACT_DIR")"
 REAL_REPO="$(realpath "$REPO_ROOT")"
 case "$REAL_ARTIFACT" in
-    "$REAL_REPO"/*)
+    "$REAL_REPO"|"$REAL_REPO"/*)
         echo "ERROR: MODEL_ARTIFACT_DIR must be outside the git repository." >&2
         echo "       Got: $REAL_ARTIFACT" >&2
         echo "       Repo: $REAL_REPO" >&2

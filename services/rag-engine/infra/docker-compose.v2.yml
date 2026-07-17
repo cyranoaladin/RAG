@@ -148,7 +148,7 @@ services:
       EMBED_MODEL: "${EMBED_MODEL:-intfloat/multilingual-e5-large}"
       EMBED_DIM: "${EMBED_DIM:-1024}"
       EMBED_CACHE_TTL: "${EMBED_CACHE_TTL:-86400}"
-      RAG_EMBEDDING_MODEL_CACHE_DIR: "${RAG_EMBEDDING_MODEL_CACHE_DIR:-}"
+      RAG_EMBEDDING_MODEL_CACHE_DIR: "/models/e5-large"
       # Reranking
       RERANKER_MODEL: "${RERANKER_MODEL:-cross-encoder/ms-marco-MiniLM-L-6-v2}"
       RERANKER_TOP_N: "${RERANKER_TOP_N:-5}"
@@ -188,7 +188,7 @@ services:
       - ${RAG_CONFIGS_HOST_DIR:-../configs}:/app/configs:ro
       - ./creds:/creds:ro
       - ./data/uploads:/data/uploads:rw
-      - ${RAG_EMBEDDING_MODEL_CACHE_DIR:-./data/.no-model-cache}:/models/e5-large:ro
+      - ${RAG_EMBEDDING_MODEL_ARTIFACT_HOST_DIR:-./data/.no-model-cache}:/models/e5-large:ro
     ports:
       - "127.0.0.1:${INGESTOR_PORT:-8001}:8001"
     networks: [rag_net]
@@ -240,7 +240,7 @@ services:
       OLLAMA_URL: "http://ollama:11434"
       EMBED_MODEL: "${EMBED_MODEL:-intfloat/multilingual-e5-large}"
       EMBED_DIM: "${EMBED_DIM:-1024}"
-      RAG_EMBEDDING_MODEL_CACHE_DIR: "${RAG_EMBEDDING_MODEL_CACHE_DIR:-}"
+      RAG_EMBEDDING_MODEL_CACHE_DIR: "/models/e5-large"
       API_SECRET_KEY: "${API_SECRET_KEY}"
       LOCAL_SOURCE_ROOT: /data/uploads
       MAX_REMOTE_BYTES: ${MAX_REMOTE_BYTES:-26214400}
@@ -250,7 +250,7 @@ services:
       XDG_CACHE_HOME: /tmp
     volumes:
       - ./data/uploads:/data/uploads:rw
-      - ${RAG_EMBEDDING_MODEL_CACHE_DIR:-./data/.no-model-cache}:/models/e5-large:ro
+      - ${RAG_EMBEDDING_MODEL_ARTIFACT_HOST_DIR:-./data/.no-model-cache}:/models/e5-large:ro
     networks: [rag_net]
     security_opt: [no-new-privileges:true]
     tmpfs: ["/tmp", "/app/.cache", "/var/tmp"]
