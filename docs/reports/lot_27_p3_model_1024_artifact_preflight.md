@@ -66,6 +66,21 @@ Ce blocage est :
 - Expose par des tests explicites (`TestOllamaEmbeddingPathBlocker`)
 - A traiter dans un lot ulterieur (migration embedding ingestion vers SentenceTransformer local)
 
+## Normalisation des chemins et checksums
+
+`MODEL_ARTIFACT_DIR` est normalise au debut du script de preparation :
+- Chemin absolu requis (commence par `/`)
+- `realpath -m` resout symlinks et supprime le slash final
+- Le chemin normalise est reassigne : `MODEL_ARTIFACT_DIR="$REAL_ARTIFACT"`
+- Le filesystem root (`/`) est refuse
+- Tout chemin egal ou sous le depot Git est refuse
+
+`SHA256SUMS` est genere en checksums relatifs :
+- `cd` dans le repertoire artefact avant `sha256sum`
+- Les chemins dans `SHA256SUMS` sont relatifs a la racine de l'artefact (ex: `config.json`, `model.safetensors`)
+- Aucun chemin absolu ne peut apparaitre dans le fichier de checksums
+- Portabilite garantie : le fichier est verifiable depuis n'importe quel point de montage
+
 ## Procedure de generation locale
 
 ```bash

@@ -229,6 +229,21 @@ class TestPrepareScriptPathHardening:
         # The case pattern must also match $REAL_REPO itself, not just $REAL_REPO/*
         assert '"$REAL_REPO"|"$REAL_REPO"/' in self.source
 
+    def test_reassigns_model_artifact_dir_to_normalized(self) -> None:
+        """After validation, MODEL_ARTIFACT_DIR must be reassigned to REAL_ARTIFACT."""
+        assert 'MODEL_ARTIFACT_DIR="$REAL_ARTIFACT"' in self.source
+
+    def test_refuses_filesystem_root(self) -> None:
+        assert '"/"' in self.source
+
+    def test_checksums_use_cd_for_relative_paths(self) -> None:
+        """SHA256SUMS must be generated from inside the artifact dir (cd)."""
+        assert 'cd "$MODEL_ARTIFACT_DIR"' in self.source
+
+    def test_checksums_strip_dot_slash_prefix(self) -> None:
+        """The sed must remove ./ prefix from find output."""
+        assert r"s|  \./|  |" in self.source
+
 
 # -- Ollama embedding path still active (controlled blocker) --
 
