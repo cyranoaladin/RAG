@@ -6,9 +6,13 @@ set -euo pipefail
 # image.  It neither creates data nor calls a write endpoint.
 
 api_container="${RAG_API_CONTAINER:-rag_ingestor}"
+execution_marker="EMBEDDING_CONTRACT_PYTHON_HEREDOC_EXECUTED"
 
-docker exec "$api_container" python3 - <<'PY'
+smoke_output="$(
+docker exec -i "$api_container" python3 - <<'PY' | tee /dev/stderr
 import os
+
+print("EMBEDDING_CONTRACT_PYTHON_HEREDOC_EXECUTED", flush=True)
 
 try:
     from embedding_contract import (
@@ -59,3 +63,9 @@ assert model == CANONICAL_EMBED_MODEL
 assert declared_dim == CANONICAL_EMBED_DIM
 print("EMBEDDING_CONTRACT_OK")
 PY
+)"
+
+if ! grep -Fqx "$execution_marker" <<<"$smoke_output"; then
+    echo "EMBEDDING_CONTRACT_PYTHON_HEREDOC_NOT_EXECUTED" >&2
+    exit 1
+fi
