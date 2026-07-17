@@ -97,12 +97,27 @@ def load_embedding_model() -> Any:
     ``local_files_only`` prevents a request path from silently downloading or
     switching models.  A deployment must pre-provision this exact model before
     it can serve or ingest v2 vectors.
+
+    When ``RAG_EMBEDDING_MODEL_CACHE_DIR`` is set the model is loaded from that
+    directory (the read-only mount of the pre-built artifact).  The directory
+    must exist; an absent path is treated as a provisioning failure.
     """
-    model = declared_embedding_model()
+    declared_embedding_model()  # enforce canonical model name
+    cache_dir = os.environ.get("RAG_EMBEDDING_MODEL_CACHE_DIR", "").strip()
     try:
         from sentence_transformers import SentenceTransformer
 
-        return SentenceTransformer(model, local_files_only=True)
+        if cache_dir:
+            if not os.path.isdir(cache_dir):
+                raise EmbeddingContractError(
+                    "EMBEDDING_MODEL_ARTIFACT_PATH_MISSING"
+                )
+            return SentenceTransformer(cache_dir, local_files_only=True)
+        return SentenceTransformer(
+            CANONICAL_EMBED_MODEL, local_files_only=True
+        )
+    except EmbeddingContractError:
+        raise
     except Exception as exc:
         raise EmbeddingContractError("EMBEDDING_MODEL_UNAVAILABLE") from exc
 
