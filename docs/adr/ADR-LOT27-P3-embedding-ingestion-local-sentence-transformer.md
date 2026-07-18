@@ -1,105 +1,173 @@
-# ADR: Migrate ingestion embedding from Ollama to local SentenceTransformer
+# ADR : certifier l'ingestion v2 locale et neutraliser le worker Ollama legacy
 
-## Status
+## Statut
 
-Proposed
+Proposé
 
-## Context
+## Contexte
 
-The RAG v2 pipeline has two embedding paths:
+L'audit corrigé distingue trois ensembles qui coexistent dans `rag-engine` :
 
-1. **Search** (`retrieval_v2_endpoint.py`): uses `embedding_contract.load_embedding_model()` to load `intfloat/multilingual-e5-large` locally via SentenceTransformer, applies `format_query()` prefix, encodes with `normalize_embeddings=True`, and queries `pgvector(1024)`.
+1. **Chemin actif routé `/ingest/v2`** : `api.py` monte
+   `ingest_v2_endpoint.py`; les routes upload et URLs appellent
+   `ingest_v2.ingest_document`. Ce pipeline charge localement
+   `intfloat/multilingual-e5-large` via `load_embedding_model()`, valide le
+   contrat runtime/pgvector, applique `format_passage()` à chaque chunk,
+   encode avec `normalize_embeddings=True`, puis écrit dans pgvector.
+2. **Recherche `/search/v2`** : `retrieval_v2_endpoint.py` charge le même modèle
+   local, applique `format_query()` et encode avec la même normalisation avant
+   la recherche pgvector.
+3. **Chemins legacy** : `tasks.py` enregistre une tâche Celery qui utilise
+   `EmbeddingService`; ce service appelle Ollama `/api/tags` et
+   `/api/embeddings`. L'application expose aussi des routes `/ingest*` legacy
+   utilisant Ollama/Chroma, en parallèle de `/ingest/v2`.
 
-2. **Ingestion** (`tasks.py` → `EmbeddingService`): uses `EmbeddingService` which calls Ollama `/api/embeddings` over HTTP, does NOT apply `format_passage()` prefix, and writes to `pgvector(1024)`.
+L'affirmation précédente selon laquelle toute ingestion v2 omettait
+`format_passage()` était incorrecte. Cette omission concerne le worker
+Celery/Ollama, pas le chemin actif `/ingest/v2`.
 
-This architecture has critical inconsistencies:
+## État établi par le LOT 27 P3
 
-- **Model divergence**: search uses the local SentenceTransformer artifact; ingestion uses whatever Ollama serves under `intfloat/multilingual-e5-large`. These may produce different vectors for the same text.
-- **Missing E5 prefix**: the E5 model family requires `"passage: "` prefix for indexed documents and `"query: "` prefix for search queries. Search applies `format_query()` but ingestion does NOT apply `format_passage()`. This breaks the E5 asymmetric retrieval contract.
-- **Network dependency**: ingestion depends on Ollama being available and having the exact model pulled. The local SentenceTransformer artifact is already mounted read-only but unused by ingestion.
-- **Cache key mismatch**: `EmbeddingService._cache_key` uses `embed:{model}:{sha256}` but does not include dimension, prefix, or normalization state.
+- Le chemin `/ingest/v2` implémenté est déjà cohérent avec la recherche v2 pour
+  le modèle, les préfixes E5 complémentaires, la normalisation et la dimension
+  pgvector 1024.
+- La route `/ingest/v2/drive` retourne actuellement `501` après validation de
+  collection et n'écrit rien.
+- Le worker Celery reste déclaré dans `docker-compose.v2.yml` et sa tâche
+  `ingest_document` reste enregistrée.
+- Le worker produit encore ses embeddings via Ollama, sans
+  `format_passage()` ni normalisation explicite.
+- Les routes legacy `/ingest*` restent exposées par la même application.
+- Les verrous de gouvernance restent fermés. Aucune ingestion n'est activée.
 
-## Current state (LOT 27 P3)
+## Décision
 
-- Artefact `intfloat/multilingual-e5-large` (revision `3d7cfbdacd47fdda877c5cd8a79fbcc4f2a574f3`) generated and verified offline.
-- Mounted read-only at `/models/e5-large` in ingestor/worker containers.
-- `embedding_contract.py` enforces model=`intfloat/multilingual-e5-large`, dim=1024, fail-closed.
-- `load_embedding_model()` loads from the artifact. `MODEL_LOAD_OK 1024` verified in container.
-- `packages/contracts/embedding_utils.py` provides `format_passage()` and `format_query()`.
-- pgvector schema: `vector(1024)`.
-- All governance locks remain false. Ingestion is not activated.
+### 1. Conserver le chemin actif conforme
 
-## Decision
+Le chemin routé `/ingest/v2` fondé sur `ingest_v2.py` reste la cible certifiée.
+Il ne doit pas être migré vers `EmbeddingService` ni vers Ollama. Son contrat
+reste : modèle SentenceTransformer local, aucun téléchargement runtime,
+`format_passage()`, normalisation, validation 1024d et écriture pgvector avec
+`review_status=needs_review`.
 
-Migrate `EmbeddingService` so that ingestion v2 uses the same local SentenceTransformer model loaded by `embedding_contract.load_embedding_model()`, with `format_passage()` applied to every chunk before encoding.
+### 2. Neutraliser, migrer ou interdire le worker legacy
 
-### Concrete changes (LOT 27 P3 AD scope)
+Avant toute activation d'ingestion réelle, le chemin `tasks.py` →
+`EmbeddingService` doit satisfaire exactement l'une des options suivantes :
 
-1. **`EmbeddingService.embed_one()`**: replace Ollama HTTP call with `embed_model.encode(format_passage(text), normalize_embeddings=True)` using the model from `load_embedding_model()`.
-2. **`EmbeddingService.__init__()`**: accept an optional pre-loaded SentenceTransformer model instead of `ollama_url`.
-3. **`EmbeddingService._assert_model_available()`**: verify model dimension = 1024 instead of checking Ollama tags.
-4. **`tasks.py`**: pass the already-loaded `contract_model` to `EmbeddingService`.
-5. **Cache key**: include dimension and `"passage"` prefix marker in cache key.
-6. **Remove Ollama dependency**: `EmbeddingService` no longer calls `/api/embeddings`.
+- être neutralisé et rendu impossible à démarrer ou à recevoir une tâche ;
+- être migré vers le même pipeline local certifié que `/ingest/v2` ;
+- être explicitement interdit par la configuration et les contrôles
+  d'exploitation, avec un test fail-closed prouvant l'interdiction.
 
-### Non-objectives
+Tant qu'aucune option n'est démontrée, toute ingestion par le worker est
+interdite. La simple validation 1024d effectuée dans `tasks.py` ne certifie pas
+les vecteurs ensuite produits par Ollama.
 
-- No pgvector schema migration.
-- No reingestion.
-- No deployment.
-- No Ollama removal from Compose (it may be used by other paths).
-- No changes to search path (already correct).
+### 3. Éliminer l'ambiguïté de propriété des routes
 
-## Security constraints
+Chaque commande d'ingestion doit avoir un propriétaire et un chemin certifié
+uniques. Les routes `/ingest*` legacy et le point d'entrée admin qui appelle
+`/ingest` doivent être neutralisés, migrés ou explicitement exclus du périmètre
+de réingestion. Aucun chemin non certifié ne peut écrire dans le magasin cible.
 
-- No model download at runtime (`local_files_only=True`).
-- No fallback to 768d or any other model.
-- No padding or truncation.
-- Dimension validated against pgvector before any write.
-- Cache keys must be model+dim+prefix-aware to prevent cross-contamination.
+### 4. Maintenir le fail-closed de gouvernance
 
-## Target architecture
+Aucun verrou `*_allowed` ne peut être activé par effet de bord. Une activation
+ultérieure exige tous les critères suivants :
 
+1. inventaire exhaustif des routes, producteurs de tâches et workers pouvant
+   déclencher une ingestion ;
+2. preuve que chaque chemin autorisé utilise le modèle local certifié,
+   `format_passage()`, `normalize_embeddings=True` et la validation du contrat
+   avant toute écriture pgvector ;
+3. preuve que chaque chemin legacy est neutralisé, migré ou interdit
+   fail-closed ;
+4. passage obligatoire `quality → gate → review`, avec
+   `review_status=needs_review` avant toute visibilité retrieval ;
+5. tests de contrat et CI locale verts sur le périmètre complet ;
+6. autorisation explicite conforme à `transition_authorization.yml`, ADR
+   référencé et mise à jour contrôlée des verrous de gouvernance.
+
+Sans ces six preuves, aucune ingestion ni réingestion n'est autorisée.
+
+## Architecture cible
+
+```text
+Chemin certifié d'ingestion :
+  texte
+    → format_passage(texte)
+    → SentenceTransformer local, normalize_embeddings=True
+    → validation modèle + dimension runtime + pgvector 1024d
+    → quality → gate → review
+    → pgvector INSERT avec needs_review
+
+Recherche v2 :
+  requête
+    → format_query(requête)
+    → même SentenceTransformer local, normalize_embeddings=True
+    → pgvector SELECT
+
+Tout autre chemin :
+  refus fail-closed avant production de vecteur ou écriture
 ```
-Ingestion:
-  text → format_passage(text) → SentenceTransformer.encode(local, normalize=True)
-       → validate dim=1024 → pgvector INSERT
 
-Search:
-  query → format_query(query) → SentenceTransformer.encode(local, normalize=True)
-        → validate dim=1024 → pgvector SELECT (cosine similarity)
-```
+## Critères d'acceptation d'un futur lot runtime
 
-Both paths use the same model, same normalization, complementary E5 prefixes.
+1. Le contrat statique confirme que `/ingest/v2` conserve
+   `format_passage()`, `encode(..., normalize_embeddings=True)` et
+   `validate_runtime_embedding_contract()`.
+2. Le contrat statique confirme que la recherche v2 utilise
+   `load_embedding_model()`.
+3. Un test échoue si un worker autorisé appelle `/api/tags` ou
+   `/api/embeddings` pour produire les vecteurs d'ingestion.
+4. Un test échoue si une route d'ingestion exposée contourne le chemin certifié.
+5. Les contrôles de gouvernance prouvent qu'aucune écriture ne contourne
+   `quality → gate → review`.
+6. Aucun test d'acceptation ne lance une ingestion réelle sans autorisation de
+   transition distincte.
 
-## Acceptance tests
+## Non-objectifs de ce lot
 
-1. `EmbeddingService.embed_one()` returns 1024d vector without Ollama.
-2. `EmbeddingService.embed_one()` applies `format_passage()` prefix.
-3. `EmbeddingService` refuses to start if model dimension != 1024.
-4. Cache key includes `"passage"` marker.
-5. `tasks.py` no longer imports or connects to Ollama for embeddings.
-6. Full ingestion pipeline test (offline, no Ollama) produces 1024d vectors.
-7. Search and ingestion embeddings are in the same vector space (cosine similarity test with known text).
+- Aucune modification de `ingest_v2.py`, `tasks.py`, `EmbeddingService` ou de
+  tout autre code runtime.
+- Aucune migration pgvector ou ChromaDB.
+- Aucune modification Docker Compose.
+- Aucune ingestion ou réingestion.
+- Aucun démarrage de worker.
+- Aucun déploiement ni accès production.
+- Aucun téléchargement de modèle ni régénération d'artefact.
+- Aucune activation de verrou de gouvernance.
 
-## Rollback
+## Conséquences
 
-- Revert to Ollama-based `EmbeddingService` by reverting the PR.
-- No data migration needed (pgvector schema unchanged).
-- Ingestion governance locks remain the final gate.
+- Le faux P0 sur `format_passage()` dans `/ingest/v2` est supprimé.
+- Le chemin actif local reste inchangé et explicitement reconnu conforme sur
+  le point audité.
+- La dette est recentrée sur le worker Celery/Ollama et sur la coexistence de
+  routes legacy.
+- La réingestion reste bloquée jusqu'à neutralisation ou certification de tous
+  les chemins et autorisation de gouvernance.
 
-## Risks
+## Risques
 
-| Risk | Mitigation |
+| Risque | Traitement requis |
 |---|---|
-| SentenceTransformer memory usage in worker | Model already loaded for contract validation; reuse the instance |
-| Cache invalidation after prefix change | New cache key format prevents stale hits |
-| E5 prefix applied twice | Test that `format_passage` is applied exactly once |
-| Ollama still referenced in other v1 paths | Out of scope; v1 paths are separate |
+| Une tâche externe cible le nom Celery `ingest_document` | Neutraliser le worker ou refuser la tâche avant embedding/écriture |
+| Une route legacy est utilisée à la place de `/ingest/v2` | Rendre le routage univoque et tester l'absence de contournement |
+| Le worker Ollama produit un espace vectoriel divergent | Interdire ce chemin ou le migrer vers le modèle local certifié |
+| Un verrou est activé avant certification complète | Conserver le fail-closed et exiger `transition_authorization.yml` + ADR |
 
-## Blockers remaining after this ADR
+## Retour arrière
 
-| ID | Level | Description |
+Ce lot ne modifie aucun runtime : aucun retour arrière opérationnel ni migration
+de données n'est requis. La documentation peut être rétablie par revert du
+commit si une preuve de routage ultérieure invalide cet audit.
+
+## Blocages restants
+
+| ID | Niveau | Description |
 |---|---|---|
-| B1 | P2 | Governance locks must be activated via `transition_authorization.yml` + ADR before any real ingestion |
-| B2 | P3 | `search_api.py` (v1) still uses `nomic-ai/nomic-embed-text-v1.5` — separate migration |
+| `LEGACY_WORKER_OLLAMA_PATH_STILL_ACTIVE` | P1 | Le worker Celery déployable produit encore les embeddings via Ollama |
+| `ROUTE_OWNERSHIP_AMBIGUITY` | P1 | Routes v2 et legacy coexistent sans propriétaire d'ingestion unique |
+| `GOVERNANCE_ACTIVATION_NOT_AUTHORIZED` | P1 | Les critères d'activation et la transition autorisée ne sont pas satisfaits |

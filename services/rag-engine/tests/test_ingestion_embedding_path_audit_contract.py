@@ -1,89 +1,67 @@
-"""Audit tests documenting the current ingestion embedding path state.
+"""Audit contracts for active v2 and legacy ingestion embedding paths.
 
-These tests prove the existence of gaps identified in the LOT 27 P3 audit.
-Tests marked xfail document known debt tracked by LOT_27_P3_AD.
-Non-xfail tests document the current correct state.
+These static tests do not execute an ingestion. They keep the routed
+``/ingest/v2`` path separate from the legacy Celery/Ollama worker debt.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SRC = REPO_ROOT / "services" / "rag-engine" / "src" / "ingestor"
 
 
-class TestIngestionPathCurrentState:
-    """Document the current state of the ingestion embedding path."""
+class TestActiveRoutedIngestV2Path:
+    """Document the certified embedding behavior of routed ``/ingest/v2``."""
 
-    def test_embedding_service_uses_ollama(self) -> None:
-        """EmbeddingService still calls Ollama /api/embeddings."""
-        content = (SRC / "embedding_service.py").read_text()
-        assert "/api/embeddings" in content
-        assert "ollama_url" in content
+    def test_api_routes_ingest_v2_to_ingest_document(self) -> None:
+        """api.py mounts the v2 router whose implemented routes call ingest_document."""
+        api_content = (SRC / "api.py").read_text()
+        endpoint_content = (SRC / "ingest_v2_endpoint.py").read_text()
 
-    def test_tasks_uses_embedding_service(self) -> None:
-        """tasks.py imports and uses EmbeddingService."""
-        content = (SRC / "tasks.py").read_text()
-        assert "from embedding_service import EmbeddingService" in content
-        assert "embed_svc = EmbeddingService(" in content
+        assert "app.include_router(_ingest_v2_module.router)" in api_content
+        assert 'APIRouter(prefix="/ingest/v2"' in endpoint_content
+        assert "ingest_document(" in endpoint_content
+
+    def test_active_ingest_v2_applies_passage_embedding_contract(self) -> None:
+        """The pgvector write path formats and normalizes passage embeddings."""
+        content = (SRC / "ingest_v2.py").read_text()
+
+        assert "format_passage" in content
+        assert "encode(" in content
+        assert "normalize_embeddings=True" in content
+        assert "validate_runtime_embedding_contract" in content
 
     def test_retrieval_v2_uses_load_embedding_model(self) -> None:
-        """retrieval_v2_endpoint.py uses the local contract model."""
+        """retrieval_v2_endpoint.py uses the same local contract model loader."""
         content = (SRC / "retrieval_v2_endpoint.py").read_text()
-        assert "load_embedding_model" in content
-        assert "format_query" in content
+
+        assert "load_embedding_model()" in content
+
+
+class TestLegacyWorkerDebt:
+    """Keep the remaining Celery/Ollama embedding path visible as legacy debt."""
+
+    def test_legacy_worker_ollama_path_still_active(self) -> None:
+        """The registered Celery worker still delegates embeddings to Ollama."""
+        tasks_content = (SRC / "tasks.py").read_text()
+        service_content = (SRC / "embedding_service.py").read_text()
+
+        assert "EmbeddingService" in tasks_content
+        assert "/api/tags" in service_content
+        assert "/api/embeddings" in service_content
+
+
+class TestEmbeddingContract:
+    """Document the canonical embedding contract shared by v2 paths."""
 
     def test_embedding_contract_enforces_canonical(self) -> None:
         """embedding_contract.py enforces intfloat/multilingual-e5-large and 1024."""
         content = (SRC / "embedding_contract.py").read_text()
+
         assert "intfloat/multilingual-e5-large" in content
         assert "1024" in content
-
-    def test_embedding_service_ollama_path_still_active(self) -> None:
-        """EMBEDDING_SERVICE_OLLAMA_PATH_STILL_ACTIVE: the ingestion path
-        still depends on Ollama HTTP calls for embedding generation."""
-        content = (SRC / "embedding_service.py").read_text()
-        # Ollama HTTP endpoint
-        assert "self.ollama_url" in content
-        assert "/api/embeddings" in content
-        # Ollama model availability check
-        assert "/api/tags" in content
-
-
-class TestIngestionPathGaps:
-    """Document known gaps — xfail with explicit tracking."""
-
-    @pytest.mark.xfail(
-        reason="EmbeddingService/Ollama migration tracked by LOT_27_P3_AD",
-        strict=True,
-    )
-    def test_ingestion_does_not_use_ollama(self) -> None:
-        """Once migrated, EmbeddingService should not call Ollama."""
-        content = (SRC / "embedding_service.py").read_text()
-        assert "/api/embeddings" not in content
-
-    @pytest.mark.xfail(
-        reason="EmbeddingService/Ollama migration tracked by LOT_27_P3_AD",
-        strict=True,
-    )
-    def test_ingestion_applies_format_passage(self) -> None:
-        """Once migrated, ingestion must apply format_passage to every chunk."""
-        tasks_content = (SRC / "tasks.py").read_text()
-        embed_content = (SRC / "embedding_service.py").read_text()
-        combined = tasks_content + embed_content
-        assert "format_passage" in combined
-
-    @pytest.mark.xfail(
-        reason="EmbeddingService/Ollama migration tracked by LOT_27_P3_AD",
-        strict=True,
-    )
-    def test_cache_key_includes_prefix_marker(self) -> None:
-        """Once migrated, cache key must include E5 prefix marker."""
-        content = (SRC / "embedding_service.py").read_text()
-        assert "passage" in content.split("_cache_key")[1].split("def ")[0]
 
 
 class TestContractsPackage:
