@@ -144,6 +144,18 @@ bash scripts/e2e/verify-embedding-model-artifact.sh
 - Aucun commit du modele dans Git
 - Aucun deploiement dans ce lot
 
+## Correction detection Nomic
+
+- Le verificateur ne cherche plus la sous-chaine brute `nomic`.
+- Les mots du vocabulaire tokenizer comme `economic`, `economica`, `economico` ne sont pas consideres comme fallback.
+- Seules les references explicites a un modele Nomic 768d sont bloquantes :
+  `nomic-embed-text`, `nomic-embed-text:v1.5`, `nomic-ai/nomic`, `nomic_embed`, `EMBED_DIM=768`, `vector(768)`.
+- La verification principale reste :
+  - manifest `model_id` exact
+  - `canonical_dim` = 1024
+  - checksums SHA256
+  - chargement offline (`local_files_only=True`)
+
 ## Prochaine etape
 
 1. Generer reellement l'artefact hors production
