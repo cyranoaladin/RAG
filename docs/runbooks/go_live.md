@@ -209,6 +209,43 @@ sudo systemctl status rag-local
 - [ ] Aucun token visible dans les logs
 - [ ] Backup effectué
 
+## 14. Validation complète (régression)
+
+La commande officielle de régression complète est :
+
+```bash
+make full-regression
+```
+
+Elle exécute depuis la racine du repo :
+
+1. `scripts/check-governance-locks.sh` — verrous de gouvernance
+2. `scripts/tests/test-governance-locks.sh` — tests des verrous
+3. `git diff --check` — vérification whitespace
+4. `services/rag-engine` : lint, typecheck, test
+5. `services/rag-pedago` : lint, typecheck, test
+
+Les suites Python réelles restent service-scopées : chaque service a son propre
+venv et ses propres tests. Ne pas lancer `python -m pytest` depuis la racine
+pour exécuter les tests des services — utiliser `make full-regression` à la place.
+
+### E2E production (read-only)
+
+```bash
+bash scripts/e2e/run-rag-v2-prod-readonly.sh
+```
+
+Vérifie Dashboard, Administration, Collections v2, et soumission Recherche
+sans aucune mutation. Nécessite Playwright (`bash scripts/e2e/setup-playwright.sh`).
+
+### Vérification zombies / doublons
+
+```bash
+bash scripts/tests/check-zombies-and-duplicates.sh
+```
+
+Contrôle l'absence de processus zombies locaux et de conteneurs dupliqués en production.
+
 ## Contacts
 
 - Lead technique : à définir
