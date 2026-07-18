@@ -91,6 +91,9 @@ FORBIDDEN_PATTERNS=(
     'nomic-embed-text:v1.5'
     'nomic-ai/nomic'
     'nomic_embed'
+    'nomic-bert'
+    'nomic_bert'
+    'NomicBert'
     'EMBED_DIM=768'
     'vector(768)'
 )

@@ -123,6 +123,36 @@ class TestNomicTruePositive:
         assert result.returncode == 1
         assert "Forbidden embedding reference" in result.stderr
 
+    def test_nomic_bert_hyphen_in_config(self, tmp_path: Path) -> None:
+        config_content = json.dumps({"model_type": "nomic-bert"})
+        artifact = _make_fake_artifact(
+            tmp_path,
+            extra_json_files={"config.json": config_content},
+        )
+        result = _run_verify(artifact)
+        assert result.returncode == 1
+        assert "Forbidden embedding reference" in result.stderr
+
+    def test_nomic_bert_underscore_in_config(self, tmp_path: Path) -> None:
+        config_content = json.dumps({"model_type": "nomic_bert"})
+        artifact = _make_fake_artifact(
+            tmp_path,
+            extra_json_files={"config.json": config_content},
+        )
+        result = _run_verify(artifact)
+        assert result.returncode == 1
+        assert "Forbidden embedding reference" in result.stderr
+
+    def test_nomic_bert_camelcase_in_config(self, tmp_path: Path) -> None:
+        config_content = json.dumps({"auto_map": {"AutoModel": "NomicBertModel"}})
+        artifact = _make_fake_artifact(
+            tmp_path,
+            extra_json_files={"config.json": config_content},
+        )
+        result = _run_verify(artifact)
+        assert result.returncode == 1
+        assert "Forbidden embedding reference" in result.stderr
+
     def test_wrong_model_id_in_manifest(self, tmp_path: Path) -> None:
         artifact = _make_fake_artifact(
             tmp_path,
@@ -150,6 +180,12 @@ class TestScriptStaticChecks:
         assert "nomic-embed" in content, (
             "Script must contain at least one explicit nomic-embed pattern"
         )
+
+    def test_has_nomic_bert_patterns(self) -> None:
+        content = VERIFY_SCRIPT.read_text()
+        assert "nomic-bert" in content, "Script must block nomic-bert"
+        assert "nomic_bert" in content, "Script must block nomic_bert"
+        assert "NomicBert" in content, "Script must block NomicBert"
 
     def test_no_model_download(self) -> None:
         content = VERIFY_SCRIPT.read_text()
