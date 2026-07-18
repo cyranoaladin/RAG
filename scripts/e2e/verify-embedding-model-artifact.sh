@@ -81,11 +81,32 @@ else
 fi
 
 # --- Check no Nomic fallback ---
+#
+# Only detect explicit forbidden embedding model references.  Do NOT use a
+# broad "nomic" substring match — the tokenizer vocabulary legitimately
+# contains words like "economic", "economica", "economico".
 
-if find "$MODEL_ARTIFACT_DIR" -name "*.json" -exec grep -l "nomic" {} + 2>/dev/null | head -1 | grep -q .; then
-    fail "Nomic model reference detected in artifact — fallback 768d not allowed"
-else
-    echo "OK: no Nomic fallback detected"
+FORBIDDEN_PATTERNS=(
+    'nomic-embed-text'
+    'nomic-embed-text:v1.5'
+    'nomic-ai/nomic'
+    'nomic_embed'
+    'EMBED_DIM=768'
+    'vector(768)'
+)
+
+NOMIC_HIT=0
+for pattern in "${FORBIDDEN_PATTERNS[@]}"; do
+    if grep -r -l --include='*.json' --include='*.yml' --include='*.yaml' \
+         --include='*.py' --include='*.cfg' --include='*.toml' \
+         -F "$pattern" "$MODEL_ARTIFACT_DIR" 2>/dev/null | head -1 | grep -q .; then
+        fail "Forbidden embedding reference detected: $pattern"
+        NOMIC_HIT=1
+    fi
+done
+
+if [ "$NOMIC_HIT" -eq 0 ]; then
+    echo "OK: no Nomic/768d fallback detected"
 fi
 
 # --- Optional: load model in offline mode ---
