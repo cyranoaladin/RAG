@@ -6,15 +6,19 @@ via le meme contrat). La continuite est assuree par un planificateur externe
 (systemd timer ou cron) — ce module ne boucle jamais lui-meme (kill-switch
 simple, observabilite par run).
 
+Code de sortie : 0 si la passe est nominale, 1 si un refus de gouvernance
+(verrou ferme) ou une erreur d'agent survient — ainsi systemd/journald et la
+supervision distinguent un refus intentionnel d'un run vide valide.
+
 Usage (depuis services/rag-pedago) :
     python -m agents.continuous_orchestrator --plan
     python -m agents.continuous_orchestrator --run
-    python -m agents.continuous_orchestrator --report
 """
 from __future__ import annotations
 
 import argparse
 import json
+import sys
 from typing import Any
 
 import yaml
@@ -35,7 +39,7 @@ def run_pass(dry_run: bool = False) -> dict[str, Any]:
     agent = EduscolAgent()
     plan = agent.plan()
     if dry_run:
-        return {"mode": "plan", "plan": plan}
+        return {"mode": "plan", "plan": plan, "exit_code": 0}
 
     result = agent.fetch()
     report = agent.report()
@@ -49,18 +53,39 @@ def run_pass(dry_run: bool = False) -> dict[str, Any]:
         "",
         f"- Politique : `{policy.get('policy_id')}`",
         f"- Sources verifiees : {plan['sources_verified']} / {plan['sources_total']}",
-        f"- Pages fetchees : {report['pages_fetched']} ({report['bytes_fetched']} octets)",
-        f"- Statuts : {json.dumps(report['by_status'], ensure_ascii=False)}",
+    ]
+
+    if "error" in result:
+        # Refus de gouvernance (verrou ferme) ou erreur agent : la passe est
+        # marquee en echec et le code de sortie est non nul (fix revue PR).
+        report["status"] = "refused"
+        report["error"] = result["error"]
+        report["exit_code"] = 1
+        lines += [
+            "",
+            "## REFUS — passe non executee",
+            f"- Motif : {result['error']}",
+            "- Action : verifier configs/pedago_interface_contract.yml (verrous).",
+        ]
+    else:
+        report["status"] = "ok"
+        report["exit_code"] = 0
+        lines += [
+            f"- Pages fetchees : {report['pages_fetched']} ({report['bytes_fetched']} octets)",
+            f"- Statuts : {json.dumps(report['by_status'], ensure_ascii=False)}",
+        ]
+
+    lines += [
         "",
         "## Invariants",
         "- Depot staging uniquement ; aucune ecriture pgvector.",
         "- Tout artefact exige une revue humaine avant gate (human_review_required).",
         "- Delais par domaine >= crawl-delay robots.txt (eduscol : 10 s).",
-        "",
-        "## Detail par source",
     ]
-    for rec in result.get("records", []):
-        lines.append(f"- `{rec['source_id']}` → **{rec['status']}** {rec.get('detail','')}")
+    if result.get("records"):
+        lines += ["", "## Detail par source"]
+        for rec in result["records"]:
+            lines.append(f"- `{rec['source_id']}` → **{rec['status']}** {rec.get('detail', '')}")
     report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     report["report_file"] = str(report_path.relative_to(ROOT))
     return report
@@ -75,6 +100,7 @@ def main() -> None:
 
     out = run_pass(dry_run=args.plan)
     print(json.dumps(out, indent=2, ensure_ascii=False))
+    sys.exit(out.get("exit_code", 0))
 
 
 if __name__ == "__main__":

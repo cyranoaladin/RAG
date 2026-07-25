@@ -6,14 +6,14 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { search } from '@/lib/api'
-import type { SearchResult } from '@/types/rag'
+import type { RetrievalResult } from '@/types/rag'
 import { NIVEAU_LABELS } from '@/types/rag'
 
 export default function SearchSection() {
   const [query, setQuery] = useState('')
   const [niveau, setNiveau] = useState('terminale')
   const [audience, setAudience] = useState('libre')
-  const [results, setResults] = useState<SearchResult[]>([])
+  const [results, setResults] = useState<RetrievalResult[]>([])
   const [loading, setLoading] = useState(false)
   const [demo, setDemo] = useState(false)
   const [searched, setSearched] = useState(false)
@@ -33,8 +33,8 @@ export default function SearchSection() {
         <CardHeader>
           <CardTitle className="text-base">Recherche gouvernée — API /search (lecture seule)</CardTitle>
           <p className="text-sm text-slate-500">
-            Filtrage imposé côté serveur par profil signé (HMAC niveau + audience). Citations obligatoires —
-            aucune réponse sans source.
+            Filtrage imposé côté serveur par profil signé (HMAC niveau + audience) via le proxy BFF —
+            le secret n'est jamais embarqué dans le navigateur. Citations obligatoires.
           </p>
         </CardHeader>
         <CardContent>
@@ -90,29 +90,33 @@ export default function SearchSection() {
           <Card key={r.chunk_id}>
             <CardContent className="space-y-2 pt-5">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="font-semibold text-slate-900">{r.titre}</span>
+                <span className="font-semibold text-slate-900">{r.title ?? r.chunk_id}</span>
                 <Badge variant="outline" className="border-blue-300 text-blue-700">
                   score {r.score.toFixed(2)}
                 </Badge>
                 <Badge variant="outline" className="border-slate-300 font-mono text-xs text-slate-500">
-                  {r.collection}
+                  {r.doc_id}
                 </Badge>
               </div>
-              <p className="text-sm leading-relaxed text-slate-600">{r.extrait}</p>
-              <div className="flex flex-wrap items-center gap-2 pt-1 text-xs text-slate-500">
-                <span className="font-medium">Source :</span>
-                <span>{r.source_label}</span>
-                <a
-                  href={r.source_uri}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1 text-blue-600 hover:underline"
-                >
-                  {new URL(r.source_uri).hostname}
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-                <Badge variant="outline" className="border-emerald-300 text-emerald-700">{r.rights}</Badge>
-              </div>
+              <p className="text-sm leading-relaxed text-slate-600">{r.excerpt}</p>
+              {r.citation && (
+                <div className="flex flex-wrap items-center gap-2 pt-1 text-xs text-slate-500">
+                  <span className="font-medium">Source :</span>
+                  <span>{r.citation.source_label}</span>
+                  <a
+                    href={r.citation.source_uri}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-blue-600 hover:underline"
+                  >
+                    {new URL(r.citation.source_uri).hostname}
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                  <Badge variant="outline" className="border-emerald-300 text-emerald-700">
+                    {r.citation.rights}
+                  </Badge>
+                </div>
+              )}
             </CardContent>
           </Card>
         ))}

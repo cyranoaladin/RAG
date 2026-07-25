@@ -1,20 +1,43 @@
-import type { RagCollection, SearchResult, StagingItem, GovernanceLock } from '@/types/rag'
+import type {
+  RagCollection,
+  RetrievalResponse,
+  RetrievalResult,
+  StagingItem,
+  GovernanceLock,
+} from '@/types/rag'
 import collectionsData from '@/data/collections.json'
 
 /**
- * Client API rag-engine (LOT 28 / ADR-0017).
- * En production : VITE_RAG_API_BASE pointe vers l'API retrieval
- * (ex. https://rag-api.nexusreussite.academy). Sans backend joignable,
- * le cockpit bascule en mode démonstration (données du dépôt, lecture seule).
+ * Client API rag-engine (LOT 28 / ADR-0017, fix revue PR).
+ *
+ * Sécurité — ne JAMAIS embarquer le secret HMAC du profil dans ce client
+ * statique. En production, le cockpit passe par un proxy serveur (BFF) qui :
+ *   1. authentifie l'utilisateur (session),
+ *   2. détient le secret serveur,
+ *   3. signe le profil (niveau + audience) et appelle l'API retrieval avec
+ *      `Authorization: Bearer <b64url_payload>.<hmac_hex>`.
+ * Le navigateur appelle alors `${VITE_RAG_API_BASE}/search` = endpoint du
+ * proxy, pas l'API retrieval directement. Pour un test local, un jeton déjà
+ * signé peut être fourni via VITE_RAG_PROFILE_TOKEN (jamais en production).
+ *
+ * Le catalogue des collections est versionné dans le dépôt (source de vérité,
+ * invariant M-04) : il est embarqué en données statiques. La connectivité API
+ * est mesurée par GET /health (seule route publique de l'API retrieval).
  */
 const API_BASE = import.meta.env.VITE_RAG_API_BASE as string | undefined
+const PROFILE_TOKEN = import.meta.env.VITE_RAG_PROFILE_TOKEN as string | undefined
 
 async function tryApi<T>(path: string, init?: RequestInit): Promise<T | null> {
   if (!API_BASE) return null
   try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(init?.headers as Record<string, string> | undefined),
+    }
+    if (PROFILE_TOKEN) headers.Authorization = `Bearer ${PROFILE_TOKEN}`
     const res = await fetch(`${API_BASE}${path}`, {
       ...init,
-      headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
+      headers,
       signal: AbortSignal.timeout(8000),
     })
     if (!res.ok) return null
@@ -24,45 +47,66 @@ async function tryApi<T>(path: string, init?: RequestInit): Promise<T | null> {
   }
 }
 
-export async function getCollections(): Promise<{ items: RagCollection[]; demo: boolean }> {
-  const remote = await tryApi<RagCollection[]>('/admin/collections')
-  if (remote) return { items: remote, demo: false }
-  return { items: collectionsData as RagCollection[], demo: true }
+/** Connectivité API : GET /health (route publique de l'API retrieval). */
+export async function getApiHealth(): Promise<boolean> {
+  const health = await tryApi<{ status?: string }>('/health')
+  return health !== null
 }
 
-const MOCK_RESULTS: SearchResult[] = [
+/**
+ * Catalogue : source de vérité = fichier versionné du dépôt (embarqué au
+ * build). `live` indique si l'API retrieval est joignable (badge UI).
+ */
+export async function getCollections(): Promise<{ items: RagCollection[]; live: boolean }> {
+  const live = await getApiHealth()
+  return { items: collectionsData as RagCollection[], live }
+}
+
+const MOCK_RESULTS: RetrievalResult[] = [
   {
     chunk_id: 'nsi_tle_graphes_0142',
-    titre: 'Graphes — parcours en profondeur et en largeur',
-    extrait:
-      "Un parcours en profondeur (DFS) explore chaque branche jusqu'à son extrémité avant de revenir en arrière, tandis que le parcours en largeur (BFS) explore les sommets par niveau de distance croissante depuis la source…",
+    doc_id: 'programme_nsi_terminale',
     score: 0.91,
-    collection: 'rag_nexus_nsi_terminale_specialite',
-    source_label: 'Programme NSI Terminale — BO spécial n°8 du 25 juillet 2019',
-    source_uri: 'https://eduscol.education.gouv.fr/5823/programmes-et-ressources-en-numerique-et-sciences-informatiques-voie-g',
-    rights: 'official_public_administrative',
+    title: 'Graphes — parcours en profondeur et en largeur',
+    excerpt:
+      "Un parcours en profondeur (DFS) explore chaque branche jusqu'à son extrémité avant de revenir en arrière, tandis que le parcours en largeur (BFS) explore les sommets par niveau de distance croissante depuis la source…",
+    citation: {
+      source_label: 'Programme NSI Terminale — BO spécial n°8 du 25 juillet 2019',
+      page: null,
+      source_uri:
+        'https://eduscol.education.gouv.fr/5823/programmes-et-ressources-en-numerique-et-sciences-informatiques-voie-g',
+      rights: 'official_public_administrative',
+    },
   },
   {
     chunk_id: 'nsi_tle_graphes_0098',
-    titre: 'Graphes — représentation : matrice et listes d’adjacence',
-    extrait:
-      "Un graphe peut être implémenté par une matrice d'adjacence (tableau à deux dimensions) ou par des listes d'adjacence (dictionnaire de listes). Le choix dépend de la densité du graphe et des opérations dominantes…",
+    doc_id: 'ressource_nsi_structures',
     score: 0.87,
-    collection: 'rag_nexus_nsi_terminale_specialite',
-    source_label: 'Ressource eduscol NSI — structures de données',
-    source_uri: 'https://eduscol.education.gouv.fr/5823/programmes-et-ressources-en-numerique-et-sciences-informatiques-voie-g',
-    rights: 'official_public_administrative',
+    title: 'Graphes — représentation : matrice et listes d’adjacence',
+    excerpt:
+      "Un graphe peut être implémenté par une matrice d'adjacence (tableau à deux dimensions) ou par des listes d'adjacence (dictionnaire de listes). Le choix dépend de la densité du graphe et des opérations dominantes…",
+    citation: {
+      source_label: 'Ressource eduscol NSI — structures de données',
+      page: null,
+      source_uri:
+        'https://eduscol.education.gouv.fr/5823/programmes-et-ressources-en-numerique-et-sciences-informatiques-voie-g',
+      rights: 'official_public_administrative',
+    },
   },
   {
     chunk_id: 'nsi_tle_algo_0207',
-    titre: 'Algorithmique — recherche textuelle (Boyer-Moore)',
-    extrait:
-      "L'algorithme de Boyer-Moore compare le motif de droite à gauche et utilise deux règles de saut (mauvais caractère, bon suffixe) pour avancer efficacement dans le texte…",
+    doc_id: 'programme_nsi_terminale',
     score: 0.79,
-    collection: 'rag_nexus_nsi_terminale_specialite',
-    source_label: 'Programme NSI Terminale — algorithmique',
-    source_uri: 'https://eduscol.education.gouv.fr/5823/programmes-et-ressources-en-numerique-et-sciences-informatiques-voie-g',
-    rights: 'official_public_administrative',
+    title: 'Algorithmique — recherche textuelle (Boyer-Moore)',
+    excerpt:
+      "L'algorithme de Boyer-Moore compare le motif de droite à gauche et utilise deux règles de saut (mauvais caractère, bon suffixe) pour avancer efficacement dans le texte…",
+    citation: {
+      source_label: 'Programme NSI Terminale — algorithmique',
+      page: null,
+      source_uri:
+        'https://eduscol.education.gouv.fr/5823/programmes-et-ressources-en-numerique-et-sciences-informatiques-voie-g',
+      rights: 'official_public_administrative',
+    },
   },
 ]
 
@@ -70,13 +114,13 @@ export async function search(
   query: string,
   niveau: string,
   audience: string,
-): Promise<{ items: SearchResult[]; demo: boolean }> {
-  const remote = await tryApi<{ results: SearchResult[] }>('/search', {
+): Promise<{ items: RetrievalResult[]; demo: boolean }> {
+  if (!query.trim()) return { items: [], demo: !API_BASE }
+  const remote = await tryApi<RetrievalResponse>('/search', {
     method: 'POST',
     body: JSON.stringify({ query, top_k: 8, niveau, audience }),
   })
   if (remote) return { items: remote.results, demo: false }
-  if (!query.trim()) return { items: [], demo: true }
   return { items: MOCK_RESULTS, demo: true }
 }
 

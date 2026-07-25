@@ -31,12 +31,14 @@ const NAV: { id: Tab; label: string; icon: typeof LayoutDashboard }[] = [
 export default function Home() {
   const [tab, setTab] = useState<Tab>('apercu')
   const [collections, setCollections] = useState<RagCollection[]>([])
-  const [demo, setDemo] = useState(true)
+  const [apiLive, setApiLive] = useState(false)
 
   useEffect(() => {
+    // Catalogue versionné dans le dépôt (source de vérité M-04) ;
+    // apiLive mesure la connectivité à l'API retrieval via GET /health.
     getCollections().then((res) => {
       setCollections(res.items)
-      setDemo(res.demo)
+      setApiLive(res.live)
     })
   }, [])
 
@@ -88,16 +90,16 @@ export default function Home() {
           </div>
           <div className="flex items-center gap-2">
             <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${
-              demo ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+              apiLive ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
             }`}>
-              <span className={`h-1.5 w-1.5 rounded-full ${demo ? 'bg-amber-500' : 'bg-emerald-500'}`} />
-              {demo ? 'Démonstration' : 'API connectée'}
+              <span className={`h-1.5 w-1.5 rounded-full ${apiLive ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+              {apiLive ? 'API connectée' : 'Démonstration'}
             </span>
           </div>
         </header>
 
         <div className="p-8">
-          {tab === 'apercu' && <OverviewSection collections={collections} demo={demo} />}
+          {tab === 'apercu' && <OverviewSection collections={collections} demo={!apiLive} />}
           {tab === 'collections' && <CollectionsSection collections={collections} />}
           {tab === 'recherche' && <SearchSection />}
           {tab === 'ingestion' && <IngestionSection />}

@@ -72,15 +72,40 @@ docker compose stop ui            # legacy Streamlit arrêté, conteneur conserv
 
 ## Étape 5 — Ingestion continue (systemd)
 
+### 5.1 — Installer les dépendances AVANT d'activer le timer (fix revue PR)
+
+Le module `agents.continuous_orchestrator` importe des paquets non-stdlib
+(PyYAML, requests, **curl_cffi** — transport anti-WAF déclaré dans
+`pyproject.toml`). Sans cette étape, la première passe échoue à l'import.
+
+```bash
+cd /srv/nexusreussite/rag-v2-build/services/rag-pedago
+python3 -m venv .venv
+.venv/bin/pip install -e .
+# Vérification (doit imprimer le plan JSON sans erreur) :
+PYTHONPATH="$(pwd):$(pwd)/../../packages/contracts/src" .venv/bin/python -m agents.continuous_orchestrator --plan
+```
+
+### 5.2 — Installer et activer l'unité systemd
+
 ```bash
 mkdir -p ~/.config/systemd/user
 cp /srv/nexusreussite/rag-v2-build/scripts/systemd/nexus-rag-continuous-ingestion.* ~/.config/systemd/user/
-# Adapter RAG_ROOT dans l'unité vers /srv/nexusreussite/rag-v2-build
+# Éditer l'unité (fix revue PR : systemd expande ${RAG_ROOT} dans ExecStart) :
+#   Environment=RAG_ROOT=/srv/nexusreussite/rag-v2-build
+#   Environment=PYTHON_BIN=/srv/nexusreussite/rag-v2-build/services/rag-pedago/.venv/bin/python
+${EDITOR:-nano} ~/.config/systemd/user/nexus-rag-continuous-ingestion.service
 systemctl --user daemon-reload
 systemctl --user enable --now nexus-rag-continuous-ingestion.timer
 systemctl --user list-timers | grep nexus-rag
+# Déclencher une première passe contrôlée et vérifier le code de sortie :
+systemctl --user start nexus-rag-continuous-ingestion.service
+systemctl --user status nexus-rag-continuous-ingestion.service --no-pager
 journalctl --user -u nexus-rag-continuous-ingestion.service -n 50
 ```
+
+Un **code de sortie non nul** signifie refus de gouvernance (verrous) — la
+supervision doit alerter dans ce cas (comportement voulu, fix revue PR).
 
 Vérifier après la première passe : `services/rag-pedago/data/reports/continuous_ingestion_latest.md`
 et `data/ledger/continuous_ingestion.jsonl`. En cas de HTTP 403 généralisé, vérifier l'égresse réseau de l'hôte vers eduscol (le sandbox CI est bloqué ; l'hôte de production ne doit pas l'être).

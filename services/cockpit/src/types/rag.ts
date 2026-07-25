@@ -18,15 +18,32 @@ export interface IngestionSource {
   collections: string[]
 }
 
-export interface SearchResult {
-  chunk_id: string
-  titre: string
-  extrait: string
-  score: number
-  collection: string
+/**
+ * Schéma canonique du contrat de retrieval (packages/contracts retrieval.py).
+ * Le cockpit consomme RetrievalResult tel quel — aucun schéma local parallèle
+ * (fix revue PR : alignement sur le contrat partagé).
+ */
+export interface RetrievalCitation {
   source_label: string
+  page: number | null
   source_uri: string
   rights: string
+}
+
+export interface RetrievalResult {
+  chunk_id: string
+  doc_id: string
+  score: number
+  title: string | null
+  excerpt: string
+  citation: RetrievalCitation | null
+  metadata?: Record<string, unknown>
+}
+
+export interface RetrievalResponse {
+  results: RetrievalResult[]
+  warnings: string[]
+  filters_applied: Record<string, unknown>
 }
 
 export interface StagingItem {
