@@ -18,7 +18,7 @@ import json
 import re
 import time
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import urljoin, urlparse
@@ -78,7 +78,7 @@ def browser_governed_fetch(url: str) -> FetchResult | FetchRefusal:
                 status_code=0,
                 content_type="",
                 text="",
-                fetched_at=datetime.now(timezone.utc),
+                fetched_at=datetime.now(UTC),
                 error=str(exc),
             )
         last_result = FetchResult(
@@ -86,7 +86,7 @@ def browser_governed_fetch(url: str) -> FetchResult | FetchRefusal:
             status_code=resp.status_code,
             content_type=resp.headers.get("content-type", ""),
             text=resp.text,
-            fetched_at=datetime.now(timezone.utc),
+            fetched_at=datetime.now(UTC),
         )
         if resp.status_code != 403:
             return last_result
@@ -111,7 +111,7 @@ _STATIC_PATH_PREFIXES = ("/libraries/", "/assets/", "/static/", "/themes/")
 
 
 def _utcnow() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def normalize_text(html: str) -> str:
@@ -274,7 +274,7 @@ class EduscolAgent(AcquisitionAgent):
         prev = state.get(src.id, {})
         if prev.get("last_fetched_at"):
             last = datetime.fromisoformat(prev["last_fetched_at"])
-            age_h = (datetime.now(timezone.utc) - last).total_seconds() / 3600
+            age_h = (datetime.now(UTC) - last).total_seconds() / 3600
             if age_h < ttl_h:
                 self._records.append(FetchRecord(
                     source_id=src.id, url=src.url, status="skipped_ttl",

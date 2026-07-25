@@ -18,8 +18,8 @@ def _load_catalogue() -> dict:
     return yaml.safe_load(RAG_COLLECTIONS.read_text(encoding="utf-8"))
 
 
-def test_catalogue_has_version_2():
-    assert _load_catalogue().get("version") == 2
+def test_catalogue_has_version_3():
+    assert _load_catalogue().get("version") == 3
 
 
 def test_catalogue_has_collections():
