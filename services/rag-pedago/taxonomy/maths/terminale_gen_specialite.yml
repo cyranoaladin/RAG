@@ -1,0 +1,45 @@
+id: maths_terminale_specialite
+matiere: maths
+niveau: terminale
+voie: generale
+statut_enseignement: specialite
+programme_version: BOEN_special_8_2019-07-25
+themes:
+- id: analyse
+  label: Analyse
+  notions:
+  - id: suites_limites
+    label: 'Suites : limites et raisonnement par récurrence'
+  - id: continuite
+    label: Continuité et théorème des valeurs intermédiaires
+  - id: derivation_convexite
+    label: Dérivation et convexité
+  - id: logarithme
+    label: Le logarithme népérien
+  - id: primitives_integration
+    label: Primitives et intégration
+  - id: equations_differentielles
+    label: Équations différentielles y'=ay+b
+- id: algebre_geometrie
+  label: Algèbre et géométrie
+  notions:
+  - id: combinatoire
+    label: Combinatoire et dénombrement
+  - id: geometrie_espace
+    label: Vecteurs, droites et plans de l'espace
+  - id: produit_scalaire_espace
+    label: Produit scalaire dans l'espace
+- id: probabilites
+  label: Probabilités
+  notions:
+  - id: succession_epreuves
+    label: Succession d'épreuves indépendantes et schéma de Bernoulli
+  - id: variables_aleatoires_esperance
+    label: Variables aléatoires et espérance
+  - id: loi_grands_nombres
+    label: Loi des grands nombres et concentration
+- id: algorithmique
+  label: Algorithmique et programmation
+  notions:
+  - id: python
+    label: Python en appui des autres domaines

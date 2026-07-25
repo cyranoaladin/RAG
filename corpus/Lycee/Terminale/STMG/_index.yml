@@ -1,0 +1,23 @@
+index_version: '1.0'
+niveau: terminale
+voie: technologique
+description: Fiches référentiel terminale — routage vers collections rag_nexus_*
+fiches:
+- fichier: T_DROIT_ECO_STMG.md
+  matiere: droit_economie
+  statut_enseignement: specialite
+  collection_cible: rag_nexus_droiteco_terminale_stmg_specialite
+  taxonomy_file: stmg/droiteco_terminale.yml
+  programme_version: BOEN_special_2_2020-02-13
+- fichier: T_MATHS_STMG.md
+  matiere: maths
+  statut_enseignement: tronc_commun
+  collection_cible: rag_nexus_maths_terminale_stmg_tc
+  taxonomy_file: maths/terminale_stmg_tc.yml
+  programme_version: BOEN_special_2_2020-02-13
+- fichier: T_MSDGN_STMG.md
+  matiere: msdgn
+  statut_enseignement: specialite
+  collection_cible: rag_nexus_msdgn_terminale_stmg_specialite
+  taxonomy_file: stmg/msdgn_terminale.yml
+  programme_version: BOEN_special_2_2020-02-13

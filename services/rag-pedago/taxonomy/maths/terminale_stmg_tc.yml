@@ -1,0 +1,30 @@
+id: maths_terminale_tronc_commun
+matiere: maths
+niveau: terminale
+voie: technologique
+statut_enseignement: tronc_commun
+programme_version: BOEN_special_2_2020-02-13
+themes:
+- id: evolutions
+  label: Évolutions
+  notions:
+  - id: evolutions_successives
+    label: Évolutions successives et taux moyen
+  - id: suites_geometriques
+    label: Suites géométriques et seuils
+- id: fonctions
+  label: Fonctions
+  notions:
+  - id: fonction_ln
+    label: Fonction logarithme népérien
+  - id: derivation_etude
+    label: Dérivation et étude complète de fonctions
+- id: probabilites
+  label: Probabilités et statistiques
+  notions:
+  - id: loi_binomiale
+    label: Loi binomiale
+  - id: loi_normale
+    label: Loi normale
+  - id: estimation
+    label: Échantillonnage et estimation

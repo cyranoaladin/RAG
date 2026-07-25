@@ -1,0 +1,47 @@
+index_version: '1.0'
+niveau: troisieme
+voie: college
+description: Fiches référentiel troisieme — routage vers collections rag_nexus_*
+fiches:
+- fichier: C3_FRANCAIS.md
+  matiere: francais
+  statut_enseignement: tronc_commun
+  collection_cible: rag_nexus_francais_troisieme_tc
+  taxonomy_file: francais/troisieme.yml
+  programme_version: BOEN_special_11_2018-07-26_aj_2020
+- fichier: C3_HISTOIRE_GEO_EMC.md
+  matiere: hg
+  statut_enseignement: tronc_commun
+  collection_cible: rag_nexus_hg_troisieme_tc
+  taxonomy_file: histoire_geo/troisieme.yml
+  programme_version: BOEN_special_11_2018-07-26_aj_2020
+- fichier: C3_LANGUES_VIVANTES.md
+  matiere: langues
+  statut_enseignement: tronc_commun
+  collection_cible: rag_nexus_lv_troisieme_tc
+  taxonomy_file: langues/troisieme.yml
+  programme_version: BOEN_special_11_2018-07-26_aj_2020
+- fichier: C3_MATHEMATIQUES.md
+  matiere: maths
+  statut_enseignement: tronc_commun
+  collection_cible: rag_nexus_maths_troisieme_tc
+  taxonomy_file: maths/troisieme.yml
+  programme_version: BOEN_special_11_2018-07-26_aj_2020
+- fichier: C3_PHYSIQUE_CHIMIE.md
+  matiere: pc
+  statut_enseignement: tronc_commun
+  collection_cible: rag_nexus_pc_troisieme_tc
+  taxonomy_file: physique_chimie/troisieme.yml
+  programme_version: BOEN_special_11_2018-07-26_aj_2020
+- fichier: C3_SVT.md
+  matiere: svt
+  statut_enseignement: tronc_commun
+  collection_cible: rag_nexus_svt_troisieme_tc
+  taxonomy_file: svt/troisieme.yml
+  programme_version: BOEN_special_11_2018-07-26_aj_2020
+- fichier: C3_TECHNOLOGIE.md
+  matiere: techno
+  statut_enseignement: tronc_commun
+  collection_cible: rag_nexus_techno_troisieme_tc
+  taxonomy_file: technologie/troisieme.yml
+  programme_version: BOEN_special_11_2018-07-26_aj_2020

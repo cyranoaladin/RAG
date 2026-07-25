@@ -1,0 +1,32 @@
+id: francais_seconde_tronc_commun
+matiere: francais
+niveau: seconde
+voie: generale
+statut_enseignement: tronc_commun
+programme_version: BOEN_special_1_2019-01-22
+themes:
+- id: litterature
+  label: Littérature
+  notions:
+  - id: poesie
+    label: Poésie de l'Antiquité au XIXe siècle
+  - id: roman_recit
+    label: 'Roman et récit : formes et enjeux'
+  - id: theatre
+    label: 'Théâtre : du texte à la scène'
+  - id: essai_argumentatif
+    label: Essai et écriture argumentative
+- id: langue
+  label: Langue et grammaire
+  notions:
+  - id: grammaire_texte
+    label: Grammaire du texte et de la phrase
+  - id: enonciation
+    label: Énonciation et points de vue
+- id: expression
+  label: Expression écrite et orale
+  notions:
+  - id: ecriture_invention
+    label: Écriture d'invention
+  - id: oral
+    label: Présentation et commentaire oral

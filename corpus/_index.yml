@@ -1,0 +1,20 @@
+index_version: '1.0'
+lot: LOT 28 — arborescence corpus 3e → Terminale
+convention_collections: rag_nexus_{matiere}_{niveau}_{voie}_{statut} (ADR-0013/0015)
+arborescence:
+  College/Troisieme: Tronc commun 3e (7 fiches) + DNB dans Referentiels/
+  Lycee/Seconde: Tronc commun 2de (10 fiches, SNT incluse)
+  Lycee/Premiere/Tronc_commun: TC 1re (7 fiches, EAF incluse)
+  Lycee/Premiere/Specialites: Spécialités générales 1re (8 fiches)
+  Lycee/Premiere/STMG: Voie STMG 1re (2 fiches)
+  Lycee/Terminale/Tronc_commun: TC Tle (6 fiches, philosophie incluse)
+  Lycee/Terminale/Specialites: Spécialités générales Tle (8 fiches) + options maths
+    (2 fiches)
+  Lycee/Terminale/STMG: Voie STMG Tle (3 fiches)
+  Tronc_commun/: Fiches historiques du dépôt (conservées, cf. ADR-0015 §compat)
+  Specialites/: Fiches historiques du dépôt (conservées)
+  Referentiels/: 'Examens transversaux : DNB, EAF, bac général, Grand oral, EAM'
+referentiels_racine:
+  REFERENTIEL_CANDIDAT_LIBRE.md: conservé à la racine (référencé par toutes les fiches)
+gouvernance: Aucune fiche n'est indexable sans passage quality → gate → review (invariant
+  AGENTS.md)

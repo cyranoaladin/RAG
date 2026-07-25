@@ -1,4 +1,5 @@
-version: 2
+version: 3
+# LOT 28 (ADR-0015): catalogue étendu à 59 collections (35 + 24). Aucune nouvelle collection instanciee dans ce lot.
 # ADR-0013 — Convention: rag_nexus_{matiere}_{niveau}_{statut}
 # Extension FE-06: rag_nexus_{matiere}_{niveau}_{voie}_{statut} quand voie pertinente
 # Exceptions nommées: grand_oral, exams, candidats_libres, quarantine, dnb (cf. ADR)
@@ -38,7 +39,7 @@ metadata_required:
   - chunk_id
   - chunk_sha256
 
-# Catalogue taxonomique (38 entrées)
+# Catalogue taxonomique (59 entrées — LOT 28)
 # Schéma validé FE-05b: nom = matière×niveau×voie ; métadonnées = dispositif, session
 # Source de vérité: services/rag-pedago/taxonomy/
 collections:
@@ -421,6 +422,231 @@ collections:
     session_policy: null
     taxonomy_file: null
     instanciee: true
+
+
+
+  # =====================================================================
+  # LOT 28 — extension tous niveaux / toutes matières (ADR-0015)
+  # 24 nouvelles collections : collège complet, 2de complète, TC 1re/Tle,
+  # spécialités générales HGGSP/LLCE/HLP. Toutes instanciee: false en
+  # attente de la vague de revue (Phase B, rapport lot_28).
+  # =====================================================================
+  rag_nexus_emc_premiere_tc:
+    matiere: emc
+    niveau: premiere
+    voie: gen
+    statut: tc
+    domain: education
+    session_policy: declared_or_null
+    taxonomy_file: emc/premiere.yml
+    instanciee: false
+  rag_nexus_emc_seconde_tc:
+    matiere: emc
+    niveau: seconde
+    voie: gen
+    statut: tc
+    domain: education
+    session_policy: declared_or_null
+    taxonomy_file: emc/seconde.yml
+    instanciee: false
+  rag_nexus_emc_terminale_tc:
+    matiere: emc
+    niveau: terminale
+    voie: gen
+    statut: tc
+    domain: education
+    session_policy: declared_or_null
+    taxonomy_file: emc/terminale.yml
+    instanciee: false
+  rag_nexus_eps_premiere_tc:
+    matiere: eps
+    niveau: premiere
+    voie: gen
+    statut: tc
+    domain: education
+    session_policy: declared_or_null
+    taxonomy_file: eps/premiere.yml
+    instanciee: false
+  rag_nexus_eps_seconde_tc:
+    matiere: eps
+    niveau: seconde
+    voie: gen
+    statut: tc
+    domain: education
+    session_policy: declared_or_null
+    taxonomy_file: eps/seconde.yml
+    instanciee: false
+  rag_nexus_eps_terminale_tc:
+    matiere: eps
+    niveau: terminale
+    voie: gen
+    statut: tc
+    domain: education
+    session_policy: declared_or_null
+    taxonomy_file: eps/terminale.yml
+    instanciee: false
+  rag_nexus_es_premiere_tc:
+    matiere: es
+    niveau: premiere
+    voie: gen
+    statut: tc
+    domain: education
+    session_policy: declared_or_null
+    taxonomy_file: enseignement_scientifique/premiere.yml
+    instanciee: false
+  rag_nexus_es_terminale_tc:
+    matiere: es
+    niveau: terminale
+    voie: gen
+    statut: tc
+    domain: education
+    session_policy: declared_or_null
+    taxonomy_file: enseignement_scientifique/terminale.yml
+    instanciee: false
+  rag_nexus_hggsp_premiere_specialite:
+    matiere: hggsp
+    niveau: premiere
+    voie: gen
+    statut: specialite
+    domain: education
+    session_policy: declared_or_null
+    taxonomy_file: hggsp/premiere_specialite.yml
+    instanciee: false
+  rag_nexus_hggsp_terminale_specialite:
+    matiere: hggsp
+    niveau: terminale
+    voie: gen
+    statut: specialite
+    domain: education
+    session_policy: declared_or_null
+    taxonomy_file: hggsp/terminale_specialite.yml
+    instanciee: false
+  rag_nexus_hlp_premiere_specialite:
+    matiere: hlp
+    niveau: premiere
+    voie: gen
+    statut: specialite
+    domain: education
+    session_policy: declared_or_null
+    taxonomy_file: hlp/premiere_specialite.yml
+    instanciee: false
+  rag_nexus_hlp_terminale_specialite:
+    matiere: hlp
+    niveau: terminale
+    voie: gen
+    statut: specialite
+    domain: education
+    session_policy: declared_or_null
+    taxonomy_file: hlp/terminale_specialite.yml
+    instanciee: false
+  rag_nexus_llce_premiere_specialite:
+    matiere: llce
+    niveau: premiere
+    voie: gen
+    statut: specialite
+    domain: education
+    session_policy: declared_or_null
+    taxonomy_file: llce/premiere_specialite.yml
+    instanciee: false
+  rag_nexus_llce_terminale_specialite:
+    matiere: llce
+    niveau: terminale
+    voie: gen
+    statut: specialite
+    domain: education
+    session_policy: declared_or_null
+    taxonomy_file: llce/terminale_specialite.yml
+    instanciee: false
+  rag_nexus_lv_premiere_tc:
+    matiere: langues
+    niveau: premiere
+    voie: gen
+    statut: tc
+    domain: education
+    session_policy: declared_or_null
+    taxonomy_file: langues/premiere.yml
+    instanciee: false
+  rag_nexus_lv_seconde_tc:
+    matiere: langues
+    niveau: seconde
+    voie: gen
+    statut: tc
+    domain: education
+    session_policy: declared_or_null
+    taxonomy_file: langues/seconde.yml
+    instanciee: false
+  rag_nexus_lv_terminale_tc:
+    matiere: langues
+    niveau: terminale
+    voie: gen
+    statut: tc
+    domain: education
+    session_policy: declared_or_null
+    taxonomy_file: langues/terminale.yml
+    instanciee: false
+  rag_nexus_lv_troisieme_tc:
+    matiere: langues
+    niveau: troisieme
+    voie: null
+    statut: tc
+    domain: education
+    session_policy: declared_or_null
+    taxonomy_file: langues/troisieme.yml
+    instanciee: false
+  rag_nexus_pc_seconde_tc:
+    matiere: pc
+    niveau: seconde
+    voie: gen
+    statut: tc
+    domain: education
+    session_policy: declared_or_null
+    taxonomy_file: physique_chimie/seconde.yml
+    instanciee: false
+  rag_nexus_pc_troisieme_tc:
+    matiere: pc
+    niveau: troisieme
+    voie: null
+    statut: tc
+    domain: education
+    session_policy: declared_or_null
+    taxonomy_file: physique_chimie/troisieme.yml
+    instanciee: false
+  rag_nexus_ses_seconde_tc:
+    matiere: ses
+    niveau: seconde
+    voie: gen
+    statut: tc
+    domain: education
+    session_policy: declared_or_null
+    taxonomy_file: ses/seconde.yml
+    instanciee: false
+  rag_nexus_svt_seconde_tc:
+    matiere: svt
+    niveau: seconde
+    voie: gen
+    statut: tc
+    domain: education
+    session_policy: declared_or_null
+    taxonomy_file: svt/seconde.yml
+    instanciee: false
+  rag_nexus_svt_troisieme_tc:
+    matiere: svt
+    niveau: troisieme
+    voie: null
+    statut: tc
+    domain: education
+    session_policy: declared_or_null
+    taxonomy_file: svt/troisieme.yml
+    instanciee: false
+  rag_nexus_techno_troisieme_tc:
+    matiere: techno
+    niveau: troisieme
+    voie: null
+    statut: tc
+    domain: education
+    session_policy: declared_or_null
+    taxonomy_file: technologie/troisieme.yml
+    instanciee: false
 
 domains:
   education:

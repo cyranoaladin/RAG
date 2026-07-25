@@ -1,0 +1,23 @@
+id: hlp_terminale_specialite
+matiere: hlp
+niveau: terminale
+voie: generale
+statut_enseignement: specialite
+programme_version: BOEN_special_8_2019-07-25
+themes:
+- id: themes_officiels
+  label: Thèmes officiels
+  notions:
+  - id: metier_citoyen
+    label: Le métier de citoyen
+  - id: monde_aujourd_hui
+    label: Le monde d'aujourd'hui
+  - id: agir_dans_le_monde
+    label: 'Agir dans le monde : représentation, information, communication'
+- id: methodes
+  label: Méthodes
+  notions:
+  - id: analyse_textes
+    label: Analyse de textes littéraires et philosophiques
+  - id: expression_ecrite_ora
+    label: Expression écrite et orale argumentée

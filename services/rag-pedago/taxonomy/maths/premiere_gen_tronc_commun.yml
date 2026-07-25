@@ -1,0 +1,18 @@
+id: maths_premiere_tronc_commun
+matiere: maths
+niveau: premiere
+voie: generale
+statut_enseignement: tronc_commun
+programme_version: BOEN_special_1_2019-01-22
+themes:
+- id: automatismes
+  label: Automatismes et consolidation (voie générale sans spécialité maths)
+  notions:
+  - id: calcul_fonctions
+    label: Calcul et fonctions de référence
+  - id: second_degre_bases
+    label: 'Second degré : bases'
+  - id: statistiques_probabilites
+    label: Statistiques et probabilités
+  - id: suites_intro
+    label: 'Suites numériques : introduction'

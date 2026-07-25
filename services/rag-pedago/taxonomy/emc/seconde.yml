@@ -1,0 +1,16 @@
+id: emc_seconde_emc
+matiere: emc
+niveau: seconde
+voie: generale
+statut_enseignement: emc
+programme_version: BOEN_special_1_2019-01-22
+themes:
+- id: citoyennete
+  label: Être citoyen
+  notions:
+  - id: pouvoirs_publics
+    label: Les pouvoirs publics et l'action collective
+  - id: laicite
+    label: La laïcité en débat
+  - id: engagement
+    label: Formes de l'engagement citoyen

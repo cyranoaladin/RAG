@@ -1,0 +1,21 @@
+id: llce_terminale_specialite
+matiere: llce
+niveau: terminale
+voie: generale
+statut_enseignement: specialite
+programme_version: BOEN_special_8_2019-07-25
+themes:
+- id: axes_officiels
+  label: Axes officiels
+  notions:
+  - id: heritages
+    label: Héritages
+  - id: sauver_planete
+    label: Sauver la planète
+- id: competences
+  label: Compétences et culture
+  notions:
+  - id: expression_approfondie
+    label: Expression orale et écrite approfondie
+  - id: culture_langue
+    label: Civilisation et littérature de la langue cible

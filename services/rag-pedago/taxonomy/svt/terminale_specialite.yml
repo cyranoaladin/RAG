@@ -1,0 +1,38 @@
+id: svt_terminale_specialite
+matiere: svt
+niveau: terminale
+voie: generale
+statut_enseignement: specialite
+programme_version: BOEN_special_8_2019-07-25
+themes:
+- id: genomes_evolution
+  label: Stabilité et variabilité des génomes et évolution
+  notions:
+  - id: brassage_variabilite
+    label: Brassage génétique et variabilité
+  - id: evolution
+    label: Mécanismes de l'évolution
+- id: procreation
+  label: La procréation
+  notions:
+  - id: sexualisation_plantes
+    label: Sexualisation chez les plantes
+  - id: controle_reproduction
+    label: Contrôle de la reproduction
+- id: monde_microbien
+  label: L'origine du monde microbien
+  notions:
+  - id: origine_vie
+    label: Origine du monde microbien et biosphère
+- id: climat_energies
+  label: Climat et énergies
+  notions:
+  - id: climat_passe_futur
+    label: 'Le climat : passé et futur'
+  - id: choix_energetiques
+    label: 'Énergies : choix rationnels'
+- id: comportements
+  label: Comportements, mouvement et système nerveux
+  notions:
+  - id: systeme_nerveux_mouvement
+    label: Système nerveux et commande du mouvement

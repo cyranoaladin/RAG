@@ -1,0 +1,29 @@
+id: hggsp_terminale_specialite
+matiere: hggsp
+niveau: terminale
+voie: generale
+statut_enseignement: specialite
+programme_version: BOEN_special_8_2019-07-25
+themes:
+- id: histoire
+  label: Histoire
+  notions:
+  - id: puissances_aires_influence
+    label: Puissances et aires d'influence
+- id: geographie
+  label: Géographie
+  notions:
+  - id: marges
+    label: 'Marges : intégration et exclusion'
+- id: science_politique
+  label: Science politique
+  notions:
+  - id: etat_providence
+    label: L'État-providence
+  - id: ordre_politique
+    label: Ordre politique et légitimité
+- id: regards_croises
+  label: Regards croisés
+  notions:
+  - id: patrimoine
+    label: 'Le patrimoine : mémoire, protection, valorisation'

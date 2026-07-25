@@ -1,0 +1,14 @@
+# nexus-rag-continuous-ingestion.timer — LOT 28 (ADR-0016)
+# Frequence nominale : 1 passe / jour avec jitter 30 min
+# (aligne continuous_ingestion.yml > schedule).
+
+[Unit]
+Description=Nexus RAG — planification ingestion continue eduscol
+
+[Timer]
+OnCalendar=daily
+RandomizedDelaySec=1800
+Persistent=true
+
+[Install]
+WantedBy=timers.target

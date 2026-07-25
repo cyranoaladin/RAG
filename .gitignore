@@ -38,3 +38,4 @@ node_modules/
 
 # HTTP debug files containing API responses
 rag-local/dev/http/rest-settings.http
+.aider*

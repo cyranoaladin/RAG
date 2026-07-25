@@ -1,0 +1,21 @@
+# nexus-rag-continuous-ingestion.service — LOT 28 (ADR-0016)
+# Unite systemd oneshot : une passe d'ingestion continue gouvernee.
+# Installation : copier dans ~/.config/systemd/user/ (mode user) puis
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now nexus-rag-continuous-ingestion.timer
+# RAG_ROOT doit pointer vers la racine du depot clone.
+
+[Unit]
+Description=Nexus RAG — passe d'ingestion continue eduscol (staging-only)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=RAG_ROOT=%h/RAG
+Environment=PYTHON_BIN=python3
+ExecStart=%h/RAG/scripts/continuous-ingestion.sh
+# Garde-fous runtime
+TimeoutStartSec=3900
+Nice=10
+NoNewPrivileges=true

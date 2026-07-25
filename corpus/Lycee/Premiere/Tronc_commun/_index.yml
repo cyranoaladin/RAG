@@ -1,0 +1,41 @@
+index_version: '1.0'
+niveau: premiere
+voie: generale
+description: Fiches référentiel premiere — routage vers collections rag_nexus_*
+fiches:
+- fichier: P1_EMC.md
+  matiere: emc
+  statut_enseignement: emc
+  collection_cible: rag_nexus_emc_premiere_tc
+  taxonomy_file: emc/premiere.yml
+  programme_version: BOEN_special_1_2019-01-22
+- fichier: P1_EPS.md
+  matiere: eps
+  statut_enseignement: tronc_commun
+  collection_cible: rag_nexus_eps_premiere_tc
+  taxonomy_file: eps/premiere.yml
+  programme_version: BOEN_special_1_2019-01-22
+- fichier: P1_ENSEIGNEMENT_SCIENTIFIQUE.md
+  matiere: es
+  statut_enseignement: enseignement_scientifique
+  collection_cible: rag_nexus_es_premiere_tc
+  taxonomy_file: enseignement_scientifique/premiere.yml
+  programme_version: BOEN_special_1_2019-01-22
+- fichier: P1_FRANCAIS_EAF.md
+  matiere: francais
+  statut_enseignement: tronc_commun
+  collection_cible: rag_nexus_francais_premiere_tc
+  taxonomy_file: francais/premiere_eaf.yml
+  programme_version: BOEN_special_1_2019-01-22
+- fichier: P1_HISTOIRE_GEO.md
+  matiere: hg
+  statut_enseignement: tronc_commun
+  collection_cible: rag_nexus_hg_premiere_tc
+  taxonomy_file: histoire_geo/premiere_tronc_commun.yml
+  programme_version: BOEN_special_1_2019-01-22
+- fichier: P1_LANGUES_VIVANTES.md
+  matiere: langues
+  statut_enseignement: tronc_commun
+  collection_cible: rag_nexus_lv_premiere_tc
+  taxonomy_file: langues/premiere.yml
+  programme_version: BOEN_special_1_2019-01-22

@@ -1,0 +1,31 @@
+id: hggsp_premiere_specialite
+matiere: hggsp
+niveau: premiere
+voie: generale
+statut_enseignement: specialite
+programme_version: BOEN_special_1_2019-01-22
+themes:
+- id: histoire
+  label: Histoire
+  notions:
+  - id: ruptures_multilateralisme
+    label: 'Ruptures et continuités : le multilatéralisme depuis 1945'
+  - id: memoires_commemorations
+    label: Mémoires et commémorations
+- id: geographie
+  label: Géographie
+  notions:
+  - id: aires_mers
+    label: 'Aires et mers : enjeux géostratégiques'
+  - id: environnement
+    label: Environnement et développement
+- id: science_politique
+  label: Science politique
+  notions:
+  - id: democratie
+    label: 'La démocratie : fondements et régimes'
+- id: regards_croises
+  label: Regards croisés
+  notions:
+  - id: information_opinions
+    label: Information, médias et opinions publiques

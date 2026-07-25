@@ -1,0 +1,27 @@
+id: es_terminale_enseignement_scientifique
+matiere: es
+niveau: terminale
+voie: generale
+statut_enseignement: enseignement_scientifique
+programme_version: BOEN_special_8_2019-07-25
+themes:
+- id: climat
+  label: Science, climat et société
+  notions:
+  - id: climat_societe
+    label: 'Le climat : enjeux scientifiques et sociétaux'
+- id: energies
+  label: Le futur des énergies
+  notions:
+  - id: futur_energies
+    label: Choix énergétiques et impacts
+- id: vivant
+  label: Une histoire du vivant
+  notions:
+  - id: histoire_vivant
+    label: Évolution et histoire du vivant
+- id: modeles
+  label: Des modèles pour comprendre
+  notions:
+  - id: modeles_developpement
+    label: Modélisation et développement durable

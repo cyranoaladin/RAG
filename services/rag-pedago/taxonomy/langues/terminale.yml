@@ -1,0 +1,23 @@
+id: langues_terminale_tronc_commun
+matiere: langues
+niveau: terminale
+voie: generale
+statut_enseignement: tronc_commun
+programme_version: BOEN_special_8_2019-07-25
+themes:
+- id: axes_culturels
+  label: Axes du programme (cycle terminal)
+  notions:
+  - id: representations
+    label: Représentation de soi et rapport à autrui
+  - id: sports_societe
+    label: Sports et société
+  - id: sauver_planete
+    label: Sauver la planète
+- id: competences
+  label: Compétences langagières
+  notions:
+  - id: comprehension
+    label: Compréhension de l'oral et de l'écrit
+  - id: expression
+    label: Expression orale et écrite, interaction
