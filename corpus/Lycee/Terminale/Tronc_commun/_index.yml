@@ -1,0 +1,41 @@
+index_version: '1.0'
+niveau: terminale
+voie: generale
+description: Fiches référentiel terminale — routage vers collections rag_nexus_*
+fiches:
+- fichier: T_EMC.md
+  matiere: emc
+  statut_enseignement: emc
+  collection_cible: rag_nexus_emc_terminale_tc
+  taxonomy_file: emc/terminale.yml
+  programme_version: BOEN_special_8_2019-07-25
+- fichier: T_EPS.md
+  matiere: eps
+  statut_enseignement: tronc_commun
+  collection_cible: rag_nexus_eps_terminale_tc
+  taxonomy_file: eps/terminale.yml
+  programme_version: BOEN_special_8_2019-07-25
+- fichier: T_ENSEIGNEMENT_SCIENTIFIQUE.md
+  matiere: es
+  statut_enseignement: enseignement_scientifique
+  collection_cible: rag_nexus_es_terminale_tc
+  taxonomy_file: enseignement_scientifique/terminale.yml
+  programme_version: BOEN_special_8_2019-07-25
+- fichier: T_HISTOIRE_GEO.md
+  matiere: hg
+  statut_enseignement: tronc_commun
+  collection_cible: rag_nexus_hg_terminale_tc
+  taxonomy_file: histoire_geo/terminale_tronc_commun.yml
+  programme_version: BOEN_special_8_2019-07-25
+- fichier: T_LANGUES_VIVANTES.md
+  matiere: langues
+  statut_enseignement: tronc_commun
+  collection_cible: rag_nexus_lv_terminale_tc
+  taxonomy_file: langues/terminale.yml
+  programme_version: BOEN_special_8_2019-07-25
+- fichier: T_PHILOSOPHIE.md
+  matiere: philosophie
+  statut_enseignement: tronc_commun
+  collection_cible: rag_nexus_philo_terminale_tc
+  taxonomy_file: philosophie/terminale_tronc_commun.yml
+  programme_version: BOEN_special_8_2019-07-25

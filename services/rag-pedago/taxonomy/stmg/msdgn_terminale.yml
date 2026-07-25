@@ -1,0 +1,25 @@
+id: msdgn_terminale_specialite
+matiere: msdgn
+niveau: terminale
+voie: technologique
+statut_enseignement: specialite
+programme_version: BOEN_special_2_2020-02-13
+themes:
+- id: management
+  label: Management
+  notions:
+  - id: organisations
+    label: 'Les organisations : structures et fonctionnement'
+  - id: finalites_strategie
+    label: Finalités et stratégie de l'organisation
+  - id: management_hommes
+    label: Le management des hommes
+- id: sciences_gestion
+  label: Sciences de gestion et du numérique
+  notions:
+  - id: decision_gestion
+    label: L'information au service de la décision
+  - id: systemes_information
+    label: Systèmes d'information et transformation numérique
+  - id: performance
+    label: Mesure et pilotage de la performance

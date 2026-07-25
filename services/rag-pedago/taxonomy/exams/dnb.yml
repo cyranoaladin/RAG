@@ -1,0 +1,20 @@
+id: dnb_troisieme
+matiere: dnb
+niveau: troisieme
+voie: college
+statut_enseignement: tronc_commun
+programme_version: Note_service_DNB_session_2026
+themes:
+- id: epreuves_dnb
+  label: Épreuves du DNB
+  notions:
+  - id: epreuve_francais
+    label: Épreuve de français (100 points)
+  - id: epreuve_maths
+    label: Épreuve de mathématiques (100 points)
+  - id: epreuve_hg_emc
+    label: Épreuve d'histoire-géographie et EMC (50 points)
+  - id: epreuve_sciences
+    label: Épreuve de sciences (50 points)
+  - id: soutenance_orale
+    label: Soutenance orale (100 points)

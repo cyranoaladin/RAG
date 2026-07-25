@@ -1,0 +1,43 @@
+id: pc_terminale_specialite
+matiere: pc
+niveau: terminale
+voie: generale
+statut_enseignement: specialite
+programme_version: BOEN_special_8_2019-07-25
+themes:
+- id: matiere
+  label: Constitution et transformations de la matière
+  notions:
+  - id: evolution_systemes
+    label: Évolution des systèmes chimiques
+  - id: acide_base_avance
+    label: 'Acide-base : pH et équilibres'
+  - id: oxydoreduction_avance
+    label: 'Oxydoréduction : piles et électrolyse'
+  - id: mecanismes_reactionnels
+    label: Mécanismes réactionnels en chimie organique
+  - id: synthese_organique
+    label: Stratégie de synthèse organique
+- id: mouvement_interactions
+  label: Mouvement et interactions
+  notions:
+  - id: mouvement_champ
+    label: Mouvement dans un champ uniforme
+  - id: lois_kepler
+    label: Lois de Kepler, satellites et planètes
+  - id: systeme_oscillant
+    label: Système oscillant et aspect énergétique
+- id: fluides_energie
+  label: Fluides et énergie
+  notions:
+  - id: ecoulements
+    label: Écoulements et machines thermiques
+  - id: thermodynamique
+    label: Premier principe et énergie interne
+- id: ondes_signaux
+  label: Ondes et signaux
+  notions:
+  - id: interferences_diffraction
+    label: Interférences et diffraction
+  - id: geometrique_ondulatoire
+    label: 'Optique : du modèle géométrique au modèle ondulatoire'

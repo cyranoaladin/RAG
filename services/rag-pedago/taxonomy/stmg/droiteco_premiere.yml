@@ -1,0 +1,25 @@
+id: droit_economie_premiere_specialite
+matiere: droit_economie
+niveau: premiere
+voie: technologique
+statut_enseignement: specialite
+programme_version: BOEN_special_2_2020-02-13
+themes:
+- id: droit
+  label: Droit
+  notions:
+  - id: sources_droit
+    label: Sources du droit et système juridique
+  - id: contrat
+    label: 'Le contrat : formation et exécution'
+  - id: responsabilite
+    label: Responsabilité civile et pénale
+- id: economie
+  label: Économie
+  notions:
+  - id: marche_concurrence
+    label: Marché et concurrence
+  - id: monnaie_financement
+    label: Monnaie et financement de l'économie
+  - id: regulation
+    label: Régulation et intervention de l'État

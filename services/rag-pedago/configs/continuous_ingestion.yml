@@ -1,0 +1,112 @@
+# continuous_ingestion.yml — LOT 28 (ADR-0016)
+# Politique d'ingestion continue gouvernee. Aucun verrou n'est leve par ce
+# fichier : les agents deposent en STAGING uniquement. L'indexation pgvector
+# reste soumise a quality -> gate -> review (invariant AGENTS.md).
+
+policy_id: continuous_ingestion_v1
+status: staging_only_continuous_ingestion
+governance_ref: pedago_interface_contract.yml
+sources_ref: eduscol_sources.yml
+
+# ---------------------------------------------------------------------------
+# Verrous consultes (fail-closed si absent ou faux)
+# ---------------------------------------------------------------------------
+required_locks:
+  data_staging_allowed: true   # depot staging autorise (ADR-0004)
+  network_allowed: true        # fetch gouverne (ADR-0004)
+forbidden_when_true:
+  # si l'un de ces verrous est faux, l'agent refuse toute execution
+  - data_staging_allowed
+  - network_allowed
+
+# ---------------------------------------------------------------------------
+# Planification
+# ---------------------------------------------------------------------------
+schedule:
+  mode: cron_or_systemd          # un run = une passe ; la continuite est assuree
+                                 # par le planificateur externe (timer systemd)
+  interval_hours: 24             # frequence nominale : 1 passe / jour
+  jitter_minutes: 30             # decalage aleatoire anti-pic (applique par le timer)
+  ttl_hours: 168                 # une source n'est re-fetchee que si son contenu
+                                 # a change ou si sa derniere visite > 7 jours
+
+# ---------------------------------------------------------------------------
+# Budgets (garde-fous de charge)
+# ---------------------------------------------------------------------------
+budgets:
+  max_pages_per_run: 40          # plafond de pages fetchées par passe
+  max_discovered_links_per_source: 25
+  max_run_seconds: 3600          # kill-switch temps
+  max_bytes_per_run: 209715200   # 200 Mo / passe
+  max_pdf_bytes: 10485760        # 10 Mo / PDF (aligne scrapers/fetch.py)
+
+# ---------------------------------------------------------------------------
+# Politesse reseau (robots.txt reels mesures le 26/07/2026)
+# ---------------------------------------------------------------------------
+per_domain_delay:
+  eduscol.education.gouv.fr: 10.0        # robots.txt : Crawl-delay 10 (UA *)
+  cache.media.eduscol.education.gouv.fr: 10.0
+  education.gouv.fr: 5.0
+  fr.wikipedia.org: 2.0                  # defaut repo (RATE_LIMIT_SECONDS)
+  fr.wikiversity.org: 2.0
+default_delay: 5.0                       # conservateur pour tout autre domaine
+
+# ---------------------------------------------------------------------------
+# Decouverte de liens (1 niveau depuis les semences)
+# ---------------------------------------------------------------------------
+discovery:
+  enabled: true
+  same_domain_only: true
+  allowed_path_prefixes:
+    eduscol.education.gouv.fr:
+      - /               # pages publiques (hors prefixes interdits robots.txt)
+  forbidden_path_prefixes:
+    eduscol.education.gouv.fr:
+      - /recherche
+      - /search
+      - /core/
+      - /modules/
+      - /admin/
+      - /user/
+      - /comment/
+      - /taxonomy/
+  discovered_status: to_review           # tout lien decouvert part en revue humaine
+  ingest_discovered_content: false       # on depose le LIEN + metadonnees, pas le contenu,
+                                         # tant que la revue n'a pas bascule le statut
+
+# ---------------------------------------------------------------------------
+# Detection de changement et deduplication
+# ---------------------------------------------------------------------------
+change_detection:
+  state_file: data/staging/agents/_state/eduscol_agent_state.json
+  hash_algo: sha256                       # sha256 du contenu normalise
+  refetch_on_hash_change: true
+
+# ---------------------------------------------------------------------------
+# Depots staging (artefacts, jamais de contenu "corpus" direct)
+# ---------------------------------------------------------------------------
+staging:
+  root: data/staging/agents/continuous
+  layout: "{niveau}/{matiere}/{source_id}/"   # aligne agents/orchestrator.py
+  artefacts:
+    page_html: false                      # ne stocke pas le HTML brut en git
+    extracted_text: true                  # texte extrait + nettoye (staging local)
+    manifest_jsonl: true                  # manifeste par source (id, sha, url, meta)
+    pdf_links_manifest: true              # liens PDF deposes en attente de revue
+
+# ---------------------------------------------------------------------------
+# Revue et ledger
+# ---------------------------------------------------------------------------
+review:
+  human_review_required: true             # tout artefact staging -> revue avant gate
+  report_file: data/reports/continuous_ingestion_latest.md
+  ledger_append: data/ledger/continuous_ingestion.jsonl
+
+# ---------------------------------------------------------------------------
+# Interdictions explicites (rappel invariant)
+# ---------------------------------------------------------------------------
+prohibited:
+  - write_pgvector                        # aucune ecriture base vectorielle
+  - answer_generation                     # answer_generation_allowed reste false
+  - bypass_quality_gate                   # quality -> gate -> review non contournable
+  - credentials_in_config                 # aucun secret dans ce fichier

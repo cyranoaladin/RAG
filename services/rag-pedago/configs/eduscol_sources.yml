@@ -1,0 +1,242 @@
+# eduscol_sources.yml — LOT 28 (ADR-0016)
+# Sources semences (seed URLs) pour l'agent d'ingestion continue EduscolAgent.
+#
+# Règles :
+# - Seules les entrées `status: verified` sont fetchées en continu.
+# - `status: to_verify` = URL plausible non encore confirmée humainement :
+#   l'agent les IGNORE jusqu'à bascule explicite (revue humaine, ADR-0009).
+# - Chaque entrée déclare sa collection cible : le routage est déterministe,
+#   jamais déduit du contenu (droits résolus par provenance, ADR-0013).
+# - Aucune URL /recherche/ ou /search/ (Disallow robots.txt eduscol).
+# - crawl-delay eduscol : 10 s (robots.txt reel, User-agent: *) — applique par
+#   l'agent via continuous_ingestion.yml > per_domain_delay.
+
+policy_ref: continuous_ingestion_v1
+rights_default: official_public_administrative   # droits a confirmer par provenance lors de la revue
+human_review_required_default: true              # tout depot staging exige revue avant gate
+
+sources:
+
+  # =====================================================================
+  # VERIFIEES (fetch OK ou resultat de recherche eduscol officiel, 26/07/2026)
+  # =====================================================================
+
+  - id: eduscol_maths_voie_gt
+    url: https://eduscol.education.gouv.fr/5817/programmes-et-ressources-en-mathematiques-voie-gt
+    status: verified
+    matiere: maths
+    niveaux: [seconde, premiere, terminale]
+    voies: [generale, technologique]
+    collections_cibles:
+      - rag_nexus_maths_seconde_tc
+      - rag_nexus_maths_premiere_gen_specialite
+      - rag_nexus_maths_premiere_gen_tc
+      - rag_nexus_maths_terminale_gen_specialite
+      - rag_nexus_maths_premiere_stmg_tc
+      - rag_nexus_maths_terminale_stmg_tc
+    note: "Hub officiel : programmes en vigueur + ressources d'accompagnement + EAM."
+
+  - id: eduscol_philo_voie_gt
+    url: https://eduscol.education.gouv.fr/5826/programmes-et-ressources-en-philosophie-voie-gt
+    status: verified
+    matiere: philosophie
+    niveaux: [terminale]
+    voies: [generale, technologique]
+    collections_cibles: [rag_nexus_philo_terminale_tc]
+    note: "Programme Tle GT + ressources d'accompagnement par notion."
+
+  - id: eduscol_nsi_voie_g
+    url: https://eduscol.education.gouv.fr/5823/programmes-et-ressources-en-numerique-et-sciences-informatiques-voie-g
+    status: verified
+    matiere: nsi
+    niveaux: [premiere, terminale]
+    voies: [generale]
+    collections_cibles:
+      - rag_nexus_nsi_premiere_specialite
+      - rag_nexus_nsi_terminale_specialite
+    note: "Programmes NSI 1re/Tle + ressources par theme (vademecum SNT/NSI lie)."
+
+  - id: eduscol_snt_seconde
+    url: https://eduscol.education.gouv.fr/5841/programmes-et-ressources-en-sciences-numeriques-et-technologie-voie-gt
+    status: verified
+    matiere: snt
+    niveaux: [seconde]
+    voies: [generale, technologique]
+    collections_cibles: [rag_nexus_snt_seconde_tc]
+    note: "Programme SNT 2de + 7 thematiques + vademecum."
+
+  - id: eduscol_hlp_voie_gt
+    url: https://eduscol.education.gouv.fr/5805/programmes-et-ressources-en-humanites-litterature-et-philosophie-voie-g
+    status: verified
+    matiere: hlp
+    niveaux: [premiere, terminale]
+    voies: [generale]
+    collections_cibles:
+      - rag_nexus_hlp_premiere_specialite
+      - rag_nexus_hlp_terminale_specialite
+    note: "Programmes HLP 1re/Tle + documents d'accompagnement."
+
+  - id: eduscol_eam
+    url: https://eduscol.education.gouv.fr/5688/epreuve-anticipee-de-mathematiques-aux-baccalaureats-general-et-technologique
+    status: verified
+    matiere: exams
+    niveaux: [premiere]
+    voies: [generale, technologique]
+    collections_cibles: [rag_nexus_exams_anticipee_maths]
+    note: "Definition officielle EAM (decret 2025-513, note de service 10-6-2025)."
+
+  - id: eduscol_epreuves_terminales_bac_general
+    url: https://eduscol.education.gouv.fr/5706/les-epreuves-terminales-du-baccalaureat-general
+    status: verified
+    matiere: exams
+    niveaux: [terminale]
+    voies: [generale]
+    collections_cibles: [rag_nexus_exams_bac_general]
+    note: "Calendrier indicatif + documents consolides des epreuves terminales."
+
+  - id: eduscol_francais_lycee_gt
+    url: https://eduscol.education.gouv.fr/31197/domaines-enseignement/francais-lycee-gt
+    status: verified
+    matiere: francais
+    niveaux: [seconde, premiere]
+    voies: [generale, technologique]
+    collections_cibles:
+      - rag_nexus_francais_seconde_tc
+      - rag_nexus_francais_premiere_tc
+    note: "Domaine d'enseignement francais lycée GT (hub disciplinaire)."
+
+  # =====================================================================
+  # A VERIFIER (status: to_verify — ignores par l'agent tant que non valides)
+  # Motif : URL deduite de conventions eduscol, confirmation humaine requise
+  # avant activation (cocher status: verified apres revue, cf. ADR-0016 §6).
+  # =====================================================================
+
+  - id: eduscol_pc_voie_gt
+    url: https://eduscol.education.gouv.fr/5815/programmes-et-ressources-en-physique-chimie-voie-gt
+    status: to_verify
+    matiere: physique_chimie
+    niveaux: [seconde, premiere, terminale]
+    voies: [generale]
+    collections_cibles:
+      - rag_nexus_pc_seconde_tc
+      - rag_nexus_pc_premiere_specialite
+      - rag_nexus_pc_terminale_specialite
+
+  - id: eduscol_svt_voie_gt
+    url: https://eduscol.education.gouv.fr/5819/programmes-et-ressources-en-svt-voie-gt
+    status: to_verify
+    matiere: svt
+    niveaux: [seconde, premiere, terminale]
+    voies: [generale]
+    collections_cibles:
+      - rag_nexus_svt_seconde_tc
+      - rag_nexus_svt_premiere_specialite
+      - rag_nexus_svt_terminale_specialite
+
+  - id: eduscol_ses_voie_gt
+    url: https://eduscol.education.gouv.fr/5838/programmes-et-ressources-en-sciences-economiques-et-sociales-voie-gt
+    status: verified
+    matiere: ses
+    niveaux: [seconde, premiere, terminale]
+    voies: [generale]
+    collections_cibles:
+      - rag_nexus_ses_seconde_tc
+      - rag_nexus_ses_premiere_specialite
+      - rag_nexus_ses_terminale_specialite
+
+  - id: eduscol_hggsp_voie_g
+    url: https://eduscol.education.gouv.fr/5808/programmes-et-ressources-en-histoire-geographie-geopolitique-et-sciences-politiques-voie-g
+    status: to_verify
+    matiere: hggsp
+    niveaux: [premiere, terminale]
+    voies: [generale]
+    collections_cibles:
+      - rag_nexus_hggsp_premiere_specialite
+      - rag_nexus_hggsp_terminale_specialite
+
+  - id: eduscol_hg_lycee_gt
+    url: https://eduscol.education.gouv.fr/5802/programmes-et-ressources-en-histoire-geographie-voie-gt
+    status: to_verify
+    matiere: hg
+    niveaux: [seconde, premiere, terminale]
+    voies: [generale, technologique]
+    collections_cibles:
+      - rag_nexus_hg_seconde_tc
+      - rag_nexus_hg_premiere_tc
+      - rag_nexus_hg_terminale_tc
+
+  - id: eduscol_llce_voie_g
+    url: https://eduscol.education.gouv.fr/5811/programmes-et-ressources-en-langues-litteratures-et-cultures-etrangeres-voie-g
+    status: to_verify
+    matiere: llce
+    niveaux: [premiere, terminale]
+    voies: [generale]
+    collections_cibles:
+      - rag_nexus_llce_premiere_specialite
+      - rag_nexus_llce_terminale_specialite
+
+  - id: eduscol_langues_voie_gt
+    url: https://eduscol.education.gouv.fr/5806/programmes-et-ressources-en-langues-vivantes-voie-gt
+    status: to_verify
+    matiere: langues
+    niveaux: [troisieme, seconde, premiere, terminale]
+    voies: [college, generale, technologique]
+    collections_cibles:
+      - rag_nexus_lv_troisieme_tc
+      - rag_nexus_lv_seconde_tc
+      - rag_nexus_lv_premiere_tc
+      - rag_nexus_lv_terminale_tc
+
+  - id: eduscol_es_voie_g
+    url: https://eduscol.education.gouv.fr/5804/programmes-et-ressources-en-enseignement-scientifique-voie-g
+    status: to_verify
+    matiere: es
+    niveaux: [premiere, terminale]
+    voies: [generale]
+    collections_cibles:
+      - rag_nexus_es_premiere_tc
+      - rag_nexus_es_terminale_tc
+
+  - id: eduscol_college_cycle4
+    url: https://eduscol.education.gouv.fr/65/les-programmes-du-college
+    status: to_verify
+    matiere: college
+    niveaux: [troisieme]
+    voies: [college]
+    collections_cibles:
+      - rag_nexus_maths_troisieme_tc
+      - rag_nexus_francais_troisieme_tc
+      - rag_nexus_hg_troisieme_tc
+      - rag_nexus_lv_troisieme_tc
+      - rag_nexus_svt_troisieme_tc
+      - rag_nexus_pc_troisieme_tc
+      - rag_nexus_techno_troisieme_tc
+
+  - id: eduscol_dnb
+    url: https://eduscol.education.gouv.fr/93/le-diplome-national-du-brevet
+    status: to_verify
+    matiere: dnb
+    niveaux: [troisieme]
+    voies: [college]
+    collections_cibles: [rag_nexus_dnb]
+
+  - id: eduscol_stmg
+    url: https://eduscol.education.gouv.fr/5645/baccalaureat-technologique-serie-stmg
+    status: to_verify
+    matiere: stmg
+    niveaux: [premiere, terminale]
+    voies: [technologique]
+    collections_cibles:
+      - rag_nexus_maths_premiere_stmg_tc
+      - rag_nexus_maths_terminale_stmg_tc
+      - rag_nexus_droiteco_premiere_stmg_specialite
+      - rag_nexus_droiteco_terminale_stmg_specialite
+      - rag_nexus_msdgn_terminale_stmg_specialite
+
+  - id: eduscol_grand_oral
+    url: https://eduscol.education.gouv.fr/2423/le-grand-oral-du-baccalaureat
+    status: to_verify
+    matiere: grand_oral
+    niveaux: [terminale]
+    voies: [generale, technologique]
+    collections_cibles: [rag_nexus_grand_oral_terminale]

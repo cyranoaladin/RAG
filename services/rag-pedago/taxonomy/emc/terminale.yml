@@ -1,0 +1,14 @@
+id: emc_terminale_emc
+matiere: emc
+niveau: terminale
+voie: generale
+statut_enseignement: emc
+programme_version: BOEN_special_8_2019-07-25
+themes:
+- id: normes_democratie
+  label: Normes et démocratie
+  notions:
+  - id: normes_jugement_moral
+    label: Normes, règles et jugement moral
+  - id: democratie_epreuve
+    label: La démocratie à l'épreuve

@@ -1,0 +1,23 @@
+id: langues_premiere_tronc_commun
+matiere: langues
+niveau: premiere
+voie: generale
+statut_enseignement: tronc_commun
+programme_version: BOEN_special_1_2019-01-22
+themes:
+- id: axes_culturels
+  label: Axes du programme (cycle terminal)
+  notions:
+  - id: art_pouvoir
+    label: L'art et le pouvoir
+  - id: espace_prive_public
+    label: Espace privé et espace public
+  - id: identites_echanges
+    label: Identités et échanges
+- id: competences
+  label: Compétences langagières
+  notions:
+  - id: comprehension
+    label: Compréhension de l'oral et de l'écrit
+  - id: expression
+    label: Expression orale et écrite, interaction

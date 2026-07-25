@@ -1,0 +1,30 @@
+id: maths_terminale_option
+matiere: maths
+niveau: terminale
+voie: generale
+statut_enseignement: option
+programme_version: BOEN_special_8_2019-07-25
+themes:
+- id: analyse
+  label: Analyse
+  notions:
+  - id: suites
+    label: Suites numériques
+  - id: derivation
+    label: Dérivation et étude de fonctions
+  - id: integration
+    label: Intégration
+- id: probabilites_statistiques
+  label: Probabilités et statistiques
+  notions:
+  - id: loi_binomiale
+    label: Loi binomiale
+  - id: echantillonnage
+    label: Échantillonnage et estimation
+- id: geometrie
+  label: Géométrie et algorithmique
+  notions:
+  - id: geometrie_reperée
+    label: Géométrie repérée (rappels)
+  - id: python
+    label: Python en appui

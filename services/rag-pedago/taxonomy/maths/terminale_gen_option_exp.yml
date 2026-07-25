@@ -1,0 +1,23 @@
+id: maths_terminale_option
+matiere: maths
+niveau: terminale
+voie: generale
+statut_enseignement: option
+programme_version: BOEN_special_8_2019-07-25
+themes:
+- id: algebre
+  label: Algèbre et structures
+  notions:
+  - id: nombres_complexes
+    label: Nombres complexes
+  - id: arithmetique
+    label: 'Arithmétique : divisibilité, congruences'
+  - id: matrices_suites
+    label: Matrices et suites
+  - id: graphes
+    label: Théorie des graphes
+- id: geometrie
+  label: Géométrie approfondie
+  notions:
+  - id: geometrie_espace
+    label: Géométrie de l'espace approfondie

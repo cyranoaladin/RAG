@@ -38,9 +38,9 @@ def _load_yaml(path: Path) -> dict:
 # ===================================================================
 
 
-def test_config_is_v2() -> None:
+def test_config_is_v3() -> None:
     config = _load_yaml(CONFIG_PATH)
-    assert config["version"] == 2
+    assert config["version"] == 3
 
 
 def test_no_chroma_no_routing_in_v2() -> None:
@@ -197,9 +197,9 @@ def test_legacy_mapping_content() -> None:
 # ===================================================================
 
 
-def test_load_v2_config() -> None:
+def test_load_v3_config() -> None:
     config = load_collection_config()
-    assert config["version"] == 2
+    assert config["version"] == 3
 
 
 def test_load_legacy_config() -> None:
@@ -230,7 +230,7 @@ def test_collection_config_loads_from_flat_layout(tmp_path, monkeypatch) -> None
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
 
-    assert module.load_collection_config()["version"] == 2
+    assert module.load_collection_config()["version"] == 3
 
 
 def test_config_dir_env(tmp_path, monkeypatch) -> None:
@@ -250,7 +250,7 @@ def test_config_dir_env(tmp_path, monkeypatch) -> None:
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
 
-    assert module.load_collection_config()["version"] == 2
+    assert module.load_collection_config()["version"] == 3
 
 
 def test_missing_config_env_fails(tmp_path, monkeypatch) -> None:
@@ -290,12 +290,12 @@ def test_missing_dir_mapping_fails(tmp_path, monkeypatch) -> None:
         load_legacy_mapping()
 
 
-def test_repo_fallback_v2_config_without_env(monkeypatch) -> None:
+def test_repo_fallback_v3_config_without_env(monkeypatch) -> None:
     monkeypatch.delenv("RAG_COLLECTIONS_CONFIG", raising=False)
     monkeypatch.delenv("RAG_LEGACY_COLLECTIONS_CONFIG", raising=False)
     monkeypatch.delenv("RAG_LEGACY_COLLECTION_MAPPING", raising=False)
     monkeypatch.delenv("RAG_ENGINE_CONFIG_DIR", raising=False)
-    assert load_collection_config()["version"] == 2
+    assert load_collection_config()["version"] == 3
 
 
 @pytest.mark.legacy_engine

@@ -1,0 +1,35 @@
+id: pc_troisieme_tronc_commun
+matiere: pc
+niveau: troisieme
+voie: college
+statut_enseignement: tronc_commun
+programme_version: BOEN_special_11_2018-07-26_aj_2020
+themes:
+- id: chimie
+  label: 'Chimie : transformations de la matière'
+  notions:
+  - id: ions_ph
+    label: Ions et pH
+  - id: reactions_chimiques
+    label: Réactions chimiques et conservation de la masse
+- id: mecanique
+  label: Mécanique
+  notions:
+  - id: gravitation_poids
+    label: Gravitation, poids et masse
+  - id: forces_mouvements
+    label: Forces et mouvements
+- id: electricite
+  label: Électricité
+  notions:
+  - id: circuits
+    label: Circuits électriques en série et en dérivation
+  - id: loi_ohm
+    label: Tension, intensité et loi d'Ohm
+- id: energie_signaux
+  label: Énergie et signaux
+  notions:
+  - id: formes_conversions_energie
+    label: Formes d'énergie et conversions
+  - id: lumiere_son
+    label: 'Lumière et son : propagation et signaux'

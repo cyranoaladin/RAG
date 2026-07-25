@@ -1,0 +1,34 @@
+id: ses_terminale_specialite
+matiere: ses
+niveau: terminale
+voie: generale
+statut_enseignement: specialite
+programme_version: BOEN_special_8_2019-07-25
+themes:
+- id: science_economique
+  label: Science économique
+  notions:
+  - id: croissance_capital
+    label: Croissance, capital et progrès technique
+  - id: globalisation_finance
+    label: Globalisation et finance
+  - id: structures_marches
+    label: Structures des marchés et concurrence
+  - id: defaillances_marche
+    label: Défaillances du marché et régulation
+- id: sociologie_science_politique
+  label: Sociologie et science politique
+  notions:
+  - id: deviance_controle_social
+    label: Déviance et contrôle social
+  - id: travail_emploi_chomage
+    label: Travail, emploi et chômage
+  - id: mobilite_sociale
+    label: Mobilité sociale
+- id: regards_croises
+  label: Regards croisés
+  notions:
+  - id: justice_sociale
+    label: Justice sociale et inégalités
+  - id: confiance_economie
+    label: Confiance et économie

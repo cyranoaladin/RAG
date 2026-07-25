@@ -1,0 +1,37 @@
+id: svt_troisieme_tronc_commun
+matiere: svt
+niveau: troisieme
+voie: college
+statut_enseignement: tronc_commun
+programme_version: BOEN_special_11_2018-07-26_aj_2020
+themes:
+- id: planete_terre
+  label: La planète Terre et l'environnement
+  notions:
+  - id: tectonique_risques
+    label: Tectonique des plaques et risques naturels
+  - id: meteorologie_climat
+    label: Météorologie et climat
+- id: vivant_evolution
+  label: Le vivant et son évolution
+  notions:
+  - id: selection_naturelle
+    label: Sélection naturelle et classification du vivant
+  - id: reproduction
+    label: Reproduction et diversité des êtres vivants
+- id: corps_humain_sante
+  label: Corps humain et santé
+  notions:
+  - id: alimentation
+    label: Alimentation et besoins de l'organisme
+  - id: microbiote_immunite
+    label: Microbiote, immunité et vaccination
+  - id: prevention_addictions
+    label: Prévention des addictions
+- id: enjeux_contemporains
+  label: Enjeux contemporains
+  notions:
+  - id: energies_climat
+    label: Énergies et changement climatique
+  - id: biodiversite
+    label: Biodiversité et sa préservation
