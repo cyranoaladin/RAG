@@ -1,0 +1,83 @@
+# review_policy.yml — LOT 29 (ADR-0018)
+# Politique du panel de revue par agents experts.
+# Remplace l'acteur "humain" de l'etape review par un panel d'agents
+# specialises deterministes. Les regles dures (droits inconnus) ne sont
+# JAMAIS delegables : quarantaine automatique.
+
+policy_id: agent_review_panel_v1
+governance_ref: pedago_interface_contract.yml
+staging_root: data/staging/agents/continuous
+
+# ---------------------------------------------------------------------------
+# Consensus
+# ---------------------------------------------------------------------------
+consensus: unanimous            # approved exige 3/3 reviewers
+on_disagreement: quarantine     # tout desaccord ou doute -> quarantaine
+on_reviewer_error: quarantine   # un reviewer en echec ne peut pas approuver
+
+# ---------------------------------------------------------------------------
+# Reviewers du panel
+# ---------------------------------------------------------------------------
+reviewers:
+  - id: rights_expert
+    role: droits et licences par provenance
+  - id: subject_expert
+    role: conformite au programme officiel (taxonomies)
+  - id: quality_expert
+    role: substance, integrite, metadonnees
+
+# ---------------------------------------------------------------------------
+# Regles du RightsExpertAgent (droits resolus par provenance, ADR-0013)
+# ---------------------------------------------------------------------------
+rights_map:
+  eduscol.education.gouv.fr: official_public_administrative
+  cache.media.eduscol.education.gouv.fr: official_public_administrative
+  education.gouv.fr: official_public_administrative
+  fr.wikipedia.org: cc_by_sa_4_0
+  fr.wikiversity.org: cc_by_sa_4_0
+unknown_rights_action: quarantine    # REGLE DURE : non delegable, non assouplissable
+
+# ---------------------------------------------------------------------------
+# Regles du SubjectExpertAgent (conformite programme)
+# ---------------------------------------------------------------------------
+subject_expert:
+  catalogue: ../rag-engine/configs/rag_collections.yml   # collection -> taxonomy_file
+  taxonomy_root: taxonomy
+  min_notion_coverage: 0.05      # >= 5 % des notions de la taxonomie presentes dans le texte
+  missing_taxonomy_action: quarantine   # impossible de juger -> quarantaine
+
+# ---------------------------------------------------------------------------
+# Regles du QualityExpertAgent (substance et integrite)
+# ---------------------------------------------------------------------------
+quality_expert:
+  min_words: 200
+  max_words: 200000
+  forbid_patterns:
+    - "lorem ipsum"
+    - "abonnez-vous"
+    - "paywall"
+    - "just a moment"          # page de challenge WAF (fetch degrade)
+  require_manifest_fields:
+    - source_id
+    - url
+    - sha256
+    - matiere
+    - niveaux
+    - collections_cibles
+  verify_sha256_integrity: true      # recompute sha256(page.txt) == manifest.sha256
+
+# ---------------------------------------------------------------------------
+# Sorties
+# ---------------------------------------------------------------------------
+outputs:
+  review_manifest_jsonl: data/review/review_panel_manifest.jsonl
+  ledger_append: data/ledger/review_panel.jsonl
+  report_file: data/reports/review_panel_latest.md
+
+# ---------------------------------------------------------------------------
+# Interdictions (rappel invariant)
+# ---------------------------------------------------------------------------
+prohibited:
+  - write_pgvector                 # le panel ne fait QUE la revue staging
+  - bypass_quality_gate            # quality -> gate -> review reste la chaine
+  - soften_unknown_rights_rule     # la regle dure droits est intouchable
