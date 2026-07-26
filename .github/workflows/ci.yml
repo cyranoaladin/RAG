@@ -35,6 +35,8 @@ jobs:
         run: make typecheck
       - working-directory: services/rag-pedago
         run: make test
+      - working-directory: services/rag-pedago
+        run: make source-evidence-check
 
   rag-engine:
     name: "services/rag-engine"

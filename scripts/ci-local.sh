@@ -123,6 +123,9 @@ run_target "governance-locks" bash scripts/check-governance-locks.sh
 # --- taxonomy validation ---
 run_target "taxonomy-validation" bash -c "cd $REPO_ROOT/services/rag-pedago && source .venv/bin/activate && python scripts/validate_taxonomy.py"
 
+# --- source evidence check (revue PR #74, round 11) ---
+run_target "source-evidence-check" bash -c "cd $REPO_ROOT/services/rag-pedago && source .venv/bin/activate && python scripts/export_source_validation_evidence.py --check"
+
 # --- governance guard tests ---
 run_target "governance-guard-tests" bash scripts/tests/test-governance-locks.sh
 

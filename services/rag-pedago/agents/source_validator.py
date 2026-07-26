@@ -39,6 +39,7 @@ from agents.base import ROOT
 from agents.eduscol_agent import browser_governed_fetch
 from agents.reviewers import Artefact, SubjectExpertAgent
 from scrapers.fetch import FetchRefusal, FetchResult
+from scrapers.text_extract import strip_html
 
 SOURCES_PATH = ROOT / "configs" / "eduscol_sources.yml"
 POLICY_PATH = ROOT / "configs" / "review_policy.yml"
@@ -48,15 +49,12 @@ REPORT_PATH = ROOT / "data" / "reports" / "source_validation_latest.md"
 LEDGER_PATH = ROOT / "data" / "ledger" / "source_validation.jsonl"
 
 _WS_RE = re.compile(r"\s+")
-_TAG_RE = re.compile(
-    r"<script.*?</script>|<style.*?</style>", re.DOTALL | re.IGNORECASE)
-_TAG_ANY_RE = re.compile(r"<[^>]+>")
 DEFAULT_MIN_WORDS = 200
 DEFAULT_MAX_WORDS = 200000
 # v4 : regles round 8 (substance exam) + persistance immediate/reprise.
 # Tout changement de logique de revue DOIT bumper cette version : les
 # verdicts d'une version anterieure sont perimes (portes de l'export).
-VALIDATOR_VERSION = "source_validator_v4"
+VALIDATOR_VERSION = "source_validator_v5"
 # TTL de reprise : un verdict recent (meme version, meme URL) dispense de
 # refetcher la source apres une interruption (revue PR #74, round 9).
 RESUME_TTL_SECONDS = 3600
@@ -68,22 +66,9 @@ def _utcnow() -> str:
     return datetime.now(UTC).isoformat()
 
 
-def _strip_html(html: str) -> str:
-    """Extraction du contenu PRINCIPAL : le chrome de page (nav, header,
-    footer, aside, formulaires) est exclu AVANT le comptage de substance et
-    la relue pedagogique — 200 mots de navigation ne font pas une source."""
-    try:
-        from bs4 import BeautifulSoup
-    except ImportError:  # repli regex minimal si bs4 absent
-        text = _TAG_RE.sub(" ", html)
-        text = _TAG_ANY_RE.sub(" ", text)
-        return _WS_RE.sub(" ", text).strip()
-    soup = BeautifulSoup(html, "html.parser")
-    for tag in soup(["script", "style", "nav", "header", "footer", "aside",
-                     "form", "noscript"]):
-        tag.decompose()
-    main = soup.find("main") or soup.find("article") or soup.body or soup
-    return _WS_RE.sub(" ", main.get_text(" ", strip=True))
+# Extraction canonique PARTAGEE avec EduscolAgent (controle de derive) :
+# le digest du verdict et celui de l'ingestion continue sont comparables.
+_strip_html = strip_html
 
 
 def validate_source(source: dict[str, Any], policy: dict[str, Any]) -> dict[str, Any]:

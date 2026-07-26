@@ -238,7 +238,7 @@ sources:
 
   - id: eduscol_grand_oral
     url: https://eduscol.education.gouv.fr/5661/presentation-du-grand-oral
-    status: verified
+    status: to_verify
     matiere: grand_oral
     niveaux: [terminale]
     voies: [generale, technologique]

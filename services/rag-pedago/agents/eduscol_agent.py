@@ -36,6 +36,7 @@ from scrapers.fetch import (
     is_allowed_by_robots,
     is_whitelisted,
 )
+from scrapers.text_extract import strip_html
 
 _REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
 _MAX_REDIRECT_HOPS = 5
@@ -176,6 +177,31 @@ _STATIC_EXT = (
 _STATIC_PATH_PREFIXES = ("/libraries/", "/assets/", "/static/", "/themes/")
 
 
+EVIDENCE_PATH = ROOT.parents[1] / "docs" / "validation" / "source_validation_evidence.json"
+
+
+def evidence_drift(source_id: str, url: str, html: str,
+                   verdicts: dict[str, dict[str, Any]]) -> str | None:
+    """Derive vs la preuve versionnee (revue PR #74, round 11).
+
+    Une source suivie par la preuve dont le contenu a CHANGE depuis sa
+    validation (content_sha256 divergent, meme canonicalisation partagee)
+    ou dont l'URL configuree differe de l'URL validee ne doit PAS etre
+    stagee : revalidation par le source_validator requise. Retourne None
+    si la source n'est pas suivie (legacy) ou si le contenu est conforme."""
+    verdict = verdicts.get(source_id)
+    if verdict is None:
+        return None
+    if verdict.get("url") != url:
+        return (f"url configuree != url validee ({verdict.get('url')}) "
+                "— revalidation requise")
+    digest = hashlib.sha256(strip_html(html).encode("utf-8")).hexdigest()
+    if digest != verdict.get("content_sha256"):
+        return ("contenu modifie depuis la validation "
+                "(content_sha256 divergent) — revalidation requise")
+    return None
+
+
 def _utcnow() -> str:
     return datetime.now(UTC).isoformat()
 
@@ -229,6 +255,7 @@ class EduscolAgent(AcquisitionAgent):
         self.sources_cfg = yaml.safe_load(sources_path.read_text(encoding="utf-8")) or {}
         self.policy = yaml.safe_load(policy_path.read_text(encoding="utf-8")) or {}
         self._records: list[FetchRecord] = []
+        self._evidence: dict[str, dict[str, Any]] | None = None
         self._pages_fetched = 0
         self._bytes_fetched = 0
         self._started = time.monotonic()
@@ -336,6 +363,23 @@ class EduscolAgent(AcquisitionAgent):
         self._write_ledger()
         return {"agent": "eduscol_agent", "records": [asdict(r) for r in self._records]}
 
+    def _evidence_verdicts(self) -> dict[str, dict[str, Any]]:
+        """Verdicts de la preuve versionnee (charges une fois par run)."""
+        if self._evidence is None:
+            self._evidence = {}
+            if EVIDENCE_PATH.is_file():
+                try:
+                    data = json.loads(EVIDENCE_PATH.read_text(encoding="utf-8"))
+                    for vd in data.get("verdicts", []):
+                        sid = vd.get("source_id")
+                        if sid:
+                            self._evidence[sid] = vd
+                except Exception:
+                    # Preuve illisible : aucun verdict charge (le controle
+                    # CI --check est la porte fail-closed qui refuse).
+                    self._evidence = {}
+        return self._evidence
+
     def _fetch_source(self, src: SourceEntry, state: dict[str, Any], ttl_h: float) -> None:
         prev = state.get(src.id, {})
         if prev.get("last_fetched_at"):
@@ -369,6 +413,17 @@ class EduscolAgent(AcquisitionAgent):
             state[src.id] = {**prev, "last_fetched_at": _utcnow()}
             self._records.append(FetchRecord(
                 source_id=src.id, url=src.url, status="unchanged", sha256=digest))
+            return
+
+        # Controle de derive vs la preuve versionnee (revue PR #74, r11) :
+        # un contenu MODIFIE depuis la validation n'est pas stage — la
+        # source doit etre revalidee (rerun du source_validator).
+        drift = evidence_drift(src.id, src.url, result.text,
+                               self._evidence_verdicts())
+        if drift:
+            self._records.append(FetchRecord(
+                source_id=src.id, url=src.url, status="drift_blocked",
+                detail=drift))
             return
 
         artefact_dir = self._deposit(src, text, digest, result.text)

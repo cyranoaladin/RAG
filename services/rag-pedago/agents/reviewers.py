@@ -135,15 +135,17 @@ class SubjectExpertAgent(BaseReviewer):
             "corrigé", "baccalauréat", "durée",
         ])]
         self.exam_min_markers = int(exam_cfg.get("min_markers", 2))
-        # Marqueurs de SUBSTANCE d'examen (annales, corrige, duree...) :
-        # une page logistique mentionnant 'DNB' + 'sujet'/'epreuve' n'a
-        # aucun marqueur de substance et ne peut etre approuvee — la
-        # couverture verte doit demontrer du contenu d'examen REEL
-        # (revue PR #74, round 8).
-        self.exam_material_markers = [_norm(str(m)) for m in exam_cfg.get(
-            "material_markers", [
-                "annales", "corrigé", "durée", "coefficient", "barème",
-                "sujet zéro", "épreuve écrite",
+        # Marqueurs de SUBSTANCE d'examen en DEUX categories
+        # complementaires : un DOCUMENT d'examen (annales, corrige,
+        # sujet zero) ET une MODALITE d'epreuve (duree, coefficient...).
+        # Une occurrence ISOLEE d'un seul marqueur ('duree' sur une page
+        # administrative) ne demontre pas du contenu d'examen reel
+        # (revue PR #74, rounds 8 et 11).
+        self.exam_material_doc = [_norm(str(m)) for m in exam_cfg.get(
+            "material_document_markers", ["annales", "corrigé", "sujet zéro"])]
+        self.exam_material_mod = [_norm(str(m)) for m in exam_cfg.get(
+            "material_modalite_markers", [
+                "durée", "coefficient", "barème", "épreuve écrite",
             ])]
         self.exam_min_material = int(exam_cfg.get("min_material_markers", 1))
 
@@ -260,11 +262,15 @@ class SubjectExpertAgent(BaseReviewer):
                 specific = self._exam_tokens(tax_path)
                 specific_hits = sum(1 for t in specific if t in text_norm)
                 v.rules_fired.append(f"exam_specific[{collection}]:{specific_hits}")
-                material_hits = sum(
-                    1 for m in self.exam_material_markers if m in text_norm)
-                v.rules_fired.append(f"exam_material[{collection}]:{material_hits}")
+                doc_hits = sum(
+                    1 for m in self.exam_material_doc if m in text_norm)
+                v.rules_fired.append(f"exam_material_doc[{collection}]:{doc_hits}")
+                mod_hits = sum(
+                    1 for m in self.exam_material_mod if m in text_norm)
+                v.rules_fired.append(f"exam_material_mod[{collection}]:{mod_hits}")
                 if (hits < self.exam_min_markers or specific_hits == 0
-                        or material_hits < self.exam_min_material):
+                        or doc_hits < self.exam_min_material
+                        or mod_hits < self.exam_min_material):
                     exam_failing[collection] = hits
                 continue
 

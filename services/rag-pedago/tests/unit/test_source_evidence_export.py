@@ -18,6 +18,7 @@ assert _SPEC and _SPEC.loader
 _mod = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(_mod)
 export = _mod.export
+check = _mod.check
 recompute_signature = _mod.recompute_signature
 
 
@@ -37,7 +38,7 @@ def _verdict(source_id: str, url: str,
         "rules_fired": ["subject_expert:approved"],
         "reasons": ["ok"],
         "validated_at": "2026-07-27T00:00:00+00:00",
-        "validator": "source_validator_v4",
+        "validator": "source_validator_v5",
     }
     v["signature"] = recompute_signature(v) if sign else "0" * 16
     return v
@@ -71,7 +72,7 @@ class TestEvidenceExport:
         assert code == 0, msg
         data = json.loads(evidence.read_text(encoding="utf-8"))
         assert data["verdicts_count"] == 1
-        assert data["validator_schema"] == "source_validator_v4"
+        assert data["validator_schema"] == "source_validator_v5"
         v = data["verdicts"][0]
         assert v["content_sha256"] == "ab" * 32
         assert len(v["signature"]) == 16
@@ -152,6 +153,69 @@ class TestEvidenceExport:
         code, msg = export(ledger, sources_yml, evidence)
         assert code == 1
         assert "eduscol_maths_voie_gt" in msg
+
+
+class TestEvidenceCheck:
+    """Controle CI --check (round 11 PR #74) : la preuve COMMITEE doit
+    couvrir la config courante, sans dependre du ledger (data/)."""
+
+    def _write_evidence(self, tmp_path, verdicts, schema="source_validator_v5"):
+        evidence = tmp_path / "docs" / "validation" / "source_validation_evidence.json"
+        evidence.parent.mkdir(parents=True, exist_ok=True)
+        evidence.write_text(json.dumps({
+            "exported_at": "2026-07-27T00:00:00+00:00",
+            "validator_schema": schema,
+            "ledger_sha256": "ab" * 32,
+            "verdicts_count": len(verdicts),
+            "verdicts": verdicts,
+        }, ensure_ascii=False), encoding="utf-8")
+        return evidence
+
+    def _write_sources(self, tmp_path, sources):
+        sources_yml = tmp_path / "configs" / "eduscol_sources.yml"
+        sources_yml.parent.mkdir(parents=True, exist_ok=True)
+        sources_yml.write_text(yaml.safe_dump({"sources": sources}), encoding="utf-8")
+        return sources_yml
+
+    def test_check_ok(self, tmp_path):
+        evidence = self._write_evidence(tmp_path, [
+            _verdict("eduscol_dnb", "https://eduscol.education.gouv.fr/4536/x")])
+        sources_yml = self._write_sources(tmp_path, [
+            {"id": "eduscol_dnb", "status": "verified",
+             "url": "https://eduscol.education.gouv.fr/4536/x"},
+            {"id": "eduscol_maths_voie_gt", "status": "verified",
+             "url": "https://eduscol.education.gouv.fr/5817/"
+                    "programmes-et-ressources-en-mathematiques-voie-gt"}])
+        code, msg = check(evidence, sources_yml)
+        assert code == 0, msg
+
+    def test_check_refuses_uncovered_verified(self, tmp_path):
+        """Une source non-legacy passee en verified SANS reexport = echec CI."""
+        evidence = self._write_evidence(tmp_path, [
+            _verdict("eduscol_dnb", "https://eduscol.education.gouv.fr/4536/x")])
+        sources_yml = self._write_sources(tmp_path, [
+            {"id": "eduscol_dnb", "status": "verified",
+             "url": "https://eduscol.education.gouv.fr/4536/x"},
+            {"id": "source_activee_sans_preuve", "status": "verified",
+             "url": "https://eduscol.education.gouv.fr/9999/x"}])
+        code, msg = check(evidence, sources_yml)
+        assert code == 1
+        assert "source_activee_sans_preuve" in msg
+
+    def test_check_refuses_stale_schema(self, tmp_path):
+        evidence = self._write_evidence(tmp_path, [
+            _verdict("eduscol_dnb", "https://eduscol.education.gouv.fr/4536/x")],
+            schema="source_validator_v4")
+        sources_yml = self._write_sources(tmp_path, [])
+        code, msg = check(evidence, sources_yml)
+        assert code == 1
+        assert "schema perime" in msg
+
+    def test_check_refuses_missing_evidence(self, tmp_path):
+        sources_yml = self._write_sources(tmp_path, [])
+        code, msg = check(tmp_path / "absent.json", sources_yml)
+        assert code == 1
+        assert "preuve absente" in msg
 
     def test_missing_ledger_refused(self, tmp_path):
         sources_yml = tmp_path / "eduscol_sources.yml"

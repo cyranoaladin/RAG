@@ -31,6 +31,7 @@ Code de sortie : 0 si l'export est ecrit et coherent, 1 sinon.
 """
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import re
@@ -46,7 +47,7 @@ LEDGER_PATH = ROOT / "data" / "ledger" / "source_validation.jsonl"
 SOURCES_PATH = ROOT / "configs" / "eduscol_sources.yml"
 EVIDENCE_PATH = REPO_ROOT / "docs" / "validation" / "source_validation_evidence.json"
 
-EXPECTED_VALIDATOR = "source_validator_v4"
+EXPECTED_VALIDATOR = "source_validator_v5"
 # Liste GELEE des 9 sources verifiees avant LOT 31 (hors ledger) : seules
 # celles-ci peuvent etre `verified` sans verdict signe. Toute AUTRE source
 # `verified` absente du ledger est une violation (revue PR #74, round 9) —
@@ -126,6 +127,71 @@ def load_verdicts(ledger_path: Path) -> tuple[list[dict], list[str]]:
     return [latest[sid] for sid in order], errors
 
 
+def coherence_violations(verdicts: list[dict], sources: list[dict]) -> list[str]:
+    """Violations de coherence config/preuve : une source `verified` doit
+    avoir un verdict `verified_candidate` a la MEME url, ou etre une source
+    legacy gelee (id ET url) — regle partagee export / controle CI."""
+    by_id = {v["source_id"]: v for v in verdicts}
+    violations: list[str] = []
+    for s in sources:
+        if s.get("status") != "verified":
+            continue
+        sid = s.get("id") or s.get("source_id")
+        v = by_id.get(sid)
+        if v is None:
+            # Absente des verdicts : acceptable UNIQUEMENT si source legacy
+            # gelee (id ET url), sinon violation (revue PR #74, round 9).
+            if LEGACY_SOURCES.get(sid) == s.get("url"):
+                continue
+            violations.append(
+                f"{sid} (verified sans verdict et hors liste legacy)")
+            continue
+        if v.get("verdict") != "verified_candidate":
+            violations.append(f"{sid} (verdict={v.get('verdict')})")
+        elif s.get("url") and v.get("url") and s["url"] != v["url"]:
+            violations.append(f"{sid} (url divergente config/ledger)")
+    return violations
+
+
+def check(evidence_path: Path, sources_path: Path) -> tuple[int, str]:
+    """Controle CI (revue PR #74, round 11) : la preuve COMMITEE doit
+    couvrir la config courante — sinon la porte fail-closed est lettre
+    morte. Ne depend PAS du ledger (data/ est ignore par git).
+
+    Refuse si : preuve absente/illisible, schema perime, verdict non
+    conforme ou signature non recalculable, ou source `verified` non
+    couverte (hors legacy gelee)."""
+    if not evidence_path.is_file():
+        return 1, f"preuve absente: {evidence_path}"
+    try:
+        data = json.loads(evidence_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        return 1, f"preuve illisible: {exc}"
+    if data.get("validator_schema") != EXPECTED_VALIDATOR:
+        return 1, (f"preuve au schema perime "
+                   f"{data.get('validator_schema')!r} "
+                   f"(attendu {EXPECTED_VALIDATOR}) — reexport requis")
+    verdicts = data.get("verdicts")
+    if not isinstance(verdicts, list) or not verdicts:
+        return 1, "preuve sans verdicts"
+    bad: list[str] = []
+    for v in verdicts:
+        if not isinstance(v, dict):
+            bad.append("verdict non-objet")
+            continue
+        problems = schema_errors(v)
+        if problems:
+            bad.append(f"{v.get('source_id', '?')}: {'; '.join(problems)}")
+    if bad:
+        return 1, "PREUVE NON CONFORME: " + " | ".join(bad)
+    cfg = yaml.safe_load(sources_path.read_text(encoding="utf-8")) or {}
+    violations = coherence_violations(verdicts, cfg.get("sources", []) or [])
+    if violations:
+        return 1, "VIOLATIONS preuves sources: " + "; ".join(violations)
+    return 0, (f"preuve conforme: {len(verdicts)} verdict(s) couvrent la "
+               "config courante")
+
+
 def export(ledger_path: Path, sources_path: Path,
            evidence_path: Path) -> tuple[int, str]:
     """Exporte les preuves et verifie la coherence config/ledger."""
@@ -146,29 +212,9 @@ def export(ledger_path: Path, sources_path: Path,
         return 1, ("VERDICTS NON CONFORMES au schema "
                    f"{EXPECTED_VALIDATOR}: " + " | ".join(bad))
 
-    # 2. Coherence config : une source `verified` suivie par le ledger doit
-    #    avoir un verdict `verified_candidate` valide a la MEME url.
+    # 2. Coherence config (meme regle que le controle CI --check).
     cfg = yaml.safe_load(sources_path.read_text(encoding="utf-8")) or {}
-    sources = cfg.get("sources", []) or []
-    by_id = {v["source_id"]: v for v in verdicts}
-    violations: list[str] = []
-    for s in sources:
-        if s.get("status") != "verified":
-            continue
-        sid = s.get("id") or s.get("source_id")
-        v = by_id.get(sid)
-        if v is None:
-            # Absente du ledger : acceptable UNIQUEMENT si source legacy
-            # gelee (id ET url), sinon violation (revue PR #74, round 9).
-            if LEGACY_SOURCES.get(sid) == s.get("url"):
-                continue
-            violations.append(
-                f"{sid} (verified sans verdict et hors liste legacy)")
-            continue
-        if v.get("verdict") != "verified_candidate":
-            violations.append(f"{sid} (verdict={v.get('verdict')})")
-        elif s.get("url") and v.get("url") and s["url"] != v["url"]:
-            violations.append(f"{sid} (url divergente config/ledger)")
+    violations = coherence_violations(verdicts, cfg.get("sources", []) or [])
     if violations:
         return 1, "VIOLATIONS preuves sources: " + "; ".join(violations)
 
@@ -191,7 +237,14 @@ def export(ledger_path: Path, sources_path: Path,
 
 
 def main() -> int:
-    code, msg = export(LEDGER_PATH, SOURCES_PATH, EVIDENCE_PATH)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--check", action="store_true",
+                        help="controle CI de la preuve committee (pas d'export)")
+    args = parser.parse_args()
+    if args.check:
+        code, msg = check(EVIDENCE_PATH, SOURCES_PATH)
+    else:
+        code, msg = export(LEDGER_PATH, SOURCES_PATH, EVIDENCE_PATH)
     print(msg, file=sys.stderr if code else sys.stdout)
     return code
 

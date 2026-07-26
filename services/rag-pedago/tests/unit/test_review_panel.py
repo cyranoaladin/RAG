@@ -172,7 +172,8 @@ class TestSubjectExpertAgent:
     def test_exam_specific_marker_accent_folded(self, tmp_path):
         """Le matching replie les accents : 'Mathématiques' matche 'mathematiques'."""
         text = (
-            "Épreuve anticipée de Mathématiques — session 2026, sujet, durée. "
+            "Épreuve anticipée de Mathématiques — session 2026, sujet, durée, "
+            "annales officielles. "
         ) * 8
         art = _make_artefact(tmp_path, "https://eduscol.education.gouv.fr/5836/x",
                              text,
@@ -193,7 +194,7 @@ class TestSubjectExpertAgent:
         }
         text = (
             "Epreuve anticipee de mathematiques, session 2026, sujet officiel, "
-            "duree deux heures. "
+            "duree deux heures, annales publiees. "
         ) * 8
         art = _make_artefact(tmp_path, "https://eduscol.education.gouv.fr/5836/x",
                              text,
@@ -296,7 +297,7 @@ class TestSubjectExpertAgent:
                              collections_cibles=["rag_nexus_dnb"])
         v = SubjectExpertAgent(POLICY).review(art)
         assert v.status == "rejected"
-        assert any(r.startswith("exam_material[rag_nexus_dnb]:0")
+        assert any(r.startswith("exam_material_doc[rag_nexus_dnb]:0")
                    for r in v.rules_fired)
 
     def test_exam_missing_taxonomy_quarantine(self, tmp_path):
@@ -321,6 +322,24 @@ class TestSubjectExpertAgent:
         v = SubjectExpertAgent(policy).review(art)
         assert v.status == "quarantine"
         assert "missing_taxonomy_action" in v.rules_fired
+
+    def test_exam_single_modalite_marker_rejected(self, tmp_path):
+        """Round 11 PR #74 : une occurrence ISOLEE d'un marqueur de modalite
+        ('duree') sans aucun marqueur de document d'examen (annales,
+        corrige, sujet zero) ne demontre pas du contenu d'examen."""
+        admin = (
+            "DNB — session 2026 : la duree de l'epreuve est fixee par "
+            "arrete. Information administrative aux candidats et familles. "
+        ) * 10
+        art = _make_artefact(tmp_path, "https://eduscol.education.gouv.fr/4536/x",
+                             admin,
+                             collections_cibles=["rag_nexus_dnb"])
+        v = SubjectExpertAgent(POLICY).review(art)
+        assert v.status == "rejected"
+        assert any(r.startswith("exam_material_doc[rag_nexus_dnb]:0")
+                   for r in v.rules_fired)
+        assert any(r.startswith("exam_material_mod[rag_nexus_dnb]:")
+                   and not r.endswith(":0") for r in v.rules_fired)
 
 
 class TestQualityExpertAgent:
