@@ -26,6 +26,11 @@ POLICY = {
         "taxonomy_root": "taxonomy",
         "min_notion_coverage": 0.05,
         "missing_taxonomy_action": "quarantine",
+        "exam_domain": {
+            "markers": ["session", "sujet", "épreuve", "annales",
+                        "corrigé", "baccalauréat", "durée", "examen"],
+            "min_markers": 2,
+        },
     },
     "quality_expert": {
         "min_words": 10,
@@ -126,6 +131,29 @@ class TestSubjectExpertAgent:
         # Une regle de couverture par collection cible
         per_col = [r for r in v.rules_fired if r.startswith("notion_coverage[")]
         assert len(per_col) == 2
+
+    def test_exam_domain_markers_rule(self, tmp_path):
+        """LOT 31 : les collections domain:exam sont jugees aux marqueurs
+        d'examen, pas a la couverture de notions (D-28-01)."""
+        exam_text = (
+            "Baccalauréat général — session 2026. Sujet de l'épreuve, "
+            "durée 4 heures. Annales et corrigé officiel de l'examen. "
+        ) * 5
+        art = _make_artefact(tmp_path, "https://eduscol.education.gouv.fr/5853/x",
+                             exam_text,
+                             collections_cibles=["rag_nexus_exams_bac_general"])
+        v = SubjectExpertAgent(POLICY).review(art)
+        assert v.status == "approved"
+        assert any(r.startswith("exam_markers[rag_nexus_exams_bac_general]") for r in v.rules_fired)
+
+    def test_exam_domain_without_markers_rejected(self, tmp_path):
+        """Un texte sans marqueurs d'examen vers une collection exam -> rejet."""
+        art = _make_artefact(tmp_path, "https://eduscol.education.gouv.fr/5853/x",
+                             "Recette de cuisine. " * 50,
+                             collections_cibles=["rag_nexus_exams_bac_general"])
+        v = SubjectExpertAgent(POLICY).review(art)
+        assert v.status == "rejected"
+        assert "insufficient_exam_markers" in v.rules_fired
 
 
 class TestQualityExpertAgent:

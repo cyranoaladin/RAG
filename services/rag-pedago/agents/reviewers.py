@@ -116,12 +116,25 @@ class SubjectExpertAgent(BaseReviewer):
         self.taxonomy_root = ROOT / cfg.get("taxonomy_root", "taxonomy")
         self.min_coverage = float(cfg.get("min_notion_coverage", 0.05))
         self.missing_taxonomy_action = cfg.get("missing_taxonomy_action", "quarantine")
+        # Regle differenciee pour les collections `domain: exam` (LOT 31) :
+        # un sujet d'examen se juge a des marqueurs d'examen, pas a la
+        # couverture notionnelle d'un programme.
+        exam_cfg = cfg.get("exam_domain", {})
+        self.exam_markers = [str(m).lower() for m in exam_cfg.get("markers", [
+            "session", "sujet", "épreuve", "epreuve", "annales",
+            "corrigé", "corrige", "baccalauréat", "baccalaureat", "durée", "duree",
+        ])]
+        self.exam_min_markers = int(exam_cfg.get("min_markers", 2))
 
-    def _taxonomy_for(self, collection: str) -> Path | None:
+    def _catalogue_entry(self, collection: str) -> dict[str, Any] | None:
         if not self.catalogue_path.is_file():
             return None
         catalogue = yaml.safe_load(self.catalogue_path.read_text(encoding="utf-8")) or {}
         entry = (catalogue.get("collections") or {}).get(collection)
+        return entry if isinstance(entry, dict) else None
+
+    def _taxonomy_for(self, collection: str) -> Path | None:
+        entry = self._catalogue_entry(collection)
         if not entry:
             return None
         tax_rel = entry.get("taxonomy_file")
@@ -155,7 +168,26 @@ class SubjectExpertAgent(BaseReviewer):
         # pas un echantillon (exigence de couverture du perimetre qualite).
         text_norm = _norm(artefact.text)
         coverages: dict[str, float] = {}
+        exam_failing: dict[str, int] = {}
+        exam_checked = 0
         for collection in collections:
+            entry = self._catalogue_entry(collection)
+            if entry is None:
+                v.status = self.missing_taxonomy_action
+                v.reasons.append(f"entree catalogue introuvable pour '{collection}'")
+                v.rules_fired.append("missing_taxonomy_action")
+                v.sign()
+                return v
+
+            # Domaine exam : marqueurs d'examen au lieu de couverture notions
+            if entry.get("domain") == "exam":
+                exam_checked += 1
+                hits = sum(1 for m in self.exam_markers if m in text_norm)
+                v.rules_fired.append(f"exam_markers[{collection}]:{hits}")
+                if hits < self.exam_min_markers:
+                    exam_failing[collection] = hits
+                continue
+
             tax_path = self._taxonomy_for(collection)
             if tax_path is None:
                 v.status = self.missing_taxonomy_action
@@ -177,21 +209,38 @@ class SubjectExpertAgent(BaseReviewer):
             v.rules_fired.append(f"notion_coverage[{collection}]:{coverages[collection]:.3f}")
 
         failing = {c: cov for c, cov in coverages.items() if cov < self.min_coverage}
-        if not failing:
-            worst = min(coverages.values())
-            v.reasons.append(
-                f"couverture notions conforme sur {len(coverages)}/{len(coverages)} "
-                f"collections cibles (pire cas {worst:.1%}) >= {self.min_coverage:.0%}"
-            )
+        if not failing and not exam_failing:
+            parts = []
+            if coverages:
+                worst = min(coverages.values())
+                parts.append(
+                    f"couverture notions conforme sur {len(coverages)}/{len(coverages)} "
+                    f"collections cibles (pire cas {worst:.1%}) >= {self.min_coverage:.0%}"
+                )
+            if exam_checked:
+                parts.append(
+                    f"marqueurs d'examen presents sur {exam_checked}/{exam_checked} "
+                    f"collections exam (>= {self.exam_min_markers})"
+                )
+            v.reasons.append(" ; ".join(parts))
         else:
             v.status = "rejected"
-            detail = ", ".join(f"{c} {cov:.1%}" for c, cov in sorted(failing.items()))
-            v.reasons.append(
-                f"couverture notions insuffisante sur {len(failing)}/{len(coverages)} "
-                f"collections cibles ({detail}) < {self.min_coverage:.0%} — "
-                "contenu hors programme presume"
-            )
-            v.rules_fired.append("insufficient_notion_coverage")
+            if failing:
+                detail = ", ".join(f"{c} {cov:.1%}" for c, cov in sorted(failing.items()))
+                v.reasons.append(
+                    f"couverture notions insuffisante sur {len(failing)}/{len(coverages)} "
+                    f"collections cibles ({detail}) < {self.min_coverage:.0%} — "
+                    "contenu hors programme presume"
+                )
+                v.rules_fired.append("insufficient_notion_coverage")
+            if exam_failing:
+                detail = ", ".join(
+                    f"{c} {n} marqueur(s)" for c, n in sorted(exam_failing.items()))
+                v.reasons.append(
+                    f"marqueurs d'examen insuffisants sur {len(exam_failing)} collection(s) "
+                    f"({detail}) < {self.exam_min_markers} — pas un contenu d'examen presume"
+                )
+                v.rules_fired.append("insufficient_exam_markers")
         v.sign()
         return v
 

@@ -3,8 +3,10 @@
 #
 # Règles :
 # - Seules les entrées `status: verified` sont fetchées en continu.
-# - `status: to_verify` = URL plausible non encore confirmée humainement :
-#   l'agent les IGNORE jusqu'à bascule explicite (revue humaine, ADR-0009).
+# - `status: to_verify` = URL plausible non encore confirmée : l'agent les
+#   IGNORE jusqu'à bascule explicite. La validation est effectuée par AGENT
+#   (agents/source_validator.py, ADR-0018 §6 + ADR-0019) ; la bascule reste
+#   un changement de config soumis à PR.
 # - Chaque entrée déclare sa collection cible : le routage est déterministe,
 #   jamais déduit du contenu (droits résolus par provenance, ADR-0013).
 # - Aucune URL /recherche/ ou /search/ (Disallow robots.txt eduscol).
@@ -107,13 +109,13 @@ sources:
 
   # =====================================================================
   # A VERIFIER (status: to_verify — ignores par l'agent tant que non valides)
-  # Motif : URL deduite de conventions eduscol, confirmation humaine requise
-  # avant activation (cocher status: verified apres revue, cf. ADR-0016 §6).
+  # Motif : URL deduite de conventions eduscol, validation par AGENT requise avant activation
+  # (agents/source_validator.py, ADR-0019 — bascule verified via PR).
   # =====================================================================
 
   - id: eduscol_pc_voie_gt
-    url: https://eduscol.education.gouv.fr/5815/programmes-et-ressources-en-physique-chimie-voie-gt
-    status: to_verify
+    url: https://eduscol.education.gouv.fr/5829/programmes-et-ressources-en-physique-chimie-voie-gt
+    status: verified
     matiere: physique_chimie
     niveaux: [seconde, premiere, terminale]
     voies: [generale]
@@ -123,8 +125,8 @@ sources:
       - rag_nexus_pc_terminale_specialite
 
   - id: eduscol_svt_voie_gt
-    url: https://eduscol.education.gouv.fr/5819/programmes-et-ressources-en-svt-voie-gt
-    status: to_verify
+    url: https://eduscol.education.gouv.fr/5835/programmes-et-ressources-en-sciences-de-la-vie-et-de-la-terre-voie-gt
+    status: verified
     matiere: svt
     niveaux: [seconde, premiere, terminale]
     voies: [generale]
@@ -145,8 +147,8 @@ sources:
       - rag_nexus_ses_terminale_specialite
 
   - id: eduscol_hggsp_voie_g
-    url: https://eduscol.education.gouv.fr/5808/programmes-et-ressources-en-histoire-geographie-geopolitique-et-sciences-politiques-voie-g
-    status: to_verify
+    url: https://eduscol.education.gouv.fr/5802/programmes-et-ressources-en-histoire-geographie-geopolitique-et-sciences-politiques-voie-g
+    status: verified
     matiere: hggsp
     niveaux: [premiere, terminale]
     voies: [generale]
@@ -155,8 +157,8 @@ sources:
       - rag_nexus_hggsp_terminale_specialite
 
   - id: eduscol_hg_lycee_gt
-    url: https://eduscol.education.gouv.fr/5802/programmes-et-ressources-en-histoire-geographie-voie-gt
-    status: to_verify
+    url: https://eduscol.education.gouv.fr/5799/programmes-et-ressources-en-histoire-geographie-voie-gt
+    status: verified
     matiere: hg
     niveaux: [seconde, premiere, terminale]
     voies: [generale, technologique]
@@ -166,8 +168,8 @@ sources:
       - rag_nexus_hg_terminale_tc
 
   - id: eduscol_llce_voie_g
-    url: https://eduscol.education.gouv.fr/5811/programmes-et-ressources-en-langues-litteratures-et-cultures-etrangeres-voie-g
-    status: to_verify
+    url: https://eduscol.education.gouv.fr/5814/programmes-et-ressources-en-langues-litteratures-et-cultures-etrangeres-et-regionales-voie-g
+    status: verified
     matiere: llce
     niveaux: [premiere, terminale]
     voies: [generale]
@@ -176,8 +178,8 @@ sources:
       - rag_nexus_llce_terminale_specialite
 
   - id: eduscol_langues_voie_gt
-    url: https://eduscol.education.gouv.fr/5806/programmes-et-ressources-en-langues-vivantes-voie-gt
-    status: to_verify
+    url: https://eduscol.education.gouv.fr/5811/programmes-et-ressources-en-langues-vivantes-voie-gt
+    status: verified
     matiere: langues
     niveaux: [troisieme, seconde, premiere, terminale]
     voies: [college, generale, technologique]
@@ -188,8 +190,8 @@ sources:
       - rag_nexus_lv_terminale_tc
 
   - id: eduscol_es_voie_g
-    url: https://eduscol.education.gouv.fr/5804/programmes-et-ressources-en-enseignement-scientifique-voie-g
-    status: to_verify
+    url: https://eduscol.education.gouv.fr/5790/programmes-et-ressources-en-enseignement-scientifique-voie-g
+    status: verified
     matiere: es
     niveaux: [premiere, terminale]
     voies: [generale]
@@ -198,8 +200,8 @@ sources:
       - rag_nexus_es_terminale_tc
 
   - id: eduscol_college_cycle4
-    url: https://eduscol.education.gouv.fr/65/les-programmes-du-college
-    status: to_verify
+    url: https://eduscol.education.gouv.fr/4362/enseigner-au-cycle-4
+    status: verified
     matiere: college
     niveaux: [troisieme]
     voies: [college]
@@ -213,16 +215,16 @@ sources:
       - rag_nexus_techno_troisieme_tc
 
   - id: eduscol_dnb
-    url: https://eduscol.education.gouv.fr/93/le-diplome-national-du-brevet
-    status: to_verify
+    url: https://eduscol.education.gouv.fr/4536/diplome-national-du-brevet
+    status: verified
     matiere: dnb
     niveaux: [troisieme]
     voies: [college]
     collections_cibles: [rag_nexus_dnb]
 
   - id: eduscol_stmg
-    url: https://eduscol.education.gouv.fr/5645/baccalaureat-technologique-serie-stmg
-    status: to_verify
+    url: https://eduscol.education.gouv.fr/5862/programmes-et-ressources-en-serie-stmg
+    status: verified
     matiere: stmg
     niveaux: [premiere, terminale]
     voies: [technologique]
@@ -234,8 +236,8 @@ sources:
       - rag_nexus_msdgn_terminale_stmg_specialite
 
   - id: eduscol_grand_oral
-    url: https://eduscol.education.gouv.fr/2423/le-grand-oral-du-baccalaureat
-    status: to_verify
+    url: https://eduscol.education.gouv.fr/5661/presentation-du-grand-oral
+    status: verified
     matiere: grand_oral
     niveaux: [terminale]
     voies: [generale, technologique]
