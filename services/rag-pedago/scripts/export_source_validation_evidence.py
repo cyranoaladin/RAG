@@ -46,7 +46,23 @@ LEDGER_PATH = ROOT / "data" / "ledger" / "source_validation.jsonl"
 SOURCES_PATH = ROOT / "configs" / "eduscol_sources.yml"
 EVIDENCE_PATH = REPO_ROOT / "docs" / "validation" / "source_validation_evidence.json"
 
-EXPECTED_VALIDATOR = "source_validator_v3"
+EXPECTED_VALIDATOR = "source_validator_v4"
+# Liste GELEE des 9 sources verifiees avant LOT 31 (hors ledger) : seules
+# celles-ci peuvent etre `verified` sans verdict signe. Toute AUTRE source
+# `verified` absente du ledger est une violation (revue PR #74, round 9) —
+# une source ajoutee directement en `verified` ne peut pas se faire passer
+# pour une source legacy.
+LEGACY_SOURCES = {
+    "eduscol_maths_voie_gt": "https://eduscol.education.gouv.fr/5817/programmes-et-ressources-en-mathematiques-voie-gt",
+    "eduscol_philo_voie_gt": "https://eduscol.education.gouv.fr/5826/programmes-et-ressources-en-philosophie-voie-gt",
+    "eduscol_nsi_voie_g": "https://eduscol.education.gouv.fr/5823/programmes-et-ressources-en-numerique-et-sciences-informatiques-voie-g",
+    "eduscol_snt_seconde": "https://eduscol.education.gouv.fr/5841/programmes-et-ressources-en-sciences-numeriques-et-technologie-voie-gt",
+    "eduscol_hlp_voie_gt": "https://eduscol.education.gouv.fr/5805/programmes-et-ressources-en-humanites-litterature-et-philosophie-voie-g",
+    "eduscol_eam": "https://eduscol.education.gouv.fr/5688/epreuve-anticipee-de-mathematiques-aux-baccalaureats-general-et-technologique",
+    "eduscol_epreuves_terminales_bac_general": "https://eduscol.education.gouv.fr/5706/les-epreuves-terminales-du-baccalaureat-general",
+    "eduscol_francais_lycee_gt": "https://eduscol.education.gouv.fr/31197/domaines-enseignement/francais-lycee-gt",
+    "eduscol_ses_voie_gt": "https://eduscol.education.gouv.fr/5838/programmes-et-ressources-en-sciences-economiques-et-sociales-voie-gt",
+}
 _REQUIRED_STR_FIELDS = ("source_id", "url", "final_url", "verdict",
                         "validated_at", "validator")
 _HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -142,7 +158,13 @@ def export(ledger_path: Path, sources_path: Path,
         sid = s.get("id") or s.get("source_id")
         v = by_id.get(sid)
         if v is None:
-            continue  # source verifiee avant LOT 31 : hors perimetre
+            # Absente du ledger : acceptable UNIQUEMENT si source legacy
+            # gelee (id ET url), sinon violation (revue PR #74, round 9).
+            if LEGACY_SOURCES.get(sid) == s.get("url"):
+                continue
+            violations.append(
+                f"{sid} (verified sans verdict et hors liste legacy)")
+            continue
         if v.get("verdict") != "verified_candidate":
             violations.append(f"{sid} (verdict={v.get('verdict')})")
         elif s.get("url") and v.get("url") and s["url"] != v["url"]:

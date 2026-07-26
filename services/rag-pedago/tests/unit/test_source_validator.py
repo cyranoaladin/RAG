@@ -225,3 +225,84 @@ class TestLedger:
         assert len(verdicts) == 1
         assert verdicts[0]["signature"]
         assert verdicts[0]["verdict"] == "verified_candidate"
+
+    def _two_sources(self, tmp_path):
+        src_file = tmp_path / "sources.yml"
+        src_file.write_text(
+            "sources:\n"
+            "  - id: eduscol_maths_voie_gt\n"
+            f"    url: {EDUSCOL}\n    status: to_verify\n"
+            "    collections_cibles: [rag_nexus_maths_premiere_gen_specialite]\n"
+            "  - id: eduscol_maths_bis\n"
+            f"    url: {EDUSCOL}/bis\n    status: to_verify\n"
+            "    collections_cibles: [rag_nexus_maths_premiere_gen_specialite]\n",
+            encoding="utf-8")
+        return src_file
+
+    def test_verdicts_persisted_immediately(self, monkeypatch, tmp_path):
+        """Round 9 PR #74 : chaque verdict est consigne DES sa production —
+        une interruption en cours de run ne perd pas les verdicts faits."""
+        monkeypatch.setattr(sv, "_lock", lambda name: True)
+        monkeypatch.setattr(
+            sv, "time",
+            type("T", (), {"sleep": staticmethod(lambda seconds: None)}))
+        calls = []
+
+        def flaky(source, policy):
+            calls.append(source["id"])
+            if len(calls) == 2:
+                raise RuntimeError("crash simule")
+            return {"source_id": source["id"], "url": source["url"],
+                    "verdict": "verified_candidate", "signature": "ab" * 8,
+                    "reasons": [], "validator": sv.VALIDATOR_VERSION,
+                    "validated_at": sv._utcnow()}
+
+        monkeypatch.setattr(sv, "validate_source", flaky)
+        ledger = tmp_path / "ledger.jsonl"
+        monkeypatch.setattr(sv, "SOURCES_PATH", self._two_sources(tmp_path))
+        monkeypatch.setattr(sv, "LEDGER_PATH", ledger)
+        monkeypatch.setattr(sv, "REPORT_PATH", tmp_path / "report.md")
+        try:
+            sv.run()
+            raise AssertionError("le run aurait du lever RuntimeError")
+        except RuntimeError:
+            pass
+        persisted = [
+            json.loads(line)
+            for line in ledger.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        assert len(persisted) == 1, "le 1er verdict doit survivre au crash"
+        assert persisted[0]["source_id"] == "eduscol_maths_voie_gt"
+
+    def test_resume_skips_fresh_verdict(self, monkeypatch, tmp_path):
+        """Round 9 PR #74 : la reprise saute une source dont le verdict est
+        recent (meme version, meme URL) — pas de re-fetch inutile."""
+        monkeypatch.setattr(sv, "_lock", lambda name: True)
+        monkeypatch.setattr(
+            sv, "time",
+            type("T", (), {"sleep": staticmethod(lambda seconds: None)}))
+        ledger = tmp_path / "ledger.jsonl"
+        fresh = {"source_id": "eduscol_maths_voie_gt", "url": EDUSCOL,
+                 "verdict": "stays_to_verify", "signature": "cd" * 8,
+                 "reasons": [], "validator": sv.VALIDATOR_VERSION,
+                 "validated_at": sv._utcnow()}
+        ledger.write_text(json.dumps(fresh) + "\n", encoding="utf-8")
+        fetched = []
+
+        def counting(source, policy):
+            fetched.append(source["id"])
+            return {"source_id": source["id"], "url": source["url"],
+                    "verdict": "stays_to_verify", "signature": "ef" * 8,
+                    "reasons": [], "validator": sv.VALIDATOR_VERSION,
+                    "validated_at": sv._utcnow()}
+
+        monkeypatch.setattr(sv, "validate_source", counting)
+        monkeypatch.setattr(sv, "SOURCES_PATH", self._two_sources(tmp_path))
+        monkeypatch.setattr(sv, "LEDGER_PATH", ledger)
+        monkeypatch.setattr(sv, "REPORT_PATH", tmp_path / "report.md")
+        out = sv.run()
+        assert fetched == ["eduscol_maths_bis"], (
+            "seule la source sans verdict frais est refetchée")
+        resumed = [v for v in out["stays_to_verify"]]
+        assert len(resumed) == 2

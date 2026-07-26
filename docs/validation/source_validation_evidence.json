@@ -1,8 +1,8 @@
 {
-  "exported_at": "2026-07-26T16:23:36.131239+00:00",
-  "validator_schema": "source_validator_v3",
+  "exported_at": "2026-07-26T17:56:49.607619+00:00",
+  "validator_schema": "source_validator_v4",
   "ledger": "services/rag-pedago/data/ledger/source_validation.jsonl",
-  "ledger_sha256": "820fc6e9f10721494eee2fa30c1853e82f641ab647c718edcf51b1baf7347924",
+  "ledger_sha256": "9a31732f79f79563c5feb9738877e4c2bc96141c868820bdebc8bdb669e7d3e3",
   "verdicts_count": 11,
   "verdicts": [
     {
@@ -22,9 +22,9 @@
         "provenance 'eduscol.education.gouv.fr' -> droits 'official_public_administrative'",
         "pertinence pedagogique insuffisante — couverture notions insuffisante sur 3/3 collections cibles (rag_nexus_pc_premiere_specialite 0.0%, rag_nexus_pc_seconde_tc 0.0%, rag_nexus_pc_terminale_specialite 0.0%) < 5% — contenu hors programme presume"
       ],
-      "validated_at": "2026-07-26T16:20:12.585109+00:00",
-      "validator": "source_validator_v3",
-      "signature": "3596e009c1df3cf1"
+      "validated_at": "2026-07-26T17:53:19.867911+00:00",
+      "validator": "source_validator_v4",
+      "signature": "bf964c0ce9b37a8f"
     },
     {
       "source_id": "eduscol_svt_voie_gt",
@@ -43,9 +43,9 @@
         "provenance 'eduscol.education.gouv.fr' -> droits 'official_public_administrative'",
         "pertinence pedagogique insuffisante — couverture notions insuffisante sur 3/3 collections cibles (rag_nexus_svt_premiere_specialite 0.0%, rag_nexus_svt_seconde_tc 0.0%, rag_nexus_svt_terminale_specialite 0.0%) < 5% — contenu hors programme presume"
       ],
-      "validated_at": "2026-07-26T16:20:23.092607+00:00",
-      "validator": "source_validator_v3",
-      "signature": "81eeee41627938fa"
+      "validated_at": "2026-07-26T17:53:30.497798+00:00",
+      "validator": "source_validator_v4",
+      "signature": "57e9dc6e7a7c9257"
     },
     {
       "source_id": "eduscol_hggsp_voie_g",
@@ -64,9 +64,9 @@
         "provenance 'eduscol.education.gouv.fr' -> droits 'official_public_administrative'",
         "pertinence pedagogique insuffisante — couverture notions insuffisante sur 2/2 collections cibles (rag_nexus_hggsp_premiere_specialite 0.0%, rag_nexus_hggsp_terminale_specialite 0.0%) < 5% — contenu hors programme presume"
       ],
-      "validated_at": "2026-07-26T16:20:33.651342+00:00",
-      "validator": "source_validator_v3",
-      "signature": "939f77ff70e0bf45"
+      "validated_at": "2026-07-26T17:53:41.087416+00:00",
+      "validator": "source_validator_v4",
+      "signature": "6694b3bba0f7615a"
     },
     {
       "source_id": "eduscol_hg_lycee_gt",
@@ -85,9 +85,9 @@
         "provenance 'eduscol.education.gouv.fr' -> droits 'official_public_administrative'",
         "pertinence pedagogique insuffisante — couverture notions insuffisante sur 1/3 collections cibles (rag_nexus_hg_terminale_tc 0.0%) < 5% — contenu hors programme presume"
       ],
-      "validated_at": "2026-07-26T16:20:44.382370+00:00",
-      "validator": "source_validator_v3",
-      "signature": "0d64faec4489c3b0"
+      "validated_at": "2026-07-26T17:53:51.708936+00:00",
+      "validator": "source_validator_v4",
+      "signature": "f5d18625063fb2ba"
     },
     {
       "source_id": "eduscol_llce_voie_g",
@@ -106,9 +106,9 @@
         "provenance 'eduscol.education.gouv.fr' -> droits 'official_public_administrative'",
         "pertinence pedagogique insuffisante — couverture notions insuffisante sur 1/2 collections cibles (rag_nexus_llce_terminale_specialite 0.0%) < 5% — contenu hors programme presume"
       ],
-      "validated_at": "2026-07-26T16:20:54.815562+00:00",
-      "validator": "source_validator_v3",
-      "signature": "cc740710d8c7af61"
+      "validated_at": "2026-07-26T17:54:02.261930+00:00",
+      "validator": "source_validator_v4",
+      "signature": "4be6fe17ed1c4aec"
     },
     {
       "source_id": "eduscol_langues_voie_gt",
@@ -128,9 +128,9 @@
         "provenance 'eduscol.education.gouv.fr' -> droits 'official_public_administrative'",
         "HTTP 200, 6930 mots, pertinence confirmee : couverture notions conforme sur 3/3 collections cibles (pire cas 20.0%) >= 5%"
       ],
-      "validated_at": "2026-07-26T16:21:05.468914+00:00",
-      "validator": "source_validator_v3",
-      "signature": "ce4e4065f9081652"
+      "validated_at": "2026-07-26T17:54:12.840918+00:00",
+      "validator": "source_validator_v4",
+      "signature": "1c49ca4264ff1657"
     },
     {
       "source_id": "eduscol_es_voie_g",
@@ -149,9 +149,9 @@
         "provenance 'eduscol.education.gouv.fr' -> droits 'official_public_administrative'",
         "pertinence pedagogique insuffisante — couverture notions insuffisante sur 2/2 collections cibles (rag_nexus_es_premiere_tc 0.0%, rag_nexus_es_terminale_tc 0.0%) < 5% — contenu hors programme presume"
       ],
-      "validated_at": "2026-07-26T16:21:16.184211+00:00",
-      "validator": "source_validator_v3",
-      "signature": "83ba1670ace343d4"
+      "validated_at": "2026-07-26T17:54:23.423905+00:00",
+      "validator": "source_validator_v4",
+      "signature": "3c5698afd3ff1272"
     },
     {
       "source_id": "eduscol_college_cycle4",
@@ -170,9 +170,9 @@
         "provenance 'eduscol.education.gouv.fr' -> droits 'official_public_administrative'",
         "pertinence pedagogique insuffisante — couverture notions insuffisante sur 7/7 collections cibles (rag_nexus_francais_troisieme_tc 0.0%, rag_nexus_hg_troisieme_tc 0.0%, rag_nexus_lv_troisieme_tc 0.0%, rag_nexus_maths_troisieme_tc 0.0%, rag_nexus_pc_troisieme_tc 0.0%, rag_nexus_svt_troisieme_tc 0.0%, rag_nexus_techno_troisieme_tc 0.0%) < 5% — contenu hors programme presume"
       ],
-      "validated_at": "2026-07-26T16:21:28.278962+00:00",
-      "validator": "source_validator_v3",
-      "signature": "b401933a79e45eaa"
+      "validated_at": "2026-07-26T17:54:34.286470+00:00",
+      "validator": "source_validator_v4",
+      "signature": "97dc1f147e38414e"
     },
     {
       "source_id": "eduscol_dnb",
@@ -192,9 +192,9 @@
         "provenance 'eduscol.education.gouv.fr' -> droits 'official_public_administrative'",
         "HTTP 200, 224 mots, pertinence confirmee : marqueurs d'examen presents sur 1/1 collections exam (>= 2)"
       ],
-      "validated_at": "2026-07-26T16:21:38.576511+00:00",
-      "validator": "source_validator_v3",
-      "signature": "bb077e669a087402"
+      "validated_at": "2026-07-26T17:54:44.695119+00:00",
+      "validator": "source_validator_v4",
+      "signature": "45a7eea08d7db135"
     },
     {
       "source_id": "eduscol_stmg",
@@ -213,9 +213,9 @@
         "provenance 'eduscol.education.gouv.fr' -> droits 'official_public_administrative'",
         "pertinence pedagogique insuffisante — couverture notions insuffisante sur 5/5 collections cibles (rag_nexus_droiteco_premiere_stmg_specialite 0.0%, rag_nexus_droiteco_terminale_stmg_specialite 0.0%, rag_nexus_maths_premiere_stmg_tc 0.0%, rag_nexus_maths_terminale_stmg_tc 0.0%, rag_nexus_msdgn_terminale_stmg_specialite 0.0%) < 5% — contenu hors programme presume"
       ],
-      "validated_at": "2026-07-26T16:21:49.492699+00:00",
-      "validator": "source_validator_v3",
-      "signature": "f693f9eeb94e1a17"
+      "validated_at": "2026-07-26T17:54:55.351236+00:00",
+      "validator": "source_validator_v4",
+      "signature": "9dd71deabdd735ba"
     },
     {
       "source_id": "eduscol_grand_oral",
@@ -235,9 +235,9 @@
         "provenance 'eduscol.education.gouv.fr' -> droits 'official_public_administrative'",
         "HTTP 200, 1646 mots, pertinence confirmee : marqueurs d'examen presents sur 1/1 collections exam (>= 2)"
       ],
-      "validated_at": "2026-07-26T16:21:59.876149+00:00",
-      "validator": "source_validator_v3",
-      "signature": "f38c9bef038fe8ee"
+      "validated_at": "2026-07-26T17:55:05.936282+00:00",
+      "validator": "source_validator_v4",
+      "signature": "caf328e5d2e03b1c"
     }
   ]
 }

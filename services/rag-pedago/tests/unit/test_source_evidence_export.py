@@ -37,7 +37,7 @@ def _verdict(source_id: str, url: str,
         "rules_fired": ["subject_expert:approved"],
         "reasons": ["ok"],
         "validated_at": "2026-07-27T00:00:00+00:00",
-        "validator": "source_validator_v3",
+        "validator": "source_validator_v4",
     }
     v["signature"] = recompute_signature(v) if sign else "0" * 16
     return v
@@ -71,7 +71,7 @@ class TestEvidenceExport:
         assert code == 0, msg
         data = json.loads(evidence.read_text(encoding="utf-8"))
         assert data["verdicts_count"] == 1
-        assert data["validator_schema"] == "source_validator_v3"
+        assert data["validator_schema"] == "source_validator_v4"
         v = data["verdicts"][0]
         assert v["content_sha256"] == "ab" * 32
         assert len(v["signature"]) == 16
@@ -104,16 +104,54 @@ class TestEvidenceExport:
         assert "url divergente" in msg
 
     def test_legacy_verified_source_out_of_scope(self, tmp_path):
+        """Les 9 sources legacy GELEES (id + url) sont exemptees de verdict."""
         ledger, sources_yml, evidence = _setup(
             tmp_path,
             [_verdict("eduscol_dnb", "https://eduscol.education.gouv.fr/4536/x")],
-            [{"id": "eduscol_maths_old", "status": "verified",
-              "url": "https://eduscol.education.gouv.fr/1"},
+            [{"id": "eduscol_maths_voie_gt", "status": "verified",
+              "url": "https://eduscol.education.gouv.fr/5817/"
+                     "programmes-et-ressources-en-mathematiques-voie-gt"},
              {"id": "eduscol_dnb", "status": "verified",
               "url": "https://eduscol.education.gouv.fr/4536/x"}],
         )
         code, msg = export(ledger, sources_yml, evidence)
         assert code == 0, msg
+
+    def test_unknown_verified_without_verdict_violates(self, tmp_path):
+        """Round 9 PR #74 : une source `verified` ABSENTE du ledger et HORS
+        liste legacy gelee est une violation — elle ne peut pas se faire
+        passer pour une source legacy."""
+        ledger, sources_yml, evidence = _setup(
+            tmp_path,
+            [_verdict("eduscol_dnb", "https://eduscol.education.gouv.fr/4536/x")],
+            [{"id": "eduscol_maths_voie_gt", "status": "verified",
+              "url": "https://eduscol.education.gouv.fr/5817/"
+                     "programmes-et-ressources-en-mathematiques-voie-gt"},
+             {"id": "source_injectee", "status": "verified",
+              "url": "https://eduscol.education.gouv.fr/9999/x"},
+             {"id": "eduscol_dnb", "status": "verified",
+              "url": "https://eduscol.education.gouv.fr/4536/x"}],
+        )
+        code, msg = export(ledger, sources_yml, evidence)
+        assert code == 1
+        assert "source_injectee" in msg
+        assert "hors liste legacy" in msg
+        assert not evidence.is_file()
+
+    def test_legacy_id_with_wrong_url_violates(self, tmp_path):
+        """Round 9 : un id legacy avec une URL differente n'est PAS exempte
+        (la liste gelee lie id ET url)."""
+        ledger, sources_yml, evidence = _setup(
+            tmp_path,
+            [_verdict("eduscol_dnb", "https://eduscol.education.gouv.fr/4536/x")],
+            [{"id": "eduscol_maths_voie_gt", "status": "verified",
+              "url": "https://eduscol.education.gouv.fr/9999/detourne"},
+             {"id": "eduscol_dnb", "status": "verified",
+              "url": "https://eduscol.education.gouv.fr/4536/x"}],
+        )
+        code, msg = export(ledger, sources_yml, evidence)
+        assert code == 1
+        assert "eduscol_maths_voie_gt" in msg
 
     def test_missing_ledger_refused(self, tmp_path):
         sources_yml = tmp_path / "eduscol_sources.yml"

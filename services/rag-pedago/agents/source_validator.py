@@ -53,6 +53,13 @@ _TAG_RE = re.compile(
 _TAG_ANY_RE = re.compile(r"<[^>]+>")
 DEFAULT_MIN_WORDS = 200
 DEFAULT_MAX_WORDS = 200000
+# v4 : regles round 8 (substance exam) + persistance immediate/reprise.
+# Tout changement de logique de revue DOIT bumper cette version : les
+# verdicts d'une version anterieure sont perimes (portes de l'export).
+VALIDATOR_VERSION = "source_validator_v4"
+# TTL de reprise : un verdict recent (meme version, meme URL) dispense de
+# refetcher la source apres une interruption (revue PR #74, round 9).
+RESUME_TTL_SECONDS = 3600
 DEFAULT_FORBID = ("just a moment", "enable javascript", "attention required")
 DEFAULT_DOMAIN_DELAY = 10.0  # crawl-delay eduscol (robots.txt)
 
@@ -216,7 +223,7 @@ def validate_source(source: dict[str, Any], policy: dict[str, Any]) -> dict[str,
         "rules_fired": rules,
         "reasons": reasons,
         "validated_at": _utcnow(),
-        "validator": "source_validator_v3",
+        "validator": VALIDATOR_VERSION,
     }
     canonical = json.dumps(payload, sort_keys=True, ensure_ascii=False)
     payload["signature"] = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
@@ -242,6 +249,44 @@ def _lock(name: str) -> bool:
     return isinstance(cfg, dict) and cfg.get(name) is True
 
 
+def _latest_verdicts() -> dict[str, dict[str, Any]]:
+    """Dernier verdict du ledger par source_id (reprise). Lecture TOLERANTE
+    aux lignes malformees : la reprise refetchera simplement la source ; la
+    porte fail-closed sur la corruption est celle de l'export de preuves."""
+    latest: dict[str, dict[str, Any]] = {}
+    if not LEDGER_PATH.is_file():
+        return latest
+    for line in LEDGER_PATH.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        sid = entry.get("source_id")
+        if sid and "verdict" in entry:
+            latest[sid] = entry
+    return latest
+
+
+def _is_resumable(prev: dict[str, Any], source: dict[str, Any]) -> bool:
+    """Un verdict est reutilisable s'il est de la version courante, pour la
+    meme URL, et plus jeune que RESUME_TTL_SECONDS (reprise apres crash)."""
+    if prev.get("validator") != VALIDATOR_VERSION:
+        return False
+    if source.get("url") and prev.get("url") != source["url"]:
+        return False
+    ts = prev.get("validated_at")
+    if not isinstance(ts, str):
+        return False
+    try:
+        age = (datetime.now(UTC) - datetime.fromisoformat(ts)).total_seconds()
+    except ValueError:
+        return False
+    return 0 <= age < RESUME_TTL_SECONDS
+
+
 def run() -> dict[str, Any]:
     # Kill-switch reseau : AUCUNE requete si le verrou n'est pas leve.
     if not _lock("network_allowed"):
@@ -254,24 +299,38 @@ def run() -> dict[str, Any]:
     policy = yaml.safe_load(POLICY_PATH.read_text(encoding="utf-8")) or {}
     candidates = [s for s in cfg.get("sources", []) if s.get("status") == "to_verify"]
 
-    verdicts = []
+    # Reprise : un verdict recent (meme version, meme URL) dispense de
+    # refetcher la source (run interrompu puis relance, revue PR #74 r9).
+    prior = _latest_verdicts()
+    verdicts: list[dict[str, Any]] = []
     delay = _domain_delay()
-    for i, source in enumerate(candidates):
-        if i > 0:
-            time.sleep(delay)  # politesse entre sources d'un meme domaine
-        verdicts.append(validate_source(source, policy))
-    flip = [v["source_id"] for v in verdicts if v["verdict"] == "verified_candidate"]
-    stay = [v["source_id"] for v in verdicts if v["verdict"] != "verified_candidate"]
-
-    # Ledger append-only : CHAQUE verdict signe est consigne (source de verite
-    # des bascules `verified` effectuees ensuite par PR).
+    fetched = 0
     LEDGER_PATH.parent.mkdir(parents=True, exist_ok=True)
     with LEDGER_PATH.open("a", encoding="utf-8") as fh:
-        for v in verdicts:
-            fh.write(json.dumps(v, ensure_ascii=False) + "\n")
+        for source in candidates:
+            sid = source.get("id") or source.get("source_id")
+            prev = prior.get(sid) if sid else None
+            if prev and _is_resumable(prev, source):
+                resumed = dict(prev)
+                resumed["resumed"] = True
+                verdicts.append(resumed)
+                continue
+            if fetched > 0:
+                time.sleep(delay)  # politesse entre sources d'un meme domaine
+            fetched += 1
+            verdict = validate_source(source, policy)
+            verdicts.append(verdict)
+            # Persistance IMMEDIATE de chaque verdict signe : une
+            # interruption n'efface pas les validations deja produites
+            # (revue PR #74, round 9).
+            fh.write(json.dumps(verdict, ensure_ascii=False) + "\n")
+            fh.flush()
         summary = {"run_at": _utcnow(), "candidates": len(verdicts),
-                   "verified_candidates": len(flip)}
+                   "verified_candidates": sum(
+                       1 for v in verdicts if v["verdict"] == "verified_candidate")}
         fh.write(json.dumps(summary, ensure_ascii=False) + "\n")
+    flip = [v["source_id"] for v in verdicts if v["verdict"] == "verified_candidate"]
+    stay = [v["source_id"] for v in verdicts if v["verdict"] != "verified_candidate"]
 
     REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
     lines = [
