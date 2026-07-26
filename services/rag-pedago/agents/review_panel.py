@@ -103,9 +103,18 @@ class ReviewPanel:
             # reviewer en echec) -> quarantaine (on_disagreement: quarantine).
             decision = "quarantine"
 
+        # Digest calcule sur les octets REELLEMENT relus (page.txt), pas sur le
+        # digest declare dans le manifeste : meme en cas d'integrite rompue, la
+        # trace auditable etablit quels octets ont produit le verdict.
+        page = artefact.staging_dir / "page.txt"
+        content_sha256 = hashlib.sha256(
+            page.read_bytes() if page.is_file() else b""
+        ).hexdigest()
+
         payload = {
             "source_id": artefact.manifest.get("source_id"),
-            "artefact_sha256": artefact.manifest.get("sha256"),
+            "artefact_sha256": content_sha256,
+            "manifest_sha256": artefact.manifest.get("sha256"),
             "decision": decision,
             "verdicts": [asdict(v) for v in verdicts],
             "decided_at": _utcnow(),
@@ -114,6 +123,38 @@ class ReviewPanel:
         canonical = json.dumps(payload, sort_keys=True, ensure_ascii=False)
         payload["panel_signature"] = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
         return payload
+
+    # ---------------------------------------------------------------
+    # Deduplication idempotente du flux append-only
+    # ---------------------------------------------------------------
+    @staticmethod
+    def _dedup_key(record: dict[str, Any]) -> tuple[Any, ...]:
+        """Cle stable d'une decision : hors timestamp et signature."""
+        return (
+            record.get("source_id"),
+            record.get("artefact_sha256"),
+            record.get("decision"),
+            record.get("panel_version"),
+        )
+
+    def _already_recorded(self, manifest_jsonl: Path, payload: dict[str, Any]) -> bool:
+        """Vrai si une decision identique (meme source, memes octets relus,
+        meme decision, meme version de panel) est deja consignee."""
+        if not manifest_jsonl.is_file():
+            return False
+        key = self._dedup_key(payload)
+        with manifest_jsonl.open("r", encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(record, dict) and self._dedup_key(record) == key:
+                    return True
+        return False
 
     # ---------------------------------------------------------------
     # Run : revue de tous les artefacts 'pending'
@@ -141,8 +182,12 @@ class ReviewPanel:
             # Trace append-only AVANT la mise a jour du manifeste : le ledger
             # est la source de verite. Si l'append echoue, l'artefact reste
             # 'pending' et sera relu au prochain run (recouvrable, rejouable).
-            with manifest_jsonl.open("a", encoding="utf-8") as fh:
-                fh.write(json.dumps(payload, ensure_ascii=False) + "\n")
+            # Append idempotent : une decision identique (meme source, memes
+            # octets, meme decision, meme panel) deja consignee n'est pas
+            # dupliquee — le re-run apres echec ne cree pas de double trace.
+            if not self._already_recorded(manifest_jsonl, payload):
+                with manifest_jsonl.open("a", encoding="utf-8") as fh:
+                    fh.write(json.dumps(payload, ensure_ascii=False) + "\n")
 
             # Mise a jour du manifeste staging (verdict du panel signe)
             artefact.manifest["review_status"] = decision

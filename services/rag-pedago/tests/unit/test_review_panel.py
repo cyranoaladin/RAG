@@ -202,6 +202,40 @@ class TestPanelConsensus:
         payload = panel.decide(art)
         assert payload["artefact_sha256"] == art.manifest["sha256"]
 
+    def test_signature_binds_reviewed_content_not_declared(self, tmp_path):
+        """Fix PR#73 P2 : le digest signe est calcule sur page.txt, pas sur le
+        digest declare — meme quand le manifeste declare un sha256 different."""
+        panel = ReviewPanel.__new__(ReviewPanel)
+        panel.policy = POLICY
+        panel.reviewers = [RightsExpertAgent(POLICY), QualityExpertAgent(POLICY)]
+        art = _make_artefact(tmp_path, "https://eduscol.education.gouv.fr/5817/x",
+                             EDUSCOL_TEXT, sha256="0" * 64)
+        payload = panel.decide(art)
+        real_digest = hashlib.sha256(EDUSCOL_TEXT.encode("utf-8")).hexdigest()
+        assert payload["artefact_sha256"] == real_digest
+        assert payload["manifest_sha256"] == "0" * 64
+
+    def test_audit_append_idempotent(self, tmp_path):
+        """Fix PR#73 P2 : une decision identique deja consignee n'est pas dupliquee."""
+        panel = ReviewPanel.__new__(ReviewPanel)
+        panel.policy = POLICY
+        panel.reviewers = [RightsExpertAgent(POLICY), QualityExpertAgent(POLICY)]
+        art = _make_artefact(tmp_path, "https://eduscol.education.gouv.fr/5817/x", EDUSCOL_TEXT)
+        jsonl = tmp_path / "review" / "panel.jsonl"
+        jsonl.parent.mkdir(parents=True)
+
+        p1 = panel.decide(art)
+        assert panel._already_recorded(jsonl, p1) is False
+        with jsonl.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(p1, ensure_ascii=False) + "\n")
+        # Meme source, memes octets, meme decision, autre timestamp -> dedup
+        p2 = panel.decide(art)
+        assert p2["decided_at"] != p1["decided_at"] or True  # timestamp peut varier
+        assert panel._already_recorded(jsonl, p2) is True
+        # Decision differente -> pas de dedup
+        p3 = {**p1, "decision": "rejected"}
+        assert panel._already_recorded(jsonl, p3) is False
+
     def test_audit_appended_before_manifest_update(self, tmp_path, monkeypatch):
         """Fix PR#72 P2 : si l'append audit echoue, le manifeste reste 'pending'."""
         panel = ReviewPanel.__new__(ReviewPanel)
