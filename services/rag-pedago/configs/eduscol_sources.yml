@@ -115,7 +115,7 @@ sources:
 
   - id: eduscol_pc_voie_gt
     url: https://eduscol.education.gouv.fr/5829/programmes-et-ressources-en-physique-chimie-voie-gt
-    status: verified
+    status: to_verify
     matiere: physique_chimie
     niveaux: [seconde, premiere, terminale]
     voies: [generale]
@@ -126,7 +126,7 @@ sources:
 
   - id: eduscol_svt_voie_gt
     url: https://eduscol.education.gouv.fr/5835/programmes-et-ressources-en-sciences-de-la-vie-et-de-la-terre-voie-gt
-    status: verified
+    status: to_verify
     matiere: svt
     niveaux: [seconde, premiere, terminale]
     voies: [generale]
@@ -148,7 +148,7 @@ sources:
 
   - id: eduscol_hggsp_voie_g
     url: https://eduscol.education.gouv.fr/5802/programmes-et-ressources-en-histoire-geographie-geopolitique-et-sciences-politiques-voie-g
-    status: verified
+    status: to_verify
     matiere: hggsp
     niveaux: [premiere, terminale]
     voies: [generale]
@@ -158,7 +158,7 @@ sources:
 
   - id: eduscol_hg_lycee_gt
     url: https://eduscol.education.gouv.fr/5799/programmes-et-ressources-en-histoire-geographie-voie-gt
-    status: verified
+    status: to_verify
     matiere: hg
     niveaux: [seconde, premiere, terminale]
     voies: [generale, technologique]
@@ -169,7 +169,7 @@ sources:
 
   - id: eduscol_llce_voie_g
     url: https://eduscol.education.gouv.fr/5814/programmes-et-ressources-en-langues-litteratures-et-cultures-etrangeres-et-regionales-voie-g
-    status: verified
+    status: to_verify
     matiere: llce
     niveaux: [premiere, terminale]
     voies: [generale]
@@ -191,7 +191,7 @@ sources:
 
   - id: eduscol_es_voie_g
     url: https://eduscol.education.gouv.fr/5790/programmes-et-ressources-en-enseignement-scientifique-voie-g
-    status: verified
+    status: to_verify
     matiere: es
     niveaux: [premiere, terminale]
     voies: [generale]
@@ -201,7 +201,7 @@ sources:
 
   - id: eduscol_college_cycle4
     url: https://eduscol.education.gouv.fr/4362/enseigner-au-cycle-4
-    status: verified
+    status: to_verify
     matiere: college
     niveaux: [troisieme]
     voies: [college]
@@ -224,7 +224,7 @@ sources:
 
   - id: eduscol_stmg
     url: https://eduscol.education.gouv.fr/5862/programmes-et-ressources-en-serie-stmg
-    status: verified
+    status: to_verify
     matiere: stmg
     niveaux: [premiere, terminale]
     voies: [technologique]

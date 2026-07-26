@@ -111,6 +111,9 @@ class FetchResult:
     fetched_at: datetime
     delay_applied: float = 0.0
     error: str | None = None
+    # URL finale apres redirections (renseignee par le transport navigateur) :
+    # permet de revalider les droits sur la provenance REELLE du contenu.
+    final_url: str = ""
 
 
 @dataclass

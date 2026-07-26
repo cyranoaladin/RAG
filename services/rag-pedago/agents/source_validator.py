@@ -1,14 +1,20 @@
-"""SourceValidator — agent de validation des sources `to_verify` (LOT 31, ADR-0018 §6).
+"""SourceValidator — validation agentique des sources `to_verify` (LOT 31).
 
 La bascule `to_verify` -> `verified` d'une source etait une revue humaine
 (ADR-0009). ADR-0018 substitue des agents experts aux revues humaines : cet
-agent relit chaque source candidate avec les regles du QualityExpert
-(substance, motifs interdits, challenge WAF) et du RightsExpert (provenance
-resolue par rights_map).
+agent relit chaque source candidate avec :
+- le FETCH GOUVERNE de l'agent d'ingestion (whitelist + robots.txt + chaine
+  d'empreintes WAF), JAMAIS un appel reseau direct ;
+- le RightsExpert : droits resolus par provenance sur l'URL d'origine ET sur
+  l'URL finale apres redirections (fail-closed si provenance finale inconnue) ;
+- le QualityExpert : HTTP 200, substance, motifs interdits / challenge WAF ;
+- le SubjectExpert : pertinence pedagogique REELLE du contenu vs les
+  collections cibles (couverture de notions ou marqueurs d'examen selon le
+  domaine) — 200 mots ne suffisent pas a valider une source.
 
-Perimetre strict : l'agent NE MODIFIE JAMAIS la configuration. Il produit un
-verdict signe par source (`verified_candidate` / `stays_to_verify`) ; la
-bascule effective de `status` reste un changement de config soumis a PR.
+Perimetre strict : l'agent NE MODIFIE JAMAIS la configuration. Chaque verdict
+signe est consigne tel quel dans le ledger append-only (source de verite des
+bascules `verified` effectuees ensuite par PR).
 
 Usage (depuis services/rag-pedago) :
     python -m agents.source_validator --plan   # liste les sources to_verify
@@ -21,51 +27,42 @@ import hashlib
 import json
 import re
 import sys
+import time
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
 import yaml
 
 from agents.base import ROOT
+from agents.eduscol_agent import browser_governed_fetch
+from agents.reviewers import Artefact, SubjectExpertAgent
+from scrapers.fetch import FetchRefusal, FetchResult
 
 SOURCES_PATH = ROOT / "configs" / "eduscol_sources.yml"
 POLICY_PATH = ROOT / "configs" / "review_policy.yml"
+INGESTION_POLICY_PATH = ROOT / "configs" / "continuous_ingestion.yml"
 REPORT_PATH = ROOT / "data" / "reports" / "source_validation_latest.md"
 LEDGER_PATH = ROOT / "data" / "ledger" / "source_validation.jsonl"
 
 _WS_RE = re.compile(r"\s+")
+_TAG_RE = re.compile(
+    r"<script.*?</script>|<style.*?</style>", re.DOTALL | re.IGNORECASE)
+_TAG_ANY_RE = re.compile(r"<[^>]+>")
 DEFAULT_MIN_WORDS = 200
 DEFAULT_FORBID = ("just a moment", "enable javascript", "attention required")
+DEFAULT_DOMAIN_DELAY = 10.0  # crawl-delay eduscol (robots.txt)
 
 
 def _utcnow() -> str:
     return datetime.now(UTC).isoformat()
 
 
-def _fetch(url: str) -> tuple[int, str]:
-    """Fetch gouverne navigateur (curl_cffi) — meme chaine de cibles TLS que
-    l'agent d'ingestion (WAF Cloudflare : firefox/safari passent, chrome non).
-    Retourne (status_code, texte). Levee d'exception = echec reseau."""
-    import time
-
-    from curl_cffi import requests as cffi_requests
-
-    html = ""
-    status_code = 0
-    for target in ("firefox133", "safari18_0"):
-        resp = cffi_requests.get(url, impersonate=target, timeout=30,
-                                 allow_redirects=True)
-        status_code = resp.status_code
-        html = resp.text or ""
-        if status_code != 403:
-            break
-        time.sleep(5.0)  # politesse entre deux tentatives (WAF)
-    # Texte brut approximatif (pas de dependance HTML lourde) :
-    text = re.sub(r"<script.*?</script>|<style.*?</style>", " ", html,
-                  flags=re.DOTALL | re.IGNORECASE)
-    text = re.sub(r"<[^>]+>", " ", text)
-    return status_code, _WS_RE.sub(" ", text).strip()
+def _strip_html(html: str) -> str:
+    text = _TAG_RE.sub(" ", html)
+    text = _TAG_ANY_RE.sub(" ", text)
+    return _WS_RE.sub(" ", text).strip()
 
 
 def validate_source(source: dict[str, Any], policy: dict[str, Any]) -> dict[str, Any]:
@@ -76,13 +73,14 @@ def validate_source(source: dict[str, Any], policy: dict[str, Any]) -> dict[str,
     reasons: list[str] = []
     verdict = "verified_candidate"
 
+    # 1. Droits sur la provenance declaree (regle dure inchangee)
     rights_map = policy.get("rights_map", {})
     domain = urlparse(url).netloc
     resolved = rights_map.get(domain)
     if resolved is None:
-        verdict = "stays_to_verify"
         rules.append("unknown_rights_action:quarantine")
         reasons.append(f"droits inconnus pour la provenance '{domain}' (regle dure)")
+        verdict = "stays_to_verify"
     else:
         rules.append("rights_resolved_by_provenance")
         reasons.append(f"provenance '{domain}' -> droits '{resolved}'")
@@ -90,36 +88,82 @@ def validate_source(source: dict[str, Any], policy: dict[str, Any]) -> dict[str,
     status_code = 0
     words = 0
     if resolved is not None:
-        try:
-            status_code, text = _fetch(url)
-            words = len(text.split())
-        except Exception as exc:  # reseau indisponible -> pas de bascule
+        # 2. Fetch GOUVERNE (whitelist + robots.txt + empreintes) — jamais direct
+        result = browser_governed_fetch(url)
+        if isinstance(result, FetchRefusal):
+            rules.append("fetch_refused")
+            reasons.append(f"fetch gouverne refuse : {result.reason}")
             verdict = "stays_to_verify"
-            rules.append("fetch_error")
-            reasons.append(f"echec fetch : {exc}")
         else:
+            assert isinstance(result, FetchResult)
+            status_code = result.status_code
+            text = _strip_html(result.text or "")
+            words = len(text.split())
+
             if status_code != 200:
-                verdict = "stays_to_verify"
                 rules.append(f"http_status:{status_code}")
                 reasons.append(f"HTTP {status_code} != 200")
+                verdict = "stays_to_verify"
+
+            # 3. Droits revalidés sur la provenance FINALE (redirections)
+            final_url = result.final_url or url
+            final_domain = urlparse(final_url).netloc
+            if final_domain != domain:
+                resolved_final = rights_map.get(final_domain)
+                if resolved_final is None:
+                    rules.append("redirect_rights_unresolved")
+                    reasons.append(
+                        f"redirection vers '{final_domain}' absente de rights_map "
+                        "(fail-closed)")
+                    verdict = "stays_to_verify"
+                else:
+                    rules.append("redirect_rights_resolved")
+                    reasons.append(
+                        f"redirection vers '{final_domain}' -> droits '{resolved_final}'")
+
+            # 4. Qualite : motifs interdits + substance minimale
             text_norm = _WS_RE.sub(" ", text.lower())
-            forbid = tuple(p.lower() for p in
-                           policy.get("quality_expert", {}).get("forbid_patterns",
-                                                                DEFAULT_FORBID))
+            forbid = tuple(
+                p.lower()
+                for p in policy.get("quality_expert", {}).get(
+                    "forbid_patterns", DEFAULT_FORBID)
+            )
             for pattern in forbid:
                 if pattern in text_norm:
-                    verdict = "stays_to_verify"
                     rules.append(f"forbid_pattern:{pattern}")
                     reasons.append(f"motif interdit : '{pattern}' (page degradee)")
-            min_words = int(policy.get("quality_expert", {}).get("min_words",
-                                                                 DEFAULT_MIN_WORDS))
+                    verdict = "stays_to_verify"
+            min_words = int(policy.get("quality_expert", {}).get(
+                "min_words", DEFAULT_MIN_WORDS))
             if words < min_words:
-                verdict = "stays_to_verify"
                 rules.append("too_thin")
                 reasons.append(f"substance insuffisante : {words} mots < {min_words}")
+                verdict = "stays_to_verify"
+
+            # 5. Pertinence pedagogique REELLE (SubjectExpert, perimetre complet)
             if verdict == "verified_candidate":
-                rules.append("substance_ok")
-                reasons.append(f"HTTP 200, {words} mots, aucun motif interdit")
+                artefact = Artefact(
+                    staging_dir=Path("."),
+                    manifest={
+                        "source_id": src_id,
+                        "url": url,
+                        "collections_cibles": source.get("collections_cibles") or [],
+                        "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+                    },
+                    text=text,
+                )
+                sv = SubjectExpertAgent(policy).review(artefact)
+                rules.append(f"subject_expert:{sv.status}")
+                if sv.status != "approved":
+                    verdict = "stays_to_verify"
+                    reasons.append(
+                        "pertinence pedagogique insuffisante — "
+                        + "; ".join(sv.reasons))
+                else:
+                    rules.append("substance_ok")
+                    reasons.append(
+                        f"HTTP 200, {words} mots, pertinence confirmee : "
+                        + "; ".join(sv.reasons))
 
     payload = {
         "source_id": src_id,
@@ -130,11 +174,22 @@ def validate_source(source: dict[str, Any], policy: dict[str, Any]) -> dict[str,
         "rules_fired": rules,
         "reasons": reasons,
         "validated_at": _utcnow(),
-        "validator": "source_validator_v1",
+        "validator": "source_validator_v2",
     }
     canonical = json.dumps(payload, sort_keys=True, ensure_ascii=False)
     payload["signature"] = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
     return payload
+
+
+def _domain_delay() -> float:
+    """Delai de politesse par domaine, aligne sur la politique d'ingestion."""
+    if INGESTION_POLICY_PATH.is_file():
+        cfg = yaml.safe_load(INGESTION_POLICY_PATH.read_text(encoding="utf-8")) or {}
+        try:
+            return float(cfg.get("per_domain_delay", DEFAULT_DOMAIN_DELAY))
+        except (TypeError, ValueError):
+            return DEFAULT_DOMAIN_DELAY
+    return DEFAULT_DOMAIN_DELAY
 
 
 def run() -> dict[str, Any]:
@@ -142,15 +197,24 @@ def run() -> dict[str, Any]:
     policy = yaml.safe_load(POLICY_PATH.read_text(encoding="utf-8")) or {}
     candidates = [s for s in cfg.get("sources", []) if s.get("status") == "to_verify"]
 
-    verdicts = [validate_source(s, policy) for s in candidates]
+    verdicts = []
+    delay = _domain_delay()
+    for i, source in enumerate(candidates):
+        if i > 0:
+            time.sleep(delay)  # politesse entre sources d'un meme domaine
+        verdicts.append(validate_source(source, policy))
     flip = [v["source_id"] for v in verdicts if v["verdict"] == "verified_candidate"]
     stay = [v["source_id"] for v in verdicts if v["verdict"] != "verified_candidate"]
 
+    # Ledger append-only : CHAQUE verdict signe est consigne (source de verite
+    # des bascules `verified` effectuees ensuite par PR).
     LEDGER_PATH.parent.mkdir(parents=True, exist_ok=True)
     with LEDGER_PATH.open("a", encoding="utf-8") as fh:
-        entry = {"run_at": _utcnow(), "candidates": len(verdicts),
-                 "verified_candidates": len(flip)}
-        fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        for v in verdicts:
+            fh.write(json.dumps(v, ensure_ascii=False) + "\n")
+        summary = {"run_at": _utcnow(), "candidates": len(verdicts),
+                   "verified_candidates": len(flip)}
+        fh.write(json.dumps(summary, ensure_ascii=False) + "\n")
 
     REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
     lines = [
@@ -165,8 +229,8 @@ def run() -> dict[str, Any]:
     ]
     for v in verdicts:
         lines.append(
-            f"- `{v['source_id']}` → **{v['verdict']}** ({v['signature']}) — "
-            f"{'; '.join(v['reasons'])}"
+            f"- `{v['source_id']}` → **{v['verdict']}** "
+            f"({v['signature']}) — {'; '.join(v['reasons'])}"
         )
     REPORT_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
 

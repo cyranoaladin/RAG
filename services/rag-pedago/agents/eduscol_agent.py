@@ -87,6 +87,7 @@ def browser_governed_fetch(url: str) -> FetchResult | FetchRefusal:
             content_type=resp.headers.get("content-type", ""),
             text=resp.text,
             fetched_at=datetime.now(UTC),
+            final_url=str(resp.url),
         )
         if resp.status_code != 403:
             return last_result
