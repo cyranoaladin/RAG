@@ -1,0 +1,209 @@
+{
+  "exported_at": "2026-07-26T15:32:01.467641+00:00",
+  "ledger": "services/rag-pedago/data/ledger/source_validation.jsonl",
+  "ledger_sha256": "341f4fbcfebe9c25a533a36ef8abf925addf69504c41d1a54de7a1a4f193c0c3",
+  "verdicts_count": 11,
+  "verdicts": [
+    {
+      "source_id": "eduscol_pc_voie_gt",
+      "url": "https://eduscol.education.gouv.fr/5829/programmes-et-ressources-en-physique-chimie-voie-gt",
+      "verdict": "stays_to_verify",
+      "http_status": 200,
+      "words": 2232,
+      "rules_fired": [
+        "rights_resolved_by_provenance",
+        "subject_expert:rejected"
+      ],
+      "reasons": [
+        "provenance 'eduscol.education.gouv.fr' -> droits 'official_public_administrative'",
+        "pertinence pedagogique insuffisante — couverture notions insuffisante sur 3/3 collections cibles (rag_nexus_pc_premiere_specialite 0.0%, rag_nexus_pc_seconde_tc 0.0%, rag_nexus_pc_terminale_specialite 0.0%) < 5% — contenu hors programme presume"
+      ],
+      "validated_at": "2026-07-26T08:21:21.960189+00:00",
+      "validator": "source_validator_v2",
+      "signature": "6276873ada1227a2"
+    },
+    {
+      "source_id": "eduscol_svt_voie_gt",
+      "url": "https://eduscol.education.gouv.fr/5835/programmes-et-ressources-en-sciences-de-la-vie-et-de-la-terre-voie-gt",
+      "verdict": "stays_to_verify",
+      "http_status": 200,
+      "words": 2636,
+      "rules_fired": [
+        "rights_resolved_by_provenance",
+        "subject_expert:rejected"
+      ],
+      "reasons": [
+        "provenance 'eduscol.education.gouv.fr' -> droits 'official_public_administrative'",
+        "pertinence pedagogique insuffisante — couverture notions insuffisante sur 3/3 collections cibles (rag_nexus_svt_premiere_specialite 0.0%, rag_nexus_svt_seconde_tc 0.0%, rag_nexus_svt_terminale_specialite 0.0%) < 5% — contenu hors programme presume"
+      ],
+      "validated_at": "2026-07-26T08:21:32.396346+00:00",
+      "validator": "source_validator_v2",
+      "signature": "2d7ccde51086e80e"
+    },
+    {
+      "source_id": "eduscol_hggsp_voie_g",
+      "url": "https://eduscol.education.gouv.fr/5802/programmes-et-ressources-en-histoire-geographie-geopolitique-et-sciences-politiques-voie-g",
+      "verdict": "stays_to_verify",
+      "http_status": 200,
+      "words": 1283,
+      "rules_fired": [
+        "rights_resolved_by_provenance",
+        "subject_expert:rejected"
+      ],
+      "reasons": [
+        "provenance 'eduscol.education.gouv.fr' -> droits 'official_public_administrative'",
+        "pertinence pedagogique insuffisante — couverture notions insuffisante sur 2/2 collections cibles (rag_nexus_hggsp_premiere_specialite 0.0%, rag_nexus_hggsp_terminale_specialite 0.0%) < 5% — contenu hors programme presume"
+      ],
+      "validated_at": "2026-07-26T08:21:42.789725+00:00",
+      "validator": "source_validator_v2",
+      "signature": "765d45b0b44692b7"
+    },
+    {
+      "source_id": "eduscol_hg_lycee_gt",
+      "url": "https://eduscol.education.gouv.fr/5799/programmes-et-ressources-en-histoire-geographie-voie-gt",
+      "verdict": "stays_to_verify",
+      "http_status": 200,
+      "words": 1870,
+      "rules_fired": [
+        "rights_resolved_by_provenance",
+        "subject_expert:rejected"
+      ],
+      "reasons": [
+        "provenance 'eduscol.education.gouv.fr' -> droits 'official_public_administrative'",
+        "pertinence pedagogique insuffisante — couverture notions insuffisante sur 1/3 collections cibles (rag_nexus_hg_terminale_tc 0.0%) < 5% — contenu hors programme presume"
+      ],
+      "validated_at": "2026-07-26T08:21:53.400784+00:00",
+      "validator": "source_validator_v2",
+      "signature": "66cd3f136c03b952"
+    },
+    {
+      "source_id": "eduscol_llce_voie_g",
+      "url": "https://eduscol.education.gouv.fr/5814/programmes-et-ressources-en-langues-litteratures-et-cultures-etrangeres-et-regionales-voie-g",
+      "verdict": "stays_to_verify",
+      "http_status": 200,
+      "words": 2557,
+      "rules_fired": [
+        "rights_resolved_by_provenance",
+        "subject_expert:rejected"
+      ],
+      "reasons": [
+        "provenance 'eduscol.education.gouv.fr' -> droits 'official_public_administrative'",
+        "pertinence pedagogique insuffisante — couverture notions insuffisante sur 1/2 collections cibles (rag_nexus_llce_terminale_specialite 0.0%) < 5% — contenu hors programme presume"
+      ],
+      "validated_at": "2026-07-26T08:22:03.774853+00:00",
+      "validator": "source_validator_v2",
+      "signature": "d8956a559ff049f4"
+    },
+    {
+      "source_id": "eduscol_langues_voie_gt",
+      "url": "https://eduscol.education.gouv.fr/5811/programmes-et-ressources-en-langues-vivantes-voie-gt",
+      "verdict": "verified_candidate",
+      "http_status": 200,
+      "words": 7514,
+      "rules_fired": [
+        "rights_resolved_by_provenance",
+        "subject_expert:approved",
+        "substance_ok"
+      ],
+      "reasons": [
+        "provenance 'eduscol.education.gouv.fr' -> droits 'official_public_administrative'",
+        "HTTP 200, 7514 mots, pertinence confirmee : couverture notions conforme sur 4/4 collections cibles (pire cas 20.0%) >= 5%"
+      ],
+      "validated_at": "2026-07-26T08:22:14.350057+00:00",
+      "validator": "source_validator_v2",
+      "signature": "f8a60f50f98da5e5"
+    },
+    {
+      "source_id": "eduscol_es_voie_g",
+      "url": "https://eduscol.education.gouv.fr/5790/programmes-et-ressources-en-enseignement-scientifique-voie-g",
+      "verdict": "stays_to_verify",
+      "http_status": 200,
+      "words": 2329,
+      "rules_fired": [
+        "rights_resolved_by_provenance",
+        "subject_expert:rejected"
+      ],
+      "reasons": [
+        "provenance 'eduscol.education.gouv.fr' -> droits 'official_public_administrative'",
+        "pertinence pedagogique insuffisante — couverture notions insuffisante sur 2/2 collections cibles (rag_nexus_es_premiere_tc 0.0%, rag_nexus_es_terminale_tc 0.0%) < 5% — contenu hors programme presume"
+      ],
+      "validated_at": "2026-07-26T08:22:24.788214+00:00",
+      "validator": "source_validator_v2",
+      "signature": "ad744b1eec625f63"
+    },
+    {
+      "source_id": "eduscol_college_cycle4",
+      "url": "https://eduscol.education.gouv.fr/4362/enseigner-au-cycle-4",
+      "verdict": "stays_to_verify",
+      "http_status": 200,
+      "words": 2356,
+      "rules_fired": [
+        "rights_resolved_by_provenance",
+        "subject_expert:rejected"
+      ],
+      "reasons": [
+        "provenance 'eduscol.education.gouv.fr' -> droits 'official_public_administrative'",
+        "pertinence pedagogique insuffisante — couverture notions insuffisante sur 7/7 collections cibles (rag_nexus_francais_troisieme_tc 0.0%, rag_nexus_hg_troisieme_tc 0.0%, rag_nexus_lv_troisieme_tc 0.0%, rag_nexus_maths_troisieme_tc 0.0%, rag_nexus_pc_troisieme_tc 0.0%, rag_nexus_svt_troisieme_tc 0.0%, rag_nexus_techno_troisieme_tc 0.0%) < 5% — contenu hors programme presume"
+      ],
+      "validated_at": "2026-07-26T08:22:35.438164+00:00",
+      "validator": "source_validator_v2",
+      "signature": "c6d44e4748b0fa6e"
+    },
+    {
+      "source_id": "eduscol_dnb",
+      "url": "https://eduscol.education.gouv.fr/4536/diplome-national-du-brevet",
+      "verdict": "verified_candidate",
+      "http_status": 200,
+      "words": 814,
+      "rules_fired": [
+        "rights_resolved_by_provenance",
+        "subject_expert:approved",
+        "substance_ok"
+      ],
+      "reasons": [
+        "provenance 'eduscol.education.gouv.fr' -> droits 'official_public_administrative'",
+        "HTTP 200, 814 mots, pertinence confirmee : marqueurs d'examen presents sur 1/1 collections exam (>= 2)"
+      ],
+      "validated_at": "2026-07-26T08:22:45.756144+00:00",
+      "validator": "source_validator_v2",
+      "signature": "06dd02c18f7deed7"
+    },
+    {
+      "source_id": "eduscol_stmg",
+      "url": "https://eduscol.education.gouv.fr/5862/programmes-et-ressources-en-serie-stmg",
+      "verdict": "stays_to_verify",
+      "http_status": 200,
+      "words": 2672,
+      "rules_fired": [
+        "rights_resolved_by_provenance",
+        "subject_expert:rejected"
+      ],
+      "reasons": [
+        "provenance 'eduscol.education.gouv.fr' -> droits 'official_public_administrative'",
+        "pertinence pedagogique insuffisante — couverture notions insuffisante sur 5/5 collections cibles (rag_nexus_droiteco_premiere_stmg_specialite 0.0%, rag_nexus_droiteco_terminale_stmg_specialite 0.0%, rag_nexus_maths_premiere_stmg_tc 0.0%, rag_nexus_maths_terminale_stmg_tc 0.0%, rag_nexus_msdgn_terminale_stmg_specialite 0.0%) < 5% — contenu hors programme presume"
+      ],
+      "validated_at": "2026-07-26T08:22:56.293515+00:00",
+      "validator": "source_validator_v2",
+      "signature": "a05254a3b8082248"
+    },
+    {
+      "source_id": "eduscol_grand_oral",
+      "url": "https://eduscol.education.gouv.fr/5661/presentation-du-grand-oral",
+      "verdict": "verified_candidate",
+      "http_status": 200,
+      "words": 2224,
+      "rules_fired": [
+        "rights_resolved_by_provenance",
+        "subject_expert:approved",
+        "substance_ok"
+      ],
+      "reasons": [
+        "provenance 'eduscol.education.gouv.fr' -> droits 'official_public_administrative'",
+        "HTTP 200, 2224 mots, pertinence confirmee : marqueurs d'examen presents sur 1/1 collections exam (>= 2)"
+      ],
+      "validated_at": "2026-07-26T08:23:06.490956+00:00",
+      "validator": "source_validator_v2",
+      "signature": "3b43312afdff6702"
+    }
+  ]
+}

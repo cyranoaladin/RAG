@@ -172,20 +172,19 @@ def governed_fetch(url: str) -> FetchResult | FetchRefusal:
     if not is_allowed_by_robots(url):
         return FetchRefusal(url=url, reason="blocked by robots.txt")
 
-    # 3. Rate limit
-    domain = urlparse(url).netloc
-    delay = _apply_rate_limit(domain)
-
-    # 4. GET request (read-only) — lazy import to avoid polluting sys.modules
+    # 3. GET request (read-only) — lazy import to avoid polluting sys.modules
     import requests
 
     # Redirections suivies hop par hop : whitelist + robots.txt verifies AVANT
     # chaque saut (jamais de fetch d'un hote interdit, meme en repli requests).
+    # Le limiteur est applique UNIQUEMENT dans la boucle : un appel pre-boucle
+    # doublerait l'attente sur l'hote initial (revue PR #74, round 6).
+    delay = 0.0
     try:
         current = url
         response = None
         for _hop in range(_MAX_REDIRECT_HOPS + 1):
-            apply_domain_delay(urlparse(current).netloc)
+            delay += apply_domain_delay(urlparse(current).netloc)
             response = requests.get(
                 current,
                 headers={"User-Agent": USER_AGENT},

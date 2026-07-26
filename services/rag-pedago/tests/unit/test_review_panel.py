@@ -235,6 +235,52 @@ class TestSubjectExpertAgent:
         ratio = float(cov[0].rsplit(":", 1)[1])
         assert ratio > 0.0, "le texte sans accents doit couvrir les labels accentues"
 
+    def test_exam_theme_id_words_not_specific(self, tmp_path):
+        """Round 6 PR #74 : les mots issus des IDS DE THEMES (preparation,
+        presentation, echange du grand oral) sont exclus des marqueurs
+        specifiques — une page ordinaire ne valide pas l'examen."""
+        ordinary = (
+            "Session 2026, sujet : une bonne preparation, une presentation "
+            "claire et un echange riche avec le jury. "
+        ) * 8
+        art = _make_artefact(tmp_path, "https://eduscol.education.gouv.fr/5661/x",
+                             ordinary,
+                             collections_cibles=["rag_nexus_grand_oral_terminale"])
+        v = SubjectExpertAgent(POLICY).review(art)
+        assert v.status == "rejected"
+        assert any(r.startswith("exam_specific[rag_nexus_grand_oral_terminale]:0")
+                   for r in v.rules_fired)
+
+    def test_exam_level_word_not_specific(self, tmp_path):
+        """Round 6 PR #74 : 'troisieme' (niveau, issu de l'id dnb_troisieme)
+        ne compte pas comme marqueur specifique du DNB."""
+        level_only = (
+            "Session 2026, sujet d'examen : un eleve de troisieme doit "
+            "soigneusement reviser ses lecons. "
+        ) * 8
+        art = _make_artefact(tmp_path, "https://eduscol.education.gouv.fr/4536/x",
+                             level_only,
+                             collections_cibles=["rag_nexus_dnb"])
+        v = SubjectExpertAgent(POLICY).review(art)
+        assert v.status == "rejected"
+        assert any(r.startswith("exam_specific[rag_nexus_dnb]:0")
+                   for r in v.rules_fired)
+
+    def test_exam_dnb_abbreviation_specific(self, tmp_path):
+        """Controle positif : l'abreviation DNB reste un marqueur
+        specifique valide (matiere de la spec)."""
+        real = (
+            "DNB — session 2026 : sujet de l'epreuve, duree et annales "
+            "officielles du diplome national. "
+        ) * 8
+        art = _make_artefact(tmp_path, "https://eduscol.education.gouv.fr/4536/x",
+                             real,
+                             collections_cibles=["rag_nexus_dnb"])
+        v = SubjectExpertAgent(POLICY).review(art)
+        assert v.status == "approved"
+        assert any(r.startswith("exam_specific[rag_nexus_dnb]:")
+                   and not r.endswith(":0") for r in v.rules_fired)
+
 
 class TestQualityExpertAgent:
     def test_integrity_violation_quarantine(self, tmp_path):

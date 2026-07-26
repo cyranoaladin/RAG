@@ -166,10 +166,13 @@ class SubjectExpertAgent(BaseReviewer):
 
     @staticmethod
     def _exam_tokens(tax_path: Path | None) -> list[str]:
-        """Marqueurs SPECIFIQUES a l'examen, derives de sa specification
-        (id, label, epreuve(s), matiere, ids de themes). Empeche qu'une page
-        sur un AUTRE examen — ou un texte quelconque avec 'session' et
-        'sujet' — valide la collection (revue PR #74)."""
+        """Marqueurs SPECIFIQUES a l'examen, derives UNIQUEMENT de ses
+        champs d'identite (id, label, epreuve(s), matiere). Empeche qu'une
+        page sur un AUTRE examen — ou un texte quelconque avec 'session' et
+        'sujet' — valide la collection (revue PR #74). Les ids de THEMES
+        sont exclus : niveau notionnel, pas identite d'examen — 'preparation',
+        'presentation' ou 'echange' (grand_oral) valideraient n'importe
+        quelle page ordinaire (revue PR #74, round 6)."""
         if tax_path is None or not tax_path.is_file():
             return []
         spec = yaml.safe_load(tax_path.read_text(encoding="utf-8")) or {}
@@ -181,17 +184,16 @@ class SubjectExpertAgent(BaseReviewer):
         for val in spec.get("epreuves", []) or []:
             if isinstance(val, str):
                 raw.append(val)
-        for theme in spec.get("themes", []) or []:
-            tid = theme.get("id") if isinstance(theme, dict) else None
-            if isinstance(tid, str):
-                raw.append(tid)
         # Mots GENERIQUES exclus des tokens simples : presents dans tout
-        # texte sur les examens, ils valideraient n'importe quelle page
-        # (revue PR #74, round 5). Les PHRASES completes sont conservees.
+        # texte sur les examens ou la scolarite, ils valideraient n'importe
+        # quelle page (revue PR #74, rounds 5-6). Ex: 'troisieme' (niveau)
+        # issu de l'id dnb_troisieme. Les PHRASES completes sont conservees.
         stop = {"de", "du", "la", "le", "et", "en", "des", "les", "au", "aux",
                 "epreuve", "epreuves", "examen", "examens", "session", "sujet",
                 "baccalaureat", "general", "generale", "technologique",
-                "national", "nationale", "diplome", "ecrit", "oral", "oraux"}
+                "national", "nationale", "diplome", "ecrit", "oral", "oraux",
+                "troisieme", "seconde", "premiere", "terminale", "college",
+                "lycee", "preparation", "presentation", "echange"}
         tokens: set[str] = set()
         for item in raw:
             norm = _norm(item.replace("_", " "))
