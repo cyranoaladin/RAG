@@ -27,7 +27,7 @@ production.
 
 ## Interdictions
 
-- Ne jamais ajouter une lecture de `source_uri` sans lot dédié et validation humaine.
+- Ne jamais ajouter une lecture de `source_uri` sans lot dédié et validation — agentique gouvernée conforme aux ADR-0018/0019/0020 (substitution à la validation humaine, décision fondatrice enregistrée ADR-0020).
 - Ne jamais introduire de dépendance réseau.
 - Ne jamais connecter Qdrant ou PostgreSQL avant instruction explicite.
 - Ne jamais utiliser un LLM runtime dans ce dépôt sans lot dédié.
