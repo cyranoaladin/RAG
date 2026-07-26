@@ -192,7 +192,8 @@ class TestSubjectExpertAgent:
             "min_markers": 1,
         }
         text = (
-            "Epreuve anticipee de mathematiques, session 2026, sujet officiel. "
+            "Epreuve anticipee de mathematiques, session 2026, sujet officiel, "
+            "duree deux heures. "
         ) * 8
         art = _make_artefact(tmp_path, "https://eduscol.education.gouv.fr/5836/x",
                              text,
@@ -280,6 +281,46 @@ class TestSubjectExpertAgent:
         assert v.status == "approved"
         assert any(r.startswith("exam_specific[rag_nexus_dnb]:")
                    and not r.endswith(":0") for r in v.rules_fired)
+
+    def test_exam_logistics_page_rejected(self, tmp_path):
+        """Round 8 PR #74 : une page LOGISTIQUE mentionnant DNB + sujet +
+        epreuve + examen (identite + marqueurs generiques) mais AUCUNE
+        substance d'examen (annales, corrige, duree...) est rejetee."""
+        logistics = (
+            "DNB — inscription des candidats. Le sujet sera communique. "
+            "L'epreuve est un examen national. Convocation, salle, horaires, "
+            "reglement interieur, piece d'identite obligatoire. "
+        ) * 10
+        art = _make_artefact(tmp_path, "https://eduscol.education.gouv.fr/4536/x",
+                             logistics,
+                             collections_cibles=["rag_nexus_dnb"])
+        v = SubjectExpertAgent(POLICY).review(art)
+        assert v.status == "rejected"
+        assert any(r.startswith("exam_material[rag_nexus_dnb]:0")
+                   for r in v.rules_fired)
+
+    def test_exam_missing_taxonomy_quarantine(self, tmp_path):
+        """Round 8 PR #74 : une collection exam dont la taxonomie est
+        introuvable part en QUARANTAINE (impossibilite d'evaluer), pas en
+        rejet de contenu — missing_taxonomy_action s'applique aussi a exam."""
+        catalogue = tmp_path / "rag_collections.yml"
+        catalogue.write_text(
+            "collections:\n"
+            "  rag_nexus_exams_sans_taxo:\n"
+            "    domain: exam\n"
+            "    taxonomy_file: exams/inexistant.yml\n",
+            encoding="utf-8")
+        policy = json.loads(json.dumps(POLICY))
+        policy["subject_expert"]["catalogue"] = str(catalogue)
+        text = (
+            "DNB — session 2026 : sujet de l'epreuve, duree, annales. "
+        ) * 8
+        art = _make_artefact(tmp_path, "https://eduscol.education.gouv.fr/4536/x",
+                             text,
+                             collections_cibles=["rag_nexus_exams_sans_taxo"])
+        v = SubjectExpertAgent(policy).review(art)
+        assert v.status == "quarantine"
+        assert "missing_taxonomy_action" in v.rules_fired
 
 
 class TestQualityExpertAgent:

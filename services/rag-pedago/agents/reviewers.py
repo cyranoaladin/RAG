@@ -135,6 +135,17 @@ class SubjectExpertAgent(BaseReviewer):
             "corrigé", "baccalauréat", "durée",
         ])]
         self.exam_min_markers = int(exam_cfg.get("min_markers", 2))
+        # Marqueurs de SUBSTANCE d'examen (annales, corrige, duree...) :
+        # une page logistique mentionnant 'DNB' + 'sujet'/'epreuve' n'a
+        # aucun marqueur de substance et ne peut etre approuvee — la
+        # couverture verte doit demontrer du contenu d'examen REEL
+        # (revue PR #74, round 8).
+        self.exam_material_markers = [_norm(str(m)) for m in exam_cfg.get(
+            "material_markers", [
+                "annales", "corrigé", "durée", "coefficient", "barème",
+                "sujet zéro", "épreuve écrite",
+            ])]
+        self.exam_min_material = int(exam_cfg.get("min_material_markers", 1))
 
     def _catalogue_entry(self, collection: str) -> dict[str, Any] | None:
         if not self.catalogue_path.is_file():
@@ -229,16 +240,31 @@ class SubjectExpertAgent(BaseReviewer):
                 v.sign()
                 return v
 
-            # Domaine exam : marqueurs d'examen generiques ET au moins un
-            # marqueur specifique a CET examen (pas une page d'un autre examen)
+            # Domaine exam : marqueurs generiques + marqueur specifique a
+            # CET examen + substance d'examen REELLE (round 8).
             if entry.get("domain") == "exam":
                 exam_checked += 1
+                tax_path = self._taxonomy_for(collection)
+                if tax_path is None:
+                    # Impossibilite d'evaluer l'identite de l'examen :
+                    # action configuree (fail-closed), pas un rejet de
+                    # contenu (revue PR #74, round 8).
+                    v.status = self.missing_taxonomy_action
+                    v.reasons.append(
+                        f"taxonomie introuvable pour '{collection}' (domain: exam)")
+                    v.rules_fired.append("missing_taxonomy_action")
+                    v.sign()
+                    return v
                 hits = sum(1 for m in self.exam_markers if m in text_norm)
                 v.rules_fired.append(f"exam_markers[{collection}]:{hits}")
-                specific = self._exam_tokens(self._taxonomy_for(collection))
+                specific = self._exam_tokens(tax_path)
                 specific_hits = sum(1 for t in specific if t in text_norm)
                 v.rules_fired.append(f"exam_specific[{collection}]:{specific_hits}")
-                if hits < self.exam_min_markers or specific_hits == 0:
+                material_hits = sum(
+                    1 for m in self.exam_material_markers if m in text_norm)
+                v.rules_fired.append(f"exam_material[{collection}]:{material_hits}")
+                if (hits < self.exam_min_markers or specific_hits == 0
+                        or material_hits < self.exam_min_material):
                     exam_failing[collection] = hits
                 continue
 
