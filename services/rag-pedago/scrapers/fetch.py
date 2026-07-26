@@ -177,6 +177,8 @@ def governed_fetch(url: str) -> FetchResult | FetchRefusal:
             text=text,
             fetched_at=datetime.now(UTC),
             delay_applied=delay,
+            # requests suit les redirections : provenance reelle du contenu
+            final_url=str(response.url),
         )
     except requests.RequestException as e:
         return FetchResult(

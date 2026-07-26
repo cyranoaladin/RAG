@@ -43,6 +43,7 @@ from scrapers.fetch import FetchRefusal, FetchResult
 SOURCES_PATH = ROOT / "configs" / "eduscol_sources.yml"
 POLICY_PATH = ROOT / "configs" / "review_policy.yml"
 INGESTION_POLICY_PATH = ROOT / "configs" / "continuous_ingestion.yml"
+CONTRACT_PATH = ROOT / "configs" / "pedago_interface_contract.yml"
 REPORT_PATH = ROOT / "data" / "reports" / "source_validation_latest.md"
 LEDGER_PATH = ROOT / "data" / "ledger" / "source_validation.jsonl"
 
@@ -192,7 +193,22 @@ def _domain_delay() -> float:
     return DEFAULT_DOMAIN_DELAY
 
 
+def _lock(name: str) -> bool:
+    """Verrou fail-closed du contrat d'interface (meme regle qu'EduscolAgent)."""
+    if not CONTRACT_PATH.is_file():
+        return False
+    cfg = yaml.safe_load(CONTRACT_PATH.read_text(encoding="utf-8"))
+    return isinstance(cfg, dict) and cfg.get(name) is True
+
+
 def run() -> dict[str, Any]:
+    # Kill-switch reseau : AUCUNE requete si le verrou n'est pas leve.
+    if not _lock("network_allowed"):
+        return {"status": "refused",
+                "error": "verrou network_allowed absent ou false (fail-closed) "
+                         "— aucune requete reseau emise",
+                "exit_code": 1}
+
     cfg = yaml.safe_load(SOURCES_PATH.read_text(encoding="utf-8")) or {}
     policy = yaml.safe_load(POLICY_PATH.read_text(encoding="utf-8")) or {}
     candidates = [s for s in cfg.get("sources", []) if s.get("status") == "to_verify"]

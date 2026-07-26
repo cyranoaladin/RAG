@@ -115,9 +115,37 @@ class TestPedagogicalRelevance:
         assert v["signature"]
 
 
+class TestNetworkLock:
+    def test_run_refused_when_network_locked(self, monkeypatch):
+        """Kill-switch reseau : aucun fetch si network_allowed n'est pas leve."""
+        called = []
+        monkeypatch.setattr(sv, "browser_governed_fetch",
+                            lambda url: called.append(url) or _fetch_ok())
+        monkeypatch.setattr(sv, "_lock", lambda name: False)
+        out = sv.run()
+        assert out["status"] == "refused"
+        assert out["exit_code"] == 1
+        assert called == []  # aucune requete reseau emise
+
+    def test_run_allowed_when_network_unlocked(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(sv, "_lock", lambda name: True)
+        monkeypatch.setattr(sv, "browser_governed_fetch", lambda url: _fetch_ok())
+        monkeypatch.setattr(
+            sv, "time",
+            type("T", (), {"sleep": staticmethod(lambda seconds: None)}))
+        src_file = tmp_path / "sources.yml"
+        src_file.write_text("sources: []\n", encoding="utf-8")
+        monkeypatch.setattr(sv, "SOURCES_PATH", src_file)
+        monkeypatch.setattr(sv, "LEDGER_PATH", tmp_path / "l.jsonl")
+        monkeypatch.setattr(sv, "REPORT_PATH", tmp_path / "r.md")
+        out = sv.run()
+        assert out["status"] == "ok"
+
+
 class TestLedger:
     def test_ledger_contains_signed_verdicts(self, monkeypatch, tmp_path):
         """Chaque verdict signe est consigne dans le ledger append-only."""
+        monkeypatch.setattr(sv, "_lock", lambda name: True)
         monkeypatch.setattr(sv, "browser_governed_fetch", lambda url: _fetch_ok())
         monkeypatch.setattr(
             sv, "time",
