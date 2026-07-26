@@ -98,11 +98,22 @@ def _apply_rate_limit(domain: str) -> float:
     return delay
 
 
-def apply_domain_delay(domain: str) -> float:
+def apply_domain_delay(domain: str, min_seconds: float | None = None) -> float:
     """Alias public du limiteur : doit preceder TOUTE requete, y compris
     chaque saut de redirection (le delai ne s'applique pas qu'a l'URL
-    d'origine)."""
-    return _apply_rate_limit(domain)
+    d'origine). ``min_seconds`` porte l'attente au crawl-delay configure
+    pour le domaine quand il depasse le plancher global (revue PR #74)."""
+    if min_seconds is None or min_seconds <= RATE_LIMIT_SECONDS:
+        return _apply_rate_limit(domain)
+    now = time.monotonic()
+    last = _last_fetch_time.get(domain, 0.0)
+    elapsed = now - last
+    delay = 0.0
+    if elapsed < min_seconds:
+        delay = min_seconds - elapsed
+        time.sleep(delay)
+    _last_fetch_time[domain] = time.monotonic()
+    return delay
 
 
 # ---------------------------------------------------------------------------

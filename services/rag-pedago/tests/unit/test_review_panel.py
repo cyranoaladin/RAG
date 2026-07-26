@@ -182,6 +182,59 @@ class TestSubjectExpertAgent:
         assert any(r.startswith("exam_specific[rag_nexus_exams_anticipee_maths]:")
                    and not r.endswith(":0") for r in v.rules_fired)
 
+    def test_exam_markers_accent_folded(self, tmp_path):
+        """Round 5 PR #74 : les marqueurs accentues de la politique doivent
+        etre plies (_norm) comme le texte, sinon 'epreuve' (texte plie) ne
+        matchait jamais le marqueur accentue."""
+        policy = json.loads(json.dumps(POLICY))
+        policy["subject_expert"]["exam_domain"] = {
+            "markers": ["épreuve"],  # forme accentuee uniquement
+            "min_markers": 1,
+        }
+        text = (
+            "Epreuve anticipee de mathematiques, session 2026, sujet officiel. "
+        ) * 8
+        art = _make_artefact(tmp_path, "https://eduscol.education.gouv.fr/5836/x",
+                             text,
+                             collections_cibles=["rag_nexus_exams_anticipee_maths"])
+        v = SubjectExpertAgent(policy).review(art)
+        assert v.status == "approved"
+        assert any(r.startswith("exam_markers[rag_nexus_exams_anticipee_maths]:1")
+                   for r in v.rules_fired)
+
+    def test_exam_generic_words_scattered_rejected(self, tmp_path):
+        """Round 5 PR #74 : 'baccalaureat' et 'general' pris ISOLEMENT (mots
+        generiques) ne comptent pas comme marqueurs specifiques ; seule la
+        phrase complete compte."""
+        scattered = (
+            "Session 2026, sujet d'examen. Le baccalauréat est un diplôme "
+            "exigeant. Une culture générale solide est recommandée. "
+        ) * 6
+        art = _make_artefact(tmp_path, "https://eduscol.education.gouv.fr/5853/x",
+                             scattered,
+                             collections_cibles=["rag_nexus_exams_bac_general"])
+        v = SubjectExpertAgent(POLICY).review(art)
+        assert v.status == "rejected"
+        assert any(r.startswith("exam_specific[rag_nexus_exams_bac_general]:0")
+                   for r in v.rules_fired)
+
+    def test_notion_labels_accent_folded(self, tmp_path):
+        """Round 5 PR #74 : les labels de notions sont plies comme le texte ;
+        un texte sans accents doit couvrir une taxonomie accentuee."""
+        text = (
+            "Suites numeriques : modes de generation et variations. "
+            "Second degre : forme canonique, equations, signe. "
+            "Derivation : nombre derive, fonction derivee. "
+            "Produit scalaire et applications. La loi binomiale. "
+        ) * 10
+        art = _make_artefact(tmp_path, "https://eduscol.education.gouv.fr/5817/x",
+                             text)
+        v = SubjectExpertAgent(POLICY).review(art)
+        cov = [r for r in v.rules_fired if r.startswith("notion_coverage[")]
+        assert cov, "regle de couverture attendue"
+        ratio = float(cov[0].rsplit(":", 1)[1])
+        assert ratio > 0.0, "le texte sans accents doit couvrir les labels accentues"
+
 
 class TestQualityExpertAgent:
     def test_integrity_violation_quarantine(self, tmp_path):

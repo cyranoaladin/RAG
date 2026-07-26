@@ -83,7 +83,9 @@ def browser_governed_fetch(url: str) -> FetchResult | FetchRefusal:
             current = url
             resp = None
             for _hop in range(_MAX_REDIRECT_HOPS + 1):
-                apply_domain_delay(urlparse(current).netloc)
+                hop_domain = urlparse(current).netloc
+                apply_domain_delay(
+                    hop_domain, min_seconds=_configured_domain_delay(hop_domain))
                 resp = cffi_requests.get(
                     current,
                     impersonate=target,
@@ -130,6 +132,37 @@ def browser_governed_fetch(url: str) -> FetchResult | FetchRefusal:
 SOURCES_PATH = ROOT / "configs" / "eduscol_sources.yml"
 POLICY_PATH = ROOT / "configs" / "continuous_ingestion.yml"
 CONTRACT_PATH = ROOT / "configs" / "pedago_interface_contract.yml"
+
+_DELAY_CACHE: dict[str, float] | None = None
+
+
+def _configured_domain_delay(domain: str) -> float:
+    """Crawl-delay configure pour le domaine (continuous_ingestion.yml),
+    replie sur ``default_delay`` (10.0 s si absent). Charge une fois.
+    Utilise par la boucle de redirections : chaque saut doit respecter le
+    crawl-delay du domaine visite, pas seulement le plancher global de 2 s
+    (revue PR #74, round 5)."""
+    global _DELAY_CACHE
+    if _DELAY_CACHE is None:
+        policy: dict[str, Any] = {}
+        if POLICY_PATH.is_file():
+            try:
+                policy = yaml.safe_load(POLICY_PATH.read_text(encoding="utf-8")) or {}
+            except Exception:
+                policy = {}
+        delays: dict[str, float] = {}
+        for key, val in (policy.get("per_domain_delay") or {}).items():
+            try:
+                delays[str(key)] = float(val)
+            except (TypeError, ValueError):
+                continue
+        try:
+            delays.setdefault("", float(policy.get("default_delay", 10.0)))
+        except (TypeError, ValueError):
+            delays.setdefault("", 10.0)
+        _DELAY_CACHE = delays
+    return _DELAY_CACHE.get(domain, _DELAY_CACHE.get("", 10.0))
+
 
 _LINK_RE = re.compile(r'href=["\']([^"\']+)["\']', re.IGNORECASE)
 _TAG_RE = re.compile(r"<[^>]+>")

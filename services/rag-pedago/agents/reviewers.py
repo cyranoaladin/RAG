@@ -127,9 +127,12 @@ class SubjectExpertAgent(BaseReviewer):
         # un sujet d'examen se juge a des marqueurs d'examen, pas a la
         # couverture notionnelle d'un programme.
         exam_cfg = cfg.get("exam_domain", {})
-        self.exam_markers = [str(m).lower() for m in exam_cfg.get("markers", [
-            "session", "sujet", "épreuve", "epreuve", "annales",
-            "corrigé", "corrige", "baccalauréat", "baccalaureat", "durée", "duree",
+        # Marqueurs normalises avec _norm (accents plies) pour correspondre
+        # au texte normalise : sans cela 'epreuve' (texte plie) ne matchait
+        # jamais le marqueur accentue 'épreuve' (revue PR #74, round 5).
+        self.exam_markers = [_norm(str(m)) for m in exam_cfg.get("markers", [
+            "session", "sujet", "épreuve", "annales",
+            "corrigé", "baccalauréat", "durée",
         ])]
         self.exam_min_markers = int(exam_cfg.get("min_markers", 2))
 
@@ -158,7 +161,7 @@ class SubjectExpertAgent(BaseReviewer):
             for notion in theme.get("notions", []):
                 label = notion.get("label", "")
                 if label:
-                    labels.append(label.lower())
+                    labels.append(_norm(label))  # accents plies, cf. _norm(text)
         return labels
 
     @staticmethod
@@ -182,15 +185,20 @@ class SubjectExpertAgent(BaseReviewer):
             tid = theme.get("id") if isinstance(theme, dict) else None
             if isinstance(tid, str):
                 raw.append(tid)
+        # Mots GENERIQUES exclus des tokens simples : presents dans tout
+        # texte sur les examens, ils valideraient n'importe quelle page
+        # (revue PR #74, round 5). Les PHRASES completes sont conservees.
         stop = {"de", "du", "la", "le", "et", "en", "des", "les", "au", "aux",
-                "epreuve", "epreuves", "examen", "session"}
+                "epreuve", "epreuves", "examen", "examens", "session", "sujet",
+                "baccalaureat", "general", "generale", "technologique",
+                "national", "nationale", "diplome", "ecrit", "oral", "oraux"}
         tokens: set[str] = set()
         for item in raw:
             norm = _norm(item.replace("_", " "))
             if len(norm) >= 3:
                 tokens.add(norm)
             for word in norm.split():
-                if len(word) >= 4 and word not in stop:
+                if len(word) >= 6 and word not in stop:
                     tokens.add(word)
         return sorted(tokens)
 
