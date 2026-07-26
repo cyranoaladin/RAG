@@ -52,6 +52,7 @@ _TAG_RE = re.compile(
     r"<script.*?</script>|<style.*?</style>", re.DOTALL | re.IGNORECASE)
 _TAG_ANY_RE = re.compile(r"<[^>]+>")
 DEFAULT_MIN_WORDS = 200
+DEFAULT_MAX_WORDS = 200000
 DEFAULT_FORBID = ("just a moment", "enable javascript", "attention required")
 DEFAULT_DOMAIN_DELAY = 10.0  # crawl-delay eduscol (robots.txt)
 
@@ -165,6 +166,15 @@ def validate_source(source: dict[str, Any], policy: dict[str, Any]) -> dict[str,
             if words < min_words:
                 rules.append("too_thin")
                 reasons.append(f"substance insuffisante : {words} mots < {min_words}")
+                verdict = "stays_to_verify"
+            # Borne haute symetrique au QualityExpertAgent : un document
+            # pathologique (concatenation accidentelle...) ne doit pas etre
+            # active meme s'il contient assez de termes (revue PR #74, r7).
+            max_words = int(policy.get("quality_expert", {}).get(
+                "max_words", DEFAULT_MAX_WORDS))
+            if words > max_words:
+                rules.append("too_large")
+                reasons.append(f"document pathologique : {words} mots > {max_words}")
                 verdict = "stays_to_verify"
 
             # 5. Pertinence pedagogique REELLE (SubjectExpert, perimetre complet)

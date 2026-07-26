@@ -1,16 +1,27 @@
 #!/usr/bin/env python3
-"""Export versionne des preuves de validation des sources (revue PR #74, round 6).
+"""Export versionne des preuves de validation des sources (revue PR #74).
 
 Constat Codex : les verdicts signes produits par ``source_validator`` vivent
 sous ``data/`` (ignore par git) ; ni la revue ni un deploiement ulterieur ne
 peuvent prouver qu'un couple URL/contenu precis a recu ``verified_candidate``.
 
 Ce script consigne les verdicts signes (dernier par source) dans
-``docs/validation/source_validation_evidence.json`` — fichier VERSIONNE — et
-applique une porte fail-closed : toute source ``status: verified`` suivie par
-le ledger DOIT avoir un verdict ``verified_candidate`` signe dont l'URL
-correspond a la config actuelle. Les 9 sources verifiees avant LOT 31 ne sont
-pas suivies par le ledger : hors perimetre de cette porte.
+``docs/validation/source_validation_evidence.json`` — fichier VERSIONNE.
+
+Portes FAIL-CLOSED (round 7) — l'export est REFUSE (exit 1) si :
+  - le ledger contient une ligne non vide malformee (JSON invalide) : une
+    troncature ne doit pas laisser un vieux verdict paraitre courant ;
+  - un verdict ne respecte pas le SCHEMA COURANT (validator, url, final_url,
+    content_sha256 64 hex, signature 16 hex, validated_at) : les verdicts
+    d'une version anterieure (v2, sans liaison au contenu) sont perimes ;
+  - la signature ne se RECALCULE pas sur le contenu canonique (sha256 du
+    JSON trie sans le champ signature, 16 premiers hex) : une entree
+    fabriquee ou alteree ne peut pas autoriser l'ingestion ;
+  - une source ``status: verified`` suivie par le ledger n'a pas de verdict
+    ``verified_candidate`` valide a la meme URL.
+
+Les 9 sources verifiees avant LOT 31 ne sont pas suivies par le ledger :
+hors perimetre de cette porte.
 
 Usage (depuis services/rag-pedago) :
 
@@ -22,6 +33,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -34,20 +46,60 @@ LEDGER_PATH = ROOT / "data" / "ledger" / "source_validation.jsonl"
 SOURCES_PATH = ROOT / "configs" / "eduscol_sources.yml"
 EVIDENCE_PATH = REPO_ROOT / "docs" / "validation" / "source_validation_evidence.json"
 
+EXPECTED_VALIDATOR = "source_validator_v3"
+_REQUIRED_STR_FIELDS = ("source_id", "url", "final_url", "verdict",
+                        "validated_at", "validator")
+_HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
+_HEX16_RE = re.compile(r"^[0-9a-f]{16}$")
 
-def load_verdicts(ledger_path: Path) -> list[dict]:
-    """Dernier verdict signe par source_id (resumes de run exclus)."""
+
+def recompute_signature(verdict: dict) -> str:
+    """Recalcule la signature v3 : sha256 du JSON canonique (cles triees,
+    champ ``signature`` exclu), 16 premiers caracteres hex — meme
+    canonisation que ``agents.source_validator``."""
+    payload = {k: v for k, v in verdict.items() if k != "signature"}
+    canonical = json.dumps(payload, sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
+
+
+def schema_errors(verdict: dict) -> list[str]:
+    """Defauts de conformite d'un verdict au schema courant (v3)."""
+    errors: list[str] = []
+    for field in _REQUIRED_STR_FIELDS:
+        if not isinstance(verdict.get(field), str) or not verdict.get(field):
+            errors.append(f"champ requis absent/invalide: {field}")
+    if verdict.get("validator") != EXPECTED_VALIDATOR:
+        errors.append(f"validator != {EXPECTED_VALIDATOR} "
+                      f"(lu: {verdict.get('validator')!r}) — verdict perime")
+    if not _HEX64_RE.match(str(verdict.get("content_sha256", ""))):
+        errors.append("content_sha256 absent ou non-hex64")
+    if not _HEX16_RE.match(str(verdict.get("signature", ""))):
+        errors.append("signature absente ou non-hex16")
+    if not errors and recompute_signature(verdict) != verdict["signature"]:
+        errors.append("signature non recalculable (entree alteree ou fabriquee)")
+    return errors
+
+
+def load_verdicts(ledger_path: Path) -> tuple[list[dict], list[str]]:
+    """Dernier verdict par source_id + erreurs de lignes malformees.
+
+    Toute ligne non vide invalide est une ERREUR (fail-closed) : une
+    troncature d'append ne doit pas faire paraitre un vieux verdict comme
+    le plus recent."""
     if not ledger_path.is_file():
-        return []
+        return [], [f"ledger absent: {ledger_path}"]
     latest: dict[str, dict] = {}
     order: list[str] = []
-    for line in ledger_path.read_text(encoding="utf-8").splitlines():
+    errors: list[str] = []
+    for lineno, line in enumerate(
+            ledger_path.read_text(encoding="utf-8").splitlines(), start=1):
         line = line.strip()
         if not line:
             continue
         try:
             entry = json.loads(line)
         except json.JSONDecodeError:
+            errors.append(f"ligne {lineno}: JSON malforme (ledger corrompu?)")
             continue
         sid = entry.get("source_id")
         if not sid or "verdict" not in entry:
@@ -55,23 +107,34 @@ def load_verdicts(ledger_path: Path) -> list[dict]:
         if sid not in latest:
             order.append(sid)
         latest[sid] = entry
-    return [latest[sid] for sid in order]
+    return [latest[sid] for sid in order], errors
 
 
 def export(ledger_path: Path, sources_path: Path,
            evidence_path: Path) -> tuple[int, str]:
     """Exporte les preuves et verifie la coherence config/ledger."""
-    verdicts = load_verdicts(ledger_path)
+    verdicts, errors = load_verdicts(ledger_path)
+    if errors:
+        return 1, "LEDGER INVALIDE: " + "; ".join(errors)
     if not verdicts:
         return 1, f"AUCUN verdict signe dans {ledger_path} — rien a exporter"
 
+    # 1. Integrite cryptographique : CHAQUE verdict exporte doit etre au
+    #    schema courant avec une signature recalculable.
+    bad: list[str] = []
+    for v in verdicts:
+        problems = schema_errors(v)
+        if problems:
+            bad.append(f"{v.get('source_id', '?')}: {'; '.join(problems)}")
+    if bad:
+        return 1, ("VERDICTS NON CONFORMES au schema "
+                   f"{EXPECTED_VALIDATOR}: " + " | ".join(bad))
+
+    # 2. Coherence config : une source `verified` suivie par le ledger doit
+    #    avoir un verdict `verified_candidate` valide a la MEME url.
     cfg = yaml.safe_load(sources_path.read_text(encoding="utf-8")) or {}
     sources = cfg.get("sources", []) or []
     by_id = {v["source_id"]: v for v in verdicts}
-
-    # Porte fail-closed : une source `verified` suivie par le ledger sans
-    # verdict `verified_candidate` signe — ou avec une URL divergente — est
-    # une violation de gouvernance (pas de bascule sans preuve versionnee).
     violations: list[str] = []
     for s in sources:
         if s.get("status") != "verified":
@@ -84,13 +147,13 @@ def export(ledger_path: Path, sources_path: Path,
             violations.append(f"{sid} (verdict={v.get('verdict')})")
         elif s.get("url") and v.get("url") and s["url"] != v["url"]:
             violations.append(f"{sid} (url divergente config/ledger)")
-
     if violations:
-        return 1, ("VIOLATIONS preuves sources: " + "; ".join(violations))
+        return 1, "VIOLATIONS preuves sources: " + "; ".join(violations)
 
     ledger_bytes = ledger_path.read_bytes()
     evidence = {
         "exported_at": datetime.now(UTC).isoformat(),
+        "validator_schema": EXPECTED_VALIDATOR,
         "ledger": str(ledger_path.relative_to(REPO_ROOT))
         if ledger_path.is_relative_to(REPO_ROOT) else str(ledger_path),
         "ledger_sha256": hashlib.sha256(ledger_bytes).hexdigest(),

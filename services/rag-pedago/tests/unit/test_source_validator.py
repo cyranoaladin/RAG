@@ -142,6 +142,21 @@ class TestSubstanceAndBinding:
         assert v["verdict"] == "stays_to_verify"
         assert "too_thin" in v["rules_fired"]
 
+    def test_pathological_document_too_large(self, monkeypatch):
+        """Round 7 PR #74 : la borne haute max_words est appliquee — un
+        document pathologique ne devient pas verified_candidate."""
+        policy = json.loads(json.dumps(POLICY))
+        policy["quality_expert"]["max_words"] = 500
+        big = MATHS_TEXT * 3  # ~750 mots > 500
+        result = FetchResult(url=EDUSCOL, status_code=200,
+                             content_type="text/html",
+                             text=f"<html><body>{big}</body></html>",
+                             fetched_at=datetime.now(UTC), final_url=EDUSCOL)
+        monkeypatch.setattr(sv, "browser_governed_fetch", lambda url: result)
+        v = validate_source(SOURCE, policy)
+        assert v["verdict"] == "stays_to_verify"
+        assert "too_large" in v["rules_fired"]
+
     def test_payload_binds_content_and_final_url(self, monkeypatch):
         """Le verdict signe reference le digest du contenu et l'URL finale."""
         monkeypatch.setattr(sv, "browser_governed_fetch", lambda url: _fetch_ok())
