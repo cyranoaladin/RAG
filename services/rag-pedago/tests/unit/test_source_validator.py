@@ -8,6 +8,7 @@ Couvre les 4 points Codex :
 """
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import UTC, datetime
 
@@ -97,6 +98,18 @@ class TestRedirectRights:
         assert v["verdict"] == "verified_candidate"
         assert "redirect_rights_resolved" in v["rules_fired"]
 
+    def test_redirect_with_different_rights_rejected(self, monkeypatch):
+        """Droits differents apres redirection -> stays_to_verify (licence)."""
+        policy = {**POLICY, "rights_map": {
+            **POLICY["rights_map"],
+            "fr.wikipedia.org": "cc_by_sa_4_0"}}
+        monkeypatch.setattr(
+            sv, "browser_governed_fetch",
+            lambda url: _fetch_ok(final_url="https://fr.wikipedia.org/wiki/X"))
+        v = validate_source(SOURCE, policy)
+        assert v["verdict"] == "stays_to_verify"
+        assert "redirect_rights_mismatch" in v["rules_fired"]
+
 
 class TestPedagogicalRelevance:
     def test_irrelevant_content_rejected(self, monkeypatch):
@@ -113,6 +126,31 @@ class TestPedagogicalRelevance:
         assert v["verdict"] == "verified_candidate"
         assert "subject_expert:approved" in v["rules_fired"]
         assert v["signature"]
+
+
+class TestSubstanceAndBinding:
+    def test_chrome_words_do_not_count_as_substance(self, monkeypatch):
+        """200 mots de navigation ne valident pas une source (chrome exclu)."""
+        chrome = "Accueil Menu Rechercher Navigation Footer Mentions. " * 40
+        main = "Suites numériques. " * 5  # < 200 mots de contenu principal
+        html = f"<html><body><nav>{chrome}</nav><main>{main}</main></body></html>"
+        result = FetchResult(url=EDUSCOL, status_code=200,
+                             content_type="text/html", text=html,
+                             fetched_at=datetime.now(UTC), final_url=EDUSCOL)
+        monkeypatch.setattr(sv, "browser_governed_fetch", lambda url: result)
+        v = validate_source(SOURCE, POLICY)
+        assert v["verdict"] == "stays_to_verify"
+        assert "too_thin" in v["rules_fired"]
+
+    def test_payload_binds_content_and_final_url(self, monkeypatch):
+        """Le verdict signe reference le digest du contenu et l'URL finale."""
+        monkeypatch.setattr(sv, "browser_governed_fetch", lambda url: _fetch_ok())
+        v = validate_source(SOURCE, POLICY)
+        expected = hashlib.sha256(
+            sv._strip_html(_fetch_ok().text).encode("utf-8")).hexdigest()
+        assert v["content_sha256"] == expected
+        assert v["final_url"] == EDUSCOL
+        assert v["final_rights"] == "official_public_administrative"
 
 
 class TestNetworkLock:

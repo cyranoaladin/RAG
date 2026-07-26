@@ -11,7 +11,7 @@ import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 # ---------------------------------------------------------------------------
 # Whitelist — only these domains are permitted
@@ -126,6 +126,20 @@ class FetchRefusal:
 # Core fetch function
 # ---------------------------------------------------------------------------
 
+_REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
+_MAX_REDIRECT_HOPS = 5
+
+
+def _redirect_target(current_url: str, response: Any) -> str | None:
+    """Cible de redirection eventuelle (Location), resolue en absolu."""
+    if getattr(response, "status_code", 0) in _REDIRECT_STATUSES:
+        location = (response.headers.get("location")
+                    or response.headers.get("Location"))
+        if location:
+            return urljoin(current_url, location)
+    return None
+
+
 def governed_fetch(url: str) -> FetchResult | FetchRefusal:
     """Fetch a URL with all governance checks.
 
@@ -147,13 +161,33 @@ def governed_fetch(url: str) -> FetchResult | FetchRefusal:
     # 4. GET request (read-only) — lazy import to avoid polluting sys.modules
     import requests
 
+    # Redirections suivies hop par hop : whitelist + robots.txt verifies AVANT
+    # chaque saut (jamais de fetch d'un hote interdit, meme en repli requests).
     try:
-        response = requests.get(
-            url,
-            headers={"User-Agent": USER_AGENT},
-            timeout=REQUEST_TIMEOUT,
-            stream=True,
-        )
+        current = url
+        response = None
+        for _hop in range(_MAX_REDIRECT_HOPS + 1):
+            response = requests.get(
+                current,
+                headers={"User-Agent": USER_AGENT},
+                timeout=REQUEST_TIMEOUT,
+                stream=True,
+                allow_redirects=False,
+            )
+            nxt = _redirect_target(current, response)
+            if nxt is None:
+                break
+            if not is_whitelisted(nxt):
+                return FetchRefusal(
+                    url=url,
+                    reason=f"redirect vers domaine non whitelist: "
+                           f"{urlparse(nxt).netloc}")
+            if not is_allowed_by_robots(nxt):
+                return FetchRefusal(
+                    url=url, reason=f"redirect bloque par robots.txt: {nxt}")
+            current = nxt
+        assert response is not None
+
         # Enforce max size
         content = b""
         for chunk in response.iter_content(chunk_size=8192):
@@ -177,8 +211,8 @@ def governed_fetch(url: str) -> FetchResult | FetchRefusal:
             text=text,
             fetched_at=datetime.now(UTC),
             delay_applied=delay,
-            # requests suit les redirections : provenance reelle du contenu
-            final_url=str(response.url),
+            # provenance reelle du contenu (apres sauts gouvernes)
+            final_url=current,
         )
     except requests.RequestException as e:
         return FetchResult(

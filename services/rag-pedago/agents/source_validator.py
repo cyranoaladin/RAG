@@ -61,9 +61,21 @@ def _utcnow() -> str:
 
 
 def _strip_html(html: str) -> str:
-    text = _TAG_RE.sub(" ", html)
-    text = _TAG_ANY_RE.sub(" ", text)
-    return _WS_RE.sub(" ", text).strip()
+    """Extraction du contenu PRINCIPAL : le chrome de page (nav, header,
+    footer, aside, formulaires) est exclu AVANT le comptage de substance et
+    la relue pedagogique — 200 mots de navigation ne font pas une source."""
+    try:
+        from bs4 import BeautifulSoup
+    except ImportError:  # repli regex minimal si bs4 absent
+        text = _TAG_RE.sub(" ", html)
+        text = _TAG_ANY_RE.sub(" ", text)
+        return _WS_RE.sub(" ", text).strip()
+    soup = BeautifulSoup(html, "html.parser")
+    for tag in soup(["script", "style", "nav", "header", "footer", "aside",
+                     "form", "noscript"]):
+        tag.decompose()
+    main = soup.find("main") or soup.find("article") or soup.body or soup
+    return _WS_RE.sub(" ", main.get_text(" ", strip=True))
 
 
 def validate_source(source: dict[str, Any], policy: dict[str, Any]) -> dict[str, Any]:
@@ -88,6 +100,9 @@ def validate_source(source: dict[str, Any], policy: dict[str, Any]) -> dict[str,
 
     status_code = 0
     words = 0
+    final_url = url
+    final_rights: str | None = resolved
+    content_sha256 = ""
     if resolved is not None:
         # 2. Fetch GOUVERNE (whitelist + robots.txt + empreintes) — jamais direct
         result = browser_governed_fetch(url)
@@ -100,22 +115,33 @@ def validate_source(source: dict[str, Any], policy: dict[str, Any]) -> dict[str,
             status_code = result.status_code
             text = _strip_html(result.text or "")
             words = len(text.split())
+            content_sha256 = hashlib.sha256(text.encode("utf-8")).hexdigest()
 
             if status_code != 200:
                 rules.append(f"http_status:{status_code}")
                 reasons.append(f"HTTP {status_code} != 200")
                 verdict = "stays_to_verify"
 
-            # 3. Droits revalidés sur la provenance FINALE (redirections)
+            # 3. Droits revalidés sur la provenance FINALE (redirections) :
+            #    hotes inconnus -> fail-closed ; droits DIFFERENTS -> rejet
+            #    (le contenu serait ingere sous la mauvaise licence).
             final_url = result.final_url or url
             final_domain = urlparse(final_url).netloc
             if final_domain != domain:
                 resolved_final = rights_map.get(final_domain)
+                final_rights = resolved_final
                 if resolved_final is None:
                     rules.append("redirect_rights_unresolved")
                     reasons.append(
                         f"redirection vers '{final_domain}' absente de rights_map "
                         "(fail-closed)")
+                    verdict = "stays_to_verify"
+                elif resolved_final != resolved:
+                    rules.append("redirect_rights_mismatch")
+                    reasons.append(
+                        f"droits divergents apres redirection : '{resolved}' "
+                        f"(origine) != '{resolved_final}' (finale) — "
+                        "licence inapplicable presumee")
                     verdict = "stays_to_verify"
                 else:
                     rules.append("redirect_rights_resolved")
@@ -149,7 +175,7 @@ def validate_source(source: dict[str, Any], policy: dict[str, Any]) -> dict[str,
                         "source_id": src_id,
                         "url": url,
                         "collections_cibles": source.get("collections_cibles") or [],
-                        "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+                        "sha256": content_sha256,
                     },
                     text=text,
                 )
@@ -172,10 +198,15 @@ def validate_source(source: dict[str, Any], policy: dict[str, Any]) -> dict[str,
         "verdict": verdict,
         "http_status": status_code,
         "words": words,
+        # Verdict lie aux octets relus et a la provenance reelle (activation
+        # ulterieure verifiable contre ce digest et cette URL finale).
+        "content_sha256": content_sha256,
+        "final_url": final_url,
+        "final_rights": final_rights,
         "rules_fired": rules,
         "reasons": reasons,
         "validated_at": _utcnow(),
-        "validator": "source_validator_v2",
+        "validator": "source_validator_v3",
     }
     canonical = json.dumps(payload, sort_keys=True, ensure_ascii=False)
     payload["signature"] = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]

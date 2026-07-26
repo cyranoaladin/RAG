@@ -36,6 +36,18 @@ from scrapers.fetch import (
     is_whitelisted,
 )
 
+_REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
+_MAX_REDIRECT_HOPS = 5
+
+
+def _redirect_target(current_url: str, resp: Any) -> str | None:
+    """Cible de redirection eventuelle (Location), resolue en absolu."""
+    if getattr(resp, "status_code", 0) in _REDIRECT_STATUSES:
+        location = resp.headers.get("location") or resp.headers.get("Location")
+        if location:
+            return urljoin(current_url, location)
+    return None
+
 
 def browser_governed_fetch(url: str) -> FetchResult | FetchRefusal:
     """GET gouverne avec empreinte TLS navigateur (contournement WAF Cloudflare).
@@ -65,13 +77,30 @@ def browser_governed_fetch(url: str) -> FetchResult | FetchRefusal:
     last_result: FetchResult | None = None
     for target in ("firefox133", "safari18_0", "chrome"):
         try:
-            resp = cffi_requests.get(
-                url,
-                impersonate=target,
-                headers={"User-Agent": USER_AGENT},
-                timeout=REQUEST_TIMEOUT,
-                allow_redirects=True,
-            )
+            # Redirections suivies hop par hop : whitelist + robots.txt sont
+            # verifies AVANT chaque saut (jamais de fetch d'un hote interdit).
+            current = url
+            resp = None
+            for _hop in range(_MAX_REDIRECT_HOPS + 1):
+                resp = cffi_requests.get(
+                    current,
+                    impersonate=target,
+                    headers={"User-Agent": USER_AGENT},
+                    timeout=REQUEST_TIMEOUT,
+                    allow_redirects=False,
+                )
+                nxt = _redirect_target(current, resp)
+                if nxt is None:
+                    break
+                if not is_whitelisted(nxt):
+                    return FetchRefusal(
+                        url=url,
+                        reason=f"redirect vers domaine non whitelist: "
+                               f"{urlparse(nxt).netloc}")
+                if not is_allowed_by_robots(nxt):
+                    return FetchRefusal(
+                        url=url, reason=f"redirect bloque par robots.txt: {nxt}")
+                current = nxt
         except Exception as exc:  # reseau, TLS, timeout...
             return FetchResult(
                 url=url,
@@ -81,13 +110,14 @@ def browser_governed_fetch(url: str) -> FetchResult | FetchRefusal:
                 fetched_at=datetime.now(UTC),
                 error=str(exc),
             )
+        assert resp is not None
         last_result = FetchResult(
             url=url,
             status_code=resp.status_code,
             content_type=resp.headers.get("content-type", ""),
             text=resp.text,
             fetched_at=datetime.now(UTC),
-            final_url=str(resp.url),
+            final_url=current,
         )
         if resp.status_code != 403:
             return last_result
