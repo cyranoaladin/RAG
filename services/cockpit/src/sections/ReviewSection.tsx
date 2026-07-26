@@ -92,9 +92,14 @@ export default function ReviewSection() {
               consigné au ledger — réversible et rejouable.
             </p>
           </div>
-          <Button variant="outline" className="border-blue-300 text-blue-700 hover:bg-blue-50">
+          <Button
+            variant="outline"
+            disabled
+            title="La passe est exécutée côté serveur : python -m agents.review_panel --run (aucune action revue n'est déclenchée depuis le navigateur — ADR-0018)"
+            className="border-slate-300 text-slate-400"
+          >
             <Play className="mr-2 h-4 w-4" />
-            Lancer une passe de revue
+            Lancer une passe de revue (serveur uniquement)
           </Button>
         </div>
       </CardHeader>

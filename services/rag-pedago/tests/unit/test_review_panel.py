@@ -91,7 +91,7 @@ class TestSubjectExpertAgent:
         v = SubjectExpertAgent(POLICY).review(art)
         # Le texte couvre plusieurs notions de la taxonomie maths 1re spé
         assert v.status in {"approved", "rejected"}
-        assert any(r.startswith("notion_coverage:") for r in v.rules_fired)
+        assert any(r.startswith("notion_coverage[") for r in v.rules_fired)
 
     def test_off_program_content_rejected(self, tmp_path):
         art = _make_artefact(tmp_path, "https://eduscol.education.gouv.fr/5817/x",
@@ -99,6 +99,33 @@ class TestSubjectExpertAgent:
         v = SubjectExpertAgent(POLICY).review(art)
         assert v.status == "rejected"
         assert "insufficient_notion_coverage" in v.rules_fired
+
+    def test_all_target_collections_reviewed(self, tmp_path):
+        """Fix PR#72 P1 : chaque collection cible est evaluee, pas seulement la 1re."""
+        art = _make_artefact(
+            tmp_path, "https://eduscol.education.gouv.fr/5817/x", EDUSCOL_TEXT,
+            collections_cibles=[
+                "rag_nexus_maths_premiere_gen_specialite",
+                "rag_nexus_inexistant_hors_catalogue",
+            ],
+        )
+        v = SubjectExpertAgent(POLICY).review(art)
+        # La 2e collection n'a pas de taxonomie -> quarantaine (fail-closed)
+        assert v.status == "quarantine"
+        assert any("rag_nexus_inexistant_hors_catalogue" in r for r in v.reasons)
+
+    def test_multi_collection_coverage_rules_per_collection(self, tmp_path):
+        art = _make_artefact(
+            tmp_path, "https://eduscol.education.gouv.fr/5817/x", EDUSCOL_TEXT,
+            collections_cibles=[
+                "rag_nexus_maths_premiere_gen_specialite",
+                "rag_nexus_maths_terminale_gen_specialite",
+            ],
+        )
+        v = SubjectExpertAgent(POLICY).review(art)
+        # Une regle de couverture par collection cible
+        per_col = [r for r in v.rules_fired if r.startswith("notion_coverage[")]
+        assert len(per_col) == 2
 
 
 class TestQualityExpertAgent:
@@ -134,6 +161,76 @@ class TestPanelConsensus:
                              rights_default=None)
         payload = panel.decide(art)
         assert payload["decision"] == "quarantine"
+
+    def test_mixed_approved_rejected_goes_quarantine(self, tmp_path):
+        """Fix PR#72 P2 : on_disagreement=quarantine s'applique aussi au mixte
+        approved+rejected (pas de valeur 'quarantine' dans les statuts)."""
+        panel = ReviewPanel.__new__(ReviewPanel)
+        panel.policy = POLICY
+        # RightsExpert approuve (eduscol), QualityExpert rejette (texte trop mince)
+        panel.reviewers = [RightsExpertAgent(POLICY), QualityExpertAgent(POLICY)]
+        art = _make_artefact(tmp_path, "https://eduscol.education.gouv.fr/5817/x",
+                             "trop court")
+        payload = panel.decide(art)
+        assert payload["decision"] == "quarantine"
+
+    def test_unanimous_rejection_stays_rejected(self, tmp_path):
+        """Rejet unanime : tous les reviewers rejettent -> rejected (pas quarantaine)."""
+        panel = ReviewPanel.__new__(ReviewPanel)
+        panel.policy = POLICY
+
+        class AlwaysReject(RightsExpertAgent):
+            reviewer_id = "always_reject"
+            def review(self, artefact):  # type: ignore[override]
+                from agents.reviewers import Verdict
+                v = Verdict(reviewer=self.reviewer_id, status="rejected",
+                            reasons=["rejet systematique"], rules_fired=["test_rule"])
+                v.sign()
+                return v
+
+        panel.reviewers = [AlwaysReject(POLICY), AlwaysReject(POLICY)]
+        art = _make_artefact(tmp_path, "https://eduscol.education.gouv.fr/5817/x", EDUSCOL_TEXT)
+        payload = panel.decide(art)
+        assert payload["decision"] == "rejected"
+
+    def test_signature_binds_artefact_sha256(self, tmp_path):
+        """Fix PR#72 P1 : le payload signe inclut le sha256 de l'artefact relu."""
+        panel = ReviewPanel.__new__(ReviewPanel)
+        panel.policy = POLICY
+        panel.reviewers = [RightsExpertAgent(POLICY), QualityExpertAgent(POLICY)]
+        art = _make_artefact(tmp_path, "https://eduscol.education.gouv.fr/5817/x", EDUSCOL_TEXT)
+        payload = panel.decide(art)
+        assert payload["artefact_sha256"] == art.manifest["sha256"]
+
+    def test_audit_appended_before_manifest_update(self, tmp_path, monkeypatch):
+        """Fix PR#72 P2 : si l'append audit echoue, le manifeste reste 'pending'."""
+        panel = ReviewPanel.__new__(ReviewPanel)
+        panel.policy = {**POLICY, "outputs": {
+            "review_manifest_jsonl": str(tmp_path / "review" / "panel.jsonl"),
+            "ledger_append": str(tmp_path / "ledger" / "panel.jsonl"),
+            "report_file": str(tmp_path / "reports" / "latest.md"),
+        }}
+        panel.staging_root = tmp_path / "staging"
+        panel.reviewers = [RightsExpertAgent(POLICY), QualityExpertAgent(POLICY)]
+        art = _make_artefact(tmp_path, "https://eduscol.education.gouv.fr/5817/x", EDUSCOL_TEXT)
+
+        import agents.review_panel as rp
+        monkeypatch.setattr(rp, "_lock", lambda name: True)
+        # Simule une panne d'ecriture sur le jsonl d'audit
+        from pathlib import Path as _P
+        orig_open = _P.open
+        def failing_open(self, *a, **kw):
+            if "panel.jsonl" in str(self) and "review" in str(self):
+                raise OSError("disque plein (simule)")
+            return orig_open(self, *a, **kw)
+        monkeypatch.setattr(_P, "open", failing_open)
+
+        import pytest
+        with pytest.raises(OSError):
+            panel.run()
+        # Le manifeste staging n'a pas ete marque : l'artefact reste relisible
+        manifest = json.loads((art.staging_dir / "manifest.json").read_text(encoding="utf-8"))
+        assert manifest["review_status"] == "pending"
 
     def test_reviewer_error_fail_closed(self, tmp_path):
         panel = ReviewPanel.__new__(ReviewPanel)

@@ -151,36 +151,45 @@ class SubjectExpertAgent(BaseReviewer):
             v.sign()
             return v
 
-        tax_path = self._taxonomy_for(collections[0])
-        if tax_path is None:
-            v.status = self.missing_taxonomy_action
-            v.reasons.append(f"taxonomie introuvable pour '{collections[0]}'")
-            v.rules_fired.append("missing_taxonomy_action")
-            v.sign()
-            return v
-
-        notions = self._notions(tax_path)
-        if not notions:
-            v.status = self.missing_taxonomy_action
-            v.reasons.append(f"taxonomie vide pour '{collections[0]}'")
-            v.rules_fired.append("empty_taxonomy")
-            v.sign()
-            return v
-
+        # Perimetre complet : TOUTES les collections cibles sont evaluees,
+        # pas un echantillon (exigence de couverture du perimetre qualite).
         text_norm = _norm(artefact.text)
-        hits = sum(1 for n in notions if n in text_norm)
-        coverage = hits / len(notions)
-        v.rules_fired.append(f"notion_coverage:{coverage:.3f}")
+        coverages: dict[str, float] = {}
+        for collection in collections:
+            tax_path = self._taxonomy_for(collection)
+            if tax_path is None:
+                v.status = self.missing_taxonomy_action
+                v.reasons.append(f"taxonomie introuvable pour '{collection}'")
+                v.rules_fired.append("missing_taxonomy_action")
+                v.sign()
+                return v
 
-        if coverage >= self.min_coverage:
+            notions = self._notions(tax_path)
+            if not notions:
+                v.status = self.missing_taxonomy_action
+                v.reasons.append(f"taxonomie vide pour '{collection}'")
+                v.rules_fired.append("empty_taxonomy")
+                v.sign()
+                return v
+
+            hits = sum(1 for n in notions if n in text_norm)
+            coverages[collection] = hits / len(notions)
+            v.rules_fired.append(f"notion_coverage[{collection}]:{coverages[collection]:.3f}")
+
+        failing = {c: cov for c, cov in coverages.items() if cov < self.min_coverage}
+        if not failing:
+            worst = min(coverages.values())
             v.reasons.append(
-                f"couverture notions {hits}/{len(notions)} ({coverage:.1%}) >= {self.min_coverage:.0%}"
+                f"couverture notions conforme sur {len(coverages)}/{len(coverages)} "
+                f"collections cibles (pire cas {worst:.1%}) >= {self.min_coverage:.0%}"
             )
         else:
             v.status = "rejected"
+            detail = ", ".join(f"{c} {cov:.1%}" for c, cov in sorted(failing.items()))
             v.reasons.append(
-                f"couverture notions insuffisante : {hits}/{len(notions)} "
-                f"({coverage:.1%}) < {self.min_coverage:.0%} — contenu hors programme presume"
+                f"couverture notions insuffisante sur {len(failing)}/{len(coverages)} "
+                f"collections cibles ({detail}) < {self.min_coverage:.0%} — "
+                "contenu hors programme presume"
             )
             v.rules_fired.append("insufficient_notion_coverage")
         v.sign()

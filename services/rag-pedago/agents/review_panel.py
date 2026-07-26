@@ -95,13 +95,17 @@ class ReviewPanel:
         statuses = {v.status for v in verdicts}
         if statuses == {"approved"} and len(verdicts) == len(self.reviewers):
             decision = "approved"
-        elif "quarantine" in statuses:
-            decision = "quarantine"
-        else:
+        elif statuses == {"rejected"} and len(verdicts) == len(self.reviewers):
+            # Rejet unanime : tous les reviewers rejettent -> rejected.
             decision = "rejected"
+        else:
+            # Toute autre combinaison (desaccord approved/rejected, quarantaine,
+            # reviewer en echec) -> quarantaine (on_disagreement: quarantine).
+            decision = "quarantine"
 
         payload = {
             "source_id": artefact.manifest.get("source_id"),
+            "artefact_sha256": artefact.manifest.get("sha256"),
             "decision": decision,
             "verdicts": [asdict(v) for v in verdicts],
             "decided_at": _utcnow(),
@@ -134,15 +138,18 @@ class ReviewPanel:
             decision = payload["decision"]
             counts[decision] += 1
 
+            # Trace append-only AVANT la mise a jour du manifeste : le ledger
+            # est la source de verite. Si l'append echoue, l'artefact reste
+            # 'pending' et sera relu au prochain run (recouvrable, rejouable).
+            with manifest_jsonl.open("a", encoding="utf-8") as fh:
+                fh.write(json.dumps(payload, ensure_ascii=False) + "\n")
+
             # Mise a jour du manifeste staging (verdict du panel signe)
             artefact.manifest["review_status"] = decision
             artefact.manifest["review_verdict"] = payload
             (artefact.staging_dir / "manifest.json").write_text(
                 json.dumps(artefact.manifest, indent=2, ensure_ascii=False), encoding="utf-8")
 
-            # Trace append-only
-            with manifest_jsonl.open("a", encoding="utf-8") as fh:
-                fh.write(json.dumps(payload, ensure_ascii=False) + "\n")
             decisions.append(payload)
 
         with ledger.open("a", encoding="utf-8") as fh:
