@@ -98,6 +98,13 @@ def _apply_rate_limit(domain: str) -> float:
     return delay
 
 
+def apply_domain_delay(domain: str) -> float:
+    """Alias public du limiteur : doit preceder TOUTE requete, y compris
+    chaque saut de redirection (le delai ne s'applique pas qu'a l'URL
+    d'origine)."""
+    return _apply_rate_limit(domain)
+
+
 # ---------------------------------------------------------------------------
 # Fetch result
 # ---------------------------------------------------------------------------
@@ -167,6 +174,7 @@ def governed_fetch(url: str) -> FetchResult | FetchRefusal:
         current = url
         response = None
         for _hop in range(_MAX_REDIRECT_HOPS + 1):
+            apply_domain_delay(urlparse(current).netloc)
             response = requests.get(
                 current,
                 headers={"User-Agent": USER_AGENT},

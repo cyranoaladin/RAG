@@ -155,6 +155,33 @@ class TestSubjectExpertAgent:
         assert v.status == "rejected"
         assert "insufficient_exam_markers" in v.rules_fired
 
+    def test_exam_domain_requires_specific_marker(self, tmp_path):
+        """Marqueurs generiques seuls (session, sujet, duree) insuffisants :
+        il faut aussi un marqueur specifique a l'examen vise (revue PR #74)."""
+        generic_only = (
+            "Session 2026 : sujet de l'épreuve, durée 4 heures, examen. "
+        ) * 10
+        art = _make_artefact(tmp_path, "https://eduscol.education.gouv.fr/5853/x",
+                             generic_only,
+                             collections_cibles=["rag_nexus_exams_bac_general"])
+        v = SubjectExpertAgent(POLICY).review(art)
+        assert v.status == "rejected"
+        assert any(r.startswith("exam_specific[rag_nexus_exams_bac_general]:0")
+                   for r in v.rules_fired)
+
+    def test_exam_specific_marker_accent_folded(self, tmp_path):
+        """Le matching replie les accents : 'Mathématiques' matche 'mathematiques'."""
+        text = (
+            "Épreuve anticipée de Mathématiques — session 2026, sujet, durée. "
+        ) * 8
+        art = _make_artefact(tmp_path, "https://eduscol.education.gouv.fr/5836/x",
+                             text,
+                             collections_cibles=["rag_nexus_exams_anticipee_maths"])
+        v = SubjectExpertAgent(POLICY).review(art)
+        assert v.status == "approved"
+        assert any(r.startswith("exam_specific[rag_nexus_exams_anticipee_maths]:")
+                   and not r.endswith(":0") for r in v.rules_fired)
+
 
 class TestQualityExpertAgent:
     def test_integrity_violation_quarantine(self, tmp_path):

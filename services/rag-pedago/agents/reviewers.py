@@ -14,6 +14,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import unicodedata
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -33,7 +34,13 @@ def _utcnow() -> str:
 
 
 def _norm(text: str) -> str:
-    return _WS_RE.sub(" ", text.lower()).strip()
+    """Normalisation pour le matching : minuscules + accents replies
+    (un libelle 'mathematiques' matche une page 'Mathématiques')."""
+    folded = "".join(
+        c for c in unicodedata.normalize("NFKD", text.lower())
+        if not unicodedata.combining(c)
+    )
+    return _WS_RE.sub(" ", folded).strip()
 
 
 @dataclass
@@ -154,6 +161,39 @@ class SubjectExpertAgent(BaseReviewer):
                     labels.append(label.lower())
         return labels
 
+    @staticmethod
+    def _exam_tokens(tax_path: Path | None) -> list[str]:
+        """Marqueurs SPECIFIQUES a l'examen, derives de sa specification
+        (id, label, epreuve(s), matiere, ids de themes). Empeche qu'une page
+        sur un AUTRE examen — ou un texte quelconque avec 'session' et
+        'sujet' — valide la collection (revue PR #74)."""
+        if tax_path is None or not tax_path.is_file():
+            return []
+        spec = yaml.safe_load(tax_path.read_text(encoding="utf-8")) or {}
+        raw: list[str] = []
+        for key in ("id", "label", "epreuve", "matiere"):
+            val = spec.get(key)
+            if isinstance(val, str):
+                raw.append(val)
+        for val in spec.get("epreuves", []) or []:
+            if isinstance(val, str):
+                raw.append(val)
+        for theme in spec.get("themes", []) or []:
+            tid = theme.get("id") if isinstance(theme, dict) else None
+            if isinstance(tid, str):
+                raw.append(tid)
+        stop = {"de", "du", "la", "le", "et", "en", "des", "les", "au", "aux",
+                "epreuve", "epreuves", "examen", "session"}
+        tokens: set[str] = set()
+        for item in raw:
+            norm = _norm(item.replace("_", " "))
+            if len(norm) >= 3:
+                tokens.add(norm)
+            for word in norm.split():
+                if len(word) >= 4 and word not in stop:
+                    tokens.add(word)
+        return sorted(tokens)
+
     def review(self, artefact: Artefact) -> Verdict:
         v = Verdict(reviewer=self.reviewer_id, status="approved")
         collections = artefact.manifest.get("collections_cibles") or []
@@ -179,12 +219,16 @@ class SubjectExpertAgent(BaseReviewer):
                 v.sign()
                 return v
 
-            # Domaine exam : marqueurs d'examen au lieu de couverture notions
+            # Domaine exam : marqueurs d'examen generiques ET au moins un
+            # marqueur specifique a CET examen (pas une page d'un autre examen)
             if entry.get("domain") == "exam":
                 exam_checked += 1
                 hits = sum(1 for m in self.exam_markers if m in text_norm)
                 v.rules_fired.append(f"exam_markers[{collection}]:{hits}")
-                if hits < self.exam_min_markers:
+                specific = self._exam_tokens(self._taxonomy_for(collection))
+                specific_hits = sum(1 for t in specific if t in text_norm)
+                v.rules_fired.append(f"exam_specific[{collection}]:{specific_hits}")
+                if hits < self.exam_min_markers or specific_hits == 0:
                     exam_failing[collection] = hits
                 continue
 

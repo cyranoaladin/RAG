@@ -31,6 +31,7 @@ from scrapers.fetch import (
     USER_AGENT,
     FetchRefusal,
     FetchResult,
+    apply_domain_delay,
     governed_fetch,
     is_allowed_by_robots,
     is_whitelisted,
@@ -82,6 +83,7 @@ def browser_governed_fetch(url: str) -> FetchResult | FetchRefusal:
             current = url
             resp = None
             for _hop in range(_MAX_REDIRECT_HOPS + 1):
+                apply_domain_delay(urlparse(current).netloc)
                 resp = cffi_requests.get(
                     current,
                     impersonate=target,

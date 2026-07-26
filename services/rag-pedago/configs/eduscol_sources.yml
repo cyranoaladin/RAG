@@ -181,10 +181,11 @@ sources:
     url: https://eduscol.education.gouv.fr/5811/programmes-et-ressources-en-langues-vivantes-voie-gt
     status: verified
     matiere: langues
-    niveaux: [troisieme, seconde, premiere, terminale]
-    voies: [college, generale, technologique]
+    niveaux: [seconde, premiere, terminale]
+    voies: [generale, technologique]
+    # Cible college retiree (revue PR #74) : source lycee GT, aucun routage
+    # vers rag_nexus_lv_troisieme_tc sans source college dediee.
     collections_cibles:
-      - rag_nexus_lv_troisieme_tc
       - rag_nexus_lv_seconde_tc
       - rag_nexus_lv_premiere_tc
       - rag_nexus_lv_terminale_tc
