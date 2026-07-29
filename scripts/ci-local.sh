@@ -1,19 +1,28 @@
 #!/usr/bin/env bash
 # ci-local.sh — Local CI reproducing the GitHub Actions pipeline.
-# Runs contracts, rag-pedago, rag-engine, and governance locks checks.
-# Exits non-zero if any target fails (pre-existing failures excluded).
+# Runs contracts, rag-pedago, rag-engine, cockpit, and governance checks.
+# Exits non-zero if any target fails.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
+if ! source "$SCRIPT_DIR/lib/ci-common.sh"; then
+    echo "ERROR: unable to source scripts/lib/ci-common.sh" >&2
+    exit 1
+fi
 cd "$REPO_ROOT"
 
 PYTHON_BIN="$(command -v python3.11 || command -v python3.12 || command -v python3 || true)"
-if [ -z "$PYTHON_BIN" ] || ! "$PYTHON_BIN" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)' 2>/dev/null; then
-    echo "ERROR: Python 3.10+ is required" >&2
+if ! require_python_311 "$PYTHON_BIN"; then
     exit 1
 fi
 echo "Using Python executable: $PYTHON_BIN ($($PYTHON_BIN --version))"
+
+NODE_BIN="$(command -v node || true)"
+if ! require_node_2222 "$NODE_BIN"; then
+    exit 1
+fi
+echo "Using Node executable: $NODE_BIN ($($NODE_BIN --version))"
 
 PASS=0
 FAIL=0
@@ -21,18 +30,22 @@ RESULTS=()
 
 run_target() {
     local name="$1"
+    local target_exit
     shift
     echo ""
     echo "=============================="
     echo "  $name"
     echo "=============================="
-    if "$@"; then
+    "$@"
+    target_exit=$?
+    if [ "$target_exit" -eq 0 ]; then
         RESULTS+=("PASS  $name")
-        ((PASS++))
+        PASS=$((PASS + 1))
     else
         RESULTS+=("FAIL  $name")
-        ((FAIL++))
+        FAIL=$((FAIL + 1))
     fi
+    return 0
 }
 
 # --- packages/contracts ---
@@ -69,20 +82,15 @@ run_pedago() {
     fi
 
     echo "--- test ---"
-    local output
     local test_exit
-    output=$(make test 2>&1) && test_exit=0 || test_exit=$?
-    echo "$output" | tail -3
+    run_checked make test
+    test_exit=$?
 
     if [ "$test_exit" -ne 0 ]; then
-        failed_count=$(echo "$output" | grep -o '[0-9]* failed' | grep -o '[0-9]*' | head -n 1 || echo "0")
-        [ -z "$failed_count" ] && failed_count=0
-        if [ "$failed_count" -le 1 ]; then
-            echo "rag-pedago: $failed_count pre-existing failure(s) — acceptable"
-            deactivate 2>/dev/null || true; cd "$REPO_ROOT"; return 0
-        fi
-        echo "FAIL: rag-pedago tests failed ($failed_count failures)"
-        deactivate 2>/dev/null || true; cd "$REPO_ROOT"; return 1
+        echo "FAIL: rag-pedago tests failed (exit $test_exit)"
+        deactivate 2>/dev/null || true
+        cd "$REPO_ROOT"
+        return "$test_exit"
     fi
 
     deactivate 2>/dev/null || true
@@ -122,6 +130,25 @@ run_engine() {
     cd "$REPO_ROOT"
 }
 run_target "services/rag-engine" run_engine
+
+# --- services/cockpit ---
+run_cockpit() {
+    (
+        set -euo pipefail
+        require_node_2222 "$NODE_BIN"
+        cd "$REPO_ROOT/services/cockpit"
+        npm ci
+        npm run lint
+        npm test -- --run
+        npm run build
+        npm audit
+        npm audit --omit=dev
+        cd "$REPO_ROOT"
+        "$REPO_ROOT/services/rag-pedago/.venv/bin/python" scripts/tests/test-cockpit-snapshot-coherence.py
+        bash scripts/tests/test-cockpit-clean-build.sh
+    )
+}
+run_target "services/cockpit" run_cockpit
 
 # --- governance locks ---
 run_target "governance-locks" bash scripts/check-governance-locks.sh

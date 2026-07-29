@@ -2,9 +2,9 @@ name: CI — Nexus RAG Platform
 
 on:
   push:
-    branches: [main, "lot-*/**"]
+    branches: [main, "lot-*", "lot-*/**"]
   pull_request:
-    branches: [main]
+    branches: [main, "lot-*", "lot-*/**"]
 
 jobs:
   contracts:
@@ -55,6 +55,36 @@ jobs:
         run: make typecheck
       - working-directory: services/rag-engine
         run: make test
+
+  cockpit:
+    name: "services/cockpit"
+    runs-on: ubuntu-latest
+    needs: contracts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: services/cockpit/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install PyYAML==6.0.3 pydantic==2.13.4
+      - working-directory: services/cockpit
+        run: npm ci
+      - working-directory: services/cockpit
+        run: npm run lint
+      - working-directory: services/cockpit
+        run: npm test -- --run
+      - working-directory: services/cockpit
+        run: npm run build
+      - working-directory: services/cockpit
+        run: npm audit
+      - working-directory: services/cockpit
+        run: npm audit --omit=dev
+      - run: python3 scripts/tests/test-cockpit-snapshot-coherence.py
+      - run: bash scripts/tests/test-cockpit-clean-build.sh
 
   governance-locks:
     name: "governance locks guard"

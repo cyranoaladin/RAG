@@ -18,4 +18,3 @@ export function shouldRotate(lastRotatedAt: number, now: number = Date.now()): b
   const ageSec = (now - lastRotatedAt) / 1000
   return ageSec >= parseRotationWindow()
 }
-

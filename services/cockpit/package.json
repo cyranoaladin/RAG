@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "engines": {
-    "node": ">=22.21.0"
+    "node": ">=22.22.0"
   },
   "scripts": {
     "contracts:check": "python3 ../../packages/contracts/scripts/export_schemas.py --check && node scripts/generate-contracts.mjs --check",

@@ -28,4 +28,3 @@ export async function clearRevocationStoreForTests(): Promise<void> {
   revoked.clear()
   activeTenantBySubject.clear()
 }
-

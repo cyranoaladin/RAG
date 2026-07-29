@@ -62,4 +62,3 @@ export async function consumeOnce(
 export async function clearReplayStoreForTests(): Promise<void> {
   replayStore.clear()
 }
-

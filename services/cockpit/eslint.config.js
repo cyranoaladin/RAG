@@ -34,4 +34,10 @@ export default defineConfig([
       '@typescript-eslint/no-require-imports': 'off',
     },
   },
+  {
+    files: ['src/components/ui/**/*.{ts,tsx}'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
 ])
