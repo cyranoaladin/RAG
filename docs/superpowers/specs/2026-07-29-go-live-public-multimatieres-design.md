@@ -419,4 +419,3 @@ affaiblir les verrous ni altérer les preuves de publication.
 - couverture déclarative ou partielle présentée comme complète ;
 - activation implicite d'un verrou ;
 - compatibilité indéfinie avec les routes legacy.
-
