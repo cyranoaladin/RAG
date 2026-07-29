@@ -30,18 +30,22 @@ RESULTS=()
 
 run_target() {
     local name="$1"
+    local target_exit
     shift
     echo ""
     echo "=============================="
     echo "  $name"
     echo "=============================="
-    if "$@"; then
+    "$@"
+    target_exit=$?
+    if [ "$target_exit" -eq 0 ]; then
         RESULTS+=("PASS  $name")
-        ((PASS++))
+        PASS=$((PASS + 1))
     else
         RESULTS+=("FAIL  $name")
-        ((FAIL++))
+        FAIL=$((FAIL + 1))
     fi
+    return 0
 }
 
 # --- packages/contracts ---

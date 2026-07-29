@@ -29,14 +29,18 @@ RESULTS=()
 
 run_target() {
     local name="$1"
+    local target_exit
     shift
-    if "$@"; then
+    "$@"
+    target_exit=$?
+    if [ "$target_exit" -eq 0 ]; then
         RESULTS+=("PASS  $name")
         PASS=$((PASS + 1))
     else
         RESULTS+=("FAIL  $name")
         FAIL=$((FAIL + 1))
     fi
+    return 0
 }
 
 failing_target() { echo "intentional failure"; return 1; }
@@ -354,12 +358,14 @@ validate_shell_cockpit_commands() {
         return 1
     fi
 
-    validate_shell_cockpit_execution "$block_label" "$block"
+    validate_shell_cockpit_execution "$block_label" "$source_file" "$block"
 }
 
 validate_shell_cockpit_execution() {
     local block_label="$1"
-    local block="$2"
+    local source_file="$2"
+    local cockpit_block="$3"
+    local target_block
     local instrument_root
     local fake_bin
     local runner
@@ -374,6 +380,11 @@ validate_shell_cockpit_execution() {
     call_log="$instrument_root/calls.log"
     expected_log="$instrument_root/expected.log"
     real_bash="$(command -v bash)"
+    target_block="$(extract_shell_function "run_target" "$source_file")"
+    if [ -z "$target_block" ]; then
+        echo "run_target() est absent"
+        return 1
+    fi
     mkdir -p \
         "$fake_bin" \
         "$instrument_root/repo/services/cockpit" \
@@ -412,6 +423,9 @@ SCRIPT
 set -uo pipefail
 REPO_ROOT="$COCKPIT_INSTRUMENT_REPO"
 NODE_BIN="$COCKPIT_INSTRUMENT_NODE"
+PASS=0
+FAIL=0
+RESULTS=()
 require_node_2222() {
     printf 'node|%s|%s\n' "$1" "$PWD" >> "$COCKPIT_CALL_LOG"
     if [ "${COCKPIT_FAIL_AT:-}" = "node" ]; then
@@ -419,10 +433,35 @@ require_node_2222() {
     fi
 }
 SCRIPT
-        printf '%s\n' "$block"
+        printf '%s\n' "$target_block"
+        printf '%s\n' "$cockpit_block"
         cat <<'SCRIPT'
+sentinel_target() {
+    printf 'target|sentinel|%s\n' "$PWD" >> "$COCKPIT_CALL_LOG"
+    return 0
+}
 cd "$REPO_ROOT"
-run_cockpit
+run_target "services/cockpit" run_cockpit
+run_target "sentinel" sentinel_target
+if [ -n "${COCKPIT_FAIL_AT:-}" ]; then
+    if [ "$PASS" -ne 1 ] \
+        || [ "$FAIL" -ne 1 ] \
+        || [ "${RESULTS[0]-}" != "FAIL  services/cockpit" ] \
+        || [ "${RESULTS[1]-}" != "PASS  sentinel" ]; then
+        exit 98
+    fi
+else
+    if [ "$PASS" -ne 2 ] \
+        || [ "$FAIL" -ne 0 ] \
+        || [ "${RESULTS[0]-}" != "PASS  services/cockpit" ] \
+        || [ "${RESULTS[1]-}" != "PASS  sentinel" ]; then
+        exit 98
+    fi
+fi
+if [ "$FAIL" -gt 0 ]; then
+    exit 1
+fi
+exit 0
 SCRIPT
     } > "$runner"
     chmod +x "$runner"
@@ -437,6 +476,7 @@ npm|audit|$instrument_root/repo/services/cockpit
 npm|audit --omit=dev|$instrument_root/repo/services/cockpit
 python|scripts/tests/test-cockpit-snapshot-coherence.py|$instrument_root/repo
 bash|scripts/tests/test-cockpit-clean-build.sh|$instrument_root/repo
+target|sentinel|$instrument_root/repo
 EOF
 
     if ! execution_output="$(
@@ -475,6 +515,7 @@ EOF
         failure_id="${failure_ids[$failure_index]}"
         expected_prefix="$instrument_root/expected-prefix-$failure_index.log"
         head -n "$((failure_index + 1))" "$expected_log" > "$expected_prefix"
+        tail -n 1 "$expected_log" >> "$expected_prefix"
         : > "$call_log"
 
         execution_output="$(
@@ -709,6 +750,24 @@ RUN_COCKPIT_BLOCK="$(
 )"
 assert_shell_cockpit_commands \
     "run_cockpit()" "$REPO_ROOT/scripts/ci-local.sh"
+
+echo ""
+echo "=== Mutation: run_target rejette l'appel du target dans un if ==="
+
+MUTATED_CI_LOCAL="$TMPDIR_CI/ci-local-run-target-if.sh"
+cp "$REPO_ROOT/scripts/ci-local.sh" "$MUTATED_CI_LOCAL"
+sed -i \
+    '/^[[:space:]]*"\$@"[[:space:]]*$/,+2c\    if "$@"; then' \
+    "$MUTATED_CI_LOCAL"
+if grep -Fqx '    if "$@"; then' "$MUTATED_CI_LOCAL" \
+    && ! validate_shell_cockpit_commands \
+        "run_target() conditionnel" "$MUTATED_CI_LOCAL" >/dev/null; then
+    echo "  PASS  if \"\$@\" réintroduit le faux vert et est rejeté"
+    TESTS_PASS=$((TESTS_PASS + 1))
+else
+    echo "  FAIL  if \"\$@\" satisfait encore le validateur"
+    TESTS_FAIL=$((TESTS_FAIL + 1))
+fi
 
 if block_has_exact_command "$RUN_COCKPIT_BLOCK" \
         'require_node_2222 "$NODE_BIN"' \
