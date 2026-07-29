@@ -10,6 +10,7 @@ async function loadSearch(mode: 'development' | 'production') {
 
 describe('search', () => {
   afterEach(() => {
+    vi.restoreAllMocks()
     vi.unstubAllEnvs()
     vi.unstubAllGlobals()
     vi.resetModules()
@@ -25,21 +26,36 @@ describe('search', () => {
     )
   })
 
-  it.each([
-    [
-      'un rejet réseau',
-      new TypeError('fetch failed for https://rag.internal.example/search'),
-    ],
-    [
-      'une interruption ou expiration',
-      new DOMException('upstream timeout: secret', 'AbortError'),
-    ],
-  ])('normalise %s en production', async (_label, failure) => {
+  it('normalise un rejet réseau en production', async () => {
+    const failure = new TypeError(
+      'fetch failed for https://rag.internal.example/search',
+    )
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(failure))
     const search = await loadSearch('production')
 
     await expect(search('graphes', 'terminale', 'eleve')).rejects.toThrow(
       /^RAG_API_UNAVAILABLE$/,
+    )
+  })
+
+  it('transmet un signal d’expiration de huit secondes à fetch', async () => {
+    const timeoutSignal = new AbortController().signal
+    const timeoutSpy = vi
+      .spyOn(AbortSignal, 'timeout')
+      .mockReturnValue(timeoutSignal)
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValue(new DOMException('upstream timeout', 'AbortError'))
+    vi.stubGlobal('fetch', fetchMock)
+    const search = await loadSearch('production')
+
+    await expect(search('graphes', 'terminale', 'eleve')).rejects.toThrow(
+      /^RAG_API_UNAVAILABLE$/,
+    )
+    expect(timeoutSpy).toHaveBeenCalledWith(8000)
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${API_BASE}/search`,
+      expect.objectContaining({ signal: timeoutSignal }),
     )
   })
 
