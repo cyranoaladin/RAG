@@ -4,8 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import type { StagingItem } from '@/types/rag'
-import { MATIERE_LABELS, NIVEAU_LABELS } from '@/types/rag'
+import type { StagingItem } from '@/types/ui'
+import { MATIERE_LABELS, NIVEAU_LABELS } from '@/types/ui'
 
 /**
  * Page « Revue agents » (LOT 29 / ADR-0018).
@@ -84,7 +84,7 @@ export default function ReviewSection() {
           <div>
             <CardTitle className="flex items-center gap-2 text-base">
               <Bot className="h-5 w-5 text-blue-700" />
-              Revue par panel d'agents experts — {pending} artefact{pending > 1 ? 's' : ''} en attente
+              Revue par panel d’agents experts — {pending} artefact{pending > 1 ? 's' : ''} en attente
             </CardTitle>
             <p className="mt-1 text-sm text-slate-500">
               ADR-0018 : la revue est effectuée par 3 reviewers experts (droits, programme, qualité),
@@ -170,7 +170,7 @@ export default function ReviewSection() {
           <span>
             <strong>Règle dure non délégable :</strong> droits inconnus pour une provenance →
             quarantaine automatique, sans exception possible — y compris pour les agents.
-            Le panel n'écrit jamais dans pgvector ; l'indexation reste soumise à la chaîne
+            Le panel n’écrit jamais dans pgvector ; l’indexation reste soumise à la chaîne
             quality → gate → review. (Démonstration : en production, la passe appelle
             <code className="mx-1 rounded bg-red-100 px-1">python -m agents.review_panel --run</code>.)
           </span>

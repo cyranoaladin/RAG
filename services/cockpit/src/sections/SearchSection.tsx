@@ -1,120 +1,206 @@
 import { useState } from 'react'
-import { Search, ExternalLink, Loader2, ShieldAlert } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { ExternalLink, Loader2, MessageSquareText, Search, ShieldAlert } from 'lucide-react'
+
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { search } from '@/lib/api'
-import type { RetrievalResult } from '@/types/rag'
-import { NIVEAU_LABELS } from '@/types/rag'
+import type { ChatMessage, ChatResponse, RetrievalResult } from '@/generated/contracts'
+import { chat, search } from '@/lib/bff-client'
+import type { RagCollection } from '@/types/ui'
 
-export default function SearchSection() {
+const SEARCH_UNAVAILABLE_MESSAGE =
+  'La recherche est temporairement indisponible. Veuillez réessayer.'
+
+type SearchSectionProps = Readonly<{
+  collections: RagCollection[]
+  launchReady: boolean
+  blockers: string[]
+}>
+
+function sourceHost(sourceUri: string): string {
+  try {
+    return new URL(sourceUri).hostname
+  } catch {
+    return 'source déclarée'
+  }
+}
+
+export default function SearchSection({
+  collections,
+  launchReady,
+  blockers,
+}: SearchSectionProps) {
   const [query, setQuery] = useState('')
-  const [niveau, setNiveau] = useState('terminale')
-  const [audience, setAudience] = useState('libre')
+  const [selectedCollections, setSelectedCollections] = useState<string[]>([])
   const [results, setResults] = useState<RetrievalResult[]>([])
+  const [conversation, setConversation] = useState<ChatMessage[]>([])
+  const [chatResponse, setChatResponse] = useState<ChatResponse | null>(null)
   const [loading, setLoading] = useState(false)
-  const [demo, setDemo] = useState(false)
   const [searched, setSearched] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  async function runSearch() {
+  const canSubmit = launchReady && Boolean(query.trim()) && selectedCollections.length > 0 && !loading
+  const chatCitations = chatResponse?.citations ?? []
+
+  async function runRetrieval() {
+    if (!canSubmit) return
     setLoading(true)
     setSearched(true)
-    const res = await search(query, niveau, audience)
-    setResults(res.items)
-    setDemo(res.demo)
-    setLoading(false)
+    setError(null)
+    setChatResponse(null)
+    try {
+      const response = await search(query, selectedCollections, 8)
+      setResults(response.items)
+    } catch {
+      setResults([])
+      setError(SEARCH_UNAVAILABLE_MESSAGE)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function runChat() {
+    if (!canSubmit) return
+    setLoading(true)
+    setSearched(true)
+    setError(null)
+    setResults([])
+    try {
+      const response = await chat(query, selectedCollections, conversation, 5)
+      setChatResponse(response)
+      setConversation((current): ChatMessage[] => {
+        const nextConversation: ChatMessage[] = [
+          ...current,
+          { role: 'user', content: query },
+          { role: 'assistant', content: response.answer },
+        ]
+        return nextConversation.slice(-12)
+      })
+    } catch {
+      setChatResponse(null)
+      setError(SEARCH_UNAVAILABLE_MESSAGE)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Recherche gouvernée — API /search (lecture seule)</CardTitle>
+          <CardTitle className="text-base">Recherche et réponses pédagogiques sourcées</CardTitle>
           <p className="text-sm text-slate-500">
-            Filtrage imposé côté serveur par profil signé (HMAC niveau + audience) via le proxy BFF —
-            le secret n'est jamais embarqué dans le navigateur. Citations obligatoires.
+            Sélectionnez une ou plusieurs collections. Les réponses conversationnelles sont
+            refusées si elles ne peuvent pas citer les extraits validés.
           </p>
         </CardHeader>
-        <CardContent>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Input
-              placeholder="Ex. : parcours de graphes, loi binomiale, convexité…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && runSearch()}
-              className="flex-1"
-            />
-            <Select value={niveau} onValueChange={setNiveau}>
-              <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {Object.entries(NIVEAU_LABELS).map(([k, v]) => (
-                  <SelectItem key={k} value={k}>{v}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={audience} onValueChange={setAudience}>
-              <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="libre">Candidat libre</SelectItem>
-                <SelectItem value="aefe">Élève AEFE</SelectItem>
-                <SelectItem value="tous">Tous publics</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button onClick={runSearch} disabled={loading} className="bg-blue-700 hover:bg-blue-800">
-              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
-              Rechercher
-            </Button>
-          </div>
-          {demo && searched && (
-            <p className="mt-3 flex items-center gap-2 text-xs text-amber-700">
-              <ShieldAlert className="h-3.5 w-3.5" />
-              Résultats de démonstration (API non connectée) — extraits NSI Terminale déjà indexés en production gouvernée.
+        <CardContent className="space-y-3">
+          {!launchReady && (
+            <p role="alert" className="flex items-start gap-2 rounded-md bg-amber-50 p-3 text-sm text-amber-900">
+              <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>
+                L’ouverture est bloquée tant que chaque collection ne dispose pas d’un corpus validé substantiel.
+                {blockers.length > 0 ? ` ${blockers[0]}` : ''}
+              </span>
             </p>
           )}
+          <Input
+            placeholder="Ex. : parcours de graphes, loi binomiale, convexité…"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => event.key === 'Enter' && runRetrieval()}
+            disabled={!launchReady}
+          />
+          <label className="block text-sm font-medium text-slate-700" htmlFor="collection-picker">
+            Collections à interroger
+          </label>
+          <select
+            id="collection-picker"
+            multiple
+            aria-label="Collections à interroger"
+            className="min-h-40 w-full rounded-md border border-slate-200 bg-white p-2 text-sm"
+            value={selectedCollections}
+            disabled={!launchReady}
+            onChange={(event) => setSelectedCollections(
+              Array.from(event.currentTarget.selectedOptions, (option) => option.value),
+            )}
+          >
+            {collections.map((collection) => (
+              <option key={collection.name} value={collection.name}>
+                {[collection.matiere, collection.niveau, collection.statut]
+                  .filter(Boolean)
+                  .join(' · ') || collection.name}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-slate-500">Utilisez Ctrl/Cmd pour sélectionner plusieurs collections.</p>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={runRetrieval} disabled={!canSubmit} className="bg-blue-700 hover:bg-blue-800">
+              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+              Rechercher les sources
+            </Button>
+            <Button onClick={runChat} disabled={!canSubmit} variant="outline">
+              <MessageSquareText className="mr-2 h-4 w-4" />
+              Répondre avec sources
+            </Button>
+          </div>
+          {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
         </CardContent>
       </Card>
 
-      {searched && !loading && results.length === 0 && (
+      {chatResponse && (
         <Card>
-          <CardContent className="py-10 text-center text-sm text-slate-500">
-            Saisissez une requête pour interroger l'index. Si aucune source ne répond, le moteur refuse
-            explicitement plutôt que d'inventer (refusal_policy).
+          <CardHeader><CardTitle className="text-base">Réponse citée</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{chatResponse.answer}</p>
+            {chatResponse.grounded && chatCitations.length > 0 ? (
+              <div className="space-y-2 text-xs text-slate-600">
+                <p className="font-medium">Sources citées</p>
+                {chatCitations.map((citation) => (
+                  <a
+                    key={citation.chunk_id}
+                    href={citation.source_uri}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-1 text-blue-700 hover:underline"
+                  >
+                    {citation.source_label} · {sourceHost(citation.source_uri)}
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-amber-800">Réponse non fournie sans preuve suffisante.</p>
+            )}
           </CardContent>
         </Card>
       )}
 
+      {searched && !loading && !error && !chatResponse && results.length === 0 && (
+        <Card><CardContent className="py-10 text-center text-sm text-slate-500">
+          Aucune source validée ne permet de répondre à cette requête.
+        </CardContent></Card>
+      )}
+
       <div className="space-y-3">
-        {results.map((r) => (
-          <Card key={r.chunk_id}>
+        {results.map((result) => (
+          <Card key={result.chunk_id}>
             <CardContent className="space-y-2 pt-5">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="font-semibold text-slate-900">{r.title ?? r.chunk_id}</span>
-                <Badge variant="outline" className="border-blue-300 text-blue-700">
-                  score {r.score.toFixed(2)}
-                </Badge>
-                <Badge variant="outline" className="border-slate-300 font-mono text-xs text-slate-500">
-                  {r.doc_id}
-                </Badge>
+                <span className="font-semibold text-slate-900">{result.title ?? result.chunk_id}</span>
+                <Badge variant="outline" className="border-blue-300 text-blue-700">score {result.score.toFixed(2)}</Badge>
+                <Badge variant="outline" className="border-slate-300 font-mono text-xs text-slate-500">{result.doc_id}</Badge>
               </div>
-              <p className="text-sm leading-relaxed text-slate-600">{r.excerpt}</p>
-              {r.citation && (
+              <p className="text-sm leading-relaxed text-slate-600">{result.excerpt}</p>
+              {result.citation && (
                 <div className="flex flex-wrap items-center gap-2 pt-1 text-xs text-slate-500">
                   <span className="font-medium">Source :</span>
-                  <span>{r.citation.source_label}</span>
-                  <a
-                    href={r.citation.source_uri}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 text-blue-600 hover:underline"
-                  >
-                    {new URL(r.citation.source_uri).hostname}
+                  <a href={result.citation.source_uri} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-blue-600 hover:underline">
+                    {result.citation.source_label} · {sourceHost(result.citation.source_uri)}
                     <ExternalLink className="h-3 w-3" />
                   </a>
-                  <Badge variant="outline" className="border-emerald-300 text-emerald-700">
-                    {r.citation.rights}
-                  </Badge>
+                  <Badge variant="outline" className="border-emerald-300 text-emerald-700">{result.citation.rights}</Badge>
                 </div>
               )}
             </CardContent>

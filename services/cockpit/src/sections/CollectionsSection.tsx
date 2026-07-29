@@ -5,8 +5,8 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import type { RagCollection } from '@/types/rag'
-import { MATIERE_LABELS, NIVEAU_LABELS } from '@/types/rag'
+import type { RagCollection } from '@/types/ui'
+import { MATIERE_LABELS, NIVEAU_LABELS } from '@/types/ui'
 
 const DOMAINS_BADGE: Record<string, string> = {
   education: 'border-blue-300 bg-blue-50 text-blue-700',
@@ -42,7 +42,7 @@ export default function CollectionsSection({ collections }: { collections: RagCo
           <div>
             <CardTitle className="text-base">Catalogue des collections — {filtered.length} / {collections.length}</CardTitle>
             <p className="mt-1 text-sm text-slate-500">
-              Invariant M-04 : seules les collections <em>instanciées</em> sont exposées. Pas d'auto-création.
+              Invariant M-04 : seules les collections <em>instanciées</em> sont exposées. Pas d’auto-création.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">

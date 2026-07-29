@@ -1,0 +1,84 @@
+{
+  "$defs": {
+    "ChatMessage": {
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Content",
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "system",
+            "user",
+            "assistant"
+          ],
+          "title": "Role",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "content"
+      ],
+      "title": "ChatMessage",
+      "type": "object"
+    }
+  },
+  "$id": "https://nexusreussite.academy/contracts/v0.3/chat-payload.json",
+  "additionalProperties": false,
+  "description": "Browser-to-BFF chat input; the BFF alone builds the learner profile.",
+  "properties": {
+    "collections": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Collections",
+      "type": "array"
+    },
+    "history": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/ChatMessage"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "History"
+    },
+    "query": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Query",
+      "type": "string"
+    },
+    "top_k": {
+      "anyOf": [
+        {
+          "maximum": 20,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Top K"
+    }
+  },
+  "required": [
+    "query",
+    "collections"
+  ],
+  "title": "ChatPayload",
+  "type": "object"
+}

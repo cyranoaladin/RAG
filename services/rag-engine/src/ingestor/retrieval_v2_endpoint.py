@@ -13,13 +13,23 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
+import re
 import threading
 import time
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any, Literal, cast
 
 import psycopg  # noqa: F811 — also in requirements.v2.txt
+import requests
 from fastapi import APIRouter, HTTPException, Request
+from nexus_contracts import (
+    ChatCitation,
+    ChatRequest,
+    ChatResponse,
+    Citation,
+    RetrievalResult,
+)
 from pydantic import BaseModel, Field
 
 try:
@@ -48,6 +58,15 @@ except (ImportError, ValueError):
     from security_v2 import SecurityRole, require_role  # type: ignore[no-redef]
 
 logger = logging.getLogger(__name__)
+
+OPENROUTER_URL = os.environ.get(
+    "OPENROUTER_BASE_URL",
+    "https://openrouter.ai/api/v1/chat/completions",
+)
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "").strip()
+OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "openai/gpt-4o-mini").strip()
+OPENROUTER_TIMEOUT_S = int(os.environ.get("OPENROUTER_TIMEOUT_S", "8"))
+MIN_COLLECTION_SUBSTANCE_CHUNKS = int(os.environ.get("RAG_MIN_COLLECTION_SUBSTANCE_CHUNKS", "1"))
 
 router = APIRouter(tags=["retrieval_v2"])
 
@@ -138,6 +157,8 @@ EMBED_MODEL = CANONICAL_EMBED_MODEL
 # Pool rerank: 10 candidats (V1-5: 15/15 in, 10/10 out, marge +5.69 vs +4.07 à RC=20)
 # Latence miss: 0.43s rerank (vs 0.84s à RC=20) — divise le coût miss par 2
 RERANK_CANDIDATES = int(os.environ.get("RERANK_CANDIDATES", "10"))
+
+CHAT_MIN_SUBSTANCE_CHUNKS = int(os.environ.get("CHAT_MIN_SUBSTANCE_CHUNKS", "1"))
 
 # --- Lazy-loaded models (cached at module level) ---
 _embed_model = None
@@ -239,6 +260,110 @@ class SearchV2Response(BaseModel):
     returned: int
     answer_generation_allowed: bool = False
     hits: list[SearchV2Hit]
+
+
+def _build_launch_readiness(
+    cfg: Mapping[str, Any],
+    reviewed_counts: Mapping[str, int],
+    *,
+    min_chunks: int,
+) -> dict[str, Any]:
+    """Assess every declared collection, without inferring missing evidence.
+
+    This is deliberately stricter than the retrieval gate. A collection can be
+    searchable internally while public launch remains closed because a corpus
+    is absent or has not reached the required reviewed-chunk threshold.
+    """
+    collections_raw = cfg.get("collections")
+    domains = cfg.get("domains")
+    if not isinstance(collections_raw, Mapping) or not isinstance(domains, Mapping):
+        raise ValueError("collections or domains config is malformed")
+
+    collections: list[dict[str, Any]] = []
+    blockers: list[str] = []
+    for name in sorted(collections_raw):
+        definition = collections_raw[name]
+        if not isinstance(definition, Mapping):
+            blockers.append(f"{name}: définition de collection invalide")
+            collections.append({
+                "name": name,
+                "instanciee": False,
+                "retrievable": False,
+                "reviewed_chunks": 0,
+                "substantial": False,
+                "ready": False,
+                "reasons": ["définition de collection invalide"],
+            })
+            continue
+
+        instanciee = definition.get("instanciee") is True
+        domain = definition.get("domain")
+        domain_cfg = domains.get(domain) if isinstance(domain, str) else None
+        retrievable = isinstance(domain_cfg, Mapping) and domain_cfg.get("retrievable") is True
+        reviewed_chunks = max(0, int(reviewed_counts.get(name, 0)))
+        substantial = reviewed_chunks >= min_chunks
+        reasons: list[str] = []
+        if not instanciee:
+            reasons.append("collection non instanciée")
+        if not retrievable:
+            reasons.append("domaine non retrievable")
+        if not substantial:
+            reasons.append(
+                f"corpus validé insuffisant ({reviewed_chunks}/{min_chunks} chunks reviewed)",
+            )
+        ready = not reasons
+        if not ready:
+            blockers.append(f"{name}: {', '.join(reasons)}")
+        collections.append({
+            "name": name,
+            "instanciee": instanciee,
+            "retrievable": retrievable,
+            "reviewed_chunks": reviewed_chunks,
+            "substantial": substantial,
+            "ready": ready,
+            "reasons": reasons,
+        })
+
+    return {
+        "launch_ready": not blockers,
+        "total_collections": len(collections),
+        "ready_collections": sum(1 for item in collections if item["ready"]),
+        "minimum_reviewed_chunks": min_chunks,
+        "blockers": blockers,
+        "collections": collections,
+    }
+
+
+def _get_reviewed_chunk_counts(collection_names: Iterable[str]) -> dict[str, int]:
+    """Count approved corpus rows for launch readiness, failing closed on DB loss."""
+    names = list(collection_names)
+    if not names:
+        return {}
+    try:
+        conn = psycopg.connect(_get_pg_dsn())
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("pgvector connection failed while checking launch readiness: %s", exc)
+        raise HTTPException(status_code=503, detail="launch readiness unavailable") from exc
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT collection, COUNT(*)
+                FROM rag_chunks
+                WHERE collection = ANY(%s) AND review_status = 'reviewed'
+                GROUP BY collection
+                """,
+                (names,),
+            )
+            return {str(collection): int(count) for collection, count in cur.fetchall()}
+    except Exception as exc:
+        logger.error("pgvector readiness query failed: %s", exc)
+        raise HTTPException(status_code=503, detail="launch readiness unavailable") from exc
+    finally:
+        conn.close()
 
 
 # --- Cache management endpoints ---
@@ -584,6 +709,268 @@ def get_full_catalogue(request: Request) -> dict[str, Any]:
         endpoint="/catalogue/v2",
     )
     return _full_catalogue()
+
+
+@router.get("/collections/readiness")
+def get_collection_readiness(request: Request) -> dict[str, Any]:
+    """Fail closed when the declared public corpus is not proven complete."""
+    _enforce_security_v2(
+        request,
+        allowed_roles={
+            SecurityRole.ADMIN,
+            SecurityRole.REVIEWER,
+            SecurityRole.TEACHER,
+            SecurityRole.INGEST_AGENT,
+            SecurityRole.STUDENT,
+        },
+        endpoint="/collections/readiness",
+    )
+    try:
+        cfg = load_collection_config()
+        collections_raw = cfg.get("collections")
+        if not isinstance(collections_raw, Mapping):
+            raise ValueError("collections config is malformed")
+        counts = _get_reviewed_chunk_counts(collections_raw.keys())
+        return _build_launch_readiness(
+            cfg,
+            counts,
+            min_chunks=MIN_COLLECTION_SUBSTANCE_CHUNKS,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("launch readiness unavailable: %s", exc)
+        raise HTTPException(status_code=503, detail="launch readiness unavailable") from exc
+
+
+def _retrieve_reviewed_hits(query: str, collection: str, k: int) -> list[SearchV2Hit]:
+    """Run the certified retrieval pipeline after callers applied their gates."""
+    pg_dsn = _get_pg_dsn()
+    formatted_query = _format_embedding_query(query)
+    embed_model = _get_embed_model()
+    q_vec = embed_model.encode(formatted_query, normalize_embeddings=True)
+    vec_str = "[" + ",".join(str(float(v)) for v in q_vec) + "]"
+
+    try:
+        conn = psycopg.connect(pg_dsn)
+    except Exception as exc:
+        logger.error("pgvector connection failed: %s", exc)
+        raise HTTPException(status_code=503, detail="pgvector connection failed") from exc
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT chunk_id, doc_id, source_label, source_uri, rights, type_doc,
+                       text, 1 - (vector <=> %s::vector) AS sim, review_status
+                FROM rag_chunks
+                WHERE collection = %s AND review_status = 'reviewed'
+                ORDER BY vector <=> %s::vector
+                LIMIT %s
+                """,
+                (vec_str, collection, vec_str, RERANK_CANDIDATES),
+            )
+            candidates = _filter_reviewed_candidates(cur.fetchall())
+    finally:
+        conn.close()
+
+    if not candidates:
+        return []
+
+    pairs = [(query, candidate[6] or "") for candidate in candidates]
+    rerank_scores = _get_reranker().predict(pairs)
+    hits: list[SearchV2Hit] = []
+    for candidate, score in sorted(
+        zip(candidates, rerank_scores, strict=False), key=lambda item: item[1], reverse=True,
+    ):
+        if candidate[8] != "reviewed" or float(score) < RERANK_SCORE_THRESHOLD:
+            continue
+        hits.append(
+            SearchV2Hit(
+                chunk_id=candidate[0],
+                doc_id=candidate[1],
+                source_label=candidate[2] or "",
+                source_uri=candidate[3] or "",
+                rights=candidate[4] or "",
+                type_doc=candidate[5] or "",
+                review_status="reviewed",
+                preview=(candidate[6] or "")[:200],
+                rerank_score=round(float(score), 4),
+                dense_sim=round(float(candidate[7]), 4),
+            ),
+        )
+        if len(hits) >= k:
+            break
+    return hits
+
+
+def _to_retrieval_result(hit: SearchV2Hit, collection: str) -> RetrievalResult:
+    return RetrievalResult(
+        chunk_id=hit.chunk_id,
+        doc_id=hit.doc_id,
+        score=max(hit.rerank_score, 0.0),
+        title=hit.source_label or None,
+        excerpt=hit.preview,
+        citation=Citation(
+            source_label=hit.source_label,
+            source_uri=hit.source_uri,
+            rights=hit.rights,
+        ) if hit.source_label and hit.source_uri and hit.rights else None,
+        metadata={
+            "collection": collection,
+            "type_doc": hit.type_doc,
+            "review_status": hit.review_status,
+            "dense_sim": hit.dense_sim,
+        },
+    )
+
+
+def _chat_refusal(
+    message: str,
+    reason: str,
+    retrieval_hits: list[RetrievalResult],
+) -> ChatResponse:
+    return ChatResponse(
+        answer=message,
+        grounded=False,
+        citations=[],
+        warnings=[reason],
+        refusal_reason=reason,
+        retrieval_hits=retrieval_hits,
+    )
+
+
+def _openrouter_answer(payload: ChatRequest, hits: list[SearchV2Hit]) -> str | None:
+    """Generate only from reviewed excerpts; never send the learner profile upstream."""
+    if not OPENROUTER_API_KEY:
+        return None
+    source_context = "\n\n".join(
+        (
+            f"[S{index}] {hit.source_label}\n"
+            f"URI: {hit.source_uri}\n"
+            f"Extrait: {hit.preview}"
+        )
+        for index, hit in enumerate(hits, start=1)
+    )
+    system_prompt = (
+        "Tu es un assistant pédagogique français. Réponds uniquement à partir "
+        "des sources ci-dessous. Toute affirmation factuelle doit citer une source "
+        "au format [S1]. Si les sources ne suffisent pas, dis-le clairement. "
+        "N'invente ni citation ni information.\n\nSources:\n"
+        f"{source_context}"
+    )
+    history = [
+        {"role": message.role, "content": message.content}
+        for message in payload.history[-12:]
+        if message.role in {"user", "assistant"}
+    ]
+    messages = [{"role": "system", "content": system_prompt}, *history, {
+        "role": "user", "content": payload.query,
+    }]
+    try:
+        response = requests.post(
+            OPENROUTER_URL,
+            headers={
+                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": OPENROUTER_MODEL,
+                "messages": messages,
+                "max_tokens": max(100, min(1000, payload.answer_max_chars // 3)),
+                "temperature": 0.2,
+            },
+            timeout=OPENROUTER_TIMEOUT_S,
+        )
+        if not response.ok:
+            logger.warning("OpenRouter request failed with status %s", response.status_code)
+            return None
+        body = response.json()
+        content = body["choices"][0]["message"]["content"]
+        return content.strip() if isinstance(content, str) and content.strip() else None
+    except (KeyError, IndexError, TypeError, ValueError, requests.RequestException):
+        logger.warning("OpenRouter response unavailable", exc_info=True)
+        return None
+
+
+@router.post("/chat", response_model=ChatResponse)
+def chat(payload: ChatRequest, request: Request) -> ChatResponse:
+    """Return a cited OpenRouter answer or an explicit, non-factual refusal."""
+    _enforce_security_v2(
+        request,
+        allowed_roles={
+            SecurityRole.ADMIN,
+            SecurityRole.REVIEWER,
+            SecurityRole.TEACHER,
+            SecurityRole.INGEST_AGENT,
+            SecurityRole.STUDENT,
+        },
+        endpoint="/chat",
+    )
+    cfg = load_collection_config()
+    all_hits: list[tuple[str, SearchV2Hit]] = []
+    for collection in dict.fromkeys(payload.collections):
+        try:
+            _check_retrievable(collection, cfg)
+        except CollectionConfigError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        all_hits.extend((collection, hit) for hit in _retrieve_reviewed_hits(payload.query, collection, payload.top_k))
+
+    unique_hits: list[tuple[str, SearchV2Hit]] = []
+    seen_chunk_ids: set[str] = set()
+    for collection, hit in all_hits:
+        if hit.chunk_id not in seen_chunk_ids:
+            seen_chunk_ids.add(hit.chunk_id)
+            unique_hits.append((collection, hit))
+    retrieval_hits = [
+        _to_retrieval_result(hit, collection)
+        for collection, hit in unique_hits
+    ] if payload.include_retrieval else []
+    source_hits = [hit for _, hit in unique_hits]
+    if len(source_hits) < CHAT_MIN_SUBSTANCE_CHUNKS:
+        return _chat_refusal(
+            "Je ne peux pas répondre de manière fiable : les sources validées sont insuffisantes.",
+            "insufficient_reviewed_evidence",
+            retrieval_hits,
+        )
+
+    answer = _openrouter_answer(payload, source_hits)
+    if not answer:
+        return _chat_refusal(
+            "La réponse conversationnelle est temporairement indisponible.",
+            "generation_unavailable",
+            retrieval_hits,
+        )
+    cited_indexes = {int(match) for match in re.findall(r"\[S(\d+)\]", answer)}
+    if not cited_indexes or any(index < 1 or index > len(source_hits) for index in cited_indexes):
+        return _chat_refusal(
+            "Je ne peux pas répondre de manière fiable sans citation vérifiable.",
+            "missing_or_invalid_citations",
+            retrieval_hits,
+        )
+    citations = [
+        ChatCitation(
+            chunk_id=source_hits[index - 1].chunk_id,
+            doc_id=source_hits[index - 1].doc_id,
+            source_label=source_hits[index - 1].source_label,
+            source_uri=source_hits[index - 1].source_uri,
+            rights=source_hits[index - 1].rights,
+        )
+        for index in sorted(cited_indexes)
+    ]
+    if any(not citation.source_label or not citation.source_uri or not citation.rights for citation in citations):
+        return _chat_refusal(
+            "Je ne peux pas répondre de manière fiable sans provenance complète.",
+            "incomplete_citation_provenance",
+            retrieval_hits,
+        )
+    return ChatResponse(
+        answer=answer,
+        grounded=True,
+        citations=citations,
+        warnings=[],
+        retrieval_hits=retrieval_hits,
+    )
 
 
 # --- Main search endpoint ---

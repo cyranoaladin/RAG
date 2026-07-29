@@ -1,0 +1,370 @@
+{
+  "$defs": {
+    "Candidat": {
+      "enum": [
+        "scolarise",
+        "individuel",
+        "libre",
+        "cned_reglemente",
+        "cned_libre",
+        "aefe",
+        "both"
+      ],
+      "title": "Candidat",
+      "type": "string"
+    },
+    "ChatMessage": {
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Content",
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "system",
+            "user",
+            "assistant"
+          ],
+          "title": "Role",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "content"
+      ],
+      "title": "ChatMessage",
+      "type": "object"
+    },
+    "Niveau": {
+      "enum": [
+        "troisieme",
+        "seconde",
+        "premiere",
+        "terminale",
+        "cycle4",
+        "lycee_gt",
+        "voie_generale",
+        "voie_technologique"
+      ],
+      "title": "Niveau",
+      "type": "string"
+    },
+    "StatusDetail": {
+      "enum": [
+        "aefe",
+        "systeme_francais_hors_aefe",
+        "systeme_tunisien",
+        "double_cursus",
+        "candidat_libre",
+        "cned_reglemente",
+        "cned_libre",
+        "unknown"
+      ],
+      "title": "StatusDetail",
+      "type": "string"
+    },
+    "StatutEnseignement": {
+      "enum": [
+        "tronc_commun",
+        "enseignement_commun",
+        "specialite",
+        "eds",
+        "option",
+        "maths_complementaires",
+        "maths_expertes",
+        "snt",
+        "enseignement_scientifique",
+        "emc",
+        "atelier",
+        "stage",
+        "remediation",
+        "examen",
+        "unknown"
+      ],
+      "title": "StatutEnseignement",
+      "type": "string"
+    },
+    "StudentProfile": {
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "additionalProperties": true,
+          "title": "Availability",
+          "type": "object"
+        },
+        "candidat": {
+          "$ref": "#/$defs/Candidat"
+        },
+        "candidate_status_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Candidate Status Ref"
+        },
+        "establishment": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Establishment"
+        },
+        "matieres": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Matieres",
+          "type": "array"
+        },
+        "needs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Needs",
+          "type": "array"
+        },
+        "nexus_group_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Nexus Group Id"
+        },
+        "nexus_offer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Nexus Offer"
+        },
+        "niveau": {
+          "$ref": "#/$defs/Niveau"
+        },
+        "objective": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Objective"
+        },
+        "official_level_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Official Level Ref"
+        },
+        "options": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Options",
+          "type": "array"
+        },
+        "risk_level": {
+          "anyOf": [
+            {
+              "enum": [
+                "low",
+                "medium",
+                "high",
+                "critical"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Risk Level"
+        },
+        "school_calendar_zone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "School Calendar Zone"
+        },
+        "school_year": {
+          "pattern": "^\\d{4}-\\d{4}$",
+          "title": "School Year",
+          "type": "string"
+        },
+        "specialites": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Specialites",
+          "type": "array"
+        },
+        "status_detail": {
+          "$ref": "#/$defs/StatusDetail",
+          "default": "unknown"
+        },
+        "statut_enseignement": {
+          "$ref": "#/$defs/StatutEnseignement"
+        },
+        "student_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Student Id"
+        },
+        "target_pathway": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Pathway"
+        },
+        "teacher_confirmed": {
+          "default": false,
+          "title": "Teacher Confirmed",
+          "type": "boolean"
+        },
+        "voie": {
+          "$ref": "#/$defs/Voie"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        },
+        "zone": {
+          "minLength": 1,
+          "title": "Zone",
+          "type": "string"
+        }
+      },
+      "required": [
+        "niveau",
+        "voie",
+        "matieres",
+        "statut_enseignement",
+        "candidat",
+        "school_year",
+        "zone"
+      ],
+      "title": "StudentProfile",
+      "type": "object"
+    },
+    "Voie": {
+      "enum": [
+        "college",
+        "generale",
+        "technologique",
+        "professionnelle",
+        "aefe",
+        "unknown"
+      ],
+      "title": "Voie",
+      "type": "string"
+    }
+  },
+  "$id": "https://nexusreussite.academy/contracts/v0.3/chat-request.json",
+  "additionalProperties": false,
+  "properties": {
+    "answer_max_chars": {
+      "default": 1800,
+      "maximum": 4000,
+      "minimum": 120,
+      "title": "Answer Max Chars",
+      "type": "integer"
+    },
+    "collections": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Collections",
+      "type": "array"
+    },
+    "history": {
+      "items": {
+        "$ref": "#/$defs/ChatMessage"
+      },
+      "title": "History",
+      "type": "array"
+    },
+    "include_retrieval": {
+      "default": true,
+      "title": "Include Retrieval",
+      "type": "boolean"
+    },
+    "query": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Query",
+      "type": "string"
+    },
+    "student_profile": {
+      "$ref": "#/$defs/StudentProfile"
+    },
+    "top_k": {
+      "default": 5,
+      "maximum": 20,
+      "minimum": 1,
+      "title": "Top K",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "student_profile",
+    "query"
+  ],
+  "title": "ChatRequest",
+  "type": "object"
+}
