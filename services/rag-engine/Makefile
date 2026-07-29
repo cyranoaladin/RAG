@@ -2,7 +2,7 @@ SHELL := /bin/bash
 VENVDIR ?= .venv
 
 # Detecte un Python de venv si disponible, sinon retombe sur python3
-PY_SYS := $(shell command -v python3 2>/dev/null || echo python3)
+PY_SYS := $(shell command -v python3.11 || command -v python3.12 || command -v python3 2>/dev/null || echo python3)
 PY_VENV := $(VENVDIR)/bin/python
 ifeq ($(wildcard $(PY_VENV)),)
   PY := $(PY_SYS)

@@ -8,6 +8,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 cd "$REPO_ROOT"
 
+PYTHON_BIN="$(command -v python3.11 || command -v python3.12 || command -v python3 || true)"
+if [ -z "$PYTHON_BIN" ] || ! "$PYTHON_BIN" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)' 2>/dev/null; then
+    echo "ERROR: Python 3.10+ is required" >&2
+    exit 1
+fi
+echo "Using Python executable: $PYTHON_BIN ($($PYTHON_BIN --version))"
+
 PASS=0
 FAIL=0
 RESULTS=()
@@ -32,7 +39,7 @@ run_target() {
 run_contracts() {
     local venv="/tmp/ci-local-contracts-venv"
     rm -rf "$venv"
-    python3 -m venv "$venv"
+    "$PYTHON_BIN" -m venv "$venv"
     "$venv/bin/pip" install -q -e packages/contracts
     "$venv/bin/python" -c "from nexus_contracts import RetrievalRequest, StudentProfile; print('contracts: import OK')"
 }
@@ -42,7 +49,7 @@ run_target "packages/contracts" run_contracts
 run_pedago() {
     cd "$REPO_ROOT/services/rag-pedago"
     rm -rf .venv
-    python3 -m venv .venv
+    "$PYTHON_BIN" -m venv .venv
     source .venv/bin/activate
     if ! make install; then
         echo "FAIL: rag-pedago install failed"
@@ -68,9 +75,8 @@ run_pedago() {
     echo "$output" | tail -3
 
     if [ "$test_exit" -ne 0 ]; then
-        # Allow up to 1 pre-existing failure (test_real_draft_guard)
-        local failed_count
-        failed_count=$(echo "$output" | grep -oP '\d+ failed' | grep -oP '\d+' || echo "0")
+        failed_count=$(echo "$output" | grep -o '[0-9]* failed' | grep -o '[0-9]*' | head -n 1 || echo "0")
+        [ -z "$failed_count" ] && failed_count=0
         if [ "$failed_count" -le 1 ]; then
             echo "rag-pedago: $failed_count pre-existing failure(s) — acceptable"
             deactivate 2>/dev/null || true; cd "$REPO_ROOT"; return 0
@@ -122,6 +128,9 @@ run_target "governance-locks" bash scripts/check-governance-locks.sh
 
 # --- taxonomy validation ---
 run_target "taxonomy-validation" bash -c "cd $REPO_ROOT/services/rag-pedago && source .venv/bin/activate && python scripts/validate_taxonomy.py"
+
+# --- source evidence check (revue PR #74, round 11) ---
+run_target "source-evidence-check" bash -c "cd $REPO_ROOT/services/rag-pedago && source .venv/bin/activate && python scripts/export_source_validation_evidence.py --check"
 
 # --- governance guard tests ---
 run_target "governance-guard-tests" bash scripts/tests/test-governance-locks.sh

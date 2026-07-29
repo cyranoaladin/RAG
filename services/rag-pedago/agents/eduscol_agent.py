@@ -31,10 +31,24 @@ from scrapers.fetch import (
     USER_AGENT,
     FetchRefusal,
     FetchResult,
+    apply_domain_delay,
     governed_fetch,
     is_allowed_by_robots,
     is_whitelisted,
 )
+from scrapers.text_extract import strip_html
+
+_REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
+_MAX_REDIRECT_HOPS = 5
+
+
+def _redirect_target(current_url: str, resp: Any) -> str | None:
+    """Cible de redirection eventuelle (Location), resolue en absolu."""
+    if getattr(resp, "status_code", 0) in _REDIRECT_STATUSES:
+        location = resp.headers.get("location") or resp.headers.get("Location")
+        if location:
+            return urljoin(current_url, location)
+    return None
 
 
 def browser_governed_fetch(url: str) -> FetchResult | FetchRefusal:
@@ -65,13 +79,33 @@ def browser_governed_fetch(url: str) -> FetchResult | FetchRefusal:
     last_result: FetchResult | None = None
     for target in ("firefox133", "safari18_0", "chrome"):
         try:
-            resp = cffi_requests.get(
-                url,
-                impersonate=target,
-                headers={"User-Agent": USER_AGENT},
-                timeout=REQUEST_TIMEOUT,
-                allow_redirects=True,
-            )
+            # Redirections suivies hop par hop : whitelist + robots.txt sont
+            # verifies AVANT chaque saut (jamais de fetch d'un hote interdit).
+            current = url
+            resp = None
+            for _hop in range(_MAX_REDIRECT_HOPS + 1):
+                hop_domain = urlparse(current).netloc
+                apply_domain_delay(
+                    hop_domain, min_seconds=_configured_domain_delay(hop_domain))
+                resp = cffi_requests.get(
+                    current,
+                    impersonate=target,
+                    headers={"User-Agent": USER_AGENT},
+                    timeout=REQUEST_TIMEOUT,
+                    allow_redirects=False,
+                )
+                nxt = _redirect_target(current, resp)
+                if nxt is None:
+                    break
+                if not is_whitelisted(nxt):
+                    return FetchRefusal(
+                        url=url,
+                        reason=f"redirect vers domaine non whitelist: "
+                               f"{urlparse(nxt).netloc}")
+                if not is_allowed_by_robots(nxt):
+                    return FetchRefusal(
+                        url=url, reason=f"redirect bloque par robots.txt: {nxt}")
+                current = nxt
         except Exception as exc:  # reseau, TLS, timeout...
             return FetchResult(
                 url=url,
@@ -81,12 +115,14 @@ def browser_governed_fetch(url: str) -> FetchResult | FetchRefusal:
                 fetched_at=datetime.now(UTC),
                 error=str(exc),
             )
+        assert resp is not None
         last_result = FetchResult(
             url=url,
             status_code=resp.status_code,
             content_type=resp.headers.get("content-type", ""),
             text=resp.text,
             fetched_at=datetime.now(UTC),
+            final_url=current,
         )
         if resp.status_code != 403:
             return last_result
@@ -98,6 +134,37 @@ SOURCES_PATH = ROOT / "configs" / "eduscol_sources.yml"
 POLICY_PATH = ROOT / "configs" / "continuous_ingestion.yml"
 CONTRACT_PATH = ROOT / "configs" / "pedago_interface_contract.yml"
 
+_DELAY_CACHE: dict[str, float] | None = None
+
+
+def _configured_domain_delay(domain: str) -> float:
+    """Crawl-delay configure pour le domaine (continuous_ingestion.yml),
+    replie sur ``default_delay`` (10.0 s si absent). Charge une fois.
+    Utilise par la boucle de redirections : chaque saut doit respecter le
+    crawl-delay du domaine visite, pas seulement le plancher global de 2 s
+    (revue PR #74, round 5)."""
+    global _DELAY_CACHE
+    if _DELAY_CACHE is None:
+        policy: dict[str, Any] = {}
+        if POLICY_PATH.is_file():
+            try:
+                policy = yaml.safe_load(POLICY_PATH.read_text(encoding="utf-8")) or {}
+            except Exception:
+                policy = {}
+        delays: dict[str, float] = {}
+        for key, val in (policy.get("per_domain_delay") or {}).items():
+            try:
+                delays[str(key)] = float(val)
+            except (TypeError, ValueError):
+                continue
+        try:
+            delays.setdefault("", float(policy.get("default_delay", 10.0)))
+        except (TypeError, ValueError):
+            delays.setdefault("", 10.0)
+        _DELAY_CACHE = delays
+    return _DELAY_CACHE.get(domain, _DELAY_CACHE.get("", 10.0))
+
+
 _LINK_RE = re.compile(r'href=["\']([^"\']+)["\']', re.IGNORECASE)
 _TAG_RE = re.compile(r"<[^>]+>")
 _WS_RE = re.compile(r"\s+")
@@ -108,6 +175,31 @@ _STATIC_EXT = (
     ".gif", ".woff", ".woff2", ".ttf", ".eot", ".map", ".xml", ".json",
 )
 _STATIC_PATH_PREFIXES = ("/libraries/", "/assets/", "/static/", "/themes/")
+
+
+EVIDENCE_PATH = ROOT.parents[1] / "docs" / "validation" / "source_validation_evidence.json"
+
+
+def evidence_drift(source_id: str, url: str, html: str,
+                   verdicts: dict[str, dict[str, Any]]) -> str | None:
+    """Derive vs la preuve versionnee (revue PR #74, round 11).
+
+    Une source suivie par la preuve dont le contenu a CHANGE depuis sa
+    validation (content_sha256 divergent, meme canonicalisation partagee)
+    ou dont l'URL configuree differe de l'URL validee ne doit PAS etre
+    stagee : revalidation par le source_validator requise. Retourne None
+    si la source n'est pas suivie (legacy) ou si le contenu est conforme."""
+    verdict = verdicts.get(source_id)
+    if verdict is None:
+        return None
+    if verdict.get("url") != url:
+        return (f"url configuree != url validee ({verdict.get('url')}) "
+                "— revalidation requise")
+    digest = hashlib.sha256(strip_html(html).encode("utf-8")).hexdigest()
+    if digest != verdict.get("content_sha256"):
+        return ("contenu modifie depuis la validation "
+                "(content_sha256 divergent) — revalidation requise")
+    return None
 
 
 def _utcnow() -> str:
@@ -163,6 +255,7 @@ class EduscolAgent(AcquisitionAgent):
         self.sources_cfg = yaml.safe_load(sources_path.read_text(encoding="utf-8")) or {}
         self.policy = yaml.safe_load(policy_path.read_text(encoding="utf-8")) or {}
         self._records: list[FetchRecord] = []
+        self._evidence: dict[str, dict[str, Any]] | None = None
         self._pages_fetched = 0
         self._bytes_fetched = 0
         self._started = time.monotonic()
@@ -270,6 +363,23 @@ class EduscolAgent(AcquisitionAgent):
         self._write_ledger()
         return {"agent": "eduscol_agent", "records": [asdict(r) for r in self._records]}
 
+    def _evidence_verdicts(self) -> dict[str, dict[str, Any]]:
+        """Verdicts de la preuve versionnee (charges une fois par run)."""
+        if self._evidence is None:
+            self._evidence = {}
+            if EVIDENCE_PATH.is_file():
+                try:
+                    data = json.loads(EVIDENCE_PATH.read_text(encoding="utf-8"))
+                    for vd in data.get("verdicts", []):
+                        sid = vd.get("source_id")
+                        if sid:
+                            self._evidence[sid] = vd
+                except Exception:
+                    # Preuve illisible : aucun verdict charge (le controle
+                    # CI --check est la porte fail-closed qui refuse).
+                    self._evidence = {}
+        return self._evidence
+
     def _fetch_source(self, src: SourceEntry, state: dict[str, Any], ttl_h: float) -> None:
         prev = state.get(src.id, {})
         if prev.get("last_fetched_at"):
@@ -303,6 +413,17 @@ class EduscolAgent(AcquisitionAgent):
             state[src.id] = {**prev, "last_fetched_at": _utcnow()}
             self._records.append(FetchRecord(
                 source_id=src.id, url=src.url, status="unchanged", sha256=digest))
+            return
+
+        # Controle de derive vs la preuve versionnee (revue PR #74, r11) :
+        # un contenu MODIFIE depuis la validation n'est pas stage — la
+        # source doit etre revalidee (rerun du source_validator).
+        drift = evidence_drift(src.id, src.url, result.text,
+                               self._evidence_verdicts())
+        if drift:
+            self._records.append(FetchRecord(
+                source_id=src.id, url=src.url, status="drift_blocked",
+                detail=drift))
             return
 
         artefact_dir = self._deposit(src, text, digest, result.text)

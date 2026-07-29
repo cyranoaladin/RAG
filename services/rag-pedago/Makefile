@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 VENVDIR ?= .venv
 
-PY_SYS := $(shell command -v python3 2>/dev/null || echo python3)
+PY_SYS := $(shell command -v python3.11 || command -v python3.12 || command -v python3 2>/dev/null || echo python3)
 PY_VENV := $(VENVDIR)/bin/python
 ifeq ($(wildcard $(PY_VENV)),)
   PY ?= $(PY_SYS)
@@ -9,7 +9,7 @@ else
   PY ?= $(PY_VENV)
 endif
 
-.PHONY: venv install doctor project-doctor init scrape-official ingest ingest-official ingest-internal verify eval-retrieval watch api test lint format typecheck backup ledger-init ledger-doctor manifest-import-fixture manifest-dir-dry-run manifest-dir-import-fixture manifest-readiness manifest-coverage manifest-gate manifest-readiness-clean manifest-coverage-clean manifest-gate-clean manifest-controlled-import-clean manifest-controlled-import-problem review-package-clean-audited pilot-template-check pilot-compile-check pilot-rehearsal real-draft-guard-check human-unlock-check real-draft-unlock-gate-check metadata-preflight cleanup-dry-run cleanup-review cleanup-decision-draft make-target-safety-audit pilot-corpus-scope-audit retrieval-metadata-eval-audit pedago-interface-contract-audit source-admission-policy-audit human-source-review-audit controlled-readiness-audit transition-authorization-audit metadata-governance-chain-audit metadata-review-handoff-audit
+.PHONY: source-evidence-check venv install doctor project-doctor init scrape-official ingest ingest-official ingest-internal verify eval-retrieval watch api test lint format typecheck backup ledger-init ledger-doctor manifest-import-fixture manifest-dir-dry-run manifest-dir-import-fixture manifest-readiness manifest-coverage manifest-gate manifest-readiness-clean manifest-coverage-clean manifest-gate-clean manifest-controlled-import-clean manifest-controlled-import-problem review-package-clean-audited pilot-template-check pilot-compile-check pilot-rehearsal real-draft-guard-check human-unlock-check real-draft-unlock-gate-check metadata-preflight cleanup-dry-run cleanup-review cleanup-decision-draft make-target-safety-audit pilot-corpus-scope-audit retrieval-metadata-eval-audit pedago-interface-contract-audit source-admission-policy-audit human-source-review-audit controlled-readiness-audit transition-authorization-audit metadata-governance-chain-audit metadata-review-handoff-audit
 
 venv:
 	@if [ ! -x "$(PY_VENV)" ]; then \
@@ -20,7 +20,7 @@ venv:
 install: venv
 	"$(PY_VENV)" -m pip install -r requirements.lock
 	"$(PY_VENV)" -m pip install -e ../../packages/contracts --no-deps
-	"$(PY_VENV)" -m pip install -e . --no-deps
+	"$(PY_VENV)" -m pip install -e ".[dev]"
 
 doctor:
 	$(PY) scripts/doctor.py
@@ -131,6 +131,9 @@ metadata-governance-chain-audit:
 
 metadata-review-handoff-audit:
 	$(PY) scripts/metadata_review_handoff_audit.py
+
+source-evidence-check:
+	$(PY) scripts/export_source_validation_evidence.py --check
 
 init:
 	$(PY) scripts/init_db.py

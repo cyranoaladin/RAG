@@ -26,6 +26,11 @@ POLICY = {
         "taxonomy_root": "taxonomy",
         "min_notion_coverage": 0.05,
         "missing_taxonomy_action": "quarantine",
+        "exam_domain": {
+            "markers": ["session", "sujet", "épreuve", "annales",
+                        "corrigé", "baccalauréat", "durée", "examen"],
+            "min_markers": 2,
+        },
     },
     "quality_expert": {
         "min_words": 10,
@@ -126,6 +131,215 @@ class TestSubjectExpertAgent:
         # Une regle de couverture par collection cible
         per_col = [r for r in v.rules_fired if r.startswith("notion_coverage[")]
         assert len(per_col) == 2
+
+    def test_exam_domain_markers_rule(self, tmp_path):
+        """LOT 31 : les collections domain:exam sont jugees aux marqueurs
+        d'examen, pas a la couverture de notions (D-28-01)."""
+        exam_text = (
+            "Baccalauréat général — session 2026. Sujet de l'épreuve, "
+            "durée 4 heures. Annales et corrigé officiel de l'examen. "
+        ) * 5
+        art = _make_artefact(tmp_path, "https://eduscol.education.gouv.fr/5853/x",
+                             exam_text,
+                             collections_cibles=["rag_nexus_exams_bac_general"])
+        v = SubjectExpertAgent(POLICY).review(art)
+        assert v.status == "approved"
+        assert any(r.startswith("exam_markers[rag_nexus_exams_bac_general]") for r in v.rules_fired)
+
+    def test_exam_domain_without_markers_rejected(self, tmp_path):
+        """Un texte sans marqueurs d'examen vers une collection exam -> rejet."""
+        art = _make_artefact(tmp_path, "https://eduscol.education.gouv.fr/5853/x",
+                             "Recette de cuisine. " * 50,
+                             collections_cibles=["rag_nexus_exams_bac_general"])
+        v = SubjectExpertAgent(POLICY).review(art)
+        assert v.status == "rejected"
+        assert "insufficient_exam_markers" in v.rules_fired
+
+    def test_exam_domain_requires_specific_marker(self, tmp_path):
+        """Marqueurs generiques seuls (session, sujet, duree) insuffisants :
+        il faut aussi un marqueur specifique a l'examen vise (revue PR #74)."""
+        generic_only = (
+            "Session 2026 : sujet de l'épreuve, durée 4 heures, examen. "
+        ) * 10
+        art = _make_artefact(tmp_path, "https://eduscol.education.gouv.fr/5853/x",
+                             generic_only,
+                             collections_cibles=["rag_nexus_exams_bac_general"])
+        v = SubjectExpertAgent(POLICY).review(art)
+        assert v.status == "rejected"
+        assert any(r.startswith("exam_specific[rag_nexus_exams_bac_general]:0")
+                   for r in v.rules_fired)
+
+    def test_exam_specific_marker_accent_folded(self, tmp_path):
+        """Le matching replie les accents : 'Mathématiques' matche 'mathematiques'."""
+        text = (
+            "Épreuve anticipée de Mathématiques — session 2026, sujet, durée, "
+            "annales officielles. "
+        ) * 8
+        art = _make_artefact(tmp_path, "https://eduscol.education.gouv.fr/5836/x",
+                             text,
+                             collections_cibles=["rag_nexus_exams_anticipee_maths"])
+        v = SubjectExpertAgent(POLICY).review(art)
+        assert v.status == "approved"
+        assert any(r.startswith("exam_specific[rag_nexus_exams_anticipee_maths]:")
+                   and not r.endswith(":0") for r in v.rules_fired)
+
+    def test_exam_markers_accent_folded(self, tmp_path):
+        """Round 5 PR #74 : les marqueurs accentues de la politique doivent
+        etre plies (_norm) comme le texte, sinon 'epreuve' (texte plie) ne
+        matchait jamais le marqueur accentue."""
+        policy = json.loads(json.dumps(POLICY))
+        policy["subject_expert"]["exam_domain"] = {
+            "markers": ["épreuve"],  # forme accentuee uniquement
+            "min_markers": 1,
+        }
+        text = (
+            "Epreuve anticipee de mathematiques, session 2026, sujet officiel, "
+            "duree deux heures, annales publiees. "
+        ) * 8
+        art = _make_artefact(tmp_path, "https://eduscol.education.gouv.fr/5836/x",
+                             text,
+                             collections_cibles=["rag_nexus_exams_anticipee_maths"])
+        v = SubjectExpertAgent(policy).review(art)
+        assert v.status == "approved"
+        assert any(r.startswith("exam_markers[rag_nexus_exams_anticipee_maths]:1")
+                   for r in v.rules_fired)
+
+    def test_exam_generic_words_scattered_rejected(self, tmp_path):
+        """Round 5 PR #74 : 'baccalaureat' et 'general' pris ISOLEMENT (mots
+        generiques) ne comptent pas comme marqueurs specifiques ; seule la
+        phrase complete compte."""
+        scattered = (
+            "Session 2026, sujet d'examen. Le baccalauréat est un diplôme "
+            "exigeant. Une culture générale solide est recommandée. "
+        ) * 6
+        art = _make_artefact(tmp_path, "https://eduscol.education.gouv.fr/5853/x",
+                             scattered,
+                             collections_cibles=["rag_nexus_exams_bac_general"])
+        v = SubjectExpertAgent(POLICY).review(art)
+        assert v.status == "rejected"
+        assert any(r.startswith("exam_specific[rag_nexus_exams_bac_general]:0")
+                   for r in v.rules_fired)
+
+    def test_notion_labels_accent_folded(self, tmp_path):
+        """Round 5 PR #74 : les labels de notions sont plies comme le texte ;
+        un texte sans accents doit couvrir une taxonomie accentuee."""
+        text = (
+            "Suites numeriques : modes de generation et variations. "
+            "Second degre : forme canonique, equations, signe. "
+            "Derivation : nombre derive, fonction derivee. "
+            "Produit scalaire et applications. La loi binomiale. "
+        ) * 10
+        art = _make_artefact(tmp_path, "https://eduscol.education.gouv.fr/5817/x",
+                             text)
+        v = SubjectExpertAgent(POLICY).review(art)
+        cov = [r for r in v.rules_fired if r.startswith("notion_coverage[")]
+        assert cov, "regle de couverture attendue"
+        ratio = float(cov[0].rsplit(":", 1)[1])
+        assert ratio > 0.0, "le texte sans accents doit couvrir les labels accentues"
+
+    def test_exam_theme_id_words_not_specific(self, tmp_path):
+        """Round 6 PR #74 : les mots issus des IDS DE THEMES (preparation,
+        presentation, echange du grand oral) sont exclus des marqueurs
+        specifiques — une page ordinaire ne valide pas l'examen."""
+        ordinary = (
+            "Session 2026, sujet : une bonne preparation, une presentation "
+            "claire et un echange riche avec le jury. "
+        ) * 8
+        art = _make_artefact(tmp_path, "https://eduscol.education.gouv.fr/5661/x",
+                             ordinary,
+                             collections_cibles=["rag_nexus_grand_oral_terminale"])
+        v = SubjectExpertAgent(POLICY).review(art)
+        assert v.status == "rejected"
+        assert any(r.startswith("exam_specific[rag_nexus_grand_oral_terminale]:0")
+                   for r in v.rules_fired)
+
+    def test_exam_level_word_not_specific(self, tmp_path):
+        """Round 6 PR #74 : 'troisieme' (niveau, issu de l'id dnb_troisieme)
+        ne compte pas comme marqueur specifique du DNB."""
+        level_only = (
+            "Session 2026, sujet d'examen : un eleve de troisieme doit "
+            "soigneusement reviser ses lecons. "
+        ) * 8
+        art = _make_artefact(tmp_path, "https://eduscol.education.gouv.fr/4536/x",
+                             level_only,
+                             collections_cibles=["rag_nexus_dnb"])
+        v = SubjectExpertAgent(POLICY).review(art)
+        assert v.status == "rejected"
+        assert any(r.startswith("exam_specific[rag_nexus_dnb]:0")
+                   for r in v.rules_fired)
+
+    def test_exam_dnb_abbreviation_specific(self, tmp_path):
+        """Controle positif : l'abreviation DNB reste un marqueur
+        specifique valide (matiere de la spec)."""
+        real = (
+            "DNB — session 2026 : sujet de l'epreuve, duree et annales "
+            "officielles du diplome national. "
+        ) * 8
+        art = _make_artefact(tmp_path, "https://eduscol.education.gouv.fr/4536/x",
+                             real,
+                             collections_cibles=["rag_nexus_dnb"])
+        v = SubjectExpertAgent(POLICY).review(art)
+        assert v.status == "approved"
+        assert any(r.startswith("exam_specific[rag_nexus_dnb]:")
+                   and not r.endswith(":0") for r in v.rules_fired)
+
+    def test_exam_logistics_page_rejected(self, tmp_path):
+        """Round 8 PR #74 : une page LOGISTIQUE mentionnant DNB + sujet +
+        epreuve + examen (identite + marqueurs generiques) mais AUCUNE
+        substance d'examen (annales, corrige, duree...) est rejetee."""
+        logistics = (
+            "DNB — inscription des candidats. Le sujet sera communique. "
+            "L'epreuve est un examen national. Convocation, salle, horaires, "
+            "reglement interieur, piece d'identite obligatoire. "
+        ) * 10
+        art = _make_artefact(tmp_path, "https://eduscol.education.gouv.fr/4536/x",
+                             logistics,
+                             collections_cibles=["rag_nexus_dnb"])
+        v = SubjectExpertAgent(POLICY).review(art)
+        assert v.status == "rejected"
+        assert any(r.startswith("exam_material_doc[rag_nexus_dnb]:0")
+                   for r in v.rules_fired)
+
+    def test_exam_missing_taxonomy_quarantine(self, tmp_path):
+        """Round 8 PR #74 : une collection exam dont la taxonomie est
+        introuvable part en QUARANTAINE (impossibilite d'evaluer), pas en
+        rejet de contenu — missing_taxonomy_action s'applique aussi a exam."""
+        catalogue = tmp_path / "rag_collections.yml"
+        catalogue.write_text(
+            "collections:\n"
+            "  rag_nexus_exams_sans_taxo:\n"
+            "    domain: exam\n"
+            "    taxonomy_file: exams/inexistant.yml\n",
+            encoding="utf-8")
+        policy = json.loads(json.dumps(POLICY))
+        policy["subject_expert"]["catalogue"] = str(catalogue)
+        text = (
+            "DNB — session 2026 : sujet de l'epreuve, duree, annales. "
+        ) * 8
+        art = _make_artefact(tmp_path, "https://eduscol.education.gouv.fr/4536/x",
+                             text,
+                             collections_cibles=["rag_nexus_exams_sans_taxo"])
+        v = SubjectExpertAgent(policy).review(art)
+        assert v.status == "quarantine"
+        assert "missing_taxonomy_action" in v.rules_fired
+
+    def test_exam_single_modalite_marker_rejected(self, tmp_path):
+        """Round 11 PR #74 : une occurrence ISOLEE d'un marqueur de modalite
+        ('duree') sans aucun marqueur de document d'examen (annales,
+        corrige, sujet zero) ne demontre pas du contenu d'examen."""
+        admin = (
+            "DNB — session 2026 : la duree de l'epreuve est fixee par "
+            "arrete. Information administrative aux candidats et familles. "
+        ) * 10
+        art = _make_artefact(tmp_path, "https://eduscol.education.gouv.fr/4536/x",
+                             admin,
+                             collections_cibles=["rag_nexus_dnb"])
+        v = SubjectExpertAgent(POLICY).review(art)
+        assert v.status == "rejected"
+        assert any(r.startswith("exam_material_doc[rag_nexus_dnb]:0")
+                   for r in v.rules_fired)
+        assert any(r.startswith("exam_material_mod[rag_nexus_dnb]:")
+                   and not r.endswith(":0") for r in v.rules_fired)
 
 
 class TestQualityExpertAgent:

@@ -44,6 +44,19 @@ subject_expert:
   catalogue: ../rag-engine/configs/rag_collections.yml   # collection -> taxonomy_file
   taxonomy_root: taxonomy
   min_notion_coverage: 0.05      # >= 5 % des notions de la taxonomie presentes dans le texte
+  # Collections `domain: exam` (LOT 31) : un sujet d'examen se juge a des
+  # marqueurs d'examen, pas a la couverture notionnelle d'un programme.
+  exam_domain:
+    markers:
+      - "session"
+      - "sujet"
+      - "épreuve"
+      - "annales"
+      - "corrigé"
+      - "baccalauréat"
+      - "durée"
+      - "examen"
+    min_markers: 2                  # >= 2 marqueurs d'examen distincts dans le texte
   missing_taxonomy_action: quarantine   # impossible de juger -> quarantaine
 
 # ---------------------------------------------------------------------------
