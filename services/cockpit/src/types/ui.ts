@@ -1,3 +1,4 @@
+/** Types et libellés strictement locaux à l'interface du cockpit. */
 export interface RagCollection {
   name: string
   matiere: string | null
@@ -65,21 +66,23 @@ export interface GovernanceLock {
   description: string
 }
 
-export const NIVEAU_LABELS: Record<string, string> = {
+export const NIVEAU_LABELS: Readonly<Record<string, string>> = Object.freeze({
   troisieme: 'Troisième',
   seconde: 'Seconde',
   premiere: 'Première',
   terminale: 'Terminale',
-}
+})
 
-export const MATIERE_LABELS: Record<string, string> = {
+export const MATIERE_LABELS: Readonly<Record<string, string>> = Object.freeze({
   maths: 'Mathématiques',
   francais: 'Français',
   hg: 'Histoire-Géographie',
+  histoire_geo: 'Histoire-Géographie',
   emc: 'EMC',
   langues: 'Langues vivantes',
   svt: 'SVT',
   pc: 'Physique-Chimie',
+  physique_chimie: 'Physique-Chimie',
   techno: 'Technologie',
   nsi: 'NSI',
   snt: 'SNT',
@@ -96,4 +99,4 @@ export const MATIERE_LABELS: Record<string, string> = {
   exams: 'Examens',
   dnb: 'DNB',
   candidats_libres: 'Candidats libres',
-}
+})

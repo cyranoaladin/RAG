@@ -3,20 +3,31 @@ import { Database, Layers, ShieldCheck, RefreshCw, AlertTriangle, CheckCircle2 }
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
-import type { RagCollection } from '@/types/rag'
-import { NIVEAU_LABELS } from '@/types/rag'
+import sourcesData from '@/data/sources.json'
+import type { IngestionSource, RagCollection } from '@/types/ui'
+import { NIVEAU_LABELS } from '@/types/ui'
 
 const NIVEAUX = ['troisieme', 'seconde', 'premiere', 'terminale'] as const
+const INGESTION_SOURCES = sourcesData as IngestionSource[]
 
 export default function OverviewSection({ collections, demo }: { collections: RagCollection[]; demo: boolean }) {
   const stats = useMemo(() => {
     const instanciees = collections.filter((c) => c.instanciee)
+    const verifiedSources = INGESTION_SOURCES.filter(
+      (source) => source.status === 'verified',
+    ).length
     const byNiveau = NIVEAUX.map((n) => {
       const total = collections.filter((c) => c.niveau === n).length
       const inst = collections.filter((c) => c.niveau === n && c.instanciee).length
       return { niveau: n, total, inst }
     })
-    return { total: collections.length, instanciees: instanciees.length, byNiveau }
+    return {
+      total: collections.length,
+      instanciees: instanciees.length,
+      byNiveau,
+      verifiedSources,
+      sourceCount: INGESTION_SOURCES.length,
+    }
   }, [collections])
 
   return (
@@ -26,7 +37,7 @@ export default function OverviewSection({ collections, demo }: { collections: Ra
           <AlertTriangle className="h-4 w-4 shrink-0" />
           <span>
             <strong>Mode démonstration</strong> — données issues du dépôt (catalogue v3, lecture seule).
-            Le BFF same-origin n'est pas disponible pour les données temps réel.
+            Le BFF same-origin n’est pas disponible pour les données temps réel.
           </span>
         </div>
       )}
@@ -71,7 +82,7 @@ export default function OverviewSection({ collections, demo }: { collections: Ra
             <RefreshCw className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-slate-900">8<span className="text-base font-normal text-slate-500">/20 sources</span></div>
+            <div className="text-3xl font-bold text-slate-900">{stats.verifiedSources}<span className="text-base font-normal text-slate-500">/{stats.sourceCount} sources</span></div>
             <p className="mt-1 text-xs text-slate-500">vérifiées eduscol · passe quotidienne (timer systemd)</p>
           </CardContent>
         </Card>

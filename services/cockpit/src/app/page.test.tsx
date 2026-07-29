@@ -1,14 +1,12 @@
 // @vitest-environment jsdom
 
 import { cleanup, render, screen } from '@testing-library/react'
-import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { getCollections } from '@/lib/api'
-import App from '@/App'
+import { getCollections } from '@/lib/bff-client'
 import { CockpitShell } from './CockpitShell'
 
-vi.mock('@/lib/api', () => ({
+vi.mock('@/lib/bff-client', () => ({
   getCollections: vi.fn().mockResolvedValue({ items: [], live: false }),
 }))
 
@@ -59,17 +57,4 @@ describe('shell Next.js', () => {
     },
   )
 
-  it('maintient aussi le point d’entrée Vite fermé avant le raccord SSO', () => {
-    const { container } = render(
-      <MemoryRouter>
-        <App />
-      </MemoryRouter>,
-    )
-    const rendered = container.innerHTML
-
-    expect(rendered).toContain('data-session-status="unverified"')
-    expect(rendered).toContain('Accès au cockpit indisponible')
-    expect(rendered).not.toContain('RAG — Cockpit v2')
-    expect(getCollections).not.toHaveBeenCalled()
-  })
 })

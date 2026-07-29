@@ -16,8 +16,8 @@ import SearchSection from '@/sections/SearchSection'
 import IngestionSection from '@/sections/IngestionSection'
 import ReviewSection from '@/sections/ReviewSection'
 import GovernanceSection from '@/sections/GovernanceSection'
-import { getCollections } from '@/lib/api'
-import type { RagCollection } from '@/types/rag'
+import { getCollections } from '@/lib/bff-client'
+import type { RagCollection } from '@/types/ui'
 
 type Tab = 'apercu' | 'collections' | 'recherche' | 'ingestion' | 'revue' | 'gouvernance'
 

@@ -1,7 +1,7 @@
 import { Lock, LockOpen, FileText } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { GOVERNANCE_LOCKS } from '@/lib/api'
+import { GOVERNANCE_LOCKS } from '@/data/governance'
 
 const INVARIANTS = [
   'Le cockpit ne parle qu\'au contrat de retrieval — jamais d\'accès direct à pgvector ni aux documents bruts.',
@@ -19,7 +19,7 @@ export default function GovernanceSection() {
         <CardHeader>
           <CardTitle className="text-base">Verrous de gouvernance — pedago_interface_contract.yml</CardTitle>
           <p className="text-sm text-slate-500">
-            Comparaison clé par clé contre <code>governance-locks.baseline</code> en CI. Fail-closed en cas d'écart.
+            Comparaison clé par clé contre <code>governance-locks.baseline</code> en CI. Fail-closed en cas d’écart.
           </p>
         </CardHeader>
         <CardContent className="space-y-2">

@@ -5,9 +5,12 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { search } from '@/lib/api'
-import type { RetrievalResult } from '@/types/rag'
-import { NIVEAU_LABELS } from '@/types/rag'
+import { search } from '@/lib/bff-client'
+import type { RetrievalResult } from '@/generated/contracts'
+import { NIVEAU_LABELS } from '@/types/ui'
+
+const SEARCH_UNAVAILABLE_MESSAGE =
+  'La recherche est temporairement indisponible. Veuillez réessayer.'
 
 export default function SearchSection() {
   const [query, setQuery] = useState('')
@@ -17,14 +20,23 @@ export default function SearchSection() {
   const [loading, setLoading] = useState(false)
   const [demo, setDemo] = useState(false)
   const [searched, setSearched] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   async function runSearch() {
     setLoading(true)
     setSearched(true)
-    const res = await search(query, niveau, audience)
-    setResults(res.items)
-    setDemo(res.demo)
-    setLoading(false)
+    setError(null)
+    try {
+      const res = await search(query, niveau, audience)
+      setResults(res.items)
+      setDemo(res.demo)
+    } catch {
+      setResults([])
+      setDemo(false)
+      setError(SEARCH_UNAVAILABLE_MESSAGE)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -34,7 +46,7 @@ export default function SearchSection() {
           <CardTitle className="text-base">Recherche gouvernée — API /search (lecture seule)</CardTitle>
           <p className="text-sm text-slate-500">
             Filtrage imposé côté serveur par profil signé (HMAC niveau + audience) via le proxy BFF —
-            le secret n'est jamais embarqué dans le navigateur. Citations obligatoires.
+            le secret n’est jamais embarqué dans le navigateur. Citations obligatoires.
           </p>
         </CardHeader>
         <CardContent>
@@ -73,14 +85,19 @@ export default function SearchSection() {
               Résultats de démonstration (API non connectée) — extraits NSI Terminale déjà indexés en production gouvernée.
             </p>
           )}
+          {error && (
+            <p role="alert" className="mt-3 text-sm text-red-700">
+              {error}
+            </p>
+          )}
         </CardContent>
       </Card>
 
-      {searched && !loading && results.length === 0 && (
+      {searched && !loading && !error && results.length === 0 && (
         <Card>
           <CardContent className="py-10 text-center text-sm text-slate-500">
-            Saisissez une requête pour interroger l'index. Si aucune source ne répond, le moteur refuse
-            explicitement plutôt que d'inventer (refusal_policy).
+            Saisissez une requête pour interroger l’index. Si aucune source ne répond, le moteur refuse
+            explicitement plutôt que d’inventer (refusal_policy).
           </CardContent>
         </Card>
       )}
