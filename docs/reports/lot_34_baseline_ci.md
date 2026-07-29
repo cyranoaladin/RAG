@@ -4,8 +4,8 @@ Date de validation : 29 juillet 2026.
 
 ## Révision testée
 
-- Commit fonctionnel : `e4db84f788fef62f12e066464d379aa97b509645`.
-- Arbre Git archivé : `46de673d4c9173f496b60e930e0086e17709a57f`.
+- Commit fonctionnel : `225066fbb60f56a7886c39c6a5534c0ceb643d2f`.
+- Arbre Git archivé : `996a13e110efbcd2f607420b0caa0533d66a5846`.
 - Branche : `lot-34-baseline-ci`.
 - Le présent rapport est commité séparément après la validation afin de ne pas
   rendre la preuve du SHA circulaire.
@@ -86,12 +86,35 @@ RED → GREEN :
 Les commits fonctionnels correspondants sont respectivement `f294809`,
 `09ba167`, `9e1be2e` et `e4db84f`.
 
+La contre-revue a enfin relevé deux faux positifs de pipeline et une
+dépendance environnementale :
+
+- supprimer le `set -euo pipefail` propre à `run_cockpit()` était initialement
+  accepté (`29 passed, 1 failed`). Le runner de test n'injecte désormais plus
+  `set -e` et fait échouer successivement chacun des neuf contrôles. Il exige
+  à chaque fois un code final non nul et un journal strictement limité au
+  préfixe atteint. État GREEN : `30 passed, 0 failed` ;
+- exiger les six tests négatifs de cohérence dans le target local et le job
+  GitHub a d'abord produit `28 passed, 2 failed`, puis `32 passed, 0 failed`
+  après ajout des deux commandes et des mutations qui prouvent leur caractère
+  obligatoire ;
+- le choix du Python du clean build dépendait encore du poste. Les tests ont
+  produit `32 passed, 2 failed`, puis `34 passed, 0 failed` : le venv
+  `rag-pedago`, alimenté par `requirements.lock`, est préféré après
+  vérification de `import yaml`, et le fallback `setup-python` est soumis à la
+  même vérification.
+
+Les commits de contre-revue sont `9e965c4`, `973cce7` et `225066f`.
+
 Le contrôle shell extrait réellement la fonction `run_cockpit()` par
 frontières syntaxiques, exige chaque commande comme ligne shell complète,
-puis exécute son corps avec de faux `npm` et `bash`. Il compare les huit
+puis exécute son corps avec de faux `npm`, `bash` et Python. Il compare les neuf
 appels, leur ordre et leur répertoire de travail attendu. Aucun vrai pipeline
 n'est lancé par ce test ; une sortie anticipée ou une branche qui rendrait une
-commande inatteignable laisse une trace incomplète et est rejetée.
+commande inatteignable laisse une trace incomplète et est rejetée. Les faux
+exécutables sont ensuite configurés pour échouer un par un ; le contrôle
+prouve donc aussi la propagation fail-fast, sans la créer artificiellement
+dans son runner.
 Le contrôle du workflow parse le YAML avec PyYAML. Il exige sémantiquement
 `main`, `lot-*` et `lot-*/**` pour `push` comme pour `pull_request`, inspecte
 exclusivement `jobs.cockpit.steps`, vérifie que `run` est une chaîne égale à
@@ -135,22 +158,22 @@ Validation locale complète du commit fonctionnel :
   bash scripts/ci-local.sh
 ```
 
-Résultat : code de sortie `0`, `551.95 s` réelles, `467.50 s` utilisateur et
-`61.39 s` système.
+Résultat : code de sortie `0`, `547.32 s` réelles, `463.31 s` utilisateur et
+`60.24 s` système.
 
 ## Résultat par target
 
 | Target CI locale | Résultat | Preuve principale |
 |---|---|---|
 | `packages/contracts` | PASS | import du contrat canonique réussi |
-| `services/rag-pedago` | PASS | ruff vert, mypy vert sur 73 fichiers, `1151 passed` en `279.10 s` |
+| `services/rag-pedago` | PASS | ruff vert, mypy vert sur 73 fichiers, `1151 passed` en `278.43 s` |
 | `services/rag-engine` | PASS | installation, lint, typecheck et `603 passed`, `15 deselected` |
-| `services/cockpit` | PASS | lint, 4 fichiers de tests et `13 passed`, build de production, deux audits à zéro |
+| `services/cockpit` | PASS | lint, 4 fichiers/`13` tests Vitest, `6` tests snapshots, build et deux audits à zéro |
 | `governance-locks` | PASS | 18 clés identiques à la baseline |
 | `taxonomy-validation` | PASS | 57 taxonomies, 0 erreur, 486 notions et 174 sous-notions |
 | `source-evidence-check` | PASS | 11 verdicts couvrent la configuration courante |
 | `governance-guard-tests` | PASS | `16 passed, 0 failed` |
-| `ci-failsafe-tests` | PASS | `29 passed, 0 failed`, dont quatorze mutations anti-contournement |
+| `ci-failsafe-tests` | PASS | `34 passed, 0 failed`, dont dix-sept mutations anti-contournement |
 
 Résumé produit par le script : `9 passed, 0 failed`.
 
@@ -165,6 +188,9 @@ npm test -- --run
 npm run build
 npm audit
 npm audit --omit=dev
+services/rag-pedago/.venv/bin/python \
+  scripts/tests/test-cockpit-snapshot-coherence.py  # local
+python3 scripts/tests/test-cockpit-snapshot-coherence.py  # GitHub
 bash scripts/tests/test-cockpit-clean-build.sh
 ```
 
@@ -175,6 +201,8 @@ Résultats de la CI locale :
 - build : 1857 modules transformés, build Vite réussi ;
 - `npm audit` complet : 0 vulnérabilité ;
 - `npm audit --omit=dev` : 0 vulnérabilité ;
+- tests snapshots : 6 tests réussis dans le target cockpit, avant le clean
+  build ;
 - clean build : concordance cockpit/Eduscol validée sur 20 sources et
   concordance exhaustive des 59 collections cockpit/rag-engine, puis nouvelle
   installation `npm ci` depuis l'archive Git et nouveau build réussi.
@@ -186,7 +214,7 @@ catalogue versionné : unicité, absence d'entrée manquante ou surnuméraire et
 qui relève des gates des lots ultérieurs.
 
 Le clean build a utilisé `HEAD`, donc l'arbre Git
-`46de673d4c9173f496b60e930e0086e17709a57f`, et non les fichiers non suivis du
+`996a13e110efbcd2f607420b0caa0533d66a5846`, et non les fichiers non suivis du
 poste.
 
 ## Workflow GitHub Actions
@@ -195,6 +223,11 @@ Le job `cockpit` utilise `actions/setup-node@v4` avec
 `node-version-file: .nvmrc`, le cache npm et
 `cache-dependency-path: services/cockpit/package-lock.json`. Il installe aussi
 PyYAML `6.0.3`, requis par le contrôle de concordance du clean build.
+Il exécute aussi explicitement
+`python3 scripts/tests/test-cockpit-snapshot-coherence.py`. La CI locale
+exécute le même fichier avec
+`services/rag-pedago/.venv/bin/python`, dont PyYAML est verrouillé par le
+target précédent ; aucun Python global opportuniste n'est requis.
 
 Les événements `push` et `pull_request` couvrent `main`, les branches plates
 `lot-*` et les branches imbriquées `lot-*/**`. Une PR empilée ciblant une
