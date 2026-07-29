@@ -269,6 +269,7 @@ validate_shell_cockpit_commands() {
         "npm run build" \
         "npm audit" \
         "npm audit --omit=dev" \
+        '"$REPO_ROOT/services/rag-pedago/.venv/bin/python" scripts/tests/test-cockpit-snapshot-coherence.py' \
         "bash scripts/tests/test-cockpit-clean-build.sh"; do
         if ! block_has_exact_command "$block" "$command"; then
             missing+=("$command")
@@ -303,7 +304,10 @@ validate_shell_cockpit_execution() {
     call_log="$instrument_root/calls.log"
     expected_log="$instrument_root/expected.log"
     real_bash="$(command -v bash)"
-    mkdir -p "$fake_bin" "$instrument_root/repo/services/cockpit"
+    mkdir -p \
+        "$fake_bin" \
+        "$instrument_root/repo/services/cockpit" \
+        "$instrument_root/repo/services/rag-pedago/.venv/bin"
 
     cat > "$fake_bin/npm" <<'SCRIPT'
 #!/bin/sh
@@ -319,7 +323,18 @@ if [ "${COCKPIT_FAIL_AT:-}" = "bash $*" ]; then
     exit 97
 fi
 SCRIPT
-    chmod +x "$fake_bin/npm" "$fake_bin/bash"
+    cat > \
+        "$instrument_root/repo/services/rag-pedago/.venv/bin/python" <<'SCRIPT'
+#!/bin/sh
+printf 'python|%s|%s\n' "$*" "$PWD" >> "$COCKPIT_CALL_LOG"
+if [ "${COCKPIT_FAIL_AT:-}" = "python $*" ]; then
+    exit 97
+fi
+SCRIPT
+    chmod +x \
+        "$fake_bin/npm" \
+        "$fake_bin/bash" \
+        "$instrument_root/repo/services/rag-pedago/.venv/bin/python"
 
     {
         cat <<'SCRIPT'
@@ -350,6 +365,7 @@ npm|test -- --run|$instrument_root/repo/services/cockpit
 npm|run build|$instrument_root/repo/services/cockpit
 npm|audit|$instrument_root/repo/services/cockpit
 npm|audit --omit=dev|$instrument_root/repo/services/cockpit
+python|scripts/tests/test-cockpit-snapshot-coherence.py|$instrument_root/repo
 bash|scripts/tests/test-cockpit-clean-build.sh|$instrument_root/repo
 EOF
 
@@ -378,6 +394,7 @@ EOF
         "npm run build"
         "npm audit"
         "npm audit --omit=dev"
+        "python scripts/tests/test-cockpit-snapshot-coherence.py"
         "bash scripts/tests/test-cockpit-clean-build.sh"
     )
     local failure_index
@@ -512,6 +529,7 @@ required_commands: tuple[tuple[str, str | None], ...] = (
     ("npm run build", "services/cockpit"),
     ("npm audit", "services/cockpit"),
     ("npm audit --omit=dev", "services/cockpit"),
+    ("python3 scripts/tests/test-cockpit-snapshot-coherence.py", None),
     ("bash scripts/tests/test-cockpit-clean-build.sh", None),
 )
 
@@ -650,6 +668,24 @@ else
 fi
 
 echo ""
+echo "=== Mutation: run_cockpit exige les tests de cohérence des snapshots ==="
+
+MUTATED_CI_LOCAL="$TMPDIR_CI/ci-local-no-snapshot-tests.sh"
+cp "$REPO_ROOT/scripts/ci-local.sh" "$MUTATED_CI_LOCAL"
+sed -i \
+    '/^[[:space:]]*"\$REPO_ROOT\/services\/rag-pedago\/.venv\/bin\/python" scripts\/tests\/test-cockpit-snapshot-coherence.py[[:space:]]*$/d' \
+    "$MUTATED_CI_LOCAL"
+if ! validate_shell_cockpit_commands \
+    "run_cockpit() sans tests snapshots" \
+    "$MUTATED_CI_LOCAL" >/dev/null; then
+    echo "  PASS  l'absence des tests snapshots locaux est rejetée"
+    TESTS_PASS=$((TESTS_PASS + 1))
+else
+    echo "  FAIL  run_cockpit sans tests snapshots satisfait le validateur"
+    TESTS_FAIL=$((TESTS_FAIL + 1))
+fi
+
+echo ""
 echo "=== Mutations: run_cockpit rejette les sorties anticipées ==="
 
 MUTATED_CI_LOCAL="$TMPDIR_CI/ci-local-no-cockpit-errexit.sh"
@@ -716,6 +752,19 @@ if ! validate_yaml_cockpit_job "$MUTATED_WORKFLOW" >/dev/null; then
     TESTS_PASS=$((TESTS_PASS + 1))
 else
     echo "  FAIL  name: npm ci avec run: true satisfait encore le validateur YAML"
+    TESTS_FAIL=$((TESTS_FAIL + 1))
+fi
+
+MUTATED_WORKFLOW="$TMPDIR_CI/ci-no-snapshot-tests.yml"
+cp "$REPO_ROOT/.github/workflows/ci.yml" "$MUTATED_WORKFLOW"
+sed -i \
+    '/^      - run: python3 scripts\/tests\/test-cockpit-snapshot-coherence.py$/d' \
+    "$MUTATED_WORKFLOW"
+if ! validate_yaml_cockpit_job "$MUTATED_WORKFLOW" >/dev/null; then
+    echo "  PASS  l'absence des tests snapshots GitHub est rejetée"
+    TESTS_PASS=$((TESTS_PASS + 1))
+else
+    echo "  FAIL  le job GitHub sans tests snapshots satisfait le validateur"
     TESTS_FAIL=$((TESTS_FAIL + 1))
 fi
 

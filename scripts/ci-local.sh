@@ -140,6 +140,7 @@ run_cockpit() {
         npm audit
         npm audit --omit=dev
         cd "$REPO_ROOT"
+        "$REPO_ROOT/services/rag-pedago/.venv/bin/python" scripts/tests/test-cockpit-snapshot-coherence.py
         bash scripts/tests/test-cockpit-clean-build.sh
     )
 }
