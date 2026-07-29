@@ -4,8 +4,8 @@ Date de validation : 29 juillet 2026.
 
 ## Révision testée
 
-- Commit fonctionnel : `8343b71ee34f7296487401e557761b513babb94f`.
-- Arbre Git archivé : `e60085f55e00b75229ba491e5699d537d82630bb`.
+- Commit fonctionnel : `544760571c53f7d211b2a626173c995e9f23ee6f`.
+- Arbre Git archivé : `c79f9af8e91a6a44ed01121b3fa4c955516c0161`.
 - Branche : `lot-34-baseline-ci`.
 - Le présent rapport est commité séparément après la validation afin de ne pas
   rendre la preuve du SHA circulaire.
@@ -41,13 +41,27 @@ bash scripts/tests/test-ci-local-failsafe.sh
 - de l'arrêt de `ci-local.sh` avant tout appel à npm avec une version Node
   incompatible.
 
-État GREEN après implémentation : `16 passed, 0 failed`.
+Premier état GREEN après implémentation : `16 passed, 0 failed`.
 
-Les contrôles de contenu extraient réellement, par frontières syntaxiques, la
-fonction shell `run_cockpit()` et le seul job YAML `cockpit`. Ils exigent dans
-chacun `npm ci`, lint, les tests non interactifs, le build, l'audit complet,
-l'audit de production et le clean build Git. L'audit complet est contrôlé par
-une ligne exacte : l'audit `--omit=dev` ne peut donc pas créer de faux positif.
+La revue de conformité a ensuite ajouté deux mutations négatives. Avant le
+renforcement du validateur, elles ont produit le RED attendu sur celui-ci :
+`16 passed, 2 failed` :
+
+- remplacer `npm ci` dans `run_cockpit()` par `echo "npm ci"` était accepté ;
+- remplacer l'étape YAML par un simple label `name: npm ci` et `run: true`
+  était accepté.
+
+État GREEN final après correction : `17 passed, 0 failed`. Les deux mutations
+sont désormais rejetées.
+
+Le contrôle shell extrait réellement la fonction `run_cockpit()` par
+frontières syntaxiques et exige chaque commande comme ligne shell complète.
+Le contrôle du workflow parse le YAML avec PyYAML, inspecte exclusivement
+`jobs.cockpit.steps`, vérifie que `run` est une chaîne égale à la commande
+attendue et contrôle son `working-directory`. Un label, un booléen YAML, un
+`echo` ou une commande placée dans un autre job ne peut donc satisfaire le
+garde-fou. L'audit complet et l'audit `--omit=dev` restent deux étapes
+distinctes et exactes.
 
 ## Commandes de validation
 
@@ -74,22 +88,22 @@ Validation locale complète du commit fonctionnel :
   bash scripts/ci-local.sh
 ```
 
-Résultat : code de sortie `0`, `545.88 s` réelles, `460.33 s` utilisateur et
-`57.98 s` système.
+Résultat : code de sortie `0`, `541.29 s` réelles, `465.12 s` utilisateur et
+`58.54 s` système.
 
 ## Résultat par target
 
 | Target CI locale | Résultat | Preuve principale |
 |---|---|---|
 | `packages/contracts` | PASS | import du contrat canonique réussi |
-| `services/rag-pedago` | PASS | ruff vert, mypy vert sur 73 fichiers, `1151 passed` en `277.24 s` |
+| `services/rag-pedago` | PASS | ruff vert, mypy vert sur 73 fichiers, `1151 passed` en `280.02 s` |
 | `services/rag-engine` | PASS | installation, lint, typecheck et `603 passed`, `15 deselected` |
 | `services/cockpit` | PASS | lint, 3 fichiers de tests et `8 passed`, build de production, deux audits à zéro |
 | `governance-locks` | PASS | 18 clés identiques à la baseline |
 | `taxonomy-validation` | PASS | 57 taxonomies, 0 erreur, 486 notions et 174 sous-notions |
 | `source-evidence-check` | PASS | 11 verdicts couvrent la configuration courante |
 | `governance-guard-tests` | PASS | `16 passed, 0 failed` |
-| `ci-failsafe-tests` | PASS | `16 passed, 0 failed` |
+| `ci-failsafe-tests` | PASS | `17 passed, 0 failed`, dont les deux mutations anti-contournement |
 
 Résumé produit par le script : `9 passed, 0 failed`.
 
@@ -118,7 +132,7 @@ Résultats de la CI locale :
   installation `npm ci` depuis l'archive Git et nouveau build réussi.
 
 Le clean build a utilisé `HEAD`, donc l'arbre Git
-`e60085f55e00b75229ba491e5699d537d82630bb`, et non les fichiers non suivis du
+`c79f9af8e91a6a44ed01121b3fa4c955516c0161`, et non les fichiers non suivis du
 poste.
 
 ## Workflow GitHub Actions
@@ -128,9 +142,10 @@ Le job `cockpit` utilise `actions/setup-node@v4` avec
 `cache-dependency-path: services/cockpit/package-lock.json`. Il installe aussi
 PyYAML `6.0.3`, requis par le contrôle de concordance du clean build.
 
-Le workflow a été parsé statiquement et son job borné a été couvert par les
-tests locaux. **GitHub Actions n'a pas été exécuté dans cette validation** :
-aucun résultat distant n'est revendiqué dans ce rapport.
+Le workflow a été parsé sémantiquement et les valeurs `run` réellement
+exécutables du job borné ont été couvertes par les tests locaux. **GitHub
+Actions n'a pas été exécuté dans cette validation** : aucun résultat distant
+n'est revendiqué dans ce rapport.
 
 ## Écarts et absence d'exception
 
