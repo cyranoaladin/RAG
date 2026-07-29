@@ -308,21 +308,30 @@ validate_shell_cockpit_execution() {
     cat > "$fake_bin/npm" <<'SCRIPT'
 #!/bin/sh
 printf 'npm|%s|%s\n' "$*" "$PWD" >> "$COCKPIT_CALL_LOG"
+if [ "${COCKPIT_FAIL_AT:-}" = "npm $*" ]; then
+    exit 97
+fi
 SCRIPT
     cat > "$fake_bin/bash" <<'SCRIPT'
 #!/bin/sh
 printf 'bash|%s|%s\n' "$*" "$PWD" >> "$COCKPIT_CALL_LOG"
+if [ "${COCKPIT_FAIL_AT:-}" = "bash $*" ]; then
+    exit 97
+fi
 SCRIPT
     chmod +x "$fake_bin/npm" "$fake_bin/bash"
 
     {
         cat <<'SCRIPT'
 #!/usr/bin/env bash
-set -euo pipefail
+set -uo pipefail
 REPO_ROOT="$COCKPIT_INSTRUMENT_REPO"
 NODE_BIN="$COCKPIT_INSTRUMENT_NODE"
 require_node_2222() {
     printf 'node|%s|%s\n' "$1" "$PWD" >> "$COCKPIT_CALL_LOG"
+    if [ "${COCKPIT_FAIL_AT:-}" = "node" ]; then
+        return 97
+    fi
 }
 SCRIPT
         printf '%s\n' "$block"
@@ -360,6 +369,46 @@ EOF
         echo "$block_label n'exécute pas tous les contrôles dans l'ordre requis"
         return 1
     fi
+
+    local failure_ids=(
+        "node"
+        "npm ci"
+        "npm run lint"
+        "npm test -- --run"
+        "npm run build"
+        "npm audit"
+        "npm audit --omit=dev"
+        "bash scripts/tests/test-cockpit-clean-build.sh"
+    )
+    local failure_index
+    local failure_id
+    local failure_exit
+    local expected_prefix
+    for failure_index in "${!failure_ids[@]}"; do
+        failure_id="${failure_ids[$failure_index]}"
+        expected_prefix="$instrument_root/expected-prefix-$failure_index.log"
+        head -n "$((failure_index + 1))" "$expected_log" > "$expected_prefix"
+        : > "$call_log"
+
+        execution_output="$(
+            COCKPIT_CALL_LOG="$call_log" \
+            COCKPIT_INSTRUMENT_REPO="$instrument_root/repo" \
+            COCKPIT_INSTRUMENT_NODE="$instrument_root/node" \
+            COCKPIT_FAIL_AT="$failure_id" \
+            PATH="$fake_bin:$PATH" \
+            "$real_bash" "$runner" 2>&1
+        )"
+        failure_exit=$?
+
+        if [ "$failure_exit" -eq 0 ]; then
+            echo "$block_label masque l'échec injecté de: $failure_id"
+            return 1
+        fi
+        if ! diff -u "$expected_prefix" "$call_log"; then
+            echo "$block_label poursuit après l'échec injecté de: $failure_id"
+            return 1
+        fi
+    done
 }
 
 assert_shell_cockpit_commands() {
@@ -602,6 +651,21 @@ fi
 
 echo ""
 echo "=== Mutations: run_cockpit rejette les sorties anticipées ==="
+
+MUTATED_CI_LOCAL="$TMPDIR_CI/ci-local-no-cockpit-errexit.sh"
+cp "$REPO_ROOT/scripts/ci-local.sh" "$MUTATED_CI_LOCAL"
+sed -i \
+    '0,/^[[:space:]]*set -euo pipefail[[:space:]]*$/s//        set -uo pipefail/' \
+    "$MUTATED_CI_LOCAL"
+if ! validate_shell_cockpit_commands \
+    "run_cockpit() sans errexit" \
+    "$MUTATED_CI_LOCAL" >/dev/null; then
+    echo "  PASS  la suppression du fail-fast est rejetée"
+    TESTS_PASS=$((TESTS_PASS + 1))
+else
+    echo "  FAIL  run_cockpit sans fail-fast satisfait encore le validateur"
+    TESTS_FAIL=$((TESTS_FAIL + 1))
+fi
 
 MUTATED_CI_LOCAL="$TMPDIR_CI/ci-local-early-return.sh"
 cp "$REPO_ROOT/scripts/ci-local.sh" "$MUTATED_CI_LOCAL"
