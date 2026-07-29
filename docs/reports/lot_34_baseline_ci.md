@@ -287,5 +287,8 @@ ciblées post-fusion sont :
 - cockpit sous Node 22.22.0 : contrats, lint, 21 tests et build Next.js
   réussis.
 
-La CI locale complète est relancée après ce rapprochement ; son résultat est
-consigné avec le commit de merge avant publication de la branche.
+La CI locale complète a été exécutée sur le commit de merge
+`dddc9fa7581cf2a29e19bd40a08f32583c85a15d`, sous Node `22.22.0` : code de
+sortie `0`, **9 cibles réussies, 0 échec**. Le journal de validation confirme
+notamment la suite fail-safe (`35 passed, 0 failed`) et le build cockpit depuis
+un arbre Git propre.
