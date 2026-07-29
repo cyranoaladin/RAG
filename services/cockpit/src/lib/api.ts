@@ -121,6 +121,9 @@ export async function search(
     body: JSON.stringify({ query, top_k: 8, niveau, audience }),
   })
   if (remote) return { items: remote.results, demo: false }
+  if (import.meta.env.MODE === 'production') {
+    throw new Error('RAG_API_UNAVAILABLE')
+  }
   return { items: MOCK_RESULTS, demo: true }
 }
 
