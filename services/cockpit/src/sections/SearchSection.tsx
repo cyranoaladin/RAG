@@ -9,6 +9,9 @@ import { search } from '@/lib/api'
 import type { RetrievalResult } from '@/types/rag'
 import { NIVEAU_LABELS } from '@/types/rag'
 
+const SEARCH_UNAVAILABLE_MESSAGE =
+  'La recherche est temporairement indisponible. Veuillez réessayer.'
+
 export default function SearchSection() {
   const [query, setQuery] = useState('')
   const [niveau, setNiveau] = useState('terminale')
@@ -17,14 +20,23 @@ export default function SearchSection() {
   const [loading, setLoading] = useState(false)
   const [demo, setDemo] = useState(false)
   const [searched, setSearched] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   async function runSearch() {
     setLoading(true)
     setSearched(true)
-    const res = await search(query, niveau, audience)
-    setResults(res.items)
-    setDemo(res.demo)
-    setLoading(false)
+    setError(null)
+    try {
+      const res = await search(query, niveau, audience)
+      setResults(res.items)
+      setDemo(res.demo)
+    } catch {
+      setResults([])
+      setDemo(false)
+      setError(SEARCH_UNAVAILABLE_MESSAGE)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -73,10 +85,15 @@ export default function SearchSection() {
               Résultats de démonstration (API non connectée) — extraits NSI Terminale déjà indexés en production gouvernée.
             </p>
           )}
+          {error && (
+            <p role="alert" className="mt-3 text-sm text-red-700">
+              {error}
+            </p>
+          )}
         </CardContent>
       </Card>
 
-      {searched && !loading && results.length === 0 && (
+      {searched && !loading && !error && results.length === 0 && (
         <Card>
           <CardContent className="py-10 text-center text-sm text-slate-500">
             Saisissez une requête pour interroger l'index. Si aucune source ne répond, le moteur refuse
