@@ -235,24 +235,26 @@ extract_shell_function() {
     ' "$source_file"
 }
 
-extract_yaml_job() {
-    local job_name="$1"
-    local workflow_file="$2"
+block_has_exact_command() {
+    local block="$1"
+    local expected="$2"
 
-    awk -v signature="  ${job_name}:" '
-        $0 == signature {
-            in_job = 1
+    awk -v expected="$expected" '
+        {
+            line = $0
+            sub(/^[[:space:]]+/, "", line)
+            sub(/[[:space:]]+$/, "", line)
+            if (line == expected) {
+                found = 1
+            }
         }
-        in_job && $0 != signature && $0 ~ /^  [a-zA-Z0-9_-]+:$/ {
-            exit
+        END {
+            exit(found ? 0 : 1)
         }
-        in_job {
-            print
-        }
-    ' "$workflow_file"
+    ' <<<"$block"
 }
 
-assert_cockpit_commands() {
+validate_shell_cockpit_commands() {
     local block_label="$1"
     local block="$2"
     local missing=()
@@ -263,27 +265,173 @@ assert_cockpit_commands() {
         "npm run lint" \
         "npm test -- --run" \
         "npm run build" \
+        "npm audit" \
         "npm audit --omit=dev" \
         "bash scripts/tests/test-cockpit-clean-build.sh"; do
-        if ! grep -Fq -- "$command" <<<"$block"; then
+        if ! block_has_exact_command "$block" "$command"; then
             missing+=("$command")
         fi
     done
 
-    if ! grep -Eq \
-        '^[[:space:]]*((-[[:space:]]+)?run:[[:space:]]*)?npm audit[[:space:]]*$' \
-        <<<"$block"; then
-        missing+=("npm audit (complet)")
-    fi
-
     if [ -n "$block" ] && [ "${#missing[@]}" -eq 0 ]; then
-        echo "  PASS  $block_label contient tous les contrôles cockpit requis"
+        return 0
+    else
+        echo "$block_label est absent ou incomplet"
+        for command in "${missing[@]}"; do
+            echo "commande manquante: $command"
+        done
+        return 1
+    fi
+}
+
+assert_shell_cockpit_commands() {
+    local block_label="$1"
+    local block="$2"
+    local validation_output
+
+    if validation_output="$(
+        validate_shell_cockpit_commands "$block_label" "$block"
+    )"; then
+        echo "  PASS  $block_label contient les commandes shell exactes requises"
         TESTS_PASS=$((TESTS_PASS + 1))
     else
-        echo "  FAIL  $block_label est absent ou incomplet"
-        for command in "${missing[@]}"; do
-            echo "        commande manquante: $command"
-        done
+        echo "  FAIL  $validation_output"
+        TESTS_FAIL=$((TESTS_FAIL + 1))
+    fi
+}
+
+find_yaml_python() {
+    local candidate
+    local system_python
+
+    if [ -n "${YAML_PYTHON_BIN:-}" ]; then
+        if "$YAML_PYTHON_BIN" -c "import yaml" 2>/dev/null; then
+            printf '%s\n' "$YAML_PYTHON_BIN"
+            return 0
+        fi
+        return 1
+    fi
+
+    for candidate in \
+        "$REPO_ROOT/services/rag-pedago/.venv/bin/python" \
+        "$REPO_ROOT/services/rag-engine/.venv/bin/python"; do
+        if [ -x "$candidate" ] \
+            && "$candidate" -c "import yaml" 2>/dev/null; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+
+    system_python="$(command -v python3 || command -v python || true)"
+    if [ -n "$system_python" ] \
+        && "$system_python" -c "import yaml" 2>/dev/null; then
+        printf '%s\n' "$system_python"
+        return 0
+    fi
+    return 1
+}
+
+validate_yaml_cockpit_job() {
+    local workflow_file="$1"
+    local yaml_python
+
+    if ! yaml_python="$(find_yaml_python)"; then
+        echo "interpréteur Python avec PyYAML introuvable"
+        return 1
+    fi
+
+    "$yaml_python" - "$workflow_file" <<'PY'
+import sys
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+workflow_path = Path(sys.argv[1])
+try:
+    document = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+except (OSError, yaml.YAMLError) as exc:
+    print(f"workflow YAML illisible: {exc}")
+    raise SystemExit(1) from exc
+
+jobs = document.get("jobs") if isinstance(document, dict) else None
+cockpit = jobs.get("cockpit") if isinstance(jobs, dict) else None
+steps = cockpit.get("steps") if isinstance(cockpit, dict) else None
+if not isinstance(steps, list):
+    print("jobs.cockpit.steps est absent ou invalide")
+    raise SystemExit(1)
+
+required_commands: tuple[tuple[str, str | None], ...] = (
+    ("npm ci", "services/cockpit"),
+    ("npm run lint", "services/cockpit"),
+    ("npm test -- --run", "services/cockpit"),
+    ("npm run build", "services/cockpit"),
+    ("npm audit", "services/cockpit"),
+    ("npm audit --omit=dev", "services/cockpit"),
+    ("bash scripts/tests/test-cockpit-clean-build.sh", None),
+)
+errors: list[str] = []
+
+for command, working_directory in required_commands:
+    matches = []
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        run_value = step.get("run")
+        if not isinstance(run_value, str) or run_value != command:
+            continue
+        if step.get("working-directory") != working_directory:
+            continue
+        matches.append(step)
+    if len(matches) != 1:
+        errors.append(
+            f"commande effective exacte requise une fois: {command!r} "
+            f"(working-directory={working_directory!r}, trouvé={len(matches)})"
+        )
+
+setup_node_steps: list[dict[str, Any]] = [
+    step
+    for step in steps
+    if isinstance(step, dict) and step.get("uses") == "actions/setup-node@v4"
+]
+if len(setup_node_steps) != 1:
+    errors.append(
+        "actions/setup-node@v4 doit être présent exactement une fois "
+        f"(trouvé={len(setup_node_steps)})"
+    )
+else:
+    setup_node_with = setup_node_steps[0].get("with")
+    expected_setup = {
+        "node-version-file": ".nvmrc",
+        "cache": "npm",
+        "cache-dependency-path": "services/cockpit/package-lock.json",
+    }
+    if not isinstance(setup_node_with, dict):
+        errors.append("la configuration with de setup-node est absente")
+    else:
+        for key, expected in expected_setup.items():
+            if setup_node_with.get(key) != expected:
+                errors.append(
+                    f"setup-node.with.{key} doit valoir exactement {expected!r}"
+                )
+
+if errors:
+    print("jobs.cockpit est incomplet ou non exécutable")
+    for error in errors:
+        print(f"- {error}")
+    raise SystemExit(1)
+PY
+}
+
+assert_yaml_cockpit_job() {
+    local workflow_file="$1"
+    local validation_output
+
+    if validation_output="$(validate_yaml_cockpit_job "$workflow_file")"; then
+        echo "  PASS  jobs.cockpit contient les étapes exécutables et Node exactes"
+        TESTS_PASS=$((TESTS_PASS + 1))
+    else
+        echo "  FAIL  $validation_output"
         TESTS_FAIL=$((TESTS_FAIL + 1))
     fi
 }
@@ -294,10 +442,11 @@ echo "=== Test: run_cockpit contient uniquement ses contrôles requis ==="
 RUN_COCKPIT_BLOCK="$(
     extract_shell_function "run_cockpit" "$REPO_ROOT/scripts/ci-local.sh"
 )"
-assert_cockpit_commands "run_cockpit()" "$RUN_COCKPIT_BLOCK"
+assert_shell_cockpit_commands "run_cockpit()" "$RUN_COCKPIT_BLOCK"
 
-if grep -Fq 'require_node_2222 "$NODE_BIN"' <<<"$RUN_COCKPIT_BLOCK" \
-    && grep -Fq 'run_target "services/cockpit" run_cockpit' \
+if block_has_exact_command "$RUN_COCKPIT_BLOCK" \
+        'require_node_2222 "$NODE_BIN"' \
+    && grep -Fxq 'run_target "services/cockpit" run_cockpit' \
         "$REPO_ROOT/scripts/ci-local.sh"; then
     echo "  PASS  le target cockpit applique le garde-fou Node"
     TESTS_PASS=$((TESTS_PASS + 1))
@@ -307,22 +456,44 @@ else
 fi
 
 echo ""
-echo "=== Test: le job YAML cockpit contient uniquement ses contrôles requis ==="
+echo "=== Mutation: run_cockpit rejette une commande seulement affichée ==="
 
-COCKPIT_JOB_BLOCK="$(
-    extract_yaml_job "cockpit" "$REPO_ROOT/.github/workflows/ci.yml"
+MUTATED_CI_LOCAL="$TMPDIR_CI/ci-local-echo.sh"
+cp "$REPO_ROOT/scripts/ci-local.sh" "$MUTATED_CI_LOCAL"
+sed -i '0,/^[[:space:]]*npm ci[[:space:]]*$/s//        echo "npm ci"/' \
+    "$MUTATED_CI_LOCAL"
+MUTATED_RUN_COCKPIT_BLOCK="$(
+    extract_shell_function "run_cockpit" "$MUTATED_CI_LOCAL"
 )"
-assert_cockpit_commands "jobs.cockpit" "$COCKPIT_JOB_BLOCK"
 
-if grep -Fq "actions/setup-node@v4" <<<"$COCKPIT_JOB_BLOCK" \
-    && grep -Fq "node-version-file: .nvmrc" <<<"$COCKPIT_JOB_BLOCK" \
-    && grep -Fq "cache: npm" <<<"$COCKPIT_JOB_BLOCK" \
-    && grep -Fq "cache-dependency-path: services/cockpit/package-lock.json" \
-        <<<"$COCKPIT_JOB_BLOCK"; then
-    echo "  PASS  le job cockpit utilise .nvmrc et le cache du lockfile"
+if ! validate_shell_cockpit_commands \
+    "run_cockpit() muté" "$MUTATED_RUN_COCKPIT_BLOCK" >/dev/null; then
+    echo "  PASS  echo \"npm ci\" ne satisfait pas le validateur shell"
     TESTS_PASS=$((TESTS_PASS + 1))
 else
-    echo "  FAIL  la configuration Node/cache du job cockpit est absente"
+    echo "  FAIL  echo \"npm ci\" satisfait encore le validateur shell"
+    TESTS_FAIL=$((TESTS_FAIL + 1))
+fi
+
+echo ""
+echo "=== Test: le job YAML cockpit contient uniquement ses contrôles requis ==="
+
+assert_yaml_cockpit_job "$REPO_ROOT/.github/workflows/ci.yml"
+
+echo ""
+echo "=== Mutation: le job cockpit rejette un label sans commande effective ==="
+
+MUTATED_WORKFLOW="$TMPDIR_CI/ci-name-only.yml"
+cp "$REPO_ROOT/.github/workflows/ci.yml" "$MUTATED_WORKFLOW"
+sed -i '0,/^        run: npm ci$/{s/^        run: npm ci$/\
+        name: npm ci\
+        run: true/;}' "$MUTATED_WORKFLOW"
+
+if ! validate_yaml_cockpit_job "$MUTATED_WORKFLOW" >/dev/null; then
+    echo "  PASS  name: npm ci avec run: true est rejeté"
+    TESTS_PASS=$((TESTS_PASS + 1))
+else
+    echo "  FAIL  name: npm ci avec run: true satisfait encore le validateur YAML"
     TESTS_FAIL=$((TESTS_FAIL + 1))
 fi
 
