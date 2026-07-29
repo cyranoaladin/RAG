@@ -643,6 +643,7 @@ required_commands: tuple[tuple[str, str | None], ...] = (
     ("python3 scripts/tests/test-cockpit-snapshot-coherence.py", None),
     ("bash scripts/tests/test-cockpit-clean-build.sh", None),
 )
+required_python_dependencies = "pip install PyYAML==6.0.3 pydantic==2.13.4"
 
 for forbidden_key in ("if", "continue-on-error", "shell"):
     if forbidden_key in cockpit:
@@ -694,6 +695,17 @@ for command, working_directory in required_commands:
             f"commande effective exacte requise une fois: {command!r} "
             f"(working-directory={working_directory!r}, trouvé={len(matches)})"
         )
+
+python_dependency_steps = [
+    step
+    for step in steps
+    if isinstance(step, dict) and step.get("run") == required_python_dependencies
+]
+if len(python_dependency_steps) != 1:
+    errors.append(
+        "la dépendance Python des schémas cockpit doit être installée exactement "
+        f"une fois: {required_python_dependencies!r}"
+    )
 
 setup_node_steps: list[dict[str, Any]] = [
     step

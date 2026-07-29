@@ -292,3 +292,10 @@ La CI locale complète a été exécutée sur le commit de merge
 sortie `0`, **9 cibles réussies, 0 échec**. Le journal de validation confirme
 notamment la suite fail-safe (`35 passed, 0 failed`) et le build cockpit depuis
 un arbre Git propre.
+
+Après publication, le job GitHub cockpit a signalé un écart d'environnement :
+`contracts:check` importe Pydantic, alors que le job n'installait que PyYAML.
+Le job installe désormais `PyYAML==6.0.3` et `pydantic==2.13.4`. Le validateur
+fail-safe impose cette commande exacte ; une suppression de Pydantic rend donc
+la CI locale rouge avant publication. La correction a été vérifiée dans un
+venv Python isolé, puis par contrats, lint, 21 tests et build Next.js.
