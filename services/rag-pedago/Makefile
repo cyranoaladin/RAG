@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 VENVDIR ?= .venv
 
-PY_SYS := $(shell command -v python3 2>/dev/null || echo python3)
+PY_SYS := $(shell command -v python3.11 || command -v python3.12 || command -v python3 2>/dev/null || echo python3)
 PY_VENV := $(VENVDIR)/bin/python
 ifeq ($(wildcard $(PY_VENV)),)
   PY ?= $(PY_SYS)
@@ -20,7 +20,7 @@ venv:
 install: venv
 	"$(PY_VENV)" -m pip install -r requirements.lock
 	"$(PY_VENV)" -m pip install -e ../../packages/contracts --no-deps
-	"$(PY_VENV)" -m pip install -e . --no-deps
+	"$(PY_VENV)" -m pip install -e ".[dev]"
 
 doctor:
 	$(PY) scripts/doctor.py
