@@ -4,8 +4,8 @@ Date de validation : 29 juillet 2026.
 
 ## Révision testée
 
-- Commit fonctionnel : `544760571c53f7d211b2a626173c995e9f23ee6f`.
-- Arbre Git archivé : `c79f9af8e91a6a44ed01121b3fa4c955516c0161`.
+- Commit fonctionnel : `230559bd3746d54e4090bc6261123283503b63d2`.
+- Arbre Git archivé : `1cfe3f60604661bb4abe344040619fd73695c686`.
 - Branche : `lot-34-baseline-ci`.
 - Le présent rapport est commité séparément après la validation afin de ne pas
   rendre la preuve du SHA circulaire.
@@ -51,17 +51,31 @@ renforcement du validateur, elles ont produit le RED attendu sur celui-ci :
 - remplacer l'étape YAML par un simple label `name: npm ci` et `run: true`
   était accepté.
 
-État GREEN final après correction : `17 passed, 0 failed`. Les deux mutations
-sont désormais rejetées.
+Deuxième état GREEN après correction : `17 passed, 0 failed`. Les deux
+mutations sont désormais rejetées.
+
+La revue qualité a enfin ajouté dix mutations supplémentaires. Avant le
+renforcement, le validateur a produit le RED attendu : `17 passed, 10 failed`.
+Les faux négatifs démontrés étaient :
+
+- l'absence de `lot-*` ou de `lot-*/**` dans les déclencheurs ;
+- `if: false`, `continue-on-error: true` ou un `shell: "true {0}"` au niveau
+  du job cockpit ou d'une étape obligatoire ;
+- un `defaults.run.shell` personnalisé au niveau du workflow ou du job.
+
+État GREEN final : `27 passed, 0 failed`. Les dix mutations sont rejetées.
 
 Le contrôle shell extrait réellement la fonction `run_cockpit()` par
 frontières syntaxiques et exige chaque commande comme ligne shell complète.
-Le contrôle du workflow parse le YAML avec PyYAML, inspecte exclusivement
-`jobs.cockpit.steps`, vérifie que `run` est une chaîne égale à la commande
-attendue et contrôle son `working-directory`. Un label, un booléen YAML, un
-`echo` ou une commande placée dans un autre job ne peut donc satisfaire le
-garde-fou. L'audit complet et l'audit `--omit=dev` restent deux étapes
-distinctes et exactes.
+Le contrôle du workflow parse le YAML avec PyYAML. Il exige sémantiquement
+`main`, `lot-*` et `lot-*/**` pour `push` comme pour `pull_request`, inspecte
+exclusivement `jobs.cockpit.steps`, vérifie que `run` est une chaîne égale à
+la commande attendue et contrôle son `working-directory`. Il interdit aussi
+`if`, `continue-on-error` et `shell` sur le job ou ses étapes, ainsi que tout
+`defaults.run.shell` applicable. Un label, un booléen YAML, un `echo`, une
+commande placée dans un autre job ou une neutralisation du shell ne peut donc
+satisfaire le garde-fou. L'audit complet et l'audit `--omit=dev` restent deux
+étapes distinctes et exactes.
 
 ## Commandes de validation
 
@@ -78,6 +92,10 @@ import yaml
 
 workflow = yaml.safe_load(Path(".github/workflows/ci.yml").read_text())
 assert "jobs" in workflow and "cockpit" in workflow["jobs"]
+triggers = workflow.get("on", workflow.get(True))
+required = {"main", "lot-*", "lot-*/**"}
+for event in ("push", "pull_request"):
+    assert required <= set(triggers[event]["branches"])
 PY
 ```
 
@@ -88,22 +106,22 @@ Validation locale complète du commit fonctionnel :
   bash scripts/ci-local.sh
 ```
 
-Résultat : code de sortie `0`, `541.29 s` réelles, `465.12 s` utilisateur et
-`58.54 s` système.
+Résultat : code de sortie `0`, `549.15 s` réelles, `464.66 s` utilisateur et
+`59.68 s` système.
 
 ## Résultat par target
 
 | Target CI locale | Résultat | Preuve principale |
 |---|---|---|
 | `packages/contracts` | PASS | import du contrat canonique réussi |
-| `services/rag-pedago` | PASS | ruff vert, mypy vert sur 73 fichiers, `1151 passed` en `280.02 s` |
+| `services/rag-pedago` | PASS | ruff vert, mypy vert sur 73 fichiers, `1151 passed` en `280.18 s` |
 | `services/rag-engine` | PASS | installation, lint, typecheck et `603 passed`, `15 deselected` |
 | `services/cockpit` | PASS | lint, 3 fichiers de tests et `8 passed`, build de production, deux audits à zéro |
 | `governance-locks` | PASS | 18 clés identiques à la baseline |
 | `taxonomy-validation` | PASS | 57 taxonomies, 0 erreur, 486 notions et 174 sous-notions |
 | `source-evidence-check` | PASS | 11 verdicts couvrent la configuration courante |
 | `governance-guard-tests` | PASS | `16 passed, 0 failed` |
-| `ci-failsafe-tests` | PASS | `17 passed, 0 failed`, dont les deux mutations anti-contournement |
+| `ci-failsafe-tests` | PASS | `27 passed, 0 failed`, dont douze mutations anti-contournement |
 
 Résumé produit par le script : `9 passed, 0 failed`.
 
@@ -132,7 +150,7 @@ Résultats de la CI locale :
   installation `npm ci` depuis l'archive Git et nouveau build réussi.
 
 Le clean build a utilisé `HEAD`, donc l'arbre Git
-`c79f9af8e91a6a44ed01121b3fa4c955516c0161`, et non les fichiers non suivis du
+`1cfe3f60604661bb4abe344040619fd73695c686`, et non les fichiers non suivis du
 poste.
 
 ## Workflow GitHub Actions
@@ -142,10 +160,15 @@ Le job `cockpit` utilise `actions/setup-node@v4` avec
 `cache-dependency-path: services/cockpit/package-lock.json`. Il installe aussi
 PyYAML `6.0.3`, requis par le contrôle de concordance du clean build.
 
+Les événements `push` et `pull_request` couvrent `main`, les branches plates
+`lot-*` et les branches imbriquées `lot-*/**`. Une PR empilée ciblant une
+branche de lot déclenche donc la même CI.
+
 Le workflow a été parsé sémantiquement et les valeurs `run` réellement
-exécutables du job borné ont été couvertes par les tests locaux. **GitHub
-Actions n'a pas été exécuté dans cette validation** : aucun résultat distant
-n'est revendiqué dans ce rapport.
+exécutables du job borné ont été couvertes par les tests locaux. Les clés qui
+pourraient rendre le job conditionnel, tolérer un échec ou remplacer le shell
+sont refusées par présence. **GitHub Actions n'a pas été exécuté dans cette
+validation** : aucun résultat distant n'est revendiqué dans ce rapport.
 
 ## Écarts et absence d'exception
 
