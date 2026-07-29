@@ -12,4 +12,14 @@ SaaS Next.js (App Router) destiné aux élèves et candidats libres.
 
 ## Statut
 
-Placeholder — le code applicatif sera introduit au **Lot 3 (Cockpit MVP)**.
+Migration Vite → Next.js en cours au lot 35 : le shell App Router est
+vérifiable, les scripts Vite restent actifs jusqu'à la Task 7b et
+l'authentification réelle sera raccordée en Task 8a.
+
+## Sécurité des dépendances Next.js
+
+Next.js est verrouillé sur la version stable `16.2.12`. Ses dépendances
+publiées (`postcss@8.4.31` et `sharp@^0.34.5`) restent couvertes par des avis
+de sécurité `high` en juillet 2026. Les overrides exacts `postcss@8.5.25` et
+`sharp@0.35.3` sont donc conservés jusqu'à leur intégration dans une version
+stable de Next.js ; `npm ls`, le build Next réel et `npm audit` les contrôlent.

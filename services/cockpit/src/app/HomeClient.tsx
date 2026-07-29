@@ -1,3 +1,5 @@
+'use client'
+
 import { useEffect, useState } from 'react'
 import {
   LayoutDashboard,
@@ -28,7 +30,7 @@ const NAV: { id: Tab; label: string; icon: typeof LayoutDashboard }[] = [
   { id: 'gouvernance', label: 'Gouvernance', icon: ShieldCheck },
 ]
 
-export default function Home() {
+export default function HomeClient() {
   const [tab, setTab] = useState<Tab>('apercu')
   const [collections, setCollections] = useState<RagCollection[]>([])
   const [apiLive, setApiLive] = useState(false)

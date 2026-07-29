@@ -1,7 +1,9 @@
-'use client'
+import { CockpitShell } from './CockpitShell'
 
-import Home from '@/pages/Home'
+const transitionalSession = Object.freeze({
+  status: 'unverified' as const,
+})
 
 export default function Page() {
-  return <Home />
+  return <CockpitShell session={transitionalSession} />
 }

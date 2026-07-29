@@ -6,6 +6,7 @@ import type {
   GovernanceLock,
 } from '@/types/rag'
 import collectionsData from '@/data/collections.json'
+import { clientEnvironment } from './client-env'
 
 /**
  * Client API rag-engine (LOT 28 / ADR-0017, fix revue PR).
@@ -24,8 +25,8 @@ import collectionsData from '@/data/collections.json'
  * invariant M-04) : il est embarqué en données statiques. La connectivité API
  * est mesurée par GET /health (seule route publique de l'API retrieval).
  */
-const API_BASE = import.meta.env.VITE_RAG_API_BASE as string | undefined
-const PROFILE_TOKEN = import.meta.env.VITE_RAG_PROFILE_TOKEN as string | undefined
+const API_BASE = clientEnvironment.apiBase
+const PROFILE_TOKEN = clientEnvironment.profileToken
 
 async function tryApi<T>(path: string, init?: RequestInit): Promise<T | null> {
   if (!API_BASE) return null
@@ -115,12 +116,20 @@ export async function search(
   niveau: string,
   audience: string,
 ): Promise<{ items: RetrievalResult[]; demo: boolean }> {
-  if (!query.trim()) return { items: [], demo: !API_BASE }
+  if (!query.trim()) {
+    return {
+      items: [],
+      demo: clientEnvironment.mode !== 'production' && !API_BASE,
+    }
+  }
   const remote = await tryApi<RetrievalResponse>('/search', {
     method: 'POST',
     body: JSON.stringify({ query, top_k: 8, niveau, audience }),
   })
-  if (remote) return { items: remote.results, demo: false }
+  if (remote) return { items: remote.results ?? [], demo: false }
+  if (clientEnvironment.mode === 'production') {
+    throw new Error('RAG_API_UNAVAILABLE')
+  }
   return { items: MOCK_RESULTS, demo: true }
 }
 

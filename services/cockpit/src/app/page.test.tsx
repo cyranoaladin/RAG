@@ -3,7 +3,8 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import Page from './page'
+import { getCollections } from '@/lib/api'
+import { CockpitShell } from './CockpitShell'
 
 vi.mock('@/lib/api', () => ({
   getCollections: vi.fn().mockResolvedValue({ items: [], live: false }),
@@ -12,31 +13,37 @@ vi.mock('@/lib/api', () => ({
 const simulatedSession = Object.freeze({
   status: 'authenticated',
   user: { displayName: 'Élève Nexus' },
+  accessToken: 'TOKEN_SENTINEL_MUST_NOT_LEAK',
 })
 
 describe('shell Next.js', () => {
-  afterEach(cleanup)
+  afterEach(() => {
+    cleanup()
+    vi.clearAllMocks()
+    vi.unstubAllGlobals()
+  })
 
-  it('rend le cockpit dans un état de session authentifié minimal', () => {
+  it('consomme une session authentifiée sans sérialiser son jeton', () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
     const { container } = render(
-      <div data-session-status={simulatedSession.status}>
-        <Page />
-      </div>,
+      <CockpitShell session={simulatedSession} />,
     )
 
     expect(
       container.firstElementChild?.getAttribute('data-session-status'),
     ).toBe('authenticated')
     expect(screen.getByText('Nexus Réussite')).toBeTruthy()
-  })
 
-  it('n’expose aucun secret ni endpoint interne dans le rendu', () => {
-    const { container } = render(<Page />)
-    const rendered = container.textContent ?? ''
+    const rendered = `${container.innerHTML}\n${container.outerHTML}`
 
+    expect(rendered).not.toContain(simulatedSession.accessToken)
     expect(rendered).not.toContain('Bearer ')
     expect(rendered).not.toContain('OPENROUTER_API_KEY')
     expect(rendered).not.toContain('RAG_ENGINE_INTERNAL_URL')
     expect(rendered).not.toContain('.internal')
+    expect(getCollections).toHaveBeenCalledOnce()
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })
