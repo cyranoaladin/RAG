@@ -20,9 +20,6 @@ node_modules/
 # Data & artifacts
 *.db
 *.sqlite
-**/data/
-!services/rag-engine/data/chunks/
-!services/rag-pedago/data/acquisition/
 *.bak*
 *.log
 .DS_Store
