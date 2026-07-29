@@ -5,6 +5,15 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
+COMMON_LIB="$REPO_ROOT/scripts/lib/ci-common.sh"
+
+TESTS_PASS=0
+TESTS_FAIL=0
+
+if ! source "$COMMON_LIB"; then
+    echo "  FAIL  unable to source scripts/lib/ci-common.sh"
+    TESTS_FAIL=$((TESTS_FAIL + 1))
+fi
 
 echo "=== Test: ci-local.sh propagates target failure ==="
 
@@ -55,9 +64,6 @@ rm -f "$TMPSCRIPT"
 echo "$OUTPUT"
 
 # Assertions
-TESTS_PASS=0
-TESTS_FAIL=0
-
 if [ "$EXIT" -ne 0 ]; then
     echo "  PASS  exit code is non-zero ($EXIT)"
     TESTS_PASS=$((TESTS_PASS + 1))
@@ -79,6 +85,90 @@ if echo "$OUTPUT" | grep -q "PASS  should-pass"; then
     TESTS_PASS=$((TESTS_PASS + 1))
 else
     echo "  FAIL  output missing PASS for passing target"
+    TESTS_FAIL=$((TESTS_FAIL + 1))
+fi
+
+echo ""
+echo "=== Test: require_python_311 rejects Python 3.10 ==="
+
+TMPDIR_CI=$(mktemp -d)
+trap 'rm -rf "$TMPDIR_CI"' EXIT
+
+cat > "$TMPDIR_CI/python3.10" <<'SCRIPT'
+#!/usr/bin/env bash
+if [ "${1:-}" = "--version" ]; then
+    echo "Python 3.10.14"
+    exit 0
+fi
+exit 1
+SCRIPT
+chmod +x "$TMPDIR_CI/python3.10"
+
+set +e
+require_python_311 "$TMPDIR_CI/python3.10"
+PYTHON_310_EXIT=$?
+set -e
+
+if [ "$PYTHON_310_EXIT" -ne 0 ]; then
+    echo "  PASS  Python 3.10 is rejected"
+    TESTS_PASS=$((TESTS_PASS + 1))
+else
+    echo "  FAIL  Python 3.10 should be rejected"
+    TESTS_FAIL=$((TESTS_FAIL + 1))
+fi
+
+echo ""
+echo "=== Test: require_python_311 accepts Python 3.11 ==="
+
+cat > "$TMPDIR_CI/python3.11" <<'SCRIPT'
+#!/usr/bin/env bash
+if [ "${1:-}" = "--version" ]; then
+    echo "Python 3.11.9"
+    exit 0
+fi
+exit 0
+SCRIPT
+chmod +x "$TMPDIR_CI/python3.11"
+
+set +e
+require_python_311 "$TMPDIR_CI/python3.11"
+PYTHON_311_EXIT=$?
+set -e
+
+if [ "$PYTHON_311_EXIT" -eq 0 ]; then
+    echo "  PASS  Python 3.11 is accepted"
+    TESTS_PASS=$((TESTS_PASS + 1))
+else
+    echo "  FAIL  Python 3.11 should be accepted (exit $PYTHON_311_EXIT)"
+    TESTS_FAIL=$((TESTS_FAIL + 1))
+fi
+
+echo ""
+echo "=== Test: run_checked propagates command exit code ==="
+
+returns_seven() { return 7; }
+
+set +e
+run_checked returns_seven
+RUN_CHECKED_EXIT=$?
+set -e
+
+if [ "$RUN_CHECKED_EXIT" -eq 7 ]; then
+    echo "  PASS  run_checked propagated exit code 7"
+    TESTS_PASS=$((TESTS_PASS + 1))
+else
+    echo "  FAIL  run_checked returned $RUN_CHECKED_EXIT instead of 7"
+    TESTS_FAIL=$((TESTS_FAIL + 1))
+fi
+
+echo ""
+echo "=== Test: no pre-existing failure tolerance remains ==="
+
+if ! grep -q 'pre-existing failure(s) — acceptable' "$REPO_ROOT/scripts/ci-local.sh"; then
+    echo "  PASS  ci-local.sh contains no accepted-failure exception"
+    TESTS_PASS=$((TESTS_PASS + 1))
+else
+    echo "  FAIL  ci-local.sh still accepts pre-existing failures"
     TESTS_FAIL=$((TESTS_FAIL + 1))
 fi
 
