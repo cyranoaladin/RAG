@@ -9,34 +9,24 @@ import collectionsData from '@/data/collections.json'
 import { clientEnvironment } from './client-env'
 
 /**
- * Client API rag-engine (LOT 28 / ADR-0017, fix revue PR).
+ * Client transitoire du BFF cockpit (LOT 28 / ADR-0017).
  *
- * Sécurité — ne JAMAIS embarquer le secret HMAC du profil dans ce client
- * statique. En production, le cockpit passe par un proxy serveur (BFF) qui :
- *   1. authentifie l'utilisateur (session),
- *   2. détient le secret serveur,
- *   3. signe le profil (niveau + audience) et appelle l'API retrieval avec
- *      `Authorization: Bearer <b64url_payload>.<hmac_hex>`.
- * Le navigateur appelle alors `${VITE_RAG_API_BASE}/search` = endpoint du
- * proxy, pas l'API retrieval directement. Pour un test local, un jeton déjà
- * signé peut être fourni via VITE_RAG_PROFILE_TOKEN (jamais en production).
+ * Sécurité : le navigateur ne connaît que les routes same-origin `/api/*`.
+ * L'adresse de rag-engine et les données d'authentification restent côté
+ * serveur. Le BFF réel sera raccordé en Task 8b.
  *
  * Le catalogue des collections est versionné dans le dépôt (source de vérité,
  * invariant M-04) : il est embarqué en données statiques. La connectivité API
- * est mesurée par GET /health (seule route publique de l'API retrieval).
+ * est mesurée par le BFF `GET /api/health`.
  */
-const API_BASE = clientEnvironment.apiBase
-const PROFILE_TOKEN = clientEnvironment.profileToken
 
 async function tryApi<T>(path: string, init?: RequestInit): Promise<T | null> {
-  if (!API_BASE) return null
   try {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...(init?.headers as Record<string, string> | undefined),
     }
-    if (PROFILE_TOKEN) headers.Authorization = `Bearer ${PROFILE_TOKEN}`
-    const res = await fetch(`${API_BASE}${path}`, {
+    const res = await fetch(path, {
       ...init,
       headers,
       signal: AbortSignal.timeout(8000),
@@ -48,9 +38,9 @@ async function tryApi<T>(path: string, init?: RequestInit): Promise<T | null> {
   }
 }
 
-/** Connectivité API : GET /health (route publique de l'API retrieval). */
+/** Connectivité API via le BFF same-origin. */
 export async function getApiHealth(): Promise<boolean> {
-  const health = await tryApi<{ status?: string }>('/health')
+  const health = await tryApi<{ status?: string }>('/api/health')
   return health !== null
 }
 
@@ -119,10 +109,10 @@ export async function search(
   if (!query.trim()) {
     return {
       items: [],
-      demo: clientEnvironment.mode !== 'production' && !API_BASE,
+      demo: clientEnvironment.mode !== 'production',
     }
   }
-  const remote = await tryApi<RetrievalResponse>('/search', {
+  const remote = await tryApi<RetrievalResponse>('/api/search', {
     method: 'POST',
     body: JSON.stringify({ query, top_k: 8, niveau, audience }),
   })

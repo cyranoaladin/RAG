@@ -37,7 +37,7 @@ export default function HomeClient() {
 
   useEffect(() => {
     // Catalogue versionné dans le dépôt (source de vérité M-04) ;
-    // apiLive mesure la connectivité à l'API retrieval via GET /health.
+    // apiLive mesure la connectivité au BFF same-origin via GET /api/health.
     getCollections().then((res) => {
       setCollections(res.items)
       setApiLive(res.live)

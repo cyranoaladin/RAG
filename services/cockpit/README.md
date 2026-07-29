@@ -14,7 +14,9 @@ SaaS Next.js (App Router) destiné aux élèves et candidats libres.
 
 Migration Vite → Next.js en cours au lot 35 : le shell App Router est
 vérifiable, les scripts Vite restent actifs jusqu'à la Task 7b et
-l'authentification réelle sera raccordée en Task 8a.
+l'authentification réelle sera raccordée en Task 8a. Avant ce raccord, les
+entrées Next et Vite restent fermées et le navigateur n'appelle que le BFF
+same-origin sous `/api/*`.
 
 ## Sécurité des dépendances Next.js
 

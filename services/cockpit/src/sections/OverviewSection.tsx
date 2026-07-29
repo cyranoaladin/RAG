@@ -26,8 +26,7 @@ export default function OverviewSection({ collections, demo }: { collections: Ra
           <AlertTriangle className="h-4 w-4 shrink-0" />
           <span>
             <strong>Mode démonstration</strong> — données issues du dépôt (catalogue v3, lecture seule).
-            Connectez <code className="rounded bg-amber-100 px-1">VITE_RAG_API_BASE</code> à l'API retrieval
-            pour les données temps réel.
+            Le BFF same-origin n'est pas disponible pour les données temps réel.
           </span>
         </div>
       )}
