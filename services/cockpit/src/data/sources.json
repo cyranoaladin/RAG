@@ -58,7 +58,7 @@
   },
   {
     "id": "eduscol_hlp_voie_gt",
-    "url": "https://eduscol.education.gouv.fr/1711/programmes-et-ressources-en-humanites-litterature-et-philosophie-voie-gt",
+    "url": "https://eduscol.education.gouv.fr/5805/programmes-et-ressources-en-humanites-litterature-et-philosophie-voie-g",
     "status": "verified",
     "matiere": "hlp",
     "niveaux": [
@@ -110,7 +110,7 @@
   },
   {
     "id": "eduscol_pc_voie_gt",
-    "url": "https://eduscol.education.gouv.fr/5815/programmes-et-ressources-en-physique-chimie-voie-gt",
+    "url": "https://eduscol.education.gouv.fr/5829/programmes-et-ressources-en-physique-chimie-voie-gt",
     "status": "to_verify",
     "matiere": "physique_chimie",
     "niveaux": [
@@ -126,7 +126,7 @@
   },
   {
     "id": "eduscol_svt_voie_gt",
-    "url": "https://eduscol.education.gouv.fr/5819/programmes-et-ressources-en-svt-voie-gt",
+    "url": "https://eduscol.education.gouv.fr/5835/programmes-et-ressources-en-sciences-de-la-vie-et-de-la-terre-voie-gt",
     "status": "to_verify",
     "matiere": "svt",
     "niveaux": [
@@ -142,8 +142,8 @@
   },
   {
     "id": "eduscol_ses_voie_gt",
-    "url": "https://eduscol.education.gouv.fr/5813/programmes-et-ressources-en-sciences-economiques-et-sociales-voie-gt",
-    "status": "to_verify",
+    "url": "https://eduscol.education.gouv.fr/5838/programmes-et-ressources-en-sciences-economiques-et-sociales-voie-gt",
+    "status": "verified",
     "matiere": "ses",
     "niveaux": [
       "seconde",
@@ -158,7 +158,7 @@
   },
   {
     "id": "eduscol_hggsp_voie_g",
-    "url": "https://eduscol.education.gouv.fr/5808/programmes-et-ressources-en-histoire-geographie-geopolitique-et-sciences-politiques-voie-g",
+    "url": "https://eduscol.education.gouv.fr/5802/programmes-et-ressources-en-histoire-geographie-geopolitique-et-sciences-politiques-voie-g",
     "status": "to_verify",
     "matiere": "hggsp",
     "niveaux": [
@@ -172,7 +172,7 @@
   },
   {
     "id": "eduscol_hg_lycee_gt",
-    "url": "https://eduscol.education.gouv.fr/5802/programmes-et-ressources-en-histoire-geographie-voie-gt",
+    "url": "https://eduscol.education.gouv.fr/5799/programmes-et-ressources-en-histoire-geographie-voie-gt",
     "status": "to_verify",
     "matiere": "hg",
     "niveaux": [
@@ -188,7 +188,7 @@
   },
   {
     "id": "eduscol_llce_voie_g",
-    "url": "https://eduscol.education.gouv.fr/5811/programmes-et-ressources-en-langues-litteratures-et-cultures-etrangeres-voie-g",
+    "url": "https://eduscol.education.gouv.fr/5814/programmes-et-ressources-en-langues-litteratures-et-cultures-etrangeres-et-regionales-voie-g",
     "status": "to_verify",
     "matiere": "llce",
     "niveaux": [
@@ -202,17 +202,15 @@
   },
   {
     "id": "eduscol_langues_voie_gt",
-    "url": "https://eduscol.education.gouv.fr/5806/programmes-et-ressources-en-langues-vivantes-voie-gt",
-    "status": "to_verify",
+    "url": "https://eduscol.education.gouv.fr/5811/programmes-et-ressources-en-langues-vivantes-voie-gt",
+    "status": "verified",
     "matiere": "langues",
     "niveaux": [
-      "troisieme",
       "seconde",
       "premiere",
       "terminale"
     ],
     "collections": [
-      "rag_nexus_lv_troisieme_tc",
       "rag_nexus_lv_seconde_tc",
       "rag_nexus_lv_premiere_tc",
       "rag_nexus_lv_terminale_tc"
@@ -220,7 +218,7 @@
   },
   {
     "id": "eduscol_es_voie_g",
-    "url": "https://eduscol.education.gouv.fr/5804/programmes-et-ressources-en-enseignement-scientifique-voie-g",
+    "url": "https://eduscol.education.gouv.fr/5790/programmes-et-ressources-en-enseignement-scientifique-voie-g",
     "status": "to_verify",
     "matiere": "es",
     "niveaux": [
@@ -234,7 +232,7 @@
   },
   {
     "id": "eduscol_college_cycle4",
-    "url": "https://eduscol.education.gouv.fr/65/les-programmes-du-college",
+    "url": "https://eduscol.education.gouv.fr/4362/enseigner-au-cycle-4",
     "status": "to_verify",
     "matiere": "college",
     "niveaux": [
@@ -252,8 +250,8 @@
   },
   {
     "id": "eduscol_dnb",
-    "url": "https://eduscol.education.gouv.fr/93/le-diplome-national-du-brevet",
-    "status": "to_verify",
+    "url": "https://eduscol.education.gouv.fr/4536/diplome-national-du-brevet",
+    "status": "verified",
     "matiere": "dnb",
     "niveaux": [
       "troisieme"
@@ -264,7 +262,7 @@
   },
   {
     "id": "eduscol_stmg",
-    "url": "https://eduscol.education.gouv.fr/5645/baccalaureat-technologique-serie-stmg",
+    "url": "https://eduscol.education.gouv.fr/5862/programmes-et-ressources-en-serie-stmg",
     "status": "to_verify",
     "matiere": "stmg",
     "niveaux": [
@@ -281,7 +279,7 @@
   },
   {
     "id": "eduscol_grand_oral",
-    "url": "https://eduscol.education.gouv.fr/2423/le-grand-oral-du-baccalaureat",
+    "url": "https://eduscol.education.gouv.fr/5661/presentation-du-grand-oral",
     "status": "to_verify",
     "matiere": "grand_oral",
     "niveaux": [
