@@ -256,10 +256,12 @@ block_has_exact_command() {
 
 validate_shell_cockpit_commands() {
     local block_label="$1"
-    local block="$2"
+    local source_file="$2"
+    local block
     local missing=()
     local command
 
+    block="$(extract_shell_function "run_cockpit" "$source_file")"
     for command in \
         "npm ci" \
         "npm run lint" \
@@ -273,26 +275,102 @@ validate_shell_cockpit_commands() {
         fi
     done
 
-    if [ -n "$block" ] && [ "${#missing[@]}" -eq 0 ]; then
-        return 0
-    else
+    if [ -z "$block" ] || [ "${#missing[@]}" -ne 0 ]; then
         echo "$block_label est absent ou incomplet"
         for command in "${missing[@]}"; do
             echo "commande manquante: $command"
         done
         return 1
     fi
+
+    validate_shell_cockpit_execution "$block_label" "$block"
+}
+
+validate_shell_cockpit_execution() {
+    local block_label="$1"
+    local block="$2"
+    local instrument_root
+    local fake_bin
+    local runner
+    local call_log
+    local expected_log
+    local real_bash
+    local execution_output
+
+    instrument_root="$(mktemp -d "$TMPDIR_CI/cockpit-instrument.XXXXXX")"
+    fake_bin="$instrument_root/bin"
+    runner="$instrument_root/run.sh"
+    call_log="$instrument_root/calls.log"
+    expected_log="$instrument_root/expected.log"
+    real_bash="$(command -v bash)"
+    mkdir -p "$fake_bin" "$instrument_root/repo/services/cockpit"
+
+    cat > "$fake_bin/npm" <<'SCRIPT'
+#!/bin/sh
+printf 'npm|%s|%s\n' "$*" "$PWD" >> "$COCKPIT_CALL_LOG"
+SCRIPT
+    cat > "$fake_bin/bash" <<'SCRIPT'
+#!/bin/sh
+printf 'bash|%s|%s\n' "$*" "$PWD" >> "$COCKPIT_CALL_LOG"
+SCRIPT
+    chmod +x "$fake_bin/npm" "$fake_bin/bash"
+
+    {
+        cat <<'SCRIPT'
+#!/usr/bin/env bash
+set -euo pipefail
+REPO_ROOT="$COCKPIT_INSTRUMENT_REPO"
+NODE_BIN="$COCKPIT_INSTRUMENT_NODE"
+require_node_2222() {
+    printf 'node|%s|%s\n' "$1" "$PWD" >> "$COCKPIT_CALL_LOG"
+}
+SCRIPT
+        printf '%s\n' "$block"
+        cat <<'SCRIPT'
+cd "$REPO_ROOT"
+run_cockpit
+SCRIPT
+    } > "$runner"
+    chmod +x "$runner"
+
+    cat > "$expected_log" <<EOF
+node|$instrument_root/node|$instrument_root/repo
+npm|ci|$instrument_root/repo/services/cockpit
+npm|run lint|$instrument_root/repo/services/cockpit
+npm|test -- --run|$instrument_root/repo/services/cockpit
+npm|run build|$instrument_root/repo/services/cockpit
+npm|audit|$instrument_root/repo/services/cockpit
+npm|audit --omit=dev|$instrument_root/repo/services/cockpit
+bash|scripts/tests/test-cockpit-clean-build.sh|$instrument_root/repo
+EOF
+
+    if ! execution_output="$(
+        COCKPIT_CALL_LOG="$call_log" \
+        COCKPIT_INSTRUMENT_REPO="$instrument_root/repo" \
+        COCKPIT_INSTRUMENT_NODE="$instrument_root/node" \
+        PATH="$fake_bin:$PATH" \
+        "$real_bash" "$runner" 2>&1
+    )"; then
+        echo "$block_label échoue pendant l'exécution instrumentée"
+        echo "$execution_output"
+        return 1
+    fi
+
+    if ! diff -u "$expected_log" "$call_log"; then
+        echo "$block_label n'exécute pas tous les contrôles dans l'ordre requis"
+        return 1
+    fi
 }
 
 assert_shell_cockpit_commands() {
     local block_label="$1"
-    local block="$2"
+    local source_file="$2"
     local validation_output
 
     if validation_output="$(
-        validate_shell_cockpit_commands "$block_label" "$block"
+        validate_shell_cockpit_commands "$block_label" "$source_file"
     )"; then
-        echo "  PASS  $block_label contient les commandes shell exactes requises"
+        echo "  PASS  $block_label exécute tous les contrôles dans l'ordre requis"
         TESTS_PASS=$((TESTS_PASS + 1))
     else
         echo "  FAIL  $validation_output"
@@ -492,7 +570,8 @@ echo "=== Test: run_cockpit contient uniquement ses contrôles requis ==="
 RUN_COCKPIT_BLOCK="$(
     extract_shell_function "run_cockpit" "$REPO_ROOT/scripts/ci-local.sh"
 )"
-assert_shell_cockpit_commands "run_cockpit()" "$RUN_COCKPIT_BLOCK"
+assert_shell_cockpit_commands \
+    "run_cockpit()" "$REPO_ROOT/scripts/ci-local.sh"
 
 if block_has_exact_command "$RUN_COCKPIT_BLOCK" \
         'require_node_2222 "$NODE_BIN"' \
@@ -512,16 +591,45 @@ MUTATED_CI_LOCAL="$TMPDIR_CI/ci-local-echo.sh"
 cp "$REPO_ROOT/scripts/ci-local.sh" "$MUTATED_CI_LOCAL"
 sed -i '0,/^[[:space:]]*npm ci[[:space:]]*$/s//        echo "npm ci"/' \
     "$MUTATED_CI_LOCAL"
-MUTATED_RUN_COCKPIT_BLOCK="$(
-    extract_shell_function "run_cockpit" "$MUTATED_CI_LOCAL"
-)"
-
 if ! validate_shell_cockpit_commands \
-    "run_cockpit() muté" "$MUTATED_RUN_COCKPIT_BLOCK" >/dev/null; then
+    "run_cockpit() muté" "$MUTATED_CI_LOCAL" >/dev/null; then
     echo "  PASS  echo \"npm ci\" ne satisfait pas le validateur shell"
     TESTS_PASS=$((TESTS_PASS + 1))
 else
     echo "  FAIL  echo \"npm ci\" satisfait encore le validateur shell"
+    TESTS_FAIL=$((TESTS_FAIL + 1))
+fi
+
+echo ""
+echo "=== Mutations: run_cockpit rejette les sorties anticipées ==="
+
+MUTATED_CI_LOCAL="$TMPDIR_CI/ci-local-early-return.sh"
+cp "$REPO_ROOT/scripts/ci-local.sh" "$MUTATED_CI_LOCAL"
+sed -i \
+    '/cd "\$REPO_ROOT\/services\/cockpit"/a\        return 0' \
+    "$MUTATED_CI_LOCAL"
+if ! validate_shell_cockpit_commands \
+    "run_cockpit() avec return anticipé" \
+    "$MUTATED_CI_LOCAL" >/dev/null; then
+    echo "  PASS  un return anticipé est rejeté"
+    TESTS_PASS=$((TESTS_PASS + 1))
+else
+    echo "  FAIL  un return anticipé rend les commandes inatteignables sans être rejeté"
+    TESTS_FAIL=$((TESTS_FAIL + 1))
+fi
+
+MUTATED_CI_LOCAL="$TMPDIR_CI/ci-local-early-exit.sh"
+cp "$REPO_ROOT/scripts/ci-local.sh" "$MUTATED_CI_LOCAL"
+sed -i \
+    '/cd "\$REPO_ROOT\/services\/cockpit"/a\        exit 0' \
+    "$MUTATED_CI_LOCAL"
+if ! validate_shell_cockpit_commands \
+    "run_cockpit() avec exit anticipé" \
+    "$MUTATED_CI_LOCAL" >/dev/null; then
+    echo "  PASS  un exit anticipé est rejeté"
+    TESTS_PASS=$((TESTS_PASS + 1))
+else
+    echo "  FAIL  un exit anticipé rend les commandes inatteignables sans être rejeté"
     TESTS_FAIL=$((TESTS_FAIL + 1))
 fi
 
