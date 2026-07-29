@@ -5,8 +5,8 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import sourcesData from '@/data/sources.json'
-import type { IngestionSource } from '@/types/rag'
-import { MATIERE_LABELS } from '@/types/rag'
+import type { IngestionSource } from '@/types/ui'
+import { MATIERE_LABELS } from '@/types/ui'
 
 const sources = sourcesData as IngestionSource[]
 
@@ -93,8 +93,8 @@ export default function IngestionSection() {
                 Sources candidates — activation après revue humaine (ADR-0016 §6)
               </CardTitle>
               <p className="text-sm text-slate-500">
-                URLs déduites des conventions eduscol : l'agent les ignore tant que
-                <code className="mx-1 rounded bg-slate-100 px-1">status: verified</code> n'est pas confirmé
+                URLs déduites des conventions eduscol : l’agent les ignore tant que
+                <code className="mx-1 rounded bg-slate-100 px-1">status: verified</code> n’est pas confirmé
                 dans <code className="rounded bg-slate-100 px-1">eduscol_sources.yml</code>.
               </p>
             </CardHeader>

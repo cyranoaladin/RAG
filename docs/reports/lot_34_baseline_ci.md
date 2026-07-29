@@ -266,3 +266,26 @@ Trois avertissements non masqués sont émis par la suite existante de
 entre ses dépendances installées, et usage de `datetime.utcnow()` dans
 `python-jose`. Ils n'ont entraîné ni exception, ni test ignoré supplémentaire,
 ni clause d'acceptation dans la CI de ce lot.
+
+## Réconciliation avec `main` (PR #76)
+
+Après l'intégration des lots 31 et 35 dans `main`, la branche du lot 34 a été
+fusionnée avec ce nouveau parent. Les conflits provenaient du remplacement du
+cockpit Vite par le cockpit Next.js/BFF. La résolution conserve les routes BFF,
+les contrats générés et les tests de frontière de `main`, ainsi que les
+garde-fous CI et snapshots du lot 34.
+
+Le client direct `src/lib/api.ts` et ses dix tests Vite ont été supprimés : ils
+étaient incompatibles avec l'architecture BFF et leur couverture de sûreté est
+remplacée par `src/lib/bff-client.test.ts` (route same-origin, absence de jeton
+navigateur, validation de réponse, erreur opaque et délai borné). Les preuves
+ciblées post-fusion sont :
+
+- `SearchSection.test.tsx` : 2 tests réussis ;
+- `test-ci-local-failsafe.sh` : 35 assertions réussies ;
+- `test-cockpit-snapshot-coherence.py -v` : 6 tests réussis ;
+- cockpit sous Node 22.22.0 : contrats, lint, 21 tests et build Next.js
+  réussis.
+
+La CI locale complète est relancée après ce rapprochement ; son résultat est
+consigné avec le commit de merge avant publication de la branche.

@@ -1,0 +1,435 @@
+{
+  "$defs": {
+    "Candidat": {
+      "enum": [
+        "scolarise",
+        "individuel",
+        "libre",
+        "cned_reglemente",
+        "cned_libre",
+        "aefe",
+        "both"
+      ],
+      "title": "Candidat",
+      "type": "string"
+    },
+    "Niveau": {
+      "enum": [
+        "troisieme",
+        "seconde",
+        "premiere",
+        "terminale",
+        "cycle4",
+        "lycee_gt",
+        "voie_generale",
+        "voie_technologique"
+      ],
+      "title": "Niveau",
+      "type": "string"
+    },
+    "RetrievalNeed": {
+      "additionalProperties": false,
+      "properties": {
+        "desired_doc_types": {
+          "items": {
+            "$ref": "#/$defs/TypeDoc"
+          },
+          "title": "Desired Doc Types",
+          "type": "array"
+        },
+        "difficulty_max": {
+          "anyOf": [
+            {
+              "maximum": 5,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Difficulty Max"
+        },
+        "intent": {
+          "enum": [
+            "remediation",
+            "revision",
+            "exercise",
+            "program",
+            "exam_prep",
+            "context"
+          ],
+          "title": "Intent",
+          "type": "string"
+        },
+        "notions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Notions",
+          "type": "array"
+        },
+        "query": {
+          "minLength": 1,
+          "title": "Query",
+          "type": "string"
+        }
+      },
+      "required": [
+        "intent",
+        "query"
+      ],
+      "title": "RetrievalNeed",
+      "type": "object"
+    },
+    "RetrievalOptions": {
+      "additionalProperties": false,
+      "properties": {
+        "hybrid": {
+          "default": true,
+          "title": "Hybrid",
+          "type": "boolean"
+        },
+        "include_citations": {
+          "default": true,
+          "title": "Include Citations",
+          "type": "boolean"
+        },
+        "k": {
+          "default": 8,
+          "maximum": 50,
+          "minimum": 1,
+          "title": "K",
+          "type": "integer"
+        },
+        "rerank": {
+          "default": true,
+          "title": "Rerank",
+          "type": "boolean"
+        }
+      },
+      "title": "RetrievalOptions",
+      "type": "object"
+    },
+    "StatusDetail": {
+      "enum": [
+        "aefe",
+        "systeme_francais_hors_aefe",
+        "systeme_tunisien",
+        "double_cursus",
+        "candidat_libre",
+        "cned_reglemente",
+        "cned_libre",
+        "unknown"
+      ],
+      "title": "StatusDetail",
+      "type": "string"
+    },
+    "StatutEnseignement": {
+      "enum": [
+        "tronc_commun",
+        "enseignement_commun",
+        "specialite",
+        "eds",
+        "option",
+        "maths_complementaires",
+        "maths_expertes",
+        "snt",
+        "enseignement_scientifique",
+        "emc",
+        "atelier",
+        "stage",
+        "remediation",
+        "examen",
+        "unknown"
+      ],
+      "title": "StatutEnseignement",
+      "type": "string"
+    },
+    "StudentProfile": {
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "additionalProperties": true,
+          "title": "Availability",
+          "type": "object"
+        },
+        "candidat": {
+          "$ref": "#/$defs/Candidat"
+        },
+        "candidate_status_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Candidate Status Ref"
+        },
+        "establishment": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Establishment"
+        },
+        "matieres": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Matieres",
+          "type": "array"
+        },
+        "needs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Needs",
+          "type": "array"
+        },
+        "nexus_group_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Nexus Group Id"
+        },
+        "nexus_offer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Nexus Offer"
+        },
+        "niveau": {
+          "$ref": "#/$defs/Niveau"
+        },
+        "objective": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Objective"
+        },
+        "official_level_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Official Level Ref"
+        },
+        "options": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Options",
+          "type": "array"
+        },
+        "risk_level": {
+          "anyOf": [
+            {
+              "enum": [
+                "low",
+                "medium",
+                "high",
+                "critical"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Risk Level"
+        },
+        "school_calendar_zone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "School Calendar Zone"
+        },
+        "school_year": {
+          "pattern": "^\\d{4}-\\d{4}$",
+          "title": "School Year",
+          "type": "string"
+        },
+        "specialites": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Specialites",
+          "type": "array"
+        },
+        "status_detail": {
+          "$ref": "#/$defs/StatusDetail",
+          "default": "unknown"
+        },
+        "statut_enseignement": {
+          "$ref": "#/$defs/StatutEnseignement"
+        },
+        "student_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Student Id"
+        },
+        "target_pathway": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Pathway"
+        },
+        "teacher_confirmed": {
+          "default": false,
+          "title": "Teacher Confirmed",
+          "type": "boolean"
+        },
+        "voie": {
+          "$ref": "#/$defs/Voie"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        },
+        "zone": {
+          "minLength": 1,
+          "title": "Zone",
+          "type": "string"
+        }
+      },
+      "required": [
+        "niveau",
+        "voie",
+        "matieres",
+        "statut_enseignement",
+        "candidat",
+        "school_year",
+        "zone"
+      ],
+      "title": "StudentProfile",
+      "type": "object"
+    },
+    "TypeDoc": {
+      "enum": [
+        "programme_officiel",
+        "ressource_officielle",
+        "cours",
+        "fiche_synthese",
+        "fiche_methode",
+        "td",
+        "tp",
+        "exercice",
+        "exercice_corrige",
+        "devoir",
+        "devoir_corrige",
+        "evaluation",
+        "evaluation_corrigee",
+        "bac_blanc",
+        "brevet_blanc",
+        "annale",
+        "sujet_zero",
+        "corrige",
+        "bareme",
+        "grille_evaluation",
+        "grille_grand_oral",
+        "oral",
+        "diaporama",
+        "latex",
+        "notebook",
+        "code",
+        "image",
+        "scan",
+        "copie",
+        "rapport",
+        "referentiel",
+        "modalite_examen",
+        "autre"
+      ],
+      "title": "TypeDoc",
+      "type": "string"
+    },
+    "Voie": {
+      "enum": [
+        "college",
+        "generale",
+        "technologique",
+        "professionnelle",
+        "aefe",
+        "unknown"
+      ],
+      "title": "Voie",
+      "type": "string"
+    }
+  },
+  "$id": "https://nexusreussite.academy/contracts/v0.3/retrieval-request.json",
+  "additionalProperties": false,
+  "properties": {
+    "need": {
+      "$ref": "#/$defs/RetrievalNeed"
+    },
+    "retrieval": {
+      "$ref": "#/$defs/RetrievalOptions"
+    },
+    "student_profile": {
+      "$ref": "#/$defs/StudentProfile"
+    }
+  },
+  "required": [
+    "student_profile",
+    "need"
+  ],
+  "title": "RetrievalRequest",
+  "type": "object"
+}

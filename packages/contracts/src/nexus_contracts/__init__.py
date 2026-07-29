@@ -28,10 +28,19 @@ from nexus_contracts.retrieval import (
     RetrievalResponse,
     RetrievalResult,
 )
+from nexus_contracts.chat import (
+    ChatCitation,
+    ChatMessage,
+    ChatPayload,
+    ChatRequest,
+    ChatResponse,
+    SearchPayload,
+)
 from nexus_contracts.student_profile import (
     StatusDetail,
     StudentProfile,
 )
+from nexus_contracts.identity import InternalIdentity, PedagogicalProfile
 
 __all__ = [
     "AccessContext",
@@ -50,12 +59,20 @@ __all__ = [
     "RetrievalRequest",
     "RetrievalResponse",
     "RetrievalResult",
+    "ChatCitation",
+    "ChatMessage",
+    "ChatPayload",
+    "ChatRequest",
+    "ChatResponse",
+    "SearchPayload",
     "Rights",
     "SourceType",
     "StatusDetail",
     "StatutEnseignement",
     "StrictBaseModel",
     "StudentProfile",
+    "InternalIdentity",
+    "PedagogicalProfile",
     "TypeDoc",
     "Voie",
 ]

@@ -6,6 +6,10 @@ from pydantic import ValidationError
 
 from nexus_contracts import (
     Audience,
+    ChatCitation,
+    ChatMessage,
+    ChatRequest,
+    ChatResponse,
     Candidat,
     ChunkMetadata,
     Niveau,
@@ -18,6 +22,7 @@ from nexus_contracts import (
     Voie,
 )
 from nexus_contracts.student_profile import StatusDetail
+from nexus_contracts import InternalIdentity, PedagogicalProfile
 
 
 # --- ChunkMetadata ---
@@ -165,3 +170,129 @@ def test_filters_audience_aefe():
     )
     filters = req.to_payload_filters()
     assert filters["audience"] == "aefe"
+
+
+# --- ChatRequest / ChatResponse ---
+
+
+def test_chat_request_requires_non_empty_collections() -> None:
+    profile = StudentProfile(
+        niveau=Niveau.terminale,
+        voie=Voie.generale,
+        matieres=["maths"],
+        statut_enseignement=StatutEnseignement.specialite,
+        candidat=Candidat.individuel,
+        school_year="2026-2027",
+        zone="france",
+    )
+
+    with pytest.raises(ValueError):
+        ChatRequest(
+            student_profile=profile,
+            query="définition de limite",
+            collections=[],
+        )
+
+
+def test_chat_response_requires_valid_message_shape() -> None:
+    msg = ChatMessage(role="user", content="Question courte")
+    profile = StudentProfile(
+        niveau=Niveau.terminale,
+        voie=Voie.generale,
+        matieres=["maths"],
+        statut_enseignement=StatutEnseignement.specialite,
+        candidat=Candidat.individuel,
+        school_year="2026-2027",
+        zone="france",
+    )
+    citation = ChatCitation(
+        chunk_id="chunk-1",
+        doc_id="doc-1",
+        source_label="Eduscol",
+        source_uri="https://eduscol.education.gouv.fr",
+        rights="officiel_public",
+        page=12,
+    )
+
+    response = ChatResponse(
+        answer="Voici une définition.",
+        citations=[citation],
+        retrieval_hits=[],
+    )
+    assert response.warnings == []
+    assert response.grounded
+
+    request = ChatRequest(
+        student_profile=profile,
+        query="Décris cette notion.",
+        collections=["rag_nexus_nsi_terminale_specialite"],
+        history=[msg],
+    )
+    assert request.history == [msg]
+    assert request.include_retrieval
+
+
+def test_chat_response_rejects_uncited_grounded_answer() -> None:
+    """A conversational answer may never claim grounding without a source."""
+    with pytest.raises(ValidationError, match="citations"):
+        ChatResponse(
+            answer="Réponse prétendument sourcée.",
+            grounded=True,
+            citations=[],
+            retrieval_hits=[],
+        )
+
+
+def test_chat_response_requires_reason_for_refusal() -> None:
+    with pytest.raises(ValidationError, match="refusal_reason"):
+        ChatResponse(
+            answer="Je ne peux pas répondre de manière fiable.",
+            grounded=False,
+            citations=[],
+            retrieval_hits=[],
+        )
+
+
+# --- Identity ---
+
+
+def test_internal_identity_exported_and_validated() -> None:
+    identity = InternalIdentity(
+        aud="nexus-cockpit",
+        exp=4102444800,
+        iss="nexus-issuer",
+        jti="jti-123",
+        tenant="tenant-1",
+        niveau=Niveau.terminale,
+        role="student",
+        sub="student-001",
+        pedagogical_profile=PedagogicalProfile(
+            voie=Voie.generale,
+            matieres=["maths"],
+            statut_enseignement=StatutEnseignement.specialite,
+            candidat=Candidat.individuel,
+            audience="libre",
+        ),
+    )
+    assert identity.role == "student"
+
+
+def test_identity_rejects_empty_matieres() -> None:
+    with pytest.raises(ValueError):
+        InternalIdentity(
+            aud="nexus-cockpit",
+            exp=4102444800,
+            iss="nexus-issuer",
+            jti="jti-123",
+            tenant="tenant-1",
+            niveau=Niveau.terminale,
+            role="student",
+            sub="student-001",
+            pedagogical_profile=PedagogicalProfile(
+                voie=Voie.generale,
+                matieres=[],
+                statut_enseignement=StatutEnseignement.specialite,
+                candidat=Candidat.individuel,
+                audience="libre",
+            ),
+        )

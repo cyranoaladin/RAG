@@ -4,8 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import sourcesData from '@/data/sources.json'
-import type { IngestionSource, RagCollection } from '@/types/rag'
-import { NIVEAU_LABELS } from '@/types/rag'
+import type { IngestionSource, RagCollection } from '@/types/ui'
+import { NIVEAU_LABELS } from '@/types/ui'
 
 const NIVEAUX = ['troisieme', 'seconde', 'premiere', 'terminale'] as const
 const INGESTION_SOURCES = sourcesData as IngestionSource[]
@@ -37,8 +37,7 @@ export default function OverviewSection({ collections, demo }: { collections: Ra
           <AlertTriangle className="h-4 w-4 shrink-0" />
           <span>
             <strong>Mode démonstration</strong> — données issues du dépôt (catalogue v3, lecture seule).
-            Connectez <code className="rounded bg-amber-100 px-1">VITE_RAG_API_BASE</code> à l'API retrieval
-            pour les données temps réel.
+            Le BFF same-origin n’est pas disponible pour les données temps réel.
           </span>
         </div>
       )}
