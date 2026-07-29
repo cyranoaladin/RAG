@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ci-local.sh — Local CI reproducing the GitHub Actions pipeline.
-# Runs contracts, rag-pedago, rag-engine, and governance locks checks.
+# Runs contracts, rag-pedago, rag-engine, cockpit, and governance checks.
 # Exits non-zero if any target fails.
 set -uo pipefail
 
@@ -17,6 +17,12 @@ if ! require_python_311 "$PYTHON_BIN"; then
     exit 1
 fi
 echo "Using Python executable: $PYTHON_BIN ($($PYTHON_BIN --version))"
+
+NODE_BIN="$(command -v node || true)"
+if ! require_node_2222 "$NODE_BIN"; then
+    exit 1
+fi
+echo "Using Node executable: $NODE_BIN ($($NODE_BIN --version))"
 
 PASS=0
 FAIL=0
@@ -120,6 +126,24 @@ run_engine() {
     cd "$REPO_ROOT"
 }
 run_target "services/rag-engine" run_engine
+
+# --- services/cockpit ---
+run_cockpit() {
+    (
+        set -euo pipefail
+        require_node_2222 "$NODE_BIN"
+        cd "$REPO_ROOT/services/cockpit"
+        npm ci
+        npm run lint
+        npm test -- --run
+        npm run build
+        npm audit
+        npm audit --omit=dev
+        cd "$REPO_ROOT"
+        bash scripts/tests/test-cockpit-clean-build.sh
+    )
+}
+run_target "services/cockpit" run_cockpit
 
 # --- governance locks ---
 run_target "governance-locks" bash scripts/check-governance-locks.sh
