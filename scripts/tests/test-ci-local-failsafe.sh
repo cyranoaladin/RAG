@@ -235,6 +235,76 @@ extract_shell_function() {
     ' "$source_file"
 }
 
+create_fake_yaml_python() {
+    local path="$1"
+    local label="$2"
+    cat > "$path" <<SCRIPT
+#!/usr/bin/env bash
+if [ "\$#" -eq 2 ] && [ "\$1" = "-c" ] && [ "\$2" = "import yaml" ]; then
+    printf '%s\n' "$label" >> "\$FAKE_YAML_PYTHON_LOG"
+    exit 0
+fi
+exit 90
+SCRIPT
+    chmod +x "$path"
+}
+
+echo ""
+echo "=== Test: le clean build choisit un Python avec PyYAML reproductible ==="
+
+CLEAN_BUILD_FIND_PYTHON="$(
+    extract_shell_function \
+        "find_python" "$REPO_ROOT/scripts/tests/test-cockpit-clean-build.sh"
+)"
+CLEAN_BUILD_PYTHON_ROOT="$TMPDIR_CI/clean-build-python"
+mkdir -p \
+    "$CLEAN_BUILD_PYTHON_ROOT/repo/services/rag-pedago/.venv/bin" \
+    "$CLEAN_BUILD_PYTHON_ROOT/global-bin"
+create_fake_yaml_python \
+    "$CLEAN_BUILD_PYTHON_ROOT/repo/services/rag-pedago/.venv/bin/python" \
+    "venv"
+create_fake_yaml_python \
+    "$CLEAN_BUILD_PYTHON_ROOT/global-bin/python3" \
+    "global"
+
+FAKE_YAML_PYTHON_LOG="$CLEAN_BUILD_PYTHON_ROOT/preferred.log"
+export FAKE_YAML_PYTHON_LOG
+CLEAN_BUILD_SELECTED_PYTHON="$(
+    unset PYTHON_BIN
+    REPO_ROOT="$CLEAN_BUILD_PYTHON_ROOT/repo"
+    PATH="$CLEAN_BUILD_PYTHON_ROOT/global-bin:$PATH"
+    eval "$CLEAN_BUILD_FIND_PYTHON"
+    find_python
+)"
+if [ "$CLEAN_BUILD_SELECTED_PYTHON" = \
+        "$CLEAN_BUILD_PYTHON_ROOT/repo/services/rag-pedago/.venv/bin/python" ] \
+    && [ "$(cat "$FAKE_YAML_PYTHON_LOG" 2>/dev/null)" = "venv" ]; then
+    echo "  PASS  le venv rag-pedago avec PyYAML est préféré"
+    TESTS_PASS=$((TESTS_PASS + 1))
+else
+    echo "  FAIL  le clean build dépend encore du Python global"
+    TESTS_FAIL=$((TESTS_FAIL + 1))
+fi
+
+FAKE_YAML_PYTHON_LOG="$CLEAN_BUILD_PYTHON_ROOT/fallback.log"
+export FAKE_YAML_PYTHON_LOG
+CLEAN_BUILD_SELECTED_PYTHON="$(
+    unset PYTHON_BIN
+    REPO_ROOT="$CLEAN_BUILD_PYTHON_ROOT/repo-without-venv"
+    PATH="$CLEAN_BUILD_PYTHON_ROOT/global-bin:$PATH"
+    eval "$CLEAN_BUILD_FIND_PYTHON"
+    find_python
+)"
+if [ "$CLEAN_BUILD_SELECTED_PYTHON" = \
+        "$CLEAN_BUILD_PYTHON_ROOT/global-bin/python3" ] \
+    && [ "$(cat "$FAKE_YAML_PYTHON_LOG" 2>/dev/null)" = "global" ]; then
+    echo "  PASS  le fallback setup-python vérifie PyYAML"
+    TESTS_PASS=$((TESTS_PASS + 1))
+else
+    echo "  FAIL  le fallback Python ne vérifie pas import yaml"
+    TESTS_FAIL=$((TESTS_FAIL + 1))
+fi
+
 block_has_exact_command() {
     local block="$1"
     local expected="$2"

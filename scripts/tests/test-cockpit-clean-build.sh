@@ -25,25 +25,34 @@ trap 'exit 143' TERM
 git -C "$REPO_ROOT" archive "$TREE_OID" | tar -x -C "$ARCHIVE_ROOT"
 
 find_python() {
-  local candidate
-  if [[ -n "${PYTHON_BIN:-}" ]]; then
-    if command -v "$PYTHON_BIN" >/dev/null 2>&1; then
-      command -v "$PYTHON_BIN"
-      return 0
+    local candidate
+    local resolved
+    if [[ -n "${PYTHON_BIN:-}" ]]; then
+        resolved="$(command -v "$PYTHON_BIN" 2>/dev/null || true)"
+        if [[ -n "$resolved" ]] && "$resolved" -c "import yaml" 2>/dev/null; then
+            printf '%s\n' "$resolved"
+            return 0
+        fi
+        echo "Interpréteur Python avec PyYAML introuvable: ${PYTHON_BIN}" >&2
+        return 1
     fi
-    echo "Interpréteur Python introuvable: ${PYTHON_BIN}" >&2
+
+    candidate="$REPO_ROOT/services/rag-pedago/.venv/bin/python"
+    if [[ -x "$candidate" ]] && "$candidate" -c "import yaml" 2>/dev/null; then
+        printf '%s\n' "$candidate"
+        return 0
+    fi
+
+    for candidate in python3 python; do
+        resolved="$(command -v "$candidate" 2>/dev/null || true)"
+        if [[ -n "$resolved" ]] && "$resolved" -c "import yaml" 2>/dev/null; then
+            printf '%s\n' "$resolved"
+            return 0
+        fi
+    done
+
+    echo "Interpréteur Python avec PyYAML introuvable." >&2
     return 1
-  fi
-
-  for candidate in python3 python; do
-    if command -v "$candidate" >/dev/null 2>&1; then
-      command -v "$candidate"
-      return 0
-    fi
-  done
-
-  echo "Interpréteur Python introuvable (essayé: python3, python)." >&2
-  return 1
 }
 
 PYTHON_CMD="$(find_python)"
