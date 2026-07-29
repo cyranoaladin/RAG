@@ -6,7 +6,10 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
-source "$SCRIPT_DIR/lib/ci-common.sh"
+if ! source "$SCRIPT_DIR/lib/ci-common.sh"; then
+    echo "ERROR: unable to source scripts/lib/ci-common.sh" >&2
+    exit 1
+fi
 cd "$REPO_ROOT"
 
 PYTHON_BIN="$(command -v python3.11 || command -v python3.12 || command -v python3 || true)"
