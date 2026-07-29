@@ -6,6 +6,9 @@
 
 **Architecture:** Le cockpit Next.js authentifie l'utilisateur par le SSO Nexus et appelle uniquement `rag-engine` via les contrats générés depuis `packages/contracts`. `rag-pedago` prépare et signe les paquets après `quality → gate → panel`, puis un publisher `rag-engine` les vérifie avant écriture dans l'index pgvector servi.
 
+La présente PR documentaire constitue le LOT 33 ; l'exécution commence au
+LOT 34 et se termine au LOT 40.
+
 **Tech Stack:** Python 3.11, Pydantic, FastAPI, PostgreSQL/pgvector, Redis, Next.js/React/TypeScript, Auth.js/JWT, OpenRouter HTTP API, Docker Compose, Nginx, pytest, Vitest, Playwright, ruff, mypy, ESLint.
 
 ---
@@ -37,7 +40,7 @@
 | Couverture | `services/rag-pedago/configs/substantive_coverage.yml`, `services/rag-pedago/scripts/substantive_coverage_gate.py` |
 | Production | `services/rag-engine/infra/docker-compose.nexus-prod.yml`, `services/rag-engine/infra/nginx/*.conf.template` |
 
-## Chunk 1: LOT 33 — baseline reproductible et CI sincère
+## Chunk 1: LOT 34 — baseline reproductible et CI sincère
 
 ### Task 1: Rendre la CI strictement fail-closed
 
@@ -188,7 +191,7 @@ git commit -m "cockpit: ferme les écarts qualité de la baseline"
 - Modify: `.github/workflows/ci.yml`
 - Modify: `scripts/ci-local.sh`
 - Modify: `scripts/tests/test-ci-local-failsafe.sh`
-- Create: `docs/reports/lot_33_baseline_ci.md`
+- Create: `docs/reports/lot_34_baseline_ci.md`
 
 - [ ] **Step 1: écrire l'assertion de workflow**
 
@@ -213,18 +216,18 @@ Run: `bash scripts/ci-local.sh`
 
 Expected: tous les targets PASS, sans clause d'exception.
 
-Renseigner `lot_33_baseline_ci.md` avec SHA, versions Python/Node/npm,
+Renseigner `lot_34_baseline_ci.md` avec SHA, versions Python/Node/npm,
 commandes, nombres de tests, preuve du build depuis l'arbre Git, résultat
 `npm audit` et résumé de chaque target CI.
 
 - [ ] **Step 5: committer**
 
 ```bash
-git add .nvmrc .github/workflows/ci.yml scripts docs/reports/lot_33_baseline_ci.md
+git add .nvmrc .github/workflows/ci.yml scripts docs/reports/lot_34_baseline_ci.md
 git commit -m "ci: contrôle le cockpit dans chaque pipeline"
 ```
 
-## Chunk 2: LOT 34 — contrats canoniques, Next.js et SSO Nexus
+## Chunk 2: LOT 35 — contrats canoniques, Next.js et SSO Nexus
 
 ### Task 5: Versionner les contrats conversation et identité
 
@@ -555,7 +558,7 @@ git commit -m "cockpit: raccorde le SSO Nexus au BFF"
 ### Task 8c: Clore le lot contrats/SSO
 
 **Files:**
-- Create: `docs/reports/lot_34_contracts_sso.md`
+- Create: `docs/reports/lot_35_contracts_sso.md`
 - Create: `services/cockpit/playwright.config.ts`
 - Create: `services/cockpit/e2e/sso.spec.ts`
 - Modify: `services/cockpit/package.json`
@@ -588,11 +591,11 @@ résultats CI et l'URL de preuve du bridge sans exposer de token.
 - [ ] **Step 5: committer**
 
 ```bash
-git add .github/workflows/ci.yml services/cockpit docs/reports/lot_34_contracts_sso.md
+git add .github/workflows/ci.yml services/cockpit docs/reports/lot_35_contracts_sso.md
 git commit -m "docs: consigne la convergence contrats et SSO"
 ```
 
-## Chunk 3: LOT 35 — staging, panel signé et publication gouvernée
+## Chunk 3: LOT 36 — staging, panel signé et publication gouvernée
 
 ### Task 9: Définir le paquet de publication signé
 
@@ -916,7 +919,7 @@ git commit -m "rag-engine: applique la gouvernance au runtime"
 ### Task 13b: Clore le lot de publication
 
 **Files:**
-- Create: `docs/reports/lot_35_publication_gouvernee.md`
+- Create: `docs/reports/lot_36_publication_gouvernee.md`
 - Modify: `.github/workflows/ci.yml`
 - Modify: `scripts/ci-local.sh`
 
@@ -946,11 +949,11 @@ writers, tests SSRF/Drive, panel 3/3, rollback et CI.
 - [ ] **Step 5: committer**
 
 ```bash
-git add .github/workflows/ci.yml scripts/ci-local.sh docs/reports/lot_35_publication_gouvernee.md
+git add .github/workflows/ci.yml scripts/ci-local.sh docs/reports/lot_36_publication_gouvernee.md
 git commit -m "docs: consigne la publication gouvernée"
 ```
 
-## Chunk 4: LOT 36 — retrieval canonique et chat OpenRouter
+## Chunk 4: LOT 37 — retrieval canonique et chat OpenRouter
 
 ### Task 14: Remplacer `/search/v2` par le contrat canonique
 
@@ -1166,7 +1169,7 @@ git commit -m "rag-engine: génère des réponses strictement citées"
 ### Task 17b: Clore le lot retrieval et génération
 
 **Files:**
-- Create: `docs/reports/lot_36_retrieval_openrouter.md`
+- Create: `docs/reports/lot_37_retrieval_openrouter.md`
 - Modify: `.github/workflows/ci.yml`
 - Modify: `scripts/ci-local.sh`
 
@@ -1195,11 +1198,11 @@ isolation et CI. Aucun module manuel de génération ne dépasse 250 lignes.
 - [ ] **Step 5: committer**
 
 ```bash
-git add .github/workflows/ci.yml scripts/ci-local.sh docs/reports/lot_36_retrieval_openrouter.md
+git add .github/workflows/ci.yml scripts/ci-local.sh docs/reports/lot_37_retrieval_openrouter.md
 git commit -m "docs: consigne le retrieval et la génération gouvernés"
 ```
 
-## Chunk 5: LOT 37 — substance et validation exhaustive des 59 collections
+## Chunk 5: LOT 38 — substance et validation exhaustive des 59 collections
 
 ### Task 18: Construire la matrice de substance exhaustive
 
@@ -1208,7 +1211,7 @@ git commit -m "docs: consigne le retrieval et la génération gouvernés"
 - Create: `services/rag-pedago/configs/evaluation_thresholds.yml`
 - Create: `services/rag-pedago/scripts/substantive_coverage_gate.py`
 - Create: `services/rag-pedago/tests/unit/test_substantive_coverage_gate.py`
-- Create: `docs/reports/lot_37_coverage_inventory.json`
+- Create: `docs/reports/lot_38_coverage_inventory.json`
 
 - [ ] **Step 1: tester les faux verts**
 
@@ -1235,14 +1238,14 @@ par collection, recall@8 ≥ 0,95, citations valides = 100 %, fuite de profil =
 
 - [ ] **Step 4: générer la baseline rouge honnête**
 
-Run: `python services/rag-pedago/scripts/substantive_coverage_gate.py --phase prepublication --report docs/reports/lot_37_coverage_inventory.json`
+Run: `python services/rag-pedago/scripts/substantive_coverage_gate.py --phase prepublication --report docs/reports/lot_38_coverage_inventory.json`
 
 Expected: exit non nul et inventaire exhaustif des écarts actuels.
 
 - [ ] **Step 5: committer**
 
 ```bash
-git add services/rag-pedago docs/reports/lot_37_coverage_inventory.json
+git add services/rag-pedago docs/reports/lot_38_coverage_inventory.json
 git commit -m "rag-pedago: mesure la substance des 59 collections"
 ```
 
@@ -1253,7 +1256,7 @@ git commit -m "rag-pedago: mesure la substance des 59 collections"
 - Generate (runtime, ignored): `services/rag-pedago/data/ledger/source_validation.jsonl`
 - Generate (runtime, ignored): `services/rag-pedago/data/reports/source_validation_latest.md`
 - Modify: `docs/validation/source_validation_evidence.json`
-- Create: `docs/reports/lot_37_sources_multimatieres.md`
+- Create: `docs/reports/lot_38_sources_multimatieres.md`
 
 - [ ] **Step 1: exécuter l'audit sans mutation**
 
@@ -1288,7 +1291,7 @@ Expected: PASS sans signature fabriquée.
 - [ ] **Step 5: committer**
 
 ```bash
-git add services/rag-pedago docs/validation docs/reports/lot_37_sources_multimatieres.md
+git add services/rag-pedago docs/validation docs/reports/lot_38_sources_multimatieres.md
 git commit -m "rag-pedago: qualifie les sources multi-matières"
 ```
 
@@ -1302,12 +1305,12 @@ git commit -m "rag-pedago: qualifie les sources multi-matières"
 - Modify: `services/rag-pedago/tests/unit/test_review_panel.py`
 - Create: `services/rag-pedago/scripts/stage_collection.py`
 - Create: `services/rag-pedago/tests/unit/test_stage_collection.py`
-- Create: `docs/reports/lot_37_collection_worklist.json`
-- Modify: `docs/reports/lot_37_coverage_inventory.json`
+- Create: `docs/reports/lot_38_collection_worklist.json`
+- Modify: `docs/reports/lot_38_coverage_inventory.json`
 
 - [ ] **Step 1: écrire les tests du worklist, stager et filtre panel**
 
-Générer `lot_37_collection_worklist.json` avec les 59 slugs exacts, statut et
+Générer `lot_38_collection_worklist.json` avec les 59 slugs exacts, statut et
 prochaine action. Tester que `stage_collection.py` produit un
 `StagingPackage` canonique et que `review_panel --collection` n'examine que
 ce paquet.
@@ -1330,7 +1333,7 @@ Expected: PASS.
 Committer les outils avant les 59 commits de contenu :
 
 ```bash
-git add services/rag-pedago/scripts/stage_collection.py services/rag-pedago/tests/unit/test_stage_collection.py services/rag-pedago/agents/review_panel.py services/rag-pedago/tests/unit/test_review_panel.py docs/reports/lot_37_collection_worklist.json
+git add services/rag-pedago/scripts/stage_collection.py services/rag-pedago/tests/unit/test_stage_collection.py services/rag-pedago/agents/review_panel.py services/rag-pedago/tests/unit/test_review_panel.py docs/reports/lot_38_collection_worklist.json
 git commit -m "rag-pedago: pilote le staging collection par collection"
 ```
 
@@ -1340,7 +1343,7 @@ Run:
 
 ```bash
 python services/rag-pedago/scripts/stage_collection.py --collection "$collection_slug"
-python services/rag-pedago/scripts/substantive_coverage_gate.py --phase substance --collection "$collection_slug" --report docs/reports/lot_37_coverage_inventory.json
+python services/rag-pedago/scripts/substantive_coverage_gate.py --phase substance --collection "$collection_slug" --report docs/reports/lot_38_coverage_inventory.json
 ```
 
 Expected: `SUBSTANCE PASS` uniquement pour la collection effectivement
@@ -1353,12 +1356,12 @@ Run: `cd services/rag-pedago && python -m agents.review_panel --run --collection
 Expected: approbation unanime 3/3. Une quarantaine arrête la collection et le
 lot ; elle ne permet ni commit de complétude ni passage à la suivante.
 
-Run: `python services/rag-pedago/scripts/substantive_coverage_gate.py --phase prepublication --collection "$collection_slug" --report docs/reports/lot_37_coverage_inventory.json`
+Run: `python services/rag-pedago/scripts/substantive_coverage_gate.py --phase prepublication --collection "$collection_slug" --report docs/reports/lot_38_coverage_inventory.json`
 
 Expected: `PREPUBLICATION PASS` après approbation 3/3 et paquet signé.
 
 ```bash
-git add "corpus/catalogue/$collection_slug" "services/rag-pedago/tests/golden_queries/$collection_slug.json" docs/reports/lot_37_collection_worklist.json docs/reports/lot_37_coverage_inventory.json
+git add "corpus/catalogue/$collection_slug" "services/rag-pedago/tests/golden_queries/$collection_slug.json" docs/reports/lot_38_collection_worklist.json docs/reports/lot_38_coverage_inventory.json
 git commit -m "corpus: couvre $collection_slug substantiellement"
 ```
 
@@ -1384,7 +1387,7 @@ Expected: `59/59 PREPUBLICATION PASS`, aucune référence générique comptée.
 - Create: `services/rag-engine/tests/test_validation_governance.py`
 - Create: `services/rag-engine/tests/integration/test_all_collections.py`
 - Generate (runtime, ignored): `services/rag-engine/infra/runtime/governance/validation.json`
-- Create: `docs/reports/lot_37_retrieval_generation_evidence.json`
+- Create: `docs/reports/lot_38_retrieval_generation_evidence.json`
 
 - [ ] **Step 1: tester le mode dry-run**
 
@@ -1441,9 +1444,9 @@ production.
 Run:
 
 ```bash
-python services/rag-engine/scripts/evaluate_all_collections.py --thresholds services/rag-pedago/configs/evaluation_thresholds.yml --output docs/reports/lot_37_retrieval_generation_evidence.json
+python services/rag-engine/scripts/evaluate_all_collections.py --thresholds services/rag-pedago/configs/evaluation_thresholds.yml --output docs/reports/lot_38_retrieval_generation_evidence.json
 pytest services/rag-engine/tests/integration/test_all_collections.py -q
-python services/rag-pedago/scripts/substantive_coverage_gate.py --phase final --all --evaluations docs/reports/lot_37_retrieval_generation_evidence.json
+python services/rag-pedago/scripts/substantive_coverage_gate.py --phase final --all --evaluations docs/reports/lot_38_retrieval_generation_evidence.json
 ```
 
 Expected: `59/59 FINAL PASS`, chaque seuil atteint par collection, aucun skip.
@@ -1451,14 +1454,14 @@ Expected: `59/59 FINAL PASS`, chaque seuil atteint par collection, aucun skip.
 - [ ] **Step 5: committer les scripts et preuves**
 
 ```bash
-git add services/rag-pedago/configs/validation_transition_authorization.yml services/rag-pedago/scripts/export_runtime_governance.py services/rag-pedago/tests/unit/test_runtime_governance_export.py services/rag-engine docs/adr/ADR-0025-instanciation-59-collections.md docs/reports/lot_37_retrieval_generation_evidence.json
+git add services/rag-pedago/configs/validation_transition_authorization.yml services/rag-pedago/scripts/export_runtime_governance.py services/rag-pedago/tests/unit/test_runtime_governance_export.py services/rag-engine docs/adr/ADR-0025-instanciation-59-collections.md docs/reports/lot_38_retrieval_generation_evidence.json
 git commit -m "rag-engine: prouve le retrieval des 59 collections"
 ```
 
 ### Task 21b: Clore le lot corpus
 
 **Files:**
-- Create: `docs/reports/lot_37_corpus_final.md`
+- Create: `docs/reports/lot_38_corpus_final.md`
 - Modify: `.github/workflows/ci.yml`
 - Modify: `scripts/ci-local.sh`
 
@@ -1487,11 +1490,11 @@ Le rapport référence worklist, sources, paquets, empreintes publiées,
 - [ ] **Step 5: committer**
 
 ```bash
-git add .github/workflows/ci.yml scripts/ci-local.sh docs/reports/lot_37_corpus_final.md
+git add .github/workflows/ci.yml scripts/ci-local.sh docs/reports/lot_38_corpus_final.md
 git commit -m "docs: consigne la couverture finale des 59 collections"
 ```
 
-## Chunk 6: LOT 38 — production, exploitation et décision de go-live
+## Chunk 6: LOT 39 — production, exploitation et décision de go-live
 
 ### Task 22: Unifier et durcir le Compose de production
 
@@ -1550,7 +1553,7 @@ git commit -m "infra: unifie le déploiement Nexus RAG"
 - Create: `services/rag-engine/infra/scripts/restore-nexus.sh`
 - Create: `services/rag-engine/infra/scripts/rollback-nexus.sh`
 - Create: `services/rag-engine/infra/tests/test-disaster-recovery.sh`
-- Create: `docs/reports/lot_38_disaster_recovery_evidence.json`
+- Create: `docs/reports/lot_39_disaster_recovery_evidence.json`
 - Modify: `docs/runbooks/go_live.md`
 
 - [ ] **Step 1: écrire le test de restauration isolée**
@@ -1577,13 +1580,13 @@ UI/génération sans modifier verrous, paquets signés ou chunks publiés.
 Run: `bash services/rag-engine/infra/tests/test-disaster-recovery.sh`
 
 Expected: PASS avec RPO/RTO mesurés dans
-`lot_38_disaster_recovery_evidence.json` et invariants rollback intacts.
+`lot_39_disaster_recovery_evidence.json` et invariants rollback intacts.
 Refactorer validation de cible et chiffrement en fonctions shell séparées.
 
 - [ ] **Step 5: committer**
 
 ```bash
-git add services/rag-engine/infra docs/runbooks/go_live.md docs/reports/lot_38_disaster_recovery_evidence.json
+git add services/rag-engine/infra docs/runbooks/go_live.md docs/reports/lot_39_disaster_recovery_evidence.json
 git commit -m "infra: éprouve sauvegarde restauration et rollback"
 ```
 
@@ -1600,7 +1603,7 @@ git commit -m "infra: éprouve sauvegarde restauration et rollback"
 - Modify: `services/cockpit/package.json`
 - Modify: `services/cockpit/package-lock.json`
 - Create: `services/rag-engine/infra/tests/test-alerts.sh`
-- Create: `docs/reports/lot_38_capacity_evidence.json`
+- Create: `docs/reports/lot_39_capacity_evidence.json`
 
 - [ ] **Step 1: écrire le scénario de charge**
 
@@ -1619,7 +1622,7 @@ et des règles synthétiques firing/not-firing. Ajouter le script npm
 
 - [ ] **Step 3: exécuter sur le stack de validation**
 
-Run: `python scripts/load/chat_concurrency.py --users 3 --report docs/reports/lot_38_capacity_evidence.json`
+Run: `python scripts/load/chat_concurrency.py --users 3 --report docs/reports/lot_39_capacity_evidence.json`
 
 Expected: trois flux réussis, aucune fuite de session, tous les seuils
 préfixés atteints, quatrième flux borné et panne OpenRouter fail-closed.
@@ -1635,7 +1638,7 @@ aucun fichier manuel ne dépasse 250 lignes.
 - [ ] **Step 5: committer**
 
 ```bash
-git add services/rag-engine services/cockpit/e2e services/cockpit/package.json services/cockpit/package-lock.json scripts docs/reports/lot_38_capacity_evidence.json
+git add services/rag-engine services/cockpit/e2e services/cockpit/package.json services/cockpit/package-lock.json scripts docs/reports/lot_39_capacity_evidence.json
 git commit -m "infra: prouve la capacité conversationnelle J1"
 ```
 
@@ -1651,8 +1654,8 @@ git commit -m "infra: prouve la capacité conversationnelle J1"
 - Create: `scripts/tests/test-release-security-gate.sh`
 - Create: `scripts/tests/test-release-readiness-gate.sh`
 - Create: `docs/compliance/minors_privacy_approval.md`
-- Create: `docs/reports/lot_38_release_evidence.json`
-- Create: `docs/reports/lot_38_security_privacy.md`
+- Create: `docs/reports/lot_39_release_evidence.json`
+- Create: `docs/reports/lot_39_security_privacy.md`
 - Modify: `docs/checklists/production_go_live_checklist.md`
 - Modify: `.github/workflows/ci.yml`
 - Modify: `scripts/ci-local.sh`
@@ -1686,7 +1689,7 @@ Run:
 bash scripts/tests/test-release-security-gate.sh
 bash scripts/tests/test-release-readiness-gate.sh
 bash scripts/security/release_security_gate.sh
-python scripts/release/release_readiness_gate.py --mode pre-authorization --evidence docs/reports/lot_38_release_evidence.json --checklist docs/checklists/production_go_live_checklist.md
+python scripts/release/release_readiness_gate.py --mode pre-authorization --evidence docs/reports/lot_39_release_evidence.json --checklist docs/checklists/production_go_live_checklist.md
 ```
 
 Expected: PASS, `15/16` barrières avec liens de preuve ; seule l'autorisation
@@ -1697,7 +1700,7 @@ responsable.
 - [ ] **Step 5: committer**
 
 ```bash
-git add .github/workflows/ci.yml scripts services/cockpit/package.json services/cockpit/package-lock.json docs/compliance docs/reports/lot_38_security_privacy.md docs/reports/lot_38_release_evidence.json docs/checklists/production_go_live_checklist.md
+git add .github/workflows/ci.yml scripts services/cockpit/package.json services/cockpit/package-lock.json docs/compliance docs/reports/lot_39_security_privacy.md docs/reports/lot_39_release_evidence.json docs/checklists/production_go_live_checklist.md
 git commit -m "security: ferme les barrières de release"
 ```
 
@@ -1752,7 +1755,7 @@ git commit -m "infra: automatise une release fail-closed"
 - Modify: `services/rag-pedago/configs/transition_authorization.yml`
 - Modify: `services/rag-pedago/configs/pedago_interface_contract.yml`
 - Modify: `scripts/governance-locks.baseline`
-- Create: `docs/reports/lot_38_release_authorization.md`
+- Create: `docs/reports/lot_39_release_authorization.md`
 
 - [ ] **Step 1: lancer la checklist automatisée sans lever les verrous**
 
@@ -1762,7 +1765,7 @@ Run:
 bash scripts/ci-local.sh
 bash scripts/security/release_security_gate.sh
 python services/rag-pedago/scripts/substantive_coverage_gate.py --phase final --all --check
-python scripts/release/release_readiness_gate.py --mode pre-authorization --evidence docs/reports/lot_38_release_evidence.json --checklist docs/checklists/production_go_live_checklist.md
+python scripts/release/release_readiness_gate.py --mode pre-authorization --evidence docs/reports/lot_39_release_evidence.json --checklist docs/checklists/production_go_live_checklist.md
 ```
 
 Expected: tous PASS avant modification des verrous.
@@ -1785,7 +1788,7 @@ verrous concordants ; il ne modifie pas l'evidence JSON.
 - [ ] **Step 4: committer et faire accepter la PR**
 
 ```bash
-git add docs/adr/ADR-0026* services/rag-pedago/configs scripts/governance-locks.baseline docs/reports/lot_38_release_authorization.md
+git add docs/adr/ADR-0026* services/rag-pedago/configs scripts/governance-locks.baseline docs/reports/lot_39_release_authorization.md
 git commit -m "governance: autorise le go-live public ARIA"
 ```
 
@@ -1793,7 +1796,7 @@ Pousser la branche, obtenir CI/revue vertes et merger par PR. L'acceptation
 de l'ADR est matérialisée par ce merge. Sur un checkout propre du SHA mergé :
 
 ```bash
-python scripts/release/release_readiness_gate.py --mode final --evidence docs/reports/lot_38_release_evidence.json --checklist docs/checklists/production_go_live_checklist.md
+python scripts/release/release_readiness_gate.py --mode final --evidence docs/reports/lot_39_release_evidence.json --checklist docs/checklists/production_go_live_checklist.md
 release_manifest="${NEXUS_RELEASE_ROOT:?NEXUS_RELEASE_ROOT requis}/candidate/manifest.json"
 bash scripts/release/build-release-images.sh --registry ghcr.io/cyranoaladin --sha "$(git rev-parse HEAD)" --output "$release_manifest"
 ```
@@ -1818,7 +1821,7 @@ Expected: digests identiques au registre, health/readiness verts, E2E PASS,
 `rollback-nexus.sh` au premier échec, sans modifier verrous ou preuves. Les
 logs et le manifeste sont conservés sous le release id hors dépôt.
 
-## Chunk 7: LOT 39 — preuve post-déploiement
+## Chunk 7: LOT 40 — preuve post-déploiement
 
 ### Task 27a: Vérifier la release de production en lecture seule
 
@@ -1828,7 +1831,7 @@ logs et le manifeste sont conservés sous le release id hors dépôt.
 - Create: `scripts/tests/test_verify_production_release.py`
 - Create: `scripts/tests/test_export_production_slo.py`
 
-- [ ] **Step 1: ouvrir la branche LOT 39 et écrire les tests**
+- [ ] **Step 1: ouvrir la branche LOT 40 et écrire les tests**
 
 Créer la branche depuis le SHA déployé avant toute modification. Tester URL
 autre que `https://nexusreussite.academy`, identité de test absente, mode
@@ -1873,7 +1876,7 @@ Expected: commit limité aux outils read-only et à leurs tests.
 ### Task 27b: Versionner le rapport final d'exploitation
 
 **Files:**
-- Create: `docs/reports/lot_39_go_live_exploitation.md`
+- Create: `docs/reports/lot_40_go_live_exploitation.md`
 - Create: `docs/validation/production_release_evidence.json`
 - Create: `docs/validation/production_slo_evidence.json`
 - Create: `docs/validation/production_release_manifest.sha256`
@@ -1914,7 +1917,7 @@ python scripts/release/verify_production_release.py \
   --check-output docs/validation/production_release_evidence.json \
   --check-slo docs/validation/production_slo_evidence.json \
   --check-manifest-hash docs/validation/production_release_manifest.sha256
-git add docs/reports/lot_39_go_live_exploitation.md docs/validation/production_release_evidence.json docs/validation/production_slo_evidence.json docs/validation/production_release_manifest.sha256
+git add docs/reports/lot_40_go_live_exploitation.md docs/validation/production_release_evidence.json docs/validation/production_slo_evidence.json docs/validation/production_release_manifest.sha256
 git diff --cached --check
 ```
 
@@ -1927,4 +1930,4 @@ SLO et `59/59` cohérents ; diff indexé propre.
 git commit -m "docs: consigne la preuve finale du go-live"
 ```
 
-Expected: worktree propre et PR LOT 39 documentaire.
+Expected: worktree propre et PR LOT 40 documentaire.
