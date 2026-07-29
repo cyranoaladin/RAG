@@ -26,6 +26,47 @@ describe('search', () => {
     )
   })
 
+  it.each([
+    {
+      mode: 'production' as const,
+      apiBase: '',
+      expectedDemo: false,
+      label: 'production sans API',
+    },
+    {
+      mode: 'production' as const,
+      apiBase: API_BASE,
+      expectedDemo: false,
+      label: 'production avec API',
+    },
+    {
+      mode: 'development' as const,
+      apiBase: '',
+      expectedDemo: true,
+      label: 'développement sans API',
+    },
+    {
+      mode: 'development' as const,
+      apiBase: API_BASE,
+      expectedDemo: false,
+      label: 'développement avec API',
+    },
+  ])(
+    'traite une requête vide sans fallback de résultats ($label)',
+    async ({ mode, apiBase, expectedDemo }) => {
+      vi.stubEnv('MODE', mode)
+      vi.stubEnv('VITE_RAG_API_BASE', apiBase)
+      const fetchMock = vi.fn()
+      vi.stubGlobal('fetch', fetchMock)
+      const { search } = await import('./api')
+
+      const result = await search('   ', 'terminale', 'eleve')
+
+      expect(result).toEqual({ items: [], demo: expectedDemo })
+      expect(fetchMock).not.toHaveBeenCalled()
+    },
+  )
+
   it('normalise un rejet réseau en production', async () => {
     const failure = new TypeError(
       'fetch failed for https://rag.internal.example/search',

@@ -115,7 +115,12 @@ export async function search(
   niveau: string,
   audience: string,
 ): Promise<{ items: RetrievalResult[]; demo: boolean }> {
-  if (!query.trim()) return { items: [], demo: !API_BASE }
+  if (!query.trim()) {
+    return {
+      items: [],
+      demo: import.meta.env.MODE !== 'production' && !API_BASE,
+    }
+  }
   const remote = await tryApi<RetrievalResponse>('/search', {
     method: 'POST',
     body: JSON.stringify({ query, top_k: 8, niveau, audience }),
