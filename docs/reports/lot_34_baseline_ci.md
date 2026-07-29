@@ -4,8 +4,8 @@ Date de validation : 29 juillet 2026.
 
 ## Révision testée
 
-- Commit fonctionnel : `230559bd3746d54e4090bc6261123283503b63d2`.
-- Arbre Git archivé : `1cfe3f60604661bb4abe344040619fd73695c686`.
+- Commit fonctionnel : `e4db84f788fef62f12e066464d379aa97b509645`.
+- Arbre Git archivé : `46de673d4c9173f496b60e930e0086e17709a57f`.
 - Branche : `lot-34-baseline-ci`.
 - Le présent rapport est commité séparément après la validation afin de ne pas
   rendre la preuve du SHA circulaire.
@@ -63,10 +63,35 @@ Les faux négatifs démontrés étaient :
   du job cockpit ou d'une étape obligatoire ;
 - un `defaults.run.shell` personnalisé au niveau du workflow ou du job.
 
-État GREEN final : `27 passed, 0 failed`. Les dix mutations sont rejetées.
+État GREEN avant revue finale : `27 passed, 0 failed`. Les dix mutations sont
+rejetées.
+
+La revue finale a ensuite imposé quatre corrections, chacune conduite en
+RED → GREEN :
+
+1. le test de rendu de l'aperçu a échoué `1/1` car l'interface affichait
+   `8/20` au lieu des `11/20` calculés depuis `sources.json`, puis est passé
+   `1/1` après suppression de la constante ;
+2. le validateur de snapshots absent a produit `11` assertions en échec,
+   puis les `6` tests de cohérence ont couvert les 59 collections, les entrées
+   manquantes/surnuméraires, les doublons JSON/YAML et la dérive de chacun des
+   sept champs canoniques pertinents ;
+3. la matrice des requêtes vides a produit `1` échec sur le cas production
+   sans URL (`demo: true`), puis les `10` tests API ont réussi en conservant
+   le comportement de développement ;
+4. les mutations `return 0` et `exit 0` anticipées ont produit
+   `27 passed, 2 failed`, puis `29 passed, 0 failed` après passage à une
+   exécution instrumentée.
+
+Les commits fonctionnels correspondants sont respectivement `f294809`,
+`09ba167`, `9e1be2e` et `e4db84f`.
 
 Le contrôle shell extrait réellement la fonction `run_cockpit()` par
-frontières syntaxiques et exige chaque commande comme ligne shell complète.
+frontières syntaxiques, exige chaque commande comme ligne shell complète,
+puis exécute son corps avec de faux `npm` et `bash`. Il compare les huit
+appels, leur ordre et leur répertoire de travail attendu. Aucun vrai pipeline
+n'est lancé par ce test ; une sortie anticipée ou une branche qui rendrait une
+commande inatteignable laisse une trace incomplète et est rejetée.
 Le contrôle du workflow parse le YAML avec PyYAML. Il exige sémantiquement
 `main`, `lot-*` et `lot-*/**` pour `push` comme pour `pull_request`, inspecte
 exclusivement `jobs.cockpit.steps`, vérifie que `run` est une chaîne égale à
@@ -83,8 +108,12 @@ Validation ciblée et statique :
 
 ```bash
 bash scripts/tests/test-ci-local-failsafe.sh
+python3 scripts/tests/test-cockpit-snapshot-coherence.py -v
+npm --prefix services/cockpit test -- --run
+npm --prefix services/cockpit run lint
 bash -n scripts/lib/ci-common.sh scripts/ci-local.sh \
-  scripts/tests/test-ci-local-failsafe.sh
+  scripts/tests/test-ci-local-failsafe.sh \
+  scripts/tests/test-cockpit-clean-build.sh
 git diff --check
 python3 - <<'PY'
 from pathlib import Path
@@ -106,22 +135,22 @@ Validation locale complète du commit fonctionnel :
   bash scripts/ci-local.sh
 ```
 
-Résultat : code de sortie `0`, `549.15 s` réelles, `464.66 s` utilisateur et
-`59.68 s` système.
+Résultat : code de sortie `0`, `551.95 s` réelles, `467.50 s` utilisateur et
+`61.39 s` système.
 
 ## Résultat par target
 
 | Target CI locale | Résultat | Preuve principale |
 |---|---|---|
 | `packages/contracts` | PASS | import du contrat canonique réussi |
-| `services/rag-pedago` | PASS | ruff vert, mypy vert sur 73 fichiers, `1151 passed` en `280.18 s` |
+| `services/rag-pedago` | PASS | ruff vert, mypy vert sur 73 fichiers, `1151 passed` en `279.10 s` |
 | `services/rag-engine` | PASS | installation, lint, typecheck et `603 passed`, `15 deselected` |
-| `services/cockpit` | PASS | lint, 3 fichiers de tests et `8 passed`, build de production, deux audits à zéro |
+| `services/cockpit` | PASS | lint, 4 fichiers de tests et `13 passed`, build de production, deux audits à zéro |
 | `governance-locks` | PASS | 18 clés identiques à la baseline |
 | `taxonomy-validation` | PASS | 57 taxonomies, 0 erreur, 486 notions et 174 sous-notions |
 | `source-evidence-check` | PASS | 11 verdicts couvrent la configuration courante |
 | `governance-guard-tests` | PASS | `16 passed, 0 failed` |
-| `ci-failsafe-tests` | PASS | `27 passed, 0 failed`, dont douze mutations anti-contournement |
+| `ci-failsafe-tests` | PASS | `29 passed, 0 failed`, dont quatorze mutations anti-contournement |
 
 Résumé produit par le script : `9 passed, 0 failed`.
 
@@ -142,15 +171,22 @@ bash scripts/tests/test-cockpit-clean-build.sh
 Résultats de la CI locale :
 
 - `npm ci` : 510 paquets ajoutés, 511 paquets audités, 0 vulnérabilité ;
-- tests : 3 fichiers, 8 tests réussis ;
+- tests : 4 fichiers, 13 tests réussis ;
 - build : 1857 modules transformés, build Vite réussi ;
 - `npm audit` complet : 0 vulnérabilité ;
 - `npm audit --omit=dev` : 0 vulnérabilité ;
-- clean build : concordance cockpit/Eduscol validée sur 20 sources, nouvelle
+- clean build : concordance cockpit/Eduscol validée sur 20 sources et
+  concordance exhaustive des 59 collections cockpit/rag-engine, puis nouvelle
   installation `npm ci` depuis l'archive Git et nouveau build réussi.
 
+Le contrôle des 59 collections prouve uniquement l'identité exhaustive du
+catalogue versionné : unicité, absence d'entrée manquante ou surnuméraire et
+égalité de `matiere`, `niveau`, `voie`, `statut`, `domain`, `taxonomy_file` et
+`instanciee`. Il ne mesure pas et ne revendique pas la substance du corpus,
+qui relève des gates des lots ultérieurs.
+
 Le clean build a utilisé `HEAD`, donc l'arbre Git
-`1cfe3f60604661bb4abe344040619fd73695c686`, et non les fichiers non suivis du
+`46de673d4c9173f496b60e930e0086e17709a57f`, et non les fichiers non suivis du
 poste.
 
 ## Workflow GitHub Actions
