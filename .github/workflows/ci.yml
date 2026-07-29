@@ -2,9 +2,9 @@ name: CI — Nexus RAG Platform
 
 on:
   push:
-    branches: [main, "lot-*/**"]
+    branches: [main, "lot-*", "lot-*/**"]
   pull_request:
-    branches: [main]
+    branches: [main, "lot-*", "lot-*/**"]
 
 jobs:
   contracts:

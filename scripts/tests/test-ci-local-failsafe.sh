@@ -361,6 +361,23 @@ if not isinstance(steps, list):
     print("jobs.cockpit.steps est absent ou invalide")
     raise SystemExit(1)
 
+errors: list[str] = []
+triggers = document.get("on") if isinstance(document, dict) else None
+if triggers is None and isinstance(document, dict):
+    # PyYAML suit YAML 1.1 et interprète la clé non citée `on` comme true.
+    triggers = document.get(True)
+required_branches = {"main", "lot-*", "lot-*/**"}
+for event_name in ("push", "pull_request"):
+    event = triggers.get(event_name) if isinstance(triggers, dict) else None
+    branches = event.get("branches") if isinstance(event, dict) else None
+    actual_branches = set(branches) if isinstance(branches, list) else set()
+    missing_branches = sorted(required_branches - actual_branches)
+    if missing_branches:
+        errors.append(
+            f"on.{event_name}.branches ne couvre pas: "
+            + ", ".join(missing_branches)
+        )
+
 required_commands: tuple[tuple[str, str | None], ...] = (
     ("npm ci", "services/cockpit"),
     ("npm run lint", "services/cockpit"),
@@ -370,7 +387,40 @@ required_commands: tuple[tuple[str, str | None], ...] = (
     ("npm audit --omit=dev", "services/cockpit"),
     ("bash scripts/tests/test-cockpit-clean-build.sh", None),
 )
-errors: list[str] = []
+
+for forbidden_key in ("if", "continue-on-error", "shell"):
+    if forbidden_key in cockpit:
+        errors.append(f"jobs.cockpit.{forbidden_key} est interdit")
+
+for step_index, step in enumerate(steps):
+    if not isinstance(step, dict):
+        continue
+    for forbidden_key in ("if", "continue-on-error", "shell"):
+        if forbidden_key in step:
+            errors.append(
+                f"jobs.cockpit.steps[{step_index}].{forbidden_key} est interdit"
+            )
+
+workflow_defaults = (
+    document.get("defaults") if isinstance(document, dict) else None
+)
+workflow_run_defaults = (
+    workflow_defaults.get("run")
+    if isinstance(workflow_defaults, dict)
+    else None
+)
+if (
+    isinstance(workflow_run_defaults, dict)
+    and "shell" in workflow_run_defaults
+):
+    errors.append("defaults.run.shell est interdit")
+
+cockpit_defaults = cockpit.get("defaults")
+cockpit_run_defaults = (
+    cockpit_defaults.get("run") if isinstance(cockpit_defaults, dict) else None
+)
+if isinstance(cockpit_run_defaults, dict) and "shell" in cockpit_run_defaults:
+    errors.append("jobs.cockpit.defaults.run.shell est interdit")
 
 for command, working_directory in required_commands:
     matches = []
@@ -428,7 +478,7 @@ assert_yaml_cockpit_job() {
     local validation_output
 
     if validation_output="$(validate_yaml_cockpit_job "$workflow_file")"; then
-        echo "  PASS  jobs.cockpit contient les étapes exécutables et Node exactes"
+        echo "  PASS  déclencheurs et jobs.cockpit sont stricts et exécutables"
         TESTS_PASS=$((TESTS_PASS + 1))
     else
         echo "  FAIL  $validation_output"
@@ -476,7 +526,7 @@ else
 fi
 
 echo ""
-echo "=== Test: le job YAML cockpit contient uniquement ses contrôles requis ==="
+echo "=== Test: le workflow et le job YAML cockpit restent stricts ==="
 
 assert_yaml_cockpit_job "$REPO_ROOT/.github/workflows/ci.yml"
 
@@ -496,6 +546,93 @@ else
     echo "  FAIL  name: npm ci avec run: true satisfait encore le validateur YAML"
     TESTS_FAIL=$((TESTS_FAIL + 1))
 fi
+
+assert_yaml_mutation_rejected() {
+    local mutation_label="$1"
+    local mutated_workflow="$2"
+
+    if ! validate_yaml_cockpit_job "$mutated_workflow" >/dev/null; then
+        echo "  PASS  $mutation_label"
+        TESTS_PASS=$((TESTS_PASS + 1))
+    else
+        echo "  FAIL  $mutation_label est encore accepté"
+        TESTS_FAIL=$((TESTS_FAIL + 1))
+    fi
+}
+
+echo ""
+echo "=== Mutations: les déclencheurs lot restent exhaustifs ==="
+
+MUTATED_WORKFLOW="$TMPDIR_CI/ci-trigger-no-flat.yml"
+cp "$REPO_ROOT/.github/workflows/ci.yml" "$MUTATED_WORKFLOW"
+sed -i 's/, "lot-\*"//g' "$MUTATED_WORKFLOW"
+assert_yaml_mutation_rejected \
+    "un déclencheur sans lot-* est rejeté" "$MUTATED_WORKFLOW"
+
+MUTATED_WORKFLOW="$TMPDIR_CI/ci-trigger-no-nested.yml"
+cp "$REPO_ROOT/.github/workflows/ci.yml" "$MUTATED_WORKFLOW"
+sed -i 's/, "lot-\*\/\*\*"//g' "$MUTATED_WORKFLOW"
+assert_yaml_mutation_rejected \
+    "un déclencheur sans lot-*/** est rejeté" "$MUTATED_WORKFLOW"
+
+echo ""
+echo "=== Mutations: le job cockpit reste fail-closed ==="
+
+MUTATED_WORKFLOW="$TMPDIR_CI/ci-cockpit-job-if.yml"
+cp "$REPO_ROOT/.github/workflows/ci.yml" "$MUTATED_WORKFLOW"
+sed -i '/^  cockpit:$/a\    if: false' "$MUTATED_WORKFLOW"
+assert_yaml_mutation_rejected \
+    "if: false au niveau du job est rejeté" "$MUTATED_WORKFLOW"
+
+MUTATED_WORKFLOW="$TMPDIR_CI/ci-cockpit-step-if.yml"
+cp "$REPO_ROOT/.github/workflows/ci.yml" "$MUTATED_WORKFLOW"
+sed -i '/^        run: npm ci$/a\        if: false' "$MUTATED_WORKFLOW"
+assert_yaml_mutation_rejected \
+    "if: false sur une étape obligatoire est rejeté" "$MUTATED_WORKFLOW"
+
+MUTATED_WORKFLOW="$TMPDIR_CI/ci-cockpit-job-continue.yml"
+cp "$REPO_ROOT/.github/workflows/ci.yml" "$MUTATED_WORKFLOW"
+sed -i '/^  cockpit:$/a\    continue-on-error: true' "$MUTATED_WORKFLOW"
+assert_yaml_mutation_rejected \
+    "continue-on-error au niveau du job est rejeté" "$MUTATED_WORKFLOW"
+
+MUTATED_WORKFLOW="$TMPDIR_CI/ci-cockpit-step-continue.yml"
+cp "$REPO_ROOT/.github/workflows/ci.yml" "$MUTATED_WORKFLOW"
+sed -i \
+    '/^        run: npm ci$/a\        continue-on-error: true' \
+    "$MUTATED_WORKFLOW"
+assert_yaml_mutation_rejected \
+    "continue-on-error sur une étape obligatoire est rejeté" "$MUTATED_WORKFLOW"
+
+MUTATED_WORKFLOW="$TMPDIR_CI/ci-cockpit-job-shell.yml"
+cp "$REPO_ROOT/.github/workflows/ci.yml" "$MUTATED_WORKFLOW"
+sed -i '/^  cockpit:$/a\    shell: "true {0}"' "$MUTATED_WORKFLOW"
+assert_yaml_mutation_rejected \
+    "un shell personnalisé au niveau du job est rejeté" "$MUTATED_WORKFLOW"
+
+MUTATED_WORKFLOW="$TMPDIR_CI/ci-cockpit-step-shell.yml"
+cp "$REPO_ROOT/.github/workflows/ci.yml" "$MUTATED_WORKFLOW"
+sed -i \
+    '/^        run: npm ci$/a\        shell: "true {0}"' \
+    "$MUTATED_WORKFLOW"
+assert_yaml_mutation_rejected \
+    "un shell personnalisé sur une étape obligatoire est rejeté" \
+    "$MUTATED_WORKFLOW"
+
+MUTATED_WORKFLOW="$TMPDIR_CI/ci-workflow-default-shell.yml"
+cp "$REPO_ROOT/.github/workflows/ci.yml" "$MUTATED_WORKFLOW"
+sed -i '/^jobs:$/i\defaults:\n  run:\n    shell: "true {0}"\n' \
+    "$MUTATED_WORKFLOW"
+assert_yaml_mutation_rejected \
+    "defaults.run.shell au niveau du workflow est rejeté" "$MUTATED_WORKFLOW"
+
+MUTATED_WORKFLOW="$TMPDIR_CI/ci-cockpit-default-shell.yml"
+cp "$REPO_ROOT/.github/workflows/ci.yml" "$MUTATED_WORKFLOW"
+sed -i \
+    '/^  cockpit:$/a\    defaults:\n      run:\n        shell: "true {0}"' \
+    "$MUTATED_WORKFLOW"
+assert_yaml_mutation_rejected \
+    "defaults.run.shell au niveau du job est rejeté" "$MUTATED_WORKFLOW"
 
 if [ "$(cat "$REPO_ROOT/.nvmrc" 2>/dev/null)" = "22.22.0" ]; then
     echo "  PASS  .nvmrc fixe Node 22.22.0"
