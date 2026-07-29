@@ -1,9 +1,19 @@
+import { auth } from '@/auth'
 import { CockpitShell } from './CockpitShell'
 
-const transitionalSession = Object.freeze({
-  status: 'unverified' as const,
-})
+export default async function Page() {
+  const session = await auth()
 
-export default function Page() {
-  return <CockpitShell session={transitionalSession} />
+  if (!session?.internalAccessToken || !session?.internalIdentity) {
+    return <CockpitShell session={{ status: 'unverified' }} />
+  }
+
+  return (
+    <CockpitShell
+      session={{
+        status: 'authenticated',
+        user: { displayName: session.user?.name ?? session.internalIdentity.sub },
+      }}
+    />
+  )
 }
