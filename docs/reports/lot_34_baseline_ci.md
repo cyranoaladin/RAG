@@ -4,8 +4,8 @@ Date de validation : 29 juillet 2026.
 
 ## Révision testée
 
-- Commit fonctionnel : `225066fbb60f56a7886c39c6a5534c0ceb643d2f`.
-- Arbre Git archivé : `996a13e110efbcd2f607420b0caa0533d66a5846`.
+- Commit fonctionnel : `0a1a8d557ad90c20b69472fad8b21f643da72455`.
+- Arbre Git archivé : `a03529c9b10d30ee68e2b7faa8fd14892ea748ab`.
 - Branche : `lot-34-baseline-ci`.
 - Le présent rapport est commité séparément après la validation afin de ne pas
   rendre la preuve du SHA circulaire.
@@ -106,15 +106,29 @@ dépendance environnementale :
 
 Les commits de contre-revue sont `9e965c4`, `973cce7` et `225066f`.
 
-Le contrôle shell extrait réellement la fonction `run_cockpit()` par
-frontières syntaxiques, exige chaque commande comme ligne shell complète,
-puis exécute son corps avec de faux `npm`, `bash` et Python. Il compare les neuf
-appels, leur ordre et leur répertoire de travail attendu. Aucun vrai pipeline
-n'est lancé par ce test ; une sortie anticipée ou une branche qui rendrait une
-commande inatteignable laisse une trace incomplète et est rejetée. Les faux
-exécutables sont ensuite configurés pour échouer un par un ; le contrôle
-prouve donc aussi la propagation fail-fast, sans la créer artificiellement
-dans son runner.
+Une dernière contre-revue Bash a révélé que l'appel `if "$@"` dans
+`run_target()` désactivait implicitement `errexit` pendant toute l'exécution
+de `run_cockpit()`. Le RED `33 passed, 1 failed` a prouvé qu'un échec injecté
+sur `node` était suivi des huit contrôles cockpit restants et enregistré à
+tort comme un succès. L'instrumentation extrait et exécute désormais ensemble
+les vraies fonctions `run_target()` et `run_cockpit()`, puis un target
+sentinelle : elle vérifie à la fois l'arrêt immédiat du target cockpit, la
+poursuite de la matrice vers la sentinelle et le code final non nul décidé par
+le résumé. La correction appelle `"$@"` hors de toute condition, capture
+immédiatement son statut, incrémente les compteurs par affectation arithmétique
+et retourne neutrement afin que seul le résumé tranche. État GREEN :
+`35 passed, 0 failed`. Commit correspondant : `0a1a8d5`.
+
+Le contrôle shell extrait réellement les fonctions `run_target()` et
+`run_cockpit()` par frontières syntaxiques, exige chaque commande comme ligne
+shell complète, puis les exécute avec de faux `npm`, `bash` et Python. Il
+compare les neuf appels, leur ordre et leur répertoire de travail attendu.
+Aucun vrai pipeline n'est lancé par ce test ; une sortie anticipée ou une
+branche qui rendrait une commande inatteignable laisse une trace incomplète et
+est rejetée. Les faux exécutables sont ensuite configurés pour échouer un par
+un ; le contrôle prouve la propagation fail-fast dans `run_cockpit()`, la
+poursuite du target suivant et l'échec du résumé final, sans créer
+artificiellement ces propriétés dans son runner.
 Le contrôle du workflow parse le YAML avec PyYAML. Il exige sémantiquement
 `main`, `lot-*` et `lot-*/**` pour `push` comme pour `pull_request`, inspecte
 exclusivement `jobs.cockpit.steps`, vérifie que `run` est une chaîne égale à
@@ -158,22 +172,22 @@ Validation locale complète du commit fonctionnel :
   bash scripts/ci-local.sh
 ```
 
-Résultat : code de sortie `0`, `547.32 s` réelles, `463.31 s` utilisateur et
-`60.24 s` système.
+Résultat : code de sortie `0`, `537.53 s` réelles, `467.35 s` utilisateur et
+`58.19 s` système.
 
 ## Résultat par target
 
 | Target CI locale | Résultat | Preuve principale |
 |---|---|---|
 | `packages/contracts` | PASS | import du contrat canonique réussi |
-| `services/rag-pedago` | PASS | ruff vert, mypy vert sur 73 fichiers, `1151 passed` en `278.43 s` |
+| `services/rag-pedago` | PASS | ruff vert, mypy vert sur 73 fichiers, `1151 passed` en `280.72 s` |
 | `services/rag-engine` | PASS | installation, lint, typecheck et `603 passed`, `15 deselected` |
 | `services/cockpit` | PASS | lint, 4 fichiers/`13` tests Vitest, `6` tests snapshots, build et deux audits à zéro |
 | `governance-locks` | PASS | 18 clés identiques à la baseline |
 | `taxonomy-validation` | PASS | 57 taxonomies, 0 erreur, 486 notions et 174 sous-notions |
 | `source-evidence-check` | PASS | 11 verdicts couvrent la configuration courante |
 | `governance-guard-tests` | PASS | `16 passed, 0 failed` |
-| `ci-failsafe-tests` | PASS | `34 passed, 0 failed`, dont dix-sept mutations anti-contournement |
+| `ci-failsafe-tests` | PASS | `35 passed, 0 failed`, dont dix-huit mutations anti-contournement |
 
 Résumé produit par le script : `9 passed, 0 failed`.
 
@@ -214,7 +228,7 @@ catalogue versionné : unicité, absence d'entrée manquante ou surnuméraire et
 qui relève des gates des lots ultérieurs.
 
 Le clean build a utilisé `HEAD`, donc l'arbre Git
-`996a13e110efbcd2f607420b0caa0533d66a5846`, et non les fichiers non suivis du
+`a03529c9b10d30ee68e2b7faa8fd14892ea748ab`, et non les fichiers non suivis du
 poste.
 
 ## Workflow GitHub Actions
