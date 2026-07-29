@@ -1,10 +1,30 @@
-import collectionsData from '@/data/collections.json'
-import type { RetrievalResponse, RetrievalResult } from '@/generated/contracts'
-import { validateRetrievalResponse } from '@/generated/validators'
+import type {
+  ChatMessage,
+  ChatResponse,
+  RetrievalResponse,
+  RetrievalResult,
+} from '@/generated/contracts'
 import type { RagCollection } from '@/types/ui'
+import { validateRetrievalResponse } from '@/generated/validators'
+import {
+  validateChatPayload,
+  validateChatResponse,
+  validateSearchPayload,
+} from '@/generated/validators'
 
 export const BFF_ERROR_CODE = 'BFF_REQUEST_FAILED'
 const BFF_TIMEOUT_MS = 8000
+
+const DEFAULT_COLLECTIONS_FROM_ROUTE = '/api/collections'
+
+export interface BffCollectionsState {
+  items: RagCollection[]
+  live: boolean
+  launchReady: boolean
+  totalCollections: number
+  readyCollections: number
+  blockers: string[]
+}
 
 function requestOptions(init?: RequestInit): RequestInit {
   return {
@@ -35,6 +55,42 @@ async function requestRetrieval(
   }
 }
 
+async function requestChat(
+  path: '/api/chat',
+  init: RequestInit,
+): Promise<ChatResponse> {
+  try {
+    const response = await fetch(path, requestOptions(init))
+    if (!response.ok) {
+      throw new Error(BFF_ERROR_CODE)
+    }
+    const payload: unknown = await response.json()
+    if (!validateChatResponse(payload)) {
+      throw new Error(BFF_ERROR_CODE)
+    }
+    return payload
+  } catch {
+    throw new Error(BFF_ERROR_CODE)
+  }
+}
+
+function assertCollectionsPayload(
+  payload: unknown,
+): payload is BffCollectionsState {
+  if (typeof payload !== 'object' || payload === null) {
+    return false
+  }
+  const body = payload as Record<string, unknown>
+  return (
+    Array.isArray(body.items) &&
+    typeof body.live === 'boolean' &&
+    typeof body.launchReady === 'boolean' &&
+    typeof body.totalCollections === 'number' &&
+    typeof body.readyCollections === 'number' &&
+    Array.isArray(body.blockers)
+  )
+}
+
 /** Sonde exclusivement le BFF same-origin, sans faire confiance à son corps. */
 export async function getApiHealth(): Promise<boolean> {
   try {
@@ -46,12 +102,44 @@ export async function getApiHealth(): Promise<boolean> {
 }
 
 /** Le catalogue est une donnée de présentation versionnée dans le dépôt. */
-export async function getCollections(): Promise<{
-  items: RagCollection[]
-  live: boolean
-}> {
+export async function getCollections(): Promise<BffCollectionsState> {
   const live = await getApiHealth()
-  return { items: collectionsData as RagCollection[], live }
+  try {
+    const response = await fetch(DEFAULT_COLLECTIONS_FROM_ROUTE, requestOptions())
+    if (!response.ok) {
+      return {
+        items: [],
+        live,
+        launchReady: false,
+        totalCollections: 0,
+        readyCollections: 0,
+        blockers: ['endpoint collections indisponible'],
+      }
+    }
+
+    const payload: unknown = await response.json()
+    if (assertCollectionsPayload(payload)) {
+      return { ...payload, live }
+    }
+
+    return {
+      items: [],
+      live,
+      launchReady: false,
+      totalCollections: 0,
+      readyCollections: 0,
+      blockers: ['catalogue BFF invalide'],
+    }
+  } catch {
+    return {
+      items: [],
+      live,
+      launchReady: false,
+      totalCollections: 0,
+      readyCollections: 0,
+      blockers: ['endpoint collections indisponible'],
+    }
+  }
 }
 
 /**
@@ -60,15 +148,47 @@ export async function getCollections(): Promise<{
  */
 export async function search(
   query: string,
-  niveau: string,
-  audience: string,
+  collections: string[],
+  k?: number,
 ): Promise<{ items: RetrievalResult[]; demo: false }> {
   if (!query.trim()) {
     return { items: [], demo: false }
   }
+
+  const payload = { query, collections, k }
+  if (!validateSearchPayload(payload)) {
+    throw new Error(BFF_ERROR_CODE)
+  }
+
   const response = await requestRetrieval('/api/search', {
     method: 'POST',
-    body: JSON.stringify({ query, top_k: 8, niveau, audience }),
+    body: JSON.stringify(payload),
   })
   return { items: response.results ?? [], demo: false }
+}
+
+export async function chat(
+  query: string,
+  collections: string[],
+  history: ChatMessage[] = [],
+  topK = 5,
+): Promise<ChatResponse> {
+  if (!query.trim()) {
+    throw new Error(BFF_ERROR_CODE)
+  }
+  const payload = {
+    query,
+    collections,
+    top_k: topK,
+    history,
+  }
+
+  if (!validateChatPayload(payload)) {
+    throw new Error(BFF_ERROR_CODE)
+  }
+
+  return requestChat('/api/chat', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
 }

@@ -16,7 +16,7 @@ function sourceFiles(root: string): string[] {
   return readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
     const path = join(root, entry.name)
     if (entry.isDirectory()) {
-      return entry.name === 'generated' ? [] : sourceFiles(path)
+      return ['generated', 'api', 'server'].includes(entry.name) ? [] : sourceFiles(path)
     }
     return ['.ts', '.tsx'].includes(extname(entry.name)) &&
       !entry.name.includes('.test.')
@@ -81,6 +81,7 @@ describe('frontière BFF du cockpit', () => {
           chunk_id: 'chunk-1',
           doc_id: 'document-1',
           score: 0.9,
+          title: null,
           excerpt: 'Une explication sourcée.',
           citation: {
             source_label: 'Programme officiel',
@@ -96,7 +97,7 @@ describe('frontière BFF du cockpit', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     await expect(
-      search('graphes', 'terminale', 'libre'),
+      search('graphes', ['rag_nexus_nsi_terminale_specialite'], 8),
     ).resolves.toEqual({ items: response.results, demo: false })
 
     expect(fetchMock).toHaveBeenCalledOnce()
@@ -130,7 +131,7 @@ describe('frontière BFF du cockpit', () => {
   ])('rejette une réponse %s sans exposer son contenu', async (_label, response) => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response))
 
-    await expect(search('graphes', 'terminale', 'libre')).rejects.toThrow(
+    await expect(search('graphes', ['rag_nexus_nsi_terminale_specialite'])).rejects.toThrow(
       BFF_ERROR_CODE,
     )
   })
@@ -147,7 +148,7 @@ describe('frontière BFF du cockpit', () => {
       ),
     )
 
-    await expect(search('graphes', 'terminale', 'libre')).rejects.toThrow(
+    await expect(search('graphes', ['rag_nexus_nsi_terminale_specialite'])).rejects.toThrow(
       BFF_ERROR_CODE,
     )
     expect(timeoutSpy).toHaveBeenCalledWith(8000)

@@ -1,0 +1,176 @@
+{
+  "$defs": {
+    "Candidat": {
+      "enum": [
+        "scolarise",
+        "individuel",
+        "libre",
+        "cned_reglemente",
+        "cned_libre",
+        "aefe",
+        "both"
+      ],
+      "title": "Candidat",
+      "type": "string"
+    },
+    "Niveau": {
+      "enum": [
+        "troisieme",
+        "seconde",
+        "premiere",
+        "terminale",
+        "cycle4",
+        "lycee_gt",
+        "voie_generale",
+        "voie_technologique"
+      ],
+      "title": "Niveau",
+      "type": "string"
+    },
+    "PedagogicalProfile": {
+      "additionalProperties": false,
+      "description": "Noyau pedagogique d'une identité interne.\n\nChamps volontairement resserrés à ce qui est nécessaire dans le cockpit actuel.",
+      "properties": {
+        "audience": {
+          "description": "Audience ciblée",
+          "enum": [
+            "libre",
+            "aefe",
+            "tous"
+          ],
+          "title": "Audience",
+          "type": "string"
+        },
+        "candidat": {
+          "$ref": "#/$defs/Candidat",
+          "description": "Type de candidat"
+        },
+        "matieres": {
+          "description": "Matières suivies",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Matieres",
+          "type": "array"
+        },
+        "statut_enseignement": {
+          "$ref": "#/$defs/StatutEnseignement",
+          "description": "Statut pédagogique"
+        },
+        "voie": {
+          "$ref": "#/$defs/Voie",
+          "description": "Parcours de l'élève"
+        }
+      },
+      "required": [
+        "voie",
+        "matieres",
+        "statut_enseignement",
+        "candidat",
+        "audience"
+      ],
+      "title": "PedagogicalProfile",
+      "type": "object"
+    },
+    "StatutEnseignement": {
+      "enum": [
+        "tronc_commun",
+        "enseignement_commun",
+        "specialite",
+        "eds",
+        "option",
+        "maths_complementaires",
+        "maths_expertes",
+        "snt",
+        "enseignement_scientifique",
+        "emc",
+        "atelier",
+        "stage",
+        "remediation",
+        "examen",
+        "unknown"
+      ],
+      "title": "StatutEnseignement",
+      "type": "string"
+    },
+    "Voie": {
+      "enum": [
+        "college",
+        "generale",
+        "technologique",
+        "professionnelle",
+        "aefe",
+        "unknown"
+      ],
+      "title": "Voie",
+      "type": "string"
+    }
+  },
+  "$id": "https://nexusreussite.academy/contracts/v0.3/internal-identity.json",
+  "additionalProperties": false,
+  "description": "Contrat d'identité métier produit par le cockpit.\n\nL'implémentation locale (nexus/contracts) le sérialise et valide strictement.",
+  "properties": {
+    "aud": {
+      "minLength": 1,
+      "title": "Aud",
+      "type": "string"
+    },
+    "exp": {
+      "minimum": 0,
+      "title": "Exp",
+      "type": "integer"
+    },
+    "iss": {
+      "minLength": 1,
+      "title": "Iss",
+      "type": "string"
+    },
+    "jti": {
+      "minLength": 1,
+      "title": "Jti",
+      "type": "string"
+    },
+    "niveau": {
+      "$ref": "#/$defs/Niveau",
+      "description": "Niveau principal du profil"
+    },
+    "pedagogical_profile": {
+      "$ref": "#/$defs/PedagogicalProfile"
+    },
+    "role": {
+      "enum": [
+        "student",
+        "teacher",
+        "admin",
+        "ingest_agent",
+        "reviewer"
+      ],
+      "title": "Role",
+      "type": "string"
+    },
+    "sub": {
+      "minLength": 1,
+      "title": "Sub",
+      "type": "string"
+    },
+    "tenant": {
+      "minLength": 1,
+      "title": "Tenant",
+      "type": "string"
+    }
+  },
+  "required": [
+    "aud",
+    "exp",
+    "iss",
+    "jti",
+    "tenant",
+    "niveau",
+    "role",
+    "sub",
+    "pedagogical_profile"
+  ],
+  "title": "InternalIdentity",
+  "type": "object"
+}

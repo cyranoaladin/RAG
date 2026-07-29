@@ -5,42 +5,35 @@ import {
   LayoutDashboard,
   Database,
   Search,
-  RefreshCw,
-  ClipboardCheck,
-  ShieldCheck,
   GraduationCap,
 } from 'lucide-react'
 import OverviewSection from '@/sections/OverviewSection'
 import CollectionsSection from '@/sections/CollectionsSection'
 import SearchSection from '@/sections/SearchSection'
-import IngestionSection from '@/sections/IngestionSection'
-import ReviewSection from '@/sections/ReviewSection'
-import GovernanceSection from '@/sections/GovernanceSection'
 import { getCollections } from '@/lib/bff-client'
 import type { RagCollection } from '@/types/ui'
 
-type Tab = 'apercu' | 'collections' | 'recherche' | 'ingestion' | 'revue' | 'gouvernance'
+type Tab = 'apercu' | 'collections' | 'recherche'
 
 const NAV: { id: Tab; label: string; icon: typeof LayoutDashboard }[] = [
   { id: 'apercu', label: "Vue d'ensemble", icon: LayoutDashboard },
   { id: 'collections', label: 'Collections', icon: Database },
   { id: 'recherche', label: 'Recherche', icon: Search },
-  { id: 'ingestion', label: 'Ingestion', icon: RefreshCw },
-  { id: 'revue', label: 'Revue humaine', icon: ClipboardCheck },
-  { id: 'gouvernance', label: 'Gouvernance', icon: ShieldCheck },
 ]
 
 export default function HomeClient() {
   const [tab, setTab] = useState<Tab>('apercu')
   const [collections, setCollections] = useState<RagCollection[]>([])
   const [apiLive, setApiLive] = useState(false)
+  const [launchReady, setLaunchReady] = useState(false)
+  const [blockers, setBlockers] = useState<string[]>([])
 
   useEffect(() => {
-    // Catalogue versionné dans le dépôt (source de vérité M-04) ;
-    // apiLive mesure la connectivité au BFF same-origin via GET /api/health.
     getCollections().then((res) => {
       setCollections(res.items)
       setApiLive(res.live)
+      setLaunchReady(res.launchReady)
+      setBlockers(res.blockers)
     })
   }, [])
 
@@ -54,7 +47,7 @@ export default function HomeClient() {
           </div>
           <div>
             <div className="text-sm font-bold leading-tight">Nexus Réussite</div>
-            <div className="text-xs text-blue-300">RAG — Cockpit v2</div>
+          <div className="text-xs text-blue-300">Recherche pédagogique sourcée</div>
           </div>
         </div>
         <nav className="flex-1 space-y-1 px-3 py-4">
@@ -74,8 +67,8 @@ export default function HomeClient() {
           ))}
         </nav>
         <div className="border-t border-white/10 px-5 py-4 text-xs text-blue-300/70">
-          <div>rag-ui.nexusreussite.academy</div>
-          <div className="mt-1">LOT 28 · ADR-0017</div>
+          <div>nexusreussite.academy</div>
+          <div className="mt-1">Sources contrôlées · citations visibles</div>
         </div>
       </aside>
 
@@ -92,21 +85,24 @@ export default function HomeClient() {
           </div>
           <div className="flex items-center gap-2">
             <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${
-              apiLive ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+              launchReady && apiLive ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
             }`}>
-              <span className={`h-1.5 w-1.5 rounded-full ${apiLive ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-              {apiLive ? 'API connectée' : 'Démonstration'}
+              <span className={`h-1.5 w-1.5 rounded-full ${launchReady && apiLive ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+              {launchReady && apiLive ? 'Ouverture validée' : 'Ouverture bloquée'}
             </span>
           </div>
         </header>
 
         <div className="p-8">
-          {tab === 'apercu' && <OverviewSection collections={collections} demo={!apiLive} />}
+          {tab === 'apercu' && <OverviewSection collections={collections} demo={!launchReady} />}
           {tab === 'collections' && <CollectionsSection collections={collections} />}
-          {tab === 'recherche' && <SearchSection />}
-          {tab === 'ingestion' && <IngestionSection />}
-          {tab === 'revue' && <ReviewSection />}
-          {tab === 'gouvernance' && <GovernanceSection />}
+          {tab === 'recherche' && (
+            <SearchSection
+              collections={collections}
+              launchReady={launchReady && apiLive}
+              blockers={blockers}
+            />
+          )}
         </div>
       </main>
     </div>

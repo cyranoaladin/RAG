@@ -19,6 +19,7 @@ from fastapi import HTTPException
 
 from ingestor.retrieval_v2_endpoint import (
     SearchV2Request,
+    _build_launch_readiness,
     _check_retrievable,
 )
 from ingestor.retrieval_v2_endpoint import (
@@ -157,6 +158,93 @@ class TestResponseFormat:
                 rights="usage_interne", type_doc="cours", review_status="needs_review",
                 preview="text", rerank_score=3.0, dense_sim=0.80,
             )
+
+
+class TestLaunchReadiness:
+    """The public launch is closed until every declared collection is ready."""
+
+    def test_all_declared_collections_must_be_substantive_and_retrievable(self) -> None:
+        readiness = _build_launch_readiness(
+            FULL_CFG,
+            {
+                "rag_nexus_nsi_terminale_specialite": 3,
+                "rag_nexus_nsi_premiere_specialite": 3,
+                "rag_nexus_quarantine": 3,
+                "rag_nexus_maths_seconde_tc": 0,
+            },
+            min_chunks=3,
+        )
+
+        assert readiness["total_collections"] == 4
+        assert readiness["launch_ready"] is False
+        assert readiness["ready_collections"] == 2
+        maths = next(
+            item
+            for item in readiness["collections"]
+            if item["name"] == "rag_nexus_maths_seconde_tc"
+        )
+        assert maths["ready"] is False
+        assert "collection non instanciée" in maths["reasons"]
+
+
+class TestCitedChat:
+    def test_chat_refuses_when_generation_provider_is_not_configured(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """No provider credential may produce an uncited fallback answer."""
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+
+        from ingestor import retrieval_v2_endpoint as endpoint
+
+        monkeypatch.setenv("RAG_STUDENT_TOKEN", "chat-test-token")
+        monkeypatch.setattr(endpoint, "OPENROUTER_API_KEY", "")
+        monkeypatch.setattr(endpoint, "load_collection_config", lambda: FULL_CFG)
+        monkeypatch.setattr(
+            endpoint,
+            "_retrieve_reviewed_hits",
+            lambda _query, _collection, _k: [
+                endpoint.SearchV2Hit(
+                    chunk_id="chunk-1",
+                    doc_id="doc-1",
+                    source_label="Programme officiel",
+                    source_uri="https://example.edu/programme",
+                    rights="official_public_administrative",
+                    type_doc="cours",
+                    review_status="reviewed",
+                    preview="Un extrait validé.",
+                    rerank_score=4.2,
+                    dense_sim=0.9,
+                ),
+            ],
+        )
+        app = FastAPI()
+        app.include_router(endpoint.router)
+
+        response = TestClient(app).post(
+            "/chat",
+            headers={"Authorization": "Bearer chat-test-token"},
+            json={
+                "student_profile": {
+                    "niveau": "terminale",
+                    "voie": "generale",
+                    "matieres": ["nsi"],
+                    "statut_enseignement": "specialite",
+                    "candidat": "individuel",
+                    "school_year": "2026-2027",
+                    "zone": "france",
+                },
+                "query": "Explique la récursivité",
+                "collections": ["rag_nexus_nsi_terminale_specialite"],
+            },
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["grounded"] is False
+        assert body["citations"] == []
+        assert body["refusal_reason"] == "generation_unavailable"
 
 
 class TestCacheGateInvariant:

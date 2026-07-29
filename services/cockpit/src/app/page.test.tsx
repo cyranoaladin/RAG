@@ -11,8 +11,6 @@ vi.mock('@/lib/bff-client', () => ({
 }))
 
 const simulatedSession = Object.freeze({
-  status: 'authenticated',
-  user: { displayName: 'Élève Nexus' },
   serverOnlySentinel: 'SERVER_ONLY_SENTINEL_MUST_NOT_LEAK',
 })
 
@@ -22,14 +20,12 @@ describe('shell Next.js', () => {
     vi.clearAllMocks()
   })
 
-  it('rend le cockpit authentifié sans sérialiser les données serveur', () => {
-    const { container } = render(
-      <CockpitShell session={simulatedSession} />,
-    )
+  it('rend le parcours public sans sérialiser les données serveur', () => {
+    const { container } = render(<CockpitShell />)
 
     expect(
       container.firstElementChild?.getAttribute('data-session-status'),
-    ).toBe('authenticated')
+    ).toBe('public')
     expect(screen.getByText('Nexus Réussite')).toBeTruthy()
 
     const rendered = `${container.innerHTML}\n${container.outerHTML}`
@@ -41,20 +37,10 @@ describe('shell Next.js', () => {
     expect(getCollections).toHaveBeenCalledOnce()
   })
 
-  it.each(['unverified', 'unauthenticated'] as const)(
-    'refuse le contenu cockpit quand la session est %s',
-    (status) => {
-      const { container } = render(<CockpitShell session={{ status }} />)
-      const rendered = `${container.innerHTML}\n${container.outerHTML}`
-
-      expect(
-        container.firstElementChild?.getAttribute('data-session-status'),
-      ).toBe(status)
-      expect(rendered).toContain('Accès au cockpit indisponible')
-      expect(rendered).not.toContain('RAG — Cockpit v2')
-      expect(rendered).not.toContain('Gouvernance')
-      expect(getCollections).not.toHaveBeenCalled()
-    },
-  )
+  it('n’expose pas les écrans internes de gouvernance au public', () => {
+    render(<CockpitShell />)
+    expect(screen.queryByRole('button', { name: 'Gouvernance' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Ingestion' })).toBeNull()
+  })
 
 })

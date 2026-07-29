@@ -28,7 +28,7 @@ const ALLOWED_ROLES = new Set<AllowedRole>([
   'teacher',
   'admin',
   'ingest_agent',
-  'review_agent',
+  'reviewer',
 ])
 
 function requireEnv(name: string): string {

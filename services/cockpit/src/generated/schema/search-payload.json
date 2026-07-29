@@ -1,0 +1,41 @@
+{
+  "$id": "https://nexusreussite.academy/contracts/v0.3/search-payload.json",
+  "additionalProperties": false,
+  "description": "Browser-to-BFF search input; no identity or server credentials.",
+  "properties": {
+    "collections": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Collections",
+      "type": "array"
+    },
+    "k": {
+      "anyOf": [
+        {
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "K"
+    },
+    "query": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Query",
+      "type": "string"
+    }
+  },
+  "required": [
+    "query",
+    "collections"
+  ],
+  "title": "SearchPayload",
+  "type": "object"
+}
