@@ -4,7 +4,7 @@ import hmac
 import logging
 import os
 from collections.abc import Mapping
-from typing import Any, Optional
+from typing import Any
 
 import requests
 from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile
@@ -42,7 +42,7 @@ def _get_client_ip(request: Request) -> str:
     return host or "unknown"
 
 
-def _get_request_id(request: Request) -> Optional[str]:
+def _get_request_id(request: Request) -> str | None:
     """Extract request ID from headers for tracing."""
     headers: Mapping[str, str] = request.headers
     return headers.get("X-Request-ID") or headers.get("x-request-id")
@@ -120,11 +120,11 @@ def admin_health(request: Request) -> dict[str, str]:
 
 class CreateDocumentPayload(BaseModel):
     domain: str = Field(description="lycee | web3 | ...")
-    title: Optional[str] = None
+    title: str | None = None
     source_type: str = Field(description="url|gdrive_folder|pdf|docx|markdown|md|video")
     source_location: str
-    tags: Optional[list[str]] = None
-    metadata: Optional[dict[str, Any]] = None
+    tags: list[str] | None = None
+    metadata: dict[str, Any] | None = None
 
 
 @router.post("/documents")
@@ -157,7 +157,7 @@ def create_document(payload: CreateDocumentPayload, request: Request) -> dict[st
 
 
 @router.get("/documents")
-def list_documents(request: Request, domain: Optional[str] = Query(default=None)) -> dict[str, Any]:
+def list_documents(request: Request, domain: str | None = Query(default=None)) -> dict[str, Any]:
     _admin_guard(request)
     client_ip = _get_client_ip(request)
     request_id = _get_request_id(request)
@@ -280,7 +280,7 @@ def ingest_document(document_id: str, request: Request) -> dict[str, Any]:
 
 
 @router.post("/reindex")
-def trigger_reindex(request: Request, payload: Optional[dict[str, Any]] = None) -> dict[str, str]:
+def trigger_reindex(request: Request, payload: dict[str, Any] | None = None) -> dict[str, str]:
     """Placeholder endpoint for batch reindex orchestration.
 
     The actual implementation is environment-specific; for now we acknowledge the
@@ -414,9 +414,9 @@ def delete_document_detail(document_id: str, request: Request) -> dict[str, Any]
 @router.get("/ingestions")
 def list_all_ingestions_endpoint(
     request: Request,
-    document_id: Optional[str] = Query(default=None),
-    status: Optional[str] = Query(default=None),
-    since: Optional[str] = Query(default=None),
+    document_id: str | None = Query(default=None),
+    status: str | None = Query(default=None),
+    since: str | None = Query(default=None),
     limit: int = Query(default=200, ge=1, le=1000),
 ) -> dict[str, Any]:
     _admin_guard(request)
@@ -438,11 +438,11 @@ async def admin_upload(
     request: Request,
     file: UploadFile = File(...),  # noqa: B008 - FastAPI pattern for required file field
     ingest: bool = Query(default=False),
-    document_id: Optional[str] = Query(default=None),
-    domain: Optional[str] = Query(default=None),
-    title: Optional[str] = Query(default=None),
-    tags: Optional[str] = Query(default=None),  # JSON array as string
-    metadata: Optional[str] = Query(default=None),  # JSON object as string
+    document_id: str | None = Query(default=None),
+    domain: str | None = Query(default=None),
+    title: str | None = Query(default=None),
+    tags: str | None = Query(default=None),  # JSON array as string
+    metadata: str | None = Query(default=None),  # JSON object as string
 ) -> dict[str, Any]:
     _admin_guard(request)
     upload_dir = _ensure_upload_dir()

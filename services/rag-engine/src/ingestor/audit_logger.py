@@ -10,13 +10,13 @@ import os
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-class AuditAction(str, Enum):
+class AuditAction(StrEnum):
     """Actions auditées."""
     DOCUMENT_CREATE = "document.create"
     DOCUMENT_READ = "document.read"
@@ -34,7 +34,7 @@ class AuditAction(str, Enum):
     SECURITY_VIOLATION = "security.violation"
 
 
-class AuditStatus(str, Enum):
+class AuditStatus(StrEnum):
     """Statut de l'action auditée."""
     SUCCESS = "success"
     FAILURE = "failure"

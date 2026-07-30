@@ -214,3 +214,69 @@ sudo systemctl status rag-local
 - Lead technique : à définir
 - Oncall : à définir
 - Alertes : à configurer via Alertmanager
+
+## 14. Validation complète (régression)
+
+Préparer les environnements une fois, hors de la porte de régression :
+
+```bash
+python -m venv packages/contracts/.venv
+packages/contracts/.venv/bin/pip install -e "packages/contracts[dev]"
+make -C services/rag-pedago install
+make -C services/rag-engine install
+npm --prefix services/cockpit ci
+```
+
+La porte officielle est ensuite :
+
+```bash
+make full-regression
+```
+
+Cette commande est déterministe et hermétique : elle n’installe rien, ne fait
+ni appel réseau, ni SSH, ni appel à la production, ni accès à un état runtime
+partagé. Elle échoue si les environnements préparés ci-dessus sont absents.
+
+Elle exécute les garde-fous de gouvernance, l’hygiène versionnée, lint,
+typecheck et tests hermétiques des contrats et services, les contrôles cockpit
+et les smoke tests racine. Les tests marqués `network` ou `e2e` sont
+explicitement désélectionnés ; le résumé imprime leur nombre par marqueur. Les
+tests pgvector existants sont marqués `network` et ne démarrent pas de
+conteneur dans cette porte. Un fixture autouse refuse toute socket IPv4/IPv6
+hors de ces marqueurs. `python -m pytest -q` à la racine ne collecte que les
+smoke tests.
+
+### E2E production (read-only)
+
+L’E2E est séparé et n’est ni appelé par `full-regression`, ni un statut
+obligatoire de CI. Son installation et son exécution sont explicites :
+
+```bash
+bash scripts/e2e/setup-playwright.sh
+RAG_E2E_UI_URL="https://interface.example" \
+RAG_E2E_API_URL="https://api.example" \
+RAG_E2E_STUDENT_TOKEN="$JETON_ELEVE" \
+make e2e-prod-readonly
+```
+
+Le script refuse les variables absentes, vérifie les routes API de lecture avec
+le rôle élève (`/collections/v2`, `/search/v2`) et bloque structurellement toute
+requête navigateur hors liste blanche. Les sélecteurs de navigation vérifient
+uniquement `Dashboard`, `Recherche` et `Administration`. Ne jamais fournir un
+jeton administrateur, reviewer ou ingestion à cette cible.
+
+### Vérification zombies / doublons
+
+```bash
+bash scripts/tests/check-zombies-and-duplicates.sh
+```
+
+Cette vérification statique détecte les artefacts éphémères suivis par Git et
+les noms de conteneurs dupliqués. L’inspection de processus ou de conteneurs
+réels relève des opérations et n’entre pas dans une porte hermétique.
+
+### Limite connue de l’E2E production
+
+Un E2E de production en lecture seule ne valide ni ingestion, ni revue, ni
+promotion de statut, ni migration. Il est un palliatif opérationnel : la cible
+reste un environnement de recette iso-production pour ces parcours.

@@ -21,6 +21,7 @@ DSN = os.getenv(
 
 pytestmark = [
     pytest.mark.integration,
+    pytest.mark.network,
     pytest.mark.skipif(
         not os.getenv("DATABASE_URL_TEST"),
         reason="DATABASE_URL_TEST not set — skip integration tests",

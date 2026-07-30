@@ -63,5 +63,16 @@ PYTHON_CMD="$(find_python)"
   "$ARCHIVE_ROOT/services/rag-engine/configs/rag_collections.yml"
 
 cd "$ARCHIVE_ROOT/services/cockpit"
-npm ci
+SOURCE_NODE_MODULES="$REPO_ROOT/services/cockpit/node_modules"
+if [[ ! -x "$SOURCE_NODE_MODULES/.bin/next" ]]; then
+  echo "Dépendances cockpit absentes: préparez-les hors de full-regression." >&2
+  exit 1
+fi
+
+# L'arbre source reste propre, mais les dépendances déjà préparées sont
+# réutilisées dans l'arbre temporaire. Une copie locale est nécessaire :
+# Turbopack refuse un lien qui sort de la racine du projet. Cette porte ne
+# déclenche donc jamais une installation réseau.
+mkdir node_modules
+tar -C "$SOURCE_NODE_MODULES" -cf - . | tar -C node_modules -xf -
 npm run build

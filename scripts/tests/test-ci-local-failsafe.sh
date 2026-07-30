@@ -196,7 +196,7 @@ return 42
 SCRIPT
 
 set +e
-SOURCE_FAILURE_OUTPUT=$(bash "$SOURCE_FAILURE_ROOT/scripts/ci-local.sh" 2>&1)
+SOURCE_FAILURE_OUTPUT=$(env -u NEXUS_CI_LOCAL_RUNNING bash "$SOURCE_FAILURE_ROOT/scripts/ci-local.sh" 2>&1)
 SOURCE_FAILURE_EXIT=$?
 set -e
 
@@ -617,6 +617,49 @@ if not isinstance(steps, list):
     raise SystemExit(1)
 
 errors: list[str] = []
+if not isinstance(jobs, dict):
+    errors.append("jobs est absent ou invalide")
+else:
+    required_jobs = {"contracts", "rag-pedago", "rag-engine", "cockpit", "governance-locks", "repository-hygiene", "full-regression"}
+    missing_jobs = sorted(required_jobs - set(jobs))
+    if missing_jobs:
+        errors.append("jobs CI manquants: " + ", ".join(missing_jobs))
+    for job_name, job in jobs.items():
+        if not isinstance(job, dict):
+            errors.append(f"jobs.{job_name} est invalide")
+            continue
+        if "continue-on-error" in job:
+            errors.append(f"jobs.{job_name}.continue-on-error est interdit")
+        job_steps = job.get("steps")
+        if not isinstance(job_steps, list):
+            errors.append(f"jobs.{job_name}.steps est absent ou invalide")
+            continue
+        for step_index, step in enumerate(job_steps):
+            if isinstance(step, dict) and "continue-on-error" in step:
+                errors.append(
+                    f"jobs.{job_name}.steps[{step_index}].continue-on-error est interdit"
+                )
+
+    full_regression = jobs.get("full-regression")
+    if not isinstance(full_regression, dict) or full_regression.get("needs") != "contracts":
+        errors.append("jobs.full-regression doit dépendre de contracts")
+    else:
+        full_runs = [
+            step.get("run")
+            for step in full_regression.get("steps", [])
+            if isinstance(step, dict)
+        ]
+        if "make full-regression" not in full_runs:
+            errors.append("jobs.full-regression doit exécuter make full-regression")
+
+    hygiene = jobs.get("repository-hygiene")
+    hygiene_steps = hygiene.get("steps", []) if isinstance(hygiene, dict) else []
+    hygiene_runs = [step.get("run") for step in hygiene_steps if isinstance(step, dict)]
+    if not any(
+        isinstance(run, str) and "MANIFEST_LOT*.md" in run and "*.tar.gz" in run
+        for run in hygiene_runs
+    ):
+        errors.append("jobs.repository-hygiene doit refuser manifestes et archives racine")
 triggers = document.get("on") if isinstance(document, dict) else None
 if triggers is None and isinstance(document, dict):
     # PyYAML suit YAML 1.1 et interprète la clé non citée `on` comme true.
@@ -896,6 +939,20 @@ else
     TESTS_FAIL=$((TESTS_FAIL + 1))
 fi
 
+echo ""
+echo "=== Mutation: toute tolérance continue-on-error est rejetée ==="
+
+MUTATED_WORKFLOW="$TMPDIR_CI/ci-full-regression-continue.yml"
+cp "$REPO_ROOT/.github/workflows/ci.yml" "$MUTATED_WORKFLOW"
+sed -i '/^  full-regression:$/a\    continue-on-error: true' "$MUTATED_WORKFLOW"
+if ! validate_yaml_cockpit_job "$MUTATED_WORKFLOW" >/dev/null; then
+    echo "  PASS  continue-on-error dans full-regression est rejeté"
+    TESTS_PASS=$((TESTS_PASS + 1))
+else
+    echo "  FAIL  continue-on-error dans full-regression est accepté"
+    TESTS_FAIL=$((TESTS_FAIL + 1))
+fi
+
 MUTATED_WORKFLOW="$TMPDIR_CI/ci-no-snapshot-tests.yml"
 cp "$REPO_ROOT/.github/workflows/ci.yml" "$MUTATED_WORKFLOW"
 sed -i \
@@ -1090,7 +1147,7 @@ export FAKE_NODE_CALL_LOG FAKE_NPM_CALL_LOG
 set +e
 NODE_FAILURE_OUTPUT="$(
     PATH="$NODE_FAILURE_ROOT/bin:$PATH" \
-        bash "$NODE_FAILURE_ROOT/scripts/ci-local.sh" 2>&1
+        env -u NEXUS_CI_LOCAL_RUNNING bash "$NODE_FAILURE_ROOT/scripts/ci-local.sh" 2>&1
 )"
 NODE_FAILURE_EXIT=$?
 set -e

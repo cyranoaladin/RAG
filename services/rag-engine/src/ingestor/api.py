@@ -19,7 +19,7 @@ from collections.abc import Mapping, Sequence, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import ModuleType
-from typing import TYPE_CHECKING, Any, Literal, Optional, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 from urllib.parse import urlparse
 
 import chromadb
@@ -234,7 +234,7 @@ def _parse_multimodal_stub(*args: Any, **kwargs: Any) -> Any:  # pragma: no cove
 parse_multimodal: Callable[..., Any] = _parse_multimodal_stub
 
 # Try package-relative import first, then fallback to local module path
-_mm_mod: Optional[ModuleType] = None
+_mm_mod: ModuleType | None = None
 try:
     from . import mm_adapter as _pkg_mm  # prefer package-relative when available
     _mm_mod = _pkg_mm
@@ -1049,7 +1049,7 @@ def _load_source_documents(req: IngestRequest) -> list[Document]:
 def _prepare_chunks_for_chroma(
     req: IngestRequest,
     docs: list[Document],
-    splitter: Optional[RecursiveCharacterTextSplitter] = None,
+    splitter: RecursiveCharacterTextSplitter | None = None,
     extra_metadata: dict[str, Any] | None = None,
 ) -> PreparedBatch:
     splitter = splitter or RecursiveCharacterTextSplitter(
@@ -2133,15 +2133,15 @@ def search_kb(payload: SearchRequest, request: Request) -> dict[str, Any]:
 
 
 class RagQueryFilters(BaseModel):
-    domain: Optional[str] = None
-    document_id: Optional[str] = None
-    tags: Optional[list[str]] = None
-    metadata: Optional[dict[str, Any]] = None
+    domain: str | None = None
+    document_id: str | None = None
+    tags: list[str] | None = None
+    metadata: dict[str, Any] | None = None
 
 
 class RagQuery(BaseModel):
     query: str
-    filters: Optional[RagQueryFilters] = None
+    filters: RagQueryFilters | None = None
     top_k: int = Field(default=6, ge=1, le=50)
     collection: str = Field(default=COLLECTION_NAME)
 

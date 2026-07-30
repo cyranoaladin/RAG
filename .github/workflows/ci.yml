@@ -94,3 +94,38 @@ jobs:
         with:
           fetch-depth: 2
       - run: bash scripts/check-governance-locks.sh
+
+  repository-hygiene:
+    name: "repository hygiene"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          if find . -maxdepth 1 -type f \( -name 'MANIFEST_LOT*.md' -o -name '*.tar.gz' \) -print -quit | grep -q .; then
+            echo "Un manifeste de lot ou une archive est interdit à la racine." >&2
+            exit 1
+          fi
+
+  full-regression:
+    name: "full regression"
+    runs-on: ubuntu-latest
+    needs: contracts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: services/cockpit/package-lock.json
+      - name: Préparer les environnements hors de la porte hermétique
+        run: |
+          python -m venv packages/contracts/.venv
+          packages/contracts/.venv/bin/pip install -e "packages/contracts[dev]"
+          make -C services/rag-pedago install
+          make -C services/rag-engine install
+          npm --prefix services/cockpit ci
+      - name: Exécuter la porte hermétique
+        run: make full-regression

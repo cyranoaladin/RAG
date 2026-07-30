@@ -9,6 +9,7 @@ import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import cast
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -269,7 +270,8 @@ def load_taxonomy_notion_map(yaml_path: Path) -> dict[str, list[str]]:
                 name = (n.get('label') or n.get('nom') or n.get('id') or '').strip()
                 if name:
                     notions.append(name)
-                for sn in n.get('subnotions', n.get('sous_notions', [])):
+                subnotions = cast(list[object], n.get('subnotions', n.get('sous_notions', [])))
+                for sn in subnotions:
                     if isinstance(sn, str) and sn.strip():
                         notions.append(sn.strip())
         notions = [n for n in notions if n]

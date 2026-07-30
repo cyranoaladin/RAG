@@ -4,6 +4,12 @@
 # Exits non-zero if any target fails.
 set -uo pipefail
 
+if [[ -n "${NEXUS_CI_LOCAL_RUNNING:-}" ]]; then
+    echo "ERROR: ci-local.sh refuse une réentrance" >&2
+    exit 1
+fi
+export NEXUS_CI_LOCAL_RUNNING=1
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 if ! source "$SCRIPT_DIR/lib/ci-common.sh"; then

@@ -6,12 +6,12 @@ import hashlib
 import hmac
 import ipaddress
 import os
-from enum import Enum
+from enum import StrEnum
 
 from fastapi import HTTPException, Request
 
 
-class SecurityRole(str, Enum):
+class SecurityRole(StrEnum):
     """Supported v2 actor roles."""
 
     ADMIN = "admin"

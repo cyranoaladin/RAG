@@ -126,8 +126,7 @@ def rerank(
 
         if len(scores_list) != len(candidates):
             raise ValueError(
-                "Reranker returned %d scores for %d candidates"
-                % (len(scores_list), len(candidates))
+                f"Reranker returned {len(scores_list)} scores for {len(candidates)} candidates"
             )
 
         for candidate, score in zip(candidates, scores_list, strict=True):
