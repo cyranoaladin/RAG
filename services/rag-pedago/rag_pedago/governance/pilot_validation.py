@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, StrictBool
 
 _EXPECTED_SCOPE_ID = "libre_terminale_maths_nsi_real_v1"
 _DORMANT_STATUS = "eligible_for_promotion"
@@ -133,10 +133,10 @@ class ValidationCapabilities(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    validation_real_documents_allowed: bool
-    validation_pipeline_allowed: bool
-    validation_answer_generation_allowed: bool
-    validation_openrouter_allowed: bool
+    validation_real_documents_allowed: StrictBool
+    validation_pipeline_allowed: StrictBool
+    validation_answer_generation_allowed: StrictBool
+    validation_openrouter_allowed: StrictBool
 
 
 class PublicLocks(BaseModel):
@@ -144,10 +144,10 @@ class PublicLocks(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    real_documents_allowed: bool
-    ui_runtime_allowed: bool
-    answer_generation_allowed: bool
-    curated_ingestion_allowed: bool
+    real_documents_allowed: StrictBool
+    ui_runtime_allowed: StrictBool
+    answer_generation_allowed: StrictBool
+    curated_ingestion_allowed: StrictBool
 
 
 class ValidationEnvironment(BaseModel):
@@ -157,7 +157,7 @@ class ValidationEnvironment(BaseModel):
 
     environment_id: str
     isolation_status: str
-    public_routes_allowed: bool
+    public_routes_allowed: StrictBool
     credentials_ref_env: str
     dsn_ref_env: str
     bucket_ref_env: str
@@ -171,7 +171,7 @@ class AuthorizationOperation(BaseModel):
 
     capabilities: tuple[str, ...]
     allowed_callers: tuple[str, ...]
-    quality_chain_required: bool | None = None
+    quality_chain_required: StrictBool | None = None
 
 
 class AuthorizationMatrix(BaseModel):
@@ -192,12 +192,12 @@ class RequiredAuthorization(BaseModel):
     decision: str
     authority_role: str
     evidence_kind: str
-    scope_digest_required: bool
-    policy_digest_required: bool
-    expiry_required: bool
-    rights_verification_required: bool
-    pii_absence_required: bool
-    rollback_proof_required: bool
+    scope_digest_required: StrictBool
+    policy_digest_required: StrictBool
+    expiry_required: StrictBool
+    rights_verification_required: StrictBool
+    pii_absence_required: StrictBool
+    rollback_proof_required: StrictBool
 
 
 class PilotValidationPolicy(BaseModel):

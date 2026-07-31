@@ -26,6 +26,28 @@ PUBLIC_LOCKS = {
     "answer_generation_allowed",
     "curated_ingestion_allowed",
 }
+STRICT_BOOLEAN_PATHS = (
+    ("capabilities", "validation_real_documents_allowed"),
+    ("capabilities", "validation_pipeline_allowed"),
+    ("capabilities", "validation_answer_generation_allowed"),
+    ("capabilities", "validation_openrouter_allowed"),
+    ("public_locks", "real_documents_allowed"),
+    ("public_locks", "ui_runtime_allowed"),
+    ("public_locks", "answer_generation_allowed"),
+    ("public_locks", "curated_ingestion_allowed"),
+    ("validation_environment", "public_routes_allowed"),
+    (
+        "authorization_matrix",
+        "publish_reviewed_chunks",
+        "quality_chain_required",
+    ),
+    ("required_authorization", "scope_digest_required"),
+    ("required_authorization", "policy_digest_required"),
+    ("required_authorization", "expiry_required"),
+    ("required_authorization", "rights_verification_required"),
+    ("required_authorization", "pii_absence_required"),
+    ("required_authorization", "rollback_proof_required"),
+)
 
 
 def _load_public_contract() -> dict[str, object]:
@@ -74,6 +96,33 @@ def test_policy_models_forbid_extra_fields_and_are_frozen(tmp_path: Path) -> Non
 
 
 class TestPolicyRefutations:
+    @pytest.mark.parametrize(
+        "invalid_value",
+        [0, 1, "false", "true"],
+        ids=["integer-zero", "integer-one", "string-false", "string-true"],
+    )
+    @pytest.mark.parametrize(
+        "path",
+        STRICT_BOOLEAN_PATHS,
+        ids=lambda path: ".".join(path),
+    )
+    def test_refuses_coercible_values_for_strict_booleans(
+        self,
+        tmp_path: Path,
+        path: tuple[str, ...],
+        invalid_value: object,
+    ) -> None:
+        raw_policy = _raw_policy()
+        parent = raw_policy
+        for field in path[:-1]:
+            nested = parent[field]
+            assert isinstance(nested, dict)
+            parent = nested
+        parent[path[-1]] = invalid_value
+
+        with pytest.raises(ValidationError):
+            load_policy(_write_policy(tmp_path, raw_policy))
+
     def test_refuses_active_status(self) -> None:
         policy = load_policy(POLICY_PATH).model_copy(update={"status": "active"})
 
