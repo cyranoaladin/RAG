@@ -196,7 +196,10 @@ return 42
 SCRIPT
 
 set +e
-SOURCE_FAILURE_OUTPUT=$(bash "$SOURCE_FAILURE_ROOT/scripts/ci-local.sh" 2>&1)
+SOURCE_FAILURE_OUTPUT=$(
+    env NEXUS_CI_LOCAL_RUNNING=0 \
+        bash "$SOURCE_FAILURE_ROOT/scripts/ci-local.sh" 2>&1
+)
 SOURCE_FAILURE_EXIT=$?
 set -e
 
@@ -1089,7 +1092,8 @@ FAKE_NPM_CALL_LOG="$NODE_FAILURE_ROOT/npm.call"
 export FAKE_NODE_CALL_LOG FAKE_NPM_CALL_LOG
 set +e
 NODE_FAILURE_OUTPUT="$(
-    PATH="$NODE_FAILURE_ROOT/bin:$PATH" \
+    PATH="$NODE_FAILURE_ROOT/bin:/usr/bin:/bin" \
+    NEXUS_CI_LOCAL_RUNNING=0 \
         bash "$NODE_FAILURE_ROOT/scripts/ci-local.sh" 2>&1
 )"
 NODE_FAILURE_EXIT=$?

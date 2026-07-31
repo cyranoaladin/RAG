@@ -1,0 +1,32 @@
+{
+  "observedAt": "2026-07-31T21:24:34Z",
+  "headSha": "eb3a70bccb7e58712082bbf3af396bf2c89ffbe6",
+  "event": "pull_request",
+  "runUrl": "https://github.com/cyranoaladin/RAG/actions/runs/30666016165",
+  "checks": [
+    {
+      "name": "governance locks guard",
+      "conclusion": "SUCCESS"
+    },
+    {
+      "name": "packages/contracts",
+      "conclusion": "SUCCESS"
+    },
+    {
+      "name": "repository controls",
+      "conclusion": "SUCCESS"
+    },
+    {
+      "name": "services/cockpit",
+      "conclusion": "SUCCESS"
+    },
+    {
+      "name": "services/rag-engine",
+      "conclusion": "SUCCESS"
+    },
+    {
+      "name": "services/rag-pedago",
+      "conclusion": "SUCCESS"
+    }
+  ]
+}

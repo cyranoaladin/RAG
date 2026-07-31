@@ -34,10 +34,6 @@ echo "--- governance guard tests ---"
 bash scripts/tests/test-governance-locks.sh
 
 echo ""
-echo "--- ci-local ---"
-bash scripts/ci-local.sh
-
-echo ""
 echo "--- git diff check ---"
 git diff --check
 

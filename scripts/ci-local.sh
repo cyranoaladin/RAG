@@ -4,6 +4,12 @@
 # Exits non-zero if any target fails.
 set -uo pipefail
 
+if [ "${NEXUS_CI_LOCAL_RUNNING:-0}" = "1" ]; then
+    echo "ERROR: ci-local.sh refuse une réentrance" >&2
+    exit 2
+fi
+export NEXUS_CI_LOCAL_RUNNING=1
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 if ! source "$SCRIPT_DIR/lib/ci-common.sh"; then
@@ -149,6 +155,19 @@ run_cockpit() {
     )
 }
 run_target "services/cockpit" run_cockpit
+
+# --- repository hygiene ---
+run_target "repository-hygiene" bash scripts/check-repository-hygiene.sh
+
+# --- repository hygiene tests ---
+run_target "repository-hygiene-tests" bash scripts/tests/test-repository-hygiene.sh
+
+# --- CI topology tests ---
+run_target "ci-topology-tests" bash scripts/tests/test-ci-local-topology.sh
+
+# --- main protection policy tests ---
+run_target "main-protection-policy-tests" \
+  "$PYTHON_BIN" scripts/tests/test-main-protection-policy.py
 
 # --- governance locks ---
 run_target "governance-locks" bash scripts/check-governance-locks.sh
