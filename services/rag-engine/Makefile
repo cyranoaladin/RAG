@@ -16,10 +16,15 @@ PYTEST := $(PY) -m pytest
 
 .PHONY: help venv install install-dev lint typecheck test test-integration smoke \
     obs-up obs-down obs-smoke obs-quickcheck obs-restart obs-status \
-    compose-test-up compose-test-down print-tools dev compose-up compose-down compose-restart
+    compose-test-up compose-test-down print-tools dev compose-up compose-down compose-restart \
+    eval
 
 help:
-	@echo "Targets : venv | install-dev | lint | typecheck | test | test-integration | smoke | obs-up | obs-smoke | obs-down | obs-restart | obs-status | compose-test-up | compose-test-down | print-tools | dev | compose-up | compose-down | compose-restart"
+	@echo "Targets : venv | install-dev | lint | typecheck | test | test-integration | eval | smoke | obs-up | obs-smoke | obs-down | obs-restart | obs-status | compose-test-up | compose-test-down | print-tools | dev | compose-up | compose-down | compose-restart"
+
+# Évaluation LOT 39 — métriques de retrieval sur golden set YAML
+eval:
+	@$(PY) eval/run_eval.py --json-output eval/last_eval_report.json
 
 # Cree le venv si absent et met pip a jour
 
