@@ -136,3 +136,51 @@ class TestScopeRefutations:
         assert validate_scope_integrity(scope, service_root=SERVICE_ROOT) == (
             "scope.taxonomy_path_not_confined:maths",
         )
+
+    def test_refuses_a_null_byte_in_taxonomy_path_without_opening_it(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        scope = _scope_with_subject_update(0, taxonomy_path="taxonomy/maths/\0.yml")
+
+        def fail_if_opened(_path: Path) -> bytes:
+            raise AssertionError("un chemin contenant NUL ne doit jamais être ouvert")
+
+        monkeypatch.setattr(Path, "read_bytes", fail_if_opened)
+
+        assert validate_scope_integrity(scope, service_root=SERVICE_ROOT) == (
+            "scope.taxonomy_path_not_confined:maths",
+        )
+
+    def test_refuses_a_symlink_loop_without_opening_it(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        temporary_service_root = tmp_path / "rag-pedago"
+        taxonomy_root = temporary_service_root / "taxonomy"
+        taxonomy_root.mkdir(parents=True)
+        (taxonomy_root / "maths").symlink_to("maths", target_is_directory=True)
+        scope = load_scope(SCOPE_PATH)
+
+        def fail_if_opened(_path: Path) -> bytes:
+            raise AssertionError("une boucle de symlinks ne doit jamais être ouverte")
+
+        monkeypatch.setattr(Path, "read_bytes", fail_if_opened)
+
+        assert validate_scope_integrity(scope, service_root=temporary_service_root) == (
+            "scope.taxonomy_path_not_confined:maths",
+        )
+
+    def test_reasons_are_stable_when_subject_order_is_reversed(self) -> None:
+        scope = load_scope(SCOPE_PATH)
+        modified_subjects = tuple(
+            subject.model_copy(update={"taxonomy_sha256": "0" * 64})
+            for subject in scope.subjects
+        )
+        ordered_scope = scope.model_copy(update={"subjects": modified_subjects})
+        reversed_scope = scope.model_copy(update={"subjects": modified_subjects[::-1]})
+        expected = (
+            "scope.taxonomy_sha256_mismatch:maths",
+            "scope.taxonomy_sha256_mismatch:nsi",
+        )
+
+        assert validate_scope_integrity(ordered_scope, service_root=SERVICE_ROOT) == expected
+        assert validate_scope_integrity(reversed_scope, service_root=SERVICE_ROOT) == expected

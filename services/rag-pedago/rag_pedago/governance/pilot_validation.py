@@ -108,17 +108,22 @@ def _taxonomy_notions(payload: Any) -> tuple[str, ...]:
 
 
 def _is_confined_taxonomy_path(path: str, *, taxonomy_root: Path) -> bool:
-    relative_path = Path(path)
-    if (
-        relative_path.is_absolute()
-        or not relative_path.parts
-        or relative_path.parts[0] != "taxonomy"
-        or ".." in relative_path.parts
-    ):
+    try:
+        relative_path = Path(path)
+        if (
+            relative_path.is_absolute()
+            or not relative_path.parts
+            or relative_path.parts[0] != "taxonomy"
+            or ".." in relative_path.parts
+        ):
+            return False
+
+        resolved_taxonomy_root = taxonomy_root.resolve()
+        resolved_path = (resolved_taxonomy_root.parent / relative_path).resolve()
+    except (OSError, RuntimeError, ValueError):
         return False
 
-    resolved_path = (taxonomy_root.parent / relative_path).resolve()
-    return resolved_path.is_relative_to(taxonomy_root)
+    return resolved_path.is_relative_to(resolved_taxonomy_root)
 
 
 def _scope_metadata_reasons(
@@ -148,7 +153,7 @@ def _scope_metadata_reasons(
         reasons.append("scope.subjects_mismatch")
         return tuple(reasons)
 
-    for subject in scope.subjects:
+    for subject in sorted(scope.subjects, key=lambda item: item.subject):
         if not _is_confined_taxonomy_path(subject.taxonomy_path, taxonomy_root=taxonomy_root):
             reasons.append(f"scope.taxonomy_path_not_confined:{subject.subject}")
             continue
@@ -171,13 +176,13 @@ def validate_scope_integrity(
     """Vérifie l'adressage brut et les notions déclarées par matière."""
 
     root = (service_root or Path(__file__).resolve().parents[2]).resolve()
-    taxonomy_root = (root / "taxonomy").resolve()
+    taxonomy_root = root / "taxonomy"
     metadata_reasons = _scope_metadata_reasons(scope, taxonomy_root=taxonomy_root)
     if metadata_reasons:
         return metadata_reasons
 
     reasons: list[str] = []
-    for subject in scope.subjects:
+    for subject in sorted(scope.subjects, key=lambda item: item.subject):
         taxonomy = root / subject.taxonomy_path
         try:
             raw_taxonomy = taxonomy.read_bytes()
