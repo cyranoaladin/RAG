@@ -1,0 +1,17 @@
+observedAt=2026-07-31T21:16:14Z
+ciSourceSha=eb3a70bccb7e58712082bbf3af396bf2c89ffbe6
+PASS  packages/contracts
+PASS  services/rag-pedago
+PASS  services/rag-engine
+PASS  services/cockpit
+PASS  repository-hygiene
+PASS  repository-hygiene-tests
+PASS  ci-topology-tests
+PASS  main-protection-policy-tests
+PASS  governance-locks
+PASS  taxonomy-validation
+PASS  source-evidence-check
+PASS  governance-guard-tests
+PASS  ci-failsafe-tests
+Total: 13 passed, 0 failed
+rawLogSha256=85de15503c0169c2fb8be1a889a0536d82829d1429b03d00d60bf361bcc0edb3
