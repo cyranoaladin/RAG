@@ -13,7 +13,8 @@ reste **NO_GO** jusqu'au LOT47 et à sa fenêtre publique entièrement verte.
 | Élément | Valeur vérifiée |
 |---|---|
 | Baseline `origin/main` et ref GitHub `main` | `b70c3eead488299672f057c366c7df32c4297f34` |
-| Source de la CI locale et du run PR | `eb3a70bccb7e58712082bbf3af396bf2c89ffbe6` |
+| Source de la CI locale finale | `756aba8f61c647ae99cad756148fd5340c493c7e` |
+| Source du run PR initial | `eb3a70bccb7e58712082bbf3af396bf2c89ffbe6` |
 | Conception, tête de la PR 79 | `c794e4894c81b9d35e2063ae1989a559270a8335` |
 | Fusion de la conception, PR 79 | `b70c3eead488299672f057c366c7df32c4297f34` |
 | Branche | `lot-37r-source-truth-reconciliation` |
@@ -22,9 +23,11 @@ reste **NO_GO** jusqu'au LOT47 et à sa fenêtre publique entièrement verte.
 
 LOT37R ne modifie aucun code sous `services/` ou `packages/`, aucune dépendance,
 aucun verrou de gouvernance, aucun corpus et aucun runtime. Il ne lit ni
-n'applique les stashes. La CI et les checks PR prouvent la tête de branche ;
-ils ne transformeront cette tête en source de vérité `main` qu'après revue,
-squash et fusion de la PR 80.
+n'applique les stashes. La CI locale prouve la source `756aba8…`; le run PR
+versionné prouve la tête de code initiale `eb3a70b…`. Les checks de la tête
+documentaire finale devront réussir après son push : ils ne sont pas tenus pour
+acquis dans ce rapport. Seuls revue, squash et fusion de la PR 80 transformeront
+la tête ainsi validée en source de vérité `main`.
 
 ## Réconciliation PR 56/77
 
@@ -151,29 +154,32 @@ GitHub `production` demeurent des portes distinctes sans bypass.
 ## Matrice de preuve
 
 La synthèse locale versionnée a le SHA-256
-`ad92ae0ff20c8b3452bb90e1e749df964b385f47f8e1308f3a1bc84766b38f11` ;
+`c7cff90e84b3768cb7041a92e29e3cb3b6b8d1a5931cae10e986730fcf4fafaa` ;
 elle a été comparée au journal brut SHA-256
-`85de15503c0169c2fb8be1a889a0536d82829d1429b03d00d60bf361bcc0edb3`.
-La preuve PR versionnée a le SHA-256
-`b39cc94873b387103309c12e9ced07ae2cb3ce6626e2c597e54784d8df1fc219`
-et correspond, hors seul ajout de `observedAt`, à la capture normalisée source
+`d6b2e39ea9c84aedb006b1dbd969b89e635fb901f73df82b90a5f2b3635d2ab7`.
+La preuve PR versionnée correspond au run immuable initial de la tête de code
+`eb3a70bccb7e58712082bbf3af396bf2c89ffbe6`. Son SHA-256 est
+`b39cc94873b387103309c12e9ced07ae2cb3ce6626e2c597e54784d8df1fc219` ;
+hors seul ajout de `observedAt`, elle correspond à la capture normalisée source
 SHA-256 `cf96bc37944d872a63a89c5a853d1c2f76a39b8cc7c9dc12ce4d9149020459f8`.
+Les checks de la tête documentaire créée par le présent rapport seront attendus
+après push et ne sont pas revendiqués par cette capture initiale.
 
 | Critère | Propriétaire | Commande ou procédure | Environnement | Artefact | SHA-256 | Verdict |
 |---|---|---|---|---|---|---|
-| `packages/contracts` | auteur technique LOT37R | cible `packages/contracts` de `bash scripts/ci-local.sh` | worktree isolé, Python 3.11, Node 22.22.0 | `evidence/lot_37r/ci-local-summary.txt` | `ad92ae0ff20c8b3452bb90e1e749df964b385f47f8e1308f3a1bc84766b38f11` | PASS |
-| `services/rag-pedago` | auteur technique LOT37R | cible `services/rag-pedago` de la CI locale | même environnement local | même synthèse | `ad92ae0ff20c8b3452bb90e1e749df964b385f47f8e1308f3a1bc84766b38f11` | PASS |
-| `services/rag-engine` | auteur technique LOT37R | cible `services/rag-engine` de la CI locale | même environnement local | même synthèse | `ad92ae0ff20c8b3452bb90e1e749df964b385f47f8e1308f3a1bc84766b38f11` | PASS |
-| `services/cockpit` | auteur technique LOT37R | cible `services/cockpit` de la CI locale | même environnement local | même synthèse | `ad92ae0ff20c8b3452bb90e1e749df964b385f47f8e1308f3a1bc84766b38f11` | PASS |
-| `repository-hygiene` | auteur technique LOT37R | garde d'hygiène depuis la CI locale | même environnement local | même synthèse | `ad92ae0ff20c8b3452bb90e1e749df964b385f47f8e1308f3a1bc84766b38f11` | PASS |
-| `repository-hygiene-tests` | auteur technique LOT37R | tests comportementaux d'hygiène | même environnement local | même synthèse | `ad92ae0ff20c8b3452bb90e1e749df964b385f47f8e1308f3a1bc84766b38f11` | PASS |
-| `ci-topology-tests` | auteur technique LOT37R | tests comportementaux de topologie | même environnement local | même synthèse | `ad92ae0ff20c8b3452bb90e1e749df964b385f47f8e1308f3a1bc84766b38f11` | PASS |
-| `main-protection-policy-tests` | auteur technique LOT37R | tests unitaires de politique | même environnement local | même synthèse | `ad92ae0ff20c8b3452bb90e1e749df964b385f47f8e1308f3a1bc84766b38f11` | PASS |
-| `governance-locks` | auteur technique LOT37R | garde des verrous depuis la CI locale | même environnement local | même synthèse | `ad92ae0ff20c8b3452bb90e1e749df964b385f47f8e1308f3a1bc84766b38f11` | PASS |
-| `taxonomy-validation` | auteur technique LOT37R | validation des taxonomies depuis la CI locale | même environnement local | même synthèse | `ad92ae0ff20c8b3452bb90e1e749df964b385f47f8e1308f3a1bc84766b38f11` | PASS |
-| `source-evidence-check` | auteur technique LOT37R | garde des preuves source depuis la CI locale | même environnement local | même synthèse | `ad92ae0ff20c8b3452bb90e1e749df964b385f47f8e1308f3a1bc84766b38f11` | PASS |
-| `governance-guard-tests` | auteur technique LOT37R | tests de réfutation des verrous | même environnement local | même synthèse | `ad92ae0ff20c8b3452bb90e1e749df964b385f47f8e1308f3a1bc84766b38f11` | PASS |
-| `ci-failsafe-tests` | auteur technique LOT37R | tests fail-safe de la CI locale | même environnement local | même synthèse | `ad92ae0ff20c8b3452bb90e1e749df964b385f47f8e1308f3a1bc84766b38f11` | PASS |
+| `packages/contracts` | auteur technique LOT37R | cible `packages/contracts` de `bash scripts/ci-local.sh` | worktree isolé au SHA `756aba8…`, Python 3.11, Node 22.22.0 | `evidence/lot_37r/ci-local-summary.txt` | `c7cff90e84b3768cb7041a92e29e3cb3b6b8d1a5931cae10e986730fcf4fafaa` | PASS |
+| `services/rag-pedago` | auteur technique LOT37R | cible `services/rag-pedago` de la CI locale | même environnement local | même synthèse | `c7cff90e84b3768cb7041a92e29e3cb3b6b8d1a5931cae10e986730fcf4fafaa` | PASS |
+| `services/rag-engine` | auteur technique LOT37R | cible `services/rag-engine` de la CI locale | même environnement local | même synthèse | `c7cff90e84b3768cb7041a92e29e3cb3b6b8d1a5931cae10e986730fcf4fafaa` | PASS |
+| `services/cockpit` | auteur technique LOT37R | cible `services/cockpit` de la CI locale | même environnement local | même synthèse | `c7cff90e84b3768cb7041a92e29e3cb3b6b8d1a5931cae10e986730fcf4fafaa` | PASS |
+| `repository-hygiene` | auteur technique LOT37R | garde d'hygiène depuis la CI locale | même environnement local | même synthèse | `c7cff90e84b3768cb7041a92e29e3cb3b6b8d1a5931cae10e986730fcf4fafaa` | PASS |
+| `repository-hygiene-tests` | auteur technique LOT37R | tests comportementaux d'hygiène | même environnement local | même synthèse | `c7cff90e84b3768cb7041a92e29e3cb3b6b8d1a5931cae10e986730fcf4fafaa` | PASS |
+| `ci-topology-tests` | auteur technique LOT37R | tests comportementaux de topologie | même environnement local | même synthèse | `c7cff90e84b3768cb7041a92e29e3cb3b6b8d1a5931cae10e986730fcf4fafaa` | PASS |
+| `main-protection-policy-tests` | auteur technique LOT37R | tests unitaires de politique | même environnement local | même synthèse | `c7cff90e84b3768cb7041a92e29e3cb3b6b8d1a5931cae10e986730fcf4fafaa` | PASS |
+| `governance-locks` | auteur technique LOT37R | garde des verrous depuis la CI locale | même environnement local | même synthèse | `c7cff90e84b3768cb7041a92e29e3cb3b6b8d1a5931cae10e986730fcf4fafaa` | PASS |
+| `taxonomy-validation` | auteur technique LOT37R | validation des taxonomies depuis la CI locale | même environnement local | même synthèse | `c7cff90e84b3768cb7041a92e29e3cb3b6b8d1a5931cae10e986730fcf4fafaa` | PASS |
+| `source-evidence-check` | auteur technique LOT37R | garde des preuves source depuis la CI locale | même environnement local | même synthèse | `c7cff90e84b3768cb7041a92e29e3cb3b6b8d1a5931cae10e986730fcf4fafaa` | PASS |
+| `governance-guard-tests` | auteur technique LOT37R | tests de réfutation des verrous | même environnement local | même synthèse | `c7cff90e84b3768cb7041a92e29e3cb3b6b8d1a5931cae10e986730fcf4fafaa` | PASS |
+| `ci-failsafe-tests` | auteur technique LOT37R | tests fail-safe de la CI locale | même environnement local | même synthèse | `c7cff90e84b3768cb7041a92e29e3cb3b6b8d1a5931cae10e986730fcf4fafaa` | PASS |
 | `governance locks guard` | GitHub Actions | job du [run 30666016165](https://github.com/cyranoaladin/RAG/actions/runs/30666016165) | événement `pull_request`, tête `eb3a70b…` | `evidence/lot_37r/pr-required-checks.json` | `b39cc94873b387103309c12e9ced07ae2cb3ce6626e2c597e54784d8df1fc219` | SUCCESS |
 | `packages/contracts` | GitHub Actions | job du même run immuable | même événement et tête | même preuve PR | `b39cc94873b387103309c12e9ced07ae2cb3ce6626e2c597e54784d8df1fc219` | SUCCESS |
 | `repository controls` | GitHub Actions | job du même run immuable | même événement et tête | même preuve PR | `b39cc94873b387103309c12e9ced07ae2cb3ce6626e2c597e54784d8df1fc219` | SUCCESS |

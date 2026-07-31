@@ -1,5 +1,5 @@
-observedAt=2026-07-31T21:16:14Z
-ciSourceSha=eb3a70bccb7e58712082bbf3af396bf2c89ffbe6
+observedAt=2026-07-31T22:04:48Z
+ciSourceSha=756aba8f61c647ae99cad756148fd5340c493c7e
 PASS  packages/contracts
 PASS  services/rag-pedago
 PASS  services/rag-engine
@@ -14,4 +14,4 @@ PASS  source-evidence-check
 PASS  governance-guard-tests
 PASS  ci-failsafe-tests
 Total: 13 passed, 0 failed
-rawLogSha256=85de15503c0169c2fb8be1a889a0536d82829d1429b03d00d60bf361bcc0edb3
+rawLogSha256=d6b2e39ea9c84aedb006b1dbd969b89e635fb901f73df82b90a5f2b3635d2ab7
