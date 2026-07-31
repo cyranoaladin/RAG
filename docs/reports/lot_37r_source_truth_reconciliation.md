@@ -80,7 +80,7 @@ preuve LOT43. Le statut de résolution est distinct de cette classification.
 | R4 — `notions[]` vide sur les chunks LOT22 | `bloquante_pilote` | active pour l'index historique ; contrat encore permissif par défaut | le contrat de chunk conserve une liste vide par défaut ; aucun manifeste pilote de 39 notions n'est encore publié | LOT42, matrice programme–notions et publication gouvernée |
 | R5 — seuil de similarité | `bloquante_pilote` | résolue historiquement à `1.90`, calibration encore provisoire | `retrieval_v2.py` conserve le seuil configurable `1.90` et la preuve 15/15–10/10, sans baseline du corpus pilote final | LOT43, calibration et seuils absolus |
 | R6 — hybride BM25/RRF et rerank CrossEncoder | `bloquante_pilote` | rerank présent, hybride explicitement différé | le module RRF existe, tandis que `retrieval_v2.py` indique que l'hybride est désactivé pour le corpus mono-matière | LOT40 pour le retrieval hybride nominal, LOT43 pour la mesure |
-| R7 — `review_status=needs_review` servi historiquement | `bloquante_pilote` | exposition élève corrigée, revue du corpus pilote non réalisée | l'audit interdit `needs_review` dans la recherche v2 ; aucune décision unanime couvrant le futur manifeste pilote n'existe encore | LOT42, revue à 100 % et publication signée |
+| R7 — `review_status=needs_review` servi historiquement | `bloquante_pilote` | endpoint élève gouverné corrigé, chemin historique encore permissif et revue du corpus pilote non réalisée | `retrieval_v2_endpoint.py` filtre seulement `reviewed`, tandis que `scripts/retrieval_v2.py` conserve `reviewed, needs_review`; aucune décision unanime couvrant le futur manifeste pilote n'existe encore | LOT41 pour isoler le chemin historique, LOT42 pour la revue à 100 % et la publication signée |
 | R8 — chunker heading-aware et ré-ingestion | `bloquante_pilote` | partiellement résolue pour les notebooks, PDF encore en mode linéaire | le chunker structure le Markdown ; le rapport LOT25a limite explicitement la résolution aux notebooks et conserve le proxy PDF | LOT42 pour la ré-ingestion, LOT43 pour la qualité mesurée |
 | R9 — `requirements-ingestion.txt` non versionné | `bloquante_pilote` | active sous ce nom et sans environnement d'ingestion intégralement scellé | aucun fichier `requirements-ingestion.txt` n'est suivi ; les exigences engine épinglent plusieurs paquets mais gardent notamment `psycopg` en plage | LOT43, manifeste déterministe des dépendances et artefacts |
 
@@ -125,7 +125,11 @@ premier normaliseur a refusé la relecture parce que GitHub omettait le champ nu
 est donc vide et son SHA-256 est l'empreinte canonique du fichier vide,
 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
 Le diagnostic stderr n'a pas été conservé dans un fichier ; aucun journal
-d'erreur n'est inventé.
+d'erreur n'est inventé. L'unicité du PUT est donc une observation opérateur de
+la session, non une propriété démontrable cryptographiquement faute de stdout ou
+stderr d'application persistant. Le fait opérationnel consigné reste qu'aucun retry n'a été exécuté.
+La preuve de l'état obtenu repose sur le readback brut, sa
+normalisation durable et les checks GET-only, pas sur le journal vide.
 
 Le correctif TDD `eb3a70bccb7e58712082bbf3af396bf2c89ffbe6` accepte uniquement
 l'omission de ce champ nul. Ses 31 tests passent. Un check GET-only final est
