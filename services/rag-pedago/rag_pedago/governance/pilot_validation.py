@@ -1,12 +1,14 @@
 """Chargement du périmètre de validation réel, encore dormant."""
 
+import json
 from collections.abc import Mapping
+from datetime import UTC, datetime
 from hashlib import sha256
-from pathlib import Path
-from typing import Any
+from pathlib import Path, PureWindowsPath
+from typing import Any, TypeVar
 
 import yaml
-from pydantic import BaseModel, ConfigDict, StrictBool
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, PrivateAttr, StrictBool
 
 _EXPECTED_SCOPE_ID = "libre_terminale_maths_nsi_real_v1"
 _DORMANT_STATUS = "eligible_for_promotion"
@@ -84,6 +86,7 @@ _EXPECTED_AUTHORIZATION = {
     "rollback_proof_required": True,
 }
 _PUBLIC_CALLERS = frozenset({"cockpit", "public_bff"})
+_DocumentT = TypeVar("_DocumentT", bound=BaseModel)
 
 
 class PilotIdentity(BaseModel):
@@ -122,6 +125,8 @@ class PilotValidationScope(BaseModel):
     school_year: str
     identity: PilotIdentity
     subjects: tuple[PilotSubject, ...]
+    _source_sha256: str | None = PrivateAttr(default=None)
+    _source_fingerprint: str | None = PrivateAttr(default=None)
 
     @property
     def collections(self) -> tuple[str, ...]:
@@ -214,20 +219,188 @@ class PilotValidationPolicy(BaseModel):
     validation_environment: ValidationEnvironment
     authorization_matrix: AuthorizationMatrix
     required_authorization: RequiredAuthorization
+    _source_sha256: str | None = PrivateAttr(default=None)
+    _source_fingerprint: str | None = PrivateAttr(default=None)
+
+
+class AuthorizedIdentity(BaseModel):
+    """Profil exhaustif couvert par une autorisation LOT41A."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    tenant: str
+    level: str
+    track: str
+    teaching_status: str
+    audience: str
+    candidates: tuple[str, ...]
+    subjects: tuple[str, ...]
+    school_year: str
+
+
+class RollbackProof(BaseModel):
+    """Preuve versionnée et datée d'un rollback testé."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    plan_ref: str
+    tested: StrictBool
+    tested_at: AwareDatetime
+
+
+class ValidationAuthorization(BaseModel):
+    """Décision humaine proposée, sans autorité auto-déclarée."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    authorization_id: str
+    decision: str
+    status: str
+    scope_ref: str
+    scope_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    base_policy_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    activation_policy_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    lot41_sha: str = Field(pattern=r"^[0-9a-f]{40}$")
+    environment_id: str
+    collections: tuple[str, ...]
+    identity: AuthorizedIdentity
+    rights_verified: StrictBool
+    provenance_verified: StrictBool
+    pii_absence_verified: StrictBool
+    rollback: RollbackProof
+    pull_request: int = Field(strict=True, gt=0)
+    issued_at: AwareDatetime
+    expires_at: AwareDatetime
+    _source_sha256: str | None = PrivateAttr(default=None)
+    _source_fingerprint: str | None = PrivateAttr(default=None)
+
+
+class GitHubApprovalEvidence(BaseModel):
+    """Readback GitHub indépendant de la proposition d'autorisation."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    evidence_kind: str
+    repository: str
+    pull_request: int = Field(strict=True, gt=0)
+    base_branch: str
+    head_sha: str = Field(pattern=r"^[0-9a-f]{40}$")
+    approved_head_sha: str = Field(pattern=r"^[0-9a-f]{40}$")
+    referenced_lot41_sha: str = Field(pattern=r"^[0-9a-f]{40}$")
+    authorization_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    reviewer_login: str = Field(pattern=r".*\S.*")
+    reviewer_role: str
+    reviewer_human: StrictBool
+    approved_at: AwareDatetime
+    merged_at: AwareDatetime
+    readback_at: AwareDatetime
+    revoked: StrictBool
+    merge_sha: str = Field(pattern=r"^[0-9a-f]{40}$")
+
+
+class PublicationPackage(BaseModel):
+    """Package de publication dont le contenu est adressé par SHA-256."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    package_id: str
+    content_ref: str
+    content: str
+    content_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    quality: str
+    gate: str
+    review: str
+    quarantine: StrictBool
+    revoked: StrictBool
+    publisher: str
+
+
+class ValidationRequest(BaseModel):
+    """Requête pure évaluée avant tout accès au plan de données."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    operation: str
+    caller: str
+    environment_id: str
+    collection: str
+    tenant: str
+    level: str
+    track: str
+    teaching_status: str
+    audience: str
+    candidate: str
+    subject: str
+    school_year: str
+
+
+class AuthorizationDecision(BaseModel):
+    """Résultat déterministe et sans effet de bord du garde."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    allowed: StrictBool
+    reasons: tuple[str, ...]
+
+
+def _model_fingerprint(model: BaseModel) -> str:
+    canonical = json.dumps(
+        model.model_dump(mode="json"),
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    return sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def load_scope(path: Path) -> PilotValidationScope:
     """Charge un document de scope strict depuis le disque local."""
 
-    payload: Any = yaml.safe_load(path.read_text(encoding="utf-8"))
-    return PilotValidationScope.model_validate(payload)
+    raw = path.read_bytes()
+    payload: Any = yaml.safe_load(raw)
+    scope = PilotValidationScope.model_validate(payload)
+    scope._source_sha256 = sha256(raw).hexdigest()
+    scope._source_fingerprint = _model_fingerprint(scope)
+    return scope
 
 
 def load_policy(path: Path) -> PilotValidationPolicy:
     """Charge une politique stricte sans lui conférer aucune autorisation."""
 
-    payload: Any = yaml.safe_load(path.read_text(encoding="utf-8"))
-    return PilotValidationPolicy.model_validate(payload)
+    raw = path.read_bytes()
+    payload: Any = yaml.safe_load(raw)
+    policy = PilotValidationPolicy.model_validate(payload)
+    policy._source_sha256 = sha256(raw).hexdigest()
+    policy._source_fingerprint = _model_fingerprint(policy)
+    return policy
+
+
+def _load_strict_document(path: Path, model: type[_DocumentT]) -> _DocumentT:
+    payload: Any = yaml.safe_load(path.read_bytes())
+    return model.model_validate(payload)
+
+
+def load_authorization(path: Path) -> ValidationAuthorization:
+    """Charge une proposition d'autorisation stricte."""
+
+    raw = path.read_bytes()
+    payload: Any = yaml.safe_load(raw)
+    authorization = ValidationAuthorization.model_validate(payload)
+    authorization._source_sha256 = sha256(raw).hexdigest()
+    authorization._source_fingerprint = _model_fingerprint(authorization)
+    return authorization
+
+
+def load_approval_evidence(path: Path) -> GitHubApprovalEvidence:
+    """Charge un readback GitHub strict, sans le vérifier implicitement."""
+
+    return _load_strict_document(path, GitHubApprovalEvidence)
+
+
+def load_publication_package(path: Path) -> PublicationPackage:
+    """Charge un package strict, sans autoriser sa publication."""
+
+    return _load_strict_document(path, PublicationPackage)
 
 
 def validate_dormant_policy(policy: PilotValidationPolicy) -> tuple[str, ...]:
@@ -400,3 +573,326 @@ def validate_scope_integrity(
         ):
             reasons.append(f"scope.notions_mismatch:{subject.subject}")
     return tuple(reasons)
+
+
+def _safe_document(
+    value: _DocumentT | Path | None,
+    *,
+    model: type[_DocumentT],
+) -> _DocumentT | None:
+    if isinstance(value, model):
+        return value
+    if not isinstance(value, Path):
+        return None
+    try:
+        return _load_strict_document(value, model)
+    except (OSError, UnicodeError, ValueError, yaml.YAMLError):
+        return None
+
+
+def _safe_scope(value: PilotValidationScope | Path) -> PilotValidationScope | None:
+    if isinstance(value, PilotValidationScope):
+        return value
+    try:
+        return load_scope(value)
+    except (OSError, UnicodeError, ValueError, yaml.YAMLError):
+        return None
+
+
+def _safe_policy(value: PilotValidationPolicy | Path) -> PilotValidationPolicy | None:
+    if isinstance(value, PilotValidationPolicy):
+        return value
+    try:
+        return load_policy(value)
+    except (OSError, UnicodeError, ValueError, yaml.YAMLError):
+        return None
+
+
+def _safe_authorization(
+    value: ValidationAuthorization | Path | None,
+) -> ValidationAuthorization | None:
+    if isinstance(value, ValidationAuthorization):
+        return value
+    if not isinstance(value, Path):
+        return None
+    try:
+        return load_authorization(value)
+    except (OSError, UnicodeError, ValueError, yaml.YAMLError):
+        return None
+
+
+def _safe_ref(value: str) -> bool:
+    if "\0" in value:
+        return False
+    try:
+        path = Path(value)
+        windows_path = PureWindowsPath(value)
+        return (
+            bool(path.parts)
+            and not path.is_absolute()
+            and not windows_path.is_absolute()
+            and ".." not in path.parts
+            and ".." not in windows_path.parts
+        )
+    except (OSError, RuntimeError, ValueError):
+        return False
+
+
+def _policy_integrity_without_external_contract(
+    policy: PilotValidationPolicy,
+) -> tuple[str, ...]:
+    return validate_policy_integrity(policy, policy.public_locks.model_dump())
+
+
+def _raw_digest(
+    value: PilotValidationScope | PilotValidationPolicy | ValidationAuthorization,
+) -> str | None:
+    if value._source_fingerprint != _model_fingerprint(value):
+        return None
+    return value._source_sha256
+
+
+def evaluate_authorization(
+    *,
+    scope: PilotValidationScope | Path,
+    base_policy: PilotValidationPolicy | Path,
+    activation_policy: PilotValidationPolicy | Path,
+    authorization: ValidationAuthorization | Path | None,
+    approval_evidence: GitHubApprovalEvidence | Path | None,
+    publication_package: PublicationPackage | Path | None,
+    request: ValidationRequest,
+    now: datetime,
+    service_root: Path | None = None,
+) -> AuthorizationDecision:
+    """Refuse par défaut toute transition qui n'est pas prouvée intégralement."""
+
+    reasons: list[str] = []
+    loaded_scope = _safe_scope(scope)
+    loaded_base = _safe_policy(base_policy)
+    loaded_activation = _safe_policy(activation_policy)
+
+    if not isinstance(loaded_scope, PilotValidationScope):
+        reasons.append("scope.invalid")
+    else:
+        reasons.extend(
+            f"scope.invalid:{reason}"
+            for reason in validate_scope_integrity(loaded_scope, service_root=service_root)
+        )
+    if not isinstance(loaded_base, PilotValidationPolicy):
+        reasons.append("base_policy.invalid")
+    else:
+        reasons.extend(
+            f"base_policy.invalid:{reason}"
+            for reason in _policy_integrity_without_external_contract(loaded_base)
+        )
+        reasons.extend(
+            f"base_policy.not_dormant:{reason}"
+            for reason in validate_dormant_policy(loaded_base)
+        )
+    if not isinstance(loaded_activation, PilotValidationPolicy):
+        reasons.append("activation_policy.invalid")
+    else:
+        reasons.extend(
+            f"activation_policy.invalid:{reason}"
+            for reason in _policy_integrity_without_external_contract(loaded_activation)
+        )
+
+    loaded_authorization = _safe_authorization(authorization)
+    auth = (
+        loaded_authorization
+        if isinstance(loaded_authorization, ValidationAuthorization)
+        else None
+    )
+
+    if auth is not None and loaded_scope is not None:
+        if auth.scope_digest != _raw_digest(loaded_scope):
+            reasons.append("scope.digest_mismatch")
+    if auth is not None and loaded_base is not None:
+        if auth.base_policy_digest != _raw_digest(loaded_base):
+            reasons.append("base_policy.digest_mismatch")
+    if auth is not None and loaded_activation is not None:
+        if auth.activation_policy_digest != _raw_digest(loaded_activation):
+            reasons.append("activation_policy.digest_mismatch")
+        if auth.base_policy_digest == auth.activation_policy_digest:
+            reasons.append("policy.digests_not_distinct")
+
+    operation = None
+    if loaded_activation is not None and hasattr(
+        loaded_activation.authorization_matrix, request.operation
+    ):
+        candidate_operation = getattr(
+            loaded_activation.authorization_matrix, request.operation
+        )
+        if isinstance(candidate_operation, AuthorizationOperation):
+            operation = candidate_operation
+            for capability in candidate_operation.capabilities:
+                if getattr(loaded_activation.capabilities, capability, False) is not True:
+                    reasons.append(f"capability.closed:{capability}")
+
+    if authorization is None:
+        reasons.append("authorization.missing")
+    elif auth is None:
+        reasons.append("authorization.invalid")
+    else:
+        if auth.decision != "AUTHORIZE_VALIDATION_PIPELINE":
+            reasons.append("authorization.decision_invalid")
+        if auth.status != "approved":
+            reasons.append("authorization.status_invalid")
+        if auth.scope_ref != _EXPECTED_SCOPE_ID:
+            reasons.append("authorization.scope_ref_mismatch")
+        if auth.lot41_sha == "0" * 40:
+            reasons.append("authorization.lot41_sha_invalid")
+        if auth.issued_at >= auth.expires_at:
+            reasons.append("authorization.expiration_incoherent")
+        if now.tzinfo is None or now.utcoffset() is None:
+            reasons.append("authorization.now_naive")
+        elif now >= auth.expires_at:
+            reasons.append("authorization.expired")
+
+    loaded_approval = _safe_document(
+        approval_evidence,
+        model=GitHubApprovalEvidence,
+    )
+    approval = (
+        loaded_approval
+        if isinstance(loaded_approval, GitHubApprovalEvidence)
+        else None
+    )
+    if approval_evidence is None:
+        reasons.append("approval.missing")
+    elif approval is None:
+        reasons.append("approval.invalid")
+    else:
+        if approval.evidence_kind != "github_pr_approval":
+            reasons.append("approval.kind_mismatch")
+        if approval.repository != "cyranoaladin/RAG":
+            reasons.append("approval.repository_mismatch")
+        if auth is not None and approval.pull_request != auth.pull_request:
+            reasons.append("approval.pull_request_mismatch")
+        if approval.base_branch != "main":
+            reasons.append("approval.base_branch_mismatch")
+        if approval.reviewer_role != "lead" or approval.reviewer_human is not True:
+            reasons.append("approval.reviewer_not_human_lead")
+        if approval.approved_head_sha != approval.head_sha:
+            reasons.append("approval.approved_head_mismatch")
+        if auth is not None:
+            if approval.referenced_lot41_sha != auth.lot41_sha:
+                reasons.append("approval.referenced_lot41_mismatch")
+            if approval.head_sha == auth.lot41_sha:
+                reasons.append("approval.head_not_distinct_from_lot41")
+            if approval.authorization_digest != _raw_digest(auth):
+                reasons.append("approval.authorization_digest_mismatch")
+        if approval.revoked is not False:
+            reasons.append("approval.revoked")
+        if approval.merge_sha in {"0" * 40, approval.head_sha}:
+            reasons.append("approval.merge_sha_not_distinct")
+        if not (
+            approval.approved_at <= approval.merged_at < approval.readback_at
+        ):
+            reasons.append("approval.timeline_incoherent")
+        if now.tzinfo is not None and now.utcoffset() is not None:
+            if approval.readback_at > now.astimezone(UTC):
+                reasons.append("approval.readback_in_future")
+        if auth is not None and not (
+            auth.issued_at <= approval.approved_at < auth.expires_at
+        ):
+            reasons.append("approval.outside_authorization_window")
+
+    if auth is not None and loaded_activation is not None:
+        expected_environment = loaded_activation.validation_environment.environment_id
+        if auth.environment_id != expected_environment:
+            reasons.append("environment.authorization_mismatch")
+        if request.environment_id != expected_environment:
+            reasons.append("environment.request_mismatch")
+
+    if auth is not None and loaded_scope is not None:
+        if tuple(sorted(auth.collections)) != tuple(sorted(loaded_scope.collections)):
+            reasons.append("collections.authorization_mismatch")
+        if request.collection not in loaded_scope.collections:
+            reasons.append("collections.request_out_of_scope")
+
+        expected_identity = loaded_scope.identity
+        for field in ("tenant", "level", "track", "teaching_status", "audience"):
+            if getattr(auth.identity, field) != getattr(expected_identity, field):
+                reasons.append(f"identity.authorization_mismatch:{field}")
+        if auth.identity.candidates != expected_identity.candidates:
+            reasons.append("identity.authorization_mismatch:candidates")
+        if auth.identity.school_year != loaded_scope.school_year:
+            reasons.append("identity.authorization_mismatch:school_year")
+        expected_subjects = tuple(sorted(subject.subject for subject in loaded_scope.subjects))
+        if tuple(sorted(auth.identity.subjects)) != expected_subjects:
+            reasons.append("identity.authorization_mismatch:subjects")
+
+        for field in ("tenant", "level", "track", "teaching_status", "audience"):
+            if getattr(request, field) != getattr(expected_identity, field):
+                reasons.append(f"identity.request_mismatch:{field}")
+        if request.candidate not in expected_identity.candidates:
+            reasons.append("identity.request_mismatch:candidate")
+        if request.school_year != loaded_scope.school_year:
+            reasons.append("identity.request_mismatch:school_year")
+        if request.subject not in expected_subjects:
+            reasons.append("identity.request_mismatch:subject")
+        else:
+            subject_collection = next(
+                subject.collection
+                for subject in loaded_scope.subjects
+                if subject.subject == request.subject
+            )
+            if request.collection != subject_collection:
+                reasons.append("identity.request_collection_mismatch")
+
+    if auth is not None:
+        if auth.rights_verified is not True:
+            reasons.append("rights.not_verified")
+        if auth.provenance_verified is not True:
+            reasons.append("provenance.not_verified")
+        if auth.pii_absence_verified is not True:
+            reasons.append("pii.not_verified")
+
+        if not _safe_ref(auth.rollback.plan_ref):
+            reasons.append("rollback.path_invalid")
+        if auth.rollback.tested is not True:
+            reasons.append("rollback.not_tested")
+        if auth.rollback.tested_at > auth.issued_at:
+            reasons.append("rollback.timeline_incoherent")
+
+    if operation is None:
+        reasons.append("operation.unknown")
+    elif request.caller in _PUBLIC_CALLERS:
+        reasons.append(f"caller.public_forbidden:{request.caller}")
+    elif request.caller not in operation.allowed_callers:
+        reasons.append("caller.not_allowed")
+
+    if request.operation == "publish_reviewed_chunks":
+        loaded_package = _safe_document(
+            publication_package,
+            model=PublicationPackage,
+        )
+        package = (
+            loaded_package
+            if isinstance(loaded_package, PublicationPackage)
+            else None
+        )
+        if publication_package is None:
+            reasons.append("package.missing")
+        elif package is None:
+            reasons.append("package.invalid")
+        else:
+            if not _safe_ref(package.content_ref):
+                reasons.append("package.path_invalid")
+            if sha256(package.content.encode("utf-8")).hexdigest() != package.content_sha256:
+                reasons.append("package.digest_mismatch")
+            if package.quality != "passed":
+                reasons.append("package.quality_not_passed")
+            if package.gate != "passed":
+                reasons.append("package.gate_not_passed")
+            if package.review != "reviewed":
+                reasons.append("package.review_not_reviewed")
+            if package.quarantine is not False:
+                reasons.append("package.quarantined")
+            if package.revoked is not False:
+                reasons.append("package.revoked")
+            if package.publisher != "rag-engine":
+                reasons.append("package.publisher_mismatch")
+
+    return AuthorizationDecision(allowed=not reasons, reasons=tuple(reasons))

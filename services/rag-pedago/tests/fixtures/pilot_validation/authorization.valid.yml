@@ -1,0 +1,31 @@
+authorization_id: lot41a-validation-pipeline-v1
+decision: AUTHORIZE_VALIDATION_PIPELINE
+status: approved
+scope_ref: libre_terminale_maths_nsi_real_v1
+scope_digest: b55ef1383fceabbbe0bf30c47a45a1fce607697f56bac340162156fabcf0fe26
+base_policy_digest: bb548458ec83cacc2abe0c55104ade4bb44cb06828000bf50b9c97d8f3412bad
+activation_policy_digest: c8dc94e1cac8d804d4d1a6783376d410708e6fdb07736e2e2c27ad7d88b4e1cb
+lot41_sha: "1111111111111111111111111111111111111111"
+environment_id: nexus-validation-1
+collections:
+  - rag_nexus_maths_terminale_gen_specialite
+  - rag_nexus_nsi_terminale_specialite
+identity:
+  tenant: libre_terminale
+  level: terminale
+  track: generale
+  teaching_status: specialite
+  audience: libre
+  candidates: [cned_libre, individuel, libre]
+  subjects: [maths, nsi]
+  school_year: 2026-2027
+rights_verified: true
+provenance_verified: true
+pii_absence_verified: true
+rollback:
+  plan_ref: docs/reports/evidence/lot_41/rollback.md
+  tested: true
+  tested_at: 2026-07-31T20:30:00Z
+pull_request: 141
+issued_at: 2026-07-31T20:45:00Z
+expires_at: 2026-08-07T20:00:00Z
