@@ -294,6 +294,23 @@ class PolicyContractTests(unittest.TestCase):
                 with self.assertRaises((TypeError, ValueError)):
                     main_protection.normalize_remote(document)
 
+    def test_missing_remote_restrictions_is_semantically_null(self) -> None:
+        remote = remote_policy()
+        del remote["restrictions"]
+        self.assertEqual(
+            main_protection.normalize_remote(remote),
+            main_protection.normalize_policy(expected_policy()),
+        )
+        main_protection.verify_policy(expected_policy(), remote)
+
+    def test_non_null_remote_restrictions_remains_policy_drift(self) -> None:
+        remote = remote_policy()
+        remote["restrictions"] = {"users": [], "teams": [], "apps": []}
+        with self.assertRaises(main_protection.PolicyDrift) as caught:
+            main_protection.verify_policy(expected_policy(), remote)
+        self.assertIn('"restrictions": null', str(caught.exception))
+        self.assertIn('"restrictions": {', str(caught.exception))
+
     def test_verify_policy_accepts_semantically_equal_reordered_json(self) -> None:
         reordered = expected_policy()
         checks = reordered["required_status_checks"]
@@ -451,6 +468,22 @@ class CliTests(unittest.TestCase):
         self.assertTrue(
             runner.calls[0][0][2].endswith("/branches/main/protection")
         )
+        self.assertNotIn("--method", runner.calls[0][0])
+
+    def test_check_accepts_github_response_without_restrictions(self) -> None:
+        remote = remote_policy()
+        del remote["restrictions"]
+        runner = RecordingRunner(remote=remote)
+        stdout = StringIO()
+        stderr = StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            status = main_protection.main(
+                ["--repository", "owner/repo", "--check"], runner=runner
+            )
+        self.assertEqual(status, 0)
+        self.assertIn("OK: main protection matches policy", stdout.getvalue())
+        self.assertEqual(stderr.getvalue(), "")
+        self.assertEqual(len(runner.calls), 1)
         self.assertNotIn("--method", runner.calls[0][0])
 
     def test_check_fails_closed_when_main_is_not_protected(self) -> None:

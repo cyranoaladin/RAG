@@ -241,7 +241,7 @@ def normalize_remote(remote: dict[str, object]) -> dict[str, object]:
     """Convertit la réponse GitHub en politique gouvernée comparable."""
 
     document = _require_mapping(remote, "remote protection")
-    missing = _TOP_LEVEL_KEYS - set(document)
+    missing = (_TOP_LEVEL_KEYS - {"restrictions"}) - set(document)
     if missing:
         raise ValueError(f"remote protection is missing keys: {sorted(missing)}")
 
@@ -284,7 +284,7 @@ def normalize_remote(remote: dict[str, object]) -> dict[str, object]:
         )
     )
 
-    restrictions = document["restrictions"]
+    restrictions = document.get("restrictions")
     if restrictions is not None and not isinstance(restrictions, dict):
         raise TypeError("restrictions must be null or a JSON object")
 
