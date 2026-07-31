@@ -204,7 +204,7 @@ Quatre décisions différentes sont requises :
 | Décision | Autorité | Moment | Preuve |
 | --- | --- | --- | --- |
 | `PREPARE_TRANSITION` | commanditaire/lead | déjà reçue le 31 juillet 2026 | validation du présent design et commit du design |
-| `AUTHORIZE_VALIDATION_PIPELINE` | commanditaire/lead | après LOT41, avant toute lecture/écriture de document réel | approbation GitHub de la PR d'autorisation LOT41A, qui référence le SHA LOT41 et l'environnement isolé `nexus-validation-1` |
+| `AUTHORIZE_VALIDATION_PIPELINE` | commanditaire/lead | après LOT41, avant toute lecture/écriture de document réel ou génération externe de validation | approbation GitHub de la PR d'autorisation LOT41A, qui référence le SHA LOT41 et l'environnement isolé `nexus-validation-1` |
 | `PROMOTE_GOVERNANCE` | commanditaire/lead, jamais l'agent implémenteur seul | après LOT43 vert | approbation GitHub de la PR d'autorisation LOT43A, qui référence le SHA et le manifeste LOT43 |
 | `GO_LIVE_READY_AND_ACTIVATE` | commanditaire/lead | après LOT46 et son tag release-candidate | approbation du déploiement GitHub Actions protégé `production`, épinglé au tag et au SHA LOT46 |
 
@@ -243,10 +243,10 @@ Un lot ne commence qu'après fusion du prédécesseur, sauf analyse read-only.
 | --- | --- | --- | --- |
 | LOT37R | réconcilier PR 56/77, CI et travaux Git nécessaires | `docs/reports/lot_37r_source_truth_reconciliation.md` | design |
 | LOT38 | créer la politique réelle dormante et ses tests de réfutation, sans activer les verrous globaux | `docs/reports/lot_38_governance_transition.md` | LOT37R |
-| LOT39bis | versionner goldens substantiels et seuils absolus, sans revendiquer de baseline nominale | `docs/reports/lot_39bis_golden_suite.md` | LOT38 |
+| LOT39bis | versionner la spécification des goldens et les seuils absolus, sans lire le corpus réel | `docs/reports/lot_39bis_golden_suite.md` | LOT38 |
 | LOT40 | migrations et retrieval hybride nominal | `docs/reports/lot_40_hybrid_retrieval.md` | LOT39bis |
 | LOT41 | imposer identité et filtres serveur exhaustifs | `docs/reports/lot_41_profile_filter_enforcement.md` | LOT40 |
-| LOT41A | autoriser les documents réels uniquement dans le pipeline et la DB de validation isolés | `docs/reports/lot_41a_validation_authorization.md` | LOT41 + décision humaine |
+| LOT41A | autoriser documents, pipeline et génération externe uniquement dans l'environnement de validation isolé | `docs/reports/lot_41a_validation_authorization.md` | LOT41 + décision humaine |
 | LOT42 | qualifier puis publier le corpus pilote dans une DB de validation | `docs/reports/lot_42_pilot_corpus_publication.md` | LOT41A |
 | LOT43 | figer snapshot, baseline, sécurité et performance ; produire le verdict pré-promotion | `docs/reports/lot_43_pilot_evaluation.md` | LOT42 |
 | LOT43A | autoriser la promotion publique de l'état exact évalué | `docs/reports/lot_43a_promotion_authorization.md` | LOT43 + décision humaine |
@@ -276,9 +276,10 @@ d'autorisation et des tests de réfutation. Tous les verrous globaux restent à
 `false`. La politique représente l'état `eligible_for_promotion`, jamais
 `active`.
 
-L'ADR distingue deux capacités : `validation_real_documents_allowed` et
-`validation_pipeline_allowed` pour un environnement non servi, puis les verrous
-publics historiques. Les deux capacités de validation sont créées à `false` et
+L'ADR distingue quatre capacités de validation :
+`validation_real_documents_allowed`, `validation_pipeline_allowed`,
+`validation_answer_generation_allowed` et `validation_openrouter_allowed`, puis
+les verrous publics historiques. Les quatre capacités sont créées à `false` et
 ne peuvent être activées que par LOT41A. Elles imposent des credentials, un DSN,
 un bucket et un réseau distincts de la production ; aucune route publique ou BFF
 ne peut atteindre `nexus-validation-1`.
@@ -289,7 +290,7 @@ droits inconnus, PII non vérifiée ou rollback absent. Chaque consommateur
 runtime doit charger le scope autorisé et refuser tout hors-scope ; un simple
 booléen global ne suffit pas.
 
-### 10.3 LOT39bis — goldens absolus
+### 10.3 LOT39bis — spécification golden
 
 La suite contient au minimum :
 
@@ -300,13 +301,17 @@ La suite contient au minimum :
   `must_not_return` ne doit être renvoyé ;
 - dix cas d'injection ou d'exfiltration par matière, soit 20 cas adversariaux ;
 - total minimal : 255 requêtes ;
-- chaque notion reliée à une ressource substantielle et à au moins un jugement
-  positif ;
+- chaque notion reliée au programme officiel, à des attentes pédagogiques et à
+  une classe de source candidate, sans lire ni déclarer substantiel un document
+  réel ;
 - `must_not_return` pour chaque cas de fuite pertinent ;
 - revue humaine de 100 % des requêtes et de leurs jugements.
 
-LOT39bis fixe les seuils de section 11 et le hash de la suite. Il ne fabrique
-pas de baseline sans corpus publié ni DB réelle.
+LOT39bis fixe les textes de requête, catégories, notions, filtres, attentes,
+seuils de section 11 et le hash de cette spécification. Il ne lit aucun document
+réel et ne fabrique ni jugement de chunk définitif ni baseline. LOT42 compile la
+suite active en résolvant chaque requête vers les doc/chunk IDs publiés ; toute
+requête non résolue ou dont la ressource n'est pas substantielle bloque LOT42.
 
 ### 10.4 LOT40 — retrieval et migrations
 
@@ -342,14 +347,17 @@ l'ajout de `school_year` à `InternalIdentity`, l'adaptateur central
 
 La PR LOT41A référence l'ADR LOT38, le SHA LOT41, le scope exact, les stores de
 validation et le plan de destruction/rollback. Après approbation humaine, elle
-active uniquement `validation_real_documents_allowed` et
-`validation_pipeline_allowed` pour `nexus-validation-1`.
+active uniquement `validation_real_documents_allowed`,
+`validation_pipeline_allowed`, `validation_answer_generation_allowed` et
+`validation_openrouter_allowed` pour `nexus-validation-1`.
 
 Les verrous publics `real_documents_allowed`, `ui_runtime_allowed`,
 `answer_generation_allowed` et `curated_ingestion_allowed` restent à `false`.
 Le publisher de validation utilise un rôle DB sans droit sur la production ;
 les endpoints publics ne montent aucune route vers ce DSN. LOT42 vérifie ces
-séparations avant la première lecture de document réel.
+séparations avant la première lecture de document réel. LOT43 vérifie en plus
+les capacités de génération et de réseau de validation avant le premier appel
+OpenRouter ; ces capacités ne sont acceptées par aucun runtime public.
 
 ### 10.6 LOT42 — publication gouvernée
 
@@ -385,6 +393,12 @@ immédiatement les chunks dans l'index, invalide les caches et force une nouvell
 baseline. La preuve de revue inclut le nombre exact de ressources/chunks et
 doit couvrir 100 % du manifeste.
 
+LOT42 compile ensuite la spécification LOT39bis en suite golden active : chaque
+requête positive ou de confusion référence les doc/chunk IDs du manifeste
+publié, et chaque cas négatif/adversarial porte ses contraintes définitives. Le
+hash de cette suite active, distinct du hash de spécification, est celui consommé
+par LOT43.
+
 ### 10.7 LOT43 — baseline reproductible
 
 Le manifeste d'évaluation lie obligatoirement :
@@ -408,6 +422,9 @@ fenêtre maximale de deux heures, avec le slug daté, `temperature=0`, le prompt
 et les sources identiques. Le rapport conserve provider/modèle retournés,
 request ID et heure UTC. Deux reviewers indépendants appliquent la grille de
 section 11.2 à 100 % des sorties ; tout désaccord est un échec, pas une moyenne.
+Avant tout appel, le runner vérifie l'autorisation LOT41A et les capacités
+`validation_answer_generation_allowed` et `validation_openrouter_allowed` pour
+`nexus-validation-1`. Un endpoint public ne peut jamais invoquer ces capacités.
 
 ### 10.7A LOT43A — autorisation de promotion
 
@@ -450,26 +467,46 @@ LOT45 met à jour la checklist pour faire de
 `lot_45_pilot_production_readiness.md` le rapport autoritatif ; LOT26.4 reste
 une preuve historique, pas la décision courante.
 
+LOT45 versionne aussi `.github/workflows/deploy-pilot-production.yml` avant la
+création du tag RC. Le workflow épingle ses actions par SHA, sérialise les
+déploiements, utilise `contents: read` sauf pour le job final de tag, charge les
+secrets uniquement depuis l'environnement protégé et possède un trap de rollback
+qui ferme les switches. Il offre un mode `validate` sans mutation et un mode
+`operator-canary`; les deux sont exécutés et audités dans LOT45.
+
+L'environnement GitHub `production` exige le lead comme reviewer, interdit
+l'auto-approbation, limite les branches/tags autorisés et n'expose ses secrets
+qu'après approval. LOT45 archive hors Git la configuration retournée par l'API
+GitHub et versionne son digest expurgé. LOT46 refuse de taguer si le workflow ou
+la politique d'environnement diffère de ces digests.
+
 ### 10.10 LOT46 — release-candidate
 
 LOT46 vérifie qu'aucun élément requis n'est seulement local, fusionne le
-manifeste candidat et crée un tag annoté `pilot-v1.0.0-rc.1` sur le SHA exact de
-`main` dont la CI est verte. Les images OCI, corpus, snapshot DB et preuves LOT45
-sont tous liés à ce tag. Les branches/stashes ne sont nettoyés qu'après preuve
-de reprise ou d'obsolescence. Aucun switch public n'est activé.
+manifeste candidat et crée le prochain tag annoté immuable
+`pilot-v1.0.0-rc.<N>` sur le SHA exact de `main` dont la CI est verte. `N` est le
+premier entier jamais utilisé. Les images OCI, corpus, snapshot DB, workflow et
+preuves LOT45 sont tous liés à ce tag. Les branches/stashes ne sont nettoyés
+qu'après preuve de reprise ou d'obsolescence. Aucun switch public n'est activé.
 
 ### 10.11 LOT47 — activation publique
 
-Un workflow épinglé à `pilot-v1.0.0-rc.1` cible l'environnement GitHub protégé
-`production`. L'approbation humaine de cet environnement constitue
+Le workflow versionné, épinglé au tag RC courant, cible l'environnement GitHub
+protégé `production`. L'approbation humaine de cet environnement constitue
 `GO_LIVE_READY_AND_ACTIVATE`. Après approbation, le workflow :
 
 1. revalide SHA, digests et kill switches fermés ;
-2. crée le tag final `pilot-v1.0.0` sur le même SHA ;
-3. déploie exclusivement les images par digest ;
-4. active `RAG_PUBLIC_PILOT_ENABLED=true` pour le scope exact ;
-5. surveille erreurs, p95, sécurité et gouvernance pendant 60 minutes ;
-6. repasse automatiquement le switch à `false` si un seuil sort du vert.
+2. déploie exclusivement les images par digest ;
+3. active `RAG_PUBLIC_PILOT_ENABLED=true` pour le scope exact ;
+4. surveille erreurs, p95, sécurité et gouvernance pendant 60 minutes ;
+5. repasse automatiquement le switch à `false` et échoue si un seuil sort du
+   vert ;
+6. crée le tag final `pilot-v1.0.0` sur le même SHA uniquement après une fenêtre
+   entièrement verte.
+
+En cas d'échec, le verdict reste `NO_GO`, aucun tag final ni GitHub Release
+active n'est créé et le tag RC n'est ni déplacé ni réutilisé. Après remédiation,
+une nouvelle tentative reçoit un nouveau SHA et un nouveau numéro RC.
 
 Après la fenêtre, la PR documentaire LOT47 consigne l'URL immuable du workflow,
 l'approbateur, les tags, métriques et le verdict. Ce rapport ne change ni le
@@ -551,8 +588,7 @@ Chaque rapport de lot contient une table :
 Le responsable est l'auteur technique pour les tests, l'un des quatre rôles de
 review pour le corpus, l'opérateur pour la production et le lead pour les deux
 autorisations intermédiaires et l'approbation finale. Une ligne sans
-environnement, digest ou responsable
-est incomplète.
+environnement, digest ou responsable est incomplète.
 
 Les dettes de `docs/reports/lot_0_dettes.md` sont classées par LOT37R en :
 `bloquante_pilote`, `non_bloquante_avec_preuve` ou `hors_perimetre`. Toute dette
