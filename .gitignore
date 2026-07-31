@@ -22,6 +22,7 @@ node_modules/
 *.sqlite
 *.bak*
 *.log
+/services/rag-engine/eval/*.json
 .DS_Store
 
 # IDE temp files
