@@ -773,6 +773,10 @@ def evaluate_authorization(
             reasons.append("approval.base_branch_mismatch")
         if approval.reviewer_role != "lead" or approval.reviewer_human is not True:
             reasons.append("approval.reviewer_not_human_lead")
+        if approval.head_sha == "0" * 40:
+            reasons.append("approval.head_sha_null")
+        if approval.approved_head_sha == "0" * 40:
+            reasons.append("approval.approved_head_sha_null")
         if approval.approved_head_sha != approval.head_sha:
             reasons.append("approval.approved_head_mismatch")
         if auth is not None:
@@ -784,7 +788,15 @@ def evaluate_authorization(
                 reasons.append("approval.authorization_digest_mismatch")
         if approval.revoked is not False:
             reasons.append("approval.revoked")
-        if approval.merge_sha in {"0" * 40, approval.head_sha}:
+        forbidden_merge_shas = {
+            "0" * 40,
+            approval.head_sha,
+            approval.approved_head_sha,
+            approval.referenced_lot41_sha,
+        }
+        if auth is not None:
+            forbidden_merge_shas.add(auth.lot41_sha)
+        if approval.merge_sha in forbidden_merge_shas:
             reasons.append("approval.merge_sha_not_distinct")
         if not (
             approval.approved_at <= approval.merged_at < approval.readback_at

@@ -239,6 +239,45 @@ class TestAuthorityEvidence:
         assert approval.head_sha == approval.approved_head_sha
         assert approval.head_sha != authorization.lot41_sha
 
+    def test_refuses_null_head_and_approved_head_together(self, tmp_path: Path) -> None:
+        path = _variant(
+            tmp_path,
+            APPROVAL_PATH,
+            "approval.null-heads.yml",
+            head_sha="0" * 40,
+            approved_head_sha="0" * 40,
+        )
+
+        decision = _evaluate(approval=path)
+
+        assert decision.allowed is False
+        assert decision.reasons == (
+            "approval.head_sha_null",
+            "approval.approved_head_sha_null",
+        )
+
+    @pytest.mark.parametrize(
+        ("field", "reason"),
+        [
+            ("head_sha", "approval.head_sha_null"),
+            ("approved_head_sha", "approval.approved_head_sha_null"),
+        ],
+    )
+    def test_refuses_each_null_approval_head(
+        self,
+        tmp_path: Path,
+        field: str,
+        reason: str,
+    ) -> None:
+        path = _variant(
+            tmp_path,
+            APPROVAL_PATH,
+            "approval.one-null-head.yml",
+            **{field: "0" * 40},
+        )
+
+        assert reason in _evaluate(approval=path).reasons
+
     def test_refuses_evidence_whose_lot41_reference_differs(self, tmp_path: Path) -> None:
         path = _variant(
             tmp_path,
@@ -280,6 +319,17 @@ class TestAuthorityEvidence:
             APPROVAL_PATH,
             "approval.merge.yml",
             merge_sha="3" * 40,
+        )
+
+        assert "approval.merge_sha_not_distinct" in _evaluate(approval=path).reasons
+
+    def test_refuses_merge_sha_equal_to_referenced_lot41(self, tmp_path: Path) -> None:
+        authorization = governance.load_authorization(AUTHORIZATION_PATH)
+        path = _variant(
+            tmp_path,
+            APPROVAL_PATH,
+            "approval.merge-lot41.yml",
+            merge_sha=authorization.lot41_sha,
         )
 
         assert "approval.merge_sha_not_distinct" in _evaluate(approval=path).reasons
