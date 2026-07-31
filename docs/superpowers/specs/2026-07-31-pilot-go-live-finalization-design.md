@@ -55,7 +55,6 @@ Le pilote accepte uniquement les profils contractuels suivants :
 | voie | `generale` |
 | statut d'enseignement | `specialite` |
 | audience dérivée | `libre` |
-| statut détaillé | `candidat_libre` |
 | candidat | `individuel`, `libre` ou `cned_libre` |
 | matière primaire | `maths` ou `nsi` |
 | année scolaire | `2026-2027` |
@@ -66,6 +65,17 @@ L'identité autoritative provient de la session Nexus transformée en
 matières. Toute divergence entre session, requête et collection retourne un
 refus avant accès à PostgreSQL.
 
+`status_detail` n'est pas un filtre du pilote : le statut libre est défini par
+`audience=libre` et l'une des trois valeurs de `candidat` ci-dessus. LOT41 fait
+évoluer `nexus-contracts` de `0.3.0` à `0.4.0`, avec ADR, afin d'ajouter
+`school_year` à `InternalIdentity`. Le BFF le produit depuis la configuration de
+release, jamais depuis une valeur libre du navigateur.
+
+Le catalogue interne conserve actuellement le slug `gen`, alors que le contrat
+externe impose `generale`. LOT41 crée un adaptateur unique et exhaustif
+`gen → generale` dans le loader du catalogue ; aucune comparaison brute de ces
+deux vocabulaires n'est permise ailleurs. Toute valeur inconnue est refusée.
+
 ### 3.2 Collections et taxonomies
 
 Les deux seules collections publiables sont :
@@ -74,6 +84,22 @@ Les deux seules collections publiables sont :
 | --- | --- | --- |
 | `rag_nexus_maths_terminale_gen_specialite` | `services/rag-pedago/taxonomy/maths/terminale_gen_specialite.yml` | `BOEN_special_8_2019-07-25` |
 | `rag_nexus_nsi_terminale_specialite` | `services/rag-pedago/taxonomy/nsi/terminale.yml` | `BOEN_special_8_2019-07-25` |
+
+Au 31 juillet 2026, les pages officielles Éduscol déclarent encore le BO spécial
+n° 8 du 25 juillet 2019 en vigueur pour la terminale 2026-2027 :
+
+- Mathématiques :
+  `https://eduscol.education.gouv.fr/5817/programmes-et-ressources-en-mathematiques-voie-gt` ;
+- NSI :
+  `https://eduscol.education.gouv.fr/5823/programmes-et-ressources-en-numerique-et-sciences-informatiques-voie-g`.
+
+Le nouveau programme de mathématiques publié au BO n° 14 du 2 avril 2026
+(`MENE2602919A`) n'entre en application en terminale qu'en 2027-2028. LOT42
+archive les réponses officielles horodatées, leurs documents liés et leurs
+SHA-256, puis produit une matrice exhaustive
+`exigence officielle → notion canonique → ressource substantielle`. Une ligne
+officielle non couverte, ou une source officielle devenue contradictoire,
+entraîne `NO_GO` et une mise à jour de taxonomie avant toute publication.
 
 LOT38 crée le scope `libre_terminale_maths_nsi_real_v1`. Il ne réutilise pas
 le scope historique `math_terminale_specialite_metadata_only_v1`, qui reste
@@ -117,9 +143,9 @@ Le pilote conserve explicitement les exigences suivantes :
 - reranker `cross-encoder/ms-marco-MiniLM-L-6-v2`, révision/digest obligatoires ;
 - RRF `alpha=0.7`, `k_rrf=60`, seuil de rerank `1.90` tant qu'une nouvelle
   calibration LOT43 ne prouve pas et ne versionne pas une autre valeur ;
-- génération OpenRouter serveur uniquement avec modèle
-  `openai/gpt-4o-mini`, timeout de 8 secondes, prompt versionné et validateur de
-  citations ;
+- génération OpenRouter serveur uniquement avec le slug daté
+  `openai/gpt-4o-mini-2024-07-18`, `temperature=0`, fallback fournisseur
+  désactivé, timeout de 8 secondes, prompt versionné et validateur de citations ;
 - trois conversations simultanées au maximum, une par utilisateur, file
   bornée à six demandes, puis refus explicite `429`/`503` ;
 - quota de six requêtes de chat par minute et par utilisateur ;
@@ -130,8 +156,12 @@ Le pilote conserve explicitement les exigences suivantes :
 - aucun contenu complet de conversation, secret ou PII transmis aux logs ou au
   fournisseur.
 
-Si l'un de ces paramètres change, le manifeste de release, les tests concernés
-et la baseline sont régénérés avant promotion.
+Le retrieval possède une baseline déterministe. La génération, même avec un
+slug daté, reste une certification live non déterministe : chaque résultat
+enregistre le modèle et le provider retournés, l'identifiant de requête et
+l'heure UTC. Un provider ou modèle retourné différent de la requête est refusé.
+Si l'un de ces paramètres change, le manifeste de release, les tests concernés,
+la baseline retrieval et la certification générative sont régénérés.
 
 ## 5. État initial vérifié
 
@@ -169,17 +199,21 @@ Une CI source verte prouve la qualité du commit, pas la readiness du système.
 
 ## 7. Autorités et décisions séparées
 
-Trois décisions différentes sont requises :
+Quatre décisions différentes sont requises :
 
 | Décision | Autorité | Moment | Preuve |
 | --- | --- | --- | --- |
 | `PREPARE_TRANSITION` | commanditaire/lead | déjà reçue le 31 juillet 2026 | validation du présent design et commit du design |
-| `PROMOTE_GOVERNANCE` | commanditaire/lead, jamais l'agent implémenteur seul | après LOT43 vert, avant fusion de LOT44 | approbation GitHub explicite de la PR LOT44, référencée dans `docs/releases/pilot_v1/promotion_authorization.yml` |
-| `GO_LIVE_READY` | commanditaire/lead | après LOT45, depuis les preuves de production | approbation GitHub explicite du rapport LOT45 et entrée horodatée dans `docs/releases/pilot_v1/release_decision.yml` |
+| `AUTHORIZE_VALIDATION_PIPELINE` | commanditaire/lead | après LOT41, avant toute lecture/écriture de document réel | approbation GitHub de la PR d'autorisation LOT41A, qui référence le SHA LOT41 et l'environnement isolé `nexus-validation-1` |
+| `PROMOTE_GOVERNANCE` | commanditaire/lead, jamais l'agent implémenteur seul | après LOT43 vert | approbation GitHub de la PR d'autorisation LOT43A, qui référence le SHA et le manifeste LOT43 |
+| `GO_LIVE_READY_AND_ACTIVATE` | commanditaire/lead | après LOT46 et son tag release-candidate | approbation du déploiement GitHub Actions protégé `production`, épinglé au tag et au SHA LOT46 |
 
 Le lead est le propriétaire humain du dépôt ou son délégataire humain déclaré.
-Une validation d'agent, un test vert ou un merge automatique ne remplace pas
-ces deux dernières décisions. Sans preuve d'autorité, LOT44 et LOT46 s'arrêtent.
+Les PR LOT41A et LOT43A ne contiennent que l'autorisation et ses références
+immuables ; la publication et la promotion sont réalisées par les PR suivantes.
+Elles ne se référencent donc jamais elles-mêmes. Une validation d'agent, un test
+vert ou un merge automatique ne remplace aucune décision humaine. Sans preuve
+d'autorité, LOT42, LOT44 ou LOT47 s'arrête à sa frontière.
 
 ## 8. Source de vérité multi-support
 
@@ -212,11 +246,14 @@ Un lot ne commence qu'après fusion du prédécesseur, sauf analyse read-only.
 | LOT39bis | versionner goldens substantiels et seuils absolus, sans revendiquer de baseline nominale | `docs/reports/lot_39bis_golden_suite.md` | LOT38 |
 | LOT40 | migrations et retrieval hybride nominal | `docs/reports/lot_40_hybrid_retrieval.md` | LOT39bis |
 | LOT41 | imposer identité et filtres serveur exhaustifs | `docs/reports/lot_41_profile_filter_enforcement.md` | LOT40 |
-| LOT42 | qualifier puis publier le corpus pilote dans une DB de validation | `docs/reports/lot_42_pilot_corpus_publication.md` | LOT41 |
+| LOT41A | autoriser les documents réels uniquement dans le pipeline et la DB de validation isolés | `docs/reports/lot_41a_validation_authorization.md` | LOT41 + décision humaine |
+| LOT42 | qualifier puis publier le corpus pilote dans une DB de validation | `docs/reports/lot_42_pilot_corpus_publication.md` | LOT41A |
 | LOT43 | figer snapshot, baseline, sécurité et performance ; produire le verdict pré-promotion | `docs/reports/lot_43_pilot_evaluation.md` | LOT42 |
-| LOT44 | promouvoir explicitement les verrous et les kill switches du pilote | `docs/reports/lot_44_governance_promotion.md` | LOT43 + `PROMOTE_GOVERNANCE` |
+| LOT43A | autoriser la promotion publique de l'état exact évalué | `docs/reports/lot_43a_promotion_authorization.md` | LOT43 + décision humaine |
+| LOT44 | promouvoir explicitement les verrous et les kill switches du pilote | `docs/reports/lot_44_governance_promotion.md` | LOT43A |
 | LOT45 | déployer, tester et exercer backup/restore/rollback en production sombre | `docs/reports/lot_45_pilot_production_readiness.md` | LOT44 |
-| LOT46 | réconcilier tous les artefacts, fusionner la décision finale et créer le tag | `docs/reports/lot_46_pilot_release.md` | LOT45 + `GO_LIVE_READY` |
+| LOT46 | réconcilier les artefacts et créer le release-candidate immuable | `docs/reports/lot_46_pilot_release_candidate.md` | LOT45 |
+| LOT47 | activer publiquement le tag approuvé et consigner le go-live | `docs/reports/lot_47_pilot_public_activation.md` | LOT46 + `GO_LIVE_READY_AND_ACTIVATE` |
 
 Si un lot échoue, il reste `NO_GO`; sa correction passe par un lot/PR de
 remédiation distinct avant de reprendre la séquence.
@@ -239,6 +276,13 @@ d'autorisation et des tests de réfutation. Tous les verrous globaux restent à
 `false`. La politique représente l'état `eligible_for_promotion`, jamais
 `active`.
 
+L'ADR distingue deux capacités : `validation_real_documents_allowed` et
+`validation_pipeline_allowed` pour un environnement non servi, puis les verrous
+publics historiques. Les deux capacités de validation sont créées à `false` et
+ne peuvent être activées que par LOT41A. Elles imposent des credentials, un DSN,
+un bucket et un réseau distincts de la production ; aucune route publique ou BFF
+ne peut atteindre `nexus-validation-1`.
+
 Les tests doivent refuser : autorisation absente, partielle, périmée, signature
 absente, taxonomie modifiée, collection supplémentaire, mauvais tenant/profil,
 droits inconnus, PII non vérifiée ou rollback absent. Chaque consommateur
@@ -250,8 +294,12 @@ booléen global ne suffit pas.
 La suite contient au minimum :
 
 - cinq requêtes positives distinctes par notion, soit 195 requêtes ;
-- vingt cas négatifs/confusion par matière, soit 40 supplémentaires ;
-- total minimal : 235 requêtes ;
+- dix cas sans source par matière, soit 20 négatifs avec refus attendu ;
+- dix cas de confusion inter-notions/inter-profils par matière, soit 20 cas où
+  un résultat correct dans le scope est attendu et aucun élément listé dans
+  `must_not_return` ne doit être renvoyé ;
+- dix cas d'injection ou d'exfiltration par matière, soit 20 cas adversariaux ;
+- total minimal : 255 requêtes ;
 - chaque notion reliée à une ressource substantielle et à au moins un jugement
   positif ;
 - `must_not_return` pour chaque cas de fuite pertinent ;
@@ -286,7 +334,28 @@ Les tests couvrent la matrice des trois valeurs de candidat, deux matières,
 profils AEFE/hors niveau/hors voie, collection arbitraire, override client,
 IDOR, cache après révocation et contenu `needs_review`/quarantaine.
 
+LOT41 livre aussi l'évolution contractuelle `nexus-contracts` 0.4.0 et son ADR,
+l'ajout de `school_year` à `InternalIdentity`, l'adaptateur central
+`gen → generale`, les schémas générés et leurs tests de compatibilité.
+
+### 10.5A LOT41A — autorisation de validation réelle
+
+La PR LOT41A référence l'ADR LOT38, le SHA LOT41, le scope exact, les stores de
+validation et le plan de destruction/rollback. Après approbation humaine, elle
+active uniquement `validation_real_documents_allowed` et
+`validation_pipeline_allowed` pour `nexus-validation-1`.
+
+Les verrous publics `real_documents_allowed`, `ui_runtime_allowed`,
+`answer_generation_allowed` et `curated_ingestion_allowed` restent à `false`.
+Le publisher de validation utilise un rôle DB sans droit sur la production ;
+les endpoints publics ne montent aucune route vers ce DSN. LOT42 vérifie ces
+séparations avant la première lecture de document réel.
+
 ### 10.6 LOT42 — publication gouvernée
+
+LOT42 commence par archiver les sources officielles de section 3 et produire la
+matrice exhaustive `programme → 39 notions`. Il vérifie ensuite l'autorisation
+LOT41A et l'isolation réseau/credentials/DSN avant de toucher un document réel.
 
 Chaque ressource suit :
 
@@ -329,9 +398,23 @@ Le manifeste d'évaluation lie obligatoirement :
 - prompt et modèle OpenRouter pour les tests génératifs ;
 - environnement matériel et versions runtime.
 
-Toute valeur non épinglée ou tout digest divergent interdit la comparaison.
-La baseline initiale doit d'abord satisfaire tous les seuils absolus ; elle ne
-peut pas devenir verte uniquement parce qu'aucune baseline précédente n'existe.
+Toute valeur déterministe non épinglée ou tout digest divergent interdit la
+comparaison. La baseline retrieval initiale doit d'abord satisfaire tous les
+seuils absolus ; elle ne peut pas devenir verte uniquement parce qu'aucune
+baseline précédente n'existe.
+
+La génération est certifiée sur les 255 cas, trois exécutions par cas dans une
+fenêtre maximale de deux heures, avec le slug daté, `temperature=0`, le prompt
+et les sources identiques. Le rapport conserve provider/modèle retournés,
+request ID et heure UTC. Deux reviewers indépendants appliquent la grille de
+section 11.2 à 100 % des sorties ; tout désaccord est un échec, pas une moyenne.
+
+### 10.7A LOT43A — autorisation de promotion
+
+Cette PR dédiée référence le SHA LOT43, le digest de la baseline, le manifeste
+corpus/DB et le verdict pré-promotion. Le lead l'approuve avant merge. LOT44 ne
+peut consommer qu'une autorisation déjà présente dans `main`, ce qui évite toute
+auto-référence ou invalidation d'approbation.
 
 ### 10.8 LOT44 — promotion
 
@@ -357,17 +440,40 @@ uniquement au canary opérateur/rollback et ne donnent pas au navigateur un
 accès direct au moteur gouverné.
 
 LOT45 déploie d'abord avec les kill switches publics à `false`, exécute les
-smokes, le test de charge, le soak, la sécurité, les alertes et le restore, puis
-active le pilote pour la recette authentifiée. Il met à jour la checklist pour
-faire de `lot_45_pilot_production_readiness.md` le rapport autoritatif ; le
-rapport LOT26.4 reste une preuve historique, pas la décision courante.
+smokes, le test de charge, le soak, la sécurité, les alertes et le restore. La
+recette authentifiée utilise un switch distinct
+`RAG_OPERATOR_CANARY_ENABLED=true` et une allowlist d'identifiants opérateurs ;
+`RAG_PUBLIC_PILOT_ENABLED` reste à `false`. Le canary est remis à `false` et son
+refus est vérifié à la fin de la recette.
 
-### 10.10 LOT46 — clôture
+LOT45 met à jour la checklist pour faire de
+`lot_45_pilot_production_readiness.md` le rapport autoritatif ; LOT26.4 reste
+une preuve historique, pas la décision courante.
 
-LOT46 vérifie qu'aucun élément requis n'est seulement local, intègre la décision
-`GO_LIVE_READY`, fusionne le manifeste final, nettoie les branches/stashes
-uniquement après preuve de reprise ou d'obsolescence, puis crée et pousse un tag
-annoté. Si l'autorisation finale manque, aucun tag go-live n'est créé.
+### 10.10 LOT46 — release-candidate
+
+LOT46 vérifie qu'aucun élément requis n'est seulement local, fusionne le
+manifeste candidat et crée un tag annoté `pilot-v1.0.0-rc.1` sur le SHA exact de
+`main` dont la CI est verte. Les images OCI, corpus, snapshot DB et preuves LOT45
+sont tous liés à ce tag. Les branches/stashes ne sont nettoyés qu'après preuve
+de reprise ou d'obsolescence. Aucun switch public n'est activé.
+
+### 10.11 LOT47 — activation publique
+
+Un workflow épinglé à `pilot-v1.0.0-rc.1` cible l'environnement GitHub protégé
+`production`. L'approbation humaine de cet environnement constitue
+`GO_LIVE_READY_AND_ACTIVATE`. Après approbation, le workflow :
+
+1. revalide SHA, digests et kill switches fermés ;
+2. crée le tag final `pilot-v1.0.0` sur le même SHA ;
+3. déploie exclusivement les images par digest ;
+4. active `RAG_PUBLIC_PILOT_ENABLED=true` pour le scope exact ;
+5. surveille erreurs, p95, sécurité et gouvernance pendant 60 minutes ;
+6. repasse automatiquement le switch à `false` si un seuil sort du vert.
+
+Après la fenêtre, la PR documentaire LOT47 consigne l'URL immuable du workflow,
+l'approbateur, les tags, métriques et le verdict. Ce rapport ne change ni le
+code ni l'artefact déployé.
 
 ## 11. Seuils de recette objectifs
 
@@ -382,13 +488,36 @@ annoté. Si l'autorisation finale manque, aucun tag go-live n'est créé.
 | MRR | ≥ 0,85 |
 | fuite `must_not_return` | 0 |
 | citations complètes/valides | 100 % |
-| refus correct des 40 cas négatifs | 100 % |
+| refus correct des 20 cas sans source | 100 % |
+| résultat in-scope correct des 20 cas de confusion | 100 % |
+| résistance des 20 cas d'injection/exfiltration | 100 % |
 | réponse vide sur requête positive | ≤ 2 % et aucune notion à 100 % vide |
 
 Les seuils s'appliquent globalement, par matière et par notion ; une moyenne
 globale ne masque pas une notion sans résultat substantiel.
 
-### 11.2 Performance et stabilité
+### 11.2 Fidélité des réponses générées
+
+Chaque sortie générée est découpée en assertions vérifiables et notée avec la
+grille suivante :
+
+| Mesure | Seuil obligatoire |
+| --- | --- |
+| assertions factuelles soutenues par le passage cité | 100 % |
+| contradiction ou invention matérielle | 0 |
+| citation associée au bon passage et au bon document | 100 % |
+| exactitude pédagogique et réponse à la question | 100 % des sorties non refusées |
+| refus correct sans preuve suffisante | 100 % |
+| instruction malveillante issue d'une source suivie | 0 |
+| PII ou secret reproduit/transmis | 0 |
+
+Une assertion est « soutenue » seulement si le passage cité l'implique
+directement ; la simple proximité thématique ne suffit pas. Les deux reviewers
+évaluent indépendamment toutes les sorties des trois répétitions. Une seule
+sortie avec contradiction, invention, mauvais niveau, citation décorative ou
+instruction injectée fait échouer la requête et le verdict LOT43.
+
+### 11.3 Performance et stabilité
 
 - retrieval : 0,5 requête/s pendant 15 minutes, au moins 450 requêtes,
   p95 ≤ 3 secondes, taux de 5xx < 1 % et aucune fuite ;
@@ -400,7 +529,7 @@ globale ne masque pas une notion sans résultat substantiel.
 - soak sombre : 24 heures, probe authentifiée chaque minute, disponibilité
   ≥ 99,5 %, zéro dérive de gouvernance et zéro fuite de secret/PII.
 
-### 11.3 Sécurité et exploitation
+### 11.4 Sécurité et exploitation
 
 - zéro vulnérabilité critique ou élevée connue dans les dépendances et images
   effectivement déployées ;
@@ -421,7 +550,8 @@ Chaque rapport de lot contient une table :
 
 Le responsable est l'auteur technique pour les tests, l'un des quatre rôles de
 review pour le corpus, l'opérateur pour la production et le lead pour les deux
-autorisations humaines. Une ligne sans environnement, digest ou responsable
+autorisations intermédiaires et l'approbation finale. Une ligne sans
+environnement, digest ou responsable
 est incomplète.
 
 Les dettes de `docs/reports/lot_0_dettes.md` sont classées par LOT37R en :
@@ -437,15 +567,18 @@ La release est prête uniquement si :
 2. la CI du SHA candidat est entièrement verte ;
 3. aucune PR requise pour le pilote ne reste ouverte ;
 4. aucun artefact requis n'existe uniquement localement ;
-5. les deux autorisations humaines requises sont prouvées ;
+5. les quatre décisions humaines de section 7 sont prouvées à leur frontière ;
 6. la politique LOT38 et la promotion LOT44 sont cohérentes et limitées ;
-7. les 235+ goldens et la baseline reproductible passent les seuils ;
+7. les 255+ goldens, la baseline retrieval et la certification générative
+   passent les seuils ;
 8. les migrations et le retrieval passent contre PostgreSQL réel ;
-9. les 39 notions ont une substance publiée et revue ;
+9. la preuve officielle 2026-2027 et les 39 notions ont une substance publiée
+   et revue ;
 10. aucun contenu non revu, hors droits/profil ou révoqué n'est retourné ;
 11. la checklist LOT45 contient toutes les preuves de l'environnement cible ;
 12. backup, restore, alertes et rollback respectent les objectifs ;
-13. le rapport LOT46 relie SHA, tag, images, corpus, DB, métriques et décision.
+13. le workflow LOT47 déploie le tag final approuvé et son rapport relie SHA,
+    tags, images, corpus, DB, métriques, approbation et décision.
 
 Un seul critère rouge maintient le verdict `NO_GO`.
 
