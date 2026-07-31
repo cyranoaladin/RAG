@@ -86,6 +86,20 @@ jobs:
       - run: python3 scripts/tests/test-cockpit-snapshot-coherence.py
       - run: bash scripts/tests/test-cockpit-clean-build.sh
 
+  repository-controls:
+    name: "repository controls"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install PyYAML==6.0.3
+      - run: bash scripts/check-repository-hygiene.sh
+      - run: YAML_PYTHON_BIN=python bash scripts/tests/test-repository-hygiene.sh
+      - run: bash scripts/tests/test-ci-local-topology.sh
+      - run: YAML_PYTHON_BIN=python NEXUS_CI_LOCAL_RUNNING=1 bash scripts/tests/test-ci-local-failsafe.sh
+
   governance-locks:
     name: "governance locks guard"
     runs-on: ubuntu-latest

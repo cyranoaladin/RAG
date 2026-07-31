@@ -156,6 +156,15 @@ run_cockpit() {
 }
 run_target "services/cockpit" run_cockpit
 
+# --- repository hygiene ---
+run_target "repository-hygiene" bash scripts/check-repository-hygiene.sh
+
+# --- repository hygiene tests ---
+run_target "repository-hygiene-tests" bash scripts/tests/test-repository-hygiene.sh
+
+# --- CI topology tests ---
+run_target "ci-topology-tests" bash scripts/tests/test-ci-local-topology.sh
+
 # --- governance locks ---
 run_target "governance-locks" bash scripts/check-governance-locks.sh
 
