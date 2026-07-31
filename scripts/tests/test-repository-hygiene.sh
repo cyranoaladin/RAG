@@ -202,6 +202,7 @@ expected_steps = [
         )
     },
     {"run": "bash scripts/tests/test-ci-local-topology.sh"},
+    {"run": "python scripts/tests/test-main-protection-policy.py"},
     {
         "run": (
             "YAML_PYTHON_BIN=python NEXUS_CI_LOCAL_RUNNING=1 "

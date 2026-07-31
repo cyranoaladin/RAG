@@ -165,6 +165,10 @@ run_target "repository-hygiene-tests" bash scripts/tests/test-repository-hygiene
 # --- CI topology tests ---
 run_target "ci-topology-tests" bash scripts/tests/test-ci-local-topology.sh
 
+# --- main protection policy tests ---
+run_target "main-protection-policy-tests" \
+  "$PYTHON_BIN" scripts/tests/test-main-protection-policy.py
+
 # --- governance locks ---
 run_target "governance-locks" bash scripts/check-governance-locks.sh
 
