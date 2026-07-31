@@ -206,14 +206,16 @@ Quatre décisions différentes sont requises :
 | `PREPARE_TRANSITION` | commanditaire/lead | déjà reçue le 31 juillet 2026 | validation du présent design et commit du design |
 | `AUTHORIZE_VALIDATION_PIPELINE` | commanditaire/lead | après LOT41, avant toute lecture/écriture de document réel ou génération externe de validation | approbation GitHub de la PR d'autorisation LOT41A, qui référence le SHA LOT41 et l'environnement isolé `nexus-validation-1` |
 | `PROMOTE_GOVERNANCE` | commanditaire/lead, jamais l'agent implémenteur seul | après LOT43 vert | approbation GitHub de la PR d'autorisation LOT43A, qui référence le SHA et le manifeste LOT43 |
-| `GO_LIVE_READY_AND_ACTIVATE` | commanditaire/lead | après LOT46 et son tag release-candidate | approbation du déploiement GitHub Actions protégé `production`, épinglé au tag et au SHA LOT46 |
+| `AUTHORIZE_PUBLIC_ACTIVATION` | commanditaire/lead | après LOT46 et son tag release-candidate | approbation du déploiement GitHub Actions protégé `production`, épinglé au tag et au SHA LOT46 |
 
 Le lead est le propriétaire humain du dépôt ou son délégataire humain déclaré.
 Les PR LOT41A et LOT43A ne contiennent que l'autorisation et ses références
 immuables ; la publication et la promotion sont réalisées par les PR suivantes.
 Elles ne se référencent donc jamais elles-mêmes. Une validation d'agent, un test
 vert ou un merge automatique ne remplace aucune décision humaine. Sans preuve
-d'autorité, LOT42, LOT44 ou LOT47 s'arrête à sa frontière.
+d'autorité, LOT42, LOT44 ou LOT47 s'arrête à sa frontière. Le verdict technique
+`GO_LIVE_CONFIRMED` n'est pas une autorisation supplémentaire : il est émis
+uniquement par le run immuable LOT47 après 60 minutes entièrement vertes.
 
 ## 8. Source de vérité multi-support
 
@@ -253,7 +255,7 @@ Un lot ne commence qu'après fusion du prédécesseur, sauf analyse read-only.
 | LOT44 | promouvoir explicitement les verrous et les kill switches du pilote | `docs/reports/lot_44_governance_promotion.md` | LOT43A |
 | LOT45 | déployer, tester et exercer backup/restore/rollback en production sombre | `docs/reports/lot_45_pilot_production_readiness.md` | LOT44 |
 | LOT46 | réconcilier les artefacts et créer le release-candidate immuable | `docs/reports/lot_46_pilot_release_candidate.md` | LOT45 |
-| LOT47 | activer publiquement le tag approuvé et consigner le go-live | `docs/reports/lot_47_pilot_public_activation.md` | LOT46 + `GO_LIVE_READY_AND_ACTIVATE` |
+| LOT47 | activer publiquement le tag approuvé et consigner le go-live | `docs/reports/lot_47_pilot_public_activation.md` | LOT46 + `AUTHORIZE_PUBLIC_ACTIVATION` |
 
 Si un lot échoue, il reste `NO_GO`; sa correction passe par un lot/PR de
 remédiation distinct avant de reprendre la séquence.
@@ -447,6 +449,20 @@ restent désactivés par défaut :
 Absence, valeur invalide ou scope différent équivaut à `false`. L'allowlist
 runtime ne contient que les deux collections de section 3.
 
+Les switches sont portés par un document runtime unique, versionné par numéro
+monotone et remplacé atomiquement. Les états valides sont :
+
+| État | public | génération | publication curatée | canary opérateur |
+| --- | --- | --- | --- | --- |
+| fermé | `false` | `false` | `false` | `false` |
+| canary LOT45 | `false` | `true` | `false` | `true` |
+| public LOT47 | `true` | `true` | `false` | `false` |
+| fenêtre de publication future | inchangé | inchangé | `true` | opérateur authentifié requis |
+
+Un état partiel non listé est refusé au chargement. La publication curatée
+n'est jamais activée par le lancement public ; une fenêtre future exige un
+package signé déjà approuvé et se referme après l'opération.
+
 ### 10.9 LOT45 — production sombre
 
 Environnement logique : `nexus-production-1`, serveur Ubuntu 22.04/24.04,
@@ -493,16 +509,19 @@ qu'après preuve de reprise ou d'obsolescence. Aucun switch public n'est activé
 
 Le workflow versionné, épinglé au tag RC courant, cible l'environnement GitHub
 protégé `production`. L'approbation humaine de cet environnement constitue
-`GO_LIVE_READY_AND_ACTIVATE`. Après approbation, le workflow :
+`AUTHORIZE_PUBLIC_ACTIVATION`. Après approbation, le workflow :
 
 1. revalide SHA, digests et kill switches fermés ;
 2. déploie exclusivement les images par digest ;
-3. active `RAG_PUBLIC_PILOT_ENABLED=true` pour le scope exact ;
+3. remplace atomiquement le document runtime par l'état public de section 10.8,
+   donc `RAG_PUBLIC_PILOT_ENABLED=true`, `RAG_GENERATION_ENABLED=true`,
+   `RAG_CURATED_PUBLICATION_ENABLED=false` et
+   `RAG_OPERATOR_CANARY_ENABLED=false` ;
 4. surveille erreurs, p95, sécurité et gouvernance pendant 60 minutes ;
-5. repasse automatiquement le switch à `false` et échoue si un seuil sort du
-   vert ;
-6. crée le tag final `pilot-v1.0.0` sur le même SHA uniquement après une fenêtre
-   entièrement verte.
+5. restaure atomiquement l'état fermé des quatre switches et échoue si un seuil
+   sort du vert ;
+6. crée le tag final `pilot-v1.0.0` sur le même SHA et émet
+   `GO_LIVE_CONFIRMED` uniquement après une fenêtre entièrement verte.
 
 En cas d'échec, le verdict reste `NO_GO`, aucun tag final ni GitHub Release
 active n'est créé et le tag RC n'est ni déplacé ni réutilisé. Après remédiation,
@@ -510,7 +529,9 @@ une nouvelle tentative reçoit un nouveau SHA et un nouveau numéro RC.
 
 Après la fenêtre, la PR documentaire LOT47 consigne l'URL immuable du workflow,
 l'approbateur, les tags, métriques et le verdict. Ce rapport ne change ni le
-code ni l'artefact déployé.
+code ni l'artefact déployé. Le run réussi constitue la preuve technique finale
+avant cette consignation ; la fusion du rapport clôt ensuite la source de vérité
+administrative dans `main`.
 
 ## 11. Seuils de recette objectifs
 
@@ -597,11 +618,11 @@ reproductibilité est bloquante tant que LOT43 n'a pas prouvé le contraire.
 
 ## 13. Critères de sortie
 
-La release est prête uniquement si :
+Le workflow peut émettre `GO_LIVE_CONFIRMED` uniquement si :
 
 1. `main` est propre, synchronisé et protégé par PR ;
 2. la CI du SHA candidat est entièrement verte ;
-3. aucune PR requise pour le pilote ne reste ouverte ;
+3. aucune PR fonctionnelle ou d'autorisation requise ne reste ouverte ;
 4. aucun artefact requis n'existe uniquement localement ;
 5. les quatre décisions humaines de section 7 sont prouvées à leur frontière ;
 6. la politique LOT38 et la promotion LOT44 sont cohérentes et limitées ;
@@ -613,10 +634,14 @@ La release est prête uniquement si :
 10. aucun contenu non revu, hors droits/profil ou révoqué n'est retourné ;
 11. la checklist LOT45 contient toutes les preuves de l'environnement cible ;
 12. backup, restore, alertes et rollback respectent les objectifs ;
-13. le workflow LOT47 déploie le tag final approuvé et son rapport relie SHA,
-    tags, images, corpus, DB, métriques, approbation et décision.
+13. l'activation atomique LOT47 et sa fenêtre de 60 minutes sont vertes.
 
-Un seul critère rouge maintient le verdict `NO_GO`.
+Le run GitHub immuable prouve ces treize critères et suffit au verdict technique.
+La finalisation documentaire atteint ensuite 100 % lorsque le rapport LOT47,
+qui relie SHA, tags, images, corpus, DB, métriques, approbation et URL du run, est
+fusionné dans `main` et qu'aucune PR de clôture ne reste ouverte.
+
+Un seul critère rouge maintient le verdict `NO_GO` et interdit le tag final.
 
 ## 14. Rollback fail-closed
 
@@ -624,7 +649,8 @@ Les verrous versionnés indiquent qu'une capacité est autorisable ; les kill
 switches d'exploitation indiquent si elle est effectivement servie. Le rollback
 ne modifie donc jamais directement `main` :
 
-1. passer les trois kill switches à `false` dans le secret/config store ;
+1. remplacer atomiquement le document runtime par l'état fermé : public,
+   génération, publication curatée et canary à `false` ;
 2. recharger les services et vérifier que UI, génération et publication
    refusent ;
 3. restaurer les images précédentes par digest ;
