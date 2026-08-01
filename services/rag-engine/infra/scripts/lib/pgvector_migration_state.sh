@@ -315,49 +315,123 @@ BEGIN
     FROM information_schema.columns
     WHERE table_schema = 'public'
       AND table_name = 'rag_schema_migrations'
-      AND (
-          (column_name = 'version' AND data_type = 'integer' AND is_nullable = 'NO')
-          OR (column_name = 'file_name' AND data_type = 'text' AND is_nullable = 'NO')
-          OR (column_name = 'sha256' AND data_type = 'text' AND is_nullable = 'NO')
-          OR (
-              column_name = 'applied_at'
-              AND data_type = 'timestamp with time zone'
-              AND is_nullable = 'NO'
-              AND column_default = 'now()'
-          )
-      );
-    IF invalid_count <> 4 THEN
-        RAISE EXCEPTION 'MIGRATION_REGISTRY_SCHEMA_INVALID: column contract';
+      AND column_name = 'version'
+      AND data_type = 'integer'
+      AND is_nullable = 'NO';
+    IF invalid_count <> 1 THEN
+        RAISE EXCEPTION 'MIGRATION_REGISTRY_SCHEMA_INVALID: version column';
     END IF;
 
     SELECT count(*) INTO invalid_count
     FROM pg_constraint constraint_definition
     WHERE constraint_definition.conrelid = 'public.rag_schema_migrations'::regclass
-      AND (
-          (
-              constraint_definition.contype = 'p'
-              AND pg_get_constraintdef(constraint_definition.oid, true) = 'PRIMARY KEY (version)'
-          )
-          OR (
-              constraint_definition.contype = 'u'
-              AND pg_get_constraintdef(constraint_definition.oid, true) = 'UNIQUE (file_name)'
-          )
-      );
-    IF invalid_count <> 2 THEN
-        RAISE EXCEPTION 'MIGRATION_REGISTRY_SCHEMA_INVALID: key constraints';
+      AND constraint_definition.contype = 'p'
+      AND pg_get_constraintdef(constraint_definition.oid, true) = 'PRIMARY KEY (version)';
+    IF invalid_count <> 1 THEN
+        RAISE EXCEPTION 'MIGRATION_REGISTRY_SCHEMA_INVALID: version primary key';
     END IF;
 
     SELECT count(*) INTO invalid_count
     FROM pg_constraint constraint_definition
     WHERE constraint_definition.conrelid = 'public.rag_schema_migrations'::regclass
       AND constraint_definition.contype = 'c'
-      AND (
-          pg_get_constraintdef(constraint_definition.oid, true) LIKE '%version > 0%'
-          OR pg_get_constraintdef(constraint_definition.oid, true) LIKE '%btrim(file_name) <>%'
-          OR pg_get_constraintdef(constraint_definition.oid, true) LIKE '%[0-9a-f]{64}%'
-      );
-    IF invalid_count <> 3 THEN
-        RAISE EXCEPTION 'MIGRATION_REGISTRY_SCHEMA_INVALID: check constraints';
+      AND regexp_replace(
+          lower(pg_get_expr(
+              constraint_definition.conbin,
+              constraint_definition.conrelid
+          )),
+          '(::text|[[:space:]])',
+          '',
+          'g'
+      ) = \$constraint\$(version>0)\$constraint\$;
+    IF invalid_count <> 1 THEN
+        RAISE EXCEPTION 'MIGRATION_REGISTRY_SCHEMA_INVALID: version positive check';
+    END IF;
+
+    SELECT count(*) INTO invalid_count
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'rag_schema_migrations'
+      AND column_name = 'file_name'
+      AND data_type = 'text'
+      AND is_nullable = 'NO';
+    IF invalid_count <> 1 THEN
+        RAISE EXCEPTION 'MIGRATION_REGISTRY_SCHEMA_INVALID: file_name column';
+    END IF;
+
+    SELECT count(*) INTO invalid_count
+    FROM pg_constraint constraint_definition
+    WHERE constraint_definition.conrelid = 'public.rag_schema_migrations'::regclass
+      AND constraint_definition.contype = 'u'
+      AND pg_get_constraintdef(constraint_definition.oid, true) = 'UNIQUE (file_name)';
+    IF invalid_count <> 1 THEN
+        RAISE EXCEPTION 'MIGRATION_REGISTRY_SCHEMA_INVALID: file_name unique';
+    END IF;
+
+    SELECT count(*) INTO invalid_count
+    FROM pg_constraint constraint_definition
+    WHERE constraint_definition.conrelid = 'public.rag_schema_migrations'::regclass
+      AND constraint_definition.contype = 'c'
+      AND regexp_replace(
+          lower(pg_get_expr(
+              constraint_definition.conbin,
+              constraint_definition.conrelid
+          )),
+          '(::text|[[:space:]])',
+          '',
+          'g'
+      ) = \$constraint\$(btrim(file_name)<>'')\$constraint\$;
+    IF invalid_count <> 1 THEN
+        RAISE EXCEPTION 'MIGRATION_REGISTRY_SCHEMA_INVALID: file_name nonblank check';
+    END IF;
+
+    SELECT count(*) INTO invalid_count
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'rag_schema_migrations'
+      AND column_name = 'sha256'
+      AND data_type = 'text'
+      AND is_nullable = 'NO';
+    IF invalid_count <> 1 THEN
+        RAISE EXCEPTION 'MIGRATION_REGISTRY_SCHEMA_INVALID: sha256 column';
+    END IF;
+
+    SELECT count(*) INTO invalid_count
+    FROM pg_constraint constraint_definition
+    WHERE constraint_definition.conrelid = 'public.rag_schema_migrations'::regclass
+      AND constraint_definition.contype = 'c'
+      AND regexp_replace(
+          lower(pg_get_expr(
+              constraint_definition.conbin,
+              constraint_definition.conrelid
+          )),
+          '(::text|[[:space:]])',
+          '',
+          'g'
+      ) = \$constraint\$(sha256~'^[0-9a-f]{64}$')\$constraint\$;
+    IF invalid_count <> 1 THEN
+        RAISE EXCEPTION 'MIGRATION_REGISTRY_SCHEMA_INVALID: sha256 lowercase64 check';
+    END IF;
+
+    SELECT count(*) INTO invalid_count
+    FROM pg_attribute column_definition
+    JOIN pg_attrdef default_definition
+      ON default_definition.adrelid = column_definition.attrelid
+     AND default_definition.adnum = column_definition.attnum
+    WHERE column_definition.attrelid = 'public.rag_schema_migrations'::regclass
+      AND column_definition.attname = 'applied_at'
+      AND NOT column_definition.attisdropped
+      AND column_definition.attnotnull
+      AND format_type(
+          column_definition.atttypid,
+          column_definition.atttypmod
+      ) = 'timestamp with time zone'
+      AND pg_get_expr(
+          default_definition.adbin,
+          default_definition.adrelid
+      ) = 'now()';
+    IF invalid_count <> 1 THEN
+        RAISE EXCEPTION 'MIGRATION_REGISTRY_SCHEMA_INVALID: applied_at contract';
     END IF;
 
     SELECT count(*) INTO invalid_count

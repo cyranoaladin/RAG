@@ -192,6 +192,65 @@ def test_migration_library_exposes_exact_registry_contract() -> None:
 
 
 @pytest.mark.parametrize(
+    ("diagnostic", "required_predicates"),
+    [
+        (
+            "MIGRATION_REGISTRY_SCHEMA_INVALID: version primary key",
+            ("contype = 'p'", "PRIMARY KEY (version)"),
+        ),
+        (
+            "MIGRATION_REGISTRY_SCHEMA_INVALID: version positive check",
+            ("contype = 'c'", "(version>0)"),
+        ),
+        (
+            "MIGRATION_REGISTRY_SCHEMA_INVALID: file_name unique",
+            ("contype = 'u'", "UNIQUE (file_name)"),
+        ),
+        (
+            "MIGRATION_REGISTRY_SCHEMA_INVALID: file_name nonblank check",
+            ("contype = 'c'", "btrim(file_name)<>''"),
+        ),
+        (
+            "MIGRATION_REGISTRY_SCHEMA_INVALID: sha256 lowercase64 check",
+            ("contype = 'c'", "[0-9a-f]{64}"),
+        ),
+        (
+            "MIGRATION_REGISTRY_SCHEMA_INVALID: applied_at contract",
+            (
+                "attname = 'applied_at'",
+                "attnotnull",
+                "= 'timestamp with time zone'",
+                "= 'now()'",
+            ),
+        ),
+    ],
+)
+def test_registry_validator_guards_each_contract_invariant_independently(
+    diagnostic: str,
+    required_predicates: tuple[str, ...],
+) -> None:
+    content = MIGRATION_LIBRARY.read_text(encoding="utf-8")
+    diagnostic_position = content.index(diagnostic)
+    select_position = content.rfind(
+        "SELECT count(*) INTO invalid_count",
+        0,
+        diagnostic_position,
+    )
+    guard = content[select_position:diagnostic_position]
+
+    assert select_position >= 0
+    assert "IF invalid_count <> 1 THEN" in guard
+    for predicate in required_predicates:
+        assert predicate in guard
+
+
+def test_registry_validator_has_no_aggregate_or_count_constraint_guards() -> None:
+    content = MIGRATION_LIBRARY.read_text(encoding="utf-8")
+    assert "MIGRATION_REGISTRY_SCHEMA_INVALID: key constraints" not in content
+    assert "MIGRATION_REGISTRY_SCHEMA_INVALID: check constraints" not in content
+
+
+@pytest.mark.parametrize(
     "needle",
     [
         "rag_schema_migrations",

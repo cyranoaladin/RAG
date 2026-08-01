@@ -83,13 +83,18 @@ run_readonly_preflight_validation() {
             validate_001_sql
             if (( EFFECTIVE_HEAD >= 2 )); then
                 validate_002_sql
+            else
+                validate_002_absent_sql
             fi
             validate_registry_sql "$EFFECTIVE_HEAD"
         } | docker exec -i "$PGVECTOR_CONTAINER" \
             psql -X -q -v ON_ERROR_STOP=1 \
             -U "$PGVECTOR_USER" -d "$PGVECTOR_DB" >/dev/null
     elif [[ "$RAG_CHUNKS_PRESENT" == "1" ]]; then
-        validate_001_sql | docker exec -i "$PGVECTOR_CONTAINER" \
+        {
+            validate_001_sql
+            validate_002_absent_sql
+        } | docker exec -i "$PGVECTOR_CONTAINER" \
             psql -X -q -v ON_ERROR_STOP=1 \
             -U "$PGVECTOR_USER" -d "$PGVECTOR_DB" >/dev/null
     fi
@@ -143,6 +148,8 @@ SQL
         validate_001_sql
         if (( version >= 2 )); then
             validate_002_sql
+        else
+            validate_002_absent_sql
         fi
         validate_registry_sql "$version"
     } | docker exec -i "$PGVECTOR_CONTAINER" \

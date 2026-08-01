@@ -119,9 +119,21 @@ def runner_env(tmp_path: Path) -> tuple[dict[str, str], Path, Path]:
                 record("APPLY_" + version.zfill(3), stdin)
                 raise SystemExit(0)
 
+            if "SCHEMA_HEAD_001_INVALID" in stdin and state.get("partial_001"):
+                record("VALIDATE_001", stdin)
+                raise SystemExit(42)
+            if (
+                state.get("hybrid_column_present")
+                and "text_tsv still present" in stdin
+            ) or (
+                state.get("hybrid_index_present")
+                and "hybrid GIN still present" in stdin
+            ):
+                record("VALIDATE_002_ABSENT", stdin)
+                raise SystemExit(45)
             if "SCHEMA_HEAD_001_INVALID" in stdin:
                 record("VALIDATE_001", stdin)
-                raise SystemExit(42 if state.get("partial_001") else 0)
+                raise SystemExit(0)
             if "SCHEMA_HEAD_002_INVALID" in stdin:
                 record("VALIDATE_002", stdin)
                 raise SystemExit(43 if state.get("partial_002") else 0)
@@ -299,6 +311,37 @@ def test_up_refuses_partial_unregistered_001_before_backup(
     assert "PG_DUMP" not in _event_names(events)
 
 
+@pytest.mark.parametrize("registry_present", [False, True])
+@pytest.mark.parametrize(
+    "untracked_002",
+    [
+        {"hybrid_column_present": True},
+        {"hybrid_index_present": True},
+        {"hybrid_column_present": True, "hybrid_index_present": True},
+    ],
+    ids=["column-only", "index-only", "column-and-index"],
+)
+def test_up_refuses_untracked_002_at_effective_head_001_before_backup(
+    runner_env: tuple[dict[str, str], Path, Path],
+    registry_present: bool,
+    untracked_002: dict[str, bool],
+) -> None:
+    state: dict[str, object] = {
+        "registry_present": registry_present,
+        "rag_chunks_present": True,
+        "rows": _valid_rows(1) if registry_present else [],
+        **untracked_002,
+    }
+    result, events = _run(runner_env, state)
+
+    assert result.returncode != 0
+    names = _event_names(events)
+    assert names.index("READ_STATE") < names.index("VALIDATE_002_ABSENT")
+    assert "PG_DUMP" not in names
+    assert "APPLY_001" not in names
+    assert "APPLY_002" not in names
+
+
 @pytest.mark.parametrize("failure", ["PG_DUMP", "DOCKER_CP"])
 def test_up_backup_failure_stops_before_mutation(
     runner_env: tuple[dict[str, str], Path, Path],
@@ -344,6 +387,9 @@ def test_down_002_backs_up_then_composes_one_atomic_transition(
     assert stdin.index("DROP INDEX") < stdin.index("DROP COLUMN")
     assert stdin.index("DROP COLUMN") < stdin.index(
         "DELETE FROM rag_schema_migrations"
+    )
+    assert stdin.index("DELETE FROM rag_schema_migrations") < stdin.index(
+        "text_tsv still present"
     )
     assert "WHERE version = 2" in stdin
     assert "--single-transaction" in event["args"]
