@@ -12,6 +12,7 @@ from rag_pedago.governance import pilot_validation as governance
 SERVICE_ROOT = Path(__file__).resolve().parents[2]
 SCOPE_PATH = SERVICE_ROOT / "configs" / "pilot_validation_scope.yml"
 BASE_POLICY_PATH = SERVICE_ROOT / "configs" / "pilot_validation_policy.yml"
+PUBLIC_CONTRACT_PATH = SERVICE_ROOT / "configs" / "pedago_interface_contract.yml"
 FIXTURES = SERVICE_ROOT / "tests" / "fixtures" / "pilot_validation"
 ACTIVATION_PATH = FIXTURES / "activation.valid.yml"
 AUTHORIZATION_PATH = FIXTURES / "authorization.valid.yml"
@@ -79,6 +80,14 @@ def _activation_variant(
         authorization,
     )
     return activation_path, authorization_path
+
+
+def _temporary_service_root(tmp_path: Path) -> Path:
+    root = tmp_path / "rag-pedago"
+    shutil.copytree(SERVICE_ROOT / "taxonomy", root / "taxonomy")
+    (root / "configs").mkdir()
+    shutil.copy2(PUBLIC_CONTRACT_PATH, root / "configs" / PUBLIC_CONTRACT_PATH.name)
+    return root
 
 
 def _evaluate(
@@ -401,8 +410,7 @@ class TestScopeAndIdentityRefutations:
         assert "policy.digests_not_distinct" in _evaluate(authorization=path).reasons
 
     def test_refuses_a_taxonomy_modified_on_disk(self, tmp_path: Path) -> None:
-        temporary_service_root = tmp_path / "rag-pedago"
-        shutil.copytree(SERVICE_ROOT / "taxonomy", temporary_service_root / "taxonomy")
+        temporary_service_root = _temporary_service_root(tmp_path)
         taxonomy = (
             temporary_service_root
             / "taxonomy"
@@ -427,6 +435,50 @@ class TestScopeAndIdentityRefutations:
         assert "collections.authorization_mismatch" in _evaluate(
             authorization=path
         ).reasons
+
+    def test_refuses_a_public_lock_opened_in_real_contract(self, tmp_path: Path) -> None:
+        temporary_service_root = _temporary_service_root(tmp_path)
+        contract_path = (
+            temporary_service_root / "configs" / "pedago_interface_contract.yml"
+        )
+        contract = _payload(contract_path)
+        contract["ui_runtime_allowed"] = True
+        contract_path.write_text(
+            yaml.safe_dump(contract, sort_keys=False),
+            encoding="utf-8",
+        )
+
+        decision = _evaluate(service_root=temporary_service_root)
+
+        assert decision.allowed is False
+        assert decision.reasons == (
+            "base_policy.invalid:policy.public_lock_mismatch:ui_runtime_allowed",
+            "activation_policy.invalid:policy.public_lock_mismatch:ui_runtime_allowed",
+        )
+
+    @pytest.mark.parametrize("contract_content", [None, "contract: [", "- not-a-mapping\n"])
+    def test_refuses_unreadable_or_malformed_public_contract(
+        self,
+        tmp_path: Path,
+        contract_content: str | None,
+    ) -> None:
+        temporary_service_root = tmp_path / "rag-pedago"
+        shutil.copytree(SERVICE_ROOT / "taxonomy", temporary_service_root / "taxonomy")
+        if contract_content is not None:
+            configs = temporary_service_root / "configs"
+            configs.mkdir()
+            (configs / "pedago_interface_contract.yml").write_text(
+                contract_content,
+                encoding="utf-8",
+            )
+
+        decision = _evaluate(service_root=temporary_service_root)
+
+        assert decision.allowed is False
+        assert decision.reasons == (
+            "base_policy.invalid:policy.public_contract_invalid",
+            "activation_policy.invalid:policy.public_contract_invalid",
+        )
 
     def test_refuses_wrong_tenant(self) -> None:
         assert "identity.request_mismatch:tenant" in _evaluate(
@@ -675,6 +727,114 @@ class TestMalformedInputs:
         assert decision.reasons == ()
 
     @pytest.mark.parametrize(
+        ("field", "value"),
+        [
+            ("approved_at", "not-a-datetime"),
+            ("merged_at", "not-a-datetime"),
+            ("reviewer_login", ""),
+        ],
+    )
+    def test_refuses_invalid_in_memory_approval_without_exception(
+        self,
+        field: str,
+        value: object,
+    ) -> None:
+        approval = governance.load_approval_evidence(APPROVAL_PATH).model_copy(
+            update={field: value}
+        )
+
+        decision = _evaluate(approval=approval)
+
+        assert isinstance(decision, governance.AuthorizationDecision)
+        assert decision.allowed is False
+        assert "approval.invalid" in decision.reasons
+
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [
+            ("content", b"lot42-publication-package-v1\n"),
+            ("content_ref", 42),
+        ],
+    )
+    def test_refuses_invalid_in_memory_package_without_exception(
+        self,
+        field: str,
+        value: object,
+    ) -> None:
+        package = governance.load_publication_package(PACKAGE_PATH).model_copy(
+            update={field: value}
+        )
+
+        decision = _evaluate(package=package)
+
+        assert isinstance(decision, governance.AuthorizationDecision)
+        assert decision.allowed is False
+        assert "package.invalid" in decision.reasons
+
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [
+            ("operation", 42),
+            ("caller", ["rag-engine"]),
+        ],
+    )
+    def test_refuses_invalid_in_memory_request_without_exception(
+        self,
+        field: str,
+        value: object,
+    ) -> None:
+        request = _request().model_copy(update={field: value})
+
+        decision = _evaluate(request=request)
+
+        assert isinstance(decision, governance.AuthorizationDecision)
+        assert decision.allowed is False
+        assert "request.invalid" in decision.reasons
+
+    def test_refuses_authorization_with_dict_rollback_without_exception(self) -> None:
+        authorization = governance.load_authorization(AUTHORIZATION_PATH)
+        mutated = authorization.model_copy(
+            update={"rollback": authorization.rollback.model_dump()}
+        )
+
+        decision = _evaluate(authorization=mutated)
+
+        assert isinstance(decision, governance.AuthorizationDecision)
+        assert decision.allowed is False
+        assert "authorization.invalid" in decision.reasons
+
+    def test_refuses_scope_with_dict_identity_without_exception(self) -> None:
+        scope = governance.load_scope(SCOPE_PATH)
+        mutated = scope.model_copy(update={"identity": scope.identity.model_dump()})
+
+        decision = _evaluate(scope=mutated)
+
+        assert isinstance(decision, governance.AuthorizationDecision)
+        assert decision.allowed is False
+        assert "scope.invalid" in decision.reasons
+
+    def test_refuses_base_policy_with_dict_environment_without_exception(self) -> None:
+        policy = governance.load_policy(BASE_POLICY_PATH)
+        mutated = policy.model_copy(
+            update={
+                "validation_environment": policy.validation_environment.model_dump()
+            }
+        )
+
+        decision = _evaluate(base_policy=mutated)
+
+        assert isinstance(decision, governance.AuthorizationDecision)
+        assert decision.allowed is False
+        assert "base_policy.invalid" in decision.reasons
+
+    def test_refuses_non_datetime_now_without_exception(self) -> None:
+        decision = _evaluate(now="2026-07-31T22:00:00Z")  # type: ignore[arg-type]
+
+        assert isinstance(decision, governance.AuthorizationDecision)
+        assert decision.allowed is False
+        assert "authorization.now_invalid" in decision.reasons
+
+    @pytest.mark.parametrize(
         ("argument", "reason"),
         [
             ("scope", "scope.invalid"),
@@ -732,7 +892,7 @@ class TestMalformedInputs:
             update={"authorization_id": "lot41a-substituted-in-memory-v1"}
         )
 
-        assert "approval.authorization_digest_mismatch" in _evaluate(
+        assert "authorization.invalid" in _evaluate(
             authorization=authorization
         ).reasons
 
@@ -743,7 +903,7 @@ class TestMalformedInputs:
         )
         mutated_activation = activation.model_copy(update={"capabilities": capabilities})
 
-        assert "activation_policy.digest_mismatch" in _evaluate(
+        assert "activation_policy.invalid" in _evaluate(
             activation_policy=mutated_activation
         ).reasons
 
@@ -830,7 +990,13 @@ class TestMalformedInputs:
 
     @pytest.mark.parametrize(
         "plan_ref",
-        ["/etc/passwd", "docs/../../etc/passwd", "C:\\secrets\\rollback.md"],
+        [
+            "/etc/passwd",
+            "docs/../../etc/passwd",
+            "C:\\secrets\\rollback.md",
+            r"C:secrets\rollback.md",
+            r"\rooted\path",
+        ],
     )
     def test_refuses_absolute_or_traversing_rollback_path(
         self,
@@ -939,8 +1105,7 @@ class TestMalformedInputs:
         assert reason in decision.reasons
 
     def test_reasons_follow_the_documented_family_order(self, tmp_path: Path) -> None:
-        temporary_service_root = tmp_path / "rag-pedago"
-        shutil.copytree(SERVICE_ROOT / "taxonomy", temporary_service_root / "taxonomy")
+        temporary_service_root = _temporary_service_root(tmp_path)
         taxonomy = (
             temporary_service_root
             / "taxonomy"
