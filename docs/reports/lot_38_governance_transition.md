@@ -2,13 +2,14 @@
 
 ## Verdict
 
-**LOT38_AWAITING_FINAL_EVIDENCE**
+**LOT38_LOCAL_CI_GREEN_AWAITING_REVIEWS_AND_CHECKS**
 
 **GO_LIVE: NO_GO**
 
 Ce verdict porte uniquement sur la politique de validation dormante. La CI
-locale canonique, sa synthèse versionnée, les revues finales, la PR et ses
-checks GitHub n'ont pas encore été exécutés ou observés sur la tête finale.
+locale canonique est verte et sa synthèse est versionnée. Les revues finales,
+la PR et ses checks GitHub n'ont pas encore été exécutés ou observés sur la
+tête documentaire finale.
 
 ## Périmètre
 
@@ -16,6 +17,8 @@ LOT38 versionne le scope `libre_terminale_maths_nsi_real_v1`, la politique
 `libre_terminale_validation_policy_v1`, leurs validateurs fail-closed, les
 tests de réfutation, un audit déterministe sans effet de bord et
 [l'ADR-0021](../adr/ADR-0021-politique-validation-pilote-dormante.md).
+Le SHA-256 brut de cet ADR est
+`b344d906be0c633372fb434677524aa3372f33044876b535a4aa1ef406bd5b69`.
 
 Le lot reste strictement dormant : aucun document réel n'est lu, aucune
 connexion DB, bucket ou réseau n'est ouverte, aucun appel OpenRouter n'est
@@ -113,9 +116,20 @@ effets de bord du CLI.
 
 La commande `make PY=python3 pilot-validation-policy-audit`, observée dans le
 même environnement, a rendu `DORMANT` et `GO_LIVE: NO_GO` avec un code de sortie
-nul. Ces observations ciblées ne remplacent pas la CI locale canonique sous
-Python 3.11 et Node 22.22.0 demandée en Task6 ; aucune preuve finale n'est
-anticipée.
+nul.
+
+Une première CI complète, antérieure au correctif `971daba`, a révélé que cette
+nouvelle cible Make n'était pas classée. Le test correctif a d'abord reproduit
+le refus, puis la cible a été classée une seule fois sous `SAFE_DIAGNOSTIC` ;
+les 31 tests du garde Make et ses audits réels sont ensuite devenus verts. Le
+journal de cette exécution antérieure n'est pas réutilisé comme preuve.
+
+La CI locale canonique a ensuite été exécutée sous Python 3.11.14 et Node
+22.22.0 sur le SHA source exact
+`971daba90ad2706348578bcd34429b106ba3afab`. Son dernier bloc racine contient
+exactement 13 lignes `PASS`, aucune ligne `FAIL` et
+`Total: 13 passed, 0 failed`. Le journal brut reste hors Git ; son SHA-256 est
+`2f6428ec75c714ddcde98a81d8d8b33dd46324183f43361df717dc16597f7329`.
 
 ## Matrice de preuve
 
@@ -124,18 +138,19 @@ anticipée.
 | Suite ciblée LOT38 | auteur technique LOT38 | `PYTHONPATH=. python3 -m pytest -q tests/unit/test_pilot_validation_scope.py tests/unit/test_pilot_validation_policy.py tests/unit/test_pilot_validation_authorization.py tests/unit/test_pilot_validation_policy_audit.py` | worktree LOT38, Python 3.12.3 | tête Git testée | `4dff87290d86c0a0dc62716fb3f91d6db62a235d` | PASS (`293 passed`) |
 | Audit dormant déterministe | auteur technique LOT38 | `make PY=python3 pilot-validation-policy-audit` depuis `services/rag-pedago` | même tête et Python 3.12.3 | politique canonique | `bb548458ec83cacc2abe0c55104ade4bb44cb06828000bf50b9c97d8f3412bad` | PASS (`DORMANT`, `GO_LIVE: NO_GO`) |
 | Adressage du scope | auteur technique LOT38 | `sha256sum` du scope et des deux taxonomies | worktree LOT38 | scope ; taxonomie Mathématiques ; taxonomie NSI | `b55ef1383fceabbbe0bf30c47a45a1fce607697f56bac340162156fabcf0fe26` ; `4a91661a381751573425b30667c53fc8f44df04fa4e0f7a0c4e71f0ec64005a6` ; `b93a3e4017e99f1647861abac46b5f3136ee8611e7142d4fca2a33a5929eb05f` | PASS |
-| Garde canonique des verrous | auteur technique LOT38 | `bash scripts/check-governance-locks.sh` et diff exact des trois fichiers protégés contre `origin/main` | tête finale LOT38 | journal de vérification final | `PENDING` | PENDING |
-| CI locale canonique | auteur technique LOT38 | exécution unique de `bash scripts/ci-local.sh` sur le SHA final | Python 3.11, Node 22.22.0 | journal brut hors Git | `PENDING` | PENDING |
-| Synthèse de CI | auteur technique LOT38 | comparaison exhaustive des lignes PASS et du total au journal brut | même exécution canonique | `docs/reports/evidence/lot_38/ci-local-summary.txt` | `PENDING` | PENDING |
+| Garde canonique des verrous | auteur technique LOT38 | `bash scripts/check-governance-locks.sh` et diff exact des trois fichiers protégés contre `origin/main` | tête `971daba90ad2706348578bcd34429b106ba3afab` | baseline ; script de garde ; contrat public | `91ee6d451ce8893a51849b702f3cb3d2889c71dd5f74221f0ea64633cc701572` ; `ce7ea4d1651c07c9cd02c3bf4e2644cf2837e50dc1fd47fa5401535359ae79a5` ; `60dcee3598f0f2cc1524ecdda6b58642ffc9f84ad88f5b5d48989913de9dfb11` | PASS (`18/18`, diff protégé vide) |
+| CI locale canonique | auteur technique LOT38 | exécution unique post-correctif de `bash scripts/ci-local.sh` sur `ciSourceSha` | Python 3.11.14, Node 22.22.0 | journal brut hors Git | `2f6428ec75c714ddcde98a81d8d8b33dd46324183f43361df717dc16597f7329` | PASS (`13 passed, 0 failed`) |
+| Synthèse de CI | auteur technique LOT38 | comparaison exhaustive du dernier bloc racine, de ses 13 lignes PASS, de l'absence de FAIL et du total au journal brut | même exécution canonique | `docs/reports/evidence/lot_38/ci-local-summary.txt` | `794e007d127bd9a83c3a02f02a327749cbcf8ce71acfd3dd8f92298133b7495b` | PASS |
 | Revues finales | reviewers indépendants | conformité design, qualité code/tests, puis diff complet `origin/main...HEAD` | tête finale exacte | verdicts de revue | `PENDING` | PENDING |
 | Checks PR GitHub | GitHub Actions | six checks stricts sur le head exact de la PR | GitHub, événement `pull_request` | run immuable et readback | `PENDING` | PENDING |
 
 ## Dettes et frontières
 
 - Le lanceur Python 3.11 local disponible lors des tests ciblés était
-  défaillant ; les `293 passed` ont donc été observés sous Python 3.12.3. Cet
-  incident d'hôte n'est pas une preuve de CI et doit être contourné sans
-  modifier le dépôt pour exécuter la CI canonique de Task6 sous Python 3.11.
+  défaillant ; les `293 passed` ont donc été observés sous Python 3.12.3. La CI
+  canonique a ensuite utilisé un lanceur Python 3.11.14 hors dépôt et
+  l'environnement verrouillé du service ; son typecheck et ses tests sont
+  verts sans modification opportuniste des dépendances ou du code hors LOT38.
 - L'isolation de `nexus-validation-1`, ses credentials, son DSN, son bucket et
   son réseau restent à démontrer ; la configuration ne contient que les noms
   de références d'environnement.
@@ -148,10 +163,10 @@ anticipée.
 
 ## Décision de livraison
 
-LOT38 n'est pas prêt à être fusionné tant que la CI locale canonique, sa
-synthèse, les revues indépendantes et les six checks GitHub de la tête finale
-ne sont pas verts. Le lot ne peut être publié que par sa branche, sa PR et un
-squash conforme à la protection de `main`.
+LOT38 dispose d'une CI locale canonique et d'une synthèse vertes, mais n'est pas
+prêt à être fusionné tant que les revues indépendantes et les six checks GitHub
+de la tête finale ne sont pas verts. Le lot ne peut être publié que par sa
+branche, sa PR et un squash conforme à la protection de `main`.
 
 Même après fusion, LOT38 autorisera seulement la poursuite de la séquence vers
 LOT39bis. Il n'autorise ni document réel, ni promotion de gouvernance, ni
