@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+import importlib
+import threading
 from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
 import pytest
+from psycopg import ProgrammingError
+from psycopg_pool import PoolClosed, PoolTimeout, TooManyRequests
 
 from ingestor import pg_pool
 from ingestor.pg_pool import PoolConfigurationError, PoolSettings
@@ -20,20 +25,11 @@ _ENV_KEYS = (
     "PG_POOL_TIMEOUT_S",
 )
 _ENGINE_ROOT = Path(__file__).resolve().parents[1]
-
-
-def _installed_requirement_manifests() -> set[Path]:
-    manifests = {_ENGINE_ROOT / "requirements.lock", _ENGINE_ROOT / "requirements-dev.txt"}
-    pending = list(manifests)
-    while pending:
-        manifest = pending.pop()
-        for line in manifest.read_text(encoding="utf-8").splitlines():
-            if line.strip().startswith("-r "):
-                referenced = manifest.parent / line.strip().removeprefix("-r ")
-                if referenced not in manifests:
-                    manifests.add(referenced)
-                    pending.append(referenced)
-    return manifests
+_THREE_PSYCOPG_PINS = {
+    "psycopg==3.2.1",
+    "psycopg-binary==3.2.1",
+    "psycopg-pool==3.2.1",
+}
 
 
 @pytest.fixture(autouse=True)
@@ -118,7 +114,10 @@ def test_from_env_rejects_unparseable_pool_values(
     with pytest.raises(PoolConfigurationError) as exc_info:
         PoolSettings.from_env()
 
-    assert dsn not in str(exc_info.value)
+    serialized_error = f"{exc_info.value!s} {exc_info.value!r}"
+    assert dsn not in serialized_error
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__context__ is None
 
 
 @pytest.mark.parametrize(
@@ -158,29 +157,96 @@ def test_settings_accept_boundary_values() -> None:
     )
 
 
-def test_all_psycopg_manifest_entries_use_explicit_3_2_1_pins() -> None:
-    manifests = _installed_requirement_manifests() | {
-        _ENGINE_ROOT / "src/ingestor/requirements.v2.txt"
+def test_settings_repr_never_contains_dsn_or_password() -> None:
+    dsn = "postgresql://secret-user:secret-password@db.example/rag"
+
+    settings = PoolSettings(dsn=dsn, min_size=1, max_size=10, timeout_s=5.0)
+
+    serialized_settings = f"{settings!s} {settings!r}"
+    assert dsn not in serialized_settings
+    assert "secret-password" not in serialized_settings
+
+
+def test_malformed_dsn_is_rejected_before_pool_factory_without_leak(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    malformed_dsn = "postgresql://secret-user:secret-password%zz@db.example/rag"
+    factory_called = False
+
+    def forbidden_factory(*args: Any, **kwargs: Any) -> Any:
+        nonlocal factory_called
+        del args, kwargs
+        factory_called = True
+        raise AssertionError("la factory ne doit pas être appelée")
+
+    monkeypatch.setattr(pg_pool, "_pool_factory", forbidden_factory)
+
+    with pytest.raises(PoolConfigurationError, match="DSN PostgreSQL invalide") as exc_info:
+        pg_pool.get_pool(
+            PoolSettings(dsn=malformed_dsn, min_size=1, max_size=10, timeout_s=5.0)
+        )
+
+    serialized_error = f"{exc_info.value!s} {exc_info.value!r}"
+    assert factory_called is False
+    assert malformed_dsn not in serialized_error
+    assert "secret-password" not in serialized_error
+    assert "secret-password" not in caplog.text
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__context__ is None
+
+
+def test_each_runtime_manifest_has_its_exact_psycopg_pins() -> None:
+    expected_by_manifest = {
+        _ENGINE_ROOT / "requirements.lock": _THREE_PSYCOPG_PINS,
+        _ENGINE_ROOT / "src/ingestor/requirements.v2.txt": _THREE_PSYCOPG_PINS,
+        _ENGINE_ROOT / "src/ingestor/requirements.txt": _THREE_PSYCOPG_PINS,
+        _ENGINE_ROOT / "src/backend/requirements.txt": {
+            "psycopg==3.2.1",
+            "psycopg-binary==3.2.1",
+        },
     }
-    all_package_names: set[str] = set()
-    for manifest in manifests:
+
+    for manifest, expected in expected_by_manifest.items():
         entries = [
             line.strip()
             for line in manifest.read_text(encoding="utf-8").splitlines()
             if line.strip().startswith("psycopg")
         ]
-        assert len(entries) == len({entry.split("==", maxsplit=1)[0] for entry in entries})
-        assert all("[" not in entry for entry in entries)
-        assert all(entry.endswith("==3.2.1") for entry in entries)
-        all_package_names.update(entry.split("==", maxsplit=1)[0] for entry in entries)
+        assert len(entries) == len(set(entries)), manifest.relative_to(_ENGINE_ROOT)
+        assert set(entries) == expected, manifest.relative_to(_ENGINE_ROOT)
 
-    assert all_package_names == {"psycopg", "psycopg-binary", "psycopg-pool"}
+
+def test_ingestor_v2_image_installs_both_checked_manifests() -> None:
+    dockerfile = (_ENGINE_ROOT / "infra/Dockerfile.ingestor-v2").read_text(encoding="utf-8")
+
+    assert (
+        "COPY services/rag-engine/src/ingestor/requirements.txt /tmp/requirements.txt"
+        in dockerfile
+    )
+    assert (
+        "COPY services/rag-engine/src/ingestor/requirements.v2.txt /tmp/requirements.v2.txt"
+        in dockerfile
+    )
+    assert "pip install --no-cache-dir -r /tmp/requirements.txt" in dockerfile
+    assert "pip install --no-cache-dir -r /tmp/requirements.v2.txt" in dockerfile
+
+
+def test_pg_pool_module_imports_with_runtime_dependencies() -> None:
+    assert importlib.import_module("ingestor.pg_pool") is pg_pool
 
 
 class FakePool:
-    def __init__(self, events: list[tuple[Any, ...]], *, fail_at: str | None = None) -> None:
+    def __init__(
+        self,
+        events: list[tuple[Any, ...]],
+        *,
+        fail_at: str | None = None,
+        connection_error: Exception | None = None,
+    ) -> None:
         self.events = events
         self.fail_at = fail_at
+        self.connection_error = connection_error
 
     def open(self, wait: bool = True) -> None:
         self.events.append(("open", wait))
@@ -194,6 +260,9 @@ class FakePool:
 
     @contextmanager
     def connection(self, timeout: float) -> Iterator[str]:
+        self.events.append(("connection-attempt", timeout))
+        if self.connection_error is not None:
+            raise self.connection_error
         self.events.append(("connection-enter", timeout))
         try:
             yield "connection"
@@ -213,12 +282,13 @@ def _install_factory(
     events: list[tuple[Any, ...]],
     *,
     fail_at: str | None = None,
+    connection_error: Exception | None = None,
 ) -> list[FakePool]:
     instances: list[FakePool] = []
 
     def factory(conninfo: str, **kwargs: Any) -> FakePool:
         events.append(("construct", conninfo, kwargs))
-        pool = FakePool(events, fail_at=fail_at)
+        pool = FakePool(events, fail_at=fail_at, connection_error=connection_error)
         instances.append(pool)
         return pool
 
@@ -253,6 +323,29 @@ def test_get_pool_constructs_opens_waits_then_reuses_singleton(
     ]
 
 
+def test_get_pool_publishes_one_instance_under_24_concurrent_calls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[tuple[Any, ...]] = []
+    instances = _install_factory(monkeypatch, events)
+    settings = _settings()
+    start = threading.Barrier(24)
+
+    def get_after_barrier() -> Any:
+        start.wait(timeout=5)
+        return pg_pool.get_pool(settings)
+
+    with ThreadPoolExecutor(max_workers=24) as executor:
+        pools = list(executor.map(lambda _: get_after_barrier(), range(24)))
+
+    assert len(instances) == 1
+    assert all(pool is instances[0] for pool in pools)
+    assert sum(event[0] == "construct" for event in events) == 1
+
+    pg_pool.close_pool()
+    assert events.count(("close",)) == 1
+
+
 def test_pool_connection_uses_configured_acquisition_timeout(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -263,7 +356,11 @@ def test_pool_connection_uses_configured_acquisition_timeout(
     with pg_pool.pool_connection(settings) as connection:
         assert connection == "connection"
 
-    assert events[-2:] == [("connection-enter", 1.25), ("connection-exit", 1.25)]
+    assert events[-3:] == [
+        ("connection-attempt", 1.25),
+        ("connection-enter", 1.25),
+        ("connection-exit", 1.25),
+    ]
 
 
 def test_pool_connection_loads_settings_from_environment_when_omitted(
@@ -276,7 +373,57 @@ def test_pool_connection_loads_settings_from_environment_when_omitted(
     with pg_pool.pool_connection() as connection:
         assert connection == "connection"
 
-    assert events[-2:] == [("connection-enter", 5.0), ("connection-exit", 5.0)]
+    assert events[-3:] == [
+        ("connection-attempt", 5.0),
+        ("connection-enter", 5.0),
+        ("connection-exit", 5.0),
+    ]
+
+
+@pytest.mark.parametrize("error_type", [PoolTimeout, PoolClosed, TooManyRequests])
+def test_pool_connection_masks_only_acquisition_pool_errors(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    error_type: type[Exception],
+) -> None:
+    secret = "postgresql://secret-user:secret-password@db.example/rag"
+    acquisition_error = error_type(f"acquisition failed for {secret}")
+    events: list[tuple[Any, ...]] = []
+    _install_factory(monkeypatch, events, connection_error=acquisition_error)
+
+    with pytest.raises(PoolConfigurationError, match="emprunter une connexion") as exc_info:
+        with pg_pool.pool_connection(_settings(dsn=secret)):
+            pytest.fail("le corps ne doit pas être exécuté")
+
+    serialized_error = f"{exc_info.value!s} {exc_info.value!r}"
+    assert secret not in serialized_error
+    assert "secret-password" not in caplog.text
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__context__ is None
+    assert events[-1] == ("connection-attempt", 1.25)
+
+
+@pytest.mark.parametrize(
+    "body_error",
+    [PoolTimeout("timeout après acquisition"), ProgrammingError("erreur SQL du corps")],
+)
+def test_pool_connection_preserves_body_exception_identity(
+    monkeypatch: pytest.MonkeyPatch,
+    body_error: Exception,
+) -> None:
+    events: list[tuple[Any, ...]] = []
+    _install_factory(monkeypatch, events)
+    acquired = False
+
+    with pytest.raises(type(body_error)) as exc_info:
+        with pg_pool.pool_connection(_settings()):
+            acquired = True
+            raise body_error
+
+    assert acquired is True
+    assert exc_info.value is body_error
+    assert ("connection-enter", 1.25) in events
+    assert events[-1] == ("connection-exit", 1.25)
 
 
 def test_get_pool_refuses_different_settings_without_leaking_dsn(

@@ -6,11 +6,12 @@ import math
 import os
 import threading
 from collections.abc import Iterator
-from contextlib import contextmanager
-from dataclasses import dataclass
+from contextlib import ExitStack, contextmanager
+from dataclasses import dataclass, field
 from typing import Any
 
-from psycopg_pool import ConnectionPool
+from psycopg.conninfo import conninfo_to_dict
+from psycopg_pool import ConnectionPool, PoolClosed, PoolTimeout, TooManyRequests
 
 
 class PoolConfigurationError(RuntimeError):
@@ -21,7 +22,7 @@ class PoolConfigurationError(RuntimeError):
 class PoolSettings:
     """Configuration immuable du pool PostgreSQL."""
 
-    dsn: str
+    dsn: str = field(repr=False)
     min_size: int
     max_size: int
     timeout_s: float
@@ -30,6 +31,15 @@ class PoolSettings:
         normalized_dsn = self.dsn.strip()
         if not normalized_dsn:
             raise PoolConfigurationError("DSN PostgreSQL requis pour le pool.")
+
+        dsn_is_valid = True
+        try:
+            conninfo_to_dict(normalized_dsn)
+        except Exception:
+            dsn_is_valid = False
+        if not dsn_is_valid:
+            raise PoolConfigurationError("DSN PostgreSQL invalide pour le pool.") from None
+
         if not 1 <= self.min_size <= self.max_size <= 50:
             raise PoolConfigurationError(
                 "Tailles du pool invalides: 1 <= min_size <= max_size <= 50 requis."
@@ -46,14 +56,20 @@ class PoolSettings:
         if not dsn:
             raise PoolConfigurationError("DSN PostgreSQL requis pour le pool.")
 
+        parsed_values: tuple[int, int, float] | None = None
         try:
-            min_size = int(os.getenv("PG_POOL_MIN_SIZE", "1"))
-            max_size = int(os.getenv("PG_POOL_MAX_SIZE", "10"))
-            timeout_s = float(os.getenv("PG_POOL_TIMEOUT_S", "5.0"))
-        except ValueError as exc:
+            parsed_values = (
+                int(os.getenv("PG_POOL_MIN_SIZE", "1")),
+                int(os.getenv("PG_POOL_MAX_SIZE", "10")),
+                float(os.getenv("PG_POOL_TIMEOUT_S", "5.0")),
+            )
+        except ValueError:
+            pass
+        if parsed_values is None:
             raise PoolConfigurationError(
                 "Paramètres numériques du pool PostgreSQL invalides."
-            ) from exc
+            ) from None
+        min_size, max_size, timeout_s = parsed_values
 
         return cls(
             dsn=dsn,
@@ -82,7 +98,7 @@ def get_pool(settings: PoolSettings) -> ConnectionPool[Any]:
             return _pool
 
         created_pool: ConnectionPool[Any] | None = None
-        failure_type: str | None = None
+        initialization_failed = False
         try:
             pool_result: ConnectionPool[Any] = _pool_factory(
                 settings.dsn,
@@ -94,8 +110,8 @@ def get_pool(settings: PoolSettings) -> ConnectionPool[Any]:
             created_pool = pool_result
             pool_result.open(wait=False)
             pool_result.wait(timeout=settings.timeout_s)
-        except Exception as exc:
-            failure_type = type(exc).__name__
+        except Exception:
+            initialization_failed = True
             if created_pool is not None:
                 try:
                     created_pool.close()
@@ -104,7 +120,7 @@ def get_pool(settings: PoolSettings) -> ConnectionPool[Any]:
             _pool = None
             _pool_settings = None
 
-        if failure_type is not None:
+        if initialization_failed:
             raise PoolConfigurationError("Impossible d'initialiser le pool PostgreSQL.") from None
         if created_pool is None:  # pragma: no cover - garde défensive de typage
             raise PoolConfigurationError("Impossible d'initialiser le pool PostgreSQL.")
@@ -119,7 +135,23 @@ def pool_connection(settings: PoolSettings | None = None) -> Iterator[Any]:
     """Emprunte une connexion sans conserver le verrou global pendant son usage."""
     resolved_settings = settings if settings is not None else PoolSettings.from_env()
     pool = get_pool(resolved_settings)
-    with pool.connection(timeout=resolved_settings.timeout_s) as connection:
+    stack = ExitStack()
+    connection: Any = None
+    acquisition_failed = False
+    try:
+        connection = stack.enter_context(
+            pool.connection(timeout=resolved_settings.timeout_s)
+        )
+    except (PoolTimeout, PoolClosed, TooManyRequests):
+        acquisition_failed = True
+
+    if acquisition_failed:
+        stack.close()
+        raise PoolConfigurationError(
+            "Impossible d'emprunter une connexion PostgreSQL au pool."
+        ) from None
+
+    with stack:
         yield connection
 
 
@@ -133,10 +165,10 @@ def close_pool() -> None:
         _pool_settings = None
 
     if pool is not None:
-        failure_type: str | None = None
+        close_failed = False
         try:
             pool.close()
-        except Exception as exc:
-            failure_type = type(exc).__name__
-        if failure_type is not None:
+        except Exception:
+            close_failed = True
+        if close_failed:
             raise PoolConfigurationError("Impossible de fermer le pool PostgreSQL.") from None
