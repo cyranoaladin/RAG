@@ -16,20 +16,45 @@ from ingestor.retrieval_hybrid_v2 import (
     RetrievalPipelineError,
 )
 
+_PGVECTOR_ACTIVATION_SQL = "SELECT %s::vector IS NOT NULL"
 _DENSE_STRICT_ORDER_SQL = "SET LOCAL hnsw.iterative_scan = 'strict_order'"
 
-# SET LOCAL borne le comportement à la transaction empruntée; il ne prouve pas le plan réel.
-# Task8 doit encore tester >50 lignes filtrées (autre collection/non-reviewed) et EXPLAIN HNSW.
+# La première phase fournit une borne HNSW: le maximum de n candidats admissibles
+# est toujours >= au vrai n-ième. La seconde phase exacte retrouve donc le vrai top-n
+# et ses égalités; un sous-remplissage HNSW réouvre tout l'univers admissible.
 _DENSE_SQL = """
-    SELECT chunk_id, doc_id, source_label, source_uri, rights, type_doc, text,
-           page_start, vector::text, review_status,
-           1 - (vector <=> %s::vector) AS dense_score
+    WITH hnsw_candidates AS MATERIALIZED (
+        SELECT vector <=> %s::vector AS distance
+        FROM rag_chunks
+        WHERE collection = %s AND review_status = 'reviewed'
+          AND text IS NOT NULL AND btrim(text) <> '' AND vector IS NOT NULL
+          AND btrim(source_label) <> '' AND btrim(source_uri) <> ''
+          AND btrim(rights) <> ''
+        ORDER BY vector <=> %s::vector ASC
+        LIMIT %s
+    ),
+    hnsw_boundary AS MATERIALIZED (
+        SELECT count(*) AS candidate_count, max(distance) AS max_distance
+        FROM hnsw_candidates
+    )
+    SELECT rag_chunks.chunk_id, rag_chunks.doc_id, rag_chunks.source_label,
+           rag_chunks.source_uri, rag_chunks.rights, rag_chunks.type_doc,
+           rag_chunks.text, rag_chunks.page_start, rag_chunks.vector::text,
+           rag_chunks.review_status,
+           1 - (rag_chunks.vector <=> %s::vector) AS dense_score
     FROM rag_chunks
-    WHERE collection = %s AND review_status = 'reviewed'
-      AND text IS NOT NULL AND btrim(text) <> '' AND vector IS NOT NULL
-      AND btrim(source_label) <> '' AND btrim(source_uri) <> ''
-      AND btrim(rights) <> ''
-    ORDER BY vector <=> %s::vector ASC, chunk_id ASC
+    CROSS JOIN hnsw_boundary
+    WHERE rag_chunks.collection = %s AND rag_chunks.review_status = 'reviewed'
+      AND rag_chunks.text IS NOT NULL AND btrim(rag_chunks.text) <> ''
+      AND rag_chunks.vector IS NOT NULL
+      AND btrim(rag_chunks.source_label) <> ''
+      AND btrim(rag_chunks.source_uri) <> ''
+      AND btrim(rag_chunks.rights) <> ''
+      AND (
+          hnsw_boundary.candidate_count < %s
+          OR rag_chunks.vector <=> %s::vector <= hnsw_boundary.max_distance
+      )
+    ORDER BY rag_chunks.vector <=> %s::vector ASC, rag_chunks.chunk_id ASC
     LIMIT %s
 """
 
@@ -156,12 +181,14 @@ class PgCandidateStore(CandidateStore):
         *,
         limit: int,
         channel: Literal["dense", "lexical"],
-        setup_sql: str | None = None,
+        setup_statements: Sequence[
+            tuple[str, tuple[object, ...] | None]
+        ] = (),
     ) -> list[RetrievalCandidate]:
         with self._connection_provider() as connection:
             with connection.cursor() as cursor:
-                if setup_sql is not None:
-                    cursor.execute(setup_sql)
+                for setup_sql, setup_params in setup_statements:
+                    cursor.execute(setup_sql, setup_params)
                 cursor.execute(sql, params)
                 fetched = cursor.fetchall()
                 if isinstance(fetched, str | bytes) or not isinstance(fetched, Sequence):
@@ -182,10 +209,24 @@ class PgCandidateStore(CandidateStore):
             vector_text = "[" + ",".join(str(value) for value in normalized_vector) + "]"
             candidates = self._fetch(
                 _DENSE_SQL,
-                (vector_text, normalized_collection, vector_text, normalized_limit),
+                (
+                    vector_text,
+                    normalized_collection,
+                    vector_text,
+                    normalized_limit,
+                    vector_text,
+                    normalized_collection,
+                    normalized_limit,
+                    vector_text,
+                    vector_text,
+                    normalized_limit,
+                ),
                 limit=normalized_limit,
                 channel="dense",
-                setup_sql=_DENSE_STRICT_ORDER_SQL,
+                setup_statements=(
+                    (_PGVECTOR_ACTIVATION_SQL, (vector_text,)),
+                    (_DENSE_STRICT_ORDER_SQL, None),
+                ),
             )
         except Exception:
             failed = True

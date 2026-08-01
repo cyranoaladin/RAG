@@ -586,7 +586,7 @@ class TestHybridSearchDelegation:
 
             def execute(self, sql: str, _params: object = None) -> None:
                 executed_sql.append(sql)
-                if "SELECT chunk_id" in sql:
+                if "WITH hnsw_candidates AS MATERIALIZED" in sql:
                     raise RuntimeError(
                         "SENSITIVE_DSN_SENTINEL SENSITIVE_QUERY_SENTINEL"
                     )
@@ -625,7 +625,13 @@ class TestHybridSearchDelegation:
 
         assert response.status_code == 503
         assert response.json() == {"detail": "retrieval unavailable"}
-        assert len(executed_sql) == 2
+        assert len(executed_sql) == 3
+        assert "SELECT %s::vector IS NOT NULL" in executed_sql[0]
+        assert executed_sql[1].strip() == (
+            "SET LOCAL hnsw.iterative_scan = 'strict_order'"
+        )
+        assert "WITH hnsw_candidates AS MATERIALIZED" in executed_sql[2]
+        assert "rag_chunks.chunk_id ASC" in executed_sql[2]
         assert "SENSITIVE_DSN_SENTINEL" not in response.text
         assert "SENSITIVE_QUERY_SENTINEL" not in response.text
         assert "requête extrêmement sensible" not in response.text
