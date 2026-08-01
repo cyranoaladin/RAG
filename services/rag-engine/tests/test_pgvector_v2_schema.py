@@ -2,12 +2,22 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 ENGINE_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = ENGINE_ROOT.parents[1]
 INIT_SQL = ENGINE_ROOT / "infra" / "postgres" / "init.sql"
 MIGRATION_SQL = ENGINE_ROOT / "infra" / "postgres" / "migrations" / "001_rag_chunks_v2_schema.sql"
+MIGRATION_002 = ENGINE_ROOT / "infra" / "postgres" / "migrations" / "002_hybrid_retrieval.sql"
+MIGRATION_HEAD = ENGINE_ROOT / "infra" / "postgres" / "migrations" / "HEAD"
+ROLLBACK_002 = (
+    ENGINE_ROOT
+    / "infra"
+    / "postgres"
+    / "rollbacks"
+    / "002_hybrid_retrieval.down.sql"
+)
 V2_COMPOSE = ENGINE_ROOT / "infra" / "docker-compose.v2.yml"
 UPGRADE_SCRIPT = ENGINE_ROOT / "infra" / "scripts" / "apply_pgvector_migrations.sh"
 
@@ -158,3 +168,56 @@ def test_migration_renames_legacy_pkey_before_table_rename() -> None:
     assert pkey_pos < table_rename_pos, (
         "pkey rename must occur before table rename"
     )
+
+
+# ── Migration 002: hybrid retrieval ────────────────────────────────
+
+
+def _normalized_sql(path: Path) -> str:
+    return " ".join(path.read_text(encoding="utf-8").split())
+
+
+def _assert_hybrid_search_schema(path: Path) -> None:
+    content = _normalized_sql(path)
+    assert (
+        "text_tsv tsvector GENERATED ALWAYS AS "
+        "(to_tsvector('french', coalesce(text, ''))) STORED"
+    ) in content
+    assert (
+        "CREATE INDEX IF NOT EXISTS idx_rag_chunks_text_tsv "
+        "ON rag_chunks USING gin (text_tsv)"
+    ) in content
+
+
+def test_migration_head_points_exactly_to_002() -> None:
+    assert MIGRATION_HEAD.read_text(encoding="utf-8") == "002_hybrid_retrieval\n"
+
+
+def test_migration_002_adds_generated_french_fts_column_and_named_gin_index() -> None:
+    _assert_hybrid_search_schema(MIGRATION_002)
+
+
+def test_init_sql_matches_migration_002_hybrid_search_schema() -> None:
+    _assert_hybrid_search_schema(INIT_SQL)
+
+
+def test_migration_002_rollback_is_outside_up_migrations() -> None:
+    assert ROLLBACK_002.is_file()
+    assert ROLLBACK_002.parent != MIGRATION_002.parent
+    assert ROLLBACK_002 not in MIGRATION_002.parent.glob("*.sql")
+
+
+def test_migration_002_rollback_only_removes_its_column() -> None:
+    content = ROLLBACK_002.read_text(encoding="utf-8")
+    dropped_columns = re.findall(
+        r"\bDROP\s+COLUMN(?:\s+IF\s+EXISTS)?\s+([a-z_][a-z0-9_]*)",
+        content,
+        flags=re.IGNORECASE,
+    )
+    assert dropped_columns == ["text_tsv"]
+    assert not re.search(r"\b(?:DELETE|DROP\s+TABLE|TRUNCATE)\b", content, re.IGNORECASE)
+
+
+def test_migration_002_rollback_drops_index_before_column() -> None:
+    content = _normalized_sql(ROLLBACK_002).upper()
+    assert content.index("DROP INDEX") < content.index("DROP COLUMN")

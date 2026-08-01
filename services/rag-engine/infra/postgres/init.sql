@@ -40,6 +40,8 @@ CREATE TABLE IF NOT EXISTS rag_chunks (
 
     -- Contenu
     text            TEXT,
+    text_tsv        tsvector GENERATED ALWAYS AS
+                    (to_tsvector('french', coalesce(text, ''))) STORED,
     chunk_index     INTEGER NOT NULL DEFAULT 0,
     page_start      INTEGER,
     page_end        INTEGER,
@@ -69,6 +71,8 @@ CREATE INDEX IF NOT EXISTS idx_rag_chunks_matiere ON rag_chunks (matiere);
 CREATE INDEX IF NOT EXISTS idx_rag_chunks_audience ON rag_chunks USING gin (audience);
 CREATE INDEX IF NOT EXISTS idx_rag_chunks_rights ON rag_chunks (rights);
 CREATE INDEX IF NOT EXISTS idx_rag_chunks_review ON rag_chunks (review_status);
+CREATE INDEX IF NOT EXISTS idx_rag_chunks_text_tsv
+    ON rag_chunks USING gin (text_tsv);
 
 -- ═══════════════════════════
 -- TABLES AUXILIAIRES
