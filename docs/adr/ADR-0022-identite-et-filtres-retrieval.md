@@ -63,9 +63,11 @@ Le modèle refuse un `sub` ou `jti` différent de l'identité imbriquée, un
 
 L'issuer et l'audience de transport restent des réglages serveur obligatoires,
 distincts dans le cockpit et le moteur, et doivent être comparés exactement au
-runtime. Ils ne sont ni dérivés du navigateur, ni inscrits dans l'artefact
-LOT38, qui ne les définit pas. Le dépôt ne contient ni valeur secrète ni clé de
-signature.
+runtime. L'audience SSO est une valeur canonique unique ; les listes séparées
+par virgules et les claims JWT `aud` tableaux sont refusés par les deux plans
+afin d'éviter toute sélection divergente. Ils ne sont ni dérivés du navigateur,
+ni inscrits dans l'artefact LOT38, qui ne les définit pas. Le dépôt ne contient
+ni valeur secrète ni clé de signature.
 
 Aucun service ne redéfinit localement cette enveloppe. Les consommateurs
 doivent utiliser `nexus-contracts==0.4.0` et appliquer en plus les contrôles
@@ -116,6 +118,12 @@ Après disponibilité du chemin BFF canonique authentifié, les routes historiqu
 qui acceptent un profil, un token de test ou des filtres contournables doivent
 être fermées ou supprimées de la surface de production. Aucun alias permissif
 ne peut contourner l'enveloppe 0.4.0.
+
+Les diagnostics de readiness sont eux-mêmes protégés par le credential BFF et
+l'enveloppe signée, puis bornés aux collections de cette enveloppe. La présence
+ou le nombre de lignes `reviewed` n'est jamais assimilé à une preuve de
+substance : LOT41 maintient `launch_ready=false` jusqu'à la preuve exhaustive
+de release des lots d'évaluation et de promotion.
 
 ## Conséquences
 
