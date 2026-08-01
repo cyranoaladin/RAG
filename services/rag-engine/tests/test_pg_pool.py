@@ -33,9 +33,21 @@ _THREE_PSYCOPG_PINS = {
 
 
 def _secret_dsn(
-    *, host: str = "db", password: str = "secret-password"
+    *, host: str = "db.example", password: str = "secret-password"
 ) -> str:
     return "".join(("postgresql://", "secret-user", ":", password, "@", host, "/rag"))
+
+
+def test_secret_dsn_reconstructs_historical_fixture_values() -> None:
+    assert _secret_dsn() == "".join(
+        ("postgresql://secret-user:", "secret-password@db.example/rag")
+    )
+    assert _secret_dsn(password="secret-password%zz") == "".join(
+        ("postgresql://secret-user:", "secret-password%zz@db.example/rag")
+    )
+    assert _secret_dsn(host="other.example") == "".join(
+        ("postgresql://secret-user:", "secret-password@other.example/rag")
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -438,7 +450,7 @@ def test_get_pool_refuses_different_settings_without_leaking_dsn(
     events: list[tuple[Any, ...]] = []
     instances = _install_factory(monkeypatch, events)
     pg_pool.get_pool(_settings())
-    other_dsn = _secret_dsn(host="other")
+    other_dsn = _secret_dsn(host="other.example")
 
     with pytest.raises(PoolConfigurationError, match="paramètres différents") as exc_info:
         pg_pool.get_pool(_settings(dsn=other_dsn))
