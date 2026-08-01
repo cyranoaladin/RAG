@@ -1,0 +1,43 @@
+policy_id: libre_terminale_validation_policy_v1
+status: eligible_for_promotion
+scope_ref: libre_terminale_maths_nsi_real_v1
+activation_boundary: LOT41A
+capabilities:
+  validation_real_documents_allowed: true
+  validation_pipeline_allowed: true
+  validation_answer_generation_allowed: true
+  validation_openrouter_allowed: true
+public_locks:
+  real_documents_allowed: false
+  ui_runtime_allowed: false
+  answer_generation_allowed: false
+  curated_ingestion_allowed: false
+validation_environment:
+  environment_id: nexus-validation-1
+  isolation_status: intended_pending_lot41a
+  public_routes_allowed: false
+  credentials_ref_env: NEXUS_VALIDATION_CREDENTIALS_REF
+  dsn_ref_env: NEXUS_VALIDATION_DATABASE_URL
+  bucket_ref_env: NEXUS_VALIDATION_BUCKET
+  network_ref_env: NEXUS_VALIDATION_NETWORK
+authorization_matrix:
+  read_real_documents:
+    capabilities: [validation_real_documents_allowed]
+    allowed_callers: [lot42_publisher, lot43_evaluator]
+  publish_reviewed_chunks:
+    capabilities: [validation_real_documents_allowed, validation_pipeline_allowed]
+    allowed_callers: [rag-engine]
+    quality_chain_required: true
+  generate_grounded_answer:
+    capabilities: [validation_answer_generation_allowed, validation_openrouter_allowed]
+    allowed_callers: [rag-engine]
+required_authorization:
+  decision: AUTHORIZE_VALIDATION_PIPELINE
+  authority_role: lead
+  evidence_kind: github_pr_approval
+  scope_digest_required: true
+  policy_digest_required: true
+  expiry_required: true
+  rights_verification_required: true
+  pii_absence_required: true
+  rollback_proof_required: true

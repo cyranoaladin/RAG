@@ -1,0 +1,11 @@
+package_id: lot42-pilot-publication-v1
+content_ref: artifacts/lot42/pilot-publication-v1.json
+content: |
+  lot42-publication-package-v1
+content_sha256: 180443c043d0ea08449d9aca9ab6539bc99328983479d5dfc5bd055cc9f42249
+quality: passed
+gate: passed
+review: reviewed
+quarantine: false
+revoked: false
+publisher: rag-engine

@@ -1,0 +1,16 @@
+evidence_kind: github_pr_approval
+repository: cyranoaladin/RAG
+pull_request: 141
+base_branch: main
+head_sha: "3333333333333333333333333333333333333333"
+approved_head_sha: "3333333333333333333333333333333333333333"
+referenced_lot41_sha: "1111111111111111111111111111111111111111"
+authorization_digest: 5c42d84878e0338e80e8fdfc2ceb5488c16bbfaf72bedb4507e4b2fc79520ddc
+reviewer_login: pilot-lead
+reviewer_role: lead
+reviewer_human: true
+approved_at: 2026-07-31T21:00:00Z
+merged_at: 2026-07-31T21:30:00Z
+readback_at: 2026-07-31T21:45:00Z
+revoked: false
+merge_sha: "2222222222222222222222222222222222222222"
