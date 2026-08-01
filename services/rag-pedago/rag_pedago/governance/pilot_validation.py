@@ -686,7 +686,7 @@ def _restore_source_attestation(
     return True
 
 
-def _safe_scope(value: PilotValidationScope | Path) -> PilotValidationScope | None:
+def _safe_scope(value: object) -> PilotValidationScope | None:
     if isinstance(value, PilotValidationScope):
         if _raw_digest(value) is None:
             return None
@@ -696,13 +696,15 @@ def _safe_scope(value: PilotValidationScope | Path) -> PilotValidationScope | No
         if not _restore_source_attestation(clean, value):
             return None
         return clean
+    if not isinstance(value, Path):
+        return None
     try:
         return load_scope(value)
     except (OSError, RuntimeError, UnicodeError, ValueError, yaml.YAMLError):
         return None
 
 
-def _safe_policy(value: PilotValidationPolicy | Path) -> PilotValidationPolicy | None:
+def _safe_policy(value: object) -> PilotValidationPolicy | None:
     if isinstance(value, PilotValidationPolicy):
         if _raw_digest(value) is None:
             return None
@@ -712,6 +714,8 @@ def _safe_policy(value: PilotValidationPolicy | Path) -> PilotValidationPolicy |
         if not _restore_source_attestation(clean, value):
             return None
         return clean
+    if not isinstance(value, Path):
+        return None
     try:
         return load_policy(value)
     except (OSError, RuntimeError, UnicodeError, ValueError, yaml.YAMLError):

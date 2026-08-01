@@ -957,6 +957,49 @@ class TestMalformedInputs:
         assert decision.reasons == ()
 
     @pytest.mark.parametrize(
+        ("argument", "reason"),
+        [
+            ("scope", "scope.invalid"),
+            ("base_policy", "base_policy.invalid"),
+            ("activation_policy", "activation_policy.invalid"),
+        ],
+        ids=("scope", "base-policy", "activation-policy"),
+    )
+    @pytest.mark.parametrize(
+        "invalid",
+        [None, "not-a-path", 42, object()],
+        ids=("none", "string", "integer", "object"),
+    )
+    def test_refuses_invalid_scope_or_policy_argument_types_without_exception(
+        self,
+        argument: str,
+        reason: str,
+        invalid: object,
+    ) -> None:
+        arguments: dict[str, object] = {
+            "scope": SCOPE_PATH,
+            "base_policy": BASE_POLICY_PATH,
+            "activation_policy": ACTIVATION_PATH,
+        }
+        arguments[argument] = invalid
+
+        decision = governance.evaluate_authorization(
+            scope=arguments["scope"],  # type: ignore[arg-type]
+            base_policy=arguments["base_policy"],  # type: ignore[arg-type]
+            activation_policy=arguments["activation_policy"],  # type: ignore[arg-type]
+            authorization=AUTHORIZATION_PATH,
+            approval_evidence=APPROVAL_PATH,
+            publication_package=PACKAGE_PATH,
+            request=_request(),
+            now=NOW,
+            service_root=SERVICE_ROOT,
+        )
+
+        assert isinstance(decision, governance.AuthorizationDecision)
+        assert decision.allowed is False
+        assert reason in decision.reasons
+
+    @pytest.mark.parametrize(
         ("field", "value"),
         [
             ("approved_at", "not-a-datetime"),
