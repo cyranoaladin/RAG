@@ -8,6 +8,7 @@ Models are cached at module level (loaded once, not per request).
 DSN via PG_RAG_DSN only (R-01: no owner/migration fallback).
 answer_generation_allowed = false (retrieval only, no LLM generation).
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -132,6 +133,7 @@ _cache_generation = 0
 def _cache_key(query: str, collection: str, k: int) -> str:
     """Normalized cache key. Lowercased, stripped, unicode-normalized."""
     import unicodedata
+
     normalized = unicodedata.normalize("NFKC", query).strip().lower()
     # Collapse curly quotes/apostrophes to ASCII equivalents
     normalized = normalized.replace("\u2019", "'").replace("\u2018", "'")
@@ -148,6 +150,7 @@ def invalidate_cache() -> int:
         _cache.clear()
         _cache_generation += 1
         return n
+
 
 # --- Configuration figée par le noyau hybride LOT40 ---
 RERANK_SCORE_THRESHOLD = RERANK_THRESHOLD
@@ -193,10 +196,10 @@ def _get_reranker():
     global _reranker
     if _reranker is None:
         from sentence_transformers import CrossEncoder
+
         logger.info("Loading reranker %s (one-time)", RERANK_MODEL)
         _reranker = CrossEncoder(RERANK_MODEL, max_length=512)
     return _reranker
-
 
 
 def _get_pg_dsn() -> str:
@@ -249,6 +252,7 @@ def _check_retrievable(collection: str, cfg: dict) -> dict:
 
 
 # --- Request/Response models ---
+
 
 class SearchV2Request(BaseModel):
     q: str = Field(..., min_length=1, description="Query text")
@@ -320,19 +324,21 @@ def _build_launch_readiness(
     blockers: list[str] = []
     if not release_evidence_verified:
         blockers.append("preuve exhaustive de release absente")
-    for name in sorted(collections_raw):
+    for name in collections_raw:
         definition = collections_raw[name]
         if not isinstance(definition, Mapping):
             blockers.append(f"{name}: définition de collection invalide")
-            collections.append({
-                "name": name,
-                "instanciee": False,
-                "retrievable": False,
-                "reviewed_chunks": 0,
-                "reviewed_chunk_floor_met": False,
-                "ready": False,
-                "reasons": ["définition de collection invalide"],
-            })
+            collections.append(
+                {
+                    "name": name,
+                    "instanciee": False,
+                    "retrievable": False,
+                    "reviewed_chunks": 0,
+                    "reviewed_chunk_floor_met": False,
+                    "ready": False,
+                    "reasons": ["définition de collection invalide"],
+                }
+            )
             continue
 
         instanciee = definition.get("instanciee") is True
@@ -355,15 +361,17 @@ def _build_launch_readiness(
         ready = release_evidence_verified and not reasons
         if reasons:
             blockers.append(f"{name}: {', '.join(reasons)}")
-        collections.append({
-            "name": name,
-            "instanciee": instanciee,
-            "retrievable": retrievable,
-            "reviewed_chunks": reviewed_chunks,
-            "reviewed_chunk_floor_met": reviewed_chunk_floor_met,
-            "ready": ready,
-            "reasons": reasons,
-        })
+        collections.append(
+            {
+                "name": name,
+                "instanciee": instanciee,
+                "retrievable": retrievable,
+                "reviewed_chunks": reviewed_chunks,
+                "reviewed_chunk_floor_met": reviewed_chunk_floor_met,
+                "ready": ready,
+                "reasons": reasons,
+            }
+        )
 
     return {
         "launch_ready": not blockers,
@@ -413,6 +421,7 @@ def _get_reviewed_chunk_counts(
 
 
 # --- Cache management endpoints ---
+
 
 @router.get("/cache/v2/stats")
 def cache_stats(request: Request) -> dict[str, Any]:
@@ -474,6 +483,7 @@ def cache_warmup(request: Request) -> dict[str, Any]:
 
 # --- Endpoint to list retrievable collections (for UI picker) ---
 
+
 def _list_retrievable_collections(
     cfg: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -500,15 +510,17 @@ def _list_retrievable_collections(
             continue
         if domain_cfg.get("retrievable") is not True:
             continue
-        retrievable.append({
-            "name": name,
-            "matiere": defn.get("matiere"),
-            "niveau": defn.get("niveau"),
-            "voie": defn.get("voie"),
-            "statut": defn.get("statut"),
-            "domain": domain,
-            "instanciee": True,
-        })
+        retrievable.append(
+            {
+                "name": name,
+                "matiere": defn.get("matiere"),
+                "niveau": defn.get("niveau"),
+                "voie": defn.get("voie"),
+                "statut": defn.get("statut"),
+                "domain": domain,
+                "instanciee": True,
+            }
+        )
 
     return {"collections": retrievable}
 
@@ -520,10 +532,17 @@ def list_retrievable_collections(request: Request) -> dict[str, Any]:
     try:
         cfg = load_collection_config()
         allowed = effective_signed_collections(verified)
+        collections_raw = cfg.get("collections")
+        if not isinstance(collections_raw, Mapping) or any(
+            collection not in collections_raw for collection in allowed
+        ):
+            raise RetrievalScopeError("retrieval scope forbidden")
         catalogue = _list_retrievable_collections(cfg)
-        allowed_set = set(allowed)
+        catalogue_by_name = {item["name"]: item for item in catalogue["collections"]}
         scoped_items = [
-            item for item in catalogue["collections"] if item["name"] in allowed_set
+            catalogue_by_name[collection]
+            for collection in allowed
+            if collection in catalogue_by_name
         ]
         for item in scoped_items:
             build_server_retrieval_scope(
@@ -537,6 +556,7 @@ def list_retrievable_collections(request: Request) -> dict[str, Any]:
 
 
 # --- Full catalogue endpoint (LOT 27) ---
+
 
 def _full_catalogue() -> dict[str, Any]:
     """Return the complete v2 catalogue with instanciation/retrievable status.
@@ -597,9 +617,13 @@ def _full_catalogue() -> dict[str, Any]:
                 coherence_issues.append("retrievable sans \u00eatre instanci\u00e9e")
 
         # Reasons
-        ingestion_reason = "collection instanci\u00e9e" if instanciee else "collection non instanci\u00e9e"
-        search_reason = "instanci\u00e9e + domaine retrievable" if retrievable else (
-            "domaine non retrievable" if instanciee else "non instanci\u00e9e"
+        ingestion_reason = (
+            "collection instanci\u00e9e" if instanciee else "collection non instanci\u00e9e"
+        )
+        search_reason = (
+            "instanci\u00e9e + domaine retrievable"
+            if retrievable
+            else ("domaine non retrievable" if instanciee else "non instanci\u00e9e")
         )
 
         entry = {
@@ -757,10 +781,7 @@ def _retrieve_endpoint_hits(
     scope: ServerRetrievalScope,
 ) -> list[SearchV2Hit]:
     try:
-        return [
-            _to_search_hit(hit)
-            for hit in _retrieve_hybrid_hits(query, collection, k, scope)
-        ]
+        return [_to_search_hit(hit) for hit in _retrieve_hybrid_hits(query, collection, k, scope)]
     except Exception:
         raise _retrieval_unavailable() from None
 
@@ -903,10 +924,11 @@ def chat(payload: ChatRequest, request: Request) -> ChatResponse:
         if hit.chunk_id not in seen_chunk_ids:
             seen_chunk_ids.add(hit.chunk_id)
             unique_hits.append((collection, hit))
-    retrieval_hits = [
-        _to_retrieval_result(hit, collection)
-        for collection, hit in unique_hits
-    ] if payload.include_retrieval else []
+    retrieval_hits = (
+        [_to_retrieval_result(hit, collection) for collection, hit in unique_hits]
+        if payload.include_retrieval
+        else []
+    )
     return _chat_refusal(
         "La génération de réponse reste verrouillée par la gouvernance.",
         "answer_generation_locked",
@@ -915,6 +937,7 @@ def chat(payload: ChatRequest, request: Request) -> ChatResponse:
 
 
 # --- Main search endpoint ---
+
 
 @router.post("/search/v2", response_model=SearchV2Response)
 def search_v2(payload: SearchV2Request, request: Request) -> SearchV2Response:

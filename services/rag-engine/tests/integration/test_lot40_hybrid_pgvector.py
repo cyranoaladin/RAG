@@ -83,7 +83,11 @@ def _b64url(value: bytes) -> str:
     return base64.urlsafe_b64encode(value).rstrip(b"=").decode("ascii")
 
 
-def _signed_identity_token(*, candidat: str = CANDIDAT) -> str:
+def _signed_identity_token(
+    *,
+    candidat: str = CANDIDAT,
+    matieres: tuple[str, ...] = ("maths", "nsi"),
+) -> str:
     artifact = load_pilot_retrieval_scope()
     now = int(time.time())
     identity = {
@@ -98,7 +102,7 @@ def _signed_identity_token(*, candidat: str = CANDIDAT) -> str:
         "sub": "psn_lot41integration0001",
         "pedagogical_profile": {
             "voie": VOIE,
-            "matieres": ["maths", "nsi"],
+            "matieres": list(matieres),
             "statut_enseignement": STATUT_ENSEIGNEMENT,
             "candidat": candidat,
             "audience": "libre",
@@ -1215,7 +1219,21 @@ def test_signed_identity_to_http_scope_and_real_database_is_end_to_end(
     app = FastAPI()
     app.include_router(endpoint.router)
     client = TestClient(app)
+    real_endpoint_hits = endpoint._retrieve_endpoint_hits
+    retrieval_calls: list[str] = []
+
+    def counted_endpoint_hits(
+        query: str,
+        collection: str,
+        k: int,
+        scope: ServerRetrievalScope,
+    ) -> list[endpoint.SearchV2Hit]:
+        retrieval_calls.append(collection)
+        return real_endpoint_hits(query, collection, k, scope)
+
+    monkeypatch.setattr(endpoint, "_retrieve_endpoint_hits", counted_endpoint_hits)
     identity_token = _signed_identity_token()
+    nsi_only_identity_token = _signed_identity_token(matieres=("nsi",))
     verified = verify_identity_token(
         identity_token,
         config=load_identity_verifier_config(),
@@ -1238,11 +1256,27 @@ def test_signed_identity_to_http_scope_and_real_database_is_end_to_end(
         "matrix-nsi-individuel",
     ]
 
+    cross_subject_response = client.post(
+        "/search/v2",
+        headers={
+            "Authorization": f"Bearer {service_token}",
+            "X-Nexus-Identity": nsi_only_identity_token,
+        },
+        json={
+            "q": QUERY,
+            "collection": MATRIX_COLLECTIONS["maths"],
+            "k": 5,
+        },
+    )
+    assert cross_subject_response.status_code == 403
+    assert cross_subject_response.json() == {"detail": "Forbidden"}
+    assert retrieval_calls == []
+
     response = client.post(
         "/search/v2",
         headers={
             "Authorization": f"Bearer {service_token}",
-            "X-Nexus-Identity": identity_token,
+            "X-Nexus-Identity": nsi_only_identity_token,
         },
         json={
             "q": QUERY,
@@ -1255,6 +1289,19 @@ def test_signed_identity_to_http_scope_and_real_database_is_end_to_end(
     assert [hit["chunk_id"] for hit in response.json()["hits"]] == [
         "matrix-nsi-individuel",
     ]
+    assert retrieval_calls == [MATRIX_COLLECTIONS["nsi"]]
+    nsi_readiness = client.get(
+        "/collections/readiness",
+        headers={
+            "Authorization": f"Bearer {service_token}",
+            "X-Nexus-Identity": nsi_only_identity_token,
+        },
+    )
+    assert nsi_readiness.status_code == 200, nsi_readiness.text
+    assert [
+        item["name"] for item in nsi_readiness.json()["collections"]
+    ] == [MATRIX_COLLECTIONS["nsi"]]
+    print("MONO_SUBJECT_HTTP_SCOPE=PASS")
     readiness = client.get(
         "/collections/readiness",
         headers={

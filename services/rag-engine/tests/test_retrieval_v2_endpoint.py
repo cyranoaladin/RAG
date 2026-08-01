@@ -3,6 +3,7 @@
 Tests the gate behavior, response format, and collection listing
 WITHOUT needing a live pgvector or model loading.
 """
+
 from __future__ import annotations
 
 import copy
@@ -41,20 +42,32 @@ FULL_CFG = {
     "version": 2,
     "collections": {
         "rag_nexus_nsi_terminale_specialite": {
-            "matiere": "nsi", "niveau": "terminale", "statut": "specialite",
-            "domain": "education", "instanciee": True,
+            "matiere": "nsi",
+            "niveau": "terminale",
+            "statut": "specialite",
+            "domain": "education",
+            "instanciee": True,
         },
         "rag_nexus_nsi_premiere_specialite": {
-            "matiere": "nsi", "niveau": "premiere", "statut": "specialite",
-            "domain": "education", "instanciee": True,
+            "matiere": "nsi",
+            "niveau": "premiere",
+            "statut": "specialite",
+            "domain": "education",
+            "instanciee": True,
         },
         "rag_nexus_quarantine": {
-            "matiere": None, "niveau": None, "statut": None,
-            "domain": "quarantine", "instanciee": True,
+            "matiere": None,
+            "niveau": None,
+            "statut": None,
+            "domain": "quarantine",
+            "instanciee": True,
         },
         "rag_nexus_maths_seconde_tc": {
-            "matiere": "maths", "niveau": "seconde", "statut": "tronc_commun",
-            "domain": "education", "instanciee": False,
+            "matiere": "maths",
+            "niveau": "seconde",
+            "statut": "tronc_commun",
+            "domain": "education",
+            "instanciee": False,
         },
     },
     "domains": {
@@ -235,18 +248,45 @@ class TestListRetrievable:
     @patch("ingestor.retrieval_v2_endpoint.load_collection_config", return_value=FULL_CFG)
     def test_list_includes_metadata(self, _mock: MagicMock) -> None:
         result = list_retrievable_collections()
-        nsi_tle = next(c for c in result["collections"] if c["name"] == "rag_nexus_nsi_terminale_specialite")
+        nsi_tle = next(
+            c for c in result["collections"] if c["name"] == "rag_nexus_nsi_terminale_specialite"
+        )
         assert nsi_tle["matiere"] == "nsi"
         assert nsi_tle["niveau"] == "terminale"
         assert nsi_tle["statut"] == "specialite"
         assert nsi_tle["domain"] == "education"
+
+    def test_signed_picker_preserves_artifact_order(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from ingestor import retrieval_v2_endpoint as endpoint
+
+        allowed = (
+            "rag_nexus_nsi_terminale_specialite",
+            "rag_nexus_nsi_premiere_specialite",
+        )
+        monkeypatch.setattr(
+            endpoint, "_require_retrieval_identity", lambda *_args, **_kwargs: object()
+        )
+        monkeypatch.setattr(endpoint, "load_collection_config", lambda: FULL_CFG)
+        monkeypatch.setattr(endpoint, "effective_signed_collections", lambda _verified: allowed)
+        monkeypatch.setattr(
+            endpoint, "build_server_retrieval_scope", lambda *_args, **_kwargs: BASE_SCOPE
+        )
+
+        result = endpoint.list_retrievable_collections(SimpleNamespace())
+
+        assert [item["name"] for item in result["collections"]] == list(allowed)
 
 
 class TestSearchV2Request:
     """Pydantic validation for SearchV2Request."""
 
     def test_valid_request(self) -> None:
-        req = SearchV2Request(q="arbre binaire", collection="rag_nexus_nsi_terminale_specialite", k=5)
+        req = SearchV2Request(
+            q="arbre binaire", collection="rag_nexus_nsi_terminale_specialite", k=5
+        )
         assert req.q == "arbre binaire"
         assert req.k == 5
 
@@ -266,19 +306,30 @@ class TestResponseFormat:
 
     def test_answer_generation_always_false(self) -> None:
         from ingestor.retrieval_v2_endpoint import SearchV2Response
-        resp = SearchV2Response(
-            query="test", collection="test", seuil=1.90, returned=0, hits=[]
-        )
+
+        resp = SearchV2Response(query="test", collection="test", seuil=1.90, returned=0, hits=[])
         assert resp.answer_generation_allowed is False
 
     def test_hit_exposes_review_status(self) -> None:
         """SCALE-04: review_status in each hit for agent layer."""
         from ingestor.retrieval_v2_endpoint import SearchV2Hit
+
         hit = SearchV2Hit(
-            chunk_id="c1", doc_id="d1", source_label="s.pdf", source_uri="u",
-            rights="usage_interne", type_doc="cours", review_status="reviewed",
-            page=7, preview="text", dense_score=0.85, lexical_score=None,
-            rrf_score=0.01, rerank_score=5.0, mmr_score=0.6, score_final=0.9,
+            chunk_id="c1",
+            doc_id="d1",
+            source_label="s.pdf",
+            source_uri="u",
+            rights="usage_interne",
+            type_doc="cours",
+            review_status="reviewed",
+            page=7,
+            preview="text",
+            dense_score=0.85,
+            lexical_score=None,
+            rrf_score=0.01,
+            rerank_score=5.0,
+            mmr_score=0.6,
+            score_final=0.9,
         )
         assert hit.review_status == "reviewed"
         assert hit.page == 7
@@ -293,9 +344,7 @@ class TestResponseFormat:
         assert serialization_schema["properties"]["dense_sim"]["readOnly"] is True
         assert serialization_schema["properties"]["dense_sim"]["deprecated"] is True
 
-        no_dense_hit = SearchV2Hit(
-            **{**hit.model_dump(exclude={"dense_sim"}), "dense_score": None}
-        )
+        no_dense_hit = SearchV2Hit(**{**hit.model_dump(exclude={"dense_sim"}), "dense_score": None})
         assert no_dense_hit.dense_sim is None
         assert no_dense_hit.model_dump()["dense_sim"] is None
 
@@ -312,10 +361,20 @@ class TestResponseFormat:
 
         with pytest.raises(ValidationError):
             SearchV2Hit(
-                chunk_id="c2", doc_id="d2", source_label="s2.pdf", source_uri="u2",
-                rights="usage_interne", type_doc="cours", review_status="needs_review",
-                page=None, preview="text", dense_score=None, lexical_score=0.7,
-                rrf_score=0.01, rerank_score=3.0, mmr_score=0.5,
+                chunk_id="c2",
+                doc_id="d2",
+                source_label="s2.pdf",
+                source_uri="u2",
+                rights="usage_interne",
+                type_doc="cours",
+                review_status="needs_review",
+                page=None,
+                preview="text",
+                dense_score=None,
+                lexical_score=0.7,
+                rrf_score=0.01,
+                rerank_score=3.0,
+                mmr_score=0.5,
                 score_final=0.8,
             )
 
@@ -400,9 +459,7 @@ class TestResponseFormat:
         for field_name in ("source_label", "source_uri", "rights", "preview"):
             with pytest.raises(ValidationError) as exc_info:
                 SearchV2Hit(**{**common, field_name: "   "})
-            assert (field_name,) in {
-                tuple(error["loc"]) for error in exc_info.value.errors()
-            }
+            assert (field_name,) in {tuple(error["loc"]) for error in exc_info.value.errors()}
 
     def test_constants_are_canonical_and_not_environment_overrides(self) -> None:
         from ingestor import retrieval_hybrid_v2 as core
@@ -496,6 +553,36 @@ class TestLaunchReadiness:
         assert response["collections"][0]["name"] == BASE_SCOPE.collection
         assert response["launch_ready"] is False
         assert events[0:2] == ["identity", "config"]
+
+    def test_readiness_preserves_artifact_order(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from ingestor import retrieval_v2_endpoint as endpoint
+
+        allowed = (
+            "rag_nexus_nsi_terminale_specialite",
+            "rag_nexus_maths_seconde_tc",
+        )
+        monkeypatch.setattr(
+            endpoint, "_require_retrieval_identity", lambda *_args, **_kwargs: object()
+        )
+        monkeypatch.setattr(endpoint, "load_collection_config", lambda: FULL_CFG)
+        monkeypatch.setattr(endpoint, "effective_signed_collections", lambda _verified: allowed)
+        monkeypatch.setattr(
+            endpoint,
+            "build_server_readiness_scope",
+            lambda _verified, *, collection, collection_config: replace(
+                BASE_SCOPE,
+                collection=collection,
+                matiere=collection_config["collections"][collection]["matiere"],
+            ),
+        )
+        monkeypatch.setattr(endpoint, "_get_reviewed_chunk_counts", lambda _scopes: {})
+
+        response = endpoint.get_collection_readiness(SimpleNamespace())
+
+        assert [item["name"] for item in response["collections"]] == list(allowed)
 
 
 class TestHybridSearchDelegation:
@@ -595,9 +682,7 @@ class TestHybridSearchDelegation:
         monkeypatch.setattr(endpoint, "_check_retrievable", lambda *_args: {})
 
         def fail(*_args: object) -> list[object]:
-            raise RuntimeError(
-                f"{stage}: SENSITIVE_DSN_SENTINEL SENSITIVE_QUERY_SENTINEL"
-            )
+            raise RuntimeError(f"{stage}: SENSITIVE_DSN_SENTINEL SENSITIVE_QUERY_SENTINEL")
 
         monkeypatch.setattr(endpoint, "_retrieve_hybrid_hits", fail, raising=False)
         response = client.post(
@@ -644,14 +729,16 @@ class TestHybridSearchDelegation:
                 self.scope = scope
 
         def retrieve(query, collection, top_k, *, store, embedder, reranker):
-            captured.update({
-                "query": query,
-                "collection": collection,
-                "top_k": top_k,
-                "store": store,
-                "embedder": embedder,
-                "reranker": reranker,
-            })
+            captured.update(
+                {
+                    "query": query,
+                    "collection": collection,
+                    "top_k": top_k,
+                    "store": store,
+                    "embedder": embedder,
+                    "reranker": reranker,
+                }
+            )
             with store.provider() as received_connection:
                 captured["connection"] = received_connection
             return [_hybrid_hit()]
@@ -700,9 +787,7 @@ class TestHybridSearchDelegation:
             def execute(self, sql: str, _params: object = None) -> None:
                 executed_sql.append(sql)
                 if "WITH hnsw_candidates AS MATERIALIZED" in sql:
-                    raise RuntimeError(
-                        "SENSITIVE_DSN_SENTINEL SENSITIVE_QUERY_SENTINEL"
-                    )
+                    raise RuntimeError("SENSITIVE_DSN_SENTINEL SENSITIVE_QUERY_SENTINEL")
 
         class Connection:
             def cursor(self) -> Cursor:
@@ -740,9 +825,7 @@ class TestHybridSearchDelegation:
         assert response.json() == {"detail": "retrieval unavailable"}
         assert len(executed_sql) == 3
         assert "SELECT %s::vector IS NOT NULL" in executed_sql[0]
-        assert executed_sql[1].strip() == (
-            "SET LOCAL hnsw.iterative_scan = 'strict_order'"
-        )
+        assert executed_sql[1].strip() == ("SET LOCAL hnsw.iterative_scan = 'strict_order'")
         assert "WITH hnsw_candidates AS MATERIALIZED" in executed_sql[2]
         assert executed_sql[2].count("FROM rag_chunks") == 1
         assert "ranked_pool.chunk_id ASC" in executed_sql[2]
@@ -968,9 +1051,15 @@ class TestCacheGateInvariant:
         fake_key = endpoint._cache_key("test query", "rag_nexus_quarantine", 5)
         _seed_cache(endpoint, fake_key, [{"chunk_id": "fake"}])
 
-        resp = test_client.post("/search/v2", json={
-            "q": "test query", "collection": "rag_nexus_quarantine", "k": 5,
-        }, headers=h)
+        resp = test_client.post(
+            "/search/v2",
+            json={
+                "q": "test query",
+                "collection": "rag_nexus_quarantine",
+                "k": 5,
+            },
+            headers=h,
+        )
         assert resp.status_code == 403, "Gate must refuse quarantine even with cache populated"
 
     def test_invalidation_purges_cache(self) -> None:
@@ -1013,6 +1102,7 @@ class TestCacheGateInvariant:
         import inspect
 
         from ingestor.retrieval_v2_endpoint import search_v2
+
         source = inspect.getsource(search_v2)
         assert "_retrieve_endpoint_hits" in source
         assert "psycopg" not in source
@@ -1056,9 +1146,7 @@ class TestAtomicHybridWarmup:
         load_config = MagicMock(
             side_effect=AssertionError("unauthorized warmup must not load config")
         )
-        retrieve = MagicMock(
-            side_effect=AssertionError("unauthorized warmup must not retrieve")
-        )
+        retrieve = MagicMock(side_effect=AssertionError("unauthorized warmup must not retrieve"))
         monkeypatch.setattr(endpoint, "CACHE_ENABLED", False)
         monkeypatch.setattr(endpoint, "load_collection_config", load_config)
         monkeypatch.setattr(endpoint, "_retrieve_endpoint_hits", retrieve)
@@ -1122,9 +1210,7 @@ class TestAtomicHybridWarmup:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         endpoint, client = self._prepare(monkeypatch)
-        retrieve = MagicMock(
-            side_effect=AssertionError("unscoped warmup must never retrieve")
-        )
+        retrieve = MagicMock(side_effect=AssertionError("unscoped warmup must never retrieve"))
         monkeypatch.setattr(endpoint, "CACHE_ENABLED", True)
         monkeypatch.setattr(endpoint, "_retrieve_hybrid_hits", retrieve)
 
