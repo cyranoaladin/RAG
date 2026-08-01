@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 INFRA_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 SERVICE_ROOT="$(cd "$INFRA_DIR/.." && pwd)"
+PYTEST_BIN="${NEXUS_RAG_ENGINE_PYTEST:-$SERVICE_ROOT/.venv/bin/pytest}"
 IMAGE="pgvector/pgvector:pg16@sha256:00ba258a66dac104fd5171074a0084462a64a1369d8513f3d0a634e2f24d15bc"
 
 suffix="$$-${RANDOM}-${RANDOM}"
@@ -382,7 +383,7 @@ run_apply() {
         bash "$1/scripts/apply_pgvector_migrations.sh"
 }
 
-run_down() {
+run_down_002() {
     PGVECTOR_CONTAINER="$PGVECTOR_CONTAINER_ID" \
     PGVECTOR_DB="$PGVECTOR_DB" \
     PGVECTOR_USER="$PGVECTOR_USER" \
@@ -390,11 +391,19 @@ run_down() {
         bash "$1/scripts/rollback_pgvector_migration.sh" 002_hybrid_retrieval
 }
 
-assert_fresh_head_002() {
+run_down_003() {
+    PGVECTOR_CONTAINER="$PGVECTOR_CONTAINER_ID" \
+    PGVECTOR_DB="$PGVECTOR_DB" \
+    PGVECTOR_USER="$PGVECTOR_USER" \
+    BACKUP_ROOT="$BACKUP_ROOT" \
+        bash "$1/scripts/rollback_pgvector_profile_filtering.sh" 003_profile_filtering
+}
+
+assert_fresh_head_003() {
     container_psql <<'SQL'
 SELECT version
 FROM rag_schema_migrations
-WHERE version = 2 AND file_name = '002_hybrid_retrieval.sql';
+WHERE version = 3 AND file_name = '003_profile_filtering.sql';
 SQL
 }
 
@@ -419,6 +428,7 @@ SQL
 
 sha_001="$(sha256sum "$INFRA_DIR/postgres/migrations/001_rag_chunks_v2_schema.sql" | awk '{print $1}')"
 sha_002="$(sha256sum "$INFRA_DIR/postgres/migrations/002_hybrid_retrieval.sql" | awk '{print $1}')"
+sha_003="$(sha256sum "$INFRA_DIR/postgres/migrations/003_profile_filtering.sql" | awk '{print $1}')"
 
 assert_state_001() {
     container_psql <<SQL
@@ -432,12 +442,22 @@ BEGIN
              AND sha256 = '$sha_001'
        )
        OR EXISTS (SELECT 1 FROM rag_schema_migrations WHERE version = 2)
+       OR EXISTS (SELECT 1 FROM rag_schema_migrations WHERE version = 3)
        OR EXISTS (
            SELECT 1 FROM information_schema.columns
            WHERE table_schema = 'public' AND table_name = 'rag_chunks'
              AND column_name = 'text_tsv'
        )
-       OR to_regclass('public.idx_rag_chunks_text_tsv') IS NOT NULL THEN
+       OR EXISTS (
+           SELECT 1 FROM information_schema.columns
+           WHERE table_schema = 'public' AND table_name = 'rag_chunks'
+             AND column_name IN (
+                 'tenant', 'candidat', 'visibility', 'school_year',
+                 'programme_version'
+             )
+       )
+       OR to_regclass('public.idx_rag_chunks_text_tsv') IS NOT NULL
+       OR to_regclass('public.idx_rag_chunks_profile_reviewed') IS NOT NULL THEN
         RAISE EXCEPTION 'LOT40_EXPECTED_HEAD_001';
     END IF;
 END
@@ -463,13 +483,67 @@ BEGIN
              AND sha256 = '$sha_002'
        )
        OR (SELECT max(version) FROM rag_schema_migrations) <> 2
+       OR EXISTS (SELECT 1 FROM rag_schema_migrations WHERE version = 3)
        OR NOT EXISTS (
            SELECT 1 FROM information_schema.columns
            WHERE table_schema = 'public' AND table_name = 'rag_chunks'
              AND column_name = 'text_tsv' AND is_generated = 'ALWAYS'
        )
-       OR to_regclass('public.idx_rag_chunks_text_tsv') IS NULL THEN
+       OR EXISTS (
+           SELECT 1 FROM information_schema.columns
+           WHERE table_schema = 'public' AND table_name = 'rag_chunks'
+             AND column_name IN (
+                 'tenant', 'candidat', 'visibility', 'school_year',
+                 'programme_version'
+             )
+       )
+       OR to_regclass('public.idx_rag_chunks_text_tsv') IS NULL
+       OR to_regclass('public.idx_rag_chunks_profile_reviewed') IS NOT NULL THEN
         RAISE EXCEPTION 'LOT40_EXPECTED_HEAD_002';
+    END IF;
+END
+\$\$;
+SQL
+}
+
+assert_state_003() {
+    container_psql <<SQL
+DO \$\$
+BEGIN
+    IF (SELECT count(*) FROM rag_schema_migrations) <> 3
+       OR NOT EXISTS (
+           SELECT 1 FROM rag_schema_migrations
+           WHERE version = 1
+             AND file_name = '001_rag_chunks_v2_schema.sql'
+             AND sha256 = '$sha_001'
+       )
+       OR NOT EXISTS (
+           SELECT 1 FROM rag_schema_migrations
+           WHERE version = 2
+             AND file_name = '002_hybrid_retrieval.sql'
+             AND sha256 = '$sha_002'
+       )
+       OR NOT EXISTS (
+           SELECT 1 FROM rag_schema_migrations
+           WHERE version = 3
+             AND file_name = '003_profile_filtering.sql'
+             AND sha256 = '$sha_003'
+       )
+       OR (SELECT max(version) FROM rag_schema_migrations) <> 3
+       OR (
+           SELECT count(*) FROM information_schema.columns
+           WHERE table_schema = 'public' AND table_name = 'rag_chunks'
+             AND column_name IN (
+                 'tenant', 'candidat', 'visibility', 'school_year',
+                 'programme_version'
+             )
+             AND data_type = 'text'
+             AND is_nullable = 'YES'
+             AND column_default IS NULL
+       ) <> 5
+       OR to_regclass('public.idx_rag_chunks_text_tsv') IS NULL
+       OR to_regclass('public.idx_rag_chunks_profile_reviewed') IS NULL THEN
+        RAISE EXCEPTION 'LOT41_EXPECTED_HEAD_003';
     END IF;
 END
 \$\$;
@@ -508,60 +582,86 @@ echo "ATOMIC_ADOPTION_002_ROLLBACK=PASS"
 bootstrap_adoption_output="$(run_apply "$INFRA_DIR")"
 printf '%s\n' "$bootstrap_adoption_output"
 grep -qx 'MIGRATIONS_ADOPTED=2' <<< "$bootstrap_adoption_output"
-grep -qx 'MIGRATIONS_APPLIED=0' <<< "$bootstrap_adoption_output"
-assert_state_002
+grep -qx 'MIGRATIONS_APPLIED=1' <<< "$bootstrap_adoption_output"
+assert_state_003
 echo "BOOTSTRAP_ADOPTION_002=PASS"
 
-run_down "$INFRA_DIR"
+run_down_003 "$INFRA_DIR"
+assert_state_002
+run_down_002 "$INFRA_DIR"
 assert_state_001
 run_apply "$INFRA_DIR"
-assert_state_002
-echo "BOOTSTRAP_CYCLE_002_001_002=PASS"
+assert_state_003
+echo "BOOTSTRAP_CYCLE_003_002_001_003=PASS"
 
 docker exec "$PGVECTOR_CONTAINER_ID" \
     createdb -U "$PGVECTOR_USER" -T template0 "$PGVECTOR_FRESH_DB"
 PGVECTOR_DB="$PGVECTOR_FRESH_DB"
 
-expect_failure FRESH_HEAD_002_NEGATIVE assert_fresh_head_002
+expect_failure FRESH_HEAD_003_NEGATIVE assert_fresh_head_003
 
 run_apply "$INFRA_DIR"
+assert_state_003
+run_down_003 "$INFRA_DIR"
 assert_state_002
-run_down "$INFRA_DIR"
+run_down_002 "$INFRA_DIR"
 assert_state_001
 run_apply "$INFRA_DIR"
-assert_state_002
-echo "MIGRATION_CYCLE_001_002_001_002=PASS"
+assert_state_003
+echo "MIGRATION_CYCLE_001_002_003_002_001_003=PASS"
 
-run_down "$INFRA_DIR"
-assert_state_001
+run_down_003 "$INFRA_DIR"
+assert_state_002
 atomic_up_root="$RUN_ROOT/atomic-up"
 mkdir -p "$atomic_up_root"
 cp -a -- "$INFRA_DIR" "$atomic_up_root/infra"
 printf '\nSELECT 1 / 0;\n' \
-    >> "$atomic_up_root/infra/postgres/migrations/002_hybrid_retrieval.sql"
+    >> "$atomic_up_root/infra/postgres/migrations/003_profile_filtering.sql"
 expect_failure ATOMIC_UP_EXPECTED_FAILURE run_apply "$atomic_up_root/infra"
-assert_state_001
+assert_state_002
 echo "ATOMIC_UP_ROLLBACK=PASS"
 
 run_apply "$INFRA_DIR"
-assert_state_002
+assert_state_003
 atomic_down_root="$RUN_ROOT/atomic-down"
 mkdir -p "$atomic_down_root"
 cp -a -- "$INFRA_DIR" "$atomic_down_root/infra"
 printf '\nSELECT 1 / 0;\n' \
-    >> "$atomic_down_root/infra/postgres/rollbacks/002_hybrid_retrieval.down.sql"
-expect_failure ATOMIC_DOWN_EXPECTED_FAILURE run_down "$atomic_down_root/infra"
-assert_state_002
+    >> "$atomic_down_root/infra/postgres/rollbacks/003_profile_filtering.down.sql"
+expect_failure ATOMIC_DOWN_EXPECTED_FAILURE run_down_003 "$atomic_down_root/infra"
+assert_state_003
 echo "ATOMIC_DOWN_ROLLBACK=PASS"
-echo "MIGRATION_FINAL_HEAD_002=PASS"
+
+container_psql <<'SQL'
+INSERT INTO rag_chunks (
+    chunk_id, doc_id, chunk_sha256, collection, niveau, matiere,
+    source_label, source_uri, rights, type_doc, tenant
+) VALUES (
+    'lot41-rollback-guard', 'lot41-rollback-guard',
+    'lot41-rollback-guard-sha', 'lot41-guard', 'terminale', 'maths',
+    'LOT41 rollback guard', 'urn:nexus:lot41:rollback-guard', 'internal',
+    'test', 'libre_terminale'
+);
+SQL
+expect_failure ROLLBACK_003_ENRICHED_DATA_REFUSED run_down_003 "$INFRA_DIR"
+assert_state_003
+container_psql <<'SQL'
+DELETE FROM rag_chunks WHERE chunk_id = 'lot41-rollback-guard';
+SQL
+echo "ROLLBACK_003_DATA_GUARD=PASS"
+echo "MIGRATION_FINAL_HEAD_003=PASS"
 
 PGVECTOR_DB="$PGVECTOR_BOOTSTRAP_DB"
 provision_app_role
 echo "APP_ROLE_LEAST_PRIVILEGE=PASS"
 
+if [[ ! -x "$PYTEST_BIN" ]]; then
+    echo "LOT40_PYTEST_BIN_INVALID" >&2
+    exit 1
+fi
 LOT40_PG_DSN="$LOT40_PG_DSN" \
 LOT40_PG_ADMIN_DSN="$LOT40_PG_ADMIN_DSN" \
-PYTHONPATH="$SERVICE_ROOT/src" "$SERVICE_ROOT/.venv/bin/pytest" "$SERVICE_ROOT/tests/integration/test_lot40_hybrid_pgvector.py" -q -s
+PYTHONPATH="$SERVICE_ROOT/src" "$PYTEST_BIN" "$SERVICE_ROOT/tests/integration/test_lot40_hybrid_pgvector.py" -q -s
 
-assert_state_002
+assert_state_003
 echo "LOT40_HYBRID_INTEGRATION=PASS"

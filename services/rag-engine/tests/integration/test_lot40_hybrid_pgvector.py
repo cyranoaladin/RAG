@@ -440,17 +440,25 @@ def test_schema_registry_and_real_migration_objects_are_exact() -> None:
                 .read_bytes()
             ).hexdigest(),
         ),
+        3: (
+            "003_profile_filtering.sql",
+            hashlib.sha256(
+                (SERVICE_ROOT / "infra/postgres/migrations/003_profile_filtering.sql")
+                .read_bytes()
+            ).hexdigest(),
+        ),
     }
     with psycopg.connect(ADMIN_DSN) as connection:
         rows = connection.execute(
             "SELECT version, file_name, sha256 FROM rag_schema_migrations ORDER BY version"
         ).fetchall()
-        assert rows == [(version, *expected[version]) for version in (1, 2)]
+        assert rows == [(version, *expected[version]) for version in (1, 2, 3)]
         objects = connection.execute(
             """
             SELECT
               to_regclass('public.idx_rag_chunks_vector')::text,
               to_regclass('public.idx_rag_chunks_text_tsv')::text,
+              to_regclass('public.idx_rag_chunks_profile_reviewed')::text,
               (SELECT is_generated FROM information_schema.columns
                WHERE table_schema='public' AND table_name='rag_chunks'
                  AND column_name='text_tsv')
@@ -459,6 +467,7 @@ def test_schema_registry_and_real_migration_objects_are_exact() -> None:
         assert objects == (
             "idx_rag_chunks_vector",
             "idx_rag_chunks_text_tsv",
+            "idx_rag_chunks_profile_reviewed",
             "ALWAYS",
         )
     print("MIGRATION_OBJECTS_REAL_DB=PASS")

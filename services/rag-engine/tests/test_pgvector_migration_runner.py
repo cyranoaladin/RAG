@@ -21,6 +21,9 @@ ENGINE_ROOT = Path(__file__).resolve().parents[1]
 INFRA_ROOT = ENGINE_ROOT / "infra"
 UP_RUNNER = INFRA_ROOT / "scripts" / "apply_pgvector_migrations.sh"
 DOWN_RUNNER = INFRA_ROOT / "scripts" / "rollback_pgvector_migration.sh"
+PROFILE_DOWN_RUNNER = (
+    INFRA_ROOT / "scripts" / "rollback_pgvector_profile_filtering.sh"
+)
 MIGRATIONS = INFRA_ROOT / "postgres" / "migrations"
 
 
@@ -28,7 +31,7 @@ def _digest(name: str) -> str:
     return hashlib.sha256((MIGRATIONS / name).read_bytes()).hexdigest()
 
 
-def _valid_rows(head: int = 2) -> list[dict[str, object]]:
+def _valid_rows(head: int = 3) -> list[dict[str, object]]:
     rows = [
         {
             "version": 1,
@@ -39,6 +42,11 @@ def _valid_rows(head: int = 2) -> list[dict[str, object]]:
             "version": 2,
             "file_name": "002_hybrid_retrieval.sql",
             "sha256": _digest("002_hybrid_retrieval.sql"),
+        },
+        {
+            "version": 3,
+            "file_name": "003_profile_filtering.sql",
+            "sha256": _digest("003_profile_filtering.sql"),
         },
     ]
     return rows[:head]
@@ -129,7 +137,10 @@ def runner_env(tmp_path: Path) -> tuple[dict[str, str], Path, Path]:
                 raise SystemExit(0)
 
             if "DELETE FROM rag_schema_migrations" in stdin:
-                record("DOWN_002", stdin)
+                if "WHERE version = 3" in stdin:
+                    record("DOWN_003", stdin)
+                else:
+                    record("DOWN_002", stdin)
                 raise SystemExit(0)
 
             if "INSERT INTO rag_schema_migrations" in stdin:
@@ -274,11 +285,13 @@ def test_up_from_absent_state_backs_up_then_applies_each_atomic_transition(
     assert names.index("PG_DUMP") < names.index("DOCKER_CP")
     assert names.index("DOCKER_CP") < names.index("APPLY_001")
     assert names.index("APPLY_001") < names.index("APPLY_002")
+    assert names.index("APPLY_002") < names.index("APPLY_003")
     assert "BACKUP_COMPLETE" in result.stdout
     _assert_remote_dump_was_cleaned_exactly(events)
     for transition, ddl in (
         ("APPLY_001", "CREATE EXTENSION"),
         ("APPLY_002", "ADD COLUMN"),
+        ("APPLY_003", "ADD COLUMN tenant"),
     ):
         event = _event(events, transition)
         stdin = str(event["stdin"])
@@ -310,7 +323,7 @@ def test_up_recognizes_existing_001_only_after_exhaustive_validation(
     assert "CREATE EXTENSION" not in recognition
     assert "ADD COLUMN" not in recognition
     assert "MIGRATIONS_ADOPTED=1" in result.stdout
-    assert "MIGRATIONS_APPLIED=1" in result.stdout
+    assert "MIGRATIONS_APPLIED=2" in result.stdout
 
 
 def test_up_adopts_exact_existing_002_atomically_without_reapplying_ddl(
@@ -334,6 +347,7 @@ def test_up_adopts_exact_existing_002_atomically_without_reapplying_ddl(
     assert names.index("DOCKER_CP") < names.index("ADOPT_002")
     assert "APPLY_001" not in names
     assert "APPLY_002" not in names
+    assert "APPLY_003" in names
     adoption = _event(events, "ADOPT_002")
     stdin = str(adoption["stdin"])
     assert stdin.index("pg_advisory_xact_lock") < stdin.index(
@@ -347,7 +361,7 @@ def test_up_adopts_exact_existing_002_atomically_without_reapplying_ddl(
         assert any(str(row["file_name"]) in arg for arg in adoption["args"])
         assert any(str(row["sha256"]) in arg for arg in adoption["args"])
     assert "MIGRATIONS_ADOPTED=2" in result.stdout
-    assert "MIGRATIONS_APPLIED=0" in result.stdout
+    assert "MIGRATIONS_APPLIED=1" in result.stdout
 
 
 def test_up_adoption_002_failure_stops_without_followup_transition(
@@ -370,6 +384,7 @@ def test_up_adoption_002_failure_stops_without_followup_transition(
     assert names.count("ADOPT_002") == 1
     assert "APPLY_001" not in names
     assert "APPLY_002" not in names
+    assert "APPLY_003" not in names
     assert "MIGRATIONS_ADOPTED=" not in result.stdout
 
 
@@ -596,6 +611,58 @@ def test_down_002_backs_up_then_composes_one_atomic_transition(
     assert "WHERE version = 2" in stdin
     assert "--single-transaction" in event["args"]
     _assert_remote_dump_was_cleaned_exactly(events)
+
+
+def test_down_003_backs_up_then_composes_one_atomic_transition(
+    runner_env: tuple[dict[str, str], Path, Path],
+) -> None:
+    result, events = _run(
+        runner_env,
+        {
+            "registry_present": True,
+            "rag_chunks_present": True,
+            "rows": _valid_rows(3),
+        },
+        down_argument="003_profile_filtering",
+        runner_path=PROFILE_DOWN_RUNNER,
+    )
+
+    assert result.returncode == 0, result.stderr
+    names = _event_names(events)
+    assert names.index("READ_STATE") < names.index("PG_DUMP")
+    assert names.index("DOCKER_CP") < names.index("DOWN_003")
+    stdin = str(_event(events, "DOWN_003")["stdin"])
+    assert stdin.index("pg_advisory_xact_lock") < stdin.index(
+        "ROLLBACK_003_DATA_PRESENT"
+    )
+    assert stdin.index("ROLLBACK_003_DATA_PRESENT") < stdin.index("DROP INDEX")
+    assert stdin.index("DROP COLUMN programme_version") < stdin.index(
+        "DELETE FROM rag_schema_migrations"
+    )
+    assert stdin.index("DELETE FROM rag_schema_migrations") < stdin.index(
+        "LOT41 columns still present"
+    )
+    assert "WHERE version = 3" in stdin
+    _assert_remote_dump_was_cleaned_exactly(events)
+
+
+def test_down_003_refuses_wrong_effective_head_before_backup(
+    runner_env: tuple[dict[str, str], Path, Path],
+) -> None:
+    result, events = _run(
+        runner_env,
+        {
+            "registry_present": True,
+            "rag_chunks_present": True,
+            "rows": _valid_rows(2),
+        },
+        down_argument="003_profile_filtering",
+        runner_path=PROFILE_DOWN_RUNNER,
+    )
+
+    assert result.returncode != 0
+    assert "ROLLBACK_HEAD_INVALID" in result.stderr
+    assert "PG_DUMP" not in _event_names(events)
 
 
 def test_down_refuses_non_002_argument_without_contacting_docker(

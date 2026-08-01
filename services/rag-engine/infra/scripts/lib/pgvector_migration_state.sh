@@ -306,7 +306,8 @@ BEGIN
           'notions', 'domain', 'source_label', 'source_uri', 'rights',
           'type_doc', 'official', 'text', 'chunk_index', 'page_start',
           'page_end', 'review_status', 'model', 'source_kind', 'indexed_at',
-          'text_tsv'
+          'text_tsv', 'tenant', 'candidat', 'visibility', 'school_year',
+          'programme_version'
       );
     IF invalid_count <> 0 THEN
         RAISE EXCEPTION 'SCHEMA_HEAD_001_INVALID: unexpected columns';
@@ -329,6 +330,13 @@ BEGIN
           constraint_definition.contype = 'p'
           AND constraint_definition.conname = 'rag_chunks_pkey'
           AND pg_get_constraintdef(constraint_definition.oid, true) = 'PRIMARY KEY (chunk_id)'
+      )
+      AND constraint_definition.conname NOT IN (
+          'rag_chunks_tenant_lot41_check',
+          'rag_chunks_candidat_lot41_check',
+          'rag_chunks_visibility_lot41_check',
+          'rag_chunks_school_year_lot41_check',
+          'rag_chunks_programme_version_lot41_check'
       );
     IF invalid_count <> 0 THEN
         RAISE EXCEPTION 'SCHEMA_HEAD_001_INVALID: unexpected constraints';
@@ -434,7 +442,8 @@ BEGIN
           'idx_rag_chunks_audience',
           'idx_rag_chunks_rights',
           'idx_rag_chunks_review',
-          'idx_rag_chunks_text_tsv'
+          'idx_rag_chunks_text_tsv',
+          'idx_rag_chunks_profile_reviewed'
       );
     IF invalid_count <> 0 THEN
         RAISE EXCEPTION 'SCHEMA_HEAD_001_INVALID: unexpected indexes';
@@ -521,6 +530,188 @@ BEGIN
       AND index_class.relname = 'idx_rag_chunks_text_tsv';
     IF invalid_count <> 0 THEN
         RAISE EXCEPTION 'SCHEMA_HEAD_001_INVALID: hybrid GIN still present';
+    END IF;
+END
+$nexus$;
+SQL
+}
+
+validate_003_sql() {
+    cat <<'SQL'
+-- NEXUS_VALIDATE_SCHEMA_003
+DO $nexus$
+DECLARE
+    invalid_count integer;
+BEGIN
+    WITH expected_columns(column_name) AS (
+        VALUES
+            ('tenant'),
+            ('candidat'),
+            ('visibility'),
+            ('school_year'),
+            ('programme_version')
+    )
+    SELECT count(*) INTO invalid_count
+    FROM expected_columns expected
+    LEFT JOIN information_schema.columns actual
+      ON actual.table_schema = 'public'
+     AND actual.table_name = 'rag_chunks'
+     AND actual.column_name = expected.column_name
+    WHERE actual.column_name IS NULL
+       OR actual.data_type IS DISTINCT FROM 'text'
+       OR actual.is_nullable IS DISTINCT FROM 'YES'
+       OR actual.column_default IS NOT NULL;
+    IF invalid_count <> 0 THEN
+        RAISE EXCEPTION 'SCHEMA_HEAD_003_INVALID: exact nullable columns';
+    END IF;
+
+    WITH expected_constraints(constraint_name, column_name) AS (
+        VALUES
+            ('rag_chunks_tenant_lot41_check', 'tenant'),
+            ('rag_chunks_candidat_lot41_check', 'candidat'),
+            ('rag_chunks_visibility_lot41_check', 'visibility'),
+            ('rag_chunks_school_year_lot41_check', 'school_year'),
+            ('rag_chunks_programme_version_lot41_check', 'programme_version')
+    ),
+    actual_constraints AS (
+        SELECT
+            constraint_definition.conname AS constraint_name,
+            attribute.attname AS column_name,
+            constraint_definition.contype,
+            constraint_definition.convalidated,
+            cardinality(constraint_definition.conkey) AS key_count
+        FROM pg_constraint constraint_definition
+        JOIN pg_attribute attribute
+          ON attribute.attrelid = constraint_definition.conrelid
+         AND attribute.attnum = constraint_definition.conkey[1]
+        WHERE constraint_definition.conrelid = 'public.rag_chunks'::regclass
+    )
+    SELECT count(*) INTO invalid_count
+    FROM expected_constraints expected
+    LEFT JOIN actual_constraints actual USING (constraint_name, column_name)
+    WHERE actual.constraint_name IS NULL
+       OR actual.contype IS DISTINCT FROM 'c'::"char"
+       OR actual.convalidated IS DISTINCT FROM true
+       OR actual.key_count IS DISTINCT FROM 1;
+    IF invalid_count <> 0 THEN
+        RAISE EXCEPTION 'SCHEMA_HEAD_003_INVALID: validated domain constraints';
+    END IF;
+
+    WITH actual_index AS (
+        SELECT
+            access_method.amname,
+            index_definition.indisunique,
+            index_definition.indisprimary,
+            index_definition.indisvalid,
+            index_definition.indisready,
+            index_definition.indnkeyatts,
+            index_definition.indnatts,
+            index_definition.indexprs,
+            regexp_replace(
+                lower(pg_get_expr(
+                    index_definition.indpred,
+                    index_definition.indrelid
+                )),
+                '(::text|[[:space:]()])',
+                '',
+                'g'
+            ) AS predicate,
+            array_agg(attribute.attname ORDER BY key.ordinality) AS key_columns
+        FROM pg_index index_definition
+        JOIN pg_class index_class
+          ON index_class.oid = index_definition.indexrelid
+        JOIN pg_am access_method ON access_method.oid = index_class.relam
+        JOIN unnest(index_definition.indkey)
+             WITH ORDINALITY AS key(attnum, ordinality) ON true
+        JOIN pg_attribute attribute
+          ON attribute.attrelid = index_definition.indrelid
+         AND attribute.attnum = key.attnum
+        WHERE index_definition.indrelid = 'public.rag_chunks'::regclass
+          AND index_class.relname = 'idx_rag_chunks_profile_reviewed'
+        GROUP BY
+            access_method.amname,
+            index_definition.indisunique,
+            index_definition.indisprimary,
+            index_definition.indisvalid,
+            index_definition.indisready,
+            index_definition.indnkeyatts,
+            index_definition.indnatts,
+            index_definition.indexprs,
+            index_definition.indpred,
+            index_definition.indrelid
+    )
+    SELECT count(*) INTO invalid_count
+    FROM actual_index
+    WHERE amname <> 'btree'
+       OR indisunique
+       OR indisprimary
+       OR NOT indisvalid
+       OR NOT indisready
+       OR indnkeyatts <> 11
+       OR indnatts <> 11
+       OR indexprs IS NOT NULL
+       OR predicate <> 'review_status=''reviewed'''
+       OR key_columns <> ARRAY[
+            'collection', 'tenant', 'niveau', 'voie', 'matiere',
+            'statut_enseignement', 'candidat', 'school_year',
+            'programme_version', 'rights', 'visibility'
+       ]::name[];
+    IF invalid_count <> 0 OR NOT EXISTS (
+        SELECT 1
+        FROM pg_class index_class
+        JOIN pg_index index_definition
+          ON index_definition.indexrelid = index_class.oid
+        WHERE index_definition.indrelid = 'public.rag_chunks'::regclass
+          AND index_class.relname = 'idx_rag_chunks_profile_reviewed'
+    ) THEN
+        RAISE EXCEPTION 'SCHEMA_HEAD_003_INVALID: exact partial profile index';
+    END IF;
+END
+$nexus$;
+SQL
+}
+
+validate_003_absent_sql() {
+    cat <<'SQL'
+-- NEXUS_VALIDATE_SCHEMA_003_ABSENT
+DO $nexus$
+DECLARE
+    invalid_count integer;
+BEGIN
+    SELECT count(*) INTO invalid_count
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'rag_chunks'
+      AND column_name IN (
+          'tenant', 'candidat', 'visibility', 'school_year',
+          'programme_version'
+      );
+    IF invalid_count <> 0 THEN
+        RAISE EXCEPTION 'SCHEMA_HEAD_002_INVALID: LOT41 columns still present';
+    END IF;
+
+    SELECT count(*) INTO invalid_count
+    FROM pg_constraint constraint_definition
+    WHERE constraint_definition.conrelid = 'public.rag_chunks'::regclass
+      AND constraint_definition.conname IN (
+          'rag_chunks_tenant_lot41_check',
+          'rag_chunks_candidat_lot41_check',
+          'rag_chunks_visibility_lot41_check',
+          'rag_chunks_school_year_lot41_check',
+          'rag_chunks_programme_version_lot41_check'
+      );
+    IF invalid_count <> 0 THEN
+        RAISE EXCEPTION 'SCHEMA_HEAD_002_INVALID: LOT41 constraints still present';
+    END IF;
+
+    SELECT count(*) INTO invalid_count
+    FROM pg_class index_class
+    JOIN pg_namespace namespace_definition
+      ON namespace_definition.oid = index_class.relnamespace
+    WHERE namespace_definition.nspname = 'public'
+      AND index_class.relname = 'idx_rag_chunks_profile_reviewed';
+    IF invalid_count <> 0 THEN
+        RAISE EXCEPTION 'SCHEMA_HEAD_002_INVALID: LOT41 index still present';
     END IF;
 END
 $nexus$;

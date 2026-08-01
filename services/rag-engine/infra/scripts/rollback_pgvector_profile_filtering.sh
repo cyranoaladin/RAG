@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Roll back exactly migration 002 while preserving its predecessor and backup.
-# Usage: BACKUP_ROOT=... ./rollback_pgvector_migration.sh 002_hybrid_retrieval
+# Roll back exactly migration 003 while preserving head 002 and a backup.
+# Usage: BACKUP_ROOT=... ./rollback_pgvector_profile_filtering.sh 003_profile_filtering
 set -euo pipefail
 
-if [[ "${1:-}" != "002_hybrid_retrieval" || "$#" -ne 1 ]]; then
-    echo "ROLLBACK_ARGUMENT_INVALID: expected 002_hybrid_retrieval" >&2
+if [[ "${1:-}" != "003_profile_filtering" || "$#" -ne 1 ]]; then
+    echo "ROLLBACK_ARGUMENT_INVALID: expected 003_profile_filtering" >&2
     exit 2
 fi
 
@@ -12,7 +12,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 INFRA_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 MIGRATIONS_DIR="$INFRA_DIR/postgres/migrations"
 MIGRATION_HEAD_FILE="$MIGRATIONS_DIR/HEAD"
-ROLLBACK_FILE="$INFRA_DIR/postgres/rollbacks/002_hybrid_retrieval.down.sql"
+ROLLBACK_FILE="$INFRA_DIR/postgres/rollbacks/003_profile_filtering.down.sql"
 
 if [[ -f "$INFRA_DIR/.env" ]]; then
     set -a
@@ -30,20 +30,22 @@ PGVECTOR_USER="${PGVECTOR_USER:-raguser}"
 source "$SCRIPT_DIR/lib/pgvector_migration_state.sh"
 discover_manifest "$MIGRATIONS_DIR" "$MIGRATION_HEAD_FILE"
 
-if [[ ${#MIGRATION_VERSIONS[@]} -lt 2 \
-   || "${MIGRATION_NAMES[1]}" != "002_hybrid_retrieval.sql" ]]; then
-    echo "ROLLBACK_HEAD_INVALID: migration 002_hybrid_retrieval is unavailable" >&2
+if [[ "$MIGRATION_DECLARED_HEAD" != "003_profile_filtering" \
+   || ${#MIGRATION_VERSIONS[@]} -ne 3 ]]; then
+    echo "ROLLBACK_HEAD_INVALID: declared head is not 003_profile_filtering" >&2
     exit 1
 fi
 if [[ ! -f "$ROLLBACK_FILE" || -L "$ROLLBACK_FILE" ]]; then
     echo "ROLLBACK_FILE_INVALID" >&2
     exit 1
 fi
+
 MIGRATION_SNAPSHOT_DIR=""
 MIGRATION_SNAPSHOT_FILES=()
 trap cleanup_manifest_snapshot EXIT
 trap 'exit 130' HUP INT TERM
 create_manifest_snapshot "$MIGRATIONS_DIR" "$MIGRATION_HEAD_FILE" "$ROLLBACK_FILE"
+
 if ! docker inspect --format='{{.State.Running}}' "$PGVECTOR_CONTAINER" \
     2>/dev/null | grep -qx true; then
     echo "FATAL: pgvector container is not running" >&2
@@ -100,7 +102,7 @@ backup_database() {
 
     stamp="$(date -u +%Y%m%dT%H%M%SZ)-$$"
     backup_dir="$BACKUP_ROOT/pgvector-rollback-$stamp"
-    backup_file="$backup_dir/ragdb-before-rollback-002.dump"
+    backup_file="$backup_dir/ragdb-before-rollback-003.dump"
     remote_dump="/tmp/nexus-rag-schema-rollback-$stamp.dump"
     umask 077
     mkdir -p "$backup_dir"
@@ -122,15 +124,16 @@ backup_database() {
 
 read_database_state
 if [[ "$REGISTRY_PRESENT" != "1" || "$RAG_CHUNKS_PRESENT" != "1" \
-   || "$EFFECTIVE_HEAD" -ne 2 ]]; then
-    echo "ROLLBACK_HEAD_INVALID: effective head must be 002_hybrid_retrieval" >&2
+   || "$EFFECTIVE_HEAD" -ne 3 ]]; then
+    echo "ROLLBACK_HEAD_INVALID: effective head must be 003_profile_filtering" >&2
     exit 1
 fi
 
 {
     validate_001_sql
     validate_002_sql
-    validate_registry_sql 2
+    validate_003_sql
+    validate_registry_sql 3
 } | docker exec -i "$PGVECTOR_CONTAINER" \
     psql -X -q -v ON_ERROR_STOP=1 \
     -U "$PGVECTOR_USER" -d "$PGVECTOR_DB" >/dev/null
@@ -143,14 +146,15 @@ backup_database
     printf '\n'
     cat <<'SQL'
 DELETE FROM rag_schema_migrations
-WHERE version = 2;
+WHERE version = 3;
 SQL
     validate_001_sql
-    validate_002_absent_sql
-    validate_registry_sql 1
+    validate_002_sql
+    validate_003_absent_sql
+    validate_registry_sql 2
 } | docker exec -i "$PGVECTOR_CONTAINER" \
     psql -X -q --single-transaction -v ON_ERROR_STOP=1 \
     -U "$PGVECTOR_USER" -d "$PGVECTOR_DB" >/dev/null
 
-echo "ROLLBACK_COMPLETE=002_hybrid_retrieval"
+echo "ROLLBACK_COMPLETE=003_profile_filtering"
 echo "SCHEMA_VERIFICATION=OK"
