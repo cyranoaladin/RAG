@@ -427,6 +427,10 @@ def cache_warmup(request: Request) -> dict[str, Any]:
         endpoint="/cache/v2/warmup",
     )
 
+    if not CACHE_ENABLED:
+        invalidate_cache()
+        return {"warmed": 0, "collections": 0, "queries": 0}
+
     with _cache_lock:
         warmup_generation = _cache_generation
 

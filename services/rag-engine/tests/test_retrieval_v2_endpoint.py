@@ -862,6 +862,52 @@ class TestAtomicHybridWarmup:
         )
         return endpoint, client
 
+    def test_disabled_warmup_purges_without_loading_config_or_retrieval(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        endpoint, client = self._prepare(monkeypatch)
+        prior_key = endpoint._cache_key("prior", "prior-collection", 5)
+        _seed_cache(endpoint, prior_key, [{"stale": True}])
+        generation_before = endpoint._cache_generation
+        load_config = MagicMock(
+            side_effect=AssertionError("config must stay unloaded when cache is disabled")
+        )
+        retrieve = MagicMock(
+            side_effect=AssertionError("retrieval must stay idle when cache is disabled")
+        )
+        monkeypatch.setattr(endpoint, "CACHE_ENABLED", False)
+        monkeypatch.setattr(endpoint, "load_collection_config", load_config)
+        monkeypatch.setattr(endpoint, "_retrieve_endpoint_hits", retrieve)
+
+        response = client.post(
+            "/cache/v2/warmup",
+            headers={"Authorization": "Bearer admin-token"},
+        )
+        stats = client.get(
+            "/cache/v2/stats",
+            headers={"Authorization": "Bearer student-token"},
+        )
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "warmed": 0,
+            "collections": 0,
+            "queries": 0,
+        }
+        assert _cache_snapshot(endpoint) == {}
+        assert endpoint._cache_generation == generation_before + 1
+        assert stats.status_code == 200
+        assert stats.json() == {
+            "enabled": False,
+            "ttl_s": endpoint.CACHE_TTL_S,
+            "entries": 0,
+            "generation": generation_before + 1,
+            "public_serving": False,
+        }
+        load_config.assert_not_called()
+        retrieve.assert_not_called()
+
     def test_warmup_stages_then_publishes_one_atomic_batch(
         self,
         monkeypatch: pytest.MonkeyPatch,

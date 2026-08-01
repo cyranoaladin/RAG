@@ -4,7 +4,7 @@
 
 Ce script charge des requêtes dorées au format YAML, évalue le pipeline v2 via
 `ingestor.retrieval_v2_endpoint._retrieve_reviewed_hits`, calcule des métriques,
-effectue un sweep de calibration optionnel et applique un gate CI.
+et applique un gate CI. L'option de sweep est réservée et refusée jusqu’au LOT43.
 
 Objectif LOT 39 :
 - produire des métriques de qualité sans modifier le chemin de retrieval ;
@@ -743,7 +743,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--sweep",
         action="store_true",
-        help="Effectue le sweep LOT 39 (candidates × seuil).",
+        help="Option réservée au LOT43 et refusée jusqu’au LOT43.",
     )
     parser.add_argument(
         "--json-output",

@@ -376,6 +376,25 @@ def test_calibration_sweep_is_disabled_before_lot43_without_mutating_endpoint() 
     assert "retrieval_module.RERANK_SCORE_THRESHOLD =" not in source
 
 
+def test_module_and_cli_help_present_sweep_as_reserved_and_refused_until_lot43(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert run_eval.__doc__ is not None
+    assert "refusée jusqu’au LOT43" in run_eval.__doc__
+    assert "effectue un sweep de calibration optionnel" not in run_eval.__doc__
+    monkeypatch.setattr(sys, "argv", ["run_eval.py", "--help"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        run_eval.parse_args()
+
+    assert exc_info.value.code == 0
+    help_output = capsys.readouterr().out
+    sweep_help = help_output[help_output.index("--sweep"):]
+    assert "réservée" in sweep_help
+    assert "refusée jusqu’au LOT43" in sweep_help
+
+
 def test_evaluate_requires_enough_depth_for_recall_at_20() -> None:
     retrieval_module = SimpleNamespace(
         RERANK_CANDIDATES=50,
