@@ -1,76 +1,80 @@
 #!/usr/bin/env python3
-"""Retrieval v2 — dense + rerank CrossEncoder + seuil (LOT 24, D-CONFIG-FINALE).
+"""CLI minimal du pipeline canonique de retrieval hybride v2 (LOT40).
 
-Chemin de service v2 : resolve_collection_v2 → gate retrievable → dense e5-large
-→ rerank CrossEncoder → seuil.
-PAS d'hybride BM25/RRF (DD-01 : collision lexicale inter-domaine sur mono-matière).
-
-Usage:
-    PG_RAG_DSN=... python scripts/retrieval_v2.py --query "arbre binaire" --collection rag_nexus_nsi_terminale_specialite
-    python scripts/retrieval_v2.py --help  # fonctionne sans PG_RAG_DSN (FF-07)
+Le script ne contient ni SQL ni variante locale du classement. Il applique le
+gate de gouvernance, délègue au noyau partagé et n'affiche jamais le texte des
+chunks ni la requête utilisateur.
 """
+
 from __future__ import annotations
 
 import argparse
-import os
 import sys
+from collections.abc import Callable, Sequence
 from pathlib import Path
+from typing import Any
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 ENGINE_ROOT = SCRIPT_DIR.parent
 sys.path.insert(0, str(ENGINE_ROOT / "src"))
 sys.path.insert(0, str(ENGINE_ROOT.parent.parent / "packages" / "contracts" / "src"))
 
-from ingestor.collection_config import load_collection_config, resolve_collection_v2  # noqa: E402
+from ingestor.collection_config import (  # noqa: E402
+    CollectionConfigError,
+    load_collection_config,
+    resolve_collection_v2,
+)
+from ingestor.embedding_contract import (  # noqa: E402
+    EmbeddingContractError,
+    load_embedding_model,
+)
+from ingestor.pg_pool import (  # noqa: E402
+    PoolConfigurationError,
+    PoolSettings,
+    close_pool,
+    pool_connection,
+)
+from ingestor.retrieval_hybrid_v2 import (  # noqa: E402
+    CHANNEL_LIMIT,
+    RERANK_MODEL,
+    CandidateStore,
+    Embedder,
+    HybridHit,
+    Reranker,
+    RetrievalPipelineError,
+    RetrieveFunction,
+    retrieve_hybrid,
+)
+from ingestor.retrieval_pg_v2 import PgCandidateStore  # noqa: E402
 
-# --- Configuration figée LOT 24 (D-CONFIG-FINALE-LOT24) ---
-
-# Seuil rerank recalé FF-02b : plus bas in-domain (+2.30) vs plus haut
-# hors-domaine (+1.51), milieu de marge = +1.90. 15/15 in conservé, 10/10 out rejeté.
-# PROVISOIRE : lié au chunking actuel (proxy phrases/tokens). Après ré-ingestion
-# LOT 25 (chunker heading-aware), le plancher in-domain montera → seuil à réviser.
-RERANK_SCORE_THRESHOLD = float(os.environ.get("RERANK_SCORE_THRESHOLD", "1.90"))
-
-RERANK_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
-EMBED_MODEL = "intfloat/multilingual-e5-large"
-RERANK_CANDIDATES = 20  # top-N dense candidates sent to rerank
-
-# Hybride BM25/RRF : DÉSACTIVÉ.
-# Mécanisme DD-01 : BM25 remonte du bruit lexical inter-domaine sur corpus mono-matière
-# (ex. "française" → sujet bac NSI sur souveraineté numérique française).
-# À RE-TESTER quand le corpus deviendra multi-matières. Code dans hybrid_search.py.
-HYBRID_ENABLED = False
+StoreFactory = Callable[[PoolSettings], CandidateStore]
+EmbedderFactory = Callable[[], Embedder]
+RerankerFactory = Callable[[], Reranker]
 
 
 class CollectionNotRetrievableError(ValueError):
-    """Raised when a collection is not retrievable (GG-01, fail-closed)."""
+    """Refus fail-closed d'une collection non autorisée au retrieval."""
 
 
-def _check_retrievable(collection: str, cfg: dict) -> dict:
-    """Gate retrievable FAIL-CLOSED (GG-01, D-GATE-FAIL-CLOSED).
+class ModelLoadError(RuntimeError):
+    """Échec contrôlé de chargement d'un artefact de modèle canonique."""
 
-    Reads domain from the collection's DECLARED definition (not guessed by name).
-    Refuses if:
-    - domain not declared in collection definition → REFUSE
-    - cfg["domains"] absent or not a dict → REFUSE
-    - domain entry absent or not a dict → REFUSE
-    - retrievable not explicitly True → REFUSE (default = refuse)
-    """
-    defn = resolve_collection_v2(collection, cfg)
 
-    # Read domain from DECLARED definition (D-DOMAINE-DECLARE-PAS-DEVINE)
-    domain = defn.get("domain")
+def _check_retrievable(collection: str, cfg: dict[str, Any]) -> dict[str, Any]:
+    """Vérifie explicitement le verrou ``retrievable`` de la collection."""
+    definition: dict[str, Any] = resolve_collection_v2(collection, cfg)
+
+    domain = definition.get("domain")
     if not isinstance(domain, str) or not domain:
         raise CollectionNotRetrievableError(
             f"Collection '{collection}' has no declared domain — cannot verify "
-            f"retrievable. Add 'domain: <name>' to the collection definition."
+            "retrievable. Add 'domain: <name>' to the collection definition."
         )
 
-    # Fail-closed: domains section must exist and be well-formed
     domains = cfg.get("domains")
     if not isinstance(domains, dict):
         raise CollectionNotRetrievableError(
-            f"Config 'domains' section absent or malformed — fail-closed. "
+            "Config 'domains' section absent or malformed — fail-closed. "
             f"Cannot verify retrievable for domain '{domain}'."
         )
 
@@ -81,105 +85,159 @@ def _check_retrievable(collection: str, cfg: dict) -> dict:
             f"Collection '{collection}' cannot be served."
         )
 
-    # ONLY serve if retrievable is EXPLICITLY True (default = refuse)
     if domain_cfg.get("retrievable") is not True:
         raise CollectionNotRetrievableError(
             f"Collection '{collection}' is not retrievable (domain '{domain}', "
             f"retrievable:{domain_cfg.get('retrievable')}). Refused."
         )
 
-    return defn
+    return definition
 
 
-def search(query: str, collection: str, top_k: int = 5, *, pg_dsn: str) -> list[dict]:
-    """Dense → rerank → seuil. Retourne les hits au-dessus du seuil."""
-    import psycopg
-    from nexus_contracts.embedding_utils import format_query
-    from sentence_transformers import CrossEncoder, SentenceTransformer
+def _build_pg_store(settings: PoolSettings) -> CandidateStore:
+    """Construit le store sans ouvrir de connexion avant la première requête."""
+    return PgCandidateStore(lambda: pool_connection(settings))
 
-    # FF-01: Gate retrievable — refuse quarantine BEFORE any query
-    cfg = load_collection_config()
-    _check_retrievable(collection, cfg)
 
-    embed_model = SentenceTransformer(EMBED_MODEL)
-    reranker = CrossEncoder(RERANK_MODEL, max_length=512)
+def _load_canonical_embedder() -> Embedder:
+    """Charge exclusivement l'artefact d'embedding canonique pré-provisionné."""
+    return load_embedding_model()
 
-    q_vec = embed_model.encode(format_query(query), normalize_embeddings=True)
-    vec_str = "[" + ",".join(str(float(v)) for v in q_vec) + "]"
 
-    conn = psycopg.connect(pg_dsn)
+def _load_canonical_reranker() -> Reranker:
+    """Charge exclusivement le reranker canonique depuis le cache local."""
+    try:
+        from sentence_transformers import CrossEncoder
 
-    # Step 1: Dense retrieval (top RERANK_CANDIDATES)
-    with conn.cursor() as cur:
-        cur.execute("""
-            SELECT chunk_id, doc_id, source_label, source_uri, rights, type_doc,
-                   text, 1 - (vector <=> %s::vector) AS sim
-            FROM rag_chunks
-            WHERE collection = %s AND review_status IN ('reviewed', 'needs_review')
-            ORDER BY vector <=> %s::vector
-            LIMIT %s
-        """, (vec_str, collection, vec_str, RERANK_CANDIDATES))
-        candidates = cur.fetchall()
+        return CrossEncoder(
+            RERANK_MODEL,
+            max_length=512,
+            local_files_only=True,
+        )
+    except Exception:
+        raise ModelLoadError("canonical reranker unavailable") from None
 
-    conn.close()
 
-    if not candidates:
-        return []
-
-    # Step 2: Rerank with CrossEncoder
-    # FF-02: pass FULL chunk text — let the model's max_length=512 TOKENS handle truncation.
-    # Do NOT pre-truncate to 512 CHARACTERS (which sabotages scoring on longer chunks).
-    pairs = [(query, c[6] or "") for c in candidates]
-    rerank_scores = reranker.predict(pairs)
-
-    # Step 3: Filter by seuil + sort
-    results = []
-    for candidate, score in sorted(
-        zip(candidates, rerank_scores, strict=False), key=lambda x: x[1], reverse=True
+def _validate_request(query: object, collection: object, top_k: object) -> None:
+    if not isinstance(query, str) or not query.strip():
+        raise RetrievalPipelineError("invalid query")
+    if not isinstance(collection, str) or not collection.strip():
+        raise RetrievalPipelineError("invalid collection")
+    if (
+        isinstance(top_k, bool)
+        or not isinstance(top_k, int)
+        or not 1 <= top_k <= CHANNEL_LIMIT
     ):
-        if float(score) < RERANK_SCORE_THRESHOLD:
-            continue
-        results.append({
-            "chunk_id": candidate[0],
-            "doc_id": candidate[1],
-            "source_label": candidate[2],
-            "source_uri": candidate[3],
-            "rights": candidate[4],
-            "type_doc": candidate[5],
-            "preview": (candidate[6] or "")[:200],
-            "rerank_score": round(float(score), 4),
-            "dense_sim": round(float(candidate[7]), 4),
-        })
-        if len(results) >= top_k:
-            break
-
-    return results
+        raise RetrievalPipelineError("invalid top_k")
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Retrieval v2 (dense+rerank+seuil)")
+def search(
+    query: str,
+    collection: str,
+    top_k: int = 5,
+    *,
+    settings: PoolSettings,
+    store_factory: StoreFactory = _build_pg_store,
+    embedder_factory: EmbedderFactory = _load_canonical_embedder,
+    reranker_factory: RerankerFactory = _load_canonical_reranker,
+    retrieve_fn: RetrieveFunction = retrieve_hybrid,
+) -> list[HybridHit]:
+    """Applique le gate avant toute factory puis délègue au noyau hybride."""
+    _validate_request(query, collection, top_k)
+    config = load_collection_config()
+    _check_retrievable(collection, config)
+
+    store = store_factory(settings)
+    embedder = embedder_factory()
+    reranker = reranker_factory()
+    hits: list[HybridHit] = retrieve_fn(
+        query,
+        collection,
+        top_k,
+        store=store,
+        embedder=embedder,
+        reranker=reranker,
+    )
+    return hits
+
+
+def _top_k_argument(raw_value: str) -> int:
+    try:
+        value = int(raw_value)
+    except ValueError:
+        raise argparse.ArgumentTypeError("top-k must be an integer between 1 and 50") from None
+    if not 1 <= value <= CHANNEL_LIMIT:
+        raise argparse.ArgumentTypeError("top-k must be between 1 and 50")
+    return value
+
+
+def _parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Retrieval v2 hybride canonique")
     parser.add_argument("--query", required=True)
     parser.add_argument("--collection", required=True)
-    parser.add_argument("--top-k", type=int, default=5)
-    args = parser.parse_args()
+    parser.add_argument("--top-k", type=_top_k_argument, default=5)
+    return parser
 
-    # FF-07: DSN validation AFTER argparse (so --help works without PG_RAG_DSN)
-    pg_dsn = os.environ.get("PG_RAG_DSN")
-    if not pg_dsn:
-        print("Error: PG_RAG_DSN environment variable required", file=sys.stderr)
-        sys.exit(1)
 
-    results = search(args.query, args.collection, args.top_k, pg_dsn=pg_dsn)
+def _score(value: float | None) -> str:
+    return "none" if value is None else f"{value:.6f}"
 
-    print(f"Query: {args.query}")
-    print(f"Collection: {args.collection}")
-    print(f"Seuil: {RERANK_SCORE_THRESHOLD}")
-    print(f"Résultats: {len(results)}")
-    for r in results:
-        print(f"  rerank={r['rerank_score']:+7.2f}  {r['source_label'][:40]:40s}  rights={r['rights']}")
-    if not results:
-        print("  (aucun résultat au-dessus du seuil)")
+
+def _print_hits(hits: Sequence[HybridHit]) -> None:
+    print(f"results={len(hits)}")
+    for hit in hits:
+        candidate = hit.candidate
+        print(
+            f"chunk_id={candidate.chunk_id} doc_id={candidate.doc_id} "
+            f"dense={_score(candidate.dense_score)} "
+            f"lexical={_score(candidate.lexical_score)} "
+            f"rrf={hit.rrf_score:.6f} rerank={hit.rerank_score:.6f} "
+            f"final={hit.score_final:.6f} mmr={hit.mmr_score:.6f}"
+        )
+
+
+_CONTROLLED_ERRORS = (
+    CollectionConfigError,
+    CollectionNotRetrievableError,
+    EmbeddingContractError,
+    ModelLoadError,
+    PoolConfigurationError,
+    RetrievalPipelineError,
+)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = _parser().parse_args(argv)
+    hits: list[HybridHit] | None = None
+    failed = False
+
+    try:
+        settings = PoolSettings.from_env()
+        hits = search(
+            args.query,
+            args.collection,
+            args.top_k,
+            settings=settings,
+            store_factory=_build_pg_store,
+            embedder_factory=_load_canonical_embedder,
+            reranker_factory=_load_canonical_reranker,
+            retrieve_fn=retrieve_hybrid,
+        )
+    except _CONTROLLED_ERRORS:
+        failed = True
+    finally:
+        try:
+            close_pool()
+        except PoolConfigurationError:
+            failed = True
+
+    if failed or hits is None:
+        print("Error: hybrid retrieval unavailable", file=sys.stderr)
+        return 1
+
+    _print_hits(hits)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
