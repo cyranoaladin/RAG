@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import pytest
+
 ENGINE_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = ENGINE_ROOT.parents[1]
 INIT_SQL = ENGINE_ROOT / "infra" / "postgres" / "init.sql"
@@ -30,6 +32,12 @@ ROLLBACK_002_ALLOWED_STATEMENTS = [
 ]
 V2_COMPOSE = ENGINE_ROOT / "infra" / "docker-compose.v2.yml"
 UPGRADE_SCRIPT = ENGINE_ROOT / "infra" / "scripts" / "apply_pgvector_migrations.sh"
+MIGRATION_LIBRARY = (
+    ENGINE_ROOT / "infra" / "scripts" / "lib" / "pgvector_migration_state.sh"
+)
+ROLLBACK_SCRIPT = (
+    ENGINE_ROOT / "infra" / "scripts" / "rollback_pgvector_migration.sh"
+)
 
 V2_REQUIRED_COLUMNS = (
     "chunk_id",
@@ -120,20 +128,29 @@ def test_upgrade_script_uses_on_error_stop() -> None:
 
 
 def test_upgrade_script_applies_migrations() -> None:
-    content = UPGRADE_SCRIPT.read_text(encoding="utf-8")
+    content = (
+        UPGRADE_SCRIPT.read_text(encoding="utf-8")
+        + MIGRATION_LIBRARY.read_text(encoding="utf-8")
+    )
     assert "postgres/migrations" in content, "Script must apply migrations from migrations dir"
     assert ".sql" in content
 
 
 def test_upgrade_script_verifies_v2_columns() -> None:
-    content = UPGRADE_SCRIPT.read_text(encoding="utf-8")
+    content = (
+        UPGRADE_SCRIPT.read_text(encoding="utf-8")
+        + MIGRATION_LIBRARY.read_text(encoding="utf-8")
+    )
     for col in ("chunk_id", "doc_id", "collection", "review_status",
                 "source_label", "source_uri", "rights", "type_doc"):
         assert col in content, f"Script must verify column {col}"
 
 
 def test_upgrade_script_verifies_vector_1024() -> None:
-    content = UPGRADE_SCRIPT.read_text(encoding="utf-8")
+    content = (
+        UPGRADE_SCRIPT.read_text(encoding="utf-8")
+        + MIGRATION_LIBRARY.read_text(encoding="utf-8")
+    )
     assert "vector(1024)" in content
 
 
@@ -159,6 +176,92 @@ def test_upgrade_script_requires_backup_root() -> None:
     assert "BACKUP_ROOT:?" in content, (
         "Script must require BACKUP_ROOT to be set"
     )
+
+
+def test_migration_library_exposes_exact_registry_contract() -> None:
+    content = MIGRATION_LIBRARY.read_text(encoding="utf-8")
+    normalized = " ".join(content.split())
+    assert "rag_schema_migrations" in content
+    assert "version integer PRIMARY KEY" in normalized
+    assert "CHECK (version > 0)" in normalized
+    assert "file_name text NOT NULL UNIQUE" in normalized
+    assert "btrim(file_name) <> ''" in normalized
+    assert "sha256 text NOT NULL" in normalized
+    assert "^[0-9a-f]{64}$" in content
+    assert "applied_at timestamptz NOT NULL DEFAULT now()" in normalized
+
+
+@pytest.mark.parametrize(
+    "needle",
+    [
+        "rag_schema_migrations",
+        "sha256sum",
+        "pg_advisory_xact_lock",
+        "MIGRATION_CHECKSUM_MISMATCH",
+        "MIGRATION_GAP",
+        "vector(1024)",
+        "pg_get_expr",
+        "pg_get_indexdef",
+        "SCHEMA_HEAD_001_INVALID",
+        "SCHEMA_HEAD_002_INVALID",
+    ],
+)
+def test_migration_library_declares_exact_invariants(needle: str) -> None:
+    assert needle in MIGRATION_LIBRARY.read_text(encoding="utf-8")
+
+
+def test_migration_library_validates_all_001_columns_and_indexes() -> None:
+    content = MIGRATION_LIBRARY.read_text(encoding="utf-8")
+    for column in (
+        "chunk_id",
+        "doc_id",
+        "chunk_sha256",
+        "vector",
+        "collection",
+        "niveau",
+        "voie",
+        "audience",
+        "matiere",
+        "statut_enseignement",
+        "notions",
+        "domain",
+        "source_label",
+        "source_uri",
+        "rights",
+        "type_doc",
+        "official",
+        "text",
+        "chunk_index",
+        "page_start",
+        "page_end",
+        "review_status",
+        "model",
+        "source_kind",
+        "indexed_at",
+    ):
+        assert column in content
+    for index in (
+        "rag_chunks_pkey",
+        "idx_rag_chunks_vector",
+        "idx_rag_chunks_collection",
+        "idx_rag_chunks_niveau",
+        "idx_rag_chunks_matiere",
+        "idx_rag_chunks_audience",
+        "idx_rag_chunks_rights",
+        "idx_rag_chunks_review",
+    ):
+        assert index in content
+    assert "PRIMARY KEY (chunk_id)" in content
+    assert "format_type" in content
+
+
+def test_migration_runners_use_single_transaction_and_advisory_lock() -> None:
+    library = MIGRATION_LIBRARY.read_text(encoding="utf-8")
+    assert "pg_advisory_xact_lock" in library
+    for path in (UPGRADE_SCRIPT, ROLLBACK_SCRIPT):
+        content = path.read_text(encoding="utf-8")
+        assert "--single-transaction" in content
+        assert "advisory_lock_sql" in content
 
 
 # ── Migration legacy pkey guard ──────────────────────────────────────
