@@ -136,7 +136,7 @@ l'attestation humaine exhaustive.
 | Verrous de gouvernance | `bash scripts/check-governance-locks.sh` | 18/18, aucune modification protégée | PASS |
 | CI locale canonique | `bash scripts/ci-local.sh` sur `ed5506a29581972aca1bc3e807fc662489887c70` | 13/13, Python 3.11.14, Node 22.22.0 ; log SHA-256 `965eb0f0b5cbe482c5eb6e2e9c16c8ca80c4d175a91ee9ea6e9a48a4231afdac` | PASS |
 | Revue indépendante | diff technique final | `APPROVE` (confiance haute), aucun P0/P1 ; couverture P2 tenant ajoutée | PASS technique |
-| Checks PR GitHub | run de la tête finale | `PENDING` | PENDING |
+| Checks PR GitHub | runs `30685866356` et `30685884359` sur `3f9844490ef0c786860933fdea1d36f6b9c018f9` | sécurité, contrats, dépôt, gouvernance et trois services : tous verts | PASS technique |
 
 Le commit source CI `ed5506a29581972aca1bc3e807fc662489887c70`
 contient tous les fichiers techniques, normatifs, tests et preuves humaines
@@ -145,6 +145,11 @@ dont `1750 passed` pour `rag-pedago`, les tests `rag-engine`, les 21 tests et le
 build du cockpit, les 18 verrous et les garde-fous fail-closed. Le présent ajout
 de preuve est documentaire uniquement ; le diff post-CI ne modifie ni code, ni
 configuration, ni requête golden.
+
+Le commit documentaire `3f9844490ef0c786860933fdea1d36f6b9c018f9`
+a ensuite déclenché les runs GitHub `push` et `pull_request`. Tous leurs jobs ont
+réussi, ainsi que GitGuardian. L'ajout ultérieur de ces identifiants au présent
+rapport est, lui aussi, strictement documentaire.
 
 ## Décision de livraison
 
