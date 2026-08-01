@@ -32,6 +32,9 @@ class IdentityConfigurationError(RuntimeError):
     """Configuration d'identité moteur absente ou ambiguë."""
 
 
+MAX_INTERNAL_TOKEN_TTL_SECONDS = 3_600
+
+
 @dataclass(frozen=True)
 class IdentityVerifierConfig:
     """Configuration serveur attendue pour le transport d'identité."""
@@ -54,6 +57,8 @@ class IdentityVerifierConfig:
         if any(not value.strip() for value in required):
             raise IdentityConfigurationError("identity configuration invalid")
         if len(self.secret.encode("utf-8")) < 32:
+            raise IdentityConfigurationError("identity configuration invalid")
+        if "," in self.identity_audience:
             raise IdentityConfigurationError("identity configuration invalid")
 
 
@@ -137,7 +142,11 @@ def verify_identity_token(
         raise IdentityTokenError("invalid identity token") from exc
     if envelope.iss != config.issuer or envelope.aud != config.audience:
         raise IdentityTokenError("invalid identity token")
-    if envelope.exp <= current_time or envelope.iat > current_time:
+    if (
+        envelope.exp <= current_time
+        or envelope.iat > current_time
+        or envelope.exp - envelope.iat > MAX_INTERNAL_TOKEN_TTL_SECONDS
+    ):
         raise IdentityTokenError("invalid identity token")
     identity = envelope.identity
     if (

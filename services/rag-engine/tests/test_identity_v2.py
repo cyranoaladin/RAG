@@ -338,6 +338,11 @@ def test_hs256_secret_must_be_at_least_32_bytes() -> None:
         replace(TEST_CONFIG, secret="short-secret")
 
 
+def test_sso_audience_policy_must_be_one_exact_value() -> None:
+    with pytest.raises(IdentityConfigurationError, match="identity configuration invalid"):
+        replace(TEST_CONFIG, identity_audience="nexus-cockpit,other-client")
+
+
 def test_http_boundary_loads_runtime_policy_when_not_injected(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -370,6 +375,19 @@ def test_protected_header_rejects_any_unapproved_field() -> None:
 
 def test_future_issued_at_is_rejected_without_clock_skew() -> None:
     token = _sign(_envelope_payload(iat=NOW + 1))
+
+    with pytest.raises(IdentityTokenError, match="invalid identity token"):
+        verify_identity_token(token, config=TEST_CONFIG, now=NOW)
+
+
+def test_transport_lifetime_is_bounded_by_engine_policy() -> None:
+    token = _sign(
+        _envelope_payload(
+            iat=NOW - 3_601,
+            exp=NOW + 1,
+            identity=_identity_payload(exp=NOW + 600),
+        )
+    )
 
     with pytest.raises(IdentityTokenError, match="invalid identity token"):
         verify_identity_token(token, config=TEST_CONFIG, now=NOW)

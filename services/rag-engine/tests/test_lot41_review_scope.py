@@ -252,6 +252,7 @@ def test_decision_transitions_are_scoped_and_asymmetric(
     assert "tenant = %s" in sql
     assert list(expected_states) in params
     assert connection.commits == 1
+    assert response.json()["cache_invalidated_this_worker"] is True
     assert response.json()["max_stale_other_workers_s"] == 0
 
 
@@ -298,5 +299,6 @@ def test_committed_decision_is_not_reported_as_failed_if_local_cache_fails(
     )
 
     assert response.status_code == 200
+    assert response.json()["cache_invalidated_this_worker"] is False
     assert response.json()["max_stale_other_workers_s"] == 0
     assert connection.commits == 1

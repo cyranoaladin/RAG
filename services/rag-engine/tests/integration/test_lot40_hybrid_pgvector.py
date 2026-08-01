@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
+import hmac
+import json
 import math
 import os
+import time
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from pathlib import Path
@@ -15,10 +19,11 @@ import psycopg
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from nexus_contracts import Rights
+from nexus_contracts import Rights, load_pilot_retrieval_scope
 
 from ingestor import retrieval_v2_endpoint as endpoint
 from ingestor import review_v2_endpoint as review_endpoint
+from ingestor.identity_v2 import load_identity_verifier_config, verify_identity_token
 from ingestor.pg_pool import close_pool
 from ingestor.retrieval_hybrid_v2 import (
     EMBED_DIMENSION,
@@ -67,6 +72,60 @@ AUDIENCE = ["tous"]
 VISIBILITY = "internal"
 SCHOOL_YEAR = "2026-2027"
 PROGRAMME_VERSION = "BOEN_special_8_2019-07-25"
+INTERNAL_TOKEN_SECRET = "lot41-integration-internal-secret-32-bytes"
+INTERNAL_TOKEN_ISSUER = "lot41-integration-cockpit"
+INTERNAL_TOKEN_AUDIENCE = "lot41-integration-engine"
+SSO_ISSUER = "lot41-integration-sso"
+SSO_AUDIENCE = "lot41-integration-cockpit-audience"
+
+
+def _b64url(value: bytes) -> str:
+    return base64.urlsafe_b64encode(value).rstrip(b"=").decode("ascii")
+
+
+def _signed_identity_token(*, candidat: str = CANDIDAT) -> str:
+    artifact = load_pilot_retrieval_scope()
+    now = int(time.time())
+    identity = {
+        "aud": SSO_AUDIENCE,
+        "exp": now + 600,
+        "iss": SSO_ISSUER,
+        "jti": "lot41-e2e-jti",
+        "tenant": TENANT,
+        "niveau": "terminale",
+        "role": "admin",
+        "school_year": SCHOOL_YEAR,
+        "sub": "psn_lot41integration0001",
+        "pedagogical_profile": {
+            "voie": VOIE,
+            "matieres": ["maths", "nsi"],
+            "statut_enseignement": STATUT_ENSEIGNEMENT,
+            "candidat": candidat,
+            "audience": "libre",
+        },
+    }
+    payload = {
+        "protocol_version": "1",
+        "iss": INTERNAL_TOKEN_ISSUER,
+        "aud": INTERNAL_TOKEN_AUDIENCE,
+        "sub": identity["sub"],
+        "jti": identity["jti"],
+        "iat": now,
+        "exp": now + 300,
+        "identity": identity,
+        "scope_id": artifact.scope_id,
+        "scope_digest": artifact.sha256_digest(),
+        "allowed_collections": [subject.collection for subject in artifact.subjects],
+    }
+    header = _b64url(json.dumps({"alg": "HS256", "typ": "JWT"}).encode())
+    body = _b64url(json.dumps(payload).encode())
+    signed = f"{header}.{body}"
+    signature = hmac.new(
+        INTERNAL_TOKEN_SECRET.encode(),
+        signed.encode("ascii"),
+        hashlib.sha256,
+    ).digest()
+    return f"{signed}.{_b64url(signature)}"
 
 
 def _scope(
@@ -986,6 +1045,12 @@ class EmptyReranker:
         return [0.0] * len(pairs)
 
 
+class PilotFixtureReranker:
+    def predict(self, pairs: Sequence[tuple[str, str]]) -> Sequence[float]:
+        assert all(query == QUERY for query, _text in pairs)
+        return [2.60] * len(pairs)
+
+
 def test_real_store_and_core_prove_union_scores_page_dedup_and_dimension_failure() -> None:
     store = PgCandidateStore(_app_store_connection, _scope(TARGET_COLLECTION))
     hits = retrieve_hybrid(
@@ -1119,6 +1184,101 @@ def test_http_search_fails_closed_then_uses_real_hybrid_store(
     print("HTTP_SEARCH_V2=PASS")
 
 
+def test_signed_identity_to_http_scope_and_real_database_is_end_to_end(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service_token = "lot41-integration-bff-service-token-32-bytes"
+    monkeypatch.setenv("RAG_BFF_SERVICE_TOKEN", service_token)
+    monkeypatch.setenv("NEXUS_INTERNAL_TOKEN_SECRET", INTERNAL_TOKEN_SECRET)
+    monkeypatch.setenv("NEXUS_INTERNAL_TOKEN_ISSUER", INTERNAL_TOKEN_ISSUER)
+    monkeypatch.setenv("NEXUS_INTERNAL_TOKEN_AUDIENCE", INTERNAL_TOKEN_AUDIENCE)
+    monkeypatch.setenv("NEXUS_SSO_ISSUER", SSO_ISSUER)
+    monkeypatch.setenv("NEXUS_SSO_AUDIENCE", SSO_AUDIENCE)
+    monkeypatch.setenv("PG_RAG_DSN", APP_DSN)
+    monkeypatch.setenv("PG_POOL_MIN_SIZE", "1")
+    monkeypatch.setenv("PG_POOL_MAX_SIZE", "2")
+    monkeypatch.setenv("PG_POOL_TIMEOUT_S", "5")
+    for variable in (
+        "RAG_ADMIN_TOKEN",
+        "RAG_REVIEWER_TOKEN",
+        "REVIEWER_API_TOKEN",
+        "RAG_TEACHER_TOKEN",
+        "RAG_INGEST_AGENT_TOKEN",
+        "INGESTOR_API_TOKEN",
+        "INGEST_AUTH_TOKEN",
+    ):
+        monkeypatch.delenv(variable, raising=False)
+    monkeypatch.setenv("RAG_STUDENT_TOKEN", "distinct-human-student-token")
+    monkeypatch.setattr(endpoint, "_get_embed_model", lambda: DeterministicEmbedder())
+    monkeypatch.setattr(endpoint, "_get_reranker", lambda: PilotFixtureReranker())
+    close_pool()
+    app = FastAPI()
+    app.include_router(endpoint.router)
+    client = TestClient(app)
+    identity_token = _signed_identity_token()
+    verified = verify_identity_token(
+        identity_token,
+        config=load_identity_verifier_config(),
+    )
+    collection_config = endpoint.load_collection_config()
+    scope = endpoint.build_server_retrieval_scope(
+        verified,
+        collection=MATRIX_COLLECTIONS["nsi"],
+        collection_config=collection_config,
+    )
+    direct_hits = retrieve_hybrid(
+        QUERY,
+        MATRIX_COLLECTIONS["nsi"],
+        5,
+        store=PgCandidateStore(_app_store_connection, scope),
+        embedder=DeterministicEmbedder(),
+        reranker=PilotFixtureReranker(),
+    )
+    assert [hit.candidate.chunk_id for hit in direct_hits] == [
+        "matrix-nsi-individuel",
+    ]
+
+    response = client.post(
+        "/search/v2",
+        headers={
+            "Authorization": f"Bearer {service_token}",
+            "X-Nexus-Identity": identity_token,
+        },
+        json={
+            "q": QUERY,
+            "collection": MATRIX_COLLECTIONS["nsi"],
+            "k": 5,
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    assert [hit["chunk_id"] for hit in response.json()["hits"]] == [
+        "matrix-nsi-individuel",
+    ]
+    readiness = client.get(
+        "/collections/readiness",
+        headers={
+            "Authorization": f"Bearer {service_token}",
+            "X-Nexus-Identity": identity_token,
+        },
+    )
+    assert readiness.status_code == 200, readiness.text
+    readiness_payload = readiness.json()
+    assert readiness_payload["launch_ready"] is False
+    assert readiness_payload["release_evidence_verified"] is False
+    assert readiness_payload["total_collections"] == 2
+    assert {
+        item["name"]: item["reviewed_chunks"]
+        for item in readiness_payload["collections"]
+    } == {
+        MATRIX_COLLECTIONS["maths"]: 1,
+        MATRIX_COLLECTIONS["nsi"]: 1,
+    }
+    client.close()
+    close_pool()
+    print("SIGNED_IDENTITY_HTTP_REAL_DB=PASS")
+
+
 def test_http_chat_is_locked_with_zero_or_real_hits_and_never_calls_network(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1142,9 +1302,9 @@ def test_http_chat_is_locked_with_zero_or_real_hits_and_never_calls_network(
         "voie": "generale",
         "matieres": ["nsi"],
         "statut_enseignement": "specialite",
-        "candidat": "scolarise",
+        "candidat": "individuel",
         "school_year": "2026-2027",
-        "zone": "tunis",
+        "zone": "libre",
     }
     base_request = {
         "student_profile": profile,

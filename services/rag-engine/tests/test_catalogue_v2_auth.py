@@ -27,15 +27,6 @@ def _extract_catalogue_v2_roles(content: str) -> set[str]:
     return roles
 
 
-def _extract_collections_v2_roles(content: str) -> set[str]:
-    """Extract the allowed_roles set from the /collections/v2 endpoint."""
-    pattern = r'@router\.get\("/collections/v2"\).*?allowed_roles=\{([^}]+)\}'
-    match = re.search(pattern, content, re.DOTALL)
-    assert match, "/collections/v2 endpoint not found or allowed_roles missing"
-    roles_block = match.group(1)
-    return set(re.findall(r"SecurityRole\.(\w+)", roles_block))
-
-
 # --- /catalogue/v2 auth tests ---
 
 def test_catalogue_v2_allows_admin():
@@ -65,16 +56,23 @@ def test_catalogue_v2_does_not_allow_student():
     assert "STUDENT" not in roles
 
 
-# --- /collections/v2 unchanged ---
+# --- /collections/v2 LOT41 ---
 
-def test_collections_v2_allows_all_roles():
-    """/collections/v2 (search picker) must keep its broad access."""
-    roles = _extract_collections_v2_roles(_read_endpoint())
-    assert "ADMIN" in roles
-    assert "REVIEWER" in roles
-    assert "TEACHER" in roles
-    assert "INGEST_AGENT" in roles
-    assert "STUDENT" in roles
+def test_collections_v2_requires_bff_identity_and_filters_signed_scope():
+    """Le picker BFF ne réutilise plus les jetons humains historiques."""
+    content = _read_endpoint()
+    pattern = (
+        r'@router\.get\("/collections/v2"\)'
+        r'.*?def list_retrievable_collections'
+        r'.*?(?=@router\.|# --- Full catalogue)'
+    )
+    match = re.search(pattern, content, re.DOTALL)
+    assert match, "/collections/v2 endpoint not found"
+    endpoint = match.group(0)
+    assert '_require_retrieval_identity(request, endpoint="/collections/v2")' in endpoint
+    assert "verified.envelope.allowed_collections" in endpoint
+    assert "build_server_retrieval_scope" in endpoint
+    assert "_enforce_security_v2" not in endpoint
 
 
 # --- /search/v2 unchanged ---

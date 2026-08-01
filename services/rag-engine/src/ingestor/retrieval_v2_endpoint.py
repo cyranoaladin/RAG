@@ -5,7 +5,7 @@ Exposes POST /search/v2 wrapping the canonical LOT40 hybrid pipeline:
   → RRF → rerank → seuil +1.90 → MMR.
 
 Models are cached at module level (loaded once, not per request).
-DSN via PG_RAG_DSN or DATABASE_URL_SYNC env var (R-01: no default).
+DSN via PG_RAG_DSN only (R-01: no owner/migration fallback).
 answer_generation_allowed = false (retrieval only, no LLM generation).
 """
 from __future__ import annotations
@@ -50,7 +50,11 @@ try:
         HybridHit,
         retrieve_hybrid,
     )
-    from .retrieval_pg_v2 import PgCandidateStore
+    from .retrieval_pg_v2 import (
+        _SCOPE_PREDICATE_SQL,
+        PgCandidateStore,
+        _scope_params,
+    )
     from .retrieval_scope_v2 import (
         RetrievalScopeError,
         ServerRetrievalScope,
@@ -82,7 +86,11 @@ except (ImportError, ValueError):
         HybridHit,
         retrieve_hybrid,
     )
-    from retrieval_pg_v2 import PgCandidateStore  # type: ignore[no-redef]
+    from retrieval_pg_v2 import (  # type: ignore[no-redef]
+        _SCOPE_PREDICATE_SQL,
+        PgCandidateStore,
+        _scope_params,
+    )
     from retrieval_scope_v2 import (  # type: ignore[no-redef]
         RetrievalScopeError,
         ServerRetrievalScope,
@@ -188,12 +196,12 @@ def _get_reranker():
 
 
 def _get_pg_dsn() -> str:
-    """Return pgvector DSN from environment. No default (R-01)."""
-    dsn = os.environ.get("PG_RAG_DSN") or os.environ.get("DATABASE_URL_SYNC")
+    """Return the read-only pgvector DSN without owner fallback."""
+    dsn = os.environ.get("PG_RAG_DSN", "").strip()
     if not dsn:
         raise HTTPException(
             status_code=503,
-            detail="PG_RAG_DSN or DATABASE_URL_SYNC not configured",
+            detail="launch readiness unavailable",
         )
     return dsn
 
@@ -291,12 +299,13 @@ def _build_launch_readiness(
     reviewed_counts: Mapping[str, int],
     *,
     min_chunks: int,
+    release_evidence_verified: bool,
 ) -> dict[str, Any]:
-    """Assess every declared collection, without inferring missing evidence.
+    """Expose diagnostics without turning a row count into release evidence.
 
-    This is deliberately stricter than the retrieval gate. A collection can be
-    searchable internally while public launch remains closed because a corpus
-    is absent or has not reached the required reviewed-chunk threshold.
+    `release_evidence_verified` may only be supplied by a future exhaustive
+    release-manifest validator. LOT41 always passes False: reviewed-row presence
+    is informative, never a proof of pedagogical substance or 39-notion coverage.
     """
     collections_raw = cfg.get("collections")
     domains = cfg.get("domains")
@@ -305,6 +314,8 @@ def _build_launch_readiness(
 
     collections: list[dict[str, Any]] = []
     blockers: list[str] = []
+    if not release_evidence_verified:
+        blockers.append("preuve exhaustive de release absente")
     for name in sorted(collections_raw):
         definition = collections_raw[name]
         if not isinstance(definition, Mapping):
@@ -314,7 +325,7 @@ def _build_launch_readiness(
                 "instanciee": False,
                 "retrievable": False,
                 "reviewed_chunks": 0,
-                "substantial": False,
+                "reviewed_chunk_floor_met": False,
                 "ready": False,
                 "reasons": ["définition de collection invalide"],
             })
@@ -325,25 +336,27 @@ def _build_launch_readiness(
         domain_cfg = domains.get(domain) if isinstance(domain, str) else None
         retrievable = isinstance(domain_cfg, Mapping) and domain_cfg.get("retrievable") is True
         reviewed_chunks = max(0, int(reviewed_counts.get(name, 0)))
-        substantial = reviewed_chunks >= min_chunks
+        reviewed_chunk_floor_met = reviewed_chunks >= min_chunks
         reasons: list[str] = []
         if not instanciee:
             reasons.append("collection non instanciée")
         if not retrievable:
             reasons.append("domaine non retrievable")
-        if not substantial:
+        if not reviewed_chunk_floor_met:
             reasons.append(
-                f"corpus validé insuffisant ({reviewed_chunks}/{min_chunks} chunks reviewed)",
+                f"plancher de chunks reviewed non atteint ({reviewed_chunks}/{min_chunks})",
             )
-        ready = not reasons
-        if not ready:
+        if not release_evidence_verified:
+            reasons.append("preuve exhaustive de release absente")
+        ready = release_evidence_verified and not reasons
+        if reasons:
             blockers.append(f"{name}: {', '.join(reasons)}")
         collections.append({
             "name": name,
             "instanciee": instanciee,
             "retrievable": retrievable,
             "reviewed_chunks": reviewed_chunks,
-            "substantial": substantial,
+            "reviewed_chunk_floor_met": reviewed_chunk_floor_met,
             "ready": ready,
             "reasons": reasons,
         })
@@ -353,16 +366,24 @@ def _build_launch_readiness(
         "total_collections": len(collections),
         "ready_collections": sum(1 for item in collections if item["ready"]),
         "minimum_reviewed_chunks": min_chunks,
+        "release_evidence_verified": release_evidence_verified,
         "blockers": blockers,
         "collections": collections,
     }
 
 
-def _get_reviewed_chunk_counts(collection_names: Iterable[str]) -> dict[str, int]:
-    """Count approved corpus rows for launch readiness, failing closed on DB loss."""
-    names = list(collection_names)
-    if not names:
+def _get_reviewed_chunk_counts(
+    scopes: Iterable[ServerRetrievalScope],
+) -> dict[str, int]:
+    """Count only reviewed rows inside the exact signed retrieval scopes."""
+    resolved_scopes = tuple(scopes)
+    if not resolved_scopes:
         return {}
+    clauses: list[str] = []
+    params: list[object] = []
+    for scope in resolved_scopes:
+        clauses.append(f"({_SCOPE_PREDICATE_SQL})")
+        params.extend(_scope_params(scope))
     try:
         conn = psycopg.connect(_get_pg_dsn())
     except HTTPException:
@@ -374,13 +395,10 @@ def _get_reviewed_chunk_counts(collection_names: Iterable[str]) -> dict[str, int
     try:
         with conn.cursor() as cur:
             cur.execute(
-                """
-                SELECT collection, COUNT(*)
-                FROM rag_chunks
-                WHERE collection = ANY(%s) AND review_status = 'reviewed'
-                GROUP BY collection
-                """,
-                (names,),
+                "SELECT collection, COUNT(*) FROM rag_chunks WHERE "
+                + " OR ".join(clauses)
+                + " GROUP BY collection",
+                tuple(params),
             )
             return {str(collection): int(count) for collection, count in cur.fetchall()}
     except Exception as exc:
@@ -452,13 +470,15 @@ def cache_warmup(request: Request) -> dict[str, Any]:
 
 # --- Endpoint to list retrievable collections (for UI picker) ---
 
-def _list_retrievable_collections() -> dict[str, Any]:
+def _list_retrievable_collections(
+    cfg: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
     """Return collections that are instanciee:true AND retrievable:true.
 
     The UI picker derives its list from this endpoint (D-PICKER-DERIVE-CATALOGUE).
     Adding a new instanciated collection makes it appear without UI code change.
     """
-    cfg = load_collection_config()
+    cfg = load_collection_config() if cfg is None else cfg
     instanciated = list_instanciated_collections(cfg)
     domains = cfg.get("domains", {})
 
@@ -480,8 +500,10 @@ def _list_retrievable_collections() -> dict[str, Any]:
             "name": name,
             "matiere": defn.get("matiere"),
             "niveau": defn.get("niveau"),
+            "voie": defn.get("voie"),
             "statut": defn.get("statut"),
             "domain": domain,
+            "instanciee": True,
         })
 
     return {"collections": retrievable}
@@ -489,19 +511,26 @@ def _list_retrievable_collections() -> dict[str, Any]:
 
 @router.get("/collections/v2")
 def list_retrievable_collections(request: Request) -> dict[str, Any]:
-    """Public alias kept for direct imports in tests."""
-    _enforce_security_v2(
-        request,
-        allowed_roles={
-            SecurityRole.ADMIN,
-            SecurityRole.REVIEWER,
-            SecurityRole.TEACHER,
-            SecurityRole.INGEST_AGENT,
-            SecurityRole.STUDENT,
-        },
-        endpoint="/collections/v2",
-    )
-    return _list_retrievable_collections()
+    """Return only collections authorized by the signed BFF identity."""
+    verified = _require_retrieval_identity(request, endpoint="/collections/v2")
+    try:
+        cfg = load_collection_config()
+        allowed = tuple(str(value) for value in verified.envelope.allowed_collections)
+        for collection in allowed:
+            build_server_retrieval_scope(
+                verified,
+                collection=collection,
+                collection_config=cfg,
+            )
+        catalogue = _list_retrievable_collections(cfg)
+    except (RetrievalScopeError, CollectionConfigError, ValueError) as exc:
+        raise HTTPException(status_code=403, detail="Forbidden") from exc
+    allowed_set = set(allowed)
+    return {
+        "collections": [
+            item for item in catalogue["collections"] if item["name"] in allowed_set
+        ],
+    }
 
 
 # --- Full catalogue endpoint (LOT 27) ---
@@ -649,16 +678,9 @@ def get_full_catalogue(request: Request) -> dict[str, Any]:
 
 @router.get("/collections/readiness")
 def get_collection_readiness(request: Request) -> dict[str, Any]:
-    """Fail closed when the declared public corpus is not proven complete."""
-    _enforce_security_v2(
+    """Expose signed-scope diagnostics while LOT41 remains release-closed."""
+    verified = _require_retrieval_identity(
         request,
-        allowed_roles={
-            SecurityRole.ADMIN,
-            SecurityRole.REVIEWER,
-            SecurityRole.TEACHER,
-            SecurityRole.INGEST_AGENT,
-            SecurityRole.STUDENT,
-        },
         endpoint="/collections/readiness",
     )
     try:
@@ -666,12 +688,31 @@ def get_collection_readiness(request: Request) -> dict[str, Any]:
         collections_raw = cfg.get("collections")
         if not isinstance(collections_raw, Mapping):
             raise ValueError("collections config is malformed")
-        counts = _get_reviewed_chunk_counts(collections_raw.keys())
+        allowed = tuple(str(value) for value in verified.envelope.allowed_collections)
+        scopes = tuple(
+            build_server_retrieval_scope(
+                verified,
+                collection=collection,
+                collection_config=cfg,
+            )
+            for collection in allowed
+        )
+        scoped_collections = {
+            collection: collections_raw[collection]
+            for collection in allowed
+            if collection in collections_raw
+        }
+        if len(scoped_collections) != len(allowed):
+            raise RetrievalScopeError("retrieval scope forbidden")
+        counts = _get_reviewed_chunk_counts(scopes)
         return _build_launch_readiness(
-            cfg,
+            {**cfg, "collections": scoped_collections},
             counts,
             min_chunks=MIN_COLLECTION_SUBSTANCE_CHUNKS,
+            release_evidence_verified=False,
         )
+    except (RetrievalScopeError, CollectionConfigError) as exc:
+        raise HTTPException(status_code=403, detail="Forbidden") from exc
     except HTTPException:
         raise
     except Exception as exc:
@@ -789,6 +830,38 @@ def _chat_refusal(
     )
 
 
+def _require_chat_profile_match(
+    payload: ChatRequest,
+    collections: list[str],
+    scopes: Mapping[str, ServerRetrievalScope],
+) -> None:
+    """Refuser toute divergence entre le DTO historique et le scope signé."""
+    if not collections:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    first = scopes[collections[0]]
+    expected = {
+        "niveau": first.niveau,
+        "voie": first.voie,
+        "matieres": [scopes[collection].matiere for collection in collections],
+        "statut_enseignement": first.statut_enseignement,
+        "candidat": first.candidat,
+        "school_year": first.school_year,
+        "zone": first.audiences[0],
+    }
+    profile = payload.student_profile
+    actual = {
+        "niveau": profile.niveau.value,
+        "voie": profile.voie.value,
+        "matieres": [value for value in profile.matieres],
+        "statut_enseignement": profile.statut_enseignement.value,
+        "candidat": profile.candidat.value,
+        "school_year": profile.school_year,
+        "zone": profile.zone,
+    }
+    if actual != expected:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+
 @router.post("/chat", response_model=ChatResponse)
 def chat(payload: ChatRequest, request: Request) -> ChatResponse:
     """Retrieve reviewed evidence while generation remains governance-locked."""
@@ -806,6 +879,8 @@ def chat(payload: ChatRequest, request: Request) -> ChatResponse:
             )
         except (RetrievalScopeError, CollectionConfigError, HTTPException) as exc:
             raise HTTPException(status_code=403, detail="Forbidden") from exc
+
+    _require_chat_profile_match(payload, collections, scopes)
 
     all_hits: list[tuple[str, SearchV2Hit]] = []
     for collection in collections:

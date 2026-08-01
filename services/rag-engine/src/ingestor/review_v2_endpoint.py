@@ -326,10 +326,12 @@ def review_decide(payload: ReviewDecision, request: Request) -> dict[str, Any]:
     if affected == 0:
         raise HTTPException(status_code=404, detail="review target unavailable")
 
+    cache_invalidated = True
     try:
         cache_cleared = invalidate_cache()
     except Exception:
         cache_cleared = 0
+        cache_invalidated = False
         logger.error("local administrative cache invalidation failed")
     logger.info(
         "review decision=%s target_type=%s chunks=%d scope_digest=%s cache_cleared=%d",
@@ -344,7 +346,7 @@ def review_decide(payload: ReviewDecision, request: Request) -> dict[str, Any]:
         "target_id": payload.target_id,
         "decision": payload.decision,
         "chunks_affected": affected,
-        "cache_invalidated_this_worker": True,
+        "cache_invalidated_this_worker": cache_invalidated,
         "max_stale_other_workers_s": 0,
     }
 

@@ -81,6 +81,24 @@ BASE_SCOPE = ServerRetrievalScope(
 )
 
 
+def test_launch_readiness_dsn_refuses_owner_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ingestor import retrieval_v2_endpoint as endpoint
+
+    monkeypatch.delenv("PG_RAG_DSN", raising=False)
+    monkeypatch.setenv("DATABASE_URL_SYNC", "postgresql://owner@localhost/rag")
+
+    with pytest.raises(HTTPException) as exc_info:
+        endpoint._get_pg_dsn()
+
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.detail == "launch readiness unavailable"
+
+    monkeypatch.setenv("PG_RAG_DSN", "  postgresql://reader@localhost/rag  ")
+    assert endpoint._get_pg_dsn() == "postgresql://reader@localhost/rag"
+
+
 def _mock_retrieval_identity(endpoint: object, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         endpoint,
@@ -403,9 +421,9 @@ class TestResponseFormat:
 
 
 class TestLaunchReadiness:
-    """The public launch is closed until every declared collection is ready."""
+    """Le compteur de chunks ne peut jamais tenir lieu de preuve de substance."""
 
-    def test_all_declared_collections_must_be_substantive_and_retrievable(self) -> None:
+    def test_reviewed_chunk_floor_cannot_self_authorize_launch(self) -> None:
         readiness = _build_launch_readiness(
             FULL_CFG,
             {
@@ -415,11 +433,14 @@ class TestLaunchReadiness:
                 "rag_nexus_maths_seconde_tc": 0,
             },
             min_chunks=3,
+            release_evidence_verified=False,
         )
 
         assert readiness["total_collections"] == 4
         assert readiness["launch_ready"] is False
-        assert readiness["ready_collections"] == 2
+        assert readiness["ready_collections"] == 0
+        assert readiness["release_evidence_verified"] is False
+        assert "preuve exhaustive de release absente" in readiness["blockers"]
         maths = next(
             item
             for item in readiness["collections"]
@@ -427,6 +448,49 @@ class TestLaunchReadiness:
         )
         assert maths["ready"] is False
         assert "collection non instanciée" in maths["reasons"]
+
+    def test_readiness_is_limited_to_signed_collections(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from ingestor import retrieval_v2_endpoint as endpoint
+
+        verified = SimpleNamespace(
+            envelope=SimpleNamespace(
+                allowed_collections=("rag_nexus_nsi_terminale_specialite",),
+            ),
+        )
+        events: list[object] = []
+        monkeypatch.setattr(
+            endpoint,
+            "_require_retrieval_identity",
+            lambda *_args, **_kwargs: events.append("identity") or verified,
+        )
+        monkeypatch.setattr(
+            endpoint,
+            "load_collection_config",
+            lambda: events.append("config") or FULL_CFG,
+        )
+        monkeypatch.setattr(
+            endpoint,
+            "build_server_retrieval_scope",
+            lambda *_args, **_kwargs: BASE_SCOPE,
+        )
+
+        def counts(scopes: object) -> dict[str, int]:
+            resolved = tuple(scopes)
+            events.append(("counts", resolved))
+            assert resolved == (BASE_SCOPE,)
+            return {BASE_SCOPE.collection: 12_000}
+
+        monkeypatch.setattr(endpoint, "_get_reviewed_chunk_counts", counts)
+
+        response = endpoint.get_collection_readiness(SimpleNamespace())
+
+        assert response["total_collections"] == 1
+        assert response["collections"][0]["name"] == BASE_SCOPE.collection
+        assert response["launch_ready"] is False
+        assert events[0:2] == ["identity", "config"]
 
 
 class TestHybridSearchDelegation:
@@ -731,7 +795,7 @@ class TestCitedChat:
                     "statut_enseignement": "specialite",
                     "candidat": "individuel",
                     "school_year": "2026-2027",
-                    "zone": "france",
+                    "zone": "libre",
                 },
                 "query": "Explique la récursivité",
                 "collections": ["rag_nexus_nsi_terminale_specialite"],
@@ -814,6 +878,54 @@ class TestCitedChat:
             ("gate", "rag_nexus_nsi_terminale_specialite"),
             ("gate", "rag_nexus_nsi_premiere_specialite"),
         ]
+
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [
+            ("niveau", "premiere"),
+            ("voie", "technologique"),
+            ("matieres", ["maths"]),
+            ("statut_enseignement", "tronc_commun"),
+            ("candidat", "libre"),
+            ("school_year", "2025-2026"),
+            ("zone", "aefe"),
+        ],
+    )
+    def test_chat_refuses_every_unsigned_profile_divergence_before_retrieval(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        field: str,
+        value: object,
+    ) -> None:
+        endpoint, client = _api_client(monkeypatch)
+        retrieve = MagicMock(side_effect=AssertionError("retrieval must stay closed"))
+        monkeypatch.setattr(endpoint, "_retrieve_hybrid_hits", retrieve)
+        profile: dict[str, object] = {
+            "niveau": "terminale",
+            "voie": "generale",
+            "matieres": ["nsi"],
+            "statut_enseignement": "specialite",
+            "candidat": "individuel",
+            "school_year": "2026-2027",
+            "zone": "libre",
+        }
+        profile[field] = value
+
+        response = client.post(
+            "/chat",
+            headers={"Authorization": "Bearer student-token"},
+            json={
+                "student_profile": profile,
+                "query": "Explique la récursivité",
+                "collections": ["rag_nexus_nsi_terminale_specialite"],
+                "top_k": 4,
+                "include_retrieval": True,
+            },
+        )
+
+        assert response.status_code == 403
+        assert response.json() == {"detail": "Forbidden"}
+        retrieve.assert_not_called()
 
 
 class TestCacheGateInvariant:

@@ -126,3 +126,56 @@ def test_collection_gate_rejection_is_generic_and_happens_before_scope(
     assert "secret_collection" not in response.text
     build_scope.assert_not_called()
     retrieve.assert_not_called()
+
+
+def test_readiness_accepts_only_the_distinct_bff_credential_and_signed_scope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from types import SimpleNamespace
+
+    service_token = "lot41-bff-service-token-at-least-32-bytes"
+    student_token = "distinct-human-student-token"
+    monkeypatch.setenv("RAG_BFF_SERVICE_TOKEN", service_token)
+    monkeypatch.setenv("RAG_STUDENT_TOKEN", student_token)
+    verified = SimpleNamespace(
+        envelope=SimpleNamespace(allowed_collections=("pilot_collection",)),
+    )
+    monkeypatch.setattr(endpoint, "require_internal_identity", lambda _request: verified)
+    monkeypatch.setattr(
+        endpoint,
+        "load_collection_config",
+        lambda: {
+            "collections": {
+                "pilot_collection": {
+                    "domain": "education",
+                    "instanciee": True,
+                    "matiere": "nsi",
+                    "niveau": "terminale",
+                    "voie": "generale",
+                    "statut": "specialite",
+                },
+            },
+            "domains": {"education": {"retrievable": True}},
+        },
+    )
+    scope = MagicMock(collection="pilot_collection")
+    monkeypatch.setattr(endpoint, "build_server_retrieval_scope", lambda *_args, **_kwargs: scope)
+    monkeypatch.setattr(
+        endpoint,
+        "_get_reviewed_chunk_counts",
+        lambda scopes: {"pilot_collection": 10} if tuple(scopes) == (scope,) else {},
+    )
+
+    human_response = _client().get(
+        "/collections/readiness",
+        headers={"Authorization": f"Bearer {student_token}", "X-Nexus-Identity": "signed"},
+    )
+    bff_response = _client().get(
+        "/collections/readiness",
+        headers={"Authorization": f"Bearer {service_token}", "X-Nexus-Identity": "signed"},
+    )
+
+    assert human_response.status_code == 401
+    assert bff_response.status_code == 200
+    assert bff_response.json()["total_collections"] == 1
+    assert bff_response.json()["launch_ready"] is False
