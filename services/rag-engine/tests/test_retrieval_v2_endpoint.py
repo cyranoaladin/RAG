@@ -862,6 +862,44 @@ class TestAtomicHybridWarmup:
         )
         return endpoint, client
 
+    def test_warmup_docstring_explains_the_disabled_cache_invariant(self) -> None:
+        from ingestor import retrieval_v2_endpoint as endpoint
+
+        assert endpoint.cache_warmup.__doc__ is not None
+        normalized = " ".join(endpoint.cache_warmup.__doc__.split()).lower()
+        assert "après authentification" in normalized
+        assert "purge atomiquement" in normalized
+        assert "avance la génération" in normalized
+        assert "compteurs à zéro" in normalized
+        assert "sans charger la configuration ni lancer le pipeline" in normalized
+
+    def test_disabled_warmup_without_auth_preserves_cache_and_generation(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        endpoint, client = self._prepare(monkeypatch)
+        prior_key = endpoint._cache_key("prior", "prior-collection", 5)
+        _seed_cache(endpoint, prior_key, [{"stale": True}])
+        cache_before = _cache_snapshot(endpoint)
+        generation_before = endpoint._cache_generation
+        load_config = MagicMock(
+            side_effect=AssertionError("unauthorized warmup must not load config")
+        )
+        retrieve = MagicMock(
+            side_effect=AssertionError("unauthorized warmup must not retrieve")
+        )
+        monkeypatch.setattr(endpoint, "CACHE_ENABLED", False)
+        monkeypatch.setattr(endpoint, "load_collection_config", load_config)
+        monkeypatch.setattr(endpoint, "_retrieve_endpoint_hits", retrieve)
+
+        response = client.post("/cache/v2/warmup")
+
+        assert response.status_code == 401
+        assert _cache_snapshot(endpoint) == cache_before
+        assert endpoint._cache_generation == generation_before
+        load_config.assert_not_called()
+        retrieve.assert_not_called()
+
     def test_disabled_warmup_purges_without_loading_config_or_retrieval(
         self,
         monkeypatch: pytest.MonkeyPatch,

@@ -416,10 +416,12 @@ def cache_invalidate(request: Request) -> dict[str, Any]:
 
 @router.post("/cache/v2/warmup")
 def cache_warmup(request: Request) -> dict[str, Any]:
-    """Pre-warm cache with common pedagogical queries (SCALE-V1-6).
+    """Préchauffe le cache avec les requêtes pédagogiques courantes.
 
-    Runs the canonical hybrid pipeline for probable queries and caches results.
-    Call at startup or after invalidation to eliminate cold-start misses.
+    Lorsque le cache est désactivé, après authentification, ce chemin purge
+    atomiquement les entrées, avance la génération et retourne les compteurs à
+    zéro, sans charger la configuration ni lancer le pipeline. Lorsque le cache
+    est activé, il calcule puis publie atomiquement le pipeline hybride canonique.
     """
     _enforce_security_v2(
         request,
