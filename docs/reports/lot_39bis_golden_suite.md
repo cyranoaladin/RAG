@@ -134,9 +134,17 @@ l'attestation humaine exhaustive.
 | Ruff et mypy | trois fichiers Ruff ; module + CLI mypy | `All checks passed!` ; `Success: no issues found` | PASS |
 | Garde Make | `python3 scripts/make_target_safety_audit.py` | 55/55, cible en `SAFE_DIAGNOSTIC` | PASS |
 | Verrous de gouvernance | `bash scripts/check-governance-locks.sh` | 18/18, aucune modification protégée | PASS |
-| CI locale canonique | `bash scripts/ci-local.sh` | exécution de référence 13/13 verte, invalidée comme preuve finale par les correctifs postérieurs | PENDING sur le SHA final |
+| CI locale canonique | `bash scripts/ci-local.sh` sur `ed5506a29581972aca1bc3e807fc662489887c70` | 13/13, Python 3.11.14, Node 22.22.0 ; log SHA-256 `965eb0f0b5cbe482c5eb6e2e9c16c8ca80c4d175a91ee9ea6e9a48a4231afdac` | PASS |
 | Revue indépendante | diff technique final | `APPROVE` (confiance haute), aucun P0/P1 ; couverture P2 tenant ajoutée | PASS technique |
 | Checks PR GitHub | run de la tête finale | `PENDING` | PENDING |
+
+Le commit source CI `ed5506a29581972aca1bc3e807fc662489887c70`
+contient tous les fichiers techniques, normatifs, tests et preuves humaines
+`pending`. La CI locale y a validé les treize cibles sans tolérance d'échec,
+dont `1750 passed` pour `rag-pedago`, les tests `rag-engine`, les 21 tests et le
+build du cockpit, les 18 verrous et les garde-fous fail-closed. Le présent ajout
+de preuve est documentaire uniquement ; le diff post-CI ne modifie ni code, ni
+configuration, ni requête golden.
 
 ## Décision de livraison
 
