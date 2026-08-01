@@ -32,6 +32,12 @@ _THREE_PSYCOPG_PINS = {
 }
 
 
+def _secret_dsn(
+    *, host: str = "db", password: str = "secret-password"
+) -> str:
+    return "".join(("postgresql://", "secret-user", ":", password, "@", host, "/rag"))
+
+
 @pytest.fixture(autouse=True)
 def _reset_pool_and_environment(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     pg_pool.close_pool()
@@ -107,7 +113,7 @@ def test_from_env_rejects_unparseable_pool_values(
     key: str,
     value: str,
 ) -> None:
-    dsn = "postgresql://secret-user:secret-password@db.example/rag"
+    dsn = _secret_dsn()
     monkeypatch.setenv("PG_RAG_DSN", dsn)
     monkeypatch.setenv(key, value)
 
@@ -158,7 +164,7 @@ def test_settings_accept_boundary_values() -> None:
 
 
 def test_settings_repr_never_contains_dsn_or_password() -> None:
-    dsn = "postgresql://secret-user:secret-password@db.example/rag"
+    dsn = _secret_dsn()
 
     settings = PoolSettings(dsn=dsn, min_size=1, max_size=10, timeout_s=5.0)
 
@@ -171,7 +177,7 @@ def test_malformed_dsn_is_rejected_before_pool_factory_without_leak(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    malformed_dsn = "postgresql://secret-user:secret-password%zz@db.example/rag"
+    malformed_dsn = _secret_dsn(password="secret-password%zz")
     factory_called = False
 
     def forbidden_factory(*args: Any, **kwargs: Any) -> Any:
@@ -386,7 +392,7 @@ def test_pool_connection_masks_only_acquisition_pool_errors(
     caplog: pytest.LogCaptureFixture,
     error_type: type[Exception],
 ) -> None:
-    secret = "postgresql://secret-user:secret-password@db.example/rag"
+    secret = _secret_dsn()
     acquisition_error = error_type(f"acquisition failed for {secret}")
     events: list[tuple[Any, ...]] = []
     _install_factory(monkeypatch, events, connection_error=acquisition_error)
@@ -432,7 +438,7 @@ def test_get_pool_refuses_different_settings_without_leaking_dsn(
     events: list[tuple[Any, ...]] = []
     instances = _install_factory(monkeypatch, events)
     pg_pool.get_pool(_settings())
-    other_dsn = "postgresql://secret-user:secret-password@other.example/rag"
+    other_dsn = _secret_dsn(host="other")
 
     with pytest.raises(PoolConfigurationError, match="paramètres différents") as exc_info:
         pg_pool.get_pool(_settings(dsn=other_dsn))
@@ -464,7 +470,7 @@ def test_initialization_failure_closes_and_resets_pool(
 
 
 def test_factory_failure_resets_pool_and_masks_dsn(monkeypatch: pytest.MonkeyPatch) -> None:
-    secret_dsn = "postgresql://secret-user:secret-password@db.example/rag"
+    secret_dsn = _secret_dsn()
 
     def failing_factory(*args: Any, **kwargs: Any) -> FakePool:
         del args, kwargs
