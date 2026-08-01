@@ -2,17 +2,16 @@
 
 ## Verdict
 
-**LOT39BIS_TECHNICALLY_VALID_AWAITING_HUMAN_REVIEW**
+**LOT39BIS_APPROVED_READY_TO_MERGE**
 
 **GO_LIVE: NO_GO**
 
 Ce verdict porte uniquement sur la spécification d’évaluation. L’intégrité
-technique est verte et adressée, mais la revue humaine est encore `pending` et
-le diagnostic de promotion retourne volontairement le code `3`. Le lot ne vaut
+technique, la revue humaine exhaustive et les checks de la tête de preuve sont
+verts ; le diagnostic canonique retourne désormais le code `0`. Le lot ne vaut
 ni qualification d’un corpus réel, ni baseline retrieval, ni certification de
-réponse générée. La fusion est interdite tant que la CI, les revues finales, les
-checks GitHub et la revue humaine exhaustive ne sont pas tous prouvés sur la
-même tête.
+réponse générée. Le verdict global reste donc `NO_GO` jusqu’aux lots ultérieurs
+du plan de finalisation.
 
 ## Périmètre
 
@@ -78,20 +77,23 @@ globalement, par matière et par notion.
 
 ## Revue humaine obligatoire
 
-Une validation automatique ne constitue pas une revue humaine. Le manifeste
-de revue reste `pending` jusqu’à ce qu’une personne identifiée atteste avoir
-relu les 255 textes et leurs jugements sur le digest exact du paquet de revue.
-L’agent auteur et ses reviewers automatiques ne peuvent pas produire cette
-attestation. Toute divergence de digest, couverture partielle, identité ou
-preuve absente doit rendre la revue invalide.
+Une validation automatique ne constitue pas une revue humaine. Alaeddine BEN
+RHOUMA (`@abenrhouma`), responsable pédagogique, a confirmé et approuvé la
+revue exhaustive sur la PR #82 le `2026-08-01T07:34:20Z`. La preuve externe est
+le commentaire GitHub
+<https://github.com/cyranoaladin/RAG/pull/82#issuecomment-5150433429>.
+L’identité, le rôle, l’horodatage, le digest et la référence de preuve sont
+recopiés dans le manifeste et doivent concorder exactement avec le paquet.
+Toute divergence de digest, couverture partielle, identité ou preuve absente
+rend la revue invalide.
 
 Le paquet de revue exhaustif est
 [`golden_human_review_packet.md`](evidence/lot_39bis/golden_human_review_packet.md),
 SHA-256
-`8b4621bda39a93600b7bc47c28180a4087cf3ba86d91d16d70806ef06e01645f`.
-Il contient les 255 identifiants uniques et quatre attestations globales, toutes
-non cochées. Il lie explicitement les deux fichiers YAML normatifs et leur
-digest ; il ne préremplit ni reviewer, ni heure, ni approbation.
+`e7fc03d392491707db3102f3dce54791921d38a4365cc717be9c8b256700b4ed`.
+Il contient les 255 identifiants uniques et quatre attestations globales, soit
+259 cases toutes cochées. Il lie explicitement les deux fichiers YAML normatifs,
+leur digest inchangé et la preuve GitHub externe.
 
 ## Digest et corrections de substance
 
@@ -123,37 +125,45 @@ y compris face aux variantes de casse ou d'espacement. Ces contrôles
 automatiques restent des garde-fous structurels ; ils ne se substituent pas à
 l'attestation humaine exhaustive.
 
+Lors de l’enregistrement de l’attestation, un test TDD a mis en évidence que
+l’auditeur imposait le libellé littéral `lead`, alors que le design de LOT39bis
+exige une personne humaine identifiée sans réserver cette revue aux autorités
+d’activation ultérieures. Le contrôle accepte désormais le rôle humain déclaré
+non vide et non générique, tout en exigeant sa concordance exacte avec le paquet
+de preuve. Les contrôles d’identité, d’horodatage, de digest, de SHA du paquet et
+de couverture 255+4 restent inchangés.
+
 ## Vérifications et matrice de preuve
 
 | Critère | Artefact ou commande | Digest / résultat | Verdict |
 |---|---|---|---|
-| Spécification et cardinalités | `python3 scripts/pilot_golden_spec_audit.py` | `SPECIFICATION_VALID`, 255, `LOCK_VALID` | PASS technique ; code `3` attendu pour revue pending |
+| Spécification et cardinalités | `python3 scripts/pilot_golden_spec_audit.py` | `SPECIFICATION_VALID`, `HUMAN_REVIEW_APPROVED`, 255, `LOCK_VALID` | PASS ; code `0` |
 | Digest normatif | `pilot_golden_spec.lock.json` | `d00c7e0fcf6870111b46d07ddc5531d15184ba7dbf2f780af81b6b2a416ddee4` | PASS |
-| Revue humaine 255/255 | paquet de revue LOT39bis | 255 cases + 4 attestations non cochées | PENDING |
-| Tests ciblés | `python3 -m pytest -q tests/unit/test_pilot_golden_spec.py tests/unit/test_make_target_safety_audit.py` | `307 passed` | PASS |
+| Revue humaine 255/255 | paquet + commentaire PR #82 | 255 cas + 4 attestations cochés ; identité, rôle, heure, digest et SHA concordants | PASS |
+| Tests ciblés | `python3 -m pytest -q tests/unit/test_pilot_golden_spec.py tests/unit/test_make_target_safety_audit.py` | `308 passed` | PASS |
 | Ruff et mypy | trois fichiers Ruff ; module + CLI mypy | `All checks passed!` ; `Success: no issues found` | PASS |
 | Garde Make | `python3 scripts/make_target_safety_audit.py` | 55/55, cible en `SAFE_DIAGNOSTIC` | PASS |
 | Verrous de gouvernance | `bash scripts/check-governance-locks.sh` | 18/18, aucune modification protégée | PASS |
-| CI locale canonique | `bash scripts/ci-local.sh` sur `ed5506a29581972aca1bc3e807fc662489887c70` | 13/13, Python 3.11.14, Node 22.22.0 ; log SHA-256 `965eb0f0b5cbe482c5eb6e2e9c16c8ca80c4d175a91ee9ea6e9a48a4231afdac` | PASS |
+| CI locale canonique | `bash scripts/ci-local.sh` sur `60107aac973b14540ed644d1dc22fddfb7f08d6b` avec le bootstrap Python du job cockpit | 13/13, Python 3.11.14, Node 22.22.0 ; `1751 passed` pour `rag-pedago`, cockpit 21 tests + deux builds | PASS |
 | Revue indépendante | diff technique final | `APPROVE` (confiance haute), aucun P0/P1 ; couverture P2 tenant ajoutée | PASS technique |
-| Checks PR GitHub | runs `30685866356` et `30685884359` sur `3f9844490ef0c786860933fdea1d36f6b9c018f9` | sécurité, contrats, dépôt, gouvernance et trois services : tous verts | PASS technique |
+| Checks PR GitHub | runs `30691148838` (`push`) et `30691149965` (`pull_request`) sur `60107aac973b14540ed644d1dc22fddfb7f08d6b` | GitGuardian, contrats, dépôt, gouvernance et trois services : tous verts | PASS |
 
-Le commit source CI `ed5506a29581972aca1bc3e807fc662489887c70`
-contient tous les fichiers techniques, normatifs, tests et preuves humaines
-`pending`. La CI locale y a validé les treize cibles sans tolérance d'échec,
-dont `1750 passed` pour `rag-pedago`, les tests `rag-engine`, les 21 tests et le
-build du cockpit, les 18 verrous et les garde-fous fail-closed. Le présent ajout
-de preuve est documentaire uniquement ; le diff post-CI ne modifie ni code, ni
-configuration, ni requête golden.
+Le commit source de preuve
+`60107aac973b14540ed644d1dc22fddfb7f08d6b` contient le manifeste approuvé, le
+paquet humain signé, le correctif TDD et les tests. La CI locale y a validé les
+treize cibles sans tolérance d’échec. Pour refléter la topologie GitHub, le run
+local a utilisé un venv Python 3.11 temporaire contenant `PyYAML==6.0.3` et
+`pydantic==2.13.4` avant le cockpit ; aucun fichier versionné n’a été modifié par
+ce bootstrap.
 
-Le commit documentaire `3f9844490ef0c786860933fdea1d36f6b9c018f9`
-a ensuite déclenché les runs GitHub `push` et `pull_request`. Tous leurs jobs ont
-réussi, ainsi que GitGuardian. L'ajout ultérieur de ces identifiants au présent
-rapport est, lui aussi, strictement documentaire.
+Les runs GitHub `30691148838` et `30691149965` ont ensuite validé la même tête.
+Tous leurs jobs ont réussi, ainsi que GitGuardian. L’ajout de ces identifiants
+au présent rapport est strictement documentaire et ne modifie ni code, ni
+configuration, ni requête golden, ni preuve humaine.
 
 ## Décision de livraison
 
-LOT39bis reste non livrable et le projet reste `GO_LIVE: NO_GO`. Une
-spécification techniquement valide mais sans revue humaine exhaustive ne peut
-pas être fusionnée et ne débloque pas LOT40. Le code retour `3` de la cible
-canonique rend cette frontière exécutable plutôt que déclarative.
+LOT39bis est livrable et prêt au squash-merge de la PR #82. Sa fusion sur
+`main`, après les checks du commit documentaire final, débloque LOT40. Le projet
+reste néanmoins `GO_LIVE: NO_GO` : LOT39bis ne qualifie ni corpus réel, ni
+retrieval en environnement cible, ni génération publique.
