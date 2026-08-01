@@ -99,7 +99,9 @@ collections de l'artefact.
 Le scope effectif d'une session est ensuite l'intersection, dans l'ordre de
 l'artefact, entre ces collections et les matières présentes dans le profil
 signé. Le catalogue, la readiness, la review et le retrieval ne peuvent donc
-élargir une identité mono-matière au second sujet du pilote.
+élargir une identité mono-matière au second sujet du pilote. Le catalogue et la
+readiness conservent explicitement cet ordre ; ils ne dépendent pas d'un tri
+lexical accidentel de la configuration.
 
 L'artefact permet au cockpit et au moteur de partager le scope sans importer
 le code de `rag-pedago` ni lire ses fichiers au runtime. Les tests du package
@@ -112,6 +114,10 @@ Le filtrage final reste construit côté moteur à partir de l'identité validé
 du scope serveur. Aucun champ fourni dans le corps d'une requête ne peut
 élargir le tenant, le niveau, la voie, le statut, l'audience, la matière,
 l'année ou la collection.
+
+Le BFF déduplique les collections de chat avant de construire simultanément la
+liste transmise et le profil pédagogique dérivé. Un doublon client ne peut donc
+créer une divergence de cardinalité entre ces deux représentations.
 
 Les décisions humaines de review doivent être liées au tenant et à la
 collection. La seule révocation additionnelle autorisée est
