@@ -1,4 +1,4 @@
-"""Tests de visibilité review_status pour `/search/v2` (LOT 26.2 + LOT 26.3)."""
+"""Visibilité reviewed-only sur le pipeline hybride public LOT40."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import os
 import sys
 from collections.abc import Iterator
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi import FastAPI
@@ -16,20 +16,19 @@ from fastapi.testclient import TestClient
 # Ensure src/ is importable
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from ingestor.retrieval_v2_endpoint import (  # noqa: E402
-    _cache_get,
-    _cache_key,
-    _cache_put,
-    invalidate_cache,
-    router,
-    search_v2,
+from ingestor import retrieval_v2_endpoint as endpoint  # noqa: E402
+from ingestor.retrieval_hybrid_v2 import (  # noqa: E402
+    HybridHit,
+    RetrievalCandidate,
 )
+
+COLLECTION = "rag_nexus_nsi_terminale_specialite"
 
 
 def _base_cfg() -> dict:
     return {
         "collections": {
-            "rag_nexus_nsi_terminale_specialite": {
+            COLLECTION: {
                 "matiere": "nsi",
                 "niveau": "terminale",
                 "statut": "specialite",
@@ -37,41 +36,48 @@ def _base_cfg() -> dict:
                 "instanciee": True,
             }
         },
-        "domains": {
-            "education": {"retrievable": True},
-        },
+        "domains": {"education": {"retrievable": True}},
     }
 
 
-def _build_fake_pg_conn(candidates: list[tuple]) -> MagicMock:
-    conn = MagicMock()
-    cursor = MagicMock()
-    conn.cursor.return_value.__enter__.return_value = cursor
-    cursor.fetchall.return_value = candidates
-    return conn
+def _reviewed_hit() -> HybridHit:
+    return HybridHit(
+        candidate=RetrievalCandidate(
+            chunk_id="chunk-reviewed",
+            doc_id="doc-reviewed",
+            source_label="Programme officiel",
+            source_uri="https://example.edu/programme",
+            rights="official_public_administrative",
+            type_doc="programme",
+            text="Une preuve revue et substantielle.",
+            page_start=4,
+            vector=(1.0,) + (0.0,) * 1023,
+            review_status="reviewed",
+            dense_score=0.91,
+            lexical_score=0.52,
+        ),
+        dense_rank=1,
+        lexical_rank=1,
+        rrf_score=0.016,
+        rerank_score=2.8,
+        mmr_score=0.61,
+        score_final=0.88,
+    )
 
 
 @pytest.fixture(autouse=True)
 def clear_cache_between_tests() -> Iterator[None]:
-    invalidate_cache()
+    endpoint.invalidate_cache()
     try:
         yield
     finally:
-        invalidate_cache()
+        endpoint.invalidate_cache()
 
 
 def _setup_app() -> TestClient:
     app = FastAPI()
-    app.include_router(router)
+    app.include_router(endpoint.router)
     return TestClient(app)
-
-
-def _nexus_contracts_modules() -> tuple[object, object]:
-    contracts = __import__("types").ModuleType("nexus_contracts")
-    embedding = __import__("types").ModuleType("nexus_contracts.embedding_utils")
-    embedding.format_query = lambda text: text  # type: ignore[attr-defined]
-    contracts.embedding_utils = embedding  # type: ignore[attr-defined]
-    return contracts, embedding
 
 
 def _set_search_tokens(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -94,270 +100,94 @@ def test_search_token_setup_is_reverted_after_monkeypatch_context(
     assert "RAG_STUDENT_TOKEN" not in os.environ
 
 
-def test_search_v2_source_filters_reviewed_only() -> None:
-    source = inspect.getsource(search_v2)
-    assert "review_status = 'reviewed'" in source
+def test_search_v2_has_no_direct_visibility_or_database_pipeline() -> None:
+    source = inspect.getsource(endpoint.search_v2)
+    assert "_check_retrievable" in source
+    assert "_retrieve_endpoint_hits" in source
+    assert "psycopg" not in source
     assert "review_status IN ('reviewed', 'needs_review')" not in source
 
 
-def test_search_v2_fails_closed_without_shared_query_formatter(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _set_search_tokens(monkeypatch)
-    client = _setup_app()
-
-    contracts = __import__("types").ModuleType("nexus_contracts")
-    embedding = __import__("types").ModuleType("nexus_contracts.embedding_utils")
-    contracts.embedding_utils = embedding  # type: ignore[attr-defined]
-
-    with (
-        patch.dict(
-            sys.modules,
-            {
-                "nexus_contracts": contracts,
-                "nexus_contracts.embedding_utils": embedding,
-            },
-        ),
-        patch("ingestor.retrieval_v2_endpoint.load_collection_config", return_value=_base_cfg()),
-        patch(
-            "ingestor.retrieval_v2_endpoint._check_retrievable",
-            return_value={"domain": "education"},
-        ),
-        patch("ingestor.retrieval_v2_endpoint._get_pg_dsn", return_value="postgresql://x"),
-        patch("ingestor.retrieval_v2_endpoint._get_embed_model") as m_embed,
-        patch(
-            "ingestor.retrieval_v2_endpoint.psycopg.connect",
-            return_value=_build_fake_pg_conn([]),
-        ),
-    ):
-        m_embed.return_value = MagicMock(encode=lambda *args, **kwargs: [0.1])
-
-        response = client.post(
-            "/search/v2",
-            json={
-                "q": "algo",
-                "collection": "rag_nexus_nsi_terminale_specialite",
-                "k": 5,
-            },
-            headers={"Authorization": "Bearer student-token"},
-        )
-
-    assert response.status_code == 503
-    assert response.json() == {
-        "detail": "/search/v2: embedding query formatter unavailable"
-    }
-    m_embed.assert_not_called()
-
-
-def test_all_roles_only_return_reviewed_chunks(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _set_search_tokens(monkeypatch)
-    client = _setup_app()
-
-    fake_payload = [
-        ("c1", "d1", "l1", "u1", "rights", "cours", "chunk reviewed", 0.99, "reviewed"),
-        ("c2", "d2", "l2", "u2", "rights", "cours", "chunk needs", 0.98, "needs_review"),
-        ("c3", "d3", "l3", "u3", "rights", "cours", "chunk rejected", 0.97, "rejected"),
-        ("c4", "d4", "l4", "u4", "rights", "cours", "chunk quarantined", 0.96, "quarantined"),
-    ]
-
-    contracts, embedding = _nexus_contracts_modules()
-
-    actor_tokens = [
+@pytest.mark.parametrize(
+    "token",
+    [
         "admin-token",
         "reviewer-token",
         "teacher-token",
         "ingest-agent-token",
         "student-token",
-    ]
-
-    for token in actor_tokens:
-        with (
-            patch.dict(sys.modules, {"nexus_contracts": contracts, "nexus_contracts.embedding_utils": embedding}),
-            patch("ingestor.retrieval_v2_endpoint.load_collection_config", return_value=_base_cfg()),
-            patch("ingestor.retrieval_v2_endpoint._check_retrievable", return_value={"domain": "education"}),
-            patch("ingestor.retrieval_v2_endpoint._get_pg_dsn", return_value="postgresql://x"),
-            patch("ingestor.retrieval_v2_endpoint._get_embed_model") as m_embed,
-            patch("ingestor.retrieval_v2_endpoint._get_reranker") as m_rerank,
-            patch("ingestor.retrieval_v2_endpoint.psycopg.connect", return_value=_build_fake_pg_conn(fake_payload)),
-        ):
-
-            m_embed.return_value = MagicMock(encode=lambda *args, **kwargs: [0.1])
-            m_rerank.return_value = MagicMock(predict=lambda pairs: [2.4, 2.1, 2.05, 2.0])
-
-            response = client.post(
-                "/search/v2",
-                json={"q": "algo", "collection": "rag_nexus_nsi_terminale_specialite", "k": 5},
-                headers={"Authorization": f"Bearer {token}"},
-            )
-
-        assert response.status_code == 200
-        body = response.json()
-        assert body["returned"] == 1
-        assert len(body["hits"]) == 1
-        assert body["hits"][0]["chunk_id"] == "c1"
-        assert {hit["review_status"] for hit in body["hits"]} == {"reviewed"}
-
-
-def test_search_v2_cache_stale_status_is_not_returned(
+    ],
+)
+def test_all_roles_only_receive_reviewed_hybrid_hits(
+    token: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """If cache contains non-reviewed hits, fail-closed path must recompute."""
-
     _set_search_tokens(monkeypatch)
-    client = _setup_app()
+    monkeypatch.setattr(endpoint, "load_collection_config", _base_cfg)
+    monkeypatch.setattr(endpoint, "_check_retrievable", lambda *_args: {})
+    retrieve = MagicMock(return_value=[_reviewed_hit()])
+    monkeypatch.setattr(endpoint, "_retrieve_hybrid_hits", retrieve)
 
-    cache_key = _cache_key("query", "rag_nexus_nsi_terminale_specialite", 5)
-    _cache_put(cache_key, [
-        {
-            "chunk_id": "cached_nr",
-            "doc_id": "cached-d1",
-            "source_label": "src",
-            "source_uri": "uri",
-            "rights": "rights",
-            "type_doc": "cours",
-            "review_status": "needs_review",
-            "preview": "preview",
-            "rerank_score": 1.0,
-            "dense_sim": 0.8,
-        }
-    ])
-
-    db_candidates = [
-        ("c1", "d1", "l1", "u1", "rights", "cours", "chunk reviewed", 0.99, "reviewed"),
-        ("c2", "d2", "l2", "u2", "rights", "cours", "chunk needs", 0.98, "needs_review"),
-        ("c3", "d3", "l3", "u3", "rights", "cours", "chunk rejected", 0.97, "rejected"),
-        ("c4", "d4", "l4", "u4", "rights", "cours", "chunk quarantined", 0.96, "quarantined"),
-    ]
-
-    contracts, embedding = _nexus_contracts_modules()
-
-    with (
-        patch.dict(sys.modules, {"nexus_contracts": contracts, "nexus_contracts.embedding_utils": embedding}),
-        patch("ingestor.retrieval_v2_endpoint.load_collection_config", return_value=_base_cfg()),
-        patch("ingestor.retrieval_v2_endpoint._check_retrievable", return_value={"domain": "education"}),
-        patch("ingestor.retrieval_v2_endpoint._get_pg_dsn", return_value="postgresql://x"),
-        patch("ingestor.retrieval_v2_endpoint._get_embed_model") as m_embed,
-        patch("ingestor.retrieval_v2_endpoint._get_reranker") as m_rerank,
-        patch("ingestor.retrieval_v2_endpoint.psycopg.connect", return_value=_build_fake_pg_conn(db_candidates)),
-    ):
-
-        m_embed.return_value = MagicMock(encode=lambda *args, **kwargs: [0.1])
-        m_rerank.return_value = MagicMock(predict=lambda pairs: [2.4, 2.1, 2.05, 2.0])
-
-        response = client.post(
-            "/search/v2",
-            json={"q": "query", "collection": "rag_nexus_nsi_terminale_specialite", "k": 5},
-            headers={"Authorization": "Bearer student-token"},
-        )
+    response = _setup_app().post(
+        "/search/v2",
+        json={"q": "algo", "collection": COLLECTION, "k": 5},
+        headers={"Authorization": f"Bearer {token}"},
+    )
 
     assert response.status_code == 200
     body = response.json()
     assert body["returned"] == 1
-    assert body["hits"][0]["chunk_id"] == "c1"
+    assert body["hits"][0]["chunk_id"] == "chunk-reviewed"
     assert body["hits"][0]["review_status"] == "reviewed"
+    retrieve.assert_called_once_with("algo", COLLECTION, 5)
 
 
-def test_search_v2_does_not_serve_reviewed_cache_without_current_db_review(
+def test_public_search_ignores_even_reviewed_cache_and_requeries_pipeline(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Cache hits are ignored when DB has no current reviewed chunk."""
-
     _set_search_tokens(monkeypatch)
-    client = _setup_app()
+    monkeypatch.setattr(endpoint, "load_collection_config", _base_cfg)
+    monkeypatch.setattr(endpoint, "_check_retrievable", lambda *_args: {})
+    key = endpoint._cache_key("query", COLLECTION, 5)
+    endpoint._cache_put(key, [{"chunk_id": "stale-reviewed"}])
+    retrieve = MagicMock(return_value=[])
+    monkeypatch.setattr(endpoint, "_retrieve_hybrid_hits", retrieve)
+    monkeypatch.setattr(
+        endpoint,
+        "_cache_get",
+        lambda _key: (_ for _ in ()).throw(AssertionError("stale public cache")),
+    )
 
-    cache_key = _cache_key("query", "rag_nexus_nsi_terminale_specialite", 5)
-    _cache_put(cache_key, [
-        {
-            "chunk_id": "cached_reviewed",
-            "doc_id": "cached-d",
-            "source_label": "cached-src",
-            "source_uri": "cached-uri",
-            "rights": "rights",
-            "type_doc": "cours",
-            "review_status": "reviewed",
-            "preview": "cached preview",
-            "rerank_score": 2.5,
-            "dense_sim": 0.9,
-        }
-    ])
-
-    db_candidates = [
-        ("c1", "d1", "l1", "u1", "rights", "cours", "needs review", 0.99, "needs_review"),
-        ("c2", "d2", "l2", "u2", "rights", "cours", "rejected", 0.98, "rejected"),
-        ("c3", "d3", "l3", "u3", "rights", "cours", "quarantined", 0.97, "quarantined"),
-    ]
-
-    contracts, embedding = _nexus_contracts_modules()
-
-    with (
-        patch.dict(sys.modules, {"nexus_contracts": contracts, "nexus_contracts.embedding_utils": embedding}),
-        patch("ingestor.retrieval_v2_endpoint.load_collection_config", return_value=_base_cfg()),
-        patch("ingestor.retrieval_v2_endpoint._check_retrievable", return_value={"domain": "education"}),
-        patch("ingestor.retrieval_v2_endpoint._get_pg_dsn", return_value="postgresql://x"),
-        patch("ingestor.retrieval_v2_endpoint._get_embed_model") as m_embed,
-        patch("ingestor.retrieval_v2_endpoint._get_reranker") as m_rerank,
-        patch("ingestor.retrieval_v2_endpoint.psycopg.connect", return_value=_build_fake_pg_conn(db_candidates)),
-    ):
-
-        m_embed.return_value = MagicMock(encode=lambda *args, **kwargs: [0.1])
-        m_rerank.return_value = MagicMock(predict=lambda pairs: [2.2, 2.1, 2.0])
-
-        response = client.post(
-            "/search/v2",
-            json={"q": "query", "collection": "rag_nexus_nsi_terminale_specialite", "k": 5},
-            headers={"Authorization": "Bearer teacher-token"},
-        )
+    response = _setup_app().post(
+        "/search/v2",
+        json={"q": "query", "collection": COLLECTION, "k": 5},
+        headers={"Authorization": "Bearer teacher-token"},
+    )
 
     assert response.status_code == 200
-    body = response.json()
-    assert body["returned"] == 0
-    assert body["hits"] == []
+    assert response.json()["hits"] == []
+    retrieve.assert_called_once_with("query", COLLECTION, 5)
 
 
-def test_cache_warmup_ignores_non_reviewed_candidates(
+def test_cache_warmup_only_serializes_reviewed_hybrid_hits(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Warmup must never cache non-reviewed candidates."""
-
     _set_search_tokens(monkeypatch)
-    client = _setup_app()
+    monkeypatch.setattr(endpoint, "load_collection_config", _base_cfg)
+    monkeypatch.setattr(
+        endpoint,
+        "list_instanciated_collections",
+        lambda _cfg: [COLLECTION],
+    )
+    monkeypatch.setattr(endpoint, "_retrieve_hybrid_hits", lambda *_args: [_reviewed_hit()])
 
-    fake_payload = [
-        ("c1", "d1", "l1", "u1", "rights", "cours", "chunk reviewed", 0.99, "reviewed"),
-        ("c2", "d2", "l2", "u2", "rights", "cours", "chunk needs", 0.98, "needs_review"),
-        ("c3", "d3", "l3", "u3", "rights", "cours", "chunk rejected", 0.97, "rejected"),
-        ("c4", "d4", "l4", "u4", "rights", "cours", "chunk quarantined", 0.96, "quarantined"),
-    ]
-
-    contracts, embedding = _nexus_contracts_modules()
-
-    with (
-        patch.dict(sys.modules, {"nexus_contracts": contracts, "nexus_contracts.embedding_utils": embedding}),
-        patch("ingestor.retrieval_v2_endpoint.load_collection_config", return_value=_base_cfg()),
-        patch("ingestor.retrieval_v2_endpoint._get_pg_dsn", return_value="postgresql://x"),
-        patch("ingestor.retrieval_v2_endpoint._get_embed_model") as m_embed,
-        patch("ingestor.retrieval_v2_endpoint._get_reranker") as m_rerank,
-        patch("ingestor.retrieval_v2_endpoint.psycopg.connect", return_value=_build_fake_pg_conn(fake_payload)),
-    ):
-
-        m_embed.return_value = MagicMock(encode=lambda *args, **kwargs: [0.1])
-        m_rerank.return_value = MagicMock(predict=lambda pairs: [2.4, 2.1, 2.05, 2.0])
-
-        response = client.post(
-            "/cache/v2/warmup",
-            headers={"Authorization": "Bearer admin-token"},
-        )
+    response = _setup_app().post(
+        "/cache/v2/warmup",
+        headers={"Authorization": "Bearer admin-token"},
+    )
 
     assert response.status_code == 200
-    payload = response.json()
-    assert payload["warmed"] == payload["queries"]
-
-    cached = _cache_get(_cache_key(
-        "Comment fonctionne une boucle while en Python ?",
-        "rag_nexus_nsi_terminale_specialite",
-        5,
-    ))
+    assert response.json()["warmed"] == len(endpoint.WARMUP_QUERIES)
+    cached = endpoint._cache_get(endpoint._cache_key(endpoint.WARMUP_QUERIES[0], COLLECTION, 5))
     assert cached is not None
-    assert all(item["review_status"] == "reviewed" for item in cached)
+    assert cached[0]["review_status"] == "reviewed"
