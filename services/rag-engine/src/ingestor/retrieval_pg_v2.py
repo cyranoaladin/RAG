@@ -16,6 +16,10 @@ from ingestor.retrieval_hybrid_v2 import (
     RetrievalPipelineError,
 )
 
+_DENSE_STRICT_ORDER_SQL = "SET LOCAL hnsw.iterative_scan = 'strict_order'"
+
+# SET LOCAL borne le comportement à la transaction empruntée; il ne prouve pas le plan réel.
+# Task8 doit encore tester >50 lignes filtrées (autre collection/non-reviewed) et EXPLAIN HNSW.
 _DENSE_SQL = """
     SELECT chunk_id, doc_id, source_label, source_uri, rights, type_doc, text,
            page_start, vector::text, review_status,
@@ -30,7 +34,7 @@ _DENSE_SQL = """
 """
 
 _LEXICAL_SQL = """
-    WITH lexical_query AS (SELECT plainto_tsquery('french', %s) AS value)
+    WITH lexical_query AS MATERIALIZED (SELECT plainto_tsquery('french', %s) AS value)
     SELECT chunk_id, doc_id, source_label, source_uri, rights, type_doc, text,
            page_start, vector::text, review_status,
            ts_rank_cd(text_tsv, lexical_query.value, 32) AS lexical_score
@@ -152,9 +156,12 @@ class PgCandidateStore(CandidateStore):
         *,
         limit: int,
         channel: Literal["dense", "lexical"],
+        setup_sql: str | None = None,
     ) -> list[RetrievalCandidate]:
         with self._connection_provider() as connection:
             with connection.cursor() as cursor:
+                if setup_sql is not None:
+                    cursor.execute(setup_sql)
                 cursor.execute(sql, params)
                 fetched = cursor.fetchall()
                 if isinstance(fetched, str | bytes) or not isinstance(fetched, Sequence):
@@ -178,6 +185,7 @@ class PgCandidateStore(CandidateStore):
                 (vector_text, normalized_collection, vector_text, normalized_limit),
                 limit=normalized_limit,
                 channel="dense",
+                setup_sql=_DENSE_STRICT_ORDER_SQL,
             )
         except Exception:
             failed = True

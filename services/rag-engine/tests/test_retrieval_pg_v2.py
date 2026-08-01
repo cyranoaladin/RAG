@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
+from pathlib import Path
 from types import TracebackType
 from typing import Any
 
@@ -40,9 +41,11 @@ DENSE_SQL = _normalize_sql(
     """
 )
 
+DENSE_STRICT_ORDER_SQL = "SET LOCAL hnsw.iterative_scan = 'strict_order'"
+
 LEXICAL_SQL = _normalize_sql(
     """
-    WITH lexical_query AS (SELECT plainto_tsquery('french', %s) AS value)
+    WITH lexical_query AS MATERIALIZED (SELECT plainto_tsquery('french', %s) AS value)
     SELECT chunk_id, doc_id, source_label, source_uri, rights, type_doc, text,
            page_start, vector::text, review_status,
            ts_rank_cd(text_tsv, lexical_query.value, 32) AS lexical_score
@@ -99,7 +102,7 @@ class CursorSpy:
         self.events = events
         self.rows = rows
         self.fail_at = fail_at
-        self.executions: list[tuple[str, tuple[object, ...]]] = []
+        self.executions: list[tuple[str, tuple[object, ...] | None]] = []
 
     def __enter__(self) -> CursorSpy:
         self.events.append(("cursor-enter",))
@@ -115,10 +118,10 @@ class CursorSpy:
         self.events.append(("cursor-exit", exc_type))
         return False
 
-    def execute(self, sql: str, params: tuple[object, ...]) -> None:
+    def execute(self, sql: str, params: tuple[object, ...] | None = None) -> None:
         self.events.append(("execute",))
         self.executions.append((_normalize_sql(sql), params))
-        if self.fail_at == "execute":
+        if self.fail_at in {"execute", "set"}:
             raise RuntimeError("query leaked: postgresql://secret@db/rag")
 
     def fetchall(self) -> object:
@@ -200,7 +203,8 @@ def test_dense_uses_the_exact_parameterized_reviewed_only_query() -> None:
     candidates = _dense(provider)
 
     assert provider.cursor.executions == [
-        (DENSE_SQL, (VECTOR_TEXT, "libre_terminale", VECTOR_TEXT, CHANNEL_LIMIT))
+        (DENSE_STRICT_ORDER_SQL, None),
+        (DENSE_SQL, (VECTOR_TEXT, "libre_terminale", VECTOR_TEXT, CHANNEL_LIMIT)),
     ]
     assert candidates == [
         RetrievalCandidate(
@@ -219,6 +223,19 @@ def test_dense_uses_the_exact_parameterized_reviewed_only_query() -> None:
     ]
 
 
+def test_dense_set_local_failure_skips_select_and_releases_both_contexts() -> None:
+    provider = ProviderSpy([_row()], fail_at="set")
+
+    with pytest.raises(RetrievalPipelineError, match="dense channel query failed") as exc_info:
+        _dense(provider)
+
+    assert provider.cursor.executions == [(DENSE_STRICT_ORDER_SQL, None)]
+    assert any(event[0] == "cursor-exit" for event in provider.events)
+    assert any(event[0] == "connection-exit" for event in provider.events)
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__context__ is None
+
+
 def test_lexical_uses_one_exact_parameterized_french_tsquery() -> None:
     provider = ProviderSpy([_row()])
 
@@ -227,7 +244,9 @@ def test_lexical_uses_one_exact_parameterized_french_tsquery() -> None:
     assert provider.cursor.executions == [
         (LEXICAL_SQL, ("question brute", "libre_terminale", CHANNEL_LIMIT))
     ]
+    assert all("hnsw.iterative_scan" not in sql for sql, _ in provider.cursor.executions)
     assert LEXICAL_SQL.count("plainto_tsquery") == 1
+    assert LEXICAL_SQL.count("MATERIALIZED") == 1
     assert candidates[0].dense_score is None
     assert candidates[0].lexical_score == 0.75
 
@@ -240,7 +259,7 @@ def test_values_that_look_like_sql_remain_only_in_parameters(channel: str) -> No
 
     if channel == "dense":
         _dense(provider, collection=malicious_collection)
-        sql, params = provider.cursor.executions[0]
+        sql, params = provider.cursor.executions[1]
         assert params == (VECTOR_TEXT, malicious_collection, VECTOR_TEXT, CHANNEL_LIMIT)
         assert malicious_query not in sql
     else:
@@ -253,6 +272,16 @@ def test_values_that_look_like_sql_remain_only_in_parameters(channel: str) -> No
         assert params == (malicious_query, malicious_collection, CHANNEL_LIMIT)
     assert malicious_collection not in sql
     assert "DROP TABLE" not in sql
+
+
+def test_hnsw_real_plan_and_filtered_overfetch_evidence_is_reserved_for_task8() -> None:
+    module_source = (
+        Path(__file__).resolve().parents[1] / "src/ingestor/retrieval_pg_v2.py"
+    ).read_text(encoding="utf-8")
+
+    assert "Task8" in module_source
+    assert ">50" in module_source
+    assert "EXPLAIN" in module_source
 
 
 def test_lexical_empty_database_result_is_valid_and_has_no_fallback_query() -> None:
@@ -458,7 +487,8 @@ def test_runtime_failures_are_sanitized_and_contexts_are_released(
     assert exc_info.value.__cause__ is None
     assert exc_info.value.__context__ is None
     assert provider.calls == 1
-    assert len(provider.cursor.executions) <= 1
+    maximum_executions = 2 if channel == "dense" else 1
+    assert len(provider.cursor.executions) <= maximum_executions
     if fail_at in {"execute", "fetchall"}:
         assert any(event[0] == "cursor-exit" for event in provider.events)
         assert any(event[0] == "connection-exit" for event in provider.events)
