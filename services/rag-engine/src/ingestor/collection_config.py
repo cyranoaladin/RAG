@@ -100,6 +100,23 @@ class CollectionUnknownError(CollectionConfigError):
     """Raised when a requested collection is not in the catalogue at all."""
 
 
+_CATALOGUE_VOIE_MAPPING: dict[str, str] = {
+    "gen": "generale",
+    "generale": "generale",
+    "stmg": "technologique",
+    "technologique": "technologique",
+}
+
+
+def canonicalize_catalogue_voie(value: object) -> str | None:
+    """Adapter exhaustivement un slug de voie catalogue vers le contrat."""
+    if value is None:
+        return None
+    if isinstance(value, str) and value in _CATALOGUE_VOIE_MAPPING:
+        return _CATALOGUE_VOIE_MAPPING[value]
+    raise CollectionConfigLoadError("Unknown catalogue voie")
+
+
 # ---------------------------------------------------------------------------
 # Shared types
 # ---------------------------------------------------------------------------
@@ -190,7 +207,10 @@ def resolve_collection_v2(
             f"(instanciee: false). Populate it via the governance chain before exposing."
         )
 
-    return dict(definition)
+    resolved = dict(definition)
+    if "voie" in resolved:
+        resolved["voie"] = canonicalize_catalogue_voie(resolved["voie"])
+    return resolved
 
 
 def list_instanciated_collections(
