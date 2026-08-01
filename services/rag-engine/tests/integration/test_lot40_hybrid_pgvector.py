@@ -1234,6 +1234,7 @@ def test_signed_identity_to_http_scope_and_real_database_is_end_to_end(
     monkeypatch.setattr(endpoint, "_retrieve_endpoint_hits", counted_endpoint_hits)
     identity_token = _signed_identity_token()
     nsi_only_identity_token = _signed_identity_token(matieres=("nsi",))
+    maths_only_identity_token = _signed_identity_token(matieres=("maths",))
     verified = verify_identity_token(
         identity_token,
         config=load_identity_verifier_config(),
@@ -1260,11 +1261,11 @@ def test_signed_identity_to_http_scope_and_real_database_is_end_to_end(
         "/search/v2",
         headers={
             "Authorization": f"Bearer {service_token}",
-            "X-Nexus-Identity": nsi_only_identity_token,
+            "X-Nexus-Identity": maths_only_identity_token,
         },
         json={
             "q": QUERY,
-            "collection": MATRIX_COLLECTIONS["maths"],
+            "collection": MATRIX_COLLECTIONS["nsi"],
             "k": 5,
         },
     )
