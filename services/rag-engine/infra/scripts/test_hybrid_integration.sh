@@ -42,7 +42,22 @@ is_exact_not_found() {
 }
 
 remove_container_exact() {
-    local remove_output remove_status inspect_output inspect_status
+    local owner_output remove_output remove_status inspect_output inspect_status
+
+    if owner_output="$(docker container inspect \
+        --format '{{ index .Config.Labels "com.nexus.lot40.owner" }}' \
+        "$PGVECTOR_CONTAINER" 2>&1)"; then
+        if [[ "$owner_output" != "$LOT40_OWNER_VALUE" ]]; then
+            echo "LOT40_CLEANUP_CONTAINER_OWNERSHIP_MISMATCH" >&2
+            return 1
+        fi
+    elif is_exact_not_found container "$PGVECTOR_CONTAINER" "$owner_output"; then
+        return 0
+    else
+        echo "LOT40_CLEANUP_CONTAINER_INSPECT_FAILED" >&2
+        return 1
+    fi
+
     remove_output="$(docker rm -f "$PGVECTOR_CONTAINER" 2>&1)"
     remove_status=$?
     inspect_output="$(docker container inspect "$PGVECTOR_CONTAINER" 2>&1)"
@@ -64,7 +79,22 @@ remove_container_exact() {
 }
 
 remove_volume_exact() {
-    local remove_output remove_status inspect_output inspect_status
+    local owner_output remove_output remove_status inspect_output inspect_status
+
+    if owner_output="$(docker volume inspect \
+        --format '{{ index .Labels "com.nexus.lot40.owner" }}' \
+        "$PGVECTOR_VOLUME" 2>&1)"; then
+        if [[ "$owner_output" != "$LOT40_OWNER_VALUE" ]]; then
+            echo "LOT40_CLEANUP_VOLUME_OWNERSHIP_MISMATCH" >&2
+            return 1
+        fi
+    elif is_exact_not_found volume "$PGVECTOR_VOLUME" "$owner_output"; then
+        return 0
+    else
+        echo "LOT40_CLEANUP_VOLUME_INSPECT_FAILED" >&2
+        return 1
+    fi
+
     remove_output="$(docker volume rm "$PGVECTOR_VOLUME" 2>&1)"
     remove_status=$?
     inspect_output="$(docker volume inspect "$PGVECTOR_VOLUME" 2>&1)"
@@ -83,6 +113,36 @@ remove_volume_exact() {
         return 1
     fi
     return 0
+}
+
+assert_resource_absent() {
+    local kind="$1"
+    local name="$2"
+    local inspect_output
+
+    case "$kind" in
+        container)
+            if inspect_output="$(docker container inspect "$name" 2>&1)"; then
+                echo "LOT40_CONTAINER_NAME_COLLISION" >&2
+                return 1
+            fi
+            ;;
+        volume)
+            if inspect_output="$(docker volume inspect "$name" 2>&1)"; then
+                echo "LOT40_VOLUME_NAME_COLLISION" >&2
+                return 1
+            fi
+            ;;
+        *)
+            echo "LOT40_RESOURCE_KIND_INVALID" >&2
+            return 1
+            ;;
+    esac
+
+    if ! is_exact_not_found "$kind" "$name" "$inspect_output"; then
+        echo "LOT40_${kind^^}_ABSENCE_INSPECT_FAILED" >&2
+        return 1
+    fi
 }
 
 cleanup() {
@@ -133,11 +193,14 @@ if [[ ! "$ready_delay" =~ ^([0-9]+([.][0-9]+)?)$ ]] \
 fi
 
 mkdir -p "$BACKUP_ROOT"
+assert_resource_absent container "$PGVECTOR_CONTAINER"
+assert_resource_absent volume "$PGVECTOR_VOLUME"
 volume_cleanup_armed=1
-docker volume create "$PGVECTOR_VOLUME" >/dev/null
+docker volume create --label "$LOT40_OWNER_LABEL" "$PGVECTOR_VOLUME" >/dev/null
 container_cleanup_armed=1
 docker run -d \
     --name "$PGVECTOR_CONTAINER" \
+    --label "$LOT40_OWNER_LABEL" \
     -e "POSTGRES_DB=$PGVECTOR_DB" \
     -e "POSTGRES_USER=$PGVECTOR_USER" \
     -e POSTGRES_HOST_AUTH_METHOD=trust \

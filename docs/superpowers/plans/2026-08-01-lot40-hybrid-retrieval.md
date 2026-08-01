@@ -992,6 +992,12 @@ un mauvais type et tout diagnostic générique contenant seulement
 diagnostic `LOT40_DB_READINESS_TIMEOUT` sans DSN, puis exactement un
 `docker rm -f <container>` et un `docker volume rm <volume>`.
 
+Ajouter les scénarios de propriété : ressource préexistante sans label ou avec
+un mauvais label, course entre l'inspection d'absence et la création, création
+partielle avec le bon label et erreur d'inspection du label. Les deux premiers
+ne doivent jamais appeler `rm`; le troisième doit être nettoyé; le dernier
+échoue fermement sans suppression.
+
 - [ ] **Step 2: Vérifier RED lifecycle**
 
 Run: `cd services/rag-engine && PYTHONPATH=src .venv/bin/pytest tests/test_hybrid_integration_runner.py -q`
@@ -1018,6 +1024,12 @@ Boucler au plus
 `${LOT40_PG_READY_DELAY_S:-1}`; refuser valeurs hors bornes `1..120` et
 `0..10`. Après readiness seulement, résoudre le port et exporter un DSN sans
 mot de passe vers `127.0.0.1`.
+
+Avant toute création, inspecter strictement les deux noms et exiger leur
+absence exacte. Poser `com.nexus.lot40.owner=<suffixe>` sur le volume et le
+conteneur. Armer le cleanup avant chaque commande de création, mais inspecter
+et exiger ce label exact avant tout `rm`; une collision, une course, un label
+divergent ou une erreur d'inspection ne peut jamais supprimer la ressource.
 
 - [ ] **Step 4: Vérifier syntaxe et GREEN lifecycle**
 

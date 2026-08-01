@@ -339,12 +339,24 @@ rôle applicatif sans pré-régler `ef_search` ni `max_scan_tuples`; le store ne
 fait que l'activation pgvector et `strict_order`. Ils prouvent un résultat
 dense non vide, cohérent et borné à 50, sans exiger qu'il soit rempli.
 
-Le test ne monte aucun corpus réel et détruit
-son conteneur et son volume temporaires avec un `trap`, y compris en erreur. Il
-ne réutilise jamais `rag_pgvector` ni un volume existant.
+Le test ne monte aucun corpus réel. Il démarre d'abord le bootstrap réel de
+`docker-compose.v2.yml` en montant le même `init.sql` dans l'image épinglée,
+prouve l'adoption atomique de son head `002` sans registre, puis conserve le
+cycle depuis une base entièrement fraîche dans une seconde base isolée du même
+conteneur.
+
+Le runner détruit son conteneur et son volume temporaires avec un `trap`, y
+compris en erreur. Avant toute création, il prouve l'absence des deux noms. Les
+deux ressources portent le label propriétaire unique
+`com.nexus.lot40.owner=<suffixe>` ; le cleanup inspecte et exige ce label exact
+avant toute suppression. Une collision, une course de création, un label
+absent/divergent ou une erreur d'inspection ferme le runner sans supprimer la
+ressource concernée. Il ne réutilise jamais `rag_pgvector` ni un volume
+existant.
 
 Une cible Make dédiée `test-integration-hybrid` orchestre le conteneur nommé,
-`001 → 002 → 001 → 002`, le retrieval réel et le smoke HTTP. Elle est appelée
+l'adoption `002`, `002 → 001 → 002`, puis `001 → 002 → 001 → 002` sur la base
+fraîche, le retrieval réel et le smoke HTTP. Elle est appelée
 explicitement par le job GitHub `rag-engine` **et** par `scripts/ci-local.sh`,
 en plus de `make test`. Les tests de topologie/fail-safe échouent si l'un des
 deux raccordements ou le nettoyage disparaît. LOT40 ne peut donc être vert dans

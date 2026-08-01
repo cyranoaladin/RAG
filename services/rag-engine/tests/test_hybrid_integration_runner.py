@@ -30,29 +30,80 @@ set -euo pipefail
 printf '%s\\n' "$*" >> "$LOT40_FAKE_DOCKER_LOG"
 volume_state="$LOT40_FAKE_DOCKER_STATE/volume"
 container_state="$LOT40_FAKE_DOCKER_STATE/container"
+owner_key="com.nexus.lot40.owner"
+last_arg="${!#:-}"
+
+seed_preexisting() {
+  local kind="$1" state="$2" seeded="$3"
+  local enabled_var="LOT40_FAKE_PREEXISTING_${kind^^}"
+  local label_var="LOT40_FAKE_PREEXISTING_${kind^^}_LABEL"
+  if [[ "${!enabled_var:-0}" == 1 && ! -e "$seeded" ]]; then
+    touch "$seeded"
+    printf '%s' "${!label_var:-}" > "$state"
+  fi
+}
+
+label_from_args() {
+  local previous="" argument
+  for argument in "$@"; do
+    if [[ "$previous" == "--label" && "$argument" == "$owner_key="* ]]; then
+      printf '%s' "${argument#*=}"
+      return 0
+    fi
+    previous="$argument"
+  done
+  return 1
+}
+
+inspect_resource() {
+  local kind="$1" name="$2" state="$3" absent="$4"
+  shift 4
+  local error_var="LOT40_FAKE_${kind^^}_INSPECT_ERROR"
+  seed_preexisting "$kind" "$state" "$LOT40_FAKE_DOCKER_STATE/${kind}-seeded"
+  if [[ "${!error_var:-0}" == 1 && -e "$state" ]]; then
+    printf '%s\\n' 'Error response from daemon: ownership inspect unavailable' >&2
+    exit 66
+  fi
+  if [[ -e "$state" ]]; then
+    if [[ " $* " == *" --format "* ]]; then
+      cat "$state"
+      printf '\\n'
+    else
+      printf '%s\\n' '{}'
+    fi
+    exit 0
+  fi
+  printf '%s\\n' "$absent" >&2
+  exit 1
+}
 case "${1:-}" in
   volume)
     case "${2:-}" in
       create)
-        [[ "${3:-}" =~ ^lot40-pg-volume-[A-Za-z0-9_.-]+$ ]] || exit 91
+        [[ "$last_arg" =~ ^lot40-pg-volume-[A-Za-z0-9_.-]+$ ]] || exit 91
+        owner="$(label_from_args "$@")" || exit 107
+        [[ "$owner" == "${last_arg#lot40-pg-volume-}" ]] || exit 108
         if [[ "${LOT40_FAIL_VOLUME_CREATE_BEFORE_CREATE:-0}" == 1 ]]; then exit 77; fi
-        touch "$volume_state"
+        if [[ "${LOT40_RACE_VOLUME_WRONG_LABEL:-0}" == 1 ]]; then
+          printf '%s' wrong-owner > "$volume_state"
+          exit 77
+        fi
+        printf '%s' "$owner" > "$volume_state"
         if [[ "${LOT40_FAIL_VOLUME_CREATE:-0}" == 1 ]]; then exit 77; fi
-        printf '%s\\n' "${3:-}"
+        printf '%s\\n' "$last_arg"
         ;;
       rm)
-        [[ "${3:-}" =~ ^lot40-pg-volume-[A-Za-z0-9_.-]+$ ]] || exit 92
+        [[ "$last_arg" =~ ^lot40-pg-volume-[A-Za-z0-9_.-]+$ ]] || exit 92
         if [[ ! -e "$volume_state" ]]; then
-          printf '%s\\n' "${LOT40_FAKE_VOLUME_ABSENT_MESSAGE:-Error response from daemon: get ${3:-}: no such volume}" >&2
+          printf '%s\\n' "${LOT40_FAKE_VOLUME_ABSENT_MESSAGE:-Error response from daemon: get ${last_arg}: no such volume}" >&2
           exit 1
         fi
         if [[ "${LOT40_FAKE_LEAK_VOLUME:-0}" != 1 ]]; then rm -f "$volume_state"; fi
         ;;
       inspect)
-        [[ "${3:-}" =~ ^lot40-pg-volume-[A-Za-z0-9_.-]+$ ]] || exit 103
-        if [[ -e "$volume_state" ]]; then printf '%s\\n' '{}'; exit 0; fi
-        printf '%s\\n' "${LOT40_FAKE_VOLUME_ABSENT_MESSAGE:-Error response from daemon: get ${3:-}: no such volume}" >&2
-        exit 1
+        [[ "$last_arg" =~ ^lot40-pg-volume-[A-Za-z0-9_.-]+$ ]] || exit 103
+        inspect_resource volume "$last_arg" "$volume_state" \
+          "${LOT40_FAKE_VOLUME_ABSENT_MESSAGE:-Error response from daemon: get ${last_arg}: no such volume}" "$@"
         ;;
       *) exit 93 ;;
     esac
@@ -62,9 +113,22 @@ case "${1:-}" in
     [[ "$args" == *" --name lot40-pg-"* ]] || exit 94
     [[ "$args" == *" -p 127.0.0.1::5432 "* ]] || exit 95
     [[ "$args" == *" -e POSTGRES_HOST_AUTH_METHOD=trust "* ]] || exit 96
+    [[ "$args" == *"/postgres/init.sql:/docker-entrypoint-initdb.d/00_init.sql:ro"* ]] || exit 106
     [[ "$args" == *" ${LOT40_EXPECTED_IMAGE} "* ]] || exit 97
+    owner="$(label_from_args "$@")" || exit 109
+    container_name=""
+    previous=""
+    for argument in "$@"; do
+      if [[ "$previous" == "--name" ]]; then container_name="$argument"; fi
+      previous="$argument"
+    done
+    [[ "$owner" == "${container_name#lot40-pg-}" ]] || exit 110
     if [[ "${LOT40_FAIL_RUN_BEFORE_CREATE:-0}" == 1 ]]; then exit 78; fi
-    touch "$container_state"
+    if [[ "${LOT40_RACE_CONTAINER_WRONG_LABEL:-0}" == 1 ]]; then
+      printf '%s' wrong-owner > "$container_state"
+      exit 78
+    fi
+    printf '%s' "$owner" > "$container_state"
     if [[ "${LOT40_FAIL_RUN:-0}" == 1 ]]; then exit 78; fi
     printf '%s\\n' fake-container-id
     ;;
@@ -87,10 +151,9 @@ case "${1:-}" in
     ;;
   container)
     [[ "${2:-}" == "inspect" ]] || exit 104
-    [[ "${3:-}" =~ ^lot40-pg-[A-Za-z0-9_.-]+$ ]] || exit 105
-    if [[ -e "$container_state" ]]; then printf '%s\\n' '{}'; exit 0; fi
-    printf '%s\\n' "${LOT40_FAKE_CONTAINER_ABSENT_MESSAGE:-Error response from daemon: No such container: ${3:-}}" >&2
-    exit 1
+    [[ "$last_arg" =~ ^lot40-pg-[A-Za-z0-9_.-]+$ ]] || exit 105
+    inspect_resource container "$last_arg" "$container_state" \
+      "${LOT40_FAKE_CONTAINER_ABSENT_MESSAGE:-Error response from daemon: No such container: ${last_arg}}" "$@"
     ;;
   *) exit 102 ;;
 esac
@@ -151,8 +214,14 @@ def test_runner_timeout_is_bounded_sanitized_and_cleans_exact_resources(
     assert re.fullmatch(
         r"volume rm lot40-pg-volume-[A-Za-z0-9_.-]+", volume_rm_calls[0]
     )
-    assert len([line for line in calls if line.startswith("container inspect ")]) == 1
-    assert len([line for line in calls if line.startswith("volume inspect ")]) == 1
+    container_inspects = [
+        line for line in calls if line.startswith("container inspect ")
+    ]
+    volume_inspects = [line for line in calls if line.startswith("volume inspect ")]
+    assert len(container_inspects) == 3
+    assert len(volume_inspects) == 3
+    assert any(".Config.Labels" in line for line in container_inspects)
+    assert any(".Labels" in line for line in volume_inspects)
 
 
 @pytest.mark.parametrize(
@@ -190,6 +259,124 @@ def test_cleanup_is_armed_before_partial_docker_creation(
     assert not any((tmp_path / "docker-state").iterdir())
 
 
+@pytest.mark.parametrize("kind", ["container", "volume"])
+@pytest.mark.parametrize("label", ["", "wrong-owner"], ids=["no-label", "wrong-label"])
+def test_preexisting_same_name_is_never_removed(
+    tmp_path: Path,
+    kind: str,
+    label: str,
+) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    log = _write_fake_docker(bin_dir)
+    result = subprocess.run(
+        ["bash", str(RUNNER)],
+        cwd=SERVICE_ROOT,
+        env=_fake_env(
+            bin_dir,
+            log,
+            **{
+                f"LOT40_FAKE_PREEXISTING_{kind.upper()}": "1",
+                f"LOT40_FAKE_PREEXISTING_{kind.upper()}_LABEL": label,
+            },
+        ),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert f"LOT40_{kind.upper()}_NAME_COLLISION" in result.stderr
+    calls = log.read_text(encoding="utf-8").splitlines()
+    assert not any(line.startswith("rm -f ") for line in calls)
+    assert not any(line.startswith("volume rm ") for line in calls)
+    sentinel = tmp_path / "docker-state" / kind
+    assert sentinel.is_file()
+    assert sentinel.read_text(encoding="utf-8") == label
+
+
+@pytest.mark.parametrize(
+    ("race", "forbidden_prefix", "expected_diagnostic"),
+    [
+        (
+            "LOT40_RACE_VOLUME_WRONG_LABEL",
+            "volume rm ",
+            "LOT40_CLEANUP_VOLUME_OWNERSHIP_MISMATCH",
+        ),
+        (
+            "LOT40_RACE_CONTAINER_WRONG_LABEL",
+            "rm -f ",
+            "LOT40_CLEANUP_CONTAINER_OWNERSHIP_MISMATCH",
+        ),
+    ],
+)
+def test_name_race_with_wrong_owner_is_never_removed(
+    tmp_path: Path,
+    race: str,
+    forbidden_prefix: str,
+    expected_diagnostic: str,
+) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    log = _write_fake_docker(bin_dir)
+    result = subprocess.run(
+        ["bash", str(RUNNER)],
+        cwd=SERVICE_ROOT,
+        env=_fake_env(bin_dir, log, **{race: "1"}),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert expected_diagnostic in result.stderr
+    calls = log.read_text(encoding="utf-8").splitlines()
+    assert not any(line.startswith(forbidden_prefix) for line in calls)
+    state_name = "volume" if "VOLUME" in expected_diagnostic else "container"
+    sentinel = tmp_path / "docker-state" / state_name
+    assert sentinel.read_text(encoding="utf-8") == "wrong-owner"
+
+
+@pytest.mark.parametrize(
+    ("failure", "inspect_error", "diagnostic"),
+    [
+        (
+            "LOT40_FAIL_VOLUME_CREATE",
+            "LOT40_FAKE_VOLUME_INSPECT_ERROR",
+            "LOT40_CLEANUP_VOLUME_INSPECT_FAILED",
+        ),
+        (
+            "LOT40_FAIL_RUN",
+            "LOT40_FAKE_CONTAINER_INSPECT_ERROR",
+            "LOT40_CLEANUP_CONTAINER_INSPECT_FAILED",
+        ),
+    ],
+)
+def test_cleanup_label_inspection_error_fails_hard_without_removing_resource(
+    tmp_path: Path,
+    failure: str,
+    inspect_error: str,
+    diagnostic: str,
+) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    log = _write_fake_docker(bin_dir)
+    result = subprocess.run(
+        ["bash", str(RUNNER)],
+        cwd=SERVICE_ROOT,
+        env=_fake_env(bin_dir, log, **{failure: "1", inspect_error: "1"}),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert diagnostic in result.stderr
+    calls = log.read_text(encoding="utf-8").splitlines()
+    forbidden = "volume rm " if "VOLUME" in diagnostic else "rm -f "
+    assert not any(line.startswith(forbidden) for line in calls)
+
+
 def test_cleanup_confirms_not_found_and_fails_hard_on_a_real_leak(tmp_path: Path) -> None:
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
@@ -204,7 +391,7 @@ def test_cleanup_confirms_not_found_and_fails_hard_on_a_real_leak(tmp_path: Path
     )
     absent_calls = log.read_text(encoding="utf-8").splitlines()
     assert absent.returncode != 0
-    assert any(line.startswith("rm -f ") for line in absent_calls)
+    assert not any(line.startswith("rm -f ") for line in absent_calls)
     assert any(line.startswith("container inspect ") for line in absent_calls)
     assert "LOT40_CLEANUP_CONTAINER_" not in absent.stderr
 
@@ -245,7 +432,7 @@ def test_cleanup_accepts_only_exact_kind_and_name_not_found_diagnostics(
                 "LOT40_FAIL_RUN_BEFORE_CREATE": "1",
                 "LOT40_FAKE_CONTAINER_ABSENT_MESSAGE": "Error: context not found",
             },
-            "LOT40_CLEANUP_CONTAINER_INSPECT_FAILED",
+            "LOT40_CONTAINER_ABSENCE_INSPECT_FAILED",
             True,
         ),
         (
@@ -253,7 +440,7 @@ def test_cleanup_accepts_only_exact_kind_and_name_not_found_diagnostics(
                 "LOT40_FAIL_RUN_BEFORE_CREATE": "1",
                 "LOT40_FAKE_CONTAINER_ABSENT_MESSAGE": "Error: No such container: lot40-pg-wrong",
             },
-            "LOT40_CLEANUP_CONTAINER_INSPECT_FAILED",
+            "LOT40_CONTAINER_ABSENCE_INSPECT_FAILED",
             True,
         ),
         (
@@ -261,7 +448,7 @@ def test_cleanup_accepts_only_exact_kind_and_name_not_found_diagnostics(
                 "LOT40_FAIL_RUN_BEFORE_CREATE": "1",
                 "LOT40_FAKE_CONTAINER_ABSENT_MESSAGE": "Error: no such volume: lot40-pg-wrong-kind",
             },
-            "LOT40_CLEANUP_CONTAINER_INSPECT_FAILED",
+            "LOT40_CONTAINER_ABSENCE_INSPECT_FAILED",
             True,
         ),
         (
@@ -269,7 +456,7 @@ def test_cleanup_accepts_only_exact_kind_and_name_not_found_diagnostics(
                 "LOT40_FAIL_VOLUME_CREATE_BEFORE_CREATE": "1",
                 "LOT40_FAKE_VOLUME_ABSENT_MESSAGE": "Error: context not found",
             },
-            "LOT40_CLEANUP_VOLUME_INSPECT_FAILED",
+            "LOT40_VOLUME_ABSENCE_INSPECT_FAILED",
             True,
         ),
         (
@@ -277,7 +464,7 @@ def test_cleanup_accepts_only_exact_kind_and_name_not_found_diagnostics(
                 "LOT40_FAIL_VOLUME_CREATE_BEFORE_CREATE": "1",
                 "LOT40_FAKE_VOLUME_ABSENT_MESSAGE": "Error: no such volume: lot40-pg-volume-wrong",
             },
-            "LOT40_CLEANUP_VOLUME_INSPECT_FAILED",
+            "LOT40_VOLUME_ABSENCE_INSPECT_FAILED",
             True,
         ),
         (
@@ -285,7 +472,7 @@ def test_cleanup_accepts_only_exact_kind_and_name_not_found_diagnostics(
                 "LOT40_FAIL_VOLUME_CREATE_BEFORE_CREATE": "1",
                 "LOT40_FAKE_VOLUME_ABSENT_MESSAGE": "Error: No such container: lot40-pg-volume-wrong-kind",
             },
-            "LOT40_CLEANUP_VOLUME_INSPECT_FAILED",
+            "LOT40_VOLUME_ABSENCE_INSPECT_FAILED",
             True,
         ),
     ]
@@ -349,7 +536,17 @@ def test_runner_pins_security_bounds_and_cleanup_contract() -> None:
     assert "127.0.0.1::5432" in content
     assert "POSTGRES_HOST_AUTH_METHOD=trust" in content
     assert "trap cleanup EXIT INT TERM" in content
+    assert "com.nexus.lot40.owner" in content
+    assert '--label "$LOT40_OWNER_LABEL"' in content
+    assert "assert_resource_absent container" in content
+    assert "assert_resource_absent volume" in content
     assert content.index("trap cleanup EXIT INT TERM") < content.index(
+        "docker volume create"
+    )
+    assert content.index("assert_resource_absent container") < content.index(
+        "docker volume create"
+    )
+    assert content.index("assert_resource_absent volume") < content.index(
         "docker volume create"
     )
     assert content.index("volume_cleanup_armed=1") < content.index(
@@ -382,11 +579,15 @@ def test_make_target_runs_the_dedicated_runner_after_dev_install() -> None:
 
 def test_runner_exercises_canonical_cycle_and_both_atomic_rollbacks() -> None:
     content = RUNNER.read_text(encoding="utf-8")
+    assert "/postgres/init.sql:/docker-entrypoint-initdb.d/00_init.sql:ro" in content
+    assert "BOOTSTRAP_002_UNREGISTERED=PASS" in content
+    assert "ATOMIC_ADOPTION_002_ROLLBACK=PASS" in content
+    assert "BOOTSTRAP_ADOPTION_002=PASS" in content
     assert "expect_failure FRESH_HEAD_002_NEGATIVE" in content
     assert "apply_pgvector_migrations.sh" in content
     assert "rollback_pgvector_migration.sh" in content
     assert "MIGRATION_CYCLE_001_002_001_002=PASS" in content
-    assert content.count("SELECT 1 / 0;") == 2
+    assert content.count("SELECT 1 / 0;") == 3
     assert "ATOMIC_UP_ROLLBACK=PASS" in content
     assert "ATOMIC_DOWN_ROLLBACK=PASS" in content
     assert "MIGRATION_FINAL_HEAD_002=PASS" in content
