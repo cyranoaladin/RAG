@@ -55,6 +55,8 @@ jobs:
         run: make typecheck
       - working-directory: services/rag-engine
         run: make test
+      - working-directory: services/rag-engine
+        run: make test-integration-hybrid
 
   cockpit:
     name: "services/cockpit"

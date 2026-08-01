@@ -132,6 +132,11 @@ run_engine() {
         deactivate 2>/dev/null || true; cd "$REPO_ROOT"; return 1
     fi
 
+    if ! make test-integration-hybrid; then
+        echo "FAIL: rag-engine hybrid integration failed"
+        deactivate 2>/dev/null || true; cd "$REPO_ROOT"; return 1
+    fi
+
     deactivate 2>/dev/null || true
     cd "$REPO_ROOT"
 }

@@ -242,6 +242,132 @@ extract_shell_function() {
     ' "$source_file"
 }
 
+validate_run_engine_hybrid_sequence() {
+    local source_file="$1"
+    local run_engine_block
+    local expected_sequence
+
+    run_engine_block="$(extract_shell_function "run_engine" "$source_file")"
+    expected_sequence='    if ! make test; then
+        echo "FAIL: rag-engine tests failed"
+        deactivate 2>/dev/null || true; cd "$REPO_ROOT"; return 1
+    fi
+
+    if ! make test-integration-hybrid; then
+        echo "FAIL: rag-engine hybrid integration failed"
+        deactivate 2>/dev/null || true; cd "$REPO_ROOT"; return 1
+    fi'
+
+    [ -n "$run_engine_block" ] \
+        && [ "$(grep -Fxc '    if ! make test-integration-hybrid; then' \
+            <<<"$run_engine_block")" -eq 1 ] \
+        && [[ "$run_engine_block" == *"$expected_sequence"* ]]
+}
+
+if validate_run_engine_hybrid_sequence "$REPO_ROOT/scripts/ci-local.sh"; then
+    echo "  PASS  le bloc hybride exact suit immédiatement make test"
+    TESTS_PASS=$((TESTS_PASS + 1))
+else
+    echo "  FAIL  le bloc hybride exact est absent, déplacé ou dupliqué"
+    TESTS_FAIL=$((TESTS_FAIL + 1))
+fi
+
+echo ""
+echo "=== Test: run_engine propage l'échec du smoke hybride ==="
+
+HYBRID_FAILSAFE_ROOT="$TMPDIR_CI/hybrid-failsafe"
+HYBRID_FAKE_REPO="$HYBRID_FAILSAFE_ROOT/repo"
+HYBRID_FAKE_BIN="$HYBRID_FAILSAFE_ROOT/bin"
+HYBRID_FUNCTION_FILE="$HYBRID_FAILSAFE_ROOT/run-engine-only.sh"
+HYBRID_RUNNER="$HYBRID_FAILSAFE_ROOT/run-engine.sh"
+HYBRID_MAKE_LOG="$HYBRID_FAILSAFE_ROOT/make.log"
+HYBRID_EXPECTED_LOG="$HYBRID_FAILSAFE_ROOT/expected.log"
+mkdir -p "$HYBRID_FAKE_REPO/services/rag-engine" "$HYBRID_FAKE_BIN"
+
+extract_shell_function \
+    "run_engine" "$REPO_ROOT/scripts/ci-local.sh" > "$HYBRID_FUNCTION_FILE"
+if [ ! -s "$HYBRID_FUNCTION_FILE" ]; then
+    echo "  FAIL  run_engine() ne peut pas être extrait"
+    TESTS_FAIL=$((TESTS_FAIL + 1))
+fi
+
+cat > "$HYBRID_FAKE_BIN/make" <<'SCRIPT'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$HYBRID_MAKE_LOG"
+case "${1:-}" in
+    install)
+        mkdir -p .venv/bin
+        printf '%s\n' ':' > .venv/bin/activate
+        exit 0
+        ;;
+    lint|typecheck|test)
+        exit 0
+        ;;
+    test-integration-hybrid)
+        exit 23
+        ;;
+    *)
+        exit 91
+        ;;
+esac
+SCRIPT
+chmod +x "$HYBRID_FAKE_BIN/make"
+
+cat > "$HYBRID_RUNNER" <<'SCRIPT'
+#!/usr/bin/env bash
+set -uo pipefail
+REPO_ROOT="$HYBRID_FAKE_REPO"
+source "$HYBRID_FUNCTION_FILE"
+run_engine
+SCRIPT
+chmod +x "$HYBRID_RUNNER"
+
+cat > "$HYBRID_EXPECTED_LOG" <<'EOF'
+install
+lint
+typecheck
+test
+test-integration-hybrid
+EOF
+
+set +e
+HYBRID_FAILSAFE_OUTPUT="$({
+    HYBRID_FAKE_REPO="$HYBRID_FAKE_REPO" \
+    HYBRID_FUNCTION_FILE="$HYBRID_FUNCTION_FILE" \
+    HYBRID_MAKE_LOG="$HYBRID_MAKE_LOG" \
+    PATH="$HYBRID_FAKE_BIN:$PATH" \
+        bash "$HYBRID_RUNNER"
+} 2>&1)"
+HYBRID_FAILSAFE_EXIT=$?
+set -e
+
+if [ "$HYBRID_FAILSAFE_EXIT" -eq 1 ]; then
+    echo "  PASS  run_engine retourne 1 quand le smoke retourne 23"
+    TESTS_PASS=$((TESTS_PASS + 1))
+else
+    echo "  FAIL  run_engine retourne $HYBRID_FAILSAFE_EXIT au lieu de 1"
+    TESTS_FAIL=$((TESTS_FAIL + 1))
+fi
+
+if [ "$(grep -Fxc 'FAIL: rag-engine hybrid integration failed' \
+        <<<"$HYBRID_FAILSAFE_OUTPUT")" -eq 1 ]; then
+    echo "  PASS  le diagnostic hybride exact est émis une fois"
+    TESTS_PASS=$((TESTS_PASS + 1))
+else
+    echo "  FAIL  le diagnostic hybride exact est absent ou dupliqué"
+    echo "$HYBRID_FAILSAFE_OUTPUT"
+    TESTS_FAIL=$((TESTS_FAIL + 1))
+fi
+
+if [ -f "$HYBRID_MAKE_LOG" ] \
+    && diff -u "$HYBRID_EXPECTED_LOG" "$HYBRID_MAKE_LOG"; then
+    echo "  PASS  seul run_engine exécute les cinq cibles attendues"
+    TESTS_PASS=$((TESTS_PASS + 1))
+else
+    echo "  FAIL  run_engine n'exécute pas les cibles attendues exactement une fois"
+    TESTS_FAIL=$((TESTS_FAIL + 1))
+fi
+
 create_fake_yaml_python() {
     local path="$1"
     local label="$2"
