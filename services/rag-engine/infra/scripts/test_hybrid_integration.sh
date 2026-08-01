@@ -10,8 +10,12 @@ suffix="$$-${RANDOM}-${RANDOM}"
 PGVECTOR_CONTAINER="lot40-pg-${suffix}"
 PGVECTOR_VOLUME="lot40-pg-volume-${suffix}"
 LOT40_OWNER_KEY="com.nexus.lot40.owner"
-LOT40_OWNER_VALUE="$suffix"
-LOT40_OWNER_LABEL="$LOT40_OWNER_KEY=$LOT40_OWNER_VALUE"
+LOT40_OWNER_TOKEN="$(od -An -N16 -tx1 /dev/urandom | tr -d '[:space:]')"
+if [[ ! "$LOT40_OWNER_TOKEN" =~ ^[0-9a-f]{32}$ ]]; then
+    echo "LOT40_OWNER_TOKEN_INVALID" >&2
+    exit 2
+fi
+LOT40_OWNER_LABEL="$LOT40_OWNER_KEY=$LOT40_OWNER_TOKEN"
 PGVECTOR_BOOTSTRAP_DB="lot40db"
 PGVECTOR_FRESH_DB="lot40fresh"
 PGVECTOR_DB="$PGVECTOR_BOOTSTRAP_DB"
@@ -21,6 +25,8 @@ RUN_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/lot40-hybrid.XXXXXX")"
 BACKUP_ROOT="$RUN_ROOT/backups"
 container_cleanup_armed=0
 volume_cleanup_armed=0
+PGVECTOR_CONTAINER_ID=""
+PGVECTOR_VOLUME_CREATED_AT=""
 
 is_exact_not_found() {
     local kind="$1"
@@ -41,37 +47,121 @@ is_exact_not_found() {
     [[ "$diagnostic" == "$daemon_message" || "$diagnostic" == $'[]\n'"$daemon_message" ]]
 }
 
-remove_container_exact() {
-    local owner_output remove_output remove_status inspect_output inspect_status
+inspect_container_identity() {
+    docker container inspect \
+        --format '{{.Id}}|{{.Name}}|{{ index .Config.Labels "com.nexus.lot40.owner" }}' \
+        "$1"
+}
 
-    if owner_output="$(docker container inspect \
-        --format '{{ index .Config.Labels "com.nexus.lot40.owner" }}' \
-        "$PGVECTOR_CONTAINER" 2>&1)"; then
-        if [[ "$owner_output" != "$LOT40_OWNER_VALUE" ]]; then
-            echo "LOT40_CLEANUP_CONTAINER_OWNERSHIP_MISMATCH" >&2
+inspect_volume_identity() {
+    docker volume inspect \
+        --format '{{ index .Labels "com.nexus.lot40.owner" }}|{{.CreatedAt}}' \
+        "$PGVECTOR_VOLUME"
+}
+
+parse_container_identity() {
+    local identity="$1"
+    local extra=""
+    IFS='|' read -r parsed_container_id parsed_container_name \
+        parsed_container_owner extra <<< "$identity"
+    [[ -z "$extra" \
+       && "$parsed_container_id" =~ ^[0-9a-f]{64}$ \
+       && "$parsed_container_name" == "/$PGVECTOR_CONTAINER" \
+       && "$parsed_container_owner" == "$LOT40_OWNER_TOKEN" ]]
+}
+
+parse_volume_identity() {
+    local identity="$1"
+    local extra=""
+    IFS='|' read -r parsed_volume_owner parsed_volume_created_at extra <<< "$identity"
+    [[ -z "$extra" \
+       && "$parsed_volume_owner" == "$LOT40_OWNER_TOKEN" \
+       && "$parsed_volume_created_at" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$ ]]
+}
+
+capture_container_identity() {
+    local returned_id="$1"
+    local identity
+    if [[ ! "$returned_id" =~ ^[0-9a-f]{64}$ ]] \
+       || ! identity="$(inspect_container_identity "$returned_id" 2>&1)" \
+       || ! parse_container_identity "$identity" \
+       || [[ "$parsed_container_id" != "$returned_id" ]]; then
+        echo "LOT40_CONTAINER_IDENTITY_MISMATCH" >&2
+        return 1
+    fi
+    PGVECTOR_CONTAINER_ID="$returned_id"
+}
+
+capture_volume_identity() {
+    local identity
+    if ! identity="$(inspect_volume_identity 2>&1)" \
+       || ! parse_volume_identity "$identity"; then
+        echo "LOT40_VOLUME_IDENTITY_MISMATCH" >&2
+        return 1
+    fi
+    PGVECTOR_VOLUME_CREATED_AT="$parsed_volume_created_at"
+}
+
+remove_container_exact() {
+    local identity expected_identity inspect_output remove_output
+    local inspect_status remove_status name_identity
+
+    if [[ -z "$PGVECTOR_CONTAINER_ID" ]]; then
+        if identity="$(inspect_container_identity "$PGVECTOR_CONTAINER" 2>&1)"; then
+            if ! parse_container_identity "$identity"; then
+                echo "LOT40_CLEANUP_CONTAINER_OWNERSHIP_MISMATCH" >&2
+                return 1
+            fi
+            PGVECTOR_CONTAINER_ID="$parsed_container_id"
+        elif is_exact_not_found container "$PGVECTOR_CONTAINER" "$identity"; then
+            return 0
+        else
+            echo "LOT40_CLEANUP_CONTAINER_INSPECT_FAILED" >&2
             return 1
         fi
-    elif is_exact_not_found container "$PGVECTOR_CONTAINER" "$owner_output"; then
-        return 0
-    else
+    fi
+    expected_identity="$PGVECTOR_CONTAINER_ID|/$PGVECTOR_CONTAINER|$LOT40_OWNER_TOKEN"
+
+    if ! identity="$(inspect_container_identity "$PGVECTOR_CONTAINER_ID" 2>&1)"; then
+        if is_exact_not_found container "$PGVECTOR_CONTAINER_ID" "$identity"; then
+            if name_identity="$(inspect_container_identity "$PGVECTOR_CONTAINER" 2>&1)"; then
+                echo "LOT40_CLEANUP_CONTAINER_IDENTITY_CHANGED" >&2
+                return 1
+            fi
+            if is_exact_not_found container "$PGVECTOR_CONTAINER" "$name_identity"; then
+                return 0
+            fi
+        fi
         echo "LOT40_CLEANUP_CONTAINER_INSPECT_FAILED" >&2
         return 1
     fi
+    if ! parse_container_identity "$identity" \
+       || [[ "$identity" != "$expected_identity" ]]; then
+        echo "LOT40_CLEANUP_CONTAINER_IDENTITY_CHANGED" >&2
+        return 1
+    fi
 
-    remove_output="$(docker rm -f "$PGVECTOR_CONTAINER" 2>&1)"
+    if ! identity="$(inspect_container_identity "$PGVECTOR_CONTAINER_ID" 2>&1)" \
+       || ! parse_container_identity "$identity" \
+       || [[ "$identity" != "$expected_identity" ]]; then
+        echo "LOT40_CLEANUP_CONTAINER_IDENTITY_CHANGED" >&2
+        return 1
+    fi
+
+    remove_output="$(docker rm -f "$PGVECTOR_CONTAINER_ID" 2>&1)"
     remove_status=$?
-    inspect_output="$(docker container inspect "$PGVECTOR_CONTAINER" 2>&1)"
+    inspect_output="$(docker container inspect "$PGVECTOR_CONTAINER_ID" 2>&1)"
     inspect_status=$?
     if (( inspect_status == 0 )); then
         echo "LOT40_CLEANUP_CONTAINER_LEAK" >&2
         return 1
     fi
-    if ! is_exact_not_found container "$PGVECTOR_CONTAINER" "$inspect_output"; then
+    if ! is_exact_not_found container "$PGVECTOR_CONTAINER_ID" "$inspect_output"; then
         echo "LOT40_CLEANUP_CONTAINER_INSPECT_FAILED" >&2
         return 1
     fi
     if (( remove_status != 0 )) \
-       && ! is_exact_not_found container "$PGVECTOR_CONTAINER" "$remove_output"; then
+       && ! is_exact_not_found container "$PGVECTOR_CONTAINER_ID" "$remove_output"; then
         echo "LOT40_CLEANUP_CONTAINER_REMOVE_FAILED" >&2
         return 1
     fi
@@ -79,19 +169,33 @@ remove_container_exact() {
 }
 
 remove_volume_exact() {
-    local owner_output remove_output remove_status inspect_output inspect_status
+    local identity expected_identity remove_output inspect_output
+    local remove_status inspect_status
 
-    if owner_output="$(docker volume inspect \
-        --format '{{ index .Labels "com.nexus.lot40.owner" }}' \
-        "$PGVECTOR_VOLUME" 2>&1)"; then
-        if [[ "$owner_output" != "$LOT40_OWNER_VALUE" ]]; then
+    if identity="$(inspect_volume_identity 2>&1)"; then
+        if ! parse_volume_identity "$identity"; then
             echo "LOT40_CLEANUP_VOLUME_OWNERSHIP_MISMATCH" >&2
             return 1
         fi
-    elif is_exact_not_found volume "$PGVECTOR_VOLUME" "$owner_output"; then
+    elif is_exact_not_found volume "$PGVECTOR_VOLUME" "$identity"; then
         return 0
     else
         echo "LOT40_CLEANUP_VOLUME_INSPECT_FAILED" >&2
+        return 1
+    fi
+
+    if [[ -z "$PGVECTOR_VOLUME_CREATED_AT" ]]; then
+        PGVECTOR_VOLUME_CREATED_AT="$parsed_volume_created_at"
+    elif [[ "$parsed_volume_created_at" != "$PGVECTOR_VOLUME_CREATED_AT" ]]; then
+        echo "LOT40_CLEANUP_VOLUME_IDENTITY_CHANGED" >&2
+        return 1
+    fi
+    expected_identity="$LOT40_OWNER_TOKEN|$PGVECTOR_VOLUME_CREATED_AT"
+
+    if ! identity="$(inspect_volume_identity 2>&1)" \
+       || ! parse_volume_identity "$identity" \
+       || [[ "$identity" != "$expected_identity" ]]; then
+        echo "LOT40_CLEANUP_VOLUME_IDENTITY_CHANGED" >&2
         return 1
     fi
 
@@ -196,22 +300,35 @@ mkdir -p "$BACKUP_ROOT"
 assert_resource_absent container "$PGVECTOR_CONTAINER"
 assert_resource_absent volume "$PGVECTOR_VOLUME"
 volume_cleanup_armed=1
-docker volume create --label "$LOT40_OWNER_LABEL" "$PGVECTOR_VOLUME" >/dev/null
+if docker volume create --label "$LOT40_OWNER_LABEL" "$PGVECTOR_VOLUME" \
+    >/dev/null 2>"$RUN_ROOT/volume-create.err"; then
+    capture_volume_identity
+else
+    volume_create_status=$?
+    echo "LOT40_VOLUME_CREATE_FAILED" >&2
+    exit "$volume_create_status"
+fi
 container_cleanup_armed=1
-docker run -d \
-    --name "$PGVECTOR_CONTAINER" \
-    --label "$LOT40_OWNER_LABEL" \
-    -e "POSTGRES_DB=$PGVECTOR_DB" \
-    -e "POSTGRES_USER=$PGVECTOR_USER" \
-    -e POSTGRES_HOST_AUTH_METHOD=trust \
-    -v "$PGVECTOR_VOLUME:/var/lib/postgresql/data" \
-    -v "$INFRA_DIR/postgres/init.sql:/docker-entrypoint-initdb.d/00_init.sql:ro" \
-    -p 127.0.0.1::5432 \
-    "$IMAGE" >/dev/null
+if container_run_id="$(docker run -d \
+        --name "$PGVECTOR_CONTAINER" \
+        --label "$LOT40_OWNER_LABEL" \
+        -e "POSTGRES_DB=$PGVECTOR_DB" \
+        -e "POSTGRES_USER=$PGVECTOR_USER" \
+        -e POSTGRES_HOST_AUTH_METHOD=trust \
+        -v "$PGVECTOR_VOLUME:/var/lib/postgresql/data" \
+        -v "$INFRA_DIR/postgres/init.sql:/docker-entrypoint-initdb.d/00_init.sql:ro" \
+        -p 127.0.0.1::5432 \
+        "$IMAGE" 2>"$RUN_ROOT/container-run.err")"; then
+    capture_container_identity "$container_run_id"
+else
+    container_run_status=$?
+    echo "LOT40_CONTAINER_RUN_FAILED" >&2
+    exit "$container_run_status"
+fi
 
 ready=0
 for ((attempt = 1; attempt <= ready_attempts; attempt++)); do
-    if docker exec "$PGVECTOR_CONTAINER" \
+    if docker exec "$PGVECTOR_CONTAINER_ID" \
         pg_isready -U "$PGVECTOR_USER" -d "$PGVECTOR_DB" >/dev/null 2>&1; then
         ready=1
         break
@@ -225,7 +342,7 @@ if (( ready == 0 )); then
     exit 1
 fi
 
-port_mapping="$(docker port "$PGVECTOR_CONTAINER" 5432/tcp)"
+port_mapping="$(docker port "$PGVECTOR_CONTAINER_ID" 5432/tcp)"
 if [[ ! "$port_mapping" =~ ^127[.]0[.]0[.]1:([0-9]+)$ ]]; then
     echo "LOT40_PORT_MAPPING_INVALID" >&2
     exit 1
@@ -237,7 +354,7 @@ export LOT40_PG_DSN="postgresql://$PGVECTOR_APP_USER@127.0.0.1:$PGVECTOR_PORT/$P
 echo "LOT40_DATABASE_READY=PASS"
 
 container_psql() {
-    docker exec -i "$PGVECTOR_CONTAINER" \
+    docker exec -i "$PGVECTOR_CONTAINER_ID" \
         psql -X -q -v ON_ERROR_STOP=1 \
         -U "$PGVECTOR_USER" -d "$PGVECTOR_DB" "$@"
 }
@@ -258,7 +375,7 @@ expect_failure() {
 }
 
 run_apply() {
-    PGVECTOR_CONTAINER="$PGVECTOR_CONTAINER" \
+    PGVECTOR_CONTAINER="$PGVECTOR_CONTAINER_ID" \
     PGVECTOR_DB="$PGVECTOR_DB" \
     PGVECTOR_USER="$PGVECTOR_USER" \
     BACKUP_ROOT="$BACKUP_ROOT" \
@@ -266,7 +383,7 @@ run_apply() {
 }
 
 run_down() {
-    PGVECTOR_CONTAINER="$PGVECTOR_CONTAINER" \
+    PGVECTOR_CONTAINER="$PGVECTOR_CONTAINER_ID" \
     PGVECTOR_DB="$PGVECTOR_DB" \
     PGVECTOR_USER="$PGVECTOR_USER" \
     BACKUP_ROOT="$BACKUP_ROOT" \
@@ -401,7 +518,7 @@ run_apply "$INFRA_DIR"
 assert_state_002
 echo "BOOTSTRAP_CYCLE_002_001_002=PASS"
 
-docker exec "$PGVECTOR_CONTAINER" \
+docker exec "$PGVECTOR_CONTAINER_ID" \
     createdb -U "$PGVECTOR_USER" -T template0 "$PGVECTOR_FRESH_DB"
 PGVECTOR_DB="$PGVECTOR_FRESH_DB"
 

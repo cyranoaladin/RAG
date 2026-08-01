@@ -1026,10 +1026,15 @@ Boucler au plus
 mot de passe vers `127.0.0.1`.
 
 Avant toute création, inspecter strictement les deux noms et exiger leur
-absence exacte. Poser `com.nexus.lot40.owner=<suffixe>` sur le volume et le
-conteneur. Armer le cleanup avant chaque commande de création, mais inspecter
-et exiger ce label exact avant tout `rm`; une collision, une course, un label
-divergent ou une erreur d'inspection ne peut jamais supprimer la ressource.
+absence exacte. Poser `com.nexus.lot40.owner=<token>` sur le volume et le
+conteneur, avec un token cryptographiquement aléatoire indépendant du suffixe.
+Armer le cleanup avant chaque commande de création, capturer aussitôt l'ID du
+conteneur et le `CreatedAt` du volume, puis revalider nom, label et empreinte
+immédiatement avant tout `rm`. Supprimer le conteneur uniquement par ID; une
+collision, une course, un label divergent, une substitution d'identité ou une
+erreur d'inspection ne peut jamais supprimer la ressource. Documenter la limite
+TOCTOU résiduelle du volume : Docker ne propose pas de `volume rm` conditionnel
+atomique face à un administrateur du daemon.
 
 - [ ] **Step 4: Vérifier syntaxe et GREEN lifecycle**
 

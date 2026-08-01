@@ -348,11 +348,18 @@ conteneur.
 Le runner détruit son conteneur et son volume temporaires avec un `trap`, y
 compris en erreur. Avant toute création, il prouve l'absence des deux noms. Les
 deux ressources portent le label propriétaire unique
-`com.nexus.lot40.owner=<suffixe>` ; le cleanup inspecte et exige ce label exact
-avant toute suppression. Une collision, une course de création, un label
-absent/divergent ou une erreur d'inspection ferme le runner sans supprimer la
-ressource concernée. Il ne réutilise jamais `rag_pgvector` ni un volume
-existant.
+`com.nexus.lot40.owner=<token>` où le token cryptographiquement aléatoire est
+indépendant des noms. Après création, le runner capture l'ID Docker immuable du
+conteneur et le couple label/`CreatedAt` du volume. Le cleanup revalide
+immédiatement ces identités, supprime le conteneur par ID et refuse toute
+substitution de nom, de label ou d'empreinte. Une collision, une course de
+création, un label absent/divergent ou une erreur d'inspection ferme le runner
+sans supprimer la ressource concernée. Il ne réutilise jamais `rag_pgvector` ni
+un volume existant. Pour le volume, l'API Docker ne fournit pas de suppression
+conditionnelle atomique : un administrateur du daemon peut encore remplacer la
+ressource entre la dernière inspection et `volume rm`; cette limite TOCTOU est
+inhérente à l'autorité administrateur du daemon, et non contournable par le
+runner.
 
 Une cible Make dédiée `test-integration-hybrid` orchestre le conteneur nommé,
 l'adoption `002`, `002 → 001 → 002`, puis `001 → 002 → 001 → 002` sur la base
