@@ -677,3 +677,46 @@ class TestSecurityV2Internals:
         hashed = configured_tokens()["admin"]
         assert hashed
         assert hashed[0] != "abc"
+
+
+def _bff_client() -> TestClient:
+    app = FastAPI()
+
+    @app.get("/bff")
+    def bff_probe(request: Request) -> dict[str, bool]:
+        from ingestor.security_v2 import require_bff_service
+
+        require_bff_service(request, endpoint="/search/v2")
+        return {"ok": True}
+
+    return TestClient(app)
+
+
+def test_bff_service_token_is_distinct_required_and_fail_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _bff_client()
+    monkeypatch.delenv("RAG_BFF_SERVICE_TOKEN", raising=False)
+    assert client.get("/bff").status_code == 503
+
+    monkeypatch.setenv("RAG_BFF_SERVICE_TOKEN", "too-short")
+    assert client.get("/bff").status_code == 503
+
+    service_token = "bff-service-token-with-at-least-32-bytes"
+    monkeypatch.setenv("RAG_BFF_SERVICE_TOKEN", service_token)
+    assert client.get("/bff").status_code == 401
+    assert client.get("/bff", headers=_auth_headers("wrong-token")).status_code == 401
+    assert client.get("/bff", headers=_auth_headers(service_token)).status_code == 200
+
+
+def test_bff_service_token_collision_with_a_role_token_is_invalid(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    token = "shared-token-must-never-cross-auth-domains"
+    monkeypatch.setenv("RAG_BFF_SERVICE_TOKEN", token)
+    monkeypatch.setenv("RAG_STUDENT_TOKEN", token)
+
+    response = _bff_client().get("/bff", headers=_auth_headers(token))
+
+    assert response.status_code == 503
+    assert "token" not in response.text.lower()
