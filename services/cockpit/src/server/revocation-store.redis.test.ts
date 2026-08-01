@@ -35,11 +35,15 @@ describe('raccord Redis du store de session', () => {
   it('conserve la révocation après recréation logique du client Redis', async () => {
     process.env.NEXUS_SESSION_REDIS_URL = 'redis://session-store.test:6379/5'
 
-    await revokeSession('psn_1234567890abcdef', 'libre_terminale')
+    await revokeSession(
+      'jti-12345',
+      'psn_1234567890abcdef',
+      'libre_terminale',
+    )
     resetSessionStoreForTests()
 
     await expect(
-      isRevoked('psn_1234567890abcdef', 'libre_terminale'),
+      isRevoked('jti-12345', 'psn_1234567890abcdef', 'libre_terminale'),
     ).resolves.toBe(true)
     expect(createClient).toHaveBeenCalledTimes(2)
     expect(createClient).toHaveBeenNthCalledWith(1, expect.objectContaining({

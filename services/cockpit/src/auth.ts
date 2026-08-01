@@ -5,7 +5,10 @@ import Credentials from 'next-auth/providers/credentials'
 import {
   mintInternalIdentityToken,
   rotateInternalIdentityToken,
+  verifyInternalIdentityToken,
 } from '@/server/internal-token'
+import { AUTH_SESSION_MAX_AGE_SECONDS } from '@/server/auth-policy'
+import { revokeSession } from '@/server/revocation-store'
 import { verifyNexusToken } from '@/server/sso-verifier'
 import { shouldRotate } from '@/server/session-rotation'
 
@@ -57,7 +60,27 @@ export const authOptions: AuthOptions = {
   ],
   session: {
     strategy: 'jwt',
-    maxAge: 3600,
+    maxAge: AUTH_SESSION_MAX_AGE_SECONDS,
+  },
+  events: {
+    async signOut(message) {
+      if (!('token' in message)) return
+      const sessionToken = message.token as AuthenticatedToken
+      if (typeof sessionToken.internalAccessToken !== 'string') return
+      let internalToken = sessionToken.internalAccessToken
+      let envelope
+      try {
+        envelope = await verifyInternalIdentityToken(internalToken)
+      } catch {
+        internalToken = await rotateInternalIdentityToken(internalToken)
+        envelope = await verifyInternalIdentityToken(internalToken)
+      }
+      await revokeSession(
+        envelope.identity.jti,
+        envelope.identity.sub,
+        envelope.identity.tenant,
+      )
+    },
   },
   callbacks: {
     async jwt({ token, user }) {

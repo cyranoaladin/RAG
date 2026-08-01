@@ -228,7 +228,7 @@ export async function verifyNexusToken(rawToken: string): Promise<InternalIdenti
 
   const identity = toInternalIdentity(payload, audience)
 
-  if (await isRevoked(identity.sub, identity.tenant)) {
+  if (await isRevoked(identity.jti, identity.sub, identity.tenant)) {
     throw new Error('session révoquée')
   }
 

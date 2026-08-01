@@ -4,6 +4,7 @@ import type { NextRequest } from 'next/server'
 
 import type { InternalIdentity } from '@/generated/contracts'
 import { rotateInternalIdentityToken, verifyInternalIdentityToken } from '@/server/internal-token'
+import { PILOT_RETRIEVAL_SCOPE } from '@/server/pilot-scope'
 import { isRevoked } from '@/server/revocation-store'
 
 interface ServerSessionToken extends JWT {
@@ -44,10 +45,20 @@ export async function requireBffAuth(
       envelope = await verifyInternalIdentityToken(freshIdentityToken)
     }
     if (sessionToken.sub !== envelope.sub) return null
-    if (await isRevoked(envelope.identity.sub, envelope.identity.tenant)) return null
+    if (await isRevoked(
+      envelope.identity.jti,
+      envelope.identity.sub,
+      envelope.identity.tenant,
+    )) return null
+
+    const signedMatieres = new Set(envelope.identity.pedagogical_profile.matieres)
+    const allowedCollections = PILOT_RETRIEVAL_SCOPE.subjects
+      .filter((subject) => signedMatieres.has(subject.matiere))
+      .map((subject) => subject.collection)
+    if (allowedCollections.length === 0) return null
 
     return {
-      allowedCollections: envelope.allowed_collections,
+      allowedCollections,
       identity: envelope.identity,
       identityToken: freshIdentityToken,
     }

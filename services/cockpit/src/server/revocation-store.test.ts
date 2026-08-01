@@ -13,6 +13,7 @@ describe('store partagé de sécurité de session', () => {
     delete process.env.NEXUS_SESSION_REDIS_URL
     delete process.env.NEXUS_SESSION_STORE_MODE
     delete process.env.NEXUS_SESSION_MEMORY_STORE_FOR_TESTS
+    delete process.env.NEXUS_SESSION_TTL_SECONDS
     resetSessionStoreForTests()
   })
 
@@ -44,15 +45,46 @@ describe('store partagé de sécurité de session', () => {
     const instanceA = new SharedSessionSecurityStore(backend)
     const instanceB = new SharedSessionSecurityStore(backend)
 
-    await instanceA.revokeSession('psn_1234567890abcdef', 'libre_terminale')
+    await instanceA.revokeSession(
+      'jti-12345',
+      'psn_1234567890abcdef',
+      'libre_terminale',
+    )
 
     await expect(
-      instanceB.isRevoked('psn_1234567890abcdef', 'libre_terminale'),
+      instanceB.isRevoked('jti-12345', 'psn_1234567890abcdef', 'libre_terminale'),
     ).resolves.toBe(true)
     const restartedInstance = new SharedSessionSecurityStore(backend)
     await expect(
-      restartedInstance.isRevoked('psn_1234567890abcdef', 'libre_terminale'),
+      restartedInstance.isRevoked(
+        'jti-12345',
+        'psn_1234567890abcdef',
+        'libre_terminale',
+      ),
     ).resolves.toBe(true)
+  })
+
+  it('ne raccourcit jamais la révocation sous la durée du cookie Auth.js', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(1_800_000_000_000)
+    process.env.NEXUS_SESSION_TTL_SECONDS = '60'
+    const set = vi.fn(async () => 'OK')
+    const store = new SharedSessionSecurityStore({
+      get: async () => null,
+      set,
+    })
+
+    await store.revokeSession(
+      'jti-short-config',
+      'psn_1234567890abcdef',
+      'libre_terminale',
+    )
+
+    expect(set).toHaveBeenCalledWith(
+      'nexus:session:v1:revoked:libre_terminale:psn_1234567890abcdef:jti-short-config',
+      '1',
+      { EX: 3600 },
+    )
   })
 
   it('rend atomiques la frontière tenant et la consommation du jti entre instances', async () => {
@@ -81,26 +113,26 @@ describe('store partagé de sécurité de session', () => {
     const store = new SharedSessionSecurityStore(failingBackend)
 
     await expect(
-      store.isRevoked('psn_1234567890abcdef', 'libre_terminale'),
+      store.isRevoked('jti-12345', 'psn_1234567890abcdef', 'libre_terminale'),
     ).rejects.toThrow('redis unavailable')
   })
 
   it('échoue fermé sans URL Redis', async () => {
     await expect(
-      isRevoked('psn_1234567890abcdef', 'libre_terminale'),
+      isRevoked('jti-12345', 'psn_1234567890abcdef', 'libre_terminale'),
     ).rejects.toThrow('Configuration session manquante: NEXUS_SESSION_REDIS_URL')
   })
 
   it('n’autorise la mémoire qu’en test avec un opt-in explicite', async () => {
     process.env.NEXUS_SESSION_STORE_MODE = 'memory'
     await expect(
-      isRevoked('psn_1234567890abcdef', 'libre_terminale'),
+      isRevoked('jti-12345', 'psn_1234567890abcdef', 'libre_terminale'),
     ).rejects.toThrow('Store mémoire de session interdit')
 
     process.env.NEXUS_SESSION_MEMORY_STORE_FOR_TESTS = 'true'
     resetSessionStoreForTests()
     await expect(
-      isRevoked('psn_1234567890abcdef', 'libre_terminale'),
+      isRevoked('jti-12345', 'psn_1234567890abcdef', 'libre_terminale'),
     ).resolves.toBe(false)
   })
 })

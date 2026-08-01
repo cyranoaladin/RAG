@@ -1,5 +1,7 @@
 import { createClient } from 'redis'
 
+import { AUTH_SESSION_MAX_AGE_SECONDS } from '@/server/auth-policy'
+
 interface SetOptions {
   EX: number
   NX?: boolean
@@ -53,11 +55,16 @@ function boundedSeconds(name: string, fallback: number, minimum: number, maximum
 }
 
 function sessionTtlSeconds(): number {
-  return boundedSeconds('NEXUS_SESSION_TTL_SECONDS', DEFAULT_SESSION_TTL_SECONDS, 60, 86_400)
+  return boundedSeconds(
+    'NEXUS_SESSION_TTL_SECONDS',
+    DEFAULT_SESSION_TTL_SECONDS,
+    AUTH_SESSION_MAX_AGE_SECONDS,
+    86_400,
+  )
 }
 
-function revocationKey(sub: string, tenant: string): string {
-  return `${KEY_PREFIX}:revoked:${tenant}:${sub}`
+function revocationKey(jti: string, sub: string, tenant: string): string {
+  return `${KEY_PREFIX}:revoked:${tenant}:${sub}:${jti}`
 }
 
 function tenantKey(sub: string): string {
@@ -91,14 +98,14 @@ export class SharedSessionSecurityStore {
     throw new Error('jeton externe: tenant incompatible pour cette identité')
   }
 
-  async revokeSession(sub: string, tenant: string): Promise<void> {
-    await this.backend.set(revocationKey(sub, tenant), '1', {
+  async revokeSession(jti: string, sub: string, tenant: string): Promise<void> {
+    await this.backend.set(revocationKey(jti, sub, tenant), '1', {
       EX: sessionTtlSeconds(),
     })
   }
 
-  async isRevoked(sub: string, tenant: string): Promise<boolean> {
-    return await this.backend.get(revocationKey(sub, tenant)) === '1'
+  async isRevoked(jti: string, sub: string, tenant: string): Promise<boolean> {
+    return await this.backend.get(revocationKey(jti, sub, tenant)) === '1'
   }
 
   async consumeOnce(jti: string, exp: number, tenant: string, sub: string): Promise<void> {
@@ -176,12 +183,12 @@ export async function assertTenantBoundary(sub: string, tenant: string): Promise
   return (await configuredStore()).assertTenantBoundary(sub, tenant)
 }
 
-export async function revokeSession(sub: string, tenant: string): Promise<void> {
-  return (await configuredStore()).revokeSession(sub, tenant)
+export async function revokeSession(jti: string, sub: string, tenant: string): Promise<void> {
+  return (await configuredStore()).revokeSession(jti, sub, tenant)
 }
 
-export async function isRevoked(sub: string, tenant: string): Promise<boolean> {
-  return (await configuredStore()).isRevoked(sub, tenant)
+export async function isRevoked(jti: string, sub: string, tenant: string): Promise<boolean> {
+  return (await configuredStore()).isRevoked(jti, sub, tenant)
 }
 
 export async function consumeSessionJti(

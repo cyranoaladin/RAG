@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { InternalIdentity } from '@/generated/contracts'
+import { authOptions } from '@/auth'
 import { mintInternalIdentityToken } from '@/server/internal-token'
 import { decodeJwt } from 'jose'
 import { requireBffAuth } from '@/server/bff-auth'
@@ -77,6 +78,28 @@ describe('authentification serveur des routes BFF', () => {
     ])
   })
 
+  it.each([
+    [['maths'], ['rag_nexus_maths_terminale_gen_specialite']],
+    [['nsi'], ['rag_nexus_nsi_terminale_specialite']],
+    [['maths', 'nsi'], [
+      'rag_nexus_maths_terminale_gen_specialite',
+      'rag_nexus_nsi_terminale_specialite',
+    ]],
+  ])('borne les collections effectives aux matières signées %j', async (matieres, expected) => {
+    const scopedIdentity = {
+      ...identity,
+      pedagogical_profile: { ...identity.pedagogical_profile, matieres },
+    } as InternalIdentity
+    const internalAccessToken = await mintInternalIdentityToken(scopedIdentity)
+
+    const context = await requireBffAuth(
+      new Request('http://cockpit.test/api/search'),
+      async () => ({ sub: identity.sub, internalAccessToken }),
+    )
+
+    expect(context?.allowedCollections).toEqual(expected)
+  })
+
   it('refuse une session absente ou non liée au sujet interne', async () => {
     const internalAccessToken = await mintInternalIdentityToken(identity)
 
@@ -93,11 +116,28 @@ describe('authentification serveur des routes BFF', () => {
 
   it('refuse une session révoquée avant de la remettre à une route', async () => {
     const internalAccessToken = await mintInternalIdentityToken(identity)
-    await revokeSession(identity.sub, identity.tenant)
+    await revokeSession(identity.jti, identity.sub, identity.tenant)
 
     await expect(
       requireBffAuth(
         new Request('http://cockpit.test/api/chat'),
+        async () => ({ sub: identity.sub, internalAccessToken }),
+      ),
+    ).resolves.toBeNull()
+  })
+
+  it('révoque réellement le jti lors de la déconnexion Auth.js', async () => {
+    const internalAccessToken = await mintInternalIdentityToken(identity)
+    const signOut = authOptions.events?.signOut
+    if (!signOut) throw new Error('événement signOut absent')
+
+    await signOut({
+      token: { sub: identity.sub, internalAccessToken },
+    } as never)
+
+    await expect(
+      requireBffAuth(
+        new Request('http://cockpit.test/api/search'),
         async () => ({ sub: identity.sub, internalAccessToken }),
       ),
     ).resolves.toBeNull()

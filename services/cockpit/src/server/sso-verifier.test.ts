@@ -138,7 +138,7 @@ describe('vérification des identités SSO', () => {
 
   it('rejette un jeton revoké', async () => {
     withEnv()
-    await revokeSession(basePayload.sub, basePayload.tenant)
+    await revokeSession('revoked', basePayload.sub, basePayload.tenant)
     const token = await mintToken({ jti: 'revoked' })
 
     await expect(verifyNexusToken(token)).rejects.toThrow()

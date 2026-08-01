@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 
-import collectionsSeed from '@/data/collections.json'
 import { requireBffAuth } from '@/server/bff-auth'
 import type { RagCollection } from '@/types/ui'
 
@@ -16,10 +15,10 @@ type EngineReadiness = {
 
 function fallback() {
   return {
-    items: collectionsSeed as RagCollection[],
+    items: [] as RagCollection[],
     live: false,
     launchReady: false,
-    totalCollections: collectionsSeed.length,
+    totalCollections: 0,
     readyCollections: 0,
     blockers: ['validation de lancement indisponible'],
   }

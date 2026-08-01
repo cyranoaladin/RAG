@@ -68,4 +68,20 @@ describe('GET /api/collections', () => {
       identityToken: 'signed-identity-token',
     })
   })
+
+  it('ne divulgue aucun catalogue statique lorsque le moteur est indisponible', async () => {
+    mockedFetchEngine.mockRejectedValue(new Error('moteur indisponible'))
+
+    const response = await GET(request)
+    const body = await response.json()
+
+    expect(response.status).toBe(503)
+    expect(body).toMatchObject({
+      items: [],
+      live: false,
+      launchReady: false,
+      totalCollections: 0,
+      readyCollections: 0,
+    })
+  })
 })

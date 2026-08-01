@@ -1,0 +1,1 @@
+export const AUTH_SESSION_MAX_AGE_SECONDS = 3600
