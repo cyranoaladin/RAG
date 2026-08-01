@@ -396,14 +396,12 @@ def test_provision_prod_allowlist_default_has_no_broad_private_ranges() -> None:
 
 
 def test_search_cache_disabled_in_production() -> None:
-    """In RAG_ENV=production, search cache must default to disabled."""
+    """LOT41 disables the unscoped search warmup in every environment."""
     source = (ENGINE_ROOT / "src" / "ingestor" / "retrieval_v2_endpoint.py").read_text(
         encoding="utf-8"
     )
-    # Static check: when RAG_ENV==production, RERANK_CACHE default must be "0"
-    assert 'CACHE_ENABLED = os.environ.get("RERANK_CACHE", "0") == "1"' in source, (
-        "Production cache must default to disabled (RERANK_CACHE default '0')"
-    )
+    assert "CACHE_ENABLED = False" in source
+    assert 'os.environ.get("RERANK_CACHE"' not in source
 
 
 def test_prod_deployment_plan_does_not_persist_rendered_compose_secrets() -> None:

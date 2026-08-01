@@ -21,6 +21,11 @@ sys.path.insert(0, str(ENGINE_ROOT.parent.parent / "packages" / "contracts" / "s
 
 from ingestor.collection_config import load_collection_config, resolve_collection_v2  # noqa: E402
 from ingestor.embedding_contract import load_embedding_model  # noqa: E402
+from ingestor.identity_v2 import (  # noqa: E402
+    VerifiedInternalIdentity,
+    load_identity_verifier_config,
+    verify_identity_token,
+)
 from ingestor.pg_pool import (  # noqa: E402
     PoolSettings,
     close_pool,
@@ -38,8 +43,12 @@ from ingestor.retrieval_hybrid_v2 import (  # noqa: E402
     retrieve_hybrid,
 )
 from ingestor.retrieval_pg_v2 import PgCandidateStore  # noqa: E402
+from ingestor.retrieval_scope_v2 import (  # noqa: E402
+    ServerRetrievalScope,
+    build_server_retrieval_scope,
+)
 
-StoreFactory = Callable[[PoolSettings], CandidateStore]
+StoreFactory = Callable[[PoolSettings, ServerRetrievalScope], CandidateStore]
 EmbedderFactory = Callable[[], Embedder]
 RerankerFactory = Callable[[], Reranker]
 
@@ -86,9 +95,22 @@ def _check_retrievable(collection: str, cfg: dict[str, Any]) -> dict[str, Any]:
     return definition
 
 
-def _build_pg_store(settings: PoolSettings) -> CandidateStore:
+def _build_pg_store(
+    settings: PoolSettings,
+    scope: ServerRetrievalScope,
+) -> CandidateStore:
     """Construit le store sans ouvrir de connexion avant la première requête."""
-    return PgCandidateStore(lambda: pool_connection(settings))
+    return PgCandidateStore(lambda: pool_connection(settings), scope)
+
+
+def _load_verified_identity() -> VerifiedInternalIdentity:
+    """Charger l'enveloppe CLI depuis l'environnement, jamais depuis argv."""
+    import os
+
+    token = (os.environ.get("NEXUS_INTERNAL_IDENTITY_TOKEN") or "").strip()
+    if not token:
+        raise RetrievalPipelineError("identity required")
+    return verify_identity_token(token, config=load_identity_verifier_config())
 
 
 def _load_canonical_embedder() -> Embedder:
@@ -136,10 +158,16 @@ def search(
 ) -> list[HybridHit]:
     """Applique le gate avant toute factory puis délègue au noyau hybride."""
     _validate_request(query, collection, top_k)
+    verified = _load_verified_identity()
     config = load_collection_config()
     _check_retrievable(collection, config)
+    scope = build_server_retrieval_scope(
+        verified,
+        collection=collection,
+        collection_config=config,
+    )
 
-    store = store_factory(settings)
+    store = store_factory(settings, scope)
     embedder = embedder_factory()
     reranker = reranker_factory()
     hits: list[HybridHit] = retrieve_fn(
@@ -194,8 +222,6 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     try:
         _validate_request(args.query, args.collection, args.top_k)
-        config = load_collection_config()
-        _check_retrievable(args.collection, config)
         settings = PoolSettings.from_env()
         hits = search(
             args.query,

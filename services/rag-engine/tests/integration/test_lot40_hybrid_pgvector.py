@@ -14,6 +14,7 @@ import psycopg
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from nexus_contracts import Rights
 
 from ingestor import retrieval_v2_endpoint as endpoint
 from ingestor.pg_pool import close_pool
@@ -29,6 +30,7 @@ from ingestor.retrieval_pg_v2 import (
     _LEXICAL_SQL,
     PgCandidateStore,
 )
+from ingestor.retrieval_scope_v2 import ServerRetrievalScope
 
 pytestmark = pytest.mark.integration
 
@@ -49,11 +51,69 @@ TARGET_SCALE = 45000
 QUERY = "algorithme graphe"
 QUERY_VECTOR = (1.0,) + (0.0,) * (EMBED_DIMENSION - 1)
 QUERY_VECTOR_TEXT = "[" + ",".join(str(value) for value in QUERY_VECTOR) + "]"
+TENANT = "libre_terminale"
+VOIE = "generale"
+STATUT_ENSEIGNEMENT = "specialite"
+CANDIDAT = "individuel"
+AUDIENCE = ["tous"]
+VISIBILITY = "internal"
+SCHOOL_YEAR = "2026-2027"
+PROGRAMME_VERSION = "BOEN_special_8_2019-07-25"
+
+
+def _scope(collection: str) -> ServerRetrievalScope:
+    return ServerRetrievalScope(
+        tenant=TENANT,
+        niveau="terminale",
+        voie=VOIE,
+        matiere="nsi",
+        statut_enseignement=STATUT_ENSEIGNEMENT,
+        candidat=CANDIDAT,
+        audiences=("libre", "tous"),
+        rights=(Rights.usage_interne,),
+        visibilities=(VISIBILITY,),
+        school_year=SCHOOL_YEAR,
+        collection=collection,
+        programme_version=PROGRAMME_VERSION,
+        scope_id="lot41_integration_scope",
+        scope_digest="a" * 64,
+        source_sha256="b" * 64,
+    )
+
+
+def _scope_sql_params(collection: str) -> tuple[object, ...]:
+    scope = _scope(collection)
+    return (
+        scope.collection,
+        scope.tenant,
+        scope.niveau,
+        scope.voie,
+        scope.matiere,
+        scope.statut_enseignement,
+        [scope.candidat, "both"],
+        list(scope.audiences),
+        [right.value for right in scope.rights],
+        list(scope.visibilities),
+        scope.school_year,
+        scope.programme_version,
+    )
 
 _DENSE_ORACLE_SQL = """
     SELECT chunk_id
     FROM rag_chunks
-    WHERE collection = %s AND review_status = 'reviewed'
+    WHERE collection = %s
+      AND tenant = %s
+      AND niveau = %s
+      AND voie IS NOT DISTINCT FROM %s
+      AND matiere = %s
+      AND statut_enseignement = %s
+      AND candidat = ANY(%s::text[])
+      AND audience && %s::text[]
+      AND rights = ANY(%s::text[])
+      AND visibility = ANY(%s::text[])
+      AND school_year = %s
+      AND programme_version = %s
+      AND review_status = 'reviewed'
       AND text IS NOT NULL AND btrim(text) <> '' AND vector IS NOT NULL
       AND btrim(source_label) <> '' AND btrim(source_uri) <> ''
       AND btrim(rights) <> ''
@@ -82,6 +142,16 @@ def _row(
     source_uri: str = "https://example.invalid/lot40",
     rights: str = "usage_interne",
     page_start: int | None = 1,
+    tenant: str = TENANT,
+    niveau: str = "terminale",
+    voie: str = VOIE,
+    matiere: str = "nsi",
+    statut_enseignement: str = STATUT_ENSEIGNEMENT,
+    candidat: str = "both",
+    audience: list[str] | None = None,
+    visibility: str = VISIBILITY,
+    school_year: str = SCHOOL_YEAR,
+    programme_version: str = PROGRAMME_VERSION,
 ) -> tuple[object, ...]:
     return (
         chunk_id,
@@ -89,8 +159,16 @@ def _row(
         hashlib.sha256(chunk_id.encode()).hexdigest(),
         vector,
         collection,
-        "terminale",
-        "nsi",
+        niveau,
+        voie,
+        matiere,
+        statut_enseignement,
+        candidat,
+        audience or AUDIENCE,
+        tenant,
+        visibility,
+        school_year,
+        programme_version,
         source_label,
         source_uri,
         rights,
@@ -131,6 +209,87 @@ def _seed_rows() -> list[tuple[object, ...]]:
                 vector=_vector(-1.0),
                 text="algorithme graphe algorithme graphe algorithme graphe",
                 page_start=7,
+            ),
+        ]
+    )
+    rows.extend(
+        [
+            _row(
+                "scope-canary-tenant",
+                collection=TARGET_COLLECTION,
+                vector=_vector(1.0),
+                text="algorithme graphe canari tenant",
+                tenant="aefe_terminale",
+            ),
+            _row(
+                "scope-canary-niveau",
+                collection=TARGET_COLLECTION,
+                vector=_vector(1.0),
+                text="algorithme graphe canari niveau",
+                niveau="premiere",
+            ),
+            _row(
+                "scope-canary-voie",
+                collection=TARGET_COLLECTION,
+                vector=_vector(1.0),
+                text="algorithme graphe canari voie",
+                voie="technologique",
+            ),
+            _row(
+                "scope-canary-matiere",
+                collection=TARGET_COLLECTION,
+                vector=_vector(1.0),
+                text="algorithme graphe canari matiere",
+                matiere="mathematiques",
+            ),
+            _row(
+                "scope-canary-statut",
+                collection=TARGET_COLLECTION,
+                vector=_vector(1.0),
+                text="algorithme graphe canari statut",
+                statut_enseignement="option",
+            ),
+            _row(
+                "scope-canary-candidat",
+                collection=TARGET_COLLECTION,
+                vector=_vector(1.0),
+                text="algorithme graphe canari candidat",
+                candidat="scolarise",
+            ),
+            _row(
+                "scope-canary-audience",
+                collection=TARGET_COLLECTION,
+                vector=_vector(1.0),
+                text="algorithme graphe canari audience",
+                audience=["aefe"],
+            ),
+            _row(
+                "scope-canary-rights",
+                collection=TARGET_COLLECTION,
+                vector=_vector(1.0),
+                text="algorithme graphe canari droits",
+                rights=Rights.officiel_public.value,
+            ),
+            _row(
+                "scope-canary-visibility",
+                collection=TARGET_COLLECTION,
+                vector=_vector(1.0),
+                text="algorithme graphe canari visibilite",
+                visibility="public",
+            ),
+            _row(
+                "scope-canary-school-year",
+                collection=TARGET_COLLECTION,
+                vector=_vector(1.0),
+                text="algorithme graphe canari annee",
+                school_year="2025-2026",
+            ),
+            _row(
+                "scope-canary-programme",
+                collection=TARGET_COLLECTION,
+                vector=_vector(1.0),
+                text="algorithme graphe canari programme",
+                programme_version="version-invalide-pour-le-scope",
             ),
         ]
     )
@@ -219,11 +378,13 @@ def seeded_database() -> Iterator[None]:
                 """
                 INSERT INTO rag_chunks (
                     chunk_id, doc_id, chunk_sha256, vector, collection, niveau,
-                    matiere, source_label, source_uri, rights, type_doc, text,
-                    chunk_index, page_start, page_end, review_status
+                    voie, matiere, statut_enseignement, candidat, audience,
+                    tenant, visibility, school_year, programme_version,
+                    source_label, source_uri, rights, type_doc, text, chunk_index,
+                    page_start, page_end, review_status
                 ) VALUES (
                     %s, %s, %s, %s::vector, %s, %s, %s, %s, %s, %s, %s,
-                    %s, %s, %s, %s, %s
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
                 )
                 """,
                 rows,
@@ -232,8 +393,10 @@ def seeded_database() -> Iterator[None]:
                 """
                 INSERT INTO rag_chunks (
                     chunk_id, doc_id, chunk_sha256, vector, collection, niveau,
-                    matiere, source_label, source_uri, rights, type_doc, text,
-                    chunk_index, page_start, page_end, review_status
+                    voie, matiere, statut_enseignement, candidat, audience,
+                    tenant, visibility, school_year, programme_version,
+                    source_label, source_uri, rights, type_doc, text, chunk_index,
+                    page_start, page_end, review_status
                 )
                 SELECT
                     prefix || '-' || lpad(series::text, 6, '0'),
@@ -242,7 +405,9 @@ def seeded_database() -> Iterator[None]:
                     ((ARRAY[cos(base_angle + series * angle_step),
                             sin(base_angle + series * angle_step)]::real[]
                       || array_fill(0::real, ARRAY[1022])))::vector,
-                    collection, 'terminale', 'nsi', 'Preuve LOT40',
+                    collection, 'terminale', 'generale', 'nsi', 'specialite',
+                    'both', ARRAY['tous']::text[], 'libre_terminale', 'internal',
+                    '2026-2027', 'BOEN_special_8_2019-07-25', 'Preuve LOT40',
                     'https://example.invalid/lot40', 'usage_interne', 'cours',
                     'algorithme graphe preuve pedagogique de charge',
                     0, 1, 1, review_status
@@ -353,7 +518,7 @@ def _assert_gin_plan(connection: psycopg.Connection[Any]) -> None:
     plan = _plan_lines(
         connection,
         _LEXICAL_SQL,
-        (QUERY, TARGET_COLLECTION, 50),
+        (QUERY, *_scope_sql_params(TARGET_COLLECTION), 50),
     )
     if "idx_rag_chunks_text_tsv" not in plan:
         raise AssertionError(plan)
@@ -367,7 +532,7 @@ def _assert_ids(actual: Sequence[str], expected: Sequence[str]) -> None:
 def _dense_params(collection: str) -> tuple[object, ...]:
     return (
         QUERY_VECTOR_TEXT,
-        collection,
+        *_scope_sql_params(collection),
         _DENSE_ANN_PROBE_LIMIT,
         _DENSE_ANN_POOL_LIMIT,
         _DENSE_ANN_PROBE_LIMIT,
@@ -474,7 +639,7 @@ def test_schema_registry_and_real_migration_objects_are_exact() -> None:
 
 
 def test_equal_score_rank_50_is_deterministic_in_both_channels() -> None:
-    store = PgCandidateStore(_app_store_connection)
+    store = PgCandidateStore(_app_store_connection, _scope(TIE_COLLECTION))
     dense = store.dense(
         query_vector=QUERY_VECTOR,
         collection=TIE_COLLECTION,
@@ -489,7 +654,10 @@ def test_equal_score_rank_50_is_deterministic_in_both_channels() -> None:
     assert dense[-1].chunk_id == "tie-049"
     assert lexical[-1].chunk_id == "tie-049"
     with pytest.raises(RetrievalPipelineError, match="dense channel query failed"):
-        store.dense(
+        PgCandidateStore(
+            _app_store_connection,
+            _scope(OVERFLOW_TIE_COLLECTION),
+        ).dense(
             query_vector=QUERY_VECTOR,
             collection=OVERFLOW_TIE_COLLECTION,
             limit=50,
@@ -561,7 +729,7 @@ def test_real_gin_and_hnsw_plans_filters_top_50_and_local_scope() -> None:
     with psycopg.connect(APP_DSN) as app_connection:
         _assert_gin_plan(app_connection)
 
-    app_store = PgCandidateStore(_app_store_connection)
+    app_store = PgCandidateStore(_app_store_connection, _scope(TARGET_COLLECTION))
     app_actual = app_store.dense(
         query_vector=QUERY_VECTOR,
         collection=TARGET_COLLECTION,
@@ -575,11 +743,16 @@ def test_real_gin_and_hnsw_plans_filters_top_50_and_local_scope() -> None:
     )
     assert all(item.review_status == "reviewed" for item in app_actual)
     assert not any(
-        item.chunk_id.startswith(("outside-", "pending-", "incomplete-"))
+        item.chunk_id.startswith(
+            ("outside-", "pending-", "incomplete-", "scope-canary-")
+        )
         for item in app_actual
     )
 
-    empirical_store = PgCandidateStore(_empirical_plan_store_connection)
+    empirical_store = PgCandidateStore(
+        _empirical_plan_store_connection,
+        _scope(TARGET_COLLECTION),
+    )
     actual = empirical_store.dense(
         query_vector=QUERY_VECTOR,
         collection=TARGET_COLLECTION,
@@ -590,28 +763,39 @@ def test_real_gin_and_hnsw_plans_filters_top_50_and_local_scope() -> None:
         connection.execute("SET LOCAL enable_bitmapscan = off")
         expected_rows = connection.execute(
             _DENSE_ORACLE_SQL,
-            (TARGET_COLLECTION, QUERY_VECTOR_TEXT),
+            (*_scope_sql_params(TARGET_COLLECTION), QUERY_VECTOR_TEXT),
         ).fetchall()
     expected_ids = [str(row[0]) for row in expected_rows]
     assert 0 < len(actual) <= 50
     _assert_ids([item.chunk_id for item in actual], expected_ids[: len(actual)])
     assert all(item.review_status == "reviewed" for item in actual)
     assert not any(
-        item.chunk_id.startswith(("outside-", "pending-", "incomplete-"))
+        item.chunk_id.startswith(
+            ("outside-", "pending-", "incomplete-", "scope-canary-")
+        )
         for item in actual
     )
 
-    assert PgCandidateStore(_app_store_connection).dense(
+    assert PgCandidateStore(
+        _app_store_connection,
+        _scope("lot40_empty"),
+    ).dense(
         query_vector=QUERY_VECTOR,
         collection="lot40_empty",
         limit=50,
     ) == []
-    small = PgCandidateStore(_app_store_connection).dense(
+    small = PgCandidateStore(
+        _app_store_connection,
+        _scope(SMALL_COLLECTION),
+    ).dense(
         query_vector=QUERY_VECTOR,
         collection=SMALL_COLLECTION,
         limit=50,
     )
-    _assert_ids([item.chunk_id for item in small], [f"small-{index:03d}" for index in range(3)])
+    _assert_ids(
+        [item.chunk_id for item in small],
+        [f"small-{index:03d}" for index in range(3)],
+    )
     for variable_limit in (1, 17, 50):
         limited = empirical_store.dense(
             query_vector=QUERY_VECTOR,
@@ -640,7 +824,10 @@ def test_real_gin_and_hnsw_plans_filters_top_50_and_local_scope() -> None:
                 _dense_params(TARGET_COLLECTION),
             )
             _assert_bounded_hnsw_json_plan(underfill_plan)
-    underfill_store = PgCandidateStore(_underfill_store_connection)
+    underfill_store = PgCandidateStore(
+        _underfill_store_connection,
+        _scope(TARGET_COLLECTION),
+    )
     underfill_actual = underfill_store.dense(
         query_vector=QUERY_VECTOR,
         collection=TARGET_COLLECTION,
@@ -659,7 +846,9 @@ def test_real_gin_and_hnsw_plans_filters_top_50_and_local_scope() -> None:
     assert len({item.chunk_id for item in underfill_actual}) == len(underfill_actual)
     assert all(item.review_status == "reviewed" for item in underfill_actual)
     assert not any(
-        item.chunk_id.startswith(("outside-", "pending-", "incomplete-"))
+        item.chunk_id.startswith(
+            ("outside-", "pending-", "incomplete-", "scope-canary-")
+        )
         for item in underfill_actual
     )
     assert [item.dense_score for item in underfill_actual] == sorted(
@@ -705,7 +894,7 @@ class EmptyReranker:
 
 
 def test_real_store_and_core_prove_union_scores_page_dedup_and_dimension_failure() -> None:
-    store = PgCandidateStore(_app_store_connection)
+    store = PgCandidateStore(_app_store_connection, _scope(TARGET_COLLECTION))
     hits = retrieve_hybrid(
         QUERY,
         TARGET_COLLECTION,
@@ -731,7 +920,10 @@ def test_real_store_and_core_prove_union_scores_page_dedup_and_dimension_failure
     assert hits[0].score_final == pytest.approx((expected_first_mmr + 0.3) / 1.3)
     assert len({hit.candidate.doc_id for hit in hits}) == len(hits)
     assert all(hit.candidate.review_status == "reviewed" for hit in hits)
-    assert not any(hit.candidate.chunk_id.startswith("incomplete-") for hit in hits)
+    assert not any(
+        hit.candidate.chunk_id.startswith(("incomplete-", "scope-canary-"))
+        for hit in hits
+    )
 
     sql_calls = 0
 
@@ -751,7 +943,7 @@ def test_real_store_and_core_prove_union_scores_page_dedup_and_dimension_failure
             QUERY,
             TARGET_COLLECTION,
             5,
-            store=PgCandidateStore(counted_connection),
+            store=PgCandidateStore(counted_connection, _scope(TARGET_COLLECTION)),
             embedder=WrongDimensionEmbedder(),
             reranker=DeterministicReranker(),
         )
@@ -760,9 +952,18 @@ def test_real_store_and_core_prove_union_scores_page_dedup_and_dimension_failure
 
 
 def _test_app(monkeypatch: pytest.MonkeyPatch) -> TestClient:
-    monkeypatch.setattr(endpoint, "_enforce_security_v2", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        endpoint,
+        "_require_retrieval_identity",
+        lambda *args, **kwargs: object(),
+    )
     monkeypatch.setattr(endpoint, "load_collection_config", lambda: {})
     monkeypatch.setattr(endpoint, "_check_retrievable", lambda *args, **kwargs: {})
+    monkeypatch.setattr(
+        endpoint,
+        "build_server_retrieval_scope",
+        lambda _identity, *, collection, collection_config: _scope(collection),
+    )
     app = FastAPI()
     app.include_router(endpoint.router)
     return TestClient(app)

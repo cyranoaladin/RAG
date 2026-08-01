@@ -13,6 +13,7 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from nexus_contracts import Rights
 
 # Ensure src/ is importable
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -22,8 +23,26 @@ from ingestor.retrieval_hybrid_v2 import (  # noqa: E402
     HybridHit,
     RetrievalCandidate,
 )
+from ingestor.retrieval_scope_v2 import ServerRetrievalScope  # noqa: E402
 
 COLLECTION = "rag_nexus_nsi_terminale_specialite"
+SCOPE = ServerRetrievalScope(
+    tenant="libre_terminale",
+    niveau="terminale",
+    voie="generale",
+    matiere="nsi",
+    statut_enseignement="specialite",
+    candidat="individuel",
+    audiences=("libre", "tous"),
+    rights=(Rights.officiel_public, Rights.public_allowed),
+    visibilities=("public",),
+    school_year="2026-2027",
+    collection=COLLECTION,
+    programme_version="BOEN_special_8_2019-07-25",
+    scope_id="lot41_test_scope",
+    scope_digest="a" * 64,
+    source_sha256="b" * 64,
+)
 
 
 def _base_cfg() -> dict:
@@ -87,6 +106,16 @@ def _set_search_tokens(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("RAG_TEACHER_TOKEN", "teacher-token")
     monkeypatch.setenv("RAG_INGEST_AGENT_TOKEN", "ingest-agent-token")
     monkeypatch.setenv("RAG_STUDENT_TOKEN", "student-token")
+    monkeypatch.setattr(
+        endpoint,
+        "_require_retrieval_identity",
+        lambda *_args, **_kwargs: object(),
+    )
+    monkeypatch.setattr(
+        endpoint,
+        "build_server_retrieval_scope",
+        lambda *_args, **_kwargs: SCOPE,
+    )
 
 
 def test_search_token_setup_is_reverted_after_monkeypatch_context(
@@ -140,7 +169,7 @@ def test_all_roles_only_receive_reviewed_hybrid_hits(
     assert body["returned"] == 1
     assert body["hits"][0]["chunk_id"] == "chunk-reviewed"
     assert body["hits"][0]["review_status"] == "reviewed"
-    retrieve.assert_called_once_with("algo", COLLECTION, 5)
+    retrieve.assert_called_once_with("algo", COLLECTION, 5, SCOPE)
 
 
 def test_public_search_ignores_even_reviewed_cache_and_requeries_pipeline(
@@ -164,10 +193,10 @@ def test_public_search_ignores_even_reviewed_cache_and_requeries_pipeline(
 
     assert response.status_code == 200
     assert response.json()["hits"] == []
-    retrieve.assert_called_once_with("query", COLLECTION, 5)
+    retrieve.assert_called_once_with("query", COLLECTION, 5, SCOPE)
 
 
-def test_cache_warmup_only_serializes_reviewed_hybrid_hits(
+def test_cache_warmup_is_disabled_and_never_serializes_unscoped_hits(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _set_search_tokens(monkeypatch)
@@ -185,10 +214,6 @@ def test_cache_warmup_only_serializes_reviewed_hybrid_hits(
     )
 
     assert response.status_code == 200
-    assert response.json()["warmed"] == len(endpoint.WARMUP_QUERIES)
-    key = endpoint._cache_key(endpoint.WARMUP_QUERIES[0], COLLECTION, 5)
+    assert response.json() == {"warmed": 0, "collections": 0, "queries": 0}
     with endpoint._cache_lock:
-        entry = endpoint._cache.get(key)
-        cached = entry[0] if entry is not None else None
-    assert cached is not None
-    assert cached[0]["review_status"] == "reviewed"
+        assert endpoint._cache == {}

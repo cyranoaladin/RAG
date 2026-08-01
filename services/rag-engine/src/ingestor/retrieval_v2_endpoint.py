@@ -14,7 +14,6 @@ import hashlib
 import logging
 import os
 import threading
-import time
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any, Literal
@@ -39,6 +38,7 @@ try:
     from .embedding_contract import (
         load_embedding_model,
     )
+    from .identity_v2 import VerifiedInternalIdentity, require_internal_identity
     from .pg_pool import PoolSettings, pool_connection
     from .retrieval_hybrid_v2 import (
         CHANNEL_LIMIT,
@@ -51,7 +51,12 @@ try:
         retrieve_hybrid,
     )
     from .retrieval_pg_v2 import PgCandidateStore
-    from .security_v2 import SecurityRole, require_role
+    from .retrieval_scope_v2 import (
+        RetrievalScopeError,
+        ServerRetrievalScope,
+        build_server_retrieval_scope,
+    )
+    from .security_v2 import SecurityRole, require_bff_service, require_role
 except (ImportError, ValueError):
     from collection_config import (  # type: ignore[no-redef]
         CollectionConfigError,
@@ -61,6 +66,10 @@ except (ImportError, ValueError):
     )
     from embedding_contract import (  # type: ignore[no-redef]
         load_embedding_model,
+    )
+    from identity_v2 import (  # type: ignore[no-redef]
+        VerifiedInternalIdentity,
+        require_internal_identity,
     )
     from pg_pool import PoolSettings, pool_connection  # type: ignore[no-redef]
     from retrieval_hybrid_v2 import (  # type: ignore[no-redef]
@@ -74,7 +83,16 @@ except (ImportError, ValueError):
         retrieve_hybrid,
     )
     from retrieval_pg_v2 import PgCandidateStore  # type: ignore[no-redef]
-    from security_v2 import SecurityRole, require_role  # type: ignore[no-redef]
+    from retrieval_scope_v2 import (  # type: ignore[no-redef]
+        RetrievalScopeError,
+        ServerRetrievalScope,
+        build_server_retrieval_scope,
+    )
+    from security_v2 import (  # type: ignore[no-redef]
+        SecurityRole,
+        require_bff_service,
+        require_role,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -92,12 +110,8 @@ router = APIRouter(tags=["retrieval_v2"])
 # This cache is per-process: invalidate only clears the handling worker. The
 # historical enablement flag remains visible in stats, but it cannot authorize
 # serving cache entries on public search.
-_rag_env_cache = (os.environ.get("RAG_ENV") or "").strip().lower()
 CACHE_TTL_S = int(os.environ.get("RERANK_CACHE_TTL", "300"))  # 5 min default
-if _rag_env_cache == "production":
-    CACHE_ENABLED = os.environ.get("RERANK_CACHE", "0") == "1"
-else:
-    CACHE_ENABLED = os.environ.get("RERANK_CACHE", "1") != "0"
+CACHE_ENABLED = False
 _cache: dict[str, tuple[list, float]] = {}
 _cache_lock = threading.Lock()
 _cache_generation = 0
@@ -433,54 +447,7 @@ def cache_warmup(request: Request) -> dict[str, Any]:
         invalidate_cache()
         return {"warmed": 0, "collections": 0, "queries": 0}
 
-    with _cache_lock:
-        warmup_generation = _cache_generation
-
-    cfg = load_collection_config()
-    collections = list_instanciated_collections(cfg)
-    # Only warm retrievable collections
-    domains = cfg.get("domains", {})
-    retrievable_cols = []
-    for name in collections:
-        try:
-            defn = resolve_collection_v2(name, cfg)
-        except Exception:
-            raise _retrieval_unavailable() from None
-        domain = defn.get("domain")
-        if isinstance(domain, str) and isinstance(domains.get(domain), dict):
-            if domains[domain].get("retrievable") is True:
-                retrievable_cols.append(name)
-
-    staged: dict[str, list[dict[str, Any]]] = {}
-    target_keys: set[str] = set()
-    for col in retrievable_cols:
-        for q in WARMUP_QUERIES:
-            key = _cache_key(q, col, 5)
-            target_keys.add(key)
-            hits_data = [
-                hit.model_dump() for hit in _retrieve_endpoint_hits(q, col, 5)
-            ]
-            if hits_data:
-                staged[key] = hits_data
-
-    published_at = time.monotonic()
-    with _cache_lock:
-        if _cache_generation != warmup_generation:
-            raise _retrieval_unavailable()
-        for key in target_keys:
-            _cache.pop(key, None)
-        _cache.update(
-            {
-                key: (hits_data, published_at)
-                for key, hits_data in staged.items()
-            }
-        )
-
-    return {
-        "warmed": len(staged),
-        "collections": len(retrievable_cols),
-        "queries": len(WARMUP_QUERIES),
-    }
+    raise _retrieval_unavailable()
 
 
 # --- Endpoint to list retrievable collections (for UI picker) ---
@@ -716,11 +683,16 @@ def _retrieval_unavailable() -> HTTPException:
     return HTTPException(status_code=503, detail="retrieval unavailable")
 
 
-def _retrieve_hybrid_hits(query: str, collection: str, k: int) -> list[HybridHit]:
+def _retrieve_hybrid_hits(
+    query: str,
+    collection: str,
+    k: int,
+    scope: ServerRetrievalScope,
+) -> list[HybridHit]:
     """Compose the one canonical v2 pipeline without exposing failure context."""
     try:
         settings = PoolSettings.from_env()
-        store = PgCandidateStore(lambda: pool_connection(settings))
+        store = PgCandidateStore(lambda: pool_connection(settings), scope)
         return retrieve_hybrid(
             query,
             collection,
@@ -734,16 +706,25 @@ def _retrieve_hybrid_hits(query: str, collection: str, k: int) -> list[HybridHit
         raise _retrieval_unavailable() from None
 
 
-def _retrieve_endpoint_hits(query: str, collection: str, k: int) -> list[SearchV2Hit]:
+def _retrieve_endpoint_hits(
+    query: str,
+    collection: str,
+    k: int,
+    scope: ServerRetrievalScope,
+) -> list[SearchV2Hit]:
     try:
-        return [_to_search_hit(hit) for hit in _retrieve_hybrid_hits(query, collection, k)]
+        return [
+            _to_search_hit(hit)
+            for hit in _retrieve_hybrid_hits(query, collection, k, scope)
+        ]
     except Exception:
         raise _retrieval_unavailable() from None
 
 
 def _retrieve_reviewed_hits(query: str, collection: str, k: int) -> list[SearchV2Hit]:
-    """Compatibility facade for the evaluation harness; delegates to LOT40."""
-    return _retrieve_endpoint_hits(query, collection, k)
+    """Refuser l'ancien évaluateur online dépourvu d'identité signée."""
+    del query, collection, k
+    raise _retrieval_unavailable()
 
 
 def _to_search_hit(hit: HybridHit) -> SearchV2Hit:
@@ -811,30 +792,31 @@ def _chat_refusal(
 @router.post("/chat", response_model=ChatResponse)
 def chat(payload: ChatRequest, request: Request) -> ChatResponse:
     """Retrieve reviewed evidence while generation remains governance-locked."""
-    _enforce_security_v2(
-        request,
-        allowed_roles={
-            SecurityRole.ADMIN,
-            SecurityRole.REVIEWER,
-            SecurityRole.TEACHER,
-            SecurityRole.INGEST_AGENT,
-            SecurityRole.STUDENT,
-        },
-        endpoint="/chat",
-    )
+    verified = _require_retrieval_identity(request, endpoint="/chat")
     cfg = load_collection_config()
     collections = list(dict.fromkeys(payload.collections))
+    scopes: dict[str, ServerRetrievalScope] = {}
     for collection in collections:
         try:
             _check_retrievable(collection, cfg)
-        except CollectionConfigError as exc:
-            raise HTTPException(status_code=403, detail=str(exc)) from exc
+            scopes[collection] = build_server_retrieval_scope(
+                verified,
+                collection=collection,
+                collection_config=cfg,
+            )
+        except (RetrievalScopeError, CollectionConfigError, HTTPException) as exc:
+            raise HTTPException(status_code=403, detail="Forbidden") from exc
 
     all_hits: list[tuple[str, SearchV2Hit]] = []
     for collection in collections:
         all_hits.extend(
             (collection, hit)
-            for hit in _retrieve_endpoint_hits(payload.query, collection, payload.top_k)
+            for hit in _retrieve_endpoint_hits(
+                payload.query,
+                collection,
+                payload.top_k,
+                scopes[collection],
+            )
         )
 
     unique_hits: list[tuple[str, SearchV2Hit]] = []
@@ -863,30 +845,22 @@ def search_v2(payload: SearchV2Request, request: Request) -> SearchV2Response:
     Canonical pipeline LOT40. Gate retrievable fail-closed (GG-01).
     answer_generation_allowed = false.
     """
-    # Auth (LOT 26.3): all roles use reviewed-only visibility.
-    _enforce_security_v2(
-        request,
-        allowed_roles={
-            SecurityRole.ADMIN,
-            SecurityRole.REVIEWER,
-            SecurityRole.TEACHER,
-            SecurityRole.INGEST_AGENT,
-            SecurityRole.STUDENT,
-        },
-        endpoint="/search/v2",
-    )
+    verified = _require_retrieval_identity(request, endpoint="/search/v2")
 
     # Gate: resolve + retrievable check (fail-closed)
     cfg = load_collection_config()
     try:
         _check_retrievable(payload.collection, cfg)
-    except HTTPException:
-        raise
-    except CollectionConfigError as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
+        scope = build_server_retrieval_scope(
+            verified,
+            collection=payload.collection,
+            collection_config=cfg,
+        )
+    except (RetrievalScopeError, CollectionConfigError, HTTPException) as exc:
+        raise HTTPException(status_code=403, detail="Forbidden") from exc
 
     # Public retrieval always re-reads PostgreSQL through the canonical pipeline.
-    hits = _retrieve_endpoint_hits(payload.q, payload.collection, payload.k)
+    hits = _retrieve_endpoint_hits(payload.q, payload.collection, payload.k, scope)
 
     return SearchV2Response(
         query=payload.q,
@@ -905,3 +879,13 @@ def _enforce_security_v2(
 ) -> tuple[SecurityRole, str]:
     """Auth check via centralized role gates."""
     return require_role(request, allowed_roles=allowed_roles, endpoint=endpoint)
+
+
+def _require_retrieval_identity(
+    request: Request,
+    *,
+    endpoint: str,
+) -> VerifiedInternalIdentity:
+    """Exiger le credential BFF puis l'enveloppe signée avant tout retrieval."""
+    require_bff_service(request, endpoint=endpoint)
+    return require_internal_identity(request)

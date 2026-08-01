@@ -8,6 +8,8 @@ from contextlib import AbstractContextManager
 from numbers import Real
 from typing import Any, Literal
 
+from nexus_contracts import Rights
+
 from ingestor.retrieval_hybrid_v2 import (
     CHANNEL_LIMIT,
     EMBED_DIMENSION,
@@ -15,6 +17,7 @@ from ingestor.retrieval_hybrid_v2 import (
     RetrievalCandidate,
     RetrievalPipelineError,
 )
+from ingestor.retrieval_scope_v2 import ServerRetrievalScope
 
 _PGVECTOR_ACTIVATION_SQL = "SELECT %s::vector IS NOT NULL"
 _DENSE_STRICT_ORDER_SQL = "SET LOCAL hnsw.iterative_scan = 'strict_order'"
@@ -22,16 +25,34 @@ _DENSE_ANN_POOL_FACTOR = 4
 _DENSE_ANN_POOL_LIMIT = CHANNEL_LIMIT * _DENSE_ANN_POOL_FACTOR
 _DENSE_ANN_PROBE_LIMIT = _DENSE_ANN_POOL_LIMIT + 1
 
+_SCOPE_PREDICATE_SQL = """
+          collection = %s
+          AND tenant = %s
+          AND niveau = %s
+          AND voie IS NOT DISTINCT FROM %s
+          AND matiere = %s
+          AND statut_enseignement = %s
+          AND candidat = ANY(%s::text[])
+          AND audience && %s::text[]
+          AND rights = ANY(%s::text[])
+          AND visibility = ANY(%s::text[])
+          AND school_year = %s
+          AND programme_version = %s
+          AND review_status = 'reviewed'
+"""
+
 # Le parcours ANN reste strictement borné à 200 candidats plus une sentinelle.
 # L'ordre total est exact dans ce pool seulement; une égalité qui déborde la
 # frontière 200/201 est refusée car son appartenance déterministe est inconnue.
-_DENSE_SQL = """
+_DENSE_SQL = f"""
     WITH hnsw_candidates AS MATERIALIZED (
         SELECT chunk_id, doc_id, source_label, source_uri, rights, type_doc,
                text, page_start, vector::text AS vector_text, review_status,
+               collection, tenant, niveau, voie, matiere, statut_enseignement,
+               candidat, audience, visibility, school_year, programme_version,
                vector <=> %s::vector AS distance
         FROM rag_chunks
-        WHERE collection = %s AND review_status = 'reviewed'
+        WHERE {_SCOPE_PREDICATE_SQL}
           AND text IS NOT NULL AND btrim(text) <> '' AND vector IS NOT NULL
           AND btrim(source_label) <> '' AND btrim(source_uri) <> ''
           AND btrim(rights) <> ''
@@ -40,7 +61,9 @@ _DENSE_SQL = """
     ),
     ranked_pool AS MATERIALIZED (
         SELECT chunk_id, doc_id, source_label, source_uri, rights, type_doc,
-               text, page_start, vector_text, review_status, distance,
+               text, page_start, vector_text, review_status, collection, tenant,
+               niveau, voie, matiere, statut_enseignement, candidat, audience,
+               visibility, school_year, programme_version, distance,
                row_number() OVER (ORDER BY distance ASC, chunk_id ASC) AS pool_rank
         FROM hnsw_candidates
     ),
@@ -53,7 +76,12 @@ _DENSE_SQL = """
     SELECT ranked_pool.chunk_id, ranked_pool.doc_id, ranked_pool.source_label,
            ranked_pool.source_uri, ranked_pool.rights, ranked_pool.type_doc,
            ranked_pool.text, ranked_pool.page_start, ranked_pool.vector_text,
-           ranked_pool.review_status, 1 - ranked_pool.distance AS dense_score,
+           ranked_pool.review_status, ranked_pool.collection, ranked_pool.tenant,
+           ranked_pool.niveau, ranked_pool.voie, ranked_pool.matiere,
+           ranked_pool.statut_enseignement, ranked_pool.candidat,
+           ranked_pool.audience, ranked_pool.visibility, ranked_pool.school_year,
+           ranked_pool.programme_version,
+           1 - ranked_pool.distance AS dense_score,
            (
              pool_diagnostics.boundary_distance IS NOT NULL
              AND pool_diagnostics.sentinel_distance IS NOT NULL
@@ -66,14 +94,16 @@ _DENSE_SQL = """
     ORDER BY ranked_pool.distance ASC, ranked_pool.chunk_id ASC
 """
 
-_LEXICAL_SQL = """
+_LEXICAL_SQL = f"""
     WITH lexical_query AS MATERIALIZED (SELECT plainto_tsquery('french', %s) AS value)
     SELECT chunk_id, doc_id, source_label, source_uri, rights, type_doc, text,
            page_start, vector::text, review_status,
+           collection, tenant, niveau, voie, matiere, statut_enseignement,
+           candidat, audience, visibility, school_year, programme_version,
            ts_rank_cd(text_tsv, lexical_query.value, 32) AS lexical_score
     FROM rag_chunks
     CROSS JOIN lexical_query
-    WHERE collection = %s AND review_status = 'reviewed'
+    WHERE {_SCOPE_PREDICATE_SQL}
       AND text IS NOT NULL AND btrim(text) <> '' AND vector IS NOT NULL
       AND btrim(source_label) <> '' AND btrim(source_uri) <> ''
       AND btrim(rights) <> ''
@@ -82,8 +112,9 @@ _LEXICAL_SQL = """
     LIMIT %s
 """
 
-_ROW_CARDINALITY = 11
+_ROW_CARDINALITY = 22
 _DENSE_ROW_CARDINALITY = _ROW_CARDINALITY + 1
+_SCORE_INDEX = _ROW_CARDINALITY - 1
 _ConnectionProvider = Callable[[], AbstractContextManager[Any]]
 
 
@@ -151,7 +182,87 @@ def _page(value: object) -> int | None:
     return value if value > 0 else None
 
 
-def _map_row(row: object, channel: Literal["dense", "lexical"]) -> RetrievalCandidate:
+def _string_array(value: object) -> tuple[str, ...]:
+    if isinstance(value, str | bytes) or not isinstance(value, Sequence):
+        raise RetrievalPipelineError("invalid database string array")
+    normalized = tuple(_string(item) for item in value)
+    if not normalized:
+        raise RetrievalPipelineError("invalid database string array")
+    return normalized
+
+
+def _scope_params(scope: ServerRetrievalScope) -> tuple[object, ...]:
+    if not isinstance(scope, ServerRetrievalScope) or scope.review_status != "reviewed":
+        raise RetrievalPipelineError("invalid retrieval scope")
+    scalars = (
+        scope.collection,
+        scope.tenant,
+        scope.niveau,
+        scope.matiere,
+        scope.statut_enseignement,
+        scope.candidat,
+        scope.school_year,
+        scope.programme_version,
+    )
+    if any(not isinstance(value, str) or not value.strip() for value in scalars):
+        raise RetrievalPipelineError("invalid retrieval scope")
+    if scope.voie is not None and (
+        not isinstance(scope.voie, str) or not scope.voie.strip()
+    ):
+        raise RetrievalPipelineError("invalid retrieval scope")
+    if not scope.audiences or not scope.rights or not scope.visibilities:
+        raise RetrievalPipelineError("invalid retrieval scope")
+    audiences = [_nonblank(value) for value in scope.audiences]
+    visibilities = [_nonblank(value) for value in scope.visibilities]
+    if any(not isinstance(right, Rights) for right in scope.rights):
+        raise RetrievalPipelineError("invalid retrieval scope")
+    rights = [right.value for right in scope.rights]
+    candidates = list(dict.fromkeys((scope.candidat, "both")))
+    return (
+        scope.collection,
+        scope.tenant,
+        scope.niveau,
+        scope.voie,
+        scope.matiere,
+        scope.statut_enseignement,
+        candidates,
+        audiences,
+        rights,
+        visibilities,
+        scope.school_year,
+        scope.programme_version,
+    )
+
+
+def _verify_scope_row(row: Sequence[object], scope: ServerRetrievalScope) -> None:
+    expected_rights = {right.value for right in scope.rights}
+    expected_values = (
+        (row[10], scope.collection),
+        (row[11], scope.tenant),
+        (row[12], scope.niveau),
+        (row[13], scope.voie),
+        (row[14], scope.matiere),
+        (row[15], scope.statut_enseignement),
+        (row[19], scope.school_year),
+        (row[20], scope.programme_version),
+    )
+    if any(actual != expected for actual, expected in expected_values):
+        raise RetrievalPipelineError("database row outside retrieval scope")
+    if _string(row[4]) not in expected_rights:
+        raise RetrievalPipelineError("database row outside retrieval scope")
+    if _string(row[16]) not in {scope.candidat, "both"}:
+        raise RetrievalPipelineError("database row outside retrieval scope")
+    if not set(_string_array(row[17])).intersection(scope.audiences):
+        raise RetrievalPipelineError("database row outside retrieval scope")
+    if _string(row[18]) not in set(scope.visibilities):
+        raise RetrievalPipelineError("database row outside retrieval scope")
+
+
+def _map_row(
+    row: object,
+    channel: Literal["dense", "lexical"],
+    scope: ServerRetrievalScope,
+) -> RetrievalCandidate:
     if isinstance(row, str | bytes) or not isinstance(row, Sequence):
         raise RetrievalPipelineError("invalid database row")
     if len(row) != _ROW_CARDINALITY:
@@ -160,7 +271,8 @@ def _map_row(row: object, channel: Literal["dense", "lexical"]) -> RetrievalCand
     review_status = row[9]
     if review_status != "reviewed":
         raise RetrievalPipelineError("invalid review status")
-    score = _finite_float(row[10])
+    _verify_scope_row(row, scope)
+    score = _finite_float(row[_SCORE_INDEX])
     return RetrievalCandidate(
         chunk_id=_string(row[0]),
         doc_id=_string(row[1]),
@@ -193,8 +305,14 @@ def _dense_payload(row: object) -> Sequence[object]:
 class PgCandidateStore(CandidateStore):
     """Charge les candidats revus via deux requêtes SQL bornées et paramétrées."""
 
-    def __init__(self, connection_provider: _ConnectionProvider) -> None:
+    def __init__(
+        self,
+        connection_provider: _ConnectionProvider,
+        scope: ServerRetrievalScope,
+    ) -> None:
         self._connection_provider = connection_provider
+        self._scope = scope
+        self._scope_params = _scope_params(scope)
 
     def _fetch(
         self,
@@ -218,8 +336,11 @@ class PgCandidateStore(CandidateStore):
                 if len(fetched) > limit:
                     raise RetrievalPipelineError("channel limit exceeded")
                 if channel == "dense":
-                    return [_map_row(_dense_payload(row), channel) for row in fetched]
-                return [_map_row(row, channel) for row in fetched]
+                    return [
+                        _map_row(_dense_payload(row), channel, self._scope)
+                        for row in fetched
+                    ]
+                return [_map_row(row, channel, self._scope) for row in fetched]
 
     def dense(
         self, *, query_vector: Sequence[float], collection: str, limit: int
@@ -229,13 +350,15 @@ class PgCandidateStore(CandidateStore):
         try:
             normalized_vector = _query_vector(query_vector)
             normalized_collection = _nonblank(collection)
+            if normalized_collection != self._scope.collection:
+                raise RetrievalPipelineError("collection outside retrieval scope")
             normalized_limit = _limit(limit)
             vector_text = "[" + ",".join(str(value) for value in normalized_vector) + "]"
             candidates = self._fetch(
                 _DENSE_SQL,
                 (
                     vector_text,
-                    normalized_collection,
+                    *self._scope_params,
                     _DENSE_ANN_PROBE_LIMIT,
                     _DENSE_ANN_POOL_LIMIT,
                     _DENSE_ANN_PROBE_LIMIT,
@@ -262,10 +385,12 @@ class PgCandidateStore(CandidateStore):
         try:
             normalized_query = _nonblank(raw_query)
             normalized_collection = _nonblank(collection)
+            if normalized_collection != self._scope.collection:
+                raise RetrievalPipelineError("collection outside retrieval scope")
             normalized_limit = _limit(limit)
             candidates = self._fetch(
                 _LEXICAL_SQL,
-                (normalized_query, normalized_collection, normalized_limit),
+                (normalized_query, *self._scope_params, normalized_limit),
                 limit=normalized_limit,
                 channel="lexical",
             )

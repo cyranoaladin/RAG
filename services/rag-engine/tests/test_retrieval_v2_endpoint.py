@@ -9,14 +9,15 @@ import copy
 import inspect
 import socket
 import sys
-import threading
 import time
 from contextlib import contextmanager
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
+from nexus_contracts import Rights
 from pydantic import ValidationError
 
 # Ensure src/ is importable
@@ -24,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from fastapi import HTTPException
 
+from ingestor.retrieval_scope_v2 import ServerRetrievalScope
 from ingestor.retrieval_v2_endpoint import (
     SearchV2Request,
     _build_launch_readiness,
@@ -60,6 +62,40 @@ FULL_CFG = {
         "quarantine": {"retrievable": False},
     },
 }
+BASE_SCOPE = ServerRetrievalScope(
+    tenant="libre_terminale",
+    niveau="terminale",
+    voie="generale",
+    matiere="nsi",
+    statut_enseignement="specialite",
+    candidat="individuel",
+    audiences=("libre", "tous"),
+    rights=(Rights.officiel_public, Rights.public_allowed),
+    visibilities=("public",),
+    school_year="2026-2027",
+    collection="rag_nexus_nsi_terminale_specialite",
+    programme_version="BOEN_special_8_2019-07-25",
+    scope_id="lot41_test_scope",
+    scope_digest="a" * 64,
+    source_sha256="b" * 64,
+)
+
+
+def _mock_retrieval_identity(endpoint: object, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        endpoint,
+        "_require_retrieval_identity",
+        lambda _request, *, endpoint: SimpleNamespace(endpoint=endpoint),
+    )
+    monkeypatch.setattr(
+        endpoint,
+        "build_server_retrieval_scope",
+        lambda _verified, *, collection, collection_config: replace(
+            BASE_SCOPE,
+            collection=collection,
+            matiere=collection_config["collections"][collection].get("matiere") or "nsi",
+        ),
+    )
 
 
 def _hybrid_hit(
@@ -105,6 +141,7 @@ def _api_client(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("RAG_STUDENT_TOKEN", "student-token")
     monkeypatch.setenv("RAG_ADMIN_TOKEN", "admin-token")
     monkeypatch.setattr(endpoint, "load_collection_config", lambda: FULL_CFG)
+    _mock_retrieval_identity(endpoint, monkeypatch)
     app = FastAPI()
     app.include_router(endpoint.router)
     return endpoint, TestClient(app)
@@ -404,7 +441,13 @@ class TestHybridSearchDelegation:
             events.append(("gate", collection))
             return {"domain": "education"}
 
-        def retrieve(query: str, collection: str, top_k: int):
+        def retrieve(
+            query: str,
+            collection: str,
+            top_k: int,
+            scope: ServerRetrievalScope,
+        ):
+            assert scope.collection == collection
             events.append(("retrieve", query, collection, top_k))
             return [_hybrid_hit()]
 
@@ -527,8 +570,9 @@ class TestHybridSearchDelegation:
             yield connection
 
         class Store:
-            def __init__(self, provider) -> None:
+            def __init__(self, provider, scope) -> None:
                 self.provider = provider
+                self.scope = scope
 
         def retrieve(query, collection, top_k, *, store, embedder, reranker):
             captured.update({
@@ -555,7 +599,7 @@ class TestHybridSearchDelegation:
         monkeypatch.setattr(endpoint, "_get_reranker", lambda: reranker)
         monkeypatch.setattr(endpoint, "retrieve_hybrid", retrieve, raising=False)
 
-        result = factory("question brute", "collection", 3)
+        result = factory("question brute", "collection", 3, BASE_SCOPE)
 
         assert result == [_hybrid_hit()]
         assert captured == {
@@ -663,6 +707,7 @@ class TestCitedChat:
         monkeypatch.setenv("RAG_STUDENT_TOKEN", "chat-test-token")
         monkeypatch.setenv("OPENROUTER_API_KEY", "configured-but-locked")
         monkeypatch.setattr(endpoint, "load_collection_config", lambda: FULL_CFG)
+        _mock_retrieval_identity(endpoint, monkeypatch)
         retrieve = MagicMock(return_value=hybrid_hits)
         monkeypatch.setattr(endpoint, "_retrieve_hybrid_hits", retrieve)
         monkeypatch.setattr(
@@ -706,6 +751,7 @@ class TestCitedChat:
             "Explique la récursivité",
             "rag_nexus_nsi_terminale_specialite",
             4,
+            BASE_SCOPE,
         )
 
     def test_chat_checks_every_collection_gate_before_any_retrieval(
@@ -719,6 +765,7 @@ class TestCitedChat:
 
         monkeypatch.setenv("RAG_STUDENT_TOKEN", "chat-test-token")
         monkeypatch.setattr(endpoint, "load_collection_config", lambda: FULL_CFG)
+        _mock_retrieval_identity(endpoint, monkeypatch)
         events: list[tuple[str, str]] = []
 
         def gate(collection: str, _cfg: dict) -> dict:
@@ -727,7 +774,12 @@ class TestCitedChat:
                 raise HTTPException(status_code=403, detail="closed")
             return {}
 
-        def retrieve(_query: str, collection: str, _k: int) -> list[object]:
+        def retrieve(
+            _query: str,
+            collection: str,
+            _k: int,
+            _scope: ServerRetrievalScope,
+        ) -> list[object]:
             events.append(("retrieve", collection))
             return []
 
@@ -776,7 +828,7 @@ class TestCacheGateInvariant:
     change and advances a generation barrier before any warmup publication.
     """
 
-    def test_gate_before_cache(self) -> None:
+    def test_gate_before_cache(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Quarantine is refused by the gate BEFORE cache is even checked."""
         import os
 
@@ -784,6 +836,8 @@ class TestCacheGateInvariant:
         from fastapi.testclient import TestClient
 
         from ingestor import retrieval_v2_endpoint as endpoint
+
+        _mock_retrieval_identity(endpoint, monkeypatch)
 
         os.environ.setdefault("RAG_STUDENT_TOKEN", "test-inv-c")
 
@@ -946,164 +1000,15 @@ class TestAtomicHybridWarmup:
         load_config.assert_not_called()
         retrieve.assert_not_called()
 
-    def test_warmup_stages_then_publishes_one_atomic_batch(
+    def test_warmup_cannot_be_reenabled_into_an_unscoped_retrieval(
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         endpoint, client = self._prepare(monkeypatch)
-        generation_before = endpoint._cache_generation
-        retrieve = MagicMock(return_value=[_hybrid_hit()])
-        monkeypatch.setattr(endpoint, "_retrieve_hybrid_hits", retrieve, raising=False)
-
-        response = client.post(
-            "/cache/v2/warmup",
-            headers={"Authorization": "Bearer admin-token"},
+        retrieve = MagicMock(
+            side_effect=AssertionError("unscoped warmup must never retrieve")
         )
-
-        assert response.status_code == 200
-        assert response.json() == {
-            "warmed": len(endpoint.WARMUP_QUERIES),
-            "collections": 1,
-            "queries": len(endpoint.WARMUP_QUERIES),
-        }
-        assert retrieve.call_args_list == [
-            call(query, "rag_nexus_nsi_terminale_specialite", 5)
-            for query in endpoint.WARMUP_QUERIES
-        ]
-        assert endpoint._cache_generation == generation_before
-        with endpoint._cache_lock:
-            assert len(endpoint._cache) == len(endpoint.WARMUP_QUERIES)
-            timestamps = {timestamp for _, timestamp in endpoint._cache.values()}
-            assert len(timestamps) == 1
-            assert all(
-                cached_hits == [endpoint._to_search_hit(_hybrid_hit()).model_dump()]
-                for cached_hits, _timestamp in endpoint._cache.values()
-            )
-
-    @pytest.mark.parametrize(
-        "stage",
-        ["pool", "dense", "lexical", "embedding", "rerank", "mmr"],
-    )
-    def test_warmup_failure_keeps_prior_cache_bit_for_bit(
-        self,
-        stage: str,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        endpoint, client = self._prepare(monkeypatch)
-        prior_key = endpoint._cache_key("déjà valide", "collection-prior", 5)
-        _seed_cache(endpoint, prior_key, [{"prior": ["unchanged"]}])
-        before = _cache_snapshot(endpoint)
-        attempts = 0
-
-        def retrieve(*_args: object):
-            nonlocal attempts
-            attempts += 1
-            if attempts == 2:
-                raise RuntimeError(
-                    f"{stage}: SENSITIVE_DSN_SENTINEL SENSITIVE_QUERY_SENTINEL"
-                )
-            return [_hybrid_hit()]
-
-        monkeypatch.setattr(endpoint, "_retrieve_hybrid_hits", retrieve, raising=False)
-
-        response = client.post(
-            "/cache/v2/warmup",
-            headers={"Authorization": "Bearer admin-token"},
-        )
-
-        assert response.status_code == 503
-        assert response.json() == {"detail": "retrieval unavailable"}
-        assert "SENSITIVE_DSN_SENTINEL" not in response.text
-        assert "SENSITIVE_QUERY_SENTINEL" not in response.text
-        assert stage not in response.text
-        assert attempts == 2
-        assert _cache_snapshot(endpoint) == before
-
-    def test_warmup_recomputes_and_replaces_every_target_key(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        endpoint, client = self._prepare(monkeypatch)
-        first_query = endpoint.WARMUP_QUERIES[0]
-        key = endpoint._cache_key(
-            first_query,
-            "rag_nexus_nsi_terminale_specialite",
-            5,
-        )
-        _seed_cache(endpoint, key, [{"existing": True}])
-        retrieve = MagicMock(return_value=[])
-        monkeypatch.setattr(endpoint, "_retrieve_hybrid_hits", retrieve, raising=False)
-
-        response = client.post(
-            "/cache/v2/warmup",
-            headers={"Authorization": "Bearer admin-token"},
-        )
-
-        assert response.status_code == 200
-        assert call(
-            first_query,
-            "rag_nexus_nsi_terminale_specialite",
-            5,
-        ) in retrieve.call_args_list
-        assert key not in _cache_snapshot(endpoint)
-
-    def test_invalidation_during_warmup_prevents_stale_republication(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        endpoint, client = self._prepare(monkeypatch)
-        prior_key = endpoint._cache_key("prior", "prior-collection", 5)
-        _seed_cache(endpoint, prior_key, [{"stale": True}])
-        generation_before = endpoint._cache_generation
-        started = threading.Event()
-        release = threading.Event()
-        responses: list[object] = []
-
-        def retrieve(*_args: object):
-            if not started.is_set():
-                started.set()
-                assert release.wait(timeout=5)
-            return [_hybrid_hit()]
-
-        monkeypatch.setattr(endpoint, "_retrieve_hybrid_hits", retrieve, raising=False)
-
-        worker = threading.Thread(
-            target=lambda: responses.append(
-                client.post(
-                    "/cache/v2/warmup",
-                    headers={"Authorization": "Bearer admin-token"},
-                )
-            )
-        )
-        worker.start()
-        assert started.wait(timeout=5)
-        assert endpoint.invalidate_cache() == 1
-        assert endpoint._cache_generation == generation_before + 1
-        release.set()
-        worker.join(timeout=10)
-
-        assert not worker.is_alive()
-        assert len(responses) == 1
-        assert responses[0].status_code == 503
-        assert responses[0].json() == {"detail": "retrieval unavailable"}
-        assert _cache_snapshot(endpoint) == {}
-
-    def test_warmup_fails_closed_on_unresolvable_instantiated_collection(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        endpoint, client = self._prepare(monkeypatch)
-        prior_key = endpoint._cache_key("prior", "prior-collection", 5)
-        _seed_cache(endpoint, prior_key, [{"unchanged": True}])
-        before = _cache_snapshot(endpoint)
-        monkeypatch.setattr(
-            endpoint,
-            "resolve_collection_v2",
-            lambda *_args: (_ for _ in ()).throw(
-                RuntimeError("SENSITIVE_CONFIG_SENTINEL")
-            ),
-        )
-        retrieve = MagicMock()
+        monkeypatch.setattr(endpoint, "CACHE_ENABLED", True)
         monkeypatch.setattr(endpoint, "_retrieve_hybrid_hits", retrieve)
 
         response = client.post(
@@ -1113,6 +1018,4 @@ class TestAtomicHybridWarmup:
 
         assert response.status_code == 503
         assert response.json() == {"detail": "retrieval unavailable"}
-        assert "SENSITIVE_CONFIG_SENTINEL" not in response.text
-        assert _cache_snapshot(endpoint) == before
         retrieve.assert_not_called()
