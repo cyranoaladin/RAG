@@ -14,7 +14,8 @@ RUFF   := $(PY) -m ruff
 MYPY   := $(PY) -m mypy
 PYTEST := $(PY) -m pytest
 
-.PHONY: help venv install install-dev lint typecheck test test-integration smoke \
+.PHONY: help venv install install-dev lint typecheck test test-integration \
+    test-integration-hybrid smoke \
     obs-up obs-down obs-smoke obs-quickcheck obs-restart obs-status \
     compose-test-up compose-test-down print-tools dev compose-up compose-down compose-restart \
     eval
@@ -62,6 +63,9 @@ test: install-dev
 
 test-integration: install-dev
 	$(PYTEST) tests/integration -q
+
+test-integration-hybrid: install-dev
+	bash infra/scripts/test_hybrid_integration.sh
 
 # Smoke RAG deja present (si votre repo inclut infra/scripts/smoke.sh)
 smoke:
