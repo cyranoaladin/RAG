@@ -43,14 +43,26 @@ jeton SSO Nexus
 Le jeton interne n'aplatit pas l'identité dans les claims JWT réservés. Il
 contient un objet `identity` validé par `InternalIdentity`, tandis que `iss`,
 `aud`, `sub`, `jti`, `iat` et `exp` décrivent le transport cockpit → moteur.
-Il lie aussi `scope_id`, `scope_digest` et l'allowlist de collections fournis
-par la configuration serveur de release. Le moteur exige les mêmes valeurs
-dans sa propre configuration. Cette concordance content-addressed raccorde le
-scope LOT38 sans import ni lecture runtime de `rag-pedago`; LOT41A injectera les
-valeurs autorisées dans l'environnement isolé.
+Il lie aussi un artefact de scope contractuel. `nexus-contracts` 0.4.0 définit
+l'enveloppe de transport et `PilotRetrievalScopeArtifact` : identité exacte,
+candidats, matières, relation collection → matière → `programme_version`, année
+scolaire et digest des octets source LOT38. L'artefact dormant versionné est
+une projection canonique du scope LOT38 ; un test cross-service recalcule cette
+projection et son SHA-256. Le moteur charge l'artefact via le package partagé,
+recalcule son digest et refuse toute divergence. Il n'importe ni ne lit
+`rag-pedago` au runtime. LOT41A autorisera l'utilisation de cet artefact exact
+dans l'environnement isolé.
 
 L'algorithme accepté est exactement `HS256`. Le secret, l'issuer et l'audience
 sont obligatoires et absents du dépôt.
+
+L'enveloppe impose `outer.sub == identity.sub`, `outer.jti == identity.jti`,
+`outer.exp <= identity.exp`, des issuer/audience externes admis par la
+configuration serveur obligatoire, et un scope inchangé lors des rotations.
+Le schéma exporté valide la structure. Un validateur sémantique TypeScript
+complémentaire applique les invariants Pydantic non exprimables en JSON Schema
+(année contiguë, égalités sub/jti et bornes temporelles). Des fixtures négatives
+partagées prouvent la parité Python/TypeScript sur ces invariants.
 
 Le navigateur ne reçoit ni jeton de service, ni jeton interne, ni identité
 complète, ni secret de signature. Le callback de session Auth.js ne sérialise
@@ -60,6 +72,14 @@ BFF `search` et `chat` exigent une session active à chaque appel, contrôlent l
 révocation avant l'appel moteur et transmettent le jeton interne de la session.
 Une identité absente, expirée, révoquée, mal signée ou incohérente ferme le
 chemin avant PostgreSQL.
+
+La révocation de session est partagée par toutes les instances cockpit dans
+Redis via `NEXUS_SESSION_REDIS_URL`. En production ou validation, une URL
+absente ou Redis indisponible ferme l'authentification ; la mémoire locale est
+réservée aux tests explicitement configurés. Le BFF est l'unique autorité de
+révocation runtime : le moteur n'accepte un jeton d'identité qu'avec le jeton de
+service BFF distinct, jamais directement depuis le navigateur. Les tests
+simulent deux instances et un redémarrage logique contre le même store.
 
 ## Contrat 0.4.0
 
@@ -100,8 +120,9 @@ définition canonique de collection. Il contient :
 - `review_status=reviewed` ;
 - collection résolue, instanciée et retrievable ;
 - `school_year` exact.
+- `programme_version` exacte pour la matière de la collection.
 
-Le client peut demander zéro ou plusieurs collections, mais chaque collection
+Le client peut demander une ou plusieurs collections, et chaque collection
 doit appartenir à l'ensemble dérivé. Il ne peut envoyer aucune dimension qui
 élargit le scope. Pour le chat, le profil construit par le BFF doit correspondre
 aux dimensions autoritatives ; toute divergence est refusée. La collection est
@@ -128,7 +149,7 @@ fermés :
 
 | rôle | contextes de droits | visibility admise |
 | --- | --- | --- |
-| `student` | `public`, `enrolled_student` | `public` |
+| `student` | `public` | `public` |
 | `teacher` | `public`, `internal`, `teacher` | `public`, `internal` |
 | `reviewer` | `public`, `internal`, `teacher` | `public`, `internal`, `restricted` |
 | `ingest_agent` | `internal` | `internal`, `restricted` |
@@ -143,14 +164,15 @@ donc refusée par LOT41.
 La migration additive `003_profile_filtering.sql` ajoute à `rag_chunks` :
 
 - `tenant TEXT` sans valeur par défaut ;
-- `candidat TEXT NOT NULL DEFAULT 'both'` ;
-- `visibility TEXT NOT NULL DEFAULT 'internal'` ;
+- `candidat TEXT` sans valeur par défaut ;
+- `visibility TEXT` sans valeur par défaut ;
 - `school_year TEXT` sans valeur par défaut ;
+- `programme_version TEXT` sans valeur par défaut ;
 - les contraintes de domaine et index nécessaires au prédicat exhaustif.
 
 Les lignes historiques restent volontairement non servables par le nouveau
-chemin, car `tenant` et `school_year` sont nuls. LOT42 est seul autorisé à les
-peupler après `quality → gate → review`.
+chemin, car toutes les nouvelles dimensions sont nulles. LOT42 est seul
+autorisé à les peupler après `quality → gate → review`.
 
 Le rollback 003 refuse de supprimer les colonnes si une ligne a été enrichie
 au-delà des valeurs de bootstrap. Dans ce cas, le retour arrière applicatif
@@ -161,8 +183,9 @@ publiées sans perte.
 
 Dense et lexical reçoivent le même objet scope et appliquent les mêmes
 prédicats paramétrés : collection, tenant, niveau, voie, matière, statut,
-candidat exact ou `both`, audience signée ou `tous`, droits, visibilité, année
-et `review_status='reviewed'`. Aucune chaîne issue de l'identité n'est interpolée
+candidat exact ou `both`, audience signée ou `tous`, droits, visibilité, année,
+version de programme et `review_status='reviewed'`. Aucune chaîne issue de
+l'identité n'est interpolée
 dans le SQL.
 
 Chaque ligne remonte aussi toutes ces dimensions. Le mapper vérifie une seconde
@@ -172,8 +195,10 @@ ni résultat partiel.
 
 ## Review, IDOR et révocation
 
-La file et les décisions de review deviennent obligatoirement scopées par
-`tenant` et `collection`. Une requête portant un `doc_id` ou `chunk_id` d'un
+La file et les décisions de review exigent la même identité humaine signée et
+le même artefact serveur que le retrieval. Tenant et collection clients ne
+peuvent que restreindre ce scope dérivé. Une requête portant un `doc_id` ou
+`chunk_id` d'un
 autre scope ne lit ni ne modifie aucune ligne et retourne un résultat générique,
 sans révéler l'existence de l'identifiant.
 

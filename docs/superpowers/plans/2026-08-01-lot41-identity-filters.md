@@ -16,6 +16,12 @@
   JSON sûr, puis porter manuellement les tests utiles du prototype LOT35.
 - Mettre à jour les tests d'export `/v0.4/`, régénérer les schémas et le client
   cockpit.
+- Définir dans le package `InternalIdentityEnvelope` et
+  `PilotRetrievalScopeArtifact`, exporter leurs schémas et livrer l'artefact
+  dormant dérivé de LOT38 avec preuve cross-service de projection/digest.
+- Livrer dans le cockpit le validateur sémantique complémentaire et des
+  fixtures de parité Python/TypeScript pour les invariants non exprimables par
+  JSON Schema.
 - Créer `docs/adr/ADR-0022-identite-et-filtres-retrieval.md`.
 - Vérifier pytest/ruff contrats et cohérence générée cockpit.
 
@@ -30,14 +36,19 @@
 - Ne sérialiser ni identité complète ni jeton interne dans la session remise au
   navigateur ; les extraire seulement du JWT httpOnly dans les routes serveur.
 - Supprimer le profil de chat codé en dur et le dériver de l'identité signée.
+- Remplacer le store mémoire de révocation par Redis partagé fail-closed hors
+  tests ; prouver deux instances et persistance après redémarrage logique.
 
 ## Task 3 — validation et scope serveur
 
 - Créer `identity_v2.py` avec validation JWT et `InternalIdentity` stricte.
 - Créer `retrieval_scope_v2.py` avec mapping rôle/droits/visibility,
   restrict-only et digest sans PII.
-- Lier `scope_id`, digest LOT38 et allowlist dans le jeton puis exiger leur
-  concordance exacte avec la configuration moteur.
+- Lier `scope_id`, `scope_digest=a1ed0fb1…` de l'artefact JSON canonique et
+  allowlist dans le jeton, conserver `source_sha256=b55ef138…` pour le YAML
+  LOT38, puis exiger leur concordance exacte avec l'artefact du package.
+- Tester les égalités sub/jti, la borne d'expiration, issuer/audience externes,
+  rotation immuable et `programme_version`.
 - Centraliser le mapping de voie dans `collection_config.py`.
 - Tester token absent/mal signé/expiré, identité 0.3, matière/niveau/voie/année,
   collection arbitraire et IDOR.
@@ -46,6 +57,8 @@
 
 - Écrire les tests de manifeste et d'objets attendus.
 - Ajouter `003_profile_filtering.sql`, son rollback conditionnel et `HEAD`.
+- Garder tenant, candidat, visibilité, année et version de programme à `NULL`
+  sans backfill ; LOT42 seul les classifie.
 - Étendre les validateurs de migration et l'adoption 002 → 003.
 - Prouver application, rollback sans données, refus du rollback après
   enrichissement, puis réapplication.
@@ -69,7 +82,8 @@
 
 ## Task 7 — review scopée et fermeture des bypasses
 
-- Exiger tenant+collection sur la file et chaque décision de review.
+- Dériver le scope review de l'identité signée et de l'artefact ; tenant et
+  collection clients sont restrict-only.
 - Tester l'IDOR document/chunk et des réponses ne révélant pas l'existence.
 - Conserver `needs_review → reviewed` et ajouter uniquement la révocation
   `reviewed → quarantined`, sans réactivation implicite.

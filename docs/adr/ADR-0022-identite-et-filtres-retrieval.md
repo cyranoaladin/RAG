@@ -5,7 +5,7 @@
 - **Périmètre** : contrat d'identité cockpit → rag-engine et scope pilote
   `libre_terminale_maths_nsi_real_v1`
 - **S'appuie sur** : [ADR-0001 — séparation contrôle/données/cockpit](ADR-0001-separation-controle-donnees-cockpit.md),
-  [ADR-0002 — contrat d'interface partagé](ADR-0002-contrat-interface-partage.md)
+  [ADR-0002 — contrat d'interface partagé](ADR-0002-contrat-partage-nexus-contracts.md)
   et [ADR-0021 — politique de validation pilote dormante](ADR-0021-politique-validation-pilote-dormante.md)
 
 ## Contexte
