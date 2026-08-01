@@ -249,7 +249,7 @@ validate_run_engine_hybrid_sequence() {
     local expected_sequence
 
     run_engine_block="$(extract_shell_function "run_engine" "$source_file")"
-    expected_sanitization='    if ! unset MAKEFLAGS GNUMAKEFLAGS MFLAGS 2>/dev/null; then
+    expected_sanitization='    if ! unset MAKEFLAGS GNUMAKEFLAGS MFLAGS MAKEFILES 2>/dev/null; then
         echo "FAIL: rag-engine make environment invalid"
         cd "$REPO_ROOT"; return 1
     fi
@@ -267,7 +267,7 @@ validate_run_engine_hybrid_sequence() {
     fi'
 
     [ -n "$run_engine_block" ] \
-        && [ "$(grep -Fxc '    if ! unset MAKEFLAGS GNUMAKEFLAGS MFLAGS 2>/dev/null; then' \
+        && [ "$(grep -Fxc '    if ! unset MAKEFLAGS GNUMAKEFLAGS MFLAGS MAKEFILES 2>/dev/null; then' \
             <<<"$run_engine_block")" -eq 1 ] \
         && [[ "$run_engine_block" == *"$expected_sanitization"* ]] \
         && [ "$(grep -Fxc '    if ! make test-integration-hybrid; then' \
@@ -304,7 +304,7 @@ fi
 
 cat > "$HYBRID_FAKE_BIN/make" <<'SCRIPT'
 #!/usr/bin/env bash
-for variable in MAKEFLAGS GNUMAKEFLAGS MFLAGS; do
+for variable in MAKEFLAGS GNUMAKEFLAGS MFLAGS MAKEFILES; do
     if printenv "$variable" >/dev/null 2>&1; then
         echo "MAKE_ENV_LEAK" >&2
         exit 88
@@ -395,6 +395,7 @@ GNU_MAKE_EXPECTED_LOG="$GNU_MAKE_ROOT/expected.log"
 GNU_MAKE_FUNCTION_FILE="$GNU_MAKE_ROOT/run-engine-only.sh"
 GNU_MAKE_RUNNER="$GNU_MAKE_ROOT/run-engine.sh"
 GNU_MAKE_WRAPPER_BIN="$GNU_MAKE_ROOT/bin"
+GNU_MAKE_INJECTED_FILE="$GNU_MAKE_ROOT/injected-ignore.mk"
 REAL_GNU_MAKE="$(command -v make)"
 mkdir -p "$GNU_MAKE_REPO/services/rag-engine" "$GNU_MAKE_WRAPPER_BIN"
 
@@ -415,6 +416,10 @@ lint typecheck test:
 test-integration-hybrid:
 > @printf '%s\n' '$@' >> '$(GNU_MAKE_CALL_LOG)'
 > @exit 23
+MAKEFILE
+
+cat > "$GNU_MAKE_INJECTED_FILE" <<'MAKEFILE'
+.IGNORE:
 MAKEFILE
 
 cat > "$GNU_MAKE_RUNNER" <<'SCRIPT'
@@ -454,8 +459,27 @@ fi
 
 : > "$GNU_MAKE_CALL_LOG"
 set +e
+MAKEFILES="$GNU_MAKE_INJECTED_FILE" \
+GNU_MAKE_CALL_LOG="$GNU_MAKE_CALL_LOG" \
+    "$REAL_GNU_MAKE" \
+        -C "$GNU_MAKE_REPO/services/rag-engine" \
+        test-integration-hybrid >/dev/null 2>&1
+GNU_MAKEFILES_UNSAFE_EXIT=$?
+set -e
+if [ "$GNU_MAKEFILES_UNSAFE_EXIT" -eq 0 ] \
+    && [ "$(grep -Fxc 'test-integration-hybrid' "$GNU_MAKE_CALL_LOG")" -eq 1 ]; then
+    echo "  PASS  MAKEFILES avec .IGNORE masque bien la recette qui retourne 23"
+    TESTS_PASS=$((TESTS_PASS + 1))
+else
+    echo "  FAIL  la preuve du contournement MAKEFILES n'est pas sensible"
+    TESTS_FAIL=$((TESTS_FAIL + 1))
+fi
+
+: > "$GNU_MAKE_CALL_LOG"
+set +e
 GNU_MAKE_RUN_OUTPUT="$({
     MAKEFLAGS=-i GNUMAKEFLAGS=-i MFLAGS=-i \
+    MAKEFILES="$GNU_MAKE_INJECTED_FILE" \
     GNU_MAKE_REPO="$GNU_MAKE_REPO" \
     GNU_MAKE_FUNCTION_FILE="$GNU_MAKE_FUNCTION_FILE" \
     GNU_MAKE_CALL_LOG="$GNU_MAKE_CALL_LOG" \
@@ -467,7 +491,7 @@ if [ "$GNU_MAKE_RUN_EXIT" -eq 1 ] \
     && [ "$(grep -Fxc 'FAIL: rag-engine hybrid integration failed' \
         <<<"$GNU_MAKE_RUN_OUTPUT")" -eq 1 ] \
     && diff -u "$GNU_MAKE_EXPECTED_LOG" "$GNU_MAKE_CALL_LOG"; then
-    echo "  PASS  run_engine propage l'échec réel malgré les trois variables"
+    echo "  PASS  run_engine propage l'échec réel malgré les quatre variables"
     TESTS_PASS=$((TESTS_PASS + 1))
 else
     echo "  FAIL  run_engine laisse GNU Make tolérer la recette en échec"
@@ -477,7 +501,7 @@ fi
 
 cat > "$GNU_MAKE_WRAPPER_BIN/make" <<'SCRIPT'
 #!/usr/bin/env bash
-for variable in MAKEFLAGS GNUMAKEFLAGS MFLAGS; do
+for variable in MAKEFLAGS GNUMAKEFLAGS MFLAGS MAKEFILES; do
     if printenv "$variable" >/dev/null 2>&1; then
         echo "MAKE_ENV_LEAK" >&2
         exit 88
@@ -491,6 +515,7 @@ chmod +x "$GNU_MAKE_WRAPPER_BIN/make"
 set +e
 GNU_MAKE_WRAPPER_OUTPUT="$({
     MAKEFLAGS=-i GNUMAKEFLAGS=-i MFLAGS=-i \
+    MAKEFILES="$GNU_MAKE_INJECTED_FILE" \
     GNU_MAKE_REPO="$GNU_MAKE_REPO" \
     GNU_MAKE_FUNCTION_FILE="$GNU_MAKE_FUNCTION_FILE" \
     GNU_MAKE_CALL_LOG="$GNU_MAKE_CALL_LOG" \
@@ -513,32 +538,44 @@ else
     TESTS_FAIL=$((TESTS_FAIL + 1))
 fi
 
-: > "$GNU_MAKE_CALL_LOG"
-set +e
-GNU_MAKE_READONLY_OUTPUT="$({
-    MAKEFLAGS=-i GNUMAKEFLAGS=-i MFLAGS=-i \
-    GNU_MAKE_REPO="$GNU_MAKE_REPO" \
-    GNU_MAKE_FUNCTION_FILE="$GNU_MAKE_FUNCTION_FILE" \
-    GNU_MAKE_CALL_LOG="$GNU_MAKE_CALL_LOG" \
-        bash -c '
-            readonly MAKEFLAGS GNUMAKEFLAGS MFLAGS
-            source "$GNU_MAKE_FUNCTION_FILE"
-            REPO_ROOT="$GNU_MAKE_REPO"
-            run_engine
-        '
-} 2>&1)"
-GNU_MAKE_READONLY_EXIT=$?
-set -e
-if [ "$GNU_MAKE_READONLY_EXIT" -eq 1 ] \
-    && [ "$(grep -Fxc 'FAIL: rag-engine make environment invalid' \
-        <<<"$GNU_MAKE_READONLY_OUTPUT")" -eq 1 ] \
-    && [ ! -s "$GNU_MAKE_CALL_LOG" ]; then
-    echo "  PASS  un environnement impossible à assainir échoue avant make"
+GNU_MAKE_READONLY_COUNT=0
+for readonly_variable in MAKEFLAGS GNUMAKEFLAGS MFLAGS MAKEFILES; do
+    : > "$GNU_MAKE_CALL_LOG"
+    if [ "$readonly_variable" = "MAKEFILES" ]; then
+        readonly_value="$GNU_MAKE_INJECTED_FILE"
+    else
+        readonly_value="-i"
+    fi
+    set +e
+    GNU_MAKE_READONLY_OUTPUT="$({
+        env "$readonly_variable=$readonly_value" \
+            GNU_MAKE_REPO="$GNU_MAKE_REPO" \
+            GNU_MAKE_FUNCTION_FILE="$GNU_MAKE_FUNCTION_FILE" \
+            GNU_MAKE_CALL_LOG="$GNU_MAKE_CALL_LOG" \
+            READONLY_MAKE_VARIABLE="$readonly_variable" \
+            bash -c '
+                readonly "$READONLY_MAKE_VARIABLE"
+                source "$GNU_MAKE_FUNCTION_FILE"
+                REPO_ROOT="$GNU_MAKE_REPO"
+                run_engine
+            '
+    } 2>&1)"
+    GNU_MAKE_READONLY_EXIT=$?
+    set -e
+    if [ "$GNU_MAKE_READONLY_EXIT" -eq 1 ] \
+        && [ "$(grep -Fxc 'FAIL: rag-engine make environment invalid' \
+            <<<"$GNU_MAKE_READONLY_OUTPUT")" -eq 1 ] \
+        && [ ! -s "$GNU_MAKE_CALL_LOG" ]; then
+        GNU_MAKE_READONLY_COUNT=$((GNU_MAKE_READONLY_COUNT + 1))
+    else
+        echo "  FAIL  $readonly_variable readonly n'échoue pas avant make"
+        echo "$GNU_MAKE_READONLY_OUTPUT"
+        TESTS_FAIL=$((TESTS_FAIL + 1))
+    fi
+done
+if [ "$GNU_MAKE_READONLY_COUNT" -eq 4 ]; then
+    echo "  PASS  les quatre variables readonly échouent avant make"
     TESTS_PASS=$((TESTS_PASS + 1))
-else
-    echo "  FAIL  un environnement readonly n'échoue pas avant make"
-    echo "$GNU_MAKE_READONLY_OUTPUT"
-    TESTS_FAIL=$((TESTS_FAIL + 1))
 fi
 
 create_fake_yaml_python() {

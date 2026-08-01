@@ -209,7 +209,7 @@ if not isinstance(engine_steps, list):
     raise SystemExit(1)
 
 errors: list[str] = []
-make_control_variables = {"MAKEFLAGS", "GNUMAKEFLAGS", "MFLAGS"}
+make_control_variables = {"MAKEFLAGS", "GNUMAKEFLAGS", "MFLAGS", "MAKEFILES"}
 
 
 def validate_make_environment(scope: object, label: str) -> None:
@@ -366,7 +366,8 @@ elif mutation.startswith(("workflow-env-", "job-env-", "step-env-")):
         scope = jobs["rag-engine"]
     else:
         scope = integration_step
-    scope["env"] = {variable: "-i"}
+    value = "injected-ignore.mk" if variable == "MAKEFILES" else "-i"
+    scope["env"] = {variable: value}
 else:
     raise SystemExit(f"mutation inconnue: {mutation}")
 
@@ -411,12 +412,15 @@ for mutation in \
     workflow-env-makeflags \
     workflow-env-gnumakeflags \
     workflow-env-mflags \
+    workflow-env-makefiles \
     job-env-makeflags \
     job-env-gnumakeflags \
     job-env-mflags \
+    job-env-makefiles \
     step-env-makeflags \
     step-env-gnumakeflags \
-    step-env-mflags; do
+    step-env-mflags \
+    step-env-makefiles; do
     MUTATED_WORKFLOW="$TMP_ROOT/hybrid-$mutation.yml"
     mutate_hybrid_fixture "$CANONICAL_WORKFLOW" "$MUTATED_WORKFLOW" "$mutation"
     if validate_hybrid_integration_step "$MUTATED_WORKFLOW" >/dev/null 2>&1; then
@@ -425,11 +429,11 @@ for mutation in \
     fi
     HYBRID_MUTATIONS_REJECTED=$((HYBRID_MUTATIONS_REJECTED + 1))
 done
-if [ "$HYBRID_MUTATIONS_REJECTED" -ne 19 ]; then
-    echo "FAIL: dix-neuf mutations hybrides doivent être refusées" >&2
+if [ "$HYBRID_MUTATIONS_REJECTED" -ne 22 ]; then
+    echo "FAIL: vingt-deux mutations hybrides doivent être refusées" >&2
     exit 1
 fi
-echo "PASS: les dix-neuf mutations du smoke hybride sont refusées"
+echo "PASS: les vingt-deux mutations du smoke hybride sont refusées"
 
 if ! validate_hybrid_integration_step "$REPO_ROOT/.github/workflows/ci.yml"; then
     echo "FAIL: le smoke hybride GitHub est absent ou contournable" >&2
