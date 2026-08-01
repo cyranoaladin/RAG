@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "algorithm": "sha256",
+  "specification_digest": "d00c7e0fcf6870111b46d07ddc5531d15184ba7dbf2f780af81b6b2a416ddee4",
+  "files": {
+    "configs/pilot_golden_spec.yml": "6154153bad386f07bd0d7541a6c38e2db30d7bd29c066fe35b8eab564b25cd4e",
+    "configs/pilot_validation_scope.yml": "b55ef1383fceabbbe0bf30c47a45a1fce607697f56bac340162156fabcf0fe26",
+    "taxonomy/maths/terminale_gen_specialite.yml": "4a91661a381751573425b30667c53fc8f44df04fa4e0f7a0c4e71f0ec64005a6",
+    "taxonomy/nsi/terminale.yml": "b93a3e4017e99f1647861abac46b5f3136ee8611e7142d4fca2a33a5929eb05f",
+    "tests/golden_queries/lot39bis_maths.yml": "ced6822a448f177940c6c87a29562569dc3349d0116f2940180357d1e68cea7b",
+    "tests/golden_queries/lot39bis_nsi.yml": "9b7ecb5f37b9cb233c792e6e637353eee20f0c4df5aa52d6ac7127899d7f7ba6"
+  }
+}

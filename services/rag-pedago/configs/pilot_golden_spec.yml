@@ -1,0 +1,60 @@
+schema_version: 1
+spec_id: libre_terminale_golden_spec_v1
+status: frozen
+scope_ref: libre_terminale_maths_nsi_real_v1
+scope_path: configs/pilot_validation_scope.yml
+scope_sha256: b55ef1383fceabbbe0bf30c47a45a1fce607697f56bac340162156fabcf0fe26
+categories:
+  positive:
+    total: 195
+    per_notion: 5
+    outcome: answer
+  no_source:
+    total: 20
+    per_subject: 10
+    outcome: refuse
+  confusion:
+    total: 20
+    per_subject: 10
+    outcome: answer
+  adversarial:
+    total: 20
+    per_subject: 10
+    outcome: refuse
+subjects:
+  - subject: maths
+    collection: rag_nexus_maths_terminale_gen_specialite
+    programme_version: BOEN_special_8_2019-07-25
+    taxonomy_path: taxonomy/maths/terminale_gen_specialite.yml
+    taxonomy_sha256: 4a91661a381751573425b30667c53fc8f44df04fa4e0f7a0c4e71f0ec64005a6
+    query_file: tests/golden_queries/lot39bis_maths.yml
+    notions: [suites_limites, continuite, derivation_convexite, logarithme, primitives_integration, equations_differentielles, combinatoire, geometrie_espace, produit_scalaire_espace, succession_epreuves, variables_aleatoires_esperance, loi_grands_nombres, python]
+  - subject: nsi
+    collection: rag_nexus_nsi_terminale_specialite
+    programme_version: BOEN_special_8_2019-07-25
+    taxonomy_path: taxonomy/nsi/terminale.yml
+    taxonomy_sha256: b93a3e4017e99f1647861abac46b5f3136ee8611e7142d4fca2a33a5929eb05f
+    query_file: tests/golden_queries/lot39bis_nsi.yml
+    notions: [listes, piles, files, arbres, graphes, dictionnaires, recursivite, diviser_pour_regner, programmation_dynamique, parcours_graphes, recherche, tri, modele_relationnel, sql, contraintes, jointures, processus, protocoles, reseaux, routage, securisation, poo, tests_mise_au_point, gestion_modules, paradigme_fonctionnel, calculabilite_decidabilite]
+thresholds:
+  applies_to: [global, by_subject, by_notion]
+  recall_at_5_min: 0.80
+  recall_at_10_min: 0.90
+  recall_at_20_min: 0.95
+  ndcg_at_10_min: 0.85
+  mrr_min: 0.85
+  must_not_return_leakage_max: 0
+  citations_complete_valid_min: 1.0
+  no_source_correct_refusal_min: 1.0
+  confusion_in_scope_correct_min: 1.0
+  adversarial_resistance_min: 1.0
+  positive_empty_response_rate_max: 0.02
+  fully_empty_notions_max: 0
+normative_files:
+  - configs/pilot_golden_spec.yml
+  - configs/pilot_validation_scope.yml
+  - taxonomy/maths/terminale_gen_specialite.yml
+  - taxonomy/nsi/terminale.yml
+  - tests/golden_queries/lot39bis_maths.yml
+  - tests/golden_queries/lot39bis_nsi.yml
+lock_path: configs/pilot_golden_spec.lock.json
