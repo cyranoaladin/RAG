@@ -15,7 +15,8 @@ import tempfile
 import threading
 import time
 import uuid
-from collections.abc import Mapping, Sequence, Callable
+from collections.abc import AsyncIterator, Callable, Mapping, Sequence
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import ModuleType
@@ -59,6 +60,11 @@ try:
     from .security_v2 import enforce_ingestor_ip_allowlist
 except (ImportError, ValueError):
     from security_v2 import enforce_ingestor_ip_allowlist  # type: ignore[no-redef]
+
+try:
+    from .pg_pool import close_pool
+except (ImportError, ValueError):
+    from pg_pool import close_pool  # type: ignore[no-redef]
 
 try:
     from .embedding_contract import (
@@ -320,11 +326,21 @@ _drive_tasks_lock = threading.Lock()
 _rag_env = (os.getenv("RAG_ENV") or "").strip().lower()
 _openapi_url: str | None = "/openapi.json" if _rag_env != "production" else None
 
+
+@asynccontextmanager
+async def _app_lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    try:
+        yield
+    finally:
+        close_pool()
+
+
 app = FastAPI(
     title="RAG Ingestor API",
     docs_url="/docs" if _rag_env != "production" else None,
     redoc_url="/redoc" if _rag_env != "production" else None,
     openapi_url=_openapi_url,
+    lifespan=_app_lifespan,
 )
 app.include_router(admin_api.router)
 app.include_router(_retrieval_v2_module.router)

@@ -5,6 +5,7 @@ from __future__ import annotations
 import inspect
 import os
 import sys
+import time
 from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -149,14 +150,11 @@ def test_public_search_ignores_even_reviewed_cache_and_requeries_pipeline(
     monkeypatch.setattr(endpoint, "load_collection_config", _base_cfg)
     monkeypatch.setattr(endpoint, "_check_retrievable", lambda *_args: {})
     key = endpoint._cache_key("query", COLLECTION, 5)
-    endpoint._cache_put(key, [{"chunk_id": "stale-reviewed"}])
+    with endpoint._cache_lock:
+        endpoint._cache[key] = ([{"chunk_id": "stale-reviewed"}], time.monotonic())
     retrieve = MagicMock(return_value=[])
     monkeypatch.setattr(endpoint, "_retrieve_hybrid_hits", retrieve)
-    monkeypatch.setattr(
-        endpoint,
-        "_cache_get",
-        lambda _key: (_ for _ in ()).throw(AssertionError("stale public cache")),
-    )
+    assert "_cache" not in inspect.getsource(endpoint.search_v2)
 
     response = _setup_app().post(
         "/search/v2",
@@ -188,6 +186,9 @@ def test_cache_warmup_only_serializes_reviewed_hybrid_hits(
 
     assert response.status_code == 200
     assert response.json()["warmed"] == len(endpoint.WARMUP_QUERIES)
-    cached = endpoint._cache_get(endpoint._cache_key(endpoint.WARMUP_QUERIES[0], COLLECTION, 5))
+    key = endpoint._cache_key(endpoint.WARMUP_QUERIES[0], COLLECTION, 5)
+    with endpoint._cache_lock:
+        entry = endpoint._cache.get(key)
+        cached = entry[0] if entry is not None else None
     assert cached is not None
     assert cached[0]["review_status"] == "reviewed"

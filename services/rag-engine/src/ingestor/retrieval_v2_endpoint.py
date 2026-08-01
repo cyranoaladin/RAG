@@ -27,7 +27,7 @@ from nexus_contracts import (
     Citation,
     RetrievalResult,
 )
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 try:
     from .collection_config import (
@@ -84,7 +84,8 @@ router = APIRouter(tags=["retrieval_v2"])
 
 # --- Cache de warmup/administration (SCALE-V1-1) ---
 # Key = normalized(query, collection, k). Value = (hits, timestamp).
-# Invalidation: TTL-based (chunks may change review_status).
+# Invalidation is generation-based so a warmup started before a review change
+# can never republish its stale snapshot afterward.
 # Public search never reads this process-local cache: every request re-runs the
 # canonical PostgreSQL pipeline and therefore observes the current review state.
 #
@@ -99,8 +100,7 @@ else:
     CACHE_ENABLED = os.environ.get("RERANK_CACHE", "1") != "0"
 _cache: dict[str, tuple[list, float]] = {}
 _cache_lock = threading.Lock()
-_cache_hits = 0
-_cache_misses = 0
+_cache_generation = 0
 
 
 def _cache_key(query: str, collection: str, k: int) -> str:
@@ -114,30 +114,13 @@ def _cache_key(query: str, collection: str, k: int) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
-def _cache_get(key: str) -> list | None:
-    global _cache_hits
-    with _cache_lock:
-        entry = _cache.get(key)
-        if entry is None:
-            return None
-        hits, ts = entry
-        if time.monotonic() - ts > CACHE_TTL_S:
-            del _cache[key]
-            return None
-        _cache_hits += 1
-        return hits
-
-
-def _cache_put(key: str, hits: list) -> None:
-    with _cache_lock:
-        _cache[key] = (hits, time.monotonic())
-
-
 def invalidate_cache() -> int:
     """Invalidate all cache entries. Called when review_status changes."""
+    global _cache_generation
     with _cache_lock:
         n = len(_cache)
         _cache.clear()
+        _cache_generation += 1
         return n
 
 # --- Configuration figée par le noyau hybride LOT40 ---
@@ -265,6 +248,15 @@ class SearchV2Hit(BaseModel):
     rerank_score: float
     mmr_score: float
     score_final: float = Field(ge=0, le=1)
+
+    @computed_field(  # type: ignore[prop-decorator]
+        return_type=float | None,
+        json_schema_extra={"deprecated": True},
+    )
+    @property
+    def dense_sim(self) -> float | None:
+        """Alias de sérialisation déprécié, dérivé de l'unique score dense."""
+        return self.dense_score
 
 
 class SearchV2Response(BaseModel):
@@ -405,9 +397,8 @@ def cache_stats(request: Request) -> dict[str, Any]:
             "enabled": CACHE_ENABLED,
             "ttl_s": CACHE_TTL_S,
             "entries": len(_cache),
-            "hits": _cache_hits,
-            "misses": _cache_misses,
-            "hit_rate": round(_cache_hits / max(_cache_hits + _cache_misses, 1), 3),
+            "generation": _cache_generation,
+            "public_serving": False,
         }
 
 
@@ -436,6 +427,9 @@ def cache_warmup(request: Request) -> dict[str, Any]:
         endpoint="/cache/v2/warmup",
     )
 
+    with _cache_lock:
+        warmup_generation = _cache_generation
+
     cfg = load_collection_config()
     collections = list_instanciated_collections(cfg)
     # Only warm retrievable collections
@@ -451,20 +445,12 @@ def cache_warmup(request: Request) -> dict[str, Any]:
             if domains[domain].get("retrievable") is True:
                 retrievable_cols.append(name)
 
-    snapshot_time = time.monotonic()
-    with _cache_lock:
-        valid_keys = {
-            key
-            for key, (_hits, timestamp) in _cache.items()
-            if snapshot_time - timestamp <= CACHE_TTL_S
-        }
-
     staged: dict[str, list[dict[str, Any]]] = {}
+    target_keys: set[str] = set()
     for col in retrievable_cols:
         for q in WARMUP_QUERIES:
             key = _cache_key(q, col, 5)
-            if key in valid_keys:
-                continue
+            target_keys.add(key)
             hits_data = [
                 hit.model_dump() for hit in _retrieve_endpoint_hits(q, col, 5)
             ]
@@ -473,6 +459,10 @@ def cache_warmup(request: Request) -> dict[str, Any]:
 
     published_at = time.monotonic()
     with _cache_lock:
+        if _cache_generation != warmup_generation:
+            raise _retrieval_unavailable()
+        for key in target_keys:
+            _cache.pop(key, None)
         _cache.update(
             {
                 key: (hits_data, published_at)

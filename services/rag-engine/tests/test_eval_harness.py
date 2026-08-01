@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import inspect
 import json
 import math
 import sys
@@ -293,6 +294,88 @@ def test_evaluate_serializes_the_retrieval_mode(
     assert result.config["retrieval_mode"] == expected_mode
 
 
+def test_real_endpoint_reports_only_the_canonical_lot40_configuration() -> None:
+    retrieval_module = run_eval._load_module()
+    before = (
+        retrieval_module.RERANK_CANDIDATES,
+        retrieval_module.RERANK_SCORE_THRESHOLD,
+    )
+
+    result = run_eval.evaluate_golden_set(
+        [],
+        top_k=20,
+        retrieval_module=retrieval_module,
+    )
+
+    assert result.config == {
+        "rerank_candidates": 50,
+        "rerank_score_threshold": 1.9,
+        "top_k": 20,
+        "retrieval_mode": "nominal",
+    }
+    assert (
+        retrieval_module.RERANK_CANDIDATES,
+        retrieval_module.RERANK_SCORE_THRESHOLD,
+    ) == before
+
+
+@pytest.mark.parametrize(
+    ("attribute", "noncanonical"),
+    [("RERANK_CANDIDATES", 25), ("RERANK_SCORE_THRESHOLD", 1.5)],
+)
+def test_real_endpoint_noncanonical_configuration_fails_before_queries(
+    attribute: str,
+    noncanonical: int | float,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    retrieval_module = run_eval._load_module()
+    query = run_eval.GoldenQuery(
+        query_id="nsi-001",
+        query="Question qui ne doit jamais être exécutée",
+        intent="definition",
+        collection="rag_nexus_nsi_terminale_specialite",
+        niveau="terminale",
+        relevant_chunk_ids=["chunk-1"],
+        graded_relevance={"chunk-1": 1.0},
+        must_not_return=[],
+    )
+    monkeypatch.setattr(retrieval_module, attribute, noncanonical)
+    retrieve = MagicMock(side_effect=AssertionError("query exécutée avant validation"))
+    monkeypatch.setattr(retrieval_module, "_retrieve_reviewed_hits", retrieve)
+
+    with pytest.raises(ValueError, match="LOT43|canonique"):
+        run_eval.evaluate_golden_set(
+            [query],
+            top_k=20,
+            retrieval_module=retrieval_module,
+        )
+
+    retrieve.assert_not_called()
+
+
+def test_calibration_sweep_is_disabled_before_lot43_without_mutating_endpoint() -> None:
+    retrieval_module = run_eval._load_module()
+    before = (
+        retrieval_module.RERANK_CANDIDATES,
+        retrieval_module.RERANK_SCORE_THRESHOLD,
+    )
+
+    with pytest.raises(ValueError, match="LOT43"):
+        run_eval.run_sweep(
+            [object()],
+            retrieval_module=retrieval_module,
+            top_k=20,
+        )
+
+    assert (
+        retrieval_module.RERANK_CANDIDATES,
+        retrieval_module.RERANK_SCORE_THRESHOLD,
+    ) == before
+    source = inspect.getsource(run_eval.run_sweep) + inspect.getsource(run_eval.main)
+    assert "retrieval_module.RERANK_CANDIDATES =" not in source
+    assert "retrieval_module.RERANK_SCORE_THRESHOLD =" not in source
+
+
 def test_evaluate_requires_enough_depth_for_recall_at_20() -> None:
     retrieval_module = SimpleNamespace(
         RERANK_CANDIDATES=50,
@@ -368,7 +451,12 @@ def test_main_does_not_write_a_baseline_that_fails_absolute_invariants(
 
 @pytest.mark.parametrize(
     ("rerank_candidates", "rerank_score_threshold", "expected_error"),
-    [(0, None, "rerank-candidates"), (None, math.nan, "rerank-score-threshold")],
+    [
+        (0, None, "rerank-candidates"),
+        (25, None, "LOT43|canonique"),
+        (None, math.nan, "rerank-score-threshold"),
+        (None, 1.5, "LOT43|canonique"),
+    ],
 )
 def test_main_rejects_invalid_cli_rerank_parameters_before_loading_runtime(
     monkeypatch: pytest.MonkeyPatch,

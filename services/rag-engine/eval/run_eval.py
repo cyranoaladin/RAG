@@ -35,6 +35,15 @@ EVAL_DIR = Path(__file__).resolve().parent
 if str(EVAL_DIR) not in sys.path:
     sys.path.insert(0, str(EVAL_DIR))
 
+ENGINE_ROOT = EVAL_DIR.parent
+SRC_ROOT = ENGINE_ROOT / "src"
+CONTRACTS_ROOT = ENGINE_ROOT.parent.parent / "packages" / "contracts" / "src"
+for _root in (SRC_ROOT, CONTRACTS_ROOT):
+    if str(_root) not in sys.path:
+        sys.path.insert(0, str(_root))
+
+from ingestor.retrieval_hybrid_v2 import CHANNEL_LIMIT, RERANK_THRESHOLD
+
 from metrics import (
     citation_completeness,
     empty_answer_rate,
@@ -95,13 +104,17 @@ class _FallbackHit:
 
 
 def _load_module() -> Any:
-    engine_root = Path(__file__).resolve().parents[1]
-    src_root = engine_root / "src"
-    contracts_root = engine_root.parent.parent / "packages" / "contracts" / "src"
-    for root in (str(src_root), str(contracts_root)):
-        if root not in sys.path:
-            sys.path.insert(0, root)
     return importlib.import_module("ingestor.retrieval_v2_endpoint")
+
+
+def _require_canonical_retrieval_config(retrieval_module: Any) -> None:
+    candidates = getattr(retrieval_module, "RERANK_CANDIDATES", None)
+    threshold = getattr(retrieval_module, "RERANK_SCORE_THRESHOLD", None)
+    if candidates != CHANNEL_LIMIT or threshold != RERANK_THRESHOLD:
+        raise ValueError(
+            "Configuration retrieval non canonique: seuls candidates=50 et "
+            "threshold=1.90 sont autorisés avant LOT43."
+        )
 
 
 def _safe_float(value: Any) -> float:
@@ -367,9 +380,10 @@ def _retrieve_reviewed_hits_offline(
     top_k: int,
     retrieval_module: Any,
 ) -> list[_FallbackHit]:
+    _require_canonical_retrieval_config(retrieval_module)
     dsn = retrieval_module._get_pg_dsn()
     terms, or_query, and_query, phrase_query = _build_fallback_queries(query)
-    limit = min(top_k, int(retrieval_module.RERANK_CANDIDATES))
+    limit = min(top_k, CHANNEL_LIMIT)
 
     rows: list[tuple[Any, ...]] = []
     rows.extend(_run_offline_query(dsn, collection, or_query, "to_tsquery", limit))
@@ -420,6 +434,7 @@ def evaluate_golden_set(
 ) -> EvalResult:
     if top_k < MIN_EVAL_DEPTH:
         raise ValueError(f"top_k doit être >= {MIN_EVAL_DEPTH} pour publier Recall@20.")
+    _require_canonical_retrieval_config(retrieval_module)
 
     recall5_values: list[float] = []
     recall10_values: list[float] = []
@@ -476,8 +491,8 @@ def evaluate_golden_set(
 
     return EvalResult(
         config={
-            "rerank_candidates": retrieval_module.RERANK_CANDIDATES,
-            "rerank_score_threshold": retrieval_module.RERANK_SCORE_THRESHOLD,
+            "rerank_candidates": CHANNEL_LIMIT,
+            "rerank_score_threshold": RERANK_THRESHOLD,
             "top_k": top_k,
             "retrieval_mode": "offline_lexical" if offline_fallback else "nominal",
         },
@@ -503,46 +518,23 @@ def run_sweep(
     top_k: int,
     offline_fallback: bool = False,
 ) -> list[EvalResult]:
-    candidate_values = (10, 25, 50, 100)
-    threshold_values = (0.0, 0.5, 1.0, 1.5, 1.90, 2.5)
-    rows: list[EvalResult] = []
-
-    baseline_candidates = retrieval_module.RERANK_CANDIDATES
-    baseline_threshold = retrieval_module.RERANK_SCORE_THRESHOLD
-
-    try:
-        for candidates in candidate_values:
-            retrieval_module.RERANK_CANDIDATES = int(candidates)
-            for threshold in threshold_values:
-                retrieval_module.RERANK_SCORE_THRESHOLD = float(threshold)
-                rows.append(
-                    evaluate_golden_set(
-                        queries,
-                        top_k=top_k,
-                        retrieval_module=retrieval_module,
-                        offline_fallback=offline_fallback,
-                    )
-                )
-    finally:
-        retrieval_module.RERANK_CANDIDATES = baseline_candidates
-        retrieval_module.RERANK_SCORE_THRESHOLD = baseline_threshold
-
-    rows.sort(key=lambda row: (row.config["rerank_candidates"], row.config["rerank_score_threshold"]))
-    return rows
+    del queries, retrieval_module, top_k, offline_fallback
+    raise ValueError("Le sweep de calibration est désactivé jusqu'au LOT43.")
 
 
 def _validate_eval_result(result: EvalResult) -> None:
     candidates = result.config.get("rerank_candidates")
-    if isinstance(candidates, bool) or not isinstance(candidates, int) or candidates <= 0:
-        raise ValueError("rerank_candidates doit être un entier strictement positif.")
+    if candidates != CHANNEL_LIMIT:
+        raise ValueError(
+            f"rerank_candidates doit rester canonique ({CHANNEL_LIMIT}) avant LOT43."
+        )
 
     threshold = result.config.get("rerank_score_threshold")
-    if (
-        isinstance(threshold, bool)
-        or not isinstance(threshold, int | float)
-        or not math.isfinite(float(threshold))
-    ):
-        raise ValueError("rerank_score_threshold doit être un nombre fini.")
+    if threshold != RERANK_THRESHOLD:
+        raise ValueError(
+            "rerank_score_threshold doit rester canonique "
+            f"({RERANK_THRESHOLD:.2f}) avant LOT43."
+        )
 
     top_k = result.config.get("top_k")
     if isinstance(top_k, bool) or not isinstance(top_k, int) or top_k < MIN_EVAL_DEPTH:
@@ -720,14 +712,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--rerank-candidates",
         type=int,
-        default=None,
-        help="Override runtime de RERANK_CANDIDATES (sinon valeur env/module).",
+        default=CHANNEL_LIMIT,
+        help=f"Valeur figée à {CHANNEL_LIMIT} jusqu'au LOT43.",
     )
     parser.add_argument(
         "--rerank-score-threshold",
         type=float,
-        default=None,
-        help="Override runtime de RERANK_SCORE_THRESHOLD (sinon valeur env/module).",
+        default=RERANK_THRESHOLD,
+        help=f"Valeur figée à {RERANK_THRESHOLD:.2f} jusqu'au LOT43.",
     )
     parser.add_argument(
         "--baseline-path",
@@ -783,27 +775,40 @@ def main() -> int:
         raise SystemExit(f"--top-k doit être >= {MIN_EVAL_DEPTH} pour publier Recall@20")
     if args.rerank_candidates is not None and args.rerank_candidates <= 0:
         raise SystemExit("--rerank-candidates doit être strictement positif")
+    if (
+        args.rerank_candidates is not None
+        and args.rerank_candidates != CHANNEL_LIMIT
+    ):
+        raise SystemExit(
+            f"--rerank-candidates doit rester canonique ({CHANNEL_LIMIT}) avant LOT43"
+        )
     if args.rerank_score_threshold is not None and not math.isfinite(
         args.rerank_score_threshold
     ):
         raise SystemExit("--rerank-score-threshold doit être un nombre fini")
-    if args.sweep and args.offline_fallback:
+    if (
+        args.rerank_score_threshold is not None
+        and args.rerank_score_threshold != RERANK_THRESHOLD
+    ):
+        raise SystemExit(
+            "--rerank-score-threshold doit rester canonique "
+            f"({RERANK_THRESHOLD:.2f}) avant LOT43"
+        )
+    if getattr(args, "sweep", False) and getattr(args, "offline_fallback", False):
         raise SystemExit("--sweep est incompatible avec --offline-fallback")
+    if getattr(args, "sweep", False):
+        raise SystemExit("--sweep est désactivé jusqu'au LOT43")
 
     if args.pg_rag_dsn:
         os.environ["PG_RAG_DSN"] = args.pg_rag_dsn
     else:
         os.environ.setdefault("PG_RAG_DSN", os.environ.get("DATABASE_URL_SYNC", ""))
 
-    if args.rerank_candidates is not None:
-        os.environ["RERANK_CANDIDATES"] = str(args.rerank_candidates)
-    if args.rerank_score_threshold is not None:
-        os.environ["RERANK_SCORE_THRESHOLD"] = str(args.rerank_score_threshold)
-
     retrieval_module = _load_module()
-
-    if not getattr(retrieval_module, "RERANK_CANDIDATES", None):
-        return 2
+    try:
+        _require_canonical_retrieval_config(retrieval_module)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from None
 
     if not os.environ.get("PG_RAG_DSN") and not os.environ.get("DATABASE_URL_SYNC"):
         raise SystemExit(
@@ -817,22 +822,7 @@ def main() -> int:
     if not golden_queries:
         raise SystemExit("Aucune requête dorée.")
 
-    if args.sweep:
-        sweep_rows = run_sweep(
-            golden_queries,
-            retrieval_module=retrieval_module,
-            top_k=args.top_k,
-            offline_fallback=args.offline_fallback,
-        )
-        _print_sweep(sweep_rows)
-    else:
-        sweep_rows = []
-
-    # restore explicit CLI overrides for deterministic default run
-    if args.rerank_candidates is not None:
-        retrieval_module.RERANK_CANDIDATES = args.rerank_candidates
-    if args.rerank_score_threshold is not None:
-        retrieval_module.RERANK_SCORE_THRESHOLD = args.rerank_score_threshold
+    sweep_rows: list[EvalResult] = []
 
     result = evaluate_golden_set(
         golden_queries,

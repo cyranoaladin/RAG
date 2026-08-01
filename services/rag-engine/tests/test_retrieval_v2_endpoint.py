@@ -9,6 +9,8 @@ import copy
 import inspect
 import socket
 import sys
+import threading
+import time
 from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
@@ -106,6 +108,25 @@ def _api_client(monkeypatch: pytest.MonkeyPatch):
     app = FastAPI()
     app.include_router(endpoint.router)
     return endpoint, TestClient(app)
+
+
+def _seed_cache(
+    endpoint: object,
+    key: str,
+    hits: list[dict[str, object]],
+    *,
+    timestamp: float | None = None,
+) -> None:
+    with endpoint._cache_lock:
+        endpoint._cache[key] = (
+            copy.deepcopy(hits),
+            time.monotonic() if timestamp is None else timestamp,
+        )
+
+
+def _cache_snapshot(endpoint: object) -> dict[str, tuple[list, float]]:
+    with endpoint._cache_lock:
+        return copy.deepcopy(endpoint._cache)
 
 
 class TestGateHTTP:
@@ -211,11 +232,28 @@ class TestResponseFormat:
         assert hit.rrf_score == 0.01
         assert hit.score_final == 0.9
 
-        with pytest.raises(ValidationError) as dense_sim_error:
-            SearchV2Hit(**{**hit.model_dump(), "dense_sim": 0.85})
-        assert ("dense_sim",) in {
-            tuple(error["loc"]) for error in dense_sim_error.value.errors()
-        }
+        assert hit.dense_sim == hit.dense_score
+        assert hit.model_dump()["dense_sim"] == hit.dense_score
+        serialization_schema = SearchV2Hit.model_json_schema(mode="serialization")
+        assert serialization_schema["properties"]["dense_sim"]["readOnly"] is True
+        assert serialization_schema["properties"]["dense_sim"]["deprecated"] is True
+
+        no_dense_hit = SearchV2Hit(
+            **{**hit.model_dump(exclude={"dense_sim"}), "dense_score": None}
+        )
+        assert no_dense_hit.dense_sim is None
+        assert no_dense_hit.model_dump()["dense_sim"] is None
+
+        cockpit_route = (
+            Path(__file__).resolve().parents[2]
+            / "cockpit"
+            / "src"
+            / "app"
+            / "api"
+            / "search"
+            / "route.ts"
+        ).read_text(encoding="utf-8")
+        assert "hit.dense_sim" in cockpit_route
 
         with pytest.raises(ValidationError):
             SearchV2Hit(
@@ -372,11 +410,7 @@ class TestHybridSearchDelegation:
 
         monkeypatch.setattr(endpoint, "_check_retrievable", check)
         monkeypatch.setattr(endpoint, "_retrieve_hybrid_hits", retrieve, raising=False)
-        monkeypatch.setattr(
-            endpoint,
-            "_cache_get",
-            lambda _key: (_ for _ in ()).throw(AssertionError("public cache read")),
-        )
+        assert "_cache" not in inspect.getsource(endpoint.search_v2)
         monkeypatch.setattr(
             endpoint.psycopg,
             "connect",
@@ -535,6 +569,67 @@ class TestHybridSearchDelegation:
             "connection": connection,
         }
 
+    def test_search_sanitizes_failure_through_real_core_and_pg_store(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        endpoint, client = _api_client(monkeypatch)
+        monkeypatch.setattr(endpoint, "_check_retrievable", lambda *_args: {})
+        executed_sql: list[str] = []
+
+        class Cursor:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args: object) -> None:
+                return None
+
+            def execute(self, sql: str, _params: object = None) -> None:
+                executed_sql.append(sql)
+                if "SELECT chunk_id" in sql:
+                    raise RuntimeError(
+                        "SENSITIVE_DSN_SENTINEL SENSITIVE_QUERY_SENTINEL"
+                    )
+
+        class Connection:
+            def cursor(self) -> Cursor:
+                return Cursor()
+
+        class Embedder:
+            def encode(self, _text: str, *, normalize_embeddings: bool):
+                assert normalize_embeddings is True
+                return (1.0,) + (0.0,) * 1023
+
+        @contextmanager
+        def connection_provider(_settings: object):
+            yield Connection()
+
+        monkeypatch.setattr(
+            endpoint,
+            "PoolSettings",
+            SimpleNamespace(from_env=lambda: object()),
+        )
+        monkeypatch.setattr(endpoint, "pool_connection", connection_provider)
+        monkeypatch.setattr(endpoint, "_get_embed_model", lambda: Embedder())
+        monkeypatch.setattr(endpoint, "_get_reranker", lambda: object())
+
+        response = client.post(
+            "/search/v2",
+            headers={"Authorization": "Bearer student-token"},
+            json={
+                "q": "requête extrêmement sensible",
+                "collection": "rag_nexus_nsi_terminale_specialite",
+                "k": 5,
+            },
+        )
+
+        assert response.status_code == 503
+        assert response.json() == {"detail": "retrieval unavailable"}
+        assert len(executed_sql) == 2
+        assert "SENSITIVE_DSN_SENTINEL" not in response.text
+        assert "SENSITIVE_QUERY_SENTINEL" not in response.text
+        assert "requête extrêmement sensible" not in response.text
+
 
 class TestCitedChat:
     @pytest.mark.parametrize(
@@ -670,10 +765,8 @@ class TestCacheGateInvariant:
     stores results from retrievable collections. A quarantined collection
     always hits the gate FIRST and is refused with 403.
 
-    Additionally:
-    - TTL ensures stale entries expire (default 5 min)
-    - invalidate_cache() purges all entries on review_status change
-    - the canonical store excludes non-review statuses before mapping
+    Additionally, invalidate_cache() purges all entries on review_status
+    change and advances a generation barrier before any warmup publication.
     """
 
     def test_gate_before_cache(self) -> None:
@@ -683,30 +776,19 @@ class TestCacheGateInvariant:
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
 
-        from ingestor.retrieval_v2_endpoint import (
-            _cache_key,
-            _cache_put,
-            router,
-        )
+        from ingestor import retrieval_v2_endpoint as endpoint
 
         os.environ.setdefault("RAG_STUDENT_TOKEN", "test-inv-c")
 
         test_app = FastAPI()
-        test_app.include_router(router)
+        test_app.include_router(endpoint.router)
         test_client = TestClient(test_app)
         h = {"Authorization": "Bearer test-inv-c"}
 
         # Even if we artificially stuff the cache with quarantine results,
         # the gate refuses BEFORE the cache is consulted.
-        fake_key = _cache_key("test query", "rag_nexus_quarantine", 5)
-        _cache_put(fake_key, [{"chunk_id": "fake", "doc_id": "fake",
-                               "source_label": "fake", "source_uri": "fake",
-                               "rights": "fake", "type_doc": "fake",
-                               "review_status": "quarantined", "preview": "fake",
-                               "page": None, "dense_score": 0.99,
-                               "lexical_score": None, "rrf_score": 0.01,
-                               "rerank_score": 9.0, "mmr_score": 0.7,
-                               "score_final": 0.99}])
+        fake_key = endpoint._cache_key("test query", "rag_nexus_quarantine", 5)
+        _seed_cache(endpoint, fake_key, [{"chunk_id": "fake"}])
 
         resp = test_client.post("/search/v2", json={
             "q": "test query", "collection": "rag_nexus_quarantine", "k": 5,
@@ -715,39 +797,38 @@ class TestCacheGateInvariant:
 
     def test_invalidation_purges_cache(self) -> None:
         """invalidate_cache() removes all entries."""
-        from ingestor.retrieval_v2_endpoint import (
-            _cache_get,
-            _cache_key,
-            _cache_put,
-            invalidate_cache,
+        from ingestor import retrieval_v2_endpoint as endpoint
+
+        key = endpoint._cache_key("test", "test_col", 5)
+        _seed_cache(endpoint, key, [{"test": "data"}])
+        generation_before = endpoint._cache_generation
+
+        endpoint.invalidate_cache()
+        assert _cache_snapshot(endpoint) == {}
+        assert endpoint._cache_generation == generation_before + 1
+
+    def test_stats_describe_only_the_administrative_warmup_cache(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        endpoint, client = _api_client(monkeypatch)
+        endpoint.invalidate_cache()
+        key = endpoint._cache_key("stats", "col", 5)
+        _seed_cache(endpoint, key, [{"test": "data"}])
+
+        response = client.get(
+            "/cache/v2/stats",
+            headers={"Authorization": "Bearer student-token"},
         )
 
-        key = _cache_key("test", "test_col", 5)
-        _cache_put(key, [{"test": "data"}])
-        assert _cache_get(key) is not None
-
-        invalidate_cache()
-        assert _cache_get(key) is None, "Cache must be empty after invalidation"
-
-    def test_ttl_expires_entries(self) -> None:
-        """Entries expire after TTL seconds."""
-        import time
-        from unittest.mock import patch
-
-        from ingestor.retrieval_v2_endpoint import (
-            _cache_get,
-            _cache_key,
-            _cache_put,
-        )
-
-        key = _cache_key("ttl-test", "col", 5)
-        _cache_put(key, [{"test": "data"}])
-        assert _cache_get(key) is not None
-
-        # Simulate TTL expiration by patching time.monotonic
-        with patch("ingestor.retrieval_v2_endpoint.time.monotonic",
-                    return_value=time.monotonic() + 999):
-            assert _cache_get(key) is None, "Entry must expire after TTL"
+        assert response.status_code == 200
+        assert response.json() == {
+            "enabled": endpoint.CACHE_ENABLED,
+            "ttl_s": endpoint.CACHE_TTL_S,
+            "entries": 1,
+            "generation": endpoint._cache_generation,
+            "public_serving": False,
+        }
 
     def test_public_search_contains_no_direct_sql(self) -> None:
         """Public search contains no direct SQL and delegates after its gate."""
@@ -779,10 +860,9 @@ class TestAtomicHybridWarmup:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         endpoint, client = self._prepare(monkeypatch)
+        generation_before = endpoint._cache_generation
         retrieve = MagicMock(return_value=[_hybrid_hit()])
         monkeypatch.setattr(endpoint, "_retrieve_hybrid_hits", retrieve, raising=False)
-        put = MagicMock(side_effect=AssertionError("warmup must publish one batch"))
-        monkeypatch.setattr(endpoint, "_cache_put", put)
 
         response = client.post(
             "/cache/v2/warmup",
@@ -799,7 +879,7 @@ class TestAtomicHybridWarmup:
             call(query, "rag_nexus_nsi_terminale_specialite", 5)
             for query in endpoint.WARMUP_QUERIES
         ]
-        assert put.call_count == 0
+        assert endpoint._cache_generation == generation_before
         with endpoint._cache_lock:
             assert len(endpoint._cache) == len(endpoint.WARMUP_QUERIES)
             timestamps = {timestamp for _, timestamp in endpoint._cache.values()}
@@ -820,8 +900,8 @@ class TestAtomicHybridWarmup:
     ) -> None:
         endpoint, client = self._prepare(monkeypatch)
         prior_key = endpoint._cache_key("déjà valide", "collection-prior", 5)
-        endpoint._cache_put(prior_key, [{"prior": ["unchanged"]}])
-        before = copy.deepcopy(endpoint._cache)
+        _seed_cache(endpoint, prior_key, [{"prior": ["unchanged"]}])
+        before = _cache_snapshot(endpoint)
         attempts = 0
 
         def retrieve(*_args: object):
@@ -834,8 +914,6 @@ class TestAtomicHybridWarmup:
             return [_hybrid_hit()]
 
         monkeypatch.setattr(endpoint, "_retrieve_hybrid_hits", retrieve, raising=False)
-        put = MagicMock(side_effect=AssertionError("partial cache publication"))
-        monkeypatch.setattr(endpoint, "_cache_put", put)
 
         response = client.post(
             "/cache/v2/warmup",
@@ -848,10 +926,9 @@ class TestAtomicHybridWarmup:
         assert "SENSITIVE_QUERY_SENTINEL" not in response.text
         assert stage not in response.text
         assert attempts == 2
-        assert put.call_count == 0
-        assert endpoint._cache == before
+        assert _cache_snapshot(endpoint) == before
 
-    def test_warmup_skips_existing_valid_cache_key(
+    def test_warmup_recomputes_and_replaces_every_target_key(
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -862,7 +939,7 @@ class TestAtomicHybridWarmup:
             "rag_nexus_nsi_terminale_specialite",
             5,
         )
-        endpoint._cache_put(key, [{"existing": True}])
+        _seed_cache(endpoint, key, [{"existing": True}])
         retrieve = MagicMock(return_value=[])
         monkeypatch.setattr(endpoint, "_retrieve_hybrid_hits", retrieve, raising=False)
 
@@ -876,8 +953,49 @@ class TestAtomicHybridWarmup:
             first_query,
             "rag_nexus_nsi_terminale_specialite",
             5,
-        ) not in retrieve.call_args_list
-        assert endpoint._cache[key][0] == [{"existing": True}]
+        ) in retrieve.call_args_list
+        assert key not in _cache_snapshot(endpoint)
+
+    def test_invalidation_during_warmup_prevents_stale_republication(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        endpoint, client = self._prepare(monkeypatch)
+        prior_key = endpoint._cache_key("prior", "prior-collection", 5)
+        _seed_cache(endpoint, prior_key, [{"stale": True}])
+        generation_before = endpoint._cache_generation
+        started = threading.Event()
+        release = threading.Event()
+        responses: list[object] = []
+
+        def retrieve(*_args: object):
+            if not started.is_set():
+                started.set()
+                assert release.wait(timeout=5)
+            return [_hybrid_hit()]
+
+        monkeypatch.setattr(endpoint, "_retrieve_hybrid_hits", retrieve, raising=False)
+
+        worker = threading.Thread(
+            target=lambda: responses.append(
+                client.post(
+                    "/cache/v2/warmup",
+                    headers={"Authorization": "Bearer admin-token"},
+                )
+            )
+        )
+        worker.start()
+        assert started.wait(timeout=5)
+        assert endpoint.invalidate_cache() == 1
+        assert endpoint._cache_generation == generation_before + 1
+        release.set()
+        worker.join(timeout=10)
+
+        assert not worker.is_alive()
+        assert len(responses) == 1
+        assert responses[0].status_code == 503
+        assert responses[0].json() == {"detail": "retrieval unavailable"}
+        assert _cache_snapshot(endpoint) == {}
 
     def test_warmup_fails_closed_on_unresolvable_instantiated_collection(
         self,
@@ -885,8 +1003,8 @@ class TestAtomicHybridWarmup:
     ) -> None:
         endpoint, client = self._prepare(monkeypatch)
         prior_key = endpoint._cache_key("prior", "prior-collection", 5)
-        endpoint._cache_put(prior_key, [{"unchanged": True}])
-        before = copy.deepcopy(endpoint._cache)
+        _seed_cache(endpoint, prior_key, [{"unchanged": True}])
+        before = _cache_snapshot(endpoint)
         monkeypatch.setattr(
             endpoint,
             "resolve_collection_v2",
@@ -905,5 +1023,5 @@ class TestAtomicHybridWarmup:
         assert response.status_code == 503
         assert response.json() == {"detail": "retrieval unavailable"}
         assert "SENSITIVE_CONFIG_SENTINEL" not in response.text
-        assert endpoint._cache == before
+        assert _cache_snapshot(endpoint) == before
         retrieve.assert_not_called()
