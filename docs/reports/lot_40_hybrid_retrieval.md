@@ -53,9 +53,15 @@ LOT40 fournit dans `rag-engine` :
 - aucune génération OpenRouter ;
 - aucune suppression des chemins historiques encore utilisés.
 
-La base d'intégration ne contient qu'une fixture synthétique, dont 45 000
-lignes cibles complétées par des cas hors collection ou non revus. Elle ne
-constitue pas une preuve de qualité d'un corpus pédagogique réel.
+La base d'intégration ne contient qu'une fixture synthétique. `TARGET_SCALE`
+vaut nominalement 45 000, mais l'univers cible admissible réellement inséré
+compte 45 002 lignes : 82 seeds et 44 920 lignes bulk. S'y ajoutent exactement
+4 500 lignes `needs_review`, 3 lignes à provenance incomplète et 6 750 lignes
+hors collection, soit un sous-total de charge de 56 255 lignes. Enfin, les
+collections auxiliaires ajoutent 260 lignes — 52 d'égalité, 205 d'égalité de
+débordement et 3 de petit corpus — pour un total réel de 56 515 lignes insérées.
+Cette fixture ne constitue pas une preuve de qualité d'un corpus pédagogique
+réel.
 
 ## Artefacts de migration et image OCI
 
