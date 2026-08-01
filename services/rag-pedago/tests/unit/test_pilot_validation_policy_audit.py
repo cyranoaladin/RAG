@@ -123,6 +123,17 @@ def _copy_isolated_service(tmp_path: Path) -> Path:
     return isolated
 
 
+def _copy_uncached_pyyaml(tmp_path: Path) -> Path:
+    yaml_package = Path(yaml.__file__).resolve().parent
+    third_party = tmp_path / "third-party"
+    shutil.copytree(
+        yaml_package,
+        third_party / "yaml",
+        ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+    )
+    return third_party
+
+
 class TestCanonicalAudit:
     def test_cli_without_arguments_is_byte_stable_and_dormant(self, tmp_path: Path) -> None:
         first = _run_cli()
@@ -216,6 +227,58 @@ class TestCanonicalAudit:
         assert result.returncode != 0
         assert "PILOT_VALIDATION_AUDIT_ERROR:" in result.stderr
         assert "GO_LIVE: NO_GO" in result.stdout
+        assert "Traceback" not in result.stdout + result.stderr
+
+    @pytest.mark.parametrize("optimized", [False, True], ids=["normal", "optimized"])
+    @pytest.mark.parametrize(
+        ("option", "source", "canonical_line", "duplicated_lines"),
+        [
+            (
+                "--scope",
+                SCOPE,
+                "scope_id: libre_terminale_maths_nsi_real_v1",
+                "scope_id: intrus\nscope_id: libre_terminale_maths_nsi_real_v1",
+            ),
+            (
+                "--policy",
+                POLICY,
+                "  validation_pipeline_allowed: false",
+                "  validation_pipeline_allowed: true\n"
+                "  validation_pipeline_allowed: false",
+            ),
+            (
+                "--public-contract",
+                PUBLIC_CONTRACT,
+                "ui_runtime_allowed: false",
+                "ui_runtime_allowed: true\nui_runtime_allowed: false",
+            ),
+        ],
+        ids=["scope", "policy", "public-contract"],
+    )
+    def test_contradictory_duplicate_yaml_key_fails_closed(
+        self,
+        tmp_path: Path,
+        optimized: bool,
+        option: str,
+        source: Path,
+        canonical_line: str,
+        duplicated_lines: str,
+    ) -> None:
+        canonical = source.read_text(encoding="utf-8")
+        assert canonical.count(canonical_line) == 1
+        duplicate = tmp_path / source.name
+        duplicate.write_text(
+            canonical.replace(canonical_line, duplicated_lines, 1),
+            encoding="utf-8",
+        )
+
+        result = _run_cli(option, str(duplicate), optimized=optimized)
+
+        assert result.returncode != 0
+        assert result.stdout.endswith("- GO_LIVE: NO_GO\n")
+        assert result.stderr == (
+            "PILOT_VALIDATION_AUDIT_ERROR: invalid_configuration_or_path\n"
+        )
         assert "Traceback" not in result.stdout + result.stderr
 
     def test_declared_taxonomy_digest_derivation_is_refuted(self, tmp_path: Path) -> None:
@@ -442,6 +505,27 @@ class TestAuditSideEffects:
         assert result.stderr == ""
         assert secret not in result.stdout + result.stderr
         assert _tree_snapshot(isolated) == before
+
+    def test_cli_creates_no_bytecode_in_an_uncached_third_party_package(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        third_party = _copy_uncached_pyyaml(tmp_path)
+        before = _tree_snapshot(third_party)
+
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT)],
+            cwd=tmp_path,
+            env={"PYTHONPATH": str(third_party)},
+            capture_output=True,
+            check=False,
+            text=True,
+        )
+
+        assert result.returncode == 0
+        assert result.stdout == EXPECTED_OUTPUT
+        assert result.stderr == ""
+        assert _tree_snapshot(third_party) == before
 
     def test_modified_taxonomy_bytes_are_refuted_without_side_effect(
         self,
