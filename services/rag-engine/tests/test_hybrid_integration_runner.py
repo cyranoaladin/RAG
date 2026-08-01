@@ -799,6 +799,7 @@ def test_runner_invokes_only_the_lot40_real_pgvector_module() -> None:
     assert 'PYTEST_BIN="${NEXUS_RAG_ENGINE_PYTEST:-' in content
     assert 'LOT40_PG_DSN="$LOT40_PG_DSN"' in content
     assert 'LOT40_PG_ADMIN_DSN="$LOT40_PG_ADMIN_DSN"' in content
+    assert 'LOT41_PG_REVIEW_DSN="$LOT41_PG_REVIEW_DSN"' in content
 
 
 def test_real_module_explains_the_exact_production_lexical_sql() -> None:
@@ -807,4 +808,4 @@ def test_real_module_explains_the_exact_production_lexical_sql() -> None:
     assert "_DENSE_SQL," in content
     assert "_LEXICAL_SQL," in content
     assert "PgCandidateStore," in content
-    assert "(QUERY, TARGET_COLLECTION, 50)," in content
+    assert "(QUERY, *_scope_sql_params(TARGET_COLLECTION), 50)," in content

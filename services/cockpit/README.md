@@ -39,6 +39,10 @@ mémoire exige simultanément `NODE_ENV=test`,
 `NEXUS_SESSION_MEMORY_STORE_FOR_TESTS=true` ; il est interdit en production et
 en validation.
 
+`RAG_ENGINE_INTERNAL_TOKEN` doit être exactement la valeur configurée comme
+`RAG_BFF_SERVICE_TOKEN` dans `rag-engine`, et rester distinct de tous les
+jetons de rôle humains.
+
 ## Sécurité des dépendances Next.js
 
 Next.js est verrouillé sur la version stable `16.2.12`. Les overrides exacts

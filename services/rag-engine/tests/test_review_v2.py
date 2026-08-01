@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -163,16 +165,14 @@ class TestGovernanceInvariant:
             ReviewDecision(target_id="x", decision="needs_review")  # type: ignore[arg-type]
 
     def test_sql_only_updates_needs_review(self) -> None:
-        """The UPDATE only touches chunks WHERE review_status = 'needs_review'.
-
-        A chunk already reviewed cannot be re-reviewed or un-reviewed via this endpoint.
-        """
+        """La transition est bornée par une liste d'états source paramétrée."""
         import inspect
 
         from ingestor.review_v2_endpoint import review_decide
         source = inspect.getsource(review_decide)
-        assert "WHERE review_status = 'needs_review'" in source or \
-               "review_status = 'needs_review'" in source
+        assert "review_status = ANY(%s::text[])" in source
+        assert '["needs_review"]' in source
+        assert '["needs_review", "reviewed"]' in source
 
     def test_cache_invalidated_on_decision(self) -> None:
         """Review decisions must invalidate the retrieval cache."""
@@ -183,14 +183,14 @@ class TestGovernanceInvariant:
         assert "invalidate_cache" in source
 
     def test_reviewer_token_required_for_decide(self) -> None:
-        """D-AGENT-NEEDS-REVIEW enforced by code: ingestion token rejected."""
+        """D-AGENT-NEEDS-REVIEW exige le BFF et l'identité signée."""
         import inspect
 
-        from ingestor.review_v2_endpoint import _enforce_reviewer_security
-        source = inspect.getsource(_enforce_reviewer_security)
-        # Must check REVIEWER_API_TOKEN (distinct from INGESTOR_API_TOKEN)
-        assert "require_role" in source
-        assert "SecurityRole.REVIEWER" in source or "reviewer" in source.lower()
+        from ingestor.review_v2_endpoint import _require_review_identity
+        source = inspect.getsource(_require_review_identity)
+        assert "require_bff_service" in source
+        assert "require_internal_identity" in source
+        assert "_REVIEW_ROLES" in source
 
     def test_reviewer_token_fail_closed(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """If admin/reviewer tokens are not set, review decisions are blocked."""
@@ -206,16 +206,23 @@ class TestGovernanceInvariant:
         assert response.status_code == 503
 
     def test_ingestor_token_cannot_decide(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """An ingest_agent token must never authorize review decisions."""
-        _clear_role_tokens(monkeypatch)
-        monkeypatch.setenv("RAG_REVIEWER_TOKEN", "reviewer-token")
-        monkeypatch.setenv("INGESTOR_API_TOKEN", "ingestor-token")
-        client = _review_client()
+        """Une identité signée ingest_agent ne peut jamais décider."""
+        from ingestor import review_v2_endpoint as review
 
-        response = client.post(
-            "/review/v2/decide",
-            json=_review_payload(),
-            headers=_auth_headers("ingestor-token"),
+        monkeypatch.setattr(review, "require_bff_service", lambda *_a, **_k: None)
+        monkeypatch.setattr(
+            review,
+            "require_internal_identity",
+            lambda *_a, **_k: SimpleNamespace(
+                envelope=SimpleNamespace(
+                    identity=SimpleNamespace(role="ingest_agent")
+                )
+            ),
         )
 
-        assert response.status_code == 403
+        with pytest.raises(HTTPException) as exc_info:
+            review._require_review_identity(
+                MagicMock(),
+                endpoint="/review/v2/decide",
+            )
+        assert getattr(exc_info.value, "status_code", None) == 403

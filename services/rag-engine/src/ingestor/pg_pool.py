@@ -50,9 +50,7 @@ class PoolSettings:
 
     @classmethod
     def from_env(cls) -> PoolSettings:
-        primary_dsn = os.getenv("PG_RAG_DSN", "").strip()
-        fallback_dsn = os.getenv("DATABASE_URL_SYNC", "").strip()
-        dsn = primary_dsn or fallback_dsn
+        dsn = os.getenv("PG_RAG_DSN", "").strip()
         if not dsn:
             raise PoolConfigurationError("DSN PostgreSQL requis pour le pool.")
 

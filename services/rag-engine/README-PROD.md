@@ -15,6 +15,8 @@ Securite admin Lot 19 follow-up : `RAG_ENV=production` doit etre explicite dans 
 - Ubuntu 22.04/24.04, accès sudo, ports 80/443 ouverts, DNS des domaines pointés sur le VPS.
 - Docker Engine ≥ 24.0 + plugin Compose ≥ 2.24 (`docker compose version`).
 - Cloner le repo et copier `infra/.env.example` vers `infra/.env`, puis éditer `RAG_UI_EXTERNAL_DOMAIN`, `RAG_API_EXTERNAL_DOMAIN`, `NGINX_API_PORT`, `RAG_ENV=production`, `RAG_ENGINE_CONFIG_DIR=/app/configs`, `RAG_CONFIGS_HOST_DIR` si le compose n'est pas execute depuis `services/rag-engine/infra`, `LEGACY_ADMIN_API_TOKEN`, les tokens v2 par role (`RAG_ADMIN_TOKEN`, `RAG_REVIEWER_TOKEN`, `REVIEWER_API_TOKEN`, `RAG_TEACHER_TOKEN`, `RAG_INGEST_AGENT_TOKEN`, `INGESTOR_API_TOKEN`, `INGEST_AUTH_TOKEN`, `RAG_STUDENT_TOKEN`), et `INGESTOR_TRUSTED_PROXY_CIDRS` si `INGESTOR_IP_ALLOWLIST` doit lire `X-Forwarded-For` derriere un reverse proxy de confiance. Les compose prod, par defaut et v2 (`make v2-up`) transmettent ces variables au conteneur `ingestor`.
+- Le retrieval LOT41 exige aussi `RAG_BFF_SERVICE_TOKEN`, `NEXUS_INTERNAL_TOKEN_SECRET`, `NEXUS_INTERNAL_TOKEN_ISSUER`, `NEXUS_INTERNAL_TOKEN_AUDIENCE`, `NEXUS_SSO_ISSUER` et `NEXUS_SSO_AUDIENCE`. `RAG_BFF_SERVICE_TOKEN` doit être identique à `RAG_ENGINE_INTERNAL_TOKEN` côté Cockpit, tout en restant distinct de tous les jetons humains.
+- Fournir deux identifiants PostgreSQL runtime distincts : `PG_RAG_DSN` pour un rôle strictement `SELECT` et `PG_REVIEW_DSN` pour un rôle limité à `SELECT` plus `UPDATE(review_status)`. Le moteur refuse de retomber sur `DATABASE_URL_SYNC`, réservé au propriétaire et aux migrations.
 
 ## Secrets à générer
 | Nom | Longueur conseillée | Usage | Où le renseigner |

@@ -8,6 +8,7 @@ import os
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import psycopg
@@ -17,6 +18,7 @@ from fastapi.testclient import TestClient
 from nexus_contracts import Rights
 
 from ingestor import retrieval_v2_endpoint as endpoint
+from ingestor import review_v2_endpoint as review_endpoint
 from ingestor.pg_pool import close_pool
 from ingestor.retrieval_hybrid_v2 import (
     EMBED_DIMENSION,
@@ -36,9 +38,10 @@ pytestmark = pytest.mark.integration
 
 APP_DSN = os.environ.get("LOT40_PG_DSN", "").strip()
 ADMIN_DSN = os.environ.get("LOT40_PG_ADMIN_DSN", "").strip()
-if not APP_DSN or not ADMIN_DSN:
+REVIEW_DSN = os.environ.get("LOT41_PG_REVIEW_DSN", "").strip()
+if not APP_DSN or not ADMIN_DSN or not REVIEW_DSN:
     pytest.skip(
-        "LOT40_PG_DSN et LOT40_PG_ADMIN_DSN requis par le runner ephemere LOT40",
+        "DSN applicatif, admin et review requis par le runner ephemere",
         allow_module_level=True,
     )
 
@@ -47,6 +50,11 @@ TARGET_COLLECTION = "lot40_target"
 TIE_COLLECTION = "lot40_ties"
 OVERFLOW_TIE_COLLECTION = "lot40_ties_overflow"
 SMALL_COLLECTION = "lot40_small"
+MATRIX_COLLECTIONS = {
+    "maths": "rag_nexus_maths_terminale_gen_specialite",
+    "nsi": "rag_nexus_nsi_terminale_specialite",
+}
+MATRIX_CANDIDATES = ("individuel", "libre", "cned_libre")
 TARGET_SCALE = 45000
 QUERY = "algorithme graphe"
 QUERY_VECTOR = (1.0,) + (0.0,) * (EMBED_DIMENSION - 1)
@@ -61,14 +69,19 @@ SCHOOL_YEAR = "2026-2027"
 PROGRAMME_VERSION = "BOEN_special_8_2019-07-25"
 
 
-def _scope(collection: str) -> ServerRetrievalScope:
+def _scope(
+    collection: str,
+    *,
+    candidat: str = CANDIDAT,
+    matiere: str = "nsi",
+) -> ServerRetrievalScope:
     return ServerRetrievalScope(
         tenant=TENANT,
         niveau="terminale",
         voie=VOIE,
-        matiere="nsi",
+        matiere=matiere,
         statut_enseignement=STATUT_ENSEIGNEMENT,
-        candidat=CANDIDAT,
+        candidat=candidat,
         audiences=("libre", "tous"),
         rights=(Rights.usage_interne,),
         visibilities=(VISIBILITY,),
@@ -291,6 +304,14 @@ def _seed_rows() -> list[tuple[object, ...]]:
                 text="algorithme graphe canari programme",
                 programme_version="version-invalide-pour-le-scope",
             ),
+            _row(
+                "review-idor-outside",
+                collection=TARGET_COLLECTION,
+                vector=_vector(1.0),
+                text="algorithme graphe cible IDOR hors tenant",
+                review_status="needs_review",
+                tenant="aefe_terminale",
+            ),
         ]
     )
 
@@ -365,6 +386,18 @@ def _seed_rows() -> list[tuple[object, ...]]:
                 text="algorithme graphe petit corpus",
             )
         )
+    for matiere, collection in MATRIX_COLLECTIONS.items():
+        for candidat in MATRIX_CANDIDATES:
+            rows.append(
+                _row(
+                    f"matrix-{matiere}-{candidat}",
+                    collection=collection,
+                    vector=_vector(1.0),
+                    text="algorithme graphe matrice scope pedagogique",
+                    matiere=matiere,
+                    candidat=candidat,
+                )
+            )
     return rows
 
 
@@ -589,6 +622,39 @@ def test_application_role_is_non_superuser_and_select_only() -> None:
     print("APP_ROLE_NON_SUPERUSER_SELECT_ONLY=PASS")
 
 
+def test_review_role_can_only_select_and_update_review_status() -> None:
+    with psycopg.connect(REVIEW_DSN, autocommit=True) as connection:
+        role = connection.execute(
+            """
+            SELECT current_user, rolsuper, rolcreatedb, rolcreaterole,
+                   rolreplication, rolbypassrls
+            FROM pg_roles
+            WHERE rolname = current_user
+            """
+        ).fetchone()
+        assert role == ("lot41_review", False, False, False, False, False)
+        privileges = connection.execute(
+            """
+            SELECT
+              has_table_privilege(current_user, 'public.rag_chunks', 'SELECT'),
+              has_table_privilege(current_user, 'public.rag_chunks', 'INSERT'),
+              has_table_privilege(current_user, 'public.rag_chunks', 'DELETE'),
+              has_table_privilege(current_user, 'public.rag_chunks', 'TRUNCATE'),
+              has_column_privilege(
+                  current_user, 'public.rag_chunks', 'review_status', 'UPDATE'
+              ),
+              has_column_privilege(
+                  current_user, 'public.rag_chunks', 'text', 'UPDATE'
+              ),
+              pg_has_role(current_user, tableowner, 'USAGE')
+            FROM pg_tables
+            WHERE schemaname = 'public' AND tablename = 'rag_chunks'
+            """
+        ).fetchone()
+        assert privileges == (True, False, False, False, True, False, False)
+    print("REVIEW_ROLE_COLUMN_LEVEL_UPDATE_ONLY=PASS")
+
+
 def test_schema_registry_and_real_migration_objects_are_exact() -> None:
     expected = {
         1: (
@@ -664,6 +730,33 @@ def test_equal_score_rank_50_is_deterministic_in_both_channels() -> None:
         )
     print("RANK_50_DETERMINISTIC=PASS")
     print("HNSW_TIE_SENTINEL_OVERFLOW_FAIL_CLOSED=PASS")
+
+
+@pytest.mark.parametrize("matiere", sorted(MATRIX_COLLECTIONS))
+@pytest.mark.parametrize("candidat", MATRIX_CANDIDATES)
+def test_candidate_by_subject_scope_matrix_is_real(
+    matiere: str,
+    candidat: str,
+) -> None:
+    collection = MATRIX_COLLECTIONS[matiere]
+    scope = _scope(collection, candidat=candidat, matiere=matiere)
+    store = PgCandidateStore(_app_store_connection, scope)
+    expected = f"matrix-{matiere}-{candidat}"
+
+    dense = store.dense(
+        query_vector=QUERY_VECTOR,
+        collection=collection,
+        limit=5,
+    )
+    lexical = store.lexical(
+        raw_query=QUERY,
+        collection=collection,
+        limit=5,
+    )
+
+    _assert_ids([candidate.chunk_id for candidate in dense], [expected])
+    _assert_ids([candidate.chunk_id for candidate in lexical], [expected])
+    print(f"SCOPE_MATRIX_{matiere.upper()}_{candidat.upper()}=PASS")
 
 
 def test_real_gin_and_hnsw_plans_filters_top_50_and_local_scope() -> None:
@@ -1087,3 +1180,84 @@ def test_http_chat_is_locked_with_zero_or_real_hits_and_never_calls_network(
     client.close()
     close_pool()
     print("HTTP_CHAT_LOCKED=PASS")
+
+
+def test_review_idor_promotion_revocation_and_no_reactivation_are_real(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    verified = SimpleNamespace(scope_digest="a" * 64)
+    monkeypatch.setattr(
+        review_endpoint,
+        "_require_review_identity",
+        lambda *_args, **_kwargs: verified,
+    )
+    monkeypatch.setattr(
+        review_endpoint,
+        "_load_review_scopes",
+        lambda *_args, **_kwargs: (_scope(TARGET_COLLECTION),),
+    )
+    monkeypatch.setattr(review_endpoint, "_get_pg_dsn", lambda: REVIEW_DSN)
+    app = FastAPI()
+    app.include_router(review_endpoint.router)
+    client = TestClient(app)
+
+    idor_target = "doc-review-idor-outside"
+    idor = client.post(
+        "/review/v2/decide",
+        json={
+            "target_type": "doc",
+            "target_id": idor_target,
+            "decision": "reviewed",
+        },
+    )
+    assert idor.status_code == 404
+    assert idor.json() == {"detail": "review target unavailable"}
+    assert idor_target not in idor.text
+    with psycopg.connect(ADMIN_DSN) as connection:
+        assert connection.execute(
+            "SELECT review_status FROM rag_chunks WHERE chunk_id = %s",
+            ("review-idor-outside",),
+        ).fetchone()[0] == "needs_review"
+
+    target = "doc-pending-000"
+    promoted = client.post(
+        "/review/v2/decide",
+        json={
+            "target_type": "doc",
+            "target_id": target,
+            "decision": "reviewed",
+        },
+    )
+    assert promoted.status_code == 200, promoted.text
+    assert promoted.json()["chunks_affected"] == 1
+    assert promoted.json()["max_stale_other_workers_s"] == 0
+
+    revoked = client.post(
+        "/review/v2/decide",
+        json={
+            "target_type": "doc",
+            "target_id": target,
+            "decision": "quarantined",
+        },
+    )
+    assert revoked.status_code == 200, revoked.text
+    assert revoked.json()["chunks_affected"] == 1
+
+    reactivation = client.post(
+        "/review/v2/decide",
+        json={
+            "target_type": "doc",
+            "target_id": target,
+            "decision": "reviewed",
+        },
+    )
+    assert reactivation.status_code == 404
+    assert reactivation.json() == {"detail": "review target unavailable"}
+    with psycopg.connect(ADMIN_DSN) as connection:
+        assert connection.execute(
+            "SELECT review_status FROM rag_chunks WHERE chunk_id = %s",
+            ("pending-000",),
+        ).fetchone()[0] == "quarantined"
+
+    client.close()
+    print("REVIEW_SCOPED_IDOR_AND_REVOCATION=PASS")

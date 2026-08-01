@@ -333,7 +333,7 @@ def test_cli_top_k_bounds_are_argparse_errors_before_pool_cleanup(
     close.assert_not_called()
 
 
-def test_main_uses_primary_dsn_then_sync_fallback(
+def test_main_uses_retrieval_dsn_and_refuses_owner_fallback(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -349,8 +349,9 @@ def test_main_uses_primary_dsn_then_sync_fallback(
 
     seen.clear()
     monkeypatch.delenv("PG_RAG_DSN")
-    assert cli.main(_argv()) == 0
-    assert seen == ["postgresql://fallback@localhost/rag"]
+    assert cli.main(_argv()) == 1
+    assert seen == []
+    assert capsys.readouterr().err == "Error: hybrid retrieval unavailable\n"
 
 
 def test_main_runs_gate_before_settings_and_search_resources(
