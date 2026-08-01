@@ -96,6 +96,11 @@ divergence de `scope_id`, digest, projection d'identité ou liste de
 collections ; `allowed_collections` doit être exactement la liste ordonnée des
 collections de l'artefact.
 
+Le scope effectif d'une session est ensuite l'intersection, dans l'ordre de
+l'artefact, entre ces collections et les matières présentes dans le profil
+signé. Le catalogue, la readiness, la review et le retrieval ne peuvent donc
+élargir une identité mono-matière au second sujet du pilote.
+
 L'artefact permet au cockpit et au moteur de partager le scope sans importer
 le code de `rag-pedago` ni lire ses fichiers au runtime. Les tests du package
 restent autorisés à comparer l'artefact au YAML versionné afin de prouver la
@@ -120,10 +125,18 @@ qui acceptent un profil, un token de test ou des filtres contournables doivent
 ne peut contourner l'enveloppe 0.4.0.
 
 Les diagnostics de readiness sont eux-mêmes protégés par le credential BFF et
-l'enveloppe signée, puis bornés aux collections de cette enveloppe. La présence
-ou le nombre de lignes `reviewed` n'est jamais assimilé à une preuve de
-substance : LOT41 maintient `launch_ready=false` jusqu'à la preuve exhaustive
-de release des lots d'évaluation et de promotion.
+l'enveloppe signée, puis bornés aux collections effectives de cette enveloppe.
+Ils peuvent construire le scope d'une collection déclarée mais dormante afin
+d'en montrer les bloqueurs, sans franchir le gate `instanciee: true` exigé par
+la recherche. La présence ou le nombre de lignes `reviewed` n'est jamais
+assimilé à une preuve de substance : LOT41 maintient `launch_ready=false`
+jusqu'à la preuve exhaustive de release des lots d'évaluation et de promotion.
+
+La déconnexion serveur NextAuth produit une révocation partagée indexée par
+`jti`, `sub` et tenant. Le même `jti` est refusé ensuite par le BFF et le
+vérificateur SSO, tandis qu'une nouvelle authentification portant un nouveau
+`jti` reste possible. La durée de révocation est au moins égale à la durée
+maximale du cookie serveur. Une indisponibilité de Redis ferme la frontière.
 
 ## Conséquences
 

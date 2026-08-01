@@ -38,16 +38,22 @@ Une absence de Redis ou une erreur du store ferme l'authentification. Le mode
 mémoire exige simultanément `NODE_ENV=test`,
 `NEXUS_SESSION_STORE_MODE=memory` et
 `NEXUS_SESSION_MEMORY_STORE_FOR_TESTS=true` ; il est interdit en production et
-en validation.
+en validation. La déconnexion NextAuth inscrit le `jti` de la session dans ce
+store ; les endpoints BFF et le vérificateur SSO refusent ensuite ce jeton. La
+durée de révocation ne peut pas être configurée sous la durée maximale du
+cookie serveur, fixée à 3 600 secondes.
 
 `RAG_ENGINE_INTERNAL_TOKEN` doit être exactement la valeur configurée comme
 `RAG_BFF_SERVICE_TOKEN` dans `rag-engine`, et rester distinct de tous les
 jetons de rôle humains.
 
-Les routes BFF search, chat et collections transmettent aussi l'enveloppe
-d'identité signée à la readiness du moteur. Celle-ci ne porte que sur les
-collections du scope signé et reste fermée tant qu'une preuve exhaustive de
-release n'a pas été validée ; un simple nombre de chunks ne peut pas l'ouvrir.
+Les routes BFF search, chat et collections ne retiennent que les collections
+dont la matière figure dans le profil signé. Elles transmettent l'enveloppe
+d'identité à la readiness du moteur. Celle-ci peut diagnostiquer une collection
+déclarée mais dormante sans l'autoriser au retrieval et reste fermée tant
+qu'une preuve exhaustive de release n'a pas été validée ; un simple nombre de
+chunks ne peut pas l'ouvrir. Si le moteur est indisponible, le catalogue BFF est
+vide : aucun catalogue statique potentiellement hors profil n'est exposé.
 
 ## Sécurité des dépendances Next.js
 
