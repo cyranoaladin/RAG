@@ -502,11 +502,11 @@ def _mutate_query(root: Path, subject: str, mutation) -> None:  # noqa: ANN001
 
 
 class TestCanonicalSpecification:
-    def test_canonical_specification_is_technical_valid_but_human_pending(self) -> None:
+    def test_canonical_specification_and_human_review_are_valid(self) -> None:
         result = _audit(SERVICE_ROOT)
 
         assert result.specification_verdict == "SPECIFICATION_VALID"
-        assert result.human_review_verdict == "HUMAN_REVIEW_PENDING"
+        assert result.human_review_verdict == "HUMAN_REVIEW_APPROVED"
         assert result.lock_verdict == "LOCK_VALID"
         assert result.query_count == 255
         assert result.specification_digest is not None
@@ -525,8 +525,26 @@ class TestCanonicalSpecification:
         assert payload["thresholds"] == EXPECTED_THRESHOLDS
         assert payload["normative_files"] == list(NORMATIVE_FILES)
 
-    def test_pending_review_contains_no_false_attestation(self) -> None:
-        assert _load_yaml(REVIEW) == _review_document()
+    def test_approved_review_records_exact_external_evidence(self) -> None:
+        review = _load_yaml(REVIEW)
+        normative_state = pilot_golden.compute_normative_state(
+            SERVICE_ROOT,
+            NORMATIVE_FILES,
+        )
+
+        assert review["status"] == "approved"
+        assert review["reviewed_query_count"] == 255
+        assert review["all_query_texts_reviewed"] is True
+        assert review["all_expected_judgments_reviewed"] is True
+        assert review["reviewer_identity"] == "Alaeddine BEN RHOUMA (@abenrhouma)"
+        assert review["reviewer_role"] == "responsable pédagogique"
+        assert (
+            review["reviewed_specification_digest"]
+            == normative_state.specification_digest
+        )
+        assert review["evidence_ref"] == EVIDENCE_REF
+        assert review["evidence_sha256"] == sha256(EVIDENCE.read_bytes()).hexdigest()
+        assert review["reviewed_at"].isoformat() == "2026-08-01T07:34:20+00:00"
 
     def test_normative_digest_is_deterministic_and_addresses_every_file(
         self,
@@ -1410,20 +1428,13 @@ class TestManifestScopeThresholdsAndPaths:
 
 
 class TestHumanReviewVerdict:
-    def test_pending_packet_status_transforms_to_exact_unique_approval(self) -> None:
+    def test_canonical_packet_contains_exact_unique_approval_status(self) -> None:
         content = EVIDENCE.read_text(encoding="utf-8")
-        pending_line = "> **Statut : PENDING — revue humaine exhaustive.**"
         approved_line = "> **Statut : APPROVED — revue humaine exhaustive.**"
 
         assert [line for line in content.splitlines() if "**Statut :" in line] == [
-            pending_line
+            approved_line
         ]
-
-        transformed = content.replace(pending_line, approved_line, 1)
-
-        assert [
-            line for line in transformed.splitlines() if "**Statut :" in line
-        ] == [approved_line]
 
     def test_pending_review_is_valid_state_but_not_an_approval(self, tmp_path: Path) -> None:
         result = _audit(_isolated_service(tmp_path))
@@ -1464,6 +1475,32 @@ class TestHumanReviewVerdict:
         ).specification_digest
         evidence = _write_review_packet(root, digest)
         _approve_review(root, evidence, digest)
+
+        result = _audit(root)
+
+        assert result.human_review_verdict == "HUMAN_REVIEW_APPROVED"
+        assert "human_review.approval_invalid" not in result.reasons
+
+    def test_complete_external_approval_accepts_declared_human_role(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        root = _isolated_service(tmp_path)
+        digest = pilot_golden.compute_normative_state(
+            root,
+            NORMATIVE_FILES,
+        ).specification_digest
+        evidence = _write_review_packet(
+            root,
+            digest,
+            reviewer_role="responsable pédagogique",
+        )
+        _approve_review(
+            root,
+            evidence,
+            digest,
+            reviewer_role="responsable pédagogique",
+        )
 
         result = _audit(root)
 
@@ -1832,8 +1869,8 @@ class TestDiagnosticSurface:
         status = module.main([])
         captured = capsys.readouterr()
 
-        assert status == 3
+        assert status == 0
         assert "SPECIFICATION_VALID" in captured.out
-        assert "HUMAN_REVIEW_PENDING" in captured.out
+        assert "HUMAN_REVIEW_APPROVED" in captured.out
         assert "GO_LIVE: NO_GO" in captured.out
         assert captured.err == ""

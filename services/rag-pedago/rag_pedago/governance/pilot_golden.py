@@ -1684,7 +1684,7 @@ def _human_review_verdict(
         and review.all_expected_judgments_reviewed is True
         and isinstance(review.reviewer_identity, str)
         and bool(review.reviewer_identity.strip())
-        and review.reviewer_role == "lead"
+        and _filled_proof_reference(review.reviewer_role)
         and specification_digest is not None
         and review.reviewed_specification_digest == specification_digest
         and evidence_is_valid

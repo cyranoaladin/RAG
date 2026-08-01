@@ -1,14 +1,14 @@
 schema_version: 1
 review_id: lot39bis_golden_human_review_v1
 spec_id: libre_terminale_golden_spec_v1
-status: pending
+status: approved
 expected_query_count: 255
-reviewed_query_count: 0
-all_query_texts_reviewed: false
-all_expected_judgments_reviewed: false
-reviewer_identity: null
-reviewer_role: null
-reviewed_specification_digest: null
-evidence_ref: null
-evidence_sha256: null
-reviewed_at: null
+reviewed_query_count: 255
+all_query_texts_reviewed: true
+all_expected_judgments_reviewed: true
+reviewer_identity: Alaeddine BEN RHOUMA (@abenrhouma)
+reviewer_role: responsable pédagogique
+reviewed_specification_digest: d00c7e0fcf6870111b46d07ddc5531d15184ba7dbf2f780af81b6b2a416ddee4
+evidence_ref: docs/reports/evidence/lot_39bis/golden_human_review_packet.md
+evidence_sha256: e7fc03d392491707db3102f3dce54791921d38a4365cc717be9c8b256700b4ed
+reviewed_at: 2026-08-01T07:34:20Z
