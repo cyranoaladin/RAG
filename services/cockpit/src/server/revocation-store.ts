@@ -45,7 +45,6 @@ export class MemorySessionBackend implements SessionBackend {
 
 const KEY_PREFIX = 'nexus:session:v1'
 const DEFAULT_SESSION_TTL_SECONDS = 3600
-const DEFAULT_REPLAY_WINDOW_SECONDS = 900
 
 function boundedSeconds(name: string, fallback: number, minimum: number, maximum: number): number {
   const parsed = Number((process.env[name] || '').trim())
@@ -55,10 +54,6 @@ function boundedSeconds(name: string, fallback: number, minimum: number, maximum
 
 function sessionTtlSeconds(): number {
   return boundedSeconds('NEXUS_SESSION_TTL_SECONDS', DEFAULT_SESSION_TTL_SECONDS, 60, 86_400)
-}
-
-function replayWindowSeconds(): number {
-  return boundedSeconds('NEXUS_REPLAY_WINDOW_SECONDS', DEFAULT_REPLAY_WINDOW_SECONDS, 1, 3600)
 }
 
 function revocationKey(sub: string, tenant: string): string {
@@ -111,7 +106,7 @@ export class SharedSessionSecurityStore {
     if (!Number.isFinite(exp) || exp <= now) {
       throw new Error('jeton externe: exp invalide')
     }
-    const ttl = Math.max(1, Math.min(exp - now, replayWindowSeconds()))
+    const ttl = Math.max(1, Math.floor(exp - now))
     const inserted = await this.backend.set(
       replayKey(jti),
       JSON.stringify({ tenant, sub }),

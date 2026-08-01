@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import collectionsSeed from '@/data/collections.json'
+import { requireBffAuth } from '@/server/bff-auth'
 import type { RagCollection } from '@/types/ui'
 
 import { fetchEngine } from '../_engine'
@@ -71,11 +72,16 @@ function mapReadiness(payload: unknown) {
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const authContext = await requireBffAuth(request)
+  if (!authContext) {
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+  }
+
   try {
     const [catalogueResult, readinessResult] = await Promise.all([
-      fetchEngine('/catalogue/v2'),
-      fetchEngine('/collections/readiness'),
+      fetchEngine('/collections/v2', { identityToken: authContext.identityToken }),
+      fetchEngine('/collections/readiness', { identityToken: authContext.identityToken }),
     ])
     const items = catalogueResult.status === 200 ? mapCatalogue(catalogueResult.payload) : null
     const readiness = readinessResult.status === 200 ? mapReadiness(readinessResult.payload) : null

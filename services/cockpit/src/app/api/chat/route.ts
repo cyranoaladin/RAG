@@ -57,7 +57,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'forbidden_collection' }, { status: 403 })
   }
 
-  if (!await isPublicLaunchReady()) {
+  if (!await isPublicLaunchReady(authContext.identityToken)) {
     return NextResponse.json({ error: 'launch_not_ready' }, { status: 503 })
   }
 

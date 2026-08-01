@@ -37,16 +37,24 @@ function requireEnv(name: string): string {
 }
 
 function internalSigningKey(): Uint8Array {
-  return new TextEncoder().encode(requireEnv('NEXUS_INTERNAL_TOKEN_SECRET'))
+  const key = new TextEncoder().encode(requireEnv('NEXUS_INTERNAL_TOKEN_SECRET'))
+  if (key.byteLength < 32) {
+    throw new Error('Configuration interne invalide: NEXUS_INTERNAL_TOKEN_SECRET')
+  }
+  return key
+}
+
+function externalAudience(): string {
+  const audience = requireEnv('NEXUS_SSO_AUDIENCE')
+  if (audience.includes(',')) {
+    throw new Error('Configuration interne invalide: NEXUS_SSO_AUDIENCE')
+  }
+  return audience
 }
 
 function assertExternalParties(identity: InternalIdentity): void {
   const issuer = requireEnv('NEXUS_SSO_ISSUER')
-  const audiences = requireEnv('NEXUS_SSO_AUDIENCE')
-    .split(',')
-    .map((value) => value.trim())
-    .filter(Boolean)
-  if (identity.iss !== issuer || !audiences.includes(identity.aud)) {
+  if (identity.iss !== issuer || identity.aud !== externalAudience()) {
     throw new Error('Identité interne incohérente avec la politique SSO')
   }
 }

@@ -109,6 +109,7 @@ describe('POST /api/search', () => {
       'second-mmr',
     ])
     expect(body.results?.map((hit) => hit.score)).toEqual([0.2, 0.9])
+    expect(mockedIsPublicLaunchReady).toHaveBeenCalledWith('signed-identity-token')
     expect(mockedFetchEngine).toHaveBeenCalledWith('/search/v2', expect.objectContaining({
       identityToken: 'signed-identity-token',
     }))

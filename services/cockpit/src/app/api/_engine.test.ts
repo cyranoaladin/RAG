@@ -9,9 +9,15 @@ describe('public launch readiness', () => {
   })
 
   it('fails closed when the engine does not prove all collections ready', async () => {
+    process.env.RAG_ENGINE_INTERNAL_TOKEN = 'service-token'
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ launch_ready: false })))
 
-    await expect(isPublicLaunchReady()).resolves.toBe(false)
+    await expect(isPublicLaunchReady('signed-identity-token')).resolves.toBe(false)
+
+    const init = vi.mocked(fetch).mock.calls[0]?.[1] as RequestInit
+    const headers = init.headers as Headers
+    expect(headers.get('Authorization')).toBe('Bearer service-token')
+    expect(headers.get('X-Nexus-Identity')).toBe('signed-identity-token')
   })
 
   it('sépare le jeton service du header d’identité signé', async () => {

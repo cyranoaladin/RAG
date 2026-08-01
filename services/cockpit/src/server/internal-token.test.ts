@@ -105,6 +105,22 @@ describe('jeton interne cockpit vers moteur', () => {
     )
   })
 
+  it('refuse une clé HS256 interne de moins de 32 octets', async () => {
+    process.env.NEXUS_INTERNAL_TOKEN_SECRET = 'short-secret'
+
+    await expect(mintInternalIdentityToken(identity())).rejects.toThrow(
+      'Configuration interne invalide: NEXUS_INTERNAL_TOKEN_SECRET',
+    )
+  })
+
+  it('refuse une configuration SSO multi-audience ambiguë', async () => {
+    process.env.NEXUS_SSO_AUDIENCE = 'nexus-cockpit,other-client'
+
+    await expect(mintInternalIdentityToken(identity())).rejects.toThrow(
+      'Configuration interne invalide: NEXUS_SSO_AUDIENCE',
+    )
+  })
+
   it('refuse une année scolaire non contiguë malgré le pattern JSON', async () => {
     const invalidIdentity = { ...identity(), school_year: '2026-2028' }
 

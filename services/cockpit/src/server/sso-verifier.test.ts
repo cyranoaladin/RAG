@@ -36,7 +36,11 @@ function withEnv() {
   process.env.NEXUS_SESSION_MEMORY_STORE_FOR_TESTS = 'true'
 }
 
-async function mintToken(overrides: Partial<typeof basePayload> = {}, expiresInSeconds = 120): Promise<string> {
+async function mintToken(
+  overrides: Partial<typeof basePayload> = {},
+  expiresInSeconds = 120,
+  audience: string | string[] = basePayload.aud,
+): Promise<string> {
   const now = Math.floor(Date.now() / 1000)
   const duration = Math.max(expiresInSeconds, -3600)
   const payload = {
@@ -50,7 +54,7 @@ async function mintToken(overrides: Partial<typeof basePayload> = {}, expiresInS
     .setIssuedAt(now)
     .setExpirationTime(duration > 0 ? now + duration : now - 1)
     .setIssuer(basePayload.iss)
-    .setAudience(basePayload.aud)
+    .setAudience(audience)
     .sign(new TextEncoder().encode(SHARED_SECRET))
 }
 
@@ -107,6 +111,29 @@ describe('vérification des identités SSO', () => {
 
     await expect(verifyNexusToken(token)).resolves.toBeDefined()
     await expect(verifyNexusToken(token)).rejects.toThrow()
+  })
+
+  it('refuse une configuration SSO multi-audience ambiguë', async () => {
+    withEnv()
+    process.env.NEXUS_SSO_AUDIENCE = 'nexus-cockpit,other-client'
+    const token = await mintToken({ jti: 'multi-config' })
+
+    await expect(verifyNexusToken(token)).rejects.toThrow(
+      'Configuration SSO invalide: NEXUS_SSO_AUDIENCE',
+    )
+  })
+
+  it('refuse un claim aud tableau au lieu d’en sélectionner arbitrairement un', async () => {
+    withEnv()
+    const token = await mintToken(
+      { jti: 'multi-claim' },
+      120,
+      ['other-client', 'nexus-cockpit'],
+    )
+
+    await expect(verifyNexusToken(token)).rejects.toThrow(
+      'claim Nexus invalide: aud doit être une chaîne unique',
+    )
   })
 
   it('rejette un jeton revoké', async () => {

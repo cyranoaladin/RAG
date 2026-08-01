@@ -71,9 +71,9 @@ export async function fetchEngine(
 }
 
 /** Public endpoints are closed unless the engine proves every collection ready. */
-export async function isPublicLaunchReady(): Promise<boolean> {
+export async function isPublicLaunchReady(identityToken: string): Promise<boolean> {
   try {
-    const result = await fetchEngine('/collections/readiness')
+    const result = await fetchEngine('/collections/readiness', { identityToken })
     if (result.status !== 200 || typeof result.payload !== 'object' || result.payload === null) {
       return false
     }

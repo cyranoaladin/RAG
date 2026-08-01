@@ -23,7 +23,8 @@ ne reçoit ni identité complète, ni jeton interne, ni jeton de service moteur.
 Les valeurs suivantes sont obligatoires ; aucune n'a de valeur secrète par
 défaut dans le dépôt :
 
-- `NEXUS_SSO_ISSUER`, `NEXUS_SSO_AUDIENCE` et une source de clé
+- `NEXUS_SSO_ISSUER`, une valeur unique exacte `NEXUS_SSO_AUDIENCE` (liste
+  séparée par virgules interdite) et une source de clé
   `NEXUS_SSO_JWKS_URL` ou `NEXUS_SSO_SHARED_SECRET` ;
 - `NEXUS_RELEASE_SCHOOL_YEAR` au format contigu `YYYY-YYYY+1` ;
 - `NEXUS_INTERNAL_TOKEN_SECRET`, `NEXUS_INTERNAL_TOKEN_ISSUER` et
@@ -42,6 +43,11 @@ en validation.
 `RAG_ENGINE_INTERNAL_TOKEN` doit être exactement la valeur configurée comme
 `RAG_BFF_SERVICE_TOKEN` dans `rag-engine`, et rester distinct de tous les
 jetons de rôle humains.
+
+Les routes BFF search, chat et collections transmettent aussi l'enveloppe
+d'identité signée à la readiness du moteur. Celle-ci ne porte que sur les
+collections du scope signé et reste fermée tant qu'une preuve exhaustive de
+release n'a pas été validée ; un simple nombre de chunks ne peut pas l'ouvrir.
 
 ## Sécurité des dépendances Next.js
 

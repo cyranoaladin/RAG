@@ -89,6 +89,7 @@ describe('POST /api/chat', () => {
     const response = await POST(chatRequest(['rag_nexus_nsi_terminale_specialite']))
 
     expect(response.status).toBe(200)
+    expect(mockedIsPublicLaunchReady).toHaveBeenCalledWith('signed-identity-token')
     expect(mockedFetchEngine).toHaveBeenCalledWith('/chat', {
       method: 'POST',
       identityToken: 'signed-identity-token',

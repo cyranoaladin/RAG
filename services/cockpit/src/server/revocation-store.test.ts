@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   MemorySessionBackend,
@@ -9,10 +9,34 @@ import {
 
 describe('store partagé de sécurité de session', () => {
   afterEach(() => {
+    vi.useRealTimers()
     delete process.env.NEXUS_SESSION_REDIS_URL
     delete process.env.NEXUS_SESSION_STORE_MODE
     delete process.env.NEXUS_SESSION_MEMORY_STORE_FOR_TESTS
     resetSessionStoreForTests()
+  })
+
+  it('conserve chaque jti jusqu’à l’expiration réelle du jeton SSO', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(1_800_000_000_000)
+    const set = vi.fn(async () => 'OK')
+    const store = new SharedSessionSecurityStore({
+      get: async () => null,
+      set,
+    })
+
+    await store.consumeOnce(
+      'jti-long-session',
+      1_800_007_200,
+      'libre_terminale',
+      'psn_1234567890abcdef',
+    )
+
+    expect(set).toHaveBeenCalledWith(
+      'nexus:session:v1:jti:jti-long-session',
+      expect.any(String),
+      { EX: 7200, NX: true },
+    )
   })
 
   it('partage la révocation entre instances et après recréation logique', async () => {
