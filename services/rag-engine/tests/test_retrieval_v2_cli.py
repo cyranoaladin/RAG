@@ -324,6 +324,43 @@ def test_main_uses_primary_dsn_then_sync_fallback(
     assert seen == ["postgresql://fallback@localhost/rag"]
 
 
+def test_main_runs_gate_before_settings_and_search_resources(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+    config = _retrievable_config()
+
+    def load_config() -> dict[str, Any]:
+        events.append("config")
+        return config
+
+    def check_gate(collection: str, loaded: dict[str, Any]) -> dict[str, Any]:
+        assert collection == COLLECTION
+        assert loaded is config
+        events.append("gate")
+        return loaded["collections"][COLLECTION]
+
+    def load_settings() -> PoolSettings:
+        events.append("settings")
+        return SETTINGS
+
+    def run_search(*_args: object, **_kwargs: object) -> list[HybridHit]:
+        events.append("search")
+        return []
+
+    def close() -> None:
+        events.append("close")
+
+    monkeypatch.setattr(cli, "load_collection_config", load_config)
+    monkeypatch.setattr(cli, "_check_retrievable", check_gate)
+    monkeypatch.setattr(cli.PoolSettings, "from_env", load_settings)
+    monkeypatch.setattr(cli, "search", run_search)
+    monkeypatch.setattr(cli, "close_pool", close)
+
+    assert cli.main(_argv()) == 0
+    assert events == ["config", "gate", "settings", "search", "close"]
+
+
 def test_missing_dsn_after_parse_is_generic_and_closes_pool(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -360,9 +397,10 @@ def test_success_output_contains_only_ids_and_labeled_scores(
     assert captured.err == ""
     assert captured.out == (
         "results=1\n"
-        "chunk_id=chunk-1 doc_id=doc-1 dense=0.910000 lexical=none "
+        "chunk_id=chunk-1 dense=0.910000 lexical=none "
         "rrf=0.016000 rerank=2.800000 final=0.880000 mmr=0.610000\n"
     )
+    assert "doc-1" not in captured.out
     assert "CONTENU_SECRET_DU_CHUNK" not in captured.out
     assert "Libellé qui ne doit pas être imprimé" not in captured.out
     assert "requête sensible" not in captured.out
@@ -455,6 +493,43 @@ def test_close_failure_is_generic_and_does_not_print_results(
     assert captured.out == ""
     assert captured.err == "Error: hybrid retrieval unavailable\n"
     assert "DSN_ULTRA_SECRET" not in captured.err
+
+
+@pytest.mark.parametrize("failure_phase", ["config", "gate", "settings", "search", "close"])
+def test_all_ordinary_runtime_failures_are_masked_and_close_once(
+    failure_phase: str,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    marker = "QUERY_DSN_SQL_ULTRA_SECRET"
+    runtime_failure = RuntimeError(marker)
+    config = _retrievable_config()
+    load_config = MagicMock(return_value=config)
+    gate = MagicMock(return_value=config["collections"][COLLECTION])
+    load_settings = MagicMock(return_value=SETTINGS)
+    run_search = MagicMock(return_value=[])
+    close = MagicMock()
+    phase_targets = {
+        "config": load_config,
+        "gate": gate,
+        "settings": load_settings,
+        "search": run_search,
+        "close": close,
+    }
+    phase_targets[failure_phase].side_effect = runtime_failure
+    monkeypatch.setattr(cli, "load_collection_config", load_config)
+    monkeypatch.setattr(cli, "_check_retrievable", gate)
+    monkeypatch.setattr(cli.PoolSettings, "from_env", load_settings)
+    monkeypatch.setattr(cli, "search", run_search)
+    monkeypatch.setattr(cli, "close_pool", close)
+
+    assert cli.main(_argv(query=marker)) == 1
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == "Error: hybrid retrieval unavailable\n"
+    assert marker not in captured.err
+    close.assert_called_once_with()
 
 
 def test_cli_contains_no_private_sql_or_hybrid_override() -> None:

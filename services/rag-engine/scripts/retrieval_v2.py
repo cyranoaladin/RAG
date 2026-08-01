@@ -19,17 +19,9 @@ ENGINE_ROOT = SCRIPT_DIR.parent
 sys.path.insert(0, str(ENGINE_ROOT / "src"))
 sys.path.insert(0, str(ENGINE_ROOT.parent.parent / "packages" / "contracts" / "src"))
 
-from ingestor.collection_config import (  # noqa: E402
-    CollectionConfigError,
-    load_collection_config,
-    resolve_collection_v2,
-)
-from ingestor.embedding_contract import (  # noqa: E402
-    EmbeddingContractError,
-    load_embedding_model,
-)
+from ingestor.collection_config import load_collection_config, resolve_collection_v2  # noqa: E402
+from ingestor.embedding_contract import load_embedding_model  # noqa: E402
 from ingestor.pg_pool import (  # noqa: E402
-    PoolConfigurationError,
     PoolSettings,
     close_pool,
     pool_connection,
@@ -188,22 +180,11 @@ def _print_hits(hits: Sequence[HybridHit]) -> None:
     for hit in hits:
         candidate = hit.candidate
         print(
-            f"chunk_id={candidate.chunk_id} doc_id={candidate.doc_id} "
-            f"dense={_score(candidate.dense_score)} "
+            f"chunk_id={candidate.chunk_id} dense={_score(candidate.dense_score)} "
             f"lexical={_score(candidate.lexical_score)} "
             f"rrf={hit.rrf_score:.6f} rerank={hit.rerank_score:.6f} "
             f"final={hit.score_final:.6f} mmr={hit.mmr_score:.6f}"
         )
-
-
-_CONTROLLED_ERRORS = (
-    CollectionConfigError,
-    CollectionNotRetrievableError,
-    EmbeddingContractError,
-    ModelLoadError,
-    PoolConfigurationError,
-    RetrievalPipelineError,
-)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -212,6 +193,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     failed = False
 
     try:
+        _validate_request(args.query, args.collection, args.top_k)
+        config = load_collection_config()
+        _check_retrievable(args.collection, config)
         settings = PoolSettings.from_env()
         hits = search(
             args.query,
@@ -223,12 +207,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             reranker_factory=_load_canonical_reranker,
             retrieve_fn=retrieve_hybrid,
         )
-    except _CONTROLLED_ERRORS:
+    except Exception:
         failed = True
     finally:
         try:
             close_pool()
-        except PoolConfigurationError:
+        except Exception:
             failed = True
 
     if failed or hits is None:
