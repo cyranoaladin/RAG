@@ -25,6 +25,11 @@ PGVECTOR_USER="${PGVECTOR_USER:-raguser}"
 source "$SCRIPT_DIR/lib/pgvector_migration_state.sh"
 
 discover_manifest "$MIGRATIONS_DIR" "$MIGRATION_HEAD_FILE"
+MIGRATION_SNAPSHOT_DIR=""
+MIGRATION_SNAPSHOT_FILES=()
+trap cleanup_manifest_snapshot EXIT
+trap 'exit 130' HUP INT TERM
+create_manifest_snapshot "$MIGRATIONS_DIR" "$MIGRATION_HEAD_FILE"
 
 if ! docker inspect --format='{{.State.Running}}' "$PGVECTOR_CONTAINER" \
     2>/dev/null | grep -qx true; then
@@ -111,14 +116,17 @@ backup_database() {
     mkdir -p "$backup_dir"
     chmod 700 "$backup_dir"
 
-    docker exec "$PGVECTOR_CONTAINER" \
-        pg_dump -U "$PGVECTOR_USER" -d "$PGVECTOR_DB" -Fc -f "$remote_dump"
+    if ! docker exec "$PGVECTOR_CONTAINER" \
+        pg_dump -U "$PGVECTOR_USER" -d "$PGVECTOR_DB" -Fc -f "$remote_dump"; then
+        docker exec "$PGVECTOR_CONTAINER" rm -f "$remote_dump" >/dev/null 2>&1 || true
+        return 1
+    fi
     if ! docker cp "$PGVECTOR_CONTAINER:$remote_dump" "$backup_file"; then
         docker exec "$PGVECTOR_CONTAINER" rm -f "$remote_dump" >/dev/null 2>&1 || true
         return 1
     fi
     chmod 600 "$backup_file"
-    docker exec "$PGVECTOR_CONTAINER" rm -f "$remote_dump" >/dev/null 2>&1 || true
+    docker exec "$PGVECTOR_CONTAINER" rm -f "$remote_dump" >/dev/null
     echo "BACKUP_COMPLETE=$backup_file"
 }
 

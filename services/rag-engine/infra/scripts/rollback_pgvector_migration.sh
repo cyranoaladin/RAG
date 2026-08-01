@@ -39,6 +39,11 @@ if [[ ! -f "$ROLLBACK_FILE" || -L "$ROLLBACK_FILE" ]]; then
     echo "ROLLBACK_FILE_INVALID" >&2
     exit 1
 fi
+MIGRATION_SNAPSHOT_DIR=""
+MIGRATION_SNAPSHOT_FILES=()
+trap cleanup_manifest_snapshot EXIT
+trap 'exit 130' HUP INT TERM
+create_manifest_snapshot "$MIGRATIONS_DIR" "$MIGRATION_HEAD_FILE" "$ROLLBACK_FILE"
 if ! docker inspect --format='{{.State.Running}}' "$PGVECTOR_CONTAINER" \
     2>/dev/null | grep -qx true; then
     echo "FATAL: pgvector container is not running" >&2
@@ -101,14 +106,17 @@ backup_database() {
     mkdir -p "$backup_dir"
     chmod 700 "$backup_dir"
 
-    docker exec "$PGVECTOR_CONTAINER" \
-        pg_dump -U "$PGVECTOR_USER" -d "$PGVECTOR_DB" -Fc -f "$remote_dump"
+    if ! docker exec "$PGVECTOR_CONTAINER" \
+        pg_dump -U "$PGVECTOR_USER" -d "$PGVECTOR_DB" -Fc -f "$remote_dump"; then
+        docker exec "$PGVECTOR_CONTAINER" rm -f "$remote_dump" >/dev/null 2>&1 || true
+        return 1
+    fi
     if ! docker cp "$PGVECTOR_CONTAINER:$remote_dump" "$backup_file"; then
         docker exec "$PGVECTOR_CONTAINER" rm -f "$remote_dump" >/dev/null 2>&1 || true
         return 1
     fi
     chmod 600 "$backup_file"
-    docker exec "$PGVECTOR_CONTAINER" rm -f "$remote_dump" >/dev/null 2>&1 || true
+    docker exec "$PGVECTOR_CONTAINER" rm -f "$remote_dump" >/dev/null
     echo "BACKUP_COMPLETE=$backup_file"
 }
 
@@ -131,7 +139,7 @@ backup_database
 
 {
     advisory_lock_sql
-    command cat "$ROLLBACK_FILE"
+    command cat "$MIGRATION_ROLLBACK_FILE"
     printf '\n'
     cat <<'SQL'
 DELETE FROM rag_schema_migrations

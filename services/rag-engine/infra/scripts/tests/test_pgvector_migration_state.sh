@@ -13,7 +13,7 @@ fi
 source "$LIBRARY"
 
 TEST_ROOT="$(mktemp -d)"
-trap 'rm -rf "$TEST_ROOT"' EXIT
+trap 'declare -F cleanup_manifest_snapshot >/dev/null && cleanup_manifest_snapshot; rm -rf "$TEST_ROOT"' EXIT
 
 fail() {
     echo "FAIL: $*" >&2
@@ -53,6 +53,26 @@ discover_manifest "$nominal" "$nominal/HEAD"
 for digest in "${MIGRATION_SHA256[@]}"; do
     [[ "$digest" =~ ^[0-9a-f]{64}$ ]] || fail "invalid sha256: $digest"
 done
+
+rollback_source="$TEST_ROOT/002_hybrid_retrieval.down.sql"
+printf 'DROP INDEX snapshot_test;\n' > "$rollback_source"
+create_manifest_snapshot "$nominal" "$nominal/HEAD" "$rollback_source"
+snapshot_dir="$MIGRATION_SNAPSHOT_DIR"
+snapshot_first="${MIGRATION_FILES[0]}"
+[[ "${MIGRATION_SOURCE_FILES[0]}" == "$nominal/001_rag_chunks_v2_schema.sql" ]] \
+    || fail "source path was not preserved"
+[[ "$snapshot_first" == "$snapshot_dir/001_rag_chunks_v2_schema.sql" ]] \
+    || fail "migration path does not target snapshot"
+[[ "$(stat -c '%a' "$snapshot_dir")" == "500" ]] || fail "snapshot dir is writable"
+[[ "$(stat -c '%a' "$snapshot_first")" == "400" ]] || fail "snapshot file is writable"
+[[ "$(stat -c '%a' "$MIGRATION_ROLLBACK_FILE")" == "400" ]] \
+    || fail "rollback snapshot is writable"
+printf 'SELECT source_was_mutated;\n' > "$nominal/001_rag_chunks_v2_schema.sql"
+grep -qx 'SELECT 1;' "$snapshot_first" || fail "snapshot changed with source"
+[[ "${MIGRATION_SHA256[0]}" == "$(sha256sum "$snapshot_first" | awk '{print $1}')" ]] \
+    || fail "snapshot digest mismatch"
+cleanup_manifest_snapshot
+[[ ! -e "$snapshot_dir" ]] || fail "snapshot was not cleaned"
 
 gap="$(new_manifest gap)"
 printf 'SELECT 1;\n' > "$gap/001_first.sql"

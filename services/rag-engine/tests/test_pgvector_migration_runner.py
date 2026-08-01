@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import textwrap
 from pathlib import Path
@@ -49,6 +50,8 @@ def runner_env(tmp_path: Path) -> tuple[dict[str, str], Path, Path]:
     bin_dir.mkdir()
     log_file = tmp_path / "docker-events.jsonl"
     state_file = tmp_path / "state.json"
+    snapshot_root = tmp_path / "snapshots"
+    snapshot_root.mkdir()
     docker = bin_dir / "docker"
     docker.write_text(
         textwrap.dedent(
@@ -88,6 +91,11 @@ def runner_env(tmp_path: Path) -> tuple[dict[str, str], Path, Path]:
 
             if "pg_dump" in args:
                 record("PG_DUMP")
+                if state.get("mutate_source_during_dump"):
+                    pathlib.Path(state["mutation_target"]).write_text(
+                        state["mutated_source_content"],
+                        encoding="utf-8",
+                    )
                 raise SystemExit(40 if fail_at == "PG_DUMP" else 0)
 
             if "rm" in args:
@@ -119,27 +127,41 @@ def runner_env(tmp_path: Path) -> tuple[dict[str, str], Path, Path]:
                 record("APPLY_" + version.zfill(3), stdin)
                 raise SystemExit(0)
 
-            if "SCHEMA_HEAD_001_INVALID" in stdin and state.get("partial_001"):
+            marker_001 = "-- NEXUS_VALIDATE_SCHEMA_001\\n"
+            marker_002 = "-- NEXUS_VALIDATE_SCHEMA_002\\n"
+            marker_002_absent = "-- NEXUS_VALIDATE_SCHEMA_002_ABSENT\\n"
+            marker_registry = "-- NEXUS_VALIDATE_REGISTRY\\n"
+
+            if marker_001 in stdin and state.get("partial_001"):
                 record("VALIDATE_001", stdin)
                 raise SystemExit(42)
             if (
                 state.get("hybrid_column_present")
-                and "text_tsv still present" in stdin
+                and marker_002_absent in stdin
             ) or (
                 state.get("hybrid_index_present")
-                and "hybrid GIN still present" in stdin
+                and marker_002_absent in stdin
             ):
                 record("VALIDATE_002_ABSENT", stdin)
                 raise SystemExit(45)
-            if "SCHEMA_HEAD_001_INVALID" in stdin:
+            if marker_002 in stdin and state.get("partial_002"):
+                record("VALIDATE_002", stdin)
+                raise SystemExit(43)
+            if (
+                marker_registry in stdin
+                and state.get("invalid_registry_contract")
+            ):
+                record("VALIDATE_REGISTRY", stdin)
+                raise SystemExit(44)
+            if marker_001 in stdin:
                 record("VALIDATE_001", stdin)
                 raise SystemExit(0)
-            if "SCHEMA_HEAD_002_INVALID" in stdin:
+            if marker_002 in stdin:
                 record("VALIDATE_002", stdin)
-                raise SystemExit(43 if state.get("partial_002") else 0)
-            if "MIGRATION_REGISTRY_MISSING" in stdin:
+                raise SystemExit(0)
+            if marker_registry in stdin:
                 record("VALIDATE_REGISTRY", stdin)
-                raise SystemExit(44 if state.get("invalid_registry_contract") else 0)
+                raise SystemExit(0)
 
             record("UNCLASSIFIED_PSQL", stdin)
             raise SystemExit(92)
@@ -158,6 +180,7 @@ def runner_env(tmp_path: Path) -> tuple[dict[str, str], Path, Path]:
             "PGVECTOR_CONTAINER": "lot40-test-pgvector",
             "PGVECTOR_DB": "testdb",
             "PGVECTOR_USER": "testuser",
+            "TMPDIR": str(snapshot_root),
         }
     )
     return env, state_file, log_file
@@ -169,15 +192,16 @@ def _run(
     *,
     down_argument: str | None = None,
     fail_at: str | None = None,
+    runner_path: Path | None = None,
 ) -> tuple[subprocess.CompletedProcess[str], list[dict[str, Any]]]:
     env, state_file, log_file = runner_env
     state_file.write_text(json.dumps(state), encoding="utf-8")
     actual_env = env.copy()
     if fail_at is not None:
         actual_env["FAKE_DOCKER_FAIL"] = fail_at
-    command = [str(UP_RUNNER)]
+    command = [str(runner_path or UP_RUNNER)]
     if down_argument is not None:
-        command = [str(DOWN_RUNNER), down_argument]
+        command = [str(runner_path or DOWN_RUNNER), down_argument]
     result = subprocess.run(
         command,
         cwd=ENGINE_ROOT,
@@ -200,6 +224,23 @@ def _event(events: list[dict[str, Any]], name: str) -> dict[str, Any]:
     return next(event for event in events if event["event"] == name)
 
 
+def _assert_remote_dump_was_cleaned_exactly(
+    events: list[dict[str, Any]],
+) -> None:
+    dump_args = list(_event(events, "PG_DUMP")["args"])
+    remote_dump = dump_args[dump_args.index("-f") + 1]
+    cleanup = _event(events, "REMOVE_REMOTE_DUMP")
+    cleanup_args = list(cleanup["args"])
+    assert cleanup_args[-3:-1] == ["rm", "-f"]
+    assert cleanup_args[-1] == remote_dump
+
+
+def _isolated_runner(tmp_path: Path, runner_name: str) -> tuple[Path, Path]:
+    isolated_infra = tmp_path / "isolated-infra"
+    shutil.copytree(INFRA_ROOT, isolated_infra)
+    return isolated_infra / "scripts" / runner_name, isolated_infra
+
+
 def test_up_from_absent_state_backs_up_then_applies_each_atomic_transition(
     runner_env: tuple[dict[str, str], Path, Path],
 ) -> None:
@@ -215,6 +256,7 @@ def test_up_from_absent_state_backs_up_then_applies_each_atomic_transition(
     assert names.index("DOCKER_CP") < names.index("APPLY_001")
     assert names.index("APPLY_001") < names.index("APPLY_002")
     assert "BACKUP_COMPLETE" in result.stdout
+    _assert_remote_dump_was_cleaned_exactly(events)
     for transition, ddl in (
         ("APPLY_001", "CREATE EXTENSION"),
         ("APPLY_002", "ADD COLUMN"),
@@ -311,6 +353,44 @@ def test_up_refuses_partial_unregistered_001_before_backup(
     assert "PG_DUMP" not in _event_names(events)
 
 
+def test_up_refuses_partial_registered_002_before_backup(
+    runner_env: tuple[dict[str, str], Path, Path],
+) -> None:
+    result, events = _run(
+        runner_env,
+        {
+            "registry_present": True,
+            "rag_chunks_present": True,
+            "rows": _valid_rows(2),
+            "partial_002": True,
+        },
+    )
+
+    assert result.returncode != 0
+    names = _event_names(events)
+    assert names.index("READ_STATE") < names.index("VALIDATE_002")
+    assert "PG_DUMP" not in names
+
+
+def test_up_refuses_invalid_registry_contract_before_backup(
+    runner_env: tuple[dict[str, str], Path, Path],
+) -> None:
+    result, events = _run(
+        runner_env,
+        {
+            "registry_present": True,
+            "rag_chunks_present": True,
+            "rows": _valid_rows(1),
+            "invalid_registry_contract": True,
+        },
+    )
+
+    assert result.returncode != 0
+    names = _event_names(events)
+    assert names.index("READ_STATE") < names.index("VALIDATE_REGISTRY")
+    assert "PG_DUMP" not in names
+
+
 @pytest.mark.parametrize("registry_present", [False, True])
 @pytest.mark.parametrize(
     "untracked_002",
@@ -361,6 +441,8 @@ def test_up_backup_failure_stops_before_mutation(
     assert "BACKUP_COMPLETE" not in result.stdout
     if failure == "DOCKER_CP":
         assert names.index("PG_DUMP") < names.index("DOCKER_CP")
+    _assert_remote_dump_was_cleaned_exactly(events)
+    assert not any(Path(runner_env[0]["TMPDIR"]).iterdir())
 
 
 def test_down_002_backs_up_then_composes_one_atomic_transition(
@@ -393,6 +475,7 @@ def test_down_002_backs_up_then_composes_one_atomic_transition(
     )
     assert "WHERE version = 2" in stdin
     assert "--single-transaction" in event["args"]
+    _assert_remote_dump_was_cleaned_exactly(events)
 
 
 def test_down_refuses_non_002_argument_without_contacting_docker(
@@ -457,3 +540,86 @@ def test_down_backup_failure_stops_before_mutation(
     assert result.returncode != 0
     assert "DOWN_002" not in _event_names(events)
     assert "BACKUP_COMPLETE" not in result.stdout
+    _assert_remote_dump_was_cleaned_exactly(events)
+    assert not any(Path(runner_env[0]["TMPDIR"]).iterdir())
+
+
+def test_up_applies_immutable_snapshot_if_source_changes_during_backup(
+    runner_env: tuple[dict[str, str], Path, Path],
+    tmp_path: Path,
+) -> None:
+    runner, isolated_infra = _isolated_runner(
+        tmp_path,
+        "apply_pgvector_migrations.sh",
+    )
+    migration = (
+        isolated_infra
+        / "postgres"
+        / "migrations"
+        / "002_hybrid_retrieval.sql"
+    )
+    original = migration.read_text(encoding="utf-8") + "\n-- SNAPSHOT_ORIGINAL\n"
+    mutation = "SELECT 'MUTATED_SOURCE';\n"
+    migration.write_text(original, encoding="utf-8")
+
+    result, events = _run(
+        runner_env,
+        {
+            "registry_present": False,
+            "rag_chunks_present": False,
+            "rows": [],
+            "mutate_source_during_dump": True,
+            "mutation_target": str(migration),
+            "mutated_source_content": mutation,
+        },
+        runner_path=runner,
+    )
+
+    assert result.returncode == 0, result.stderr
+    apply_002 = _event(events, "APPLY_002")
+    assert "SNAPSHOT_ORIGINAL" in apply_002["stdin"]
+    assert "MUTATED_SOURCE" not in apply_002["stdin"]
+    expected_sha = hashlib.sha256(original.encode()).hexdigest()
+    assert f"migration_sha={expected_sha}" in apply_002["args"]
+    assert migration.read_text(encoding="utf-8") == mutation
+    assert not any(Path(runner_env[0]["TMPDIR"]).iterdir())
+
+
+def test_down_applies_immutable_rollback_snapshot_if_source_changes_during_backup(
+    runner_env: tuple[dict[str, str], Path, Path],
+    tmp_path: Path,
+) -> None:
+    runner, isolated_infra = _isolated_runner(
+        tmp_path,
+        "rollback_pgvector_migration.sh",
+    )
+    rollback = (
+        isolated_infra
+        / "postgres"
+        / "rollbacks"
+        / "002_hybrid_retrieval.down.sql"
+    )
+    original = rollback.read_text(encoding="utf-8") + "\n-- ROLLBACK_SNAPSHOT_ORIGINAL\n"
+    mutation = "DROP TABLE rag_chunks; -- MUTATED_ROLLBACK\n"
+    rollback.write_text(original, encoding="utf-8")
+
+    result, events = _run(
+        runner_env,
+        {
+            "registry_present": True,
+            "rag_chunks_present": True,
+            "rows": _valid_rows(2),
+            "mutate_source_during_dump": True,
+            "mutation_target": str(rollback),
+            "mutated_source_content": mutation,
+        },
+        down_argument="002_hybrid_retrieval",
+        runner_path=runner,
+    )
+
+    assert result.returncode == 0, result.stderr
+    down = _event(events, "DOWN_002")
+    assert "ROLLBACK_SNAPSHOT_ORIGINAL" in down["stdin"]
+    assert "MUTATED_ROLLBACK" not in down["stdin"]
+    assert rollback.read_text(encoding="utf-8") == mutation
+    assert not any(Path(runner_env[0]["TMPDIR"]).iterdir())

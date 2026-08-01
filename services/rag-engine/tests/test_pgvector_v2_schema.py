@@ -314,6 +314,170 @@ def test_migration_library_validates_all_001_columns_and_indexes() -> None:
     assert "format_type" in content
 
 
+@pytest.mark.parametrize(
+    ("column", "formatted_type", "not_null", "default_source"),
+    [
+        ("chunk_id", "text", True, "'<none>'"),
+        ("doc_id", "text", True, "'<none>'"),
+        ("chunk_sha256", "text", True, "'<none>'"),
+        ("vector", "vector(1024)", False, "'<none>'"),
+        ("collection", "text", True, "'<none>'"),
+        ("niveau", "text", True, "'<none>'"),
+        ("voie", "text", True, "'''generale'''"),
+        ("audience", "text[]", True, "'''{tous}'''"),
+        ("matiere", "text", True, "'<none>'"),
+        ("statut_enseignement", "text", True, "'''unknown'''"),
+        ("notions", "text[]", True, "'''{}'''"),
+        ("domain", "text", True, "'''education'''"),
+        ("source_label", "text", True, "'<none>'"),
+        ("source_uri", "text", True, "'<none>'"),
+        ("rights", "text", True, "'<none>'"),
+        ("type_doc", "text", True, "'<none>'"),
+        ("official", "boolean", True, "'false'"),
+        ("text", "text", False, "'<none>'"),
+        ("chunk_index", "integer", True, "'0'"),
+        ("page_start", "integer", False, "'<none>'"),
+        ("page_end", "integer", False, "'<none>'"),
+        ("review_status", "text", True, "'''needs_review'''"),
+        ("model", "text", False, "'<none>'"),
+        ("source_kind", "text", True, "'''unknown'''"),
+        ("indexed_at", "timestamp with time zone", True, "'now()'"),
+    ],
+)
+def test_001_validator_has_exact_catalog_contract_for_each_column(
+    column: str,
+    formatted_type: str,
+    not_null: bool,
+    default_source: str,
+) -> None:
+    content = MIGRATION_LIBRARY.read_text(encoding="utf-8")
+    expected_row = (
+        f"('{column}', '{formatted_type}', "
+        f"{str(not_null).lower()}, {default_source}, '', '')"
+    )
+    assert expected_row in content
+
+
+@pytest.mark.parametrize(
+    ("index", "method", "unique", "primary", "column", "opclass", "option"),
+    [
+        ("rag_chunks_pkey", "btree", True, True, "chunk_id", "text_ops", ""),
+        (
+            "idx_rag_chunks_vector",
+            "hnsw",
+            False,
+            False,
+            "vector",
+            "vector_cosine_ops",
+            "ef_construction=64,m=16",
+        ),
+        (
+            "idx_rag_chunks_collection",
+            "btree",
+            False,
+            False,
+            "collection",
+            "text_ops",
+            "",
+        ),
+        (
+            "idx_rag_chunks_niveau",
+            "btree",
+            False,
+            False,
+            "niveau",
+            "text_ops",
+            "",
+        ),
+        (
+            "idx_rag_chunks_matiere",
+            "btree",
+            False,
+            False,
+            "matiere",
+            "text_ops",
+            "",
+        ),
+        (
+            "idx_rag_chunks_audience",
+            "gin",
+            False,
+            False,
+            "audience",
+            "array_ops",
+            "",
+        ),
+        (
+            "idx_rag_chunks_rights",
+            "btree",
+            False,
+            False,
+            "rights",
+            "text_ops",
+            "",
+        ),
+        (
+            "idx_rag_chunks_review",
+            "btree",
+            False,
+            False,
+            "review_status",
+            "text_ops",
+            "",
+        ),
+    ],
+)
+def test_001_validator_has_exact_catalog_contract_for_each_index(
+    index: str,
+    method: str,
+    unique: bool,
+    primary: bool,
+    column: str,
+    opclass: str,
+    option: str,
+) -> None:
+    content = MIGRATION_LIBRARY.read_text(encoding="utf-8")
+    expected_row = (
+        f"('{index}', '{method}', {str(unique).lower()}, "
+        f"{str(primary).lower()}, '{column}', '{opclass}', '{option}')"
+    )
+    assert expected_row in content
+
+
+@pytest.mark.parametrize(
+    "catalog_comparison",
+    [
+        "actual.formatted_type IS DISTINCT FROM expected.formatted_type",
+        "actual.not_null IS DISTINCT FROM expected.not_null",
+        "actual.default_expression IS DISTINCT FROM expected.default_expression",
+        "actual.generated IS DISTINCT FROM expected.generated",
+        "actual.identity_kind IS DISTINCT FROM expected.identity_kind",
+        "actual.collation_oid IS DISTINCT FROM actual.default_collation",
+        "actual.amname IS DISTINCT FROM expected.amname",
+        "actual.is_unique IS DISTINCT FROM expected.is_unique",
+        "actual.is_primary IS DISTINCT FROM expected.is_primary",
+        "actual.key_column IS DISTINCT FROM expected.key_column",
+        "actual.opcname IS DISTINCT FROM expected.opcname",
+        "actual.index_options IS DISTINCT FROM expected.index_options",
+        "actual.indnkeyatts IS DISTINCT FROM 1",
+        "actual.indnatts IS DISTINCT FROM 1",
+        "actual.indisvalid IS DISTINCT FROM true",
+        "actual.indisready IS DISTINCT FROM true",
+        "actual.indisexclusion IS DISTINCT FROM false",
+        "actual.indnullsnotdistinct IS DISTINCT FROM false",
+        "actual.key_options IS DISTINCT FROM 0",
+        "actual.key_collation IS DISTINCT FROM actual.column_collation",
+        "actual.reltablespace IS DISTINCT FROM 0::oid",
+        "actual.indexprs IS NOT NULL",
+        "actual.indpred IS NOT NULL",
+    ],
+)
+def test_001_validator_compares_every_catalog_dimension(
+    catalog_comparison: str,
+) -> None:
+    assert catalog_comparison in MIGRATION_LIBRARY.read_text(encoding="utf-8")
+
+
 def test_migration_runners_use_single_transaction_and_advisory_lock() -> None:
     library = MIGRATION_LIBRARY.read_text(encoding="utf-8")
     assert "pg_advisory_xact_lock" in library
