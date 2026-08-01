@@ -6,11 +6,12 @@ Date de vérification : 2026-08-01
 
 - Base `main` vérifiée : `84821b240776bea74baebb078d3b7b5d4e29945a`.
 - Candidat final avant le présent commit documentaire :
-  `5530e32e91361d5d6fc5f12a5267114e3a1f59f9`.
+  `973e00b59c20b1ce399d96b7ef5dee3f5bba3aa4`.
 - Tête de la preuve fonctionnelle et de la CI intégrale :
-  `74a3dea70b7ab8bed1874b3d269b8bb88c43e2df`. Le seul delta jusqu'au candidat
-  final est un micro-correctif de fixtures dans `tests/test_pg_pool.py` ; il ne
-  modifie aucun code de production et possède ses preuves fraîches ci-dessous.
+  `74a3dea70b7ab8bed1874b3d269b8bb88c43e2df`. Les seuls deltas de code jusqu'au
+  candidat final sont deux micro-correctifs test-only dans
+  `tests/test_pg_pool.py` ; ils ne modifient aucun code de production et
+  possèdent leurs preuves fraîches ci-dessous.
 - Le SHA ci-dessus évite une référence circulaire : la Task 11 devra reporter le
   nouveau SHA exact si elle modifie le code ou le rapport après la revue.
 - Branche vérifiée : `lot-40-hybrid-retrieval`.
@@ -153,16 +154,25 @@ Aucun verrou de gouvernance n'a été activé.
 
 Le scan prescrit a d'abord échoué comme attendu sur six DSN factices écrits en
 un seul littéral dans `tests/test_pg_pool.py`. Le commit test-only
-`5530e32e91361d5d6fc5f12a5267114e3a1f59f9` les remplace par un helper qui
-compose les fragments à l'exécution. Le cas nominal produit toujours exactement
-le même DSN secret de test attendu ; les variantes malformed et autre hôte
-restent couvertes, sans affaiblir les assertions de non-divulgation.
+`5530e32e91361d5d6fc5f12a5267114e3a1f59f9` les a remplacés par un helper qui
+compose les fragments à l'exécution.
+
+La revue Task 10 a ensuite relevé un P1 : ce premier helper avait raccourci les
+hôtes historiques de fixture. Le commit test-only
+`973e00b59c20b1ce399d96b7ef5dee3f5bba3aa4` restaure exactement l'hôte nominal
+`db.example` et l'hôte alternatif `other.example`. Trois assertions explicites
+figent désormais les valeurs runtime historiques nominale, malformed et autre
+hôte. Elles sont construites par fragments pour ne pas réintroduire sur une
+ligne source le motif secret interdit. Les assertions de non-divulgation
+existantes restent inchangées.
 
 Preuves fraîches sur ce commit :
 
-- `PYTHONPATH=src .venv/bin/pytest tests/test_pg_pool.py -q` : PASS, 38 tests en
-  0,49 s ;
-- `.venv/bin/ruff check tests/test_pg_pool.py` : PASS en 0,02 s ;
+- RED : la nouvelle assertion nominale a échoué sur l'hôte raccourci, avec
+  `db/rag` obtenu au lieu de `db.example/rag` attendu ;
+- `PYTHONPATH=src .venv/bin/pytest tests/test_pg_pool.py -q` : PASS, 39 tests en
+  0,34 s après correction ;
+- `.venv/bin/ruff check tests/test_pg_pool.py` : PASS en 0,01 s ;
 - assertions directes sur les trois valeurs construites à l'exécution : PASS ;
 - `git diff --check` : PASS ;
 - scan exact des lignes ajoutées de `services/rag-engine` et du présent rapport
@@ -242,7 +252,7 @@ confirmé absent. Les sept stashes historiques sont restés inchangés.
 | Topologie et propagation du smoke | tests shell fail-closed | racine du worktree | 22 mutations de topologie + 44 contrôles fail-safe | tête fonctionnelle complète ci-dessus | PASS |
 | Gouvernance et hygiène | garde-fous racine | worktree LOT40 | baseline 18 clés, racine suivie | SHA de base et tête fonctionnelle complets ci-dessus | PASS |
 | CI locale intégrale | orchestrateur `ci-local.sh` | Node 22.22.0 + Python 3.11 + Docker | 13 cibles canoniques | tête fonctionnelle complète ci-dessus | PASS |
-| Micro-correctif DSN test-only | pytest, Ruff et scan prescrit | candidat final | 38 tests de pool et lignes ajoutées | SHA candidat final complet ci-dessus | PASS |
+| Micro-correctifs DSN test-only | pytest, Ruff et scan prescrit | candidat final | 39 tests de pool, trois valeurs historiques et lignes ajoutées | SHA candidat final complet ci-dessus | PASS |
 | Nettoyage des ressources | runner + relecture postérieure | Docker local | inventaire conteneurs/volumes LOT40 | 0 conteneur ; 0 volume | PASS |
 | Revue indépendante `main...HEAD` | reviewer indépendant de Task 11 | tête finale de PR | diff LOT40 complet | à fixer après dernière correction | PENDING |
 | Checks GitHub et fusion | GitHub Actions + mainteneur | PR vers `main` | contextes protégés et SHA fusionné | non encore disponible | PENDING |
