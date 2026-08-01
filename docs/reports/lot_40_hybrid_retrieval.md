@@ -10,6 +10,8 @@ Date de vérification : 2026-08-01
 - Le présent commit documentaire vient nécessairement après ce SHA. Cette
   distinction évite une référence circulaire sans présenter le rapport comme un
   delta fonctionnel non vérifié.
+- Première tête de PR contrôlée par GitHub :
+  `e72b2e408629b6b31d987bd7940c49549ea8d272`.
 - Branche vérifiée : `lot-40-hybrid-retrieval`.
 
 LOT40: PASS_CANDIDATE
@@ -19,8 +21,8 @@ REVUE_INDÉPENDANTE: APPROVE_HIGH
 GO_LIVE: NO_GO
 
 `PASS_CANDIDATE` signifie que le candidat LOT40 satisfait les preuves locales
-fraîches et la revue indépendante globale. Il ne signifie encore ni checks
-GitHub verts, ni fusion dans `main`, ni aptitude globale au go-live.
+fraîches, la revue indépendante globale et les checks GitHub. Il ne signifie
+encore ni fusion dans `main`, ni aptitude globale au go-live.
 
 ## Périmètre livré
 
@@ -213,6 +215,26 @@ Le préflight final a vérifié Node 22.22.0, CPython 3.11.14, les imports syst�
 du build cockpit et la création d'un venv. Aucun contrôle n'a été ignoré ni
 modifié.
 
+### Checks GitHub de la PR
+
+La draft PR `#83`, de `lot-40-hybrid-retrieval` vers `main`, a évalué la tête
+`e72b2e408629b6b31d987bd7940c49549ea8d272`. Les deux runs déclenchés sur ce
+même arbre sont terminés avec succès :
+
+- push : run `30715764715` ;
+- pull request : run `30715779465`.
+
+Dans chacun, les six contextes protégés sont `SUCCESS` :
+`packages/contracts`, `services/rag-pedago`, `services/rag-engine`,
+`services/cockpit`, `governance locks guard` et `repository controls`. Le job
+`services/rag-engine` a exécuté `make test-integration-hybrid` dans les deux
+runs, respectivement en 6 min 59 s et 7 min 02 s. Le contrôle supplémentaire
+GitGuardian est également PASS.
+
+Le commit documentaire qui consigne ces résultats vient nécessairement après
+la tête contrôlée. Il doit à son tour obtenir les six checks avant passage de la
+PR en ready et fusion ; cette exigence évite de présenter une preuve circulaire.
+
 ## Nettoyage Docker
 
 Le runner utilise un token propriétaire aléatoire de 128 bits, l'ID immuable du
@@ -245,7 +267,8 @@ son `StartedAt` du 31 juillet et `RestartCount=0`.
 | Hygiène des fixtures | pytest, Ruff et scan prescrit | candidat final | 39 tests de pool et lignes ajoutées | candidat de code complet ci-dessus | PASS |
 | Nettoyage des ressources | runner + relecture postérieure | Docker local | inventaire conteneurs/volumes LOT40 | 0 conteneur ; 0 volume | PASS |
 | Revue indépendante `main...HEAD` | `lot40_final_code_review` | candidat de code final | diff LOT40 complet + 139 tests ciblés + DB réelle | `4c8c2f80b18e75828207f64d7327efea9585f7cd` | APPROVE/HIGH |
-| Checks GitHub et fusion | GitHub Actions + mainteneur | PR vers `main` | contextes protégés et SHA fusionné | non encore disponible | PENDING |
+| Checks GitHub | GitHub Actions | draft PR `#83` vers `main` | six contextes protégés + smoke réel dans deux runs | `e72b2e408629b6b31d987bd7940c49549ea8d272` | PASS |
+| Fusion | mainteneur | PR `#83` vers `main` | SHA fusionné et équivalence des arbres | non encore disponible | PENDING |
 
 Les revues de réalisation des Tasks 1 à 9 ont été conduites par incréments de
 spécification et de qualité, avec commits correctifs séparés. La revue globale
@@ -253,8 +276,8 @@ Task 11 ci-dessus est distincte et couvre le diff complet.
 
 ## Risques et portes restantes
 
-- **Task 11** : push de la branche, draft PR, six checks GitHub protégés, fusion
-  et contrôle post-merge restent obligatoires avant de déclarer LOT40
+- **Task 11** : checks du commit documentaire final, passage ready, fusion et
+  contrôle post-merge restent obligatoires avant de déclarer LOT40
   `MERGED/PASS`.
 - **LOT41** : imposer l'identité et les filtres serveur exhaustifs ; aucun
   utilisateur réel ne doit dépendre du seul filtrage actuel.
