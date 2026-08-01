@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 
 import type { RetrievalResult, RetrievalResponse, SearchPayload } from '@/generated/contracts'
 import { validateRetrievalResponse, validateSearchPayload } from '@/generated/validators'
+import { requireBffAuth } from '@/server/bff-auth'
 
 import { fetchEngine, isPublicLaunchReady } from '../_engine'
 
@@ -113,6 +114,11 @@ function mergeCollectionHeads(
 }
 
 export async function POST(request: Request) {
+  const authContext = await requireBffAuth(request)
+  if (!authContext) {
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+  }
+
   let payload: SearchPayload
   try {
     const body: unknown = await request.json()
@@ -124,6 +130,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'invalid_request' }, { status: 400 })
   }
 
+  const allowedCollections = new Set(authContext.allowedCollections)
+  if (!payload.collections.every((collection) => allowedCollections.has(collection))) {
+    return NextResponse.json({ error: 'forbidden_collection' }, { status: 403 })
+  }
+
   if (!await isPublicLaunchReady()) {
     return NextResponse.json({ error: 'launch_not_ready' }, { status: 503 })
   }
@@ -133,6 +144,7 @@ export async function POST(request: Request) {
       payload.collections.map((collection) => fetchEngine('/search/v2', {
         method: 'POST',
         body: { q: payload.query, collection, k: payload.k ?? 8 },
+        identityToken: authContext.identityToken,
       })),
     )
     if (results.some((result) => result.status !== 200)) {

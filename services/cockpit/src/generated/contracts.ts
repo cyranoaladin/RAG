@@ -1,7 +1,15 @@
 // Generated from packages/contracts/schema. Do not edit manually.
 
 export type ContractBundle =
-  RetrievalRequest | RetrievalResponse | SearchPayload | ChatPayload | ChatRequest | ChatResponse | InternalIdentity;
+  | RetrievalRequest
+  | RetrievalResponse
+  | SearchPayload
+  | ChatPayload
+  | ChatRequest
+  | ChatResponse
+  | InternalIdentity
+  | InternalIdentityEnvelope
+  | PilotRetrievalScopeArtifact;
 export type TypeDoc =
   | 'programme_officiel'
   | 'ressource_officielle'
@@ -160,8 +168,58 @@ export type Candidat1 = 'scolarise' | 'individuel' | 'libre' | 'cned_reglemente'
  * Matières suivies
  *
  * @minItems 1
+ * @maxItems 16
  */
-export type Matieres1 = [string, ...string[]];
+export type Matieres1 =
+  | [string]
+  | [string, string]
+  | [string, string, string]
+  | [string, string, string, string]
+  | [string, string, string, string, string]
+  | [string, string, string, string, string, string]
+  | [string, string, string, string, string, string, string]
+  | [string, string, string, string, string, string, string, string]
+  | [string, string, string, string, string, string, string, string, string]
+  | [string, string, string, string, string, string, string, string, string, string]
+  | [string, string, string, string, string, string, string, string, string, string, string]
+  | [string, string, string, string, string, string, string, string, string, string, string, string]
+  | [string, string, string, string, string, string, string, string, string, string, string, string, string]
+  | [string, string, string, string, string, string, string, string, string, string, string, string, string, string]
+  | [
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string
+    ]
+  | [
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string
+    ];
 /**
  * Statut pédagogique
  */
@@ -186,8 +244,324 @@ export type StatutEnseignement1 =
  */
 export type Voie1 = 'college' | 'generale' | 'technologique' | 'professionnelle' | 'aefe' | 'unknown';
 export type Role1 = 'student' | 'teacher' | 'admin' | 'ingest_agent' | 'reviewer';
+export type SchoolYear1 = string;
 export type Sub = string;
 export type Tenant = string;
+/**
+ * @minItems 1
+ * @maxItems 16
+ */
+export type AllowedCollections =
+  | [string]
+  | [string, string]
+  | [string, string, string]
+  | [string, string, string, string]
+  | [string, string, string, string, string]
+  | [string, string, string, string, string, string]
+  | [string, string, string, string, string, string, string]
+  | [string, string, string, string, string, string, string, string]
+  | [string, string, string, string, string, string, string, string, string]
+  | [string, string, string, string, string, string, string, string, string, string]
+  | [string, string, string, string, string, string, string, string, string, string, string]
+  | [string, string, string, string, string, string, string, string, string, string, string, string]
+  | [string, string, string, string, string, string, string, string, string, string, string, string, string]
+  | [string, string, string, string, string, string, string, string, string, string, string, string, string, string]
+  | [
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string
+    ]
+  | [
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string
+    ];
+export type Aud1 = string;
+export type Exp1 = number;
+export type Iat = number;
+export type Iss1 = string;
+export type Jti1 = string;
+export type ProtocolVersion = '1';
+export type ScopeDigest = string;
+export type ScopeId = string;
+export type Sub1 = string;
+export type ArtifactVersion = '1';
+export type Audience1 = 'libre' | 'aefe' | 'tous';
+/**
+ * @minItems 1
+ * @maxItems 16
+ */
+export type Candidates =
+  | [Candidat]
+  | [Candidat, Candidat]
+  | [Candidat, Candidat, Candidat]
+  | [Candidat, Candidat, Candidat, Candidat]
+  | [Candidat, Candidat, Candidat, Candidat, Candidat]
+  | [Candidat, Candidat, Candidat, Candidat, Candidat, Candidat]
+  | [Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat]
+  | [Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat]
+  | [Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat]
+  | [Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat]
+  | [Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat]
+  | [
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat
+    ]
+  | [
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat
+    ]
+  | [
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat
+    ]
+  | [
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat
+    ]
+  | [
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat
+    ];
+export type Tenant1 = string;
+export type SchoolYear2 = string;
+export type ScopeId1 = string;
+export type SourceSha256 = string;
+export type Status = 'eligible_for_promotion';
+/**
+ * @minItems 1
+ * @maxItems 16
+ */
+export type Subjects =
+  | [PilotScopeSubject]
+  | [PilotScopeSubject, PilotScopeSubject]
+  | [PilotScopeSubject, PilotScopeSubject, PilotScopeSubject]
+  | [PilotScopeSubject, PilotScopeSubject, PilotScopeSubject, PilotScopeSubject]
+  | [PilotScopeSubject, PilotScopeSubject, PilotScopeSubject, PilotScopeSubject, PilotScopeSubject]
+  | [PilotScopeSubject, PilotScopeSubject, PilotScopeSubject, PilotScopeSubject, PilotScopeSubject, PilotScopeSubject]
+  | [
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject
+    ]
+  | [
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject
+    ]
+  | [
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject
+    ]
+  | [
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject
+    ]
+  | [
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject
+    ]
+  | [
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject
+    ]
+  | [
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject
+    ]
+  | [
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject
+    ]
+  | [
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject
+    ]
+  | [
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject,
+      PilotScopeSubject
+    ];
+export type Collection = string;
+export type Matiere = string;
+export type ProgrammeVersion = string;
 
 export interface RetrievalRequest {
   need: RetrievalNeed;
@@ -309,9 +683,7 @@ export interface ChatCitation {
   source_uri: SourceUri1;
 }
 /**
- * Contrat d'identité métier produit par le cockpit.
- *
- * L'implémentation locale (nexus/contracts) le sérialise et valide strictement.
+ * Claims minimaux produits par le cockpit et consommés par rag-engine.
  */
 export interface InternalIdentity {
   aud: Aud;
@@ -321,13 +693,12 @@ export interface InternalIdentity {
   niveau: Niveau1;
   pedagogical_profile: PedagogicalProfile;
   role: Role1;
+  school_year: SchoolYear1;
   sub: Sub;
   tenant: Tenant;
 }
 /**
- * Noyau pedagogique d'une identité interne.
- *
- * Champs volontairement resserrés à ce qui est nécessaire dans le cockpit actuel.
+ * Sous-ensemble pédagogique fermé, sans identifiant ni champ libre.
  */
 export interface PedagogicalProfile {
   audience: Audience;
@@ -335,4 +706,51 @@ export interface PedagogicalProfile {
   matieres: Matieres1;
   statut_enseignement: StatutEnseignement1;
   voie: Voie1;
+}
+/**
+ * Enveloppe signée liant le transport à une identité et à un scope.
+ */
+export interface InternalIdentityEnvelope {
+  allowed_collections: AllowedCollections;
+  aud: Aud1;
+  exp: Exp1;
+  iat: Iat;
+  identity: InternalIdentity;
+  iss: Iss1;
+  jti: Jti1;
+  protocol_version: ProtocolVersion;
+  scope_digest: ScopeDigest;
+  scope_id: ScopeId;
+  sub: Sub1;
+}
+/**
+ * Projection adressée par contenu du scope dormant issu de LOT38.
+ */
+export interface PilotRetrievalScopeArtifact {
+  artifact_version: ArtifactVersion;
+  identity: PilotScopeIdentity;
+  school_year: SchoolYear2;
+  scope_id: ScopeId1;
+  source_sha256: SourceSha256;
+  status: Status;
+  subjects: Subjects;
+}
+/**
+ * Projection non personnelle de l'identité autorisée par LOT38.
+ */
+export interface PilotScopeIdentity {
+  audience: Audience1;
+  candidates: Candidates;
+  niveau: Niveau;
+  statut_enseignement: StatutEnseignement;
+  tenant: Tenant1;
+  voie: Voie;
+}
+/**
+ * Matière, collection et version de programme liées au scope.
+ */
+export interface PilotScopeSubject {
+  collection: Collection;
+  matiere: Matiere;
+  programme_version: ProgrammeVersion;
 }

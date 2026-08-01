@@ -1,6 +1,7 @@
 export interface EngineFetchParams {
   method?: 'GET' | 'POST'
   body?: unknown
+  identityToken?: string
 }
 
 export interface EngineFetchResult {
@@ -19,13 +20,11 @@ function resolveEngineUrl(): string {
 }
 
 function resolveEngineToken(): string {
-  return (
-    process.env.RAG_ENGINE_INTERNAL_TOKEN ||
-    process.env.RAG_ENGINE_INTERNAL_API_TOKEN ||
-    process.env.RAG_STUDENT_TOKEN ||
-    process.env.RAG_API_TOKEN ||
-    ''
-  )
+  const token = (process.env.RAG_ENGINE_INTERNAL_TOKEN || '').trim()
+  if (!token) {
+    throw new Error('Configuration moteur manquante: RAG_ENGINE_INTERNAL_TOKEN')
+  }
+  return token
 }
 
 export async function fetchEngine(
@@ -43,8 +42,9 @@ export async function fetchEngine(
   headers.set('Accept', 'application/json')
   headers.set('Content-Type', 'application/json')
 
-  if (token) {
-    headers.set('Authorization', `Bearer ${token}`)
+  headers.set('Authorization', `Bearer ${token}`)
+  if (params.identityToken) {
+    headers.set('X-Nexus-Identity', params.identityToken)
   }
 
   const init: RequestInit = {

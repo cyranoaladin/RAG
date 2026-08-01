@@ -1,0 +1,205 @@
+{
+  "$defs": {
+    "Candidat": {
+      "enum": [
+        "scolarise",
+        "individuel",
+        "libre",
+        "cned_reglemente",
+        "cned_libre",
+        "aefe",
+        "both"
+      ],
+      "title": "Candidat",
+      "type": "string"
+    },
+    "Niveau": {
+      "enum": [
+        "troisieme",
+        "seconde",
+        "premiere",
+        "terminale",
+        "cycle4",
+        "lycee_gt",
+        "voie_generale",
+        "voie_technologique"
+      ],
+      "title": "Niveau",
+      "type": "string"
+    },
+    "PilotScopeIdentity": {
+      "additionalProperties": false,
+      "description": "Projection non personnelle de l'identité autorisée par LOT38.",
+      "properties": {
+        "audience": {
+          "enum": [
+            "libre",
+            "aefe",
+            "tous"
+          ],
+          "title": "Audience",
+          "type": "string"
+        },
+        "candidates": {
+          "items": {
+            "$ref": "#/$defs/Candidat"
+          },
+          "maxItems": 16,
+          "minItems": 1,
+          "title": "Candidates",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "niveau": {
+          "$ref": "#/$defs/Niveau"
+        },
+        "statut_enseignement": {
+          "$ref": "#/$defs/StatutEnseignement"
+        },
+        "tenant": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Tenant",
+          "type": "string"
+        },
+        "voie": {
+          "$ref": "#/$defs/Voie"
+        }
+      },
+      "required": [
+        "tenant",
+        "niveau",
+        "voie",
+        "statut_enseignement",
+        "audience",
+        "candidates"
+      ],
+      "title": "PilotScopeIdentity",
+      "type": "object"
+    },
+    "PilotScopeSubject": {
+      "additionalProperties": false,
+      "description": "Matière, collection et version de programme liées au scope.",
+      "properties": {
+        "collection": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Collection",
+          "type": "string"
+        },
+        "matiere": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Matiere",
+          "type": "string"
+        },
+        "programme_version": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Programme Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "matiere",
+        "collection",
+        "programme_version"
+      ],
+      "title": "PilotScopeSubject",
+      "type": "object"
+    },
+    "StatutEnseignement": {
+      "enum": [
+        "tronc_commun",
+        "enseignement_commun",
+        "specialite",
+        "eds",
+        "option",
+        "maths_complementaires",
+        "maths_expertes",
+        "snt",
+        "enseignement_scientifique",
+        "emc",
+        "atelier",
+        "stage",
+        "remediation",
+        "examen",
+        "unknown"
+      ],
+      "title": "StatutEnseignement",
+      "type": "string"
+    },
+    "Voie": {
+      "enum": [
+        "college",
+        "generale",
+        "technologique",
+        "professionnelle",
+        "aefe",
+        "unknown"
+      ],
+      "title": "Voie",
+      "type": "string"
+    }
+  },
+  "$id": "https://nexusreussite.academy/contracts/v0.4/pilot-retrieval-scope-artifact.json",
+  "additionalProperties": false,
+  "description": "Projection adressée par contenu du scope dormant issu de LOT38.",
+  "properties": {
+    "artifact_version": {
+      "const": "1",
+      "title": "Artifact Version",
+      "type": "string"
+    },
+    "identity": {
+      "$ref": "#/$defs/PilotScopeIdentity"
+    },
+    "school_year": {
+      "pattern": "^\\d{4}-\\d{4}$",
+      "title": "School Year",
+      "type": "string"
+    },
+    "scope_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^[a-z0-9_]+$",
+      "title": "Scope Id",
+      "type": "string"
+    },
+    "source_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source Sha256",
+      "type": "string"
+    },
+    "status": {
+      "const": "eligible_for_promotion",
+      "title": "Status",
+      "type": "string"
+    },
+    "subjects": {
+      "items": {
+        "$ref": "#/$defs/PilotScopeSubject"
+      },
+      "maxItems": 16,
+      "minItems": 1,
+      "title": "Subjects",
+      "type": "array",
+      "uniqueItems": true
+    }
+  },
+  "required": [
+    "artifact_version",
+    "scope_id",
+    "status",
+    "source_sha256",
+    "school_year",
+    "identity",
+    "subjects"
+  ],
+  "title": "PilotRetrievalScopeArtifact",
+  "type": "object"
+}

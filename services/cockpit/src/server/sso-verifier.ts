@@ -44,6 +44,15 @@ function nowSeconds(): number {
   return Math.floor(Date.now() / 1000)
 }
 
+function releaseSchoolYear(): string {
+  const value = requireEnv('NEXUS_RELEASE_SCHOOL_YEAR')
+  const match = /^(\d{4})-(\d{4})$/.exec(value)
+  if (match === null || Number(match[2]) !== Number(match[1]) + 1) {
+    throw new Error('Configuration SSO invalide: NEXUS_RELEASE_SCHOOL_YEAR')
+  }
+  return value
+}
+
 function asString(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value : null
 }
@@ -154,6 +163,7 @@ function toInternalIdentity(payload: JWTPayload): InternalIdentity {
     tenant,
     niveau: niveau as InternalIdentity['niveau'],
     role,
+    school_year: releaseSchoolYear(),
     sub,
     pedagogical_profile,
   }

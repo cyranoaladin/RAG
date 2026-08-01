@@ -12,11 +12,32 @@ SaaS Next.js (App Router) destiné aux élèves et candidats libres.
 
 ## Statut
 
-La migration Vite → Next.js est achevée par la Task 7b du lot 35. Le shell
-App Router, les scripts et le build sont exclusivement Next.js ; Vitest reste
-le moteur de tests. L'authentification réelle sera raccordée en Task 8a.
-Avant ce raccord, l'unique entrée Next reste fermée et le navigateur n'appelle
-que le BFF same-origin sous `/api/*`.
+La migration Vite → Next.js est achevée. Le shell App Router, les scripts et le
+build sont exclusivement Next.js ; Vitest reste le moteur de tests. LOT41 lie
+le SSO Nexus au contrat d'identité 0.4 et ferme `search`/`chat` sans session
+serveur active. Le navigateur n'appelle que le BFF same-origin sous `/api/*` et
+ne reçoit ni identité complète, ni jeton interne, ni jeton de service moteur.
+
+## Configuration d'identité serveur
+
+Les valeurs suivantes sont obligatoires ; aucune n'a de valeur secrète par
+défaut dans le dépôt :
+
+- `NEXUS_SSO_ISSUER`, `NEXUS_SSO_AUDIENCE` et une source de clé
+  `NEXUS_SSO_JWKS_URL` ou `NEXUS_SSO_SHARED_SECRET` ;
+- `NEXUS_RELEASE_SCHOOL_YEAR` au format contigu `YYYY-YYYY+1` ;
+- `NEXUS_INTERNAL_TOKEN_SECRET`, `NEXUS_INTERNAL_TOKEN_ISSUER` et
+  `NEXUS_INTERNAL_TOKEN_AUDIENCE` pour le transport cockpit → moteur ;
+- `RAG_ENGINE_INTERNAL_TOKEN` pour l'authentification de service BFF ;
+- `NEXTAUTH_SECRET` pour le JWT de session httpOnly ;
+- `NEXUS_SESSION_REDIS_URL` pour la révocation, la frontière tenant et
+  l'anti-rejeu partagés entre instances.
+
+Une absence de Redis ou une erreur du store ferme l'authentification. Le mode
+mémoire exige simultanément `NODE_ENV=test`,
+`NEXUS_SESSION_STORE_MODE=memory` et
+`NEXUS_SESSION_MEMORY_STORE_FOR_TESTS=true` ; il est interdit en production et
+en validation.
 
 ## Sécurité des dépendances Next.js
 
