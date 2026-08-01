@@ -10,7 +10,9 @@ pydantic-settings==2.5.0
 
 # pgvector (remplace chromadb-client)
 asyncpg==0.29.0
-psycopg[binary,pool]==3.2.1
+psycopg==3.2.1
+psycopg-binary==3.2.1
+psycopg-pool==3.2.1
 pgvector==0.3.2
 
 # Embeddings HTTP client
