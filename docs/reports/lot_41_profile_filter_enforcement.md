@@ -255,6 +255,27 @@ d'interpréteur a été corrigé hors dépôt, puis les 13 cibles ont été rejo
 depuis le début. Aucun test n'a été ignoré et aucun code n'a changé entre ces
 deux exécutions.
 
+### Checks GitHub de la PR
+
+La draft PR `#84`, de `lot-41-identity-filters` vers `main`, a évalué la tête
+`a955b633447ed5a02be17a7ffa799cbdb459a966`. Les deux runs déclenchés sur ce
+même arbre sont terminés avec succès :
+
+- push : run `30723439346` ;
+- pull request : run `30723445503`.
+
+Dans chacun, les six contextes protégés sont `SUCCESS` :
+`packages/contracts`, `services/rag-pedago`, `services/rag-engine`,
+`services/cockpit`, `governance locks guard` et `repository controls`. Les deux
+jobs `services/rag-engine` ont exécuté l'intégration PostgreSQL/pgvector réelle
+et se sont terminés respectivement en 7 min 05 s et 6 min 54 s. Le contrôle
+supplémentaire GitGuardian est également PASS. Le bilan agrégé de la PR est de
+13 contrôles réussis, 0 échec et 0 contrôle en attente.
+
+Le commit documentaire qui consigne ces résultats vient nécessairement après
+la tête contrôlée. Il doit à son tour obtenir les six checks avant passage de la
+PR en ready et fusion ; cette exigence évite de présenter une preuve circulaire.
+
 ### Gouvernance, hygiène et secrets
 
 - Les 18 verrous correspondent exactement à leur baseline ; aucun verrou n'a
@@ -318,7 +339,7 @@ Les cycles de revue ont aussi fermé :
 | CI locale intégrale | venvs frais + Docker | 13 cibles canoniques | PASS |
 | Revue code indépendante | SHA de code final | diff complet + runner réel | APPROVE/HIGH |
 | Revue qualité indépendante | SHA de code final | métriques, périmètre et contre-preuves | APPROVE/HIGH |
-| Checks GitHub | PR vers `main` | contextes protégés | PENDING |
+| Checks GitHub | draft PR `#84` vers `main` | six contextes protégés dans deux runs + GitGuardian | PASS |
 | Fusion | PR vers `main` | équivalence des arbres | PENDING |
 
 ## Limites et portes restantes
