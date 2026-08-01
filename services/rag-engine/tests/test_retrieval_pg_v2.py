@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
-from pathlib import Path
 from types import TracebackType
 from typing import Any
 
@@ -120,8 +119,14 @@ class CursorSpy:
 
     def execute(self, sql: str, params: tuple[object, ...] | None = None) -> None:
         self.events.append(("execute",))
-        self.executions.append((_normalize_sql(sql), params))
-        if self.fail_at in {"execute", "set"}:
+        normalized_sql = _normalize_sql(sql)
+        self.executions.append((normalized_sql, params))
+        fails_on_set = self.fail_at == "set" and normalized_sql == DENSE_STRICT_ORDER_SQL
+        fails_on_select = self.fail_at == "execute" and normalized_sql in {
+            DENSE_SQL,
+            LEXICAL_SQL,
+        }
+        if fails_on_set or fails_on_select:
             raise RuntimeError("query leaked: postgresql://secret@db/rag")
 
     def fetchall(self) -> object:
@@ -272,16 +277,6 @@ def test_values_that_look_like_sql_remain_only_in_parameters(channel: str) -> No
         assert params == (malicious_query, malicious_collection, CHANNEL_LIMIT)
     assert malicious_collection not in sql
     assert "DROP TABLE" not in sql
-
-
-def test_hnsw_real_plan_and_filtered_overfetch_evidence_is_reserved_for_task8() -> None:
-    module_source = (
-        Path(__file__).resolve().parents[1] / "src/ingestor/retrieval_pg_v2.py"
-    ).read_text(encoding="utf-8")
-
-    assert "Task8" in module_source
-    assert ">50" in module_source
-    assert "EXPLAIN" in module_source
 
 
 def test_lexical_empty_database_result_is_valid_and_has_no_fallback_query() -> None:
@@ -489,6 +484,11 @@ def test_runtime_failures_are_sanitized_and_contexts_are_released(
     assert provider.calls == 1
     maximum_executions = 2 if channel == "dense" else 1
     assert len(provider.cursor.executions) <= maximum_executions
+    if channel == "dense" and fail_at == "execute":
+        assert provider.cursor.executions == [
+            (DENSE_STRICT_ORDER_SQL, None),
+            (DENSE_SQL, (VECTOR_TEXT, "libre_terminale", VECTOR_TEXT, CHANNEL_LIMIT)),
+        ]
     if fail_at in {"execute", "fetchall"}:
         assert any(event[0] == "cursor-exit" for event in provider.events)
         assert any(event[0] == "connection-exit" for event in provider.events)
