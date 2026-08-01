@@ -126,6 +126,7 @@ class PilotValidationScope(BaseModel):
     school_year: str
     identity: PilotIdentity
     subjects: tuple[PilotSubject, ...]
+    _source_bytes: bytes | None = PrivateAttr(default=None)
     _source_sha256: str | None = PrivateAttr(default=None)
     _source_fingerprint: str | None = PrivateAttr(default=None)
 
@@ -220,6 +221,7 @@ class PilotValidationPolicy(BaseModel):
     validation_environment: ValidationEnvironment
     authorization_matrix: AuthorizationMatrix
     required_authorization: RequiredAuthorization
+    _source_bytes: bytes | None = PrivateAttr(default=None)
     _source_sha256: str | None = PrivateAttr(default=None)
     _source_fingerprint: str | None = PrivateAttr(default=None)
 
@@ -272,6 +274,7 @@ class ValidationAuthorization(BaseModel):
     pull_request: int = Field(strict=True, gt=0)
     issued_at: AwareDatetime
     expires_at: AwareDatetime
+    _source_bytes: bytes | None = PrivateAttr(default=None)
     _source_sha256: str | None = PrivateAttr(default=None)
     _source_fingerprint: str | None = PrivateAttr(default=None)
 
@@ -360,6 +363,7 @@ def load_scope(path: Path) -> PilotValidationScope:
     raw = path.read_bytes()
     payload: Any = yaml.safe_load(raw)
     scope = PilotValidationScope.model_validate(payload)
+    scope._source_bytes = raw
     scope._source_sha256 = sha256(raw).hexdigest()
     scope._source_fingerprint = _model_fingerprint(scope)
     return scope
@@ -371,6 +375,7 @@ def load_policy(path: Path) -> PilotValidationPolicy:
     raw = path.read_bytes()
     payload: Any = yaml.safe_load(raw)
     policy = PilotValidationPolicy.model_validate(payload)
+    policy._source_bytes = raw
     policy._source_sha256 = sha256(raw).hexdigest()
     policy._source_fingerprint = _model_fingerprint(policy)
     return policy
@@ -387,6 +392,7 @@ def load_authorization(path: Path) -> ValidationAuthorization:
     raw = path.read_bytes()
     payload: Any = yaml.safe_load(raw)
     authorization = ValidationAuthorization.model_validate(payload)
+    authorization._source_bytes = raw
     authorization._source_sha256 = sha256(raw).hexdigest()
     authorization._source_fingerprint = _model_fingerprint(authorization)
     return authorization
@@ -606,9 +612,15 @@ def _revalidate_instance(
 def _restore_source_attestation(
     clean: PilotValidationScope | PilotValidationPolicy | ValidationAuthorization,
     source: PilotValidationScope | PilotValidationPolicy | ValidationAuthorization,
-) -> None:
-    clean._source_sha256 = source._source_sha256
-    clean._source_fingerprint = source._source_fingerprint
+) -> bool:
+    raw_digest = _raw_digest(source)
+    raw = source._source_bytes
+    if raw_digest is None or not isinstance(raw, bytes):
+        return False
+    clean._source_bytes = raw
+    clean._source_sha256 = raw_digest
+    clean._source_fingerprint = _model_fingerprint(clean)
+    return True
 
 
 def _safe_scope(value: PilotValidationScope | Path) -> PilotValidationScope | None:
@@ -618,7 +630,8 @@ def _safe_scope(value: PilotValidationScope | Path) -> PilotValidationScope | No
         clean = _revalidate_instance(value, model=PilotValidationScope)
         if clean is None:
             return None
-        _restore_source_attestation(clean, value)
+        if not _restore_source_attestation(clean, value):
+            return None
         return clean
     try:
         return load_scope(value)
@@ -633,7 +646,8 @@ def _safe_policy(value: PilotValidationPolicy | Path) -> PilotValidationPolicy |
         clean = _revalidate_instance(value, model=PilotValidationPolicy)
         if clean is None:
             return None
-        _restore_source_attestation(clean, value)
+        if not _restore_source_attestation(clean, value):
+            return None
         return clean
     try:
         return load_policy(value)
@@ -650,7 +664,8 @@ def _safe_authorization(
         clean = _revalidate_instance(value, model=ValidationAuthorization)
         if clean is None:
             return None
-        _restore_source_attestation(clean, value)
+        if not _restore_source_attestation(clean, value):
+            return None
         return clean
     if not isinstance(value, Path):
         return None
@@ -700,13 +715,33 @@ def _load_public_contract(service_root: Path) -> Mapping[str, object] | None:
 def _raw_digest(
     value: PilotValidationScope | PilotValidationPolicy | ValidationAuthorization,
 ) -> str | None:
+    raw = value._source_bytes
+    if not isinstance(raw, bytes):
+        return None
     try:
-        fingerprint = _model_fingerprint(value)
-    except (PydanticSerializationError, TypeError, ValueError):
+        payload: Any = yaml.safe_load(raw)
+        if type(value) is PilotValidationScope:
+            reparsed: BaseModel = PilotValidationScope.model_validate(payload)
+        elif type(value) is PilotValidationPolicy:
+            reparsed = PilotValidationPolicy.model_validate(payload)
+        elif type(value) is ValidationAuthorization:
+            reparsed = ValidationAuthorization.model_validate(payload)
+        else:
+            return None
+        source_fingerprint = _model_fingerprint(reparsed)
+        received_fingerprint = _model_fingerprint(value)
+    except (
+        OSError,
+        PydanticSerializationError,
+        TypeError,
+        UnicodeError,
+        ValueError,
+        yaml.YAMLError,
+    ):
         return None
-    if value._source_fingerprint != fingerprint:
+    if source_fingerprint != received_fingerprint:
         return None
-    return value._source_sha256
+    return sha256(raw).hexdigest()
 
 
 def evaluate_authorization(

@@ -907,6 +907,69 @@ class TestMalformedInputs:
             activation_policy=mutated_activation
         ).reasons
 
+    def test_refuses_forged_private_fingerprint_on_extended_authorization(self) -> None:
+        authorization = governance.load_authorization(AUTHORIZATION_PATH)
+        mutated = authorization.model_copy(
+            update={"expires_at": datetime(2026, 8, 31, 20, 0, tzinfo=UTC)}
+        )
+        mutated._source_fingerprint = governance._model_fingerprint(mutated)
+        mutated._source_sha256 = authorization._source_sha256
+
+        decision = _evaluate(
+            authorization=mutated,
+            now=datetime(2026, 8, 8, 20, 0, tzinfo=UTC),
+        )
+
+        assert decision.allowed is False
+        assert "authorization.invalid" in decision.reasons
+
+    def test_refuses_replaced_source_bytes_with_unapproved_raw_digest(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        payload = _payload(AUTHORIZATION_PATH)
+        payload["expires_at"] = "2026-08-31T20:00:00Z"
+        path = _write_payload(tmp_path, "authorization.extended.yml", payload)
+        authorization = governance.load_authorization(path)
+        object.__setattr__(authorization, "_source_bytes", path.read_bytes())
+        authorization._source_fingerprint = governance._model_fingerprint(authorization)
+        authorization._source_sha256 = sha256(
+            AUTHORIZATION_PATH.read_bytes()
+        ).hexdigest()
+
+        decision = _evaluate(
+            authorization=authorization,
+            now=datetime(2026, 8, 8, 20, 0, tzinfo=UTC),
+        )
+
+        assert decision.allowed is False
+        assert "approval.authorization_digest_mismatch" in decision.reasons
+
+    def test_refuses_forged_private_fingerprint_on_activation(self) -> None:
+        activation = governance.load_policy(ACTIVATION_PATH)
+        capabilities = activation.capabilities.model_copy(
+            update={"validation_answer_generation_allowed": False}
+        )
+        mutated = activation.model_copy(update={"capabilities": capabilities})
+        mutated._source_fingerprint = governance._model_fingerprint(mutated)
+        mutated._source_sha256 = activation._source_sha256
+
+        decision = _evaluate(activation_policy=mutated)
+
+        assert decision.allowed is False
+        assert "activation_policy.invalid" in decision.reasons
+
+    def test_refuses_forged_private_fingerprint_on_reordered_scope(self) -> None:
+        scope = governance.load_scope(SCOPE_PATH)
+        mutated = scope.model_copy(update={"subjects": scope.subjects[::-1]})
+        mutated._source_fingerprint = governance._model_fingerprint(mutated)
+        mutated._source_sha256 = scope._source_sha256
+
+        decision = _evaluate(scope=mutated)
+
+        assert decision.allowed is False
+        assert "scope.invalid" in decision.reasons
+
     @pytest.mark.parametrize("invalid", ["141", True, 0, -1])
     @pytest.mark.parametrize(
         ("source", "argument", "reason"),
