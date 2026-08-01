@@ -24,7 +24,9 @@ from src.ingestor.retrieval_scope_v2 import (
     ServerRetrievalScope,
     allowed_rights_for_role,
     allowed_visibilities_for_role,
+    build_server_readiness_scope,
     build_server_retrieval_scope,
+    effective_signed_collections,
 )
 
 ARTIFACT = load_pilot_retrieval_scope()
@@ -83,6 +85,37 @@ ENGINE_CONFIG = {
     },
     "domains": {"education": {"retrievable": True}},
 }
+
+
+def _verified_for_matieres(matieres: list[str]) -> VerifiedInternalIdentity:
+    identity_payload = IDENTITY.model_dump(mode="json")
+    identity_payload["pedagogical_profile"]["matieres"] = matieres
+    identity = InternalIdentity.model_validate(identity_payload)
+    envelope_payload = ENVELOPE.model_dump(mode="json")
+    envelope_payload["identity"] = identity.model_dump(mode="json")
+    envelope = InternalIdentityEnvelope.model_validate(envelope_payload)
+    return VerifiedInternalIdentity(envelope=envelope, artifact=ARTIFACT)
+
+
+@pytest.mark.parametrize(
+    ("matieres", "expected"),
+    [
+        (["maths"], ("rag_nexus_maths_terminale_gen_specialite",)),
+        (["nsi"], ("rag_nexus_nsi_terminale_specialite",)),
+        (
+            ["maths", "nsi"],
+            (
+                "rag_nexus_maths_terminale_gen_specialite",
+                "rag_nexus_nsi_terminale_specialite",
+            ),
+        ),
+    ],
+)
+def test_effective_collections_follow_only_signed_profile_subjects(
+    matieres: list[str],
+    expected: tuple[str, ...],
+) -> None:
+    assert effective_signed_collections(_verified_for_matieres(matieres)) == expected
 
 
 @pytest.mark.parametrize(
@@ -245,6 +278,54 @@ def test_each_authorized_subject_derives_its_programme_scope(
 
     assert scope.matiere == expected_matiere
     assert scope.programme_version == "BOEN_special_8_2019-07-25"
+
+
+def test_readiness_scope_validates_a_declared_dormant_collection_without_opening_it() -> None:
+    config = deepcopy(ENGINE_CONFIG)
+    config["collections"]["rag_nexus_maths_terminale_gen_specialite"][
+        "instanciee"
+    ] = False
+
+    readiness_scope = build_server_readiness_scope(
+        VERIFIED,
+        collection="rag_nexus_maths_terminale_gen_specialite",
+        collection_config=config,
+    )
+
+    assert readiness_scope.collection == "rag_nexus_maths_terminale_gen_specialite"
+    assert readiness_scope.matiere == "maths"
+    with pytest.raises(RetrievalScopeError, match="retrieval scope forbidden"):
+        build_server_retrieval_scope(
+            VERIFIED,
+            collection="rag_nexus_maths_terminale_gen_specialite",
+            collection_config=config,
+        )
+
+
+@pytest.mark.parametrize(
+    ("dimension", "divergent_value"),
+    [
+        ("niveau", "premiere"),
+        ("voie", "stmg"),
+        ("matiere", "nsi"),
+        ("statut", "tronc_commun"),
+    ],
+)
+def test_readiness_scope_still_rejects_every_signed_dimension_mismatch(
+    dimension: str,
+    divergent_value: str,
+) -> None:
+    config = deepcopy(ENGINE_CONFIG)
+    definition = config["collections"]["rag_nexus_maths_terminale_gen_specialite"]
+    definition["instanciee"] = False
+    definition[dimension] = divergent_value
+
+    with pytest.raises(RetrievalScopeError, match="retrieval scope forbidden"):
+        build_server_readiness_scope(
+            VERIFIED,
+            collection="rag_nexus_maths_terminale_gen_specialite",
+            collection_config=config,
+        )
 
 
 def test_arbitrary_collection_is_rejected_before_catalogue_resolution() -> None:

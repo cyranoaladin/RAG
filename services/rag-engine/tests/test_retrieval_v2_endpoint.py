@@ -473,8 +473,13 @@ class TestLaunchReadiness:
         )
         monkeypatch.setattr(
             endpoint,
-            "build_server_retrieval_scope",
+            "build_server_readiness_scope",
             lambda *_args, **_kwargs: BASE_SCOPE,
+        )
+        monkeypatch.setattr(
+            endpoint,
+            "effective_signed_collections",
+            lambda _verified: (BASE_SCOPE.collection,),
         )
 
         def counts(scopes: object) -> dict[str, int]:

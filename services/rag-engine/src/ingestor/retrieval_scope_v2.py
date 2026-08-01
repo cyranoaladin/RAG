@@ -13,6 +13,7 @@ from nexus_contracts import RIGHTS_ALLOWED_CONTEXTS, AccessContext, Rights
 from .collection_config import (
     CollectionConfigError,
     resolve_collection_v2,
+    resolve_declared_collection_v2,
 )
 from .identity_v2 import VerifiedInternalIdentity
 
@@ -119,6 +120,25 @@ def allowed_visibilities_for_role(role: str) -> tuple[str, ...]:
         raise ValueError("unsupported retrieval role") from exc
 
 
+def effective_signed_collections(
+    verified: VerifiedInternalIdentity,
+) -> tuple[str, ...]:
+    """Return artifact-ordered collections selected by signed subjects."""
+    envelope = verified.envelope
+    artifact = verified.artifact
+    try:
+        artifact.validate_envelope(envelope)
+    except ValueError as exc:
+        raise RetrievalScopeError("retrieval scope forbidden") from exc
+    matieres = set(envelope.identity.pedagogical_profile.matieres)
+    effective = tuple(
+        subject.collection for subject in artifact.subjects if subject.matiere in matieres
+    )
+    if not effective:
+        raise RetrievalScopeError("retrieval scope forbidden")
+    return effective
+
+
 def _retrievable_definition(
     collection: str,
     collection_config: Mapping[str, Any],
@@ -148,14 +168,42 @@ def build_server_retrieval_scope(
     collection_config: Mapping[str, Any],
 ) -> ServerRetrievalScope:
     """Autoriser une collection puis dériver tous les prédicats serveur."""
+    definition = _retrievable_definition(collection, collection_config)
+    return _build_server_scope(
+        verified,
+        collection=collection,
+        definition=definition,
+    )
+
+
+def build_server_readiness_scope(
+    verified: VerifiedInternalIdentity,
+    *,
+    collection: str,
+    collection_config: Mapping[str, Any],
+) -> ServerRetrievalScope:
+    """Project a signed declared collection without making it retrievable."""
+    try:
+        definition = resolve_declared_collection_v2(collection, collection_config)
+    except CollectionConfigError as exc:
+        raise RetrievalScopeError("retrieval scope forbidden") from exc
+    return _build_server_scope(
+        verified,
+        collection=collection,
+        definition=definition,
+    )
+
+
+def _build_server_scope(
+    verified: VerifiedInternalIdentity,
+    *,
+    collection: str,
+    definition: Mapping[str, Any],
+) -> ServerRetrievalScope:
+    """Derive immutable predicates after the caller selected its gate."""
     envelope = verified.envelope
     artifact = verified.artifact
-    try:
-        artifact.validate_envelope(envelope)
-    except ValueError as exc:
-        raise RetrievalScopeError("retrieval scope forbidden") from exc
-
-    if collection not in envelope.allowed_collections:
+    if collection not in effective_signed_collections(verified):
         raise RetrievalScopeError("retrieval scope forbidden")
 
     subject = next(
@@ -165,7 +213,6 @@ def build_server_retrieval_scope(
     if subject is None:
         raise RetrievalScopeError("retrieval scope forbidden")
 
-    definition = _retrievable_definition(collection, collection_config)
     identity = envelope.identity
     profile = identity.pedagogical_profile
     dimensions = {
@@ -204,5 +251,7 @@ __all__ = [
     "ServerRetrievalScope",
     "allowed_rights_for_role",
     "allowed_visibilities_for_role",
+    "build_server_readiness_scope",
     "build_server_retrieval_scope",
+    "effective_signed_collections",
 ]

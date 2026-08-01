@@ -58,7 +58,9 @@ try:
     from .retrieval_scope_v2 import (
         RetrievalScopeError,
         ServerRetrievalScope,
+        build_server_readiness_scope,
         build_server_retrieval_scope,
+        effective_signed_collections,
     )
     from .security_v2 import SecurityRole, require_bff_service, require_role
 except (ImportError, ValueError):
@@ -94,7 +96,9 @@ except (ImportError, ValueError):
     from retrieval_scope_v2 import (  # type: ignore[no-redef]
         RetrievalScopeError,
         ServerRetrievalScope,
+        build_server_readiness_scope,
         build_server_retrieval_scope,
+        effective_signed_collections,
     )
     from security_v2 import (  # type: ignore[no-redef]
         SecurityRole,
@@ -515,22 +519,21 @@ def list_retrievable_collections(request: Request) -> dict[str, Any]:
     verified = _require_retrieval_identity(request, endpoint="/collections/v2")
     try:
         cfg = load_collection_config()
-        allowed = tuple(str(value) for value in verified.envelope.allowed_collections)
-        for collection in allowed:
+        allowed = effective_signed_collections(verified)
+        catalogue = _list_retrievable_collections(cfg)
+        allowed_set = set(allowed)
+        scoped_items = [
+            item for item in catalogue["collections"] if item["name"] in allowed_set
+        ]
+        for item in scoped_items:
             build_server_retrieval_scope(
                 verified,
-                collection=collection,
+                collection=item["name"],
                 collection_config=cfg,
             )
-        catalogue = _list_retrievable_collections(cfg)
     except (RetrievalScopeError, CollectionConfigError, ValueError) as exc:
         raise HTTPException(status_code=403, detail="Forbidden") from exc
-    allowed_set = set(allowed)
-    return {
-        "collections": [
-            item for item in catalogue["collections"] if item["name"] in allowed_set
-        ],
-    }
+    return {"collections": scoped_items}
 
 
 # --- Full catalogue endpoint (LOT 27) ---
@@ -688,9 +691,9 @@ def get_collection_readiness(request: Request) -> dict[str, Any]:
         collections_raw = cfg.get("collections")
         if not isinstance(collections_raw, Mapping):
             raise ValueError("collections config is malformed")
-        allowed = tuple(str(value) for value in verified.envelope.allowed_collections)
+        allowed = effective_signed_collections(verified)
         scopes = tuple(
-            build_server_retrieval_scope(
+            build_server_readiness_scope(
                 verified,
                 collection=collection,
                 collection_config=cfg,

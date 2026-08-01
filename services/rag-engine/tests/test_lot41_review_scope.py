@@ -164,7 +164,12 @@ def test_collection_and_tenant_overrides_can_only_restrict_signed_scope(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     build = MagicMock(return_value=SCOPE)
-    monkeypatch.setattr(review, "build_server_retrieval_scope", build)
+    monkeypatch.setattr(review, "build_server_readiness_scope", build)
+    monkeypatch.setattr(
+        review,
+        "effective_signed_collections",
+        lambda _verified: (SCOPE.collection,),
+    )
 
     scopes = review._resolve_review_scopes(
         _verified(),

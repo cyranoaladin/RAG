@@ -70,7 +70,7 @@ def test_collections_v2_requires_bff_identity_and_filters_signed_scope():
     assert match, "/collections/v2 endpoint not found"
     endpoint = match.group(0)
     assert '_require_retrieval_identity(request, endpoint="/collections/v2")' in endpoint
-    assert "verified.envelope.allowed_collections" in endpoint
+    assert "effective_signed_collections(verified)" in endpoint
     assert "build_server_retrieval_scope" in endpoint
     assert "_enforce_security_v2" not in endpoint
 

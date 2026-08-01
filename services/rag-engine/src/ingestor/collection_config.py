@@ -186,6 +186,22 @@ def resolve_collection_v2(
 
     Gate: instanciee must be boolean True. No fallback, no guessing.
     """
+    resolved = resolve_declared_collection_v2(collection_name, config)
+
+    if resolved.get("instanciee") is not True:
+        raise CollectionNotInstanciatedError(
+            f"Collection '{collection_name}' is in the catalogue but not instanciated "
+            f"(instanciee: false). Populate it via the governance chain before exposing."
+        )
+
+    return resolved
+
+
+def resolve_declared_collection_v2(
+    collection_name: str,
+    config: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Resolve a declared collection without authorizing its use."""
     cfg = config or load_collection_config()
     cols = _v2_catalogue(cfg)
 
@@ -199,12 +215,6 @@ def resolve_collection_v2(
     if not isinstance(definition, Mapping):
         raise CollectionConfigLoadError(
             f"Invalid definition for collection '{collection_name}'"
-        )
-
-    if definition.get("instanciee") is not True:
-        raise CollectionNotInstanciatedError(
-            f"Collection '{collection_name}' is in the catalogue but not instanciated "
-            f"(instanciee: false). Populate it via the governance chain before exposing."
         )
 
     resolved = dict(definition)

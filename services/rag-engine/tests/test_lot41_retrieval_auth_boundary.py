@@ -159,7 +159,12 @@ def test_readiness_accepts_only_the_distinct_bff_credential_and_signed_scope(
         },
     )
     scope = MagicMock(collection="pilot_collection")
-    monkeypatch.setattr(endpoint, "build_server_retrieval_scope", lambda *_args, **_kwargs: scope)
+    monkeypatch.setattr(endpoint, "build_server_readiness_scope", lambda *_args, **_kwargs: scope)
+    monkeypatch.setattr(
+        endpoint,
+        "effective_signed_collections",
+        lambda _verified: ("pilot_collection",),
+    )
     monkeypatch.setattr(
         endpoint,
         "_get_reviewed_chunk_counts",

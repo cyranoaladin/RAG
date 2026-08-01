@@ -18,7 +18,8 @@ try:
     from .retrieval_scope_v2 import (
         RetrievalScopeError,
         ServerRetrievalScope,
-        build_server_retrieval_scope,
+        build_server_readiness_scope,
+        effective_signed_collections,
     )
     from .retrieval_v2_endpoint import invalidate_cache
     from .security_v2 import require_bff_service
@@ -31,7 +32,8 @@ except (ImportError, ValueError):
     from retrieval_scope_v2 import (  # type: ignore[no-redef]
         RetrievalScopeError,
         ServerRetrievalScope,
-        build_server_retrieval_scope,
+        build_server_readiness_scope,
+        effective_signed_collections,
     )
     from retrieval_v2_endpoint import invalidate_cache  # type: ignore[no-redef]
     from security_v2 import require_bff_service  # type: ignore[no-redef]
@@ -89,7 +91,10 @@ def _resolve_review_scopes(
     if tenant is not None and tenant != identity_tenant:
         raise HTTPException(status_code=403, detail="Forbidden")
 
-    allowed = tuple(str(value) for value in verified.envelope.allowed_collections)
+    try:
+        allowed = effective_signed_collections(verified)
+    except RetrievalScopeError as exc:
+        raise HTTPException(status_code=403, detail="Forbidden") from exc
     selected: tuple[str, ...]
     if collection is not None:
         if collection not in allowed:
@@ -103,7 +108,7 @@ def _resolve_review_scopes(
     scopes: list[ServerRetrievalScope] = []
     try:
         for selected_collection in selected:
-            scope = build_server_retrieval_scope(
+            scope = build_server_readiness_scope(
                 verified,
                 collection=selected_collection,
                 collection_config=collection_config,
