@@ -15,7 +15,12 @@ from ingestor.retrieval_hybrid_v2 import (
     RetrievalPipelineError,
     reciprocal_rank_fusion,
 )
-from ingestor.retrieval_pg_v2 import PgCandidateStore
+from ingestor.retrieval_pg_v2 import (
+    _DENSE_ANN_POOL_FACTOR,
+    _DENSE_ANN_POOL_LIMIT,
+    _DENSE_ANN_PROBE_LIMIT,
+    PgCandidateStore,
+)
 
 VECTOR = (1.0, *([0.0] * 1023))
 VECTOR_TEXT = "[" + ",".join(str(value) for value in VECTOR) + "]"
@@ -28,38 +33,43 @@ def _normalize_sql(sql: str) -> str:
 DENSE_SQL = _normalize_sql(
     """
     WITH hnsw_candidates AS MATERIALIZED (
-        SELECT vector <=> %s::vector AS distance
+        SELECT chunk_id, doc_id, source_label, source_uri, rights, type_doc,
+               text, page_start, vector::text AS vector_text, review_status,
+               vector <=> %s::vector AS distance
         FROM rag_chunks
         WHERE collection = %s AND review_status = 'reviewed'
           AND text IS NOT NULL AND btrim(text) <> '' AND vector IS NOT NULL
           AND btrim(source_label) <> '' AND btrim(source_uri) <> ''
           AND btrim(rights) <> ''
-        ORDER BY vector <=> %s::vector ASC
+        ORDER BY distance ASC
         LIMIT %s
     ),
-    hnsw_boundary AS MATERIALIZED (
-        SELECT count(*) AS candidate_count, max(distance) AS max_distance
+    ranked_pool AS MATERIALIZED (
+        SELECT chunk_id, doc_id, source_label, source_uri, rights, type_doc,
+               text, page_start, vector_text, review_status, distance,
+               row_number() OVER (ORDER BY distance ASC, chunk_id ASC) AS pool_rank
         FROM hnsw_candidates
+    ),
+    pool_diagnostics AS MATERIALIZED (
+        SELECT
+          max(distance) FILTER (WHERE pool_rank = %s) AS boundary_distance,
+          max(distance) FILTER (WHERE pool_rank = %s) AS sentinel_distance
+        FROM ranked_pool
     )
-    SELECT rag_chunks.chunk_id, rag_chunks.doc_id, rag_chunks.source_label,
-           rag_chunks.source_uri, rag_chunks.rights, rag_chunks.type_doc,
-           rag_chunks.text, rag_chunks.page_start, rag_chunks.vector::text,
-           rag_chunks.review_status,
-           1 - (rag_chunks.vector <=> %s::vector) AS dense_score
-    FROM rag_chunks
-    CROSS JOIN hnsw_boundary
-    WHERE rag_chunks.collection = %s AND rag_chunks.review_status = 'reviewed'
-      AND rag_chunks.text IS NOT NULL AND btrim(rag_chunks.text) <> ''
-      AND rag_chunks.vector IS NOT NULL
-      AND btrim(rag_chunks.source_label) <> ''
-      AND btrim(rag_chunks.source_uri) <> ''
-      AND btrim(rag_chunks.rights) <> ''
-      AND (
-          hnsw_boundary.candidate_count < %s
-          OR rag_chunks.vector <=> %s::vector <= hnsw_boundary.max_distance
-      )
-    ORDER BY rag_chunks.vector <=> %s::vector ASC, rag_chunks.chunk_id ASC
-    LIMIT %s
+    SELECT ranked_pool.chunk_id, ranked_pool.doc_id, ranked_pool.source_label,
+           ranked_pool.source_uri, ranked_pool.rights, ranked_pool.type_doc,
+           ranked_pool.text, ranked_pool.page_start, ranked_pool.vector_text,
+           ranked_pool.review_status, 1 - ranked_pool.distance AS dense_score,
+           (
+             pool_diagnostics.boundary_distance IS NOT NULL
+             AND pool_diagnostics.sentinel_distance IS NOT NULL
+             AND pool_diagnostics.boundary_distance
+                 = pool_diagnostics.sentinel_distance
+           ) AS tie_overflow
+    FROM ranked_pool
+    CROSS JOIN pool_diagnostics
+    WHERE ranked_pool.pool_rank <= %s
+    ORDER BY ranked_pool.distance ASC, ranked_pool.chunk_id ASC
     """
 )
 
@@ -112,6 +122,10 @@ def _row(
         review_status,
         score,
     )
+
+
+def _dense_row(*, tie_overflow: object = False, **overrides: object) -> tuple[object, ...]:
+    return (*_row(**overrides), tie_overflow)
 
 
 class CursorSpy:
@@ -235,18 +249,17 @@ def _dense(provider: ProviderSpy, **overrides: object) -> Sequence[RetrievalCand
     return PgCandidateStore(provider).dense(**arguments)  # type: ignore[arg-type]
 
 
-def _dense_params(collection: str = "libre_terminale") -> tuple[object, ...]:
+def _dense_params(
+    collection: str = "libre_terminale",
+    limit: int = CHANNEL_LIMIT,
+) -> tuple[object, ...]:
     return (
         VECTOR_TEXT,
         collection,
-        VECTOR_TEXT,
-        CHANNEL_LIMIT,
-        VECTOR_TEXT,
-        collection,
-        CHANNEL_LIMIT,
-        VECTOR_TEXT,
-        VECTOR_TEXT,
-        CHANNEL_LIMIT,
+        _DENSE_ANN_PROBE_LIMIT,
+        _DENSE_ANN_POOL_LIMIT,
+        _DENSE_ANN_PROBE_LIMIT,
+        limit,
     )
 
 
@@ -261,7 +274,7 @@ def _lexical(provider: ProviderSpy, **overrides: object) -> Sequence[RetrievalCa
 
 
 def test_dense_uses_the_exact_parameterized_reviewed_only_query() -> None:
-    provider = ProviderSpy([_row()])
+    provider = ProviderSpy([_dense_row()])
 
     candidates = _dense(provider)
 
@@ -288,8 +301,8 @@ def test_dense_uses_the_exact_parameterized_reviewed_only_query() -> None:
 
 
 def test_dense_initializes_pgvector_before_strict_order_on_a_fresh_backend() -> None:
-    provider = ProviderSpy([_row()])
-    provider.cursor = FreshBackendCursor(provider.events, [_row()])
+    provider = ProviderSpy([_dense_row()])
+    provider.cursor = FreshBackendCursor(provider.events, [_dense_row()])
     provider.connection = ConnectionSpy(provider.cursor)
 
     candidates = _dense(provider)
@@ -302,61 +315,56 @@ def test_dense_initializes_pgvector_before_strict_order_on_a_fresh_backend() -> 
     ]
 
 
-def test_dense_two_phase_sql_reapplies_every_gate_and_keeps_tie_break_exact() -> None:
-    assert DENSE_SQL.count("collection = %s") == 2
-    assert DENSE_SQL.count("review_status = 'reviewed'") == 2
-    assert DENSE_SQL.count("vector IS NOT NULL") == 2
-    assert DENSE_SQL.count("btrim(rag_chunks.source_label) <> ''") == 1
+def test_dense_sql_is_one_bounded_ann_scan_with_determinism_inside_the_pool() -> None:
+    assert _DENSE_ANN_POOL_FACTOR == 4
+    assert _DENSE_ANN_POOL_LIMIT == CHANNEL_LIMIT * 4 == 200
+    assert _DENSE_ANN_PROBE_LIMIT == _DENSE_ANN_POOL_LIMIT + 1 == 201
+    assert DENSE_SQL.count("FROM rag_chunks") == 1
+    assert DENSE_SQL.count("collection = %s") == 1
+    assert DENSE_SQL.count("review_status = 'reviewed'") == 1
+    assert DENSE_SQL.count("vector IS NOT NULL") == 1
+    assert DENSE_SQL.count("btrim(source_label) <> ''") == 1
     assert "hnsw_candidates AS MATERIALIZED" in DENSE_SQL
-    assert "hnsw_boundary AS MATERIALIZED" in DENSE_SQL
-    hnsw_phase, exact_phase = DENSE_SQL.split("hnsw_boundary AS MATERIALIZED", 1)
-    assert "ORDER BY vector <=> %s::vector ASC LIMIT %s" in hnsw_phase
-    assert "chunk_id" not in hnsw_phase
-    assert (
-        "ORDER BY rag_chunks.vector <=> %s::vector ASC, rag_chunks.chunk_id ASC"
-        in exact_phase
-    )
-    assert "hnsw_boundary.candidate_count < %s" in exact_phase
-    assert "<= hnsw_boundary.max_distance" in exact_phase
+    assert "ranked_pool AS MATERIALIZED" in DENSE_SQL
+    assert "pool_diagnostics AS MATERIALIZED" in DENSE_SQL
+    hnsw_phase, bounded_phase = DENSE_SQL.split("ranked_pool AS MATERIALIZED", 1)
+    assert "ORDER BY distance ASC LIMIT %s" in hnsw_phase
+    assert "ORDER BY distance ASC, chunk_id ASC" not in hnsw_phase
+    assert "rag_chunks" not in bounded_phase
+    assert "pool_rank = %s" in bounded_phase
+    assert "boundary_distance" in bounded_phase
+    assert "sentinel_distance" in bounded_phase
+    assert "ranked_pool.pool_rank <= %s" in bounded_phase
+    assert "ORDER BY ranked_pool.distance ASC, ranked_pool.chunk_id ASC" in bounded_phase
+    assert "candidate_count" not in DENSE_SQL
+    assert "max_distance" not in DENSE_SQL
 
 
-@pytest.mark.parametrize(
-    ("eligible", "approximate", "limit"),
-    [
-        ([], [], 5),
-        ([(0.1, "a"), (0.2, "b")], [(0.2, "b")], 5),
-        (
-            [(float(index), f"id-{index:02d}") for index in range(9)],
-            [(8.0, "id-08"), (6.0, "id-06"), (5.0, "id-05")],
-            3,
-        ),
-        (
-            [
-                (0.1, "a"),
-                (0.2, "b"),
-                (0.2, "c"),
-                (0.2, "d"),
-                (0.3, "e"),
-            ],
-            [(0.2, "d"), (0.3, "e"), (0.2, "b")],
-            3,
-        ),
-    ],
-)
-def test_two_phase_boundary_recovers_the_true_deterministic_top_k(
-    eligible: list[tuple[float, str]],
-    approximate: list[tuple[float, str]],
-    limit: int,
-) -> None:
-    expected = sorted(eligible)[:limit]
-    if len(approximate) < limit:
-        exact_universe = eligible
-    else:
-        boundary = max(distance for distance, _ in approximate)
-        true_kth = sorted(eligible)[limit - 1][0]
-        assert boundary >= true_kth
-        exact_universe = [item for item in eligible if item[0] <= boundary]
-    assert sorted(exact_universe)[:limit] == expected
+@pytest.mark.parametrize("limit", [1, 17, CHANNEL_LIMIT])
+def test_dense_keeps_a_fixed_ann_probe_for_every_valid_output_limit(limit: int) -> None:
+    provider = ProviderSpy([_dense_row()])
+
+    _dense(provider, limit=limit)
+
+    assert provider.cursor.executions[2] == (DENSE_SQL, _dense_params(limit=limit))
+
+
+def test_dense_fails_closed_when_the_ann_sentinel_overflows_an_equality() -> None:
+    provider = ProviderSpy([_dense_row(tie_overflow=True)])
+
+    with pytest.raises(RetrievalPipelineError, match="dense channel query failed") as exc:
+        _dense(provider)
+
+    assert exc.value.__cause__ is None
+    assert exc.value.__context__ is None
+
+
+@pytest.mark.parametrize("tie_overflow", [None, 0, 1, "false"])
+def test_dense_rejects_a_malformed_ann_tie_diagnostic(tie_overflow: object) -> None:
+    provider = ProviderSpy([_dense_row(tie_overflow=tie_overflow)])
+
+    with pytest.raises(RetrievalPipelineError, match="dense channel query failed"):
+        _dense(provider)
 
 
 def test_dense_set_local_failure_skips_select_and_releases_both_contexts() -> None:
@@ -436,10 +444,11 @@ def test_lexical_empty_database_result_is_valid_and_has_no_fallback_query() -> N
 
 @pytest.mark.parametrize("channel", ["dense", "lexical"])
 def test_database_order_is_preserved_for_score_ties(channel: str) -> None:
+    row_factory = _dense_row if channel == "dense" else _row
     provider = ProviderSpy(
         [
-            _row(chunk_id="chunk-a", doc_id="doc-a", score=0.5),
-            _row(chunk_id="chunk-b", doc_id="doc-b", score=0.5),
+            row_factory(chunk_id="chunk-a", doc_id="doc-a", score=0.5),
+            row_factory(chunk_id="chunk-b", doc_id="doc-b", score=0.5),
         ]
     )
 
@@ -449,7 +458,7 @@ def test_database_order_is_preserved_for_score_ties(channel: str) -> None:
 
 
 def test_channel_candidates_are_compatible_with_fail_closed_rrf_scores() -> None:
-    dense_provider = ProviderSpy([_row(score=0.51)])
+    dense_provider = ProviderSpy([_dense_row(score=0.51)])
     lexical_provider = ProviderSpy([_row(score=0.37)])
 
     dense = _dense(dense_provider)
@@ -465,7 +474,7 @@ def test_channel_candidates_are_compatible_with_fail_closed_rrf_scores() -> None
 
 @pytest.mark.parametrize("page_start", [None, 0, -1])
 def test_nonpositive_or_missing_page_is_normalized_to_none(page_start: object) -> None:
-    provider = ProviderSpy([_row(page_start=page_start)])
+    provider = ProviderSpy([_dense_row(page_start=page_start)])
 
     assert _dense(provider)[0].page_start is None
 
@@ -489,7 +498,7 @@ def test_nonpositive_or_missing_page_is_normalized_to_none(page_start: object) -
     ],
 )
 def test_malformed_row_field_fails_closed(row_index: int, invalid_value: object) -> None:
-    mutable_row = list(_row())
+    mutable_row = list(_dense_row())
     mutable_row[row_index] = invalid_value
     provider = ProviderSpy([tuple(mutable_row)])
 
@@ -511,7 +520,7 @@ def test_malformed_row_field_fails_closed(row_index: int, invalid_value: object)
     ],
 )
 def test_malformed_stored_vector_fails_closed(vector_text: object) -> None:
-    provider = ProviderSpy([_row(vector_text=vector_text)])
+    provider = ProviderSpy([_dense_row(vector_text=vector_text)])
 
     with pytest.raises(RetrievalPipelineError, match="dense channel query failed"):
         _dense(provider)
@@ -535,7 +544,10 @@ def test_malformed_row_cardinality_or_result_fails_closed(rows: object) -> None:
 
 def test_more_rows_than_requested_is_rejected_before_mapping() -> None:
     provider = ProviderSpy(
-        [_row(chunk_id=f"chunk-{index}", doc_id=f"doc-{index}") for index in range(51)]
+        [
+            _dense_row(chunk_id=f"chunk-{index}", doc_id=f"doc-{index}")
+            for index in range(51)
+        ]
     )
 
     with pytest.raises(RetrievalPipelineError, match="dense channel query failed"):
@@ -655,7 +667,7 @@ def test_type_doc_may_be_blank_without_weakening_provenance_gate() -> None:
 
 def test_dense_score_is_the_finite_value_returned_by_one_minus_cosine_distance() -> None:
     score = 1.0 - math.nextafter(0.25, math.inf)
-    provider = ProviderSpy([_row(score=score)])
+    provider = ProviderSpy([_dense_row(score=score)])
 
     candidate = _dense(provider)[0]
 

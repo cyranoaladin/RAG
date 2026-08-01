@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import math
 import os
-import re
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from pathlib import Path
@@ -23,7 +22,13 @@ from ingestor.retrieval_hybrid_v2 import (
     RetrievalPipelineError,
     retrieve_hybrid,
 )
-from ingestor.retrieval_pg_v2 import _DENSE_SQL, _LEXICAL_SQL, PgCandidateStore
+from ingestor.retrieval_pg_v2 import (
+    _DENSE_ANN_POOL_LIMIT,
+    _DENSE_ANN_PROBE_LIMIT,
+    _DENSE_SQL,
+    _LEXICAL_SQL,
+    PgCandidateStore,
+)
 
 pytestmark = pytest.mark.integration
 
@@ -38,8 +43,9 @@ if not APP_DSN or not ADMIN_DSN:
 SERVICE_ROOT = Path(__file__).resolve().parents[2]
 TARGET_COLLECTION = "lot40_target"
 TIE_COLLECTION = "lot40_ties"
+OVERFLOW_TIE_COLLECTION = "lot40_ties_overflow"
 SMALL_COLLECTION = "lot40_small"
-TARGET_SCALE = 6000
+TARGET_SCALE = 45000
 QUERY = "algorithme graphe"
 QUERY_VECTOR = (1.0,) + (0.0,) * (EMBED_DIMENSION - 1)
 QUERY_VECTOR_TEXT = "[" + ",".join(str(value) for value in QUERY_VECTOR) + "]"
@@ -182,6 +188,15 @@ def _seed_rows() -> list[tuple[object, ...]]:
                 text="algorithme graphe egalite complete",
             )
         )
+    for index in range(_DENSE_ANN_PROBE_LIMIT + 4):
+        rows.append(
+            _row(
+                f"overflow-tie-{index:03d}",
+                collection=OVERFLOW_TIE_COLLECTION,
+                vector=_vector(1.0),
+                text="algorithme graphe egalite au dela du pool ann",
+            )
+        )
     for index in range(3):
         rows.append(
             _row(
@@ -254,23 +269,32 @@ def seeded_database() -> Iterator[None]:
 
 
 @contextmanager
-def _store_connection(
-    *,
-    force_exact: bool = False,
-    ef_search: int = 40,
-    max_scan_tuples: int = 100000,
-) -> Iterator[psycopg.Connection[Any]]:
+def _app_store_connection() -> Iterator[psycopg.Connection[Any]]:
+    """Connexion applicative brute; seul le store active pgvector et strict_order."""
+
+    with psycopg.connect(APP_DSN) as connection:
+        yield connection
+
+
+@contextmanager
+def _empirical_plan_store_connection() -> Iterator[psycopg.Connection[Any]]:
+    """Connexion de preuve réglée pour comparer la fixture distincte à l'oracle."""
+
     with psycopg.connect(APP_DSN) as connection:
         with connection.cursor() as cursor:
-            cursor.execute("SELECT %s::vector IS NOT NULL", (QUERY_VECTOR_TEXT,))
-            cursor.execute("SELECT set_config('hnsw.ef_search', %s, true)", (str(ef_search),))
-            cursor.execute(
-                "SELECT set_config('hnsw.max_scan_tuples', %s, true)",
-                (str(max_scan_tuples),),
-            )
-            if force_exact:
-                cursor.execute("SET LOCAL enable_indexscan = off")
-                cursor.execute("SET LOCAL enable_bitmapscan = off")
+            cursor.execute("SET LOCAL hnsw.ef_search = 40")
+            cursor.execute("SET LOCAL hnsw.max_scan_tuples = 100000")
+        yield connection
+
+
+@contextmanager
+def _underfill_store_connection() -> Iterator[psycopg.Connection[Any]]:
+    """Connexion réglée exclusivement pour provoquer un underfill HNSW borné."""
+
+    with psycopg.connect(APP_DSN) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute("SET LOCAL hnsw.ef_search = 1")
+            cursor.execute("SET LOCAL hnsw.max_scan_tuples = 1")
         yield connection
 
 
@@ -282,6 +306,45 @@ def _plan_lines(
     with connection.cursor() as cursor:
         cursor.execute("EXPLAIN (ANALYZE, COSTS OFF, SUMMARY OFF) " + sql, params)
         return "\n".join(str(row[0]) for row in cursor.fetchall())
+
+
+def _plan_json(
+    connection: psycopg.Connection[Any],
+    sql: str,
+    params: Sequence[object],
+) -> dict[str, Any]:
+    with connection.cursor() as cursor:
+        cursor.execute("EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) " + sql, params)
+        payload = cursor.fetchone()[0]
+    assert isinstance(payload, list) and len(payload) == 1
+    assert isinstance(payload[0], dict)
+    return payload[0]
+
+
+def _plan_nodes(node: dict[str, Any]) -> Iterator[dict[str, Any]]:
+    yield node
+    for child in node.get("Plans", []):
+        assert isinstance(child, dict)
+        yield from _plan_nodes(child)
+
+
+def _assert_bounded_hnsw_json_plan(plan_payload: dict[str, Any]) -> None:
+    nodes = list(_plan_nodes(plan_payload["Plan"]))
+    rag_scans = [node for node in nodes if node.get("Relation Name") == "rag_chunks"]
+    assert len(rag_scans) == 1, rag_scans
+    assert rag_scans[0].get("Node Type") == "Index Scan", rag_scans[0]
+    assert rag_scans[0].get("Index Name") == "idx_rag_chunks_vector", rag_scans[0]
+    cte_nodes = [
+        node
+        for node in nodes
+        if str(node.get("Subplan Name", "")).endswith("hnsw_candidates")
+    ]
+    assert len(cte_nodes) == 1, cte_nodes
+    assert int(cte_nodes[0]["Actual Rows"]) <= _DENSE_ANN_PROBE_LIMIT
+    sort_nodes = [node for node in nodes if node.get("Node Type") == "Sort"]
+    assert sort_nodes
+    assert max(int(node["Actual Rows"]) for node in sort_nodes) <= _DENSE_ANN_PROBE_LIMIT
+    assert any(any(str(key).endswith("Blocks") for key in node) for node in nodes)
 
 
 def _assert_gin_plan(connection: psycopg.Connection[Any]) -> None:
@@ -305,13 +368,9 @@ def _dense_params(collection: str) -> tuple[object, ...]:
     return (
         QUERY_VECTOR_TEXT,
         collection,
-        QUERY_VECTOR_TEXT,
-        50,
-        QUERY_VECTOR_TEXT,
-        collection,
-        50,
-        QUERY_VECTOR_TEXT,
-        QUERY_VECTOR_TEXT,
+        _DENSE_ANN_PROBE_LIMIT,
+        _DENSE_ANN_POOL_LIMIT,
+        _DENSE_ANN_PROBE_LIMIT,
         50,
     )
 
@@ -406,7 +465,7 @@ def test_schema_registry_and_real_migration_objects_are_exact() -> None:
 
 
 def test_equal_score_rank_50_is_deterministic_in_both_channels() -> None:
-    store = PgCandidateStore(_store_connection)
+    store = PgCandidateStore(_app_store_connection)
     dense = store.dense(
         query_vector=QUERY_VECTOR,
         collection=TIE_COLLECTION,
@@ -420,7 +479,14 @@ def test_equal_score_rank_50_is_deterministic_in_both_channels() -> None:
         _assert_ids([item.chunk_id for item in dense], list(reversed(expected)))
     assert dense[-1].chunk_id == "tie-049"
     assert lexical[-1].chunk_id == "tie-049"
+    with pytest.raises(RetrievalPipelineError, match="dense channel query failed"):
+        store.dense(
+            query_vector=QUERY_VECTOR,
+            collection=OVERFLOW_TIE_COLLECTION,
+            limit=50,
+        )
     print("RANK_50_DETERMINISTIC=PASS")
+    print("HNSW_TIE_SENTINEL_OVERFLOW_FAIL_CLOSED=PASS")
 
 
 def test_real_gin_and_hnsw_plans_filters_top_50_and_local_scope() -> None:
@@ -445,12 +511,12 @@ def test_real_gin_and_hnsw_plans_filters_top_50_and_local_scope() -> None:
             connection.execute("SET LOCAL hnsw.iterative_scan = 'strict_order'")
             connection.execute("SET LOCAL hnsw.ef_search = 40")
             connection.execute("SET LOCAL hnsw.max_scan_tuples = 100000")
-            hnsw_plan = _plan_lines(
+            hnsw_plan = _plan_json(
                 connection,
                 _DENSE_SQL,
                 _dense_params(TARGET_COLLECTION),
             )
-            assert "idx_rag_chunks_vector" in hnsw_plan, hnsw_plan
+            _assert_bounded_hnsw_json_plan(hnsw_plan)
 
         with connection.transaction():
             connection.execute("SET LOCAL enable_seqscan = off")
@@ -459,12 +525,12 @@ def test_real_gin_and_hnsw_plans_filters_top_50_and_local_scope() -> None:
             connection.execute("SET LOCAL hnsw.iterative_scan = 'strict_order'")
             connection.execute("SET LOCAL hnsw.ef_search = 40")
             connection.execute("SET LOCAL hnsw.max_scan_tuples = 100000")
-            structural_plan = _plan_lines(
+            structural_plan = _plan_json(
                 connection,
                 _DENSE_SQL,
                 _dense_params(TARGET_COLLECTION),
             )
-            assert "idx_rag_chunks_vector" in structural_plan, structural_plan
+            _assert_bounded_hnsw_json_plan(structural_plan)
 
         with connection.transaction():
             _assert_gin_plan(connection)
@@ -486,8 +552,26 @@ def test_real_gin_and_hnsw_plans_filters_top_50_and_local_scope() -> None:
     with psycopg.connect(APP_DSN) as app_connection:
         _assert_gin_plan(app_connection)
 
-    store = PgCandidateStore(_store_connection)
-    actual = store.dense(
+    app_store = PgCandidateStore(_app_store_connection)
+    app_actual = app_store.dense(
+        query_vector=QUERY_VECTOR,
+        collection=TARGET_COLLECTION,
+        limit=50,
+    )
+    assert 0 < len(app_actual) <= 50
+    assert len({item.chunk_id for item in app_actual}) == len(app_actual)
+    assert [item.dense_score for item in app_actual] == sorted(
+        (item.dense_score for item in app_actual),
+        reverse=True,
+    )
+    assert all(item.review_status == "reviewed" for item in app_actual)
+    assert not any(
+        item.chunk_id.startswith(("outside-", "pending-", "incomplete-"))
+        for item in app_actual
+    )
+
+    empirical_store = PgCandidateStore(_empirical_plan_store_connection)
+    actual = empirical_store.dense(
         query_vector=QUERY_VECTOR,
         collection=TARGET_COLLECTION,
         limit=50,
@@ -500,26 +584,36 @@ def test_real_gin_and_hnsw_plans_filters_top_50_and_local_scope() -> None:
             (TARGET_COLLECTION, QUERY_VECTOR_TEXT),
         ).fetchall()
     expected_ids = [str(row[0]) for row in expected_rows]
-    _assert_ids([item.chunk_id for item in actual], expected_ids)
-    assert len(actual) == 50
-    assert actual[-1].chunk_id == "target-048"
+    assert 0 < len(actual) <= 50
+    _assert_ids([item.chunk_id for item in actual], expected_ids[: len(actual)])
     assert all(item.review_status == "reviewed" for item in actual)
     assert not any(
         item.chunk_id.startswith(("outside-", "pending-", "incomplete-"))
         for item in actual
     )
 
-    assert PgCandidateStore(_store_connection).dense(
+    assert PgCandidateStore(_app_store_connection).dense(
         query_vector=QUERY_VECTOR,
         collection="lot40_empty",
         limit=50,
     ) == []
-    small = PgCandidateStore(_store_connection).dense(
+    small = PgCandidateStore(_app_store_connection).dense(
         query_vector=QUERY_VECTOR,
         collection=SMALL_COLLECTION,
         limit=50,
     )
     _assert_ids([item.chunk_id for item in small], [f"small-{index:03d}" for index in range(3)])
+    for variable_limit in (1, 17, 50):
+        limited = empirical_store.dense(
+            query_vector=QUERY_VECTOR,
+            collection=TARGET_COLLECTION,
+            limit=variable_limit,
+        )
+        _assert_ids(
+            [item.chunk_id for item in limited],
+            expected_ids[: len(limited)],
+        )
+        assert 0 < len(limited) <= variable_limit
 
     with psycopg.connect(APP_DSN, autocommit=True) as connection:
         assert connection.execute(
@@ -531,31 +625,47 @@ def test_real_gin_and_hnsw_plans_filters_top_50_and_local_scope() -> None:
             connection.execute("SET LOCAL hnsw.iterative_scan = 'strict_order'")
             connection.execute("SET LOCAL hnsw.ef_search = 1")
             connection.execute("SET LOCAL hnsw.max_scan_tuples = 1")
-            underfill_plan = _plan_lines(
+            underfill_plan = _plan_json(
                 connection,
                 _DENSE_SQL,
                 _dense_params(TARGET_COLLECTION),
             )
-    underfill_match = re.search(
-        r"CTE hnsw_candidates\s+->\s+Limit .*?rows=(\d+)",
-        underfill_plan,
-        re.DOTALL,
-    )
-    assert underfill_match is not None, underfill_plan
-    assert int(underfill_match.group(1)) < 50, underfill_plan
-    underfill_store = PgCandidateStore(
-        lambda: _store_connection(ef_search=1, max_scan_tuples=1)
-    )
+            _assert_bounded_hnsw_json_plan(underfill_plan)
+    underfill_store = PgCandidateStore(_underfill_store_connection)
     underfill_actual = underfill_store.dense(
         query_vector=QUERY_VECTOR,
         collection=TARGET_COLLECTION,
         limit=50,
     )
-    _assert_ids([item.chunk_id for item in underfill_actual], expected_ids)
+    underfill_again = underfill_store.dense(
+        query_vector=QUERY_VECTOR,
+        collection=TARGET_COLLECTION,
+        limit=50,
+    )
+    assert len(underfill_actual) <= 50
+    _assert_ids(
+        [item.chunk_id for item in underfill_actual],
+        [item.chunk_id for item in underfill_again],
+    )
+    assert len({item.chunk_id for item in underfill_actual}) == len(underfill_actual)
+    assert all(item.review_status == "reviewed" for item in underfill_actual)
+    assert not any(
+        item.chunk_id.startswith(("outside-", "pending-", "incomplete-"))
+        for item in underfill_actual
+    )
+    assert [item.dense_score for item in underfill_actual] == sorted(
+        (item.dense_score for item in underfill_actual),
+        reverse=True,
+    )
+    execution_ms = float(hnsw_plan["Execution Time"])
+    assert execution_ms >= 0.0
     print("GIN_PLAN=PASS")
-    print("HNSW_STRICT_FILTERED_TOP50=PASS")
-    print("HNSW_NATURAL_AND_STRUCTURAL_PLAN=PASS")
-    print("HNSW_UNDERFILL_EXACT_FALLBACK=PASS")
+    print("HNSW_STRICT_FILTERED_BOUNDED=PASS")
+    print(f"HNSW_BOUNDED_JSON_PLAN_MS={execution_ms:.3f}")
+    print("HNSW_NATURAL_AND_STRUCTURAL_BOUNDED_PLAN=PASS")
+    print("APP_STORE_DEFAULT_HNSW_SETTINGS=PASS")
+    print("HNSW_DISTINCT_FIXTURE_EMPIRICAL_ORACLE_PREFIX=PASS")
+    print("HNSW_UNDERFILL_BOUNDED_NO_GLOBAL_SCAN=PASS")
 
 
 class DeterministicEmbedder:
@@ -586,7 +696,7 @@ class EmptyReranker:
 
 
 def test_real_store_and_core_prove_union_scores_page_dedup_and_dimension_failure() -> None:
-    store = PgCandidateStore(_store_connection)
+    store = PgCandidateStore(_app_store_connection)
     hits = retrieve_hybrid(
         QUERY,
         TARGET_COLLECTION,

@@ -636,9 +636,22 @@ collection = %s AND review_status = 'reviewed'
 AND text IS NOT NULL AND btrim(text) <> '' AND vector IS NOT NULL
 AND btrim(source_label) <> '' AND btrim(source_uri) <> '' AND btrim(rights) <> ''
 
--- dense
-1 - (vector <=> %s::vector) AS dense_score
-ORDER BY vector <=> %s::vector ASC, chunk_id ASC LIMIT %s
+-- dense : seule lecture de rag_chunks, pool ANN fixe 200 + sentinelle
+WITH hnsw_candidates AS MATERIALIZED (
+  SELECT toutes_les_colonnes_necessaires,
+         vector <=> %s::vector AS distance
+  FROM rag_chunks
+  WHERE univers_admissible
+  ORDER BY distance ASC
+  LIMIT %s -- toujours 201
+), ranked_pool AS MATERIALIZED (
+  SELECT *, row_number() OVER (ORDER BY distance ASC, chunk_id ASC) AS pool_rank
+  FROM hnsw_candidates
+)
+SELECT ..., 1 - distance AS dense_score, diagnostic_frontiere_200_201
+FROM ranked_pool
+WHERE pool_rank <= %s
+ORDER BY distance ASC, chunk_id ASC
 
 -- lexical : la tsquery est calculée une seule fois
 WITH lexical_query AS (SELECT plainto_tsquery('french', %s) AS value)
@@ -649,9 +662,11 @@ ORDER BY lexical_score DESC, chunk_id ASC LIMIT %s
 ```
 
 Exiger `vector::text`, `page_start` et toute provenance dans le SELECT, les
-paramètres exacts `(vec, collection, vec, 50)` et `(raw_query, collection, 50)`,
-et aucune interpolation query/collection. Une `tsquery` vide retourne `[]`
-sans fallback ni erreur.
+paramètres exacts `(vec, collection, 201, 200, 201, requested_limit)` et
+`(raw_query, collection, requested_limit)`, et aucune interpolation
+query/collection. Les constantes privées dérivent `200` de `CHANNEL_LIMIT * 4`
+et `201` de `200 + 1`; le probe ne varie pas avec une limite demandée parmi
+`1, 17, 50`. Une `tsquery` vide retourne `[]` sans fallback ni erreur.
 
 - [ ] **Step 2: Vérifier RED**
 
@@ -667,7 +682,11 @@ connexion. `dense(query_vector, collection, limit)` et
 `RetrievalCandidate`; les colonnes sélectionnées incluent `page_start`, le
 vecteur stocké sous `vector::text`, et le score du canal. Parser exactement
 1024 floats et normaliser `page_start <= 0` à `None`. Rejeter toute autre ligne
-malformée ou score non fini avec `RetrievalPipelineError`.
+malformée ou score non fini avec `RetrievalPipelineError`. Le store dense
+active pgvector, pose seulement `hnsw.iterative_scan='strict_order'`, puis
+exécute le SQL borné. Le SELECT extérieur ne relit jamais `rag_chunks` : il
+ordonne uniquement le CTE matérialisé de 201 lignes maximum. Aucun fallback
+exact ni second scan global n'est autorisé.
 
 - [ ] **Step 4: Vérifier GREEN des requêtes**
 
@@ -677,10 +696,14 @@ Expected: PASS.
 
 - [ ] **Step 5: Écrire RED avant la frontière 50**
 
-Faire retourner 51 lignes de score égal et prouver que le store demande 50 et
-refuse si le cursor en rend plus de 50. Prouver le mapping `dense_score|None`
-et `lexical_score|None`, la tsquery vide, fermeture des cursors et restitution
-de la connexion même en erreur. Le vrai tie SQL au rang 50 sera prouvé Chunk 3.
+Faire retourner 51 lignes et prouver que le store demande au plus 50 en sortie
+et refuse si le cursor en rend davantage. Prouver le mapping
+`dense_score|None` et `lexical_score|None`, la tsquery vide, fermeture des
+cursors et restitution de la connexion même en erreur. La ligne dense contient
+un booléen de diagnostic supplémentaire : valeur ou type invalide ferme le
+canal. Une égalité de distance aux positions 200 et 201 ferme aussi le canal
+avec une erreur générique. Le cas réel de 52 égalités et le débordement de plus
+de 201 égalités seront prouvés Chunk 3.
 
 - [ ] **Step 6: Vérifier RED frontière/erreurs**
 
@@ -951,8 +974,13 @@ git commit -m "rag-engine: brancher le CLI sur le retrieval hybride"
 - [ ] **Step 1: Écrire le test RED du cycle de vie Docker**
 
 Dans `test_hybrid_integration_runner.py`, placer un faux `docker` en tête de
-PATH. Il journalise les noms exacts, échoue toujours à `pg_isready`, accepte les
-deux suppressions du cleanup et refuse toute cible ne commençant pas par
+PATH. Il journalise les noms exacts, échoue toujours à `pg_isready` et simule
+les créations partielles avant/après le conteneur. Le cleanup n'accepte comme
+absence bénigne que les diagnostics Docker complets, ancrés sur le type et le
+nom exacts : `No such container: <container>` ou
+`get <volume>: no such volume`. Il rejette `context not found`, un mauvais nom,
+un mauvais type et tout diagnostic générique contenant seulement
+`not found`. Toute cible doit commencer par
 `lot40-pg-`/`lot40-pg-volume-`. Lancer avec
 `LOT40_PG_READY_ATTEMPTS=2`, `LOT40_PG_READY_DELAY_S=0`; exiger sortie non nulle,
 diagnostic `LOT40_DB_READINESS_TIMEOUT` sans DSN, puis exactement un
@@ -975,8 +1003,11 @@ pgvector/pgvector:pg16@sha256:00ba258a66dac104fd5171074a0084462a64a1369d8513f3d0
 Le script utilise `set -euo pipefail`, des noms PID+aléa sous les préfixes
 ci-dessus, `POSTGRES_HOST_AUTH_METHOD=trust` dans ce seul conteneur, et publie
 uniquement `127.0.0.1::5432`. Installer `trap cleanup EXIT INT TERM` avant le
-premier `docker volume create`. Cleanup valide les deux regex puis supprime
-uniquement ces noms et le `mktemp -d`. Boucler au plus
+premier `docker volume create`. Cleanup valide les deux regex puis inspecte et
+supprime uniquement ces noms. Une absence n'est tolérée que si le diagnostic
+complet correspond au type et au nom demandés; tout autre échec de diagnostic
+ou de suppression fait échouer le runner. Le `mktemp -d` est ensuite supprimé.
+Boucler au plus
 `${LOT40_PG_READY_ATTEMPTS:-30}` fois avec délai
 `${LOT40_PG_READY_DELAY_S:-1}`; refuser valeurs hors bornes `1..120` et
 `0..10`. Après readiness seulement, résoudre le port et exporter un DSN sans
@@ -1041,22 +1072,37 @@ Run: `cd services/rag-engine && make test-integration-hybrid`
 Expected: `ATOMIC_UP_ROLLBACK=PASS`, `ATOMIC_DOWN_ROLLBACK=PASS`, état final
 002 et cleanup vert.
 
-- [ ] **Step 11: Écrire les tests DB RED rang 50 et GIN**
+- [ ] **Step 11: Écrire les tests DB RED rangs, GIN et HNSW borné**
 
 Marquer le module `pytest.mark.integration`, exiger `LOT40_PG_DSN`, puis créer
-52 chunks synthétiques reviewed à scores égaux et des `needs_review`. Les
+52 chunks synthétiques reviewed à scores égaux, plus de 201 égalités pour le
+cas sentinelle, des `needs_review` et une fixture de charge générée en SQL avec
+45 000 lignes cibles. Les
 helpers d'assertion possèdent des contrôles négatifs : ordre attendu inversé
 doit lever ; dans une transaction, supprimer temporairement le GIN puis exiger
 que l'assertion de plan lève, avant rollback. L'assertion positive exige
-`chunk_id ASC` aux deux rangs 50, puis `ANALYZE`, transaction,
+`chunk_id ASC` aux deux rangs 50, refuse génériquement l'égalité aux positions
+200/201, puis `ANALYZE`, transaction,
 `SET LOCAL enable_seqscan=off` et `EXPLAIN` contenant le nom exact du GIN.
+
+Pour le dense, exécuter le SQL de production avec
+`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)`. Le plan naturel doit contenir une
+seule lecture de `rag_chunks`, sous forme d'`Index Scan` nommé exactement
+`idx_rag_chunks_vector`; le CTE `hnsw_candidates` et tous les tris portent sur
+au plus 201 lignes. Un plan structurel avec scans concurrents désactivés est
+une preuve séparée. Un scénario `ef_search=1/max_scan_tuples=1` prouve un
+underfill borné, stable et filtré, sans fallback exact. Le temps observé est
+imprimé sans seuil normatif.
 
 - [ ] **Step 12: Vérifier RED puis GREEN rang/GIN**
 
 Run: `cd services/rag-engine && make test-integration-hybrid`
 
 Expected: contrôles négatifs observés et
-`RANK_50_DETERMINISTIC=PASS`, `GIN_PLAN=PASS`.
+`RANK_50_DETERMINISTIC=PASS`,
+`HNSW_TIE_SENTINEL_OVERFLOW_FAIL_CLOSED=PASS`, `GIN_PLAN=PASS`,
+`HNSW_NATURAL_AND_STRUCTURAL_BOUNDED_PLAN=PASS` et
+`HNSW_UNDERFILL_BOUNDED_NO_GLOBAL_SCAN=PASS`.
 
 - [ ] **Step 13: Écrire le test pipeline réel**
 
@@ -1065,6 +1111,15 @@ les deux SQL réels. Exiger union dense/lexicale, reviewed-only, exclusion des
 provenances incomplètes, page non positive normalisée, dédup document, ordre et
 scores exacts. Contrôle négatif : embedder à dimension 2 doit lever
 `RetrievalPipelineError` sans requête SQL de fallback.
+
+Séparer explicitement les connexions de preuve de plan et d'underfill de la
+connexion applicative. Au moins un `PgCandidateStore` et le smoke
+`/search/v2` utilisent le rôle applicatif réel sans pré-régler `ef_search` ni
+`max_scan_tuples`; seuls l'activation pgvector et `strict_order` viennent du
+store. Exiger un résultat dense non vide, cohérent et de cardinalité au plus
+50. Une comparaison à l'oracle exact est limitée au préfixe effectivement
+retourné sur la fixture distincte et reste qualifiée d'empirique; ne jamais en
+déduire un top-50 global ANN.
 
 - [ ] **Step 14: Vérifier pipeline réel**
 

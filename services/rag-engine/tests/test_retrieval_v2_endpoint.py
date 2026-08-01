@@ -631,7 +631,8 @@ class TestHybridSearchDelegation:
             "SET LOCAL hnsw.iterative_scan = 'strict_order'"
         )
         assert "WITH hnsw_candidates AS MATERIALIZED" in executed_sql[2]
-        assert "rag_chunks.chunk_id ASC" in executed_sql[2]
+        assert executed_sql[2].count("FROM rag_chunks") == 1
+        assert "ranked_pool.chunk_id ASC" in executed_sql[2]
         assert "SENSITIVE_DSN_SENTINEL" not in response.text
         assert "SENSITIVE_QUERY_SENTINEL" not in response.text
         assert "requête extrêmement sensible" not in response.text

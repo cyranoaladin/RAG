@@ -17,8 +17,23 @@ BACKUP_ROOT="$RUN_ROOT/backups"
 container_cleanup_armed=0
 volume_cleanup_armed=0
 
-is_not_found() {
-    [[ "$1" =~ [Nn]o[[:space:]]such || "$1" =~ [Nn]ot[[:space:]]found ]]
+is_exact_not_found() {
+    local kind="$1"
+    local name="$2"
+    local diagnostic="$3"
+    local daemon_message
+    case "$kind" in
+        container)
+            daemon_message="Error response from daemon: No such container: $name"
+            ;;
+        volume)
+            daemon_message="Error response from daemon: get $name: no such volume"
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+    [[ "$diagnostic" == "$daemon_message" || "$diagnostic" == $'[]\n'"$daemon_message" ]]
 }
 
 remove_container_exact() {
@@ -31,11 +46,12 @@ remove_container_exact() {
         echo "LOT40_CLEANUP_CONTAINER_LEAK" >&2
         return 1
     fi
-    if ! is_not_found "$inspect_output"; then
+    if ! is_exact_not_found container "$PGVECTOR_CONTAINER" "$inspect_output"; then
         echo "LOT40_CLEANUP_CONTAINER_INSPECT_FAILED" >&2
         return 1
     fi
-    if (( remove_status != 0 )) && ! is_not_found "$remove_output"; then
+    if (( remove_status != 0 )) \
+       && ! is_exact_not_found container "$PGVECTOR_CONTAINER" "$remove_output"; then
         echo "LOT40_CLEANUP_CONTAINER_REMOVE_FAILED" >&2
         return 1
     fi
@@ -52,11 +68,12 @@ remove_volume_exact() {
         echo "LOT40_CLEANUP_VOLUME_LEAK" >&2
         return 1
     fi
-    if ! is_not_found "$inspect_output"; then
+    if ! is_exact_not_found volume "$PGVECTOR_VOLUME" "$inspect_output"; then
         echo "LOT40_CLEANUP_VOLUME_INSPECT_FAILED" >&2
         return 1
     fi
-    if (( remove_status != 0 )) && ! is_not_found "$remove_output"; then
+    if (( remove_status != 0 )) \
+       && ! is_exact_not_found volume "$PGVECTOR_VOLUME" "$remove_output"; then
         echo "LOT40_CLEANUP_VOLUME_REMOVE_FAILED" >&2
         return 1
     fi

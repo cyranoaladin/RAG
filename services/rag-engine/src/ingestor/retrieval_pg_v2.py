@@ -18,44 +18,52 @@ from ingestor.retrieval_hybrid_v2 import (
 
 _PGVECTOR_ACTIVATION_SQL = "SELECT %s::vector IS NOT NULL"
 _DENSE_STRICT_ORDER_SQL = "SET LOCAL hnsw.iterative_scan = 'strict_order'"
+_DENSE_ANN_POOL_FACTOR = 4
+_DENSE_ANN_POOL_LIMIT = CHANNEL_LIMIT * _DENSE_ANN_POOL_FACTOR
+_DENSE_ANN_PROBE_LIMIT = _DENSE_ANN_POOL_LIMIT + 1
 
-# La première phase fournit une borne HNSW: le maximum de n candidats admissibles
-# est toujours >= au vrai n-ième. La seconde phase exacte retrouve donc le vrai top-n
-# et ses égalités; un sous-remplissage HNSW réouvre tout l'univers admissible.
+# Le parcours ANN reste strictement borné à 200 candidats plus une sentinelle.
+# L'ordre total est exact dans ce pool seulement; une égalité qui déborde la
+# frontière 200/201 est refusée car son appartenance déterministe est inconnue.
 _DENSE_SQL = """
     WITH hnsw_candidates AS MATERIALIZED (
-        SELECT vector <=> %s::vector AS distance
+        SELECT chunk_id, doc_id, source_label, source_uri, rights, type_doc,
+               text, page_start, vector::text AS vector_text, review_status,
+               vector <=> %s::vector AS distance
         FROM rag_chunks
         WHERE collection = %s AND review_status = 'reviewed'
           AND text IS NOT NULL AND btrim(text) <> '' AND vector IS NOT NULL
           AND btrim(source_label) <> '' AND btrim(source_uri) <> ''
           AND btrim(rights) <> ''
-        ORDER BY vector <=> %s::vector ASC
+        ORDER BY distance ASC
         LIMIT %s
     ),
-    hnsw_boundary AS MATERIALIZED (
-        SELECT count(*) AS candidate_count, max(distance) AS max_distance
+    ranked_pool AS MATERIALIZED (
+        SELECT chunk_id, doc_id, source_label, source_uri, rights, type_doc,
+               text, page_start, vector_text, review_status, distance,
+               row_number() OVER (ORDER BY distance ASC, chunk_id ASC) AS pool_rank
         FROM hnsw_candidates
+    ),
+    pool_diagnostics AS MATERIALIZED (
+        SELECT
+          max(distance) FILTER (WHERE pool_rank = %s) AS boundary_distance,
+          max(distance) FILTER (WHERE pool_rank = %s) AS sentinel_distance
+        FROM ranked_pool
     )
-    SELECT rag_chunks.chunk_id, rag_chunks.doc_id, rag_chunks.source_label,
-           rag_chunks.source_uri, rag_chunks.rights, rag_chunks.type_doc,
-           rag_chunks.text, rag_chunks.page_start, rag_chunks.vector::text,
-           rag_chunks.review_status,
-           1 - (rag_chunks.vector <=> %s::vector) AS dense_score
-    FROM rag_chunks
-    CROSS JOIN hnsw_boundary
-    WHERE rag_chunks.collection = %s AND rag_chunks.review_status = 'reviewed'
-      AND rag_chunks.text IS NOT NULL AND btrim(rag_chunks.text) <> ''
-      AND rag_chunks.vector IS NOT NULL
-      AND btrim(rag_chunks.source_label) <> ''
-      AND btrim(rag_chunks.source_uri) <> ''
-      AND btrim(rag_chunks.rights) <> ''
-      AND (
-          hnsw_boundary.candidate_count < %s
-          OR rag_chunks.vector <=> %s::vector <= hnsw_boundary.max_distance
-      )
-    ORDER BY rag_chunks.vector <=> %s::vector ASC, rag_chunks.chunk_id ASC
-    LIMIT %s
+    SELECT ranked_pool.chunk_id, ranked_pool.doc_id, ranked_pool.source_label,
+           ranked_pool.source_uri, ranked_pool.rights, ranked_pool.type_doc,
+           ranked_pool.text, ranked_pool.page_start, ranked_pool.vector_text,
+           ranked_pool.review_status, 1 - ranked_pool.distance AS dense_score,
+           (
+             pool_diagnostics.boundary_distance IS NOT NULL
+             AND pool_diagnostics.sentinel_distance IS NOT NULL
+             AND pool_diagnostics.boundary_distance
+                 = pool_diagnostics.sentinel_distance
+           ) AS tie_overflow
+    FROM ranked_pool
+    CROSS JOIN pool_diagnostics
+    WHERE ranked_pool.pool_rank <= %s
+    ORDER BY ranked_pool.distance ASC, ranked_pool.chunk_id ASC
 """
 
 _LEXICAL_SQL = """
@@ -75,6 +83,7 @@ _LEXICAL_SQL = """
 """
 
 _ROW_CARDINALITY = 11
+_DENSE_ROW_CARDINALITY = _ROW_CARDINALITY + 1
 _ConnectionProvider = Callable[[], AbstractContextManager[Any]]
 
 
@@ -168,6 +177,19 @@ def _map_row(row: object, channel: Literal["dense", "lexical"]) -> RetrievalCand
     )
 
 
+def _dense_payload(row: object) -> Sequence[object]:
+    if isinstance(row, str | bytes) or not isinstance(row, Sequence):
+        raise RetrievalPipelineError("invalid dense database row")
+    if len(row) != _DENSE_ROW_CARDINALITY:
+        raise RetrievalPipelineError("invalid dense database row")
+    tie_overflow = row[_ROW_CARDINALITY]
+    if not isinstance(tie_overflow, bool):
+        raise RetrievalPipelineError("invalid dense tie diagnostic")
+    if tie_overflow:
+        raise RetrievalPipelineError("dense ann tie overflow")
+    return row[:_ROW_CARDINALITY]
+
+
 class PgCandidateStore(CandidateStore):
     """Charge les candidats revus via deux requêtes SQL bornées et paramétrées."""
 
@@ -195,6 +217,8 @@ class PgCandidateStore(CandidateStore):
                     raise RetrievalPipelineError("invalid database result")
                 if len(fetched) > limit:
                     raise RetrievalPipelineError("channel limit exceeded")
+                if channel == "dense":
+                    return [_map_row(_dense_payload(row), channel) for row in fetched]
                 return [_map_row(row, channel) for row in fetched]
 
     def dense(
@@ -212,13 +236,9 @@ class PgCandidateStore(CandidateStore):
                 (
                     vector_text,
                     normalized_collection,
-                    vector_text,
-                    normalized_limit,
-                    vector_text,
-                    normalized_collection,
-                    normalized_limit,
-                    vector_text,
-                    vector_text,
+                    _DENSE_ANN_PROBE_LIMIT,
+                    _DENSE_ANN_POOL_LIMIT,
+                    _DENSE_ANN_PROBE_LIMIT,
                     normalized_limit,
                 ),
                 limit=normalized_limit,

@@ -35,6 +35,7 @@ case "${1:-}" in
     case "${2:-}" in
       create)
         [[ "${3:-}" =~ ^lot40-pg-volume-[A-Za-z0-9_.-]+$ ]] || exit 91
+        if [[ "${LOT40_FAIL_VOLUME_CREATE_BEFORE_CREATE:-0}" == 1 ]]; then exit 77; fi
         touch "$volume_state"
         if [[ "${LOT40_FAIL_VOLUME_CREATE:-0}" == 1 ]]; then exit 77; fi
         printf '%s\\n' "${3:-}"
@@ -42,7 +43,7 @@ case "${1:-}" in
       rm)
         [[ "${3:-}" =~ ^lot40-pg-volume-[A-Za-z0-9_.-]+$ ]] || exit 92
         if [[ ! -e "$volume_state" ]]; then
-          printf '%s\\n' "Error: no such volume: ${3:-}" >&2
+          printf '%s\\n' "${LOT40_FAKE_VOLUME_ABSENT_MESSAGE:-Error response from daemon: get ${3:-}: no such volume}" >&2
           exit 1
         fi
         if [[ "${LOT40_FAKE_LEAK_VOLUME:-0}" != 1 ]]; then rm -f "$volume_state"; fi
@@ -50,7 +51,7 @@ case "${1:-}" in
       inspect)
         [[ "${3:-}" =~ ^lot40-pg-volume-[A-Za-z0-9_.-]+$ ]] || exit 103
         if [[ -e "$volume_state" ]]; then printf '%s\\n' '{}'; exit 0; fi
-        printf '%s\\n' "Error: no such volume: ${3:-}" >&2
+        printf '%s\\n' "${LOT40_FAKE_VOLUME_ABSENT_MESSAGE:-Error response from daemon: get ${3:-}: no such volume}" >&2
         exit 1
         ;;
       *) exit 93 ;;
@@ -79,7 +80,7 @@ case "${1:-}" in
     [[ "${2:-}" == "-f" ]] || exit 100
     [[ "${3:-}" =~ ^lot40-pg-[A-Za-z0-9_.-]+$ ]] || exit 101
     if [[ ! -e "$container_state" ]]; then
-      printf '%s\\n' "Error: No such container: ${3:-}" >&2
+      printf '%s\\n' "${LOT40_FAKE_CONTAINER_ABSENT_MESSAGE:-Error response from daemon: No such container: ${3:-}}" >&2
       exit 1
     fi
     if [[ "${LOT40_FAKE_LEAK_CONTAINER:-0}" != 1 ]]; then rm -f "$container_state"; fi
@@ -88,7 +89,7 @@ case "${1:-}" in
     [[ "${2:-}" == "inspect" ]] || exit 104
     [[ "${3:-}" =~ ^lot40-pg-[A-Za-z0-9_.-]+$ ]] || exit 105
     if [[ -e "$container_state" ]]; then printf '%s\\n' '{}'; exit 0; fi
-    printf '%s\\n' "Error: No such container: ${3:-}" >&2
+    printf '%s\\n' "${LOT40_FAKE_CONTAINER_ABSENT_MESSAGE:-Error response from daemon: No such container: ${3:-}}" >&2
     exit 1
     ;;
   *) exit 102 ;;
@@ -205,6 +206,7 @@ def test_cleanup_confirms_not_found_and_fails_hard_on_a_real_leak(tmp_path: Path
     assert absent.returncode != 0
     assert any(line.startswith("rm -f ") for line in absent_calls)
     assert any(line.startswith("container inspect ") for line in absent_calls)
+    assert "LOT40_CLEANUP_CONTAINER_" not in absent.stderr
 
     log.unlink()
     leaked = subprocess.run(
@@ -222,6 +224,86 @@ def test_cleanup_confirms_not_found_and_fails_hard_on_a_real_leak(tmp_path: Path
     )
     assert leaked.returncode != 0
     assert "LOT40_CLEANUP_CONTAINER_LEAK" in leaked.stderr
+
+
+def test_cleanup_accepts_only_exact_kind_and_name_not_found_diagnostics(
+    tmp_path: Path,
+) -> None:
+    cases = [
+        (
+            {"LOT40_FAIL_RUN_BEFORE_CREATE": "1"},
+            "LOT40_CLEANUP_CONTAINER_",
+            False,
+        ),
+        (
+            {"LOT40_FAIL_VOLUME_CREATE_BEFORE_CREATE": "1"},
+            "LOT40_CLEANUP_VOLUME_",
+            False,
+        ),
+        (
+            {
+                "LOT40_FAIL_RUN_BEFORE_CREATE": "1",
+                "LOT40_FAKE_CONTAINER_ABSENT_MESSAGE": "Error: context not found",
+            },
+            "LOT40_CLEANUP_CONTAINER_INSPECT_FAILED",
+            True,
+        ),
+        (
+            {
+                "LOT40_FAIL_RUN_BEFORE_CREATE": "1",
+                "LOT40_FAKE_CONTAINER_ABSENT_MESSAGE": "Error: No such container: lot40-pg-wrong",
+            },
+            "LOT40_CLEANUP_CONTAINER_INSPECT_FAILED",
+            True,
+        ),
+        (
+            {
+                "LOT40_FAIL_RUN_BEFORE_CREATE": "1",
+                "LOT40_FAKE_CONTAINER_ABSENT_MESSAGE": "Error: no such volume: lot40-pg-wrong-kind",
+            },
+            "LOT40_CLEANUP_CONTAINER_INSPECT_FAILED",
+            True,
+        ),
+        (
+            {
+                "LOT40_FAIL_VOLUME_CREATE_BEFORE_CREATE": "1",
+                "LOT40_FAKE_VOLUME_ABSENT_MESSAGE": "Error: context not found",
+            },
+            "LOT40_CLEANUP_VOLUME_INSPECT_FAILED",
+            True,
+        ),
+        (
+            {
+                "LOT40_FAIL_VOLUME_CREATE_BEFORE_CREATE": "1",
+                "LOT40_FAKE_VOLUME_ABSENT_MESSAGE": "Error: no such volume: lot40-pg-volume-wrong",
+            },
+            "LOT40_CLEANUP_VOLUME_INSPECT_FAILED",
+            True,
+        ),
+        (
+            {
+                "LOT40_FAIL_VOLUME_CREATE_BEFORE_CREATE": "1",
+                "LOT40_FAKE_VOLUME_ABSENT_MESSAGE": "Error: No such container: lot40-pg-volume-wrong-kind",
+            },
+            "LOT40_CLEANUP_VOLUME_INSPECT_FAILED",
+            True,
+        ),
+    ]
+    for index, (overrides, diagnostic, expected) in enumerate(cases):
+        case_root = tmp_path / f"case-{index}"
+        bin_dir = case_root / "bin"
+        bin_dir.mkdir(parents=True)
+        log = _write_fake_docker(bin_dir)
+        result = subprocess.run(
+            ["bash", str(RUNNER)],
+            cwd=SERVICE_ROOT,
+            env=_fake_env(bin_dir, log, **overrides),
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        assert result.returncode != 0
+        assert (diagnostic in result.stderr) is expected
 
 
 @pytest.mark.parametrize(
@@ -283,6 +365,8 @@ def test_runner_pins_security_bounds_and_cleanup_contract() -> None:
     assert "GRANT SELECT ON TABLE rag_chunks" in content
     assert "GRANT INSERT" not in content
     assert "GRANT TRUNCATE" not in content
+    assert '[[ "$1" =~ [Nn]o[[:space:]]such' not in content
+    assert '[[ "$1" =~ [Nn]ot[[:space:]]found' not in content
     assert "rag_pgvector" not in content
 
 
@@ -322,6 +406,7 @@ def test_runner_invokes_only_the_lot40_real_pgvector_module() -> None:
 def test_real_module_explains_the_exact_production_lexical_sql() -> None:
     content = INTEGRATION_TEST.read_text(encoding="utf-8")
     assert "_LEXICAL_PLAN_SQL" not in content
-    assert "_DENSE_SQL, _LEXICAL_SQL, PgCandidateStore" in content
+    assert "_DENSE_SQL," in content
     assert "_LEXICAL_SQL," in content
+    assert "PgCandidateStore," in content
     assert "(QUERY, TARGET_COLLECTION, 50)," in content

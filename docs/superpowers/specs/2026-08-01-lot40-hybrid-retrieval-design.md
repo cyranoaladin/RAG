@@ -110,7 +110,8 @@ Le flux nominal est unique :
 ```text
 requête brute
   → format `query:` pour le seul embedding dense
-  → dense top-50 + lexical français top-50, tous deux reviewed-only
+  → pool dense ANN borné 200+1 puis au plus 50 + lexical français top-50,
+    tous deux reviewed-only
   → RRF alpha=0.7, k=60
   → rerank MiniLM-L-6-v2
   → seuil 1.90
@@ -128,9 +129,21 @@ Les deux classements SQL normatifs sont :
 
 ```sql
 -- dense, query_vector paramétré et dimensionné à 1024
-1 - (vector <=> query_vector) AS dense_score
-ORDER BY vector <=> query_vector ASC, chunk_id ASC
-LIMIT 50
+WITH hnsw_candidates AS MATERIALIZED (
+  SELECT toutes_les_colonnes_necessaires,
+         vector <=> query_vector AS distance
+  FROM rag_chunks
+  WHERE univers_admissible
+  ORDER BY distance ASC
+  LIMIT 201
+), ranked_pool AS MATERIALIZED (
+  SELECT *, row_number() OVER (ORDER BY distance ASC, chunk_id ASC) AS pool_rank
+  FROM hnsw_candidates
+)
+SELECT ..., 1 - distance AS dense_score, diagnostic_frontiere_200_201
+FROM ranked_pool
+WHERE pool_rank <= requested_limit -- requested_limit <= 50
+ORDER BY distance ASC, chunk_id ASC
 
 -- lexical, tsquery calculée une seule fois dans un CTE
 plainto_tsquery('french', raw_query) AS lexical_query
@@ -144,10 +157,23 @@ Le bit de normalisation `32` rend le rang lexical `rank/(rank+1)`. Avant ces
 classements, les deux canaux utilisent le même univers admissible : collection
 demandée, `review_status='reviewed'`, texte non blanc, vecteur non nul et trois
 champs de provenance non blancs. Une requête transformée en `tsquery` vide est
-un canal lexical vide valide. Des fixtures créent des égalités, y compris à la
-frontière du rang 50, et prouvent que `chunk_id ASC` détermine à la fois les
-rangs et l'appartenance au top-50. `dense_score` est exactement
-`1 - cosine_distance`, fini, sans renormalisation cachée.
+un canal lexical vide valide.
+
+Le canal dense est un parcours ANN réellement borné : la seule lecture de
+`rag_chunks` matérialise au plus 201 lignes, soit un pool de 200 plus une
+sentinelle. Le SELECT extérieur ne relit jamais la table et ne classe que ce
+pool. `chunk_id ASC` donne l'ordre total exact **à l'intérieur du pool ANN** et
+`dense_score` vaut exactement `1 - cosine_distance`, fini, sans
+renormalisation cachée. LOT40 ne garantit donc pas le top-50 exact global de la
+collection. Un underfill HNSW est un résultat dense valide, sans second scan ni
+fallback exact.
+
+Si les distances aux rangs 200 et 201 sont égales, le canal échoue de façon
+générique : l'appartenance déterministe à la frontière du pool n'est pas
+démontrable. Une fixture de 52 égalités, entièrement contenue dans le pool,
+retourne bien `000..049`; une fixture de plus de 201 égalités prouve le refus
+fail-closed. Le classement lexical, lui, conserve son top-50 SQL déterministe
+global sur son univers filtré.
 
 Chaque canal retourne au plus 50 candidats et le pool fusionné contient donc
 au plus 100 `chunk_id`. Les rangs commencent à 1. Pour un candidat `c`, la
@@ -282,7 +308,27 @@ up et une recherche HTTP avec modèles déterministes injectés. Après `ANALYZE
 la preuve du GIN ouvre une transaction, exécute
 `SET LOCAL enable_seqscan = off`, puis `EXPLAIN` sur la requête lexicale et
 exige `idx_rag_chunks_text_tsv`; elle ne dépend donc pas de la préférence du
-planner sur une petite fixture. Le test ne monte aucun corpus réel et détruit
+planner sur une petite fixture.
+
+Pour le dense, une fixture synthétique de 45 000 lignes cibles, complétée par
+des lignes hors collection et non reviewed, rend le choix HNSW naturel. Un
+`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` sur le SQL de production exige une
+unique lecture de `rag_chunks`, un `Index Scan` nommé exactement
+`idx_rag_chunks_vector`, au plus 201 lignes matérialisées dans
+`hnsw_candidates` et aucun tri portant sur plus de 201 lignes. Une preuve
+structurelle séparée désactive les scans concurrents; elle ne se substitue pas
+au plan naturel. L'underfill forcé par `ef_search=1/max_scan_tuples=1` reste
+borné et n'est jamais comparé à un top global. Sur la fixture aux distances
+distinctes, une comparaison au préfixe d'un oracle exact désactivant l'index
+est seulement une observation empirique de fixture, pas une garantie du canal
+ANN. Le temps du plan est consigné à titre informatif, sans seuil normatif.
+
+Un `PgCandidateStore` réel et `/search/v2` utilisent aussi une connexion du
+rôle applicatif sans pré-régler `ef_search` ni `max_scan_tuples`; le store ne
+fait que l'activation pgvector et `strict_order`. Ils prouvent un résultat
+dense non vide, cohérent et borné à 50, sans exiger qu'il soit rempli.
+
+Le test ne monte aucun corpus réel et détruit
 son conteneur et son volume temporaires avec un `trap`, y compris en erreur. Il
 ne réutilise jamais `rag_pgvector` ni un volume existant.
 
