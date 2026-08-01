@@ -245,9 +245,17 @@ extract_shell_function() {
 validate_run_engine_hybrid_sequence() {
     local source_file="$1"
     local run_engine_block
+    local expected_sanitization
     local expected_sequence
 
     run_engine_block="$(extract_shell_function "run_engine" "$source_file")"
+    expected_sanitization='    if ! unset MAKEFLAGS GNUMAKEFLAGS MFLAGS 2>/dev/null; then
+        echo "FAIL: rag-engine make environment invalid"
+        cd "$REPO_ROOT"; return 1
+    fi
+
+    rm -rf .venv
+    if ! make install; then'
     expected_sequence='    if ! make test; then
         echo "FAIL: rag-engine tests failed"
         deactivate 2>/dev/null || true; cd "$REPO_ROOT"; return 1
@@ -259,6 +267,9 @@ validate_run_engine_hybrid_sequence() {
     fi'
 
     [ -n "$run_engine_block" ] \
+        && [ "$(grep -Fxc '    if ! unset MAKEFLAGS GNUMAKEFLAGS MFLAGS 2>/dev/null; then' \
+            <<<"$run_engine_block")" -eq 1 ] \
+        && [[ "$run_engine_block" == *"$expected_sanitization"* ]] \
         && [ "$(grep -Fxc '    if ! make test-integration-hybrid; then' \
             <<<"$run_engine_block")" -eq 1 ] \
         && [[ "$run_engine_block" == *"$expected_sequence"* ]]
@@ -293,6 +304,12 @@ fi
 
 cat > "$HYBRID_FAKE_BIN/make" <<'SCRIPT'
 #!/usr/bin/env bash
+for variable in MAKEFLAGS GNUMAKEFLAGS MFLAGS; do
+    if printenv "$variable" >/dev/null 2>&1; then
+        echo "MAKE_ENV_LEAK" >&2
+        exit 88
+    fi
+done
 printf '%s\n' "$*" >> "$HYBRID_MAKE_LOG"
 case "${1:-}" in
     install)
@@ -365,6 +382,162 @@ if [ -f "$HYBRID_MAKE_LOG" ] \
     TESTS_PASS=$((TESTS_PASS + 1))
 else
     echo "  FAIL  run_engine n'exécute pas les cibles attendues exactement une fois"
+    TESTS_FAIL=$((TESTS_FAIL + 1))
+fi
+
+echo ""
+echo "=== Test: run_engine neutralise les options tolérantes de GNU Make ==="
+
+GNU_MAKE_ROOT="$HYBRID_FAILSAFE_ROOT/gnu-make"
+GNU_MAKE_REPO="$GNU_MAKE_ROOT/repo"
+GNU_MAKE_CALL_LOG="$GNU_MAKE_ROOT/targets.log"
+GNU_MAKE_EXPECTED_LOG="$GNU_MAKE_ROOT/expected.log"
+GNU_MAKE_FUNCTION_FILE="$GNU_MAKE_ROOT/run-engine-only.sh"
+GNU_MAKE_RUNNER="$GNU_MAKE_ROOT/run-engine.sh"
+GNU_MAKE_WRAPPER_BIN="$GNU_MAKE_ROOT/bin"
+REAL_GNU_MAKE="$(command -v make)"
+mkdir -p "$GNU_MAKE_REPO/services/rag-engine" "$GNU_MAKE_WRAPPER_BIN"
+
+extract_shell_function \
+    "run_engine" "$REPO_ROOT/scripts/ci-local.sh" > "$GNU_MAKE_FUNCTION_FILE"
+
+cat > "$GNU_MAKE_REPO/services/rag-engine/Makefile" <<'MAKEFILE'
+.RECIPEPREFIX := >
+
+install:
+> @printf '%s\n' '$@' >> '$(GNU_MAKE_CALL_LOG)'
+> @mkdir -p .venv/bin
+> @printf '%s\n' ':' > .venv/bin/activate
+
+lint typecheck test:
+> @printf '%s\n' '$@' >> '$(GNU_MAKE_CALL_LOG)'
+
+test-integration-hybrid:
+> @printf '%s\n' '$@' >> '$(GNU_MAKE_CALL_LOG)'
+> @exit 23
+MAKEFILE
+
+cat > "$GNU_MAKE_RUNNER" <<'SCRIPT'
+#!/usr/bin/env bash
+set -uo pipefail
+REPO_ROOT="$GNU_MAKE_REPO"
+source "$GNU_MAKE_FUNCTION_FILE"
+run_engine
+SCRIPT
+chmod +x "$GNU_MAKE_RUNNER"
+
+cat > "$GNU_MAKE_EXPECTED_LOG" <<'EOF'
+install
+lint
+typecheck
+test
+test-integration-hybrid
+EOF
+
+: > "$GNU_MAKE_CALL_LOG"
+set +e
+MAKEFLAGS=-i GNUMAKEFLAGS=-i MFLAGS=-i \
+GNU_MAKE_CALL_LOG="$GNU_MAKE_CALL_LOG" \
+    "$REAL_GNU_MAKE" \
+        -C "$GNU_MAKE_REPO/services/rag-engine" \
+        test-integration-hybrid >/dev/null 2>&1
+GNU_MAKE_UNSAFE_EXIT=$?
+set -e
+if [ "$GNU_MAKE_UNSAFE_EXIT" -eq 0 ] \
+    && [ "$(grep -Fxc 'test-integration-hybrid' "$GNU_MAKE_CALL_LOG")" -eq 1 ]; then
+    echo "  PASS  GNU Make -i masque bien la recette qui retourne 23"
+    TESTS_PASS=$((TESTS_PASS + 1))
+else
+    echo "  FAIL  la preuve du contournement GNU Make -i n'est pas sensible"
+    TESTS_FAIL=$((TESTS_FAIL + 1))
+fi
+
+: > "$GNU_MAKE_CALL_LOG"
+set +e
+GNU_MAKE_RUN_OUTPUT="$({
+    MAKEFLAGS=-i GNUMAKEFLAGS=-i MFLAGS=-i \
+    GNU_MAKE_REPO="$GNU_MAKE_REPO" \
+    GNU_MAKE_FUNCTION_FILE="$GNU_MAKE_FUNCTION_FILE" \
+    GNU_MAKE_CALL_LOG="$GNU_MAKE_CALL_LOG" \
+        bash "$GNU_MAKE_RUNNER"
+} 2>&1)"
+GNU_MAKE_RUN_EXIT=$?
+set -e
+if [ "$GNU_MAKE_RUN_EXIT" -eq 1 ] \
+    && [ "$(grep -Fxc 'FAIL: rag-engine hybrid integration failed' \
+        <<<"$GNU_MAKE_RUN_OUTPUT")" -eq 1 ] \
+    && diff -u "$GNU_MAKE_EXPECTED_LOG" "$GNU_MAKE_CALL_LOG"; then
+    echo "  PASS  run_engine propage l'échec réel malgré les trois variables"
+    TESTS_PASS=$((TESTS_PASS + 1))
+else
+    echo "  FAIL  run_engine laisse GNU Make tolérer la recette en échec"
+    echo "$GNU_MAKE_RUN_OUTPUT"
+    TESTS_FAIL=$((TESTS_FAIL + 1))
+fi
+
+cat > "$GNU_MAKE_WRAPPER_BIN/make" <<'SCRIPT'
+#!/usr/bin/env bash
+for variable in MAKEFLAGS GNUMAKEFLAGS MFLAGS; do
+    if printenv "$variable" >/dev/null 2>&1; then
+        echo "MAKE_ENV_LEAK" >&2
+        exit 88
+    fi
+done
+exec "$REAL_GNU_MAKE" "$@"
+SCRIPT
+chmod +x "$GNU_MAKE_WRAPPER_BIN/make"
+
+: > "$GNU_MAKE_CALL_LOG"
+set +e
+GNU_MAKE_WRAPPER_OUTPUT="$({
+    MAKEFLAGS=-i GNUMAKEFLAGS=-i MFLAGS=-i \
+    GNU_MAKE_REPO="$GNU_MAKE_REPO" \
+    GNU_MAKE_FUNCTION_FILE="$GNU_MAKE_FUNCTION_FILE" \
+    GNU_MAKE_CALL_LOG="$GNU_MAKE_CALL_LOG" \
+    REAL_GNU_MAKE="$REAL_GNU_MAKE" \
+    PATH="$GNU_MAKE_WRAPPER_BIN:$PATH" \
+        bash "$GNU_MAKE_RUNNER"
+} 2>&1)"
+GNU_MAKE_WRAPPER_EXIT=$?
+set -e
+if [ "$GNU_MAKE_WRAPPER_EXIT" -eq 1 ] \
+    && ! grep -Fq 'MAKE_ENV_LEAK' <<<"$GNU_MAKE_WRAPPER_OUTPUT" \
+    && [ "$(grep -Fxc 'FAIL: rag-engine hybrid integration failed' \
+        <<<"$GNU_MAKE_WRAPPER_OUTPUT")" -eq 1 ] \
+    && diff -u "$GNU_MAKE_EXPECTED_LOG" "$GNU_MAKE_CALL_LOG"; then
+    echo "  PASS  aucun make ne reçoit les variables de tolérance"
+    TESTS_PASS=$((TESTS_PASS + 1))
+else
+    echo "  FAIL  le wrapper détecte une variable de tolérance transmise à make"
+    echo "$GNU_MAKE_WRAPPER_OUTPUT"
+    TESTS_FAIL=$((TESTS_FAIL + 1))
+fi
+
+: > "$GNU_MAKE_CALL_LOG"
+set +e
+GNU_MAKE_READONLY_OUTPUT="$({
+    MAKEFLAGS=-i GNUMAKEFLAGS=-i MFLAGS=-i \
+    GNU_MAKE_REPO="$GNU_MAKE_REPO" \
+    GNU_MAKE_FUNCTION_FILE="$GNU_MAKE_FUNCTION_FILE" \
+    GNU_MAKE_CALL_LOG="$GNU_MAKE_CALL_LOG" \
+        bash -c '
+            readonly MAKEFLAGS GNUMAKEFLAGS MFLAGS
+            source "$GNU_MAKE_FUNCTION_FILE"
+            REPO_ROOT="$GNU_MAKE_REPO"
+            run_engine
+        '
+} 2>&1)"
+GNU_MAKE_READONLY_EXIT=$?
+set -e
+if [ "$GNU_MAKE_READONLY_EXIT" -eq 1 ] \
+    && [ "$(grep -Fxc 'FAIL: rag-engine make environment invalid' \
+        <<<"$GNU_MAKE_READONLY_OUTPUT")" -eq 1 ] \
+    && [ ! -s "$GNU_MAKE_CALL_LOG" ]; then
+    echo "  PASS  un environnement impossible à assainir échoue avant make"
+    TESTS_PASS=$((TESTS_PASS + 1))
+else
+    echo "  FAIL  un environnement readonly n'échoue pas avant make"
+    echo "$GNU_MAKE_READONLY_OUTPUT"
     TESTS_FAIL=$((TESTS_FAIL + 1))
 fi
 

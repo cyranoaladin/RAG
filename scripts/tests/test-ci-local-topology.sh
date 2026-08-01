@@ -208,6 +208,51 @@ if not isinstance(engine_steps, list):
     print("jobs.rag-engine.steps est absent ou invalide", file=sys.stderr)
     raise SystemExit(1)
 
+errors: list[str] = []
+make_control_variables = {"MAKEFLAGS", "GNUMAKEFLAGS", "MFLAGS"}
+
+
+def validate_make_environment(scope: object, label: str) -> None:
+    if not isinstance(scope, dict) or "env" not in scope:
+        return
+    environment = scope.get("env")
+    if not isinstance(environment, dict):
+        errors.append(f"{label}.env est invalide")
+        return
+    forbidden = sorted(make_control_variables.intersection(environment))
+    if forbidden:
+        errors.append(
+            f"{label}.env contrôle GNU Make via: {', '.join(forbidden)}"
+        )
+
+
+def validate_run_defaults(scope: object, label: str) -> None:
+    if not isinstance(scope, dict) or "defaults" not in scope:
+        return
+    defaults = scope.get("defaults")
+    if not isinstance(defaults, dict):
+        errors.append(f"{label}.defaults est invalide")
+        return
+    run_defaults = defaults.get("run")
+    if run_defaults is None:
+        return
+    if not isinstance(run_defaults, dict):
+        errors.append(f"{label}.defaults.run est invalide")
+    elif "shell" in run_defaults:
+        errors.append(f"{label}.defaults.run.shell est interdit")
+
+
+for forbidden_key in ("if", "continue-on-error", "shell"):
+    if forbidden_key in engine:
+        errors.append(f"jobs.rag-engine.{forbidden_key} est interdit")
+
+validate_run_defaults(document, "workflow")
+validate_run_defaults(engine, "jobs.rag-engine")
+validate_make_environment(document, "workflow")
+validate_make_environment(engine, "jobs.rag-engine")
+for step_index, step in enumerate(engine_steps):
+    validate_make_environment(step, f"jobs.rag-engine.steps[{step_index}]")
+
 integration_command = "make test-integration-hybrid"
 working_directory = "services/rag-engine"
 all_occurrences: list[tuple[str, int, dict[object, object]]] = []
@@ -222,7 +267,6 @@ for job_name, job in jobs.items():
         if isinstance(run_value, str) and integration_command in run_value:
             all_occurrences.append((str(job_name), step_index, step))
 
-errors: list[str] = []
 exact_occurrences = [
     occurrence
     for occurrence in all_occurrences
@@ -289,11 +333,11 @@ integration_index = next(
 )
 integration_step = engine_steps[integration_index]
 
-if mutation == "if-false":
+if mutation == "step-if-false":
     integration_step["if"] = False
-elif mutation == "continue-on-error":
+elif mutation == "step-continue-on-error":
     integration_step["continue-on-error"] = True
-elif mutation == "shell":
+elif mutation == "step-shell":
     integration_step["shell"] = "bash {0}"
 elif mutation == "tolerant-suffix":
     integration_step["run"] += " || true"
@@ -305,6 +349,24 @@ elif mutation == "before-tests":
         index for index, step in enumerate(engine_steps) if step.get("run") == "make test"
     )
     engine_steps.insert(test_index, integration_step)
+elif mutation == "job-if-false":
+    jobs["rag-engine"]["if"] = False
+elif mutation == "job-continue-on-error":
+    jobs["rag-engine"]["continue-on-error"] = True
+elif mutation == "workflow-default-shell":
+    document["defaults"] = {"run": {"shell": "true {0}"}}
+elif mutation == "job-default-shell":
+    jobs["rag-engine"]["defaults"] = {"run": {"shell": "true {0}"}}
+elif mutation.startswith(("workflow-env-", "job-env-", "step-env-")):
+    level, _, variable_slug = mutation.partition("-env-")
+    variable = variable_slug.upper()
+    if level == "workflow":
+        scope = document
+    elif level == "job":
+        scope = jobs["rag-engine"]
+    else:
+        scope = integration_step
+    scope["env"] = {variable: "-i"}
 else:
     raise SystemExit(f"mutation inconnue: {mutation}")
 
@@ -336,12 +398,25 @@ echo "PASS: la fixture canonique du smoke hybride est acceptée"
 
 HYBRID_MUTATIONS_REJECTED=0
 for mutation in \
-    if-false \
-    continue-on-error \
-    shell \
+    step-if-false \
+    step-continue-on-error \
+    step-shell \
     tolerant-suffix \
     other-job \
-    before-tests; do
+    before-tests \
+    job-if-false \
+    job-continue-on-error \
+    workflow-default-shell \
+    job-default-shell \
+    workflow-env-makeflags \
+    workflow-env-gnumakeflags \
+    workflow-env-mflags \
+    job-env-makeflags \
+    job-env-gnumakeflags \
+    job-env-mflags \
+    step-env-makeflags \
+    step-env-gnumakeflags \
+    step-env-mflags; do
     MUTATED_WORKFLOW="$TMP_ROOT/hybrid-$mutation.yml"
     mutate_hybrid_fixture "$CANONICAL_WORKFLOW" "$MUTATED_WORKFLOW" "$mutation"
     if validate_hybrid_integration_step "$MUTATED_WORKFLOW" >/dev/null 2>&1; then
@@ -350,11 +425,11 @@ for mutation in \
     fi
     HYBRID_MUTATIONS_REJECTED=$((HYBRID_MUTATIONS_REJECTED + 1))
 done
-if [ "$HYBRID_MUTATIONS_REJECTED" -ne 6 ]; then
-    echo "FAIL: six mutations hybrides doivent être refusées" >&2
+if [ "$HYBRID_MUTATIONS_REJECTED" -ne 19 ]; then
+    echo "FAIL: dix-neuf mutations hybrides doivent être refusées" >&2
     exit 1
 fi
-echo "PASS: les six mutations du smoke hybride sont refusées"
+echo "PASS: les dix-neuf mutations du smoke hybride sont refusées"
 
 if ! validate_hybrid_integration_step "$REPO_ROOT/.github/workflows/ci.yml"; then
     echo "FAIL: le smoke hybride GitHub est absent ou contournable" >&2

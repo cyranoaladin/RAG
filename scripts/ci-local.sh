@@ -107,6 +107,11 @@ run_target "services/rag-pedago" run_pedago
 # --- services/rag-engine ---
 run_engine() {
     cd "$REPO_ROOT/services/rag-engine"
+    if ! unset MAKEFLAGS GNUMAKEFLAGS MFLAGS 2>/dev/null; then
+        echo "FAIL: rag-engine make environment invalid"
+        cd "$REPO_ROOT"; return 1
+    fi
+
     rm -rf .venv
     if ! make install; then
         echo "FAIL: rag-engine install failed"
