@@ -111,8 +111,21 @@ def runner_env(tmp_path: Path) -> tuple[dict[str, str], Path, Path]:
                 record("READ_STATE", stdin)
                 print("REGISTRY_PRESENT|" + ("1" if state.get("registry_present") else "0"))
                 print("RAG_CHUNKS_PRESENT|" + ("1" if state.get("rag_chunks_present") else "0"))
+
                 for row in state.get("rows", []):
                     print("MIGRATION|{version}|{file_name}|{sha256}".format(**row))
+                raise SystemExit(0)
+
+            if "NEXUS_READ_UNREGISTERED_HYBRID_STATE" in stdin:
+                record("READ_UNREGISTERED_SCHEMA", stdin)
+                print(
+                    "HYBRID_COLUMN_PRESENT|"
+                    + ("1" if state.get("hybrid_column_present") else "0")
+                )
+                print(
+                    "HYBRID_INDEX_PRESENT|"
+                    + ("1" if state.get("hybrid_index_present") else "0")
+                )
                 raise SystemExit(0)
 
             if "DELETE FROM rag_schema_migrations" in stdin:
@@ -120,6 +133,12 @@ def runner_env(tmp_path: Path) -> tuple[dict[str, str], Path, Path]:
                 raise SystemExit(0)
 
             if "INSERT INTO rag_schema_migrations" in stdin:
+                if "NEXUS_ADOPT_SCHEMA_HEAD_002" in stdin:
+                    record("ADOPT_002", stdin)
+                    raise SystemExit(46 if fail_at == "ADOPT_002" else 0)
+                if "NEXUS_ADOPT_SCHEMA_HEAD_001" in stdin:
+                    record("ADOPT_001", stdin)
+                    raise SystemExit(46 if fail_at == "ADOPT_001" else 0)
                 version = "UNKNOWN"
                 for item in args:
                     if item.startswith("migration_version="):
@@ -281,13 +300,77 @@ def test_up_recognizes_existing_001_only_after_exhaustive_validation(
     names = _event_names(events)
     assert names.index("READ_STATE") < names.index("VALIDATE_001")
     assert names.index("VALIDATE_001") < names.index("PG_DUMP")
-    recognition = str(_event(events, "APPLY_001")["stdin"])
+    recognition = str(_event(events, "ADOPT_001")["stdin"])
     assert recognition.index("pg_advisory_xact_lock") < recognition.index(
         "SCHEMA_HEAD_001_INVALID"
     )
     assert recognition.index("SCHEMA_HEAD_001_INVALID") < recognition.index(
         "INSERT INTO rag_schema_migrations"
     )
+    assert "CREATE EXTENSION" not in recognition
+    assert "ADD COLUMN" not in recognition
+    assert "MIGRATIONS_ADOPTED=1" in result.stdout
+    assert "MIGRATIONS_APPLIED=1" in result.stdout
+
+
+def test_up_adopts_exact_existing_002_atomically_without_reapplying_ddl(
+    runner_env: tuple[dict[str, str], Path, Path],
+) -> None:
+    result, events = _run(
+        runner_env,
+        {
+            "registry_present": False,
+            "rag_chunks_present": True,
+            "hybrid_column_present": True,
+            "hybrid_index_present": True,
+            "rows": [],
+        },
+    )
+
+    assert result.returncode == 0, result.stderr
+    names = _event_names(events)
+    assert names.index("READ_STATE") < names.index("VALIDATE_001")
+    assert names.index("VALIDATE_001") < names.index("PG_DUMP")
+    assert names.index("DOCKER_CP") < names.index("ADOPT_002")
+    assert "APPLY_001" not in names
+    assert "APPLY_002" not in names
+    adoption = _event(events, "ADOPT_002")
+    stdin = str(adoption["stdin"])
+    assert stdin.index("pg_advisory_xact_lock") < stdin.index(
+        "CREATE TABLE IF NOT EXISTS rag_schema_migrations"
+    )
+    assert stdin.count("INSERT INTO rag_schema_migrations") == 2
+    assert "CREATE EXTENSION" not in stdin
+    assert "ADD COLUMN" not in stdin
+    assert "--single-transaction" in adoption["args"]
+    for row in _valid_rows(2):
+        assert any(str(row["file_name"]) in arg for arg in adoption["args"])
+        assert any(str(row["sha256"]) in arg for arg in adoption["args"])
+    assert "MIGRATIONS_ADOPTED=2" in result.stdout
+    assert "MIGRATIONS_APPLIED=0" in result.stdout
+
+
+def test_up_adoption_002_failure_stops_without_followup_transition(
+    runner_env: tuple[dict[str, str], Path, Path],
+) -> None:
+    result, events = _run(
+        runner_env,
+        {
+            "registry_present": False,
+            "rag_chunks_present": True,
+            "hybrid_column_present": True,
+            "hybrid_index_present": True,
+            "rows": [],
+        },
+        fail_at="ADOPT_002",
+    )
+
+    assert result.returncode != 0
+    names = _event_names(events)
+    assert names.count("ADOPT_002") == 1
+    assert "APPLY_001" not in names
+    assert "APPLY_002" not in names
+    assert "MIGRATIONS_ADOPTED=" not in result.stdout
 
 
 @pytest.mark.parametrize(
@@ -391,35 +474,72 @@ def test_up_refuses_invalid_registry_contract_before_backup(
     assert "PG_DUMP" not in names
 
 
-@pytest.mark.parametrize("registry_present", [False, True])
 @pytest.mark.parametrize(
     "untracked_002",
     [
         {"hybrid_column_present": True},
         {"hybrid_index_present": True},
-        {"hybrid_column_present": True, "hybrid_index_present": True},
     ],
-    ids=["column-only", "index-only", "column-and-index"],
+    ids=["column-only", "index-only"],
 )
-def test_up_refuses_untracked_002_at_effective_head_001_before_backup(
+def test_up_refuses_partial_unregistered_002_before_backup(
     runner_env: tuple[dict[str, str], Path, Path],
-    registry_present: bool,
     untracked_002: dict[str, bool],
 ) -> None:
     state: dict[str, object] = {
-        "registry_present": registry_present,
+        "registry_present": False,
         "rag_chunks_present": True,
-        "rows": _valid_rows(1) if registry_present else [],
+        "rows": [],
         **untracked_002,
     }
     result, events = _run(runner_env, state)
 
     assert result.returncode != 0
     names = _event_names(events)
+    assert names == ["INSPECT", "READ_STATE", "READ_UNREGISTERED_SCHEMA"]
+    assert "PG_DUMP" not in names
+    assert "UNREGISTERED_SCHEMA_HYBRID_OBJECTS_MISMATCH" in result.stderr
+
+
+def test_up_refuses_malformed_exact_002_candidate_before_backup(
+    runner_env: tuple[dict[str, str], Path, Path],
+) -> None:
+    result, events = _run(
+        runner_env,
+        {
+            "registry_present": False,
+            "rag_chunks_present": True,
+            "hybrid_column_present": True,
+            "hybrid_index_present": True,
+            "partial_002": True,
+            "rows": [],
+        },
+    )
+
+    assert result.returncode != 0
+    names = _event_names(events)
+    assert names.index("READ_STATE") < names.index("VALIDATE_002")
+    assert "PG_DUMP" not in names
+
+
+def test_up_refuses_untracked_002_when_registry_head_is_001_before_backup(
+    runner_env: tuple[dict[str, str], Path, Path],
+) -> None:
+    result, events = _run(
+        runner_env,
+        {
+            "registry_present": True,
+            "rag_chunks_present": True,
+            "rows": _valid_rows(1),
+            "hybrid_column_present": True,
+            "hybrid_index_present": True,
+        },
+    )
+
+    assert result.returncode != 0
+    names = _event_names(events)
     assert names.index("READ_STATE") < names.index("VALIDATE_002_ABSENT")
     assert "PG_DUMP" not in names
-    assert "APPLY_001" not in names
-    assert "APPLY_002" not in names
 
 
 @pytest.mark.parametrize("failure", ["PG_DUMP", "DOCKER_CP"])

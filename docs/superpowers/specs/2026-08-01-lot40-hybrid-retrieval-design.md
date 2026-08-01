@@ -68,11 +68,22 @@ donc aucun état où le DDL est validé sans son enregistrement, ou l'inverse.
 
 Pour une base neuve, le runner crée le registre, applique `001`, l'enregistre,
 puis applique `002`. Pour une base v2 antérieure au registre, il accepte une
-seule reconnaissance contrôlée de `001` : registre vide, aucune version
-supérieure, et validateur exhaustif du schéma `001` vert (extension, table,
-colonnes, contraintes, index et `vector(1024)`). La reconnaissance et
-l'insertion de `001` sont atomiques. Tout schéma partiel est refusé ; `001`
-n'est jamais marqué sur la seule présence de `chunk_id`.
+reconnaissance contrôlée de **l'un des deux états exacts** `001` ou `002` :
+registre absent et validateurs exhaustifs verts (extension, table, colonnes,
+contraintes, index, `vector(1024)`, puis absence exacte ou définition exacte
+des objets hybrides). Tout schéma partiel, supplémentaire ou divergent est
+refusé avant backup et avant mutation ; `001` n'est jamais marqué sur la seule
+présence de `chunk_id`.
+
+L'adoption d'un schéma exact `001` crée le registre et insère la ligne `001`
+dans une transaction sous verrou, puis applique normalement `002` dans une
+seconde transition. L'adoption d'un bootstrap `init.sql` déjà exact `002` crée
+le registre et insère les lignes `001` et `002`, avec leurs noms et SHA issus
+du snapshot immuable, dans **une seule transaction** sous verrou consultatif ;
+aucun DDL de migration n'est rejoué. Les validateurs `001`, `002` et registre
+sont répétés avant commit. Un échec après les insertions laisse le registre
+entièrement absent. Les marqueurs distinguent migrations réellement appliquées
+et versions seulement adoptées (`MIGRATIONS_APPLIED` / `MIGRATIONS_ADOPTED`).
 
 La migration `002_hybrid_retrieval.sql` ajoute à `rag_chunks` une colonne
 `text_tsv` générée depuis `coalesce(text, '')` avec la configuration française

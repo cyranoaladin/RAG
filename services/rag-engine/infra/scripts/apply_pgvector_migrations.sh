@@ -45,6 +45,7 @@ read_database_state() {
     APPLIED_SHA256=()
     REGISTRY_PRESENT=""
     RAG_CHUNKS_PRESENT=""
+    UNREGISTERED_SCHEMA_HEAD=0
     state_output="$({ read_migration_state_sql; } | docker exec -i \
         "$PGVECTOR_CONTAINER" psql -X -q -A -t -v ON_ERROR_STOP=1 \
         -U "$PGVECTOR_USER" -d "$PGVECTOR_DB")"
@@ -77,9 +78,58 @@ read_database_state() {
         esac
     done <<< "$state_output"
 
-    [[ "$REGISTRY_PRESENT" =~ ^[01]$ && "$RAG_CHUNKS_PRESENT" =~ ^[01]$ ]] \
+    [[ "$REGISTRY_PRESENT" =~ ^[01]$ \
+       && "$RAG_CHUNKS_PRESENT" =~ ^[01]$ ]] \
         || { echo "MIGRATION_STATE_OUTPUT_INVALID" >&2; return 1; }
     validate_registry_state "$REGISTRY_PRESENT"
+
+    if [[ "$REGISTRY_PRESENT" == "0" && "$RAG_CHUNKS_PRESENT" == "1" ]]; then
+        read_unregistered_schema_head
+    fi
+}
+
+read_unregistered_schema_head() {
+    local state_output line kind first second extra
+
+    HYBRID_COLUMN_PRESENT=""
+    HYBRID_INDEX_PRESENT=""
+    state_output="$({ read_unregistered_hybrid_state_sql; } | docker exec -i \
+        "$PGVECTOR_CONTAINER" psql -X -q -A -t -v ON_ERROR_STOP=1 \
+        -U "$PGVECTOR_USER" -d "$PGVECTOR_DB")"
+
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        IFS='|' read -r kind first second extra <<< "$line"
+        [[ -z "${second:-}${extra:-}" ]] \
+            || { echo "MIGRATION_STATE_OUTPUT_INVALID" >&2; return 1; }
+        case "$kind" in
+            HYBRID_COLUMN_PRESENT)
+                HYBRID_COLUMN_PRESENT="$first"
+                ;;
+            HYBRID_INDEX_PRESENT)
+                HYBRID_INDEX_PRESENT="$first"
+                ;;
+            *)
+                echo "MIGRATION_STATE_OUTPUT_INVALID" >&2
+                return 1
+                ;;
+        esac
+    done <<< "$state_output"
+
+    [[ "$HYBRID_COLUMN_PRESENT" =~ ^[01]$ \
+       && "$HYBRID_INDEX_PRESENT" =~ ^[01]$ ]] \
+        || { echo "MIGRATION_STATE_OUTPUT_INVALID" >&2; return 1; }
+
+    if [[ "$HYBRID_COLUMN_PRESENT" == "0" \
+       && "$HYBRID_INDEX_PRESENT" == "0" ]]; then
+        UNREGISTERED_SCHEMA_HEAD=1
+    elif [[ "$HYBRID_COLUMN_PRESENT" == "1" \
+         && "$HYBRID_INDEX_PRESENT" == "1" ]]; then
+        UNREGISTERED_SCHEMA_HEAD=2
+    else
+        echo "UNREGISTERED_SCHEMA_HYBRID_OBJECTS_MISMATCH" >&2
+        return 1
+    fi
 }
 
 run_readonly_preflight_validation() {
@@ -98,11 +148,64 @@ run_readonly_preflight_validation() {
     elif [[ "$RAG_CHUNKS_PRESENT" == "1" ]]; then
         {
             validate_001_sql
-            validate_002_absent_sql
+            if (( UNREGISTERED_SCHEMA_HEAD == 2 )); then
+                validate_002_sql
+            else
+                validate_002_absent_sql
+            fi
         } | docker exec -i "$PGVECTOR_CONTAINER" \
             psql -X -q -v ON_ERROR_STOP=1 \
             -U "$PGVECTOR_USER" -d "$PGVECTOR_DB" >/dev/null
     fi
+}
+
+run_adoption_transition() {
+    local adopted_head="$1"
+    local version variable_prefix
+    local -a psql_variables=()
+
+    if (( adopted_head < 1 || adopted_head > ${#MIGRATION_VERSIONS[@]} )); then
+        echo "UNREGISTERED_SCHEMA_HEAD_INVALID" >&2
+        return 1
+    fi
+
+    for ((version = 1; version <= adopted_head; version++)); do
+        variable_prefix="migration_$(printf '%03d' "$version")"
+        psql_variables+=(
+            -v "${variable_prefix}_file=${MIGRATION_NAMES[$((version - 1))]}"
+            -v "${variable_prefix}_sha=${MIGRATION_SHA256[$((version - 1))]}"
+        )
+    done
+
+    {
+        advisory_lock_sql
+        printf '%s\n' "-- NEXUS_ADOPT_SCHEMA_HEAD_$(printf '%03d' "$adopted_head")"
+        registry_schema_sql
+        validate_001_sql
+        if (( adopted_head >= 2 )); then
+            validate_002_sql
+        else
+            validate_002_absent_sql
+        fi
+        for ((version = 1; version <= adopted_head; version++)); do
+            variable_prefix="migration_$(printf '%03d' "$version")"
+            printf '%s\n' \
+                "INSERT INTO rag_schema_migrations (version, file_name, sha256)" \
+                "VALUES ($version, :'${variable_prefix}_file', :'${variable_prefix}_sha');"
+        done
+        # NEXUS_ADOPTION_FAILURE_INJECTION_POINT
+        validate_001_sql
+        if (( adopted_head >= 2 )); then
+            validate_002_sql
+        else
+            validate_002_absent_sql
+        fi
+        validate_registry_sql "$adopted_head"
+    } | docker exec -i "$PGVECTOR_CONTAINER" \
+        psql -X -q --single-transaction \
+        -v ON_ERROR_STOP=1 \
+        "${psql_variables[@]}" \
+        -U "$PGVECTOR_USER" -d "$PGVECTOR_DB" >/dev/null
 }
 
 backup_database() {
@@ -174,8 +277,9 @@ read_database_state
 run_readonly_preflight_validation
 
 declared_head="${#MIGRATION_VERSIONS[@]}"
-if (( EFFECTIVE_HEAD == declared_head )); then
+if [[ "$REGISTRY_PRESENT" == "1" ]] && (( EFFECTIVE_HEAD == declared_head )); then
     echo "MIGRATIONS_APPLIED=0"
+    echo "MIGRATIONS_ADOPTED=0"
     echo "SCHEMA_VERIFICATION=OK"
     echo "UPGRADE_COMPLETE"
     exit 0
@@ -184,10 +288,11 @@ fi
 backup_database
 
 applied_count=0
-if [[ "$REGISTRY_PRESENT" == "0" && "$RAG_CHUNKS_PRESENT" == "1" ]]; then
-    run_up_transition 1 recognize
-    EFFECTIVE_HEAD=1
-    applied_count=$((applied_count + 1))
+adopted_count=0
+if (( UNREGISTERED_SCHEMA_HEAD > 0 )); then
+    run_adoption_transition "$UNREGISTERED_SCHEMA_HEAD"
+    EFFECTIVE_HEAD="$UNREGISTERED_SCHEMA_HEAD"
+    adopted_count="$UNREGISTERED_SCHEMA_HEAD"
 fi
 
 for ((version = EFFECTIVE_HEAD + 1; version <= declared_head; version++)); do
@@ -196,5 +301,6 @@ for ((version = EFFECTIVE_HEAD + 1; version <= declared_head; version++)); do
 done
 
 echo "MIGRATIONS_APPLIED=$applied_count"
+echo "MIGRATIONS_ADOPTED=$adopted_count"
 echo "SCHEMA_VERIFICATION=OK"
 echo "UPGRADE_COMPLETE"

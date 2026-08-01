@@ -9,7 +9,12 @@ IMAGE="pgvector/pgvector:pg16@sha256:00ba258a66dac104fd5171074a0084462a64a1369d8
 suffix="$$-${RANDOM}-${RANDOM}"
 PGVECTOR_CONTAINER="lot40-pg-${suffix}"
 PGVECTOR_VOLUME="lot40-pg-volume-${suffix}"
-PGVECTOR_DB="lot40db"
+LOT40_OWNER_KEY="com.nexus.lot40.owner"
+LOT40_OWNER_VALUE="$suffix"
+LOT40_OWNER_LABEL="$LOT40_OWNER_KEY=$LOT40_OWNER_VALUE"
+PGVECTOR_BOOTSTRAP_DB="lot40db"
+PGVECTOR_FRESH_DB="lot40fresh"
+PGVECTOR_DB="$PGVECTOR_BOOTSTRAP_DB"
 PGVECTOR_USER="lot40user"
 PGVECTOR_APP_USER="lot40_app"
 RUN_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/lot40-hybrid.XXXXXX")"
@@ -137,6 +142,7 @@ docker run -d \
     -e "POSTGRES_USER=$PGVECTOR_USER" \
     -e POSTGRES_HOST_AUTH_METHOD=trust \
     -v "$PGVECTOR_VOLUME:/var/lib/postgresql/data" \
+    -v "$INFRA_DIR/postgres/init.sql:/docker-entrypoint-initdb.d/00_init.sql:ro" \
     -p 127.0.0.1::5432 \
     "$IMAGE" >/dev/null
 
@@ -209,6 +215,25 @@ assert_fresh_head_002() {
 SELECT version
 FROM rag_schema_migrations
 WHERE version = 2 AND file_name = '002_hybrid_retrieval.sql';
+SQL
+}
+
+assert_unregistered_bootstrap_002() {
+    container_psql <<'SQL'
+DO $$
+BEGIN
+    IF to_regclass('public.rag_schema_migrations') IS NOT NULL
+       OR to_regclass('public.rag_chunks') IS NULL
+       OR NOT EXISTS (
+           SELECT 1 FROM information_schema.columns
+           WHERE table_schema = 'public' AND table_name = 'rag_chunks'
+             AND column_name = 'text_tsv' AND is_generated = 'ALWAYS'
+       )
+       OR to_regclass('public.idx_rag_chunks_text_tsv') IS NULL THEN
+        RAISE EXCEPTION 'LOT40_EXPECTED_UNREGISTERED_BOOTSTRAP_002';
+    END IF;
+END
+$$;
 SQL
 }
 
@@ -286,6 +311,37 @@ GRANT SELECT ON TABLE rag_chunks TO $PGVECTOR_APP_USER;
 SQL
 }
 
+assert_unregistered_bootstrap_002
+echo "BOOTSTRAP_002_UNREGISTERED=PASS"
+
+atomic_adoption_root="$RUN_ROOT/atomic-adoption"
+mkdir -p "$atomic_adoption_root"
+cp -a -- "$INFRA_DIR" "$atomic_adoption_root/infra"
+sed -i \
+    "/# NEXUS_ADOPTION_FAILURE_INJECTION_POINT/a\\        printf '%s\\\\n' 'SELECT 1 / 0;'" \
+    "$atomic_adoption_root/infra/scripts/apply_pgvector_migrations.sh"
+expect_failure ATOMIC_ADOPTION_002_EXPECTED_FAILURE \
+    run_apply "$atomic_adoption_root/infra"
+assert_unregistered_bootstrap_002
+echo "ATOMIC_ADOPTION_002_ROLLBACK=PASS"
+
+bootstrap_adoption_output="$(run_apply "$INFRA_DIR")"
+printf '%s\n' "$bootstrap_adoption_output"
+grep -qx 'MIGRATIONS_ADOPTED=2' <<< "$bootstrap_adoption_output"
+grep -qx 'MIGRATIONS_APPLIED=0' <<< "$bootstrap_adoption_output"
+assert_state_002
+echo "BOOTSTRAP_ADOPTION_002=PASS"
+
+run_down "$INFRA_DIR"
+assert_state_001
+run_apply "$INFRA_DIR"
+assert_state_002
+echo "BOOTSTRAP_CYCLE_002_001_002=PASS"
+
+docker exec "$PGVECTOR_CONTAINER" \
+    createdb -U "$PGVECTOR_USER" -T template0 "$PGVECTOR_FRESH_DB"
+PGVECTOR_DB="$PGVECTOR_FRESH_DB"
+
 expect_failure FRESH_HEAD_002_NEGATIVE assert_fresh_head_002
 
 run_apply "$INFRA_DIR"
@@ -318,6 +374,8 @@ expect_failure ATOMIC_DOWN_EXPECTED_FAILURE run_down "$atomic_down_root/infra"
 assert_state_002
 echo "ATOMIC_DOWN_ROLLBACK=PASS"
 echo "MIGRATION_FINAL_HEAD_002=PASS"
+
+PGVECTOR_DB="$PGVECTOR_BOOTSTRAP_DB"
 provision_app_role
 echo "APP_ROLE_LEAST_PRIVILEGE=PASS"
 

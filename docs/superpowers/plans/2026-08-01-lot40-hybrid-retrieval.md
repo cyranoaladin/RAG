@@ -224,10 +224,12 @@ Expected: FAIL car le runner historique applique directement tous les SQL.
 Sourcer la bibliothèque, appeler `discover_manifest`, puis faire une unique
 lecture `to_regclass('rag_schema_migrations')` et des lignes éventuelles.
 Passer celles-ci au validateur de registre. Si le registre est absent mais
-`rag_chunks` présente, exécuter `validate_001_sql`; ne jamais reconnaître 001
-sur le seul `chunk_id`. Aucun `CREATE`/`INSERT` ne précède le backup. Les noms
-viennent du manifeste validé ; les valeurs passent par `psql -v` et
-`:'variable'`.
+`rag_chunks` présente, classifier en lecture seule l'état exact `001` (colonne
+et GIN hybrides absents) ou `002` (tous deux présents), puis exécuter les
+validateurs exhaustifs correspondants. Refuser toute présence partielle ou
+définition divergente ; ne jamais reconnaître 001 sur le seul `chunk_id`.
+Aucun `CREATE`/`INSERT` ne précède le backup. Les noms viennent du manifeste
+validé ; les valeurs passent par `psql -v` et `:'variable'`.
 
 - [ ] **Step 10: Vérifier les refus de preflight**
 
@@ -253,9 +255,13 @@ Créer le registre avec contraintes `CHECK`, prendre
 `pg_advisory_xact_lock(hashtext('nexus-rag-schema-migrations'))`, concaténer le
 DDL up et l'`INSERT` dans une seule invocation
 `psql --single-transaction -v ON_ERROR_STOP=1`. Pour la reconnaissance 001,
-insérer sa ligne dans cette transaction après répétition du validateur. Après
-001 exiger le schéma 001 et `{1,fichier,SHA}` ; après 002 exiger expression
-générée, GIN, deux versions contiguës et `max(version)=2`.
+insérer sa ligne dans cette transaction après répétition du validateur. Pour la
+reconnaissance d'un bootstrap déjà exact 002, créer le registre et insérer les
+deux lignes nom/SHA du snapshot dans une seule transaction sous le même verrou,
+sans rejouer le DDL 001/002, puis revalider 001, 002 et le registre. Après 001
+exiger le schéma 001 et `{1,fichier,SHA}` ; après 002 exiger expression
+générée, GIN, deux versions contiguës et `max(version)=2`. Émettre séparément
+`MIGRATIONS_APPLIED` et `MIGRATIONS_ADOPTED`.
 
 - [ ] **Step 14: Vérifier la composition atomique up**
 
@@ -1028,13 +1034,16 @@ test-integration-hybrid: install-dev
 	bash infra/scripts/test_hybrid_integration.sh
 ```
 
-- [ ] **Step 6: Ajouter le contrôle négatif puis le cycle nominal migrations**
+- [ ] **Step 6: Ajouter le bootstrap contrôlé puis le cycle nominal migrations**
 
-Sur la base fraîche, exécuter l'assertion `head=002` et exiger son échec
-contrôlé (preuve RED de sensibilité). Ensuite, avec `PGVECTOR_CONTAINER/DB/USER`
-et `BACKUP_ROOT` explicites : apply canonique, assertion registre 001+002 et
-SHA des deux fichiers, down 002, assertion registre seulement 001 et absence
-colonne/index, nouvel apply, assertion head 002 et présence exacte des objets.
+Monter le même `infra/postgres/init.sql` que `docker-compose.v2.yml` dans
+l'image épinglée. Sur cette base bootstrap, prouver le schéma exact 002 et
+l'absence du registre, adopter 001+002 atomiquement sans rejouer le DDL, puis
+exécuter down/up. Créer ensuite une seconde base vide isolée dans le même
+conteneur : y exécuter l'assertion `head=002` et exiger son échec contrôlé
+(preuve RED de sensibilité), puis apply, down et nouvel apply canoniques avec
+`PGVECTOR_CONTAINER/DB/USER` et `BACKUP_ROOT` explicites. Vérifier à chaque
+étape le registre, les SHA et la présence/absence exacte de colonne/index.
 Chaque assertion est une commande `psql -v ON_ERROR_STOP=1` qui lève sur compte
 ou définition différente.
 
@@ -1050,9 +1059,12 @@ Run: `cd services/rag-engine && make test-integration-hybrid`
 Expected: le contrôle négatif head frais échoue comme prévu, puis
 `MIGRATION_CYCLE_001_002_001_002=PASS`; aucun reliquat Docker.
 
-- [ ] **Step 8: Ajouter la preuve RED d'atomicité up réelle**
+- [ ] **Step 8: Ajouter les preuves RED d'atomicité adoption/up réelles**
 
-Après un down canonique vers 001, copier `infra/` sous le répertoire temporaire
+Sur le bootstrap exact 002 sans registre, copier le runner et injecter une
+erreur SQL après les deux insertions d'adoption. Exiger l'échec, le registre
+entièrement absent et les objets 002 intacts. Après un down canonique vers 001
+sur la base fraîche, copier `infra/` sous le répertoire temporaire
 du runner et ajouter `SELECT 1 / 0;` **après** le DDL dans la copie de 002.
 Exécuter le runner up copié et exiger un statut non nul. Interroger ensuite la
 vraie base : aucune `text_tsv`, aucun GIN, aucune ligne version 2, ligne 001/SHA

@@ -786,6 +786,32 @@ ORDER BY version;
 SQL
 }
 
+read_unregistered_hybrid_state_sql() {
+    cat <<'SQL'
+-- NEXUS_READ_UNREGISTERED_HYBRID_STATE
+SELECT EXISTS (
+           SELECT 1
+           FROM information_schema.columns
+           WHERE table_schema = 'public'
+             AND table_name = 'rag_chunks'
+             AND column_name = 'text_tsv'
+       ) AS hybrid_column_present,
+       to_regclass('public.idx_rag_chunks_text_tsv') IS NOT NULL
+           AS hybrid_index_present
+\gset
+\if :hybrid_column_present
+\echo HYBRID_COLUMN_PRESENT|1
+\else
+\echo HYBRID_COLUMN_PRESENT|0
+\endif
+\if :hybrid_index_present
+\echo HYBRID_INDEX_PRESENT|1
+\else
+\echo HYBRID_INDEX_PRESENT|0
+\endif
+SQL
+}
+
 validate_registry_state() {
     local registry_present="$1"
     local index version expected_index
