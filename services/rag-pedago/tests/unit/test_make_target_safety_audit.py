@@ -230,6 +230,20 @@ def test_required_target_categories_are_stable() -> None:
         assert classified[target] == "SAFE_CLEANUP_REVIEW"
 
 
+def test_pilot_validation_policy_audit_is_exactly_safe_diagnostic() -> None:
+    config = yaml.safe_load(CONFIG.read_text(encoding="utf-8"))
+    target = "pilot-validation-policy-audit"
+    categories = [
+        category
+        for category, targets in config.items()
+        if isinstance(targets, list)
+        for configured_target in targets
+        if configured_target == target
+    ]
+
+    assert categories == ["SAFE_DIAGNOSTIC"]
+
+
 def test_make_target_safety_script_does_not_touch_git_or_staging() -> None:
     before_status = _git_status()
     before_staging_exists = DATA_STAGING.exists()

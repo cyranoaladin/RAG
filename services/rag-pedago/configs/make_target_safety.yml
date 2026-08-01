@@ -2,6 +2,7 @@ SAFE_DIAGNOSTIC:
   - doctor
   - project-doctor
   - make-target-safety-audit
+  - pilot-validation-policy-audit
 
 SAFE_METADATA_ONLY:
   - metadata-preflight
