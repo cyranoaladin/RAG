@@ -107,6 +107,11 @@ run_target "services/rag-pedago" run_pedago
 # --- services/rag-engine ---
 run_engine() {
     cd "$REPO_ROOT/services/rag-engine"
+    if ! unset MAKEFLAGS GNUMAKEFLAGS MFLAGS MAKEFILES 2>/dev/null; then
+        echo "FAIL: rag-engine make environment invalid"
+        cd "$REPO_ROOT"; return 1
+    fi
+
     rm -rf .venv
     if ! make install; then
         echo "FAIL: rag-engine install failed"
@@ -129,6 +134,11 @@ run_engine() {
     echo "--- test ---"
     if ! make test; then
         echo "FAIL: rag-engine tests failed"
+        deactivate 2>/dev/null || true; cd "$REPO_ROOT"; return 1
+    fi
+
+    if ! make test-integration-hybrid; then
+        echo "FAIL: rag-engine hybrid integration failed"
         deactivate 2>/dev/null || true; cd "$REPO_ROOT"; return 1
     fi
 

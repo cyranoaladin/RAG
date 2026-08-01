@@ -2,14 +2,42 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
+
+import pytest
 
 ENGINE_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = ENGINE_ROOT.parents[1]
 INIT_SQL = ENGINE_ROOT / "infra" / "postgres" / "init.sql"
 MIGRATION_SQL = ENGINE_ROOT / "infra" / "postgres" / "migrations" / "001_rag_chunks_v2_schema.sql"
+MIGRATION_002 = ENGINE_ROOT / "infra" / "postgres" / "migrations" / "002_hybrid_retrieval.sql"
+MIGRATION_HEAD = ENGINE_ROOT / "infra" / "postgres" / "migrations" / "HEAD"
+ROLLBACK_002 = (
+    ENGINE_ROOT
+    / "infra"
+    / "postgres"
+    / "rollbacks"
+    / "002_hybrid_retrieval.down.sql"
+)
+MIGRATION_002_ALLOWED_STATEMENTS = [
+    "ALTER TABLE rag_chunks ADD COLUMN IF NOT EXISTS text_tsv tsvector "
+    "GENERATED ALWAYS AS (to_tsvector('french', coalesce(text, ''))) STORED",
+    "CREATE INDEX IF NOT EXISTS idx_rag_chunks_text_tsv "
+    "ON rag_chunks USING gin (text_tsv)",
+]
+ROLLBACK_002_ALLOWED_STATEMENTS = [
+    "DROP INDEX IF EXISTS idx_rag_chunks_text_tsv",
+    "ALTER TABLE rag_chunks DROP COLUMN IF EXISTS text_tsv",
+]
 V2_COMPOSE = ENGINE_ROOT / "infra" / "docker-compose.v2.yml"
 UPGRADE_SCRIPT = ENGINE_ROOT / "infra" / "scripts" / "apply_pgvector_migrations.sh"
+MIGRATION_LIBRARY = (
+    ENGINE_ROOT / "infra" / "scripts" / "lib" / "pgvector_migration_state.sh"
+)
+ROLLBACK_SCRIPT = (
+    ENGINE_ROOT / "infra" / "scripts" / "rollback_pgvector_migration.sh"
+)
 
 V2_REQUIRED_COLUMNS = (
     "chunk_id",
@@ -100,20 +128,29 @@ def test_upgrade_script_uses_on_error_stop() -> None:
 
 
 def test_upgrade_script_applies_migrations() -> None:
-    content = UPGRADE_SCRIPT.read_text(encoding="utf-8")
+    content = (
+        UPGRADE_SCRIPT.read_text(encoding="utf-8")
+        + MIGRATION_LIBRARY.read_text(encoding="utf-8")
+    )
     assert "postgres/migrations" in content, "Script must apply migrations from migrations dir"
     assert ".sql" in content
 
 
 def test_upgrade_script_verifies_v2_columns() -> None:
-    content = UPGRADE_SCRIPT.read_text(encoding="utf-8")
+    content = (
+        UPGRADE_SCRIPT.read_text(encoding="utf-8")
+        + MIGRATION_LIBRARY.read_text(encoding="utf-8")
+    )
     for col in ("chunk_id", "doc_id", "collection", "review_status",
                 "source_label", "source_uri", "rights", "type_doc"):
         assert col in content, f"Script must verify column {col}"
 
 
 def test_upgrade_script_verifies_vector_1024() -> None:
-    content = UPGRADE_SCRIPT.read_text(encoding="utf-8")
+    content = (
+        UPGRADE_SCRIPT.read_text(encoding="utf-8")
+        + MIGRATION_LIBRARY.read_text(encoding="utf-8")
+    )
     assert "vector(1024)" in content
 
 
@@ -141,6 +178,315 @@ def test_upgrade_script_requires_backup_root() -> None:
     )
 
 
+def test_migration_library_exposes_exact_registry_contract() -> None:
+    content = MIGRATION_LIBRARY.read_text(encoding="utf-8")
+    normalized = " ".join(content.split())
+    assert "rag_schema_migrations" in content
+    assert "version integer PRIMARY KEY" in normalized
+    assert "CHECK (version > 0)" in normalized
+    assert "file_name text NOT NULL UNIQUE" in normalized
+    assert "btrim(file_name) <> ''" in normalized
+    assert "sha256 text NOT NULL" in normalized
+    assert "^[0-9a-f]{64}$" in content
+    assert "applied_at timestamptz NOT NULL DEFAULT now()" in normalized
+
+
+@pytest.mark.parametrize(
+    ("diagnostic", "required_predicates"),
+    [
+        (
+            "MIGRATION_REGISTRY_SCHEMA_INVALID: version primary key",
+            ("contype = 'p'", "PRIMARY KEY (version)"),
+        ),
+        (
+            "MIGRATION_REGISTRY_SCHEMA_INVALID: version positive check",
+            ("contype = 'c'", "(version>0)"),
+        ),
+        (
+            "MIGRATION_REGISTRY_SCHEMA_INVALID: file_name unique",
+            ("contype = 'u'", "UNIQUE (file_name)"),
+        ),
+        (
+            "MIGRATION_REGISTRY_SCHEMA_INVALID: file_name nonblank check",
+            ("contype = 'c'", "btrim(file_name)<>''"),
+        ),
+        (
+            "MIGRATION_REGISTRY_SCHEMA_INVALID: sha256 lowercase64 check",
+            ("contype = 'c'", "[0-9a-f]{64}"),
+        ),
+        (
+            "MIGRATION_REGISTRY_SCHEMA_INVALID: applied_at contract",
+            (
+                "attname = 'applied_at'",
+                "attnotnull",
+                "= 'timestamp with time zone'",
+                "= 'now()'",
+            ),
+        ),
+    ],
+)
+def test_registry_validator_guards_each_contract_invariant_independently(
+    diagnostic: str,
+    required_predicates: tuple[str, ...],
+) -> None:
+    content = MIGRATION_LIBRARY.read_text(encoding="utf-8")
+    diagnostic_position = content.index(diagnostic)
+    select_position = content.rfind(
+        "SELECT count(*) INTO invalid_count",
+        0,
+        diagnostic_position,
+    )
+    guard = content[select_position:diagnostic_position]
+
+    assert select_position >= 0
+    assert "IF invalid_count <> 1 THEN" in guard
+    for predicate in required_predicates:
+        assert predicate in guard
+
+
+def test_registry_validator_has_no_aggregate_or_count_constraint_guards() -> None:
+    content = MIGRATION_LIBRARY.read_text(encoding="utf-8")
+    assert "MIGRATION_REGISTRY_SCHEMA_INVALID: key constraints" not in content
+    assert "MIGRATION_REGISTRY_SCHEMA_INVALID: check constraints" not in content
+
+
+@pytest.mark.parametrize(
+    "needle",
+    [
+        "rag_schema_migrations",
+        "sha256sum",
+        "pg_advisory_xact_lock",
+        "MIGRATION_CHECKSUM_MISMATCH",
+        "MIGRATION_GAP",
+        "vector(1024)",
+        "pg_get_expr",
+        "pg_get_indexdef",
+        "SCHEMA_HEAD_001_INVALID",
+        "SCHEMA_HEAD_002_INVALID",
+    ],
+)
+def test_migration_library_declares_exact_invariants(needle: str) -> None:
+    assert needle in MIGRATION_LIBRARY.read_text(encoding="utf-8")
+
+
+def test_migration_library_validates_all_001_columns_and_indexes() -> None:
+    content = MIGRATION_LIBRARY.read_text(encoding="utf-8")
+    for column in (
+        "chunk_id",
+        "doc_id",
+        "chunk_sha256",
+        "vector",
+        "collection",
+        "niveau",
+        "voie",
+        "audience",
+        "matiere",
+        "statut_enseignement",
+        "notions",
+        "domain",
+        "source_label",
+        "source_uri",
+        "rights",
+        "type_doc",
+        "official",
+        "text",
+        "chunk_index",
+        "page_start",
+        "page_end",
+        "review_status",
+        "model",
+        "source_kind",
+        "indexed_at",
+    ):
+        assert column in content
+    for index in (
+        "rag_chunks_pkey",
+        "idx_rag_chunks_vector",
+        "idx_rag_chunks_collection",
+        "idx_rag_chunks_niveau",
+        "idx_rag_chunks_matiere",
+        "idx_rag_chunks_audience",
+        "idx_rag_chunks_rights",
+        "idx_rag_chunks_review",
+    ):
+        assert index in content
+    assert "PRIMARY KEY (chunk_id)" in content
+    assert "format_type" in content
+
+
+@pytest.mark.parametrize(
+    ("column", "formatted_type", "not_null", "default_source"),
+    [
+        ("chunk_id", "text", True, "'<none>'"),
+        ("doc_id", "text", True, "'<none>'"),
+        ("chunk_sha256", "text", True, "'<none>'"),
+        ("vector", "vector(1024)", False, "'<none>'"),
+        ("collection", "text", True, "'<none>'"),
+        ("niveau", "text", True, "'<none>'"),
+        ("voie", "text", True, "'''generale'''"),
+        ("audience", "text[]", True, "'''{tous}'''"),
+        ("matiere", "text", True, "'<none>'"),
+        ("statut_enseignement", "text", True, "'''unknown'''"),
+        ("notions", "text[]", True, "'''{}'''"),
+        ("domain", "text", True, "'''education'''"),
+        ("source_label", "text", True, "'<none>'"),
+        ("source_uri", "text", True, "'<none>'"),
+        ("rights", "text", True, "'<none>'"),
+        ("type_doc", "text", True, "'<none>'"),
+        ("official", "boolean", True, "'false'"),
+        ("text", "text", False, "'<none>'"),
+        ("chunk_index", "integer", True, "'0'"),
+        ("page_start", "integer", False, "'<none>'"),
+        ("page_end", "integer", False, "'<none>'"),
+        ("review_status", "text", True, "'''needs_review'''"),
+        ("model", "text", False, "'<none>'"),
+        ("source_kind", "text", True, "'''unknown'''"),
+        ("indexed_at", "timestamp with time zone", True, "'now()'"),
+    ],
+)
+def test_001_validator_has_exact_catalog_contract_for_each_column(
+    column: str,
+    formatted_type: str,
+    not_null: bool,
+    default_source: str,
+) -> None:
+    content = MIGRATION_LIBRARY.read_text(encoding="utf-8")
+    expected_row = (
+        f"('{column}', '{formatted_type}', "
+        f"{str(not_null).lower()}, {default_source}, '', '')"
+    )
+    assert expected_row in content
+
+
+@pytest.mark.parametrize(
+    ("index", "method", "unique", "primary", "column", "opclass", "option"),
+    [
+        ("rag_chunks_pkey", "btree", True, True, "chunk_id", "text_ops", ""),
+        (
+            "idx_rag_chunks_vector",
+            "hnsw",
+            False,
+            False,
+            "vector",
+            "vector_cosine_ops",
+            "ef_construction=64,m=16",
+        ),
+        (
+            "idx_rag_chunks_collection",
+            "btree",
+            False,
+            False,
+            "collection",
+            "text_ops",
+            "",
+        ),
+        (
+            "idx_rag_chunks_niveau",
+            "btree",
+            False,
+            False,
+            "niveau",
+            "text_ops",
+            "",
+        ),
+        (
+            "idx_rag_chunks_matiere",
+            "btree",
+            False,
+            False,
+            "matiere",
+            "text_ops",
+            "",
+        ),
+        (
+            "idx_rag_chunks_audience",
+            "gin",
+            False,
+            False,
+            "audience",
+            "array_ops",
+            "",
+        ),
+        (
+            "idx_rag_chunks_rights",
+            "btree",
+            False,
+            False,
+            "rights",
+            "text_ops",
+            "",
+        ),
+        (
+            "idx_rag_chunks_review",
+            "btree",
+            False,
+            False,
+            "review_status",
+            "text_ops",
+            "",
+        ),
+    ],
+)
+def test_001_validator_has_exact_catalog_contract_for_each_index(
+    index: str,
+    method: str,
+    unique: bool,
+    primary: bool,
+    column: str,
+    opclass: str,
+    option: str,
+) -> None:
+    content = MIGRATION_LIBRARY.read_text(encoding="utf-8")
+    expected_row = (
+        f"('{index}', '{method}', {str(unique).lower()}, "
+        f"{str(primary).lower()}, '{column}', '{opclass}', '{option}')"
+    )
+    assert expected_row in content
+
+
+@pytest.mark.parametrize(
+    "catalog_comparison",
+    [
+        "actual.formatted_type IS DISTINCT FROM expected.formatted_type",
+        "actual.not_null IS DISTINCT FROM expected.not_null",
+        "actual.default_expression IS DISTINCT FROM expected.default_expression",
+        "actual.generated IS DISTINCT FROM expected.generated",
+        "actual.identity_kind IS DISTINCT FROM expected.identity_kind",
+        "actual.collation_oid IS DISTINCT FROM actual.default_collation",
+        "actual.amname IS DISTINCT FROM expected.amname",
+        "actual.is_unique IS DISTINCT FROM expected.is_unique",
+        "actual.is_primary IS DISTINCT FROM expected.is_primary",
+        "actual.key_column IS DISTINCT FROM expected.key_column",
+        "actual.opcname IS DISTINCT FROM expected.opcname",
+        "actual.index_options IS DISTINCT FROM expected.index_options",
+        "actual.indnkeyatts IS DISTINCT FROM 1",
+        "actual.indnatts IS DISTINCT FROM 1",
+        "actual.indisvalid IS DISTINCT FROM true",
+        "actual.indisready IS DISTINCT FROM true",
+        "actual.indisexclusion IS DISTINCT FROM false",
+        "actual.indnullsnotdistinct IS DISTINCT FROM false",
+        "actual.key_options IS DISTINCT FROM 0",
+        "actual.key_collation IS DISTINCT FROM actual.column_collation",
+        "actual.reltablespace IS DISTINCT FROM 0::oid",
+        "actual.indexprs IS NOT NULL",
+        "actual.indpred IS NOT NULL",
+    ],
+)
+def test_001_validator_compares_every_catalog_dimension(
+    catalog_comparison: str,
+) -> None:
+    assert catalog_comparison in MIGRATION_LIBRARY.read_text(encoding="utf-8")
+
+
+def test_migration_runners_use_single_transaction_and_advisory_lock() -> None:
+    library = MIGRATION_LIBRARY.read_text(encoding="utf-8")
+    assert "pg_advisory_xact_lock" in library
+    for path in (UPGRADE_SCRIPT, ROLLBACK_SCRIPT):
+        content = path.read_text(encoding="utf-8")
+        assert "--single-transaction" in content
+        assert "advisory_lock_sql" in content
+
+
 # ── Migration legacy pkey guard ──────────────────────────────────────
 
 
@@ -158,3 +504,99 @@ def test_migration_renames_legacy_pkey_before_table_rename() -> None:
     assert pkey_pos < table_rename_pos, (
         "pkey rename must occur before table rename"
     )
+
+
+# ── Migration 002: hybrid retrieval ────────────────────────────────
+
+
+def _normalized_sql(path: Path) -> str:
+    return " ".join(path.read_text(encoding="utf-8").split())
+
+
+def _sql_statements(path: Path) -> list[str]:
+    content = path.read_text(encoding="utf-8")
+    without_block_comments = re.sub(r"/\*.*?\*/", "", content, flags=re.DOTALL)
+    without_comments = re.sub(
+        r"--.*?$",
+        "",
+        without_block_comments,
+        flags=re.MULTILINE,
+    )
+    return [
+        " ".join(statement.split())
+        for statement in without_comments.split(";")
+        if statement.strip()
+    ]
+
+
+def _assert_hybrid_search_schema(path: Path) -> None:
+    content = _normalized_sql(path)
+    assert (
+        "text_tsv tsvector GENERATED ALWAYS AS "
+        "(to_tsvector('french', coalesce(text, ''))) STORED"
+    ) in content
+    assert (
+        "CREATE INDEX IF NOT EXISTS idx_rag_chunks_text_tsv "
+        "ON rag_chunks USING gin (text_tsv)"
+    ) in content
+
+
+def test_migration_head_points_exactly_to_002() -> None:
+    assert MIGRATION_HEAD.read_text(encoding="utf-8") == "002_hybrid_retrieval\n"
+
+
+def test_migration_002_adds_generated_french_fts_column_and_named_gin_index() -> None:
+    _assert_hybrid_search_schema(MIGRATION_002)
+
+
+def test_migration_002_contains_only_whitelisted_statements() -> None:
+    assert _sql_statements(MIGRATION_002) == MIGRATION_002_ALLOWED_STATEMENTS
+
+
+def test_init_sql_matches_migration_002_hybrid_search_schema() -> None:
+    _assert_hybrid_search_schema(INIT_SQL)
+
+
+def test_migration_002_rollback_is_outside_up_migrations() -> None:
+    assert ROLLBACK_002.is_file()
+    assert ROLLBACK_002.parent != MIGRATION_002.parent
+    assert ROLLBACK_002 not in MIGRATION_002.parent.glob("*.sql")
+
+
+def test_migration_002_rollback_only_removes_its_column() -> None:
+    content = ROLLBACK_002.read_text(encoding="utf-8")
+    dropped_columns = re.findall(
+        r"\bDROP\s+COLUMN(?:\s+IF\s+EXISTS)?\s+([a-z_][a-z0-9_]*)",
+        content,
+        flags=re.IGNORECASE,
+    )
+    assert dropped_columns == ["text_tsv"]
+    assert not re.search(r"\b(?:DELETE|DROP\s+TABLE|TRUNCATE)\b", content, re.IGNORECASE)
+
+
+def test_migration_002_rollback_drops_index_before_column() -> None:
+    content = _normalized_sql(ROLLBACK_002).upper()
+    assert content.index("DROP INDEX") < content.index("DROP COLUMN")
+
+
+def test_migration_002_rollback_contains_only_whitelisted_statements() -> None:
+    assert _sql_statements(ROLLBACK_002) == ROLLBACK_002_ALLOWED_STATEMENTS
+
+
+def test_sql_statement_extractor_retains_arbitrary_extra_statements(
+    tmp_path: Path,
+) -> None:
+    mutated_sql = tmp_path / "mutated.sql"
+    mutated_sql.write_text(
+        MIGRATION_002.read_text(encoding="utf-8")
+        + "\n-- Ce commentaire doit être ignoré.\n"
+        + "DROP SCHEMA public;\n"
+        + "DELETE FROM rag_chunks;\n",
+        encoding="utf-8",
+    )
+
+    assert _sql_statements(mutated_sql) == [
+        *MIGRATION_002_ALLOWED_STATEMENTS,
+        "DROP SCHEMA public",
+        "DELETE FROM rag_chunks",
+    ]

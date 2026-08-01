@@ -1,8 +1,8 @@
 """Retrieval v2 endpoint — FastAPI router (FE-01).
 
-Exposes POST /search/v2 wrapping the certified LOT 24 pipeline:
-  resolve_collection_v2 → gate retrievable (fail-closed) → dense e5-large 1024
-  → rerank CrossEncoder MiniLM-L-6 → seuil +1.90.
+Exposes POST /search/v2 wrapping the canonical LOT40 hybrid pipeline:
+  resolve_collection_v2 → gate retrievable (fail-closed) → dense + lexical
+  → RRF → rerank → seuil +1.90 → MMR.
 
 Models are cached at module level (loaded once, not per request).
 DSN via PG_RAG_DSN or DATABASE_URL_SYNC env var (R-01: no default).
@@ -13,24 +13,21 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
-import re
 import threading
 import time
 from collections.abc import Iterable, Mapping
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Any, Literal
 
 import psycopg  # noqa: F811 — also in requirements.v2.txt
-import requests
 from fastapi import APIRouter, HTTPException, Request
 from nexus_contracts import (
-    ChatCitation,
     ChatRequest,
     ChatResponse,
     Citation,
     RetrievalResult,
 )
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 try:
     from .collection_config import (
@@ -40,9 +37,20 @@ try:
         resolve_collection_v2,
     )
     from .embedding_contract import (
-        CANONICAL_EMBED_MODEL,
         load_embedding_model,
     )
+    from .pg_pool import PoolSettings, pool_connection
+    from .retrieval_hybrid_v2 import (
+        CHANNEL_LIMIT,
+        EMBED_MODEL,
+        MMR_LAMBDA,  # noqa: F401 -- public endpoint configuration surface
+        RERANK_MODEL,
+        RERANK_THRESHOLD,
+        RRF_K,  # noqa: F401 -- public endpoint configuration surface
+        HybridHit,
+        retrieve_hybrid,
+    )
+    from .retrieval_pg_v2 import PgCandidateStore
     from .security_v2 import SecurityRole, require_role
 except (ImportError, ValueError):
     from collection_config import (  # type: ignore[no-redef]
@@ -52,36 +60,38 @@ except (ImportError, ValueError):
         resolve_collection_v2,
     )
     from embedding_contract import (  # type: ignore[no-redef]
-        CANONICAL_EMBED_MODEL,
         load_embedding_model,
     )
+    from pg_pool import PoolSettings, pool_connection  # type: ignore[no-redef]
+    from retrieval_hybrid_v2 import (  # type: ignore[no-redef]
+        CHANNEL_LIMIT,
+        EMBED_MODEL,
+        MMR_LAMBDA,  # noqa: F401 -- public endpoint configuration surface
+        RERANK_MODEL,
+        RERANK_THRESHOLD,
+        RRF_K,  # noqa: F401 -- public endpoint configuration surface
+        HybridHit,
+        retrieve_hybrid,
+    )
+    from retrieval_pg_v2 import PgCandidateStore  # type: ignore[no-redef]
     from security_v2 import SecurityRole, require_role  # type: ignore[no-redef]
 
 logger = logging.getLogger(__name__)
 
-OPENROUTER_URL = os.environ.get(
-    "OPENROUTER_BASE_URL",
-    "https://openrouter.ai/api/v1/chat/completions",
-)
-OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "").strip()
-OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "openai/gpt-4o-mini").strip()
-OPENROUTER_TIMEOUT_S = int(os.environ.get("OPENROUTER_TIMEOUT_S", "8"))
 MIN_COLLECTION_SUBSTANCE_CHUNKS = int(os.environ.get("RAG_MIN_COLLECTION_SUBSTANCE_CHUNKS", "1"))
 
 router = APIRouter(tags=["retrieval_v2"])
 
-# --- Cache retrieval+rerank (SCALE-V1-1) ---
+# --- Cache de warmup/administration (SCALE-V1-1) ---
 # Key = normalized(query, collection, k). Value = (hits, timestamp).
-# Invalidation: TTL-based (chunks may change review_status).
+# Invalidation is generation-based so a warmup started before a review change
+# can never republish its stale snapshot afterward.
+# Public search never reads this process-local cache: every request re-runs the
+# canonical PostgreSQL pipeline and therefore observes the current review state.
 #
-# IMPORTANT: cache is per-process. With N uvicorn workers,
-# POST /cache/v2/invalidate only clears the worker handling that request.
-# A chunk quarantined after caching could still be served by other workers
-# until TTL expires.
-#
-# Safety rule: in production (RAG_ENV=production), cache is DISABLED by default
-# to guarantee zero stale-after-quarantine risk. To enable in production,
-# set RERANK_CACHE=1 explicitly (only if cross-worker invalidation is in place).
+# This cache is per-process: invalidate only clears the handling worker. The
+# historical enablement flag remains visible in stats, but it cannot authorize
+# serving cache entries on public search.
 _rag_env_cache = (os.environ.get("RAG_ENV") or "").strip().lower()
 CACHE_TTL_S = int(os.environ.get("RERANK_CACHE_TTL", "300"))  # 5 min default
 if _rag_env_cache == "production":
@@ -90,24 +100,7 @@ else:
     CACHE_ENABLED = os.environ.get("RERANK_CACHE", "1") != "0"
 _cache: dict[str, tuple[list, float]] = {}
 _cache_lock = threading.Lock()
-_cache_hits = 0
-_cache_misses = 0
-
-
-def _filter_reviewed_candidates(candidates: list[tuple]) -> list[tuple]:
-    """Keep only reviewed candidates in case DB returns unexpected statuses."""
-    return [candidate for candidate in candidates if candidate[8] == "reviewed"]
-
-
-def _format_embedding_query(text: str) -> str:
-    try:
-        from nexus_contracts.embedding_utils import format_query
-    except (ImportError, ModuleNotFoundError) as exc:
-        raise HTTPException(
-            status_code=503,
-            detail="/search/v2: embedding query formatter unavailable",
-        ) from exc
-    return cast(str, format_query(text))
+_cache_generation = 0
 
 
 def _cache_key(query: str, collection: str, k: int) -> str:
@@ -121,44 +114,41 @@ def _cache_key(query: str, collection: str, k: int) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
-def _cache_get(key: str) -> list | None:
-    global _cache_hits
-    with _cache_lock:
-        entry = _cache.get(key)
-        if entry is None:
-            return None
-        hits, ts = entry
-        if time.monotonic() - ts > CACHE_TTL_S:
-            del _cache[key]
-            return None
-        _cache_hits += 1
-        return hits
-
-
-def _cache_put(key: str, hits: list) -> None:
-    with _cache_lock:
-        _cache[key] = (hits, time.monotonic())
-
-
 def invalidate_cache() -> int:
     """Invalidate all cache entries. Called when review_status changes."""
+    global _cache_generation
     with _cache_lock:
         n = len(_cache)
         _cache.clear()
+        _cache_generation += 1
         return n
 
-# --- Configuration figée (D-CONFIG-RETRIEVAL-PREPROD, LAT-05) ---
-# Seuil rerank: +1.90 (LOT 24 FF-02b, marge 1.00 LOT 25a)
-RERANK_SCORE_THRESHOLD = float(os.environ.get("RERANK_SCORE_THRESHOLD", "1.90"))
-# Reranker: MiniLM-L-6 conservé (L-2 écarté: marge 1.00→0.71)
-RERANK_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
-# Embedding: e5-large 1024 dim
-EMBED_MODEL = CANONICAL_EMBED_MODEL
-# Pool rerank: 10 candidats (V1-5: 15/15 in, 10/10 out, marge +5.69 vs +4.07 à RC=20)
-# Latence miss: 0.43s rerank (vs 0.84s à RC=20) — divise le coût miss par 2
-RERANK_CANDIDATES = int(os.environ.get("RERANK_CANDIDATES", "10"))
+# --- Configuration figée par le noyau hybride LOT40 ---
+RERANK_SCORE_THRESHOLD = RERANK_THRESHOLD
+RERANK_CANDIDATES = CHANNEL_LIMIT
 
-CHAT_MIN_SUBSTANCE_CHUNKS = int(os.environ.get("CHAT_MIN_SUBSTANCE_CHUNKS", "1"))
+WARMUP_QUERIES = (
+    "Comment fonctionne une boucle while en Python ?",
+    "Quelle est la différence entre une pile et une file ?",
+    "Qu'est-ce qu'un arbre binaire de recherche ?",
+    "Comment fonctionne la récursivité ?",
+    "Comment trier une liste en Python ?",
+    "Qu'est-ce qu'un dictionnaire en Python ?",
+    "Comment fonctionne une requête SQL avec jointure ?",
+    "Qu'est-ce qu'une clé étrangère ?",
+    "Comment parcourir un graphe en profondeur ?",
+    "Comment fonctionne la programmation dynamique ?",
+    "Qu'est-ce qu'un processus en système d'exploitation ?",
+    "Expliquer le tri par insertion",
+    "Comment représenter un entier en binaire ?",
+    "À quoi sert le protocole HTTP ?",
+    "Qu'est-ce qu'un type construit en Python ?",
+    "Comment fonctionne une boucle for en Python ?",
+    "Qu'est-ce qu'une variable locale et globale ?",
+    "Comment fonctionne le protocole TCP/IP ?",
+    "Qu'est-ce qu'un algorithme glouton ?",
+    "Comment fonctionne la recherche dichotomique ?",
+)
 
 # --- Lazy-loaded models (cached at module level) ---
 _embed_model = None
@@ -241,24 +231,44 @@ class SearchV2Request(BaseModel):
 
 
 class SearchV2Hit(BaseModel):
-    chunk_id: str
-    doc_id: str
-    source_label: str
-    source_uri: str
-    rights: str
+    model_config = ConfigDict(extra="forbid")
+
+    chunk_id: str = Field(min_length=1, pattern=r".*\S.*")
+    doc_id: str = Field(min_length=1, pattern=r".*\S.*")
+    source_label: str = Field(min_length=1, pattern=r".*\S.*")
+    source_uri: str = Field(min_length=1, pattern=r".*\S.*")
+    rights: str = Field(min_length=1, pattern=r".*\S.*")
     type_doc: str
     review_status: Literal["reviewed"]  # SCALE-04: reviewed only
-    preview: str
+    page: int | None = Field(default=None, ge=1)
+    preview: str = Field(min_length=1, pattern=r".*\S.*")
+    dense_score: float | None
+    lexical_score: float | None
+    rrf_score: float = Field(ge=0)
     rerank_score: float
-    dense_sim: float
+    mmr_score: float
+    score_final: float = Field(ge=0, le=1)
+
+    @computed_field(  # type: ignore[prop-decorator]
+        return_type=float | None,
+        json_schema_extra={"deprecated": True},
+    )
+    @property
+    def dense_sim(self) -> float | None:
+        """Alias de sérialisation déprécié, dérivé de l'unique score dense."""
+        return self.dense_score
 
 
 class SearchV2Response(BaseModel):
     query: str
     collection: str
-    seuil: float
+    seuil: float = Field(
+        default=RERANK_SCORE_THRESHOLD,
+        ge=RERANK_SCORE_THRESHOLD,
+        le=RERANK_SCORE_THRESHOLD,
+    )
     returned: int
-    answer_generation_allowed: bool = False
+    answer_generation_allowed: Literal[False] = False
     hits: list[SearchV2Hit]
 
 
@@ -387,9 +397,8 @@ def cache_stats(request: Request) -> dict[str, Any]:
             "enabled": CACHE_ENABLED,
             "ttl_s": CACHE_TTL_S,
             "entries": len(_cache),
-            "hits": _cache_hits,
-            "misses": _cache_misses,
-            "hit_rate": round(_cache_hits / max(_cache_hits + _cache_misses, 1), 3),
+            "generation": _cache_generation,
+            "public_serving": False,
         }
 
 
@@ -407,16 +416,25 @@ def cache_invalidate(request: Request) -> dict[str, Any]:
 
 @router.post("/cache/v2/warmup")
 def cache_warmup(request: Request) -> dict[str, Any]:
-    """Pre-warm cache with common pedagogical queries (SCALE-V1-6).
+    """Préchauffe le cache avec les requêtes pédagogiques courantes.
 
-    Runs retrieval+rerank for a set of probable queries and caches results.
-    Call at startup or after invalidation to eliminate cold-start misses.
+    Lorsque le cache est désactivé, après authentification, ce chemin purge
+    atomiquement les entrées, avance la génération et retourne les compteurs à
+    zéro, sans charger la configuration ni lancer le pipeline. Lorsque le cache
+    est activé, il calcule puis publie atomiquement le pipeline hybride canonique.
     """
     _enforce_security_v2(
         request,
         allowed_roles={SecurityRole.ADMIN, SecurityRole.REVIEWER},
         endpoint="/cache/v2/warmup",
     )
+
+    if not CACHE_ENABLED:
+        invalidate_cache()
+        return {"warmed": 0, "collections": 0, "queries": 0}
+
+    with _cache_lock:
+        warmup_generation = _cache_generation
 
     cfg = load_collection_config()
     collections = list_instanciated_collections(cfg)
@@ -427,91 +445,42 @@ def cache_warmup(request: Request) -> dict[str, Any]:
         try:
             defn = resolve_collection_v2(name, cfg)
         except Exception:
-            continue
+            raise _retrieval_unavailable() from None
         domain = defn.get("domain")
         if isinstance(domain, str) and isinstance(domains.get(domain), dict):
             if domains[domain].get("retrievable") is True:
                 retrievable_cols.append(name)
 
-    # Common pedagogical queries derived from NSI programme
-    warmup_queries = [
-        "Comment fonctionne une boucle while en Python ?",
-        "Quelle est la différence entre une pile et une file ?",
-        "Qu'est-ce qu'un arbre binaire de recherche ?",
-        "Comment fonctionne la récursivité ?",
-        "Comment trier une liste en Python ?",
-        "Qu'est-ce qu'un dictionnaire en Python ?",
-        "Comment fonctionne une requête SQL avec jointure ?",
-        "Qu'est-ce qu'une clé étrangère ?",
-        "Comment parcourir un graphe en profondeur ?",
-        "Comment fonctionne la programmation dynamique ?",
-        "Qu'est-ce qu'un processus en système d'exploitation ?",
-        "Expliquer le tri par insertion",
-        "Comment représenter un entier en binaire ?",
-        "À quoi sert le protocole HTTP ?",
-        "Qu'est-ce qu'un type construit en Python ?",
-        "Comment fonctionne une boucle for en Python ?",
-        "Qu'est-ce qu'une variable locale et globale ?",
-        "Comment fonctionne le protocole TCP/IP ?",
-        "Qu'est-ce qu'un algorithme glouton ?",
-        "Comment fonctionne la recherche dichotomique ?",
-    ]
-
-    warmed = 0
+    staged: dict[str, list[dict[str, Any]]] = {}
+    target_keys: set[str] = set()
     for col in retrievable_cols:
-        for q in warmup_queries:
+        for q in WARMUP_QUERIES:
             key = _cache_key(q, col, 5)
-            if _cache_get(key) is not None:
-                continue  # Already cached
-            # Full pipeline: embed → dense → rerank → cache
-            from nexus_contracts.embedding_utils import format_query
-            pg_dsn = _get_pg_dsn()
-            embed_model = _get_embed_model()
-            q_vec = embed_model.encode(format_query(q), normalize_embeddings=True)
-            vec_str = "[" + ",".join(str(float(v)) for v in q_vec) + "]"
-            try:
-                conn = psycopg.connect(pg_dsn)
-                with conn.cursor() as cur:
-                    cur.execute("""
-                        SELECT chunk_id, doc_id, source_label, source_uri, rights, type_doc,
-                               text, 1 - (vector <=> %s::vector) AS sim, review_status
-                        FROM rag_chunks
-                        WHERE collection = %s AND review_status = 'reviewed'
-                        ORDER BY vector <=> %s::vector LIMIT %s
-                    """, (vec_str, col, vec_str, RERANK_CANDIDATES))
-                    candidates = _filter_reviewed_candidates(cur.fetchall())
-                conn.close()
-            except Exception:
-                continue
-            if not candidates:
-                continue
-            reranker = _get_reranker()
-            pairs = [(q, c[6] or "") for c in candidates]
-            rerank_scores = reranker.predict(pairs)
-            hits_data = []
-            for candidate, score in sorted(
-                zip(candidates, rerank_scores, strict=False), key=lambda x: x[1], reverse=True
-            ):
-                if candidate[8] != "reviewed":
-                    continue
-                if float(score) < RERANK_SCORE_THRESHOLD:
-                    continue
-                hits_data.append(SearchV2Hit(
-                    chunk_id=candidate[0], doc_id=candidate[1],
-                    source_label=candidate[2] or "", source_uri=candidate[3] or "",
-                    rights=candidate[4] or "", type_doc=candidate[5] or "",
-                    review_status="reviewed",
-                    preview=(candidate[6] or "")[:200],
-                    rerank_score=round(float(score), 4),
-                    dense_sim=round(float(candidate[7]), 4),
-                ).model_dump())
-                if len(hits_data) >= 5:
-                    break
+            target_keys.add(key)
+            hits_data = [
+                hit.model_dump() for hit in _retrieve_endpoint_hits(q, col, 5)
+            ]
             if hits_data:
-                _cache_put(key, hits_data)
-                warmed += 1
+                staged[key] = hits_data
 
-    return {"warmed": warmed, "collections": len(retrievable_cols), "queries": len(warmup_queries)}
+    published_at = time.monotonic()
+    with _cache_lock:
+        if _cache_generation != warmup_generation:
+            raise _retrieval_unavailable()
+        for key in target_keys:
+            _cache.pop(key, None)
+        _cache.update(
+            {
+                key: (hits_data, published_at)
+                for key, hits_data in staged.items()
+            }
+        )
+
+    return {
+        "warmed": len(staged),
+        "collections": len(retrievable_cols),
+        "queries": len(WARMUP_QUERIES),
+    }
 
 
 # --- Endpoint to list retrievable collections (for UI picker) ---
@@ -743,84 +712,83 @@ def get_collection_readiness(request: Request) -> dict[str, Any]:
         raise HTTPException(status_code=503, detail="launch readiness unavailable") from exc
 
 
-def _retrieve_reviewed_hits(query: str, collection: str, k: int) -> list[SearchV2Hit]:
-    """Run the certified retrieval pipeline after callers applied their gates."""
-    pg_dsn = _get_pg_dsn()
-    formatted_query = _format_embedding_query(query)
-    embed_model = _get_embed_model()
-    q_vec = embed_model.encode(formatted_query, normalize_embeddings=True)
-    vec_str = "[" + ",".join(str(float(v)) for v in q_vec) + "]"
+def _retrieval_unavailable() -> HTTPException:
+    return HTTPException(status_code=503, detail="retrieval unavailable")
 
+
+def _retrieve_hybrid_hits(query: str, collection: str, k: int) -> list[HybridHit]:
+    """Compose the one canonical v2 pipeline without exposing failure context."""
     try:
-        conn = psycopg.connect(pg_dsn)
-    except Exception as exc:
-        logger.error("pgvector connection failed: %s", exc)
-        raise HTTPException(status_code=503, detail="pgvector connection failed") from exc
-
-    try:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT chunk_id, doc_id, source_label, source_uri, rights, type_doc,
-                       text, 1 - (vector <=> %s::vector) AS sim, review_status
-                FROM rag_chunks
-                WHERE collection = %s AND review_status = 'reviewed'
-                ORDER BY vector <=> %s::vector
-                LIMIT %s
-                """,
-                (vec_str, collection, vec_str, RERANK_CANDIDATES),
-            )
-            candidates = _filter_reviewed_candidates(cur.fetchall())
-    finally:
-        conn.close()
-
-    if not candidates:
-        return []
-
-    pairs = [(query, candidate[6] or "") for candidate in candidates]
-    rerank_scores = _get_reranker().predict(pairs)
-    hits: list[SearchV2Hit] = []
-    for candidate, score in sorted(
-        zip(candidates, rerank_scores, strict=False), key=lambda item: item[1], reverse=True,
-    ):
-        if candidate[8] != "reviewed" or float(score) < RERANK_SCORE_THRESHOLD:
-            continue
-        hits.append(
-            SearchV2Hit(
-                chunk_id=candidate[0],
-                doc_id=candidate[1],
-                source_label=candidate[2] or "",
-                source_uri=candidate[3] or "",
-                rights=candidate[4] or "",
-                type_doc=candidate[5] or "",
-                review_status="reviewed",
-                preview=(candidate[6] or "")[:200],
-                rerank_score=round(float(score), 4),
-                dense_sim=round(float(candidate[7]), 4),
-            ),
+        settings = PoolSettings.from_env()
+        store = PgCandidateStore(lambda: pool_connection(settings))
+        return retrieve_hybrid(
+            query,
+            collection,
+            k,
+            store=store,
+            embedder=_get_embed_model(),
+            reranker=_get_reranker(),
         )
-        if len(hits) >= k:
-            break
-    return hits
+    except Exception:
+        logger.error("hybrid retrieval unavailable")
+        raise _retrieval_unavailable() from None
+
+
+def _retrieve_endpoint_hits(query: str, collection: str, k: int) -> list[SearchV2Hit]:
+    try:
+        return [_to_search_hit(hit) for hit in _retrieve_hybrid_hits(query, collection, k)]
+    except Exception:
+        raise _retrieval_unavailable() from None
+
+
+def _retrieve_reviewed_hits(query: str, collection: str, k: int) -> list[SearchV2Hit]:
+    """Compatibility facade for the evaluation harness; delegates to LOT40."""
+    return _retrieve_endpoint_hits(query, collection, k)
+
+
+def _to_search_hit(hit: HybridHit) -> SearchV2Hit:
+    candidate = hit.candidate
+    return SearchV2Hit(
+        chunk_id=candidate.chunk_id,
+        doc_id=candidate.doc_id,
+        source_label=candidate.source_label,
+        source_uri=candidate.source_uri,
+        rights=candidate.rights,
+        type_doc=candidate.type_doc,
+        review_status=candidate.review_status,
+        page=candidate.page_start,
+        preview=candidate.text.strip()[:200],
+        dense_score=candidate.dense_score,
+        lexical_score=candidate.lexical_score,
+        rrf_score=hit.rrf_score,
+        rerank_score=hit.rerank_score,
+        mmr_score=hit.mmr_score,
+        score_final=hit.score_final,
+    )
 
 
 def _to_retrieval_result(hit: SearchV2Hit, collection: str) -> RetrievalResult:
     return RetrievalResult(
         chunk_id=hit.chunk_id,
         doc_id=hit.doc_id,
-        score=max(hit.rerank_score, 0.0),
-        title=hit.source_label or None,
+        score=hit.score_final,
+        title=hit.source_label,
         excerpt=hit.preview,
         citation=Citation(
             source_label=hit.source_label,
+            page=hit.page,
             source_uri=hit.source_uri,
             rights=hit.rights,
-        ) if hit.source_label and hit.source_uri and hit.rights else None,
+        ),
         metadata={
             "collection": collection,
             "type_doc": hit.type_doc,
             "review_status": hit.review_status,
-            "dense_sim": hit.dense_sim,
+            "dense_score": hit.dense_score,
+            "lexical_score": hit.lexical_score,
+            "rrf_score": hit.rrf_score,
+            "rerank_score": hit.rerank_score,
+            "mmr_score": hit.mmr_score,
         },
     )
 
@@ -840,62 +808,9 @@ def _chat_refusal(
     )
 
 
-def _openrouter_answer(payload: ChatRequest, hits: list[SearchV2Hit]) -> str | None:
-    """Generate only from reviewed excerpts; never send the learner profile upstream."""
-    if not OPENROUTER_API_KEY:
-        return None
-    source_context = "\n\n".join(
-        (
-            f"[S{index}] {hit.source_label}\n"
-            f"URI: {hit.source_uri}\n"
-            f"Extrait: {hit.preview}"
-        )
-        for index, hit in enumerate(hits, start=1)
-    )
-    system_prompt = (
-        "Tu es un assistant pédagogique français. Réponds uniquement à partir "
-        "des sources ci-dessous. Toute affirmation factuelle doit citer une source "
-        "au format [S1]. Si les sources ne suffisent pas, dis-le clairement. "
-        "N'invente ni citation ni information.\n\nSources:\n"
-        f"{source_context}"
-    )
-    history = [
-        {"role": message.role, "content": message.content}
-        for message in payload.history[-12:]
-        if message.role in {"user", "assistant"}
-    ]
-    messages = [{"role": "system", "content": system_prompt}, *history, {
-        "role": "user", "content": payload.query,
-    }]
-    try:
-        response = requests.post(
-            OPENROUTER_URL,
-            headers={
-                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": OPENROUTER_MODEL,
-                "messages": messages,
-                "max_tokens": max(100, min(1000, payload.answer_max_chars // 3)),
-                "temperature": 0.2,
-            },
-            timeout=OPENROUTER_TIMEOUT_S,
-        )
-        if not response.ok:
-            logger.warning("OpenRouter request failed with status %s", response.status_code)
-            return None
-        body = response.json()
-        content = body["choices"][0]["message"]["content"]
-        return content.strip() if isinstance(content, str) and content.strip() else None
-    except (KeyError, IndexError, TypeError, ValueError, requests.RequestException):
-        logger.warning("OpenRouter response unavailable", exc_info=True)
-        return None
-
-
 @router.post("/chat", response_model=ChatResponse)
 def chat(payload: ChatRequest, request: Request) -> ChatResponse:
-    """Return a cited OpenRouter answer or an explicit, non-factual refusal."""
+    """Retrieve reviewed evidence while generation remains governance-locked."""
     _enforce_security_v2(
         request,
         allowed_roles={
@@ -908,13 +823,19 @@ def chat(payload: ChatRequest, request: Request) -> ChatResponse:
         endpoint="/chat",
     )
     cfg = load_collection_config()
-    all_hits: list[tuple[str, SearchV2Hit]] = []
-    for collection in dict.fromkeys(payload.collections):
+    collections = list(dict.fromkeys(payload.collections))
+    for collection in collections:
         try:
             _check_retrievable(collection, cfg)
         except CollectionConfigError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
-        all_hits.extend((collection, hit) for hit in _retrieve_reviewed_hits(payload.query, collection, payload.top_k))
+
+    all_hits: list[tuple[str, SearchV2Hit]] = []
+    for collection in collections:
+        all_hits.extend(
+            (collection, hit)
+            for hit in _retrieve_endpoint_hits(payload.query, collection, payload.top_k)
+        )
 
     unique_hits: list[tuple[str, SearchV2Hit]] = []
     seen_chunk_ids: set[str] = set()
@@ -926,50 +847,10 @@ def chat(payload: ChatRequest, request: Request) -> ChatResponse:
         _to_retrieval_result(hit, collection)
         for collection, hit in unique_hits
     ] if payload.include_retrieval else []
-    source_hits = [hit for _, hit in unique_hits]
-    if len(source_hits) < CHAT_MIN_SUBSTANCE_CHUNKS:
-        return _chat_refusal(
-            "Je ne peux pas répondre de manière fiable : les sources validées sont insuffisantes.",
-            "insufficient_reviewed_evidence",
-            retrieval_hits,
-        )
-
-    answer = _openrouter_answer(payload, source_hits)
-    if not answer:
-        return _chat_refusal(
-            "La réponse conversationnelle est temporairement indisponible.",
-            "generation_unavailable",
-            retrieval_hits,
-        )
-    cited_indexes = {int(match) for match in re.findall(r"\[S(\d+)\]", answer)}
-    if not cited_indexes or any(index < 1 or index > len(source_hits) for index in cited_indexes):
-        return _chat_refusal(
-            "Je ne peux pas répondre de manière fiable sans citation vérifiable.",
-            "missing_or_invalid_citations",
-            retrieval_hits,
-        )
-    citations = [
-        ChatCitation(
-            chunk_id=source_hits[index - 1].chunk_id,
-            doc_id=source_hits[index - 1].doc_id,
-            source_label=source_hits[index - 1].source_label,
-            source_uri=source_hits[index - 1].source_uri,
-            rights=source_hits[index - 1].rights,
-        )
-        for index in sorted(cited_indexes)
-    ]
-    if any(not citation.source_label or not citation.source_uri or not citation.rights for citation in citations):
-        return _chat_refusal(
-            "Je ne peux pas répondre de manière fiable sans provenance complète.",
-            "incomplete_citation_provenance",
-            retrieval_hits,
-        )
-    return ChatResponse(
-        answer=answer,
-        grounded=True,
-        citations=citations,
-        warnings=[],
-        retrieval_hits=retrieval_hits,
+    return _chat_refusal(
+        "La génération de réponse reste verrouillée par la gouvernance.",
+        "answer_generation_locked",
+        retrieval_hits,
     )
 
 
@@ -977,9 +858,9 @@ def chat(payload: ChatRequest, request: Request) -> ChatResponse:
 
 @router.post("/search/v2", response_model=SearchV2Response)
 def search_v2(payload: SearchV2Request, request: Request) -> SearchV2Response:
-    """Retrieval v2: dense e5-large → rerank CrossEncoder → seuil +1.90.
+    """Retrieval v2: dense + lexical → RRF → rerank → seuil → MMR.
 
-    Certified pipeline LOT 24. Gate retrievable fail-closed (GG-01).
+    Canonical pipeline LOT40. Gate retrievable fail-closed (GG-01).
     answer_generation_allowed = false.
     """
     # Auth (LOT 26.3): all roles use reviewed-only visibility.
@@ -1004,93 +885,13 @@ def search_v2(payload: SearchV2Request, request: Request) -> SearchV2Response:
     except CollectionConfigError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
 
-    # Cache check (SCALE-V1-1)
-    global _cache_misses
-    cache_k = _cache_key(payload.q, payload.collection, payload.k) if CACHE_ENABLED else ""
-
-    # LOT 26.2 fail-closed: do not serve student/public search from cache.
-    # A cached hit may have lost review_status=reviewed after caching.
-    # Cache serving can be reintroduced only with DB revalidation of current statuses.
-    if CACHE_ENABLED:
-        _cache_misses += 1
-
-    # Get DSN (R-01: no default)
-    pg_dsn = _get_pg_dsn()
-
-    # Embedding
-    formatted_query = _format_embedding_query(payload.q)
-    embed_model = _get_embed_model()
-    q_vec = embed_model.encode(formatted_query, normalize_embeddings=True)
-    vec_str = "[" + ",".join(str(float(v)) for v in q_vec) + "]"
-
-    # Dense retrieval (top RERANK_CANDIDATES)
-    try:
-        conn = psycopg.connect(pg_dsn)
-    except Exception as exc:
-        logger.error("pgvector connection failed: %s", exc)
-        raise HTTPException(status_code=503, detail="pgvector connection failed") from exc
-
-    try:
-        with conn.cursor() as cur:
-            cur.execute("""
-                SELECT chunk_id, doc_id, source_label, source_uri, rights, type_doc,
-                       text, 1 - (vector <=> %s::vector) AS sim, review_status
-                FROM rag_chunks
-                WHERE collection = %s AND review_status = 'reviewed'
-                ORDER BY vector <=> %s::vector
-                LIMIT %s
-            """, (vec_str, payload.collection, vec_str, RERANK_CANDIDATES))
-            candidates = _filter_reviewed_candidates(cur.fetchall())
-    finally:
-        conn.close()
-
-    if not candidates:
-        return SearchV2Response(
-            query=payload.q,
-            collection=payload.collection,
-            seuil=RERANK_SCORE_THRESHOLD,
-            returned=0,
-            hits=[],
-        )
-
-    # Rerank with CrossEncoder
-    # FF-02: pass FULL chunk text — let the model's max_length=512 TOKENS handle truncation.
-    pairs = [(payload.q, c[6] or "") for c in candidates]
-    reranker = _get_reranker()
-    rerank_scores = reranker.predict(pairs)
-
-    # Filter by seuil + sort
-    hits: list[SearchV2Hit] = []
-    for candidate, score in sorted(
-        zip(candidates, rerank_scores, strict=False), key=lambda x: x[1], reverse=True
-    ):
-        if candidate[8] != "reviewed":
-            continue
-        if float(score) < RERANK_SCORE_THRESHOLD:
-            continue
-        hits.append(SearchV2Hit(
-            chunk_id=candidate[0],
-            doc_id=candidate[1],
-            source_label=candidate[2] or "",
-            source_uri=candidate[3] or "",
-            rights=candidate[4] or "",
-            type_doc=candidate[5] or "",
-            review_status="reviewed",
-            preview=(candidate[6] or "")[:200],
-            rerank_score=round(float(score), 4),
-            dense_sim=round(float(candidate[7]), 4),
-        ))
-        if len(hits) >= payload.k:
-            break
-
-    # Cache store (SCALE-V1-1)
-    if CACHE_ENABLED and hits:
-        _cache_put(cache_k, [h.model_dump() for h in hits])
+    # Public retrieval always re-reads PostgreSQL through the canonical pipeline.
+    hits = _retrieve_endpoint_hits(payload.q, payload.collection, payload.k)
 
     return SearchV2Response(
         query=payload.q,
         collection=payload.collection,
-        seuil=RERANK_SCORE_THRESHOLD,
+        seuil=RERANK_THRESHOLD,
         returned=len(hits),
         hits=hits,
     )
