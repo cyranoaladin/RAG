@@ -18,6 +18,16 @@ ROLLBACK_002 = (
     / "rollbacks"
     / "002_hybrid_retrieval.down.sql"
 )
+MIGRATION_002_ALLOWED_STATEMENTS = [
+    "ALTER TABLE rag_chunks ADD COLUMN IF NOT EXISTS text_tsv tsvector "
+    "GENERATED ALWAYS AS (to_tsvector('french', coalesce(text, ''))) STORED",
+    "CREATE INDEX IF NOT EXISTS idx_rag_chunks_text_tsv "
+    "ON rag_chunks USING gin (text_tsv)",
+]
+ROLLBACK_002_ALLOWED_STATEMENTS = [
+    "DROP INDEX IF EXISTS idx_rag_chunks_text_tsv",
+    "ALTER TABLE rag_chunks DROP COLUMN IF EXISTS text_tsv",
+]
 V2_COMPOSE = ENGINE_ROOT / "infra" / "docker-compose.v2.yml"
 UPGRADE_SCRIPT = ENGINE_ROOT / "infra" / "scripts" / "apply_pgvector_migrations.sh"
 
@@ -177,6 +187,22 @@ def _normalized_sql(path: Path) -> str:
     return " ".join(path.read_text(encoding="utf-8").split())
 
 
+def _sql_statements(path: Path) -> list[str]:
+    content = path.read_text(encoding="utf-8")
+    without_block_comments = re.sub(r"/\*.*?\*/", "", content, flags=re.DOTALL)
+    without_comments = re.sub(
+        r"--.*?$",
+        "",
+        without_block_comments,
+        flags=re.MULTILINE,
+    )
+    return [
+        " ".join(statement.split())
+        for statement in without_comments.split(";")
+        if statement.strip()
+    ]
+
+
 def _assert_hybrid_search_schema(path: Path) -> None:
     content = _normalized_sql(path)
     assert (
@@ -195,6 +221,10 @@ def test_migration_head_points_exactly_to_002() -> None:
 
 def test_migration_002_adds_generated_french_fts_column_and_named_gin_index() -> None:
     _assert_hybrid_search_schema(MIGRATION_002)
+
+
+def test_migration_002_contains_only_whitelisted_statements() -> None:
+    assert _sql_statements(MIGRATION_002) == MIGRATION_002_ALLOWED_STATEMENTS
 
 
 def test_init_sql_matches_migration_002_hybrid_search_schema() -> None:
@@ -221,3 +251,26 @@ def test_migration_002_rollback_only_removes_its_column() -> None:
 def test_migration_002_rollback_drops_index_before_column() -> None:
     content = _normalized_sql(ROLLBACK_002).upper()
     assert content.index("DROP INDEX") < content.index("DROP COLUMN")
+
+
+def test_migration_002_rollback_contains_only_whitelisted_statements() -> None:
+    assert _sql_statements(ROLLBACK_002) == ROLLBACK_002_ALLOWED_STATEMENTS
+
+
+def test_sql_statement_extractor_retains_arbitrary_extra_statements(
+    tmp_path: Path,
+) -> None:
+    mutated_sql = tmp_path / "mutated.sql"
+    mutated_sql.write_text(
+        MIGRATION_002.read_text(encoding="utf-8")
+        + "\n-- Ce commentaire doit être ignoré.\n"
+        + "DROP SCHEMA public;\n"
+        + "DELETE FROM rag_chunks;\n",
+        encoding="utf-8",
+    )
+
+    assert _sql_statements(mutated_sql) == [
+        *MIGRATION_002_ALLOWED_STATEMENTS,
+        "DROP SCHEMA public",
+        "DELETE FROM rag_chunks",
+    ]
