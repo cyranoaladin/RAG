@@ -40,7 +40,18 @@ from nexus_contracts.student_profile import (
     StatusDetail,
     StudentProfile,
 )
-from nexus_contracts.identity import InternalIdentity, PedagogicalProfile
+from nexus_contracts.identity import (
+    InternalIdentity,
+    InternalIdentityEnvelope,
+    PedagogicalProfile,
+)
+from nexus_contracts.scope import (
+    PILOT_RETRIEVAL_SCOPE_DIGEST,
+    PilotRetrievalScopeArtifact,
+    PilotScopeIdentity,
+    PilotScopeSubject,
+    load_pilot_retrieval_scope,
+)
 
 __all__ = [
     "AccessContext",
@@ -72,7 +83,13 @@ __all__ = [
     "StrictBaseModel",
     "StudentProfile",
     "InternalIdentity",
+    "InternalIdentityEnvelope",
     "PedagogicalProfile",
+    "PILOT_RETRIEVAL_SCOPE_DIGEST",
+    "PilotRetrievalScopeArtifact",
+    "PilotScopeIdentity",
+    "PilotScopeSubject",
     "TypeDoc",
     "Voie",
+    "load_pilot_retrieval_scope",
 ]
