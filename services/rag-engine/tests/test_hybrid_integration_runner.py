@@ -427,6 +427,8 @@ def test_name_race_with_wrong_owner_is_never_removed(
     assert result.returncode != 0
     assert expected_diagnostic in result.stderr
     calls = log.read_text(encoding="utf-8").splitlines()
+    if race == "LOT40_RACE_VOLUME_WRONG_LABEL":
+        assert not any(line.startswith("run ") for line in calls)
     assert not any(line.startswith(forbidden_prefix) for line in calls)
     state_name = "volume" if "VOLUME" in expected_diagnostic else "container"
     sentinel = tmp_path / "docker-state" / state_name
