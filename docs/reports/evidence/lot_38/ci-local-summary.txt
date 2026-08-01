@@ -1,5 +1,5 @@
-observedAt=2026-08-01T02:15:26Z
-ciSourceSha=3ff775e4848538e6e49ab097fddfeba241441f4a
+observedAt=2026-08-01T02:38:00Z
+ciSourceSha=d70857a68ee279c15545742b591ac585f5d5fb93
 pythonVersion=3.11.14
 nodeVersion=22.22.0
 PASS  packages/contracts
@@ -16,4 +16,4 @@ PASS  source-evidence-check
 PASS  governance-guard-tests
 PASS  ci-failsafe-tests
 Total: 13 passed, 0 failed
-rawLogSha256=3d252bce91ac0ff8f62c93aea195ef2d10b4d4a39ced863de9012891e95f3497
+rawLogSha256=521a67d58b02176fcf99bb0b4125a5bda1eb147af094708c0ef7715fbcd281a4

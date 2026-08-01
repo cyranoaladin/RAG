@@ -105,8 +105,8 @@ publication.
 ## Tests de réfutation
 
 Une exécution ciblée observée sur la tête
-`3ff775e4848538e6e49ab097fddfeba241441f4a` sous Python 3.11.14 a terminé avec
-`341 passed`. Elle couvre les modules LOT38 du scope, de la politique, de
+`d70857a68ee279c15545742b591ac585f5d5fb93` sous Python 3.11.14 a terminé avec
+`353 passed`. Elle couvre les modules LOT38 du scope, de la politique, de
 l'autorisation, du CLI et du garde de sécurité Make. Elle réfute notamment les
 digests ou taxonomies divergents, les notions/collections/identités hors scope,
 les capacités partielles, les autorisations absentes, périmées ou
@@ -132,23 +132,32 @@ désormais les doublons, les documents supérieurs à 1 MiB et les profondeurs d
 64 niveaux ou plus. Cette exécution antérieure n'est plus une preuve de la tête
 de code courante.
 
+Une CI verte sur `3ff775e` a ensuite été invalidée par la troisième revue du
+diff complet : des types Python hors annotation levaient encore
+`AttributeError` pour le scope ou les politiques. Bien que ce finding P2 ne
+puisse pas ouvrir d'accès et qu'aucun consommateur runtime n'existe dans LOT38,
+il a été corrigé afin de ne laisser aucune dette connue dans le garde. Douze
+tests RED couvrent `None`, chaîne, entier et objet sur les trois paramètres ;
+ils retournent désormais un refus structuré. Cette CI n'est pas non plus une
+preuve de la tête courante.
+
 La CI locale canonique probante a été réexécutée sous Python 3.11.14 et Node
 22.22.0 sur le SHA source exact
-`3ff775e4848538e6e49ab097fddfeba241441f4a`. Son dernier bloc racine contient
+`d70857a68ee279c15545742b591ac585f5d5fb93`. Son dernier bloc racine contient
 exactement 13 lignes `PASS`, aucune ligne `FAIL` et
 `Total: 13 passed, 0 failed`. Le journal brut reste hors Git ; son SHA-256 est
-`3d252bce91ac0ff8f62c93aea195ef2d10b4d4a39ced863de9012891e95f3497`.
+`521a67d58b02176fcf99bb0b4125a5bda1eb147af094708c0ef7715fbcd281a4`.
 
 ## Matrice de preuve
 
 | critère | responsable | commande/procédure | environnement | artefact | digest | verdict |
 |---|---|---|---|---|---|---|
-| Suite ciblée LOT38 | auteur technique LOT38 | `PYTHONPATH=. .venv/bin/python -m pytest -q tests/unit/test_pilot_validation_scope.py tests/unit/test_pilot_validation_policy.py tests/unit/test_pilot_validation_authorization.py tests/unit/test_pilot_validation_policy_audit.py tests/unit/test_make_target_safety_audit.py` | worktree LOT38, Python 3.11.14 verrouillé | tête Git testée | `3ff775e4848538e6e49ab097fddfeba241441f4a` | PASS (`341 passed`) |
+| Suite ciblée LOT38 | auteur technique LOT38 | `PYTHONPATH=. .venv/bin/python -m pytest -q tests/unit/test_pilot_validation_scope.py tests/unit/test_pilot_validation_policy.py tests/unit/test_pilot_validation_authorization.py tests/unit/test_pilot_validation_policy_audit.py tests/unit/test_make_target_safety_audit.py` | worktree LOT38, Python 3.11.14 verrouillé | tête Git testée | `d70857a68ee279c15545742b591ac585f5d5fb93` | PASS (`353 passed`) |
 | Audit dormant déterministe | auteur technique LOT38 | `make pilot-validation-policy-audit` depuis `services/rag-pedago` | même tête et Python 3.11.14 | politique canonique | `bb548458ec83cacc2abe0c55104ade4bb44cb06828000bf50b9c97d8f3412bad` | PASS (`DORMANT`, `GO_LIVE: NO_GO`) |
 | Adressage du scope | auteur technique LOT38 | `sha256sum` du scope et des deux taxonomies | worktree LOT38 | scope ; taxonomie Mathématiques ; taxonomie NSI | `b55ef1383fceabbbe0bf30c47a45a1fce607697f56bac340162156fabcf0fe26` ; `4a91661a381751573425b30667c53fc8f44df04fa4e0f7a0c4e71f0ec64005a6` ; `b93a3e4017e99f1647861abac46b5f3136ee8611e7142d4fca2a33a5929eb05f` | PASS |
-| Garde canonique des verrous | auteur technique LOT38 | `bash scripts/check-governance-locks.sh` et diff exact des trois fichiers protégés contre `origin/main` | tête `3ff775e4848538e6e49ab097fddfeba241441f4a` | baseline ; script de garde ; contrat public | `91ee6d451ce8893a51849b702f3cb3d2889c71dd5f74221f0ea64633cc701572` ; `ce7ea4d1651c07c9cd02c3bf4e2644cf2837e50dc1fd47fa5401535359ae79a5` ; `60dcee3598f0f2cc1524ecdda6b58642ffc9f84ad88f5b5d48989913de9dfb11` | PASS (`18/18`, diff protégé vide) |
-| CI locale canonique | auteur technique LOT38 | exécution unique post-correctif de `bash scripts/ci-local.sh` sur `ciSourceSha` | Python 3.11.14, Node 22.22.0 | journal brut hors Git | `3d252bce91ac0ff8f62c93aea195ef2d10b4d4a39ced863de9012891e95f3497` | PASS (`13 passed, 0 failed`) |
-| Synthèse de CI | auteur technique LOT38 | comparaison exhaustive du dernier bloc racine, de ses 13 lignes PASS, de l'absence de FAIL et du total au journal brut | même exécution canonique | `docs/reports/evidence/lot_38/ci-local-summary.txt` | `d14ffd8c7b4bb4b426d872f456f4ed2f35b63cd014fffc38028a499a66e2d77f` | PASS |
+| Garde canonique des verrous | auteur technique LOT38 | `bash scripts/check-governance-locks.sh` et diff exact des trois fichiers protégés contre `origin/main` | tête `d70857a68ee279c15545742b591ac585f5d5fb93` | baseline ; script de garde ; contrat public | `91ee6d451ce8893a51849b702f3cb3d2889c71dd5f74221f0ea64633cc701572` ; `ce7ea4d1651c07c9cd02c3bf4e2644cf2837e50dc1fd47fa5401535359ae79a5` ; `60dcee3598f0f2cc1524ecdda6b58642ffc9f84ad88f5b5d48989913de9dfb11` | PASS (`18/18`, diff protégé vide) |
+| CI locale canonique | auteur technique LOT38 | exécution unique post-correctif de `bash scripts/ci-local.sh` sur `ciSourceSha` | Python 3.11.14, Node 22.22.0 | journal brut hors Git | `521a67d58b02176fcf99bb0b4125a5bda1eb147af094708c0ef7715fbcd281a4` | PASS (`13 passed, 0 failed`) |
+| Synthèse de CI | auteur technique LOT38 | comparaison exhaustive du dernier bloc racine, de ses 13 lignes PASS, de l'absence de FAIL et du total au journal brut | même exécution canonique | `docs/reports/evidence/lot_38/ci-local-summary.txt` | `179b999d22dbed280696573203dcf4a94ab5629747b8738d48c77e0e6b1bc32a` | PASS |
 | Revues finales | reviewers indépendants | conformité design, qualité code/tests, puis diff complet `origin/main...HEAD` | tête finale exacte | verdicts de revue | `PENDING` | PENDING |
 | Checks PR GitHub | GitHub Actions | six checks stricts sur le head exact de la PR | GitHub, événement `pull_request` | run immuable et readback | `PENDING` | PENDING |
 
@@ -156,7 +165,7 @@ exactement 13 lignes `PASS`, aucune ligne `FAIL` et
 
 - Le lanceur Python 3.11 initial de l'hôte était défaillant. Les preuves
   finales utilisent un lanceur Python 3.11.14 hors dépôt et l'environnement
-  verrouillé du service ; les 341 tests ciblés, le typecheck et la CI canonique
+  verrouillé du service ; les 353 tests ciblés, le typecheck et la CI canonique
   sont verts sans modification opportuniste des dépendances ou du code hors
   LOT38.
 - L'isolation de `nexus-validation-1`, ses credentials, son DSN, son bucket et
