@@ -7,6 +7,7 @@ import { compile } from 'json-schema-to-typescript'
 const scriptDir = path.dirname(fileURLToPath(import.meta.url))
 const cockpitRoot = path.resolve(scriptDir, '..')
 const schemaRoot = path.resolve(cockpitRoot, '../../packages/contracts/schema')
+const artifactRoot = path.resolve(cockpitRoot, '../../packages/contracts/src/nexus_contracts/artifacts')
 const generatedRoot = path.resolve(cockpitRoot, 'src/generated')
 const schemaOutputRoot = path.join(generatedRoot, 'schema')
 const check = process.argv.includes('--check')
@@ -19,6 +20,8 @@ const schemas = [
   ['chat-request.json', 'ChatRequest'],
   ['chat-response.json', 'ChatResponse'],
   ['internal-identity.json', 'InternalIdentity'],
+  ['internal-identity-envelope.json', 'InternalIdentityEnvelope'],
+  ['pilot-retrieval-scope-artifact.json', 'PilotRetrievalScopeArtifact'],
 ]
 
 async function readSchemas() {
@@ -54,6 +57,7 @@ function aggregateSchema(entries) {
 
 async function expectedOutputs() {
   const entries = await readSchemas()
+  const pilotScope = JSON.parse(await readFile(path.join(artifactRoot, 'pilot-retrieval-scope-v1.json'), 'utf8'))
   const typeSource = await compile(aggregateSchema(entries), 'ContractBundle', {
     bannerComment: '// Generated from packages/contracts/schema. Do not edit manually.\n',
     style: { singleQuote: true },
@@ -65,6 +69,8 @@ async function expectedOutputs() {
     'ChatRequest',
     'ChatResponse',
     'InternalIdentity',
+    'InternalIdentityEnvelope',
+    'PilotRetrievalScopeArtifact',
   ]
   const validationEntries = entries.filter(({ name }) => validatorNames.includes(name))
   const imports = validationEntries.map(({ filename, name }) =>
@@ -81,6 +87,7 @@ async function expectedOutputs() {
   return new Map([
     [path.join(generatedRoot, 'contracts.ts'), typeSource],
     [path.join(generatedRoot, 'validators.ts'), validatorSource],
+    [path.join(generatedRoot, 'pilot-retrieval-scope-v1.json'), `${JSON.stringify(pilotScope, null, 2)}\n`],
     ...entries.map(({ filename, schema }) => [path.join(schemaOutputRoot, filename), `${JSON.stringify(schema, null, 2)}\n`]),
   ])
 }

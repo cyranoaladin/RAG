@@ -777,25 +777,29 @@ def test_runner_exercises_canonical_cycle_and_both_atomic_rollbacks() -> None:
     assert "BOOTSTRAP_002_UNREGISTERED=PASS" in content
     assert "ATOMIC_ADOPTION_002_ROLLBACK=PASS" in content
     assert "BOOTSTRAP_ADOPTION_002=PASS" in content
-    assert "expect_failure FRESH_HEAD_002_NEGATIVE" in content
+    assert "expect_failure FRESH_HEAD_003_NEGATIVE" in content
     assert "apply_pgvector_migrations.sh" in content
     assert "rollback_pgvector_migration.sh" in content
-    assert "MIGRATION_CYCLE_001_002_001_002=PASS" in content
+    assert "rollback_pgvector_profile_filtering.sh" in content
+    assert "MIGRATION_CYCLE_001_002_003_002_001_003=PASS" in content
     assert content.count("SELECT 1 / 0;") == 3
     assert "ATOMIC_UP_ROLLBACK=PASS" in content
     assert "ATOMIC_DOWN_ROLLBACK=PASS" in content
-    assert "MIGRATION_FINAL_HEAD_002=PASS" in content
+    assert "ROLLBACK_003_DATA_GUARD=PASS" in content
+    assert "MIGRATION_FINAL_HEAD_003=PASS" in content
 
 
 def test_runner_invokes_only_the_lot40_real_pgvector_module() -> None:
     content = RUNNER.read_text(encoding="utf-8")
     assert (
-        'PYTHONPATH="$SERVICE_ROOT/src" "$SERVICE_ROOT/.venv/bin/pytest" '
+        'PYTHONPATH="$SERVICE_ROOT/src" "$PYTEST_BIN" '
         '"$SERVICE_ROOT/tests/integration/test_lot40_hybrid_pgvector.py" -q'
         in content
     )
+    assert 'PYTEST_BIN="${NEXUS_RAG_ENGINE_PYTEST:-' in content
     assert 'LOT40_PG_DSN="$LOT40_PG_DSN"' in content
     assert 'LOT40_PG_ADMIN_DSN="$LOT40_PG_ADMIN_DSN"' in content
+    assert 'LOT41_PG_REVIEW_DSN="$LOT41_PG_REVIEW_DSN"' in content
 
 
 def test_real_module_explains_the_exact_production_lexical_sql() -> None:
@@ -804,4 +808,4 @@ def test_real_module_explains_the_exact_production_lexical_sql() -> None:
     assert "_DENSE_SQL," in content
     assert "_LEXICAL_SQL," in content
     assert "PgCandidateStore," in content
-    assert "(QUERY, TARGET_COLLECTION, 50)," in content
+    assert "(QUERY, *_scope_sql_params(TARGET_COLLECTION), 50)," in content

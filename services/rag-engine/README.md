@@ -18,6 +18,14 @@ make nginx-down
 > Avertissement Lot 19 — document historique/prod actuelle.
 > Ce README decrit le moteur `rag-local` encore represente en production par `rag-ui.nexusreussite.academy` : Streamlit, FastAPI ingestor, ChromaDB, Ollama, uploads, Google Drive et catalogue admin. Ce n'est pas la source de verite du chemin Nexus gouverné pgvector/HMAC. Pour la transition, lire aussi `docs/rag_dual_engine_transition.md`, `docs/retrieval_api_convergence.md`, `configs/rag_collections.yml` et `configs/legacy_collection_mapping.yml`.
 
+Le chemin Nexus LOT41 exige simultanément le credential BFF et l'identité
+interne signée 0.4. Son scope effectif est l'intersection exacte entre les
+matières du profil signé et l'artefact pilote. La readiness peut inspecter une
+collection déclarée mais dormante ; seule la recherche applique ensuite les
+gates `instanciee: true`, domaine retrievable et statut humain `reviewed`. Ce
+diagnostic ne constitue donc jamais une autorisation de retrieval ou de mise en
+production.
+
 ## Présentation générale
 
 `rag-local` est une solution RAG (Retrieval-Augmented Generation) 100% locale, conçue pour fonctionner sur un VPS sans GPU, avec une architecture modulaire : ingestion de ressources (web, fichiers, GDrive), indexation vectorielle (ChromaDB par défaut, pgvector en cible — voir Lot 1.2), embeddings et LLM locaux (Ollama), UI de recherche (Streamlit), orchestrations (n8n, optionnel), et observabilité Prometheus. Le tout est orchestré par Docker Compose, sécurisé par Nginx, et prêt pour la production.

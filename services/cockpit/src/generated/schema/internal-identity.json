@@ -29,7 +29,7 @@
     },
     "PedagogicalProfile": {
       "additionalProperties": false,
-      "description": "Noyau pedagogique d'une identité interne.\n\nChamps volontairement resserrés à ce qui est nécessaire dans le cockpit actuel.",
+      "description": "Sous-ensemble pédagogique fermé, sans identifiant ni champ libre.",
       "properties": {
         "audience": {
           "description": "Audience ciblée",
@@ -48,11 +48,16 @@
         "matieres": {
           "description": "Matières suivies",
           "items": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9_]+$",
             "type": "string"
           },
+          "maxItems": 16,
           "minItems": 1,
           "title": "Matieres",
-          "type": "array"
+          "type": "array",
+          "uniqueItems": true
         },
         "statut_enseignement": {
           "$ref": "#/$defs/StatutEnseignement",
@@ -107,27 +112,34 @@
       "type": "string"
     }
   },
-  "$id": "https://nexusreussite.academy/contracts/v0.3/internal-identity.json",
+  "$id": "https://nexusreussite.academy/contracts/v0.4/internal-identity.json",
   "additionalProperties": false,
-  "description": "Contrat d'identité métier produit par le cockpit.\n\nL'implémentation locale (nexus/contracts) le sérialise et valide strictement.",
+  "description": "Claims minimaux produits par le cockpit et consommés par rag-engine.",
   "properties": {
     "aud": {
+      "maxLength": 128,
       "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.:-]+$",
       "title": "Aud",
       "type": "string"
     },
     "exp": {
-      "minimum": 0,
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991,
       "title": "Exp",
       "type": "integer"
     },
     "iss": {
+      "maxLength": 128,
       "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.:-]+$",
       "title": "Iss",
       "type": "string"
     },
     "jti": {
-      "minLength": 1,
+      "maxLength": 128,
+      "minLength": 8,
+      "pattern": "^[A-Za-z0-9_-]+$",
       "title": "Jti",
       "type": "string"
     },
@@ -149,13 +161,22 @@
       "title": "Role",
       "type": "string"
     },
+    "school_year": {
+      "pattern": "^\\d{4}-\\d{4}$",
+      "title": "School Year",
+      "type": "string"
+    },
     "sub": {
-      "minLength": 1,
+      "maxLength": 128,
+      "minLength": 20,
+      "pattern": "^psn_[A-Za-z0-9_-]+$",
       "title": "Sub",
       "type": "string"
     },
     "tenant": {
+      "maxLength": 100,
       "minLength": 1,
+      "pattern": "^[a-z0-9_]+$",
       "title": "Tenant",
       "type": "string"
     }
@@ -168,6 +189,7 @@
     "tenant",
     "niveau",
     "role",
+    "school_year",
     "sub",
     "pedagogical_profile"
   ],

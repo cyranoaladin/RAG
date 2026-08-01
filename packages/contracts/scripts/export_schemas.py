@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
-CONTRACT_VERSION = "0.3"
+CONTRACT_VERSION = "0.4"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
@@ -20,6 +20,8 @@ from nexus_contracts import (  # noqa: E402
     ChatResponse,
     ChatPayload,
     InternalIdentity,
+    InternalIdentityEnvelope,
+    PilotRetrievalScopeArtifact,
     RetrievalRequest,
     RetrievalResponse,
     SearchPayload,
@@ -33,6 +35,8 @@ SCHEMAS: dict[str, type[BaseModel]] = {
     "chat-response.json": ChatResponse,
     "chat-payload.json": ChatPayload,
     "internal-identity.json": InternalIdentity,
+    "internal-identity-envelope.json": InternalIdentityEnvelope,
+    "pilot-retrieval-scope-artifact.json": PilotRetrievalScopeArtifact,
     "search-payload.json": SearchPayload,
 }
 

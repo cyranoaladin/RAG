@@ -2,27 +2,26 @@ import NextAuth, { type AuthOptions, type Session, getServerSession } from 'next
 import type { JWT } from 'next-auth/jwt'
 import Credentials from 'next-auth/providers/credentials'
 
-import type { InternalIdentity } from '@/generated/contracts'
-import { mintInternalIdentityToken } from '@/server/internal-token'
+import {
+  mintInternalIdentityToken,
+  rotateInternalIdentityToken,
+  verifyInternalIdentityToken,
+} from '@/server/internal-token'
+import { AUTH_SESSION_MAX_AGE_SECONDS } from '@/server/auth-policy'
+import { revokeSession } from '@/server/revocation-store'
 import { verifyNexusToken } from '@/server/sso-verifier'
 import { shouldRotate } from '@/server/session-rotation'
 
 interface AuthenticatedToken extends JWT {
-  identity?: InternalIdentity
   internalAccessToken?: string
   identityRotatedAt?: number
 }
 
-export interface AuthenticatedSession extends Session {
-  internalAccessToken?: string
-  internalIdentity?: InternalIdentity
-  internalIdentityRotatedAt?: number
-}
+export type AuthenticatedSession = Session
 
 interface AuthenticatedUser {
   id: string
   name: string
-  internalIdentity: InternalIdentity
   internalAccessToken: string
   internalTokenIssuedAt: number
   email?: string | null
@@ -53,7 +52,6 @@ export const authOptions: AuthOptions = {
           id: identity.sub,
           name: displayName,
           email: null,
-          internalIdentity: identity,
           internalAccessToken,
           internalTokenIssuedAt: Date.now(),
         } satisfies AuthenticatedUser
@@ -62,25 +60,43 @@ export const authOptions: AuthOptions = {
   ],
   session: {
     strategy: 'jwt',
-    maxAge: 3600,
+    maxAge: AUTH_SESSION_MAX_AGE_SECONDS,
+  },
+  events: {
+    async signOut(message) {
+      if (!('token' in message)) return
+      const sessionToken = message.token as AuthenticatedToken
+      if (typeof sessionToken.internalAccessToken !== 'string') return
+      let internalToken = sessionToken.internalAccessToken
+      let envelope
+      try {
+        envelope = await verifyInternalIdentityToken(internalToken)
+      } catch {
+        internalToken = await rotateInternalIdentityToken(internalToken)
+        envelope = await verifyInternalIdentityToken(internalToken)
+      }
+      await revokeSession(
+        envelope.identity.jti,
+        envelope.identity.sub,
+        envelope.identity.tenant,
+      )
+    },
   },
   callbacks: {
     async jwt({ token, user }) {
       const nextToken = token as AuthenticatedToken
       if (user) {
         const nextUser = user as AuthenticatedUser
-        nextToken.identity = nextUser.internalIdentity
         nextToken.internalAccessToken = nextUser.internalAccessToken
-        nextToken.identityRotatedAt = Date.now()
+        nextToken.identityRotatedAt = nextUser.internalTokenIssuedAt
       }
 
       if (
-        nextToken.identity &&
         nextToken.internalAccessToken &&
         typeof nextToken.identityRotatedAt === 'number' &&
         shouldRotate(nextToken.identityRotatedAt)
       ) {
-        nextToken.internalAccessToken = await mintInternalIdentityToken(nextToken.identity)
+        nextToken.internalAccessToken = await rotateInternalIdentityToken(nextToken.internalAccessToken)
         nextToken.identityRotatedAt = Date.now()
       }
 
@@ -90,14 +106,10 @@ export const authOptions: AuthOptions = {
       const nextSession = session as AuthenticatedSession
       const nextToken = token as AuthenticatedToken
 
-      if (nextToken.identity?.sub) {
+      if (nextToken.sub) {
         nextSession.user = nextSession.user || { name: null, email: null, image: null }
-        nextSession.user.name = nextSession.user.name || nextToken.identity.sub
+        nextSession.user.name = nextSession.user.name || `Nexus ${nextToken.sub.slice(0, 8)}`
       }
-
-      nextSession.internalIdentity = nextToken.identity
-      nextSession.internalAccessToken = nextToken.internalAccessToken
-      nextSession.internalIdentityRotatedAt = nextToken.identityRotatedAt
 
       return nextSession
     },

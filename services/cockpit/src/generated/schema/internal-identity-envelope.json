@@ -1,0 +1,290 @@
+{
+  "$defs": {
+    "Candidat": {
+      "enum": [
+        "scolarise",
+        "individuel",
+        "libre",
+        "cned_reglemente",
+        "cned_libre",
+        "aefe",
+        "both"
+      ],
+      "title": "Candidat",
+      "type": "string"
+    },
+    "InternalIdentity": {
+      "additionalProperties": false,
+      "description": "Claims minimaux produits par le cockpit et consommés par rag-engine.",
+      "properties": {
+        "aud": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Aud",
+          "type": "string"
+        },
+        "exp": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Exp",
+          "type": "integer"
+        },
+        "iss": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Iss",
+          "type": "string"
+        },
+        "jti": {
+          "maxLength": 128,
+          "minLength": 8,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Jti",
+          "type": "string"
+        },
+        "niveau": {
+          "$ref": "#/$defs/Niveau",
+          "description": "Niveau principal du profil"
+        },
+        "pedagogical_profile": {
+          "$ref": "#/$defs/PedagogicalProfile"
+        },
+        "role": {
+          "enum": [
+            "student",
+            "teacher",
+            "admin",
+            "ingest_agent",
+            "reviewer"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "school_year": {
+          "pattern": "^\\d{4}-\\d{4}$",
+          "title": "School Year",
+          "type": "string"
+        },
+        "sub": {
+          "maxLength": 128,
+          "minLength": 20,
+          "pattern": "^psn_[A-Za-z0-9_-]+$",
+          "title": "Sub",
+          "type": "string"
+        },
+        "tenant": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Tenant",
+          "type": "string"
+        }
+      },
+      "required": [
+        "aud",
+        "exp",
+        "iss",
+        "jti",
+        "tenant",
+        "niveau",
+        "role",
+        "school_year",
+        "sub",
+        "pedagogical_profile"
+      ],
+      "title": "InternalIdentity",
+      "type": "object"
+    },
+    "Niveau": {
+      "enum": [
+        "troisieme",
+        "seconde",
+        "premiere",
+        "terminale",
+        "cycle4",
+        "lycee_gt",
+        "voie_generale",
+        "voie_technologique"
+      ],
+      "title": "Niveau",
+      "type": "string"
+    },
+    "PedagogicalProfile": {
+      "additionalProperties": false,
+      "description": "Sous-ensemble pédagogique fermé, sans identifiant ni champ libre.",
+      "properties": {
+        "audience": {
+          "description": "Audience ciblée",
+          "enum": [
+            "libre",
+            "aefe",
+            "tous"
+          ],
+          "title": "Audience",
+          "type": "string"
+        },
+        "candidat": {
+          "$ref": "#/$defs/Candidat",
+          "description": "Type de candidat"
+        },
+        "matieres": {
+          "description": "Matières suivies",
+          "items": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9_]+$",
+            "type": "string"
+          },
+          "maxItems": 16,
+          "minItems": 1,
+          "title": "Matieres",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "statut_enseignement": {
+          "$ref": "#/$defs/StatutEnseignement",
+          "description": "Statut pédagogique"
+        },
+        "voie": {
+          "$ref": "#/$defs/Voie",
+          "description": "Parcours de l'élève"
+        }
+      },
+      "required": [
+        "voie",
+        "matieres",
+        "statut_enseignement",
+        "candidat",
+        "audience"
+      ],
+      "title": "PedagogicalProfile",
+      "type": "object"
+    },
+    "StatutEnseignement": {
+      "enum": [
+        "tronc_commun",
+        "enseignement_commun",
+        "specialite",
+        "eds",
+        "option",
+        "maths_complementaires",
+        "maths_expertes",
+        "snt",
+        "enseignement_scientifique",
+        "emc",
+        "atelier",
+        "stage",
+        "remediation",
+        "examen",
+        "unknown"
+      ],
+      "title": "StatutEnseignement",
+      "type": "string"
+    },
+    "Voie": {
+      "enum": [
+        "college",
+        "generale",
+        "technologique",
+        "professionnelle",
+        "aefe",
+        "unknown"
+      ],
+      "title": "Voie",
+      "type": "string"
+    }
+  },
+  "$id": "https://nexusreussite.academy/contracts/v0.4/internal-identity-envelope.json",
+  "additionalProperties": false,
+  "description": "Enveloppe signée liant le transport à une identité et à un scope.",
+  "properties": {
+    "allowed_collections": {
+      "items": {
+        "maxLength": 128,
+        "minLength": 1,
+        "pattern": "^[a-z0-9_]+$",
+        "type": "string"
+      },
+      "maxItems": 16,
+      "minItems": 1,
+      "title": "Allowed Collections",
+      "type": "array",
+      "uniqueItems": true
+    },
+    "aud": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Aud",
+      "type": "string"
+    },
+    "exp": {
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991,
+      "title": "Exp",
+      "type": "integer"
+    },
+    "iat": {
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991,
+      "title": "Iat",
+      "type": "integer"
+    },
+    "identity": {
+      "$ref": "#/$defs/InternalIdentity"
+    },
+    "iss": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Iss",
+      "type": "string"
+    },
+    "jti": {
+      "maxLength": 128,
+      "minLength": 8,
+      "pattern": "^[A-Za-z0-9_-]+$",
+      "title": "Jti",
+      "type": "string"
+    },
+    "protocol_version": {
+      "const": "1",
+      "title": "Protocol Version",
+      "type": "string"
+    },
+    "scope_digest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Scope Digest",
+      "type": "string"
+    },
+    "scope_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^[a-z0-9_]+$",
+      "title": "Scope Id",
+      "type": "string"
+    },
+    "sub": {
+      "maxLength": 128,
+      "minLength": 20,
+      "pattern": "^psn_[A-Za-z0-9_-]+$",
+      "title": "Sub",
+      "type": "string"
+    }
+  },
+  "required": [
+    "protocol_version",
+    "iss",
+    "aud",
+    "sub",
+    "jti",
+    "iat",
+    "exp",
+    "identity",
+    "scope_id",
+    "scope_digest",
+    "allowed_collections"
+  ],
+  "title": "InternalIdentityEnvelope",
+  "type": "object"
+}

@@ -541,8 +541,8 @@ def _assert_hybrid_search_schema(path: Path) -> None:
     ) in content
 
 
-def test_migration_head_points_exactly_to_002() -> None:
-    assert MIGRATION_HEAD.read_text(encoding="utf-8") == "002_hybrid_retrieval\n"
+def test_migration_head_has_advanced_beyond_002_without_rewriting_it() -> None:
+    assert MIGRATION_HEAD.read_text(encoding="utf-8") == "003_profile_filtering\n"
 
 
 def test_migration_002_adds_generated_french_fts_column_and_named_gin_index() -> None:

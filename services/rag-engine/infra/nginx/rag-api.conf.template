@@ -53,9 +53,10 @@ server {
     proxy_read_timeout 300s;
   }
 
-  location = /search {
+  # Retrieval canonique — uniquement via le BFF authentifié.
+  location = /search/v2 {
     limit_req zone=api_rate burst=40 nodelay;
-    proxy_pass http://127.0.0.1:${NGINX_API_PORT}/search;
+    proxy_pass http://127.0.0.1:${NGINX_API_PORT}/search/v2;
     proxy_http_version 1.1;
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection "upgrade";
@@ -63,6 +64,30 @@ server {
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_read_timeout 300s;
+  }
+
+  location = /chat {
+    limit_req zone=api_rate burst=40 nodelay;
+    proxy_pass http://127.0.0.1:${NGINX_API_PORT}/chat;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_read_timeout 300s;
+  }
+
+  # Fermeture fail-closed des chemins historiques contournables.
+  location = /search {
+    return 410;
+  }
+  location ^~ /search/ {
+    return 410;
+  }
+  location ^~ /kb {
+    return 410;
+  }
+  location ^~ /rag {
+    return 410;
   }
 
   # Default pass-through for other endpoints

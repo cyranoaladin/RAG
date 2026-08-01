@@ -2,14 +2,26 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { fetchEngine, isPublicLaunchReady } from '../_engine'
 import { POST } from './route'
+import { requireBffAuth } from '@/server/bff-auth'
 
 vi.mock('../_engine', () => ({
   fetchEngine: vi.fn(),
   isPublicLaunchReady: vi.fn(),
 }))
+vi.mock('@/server/bff-auth', () => ({
+  requireBffAuth: vi.fn(),
+}))
 
 const mockedFetchEngine = vi.mocked(fetchEngine)
 const mockedIsPublicLaunchReady = vi.mocked(isPublicLaunchReady)
+const mockedRequireBffAuth = vi.mocked(requireBffAuth)
+const authContext = {
+  identityToken: 'signed-identity-token',
+  allowedCollections: ['collection-a', 'collection-b'],
+  identity: {
+    sub: 'psn_1234567890abcdef',
+  },
+} as never
 
 function engineHit(
   chunkId: string,
@@ -56,6 +68,25 @@ describe('POST /api/search', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockedIsPublicLaunchReady.mockResolvedValue(true)
+    mockedRequireBffAuth.mockResolvedValue(authContext)
+  })
+
+  it('répond 401 avant tout appel moteur lorsque la session manque', async () => {
+    mockedRequireBffAuth.mockResolvedValue(null)
+
+    const response = await POST(searchRequest(['collection-a']))
+
+    expect(response.status).toBe(401)
+    expect(mockedIsPublicLaunchReady).not.toHaveBeenCalled()
+    expect(mockedFetchEngine).not.toHaveBeenCalled()
+  })
+
+  it('refuse une collection hors scope avant tout appel moteur', async () => {
+    const response = await POST(searchRequest(['collection-arbitraire']))
+
+    expect(response.status).toBe(403)
+    expect(mockedIsPublicLaunchReady).not.toHaveBeenCalled()
+    expect(mockedFetchEngine).not.toHaveBeenCalled()
   })
 
   it('préserve bit à bit l’ordre MMR du moteur et publie score_final', async () => {
@@ -78,6 +109,10 @@ describe('POST /api/search', () => {
       'second-mmr',
     ])
     expect(body.results?.map((hit) => hit.score)).toEqual([0.2, 0.9])
+    expect(mockedIsPublicLaunchReady).toHaveBeenCalledWith('signed-identity-token')
+    expect(mockedFetchEngine).toHaveBeenCalledWith('/search/v2', expect.objectContaining({
+      identityToken: 'signed-identity-token',
+    }))
   })
 
   it('fusionne les collections par leurs têtes sans réordonner une séquence MMR', async () => {

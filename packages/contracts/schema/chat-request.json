@@ -315,7 +315,7 @@
       "type": "string"
     }
   },
-  "$id": "https://nexusreussite.academy/contracts/v0.3/chat-request.json",
+  "$id": "https://nexusreussite.academy/contracts/v0.4/chat-request.json",
   "additionalProperties": false,
   "properties": {
     "answer_max_chars": {

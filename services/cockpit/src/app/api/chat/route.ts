@@ -1,29 +1,46 @@
 import { NextResponse } from 'next/server'
 
-import type { ChatPayload, ChatRequest } from '@/generated/contracts'
+import type { ChatPayload, ChatRequest, InternalIdentity } from '@/generated/contracts'
 import { validateChatPayload, validateChatRequest, validateChatResponse } from '@/generated/validators'
+import { requireBffAuth } from '@/server/bff-auth'
+import { PILOT_RETRIEVAL_SCOPE } from '@/server/pilot-scope'
 
 import { fetchEngine, isPublicLaunchReady } from '../_engine'
 
 const MAX_COLLECTIONS_PER_REQUEST = 8
 
-function publicProfile(collections: string[]): ChatRequest['student_profile'] {
-  const [primaryMatiere, ...otherMatieres] = collections
-  if (!primaryMatiere) {
-    throw new Error('collections must not be empty')
+function signedProfile(
+  identity: InternalIdentity,
+  collections: string[],
+): ChatRequest['student_profile'] {
+  const requestedMatieres = collections.map((collection) =>
+    PILOT_RETRIEVAL_SCOPE.subjects.find((subject) => subject.collection === collection)?.matiere,
+  )
+  if (!requestedMatieres.every((matiere): matiere is string => typeof matiere === 'string')) {
+    throw new Error('collection hors scope')
   }
+  const [primaryMatiere, ...otherMatieres] = requestedMatieres
+  if (!primaryMatiere) {
+    throw new Error('collection hors scope')
+  }
+  const profile = identity.pedagogical_profile
   return {
-    niveau: 'terminale',
-    voie: 'generale',
+    niveau: identity.niveau,
+    voie: profile.voie,
     matieres: [primaryMatiere, ...otherMatieres],
-    statut_enseignement: 'specialite',
-    candidat: 'individuel',
-    school_year: '2026-2027',
-    zone: 'public',
+    statut_enseignement: profile.statut_enseignement,
+    candidat: profile.candidat,
+    school_year: identity.school_year,
+    zone: profile.audience,
   }
 }
 
 export async function POST(request: Request) {
+  const authContext = await requireBffAuth(request)
+  if (!authContext) {
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+  }
+
   let payload: ChatPayload
   try {
     const body: unknown = await request.json()
@@ -35,14 +52,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'invalid_request' }, { status: 400 })
   }
 
-  if (!await isPublicLaunchReady()) {
+  const normalizedCollections = [...new Set(payload.collections)]
+  const allowedCollections = new Set(authContext.allowedCollections)
+  if (!normalizedCollections.every((collection) => allowedCollections.has(collection))) {
+    return NextResponse.json({ error: 'forbidden_collection' }, { status: 403 })
+  }
+
+  if (!await isPublicLaunchReady(authContext.identityToken)) {
     return NextResponse.json({ error: 'launch_not_ready' }, { status: 503 })
   }
 
   const enginePayload: ChatRequest = {
-    student_profile: publicProfile(payload.collections),
+    student_profile: signedProfile(authContext.identity, normalizedCollections),
     query: payload.query,
-    collections: payload.collections,
+    collections: normalizedCollections,
     top_k: payload.top_k ?? 5,
     history: (payload.history ?? []).slice(-12),
     answer_max_chars: 1600,
@@ -53,7 +76,11 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await fetchEngine('/chat', { method: 'POST', body: enginePayload })
+    const result = await fetchEngine('/chat', {
+      method: 'POST',
+      body: enginePayload,
+      identityToken: authContext.identityToken,
+    })
     if (result.status !== 200 || !validateChatResponse(result.payload)) {
       return NextResponse.json({ error: 'service_unavailable' }, { status: 503 })
     }

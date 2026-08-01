@@ -8,6 +8,7 @@ from types import TracebackType
 from typing import Any
 
 import pytest
+from nexus_contracts import Rights
 
 from ingestor.retrieval_hybrid_v2 import (
     CHANNEL_LIMIT,
@@ -21,9 +22,27 @@ from ingestor.retrieval_pg_v2 import (
     _DENSE_ANN_PROBE_LIMIT,
     PgCandidateStore,
 )
+from ingestor.retrieval_scope_v2 import ServerRetrievalScope
 
 VECTOR = (1.0, *([0.0] * 1023))
 VECTOR_TEXT = "[" + ",".join(str(value) for value in VECTOR) + "]"
+SCOPE = ServerRetrievalScope(
+    tenant="libre_terminale",
+    niveau="terminale",
+    voie="generale",
+    matiere="maths",
+    statut_enseignement="specialite",
+    candidat="individuel",
+    audiences=("libre", "tous"),
+    rights=(Rights.officiel_public, Rights.public_allowed),
+    visibilities=("public",),
+    school_year="2026-2027",
+    collection="libre_terminale",
+    programme_version="BOEN_special_8_2019-07-25",
+    scope_id="lot41_test_scope",
+    scope_digest="a" * 64,
+    source_sha256="b" * 64,
+)
 
 
 def _normalize_sql(sql: str) -> str:
@@ -35,9 +54,23 @@ DENSE_SQL = _normalize_sql(
     WITH hnsw_candidates AS MATERIALIZED (
         SELECT chunk_id, doc_id, source_label, source_uri, rights, type_doc,
                text, page_start, vector::text AS vector_text, review_status,
+               collection, tenant, niveau, voie, matiere, statut_enseignement,
+               candidat, audience, visibility, school_year, programme_version,
                vector <=> %s::vector AS distance
         FROM rag_chunks
-        WHERE collection = %s AND review_status = 'reviewed'
+        WHERE collection = %s
+          AND tenant = %s
+          AND niveau = %s
+          AND voie IS NOT DISTINCT FROM %s
+          AND matiere = %s
+          AND statut_enseignement = %s
+          AND candidat = ANY(%s::text[])
+          AND audience && %s::text[]
+          AND rights = ANY(%s::text[])
+          AND visibility = ANY(%s::text[])
+          AND school_year = %s
+          AND programme_version = %s
+          AND review_status = 'reviewed'
           AND text IS NOT NULL AND btrim(text) <> '' AND vector IS NOT NULL
           AND btrim(source_label) <> '' AND btrim(source_uri) <> ''
           AND btrim(rights) <> ''
@@ -46,7 +79,9 @@ DENSE_SQL = _normalize_sql(
     ),
     ranked_pool AS MATERIALIZED (
         SELECT chunk_id, doc_id, source_label, source_uri, rights, type_doc,
-               text, page_start, vector_text, review_status, distance,
+               text, page_start, vector_text, review_status, collection, tenant,
+               niveau, voie, matiere, statut_enseignement, candidat, audience,
+               visibility, school_year, programme_version, distance,
                row_number() OVER (ORDER BY distance ASC, chunk_id ASC) AS pool_rank
         FROM hnsw_candidates
     ),
@@ -59,7 +94,12 @@ DENSE_SQL = _normalize_sql(
     SELECT ranked_pool.chunk_id, ranked_pool.doc_id, ranked_pool.source_label,
            ranked_pool.source_uri, ranked_pool.rights, ranked_pool.type_doc,
            ranked_pool.text, ranked_pool.page_start, ranked_pool.vector_text,
-           ranked_pool.review_status, 1 - ranked_pool.distance AS dense_score,
+           ranked_pool.review_status, ranked_pool.collection, ranked_pool.tenant,
+           ranked_pool.niveau, ranked_pool.voie, ranked_pool.matiere,
+           ranked_pool.statut_enseignement, ranked_pool.candidat,
+           ranked_pool.audience, ranked_pool.visibility, ranked_pool.school_year,
+           ranked_pool.programme_version,
+           1 - ranked_pool.distance AS dense_score,
            (
              pool_diagnostics.boundary_distance IS NOT NULL
              AND pool_diagnostics.sentinel_distance IS NOT NULL
@@ -81,10 +121,24 @@ LEXICAL_SQL = _normalize_sql(
     WITH lexical_query AS MATERIALIZED (SELECT plainto_tsquery('french', %s) AS value)
     SELECT chunk_id, doc_id, source_label, source_uri, rights, type_doc, text,
            page_start, vector::text, review_status,
+           collection, tenant, niveau, voie, matiere, statut_enseignement,
+           candidat, audience, visibility, school_year, programme_version,
            ts_rank_cd(text_tsv, lexical_query.value, 32) AS lexical_score
     FROM rag_chunks
     CROSS JOIN lexical_query
-    WHERE collection = %s AND review_status = 'reviewed'
+    WHERE collection = %s
+      AND tenant = %s
+      AND niveau = %s
+      AND voie IS NOT DISTINCT FROM %s
+      AND matiere = %s
+      AND statut_enseignement = %s
+      AND candidat = ANY(%s::text[])
+      AND audience && %s::text[]
+      AND rights = ANY(%s::text[])
+      AND visibility = ANY(%s::text[])
+      AND school_year = %s
+      AND programme_version = %s
+      AND review_status = 'reviewed'
       AND text IS NOT NULL AND btrim(text) <> '' AND vector IS NOT NULL
       AND btrim(source_label) <> '' AND btrim(source_uri) <> ''
       AND btrim(rights) <> ''
@@ -101,12 +155,23 @@ def _row(
     doc_id: str = "doc-a",
     source_label: str = "Référentiel officiel",
     source_uri: str = "https://example.test/source",
-    rights: str = "Etalab-2.0",
+    rights: str = Rights.officiel_public.value,
     type_doc: str = "programme",
     text: str = "Une ressource qui enseigne réellement la notion.",
     page_start: object = 7,
     vector_text: object = VECTOR_TEXT,
     review_status: object = "reviewed",
+    collection: object = SCOPE.collection,
+    tenant: object = SCOPE.tenant,
+    niveau: object = SCOPE.niveau,
+    voie: object = SCOPE.voie,
+    matiere: object = SCOPE.matiere,
+    statut_enseignement: object = SCOPE.statut_enseignement,
+    candidat: object = SCOPE.candidat,
+    audience: object = list(SCOPE.audiences),
+    visibility: object = SCOPE.visibilities[0],
+    school_year: object = SCOPE.school_year,
+    programme_version: object = SCOPE.programme_version,
     score: object = 0.75,
 ) -> tuple[object, ...]:
     return (
@@ -120,6 +185,17 @@ def _row(
         page_start,
         vector_text,
         review_status,
+        collection,
+        tenant,
+        niveau,
+        voie,
+        matiere,
+        statut_enseignement,
+        candidat,
+        audience,
+        visibility,
+        school_year,
+        programme_version,
         score,
     )
 
@@ -246,7 +322,7 @@ def _dense(provider: ProviderSpy, **overrides: object) -> Sequence[RetrievalCand
         "limit": CHANNEL_LIMIT,
     }
     arguments.update(overrides)
-    return PgCandidateStore(provider).dense(**arguments)  # type: ignore[arg-type]
+    return PgCandidateStore(provider, SCOPE).dense(**arguments)  # type: ignore[arg-type]
 
 
 def _dense_params(
@@ -255,11 +331,28 @@ def _dense_params(
 ) -> tuple[object, ...]:
     return (
         VECTOR_TEXT,
-        collection,
+        *_scope_params(collection=collection),
         _DENSE_ANN_PROBE_LIMIT,
         _DENSE_ANN_POOL_LIMIT,
         _DENSE_ANN_PROBE_LIMIT,
         limit,
+    )
+
+
+def _scope_params(*, collection: str = SCOPE.collection) -> tuple[object, ...]:
+    return (
+        collection,
+        SCOPE.tenant,
+        SCOPE.niveau,
+        SCOPE.voie,
+        SCOPE.matiere,
+        SCOPE.statut_enseignement,
+        [SCOPE.candidat, "both"],
+        list(SCOPE.audiences),
+        [right.value for right in SCOPE.rights],
+        list(SCOPE.visibilities),
+        SCOPE.school_year,
+        SCOPE.programme_version,
     )
 
 
@@ -270,7 +363,7 @@ def _lexical(provider: ProviderSpy, **overrides: object) -> Sequence[RetrievalCa
         "limit": CHANNEL_LIMIT,
     }
     arguments.update(overrides)
-    return PgCandidateStore(provider).lexical(**arguments)  # type: ignore[arg-type]
+    return PgCandidateStore(provider, SCOPE).lexical(**arguments)  # type: ignore[arg-type]
 
 
 def test_dense_uses_the_exact_parameterized_reviewed_only_query() -> None:
@@ -289,7 +382,7 @@ def test_dense_uses_the_exact_parameterized_reviewed_only_query() -> None:
             doc_id="doc-a",
             source_label="Référentiel officiel",
             source_uri="https://example.test/source",
-            rights="Etalab-2.0",
+            rights=Rights.officiel_public.value,
             type_doc="programme",
             text="Une ressource qui enseigne réellement la notion.",
             page_start=7,
@@ -389,7 +482,7 @@ def test_lexical_uses_one_exact_parameterized_french_tsquery() -> None:
     candidates = _lexical(provider)
 
     assert provider.cursor.executions == [
-        (LEXICAL_SQL, ("question brute", "libre_terminale", CHANNEL_LIMIT))
+        (LEXICAL_SQL, ("question brute", *_scope_params(), CHANNEL_LIMIT))
     ]
     assert all("hnsw.iterative_scan" not in sql for sql, _ in provider.cursor.executions)
     assert LEXICAL_SQL.count("plainto_tsquery") == 1
@@ -418,18 +511,17 @@ def test_values_that_look_like_sql_remain_only_in_parameters(channel: str) -> No
     provider = ProviderSpy([])
 
     if channel == "dense":
-        _dense(provider, collection=malicious_collection)
-        sql, params = provider.cursor.executions[2]
-        assert params == _dense_params(malicious_collection)
-        assert malicious_query not in sql
+        with pytest.raises(RetrievalPipelineError, match="dense channel query failed"):
+            _dense(provider, collection=malicious_collection)
+        assert provider.calls == 0
+        return
     else:
         _lexical(
             provider,
             raw_query=malicious_query,
-            collection=malicious_collection,
         )
         sql, params = provider.cursor.executions[0]
-        assert params == (malicious_query, malicious_collection, CHANNEL_LIMIT)
+        assert params == (malicious_query, *_scope_params(), CHANNEL_LIMIT)
     assert malicious_collection not in sql
     assert "DROP TABLE" not in sql
 
@@ -492,9 +584,9 @@ def test_nonpositive_or_missing_page_is_normalized_to_none(page_start: object) -
         (7, True),
         (7, "7"),
         (9, "draft"),
-        (10, float("nan")),
-        (10, float("inf")),
-        (10, "0.5"),
+        (21, float("nan")),
+        (21, float("inf")),
+        (21, "0.5"),
     ],
 )
 def test_malformed_row_field_fails_closed(row_index: int, invalid_value: object) -> None:
@@ -504,6 +596,34 @@ def test_malformed_row_field_fails_closed(row_index: int, invalid_value: object)
 
     with pytest.raises(RetrievalPipelineError, match="dense channel query failed"):
         _dense(provider)
+
+
+@pytest.mark.parametrize(
+    ("row_index", "outside_value"),
+    [
+        (4, "usage_interne"),
+        (10, "other_collection"),
+        (11, "other_tenant"),
+        (12, "premiere"),
+        (13, "technologique"),
+        (14, "nsi"),
+        (15, "tronc_commun"),
+        (16, "aefe"),
+        (17, ["aefe"]),
+        (18, "internal"),
+        (19, "2027-2028"),
+        (20, "other_programme"),
+    ],
+)
+def test_every_post_database_scope_dimension_is_verified(
+    row_index: int,
+    outside_value: object,
+) -> None:
+    mutable_row = list(_dense_row())
+    mutable_row[row_index] = outside_value
+
+    with pytest.raises(RetrievalPipelineError, match="dense channel query failed"):
+        _dense(ProviderSpy([tuple(mutable_row)]))
 
 
 @pytest.mark.parametrize(

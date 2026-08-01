@@ -11,6 +11,7 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+from nexus_contracts import Rights
 
 ENGINE_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_PATH = ENGINE_ROOT / "scripts" / "retrieval_v2.py"
@@ -25,6 +26,7 @@ from ingestor.retrieval_hybrid_v2 import (  # noqa: E402
     RetrievalCandidate,
     RetrievalPipelineError,
 )
+from ingestor.retrieval_scope_v2 import ServerRetrievalScope  # noqa: E402
 
 COLLECTION = "rag_nexus_nsi_terminale_specialite"
 SETTINGS = PoolSettings(
@@ -33,6 +35,33 @@ SETTINGS = PoolSettings(
     max_size=2,
     timeout_s=1.0,
 )
+SCOPE = ServerRetrievalScope(
+    tenant="libre_terminale",
+    niveau="terminale",
+    voie="generale",
+    matiere="nsi",
+    statut_enseignement="specialite",
+    candidat="individuel",
+    audiences=("libre", "tous"),
+    rights=(Rights.officiel_public, Rights.public_allowed),
+    visibilities=("public",),
+    school_year="2026-2027",
+    collection=COLLECTION,
+    programme_version="BOEN_special_8_2019-07-25",
+    scope_id="lot41_test_scope",
+    scope_digest="a" * 64,
+    source_sha256="b" * 64,
+)
+
+
+@pytest.fixture(autouse=True)
+def verified_cli_identity(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(cli, "_load_verified_identity", lambda: object())
+    monkeypatch.setattr(
+        cli,
+        "build_server_retrieval_scope",
+        lambda *_args, **_kwargs: SCOPE,
+    )
 
 
 def _retrievable_config(*, retrievable: bool = True) -> dict[str, Any]:
@@ -154,7 +183,7 @@ def test_build_pg_store_defers_pool_acquisition(monkeypatch: pytest.MonkeyPatch)
     acquire = MagicMock(side_effect=AssertionError("pool acquired eagerly"))
     monkeypatch.setattr(cli, "pool_connection", acquire)
 
-    store = cli._build_pg_store(SETTINGS)
+    store = cli._build_pg_store(SETTINGS, SCOPE)
 
     assert store is not None
     acquire.assert_not_called()
@@ -238,8 +267,8 @@ def test_search_builds_factories_in_order_and_delegates_raw_parameters(
     expected = [_hit()]
     monkeypatch.setattr(cli, "load_collection_config", _retrievable_config)
 
-    def build_store(settings: PoolSettings) -> object:
-        events.append(("store", settings))
+    def build_store(settings: PoolSettings, scope: ServerRetrievalScope) -> object:
+        events.append(("store", settings, scope))
         return store
 
     def build_embedder() -> object:
@@ -272,7 +301,7 @@ def test_search_builds_factories_in_order_and_delegates_raw_parameters(
 
     assert actual is expected
     assert events == [
-        ("store", SETTINGS),
+        ("store", SETTINGS, SCOPE),
         "embedder",
         "reranker",
         (
@@ -304,7 +333,7 @@ def test_cli_top_k_bounds_are_argparse_errors_before_pool_cleanup(
     close.assert_not_called()
 
 
-def test_main_uses_primary_dsn_then_sync_fallback(
+def test_main_uses_retrieval_dsn_and_refuses_owner_fallback(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -320,8 +349,9 @@ def test_main_uses_primary_dsn_then_sync_fallback(
 
     seen.clear()
     monkeypatch.delenv("PG_RAG_DSN")
-    assert cli.main(_argv()) == 0
-    assert seen == ["postgresql://fallback@localhost/rag"]
+    assert cli.main(_argv()) == 1
+    assert seen == []
+    assert capsys.readouterr().err == "Error: hybrid retrieval unavailable\n"
 
 
 def test_main_runs_gate_before_settings_and_search_resources(
@@ -358,7 +388,7 @@ def test_main_runs_gate_before_settings_and_search_resources(
     monkeypatch.setattr(cli, "close_pool", close)
 
     assert cli.main(_argv()) == 0
-    assert events == ["config", "gate", "settings", "search", "close"]
+    assert events == ["settings", "search", "close"]
 
 
 def test_missing_dsn_after_parse_is_generic_and_closes_pool(
@@ -495,7 +525,7 @@ def test_close_failure_is_generic_and_does_not_print_results(
     assert "DSN_ULTRA_SECRET" not in captured.err
 
 
-@pytest.mark.parametrize("failure_phase", ["config", "gate", "settings", "search", "close"])
+@pytest.mark.parametrize("failure_phase", ["settings", "search", "close"])
 def test_all_ordinary_runtime_failures_are_masked_and_close_once(
     failure_phase: str,
     monkeypatch: pytest.MonkeyPatch,

@@ -1,143 +1,265 @@
-"""Review v2 endpoints — human review of ingested content (agent needs_review).
+"""Review humaine scopée des contenus issus du pipeline d'ingestion."""
 
-Exposes:
-- GET  /review/v2/queue — list chunks awaiting review (grouped by doc_id)
-- POST /review/v2/decide  — admin/reviewer decide reviewed or quarantined
-
-Invariant: only admin/reviewer can promote needs_review → reviewed.
-An agent can ingest (→ needs_review) but NEVER promote to reviewed.
-"""
 from __future__ import annotations
 
 import logging
 import os
+from collections.abc import Mapping, Sequence
 from typing import Any, Literal
 
 import psycopg
 from fastapi import APIRouter, HTTPException, Query, Request
-from pydantic import BaseModel, Field
+from nexus_contracts import Rights
+from pydantic import BaseModel, ConfigDict, Field
 
 try:
-    from .security_v2 import SecurityRole, require_role
+    from .collection_config import load_collection_config
+    from .identity_v2 import VerifiedInternalIdentity, require_internal_identity
+    from .retrieval_scope_v2 import (
+        RetrievalScopeError,
+        ServerRetrievalScope,
+        build_server_readiness_scope,
+        effective_signed_collections,
+    )
+    from .retrieval_v2_endpoint import invalidate_cache
+    from .security_v2 import require_bff_service
 except (ImportError, ValueError):
-    from security_v2 import SecurityRole, require_role  # type: ignore[no-redef]
+    from collection_config import load_collection_config  # type: ignore[no-redef]
+    from identity_v2 import (  # type: ignore[no-redef]
+        VerifiedInternalIdentity,
+        require_internal_identity,
+    )
+    from retrieval_scope_v2 import (  # type: ignore[no-redef]
+        RetrievalScopeError,
+        ServerRetrievalScope,
+        build_server_readiness_scope,
+        effective_signed_collections,
+    )
+    from retrieval_v2_endpoint import invalidate_cache  # type: ignore[no-redef]
+    from security_v2 import require_bff_service  # type: ignore[no-redef]
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/review/v2", tags=["review_v2"])
 
+_REVIEW_ROLES = frozenset({"admin", "reviewer"})
+_SCOPE_PREDICATE_SQL = """
+    collection = %s
+    AND tenant = %s
+    AND niveau = %s
+    AND voie IS NOT DISTINCT FROM %s
+    AND matiere = %s
+    AND statut_enseignement = %s
+    AND candidat = ANY(%s::text[])
+    AND audience && %s::text[]
+    AND rights = ANY(%s::text[])
+    AND visibility = ANY(%s::text[])
+    AND school_year = %s
+    AND programme_version = %s
+"""
+
 
 def _get_pg_dsn() -> str:
-    dsn = os.environ.get("PG_RAG_DSN") or os.environ.get("DATABASE_URL_SYNC")
+    dsn = os.environ.get("PG_REVIEW_DSN")
     if not dsn:
-        raise HTTPException(status_code=503, detail="PG_RAG_DSN not configured")
+        raise HTTPException(status_code=503, detail="review unavailable")
     return dsn
 
 
-def _enforce_queue_security(request: Request) -> str:
-    """Auth for review queue read access."""
-    _, token = require_role(
-        request,
-        allowed_roles={SecurityRole.ADMIN, SecurityRole.REVIEWER, SecurityRole.TEACHER},
-        endpoint="/review/v2/queue",
+def _require_review_identity(
+    request: Request,
+    *,
+    endpoint: str,
+) -> VerifiedInternalIdentity:
+    """Exiger le BFF, l'identité signée et un rôle humain de review."""
+    require_bff_service(request, endpoint=endpoint)
+    verified = require_internal_identity(request)
+    if verified.envelope.identity.role not in _REVIEW_ROLES:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return verified
+
+
+def _resolve_review_scopes(
+    verified: VerifiedInternalIdentity,
+    *,
+    collection: str | None,
+    tenant: str | None,
+    collection_config: Mapping[str, Any],
+) -> tuple[ServerRetrievalScope, ...]:
+    """Dériver les scopes signés ; les sélecteurs clients ne font que réduire."""
+    identity_tenant = str(verified.envelope.identity.tenant)
+    if tenant is not None and tenant != identity_tenant:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    try:
+        allowed = effective_signed_collections(verified)
+    except RetrievalScopeError as exc:
+        raise HTTPException(status_code=403, detail="Forbidden") from exc
+    selected: tuple[str, ...]
+    if collection is not None:
+        if collection not in allowed:
+            raise HTTPException(status_code=403, detail="Forbidden")
+        selected = (collection,)
+    else:
+        selected = allowed
+    if not selected:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    scopes: list[ServerRetrievalScope] = []
+    try:
+        for selected_collection in selected:
+            scope = build_server_readiness_scope(
+                verified,
+                collection=selected_collection,
+                collection_config=collection_config,
+            )
+            if scope.tenant != identity_tenant:
+                raise RetrievalScopeError("review scope forbidden")
+            scopes.append(scope)
+    except (RetrievalScopeError, ValueError) as exc:
+        raise HTTPException(status_code=403, detail="Forbidden") from exc
+    return tuple(scopes)
+
+
+def _scope_params(scope: ServerRetrievalScope) -> tuple[object, ...]:
+    if not isinstance(scope, ServerRetrievalScope):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    if not scope.audiences or not scope.rights or not scope.visibilities:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    if any(not isinstance(right, Rights) for right in scope.rights):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return (
+        scope.collection,
+        scope.tenant,
+        scope.niveau,
+        scope.voie,
+        scope.matiere,
+        scope.statut_enseignement,
+        [scope.candidat, "both"],
+        list(scope.audiences),
+        [right.value for right in scope.rights],
+        list(scope.visibilities),
+        scope.school_year,
+        scope.programme_version,
     )
-    return token
 
 
-def _enforce_reviewer_security(request: Request) -> str:
-    """Auth for review decisions.
+def _scope_filter(
+    scopes: Sequence[ServerRetrievalScope],
+) -> tuple[str, tuple[object, ...]]:
+    if not scopes:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    clauses: list[str] = []
+    params: list[object] = []
+    for scope in scopes:
+        clauses.append(f"({_SCOPE_PREDICATE_SQL})")
+        params.extend(_scope_params(scope))
+    return "(" + " OR ".join(clauses) + ")", tuple(params)
 
-    Decisions are limited to admin and reviewer. The reviewer role accepts
-    RAG_REVIEWER_TOKEN and the legacy REVIEWER_API_TOKEN alias. An
-    ingest_agent token can ingest but cannot decide.
-    """
-    _, token = require_role(
-        request,
-        allowed_roles={SecurityRole.ADMIN, SecurityRole.REVIEWER},
-        endpoint="/review/v2/decide",
+
+def _load_review_scopes(
+    verified: VerifiedInternalIdentity,
+    *,
+    collection: str | None,
+    tenant: str | None,
+) -> tuple[ServerRetrievalScope, ...]:
+    try:
+        config = load_collection_config()
+    except Exception as exc:
+        logger.error("review configuration unavailable")
+        raise HTTPException(status_code=503, detail="review unavailable") from exc
+    return _resolve_review_scopes(
+        verified,
+        collection=collection,
+        tenant=tenant,
+        collection_config=config,
     )
-    return token
 
-
-# --- Request/Response models ---
 
 class PendingQuery(BaseModel):
-    collection: str | None = None
+    model_config = ConfigDict(extra="forbid")
+
+    collection: str | None = Field(default=None, min_length=1, max_length=128)
+    tenant: str | None = Field(default=None, min_length=1, max_length=128)
     limit: int = Field(default=50, ge=1, le=500)
     offset: int = Field(default=0, ge=0)
 
 
 class ReviewDecision(BaseModel):
-    """An admin or reviewer decides on a document or chunk."""
+    """Décision humaine explicite sur un document ou un chunk scopé."""
+
+    model_config = ConfigDict(extra="forbid")
+
     target_type: Literal["doc", "chunk"] = "doc"
-    target_id: str = Field(..., min_length=1, description="doc_id or chunk_id")
-    decision: Literal["reviewed", "quarantined"] = Field(
-        ..., description="reviewed = approved, quarantined = rejected"
-    )
-    reason: str = Field(default="", description="Optional reason for the decision")
+    target_id: str = Field(min_length=1, max_length=256)
+    decision: Literal["reviewed", "quarantined"]
+    reason: str = Field(default="", max_length=1000)
+    collection: str | None = Field(default=None, min_length=1, max_length=128)
+    tenant: str | None = Field(default=None, min_length=1, max_length=128)
 
-
-# --- Endpoints ---
 
 @router.get("/queue")
 def list_queue(
     request: Request,
-    collection: str | None = None,
+    collection: str | None = Query(default=None, min_length=1, max_length=128),
+    tenant: str | None = Query(default=None, min_length=1, max_length=128),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ) -> dict[str, Any]:
-    """List chunks in needs_review, grouped by doc_id.
-
-    Returns documents with their chunk count, provenance, and preview.
-    """
-    _enforce_queue_security(request)
+    """Lister uniquement les documents `needs_review` du scope signé."""
+    verified = _require_review_identity(request, endpoint="/review/v2/queue")
+    scopes = _load_review_scopes(
+        verified,
+        collection=collection,
+        tenant=tenant,
+    )
+    scope_sql, scope_params = _scope_filter(scopes)
     pg_dsn = _get_pg_dsn()
 
-    conn = psycopg.connect(pg_dsn)
+    connection: Any | None = None
     try:
-        with conn.cursor() as cur:
-            # Count total pending
-            if collection:
-                cur.execute(
-                    "SELECT COUNT(DISTINCT doc_id) FROM rag_chunks "
-                    "WHERE review_status = 'needs_review' AND collection = %s",
-                    (collection,),
-                )
-            else:
-                cur.execute(
-                    "SELECT COUNT(DISTINCT doc_id) FROM rag_chunks "
-                    "WHERE review_status = 'needs_review'",
-                )
-            row = cur.fetchone()
-            total_docs = row[0] if row else 0
+        connection = psycopg.connect(pg_dsn)
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT COUNT(*) FROM (SELECT 1 FROM rag_chunks "
+                "WHERE review_status = 'needs_review' AND "
+                + scope_sql
+                + " GROUP BY doc_id, collection) AS scoped_documents",
+                scope_params,
+            )
+            row = cursor.fetchone()
+            total_docs = int(row[0]) if row else 0
 
-            # Get pending documents with summary
-            query = """
+            cursor.execute(
+                """
                 SELECT doc_id, collection, source_label, source_uri, rights,
-                       source_kind, type_doc,
-                       COUNT(*) AS chunk_count,
+                       source_kind, type_doc, COUNT(*) AS chunk_count,
                        MIN(indexed_at) AS first_indexed,
                        MAX(indexed_at) AS last_indexed
                 FROM rag_chunks
-                WHERE review_status = 'needs_review'
-            """
-            params: list = []
-            if collection:
-                query += " AND collection = %s"
-                params.append(collection)
-            query += " GROUP BY doc_id, collection, source_label, source_uri, rights, source_kind, type_doc"
-            query += " ORDER BY MIN(indexed_at) DESC"
-            query += " LIMIT %s OFFSET %s"
-            params.extend([limit, offset])
-
-            cur.execute(query, params)
-            rows = cur.fetchall()
+                WHERE review_status = 'needs_review' AND
+                """
+                + scope_sql
+                + """
+                GROUP BY doc_id, collection, source_label, source_uri, rights,
+                         source_kind, type_doc
+                ORDER BY MIN(indexed_at) DESC, collection ASC, doc_id ASC
+                LIMIT %s OFFSET %s
+                """,
+                (*scope_params, limit, offset),
+            )
+            rows = cursor.fetchall()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("review queue unavailable")
+        raise HTTPException(status_code=503, detail="review unavailable") from exc
     finally:
-        conn.close()
+        if connection is not None:
+            connection.close()
 
-    documents = []
-    for row in rows:
-        documents.append({
+    documents = [
+        {
             "doc_id": row[0],
             "collection": row[1],
             "source_label": row[2],
@@ -148,8 +270,9 @@ def list_queue(
             "chunk_count": row[7],
             "first_indexed": row[8].isoformat() if row[8] else None,
             "last_indexed": row[9].isoformat() if row[9] else None,
-        })
-
+        }
+        for row in rows
+    ]
     return {
         "total_pending_docs": total_docs,
         "returned": len(documents),
@@ -160,79 +283,83 @@ def list_queue(
 
 @router.post("/decide")
 def review_decide(payload: ReviewDecision, request: Request) -> dict[str, Any]:
-    """Admin/reviewer approves or rejects a document/chunk.
-
-    - reviewed: content becomes servable (served by /search/v2)
-    - quarantined: content blocked from serving (gate enforced)
-
-    This is a human act: only admin or reviewer may call this endpoint.
-    """
-    _enforce_reviewer_security(request)
-
-    if payload.decision not in ("reviewed", "quarantined"):
-        raise HTTPException(status_code=400, detail="decision must be 'reviewed' or 'quarantined'")
-
+    """Promouvoir `needs_review` ou révoquer vers `quarantined`."""
+    verified = _require_review_identity(request, endpoint="/review/v2/decide")
+    scopes = _load_review_scopes(
+        verified,
+        collection=payload.collection,
+        tenant=payload.tenant,
+    )
+    scope_sql, scope_params = _scope_filter(scopes)
+    target_column = "doc_id" if payload.target_type == "doc" else "chunk_id"
+    source_states = (
+        ["needs_review"]
+        if payload.decision == "reviewed"
+        else ["needs_review", "reviewed"]
+    )
     pg_dsn = _get_pg_dsn()
-    conn = psycopg.connect(pg_dsn)
 
+    connection: Any | None = None
     try:
-        with conn.cursor() as cur:
-            if payload.target_type == "doc":
-                cur.execute(
-                    "UPDATE rag_chunks SET review_status = %s "
-                    "WHERE doc_id = %s AND review_status = 'needs_review'",
-                    (payload.decision, payload.target_id),
-                )
-            else:
-                cur.execute(
-                    "UPDATE rag_chunks SET review_status = %s "
-                    "WHERE chunk_id = %s AND review_status = 'needs_review'",
-                    (payload.decision, payload.target_id),
-                )
-            affected = cur.rowcount
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
+        connection = psycopg.connect(pg_dsn)
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"""
+                UPDATE rag_chunks SET review_status = %s
+                WHERE {target_column} = %s
+                  AND review_status = ANY(%s::text[])
+                  AND {scope_sql}
+                """,
+                (
+                    payload.decision,
+                    payload.target_id,
+                    source_states,
+                    *scope_params,
+                ),
+            )
+            affected = int(cursor.rowcount)
+        connection.commit()
+    except Exception as exc:
+        if connection is not None:
+            connection.rollback()
+        logger.error("review decision unavailable")
+        raise HTTPException(status_code=503, detail="review unavailable") from exc
     finally:
-        conn.close()
+        if connection is not None:
+            connection.close()
 
     if affected == 0:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No needs_review chunks found for {payload.target_type}={payload.target_id}",
-        )
+        raise HTTPException(status_code=404, detail="review target unavailable")
 
-    # Invalidate retrieval cache (review_status changed)
-    # NOTE (P2 cubic): in multi-worker deployment, this only clears THIS worker's cache.
-    # Other workers expire stale entries via TTL (RERANK_CACHE_TTL, default 300s).
-    # For quarantine decisions, we also set TTL to 0 on this worker to force immediate
-    # expiration. Cross-worker broadcast requires shared cache (Redis) — deferred.
+    cache_invalidated = True
     try:
-        from .retrieval_v2_endpoint import CACHE_TTL_S, invalidate_cache
-    except (ImportError, ValueError):
-        from retrieval_v2_endpoint import CACHE_TTL_S, invalidate_cache  # type: ignore[no-redef]
-    cache_cleared = invalidate_cache()
-
-    # For quarantine: the retrieval SQL gate (review_status = 'reviewed')
-    # already prevents quarantined chunks from being returned on cache miss.
-    # Stale cache entries on other workers will expire within TTL and be replaced
-    # by fresh DB queries that exclude the quarantined chunks.
-    max_stale_s = CACHE_TTL_S if payload.decision == "quarantined" else 0
-
+        cache_cleared = invalidate_cache()
+    except Exception:
+        cache_cleared = 0
+        cache_invalidated = False
+        logger.error("local administrative cache invalidation failed")
     logger.info(
-        "Review decision: %s %s=%s → %s (%d chunks), reason=%s, "
-        "cache_cleared=%d, max_stale_other_workers=%ds",
-        payload.target_type, payload.target_type, payload.target_id,
-        payload.decision, affected, payload.reason or "(none)",
-        cache_cleared, max_stale_s,
+        "review decision=%s target_type=%s chunks=%d scope_digest=%s cache_cleared=%d",
+        payload.decision,
+        payload.target_type,
+        affected,
+        verified.scope_digest,
+        cache_cleared,
     )
-
     return {
         "target_type": payload.target_type,
         "target_id": payload.target_id,
         "decision": payload.decision,
         "chunks_affected": affected,
-        "cache_invalidated_this_worker": True,
-        "max_stale_other_workers_s": max_stale_s,
+        "cache_invalidated_this_worker": cache_invalidated,
+        "max_stale_other_workers_s": 0,
     }
+
+
+__all__ = [
+    "PendingQuery",
+    "ReviewDecision",
+    "list_queue",
+    "review_decide",
+    "router",
+]

@@ -5,7 +5,7 @@ import {
   clearVerifierStoresForTests,
   verifyNexusToken,
 } from '@/server/sso-verifier'
-import { revokeSession } from '@/server/revocation-store'
+import { resetSessionStoreForTests, revokeSession } from '@/server/revocation-store'
 
 const SHARED_SECRET = 'nexus-shared-secret-for-tests'
 
@@ -31,9 +31,16 @@ function withEnv() {
   process.env.NEXUS_SSO_SHARED_SECRET = SHARED_SECRET
   process.env.NEXUS_SSO_ISSUER = basePayload.iss
   process.env.NEXUS_SSO_AUDIENCE = basePayload.aud
+  process.env.NEXUS_RELEASE_SCHOOL_YEAR = '2026-2027'
+  process.env.NEXUS_SESSION_STORE_MODE = 'memory'
+  process.env.NEXUS_SESSION_MEMORY_STORE_FOR_TESTS = 'true'
 }
 
-async function mintToken(overrides: Partial<typeof basePayload> = {}, expiresInSeconds = 120): Promise<string> {
+async function mintToken(
+  overrides: Partial<typeof basePayload> = {},
+  expiresInSeconds = 120,
+  audience: string | string[] = basePayload.aud,
+): Promise<string> {
   const now = Math.floor(Date.now() / 1000)
   const duration = Math.max(expiresInSeconds, -3600)
   const payload = {
@@ -47,13 +54,16 @@ async function mintToken(overrides: Partial<typeof basePayload> = {}, expiresInS
     .setIssuedAt(now)
     .setExpirationTime(duration > 0 ? now + duration : now - 1)
     .setIssuer(basePayload.iss)
-    .setAudience(basePayload.aud)
+    .setAudience(audience)
     .sign(new TextEncoder().encode(SHARED_SECRET))
 }
 
 describe('vérification des identités SSO', () => {
   afterEach(async () => {
     await clearVerifierStoresForTests()
+    delete process.env.NEXUS_SESSION_STORE_MODE
+    delete process.env.NEXUS_SESSION_MEMORY_STORE_FOR_TESTS
+    resetSessionStoreForTests()
   })
 
   it('valide un jeton SSO complet et produit l\'identité interne', async () => {
@@ -66,6 +76,26 @@ describe('vérification des identités SSO', () => {
     expect(identity.tenant).toBe('default_tenant')
     expect(identity.pedagogical_profile.matieres).toEqual(basePayload.pedagogical_profile.matieres)
     expect(identity.role).toBe('student')
+    expect(identity.school_year).toBe('2026-2027')
+  })
+
+  it('ignore toute année scolaire fournie par le jeton externe', async () => {
+    withEnv()
+    const token = await mintToken({ school_year: '2030-2031' } as Partial<typeof basePayload>)
+
+    const identity = await verifyNexusToken(token)
+
+    expect(identity.school_year).toBe('2026-2027')
+  })
+
+  it('refuse une année de release absente ou non contiguë', async () => {
+    withEnv()
+    process.env.NEXUS_RELEASE_SCHOOL_YEAR = '2026-2028'
+    const token = await mintToken({ jti: 'invalid-year' })
+
+    await expect(verifyNexusToken(token)).rejects.toThrow(
+      'Configuration SSO invalide: NEXUS_RELEASE_SCHOOL_YEAR',
+    )
   })
 
   it('rejette un jeton expiré', async () => {
@@ -83,9 +113,32 @@ describe('vérification des identités SSO', () => {
     await expect(verifyNexusToken(token)).rejects.toThrow()
   })
 
+  it('refuse une configuration SSO multi-audience ambiguë', async () => {
+    withEnv()
+    process.env.NEXUS_SSO_AUDIENCE = 'nexus-cockpit,other-client'
+    const token = await mintToken({ jti: 'multi-config' })
+
+    await expect(verifyNexusToken(token)).rejects.toThrow(
+      'Configuration SSO invalide: NEXUS_SSO_AUDIENCE',
+    )
+  })
+
+  it('refuse un claim aud tableau au lieu d’en sélectionner arbitrairement un', async () => {
+    withEnv()
+    const token = await mintToken(
+      { jti: 'multi-claim' },
+      120,
+      ['other-client', 'nexus-cockpit'],
+    )
+
+    await expect(verifyNexusToken(token)).rejects.toThrow(
+      'claim Nexus invalide: aud doit être une chaîne unique',
+    )
+  })
+
   it('rejette un jeton revoké', async () => {
     withEnv()
-    await revokeSession(basePayload.sub, basePayload.tenant)
+    await revokeSession('revoked', basePayload.sub, basePayload.tenant)
     const token = await mintToken({ jti: 'revoked' })
 
     await expect(verifyNexusToken(token)).rejects.toThrow()

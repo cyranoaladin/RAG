@@ -30,9 +30,9 @@ PGVECTOR_USER="${PGVECTOR_USER:-raguser}"
 source "$SCRIPT_DIR/lib/pgvector_migration_state.sh"
 discover_manifest "$MIGRATIONS_DIR" "$MIGRATION_HEAD_FILE"
 
-if [[ "$MIGRATION_DECLARED_HEAD" != "002_hybrid_retrieval" \
-   || ${#MIGRATION_VERSIONS[@]} -lt 2 ]]; then
-    echo "ROLLBACK_HEAD_INVALID: declared head is not 002_hybrid_retrieval" >&2
+if [[ ${#MIGRATION_VERSIONS[@]} -lt 2 \
+   || "${MIGRATION_NAMES[1]}" != "002_hybrid_retrieval.sql" ]]; then
+    echo "ROLLBACK_HEAD_INVALID: migration 002_hybrid_retrieval is unavailable" >&2
     exit 1
 fi
 if [[ ! -f "$ROLLBACK_FILE" || -L "$ROLLBACK_FILE" ]]; then

@@ -44,20 +44,27 @@ function nowSeconds(): number {
   return Math.floor(Date.now() / 1000)
 }
 
+function releaseSchoolYear(): string {
+  const value = requireEnv('NEXUS_RELEASE_SCHOOL_YEAR')
+  const match = /^(\d{4})-(\d{4})$/.exec(value)
+  if (match === null || Number(match[2]) !== Number(match[1]) + 1) {
+    throw new Error('Configuration SSO invalide: NEXUS_RELEASE_SCHOOL_YEAR')
+  }
+  return value
+}
+
 function asString(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value : null
 }
 
-function normalizeAudience(payload: JWTPayload): string {
-  if (typeof payload.aud === 'string') {
-    return payload.aud
+function normalizeAudience(payload: JWTPayload, expected: string): string {
+  if (typeof payload.aud !== 'string') {
+    throw new Error('claim Nexus invalide: aud doit être une chaîne unique')
   }
-
-  if (Array.isArray(payload.aud) && payload.aud.every((entry) => typeof entry === 'string')) {
-    return payload.aud[0] ?? ''
+  if (payload.aud !== expected) {
+    throw new Error('claim Nexus invalide: aud inattendue')
   }
-
-  return ''
+  return payload.aud
 }
 
 function asPedagogicalProfile(payload: JWTPayload): SsoProfile {
@@ -105,13 +112,13 @@ function asPedagogicalProfile(payload: JWTPayload): SsoProfile {
   }
 }
 
-function toInternalIdentity(payload: JWTPayload): InternalIdentity {
+function toInternalIdentity(payload: JWTPayload, expectedAudience: string): InternalIdentity {
   const sub = asString(payload.sub)
   if (!sub) {
     throw new Error('claim Nexus invalide: sub manquant')
   }
 
-  const aud = normalizeAudience(payload)
+  const aud = normalizeAudience(payload, expectedAudience)
   const iss = asString(payload.iss)
   const jti = asString((payload as { jti?: unknown }).jti)
   const tenant = asString((payload as { tenant?: unknown }).tenant) || asString((payload as { tenant_id?: unknown }).tenant_id)
@@ -154,6 +161,7 @@ function toInternalIdentity(payload: JWTPayload): InternalIdentity {
     tenant,
     niveau: niveau as InternalIdentity['niveau'],
     role,
+    school_year: releaseSchoolYear(),
     sub,
     pedagogical_profile,
   }
@@ -179,12 +187,12 @@ function resolveKey(): ReturnType<typeof createRemoteJWKSet> | Uint8Array {
   return createRemoteJWKSet(new URL(jwksUrl))
 }
 
-function resolveAudiences(): string[] {
+function resolveAudience(): string {
   const configured = requireEnv('NEXUS_SSO_AUDIENCE')
+  if (configured.includes(',')) {
+    throw new Error('Configuration SSO invalide: NEXUS_SSO_AUDIENCE')
+  }
   return configured
-    .split(',')
-    .map((value) => value.trim())
-    .filter(Boolean)
 }
 
 export async function verifyNexusToken(rawToken: string): Promise<InternalIdentity> {
@@ -194,7 +202,7 @@ export async function verifyNexusToken(rawToken: string): Promise<InternalIdenti
 
   const key = resolveKey()
   const issuer = requireEnv('NEXUS_SSO_ISSUER')
-  const audiences = resolveAudiences()
+  const audience = resolveAudience()
 
   let payload: JWTPayload
   try {
@@ -202,14 +210,14 @@ export async function verifyNexusToken(rawToken: string): Promise<InternalIdenti
       if (key instanceof Uint8Array) {
         return jwtVerify(rawToken, key, {
           issuer,
-          audience: audiences,
+          audience,
           clockTolerance: '5s',
         })
       }
 
       return jwtVerify(rawToken, key, {
         issuer,
-        audience: audiences,
+        audience,
         clockTolerance: '5s',
       })
     })()
@@ -218,9 +226,9 @@ export async function verifyNexusToken(rawToken: string): Promise<InternalIdenti
     throw new Error('Token SSO invalide ou expiré', { cause: error })
   }
 
-  const identity = toInternalIdentity(payload)
+  const identity = toInternalIdentity(payload, audience)
 
-  if (await isRevoked(identity.sub, identity.tenant)) {
+  if (await isRevoked(identity.jti, identity.sub, identity.tenant)) {
     throw new Error('session révoquée')
   }
 

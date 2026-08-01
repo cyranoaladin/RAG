@@ -73,11 +73,12 @@ def test_from_env_prefers_nonblank_pg_rag_dsn(monkeypatch: pytest.MonkeyPatch) -
     )
 
 
-def test_from_env_falls_back_to_nonblank_database_url(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_from_env_refuses_owner_dsn_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PG_RAG_DSN", " \t")
     monkeypatch.setenv("DATABASE_URL_SYNC", "  postgresql://fallback.example/rag ")
 
-    assert PoolSettings.from_env().dsn == "postgresql://fallback.example/rag"
+    with pytest.raises(PoolConfigurationError, match="DSN PostgreSQL requis"):
+        PoolSettings.from_env()
 
 
 @pytest.mark.parametrize(
