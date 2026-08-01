@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, replace
 from fractions import Fraction
 from numbers import Real
@@ -151,12 +151,12 @@ class CandidateStore(Protocol):
 
 
 class Embedder(Protocol):
-    def encode(self, text: str, *, normalize_embeddings: bool) -> Sequence[float]:
+    def encode(self, text: str, *, normalize_embeddings: bool) -> Iterable[float]:
         raise NotImplementedError
 
 
 class Reranker(Protocol):
-    def predict(self, pairs: Sequence[tuple[str, str]]) -> Sequence[float]:
+    def predict(self, pairs: Sequence[tuple[str, str]]) -> Iterable[float]:
         raise NotImplementedError
 
 
@@ -184,6 +184,11 @@ def _channel_ranks(
     for rank, item in enumerate(candidates, start=1):
         if not isinstance(item, RetrievalCandidate):
             raise RetrievalPipelineError(f"invalid channel candidate ({channel_name})")
+        local_score = getattr(item, f"{channel_name}_score")
+        try:
+            _require_finite(local_score, f"{channel_name} channel score")
+        except RetrievalPipelineError as exc:
+            raise RetrievalPipelineError(f"invalid {channel_name} channel score") from exc
         if item.chunk_id in ranks:
             raise RetrievalPipelineError(f"duplicate channel candidate ({channel_name})")
         ranks[item.chunk_id] = rank
@@ -281,16 +286,19 @@ def _stable_sigmoid(value: float) -> float:
     return exponential / (1.0 + exponential)
 
 
-def _cosine(left: tuple[float, ...], right: tuple[float, ...]) -> float:
-    left_norm = math.hypot(*left)
-    right_norm = math.hypot(*right)
-    if (
-        left_norm == 0.0
-        or right_norm == 0.0
-        or not math.isfinite(left_norm)
-        or not math.isfinite(right_norm)
-    ):
+def _vector_norm(vector: tuple[float, ...]) -> float:
+    norm = math.hypot(*vector)
+    if norm == 0.0 or not math.isfinite(norm):
         raise RetrievalPipelineError("invalid MMR vector")
+    return norm
+
+
+def _cosine(
+    left: tuple[float, ...],
+    right: tuple[float, ...],
+    left_norm: float,
+    right_norm: float,
+) -> float:
     try:
         similarity = math.fsum(
             (left_value / left_norm) * (right_value / right_norm)
@@ -314,7 +322,10 @@ def select_mmr(candidates: Sequence[RankedCandidate], top_k: int) -> list[Hybrid
         if item.rerank_score is None or item.rerank_score < RERANK_THRESHOLD:
             raise RetrievalPipelineError("invalid MMR candidate")
 
-    selected_ranked: list[RankedCandidate] = []
+    norms = {
+        item.candidate.chunk_id: _vector_norm(item.candidate.vector) for item in remaining
+    }
+    max_cosines: dict[str, float] = {}
     hits: list[HybridHit] = []
     while remaining and len(hits) < top_k:
         scored: list[
@@ -325,14 +336,7 @@ def select_mmr(candidates: Sequence[RankedCandidate], top_k: int) -> list[Hybrid
             if logit is None:  # pragma: no cover - guarded above
                 raise RetrievalPipelineError("invalid MMR candidate")
             relevance = _stable_sigmoid(logit)
-            max_cosine = (
-                0.0
-                if not selected_ranked
-                else max(
-                    _cosine(item.candidate.vector, selected.candidate.vector)
-                    for selected in selected_ranked
-                )
-            )
+            max_cosine = max_cosines.get(item.candidate.chunk_id, 0.0)
             raw_score = MMR_LAMBDA * relevance - 0.3 * max_cosine
             score_final = (raw_score + 0.3) / 1.3
             if not math.isfinite(raw_score) or not math.isfinite(score_final):
@@ -355,10 +359,24 @@ def select_mmr(candidates: Sequence[RankedCandidate], top_k: int) -> list[Hybrid
                 score_final=score_final,
             )
         )
-        selected_ranked.append(winner)
         remaining = [
             item for item in remaining if item.candidate.doc_id != winner.candidate.doc_id
         ]
+        if len(hits) >= top_k or not remaining:
+            break
+        winner_norm = norms[winner.candidate.chunk_id]
+        for item in remaining:
+            chunk_id = item.candidate.chunk_id
+            similarity = _cosine(
+                item.candidate.vector,
+                winner.candidate.vector,
+                norms[chunk_id],
+                winner_norm,
+            )
+            if chunk_id in max_cosines:
+                max_cosines[chunk_id] = max(max_cosines[chunk_id], similarity)
+            else:
+                max_cosines[chunk_id] = similarity
 
     return hits
 
@@ -405,7 +423,7 @@ def retrieve_hybrid(
             return []
 
         pairs = [(query, item.candidate.text) for item in fused]
-        logits = list(reranker.predict(pairs))
+        logits = [float(score) for score in reranker.predict(pairs)]
         reranked = rerank_candidates(fused, logits)
         return select_mmr(reranked, top_k)
     except Exception as exc:
