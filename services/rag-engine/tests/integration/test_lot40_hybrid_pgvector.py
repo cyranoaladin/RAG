@@ -23,13 +23,17 @@ from ingestor.retrieval_hybrid_v2 import (
     RetrievalPipelineError,
     retrieve_hybrid,
 )
-from ingestor.retrieval_pg_v2 import _DENSE_SQL, PgCandidateStore
+from ingestor.retrieval_pg_v2 import _DENSE_SQL, _LEXICAL_SQL, PgCandidateStore
 
 pytestmark = pytest.mark.integration
 
-DSN = os.environ.get("LOT40_PG_DSN", "").strip()
-if not DSN:
-    pytest.skip("LOT40_PG_DSN requis par le runner ephemere LOT40", allow_module_level=True)
+APP_DSN = os.environ.get("LOT40_PG_DSN", "").strip()
+ADMIN_DSN = os.environ.get("LOT40_PG_ADMIN_DSN", "").strip()
+if not APP_DSN or not ADMIN_DSN:
+    pytest.skip(
+        "LOT40_PG_DSN et LOT40_PG_ADMIN_DSN requis par le runner ephemere LOT40",
+        allow_module_level=True,
+    )
 
 SERVICE_ROOT = Path(__file__).resolve().parents[2]
 TARGET_COLLECTION = "lot40_target"
@@ -50,23 +54,6 @@ _DENSE_ORACLE_SQL = """
     ORDER BY vector <=> %s::vector ASC, chunk_id ASC
     LIMIT 50
 """
-
-_LEXICAL_PLAN_SQL = """
-    WITH lexical_query AS MATERIALIZED (
-        SELECT plainto_tsquery('french', %s) AS value
-    )
-    SELECT chunk_id
-    FROM rag_chunks
-    CROSS JOIN lexical_query
-    WHERE collection = %s AND review_status = 'reviewed'
-      AND text IS NOT NULL AND btrim(text) <> '' AND vector IS NOT NULL
-      AND btrim(source_label) <> '' AND btrim(source_uri) <> ''
-      AND btrim(rights) <> ''
-      AND text_tsv @@ lexical_query.value
-    ORDER BY ts_rank_cd(text_tsv, lexical_query.value, 32) DESC, chunk_id ASC
-    LIMIT 50
-"""
-
 
 def _vector(first: float, second: float = 0.0) -> str:
     values = (first, second) + (0.0,) * (EMBED_DIMENSION - 2)
@@ -210,7 +197,7 @@ def _seed_rows() -> list[tuple[object, ...]]:
 @pytest.fixture(scope="module", autouse=True)
 def seeded_database() -> Iterator[None]:
     rows = _seed_rows()
-    with psycopg.connect(DSN) as connection:
+    with psycopg.connect(ADMIN_DSN) as connection:
         with connection.cursor() as cursor:
             cursor.execute("TRUNCATE TABLE rag_chunks")
             cursor.executemany(
@@ -262,7 +249,7 @@ def seeded_database() -> Iterator[None]:
             )
             cursor.execute("ANALYZE rag_chunks")
     yield
-    with psycopg.connect(DSN) as connection:
+    with psycopg.connect(ADMIN_DSN) as connection:
         connection.execute("TRUNCATE TABLE rag_chunks")
 
 
@@ -273,7 +260,7 @@ def _store_connection(
     ef_search: int = 40,
     max_scan_tuples: int = 100000,
 ) -> Iterator[psycopg.Connection[Any]]:
-    with psycopg.connect(DSN) as connection:
+    with psycopg.connect(APP_DSN) as connection:
         with connection.cursor() as cursor:
             cursor.execute("SELECT %s::vector IS NOT NULL", (QUERY_VECTOR_TEXT,))
             cursor.execute("SELECT set_config('hnsw.ef_search', %s, true)", (str(ef_search),))
@@ -300,7 +287,11 @@ def _plan_lines(
 def _assert_gin_plan(connection: psycopg.Connection[Any]) -> None:
     with connection.cursor() as cursor:
         cursor.execute("SET LOCAL enable_seqscan = off")
-    plan = _plan_lines(connection, _LEXICAL_PLAN_SQL, (QUERY, TARGET_COLLECTION))
+    plan = _plan_lines(
+        connection,
+        _LEXICAL_SQL,
+        (QUERY, TARGET_COLLECTION, 50),
+    )
     if "idx_rag_chunks_text_tsv" not in plan:
         raise AssertionError(plan)
 
@@ -325,6 +316,55 @@ def _dense_params(collection: str) -> tuple[object, ...]:
     )
 
 
+def test_application_role_is_non_superuser_and_select_only() -> None:
+    with psycopg.connect(APP_DSN, autocommit=True) as connection:
+        role = connection.execute(
+            """
+            SELECT current_user, rolsuper, rolcreatedb, rolcreaterole,
+                   rolreplication, rolbypassrls
+            FROM pg_roles
+            WHERE rolname = current_user
+            """
+        ).fetchone()
+        assert role == ("lot40_app", False, False, False, False, False)
+        privileges = connection.execute(
+            """
+            SELECT
+              has_database_privilege(current_user, current_database(), 'CONNECT'),
+              has_database_privilege(current_user, current_database(), 'CREATE'),
+              has_database_privilege(current_user, current_database(), 'TEMP'),
+              has_schema_privilege(current_user, 'public', 'USAGE'),
+              has_schema_privilege(current_user, 'public', 'CREATE'),
+              has_table_privilege(current_user, 'public.rag_chunks', 'SELECT'),
+              has_table_privilege(current_user, 'public.rag_chunks', 'INSERT'),
+              has_table_privilege(current_user, 'public.rag_chunks', 'UPDATE'),
+              has_table_privilege(current_user, 'public.rag_chunks', 'DELETE'),
+              has_table_privilege(current_user, 'public.rag_chunks', 'TRUNCATE'),
+              has_table_privilege(current_user, 'public.rag_chunks', 'REFERENCES'),
+              has_table_privilege(current_user, 'public.rag_chunks', 'TRIGGER'),
+              pg_has_role(current_user, tableowner, 'USAGE')
+            FROM pg_tables
+            WHERE schemaname = 'public' AND tablename = 'rag_chunks'
+            """
+        ).fetchone()
+        assert privileges == (
+            True,
+            False,
+            False,
+            True,
+            False,
+            True,
+            False,
+            False,
+            False,
+            False,
+            False,
+            False,
+            False,
+        )
+    print("APP_ROLE_NON_SUPERUSER_SELECT_ONLY=PASS")
+
+
 def test_schema_registry_and_real_migration_objects_are_exact() -> None:
     expected = {
         1: (
@@ -342,7 +382,7 @@ def test_schema_registry_and_real_migration_objects_are_exact() -> None:
             ).hexdigest(),
         ),
     }
-    with psycopg.connect(DSN) as connection:
+    with psycopg.connect(ADMIN_DSN) as connection:
         rows = connection.execute(
             "SELECT version, file_name, sha256 FROM rag_schema_migrations ORDER BY version"
         ).fetchall()
@@ -384,10 +424,10 @@ def test_equal_score_rank_50_is_deterministic_in_both_channels() -> None:
 
 
 def test_real_gin_and_hnsw_plans_filters_top_50_and_local_scope() -> None:
-    class RollbackGinProof(Exception):
-        pass
-
-    with psycopg.connect(DSN, autocommit=True) as connection:
+    with psycopg.connect(APP_DSN, autocommit=True) as connection:
+        assert connection.execute(
+            "SELECT current_setting('hnsw.iterative_scan', true)"
+        ).fetchone()[0] is None
         assert connection.execute(
             "SELECT %s::vector IS NOT NULL", (QUERY_VECTOR_TEXT,)
         ).fetchone()[0]
@@ -429,15 +469,22 @@ def test_real_gin_and_hnsw_plans_filters_top_50_and_local_scope() -> None:
         with connection.transaction():
             _assert_gin_plan(connection)
 
-        with pytest.raises(RollbackGinProof):
-            with connection.transaction():
-                connection.execute("DROP INDEX idx_rag_chunks_text_tsv")
-                with pytest.raises(AssertionError):
-                    _assert_gin_plan(connection)
-                raise RollbackGinProof
-        assert connection.execute(
-            "SELECT to_regclass('public.idx_rag_chunks_text_tsv') IS NOT NULL"
-        ).fetchone()[0]
+    with psycopg.connect(ADMIN_DSN, autocommit=True) as admin_connection:
+        admin_connection.execute("DROP INDEX idx_rag_chunks_text_tsv")
+    try:
+        with psycopg.connect(APP_DSN) as app_connection:
+            with pytest.raises(AssertionError):
+                _assert_gin_plan(app_connection)
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as admin_connection:
+            admin_connection.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_rag_chunks_text_tsv
+                    ON rag_chunks USING gin (text_tsv)
+                """
+            )
+    with psycopg.connect(APP_DSN) as app_connection:
+        _assert_gin_plan(app_connection)
 
     store = PgCandidateStore(_store_connection)
     actual = store.dense(
@@ -445,7 +492,7 @@ def test_real_gin_and_hnsw_plans_filters_top_50_and_local_scope() -> None:
         collection=TARGET_COLLECTION,
         limit=50,
     )
-    with psycopg.connect(DSN) as connection:
+    with psycopg.connect(APP_DSN) as connection:
         connection.execute("SET LOCAL enable_indexscan = off")
         connection.execute("SET LOCAL enable_bitmapscan = off")
         expected_rows = connection.execute(
@@ -474,7 +521,7 @@ def test_real_gin_and_hnsw_plans_filters_top_50_and_local_scope() -> None:
     )
     _assert_ids([item.chunk_id for item in small], [f"small-{index:03d}" for index in range(3)])
 
-    with psycopg.connect(DSN, autocommit=True) as connection:
+    with psycopg.connect(APP_DSN, autocommit=True) as connection:
         assert connection.execute(
             "SELECT %s::vector IS NOT NULL", (QUERY_VECTOR_TEXT,)
         ).fetchone()[0]
@@ -573,7 +620,7 @@ def test_real_store_and_core_prove_union_scores_page_dedup_and_dimension_failure
     def counted_connection() -> Iterator[psycopg.Connection[Any]]:
         nonlocal sql_calls
         sql_calls += 1
-        with psycopg.connect(DSN) as connection:
+        with psycopg.connect(APP_DSN) as connection:
             yield connection
 
     class WrongDimensionEmbedder:
@@ -605,7 +652,7 @@ def _test_app(monkeypatch: pytest.MonkeyPatch) -> TestClient:
 def test_http_search_fails_closed_then_uses_real_hybrid_store(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("PG_RAG_DSN", DSN)
+    monkeypatch.setenv("PG_RAG_DSN", APP_DSN)
     monkeypatch.setenv("PG_POOL_MIN_SIZE", "1")
     monkeypatch.setenv("PG_POOL_MAX_SIZE", "2")
     monkeypatch.setenv("PG_POOL_TIMEOUT_S", "5")
@@ -616,7 +663,7 @@ def test_http_search_fails_closed_then_uses_real_hybrid_store(
     real_retrieve = endpoint._retrieve_hybrid_hits
 
     def fail_with_private_context(*args: object, **kwargs: object) -> list[object]:
-        raise RetrievalPipelineError(f"private database context: {DSN}")
+        raise RetrievalPipelineError(f"private database context: {APP_DSN}")
 
     monkeypatch.setattr(endpoint, "_retrieve_hybrid_hits", fail_with_private_context)
     failed = client.post(
@@ -625,7 +672,7 @@ def test_http_search_fails_closed_then_uses_real_hybrid_store(
     )
     assert failed.status_code == 503
     assert failed.json() == {"detail": "retrieval unavailable"}
-    assert DSN not in failed.text
+    assert APP_DSN not in failed.text
 
     monkeypatch.setattr(endpoint, "_retrieve_hybrid_hits", real_retrieve)
     response = client.post(
@@ -662,7 +709,7 @@ def test_http_search_fails_closed_then_uses_real_hybrid_store(
 def test_http_chat_is_locked_with_zero_or_real_hits_and_never_calls_network(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("PG_RAG_DSN", DSN)
+    monkeypatch.setenv("PG_RAG_DSN", APP_DSN)
     monkeypatch.setenv("OPENROUTER_API_KEY", "lot40-fake-key-never-used")
     active_reranker: dict[str, object] = {"value": EmptyReranker()}
     monkeypatch.setattr(endpoint, "_get_embed_model", lambda: DeterministicEmbedder())

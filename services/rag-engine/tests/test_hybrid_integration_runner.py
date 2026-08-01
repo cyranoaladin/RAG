@@ -12,6 +12,7 @@ import pytest
 SERVICE_ROOT = Path(__file__).resolve().parents[1]
 RUNNER = SERVICE_ROOT / "infra" / "scripts" / "test_hybrid_integration.sh"
 MAKEFILE = SERVICE_ROOT / "Makefile"
+INTEGRATION_TEST = SERVICE_ROOT / "tests" / "integration" / "test_lot40_hybrid_pgvector.py"
 IMAGE = (
     "pgvector/pgvector:pg16@sha256:"
     "00ba258a66dac104fd5171074a0084462a64a1369d8513f3d0a634e2f24d15bc"
@@ -20,20 +21,37 @@ IMAGE = (
 
 def _write_fake_docker(bin_dir: Path) -> Path:
     log = bin_dir.parent / "docker.log"
+    state_dir = bin_dir.parent / "docker-state"
+    state_dir.mkdir()
     docker = bin_dir / "docker"
     docker.write_text(
         """#!/usr/bin/env bash
 set -euo pipefail
 printf '%s\\n' "$*" >> "$LOT40_FAKE_DOCKER_LOG"
+volume_state="$LOT40_FAKE_DOCKER_STATE/volume"
+container_state="$LOT40_FAKE_DOCKER_STATE/container"
 case "${1:-}" in
   volume)
     case "${2:-}" in
       create)
         [[ "${3:-}" =~ ^lot40-pg-volume-[A-Za-z0-9_.-]+$ ]] || exit 91
+        touch "$volume_state"
+        if [[ "${LOT40_FAIL_VOLUME_CREATE:-0}" == 1 ]]; then exit 77; fi
         printf '%s\\n' "${3:-}"
         ;;
       rm)
         [[ "${3:-}" =~ ^lot40-pg-volume-[A-Za-z0-9_.-]+$ ]] || exit 92
+        if [[ ! -e "$volume_state" ]]; then
+          printf '%s\\n' "Error: no such volume: ${3:-}" >&2
+          exit 1
+        fi
+        if [[ "${LOT40_FAKE_LEAK_VOLUME:-0}" != 1 ]]; then rm -f "$volume_state"; fi
+        ;;
+      inspect)
+        [[ "${3:-}" =~ ^lot40-pg-volume-[A-Za-z0-9_.-]+$ ]] || exit 103
+        if [[ -e "$volume_state" ]]; then printf '%s\\n' '{}'; exit 0; fi
+        printf '%s\\n' "Error: no such volume: ${3:-}" >&2
+        exit 1
         ;;
       *) exit 93 ;;
     esac
@@ -44,6 +62,9 @@ case "${1:-}" in
     [[ "$args" == *" -p 127.0.0.1::5432 "* ]] || exit 95
     [[ "$args" == *" -e POSTGRES_HOST_AUTH_METHOD=trust "* ]] || exit 96
     [[ "$args" == *" ${LOT40_EXPECTED_IMAGE} "* ]] || exit 97
+    if [[ "${LOT40_FAIL_RUN_BEFORE_CREATE:-0}" == 1 ]]; then exit 78; fi
+    touch "$container_state"
+    if [[ "${LOT40_FAIL_RUN:-0}" == 1 ]]; then exit 78; fi
     printf '%s\\n' fake-container-id
     ;;
   exec)
@@ -57,6 +78,18 @@ case "${1:-}" in
   rm)
     [[ "${2:-}" == "-f" ]] || exit 100
     [[ "${3:-}" =~ ^lot40-pg-[A-Za-z0-9_.-]+$ ]] || exit 101
+    if [[ ! -e "$container_state" ]]; then
+      printf '%s\\n' "Error: No such container: ${3:-}" >&2
+      exit 1
+    fi
+    if [[ "${LOT40_FAKE_LEAK_CONTAINER:-0}" != 1 ]]; then rm -f "$container_state"; fi
+    ;;
+  container)
+    [[ "${2:-}" == "inspect" ]] || exit 104
+    [[ "${3:-}" =~ ^lot40-pg-[A-Za-z0-9_.-]+$ ]] || exit 105
+    if [[ -e "$container_state" ]]; then printf '%s\\n' '{}'; exit 0; fi
+    printf '%s\\n' "Error: No such container: ${3:-}" >&2
+    exit 1
     ;;
   *) exit 102 ;;
 esac
@@ -67,21 +100,31 @@ esac
     return log
 
 
+def _fake_env(bin_dir: Path, log: Path, **overrides: str) -> dict[str, str]:
+    env = os.environ.copy()
+    env.update(
+        {
+            "PATH": f"{bin_dir}:{env['PATH']}",
+            "LOT40_FAKE_DOCKER_LOG": str(log),
+            "LOT40_FAKE_DOCKER_STATE": str(bin_dir.parent / "docker-state"),
+            "LOT40_EXPECTED_IMAGE": IMAGE,
+            **overrides,
+        }
+    )
+    return env
+
+
 def test_runner_timeout_is_bounded_sanitized_and_cleans_exact_resources(
     tmp_path: Path,
 ) -> None:
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     log = _write_fake_docker(bin_dir)
-    env = os.environ.copy()
-    env.update(
-        {
-            "PATH": f"{bin_dir}:{env['PATH']}",
-            "LOT40_FAKE_DOCKER_LOG": str(log),
-            "LOT40_EXPECTED_IMAGE": IMAGE,
-            "LOT40_PG_READY_ATTEMPTS": "2",
-            "LOT40_PG_READY_DELAY_S": "0",
-        }
+    env = _fake_env(
+        bin_dir,
+        log,
+        LOT40_PG_READY_ATTEMPTS="2",
+        LOT40_PG_READY_DELAY_S="0",
     )
 
     result = subprocess.run(
@@ -107,6 +150,78 @@ def test_runner_timeout_is_bounded_sanitized_and_cleans_exact_resources(
     assert re.fullmatch(
         r"volume rm lot40-pg-volume-[A-Za-z0-9_.-]+", volume_rm_calls[0]
     )
+    assert len([line for line in calls if line.startswith("container inspect ")]) == 1
+    assert len([line for line in calls if line.startswith("volume inspect ")]) == 1
+
+
+@pytest.mark.parametrize(
+    ("failure", "expected_removals"),
+    [
+        ("LOT40_FAIL_VOLUME_CREATE", (False, True)),
+        ("LOT40_FAIL_RUN", (True, True)),
+    ],
+)
+def test_cleanup_is_armed_before_partial_docker_creation(
+    tmp_path: Path,
+    failure: str,
+    expected_removals: tuple[bool, bool],
+) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    log = _write_fake_docker(bin_dir)
+    result = subprocess.run(
+        ["bash", str(RUNNER)],
+        cwd=SERVICE_ROOT,
+        env=_fake_env(bin_dir, log, **{failure: "1"}),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    calls = log.read_text(encoding="utf-8").splitlines()
+    has_container_rm = any(line.startswith("rm -f ") for line in calls)
+    has_volume_rm = any(line.startswith("volume rm ") for line in calls)
+    assert (has_container_rm, has_volume_rm) == expected_removals
+    if has_container_rm:
+        assert any(line.startswith("container inspect ") for line in calls)
+    assert any(line.startswith("volume inspect ") for line in calls)
+    assert not any((tmp_path / "docker-state").iterdir())
+
+
+def test_cleanup_confirms_not_found_and_fails_hard_on_a_real_leak(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    log = _write_fake_docker(bin_dir)
+    absent = subprocess.run(
+        ["bash", str(RUNNER)],
+        cwd=SERVICE_ROOT,
+        env=_fake_env(bin_dir, log, LOT40_FAIL_RUN_BEFORE_CREATE="1"),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    absent_calls = log.read_text(encoding="utf-8").splitlines()
+    assert absent.returncode != 0
+    assert any(line.startswith("rm -f ") for line in absent_calls)
+    assert any(line.startswith("container inspect ") for line in absent_calls)
+
+    log.unlink()
+    leaked = subprocess.run(
+        ["bash", str(RUNNER)],
+        cwd=SERVICE_ROOT,
+        env=_fake_env(
+            bin_dir,
+            log,
+            LOT40_FAIL_RUN="1",
+            LOT40_FAKE_LEAK_CONTAINER="1",
+        ),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert leaked.returncode != 0
+    assert "LOT40_CLEANUP_CONTAINER_LEAK" in leaked.stderr
 
 
 @pytest.mark.parametrize(
@@ -129,15 +244,7 @@ def test_runner_rejects_readiness_values_before_creating_docker_resources(
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     log = _write_fake_docker(bin_dir)
-    env = os.environ.copy()
-    env.update(
-        {
-            "PATH": f"{bin_dir}:{env['PATH']}",
-            "LOT40_FAKE_DOCKER_LOG": str(log),
-            "LOT40_EXPECTED_IMAGE": IMAGE,
-            variable: value,
-        }
-    )
+    env = _fake_env(bin_dir, log, **{variable: value})
 
     result = subprocess.run(
         ["bash", str(RUNNER)],
@@ -163,9 +270,19 @@ def test_runner_pins_security_bounds_and_cleanup_contract() -> None:
     assert content.index("trap cleanup EXIT INT TERM") < content.index(
         "docker volume create"
     )
+    assert content.index("volume_cleanup_armed=1") < content.index(
+        "docker volume create"
+    )
+    assert content.index("container_cleanup_armed=1") < content.index("docker run -d")
     assert "LOT40_PG_READY_ATTEMPTS:-30" in content
     assert "LOT40_PG_READY_DELAY_S:-1" in content
     assert "postgresql://$PGVECTOR_USER@127.0.0.1:" in content
+    assert "postgresql://$PGVECTOR_APP_USER@127.0.0.1:" in content
+    assert "LOT40_PG_ADMIN_DSN" in content
+    assert "LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE" in content
+    assert "GRANT SELECT ON TABLE rag_chunks" in content
+    assert "GRANT INSERT" not in content
+    assert "GRANT TRUNCATE" not in content
     assert "rag_pgvector" not in content
 
 
@@ -199,3 +316,12 @@ def test_runner_invokes_only_the_lot40_real_pgvector_module() -> None:
         in content
     )
     assert 'LOT40_PG_DSN="$LOT40_PG_DSN"' in content
+    assert 'LOT40_PG_ADMIN_DSN="$LOT40_PG_ADMIN_DSN"' in content
+
+
+def test_real_module_explains_the_exact_production_lexical_sql() -> None:
+    content = INTEGRATION_TEST.read_text(encoding="utf-8")
+    assert "_LEXICAL_PLAN_SQL" not in content
+    assert "_DENSE_SQL, _LEXICAL_SQL, PgCandidateStore" in content
+    assert "_LEXICAL_SQL," in content
+    assert "(QUERY, TARGET_COLLECTION, 50)," in content

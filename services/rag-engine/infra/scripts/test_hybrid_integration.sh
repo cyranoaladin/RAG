@@ -11,10 +11,57 @@ PGVECTOR_CONTAINER="lot40-pg-${suffix}"
 PGVECTOR_VOLUME="lot40-pg-volume-${suffix}"
 PGVECTOR_DB="lot40db"
 PGVECTOR_USER="lot40user"
+PGVECTOR_APP_USER="lot40_app"
 RUN_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/lot40-hybrid.XXXXXX")"
 BACKUP_ROOT="$RUN_ROOT/backups"
-container_created=0
-volume_created=0
+container_cleanup_armed=0
+volume_cleanup_armed=0
+
+is_not_found() {
+    [[ "$1" =~ [Nn]o[[:space:]]such || "$1" =~ [Nn]ot[[:space:]]found ]]
+}
+
+remove_container_exact() {
+    local remove_output remove_status inspect_output inspect_status
+    remove_output="$(docker rm -f "$PGVECTOR_CONTAINER" 2>&1)"
+    remove_status=$?
+    inspect_output="$(docker container inspect "$PGVECTOR_CONTAINER" 2>&1)"
+    inspect_status=$?
+    if (( inspect_status == 0 )); then
+        echo "LOT40_CLEANUP_CONTAINER_LEAK" >&2
+        return 1
+    fi
+    if ! is_not_found "$inspect_output"; then
+        echo "LOT40_CLEANUP_CONTAINER_INSPECT_FAILED" >&2
+        return 1
+    fi
+    if (( remove_status != 0 )) && ! is_not_found "$remove_output"; then
+        echo "LOT40_CLEANUP_CONTAINER_REMOVE_FAILED" >&2
+        return 1
+    fi
+    return 0
+}
+
+remove_volume_exact() {
+    local remove_output remove_status inspect_output inspect_status
+    remove_output="$(docker volume rm "$PGVECTOR_VOLUME" 2>&1)"
+    remove_status=$?
+    inspect_output="$(docker volume inspect "$PGVECTOR_VOLUME" 2>&1)"
+    inspect_status=$?
+    if (( inspect_status == 0 )); then
+        echo "LOT40_CLEANUP_VOLUME_LEAK" >&2
+        return 1
+    fi
+    if ! is_not_found "$inspect_output"; then
+        echo "LOT40_CLEANUP_VOLUME_INSPECT_FAILED" >&2
+        return 1
+    fi
+    if (( remove_status != 0 )) && ! is_not_found "$remove_output"; then
+        echo "LOT40_CLEANUP_VOLUME_REMOVE_FAILED" >&2
+        return 1
+    fi
+    return 0
+}
 
 cleanup() {
     local original_status=$?
@@ -22,18 +69,18 @@ cleanup() {
     trap - EXIT INT TERM
     set +e
 
-    if [[ ! "$PGVECTOR_CONTAINER" =~ ^lot40-pg-[A-Za-z0-9_.-]+$ ]]; then
+    if [[ ! "$PGVECTOR_CONTAINER" =~ ^lot40-pg-[0-9]+-[0-9]+-[0-9]+$ ]]; then
         echo "LOT40_CLEANUP_CONTAINER_NAME_INVALID" >&2
         cleanup_status=1
-    elif (( container_created == 1 )); then
-        docker rm -f "$PGVECTOR_CONTAINER" >/dev/null 2>&1 || cleanup_status=1
+    elif (( container_cleanup_armed == 1 )); then
+        remove_container_exact || cleanup_status=1
     fi
 
-    if [[ ! "$PGVECTOR_VOLUME" =~ ^lot40-pg-volume-[A-Za-z0-9_.-]+$ ]]; then
+    if [[ ! "$PGVECTOR_VOLUME" =~ ^lot40-pg-volume-[0-9]+-[0-9]+-[0-9]+$ ]]; then
         echo "LOT40_CLEANUP_VOLUME_NAME_INVALID" >&2
         cleanup_status=1
-    elif (( volume_created == 1 )); then
-        docker volume rm "$PGVECTOR_VOLUME" >/dev/null 2>&1 || cleanup_status=1
+    elif (( volume_cleanup_armed == 1 )); then
+        remove_volume_exact || cleanup_status=1
     fi
 
     if [[ "$RUN_ROOT" =~ ^${TMPDIR:-/tmp}/lot40-hybrid\.[A-Za-z0-9]+$ ]]; then
@@ -64,8 +111,9 @@ if [[ ! "$ready_delay" =~ ^([0-9]+([.][0-9]+)?)$ ]] \
 fi
 
 mkdir -p "$BACKUP_ROOT"
+volume_cleanup_armed=1
 docker volume create "$PGVECTOR_VOLUME" >/dev/null
-volume_created=1
+container_cleanup_armed=1
 docker run -d \
     --name "$PGVECTOR_CONTAINER" \
     -e "POSTGRES_DB=$PGVECTOR_DB" \
@@ -74,7 +122,6 @@ docker run -d \
     -v "$PGVECTOR_VOLUME:/var/lib/postgresql/data" \
     -p 127.0.0.1::5432 \
     "$IMAGE" >/dev/null
-container_created=1
 
 ready=0
 for ((attempt = 1; attempt <= ready_attempts; attempt++)); do
@@ -98,7 +145,8 @@ if [[ ! "$port_mapping" =~ ^127[.]0[.]0[.]1:([0-9]+)$ ]]; then
     exit 1
 fi
 PGVECTOR_PORT="${BASH_REMATCH[1]}"
-export LOT40_PG_DSN="postgresql://$PGVECTOR_USER@127.0.0.1:$PGVECTOR_PORT/$PGVECTOR_DB"
+export LOT40_PG_ADMIN_DSN="postgresql://$PGVECTOR_USER@127.0.0.1:$PGVECTOR_PORT/$PGVECTOR_DB"
+export LOT40_PG_DSN="postgresql://$PGVECTOR_APP_USER@127.0.0.1:$PGVECTOR_PORT/$PGVECTOR_DB"
 
 echo "LOT40_DATABASE_READY=PASS"
 
@@ -206,6 +254,21 @@ END
 SQL
 }
 
+provision_app_role() {
+    container_psql <<SQL
+CREATE ROLE $PGVECTOR_APP_USER
+    LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;
+REVOKE ALL PRIVILEGES ON DATABASE $PGVECTOR_DB FROM PUBLIC;
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+REVOKE ALL PRIVILEGES ON SCHEMA public FROM $PGVECTOR_APP_USER;
+REVOKE ALL PRIVILEGES ON TABLE rag_chunks FROM $PGVECTOR_APP_USER;
+GRANT CONNECT ON DATABASE $PGVECTOR_DB TO $PGVECTOR_APP_USER;
+GRANT USAGE ON SCHEMA public TO $PGVECTOR_APP_USER;
+GRANT USAGE ON TYPE vector TO $PGVECTOR_APP_USER;
+GRANT SELECT ON TABLE rag_chunks TO $PGVECTOR_APP_USER;
+SQL
+}
+
 expect_failure FRESH_HEAD_002_NEGATIVE assert_fresh_head_002
 
 run_apply "$INFRA_DIR"
@@ -238,8 +301,11 @@ expect_failure ATOMIC_DOWN_EXPECTED_FAILURE run_down "$atomic_down_root/infra"
 assert_state_002
 echo "ATOMIC_DOWN_ROLLBACK=PASS"
 echo "MIGRATION_FINAL_HEAD_002=PASS"
+provision_app_role
+echo "APP_ROLE_LEAST_PRIVILEGE=PASS"
 
 LOT40_PG_DSN="$LOT40_PG_DSN" \
+LOT40_PG_ADMIN_DSN="$LOT40_PG_ADMIN_DSN" \
 PYTHONPATH="$SERVICE_ROOT/src" "$SERVICE_ROOT/.venv/bin/pytest" "$SERVICE_ROOT/tests/integration/test_lot40_hybrid_pgvector.py" -q -s
 
 assert_state_002
