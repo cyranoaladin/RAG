@@ -96,6 +96,26 @@ def test_policy_models_forbid_extra_fields_and_are_frozen(tmp_path: Path) -> Non
 
 
 class TestPolicyRefutations:
+    def test_loader_refuses_a_contradictory_duplicate_capability(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        canonical = POLICY_PATH.read_text(encoding="utf-8")
+        capability = "  validation_pipeline_allowed: false"
+        assert canonical.count(capability) == 1
+        path = tmp_path / "policy.duplicate.yml"
+        path.write_text(
+            canonical.replace(
+                capability,
+                f"  validation_pipeline_allowed: true\n{capability}",
+                1,
+            ),
+            encoding="utf-8",
+        )
+
+        with pytest.raises(yaml.YAMLError):
+            load_policy(path)
+
     @pytest.mark.parametrize(
         "invalid_value",
         [0, 1, "false", "true"],

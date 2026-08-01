@@ -9,7 +9,6 @@ sys.dont_write_bytecode = True
 import argparse  # noqa: E402
 from collections.abc import Mapping  # noqa: E402
 from pathlib import Path  # noqa: E402
-from typing import Any  # noqa: E402
 
 import yaml  # noqa: E402
 
@@ -23,42 +22,11 @@ sys.path.insert(0, str(SERVICE_ROOT))
 from rag_pedago.governance.pilot_validation import (  # noqa: E402
     PilotValidationPolicy,
     PilotValidationScope,
+    _parse_yaml_bytes,
     validate_dormant_policy,
     validate_policy_integrity,
     validate_scope_integrity,
 )
-
-
-class _UniqueKeySafeLoader(yaml.SafeLoader):
-    """SafeLoader qui refuse toute clé de mapping dupliquée, récursivement."""
-
-    def construct_mapping(
-        self,
-        node: yaml.MappingNode,
-        deep: bool = False,
-    ) -> dict[object, object]:
-        self.flatten_mapping(node)
-        mapping: dict[object, object] = {}
-        for key_node, value_node in node.value:
-            key = self.construct_object(key_node, deep=deep)
-            try:
-                duplicate = key in mapping
-            except TypeError as error:
-                raise yaml.constructor.ConstructorError(
-                    "while constructing a mapping",
-                    node.start_mark,
-                    "found an unhashable key",
-                    key_node.start_mark,
-                ) from error
-            if duplicate:
-                raise yaml.constructor.ConstructorError(
-                    "while constructing a mapping",
-                    node.start_mark,
-                    f"found duplicate key ({key!r})",
-                    key_node.start_mark,
-                )
-            mapping[key] = self.construct_object(value_node, deep=deep)
-        return mapping
 
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
@@ -75,12 +43,12 @@ def _resolved(path: Path) -> Path:
     return path.resolve()
 
 
-def _load_unique_yaml(path: Path) -> Any:
+def _load_unique_yaml(path: Path) -> object:
     raw = path.read_bytes()
-    return yaml.load(raw, Loader=_UniqueKeySafeLoader)
+    return _parse_yaml_bytes(raw)
 
 
-def _public_contract(payload: Any) -> Mapping[str, object]:
+def _public_contract(payload: object) -> Mapping[str, object]:
     if not isinstance(payload, dict):
         raise ValueError("public contract must be a mapping")
     return payload

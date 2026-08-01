@@ -2,6 +2,7 @@ import shutil
 from pathlib import Path
 
 import pytest
+import yaml
 
 from rag_pedago.governance.pilot_validation import load_scope, validate_scope_integrity
 
@@ -32,6 +33,22 @@ def _scope_with_subject_update(index: int, **updates: object):
 
 
 class TestScopeRefutations:
+    def test_loader_refuses_a_contradictory_duplicate_scope_id(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        canonical = SCOPE_PATH.read_text(encoding="utf-8")
+        scope_id = "scope_id: libre_terminale_maths_nsi_real_v1"
+        assert canonical.count(scope_id) == 1
+        path = tmp_path / "scope.duplicate.yml"
+        path.write_text(
+            canonical.replace(scope_id, f"scope_id: intrus\n{scope_id}", 1),
+            encoding="utf-8",
+        )
+
+        with pytest.raises(yaml.YAMLError):
+            load_scope(path)
+
     def test_refuses_a_modified_taxonomy_digest(self) -> None:
         scope = _scope_with_subject_update(0, taxonomy_sha256="0" * 64)
 

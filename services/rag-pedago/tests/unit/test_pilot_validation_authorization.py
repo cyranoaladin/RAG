@@ -54,6 +54,28 @@ def _write_payload(tmp_path: Path, name: str, payload: object) -> Path:
     return path
 
 
+def _duplicate_yaml_line(
+    tmp_path: Path,
+    source: Path,
+    name: str,
+    *,
+    canonical_line: str,
+    dangerous_line: str,
+) -> Path:
+    canonical = source.read_text(encoding="utf-8")
+    assert canonical.count(canonical_line) == 1
+    path = tmp_path / name
+    path.write_text(
+        canonical.replace(
+            canonical_line,
+            f"{dangerous_line}\n{canonical_line}",
+            1,
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
 def _variant(tmp_path: Path, source: Path, name: str, **updates: object) -> Path:
     payload = _payload(source)
     payload.update(updates)
@@ -710,6 +732,214 @@ class TestPublicationChain:
 
 
 class TestMalformedInputs:
+    @pytest.mark.parametrize(
+        (
+            "source",
+            "argument",
+            "canonical_line",
+            "dangerous_line",
+            "reason",
+        ),
+        [
+            (
+                SCOPE_PATH,
+                "scope",
+                "scope_id: libre_terminale_maths_nsi_real_v1",
+                "scope_id: intrus",
+                "scope.invalid",
+            ),
+            (
+                BASE_POLICY_PATH,
+                "base_policy",
+                "  validation_pipeline_allowed: false",
+                "  validation_pipeline_allowed: true",
+                "base_policy.invalid",
+            ),
+            (
+                ACTIVATION_PATH,
+                "activation_policy",
+                "  validation_pipeline_allowed: true",
+                "  validation_pipeline_allowed: false",
+                "activation_policy.invalid",
+            ),
+            (
+                AUTHORIZATION_PATH,
+                "authorization",
+                "rights_verified: true",
+                "rights_verified: false",
+                "authorization.invalid",
+            ),
+            (
+                APPROVAL_PATH,
+                "approval",
+                "reviewer_human: true",
+                "reviewer_human: false",
+                "approval.invalid",
+            ),
+            (
+                APPROVAL_PATH,
+                "approval",
+                "revoked: false",
+                "revoked: true",
+                "approval.invalid",
+            ),
+            (
+                PACKAGE_PATH,
+                "package",
+                "revoked: false",
+                "revoked: true",
+                "package.invalid",
+            ),
+        ],
+        ids=(
+            "scope",
+            "base-policy",
+            "activation-policy",
+            "authorization",
+            "approval-reviewer-human",
+            "approval-revoked",
+            "publication-package",
+        ),
+    )
+    def test_refuses_contradictory_duplicate_keys_at_every_document_boundary(
+        self,
+        tmp_path: Path,
+        source: Path,
+        argument: str,
+        canonical_line: str,
+        dangerous_line: str,
+        reason: str,
+    ) -> None:
+        path = _duplicate_yaml_line(
+            tmp_path,
+            source,
+            f"{argument}.duplicate.yml",
+            canonical_line=canonical_line,
+            dangerous_line=dangerous_line,
+        )
+
+        decision = _evaluate(**{argument: path})
+
+        assert decision.allowed is False
+        assert reason in decision.reasons
+
+    def test_refuses_a_duplicate_public_lock_in_the_real_contract(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        temporary_service_root = _temporary_service_root(tmp_path)
+        contract = (
+            temporary_service_root / "configs" / "pedago_interface_contract.yml"
+        )
+        canonical = contract.read_text(encoding="utf-8")
+        lock = "ui_runtime_allowed: false"
+        assert canonical.count(lock) == 1
+        contract.write_text(
+            canonical.replace(lock, f"ui_runtime_allowed: true\n{lock}", 1),
+            encoding="utf-8",
+        )
+
+        decision = _evaluate(service_root=temporary_service_root)
+
+        assert decision.allowed is False
+        assert decision.reasons == (
+            "base_policy.invalid:policy.public_contract_invalid",
+            "activation_policy.invalid:policy.public_contract_invalid",
+        )
+
+    @pytest.mark.parametrize(
+        ("kind", "reason"),
+        [
+            ("scope", "scope.invalid"),
+            ("base_policy", "base_policy.invalid"),
+            ("activation_policy", "activation_policy.invalid"),
+            ("authorization", "authorization.invalid"),
+        ],
+        ids=("scope", "base-policy", "activation-policy", "authorization"),
+    )
+    def test_reparsing_attested_raw_bytes_refuses_duplicate_keys(
+        self,
+        kind: str,
+        reason: str,
+    ) -> None:
+        if kind == "scope":
+            value = governance.load_scope(SCOPE_PATH)
+            source = SCOPE_PATH
+            canonical_line = "scope_id: libre_terminale_maths_nsi_real_v1"
+            dangerous_line = "scope_id: intrus"
+        elif kind == "base_policy":
+            value = governance.load_policy(BASE_POLICY_PATH)
+            source = BASE_POLICY_PATH
+            canonical_line = "  validation_pipeline_allowed: false"
+            dangerous_line = "  validation_pipeline_allowed: true"
+        elif kind == "activation_policy":
+            value = governance.load_policy(ACTIVATION_PATH)
+            source = ACTIVATION_PATH
+            canonical_line = "  validation_pipeline_allowed: true"
+            dangerous_line = "  validation_pipeline_allowed: false"
+        else:
+            value = governance.load_authorization(AUTHORIZATION_PATH)
+            source = AUTHORIZATION_PATH
+            canonical_line = "rights_verified: true"
+            dangerous_line = "rights_verified: false"
+
+        canonical = source.read_text(encoding="utf-8")
+        assert canonical.count(canonical_line) == 1
+        duplicated = canonical.replace(
+            canonical_line,
+            f"{dangerous_line}\n{canonical_line}",
+            1,
+        ).encode("utf-8")
+        value._source_bytes = duplicated
+
+        decision = _evaluate(**{kind: value})
+
+        assert decision.allowed is False
+        assert reason in decision.reasons
+
+    def test_shared_parser_refuses_a_duplicate_taxonomy_mapping(self) -> None:
+        taxonomy = (
+            SERVICE_ROOT / "taxonomy" / "maths" / "terminale_gen_specialite.yml"
+        )
+        canonical = taxonomy.read_text(encoding="utf-8")
+        notion = "  - id: suites_limites"
+        assert canonical.count(notion) == 1
+        duplicated = canonical.replace(
+            notion,
+            "  - id: intrus\n    id: suites_limites",
+            1,
+        ).encode("utf-8")
+
+        with pytest.raises(yaml.YAMLError):
+            governance._parse_yaml_bytes(duplicated)
+
+    def test_excessive_yaml_depth_returns_approval_invalid_without_exception(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        path = tmp_path / "approval.too-deep.yml"
+        path.write_text("{node: " * 1200 + "null" + "}" * 1200, encoding="utf-8")
+
+        decision = _evaluate(approval=path)
+
+        assert isinstance(decision, governance.AuthorizationDecision)
+        assert decision.allowed is False
+        assert "approval.invalid" in decision.reasons
+
+    def test_excessive_yaml_size_returns_approval_invalid_without_exception(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        payload = _payload(APPROVAL_PATH)
+        payload["reviewer_login"] = "x" * (1024 * 1024 + 1)
+        path = _write_payload(tmp_path, "approval.too-large.yml", payload)
+
+        decision = _evaluate(approval=path)
+
+        assert isinstance(decision, governance.AuthorizationDecision)
+        assert decision.allowed is False
+        assert "approval.invalid" in decision.reasons
+
     def test_evaluator_loads_valid_scope_and_policies_from_real_yaml_paths(self) -> None:
         decision = governance.evaluate_authorization(
             scope=SCOPE_PATH,
