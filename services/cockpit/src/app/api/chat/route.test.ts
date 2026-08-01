@@ -107,4 +107,20 @@ describe('POST /api/chat', () => {
       }),
     })
   })
+
+  it('normalise une collection dupliquée avant de construire le profil moteur', async () => {
+    const collection = 'rag_nexus_nsi_terminale_specialite'
+
+    const response = await POST(chatRequest([collection, collection]))
+
+    expect(response.status).toBe(200)
+    expect(mockedFetchEngine).toHaveBeenCalledWith('/chat', {
+      method: 'POST',
+      identityToken: 'signed-identity-token',
+      body: expect.objectContaining({
+        collections: [collection],
+        student_profile: expect.objectContaining({ matieres: ['nsi'] }),
+      }),
+    })
+  })
 })

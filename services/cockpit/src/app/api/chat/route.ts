@@ -52,8 +52,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'invalid_request' }, { status: 400 })
   }
 
+  const normalizedCollections = [...new Set(payload.collections)]
   const allowedCollections = new Set(authContext.allowedCollections)
-  if (!payload.collections.every((collection) => allowedCollections.has(collection))) {
+  if (!normalizedCollections.every((collection) => allowedCollections.has(collection))) {
     return NextResponse.json({ error: 'forbidden_collection' }, { status: 403 })
   }
 
@@ -62,9 +63,9 @@ export async function POST(request: Request) {
   }
 
   const enginePayload: ChatRequest = {
-    student_profile: signedProfile(authContext.identity, payload.collections),
+    student_profile: signedProfile(authContext.identity, normalizedCollections),
     query: payload.query,
-    collections: payload.collections,
+    collections: normalizedCollections,
     top_k: payload.top_k ?? 5,
     history: (payload.history ?? []).slice(-12),
     answer_max_chars: 1600,
