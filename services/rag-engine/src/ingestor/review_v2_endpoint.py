@@ -5,12 +5,18 @@ from __future__ import annotations
 import logging
 import os
 from collections.abc import Mapping, Sequence
-from typing import Any, Literal
+from typing import Annotated, Any
 
 import psycopg
 from fastapi import APIRouter, HTTPException, Query, Request
-from nexus_contracts import Rights
-from pydantic import BaseModel, ConfigDict, Field
+from nexus_contracts import (
+    ReviewDecisionRequest,
+    ReviewDecisionResponse,
+    ReviewQueuePayload,
+    ReviewQueueResponse,
+    Rights,
+)
+from pydantic import BeforeValidator
 
 try:
     from .collection_config import load_collection_config
@@ -176,42 +182,36 @@ def _load_review_scopes(
     )
 
 
-class PendingQuery(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    collection: str | None = Field(default=None, min_length=1, max_length=128)
-    tenant: str | None = Field(default=None, min_length=1, max_length=128)
-    limit: int = Field(default=50, ge=1, le=500)
-    offset: int = Field(default=0, ge=0)
-
-
-class ReviewDecision(BaseModel):
-    """Décision humaine explicite sur un document ou un chunk scopé."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    target_type: Literal["doc", "chunk"] = "doc"
-    target_id: str = Field(min_length=1, max_length=256)
-    decision: Literal["reviewed", "quarantined"]
-    reason: str = Field(default="", max_length=1000)
-    collection: str | None = Field(default=None, min_length=1, max_length=128)
-    tenant: str | None = Field(default=None, min_length=1, max_length=128)
+def _parse_review_queue_integers(value: Any) -> Any:
+    """Adapter les entiers de l'URL avant la validation stricte du contrat."""
+    if not isinstance(value, Mapping):
+        return value
+    parsed = dict(value)
+    for field_name in ("limit", "offset"):
+        raw_value = parsed.get(field_name)
+        if (
+            isinstance(raw_value, str)
+            and raw_value.isascii()
+            and raw_value.isdecimal()
+        ):
+            parsed[field_name] = int(raw_value)
+    return parsed
 
 
-@router.get("/queue")
+@router.get("/queue", response_model=ReviewQueueResponse)
 def list_queue(
     request: Request,
-    collection: str | None = Query(default=None, min_length=1, max_length=128),
-    tenant: str | None = Query(default=None, min_length=1, max_length=128),
-    limit: int = Query(50, ge=1, le=500),
-    offset: int = Query(0, ge=0),
-) -> dict[str, Any]:
+    payload: Annotated[
+        Annotated[ReviewQueuePayload, Query()],
+        BeforeValidator(_parse_review_queue_integers),
+    ],
+) -> ReviewQueueResponse:
     """Lister uniquement les documents `needs_review` du scope signé."""
     verified = _require_review_identity(request, endpoint="/review/v2/queue")
     scopes = _load_review_scopes(
         verified,
-        collection=collection,
-        tenant=tenant,
+        collection=payload.collection,
+        tenant=None,
     )
     scope_sql, scope_params = _scope_filter(scopes)
     pg_dsn = _get_pg_dsn()
@@ -246,7 +246,7 @@ def list_queue(
                 ORDER BY MIN(indexed_at) DESC, collection ASC, doc_id ASC
                 LIMIT %s OFFSET %s
                 """,
-                (*scope_params, limit, offset),
+                (*scope_params, payload.limit, payload.offset),
             )
             rows = cursor.fetchall()
     except HTTPException:
@@ -273,16 +273,21 @@ def list_queue(
         }
         for row in rows
     ]
-    return {
-        "total_pending_docs": total_docs,
-        "returned": len(documents),
-        "offset": offset,
-        "documents": documents,
-    }
+    return ReviewQueueResponse.model_validate(
+        {
+            "total_pending_docs": total_docs,
+            "returned": len(documents),
+            "offset": payload.offset,
+            "documents": documents,
+        }
+    )
 
 
-@router.post("/decide")
-def review_decide(payload: ReviewDecision, request: Request) -> dict[str, Any]:
+@router.post("/decide", response_model=ReviewDecisionResponse)
+def review_decide(
+    payload: ReviewDecisionRequest,
+    request: Request,
+) -> ReviewDecisionResponse:
     """Promouvoir `needs_review` ou révoquer vers `quarantined`."""
     verified = _require_review_identity(request, endpoint="/review/v2/decide")
     scopes = _load_review_scopes(
@@ -346,19 +351,17 @@ def review_decide(payload: ReviewDecision, request: Request) -> dict[str, Any]:
         verified.scope_digest,
         cache_cleared,
     )
-    return {
-        "target_type": payload.target_type,
-        "target_id": payload.target_id,
-        "decision": payload.decision,
-        "chunks_affected": affected,
-        "cache_invalidated_this_worker": cache_invalidated,
-        "max_stale_other_workers_s": 0,
-    }
+    return ReviewDecisionResponse(
+        target_type=payload.target_type,
+        target_id=payload.target_id,
+        decision=payload.decision,
+        chunks_affected=affected,
+        cache_invalidated_this_worker=cache_invalidated,
+        max_stale_other_workers_s=0,
+    )
 
 
 __all__ = [
-    "PendingQuery",
-    "ReviewDecision",
     "list_queue",
     "review_decide",
     "router",

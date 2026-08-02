@@ -112,7 +112,7 @@
       "type": "string"
     }
   },
-  "$id": "https://nexusreussite.academy/contracts/v0.4/internal-identity.json",
+  "$id": "https://nexusreussite.academy/contracts/v0.5/internal-identity.json",
   "additionalProperties": false,
   "description": "Claims minimaux produits par le cockpit et consommés par rag-engine.",
   "properties": {

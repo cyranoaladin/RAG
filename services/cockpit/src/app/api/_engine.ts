@@ -2,6 +2,13 @@ export interface EngineFetchParams {
   method?: 'GET' | 'POST'
   body?: unknown
   identityToken?: string
+  query?: EngineReviewQueueQuery
+}
+
+export type EngineReviewQueueQuery = {
+  collection?: string
+  limit?: number
+  offset?: number
 }
 
 export interface EngineFetchResult {
@@ -27,14 +34,29 @@ function resolveEngineToken(): string {
   return token
 }
 
+export type EngineEndpoint =
+  | '/search/v2'
+  | '/catalogue/v2'
+  | '/collections/v2'
+  | '/collections/readiness'
+  | '/chat'
+  | '/admin/health'
+  | '/review/v2/queue'
+  | '/review/v2/decide'
+
+type EngineEndpointWithoutQueue = Exclude<EngineEndpoint, '/review/v2/queue'>
+type EngineFetchParamsWithoutQuery = Omit<EngineFetchParams, 'query'> & { query?: never }
+
+export function fetchEngine(
+  endpoint: '/review/v2/queue',
+  params?: EngineFetchParams,
+): Promise<EngineFetchResult>
+export function fetchEngine(
+  endpoint: EngineEndpointWithoutQueue,
+  params?: EngineFetchParamsWithoutQuery,
+): Promise<EngineFetchResult>
 export async function fetchEngine(
-  endpoint:
-    | '/search/v2'
-    | '/catalogue/v2'
-    | '/collections/v2'
-    | '/collections/readiness'
-    | '/chat'
-    | '/admin/health',
+  endpoint: EngineEndpoint,
   params: EngineFetchParams = {},
 ): Promise<EngineFetchResult> {
   const token = resolveEngineToken()
@@ -57,8 +79,21 @@ export async function fetchEngine(
     init.body = JSON.stringify(params.body)
   }
 
-  const target = `${resolveEngineUrl()}${endpoint}`
-  const response = await fetch(target, init)
+  const target = new URL(`${resolveEngineUrl()}${endpoint}`)
+  if (endpoint === '/review/v2/queue' && params.query) {
+    const { collection, limit, offset } = params.query
+    if (collection !== undefined) {
+      target.searchParams.set('collection', collection)
+    }
+    if (limit !== undefined) {
+      target.searchParams.set('limit', String(limit))
+    }
+    if (offset !== undefined) {
+      target.searchParams.set('offset', String(offset))
+    }
+  }
+
+  const response = await fetch(target.toString(), init)
   const status = response.status
 
   if (!response.ok) {

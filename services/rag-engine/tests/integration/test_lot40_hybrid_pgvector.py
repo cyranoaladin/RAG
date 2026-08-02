@@ -1416,6 +1416,7 @@ def test_review_idor_promotion_revocation_and_no_reactivation_are_real(
             "target_type": "doc",
             "target_id": idor_target,
             "decision": "reviewed",
+            "tenant": TENANT,
         },
     )
     assert idor.status_code == 404
@@ -1434,6 +1435,7 @@ def test_review_idor_promotion_revocation_and_no_reactivation_are_real(
             "target_type": "doc",
             "target_id": target,
             "decision": "reviewed",
+            "tenant": TENANT,
         },
     )
     assert promoted.status_code == 200, promoted.text
@@ -1446,6 +1448,7 @@ def test_review_idor_promotion_revocation_and_no_reactivation_are_real(
             "target_type": "doc",
             "target_id": target,
             "decision": "quarantined",
+            "tenant": TENANT,
         },
     )
     assert revoked.status_code == 200, revoked.text
@@ -1457,6 +1460,7 @@ def test_review_idor_promotion_revocation_and_no_reactivation_are_real(
             "target_type": "doc",
             "target_id": target,
             "decision": "reviewed",
+            "tenant": TENANT,
         },
     )
     assert reactivation.status_code == 404

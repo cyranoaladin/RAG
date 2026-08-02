@@ -175,8 +175,21 @@ function createConfiguredStore(): Promise<SharedSessionSecurityStore> {
 }
 
 function configuredStore(): Promise<SharedSessionSecurityStore> {
-  storePromise ??= createConfiguredStore()
-  return storePromise
+  if (storePromise !== null) return storePromise
+
+  let created: Promise<SharedSessionSecurityStore>
+  try {
+    created = createConfiguredStore()
+  } catch (error) {
+    created = Promise.reject(error)
+  }
+
+  const attempt = created.catch((error: unknown) => {
+    if (storePromise === attempt) storePromise = null
+    throw error
+  })
+  storePromise = attempt
+  return attempt
 }
 
 export async function assertTenantBoundary(sub: string, tenant: string): Promise<void> {

@@ -1,0 +1,37 @@
+{
+  "$id": "https://nexusreussite.academy/contracts/v0.5/review-queue-payload.json",
+  "additionalProperties": false,
+  "description": "Paramètres navigateur vers BFF pour consulter la file de review.",
+  "properties": {
+    "collection": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Collection"
+    },
+    "limit": {
+      "default": 50,
+      "maximum": 500,
+      "minimum": 1,
+      "title": "Limit",
+      "type": "integer"
+    },
+    "offset": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Offset",
+      "type": "integer"
+    }
+  },
+  "title": "ReviewQueuePayload",
+  "type": "object"
+}

@@ -9,7 +9,12 @@ export type ContractBundle =
   | ChatResponse
   | InternalIdentity
   | InternalIdentityEnvelope
-  | PilotRetrievalScopeArtifact;
+  | PilotRetrievalScopeArtifact
+  | ReviewQueuePayload
+  | ReviewDecisionPayload
+  | ReviewDecisionRequest
+  | ReviewQueueResponse
+  | ReviewDecisionResponse;
 export type TypeDoc =
   | 'programme_officiel'
   | 'ressource_officielle'
@@ -562,6 +567,38 @@ export type Subjects =
 export type Collection = string;
 export type Matiere = string;
 export type ProgrammeVersion = string;
+export type Collection1 = string | null;
+export type Limit = number;
+export type Offset = number;
+export type Collection2 = string | null;
+export type Decision = 'reviewed' | 'quarantined';
+export type TargetId = string;
+export type TargetType = 'doc' | 'chunk';
+export type Collection3 = string | null;
+export type Decision1 = 'reviewed' | 'quarantined';
+export type TargetId1 = string;
+export type TargetType1 = 'doc' | 'chunk';
+export type Tenant2 = string;
+export type ChunkCount = number;
+export type Collection4 = string;
+export type DocId2 = string;
+export type FirstIndexed = string | null;
+export type LastIndexed = string | null;
+export type Rights2 = string;
+export type SourceKind = string;
+export type SourceLabel2 = string;
+export type SourceUri2 = string;
+export type TypeDoc1 = string;
+export type Documents = ReviewQueueDocument[];
+export type Offset1 = number;
+export type Returned = number;
+export type TotalPendingDocs = number;
+export type CacheInvalidatedThisWorker = boolean;
+export type ChunksAffected = number;
+export type Decision2 = 'reviewed' | 'quarantined';
+export type MaxStaleOtherWorkersS = 0;
+export type TargetId2 = string;
+export type TargetType2 = 'doc' | 'chunk';
 
 export interface RetrievalRequest {
   need: RetrievalNeed;
@@ -753,4 +790,66 @@ export interface PilotScopeSubject {
   collection: Collection;
   matiere: Matiere;
   programme_version: ProgrammeVersion;
+}
+/**
+ * Paramètres navigateur vers BFF pour consulter la file de review.
+ */
+export interface ReviewQueuePayload {
+  collection?: Collection1;
+  limit?: Limit;
+  offset?: Offset;
+}
+/**
+ * Décision navigateur vers BFF, sans identité ni texte libre.
+ */
+export interface ReviewDecisionPayload {
+  collection?: Collection2;
+  decision: Decision;
+  target_id: TargetId;
+  target_type?: TargetType;
+}
+/**
+ * Décision BFF vers moteur enrichie du tenant signé.
+ */
+export interface ReviewDecisionRequest {
+  collection?: Collection3;
+  decision: Decision1;
+  target_id: TargetId1;
+  target_type?: TargetType1;
+  tenant: Tenant2;
+}
+/**
+ * Page de documents en attente retournée par le moteur.
+ */
+export interface ReviewQueueResponse {
+  documents: Documents;
+  offset: Offset1;
+  returned: Returned;
+  total_pending_docs: TotalPendingDocs;
+}
+/**
+ * Document en attente exposé par la file de review.
+ */
+export interface ReviewQueueDocument {
+  chunk_count: ChunkCount;
+  collection: Collection4;
+  doc_id: DocId2;
+  first_indexed: FirstIndexed;
+  last_indexed: LastIndexed;
+  rights: Rights2;
+  source_kind: SourceKind;
+  source_label: SourceLabel2;
+  source_uri: SourceUri2;
+  type_doc: TypeDoc1;
+}
+/**
+ * Résultat borné d'une décision de review.
+ */
+export interface ReviewDecisionResponse {
+  cache_invalidated_this_worker: CacheInvalidatedThisWorker;
+  chunks_affected: ChunksAffected;
+  decision: Decision2;
+  max_stale_other_workers_s: MaxStaleOtherWorkersS;
+  target_id: TargetId2;
+  target_type: TargetType2;
 }

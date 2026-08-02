@@ -10,14 +10,24 @@ from typing import Any, Literal
 
 from nexus_contracts import Rights
 
-from ingestor.retrieval_hybrid_v2 import (
-    CHANNEL_LIMIT,
-    EMBED_DIMENSION,
-    CandidateStore,
-    RetrievalCandidate,
-    RetrievalPipelineError,
-)
-from ingestor.retrieval_scope_v2 import ServerRetrievalScope
+if __package__:
+    from .retrieval_hybrid_v2 import (
+        CHANNEL_LIMIT,
+        EMBED_DIMENSION,
+        CandidateStore,
+        RetrievalCandidate,
+        RetrievalPipelineError,
+    )
+    from .retrieval_scope_v2 import ServerRetrievalScope
+else:
+    from retrieval_hybrid_v2 import (  # type: ignore[no-redef]
+        CHANNEL_LIMIT,
+        EMBED_DIMENSION,
+        CandidateStore,
+        RetrievalCandidate,
+        RetrievalPipelineError,
+    )
+    from retrieval_scope_v2 import ServerRetrievalScope  # type: ignore[no-redef]
 
 _PGVECTOR_ACTIVATION_SQL = "SELECT %s::vector IS NOT NULL"
 _DENSE_STRICT_ORDER_SQL = "SET LOCAL hnsw.iterative_scan = 'strict_order'"

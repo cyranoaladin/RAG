@@ -31,6 +31,10 @@ défaut dans le dépôt :
   `NEXUS_INTERNAL_TOKEN_AUDIENCE` pour le transport cockpit → moteur ;
 - `RAG_ENGINE_INTERNAL_TOKEN` pour l'authentification de service BFF ;
 - `NEXTAUTH_SECRET` pour le JWT de session httpOnly ;
+- `NEXUS_COCKPIT_PUBLIC_ORIGIN`, l'origine publique HTTPS canonique du Cockpit
+  (sans credentials, chemin, query ni fragment) ; elle est comparée exactement
+  au header `Origin` des mutations de review, y compris lorsque Next.js reçoit
+  une URL interne derrière un reverse proxy ;
 - `NEXUS_SESSION_REDIS_URL` pour la révocation, la frontière tenant et
   l'anti-rejeu partagés entre instances.
 

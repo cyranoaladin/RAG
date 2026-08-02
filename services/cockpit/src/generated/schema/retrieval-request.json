@@ -413,7 +413,7 @@
       "type": "string"
     }
   },
-  "$id": "https://nexusreussite.academy/contracts/v0.4/retrieval-request.json",
+  "$id": "https://nexusreussite.academy/contracts/v0.5/retrieval-request.json",
   "additionalProperties": false,
   "properties": {
     "need": {

@@ -1,0 +1,51 @@
+{
+  "$id": "https://nexusreussite.academy/contracts/v0.5/review-decision-payload.json",
+  "additionalProperties": false,
+  "description": "Décision navigateur vers BFF, sans identité ni texte libre.",
+  "properties": {
+    "collection": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Collection"
+    },
+    "decision": {
+      "enum": [
+        "reviewed",
+        "quarantined"
+      ],
+      "title": "Decision",
+      "type": "string"
+    },
+    "target_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Target Id",
+      "type": "string"
+    },
+    "target_type": {
+      "default": "doc",
+      "enum": [
+        "doc",
+        "chunk"
+      ],
+      "title": "Target Type",
+      "type": "string"
+    }
+  },
+  "required": [
+    "target_id",
+    "decision"
+  ],
+  "title": "ReviewDecisionPayload",
+  "type": "object"
+}

@@ -22,6 +22,11 @@ const schemas = [
   ['internal-identity.json', 'InternalIdentity'],
   ['internal-identity-envelope.json', 'InternalIdentityEnvelope'],
   ['pilot-retrieval-scope-artifact.json', 'PilotRetrievalScopeArtifact'],
+  ['review-queue-payload.json', 'ReviewQueuePayload'],
+  ['review-decision-payload.json', 'ReviewDecisionPayload'],
+  ['review-decision-request.json', 'ReviewDecisionRequest'],
+  ['review-queue-response.json', 'ReviewQueueResponse'],
+  ['review-decision-response.json', 'ReviewDecisionResponse'],
 ]
 
 async function readSchemas() {
@@ -71,6 +76,11 @@ async function expectedOutputs() {
     'InternalIdentity',
     'InternalIdentityEnvelope',
     'PilotRetrievalScopeArtifact',
+    'ReviewQueuePayload',
+    'ReviewDecisionPayload',
+    'ReviewDecisionRequest',
+    'ReviewQueueResponse',
+    'ReviewDecisionResponse',
   ]
   const validationEntries = entries.filter(({ name }) => validatorNames.includes(name))
   const imports = validationEntries.map(({ filename, name }) =>
@@ -81,9 +91,12 @@ async function expectedOutputs() {
   ).join('\n')
   const validate = validatorNames.map((name) => {
     const variable = `${name[0].toLowerCase()}${name.slice(1)}Validator`
-    return `export const validate${name} = (payload: unknown): payload is ${name} => ${variable}(payload) === true`
+    const semanticCheck = name === 'ReviewQueueResponse'
+      ? ' && payload.returned === payload.documents.length'
+      : ''
+    return `export const validate${name} = (payload: unknown): payload is ${name} => ${variable}(payload) === true${semanticCheck}`
   }).join('\n\n')
-  const validatorSource = `// Generated from packages/contracts/schema. Do not edit manually.\nimport Ajv2020 from 'ajv/dist/2020.js'\n\nimport type { ${validationEntries.map(({ name }) => name).join(', ')} } from './contracts'\n${imports}\n\nconst ajv = new Ajv2020({ allErrors: true, strict: false })\n${compilers}\n\n${validate}\n`
+  const validatorSource = `// Generated from packages/contracts/schema. Do not edit manually.\nimport Ajv2020 from 'ajv/dist/2020.js'\nimport addFormats from 'ajv-formats'\n\nimport type { ${validationEntries.map(({ name }) => name).join(', ')} } from './contracts'\n${imports}\n\nconst ajv = new Ajv2020({ allErrors: true, strict: false })\naddFormats(ajv)\n${compilers}\n\n${validate}\n`
   return new Map([
     [path.join(generatedRoot, 'contracts.ts'), typeSource],
     [path.join(generatedRoot, 'validators.ts'), validatorSource],

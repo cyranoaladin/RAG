@@ -1,7 +1,8 @@
 // Generated from packages/contracts/schema. Do not edit manually.
 import Ajv2020 from 'ajv/dist/2020.js'
+import addFormats from 'ajv-formats'
 
-import type { RetrievalResponse, SearchPayload, ChatPayload, ChatRequest, ChatResponse, InternalIdentity, InternalIdentityEnvelope, PilotRetrievalScopeArtifact } from './contracts'
+import type { RetrievalResponse, SearchPayload, ChatPayload, ChatRequest, ChatResponse, InternalIdentity, InternalIdentityEnvelope, PilotRetrievalScopeArtifact, ReviewQueuePayload, ReviewDecisionPayload, ReviewDecisionRequest, ReviewQueueResponse, ReviewDecisionResponse } from './contracts'
 import RetrievalResponseSchema from './schema/retrieval-response.json'
 import SearchPayloadSchema from './schema/search-payload.json'
 import ChatPayloadSchema from './schema/chat-payload.json'
@@ -10,8 +11,14 @@ import ChatResponseSchema from './schema/chat-response.json'
 import InternalIdentitySchema from './schema/internal-identity.json'
 import InternalIdentityEnvelopeSchema from './schema/internal-identity-envelope.json'
 import PilotRetrievalScopeArtifactSchema from './schema/pilot-retrieval-scope-artifact.json'
+import ReviewQueuePayloadSchema from './schema/review-queue-payload.json'
+import ReviewDecisionPayloadSchema from './schema/review-decision-payload.json'
+import ReviewDecisionRequestSchema from './schema/review-decision-request.json'
+import ReviewQueueResponseSchema from './schema/review-queue-response.json'
+import ReviewDecisionResponseSchema from './schema/review-decision-response.json'
 
 const ajv = new Ajv2020({ allErrors: true, strict: false })
+addFormats(ajv)
 const retrievalResponseValidator = ajv.compile<RetrievalResponse>(RetrievalResponseSchema)
 const searchPayloadValidator = ajv.compile<SearchPayload>(SearchPayloadSchema)
 const chatPayloadValidator = ajv.compile<ChatPayload>(ChatPayloadSchema)
@@ -20,6 +27,11 @@ const chatResponseValidator = ajv.compile<ChatResponse>(ChatResponseSchema)
 const internalIdentityValidator = ajv.compile<InternalIdentity>(InternalIdentitySchema)
 const internalIdentityEnvelopeValidator = ajv.compile<InternalIdentityEnvelope>(InternalIdentityEnvelopeSchema)
 const pilotRetrievalScopeArtifactValidator = ajv.compile<PilotRetrievalScopeArtifact>(PilotRetrievalScopeArtifactSchema)
+const reviewQueuePayloadValidator = ajv.compile<ReviewQueuePayload>(ReviewQueuePayloadSchema)
+const reviewDecisionPayloadValidator = ajv.compile<ReviewDecisionPayload>(ReviewDecisionPayloadSchema)
+const reviewDecisionRequestValidator = ajv.compile<ReviewDecisionRequest>(ReviewDecisionRequestSchema)
+const reviewQueueResponseValidator = ajv.compile<ReviewQueueResponse>(ReviewQueueResponseSchema)
+const reviewDecisionResponseValidator = ajv.compile<ReviewDecisionResponse>(ReviewDecisionResponseSchema)
 
 export const validateRetrievalResponse = (payload: unknown): payload is RetrievalResponse => retrievalResponseValidator(payload) === true
 
@@ -36,3 +48,13 @@ export const validateInternalIdentity = (payload: unknown): payload is InternalI
 export const validateInternalIdentityEnvelope = (payload: unknown): payload is InternalIdentityEnvelope => internalIdentityEnvelopeValidator(payload) === true
 
 export const validatePilotRetrievalScopeArtifact = (payload: unknown): payload is PilotRetrievalScopeArtifact => pilotRetrievalScopeArtifactValidator(payload) === true
+
+export const validateReviewQueuePayload = (payload: unknown): payload is ReviewQueuePayload => reviewQueuePayloadValidator(payload) === true
+
+export const validateReviewDecisionPayload = (payload: unknown): payload is ReviewDecisionPayload => reviewDecisionPayloadValidator(payload) === true
+
+export const validateReviewDecisionRequest = (payload: unknown): payload is ReviewDecisionRequest => reviewDecisionRequestValidator(payload) === true
+
+export const validateReviewQueueResponse = (payload: unknown): payload is ReviewQueueResponse => reviewQueueResponseValidator(payload) === true && payload.returned === payload.documents.length
+
+export const validateReviewDecisionResponse = (payload: unknown): payload is ReviewDecisionResponse => reviewDecisionResponseValidator(payload) === true

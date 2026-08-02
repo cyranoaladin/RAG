@@ -1,0 +1,59 @@
+{
+  "$id": "https://nexusreussite.academy/contracts/v0.5/review-decision-request.json",
+  "additionalProperties": false,
+  "description": "Décision BFF vers moteur enrichie du tenant signé.",
+  "properties": {
+    "collection": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Collection"
+    },
+    "decision": {
+      "enum": [
+        "reviewed",
+        "quarantined"
+      ],
+      "title": "Decision",
+      "type": "string"
+    },
+    "target_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Target Id",
+      "type": "string"
+    },
+    "target_type": {
+      "default": "doc",
+      "enum": [
+        "doc",
+        "chunk"
+      ],
+      "title": "Target Type",
+      "type": "string"
+    },
+    "tenant": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^[a-z0-9_]+$",
+      "title": "Tenant",
+      "type": "string"
+    }
+  },
+  "required": [
+    "target_id",
+    "decision",
+    "tenant"
+  ],
+  "title": "ReviewDecisionRequest",
+  "type": "object"
+}

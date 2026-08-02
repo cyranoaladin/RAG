@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
-CONTRACT_VERSION = "0.4"
+CONTRACT_VERSION = "0.5"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
@@ -24,6 +24,11 @@ from nexus_contracts import (  # noqa: E402
     PilotRetrievalScopeArtifact,
     RetrievalRequest,
     RetrievalResponse,
+    ReviewDecisionPayload,
+    ReviewDecisionRequest,
+    ReviewDecisionResponse,
+    ReviewQueuePayload,
+    ReviewQueueResponse,
     SearchPayload,
 )
 
@@ -31,6 +36,11 @@ Model = TypeVar("Model", bound=BaseModel)
 SCHEMAS: dict[str, type[BaseModel]] = {
     "retrieval-request.json": RetrievalRequest,
     "retrieval-response.json": RetrievalResponse,
+    "review-decision-payload.json": ReviewDecisionPayload,
+    "review-decision-request.json": ReviewDecisionRequest,
+    "review-decision-response.json": ReviewDecisionResponse,
+    "review-queue-payload.json": ReviewQueuePayload,
+    "review-queue-response.json": ReviewQueueResponse,
     "chat-request.json": ChatRequest,
     "chat-response.json": ChatResponse,
     "chat-payload.json": ChatPayload,

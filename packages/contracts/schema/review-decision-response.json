@@ -1,0 +1,53 @@
+{
+  "$id": "https://nexusreussite.academy/contracts/v0.5/review-decision-response.json",
+  "additionalProperties": false,
+  "description": "Résultat borné d'une décision de review.",
+  "properties": {
+    "cache_invalidated_this_worker": {
+      "title": "Cache Invalidated This Worker",
+      "type": "boolean"
+    },
+    "chunks_affected": {
+      "minimum": 1,
+      "title": "Chunks Affected",
+      "type": "integer"
+    },
+    "decision": {
+      "enum": [
+        "reviewed",
+        "quarantined"
+      ],
+      "title": "Decision",
+      "type": "string"
+    },
+    "max_stale_other_workers_s": {
+      "const": 0,
+      "title": "Max Stale Other Workers S",
+      "type": "integer"
+    },
+    "target_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Target Id",
+      "type": "string"
+    },
+    "target_type": {
+      "enum": [
+        "doc",
+        "chunk"
+      ],
+      "title": "Target Type",
+      "type": "string"
+    }
+  },
+  "required": [
+    "target_type",
+    "target_id",
+    "decision",
+    "chunks_affected",
+    "cache_invalidated_this_worker",
+    "max_stale_other_workers_s"
+  ],
+  "title": "ReviewDecisionResponse",
+  "type": "object"
+}

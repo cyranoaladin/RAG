@@ -1,0 +1,121 @@
+{
+  "$defs": {
+    "ReviewQueueDocument": {
+      "additionalProperties": false,
+      "description": "Document en attente exposé par la file de review.",
+      "properties": {
+        "chunk_count": {
+          "minimum": 1,
+          "title": "Chunk Count",
+          "type": "integer"
+        },
+        "collection": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Collection",
+          "type": "string"
+        },
+        "doc_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Doc Id",
+          "type": "string"
+        },
+        "first_indexed": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "First Indexed"
+        },
+        "last_indexed": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Last Indexed"
+        },
+        "rights": {
+          "title": "Rights",
+          "type": "string"
+        },
+        "source_kind": {
+          "title": "Source Kind",
+          "type": "string"
+        },
+        "source_label": {
+          "title": "Source Label",
+          "type": "string"
+        },
+        "source_uri": {
+          "title": "Source Uri",
+          "type": "string"
+        },
+        "type_doc": {
+          "title": "Type Doc",
+          "type": "string"
+        }
+      },
+      "required": [
+        "doc_id",
+        "collection",
+        "source_label",
+        "source_uri",
+        "rights",
+        "source_kind",
+        "type_doc",
+        "chunk_count",
+        "first_indexed",
+        "last_indexed"
+      ],
+      "title": "ReviewQueueDocument",
+      "type": "object"
+    }
+  },
+  "$id": "https://nexusreussite.academy/contracts/v0.5/review-queue-response.json",
+  "additionalProperties": false,
+  "description": "Page de documents en attente retournée par le moteur.",
+  "properties": {
+    "documents": {
+      "items": {
+        "$ref": "#/$defs/ReviewQueueDocument"
+      },
+      "title": "Documents",
+      "type": "array"
+    },
+    "offset": {
+      "minimum": 0,
+      "title": "Offset",
+      "type": "integer"
+    },
+    "returned": {
+      "minimum": 0,
+      "title": "Returned",
+      "type": "integer"
+    },
+    "total_pending_docs": {
+      "minimum": 0,
+      "title": "Total Pending Docs",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "total_pending_docs",
+    "returned",
+    "offset",
+    "documents"
+  ],
+  "title": "ReviewQueueResponse",
+  "type": "object"
+}
