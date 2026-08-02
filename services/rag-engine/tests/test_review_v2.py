@@ -15,10 +15,15 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
+from nexus_contracts import (
+    ReviewDecisionRequest,
+    ReviewDecisionResponse,
+    ReviewQueueResponse,
+)
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from ingestor.review_v2_endpoint import ReviewDecision, router
+from ingestor.review_v2_endpoint import router
 
 ROLE_TOKEN_ENV = (
     "RAG_ADMIN_TOKEN",
@@ -39,7 +44,12 @@ def _review_client() -> TestClient:
 
 
 def _review_payload() -> dict[str, str]:
-    return {"target_type": "doc", "target_id": "doc123", "decision": "reviewed"}
+    return {
+        "target_type": "doc",
+        "target_id": "doc123",
+        "decision": "reviewed",
+        "tenant": "libre_terminale",
+    }
 
 
 def _auth_headers(token: str) -> dict[str, str]:
@@ -51,48 +61,79 @@ def _clear_role_tokens(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv(var, raising=False)
 
 
-class TestReviewDecisionModel:
-    """Pydantic validation for ReviewDecision."""
+class TestReviewDecisionRequestModel:
+    """Validation canonique de la requête BFF vers moteur."""
 
     def test_valid_review(self) -> None:
-        d = ReviewDecision(target_id="doc123", decision="reviewed")
+        d = ReviewDecisionRequest(
+            target_id="doc123",
+            decision="reviewed",
+            tenant="libre_terminale",
+        )
         assert d.decision == "reviewed"
         assert d.target_type == "doc"
 
     def test_valid_quarantine(self) -> None:
-        d = ReviewDecision(target_id="chunk456", target_type="chunk", decision="quarantined")
+        d = ReviewDecisionRequest(
+            target_id="chunk456",
+            target_type="chunk",
+            decision="quarantined",
+            tenant="libre_terminale",
+        )
         assert d.decision == "quarantined"
         assert d.target_type == "chunk"
 
-    def test_with_reason(self) -> None:
-        d = ReviewDecision(target_id="doc123", decision="reviewed", reason="Contenu vérifié par M. Dupont")
-        assert d.reason == "Contenu vérifié par M. Dupont"
+    def test_reason_rejected(self) -> None:
+        with pytest.raises(ValueError):
+            ReviewDecisionRequest(
+                target_id="doc123",
+                decision="reviewed",
+                tenant="libre_terminale",
+                reason="Contenu vérifié par M. Dupont",  # type: ignore[call-arg]
+            )
 
     def test_empty_target_rejected(self) -> None:
         with pytest.raises(ValueError):
-            ReviewDecision(target_id="", decision="reviewed")
+            ReviewDecisionRequest(
+                target_id="",
+                decision="reviewed",
+                tenant="libre_terminale",
+            )
 
     def test_invalid_decision_rejected(self) -> None:
         with pytest.raises(ValueError):
-            ReviewDecision(target_id="doc123", decision="approved")  # type: ignore[arg-type]
+            ReviewDecisionRequest(
+                target_id="doc123",
+                decision="approved",  # type: ignore[arg-type]
+                tenant="libre_terminale",
+            )
 
     def test_invalid_target_type_rejected(self) -> None:
         with pytest.raises(ValueError):
-            ReviewDecision(target_id="doc123", target_type="collection", decision="reviewed")  # type: ignore[arg-type]
+            ReviewDecisionRequest(
+                target_id="doc123",
+                target_type="collection",  # type: ignore[arg-type]
+                decision="reviewed",
+                tenant="libre_terminale",
+            )
 
     def test_needs_review_not_a_valid_decision(self) -> None:
         """An agent cannot set needs_review via the review endpoint."""
         with pytest.raises(ValueError):
-            ReviewDecision(target_id="doc123", decision="needs_review")  # type: ignore[arg-type]
+            ReviewDecisionRequest(
+                target_id="doc123",
+                decision="needs_review",  # type: ignore[arg-type]
+                tenant="libre_terminale",
+            )
 
 
 class TestRoutes:
     """Verify review v2 endpoints are registered."""
 
     def test_routes_exist(self) -> None:
-        routes = [r.path for r in router.routes]
-        assert "/review/v2/queue" in routes
-        assert "/review/v2/decide" in routes
+        routes = {route.path: route for route in router.routes}
+        assert routes["/review/v2/queue"].response_model is ReviewQueueResponse
+        assert routes["/review/v2/decide"].response_model is ReviewDecisionResponse
 
 
 class TestQueueQueryValidation:
@@ -158,11 +199,23 @@ class TestGovernanceInvariant:
     def test_decision_only_reviewed_or_quarantined(self) -> None:
         """The only allowed transitions are needs_review → reviewed or quarantined."""
         # Valid
-        ReviewDecision(target_id="x", decision="reviewed")
-        ReviewDecision(target_id="x", decision="quarantined")
+        ReviewDecisionRequest(
+            target_id="x",
+            decision="reviewed",
+            tenant="libre_terminale",
+        )
+        ReviewDecisionRequest(
+            target_id="x",
+            decision="quarantined",
+            tenant="libre_terminale",
+        )
         # Invalid — cannot go back to needs_review
         with pytest.raises(ValueError):
-            ReviewDecision(target_id="x", decision="needs_review")  # type: ignore[arg-type]
+            ReviewDecisionRequest(
+                target_id="x",
+                decision="needs_review",  # type: ignore[arg-type]
+                tenant="libre_terminale",
+            )
 
     def test_sql_only_updates_needs_review(self) -> None:
         """La transition est bornée par une liste d'états source paramétrée."""

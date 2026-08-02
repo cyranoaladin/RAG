@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
-from nexus_contracts import Rights
+from nexus_contracts import ReviewDecisionResponse, ReviewQueueResponse, Rights
 
 from ingestor import review_v2_endpoint as review
 from ingestor.retrieval_scope_v2 import ServerRetrievalScope
@@ -197,6 +197,88 @@ def test_collection_and_tenant_overrides_can_only_restrict_signed_scope(
     assert tenant_error.value.status_code == 403
 
 
+def test_queue_rejects_browser_tenant_before_database(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    require_identity = MagicMock(return_value=_verified())
+    load_scopes = MagicMock(return_value=(SCOPE,))
+    connect = MagicMock(side_effect=AssertionError("database reached"))
+    monkeypatch.setattr(review, "_require_review_identity", require_identity)
+    monkeypatch.setattr(review, "_load_review_scopes", load_scopes)
+    monkeypatch.setattr(review, "_get_pg_dsn", lambda: "postgresql://private")
+    monkeypatch.setattr(review.psycopg, "connect", connect)
+
+    response = _client().get(f"/review/v2/queue?tenant={SCOPE.tenant}")
+
+    assert response.status_code == 422
+    require_identity.assert_not_called()
+    load_scopes.assert_not_called()
+    connect.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "invalid_body",
+    [
+        {
+            "target_type": "doc",
+            "target_id": "doc-123",
+            "decision": "reviewed",
+            "tenant": SCOPE.tenant,
+            "reason": "texte libre interdit",
+        },
+        {
+            "target_type": "doc",
+            "target_id": "doc-123",
+            "decision": "reviewed",
+        },
+    ],
+    ids=["reason", "missing-tenant"],
+)
+def test_decision_contract_rejects_invalid_body_before_database(
+    monkeypatch: pytest.MonkeyPatch,
+    invalid_body: dict[str, str],
+) -> None:
+    require_identity = MagicMock(return_value=_verified())
+    load_scopes = MagicMock(return_value=(SCOPE,))
+    connect = MagicMock(side_effect=AssertionError("database reached"))
+    monkeypatch.setattr(review, "_require_review_identity", require_identity)
+    monkeypatch.setattr(review, "_load_review_scopes", load_scopes)
+    monkeypatch.setattr(review, "_get_pg_dsn", lambda: "postgresql://private")
+    monkeypatch.setattr(review.psycopg, "connect", connect)
+
+    response = _client().post("/review/v2/decide", json=invalid_body)
+
+    assert response.status_code == 422
+    require_identity.assert_not_called()
+    load_scopes.assert_not_called()
+    connect.assert_not_called()
+
+
+def test_decision_rejects_mismatched_tenant_before_database(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    connect = MagicMock(side_effect=AssertionError("database reached"))
+    build_scope = MagicMock(side_effect=AssertionError("scope built after mismatch"))
+    monkeypatch.setattr(review, "_require_review_identity", lambda *_a, **_k: _verified())
+    monkeypatch.setattr(review, "load_collection_config", lambda: {})
+    monkeypatch.setattr(review, "build_server_readiness_scope", build_scope)
+    monkeypatch.setattr(review.psycopg, "connect", connect)
+
+    response = _client().post(
+        "/review/v2/decide",
+        json={
+            "target_type": "doc",
+            "target_id": "doc-123",
+            "decision": "reviewed",
+            "tenant": "aefe_terminale",
+        },
+    )
+
+    assert response.status_code == 403
+    build_scope.assert_not_called()
+    connect.assert_not_called()
+
+
 def test_queue_sql_applies_every_scope_dimension(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -205,6 +287,7 @@ def test_queue_sql_applies_every_scope_dimension(
     response = _client().get("/review/v2/queue")
 
     assert response.status_code == 200
+    ReviewQueueResponse.model_validate(response.json())
     assert len(connection.cursor_spy.executions) == 2
     for sql, params in connection.cursor_spy.executions:
         assert "collection = %s" in sql
@@ -257,6 +340,7 @@ def test_decision_transitions_are_scoped_and_asymmetric(
     assert "tenant = %s" in sql
     assert list(expected_states) in params
     assert connection.commits == 1
+    ReviewDecisionResponse.model_validate(response.json())
     assert response.json()["cache_invalidated_this_worker"] is True
     assert response.json()["max_stale_other_workers_s"] == 0
 
@@ -275,6 +359,7 @@ def test_idor_and_invalid_transition_have_the_same_generic_response(
             "target_type": target_type,
             "target_id": target_id,
             "decision": "reviewed",
+            "tenant": SCOPE.tenant,
         },
     )
 
@@ -300,6 +385,7 @@ def test_committed_decision_is_not_reported_as_failed_if_local_cache_fails(
             "target_type": "chunk",
             "target_id": "chunk-123",
             "decision": "quarantined",
+            "tenant": SCOPE.tenant,
         },
     )
 
