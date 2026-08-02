@@ -17,6 +17,10 @@ function invalidRequest(): NextResponse {
   return reviewJson({ error: 'invalid_request' }, { status: 400 })
 }
 
+function forbidden(): NextResponse {
+  return reviewJson({ error: 'forbidden' }, { status: 403 })
+}
+
 function unavailable(): NextResponse {
   return reviewJson({ error: 'review_unavailable' }, { status: 503 })
 }
@@ -24,6 +28,12 @@ function unavailable(): NextResponse {
 export async function POST(request: Request): Promise<NextResponse> {
   const auth = await requireReviewAuth(request)
   if (!auth.ok) return auth.response
+
+  const requestOrigin = request.headers.get('origin')
+  const mediaType = request.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase()
+  if (requestOrigin !== new URL(request.url).origin || mediaType !== 'application/json') {
+    return forbidden()
+  }
 
   let payload: ReviewDecisionPayload
   try {
@@ -39,7 +49,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     && payload.collection !== null
     && !auth.context.allowedCollections.includes(payload.collection)
   ) {
-    return reviewJson({ error: 'forbidden' }, { status: 403 })
+    return forbidden()
   }
 
   const outbound: ReviewDecisionRequest = {

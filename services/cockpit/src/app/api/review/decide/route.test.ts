@@ -44,7 +44,10 @@ function authContext(
 function decideRequest(body: unknown): Request {
   return new Request('http://cockpit.test/api/review/decide', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      Origin: 'http://cockpit.test',
+    },
     body: JSON.stringify(body),
   })
 }
@@ -52,7 +55,10 @@ function decideRequest(body: unknown): Request {
 function malformedRequest(body: string): Request {
   return new Request('http://cockpit.test/api/review/decide', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      Origin: 'http://cockpit.test',
+    },
     body,
   })
 }
@@ -90,6 +96,39 @@ describe('POST /api/review/decide', () => {
       expect(mockedFetchEngine).not.toHaveBeenCalled()
     },
   )
+
+  it.each([
+    ['une origine sœur', { Origin: 'http://sibling.cockpit.test', 'Content-Type': 'application/json' }, '{'],
+    ['une origine absente', { 'Content-Type': 'application/json' }, JSON.stringify(validPayload)],
+    ['le type text/plain', { Origin: 'http://cockpit.test', 'Content-Type': 'text/plain' }, JSON.stringify(validPayload)],
+  ])('refuse %s avant de lire le corps ou d’appeler le moteur', async (_label, headers, body) => {
+    const request = new Request('http://cockpit.test/api/review/decide', {
+      method: 'POST',
+      headers,
+      body,
+    })
+
+    const response = await POST(request)
+
+    await expectJson(response, 403, { error: 'forbidden' })
+    expect(mockedFetchEngine).not.toHaveBeenCalled()
+  })
+
+  it('accepte application/json avec casse et paramètre charset', async () => {
+    const request = new Request('http://cockpit.test/api/review/decide', {
+      method: 'POST',
+      headers: {
+        Origin: 'http://cockpit.test',
+        'Content-Type': 'Application/JSON; Charset=UTF-8',
+      },
+      body: JSON.stringify(validPayload),
+    })
+
+    const response = await POST(request)
+
+    await expectJson(response, 200, validDecision)
+    expect(mockedFetchEngine).toHaveBeenCalledOnce()
+  })
 
   it.each([
     ['JSON mal formé', malformedRequest('{')],

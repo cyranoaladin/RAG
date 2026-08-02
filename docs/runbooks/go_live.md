@@ -403,6 +403,7 @@ decide_status="$(curl -sS -X POST \
   -o "$REVIEW_SMOKE_TMP/decide.json" \
   -w '%{http_code}' \
   -b "$REVIEWER_COOKIE_JAR" \
+  -H "Origin: $COCKPIT" \
   -H "Content-Type: application/json" \
   --data-binary "$review_payload" \
   "$COCKPIT/api/review/decide")"
@@ -453,6 +454,7 @@ for role in student teacher; do
     -w '%{http_code}' \
     "$COCKPIT/api/review/decide" \
     -b "$cookie_jar" \
+    -H "Origin: $COCKPIT" \
     -H "Content-Type: application/json" \
     -d '{"target_type":"doc","target_id":"smoke-review-target","decision":"reviewed"}')"
   assert_review_json_response 403 "$status" \

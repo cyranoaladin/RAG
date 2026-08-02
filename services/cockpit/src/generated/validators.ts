@@ -1,5 +1,6 @@
 // Generated from packages/contracts/schema. Do not edit manually.
 import Ajv2020 from 'ajv/dist/2020.js'
+import addFormats from 'ajv-formats'
 
 import type { RetrievalResponse, SearchPayload, ChatPayload, ChatRequest, ChatResponse, InternalIdentity, InternalIdentityEnvelope, PilotRetrievalScopeArtifact, ReviewQueuePayload, ReviewDecisionPayload, ReviewDecisionRequest, ReviewQueueResponse, ReviewDecisionResponse } from './contracts'
 import RetrievalResponseSchema from './schema/retrieval-response.json'
@@ -17,6 +18,7 @@ import ReviewQueueResponseSchema from './schema/review-queue-response.json'
 import ReviewDecisionResponseSchema from './schema/review-decision-response.json'
 
 const ajv = new Ajv2020({ allErrors: true, strict: false })
+addFormats(ajv)
 const retrievalResponseValidator = ajv.compile<RetrievalResponse>(RetrievalResponseSchema)
 const searchPayloadValidator = ajv.compile<SearchPayload>(SearchPayloadSchema)
 const chatPayloadValidator = ajv.compile<ChatPayload>(ChatPayloadSchema)

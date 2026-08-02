@@ -96,7 +96,7 @@ async function expectedOutputs() {
       : ''
     return `export const validate${name} = (payload: unknown): payload is ${name} => ${variable}(payload) === true${semanticCheck}`
   }).join('\n\n')
-  const validatorSource = `// Generated from packages/contracts/schema. Do not edit manually.\nimport Ajv2020 from 'ajv/dist/2020.js'\n\nimport type { ${validationEntries.map(({ name }) => name).join(', ')} } from './contracts'\n${imports}\n\nconst ajv = new Ajv2020({ allErrors: true, strict: false })\n${compilers}\n\n${validate}\n`
+  const validatorSource = `// Generated from packages/contracts/schema. Do not edit manually.\nimport Ajv2020 from 'ajv/dist/2020.js'\nimport addFormats from 'ajv-formats'\n\nimport type { ${validationEntries.map(({ name }) => name).join(', ')} } from './contracts'\n${imports}\n\nconst ajv = new Ajv2020({ allErrors: true, strict: false })\naddFormats(ajv)\n${compilers}\n\n${validate}\n`
   return new Map([
     [path.join(generatedRoot, 'contracts.ts'), typeSource],
     [path.join(generatedRoot, 'validators.ts'), validatorSource],
