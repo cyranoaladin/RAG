@@ -229,8 +229,7 @@ Le commit `ec8f743` rend l'allowlist Docker exhaustive et introduit un
 vérificateur commun d'artefact : manifeste canonique, configuration, poids,
 inventaire exact incluant le manifeste, SHA-256 de chaque fichier, refus des
 symlinks, substitutions, chemins non sûrs et fichiers non listés. Le
-healthcheck vérifie les deux montages avant `200`; la preuve coûteuse est
-mémorisée par worker pour ces volumes immuables et read-only. L'artefact
+healthcheck vérifie les deux montages avant `200`. L'artefact
 embedding préparé par le dépôt inclut désormais son manifeste dans
 `SHA256SUMS`.
 
@@ -242,13 +241,8 @@ temporaire, `SELECT` sur `rag_chunks`, aucun privilège mutatif de table et seul
 PostgreSQL réel prouve ce contrat avec le rôle éphémère `lot41_review` et
 conclut de nouveau `LOT40_HYBRID_INTEGRATION=PASS`.
 
-Après ce cycle, 128 tests ciblés modèles/readiness/runtime réussissent, Ruff et
-`mypy` sont verts, la suite non-intégration complète du moteur est verte,
-`docker compose config --quiet` réussit et une construction Docker
-`--no-cache` depuis le contexte deny-by-default copie toutes les sources puis
-expose exactement les neuf routes sans writer ni legacy.
-
-Après ce cycle :
+La validation consolidée du cycle antérieur `5d8b8f3`, avant les trois
+corrections Codex du head `81825b0`, établissait :
 
 - 216 tests ciblés schema/reranker/runtime/retrieval réussissent ;
 - Ruff est vert et `mypy` valide 49 fichiers du moteur ;
@@ -260,6 +254,12 @@ Après ce cycle :
 - `docker compose config` est valide, l'image
   `nexus-rag-engine-v2:lot41u-final` se construit et expose exactement les neuf
   routes attendues sans module writer/legacy.
+
+Après le correctif `ec8f743`, 128 tests ciblés modèles/readiness/runtime
+réussissent, Ruff et `mypy` sont verts, la suite non-intégration complète du
+moteur est verte, `docker compose config --quiet` réussit et une construction
+Docker `--no-cache` depuis le contexte deny-by-default copie toutes les sources
+puis expose exactement les neuf routes sans writer ni legacy.
 
 La relecture de tous les fils encore ouverts a enfin requalifié un ancien P1
 Cubic comme toujours valide malgré son ancre devenue obsolète : un attaquant
@@ -274,6 +274,16 @@ rendent obligatoire. Deux tests remplacent poids, manifeste et inventaire de
 façon cohérente tout en conservant l'ancre approuvée initiale et prouvent le
 refus. Les 69 tests ciblés artefacts/runtime sont verts, comme Ruff, `mypy` et
 la suite non-intégration complète du moteur.
+
+Le commit `15c17b4` issu de la dernière qualification pré-fusion supprime toute
+mémorisation de la preuve par chemin : chaque healthcheck et chaque chargement
+initial recalcule
+l'inventaire et les empreintes, donc un remplacement postérieur à une première
+sonde verte est refusé. La sonde PostgreSQL vérifie désormais dynamiquement
+toutes les colonnes de `rag_chunks` et n'accepte `UPDATE` que sur
+`review_status`, y compris si le schéma gagne une colonne ultérieure. Le test
+de contexte Docker dérive enfin ses attentes de chaque instruction `COPY`, au
+lieu d'une liste partielle maintenue à la main.
 
 ## Éléments restant hors de ce lot
 

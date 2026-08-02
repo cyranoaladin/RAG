@@ -150,7 +150,8 @@ fait échouer la commande ; aucun délai arbitraire ni succès de substitution
 n'est accepté.
 
 La première sonde de chaque worker recalcule les inventaires des deux modèles,
-puis mémorise cette preuve pour les montages immuables. Une modification
+puis recalcule cette preuve à chaque sonde et avant chaque chargement initial.
+Une modification
 d'artefact exige un nouveau déploiement ; ne jamais remplacer les poids sous un
 conteneur en cours d'exécution.
 

@@ -76,8 +76,10 @@ PostgreSQL `unhealthy` et l'application v2 ne démarre pas.
 
 La sonde `/health` de `api_v2.py` vérifie en lecture seule le contrat de schéma
 003, la dimension pgvector et les deux DSN runtime. Le rôle `PG_REVIEW_DSN`
-doit posséder exactement la lecture et `UPDATE(review_status)`, sans privilège
-de table, de schéma, de base, d'administration ou d'appartenance au propriétaire.
+doit posséder exactement `USAGE` sur le schéma `public`, `SELECT` sur
+`rag_chunks` et `UPDATE(review_status)`. Tout autre privilège d'écriture sur la
+table ou ses colonnes, de création sur le schéma ou la base, d'administration
+ou d'appartenance au propriétaire est interdit.
 Une configuration, un schéma ou un rôle incomplet ou sur-privilégié retourne un
 `503` générique ; aucune reprise sur le DSN propriétaire `DATABASE_URL_SYNC`
 n'est admise. Le Compose exige explicitement `PG_RAG_DSN` et `PG_REVIEW_DSN`.
@@ -85,7 +87,8 @@ Les connexions de santé ont un délai de connexion et un `statement_timeout`
 bornés. Avant de rendre le service prêt, la sonde vérifie pour les deux modèles
 le manifeste canonique, la présence de la configuration et des poids, l'absence
 de symlink ou de fichier non inventorié et tous les SHA-256. Cette preuve est
-mémorisée par processus, car les montages sont immuables et en lecture seule.
+recalculée à chaque sonde et avant chaque chargement initial afin qu'un
+remplacement du montage après une sonde réussie soit détecté.
 Les modèles sont chargés avec `local_files_only`, sans téléchargement au
 démarrage ni sur une requête.
 
