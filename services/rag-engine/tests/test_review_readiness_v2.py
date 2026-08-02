@@ -14,6 +14,7 @@ EXPECTED_REVIEW_PRIVILEGES = (
     True,  # aucune colonne ne permet INSERT
     False,  # pas de DELETE
     False,  # pas de TRUNCATE
+    False,  # pas de TRIGGER
     False,  # pas d'UPDATE au niveau table
     True,  # UPDATE limité à review_status
     True,  # aucune autre colonne modifiable
@@ -109,6 +110,7 @@ def test_review_database_ready_proves_the_exact_least_privilege_contract(
     assert "NOT EXISTS" in normalized
     assert "ATTNAME" in normalized
     assert "'INSERT'" in normalized
+    assert "'TRIGGER'" in normalized
     assert "ATTNAME <> 'REVIEW_STATUS'" in normalized
     for forbidden in ("INSERT INTO", "UPDATE ", "DELETE FROM", "ALTER ", "CREATE ", "DROP "):
         assert forbidden not in normalized

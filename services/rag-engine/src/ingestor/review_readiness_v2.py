@@ -25,6 +25,7 @@ _REQUIRED_REVIEW_PRIVILEGES: Final = (
     True,  # aucune colonne ne permet INSERT
     False,  # pas de DELETE
     False,  # pas de TRUNCATE
+    False,  # pas de TRIGGER
     False,  # pas d'UPDATE au niveau table
     True,  # UPDATE limité à review_status
     True,  # aucune autre colonne modifiable
@@ -60,6 +61,7 @@ SELECT
     ),
     has_table_privilege(current_user, 'public.rag_chunks', 'DELETE'),
     has_table_privilege(current_user, 'public.rag_chunks', 'TRUNCATE'),
+    has_table_privilege(current_user, 'public.rag_chunks', 'TRIGGER'),
     has_table_privilege(current_user, 'public.rag_chunks', 'UPDATE'),
     has_column_privilege(
         current_user, 'public.rag_chunks', 'review_status', 'UPDATE'

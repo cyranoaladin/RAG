@@ -210,6 +210,33 @@ def test_health_caches_deep_database_readiness_for_a_bounded_interval(
     ]
 
 
+def test_health_cache_ttl_starts_after_a_slow_probe(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Une sonde plus longue que le TTL reste coalescée après son résultat."""
+    now = [100.0]
+    calls = [0]
+    monkeypatch.setattr(api_v2.time, "monotonic", lambda: now[0])
+
+    def slow_probe(_rag_dsn: str, _review_dsn: str) -> tuple[int, bool, bool, bool]:
+        calls[0] += 1
+        now[0] += api_v2._READINESS_CACHE_TTL_S * 2
+        return (api_v2.CANONICAL_EMBED_DIM, True, True, True)
+
+    monkeypatch.setattr(api_v2, "_probe_database_readiness", slow_probe)
+    api_v2._reset_database_readiness_cache()
+
+    first = api_v2._cached_database_readiness(
+        "postgresql://reader", "postgresql://review"
+    )
+    second = api_v2._cached_database_readiness(
+        "postgresql://reader", "postgresql://review"
+    )
+
+    assert first == second
+    assert calls == [1]
+
+
 @pytest.mark.parametrize(
     "failure",
     (

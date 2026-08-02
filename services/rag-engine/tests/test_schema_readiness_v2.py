@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -117,7 +118,16 @@ def test_schema_head_003_accepts_only_the_exact_contract(
     )
     assert cursor.params == ()
     for forbidden in ("INSERT", "UPDATE", "DELETE", "ALTER", "CREATE", "DROP"):
-        assert f"{forbidden} " not in normalized
+        assert re.search(rf"\b{forbidden}\b", normalized) is None
+
+
+def test_schema_contract_is_loaded_from_the_shared_versioned_source() -> None:
+    contract = ENGINE_ROOT / "infra" / "postgres" / "schema_head_003_columns.tsv"
+
+    assert readiness.load_rag_chunks_column_definitions(contract) == (
+        readiness.REQUIRED_RAG_CHUNKS_COLUMN_DEFINITIONS
+    )
+    assert len(readiness.REQUIRED_RAG_CHUNKS_COLUMN_DEFINITIONS) == 31
 
 
 @pytest.mark.parametrize(

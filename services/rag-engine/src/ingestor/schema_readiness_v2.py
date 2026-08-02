@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 import os
 import re
 from hashlib import sha256
@@ -28,65 +29,76 @@ REQUIRED_MIGRATIONS: Final = (
     (2, "002_hybrid_retrieval.sql"),
     (3, "003_profile_filtering.sql"),
 )
-REQUIRED_RAG_CHUNKS_COLUMN_DEFINITIONS: Final = {
-    "audience": [
-        "ARRAY", "_text", "NO", "NEVER", "'{tous}'::text[]", "text[]", -1
-    ],
-    "candidat": ["text", "text", "YES", "NEVER", None, "text", -1],
-    "chunk_id": ["text", "text", "NO", "NEVER", None, "text", -1],
-    "chunk_index": ["integer", "int4", "NO", "NEVER", "0", "integer", -1],
-    "chunk_sha256": ["text", "text", "NO", "NEVER", None, "text", -1],
-    "collection": ["text", "text", "NO", "NEVER", None, "text", -1],
-    "doc_id": ["text", "text", "NO", "NEVER", None, "text", -1],
-    "domain": [
-        "text", "text", "NO", "NEVER", "'education'::text", "text", -1
-    ],
-    "indexed_at": [
-        "timestamp with time zone",
-        "timestamptz",
-        "NO",
-        "NEVER",
-        "now()",
-        "timestamp with time zone",
-        -1,
-    ],
-    "matiere": ["text", "text", "NO", "NEVER", None, "text", -1],
-    "model": ["text", "text", "YES", "NEVER", None, "text", -1],
-    "niveau": ["text", "text", "NO", "NEVER", None, "text", -1],
-    "notions": [
-        "ARRAY", "_text", "NO", "NEVER", "'{}'::text[]", "text[]", -1
-    ],
-    "official": ["boolean", "bool", "NO", "NEVER", "false", "boolean", -1],
-    "page_end": ["integer", "int4", "YES", "NEVER", None, "integer", -1],
-    "page_start": ["integer", "int4", "YES", "NEVER", None, "integer", -1],
-    "programme_version": ["text", "text", "YES", "NEVER", None, "text", -1],
-    "review_status": [
-        "text", "text", "NO", "NEVER", "'needs_review'::text", "text", -1
-    ],
-    "rights": ["text", "text", "NO", "NEVER", None, "text", -1],
-    "school_year": ["text", "text", "YES", "NEVER", None, "text", -1],
-    "source_kind": [
-        "text", "text", "NO", "NEVER", "'unknown'::text", "text", -1
-    ],
-    "source_label": ["text", "text", "NO", "NEVER", None, "text", -1],
-    "source_uri": ["text", "text", "NO", "NEVER", None, "text", -1],
-    "statut_enseignement": [
-        "text", "text", "NO", "NEVER", "'unknown'::text", "text", -1
-    ],
-    "tenant": ["text", "text", "YES", "NEVER", None, "text", -1],
-    "text": ["text", "text", "YES", "NEVER", None, "text", -1],
-    "text_tsv": [
-        "tsvector", "tsvector", "YES", "ALWAYS", None, "tsvector", -1
-    ],
-    "type_doc": ["text", "text", "NO", "NEVER", None, "text", -1],
-    "vector": [
-        "USER-DEFINED", "vector", "YES", "NEVER", None, "vector(1024)", 1024
-    ],
-    "visibility": ["text", "text", "YES", "NEVER", None, "text", -1],
-    "voie": [
-        "text", "text", "NO", "NEVER", "'generale'::text", "text", -1
-    ],
-}
+
+_COLUMN_CONTRACT_FIELDS: Final = (
+    "column_name",
+    "data_type",
+    "udt_name",
+    "is_nullable",
+    "is_generated",
+    "column_default",
+    "formatted_type",
+    "atttypmod",
+)
+
+
+def _default_column_contract_path() -> Path:
+    configured = os.environ.get("RAG_SCHEMA_HEAD_COLUMNS", "").strip()
+    if configured:
+        return Path(configured)
+    packaged = Path(__file__).resolve().with_name("schema_head_003_columns.tsv")
+    if packaged.is_file():
+        return packaged
+    return (
+        Path(__file__).resolve().parents[2]
+        / "infra"
+        / "postgres"
+        / "schema_head_003_columns.tsv"
+    )
+
+
+def load_rag_chunks_column_definitions(
+    path: Path | None = None,
+) -> dict[str, list[object]]:
+    """Lire strictement le contrat de colonnes partagé par les deux readiness."""
+    definitions: dict[str, list[object]] = {}
+    try:
+        with (path or _default_column_contract_path()).open(
+            encoding="utf-8", newline=""
+        ) as stream:
+            reader = csv.DictReader(stream, delimiter="\t")
+            if tuple(reader.fieldnames or ()) != _COLUMN_CONTRACT_FIELDS:
+                raise RuntimeError("SCHEMA_HEAD_003_COLUMNS_INVALID")
+            for row in reader:
+                if None in row or any(value is None for value in row.values()):
+                    raise RuntimeError("SCHEMA_HEAD_003_COLUMNS_INVALID")
+                name = row["column_name"]
+                if not name or name in definitions:
+                    raise RuntimeError("SCHEMA_HEAD_003_COLUMNS_INVALID")
+                try:
+                    atttypmod = int(row["atttypmod"])
+                except ValueError as exc:
+                    raise RuntimeError("SCHEMA_HEAD_003_COLUMNS_INVALID") from exc
+                column_default = row["column_default"]
+                definitions[name] = [
+                    row["data_type"],
+                    row["udt_name"],
+                    row["is_nullable"],
+                    row["is_generated"],
+                    None if column_default == r"\N" else column_default,
+                    row["formatted_type"],
+                    atttypmod,
+                ]
+    except OSError as exc:
+        raise RuntimeError("SCHEMA_HEAD_003_COLUMNS_UNAVAILABLE") from exc
+    if len(definitions) != 31:
+        raise RuntimeError("SCHEMA_HEAD_003_COLUMNS_INVALID")
+    return definitions
+
+
+REQUIRED_RAG_CHUNKS_COLUMN_DEFINITIONS: Final = (
+    load_rag_chunks_column_definitions()
+)
 REQUIRED_PROFILE_COLUMN_DEFINITIONS: Final = {
     name: REQUIRED_RAG_CHUNKS_COLUMN_DEFINITIONS[name]
     for name in (
@@ -336,6 +348,7 @@ __all__ = [
     "REQUIRED_PROFILE_INDEX_PREDICATE",
     "REQUIRED_TEXT_TSV_EXPRESSION",
     "expected_migration_records",
+    "load_rag_chunks_column_definitions",
     "load_schema_head_003_fingerprints",
     "schema_head_003_ready",
 ]

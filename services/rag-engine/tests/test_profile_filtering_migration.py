@@ -9,6 +9,7 @@ ENGINE_ROOT = Path(__file__).resolve().parents[1]
 POSTGRES = ENGINE_ROOT / "infra" / "postgres"
 SCRIPTS = ENGINE_ROOT / "infra" / "scripts"
 FINGERPRINTS = POSTGRES / "schema_head_003_fingerprints.env"
+COLUMN_CONTRACT = POSTGRES / "schema_head_003_columns.tsv"
 
 
 def _read(path: Path) -> str:
@@ -135,6 +136,10 @@ def test_fresh_bootstrap_registers_the_exact_migration_head() -> None:
         "./postgres/schema_head_003_fingerprints.env:"
         "/schema-head-003-fingerprints.env:ro" in compose
     )
+    assert (
+        "./postgres/schema_head_003_columns.tsv:"
+        "/schema-head-003-columns.tsv:ro" in compose
+    )
     assert '"CMD", "bash", "/docker-entrypoint-healthcheck.sh"' in compose
 
 
@@ -150,10 +155,14 @@ def test_schema_object_fingerprints_have_one_versioned_source() -> None:
     assert "IDX_RAG_CHUNKS_TEXT_TSV_MD5=" in fingerprints
     assert "RAG_CHUNKS_TEXT_TSV_EXPRESSION_MD5=" in fingerprints
     assert "/schema-head-003-fingerprints.env" in healthcheck
+    assert "/schema-head-003-columns.tsv" in healthcheck
+    assert "expected_rag_chunks_columns" in healthcheck
+    assert "FROM (VALUES" not in healthcheck
+    assert COLUMN_CONTRACT.is_file()
     assert "column_default" in healthcheck
     assert "format_type" in healthcheck
     assert "atttypmod" in healthcheck
-    assert "vector(1024)" in healthcheck
+    assert "vector(1024)" in _read(COLUMN_CONTRACT)
     for line in fingerprints.splitlines():
         _key, separator, fingerprint = line.partition("=")
         assert separator

@@ -771,6 +771,18 @@ def test_review_readiness_rejects_column_level_insert() -> None:
     print("REVIEW_ROLE_COLUMN_LEVEL_INSERT_REJECTED=PASS")
 
 
+def test_review_readiness_rejects_trigger_privilege() -> None:
+    with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+        connection.execute("GRANT TRIGGER ON TABLE rag_chunks TO lot41_review")
+    try:
+        assert review_database_ready(REVIEW_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute("REVOKE TRIGGER ON TABLE rag_chunks FROM lot41_review")
+    assert review_database_ready(REVIEW_DSN) is True
+    print("REVIEW_ROLE_TRIGGER_PRIVILEGE_REJECTED=PASS")
+
+
 def test_runtime_roles_reject_every_set_role_membership_path() -> None:
     with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
         connection.execute(

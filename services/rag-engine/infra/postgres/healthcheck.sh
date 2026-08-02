@@ -4,6 +4,7 @@ set -euo pipefail
 
 migration_root=/docker-entrypoint-migrations
 fingerprints_file=/schema-head-003-fingerprints.env
+columns_file=/schema-head-003-columns.tsv
 migration_001_file=001_rag_chunks_v2_schema.sql
 migration_002_file=002_hybrid_retrieval.sql
 migration_003_file=003_profile_filtering.sql
@@ -12,6 +13,10 @@ postgres_db="${POSTGRES_DB:-$postgres_user}"
 
 if [[ ! -r "$fingerprints_file" ]]; then
     printf '%s\n' "ERROR: empreintes du schema head 003 absentes." >&2
+    exit 1
+fi
+if [[ ! -r "$columns_file" ]]; then
+    printf '%s\n' "ERROR: contrat de colonnes du schema head 003 absent." >&2
     exit 1
 fi
 # shellcheck disable=SC1091
@@ -50,65 +55,27 @@ psql \
     --set "text_tsv_index_md5=$IDX_RAG_CHUNKS_TEXT_TSV_MD5" \
     --set "vector_index_md5=$IDX_RAG_CHUNKS_VECTOR_MD5" \
     --set "text_tsv_expression_md5=$RAG_CHUNKS_TEXT_TSV_EXPRESSION_MD5" \
+    --quiet \
     --tuples-only \
     --no-align <<'SQL' | grep -qx t
+CREATE TEMP TABLE expected_rag_chunks_columns (
+    column_name text,
+    data_type text,
+    udt_name text,
+    is_nullable text,
+    is_generated text,
+    column_default text,
+    formatted_type text,
+    atttypmod integer
+) ON COMMIT PRESERVE ROWS;
+\copy expected_rag_chunks_columns FROM '/schema-head-003-columns.tsv' WITH (FORMAT csv, DELIMITER E'\t', NULL '\N', HEADER true)
 SELECT
-    (SELECT count(*) = 31
+    (SELECT count(*) = (SELECT count(*) FROM expected_rag_chunks_columns)
      FROM information_schema.columns
      WHERE table_schema = 'public' AND table_name = 'rag_chunks')
     AND NOT EXISTS (
         SELECT 1
-        FROM (VALUES
-            ('chunk_id', 'text', 'text', 'NO', 'NEVER', NULL, 'text', -1),
-            ('doc_id', 'text', 'text', 'NO', 'NEVER', NULL, 'text', -1),
-            ('chunk_sha256', 'text', 'text', 'NO', 'NEVER', NULL, 'text', -1),
-            ('vector', 'USER-DEFINED', 'vector', 'YES', 'NEVER', NULL,
-             'vector(1024)', 1024),
-            ('collection', 'text', 'text', 'NO', 'NEVER', NULL, 'text', -1),
-            ('niveau', 'text', 'text', 'NO', 'NEVER', NULL, 'text', -1),
-            ('voie', 'text', 'text', 'NO', 'NEVER', '''generale''::text',
-             'text', -1),
-            ('audience', 'ARRAY', '_text', 'NO', 'NEVER',
-             '''{tous}''::text[]', 'text[]', -1),
-            ('matiere', 'text', 'text', 'NO', 'NEVER', NULL, 'text', -1),
-            ('statut_enseignement', 'text', 'text', 'NO', 'NEVER',
-             '''unknown''::text', 'text', -1),
-            ('notions', 'ARRAY', '_text', 'NO', 'NEVER', '''{}''::text[]',
-             'text[]', -1),
-            ('domain', 'text', 'text', 'NO', 'NEVER', '''education''::text',
-             'text', -1),
-            ('source_label', 'text', 'text', 'NO', 'NEVER', NULL, 'text', -1),
-            ('source_uri', 'text', 'text', 'NO', 'NEVER', NULL, 'text', -1),
-            ('rights', 'text', 'text', 'NO', 'NEVER', NULL, 'text', -1),
-            ('type_doc', 'text', 'text', 'NO', 'NEVER', NULL, 'text', -1),
-            ('official', 'boolean', 'bool', 'NO', 'NEVER', 'false',
-             'boolean', -1),
-            ('text', 'text', 'text', 'YES', 'NEVER', NULL, 'text', -1),
-            ('chunk_index', 'integer', 'int4', 'NO', 'NEVER', '0',
-             'integer', -1),
-            ('page_start', 'integer', 'int4', 'YES', 'NEVER', NULL,
-             'integer', -1),
-            ('page_end', 'integer', 'int4', 'YES', 'NEVER', NULL,
-             'integer', -1),
-            ('review_status', 'text', 'text', 'NO', 'NEVER',
-             '''needs_review''::text', 'text', -1),
-            ('model', 'text', 'text', 'YES', 'NEVER', NULL, 'text', -1),
-            ('source_kind', 'text', 'text', 'NO', 'NEVER',
-             '''unknown''::text', 'text', -1),
-            ('indexed_at', 'timestamp with time zone', 'timestamptz', 'NO',
-             'NEVER', 'now()', 'timestamp with time zone', -1),
-            ('text_tsv', 'tsvector', 'tsvector', 'YES', 'ALWAYS', NULL,
-             'tsvector', -1),
-            ('tenant', 'text', 'text', 'YES', 'NEVER', NULL, 'text', -1),
-            ('candidat', 'text', 'text', 'YES', 'NEVER', NULL, 'text', -1),
-            ('visibility', 'text', 'text', 'YES', 'NEVER', NULL, 'text', -1),
-            ('school_year', 'text', 'text', 'YES', 'NEVER', NULL, 'text', -1),
-            ('programme_version', 'text', 'text', 'YES', 'NEVER', NULL,
-             'text', -1)
-        ) AS expected(
-            column_name, data_type, udt_name, is_nullable, is_generated,
-            column_default, formatted_type, atttypmod
-        )
+        FROM expected_rag_chunks_columns AS expected
         LEFT JOIN information_schema.columns AS actual
           ON actual.table_schema = 'public'
          AND actual.table_name = 'rag_chunks'

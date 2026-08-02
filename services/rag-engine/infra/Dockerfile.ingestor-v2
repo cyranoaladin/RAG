@@ -42,6 +42,7 @@ COPY services/rag-engine/src/ingestor/schema_readiness_v2.py /app/schema_readine
 COPY services/rag-engine/src/ingestor/security_v2.py /app/security_v2.py
 COPY services/rag-engine/infra/postgres/migrations/ /app/migrations/
 COPY services/rag-engine/infra/postgres/schema_head_003_fingerprints.env /app/schema_head_003_fingerprints.env
+COPY services/rag-engine/infra/postgres/schema_head_003_columns.tsv /app/schema_head_003_columns.tsv
 
 EXPOSE 8001
 

@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 ENGINE_ROOT = Path(__file__).resolve().parents[1]
 ENDPOINT_FILE = ENGINE_ROOT / "src" / "ingestor" / "retrieval_v2_endpoint.py"
 
@@ -63,3 +65,29 @@ def test_catalogue_v2_function_returns_expected_structure():
             assert "search_enabled_reason" in c
     finally:
         sys.path.pop(0)
+
+
+def test_catalogue_fails_closed_when_taxonomy_artifacts_are_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """L'absence d'artefacts ne doit jamais être présentée comme une preuve verte."""
+    from src.ingestor import retrieval_v2_endpoint as endpoint
+
+    monkeypatch.setattr(endpoint, "_resolve_taxonomy_base", lambda: None)
+
+    result = endpoint._full_catalogue()
+    governed = [
+        collection
+        for collection in result["collections"]
+        if collection["domain"] != "quarantine" and collection["taxonomy_file"]
+    ]
+
+    assert governed
+    assert all(collection["taxonomy_exists"] is False for collection in governed)
+    assert all(
+        any(
+            "vérification indisponible" in issue
+            for issue in collection["coherence_issues"]
+        )
+        for collection in governed
+    )

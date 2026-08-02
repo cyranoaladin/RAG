@@ -597,9 +597,11 @@ def _full_catalogue() -> dict[str, Any]:
         taxonomy_file = defn.get("taxonomy_file")
 
         # Check taxonomy file existence
-        taxonomy_exists = True
-        if taxonomy_file and config_path:
-            taxonomy_exists = (config_path / taxonomy_file).is_file()
+        taxonomy_exists = bool(
+            taxonomy_file
+            and config_path is not None
+            and (config_path / taxonomy_file).is_file()
+        )
 
         # Coherence checks
         coherence_issues: list[str] = []
@@ -608,6 +610,8 @@ def _full_catalogue() -> dict[str, Any]:
         else:
             if not taxonomy_file:
                 coherence_issues.append("taxonomy_file absent")
+            elif config_path is None:
+                coherence_issues.append("taxonomy_file: vérification indisponible")
             elif not taxonomy_exists:
                 coherence_issues.append(f"taxonomy_file '{taxonomy_file}' non trouv\u00e9")
             if domain not in known_domains:

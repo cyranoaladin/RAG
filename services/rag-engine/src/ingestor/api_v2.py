@@ -183,7 +183,7 @@ def _cached_database_readiness(
             _database_readiness_cache = (
                 rag_dsn,
                 review_dsn,
-                now + _READINESS_CACHE_TTL_S,
+                time.monotonic() + _READINESS_CACHE_TTL_S,
                 None,
             )
             raise
@@ -191,7 +191,7 @@ def _cached_database_readiness(
         _database_readiness_cache = (
             rag_dsn,
             review_dsn,
-            now + _READINESS_CACHE_TTL_S,
+            time.monotonic() + _READINESS_CACHE_TTL_S,
             readiness,
         )
         return readiness
