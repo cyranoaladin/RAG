@@ -85,7 +85,11 @@ MODEL_ARTIFACT_DIR="$RAG_EMBEDDING_MODEL_ARTIFACT_HOST_DIR" \
 Au premier démarrage uniquement, PostgreSQL applique dans l'ordre
 `00_init.sql`, puis `01_003_profile_filtering.sql`. Son healthcheck échoue tant
 que le head `003_profile_filtering`, l'index de profil et les cinq contraintes
-validées ne sont pas présents.
+validées ne sont pas présents. Le script
+`02_register_bootstrap_migrations.sh` calcule les SHA-256 des trois migrations
+canoniques et enregistre atomiquement `001`, `002` et `003` dans
+`rag_schema_migrations`. Le runner transactionnel doit ensuite reconnaître ce
+volume avec `MIGRATIONS_APPLIED=0` et `MIGRATIONS_ADOPTED=0`.
 
 ### Volume existant
 

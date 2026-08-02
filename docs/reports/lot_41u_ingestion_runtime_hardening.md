@@ -77,9 +77,12 @@ Une base neuve est initialisée dans cet ordre :
 1. `init.sql` crée le schéma v2 initial ;
 2. `003_profile_filtering.sql` ajoute le profil signé, les contraintes LOT41 et
    l'index de lecture ;
-3. le healthcheck PostgreSQL exige cinq colonnes de profil, cinq contraintes
-   validées et `idx_rag_chunks_profile_reviewed` ;
-4. l'API vérifie en lecture seule le même head, le modèle canonique et la
+3. un script d'initialisation calcule les SHA-256 des migrations canoniques et
+   enregistre atomiquement `001`, `002` et `003` dans le registre ;
+4. le healthcheck PostgreSQL exige cinq colonnes de profil, cinq contraintes
+   validées, `idx_rag_chunks_profile_reviewed` et les trois entrées du registre ;
+5. l'API vérifie en lecture seule le même schéma, y compris l'état validé des
+   contraintes, puis le modèle canonique et la
    dimension pgvector `1024` avant de rendre `healthy`.
 
 La procédure des volumes existants reste distincte : sauvegarde, scripts de
@@ -104,6 +107,11 @@ Les preuves GREEN fraîches comprennent :
   modules writer/legacy absents du conteneur ;
 - Compose PostgreSQL sur volume temporaire neuf : résultat réel `5|t|5` pour
   colonnes, index et contraintes ;
+- registre frais : trois entrées dont les SHA correspondent octet pour octet à
+  `001_rag_chunks_v2_schema.sql`, `002_hybrid_retrieval.sql` et
+  `003_profile_filtering.sql` ;
+- compatibilité du runner sur ce volume : `MIGRATIONS_APPLIED=0`,
+  `MIGRATIONS_ADOPTED=0`, `SCHEMA_VERIFICATION=OK` et `UPGRADE_COMPLETE` ;
 - deux configurations Nginx rendues et validées par `nginx -t` ;
 - tests négatifs `404`/`410` pour les routes non autorisées ;
 - Ruff vert, `mypy` vert sur 47 fichiers du moteur et suites runtime ciblées
@@ -142,6 +150,13 @@ Le rapport crée nécessairement un nouveau head. Une seconde CI exhaustive sera
 donc exécutée après son commit, sans modification ultérieure ; son résultat et
 les checks GitHub seront des preuves du head final, pas du parent nommé ici.
 
+La revue prépublication a ajouté un dernier cycle rouge/vert : la sonde API ne
+filtrait pas encore `pg_constraint.convalidated` et le bootstrap frais ne
+créait pas le registre reconnu par le runner. Le test de validation a d'abord
+échoué, puis 58 tests schema/Compose/runtime, Ruff et `mypy` sur 47 fichiers ont
+réussi après correction. Deux volumes PostgreSQL éphémères distincts ont prouvé
+l'enregistrement exact du head et sa compatibilité immédiate avec le runner.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -159,7 +174,7 @@ Ces points ne sont pas masqués par les corrections runtime :
 - durcissements P2 de supply chain et des workflows secondaires, à traiter
   dans un lot dédié sans mélanger leur autorité avec ce correctif runtime.
 
-## Commits antérieurs au présent rapport
+## Commits du lot avant preuve finale
 
 | SHA | Objet |
 | --- | --- |
@@ -174,6 +189,8 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `998e220` | documentation opérationnelle alignée |
 | `c5d0ce9` | exécution fiable des tests d'intégration |
 | `c8364ac` | correction de typage révélée par la CI exhaustive |
+| `dcd69b7` | rapport de lot initial |
+| `66f5018` | validation des contraintes et registre frais canonique |
 
 ## Décision de livraison
 
