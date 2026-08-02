@@ -22,11 +22,16 @@ class RerankerContractError(RuntimeError):
     """Le reranker canonique ne peut pas être prouvé disponible hors-ligne."""
 
 
-def verify_reranker_artifact(artifact_root: Path) -> Path:
-    """Vérifier identité, inventaire et SHA-256 avant tout chargement de poids."""
+def verify_reranker_artifact(
+    artifact_root: Path,
+    *,
+    expected_inventory_sha256: str,
+) -> Path:
+    """Vérifier le modèle contre l'empreinte d'inventaire externe attendue."""
     try:
         return verify_model_artifact(
             artifact_root,
+            expected_inventory_sha256=expected_inventory_sha256,
             expected_manifest={"model_id": CANONICAL_RERANK_MODEL},
             required_files=frozenset({"config.json"}),
             require_model_weights=True,
@@ -45,13 +50,24 @@ def verify_configured_reranker_artifact() -> Path:
     configured = os.environ.get("RAG_RERANKER_MODEL_CACHE_DIR", "").strip()
     if not configured:
         raise RerankerContractError("RERANKER_MODEL_ARTIFACT_PATH_REQUIRED")
-    return _verify_configured_reranker_artifact(configured)
+    inventory_sha256 = os.environ.get(
+        "RAG_RERANKER_MODEL_INVENTORY_SHA256", ""
+    ).strip()
+    if not inventory_sha256:
+        raise RerankerContractError("RERANKER_MODEL_INVENTORY_SHA256_REQUIRED")
+    return _verify_configured_reranker_artifact(configured, inventory_sha256)
 
 
 @lru_cache(maxsize=8)
-def _verify_configured_reranker_artifact(configured: str) -> Path:
+def _verify_configured_reranker_artifact(
+    configured: str,
+    inventory_sha256: str,
+) -> Path:
     """Mémoriser la preuve du montage immuable pour éviter un rehash par sonde."""
-    return verify_reranker_artifact(Path(configured))
+    return verify_reranker_artifact(
+        Path(configured),
+        expected_inventory_sha256=inventory_sha256,
+    )
 
 
 def load_reranker_model() -> Any:

@@ -10,6 +10,7 @@ set -euo pipefail
 #
 # Required environment:
 #   MODEL_ARTIFACT_DIR    — path to the model artifact directory
+#   MODEL_ARTIFACT_INVENTORY_SHA256 — empreinte approuvée hors artefact de SHA256SUMS
 #
 # Optional:
 #   SKIP_LOAD_TEST        — set to "1" to skip the SentenceTransformer load test
@@ -35,6 +36,11 @@ fi
 
 if [ ! -d "$MODEL_ARTIFACT_DIR" ]; then
     echo "ERROR: MODEL_ARTIFACT_DIR does not exist: $MODEL_ARTIFACT_DIR" >&2
+    exit 1
+fi
+
+if [[ ! "${MODEL_ARTIFACT_INVENTORY_SHA256:-}" =~ ^[0-9a-f]{64}$ ]]; then
+    echo "ERROR: MODEL_ARTIFACT_INVENTORY_SHA256 must be a lowercase SHA-256." >&2
     exit 1
 fi
 
@@ -85,13 +91,17 @@ fi
 # symlinks, path escapes, unlisted files and an unauthenticated manifest.
 if ! PYTHONPATH="$REPO_ROOT/services/rag-engine/src${PYTHONPATH:+:$PYTHONPATH}" \
     MODEL_ARTIFACT_DIR="$MODEL_ARTIFACT_DIR" \
+    MODEL_ARTIFACT_INVENTORY_SHA256="$MODEL_ARTIFACT_INVENTORY_SHA256" \
     python3 - <<'PY'
 import os
 from pathlib import Path
 
 from ingestor.embedding_contract import verify_embedding_artifact
 
-verify_embedding_artifact(Path(os.environ["MODEL_ARTIFACT_DIR"]))
+verify_embedding_artifact(
+    Path(os.environ["MODEL_ARTIFACT_DIR"]),
+    expected_inventory_sha256=os.environ["MODEL_ARTIFACT_INVENTORY_SHA256"],
+)
 PY
 then
     fail "runtime artifact contract verification failed"

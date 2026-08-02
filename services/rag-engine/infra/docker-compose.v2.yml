@@ -64,9 +64,11 @@ services:
       EMBED_MODEL: intfloat/multilingual-e5-large
       EMBED_DIM: "1024"
       RAG_EMBEDDING_MODEL_CACHE_DIR: /models/e5-large
+      RAG_EMBEDDING_MODEL_INVENTORY_SHA256: "${RAG_EMBEDDING_MODEL_INVENTORY_SHA256:?empreinte SHA-256 externe de l inventaire embedding requise}"
       RAG_MIGRATIONS_DIR: /app/migrations
       RAG_SCHEMA_HEAD_FINGERPRINTS: /app/schema_head_003_fingerprints.env
       RAG_RERANKER_MODEL_CACHE_DIR: /models/reranker
+      RAG_RERANKER_MODEL_INVENTORY_SHA256: "${RAG_RERANKER_MODEL_INVENTORY_SHA256:?empreinte SHA-256 externe de l inventaire reranker requise}"
       RERANK_CACHE_TTL: "${RERANK_CACHE_TTL:-300}"
       HF_HUB_OFFLINE: "1"
       TRANSFORMERS_OFFLINE: "1"

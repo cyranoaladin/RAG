@@ -77,10 +77,12 @@ Vérifier les deux artefacts avant démarrage :
 ```bash
 RAG_ENV=preproduction \
 MODEL_ARTIFACT_DIR="$RAG_EMBEDDING_MODEL_ARTIFACT_HOST_DIR" \
+MODEL_ARTIFACT_INVENTORY_SHA256="$RAG_EMBEDDING_MODEL_INVENTORY_SHA256" \
 ../../../scripts/e2e/verify-embedding-model-artifact.sh
 
 RAG_ENV=preproduction \
 MODEL_ARTIFACT_DIR="$RAG_RERANKER_MODEL_ARTIFACT_HOST_DIR" \
+MODEL_ARTIFACT_INVENTORY_SHA256="$RAG_RERANKER_MODEL_INVENTORY_SHA256" \
 ../../../scripts/e2e/verify-reranker-model-artifact.sh
 ```
 
@@ -88,7 +90,12 @@ Chaque répertoire doit contenir `manifest.json`, `config.json`, au moins un
 poids `*.safetensors` ou `pytorch_model.bin`, et un `SHA256SUMS` exhaustif qui
 inclut le manifeste. Les scripts chargent aussi les modèles hors-ligne par
 défaut ; ne pas utiliser `SKIP_LOAD_TEST=1` pour une qualification de
-production. Un ancien artefact embedding dont le manifeste n'était pas inclus
+production. L'empreinte SHA-256 de `SHA256SUMS` doit être approuvée à la
+construction, conservée dans la configuration de déploiement protégée et
+distincte du montage modèle. Ne jamais la recalculer depuis le montage au
+moment de la promotion : elle constitue l'ancre externe qui empêche le
+remplacement simultané des poids, du manifeste et de leur inventaire. Un ancien
+artefact embedding dont le manifeste n'était pas inclus
 dans `SHA256SUMS` doit être régénéré avec
 `prepare-embedding-model-artifact.sh`, pas modifié dans le montage actif.
 

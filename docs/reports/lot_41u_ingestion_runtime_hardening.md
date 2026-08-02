@@ -71,7 +71,10 @@ un verrou runtime séparé, CPU-only, et ne copie ni `api.py`, ni
 `ingest_v2.py`, ni `ingest_v2_endpoint.py`, ni `tasks.py`, ni `database.py`.
 Les artefacts embedding et reranker sont montés en lecture seule ; le reranker
 canonique est chargé avec `local_files_only` et les modes Hugging Face hors
-ligne. Les anciennes variables sans effet `RERANKER_MODEL` et
+ligne. Leur inventaire `SHA256SUMS` est lié à une empreinte attendue fournie par
+la configuration de déploiement hors du montage ; remplacer ensemble les
+poids, le manifeste et les checksums ne suffit donc plus à passer la readiness.
+Les anciennes variables sans effet `RERANKER_MODEL` et
 `RERANKER_TOP_N` ont été retirées du Compose et de son exemple d'environnement.
 
 ## Migrations et santé

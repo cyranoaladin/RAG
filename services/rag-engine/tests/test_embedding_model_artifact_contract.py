@@ -50,6 +50,10 @@ class TestPrepareScript:
     def test_generates_checksums(self) -> None:
         assert "SHA256SUMS" in self.source
 
+    def test_emits_the_external_inventory_trust_anchor(self) -> None:
+        assert 'sha256sum "$CHECKSUM_FILE"' in self.source
+        assert "Inventory SHA-256 (conserver hors artefact)" in self.source
+
     def test_does_not_touch_docker_production(self) -> None:
         assert "docker push" not in self.source
         assert "docker-compose up" not in self.source
@@ -79,6 +83,9 @@ class TestVerifyScript:
     def test_checks_checksums(self) -> None:
         assert "SHA256SUMS" in self.source
         assert "sha256sum" in self.source
+
+    def test_requires_the_external_inventory_trust_anchor(self) -> None:
+        assert "MODEL_ARTIFACT_INVENTORY_SHA256" in self.source
 
     def test_verifies_canonical_model(self) -> None:
         assert "intfloat/multilingual-e5-large" in self.source
@@ -173,6 +180,9 @@ class TestComposeModelMount:
 
     def test_ingestor_has_model_cache_env(self) -> None:
         assert "RAG_EMBEDDING_MODEL_CACHE_DIR" in self.source
+
+    def test_ingestor_requires_an_external_inventory_trust_anchor(self) -> None:
+        assert "RAG_EMBEDDING_MODEL_INVENTORY_SHA256:?" in self.source
 
     def test_compose_has_no_embedding_writer_worker(self) -> None:
         assert "\n  worker:" not in self.source

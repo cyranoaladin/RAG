@@ -65,6 +65,9 @@ def _run_verify(artifact_dir: Path) -> subprocess.CompletedProcess[str]:
     env = {
         **os.environ,
         "MODEL_ARTIFACT_DIR": str(artifact_dir),
+        "MODEL_ARTIFACT_INVENTORY_SHA256": hashlib.sha256(
+            (artifact_dir / "SHA256SUMS").read_bytes()
+        ).hexdigest(),
         "SKIP_LOAD_TEST": "1",
         "HF_HUB_OFFLINE": "1",
         "TRANSFORMERS_OFFLINE": "1",

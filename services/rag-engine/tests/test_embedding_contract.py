@@ -125,8 +125,15 @@ def test_embedding_artifact_contract_accepts_only_the_canonical_inventory(
 ) -> None:
     artifact = tmp_path / "embedding"
     _write_embedding_artifact(artifact)
+    inventory_sha256 = hashlib.sha256((artifact / "SHA256SUMS").read_bytes()).hexdigest()
 
-    assert verify_embedding_artifact(artifact) == artifact.resolve()
+    assert (
+        verify_embedding_artifact(
+            artifact,
+            expected_inventory_sha256=inventory_sha256,
+        )
+        == artifact.resolve()
+    )
 
 
 @pytest.mark.parametrize(
@@ -143,6 +150,7 @@ def test_embedding_artifact_contract_rejects_substitution(
         model_id="attacker/model" if tampering == "model_id" else CANONICAL_EMBED_MODEL,
         canonical_dim=768 if tampering == "dimension" else CANONICAL_EMBED_DIM,
     )
+    inventory_sha256 = hashlib.sha256((artifact / "SHA256SUMS").read_bytes()).hexdigest()
     if tampering == "checksum":
         (artifact / "config.json").write_text("substituted\n", encoding="utf-8")
     elif tampering == "missing_weight":
@@ -153,17 +161,64 @@ def test_embedding_artifact_contract_rejects_substitution(
         (artifact / "linked-config.json").symlink_to(artifact / "config.json")
 
     with pytest.raises(EmbeddingContractError):
-        verify_embedding_artifact(artifact)
+        verify_embedding_artifact(
+            artifact,
+            expected_inventory_sha256=inventory_sha256,
+        )
+
+
+def test_embedding_artifact_rejects_a_replaced_self_consistent_bundle(
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "embedding"
+    _write_embedding_artifact(artifact)
+    trusted_inventory_sha256 = hashlib.sha256(
+        (artifact / "SHA256SUMS").read_bytes()
+    ).hexdigest()
+
+    (artifact / "model.safetensors").write_bytes(b"replacement weights")
+    checksums = "".join(
+        f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}\n"
+        for path in sorted(artifact.iterdir())
+        if path.name != "SHA256SUMS"
+    )
+    (artifact / "SHA256SUMS").write_text(checksums, encoding="utf-8")
+
+    with pytest.raises(
+        EmbeddingContractError,
+        match="EMBEDDING_MODEL_ARTIFACT_INVALID",
+    ):
+        verify_embedding_artifact(
+            artifact,
+            expected_inventory_sha256=trusted_inventory_sha256,
+        )
 
 
 def test_embedding_artifact_must_be_explicitly_configured(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("RAG_EMBEDDING_MODEL_CACHE_DIR", raising=False)
+    monkeypatch.delenv("RAG_EMBEDDING_MODEL_INVENTORY_SHA256", raising=False)
 
     with pytest.raises(
         EmbeddingContractError,
         match="EMBEDDING_MODEL_ARTIFACT_PATH_REQUIRED",
+    ):
+        verify_configured_embedding_artifact()
+
+
+def test_embedding_artifact_requires_an_external_inventory_trust_anchor(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "embedding"
+    _write_embedding_artifact(artifact)
+    monkeypatch.setenv("RAG_EMBEDDING_MODEL_CACHE_DIR", str(artifact))
+    monkeypatch.delenv("RAG_EMBEDDING_MODEL_INVENTORY_SHA256", raising=False)
+
+    with pytest.raises(
+        EmbeddingContractError,
+        match="EMBEDDING_MODEL_INVENTORY_SHA256_REQUIRED",
     ):
         verify_configured_embedding_artifact()
 
@@ -181,6 +236,10 @@ def test_embedding_loader_verifies_before_offline_load(
         return object()
 
     monkeypatch.setenv("RAG_EMBEDDING_MODEL_CACHE_DIR", str(artifact))
+    monkeypatch.setenv(
+        "RAG_EMBEDDING_MODEL_INVENTORY_SHA256",
+        hashlib.sha256((artifact / "SHA256SUMS").read_bytes()).hexdigest(),
+    )
     monkeypatch.setitem(
         sys.modules,
         "sentence_transformers",

@@ -116,11 +116,16 @@ def pgvector_dimension(pg_dsn: str) -> int:
     return int(match.group(1))
 
 
-def verify_embedding_artifact(artifact_root: Path) -> Path:
-    """Vérifier l'identité, la dimension et l'inventaire SHA-256 du modèle."""
+def verify_embedding_artifact(
+    artifact_root: Path,
+    *,
+    expected_inventory_sha256: str,
+) -> Path:
+    """Vérifier le modèle contre l'empreinte d'inventaire externe attendue."""
     try:
         return verify_model_artifact(
             artifact_root,
+            expected_inventory_sha256=expected_inventory_sha256,
             expected_manifest={
                 "model_id": CANONICAL_EMBED_MODEL,
                 "canonical_dim": CANONICAL_EMBED_DIM,
@@ -142,13 +147,24 @@ def verify_configured_embedding_artifact() -> Path:
     configured = os.environ.get("RAG_EMBEDDING_MODEL_CACHE_DIR", "").strip()
     if not configured:
         raise EmbeddingContractError("EMBEDDING_MODEL_ARTIFACT_PATH_REQUIRED")
-    return _verify_configured_embedding_artifact(configured)
+    inventory_sha256 = os.environ.get(
+        "RAG_EMBEDDING_MODEL_INVENTORY_SHA256", ""
+    ).strip()
+    if not inventory_sha256:
+        raise EmbeddingContractError("EMBEDDING_MODEL_INVENTORY_SHA256_REQUIRED")
+    return _verify_configured_embedding_artifact(configured, inventory_sha256)
 
 
 @lru_cache(maxsize=8)
-def _verify_configured_embedding_artifact(configured: str) -> Path:
+def _verify_configured_embedding_artifact(
+    configured: str,
+    inventory_sha256: str,
+) -> Path:
     """Mémoriser la preuve du montage immuable pour éviter un rehash par sonde."""
-    return verify_embedding_artifact(Path(configured))
+    return verify_embedding_artifact(
+        Path(configured),
+        expected_inventory_sha256=inventory_sha256,
+    )
 
 
 def load_embedding_model() -> Any:

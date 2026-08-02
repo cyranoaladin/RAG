@@ -6,6 +6,7 @@ import json
 import re
 from collections.abc import Mapping
 from hashlib import sha256
+from hmac import compare_digest
 from pathlib import Path
 from typing import NoReturn
 
@@ -24,11 +25,12 @@ def _fail_invalid() -> NoReturn:
 def verify_model_artifact(
     artifact_root: Path,
     *,
+    expected_inventory_sha256: str,
     expected_manifest: Mapping[str, object],
     required_files: frozenset[str] = frozenset(),
     require_model_weights: bool = False,
 ) -> Path:
-    """Prouver l'identité et l'inventaire SHA-256 exact avant chargement."""
+    """Prouver l'identité et l'inventaire liés à une ancre externe."""
     if artifact_root.is_symlink() or not artifact_root.is_dir():
         raise ModelArtifactError("MODEL_ARTIFACT_PATH_MISSING")
 
@@ -53,6 +55,15 @@ def verify_model_artifact(
         ):
             _fail_invalid()
 
+        if re.fullmatch(r"[0-9a-f]{64}", expected_inventory_sha256) is None:
+            _fail_invalid()
+        inventory_bytes = (root / "SHA256SUMS").read_bytes()
+        if not compare_digest(
+            sha256(inventory_bytes).hexdigest(),
+            expected_inventory_sha256,
+        ):
+            _fail_invalid()
+
         manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
         if not isinstance(manifest, dict) or any(
             manifest.get(key) != value for key, value in expected_manifest.items()
@@ -60,7 +71,7 @@ def verify_model_artifact(
             _fail_invalid()
 
         checksums: dict[str, str] = {}
-        for line in (root / "SHA256SUMS").read_text(encoding="utf-8").splitlines():
+        for line in inventory_bytes.decode("utf-8").splitlines():
             match = _CHECKSUM_LINE.fullmatch(line)
             if match is None:
                 _fail_invalid()

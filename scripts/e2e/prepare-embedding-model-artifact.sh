@@ -158,9 +158,11 @@ CHECKSUM_FILE="$MODEL_ARTIFACT_DIR/SHA256SUMS"
 ) > "$CHECKSUM_FILE"
 
 echo "SHA256SUMS generated: $(wc -l < "$CHECKSUM_FILE") files."
+INVENTORY_SHA256="$(sha256sum "$CHECKSUM_FILE" | awk '{print $1}')"
 
 echo ""
 echo "=== Artifact preparation complete ==="
 echo "Directory: $MODEL_ARTIFACT_DIR"
 echo "Manifest:  $MODEL_ARTIFACT_DIR/manifest.json"
 echo "Checksums: $MODEL_ARTIFACT_DIR/SHA256SUMS"
+echo "Inventory SHA-256 (conserver hors artefact): $INVENTORY_SHA256"

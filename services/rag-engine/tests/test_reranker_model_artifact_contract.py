@@ -46,6 +46,7 @@ def test_reranker_rejects_a_missing_configured_artifact(
 ) -> None:
     missing = tmp_path / "missing"
     monkeypatch.setenv("RAG_RERANKER_MODEL_CACHE_DIR", str(missing))
+    monkeypatch.setenv("RAG_RERANKER_MODEL_INVENTORY_SHA256", "0" * 64)
 
     with pytest.raises(
         reranker_contract.RerankerContractError,
@@ -67,6 +68,10 @@ def test_reranker_load_is_offline_and_uses_the_read_only_artifact(
         return object()
 
     monkeypatch.setenv("RAG_RERANKER_MODEL_CACHE_DIR", str(artifact))
+    monkeypatch.setenv(
+        "RAG_RERANKER_MODEL_INVENTORY_SHA256",
+        hashlib.sha256((artifact / "SHA256SUMS").read_bytes()).hexdigest(),
+    )
     monkeypatch.setitem(
         sys.modules,
         "sentence_transformers",
@@ -100,6 +105,7 @@ def test_reranker_rejects_every_substituted_artifact(
             else reranker_contract.CANONICAL_RERANK_MODEL
         ),
     )
+    inventory_sha256 = hashlib.sha256((artifact / "SHA256SUMS").read_bytes()).hexdigest()
     if tampering == "checksum":
         (artifact / "config.json").write_text("substituted\n", encoding="utf-8")
     elif tampering == "missing_weight":
@@ -109,6 +115,7 @@ def test_reranker_rejects_every_substituted_artifact(
     else:
         (artifact / "linked-config.json").symlink_to(artifact / "config.json")
     monkeypatch.setenv("RAG_RERANKER_MODEL_CACHE_DIR", str(artifact))
+    monkeypatch.setenv("RAG_RERANKER_MODEL_INVENTORY_SHA256", inventory_sha256)
     calls: list[str] = []
     monkeypatch.setitem(
         sys.modules,
@@ -125,12 +132,58 @@ def test_reranker_rejects_an_unconfigured_artifact(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("RAG_RERANKER_MODEL_CACHE_DIR", raising=False)
+    monkeypatch.delenv("RAG_RERANKER_MODEL_INVENTORY_SHA256", raising=False)
 
     with pytest.raises(
         reranker_contract.RerankerContractError,
         match="RERANKER_MODEL_ARTIFACT_PATH_REQUIRED",
     ):
         reranker_contract.load_reranker_model()
+
+
+def test_reranker_requires_an_external_inventory_trust_anchor(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "reranker"
+    _write_artifact(artifact)
+    monkeypatch.setenv("RAG_RERANKER_MODEL_CACHE_DIR", str(artifact))
+    monkeypatch.delenv("RAG_RERANKER_MODEL_INVENTORY_SHA256", raising=False)
+
+    with pytest.raises(
+        reranker_contract.RerankerContractError,
+        match="RERANKER_MODEL_INVENTORY_SHA256_REQUIRED",
+    ):
+        reranker_contract.verify_configured_reranker_artifact()
+
+
+def test_reranker_rejects_a_replaced_self_consistent_bundle(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "reranker"
+    _write_artifact(artifact)
+    trusted_inventory_sha256 = hashlib.sha256(
+        (artifact / "SHA256SUMS").read_bytes()
+    ).hexdigest()
+    (artifact / "model.safetensors").write_bytes(b"replacement weights")
+    checksums = "".join(
+        f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}\n"
+        for path in sorted(artifact.iterdir())
+        if path.name != "SHA256SUMS"
+    )
+    (artifact / "SHA256SUMS").write_text(checksums, encoding="utf-8")
+    monkeypatch.setenv("RAG_RERANKER_MODEL_CACHE_DIR", str(artifact))
+    monkeypatch.setenv(
+        "RAG_RERANKER_MODEL_INVENTORY_SHA256",
+        trusted_inventory_sha256,
+    )
+
+    with pytest.raises(
+        reranker_contract.RerankerContractError,
+        match="RERANKER_MODEL_ARTIFACT_INVALID",
+    ):
+        reranker_contract.verify_configured_reranker_artifact()
 
 
 def test_v2_compose_mounts_only_effective_reranker_configuration() -> None:
@@ -141,6 +194,8 @@ def test_v2_compose_mounts_only_effective_reranker_configuration() -> None:
         assert "RERANKER_MODEL=" not in content
         assert "RERANKER_TOP_N" not in content
     assert "RAG_RERANKER_MODEL_CACHE_DIR: /models/reranker" in compose
+    assert "RAG_RERANKER_MODEL_INVENTORY_SHA256" in compose
+    assert "RAG_RERANKER_MODEL_INVENTORY_SHA256=" in env_example
     assert "RAG_RERANKER_MODEL_ARTIFACT_HOST_DIR" in compose
     assert "/models/reranker:ro" in compose
     assert 'HF_HUB_OFFLINE: "1"' in compose

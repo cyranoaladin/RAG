@@ -349,7 +349,9 @@ def test_canonical_operations_docs_describe_the_closed_v2_runtime() -> None:
         "RAG_BFF_SERVICE_TOKEN=",
         "NEXUS_INTERNAL_TOKEN_SECRET=",
         "RAG_EMBEDDING_MODEL_ARTIFACT_HOST_DIR=",
+        "RAG_EMBEDDING_MODEL_INVENTORY_SHA256=",
         "RAG_RERANKER_MODEL_ARTIFACT_HOST_DIR=",
+        "RAG_RERANKER_MODEL_INVENTORY_SHA256=",
     ):
         assert required_env in env_example
     for forbidden_env in (

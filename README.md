@@ -13,6 +13,9 @@ parseur, client distant ou route legacy. PostgreSQL doit être au head
 avec identité signée et scope dérivé côté serveur.
 La readiness refuse également tout artefact modèle absent ou non conforme et
 tout rôle PostgreSQL de revue qui ne respecte pas le moindre privilège exact.
+Les inventaires de modèles sont liés à deux empreintes SHA-256 de déploiement
+séparées des montages, afin qu'un remplacement cohérent du manifeste, des poids
+et de `SHA256SUMS` reste refusé.
 
 L'ingestion et la publication restent fermées jusqu'aux autorités LOT41A et
 LOT42 capables de prouver `quality → gate → review`. La génération de réponse
