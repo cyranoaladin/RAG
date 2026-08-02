@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -16,6 +18,25 @@ COMPOSE = ENGINE_ROOT / "infra" / "docker-compose.v2.yml"
 ENV_EXAMPLE = ENGINE_ROOT / "infra" / ".env.example"
 ENDPOINT = ENGINE_ROOT / "src" / "ingestor" / "retrieval_v2_endpoint.py"
 VERIFY_SCRIPT = REPOSITORY_ROOT / "scripts" / "e2e" / "verify-reranker-model-artifact.sh"
+
+
+def _write_artifact(
+    root: Path,
+    *,
+    model_id: str = reranker_contract.CANONICAL_RERANK_MODEL,
+) -> None:
+    root.mkdir()
+    files = {
+        "config.json": '{"architectures":["BertForSequenceClassification"]}\n',
+        "manifest.json": json.dumps({"model_id": model_id}) + "\n",
+    }
+    for relative_path, content in files.items():
+        (root / relative_path).write_text(content, encoding="utf-8")
+    checksums = "".join(
+        f"{hashlib.sha256(content.encode()).hexdigest()}  {relative_path}\n"
+        for relative_path, content in sorted(files.items())
+    )
+    (root / "SHA256SUMS").write_text(checksums, encoding="utf-8")
 
 
 def test_reranker_rejects_a_missing_configured_artifact(
@@ -37,7 +58,7 @@ def test_reranker_load_is_offline_and_uses_the_read_only_artifact(
     tmp_path: Path,
 ) -> None:
     artifact = tmp_path / "reranker"
-    artifact.mkdir()
+    _write_artifact(artifact)
     calls: list[tuple[str, dict[str, object]]] = []
 
     def cross_encoder(path: str, **kwargs: object) -> object:
@@ -61,6 +82,54 @@ def test_reranker_load_is_offline_and_uses_the_read_only_artifact(
     ]
 
 
+@pytest.mark.parametrize(
+    "tampering", ("model_id", "checksum", "unlisted", "symlink")
+)
+def test_reranker_rejects_every_substituted_artifact(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    tampering: str,
+) -> None:
+    artifact = tmp_path / "reranker"
+    _write_artifact(
+        artifact,
+        model_id=(
+            "attacker/model"
+            if tampering == "model_id"
+            else reranker_contract.CANONICAL_RERANK_MODEL
+        ),
+    )
+    if tampering == "checksum":
+        (artifact / "config.json").write_text("substituted\n", encoding="utf-8")
+    elif tampering == "unlisted":
+        (artifact / "unlisted.bin").write_bytes(b"substituted")
+    else:
+        (artifact / "linked-config.json").symlink_to(artifact / "config.json")
+    monkeypatch.setenv("RAG_RERANKER_MODEL_CACHE_DIR", str(artifact))
+    calls: list[str] = []
+    monkeypatch.setitem(
+        sys.modules,
+        "sentence_transformers",
+        SimpleNamespace(CrossEncoder=lambda path, **_kwargs: calls.append(path)),
+    )
+
+    with pytest.raises(reranker_contract.RerankerContractError):
+        reranker_contract.load_reranker_model()
+    assert calls == []
+
+
+def test_reranker_rejects_an_unconfigured_artifact(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("RAG_RERANKER_MODEL_CACHE_DIR", raising=False)
+
+    with pytest.raises(
+        reranker_contract.RerankerContractError,
+        match="RERANKER_MODEL_ARTIFACT_PATH_REQUIRED",
+    ):
+        reranker_contract.load_reranker_model()
+
+
 def test_v2_compose_mounts_only_effective_reranker_configuration() -> None:
     compose = COMPOSE.read_text(encoding="utf-8")
     env_example = ENV_EXAMPLE.read_text(encoding="utf-8")
@@ -82,11 +151,19 @@ def test_retrieval_endpoint_delegates_reranker_loading_to_contract() -> None:
     assert "CrossEncoder(" not in source
 
 
+def test_retrieval_uses_the_single_canonical_reranker_identifier() -> None:
+    source = (
+        ENGINE_ROOT / "src" / "ingestor" / "retrieval_hybrid_v2.py"
+    ).read_text(encoding="utf-8")
+
+    assert "RERANK_MODEL = CANONICAL_RERANK_MODEL" in source
+    assert reranker_contract.CANONICAL_RERANK_MODEL not in source
+
+
 def test_reranker_artifact_verifier_is_offline_and_checks_integrity() -> None:
     source = VERIFY_SCRIPT.read_text(encoding="utf-8")
 
-    assert "cross-encoder/ms-marco-MiniLM-L-6-v2" in source
-    assert "sha256sum --check" in source
+    assert "verify_reranker_artifact" in source
     assert "local_files_only=True" in source
     assert "HF_HUB_OFFLINE" in source
     assert "MODEL_ARTIFACT_DIR" in source

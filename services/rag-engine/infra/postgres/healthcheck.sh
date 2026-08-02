@@ -3,11 +3,19 @@
 set -euo pipefail
 
 migration_root=/docker-entrypoint-migrations
+fingerprints_file=/schema-head-003-fingerprints.env
 migration_001_file=001_rag_chunks_v2_schema.sql
 migration_002_file=002_hybrid_retrieval.sql
 migration_003_file=003_profile_filtering.sql
 postgres_user="${POSTGRES_USER:-postgres}"
 postgres_db="${POSTGRES_DB:-$postgres_user}"
+
+if [[ ! -r "$fingerprints_file" ]]; then
+    printf '%s\n' "ERROR: empreintes du schema head 003 absentes." >&2
+    exit 1
+fi
+# shellcheck disable=SC1091
+source "$fingerprints_file"
 
 pg_isready \
     --username "$postgres_user" \
@@ -25,6 +33,13 @@ psql \
     --set "migration_001_sha=$migration_001_sha" \
     --set "migration_002_sha=$migration_002_sha" \
     --set "migration_003_sha=$migration_003_sha" \
+    --set "candidat_constraint_md5=$RAG_CHUNKS_CANDIDAT_LOT41_CHECK_MD5" \
+    --set "programme_constraint_md5=$RAG_CHUNKS_PROGRAMME_VERSION_LOT41_CHECK_MD5" \
+    --set "school_year_constraint_md5=$RAG_CHUNKS_SCHOOL_YEAR_LOT41_CHECK_MD5" \
+    --set "tenant_constraint_md5=$RAG_CHUNKS_TENANT_LOT41_CHECK_MD5" \
+    --set "visibility_constraint_md5=$RAG_CHUNKS_VISIBILITY_LOT41_CHECK_MD5" \
+    --set "profile_index_md5=$RAG_CHUNKS_PROFILE_REVIEWED_INDEX_MD5" \
+    --set "profile_predicate_md5=$RAG_CHUNKS_PROFILE_REVIEWED_PREDICATE_MD5" \
     --tuples-only \
     --no-align <<'SQL' | grep -qx t
 SELECT
@@ -44,20 +59,20 @@ SELECT
            AND convalidated
            AND (conname, md5(pg_get_constraintdef(oid, true))) IN (
                ('rag_chunks_candidat_lot41_check',
-                '4d93d3e34b13897d1bb7cb39becc029c'),
+                :'candidat_constraint_md5'),
                ('rag_chunks_programme_version_lot41_check',
-                '932c1c1568ffc8f558e757e2c1b342dd'),
+                :'programme_constraint_md5'),
                ('rag_chunks_school_year_lot41_check',
-                '551bb8058f049be32467d33c99833d50'),
+                :'school_year_constraint_md5'),
                ('rag_chunks_tenant_lot41_check',
-                'c47730624202793895c2196f89ccc003'),
+                :'tenant_constraint_md5'),
                ('rag_chunks_visibility_lot41_check',
-                '3a09f093ae8366bb1bcf83d26021dcc8')
+                :'visibility_constraint_md5')
            ))
     AND (SELECT md5(pg_get_indexdef(indexrelid)) =
-                    '1e810dca20fd302afe0390124cea16fa'
+                    :'profile_index_md5'
                 AND md5(pg_get_expr(indpred, indrelid, true)) =
-                    'f0c66a863c91e23b8eda575e06e93e33'
+                    :'profile_predicate_md5'
                 AND indisvalid
                 AND indisready
          FROM pg_index

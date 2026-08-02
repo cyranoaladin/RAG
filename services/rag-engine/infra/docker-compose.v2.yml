@@ -22,6 +22,7 @@ services:
       - ./postgres/register_bootstrap_migrations.sh:/docker-entrypoint-initdb.d/02_register_bootstrap_migrations.sh:ro
       - ./postgres/migrations:/docker-entrypoint-migrations:ro
       - ./postgres/healthcheck.sh:/docker-entrypoint-healthcheck.sh:ro
+      - ./postgres/schema_head_003_fingerprints.env:/schema-head-003-fingerprints.env:ro
     ports:
       - "127.0.0.1:${PGVECTOR_PORT:-5435}:5432"
     networks: [rag_net]
@@ -64,6 +65,7 @@ services:
       EMBED_DIM: "1024"
       RAG_EMBEDDING_MODEL_CACHE_DIR: /models/e5-large
       RAG_MIGRATIONS_DIR: /app/migrations
+      RAG_SCHEMA_HEAD_FINGERPRINTS: /app/schema_head_003_fingerprints.env
       RAG_RERANKER_MODEL_CACHE_DIR: /models/reranker
       RERANK_CACHE_TTL: "${RERANK_CACHE_TTL:-300}"
       HF_HUB_OFFLINE: "1"

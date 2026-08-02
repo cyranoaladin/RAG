@@ -2,7 +2,8 @@
 
 > **Archive de conception — ne pas utiliser comme runbook.** Depuis LOT41U,
 > le runtime v2 canonique est strictement lecture/revue et sa configuration
-> opérationnelle se trouve dans `docs/runbooks/go_live.md`. Les variables et
+> opérationnelle se trouve dans [`docs/runbooks/go_live.md`](../../docs/runbooks/go_live.md).
+> Les variables et
 > writers décrits ci-dessous sont historiques et ne sont pas actifs dans
 > `docker-compose.v2.yml`.
 

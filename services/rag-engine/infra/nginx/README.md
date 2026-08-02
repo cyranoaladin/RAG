@@ -2,7 +2,8 @@ Ces fichiers sont des **templates** de vhosts Nginx (hôte) :
 - `rag-ui.conf.template` pour l’UI Streamlit (reverse proxy vers 127.0.0.1:8501, Basic Auth requise)
 - `rag-api.conf.template` pour l’API Ingestor (reverse proxy vers 127.0.0.1:${NGINX_API_PORT}, `/metrics` restreint à 127.0.0.1)
 - `rag-v2.conf` est l'alternative TLS déjà matérialisée ; elle doit être rendue
-  avec `RAG_API_DOMAIN` et `NGINX_API_PORT` et cible le même port loopback.
+  avec `RAG_API_EXTERNAL_DOMAIN` et `NGINX_API_PORT` et cible le même port
+  loopback.
 
 ## Rendu des vhosts via `envsubst`
 
@@ -22,6 +23,17 @@ envsubst '${RAG_API_EXTERNAL_DOMAIN} ${NGINX_API_PORT}' \
   < infra/nginx/rag-api.conf.template \
   | sudo tee /etc/nginx/sites-available/rag-api.conf >/dev/null
 sudo ln -sf /etc/nginx/sites-available/rag-ui.conf  /etc/nginx/sites-enabled/rag-ui.conf
+sudo ln -sf /etc/nginx/sites-available/rag-api.conf /etc/nginx/sites-enabled/rag-api.conf
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+Pour utiliser à la place le vhost TLS matérialisé `rag-v2.conf`, ne rendez pas
+`rag-api.conf.template` et exécutez explicitement :
+
+```bash
+envsubst '${RAG_API_EXTERNAL_DOMAIN} ${NGINX_API_PORT}' \
+  < infra/nginx/rag-v2.conf \
+  | sudo tee /etc/nginx/sites-available/rag-api.conf >/dev/null
 sudo ln -sf /etc/nginx/sites-available/rag-api.conf /etc/nginx/sites-enabled/rag-api.conf
 sudo nginx -t && sudo systemctl reload nginx
 ```

@@ -8,6 +8,7 @@ from pathlib import Path
 ENGINE_ROOT = Path(__file__).resolve().parents[1]
 POSTGRES = ENGINE_ROOT / "infra" / "postgres"
 SCRIPTS = ENGINE_ROOT / "infra" / "scripts"
+FINGERPRINTS = POSTGRES / "schema_head_003_fingerprints.env"
 
 
 def _read(path: Path) -> str:
@@ -130,4 +131,27 @@ def test_fresh_bootstrap_registers_the_exact_migration_head() -> None:
     assert (
         "./postgres/healthcheck.sh:/docker-entrypoint-healthcheck.sh:ro" in compose
     )
+    assert (
+        "./postgres/schema_head_003_fingerprints.env:"
+        "/schema-head-003-fingerprints.env:ro" in compose
+    )
     assert '"CMD", "bash", "/docker-entrypoint-healthcheck.sh"' in compose
+
+
+def test_schema_object_fingerprints_have_one_versioned_source() -> None:
+    assert FINGERPRINTS.is_file()
+    fingerprints = _read(FINGERPRINTS)
+    healthcheck = _read(POSTGRES / "healthcheck.sh")
+    readiness = _read(ENGINE_ROOT / "src" / "ingestor" / "schema_readiness_v2.py")
+
+    assert "RAG_CHUNKS_TENANT_LOT41_CHECK_MD5=" in fingerprints
+    assert "RAG_CHUNKS_PROFILE_REVIEWED_INDEX_MD5=" in fingerprints
+    assert "/schema-head-003-fingerprints.env" in healthcheck
+    for fingerprint in (
+        "4d93d3e34b13897d1bb7cb39becc029c",
+        "1e810dca20fd302afe0390124cea16fa",
+        "f0c66a863c91e23b8eda575e06e93e33",
+    ):
+        assert fingerprint in fingerprints
+        assert fingerprint not in healthcheck
+        assert fingerprint not in readiness

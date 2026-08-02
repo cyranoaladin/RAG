@@ -177,6 +177,7 @@ def test_v2_dockerfile_copies_only_the_read_review_runtime() -> None:
         "identity_v2.py",
         "metrics.py",
         "pg_pool.py",
+        "readiness_db.py",
         "retrieval_hybrid_v2.py",
         "retrieval_pg_v2.py",
         "retrieval_scope_v2.py",
@@ -188,6 +189,10 @@ def test_v2_dockerfile_copies_only_the_read_review_runtime() -> None:
     ):
         assert f"services/rag-engine/src/ingestor/{required_module}" in content
     assert "infra/postgres/migrations/ /app/migrations/" in content
+    assert (
+        "infra/postgres/schema_head_003_fingerprints.env "
+        "/app/schema_head_003_fingerprints.env" in content
+    )
     for forbidden_module in (
         "api.py",
         "admin_api.py",

@@ -74,6 +74,18 @@ def test_host_vhost_targets_the_loopback_published_compose_port() -> None:
     assert "server ingestor:" not in config
 
 
+def test_materialized_tls_vhost_has_a_documented_exact_render_command() -> None:
+    config = _read("rag-v2.conf")
+    readme = _read("README.md")
+
+    assert "server_name ${RAG_API_EXTERNAL_DOMAIN};" in config
+    assert (
+        "envsubst '${RAG_API_EXTERNAL_DOMAIN} ${NGINX_API_PORT}'"
+        in readme
+    )
+    assert "< infra/nginx/rag-v2.conf" in readme
+
+
 @pytest.mark.parametrize("name", ["rag-v2.conf", "rag-api.conf.template"])
 def test_proxy_closes_all_legacy_routes_without_forwarding(name: str) -> None:
     config = _read(name)

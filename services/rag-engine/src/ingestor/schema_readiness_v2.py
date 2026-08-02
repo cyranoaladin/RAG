@@ -3,14 +3,25 @@
 from __future__ import annotations
 
 import os
+import re
 from hashlib import sha256
 from pathlib import Path
 from typing import Final
 
 import psycopg
 
-READINESS_CONNECT_TIMEOUT_S: Final = 3
-READINESS_STATEMENT_TIMEOUT_MS: Final = 3000
+try:
+    from .readiness_db import (
+        READINESS_CONNECT_TIMEOUT_S,
+        READINESS_STATEMENT_TIMEOUT_MS,
+        readiness_connection_options,
+    )
+except ImportError:  # Image Docker aplatie sous /app.
+    from readiness_db import (  # type: ignore[no-redef]
+        READINESS_CONNECT_TIMEOUT_S,
+        READINESS_STATEMENT_TIMEOUT_MS,
+        readiness_connection_options,
+    )
 
 REQUIRED_MIGRATIONS: Final = (
     (1, "001_rag_chunks_v2_schema.sql"),
@@ -25,20 +36,69 @@ REQUIRED_PROFILE_COLUMN_DEFINITIONS: Final = {
     "visibility": ["text", "YES", None],
 }
 
-# Empreintes des sorties pg_get_constraintdef(..., pretty_bool => true) sur le
-# PostgreSQL 16 épinglé. Elles détectent les objets homonymes et toute dérive
-# après l'enregistrement des migrations canoniques.
-REQUIRED_PROFILE_CONSTRAINT_DEFINITIONS: Final = {
-    "rag_chunks_candidat_lot41_check": "4d93d3e34b13897d1bb7cb39becc029c",
-    "rag_chunks_programme_version_lot41_check": (
-        "932c1c1568ffc8f558e757e2c1b342dd"
+_FINGERPRINT_KEYS: Final = {
+    "RAG_CHUNKS_CANDIDAT_LOT41_CHECK_MD5": (
+        "rag_chunks_candidat_lot41_check"
     ),
-    "rag_chunks_school_year_lot41_check": "551bb8058f049be32467d33c99833d50",
-    "rag_chunks_tenant_lot41_check": "c47730624202793895c2196f89ccc003",
-    "rag_chunks_visibility_lot41_check": "3a09f093ae8366bb1bcf83d26021dcc8",
+    "RAG_CHUNKS_PROGRAMME_VERSION_LOT41_CHECK_MD5": (
+        "rag_chunks_programme_version_lot41_check"
+    ),
+    "RAG_CHUNKS_SCHOOL_YEAR_LOT41_CHECK_MD5": (
+        "rag_chunks_school_year_lot41_check"
+    ),
+    "RAG_CHUNKS_TENANT_LOT41_CHECK_MD5": "rag_chunks_tenant_lot41_check",
+    "RAG_CHUNKS_VISIBILITY_LOT41_CHECK_MD5": (
+        "rag_chunks_visibility_lot41_check"
+    ),
 }
-REQUIRED_PROFILE_INDEX_DEFINITION: Final = "1e810dca20fd302afe0390124cea16fa"
-REQUIRED_PROFILE_INDEX_PREDICATE: Final = "f0c66a863c91e23b8eda575e06e93e33"
+_INDEX_DEFINITION_KEY: Final = "RAG_CHUNKS_PROFILE_REVIEWED_INDEX_MD5"
+_INDEX_PREDICATE_KEY: Final = "RAG_CHUNKS_PROFILE_REVIEWED_PREDICATE_MD5"
+_MD5 = re.compile(r"[0-9a-f]{32}")
+
+
+def _default_fingerprint_path() -> Path:
+    configured = os.environ.get("RAG_SCHEMA_HEAD_FINGERPRINTS", "").strip()
+    if configured:
+        return Path(configured)
+    packaged = Path(__file__).resolve().with_name("schema_head_003_fingerprints.env")
+    if packaged.is_file():
+        return packaged
+    return (
+        Path(__file__).resolve().parents[2]
+        / "infra"
+        / "postgres"
+        / "schema_head_003_fingerprints.env"
+    )
+
+
+def load_schema_head_003_fingerprints(
+    path: Path | None = None,
+) -> dict[str, str]:
+    """Lire strictement la source versionnée unique des empreintes PostgreSQL."""
+    values: dict[str, str] = {}
+    try:
+        for line in (path or _default_fingerprint_path()).read_text(
+            encoding="utf-8"
+        ).splitlines():
+            key, separator, value = line.partition("=")
+            if not separator or key in values or _MD5.fullmatch(value) is None:
+                raise RuntimeError("SCHEMA_HEAD_003_FINGERPRINTS_INVALID")
+            values[key] = value
+    except OSError as exc:
+        raise RuntimeError("SCHEMA_HEAD_003_FINGERPRINTS_UNAVAILABLE") from exc
+    expected_keys = {*_FINGERPRINT_KEYS, _INDEX_DEFINITION_KEY, _INDEX_PREDICATE_KEY}
+    if set(values) != expected_keys:
+        raise RuntimeError("SCHEMA_HEAD_003_FINGERPRINTS_INVALID")
+    return values
+
+
+_FINGERPRINTS = load_schema_head_003_fingerprints()
+REQUIRED_PROFILE_CONSTRAINT_DEFINITIONS: Final = {
+    constraint_name: _FINGERPRINTS[key]
+    for key, constraint_name in _FINGERPRINT_KEYS.items()
+}
+REQUIRED_PROFILE_INDEX_DEFINITION: Final = _FINGERPRINTS[_INDEX_DEFINITION_KEY]
+REQUIRED_PROFILE_INDEX_PREDICATE: Final = _FINGERPRINTS[_INDEX_PREDICATE_KEY]
 
 _SCHEMA_HEAD_003_SQL = """
 SELECT
@@ -127,14 +187,10 @@ def expected_migration_records(
 
 def schema_head_003_ready(dsn: str) -> bool:
     """Prouver le registre, les SHA et les définitions exactes du head 003."""
-    options = (
-        f"-c statement_timeout={READINESS_STATEMENT_TIMEOUT_MS} "
-        "-c default_transaction_read_only=on"
-    )
     with psycopg.connect(
         dsn,
         connect_timeout=READINESS_CONNECT_TIMEOUT_S,
-        options=options,
+        options=readiness_connection_options(),
     ) as connection:
         with connection.cursor() as cursor:
             cursor.execute(_SCHEMA_HEAD_003_SQL)
@@ -161,5 +217,6 @@ __all__ = [
     "REQUIRED_PROFILE_INDEX_DEFINITION",
     "REQUIRED_PROFILE_INDEX_PREDICATE",
     "expected_migration_records",
+    "load_schema_head_003_fingerprints",
     "schema_head_003_ready",
 ]

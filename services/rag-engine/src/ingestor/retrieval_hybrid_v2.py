@@ -11,6 +11,11 @@ from typing import Literal, Protocol
 
 from nexus_contracts.embedding_utils import format_query
 
+try:
+    from .reranker_contract import CANONICAL_RERANK_MODEL
+except ImportError:  # Image Docker aplatie sous /app.
+    from reranker_contract import CANONICAL_RERANK_MODEL  # type: ignore[no-redef]
+
 CHANNEL_LIMIT = 50
 RRF_DENSE_WEIGHT = Fraction(7, 10)
 RRF_LEXICAL_WEIGHT = Fraction(3, 10)
@@ -18,7 +23,7 @@ RRF_K = 60
 RERANK_THRESHOLD = 1.90
 MMR_LAMBDA = 0.7
 EMBED_MODEL = "intfloat/multilingual-e5-large"
-RERANK_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+RERANK_MODEL = CANONICAL_RERANK_MODEL
 EMBED_DIMENSION = 1024
 
 

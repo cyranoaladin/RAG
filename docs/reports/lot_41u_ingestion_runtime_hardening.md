@@ -2,7 +2,7 @@
 
 ## Verdict
 
-**LOT41U_LOCAL_CI_GREEN_AWAITING_FINAL_HEAD_PROOF**
+**LOT41U_FINAL_REVIEW_FIXES_GREEN_AWAITING_EXACT_HEAD_CI**
 
 LOT41U ferme les quatre constats P1 du runtime relevés par l'audit indépendant
 de `main@ea18ba52da5778f628c4943705dd81dfa43fbc15`. Le stack v2 n'embarque
@@ -26,7 +26,7 @@ preuves opérationnelles externes doivent être obtenues. Aucun verrou
 | Date | 2026-08-02 |
 | Baseline `main` | `ea18ba52da5778f628c4943705dd81dfa43fbc15` |
 | Branche | `lot-41u-ingestion-runtime-hardening` |
-| Head source avant rapport | `c8364acef01bcc81c33755571a284016038a3531` |
+| Head source avant le dernier cycle de revue | `5d8b8f3fc430e2b9d47b55f6a937c832bb78bd7b` |
 | Plan de données | runtime FastAPI v2, PostgreSQL/pgvector, Compose, Nginx |
 | Contrats partagés | aucune évolution |
 | Verrous de gouvernance | aucun changement, 18/18 conformes |
@@ -198,6 +198,37 @@ contrainte tenant par `CHECK (true)` ; la sonde applicative via un rôle
 `SELECT` retourne `SCHEMA_HEAD_003_READY=True` et `PGVECTOR_DIMENSION=1024`.
 Les deux vhosts rendus avec une allowlist `envsubst` passent `nginx -t`.
 
+La revue Cubic du head `5d8b8f3` a enfin relevé six écarts supplémentaires,
+tous reproduits avant correction : contrôle incomplet de l'artefact reranker,
+commande de rendu TLS absente du README Nginx, empreintes de schéma dupliquées,
+lien relatif cassé dans le plan de migration et doubles sources pour les
+timeouts PostgreSQL et l'identifiant du reranker. Le runtime exige désormais
+un répertoire explicite avec `manifest.json`, un inventaire exhaustif
+`SHA256SUMS`, l'identifiant canonique et chaque octet conforme avant d'importer
+`CrossEncoder`; les fichiers non listés, symlinks, chemins non sûrs et
+substitutions sont refusés. Le script E2E appelle exactement ce même vérificateur.
+
+Les empreintes `pg_get_constraintdef`/`pg_get_indexdef` ont une source unique,
+`schema_head_003_fingerprints.env`, montée dans PostgreSQL et copiée dans
+l'image applicative. Le test d'intégration calcule toujours les objets depuis
+la migration réelle sur PostgreSQL 16 et appelle maintenant la sonde
+applicative sur ce même schéma. Les paramètres de connexion read-only sont
+centralisés dans `readiness_db.py`, et `retrieval_hybrid_v2.RERANK_MODEL`
+dérive de l'identifiant canonique sans le redéfinir.
+
+Après ce cycle :
+
+- 216 tests ciblés schema/reranker/runtime/retrieval réussissent ;
+- Ruff est vert et `mypy` valide 49 fichiers du moteur ;
+- la suite non-intégration complète est verte ;
+- le cycle PostgreSQL réel migration/adoption/rollback/scope/review/retrieval
+  conclut `LOT40_HYBRID_INTEGRATION=PASS` et exécute la sonde head 003 ;
+- un Compose PostgreSQL sur volume neuf devient `healthy`, puis son healthcheck
+  explicite réussit avec le manifeste partagé ;
+- `docker compose config` est valide, l'image
+  `nexus-rag-engine-v2:lot41u-final` se construit et expose exactement les neuf
+  routes attendues sans module writer/legacy.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -235,7 +266,8 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `fe92cc5` | preuves complémentaires du bootstrap |
 | `944bf81` | authentification BFF et identité signée du catalogue v2 |
 | `56fbdba` | rapport de revue du catalogue v2 |
-| commit courant | intégrité du head 003, proxy loopback, timeouts, reranker hors-ligne et tests hermétiques |
+| `5d8b8f3` | intégrité du head 003, proxy loopback, timeouts, reranker hors-ligne et tests hermétiques |
+| commit courant | intégrité vérifiée des artefacts, sources canoniques et documentation finale |
 
 ## Décision de livraison
 

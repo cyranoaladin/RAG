@@ -38,6 +38,7 @@ from ingestor.retrieval_pg_v2 import (
     PgCandidateStore,
 )
 from ingestor.retrieval_scope_v2 import ServerRetrievalScope
+from ingestor.schema_readiness_v2 import schema_head_003_ready
 
 pytestmark = pytest.mark.integration
 
@@ -764,6 +765,7 @@ def test_schema_registry_and_real_migration_objects_are_exact() -> None:
             "idx_rag_chunks_profile_reviewed",
             "ALWAYS",
         )
+    assert schema_head_003_ready(APP_DSN) is True
     print("MIGRATION_OBJECTS_REAL_DB=PASS")
 
 
