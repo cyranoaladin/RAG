@@ -84,6 +84,14 @@ MODEL_ARTIFACT_DIR="$RAG_RERANKER_MODEL_ARTIFACT_HOST_DIR" \
 ../../../scripts/e2e/verify-reranker-model-artifact.sh
 ```
 
+Chaque répertoire doit contenir `manifest.json`, `config.json`, au moins un
+poids `*.safetensors` ou `pytorch_model.bin`, et un `SHA256SUMS` exhaustif qui
+inclut le manifeste. Les scripts chargent aussi les modèles hors-ligne par
+défaut ; ne pas utiliser `SKIP_LOAD_TEST=1` pour une qualification de
+production. Un ancien artefact embedding dont le manifeste n'était pas inclus
+dans `SHA256SUMS` doit être régénéré avec
+`prepare-embedding-model-artifact.sh`, pas modifié dans le montage actif.
+
 ## 4. Préparer PostgreSQL
 
 ### Volume neuf
@@ -117,6 +125,10 @@ schéma.
 
 Le rôle `PG_RAG_DSN` doit pouvoir lire `rag_schema_migrations`, sinon `/health`
 échoue volontairement en `503` : ne pas lui substituer le rôle owner.
+`/health` ouvre également `PG_REVIEW_DSN` et vérifie le rôle effectif : attributs
+non administratifs, `USAGE` sans `CREATE`, aucune table temporaire, lecture de
+`rag_chunks` et seul `UPDATE(review_status)`. Un rôle absent, sous-privilégié ou
+sur-privilégié maintient volontairement l'API en `503`.
 
 ## 5. Démarrer le runtime fermé
 
@@ -129,6 +141,11 @@ make v2-up
 Cette cible utilise `docker compose up -d --build --wait`. Un service unhealthy
 fait échouer la commande ; aucun délai arbitraire ni succès de substitution
 n'est accepté.
+
+La première sonde de chaque worker recalcule les inventaires des deux modèles,
+puis mémorise cette preuve pour les montages immuables. Une modification
+d'artefact exige un nouveau déploiement ; ne jamais remplacer les poids sous un
+conteneur en cours d'exécution.
 
 Contrôles locaux :
 

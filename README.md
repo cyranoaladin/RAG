@@ -11,6 +11,8 @@ Le runtime v2 gouverné est désormais un service **lecture/revue** lancé par
 parseur, client distant ou route legacy. PostgreSQL doit être au head
 `003_profile_filtering` et l'accès humain passe uniquement par le **Cockpit BFF**,
 avec identité signée et scope dérivé côté serveur.
+La readiness refuse également tout artefact modèle absent ou non conforme et
+tout rôle PostgreSQL de revue qui ne respecte pas le moindre privilège exact.
 
 L'ingestion et la publication restent fermées jusqu'aux autorités LOT41A et
 LOT42 capables de prouver `quality → gate → review`. La génération de réponse

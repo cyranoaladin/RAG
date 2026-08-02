@@ -75,14 +75,19 @@ des contraintes et de l'index du head 003. Toute dérive homonyme maintient
 PostgreSQL `unhealthy` et l'application v2 ne démarre pas.
 
 La sonde `/health` de `api_v2.py` vérifie en lecture seule le contrat de schéma
-003 et la dimension pgvector. Une configuration ou un schéma incomplet retourne
-un `503` générique ; aucune reprise sur le DSN propriétaire
-`DATABASE_URL_SYNC` n'est admise. Le Compose exige explicitement les DSN runtime
-à privilèges minimaux `PG_RAG_DSN` et `PG_REVIEW_DSN`.
+003, la dimension pgvector et les deux DSN runtime. Le rôle `PG_REVIEW_DSN`
+doit posséder exactement la lecture et `UPDATE(review_status)`, sans privilège
+de table, de schéma, de base, d'administration ou d'appartenance au propriétaire.
+Une configuration, un schéma ou un rôle incomplet ou sur-privilégié retourne un
+`503` générique ; aucune reprise sur le DSN propriétaire `DATABASE_URL_SYNC`
+n'est admise. Le Compose exige explicitement `PG_RAG_DSN` et `PG_REVIEW_DSN`.
 Les connexions de santé ont un délai de connexion et un `statement_timeout`
-bornés. Les modèles d'embedding et de reranking sont montés en lecture seule et
-chargés avec `local_files_only`, sans téléchargement au démarrage ni sur une
-requête.
+bornés. Avant de rendre le service prêt, la sonde vérifie pour les deux modèles
+le manifeste canonique, la présence de la configuration et des poids, l'absence
+de symlink ou de fichier non inventorié et tous les SHA-256. Cette preuve est
+mémorisée par processus, car les montages sont immuables et en lecture seule.
+Les modèles sont chargés avec `local_files_only`, sans téléchargement au
+démarrage ni sur une requête.
 
 ## Surface autorisée
 
@@ -108,8 +113,8 @@ frontière Nginx v2.
 - Schéma PostgreSQL inférieur à 003 : conteneur PostgreSQL `unhealthy`, puis
   aucun démarrage du moteur.
 - DSN runtime absent : rendu Compose refusé avant démarrage.
-- Schéma ou dimension non vérifiable par `/health` : `503` avec détail
-  générique.
+- Schéma, dimension, artefact modèle ou rôle review non vérifiable par
+  `/health` : `503` avec détail générique.
 - Chemin `/ingest` ou descendant : `410`, sans proxy ni lecture de corps.
 - Route non allowlistée : `404`, sans proxy.
 - Identité BFF absente ou invalide : comportement fail-closed existant

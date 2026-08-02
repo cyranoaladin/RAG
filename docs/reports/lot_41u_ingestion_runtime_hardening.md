@@ -2,7 +2,7 @@
 
 ## Verdict
 
-**LOT41U_FINAL_REVIEW_FIXES_GREEN_AWAITING_EXACT_HEAD_CI**
+**LOT41U_REVIEW_FIXES_GREEN_AWAITING_FINAL_HEAD_CI**
 
 LOT41U ferme les quatre constats P1 du runtime relevés par l'audit indépendant
 de `main@ea18ba52da5778f628c4943705dd81dfa43fbc15`. Le stack v2 n'embarque
@@ -216,6 +216,35 @@ applicative sur ce même schéma. Les paramètres de connexion read-only sont
 centralisés dans `readiness_db.py`, et `retrieval_hybrid_v2.RERANK_MODEL`
 dérive de l'identifiant canonique sans le redéfinir.
 
+La revue Codex du head `81825b0` a ensuite identifié trois écarts valides. Le
+contexte Docker deny-by-default n'autorisait pas explicitement quatre sources
+copiées ; `/health` pouvait accepter les montages modèles de repli vides ; et
+le DSN de revue n'était pas ouvert avant de déclarer le service prêt. Les trois
+défauts ont été reproduits par tests avant correction.
+
+Le commit `ec8f743` rend l'allowlist Docker exhaustive et introduit un
+vérificateur commun d'artefact : manifeste canonique, configuration, poids,
+inventaire exact incluant le manifeste, SHA-256 de chaque fichier, refus des
+symlinks, substitutions, chemins non sûrs et fichiers non listés. Le
+healthcheck vérifie les deux montages avant `200`; la preuve coûteuse est
+mémorisée par worker pour ces volumes immuables et read-only. L'artefact
+embedding préparé par le dépôt inclut désormais son manifeste dans
+`SHA256SUMS`.
+
+Une seconde sonde PostgreSQL ouvre `PG_REVIEW_DSN` avec les mêmes timeouts
+read-only et exige exactement : rôle non administratif, aucune appartenance au
+propriétaire, `USAGE` sans `CREATE`, aucune création de base ou table
+temporaire, `SELECT` sur `rag_chunks`, aucun privilège mutatif de table et seul
+`UPDATE(review_status)`. Les 17 dérives unitaires sont refusées. Le runner
+PostgreSQL réel prouve ce contrat avec le rôle éphémère `lot41_review` et
+conclut de nouveau `LOT40_HYBRID_INTEGRATION=PASS`.
+
+Après ce cycle, 128 tests ciblés modèles/readiness/runtime réussissent, Ruff et
+`mypy` sont verts, la suite non-intégration complète du moteur est verte,
+`docker compose config --quiet` réussit et une construction Docker
+`--no-cache` depuis le contexte deny-by-default copie toutes les sources puis
+expose exactement les neuf routes sans writer ni legacy.
+
 Après ce cycle :
 
 - 216 tests ciblés schema/reranker/runtime/retrieval réussissent ;
@@ -267,7 +296,9 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `944bf81` | authentification BFF et identité signée du catalogue v2 |
 | `56fbdba` | rapport de revue du catalogue v2 |
 | `5d8b8f3` | intégrité du head 003, proxy loopback, timeouts, reranker hors-ligne et tests hermétiques |
-| commit courant | intégrité vérifiée des artefacts, sources canoniques et documentation finale |
+| `81825b0` | intégrité vérifiée des artefacts, sources canoniques et documentation finale |
+| `ec8f743` | readiness stricte des artefacts et du rôle PostgreSQL de revue |
+| commit courant | documentation et preuve du dernier cycle de revue |
 
 ## Décision de livraison
 
