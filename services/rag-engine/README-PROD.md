@@ -1,4 +1,21 @@
-# rag-local — Déploiement Production (VPS)
+# RAG Engine — opérations de production
+
+## Statut runtime v2 LOT41U
+
+Le runtime v2 canonique est un service **lecture/revue** lancé par
+`api_v2:app`, adossé à PostgreSQL/pgvector au head `003_profile_filtering`.
+L'image ne contient aucun writer ni route d'ingestion. Les appels métier passent
+uniquement par le **Cockpit BFF**, son credential machine et une identité interne
+signée.
+
+Le verdict demeure **GO_LIVE: NO_GO** jusqu'aux autorités LOT41A/LOT42, à la
+revue golden et aux preuves opérationnelles externes. La seule procédure
+actuelle est [`../../docs/runbooks/go_live.md`](../../docs/runbooks/go_live.md).
+Ne pas utiliser les commandes archivées ci-dessous pour déployer Nexus v2.
+
+## Archive LOT19 — ne pas exécuter pour Nexus v2
+
+# rag-local — Déploiement historique (VPS)
 
 > Avertissement Lot 19 — prod historique, pas deploiement Nexus final.
 > Ce document reste utile pour comprendre et operer l'UI historique `rag-ui.nexusreussite.academy` (Streamlit + FastAPI ingestor + ChromaDB + Ollama). Il ne doit pas etre lu comme un plan de deploiement du futur RAG Nexus pgvector. Avant toute mise a jour de prod, utiliser `docs/reports/lot_19_prod_deployment_plan.md` : backup, diff prod/repo, rsync cible, post-check et rollback.

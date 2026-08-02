@@ -13,6 +13,11 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 ADR = REPOSITORY_ROOT / "docs" / "adr" / "ADR-0024-runtime-v2-lecture-revue-fail-closed.md"
 ENGINE_ROOT = REPOSITORY_ROOT / "services" / "rag-engine"
 V2_DOCKERFILE = ENGINE_ROOT / "infra" / "Dockerfile.ingestor-v2"
+GO_LIVE_RUNBOOK = REPOSITORY_ROOT / "docs" / "runbooks" / "go_live.md"
+ROOT_README = REPOSITORY_ROOT / "README.md"
+ENGINE_PROD_README = ENGINE_ROOT / "README-PROD.md"
+ENGINE_AGENTS = ENGINE_ROOT / "AGENTS.md"
+V2_ENV_EXAMPLE = ENGINE_ROOT / "infra" / ".env.example"
 
 
 def test_adr_closes_ungoverned_v2_ingestion() -> None:
@@ -199,3 +204,62 @@ def test_v2_runtime_dependencies_exclude_writer_and_remote_source_stacks() -> No
     assert "--extra-index-url https://download.pytorch.org/whl/cpu" in requirements
     assert "torch==2.4.1+cpu" in requirements
     assert "transformers==4.44.2" in requirements
+
+
+def test_canonical_operations_docs_describe_the_closed_v2_runtime() -> None:
+    runbook = GO_LIVE_RUNBOOK.read_text(encoding="utf-8")
+    root_current = ROOT_README.read_text(encoding="utf-8").split(
+        "## Sommaire", maxsplit=1
+    )[0]
+    engine_current = ENGINE_PROD_README.read_text(encoding="utf-8").split(
+        "## Archive LOT19", maxsplit=1
+    )[0]
+    agents = ENGINE_AGENTS.read_text(encoding="utf-8")
+    env_example = V2_ENV_EXAMPLE.read_text(encoding="utf-8")
+
+    for required in (
+        "GO_LIVE: NO_GO",
+        "Cockpit BFF",
+        "LOT41A",
+        "LOT42",
+        "003_profile_filtering",
+        "quality → gate → review",
+        "PG_RAG_DSN",
+        "PG_REVIEW_DSN",
+    ):
+        assert required in runbook
+
+    for forbidden in (
+        "/ingest/v2",
+        "docker-compose.prod.yml",
+        "RAG_ADMIN_TOKEN",
+        "RAG_REVIEWER_TOKEN",
+        "ollama pull",
+        "Chroma",
+    ):
+        assert forbidden not in runbook
+
+    for current in (root_current, engine_current, agents):
+        assert "runtime v2" in current
+        assert "lecture/revue" in current
+        assert "api_v2:app" in current
+        assert "Cockpit BFF" in current
+
+    assert "ChromaDB (`docker-compose.yml` / `docker-compose.prod.yml`)" not in agents
+    assert "Ollama (`nomic-embed-text`), 768 dimensions" not in agents
+    for required_env in (
+        "PGVECTOR_PASSWORD=",
+        "PG_RAG_DSN=",
+        "PG_REVIEW_DSN=",
+        "RAG_BFF_SERVICE_TOKEN=",
+        "NEXUS_INTERNAL_TOKEN_SECRET=",
+        "RAG_EMBEDDING_MODEL_ARTIFACT_HOST_DIR=",
+    ):
+        assert required_env in env_example
+    for forbidden_env in (
+        "LEGACY_ADMIN_API_TOKEN=",
+        "RAG_ADMIN_TOKEN=",
+        "RAG_INGEST_AGENT_TOKEN=",
+        "INGESTOR_API_TOKEN=",
+    ):
+        assert forbidden_env not in env_example
