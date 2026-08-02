@@ -1,12 +1,36 @@
-"""Surface Nginx LOT41 : seul le retrieval gouverné reste exposé."""
+"""Surface Nginx LOT41U : allowlist exacte du runtime lecture/revue."""
 
 from __future__ import annotations
 
 import re
 from pathlib import Path
 
+import pytest
+
 ENGINE_ROOT = Path(__file__).resolve().parents[1]
 NGINX = ENGINE_ROOT / "infra" / "nginx"
+PROXIED_PATHS = {
+    "/health",
+    "/metrics",
+    "/search/v2",
+    "/chat",
+    "/collections/v2",
+    "/catalogue/v2",
+    "/collections/readiness",
+    "/review/v2/queue",
+    "/review/v2/decide",
+}
+LEGACY_LOCATIONS = (
+    "location = /ingest",
+    "location ^~ /ingest/",
+    "location = /search",
+    "location ^~ /search/",
+    "location ^~ /admin",
+    "location ^~ /stats",
+    "location ^~ /eval",
+    "location ^~ /kb",
+    "location ^~ /rag",
+)
 
 
 def _read(name: str) -> str:
@@ -23,37 +47,53 @@ def _location_block(config: str, location: str) -> str:
     return match.group("body")
 
 
-def test_v2_proxy_closes_legacy_retrieval_and_keeps_canonical_bff_routes() -> None:
-    config = _read("rag-v2.conf")
+@pytest.mark.parametrize("name", ["rag-v2.conf", "rag-api.conf.template"])
+def test_proxy_exposes_exact_runtime_allowlist(name: str) -> None:
+    config = _read(name)
+    proxied = set()
 
-    for location in (
-        "location = /search",
-        "location ^~ /search/",
-        "location ^~ /kb",
-        "location ^~ /rag",
-    ):
+    for match in re.finditer(r"location = (?P<path>/[^ ]*)\s*\{", config):
+        path = match.group("path")
+        block = _location_block(config, f"location = {path}")
+        if "proxy_pass" in block:
+            proxied.add(path)
+
+    assert proxied == PROXIED_PATHS
+
+
+@pytest.mark.parametrize("name", ["rag-v2.conf", "rag-api.conf.template"])
+def test_proxy_closes_all_legacy_routes_without_forwarding(name: str) -> None:
+    config = _read(name)
+
+    for location in LEGACY_LOCATIONS:
         block = _location_block(config, location)
         assert "return 410" in block
         assert "proxy_pass" not in block
 
-    for location in ("location = /search/v2", "location = /chat"):
-        block = _location_block(config, location)
-        assert "proxy_pass http://rag_api" in block
+
+@pytest.mark.parametrize("name", ["rag-v2.conf", "rag-api.conf.template"])
+def test_metrics_is_loopback_only_and_default_is_404(name: str) -> None:
+    config = _read(name)
+    metrics = _location_block(config, "location = /metrics")
+    default = _location_block(config, "location /")
+
+    assert "allow 127.0.0.1" in metrics
+    assert "allow ::1" in metrics
+    assert "deny all" in metrics
+    assert "return 404" in default
+    assert "proxy_pass" not in default
 
 
-def test_rendered_api_template_applies_the_same_fail_closed_boundary() -> None:
-    config = _read("rag-api.conf.template")
+@pytest.mark.parametrize("name", ["rag-v2.conf", "rag-api.conf.template"])
+def test_proxy_has_no_legacy_upstream_or_forwarded_header_authority(name: str) -> None:
+    config = _read(name)
 
-    for location in (
-        "location = /search",
-        "location ^~ /search/",
-        "location ^~ /kb",
-        "location ^~ /rag",
+    for forbidden in (
+        "upstream rag_ui",
+        "server ui:",
+        "$host",
+        "X-Forwarded-For",
+        "X-Forwarded-Host",
+        "X-Forwarded-Proto",
     ):
-        block = _location_block(config, location)
-        assert "return 410" in block
-        assert "proxy_pass" not in block
-
-    for location in ("location = /search/v2", "location = /chat"):
-        block = _location_block(config, location)
-        assert "proxy_pass http://127.0.0.1:${NGINX_API_PORT}" in block
+        assert forbidden not in config
