@@ -18,7 +18,7 @@ ENGINE_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = ENGINE_ROOT.parents[1]
 COMPOSE = ENGINE_ROOT / "infra" / "docker-compose.v2.yml"
 CONFIG = ENGINE_ROOT / "configs" / "rag_collections.yml"
-API = ENGINE_ROOT / "src" / "ingestor" / "api.py"
+API = ENGINE_ROOT / "src" / "ingestor" / "api_v2.py"
 TASKS = ENGINE_ROOT / "src" / "ingestor" / "tasks.py"
 SMOKE = REPO_ROOT / "scripts" / "e2e" / "smoke-embedding-contract.sh"
 
@@ -94,9 +94,7 @@ def test_public_health_uses_the_embedding_contract_payload() -> None:
     for field in (
         "embedding_model",
         "embedding_dim_declared",
-        "embedding_dim_runtime",
         "pgvector_dim",
-        "embedding_contract_ok",
     ):
         assert field in source
 

@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
-from src.ingestor import api, pg_pool
+from src.ingestor import api_v2, pg_pool
 
 
 class _FakePool:
@@ -38,7 +38,7 @@ def reset_pool() -> Iterator[None]:
 def test_fastapi_shutdown_closes_pool_once_and_allows_recreation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    assert hasattr(api, "close_pool")
+    assert hasattr(api_v2, "close_pool")
     instances: list[_FakePool] = []
 
     def factory(_dsn: str, **_kwargs: Any) -> _FakePool:
@@ -48,7 +48,7 @@ def test_fastapi_shutdown_closes_pool_once_and_allows_recreation(
 
     monkeypatch.setattr(pg_pool, "_pool_factory", factory)
     close_spy = MagicMock(wraps=pg_pool.close_pool)
-    monkeypatch.setattr(api, "close_pool", close_spy)
+    monkeypatch.setattr(api_v2, "close_pool", close_spy)
     settings = pg_pool.PoolSettings(
         dsn="postgresql://runtime.invalid/rag",
         min_size=1,
@@ -57,7 +57,7 @@ def test_fastapi_shutdown_closes_pool_once_and_allows_recreation(
     )
     first = pg_pool.get_pool(settings)
 
-    with TestClient(api.app):
+    with TestClient(api_v2.app):
         pass
 
     assert close_spy.call_count == 1
