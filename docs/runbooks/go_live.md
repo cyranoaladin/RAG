@@ -131,7 +131,9 @@ runtime n'ont ni création, ni suppression, ni modification de contenu ou de
 schéma.
 
 Le rôle `PG_RAG_DSN` doit pouvoir lire `rag_schema_migrations`, sinon `/health`
-échoue volontairement en `503` : ne pas lui substituer le rôle owner.
+échoue volontairement en `503` : ne pas lui substituer le rôle owner. La sonde
+refuse également tout privilège d'écriture, de création, d'administration ou
+d'appartenance au propriétaire ; le pool force les transactions read-only.
 `/health` ouvre également `PG_REVIEW_DSN` et vérifie le rôle effectif : attributs
 non administratifs, `USAGE` sans `CREATE`, aucune table temporaire, lecture de
 `rag_chunks` et seul `UPDATE(review_status)`. Un rôle absent, sous-privilégié ou
@@ -151,9 +153,8 @@ n'est accepté.
 
 La première sonde de chaque worker recalcule les inventaires des deux modèles,
 puis recalcule cette preuve à chaque sonde et avant chaque chargement initial.
-Une modification
-d'artefact exige un nouveau déploiement ; ne jamais remplacer les poids sous un
-conteneur en cours d'exécution.
+Une modification d'artefact exige un nouveau déploiement ; ne jamais remplacer
+les poids sous un conteneur en cours d'exécution.
 
 Contrôles locaux :
 
@@ -164,6 +165,11 @@ curl -fsS http://127.0.0.1:8001/health | jq -e \
 test "$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:8001/ingest)" = 404
 test "$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1/admin)" = 404
 ```
+
+Après au moins une requête métier de smoke, vérifier que `/metrics` contient
+`ingestor_requests_total` et `ingestor_request_latency_seconds`. Les chemins
+inconnus doivent être agrégés sous `path="unmatched"` afin de conserver une
+cardinalité bornée.
 
 ## 6. Installer le proxy par allowlist
 

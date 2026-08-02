@@ -91,8 +91,9 @@ Une base neuve est initialisée dans cet ordre :
    prédicat exacts de `idx_rag_chunks_profile_reviewed`, puis les trois entrées
    exactes du registre ;
 5. l'API relit les mêmes preuves via un rôle `SELECT`, avec `connect_timeout`,
-   `statement_timeout` et transaction read-only, puis vérifie le modèle canonique et la
-   dimension pgvector `1024` avant de rendre `healthy`.
+   `statement_timeout` et transaction read-only, vérifie les privilèges
+   effectifs du rôle retrieval, puis le modèle canonique et la dimension
+   pgvector `1024` avant de rendre `healthy`.
 
 La procédure des volumes existants reste distincte : sauvegarde, scripts de
 migration versionnés, vérification du head puis rollback testé. Aucun DSN owner
@@ -277,13 +278,21 @@ la suite non-intégration complète du moteur.
 
 Le commit `15c17b4` issu de la dernière qualification pré-fusion supprime toute
 mémorisation de la preuve par chemin : chaque healthcheck et chaque chargement
-initial recalcule
-l'inventaire et les empreintes, donc un remplacement postérieur à une première
+initial recalcule l'inventaire et les empreintes, donc un remplacement
+postérieur à une première
 sonde verte est refusé. La sonde PostgreSQL vérifie désormais dynamiquement
 toutes les colonnes de `rag_chunks` et n'accepte `UPDATE` que sur
 `review_status`, y compris si le schéma gagne une colonne ultérieure. Le test
 de contexte Docker dérive enfin ses attentes de chaque instruction `COPY`, au
 lieu d'une liste partielle maintenue à la main.
+
+Le commit `1842e4d` ferme deux derniers fils pré-fusion. `/health` refuse
+désormais un `PG_RAG_DSN` propriétaire, administratif, créateur ou détenteur
+d'un quelconque privilège mutatif ; le pool ajoute une transaction read-only
+indépendante des grants. Un test PostgreSQL réel accorde temporairement
+`UPDATE(source_label)` au rôle retrieval et prouve son rejet avant révocation.
+Le runtime v2 instrumente aussi chaque requête par code et latence, avec une
+allowlist de labels et la valeur unique `unmatched` pour tout chemin inconnu.
 
 ## Éléments restant hors de ce lot
 
@@ -327,6 +336,9 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `ec8f743` | readiness stricte des artefacts et du rôle PostgreSQL de revue |
 | `50789c0` | documentation et preuve du cycle readiness |
 | `245e5f6` | ancre externe des inventaires de modèles |
+| `15c17b4` | revalidation continue des artefacts et moindre privilège review |
+| `6c86032` | documentation du dernier cycle de revue |
+| `1842e4d` | moindre privilège retrieval et instrumentation HTTP v2 |
 | commit courant | documentation et preuve du dernier cycle de revue |
 
 ## Décision de livraison

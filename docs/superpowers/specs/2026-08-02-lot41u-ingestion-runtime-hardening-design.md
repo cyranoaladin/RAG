@@ -75,7 +75,11 @@ des contraintes et de l'index du head 003. Toute dérive homonyme maintient
 PostgreSQL `unhealthy` et l'application v2 ne démarre pas.
 
 La sonde `/health` de `api_v2.py` vérifie en lecture seule le contrat de schéma
-003, la dimension pgvector et les deux DSN runtime. Le rôle `PG_REVIEW_DSN`
+003, la dimension pgvector et les deux DSN runtime. Le rôle `PG_RAG_DSN` doit
+posséder exactement `USAGE` sur `public` et le type `vector`, ainsi que `SELECT`
+sur `rag_chunks` et `rag_schema_migrations`, sans aucun privilège mutatif,
+d'administration, de création ou d'appartenance aux propriétaires. Son pool
+force en plus les transactions read-only. Le rôle `PG_REVIEW_DSN`
 doit posséder exactement `USAGE` sur le schéma `public`, `SELECT` sur
 `rag_chunks` et `UPDATE(review_status)`. Tout autre privilège d'écriture sur la
 table ou ses colonnes, de création sur le schéma ou la base, d'administration
@@ -107,7 +111,9 @@ Le reverse proxy v2 transmet exclusivement :
 - `POST /review/v2/decide`.
 
 Les routes métier conservent leurs contrôles BFF et d'identité signée. La santé
-et les métriques ne révèlent ni DSN, ni secret, ni contenu. Les routes cache,
+et les métriques ne révèlent ni DSN, ni secret, ni contenu. Un middleware
+observe codes HTTP et latences sur une liste de chemins bornée ; toute URL non
+montée utilise le seul label `unmatched`. Les routes cache,
 admin, stats et toutes les routes legacy restent inaccessibles depuis la
 frontière Nginx v2.
 

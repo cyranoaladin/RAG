@@ -12,7 +12,8 @@ parseur, client distant ou route legacy. PostgreSQL doit être au head
 `003_profile_filtering` et l'accès humain passe uniquement par le **Cockpit BFF**,
 avec identité signée et scope dérivé côté serveur.
 La readiness refuse également tout artefact modèle absent ou non conforme et
-tout rôle PostgreSQL de revue qui ne respecte pas le moindre privilège exact.
+tout rôle PostgreSQL de retrieval ou de revue qui ne respecte pas son moindre
+privilège exact.
 Les inventaires de modèles sont liés à deux empreintes SHA-256 de déploiement
 séparées des montages, afin qu'un remplacement cohérent du manifeste, des poids
 et de `SHA256SUMS` reste refusé.
