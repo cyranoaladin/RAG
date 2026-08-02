@@ -360,6 +360,13 @@ complets pour le processus servi ; toute montée en charge horizontale devra
 ajouter une agrégation Prometheus qualifiée. Le cycle TDD a d'abord produit
 quatre échecs, puis les 42 tests runtime/proxy ciblés, Ruff et `mypy` sont verts.
 
+La fermeture de toute route `/admin/*` rendait par ailleurs obsolète la sonde
+historique du Cockpit, qui appelait encore `/admin/health`. Le commit `9ebbf02`
+fait désormais appeler `/health` par le BFF, conserve un payload public réduit à
+`ok` ou `unavailable` et ajoute deux tests de route. Le cycle rouge a observé
+l'appel legacy exact avant correction ; les huit tests ciblés du client moteur
+et de la route santé ainsi qu'ESLint sont ensuite passés.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -412,6 +419,7 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `058a810` | isolation de la fixture du cycle de vie FastAPI |
 | `5f9af0b` | schéma retrieval complet, grants `INSERT` et métriques bornées |
 | `4795dfc` | santé PostgreSQL coalescée et métriques mono-processus |
+| `9ebbf02` | sonde Cockpit alignée sur `/health` v2 |
 
 ## Décision de livraison
 
