@@ -110,6 +110,8 @@ def test_retrieval_database_ready_proves_exact_read_only_privileges(
     assert normalized.lstrip().startswith("SELECT")
     assert "RAG_CHUNKS" in normalized
     assert "RAG_SCHEMA_MIGRATIONS" in normalized
+    assert "HAS_COLUMN_PRIVILEGE" in normalized
+    assert "PG_ATTRIBUTE" in normalized
     assert "HAS_TYPE_PRIVILEGE" in normalized
     assert "PG_HAS_ROLE" in normalized
 

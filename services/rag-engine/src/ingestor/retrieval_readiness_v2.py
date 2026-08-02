@@ -21,18 +21,18 @@ except ImportError:  # Image Docker aplatie sous /app.
 
 _REQUIRED_RETRIEVAL_PRIVILEGES: Final = (
     True,  # SELECT sur rag_chunks
-    False,  # pas d'INSERT
-    False,  # pas d'UPDATE
+    False,  # pas d'INSERT, y compris au niveau colonne
+    False,  # pas d'UPDATE, y compris au niveau colonne
     False,  # pas de DELETE
     False,  # pas de TRUNCATE
-    False,  # pas de REFERENCES
+    False,  # pas de REFERENCES, y compris au niveau colonne
     False,  # pas de TRIGGER
     True,  # SELECT sur le registre des migrations
-    False,  # pas d'INSERT sur le registre
-    False,  # pas d'UPDATE sur le registre
+    False,  # pas d'INSERT sur le registre, même au niveau colonne
+    False,  # pas d'UPDATE sur le registre, même au niveau colonne
     False,  # pas de DELETE sur le registre
     False,  # pas de TRUNCATE sur le registre
-    False,  # pas de REFERENCES sur le registre
+    False,  # pas de REFERENCES sur le registre, même au niveau colonne
     False,  # pas de TRIGGER sur le registre
     False,  # aucune appartenance au propriétaire de rag_chunks
     False,  # aucune appartenance au propriétaire du registre
@@ -51,18 +51,87 @@ _REQUIRED_RETRIEVAL_PRIVILEGES: Final = (
 _RETRIEVAL_PRIVILEGES_SQL = """
 SELECT
     has_table_privilege(current_user, 'public.rag_chunks', 'SELECT'),
-    has_table_privilege(current_user, 'public.rag_chunks', 'INSERT'),
-    has_table_privilege(current_user, 'public.rag_chunks', 'UPDATE'),
+    EXISTS (
+        SELECT 1
+        FROM pg_attribute AS chunk_column
+        WHERE chunk_column.attrelid = 'public.rag_chunks'::regclass
+          AND chunk_column.attnum > 0
+          AND NOT chunk_column.attisdropped
+          AND has_column_privilege(
+              current_user, 'public.rag_chunks', chunk_column.attname, 'INSERT'
+          )
+    ),
+    EXISTS (
+        SELECT 1
+        FROM pg_attribute AS chunk_column
+        WHERE chunk_column.attrelid = 'public.rag_chunks'::regclass
+          AND chunk_column.attnum > 0
+          AND NOT chunk_column.attisdropped
+          AND has_column_privilege(
+              current_user, 'public.rag_chunks', chunk_column.attname, 'UPDATE'
+          )
+    ),
     has_table_privilege(current_user, 'public.rag_chunks', 'DELETE'),
     has_table_privilege(current_user, 'public.rag_chunks', 'TRUNCATE'),
-    has_table_privilege(current_user, 'public.rag_chunks', 'REFERENCES'),
+    EXISTS (
+        SELECT 1
+        FROM pg_attribute AS chunk_column
+        WHERE chunk_column.attrelid = 'public.rag_chunks'::regclass
+          AND chunk_column.attnum > 0
+          AND NOT chunk_column.attisdropped
+          AND has_column_privilege(
+              current_user,
+              'public.rag_chunks',
+              chunk_column.attname,
+              'REFERENCES'
+          )
+    ),
     has_table_privilege(current_user, 'public.rag_chunks', 'TRIGGER'),
     has_table_privilege(current_user, 'public.rag_schema_migrations', 'SELECT'),
-    has_table_privilege(current_user, 'public.rag_schema_migrations', 'INSERT'),
-    has_table_privilege(current_user, 'public.rag_schema_migrations', 'UPDATE'),
+    EXISTS (
+        SELECT 1
+        FROM pg_attribute AS registry_column
+        WHERE registry_column.attrelid =
+              'public.rag_schema_migrations'::regclass
+          AND registry_column.attnum > 0
+          AND NOT registry_column.attisdropped
+          AND has_column_privilege(
+              current_user,
+              'public.rag_schema_migrations',
+              registry_column.attname,
+              'INSERT'
+          )
+    ),
+    EXISTS (
+        SELECT 1
+        FROM pg_attribute AS registry_column
+        WHERE registry_column.attrelid =
+              'public.rag_schema_migrations'::regclass
+          AND registry_column.attnum > 0
+          AND NOT registry_column.attisdropped
+          AND has_column_privilege(
+              current_user,
+              'public.rag_schema_migrations',
+              registry_column.attname,
+              'UPDATE'
+          )
+    ),
     has_table_privilege(current_user, 'public.rag_schema_migrations', 'DELETE'),
     has_table_privilege(current_user, 'public.rag_schema_migrations', 'TRUNCATE'),
-    has_table_privilege(current_user, 'public.rag_schema_migrations', 'REFERENCES'),
+    EXISTS (
+        SELECT 1
+        FROM pg_attribute AS registry_column
+        WHERE registry_column.attrelid =
+              'public.rag_schema_migrations'::regclass
+          AND registry_column.attnum > 0
+          AND NOT registry_column.attisdropped
+          AND has_column_privilege(
+              current_user,
+              'public.rag_schema_migrations',
+              registry_column.attname,
+              'REFERENCES'
+          )
+    ),
     has_table_privilege(current_user, 'public.rag_schema_migrations', 'TRIGGER'),
     pg_has_role(
         current_user,
