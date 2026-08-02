@@ -29,6 +29,7 @@ def _write_artifact(
     files = {
         "config.json": '{"architectures":["BertForSequenceClassification"]}\n',
         "manifest.json": json.dumps({"model_id": model_id}) + "\n",
+        "model.safetensors": "fake deterministic weights\n",
     }
     for relative_path, content in files.items():
         (root / relative_path).write_text(content, encoding="utf-8")
@@ -83,7 +84,7 @@ def test_reranker_load_is_offline_and_uses_the_read_only_artifact(
 
 
 @pytest.mark.parametrize(
-    "tampering", ("model_id", "checksum", "unlisted", "symlink")
+    "tampering", ("model_id", "checksum", "missing_weight", "unlisted", "symlink")
 )
 def test_reranker_rejects_every_substituted_artifact(
     monkeypatch: pytest.MonkeyPatch,
@@ -101,6 +102,8 @@ def test_reranker_rejects_every_substituted_artifact(
     )
     if tampering == "checksum":
         (artifact / "config.json").write_text("substituted\n", encoding="utf-8")
+    elif tampering == "missing_weight":
+        (artifact / "model.safetensors").unlink()
     elif tampering == "unlisted":
         (artifact / "unlisted.bin").write_bytes(b"substituted")
     else:

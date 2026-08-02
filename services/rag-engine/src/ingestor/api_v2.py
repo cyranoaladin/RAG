@@ -18,8 +18,11 @@ try:
         declared_embedding_dim,
         declared_embedding_model,
         pgvector_dimension,
+        verify_configured_embedding_artifact,
     )
     from .pg_pool import close_pool
+    from .reranker_contract import verify_configured_reranker_artifact
+    from .review_readiness_v2 import review_database_ready
     from .schema_readiness_v2 import schema_head_003_ready
 except (ImportError, ValueError):
     import metrics as ingest_metrics  # type: ignore[no-redef]
@@ -31,8 +34,15 @@ except (ImportError, ValueError):
         declared_embedding_dim,
         declared_embedding_model,
         pgvector_dimension,
+        verify_configured_embedding_artifact,
     )
     from pg_pool import close_pool  # type: ignore[no-redef]
+    from reranker_contract import (  # type: ignore[no-redef]
+        verify_configured_reranker_artifact,
+    )
+    from review_readiness_v2 import (  # type: ignore[no-redef]
+        review_database_ready,
+    )
     from schema_readiness_v2 import (  # type: ignore[no-redef]
         schema_head_003_ready,
     )
@@ -81,14 +91,18 @@ _mount_allowed_routes()
 
 @app.get("/health")
 def health_check() -> dict[str, str | int]:
-    dsn = os.environ.get("PG_RAG_DSN", "").strip()
-    if not dsn:
+    rag_dsn = os.environ.get("PG_RAG_DSN", "").strip()
+    review_dsn = os.environ.get("PG_REVIEW_DSN", "").strip()
+    if not rag_dsn or not review_dsn:
         raise HTTPException(status_code=503, detail="service unavailable")
     try:
         model = declared_embedding_model()
         declared_dim = declared_embedding_dim()
-        database_dim = pgvector_dimension(dsn)
-        schema_ready = schema_head_003_ready(dsn)
+        database_dim = pgvector_dimension(rag_dsn)
+        schema_ready = schema_head_003_ready(rag_dsn)
+        review_ready = review_database_ready(review_dsn)
+        verify_configured_embedding_artifact()
+        verify_configured_reranker_artifact()
     except Exception as exc:
         raise HTTPException(status_code=503, detail="service unavailable") from exc
     if (
@@ -96,6 +110,7 @@ def health_check() -> dict[str, str | int]:
         or declared_dim != CANONICAL_EMBED_DIM
         or database_dim != CANONICAL_EMBED_DIM
         or not schema_ready
+        or not review_ready
     ):
         raise HTTPException(status_code=503, detail="service unavailable")
     return {

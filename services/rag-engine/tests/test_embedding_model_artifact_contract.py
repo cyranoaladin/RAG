@@ -231,6 +231,13 @@ class TestPrepareScriptPathHardening:
         """SHA256SUMS must be generated from inside the artifact dir (cd)."""
         assert 'cd "$MODEL_ARTIFACT_DIR"' in self.source
 
+    def test_manifest_is_created_before_the_exact_checksum_inventory(self) -> None:
+        manifest_position = self.source.index("with open('$MODEL_ARTIFACT_DIR/manifest.json'")
+        checksum_position = self.source.index("find . -type f ! -name SHA256SUMS")
+
+        assert manifest_position < checksum_position
+        assert "! -name manifest.json" not in self.source[checksum_position:]
+
     def test_checksums_strip_dot_slash_prefix(self) -> None:
         """The sed must remove ./ prefix from find output."""
         assert r"s|  \./|  |" in self.source

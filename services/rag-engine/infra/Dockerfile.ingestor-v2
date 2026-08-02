@@ -27,6 +27,7 @@ COPY services/rag-engine/src/ingestor/collection_config.py /app/collection_confi
 COPY services/rag-engine/src/ingestor/embedding_contract.py /app/embedding_contract.py
 COPY services/rag-engine/src/ingestor/identity_v2.py /app/identity_v2.py
 COPY services/rag-engine/src/ingestor/metrics.py /app/metrics.py
+COPY services/rag-engine/src/ingestor/model_artifact.py /app/model_artifact.py
 COPY services/rag-engine/src/ingestor/pg_pool.py /app/pg_pool.py
 COPY services/rag-engine/src/ingestor/readiness_db.py /app/readiness_db.py
 COPY services/rag-engine/src/ingestor/retrieval_hybrid_v2.py /app/retrieval_hybrid_v2.py
@@ -34,6 +35,7 @@ COPY services/rag-engine/src/ingestor/retrieval_pg_v2.py /app/retrieval_pg_v2.py
 COPY services/rag-engine/src/ingestor/retrieval_scope_v2.py /app/retrieval_scope_v2.py
 COPY services/rag-engine/src/ingestor/retrieval_v2_endpoint.py /app/retrieval_v2_endpoint.py
 COPY services/rag-engine/src/ingestor/review_v2_endpoint.py /app/review_v2_endpoint.py
+COPY services/rag-engine/src/ingestor/review_readiness_v2.py /app/review_readiness_v2.py
 COPY services/rag-engine/src/ingestor/reranker_contract.py /app/reranker_contract.py
 COPY services/rag-engine/src/ingestor/schema_readiness_v2.py /app/schema_readiness_v2.py
 COPY services/rag-engine/src/ingestor/security_v2.py /app/security_v2.py

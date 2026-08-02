@@ -17,6 +17,7 @@ set -euo pipefail
 
 CANONICAL_MODEL="intfloat/multilingual-e5-large"
 CANONICAL_DIM=1024
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 ERRORS=0
 
@@ -78,6 +79,24 @@ else
         echo "OK: all checksums verified"
     fi
     popd > /dev/null
+fi
+
+# Reuse the exact verifier executed by the runtime healthcheck.  It rejects
+# symlinks, path escapes, unlisted files and an unauthenticated manifest.
+if ! PYTHONPATH="$REPO_ROOT/services/rag-engine/src${PYTHONPATH:+:$PYTHONPATH}" \
+    MODEL_ARTIFACT_DIR="$MODEL_ARTIFACT_DIR" \
+    python3 - <<'PY'
+import os
+from pathlib import Path
+
+from ingestor.embedding_contract import verify_embedding_artifact
+
+verify_embedding_artifact(Path(os.environ["MODEL_ARTIFACT_DIR"]))
+PY
+then
+    fail "runtime artifact contract verification failed"
+else
+    echo "OK: runtime artifact contract verified"
 fi
 
 # --- Check no Nomic fallback ---

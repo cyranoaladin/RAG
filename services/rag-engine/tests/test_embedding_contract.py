@@ -1,7 +1,11 @@
 """Fail-closed contract tests for the RAG v2 1024d embedding pipeline."""
 from __future__ import annotations
 
+import hashlib
+import json
+import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import yaml
@@ -11,7 +15,10 @@ from src.ingestor.embedding_contract import (
     CANONICAL_EMBED_MODEL,
     EmbeddingContractError,
     embedding_contract_health,
+    load_embedding_model,
     validate_embedding_contract,
+    verify_configured_embedding_artifact,
+    verify_embedding_artifact,
 )
 
 ENGINE_ROOT = Path(__file__).resolve().parents[1]
@@ -21,6 +28,30 @@ CONFIG = ENGINE_ROOT / "configs" / "rag_collections.yml"
 API = ENGINE_ROOT / "src" / "ingestor" / "api_v2.py"
 TASKS = ENGINE_ROOT / "src" / "ingestor" / "tasks.py"
 SMOKE = REPO_ROOT / "scripts" / "e2e" / "smoke-embedding-contract.sh"
+
+
+def _write_embedding_artifact(
+    root: Path,
+    *,
+    model_id: str = CANONICAL_EMBED_MODEL,
+    canonical_dim: int = CANONICAL_EMBED_DIM,
+) -> None:
+    root.mkdir()
+    files = {
+        "config.json": '{"architectures":["BertModel"]}\n',
+        "manifest.json": json.dumps(
+            {"model_id": model_id, "canonical_dim": canonical_dim}
+        )
+        + "\n",
+        "model.safetensors": "fake deterministic weights\n",
+    }
+    for relative_path, content in files.items():
+        (root / relative_path).write_text(content, encoding="utf-8")
+    checksums = "".join(
+        f"{hashlib.sha256(content.encode()).hexdigest()}  {relative_path}\n"
+        for relative_path, content in sorted(files.items())
+    )
+    (root / "SHA256SUMS").write_text(checksums, encoding="utf-8")
 
 
 def test_canonical_embedding_contract_is_e5_large_1024() -> None:
@@ -87,6 +118,78 @@ def test_health_payload_exposes_only_non_sensitive_embedding_contract_fields() -
         "pgvector_dim": 1024,
         "embedding_contract_ok": True,
     }
+
+
+def test_embedding_artifact_contract_accepts_only_the_canonical_inventory(
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "embedding"
+    _write_embedding_artifact(artifact)
+
+    assert verify_embedding_artifact(artifact) == artifact.resolve()
+
+
+@pytest.mark.parametrize(
+    "tampering",
+    ("model_id", "dimension", "checksum", "missing_weight", "unlisted", "symlink"),
+)
+def test_embedding_artifact_contract_rejects_substitution(
+    tmp_path: Path,
+    tampering: str,
+) -> None:
+    artifact = tmp_path / "embedding"
+    _write_embedding_artifact(
+        artifact,
+        model_id="attacker/model" if tampering == "model_id" else CANONICAL_EMBED_MODEL,
+        canonical_dim=768 if tampering == "dimension" else CANONICAL_EMBED_DIM,
+    )
+    if tampering == "checksum":
+        (artifact / "config.json").write_text("substituted\n", encoding="utf-8")
+    elif tampering == "missing_weight":
+        (artifact / "model.safetensors").unlink()
+    elif tampering == "unlisted":
+        (artifact / "unlisted.bin").write_bytes(b"substituted")
+    elif tampering == "symlink":
+        (artifact / "linked-config.json").symlink_to(artifact / "config.json")
+
+    with pytest.raises(EmbeddingContractError):
+        verify_embedding_artifact(artifact)
+
+
+def test_embedding_artifact_must_be_explicitly_configured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("RAG_EMBEDDING_MODEL_CACHE_DIR", raising=False)
+
+    with pytest.raises(
+        EmbeddingContractError,
+        match="EMBEDDING_MODEL_ARTIFACT_PATH_REQUIRED",
+    ):
+        verify_configured_embedding_artifact()
+
+
+def test_embedding_loader_verifies_before_offline_load(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "embedding"
+    _write_embedding_artifact(artifact)
+    calls: list[tuple[str, dict[str, object]]] = []
+
+    def sentence_transformer(path: str, **kwargs: object) -> object:
+        calls.append((path, kwargs))
+        return object()
+
+    monkeypatch.setenv("RAG_EMBEDDING_MODEL_CACHE_DIR", str(artifact))
+    monkeypatch.setitem(
+        sys.modules,
+        "sentence_transformers",
+        SimpleNamespace(SentenceTransformer=sentence_transformer),
+    )
+
+    load_embedding_model()
+
+    assert calls == [(str(artifact.resolve()), {"local_files_only": True})]
 
 
 def test_public_health_uses_the_embedding_contract_payload() -> None:

@@ -38,6 +38,7 @@ from ingestor.retrieval_pg_v2 import (
     PgCandidateStore,
 )
 from ingestor.retrieval_scope_v2 import ServerRetrievalScope
+from ingestor.review_readiness_v2 import review_database_ready
 from ingestor.schema_readiness_v2 import schema_head_003_ready
 
 pytestmark = pytest.mark.integration
@@ -716,6 +717,7 @@ def test_review_role_can_only_select_and_update_review_status() -> None:
             """
         ).fetchone()
         assert privileges == (True, False, False, False, True, False, False)
+    assert review_database_ready(REVIEW_DSN) is True
     print("REVIEW_ROLE_COLUMN_LEVEL_UPDATE_ONLY=PASS")
 
 

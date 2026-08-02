@@ -10,6 +10,8 @@ from __future__ import annotations
 import os
 import re
 from collections.abc import Mapping
+from functools import lru_cache
+from pathlib import Path
 from typing import Any
 
 import psycopg
@@ -23,6 +25,14 @@ except ImportError:  # Image Docker aplatie sous /app.
     from readiness_db import (  # type: ignore[no-redef]
         READINESS_CONNECT_TIMEOUT_S,
         readiness_connection_options,
+    )
+
+try:
+    from .model_artifact import ModelArtifactError, verify_model_artifact
+except ImportError:  # Image Docker aplatie sous /app.
+    from model_artifact import (  # type: ignore[no-redef]
+        ModelArtifactError,
+        verify_model_artifact,
     )
 
 CANONICAL_EMBED_MODEL = "intfloat/multilingual-e5-large"
@@ -106,6 +116,41 @@ def pgvector_dimension(pg_dsn: str) -> int:
     return int(match.group(1))
 
 
+def verify_embedding_artifact(artifact_root: Path) -> Path:
+    """Vérifier l'identité, la dimension et l'inventaire SHA-256 du modèle."""
+    try:
+        return verify_model_artifact(
+            artifact_root,
+            expected_manifest={
+                "model_id": CANONICAL_EMBED_MODEL,
+                "canonical_dim": CANONICAL_EMBED_DIM,
+            },
+            required_files=frozenset({"config.json"}),
+            require_model_weights=True,
+        )
+    except ModelArtifactError as exc:
+        reason = (
+            "EMBEDDING_MODEL_ARTIFACT_PATH_MISSING"
+            if str(exc) == "MODEL_ARTIFACT_PATH_MISSING"
+            else "EMBEDDING_MODEL_ARTIFACT_INVALID"
+        )
+        raise EmbeddingContractError(reason) from exc
+
+
+def verify_configured_embedding_artifact() -> Path:
+    """Vérifier le répertoire explicitement monté par le déploiement."""
+    configured = os.environ.get("RAG_EMBEDDING_MODEL_CACHE_DIR", "").strip()
+    if not configured:
+        raise EmbeddingContractError("EMBEDDING_MODEL_ARTIFACT_PATH_REQUIRED")
+    return _verify_configured_embedding_artifact(configured)
+
+
+@lru_cache(maxsize=8)
+def _verify_configured_embedding_artifact(configured: str) -> Path:
+    """Mémoriser la preuve du montage immuable pour éviter un rehash par sonde."""
+    return verify_embedding_artifact(Path(configured))
+
+
 def load_embedding_model() -> Any:
     """Load the canonical model only from the runtime image/cache.
 
@@ -118,19 +163,11 @@ def load_embedding_model() -> Any:
     must exist; an absent path is treated as a provisioning failure.
     """
     declared_embedding_model()  # enforce canonical model name
-    cache_dir = os.environ.get("RAG_EMBEDDING_MODEL_CACHE_DIR", "").strip()
+    model_source = verify_configured_embedding_artifact()
     try:
         from sentence_transformers import SentenceTransformer
 
-        if cache_dir:
-            if not os.path.isdir(cache_dir):
-                raise EmbeddingContractError(
-                    "EMBEDDING_MODEL_ARTIFACT_PATH_MISSING"
-                )
-            return SentenceTransformer(cache_dir, local_files_only=True)
-        return SentenceTransformer(
-            CANONICAL_EMBED_MODEL, local_files_only=True
-        )
+        return SentenceTransformer(str(model_source), local_files_only=True)
     except EmbeddingContractError:
         raise
     except Exception as exc:

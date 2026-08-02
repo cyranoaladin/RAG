@@ -13,6 +13,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 ADR = REPOSITORY_ROOT / "docs" / "adr" / "ADR-0024-runtime-v2-lecture-revue-fail-closed.md"
 ENGINE_ROOT = REPOSITORY_ROOT / "services" / "rag-engine"
 V2_DOCKERFILE = ENGINE_ROOT / "infra" / "Dockerfile.ingestor-v2"
+DOCKERIGNORE = REPOSITORY_ROOT / ".dockerignore"
 GO_LIVE_RUNBOOK = REPOSITORY_ROOT / "docs" / "runbooks" / "go_live.md"
 ROOT_README = REPOSITORY_ROOT / "README.md"
 ENGINE_PROD_README = ENGINE_ROOT / "README-PROD.md"
@@ -77,7 +78,19 @@ def test_health_is_ready_only_for_schema_003_and_canonical_embedding(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("PG_RAG_DSN", "postgresql://reader")
+    monkeypatch.setenv("PG_REVIEW_DSN", "postgresql://reviewer")
     monkeypatch.setattr(api_v2, "schema_head_003_ready", lambda _dsn: True)
+    monkeypatch.setattr(api_v2, "review_database_ready", lambda _dsn: True)
+    monkeypatch.setattr(
+        api_v2,
+        "verify_configured_embedding_artifact",
+        lambda: Path("/models/e5-large"),
+    )
+    monkeypatch.setattr(
+        api_v2,
+        "verify_configured_reranker_artifact",
+        lambda: Path("/models/reranker"),
+    )
     monkeypatch.setattr(
         api_v2,
         "declared_embedding_model",
@@ -106,13 +119,37 @@ def test_health_is_ready_only_for_schema_003_and_canonical_embedding(
     }
 
 
-@pytest.mark.parametrize("failure", ("missing_dsn", "schema", "dimension", "database"))
+@pytest.mark.parametrize(
+    "failure",
+    (
+        "missing_rag_dsn",
+        "missing_review_dsn",
+        "schema",
+        "dimension",
+        "rag_database",
+        "review_database",
+        "embedding_artifact",
+        "reranker_artifact",
+    ),
+)
 def test_health_fails_closed_without_internal_details(
     monkeypatch: pytest.MonkeyPatch,
     failure: str,
 ) -> None:
     monkeypatch.setenv("PG_RAG_DSN", "postgresql://secret-reader")
+    monkeypatch.setenv("PG_REVIEW_DSN", "postgresql://secret-reviewer")
     monkeypatch.setattr(api_v2, "schema_head_003_ready", lambda _dsn: True)
+    monkeypatch.setattr(api_v2, "review_database_ready", lambda _dsn: True)
+    monkeypatch.setattr(
+        api_v2,
+        "verify_configured_embedding_artifact",
+        lambda: Path("/models/e5-large"),
+    )
+    monkeypatch.setattr(
+        api_v2,
+        "verify_configured_reranker_artifact",
+        lambda: Path("/models/reranker"),
+    )
     monkeypatch.setattr(
         api_v2,
         "declared_embedding_model",
@@ -128,17 +165,33 @@ def test_health_fails_closed_without_internal_details(
         "pgvector_dimension",
         lambda _dsn: api_v2.CANONICAL_EMBED_DIM,
     )
-    if failure == "missing_dsn":
+    if failure == "missing_rag_dsn":
         monkeypatch.delenv("PG_RAG_DSN")
+    elif failure == "missing_review_dsn":
+        monkeypatch.delenv("PG_REVIEW_DSN")
     elif failure == "schema":
         monkeypatch.setattr(api_v2, "schema_head_003_ready", lambda _dsn: False)
     elif failure == "dimension":
         monkeypatch.setattr(api_v2, "pgvector_dimension", lambda _dsn: 768)
-    else:
+    elif failure == "rag_database":
         monkeypatch.setattr(
             api_v2,
             "schema_head_003_ready",
             lambda _dsn: (_ for _ in ()).throw(RuntimeError("private database failure")),
+        )
+    elif failure == "review_database":
+        monkeypatch.setattr(api_v2, "review_database_ready", lambda _dsn: False)
+    elif failure == "embedding_artifact":
+        monkeypatch.setattr(
+            api_v2,
+            "verify_configured_embedding_artifact",
+            lambda: (_ for _ in ()).throw(RuntimeError("private artifact failure")),
+        )
+    else:
+        monkeypatch.setattr(
+            api_v2,
+            "verify_configured_reranker_artifact",
+            lambda: (_ for _ in ()).throw(RuntimeError("private artifact failure")),
         )
 
     response = TestClient(api_v2.app).get("/health")
@@ -146,7 +199,9 @@ def test_health_fails_closed_without_internal_details(
     assert response.status_code == 503
     assert response.json() == {"detail": "service unavailable"}
     assert "secret-reader" not in response.text
+    assert "secret-reviewer" not in response.text
     assert "private database" not in response.text
+    assert "private artifact" not in response.text
 
 
 def test_metrics_can_be_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -176,12 +231,14 @@ def test_v2_dockerfile_copies_only_the_read_review_runtime() -> None:
         "embedding_contract.py",
         "identity_v2.py",
         "metrics.py",
+        "model_artifact.py",
         "pg_pool.py",
         "readiness_db.py",
         "retrieval_hybrid_v2.py",
         "retrieval_pg_v2.py",
         "retrieval_scope_v2.py",
         "retrieval_v2_endpoint.py",
+        "review_readiness_v2.py",
         "review_v2_endpoint.py",
         "reranker_contract.py",
         "schema_readiness_v2.py",
@@ -202,6 +259,20 @@ def test_v2_dockerfile_copies_only_the_read_review_runtime() -> None:
         "database.py",
     ):
         assert f"src/ingestor/{forbidden_module}" not in content
+
+
+def test_v2_docker_context_allowlist_contains_every_explicit_copy_source() -> None:
+    content = DOCKERIGNORE.read_text(encoding="utf-8")
+
+    for required_source in (
+        "services/rag-engine/src/ingestor/readiness_db.py",
+        "services/rag-engine/src/ingestor/reranker_contract.py",
+        "services/rag-engine/src/ingestor/review_readiness_v2.py",
+        "services/rag-engine/src/ingestor/model_artifact.py",
+        "services/rag-engine/infra/postgres/migrations/**",
+        "services/rag-engine/infra/postgres/schema_head_003_fingerprints.env",
+    ):
+        assert f"!{required_source}" in content
 
 
 def test_v2_runtime_dependencies_exclude_writer_and_remote_source_stacks() -> None:

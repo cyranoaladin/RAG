@@ -110,22 +110,6 @@ print(f'Downloaded to: {local_dir}')
 
 echo "Download complete."
 
-# --- Generate SHA256SUMS (relative paths only) ---
-
-echo "Generating SHA256SUMS..."
-CHECKSUM_FILE="$MODEL_ARTIFACT_DIR/SHA256SUMS"
-
-# Generate checksums from inside the artifact dir so paths are relative.
-# This avoids any sed substitution issues with trailing slashes or special chars.
-(cd "$MODEL_ARTIFACT_DIR" && \
-    find . -type f ! -name SHA256SUMS ! -name manifest.json -print0 | \
-    sort -z | \
-    xargs -0 sha256sum | \
-    sed 's|  \./|  |' \
-) > "$CHECKSUM_FILE"
-
-echo "SHA256SUMS generated: $(wc -l < "$CHECKSUM_FILE") files."
-
 # --- Generate manifest.json ---
 
 echo "Generating manifest.json..."
@@ -158,6 +142,22 @@ with open('$MODEL_ARTIFACT_DIR/manifest.json', 'w') as f:
 
 print(json.dumps(manifest, indent=2))
 "
+
+# --- Generate the exact SHA256 inventory, including manifest.json ---
+
+echo "Generating SHA256SUMS..."
+CHECKSUM_FILE="$MODEL_ARTIFACT_DIR/SHA256SUMS"
+
+# Generate checksums from inside the artifact dir so paths are relative.
+# The manifest carries the canonical identity and must itself be authenticated.
+(cd "$MODEL_ARTIFACT_DIR" && \
+    find . -type f ! -name SHA256SUMS -print0 | \
+    sort -z | \
+    xargs -0 sha256sum | \
+    sed 's|  \./|  |' \
+) > "$CHECKSUM_FILE"
+
+echo "SHA256SUMS generated: $(wc -l < "$CHECKSUM_FILE") files."
 
 echo ""
 echo "=== Artifact preparation complete ==="
