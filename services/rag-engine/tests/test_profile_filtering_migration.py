@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import stat
 from pathlib import Path
 
 ENGINE_ROOT = Path(__file__).resolve().parents[1]
@@ -92,3 +93,30 @@ def test_bootstrap_stays_at_002_and_compose_applies_003_on_fresh_volume() -> Non
     ) in compose
     assert "information_schema.columns" in compose
     assert "idx_rag_chunks_profile_reviewed" in compose
+
+
+def test_fresh_bootstrap_registers_the_exact_migration_head() -> None:
+    registration_path = POSTGRES / "register_bootstrap_migrations.sh"
+    compose = _read(ENGINE_ROOT / "infra" / "docker-compose.v2.yml")
+
+    assert registration_path.is_file()
+    assert registration_path.stat().st_mode & stat.S_IXUSR
+    registration = _read(registration_path)
+    assert "sha256sum" in registration
+    assert "rag_schema_migrations" in registration
+    for version, migration in (
+        ("001", "001_rag_chunks_v2_schema.sql"),
+        ("002", "002_hybrid_retrieval.sql"),
+        ("003", "003_profile_filtering.sql"),
+    ):
+        assert migration in registration
+        assert f"migration_{version}_sha" in registration
+
+    assert (
+        "./postgres/migrations:/docker-entrypoint-migrations:ro" in compose
+    )
+    assert (
+        "./postgres/register_bootstrap_migrations.sh:"
+        "/docker-entrypoint-initdb.d/02_register_bootstrap_migrations.sh:ro"
+    ) in compose
+    assert "rag_schema_migrations" in compose

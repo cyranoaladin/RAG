@@ -19,6 +19,8 @@ services:
       - rag_pgvector_data:/var/lib/postgresql/data
       - ./postgres/init.sql:/docker-entrypoint-initdb.d/00_init.sql:ro
       - ./postgres/migrations/003_profile_filtering.sql:/docker-entrypoint-initdb.d/01_003_profile_filtering.sql:ro
+      - ./postgres/register_bootstrap_migrations.sh:/docker-entrypoint-initdb.d/02_register_bootstrap_migrations.sh:ro
+      - ./postgres/migrations:/docker-entrypoint-migrations:ro
     ports:
       - "127.0.0.1:${PGVECTOR_PORT:-5435}:5432"
     networks: [rag_net]
@@ -38,7 +40,11 @@ services:
           AND conname IN ('rag_chunks_tenant_lot41_check',
           'rag_chunks_candidat_lot41_check', 'rag_chunks_visibility_lot41_check',
           'rag_chunks_school_year_lot41_check',
-          'rag_chunks_programme_version_lot41_check'))" | grep -qx t
+          'rag_chunks_programme_version_lot41_check'))
+          AND (SELECT count(*) = 3 FROM rag_schema_migrations
+          WHERE (version, file_name) IN ((1, '001_rag_chunks_v2_schema.sql'),
+          (2, '002_hybrid_retrieval.sql'),
+          (3, '003_profile_filtering.sql')))" | grep -qx t
       interval: 10s
       timeout: 5s
       retries: 10

@@ -45,6 +45,7 @@ SELECT
         SELECT constraint_definition.conname
         FROM pg_constraint AS constraint_definition
         WHERE constraint_definition.conrelid = 'public.rag_chunks'::regclass
+          AND constraint_definition.convalidated
           AND constraint_definition.conname IN (
               'rag_chunks_tenant_lot41_check',
               'rag_chunks_candidat_lot41_check',

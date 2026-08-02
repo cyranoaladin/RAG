@@ -77,6 +77,7 @@ def test_schema_head_003_accepts_only_the_exact_contract(
 
     normalized = cursor.sql.upper()
     assert normalized.lstrip().startswith("SELECT")
+    assert "CONVALIDATED" in normalized
     for forbidden in ("INSERT", "UPDATE", "DELETE", "ALTER", "CREATE", "DROP"):
         assert forbidden not in normalized
 
