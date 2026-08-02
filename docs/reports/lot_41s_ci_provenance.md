@@ -111,7 +111,7 @@ Ces résultats attestent la vérification locale et la relecture de la politique
 active. Ils ne pré-déclarent pas les checks GitHub du head final de la future
 PR LOT41S, qui devront être observés après publication sur ce SHA exact.
 
-## Commits du lot
+## Commits antérieurs au présent rapport
 
 | SHA | Objet |
 | --- | --- |
