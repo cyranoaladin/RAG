@@ -294,6 +294,29 @@ def test_v2_middleware_records_bounded_request_metrics(
     assert seconds >= 0
 
 
+def test_v2_middleware_normalizes_custom_http_methods(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observations: list[tuple[str, str, int, float]] = []
+    monkeypatch.setattr(api_v2.ingest_metrics, "METRICS_ENABLED", True)
+    monkeypatch.setattr(
+        api_v2.ingest_metrics,
+        "record_http_request",
+        lambda path, method, code, seconds: observations.append(
+            (path, method, code, seconds)
+        ),
+    )
+
+    response = TestClient(api_v2.app).request(
+        "UNBOUNDED-CUSTOM-METHOD",
+        "/health",
+    )
+
+    assert response.status_code == 405
+    assert len(observations) == 1
+    assert observations[0][:3] == ("/health", "other", 405)
+
+
 def test_metrics_can_be_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(api_v2.ingest_metrics, "METRICS_ENABLED", False)
 

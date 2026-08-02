@@ -146,12 +146,13 @@ def test_schema_object_fingerprints_have_one_versioned_source() -> None:
 
     assert "RAG_CHUNKS_TENANT_LOT41_CHECK_MD5=" in fingerprints
     assert "RAG_CHUNKS_PROFILE_REVIEWED_INDEX_MD5=" in fingerprints
+    assert "IDX_RAG_CHUNKS_VECTOR_MD5=" in fingerprints
+    assert "IDX_RAG_CHUNKS_TEXT_TSV_MD5=" in fingerprints
+    assert "RAG_CHUNKS_TEXT_TSV_EXPRESSION_MD5=" in fingerprints
     assert "/schema-head-003-fingerprints.env" in healthcheck
-    for fingerprint in (
-        "4d93d3e34b13897d1bb7cb39becc029c",
-        "1e810dca20fd302afe0390124cea16fa",
-        "f0c66a863c91e23b8eda575e06e93e33",
-    ):
+    for line in fingerprints.splitlines():
+        _key, separator, fingerprint = line.partition("=")
+        assert separator
         assert fingerprint in fingerprints
         assert fingerprint not in healthcheck
         assert fingerprint not in readiness

@@ -51,10 +51,11 @@ class _Connection:
 
 def _valid_row() -> tuple[object, ...]:
     return (
-        readiness.REQUIRED_PROFILE_COLUMN_DEFINITIONS,
+        readiness.REQUIRED_RAG_CHUNKS_COLUMN_DEFINITIONS,
         readiness.REQUIRED_PROFILE_CONSTRAINT_DEFINITIONS,
-        readiness.REQUIRED_PROFILE_INDEX_DEFINITION,
+        readiness.REQUIRED_RAG_CHUNKS_INDEX_DEFINITIONS,
         readiness.REQUIRED_PROFILE_INDEX_PREDICATE,
+        readiness.REQUIRED_TEXT_TSV_EXPRESSION,
         [list(item) for item in readiness.expected_migration_records(MIGRATIONS)],
     )
 
@@ -98,6 +99,10 @@ def test_schema_head_003_accepts_only_the_exact_contract(
     assert "CONVALIDATED" in normalized
     assert "PG_GET_CONSTRAINTDEF" in normalized
     assert "PG_GET_INDEXDEF" in normalized
+    assert "PG_ATTRDEF" in normalized
+    assert "IDX_RAG_CHUNKS_VECTOR" in normalized
+    assert "IDX_RAG_CHUNKS_TEXT_TSV" in normalized
+    assert "RAG_CHUNKS_PKEY" in normalized
     assert "RAG_SCHEMA_MIGRATIONS" in normalized
     assert cursor.params == ()
     for forbidden in ("INSERT", "UPDATE", "DELETE", "ALTER", "CREATE", "DROP"):
@@ -106,15 +111,22 @@ def test_schema_head_003_accepts_only_the_exact_contract(
 
 @pytest.mark.parametrize(
     "position",
-    range(5),
-    ids=("columns", "constraints", "index", "predicate", "migrations"),
+    range(6),
+    ids=(
+        "columns",
+        "constraints",
+        "indexes",
+        "predicate",
+        "text-tsv-expression",
+        "migrations",
+    ),
 )
 def test_schema_head_003_rejects_every_drifted_contract_component(
     monkeypatch: pytest.MonkeyPatch,
     position: int,
 ) -> None:
     row = list(_valid_row())
-    row[position] = {} if position < 2 else "drifted"
+    row[position] = {} if position < 3 else "drifted"
     with _patched_connection(monkeypatch, tuple(row)):
         assert readiness.schema_head_003_ready("postgresql://reader") is False
 
@@ -123,9 +135,9 @@ def test_schema_head_003_rejects_registry_hash_drift(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     row = list(_valid_row())
-    migrations = [list(item) for item in row[4]]
+    migrations = [list(item) for item in row[5]]
     migrations[2][2] = "0" * 64
-    row[4] = migrations
+    row[5] = migrations
     with _patched_connection(monkeypatch, tuple(row)):
         assert readiness.schema_head_003_ready("postgresql://reader") is False
 

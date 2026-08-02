@@ -755,6 +755,22 @@ def test_review_readiness_rejects_update_on_any_other_column() -> None:
     print("REVIEW_ROLE_OTHER_COLUMN_UPDATE_REJECTED=PASS")
 
 
+def test_review_readiness_rejects_column_level_insert() -> None:
+    with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+        connection.execute(
+            "GRANT INSERT (source_label) ON TABLE rag_chunks TO lot41_review"
+        )
+    try:
+        assert review_database_ready(REVIEW_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(
+                "REVOKE INSERT (source_label) ON TABLE rag_chunks FROM lot41_review"
+            )
+    assert review_database_ready(REVIEW_DSN) is True
+    print("REVIEW_ROLE_COLUMN_LEVEL_INSERT_REJECTED=PASS")
+
+
 def test_runtime_roles_reject_every_set_role_membership_path() -> None:
     with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
         connection.execute(
@@ -833,6 +849,21 @@ def test_schema_registry_and_real_migration_objects_are_exact() -> None:
         )
     assert schema_head_003_ready(APP_DSN) is True
     print("MIGRATION_OBJECTS_REAL_DB=PASS")
+
+
+def test_schema_readiness_rejects_missing_lexical_index() -> None:
+    with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+        connection.execute("DROP INDEX idx_rag_chunks_text_tsv")
+    try:
+        assert schema_head_003_ready(APP_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(
+                "CREATE INDEX idx_rag_chunks_text_tsv "
+                "ON rag_chunks USING gin (text_tsv)"
+            )
+    assert schema_head_003_ready(APP_DSN) is True
+    print("SCHEMA_BASE_INDEX_DRIFT_REJECTED=PASS")
 
 
 def test_equal_score_rank_50_is_deterministic_in_both_channels() -> None:

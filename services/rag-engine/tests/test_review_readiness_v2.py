@@ -9,24 +9,25 @@ import pytest
 from src.ingestor import review_readiness_v2 as readiness
 
 EXPECTED_REVIEW_PRIVILEGES = (
-    True,
-    False,
-    False,
-    False,
-    False,
-    True,
-    True,
-    False,
-    False,
-    False,
-    False,
-    False,
-    False,
-    False,
-    True,
-    False,
-    False,
-    False,
+    True,  # SELECT sur rag_chunks
+    False,  # pas d'INSERT au niveau table
+    True,  # aucune colonne ne permet INSERT
+    False,  # pas de DELETE
+    False,  # pas de TRUNCATE
+    False,  # pas d'UPDATE au niveau table
+    True,  # UPDATE limité à review_status
+    True,  # aucune autre colonne modifiable
+    False,  # aucune appartenance au propriétaire
+    False,  # aucun rôle atteignable par SET ROLE
+    False,  # pas superuser
+    False,  # pas CREATEDB
+    False,  # pas CREATEROLE
+    False,  # pas REPLICATION
+    False,  # pas BYPASSRLS
+    True,  # USAGE sur le schéma public
+    False,  # pas CREATE sur le schéma public
+    False,  # pas CREATE sur la base
+    False,  # pas de tables temporaires
 )
 
 
@@ -106,6 +107,8 @@ def test_review_database_ready_proves_the_exact_least_privilege_contract(
     assert "HAS_DATABASE_PRIVILEGE" in normalized
     assert "REVIEW_STATUS" in normalized
     assert "NOT EXISTS" in normalized
+    assert "ATTNAME" in normalized
+    assert "'INSERT'" in normalized
     assert "ATTNAME <> 'REVIEW_STATUS'" in normalized
     for forbidden in ("INSERT INTO", "UPDATE ", "DELETE FROM", "ALTER ", "CREATE ", "DROP "):
         assert forbidden not in normalized

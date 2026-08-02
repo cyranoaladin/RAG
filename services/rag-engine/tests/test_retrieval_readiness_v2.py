@@ -9,33 +9,33 @@ import pytest
 from src.ingestor import retrieval_readiness_v2 as readiness
 
 EXPECTED_RETRIEVAL_PRIVILEGES = (
-    True,
-    False,
-    False,
-    False,
-    False,
-    False,
-    False,
-    True,
-    False,
-    False,
-    False,
-    False,
-    False,
-    False,
-    False,
-    False,
-    False,
-    False,
-    False,
-    False,
-    False,
-    False,
-    True,
-    False,
-    False,
-    False,
-    True,
+    True,  # SELECT sur rag_chunks
+    False,  # pas d'INSERT, y compris par colonne
+    False,  # pas d'UPDATE, y compris par colonne
+    False,  # pas de DELETE
+    False,  # pas de TRUNCATE
+    False,  # pas de REFERENCES, y compris par colonne
+    False,  # pas de TRIGGER
+    True,  # SELECT sur rag_schema_migrations
+    False,  # pas d'INSERT registre, y compris par colonne
+    False,  # pas d'UPDATE registre, y compris par colonne
+    False,  # pas de DELETE registre
+    False,  # pas de TRUNCATE registre
+    False,  # pas de REFERENCES registre, y compris par colonne
+    False,  # pas de TRIGGER registre
+    False,  # aucune appartenance au propriétaire de rag_chunks
+    False,  # aucune appartenance au propriétaire du registre
+    False,  # aucun rôle atteignable par SET ROLE
+    False,  # pas superuser
+    False,  # pas CREATEDB
+    False,  # pas CREATEROLE
+    False,  # pas REPLICATION
+    False,  # pas BYPASSRLS
+    True,  # USAGE sur le schéma public
+    False,  # pas CREATE sur le schéma public
+    False,  # pas CREATE sur la base
+    False,  # pas de tables temporaires
+    True,  # USAGE sur le type vector
 )
 
 

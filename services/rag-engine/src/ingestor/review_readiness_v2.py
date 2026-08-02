@@ -21,7 +21,8 @@ except ImportError:  # Image Docker aplatie sous /app.
 
 _REQUIRED_REVIEW_PRIVILEGES: Final = (
     True,  # SELECT sur rag_chunks
-    False,  # pas d'INSERT
+    False,  # pas d'INSERT au niveau table
+    True,  # aucune colonne ne permet INSERT
     False,  # pas de DELETE
     False,  # pas de TRUNCATE
     False,  # pas d'UPDATE au niveau table
@@ -44,6 +45,19 @@ _REVIEW_PRIVILEGES_SQL = """
 SELECT
     has_table_privilege(current_user, 'public.rag_chunks', 'SELECT'),
     has_table_privilege(current_user, 'public.rag_chunks', 'INSERT'),
+    NOT EXISTS (
+        SELECT 1
+        FROM pg_attribute AS insertable_column
+        WHERE insertable_column.attrelid = 'public.rag_chunks'::regclass
+          AND insertable_column.attnum > 0
+          AND NOT insertable_column.attisdropped
+          AND has_column_privilege(
+              current_user,
+              'public.rag_chunks',
+              insertable_column.attname,
+              'INSERT'
+          )
+    ),
     has_table_privilege(current_user, 'public.rag_chunks', 'DELETE'),
     has_table_privilege(current_user, 'public.rag_chunks', 'TRUNCATE'),
     has_table_privilege(current_user, 'public.rag_chunks', 'UPDATE'),

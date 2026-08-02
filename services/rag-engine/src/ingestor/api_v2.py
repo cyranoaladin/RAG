@@ -74,6 +74,9 @@ _ALLOWED_BUSINESS_ROUTES = frozenset(
     }
 )
 _OBSERVED_ROUTES = _ALLOWED_BUSINESS_ROUTES | {"/health", "/metrics"}
+_OBSERVED_METHODS = frozenset(
+    {"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"}
+)
 _model_artifact_attestations: (
     tuple[ModelArtifactAttestation, ModelArtifactAttestation] | None
 ) = None
@@ -161,7 +164,7 @@ async def _metrics_middleware(request: Request, call_next):
         path = request.url.path
         ingest_metrics.record_http_request(
             path if path in _OBSERVED_ROUTES else "unmatched",
-            request.method,
+            request.method if request.method in _OBSERVED_METHODS else "other",
             status_code,
             time.perf_counter() - started,
         )
