@@ -7,7 +7,7 @@ import {
 } from '@/generated/validators'
 
 import { fetchEngine } from '../../_engine'
-import { requireReviewAuth, reviewJson } from '../_auth'
+import { isReviewCollectionAllowed, requireReviewAuth, reviewJson } from '../_auth'
 
 const QUEUE_QUERY_KEYS = new Set(['collection', 'limit', 'offset'])
 type BrowserReviewQueuePayload = ReviewQueuePayload & { collection?: string }
@@ -56,11 +56,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   if (!payload) {
     return reviewJson({ error: 'invalid_request' }, { status: 400 })
   }
-  if (
-    payload.collection !== undefined
-    && payload.collection !== null
-    && !auth.context.allowedCollections.includes(payload.collection)
-  ) {
+  if (!isReviewCollectionAllowed(auth.context, payload.collection)) {
     return reviewJson({ error: 'forbidden' }, { status: 403 })
   }
 

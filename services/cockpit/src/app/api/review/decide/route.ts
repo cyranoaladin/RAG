@@ -11,7 +11,7 @@ import {
 } from '@/generated/validators'
 
 import { fetchEngine } from '../../_engine'
-import { requireReviewAuth, reviewJson } from '../_auth'
+import { isReviewCollectionAllowed, requireReviewAuth, reviewJson } from '../_auth'
 
 function invalidRequest(): NextResponse {
   return reviewJson({ error: 'invalid_request' }, { status: 400 })
@@ -69,11 +69,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     return invalidRequest()
   }
 
-  if (
-    payload.collection !== undefined
-    && payload.collection !== null
-    && !auth.context.allowedCollections.includes(payload.collection)
-  ) {
+  if (!isReviewCollectionAllowed(auth.context, payload.collection)) {
     return forbidden()
   }
 

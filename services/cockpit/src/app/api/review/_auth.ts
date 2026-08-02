@@ -15,6 +15,13 @@ export function reviewJson(body: unknown, init: ResponseInit = {}): NextResponse
   return NextResponse.json(body, { ...init, headers })
 }
 
+export function isReviewCollectionAllowed(
+  context: BffAuthContext,
+  collection: string | null | undefined,
+): boolean {
+  return collection == null || context.allowedCollections.includes(collection)
+}
+
 export async function requireReviewAuth(request: Request): Promise<ReviewAuthResult> {
   const context = await requireBffAuth(request)
   if (!context) {
