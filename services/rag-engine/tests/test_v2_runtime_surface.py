@@ -81,6 +81,7 @@ def test_health_is_ready_only_for_schema_003_and_canonical_embedding(
     monkeypatch.setenv("PG_RAG_DSN", "postgresql://reader")
     monkeypatch.setenv("PG_REVIEW_DSN", "postgresql://reviewer")
     monkeypatch.setattr(api_v2, "schema_head_003_ready", lambda _dsn: True)
+    monkeypatch.setattr(api_v2, "retrieval_database_ready", lambda _dsn: True)
     monkeypatch.setattr(api_v2, "review_database_ready", lambda _dsn: True)
     monkeypatch.setattr(
         api_v2,
@@ -128,6 +129,7 @@ def test_health_is_ready_only_for_schema_003_and_canonical_embedding(
         "schema",
         "dimension",
         "rag_database",
+        "retrieval_privileges",
         "review_database",
         "embedding_artifact",
         "reranker_artifact",
@@ -140,6 +142,7 @@ def test_health_fails_closed_without_internal_details(
     monkeypatch.setenv("PG_RAG_DSN", "postgresql://secret-reader")
     monkeypatch.setenv("PG_REVIEW_DSN", "postgresql://secret-reviewer")
     monkeypatch.setattr(api_v2, "schema_head_003_ready", lambda _dsn: True)
+    monkeypatch.setattr(api_v2, "retrieval_database_ready", lambda _dsn: True)
     monkeypatch.setattr(api_v2, "review_database_ready", lambda _dsn: True)
     monkeypatch.setattr(
         api_v2,
@@ -180,6 +183,8 @@ def test_health_fails_closed_without_internal_details(
             "schema_head_003_ready",
             lambda _dsn: (_ for _ in ()).throw(RuntimeError("private database failure")),
         )
+    elif failure == "retrieval_privileges":
+        monkeypatch.setattr(api_v2, "retrieval_database_ready", lambda _dsn: False)
     elif failure == "review_database":
         monkeypatch.setattr(api_v2, "review_database_ready", lambda _dsn: False)
     elif failure == "embedding_artifact":
@@ -203,6 +208,28 @@ def test_health_fails_closed_without_internal_details(
     assert "secret-reviewer" not in response.text
     assert "private database" not in response.text
     assert "private artifact" not in response.text
+
+
+def test_v2_middleware_records_bounded_request_metrics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observations: list[tuple[str, str, int, float]] = []
+    monkeypatch.setattr(api_v2.ingest_metrics, "METRICS_ENABLED", True)
+    monkeypatch.setattr(
+        api_v2.ingest_metrics,
+        "record_http_request",
+        lambda path, method, code, seconds: observations.append(
+            (path, method, code, seconds)
+        ),
+    )
+
+    response = TestClient(api_v2.app).get("/unmounted-user-controlled-path")
+
+    assert response.status_code == 404
+    assert len(observations) == 1
+    path, method, code, seconds = observations[0]
+    assert (path, method, code) == ("unmatched", "GET", 404)
+    assert seconds >= 0
 
 
 def test_metrics_can_be_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -237,6 +264,7 @@ def test_v2_dockerfile_copies_only_the_read_review_runtime() -> None:
         "readiness_db.py",
         "retrieval_hybrid_v2.py",
         "retrieval_pg_v2.py",
+        "retrieval_readiness_v2.py",
         "retrieval_scope_v2.py",
         "retrieval_v2_endpoint.py",
         "review_readiness_v2.py",

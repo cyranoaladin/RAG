@@ -37,6 +37,7 @@ from ingestor.retrieval_pg_v2 import (
     _LEXICAL_SQL,
     PgCandidateStore,
 )
+from ingestor.retrieval_readiness_v2 import retrieval_database_ready
 from ingestor.retrieval_scope_v2 import ServerRetrievalScope
 from ingestor.review_readiness_v2 import review_database_ready
 from ingestor.schema_readiness_v2 import schema_head_003_ready
@@ -719,6 +720,23 @@ def test_review_role_can_only_select_and_update_review_status() -> None:
         assert privileges == (True, False, False, False, True, False, False)
     assert review_database_ready(REVIEW_DSN) is True
     print("REVIEW_ROLE_COLUMN_LEVEL_UPDATE_ONLY=PASS")
+
+
+def test_retrieval_role_is_exactly_read_only() -> None:
+    assert retrieval_database_ready(APP_DSN) is True
+    with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+        connection.execute(
+            "GRANT UPDATE (source_label) ON TABLE rag_chunks TO lot40_app"
+        )
+    try:
+        assert retrieval_database_ready(APP_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(
+                "REVOKE UPDATE (source_label) ON TABLE rag_chunks FROM lot40_app"
+            )
+    assert retrieval_database_ready(APP_DSN) is True
+    print("RETRIEVAL_ROLE_WRITE_PRIVILEGE_REJECTED=PASS")
 
 
 def test_review_readiness_rejects_update_on_any_other_column() -> None:

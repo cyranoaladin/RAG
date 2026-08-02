@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import os
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException, Request, Response
 from prometheus_client import CONTENT_TYPE_LATEST
 
 try:
@@ -22,6 +23,7 @@ try:
     )
     from .pg_pool import close_pool
     from .reranker_contract import verify_configured_reranker_artifact
+    from .retrieval_readiness_v2 import retrieval_database_ready
     from .review_readiness_v2 import review_database_ready
     from .schema_readiness_v2 import schema_head_003_ready
 except (ImportError, ValueError):
@@ -39,6 +41,9 @@ except (ImportError, ValueError):
     from pg_pool import close_pool  # type: ignore[no-redef]
     from reranker_contract import (  # type: ignore[no-redef]
         verify_configured_reranker_artifact,
+    )
+    from retrieval_readiness_v2 import (  # type: ignore[no-redef]
+        retrieval_database_ready,
     )
     from review_readiness_v2 import (  # type: ignore[no-redef]
         review_database_ready,
@@ -58,6 +63,7 @@ _ALLOWED_BUSINESS_ROUTES = frozenset(
         "/review/v2/decide",
     }
 )
+_OBSERVED_ROUTES = _ALLOWED_BUSINESS_ROUTES | {"/health", "/metrics"}
 
 
 @asynccontextmanager
@@ -76,6 +82,24 @@ app = FastAPI(
     openapi_url="/openapi.json" if _development else None,
     lifespan=_app_lifespan,
 )
+
+
+@app.middleware("http")
+async def _metrics_middleware(request: Request, call_next):
+    started = time.perf_counter()
+    status_code = 500
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+    finally:
+        path = request.url.path
+        ingest_metrics.record_http_request(
+            path if path in _OBSERVED_ROUTES else "unmatched",
+            request.method,
+            status_code,
+            time.perf_counter() - started,
+        )
+    return response
 
 
 def _mount_allowed_routes() -> None:
@@ -100,6 +124,7 @@ def health_check() -> dict[str, str | int]:
         declared_dim = declared_embedding_dim()
         database_dim = pgvector_dimension(rag_dsn)
         schema_ready = schema_head_003_ready(rag_dsn)
+        retrieval_ready = retrieval_database_ready(rag_dsn)
         review_ready = review_database_ready(review_dsn)
         verify_configured_embedding_artifact()
         verify_configured_reranker_artifact()
@@ -110,6 +135,7 @@ def health_check() -> dict[str, str | int]:
         or declared_dim != CANONICAL_EMBED_DIM
         or database_dim != CANONICAL_EMBED_DIM
         or not schema_ready
+        or not retrieval_ready
         or not review_ready
     ):
         raise HTTPException(status_code=503, detail="service unavailable")

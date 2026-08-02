@@ -104,6 +104,7 @@ def get_pool(settings: PoolSettings) -> ConnectionPool[Any]:
                 max_size=settings.max_size,
                 timeout=settings.timeout_s,
                 open=False,
+                kwargs={"options": "-c default_transaction_read_only=on"},
             )
             created_pool = pool_result
             pool_result.open(wait=False)

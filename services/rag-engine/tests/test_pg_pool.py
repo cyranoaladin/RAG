@@ -334,6 +334,9 @@ def test_get_pool_constructs_opens_waits_then_reuses_singleton(
                 "max_size": 8,
                 "timeout": 1.25,
                 "open": False,
+                "kwargs": {
+                    "options": "-c default_transaction_read_only=on",
+                },
             },
         ),
         ("open", False),
