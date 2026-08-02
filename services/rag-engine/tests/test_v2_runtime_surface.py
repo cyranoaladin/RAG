@@ -11,6 +11,8 @@ from src.ingestor import api_v2
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 ADR = REPOSITORY_ROOT / "docs" / "adr" / "ADR-0024-runtime-v2-lecture-revue-fail-closed.md"
+ENGINE_ROOT = REPOSITORY_ROOT / "services" / "rag-engine"
+V2_DOCKERFILE = ENGINE_ROOT / "infra" / "Dockerfile.ingestor-v2"
 
 
 def test_adr_closes_ungoverned_v2_ingestion() -> None:
@@ -131,3 +133,69 @@ def test_metrics_can_be_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
     response = TestClient(api_v2.app).get("/metrics")
 
     assert response.status_code == 404
+
+
+def test_v2_dockerfile_copies_only_the_read_review_runtime() -> None:
+    content = V2_DOCKERFILE.read_text(encoding="utf-8")
+
+    assert content.startswith(
+        "FROM python:3.11-slim@sha256:"
+        "db3ff2e1800a8581e2c48a27c3995339d47bdf046da21c7627accd3d51053a93"
+    )
+    assert "pip install --upgrade pip==26.2" in content
+    assert 'CMD ["uvicorn", "api_v2:app"' in content
+    assert "requirements.runtime-v2.txt" in content
+    assert "requirements.txt" not in content.replace("requirements.runtime-v2.txt", "")
+    assert "requirements.v2.txt" not in content
+    assert "COPY services/rag-engine/src/ingestor/ ./" not in content
+    for required_module in (
+        "api_v2.py",
+        "collection_config.py",
+        "embedding_contract.py",
+        "identity_v2.py",
+        "metrics.py",
+        "pg_pool.py",
+        "retrieval_hybrid_v2.py",
+        "retrieval_pg_v2.py",
+        "retrieval_scope_v2.py",
+        "retrieval_v2_endpoint.py",
+        "review_v2_endpoint.py",
+        "schema_readiness_v2.py",
+        "security_v2.py",
+    ):
+        assert f"services/rag-engine/src/ingestor/{required_module}" in content
+    for forbidden_module in (
+        "api.py",
+        "admin_api.py",
+        "ingest_v2.py",
+        "ingest_v2_endpoint.py",
+        "tasks.py",
+        "database.py",
+    ):
+        assert f"src/ingestor/{forbidden_module}" not in content
+
+
+def test_v2_runtime_dependencies_exclude_writer_and_remote_source_stacks() -> None:
+    requirements = (
+        ENGINE_ROOT / "src" / "ingestor" / "requirements.runtime-v2.txt"
+    ).read_text(encoding="utf-8").casefold()
+
+    for forbidden in (
+        "chromadb",
+        "celery",
+        "redis",
+        "ollama",
+        "requests",
+        "httpx",
+        "unstructured",
+        "pypdf",
+        "python-docx",
+        "beautifulsoup",
+        "langchain",
+        "python-multipart",
+    ):
+        assert forbidden not in requirements
+
+    assert "--extra-index-url https://download.pytorch.org/whl/cpu" in requirements
+    assert "torch==2.4.1+cpu" in requirements
+    assert "transformers==4.44.2" in requirements

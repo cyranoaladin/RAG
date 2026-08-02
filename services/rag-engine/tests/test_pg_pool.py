@@ -218,6 +218,7 @@ def test_malformed_dsn_is_rejected_before_pool_factory_without_leak(
 def test_each_runtime_manifest_has_its_exact_psycopg_pins() -> None:
     expected_by_manifest = {
         _ENGINE_ROOT / "requirements.lock": _THREE_PSYCOPG_PINS,
+        _ENGINE_ROOT / "src/ingestor/requirements.runtime-v2.txt": _THREE_PSYCOPG_PINS,
         _ENGINE_ROOT / "src/ingestor/requirements.v2.txt": _THREE_PSYCOPG_PINS,
         _ENGINE_ROOT / "src/ingestor/requirements.txt": _THREE_PSYCOPG_PINS,
         _ENGINE_ROOT / "src/backend/requirements.txt": {
@@ -236,19 +237,17 @@ def test_each_runtime_manifest_has_its_exact_psycopg_pins() -> None:
         assert set(entries) == expected, manifest.relative_to(_ENGINE_ROOT)
 
 
-def test_ingestor_v2_image_installs_both_checked_manifests() -> None:
+def test_ingestor_v2_image_installs_only_the_checked_runtime_manifest() -> None:
     dockerfile = (_ENGINE_ROOT / "infra/Dockerfile.ingestor-v2").read_text(encoding="utf-8")
 
     assert (
-        "COPY services/rag-engine/src/ingestor/requirements.txt /tmp/requirements.txt"
+        "COPY services/rag-engine/src/ingestor/requirements.runtime-v2.txt "
+        "/tmp/requirements.runtime-v2.txt"
         in dockerfile
     )
-    assert (
-        "COPY services/rag-engine/src/ingestor/requirements.v2.txt /tmp/requirements.v2.txt"
-        in dockerfile
-    )
-    assert "pip install --no-cache-dir -r /tmp/requirements.txt" in dockerfile
-    assert "pip install --no-cache-dir -r /tmp/requirements.v2.txt" in dockerfile
+    assert "pip install --no-cache-dir -r /tmp/requirements.runtime-v2.txt" in dockerfile
+    assert "/tmp/requirements.txt" not in dockerfile
+    assert "/tmp/requirements.v2.txt" not in dockerfile
 
 
 def test_pg_pool_module_imports_with_runtime_dependencies() -> None:

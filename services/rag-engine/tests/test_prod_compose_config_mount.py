@@ -264,8 +264,8 @@ def test_v2_ingestor_uses_dedicated_dockerfile_with_contracts() -> None:
     assert "packages/contracts" in content, (
         "Dockerfile.ingestor-v2 must install packages/contracts"
     )
-    assert "requirements.v2.txt" in content, (
-        "Dockerfile.ingestor-v2 must install requirements.v2.txt"
+    assert "requirements.runtime-v2.txt" in content, (
+        "Dockerfile.ingestor-v2 must install the minimal v2 runtime manifest"
     )
 
 
@@ -280,9 +280,9 @@ def test_v2_worker_uses_same_dockerfile_as_ingestor() -> None:
 
 
 def test_v2_pydantic_pin_aligned_with_contracts() -> None:
-    """Pydantic pin in requirements.v2.txt must match contracts pyproject.toml."""
+    """Pydantic pin in the runtime manifest must match contracts."""
     contracts_toml = REPO_ROOT / "packages" / "contracts" / "pyproject.toml"
-    v2_reqs = ENGINE_ROOT / "src" / "ingestor" / "requirements.v2.txt"
+    v2_reqs = ENGINE_ROOT / "src" / "ingestor" / "requirements.runtime-v2.txt"
 
     assert contracts_toml.is_file()
     assert v2_reqs.is_file()
@@ -294,7 +294,7 @@ def test_v2_pydantic_pin_aligned_with_contracts() -> None:
     assert m, "contracts pyproject.toml must pin pydantic"
     contracts_pydantic = m.group(1)
 
-    # Extract pydantic pin from requirements.v2.txt
+    # Extract pydantic pin from the v2 runtime manifest
     v2_text = v2_reqs.read_text(encoding="utf-8")
     m2 = re.search(r"^pydantic==(.+)$", v2_text, re.MULTILINE)
     assert m2, "requirements.v2.txt must pin pydantic"
