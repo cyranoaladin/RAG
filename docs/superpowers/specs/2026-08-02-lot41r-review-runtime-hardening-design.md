@@ -84,11 +84,25 @@ les transitions asymétriques existantes :
 - `needs_review|reviewed → quarantined` ;
 - aucune réactivation ni retour à `needs_review`.
 
+Après l'authentification et le contrôle de rôle, toute mutation exige que
+`Origin` égale exactement l'origine HTTPS canonique configurée dans
+`NEXUS_COCKPIT_PUBLIC_ORIGIN` et que le type de média soit `application/json`.
+Cette configuration doit être une origine pure, sans credentials, chemin,
+query ni fragment. Le BFF ne déduit jamais la confiance de `request.url`, de
+`Host` ni de `X-Forwarded-*`. Une configuration absente ou invalide produit un
+`503` générique ; une origine absente ou différente, ou un type de média
+incorrect, produit un `403` avant lecture du corps et avant appel moteur.
+
 ## Gestion des erreurs
 
 - Session absente, invalide, expirée ou révoquée : `401` avant appel moteur.
-- Rôle autre que `reviewer|admin` ou collection hors scope : `403` avant appel
-  moteur.
+- Rôle autre que `reviewer|admin` : `403` avant contrôle d'origine, lecture du
+  corps ou appel moteur.
+- Configuration d'origine publique absente ou invalide : `503` générique avant
+  lecture du corps ou appel moteur.
+- Origine absente ou différente, ou type de média autre que
+  `application/json` : `403` avant lecture du corps ou appel moteur.
+- Collection hors scope : `403` avant appel moteur.
 - Requête mal formée ou paramètres hors bornes : `400` avant appel moteur.
 - Cible invisible, hors scope ou transition impossible : réponse générique
   `404` produite par le moteur, sans révéler l'identifiant.

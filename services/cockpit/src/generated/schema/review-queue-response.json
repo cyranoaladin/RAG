@@ -47,22 +47,18 @@
           "title": "Last Indexed"
         },
         "rights": {
-          "minLength": 1,
           "title": "Rights",
           "type": "string"
         },
         "source_kind": {
-          "minLength": 1,
           "title": "Source Kind",
           "type": "string"
         },
         "source_label": {
-          "minLength": 1,
           "title": "Source Label",
           "type": "string"
         },
         "source_uri": {
-          "minLength": 1,
           "title": "Source Uri",
           "type": "string"
         },

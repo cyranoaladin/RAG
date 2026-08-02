@@ -73,12 +73,15 @@ avant appel moteur.
 Les réponses sont également fermées. La queue borne la pagination, les
 identifiants et sa structure, puis exige que `returned` égale le nombre de
 documents. Ses champs de provenance suivent toutefois le domaine réellement
-accepté par l'ingestion et les colonnes PostgreSQL `TEXT` : aucune longueur
-maximale supplémentaire n'est inventée et `type_doc` peut être vide. Une borne
-future sur ces champs devra d'abord être imposée à l'ingestion et au stockage,
-avec migration des données existantes. La réponse de décision indique au moins
-un chunk affecté, l'invalidation du worker courant et une durée maximale de
-stale inter-workers fixée contractuellement à zéro.
+stocké dans les colonnes PostgreSQL `TEXT` : toute chaîne, y compris vide, est
+représentable et aucune longueur maximale supplémentaire n'est inventée. La
+queue peut ainsi exposer à un reviewer les lignes historiques incomplètes au
+lieu de rendre la page entière indisponible ; leur présence ne les promeut pas
+et permet au contraire leur mise en quarantaine. Une borne future sur ces
+champs devra d'abord être imposée à l'ingestion et au stockage, avec migration
+des données existantes. La réponse de décision indique au moins un chunk
+affecté, l'invalidation du worker courant et une durée maximale de stale
+inter-workers fixée contractuellement à zéro.
 
 ### Retrait du champ `reason`
 

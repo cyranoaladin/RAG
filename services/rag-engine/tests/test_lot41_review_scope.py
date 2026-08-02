@@ -318,7 +318,7 @@ def test_queue_sql_applies_every_scope_dimension(
         assert SCOPE.collection in params
 
 
-def test_queue_accepts_every_provenance_value_allowed_by_ingestion(
+def test_queue_surfaces_legacy_postgresql_text_provenance_for_review(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     connection = _prepare(
@@ -335,14 +335,30 @@ def test_queue_accepts_every_provenance_value_allowed_by_ingestion(
                 1,
                 None,
                 None,
-            )
+            ),
+            (
+                "doc-2",
+                SCOPE.collection,
+                "",
+                "",
+                Rights.usage_interne.value,
+                "",
+                "",
+                1,
+                None,
+                None,
+            ),
         ],
     )
 
     response = _client().get("/review/v2/queue")
 
     assert response.status_code == 200
+    assert response.json()["returned"] == 2
     assert response.json()["documents"][0]["type_doc"] == ""
+    assert response.json()["documents"][1]["source_label"] == ""
+    assert response.json()["documents"][1]["source_uri"] == ""
+    assert response.json()["documents"][1]["source_kind"] == ""
     assert connection.closed == 1
 
 

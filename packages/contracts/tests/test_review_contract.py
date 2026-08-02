@@ -161,22 +161,23 @@ def test_review_queue_document_bounds_identifiers() -> None:
             ReviewQueueDocument.model_validate(invalid)
 
 
-def test_review_queue_document_accepts_ingestible_unbounded_provenance() -> None:
+@pytest.mark.parametrize("value", ["", "x" * 4097])
+def test_review_queue_document_accepts_postgresql_text_provenance(value: str) -> None:
     document = ReviewQueueDocument.model_validate(
         _queue_document(
-            source_label="x" * 1025,
-            source_uri="x" * 4097,
-            rights="x" * 129,
-            source_kind="x" * 129,
-            type_doc="",
+            source_label=value,
+            source_uri=value,
+            rights=value,
+            source_kind=value,
+            type_doc=value,
         )
     )
 
-    assert len(document.source_label) == 1025
-    assert len(document.source_uri) == 4097
-    assert len(document.rights) == 129
-    assert len(document.source_kind) == 129
-    assert document.type_doc == ""
+    assert document.source_label == value
+    assert document.source_uri == value
+    assert document.rights == value
+    assert document.source_kind == value
+    assert document.type_doc == value
 
 
 def test_review_decision_response_is_closed_and_bounded() -> None:

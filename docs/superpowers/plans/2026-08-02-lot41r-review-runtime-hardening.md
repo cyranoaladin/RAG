@@ -150,11 +150,12 @@ Utiliser `StrictBaseModel`, `StrictInt`, `StrictStr`, `CollectionName` et
 - `ReviewDecisionRequest`, mêmes champs que le payload plus `tenant:
   BoundedSlug` requis ;
 - `ReviewQueueDocument(doc_id: StrictStr [1..256], collection:
-  CollectionName, source_label/source_uri/rights/source_kind: StrictStr non
-  vides sans maximum additionnel, type_doc: StrictStr éventuellement vide,
+  CollectionName, source_label/source_uri/rights/source_kind/type_doc:
+  StrictStr, y compris vide et sans maximum additionnel,
   chunk_count: StrictInt [>=1], first_indexed: datetime|None, last_indexed:
-  datetime|None)` ; ces champs de provenance suivent le domaine réellement
-  accepté par l'ingestion et les colonnes PostgreSQL `TEXT` ;
+  datetime|None)` ; ces champs de provenance suivent le domaine des colonnes
+  PostgreSQL `TEXT` afin que la queue puisse exposer les lignes historiques à
+  la review ou permettre leur mise en quarantaine ;
 - `ReviewQueueResponse(total_pending_docs: StrictInt [>=0], returned:
   StrictInt [>=0], offset: StrictInt [>=0], documents:
   list[ReviewQueueDocument])`, avec validation `returned == len(documents)` ;
