@@ -1146,7 +1146,18 @@ for candidate in workflow_candidates:
                 f"workflow YAML invalide {candidate.name}: nom de job invalide"
             )
             continue
+        if "${{" in effective_name:
+            errors.append(
+                f"nom de job dynamique interdit dans {candidate.name}: {job_id}"
+            )
+            continue
         if effective_name in context_locations:
+            strategy = job.get("strategy")
+            if isinstance(strategy, dict) and "matrix" in strategy:
+                errors.append(
+                    f"contexte protégé {effective_name!r} interdit "
+                    "avec strategy.matrix"
+                )
             context_locations[effective_name].append(candidate)
 
 for context in PROTECTED_CONTEXTS:
@@ -1455,6 +1466,37 @@ assert_provenance_mutation_rejected \
     "un second workflow dupliquant packages/contracts est rejeté" \
     "$MUTATED_WORKFLOWS_DIR" \
     "contexte protégé 'packages/contracts' requis exactement une fois"
+
+DYNAMIC_WORKFLOWS_DIR="$TMPDIR_CI/workflows-dynamic-context"
+mkdir -p "$DYNAMIC_WORKFLOWS_DIR"
+cp "$REPO_ROOT/.github/workflows/ci.yml" "$DYNAMIC_WORKFLOWS_DIR/ci.yml"
+cat > "$DYNAMIC_WORKFLOWS_DIR/dynamic.yml" <<'YAML'
+name: Contexte protégé dynamique
+on:
+  pull_request:
+    branches: [main]
+jobs:
+  dynamic-contracts:
+    name: "${{ 'packages/contracts' }}"
+    runs-on: ubuntu-latest
+    steps:
+      - run: true
+YAML
+assert_provenance_mutation_rejected \
+    "un nom de check dynamique est rejeté" \
+    "$DYNAMIC_WORKFLOWS_DIR" \
+    "nom de job dynamique interdit dans dynamic.yml"
+
+MATRIX_WORKFLOWS_DIR="$TMPDIR_CI/workflows-matrix-context"
+mkdir -p "$MATRIX_WORKFLOWS_DIR"
+cp "$REPO_ROOT/.github/workflows/ci.yml" "$MATRIX_WORKFLOWS_DIR/ci.yml"
+sed -i \
+    '/^    name: "packages\/contracts"$/a\    strategy:\n      matrix:\n        python: ["3.11", "3.12"]' \
+    "$MATRIX_WORKFLOWS_DIR/ci.yml"
+assert_provenance_mutation_rejected \
+    "une matrice sur packages/contracts est rejetée" \
+    "$MATRIX_WORKFLOWS_DIR" \
+    "contexte protégé 'packages/contracts' interdit avec strategy.matrix"
 
 echo ""
 echo "=== Mutations: le job cockpit reste fail-closed ==="
