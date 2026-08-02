@@ -261,6 +261,20 @@ Après ce cycle :
   `nexus-rag-engine-v2:lot41u-final` se construit et expose exactement les neuf
   routes attendues sans module writer/legacy.
 
+La relecture de tous les fils encore ouverts a enfin requalifié un ancien P1
+Cubic comme toujours valide malgré son ancre devenue obsolète : un attaquant
+capable de remplacer le montage modèle pouvait aussi régénérer le manifeste et
+`SHA256SUMS`, puis présenter un paquet entièrement cohérent mais non approuvé.
+Le commit `245e5f6` exige désormais, pour chaque modèle, l'empreinte SHA-256 de
+`SHA256SUMS` fournie séparément par la configuration de déploiement. La sonde
+refuse une empreinte absente, mal formée ou différente avant d'accepter le
+manifeste et les poids. Les scripts de construction affichent cette ancre pour
+sa conservation hors artefact ; les scripts de vérification et Compose la
+rendent obligatoire. Deux tests remplacent poids, manifeste et inventaire de
+façon cohérente tout en conservant l'ancre approuvée initiale et prouvent le
+refus. Les 69 tests ciblés artefacts/runtime sont verts, comme Ruff, `mypy` et
+la suite non-intégration complète du moteur.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -301,6 +315,8 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `5d8b8f3` | intégrité du head 003, proxy loopback, timeouts, reranker hors-ligne et tests hermétiques |
 | `81825b0` | intégrité vérifiée des artefacts, sources canoniques et documentation finale |
 | `ec8f743` | readiness stricte des artefacts et du rôle PostgreSQL de revue |
+| `50789c0` | documentation et preuve du cycle readiness |
+| `245e5f6` | ancre externe des inventaires de modèles |
 | commit courant | documentation et preuve du dernier cycle de revue |
 
 ## Décision de livraison
