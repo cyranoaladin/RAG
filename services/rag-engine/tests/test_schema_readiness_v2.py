@@ -100,13 +100,24 @@ def test_schema_head_003_accepts_only_the_exact_contract(
     assert "PG_GET_CONSTRAINTDEF" in normalized
     assert "PG_GET_INDEXDEF" in normalized
     assert "PG_ATTRDEF" in normalized
-    assert "IDX_RAG_CHUNKS_VECTOR" in normalized
-    assert "IDX_RAG_CHUNKS_TEXT_TSV" in normalized
-    assert "RAG_CHUNKS_PKEY" in normalized
+    assert "COLUMN_DEFAULT" in normalized
+    assert "FORMAT_TYPE" in normalized
+    assert "ATTTYPMOD" in normalized
+    assert "INDEX_DEFINITION.INDRELID = 'PUBLIC.RAG_CHUNKS'::REGCLASS" in normalized
+    assert "INDEX_DEFINITION.INDISVALID" in normalized
+    assert "INDEX_DEFINITION.INDISREADY" in normalized
     assert "RAG_SCHEMA_MIGRATIONS" in normalized
+    assert "INDEX_RELATION.RELNAME IN" not in normalized
+    assert readiness.REQUIRED_RAG_CHUNKS_COLUMN_DEFINITIONS["vector"][-2:] == [
+        "vector(1024)",
+        1024,
+    ]
+    assert readiness.REQUIRED_RAG_CHUNKS_COLUMN_DEFINITIONS["audience"][4] == (
+        "'{tous}'::text[]"
+    )
     assert cursor.params == ()
     for forbidden in ("INSERT", "UPDATE", "DELETE", "ALTER", "CREATE", "DROP"):
-        assert forbidden not in normalized
+        assert f"{forbidden} " not in normalized
 
 
 @pytest.mark.parametrize(
@@ -138,6 +149,18 @@ def test_schema_head_003_rejects_registry_hash_drift(
     migrations = [list(item) for item in row[5]]
     migrations[2][2] = "0" * 64
     row[5] = migrations
+    with _patched_connection(monkeypatch, tuple(row)):
+        assert readiness.schema_head_003_ready("postgresql://reader") is False
+
+
+def test_schema_head_003_rejects_unexpected_ready_index(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    row = list(_valid_row())
+    row[2] = {
+        **readiness.REQUIRED_RAG_CHUNKS_INDEX_DEFINITIONS,
+        "idx_rag_chunks_unexpected": "0" * 32,
+    }
     with _patched_connection(monkeypatch, tuple(row)):
         assert readiness.schema_head_003_ready("postgresql://reader") is False
 

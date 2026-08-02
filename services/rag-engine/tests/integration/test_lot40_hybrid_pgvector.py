@@ -801,7 +801,7 @@ def test_runtime_roles_reject_every_set_role_membership_path() -> None:
     print("RUNTIME_SET_ROLE_MEMBERSHIP_REJECTED=PASS")
 
 
-def test_schema_registry_and_real_migration_objects_are_exact() -> None:
+def test_schema_registry_fingerprints_and_real_migration_objects_are_exact() -> None:
     expected = {
         1: (
             "001_rag_chunks_v2_schema.sql",
@@ -848,7 +848,7 @@ def test_schema_registry_and_real_migration_objects_are_exact() -> None:
             "ALWAYS",
         )
     assert schema_head_003_ready(APP_DSN) is True
-    print("MIGRATION_OBJECTS_REAL_DB=PASS")
+    print("SCHEMA_FINGERPRINTS_REAL_DB=PASS")
 
 
 def test_schema_readiness_rejects_missing_lexical_index() -> None:
@@ -864,6 +864,33 @@ def test_schema_readiness_rejects_missing_lexical_index() -> None:
             )
     assert schema_head_003_ready(APP_DSN) is True
     print("SCHEMA_BASE_INDEX_DRIFT_REJECTED=PASS")
+
+
+def test_schema_readiness_rejects_default_and_extra_index_drift() -> None:
+    with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+        connection.execute(
+            "ALTER TABLE rag_chunks ALTER COLUMN voie SET DEFAULT 'drifted'"
+        )
+    try:
+        assert schema_head_003_ready(APP_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(
+                "ALTER TABLE rag_chunks ALTER COLUMN voie SET DEFAULT 'generale'"
+            )
+    assert schema_head_003_ready(APP_DSN) is True
+
+    with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+        connection.execute(
+            "CREATE INDEX idx_rag_chunks_unexpected ON rag_chunks (doc_id)"
+        )
+    try:
+        assert schema_head_003_ready(APP_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute("DROP INDEX idx_rag_chunks_unexpected")
+    assert schema_head_003_ready(APP_DSN) is True
+    print("SCHEMA_DEFAULT_AND_EXTRA_INDEX_DRIFT_REJECTED=PASS")
 
 
 def test_equal_score_rank_50_is_deterministic_in_both_channels() -> None:

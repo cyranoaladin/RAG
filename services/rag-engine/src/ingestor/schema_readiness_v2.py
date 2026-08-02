@@ -29,42 +29,63 @@ REQUIRED_MIGRATIONS: Final = (
     (3, "003_profile_filtering.sql"),
 )
 REQUIRED_RAG_CHUNKS_COLUMN_DEFINITIONS: Final = {
-    "audience": ["ARRAY", "_text", "NO", "NEVER"],
-    "candidat": ["text", "text", "YES", "NEVER"],
-    "chunk_id": ["text", "text", "NO", "NEVER"],
-    "chunk_index": ["integer", "int4", "NO", "NEVER"],
-    "chunk_sha256": ["text", "text", "NO", "NEVER"],
-    "collection": ["text", "text", "NO", "NEVER"],
-    "doc_id": ["text", "text", "NO", "NEVER"],
-    "domain": ["text", "text", "NO", "NEVER"],
+    "audience": [
+        "ARRAY", "_text", "NO", "NEVER", "'{tous}'::text[]", "text[]", -1
+    ],
+    "candidat": ["text", "text", "YES", "NEVER", None, "text", -1],
+    "chunk_id": ["text", "text", "NO", "NEVER", None, "text", -1],
+    "chunk_index": ["integer", "int4", "NO", "NEVER", "0", "integer", -1],
+    "chunk_sha256": ["text", "text", "NO", "NEVER", None, "text", -1],
+    "collection": ["text", "text", "NO", "NEVER", None, "text", -1],
+    "doc_id": ["text", "text", "NO", "NEVER", None, "text", -1],
+    "domain": [
+        "text", "text", "NO", "NEVER", "'education'::text", "text", -1
+    ],
     "indexed_at": [
         "timestamp with time zone",
         "timestamptz",
         "NO",
         "NEVER",
+        "now()",
+        "timestamp with time zone",
+        -1,
     ],
-    "matiere": ["text", "text", "NO", "NEVER"],
-    "model": ["text", "text", "YES", "NEVER"],
-    "niveau": ["text", "text", "NO", "NEVER"],
-    "notions": ["ARRAY", "_text", "NO", "NEVER"],
-    "official": ["boolean", "bool", "NO", "NEVER"],
-    "page_end": ["integer", "int4", "YES", "NEVER"],
-    "page_start": ["integer", "int4", "YES", "NEVER"],
-    "programme_version": ["text", "text", "YES", "NEVER"],
-    "review_status": ["text", "text", "NO", "NEVER"],
-    "rights": ["text", "text", "NO", "NEVER"],
-    "school_year": ["text", "text", "YES", "NEVER"],
-    "source_kind": ["text", "text", "NO", "NEVER"],
-    "source_label": ["text", "text", "NO", "NEVER"],
-    "source_uri": ["text", "text", "NO", "NEVER"],
-    "statut_enseignement": ["text", "text", "NO", "NEVER"],
-    "tenant": ["text", "text", "YES", "NEVER"],
-    "text": ["text", "text", "YES", "NEVER"],
-    "text_tsv": ["tsvector", "tsvector", "YES", "ALWAYS"],
-    "type_doc": ["text", "text", "NO", "NEVER"],
-    "vector": ["USER-DEFINED", "vector", "YES", "NEVER"],
-    "visibility": ["text", "text", "YES", "NEVER"],
-    "voie": ["text", "text", "NO", "NEVER"],
+    "matiere": ["text", "text", "NO", "NEVER", None, "text", -1],
+    "model": ["text", "text", "YES", "NEVER", None, "text", -1],
+    "niveau": ["text", "text", "NO", "NEVER", None, "text", -1],
+    "notions": [
+        "ARRAY", "_text", "NO", "NEVER", "'{}'::text[]", "text[]", -1
+    ],
+    "official": ["boolean", "bool", "NO", "NEVER", "false", "boolean", -1],
+    "page_end": ["integer", "int4", "YES", "NEVER", None, "integer", -1],
+    "page_start": ["integer", "int4", "YES", "NEVER", None, "integer", -1],
+    "programme_version": ["text", "text", "YES", "NEVER", None, "text", -1],
+    "review_status": [
+        "text", "text", "NO", "NEVER", "'needs_review'::text", "text", -1
+    ],
+    "rights": ["text", "text", "NO", "NEVER", None, "text", -1],
+    "school_year": ["text", "text", "YES", "NEVER", None, "text", -1],
+    "source_kind": [
+        "text", "text", "NO", "NEVER", "'unknown'::text", "text", -1
+    ],
+    "source_label": ["text", "text", "NO", "NEVER", None, "text", -1],
+    "source_uri": ["text", "text", "NO", "NEVER", None, "text", -1],
+    "statut_enseignement": [
+        "text", "text", "NO", "NEVER", "'unknown'::text", "text", -1
+    ],
+    "tenant": ["text", "text", "YES", "NEVER", None, "text", -1],
+    "text": ["text", "text", "YES", "NEVER", None, "text", -1],
+    "text_tsv": [
+        "tsvector", "tsvector", "YES", "ALWAYS", None, "tsvector", -1
+    ],
+    "type_doc": ["text", "text", "NO", "NEVER", None, "text", -1],
+    "vector": [
+        "USER-DEFINED", "vector", "YES", "NEVER", None, "vector(1024)", 1024
+    ],
+    "visibility": ["text", "text", "YES", "NEVER", None, "text", -1],
+    "voie": [
+        "text", "text", "NO", "NEVER", "'generale'::text", "text", -1
+    ],
 }
 REQUIRED_PROFILE_COLUMN_DEFINITIONS: Final = {
     name: REQUIRED_RAG_CHUNKS_COLUMN_DEFINITIONS[name]
@@ -154,7 +175,7 @@ def load_schema_head_003_fingerprints(
 
 _FINGERPRINTS = load_schema_head_003_fingerprints()
 REQUIRED_PROFILE_CONSTRAINT_DEFINITIONS: Final = {
-    constraint_name: _FINGERPRINTS[key]
+    constraint_name: [True, _FINGERPRINTS[key]]
     for key, constraint_name in _FINGERPRINT_KEYS.items()
 }
 REQUIRED_RAG_CHUNKS_INDEX_DEFINITIONS: Final = {
@@ -171,61 +192,37 @@ _SCHEMA_HEAD_003_SQL = """
 SELECT
     COALESCE((
         SELECT jsonb_object_agg(
-            column_name,
-            jsonb_build_array(data_type, udt_name, is_nullable, is_generated)
+            column_definition.column_name,
+            jsonb_build_array(
+                column_definition.data_type,
+                column_definition.udt_name,
+                column_definition.is_nullable,
+                column_definition.is_generated,
+                column_definition.column_default,
+                format_type(attribute.atttypid, attribute.atttypmod),
+                attribute.atttypmod
+            )
         )
-        FROM information_schema.columns
-        WHERE table_schema = 'public'
-          AND table_name = 'rag_chunks'
-          AND column_name IN (
-              'chunk_id',
-              'doc_id',
-              'chunk_sha256',
-              'vector',
-              'collection',
-              'niveau',
-              'voie',
-              'audience',
-              'matiere',
-              'statut_enseignement',
-              'notions',
-              'domain',
-              'source_label',
-              'source_uri',
-              'rights',
-              'type_doc',
-              'official',
-              'text',
-              'chunk_index',
-              'page_start',
-              'page_end',
-              'review_status',
-              'model',
-              'source_kind',
-              'indexed_at',
-              'text_tsv',
-              'tenant',
-              'candidat',
-              'visibility',
-              'school_year',
-              'programme_version'
-          )
+        FROM information_schema.columns AS column_definition
+        JOIN pg_attribute AS attribute
+          ON attribute.attrelid = 'public.rag_chunks'::regclass
+         AND attribute.attname = column_definition.column_name
+         AND attribute.attnum > 0
+         AND NOT attribute.attisdropped
+        WHERE column_definition.table_schema = 'public'
+          AND column_definition.table_name = 'rag_chunks'
     ), '{}'::jsonb),
     COALESCE((
         SELECT jsonb_object_agg(
             constraint_definition.conname,
-            md5(pg_get_constraintdef(constraint_definition.oid, true))
+            jsonb_build_array(
+                constraint_definition.convalidated,
+                md5(pg_get_constraintdef(constraint_definition.oid, true))
+            )
         )
         FROM pg_constraint AS constraint_definition
         WHERE constraint_definition.conrelid = 'public.rag_chunks'::regclass
-          AND constraint_definition.convalidated
-          AND constraint_definition.conname IN (
-              'rag_chunks_tenant_lot41_check',
-              'rag_chunks_candidat_lot41_check',
-              'rag_chunks_visibility_lot41_check',
-              'rag_chunks_school_year_lot41_check',
-              'rag_chunks_programme_version_lot41_check'
-          )
+          AND constraint_definition.contype = 'c'
     ), '{}'::jsonb),
     COALESCE((
         SELECT jsonb_object_agg(
@@ -238,18 +235,6 @@ SELECT
         WHERE index_definition.indrelid = 'public.rag_chunks'::regclass
           AND index_definition.indisvalid
           AND index_definition.indisready
-          AND index_relation.relname IN (
-              'idx_rag_chunks_audience',
-              'idx_rag_chunks_collection',
-              'idx_rag_chunks_matiere',
-              'idx_rag_chunks_niveau',
-              'idx_rag_chunks_profile_reviewed',
-              'idx_rag_chunks_review',
-              'idx_rag_chunks_rights',
-              'idx_rag_chunks_text_tsv',
-              'idx_rag_chunks_vector',
-              'rag_chunks_pkey'
-          )
     ), '{}'::jsonb),
     (
         SELECT md5(pg_get_expr(

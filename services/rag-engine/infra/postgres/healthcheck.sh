@@ -59,47 +59,74 @@ SELECT
     AND NOT EXISTS (
         SELECT 1
         FROM (VALUES
-            ('chunk_id', 'text', 'text', 'NO', 'NEVER'),
-            ('doc_id', 'text', 'text', 'NO', 'NEVER'),
-            ('chunk_sha256', 'text', 'text', 'NO', 'NEVER'),
-            ('vector', 'USER-DEFINED', 'vector', 'YES', 'NEVER'),
-            ('collection', 'text', 'text', 'NO', 'NEVER'),
-            ('niveau', 'text', 'text', 'NO', 'NEVER'),
-            ('voie', 'text', 'text', 'NO', 'NEVER'),
-            ('audience', 'ARRAY', '_text', 'NO', 'NEVER'),
-            ('matiere', 'text', 'text', 'NO', 'NEVER'),
-            ('statut_enseignement', 'text', 'text', 'NO', 'NEVER'),
-            ('notions', 'ARRAY', '_text', 'NO', 'NEVER'),
-            ('domain', 'text', 'text', 'NO', 'NEVER'),
-            ('source_label', 'text', 'text', 'NO', 'NEVER'),
-            ('source_uri', 'text', 'text', 'NO', 'NEVER'),
-            ('rights', 'text', 'text', 'NO', 'NEVER'),
-            ('type_doc', 'text', 'text', 'NO', 'NEVER'),
-            ('official', 'boolean', 'bool', 'NO', 'NEVER'),
-            ('text', 'text', 'text', 'YES', 'NEVER'),
-            ('chunk_index', 'integer', 'int4', 'NO', 'NEVER'),
-            ('page_start', 'integer', 'int4', 'YES', 'NEVER'),
-            ('page_end', 'integer', 'int4', 'YES', 'NEVER'),
-            ('review_status', 'text', 'text', 'NO', 'NEVER'),
-            ('model', 'text', 'text', 'YES', 'NEVER'),
-            ('source_kind', 'text', 'text', 'NO', 'NEVER'),
-            ('indexed_at', 'timestamp with time zone', 'timestamptz', 'NO', 'NEVER'),
-            ('text_tsv', 'tsvector', 'tsvector', 'YES', 'ALWAYS'),
-            ('tenant', 'text', 'text', 'YES', 'NEVER'),
-            ('candidat', 'text', 'text', 'YES', 'NEVER'),
-            ('visibility', 'text', 'text', 'YES', 'NEVER'),
-            ('school_year', 'text', 'text', 'YES', 'NEVER'),
-            ('programme_version', 'text', 'text', 'YES', 'NEVER')
-        ) AS expected(column_name, data_type, udt_name, is_nullable, is_generated)
+            ('chunk_id', 'text', 'text', 'NO', 'NEVER', NULL, 'text', -1),
+            ('doc_id', 'text', 'text', 'NO', 'NEVER', NULL, 'text', -1),
+            ('chunk_sha256', 'text', 'text', 'NO', 'NEVER', NULL, 'text', -1),
+            ('vector', 'USER-DEFINED', 'vector', 'YES', 'NEVER', NULL,
+             'vector(1024)', 1024),
+            ('collection', 'text', 'text', 'NO', 'NEVER', NULL, 'text', -1),
+            ('niveau', 'text', 'text', 'NO', 'NEVER', NULL, 'text', -1),
+            ('voie', 'text', 'text', 'NO', 'NEVER', '''generale''::text',
+             'text', -1),
+            ('audience', 'ARRAY', '_text', 'NO', 'NEVER',
+             '''{tous}''::text[]', 'text[]', -1),
+            ('matiere', 'text', 'text', 'NO', 'NEVER', NULL, 'text', -1),
+            ('statut_enseignement', 'text', 'text', 'NO', 'NEVER',
+             '''unknown''::text', 'text', -1),
+            ('notions', 'ARRAY', '_text', 'NO', 'NEVER', '''{}''::text[]',
+             'text[]', -1),
+            ('domain', 'text', 'text', 'NO', 'NEVER', '''education''::text',
+             'text', -1),
+            ('source_label', 'text', 'text', 'NO', 'NEVER', NULL, 'text', -1),
+            ('source_uri', 'text', 'text', 'NO', 'NEVER', NULL, 'text', -1),
+            ('rights', 'text', 'text', 'NO', 'NEVER', NULL, 'text', -1),
+            ('type_doc', 'text', 'text', 'NO', 'NEVER', NULL, 'text', -1),
+            ('official', 'boolean', 'bool', 'NO', 'NEVER', 'false',
+             'boolean', -1),
+            ('text', 'text', 'text', 'YES', 'NEVER', NULL, 'text', -1),
+            ('chunk_index', 'integer', 'int4', 'NO', 'NEVER', '0',
+             'integer', -1),
+            ('page_start', 'integer', 'int4', 'YES', 'NEVER', NULL,
+             'integer', -1),
+            ('page_end', 'integer', 'int4', 'YES', 'NEVER', NULL,
+             'integer', -1),
+            ('review_status', 'text', 'text', 'NO', 'NEVER',
+             '''needs_review''::text', 'text', -1),
+            ('model', 'text', 'text', 'YES', 'NEVER', NULL, 'text', -1),
+            ('source_kind', 'text', 'text', 'NO', 'NEVER',
+             '''unknown''::text', 'text', -1),
+            ('indexed_at', 'timestamp with time zone', 'timestamptz', 'NO',
+             'NEVER', 'now()', 'timestamp with time zone', -1),
+            ('text_tsv', 'tsvector', 'tsvector', 'YES', 'ALWAYS', NULL,
+             'tsvector', -1),
+            ('tenant', 'text', 'text', 'YES', 'NEVER', NULL, 'text', -1),
+            ('candidat', 'text', 'text', 'YES', 'NEVER', NULL, 'text', -1),
+            ('visibility', 'text', 'text', 'YES', 'NEVER', NULL, 'text', -1),
+            ('school_year', 'text', 'text', 'YES', 'NEVER', NULL, 'text', -1),
+            ('programme_version', 'text', 'text', 'YES', 'NEVER', NULL,
+             'text', -1)
+        ) AS expected(
+            column_name, data_type, udt_name, is_nullable, is_generated,
+            column_default, formatted_type, atttypmod
+        )
         LEFT JOIN information_schema.columns AS actual
           ON actual.table_schema = 'public'
          AND actual.table_name = 'rag_chunks'
          AND actual.column_name = expected.column_name
+        LEFT JOIN pg_attribute AS attribute
+          ON attribute.attrelid = 'public.rag_chunks'::regclass
+         AND attribute.attname = expected.column_name
+         AND attribute.attnum > 0
+         AND NOT attribute.attisdropped
         WHERE actual.column_name IS NULL
            OR actual.data_type IS DISTINCT FROM expected.data_type
            OR actual.udt_name IS DISTINCT FROM expected.udt_name
            OR actual.is_nullable IS DISTINCT FROM expected.is_nullable
            OR actual.is_generated IS DISTINCT FROM expected.is_generated
+           OR actual.column_default IS DISTINCT FROM expected.column_default
+           OR format_type(attribute.atttypid, attribute.atttypmod)
+                IS DISTINCT FROM expected.formatted_type
+           OR attribute.atttypmod IS DISTINCT FROM expected.atttypmod
     )
     AND (SELECT count(*) = 5
          FROM pg_constraint
@@ -117,6 +144,10 @@ SELECT
                ('rag_chunks_visibility_lot41_check',
                 :'visibility_constraint_md5')
            ))
+    AND (SELECT count(*) = 5
+         FROM pg_constraint
+         WHERE conrelid = 'public.rag_chunks'::regclass
+           AND contype = 'c')
     AND (SELECT count(*) = 10
          FROM pg_index AS index_definition
          JOIN pg_class AS index_relation
@@ -137,6 +168,11 @@ SELECT
                ('idx_rag_chunks_vector', :'vector_index_md5'),
                ('rag_chunks_pkey', :'rag_chunks_primary_index_md5')
            ))
+    AND (SELECT count(*) = 10
+         FROM pg_index AS index_definition
+         WHERE index_definition.indrelid = 'public.rag_chunks'::regclass
+           AND index_definition.indisvalid
+           AND index_definition.indisready)
     AND (SELECT md5(pg_get_expr(indpred, indrelid, true)) =
                     :'profile_predicate_md5'
          FROM pg_index

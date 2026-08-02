@@ -150,6 +150,10 @@ def test_schema_object_fingerprints_have_one_versioned_source() -> None:
     assert "IDX_RAG_CHUNKS_TEXT_TSV_MD5=" in fingerprints
     assert "RAG_CHUNKS_TEXT_TSV_EXPRESSION_MD5=" in fingerprints
     assert "/schema-head-003-fingerprints.env" in healthcheck
+    assert "column_default" in healthcheck
+    assert "format_type" in healthcheck
+    assert "atttypmod" in healthcheck
+    assert "vector(1024)" in healthcheck
     for line in fingerprints.splitlines():
         _key, separator, fingerprint = line.partition("=")
         assert separator
