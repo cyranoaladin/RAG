@@ -107,7 +107,9 @@ Au premier démarrage uniquement, PostgreSQL applique dans l'ordre
 `00_init.sql`, puis `01_003_profile_filtering.sql`. Son healthcheck échoue tant
 que le head `003_profile_filtering`, les SHA-256 canoniques, les définitions
 exactes des 31 colonnes, des dix index, de l'expression générée `text_tsv` et
-des cinq contraintes validées ne sont pas présents. Le script
+des cinq contraintes validées ne sont pas présents. Les colonnes incluent leurs
+valeurs par défaut et leurs typmods exacts (`vector(1024)`), et tout index
+supplémentaire rend également la base non prête. Le script
 `02_register_bootstrap_migrations.sh` calcule les SHA-256 des trois migrations
 canoniques et enregistre atomiquement `001`, `002` et `003` dans
 `rag_schema_migrations`. Le runner transactionnel doit ensuite reconnaître ce

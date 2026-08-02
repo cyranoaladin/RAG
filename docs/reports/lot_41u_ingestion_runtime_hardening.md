@@ -367,6 +367,24 @@ fait désormais appeler `/health` par le BFF, conserve un payload public réduit
 l'appel legacy exact avant correction ; les huit tests ciblés du client moteur
 et de la route santé ainsi qu'ESLint sont ensuite passés.
 
+La revue Cubic du même head a demandé de compléter l'attestation structurelle.
+Le commit `7bcf57f` ajoute les valeurs par défaut, `format_type` et `atttypmod`
+aux 31 définitions de colonnes, impose donc explicitement `vector(1024)`, et
+compare tous les index prêts/valides au lieu de filtrer seulement les dix noms
+attendus. Les contraintes `CHECK` sont elles aussi comparées comme un ensemble
+exact avec leur état de validation. Le healthcheck PostgreSQL applique le même
+contrat et refuse dimension, default ou index supplémentaire divergents.
+
+La remarque selon laquelle les empreintes n'étaient jamais recalculées en CI
+était inexacte mais révélait un manque de lisibilité : l'intégration PostgreSQL
+réelle appelle déjà `schema_head_003_ready()` sur une base fraîche. Le test et
+son marqueur ont été renommés pour produire explicitement
+`SCHEMA_FINGERPRINTS_REAL_DB=PASS`. Le cycle complet conclut aussi
+`SCHEMA_DEFAULT_AND_EXTRA_INDEX_DRIFT_REJECTED=PASS` et
+`LOT40_HYBRID_INTEGRATION=PASS`. Une sonde PostgreSQL fraîche séparée a refusé
+`vector(768)`, un default modifié et un onzième index, puis a repassé verte après
+restauration.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -420,6 +438,7 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `5f9af0b` | schéma retrieval complet, grants `INSERT` et métriques bornées |
 | `4795dfc` | santé PostgreSQL coalescée et métriques mono-processus |
 | `9ebbf02` | sonde Cockpit alignée sur `/health` v2 |
+| `7bcf57f` | types, defaults, contraintes et index PostgreSQL exacts |
 
 ## Décision de livraison
 

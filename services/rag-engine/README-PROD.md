@@ -15,6 +15,10 @@ démarrage ni sur une requête. Le processus canonique unique vérifie intégral
 canonique, leurs poids et leur inventaire SHA-256 avant d'accepter du trafic ;
 `/health` contrôle ensuite une attestation bornée sans rehacher les poids, puis
 prouve aussi la connexion et les privilèges minimaux du rôle `PG_REVIEW_DSN`.
+Le schéma n'est prêt que si les 31 colonnes ont leurs types, typmods — dont
+`vector(1024)` — nullabilités, générations et valeurs par défaut exacts, si les
+cinq contraintes sont validées et si l'ensemble des dix index est strictement
+identique au head canonique.
 La sonde profonde est coalescée et mémorisée cinq secondes : une rafale ne peut
 ouvrir qu'un cycle de connexions PostgreSQL. Les vhosts limitent `/health` et
 `/metrics` au loopback. Uvicorn reste à un worker, car le registre Prometheus

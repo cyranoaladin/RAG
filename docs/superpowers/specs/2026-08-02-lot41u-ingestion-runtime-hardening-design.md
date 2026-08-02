@@ -71,8 +71,10 @@ Pour un volume existant, les scripts d'init PostgreSQL ne sont volontairement
 pas rejoués : l'opérateur doit utiliser le runner transactionnel et sauvegardé
 déjà versionné. Le healthcheck PostgreSQL vérifie la présence exacte des 31
 colonnes, des dix index, de l'expression générée `text_tsv`, les SHA-256
-canoniques du registre ainsi que les cinq contraintes du head 003. Toute dérive
-homonyme ou perte d'un objet des migrations 001–003 maintient
+canoniques du registre ainsi que les cinq contraintes du head 003. Les
+définitions de colonnes couvrent aussi les valeurs par défaut, le type formaté
+et le typmod `vector(1024)` ; l'ensemble d'index doit être exact, sans ajout
+inattendu. Toute dérive homonyme ou perte d'un objet des migrations 001–003 maintient
 PostgreSQL `unhealthy` et l'application v2 ne démarre pas.
 
 La sonde `/health` de `api_v2.py` vérifie en lecture seule le contrat de schéma
