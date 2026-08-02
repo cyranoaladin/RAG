@@ -730,6 +730,14 @@
 
   Attendu : l’artefact normalisé provient d’un run unique `pull_request` attaché au SHA de tête, et contient exactement une fois chacun des six contextes avec `SUCCESS`. Le run `push` simultané et GitGuardian sont volontairement exclus de l’ensemble obligatoire versionné.
 
+  **Erratum historique LOT41S (2026-08-02).** Cet artefact certifie
+  exclusivement le `headSha` qu’il contient ; il ne certifie jamais un commit
+  documentaire ultérieur qui ajoute l’artefact au dépôt. Depuis LOT41S, le
+  workflow canonique n’exécute `push` que sur `main` : la concurrence d’un run
+  `push` sur le même SHA de branche était une limitation historique de LOT37R,
+  et les six contextes protégés pré-fusion proviennent désormais uniquement de
+  l’événement `pull_request`.
+
 ## Tâche 6 : appliquer la protection de branche et rédiger le rapport LOT37R
 
 **Fichiers :**
@@ -843,7 +851,11 @@
   git push
   ```
 
-  Attendu : un commit documentaire uniquement ; la branche reste l’unique tête de la PR de remplacement.
+  Attendu : un commit documentaire uniquement ; la branche reste l’unique tête
+  de la PR de remplacement. Les artefacts committés restent explicitement des
+  preuves du SHA parent qu’ils nomment. Les checks du nouveau head documentaire
+  sont une preuve GitHub externe consultée après le push à la tâche 7 ; ils ne
+  sont pas revendiqués par l’artefact parent-SHA.
 
 ## Tâche 7 : revoir, fusionner, clore les travaux supersédés et vérifier `main`
 
@@ -853,7 +865,16 @@
 
 - [ ] Invoquer `superpowers:requesting-code-review` sur `origin/main...HEAD` ; résoudre chaque constat bloquant dans un nouveau commit scopé, relancer les tests ciblés concernés puis `bash scripts/ci-local.sh`, et actualiser le rapport si une preuve change.
 
-  Si la revue entraîne un changement, conserver le même répertoire temporaire validé, remplacer `ci-local.log` par la nouvelle exécution complète, relever le nouveau SHA source, recalculer le SHA-256, régénérer avec `apply_patch` `ci-local-summary.txt` et toutes les lignes affectées du rapport, puis committer séparément cette actualisation avant le push final. Une preuve portant sur l’ancien SHA ne peut pas être réutilisée.
+  Si la revue entraîne un changement de code, conserver le même répertoire
+  temporaire validé, remplacer `ci-local.log` par la nouvelle exécution
+  complète, relever le nouveau SHA source, recalculer le SHA-256, régénérer avec
+  `apply_patch` `ci-local-summary.txt` et toutes les lignes affectées du rapport,
+  puis committer séparément cette actualisation avant le push final. Les
+  artefacts certifient alors ce nouveau SHA de code, parent du commit
+  documentaire ; ils ne certifient pas le commit qui les ajoute. Les checks du
+  head documentaire final restent consultés sur GitHub après le push. Si du
+  code change de nouveau, aucune preuve portant sur le SHA précédent ne peut
+  être réutilisée.
 
 - [ ] Pousser les éventuelles corrections revues et attendre la tête finale de la PR de remplacement :
 
