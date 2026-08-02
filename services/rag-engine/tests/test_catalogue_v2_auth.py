@@ -1,12 +1,10 @@
-"""Tests — /catalogue/v2 auth policy.
-
-Verifies the role-based access control for the catalogue endpoint
-matches the expected policy after LOT 27.1 hotfix.
-"""
+"""Tests — autorité BFF et rôles signés de /catalogue/v2."""
 from __future__ import annotations
 
 import re
 from pathlib import Path
+
+from src.ingestor import retrieval_v2_endpoint as endpoint_module
 
 ENGINE_ROOT = Path(__file__).resolve().parents[1]
 ENDPOINT_FILE = ENGINE_ROOT / "src" / "ingestor" / "retrieval_v2_endpoint.py"
@@ -16,44 +14,46 @@ def _read_endpoint() -> str:
     return ENDPOINT_FILE.read_text(encoding="utf-8")
 
 
-def _extract_catalogue_v2_roles(content: str) -> set[str]:
-    """Extract the allowed_roles set from the /catalogue/v2 endpoint."""
-    # Find the block: @router.get("/catalogue/v2") ... allowed_roles={...}
-    pattern = r'@router\.get\("/catalogue/v2"\).*?allowed_roles=\{([^}]+)\}'
-    match = re.search(pattern, content, re.DOTALL)
-    assert match, "/catalogue/v2 endpoint not found or allowed_roles missing"
-    roles_block = match.group(1)
-    roles = set(re.findall(r"SecurityRole\.(\w+)", roles_block))
-    return roles
+def _catalogue_roles() -> frozenset[str]:
+    return endpoint_module._CATALOGUE_ROLES
 
 
 # --- /catalogue/v2 auth tests ---
 
 def test_catalogue_v2_allows_admin():
-    roles = _extract_catalogue_v2_roles(_read_endpoint())
-    assert "ADMIN" in roles
+    assert "admin" in _catalogue_roles()
 
 
 def test_catalogue_v2_allows_reviewer():
-    roles = _extract_catalogue_v2_roles(_read_endpoint())
-    assert "REVIEWER" in roles
+    assert "reviewer" in _catalogue_roles()
 
 
 def test_catalogue_v2_allows_teacher():
-    roles = _extract_catalogue_v2_roles(_read_endpoint())
-    assert "TEACHER" in roles
+    assert "teacher" in _catalogue_roles()
 
 
 def test_catalogue_v2_allows_ingest_agent():
-    """LOT 27.1: UI token is INGEST_AGENT; must be allowed."""
-    roles = _extract_catalogue_v2_roles(_read_endpoint())
-    assert "INGEST_AGENT" in roles
+    assert "ingest_agent" in _catalogue_roles()
 
 
 def test_catalogue_v2_does_not_allow_student():
     """STUDENT excluded: catalogue exposes governance details."""
-    roles = _extract_catalogue_v2_roles(_read_endpoint())
-    assert "STUDENT" not in roles
+    assert "student" not in _catalogue_roles()
+
+
+def test_catalogue_v2_uses_bff_identity_not_legacy_role_tokens() -> None:
+    content = _read_endpoint()
+    pattern = (
+        r'@router\.get\("/catalogue/v2"\)'
+        r".*?def get_full_catalogue"
+        r".*?(?=@router\.|# ---)"
+    )
+    match = re.search(pattern, content, re.DOTALL)
+    assert match, "/catalogue/v2 endpoint not found"
+    endpoint = match.group(0)
+
+    assert '_require_catalogue_identity(request, endpoint="/catalogue/v2")' in endpoint
+    assert "_enforce_security_v2" not in endpoint
 
 
 # --- /collections/v2 LOT41 ---

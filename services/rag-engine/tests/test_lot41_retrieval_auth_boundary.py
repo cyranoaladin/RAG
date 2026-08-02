@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -184,3 +185,46 @@ def test_readiness_accepts_only_the_distinct_bff_credential_and_signed_scope(
     assert bff_response.status_code == 200
     assert bff_response.json()["total_collections"] == 1
     assert bff_response.json()["launch_ready"] is False
+
+
+@pytest.mark.parametrize(
+    ("role", "expected_status"),
+    [
+        ("admin", 200),
+        ("reviewer", 200),
+        ("teacher", 200),
+        ("ingest_agent", 200),
+        ("student", 403),
+    ],
+)
+def test_catalogue_requires_bff_identity_and_signed_human_role(
+    monkeypatch: pytest.MonkeyPatch,
+    role: str,
+    expected_status: int,
+) -> None:
+    service_token = "lot41-bff-service-token-at-least-32-bytes"
+    legacy_token = "legacy-human-token"
+    monkeypatch.setenv("RAG_BFF_SERVICE_TOKEN", service_token)
+    monkeypatch.setenv("RAG_ADMIN_TOKEN", legacy_token)
+    verified = SimpleNamespace(
+        envelope=SimpleNamespace(identity=SimpleNamespace(role=role)),
+    )
+    monkeypatch.setattr(endpoint, "require_internal_identity", lambda _request: verified)
+    full_catalogue = MagicMock(return_value={"version": 2, "collections": []})
+    monkeypatch.setattr(endpoint, "_full_catalogue", full_catalogue)
+
+    legacy_response = _client().get(
+        "/catalogue/v2",
+        headers={"Authorization": f"Bearer {legacy_token}", "X-Nexus-Identity": "signed"},
+    )
+    bff_response = _client().get(
+        "/catalogue/v2",
+        headers={"Authorization": f"Bearer {service_token}", "X-Nexus-Identity": "signed"},
+    )
+
+    assert legacy_response.status_code == 401
+    assert bff_response.status_code == expected_status
+    if expected_status == 200:
+        full_catalogue.assert_called_once_with()
+    else:
+        full_catalogue.assert_not_called()

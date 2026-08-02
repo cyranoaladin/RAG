@@ -128,6 +128,7 @@ CACHE_ENABLED = False
 _cache: dict[str, tuple[list, float]] = {}
 _cache_lock = threading.Lock()
 _cache_generation = 0
+_CATALOGUE_ROLES = frozenset({"admin", "reviewer", "teacher", "ingest_agent"})
 
 
 def _cache_key(query: str, collection: str, k: int) -> str:
@@ -684,22 +685,10 @@ def _resolve_taxonomy_base() -> Path | None:
 def get_full_catalogue(request: Request) -> dict[str, Any]:
     """Full catalogue — all declared collections with status flags.
 
-    Used by Dashboard and Administration. Read-only.
-    INGEST_AGENT included: the Streamlit UI connects with this role
-    (INGESTOR_API_TOKEN) and needs catalogue data for Dashboard,
-    Administration, and Ingestion pages.
-    STUDENT excluded: catalogue exposes governance details.
+    Réservé au BFF et aux rôles humains signés autorisés. STUDENT est exclu,
+    car ce catalogue expose des détails de gouvernance.
     """
-    _enforce_security_v2(
-        request,
-        allowed_roles={
-            SecurityRole.ADMIN,
-            SecurityRole.REVIEWER,
-            SecurityRole.TEACHER,
-            SecurityRole.INGEST_AGENT,
-        },
-        endpoint="/catalogue/v2",
-    )
+    _require_catalogue_identity(request, endpoint="/catalogue/v2")
     return _full_catalogue()
 
 
@@ -990,3 +979,15 @@ def _require_retrieval_identity(
     """Exiger le credential BFF puis l'enveloppe signée avant tout retrieval."""
     require_bff_service(request, endpoint=endpoint)
     return require_internal_identity(request)
+
+
+def _require_catalogue_identity(
+    request: Request,
+    *,
+    endpoint: str,
+) -> VerifiedInternalIdentity:
+    """Exiger le BFF, l'identité signée et un rôle autorisé au catalogue."""
+    verified = _require_retrieval_identity(request, endpoint=endpoint)
+    if verified.envelope.identity.role not in _CATALOGUE_ROLES:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return verified
