@@ -58,17 +58,33 @@ connexion plus récente.
 ### 4. Contrat de queue plus strict que le stockage — PR #85, commit revu `3a26784`
 
 La première revue Codex distante de la PR #85 a constaté que la réponse de
-queue refusait des métadonnées pourtant acceptées par l'ingestion et les
-colonnes PostgreSQL `TEXT` : longueurs sans maximum et `type_doc` vide. Une
-seule ligne conforme au stockage déclenchait alors une `ValidationError` et
-rendait toute la page indisponible via une réponse 503 du BFF.
+queue imposait à la provenance des limites absentes des colonnes PostgreSQL
+`TEXT`. La revue Cubic suivante a précisé le cas historique restant : une
+chaîne vide dans `source_label`, `source_uri`, `rights` ou `source_kind`
+déclenchait encore une `ValidationError`. Une seule ligne représentable dans
+le stockage pouvait donc rendre toute la page indisponible via une réponse 503
+du BFF.
 
 Correction : les bornes des identifiants, du scope et de la pagination restent
-fermées, tandis que les champs de provenance suivent le domaine réellement
-ingestible. Le cycle RED a reproduit l'exception avec des métadonnées longues
-et `type_doc=""` ; le cycle GREEN vérifie une réponse 200 et la validation de
-bout en bout. Une borne future sur la provenance exigera d'abord une validation
-à l'ingestion, une contrainte de stockage et une migration des données.
+fermées, tandis que les cinq champs de provenance suivent le domaine `TEXT` :
+toute chaîne, y compris vide, sans maximum contractuel inventé. Le cycle RED a
+reproduit l'exception avec des métadonnées vides ; le cycle GREEN couvre les
+valeurs vides et longues, puis vérifie une réponse 200 de bout en bout. Cette
+tolérance permet de reviewer ou de mettre en quarantaine une ligne historique
+incomplète ; elle ne la promeut pas. Une borne future exigera d'abord une
+validation à l'ingestion, une contrainte de stockage et une migration.
+
+### 5. Cohérence de la spécification et du scope BFF — revue Cubic de la PR #85
+
+La spécification de design ne rendait pas explicites les exigences anti-CSRF
+déjà présentes dans l'ADR et le code. Les routes queue et décision répétaient
+également le même contrôle de collection optionnelle, au risque de diverger.
+
+Correction : la spécification fixe désormais l'origine HTTPS canonique,
+interdit toute confiance dans `Host`/`X-Forwarded-*` et documente l'ordre des
+erreurs avant lecture du corps. Le contrôle de collection est centralisé dans
+un helper pur, couvert directement et toujours exercé par les tests des deux
+routes.
 
 ## Contrat canonique
 
@@ -76,8 +92,8 @@ bout en bout. Une borne future sur la provenance exigera d'abord une validation
 schémas JSON racine et les types/validateurs TypeScript générés couvrent la
 queue, la décision navigateur, la décision moteur et leurs réponses. Le tenant
 n'est jamais une autorité navigateur et le champ libre `reason` est rejeté.
-Les métadonnées de provenance de la queue n'inventent aucune limite absente de
-l'ingestion ou du stockage ; `type_doc` peut notamment être vide.
+Les métadonnées de provenance de la queue n'inventent aucune limite absente du
+stockage `TEXT` et acceptent les chaînes historiques vides.
 
 L'[ADR-0023](../adr/ADR-0023-review-bff-et-durcissement-runtime.md) documente
 l'extension additive du contrat, les frontières navigateur/BFF/moteur et
@@ -99,9 +115,11 @@ l'absence de migration de données ou d'activation de gouvernance.
 | `b6bdf3c` | protections CSRF et validation stricte des formats JSON Schema |
 | `998c984` | origine publique canonique des mutations derrière reverse proxy |
 | `6e8702b` | alignement de la queue sur les métadonnées réellement ingérées |
+| `223c579` | alignement complet sur la provenance `TEXT` historique |
+| `510102d` | centralisation du contrôle de collection de review |
 
 Le SHA d'implémentation final vérifié avant le présent commit documentaire est
-`6e8702bb41ff7b4e35db38a437217d4d8ad3504b`. Le rapport ne prétend pas contenir
+`510102d0824df7788b8db3021d3efcd592132e2c`. Le rapport ne prétend pas contenir
 son propre SHA.
 
 ## Cycles RED/GREEN et vérifications ciblées
@@ -126,9 +144,9 @@ requis.
 | Task5 — queue BFF | `2f70305` | `(cd services/cockpit && npm test -- --run src/app/api/review/queue/route.test.ts src/server/bff-auth.test.ts)` | 43 tests réussis ; exit 0 |
 | Task6 — décision BFF | `02c02a1` | `(cd services/cockpit && npm test -- --run src/app/api/review src/app/api/_engine.test.ts src/server/bff-auth.test.ts)` | 89 tests réussis ; exit 0 |
 | Task7 — Redis | `75dd274` | `(cd services/cockpit && npm test -- --run src/server/revocation-store.redis.test.ts src/server/revocation-store.test.ts src/server/bff-auth.test.ts)` | 18 tests réussis ; exit 0 |
-| Review PR #85 — provenance queue | `6e8702b` | `PYTHONPATH=packages/contracts/src python -m pytest packages/contracts/tests/test_review_contract.py packages/contracts/tests/test_schema_export.py -q` | 10 tests réussis ; exit 0 |
-| Review PR #85 — moteur | `6e8702b` | `(cd services/rag-engine && PYTHONPATH=src:../../packages/contracts/src .venv/bin/pytest tests/test_lot41_review_scope.py tests/test_review_v2.py -q)` | 33 tests réussis ; exit 0 |
-| Review PR #85 — Cockpit | `6e8702b` | `(cd services/cockpit && npm test -- --run src/generated/review-contract.test.ts src/app/api/review/queue/route.test.ts)` | 40 tests réussis ; exit 0 |
+| Review PR #85 — provenance queue | `223c579` | `PYTHONPATH=packages/contracts/src python -m pytest packages/contracts/tests/test_review_contract.py packages/contracts/tests/test_schema_export.py -q` | 11 tests réussis ; exit 0 |
+| Review PR #85 — moteur | `223c579` | `(cd services/rag-engine && PYTHONPATH=src:../../packages/contracts/src .venv/bin/python -m pytest tests/test_lot41_review_scope.py tests/test_review_v2.py -q)` | 33 tests réussis ; exit 0 |
+| Review PR #85 — Cockpit | `510102d` | `(cd services/cockpit && npm test -- --run src/app/api/review/_auth.test.ts src/app/api/review/queue/route.test.ts src/app/api/review/decide/route.test.ts src/generated/review-contract.test.ts)` | 96 tests réussis ; exit 0 |
 
 Les revues indépendantes intermédiaires ont notamment fait ajouter la
 préservation d'un préfixe de chemin dans l'URL moteur, l'en-tête
@@ -141,8 +159,11 @@ configurée par `NEXUS_COCKPIT_PUBLIC_ORIGIN`, sans faire confiance aux en-tête
 du reverse proxy, exigent `application/json` et activent `ajv-formats` dans les
 validateurs générés. L'origine publique du smoke et du runbook est la même
 valeur canonique. La première revue Codex GitHub a ensuite détecté le décalage
-entre les bornes de provenance et le stockage ; le correctif `6e8702b` est
-couvert par les trois cycles ciblés ci-dessus et par la CI complète.
+entre les bornes de provenance et le stockage. La revue Cubic a ensuite relevé
+les chaînes vides historiques, l'exigence anti-CSRF absente de la spécification
+et la duplication du contrôle de scope BFF. Les correctifs `223c579` et
+`510102d` sont couverts par les trois cycles ciblés ci-dessus et par la CI
+complète.
 
 ## Preuves finales Task9
 
@@ -152,20 +173,20 @@ pour contourner un lien système 3.11 cassé est resté hors dépôt.
 
 | Périmètre | Résultat final |
 | --- | --- |
-| `packages/contracts` | 94 tests réussis ; Ruff et mypy réussis |
+| `packages/contracts` | 95 tests réussis ; Ruff et mypy réussis |
 | `services/rag-pedago` | 1 751 tests réussis ; Ruff et mypy réussis |
 | `services/rag-engine` | 1 179 tests non-intégration réussis, 15 tests d'intégration désélectionnés ; Ruff et mypy réussis |
 | smoke hybride PostgreSQL/pgvector réel | `LOT40_HYBRID_INTEGRATION=PASS`, y compris le runtime aplati et la review scopée |
-| `services/cockpit` | 19 fichiers et 168 tests réussis ; ESLint, TypeScript et build Next.js 16.2.12 réussis |
+| `services/cockpit` | 20 fichiers et 172 tests réussis ; ESLint, TypeScript et build Next.js 16.2.12 réussis |
 | dépendances Cockpit | `npm audit` : 0 vulnérabilité |
 | gouvernance | 18 clés identiques à la baseline ; aucun verrou activé |
 | taxonomie | 57 fichiers validés, 0 erreur ; 15 fichiers explicitement `PREMIER JET` |
 | tests des garde-fous | 16/16 gouvernance et 44/44 CI fail-safe réussis |
 | CI locale racine | **13 cibles réussies, 0 échec** |
 | diff Git | `git diff main...HEAD --check` réussi |
-| secrets | `gitleaks git . --log-opts=main..HEAD --redact --no-banner` : 14 commits analysés jusqu'au SHA d'implémentation, aucune fuite |
+| secrets | `gitleaks git . --log-opts=main..HEAD --redact --no-banner` : 17 commits analysés jusqu'au SHA d'implémentation, aucune fuite |
 | revue indépendante pré-publication | **APPROVE** sur `998c984`, confiance élevée, aucun constat P0, P1, P2 ou P3 |
-| revue Codex GitHub | P1 de provenance sur `3a26784` reproduit et corrigé dans `6e8702b` ; nouvelle revue à demander après push |
+| revues GitHub | P1 Codex et trois constats Cubic reproduits ou vérifiés, corrigés dans `6e8702b`, `223c579` et `510102d` ; threads et nouvelle revue à traiter après push |
 
 Commande de preuve globale exécutée depuis la racine, avec les exécutables
 Node.js et Python 3.11 placés en tête de `PATH` :
