@@ -10,12 +10,20 @@ from typing import Any, Literal
 
 from nexus_contracts import RIGHTS_ALLOWED_CONTEXTS, AccessContext, Rights
 
-from .collection_config import (
-    CollectionConfigError,
-    resolve_collection_v2,
-    resolve_declared_collection_v2,
-)
-from .identity_v2 import VerifiedInternalIdentity
+if __package__:
+    from .collection_config import (
+        CollectionConfigError,
+        resolve_collection_v2,
+        resolve_declared_collection_v2,
+    )
+    from .identity_v2 import VerifiedInternalIdentity
+else:
+    from collection_config import (  # type: ignore[no-redef]
+        CollectionConfigError,
+        resolve_collection_v2,
+        resolve_declared_collection_v2,
+    )
+    from identity_v2 import VerifiedInternalIdentity  # type: ignore[no-redef]
 
 
 class RetrievalScopeError(ValueError):
