@@ -41,6 +41,7 @@ try:
     )
     from .identity_v2 import VerifiedInternalIdentity, require_internal_identity
     from .pg_pool import PoolSettings, pool_connection
+    from .reranker_contract import load_reranker_model
     from .retrieval_hybrid_v2 import (
         CHANNEL_LIMIT,
         EMBED_MODEL,
@@ -79,6 +80,7 @@ except (ImportError, ValueError):
         require_internal_identity,
     )
     from pg_pool import PoolSettings, pool_connection  # type: ignore[no-redef]
+    from reranker_contract import load_reranker_model  # type: ignore[no-redef]
     from retrieval_hybrid_v2 import (  # type: ignore[no-redef]
         CHANNEL_LIMIT,
         EMBED_MODEL,
@@ -196,10 +198,8 @@ def _get_embed_model():
 def _get_reranker():
     global _reranker
     if _reranker is None:
-        from sentence_transformers import CrossEncoder
-
         logger.info("Loading reranker %s (one-time)", RERANK_MODEL)
-        _reranker = CrossEncoder(RERANK_MODEL, max_length=512)
+        _reranker = load_reranker_model()
     return _reranker
 
 

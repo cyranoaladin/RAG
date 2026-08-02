@@ -16,6 +16,8 @@ import psycopg
 
 CANONICAL_EMBED_MODEL = "intfloat/multilingual-e5-large"
 CANONICAL_EMBED_DIM = 1024
+READINESS_CONNECT_TIMEOUT_S = 3
+READINESS_STATEMENT_TIMEOUT_MS = 3000
 
 
 class EmbeddingContractError(RuntimeError):
@@ -67,7 +69,15 @@ def validate_embedding_contract(
 
 def pgvector_dimension(pg_dsn: str) -> int:
     """Read the declared dimension of ``rag_chunks.vector`` without mutation."""
-    with psycopg.connect(pg_dsn) as conn:
+    options = (
+        f"-c statement_timeout={READINESS_STATEMENT_TIMEOUT_MS} "
+        "-c default_transaction_read_only=on"
+    )
+    with psycopg.connect(
+        pg_dsn,
+        connect_timeout=READINESS_CONNECT_TIMEOUT_S,
+        options=options,
+    ) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """

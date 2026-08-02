@@ -754,6 +754,7 @@ def test_runner_pins_security_bounds_and_cleanup_contract() -> None:
     assert "LOT40_PG_ADMIN_DSN" in content
     assert "LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE" in content
     assert "GRANT SELECT ON TABLE rag_chunks" in content
+    assert "GRANT SELECT ON TABLE rag_schema_migrations" in content
     assert "GRANT INSERT" not in content
     assert "GRANT TRUNCATE" not in content
     assert '[[ "$1" =~ [Nn]o[[:space:]]such' not in content

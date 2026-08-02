@@ -21,30 +21,12 @@ services:
       - ./postgres/migrations/003_profile_filtering.sql:/docker-entrypoint-initdb.d/01_003_profile_filtering.sql:ro
       - ./postgres/register_bootstrap_migrations.sh:/docker-entrypoint-initdb.d/02_register_bootstrap_migrations.sh:ro
       - ./postgres/migrations:/docker-entrypoint-migrations:ro
+      - ./postgres/healthcheck.sh:/docker-entrypoint-healthcheck.sh:ro
     ports:
       - "127.0.0.1:${PGVECTOR_PORT:-5435}:5432"
     networks: [rag_net]
     healthcheck:
-      test:
-        - CMD-SHELL
-        - >-
-          pg_isready -U ${PGVECTOR_USER:-raguser} -d ${PGVECTOR_DB:-ragdb}
-          && psql -U ${PGVECTOR_USER:-raguser} -d ${PGVECTOR_DB:-ragdb} -tAc
-          "SELECT
-          (SELECT count(*) = 5 FROM information_schema.columns
-          WHERE table_schema = 'public' AND table_name = 'rag_chunks'
-          AND column_name IN ('tenant', 'candidat', 'visibility', 'school_year', 'programme_version'))
-          AND to_regclass('public.idx_rag_chunks_profile_reviewed') IS NOT NULL
-          AND (SELECT count(*) = 5 FROM pg_constraint
-          WHERE conrelid = 'public.rag_chunks'::regclass AND convalidated
-          AND conname IN ('rag_chunks_tenant_lot41_check',
-          'rag_chunks_candidat_lot41_check', 'rag_chunks_visibility_lot41_check',
-          'rag_chunks_school_year_lot41_check',
-          'rag_chunks_programme_version_lot41_check'))
-          AND (SELECT count(*) = 3 FROM rag_schema_migrations
-          WHERE (version, file_name) IN ((1, '001_rag_chunks_v2_schema.sql'),
-          (2, '002_hybrid_retrieval.sql'),
-          (3, '003_profile_filtering.sql')))" | grep -qx t
+      test: ["CMD", "bash", "/docker-entrypoint-healthcheck.sh"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -81,9 +63,11 @@ services:
       EMBED_MODEL: intfloat/multilingual-e5-large
       EMBED_DIM: "1024"
       RAG_EMBEDDING_MODEL_CACHE_DIR: /models/e5-large
-      RERANKER_MODEL: "${RERANKER_MODEL:-cross-encoder/ms-marco-MiniLM-L-6-v2}"
-      RERANKER_TOP_N: "${RERANKER_TOP_N:-5}"
+      RAG_MIGRATIONS_DIR: /app/migrations
+      RAG_RERANKER_MODEL_CACHE_DIR: /models/reranker
       RERANK_CACHE_TTL: "${RERANK_CACHE_TTL:-300}"
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
       RAG_MIN_COLLECTION_SUBSTANCE_CHUNKS: "${RAG_MIN_COLLECTION_SUBSTANCE_CHUNKS:-1}"
       RAG_BFF_SERVICE_TOKEN: "${RAG_BFF_SERVICE_TOKEN:?RAG_BFF_SERVICE_TOKEN requis}"
       NEXUS_INTERNAL_TOKEN_SECRET: "${NEXUS_INTERNAL_TOKEN_SECRET:?NEXUS_INTERNAL_TOKEN_SECRET requis}"
@@ -96,6 +80,7 @@ services:
     volumes:
       - ${RAG_CONFIGS_HOST_DIR:-../configs}:/app/configs:ro
       - ${RAG_EMBEDDING_MODEL_ARTIFACT_HOST_DIR:-./data/.no-model-cache}:/models/e5-large:ro
+      - ${RAG_RERANKER_MODEL_ARTIFACT_HOST_DIR:-./data/.no-model-cache}:/models/reranker:ro
     ports:
       - "127.0.0.1:${INGESTOR_PORT:-8001}:8001"
     networks: [rag_net]

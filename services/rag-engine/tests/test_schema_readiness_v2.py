@@ -4,17 +4,22 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Any
 
 import pytest
 
 from src.ingestor import schema_readiness_v2 as readiness
 
+ENGINE_ROOT = Path(__file__).resolve().parents[1]
+MIGRATIONS = ENGINE_ROOT / "infra" / "postgres" / "migrations"
+
 
 class _Cursor:
-    def __init__(self, row: tuple[list[str], list[str], bool]) -> None:
+    def __init__(self, row: tuple[object, ...]) -> None:
         self.row = row
         self.sql = ""
+        self.params: tuple[object, ...] = ()
 
     def __enter__(self) -> _Cursor:
         return self
@@ -22,10 +27,11 @@ class _Cursor:
     def __exit__(self, *_args: object) -> None:
         return None
 
-    def execute(self, sql: str) -> None:
+    def execute(self, sql: str, params: tuple[object, ...] = ()) -> None:
         self.sql = sql
+        self.params = params
 
-    def fetchone(self) -> tuple[list[str], list[str], bool]:
+    def fetchone(self) -> tuple[object, ...]:
         return self.row
 
 
@@ -43,18 +49,20 @@ class _Connection:
         return self._cursor
 
 
-def _valid_row() -> tuple[list[str], list[str], bool]:
+def _valid_row() -> tuple[object, ...]:
     return (
-        sorted(readiness.REQUIRED_PROFILE_COLUMNS),
-        sorted(readiness.REQUIRED_PROFILE_CONSTRAINTS),
-        True,
+        readiness.REQUIRED_PROFILE_COLUMN_DEFINITIONS,
+        readiness.REQUIRED_PROFILE_CONSTRAINT_DEFINITIONS,
+        readiness.REQUIRED_PROFILE_INDEX_DEFINITION,
+        readiness.REQUIRED_PROFILE_INDEX_PREDICATE,
+        [list(item) for item in readiness.expected_migration_records(MIGRATIONS)],
     )
 
 
 @contextmanager
 def _patched_connection(
     monkeypatch: pytest.MonkeyPatch,
-    row: tuple[list[str], list[str], bool],
+    row: tuple[object, ...],
 ) -> Iterator[_Cursor]:
     cursor = _Cursor(row)
     captured: dict[str, Any] = {}
@@ -66,7 +74,17 @@ def _patched_connection(
 
     monkeypatch.setattr(readiness.psycopg, "connect", connect)
     yield cursor
-    assert captured == {"dsn": "postgresql://reader", "kwargs": {}}
+    assert captured == {
+        "dsn": "postgresql://reader",
+        "kwargs": {
+            "connect_timeout": readiness.READINESS_CONNECT_TIMEOUT_S,
+            "options": (
+                "-c statement_timeout="
+                f"{readiness.READINESS_STATEMENT_TIMEOUT_MS} "
+                "-c default_transaction_read_only=on"
+            ),
+        },
+    }
 
 
 def test_schema_head_003_accepts_only_the_exact_contract(
@@ -78,44 +96,64 @@ def test_schema_head_003_accepts_only_the_exact_contract(
     normalized = cursor.sql.upper()
     assert normalized.lstrip().startswith("SELECT")
     assert "CONVALIDATED" in normalized
+    assert "PG_GET_CONSTRAINTDEF" in normalized
+    assert "PG_GET_INDEXDEF" in normalized
+    assert "RAG_SCHEMA_MIGRATIONS" in normalized
+    assert cursor.params == ()
     for forbidden in ("INSERT", "UPDATE", "DELETE", "ALTER", "CREATE", "DROP"):
         assert forbidden not in normalized
 
 
-@pytest.mark.parametrize("missing", sorted(readiness.REQUIRED_PROFILE_COLUMNS))
-def test_schema_head_003_rejects_each_missing_column(
+@pytest.mark.parametrize(
+    "position",
+    range(5),
+    ids=("columns", "constraints", "index", "predicate", "migrations"),
+)
+def test_schema_head_003_rejects_every_drifted_contract_component(
     monkeypatch: pytest.MonkeyPatch,
-    missing: str,
+    position: int,
 ) -> None:
-    columns, constraints, index_present = _valid_row()
-    columns.remove(missing)
-    with _patched_connection(monkeypatch, (columns, constraints, index_present)):
+    row = list(_valid_row())
+    row[position] = {} if position < 2 else "drifted"
+    with _patched_connection(monkeypatch, tuple(row)):
         assert readiness.schema_head_003_ready("postgresql://reader") is False
 
 
-@pytest.mark.parametrize("missing", sorted(readiness.REQUIRED_PROFILE_CONSTRAINTS))
-def test_schema_head_003_rejects_each_missing_constraint(
+def test_schema_head_003_rejects_registry_hash_drift(
     monkeypatch: pytest.MonkeyPatch,
-    missing: str,
 ) -> None:
-    columns, constraints, index_present = _valid_row()
-    constraints.remove(missing)
-    with _patched_connection(monkeypatch, (columns, constraints, index_present)):
+    row = list(_valid_row())
+    migrations = [list(item) for item in row[4]]
+    migrations[2][2] = "0" * 64
+    row[4] = migrations
+    with _patched_connection(monkeypatch, tuple(row)):
         assert readiness.schema_head_003_ready("postgresql://reader") is False
 
 
-def test_schema_head_003_rejects_missing_index(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    columns, constraints, _index_present = _valid_row()
-    with _patched_connection(monkeypatch, (columns, constraints, False)):
-        assert readiness.schema_head_003_ready("postgresql://reader") is False
+def test_expected_migration_records_hash_the_canonical_files() -> None:
+    assert readiness.expected_migration_records(MIGRATIONS) == (
+        (
+            1,
+            "001_rag_chunks_v2_schema.sql",
+            "c0ce69353bd04c87a9bf7adf885ebf9e915885b8e0b286faffc620b74cebc88c",
+        ),
+        (
+            2,
+            "002_hybrid_retrieval.sql",
+            "6fef12777291653611aa8b561709e2090b169b40629ce99acf0767ebb388f89d",
+        ),
+        (
+            3,
+            "003_profile_filtering.sql",
+            "069cd391d77ee47a6daae037221dbef7403e7710d35abecaecb0484f05d0428a",
+        ),
+    )
 
 
 def test_schema_head_003_does_not_hide_database_errors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fail(_dsn: str) -> None:
+    def fail(_dsn: str, **_kwargs: object) -> None:
         raise readiness.psycopg.OperationalError("database unavailable")
 
     monkeypatch.setattr(readiness.psycopg, "connect", fail)

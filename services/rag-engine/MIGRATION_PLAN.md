@@ -1,5 +1,11 @@
 # 🔄 PLAN DE MIGRATION — RAG v1 (ChromaDB) → RAG v2 (pgvector)
 
+> **Archive de conception — ne pas utiliser comme runbook.** Depuis LOT41U,
+> le runtime v2 canonique est strictement lecture/revue et sa configuration
+> opérationnelle se trouve dans `docs/runbooks/go_live.md`. Les variables et
+> writers décrits ci-dessous sont historiques et ne sont pas actifs dans
+> `docker-compose.v2.yml`.
+
 **Date** : 22 février 2026
 **Auteur** : Lead Senior RAG Architect
 **Statut** : En cours

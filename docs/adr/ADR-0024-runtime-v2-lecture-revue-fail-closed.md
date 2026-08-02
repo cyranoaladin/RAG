@@ -36,9 +36,10 @@ ses descendants sont fermés avant proxy ; une route inconnue n'est jamais
 transmise au moteur.
 
 Une base PostgreSQL neuve applique successivement le bootstrap 001/002 et la
-migration canonique `003_profile_filtering`. La readiness vérifie le schéma 003
-et bloque le moteur si un volume existant n'a pas été migré par le runner
-transactionnel sauvegardé.
+migration canonique `003_profile_filtering`. La readiness vérifie le registre,
+les SHA-256 et les définitions exactes du schéma 003 ; elle bloque le moteur si
+un volume existant n'a pas été migré par le runner transactionnel sauvegardé ou
+si ses objets ont dérivé.
 
 Une future publication v2 devra recevoir du plan de contrôle une remise liée au
 digest du contenu, au tenant, à la collection, aux dimensions de profil et à

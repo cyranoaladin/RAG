@@ -70,14 +70,19 @@ son contenu. Une base neuve applique donc 003 avant d'accepter le trafic.
 Pour un volume existant, les scripts d'init PostgreSQL ne sont volontairement
 pas rejoués : l'opérateur doit utiliser le runner transactionnel et sauvegardé
 déjà versionné. Le healthcheck PostgreSQL vérifie la présence exacte des cinq
-colonnes de profil du head 003. Tant qu'elles manquent, PostgreSQL reste
-`unhealthy` et l'application v2 ne démarre pas.
+colonnes de profil, les SHA-256 canoniques du registre ainsi que les définitions
+des contraintes et de l'index du head 003. Toute dérive homonyme maintient
+PostgreSQL `unhealthy` et l'application v2 ne démarre pas.
 
 La sonde `/health` de `api_v2.py` vérifie en lecture seule le contrat de schéma
 003 et la dimension pgvector. Une configuration ou un schéma incomplet retourne
 un `503` générique ; aucune reprise sur le DSN propriétaire
 `DATABASE_URL_SYNC` n'est admise. Le Compose exige explicitement les DSN runtime
 à privilèges minimaux `PG_RAG_DSN` et `PG_REVIEW_DSN`.
+Les connexions de santé ont un délai de connexion et un `statement_timeout`
+bornés. Les modèles d'embedding et de reranking sont montés en lecture seule et
+chargés avec `local_files_only`, sans téléchargement au démarrage ni sur une
+requête.
 
 ## Surface autorisée
 

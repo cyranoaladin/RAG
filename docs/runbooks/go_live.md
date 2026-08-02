@@ -36,15 +36,17 @@ Un jeton humain présenté directement au moteur n'est jamais une autorité.
 - DNS et TLS canoniques pour le Cockpit et l'API ;
 - gestionnaire de secrets externe au dépôt ;
 - artefact local `intfloat/multilingual-e5-large` vérifié en 1024 dimensions ;
+- artefact local `cross-encoder/ms-marco-MiniLM-L-6-v2` vérifié hors-ligne ;
 - deux rôles PostgreSQL distincts déjà provisionnés et audités ;
 - Cockpit HTTPS et BFF déployés avec la même configuration d'identité interne ;
 - sauvegarde persistante avant toute migration d'un volume existant.
 
 Les DSN runtime sont :
 
-- `PG_RAG_DSN` : rôle limité à `SELECT` ;
-- `PG_REVIEW_DSN` : rôle limité à `SELECT` et à la mise à jour du seul statut de
-  revue.
+- `PG_RAG_DSN` : rôle limité à `SELECT` sur `rag_chunks` et
+  `rag_schema_migrations` ;
+- `PG_REVIEW_DSN` : rôle limité à `SELECT` sur ces deux tables et à la mise à
+  jour du seul statut de revue dans `rag_chunks`.
 
 Le propriétaire PostgreSQL et les credentials de migration ne doivent jamais
 être fournis au conteneur API.
@@ -70,12 +72,16 @@ Valider ensuite le rendu sans afficher la configuration :
 docker compose -f docker-compose.v2.yml --env-file .env config --quiet
 ```
 
-Vérifier l'artefact d'embedding avant démarrage :
+Vérifier les deux artefacts avant démarrage :
 
 ```bash
 RAG_ENV=preproduction \
 MODEL_ARTIFACT_DIR="$RAG_EMBEDDING_MODEL_ARTIFACT_HOST_DIR" \
 ../../../scripts/e2e/verify-embedding-model-artifact.sh
+
+RAG_ENV=preproduction \
+MODEL_ARTIFACT_DIR="$RAG_RERANKER_MODEL_ARTIFACT_HOST_DIR" \
+../../../scripts/e2e/verify-reranker-model-artifact.sh
 ```
 
 ## 4. Préparer PostgreSQL
@@ -84,8 +90,8 @@ MODEL_ARTIFACT_DIR="$RAG_EMBEDDING_MODEL_ARTIFACT_HOST_DIR" \
 
 Au premier démarrage uniquement, PostgreSQL applique dans l'ordre
 `00_init.sql`, puis `01_003_profile_filtering.sql`. Son healthcheck échoue tant
-que le head `003_profile_filtering`, l'index de profil et les cinq contraintes
-validées ne sont pas présents. Le script
+que le head `003_profile_filtering`, les SHA-256 canoniques, les définitions
+exactes de l'index et des cinq contraintes validées ne sont pas présents. Le script
 `02_register_bootstrap_migrations.sh` calcule les SHA-256 des trois migrations
 canoniques et enregistre atomiquement `001`, `002` et `003` dans
 `rag_schema_migrations`. Le runner transactionnel doit ensuite reconnaître ce
@@ -108,6 +114,9 @@ forcer le démarrage de l'API.
 Avant promotion, relire les `GRANT` effectifs et prouver que les deux DSN
 runtime n'ont ni création, ni suppression, ni modification de contenu ou de
 schéma.
+
+Le rôle `PG_RAG_DSN` doit pouvoir lire `rag_schema_migrations`, sinon `/health`
+échoue volontairement en `503` : ne pas lui substituer le rôle owner.
 
 ## 5. Démarrer le runtime fermé
 
@@ -137,9 +146,15 @@ Rendre `infra/nginx/rag-api.conf.template` avec le domaine API canonique et le
 port local, puis valider avant rechargement :
 
 ```bash
+envsubst '${RAG_API_EXTERNAL_DOMAIN} ${NGINX_API_PORT}' \
+  < infra/nginx/rag-api.conf.template \
+  | sudo tee /etc/nginx/sites-available/rag-api.conf >/dev/null
 sudo nginx -t
 sudo systemctl reload nginx
 ```
+
+La liste passée à `envsubst` est obligatoire : un appel sans liste effacerait
+les variables natives Nginx telles que `$binary_remote_addr` et `$request_uri`.
 
 Le proxy public doit :
 
@@ -149,6 +164,10 @@ Le proxy public doit :
 - rendre `404` pour tout autre chemin ;
 - rediriger HTTP vers le domaine canonique configuré, sans faire confiance à
   `Host` ni aux headers `X-Forwarded-*` comme autorité.
+
+Le vhost alternatif `infra/nginx/rag-v2.conf`, s'il est utilisé, doit lui aussi
+être rendu avec `NGINX_API_PORT` et vise exclusivement le port loopback publié
+par Compose. Aucun Nginx hôte ne doit résoudre le nom Docker `ingestor`.
 
 ## 7. Vérifier le Cockpit BFF
 

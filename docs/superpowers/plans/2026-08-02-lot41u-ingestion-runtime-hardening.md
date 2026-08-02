@@ -20,7 +20,7 @@
 - Create: `services/rag-engine/tests/test_v2_runtime_surface.py`
 
 - [ ] Écrire un test rouge exigeant un ADR accepté qui interdit le writer v2 avant LOT41A/LOT42, impose 003 et distingue le legacy.
-- [ ] Run: `cd services/rag-engine && /home/alaeddine/Bureau/RAG/services/rag-engine/.venv/bin/python -m pytest -q tests/test_v2_runtime_surface.py::test_adr_closes_ungoverned_v2_ingestion`.
+- [ ] Run: `cd services/rag-engine && .venv/bin/python -m pytest -q tests/test_v2_runtime_surface.py::test_adr_closes_ungoverned_v2_ingestion`.
 - [ ] Écrire l'ADR et raccorder le lot 41U à la roadmap, sans modifier les phases historiques.
 - [ ] Relancer le test ; attendu : PASS.
 - [ ] Commit: `docs: acte le runtime v2 lecture-revue`.
@@ -32,7 +32,7 @@
 - Create: `services/rag-engine/tests/test_schema_readiness_v2.py`
 
 - [ ] Écrire des tests rouges avec cursors factices : cinq colonnes de profil, index `idx_rag_chunks_profile_reviewed`, cinq contraintes LOT41, cas manquants, erreur psycopg, SQL sans mutation.
-- [ ] Run: `/home/alaeddine/Bureau/RAG/services/rag-engine/.venv/bin/python -m pytest -q tests/test_schema_readiness_v2.py`; attendu : import absent.
+- [ ] Run: `.venv/bin/python -m pytest -q tests/test_schema_readiness_v2.py`; attendu : import absent.
 - [ ] Implémenter `schema_head_003_ready(dsn)` avec `psycopg.connect`, catalogues PostgreSQL et ensembles immuables ; aucun fallback owner.
 - [ ] Relancer pytest puis Ruff sur le module et le test ; attendu : PASS.
 - [ ] Commit: `rag-engine: vérifie le head PostgreSQL v2`.
@@ -48,7 +48,7 @@
 
 - [ ] Écrire les tests rouges exigeant seulement santé, métriques, retrieval, catalogue, readiness et review ; interdire `/ingest*`, `/admin*`, `/search`, `/rag/query`, `/collections` et `/stats/*`.
 - [ ] Tester import aplati, fermeture du pool, santé 200 avec DSN reader + 003 + dimension valide, 503 générique sur toute indisponibilité et métriques désactivables.
-- [ ] Run: `/home/alaeddine/Bureau/RAG/services/rag-engine/.venv/bin/python -m pytest -q tests/test_v2_runtime_surface.py tests/test_ingestor_flattened_runtime.py tests/test_api_pool_lifecycle.py tests/test_embedding_contract.py`; attendu : FAIL.
+- [ ] Run: `.venv/bin/python -m pytest -q tests/test_v2_runtime_surface.py tests/test_ingestor_flattened_runtime.py tests/test_api_pool_lifecycle.py tests/test_embedding_contract.py`; attendu : FAIL.
 - [ ] Implémenter l'application avec imports package/top-level, routeurs retrieval/review, lifespan, santé read-only, métriques et docs masquées en production.
 - [ ] Relancer pytest et Ruff ; attendu : PASS.
 - [ ] Commit: `rag-engine: isole l'API v2 lecture-revue`.

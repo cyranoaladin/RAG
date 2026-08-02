@@ -8,6 +8,11 @@ L'image ne contient aucun writer ni route d'ingestion. Les appels métier passen
 uniquement par le **Cockpit BFF**, son credential machine et une identité interne
 signée.
 
+Les modèles d'embedding et de reranking sont des artefacts préprovisionnés,
+montés en lecture seule. Le runtime impose `local_files_only` et les modes
+Hugging Face/Transformers hors-ligne ; il ne télécharge aucun modèle au
+démarrage ni sur une requête.
+
 Le verdict demeure **GO_LIVE: NO_GO** jusqu'aux autorités LOT41A/LOT42, à la
 revue golden et aux preuves opérationnelles externes. La seule procédure
 actuelle est [`../../docs/runbooks/go_live.md`](../../docs/runbooks/go_live.md).
@@ -107,10 +112,15 @@ Exemple :
 export RAG_UI_EXTERNAL_DOMAIN="rag-ui.example.com"
 export RAG_API_EXTERNAL_DOMAIN="rag-api.example.com"
 export NGINX_API_PORT="8001"
+export NGINX_UI_UPSTREAM="127.0.0.1:8501"
 export NGINX_CLIENT_MAX_BODY_SIZE="16m"
 
-sudo -E bash -c 'envsubst < infra/nginx/rag-ui.conf.template  > /etc/nginx/sites-available/rag-ui.conf'
-sudo -E bash -c 'envsubst < infra/nginx/rag-api.conf.template > /etc/nginx/sites-available/rag-api.conf'
+envsubst '${RAG_UI_EXTERNAL_DOMAIN} ${NGINX_UI_UPSTREAM} ${NGINX_CLIENT_MAX_BODY_SIZE}' \
+  < infra/nginx/rag-ui.conf.template \
+  | sudo tee /etc/nginx/sites-available/rag-ui.conf >/dev/null
+envsubst '${RAG_API_EXTERNAL_DOMAIN} ${NGINX_API_PORT}' \
+  < infra/nginx/rag-api.conf.template \
+  | sudo tee /etc/nginx/sites-available/rag-api.conf >/dev/null
 sudo ln -sf /etc/nginx/sites-available/rag-ui.conf  /etc/nginx/sites-enabled/rag-ui.conf
 sudo ln -sf /etc/nginx/sites-available/rag-api.conf /etc/nginx/sites-enabled/rag-api.conf
 sudo nginx -t && sudo systemctl reload nginx

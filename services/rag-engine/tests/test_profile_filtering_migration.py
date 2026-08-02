@@ -83,6 +83,7 @@ def test_bootstrap_stays_at_002_and_compose_applies_003_on_fresh_volume() -> Non
     bootstrap = _read(POSTGRES / "init.sql")
     rag_chunks_bootstrap = bootstrap.split("-- TABLES AUXILIAIRES", maxsplit=1)[0]
     compose = _read(ENGINE_ROOT / "infra" / "docker-compose.v2.yml")
+    healthcheck = _read(POSTGRES / "healthcheck.sh")
 
     for column in ("tenant", "candidat", "visibility", "school_year", "programme_version"):
         assert f"{column} " not in rag_chunks_bootstrap
@@ -91,12 +92,13 @@ def test_bootstrap_stays_at_002_and_compose_applies_003_on_fresh_volume() -> Non
         "./postgres/migrations/003_profile_filtering.sql:"
         "/docker-entrypoint-initdb.d/01_003_profile_filtering.sql:ro"
     ) in compose
-    assert "information_schema.columns" in compose
-    assert "idx_rag_chunks_profile_reviewed" in compose
+    assert "information_schema.columns" in healthcheck
+    assert "idx_rag_chunks_profile_reviewed" in healthcheck
 
 
 def test_fresh_bootstrap_registers_the_exact_migration_head() -> None:
     registration_path = POSTGRES / "register_bootstrap_migrations.sh"
+    healthcheck_path = POSTGRES / "healthcheck.sh"
     compose = _read(ENGINE_ROOT / "infra" / "docker-compose.v2.yml")
 
     assert registration_path.is_file()
@@ -119,4 +121,13 @@ def test_fresh_bootstrap_registers_the_exact_migration_head() -> None:
         "./postgres/register_bootstrap_migrations.sh:"
         "/docker-entrypoint-initdb.d/02_register_bootstrap_migrations.sh:ro"
     ) in compose
-    assert "rag_schema_migrations" in compose
+    assert healthcheck_path.is_file()
+    healthcheck = _read(healthcheck_path)
+    assert "sha256sum" in healthcheck
+    assert "rag_schema_migrations" in healthcheck
+    assert "pg_get_constraintdef" in healthcheck
+    assert "pg_get_indexdef" in healthcheck
+    assert (
+        "./postgres/healthcheck.sh:/docker-entrypoint-healthcheck.sh:ro" in compose
+    )
+    assert '"CMD", "bash", "/docker-entrypoint-healthcheck.sh"' in compose

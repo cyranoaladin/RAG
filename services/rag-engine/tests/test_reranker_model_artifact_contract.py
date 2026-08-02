@@ -1,0 +1,92 @@
+"""Contrat hors-ligne de l'artefact reranker du runtime v2."""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+
+from src.ingestor import reranker_contract
+
+ENGINE_ROOT = Path(__file__).resolve().parents[1]
+REPOSITORY_ROOT = ENGINE_ROOT.parents[1]
+COMPOSE = ENGINE_ROOT / "infra" / "docker-compose.v2.yml"
+ENV_EXAMPLE = ENGINE_ROOT / "infra" / ".env.example"
+ENDPOINT = ENGINE_ROOT / "src" / "ingestor" / "retrieval_v2_endpoint.py"
+VERIFY_SCRIPT = REPOSITORY_ROOT / "scripts" / "e2e" / "verify-reranker-model-artifact.sh"
+
+
+def test_reranker_rejects_a_missing_configured_artifact(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    missing = tmp_path / "missing"
+    monkeypatch.setenv("RAG_RERANKER_MODEL_CACHE_DIR", str(missing))
+
+    with pytest.raises(
+        reranker_contract.RerankerContractError,
+        match="RERANKER_MODEL_ARTIFACT_PATH_MISSING",
+    ):
+        reranker_contract.load_reranker_model()
+
+
+def test_reranker_load_is_offline_and_uses_the_read_only_artifact(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "reranker"
+    artifact.mkdir()
+    calls: list[tuple[str, dict[str, object]]] = []
+
+    def cross_encoder(path: str, **kwargs: object) -> object:
+        calls.append((path, kwargs))
+        return object()
+
+    monkeypatch.setenv("RAG_RERANKER_MODEL_CACHE_DIR", str(artifact))
+    monkeypatch.setitem(
+        sys.modules,
+        "sentence_transformers",
+        SimpleNamespace(CrossEncoder=cross_encoder),
+    )
+
+    reranker_contract.load_reranker_model()
+
+    assert calls == [
+        (
+            str(artifact),
+            {"max_length": 512, "local_files_only": True},
+        )
+    ]
+
+
+def test_v2_compose_mounts_only_effective_reranker_configuration() -> None:
+    compose = COMPOSE.read_text(encoding="utf-8")
+    env_example = ENV_EXAMPLE.read_text(encoding="utf-8")
+
+    for content in (compose, env_example):
+        assert "RERANKER_MODEL=" not in content
+        assert "RERANKER_TOP_N" not in content
+    assert "RAG_RERANKER_MODEL_CACHE_DIR: /models/reranker" in compose
+    assert "RAG_RERANKER_MODEL_ARTIFACT_HOST_DIR" in compose
+    assert "/models/reranker:ro" in compose
+    assert 'HF_HUB_OFFLINE: "1"' in compose
+    assert 'TRANSFORMERS_OFFLINE: "1"' in compose
+
+
+def test_retrieval_endpoint_delegates_reranker_loading_to_contract() -> None:
+    source = ENDPOINT.read_text(encoding="utf-8")
+
+    assert "load_reranker_model" in source
+    assert "CrossEncoder(" not in source
+
+
+def test_reranker_artifact_verifier_is_offline_and_checks_integrity() -> None:
+    source = VERIFY_SCRIPT.read_text(encoding="utf-8")
+
+    assert "cross-encoder/ms-marco-MiniLM-L-6-v2" in source
+    assert "sha256sum --check" in source
+    assert "local_files_only=True" in source
+    assert "HF_HUB_OFFLINE" in source
+    assert "MODEL_ARTIFACT_DIR" in source

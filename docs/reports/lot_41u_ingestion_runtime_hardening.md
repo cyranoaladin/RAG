@@ -37,7 +37,7 @@ preuves opérationnelles externes doivent être obtenues. Aucun verrou
 | Constat | Décision et correction | État |
 | --- | --- | --- |
 | `RAG-INGEST-001` — écritures sans scope complet | Le writer v2 non autoritaire est retiré de l'application, de l'image, de Compose et du proxy. Aucune donnée client libre n'est promue en scope signé. Un nouveau writer ne pourra revenir qu'avec LOT41A/LOT42. | fermé par suppression de la surface |
-| `RAG-MIGRATION-001` — base Compose neuve sans `003` | PostgreSQL monte `init.sql` puis `003_profile_filtering.sql`; son healthcheck et `/health` vérifient les cinq colonnes, l'index et les cinq contraintes validées. `v2-up` attend la santé. | corrigé |
+| `RAG-MIGRATION-001` — base Compose neuve sans `003` | PostgreSQL monte `init.sql` puis `003_profile_filtering.sql`; son healthcheck et `/health` vérifient les SHA du registre et les définitions exactes des cinq colonnes, de l'index et des cinq contraintes validées. `v2-up` attend la santé. | corrigé |
 | `RAG-LEGACY-001` — routes Chroma/legacy exposées | `api_v2.py` est l'unique application. L'image copie une liste explicite de modules, Compose n'exécute plus `api:app`, et Nginx refuse les routes legacy en `410` avant tout proxy. | corrigé |
 | `RAG-SSRF-001` — redirections URL non revalidées | Le runtime v2 n'embarque ni endpoint URL, ni client HTTP, ni module d'ingestion réseau. Il n'existe donc plus de redirection à suivre dans le service exposé. | fermé par suppression de la surface |
 | `RAG-UPLOAD-001` — upload lu sans borne | Aucun endpoint d'upload, parseur ou montage de dépôt n'est présent dans le runtime v2. | fermé par suppression de la surface |
@@ -69,6 +69,10 @@ Prometheus. Il ne contient plus ChromaDB, Redis, Ollama, worker, UI, répertoire
 d'upload, token d'ingestion ou DSN propriétaire. L'image de production utilise
 un verrou runtime séparé, CPU-only, et ne copie ni `api.py`, ni
 `ingest_v2.py`, ni `ingest_v2_endpoint.py`, ni `tasks.py`, ni `database.py`.
+Les artefacts embedding et reranker sont montés en lecture seule ; le reranker
+canonique est chargé avec `local_files_only` et les modes Hugging Face hors
+ligne. Les anciennes variables sans effet `RERANKER_MODEL` et
+`RERANKER_TOP_N` ont été retirées du Compose et de son exemple d'environnement.
 
 ## Migrations et santé
 
@@ -79,10 +83,12 @@ Une base neuve est initialisée dans cet ordre :
    l'index de lecture ;
 3. un script d'initialisation calcule les SHA-256 des migrations canoniques et
    enregistre atomiquement `001`, `002` et `003` dans le registre ;
-4. le healthcheck PostgreSQL exige cinq colonnes de profil, cinq contraintes
-   validées, `idx_rag_chunks_profile_reviewed` et les trois entrées du registre ;
-5. l'API vérifie en lecture seule le même schéma, y compris l'état validé des
-   contraintes, puis le modèle canonique et la
+4. le healthcheck PostgreSQL recalcule les trois SHA, exige cinq colonnes de
+   profil, cinq définitions de contraintes validées, la définition et le
+   prédicat exacts de `idx_rag_chunks_profile_reviewed`, puis les trois entrées
+   exactes du registre ;
+5. l'API relit les mêmes preuves via un rôle `SELECT`, avec `connect_timeout`,
+   `statement_timeout` et transaction read-only, puis vérifie le modèle canonique et la
    dimension pgvector `1024` avant de rendre `healthy`.
 
 La procédure des volumes existants reste distincte : sauvegarde, scripts de
@@ -166,6 +172,32 @@ désormais d'abord le credential BFF, puis l'identité signée et un rôle
 78 tests ciblés catalogue/retrieval/runtime, Ruff et `mypy` sont verts après ce
 cycle.
 
+La revue Cubic suivante a produit dix remarques sur le head précédent, puis une
+onzième sur les tests catalogue. Leur qualification indépendante donne :
+
+- **valides et corrigées** : registre de migrations sans contrôle des SHA,
+  objets PostgreSQL homonymes acceptés, upstream `ingestor` inaccessible depuis
+  Nginx hôte, absence de timeout des sondes psycopg, configuration reranker
+  morte et téléchargement possible, chemins absolus du plan, test de routes
+  dépendant de `RAG_ENV`, test Nginx aveugle aux blocs non exacts et assertions
+  de rôles catalogue tautologiques ;
+- **doublon corrigé** : indisponibilité de `/catalogue/v2`, déjà fermée par le
+  cycle Codex `BFF → identité signée → rôle` et désormais prouvée par un test
+  HTTP paramétré plutôt que par introspection d'une constante privée ;
+- **durcissement supplémentaire découvert pendant la vérification** : les
+  commandes documentées `envsubst` sans allowlist auraient supprimé
+  `$binary_remote_addr` et `$request_uri`. Le runbook et les README passent une
+  liste explicite de variables de template.
+
+Les cycles rouges ont reproduit les absences d'attributs de readiness, le
+vhost Docker injoignable, le chemin local non portable, l'absence du contrat
+reranker et du healthcheck exact. Après correction, 197 tests ciblés ont réussi,
+Ruff est vert et `mypy` valide 48 fichiers. Sur PostgreSQL 16 éphémère, le
+healthcheck canonique réussit puis refuse la même base après remplacement de la
+contrainte tenant par `CHECK (true)` ; la sonde applicative via un rôle
+`SELECT` retourne `SCHEMA_HEAD_003_READY=True` et `PGVECTOR_DIMENSION=1024`.
+Les deux vhosts rendus avec une allowlist `envsubst` passent `nginx -t`.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -202,6 +234,8 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `66f5018` | validation des contraintes et registre frais canonique |
 | `fe92cc5` | preuves complémentaires du bootstrap |
 | `944bf81` | authentification BFF et identité signée du catalogue v2 |
+| `56fbdba` | rapport de revue du catalogue v2 |
+| commit courant | intégrité du head 003, proxy loopback, timeouts, reranker hors-ligne et tests hermétiques |
 
 ## Décision de livraison
 

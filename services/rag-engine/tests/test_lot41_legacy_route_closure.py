@@ -47,18 +47,31 @@ def _location_block(config: str, location: str) -> str:
     return match.group("body")
 
 
+def _proxied_location_selectors(config: str) -> set[str]:
+    proxied: set[str] = set()
+    for match in re.finditer(
+        r"^\s*location\s+(?P<selector>[^\{]+?)\s*\{(?P<body>.*?)^\s*\}",
+        config,
+        re.MULTILINE | re.DOTALL,
+    ):
+        if "proxy_pass" in match.group("body"):
+            proxied.add(" ".join(match.group("selector").split()))
+    return proxied
+
+
 @pytest.mark.parametrize("name", ["rag-v2.conf", "rag-api.conf.template"])
 def test_proxy_exposes_exact_runtime_allowlist(name: str) -> None:
     config = _read(name)
-    proxied = set()
+    assert _proxied_location_selectors(config) == {
+        f"= {path}" for path in PROXIED_PATHS
+    }
 
-    for match in re.finditer(r"location = (?P<path>/[^ ]*)\s*\{", config):
-        path = match.group("path")
-        block = _location_block(config, f"location = {path}")
-        if "proxy_pass" in block:
-            proxied.add(path)
 
-    assert proxied == PROXIED_PATHS
+def test_host_vhost_targets_the_loopback_published_compose_port() -> None:
+    config = _read("rag-v2.conf")
+
+    assert "server 127.0.0.1:${NGINX_API_PORT};" in config
+    assert "server ingestor:" not in config
 
 
 @pytest.mark.parametrize("name", ["rag-v2.conf", "rag-api.conf.template"])

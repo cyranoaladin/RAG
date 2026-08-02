@@ -40,7 +40,10 @@ def test_adr_closes_ungoverned_v2_ingestion() -> None:
 
 
 def test_v2_application_exposes_only_the_governed_runtime_surface() -> None:
-    routes = {route.path for route in api_v2.app.routes}
+    documentation_routes = {"/docs", "/redoc", "/openapi.json"}
+    routes = {
+        route.path for route in api_v2.app.routes if route.path not in documentation_routes
+    }
 
     assert routes == {
         "/health",
@@ -55,6 +58,19 @@ def test_v2_application_exposes_only_the_governed_runtime_surface() -> None:
     }
     for forbidden_prefix in ("/ingest", "/admin", "/cache", "/stats", "/rag"):
         assert not any(path.startswith(forbidden_prefix) for path in routes)
+
+
+def test_lot41u_plan_contains_no_machine_local_absolute_path() -> None:
+    plan = (
+        REPOSITORY_ROOT
+        / "docs"
+        / "superpowers"
+        / "plans"
+        / "2026-08-02-lot41u-ingestion-runtime-hardening.md"
+    ).read_text(encoding="utf-8")
+
+    assert "/home/" not in plan
+    assert "/Users/" not in plan
 
 
 def test_health_is_ready_only_for_schema_003_and_canonical_embedding(
@@ -166,10 +182,12 @@ def test_v2_dockerfile_copies_only_the_read_review_runtime() -> None:
         "retrieval_scope_v2.py",
         "retrieval_v2_endpoint.py",
         "review_v2_endpoint.py",
+        "reranker_contract.py",
         "schema_readiness_v2.py",
         "security_v2.py",
     ):
         assert f"services/rag-engine/src/ingestor/{required_module}" in content
+    assert "infra/postgres/migrations/ /app/migrations/" in content
     for forbidden_module in (
         "api.py",
         "admin_api.py",
@@ -255,6 +273,7 @@ def test_canonical_operations_docs_describe_the_closed_v2_runtime() -> None:
         "RAG_BFF_SERVICE_TOKEN=",
         "NEXUS_INTERNAL_TOKEN_SECRET=",
         "RAG_EMBEDDING_MODEL_ARTIFACT_HOST_DIR=",
+        "RAG_RERANKER_MODEL_ARTIFACT_HOST_DIR=",
     ):
         assert required_env in env_example
     for forbidden_env in (
@@ -264,6 +283,9 @@ def test_canonical_operations_docs_describe_the_closed_v2_runtime() -> None:
         "INGESTOR_API_TOKEN=",
     ):
         assert forbidden_env not in env_example
+
+    assert "envsubst '${RAG_API_EXTERNAL_DOMAIN} ${NGINX_API_PORT}'" in runbook
+    assert "envsubst < infra/nginx/rag-api.conf.template" not in runbook
 
 
 def test_integration_make_target_exposes_the_ingestor_package() -> None:
