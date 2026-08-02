@@ -37,7 +37,7 @@ preuves opérationnelles externes doivent être obtenues. Aucun verrou
 | Constat | Décision et correction | État |
 | --- | --- | --- |
 | `RAG-INGEST-001` — écritures sans scope complet | Le writer v2 non autoritaire est retiré de l'application, de l'image, de Compose et du proxy. Aucune donnée client libre n'est promue en scope signé. Un nouveau writer ne pourra revenir qu'avec LOT41A/LOT42. | fermé par suppression de la surface |
-| `RAG-MIGRATION-001` — base Compose neuve sans `003` | PostgreSQL monte `init.sql` puis `003_profile_filtering.sql`; son healthcheck et `/health` vérifient les SHA du registre et les définitions exactes des cinq colonnes, de l'index et des cinq contraintes validées. `v2-up` attend la santé. | corrigé |
+| `RAG-MIGRATION-001` — base Compose neuve sans `003` | PostgreSQL monte `init.sql` puis `003_profile_filtering.sql`; son healthcheck et `/health` vérifient les SHA du registre, les 31 colonnes, les dix index, l'expression `text_tsv` et les cinq contraintes validées des migrations 001–003. `v2-up` attend la santé. | corrigé |
 | `RAG-LEGACY-001` — routes Chroma/legacy exposées | `api_v2.py` est l'unique application. L'image copie une liste explicite de modules, Compose n'exécute plus `api:app`, et Nginx refuse les routes legacy en `410` avant tout proxy. | corrigé |
 | `RAG-SSRF-001` — redirections URL non revalidées | Le runtime v2 n'embarque ni endpoint URL, ni client HTTP, ni module d'ingestion réseau. Il n'existe donc plus de redirection à suivre dans le service exposé. | fermé par suppression de la surface |
 | `RAG-UPLOAD-001` — upload lu sans borne | Aucun endpoint d'upload, parseur ou montage de dépôt n'est présent dans le runtime v2. | fermé par suppression de la surface |
@@ -86,10 +86,10 @@ Une base neuve est initialisée dans cet ordre :
    l'index de lecture ;
 3. un script d'initialisation calcule les SHA-256 des migrations canoniques et
    enregistre atomiquement `001`, `002` et `003` dans le registre ;
-4. le healthcheck PostgreSQL recalcule les trois SHA, exige cinq colonnes de
-   profil, cinq définitions de contraintes validées, la définition et le
-   prédicat exacts de `idx_rag_chunks_profile_reviewed`, puis les trois entrées
-   exactes du registre ;
+4. le healthcheck PostgreSQL recalcule les trois SHA, exige les 31 colonnes,
+   les dix définitions d'index, l'expression générée `text_tsv`, cinq
+   définitions de contraintes validées, le prédicat exact de l'index de profil,
+   puis les trois entrées exactes du registre ;
 5. l'API relit les mêmes preuves via un rôle `SELECT`, avec `connect_timeout`,
    `statement_timeout` et transaction read-only, vérifie les privilèges
    effectifs des rôles retrieval et review, refuse toute cible de `SET ROLE`,
@@ -116,8 +116,9 @@ Les preuves GREEN fraîches comprennent :
   aplati testés ;
 - image `nexus-rag-engine-v2:lot41u` construite, avec `api_v2.py` présent et les
   modules writer/legacy absents du conteneur ;
-- Compose PostgreSQL sur volume temporaire neuf : résultat réel `5|t|5` pour
-  colonnes, index et contraintes ;
+- Compose PostgreSQL sur volume temporaire neuf : santé complète positive,
+  refus après suppression de l'index lexical, puis récupération positive après
+  restauration ;
 - registre frais : trois entrées dont les SHA correspondent octet pour octet à
   `001_rag_chunks_v2_schema.sql`, `002_hybrid_retrieval.sql` et
   `003_profile_filtering.sql` ;
@@ -331,6 +332,23 @@ Le démarrage échouait donc, conformément au nouveau contrat fail-closed, avan
 de pouvoir tester le pool. La fixture simule désormais explicitement les deux
 attestations et laisse la vérification réelle aux tests runtime dédiés.
 
+La lecture GraphQL exhaustive des fils a ensuite révélé quatre remarques plus
+récentes non reprises dans le courriel initial. Le commit `5f9af0b` ferme les
+quatre écarts : la méthode HTTP est ramenée à `other` hors allowlist ; la sonde
+review refuse désormais tout grant `INSERT` par colonne ; les tuples de tests
+de privilèges sont documentés position par position ; enfin, la readiness du
+schéma contrôle les 31 colonnes, les dix index et l'expression générée
+`text_tsv`, avec des empreintes provenant du registre unique versionné.
+
+Le cycle rouge a reproduit les quatre défauts. Après correction, 68 contrôles
+ciblés, Ruff et `mypy` sont verts. Le runner PostgreSQL réel conclut
+`REVIEW_ROLE_COLUMN_LEVEL_INSERT_REJECTED=PASS`,
+`SCHEMA_BASE_INDEX_DRIFT_REJECTED=PASS` et
+`LOT40_HYBRID_INTEGRATION=PASS`. Une instance PostgreSQL fraîche a également
+prouvé `POSTGRES_COMPLETE_SCHEMA_HEALTH=PASS`, puis le healthcheck a refusé la
+suppression de `idx_rag_chunks_text_tsv` avant de repasser vert après sa
+restauration.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -380,7 +398,8 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `1013d63` | documentation et preuve du test PostgreSQL fail-closed |
 | `8ebdc48` | fermeture de `SET ROLE`, santé modèle bornée et parseur Docker |
 | `54aa9b2` | documentation du cycle final de revue |
-| commit courant | isolation de la fixture du cycle de vie FastAPI |
+| `058a810` | isolation de la fixture du cycle de vie FastAPI |
+| `5f9af0b` | schéma retrieval complet, grants `INSERT` et métriques bornées |
 
 ## Décision de livraison
 

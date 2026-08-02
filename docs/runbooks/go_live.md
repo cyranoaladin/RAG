@@ -106,7 +106,8 @@ dans `SHA256SUMS` doit être régénéré avec
 Au premier démarrage uniquement, PostgreSQL applique dans l'ordre
 `00_init.sql`, puis `01_003_profile_filtering.sql`. Son healthcheck échoue tant
 que le head `003_profile_filtering`, les SHA-256 canoniques, les définitions
-exactes de l'index et des cinq contraintes validées ne sont pas présents. Le script
+exactes des 31 colonnes, des dix index, de l'expression générée `text_tsv` et
+des cinq contraintes validées ne sont pas présents. Le script
 `02_register_bootstrap_migrations.sh` calcule les SHA-256 des trois migrations
 canoniques et enregistre atomiquement `001`, `002` et `003` dans
 `rag_schema_migrations`. Le runner transactionnel doit ensuite reconnaître ce
@@ -138,8 +139,9 @@ contrôle couvre les cibles atteignables par `SET ROLE`, même avec `NOINHERIT` 
 le pool force en plus les transactions read-only.
 `/health` ouvre également `PG_REVIEW_DSN` et vérifie le rôle effectif : attributs
 non administratifs, `USAGE` sans `CREATE`, aucune table temporaire, lecture de
-`rag_chunks` et seul `UPDATE(review_status)`. Un rôle absent, sous-privilégié ou
-sur-privilégié maintient volontairement l'API en `503`.
+`rag_chunks` et seul `UPDATE(review_status)`. Les grants `INSERT` ou `UPDATE`
+limités à une autre colonne sont également refusés. Un rôle absent,
+sous-privilégié ou sur-privilégié maintient volontairement l'API en `503`.
 
 ## 5. Démarrer le runtime fermé
 

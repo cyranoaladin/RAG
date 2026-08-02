@@ -69,9 +69,10 @@ son contenu. Une base neuve applique donc 003 avant d'accepter le trafic.
 
 Pour un volume existant, les scripts d'init PostgreSQL ne sont volontairement
 pas rejoués : l'opérateur doit utiliser le runner transactionnel et sauvegardé
-déjà versionné. Le healthcheck PostgreSQL vérifie la présence exacte des cinq
-colonnes de profil, les SHA-256 canoniques du registre ainsi que les définitions
-des contraintes et de l'index du head 003. Toute dérive homonyme maintient
+déjà versionné. Le healthcheck PostgreSQL vérifie la présence exacte des 31
+colonnes, des dix index, de l'expression générée `text_tsv`, les SHA-256
+canoniques du registre ainsi que les cinq contraintes du head 003. Toute dérive
+homonyme ou perte d'un objet des migrations 001–003 maintient
 PostgreSQL `unhealthy` et l'application v2 ne démarre pas.
 
 La sonde `/health` de `api_v2.py` vérifie en lecture seule le contrat de schéma
@@ -82,7 +83,8 @@ d'administration, de création ou d'appartenance aux propriétaires. Son pool
 force en plus les transactions read-only. Le rôle `PG_REVIEW_DSN`
 doit posséder exactement `USAGE` sur le schéma `public`, `SELECT` sur
 `rag_chunks` et `UPDATE(review_status)`. Tout autre privilège d'écriture sur la
-table ou ses colonnes, de création sur le schéma ou la base, d'administration
+table ou ses colonnes, y compris un grant `INSERT` limité à une colonne, de
+création sur le schéma ou la base, d'administration
 ou d'appartenance au propriétaire est interdit. Les deux rôles doivent en
 outre n'être membres, directement ou indirectement, d'aucun autre rôle : la
 sonde utilise la relation PostgreSQL `MEMBER`, et non les seuls privilèges
@@ -120,7 +122,8 @@ Le reverse proxy v2 transmet exclusivement :
 Les routes métier conservent leurs contrôles BFF et d'identité signée. La santé
 et les métriques ne révèlent ni DSN, ni secret, ni contenu. Un middleware
 observe codes HTTP et latences sur une liste de chemins bornée ; toute URL non
-montée utilise le seul label `unmatched`. Les routes cache,
+montée utilise le seul label `unmatched` et toute méthode non standard le seul
+label `other`. Les routes cache,
 admin, stats et toutes les routes legacy restent inaccessibles depuis la
 frontière Nginx v2.
 

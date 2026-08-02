@@ -14,6 +14,10 @@ avec identité signée et scope dérivé côté serveur.
 La readiness refuse également tout artefact modèle absent ou non conforme et
 tout rôle PostgreSQL de retrieval ou de revue qui ne respecte pas son moindre
 privilège exact.
+Le head PostgreSQL est contrôlé sur les 31 colonnes, les dix index et
+l'expression générée `text_tsv` des migrations 001–003 ; un index lexical ou
+vectoriel manquant maintient le service indisponible. Les métriques HTTP
+normalisent également toute méthode non standard vers le seul label `other`.
 Les modèles sont hachés intégralement au démarrage ; la route publique de santé
 utilise ensuite une attestation bornée et ne relit pas les poids. Les rôles
 runtime ne peuvent être membres d'aucun autre rôle atteignable par `SET ROLE`.
