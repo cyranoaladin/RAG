@@ -62,7 +62,7 @@ test: install-dev
 	PYTHONPATH=src $(PYTEST) -q -m "not integration"
 
 test-integration: install-dev
-	$(PYTEST) tests/integration -q
+	PYTHONPATH=src $(PYTEST) tests/integration -q
 
 test-integration-hybrid: install-dev
 	bash infra/scripts/test_hybrid_integration.sh

@@ -18,6 +18,7 @@ ROOT_README = REPOSITORY_ROOT / "README.md"
 ENGINE_PROD_README = ENGINE_ROOT / "README-PROD.md"
 ENGINE_AGENTS = ENGINE_ROOT / "AGENTS.md"
 V2_ENV_EXAMPLE = ENGINE_ROOT / "infra" / ".env.example"
+MAKEFILE = ENGINE_ROOT / "Makefile"
 
 
 def test_adr_closes_ungoverned_v2_ingestion() -> None:
@@ -263,3 +264,12 @@ def test_canonical_operations_docs_describe_the_closed_v2_runtime() -> None:
         "INGESTOR_API_TOKEN=",
     ):
         assert forbidden_env not in env_example
+
+
+def test_integration_make_target_exposes_the_ingestor_package() -> None:
+    makefile = MAKEFILE.read_text(encoding="utf-8")
+
+    assert (
+        "test-integration: install-dev\n"
+        "\tPYTHONPATH=src $(PYTEST) tests/integration -q"
+    ) in makefile
