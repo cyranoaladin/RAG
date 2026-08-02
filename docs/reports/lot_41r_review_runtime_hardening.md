@@ -8,7 +8,8 @@ Date : 2026-08-02
 
 - Base confirmée par `git merge-base main HEAD` : `f545b15`.
 - Branche : `lot-41r-review-runtime-hardening`.
-- PR LOT41R : non ouverte et non fusionnée au moment de ce relevé Task8.
+- PR LOT41R : à ouvrir après le commit documentaire final ; non fusionnée au
+  moment de ce relevé Task9.
 - Périmètre : correctifs post-review des LOT40/LOT41, contrat de review partagé,
   routes BFF de review et reprise contrôlée après rejet Redis.
 - Verrous de gouvernance : inchangés ; aucun `*_allowed` n'est activé par ce lot.
@@ -78,9 +79,12 @@ l'absence de migration de données ou d'activation de gouvernance.
 | `2f70305` | route BFF de queue authentifiée |
 | `02c02a1` | route BFF de décision authentifiée |
 | `75dd274` | reprise Redis après une connexion rejetée |
+| `b6bdf3c` | protections CSRF et validation stricte des formats JSON Schema |
+| `998c984` | origine publique canonique des mutations derrière reverse proxy |
 
-Le présent rapport ne prétend pas contenir son propre SHA. La Task9 consignera
-le SHA d'implémentation final vérifié avant son commit documentaire final.
+Le SHA d'implémentation final vérifié avant le présent commit documentaire est
+`998c9847e1819b64f6f80b4e0854c0365aba7e21`. Le rapport ne prétend pas contenir
+son propre SHA.
 
 ## Cycles RED/GREEN et vérifications ciblées
 
@@ -108,22 +112,52 @@ requis.
 Les revues indépendantes intermédiaires ont notamment fait ajouter la
 préservation d'un préfixe de chemin dans l'URL moteur, l'en-tête
 `Cache-Control: private, no-store, max-age=0` sur toutes les réponses de review
-et la corrélation stricte entre cible/décision demandées et réponse moteur.
+et la corrélation stricte entre cible/décision demandées et réponse moteur. La
+revue complète a ensuite détecté deux frontières manquantes : la mutation
+n'imposait pas encore une origine navigateur canonique et Ajv ignorait le
+format `date-time`. Les correctifs imposent désormais une origine HTTPS pure
+configurée par `NEXUS_COCKPIT_PUBLIC_ORIGIN`, sans faire confiance aux en-têtes
+du reverse proxy, exigent `application/json` et activent `ajv-formats` dans les
+validateurs générés. L'origine publique du smoke et du runbook est la même
+valeur canonique.
 
-## Preuves Task8 et preuves finales restantes
+## Preuves finales Task9
 
-La Task8 vérifie le format des trois documents, les références
-`/api/review/*`, la version 0.5.0 et les 18 verrous de gouvernance inchangés.
+La vérification finale a été exécutée sur le SHA d'implémentation ci-dessus,
+avec Node.js 22.23.1 et CPython 3.11.14. Le wrapper Python temporaire utilisé
+pour contourner un lien système 3.11 cassé est resté hors dépôt.
 
-Les preuves exhaustives suivantes relèvent de la Task9 et sont **en attente** :
+| Périmètre | Résultat final |
+| --- | --- |
+| `packages/contracts` | 93 tests réussis ; Ruff et mypy réussis |
+| `services/rag-pedago` | 1 751 tests réussis ; Ruff et mypy réussis |
+| `services/rag-engine` | 1 178 tests non-intégration réussis, 15 tests d'intégration désélectionnés ; Ruff et mypy réussis |
+| smoke hybride PostgreSQL/pgvector réel | `LOT40_HYBRID_INTEGRATION=PASS`, y compris le runtime aplati et la review scopée |
+| `services/cockpit` | 19 fichiers et 168 tests réussis ; ESLint, TypeScript et build Next.js 16.2.12 réussis |
+| dépendances Cockpit | `npm audit` : 0 vulnérabilité |
+| gouvernance | 18 clés identiques à la baseline ; aucun verrou activé |
+| taxonomie | 57 fichiers validés, 0 erreur ; 15 fichiers explicitement `PREMIER JET` |
+| tests des garde-fous | 16/16 gouvernance et 44/44 CI fail-safe réussis |
+| CI locale racine | **13 cibles réussies, 0 échec** |
+| diff Git | `git diff main...HEAD --check` réussi |
+| secrets | `gitleaks git . --log-opts=main..HEAD --redact --no-banner` : 12 commits analysés, aucune fuite |
+| revue indépendante finale | **APPROVE**, confiance élevée, aucun constat P0, P1, P2 ou P3 |
 
-- suites complètes contrats, `rag-engine` et Cockpit ;
-- Ruff, mypy, ESLint, TypeScript et build Next.js ;
-- import frais du runtime aplati et CI locale racine ;
-- contrôle final du diff, `gitleaks`, revue indépendante complète ;
-- push, ouverture de PR et statut des checks GitHub.
+Commande de preuve globale exécutée depuis la racine, avec les exécutables
+Node.js et Python 3.11 placés en tête de `PATH` :
 
-Aucun de ces contrôles en attente n'est déclaré `PASS` dans ce rapport Task8.
-Même après leur réussite, la conclusion fonctionnelle restera
+```bash
+bash scripts/ci-local.sh
+```
+
+Les seuls avertissements observés sont la dépréciation de `crypt` via
+Passlib, une incompatibilité déclarative de versions `requests` dans
+l'environnement de test et la dépréciation de Recharts 2.x. Ils ne masquent
+aucun échec ; la validation `date-time` Ajv qui manquait avant correction est
+désormais active et testée.
+
+La publication de la branche, l'ouverture de la PR et les checks GitHub sont
+des opérations postérieures à ce relevé local et ne sont donc pas pré-déclarés
+comme réussis. Même après leur réussite, la conclusion fonctionnelle demeure
 `GO_LIVE: NO_GO` tant que la revue substantielle du corpus, le LOT41A et les
 lots 42 à 47 ne sont pas clos avec leurs propres preuves.
