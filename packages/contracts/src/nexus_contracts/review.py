@@ -43,11 +43,11 @@ class ReviewQueueDocument(StrictBaseModel):
 
     doc_id: StrictStr = Field(min_length=1, max_length=256)
     collection: CollectionName
-    source_label: StrictStr = Field(min_length=1, max_length=1024)
-    source_uri: StrictStr = Field(min_length=1, max_length=4096)
-    rights: StrictStr = Field(min_length=1, max_length=128)
-    source_kind: StrictStr = Field(min_length=1, max_length=128)
-    type_doc: StrictStr = Field(min_length=1, max_length=128)
+    source_label: StrictStr = Field(min_length=1)
+    source_uri: StrictStr = Field(min_length=1)
+    rights: StrictStr = Field(min_length=1)
+    source_kind: StrictStr = Field(min_length=1)
+    type_doc: StrictStr
     chunk_count: StrictInt = Field(ge=1)
     first_indexed: datetime | None
     last_indexed: datetime | None

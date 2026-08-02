@@ -49,8 +49,14 @@ def _client() -> TestClient:
 
 
 class FakeCursor:
-    def __init__(self, *, rowcount: int = 0) -> None:
+    def __init__(
+        self,
+        *,
+        rowcount: int = 0,
+        queue_rows: list[tuple[object, ...]] | None = None,
+    ) -> None:
         self.rowcount = rowcount
+        self.queue_rows = queue_rows or []
         self.executions: list[tuple[str, tuple[object, ...]]] = []
 
     def __enter__(self) -> FakeCursor:
@@ -64,15 +70,20 @@ class FakeCursor:
         self.executions.append((normalized, tuple(params or ())))
 
     def fetchone(self) -> tuple[int]:
-        return (0,)
+        return (len(self.queue_rows),)
 
     def fetchall(self) -> list[tuple[object, ...]]:
-        return []
+        return self.queue_rows
 
 
 class FakeConnection(AbstractContextManager["FakeConnection"]):
-    def __init__(self, *, rowcount: int = 0) -> None:
-        self.cursor_spy = FakeCursor(rowcount=rowcount)
+    def __init__(
+        self,
+        *,
+        rowcount: int = 0,
+        queue_rows: list[tuple[object, ...]] | None = None,
+    ) -> None:
+        self.cursor_spy = FakeCursor(rowcount=rowcount, queue_rows=queue_rows)
         self.commits = 0
         self.rollbacks = 0
         self.closed = 0
@@ -100,8 +111,9 @@ def _prepare(
     monkeypatch: pytest.MonkeyPatch,
     *,
     rowcount: int = 0,
+    queue_rows: list[tuple[object, ...]] | None = None,
 ) -> FakeConnection:
-    connection = FakeConnection(rowcount=rowcount)
+    connection = FakeConnection(rowcount=rowcount, queue_rows=queue_rows)
     monkeypatch.setattr(review, "_require_review_identity", lambda *_a, **_k: _verified())
     monkeypatch.setattr(review, "load_collection_config", lambda: {})
     monkeypatch.setattr(review, "_resolve_review_scopes", lambda *_a, **_k: (SCOPE,))
@@ -304,6 +316,34 @@ def test_queue_sql_applies_every_scope_dimension(
         assert "programme_version = %s" in sql
         assert SCOPE.tenant in params
         assert SCOPE.collection in params
+
+
+def test_queue_accepts_every_provenance_value_allowed_by_ingestion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    connection = _prepare(
+        monkeypatch,
+        queue_rows=[
+            (
+                "doc-1",
+                SCOPE.collection,
+                "l" * 1025,
+                "u" * 4097,
+                "r" * 129,
+                "unknown",
+                "",
+                1,
+                None,
+                None,
+            )
+        ],
+    )
+
+    response = _client().get("/review/v2/queue")
+
+    assert response.status_code == 200
+    assert response.json()["documents"][0]["type_doc"] == ""
+    assert connection.closed == 1
 
 
 @pytest.mark.parametrize(

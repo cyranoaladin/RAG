@@ -47,32 +47,26 @@
           "title": "Last Indexed"
         },
         "rights": {
-          "maxLength": 128,
           "minLength": 1,
           "title": "Rights",
           "type": "string"
         },
         "source_kind": {
-          "maxLength": 128,
           "minLength": 1,
           "title": "Source Kind",
           "type": "string"
         },
         "source_label": {
-          "maxLength": 1024,
           "minLength": 1,
           "title": "Source Label",
           "type": "string"
         },
         "source_uri": {
-          "maxLength": 4096,
           "minLength": 1,
           "title": "Source Uri",
           "type": "string"
         },
         "type_doc": {
-          "maxLength": 128,
-          "minLength": 1,
           "title": "Type Doc",
           "type": "string"
         }

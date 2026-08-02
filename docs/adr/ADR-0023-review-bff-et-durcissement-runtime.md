@@ -70,10 +70,15 @@ jamais cette confiance de `request.url`, de `Host` ni de `X-Forwarded-*` ; une
 configuration absente ou invalide ferme la mutation avant lecture du corps et
 avant appel moteur.
 
-Les réponses sont également fermées. La queue borne la pagination et la
-provenance, puis exige que `returned` égale le nombre de documents. La réponse
-de décision indique au moins un chunk affecté, l'invalidation du worker courant
-et une durée maximale de stale inter-workers fixée contractuellement à zéro.
+Les réponses sont également fermées. La queue borne la pagination, les
+identifiants et sa structure, puis exige que `returned` égale le nombre de
+documents. Ses champs de provenance suivent toutefois le domaine réellement
+accepté par l'ingestion et les colonnes PostgreSQL `TEXT` : aucune longueur
+maximale supplémentaire n'est inventée et `type_doc` peut être vide. Une borne
+future sur ces champs devra d'abord être imposée à l'ingestion et au stockage,
+avec migration des données existantes. La réponse de décision indique au moins
+un chunk affecté, l'invalidation du worker courant et une durée maximale de
+stale inter-workers fixée contractuellement à zéro.
 
 ### Retrait du champ `reason`
 

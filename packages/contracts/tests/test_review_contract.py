@@ -152,18 +152,31 @@ def test_review_queue_response_validates_documents_and_returned_count() -> None:
             ReviewQueueResponse.model_validate(invalid)
 
 
-def test_review_queue_document_bounds_provenance_fields() -> None:
+def test_review_queue_document_bounds_identifiers() -> None:
     for invalid in (
         _queue_document(doc_id=""),
         _queue_document(doc_id="x" * 257),
-        _queue_document(source_label="x" * 1025),
-        _queue_document(source_uri="x" * 4097),
-        _queue_document(rights="x" * 129),
-        _queue_document(source_kind="x" * 129),
-        _queue_document(type_doc="x" * 129),
     ):
         with pytest.raises(ValidationError):
             ReviewQueueDocument.model_validate(invalid)
+
+
+def test_review_queue_document_accepts_ingestible_unbounded_provenance() -> None:
+    document = ReviewQueueDocument.model_validate(
+        _queue_document(
+            source_label="x" * 1025,
+            source_uri="x" * 4097,
+            rights="x" * 129,
+            source_kind="x" * 129,
+            type_doc="",
+        )
+    )
+
+    assert len(document.source_label) == 1025
+    assert len(document.source_uri) == 4097
+    assert len(document.rights) == 129
+    assert len(document.source_kind) == 129
+    assert document.type_doc == ""
 
 
 def test_review_decision_response_is_closed_and_bounded() -> None:
