@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-from functools import lru_cache
 from pathlib import Path
 from typing import Any, Final
 
@@ -55,15 +54,6 @@ def verify_configured_reranker_artifact() -> Path:
     ).strip()
     if not inventory_sha256:
         raise RerankerContractError("RERANKER_MODEL_INVENTORY_SHA256_REQUIRED")
-    return _verify_configured_reranker_artifact(configured, inventory_sha256)
-
-
-@lru_cache(maxsize=8)
-def _verify_configured_reranker_artifact(
-    configured: str,
-    inventory_sha256: str,
-) -> Path:
-    """Mémoriser la preuve du montage immuable pour éviter un rehash par sonde."""
     return verify_reranker_artifact(
         Path(configured),
         expected_inventory_sha256=inventory_sha256,

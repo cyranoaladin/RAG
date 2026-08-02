@@ -223,6 +223,31 @@ def test_embedding_artifact_requires_an_external_inventory_trust_anchor(
         verify_configured_embedding_artifact()
 
 
+def test_configured_embedding_artifact_is_reverified_after_a_successful_probe(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "embedding"
+    _write_embedding_artifact(artifact)
+    trusted_inventory_sha256 = hashlib.sha256(
+        (artifact / "SHA256SUMS").read_bytes()
+    ).hexdigest()
+    monkeypatch.setenv("RAG_EMBEDDING_MODEL_CACHE_DIR", str(artifact))
+    monkeypatch.setenv(
+        "RAG_EMBEDDING_MODEL_INVENTORY_SHA256",
+        trusted_inventory_sha256,
+    )
+
+    assert verify_configured_embedding_artifact() == artifact.resolve()
+    (artifact / "model.safetensors").write_bytes(b"replaced after readiness")
+
+    with pytest.raises(
+        EmbeddingContractError,
+        match="EMBEDDING_MODEL_ARTIFACT_INVALID",
+    ):
+        verify_configured_embedding_artifact()
+
+
 def test_embedding_loader_verifies_before_offline_load(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

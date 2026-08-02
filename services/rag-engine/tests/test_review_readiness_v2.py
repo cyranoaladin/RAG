@@ -8,6 +8,26 @@ import pytest
 
 from src.ingestor import review_readiness_v2 as readiness
 
+EXPECTED_REVIEW_PRIVILEGES = (
+    True,
+    False,
+    False,
+    False,
+    False,
+    True,
+    True,
+    False,
+    False,
+    False,
+    False,
+    False,
+    False,
+    True,
+    False,
+    False,
+    False,
+)
+
 
 class _Cursor:
     def __init__(self, row: tuple[object, ...] | None) -> None:
@@ -60,26 +80,7 @@ def _patch_connection(
 def test_review_database_ready_proves_the_exact_least_privilege_contract(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    expected = (
-        True,
-        False,
-        False,
-        False,
-        False,
-        True,
-        False,
-        False,
-        False,
-        False,
-        False,
-        False,
-        False,
-        True,
-        False,
-        False,
-        False,
-    )
-    cursor, captured = _patch_connection(monkeypatch, expected)
+    cursor, captured = _patch_connection(monkeypatch, EXPECTED_REVIEW_PRIVILEGES)
 
     assert readiness.review_database_ready("postgresql://reviewer") is True
     assert captured == {
@@ -101,34 +102,18 @@ def test_review_database_ready_proves_the_exact_least_privilege_contract(
     assert "HAS_SCHEMA_PRIVILEGE" in normalized
     assert "HAS_DATABASE_PRIVILEGE" in normalized
     assert "REVIEW_STATUS" in normalized
+    assert "NOT EXISTS" in normalized
+    assert "ATTNAME <> 'REVIEW_STATUS'" in normalized
     for forbidden in ("INSERT INTO", "UPDATE ", "DELETE FROM", "ALTER ", "CREATE ", "DROP "):
         assert forbidden not in normalized
 
 
-@pytest.mark.parametrize("position", range(17))
+@pytest.mark.parametrize("position", range(len(EXPECTED_REVIEW_PRIVILEGES)))
 def test_review_database_ready_rejects_every_privilege_drift(
     monkeypatch: pytest.MonkeyPatch,
     position: int,
 ) -> None:
-    expected = [
-        True,
-        False,
-        False,
-        False,
-        False,
-        True,
-        False,
-        False,
-        False,
-        False,
-        False,
-        False,
-        False,
-        True,
-        False,
-        False,
-        False,
-    ]
+    expected = list(EXPECTED_REVIEW_PRIVILEGES)
     expected[position] = not expected[position]
     _patch_connection(monkeypatch, tuple(expected))
 

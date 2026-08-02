@@ -721,6 +721,22 @@ def test_review_role_can_only_select_and_update_review_status() -> None:
     print("REVIEW_ROLE_COLUMN_LEVEL_UPDATE_ONLY=PASS")
 
 
+def test_review_readiness_rejects_update_on_any_other_column() -> None:
+    with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+        connection.execute(
+            "GRANT UPDATE (source_label) ON TABLE rag_chunks TO lot41_review"
+        )
+    try:
+        assert review_database_ready(REVIEW_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(
+                "REVOKE UPDATE (source_label) ON TABLE rag_chunks FROM lot41_review"
+            )
+    assert review_database_ready(REVIEW_DSN) is True
+    print("REVIEW_ROLE_OTHER_COLUMN_UPDATE_REJECTED=PASS")
+
+
 def test_schema_registry_and_real_migration_objects_are_exact() -> None:
     expected = {
         1: (

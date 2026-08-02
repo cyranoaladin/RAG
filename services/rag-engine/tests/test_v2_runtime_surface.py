@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shlex
 from pathlib import Path
 
 import pytest
@@ -262,17 +263,21 @@ def test_v2_dockerfile_copies_only_the_read_review_runtime() -> None:
 
 
 def test_v2_docker_context_allowlist_contains_every_explicit_copy_source() -> None:
-    content = DOCKERIGNORE.read_text(encoding="utf-8")
+    allowlist = {
+        line[1:].rstrip("/")
+        for line in DOCKERIGNORE.read_text(encoding="utf-8").splitlines()
+        if line.startswith("!")
+    }
+    copy_sources: set[str] = set()
+    for line in V2_DOCKERFILE.read_text(encoding="utf-8").splitlines():
+        if not line.lstrip().upper().startswith("COPY "):
+            continue
+        tokens = shlex.split(line)
+        operands = [token for token in tokens[1:] if not token.startswith("--")]
+        copy_sources.update(source.rstrip("/") for source in operands[:-1])
 
-    for required_source in (
-        "services/rag-engine/src/ingestor/readiness_db.py",
-        "services/rag-engine/src/ingestor/reranker_contract.py",
-        "services/rag-engine/src/ingestor/review_readiness_v2.py",
-        "services/rag-engine/src/ingestor/model_artifact.py",
-        "services/rag-engine/infra/postgres/migrations/**",
-        "services/rag-engine/infra/postgres/schema_head_003_fingerprints.env",
-    ):
-        assert f"!{required_source}" in content
+    assert copy_sources
+    assert copy_sources <= allowlist
 
 
 def test_v2_runtime_dependencies_exclude_writer_and_remote_source_stacks() -> None:

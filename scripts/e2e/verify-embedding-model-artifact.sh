@@ -96,11 +96,17 @@ if ! PYTHONPATH="$REPO_ROOT/services/rag-engine/src${PYTHONPATH:+:$PYTHONPATH}" 
 import os
 from pathlib import Path
 
-from ingestor.embedding_contract import verify_embedding_artifact
+from ingestor.model_artifact import verify_model_artifact
 
-verify_embedding_artifact(
+verify_model_artifact(
     Path(os.environ["MODEL_ARTIFACT_DIR"]),
     expected_inventory_sha256=os.environ["MODEL_ARTIFACT_INVENTORY_SHA256"],
+    expected_manifest={
+        "model_id": "intfloat/multilingual-e5-large",
+        "canonical_dim": 1024,
+    },
+    required_files=frozenset({"config.json"}),
+    require_model_weights=True,
 )
 PY
 then

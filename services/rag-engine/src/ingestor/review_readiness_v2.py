@@ -26,7 +26,7 @@ _REQUIRED_REVIEW_PRIVILEGES: Final = (
     False,  # pas de TRUNCATE
     False,  # pas d'UPDATE au niveau table
     True,  # UPDATE limité à review_status
-    False,  # pas d'UPDATE du texte brut
+    True,  # aucune autre colonne modifiable
     False,  # aucune appartenance au rôle propriétaire
     False,  # pas superuser
     False,  # pas CREATEDB
@@ -49,7 +49,20 @@ SELECT
     has_column_privilege(
         current_user, 'public.rag_chunks', 'review_status', 'UPDATE'
     ),
-    has_column_privilege(current_user, 'public.rag_chunks', 'text', 'UPDATE'),
+    NOT EXISTS (
+        SELECT 1
+        FROM pg_attribute AS forbidden_column
+        WHERE forbidden_column.attrelid = 'public.rag_chunks'::regclass
+          AND forbidden_column.attnum > 0
+          AND NOT forbidden_column.attisdropped
+          AND forbidden_column.attname <> 'review_status'
+          AND has_column_privilege(
+              current_user,
+              'public.rag_chunks',
+              forbidden_column.attname,
+              'UPDATE'
+          )
+    ),
     pg_has_role(current_user, tableowner, 'USAGE'),
     rolsuper,
     rolcreatedb,

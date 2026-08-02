@@ -186,6 +186,34 @@ def test_reranker_rejects_a_replaced_self_consistent_bundle(
         reranker_contract.verify_configured_reranker_artifact()
 
 
+def test_configured_reranker_is_reverified_after_a_successful_probe(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "reranker"
+    _write_artifact(artifact)
+    trusted_inventory_sha256 = hashlib.sha256(
+        (artifact / "SHA256SUMS").read_bytes()
+    ).hexdigest()
+    monkeypatch.setenv("RAG_RERANKER_MODEL_CACHE_DIR", str(artifact))
+    monkeypatch.setenv(
+        "RAG_RERANKER_MODEL_INVENTORY_SHA256",
+        trusted_inventory_sha256,
+    )
+
+    assert (
+        reranker_contract.verify_configured_reranker_artifact()
+        == artifact.resolve()
+    )
+    (artifact / "model.safetensors").write_bytes(b"replaced after readiness")
+
+    with pytest.raises(
+        reranker_contract.RerankerContractError,
+        match="RERANKER_MODEL_ARTIFACT_INVALID",
+    ):
+        reranker_contract.verify_configured_reranker_artifact()
+
+
 def test_v2_compose_mounts_only_effective_reranker_configuration() -> None:
     compose = COMPOSE.read_text(encoding="utf-8")
     env_example = ENV_EXAMPLE.read_text(encoding="utf-8")
