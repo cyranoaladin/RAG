@@ -71,7 +71,8 @@ app = FastAPI(
 def _mount_allowed_routes() -> None:
     for source in (retrieval_v2_endpoint.router, review_v2_endpoint.router):
         for route in source.routes:
-            if route.path in _ALLOWED_BUSINESS_ROUTES:
+            route_path = getattr(route, "path", None)
+            if route_path in _ALLOWED_BUSINESS_ROUTES:
                 app.router.routes.append(route)
 
 
