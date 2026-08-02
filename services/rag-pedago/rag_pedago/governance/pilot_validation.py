@@ -986,6 +986,7 @@ def evaluate_authorization(
             auth.issued_at <= approval.approved_at < auth.expires_at
         ):
             reasons.append("approval.outside_authorization_window")
+        reasons.append("approval.trusted_channel_unavailable")
 
     if auth is not None and loaded_activation is not None:
         expected_environment = loaded_activation.validation_environment.environment_id
@@ -1072,6 +1073,8 @@ def evaluate_authorization(
         elif package is None:
             reasons.append("package.invalid")
         else:
+            reasons.append("package.scope_attestation_unavailable")
+            reasons.append("package.trusted_attestations_unavailable")
             if not _safe_ref(package.content_ref):
                 reasons.append("package.path_invalid")
             if sha256(package.content.encode("utf-8")).hexdigest() != package.content_sha256:
