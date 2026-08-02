@@ -4,7 +4,7 @@ import { fetchEngine } from '../_engine'
 
 export async function GET() {
   try {
-    const upstream = await fetchEngine('/admin/health')
+    const upstream = await fetchEngine('/health')
     return NextResponse.json(
       { status: upstream.status >= 200 && upstream.status < 300 ? 'ok' : 'unavailable' },
       { status: upstream.status >= 200 && upstream.status < 300 ? 200 : 503 },

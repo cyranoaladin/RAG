@@ -40,7 +40,7 @@ export type EngineEndpoint =
   | '/collections/v2'
   | '/collections/readiness'
   | '/chat'
-  | '/admin/health'
+  | '/health'
   | '/review/v2/queue'
   | '/review/v2/decide'
 
