@@ -1,0 +1,187 @@
+# LOT41U — Durcissement fail-closed du runtime v2
+
+## Verdict
+
+**LOT41U_LOCAL_CI_GREEN_AWAITING_FINAL_HEAD_PROOF**
+
+LOT41U ferme les quatre constats P1 du runtime relevés par l'audit indépendant
+de `main@ea18ba52da5778f628c4943705dd81dfa43fbc15`. Le stack v2 n'embarque
+plus de writer ni d'API legacy, une base PostgreSQL neuve atteint directement
+le head `003_profile_filtering`, et le reverse proxy fonctionne par allowlist.
+La surface d'ingestion URL ou fichier non autoritaire est supprimée plutôt que
+rendue artificiellement conforme.
+
+**GO_LIVE: NO_GO**
+
+Ce lot sécurise un runtime de lecture et de revue ; il n'autorise pas
+l'ingestion. LOT41A doit encore fournir une autorité humaine GitHub vérifiable,
+LOT42 une remise signée `quality → gate → review`, puis la revue golden et les
+preuves opérationnelles externes doivent être obtenues. Aucun verrou
+`*_allowed` n'a été activé.
+
+## Périmètre
+
+| Élément | Valeur |
+| --- | --- |
+| Date | 2026-08-02 |
+| Baseline `main` | `ea18ba52da5778f628c4943705dd81dfa43fbc15` |
+| Branche | `lot-41u-ingestion-runtime-hardening` |
+| Head source avant rapport | `c8364acef01bcc81c33755571a284016038a3531` |
+| Plan de données | runtime FastAPI v2, PostgreSQL/pgvector, Compose, Nginx |
+| Contrats partagés | aucune évolution |
+| Verrous de gouvernance | aucun changement, 18/18 conformes |
+| Décision d'architecture | ADR-0024, runtime v2 limité à lecture et revue |
+
+## Traitement des constats indépendants
+
+| Constat | Décision et correction | État |
+| --- | --- | --- |
+| `RAG-INGEST-001` — écritures sans scope complet | Le writer v2 non autoritaire est retiré de l'application, de l'image, de Compose et du proxy. Aucune donnée client libre n'est promue en scope signé. Un nouveau writer ne pourra revenir qu'avec LOT41A/LOT42. | fermé par suppression de la surface |
+| `RAG-MIGRATION-001` — base Compose neuve sans `003` | PostgreSQL monte `init.sql` puis `003_profile_filtering.sql`; son healthcheck et `/health` vérifient les cinq colonnes, l'index et les cinq contraintes validées. `v2-up` attend la santé. | corrigé |
+| `RAG-LEGACY-001` — routes Chroma/legacy exposées | `api_v2.py` est l'unique application. L'image copie une liste explicite de modules, Compose n'exécute plus `api:app`, et Nginx refuse les routes legacy en `410` avant tout proxy. | corrigé |
+| `RAG-SSRF-001` — redirections URL non revalidées | Le runtime v2 n'embarque ni endpoint URL, ni client HTTP, ni module d'ingestion réseau. Il n'existe donc plus de redirection à suivre dans le service exposé. | fermé par suppression de la surface |
+| `RAG-UPLOAD-001` — upload lu sans borne | Aucun endpoint d'upload, parseur ou montage de dépôt n'est présent dans le runtime v2. | fermé par suppression de la surface |
+| `RAG-DOC-001` — documentation contradictoire | README, AGENTS du moteur, runbook et exemple d'environnement décrivent désormais PostgreSQL/pgvector, le BFF et l'absence de writer. | corrigé |
+
+Le choix de suppression est intentionnel. Ajouter simplement `tenant`,
+`candidat`, `visibility`, `school_year` et `programme_version` au payload
+n'aurait pas authentifié ces valeurs et aurait conservé l'écriture directe
+interdite dans pgvector. La remise future devra dériver son scope d'une preuve
+autoritaire et lier le contenu aux attestations indépendantes.
+
+## Architecture livrée
+
+Le runtime v2 expose exactement :
+
+- `/health` et `/metrics` ;
+- `/search/v2`, `/chat`, `/collections/v2`, `/catalogue/v2` et
+  `/collections/readiness` ;
+- `/review/v2/queue` et `/review/v2/decide`.
+
+Les sept routes métier conservent les contrôles BFF et l'enveloppe d'identité
+signée existants. `/metrics` est limité au loopback dans Nginx. Les chemins
+`/ingest*`, `/search`, `/collections`, `/rag/query`, `/admin*`, `/stats*`,
+`/eval*` et `/kb*` ne sont jamais transmis au moteur. Tout autre chemin reçoit
+`404`.
+
+Le Compose v2 contient seulement PostgreSQL/pgvector, l'API lecture/revue et
+Prometheus. Il ne contient plus ChromaDB, Redis, Ollama, worker, UI, répertoire
+d'upload, token d'ingestion ou DSN propriétaire. L'image de production utilise
+un verrou runtime séparé, CPU-only, et ne copie ni `api.py`, ni
+`ingest_v2.py`, ni `ingest_v2_endpoint.py`, ni `tasks.py`, ni `database.py`.
+
+## Migrations et santé
+
+Une base neuve est initialisée dans cet ordre :
+
+1. `init.sql` crée le schéma v2 initial ;
+2. `003_profile_filtering.sql` ajoute le profil signé, les contraintes LOT41 et
+   l'index de lecture ;
+3. le healthcheck PostgreSQL exige cinq colonnes de profil, cinq contraintes
+   validées et `idx_rag_chunks_profile_reviewed` ;
+4. l'API vérifie en lecture seule le même head, le modèle canonique et la
+   dimension pgvector `1024` avant de rendre `healthy`.
+
+La procédure des volumes existants reste distincte : sauvegarde, scripts de
+migration versionnés, vérification du head puis rollback testé. Aucun DSN owner
+n'est injecté dans le runtime applicatif.
+
+## Cycles TDD et preuves ciblées
+
+Les contrôles ont été écrits ou durcis avant chaque implémentation : décision
+ADR, état du schéma, surface FastAPI, contenu d'image, topologie Compose,
+allowlist Nginx et documentation. Les états RED ont confirmé que la baseline
+exposait le monolithe legacy, omettait `003` au bootstrap et transmettait
+`/ingest`.
+
+Les preuves GREEN fraîches comprennent :
+
+- `schema_head_003_ready` : colonnes, index, contraintes, erreurs psycopg et
+  absence de SQL mutatif testés ;
+- surface FastAPI : neuf chemins exacts, santé fail-closed, métriques et import
+  aplati testés ;
+- image `nexus-rag-engine-v2:lot41u` construite, avec `api_v2.py` présent et les
+  modules writer/legacy absents du conteneur ;
+- Compose PostgreSQL sur volume temporaire neuf : résultat réel `5|t|5` pour
+  colonnes, index et contraintes ;
+- deux configurations Nginx rendues et validées par `nginx -t` ;
+- tests négatifs `404`/`410` pour les routes non autorisées ;
+- Ruff vert, `mypy` vert sur 47 fichiers du moteur et suites runtime ciblées
+  vertes ;
+- intégration PostgreSQL réelle verte, dont migrations, adoption, rollback,
+  atomicité, moindre privilège, HNSW, GIN, identité signée, scope, review et
+  endpoints HTTP : `LOT40_HYBRID_INTEGRATION=PASS`.
+
+La cible `make test-integration` a aussi été corrigée pour définir
+`PYTHONPATH=src`. Sans cela, son exécution canonique échouait à la collecte avec
+`ModuleNotFoundError: ingestor`, alors que le script hybride appelé ensuite
+pouvait être lancé séparément.
+
+## CI locale source
+
+La CI racine exhaustive a été exécutée sur le head source exact
+`c8364acef01bcc81c33755571a284016038a3531`, avec Python 3.12.3 et Node
+22.23.1. Une première exécution a identifié l'accès non affiné à `BaseRoute.path`
+dans `api_v2.py` ; la correction utilise un accès défensif, puis Ruff, `mypy`
+et 14 tests ciblés sont redevenus verts.
+
+La relance complète a produit **13 réussites, 0 échec** :
+
+- `packages/contracts` : import réussi ;
+- `services/rag-pedago` : Ruff, `mypy` sur 76 fichiers et 1 757 tests réussis ;
+- `services/rag-engine` : Ruff, `mypy` sur 47 fichiers, suite non-intégration
+  complète et smoke PostgreSQL réel réussis ;
+- `services/cockpit` : 20 fichiers de tests, 172 tests, deux builds Next.js,
+  contrôles de contrats et deux audits npm sans vulnérabilité ;
+- hygiène, topologie CI, protection versionnée de `main`, taxonomie, preuves
+  source, verrous de gouvernance et tests fail-safe : tous réussis ;
+- tests fail-safe : 50 réussites, 0 échec ;
+- verrous : baseline 18, configuration 18, conformité totale.
+
+Le rapport crée nécessairement un nouveau head. Une seconde CI exhaustive sera
+donc exécutée après son commit, sans modification ultérieure ; son résultat et
+les checks GitHub seront des preuves du head final, pas du parent nommé ici.
+
+## Éléments restant hors de ce lot
+
+Ces points ne sont pas masqués par les corrections runtime :
+
+- LOT41A : review GitHub formelle, reviewer habilité distinct, dépôt/PR/base/head
+  exacts, challenge canonique et révocation ;
+- LOT42 : attestations indépendantes `quality`, `gate` et `review`, liées au
+  contenu, au scope et aux items réellement remis ;
+- revue humaine exhaustive de la golden suite, actuellement
+  `HUMAN_REVIEW_PENDING` ;
+- corpus réel, droits et couverture pédagogique substantielle ;
+- protection live de `main`, secrets de production, TLS, rate limiting,
+  sauvegarde/restauration et rollback effectivement exercés dans
+  l'infrastructure cible ;
+- durcissements P2 de supply chain et des workflows secondaires, à traiter
+  dans un lot dédié sans mélanger leur autorité avec ce correctif runtime.
+
+## Commits antérieurs au présent rapport
+
+| SHA | Objet |
+| --- | --- |
+| `9663140` | spécification du runtime v2 fail-closed |
+| `c1dc619` | plan d'implémentation |
+| `95e1a4d` | ADR-0024 et test de décision |
+| `2fee69b` | vérification read-only du head PostgreSQL 003 |
+| `df4b53f` | application FastAPI v2 lecture/revue |
+| `e2c1273` | image minimale sans writer |
+| `c971e82` | bootstrap Compose au head 003 |
+| `7c1ee15` | allowlist Nginx |
+| `998e220` | documentation opérationnelle alignée |
+| `c5d0ce9` | exécution fiable des tests d'intégration |
+| `c8364ac` | correction de typage révélée par la CI exhaustive |
+
+## Décision de livraison
+
+LOT41U peut passer à la vérification du head final puis à une PR dédiée. La
+fusion reste conditionnée aux checks `pull_request` du head exact, à l'absence
+de fil non résolu et à la protection de `main`. Le commit de fusion ou de
+squash devra ensuite obtenir son propre run `push` vert sur `main`.
+
+Cette fusion rendra `main` source de vérité pour les correctifs runtime audités,
+mais ne changera pas le verdict global : **GO_LIVE: NO_GO** jusqu'aux autorités,
+revues et preuves de production listées ci-dessus.
