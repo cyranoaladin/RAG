@@ -11,13 +11,17 @@ signée.
 Les modèles d'embedding et de reranking sont des artefacts préprovisionnés,
 montés en lecture seule. Le runtime impose `local_files_only` et les modes
 Hugging Face/Transformers hors-ligne ; il ne télécharge aucun modèle au
-démarrage ni sur une requête. `/health` exige leur manifeste canonique, leurs
-poids et leur inventaire SHA-256 exact, puis prouve aussi la connexion et les
-privilèges minimaux du rôle `PG_REVIEW_DSN`. Les empreintes attendues de
+démarrage ni sur une requête. Chaque worker vérifie intégralement leur manifeste
+canonique, leurs poids et leur inventaire SHA-256 avant d'accepter du trafic ;
+`/health` contrôle ensuite une attestation bornée sans rehacher les poids, puis
+prouve aussi la connexion et les privilèges minimaux du rôle `PG_REVIEW_DSN`.
+Les empreintes attendues de
 `SHA256SUMS` sont fournies séparément par
 `RAG_EMBEDDING_MODEL_INVENTORY_SHA256` et
 `RAG_RERANKER_MODEL_INVENTORY_SHA256` : elles doivent provenir de la
 construction approuvée, jamais être recalculées depuis le montage au démarrage.
+Les rôles PostgreSQL runtime ne doivent être membres d'aucun autre rôle, y
+compris via une appartenance `NOINHERIT` utilisable par `SET ROLE`.
 
 Le verdict demeure **GO_LIVE: NO_GO** jusqu'aux autorités LOT41A/LOT42, à la
 revue golden et aux preuves opérationnelles externes. La seule procédure

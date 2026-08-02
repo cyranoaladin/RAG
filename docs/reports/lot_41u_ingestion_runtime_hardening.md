@@ -92,8 +92,9 @@ Une base neuve est initialisée dans cet ordre :
    exactes du registre ;
 5. l'API relit les mêmes preuves via un rôle `SELECT`, avec `connect_timeout`,
    `statement_timeout` et transaction read-only, vérifie les privilèges
-   effectifs du rôle retrieval, puis le modèle canonique et la dimension
-   pgvector `1024` avant de rendre `healthy`.
+   effectifs des rôles retrieval et review, refuse toute cible de `SET ROLE`,
+   puis le modèle canonique et la dimension pgvector `1024` avant de rendre
+   `healthy`.
 
 La procédure des volumes existants reste distincte : sauvegarde, scripts de
 migration versionnés, vérification du head puis rollback testé. Aucun DSN owner
@@ -276,11 +277,9 @@ façon cohérente tout en conservant l'ancre approuvée initiale et prouvent le
 refus. Les 69 tests ciblés artefacts/runtime sont verts, comme Ruff, `mypy` et
 la suite non-intégration complète du moteur.
 
-Le commit `15c17b4` issu de la dernière qualification pré-fusion supprime toute
-mémorisation de la preuve par chemin : chaque healthcheck et chaque chargement
-initial recalcule l'inventaire et les empreintes, donc un remplacement
-postérieur à une première
-sonde verte est refusé. La sonde PostgreSQL vérifie désormais dynamiquement
+Le commit `15c17b4` issu de la qualification pré-fusion a d'abord supprimé la
+mémorisation de la preuve par chemin afin qu'un remplacement postérieur à une
+première sonde verte soit refusé. La sonde PostgreSQL vérifie désormais dynamiquement
 toutes les colonnes de `rag_chunks` et n'accepte `UPDATE` que sur
 `review_status`, y compris si le schéma gagne une colonne ultérieure. Le test
 de contexte Docker dérive enfin ses attentes de chaque instruction `COPY`, au
@@ -300,6 +299,30 @@ colonne. Le commit `585f519` remplace donc les contrôles `INSERT`, `UPDATE` et
 `REFERENCES` concernés par une inspection dynamique de toutes les colonnes de
 `rag_chunks` et `rag_schema_migrations`. Le même test réel est ensuite passé et
 prouve que `UPDATE(source_label)` rend la readiness retrieval négative.
+
+La revue du head `1013d63` a relevé trois écarts valides supplémentaires. Les
+sondes PostgreSQL utilisaient `pg_has_role(..., 'USAGE')`, qui ignore une
+appartenance `NOINHERIT` néanmoins exploitable par `SET ROLE`. Elles utilisent
+maintenant `MEMBER` et refusent toute appartenance directe ou indirecte à un
+autre rôle. Le runner PostgreSQL réel crée un rôle writer intermédiaire,
+l'accorde temporairement aux deux rôles runtime et prouve leur readiness
+négative avant révocation : `RUNTIME_SET_ROLE_MEMBERSHIP_REJECTED=PASS`.
+
+Le rehachage intégral des modèles à chaque appel public de `/health` aurait pu
+amplifier des probes parallèles en lecture de plusieurs gigaoctets. Chaque
+worker effectue désormais la preuve cryptographique exhaustive pendant son
+démarrage, avant d'accepter le trafic, puis conserve une attestation des
+métadonnées. `/health` compare l'ancre externe en mémoire et au plus 10 000
+entrées attestées sans lire aucun contenu modèle. L'inventaire lu au démarrage
+est borné à 16 Mio. Les remplacements, ajouts,
+suppressions et changements d'ancre usuels sont refusés ; le chargement initial
+du modèle refait la preuve complète. Enfin, le test de contexte Docker traite
+explicitement les options `COPY` et ignore les sources d'un stage
+`COPY --from`, évitant de confondre un nom de propriétaire, un mode ou une
+sortie de build avec une source du contexte.
+Les 119 tests ciblés de readiness, runtime et modèles sont verts ; Ruff et
+`mypy` sont verts sur les modules modifiés, et l'intégration PostgreSQL réelle
+conclut de nouveau `LOT40_HYBRID_INTEGRATION=PASS`.
 
 ## Éléments restant hors de ce lot
 
@@ -347,7 +370,9 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `6c86032` | documentation du dernier cycle de revue |
 | `1842e4d` | moindre privilège retrieval et instrumentation HTTP v2 |
 | `585f519` | détection des grants retrieval limités à une colonne |
-| commit courant | documentation et preuve du dernier cycle de revue |
+| `1013d63` | documentation et preuve du test PostgreSQL fail-closed |
+| `8ebdc48` | fermeture de `SET ROLE`, santé modèle bornée et parseur Docker |
+| commit courant | documentation du cycle final de revue |
 
 ## Décision de livraison
 

@@ -83,16 +83,23 @@ force en plus les transactions read-only. Le rôle `PG_REVIEW_DSN`
 doit posséder exactement `USAGE` sur le schéma `public`, `SELECT` sur
 `rag_chunks` et `UPDATE(review_status)`. Tout autre privilège d'écriture sur la
 table ou ses colonnes, de création sur le schéma ou la base, d'administration
-ou d'appartenance au propriétaire est interdit.
+ou d'appartenance au propriétaire est interdit. Les deux rôles doivent en
+outre n'être membres, directement ou indirectement, d'aucun autre rôle : la
+sonde utilise la relation PostgreSQL `MEMBER`, et non les seuls privilèges
+hérités `USAGE`, afin de refuser aussi toute élévation différée par `SET ROLE`.
 Une configuration, un schéma ou un rôle incomplet ou sur-privilégié retourne un
 `503` générique ; aucune reprise sur le DSN propriétaire `DATABASE_URL_SYNC`
 n'est admise. Le Compose exige explicitement `PG_RAG_DSN` et `PG_REVIEW_DSN`.
 Les connexions de santé ont un délai de connexion et un `statement_timeout`
-bornés. Avant de rendre le service prêt, la sonde vérifie pour les deux modèles
+bornés. Avant d'accepter le trafic, chaque worker vérifie pour les deux modèles
 le manifeste canonique, la présence de la configuration et des poids, l'absence
-de symlink ou de fichier non inventorié et tous les SHA-256. Cette preuve est
-recalculée à chaque sonde et avant chaque chargement initial afin qu'un
-remplacement du montage après une sonde réussie soit détecté.
+de symlink ou de fichier non inventorié et tous les SHA-256. Il mémorise ensuite
+une attestation locale des métadonnées de chaque entrée et de l'ancre externe.
+La route publique `/health` ne rehache jamais les poids : elle compare l'ancre
+en mémoire et les métadonnées attestées, ce qui détecte
+les remplacements, ajouts ou suppressions usuels sans transformer les probes en
+amplification d'I/O. Le chargement initial d'un modèle refait la preuve
+cryptographique complète.
 Les modèles sont chargés avec `local_files_only`, sans téléchargement au
 démarrage ni sur une requête.
 

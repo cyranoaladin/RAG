@@ -133,7 +133,9 @@ schéma.
 Le rôle `PG_RAG_DSN` doit pouvoir lire `rag_schema_migrations`, sinon `/health`
 échoue volontairement en `503` : ne pas lui substituer le rôle owner. La sonde
 refuse également tout privilège d'écriture, de création, d'administration ou
-d'appartenance au propriétaire ; le pool force les transactions read-only.
+d'appartenance à un autre rôle, directement ou indirectement. Ce dernier
+contrôle couvre les cibles atteignables par `SET ROLE`, même avec `NOINHERIT` ;
+le pool force en plus les transactions read-only.
 `/health` ouvre également `PG_REVIEW_DSN` et vérifie le rôle effectif : attributs
 non administratifs, `USAGE` sans `CREATE`, aucune table temporaire, lecture de
 `rag_chunks` et seul `UPDATE(review_status)`. Un rôle absent, sous-privilégié ou
@@ -151,10 +153,13 @@ Cette cible utilise `docker compose up -d --build --wait`. Un service unhealthy
 fait échouer la commande ; aucun délai arbitraire ni succès de substitution
 n'est accepté.
 
-La première sonde de chaque worker recalcule les inventaires des deux modèles,
-puis recalcule cette preuve à chaque sonde et avant chaque chargement initial.
-Une modification d'artefact exige un nouveau déploiement ; ne jamais remplacer
-les poids sous un conteneur en cours d'exécution.
+Chaque worker rehache intégralement les deux artefacts pendant son démarrage,
+avant d'accepter du trafic. Les probes publiques suivantes comparent à coût
+borné l'ancre de l'inventaire et les métadonnées attestées ; elles ne relisent
+jamais les poids multi-gigaoctets. Le premier chargement du modèle refait la
+preuve cryptographique complète. Une modification d'artefact exige un nouveau
+déploiement ; ne jamais remplacer les poids sous un conteneur en cours
+d'exécution.
 
 Contrôles locaux :
 
