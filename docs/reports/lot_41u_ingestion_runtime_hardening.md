@@ -294,6 +294,13 @@ indépendante des grants. Un test PostgreSQL réel accorde temporairement
 Le runtime v2 instrumente aussi chaque requête par code et latence, avec une
 allowlist de labels et la valeur unique `unmatched` pour tout chemin inconnu.
 
+La première exécution PostgreSQL sur ce commit a utilement échoué :
+`has_table_privilege(..., 'UPDATE')` ne détecte pas un grant limité à une
+colonne. Le commit `585f519` remplace donc les contrôles `INSERT`, `UPDATE` et
+`REFERENCES` concernés par une inspection dynamique de toutes les colonnes de
+`rag_chunks` et `rag_schema_migrations`. Le même test réel est ensuite passé et
+prouve que `UPDATE(source_label)` rend la readiness retrieval négative.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -339,6 +346,7 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `15c17b4` | revalidation continue des artefacts et moindre privilège review |
 | `6c86032` | documentation du dernier cycle de revue |
 | `1842e4d` | moindre privilège retrieval et instrumentation HTTP v2 |
+| `585f519` | détection des grants retrieval limités à une colonne |
 | commit courant | documentation et preuve du dernier cycle de revue |
 
 ## Décision de livraison
