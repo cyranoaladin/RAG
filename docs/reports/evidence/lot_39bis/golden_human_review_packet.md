@@ -1,5 +1,11 @@
 # LOT39bis — Paquet de revue humaine exhaustive des requêtes golden
 
+> **REVENDICATION HISTORIQUE NON AUTHENTIFIÉE — NE VAUT PAS APPROBATION**
+>
+> **Erratum LOT41T — 2026-08-02.** Le commentaire historique de la PR #82 ne
+> liait ni le digest de spécification, ni ce paquet, ni le head final. Les cases
+> ci-dessous sont conservées comme trace historique, sans autorité de promotion.
+
 > **Statut : APPROVED — revue humaine exhaustive.**
 
 ## Périmètre normatif à relire
