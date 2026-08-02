@@ -185,14 +185,9 @@ ce même shell.
 set +x
 set -euo pipefail
 
-COCKPIT="https://cockpit.example.com"
-case "$COCKPIT" in
-  https://*) ;;
-  *) printf '%s\n' "ERREUR: URL Cockpit HTTPS requise" >&2; exit 1 ;;
-esac
-
 required_secret_names=(
   NEXTAUTH_SECRET
+  NEXUS_COCKPIT_PUBLIC_ORIGIN
   NEXUS_SSO_ISSUER
   NEXUS_SSO_AUDIENCE
   NEXUS_RELEASE_SCHOOL_YEAR
@@ -216,6 +211,27 @@ for secret_name in "${required_secret_names[@]}"; do
   fi
 done
 test "$missing_secret" -eq 0
+
+if ! COCKPIT="$(node - "$NEXUS_COCKPIT_PUBLIC_ORIGIN" <<'NODE'
+const [rawOrigin] = process.argv.slice(2)
+try {
+  const publicUrl = new URL(rawOrigin.trim())
+  const valid = publicUrl.protocol === 'https:'
+    && publicUrl.username === ''
+    && publicUrl.password === ''
+    && publicUrl.pathname === '/'
+    && publicUrl.search === ''
+    && publicUrl.hash === ''
+  if (!valid) throw new Error('invalid public origin')
+  process.stdout.write(publicUrl.origin)
+} catch {
+  process.exit(1)
+}
+NODE
+)"; then
+  printf '%s\n' "ERREUR: origine publique Cockpit HTTPS canonique requise" >&2
+  exit 1
+fi
 
 if [ -z "${NEXUS_SSO_JWKS_URL:-}" ] && [ -z "${NEXUS_SSO_SHARED_SECRET:-}" ]; then
   printf '%s\n' \

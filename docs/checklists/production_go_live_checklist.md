@@ -23,6 +23,7 @@
 
 - [ ] Cockpit HTTPS et routes BFF déployés ; le runbook historique ne les provisionne pas
 - [ ] Préflight de la [configuration d'identité serveur](../../services/cockpit/README.md) exécuté sans afficher de secret
+- [ ] `NEXUS_COCKPIT_PUBLIC_ORIGIN` égale exactement l'origine publique HTTPS canonique du Cockpit, sans credentials, chemin, query ni fragment
 - [ ] `RAG_ENV=production` dans `.env`
 - [ ] `ALLOW_UNAUTHENTICATED_ADMIN_DEV=false`
 - [ ] `RAG_ENGINE_CONFIG_DIR=/app/configs`

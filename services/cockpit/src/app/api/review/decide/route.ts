@@ -25,13 +25,38 @@ function unavailable(): NextResponse {
   return reviewJson({ error: 'review_unavailable' }, { status: 503 })
 }
 
+function configuredPublicOrigin(): string | null {
+  const rawOrigin = process.env.NEXUS_COCKPIT_PUBLIC_ORIGIN?.trim()
+  if (!rawOrigin) return null
+
+  try {
+    const url = new URL(rawOrigin)
+    if (
+      url.protocol !== 'https:'
+      || url.username !== ''
+      || url.password !== ''
+      || url.pathname !== '/'
+      || url.search !== ''
+      || url.hash !== ''
+    ) {
+      return null
+    }
+    return url.origin
+  } catch {
+    return null
+  }
+}
+
 export async function POST(request: Request): Promise<NextResponse> {
   const auth = await requireReviewAuth(request)
   if (!auth.ok) return auth.response
 
+  const publicOrigin = configuredPublicOrigin()
+  if (publicOrigin === null) return unavailable()
+
   const requestOrigin = request.headers.get('origin')
   const mediaType = request.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase()
-  if (requestOrigin !== new URL(request.url).origin || mediaType !== 'application/json') {
+  if (requestOrigin !== publicOrigin || mediaType !== 'application/json') {
     return forbidden()
   }
 

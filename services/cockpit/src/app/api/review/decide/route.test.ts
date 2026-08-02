@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { requireBffAuth } from '@/server/bff-auth'
 
@@ -11,6 +11,7 @@ vi.mock('../../_engine', () => ({ fetchEngine: vi.fn() }))
 const mockedRequireBffAuth = vi.mocked(requireBffAuth)
 const mockedFetchEngine = vi.mocked(fetchEngine)
 
+const publicOrigin = 'https://cockpit.test'
 const allowedCollection = 'rag_nexus_nsi_terminale_specialite'
 const validPayload = {
   collection: allowedCollection,
@@ -42,22 +43,22 @@ function authContext(
 }
 
 function decideRequest(body: unknown): Request {
-  return new Request('http://cockpit.test/api/review/decide', {
+  return new Request(`${publicOrigin}/api/review/decide`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Origin: 'http://cockpit.test',
+      Origin: publicOrigin,
     },
     body: JSON.stringify(body),
   })
 }
 
 function malformedRequest(body: string): Request {
-  return new Request('http://cockpit.test/api/review/decide', {
+  return new Request(`${publicOrigin}/api/review/decide`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Origin: 'http://cockpit.test',
+      Origin: publicOrigin,
     },
     body,
   })
@@ -72,12 +73,18 @@ async function expectJson(response: Response, status: number, body: unknown): Pr
 describe('POST /api/review/decide', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    process.env.NEXUS_COCKPIT_PUBLIC_ORIGIN = publicOrigin
     mockedRequireBffAuth.mockResolvedValue(authContext('reviewer'))
     mockedFetchEngine.mockResolvedValue({ status: 200, payload: validDecision })
   })
 
+  afterEach(() => {
+    delete process.env.NEXUS_COCKPIT_PUBLIC_ORIGIN
+  })
+
   it('répond 401 avant de lire le corps ou d’appeler le moteur lorsque la session manque', async () => {
     mockedRequireBffAuth.mockResolvedValue(null)
+    delete process.env.NEXUS_COCKPIT_PUBLIC_ORIGIN
 
     const response = await POST(malformedRequest('{'))
 
@@ -98,11 +105,11 @@ describe('POST /api/review/decide', () => {
   )
 
   it.each([
-    ['une origine sœur', { Origin: 'http://sibling.cockpit.test', 'Content-Type': 'application/json' }, '{'],
+    ['une origine sœur', { Origin: 'https://sibling.cockpit.test', 'Content-Type': 'application/json' }, '{'],
     ['une origine absente', { 'Content-Type': 'application/json' }, JSON.stringify(validPayload)],
-    ['le type text/plain', { Origin: 'http://cockpit.test', 'Content-Type': 'text/plain' }, JSON.stringify(validPayload)],
+    ['le type text/plain', { Origin: publicOrigin, 'Content-Type': 'text/plain' }, JSON.stringify(validPayload)],
   ])('refuse %s avant de lire le corps ou d’appeler le moteur', async (_label, headers, body) => {
-    const request = new Request('http://cockpit.test/api/review/decide', {
+    const request = new Request(`${publicOrigin}/api/review/decide`, {
       method: 'POST',
       headers,
       body,
@@ -115,10 +122,10 @@ describe('POST /api/review/decide', () => {
   })
 
   it('accepte application/json avec casse et paramètre charset', async () => {
-    const request = new Request('http://cockpit.test/api/review/decide', {
+    const request = new Request(`${publicOrigin}/api/review/decide`, {
       method: 'POST',
       headers: {
-        Origin: 'http://cockpit.test',
+        Origin: publicOrigin,
         'Content-Type': 'Application/JSON; Charset=UTF-8',
       },
       body: JSON.stringify(validPayload),
@@ -128,6 +135,47 @@ describe('POST /api/review/decide', () => {
 
     await expectJson(response, 200, validDecision)
     expect(mockedFetchEngine).toHaveBeenCalledOnce()
+  })
+
+  it('utilise l’origine publique configurée derrière un proxy à URL interne', async () => {
+    process.env.NEXUS_COCKPIT_PUBLIC_ORIGIN = `  ${publicOrigin}/  `
+    const request = new Request('http://localhost:3000/api/review/decide', {
+      method: 'POST',
+      headers: {
+        Host: 'localhost:3000',
+        Origin: publicOrigin,
+        'Content-Type': 'application/json',
+        'X-Forwarded-Host': 'attacker.invalid',
+        'X-Forwarded-Proto': 'http',
+      },
+      body: JSON.stringify(validPayload),
+    })
+
+    const response = await POST(request)
+
+    await expectJson(response, 200, validDecision)
+    expect(mockedFetchEngine).toHaveBeenCalledOnce()
+  })
+
+  it.each([
+    ['absente', undefined],
+    ['non URL', 'not-an-origin'],
+    ['HTTP', 'http://cockpit.test'],
+    ['avec credentials', 'https://reviewer:secret@cockpit.test'],
+    ['avec chemin', 'https://cockpit.test/review'],
+    ['avec query', 'https://cockpit.test/?tenant=libre_terminale'],
+    ['avec fragment', 'https://cockpit.test/#review'],
+  ])('échoue fermé quand l’origine publique est %s', async (_label, configuredOrigin) => {
+    if (configuredOrigin === undefined) {
+      delete process.env.NEXUS_COCKPIT_PUBLIC_ORIGIN
+    } else {
+      process.env.NEXUS_COCKPIT_PUBLIC_ORIGIN = configuredOrigin
+    }
+
+    const response = await POST(malformedRequest('{'))
+
+    await expectJson(response, 503, { error: 'review_unavailable' })
+    expect(mockedFetchEngine).not.toHaveBeenCalled()
   })
 
   it.each([

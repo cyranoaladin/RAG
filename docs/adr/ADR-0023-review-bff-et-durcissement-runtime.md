@@ -62,6 +62,14 @@ il ne recopie jamais une valeur du navigateur. Le moteur reste responsable des
 contrôles d'autorisation, de collection et de transition au runtime. Le
 contrat décrit les messages, pas ces règles métier.
 
+Les mutations de review exigent en outre que le header navigateur `Origin`
+égale l'origine publique HTTPS canonique configurée dans
+`NEXUS_COCKPIT_PUBLIC_ORIGIN`. Cette valeur explicite reste l'autorité lorsque
+Next.js construit une URL interne derrière un reverse proxy. Le BFF ne déduit
+jamais cette confiance de `request.url`, de `Host` ni de `X-Forwarded-*` ; une
+configuration absente ou invalide ferme la mutation avant lecture du corps et
+avant appel moteur.
+
 Les réponses sont également fermées. La queue borne la pagination et la
 provenance, puis exige que `returned` égale le nombre de documents. La réponse
 de décision indique au moins un chunk affecté, l'invalidation du worker courant
@@ -89,6 +97,8 @@ corpus, ni autorisation de promotion, ni ouverture d'une route publique.
   la review, avec types TypeScript et validateurs générés depuis les schémas.
 - La frontière navigateur ne peut injecter ni tenant, ni justification libre ;
   l'identité signée reste l'autorité selon ADR-0022.
+- L'origine anti-CSRF des mutations est une configuration HTTPS canonique ; les
+  métadonnées de routage fournies par un proxy ne deviennent pas une autorité.
 - Le document de queue est réutilisable seulement comme définition imbriquée,
   ce qui limite la surface publique aux cinq messages réellement échangés.
 - Le raccord des endpoints moteur et des routes BFF reste un travail runtime
