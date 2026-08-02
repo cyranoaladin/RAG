@@ -33,7 +33,8 @@ def test_v2_catalogue_and_compose_declare_1024_without_nomic_fallback() -> None:
     compose = COMPOSE.read_text(encoding="utf-8")
 
     assert catalogue["physical_backend"]["vector_dim"] == 1024
-    assert '${EMBED_DIM:-1024}' in compose
+    assert 'EMBED_DIM: "1024"' in compose
+    assert "${EMBED_DIM" not in compose
     assert "${EMBED_DIM:-768}" not in compose
     assert "nomic-embed-text:v1.5" not in compose
     assert "intfloat/multilingual-e5-large" in compose

@@ -1,8 +1,4 @@
-"""Audit contracts for active v2 and legacy ingestion embedding paths.
-
-These static tests do not execute an ingestion. They keep the routed
-``/ingest/v2`` path separate from the legacy Celery/Ollama worker debt.
-"""
+"""Contrats d'audit du runtime v2 lecture/revue et de la dette legacy."""
 
 from __future__ import annotations
 
@@ -12,26 +8,23 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 SRC = REPO_ROOT / "services" / "rag-engine" / "src" / "ingestor"
 
 
-class TestActiveRoutedIngestV2Path:
-    """Document the certified embedding behavior of routed ``/ingest/v2``."""
+class TestActiveRuntimeV2Path:
+    """Le runtime certifié ne publie aucun chemin d'écriture vectorielle."""
 
-    def test_api_routes_ingest_v2_to_ingest_document(self) -> None:
-        """api.py mounts the v2 router whose implemented routes call ingest_document."""
-        api_content = (SRC / "api.py").read_text()
-        endpoint_content = (SRC / "ingest_v2_endpoint.py").read_text()
+    def test_image_and_compose_start_only_api_v2(self) -> None:
+        dockerfile = (REPO_ROOT / "services" / "rag-engine" / "infra" / "Dockerfile.ingestor-v2").read_text()
+        compose = (REPO_ROOT / "services" / "rag-engine" / "infra" / "docker-compose.v2.yml").read_text()
 
-        assert "app.include_router(_ingest_v2_module.router)" in api_content
-        assert 'APIRouter(prefix="/ingest/v2"' in endpoint_content
-        assert "ingest_document(" in endpoint_content
+        assert "api_v2:app" in dockerfile
+        assert "api_v2:app" in compose
+        assert "api:app" not in compose
 
-    def test_active_ingest_v2_applies_passage_embedding_contract(self) -> None:
-        """The pgvector write path formats and normalizes passage embeddings."""
-        content = (SRC / "ingest_v2.py").read_text()
+    def test_minimal_api_does_not_import_ingestion_modules(self) -> None:
+        content = (SRC / "api_v2.py").read_text()
 
-        assert "format_passage" in content
-        assert "encode(" in content
-        assert "normalize_embeddings=True" in content
-        assert "validate_runtime_embedding_contract" in content
+        assert "ingest_v2" not in content
+        assert "ingest_v2_endpoint" not in content
+        assert "tasks" not in content
 
     def test_retrieval_v2_uses_load_embedding_model(self) -> None:
         """retrieval_v2_endpoint.py uses the same local contract model loader."""
@@ -44,13 +37,15 @@ class TestLegacyWorkerDebt:
     """Keep the remaining Celery/Ollama embedding path visible as legacy debt."""
 
     def test_legacy_worker_ollama_path_still_active(self) -> None:
-        """The registered Celery worker still delegates embeddings to Ollama."""
+        """Le code historique reste identifié, sans être démarré par Compose v2."""
         tasks_content = (SRC / "tasks.py").read_text()
         service_content = (SRC / "embedding_service.py").read_text()
+        compose = (REPO_ROOT / "services" / "rag-engine" / "infra" / "docker-compose.v2.yml").read_text()
 
         assert "EmbeddingService" in tasks_content
         assert "/api/tags" in service_content
         assert "/api/embeddings" in service_content
+        assert "celery -A tasks" not in compose
 
 
 class TestEmbeddingContract:

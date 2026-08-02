@@ -78,10 +78,17 @@ def test_migration_runtime_validates_schema_003_and_its_absence() -> None:
     assert "validate_registry_sql 2" in rollback
 
 
-def test_bootstrap_stays_at_002_and_requires_migration_runner_for_003() -> None:
+def test_bootstrap_stays_at_002_and_compose_applies_003_on_fresh_volume() -> None:
     bootstrap = _read(POSTGRES / "init.sql")
     rag_chunks_bootstrap = bootstrap.split("-- TABLES AUXILIAIRES", maxsplit=1)[0]
+    compose = _read(ENGINE_ROOT / "infra" / "docker-compose.v2.yml")
 
     for column in ("tenant", "candidat", "visibility", "school_year", "programme_version"):
         assert f"{column} " not in rag_chunks_bootstrap
     assert "text_tsv" in rag_chunks_bootstrap
+    assert (
+        "./postgres/migrations/003_profile_filtering.sql:"
+        "/docker-entrypoint-initdb.d/01_003_profile_filtering.sql:ro"
+    ) in compose
+    assert "information_schema.columns" in compose
+    assert "idx_rag_chunks_profile_reviewed" in compose

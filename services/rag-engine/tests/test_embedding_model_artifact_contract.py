@@ -174,19 +174,10 @@ class TestComposeModelMount:
     def test_ingestor_has_model_cache_env(self) -> None:
         assert "RAG_EMBEDDING_MODEL_CACHE_DIR" in self.source
 
-    def test_worker_has_model_cache_env(self) -> None:
-        lines = self.source.split("\n")
-        in_worker = False
-        worker_has_env = False
-        for line in lines:
-            if "worker:" in line and not line.strip().startswith("#"):
-                in_worker = True
-            elif in_worker and "RAG_EMBEDDING_MODEL_CACHE_DIR" in line:
-                worker_has_env = True
-                break
-            elif in_worker and line.strip() and not line.startswith(" ") and ":" in line:
-                break
-        assert worker_has_env, "worker service should reference RAG_EMBEDDING_MODEL_CACHE_DIR"
+    def test_compose_has_no_embedding_writer_worker(self) -> None:
+        assert "\n  worker:" not in self.source
+        assert "\n  ollama:" not in self.source
+        assert "\n  redis:" not in self.source
 
     def test_volume_mount_uses_host_artifact_variable(self) -> None:
         """The volume source must use RAG_EMBEDDING_MODEL_ARTIFACT_HOST_DIR (host path)."""
@@ -248,13 +239,8 @@ class TestPrepareScriptPathHardening:
 # -- Ollama embedding path still active (controlled blocker) --
 
 
-class TestOllamaEmbeddingPathBlocker:
-    """EmbeddingService still uses Ollama for v2 ingestion embeddings.
-
-    This is a known blocker: the worker calls EmbeddingService (Ollama) for
-    actual vector writes, not the local SentenceTransformer artifact.
-    These tests document this gap explicitly so it cannot be overlooked.
-    """
+class TestLegacyOllamaEmbeddingPathIsNotDeployed:
+    """Le code legacy reste auditable, mais n'appartient plus au runtime v2."""
 
     TASKS = ENGINE_ROOT / "src" / "ingestor" / "tasks.py"
 
@@ -271,6 +257,11 @@ class TestOllamaEmbeddingPathBlocker:
             "Ollama reference removed from tasks — update this test if "
             "ingestion embedding path has been migrated"
         )
+
+    def test_v2_compose_does_not_start_legacy_tasks_or_ollama(self) -> None:
+        compose = COMPOSE.read_text(encoding="utf-8")
+        assert "celery -A tasks" not in compose
+        assert "\n  ollama:" not in compose
 
 
 # -- No test downloads model --

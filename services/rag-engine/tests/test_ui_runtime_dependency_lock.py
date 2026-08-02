@@ -26,12 +26,9 @@ EXPECTED_LOCKS = {
 }
 
 
-def test_ui_build_context_can_copy_the_central_lock() -> None:
+def test_ui_is_not_part_of_the_governed_v2_runtime() -> None:
     compose = yaml.safe_load(COMPOSE_PATH.read_text(encoding="utf-8"))
-    build = compose["services"]["ui"]["build"]
-
-    assert build["context"] == "../../.."
-    assert build["dockerfile"] == "services/rag-engine/src/ui/Dockerfile"
+    assert "ui" not in compose["services"]
 
 
 def test_ui_dockerfile_installs_requirements_with_central_lock() -> None:
@@ -75,14 +72,9 @@ def test_runtime_smoke_exists_and_checks_native_dependencies() -> None:
     assert "import numpy" in content
 
 
-def test_ui_runtime_lock_change_does_not_modify_v2_routes() -> None:
+def test_historical_ui_is_not_referenced_by_v2_compose() -> None:
     app_v2 = (ENGINE_ROOT / "src" / "ui" / "app_v2.py").read_text(encoding="utf-8")
+    compose = COMPOSE_PATH.read_text(encoding="utf-8")
 
-    for route in (
-        "/catalogue/v2",
-        "/collections/v2",
-        "/search/v2",
-        "/ingest/v2/upload-files",
-        "/ingest/v2/urls",
-    ):
-        assert route in app_v2
+    assert "streamlit" in app_v2.lower()
+    assert "src/ui/Dockerfile" not in compose
