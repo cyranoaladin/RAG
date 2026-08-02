@@ -927,7 +927,6 @@ find_yaml_python() {
 
 validate_yaml_cockpit_job() {
     local workflow_file="$1"
-    local workflows_dir="${2:-$REPO_ROOT/.github/workflows}"
     local yaml_python
 
     if ! yaml_python="$(find_yaml_python)"; then
@@ -935,24 +934,14 @@ validate_yaml_cockpit_job() {
         return 1
     fi
 
-    "$yaml_python" - "$workflow_file" "$workflows_dir" <<'PY'
+    "$yaml_python" - "$workflow_file" <<'PY'
 import sys
 from pathlib import Path
 from typing import Any
 
 import yaml
 
-PROTECTED_CONTEXTS = (
-    "packages/contracts",
-    "services/rag-pedago",
-    "services/rag-engine",
-    "services/cockpit",
-    "governance locks guard",
-    "repository controls",
-)
-
 workflow_path = Path(sys.argv[1])
-workflows_dir = Path(sys.argv[2])
 try:
     document = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
 except (OSError, UnicodeError, yaml.YAMLError) as exc:
@@ -984,60 +973,6 @@ for event_name in ("push", "pull_request"):
     if event != {"branches": ["main"]}:
         errors.append(
             f"on.{event_name} doit valoir exactement branches: [main]"
-        )
-
-context_locations: dict[str, list[Path]] = {
-    context: [] for context in PROTECTED_CONTEXTS
-}
-try:
-    workflow_candidates = sorted(
-        path
-        for path in workflows_dir.iterdir()
-        if path.is_file() and path.suffix in {".yml", ".yaml"}
-    )
-except OSError as exc:
-    errors.append(f"répertoire workflows illisible: {exc}")
-    workflow_candidates = []
-
-for candidate in workflow_candidates:
-    try:
-        candidate_document = yaml.safe_load(candidate.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, yaml.YAMLError) as exc:
-        errors.append(f"workflow YAML illisible {candidate.name}: {exc}")
-        continue
-    candidate_jobs = (
-        candidate_document.get("jobs")
-        if isinstance(candidate_document, dict)
-        else None
-    )
-    if not isinstance(candidate_jobs, dict):
-        errors.append(f"workflow YAML invalide {candidate.name}: jobs absent")
-        continue
-    for job_id, job in candidate_jobs.items():
-        if not isinstance(job_id, str) or not isinstance(job, dict):
-            errors.append(f"workflow YAML invalide {candidate.name}: job invalide")
-            continue
-        effective_name = job.get("name", job_id)
-        if not isinstance(effective_name, str):
-            errors.append(
-                f"workflow YAML invalide {candidate.name}: nom de job invalide"
-            )
-            continue
-        if effective_name in context_locations:
-            context_locations[effective_name].append(candidate)
-
-for context in PROTECTED_CONTEXTS:
-    locations = context_locations[context]
-    if len(locations) != 1:
-        errors.append(
-            f"contexte protégé {context!r} requis exactement une fois "
-            f"(trouvé={len(locations)})"
-        )
-    outside_ci = [path.name for path in locations if path.name != "ci.yml"]
-    if outside_ci:
-        errors.append(
-            f"contexte protégé {context!r} interdit hors ci.yml: "
-            + ", ".join(outside_ci)
         )
 
 required_commands: tuple[tuple[str, str | None], ...] = (
@@ -1148,15 +1083,115 @@ if errors:
 PY
 }
 
+validate_protected_context_provenance() {
+    local workflows_dir="$1"
+    local yaml_python
+
+    if ! yaml_python="$(find_yaml_python)"; then
+        echo "interpréteur Python avec PyYAML introuvable"
+        return 1
+    fi
+
+    "$yaml_python" - "$workflows_dir" <<'PY'
+import sys
+from pathlib import Path
+
+import yaml
+
+PROTECTED_CONTEXTS = (
+    "packages/contracts",
+    "services/rag-pedago",
+    "services/rag-engine",
+    "services/cockpit",
+    "governance locks guard",
+    "repository controls",
+)
+
+workflows_dir = Path(sys.argv[1])
+errors: list[str] = []
+context_locations: dict[str, list[Path]] = {
+    context: [] for context in PROTECTED_CONTEXTS
+}
+try:
+    workflow_candidates = sorted(
+        path
+        for path in workflows_dir.iterdir()
+        if path.is_file() and path.suffix in {".yml", ".yaml"}
+    )
+except OSError as exc:
+    errors.append(f"répertoire workflows illisible: {exc}")
+    workflow_candidates = []
+
+for candidate in workflow_candidates:
+    try:
+        candidate_document = yaml.safe_load(candidate.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, yaml.YAMLError) as exc:
+        errors.append(f"workflow YAML illisible {candidate.name}: {exc}")
+        continue
+    candidate_jobs = (
+        candidate_document.get("jobs")
+        if isinstance(candidate_document, dict)
+        else None
+    )
+    if not isinstance(candidate_jobs, dict):
+        errors.append(f"workflow YAML invalide {candidate.name}: jobs absent")
+        continue
+    for job_id, job in candidate_jobs.items():
+        if not isinstance(job_id, str) or not isinstance(job, dict):
+            errors.append(f"workflow YAML invalide {candidate.name}: job invalide")
+            continue
+        effective_name = job.get("name", job_id)
+        if not isinstance(effective_name, str):
+            errors.append(
+                f"workflow YAML invalide {candidate.name}: nom de job invalide"
+            )
+            continue
+        if effective_name in context_locations:
+            context_locations[effective_name].append(candidate)
+
+for context in PROTECTED_CONTEXTS:
+    locations = context_locations[context]
+    if len(locations) != 1:
+        errors.append(
+            f"contexte protégé {context!r} requis exactement une fois "
+            f"(trouvé={len(locations)})"
+        )
+    outside_ci = [path.name for path in locations if path.name != "ci.yml"]
+    if outside_ci:
+        errors.append(
+            f"contexte protégé {context!r} interdit hors ci.yml: "
+            + ", ".join(outside_ci)
+        )
+
+if errors:
+    print("provenance des contextes protégés invalide")
+    for error in errors:
+        print(f"- {error}")
+    raise SystemExit(1)
+PY
+}
+
 assert_yaml_cockpit_job() {
     local workflow_file="$1"
-    local workflows_dir="${2:-$REPO_ROOT/.github/workflows}"
+    local validation_output
+
+    if validation_output="$(validate_yaml_cockpit_job "$workflow_file")"; then
+        echo "  PASS  déclencheurs et job cockpit sont stricts et exécutables"
+        TESTS_PASS=$((TESTS_PASS + 1))
+    else
+        echo "  FAIL  $validation_output"
+        TESTS_FAIL=$((TESTS_FAIL + 1))
+    fi
+}
+
+assert_protected_context_provenance() {
+    local workflows_dir="$1"
     local validation_output
 
     if validation_output="$(
-        validate_yaml_cockpit_job "$workflow_file" "$workflows_dir"
+        validate_protected_context_provenance "$workflows_dir"
     )"; then
-        echo "  PASS  provenance, contextes protégés et job cockpit sont stricts"
+        echo "  PASS  les six contextes protégés proviennent uniquement de ci.yml"
         TESTS_PASS=$((TESTS_PASS + 1))
     else
         echo "  FAIL  $validation_output"
@@ -1288,6 +1323,7 @@ echo ""
 echo "=== Test: le workflow et le job YAML cockpit restent stricts ==="
 
 assert_yaml_cockpit_job "$REPO_ROOT/.github/workflows/ci.yml"
+assert_protected_context_provenance "$REPO_ROOT/.github/workflows"
 
 echo ""
 echo "=== Mutation: le job cockpit rejette un label sans commande effective ==="
@@ -1323,16 +1359,34 @@ assert_yaml_mutation_rejected() {
     local mutation_label="$1"
     local mutated_workflow="$2"
     local expected_reason="${3:-}"
-    local workflows_dir="${4:-$REPO_ROOT/.github/workflows}"
     local validation_output
 
-    if validation_output="$(
-        validate_yaml_cockpit_job "$mutated_workflow" "$workflows_dir"
-    )"; then
+    if validation_output="$(validate_yaml_cockpit_job "$mutated_workflow")"; then
         echo "  FAIL  $mutation_label est encore accepté"
         TESTS_FAIL=$((TESTS_FAIL + 1))
     elif [ -z "$expected_reason" ] \
         || grep -Fq -- "$expected_reason" <<<"$validation_output"; then
+        echo "  PASS  $mutation_label"
+        TESTS_PASS=$((TESTS_PASS + 1))
+    else
+        echo "  FAIL  $mutation_label est rejeté pour une autre raison"
+        echo "$validation_output"
+        TESTS_FAIL=$((TESTS_FAIL + 1))
+    fi
+}
+
+assert_provenance_mutation_rejected() {
+    local mutation_label="$1"
+    local workflows_dir="$2"
+    local expected_reason="$3"
+    local validation_output
+
+    if validation_output="$(
+        validate_protected_context_provenance "$workflows_dir"
+    )"; then
+        echo "  FAIL  $mutation_label est encore accepté"
+        TESTS_FAIL=$((TESTS_FAIL + 1))
+    elif grep -Fq -- "$expected_reason" <<<"$validation_output"; then
         echo "  PASS  $mutation_label"
         TESTS_PASS=$((TESTS_PASS + 1))
     else
@@ -1397,11 +1451,10 @@ jobs:
     steps:
       - run: true
 YAML
-assert_yaml_mutation_rejected \
+assert_provenance_mutation_rejected \
     "un second workflow dupliquant packages/contracts est rejeté" \
-    "$MUTATED_WORKFLOWS_DIR/ci.yml" \
-    "contexte protégé 'packages/contracts' requis exactement une fois" \
-    "$MUTATED_WORKFLOWS_DIR"
+    "$MUTATED_WORKFLOWS_DIR" \
+    "contexte protégé 'packages/contracts' requis exactement une fois"
 
 echo ""
 echo "=== Mutations: le job cockpit reste fail-closed ==="
