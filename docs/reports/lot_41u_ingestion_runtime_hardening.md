@@ -26,7 +26,7 @@ preuves opérationnelles externes doivent être obtenues. Aucun verrou
 | Date | 2026-08-02 |
 | Baseline `main` | `ea18ba52da5778f628c4943705dd81dfa43fbc15` |
 | Branche | `lot-41u-ingestion-runtime-hardening` |
-| Head source avant le dernier cycle de revue | `5d8b8f3fc430e2b9d47b55f6a937c832bb78bd7b` |
+| Head source avant le commit de ce rapport | `f95e987` |
 | Plan de données | runtime FastAPI v2, PostgreSQL/pgvector, Compose, Nginx |
 | Contrats partagés | aucune évolution |
 | Verrous de gouvernance | aucun changement, 18/18 conformes |
@@ -385,6 +385,31 @@ son marqueur ont été renommés pour produire explicitement
 `vector(768)`, un default modifié et un onzième index, puis a repassé verte après
 restauration.
 
+La revue du head `08bb1e4` a enfin relevé cinq écarts supplémentaires, tous
+traités par le commit `f95e987`. Le rôle PostgreSQL de revue refuse maintenant
+le privilège effectif `TRIGGER`, avec une mutation réelle `GRANT`/`REVOKE`
+prouvée par `REVIEW_ROLE_TRIGGER_PRIVILEGE_REJECTED=PASS`. Lorsque les artefacts
+de taxonomie ne sont pas présents dans l'image v2, le catalogue retourne
+désormais `taxonomy_exists=false` et une incohérence explicite au lieu d'un vert
+non démontré. Le TTL de la sonde PostgreSQL démarre après la fin de la sonde,
+donc même une sonde plus lente que cinq secondes reste coalescée.
+
+Le garde de lecture seule des tests SQL utilise des frontières de mots et
+détecte donc aussi un mot-clé mutatif suivi d'une tabulation ou d'un saut de
+ligne sans confondre `attisdropped` avec `DROP`. Enfin, les 31 colonnes et leurs
+types, defaults et typmods ne sont plus maintenus deux fois :
+`schema_head_003_columns.tsv` constitue le contrat versionné unique, chargé
+strictement par la sonde Python et importé dans une table temporaire par le
+healthcheck PostgreSQL. Le fichier est explicitement monté dans PostgreSQL et
+copié dans l'image applicative par l'allowlist Docker.
+
+Le cycle TDD a d'abord produit six échecs ciblés. Après correction, 75 tests
+ciblés, la suite non-intégration complète, Ruff et `mypy` sont verts. Le runner
+PostgreSQL réel conclut de nouveau `LOT40_HYBRID_INTEGRATION=PASS`, incluant le
+test `TRIGGER`. Une instance pgvector 16 neuve utilisant le contrat partagé a
+atteint `POSTGRES_SHARED_COLUMN_CONTRACT_HEALTH=PASS`, puis son conteneur
+éphémère a été supprimé.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -439,6 +464,7 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `4795dfc` | santé PostgreSQL coalescée et métriques mono-processus |
 | `9ebbf02` | sonde Cockpit alignée sur `/health` v2 |
 | `7bcf57f` | types, defaults, contraintes et index PostgreSQL exacts |
+| `f95e987` | privilège `TRIGGER`, taxonomies fail-closed, TTL et contrat de colonnes partagé |
 
 ## Décision de livraison
 
