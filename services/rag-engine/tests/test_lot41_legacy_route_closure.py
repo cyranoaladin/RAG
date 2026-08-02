@@ -110,6 +110,24 @@ def test_metrics_is_loopback_only_and_default_is_404(name: str) -> None:
 
 
 @pytest.mark.parametrize("name", ["rag-v2.conf", "rag-api.conf.template"])
+def test_deep_health_is_loopback_only(name: str) -> None:
+    health = _location_block(_read(name), "location = /health")
+
+    assert "allow 127.0.0.1" in health
+    assert "allow ::1" in health
+    assert "deny all" in health
+
+
+def test_canonical_v2_runtime_uses_one_metrics_process() -> None:
+    compose = (ENGINE_ROOT / "infra" / "docker-compose.v2.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "uvicorn api_v2:app --host 0.0.0.0 --port 8001 --workers 1" in compose
+    assert "INGESTOR_WORKERS" not in compose
+
+
+@pytest.mark.parametrize("name", ["rag-v2.conf", "rag-api.conf.template"])
 def test_proxy_has_no_legacy_upstream_or_forwarded_header_authority(name: str) -> None:
     config = _read(name)
 

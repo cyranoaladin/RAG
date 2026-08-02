@@ -88,7 +88,9 @@ services:
     ports:
       - "127.0.0.1:${INGESTOR_PORT:-8001}:8001"
     networks: [rag_net]
-    command: uvicorn api_v2:app --host 0.0.0.0 --port 8001 --workers ${INGESTOR_WORKERS:-4}
+    # Le registre Prometheus est process-local : un seul worker canonique.
+    # La capacité se scale par réplicas derrière un agrégateur, pas par fork local.
+    command: uvicorn api_v2:app --host 0.0.0.0 --port 8001 --workers 1
     read_only: true
     tmpfs: ["/tmp", "/app/.cache", "/var/tmp"]
     security_opt: [no-new-privileges:true]

@@ -6,6 +6,7 @@ import os
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from threading import Lock
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from prometheus_client import CONTENT_TYPE_LATEST
@@ -80,6 +81,11 @@ _OBSERVED_METHODS = frozenset(
 _model_artifact_attestations: (
     tuple[ModelArtifactAttestation, ModelArtifactAttestation] | None
 ) = None
+_READINESS_CACHE_TTL_S = 5.0
+_database_readiness_cache_lock = Lock()
+_database_readiness_cache: (
+    tuple[str, str, float, tuple[int, bool, bool, bool] | None] | None
+) = None
 
 
 def _required_model_inventory_anchor(environment_variable: str) -> str:
@@ -132,14 +138,75 @@ def _model_artifacts_ready() -> bool:
         return False
 
 
+def _reset_database_readiness_cache() -> None:
+    """Vider la preuve process-local lors des transitions de lifespan/tests."""
+    global _database_readiness_cache
+    with _database_readiness_cache_lock:
+        _database_readiness_cache = None
+
+
+def _probe_database_readiness(
+    rag_dsn: str,
+    review_dsn: str,
+) -> tuple[int, bool, bool, bool]:
+    """Exécuter une unique sonde profonde des deux autorités PostgreSQL."""
+    return (
+        pgvector_dimension(rag_dsn),
+        schema_head_003_ready(rag_dsn),
+        retrieval_database_ready(rag_dsn),
+        review_database_ready(review_dsn),
+    )
+
+
+def _cached_database_readiness(
+    rag_dsn: str,
+    review_dsn: str,
+) -> tuple[int, bool, bool, bool]:
+    """Coalescer les rafales de probes et borner leur travail PostgreSQL."""
+    global _database_readiness_cache
+    now = time.monotonic()
+    with _database_readiness_cache_lock:
+        cached = _database_readiness_cache
+        if (
+            cached is not None
+            and cached[0] == rag_dsn
+            and cached[1] == review_dsn
+            and now < cached[2]
+        ):
+            if cached[3] is None:
+                raise RuntimeError("database readiness unavailable")
+            return cached[3]
+
+        try:
+            readiness = _probe_database_readiness(rag_dsn, review_dsn)
+        except Exception:
+            _database_readiness_cache = (
+                rag_dsn,
+                review_dsn,
+                now + _READINESS_CACHE_TTL_S,
+                None,
+            )
+            raise
+
+        _database_readiness_cache = (
+            rag_dsn,
+            review_dsn,
+            now + _READINESS_CACHE_TTL_S,
+            readiness,
+        )
+        return readiness
+
+
 @asynccontextmanager
 async def _app_lifespan(_app: FastAPI) -> AsyncIterator[None]:
     global _model_artifact_attestations
     try:
+        _reset_database_readiness_cache()
         _model_artifact_attestations = _initialize_model_artifacts()
         yield
     finally:
         _model_artifact_attestations = None
+        _reset_database_readiness_cache()
         close_pool()
 
 
@@ -191,11 +258,13 @@ def health_check() -> dict[str, str | int]:
     try:
         model = declared_embedding_model()
         declared_dim = declared_embedding_dim()
-        database_dim = pgvector_dimension(rag_dsn)
-        schema_ready = schema_head_003_ready(rag_dsn)
-        retrieval_ready = retrieval_database_ready(rag_dsn)
-        review_ready = review_database_ready(review_dsn)
         model_artifacts_ready = _model_artifacts_ready()
+        (
+            database_dim,
+            schema_ready,
+            retrieval_ready,
+            review_ready,
+        ) = _cached_database_readiness(rag_dsn, review_dsn)
     except Exception as exc:
         raise HTTPException(status_code=503, detail="service unavailable") from exc
     if (

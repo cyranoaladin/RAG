@@ -23,6 +23,13 @@ V2_ENV_EXAMPLE = ENGINE_ROOT / "infra" / ".env.example"
 MAKEFILE = ENGINE_ROOT / "Makefile"
 
 
+@pytest.fixture(autouse=True)
+def _clear_database_readiness_cache() -> None:
+    api_v2._reset_database_readiness_cache()
+    yield
+    api_v2._reset_database_readiness_cache()
+
+
 def _docker_context_copy_sources(instruction: str) -> set[str]:
     """Retourner uniquement les sources COPY venant du contexte de build."""
     tokens = shlex.split(instruction)
@@ -141,6 +148,66 @@ def test_health_is_ready_only_for_schema_003_and_canonical_embedding(
         "embedding_dim_declared": 1024,
         "pgvector_dim": 1024,
     }
+
+
+def test_health_caches_deep_database_readiness_for_a_bounded_interval(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Une rafale de sondes ne doit ouvrir qu'un cycle de connexions profond."""
+    monkeypatch.setenv("PG_RAG_DSN", "postgresql://reader")
+    monkeypatch.setenv("PG_REVIEW_DSN", "postgresql://reviewer")
+    calls: list[str] = []
+    now = [100.0]
+    monkeypatch.setattr(api_v2.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(
+        api_v2,
+        "declared_embedding_model",
+        lambda: api_v2.CANONICAL_EMBED_MODEL,
+    )
+    monkeypatch.setattr(
+        api_v2,
+        "declared_embedding_dim",
+        lambda: api_v2.CANONICAL_EMBED_DIM,
+    )
+    monkeypatch.setattr(
+        api_v2,
+        "pgvector_dimension",
+        lambda _dsn: calls.append("dimension") or api_v2.CANONICAL_EMBED_DIM,
+    )
+    monkeypatch.setattr(
+        api_v2,
+        "schema_head_003_ready",
+        lambda _dsn: calls.append("schema") or True,
+    )
+    monkeypatch.setattr(
+        api_v2,
+        "retrieval_database_ready",
+        lambda _dsn: calls.append("retrieval") or True,
+    )
+    monkeypatch.setattr(
+        api_v2,
+        "review_database_ready",
+        lambda _dsn: calls.append("review") or True,
+    )
+    monkeypatch.setattr(api_v2, "_model_artifacts_ready", lambda: True)
+
+    client = TestClient(api_v2.app)
+    assert client.get("/health").status_code == 200
+    assert client.get("/health").status_code == 200
+    assert calls == ["dimension", "schema", "retrieval", "review"]
+
+    now[0] += api_v2._READINESS_CACHE_TTL_S + 0.001
+    assert client.get("/health").status_code == 200
+    assert calls == [
+        "dimension",
+        "schema",
+        "retrieval",
+        "review",
+        "dimension",
+        "schema",
+        "retrieval",
+        "review",
+    ]
 
 
 @pytest.mark.parametrize(
