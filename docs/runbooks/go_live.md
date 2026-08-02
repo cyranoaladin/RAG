@@ -155,13 +155,19 @@ Cette cible utilise `docker compose up -d --build --wait`. Un service unhealthy
 fait échouer la commande ; aucun délai arbitraire ni succès de substitution
 n'est accepté.
 
-Chaque worker rehache intégralement les deux artefacts pendant son démarrage,
-avant d'accepter du trafic. Les probes publiques suivantes comparent à coût
+Le processus Uvicorn unique rehache intégralement les deux artefacts pendant son
+démarrage, avant d'accepter du trafic. Les sondes internes suivantes comparent à coût
 borné l'ancre de l'inventaire et les métadonnées attestées ; elles ne relisent
 jamais les poids multi-gigaoctets. Le premier chargement du modèle refait la
 preuve cryptographique complète. Une modification d'artefact exige un nouveau
 déploiement ; ne jamais remplacer les poids sous un conteneur en cours
 d'exécution.
+
+La readiness PostgreSQL profonde est protégée par un verrou process-local et
+un cache positif ou négatif de cinq secondes. Le runtime canonique fixe Uvicorn
+à un worker afin que les compteurs Prometheus soient complets et monotones. Ne
+pas augmenter ce nombre : pour scaler, déployer des réplicas avec une solution
+d'agrégation Prometheus explicitement qualifiée.
 
 Contrôles locaux :
 
@@ -197,6 +203,7 @@ les variables natives Nginx telles que `$binary_remote_addr` et `$request_uri`.
 Le proxy public doit :
 
 - transmettre seulement les neuf routes exactes du runtime ;
+- limiter `/health` aux adresses loopback ;
 - limiter `/metrics` aux adresses loopback ;
 - rendre `410` sur les chemins legacy explicitement révoqués ;
 - rendre `404` pour tout autre chemin ;

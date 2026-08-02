@@ -349,6 +349,17 @@ prouvé `POSTGRES_COMPLETE_SCHEMA_HEALTH=PASS`, puis le healthcheck a refusé la
 suppression de `idx_rag_chunks_text_tsv` avant de repasser vert après sa
 restauration.
 
+La revue du head `e04180a` a encore identifié deux risques opérationnels
+valides. Une rafale sur `/health` pouvait lancer quatre connexions PostgreSQL
+par requête, et quatre workers Uvicorn exposaient quatre registres Prometheus
+indépendants derrière un seul endpoint. Le commit `4795dfc` coalesce désormais
+les sondes profondes sous verrou, conserve les résultats positifs comme
+négatifs pendant cinq secondes, limite `/health` au loopback dans les deux
+vhosts et fixe le runtime canonique à un worker. Les compteurs sont ainsi
+complets pour le processus servi ; toute montée en charge horizontale devra
+ajouter une agrégation Prometheus qualifiée. Le cycle TDD a d'abord produit
+quatre échecs, puis les 42 tests runtime/proxy ciblés, Ruff et `mypy` sont verts.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -400,6 +411,7 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `54aa9b2` | documentation du cycle final de revue |
 | `058a810` | isolation de la fixture du cycle de vie FastAPI |
 | `5f9af0b` | schéma retrieval complet, grants `INSERT` et métriques bornées |
+| `4795dfc` | santé PostgreSQL coalescée et métriques mono-processus |
 
 ## Décision de livraison
 

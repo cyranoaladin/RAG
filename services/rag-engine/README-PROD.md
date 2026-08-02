@@ -11,10 +11,15 @@ signée.
 Les modèles d'embedding et de reranking sont des artefacts préprovisionnés,
 montés en lecture seule. Le runtime impose `local_files_only` et les modes
 Hugging Face/Transformers hors-ligne ; il ne télécharge aucun modèle au
-démarrage ni sur une requête. Chaque worker vérifie intégralement leur manifeste
+démarrage ni sur une requête. Le processus canonique unique vérifie intégralement leur manifeste
 canonique, leurs poids et leur inventaire SHA-256 avant d'accepter du trafic ;
 `/health` contrôle ensuite une attestation bornée sans rehacher les poids, puis
 prouve aussi la connexion et les privilèges minimaux du rôle `PG_REVIEW_DSN`.
+La sonde profonde est coalescée et mémorisée cinq secondes : une rafale ne peut
+ouvrir qu'un cycle de connexions PostgreSQL. Les vhosts limitent `/health` et
+`/metrics` au loopback. Uvicorn reste à un worker, car le registre Prometheus
+est process-local ; toute montée en charge devra employer des réplicas derrière
+un agrégateur de métriques.
 Les empreintes attendues de
 `SHA256SUMS` sont fournies séparément par
 `RAG_EMBEDDING_MODEL_INVENTORY_SHA256` et

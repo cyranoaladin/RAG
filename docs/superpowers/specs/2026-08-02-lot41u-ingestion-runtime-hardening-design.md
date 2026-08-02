@@ -93,17 +93,22 @@ Une configuration, un schéma ou un rôle incomplet ou sur-privilégié retourne
 `503` générique ; aucune reprise sur le DSN propriétaire `DATABASE_URL_SYNC`
 n'est admise. Le Compose exige explicitement `PG_RAG_DSN` et `PG_REVIEW_DSN`.
 Les connexions de santé ont un délai de connexion et un `statement_timeout`
-bornés. Avant d'accepter le trafic, chaque worker vérifie pour les deux modèles
+bornés. Un verrou et un cache positif ou négatif de cinq secondes coalescent les
+appels concurrents en un seul cycle de probes PostgreSQL. Avant d'accepter le
+trafic, le processus Uvicorn canonique unique vérifie pour les deux modèles
 le manifeste canonique, la présence de la configuration et des poids, l'absence
 de symlink ou de fichier non inventorié et tous les SHA-256. Il mémorise ensuite
 une attestation locale des métadonnées de chaque entrée et de l'ancre externe.
-La route publique `/health` ne rehache jamais les poids : elle compare l'ancre
+La route interne `/health`, limitée au loopback par les deux vhosts, ne rehache
+jamais les poids : elle compare l'ancre
 en mémoire et les métadonnées attestées, ce qui détecte
 les remplacements, ajouts ou suppressions usuels sans transformer les probes en
 amplification d'I/O. Le chargement initial d'un modèle refait la preuve
 cryptographique complète.
 Les modèles sont chargés avec `local_files_only`, sans téléchargement au
-démarrage ni sur une requête.
+démarrage ni sur une requête. Le runtime reste à un worker parce que son
+registre Prometheus est process-local ; une capacité horizontale exige des
+réplicas et une agrégation qualifiée.
 
 ## Surface autorisée
 
@@ -120,7 +125,8 @@ Le reverse proxy v2 transmet exclusivement :
 - `POST /review/v2/decide`.
 
 Les routes métier conservent leurs contrôles BFF et d'identité signée. La santé
-et les métriques ne révèlent ni DSN, ni secret, ni contenu. Un middleware
+et les métriques, accessibles seulement depuis le loopback au proxy, ne
+révèlent ni DSN, ni secret, ni contenu. Un middleware
 observe codes HTTP et latences sur une liste de chemins bornée ; toute URL non
 montée utilise le seul label `unmatched` et toute méthode non standard le seul
 label `other`. Les routes cache,
