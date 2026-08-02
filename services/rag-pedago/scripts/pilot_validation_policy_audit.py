@@ -80,7 +80,7 @@ def _success_report(
             f"- Taxonomie `{subject.subject}`: `{subject.taxonomy_sha256}`"
         )
     notions_count = sum(len(subject.notions) for subject in scope.subjects)
-    lines.append(f"- Couverture: {notions_count} notions")
+    lines.append(f"- Cardinalité du scope taxonomique: {notions_count} notions")
     for capability in type(policy.capabilities).model_fields:
         lines.append(f"- Capacité `{capability}`: fermée")
     lines.append("- GO_LIVE: NO_GO")

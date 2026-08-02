@@ -137,11 +137,33 @@ def _evaluate(
     )
 
 
-def test_future_activation_loaded_from_yaml_is_authorized() -> None:
+def test_local_yaml_claims_never_grant_authority() -> None:
     decision = _evaluate()
 
-    assert decision.allowed is True
-    assert decision.reasons == ()
+    assert decision.allowed is False
+    assert decision.reasons == (
+        "approval.trusted_channel_unavailable",
+        "package.scope_attestation_unavailable",
+        "package.trusted_attestations_unavailable",
+    )
+
+
+def test_local_in_memory_claims_never_grant_authority() -> None:
+    decision = _evaluate(
+        scope=governance.load_scope(SCOPE_PATH),
+        base_policy=governance.load_policy(BASE_POLICY_PATH),
+        activation_policy=governance.load_policy(ACTIVATION_PATH),
+        authorization=governance.load_authorization(AUTHORIZATION_PATH),
+        approval=governance.load_approval_evidence(APPROVAL_PATH),
+        package=governance.load_publication_package(PACKAGE_PATH),
+    )
+
+    assert decision.allowed is False
+    assert decision.reasons == (
+        "approval.trusted_channel_unavailable",
+        "package.scope_attestation_unavailable",
+        "package.trusted_attestations_unavailable",
+    )
 
 
 def test_canonical_lot38_policy_remains_closed() -> None:
@@ -265,7 +287,8 @@ class TestAuthorityEvidence:
         approval = governance.load_approval_evidence(APPROVAL_PATH)
         decision = _evaluate()
 
-        assert decision.allowed is True
+        assert decision.allowed is False
+        assert "approval.trusted_channel_unavailable" in decision.reasons
         assert approval.referenced_lot41_sha == authorization.lot41_sha
         assert approval.head_sha == approval.approved_head_sha
         assert approval.head_sha != authorization.lot41_sha
@@ -285,6 +308,9 @@ class TestAuthorityEvidence:
         assert decision.reasons == (
             "approval.head_sha_null",
             "approval.approved_head_sha_null",
+            "approval.trusted_channel_unavailable",
+            "package.scope_attestation_unavailable",
+            "package.trusted_attestations_unavailable",
         )
 
     @pytest.mark.parametrize(
@@ -476,6 +502,9 @@ class TestScopeAndIdentityRefutations:
         assert decision.reasons == (
             "base_policy.invalid:policy.public_lock_mismatch:ui_runtime_allowed",
             "activation_policy.invalid:policy.public_lock_mismatch:ui_runtime_allowed",
+            "approval.trusted_channel_unavailable",
+            "package.scope_attestation_unavailable",
+            "package.trusted_attestations_unavailable",
         )
 
     @pytest.mark.parametrize("contract_content", [None, "contract: [", "- not-a-mapping\n"])
@@ -500,6 +529,9 @@ class TestScopeAndIdentityRefutations:
         assert decision.reasons == (
             "base_policy.invalid:policy.public_contract_invalid",
             "activation_policy.invalid:policy.public_contract_invalid",
+            "approval.trusted_channel_unavailable",
+            "package.scope_attestation_unavailable",
+            "package.trusted_attestations_unavailable",
         )
 
     def test_refuses_wrong_tenant(self) -> None:
@@ -727,8 +759,26 @@ class TestPublicationChain:
             ),
         )
 
-        assert decision.allowed is True
-        assert decision.reasons == ()
+        assert decision.allowed is False
+        assert decision.reasons == ("approval.trusted_channel_unavailable",)
+
+    def test_content_for_another_scope_cannot_authorize_publication(self) -> None:
+        content = '{"tenant":"aefe_terminale","collection":"rag_nexus_intruse"}'
+        package = governance.load_publication_package(PACKAGE_PATH).model_copy(
+            update={
+                "content": content,
+                "content_sha256": sha256(content.encode("utf-8")).hexdigest(),
+            }
+        )
+
+        decision = _evaluate(package=package)
+
+        assert decision.allowed is False
+        assert decision.reasons == (
+            "approval.trusted_channel_unavailable",
+            "package.scope_attestation_unavailable",
+            "package.trusted_attestations_unavailable",
+        )
 
 
 class TestMalformedInputs:
@@ -845,6 +895,9 @@ class TestMalformedInputs:
         assert decision.reasons == (
             "base_policy.invalid:policy.public_contract_invalid",
             "activation_policy.invalid:policy.public_contract_invalid",
+            "approval.trusted_channel_unavailable",
+            "package.scope_attestation_unavailable",
+            "package.trusted_attestations_unavailable",
         )
 
     @pytest.mark.parametrize(
@@ -940,7 +993,7 @@ class TestMalformedInputs:
         assert decision.allowed is False
         assert "approval.invalid" in decision.reasons
 
-    def test_evaluator_loads_valid_scope_and_policies_from_real_yaml_paths(self) -> None:
+    def test_evaluator_refuses_local_claims_loaded_from_real_yaml_paths(self) -> None:
         decision = governance.evaluate_authorization(
             scope=SCOPE_PATH,
             base_policy=BASE_POLICY_PATH,
@@ -953,8 +1006,12 @@ class TestMalformedInputs:
             service_root=SERVICE_ROOT,
         )
 
-        assert decision.allowed is True
-        assert decision.reasons == ()
+        assert decision.allowed is False
+        assert decision.reasons == (
+            "approval.trusted_channel_unavailable",
+            "package.scope_attestation_unavailable",
+            "package.trusted_attestations_unavailable",
+        )
 
     @pytest.mark.parametrize(
         ("argument", "reason"),
@@ -1509,6 +1566,7 @@ class TestMalformedInputs:
             "capability.closed:validation_pipeline_allowed",
             "authorization.expired",
             "approval.repository_mismatch",
+            "approval.trusted_channel_unavailable",
             "environment.authorization_mismatch",
             "environment.request_mismatch",
             "collections.authorization_mismatch",
@@ -1517,5 +1575,7 @@ class TestMalformedInputs:
             "rights.not_verified",
             "rollback.not_tested",
             "caller.public_forbidden:cockpit",
+            "package.scope_attestation_unavailable",
+            "package.trusted_attestations_unavailable",
             "package.quality_not_passed",
         )

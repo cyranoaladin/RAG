@@ -4,6 +4,8 @@ import ast
 import importlib.util
 import json
 import re
+import subprocess
+import sys
 from hashlib import sha256
 from pathlib import Path
 from typing import Any
@@ -23,6 +25,7 @@ SCRIPT = SERVICE_ROOT / "scripts" / "pilot_golden_spec_audit.py"
 MODULE = SERVICE_ROOT / "rag_pedago" / "governance" / "pilot_golden.py"
 EVIDENCE_REF = "docs/reports/evidence/lot_39bis/golden_human_review_packet.md"
 EVIDENCE = SERVICE_ROOT.parents[1] / EVIDENCE_REF
+LOT39BIS_REPORT = SERVICE_ROOT.parents[1] / "docs" / "reports" / "lot_39bis_golden_suite.md"
 GLOBAL_ATTESTATIONS = (
     "Les 255 textes de requête ont été lus intégralement dans les deux YAML exacts.",
     "Les 255 jugements et attentes pédagogiques ont été lus intégralement et contrôlés.",
@@ -502,11 +505,11 @@ def _mutate_query(root: Path, subject: str, mutation) -> None:  # noqa: ANN001
 
 
 class TestCanonicalSpecification:
-    def test_canonical_specification_and_human_review_are_valid(self) -> None:
+    def test_canonical_specification_is_valid_and_human_review_is_pending(self) -> None:
         result = _audit(SERVICE_ROOT)
 
         assert result.specification_verdict == "SPECIFICATION_VALID"
-        assert result.human_review_verdict == "HUMAN_REVIEW_APPROVED"
+        assert result.human_review_verdict == "HUMAN_REVIEW_PENDING"
         assert result.lock_verdict == "LOCK_VALID"
         assert result.query_count == 255
         assert result.specification_digest is not None
@@ -525,26 +528,17 @@ class TestCanonicalSpecification:
         assert payload["thresholds"] == EXPECTED_THRESHOLDS
         assert payload["normative_files"] == list(NORMATIVE_FILES)
 
-    def test_approved_review_records_exact_external_evidence(self) -> None:
+    def test_canonical_review_is_clean_pending(self) -> None:
         review = _load_yaml(REVIEW)
-        normative_state = pilot_golden.compute_normative_state(
-            SERVICE_ROOT,
-            NORMATIVE_FILES,
-        )
 
-        assert review["status"] == "approved"
-        assert review["reviewed_query_count"] == 255
-        assert review["all_query_texts_reviewed"] is True
-        assert review["all_expected_judgments_reviewed"] is True
-        assert review["reviewer_identity"] == "Alaeddine BEN RHOUMA (@abenrhouma)"
-        assert review["reviewer_role"] == "responsable pédagogique"
-        assert (
-            review["reviewed_specification_digest"]
-            == normative_state.specification_digest
-        )
-        assert review["evidence_ref"] == EVIDENCE_REF
-        assert review["evidence_sha256"] == sha256(EVIDENCE.read_bytes()).hexdigest()
-        assert review["reviewed_at"].isoformat() == "2026-08-01T07:34:20+00:00"
+        assert review == _review_document()
+
+    def test_offline_audit_cannot_expose_an_approved_human_verdict(self) -> None:
+        schema = pilot_golden.PilotGoldenAuditResult.model_json_schema()
+        verdicts = schema["properties"]["human_review_verdict"]["enum"]
+
+        assert verdicts == ["HUMAN_REVIEW_PENDING", "HUMAN_REVIEW_INVALID"]
+        assert "HUMAN_REVIEW_APPROVED" not in MODULE.read_text(encoding="utf-8")
 
     def test_normative_digest_is_deterministic_and_addresses_every_file(
         self,
@@ -1428,13 +1422,24 @@ class TestManifestScopeThresholdsAndPaths:
 
 
 class TestHumanReviewVerdict:
-    def test_canonical_packet_contains_exact_unique_approval_status(self) -> None:
+    def test_canonical_packet_exposes_only_a_pending_current_status(self) -> None:
         content = EVIDENCE.read_text(encoding="utf-8")
-        approved_line = "> **Statut : APPROVED — revue humaine exhaustive.**"
+        current_pending = (
+            "> **Statut actuel : PENDING — aucune approbation authentifiée.**"
+        )
 
-        assert [line for line in content.splitlines() if "**Statut :" in line] == [
-            approved_line
+        assert [line for line in content.splitlines() if "**Statut actuel :" in line] == [
+            current_pending
         ]
+        assert "> **Statut : APPROVED" not in content
+        assert (
+            "> **Statut historiquement déclaré : APPROVED — "
+            "revue humaine exhaustive.**"
+        ) in content
+        assert "## Déclaration historique non authentifiée — sans autorité" in content
+        assert "Identité historiquement déclarée" in content
+        assert "Checklist historique — cases déclarées, non authentifiées" in content
+        assert "84821b240776bea74baebb078d3b7b5d4e29945a" in content
 
     def test_pending_review_is_valid_state_but_not_an_approval(self, tmp_path: Path) -> None:
         result = _audit(_isolated_service(tmp_path))
@@ -1464,7 +1469,7 @@ class TestHumanReviewVerdict:
         assert result.human_review_verdict == "HUMAN_REVIEW_INVALID"
         assert "human_review.approval_invalid" in result.reasons
 
-    def test_complete_external_approval_must_match_normative_digest(
+    def test_complete_local_approval_claim_stays_pending_without_trusted_channel(
         self,
         tmp_path: Path,
     ) -> None:
@@ -1478,10 +1483,11 @@ class TestHumanReviewVerdict:
 
         result = _audit(root)
 
-        assert result.human_review_verdict == "HUMAN_REVIEW_APPROVED"
+        assert result.human_review_verdict == "HUMAN_REVIEW_PENDING"
+        assert "human_review.trusted_channel_unavailable" in result.reasons
         assert "human_review.approval_invalid" not in result.reasons
 
-    def test_complete_external_approval_accepts_declared_human_role(
+    def test_complete_local_claim_validates_declared_role_without_authenticating_it(
         self,
         tmp_path: Path,
     ) -> None:
@@ -1504,7 +1510,8 @@ class TestHumanReviewVerdict:
 
         result = _audit(root)
 
-        assert result.human_review_verdict == "HUMAN_REVIEW_APPROVED"
+        assert result.human_review_verdict == "HUMAN_REVIEW_PENDING"
+        assert "human_review.trusted_channel_unavailable" in result.reasons
         assert "human_review.approval_invalid" not in result.reasons
 
     def test_one_line_evidence_never_approves_255_queries(self, tmp_path: Path) -> None:
@@ -1794,6 +1801,39 @@ class TestHumanReviewVerdict:
 
 
 class TestDiagnosticSurface:
+    def test_lot39bis_report_marks_superseded_approval_claims_as_historical(self) -> None:
+        content = LOT39BIS_REPORT.read_text(encoding="utf-8")
+
+        assert (
+            "https://github.com/cyranoaladin/RAG/blob/"
+            "84821b240776bea74baebb078d3b7b5d4e29945a/"
+            "docs/reports/evidence/lot_39bis/golden_human_review_packet.md"
+        ) in content
+        assert "## Vérifications et matrice de preuve historiques — supplantées par LOT41T" in content
+        assert "revendication historique : `HUMAN_REVIEW_APPROVED`" in content
+        assert "NON AUTHENTIFIÉE — aucune autorité démontrée" in content
+        assert re.search(r"manifeste déclaré\s+approuvé", content)
+        assert re.search(r"paquet humain déclaré\s+signé", content)
+        assert "## Décision de livraison historique — exécutée puis supplantée" in content
+        assert "## Décision de livraison\n" not in content
+        assert "LOT39bis est livrable et prêt" not in content
+
+    def test_historical_packet_has_visible_dated_non_authoritative_banner(self) -> None:
+        content = EVIDENCE.read_text(encoding="utf-8")
+
+        assert "REVENDICATION HISTORIQUE NON AUTHENTIFIÉE — NE VAUT PAS APPROBATION" in content
+        assert "2026-08-02" in content
+        assert "LOT41T" in content
+        assert "PR #82" in content
+        assert "head final" in content
+        identifier_checkboxes = re.findall(
+            r"^- \[[ xX]\] `([^`\r\n]+)`\s*$",
+            content,
+            flags=re.MULTILINE,
+        )
+        assert len(identifier_checkboxes) == 255
+        assert len(set(identifier_checkboxes)) == 255
+
     def test_make_target_is_exactly_safe_diagnostic(self) -> None:
         makefile = MAKEFILE.read_text(encoding="utf-8")
         safety = _load_yaml(MAKE_SAFETY)
@@ -1869,8 +1909,24 @@ class TestDiagnosticSurface:
         status = module.main([])
         captured = capsys.readouterr()
 
-        assert status == 0
+        assert status == 3
         assert "SPECIFICATION_VALID" in captured.out
-        assert "HUMAN_REVIEW_APPROVED" in captured.out
+        assert "HUMAN_REVIEW_PENDING" in captured.out
         assert "GO_LIVE: NO_GO" in captured.out
         assert captured.err == ""
+
+    def test_direct_cli_rejects_unexpected_argument_without_running_audit(self) -> None:
+        completed = subprocess.run(
+            [sys.executable, str(SCRIPT), "unexpected"],
+            cwd=SERVICE_ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=30,
+        )
+
+        assert completed.returncode == 2
+        assert completed.stdout == ""
+        assert "unexpected_argument" in completed.stderr
+        assert "SPECIFICATION_VALID" not in completed.stderr
+        assert "HUMAN_REVIEW" not in completed.stderr

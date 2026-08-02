@@ -739,7 +739,6 @@ class PilotGoldenAuditResult(_StrictModel):
 
     specification_verdict: Literal["SPECIFICATION_VALID", "SPECIFICATION_INVALID"]
     human_review_verdict: Literal[
-        "HUMAN_REVIEW_APPROVED",
         "HUMAN_REVIEW_PENDING",
         "HUMAN_REVIEW_INVALID",
     ]
@@ -1629,7 +1628,6 @@ def _human_review_verdict(
     expected_query_ids: tuple[str, ...],
     reasons: list[str],
 ) -> Literal[
-    "HUMAN_REVIEW_APPROVED",
     "HUMAN_REVIEW_PENDING",
     "HUMAN_REVIEW_INVALID",
 ]:
@@ -1691,7 +1689,8 @@ def _human_review_verdict(
         and isinstance(review.reviewed_at, datetime)
     )
     if approval_is_complete:
-        return "HUMAN_REVIEW_APPROVED"
+        reasons.append("human_review.trusted_channel_unavailable")
+        return "HUMAN_REVIEW_PENDING"
     reasons.append("human_review.approval_invalid")
     return "HUMAN_REVIEW_INVALID"
 

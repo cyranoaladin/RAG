@@ -1,5 +1,15 @@
 # LOT38 — Transition de gouvernance du pilote
 
+## Erratum LOT41T — 2026-08-02
+
+Cet erratum prime sur les déclarations historiques concernées ci-dessous sans
+modifier les résultats ni les SHA alors observés. Les tests LOT38 validaient la
+structure et la cohérence interne de revendications locales ; ils ne prouvaient
+ni une autorité GitHub authentifiée, ni la liaison du contenu du package à son
+scope autorisé, ni des attestations `quality → gate → review` indépendantes.
+Ces artefacts ne peuvent donc ouvrir aucune transition et LOT41T les traite
+désormais explicitement en échec fermé.
+
 ## Verdict
 
 **LOT38_LOCAL_CI_GREEN_AWAITING_REVIEWS_AND_CHECKS**
