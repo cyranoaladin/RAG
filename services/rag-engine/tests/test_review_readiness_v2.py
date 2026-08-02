@@ -22,6 +22,7 @@ EXPECTED_REVIEW_PRIVILEGES = (
     False,
     False,
     False,
+    False,
     True,
     False,
     False,
@@ -99,6 +100,8 @@ def test_review_database_ready_proves_the_exact_least_privilege_contract(
     assert "HAS_TABLE_PRIVILEGE" in normalized
     assert "HAS_COLUMN_PRIVILEGE" in normalized
     assert "PG_HAS_ROLE" in normalized
+    assert "'MEMBER'" in normalized
+    assert "REACHABLE_ROLE" in normalized
     assert "HAS_SCHEMA_PRIVILEGE" in normalized
     assert "HAS_DATABASE_PRIVILEGE" in normalized
     assert "REVIEW_STATUS" in normalized

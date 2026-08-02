@@ -23,6 +23,37 @@ V2_ENV_EXAMPLE = ENGINE_ROOT / "infra" / ".env.example"
 MAKEFILE = ENGINE_ROOT / "Makefile"
 
 
+def _docker_context_copy_sources(instruction: str) -> set[str]:
+    """Retourner uniquement les sources COPY venant du contexte de build."""
+    tokens = shlex.split(instruction)
+    if not tokens or tokens[0].upper() != "COPY":
+        return set()
+
+    operands: list[str] = []
+    from_stage = False
+    index = 1
+    while index < len(tokens):
+        token = tokens[index]
+        if token.startswith("--from="):
+            from_stage = True
+        elif token == "--from":
+            from_stage = True
+            index += 1
+        elif token in {"--chown", "--chmod", "--exclude"}:
+            index += 1
+        elif token.startswith(("--chown=", "--chmod=", "--exclude=")):
+            pass
+        elif token.startswith("--"):
+            pass
+        else:
+            operands.append(token)
+        index += 1
+
+    if from_stage or len(operands) < 2:
+        return set()
+    return {source.rstrip("/") for source in operands[:-1]}
+
+
 def test_adr_closes_ungoverned_v2_ingestion() -> None:
     assert ADR.is_file()
     content = ADR.read_text(encoding="utf-8")
@@ -83,16 +114,7 @@ def test_health_is_ready_only_for_schema_003_and_canonical_embedding(
     monkeypatch.setattr(api_v2, "schema_head_003_ready", lambda _dsn: True)
     monkeypatch.setattr(api_v2, "retrieval_database_ready", lambda _dsn: True)
     monkeypatch.setattr(api_v2, "review_database_ready", lambda _dsn: True)
-    monkeypatch.setattr(
-        api_v2,
-        "verify_configured_embedding_artifact",
-        lambda: Path("/models/e5-large"),
-    )
-    monkeypatch.setattr(
-        api_v2,
-        "verify_configured_reranker_artifact",
-        lambda: Path("/models/reranker"),
-    )
+    monkeypatch.setattr(api_v2, "_model_artifacts_ready", lambda: True)
     monkeypatch.setattr(
         api_v2,
         "declared_embedding_model",
@@ -131,8 +153,7 @@ def test_health_is_ready_only_for_schema_003_and_canonical_embedding(
         "rag_database",
         "retrieval_privileges",
         "review_database",
-        "embedding_artifact",
-        "reranker_artifact",
+        "model_artifacts",
     ),
 )
 def test_health_fails_closed_without_internal_details(
@@ -144,16 +165,7 @@ def test_health_fails_closed_without_internal_details(
     monkeypatch.setattr(api_v2, "schema_head_003_ready", lambda _dsn: True)
     monkeypatch.setattr(api_v2, "retrieval_database_ready", lambda _dsn: True)
     monkeypatch.setattr(api_v2, "review_database_ready", lambda _dsn: True)
-    monkeypatch.setattr(
-        api_v2,
-        "verify_configured_embedding_artifact",
-        lambda: Path("/models/e5-large"),
-    )
-    monkeypatch.setattr(
-        api_v2,
-        "verify_configured_reranker_artifact",
-        lambda: Path("/models/reranker"),
-    )
+    monkeypatch.setattr(api_v2, "_model_artifacts_ready", lambda: True)
     monkeypatch.setattr(
         api_v2,
         "declared_embedding_model",
@@ -187,18 +199,8 @@ def test_health_fails_closed_without_internal_details(
         monkeypatch.setattr(api_v2, "retrieval_database_ready", lambda _dsn: False)
     elif failure == "review_database":
         monkeypatch.setattr(api_v2, "review_database_ready", lambda _dsn: False)
-    elif failure == "embedding_artifact":
-        monkeypatch.setattr(
-            api_v2,
-            "verify_configured_embedding_artifact",
-            lambda: (_ for _ in ()).throw(RuntimeError("private artifact failure")),
-        )
     else:
-        monkeypatch.setattr(
-            api_v2,
-            "verify_configured_reranker_artifact",
-            lambda: (_ for _ in ()).throw(RuntimeError("private artifact failure")),
-        )
+        monkeypatch.setattr(api_v2, "_model_artifacts_ready", lambda: False)
 
     response = TestClient(api_v2.app).get("/health")
 
@@ -208,6 +210,66 @@ def test_health_fails_closed_without_internal_details(
     assert "secret-reviewer" not in response.text
     assert "private database" not in response.text
     assert "private artifact" not in response.text
+
+
+def test_model_artifacts_are_fully_hashed_at_startup_not_on_public_health(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+    embedding_root = Path("/models/e5-large")
+    reranker_root = Path("/models/reranker")
+    embedding_attestation = object()
+    reranker_attestation = object()
+    monkeypatch.setenv("RAG_EMBEDDING_MODEL_INVENTORY_SHA256", "1" * 64)
+    monkeypatch.setenv("RAG_RERANKER_MODEL_INVENTORY_SHA256", "2" * 64)
+    monkeypatch.setattr(
+        api_v2,
+        "verify_configured_embedding_artifact",
+        lambda: calls.append("hash_embedding") or embedding_root,
+    )
+    monkeypatch.setattr(
+        api_v2,
+        "verify_configured_reranker_artifact",
+        lambda: calls.append("hash_reranker") or reranker_root,
+    )
+
+    def attest(root: Path, *, expected_inventory_sha256: str) -> object:
+        calls.append(f"attest:{root}:{expected_inventory_sha256}")
+        return (
+            embedding_attestation
+            if root == embedding_root
+            else reranker_attestation
+        )
+
+    monkeypatch.setattr(api_v2, "attest_verified_model_artifact", attest)
+
+    assert api_v2._initialize_model_artifacts() == (
+        embedding_attestation,
+        reranker_attestation,
+    )
+    assert calls == [
+        "hash_embedding",
+        "hash_reranker",
+        f"attest:{embedding_root}:{'1' * 64}",
+        f"attest:{reranker_root}:{'2' * 64}",
+    ]
+
+
+def test_lifespan_installs_then_clears_the_startup_attestations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attestations = (object(), object())
+    monkeypatch.setattr(
+        api_v2,
+        "_initialize_model_artifacts",
+        lambda: attestations,
+    )
+    monkeypatch.setattr(api_v2, "close_pool", lambda: None)
+
+    with TestClient(api_v2.app):
+        assert api_v2._model_artifact_attestations == attestations
+
+    assert api_v2._model_artifact_attestations is None
 
 
 def test_v2_middleware_records_bounded_request_metrics(
@@ -300,12 +362,28 @@ def test_v2_docker_context_allowlist_contains_every_explicit_copy_source() -> No
     for line in V2_DOCKERFILE.read_text(encoding="utf-8").splitlines():
         if not line.lstrip().upper().startswith("COPY "):
             continue
-        tokens = shlex.split(line)
-        operands = [token for token in tokens[1:] if not token.startswith("--")]
-        copy_sources.update(source.rstrip("/") for source in operands[:-1])
+        copy_sources.update(_docker_context_copy_sources(line))
 
     assert copy_sources
     assert copy_sources <= allowlist
+
+
+@pytest.mark.parametrize(
+    ("instruction", "expected"),
+    (
+        ("COPY --chown=1000:1000 src/a.py src/b.py /app/", {"src/a.py", "src/b.py"}),
+        ("COPY --chmod 0444 src/config.yml /app/config.yml", {"src/config.yml"}),
+        ("COPY --link src/package /app/package", {"src/package"}),
+        ("COPY --parents src/package /app/package", {"src/package"}),
+        ("COPY --from=builder /wheel.whl /tmp/wheel.whl", set()),
+        ("COPY --from builder /wheel.whl /tmp/wheel.whl", set()),
+    ),
+)
+def test_docker_copy_parser_ignores_flags_and_stage_sources(
+    instruction: str,
+    expected: set[str],
+) -> None:
+    assert _docker_context_copy_sources(instruction) == expected
 
 
 def test_v2_runtime_dependencies_exclude_writer_and_remote_source_stacks() -> None:

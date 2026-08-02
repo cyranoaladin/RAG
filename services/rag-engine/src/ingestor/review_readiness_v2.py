@@ -28,6 +28,7 @@ _REQUIRED_REVIEW_PRIVILEGES: Final = (
     True,  # UPDATE limité à review_status
     True,  # aucune autre colonne modifiable
     False,  # aucune appartenance au rôle propriétaire
+    False,  # aucun rôle atteignable par SET ROLE
     False,  # pas superuser
     False,  # pas CREATEDB
     False,  # pas CREATEROLE
@@ -63,7 +64,13 @@ SELECT
               'UPDATE'
           )
     ),
-    pg_has_role(current_user, tableowner, 'USAGE'),
+    pg_has_role(current_user, tableowner, 'MEMBER'),
+    EXISTS (
+        SELECT 1
+        FROM pg_roles AS reachable_role
+        WHERE reachable_role.oid <> current_user::regrole
+          AND pg_has_role(current_user, reachable_role.oid, 'MEMBER')
+    ),
     rolsuper,
     rolcreatedb,
     rolcreaterole,

@@ -36,6 +36,7 @@ _REQUIRED_RETRIEVAL_PRIVILEGES: Final = (
     False,  # pas de TRIGGER sur le registre
     False,  # aucune appartenance au propriétaire de rag_chunks
     False,  # aucune appartenance au propriétaire du registre
+    False,  # aucun rôle atteignable par SET ROLE
     False,  # pas superuser
     False,  # pas CREATEDB
     False,  # pas CREATEROLE
@@ -140,7 +141,7 @@ SELECT
             FROM pg_tables
             WHERE schemaname = 'public' AND tablename = 'rag_chunks'
         ),
-        'USAGE'
+        'MEMBER'
     ),
     pg_has_role(
         current_user,
@@ -149,7 +150,13 @@ SELECT
             FROM pg_tables
             WHERE schemaname = 'public' AND tablename = 'rag_schema_migrations'
         ),
-        'USAGE'
+        'MEMBER'
+    ),
+    EXISTS (
+        SELECT 1
+        FROM pg_roles AS reachable_role
+        WHERE reachable_role.oid <> current_user::regrole
+          AND pg_has_role(current_user, reachable_role.oid, 'MEMBER')
     ),
     rolsuper,
     rolcreatedb,

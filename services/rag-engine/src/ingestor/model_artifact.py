@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import re
+import stat
 from collections.abc import Mapping
+from dataclasses import dataclass
 from hashlib import sha256
 from hmac import compare_digest
 from pathlib import Path
@@ -16,10 +18,53 @@ class ModelArtifactError(RuntimeError):
 
 
 _CHECKSUM_LINE = re.compile(r"(?P<digest>[0-9a-f]{64})  (?P<path>[^\r\n]+)")
+_MAX_HEALTH_INVENTORY_BYTES = 16 * 1024 * 1024
+_MAX_HEALTH_ENTRIES = 10_000
+
+
+@dataclass(frozen=True)
+class _ArtifactEntryState:
+    relative_path: str
+    device: int
+    inode: int
+    mode: int
+    size: int
+    mtime_ns: int
+
+
+@dataclass(frozen=True)
+class ModelArtifactAttestation:
+    """État borné d'un artefact intégralement vérifié au démarrage."""
+
+    root: Path
+    inventory_sha256: str
+    entries: tuple[_ArtifactEntryState, ...]
 
 
 def _fail_invalid() -> NoReturn:
     raise ModelArtifactError("MODEL_ARTIFACT_INVALID")
+
+
+def _entry_state(path: Path, relative_path: str) -> _ArtifactEntryState:
+    metadata = path.lstat()
+    if stat.S_ISLNK(metadata.st_mode):
+        _fail_invalid()
+    return _ArtifactEntryState(
+        relative_path=relative_path,
+        device=metadata.st_dev,
+        inode=metadata.st_ino,
+        mode=metadata.st_mode,
+        size=metadata.st_size,
+        mtime_ns=metadata.st_mtime_ns,
+    )
+
+
+def _read_bounded_inventory(path: Path) -> bytes:
+    with path.open("rb") as handle:
+        content = handle.read(_MAX_HEALTH_INVENTORY_BYTES + 1)
+    if len(content) > _MAX_HEALTH_INVENTORY_BYTES:
+        _fail_invalid()
+    return content
 
 
 def verify_model_artifact(
@@ -107,4 +152,79 @@ def verify_model_artifact(
     return root
 
 
-__all__ = ["ModelArtifactError", "verify_model_artifact"]
+def attest_verified_model_artifact(
+    artifact_root: Path,
+    *,
+    expected_inventory_sha256: str,
+) -> ModelArtifactAttestation:
+    """Mémoriser les métadonnées d'un artefact déjà haché intégralement.
+
+    Le résultat permet à une sonde publique de détecter les remplacements,
+    ajouts et suppressions usuels sans relire les poids potentiellement
+    multi-gigaoctets. Les montages de production restent obligatoirement en
+    lecture seule ; le chargement du modèle refait la preuve cryptographique.
+    """
+    if re.fullmatch(r"[0-9a-f]{64}", expected_inventory_sha256) is None:
+        _fail_invalid()
+    try:
+        root = artifact_root.resolve(strict=True)
+        if root.is_symlink() or not root.is_dir():
+            _fail_invalid()
+        entries = tuple(sorted(root.rglob("*"), key=lambda path: path.as_posix()))
+        if len(entries) > _MAX_HEALTH_ENTRIES:
+            _fail_invalid()
+        inventory = root / "SHA256SUMS"
+        inventory_bytes = _read_bounded_inventory(inventory)
+        if not compare_digest(
+            sha256(inventory_bytes).hexdigest(),
+            expected_inventory_sha256,
+        ):
+            _fail_invalid()
+        states = (_entry_state(root, "."),) + tuple(
+            _entry_state(entry, entry.relative_to(root).as_posix())
+            for entry in entries
+        )
+    except ModelArtifactError:
+        raise
+    except (OSError, ValueError) as exc:
+        raise ModelArtifactError("MODEL_ARTIFACT_INVALID") from exc
+    return ModelArtifactAttestation(
+        root=root,
+        inventory_sha256=expected_inventory_sha256,
+        entries=states,
+    )
+
+
+def model_artifact_attestation_ready(
+    attestation: ModelArtifactAttestation,
+    *,
+    expected_inventory_sha256: str,
+) -> bool:
+    """Contrôler à coût borné l'état attesté, sans rehacher les poids."""
+    if not compare_digest(
+        attestation.inventory_sha256,
+        expected_inventory_sha256,
+    ):
+        return False
+    try:
+        return all(
+            _entry_state(
+                attestation.root
+                if expected.relative_path == "."
+                else attestation.root / expected.relative_path,
+                expected.relative_path,
+            )
+            == expected
+            for expected in attestation.entries
+        )
+    except (ModelArtifactError, OSError, ValueError):
+        return False
+
+
+__all__ = [
+    "ModelArtifactAttestation",
+    "ModelArtifactError",
+    "attest_verified_model_artifact",
+    "model_artifact_attestation_ready",
+    "verify_model_artifact",
+]

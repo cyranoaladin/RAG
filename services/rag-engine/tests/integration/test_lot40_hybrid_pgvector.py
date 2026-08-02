@@ -755,6 +755,36 @@ def test_review_readiness_rejects_update_on_any_other_column() -> None:
     print("REVIEW_ROLE_OTHER_COLUMN_UPDATE_REJECTED=PASS")
 
 
+def test_runtime_roles_reject_every_set_role_membership_path() -> None:
+    with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+        connection.execute(
+            "CREATE ROLE lot41_set_role_writer "
+            "NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE "
+            "NOINHERIT NOREPLICATION NOBYPASSRLS"
+        )
+        connection.execute(
+            "GRANT UPDATE (source_label) ON TABLE rag_chunks "
+            "TO lot41_set_role_writer"
+        )
+        connection.execute("GRANT lot41_set_role_writer TO lot40_app")
+        connection.execute("GRANT lot41_set_role_writer TO lot41_review")
+    try:
+        assert retrieval_database_ready(APP_DSN) is False
+        assert review_database_ready(REVIEW_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute("REVOKE lot41_set_role_writer FROM lot40_app")
+            connection.execute("REVOKE lot41_set_role_writer FROM lot41_review")
+            connection.execute(
+                "REVOKE UPDATE (source_label) ON TABLE rag_chunks "
+                "FROM lot41_set_role_writer"
+            )
+            connection.execute("DROP ROLE lot41_set_role_writer")
+    assert retrieval_database_ready(APP_DSN) is True
+    assert review_database_ready(REVIEW_DSN) is True
+    print("RUNTIME_SET_ROLE_MEMBERSHIP_REJECTED=PASS")
+
+
 def test_schema_registry_and_real_migration_objects_are_exact() -> None:
     expected = {
         1: (

@@ -21,6 +21,11 @@ try:
         pgvector_dimension,
         verify_configured_embedding_artifact,
     )
+    from .model_artifact import (
+        ModelArtifactAttestation,
+        attest_verified_model_artifact,
+        model_artifact_attestation_ready,
+    )
     from .pg_pool import close_pool
     from .reranker_contract import verify_configured_reranker_artifact
     from .retrieval_readiness_v2 import retrieval_database_ready
@@ -37,6 +42,11 @@ except (ImportError, ValueError):
         declared_embedding_model,
         pgvector_dimension,
         verify_configured_embedding_artifact,
+    )
+    from model_artifact import (  # type: ignore[no-redef]
+        ModelArtifactAttestation,
+        attest_verified_model_artifact,
+        model_artifact_attestation_ready,
     )
     from pg_pool import close_pool  # type: ignore[no-redef]
     from reranker_contract import (  # type: ignore[no-redef]
@@ -64,13 +74,69 @@ _ALLOWED_BUSINESS_ROUTES = frozenset(
     }
 )
 _OBSERVED_ROUTES = _ALLOWED_BUSINESS_ROUTES | {"/health", "/metrics"}
+_model_artifact_attestations: (
+    tuple[ModelArtifactAttestation, ModelArtifactAttestation] | None
+) = None
+
+
+def _required_model_inventory_anchor(environment_variable: str) -> str:
+    anchor = os.environ.get(environment_variable, "").strip()
+    if not anchor:
+        raise RuntimeError("model artifact inventory anchor unavailable")
+    return anchor
+
+
+def _initialize_model_artifacts() -> tuple[
+    ModelArtifactAttestation,
+    ModelArtifactAttestation,
+]:
+    """Hacher intégralement les deux artefacts avant d'accepter du trafic."""
+    embedding_root = verify_configured_embedding_artifact()
+    reranker_root = verify_configured_reranker_artifact()
+    embedding_attestation = attest_verified_model_artifact(
+        embedding_root,
+        expected_inventory_sha256=_required_model_inventory_anchor(
+            "RAG_EMBEDDING_MODEL_INVENTORY_SHA256"
+        ),
+    )
+    reranker_attestation = attest_verified_model_artifact(
+        reranker_root,
+        expected_inventory_sha256=_required_model_inventory_anchor(
+            "RAG_RERANKER_MODEL_INVENTORY_SHA256"
+        ),
+    )
+    return embedding_attestation, reranker_attestation
+
+
+def _model_artifacts_ready() -> bool:
+    """Sonder les attestations de démarrage sans relire les poids modèles."""
+    if _model_artifact_attestations is None:
+        return False
+    embedding_attestation, reranker_attestation = _model_artifact_attestations
+    try:
+        return model_artifact_attestation_ready(
+            embedding_attestation,
+            expected_inventory_sha256=_required_model_inventory_anchor(
+                "RAG_EMBEDDING_MODEL_INVENTORY_SHA256"
+            ),
+        ) and model_artifact_attestation_ready(
+            reranker_attestation,
+            expected_inventory_sha256=_required_model_inventory_anchor(
+                "RAG_RERANKER_MODEL_INVENTORY_SHA256"
+            ),
+        )
+    except Exception:
+        return False
 
 
 @asynccontextmanager
 async def _app_lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    global _model_artifact_attestations
     try:
+        _model_artifact_attestations = _initialize_model_artifacts()
         yield
     finally:
+        _model_artifact_attestations = None
         close_pool()
 
 
@@ -126,8 +192,7 @@ def health_check() -> dict[str, str | int]:
         schema_ready = schema_head_003_ready(rag_dsn)
         retrieval_ready = retrieval_database_ready(rag_dsn)
         review_ready = review_database_ready(review_dsn)
-        verify_configured_embedding_artifact()
-        verify_configured_reranker_artifact()
+        model_artifacts_ready = _model_artifacts_ready()
     except Exception as exc:
         raise HTTPException(status_code=503, detail="service unavailable") from exc
     if (
@@ -137,6 +202,7 @@ def health_check() -> dict[str, str | int]:
         or not schema_ready
         or not retrieval_ready
         or not review_ready
+        or not model_artifacts_ready
     ):
         raise HTTPException(status_code=503, detail="service unavailable")
     return {

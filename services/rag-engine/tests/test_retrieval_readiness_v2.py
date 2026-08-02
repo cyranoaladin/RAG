@@ -30,6 +30,7 @@ EXPECTED_RETRIEVAL_PRIVILEGES = (
     False,
     False,
     False,
+    False,
     True,
     False,
     False,
@@ -114,6 +115,8 @@ def test_retrieval_database_ready_proves_exact_read_only_privileges(
     assert "PG_ATTRIBUTE" in normalized
     assert "HAS_TYPE_PRIVILEGE" in normalized
     assert "PG_HAS_ROLE" in normalized
+    assert "'MEMBER'" in normalized
+    assert "REACHABLE_ROLE" in normalized
 
 
 @pytest.mark.parametrize("position", range(len(EXPECTED_RETRIEVAL_PRIVILEGES)))
