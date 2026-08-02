@@ -23,7 +23,7 @@ EXPECTED_OUTPUT = """# Audit de la politique de validation pilote LOT38
 - Scope: `libre_terminale_maths_nsi_real_v1`
 - Taxonomie `maths`: `4a91661a381751573425b30667c53fc8f44df04fa4e0f7a0c4e71f0ec64005a6`
 - Taxonomie `nsi`: `b93a3e4017e99f1647861abac46b5f3136ee8611e7142d4fca2a33a5929eb05f`
-- Couverture: 39 notions
+- Cardinalité du scope taxonomique: 39 notions
 - Capacité `validation_real_documents_allowed`: fermée
 - Capacité `validation_pipeline_allowed`: fermée
 - Capacité `validation_answer_generation_allowed`: fermée
@@ -141,6 +141,11 @@ class TestCanonicalAudit:
 
         assert first.returncode == 0
         assert first.stdout == EXPECTED_OUTPUT
+        assert "Cardinalité du scope taxonomique: 39 notions" in first.stdout
+        assert not any(
+            line.removeprefix("- ").startswith("Couverture:")
+            for line in first.stdout.splitlines()
+        )
         assert first.stderr == ""
         assert second.returncode == 0
         assert second.stdout == first.stdout

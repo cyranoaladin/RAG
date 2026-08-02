@@ -1,5 +1,19 @@
 # LOT39bis — Spécification de la suite golden du pilote
 
+## Erratum LOT41T — 2026-08-02
+
+Cet erratum prime sur les déclarations historiques d'approbation ci-dessous
+sans modifier les résultats ni les SHA alors observés. Le commentaire de la PR
+#82 précédait les octets présentés comme approuvés, ne portait aucun challenge
+liant ces octets et n'était pas une review GitHub formelle. Le verdict humain
+courant est donc `HUMAN_REVIEW_PENDING`.
+
+Le paquet historique est conservé uniquement comme trace corrigée. Son SHA-256
+actuel est
+`e4ac4fc197d2a8ce45887b6faebbdcc3a3349b7b57f272a88b2fbce5919575a9` :
+ce digest atteste l'intégrité de cette trace, mais ne constitue ni une
+signature ni une preuve d'approbation.
+
 ## Verdict
 
 **LOT39BIS_APPROVED_READY_TO_MERGE**
