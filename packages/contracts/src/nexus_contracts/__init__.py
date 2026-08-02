@@ -52,6 +52,14 @@ from nexus_contracts.scope import (
     PilotScopeSubject,
     load_pilot_retrieval_scope,
 )
+from nexus_contracts.review import (
+    ReviewDecisionPayload,
+    ReviewDecisionRequest,
+    ReviewDecisionResponse,
+    ReviewQueueDocument,
+    ReviewQueuePayload,
+    ReviewQueueResponse,
+)
 
 __all__ = [
     "AccessContext",
@@ -70,6 +78,12 @@ __all__ = [
     "RetrievalRequest",
     "RetrievalResponse",
     "RetrievalResult",
+    "ReviewDecisionPayload",
+    "ReviewDecisionRequest",
+    "ReviewDecisionResponse",
+    "ReviewQueueDocument",
+    "ReviewQueuePayload",
+    "ReviewQueueResponse",
     "ChatCitation",
     "ChatMessage",
     "ChatPayload",

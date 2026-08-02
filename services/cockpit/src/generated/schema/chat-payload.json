@@ -27,7 +27,7 @@
       "type": "object"
     }
   },
-  "$id": "https://nexusreussite.academy/contracts/v0.4/chat-payload.json",
+  "$id": "https://nexusreussite.academy/contracts/v0.5/chat-payload.json",
   "additionalProperties": false,
   "description": "Browser-to-BFF chat input; the BFF alone builds the learner profile.",
   "properties": {

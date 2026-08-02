@@ -1,5 +1,5 @@
 {
-  "$id": "https://nexusreussite.academy/contracts/v0.4/search-payload.json",
+  "$id": "https://nexusreussite.academy/contracts/v0.5/search-payload.json",
   "additionalProperties": false,
   "description": "Browser-to-BFF search input; no identity or server credentials.",
   "properties": {

@@ -146,7 +146,7 @@
       "type": "string"
     }
   },
-  "$id": "https://nexusreussite.academy/contracts/v0.4/pilot-retrieval-scope-artifact.json",
+  "$id": "https://nexusreussite.academy/contracts/v0.5/pilot-retrieval-scope-artifact.json",
   "additionalProperties": false,
   "description": "Projection adressée par contenu du scope dormant issu de LOT38.",
   "properties": {

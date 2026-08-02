@@ -102,7 +102,7 @@
       "type": "object"
     }
   },
-  "$id": "https://nexusreussite.academy/contracts/v0.4/retrieval-response.json",
+  "$id": "https://nexusreussite.academy/contracts/v0.5/retrieval-response.json",
   "additionalProperties": false,
   "properties": {
     "filters_applied": {

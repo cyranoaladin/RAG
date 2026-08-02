@@ -196,7 +196,7 @@
       "type": "string"
     }
   },
-  "$id": "https://nexusreussite.academy/contracts/v0.4/internal-identity-envelope.json",
+  "$id": "https://nexusreussite.academy/contracts/v0.5/internal-identity-envelope.json",
   "additionalProperties": false,
   "description": "Enveloppe signée liant le transport à une identité et à un scope.",
   "properties": {

@@ -154,7 +154,7 @@
       "type": "object"
     }
   },
-  "$id": "https://nexusreussite.academy/contracts/v0.4/chat-response.json",
+  "$id": "https://nexusreussite.academy/contracts/v0.5/chat-response.json",
   "additionalProperties": false,
   "properties": {
     "answer": {
