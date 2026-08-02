@@ -53,9 +53,11 @@ comme suit :
    argument inconnu avec le code `2`.
 
 Le manifeste golden canonique est revenu à un état `pending` propre. Le paquet
-historique reste conservé avec un bandeau explicite de revendication non
-authentifiée. Les rapports LOT38 et LOT39bis comportent des errata additifs :
-les preuves historiques ne sont ni effacées ni présentées comme autoritaires.
+versionné expose lui aussi un statut courant `PENDING` ; ses anciennes valeurs
+et cases cochées sont explicitement qualifiées de déclarations historiques non
+authentifiées, et sa version antérieure exacte reste adressée par commit. Les
+rapports LOT38 et LOT39bis comportent des errata additifs : les preuves
+historiques ne sont ni effacées ni présentées comme autoritaires.
 
 ## Frontière de confiance
 

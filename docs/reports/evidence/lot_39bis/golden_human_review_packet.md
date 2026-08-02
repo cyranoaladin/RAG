@@ -2,11 +2,19 @@
 
 > **REVENDICATION HISTORIQUE NON AUTHENTIFIÉE — NE VAUT PAS APPROBATION**
 >
+> **Statut actuel : PENDING — aucune approbation authentifiée.**
+>
 > **Erratum LOT41T — 2026-08-02.** Le commentaire historique de la PR #82 ne
 > liait ni le digest de spécification, ni ce paquet, ni le head final. Les cases
-> ci-dessous sont conservées comme trace historique, sans autorité de promotion.
+> ci-dessous sont conservées comme déclaration historique, sans autorité de
+> promotion. La version exacte antérieure à l'erratum reste adressée par
+> [`main@84821b240776bea74baebb078d3b7b5d4e29945a`](https://github.com/cyranoaladin/RAG/blob/84821b240776bea74baebb078d3b7b5d4e29945a/docs/reports/evidence/lot_39bis/golden_human_review_packet.md),
+> de SHA-256
+> `e7fc03d392491707db3102f3dce54791921d38a4365cc717be9c8b256700b4ed`.
 
-> **Statut : APPROVED — revue humaine exhaustive.**
+## Déclaration historique non authentifiée — sans autorité
+
+> **Statut historiquement déclaré : APPROVED — revue humaine exhaustive.**
 
 ## Périmètre normatif à relire
 
@@ -25,29 +33,30 @@ La checklist ci-dessous sert uniquement à tracer la couverture des identifiants
 
 Tout changement du digest de spécification ou de l’une des deux empreintes de requêtes annule la revue et impose de reprendre les 255 cas sur les nouveaux fichiers exacts.
 
-## Règle d’approbation humaine
+## Protocole historique — désormais inactif
 
-Seule une personne humaine identifiée peut cocher les cases, renseigner son identité et signaler l’approbation. Aucun agent automatique ne peut attester cette revue. Ce paquet ne préremplit ni reviewer, ni horodatage, ni signature, ni verdict d’approbation.
+Le protocole historique exigeait qu'une personne humaine identifiée coche les
+cases, renseigne son identité et signale l'approbation. Les valeurs ci-dessous
+sont uniquement celles qui avaient alors été déclarées. Elles ne constituent
+ni des champs actifs, ni une preuve authentifiée, ni un modèle à réutiliser.
 
-Après une revue complète seulement, remplacer exactement `PENDING` par `APPROVED`
-dans l’unique ligne de statut en tête, cocher les 259 cases et renseigner les quatre
-lignes suivantes. Toute autre variante de statut sera refusée.
-L’identité, le rôle et l’heure UTC devront concorder avec le manifeste de revue ;
-toute valeur générique ou laissée vide sera refusée.
+Toute future revue doit repartir d'un paquet vierge lié au head exact et passer
+par le canal de confiance défini par LOT41A. Modifier la présente déclaration
+historique ne peut ouvrir aucune transition.
 
-- Identité stable du reviewer : `Alaeddine BEN RHOUMA (@abenrhouma)`
-- Rôle : `responsable pédagogique`
-- Horodatage UTC de fin de revue : `2026-08-01T07:34:20Z`
-- Référence de signature ou de preuve : `https://github.com/cyranoaladin/RAG/pull/82#issuecomment-5150433429`
+- Identité historiquement déclarée : `Alaeddine BEN RHOUMA (@abenrhouma)`
+- Rôle historiquement déclaré : `responsable pédagogique`
+- Horodatage historiquement déclaré : `2026-08-01T07:34:20Z`
+- Référence historiquement déclarée : `https://github.com/cyranoaladin/RAG/pull/82#issuecomment-5150433429`
 
-## Attestations globales — à laisser vierges jusqu’à la revue humaine complète
+## Checklist historique — cases déclarées, non authentifiées
 
 - [x] Les 255 textes de requête ont été lus intégralement dans les deux YAML exacts.
 - [x] Les 255 jugements et attentes pédagogiques ont été lus intégralement et contrôlés.
 - [x] Chaque contrainte `must_not_return` pertinente a été vérifiée.
 - [x] Aucun cas ne prétend disposer d’un document réel, d’un `doc_id`, d’un `chunk_id`, d’un résultat de retrieval, d’un score ou d’un jugement de substance réelle.
 
-## Checklist exhaustive des 255 identifiants
+## Identifiants historiques déclarés — sans autorité
 
 ### Mathématiques — 95 cas
 

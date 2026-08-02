@@ -25,6 +25,7 @@ SCRIPT = SERVICE_ROOT / "scripts" / "pilot_golden_spec_audit.py"
 MODULE = SERVICE_ROOT / "rag_pedago" / "governance" / "pilot_golden.py"
 EVIDENCE_REF = "docs/reports/evidence/lot_39bis/golden_human_review_packet.md"
 EVIDENCE = SERVICE_ROOT.parents[1] / EVIDENCE_REF
+LOT39BIS_REPORT = SERVICE_ROOT.parents[1] / "docs" / "reports" / "lot_39bis_golden_suite.md"
 GLOBAL_ATTESTATIONS = (
     "Les 255 textes de requête ont été lus intégralement dans les deux YAML exacts.",
     "Les 255 jugements et attentes pédagogiques ont été lus intégralement et contrôlés.",
@@ -1421,13 +1422,24 @@ class TestManifestScopeThresholdsAndPaths:
 
 
 class TestHumanReviewVerdict:
-    def test_canonical_packet_contains_exact_unique_approval_status(self) -> None:
+    def test_canonical_packet_exposes_only_a_pending_current_status(self) -> None:
         content = EVIDENCE.read_text(encoding="utf-8")
-        approved_line = "> **Statut : APPROVED — revue humaine exhaustive.**"
+        current_pending = (
+            "> **Statut actuel : PENDING — aucune approbation authentifiée.**"
+        )
 
-        assert [line for line in content.splitlines() if "**Statut :" in line] == [
-            approved_line
+        assert [line for line in content.splitlines() if "**Statut actuel :" in line] == [
+            current_pending
         ]
+        assert "> **Statut : APPROVED" not in content
+        assert (
+            "> **Statut historiquement déclaré : APPROVED — "
+            "revue humaine exhaustive.**"
+        ) in content
+        assert "## Déclaration historique non authentifiée — sans autorité" in content
+        assert "Identité historiquement déclarée" in content
+        assert "Checklist historique — cases déclarées, non authentifiées" in content
+        assert "84821b240776bea74baebb078d3b7b5d4e29945a" in content
 
     def test_pending_review_is_valid_state_but_not_an_approval(self, tmp_path: Path) -> None:
         result = _audit(_isolated_service(tmp_path))
@@ -1789,6 +1801,23 @@ class TestHumanReviewVerdict:
 
 
 class TestDiagnosticSurface:
+    def test_lot39bis_report_marks_superseded_approval_claims_as_historical(self) -> None:
+        content = LOT39BIS_REPORT.read_text(encoding="utf-8")
+
+        assert (
+            "https://github.com/cyranoaladin/RAG/blob/"
+            "84821b240776bea74baebb078d3b7b5d4e29945a/"
+            "docs/reports/evidence/lot_39bis/golden_human_review_packet.md"
+        ) in content
+        assert "## Vérifications et matrice de preuve historiques — supplantées par LOT41T" in content
+        assert "revendication historique : `HUMAN_REVIEW_APPROVED`" in content
+        assert "NON AUTHENTIFIÉE — aucune autorité démontrée" in content
+        assert re.search(r"manifeste déclaré\s+approuvé", content)
+        assert re.search(r"paquet humain déclaré\s+signé", content)
+        assert "## Décision de livraison historique — exécutée puis supplantée" in content
+        assert "## Décision de livraison\n" not in content
+        assert "LOT39bis est livrable et prêt" not in content
+
     def test_historical_packet_has_visible_dated_non_authoritative_banner(self) -> None:
         content = EVIDENCE.read_text(encoding="utf-8")
 
