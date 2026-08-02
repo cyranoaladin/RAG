@@ -157,6 +157,15 @@ créait pas le registre reconnu par le runner. Le test de validation a d'abord
 réussi après correction. Deux volumes PostgreSQL éphémères distincts ont prouvé
 l'enregistrement exact du head et sa compatibilité immédiate avec le runner.
 
+La première revue Codex de la PR #88 sur `fe92cc5` a ensuite relevé que
+`/catalogue/v2` conservait l'ancien contrôle par tokens humains alors que le
+Compose fermé ne les fournit plus. Le constat P1 a été reproduit : un ancien
+token admin recevait `200` tandis que le BFF recevait `503`. La route exige
+désormais d'abord le credential BFF, puis l'identité signée et un rôle
+`admin`, `reviewer`, `teacher` ou `ingest_agent`; `student` reçoit `403`. Les
+78 tests ciblés catalogue/retrieval/runtime, Ruff et `mypy` sont verts après ce
+cycle.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -191,6 +200,8 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `c8364ac` | correction de typage révélée par la CI exhaustive |
 | `dcd69b7` | rapport de lot initial |
 | `66f5018` | validation des contraintes et registre frais canonique |
+| `fe92cc5` | preuves complémentaires du bootstrap |
+| `944bf81` | authentification BFF et identité signée du catalogue v2 |
 
 ## Décision de livraison
 
