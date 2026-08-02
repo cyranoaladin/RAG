@@ -47,6 +47,15 @@ def test_fastapi_shutdown_closes_pool_once_and_allows_recreation(
         return pool
 
     monkeypatch.setattr(pg_pool, "_pool_factory", factory)
+    attestations = (
+        MagicMock(name="embedding_attestation"),
+        MagicMock(name="reranker_attestation"),
+    )
+    monkeypatch.setattr(
+        api_v2,
+        "_initialize_model_artifacts",
+        lambda: attestations,
+    )
     close_spy = MagicMock(wraps=pg_pool.close_pool)
     monkeypatch.setattr(api_v2, "close_pool", close_spy)
     settings = pg_pool.PoolSettings(

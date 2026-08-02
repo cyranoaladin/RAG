@@ -324,6 +324,13 @@ Les 119 tests ciblés de readiness, runtime et modèles sont verts ; Ruff et
 `mypy` sont verts sur les modules modifiés, et l'intégration PostgreSQL réelle
 conclut de nouveau `LOT40_HYBRID_INTEGRATION=PASS`.
 
+La première CI exhaustive du head documentaire a ensuite détecté une fixture
+historique légitimement devenue incomplète : le test du cycle de vie du pool
+entrait dans le lifespan FastAPI sans provisionner les attestations modèles.
+Le démarrage échouait donc, conformément au nouveau contrat fail-closed, avant
+de pouvoir tester le pool. La fixture simule désormais explicitement les deux
+attestations et laisse la vérification réelle aux tests runtime dédiés.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -372,7 +379,8 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `585f519` | détection des grants retrieval limités à une colonne |
 | `1013d63` | documentation et preuve du test PostgreSQL fail-closed |
 | `8ebdc48` | fermeture de `SET ROLE`, santé modèle bornée et parseur Docker |
-| commit courant | documentation du cycle final de revue |
+| `54aa9b2` | documentation du cycle final de revue |
+| commit courant | isolation de la fixture du cycle de vie FastAPI |
 
 ## Décision de livraison
 
