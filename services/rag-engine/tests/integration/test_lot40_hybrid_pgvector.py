@@ -546,7 +546,11 @@ def _empirical_plan_store_connection() -> Iterator[psycopg.Connection[Any]]:
 
     with psycopg.connect(APP_DSN) as connection:
         with connection.cursor() as cursor:
-            cursor.execute("SET LOCAL hnsw.ef_search = 40")
+            # L'oracle séquentiel exige ici le préfixe exact, tandis que HNSW
+            # reste approximatif et son graphe varie à la construction. Une
+            # exploration maximale rend cette preuve empirique reproductible
+            # sans modifier les réglages runtime testés séparément ci-dessous.
+            cursor.execute("SET LOCAL hnsw.ef_search = 1000")
             cursor.execute("SET LOCAL hnsw.max_scan_tuples = 100000")
         yield connection
 
