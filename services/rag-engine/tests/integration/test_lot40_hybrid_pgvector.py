@@ -1239,6 +1239,24 @@ def test_schema_readiness_rejects_default_and_extra_index_drift() -> None:
     print("SCHEMA_DEFAULT_AND_EXTRA_INDEX_DRIFT_REJECTED=PASS")
 
 
+def test_schema_readiness_rejects_an_invalid_extra_index() -> None:
+    with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+        connection.execute(
+            "CREATE INDEX idx_rag_chunks_invalid_extra ON rag_chunks (doc_id)"
+        )
+        connection.execute(
+            "UPDATE pg_index SET indisvalid = false "
+            "WHERE indexrelid = 'idx_rag_chunks_invalid_extra'::regclass"
+        )
+    try:
+        assert schema_head_003_ready(APP_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute("DROP INDEX idx_rag_chunks_invalid_extra")
+    assert schema_head_003_ready(APP_DSN) is True
+    print("SCHEMA_INVALID_EXTRA_INDEX_DRIFT_REJECTED=PASS")
+
+
 def test_schema_readiness_rejects_row_security_drift() -> None:
     with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
         connection.execute("ALTER TABLE rag_chunks ENABLE ROW LEVEL SECURITY")

@@ -105,6 +105,8 @@ def test_schema_head_003_accepts_only_the_exact_contract(
     assert "CONTYPE" in normalized
     assert "PG_GET_CONSTRAINTDEF" in normalized
     assert "PG_GET_INDEXDEF" in normalized
+    assert "INDEX_DEFINITION.INDISVALID," in normalized
+    assert "INDEX_DEFINITION.INDISREADY" in normalized
     assert "PG_ATTRDEF" in normalized
     assert "COLUMN_DEFAULT" in normalized
     assert "FORMAT_TYPE" in normalized
@@ -135,6 +137,10 @@ def test_schema_head_003_accepts_only_the_exact_contract(
     ]
     assert readiness.REQUIRED_RAG_CHUNKS_COLUMN_DEFINITIONS["audience"][4] == (
         "'{tous}'::text[]"
+    )
+    assert all(
+        definition[1:] == [True, True]
+        for definition in readiness.REQUIRED_RAG_CHUNKS_INDEX_DEFINITIONS.values()
     )
     assert cursor.params == ()
     for forbidden in ("INSERT", "UPDATE", "DELETE", "ALTER", "CREATE", "DROP"):

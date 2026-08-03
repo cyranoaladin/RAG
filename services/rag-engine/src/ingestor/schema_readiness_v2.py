@@ -205,7 +205,7 @@ REQUIRED_RAG_CHUNKS_CONSTRAINT_DEFINITIONS: Final = {
     )
 }
 REQUIRED_RAG_CHUNKS_INDEX_DEFINITIONS: Final = {
-    index_name: _FINGERPRINTS[key]
+    index_name: [_FINGERPRINTS[key], True, True]
     for key, index_name in _INDEX_FINGERPRINT_KEYS.items()
 }
 REQUIRED_PROFILE_INDEX_DEFINITION: Final = (
@@ -257,14 +257,16 @@ SELECT
     COALESCE((
         SELECT jsonb_object_agg(
             index_relation.relname,
-            md5(pg_get_indexdef(index_definition.indexrelid))
+            jsonb_build_array(
+                md5(pg_get_indexdef(index_definition.indexrelid)),
+                index_definition.indisvalid,
+                index_definition.indisready
+            )
         )
         FROM pg_index AS index_definition
         JOIN pg_class AS index_relation
           ON index_relation.oid = index_definition.indexrelid
         WHERE index_definition.indrelid = 'public.rag_chunks'::regclass
-          AND index_definition.indisvalid
-          AND index_definition.indisready
     ), '{}'::jsonb),
     (
         SELECT md5(pg_get_expr(
