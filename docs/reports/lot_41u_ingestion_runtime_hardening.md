@@ -26,7 +26,7 @@ preuves opérationnelles externes doivent être obtenues. Aucun verrou
 | Date | 2026-08-03 |
 | Baseline `main` | `ea18ba52da5778f628c4943705dd81dfa43fbc15` |
 | Branche | `lot-41u-ingestion-runtime-hardening` |
-| Head applicatif audité avant ce commit documentaire | `c3cff22a249845319846e6d220f42b943a00de2c` |
+| Head applicatif audité avant ce commit documentaire | `d9a29a29f5088f2bc3cd6a87bdf52d095ef6e559` |
 | Plan de données | runtime FastAPI v2, PostgreSQL/pgvector, Compose, Nginx |
 | Contrats partagés | aucune évolution |
 | Verrous de gouvernance | aucun changement, 18/18 conformes |
@@ -1135,6 +1135,28 @@ d'alias : il appelle réellement `execute_with_database_budget` sous
 reliquat partagé. Les deux fichiers de tests ciblés, Ruff et `mypy` sur les
 trois fichiers modifiés sont verts après ce cycle rouge/vert.
 
+La revue Codex demandée sur `2f81304` s'est achevée pendant la vérification du
+head suivant et a ouvert deux fils supplémentaires. Ils sont valides et ont
+empêché la fusion malgré les checks déjà verts :
+
+- le module `inference_runtime.py` importé par le retrieval n'était pas dans
+  l'allowlist explicite du Dockerfile ni dans celle du contexte Docker. Le test
+  de surface a d'abord échoué sur cette absence. Le commit `9a21000` ajoute la
+  source aux deux allowlists ; l'image réelle est construite puis importe
+  `inference_runtime`, `retrieval_v2_endpoint` et `api_v2` depuis le layout
+  aplati avec `V2_FLATTENED_INFERENCE_IMPORT=PASS` ;
+- le Cockpit lançait les recherches par collection avec `Promise.all`. Deux
+  appels d'une même requête entraient donc simultanément dans le moteur à
+  capacité un et le second pouvait recevoir `503`. Le test asynchrone a
+  d'abord observé deux appels actifs avant la libération du premier. Le commit
+  `d9a29a2` exécute désormais le fan-out dans l'ordre demandé, une collection à
+  la fois, puis conserve la fusion déterministe des têtes MMR. Le test prouve
+  deux appels au total mais au plus un appel moteur actif.
+
+Après ces corrections, les 76 tests de surface Docker/Compose du moteur sont
+verts. Le Cockpit réussit 21 fichiers et 176 tests, ESLint, le build Next.js et
+`npm audit --audit-level=high` sans vulnérabilité.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -1222,6 +1244,8 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `58f545f` | routines non natives et inférences runtime bornées |
 | `2885d50` | verrou Cockpit corrigé pour `brace-expansion@5.0.9` |
 | `c3cff22` | contexte de deadline propagé aux workers d'inférence |
+| `9a21000` | module d'inférence inclus dans l'image v2 aplatie |
+| `d9a29a2` | fan-out Cockpit multi-collections sérialisé |
 
 ## Décision de livraison
 
