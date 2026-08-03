@@ -2,7 +2,7 @@
 
 ## Verdict
 
-**LOT41U_REVIEW_FIXES_GREEN_AWAITING_FINAL_HEAD_CI**
+**LOT41U_FINAL_REVIEW_FIXES_GREEN_AWAITING_EXACT_HEAD_CI**
 
 LOT41U ferme les quatre constats P1 du runtime relevés par l'audit indépendant
 de `main@ea18ba52da5778f628c4943705dd81dfa43fbc15`. Le stack v2 n'embarque
@@ -26,7 +26,7 @@ preuves opérationnelles externes doivent être obtenues. Aucun verrou
 | Date | 2026-08-02 |
 | Baseline `main` | `ea18ba52da5778f628c4943705dd81dfa43fbc15` |
 | Branche | `lot-41u-ingestion-runtime-hardening` |
-| Head applicatif audité avant ce commit documentaire | `90840000e616f23237d68cbd20aa8614302b2d11` |
+| Head applicatif audité avant ce commit documentaire | `8b56c6e2bb848386caee556538b2dcc7d2885f82` |
 | Plan de données | runtime FastAPI v2, PostgreSQL/pgvector, Compose, Nginx |
 | Contrats partagés | aucune évolution |
 | Verrous de gouvernance | aucun changement, 18/18 conformes |
@@ -546,6 +546,36 @@ Les contrôles séparés conservent `ef_search = 40` pour le plan runtime et
 deux bases neuves concluent `HNSW_DISTINCT_FIXTURE_EMPIRICAL_ORACLE_PREFIX=PASS`
 et `LOT40_HYBRID_INTEGRATION=PASS` après ce correctif de preuve.
 
+La revue du head `1099a41` a correctement relevé que ce réglage maximal ne
+transformait pas HNSW en index exact, ainsi que quatre lacunes de readiness. Le
+commit applicatif `8b56c6e2bb848386caee556538b2dcc7d2885f82` remplace donc cette
+surqualification et ferme les cinq fils :
+
+- l'égalité au préfixe est désormais prouvée par un store séquentiel exact,
+  avec `enable_indexscan = off` et `enable_bitmapscan = off`; HNSW reste testé
+  séparément pour son plan, son filtrage strict, son ordre, ses bornes et son
+  scénario d'underfill ;
+- `/health` valide réellement la configuration du credential BFF, l'enveloppe
+  d'identité signée et son artefact de scope ;
+- `/health` charge et valide la version, le backend, les domaines et chaque
+  entrée du catalogue v2 monté ;
+- les DSN retrieval et review doivent produire le même couple autoritatif
+  `system_identifier` PostgreSQL et `current_database()` ; une copie distincte
+  rend donc la readiness indisponible ;
+- le contrôle tautologique qui recomparait `PG_RAG_DSN` à lui-même après
+  normalisation a été supprimé, tandis que `PoolSettings.from_env()` continue
+  de valider le DSN, les types et les bornes du pool.
+
+Le cycle test-first a d'abord échoué à la collecte en l'absence du validateur
+de catalogue, puis **76 tests ciblés** sont passés. Ruff et `mypy` sont verts.
+Deux exécutions PostgreSQL réelles sur des bases neuves — le smoke ciblé puis
+la CI racine — concluent `DENSE_EXACT_ORACLE_PREFIX=PASS` et
+`LOT40_HYBRID_INTEGRATION=PASS`. La CI locale complète du head applicatif est
+verte : 13 cibles sur 13, 1 757 tests `rag-pedago`, toute la suite
+non-intégration `rag-engine`, 174 tests Cockpit, deux builds Next.js et zéro
+vulnérabilité npm. Cette preuve locale porte sur le commit applicatif cité ; le
+commit documentaire suivant doit encore recevoir ses propres checks GitHub.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -610,6 +640,7 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `294ba28` | préchargement des modèles avant trafic et preuve `INSERT` précise |
 | `9084000` | dimension runtime, pool, scope packagé et `REFERENCES` review fail-closed |
 | `6e93b38` | exploration maximale réservée à l'oracle HNSW empirique |
+| `8b56c6e` | autorités, catalogue et identité PostgreSQL attestés ; oracle dense exact |
 
 ## Décision de livraison
 
