@@ -762,7 +762,11 @@ def test_runner_pins_security_bounds_and_cleanup_contract() -> None:
     assert "LOGIN PASSWORD :'review_password'" in provisioning
     assert "NOSUPERUSER NOCREATEDB NOCREATEROLE" in provisioning
     assert "GRANT SELECT ON TABLE rag_chunks" in provisioning
-    assert "GRANT SELECT ON TABLE rag_schema_migrations" in provisioning
+    assert provisioning.count("GRANT SELECT ON TABLE rag_schema_migrations") == 1
+    assert (
+        provisioning.index("GRANT SELECT ON TABLE rag_schema_migrations")
+        < provisioning.index('CREATE ROLE :"review_user"')
+    )
     assert "GRANT UPDATE (review_status) ON TABLE rag_chunks" in provisioning
     assert "GRANT INSERT" not in provisioning
     assert "GRANT TRUNCATE" not in provisioning

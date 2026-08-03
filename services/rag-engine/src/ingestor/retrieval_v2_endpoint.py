@@ -185,21 +185,64 @@ WARMUP_QUERIES = (
 # --- Lazy-loaded models (cached at module level) ---
 _embed_model = None
 _reranker = None
+_verified_embedding_artifact_root: Path | None = None
+_verified_reranker_artifact_root: Path | None = None
+_model_load_lock = threading.Lock()
+
+
+def configure_verified_model_artifacts(
+    *,
+    embedding_root: Path,
+    reranker_root: Path,
+) -> None:
+    """Transmettre les chemins attestés au lifespan sans rehacher les poids."""
+    global _embed_model, _reranker
+    global _verified_embedding_artifact_root, _verified_reranker_artifact_root
+    with _model_load_lock:
+        _embed_model = None
+        _reranker = None
+        _verified_embedding_artifact_root = embedding_root
+        _verified_reranker_artifact_root = reranker_root
+
+
+def reset_runtime_model_state() -> None:
+    """Effacer les modèles et preuves process-local à l'arrêt ou en test."""
+    global _embed_model, _reranker
+    global _verified_embedding_artifact_root, _verified_reranker_artifact_root
+    with _model_load_lock:
+        _embed_model = None
+        _reranker = None
+        _verified_embedding_artifact_root = None
+        _verified_reranker_artifact_root = None
 
 
 def _get_embed_model():
     global _embed_model
     if _embed_model is None:
-        logger.info("Loading embedding model %s (one-time)", EMBED_MODEL)
-        _embed_model = load_embedding_model()
+        with _model_load_lock:
+            if _embed_model is None:
+                logger.info("Loading embedding model %s (one-time)", EMBED_MODEL)
+                if _verified_embedding_artifact_root is None:
+                    _embed_model = load_embedding_model()
+                else:
+                    _embed_model = load_embedding_model(
+                        verified_artifact_root=_verified_embedding_artifact_root
+                    )
     return _embed_model
 
 
 def _get_reranker():
     global _reranker
     if _reranker is None:
-        logger.info("Loading reranker %s (one-time)", RERANK_MODEL)
-        _reranker = load_reranker_model()
+        with _model_load_lock:
+            if _reranker is None:
+                logger.info("Loading reranker %s (one-time)", RERANK_MODEL)
+                if _verified_reranker_artifact_root is None:
+                    _reranker = load_reranker_model()
+                else:
+                    _reranker = load_reranker_model(
+                        verified_artifact_root=_verified_reranker_artifact_root
+                    )
     return _reranker
 
 

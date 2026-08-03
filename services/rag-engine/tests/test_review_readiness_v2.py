@@ -29,6 +29,14 @@ EXPECTED_REVIEW_PRIVILEGES = (
     False,  # pas CREATE sur le schéma public
     False,  # pas CREATE sur la base
     False,  # pas de tables temporaires
+    True,  # aucun SELECT sur le registre des migrations
+    True,  # aucun INSERT sur le registre des migrations
+    True,  # aucun UPDATE sur le registre des migrations
+    True,  # aucune REFERENCES sur le registre des migrations
+    False,  # pas de DELETE sur le registre des migrations
+    False,  # pas de TRUNCATE sur le registre des migrations
+    False,  # pas de TRIGGER sur le registre des migrations
+    False,  # aucune appartenance au propriétaire du registre
 )
 
 
@@ -112,6 +120,8 @@ def test_review_database_ready_proves_the_exact_least_privilege_contract(
     assert "'INSERT'" in normalized
     assert "'TRIGGER'" in normalized
     assert "ATTNAME <> 'REVIEW_STATUS'" in normalized
+    assert "RAG_SCHEMA_MIGRATIONS" in normalized
+    assert normalized.count("HAS_ANY_COLUMN_PRIVILEGE") >= 4
     for forbidden in ("INSERT INTO", "UPDATE ", "DELETE FROM", "ALTER ", "CREATE ", "DROP "):
         assert forbidden not in normalized
 

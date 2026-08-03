@@ -88,6 +88,40 @@ def test_reranker_load_is_offline_and_uses_the_read_only_artifact(
     ]
 
 
+def test_reranker_loader_reuses_a_startup_verified_artifact(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "reranker"
+    artifact.mkdir()
+    calls: list[tuple[str, dict[str, object]]] = []
+
+    monkeypatch.setattr(
+        reranker_contract,
+        "verify_configured_reranker_artifact",
+        lambda: pytest.fail("the startup-verified artifact must not be rehashed"),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "sentence_transformers",
+        SimpleNamespace(
+            CrossEncoder=lambda path, **kwargs: calls.append((path, kwargs))
+            or object()
+        ),
+    )
+
+    reranker_contract.load_reranker_model(
+        verified_artifact_root=artifact.resolve()
+    )
+
+    assert calls == [
+        (
+            str(artifact.resolve()),
+            {"max_length": 512, "local_files_only": True},
+        )
+    ]
+
+
 @pytest.mark.parametrize(
     "tampering", ("model_id", "checksum", "missing_weight", "unlisted", "symlink")
 )

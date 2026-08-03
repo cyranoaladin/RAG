@@ -276,6 +276,32 @@ def test_embedding_loader_verifies_before_offline_load(
     assert calls == [(str(artifact.resolve()), {"local_files_only": True})]
 
 
+def test_embedding_loader_reuses_a_startup_verified_artifact(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "embedding"
+    artifact.mkdir()
+    calls: list[tuple[str, dict[str, object]]] = []
+
+    monkeypatch.setattr(
+        "src.ingestor.embedding_contract.verify_configured_embedding_artifact",
+        lambda: pytest.fail("the startup-verified artifact must not be rehashed"),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "sentence_transformers",
+        SimpleNamespace(
+            SentenceTransformer=lambda path, **kwargs: calls.append((path, kwargs))
+            or object()
+        ),
+    )
+
+    load_embedding_model(verified_artifact_root=artifact.resolve())
+
+    assert calls == [(str(artifact.resolve()), {"local_files_only": True})]
+
+
 def test_public_health_uses_the_embedding_contract_payload() -> None:
     source = API.read_text(encoding="utf-8")
 

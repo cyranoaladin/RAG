@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import shlex
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
@@ -352,18 +353,37 @@ def test_model_artifacts_are_fully_hashed_at_startup_not_on_public_health(
 def test_lifespan_installs_then_clears_the_startup_attestations(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    attestations = (object(), object())
+    embedding_attestation = SimpleNamespace(root=Path("/models/e5-large"))
+    reranker_attestation = SimpleNamespace(root=Path("/models/reranker"))
+    attestations = (embedding_attestation, reranker_attestation)
+    configured: list[tuple[Path, Path] | None] = []
     monkeypatch.setattr(
         api_v2,
         "_initialize_model_artifacts",
         lambda: attestations,
     )
     monkeypatch.setattr(api_v2, "close_pool", lambda: None)
+    monkeypatch.setattr(
+        api_v2.retrieval_v2_endpoint,
+        "configure_verified_model_artifacts",
+        lambda *, embedding_root, reranker_root: configured.append(
+            (embedding_root, reranker_root)
+        ),
+    )
+    monkeypatch.setattr(
+        api_v2.retrieval_v2_endpoint,
+        "reset_runtime_model_state",
+        lambda: configured.append(None),
+    )
 
     with TestClient(api_v2.app):
         assert api_v2._model_artifact_attestations == attestations
 
     assert api_v2._model_artifact_attestations is None
+    assert configured == [
+        (embedding_attestation.root, reranker_attestation.root),
+        None,
+    ]
 
 
 def test_v2_middleware_records_bounded_request_metrics(

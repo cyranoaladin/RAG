@@ -11,6 +11,7 @@ import inspect
 import socket
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
@@ -110,6 +111,52 @@ def test_launch_readiness_dsn_refuses_owner_fallback(
 
     monkeypatch.setenv("PG_RAG_DSN", "  postgresql://reader@localhost/rag  ")
     assert endpoint._get_pg_dsn() == "postgresql://reader@localhost/rag"
+
+
+def test_cold_model_loads_reuse_startup_paths_and_are_serialized(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from ingestor import retrieval_v2_endpoint as endpoint
+
+    embedding_root = (tmp_path / "embedding").resolve()
+    reranker_root = (tmp_path / "reranker").resolve()
+    embedding_root.mkdir()
+    reranker_root.mkdir()
+    calls: list[tuple[str, Path | None]] = []
+    embedding_model = object()
+    reranker_model = object()
+
+    def load_embedding_model(*, verified_artifact_root: Path | None = None) -> object:
+        calls.append(("embedding", verified_artifact_root))
+        time.sleep(0.01)
+        return embedding_model
+
+    def load_reranker_model(*, verified_artifact_root: Path | None = None) -> object:
+        calls.append(("reranker", verified_artifact_root))
+        time.sleep(0.01)
+        return reranker_model
+
+    monkeypatch.setattr(endpoint, "load_embedding_model", load_embedding_model)
+    monkeypatch.setattr(endpoint, "load_reranker_model", load_reranker_model)
+    endpoint.reset_runtime_model_state()
+    endpoint.configure_verified_model_artifacts(
+        embedding_root=embedding_root,
+        reranker_root=reranker_root,
+    )
+    try:
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            embeddings = list(executor.map(lambda _index: endpoint._get_embed_model(), range(8)))
+            rerankers = list(executor.map(lambda _index: endpoint._get_reranker(), range(8)))
+    finally:
+        endpoint.reset_runtime_model_state()
+
+    assert embeddings == [embedding_model] * 8
+    assert rerankers == [reranker_model] * 8
+    assert calls == [
+        ("embedding", embedding_root),
+        ("reranker", reranker_root),
+    ]
 
 
 def _mock_retrieval_identity(endpoint: object, monkeypatch: pytest.MonkeyPatch) -> None:

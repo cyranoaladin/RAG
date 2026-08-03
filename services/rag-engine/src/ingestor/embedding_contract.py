@@ -157,7 +157,10 @@ def verify_configured_embedding_artifact() -> Path:
     )
 
 
-def load_embedding_model() -> Any:
+def load_embedding_model(
+    *,
+    verified_artifact_root: Path | None = None,
+) -> Any:
     """Load the canonical model only from the runtime image/cache.
 
     ``local_files_only`` prevents a request path from silently downloading or
@@ -169,7 +172,19 @@ def load_embedding_model() -> Any:
     must exist; an absent path is treated as a provisioning failure.
     """
     declared_embedding_model()  # enforce canonical model name
-    model_source = verify_configured_embedding_artifact()
+    if verified_artifact_root is None:
+        model_source = verify_configured_embedding_artifact()
+    else:
+        try:
+            if verified_artifact_root.is_symlink():
+                raise OSError("symlinked artifact root")
+            model_source = verified_artifact_root.resolve(strict=True)
+            if not model_source.is_dir():
+                raise OSError("artifact root is not a directory")
+        except OSError as exc:
+            raise EmbeddingContractError(
+                "EMBEDDING_MODEL_ARTIFACT_PATH_MISSING"
+            ) from exc
     try:
         from sentence_transformers import SentenceTransformer
 

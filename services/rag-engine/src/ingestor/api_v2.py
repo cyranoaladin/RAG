@@ -203,8 +203,14 @@ async def _app_lifespan(_app: FastAPI) -> AsyncIterator[None]:
     try:
         _reset_database_readiness_cache()
         _model_artifact_attestations = _initialize_model_artifacts()
+        embedding_attestation, reranker_attestation = _model_artifact_attestations
+        retrieval_v2_endpoint.configure_verified_model_artifacts(
+            embedding_root=embedding_attestation.root,
+            reranker_root=reranker_attestation.root,
+        )
         yield
     finally:
+        retrieval_v2_endpoint.reset_runtime_model_state()
         _model_artifact_attestations = None
         _reset_database_readiness_cache()
         close_pool()

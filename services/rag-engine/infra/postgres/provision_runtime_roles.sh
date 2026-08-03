@@ -72,7 +72,6 @@ GRANT CONNECT ON DATABASE :"database_name" TO :"review_user";
 GRANT USAGE ON SCHEMA public TO :"review_user";
 GRANT USAGE ON TYPE vector TO :"review_user";
 GRANT SELECT ON TABLE rag_chunks TO :"review_user";
-GRANT SELECT ON TABLE rag_schema_migrations TO :"review_user";
 GRANT UPDATE (review_status) ON TABLE rag_chunks TO :"review_user";
 
 COMMIT;

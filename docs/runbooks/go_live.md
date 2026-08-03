@@ -46,8 +46,8 @@ Les DSN runtime sont :
 
 - `PG_RAG_DSN` : rôle limité à `SELECT` sur `rag_chunks` et
   `rag_schema_migrations` ;
-- `PG_REVIEW_DSN` : rôle limité à `SELECT` sur ces deux tables et à la mise à
-  jour du seul statut de revue dans `rag_chunks`.
+- `PG_REVIEW_DSN` : rôle limité à `SELECT` sur `rag_chunks` et à la mise à jour
+  du seul statut de revue ; il n'a aucun droit sur `rag_schema_migrations`.
 
 Le propriétaire PostgreSQL et les credentials de migration ne doivent jamais
 être fournis au conteneur API.

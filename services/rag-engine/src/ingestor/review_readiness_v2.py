@@ -40,6 +40,14 @@ _REQUIRED_REVIEW_PRIVILEGES: Final = (
     False,  # pas CREATE sur le schéma public
     False,  # pas CREATE sur la base
     False,  # pas de tables temporaires
+    True,  # aucun SELECT sur le registre des migrations
+    True,  # aucun INSERT sur le registre des migrations
+    True,  # aucun UPDATE sur le registre des migrations
+    True,  # aucune REFERENCES sur le registre des migrations
+    False,  # pas de DELETE sur le registre des migrations
+    False,  # pas de TRUNCATE sur le registre des migrations
+    False,  # pas de TRIGGER sur le registre des migrations
+    False,  # aucune appartenance au propriétaire du registre
 )
 
 _REVIEW_PRIVILEGES_SQL = """
@@ -95,7 +103,38 @@ SELECT
     has_schema_privilege(current_user, 'public', 'USAGE'),
     has_schema_privilege(current_user, 'public', 'CREATE'),
     has_database_privilege(current_user, current_database(), 'CREATE'),
-    has_database_privilege(current_user, current_database(), 'TEMP')
+    has_database_privilege(current_user, current_database(), 'TEMP'),
+    NOT has_any_column_privilege(
+        current_user, 'public.rag_schema_migrations', 'SELECT'
+    ),
+    NOT has_any_column_privilege(
+        current_user, 'public.rag_schema_migrations', 'INSERT'
+    ),
+    NOT has_any_column_privilege(
+        current_user, 'public.rag_schema_migrations', 'UPDATE'
+    ),
+    NOT has_any_column_privilege(
+        current_user, 'public.rag_schema_migrations', 'REFERENCES'
+    ),
+    has_table_privilege(
+        current_user, 'public.rag_schema_migrations', 'DELETE'
+    ),
+    has_table_privilege(
+        current_user, 'public.rag_schema_migrations', 'TRUNCATE'
+    ),
+    has_table_privilege(
+        current_user, 'public.rag_schema_migrations', 'TRIGGER'
+    ),
+    pg_has_role(
+        current_user,
+        (
+            SELECT tableowner::regrole
+            FROM pg_tables
+            WHERE schemaname = 'public'
+              AND tablename = 'rag_schema_migrations'
+        ),
+        'MEMBER'
+    )
 FROM pg_tables
 JOIN pg_roles ON rolname = current_user
 WHERE schemaname = 'public' AND tablename = 'rag_chunks'

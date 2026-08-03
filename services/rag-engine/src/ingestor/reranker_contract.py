@@ -60,9 +60,24 @@ def verify_configured_reranker_artifact() -> Path:
     )
 
 
-def load_reranker_model() -> Any:
+def load_reranker_model(
+    *,
+    verified_artifact_root: Path | None = None,
+) -> Any:
     """Charger exclusivement l'artefact local, sans téléchargement implicite."""
-    model_source = verify_configured_reranker_artifact()
+    if verified_artifact_root is None:
+        model_source = verify_configured_reranker_artifact()
+    else:
+        try:
+            if verified_artifact_root.is_symlink():
+                raise OSError("symlinked artifact root")
+            model_source = verified_artifact_root.resolve(strict=True)
+            if not model_source.is_dir():
+                raise OSError("artifact root is not a directory")
+        except OSError as exc:
+            raise RerankerContractError(
+                "RERANKER_MODEL_ARTIFACT_PATH_MISSING"
+            ) from exc
 
     try:
         from sentence_transformers import CrossEncoder
