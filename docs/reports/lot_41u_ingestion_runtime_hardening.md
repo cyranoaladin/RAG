@@ -26,7 +26,7 @@ preuves opérationnelles externes doivent être obtenues. Aucun verrou
 | Date | 2026-08-03 |
 | Baseline `main` | `ea18ba52da5778f628c4943705dd81dfa43fbc15` |
 | Branche | `lot-41u-ingestion-runtime-hardening` |
-| Head applicatif audité avant ce commit documentaire | `9f7c9efcc0a3f668cff2905aa7627e896bd71d40` |
+| Head applicatif audité avant ce commit documentaire | `fccbeb58b83b22cbbb393fb01c287d95a7b627f6` |
 | Plan de données | runtime FastAPI v2, PostgreSQL/pgvector, Compose, Nginx |
 | Contrats partagés | aucune évolution |
 | Verrous de gouvernance | aucun changement, 18/18 conformes |
@@ -1217,6 +1217,29 @@ vulnérabilité ; ESLint, les 8 tests ciblés et le build Next.js sont verts. Le
 nouveau head documentaire reste soumis à une ultime CI locale puis aux checks
 GitHub exacts avant fusion.
 
+La CI locale du head `7694f2f` a ensuite réussi **13 contrôles sur 13** et le
+run GitHub exact
+[`30848447499`](https://github.com/cyranoaladin/RAG/actions/runs/30848447499)
+a réussi les six jobs racine ; GitGuardian et Cubic sont verts et GraphQL
+comptait zéro fil non résolu. La revue Codex exacte de ce head a néanmoins
+identifié une dernière composition séquentielle P1 : à expiration du cache,
+la readiness pouvait ouvrir sa deadline de sept secondes, puis la route son
+budget indépendant de six secondes.
+
+Le commit `fccbeb5` établit désormais le budget runtime avant la readiness et
+le conserve jusqu'au retour de la route. La deadline monotone active est
+propagée par `ContextVar` au thread de sonde, borne aussi l'attente du verrou de
+cache et devient une limite supérieure de la deadline readiness. Les contextes
+imbriqués choisissent toujours la deadline la plus proche. Si la sonde consomme
+le reliquat, le handler métier n'est jamais appelé et le moteur répond `503` ;
+une décision de revue ne peut donc plus commencer sous un budget neuf après
+l'abandon du BFF. Le cycle RED/GREEN prouve une même deadline `106.0` pendant
+la sonde et la route, un reliquat réduit de 6 000 à 500 ms, le refus de démarrer
+après 6 001 ms et une attente de verrou ramenée à une seconde. Les 129 tests
+ciblés de surface, readiness et pool sont verts ; Ruff et `mypy` le sont aussi.
+Le head documentaire suivant doit recevoir de nouvelles preuves locales et
+GitHub exactes avant fusion.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -1311,6 +1334,7 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `d22d1f5` | inventaire exact des index PostgreSQL invalides ou non prêts |
 | `274eef4` | nettoyage hermétique des tests et assertion SQL dédupliquée |
 | `9f7c9ef` | verrou transitif corrigé pour `fast-uri@3.1.5` |
+| `fccbeb5` | deadline unique de la readiness à l'exécution métier |
 
 ## Décision de livraison
 
