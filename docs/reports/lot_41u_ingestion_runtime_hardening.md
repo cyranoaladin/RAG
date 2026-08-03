@@ -1299,6 +1299,19 @@ conclut `DENSE_EXACT_ORACLE_PREFIX=PASS`, `HYBRID_REAL_DB=PASS`,
 `HTTP_SEARCH_V2=PASS`, `HTTP_CHAT_LOCKED=PASS` puis
 `LOT40_HYBRID_INTEGRATION=PASS`.
 
+Le run GitHub exact du head `6db5ff3`,
+[`30856789785`](https://github.com/cyranoaladin/RAG/actions/runs/30856789785),
+a ensuite réussi les six jobs racine, GitGuardian et le statut Cubic. La revue
+Cubic détaillée a néanmoins relevé deux P3 valides dans les tests de
+qualification SQL : le writer était contrôlé par inspection de son source et
+la queue par un nombre exact d'occurrences textuelles. Le commit `4b96e9b`
+remplace ces assertions par des connexions factices qui enregistrent les
+instructions réellement transmises par `ingest_document`, `list_queue` et
+`review_decide`. Les tests exigent désormais que l'`INSERT`, toutes les
+lectures de queue et l'`UPDATE` exécutés ciblent `public.rag_chunks`, tout en
+restant indépendants de la mise en forme et du nombre d'occurrences dans le
+source. Les 37 tests des deux modules et Ruff sont verts après correction.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -1396,6 +1409,7 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `fccbeb5` | deadline unique de la readiness à l'exécution métier |
 | `1d49a47` | relations PostgreSQL v2 qualifiées et catalogue utilisateur inspecté |
 | `726e103` | assertions runtime alignées sur la sémantique ANN de HNSW |
+| `4b96e9b` | preuves comportementales des relations SQL réellement exécutées |
 
 ## Décision de livraison
 
