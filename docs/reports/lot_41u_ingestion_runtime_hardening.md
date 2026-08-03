@@ -26,7 +26,7 @@ preuves opérationnelles externes doivent être obtenues. Aucun verrou
 | Date | 2026-08-03 |
 | Baseline `main` | `ea18ba52da5778f628c4943705dd81dfa43fbc15` |
 | Branche | `lot-41u-ingestion-runtime-hardening` |
-| Head applicatif audité avant ce commit documentaire | `d9a29a29f5088f2bc3cd6a87bdf52d095ef6e559` |
+| Head applicatif audité avant ce commit documentaire | `d22d1f5472107f268baeba50f67c941cbdb828a2` |
 | Plan de données | runtime FastAPI v2, PostgreSQL/pgvector, Compose, Nginx |
 | Contrats partagés | aucune évolution |
 | Verrous de gouvernance | aucun changement, 18/18 conformes |
@@ -76,13 +76,17 @@ la configuration de déploiement hors du montage ; remplacer ensemble les
 poids, le manifeste et les checksums ne suffit donc plus à passer la readiness.
 Les anciennes variables sans effet `RERANKER_MODEL` et
 `RERANKER_TOP_N` ont été retirées du Compose et de son exemple d'environnement.
-Le BFF conserve au minimum huit secondes pour chaque appel moteur. Toutes les
-phases PostgreSQL d'une même requête partagent désormais une deadline monotone
-de six secondes au maximum, y compris les collections successives de `/chat`,
-les attentes du pool, chaque instruction SQL et le commit d'une décision de
-review. Les valeurs Compose par défaut sont ramenées à une seconde pour la
-connexion et l'acquisition, trois secondes par statement et 500 ms par verrou ;
-un override incompatible avec le budget agrégé échoue avant tout appel métier.
+Le navigateur abandonne un appel BFF après huit secondes. La route de recherche
+serveur utilise une deadline agrégée de 7,5 secondes, commencée avant
+l'authentification, partagée avec la readiness et toutes les collections, et
+propage aussi le signal d'abandon de l'appelant. Chaque appel moteur reçoit
+uniquement le reliquat. Toutes les phases PostgreSQL d'une même requête
+partagent une deadline monotone de six secondes au maximum, y compris les
+collections successives de `/chat`, les attentes du pool, chaque instruction
+SQL et le commit d'une décision de review. Les valeurs Compose par défaut sont
+ramenées à une seconde pour la connexion et l'acquisition, trois secondes par
+statement et 500 ms par verrou ; un override incompatible avec le budget
+agrégé échoue avant tout appel métier.
 
 ## Migrations et santé
 
@@ -1084,11 +1088,12 @@ ferme les deux frontières :
 - les résultats des modèles sont entièrement matérialisés sous cette deadline,
   sans laisser un générateur différer du calcul hors de la borne ;
 - un exécuteur dédié possède exactement un worker et un sémaphore de capacité
-  un. Une requête saturée échoue immédiatement sans soumettre ni mettre en file
-  une nouvelle inférence. Une tâche ayant dépassé sa deadline conserve son
-  unique créneau jusqu'à sa terminaison, car interrompre arbitrairement du code
-  natif ML ne serait pas sûr ; elle ne peut donc pas provoquer une croissance
-  non bornée du travail CPU.
+  un. L'attente inter-requêtes du sémaphore consomme le reliquat de la deadline
+  partagée ; aucun travail n'est soumis à la file interne de l'exécuteur avant
+  acquisition. Une tâche ayant dépassé sa deadline conserve son unique créneau
+  jusqu'à sa terminaison, car interrompre arbitrairement du code natif ML ne
+  serait pas sûr ; elle ne peut donc pas provoquer une croissance non bornée
+  du travail CPU.
 
 Le cycle RED a échoué sur l'ancien prédicat par namespace et sur l'absence du
 module d'inférence bornée. Après implémentation, 135 tests ciblés de deadline,
@@ -1156,6 +1161,38 @@ empêché la fusion malgré les checks déjà verts :
 Après ces corrections, les 76 tests de surface Docker/Compose du moteur sont
 verts. Le Cockpit réussit 21 fichiers et 176 tests, ESLint, le build Next.js et
 `npm audit --audit-level=high` sans vulnérabilité.
+
+Le run GitHub exact du head `a702b51f0a1a84950ef20b6929d67427364fc4b5`,
+[`30842153704`](https://github.com/cyranoaladin/RAG/actions/runs/30842153704),
+a ensuite réussi les six jobs racine ; GitGuardian et Cubic sont verts et la
+lecture GraphQL comptait zéro fil non résolu. La revue Codex demandée sur ce
+head a toutefois ouvert trois P1 valides, donc la fusion a de nouveau été
+suspendue.
+
+Le cycle final test-first reproduit puis ferme ces trois frontières :
+
+- `a8899e7` remplace l'acquisition non bloquante du créneau d'inférence par une
+  attente bornée par le reliquat de la même deadline. Le budget est relu après
+  acquisition avant de soumettre le worker ; deux requêtes concurrentes se
+  partagent donc la capacité sans rendre immédiatement `503`, mais aucune ne
+  peut attendre au-delà de sa deadline ;
+- `348202e` introduit une source unique des deadlines Cockpit : huit secondes
+  côté navigateur et 7,5 secondes pour l'ensemble de la route serveur. Le
+  signal de la requête et le reliquat agrégé sont transmis à la readiness puis
+  à chaque collection ; une collection suivante n'est jamais entamée après
+  épuisement ;
+- `d22d1f5` inventorie tous les index de `rag_chunks` sans filtrer les entrées
+  invalides ou non prêtes. Chaque valeur atteste simultanément
+  `pg_get_indexdef`, `indisvalid=true` et `indisready=true`. PostgreSQL 16 réel
+  crée un onzième index, force uniquement `indisvalid=false` tout en le laissant
+  prêt, constate le refus de readiness, le supprime et retrouve l'état sain :
+  `SCHEMA_INVALID_EXTRA_INDEX_DRIFT_REJECTED=PASS`.
+
+Les tests ciblés produisent 21 réussites côté moteur et 29 côté Cockpit ;
+Ruff, `mypy`, ESLint et le build Next.js sont verts. Le cycle PostgreSQL réel
+complet conclut `LOT40_HYBRID_INTEGRATION=PASS`, incluant le nouveau cas
+d'index invalide. Le head documentaire créé après ces preuves doit encore
+recevoir la CI locale et GitHub exactes avant fusion.
 
 ## Éléments restant hors de ce lot
 
@@ -1246,6 +1283,9 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `c3cff22` | contexte de deadline propagé aux workers d'inférence |
 | `9a21000` | module d'inférence inclus dans l'image v2 aplatie |
 | `d9a29a2` | fan-out Cockpit multi-collections sérialisé |
+| `a8899e7` | attente d'inférence inter-requêtes bornée par la deadline |
+| `348202e` | budget Cockpit agrégé et signal d'abandon partagés |
+| `d22d1f5` | inventaire exact des index PostgreSQL invalides ou non prêts |
 
 ## Décision de livraison
 
