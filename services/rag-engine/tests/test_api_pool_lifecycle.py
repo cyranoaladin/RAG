@@ -61,6 +61,7 @@ def test_fastapi_shutdown_closes_pool_once_and_allows_recreation(
         "preload_runtime_models",
         lambda: None,
     )
+    monkeypatch.setattr(api_v2, "_database_runtime_ready", lambda: True)
     monkeypatch.setattr(api_v2, "_model_artifacts_ready", lambda: True)
     close_spy = MagicMock(wraps=pg_pool.close_pool)
     monkeypatch.setattr(api_v2, "close_pool", close_spy)

@@ -559,6 +559,55 @@ def test_health_fails_closed_without_internal_details(
     assert "private artifact" not in response.text
 
 
+def test_business_route_rejects_a_cached_unhealthy_database_proof(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service_token = "lot41u-runtime-bff-service-token-32-bytes"
+    monkeypatch.setenv("RAG_BFF_SERVICE_TOKEN", service_token)
+    monkeypatch.setenv("PG_RAG_DSN", "postgresql://reader")
+    monkeypatch.setenv("PG_REVIEW_DSN", "postgresql://reviewer")
+    monkeypatch.setattr(
+        api_v2,
+        "_cached_database_readiness",
+        lambda _rag_dsn, _review_dsn: (
+            api_v2.CANONICAL_EMBED_DIM,
+            False,
+            True,
+            True,
+            True,
+        ),
+    )
+
+    response = TestClient(api_v2.app).post(
+        "/review/v2/decide",
+        json={},
+        headers={"Authorization": f"Bearer {service_token}"},
+    )
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "service unavailable"}
+
+
+def test_untrusted_business_request_does_not_trigger_database_readiness(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(
+        "RAG_BFF_SERVICE_TOKEN",
+        "lot41u-runtime-bff-service-token-32-bytes",
+    )
+    monkeypatch.setattr(
+        api_v2,
+        "_cached_database_readiness",
+        lambda *_args: (_ for _ in ()).throw(
+            AssertionError("an untrusted request must not probe PostgreSQL")
+        ),
+    )
+
+    response = TestClient(api_v2.app).get("/collections/v2")
+
+    assert response.status_code == 401
+
+
 def test_model_artifacts_are_fully_hashed_at_startup_not_on_public_health(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -610,6 +659,19 @@ def test_lifespan_installs_then_clears_the_startup_attestations(
     attestations = (embedding_attestation, reranker_attestation)
     pool_settings = object()
     lifecycle_events: list[tuple[Path, Path] | str | None] = []
+    monkeypatch.setenv("PG_RAG_DSN", "postgresql://reader")
+    monkeypatch.setenv("PG_REVIEW_DSN", "postgresql://reviewer")
+    monkeypatch.setattr(
+        api_v2,
+        "_cached_database_readiness",
+        lambda _rag_dsn, _review_dsn: (
+            api_v2.CANONICAL_EMBED_DIM,
+            True,
+            True,
+            True,
+            True,
+        ),
+    )
     monkeypatch.setattr(
         api_v2,
         "_initialize_model_artifacts",
@@ -659,6 +721,46 @@ def test_lifespan_installs_then_clears_the_startup_attestations(
         "preload",
         None,
     ]
+
+
+def test_lifespan_refuses_startup_when_database_readiness_is_unhealthy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pool_settings = object()
+    closed: list[bool] = []
+    model_initialization_calls: list[bool] = []
+    monkeypatch.setenv("PG_RAG_DSN", "postgresql://reader")
+    monkeypatch.setenv("PG_REVIEW_DSN", "postgresql://reviewer")
+    monkeypatch.setattr(
+        api_v2.PoolSettings,
+        "from_env",
+        classmethod(lambda _cls: pool_settings),
+    )
+    monkeypatch.setattr(api_v2, "get_pool", lambda _settings: object())
+    monkeypatch.setattr(api_v2, "close_pool", lambda: closed.append(True))
+    monkeypatch.setattr(
+        api_v2,
+        "_cached_database_readiness",
+        lambda _rag_dsn, _review_dsn: (
+            api_v2.CANONICAL_EMBED_DIM,
+            True,
+            True,
+            False,
+            True,
+        ),
+    )
+    monkeypatch.setattr(
+        api_v2,
+        "_initialize_model_artifacts",
+        lambda: model_initialization_calls.append(True),
+    )
+
+    with pytest.raises(RuntimeError, match="database readiness unavailable"):
+        with TestClient(api_v2.app):
+            pytest.fail("le runtime ne doit pas accepter du trafic")
+
+    assert model_initialization_calls == []
+    assert closed == [True]
 
 
 def test_lifespan_refuses_startup_when_the_real_retrieval_pool_cannot_open(

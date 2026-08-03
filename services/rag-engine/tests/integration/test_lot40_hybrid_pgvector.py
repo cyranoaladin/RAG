@@ -22,6 +22,7 @@ from fastapi.testclient import TestClient
 from nexus_contracts import Rights, load_pilot_retrieval_scope
 from psycopg import sql
 
+from ingestor import api_v2 as runtime_api
 from ingestor import retrieval_v2_endpoint as endpoint
 from ingestor import review_v2_endpoint as review_endpoint
 from ingestor.identity_v2 import load_identity_verifier_config, verify_identity_token
@@ -1277,6 +1278,94 @@ def test_schema_readiness_rejects_non_internal_trigger_drift() -> None:
             )
     assert schema_head_003_ready(APP_DSN) is True
     print("SCHEMA_TRIGGER_DRIFT_REJECTED=PASS")
+
+
+def test_runtime_blocks_review_update_while_trigger_drift_is_detected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service_token = "lot41u-runtime-bff-service-token-32-bytes"
+    target = "doc-pending-000"
+    monkeypatch.setenv("RAG_BFF_SERVICE_TOKEN", service_token)
+    monkeypatch.setenv("PG_RAG_DSN", APP_DSN)
+    monkeypatch.setenv("PG_REVIEW_DSN", REVIEW_DSN)
+    monkeypatch.setattr(
+        review_endpoint,
+        "_require_review_identity",
+        lambda *_args, **_kwargs: SimpleNamespace(scope_digest="a" * 64),
+    )
+    monkeypatch.setattr(
+        review_endpoint,
+        "_load_review_scopes",
+        lambda *_args, **_kwargs: (_scope(TARGET_COLLECTION),),
+    )
+    monkeypatch.setattr(review_endpoint, "_get_pg_dsn", lambda: REVIEW_DSN)
+    runtime_api._reset_database_readiness_cache()
+    response = None
+    observed_status = None
+    try:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(
+                "DROP TRIGGER IF EXISTS lot41u_runtime_gate_trigger ON rag_chunks"
+            )
+            connection.execute(
+                "DROP FUNCTION IF EXISTS lot41u_runtime_gate_trigger()"
+            )
+            connection.execute(
+                """
+                CREATE FUNCTION lot41u_runtime_gate_trigger()
+                RETURNS trigger
+                LANGUAGE plpgsql
+                AS $$
+                BEGIN
+                    RETURN NEW;
+                END;
+                $$
+                """
+            )
+            connection.execute(
+                """
+                CREATE TRIGGER lot41u_runtime_gate_trigger
+                BEFORE UPDATE ON rag_chunks
+                FOR EACH ROW
+                EXECUTE FUNCTION lot41u_runtime_gate_trigger()
+                """
+            )
+
+        response = TestClient(runtime_api.app).post(
+            "/review/v2/decide",
+            headers={"Authorization": f"Bearer {service_token}"},
+            json={
+                "target_type": "doc",
+                "target_id": target,
+                "decision": "reviewed",
+                "tenant": TENANT,
+            },
+        )
+        with psycopg.connect(ADMIN_DSN) as connection:
+            observed_status = connection.execute(
+                "SELECT review_status FROM rag_chunks WHERE chunk_id = %s",
+                ("pending-000",),
+            ).fetchone()[0]
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(
+                "UPDATE rag_chunks SET review_status = 'needs_review' "
+                "WHERE chunk_id = 'pending-000'"
+            )
+            connection.execute(
+                "DROP TRIGGER IF EXISTS lot41u_runtime_gate_trigger ON rag_chunks"
+            )
+            connection.execute(
+                "DROP FUNCTION IF EXISTS lot41u_runtime_gate_trigger()"
+            )
+        runtime_api._reset_database_readiness_cache()
+
+    assert response is not None
+    assert response.status_code == 503
+    assert response.json() == {"detail": "service unavailable"}
+    assert observed_status == "needs_review"
+    assert schema_head_003_ready(APP_DSN) is True
+    print("RUNTIME_REVIEW_TRIGGER_DRIFT_BLOCKED=PASS")
 
 
 def test_schema_readiness_rejects_rewrite_rule_drift() -> None:

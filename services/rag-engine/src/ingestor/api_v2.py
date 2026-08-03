@@ -9,7 +9,9 @@ from contextlib import asynccontextmanager
 from threading import Lock
 
 from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.responses import JSONResponse
 from prometheus_client import CONTENT_TYPE_LATEST
+from starlette.concurrency import run_in_threadpool
 
 try:
     from . import metrics as ingest_metrics
@@ -40,7 +42,10 @@ try:
     from .retrieval_scope_v2 import validate_pilot_scope_catalogue_alignment
     from .review_readiness_v2 import review_database_ready
     from .schema_readiness_v2 import schema_head_003_ready
-    from .security_v2 import validate_bff_service_configuration
+    from .security_v2 import (
+        require_bff_service,
+        validate_bff_service_configuration,
+    )
 except (ImportError, ValueError):
     import metrics as ingest_metrics  # type: ignore[no-redef]
     import retrieval_v2_endpoint  # type: ignore[no-redef]
@@ -86,6 +91,7 @@ except (ImportError, ValueError):
         schema_head_003_ready,
     )
     from security_v2 import (  # type: ignore[no-redef]
+        require_bff_service,
         validate_bff_service_configuration,
     )
 
@@ -234,12 +240,49 @@ def _cached_database_readiness(
         _database_readiness_cache_lock.release()
 
 
+def _database_readiness_from_environment() -> tuple[int, bool, bool, bool, bool]:
+    """Charger les deux autorités puis retourner leur preuve coalescée."""
+    rag_dsn = os.environ.get("PG_RAG_DSN", "").strip()
+    review_dsn = os.environ.get("PG_REVIEW_DSN", "").strip()
+    if not rag_dsn or not review_dsn:
+        raise RuntimeError("database readiness unavailable")
+    return _cached_database_readiness(rag_dsn, review_dsn)
+
+
+def _database_readiness_is_healthy(
+    readiness: tuple[int, bool, bool, bool, bool],
+) -> bool:
+    """Interpréter en un seul endroit la preuve exigée par toutes les routes."""
+    database_dim, schema_ready, retrieval_ready, review_ready, same_database = (
+        readiness
+    )
+    return (
+        database_dim == CANONICAL_EMBED_DIM
+        and schema_ready
+        and retrieval_ready
+        and review_ready
+        and same_database
+    )
+
+
+def _database_runtime_ready() -> bool:
+    """Fermer le runtime sur toute preuve PostgreSQL absente ou invalide."""
+    try:
+        return _database_readiness_is_healthy(
+            _database_readiness_from_environment()
+        )
+    except Exception:
+        return False
+
+
 @asynccontextmanager
 async def _app_lifespan(_app: FastAPI) -> AsyncIterator[None]:
     global _model_artifact_attestations
     try:
         _reset_database_readiness_cache()
         get_pool(PoolSettings.from_env())
+        if not _database_runtime_ready():
+            raise RuntimeError("database readiness unavailable")
         _model_artifact_attestations = _initialize_model_artifacts()
         embedding_attestation, reranker_attestation = _model_artifact_attestations
         retrieval_v2_endpoint.configure_verified_model_artifacts(
@@ -272,7 +315,26 @@ async def _metrics_middleware(request: Request, call_next):
     started = time.perf_counter()
     status_code = 500
     try:
-        response = await call_next(request)
+        path = request.url.path
+        if path in _ALLOWED_BUSINESS_ROUTES:
+            try:
+                require_bff_service(request, endpoint=path)
+            except HTTPException as exc:
+                response = JSONResponse(
+                    content={"detail": exc.detail},
+                    status_code=exc.status_code,
+                    headers=exc.headers,
+                )
+            else:
+                if await run_in_threadpool(_database_runtime_ready):
+                    response = await call_next(request)
+                else:
+                    response = JSONResponse(
+                        content={"detail": "service unavailable"},
+                        status_code=503,
+                    )
+        else:
+            response = await call_next(request)
         status_code = response.status_code
     finally:
         path = request.url.path
@@ -298,10 +360,6 @@ _mount_allowed_routes()
 
 @app.get("/health")
 def health_check() -> dict[str, str | int]:
-    rag_dsn = os.environ.get("PG_RAG_DSN", "").strip()
-    review_dsn = os.environ.get("PG_REVIEW_DSN", "").strip()
-    if not rag_dsn or not review_dsn:
-        raise HTTPException(status_code=503, detail="service unavailable")
     try:
         PoolSettings.from_env()
         validate_bff_service_configuration()
@@ -314,23 +372,15 @@ def health_check() -> dict[str, str | int]:
         model = declared_embedding_model()
         declared_dim = declared_embedding_dim()
         model_artifacts_ready = _model_artifacts_ready()
-        (
-            database_dim,
-            schema_ready,
-            retrieval_ready,
-            review_ready,
-            same_database,
-        ) = _cached_database_readiness(rag_dsn, review_dsn)
+        database_readiness = _database_readiness_from_environment()
+        database_dim = database_readiness[0]
     except Exception as exc:
         raise HTTPException(status_code=503, detail="service unavailable") from exc
     if (
         model != CANONICAL_EMBED_MODEL
         or declared_dim != CANONICAL_EMBED_DIM
         or database_dim != CANONICAL_EMBED_DIM
-        or not schema_ready
-        or not retrieval_ready
-        or not review_ready
-        or not same_database
+        or not _database_readiness_is_healthy(database_readiness)
         or not model_artifacts_ready
     ):
         raise HTTPException(status_code=503, detail="service unavailable")
