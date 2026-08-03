@@ -149,7 +149,7 @@ workflow.
 9. Relire les sept checks et leurs `app_id`, les quatre règles de review,
    l'absence de bypass et les protections destructives.
 
-## Preuves ciblées avant CI exhaustive
+## Preuves locales exhaustives
 
 Au premier commit documentaire, les résultats frais sont :
 
@@ -161,9 +161,45 @@ Au premier commit documentaire, les résultats frais sont :
 - `test-ci-local-failsafe.sh` : 51 réussites, 0 échec ;
 - Ruff ciblé et `git diff --check` : PASS.
 
-La CI locale exhaustive et le scan de secrets seront consignés après ce commit.
-Le commit documentaire crée un nouveau head : aucune preuve portant sur son
-parent n'est présentée comme certification du head final.
+La première tentative exhaustive s'est arrêtée avant les tests parce que le
+shell exposait Node 22.21.0 au lieu de la version 22.22.0 fixée par `.nvmrc`.
+La suivante a exposé deux causes distinctes : le Python 3.11 installé par `uv`
+créait des venvs liés à un préfixe `/install` absent, et l'allowlist exacte du
+test d'hygiène n'incluait pas encore les trois nouvelles commandes LOT41V. La
+source de vérité d'hygiène a été corrigée et testée ; aucun seuil de version ni
+garde-fou n'a été assoupli.
+
+La relance fraîche sur le head source exact
+`758c4024805666f294503ae4bb79f424c6054f7b`, avec Python 3.12.3 et Node
+22.22.0, a produit **16 cibles réussies et 0 échec** :
+
+- `packages/contracts` : import du contrat réussi ;
+- `services/rag-pedago` : Ruff, `mypy` sur 76 fichiers et 1 757 tests réussis ;
+- `services/rag-engine` : Ruff, `mypy` sur 53 fichiers, suite non-intégration
+  complète et intégration PostgreSQL réelle terminée par
+  `LOT40_HYBRID_INTEGRATION=PASS` ;
+- `services/cockpit` : 21 fichiers de tests, 178 tests, deux builds Next.js,
+  concordance des snapshots et deux audits npm sans vulnérabilité ;
+- hygiène et tests d'hygiène, topologie CI, protection de `main`, trois suites
+  LOT41V, taxonomie, preuves sources, verrous et tests de gouvernance : PASS ;
+- tests failsafe : 51 réussites, 0 échec ;
+- baseline de gouvernance : 18 clés, configuration : 18 clés, toutes
+  conformes.
+
+Le scan suivant couvre les 13 commits du lot :
+
+```text
+gitleaks git --log-opts="origin/main..HEAD" --redact --no-banner
+```
+
+Résultat : aucun secret détecté. `git diff --check origin/main...HEAD` est
+également vert et le worktree ne contient aucun changement non commité avant
+la présente mise à jour documentaire.
+
+Ce rapport crée nécessairement un nouveau head après le commit source cité. Il
+ne prétend donc pas que la preuve locale du parent certifie ses propres octets.
+Les tests ciblés seront relancés après ce commit ; les checks GitHub obligatoires
+constitueront la preuve exhaustive du head distant final.
 
 ## Prochain jalon
 
