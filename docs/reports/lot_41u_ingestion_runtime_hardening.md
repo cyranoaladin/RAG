@@ -910,6 +910,30 @@ readiness ; après suppression, les deux sondes redeviennent vertes avec
 rollback, moindre privilège, HNSW, GIN, HTTP et review conclut de nouveau
 `LOT40_HYBRID_INTEGRATION=PASS`.
 
+La revue exacte suivante de `0bbfb6bbd4c2e655fac97fcd31bbc3555172191d`
+a signalé deux frontières supplémentaires, complétées par deux remarques Cubic
+du même cycle. Le commit applicatif
+`a96bdb284974b1e800ff98c3ba10dad5083d7283` les ferme :
+
+- le prédicat de routines ne filtre plus seulement les fonctions ordinaires et
+  procédures : toute entrée utilisateur `pg_proc` exécutable avec
+  `prosecdef` est refusée, notamment une fonction fenêtre `prokind = 'w'` ;
+- l'exclusion des schémas système emploie des littéraux PostgreSQL `E` et un
+  caractère d'échappement non ambigu, indépendamment de
+  `standard_conforming_strings` ;
+- la borne minimale de `PG_DATABASE_BUDGET_MS` devient 1 000 ms, cohérente avec
+  le minimum entier d'une seconde imposé au `connect_timeout` libpq ;
+- `/collections/readiness` utilise une zone Nginx distincte
+  `readiness_v2` : le préflight BFF ne consomme plus le quota métier partagé de
+  `/search/v2`, tout en conservant une limitation dédiée.
+
+Les quatre tests de régression ont d'abord échoué sur le code précédent, puis
+les suites ciblées et la suite non-intégration complète sont vertes. PostgreSQL
+16 réel produit `RUNTIME_WINDOW_SECURITY_DEFINER_REJECTED=PASS`,
+`RUNTIME_SCHEMA_ESCAPE_STABLE=PASS` et de nouveau
+`LOT40_HYBRID_INTEGRATION=PASS`. Ruff et `mypy` sur 52 fichiers sont verts. Le
+commit documentaire suivant reste soumis à la CI locale et GitHub exactes.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
