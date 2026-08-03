@@ -11,6 +11,9 @@ import pytest
 
 SERVICE_ROOT = Path(__file__).resolve().parents[1]
 RUNNER = SERVICE_ROOT / "infra" / "scripts" / "test_hybrid_integration.sh"
+ROLE_PROVISIONING = (
+    SERVICE_ROOT / "infra" / "postgres" / "provision_runtime_roles.sh"
+)
 MAKEFILE = SERVICE_ROOT / "Makefile"
 INTEGRATION_TEST = SERVICE_ROOT / "tests" / "integration" / "test_lot40_hybrid_pgvector.py"
 IMAGE = (
@@ -715,6 +718,7 @@ def test_runner_rejects_readiness_values_before_creating_docker_resources(
 
 def test_runner_pins_security_bounds_and_cleanup_contract() -> None:
     content = RUNNER.read_text(encoding="utf-8")
+    provisioning = ROLE_PROVISIONING.read_text(encoding="utf-8")
     assert content.startswith("#!/usr/bin/env bash\nset -euo pipefail\n")
     assert IMAGE in content
     assert "127.0.0.1::5432" in content
@@ -752,11 +756,15 @@ def test_runner_pins_security_bounds_and_cleanup_contract() -> None:
     assert "postgresql://$PGVECTOR_USER@127.0.0.1:" in content
     assert "postgresql://$PGVECTOR_APP_USER@127.0.0.1:" in content
     assert "LOT40_PG_ADMIN_DSN" in content
-    assert "LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE" in content
-    assert "GRANT SELECT ON TABLE rag_chunks" in content
-    assert "GRANT SELECT ON TABLE rag_schema_migrations" in content
-    assert "GRANT INSERT" not in content
-    assert "GRANT TRUNCATE" not in content
+    assert "provision_runtime_roles.sh" in content
+    assert "LOGIN PASSWORD :'retrieval_password'" in provisioning
+    assert "LOGIN PASSWORD :'review_password'" in provisioning
+    assert "NOSUPERUSER NOCREATEDB NOCREATEROLE" in provisioning
+    assert "GRANT SELECT ON TABLE rag_chunks" in provisioning
+    assert "GRANT SELECT ON TABLE rag_schema_migrations" in provisioning
+    assert "GRANT UPDATE (review_status) ON TABLE rag_chunks" in provisioning
+    assert "GRANT INSERT" not in provisioning
+    assert "GRANT TRUNCATE" not in provisioning
     assert '[[ "$1" =~ [Nn]o[[:space:]]such' not in content
     assert '[[ "$1" =~ [Nn]ot[[:space:]]found' not in content
     assert "rag_pgvector" not in content

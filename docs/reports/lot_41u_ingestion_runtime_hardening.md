@@ -446,6 +446,16 @@ quatre scripts Docker réels a conclu `FRESH_BOOTSTRAP_RUNTIME_ROLES=PASS`,
 `FRESH_BOOTSTRAP_HEALTH=PASS` et `RETRIEVAL_WRITE_DENIED=PASS`, avant d'être
 supprimé.
 
+La première CI exhaustive après ce commit a échoué honnêtement sur deux tests
+du moteur. Le premier cherchait encore les `GRANT` dans le runner alors que leur
+source canonique est désormais `provision_runtime_roles.sh`; il inspecte à
+présent ce fichier et vérifie aussi que seuls `SELECT` et
+`UPDATE(review_status)` sont accordés. Le second test legacy d'un téléchargement
+simulé appelait encore le DNS réel avant son mock HTTP et a rencontré une panne
+de résolution ; la validation d'URL est maintenant neutralisée explicitement
+dans cette fixture. Les deux régressions ciblées et Ruff sont verts avant la
+relance exhaustive.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
