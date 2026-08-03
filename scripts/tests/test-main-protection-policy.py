@@ -34,12 +34,21 @@ CONTEXTS = [
     "repository controls",
     "trusted-human-review",
 ]
+GITHUB_ACTIONS_APP_ID = 15368
+CHECKS = [
+    {"context": context, "app_id": GITHUB_ACTIONS_APP_ID}
+    for context in CONTEXTS
+]
 _ABSENT = object()
 
 
 def expected_policy() -> dict[str, object]:
     return {
-        "required_status_checks": {"strict": True, "contexts": list(CONTEXTS)},
+        "required_status_checks": {
+            "strict": True,
+            "contexts": [],
+            "checks": [dict(check) for check in CHECKS],
+        },
         "enforce_admins": True,
         "required_pull_request_reviews": {
             "dismiss_stale_reviews": True,
@@ -61,11 +70,12 @@ def expected_policy() -> dict[str, object]:
 def remote_policy(
     *,
     contexts: list[str] | None = None,
+    remote_checks: list[dict[str, object]] | None = None,
     bypass: object = _ABSENT,
 ) -> dict[str, object]:
     policy = expected_policy()
-    checks = policy["required_status_checks"]
-    assert isinstance(checks, dict)
+    status = policy["required_status_checks"]
+    assert isinstance(status, dict)
     reviews = policy["required_pull_request_reviews"]
     assert isinstance(reviews, dict)
     remote_reviews = {
@@ -76,9 +86,14 @@ def remote_policy(
         remote_reviews["bypass_pull_request_allowances"] = bypass
     return {
         "required_status_checks": {
-            "strict": checks["strict"],
+            "strict": status["strict"],
             "contexts": list(contexts if contexts is not None else CONTEXTS),
-            "checks": [],
+            "checks": [
+                dict(check)
+                for check in (
+                    remote_checks if remote_checks is not None else CHECKS
+                )
+            ],
             "url": "https://api.github.invalid/protection/required_status_checks",
         },
         "enforce_admins": {"enabled": policy["enforce_admins"]},
@@ -134,14 +149,25 @@ class RecordingRunner:
 
 
 class PolicyContractTests(unittest.TestCase):
-    def test_load_policy_returns_the_exact_unique_contexts(self) -> None:
+    def test_load_policy_returns_the_exact_unique_checks(self) -> None:
         policy = main_protection.load_policy(POLICY_PATH)
         self.assertEqual(policy, expected_policy())
         checks = policy["required_status_checks"]
         self.assertIsInstance(checks, dict)
         assert isinstance(checks, dict)
-        self.assertEqual(checks["contexts"], CONTEXTS)
-        self.assertEqual(len(checks["contexts"]), len(set(checks["contexts"])))
+        self.assertEqual(checks["contexts"], [])
+        self.assertEqual(checks["checks"], CHECKS)
+        check_contexts = [check["context"] for check in checks["checks"]]
+        self.assertEqual(len(check_contexts), len(set(check_contexts)))
+
+    def test_policy_binds_every_check_to_github_actions(self) -> None:
+        policy = main_protection.load_policy(POLICY_PATH)
+        status = policy["required_status_checks"]
+        assert isinstance(status, dict)
+        self.assertEqual(
+            {check["app_id"] for check in status["checks"]},
+            {GITHUB_ACTIONS_APP_ID},
+        )
 
     def test_policy_enables_all_required_guards(self) -> None:
         policy = main_protection.load_policy(POLICY_PATH)
@@ -192,8 +218,13 @@ class PolicyContractTests(unittest.TestCase):
         duplicate = expected_policy()
         duplicate_checks = duplicate["required_status_checks"]
         assert isinstance(duplicate_checks, dict)
-        duplicate_checks["contexts"] = CONTEXTS + [CONTEXTS[0]]
+        duplicate_checks["checks"] = CHECKS + [CHECKS[0]]
         cases.append(duplicate)
+        unbound = expected_policy()
+        unbound_checks = unbound["required_status_checks"]
+        assert isinstance(unbound_checks, dict)
+        unbound_checks["contexts"] = [CONTEXTS[0]]
+        cases.append(unbound)
 
         for document in cases:
             with self.subTest(document=document):
@@ -208,7 +239,8 @@ class PolicyContractTests(unittest.TestCase):
         invalid_checks = expected_policy()
         invalid_checks["required_status_checks"] = {
             "strict": True,
-            "contexts": "packages/contracts",
+            "contexts": [],
+            "checks": "packages/contracts",
         }
         invalid_documents.append(invalid_checks)
 
@@ -228,6 +260,10 @@ class PolicyContractTests(unittest.TestCase):
         checks = normalized["required_status_checks"]
         assert isinstance(checks, dict)
         self.assertEqual(checks["contexts"], sorted(CONTEXTS))
+        self.assertEqual(
+            checks["checks"],
+            sorted(CHECKS, key=lambda check: check["context"]),
+        )
 
     def test_normalize_remote_accepts_absent_or_empty_bypass_allowances(self) -> None:
         expected = main_protection.normalize_policy(expected_policy())
@@ -323,11 +359,13 @@ class PolicyContractTests(unittest.TestCase):
         reordered = expected_policy()
         checks = reordered["required_status_checks"]
         assert isinstance(checks, dict)
-        checks["contexts"] = list(reversed(CONTEXTS))
+        checks["checks"] = list(reversed(CHECKS))
         main_protection.verify_policy(reordered, remote_policy())
 
     def test_verify_policy_reports_deterministic_context_drift(self) -> None:
-        remote = remote_policy(contexts=CONTEXTS[:-1])
+        remote = remote_policy(
+            contexts=CONTEXTS[:-1], remote_checks=CHECKS[:-1]
+        )
         with self.assertRaises(main_protection.PolicyDrift) as first:
             main_protection.verify_policy(expected_policy(), remote)
         with self.assertRaises(main_protection.PolicyDrift) as second:
@@ -336,6 +374,16 @@ class PolicyContractTests(unittest.TestCase):
         self.assertIn('"repository controls"', str(first.exception))
         self.assertIn("--- expected", str(first.exception))
         self.assertIn("+++ remote", str(first.exception))
+
+    def test_verify_policy_rejects_wrong_status_check_application(self) -> None:
+        wrong_checks = [dict(check) for check in CHECKS]
+        wrong_checks[-1]["app_id"] = 999
+        with self.assertRaises(main_protection.PolicyDrift) as caught:
+            main_protection.verify_policy(
+                expected_policy(), remote_policy(remote_checks=wrong_checks)
+            )
+        self.assertIn('"app_id": 15368', str(caught.exception))
+        self.assertIn('"app_id": 999', str(caught.exception))
 
     def test_verify_policy_reports_active_force_push_drift(self) -> None:
         remote = remote_policy()

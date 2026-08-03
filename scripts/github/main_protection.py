@@ -33,7 +33,8 @@ _TOP_LEVEL_KEYS = {
     "lock_branch",
     "allow_fork_syncing",
 }
-_STATUS_KEYS = {"strict", "contexts"}
+_STATUS_KEYS = {"strict", "contexts", "checks"}
+_CHECK_KEYS = {"context", "app_id"}
 _REVIEW_KEYS = {
     "dismiss_stale_reviews",
     "require_code_owner_reviews",
@@ -103,6 +104,26 @@ def _require_contexts(value: object, label: str) -> list[str]:
     return list(value)
 
 
+def _require_checks(value: object, label: str) -> list[dict[str, object]]:
+    if not isinstance(value, list) or not value:
+        raise TypeError(f"{label} must be a non-empty list")
+    normalized: list[dict[str, object]] = []
+    for index, raw_check in enumerate(value):
+        check = _require_mapping(raw_check, f"{label}[{index}]")
+        _require_exact_keys(check, _CHECK_KEYS, f"{label}[{index}]")
+        context = check["context"]
+        app_id = check["app_id"]
+        if not isinstance(context, str) or not context:
+            raise TypeError(f"{label}[{index}].context must be non-empty")
+        if type(app_id) is not int or app_id <= 0:
+            raise TypeError(f"{label}[{index}].app_id must be positive")
+        normalized.append({"context": context, "app_id": app_id})
+    contexts = [str(check["context"]) for check in normalized]
+    if len(contexts) != len(set(contexts)):
+        raise ValueError(f"{label} contains duplicate contexts")
+    return normalized
+
+
 def _validate_policy(policy: object) -> dict[str, object]:
     document = _require_mapping(policy, "policy")
     _require_exact_keys(document, _TOP_LEVEL_KEYS, "policy")
@@ -112,9 +133,15 @@ def _validate_policy(policy: object) -> dict[str, object]:
     )
     _require_exact_keys(status, _STATUS_KEYS, "required_status_checks")
     _require_bool(status["strict"], "required_status_checks.strict")
-    _require_contexts(
+    contexts = _require_contexts(
         status["contexts"], "required_status_checks.contexts"
     )
+    if contexts:
+        raise ValueError(
+            "required_status_checks.contexts must be empty; "
+            "use app-bound checks"
+        )
+    _require_checks(status["checks"], "required_status_checks.checks")
 
     reviews = _require_mapping(
         document["required_pull_request_reviews"],
@@ -162,9 +189,16 @@ def normalize_policy(policy: dict[str, object]) -> dict[str, object]:
         "required_status_checks": {
             "strict": status["strict"],
             "contexts": sorted(
-                _require_contexts(
-                    status["contexts"], "required_status_checks.contexts"
+                str(check["context"])
+                for check in _require_checks(
+                    status["checks"], "required_status_checks.checks"
                 )
+            ),
+            "checks": sorted(
+                _require_checks(
+                    status["checks"], "required_status_checks.checks"
+                ),
+                key=lambda check: (str(check["context"]), int(check["app_id"])),
             ),
         },
         "enforce_admins": validated["enforce_admins"],
@@ -256,6 +290,10 @@ def normalize_remote(remote: dict[str, object]) -> dict[str, object]:
             status["contexts"], "required_status_checks.contexts"
         )
     )
+    checks = sorted(
+        _require_checks(status["checks"], "required_status_checks.checks"),
+        key=lambda check: (str(check["context"]), int(check["app_id"])),
+    )
 
     reviews = _require_mapping(
         document["required_pull_request_reviews"],
@@ -292,6 +330,7 @@ def normalize_remote(remote: dict[str, object]) -> dict[str, object]:
         "required_status_checks": {
             "strict": strict,
             "contexts": contexts,
+            "checks": checks,
         },
         "enforce_admins": _unwrap_enabled(document, "enforce_admins"),
         "required_pull_request_reviews": normalized_reviews,
