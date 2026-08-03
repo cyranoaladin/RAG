@@ -80,7 +80,7 @@ def test_security_definer_predicate_rejects_every_executable_user_routine() -> N
     assert "PG_PROC" in normalized
     assert "PG_NAMESPACE" in normalized
     assert "PROSECDEF" in normalized
-    assert "PROKIND IN ('F', 'P')" in normalized
+    assert "PROKIND" not in normalized
     assert "HAS_FUNCTION_PRIVILEGE" in normalized
     assert "'EXECUTE'" in normalized
     assert "PG_CATALOG" in normalized
@@ -97,7 +97,7 @@ def test_user_schema_predicate_rejects_effective_create_and_ownership() -> None:
     assert "PG_HAS_ROLE" in normalized
     assert "NSPOWNER" in normalized
     assert "INFORMATION_SCHEMA" in normalized
-    assert "NOT LIKE 'PG\\_%' ESCAPE '\\'" in normalized
+    assert "NOT LIKE E'PG\\\\_%' ESCAPE E'\\\\'" in normalized
 
 
 def test_postgres_database_identity_is_bounded_read_only_and_cluster_specific(

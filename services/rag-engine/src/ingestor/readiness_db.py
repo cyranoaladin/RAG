@@ -122,7 +122,6 @@ NOT EXISTS (
           )
       AND routine_namespace.nspname NOT LIKE 'pg_toast%'
       AND routine_namespace.nspname NOT LIKE 'pg_temp_%'
-      AND privileged_routine.prokind IN ('f', 'p')
       AND privileged_routine.prosecdef
       AND has_function_privilege(
           current_user, privileged_routine.oid, 'EXECUTE'
@@ -138,7 +137,7 @@ NOT EXISTS (
     SELECT 1
     FROM pg_namespace AS user_namespace
     WHERE user_namespace.nspname <> 'information_schema'
-      AND user_namespace.nspname NOT LIKE 'pg\_%' ESCAPE '\'
+      AND user_namespace.nspname NOT LIKE E'pg\\_%' ESCAPE E'\\'
       AND (
           has_schema_privilege(
               current_user, user_namespace.oid, 'CREATE'

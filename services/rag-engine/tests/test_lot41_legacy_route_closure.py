@@ -118,6 +118,18 @@ def test_deep_health_is_loopback_only(name: str) -> None:
     assert "deny all" in health
 
 
+@pytest.mark.parametrize("name", ["rag-v2.conf", "rag-api.conf.template"])
+def test_collection_readiness_does_not_charge_the_business_request_bucket(
+    name: str,
+) -> None:
+    config = _read(name)
+    readiness = _location_block(config, "location = /collections/readiness")
+
+    assert "limit_req zone=api_v2" not in readiness
+    assert "limit_req zone=readiness_v2" in readiness
+    assert "zone=readiness_v2:" in config
+
+
 def test_canonical_v2_runtime_uses_one_metrics_process() -> None:
     compose = (ENGINE_ROOT / "infra" / "docker-compose.v2.yml").read_text(
         encoding="utf-8"

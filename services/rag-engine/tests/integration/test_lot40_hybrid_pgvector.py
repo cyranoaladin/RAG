@@ -817,6 +817,57 @@ def test_runtime_roles_reject_executable_security_definer_routines() -> None:
     print("RUNTIME_SECURITY_DEFINER_EXECUTE_REJECTED=PASS")
 
 
+def test_runtime_roles_reject_executable_window_security_definer() -> None:
+    routine = "public.lot41u_unexpected_window_security_definer()"
+    try:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(f"DROP FUNCTION IF EXISTS {routine}")
+            connection.execute(
+                """
+                CREATE FUNCTION public.lot41u_unexpected_window_security_definer()
+                RETURNS bigint
+                AS 'window_row_number'
+                LANGUAGE internal
+                WINDOW
+                STABLE
+                STRICT
+                SECURITY DEFINER
+                """
+            )
+        assert retrieval_database_ready(APP_DSN) is False
+        assert review_database_ready(REVIEW_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(f"DROP FUNCTION IF EXISTS {routine}")
+    assert retrieval_database_ready(APP_DSN) is True
+    assert review_database_ready(REVIEW_DSN) is True
+    print("RUNTIME_WINDOW_SECURITY_DEFINER_REJECTED=PASS")
+
+
+def test_runtime_schema_predicate_is_independent_of_string_mode() -> None:
+    try:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(
+                "ALTER ROLE lot40_app SET standard_conforming_strings TO off"
+            )
+            connection.execute(
+                "ALTER ROLE lot41_review SET standard_conforming_strings TO off"
+            )
+        assert retrieval_database_ready(APP_DSN) is True
+        assert review_database_ready(REVIEW_DSN) is True
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(
+                "ALTER ROLE lot40_app RESET standard_conforming_strings"
+            )
+            connection.execute(
+                "ALTER ROLE lot41_review RESET standard_conforming_strings"
+            )
+    assert retrieval_database_ready(APP_DSN) is True
+    assert review_database_ready(REVIEW_DSN) is True
+    print("RUNTIME_SCHEMA_ESCAPE_STABLE=PASS")
+
+
 def test_runtime_roles_reject_create_or_ownership_on_every_user_schema() -> None:
     owned_schema = "lot41u_retrieval_owned"
     granted_schema = "lot41u_review_create"

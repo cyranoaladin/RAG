@@ -1,5 +1,6 @@
 # API reverse proxy LOT41U : allowlist exacte, TLS et métriques locales.
 limit_req_zone $binary_remote_addr zone=api_v2:10m rate=20r/s;
+limit_req_zone $binary_remote_addr zone=readiness_v2:10m rate=100r/s;
 
 server {
   listen 80;
@@ -74,7 +75,7 @@ server {
   }
 
   location = /collections/readiness {
-    limit_req zone=api_v2 burst=40 nodelay;
+    limit_req zone=readiness_v2 burst=200 nodelay;
     proxy_pass http://127.0.0.1:${NGINX_API_PORT}/collections/readiness;
     proxy_http_version 1.1;
     proxy_read_timeout 60s;

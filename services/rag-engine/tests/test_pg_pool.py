@@ -236,7 +236,7 @@ def test_database_budget_is_strictly_below_the_cockpit_bff_deadline() -> None:
     )
 
 
-@pytest.mark.parametrize("value", ("0", "6001", "not-an-int"))
+@pytest.mark.parametrize("value", ("0", "999", "6001", "not-an-int"))
 def test_runtime_database_budget_rejects_unsafe_values(
     monkeypatch: pytest.MonkeyPatch,
     value: str,
@@ -245,6 +245,14 @@ def test_runtime_database_budget_rejects_unsafe_values(
 
     with pytest.raises(PoolConfigurationError, match="Budget PostgreSQL"):
         pg_pool.runtime_database_budget_ms_from_env()
+
+
+def test_runtime_database_budget_accepts_libpq_minimum(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PG_DATABASE_BUDGET_MS", "1000")
+
+    assert pg_pool.runtime_database_budget_ms_from_env() == 1_000
 
 
 def test_runtime_database_budget_is_shared_by_nested_operations(

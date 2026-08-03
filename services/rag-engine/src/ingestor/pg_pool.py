@@ -30,7 +30,7 @@ class RuntimeConnectionKwargs(TypedDict):
 COCKPIT_ENGINE_TIMEOUT_FLOOR_MS = 8_000
 MAX_RUNTIME_DATABASE_BUDGET_MS = 6_000
 _DEFAULT_RUNTIME_DATABASE_BUDGET_MS = 6_000
-_MIN_RUNTIME_DATABASE_BUDGET_MS = 100
+_MIN_RUNTIME_DATABASE_BUDGET_MS = 1_000
 _DEFAULT_STATEMENT_TIMEOUT_MS = 3_000
 _DEFAULT_LOCK_TIMEOUT_MS = 500
 _DEFAULT_CONNECT_TIMEOUT_S = 1
@@ -55,7 +55,7 @@ def runtime_database_budget_ms_from_env() -> int:
         raise PoolConfigurationError("Budget PostgreSQL invalide.") from None
     if not _MIN_RUNTIME_DATABASE_BUDGET_MS <= budget_ms <= MAX_RUNTIME_DATABASE_BUDGET_MS:
         raise PoolConfigurationError(
-            "Budget PostgreSQL invalide: 100 <= budget <= 6000 ms requis."
+            "Budget PostgreSQL invalide: 1000 <= budget <= 6000 ms requis."
         )
     return budget_ms
 
@@ -78,7 +78,7 @@ def runtime_database_budget(
         <= MAX_RUNTIME_DATABASE_BUDGET_MS
     ):
         raise PoolConfigurationError(
-            "Budget PostgreSQL invalide: 100 <= budget <= 6000 ms requis."
+            "Budget PostgreSQL invalide: 1000 <= budget <= 6000 ms requis."
         )
     deadline = time.monotonic() + (resolved_budget_ms / 1_000.0)
     token: Token[float | None] = _database_deadline.set(deadline)
