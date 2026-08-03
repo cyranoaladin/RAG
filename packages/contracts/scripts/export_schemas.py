@@ -16,12 +16,18 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from nexus_contracts import (  # noqa: E402
+    ArtifactRecord,
     ChatRequest,
     ChatResponse,
     ChatPayload,
+    CollectionProfile,
+    CoverageSnapshot,
+    IngestionRun,
     InternalIdentity,
     InternalIdentityEnvelope,
     PilotRetrievalScopeArtifact,
+    QualityReport,
+    ResourceCandidate,
     RetrievalRequest,
     RetrievalResponse,
     ReviewDecisionPayload,
@@ -29,7 +35,9 @@ from nexus_contracts import (  # noqa: E402
     ReviewDecisionResponse,
     ReviewQueuePayload,
     ReviewQueueResponse,
+    RoutingDecision,
     SearchPayload,
+    SearchPlan,
 )
 
 Model = TypeVar("Model", bound=BaseModel)
@@ -48,6 +56,14 @@ SCHEMAS: dict[str, type[BaseModel]] = {
     "internal-identity-envelope.json": InternalIdentityEnvelope,
     "pilot-retrieval-scope-artifact.json": PilotRetrievalScopeArtifact,
     "search-payload.json": SearchPayload,
+    "collection-profile.json": CollectionProfile,
+    "search-plan.json": SearchPlan,
+    "resource-candidate.json": ResourceCandidate,
+    "artifact-record.json": ArtifactRecord,
+    "routing-decision.json": RoutingDecision,
+    "quality-report.json": QualityReport,
+    "ingestion-run.json": IngestionRun,
+    "coverage-snapshot.json": CoverageSnapshot,
 }
 
 

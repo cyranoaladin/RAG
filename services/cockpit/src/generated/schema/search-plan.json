@@ -1,0 +1,266 @@
+{
+  "$defs": {
+    "Audience": {
+      "enum": [
+        "libre",
+        "aefe",
+        "tous"
+      ],
+      "title": "Audience",
+      "type": "string"
+    },
+    "Candidat": {
+      "enum": [
+        "scolarise",
+        "individuel",
+        "libre",
+        "cned_reglemente",
+        "cned_libre",
+        "aefe",
+        "both"
+      ],
+      "title": "Candidat",
+      "type": "string"
+    },
+    "Niveau": {
+      "enum": [
+        "troisieme",
+        "seconde",
+        "premiere",
+        "terminale",
+        "cycle4",
+        "lycee_gt",
+        "voie_generale",
+        "voie_technologique"
+      ],
+      "title": "Niveau",
+      "type": "string"
+    },
+    "ResourceScope": {
+      "additionalProperties": false,
+      "description": "Scope gouverné complet — obligatoire et fail-closed.\n\nReprend exactement les dix dimensions de scope déjà gouvernées côté\nrag-engine (colonnes ``rag_chunks`` introduites en LOT41,\n``services/rag-engine/infra/postgres/migrations/003_profile_filtering.sql``).\nAucun champ n'a de valeur par défaut : un scope incomplet ne peut pas\nêtre construit, jamais deviné silencieusement.",
+      "properties": {
+        "audience": {
+          "items": {
+            "$ref": "#/$defs/Audience"
+          },
+          "minItems": 1,
+          "title": "Audience",
+          "type": "array"
+        },
+        "candidat": {
+          "$ref": "#/$defs/Candidat"
+        },
+        "collection": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Collection",
+          "type": "string"
+        },
+        "matiere": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Matiere",
+          "type": "string"
+        },
+        "niveau": {
+          "$ref": "#/$defs/Niveau"
+        },
+        "programme_version": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Programme Version",
+          "type": "string"
+        },
+        "school_year": {
+          "pattern": "^\\d{4}-\\d{4}$",
+          "title": "School Year",
+          "type": "string"
+        },
+        "tenant": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Tenant",
+          "type": "string"
+        },
+        "visibility": {
+          "enum": [
+            "public",
+            "internal",
+            "restricted",
+            "private"
+          ],
+          "title": "Visibility",
+          "type": "string"
+        },
+        "voie": {
+          "$ref": "#/$defs/Voie"
+        }
+      },
+      "required": [
+        "tenant",
+        "collection",
+        "niveau",
+        "voie",
+        "matiere",
+        "candidat",
+        "audience",
+        "visibility",
+        "school_year",
+        "programme_version"
+      ],
+      "title": "ResourceScope",
+      "type": "object"
+    },
+    "TypeDoc": {
+      "enum": [
+        "programme_officiel",
+        "ressource_officielle",
+        "cours",
+        "fiche_synthese",
+        "fiche_methode",
+        "td",
+        "tp",
+        "exercice",
+        "exercice_corrige",
+        "devoir",
+        "devoir_corrige",
+        "evaluation",
+        "evaluation_corrigee",
+        "bac_blanc",
+        "brevet_blanc",
+        "annale",
+        "sujet_zero",
+        "corrige",
+        "bareme",
+        "grille_evaluation",
+        "grille_grand_oral",
+        "oral",
+        "diaporama",
+        "latex",
+        "notebook",
+        "code",
+        "image",
+        "scan",
+        "copie",
+        "rapport",
+        "referentiel",
+        "modalite_examen",
+        "autre"
+      ],
+      "title": "TypeDoc",
+      "type": "string"
+    },
+    "Voie": {
+      "enum": [
+        "college",
+        "generale",
+        "technologique",
+        "professionnelle",
+        "aefe",
+        "unknown"
+      ],
+      "title": "Voie",
+      "type": "string"
+    }
+  },
+  "$id": "https://nexusreussite.academy/contracts/v0.5/search-plan.json",
+  "additionalProperties": false,
+  "description": "Plan de recherche généré pour une collection, justifié requête par requête.",
+  "properties": {
+    "allowed_domains": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Allowed Domains",
+      "type": "array"
+    },
+    "excluded_topics": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Excluded Topics",
+      "type": "array"
+    },
+    "gap_targets": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Gap Targets",
+      "type": "array"
+    },
+    "generated_at": {
+      "format": "date-time",
+      "title": "Generated At",
+      "type": "string"
+    },
+    "max_results": {
+      "exclusiveMinimum": 0,
+      "title": "Max Results",
+      "type": "integer"
+    },
+    "profile_version": {
+      "minLength": 1,
+      "title": "Profile Version",
+      "type": "string"
+    },
+    "queries": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Queries",
+      "type": "array"
+    },
+    "reason": {
+      "minLength": 1,
+      "title": "Reason",
+      "type": "string"
+    },
+    "required_resource_types": {
+      "items": {
+        "$ref": "#/$defs/TypeDoc"
+      },
+      "title": "Required Resource Types",
+      "type": "array"
+    },
+    "required_topics": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Required Topics",
+      "type": "array"
+    },
+    "run_id": {
+      "format": "uuid",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "scope": {
+      "$ref": "#/$defs/ResourceScope"
+    },
+    "search_plan_id": {
+      "format": "uuid",
+      "title": "Search Plan Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "search_plan_id",
+    "run_id",
+    "scope",
+    "generated_at",
+    "profile_version",
+    "queries",
+    "allowed_domains",
+    "max_results",
+    "reason"
+  ],
+  "title": "SearchPlan",
+  "type": "object"
+}

@@ -1,0 +1,272 @@
+{
+  "$defs": {
+    "Audience": {
+      "enum": [
+        "libre",
+        "aefe",
+        "tous"
+      ],
+      "title": "Audience",
+      "type": "string"
+    },
+    "Candidat": {
+      "enum": [
+        "scolarise",
+        "individuel",
+        "libre",
+        "cned_reglemente",
+        "cned_libre",
+        "aefe",
+        "both"
+      ],
+      "title": "Candidat",
+      "type": "string"
+    },
+    "Niveau": {
+      "enum": [
+        "troisieme",
+        "seconde",
+        "premiere",
+        "terminale",
+        "cycle4",
+        "lycee_gt",
+        "voie_generale",
+        "voie_technologique"
+      ],
+      "title": "Niveau",
+      "type": "string"
+    },
+    "ResourceScope": {
+      "additionalProperties": false,
+      "description": "Scope gouverné complet — obligatoire et fail-closed.\n\nReprend exactement les dix dimensions de scope déjà gouvernées côté\nrag-engine (colonnes ``rag_chunks`` introduites en LOT41,\n``services/rag-engine/infra/postgres/migrations/003_profile_filtering.sql``).\nAucun champ n'a de valeur par défaut : un scope incomplet ne peut pas\nêtre construit, jamais deviné silencieusement.",
+      "properties": {
+        "audience": {
+          "items": {
+            "$ref": "#/$defs/Audience"
+          },
+          "minItems": 1,
+          "title": "Audience",
+          "type": "array"
+        },
+        "candidat": {
+          "$ref": "#/$defs/Candidat"
+        },
+        "collection": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Collection",
+          "type": "string"
+        },
+        "matiere": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Matiere",
+          "type": "string"
+        },
+        "niveau": {
+          "$ref": "#/$defs/Niveau"
+        },
+        "programme_version": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Programme Version",
+          "type": "string"
+        },
+        "school_year": {
+          "pattern": "^\\d{4}-\\d{4}$",
+          "title": "School Year",
+          "type": "string"
+        },
+        "tenant": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Tenant",
+          "type": "string"
+        },
+        "visibility": {
+          "enum": [
+            "public",
+            "internal",
+            "restricted",
+            "private"
+          ],
+          "title": "Visibility",
+          "type": "string"
+        },
+        "voie": {
+          "$ref": "#/$defs/Voie"
+        }
+      },
+      "required": [
+        "tenant",
+        "collection",
+        "niveau",
+        "voie",
+        "matiere",
+        "candidat",
+        "audience",
+        "visibility",
+        "school_year",
+        "programme_version"
+      ],
+      "title": "ResourceScope",
+      "type": "object"
+    },
+    "TypeDoc": {
+      "enum": [
+        "programme_officiel",
+        "ressource_officielle",
+        "cours",
+        "fiche_synthese",
+        "fiche_methode",
+        "td",
+        "tp",
+        "exercice",
+        "exercice_corrige",
+        "devoir",
+        "devoir_corrige",
+        "evaluation",
+        "evaluation_corrigee",
+        "bac_blanc",
+        "brevet_blanc",
+        "annale",
+        "sujet_zero",
+        "corrige",
+        "bareme",
+        "grille_evaluation",
+        "grille_grand_oral",
+        "oral",
+        "diaporama",
+        "latex",
+        "notebook",
+        "code",
+        "image",
+        "scan",
+        "copie",
+        "rapport",
+        "referentiel",
+        "modalite_examen",
+        "autre"
+      ],
+      "title": "TypeDoc",
+      "type": "string"
+    },
+    "Voie": {
+      "enum": [
+        "college",
+        "generale",
+        "technologique",
+        "professionnelle",
+        "aefe",
+        "unknown"
+      ],
+      "title": "Voie",
+      "type": "string"
+    }
+  },
+  "$id": "https://nexusreussite.academy/contracts/v0.5/resource-candidate.json",
+  "additionalProperties": false,
+  "description": "Candidat de ressource découvert, toujours rattaché à une ressource.\n\n``resource_id`` est obligatoire : LOT44a crée la ressource provisoire de\nfaçon atomique dès l'acceptation du candidat (même transaction), donc\naucun ``ResourceCandidate`` ne peut exister sans ressource rattachée.\nCe modèle ne porte volontairement pas de champ de statut propre — son\nétat est entièrement représenté par ``resource_state`` (rattaché via\n``resource_id``), pour préserver un gate d'état unique.",
+  "properties": {
+    "candidate_id": {
+      "format": "uuid",
+      "title": "Candidate Id",
+      "type": "string"
+    },
+    "canonical_url": {
+      "minLength": 1,
+      "title": "Canonical Url",
+      "type": "string"
+    },
+    "dedup_key": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Dedup Key",
+      "type": "string"
+    },
+    "discovered_at": {
+      "format": "date-time",
+      "title": "Discovered At",
+      "type": "string"
+    },
+    "domain": {
+      "minLength": 1,
+      "title": "Domain",
+      "type": "string"
+    },
+    "language": {
+      "default": "fr",
+      "title": "Language",
+      "type": "string"
+    },
+    "proposed_type_doc": {
+      "$ref": "#/$defs/TypeDoc"
+    },
+    "publisher": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Publisher"
+    },
+    "relevance_evidence": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Relevance Evidence",
+      "type": "array"
+    },
+    "resource_id": {
+      "format": "uuid",
+      "title": "Resource Id",
+      "type": "string"
+    },
+    "run_id": {
+      "format": "uuid",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "scope": {
+      "$ref": "#/$defs/ResourceScope"
+    },
+    "source_url": {
+      "minLength": 1,
+      "title": "Source Url",
+      "type": "string"
+    },
+    "title": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Title"
+    }
+  },
+  "required": [
+    "candidate_id",
+    "resource_id",
+    "run_id",
+    "scope",
+    "discovered_at",
+    "source_url",
+    "canonical_url",
+    "domain",
+    "proposed_type_doc",
+    "dedup_key"
+  ],
+  "title": "ResourceCandidate",
+  "type": "object"
+}

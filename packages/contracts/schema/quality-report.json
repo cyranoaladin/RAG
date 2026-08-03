@@ -1,0 +1,273 @@
+{
+  "$defs": {
+    "Audience": {
+      "enum": [
+        "libre",
+        "aefe",
+        "tous"
+      ],
+      "title": "Audience",
+      "type": "string"
+    },
+    "Candidat": {
+      "enum": [
+        "scolarise",
+        "individuel",
+        "libre",
+        "cned_reglemente",
+        "cned_libre",
+        "aefe",
+        "both"
+      ],
+      "title": "Candidat",
+      "type": "string"
+    },
+    "Niveau": {
+      "enum": [
+        "troisieme",
+        "seconde",
+        "premiere",
+        "terminale",
+        "cycle4",
+        "lycee_gt",
+        "voie_generale",
+        "voie_technologique"
+      ],
+      "title": "Niveau",
+      "type": "string"
+    },
+    "ResourceScope": {
+      "additionalProperties": false,
+      "description": "Scope gouverné complet — obligatoire et fail-closed.\n\nReprend exactement les dix dimensions de scope déjà gouvernées côté\nrag-engine (colonnes ``rag_chunks`` introduites en LOT41,\n``services/rag-engine/infra/postgres/migrations/003_profile_filtering.sql``).\nAucun champ n'a de valeur par défaut : un scope incomplet ne peut pas\nêtre construit, jamais deviné silencieusement.",
+      "properties": {
+        "audience": {
+          "items": {
+            "$ref": "#/$defs/Audience"
+          },
+          "minItems": 1,
+          "title": "Audience",
+          "type": "array"
+        },
+        "candidat": {
+          "$ref": "#/$defs/Candidat"
+        },
+        "collection": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Collection",
+          "type": "string"
+        },
+        "matiere": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Matiere",
+          "type": "string"
+        },
+        "niveau": {
+          "$ref": "#/$defs/Niveau"
+        },
+        "programme_version": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Programme Version",
+          "type": "string"
+        },
+        "school_year": {
+          "pattern": "^\\d{4}-\\d{4}$",
+          "title": "School Year",
+          "type": "string"
+        },
+        "tenant": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Tenant",
+          "type": "string"
+        },
+        "visibility": {
+          "enum": [
+            "public",
+            "internal",
+            "restricted",
+            "private"
+          ],
+          "title": "Visibility",
+          "type": "string"
+        },
+        "voie": {
+          "$ref": "#/$defs/Voie"
+        }
+      },
+      "required": [
+        "tenant",
+        "collection",
+        "niveau",
+        "voie",
+        "matiere",
+        "candidat",
+        "audience",
+        "visibility",
+        "school_year",
+        "programme_version"
+      ],
+      "title": "ResourceScope",
+      "type": "object"
+    },
+    "Rights": {
+      "enum": [
+        "officiel_public",
+        "public_allowed",
+        "nexus_proprietaire",
+        "usage_interne",
+        "student_private",
+        "parent_private",
+        "commercial_confidential",
+        "restricted",
+        "unknown"
+      ],
+      "title": "Rights",
+      "type": "string"
+    },
+    "Voie": {
+      "enum": [
+        "college",
+        "generale",
+        "technologique",
+        "professionnelle",
+        "aefe",
+        "unknown"
+      ],
+      "title": "Voie",
+      "type": "string"
+    }
+  },
+  "$id": "https://nexusreussite.academy/contracts/v0.5/quality-report.json",
+  "additionalProperties": false,
+  "description": "Rapport qualité borné [0, 1] par dimension.",
+  "properties": {
+    "duplicate_detected": {
+      "title": "Duplicate Detected",
+      "type": "boolean"
+    },
+    "evaluated_at": {
+      "format": "date-time",
+      "title": "Evaluated At",
+      "type": "string"
+    },
+    "extraction_quality": {
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Extraction Quality",
+      "type": "number"
+    },
+    "language_detected": {
+      "minLength": 1,
+      "title": "Language Detected",
+      "type": "string"
+    },
+    "matiere_conformity": {
+      "title": "Matiere Conformity",
+      "type": "boolean"
+    },
+    "metadata_quality": {
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Metadata Quality",
+      "type": "number"
+    },
+    "niveau_conformity": {
+      "title": "Niveau Conformity",
+      "type": "boolean"
+    },
+    "pii_detected": {
+      "title": "Pii Detected",
+      "type": "boolean"
+    },
+    "programme_conformity": {
+      "title": "Programme Conformity",
+      "type": "boolean"
+    },
+    "readability": {
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Readability",
+      "type": "number"
+    },
+    "rejection_reasons": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Rejection Reasons",
+      "type": "array"
+    },
+    "relevance_score": {
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Relevance Score",
+      "type": "number"
+    },
+    "report_id": {
+      "format": "uuid",
+      "title": "Report Id",
+      "type": "string"
+    },
+    "resource_id": {
+      "format": "uuid",
+      "title": "Resource Id",
+      "type": "string"
+    },
+    "rights_status": {
+      "$ref": "#/$defs/Rights"
+    },
+    "run_id": {
+      "format": "uuid",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "scope": {
+      "$ref": "#/$defs/ResourceScope"
+    },
+    "structure_score": {
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Structure Score",
+      "type": "number"
+    },
+    "topic_coverage": {
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Topic Coverage",
+      "type": "number"
+    },
+    "voie_conformity": {
+      "title": "Voie Conformity",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "report_id",
+    "resource_id",
+    "run_id",
+    "scope",
+    "extraction_quality",
+    "readability",
+    "language_detected",
+    "structure_score",
+    "niveau_conformity",
+    "voie_conformity",
+    "matiere_conformity",
+    "programme_conformity",
+    "topic_coverage",
+    "relevance_score",
+    "pii_detected",
+    "duplicate_detected",
+    "metadata_quality",
+    "rights_status",
+    "evaluated_at"
+  ],
+  "title": "QualityReport",
+  "type": "object"
+}

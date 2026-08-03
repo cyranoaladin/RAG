@@ -1,0 +1,223 @@
+{
+  "$defs": {
+    "Audience": {
+      "enum": [
+        "libre",
+        "aefe",
+        "tous"
+      ],
+      "title": "Audience",
+      "type": "string"
+    },
+    "Candidat": {
+      "enum": [
+        "scolarise",
+        "individuel",
+        "libre",
+        "cned_reglemente",
+        "cned_libre",
+        "aefe",
+        "both"
+      ],
+      "title": "Candidat",
+      "type": "string"
+    },
+    "Niveau": {
+      "enum": [
+        "troisieme",
+        "seconde",
+        "premiere",
+        "terminale",
+        "cycle4",
+        "lycee_gt",
+        "voie_generale",
+        "voie_technologique"
+      ],
+      "title": "Niveau",
+      "type": "string"
+    },
+    "ResourceScope": {
+      "additionalProperties": false,
+      "description": "Scope gouverné complet — obligatoire et fail-closed.\n\nReprend exactement les dix dimensions de scope déjà gouvernées côté\nrag-engine (colonnes ``rag_chunks`` introduites en LOT41,\n``services/rag-engine/infra/postgres/migrations/003_profile_filtering.sql``).\nAucun champ n'a de valeur par défaut : un scope incomplet ne peut pas\nêtre construit, jamais deviné silencieusement.",
+      "properties": {
+        "audience": {
+          "items": {
+            "$ref": "#/$defs/Audience"
+          },
+          "minItems": 1,
+          "title": "Audience",
+          "type": "array"
+        },
+        "candidat": {
+          "$ref": "#/$defs/Candidat"
+        },
+        "collection": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Collection",
+          "type": "string"
+        },
+        "matiere": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Matiere",
+          "type": "string"
+        },
+        "niveau": {
+          "$ref": "#/$defs/Niveau"
+        },
+        "programme_version": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Programme Version",
+          "type": "string"
+        },
+        "school_year": {
+          "pattern": "^\\d{4}-\\d{4}$",
+          "title": "School Year",
+          "type": "string"
+        },
+        "tenant": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Tenant",
+          "type": "string"
+        },
+        "visibility": {
+          "enum": [
+            "public",
+            "internal",
+            "restricted",
+            "private"
+          ],
+          "title": "Visibility",
+          "type": "string"
+        },
+        "voie": {
+          "$ref": "#/$defs/Voie"
+        }
+      },
+      "required": [
+        "tenant",
+        "collection",
+        "niveau",
+        "voie",
+        "matiere",
+        "candidat",
+        "audience",
+        "visibility",
+        "school_year",
+        "programme_version"
+      ],
+      "title": "ResourceScope",
+      "type": "object"
+    },
+    "Voie": {
+      "enum": [
+        "college",
+        "generale",
+        "technologique",
+        "professionnelle",
+        "aefe",
+        "unknown"
+      ],
+      "title": "Voie",
+      "type": "string"
+    }
+  },
+  "$id": "https://nexusreussite.academy/contracts/v0.5/routing-decision.json",
+  "additionalProperties": false,
+  "description": "Décision de routage — validée côté serveur, jamais devinée.",
+  "properties": {
+    "agent_identity": {
+      "minLength": 1,
+      "title": "Agent Identity",
+      "type": "string"
+    },
+    "confidence": {
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Confidence",
+      "type": "number"
+    },
+    "decided_at": {
+      "format": "date-time",
+      "title": "Decided At",
+      "type": "string"
+    },
+    "decision": {
+      "enum": [
+        "ROUTE",
+        "QUARANTINE",
+        "REJECT",
+        "DUPLICATE",
+        "SUPERSEDED"
+      ],
+      "title": "Decision",
+      "type": "string"
+    },
+    "decision_id": {
+      "format": "uuid",
+      "title": "Decision Id",
+      "type": "string"
+    },
+    "errors": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Errors",
+      "type": "array"
+    },
+    "evidence": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Evidence",
+      "type": "array"
+    },
+    "profile_version": {
+      "minLength": 1,
+      "title": "Profile Version",
+      "type": "string"
+    },
+    "resource_id": {
+      "format": "uuid",
+      "title": "Resource Id",
+      "type": "string"
+    },
+    "rules_applied": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Rules Applied",
+      "type": "array"
+    },
+    "run_id": {
+      "format": "uuid",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "scope": {
+      "$ref": "#/$defs/ResourceScope"
+    }
+  },
+  "required": [
+    "decision_id",
+    "resource_id",
+    "run_id",
+    "scope",
+    "decision",
+    "confidence",
+    "rules_applied",
+    "profile_version",
+    "agent_identity",
+    "decided_at"
+  ],
+  "title": "RoutingDecision",
+  "type": "object"
+}

@@ -14,7 +14,15 @@ export type ContractBundle =
   | ReviewDecisionPayload
   | ReviewDecisionRequest
   | ReviewQueueResponse
-  | ReviewDecisionResponse;
+  | ReviewDecisionResponse
+  | CollectionProfile
+  | SearchPlan
+  | ResourceCandidate
+  | ArtifactRecord
+  | RoutingDecision
+  | QualityReport
+  | IngestionRun
+  | CoverageSnapshot;
 export type TypeDoc =
   | 'programme_officiel'
   | 'ressource_officielle'
@@ -599,6 +607,168 @@ export type Decision2 = 'reviewed' | 'quarantined';
 export type MaxStaleOtherWorkersS = 0;
 export type TargetId2 = string;
 export type TargetType2 = 'doc' | 'chunk';
+/**
+ * @minItems 1
+ */
+export type AllowedDomains = [string, ...string[]];
+export type ChunkOverlap = number;
+export type Enabled = boolean;
+export type ExcludedTopics = string[];
+/**
+ * @minItems 1
+ */
+export type ExpectedResourceTypes = [TypeDoc, ...TypeDoc[]];
+/**
+ * @minItems 1
+ */
+export type ExpectedTopics = [string, ...string[]];
+export type Language = string;
+export type MaxChunkSize = number;
+export type MaxDocumentsPerRun = number;
+export type MaxQueriesPerRun = number;
+export type MinExtractionQuality = number;
+export type MinScopeConfidence = number;
+export type MinSourceConfidence = number;
+export type Owner = string;
+export type ProfileVersion = string;
+export type AutoPublish = false;
+export type Mode = 'human_review';
+export type RejectAmbiguousRouting = boolean;
+export type RejectUnknownRights = boolean;
+/**
+ * @minItems 1
+ */
+export type Audience2 = [Audience3, ...Audience3[]];
+export type Audience3 = 'libre' | 'aefe' | 'tous';
+export type Collection5 = string;
+export type Matiere1 = string;
+export type ProgrammeVersion1 = string;
+export type SchoolYear3 = string;
+export type Tenant3 = string;
+export type Visibility = 'public' | 'internal' | 'restricted' | 'private';
+export type SearchCadence = 'daily' | 'weekly' | 'monthly' | 'manual';
+export type SeedUrls = string[];
+export type SourceAuthority = 'official' | 'authorized' | 'unknown';
+export type Title1 = string;
+/**
+ * @minItems 1
+ */
+export type AllowedDomains1 = [string, ...string[]];
+export type ExcludedTopics1 = string[];
+export type GapTargets = string[];
+export type GeneratedAt = string;
+export type MaxResults = number;
+export type ProfileVersion1 = string;
+/**
+ * @minItems 1
+ */
+export type Queries = [string, ...string[]];
+export type Reason = string;
+export type RequiredResourceTypes = TypeDoc[];
+export type RequiredTopics = string[];
+export type RunId = string;
+export type SearchPlanId = string;
+export type CandidateId = string;
+export type CanonicalUrl = string;
+export type DedupKey = string;
+export type DiscoveredAt = string;
+export type Domain = string;
+export type Language1 = string;
+export type Publisher = string | null;
+export type RelevanceEvidence = string[];
+export type ResourceId = string;
+export type RunId1 = string;
+export type SourceUrl = string;
+export type Title2 = string | null;
+export type ArtifactId = string;
+export type CollectedAt = string;
+export type Domain1 = string;
+export type ExtractedTextRef = string | null;
+export type FinalUrl = string;
+export type License = string | null;
+export type MimeDeclared = string;
+export type MimeDetected = string;
+export type OriginalUrl = string;
+export type PagesCount = number | null;
+export type Publisher1 = string | null;
+export type ResourceId1 = string;
+export type Rights3 =
+  | 'officiel_public'
+  | 'public_allowed'
+  | 'nexus_proprietaire'
+  | 'usage_interne'
+  | 'student_private'
+  | 'parent_private'
+  | 'commercial_confidential'
+  | 'restricted'
+  | 'unknown';
+export type RunId2 = string;
+export type Sha256 = string;
+export type SizeBytes = number;
+export type Title3 = string | null;
+export type Version = string | null;
+export type AgentIdentity = string;
+export type Confidence = number;
+export type DecidedAt = string;
+export type Decision3 = 'ROUTE' | 'QUARANTINE' | 'REJECT' | 'DUPLICATE' | 'SUPERSEDED';
+export type DecisionId = string;
+export type Errors = string[];
+export type Evidence = string[];
+export type ProfileVersion2 = string;
+export type ResourceId2 = string;
+/**
+ * @minItems 1
+ */
+export type RulesApplied = [string, ...string[]];
+export type RunId3 = string;
+export type DuplicateDetected = boolean;
+export type EvaluatedAt = string;
+export type ExtractionQuality = number;
+export type LanguageDetected = string;
+export type MatiereConformity = boolean;
+export type MetadataQuality = number;
+export type NiveauConformity = boolean;
+export type PiiDetected = boolean;
+export type ProgrammeConformity = boolean;
+export type Readability = number;
+export type RejectionReasons = string[];
+export type RelevanceScore = number;
+export type ReportId = string;
+export type ResourceId3 = string;
+export type RunId4 = string;
+export type StructureScore = number;
+export type TopicCoverage = number;
+export type VoieConformity = boolean;
+export type CodeVersion = string | null;
+export type Errors1 = string[];
+export type FinishedAt = string | null;
+export type JobsTotal = number;
+export type Mode1 = 'auto_stage';
+export type ProfileVersion3 = string;
+export type ResourcesAccepted = number;
+export type ResourcesDiscovered = number;
+export type ResourcesFetched = number;
+export type ResourcesNeedsReview = number;
+export type ResourcesQuarantined = number;
+export type ResourcesRejected = number;
+export type ResourcesRetrievalEligible = number;
+export type RunId5 = string;
+export type StartedAt = string | null;
+export type Status1 = 'planned' | 'running' | 'succeeded' | 'failed' | 'partial' | 'cancelled';
+export type Trigger = 'scheduled' | 'manual';
+export type AverageQuality = number | null;
+export type CoveredTopics = string[];
+/**
+ * @minItems 1
+ */
+export type ExpectedTopics1 = [string, ...string[]];
+export type Gaps = string[];
+export type InsufficientTopics = string[];
+export type PeriodEnd = string;
+export type PeriodStart = string;
+export type RecommendedNextQueries = string[];
+export type SnapshotId = string;
+export type StaleResources = number;
 
 export interface RetrievalRequest {
   need: RetrievalNeed;
@@ -852,4 +1022,221 @@ export interface ReviewDecisionResponse {
   max_stale_other_workers_s: MaxStaleOtherWorkersS;
   target_id: TargetId2;
   target_type: TargetType2;
+}
+/**
+ * Profil déclaratif complet d'une collection gouvernée.
+ */
+export interface CollectionProfile {
+  allowed_domains: AllowedDomains;
+  chunk_overlap: ChunkOverlap;
+  enabled: Enabled;
+  excluded_topics?: ExcludedTopics;
+  expected_resource_types: ExpectedResourceTypes;
+  expected_topics: ExpectedTopics;
+  language?: Language;
+  max_chunk_size: MaxChunkSize;
+  max_documents_per_run: MaxDocumentsPerRun;
+  max_queries_per_run: MaxQueriesPerRun;
+  min_extraction_quality: MinExtractionQuality;
+  min_scope_confidence: MinScopeConfidence;
+  min_source_confidence: MinSourceConfidence;
+  owner: Owner;
+  profile_version: ProfileVersion;
+  publication?: PublicationPolicy;
+  reject_ambiguous_routing?: RejectAmbiguousRouting;
+  reject_unknown_rights?: RejectUnknownRights;
+  scope: ResourceScope;
+  search_cadence: SearchCadence;
+  seed_urls?: SeedUrls;
+  source_authority: SourceAuthority;
+  title: Title1;
+}
+/**
+ * Politique de publication d'une collection — verrouillée en LOT44a.
+ *
+ * ``auto_publish`` est typé ``Literal[False]`` : ce n'est pas une valeur
+ * par défaut contournable, c'est une garantie structurelle que
+ * l'auto-publication ne peut pas être activée par ce contrat tant que le
+ * sous-système de publication n'existe pas.
+ */
+export interface PublicationPolicy {
+  auto_publish?: AutoPublish;
+  mode?: Mode;
+}
+/**
+ * Scope gouverné complet — obligatoire et fail-closed.
+ *
+ * Reprend exactement les dix dimensions de scope déjà gouvernées côté
+ * rag-engine (colonnes ``rag_chunks`` introduites en LOT41,
+ * ``services/rag-engine/infra/postgres/migrations/003_profile_filtering.sql``).
+ * Aucun champ n'a de valeur par défaut : un scope incomplet ne peut pas
+ * être construit, jamais deviné silencieusement.
+ */
+export interface ResourceScope {
+  audience: Audience2;
+  candidat: Candidat;
+  collection: Collection5;
+  matiere: Matiere1;
+  niveau: Niveau;
+  programme_version: ProgrammeVersion1;
+  school_year: SchoolYear3;
+  tenant: Tenant3;
+  visibility: Visibility;
+  voie: Voie;
+}
+/**
+ * Plan de recherche généré pour une collection, justifié requête par requête.
+ */
+export interface SearchPlan {
+  allowed_domains: AllowedDomains1;
+  excluded_topics?: ExcludedTopics1;
+  gap_targets?: GapTargets;
+  generated_at: GeneratedAt;
+  max_results: MaxResults;
+  profile_version: ProfileVersion1;
+  queries: Queries;
+  reason: Reason;
+  required_resource_types?: RequiredResourceTypes;
+  required_topics?: RequiredTopics;
+  run_id: RunId;
+  scope: ResourceScope;
+  search_plan_id: SearchPlanId;
+}
+/**
+ * Candidat de ressource découvert, toujours rattaché à une ressource.
+ *
+ * ``resource_id`` est obligatoire : LOT44a crée la ressource provisoire de
+ * façon atomique dès l'acceptation du candidat (même transaction), donc
+ * aucun ``ResourceCandidate`` ne peut exister sans ressource rattachée.
+ * Ce modèle ne porte volontairement pas de champ de statut propre — son
+ * état est entièrement représenté par ``resource_state`` (rattaché via
+ * ``resource_id``), pour préserver un gate d'état unique.
+ */
+export interface ResourceCandidate {
+  candidate_id: CandidateId;
+  canonical_url: CanonicalUrl;
+  dedup_key: DedupKey;
+  discovered_at: DiscoveredAt;
+  domain: Domain;
+  language?: Language1;
+  proposed_type_doc: TypeDoc;
+  publisher?: Publisher;
+  relevance_evidence?: RelevanceEvidence;
+  resource_id: ResourceId;
+  run_id: RunId1;
+  scope: ResourceScope;
+  source_url: SourceUrl;
+  title?: Title2;
+}
+/**
+ * Artefact téléchargé et son empreinte — ancre de déduplication/version.
+ */
+export interface ArtifactRecord {
+  artifact_id: ArtifactId;
+  collected_at: CollectedAt;
+  domain: Domain1;
+  extracted_text_ref?: ExtractedTextRef;
+  final_url: FinalUrl;
+  license?: License;
+  mime_declared: MimeDeclared;
+  mime_detected: MimeDetected;
+  original_url: OriginalUrl;
+  pages_count?: PagesCount;
+  publisher?: Publisher1;
+  resource_id: ResourceId1;
+  rights_status: Rights3;
+  run_id: RunId2;
+  scope: ResourceScope;
+  sha256: Sha256;
+  size_bytes: SizeBytes;
+  title?: Title3;
+  version?: Version;
+}
+/**
+ * Décision de routage — validée côté serveur, jamais devinée.
+ */
+export interface RoutingDecision {
+  agent_identity: AgentIdentity;
+  confidence: Confidence;
+  decided_at: DecidedAt;
+  decision: Decision3;
+  decision_id: DecisionId;
+  errors?: Errors;
+  evidence?: Evidence;
+  profile_version: ProfileVersion2;
+  resource_id: ResourceId2;
+  rules_applied: RulesApplied;
+  run_id: RunId3;
+  scope: ResourceScope;
+}
+/**
+ * Rapport qualité borné [0, 1] par dimension.
+ */
+export interface QualityReport {
+  duplicate_detected: DuplicateDetected;
+  evaluated_at: EvaluatedAt;
+  extraction_quality: ExtractionQuality;
+  language_detected: LanguageDetected;
+  matiere_conformity: MatiereConformity;
+  metadata_quality: MetadataQuality;
+  niveau_conformity: NiveauConformity;
+  pii_detected: PiiDetected;
+  programme_conformity: ProgrammeConformity;
+  readability: Readability;
+  rejection_reasons?: RejectionReasons;
+  relevance_score: RelevanceScore;
+  report_id: ReportId;
+  resource_id: ResourceId3;
+  rights_status: Rights3;
+  run_id: RunId4;
+  scope: ResourceScope;
+  structure_score: StructureScore;
+  topic_coverage: TopicCoverage;
+  voie_conformity: VoieConformity;
+}
+/**
+ * Run d'ingestion — s'arrête à ``resources_retrieval_eligible``.
+ *
+ * Aucun compteur ``resources_published`` : la publication produit est hors
+ * périmètre de LOT44a (cf. ``nexus_contracts.resource_state``).
+ */
+export interface IngestionRun {
+  code_version?: CodeVersion;
+  errors?: Errors1;
+  finished_at?: FinishedAt;
+  jobs_total?: JobsTotal;
+  mode?: Mode1;
+  profile_version: ProfileVersion3;
+  resources_accepted?: ResourcesAccepted;
+  resources_discovered?: ResourcesDiscovered;
+  resources_fetched?: ResourcesFetched;
+  resources_needs_review?: ResourcesNeedsReview;
+  resources_quarantined?: ResourcesQuarantined;
+  resources_rejected?: ResourcesRejected;
+  resources_retrieval_eligible?: ResourcesRetrievalEligible;
+  run_id: RunId5;
+  scope: ResourceScope;
+  started_at?: StartedAt;
+  status?: Status1;
+  trigger: Trigger;
+}
+/**
+ * Instantané de couverture thématique d'une collection sur une période.
+ */
+export interface CoverageSnapshot {
+  average_quality?: AverageQuality;
+  covered_topics?: CoveredTopics;
+  expected_topics: ExpectedTopics1;
+  gaps?: Gaps;
+  insufficient_topics?: InsufficientTopics;
+  period_end: PeriodEnd;
+  period_start: PeriodStart;
+  recommended_next_queries?: RecommendedNextQueries;
+  resources_per_topic?: ResourcesPerTopic;
+  scope: ResourceScope;
+  snapshot_id: SnapshotId;
+  stale_resources?: StaleResources;
+}
+export interface ResourcesPerTopic {
+  [k: string]: number;
 }

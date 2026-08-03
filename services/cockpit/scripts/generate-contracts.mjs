@@ -27,6 +27,14 @@ const schemas = [
   ['review-decision-request.json', 'ReviewDecisionRequest'],
   ['review-queue-response.json', 'ReviewQueueResponse'],
   ['review-decision-response.json', 'ReviewDecisionResponse'],
+  ['collection-profile.json', 'CollectionProfile'],
+  ['search-plan.json', 'SearchPlan'],
+  ['resource-candidate.json', 'ResourceCandidate'],
+  ['artifact-record.json', 'ArtifactRecord'],
+  ['routing-decision.json', 'RoutingDecision'],
+  ['quality-report.json', 'QualityReport'],
+  ['ingestion-run.json', 'IngestionRun'],
+  ['coverage-snapshot.json', 'CoverageSnapshot'],
 ]
 
 async function readSchemas() {
@@ -81,6 +89,14 @@ async function expectedOutputs() {
     'ReviewDecisionRequest',
     'ReviewQueueResponse',
     'ReviewDecisionResponse',
+    'CollectionProfile',
+    'SearchPlan',
+    'ResourceCandidate',
+    'ArtifactRecord',
+    'RoutingDecision',
+    'QualityReport',
+    'IngestionRun',
+    'CoverageSnapshot',
   ]
   const validationEntries = entries.filter(({ name }) => validatorNames.includes(name))
   const imports = validationEntries.map(({ filename, name }) =>

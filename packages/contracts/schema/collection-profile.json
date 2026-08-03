@@ -1,0 +1,352 @@
+{
+  "$defs": {
+    "Audience": {
+      "enum": [
+        "libre",
+        "aefe",
+        "tous"
+      ],
+      "title": "Audience",
+      "type": "string"
+    },
+    "Candidat": {
+      "enum": [
+        "scolarise",
+        "individuel",
+        "libre",
+        "cned_reglemente",
+        "cned_libre",
+        "aefe",
+        "both"
+      ],
+      "title": "Candidat",
+      "type": "string"
+    },
+    "Niveau": {
+      "enum": [
+        "troisieme",
+        "seconde",
+        "premiere",
+        "terminale",
+        "cycle4",
+        "lycee_gt",
+        "voie_generale",
+        "voie_technologique"
+      ],
+      "title": "Niveau",
+      "type": "string"
+    },
+    "PublicationPolicy": {
+      "additionalProperties": false,
+      "description": "Politique de publication d'une collection — verrouillée en LOT44a.\n\n``auto_publish`` est typé ``Literal[False]`` : ce n'est pas une valeur\npar défaut contournable, c'est une garantie structurelle que\nl'auto-publication ne peut pas être activée par ce contrat tant que le\nsous-système de publication n'existe pas.",
+      "properties": {
+        "auto_publish": {
+          "const": false,
+          "default": false,
+          "title": "Auto Publish",
+          "type": "boolean"
+        },
+        "mode": {
+          "const": "human_review",
+          "default": "human_review",
+          "title": "Mode",
+          "type": "string"
+        }
+      },
+      "title": "PublicationPolicy",
+      "type": "object"
+    },
+    "ResourceScope": {
+      "additionalProperties": false,
+      "description": "Scope gouverné complet — obligatoire et fail-closed.\n\nReprend exactement les dix dimensions de scope déjà gouvernées côté\nrag-engine (colonnes ``rag_chunks`` introduites en LOT41,\n``services/rag-engine/infra/postgres/migrations/003_profile_filtering.sql``).\nAucun champ n'a de valeur par défaut : un scope incomplet ne peut pas\nêtre construit, jamais deviné silencieusement.",
+      "properties": {
+        "audience": {
+          "items": {
+            "$ref": "#/$defs/Audience"
+          },
+          "minItems": 1,
+          "title": "Audience",
+          "type": "array"
+        },
+        "candidat": {
+          "$ref": "#/$defs/Candidat"
+        },
+        "collection": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Collection",
+          "type": "string"
+        },
+        "matiere": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Matiere",
+          "type": "string"
+        },
+        "niveau": {
+          "$ref": "#/$defs/Niveau"
+        },
+        "programme_version": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Programme Version",
+          "type": "string"
+        },
+        "school_year": {
+          "pattern": "^\\d{4}-\\d{4}$",
+          "title": "School Year",
+          "type": "string"
+        },
+        "tenant": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Tenant",
+          "type": "string"
+        },
+        "visibility": {
+          "enum": [
+            "public",
+            "internal",
+            "restricted",
+            "private"
+          ],
+          "title": "Visibility",
+          "type": "string"
+        },
+        "voie": {
+          "$ref": "#/$defs/Voie"
+        }
+      },
+      "required": [
+        "tenant",
+        "collection",
+        "niveau",
+        "voie",
+        "matiere",
+        "candidat",
+        "audience",
+        "visibility",
+        "school_year",
+        "programme_version"
+      ],
+      "title": "ResourceScope",
+      "type": "object"
+    },
+    "TypeDoc": {
+      "enum": [
+        "programme_officiel",
+        "ressource_officielle",
+        "cours",
+        "fiche_synthese",
+        "fiche_methode",
+        "td",
+        "tp",
+        "exercice",
+        "exercice_corrige",
+        "devoir",
+        "devoir_corrige",
+        "evaluation",
+        "evaluation_corrigee",
+        "bac_blanc",
+        "brevet_blanc",
+        "annale",
+        "sujet_zero",
+        "corrige",
+        "bareme",
+        "grille_evaluation",
+        "grille_grand_oral",
+        "oral",
+        "diaporama",
+        "latex",
+        "notebook",
+        "code",
+        "image",
+        "scan",
+        "copie",
+        "rapport",
+        "referentiel",
+        "modalite_examen",
+        "autre"
+      ],
+      "title": "TypeDoc",
+      "type": "string"
+    },
+    "Voie": {
+      "enum": [
+        "college",
+        "generale",
+        "technologique",
+        "professionnelle",
+        "aefe",
+        "unknown"
+      ],
+      "title": "Voie",
+      "type": "string"
+    }
+  },
+  "$id": "https://nexusreussite.academy/contracts/v0.5/collection-profile.json",
+  "additionalProperties": false,
+  "description": "Profil déclaratif complet d'une collection gouvernée.",
+  "properties": {
+    "allowed_domains": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Allowed Domains",
+      "type": "array"
+    },
+    "chunk_overlap": {
+      "minimum": 0,
+      "title": "Chunk Overlap",
+      "type": "integer"
+    },
+    "enabled": {
+      "title": "Enabled",
+      "type": "boolean"
+    },
+    "excluded_topics": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Excluded Topics",
+      "type": "array"
+    },
+    "expected_resource_types": {
+      "items": {
+        "$ref": "#/$defs/TypeDoc"
+      },
+      "minItems": 1,
+      "title": "Expected Resource Types",
+      "type": "array"
+    },
+    "expected_topics": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Expected Topics",
+      "type": "array"
+    },
+    "language": {
+      "default": "fr",
+      "title": "Language",
+      "type": "string"
+    },
+    "max_chunk_size": {
+      "exclusiveMinimum": 0,
+      "title": "Max Chunk Size",
+      "type": "integer"
+    },
+    "max_documents_per_run": {
+      "exclusiveMinimum": 0,
+      "title": "Max Documents Per Run",
+      "type": "integer"
+    },
+    "max_queries_per_run": {
+      "exclusiveMinimum": 0,
+      "title": "Max Queries Per Run",
+      "type": "integer"
+    },
+    "min_extraction_quality": {
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Min Extraction Quality",
+      "type": "number"
+    },
+    "min_scope_confidence": {
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Min Scope Confidence",
+      "type": "number"
+    },
+    "min_source_confidence": {
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Min Source Confidence",
+      "type": "number"
+    },
+    "owner": {
+      "minLength": 1,
+      "title": "Owner",
+      "type": "string"
+    },
+    "profile_version": {
+      "minLength": 1,
+      "title": "Profile Version",
+      "type": "string"
+    },
+    "publication": {
+      "$ref": "#/$defs/PublicationPolicy"
+    },
+    "reject_ambiguous_routing": {
+      "default": true,
+      "title": "Reject Ambiguous Routing",
+      "type": "boolean"
+    },
+    "reject_unknown_rights": {
+      "default": true,
+      "title": "Reject Unknown Rights",
+      "type": "boolean"
+    },
+    "scope": {
+      "$ref": "#/$defs/ResourceScope"
+    },
+    "search_cadence": {
+      "enum": [
+        "daily",
+        "weekly",
+        "monthly",
+        "manual"
+      ],
+      "title": "Search Cadence",
+      "type": "string"
+    },
+    "seed_urls": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Seed Urls",
+      "type": "array"
+    },
+    "source_authority": {
+      "enum": [
+        "official",
+        "authorized",
+        "unknown"
+      ],
+      "title": "Source Authority",
+      "type": "string"
+    },
+    "title": {
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+    }
+  },
+  "required": [
+    "profile_version",
+    "enabled",
+    "scope",
+    "title",
+    "owner",
+    "expected_topics",
+    "expected_resource_types",
+    "allowed_domains",
+    "source_authority",
+    "search_cadence",
+    "max_queries_per_run",
+    "max_documents_per_run",
+    "max_chunk_size",
+    "chunk_overlap",
+    "min_source_confidence",
+    "min_scope_confidence",
+    "min_extraction_quality"
+  ],
+  "title": "CollectionProfile",
+  "type": "object"
+}
