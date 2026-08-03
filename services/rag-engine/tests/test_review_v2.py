@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 from nexus_contracts import (
     ReviewDecisionRequest,
     ReviewDecisionResponse,
+    ReviewQueuePayload,
     ReviewQueueResponse,
 )
 
@@ -257,16 +258,100 @@ class TestGovernanceInvariant:
             review.review_decide
         )
 
-    def test_queue_and_decision_schema_qualify_the_review_relation(self) -> None:
-        """Le catalogue implicite ne doit jamais pouvoir détourner la review."""
-        import inspect
+    def test_queue_and_decision_execute_schema_qualified_queries(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Les requêtes réellement transmises ciblent la relation gouvernée."""
+        executed_sql: list[str] = []
 
-        queue_source = inspect.getsource(review.list_queue)
-        decision_source = inspect.getsource(review.review_decide)
-        assert queue_source.count("public.rag_chunks") == 2
-        assert "FROM rag_chunks" not in queue_source
-        assert "UPDATE public.rag_chunks" in decision_source
-        assert "UPDATE rag_chunks" not in decision_source
+        class RecordingCursor:
+            rowcount = 1
+
+            def __enter__(self) -> RecordingCursor:
+                return self
+
+            def __exit__(self, *_args: object) -> None:
+                return None
+
+            def execute(self, sql: str, _params: object = None) -> None:
+                executed_sql.append(sql)
+
+            def fetchone(self) -> tuple[int]:
+                return (0,)
+
+            def fetchall(self) -> list[tuple[object, ...]]:
+                return []
+
+        class RecordingConnection:
+            def cursor(self) -> RecordingCursor:
+                return RecordingCursor()
+
+            def commit(self) -> None:
+                return None
+
+            def rollback(self) -> None:
+                raise AssertionError("rollback inattendu")
+
+            def close(self) -> None:
+                return None
+
+        verified = SimpleNamespace(scope_digest="scope-digest")
+        monkeypatch.setattr(
+            review,
+            "_require_review_identity",
+            lambda *_args, **_kwargs: verified,
+        )
+        monkeypatch.setattr(
+            review,
+            "_load_review_scopes",
+            lambda *_args, **_kwargs: (object(),),
+        )
+        monkeypatch.setattr(
+            review,
+            "_scope_filter",
+            lambda _scopes: ("TRUE", ()),
+        )
+        monkeypatch.setattr(review, "_get_pg_dsn", lambda: "postgresql://test")
+        monkeypatch.setattr(
+            review,
+            "_connect_review_database",
+            lambda _dsn: RecordingConnection(),
+        )
+        monkeypatch.setattr(review, "invalidate_cache", lambda: 0)
+
+        queue = review.list_queue(
+            MagicMock(),
+            ReviewQueuePayload(limit=50, offset=0),
+        )
+        queue_sql = list(executed_sql)
+        decision = review.review_decide(
+            ReviewDecisionRequest(
+                target_id="doc123",
+                decision="reviewed",
+                tenant="libre_terminale",
+            ),
+            MagicMock(),
+        )
+
+        queue_relation_queries = [sql for sql in queue_sql if "rag_chunks" in sql]
+        decision_relation_queries = [
+            sql for sql in executed_sql[len(queue_sql):] if "rag_chunks" in sql
+        ]
+        assert queue.total_pending_docs == 0
+        assert decision.chunks_affected == 1
+        assert queue_relation_queries
+        assert all(
+            "FROM public.rag_chunks" in sql for sql in queue_relation_queries
+        )
+        assert decision_relation_queries
+        assert all(
+            "public.rag_chunks" in sql for sql in decision_relation_queries
+        )
+        assert any(
+            sql.lstrip().startswith("UPDATE public.rag_chunks")
+            for sql in decision_relation_queries
+        )
 
     def test_review_connection_applies_connect_statement_and_lock_timeouts(
         self, monkeypatch: pytest.MonkeyPatch
