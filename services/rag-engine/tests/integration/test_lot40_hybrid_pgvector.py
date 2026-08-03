@@ -985,35 +985,43 @@ def test_schema_readiness_rejects_row_security_drift() -> None:
 
 
 def test_schema_readiness_rejects_non_internal_trigger_drift() -> None:
-    with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
-        connection.execute(
-            """
-            CREATE FUNCTION lot41u_unexpected_trigger()
-            RETURNS trigger
-            LANGUAGE plpgsql
-            AS $$
-            BEGIN
-                RETURN NEW;
-            END;
-            $$
-            """
-        )
-        connection.execute(
-            """
-            CREATE TRIGGER lot41u_unexpected_trigger
-            BEFORE UPDATE ON rag_chunks
-            FOR EACH ROW
-            EXECUTE FUNCTION lot41u_unexpected_trigger()
-            """
-        )
     try:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(
+                "DROP TRIGGER IF EXISTS lot41u_unexpected_trigger ON rag_chunks"
+            )
+            connection.execute(
+                "DROP FUNCTION IF EXISTS lot41u_unexpected_trigger()"
+            )
+            connection.execute(
+                """
+                CREATE FUNCTION lot41u_unexpected_trigger()
+                RETURNS trigger
+                LANGUAGE plpgsql
+                AS $$
+                BEGIN
+                    RETURN NEW;
+                END;
+                $$
+                """
+            )
+            connection.execute(
+                """
+                CREATE TRIGGER lot41u_unexpected_trigger
+                BEFORE UPDATE ON rag_chunks
+                FOR EACH ROW
+                EXECUTE FUNCTION lot41u_unexpected_trigger()
+                """
+            )
         assert schema_head_003_ready(APP_DSN) is False
     finally:
         with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
             connection.execute(
-                "DROP TRIGGER lot41u_unexpected_trigger ON rag_chunks"
+                "DROP TRIGGER IF EXISTS lot41u_unexpected_trigger ON rag_chunks"
             )
-            connection.execute("DROP FUNCTION lot41u_unexpected_trigger()")
+            connection.execute(
+                "DROP FUNCTION IF EXISTS lot41u_unexpected_trigger()"
+            )
     assert schema_head_003_ready(APP_DSN) is True
     print("SCHEMA_TRIGGER_DRIFT_REJECTED=PASS")
 
