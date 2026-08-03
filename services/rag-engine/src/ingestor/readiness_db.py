@@ -206,6 +206,47 @@ NOT EXISTS (
 """.strip()
 
 
+def no_large_object_privileges_sql() -> str:
+    """Refuser ownership et droits effectifs sur tout large object PostgreSQL."""
+    return """
+NOT EXISTS (
+    SELECT 1
+    FROM pg_largeobject_metadata AS large_object
+    WHERE pg_has_role(
+              current_user, large_object.lomowner, 'MEMBER'
+          )
+       OR EXISTS (
+              SELECT 1
+              FROM aclexplode(COALESCE(
+                  large_object.lomacl,
+                  acldefault('L'::"char", large_object.lomowner)
+              )) AS large_object_acl
+              WHERE large_object_acl.privilege_type IN ('SELECT', 'UPDATE')
+                AND CASE
+                    WHEN large_object_acl.grantee = 0 THEN true
+                    ELSE pg_has_role(
+                        current_user,
+                        large_object_acl.grantee,
+                        'MEMBER'
+                    )
+                END
+          )
+)
+""".strip()
+
+
+def large_object_acl_enforcement_columns_sql() -> str:
+    """Attester les ACL large objects actives et non désactivables par le rôle."""
+    return """
+current_setting('lo_compat_privileges') = 'off',
+NOT has_parameter_privilege(
+    current_user,
+    'lo_compat_privileges',
+    'SET, ALTER SYSTEM'
+)
+""".strip()
+
+
 def readiness_connection_options() -> str:
     """Retourner les options bornées et non mutantes du contrat de readiness."""
     return (
@@ -304,8 +345,10 @@ __all__ = [
     "READINESS_STATEMENT_TIMEOUT_MS",
     "RUNTIME_RELATION_ALLOWLIST",
     "apply_readiness_statement_budget",
+    "large_object_acl_enforcement_columns_sql",
     "no_auxiliary_relation_privileges_sql",
     "no_executable_security_definer_routines_sql",
+    "no_large_object_privileges_sql",
     "no_user_schema_create_privileges_sql",
     "postgres_database_authorities_share_instance",
     "postgres_database_identity",

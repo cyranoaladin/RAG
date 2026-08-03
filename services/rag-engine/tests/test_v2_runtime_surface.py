@@ -608,6 +608,7 @@ def test_lifespan_installs_then_clears_the_startup_attestations(
     embedding_attestation = SimpleNamespace(root=Path("/models/e5-large"))
     reranker_attestation = SimpleNamespace(root=Path("/models/reranker"))
     attestations = (embedding_attestation, reranker_attestation)
+    pool_settings = object()
     lifecycle_events: list[tuple[Path, Path] | str | None] = []
     monkeypatch.setattr(
         api_v2,
@@ -615,6 +616,19 @@ def test_lifespan_installs_then_clears_the_startup_attestations(
         lambda: attestations,
     )
     monkeypatch.setattr(api_v2, "close_pool", lambda: None)
+    monkeypatch.setattr(
+        api_v2.PoolSettings,
+        "from_env",
+        classmethod(lambda _cls: pool_settings),
+    )
+    monkeypatch.setattr(
+        api_v2,
+        "get_pool",
+        lambda settings: lifecycle_events.append("pool")
+        if settings is pool_settings
+        else None,
+        raising=False,
+    )
     monkeypatch.setattr(api_v2, "_model_artifacts_ready", lambda: True)
     monkeypatch.setattr(
         api_v2.retrieval_v2_endpoint,
@@ -640,10 +654,38 @@ def test_lifespan_installs_then_clears_the_startup_attestations(
 
     assert api_v2._model_artifact_attestations is None
     assert lifecycle_events == [
+        "pool",
         (embedding_attestation.root, reranker_attestation.root),
         "preload",
         None,
     ]
+
+
+def test_lifespan_refuses_startup_when_the_real_retrieval_pool_cannot_open(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pool_settings = object()
+    closed: list[bool] = []
+    monkeypatch.setattr(
+        api_v2.PoolSettings,
+        "from_env",
+        classmethod(lambda _cls: pool_settings),
+    )
+    monkeypatch.setattr(
+        api_v2,
+        "get_pool",
+        lambda settings: (_ for _ in ()).throw(RuntimeError("pool unavailable"))
+        if settings is pool_settings
+        else None,
+        raising=False,
+    )
+    monkeypatch.setattr(api_v2, "close_pool", lambda: closed.append(True))
+
+    with pytest.raises(RuntimeError, match="pool unavailable"):
+        with TestClient(api_v2.app):
+            pytest.fail("le runtime ne doit pas accepter du trafic")
+
+    assert closed == [True]
 
 
 def test_v2_middleware_records_bounded_request_metrics(

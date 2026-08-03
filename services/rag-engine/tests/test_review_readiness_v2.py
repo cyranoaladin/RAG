@@ -41,6 +41,9 @@ EXPECTED_REVIEW_PRIVILEGES = (
     True,  # aucun privilège sur une relation hors allowlist
     True,  # aucune routine utilisateur SECURITY DEFINER exécutable
     True,  # aucun CREATE ni ownership sur un schéma utilisateur
+    True,  # aucun large object possédé ou accessible
+    True,  # contrôles ACL des large objects activés
+    True,  # paramètre de compatibilité non modifiable
 )
 
 
@@ -133,9 +136,23 @@ def test_review_database_ready_proves_the_exact_least_privilege_contract(
     assert "PROSECDEF" in normalized
     assert "HAS_FUNCTION_PRIVILEGE" in normalized
     assert "NSPOWNER" in normalized
+    assert "PG_LARGEOBJECT_METADATA" in normalized
+    assert "ACLEXPLODE" in normalized
+    assert "ACLDEFAULT" in normalized
+    assert "CURRENT_SETTING('LO_COMPAT_PRIVILEGES') = 'OFF'" in normalized
+    assert "HAS_PARAMETER_PRIVILEGE" in normalized
+    assert "'SET, ALTER SYSTEM'" in normalized
     assert "RAG_API_KEYS" not in normalized
     assert "RAG_EVAL_RUNS" not in normalized
-    for forbidden in ("INSERT INTO", "UPDATE ", "DELETE FROM", "ALTER ", "CREATE ", "DROP "):
+    for forbidden in (
+        "INSERT INTO",
+        "UPDATE ",
+        "DELETE FROM",
+        "ALTER TABLE ",
+        "ALTER ROLE ",
+        "CREATE ",
+        "DROP ",
+    ):
         assert forbidden not in normalized
 
 

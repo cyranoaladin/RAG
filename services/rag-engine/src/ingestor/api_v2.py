@@ -29,7 +29,7 @@ try:
         attest_verified_model_artifact,
         model_artifact_attestation_ready,
     )
-    from .pg_pool import PoolSettings, close_pool
+    from .pg_pool import PoolSettings, close_pool, get_pool
     from .readiness_db import (
         READINESS_AGGREGATE_BUDGET_MS,
         postgres_database_authorities_share_instance,
@@ -64,7 +64,7 @@ except (ImportError, ValueError):
         attest_verified_model_artifact,
         model_artifact_attestation_ready,
     )
-    from pg_pool import PoolSettings, close_pool  # type: ignore[no-redef]
+    from pg_pool import PoolSettings, close_pool, get_pool  # type: ignore[no-redef]
     from readiness_db import (  # type: ignore[no-redef]
         READINESS_AGGREGATE_BUDGET_MS,
         postgres_database_authorities_share_instance,
@@ -239,6 +239,7 @@ async def _app_lifespan(_app: FastAPI) -> AsyncIterator[None]:
     global _model_artifact_attestations
     try:
         _reset_database_readiness_cache()
+        get_pool(PoolSettings.from_env())
         _model_artifact_attestations = _initialize_model_artifacts()
         embedding_attestation, reranker_attestation = _model_artifact_attestations
         retrieval_v2_endpoint.configure_verified_model_artifacts(

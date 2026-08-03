@@ -215,6 +215,7 @@ REQUIRED_PROFILE_INDEX_PREDICATE: Final = _FINGERPRINTS[_INDEX_PREDICATE_KEY]
 REQUIRED_TEXT_TSV_EXPRESSION: Final = _FINGERPRINTS[_TEXT_TSV_EXPRESSION_KEY]
 REQUIRED_RAG_CHUNKS_TABLE_STATE: Final = ["p", False, False, []]
 REQUIRED_RAG_CHUNKS_TRIGGER_DEFINITIONS: Final[dict[str, list[str]]] = {}
+REQUIRED_RAG_CHUNKS_RULE_DEFINITIONS: Final[dict[str, list[object]]] = {}
 
 _SCHEMA_HEAD_003_SQL = """
 SELECT
@@ -322,6 +323,19 @@ SELECT
         FROM pg_trigger AS trigger_definition
         WHERE trigger_definition.tgrelid = 'public.rag_chunks'::regclass
           AND NOT trigger_definition.tgisinternal
+    ), '{}'::jsonb),
+    COALESCE((
+        SELECT jsonb_object_agg(
+            rewrite_definition.rulename,
+            jsonb_build_array(
+                rewrite_definition.ev_type,
+                rewrite_definition.is_instead,
+                rewrite_definition.ev_enabled,
+                md5(pg_get_ruledef(rewrite_definition.oid, true))
+            )
+        )
+        FROM pg_rewrite AS rewrite_definition
+        WHERE rewrite_definition.ev_class = 'public.rag_chunks'::regclass
     ), '{}'::jsonb)
 """
 
@@ -359,7 +373,7 @@ def schema_head_003_ready(dsn: str) -> bool:
             cursor.execute(_SCHEMA_HEAD_003_SQL)
             row = cursor.fetchone()
 
-    if row is None or len(row) != 8:
+    if row is None or len(row) != 9:
         return False
     (
         columns,
@@ -370,6 +384,7 @@ def schema_head_003_ready(dsn: str) -> bool:
         migrations,
         table_state,
         trigger_definitions,
+        rule_definitions,
     ) = row
     return bool(
         columns == REQUIRED_RAG_CHUNKS_COLUMN_DEFINITIONS
@@ -381,6 +396,7 @@ def schema_head_003_ready(dsn: str) -> bool:
         == [list(item) for item in expected_migration_records()]
         and table_state == REQUIRED_RAG_CHUNKS_TABLE_STATE
         and trigger_definitions == REQUIRED_RAG_CHUNKS_TRIGGER_DEFINITIONS
+        and rule_definitions == REQUIRED_RAG_CHUNKS_RULE_DEFINITIONS
     )
 
 
@@ -390,6 +406,7 @@ __all__ = [
     "REQUIRED_RAG_CHUNKS_COLUMN_DEFINITIONS",
     "REQUIRED_RAG_CHUNKS_CONSTRAINT_DEFINITIONS",
     "REQUIRED_RAG_CHUNKS_INDEX_DEFINITIONS",
+    "REQUIRED_RAG_CHUNKS_RULE_DEFINITIONS",
     "REQUIRED_RAG_CHUNKS_TABLE_STATE",
     "REQUIRED_RAG_CHUNKS_TRIGGER_DEFINITIONS",
     "REQUIRED_PROFILE_COLUMN_DEFINITIONS",

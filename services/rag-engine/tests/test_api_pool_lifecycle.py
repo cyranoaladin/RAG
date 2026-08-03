@@ -70,6 +70,11 @@ def test_fastapi_shutdown_closes_pool_once_and_allows_recreation(
         max_size=2,
         timeout_s=1.0,
     )
+    monkeypatch.setattr(
+        api_v2.PoolSettings,
+        "from_env",
+        classmethod(lambda _cls: settings),
+    )
     first = pg_pool.get_pool(settings)
 
     with TestClient(api_v2.app):

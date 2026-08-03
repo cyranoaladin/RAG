@@ -60,6 +60,7 @@ def _valid_row() -> tuple[object, ...]:
         [list(item) for item in readiness.expected_migration_records(MIGRATIONS)],
         readiness.REQUIRED_RAG_CHUNKS_TABLE_STATE,
         readiness.REQUIRED_RAG_CHUNKS_TRIGGER_DEFINITIONS,
+        readiness.REQUIRED_RAG_CHUNKS_RULE_DEFINITIONS,
     )
 
 
@@ -117,6 +118,8 @@ def test_schema_head_003_accepts_only_the_exact_contract(
     assert "PG_POLICY" in normalized
     assert "PG_TRIGGER" in normalized
     assert "TGISINTERNAL" in normalized
+    assert "PG_REWRITE" in normalized
+    assert "PG_GET_RULEDEF" in normalized
     assert "INDEX_RELATION.RELNAME IN" not in normalized
     assert "CONSTRAINT_DEFINITION.CONTYPE = 'C'" not in normalized
     assert readiness.REQUIRED_RAG_CHUNKS_CONSTRAINT_DEFINITIONS[
@@ -145,7 +148,7 @@ def test_schema_contract_is_loaded_from_the_shared_versioned_source() -> None:
 
 @pytest.mark.parametrize(
     "position",
-    range(8),
+    range(9),
     ids=(
         "columns",
         "constraints",
@@ -155,6 +158,7 @@ def test_schema_contract_is_loaded_from_the_shared_versioned_source() -> None:
         "migrations",
         "table-state",
         "triggers",
+        "rewrite-rules",
     ),
 )
 def test_schema_head_003_rejects_every_drifted_contract_component(

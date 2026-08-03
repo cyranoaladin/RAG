@@ -9,7 +9,7 @@ import json
 import math
 import os
 import time
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
@@ -20,6 +20,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from nexus_contracts import Rights, load_pilot_retrieval_scope
+from psycopg import sql
 
 from ingestor import retrieval_v2_endpoint as endpoint
 from ingestor import review_v2_endpoint as review_endpoint
@@ -893,6 +894,83 @@ def test_runtime_roles_reject_create_or_ownership_on_every_user_schema() -> None
     print("RUNTIME_USER_SCHEMA_CREATE_REJECTED=PASS")
 
 
+def test_runtime_roles_reject_large_object_ownership_and_privileges() -> None:
+    retrieval_object: int | None = None
+    review_object: int | None = None
+    try:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            retrieval_row = connection.execute("SELECT lo_create(0)").fetchone()
+            review_row = connection.execute("SELECT lo_create(0)").fetchone()
+            assert retrieval_row is not None and review_row is not None
+            retrieval_object = int(retrieval_row[0])
+            review_object = int(review_row[0])
+            connection.execute(
+                f"GRANT SELECT ON LARGE OBJECT {retrieval_object} TO lot40_app"
+            )
+            connection.execute(
+                f"ALTER LARGE OBJECT {review_object} OWNER TO lot41_review"
+            )
+        assert retrieval_database_ready(APP_DSN) is False
+        assert review_database_ready(REVIEW_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            if retrieval_object is not None:
+                connection.execute("SELECT lo_unlink(%s)", (retrieval_object,))
+            if review_object is not None:
+                connection.execute("SELECT lo_unlink(%s)", (review_object,))
+    assert retrieval_database_ready(APP_DSN) is True
+    assert review_database_ready(REVIEW_DSN) is True
+    print("RUNTIME_LARGE_OBJECT_PRIVILEGES_REJECTED=PASS")
+
+
+@pytest.mark.parametrize(
+    ("role", "dsn", "ready"),
+    (
+        ("lot40_app", APP_DSN, retrieval_database_ready),
+        ("lot41_review", REVIEW_DSN, review_database_ready),
+    ),
+)
+def test_runtime_roles_require_large_object_acl_enforcement(
+    role: str,
+    dsn: str,
+    ready: Callable[[str], bool],
+) -> None:
+    try:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(
+                sql.SQL("ALTER ROLE {} SET lo_compat_privileges = on").format(
+                    sql.Identifier(role)
+                )
+            )
+        assert ready(dsn) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(
+                sql.SQL("ALTER ROLE {} RESET lo_compat_privileges").format(
+                    sql.Identifier(role)
+                )
+            )
+    assert ready(dsn) is True
+
+    try:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(
+                sql.SQL(
+                    "GRANT SET ON PARAMETER lo_compat_privileges TO {}"
+                ).format(sql.Identifier(role))
+            )
+        assert ready(dsn) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(
+                sql.SQL(
+                    "REVOKE SET ON PARAMETER lo_compat_privileges FROM {}"
+                ).format(sql.Identifier(role))
+            )
+    assert ready(dsn) is True
+    print(f"RUNTIME_LARGE_OBJECT_ACL_ENFORCEMENT_{role.upper()}=PASS")
+
+
 def test_retrieval_pool_enforces_server_side_execution_timeouts() -> None:
     settings = PoolSettings(
         dsn=APP_DSN,
@@ -1199,6 +1277,26 @@ def test_schema_readiness_rejects_non_internal_trigger_drift() -> None:
             )
     assert schema_head_003_ready(APP_DSN) is True
     print("SCHEMA_TRIGGER_DRIFT_REJECTED=PASS")
+
+
+def test_schema_readiness_rejects_rewrite_rule_drift() -> None:
+    try:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(
+                "DROP RULE IF EXISTS lot41u_unexpected_rule ON rag_chunks"
+            )
+            connection.execute(
+                "CREATE RULE lot41u_unexpected_rule AS "
+                "ON UPDATE TO rag_chunks DO INSTEAD NOTHING"
+            )
+        assert schema_head_003_ready(APP_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(
+                "DROP RULE IF EXISTS lot41u_unexpected_rule ON rag_chunks"
+            )
+    assert schema_head_003_ready(APP_DSN) is True
+    print("SCHEMA_REWRITE_RULE_DRIFT_REJECTED=PASS")
 
 
 def test_schema_readiness_rejects_unexpected_foreign_key_constraint() -> None:

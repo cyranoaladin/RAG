@@ -12,8 +12,10 @@ try:
         READINESS_STATEMENT_TIMEOUT_MS,
         RUNTIME_RELATION_ALLOWLIST,
         apply_readiness_statement_budget,
+        large_object_acl_enforcement_columns_sql,
         no_auxiliary_relation_privileges_sql,
         no_executable_security_definer_routines_sql,
+        no_large_object_privileges_sql,
         no_user_schema_create_privileges_sql,
         readiness_connect_timeout_s,
         readiness_connection_options,
@@ -24,8 +26,10 @@ except ImportError:  # Image Docker aplatie sous /app.
         READINESS_STATEMENT_TIMEOUT_MS,
         RUNTIME_RELATION_ALLOWLIST,
         apply_readiness_statement_budget,
+        large_object_acl_enforcement_columns_sql,
         no_auxiliary_relation_privileges_sql,
         no_executable_security_definer_routines_sql,
+        no_large_object_privileges_sql,
         no_user_schema_create_privileges_sql,
         readiness_connect_timeout_s,
         readiness_connection_options,
@@ -62,6 +66,9 @@ _REQUIRED_RETRIEVAL_PRIVILEGES: Final = (
     True,  # aucun privilège effectif sur une relation hors allowlist
     True,  # aucune routine utilisateur SECURITY DEFINER exécutable
     True,  # aucun CREATE ni ownership sur un schéma utilisateur
+    True,  # aucun large object possédé ou accessible
+    True,  # contrôles ACL des large objects activés
+    True,  # paramètre de compatibilité non modifiable
 )
 
 _RETRIEVAL_PRIVILEGES_SQL = f"""
@@ -185,7 +192,9 @@ SELECT
     has_type_privilege(current_user, 'public.vector', 'USAGE'),
     {no_auxiliary_relation_privileges_sql(RUNTIME_RELATION_ALLOWLIST)},
     {no_executable_security_definer_routines_sql()},
-    {no_user_schema_create_privileges_sql()}
+    {no_user_schema_create_privileges_sql()},
+    {no_large_object_privileges_sql()},
+    {large_object_acl_enforcement_columns_sql()}
 FROM pg_roles
 WHERE rolname = current_user
 """

@@ -282,7 +282,7 @@ class PoolSettings:
             <= MAX_RUNTIME_DATABASE_BUDGET_MS
         ):
             raise PoolConfigurationError(
-                "Budget PostgreSQL invalide: 100 <= budget <= 6000 ms requis."
+                "Budget PostgreSQL invalide: 1000 <= budget <= 6000 ms requis."
             )
         _validate_runtime_budget_compatibility(
             database_budget_ms=self.database_budget_ms,
