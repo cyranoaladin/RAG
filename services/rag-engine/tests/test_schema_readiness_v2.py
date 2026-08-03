@@ -58,7 +58,7 @@ def _valid_row() -> tuple[object, ...]:
         readiness.REQUIRED_PROFILE_INDEX_PREDICATE,
         readiness.REQUIRED_TEXT_TSV_EXPRESSION,
         [list(item) for item in readiness.expected_migration_records(MIGRATIONS)],
-        readiness.REQUIRED_RAG_CHUNKS_ROW_SECURITY_STATE,
+        readiness.REQUIRED_RAG_CHUNKS_TABLE_STATE,
         readiness.REQUIRED_RAG_CHUNKS_TRIGGER_DEFINITIONS,
     )
 
@@ -113,6 +113,7 @@ def test_schema_head_003_accepts_only_the_exact_contract(
     assert "RAG_SCHEMA_MIGRATIONS" in normalized
     assert "RELROWSECURITY" in normalized
     assert "RELFORCEROWSECURITY" in normalized
+    assert "RELPERSISTENCE" in normalized
     assert "PG_POLICY" in normalized
     assert "PG_TRIGGER" in normalized
     assert "TGISINTERNAL" in normalized
@@ -152,7 +153,7 @@ def test_schema_contract_is_loaded_from_the_shared_versioned_source() -> None:
         "predicate",
         "text-tsv-expression",
         "migrations",
-        "row-security",
+        "table-state",
         "triggers",
     ),
 )

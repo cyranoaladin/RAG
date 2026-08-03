@@ -120,26 +120,29 @@ def test_effective_collections_follow_only_signed_profile_subjects(
     assert effective_signed_collections(_verified_for_matieres(matieres)) == expected
 
 
-def test_pilot_scope_catalogue_alignment_accepts_declared_dormant_subjects() -> None:
+def test_pilot_scope_catalogue_alignment_rejects_declared_dormant_subjects() -> None:
     config = deepcopy(ENGINE_CONFIG)
     config["collections"]["rag_nexus_maths_terminale_gen_specialite"][
         "instanciee"
     ] = False
 
-    validate_pilot_scope_catalogue_alignment(ARTIFACT, config)
+    with pytest.raises(RetrievalScopeError, match="retrieval scope forbidden"):
+        validate_pilot_scope_catalogue_alignment(ARTIFACT, config)
 
 
-def test_mounted_catalogue_is_aligned_with_every_signed_pilot_subject() -> None:
-    validate_pilot_scope_catalogue_alignment(
-        ARTIFACT,
-        validate_collection_catalogue_v2(),
-    )
+def test_mounted_catalogue_keeps_health_closed_until_every_pilot_subject_exists() -> None:
+    with pytest.raises(RetrievalScopeError, match="retrieval scope forbidden"):
+        validate_pilot_scope_catalogue_alignment(
+            ARTIFACT,
+            validate_collection_catalogue_v2(),
+        )
 
 
 @pytest.mark.parametrize(
     ("drift", "value"),
     (
         ("missing_collection", None),
+        ("instanciee", False),
         ("domain_retrievable", False),
         ("matiere", "nsi"),
         ("niveau", "premiere"),

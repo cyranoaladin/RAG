@@ -164,7 +164,7 @@ def validate_pilot_scope_catalogue_alignment(
     expected_identity = artifact.identity
     for subject in artifact.subjects:
         try:
-            definition = resolve_declared_collection_v2(
+            definition = resolve_collection_v2(
                 subject.collection,
                 collection_config,
             )

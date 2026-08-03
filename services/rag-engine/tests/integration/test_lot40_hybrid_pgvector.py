@@ -1071,6 +1071,18 @@ def test_schema_readiness_rejects_row_security_drift() -> None:
     print("SCHEMA_ROW_SECURITY_DRIFT_REJECTED=PASS")
 
 
+def test_schema_readiness_rejects_unlogged_rag_chunks() -> None:
+    with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+        connection.execute("ALTER TABLE rag_chunks SET UNLOGGED")
+    try:
+        assert schema_head_003_ready(APP_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute("ALTER TABLE rag_chunks SET LOGGED")
+    assert schema_head_003_ready(APP_DSN) is True
+    print("SCHEMA_PERMANENT_STORAGE_DRIFT_REJECTED=PASS")
+
+
 def test_schema_readiness_rejects_non_internal_trigger_drift() -> None:
     try:
         with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:

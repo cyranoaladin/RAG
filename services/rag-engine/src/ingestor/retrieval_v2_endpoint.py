@@ -16,11 +16,11 @@ import hashlib
 import logging
 import os
 import threading
+import time
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any, Literal
 
-import psycopg  # noqa: F811 — also in requirements.v2.txt
 from fastapi import APIRouter, HTTPException, Request
 from nexus_contracts import (
     ChatRequest,
@@ -143,6 +143,13 @@ CACHE_ENABLED = False
 _cache: dict[str, tuple[list, float]] = {}
 _cache_lock = threading.Lock()
 _cache_generation = 0
+_REVIEWED_COUNTS_CACHE_TTL_S = 1.0
+_reviewed_counts_cache: (
+    tuple[tuple[str, ...], float, dict[str, int]] | None
+) = None
+_reviewed_counts_cache_generation = 0
+_reviewed_counts_cache_lock = threading.Lock()
+_reviewed_counts_query_lock = threading.Lock()
 _CATALOGUE_ROLES = frozenset({"admin", "reviewer", "teacher", "ingest_agent"})
 
 
@@ -160,12 +167,16 @@ def _cache_key(query: str, collection: str, k: int) -> str:
 
 def invalidate_cache() -> int:
     """Invalidate all cache entries. Called when review_status changes."""
-    global _cache_generation
+    global _cache_generation, _reviewed_counts_cache
+    global _reviewed_counts_cache_generation
     with _cache_lock:
         n = len(_cache)
         _cache.clear()
         _cache_generation += 1
-        return n
+    with _reviewed_counts_cache_lock:
+        _reviewed_counts_cache = None
+        _reviewed_counts_cache_generation += 1
+    return n
 
 
 # --- Configuration figée par le noyau hybride LOT40 ---
@@ -265,17 +276,6 @@ def _get_reranker():
                         verified_artifact_root=_verified_reranker_artifact_root
                     )
     return _reranker
-
-
-def _get_pg_dsn() -> str:
-    """Return the read-only pgvector DSN without owner fallback."""
-    dsn = os.environ.get("PG_RAG_DSN", "").strip()
-    if not dsn:
-        raise HTTPException(
-            status_code=503,
-            detail="launch readiness unavailable",
-        )
-    return dsn
 
 
 def _check_retrievable(collection: str, cfg: dict) -> dict:
@@ -433,37 +433,62 @@ def _build_launch_readiness(
 def _get_reviewed_chunk_counts(
     scopes: Iterable[ServerRetrievalScope],
 ) -> dict[str, int]:
-    """Count only reviewed rows inside the exact signed retrieval scopes."""
+    """Count scoped reviewed rows through a bounded pool and a short cache."""
+    global _reviewed_counts_cache
     resolved_scopes = tuple(scopes)
     if not resolved_scopes:
         return {}
+    cache_key = tuple(scope.filter_digest for scope in resolved_scopes)
+    now = time.monotonic()
+    with _reviewed_counts_cache_lock:
+        cached = _reviewed_counts_cache
+        if cached is not None and cached[0] == cache_key and cached[1] > now:
+            return dict(cached[2])
+
     clauses: list[str] = []
     params: list[object] = []
     for scope in resolved_scopes:
         clauses.append(f"({_SCOPE_PREDICATE_SQL})")
         params.extend(_scope_params(scope))
-    try:
-        conn = psycopg.connect(_get_pg_dsn())
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.error("pgvector connection failed while checking launch readiness: %s", exc)
-        raise HTTPException(status_code=503, detail="launch readiness unavailable") from exc
 
     try:
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT collection, COUNT(*) FROM rag_chunks WHERE "
-                + " OR ".join(clauses)
-                + " GROUP BY collection",
-                tuple(params),
-            )
-            return {str(collection): int(count) for collection, count in cur.fetchall()}
+        settings = PoolSettings.from_env()
+        acquired = _reviewed_counts_query_lock.acquire(timeout=settings.timeout_s)
+        if not acquired:
+            raise RuntimeError("reviewed count query already in progress")
+        try:
+            now = time.monotonic()
+            with _reviewed_counts_cache_lock:
+                cached = _reviewed_counts_cache
+                if cached is not None and cached[0] == cache_key and cached[1] > now:
+                    return dict(cached[2])
+                generation = _reviewed_counts_cache_generation
+
+            with pool_connection(settings) as connection:
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "SELECT collection, COUNT(*) FROM rag_chunks WHERE "
+                        + " OR ".join(clauses)
+                        + " GROUP BY collection",
+                        tuple(params),
+                    )
+                    counts = {
+                        str(collection): int(count)
+                        for collection, count in cursor.fetchall()
+                    }
+            with _reviewed_counts_cache_lock:
+                if generation == _reviewed_counts_cache_generation:
+                    _reviewed_counts_cache = (
+                        cache_key,
+                        time.monotonic() + _REVIEWED_COUNTS_CACHE_TTL_S,
+                        dict(counts),
+                    )
+            return counts
+        finally:
+            _reviewed_counts_query_lock.release()
     except Exception as exc:
         logger.error("pgvector readiness query failed: %s", exc)
         raise HTTPException(status_code=503, detail="launch readiness unavailable") from exc
-    finally:
-        conn.close()
 
 
 # --- Cache management endpoints ---

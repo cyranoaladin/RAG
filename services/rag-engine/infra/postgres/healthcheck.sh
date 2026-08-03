@@ -144,7 +144,9 @@ SELECT
          WHERE index_definition.indrelid = 'public.rag_chunks'::regclass
            AND index_definition.indisvalid
            AND index_definition.indisready)
-    AND (SELECT NOT relrowsecurity AND NOT relforcerowsecurity
+    AND (SELECT relpersistence = 'p'
+                AND NOT relrowsecurity
+                AND NOT relforcerowsecurity
          FROM pg_class
          WHERE oid = 'public.rag_chunks'::regclass)
     AND NOT EXISTS (

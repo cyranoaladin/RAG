@@ -209,7 +209,7 @@ REQUIRED_PROFILE_INDEX_DEFINITION: Final = (
 )
 REQUIRED_PROFILE_INDEX_PREDICATE: Final = _FINGERPRINTS[_INDEX_PREDICATE_KEY]
 REQUIRED_TEXT_TSV_EXPRESSION: Final = _FINGERPRINTS[_TEXT_TSV_EXPRESSION_KEY]
-REQUIRED_RAG_CHUNKS_ROW_SECURITY_STATE: Final = [False, False, []]
+REQUIRED_RAG_CHUNKS_TABLE_STATE: Final = ["p", False, False, []]
 REQUIRED_RAG_CHUNKS_TRIGGER_DEFINITIONS: Final[dict[str, list[str]]] = {}
 
 _SCHEMA_HEAD_003_SQL = """
@@ -295,6 +295,7 @@ SELECT
     ), '[]'::jsonb),
     (
         SELECT jsonb_build_array(
+            table_definition.relpersistence,
             table_definition.relrowsecurity,
             table_definition.relforcerowsecurity,
             COALESCE((
@@ -362,7 +363,7 @@ def schema_head_003_ready(dsn: str) -> bool:
         index_predicate,
         text_tsv_expression,
         migrations,
-        row_security_state,
+        table_state,
         trigger_definitions,
     ) = row
     return bool(
@@ -373,7 +374,7 @@ def schema_head_003_ready(dsn: str) -> bool:
         and text_tsv_expression == REQUIRED_TEXT_TSV_EXPRESSION
         and migrations
         == [list(item) for item in expected_migration_records()]
-        and row_security_state == REQUIRED_RAG_CHUNKS_ROW_SECURITY_STATE
+        and table_state == REQUIRED_RAG_CHUNKS_TABLE_STATE
         and trigger_definitions == REQUIRED_RAG_CHUNKS_TRIGGER_DEFINITIONS
     )
 
@@ -384,7 +385,7 @@ __all__ = [
     "REQUIRED_RAG_CHUNKS_COLUMN_DEFINITIONS",
     "REQUIRED_RAG_CHUNKS_CONSTRAINT_DEFINITIONS",
     "REQUIRED_RAG_CHUNKS_INDEX_DEFINITIONS",
-    "REQUIRED_RAG_CHUNKS_ROW_SECURITY_STATE",
+    "REQUIRED_RAG_CHUNKS_TABLE_STATE",
     "REQUIRED_RAG_CHUNKS_TRIGGER_DEFINITIONS",
     "REQUIRED_PROFILE_COLUMN_DEFINITIONS",
     "REQUIRED_PROFILE_INDEX_DEFINITION",

@@ -191,6 +191,7 @@ def test_schema_object_fingerprints_have_one_versioned_source() -> None:
     assert "count(DISTINCT column_name)" in healthcheck
     assert "relrowsecurity" in healthcheck
     assert "relforcerowsecurity" in healthcheck
+    assert "relpersistence = 'p'" in healthcheck
     assert "pg_policy" in healthcheck
     assert "vector(1024)" in _read(COLUMN_CONTRACT)
     for line in fingerprints.splitlines():

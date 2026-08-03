@@ -123,22 +123,58 @@ def _retrieval_payload(
     }
 
 
-def test_launch_readiness_dsn_refuses_owner_fallback(
+def test_reviewed_chunk_counts_use_the_bounded_shared_pool(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from ingestor import retrieval_v2_endpoint as endpoint
 
-    monkeypatch.delenv("PG_RAG_DSN", raising=False)
-    monkeypatch.setenv("DATABASE_URL_SYNC", "postgresql://owner@localhost/rag")
+    settings = SimpleNamespace(timeout_s=5.0)
+    executed: dict[str, object] = {}
+    connection_calls = 0
 
-    with pytest.raises(HTTPException) as exc_info:
-        endpoint._get_pg_dsn()
+    class Cursor:
+        def __enter__(self):
+            return self
 
-    assert exc_info.value.status_code == 503
-    assert exc_info.value.detail == "launch readiness unavailable"
+        def __exit__(self, *_args: object) -> None:
+            return None
 
-    monkeypatch.setenv("PG_RAG_DSN", "  postgresql://reader@localhost/rag  ")
-    assert endpoint._get_pg_dsn() == "postgresql://reader@localhost/rag"
+        def execute(self, sql: str, params: tuple[object, ...]) -> None:
+            executed["sql"] = sql
+            executed["params"] = params
+
+        def fetchall(self) -> list[tuple[str, int]]:
+            return [(BASE_SCOPE.collection, 12)]
+
+    class Connection:
+        def cursor(self) -> Cursor:
+            return Cursor()
+
+    @contextmanager
+    def connection_provider(received_settings: object):
+        nonlocal connection_calls
+        connection_calls += 1
+        executed["settings"] = received_settings
+        yield Connection()
+
+    monkeypatch.setattr(
+        endpoint,
+        "PoolSettings",
+        SimpleNamespace(from_env=lambda: settings),
+    )
+    monkeypatch.setattr(endpoint, "pool_connection", connection_provider)
+    endpoint.invalidate_cache()
+
+    assert endpoint._get_reviewed_chunk_counts((BASE_SCOPE,)) == {
+        BASE_SCOPE.collection: 12,
+    }
+    assert endpoint._get_reviewed_chunk_counts((BASE_SCOPE,)) == {
+        BASE_SCOPE.collection: 12,
+    }
+    assert connection_calls == 1
+    assert executed["settings"] is settings
+    assert "SELECT collection, COUNT(*) FROM rag_chunks" in str(executed["sql"])
+    assert BASE_SCOPE.tenant in executed["params"]
 
 
 def test_cold_model_loads_reuse_startup_paths_and_are_serialized(
@@ -764,13 +800,7 @@ class TestHybridSearchDelegation:
         monkeypatch.setattr(endpoint, "_check_retrievable", check)
         monkeypatch.setattr(endpoint, "_retrieve_hybrid_hits", retrieve, raising=False)
         assert "_cache" not in inspect.getsource(endpoint.search_v2)
-        monkeypatch.setattr(
-            endpoint.psycopg,
-            "connect",
-            lambda *_args, **_kwargs: (_ for _ in ()).throw(
-                AssertionError("direct retrieval connection")
-            ),
-        )
+        assert not hasattr(endpoint, "psycopg")
 
         response = client.post(
             "/search/v2",
