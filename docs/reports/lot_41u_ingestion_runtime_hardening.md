@@ -2,7 +2,7 @@
 
 ## Verdict
 
-**LOT41U_TRIGGER_TEST_GREEN_AWAITING_EXACT_HEAD_CI**
+**LOT41U_RUNTIME_BOUNDARIES_GREEN_AWAITING_EXACT_HEAD_CI**
 
 LOT41U ferme les quatre constats P1 du runtime relevés par l'audit indépendant
 de `main@ea18ba52da5778f628c4943705dd81dfa43fbc15`. Le stack v2 n'embarque
@@ -26,7 +26,7 @@ preuves opérationnelles externes doivent être obtenues. Aucun verrou
 | Date | 2026-08-02 |
 | Baseline `main` | `ea18ba52da5778f628c4943705dd81dfa43fbc15` |
 | Branche | `lot-41u-ingestion-runtime-hardening` |
-| Head applicatif audité avant ce commit documentaire | `46c107b5ea4eb51b15a56852fb6961c4442e25e0` |
+| Head applicatif audité avant ce commit documentaire | `45e87df9e9ed6bfc8695e6177cbbcaca7c13751a` |
 | Plan de données | runtime FastAPI v2, PostgreSQL/pgvector, Compose, Nginx |
 | Contrats partagés | aucune évolution |
 | Verrous de gouvernance | aucun changement, 18/18 conformes |
@@ -699,6 +699,34 @@ vert et le cycle PostgreSQL réel complet repasse, notamment
 correction remplace la preuve exacte `ef5701f` et doit obtenir une nouvelle CI
 et une nouvelle revue sur le head documentaire final.
 
+La revue Codex du head documentaire `6912622` a ensuite signalé deux P1
+supplémentaires valides. La sonde des rôles prouvait les droits exacts sur
+`rag_chunks` et `rag_schema_migrations`, mais ne refusait pas un privilège
+effectif sur une relation auxiliaire. Par ailleurs, le pool bornait seulement
+l'acquisition d'une connexion : une requête SQL ou une attente de verrou déjà
+démarrée pouvait survivre au timeout HTTP et épuiser les dix connexions.
+
+Le commit `45e87df9e9ed6bfc8695e6177cbbcaca7c13751a` ferme ces deux écarts :
+
+- les sondes retrieval et review inventorient les tables, partitions, vues,
+  vues matérialisées, tables étrangères et séquences de tous les schémas non
+  système ; tout privilège effectif hors des deux relations contractuelles
+  rend `/health` négatif, y compris un grant de colonne ou hérité de `PUBLIC` ;
+- chaque connexion du pool démarre en lecture seule avec
+  `statement_timeout=7000 ms` et `lock_timeout=1000 ms`. Les valeurs sont
+  configurables, strictement bornées à 60 secondes et imposent
+  `lock <= statement`, avant toute interpolation dans les options PostgreSQL.
+
+Les tests rouge/vert couvrent chaque nouvelle composante de readiness et les
+bornes de configuration. Sur PostgreSQL réel, des grants temporaires sur
+`rag_api_keys` et `rag_eval_runs` rendent les deux rôles indisponibles avant
+révocation (`RUNTIME_ROLE_AUXILIARY_RELATION_PRIVILEGE_REJECTED=PASS`) ; un
+`pg_sleep` et une lecture derrière un verrou exclusif sont respectivement
+annulés par les deux timeouts
+(`RETRIEVAL_POOL_SERVER_TIMEOUTS=PASS`). Ruff, `mypy` sur 52 fichiers, toute la
+suite non-intégration et le smoke PostgreSQL complet sont verts, avec
+`LOT40_HYBRID_INTEGRATION=PASS`.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -770,6 +798,7 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `b6a628d` | refus fail-closed des filtres retrieval non implémentés |
 | `9ac295d` | alignement scope/catalogue et attestation exacte des triggers PostgreSQL |
 | `46c107b` | fixture de dérive des triggers PostgreSQL idempotente et nettoyée |
+| `45e87df` | relations auxiliaires interdites et exécution SQL bornée côté serveur |
 
 ## Décision de livraison
 
