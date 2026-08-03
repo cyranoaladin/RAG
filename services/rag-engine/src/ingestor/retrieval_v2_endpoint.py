@@ -1064,6 +1064,13 @@ def search_v2(payload: RetrievalRequest, request: Request) -> RetrievalResponse:
     except (RetrievalScopeError, CollectionConfigError, HTTPException) as exc:
         raise HTTPException(status_code=403, detail="Forbidden") from exc
 
+    if (
+        payload.need.notions
+        or payload.need.desired_doc_types
+        or payload.need.difficulty_max is not None
+    ):
+        raise HTTPException(status_code=422, detail="Unsupported retrieval filters")
+
     if not payload.retrieval.hybrid or not payload.retrieval.rerank:
         raise HTTPException(status_code=422, detail="Unsupported retrieval options")
 

@@ -53,6 +53,7 @@ def _payload(query: str, *, k: int = 5) -> dict[str, object]:
             "matieres": ["nsi"],
             "statut_enseignement": "specialite",
             "candidat": "individuel",
+            "status_detail": "candidat_libre",
             "school_year": "2026-2027",
             "zone": "libre",
         },

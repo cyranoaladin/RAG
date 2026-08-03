@@ -707,6 +707,39 @@ class TestLaunchReadiness:
 
 
 class TestHybridSearchDelegation:
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [
+            ("notions", ["récursivité"]),
+            ("desired_doc_types", ["cours"]),
+            ("difficulty_max", 3),
+        ],
+    )
+    def test_search_rejects_unsupported_need_filters_before_retrieval(
+        self,
+        field: str,
+        value: object,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        endpoint, client = _api_client(monkeypatch)
+        monkeypatch.setattr(endpoint, "_check_retrievable", lambda *_args: {})
+        retrieve = MagicMock(return_value=[_hybrid_hit()])
+        monkeypatch.setattr(endpoint, "_retrieve_hybrid_hits", retrieve, raising=False)
+        payload = _retrieval_payload()
+        need = payload["need"]
+        assert isinstance(need, dict)
+        need[field] = value
+
+        response = client.post(
+            "/search/v2",
+            headers={"Authorization": "Bearer student-token"},
+            json=payload,
+        )
+
+        assert response.status_code == 422
+        assert response.json() == {"detail": "Unsupported retrieval filters"}
+        retrieve.assert_not_called()
+
     def test_search_delegates_raw_parameters_after_gate_and_ignores_cache(
         self,
         monkeypatch: pytest.MonkeyPatch,
