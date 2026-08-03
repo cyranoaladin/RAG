@@ -64,6 +64,7 @@ GRANT USAGE ON SCHEMA public TO :"retrieval_user";
 GRANT USAGE ON TYPE vector TO :"retrieval_user";
 GRANT SELECT ON TABLE rag_chunks TO :"retrieval_user";
 GRANT SELECT ON TABLE rag_schema_migrations TO :"retrieval_user";
+GRANT EXECUTE ON FUNCTION pg_catalog.pg_control_system() TO :"retrieval_user";
 
 CREATE ROLE :"review_user"
     LOGIN PASSWORD :'review_password'
@@ -73,6 +74,7 @@ GRANT USAGE ON SCHEMA public TO :"review_user";
 GRANT USAGE ON TYPE vector TO :"review_user";
 GRANT SELECT ON TABLE rag_chunks TO :"review_user";
 GRANT UPDATE (review_status) ON TABLE rag_chunks TO :"review_user";
+GRANT EXECUTE ON FUNCTION pg_catalog.pg_control_system() TO :"review_user";
 
 COMMIT;
 SQL

@@ -141,6 +141,12 @@ def test_fresh_bootstrap_registers_the_exact_migration_head() -> None:
         assert setting in provisioning
     assert "GRANT SELECT ON TABLE rag_chunks" in provisioning
     assert "GRANT UPDATE (review_status) ON TABLE rag_chunks" in provisioning
+    assert (
+        provisioning.count(
+            "GRANT EXECUTE ON FUNCTION pg_catalog.pg_control_system()"
+        )
+        == 2
+    )
     assert "NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS" in provisioning
     assert healthcheck_path.is_file()
     healthcheck = _read(healthcheck_path)
