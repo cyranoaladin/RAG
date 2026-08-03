@@ -33,6 +33,7 @@ try:
     from .readiness_db import postgres_database_identity
     from .reranker_contract import verify_configured_reranker_artifact
     from .retrieval_readiness_v2 import retrieval_database_ready
+    from .retrieval_scope_v2 import validate_pilot_scope_catalogue_alignment
     from .review_readiness_v2 import review_database_ready
     from .schema_readiness_v2 import schema_head_003_ready
     from .security_v2 import validate_bff_service_configuration
@@ -68,6 +69,9 @@ except (ImportError, ValueError):
     )
     from retrieval_readiness_v2 import (  # type: ignore[no-redef]
         retrieval_database_ready,
+    )
+    from retrieval_scope_v2 import (  # type: ignore[no-redef]
+        validate_pilot_scope_catalogue_alignment,
     )
     from review_readiness_v2 import (  # type: ignore[no-redef]
         review_database_ready,
@@ -287,8 +291,12 @@ def health_check() -> dict[str, str | int]:
     try:
         PoolSettings.from_env()
         validate_bff_service_configuration()
-        load_identity_verifier_config()
-        validate_collection_catalogue_v2()
+        identity_config = load_identity_verifier_config()
+        collection_catalogue = validate_collection_catalogue_v2()
+        validate_pilot_scope_catalogue_alignment(
+            identity_config.artifact,
+            collection_catalogue,
+        )
         model = declared_embedding_model()
         declared_dim = declared_embedding_dim()
         model_artifacts_ready = _model_artifacts_ready()

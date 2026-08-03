@@ -200,6 +200,7 @@ REQUIRED_PROFILE_INDEX_DEFINITION: Final = (
 REQUIRED_PROFILE_INDEX_PREDICATE: Final = _FINGERPRINTS[_INDEX_PREDICATE_KEY]
 REQUIRED_TEXT_TSV_EXPRESSION: Final = _FINGERPRINTS[_TEXT_TSV_EXPRESSION_KEY]
 REQUIRED_RAG_CHUNKS_ROW_SECURITY_STATE: Final = [False, False, []]
+REQUIRED_RAG_CHUNKS_TRIGGER_DEFINITIONS: Final[dict[str, list[str]]] = {}
 
 _SCHEMA_HEAD_003_SQL = """
 SELECT
@@ -294,7 +295,19 @@ SELECT
         )
         FROM pg_class AS table_definition
         WHERE table_definition.oid = 'public.rag_chunks'::regclass
-    )
+    ),
+    COALESCE((
+        SELECT jsonb_object_agg(
+            trigger_definition.tgname,
+            jsonb_build_array(
+                trigger_definition.tgenabled,
+                md5(pg_get_triggerdef(trigger_definition.oid, true))
+            )
+        )
+        FROM pg_trigger AS trigger_definition
+        WHERE trigger_definition.tgrelid = 'public.rag_chunks'::regclass
+          AND NOT trigger_definition.tgisinternal
+    ), '{}'::jsonb)
 """
 
 
@@ -330,7 +343,7 @@ def schema_head_003_ready(dsn: str) -> bool:
             cursor.execute(_SCHEMA_HEAD_003_SQL)
             row = cursor.fetchone()
 
-    if row is None or len(row) != 7:
+    if row is None or len(row) != 8:
         return False
     (
         columns,
@@ -340,6 +353,7 @@ def schema_head_003_ready(dsn: str) -> bool:
         text_tsv_expression,
         migrations,
         row_security_state,
+        trigger_definitions,
     ) = row
     return bool(
         columns == REQUIRED_RAG_CHUNKS_COLUMN_DEFINITIONS
@@ -350,6 +364,7 @@ def schema_head_003_ready(dsn: str) -> bool:
         and migrations
         == [list(item) for item in expected_migration_records()]
         and row_security_state == REQUIRED_RAG_CHUNKS_ROW_SECURITY_STATE
+        and trigger_definitions == REQUIRED_RAG_CHUNKS_TRIGGER_DEFINITIONS
     )
 
 
@@ -359,6 +374,7 @@ __all__ = [
     "REQUIRED_RAG_CHUNKS_COLUMN_DEFINITIONS",
     "REQUIRED_RAG_CHUNKS_INDEX_DEFINITIONS",
     "REQUIRED_RAG_CHUNKS_ROW_SECURITY_STATE",
+    "REQUIRED_RAG_CHUNKS_TRIGGER_DEFINITIONS",
     "REQUIRED_PROFILE_COLUMN_DEFINITIONS",
     "REQUIRED_PROFILE_CONSTRAINT_DEFINITIONS",
     "REQUIRED_PROFILE_INDEX_DEFINITION",

@@ -8,7 +8,12 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from nexus_contracts import RIGHTS_ALLOWED_CONTEXTS, AccessContext, Rights
+from nexus_contracts import (
+    RIGHTS_ALLOWED_CONTEXTS,
+    AccessContext,
+    PilotRetrievalScopeArtifact,
+    Rights,
+)
 
 if __package__:
     from .collection_config import (
@@ -147,6 +152,46 @@ def effective_signed_collections(
     return effective
 
 
+def validate_pilot_scope_catalogue_alignment(
+    artifact: PilotRetrievalScopeArtifact,
+    collection_config: Mapping[str, Any],
+) -> None:
+    """Lier chaque matière signée à sa définition catalogue autoritative."""
+    domains = collection_config.get("domains")
+    if not isinstance(domains, Mapping):
+        raise RetrievalScopeError("retrieval scope forbidden")
+
+    expected_identity = artifact.identity
+    for subject in artifact.subjects:
+        try:
+            definition = resolve_declared_collection_v2(
+                subject.collection,
+                collection_config,
+            )
+        except CollectionConfigError as exc:
+            raise RetrievalScopeError("retrieval scope forbidden") from exc
+
+        domain = definition.get("domain")
+        domain_definition = domains.get(domain) if isinstance(domain, str) else None
+        if (
+            not isinstance(domain_definition, Mapping)
+            or domain_definition.get("retrievable") is not True
+        ):
+            raise RetrievalScopeError("retrieval scope forbidden")
+
+        expected_dimensions = {
+            "matiere": subject.matiere,
+            "niveau": expected_identity.niveau.value,
+            "voie": expected_identity.voie.value,
+            "statut": expected_identity.statut_enseignement.value,
+        }
+        if any(
+            definition.get(dimension) != expected
+            for dimension, expected in expected_dimensions.items()
+        ):
+            raise RetrievalScopeError("retrieval scope forbidden")
+
+
 def _retrievable_definition(
     collection: str,
     collection_config: Mapping[str, Any],
@@ -262,4 +307,5 @@ __all__ = [
     "build_server_readiness_scope",
     "build_server_retrieval_scope",
     "effective_signed_collections",
+    "validate_pilot_scope_catalogue_alignment",
 ]

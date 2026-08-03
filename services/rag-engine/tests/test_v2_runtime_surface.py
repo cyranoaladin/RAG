@@ -35,13 +35,19 @@ def _clear_database_readiness_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         api_v2,
         "load_identity_verifier_config",
-        lambda: object(),
+        lambda: SimpleNamespace(artifact=object()),
         raising=False,
     )
     monkeypatch.setattr(
         api_v2,
         "validate_collection_catalogue_v2",
         lambda: None,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        api_v2,
+        "validate_pilot_scope_catalogue_alignment",
+        lambda _artifact, _catalogue: None,
         raising=False,
     )
     monkeypatch.setattr(
@@ -173,6 +179,61 @@ def test_health_is_ready_only_for_schema_003_and_canonical_embedding(
         "embedding_dim_declared": 1024,
         "pgvector_dim": 1024,
     }
+
+
+def test_health_binds_the_identity_artifact_to_the_mounted_catalogue(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PG_RAG_DSN", "postgresql://reader")
+    monkeypatch.setenv("PG_REVIEW_DSN", "postgresql://reviewer")
+    artifact = object()
+    catalogue = object()
+    calls: list[tuple[object, object]] = []
+    monkeypatch.setattr(
+        api_v2,
+        "load_identity_verifier_config",
+        lambda: SimpleNamespace(artifact=artifact),
+    )
+    monkeypatch.setattr(
+        api_v2,
+        "validate_collection_catalogue_v2",
+        lambda: catalogue,
+    )
+    monkeypatch.setattr(
+        api_v2,
+        "validate_pilot_scope_catalogue_alignment",
+        lambda loaded_artifact, loaded_catalogue: calls.append(
+            (loaded_artifact, loaded_catalogue)
+        ),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        api_v2,
+        "_cached_database_readiness",
+        lambda _rag_dsn, _review_dsn: (
+            api_v2.CANONICAL_EMBED_DIM,
+            True,
+            True,
+            True,
+            True,
+        ),
+    )
+    monkeypatch.setattr(api_v2, "_model_artifacts_ready", lambda: True)
+    monkeypatch.setattr(
+        api_v2,
+        "declared_embedding_model",
+        lambda: api_v2.CANONICAL_EMBED_MODEL,
+    )
+    monkeypatch.setattr(
+        api_v2,
+        "declared_embedding_dim",
+        lambda: api_v2.CANONICAL_EMBED_DIM,
+    )
+
+    response = TestClient(api_v2.app).get("/health")
+
+    assert response.status_code == 200
+    assert calls == [(artifact, catalogue)]
 
 
 @pytest.mark.parametrize(

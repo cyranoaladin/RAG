@@ -17,6 +17,7 @@ from src.ingestor.collection_config import (
     CollectionConfigLoadError,
     canonicalize_catalogue_voie,
     resolve_collection_v2,
+    validate_collection_catalogue_v2,
 )
 from src.ingestor.identity_v2 import VerifiedInternalIdentity
 from src.ingestor.retrieval_scope_v2 import (
@@ -27,6 +28,7 @@ from src.ingestor.retrieval_scope_v2 import (
     build_server_readiness_scope,
     build_server_retrieval_scope,
     effective_signed_collections,
+    validate_pilot_scope_catalogue_alignment,
 )
 
 ARTIFACT = load_pilot_retrieval_scope()
@@ -116,6 +118,50 @@ def test_effective_collections_follow_only_signed_profile_subjects(
     expected: tuple[str, ...],
 ) -> None:
     assert effective_signed_collections(_verified_for_matieres(matieres)) == expected
+
+
+def test_pilot_scope_catalogue_alignment_accepts_declared_dormant_subjects() -> None:
+    config = deepcopy(ENGINE_CONFIG)
+    config["collections"]["rag_nexus_maths_terminale_gen_specialite"][
+        "instanciee"
+    ] = False
+
+    validate_pilot_scope_catalogue_alignment(ARTIFACT, config)
+
+
+def test_mounted_catalogue_is_aligned_with_every_signed_pilot_subject() -> None:
+    validate_pilot_scope_catalogue_alignment(
+        ARTIFACT,
+        validate_collection_catalogue_v2(),
+    )
+
+
+@pytest.mark.parametrize(
+    ("drift", "value"),
+    (
+        ("missing_collection", None),
+        ("domain_retrievable", False),
+        ("matiere", "nsi"),
+        ("niveau", "premiere"),
+        ("voie", "stmg"),
+        ("statut", "tronc_commun"),
+    ),
+)
+def test_pilot_scope_catalogue_alignment_rejects_every_runtime_drift(
+    drift: str,
+    value: object,
+) -> None:
+    config = deepcopy(ENGINE_CONFIG)
+    collection = "rag_nexus_maths_terminale_gen_specialite"
+    if drift == "missing_collection":
+        del config["collections"][collection]
+    elif drift == "domain_retrievable":
+        config["domains"]["education"]["retrievable"] = value
+    else:
+        config["collections"][collection][drift] = value
+
+    with pytest.raises(RetrievalScopeError, match="retrieval scope forbidden"):
+        validate_pilot_scope_catalogue_alignment(ARTIFACT, config)
 
 
 @pytest.mark.parametrize(
