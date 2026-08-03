@@ -26,7 +26,7 @@ preuves opérationnelles externes doivent être obtenues. Aucun verrou
 | Date | 2026-08-03 |
 | Baseline `main` | `ea18ba52da5778f628c4943705dd81dfa43fbc15` |
 | Branche | `lot-41u-ingestion-runtime-hardening` |
-| Head applicatif audité avant ce commit documentaire | `95637908ec3aa7d5f95e90b0244dfcb90d47f82e` |
+| Head applicatif audité avant ce commit documentaire | `54b5cb09f52088486ae5ee8e3579d3d6965201e2` |
 | Plan de données | runtime FastAPI v2, PostgreSQL/pgvector, Compose, Nginx |
 | Contrats partagés | aucune évolution |
 | Verrous de gouvernance | aucun changement, 18/18 conformes |
@@ -943,6 +943,40 @@ template hôte et `30 r/s`, burst `60`, dans le vhost matérialisable, comme leu
 zone métier respective. Les tests ont d'abord refusé les anciens plafonds puis
 valident les deux couples exacts et l'absence de consommation de `api_v2`.
 
+La revue Codex exacte du head documentaire
+`22608bf7b85d81a8abd65b4d04b680d6353f3fc2` a ensuite ouvert deux nouveaux
+fils avant fusion. Le couple `system_identifier`/`current_database()` ne
+distinguait pas le primaire d'un standby physique ou d'une restauration ayant
+conservé le même identifiant. De plus, les sondes profondes de `/health`
+avaient chacune leur timeout, mais ni leur séquence complète ni l'attente du
+verrou de coalescence n'étaient bornées sous les dix secondes du healthcheck
+Compose.
+
+Le commit applicatif `54b5cb09f52088486ae5ee8e3579d3d6965201e2`
+ferme ces deux frontières :
+
+- les deux DSN ouvrent simultanément une session, comparent d'abord leur
+  identité de cluster et de base, puis exécutent un challenge aléatoire
+  d'advisory lock 63 bits. Le rôle retrieval doit acquérir le verrou et le rôle
+  review doit échouer à l'acquérir ; une copie physique séparée possède son
+  propre gestionnaire de verrous et est donc refusée ;
+- l'ensemble des ouvertures de connexion et statements de la sonde profonde
+  partage une deadline monotone de 7 000 ms. Chaque connexion et chaque SQL
+  reprend le reliquat courant ; un reliquat trop court pour le minimum libpq
+  ferme immédiatement la readiness ;
+- un suiveur de la sonde single-flight attend au plus 8 000 ms le verrou de
+  cache, donc moins que le timeout Compose de 10 secondes. Le TTL est toujours
+  calculé après la sonde et les résultats positifs comme négatifs restent
+  coalescés cinq secondes.
+
+Le cycle test-first a reproduit l'acceptation d'une instance restaurée simulée
+et l'attente non bornée avant implémentation. Après correction, 165 tests
+ciblés sont verts, comme Ruff, `mypy` sur 52 fichiers et toute la suite
+non-intégration du moteur. Sur PostgreSQL 16 réel, les deux rôles minimaux
+partagent le challenge avec
+`RUNTIME_AUTHORITIES_SHARED_LIVE_INSTANCE=PASS`; le cycle complet se termine
+par `LOT40_HYBRID_INTEGRATION=PASS`.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -1021,6 +1055,9 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `760c7dd` | stockage permanent, comptage borné et catalogue pilote fail-closed |
 | `ef9b428` | single-flight de readiness et taxonomie canonique dans l'image v2 |
 | `9563790` | schémas utilisateur interdits et budget PostgreSQL inférieur au BFF |
+| `a96bdb2` | routines fenêtre, échappements SQL, borne minimale et quota readiness |
+| `6f6bc3b` | quota readiness aligné sans surclassement |
+| `54b5cb0` | instance PostgreSQL vivante et sonde de santé globalement bornée |
 
 ## Décision de livraison
 
