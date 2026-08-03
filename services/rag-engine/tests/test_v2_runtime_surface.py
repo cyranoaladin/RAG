@@ -356,32 +356,40 @@ def test_lifespan_installs_then_clears_the_startup_attestations(
     embedding_attestation = SimpleNamespace(root=Path("/models/e5-large"))
     reranker_attestation = SimpleNamespace(root=Path("/models/reranker"))
     attestations = (embedding_attestation, reranker_attestation)
-    configured: list[tuple[Path, Path] | None] = []
+    lifecycle_events: list[tuple[Path, Path] | str | None] = []
     monkeypatch.setattr(
         api_v2,
         "_initialize_model_artifacts",
         lambda: attestations,
     )
     monkeypatch.setattr(api_v2, "close_pool", lambda: None)
+    monkeypatch.setattr(api_v2, "_model_artifacts_ready", lambda: True)
     monkeypatch.setattr(
         api_v2.retrieval_v2_endpoint,
         "configure_verified_model_artifacts",
-        lambda *, embedding_root, reranker_root: configured.append(
+        lambda *, embedding_root, reranker_root: lifecycle_events.append(
             (embedding_root, reranker_root)
         ),
     )
     monkeypatch.setattr(
         api_v2.retrieval_v2_endpoint,
+        "preload_runtime_models",
+        lambda: lifecycle_events.append("preload"),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        api_v2.retrieval_v2_endpoint,
         "reset_runtime_model_state",
-        lambda: configured.append(None),
+        lambda: lifecycle_events.append(None),
     )
 
     with TestClient(api_v2.app):
         assert api_v2._model_artifact_attestations == attestations
 
     assert api_v2._model_artifact_attestations is None
-    assert configured == [
+    assert lifecycle_events == [
         (embedding_attestation.root, reranker_attestation.root),
+        "preload",
         None,
     ]
 

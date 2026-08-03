@@ -783,7 +783,7 @@ def test_review_readiness_rejects_trigger_privilege() -> None:
     print("REVIEW_ROLE_TRIGGER_PRIVILEGE_REJECTED=PASS")
 
 
-def test_review_readiness_rejects_every_migration_registry_access() -> None:
+def test_review_readiness_rejects_migration_registry_insert() -> None:
     with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
         connection.execute(
             "GRANT INSERT ON TABLE rag_schema_migrations TO lot41_review"
@@ -796,7 +796,7 @@ def test_review_readiness_rejects_every_migration_registry_access() -> None:
                 "REVOKE INSERT ON TABLE rag_schema_migrations FROM lot41_review"
             )
     assert review_database_ready(REVIEW_DSN) is True
-    print("REVIEW_ROLE_MIGRATION_REGISTRY_ACCESS_REJECTED=PASS")
+    print("REVIEW_ROLE_MIGRATION_REGISTRY_INSERT_REJECTED=PASS")
 
 
 def test_runtime_roles_reject_every_set_role_membership_path() -> None:

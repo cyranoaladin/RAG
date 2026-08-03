@@ -216,6 +216,12 @@ def reset_runtime_model_state() -> None:
         _verified_reranker_artifact_root = None
 
 
+def preload_runtime_models() -> None:
+    """Construire les deux modèles attestés avant d'accepter du trafic."""
+    _get_embed_model()
+    _get_reranker()
+
+
 def _get_embed_model():
     global _embed_model
     if _embed_model is None:

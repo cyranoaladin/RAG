@@ -208,6 +208,9 @@ async def _app_lifespan(_app: FastAPI) -> AsyncIterator[None]:
             embedding_root=embedding_attestation.root,
             reranker_root=reranker_attestation.root,
         )
+        retrieval_v2_endpoint.preload_runtime_models()
+        if not _model_artifacts_ready():
+            raise RuntimeError("model artifacts changed during startup")
         yield
     finally:
         retrieval_v2_endpoint.reset_runtime_model_state()
