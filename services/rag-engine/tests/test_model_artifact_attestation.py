@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 
 import pytest
 
+from src.ingestor import model_artifact as model_artifact_module
 from src.ingestor.model_artifact import (
     attest_verified_model_artifact,
     model_artifact_attestation_ready,
@@ -95,6 +97,45 @@ def test_bounded_attestation_rejects_an_added_file(tmp_path: Path) -> None:
     root = tmp_path / "model"
     attestation, inventory_sha256 = _verified_attestation(root)
     (root / "unexpected.bin").write_bytes(b"unexpected")
+
+    assert not model_artifact_attestation_ready(
+        attestation,
+        expected_inventory_sha256=inventory_sha256,
+    )
+
+
+def test_bounded_attestation_enumerates_paths_even_if_root_metadata_is_stable(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "model"
+    attestation, inventory_sha256 = _verified_attestation(root)
+    attested_root = attestation.entries[0]
+    original_entry_state = model_artifact_module._entry_state
+    (root / "unexpected.bin").write_bytes(b"unexpected")
+
+    def stable_root_state(path: Path, relative_path: str):
+        if relative_path == ".":
+            return attested_root
+        return original_entry_state(path, relative_path)
+
+    monkeypatch.setattr(model_artifact_module, "_entry_state", stable_root_state)
+
+    assert not model_artifact_attestation_ready(
+        attestation,
+        expected_inventory_sha256=inventory_sha256,
+    )
+
+
+def test_bounded_attestation_rejects_same_size_content_with_restored_mtime(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "model"
+    attestation, inventory_sha256 = _verified_attestation(root)
+    weights = root / "model.safetensors"
+    before = weights.stat()
+    weights.write_bytes(b"x" * before.st_size)
+    os.utime(weights, ns=(before.st_atime_ns, before.st_mtime_ns))
 
     assert not model_artifact_attestation_ready(
         attestation,

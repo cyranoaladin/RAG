@@ -30,6 +30,7 @@ class _ArtifactEntryState:
     mode: int
     size: int
     mtime_ns: int
+    ctime_ns: int
 
 
 @dataclass(frozen=True)
@@ -56,7 +57,18 @@ def _entry_state(path: Path, relative_path: str) -> _ArtifactEntryState:
         mode=metadata.st_mode,
         size=metadata.st_size,
         mtime_ns=metadata.st_mtime_ns,
+        ctime_ns=metadata.st_ctime_ns,
     )
+
+
+def _bounded_entry_paths(root: Path) -> tuple[Path, ...]:
+    """Énumérer au plus la borne publique, afin de détecter tout ajout."""
+    entries: list[Path] = []
+    for entry in root.rglob("*"):
+        entries.append(entry)
+        if len(entries) > _MAX_HEALTH_ENTRIES:
+            _fail_invalid()
+    return tuple(sorted(entries, key=lambda path: path.as_posix()))
 
 
 def _read_bounded_inventory(path: Path) -> bytes:
@@ -170,9 +182,7 @@ def attest_verified_model_artifact(
         root = artifact_root.resolve(strict=True)
         if root.is_symlink() or not root.is_dir():
             _fail_invalid()
-        entries = tuple(sorted(root.rglob("*"), key=lambda path: path.as_posix()))
-        if len(entries) > _MAX_HEALTH_ENTRIES:
-            _fail_invalid()
+        entries = _bounded_entry_paths(root)
         inventory = root / "SHA256SUMS"
         inventory_bytes = _read_bounded_inventory(inventory)
         if not compare_digest(
@@ -207,16 +217,12 @@ def model_artifact_attestation_ready(
     ):
         return False
     try:
-        return all(
-            _entry_state(
-                attestation.root
-                if expected.relative_path == "."
-                else attestation.root / expected.relative_path,
-                expected.relative_path,
-            )
-            == expected
-            for expected in attestation.entries
+        entries = _bounded_entry_paths(attestation.root)
+        current_states = (_entry_state(attestation.root, "."),) + tuple(
+            _entry_state(entry, entry.relative_to(attestation.root).as_posix())
+            for entry in entries
         )
+        return current_states == attestation.entries
     except (ModelArtifactError, OSError, ValueError):
         return False
 
