@@ -43,6 +43,7 @@ psql \
     --set "school_year_constraint_md5=$RAG_CHUNKS_SCHOOL_YEAR_LOT41_CHECK_MD5" \
     --set "tenant_constraint_md5=$RAG_CHUNKS_TENANT_LOT41_CHECK_MD5" \
     --set "visibility_constraint_md5=$RAG_CHUNKS_VISIBILITY_LOT41_CHECK_MD5" \
+    --set "rag_chunks_primary_constraint_md5=$RAG_CHUNKS_PRIMARY_CONSTRAINT_MD5" \
     --set "profile_index_md5=$RAG_CHUNKS_PROFILE_REVIEWED_INDEX_MD5" \
     --set "profile_predicate_md5=$RAG_CHUNKS_PROFILE_REVIEWED_PREDICATE_MD5" \
     --set "rag_chunks_primary_index_md5=$RAG_CHUNKS_PRIMARY_INDEX_MD5" \
@@ -97,26 +98,27 @@ SELECT
                 IS DISTINCT FROM expected.formatted_type
            OR attribute.atttypmod IS DISTINCT FROM expected.atttypmod
     )
-    AND (SELECT count(*) = 5
+    AND (SELECT count(*) = 6
          FROM pg_constraint
          WHERE conrelid = 'public.rag_chunks'::regclass
            AND convalidated
-           AND (conname, md5(pg_get_constraintdef(oid, true))) IN (
-               ('rag_chunks_candidat_lot41_check',
+           AND (conname, contype, md5(pg_get_constraintdef(oid, true))) IN (
+               ('rag_chunks_candidat_lot41_check', 'c',
                 :'candidat_constraint_md5'),
-               ('rag_chunks_programme_version_lot41_check',
+               ('rag_chunks_programme_version_lot41_check', 'c',
                 :'programme_constraint_md5'),
-               ('rag_chunks_school_year_lot41_check',
+               ('rag_chunks_school_year_lot41_check', 'c',
                 :'school_year_constraint_md5'),
-               ('rag_chunks_tenant_lot41_check',
+               ('rag_chunks_tenant_lot41_check', 'c',
                 :'tenant_constraint_md5'),
-               ('rag_chunks_visibility_lot41_check',
-                :'visibility_constraint_md5')
+               ('rag_chunks_visibility_lot41_check', 'c',
+                :'visibility_constraint_md5'),
+               ('rag_chunks_pkey', 'p',
+                :'rag_chunks_primary_constraint_md5')
            ))
-    AND (SELECT count(*) = 5
+    AND (SELECT count(*) = 6
          FROM pg_constraint
-         WHERE conrelid = 'public.rag_chunks'::regclass
-           AND contype = 'c')
+         WHERE conrelid = 'public.rag_chunks'::regclass)
     AND (SELECT count(*) = 10
          FROM pg_index AS index_definition
          JOIN pg_class AS index_relation

@@ -72,6 +72,20 @@ def test_auxiliary_relation_predicate_rejects_unsafe_allowlists(
         readiness_db.no_auxiliary_relation_privileges_sql(allowlist)
 
 
+def test_security_definer_predicate_rejects_every_executable_user_routine() -> None:
+    sql = readiness_db.no_executable_security_definer_routines_sql()
+
+    normalized = sql.upper()
+    assert normalized.lstrip().startswith("NOT EXISTS")
+    assert "PG_PROC" in normalized
+    assert "PG_NAMESPACE" in normalized
+    assert "PROSECDEF" in normalized
+    assert "PROKIND IN ('F', 'P')" in normalized
+    assert "HAS_FUNCTION_PRIVILEGE" in normalized
+    assert "'EXECUTE'" in normalized
+    assert "PG_CATALOG" in normalized
+
+
 def test_postgres_database_identity_is_bounded_read_only_and_cluster_specific(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

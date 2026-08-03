@@ -109,6 +109,28 @@ NOT EXISTS (
 """.strip()
 
 
+def no_executable_security_definer_routines_sql() -> str:
+    """Refuser toute routine utilisateur privilégiée exécutable par le rôle."""
+    return """
+NOT EXISTS (
+    SELECT 1
+    FROM pg_proc AS privileged_routine
+    JOIN pg_namespace AS routine_namespace
+      ON routine_namespace.oid = privileged_routine.pronamespace
+    WHERE routine_namespace.nspname NOT IN (
+              'pg_catalog', 'information_schema'
+          )
+      AND routine_namespace.nspname NOT LIKE 'pg_toast%'
+      AND routine_namespace.nspname NOT LIKE 'pg_temp_%'
+      AND privileged_routine.prokind IN ('f', 'p')
+      AND privileged_routine.prosecdef
+      AND has_function_privilege(
+          current_user, privileged_routine.oid, 'EXECUTE'
+      )
+)
+""".strip()
+
+
 def readiness_connection_options() -> str:
     """Retourner les options bornées et non mutantes du contrat de readiness."""
     return (
@@ -146,6 +168,7 @@ __all__ = [
     "READINESS_STATEMENT_TIMEOUT_MS",
     "RUNTIME_RELATION_ALLOWLIST",
     "no_auxiliary_relation_privileges_sql",
+    "no_executable_security_definer_routines_sql",
     "postgres_database_identity",
     "readiness_connection_options",
 ]

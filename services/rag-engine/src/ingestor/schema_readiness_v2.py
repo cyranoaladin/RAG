@@ -110,20 +110,28 @@ REQUIRED_PROFILE_COLUMN_DEFINITIONS: Final = {
     )
 }
 
-_FINGERPRINT_KEYS: Final = {
+_CONSTRAINT_FINGERPRINT_KEYS: Final = {
     "RAG_CHUNKS_CANDIDAT_LOT41_CHECK_MD5": (
-        "rag_chunks_candidat_lot41_check"
+        "rag_chunks_candidat_lot41_check",
+        "c",
     ),
     "RAG_CHUNKS_PROGRAMME_VERSION_LOT41_CHECK_MD5": (
-        "rag_chunks_programme_version_lot41_check"
+        "rag_chunks_programme_version_lot41_check",
+        "c",
     ),
     "RAG_CHUNKS_SCHOOL_YEAR_LOT41_CHECK_MD5": (
-        "rag_chunks_school_year_lot41_check"
+        "rag_chunks_school_year_lot41_check",
+        "c",
     ),
-    "RAG_CHUNKS_TENANT_LOT41_CHECK_MD5": "rag_chunks_tenant_lot41_check",
+    "RAG_CHUNKS_TENANT_LOT41_CHECK_MD5": (
+        "rag_chunks_tenant_lot41_check",
+        "c",
+    ),
     "RAG_CHUNKS_VISIBILITY_LOT41_CHECK_MD5": (
-        "rag_chunks_visibility_lot41_check"
+        "rag_chunks_visibility_lot41_check",
+        "c",
     ),
+    "RAG_CHUNKS_PRIMARY_CONSTRAINT_MD5": ("rag_chunks_pkey", "p"),
 }
 _INDEX_FINGERPRINT_KEYS: Final = {
     "IDX_RAG_CHUNKS_AUDIENCE_MD5": "idx_rag_chunks_audience",
@@ -175,7 +183,7 @@ def load_schema_head_003_fingerprints(
     except OSError as exc:
         raise RuntimeError("SCHEMA_HEAD_003_FINGERPRINTS_UNAVAILABLE") from exc
     expected_keys = {
-        *_FINGERPRINT_KEYS,
+        *_CONSTRAINT_FINGERPRINT_KEYS,
         *_INDEX_FINGERPRINT_KEYS,
         _INDEX_PREDICATE_KEY,
         _TEXT_TSV_EXPRESSION_KEY,
@@ -186,9 +194,11 @@ def load_schema_head_003_fingerprints(
 
 
 _FINGERPRINTS = load_schema_head_003_fingerprints()
-REQUIRED_PROFILE_CONSTRAINT_DEFINITIONS: Final = {
-    constraint_name: [True, _FINGERPRINTS[key]]
-    for key, constraint_name in _FINGERPRINT_KEYS.items()
+REQUIRED_RAG_CHUNKS_CONSTRAINT_DEFINITIONS: Final = {
+    constraint_name: [constraint_type, True, _FINGERPRINTS[key]]
+    for key, (constraint_name, constraint_type) in (
+        _CONSTRAINT_FINGERPRINT_KEYS.items()
+    )
 }
 REQUIRED_RAG_CHUNKS_INDEX_DEFINITIONS: Final = {
     index_name: _FINGERPRINTS[key]
@@ -230,13 +240,13 @@ SELECT
         SELECT jsonb_object_agg(
             constraint_definition.conname,
             jsonb_build_array(
+                constraint_definition.contype,
                 constraint_definition.convalidated,
                 md5(pg_get_constraintdef(constraint_definition.oid, true))
             )
         )
         FROM pg_constraint AS constraint_definition
         WHERE constraint_definition.conrelid = 'public.rag_chunks'::regclass
-          AND constraint_definition.contype = 'c'
     ), '{}'::jsonb),
     COALESCE((
         SELECT jsonb_object_agg(
@@ -357,7 +367,7 @@ def schema_head_003_ready(dsn: str) -> bool:
     ) = row
     return bool(
         columns == REQUIRED_RAG_CHUNKS_COLUMN_DEFINITIONS
-        and constraints == REQUIRED_PROFILE_CONSTRAINT_DEFINITIONS
+        and constraints == REQUIRED_RAG_CHUNKS_CONSTRAINT_DEFINITIONS
         and index_definitions == REQUIRED_RAG_CHUNKS_INDEX_DEFINITIONS
         and index_predicate == REQUIRED_PROFILE_INDEX_PREDICATE
         and text_tsv_expression == REQUIRED_TEXT_TSV_EXPRESSION
@@ -372,11 +382,11 @@ __all__ = [
     "READINESS_CONNECT_TIMEOUT_S",
     "READINESS_STATEMENT_TIMEOUT_MS",
     "REQUIRED_RAG_CHUNKS_COLUMN_DEFINITIONS",
+    "REQUIRED_RAG_CHUNKS_CONSTRAINT_DEFINITIONS",
     "REQUIRED_RAG_CHUNKS_INDEX_DEFINITIONS",
     "REQUIRED_RAG_CHUNKS_ROW_SECURITY_STATE",
     "REQUIRED_RAG_CHUNKS_TRIGGER_DEFINITIONS",
     "REQUIRED_PROFILE_COLUMN_DEFINITIONS",
-    "REQUIRED_PROFILE_CONSTRAINT_DEFINITIONS",
     "REQUIRED_PROFILE_INDEX_DEFINITION",
     "REQUIRED_PROFILE_INDEX_PREDICATE",
     "REQUIRED_TEXT_TSV_EXPRESSION",

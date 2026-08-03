@@ -23,6 +23,7 @@ from nexus_contracts import (
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from ingestor import review_v2_endpoint as review
 from ingestor.review_v2_endpoint import router
 
 ROLE_TOKEN_ENV = (
@@ -244,6 +245,40 @@ class TestGovernanceInvariant:
         assert "require_bff_service" in source
         assert "require_internal_identity" in source
         assert "_REVIEW_ROLES" in source
+
+    def test_queue_and_decision_share_bounded_database_connections(self) -> None:
+        """Les deux opérations doivent partager les bornes SQL du runtime."""
+        import inspect
+
+        assert "_connect_review_database(pg_dsn)" in inspect.getsource(
+            review.list_queue
+        )
+        assert "_connect_review_database(pg_dsn)" in inspect.getsource(
+            review.review_decide
+        )
+
+    def test_review_connection_applies_connect_statement_and_lock_timeouts(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        observed: dict[str, object] = {}
+        sentinel = object()
+
+        monkeypatch.setenv("PG_CONNECT_TIMEOUT_S", "4")
+        monkeypatch.setenv("PG_STATEMENT_TIMEOUT_MS", "6500")
+        monkeypatch.setenv("PG_LOCK_TIMEOUT_MS", "750")
+
+        def connect(dsn: str, **kwargs: object) -> object:
+            observed.update({"dsn": dsn, **kwargs})
+            return sentinel
+
+        monkeypatch.setattr(review.psycopg, "connect", connect)
+
+        assert review._connect_review_database("postgresql://reviewer") is sentinel
+        assert observed == {
+            "dsn": "postgresql://reviewer",
+            "connect_timeout": 4,
+            "options": "-c statement_timeout=6500 -c lock_timeout=750",
+        }
 
     def test_reviewer_token_fail_closed(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """If admin/reviewer tokens are not set, review decisions are blocked."""

@@ -242,6 +242,7 @@ def test_health_binds_the_identity_artifact_to_the_mounted_catalogue(
         ("PG_POOL_MIN_SIZE", "not-an-int"),
         ("PG_POOL_MAX_SIZE", "0"),
         ("PG_POOL_TIMEOUT_S", "nan"),
+        ("PG_CONNECT_TIMEOUT_S", "0"),
         ("PG_STATEMENT_TIMEOUT_MS", "0"),
         ("PG_LOCK_TIMEOUT_MS", "7001"),
     ),

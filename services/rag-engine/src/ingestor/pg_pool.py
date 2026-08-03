@@ -8,7 +8,7 @@ import threading
 from collections.abc import Iterator
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, TypedDict
 
 from psycopg.conninfo import conninfo_to_dict
 from psycopg_pool import ConnectionPool, PoolClosed, PoolTimeout, TooManyRequests
@@ -18,9 +18,81 @@ class PoolConfigurationError(RuntimeError):
     """Signale une configuration ou une initialisation de pool invalide."""
 
 
+class RuntimeConnectionKwargs(TypedDict):
+    """Arguments libpq bornés partagés par les connexions runtime."""
+
+    connect_timeout: int
+    options: str
+
+
 _DEFAULT_STATEMENT_TIMEOUT_MS = 7_000
 _DEFAULT_LOCK_TIMEOUT_MS = 1_000
+_DEFAULT_CONNECT_TIMEOUT_S = 3
 _MAX_SERVER_TIMEOUT_MS = 60_000
+_MAX_CONNECT_TIMEOUT_S = 30
+
+
+def _validate_runtime_timeouts(
+    *,
+    connect_timeout_s: int,
+    statement_timeout_ms: int,
+    lock_timeout_ms: int,
+) -> None:
+    if not 1 <= connect_timeout_s <= _MAX_CONNECT_TIMEOUT_S:
+        raise PoolConfigurationError(
+            "Délai de connexion PostgreSQL invalide: 1 <= connect <= 30 s requis."
+        )
+    if (
+        not 1 <= statement_timeout_ms <= _MAX_SERVER_TIMEOUT_MS
+        or not 1 <= lock_timeout_ms <= _MAX_SERVER_TIMEOUT_MS
+        or lock_timeout_ms > statement_timeout_ms
+    ):
+        raise PoolConfigurationError(
+            "Configuration des délais SQL invalide: "
+            "1 <= lock <= statement <= 60000 ms requis."
+        )
+
+
+def _runtime_timeouts_from_env() -> tuple[int, int, int]:
+    values: tuple[int, int, int] | None = None
+    try:
+        values = (
+            int(os.getenv("PG_CONNECT_TIMEOUT_S", str(_DEFAULT_CONNECT_TIMEOUT_S))),
+            int(
+                os.getenv(
+                    "PG_STATEMENT_TIMEOUT_MS",
+                    str(_DEFAULT_STATEMENT_TIMEOUT_MS),
+                )
+            ),
+            int(os.getenv("PG_LOCK_TIMEOUT_MS", str(_DEFAULT_LOCK_TIMEOUT_MS))),
+        )
+    except ValueError:
+        pass
+    if values is None:
+        raise PoolConfigurationError(
+            "Paramètres numériques des délais PostgreSQL invalides."
+        ) from None
+    connect_timeout_s, statement_timeout_ms, lock_timeout_ms = values
+    _validate_runtime_timeouts(
+        connect_timeout_s=connect_timeout_s,
+        statement_timeout_ms=statement_timeout_ms,
+        lock_timeout_ms=lock_timeout_ms,
+    )
+    return values
+
+
+def runtime_connection_kwargs_from_env() -> RuntimeConnectionKwargs:
+    """Partager les bornes réseau et SQL avec les connexions runtime directes."""
+    connect_timeout_s, statement_timeout_ms, lock_timeout_ms = (
+        _runtime_timeouts_from_env()
+    )
+    return {
+        "connect_timeout": connect_timeout_s,
+        "options": (
+            f"-c statement_timeout={statement_timeout_ms} "
+            f"-c lock_timeout={lock_timeout_ms}"
+        ),
+    }
 
 
 @dataclass(frozen=True)
@@ -31,6 +103,7 @@ class PoolSettings:
     min_size: int
     max_size: int
     timeout_s: float
+    connect_timeout_s: int = _DEFAULT_CONNECT_TIMEOUT_S
     statement_timeout_ms: int = _DEFAULT_STATEMENT_TIMEOUT_MS
     lock_timeout_ms: int = _DEFAULT_LOCK_TIMEOUT_MS
 
@@ -53,14 +126,11 @@ class PoolSettings:
             )
         if not math.isfinite(self.timeout_s) or self.timeout_s <= 0:
             raise PoolConfigurationError("Délai du pool invalide: une valeur finie positive est requise.")
-        if (
-            not 1 <= self.statement_timeout_ms <= _MAX_SERVER_TIMEOUT_MS
-            or not 1 <= self.lock_timeout_ms <= _MAX_SERVER_TIMEOUT_MS
-            or self.lock_timeout_ms > self.statement_timeout_ms
-        ):
-            raise PoolConfigurationError(
-                "Configuration des délais SQL invalide: 1 <= lock <= statement <= 60000 ms requis."
-            )
+        _validate_runtime_timeouts(
+            connect_timeout_s=self.connect_timeout_s,
+            statement_timeout_ms=self.statement_timeout_ms,
+            lock_timeout_ms=self.lock_timeout_ms,
+        )
         object.__setattr__(self, "dsn", normalized_dsn)
 
     @classmethod
@@ -69,24 +139,12 @@ class PoolSettings:
         if not dsn:
             raise PoolConfigurationError("DSN PostgreSQL requis pour le pool.")
 
-        parsed_values: tuple[int, int, float, int, int] | None = None
+        parsed_values: tuple[int, int, float] | None = None
         try:
             parsed_values = (
                 int(os.getenv("PG_POOL_MIN_SIZE", "1")),
                 int(os.getenv("PG_POOL_MAX_SIZE", "10")),
                 float(os.getenv("PG_POOL_TIMEOUT_S", "5.0")),
-                int(
-                    os.getenv(
-                        "PG_STATEMENT_TIMEOUT_MS",
-                        str(_DEFAULT_STATEMENT_TIMEOUT_MS),
-                    )
-                ),
-                int(
-                    os.getenv(
-                        "PG_LOCK_TIMEOUT_MS",
-                        str(_DEFAULT_LOCK_TIMEOUT_MS),
-                    )
-                ),
             )
         except ValueError:
             pass
@@ -94,8 +152,9 @@ class PoolSettings:
             raise PoolConfigurationError(
                 "Paramètres numériques du pool PostgreSQL invalides."
             ) from None
-        min_size, max_size, timeout_s, statement_timeout_ms, lock_timeout_ms = (
-            parsed_values
+        min_size, max_size, timeout_s = parsed_values
+        connect_timeout_s, statement_timeout_ms, lock_timeout_ms = (
+            _runtime_timeouts_from_env()
         )
 
         return cls(
@@ -103,6 +162,7 @@ class PoolSettings:
             min_size=min_size,
             max_size=max_size,
             timeout_s=timeout_s,
+            connect_timeout_s=connect_timeout_s,
             statement_timeout_ms=statement_timeout_ms,
             lock_timeout_ms=lock_timeout_ms,
         )
@@ -136,6 +196,7 @@ def get_pool(settings: PoolSettings) -> ConnectionPool[Any]:
                 timeout=settings.timeout_s,
                 open=False,
                 kwargs={
+                    "connect_timeout": settings.connect_timeout_s,
                     "options": (
                         "-c default_transaction_read_only=on "
                         f"-c statement_timeout={settings.statement_timeout_ms} "

@@ -12,6 +12,7 @@ try:
         READINESS_STATEMENT_TIMEOUT_MS,
         RUNTIME_RELATION_ALLOWLIST,
         no_auxiliary_relation_privileges_sql,
+        no_executable_security_definer_routines_sql,
         readiness_connection_options,
     )
 except ImportError:  # Image Docker aplatie sous /app.
@@ -20,6 +21,7 @@ except ImportError:  # Image Docker aplatie sous /app.
         READINESS_STATEMENT_TIMEOUT_MS,
         RUNTIME_RELATION_ALLOWLIST,
         no_auxiliary_relation_privileges_sql,
+        no_executable_security_definer_routines_sql,
         readiness_connection_options,
     )
 
@@ -54,6 +56,7 @@ _REQUIRED_REVIEW_PRIVILEGES: Final = (
     False,  # pas de TRIGGER sur le registre des migrations
     False,  # aucune appartenance au propriétaire du registre
     True,  # aucun privilège effectif sur une relation hors allowlist
+    True,  # aucune routine utilisateur SECURITY DEFINER exécutable
 )
 
 _REVIEW_PRIVILEGES_SQL = f"""
@@ -144,7 +147,8 @@ SELECT
         ),
         'MEMBER'
     ),
-    {no_auxiliary_relation_privileges_sql(RUNTIME_RELATION_ALLOWLIST)}
+    {no_auxiliary_relation_privileges_sql(RUNTIME_RELATION_ALLOWLIST)},
+    {no_executable_security_definer_routines_sql()}
 FROM pg_tables
 JOIN pg_roles ON rolname = current_user
 WHERE schemaname = 'public' AND tablename = 'rag_chunks'

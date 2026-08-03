@@ -21,6 +21,7 @@ from pydantic import BeforeValidator
 try:
     from .collection_config import load_collection_config
     from .identity_v2 import VerifiedInternalIdentity, require_internal_identity
+    from .pg_pool import runtime_connection_kwargs_from_env
     from .retrieval_scope_v2 import (
         RetrievalScopeError,
         ServerRetrievalScope,
@@ -35,6 +36,7 @@ except (ImportError, ValueError):
         VerifiedInternalIdentity,
         require_internal_identity,
     )
+    from pg_pool import runtime_connection_kwargs_from_env  # type: ignore[no-redef]
     from retrieval_scope_v2 import (  # type: ignore[no-redef]
         RetrievalScopeError,
         ServerRetrievalScope,
@@ -70,6 +72,11 @@ def _get_pg_dsn() -> str:
     if not dsn:
         raise HTTPException(status_code=503, detail="review unavailable")
     return dsn
+
+
+def _connect_review_database(pg_dsn: str) -> Any:
+    """Ouvrir une connexion de revue bornée côté réseau et PostgreSQL."""
+    return psycopg.connect(pg_dsn, **runtime_connection_kwargs_from_env())
 
 
 def _require_review_identity(
@@ -218,7 +225,7 @@ def list_queue(
 
     connection: Any | None = None
     try:
-        connection = psycopg.connect(pg_dsn)
+        connection = _connect_review_database(pg_dsn)
         with connection.cursor() as cursor:
             cursor.execute(
                 "SELECT COUNT(*) FROM (SELECT 1 FROM rag_chunks "
@@ -306,7 +313,7 @@ def review_decide(
 
     connection: Any | None = None
     try:
-        connection = psycopg.connect(pg_dsn)
+        connection = _connect_review_database(pg_dsn)
         with connection.cursor() as cursor:
             cursor.execute(
                 f"""

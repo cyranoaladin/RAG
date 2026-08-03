@@ -12,6 +12,7 @@ try:
         READINESS_STATEMENT_TIMEOUT_MS,
         RUNTIME_RELATION_ALLOWLIST,
         no_auxiliary_relation_privileges_sql,
+        no_executable_security_definer_routines_sql,
         readiness_connection_options,
     )
 except ImportError:  # Image Docker aplatie sous /app.
@@ -20,6 +21,7 @@ except ImportError:  # Image Docker aplatie sous /app.
         READINESS_STATEMENT_TIMEOUT_MS,
         RUNTIME_RELATION_ALLOWLIST,
         no_auxiliary_relation_privileges_sql,
+        no_executable_security_definer_routines_sql,
         readiness_connection_options,
     )
 
@@ -52,6 +54,7 @@ _REQUIRED_RETRIEVAL_PRIVILEGES: Final = (
     False,  # pas de tables temporaires
     True,  # USAGE requis sur le type vector
     True,  # aucun privilège effectif sur une relation hors allowlist
+    True,  # aucune routine utilisateur SECURITY DEFINER exécutable
 )
 
 _RETRIEVAL_PRIVILEGES_SQL = f"""
@@ -173,7 +176,8 @@ SELECT
     has_database_privilege(current_user, current_database(), 'CREATE'),
     has_database_privilege(current_user, current_database(), 'TEMP'),
     has_type_privilege(current_user, 'public.vector', 'USAGE'),
-    {no_auxiliary_relation_privileges_sql(RUNTIME_RELATION_ALLOWLIST)}
+    {no_auxiliary_relation_privileges_sql(RUNTIME_RELATION_ALLOWLIST)},
+    {no_executable_security_definer_routines_sql()}
 FROM pg_roles
 WHERE rolname = current_user
 """

@@ -53,7 +53,7 @@ class _Connection:
 def _valid_row() -> tuple[object, ...]:
     return (
         readiness.REQUIRED_RAG_CHUNKS_COLUMN_DEFINITIONS,
-        readiness.REQUIRED_PROFILE_CONSTRAINT_DEFINITIONS,
+        readiness.REQUIRED_RAG_CHUNKS_CONSTRAINT_DEFINITIONS,
         readiness.REQUIRED_RAG_CHUNKS_INDEX_DEFINITIONS,
         readiness.REQUIRED_PROFILE_INDEX_PREDICATE,
         readiness.REQUIRED_TEXT_TSV_EXPRESSION,
@@ -100,6 +100,7 @@ def test_schema_head_003_accepts_only_the_exact_contract(
     normalized = cursor.sql.upper()
     assert normalized.lstrip().startswith("SELECT")
     assert "CONVALIDATED" in normalized
+    assert "CONTYPE" in normalized
     assert "PG_GET_CONSTRAINTDEF" in normalized
     assert "PG_GET_INDEXDEF" in normalized
     assert "PG_ATTRDEF" in normalized
@@ -116,6 +117,10 @@ def test_schema_head_003_accepts_only_the_exact_contract(
     assert "PG_TRIGGER" in normalized
     assert "TGISINTERNAL" in normalized
     assert "INDEX_RELATION.RELNAME IN" not in normalized
+    assert "CONSTRAINT_DEFINITION.CONTYPE = 'C'" not in normalized
+    assert readiness.REQUIRED_RAG_CHUNKS_CONSTRAINT_DEFINITIONS[
+        "rag_chunks_pkey"
+    ][0] == "p"
     assert readiness.REQUIRED_RAG_CHUNKS_COLUMN_DEFINITIONS["vector"][-2:] == [
         "vector(1024)",
         1024,
@@ -179,6 +184,18 @@ def test_schema_head_003_rejects_unexpected_ready_index(
     row[2] = {
         **readiness.REQUIRED_RAG_CHUNKS_INDEX_DEFINITIONS,
         "idx_rag_chunks_unexpected": "0" * 32,
+    }
+    with _patched_connection(monkeypatch, tuple(row)):
+        assert readiness.schema_head_003_ready("postgresql://reader") is False
+
+
+def test_schema_head_003_rejects_an_unexpected_foreign_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    row = list(_valid_row())
+    row[1] = {
+        **readiness.REQUIRED_RAG_CHUNKS_CONSTRAINT_DEFINITIONS,
+        "lot41u_unexpected_fk": ["f", False, "0" * 32],
     }
     with _patched_connection(monkeypatch, tuple(row)):
         assert readiness.schema_head_003_ready("postgresql://reader") is False

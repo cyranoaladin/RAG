@@ -175,6 +175,7 @@ def test_schema_object_fingerprints_have_one_versioned_source() -> None:
     readiness = _read(ENGINE_ROOT / "src" / "ingestor" / "schema_readiness_v2.py")
 
     assert "RAG_CHUNKS_TENANT_LOT41_CHECK_MD5=" in fingerprints
+    assert "RAG_CHUNKS_PRIMARY_CONSTRAINT_MD5=" in fingerprints
     assert "RAG_CHUNKS_PROFILE_REVIEWED_INDEX_MD5=" in fingerprints
     assert "IDX_RAG_CHUNKS_VECTOR_MD5=" in fingerprints
     assert "IDX_RAG_CHUNKS_TEXT_TSV_MD5=" in fingerprints

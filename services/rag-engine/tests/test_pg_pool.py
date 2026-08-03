@@ -23,6 +23,7 @@ _ENV_KEYS = (
     "PG_POOL_MIN_SIZE",
     "PG_POOL_MAX_SIZE",
     "PG_POOL_TIMEOUT_S",
+    "PG_CONNECT_TIMEOUT_S",
     "PG_STATEMENT_TIMEOUT_MS",
     "PG_LOCK_TIMEOUT_MS",
 )
@@ -106,6 +107,7 @@ def test_from_env_parses_explicit_pool_limits(monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.setenv("PG_POOL_MIN_SIZE", "2")
     monkeypatch.setenv("PG_POOL_MAX_SIZE", "25")
     monkeypatch.setenv("PG_POOL_TIMEOUT_S", "0.75")
+    monkeypatch.setenv("PG_CONNECT_TIMEOUT_S", "4")
     monkeypatch.setenv("PG_STATEMENT_TIMEOUT_MS", "6500")
     monkeypatch.setenv("PG_LOCK_TIMEOUT_MS", "750")
 
@@ -114,6 +116,7 @@ def test_from_env_parses_explicit_pool_limits(monkeypatch: pytest.MonkeyPatch) -
         min_size=2,
         max_size=25,
         timeout_s=0.75,
+        connect_timeout_s=4,
         statement_timeout_ms=6500,
         lock_timeout_ms=750,
     )
@@ -125,6 +128,7 @@ def test_from_env_parses_explicit_pool_limits(monkeypatch: pytest.MonkeyPatch) -
         ("PG_POOL_MIN_SIZE", "not-an-int"),
         ("PG_POOL_MAX_SIZE", "1.5"),
         ("PG_POOL_TIMEOUT_S", "not-a-float"),
+        ("PG_CONNECT_TIMEOUT_S", "1.5"),
         ("PG_STATEMENT_TIMEOUT_MS", "1.5"),
         ("PG_LOCK_TIMEOUT_MS", "not-an-int"),
     ],
@@ -195,6 +199,31 @@ def test_settings_reject_invalid_server_side_timeouts(
             statement_timeout_ms=statement_timeout_ms,
             lock_timeout_ms=lock_timeout_ms,
         )
+
+
+@pytest.mark.parametrize("connect_timeout_s", (0, 31))
+def test_settings_reject_invalid_connect_timeout(connect_timeout_s: int) -> None:
+    with pytest.raises(PoolConfigurationError, match="connexion PostgreSQL"):
+        PoolSettings(
+            dsn="postgresql://db.example/rag",
+            min_size=1,
+            max_size=10,
+            timeout_s=5.0,
+            connect_timeout_s=connect_timeout_s,
+        )
+
+
+def test_direct_connection_kwargs_share_the_runtime_bounds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PG_CONNECT_TIMEOUT_S", "4")
+    monkeypatch.setenv("PG_STATEMENT_TIMEOUT_MS", "6500")
+    monkeypatch.setenv("PG_LOCK_TIMEOUT_MS", "750")
+
+    assert pg_pool.runtime_connection_kwargs_from_env() == {
+        "connect_timeout": 4,
+        "options": "-c statement_timeout=6500 -c lock_timeout=750",
+    }
 
 
 @pytest.mark.parametrize("dsn", ["", " ", "\t"])
@@ -338,6 +367,7 @@ def _settings(*, dsn: str = "postgresql://db.example/rag") -> PoolSettings:
         min_size=2,
         max_size=8,
         timeout_s=1.25,
+        connect_timeout_s=4,
         statement_timeout_ms=6_500,
         lock_timeout_ms=750,
     )
@@ -383,6 +413,7 @@ def test_get_pool_constructs_opens_waits_then_reuses_singleton(
                 "timeout": 1.25,
                 "open": False,
                 "kwargs": {
+                    "connect_timeout": 4,
                     "options": (
                         "-c default_transaction_read_only=on "
                         "-c statement_timeout=6500 -c lock_timeout=750"

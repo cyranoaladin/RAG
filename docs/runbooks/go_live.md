@@ -52,13 +52,14 @@ Les DSN runtime sont :
 Le propriétaire PostgreSQL et les credentials de migration ne doivent jamais
 être fournis au conteneur API.
 
-Le pool de retrieval impose côté serveur `statement_timeout=7000 ms` et
-`lock_timeout=1000 ms` par défaut. Les overrides
+Les connexions runtime de retrieval et de revue imposent
+`connect_timeout=3 s`, `statement_timeout=7000 ms` et
+`lock_timeout=1000 ms` par défaut. Les overrides `PG_CONNECT_TIMEOUT_S`,
 `PG_STATEMENT_TIMEOUT_MS` et `PG_LOCK_TIMEOUT_MS` doivent rester des entiers
-strictement positifs, avec `lock <= statement <= 60000`, et le délai de
-statement doit rester inférieur au timeout du BFF Cockpit. Ne pas les mettre à
-zéro : le timeout d'acquisition `PG_POOL_TIMEOUT_S` ne borne pas une requête
-déjà partie vers PostgreSQL.
+strictement positifs, avec `connect <= 30` et
+`lock <= statement <= 60000`. Le délai de statement doit rester inférieur au
+timeout du BFF Cockpit. Ne pas les mettre à zéro : le timeout d'acquisition
+`PG_POOL_TIMEOUT_S` ne borne pas une requête déjà partie vers PostgreSQL.
 
 ## 3. Préparer la configuration sans exposer les secrets
 

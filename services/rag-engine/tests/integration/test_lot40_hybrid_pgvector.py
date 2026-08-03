@@ -792,6 +792,31 @@ def test_runtime_roles_reject_privileges_on_auxiliary_relations() -> None:
     print("RUNTIME_ROLE_AUXILIARY_RELATION_PRIVILEGE_REJECTED=PASS")
 
 
+def test_runtime_roles_reject_executable_security_definer_routines() -> None:
+    routine = "public.lot41u_unexpected_security_definer()"
+    try:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(f"DROP FUNCTION IF EXISTS {routine}")
+            connection.execute(
+                """
+                CREATE FUNCTION public.lot41u_unexpected_security_definer()
+                RETURNS bigint
+                LANGUAGE sql
+                SECURITY DEFINER
+                SET search_path = pg_catalog
+                AS 'SELECT 1::bigint'
+                """
+            )
+        assert retrieval_database_ready(APP_DSN) is False
+        assert review_database_ready(REVIEW_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(f"DROP FUNCTION IF EXISTS {routine}")
+    assert retrieval_database_ready(APP_DSN) is True
+    assert review_database_ready(REVIEW_DSN) is True
+    print("RUNTIME_SECURITY_DEFINER_EXECUTE_REJECTED=PASS")
+
+
 def test_retrieval_pool_enforces_server_side_execution_timeouts() -> None:
     settings = PoolSettings(
         dsn=APP_DSN,
@@ -815,6 +840,25 @@ def test_retrieval_pool_enforces_server_side_execution_timeouts() -> None:
     finally:
         close_pool()
     print("RETRIEVAL_POOL_SERVER_TIMEOUTS=PASS")
+
+
+def test_review_connections_enforce_server_side_execution_timeouts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PG_CONNECT_TIMEOUT_S", "3")
+    monkeypatch.setenv("PG_STATEMENT_TIMEOUT_MS", "100")
+    monkeypatch.setenv("PG_LOCK_TIMEOUT_MS", "50")
+
+    with pytest.raises(psycopg.errors.QueryCanceled):
+        with review_endpoint._connect_review_database(REVIEW_DSN) as connection:
+            connection.execute("SELECT pg_sleep(0.25)")
+
+    with psycopg.connect(ADMIN_DSN) as locker:
+        locker.execute("LOCK TABLE rag_chunks IN ACCESS EXCLUSIVE MODE")
+        with pytest.raises(psycopg.errors.LockNotAvailable):
+            with review_endpoint._connect_review_database(REVIEW_DSN) as connection:
+                connection.execute("SELECT 1 FROM rag_chunks LIMIT 1")
+    print("REVIEW_CONNECTION_SERVER_TIMEOUTS=PASS")
 
 
 def test_review_readiness_rejects_update_on_any_other_column() -> None:
@@ -1067,6 +1111,35 @@ def test_schema_readiness_rejects_non_internal_trigger_drift() -> None:
             )
     assert schema_head_003_ready(APP_DSN) is True
     print("SCHEMA_TRIGGER_DRIFT_REJECTED=PASS")
+
+
+def test_schema_readiness_rejects_unexpected_foreign_key_constraint() -> None:
+    try:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(
+                "ALTER TABLE rag_chunks "
+                "DROP CONSTRAINT IF EXISTS lot41u_unexpected_fk"
+            )
+            connection.execute("DROP TABLE IF EXISTS lot41u_fk_target")
+            connection.execute(
+                "CREATE TABLE lot41u_fk_target (source_label text PRIMARY KEY)"
+            )
+            connection.execute(
+                "ALTER TABLE rag_chunks "
+                "ADD CONSTRAINT lot41u_unexpected_fk "
+                "FOREIGN KEY (source_label) "
+                "REFERENCES lot41u_fk_target(source_label) NOT VALID"
+            )
+        assert schema_head_003_ready(APP_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(
+                "ALTER TABLE rag_chunks "
+                "DROP CONSTRAINT IF EXISTS lot41u_unexpected_fk"
+            )
+            connection.execute("DROP TABLE IF EXISTS lot41u_fk_target")
+    assert schema_head_003_ready(APP_DSN) is True
+    print("SCHEMA_ALL_CONSTRAINT_TYPES_DRIFT_REJECTED=PASS")
 
 
 def test_equal_score_rank_50_is_deterministic_in_both_channels() -> None:
