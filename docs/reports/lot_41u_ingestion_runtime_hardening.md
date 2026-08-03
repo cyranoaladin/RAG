@@ -26,7 +26,7 @@ preuves opérationnelles externes doivent être obtenues. Aucun verrou
 | Date | 2026-08-02 |
 | Baseline `main` | `ea18ba52da5778f628c4943705dd81dfa43fbc15` |
 | Branche | `lot-41u-ingestion-runtime-hardening` |
-| Head source avant le commit de ce rapport | `45c00e9` |
+| Head source avant la dernière mise à jour de ce rapport | `d25d5a8` |
 | Plan de données | runtime FastAPI v2, PostgreSQL/pgvector, Compose, Nginx |
 | Contrats partagés | aucune évolution |
 | Verrous de gouvernance | aucun changement, 18/18 conformes |
@@ -86,11 +86,15 @@ Une base neuve est initialisée dans cet ordre :
    l'index de lecture ;
 3. un script d'initialisation calcule les SHA-256 des migrations canoniques et
    enregistre atomiquement `001`, `002` et `003` dans le registre ;
-4. le healthcheck PostgreSQL recalcule les trois SHA, exige les 31 colonnes,
+4. `03_provision_runtime_roles.sh` crée deux identités distinctes : retrieval
+   avec `SELECT`, et review avec `SELECT` plus `UPDATE(review_status)` ; les
+   mots de passe ne sont jamais passés sur la ligne de commande `psql` ;
+5. le healthcheck PostgreSQL recalcule les trois SHA, exige les 31 colonnes
+   uniques,
    les dix définitions d'index, l'expression générée `text_tsv`, cinq
    définitions de contraintes validées, le prédicat exact de l'index de profil,
-   puis les trois entrées exactes du registre ;
-5. l'API relit les mêmes preuves via un rôle `SELECT`, avec `connect_timeout`,
+   l'absence de RLS et de policy, puis les trois entrées exactes du registre ;
+6. l'API relit les mêmes preuves via un rôle `SELECT`, avec `connect_timeout`,
    `statement_timeout` et transaction read-only, vérifie les privilèges
    effectifs des rôles retrieval et review, refuse toute cible de `SET ROLE`,
    puis le modèle canonique et la dimension pgvector `1024` avant de rendre
@@ -424,6 +428,24 @@ métadonnées semblent stables et la réécriture de même taille avec `mtime`
 restauré. Les sept tests d'attestation, Ruff et `mypy` sont verts ; la suite
 non-intégration complète du moteur repasse également verte.
 
+La revue suivante a identifié trois frontières encore incomplètes. Un volume
+Compose neuf ne créait pas les rôles restreints exigés par la readiness ;
+l'attestation du schéma ne couvrait pas `relrowsecurity`,
+`relforcerowsecurity` et `pg_policy` ; enfin, le healthcheck devait refuser un
+nom de colonne dupliqué dans le contrat TSV. Le commit `d25d5a8` provisionne les
+deux rôles avec quoting `psql` et secrets lus depuis l'environnement, ajoute
+l'état RLS à la preuve Python et shell, et rend `column_name` unique dans la
+table temporaire du healthcheck.
+
+Le cycle RED a produit 12 échecs ciblés avant implémentation. Après correction,
+20 tests schema/Compose sont verts, Ruff est vert et `mypy` ne relève aucune
+erreur sur 52 fichiers. Le runner PostgreSQL réel conclut
+`SCHEMA_ROW_SECURITY_DRIFT_REJECTED=PASS` puis
+`LOT40_HYBRID_INTEGRATION=PASS`. Un conteneur pgvector 16 vierge exécutant les
+quatre scripts Docker réels a conclu `FRESH_BOOTSTRAP_RUNTIME_ROLES=PASS`,
+`FRESH_BOOTSTRAP_HEALTH=PASS` et `RETRIEVAL_WRITE_DENIED=PASS`, avant d'être
+supprimé.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -480,6 +502,7 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `7bcf57f` | types, defaults, contraintes et index PostgreSQL exacts |
 | `f95e987` | privilège `TRIGGER`, taxonomies fail-closed, TTL et contrat de colonnes partagé |
 | `45c00e9` | inventaire borné exact et `ctime` des modèles attestés |
+| `d25d5a8` | rôles runtime frais, état RLS et unicité du contrat de colonnes |
 
 ## Décision de livraison
 
