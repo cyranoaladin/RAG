@@ -26,7 +26,7 @@ preuves opérationnelles externes doivent être obtenues. Aucun verrou
 | Date | 2026-08-02 |
 | Baseline `main` | `ea18ba52da5778f628c4943705dd81dfa43fbc15` |
 | Branche | `lot-41u-ingestion-runtime-hardening` |
-| Head source avant la dernière mise à jour de ce rapport | `d25d5a8` |
+| Head applicatif audité avant ce commit documentaire | `a6cc47abee1aa6d247dfe9239a8a18c34f3437ee` |
 | Plan de données | runtime FastAPI v2, PostgreSQL/pgvector, Compose, Nginx |
 | Contrats partagés | aucune évolution |
 | Verrous de gouvernance | aucun changement, 18/18 conformes |
@@ -87,8 +87,9 @@ Une base neuve est initialisée dans cet ordre :
 3. un script d'initialisation calcule les SHA-256 des migrations canoniques et
    enregistre atomiquement `001`, `002` et `003` dans le registre ;
 4. `03_provision_runtime_roles.sh` crée deux identités distinctes : retrieval
-   avec `SELECT`, et review avec `SELECT` plus `UPDATE(review_status)` ; les
-   mots de passe ne sont jamais passés sur la ligne de commande `psql` ;
+   avec `SELECT` sur les chunks et le registre, et review avec `SELECT` sur les
+   seuls chunks plus `UPDATE(review_status)` ; les mots de passe ne sont jamais
+   passés sur la ligne de commande `psql` ;
 5. le healthcheck PostgreSQL recalcule les trois SHA, exige les 31 colonnes
    uniques,
    les dix définitions d'index, l'expression générée `text_tsv`, cinq
@@ -319,9 +320,8 @@ worker effectue désormais la preuve cryptographique exhaustive pendant son
 démarrage, avant d'accepter le trafic, puis conserve une attestation des
 métadonnées. `/health` compare l'ancre externe en mémoire et au plus 10 000
 entrées attestées sans lire aucun contenu modèle. L'inventaire lu au démarrage
-est borné à 16 Mio. Les remplacements, ajouts,
-suppressions et changements d'ancre usuels sont refusés ; le chargement initial
-du modèle refait la preuve complète. Enfin, le test de contexte Docker traite
+est borné à 16 Mio. Les remplacements, ajouts, suppressions et changements
+d'ancre usuels sont refusés. Enfin, le test de contexte Docker traite
 explicitement les options `COPY` et ignore les sources d'un stage
 `COPY --from`, évitant de confondre un nom de propriétaire, un mode ou une
 sortie de build avec une source du contexte.
@@ -464,6 +464,32 @@ runner attend désormais `127.0.0.1:5432` dans le conteneur ; le serveur
 temporaire n'écoute volontairement pas TCP, donc seul le processus final peut
 satisfaire ce garde-fou.
 
+Les commits `ddf8d06` et `826812e` consignent respectivement l'isolation de la
+fixture DNS et l'attente du serveur PostgreSQL final. Le rapport ne les attribue
+donc plus au parent `d25d5a8`. Sur `826812e`, la CI locale racine exhaustive a
+produit **13 réussites et 0 échec** : 1 757 tests `rag-pedago`, toute la suite
+`rag-engine` avec PostgreSQL réel, 174 tests Cockpit, deux builds propres et
+aucune vulnérabilité npm. Le run GitHub `pull_request` exact
+[`30777200044`](https://github.com/cyranoaladin/RAG/actions/runs/30777200044)
+a également réussi ses six jobs.
+
+La revue de ce head a encore détecté une double dépense au premier retrieval :
+les loaders rehachaient les poids déjà vérifiés au démarrage et leurs caches
+n'étaient pas synchronisés. Le commit `a6cc47a` transmet maintenant aux loaders
+les chemins issus des attestations de lifespan et sérialise les deux
+constructions froides ; un appel autonome hors lifespan conserve la
+vérification exhaustive. Le même commit retire au rôle review tout accès à
+`rag_schema_migrations`. La sonde refuse aussi `SELECT`, `INSERT`, `UPDATE`,
+`REFERENCES`, `DELETE`, `TRUNCATE`, `TRIGGER` et toute appartenance au
+propriétaire sur ce registre, afin de fermer les volumes existants autant que
+le bootstrap frais.
+
+Le cycle TDD a d'abord échoué sur cinq régressions ciblées. Après correction,
+223 tests modèles/runtime/readiness/runner sont verts, Ruff et `mypy` sont
+verts, et l'intégration PostgreSQL réelle conclut
+`REVIEW_ROLE_MIGRATION_REGISTRY_ACCESS_REJECTED=PASS` puis
+`LOT40_HYBRID_INTEGRATION=PASS`.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -521,11 +547,15 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `f95e987` | privilège `TRIGGER`, taxonomies fail-closed, TTL et contrat de colonnes partagé |
 | `45c00e9` | inventaire borné exact et `ctime` des modèles attestés |
 | `d25d5a8` | rôles runtime frais, état RLS et unicité du contrat de colonnes |
+| `ed4d479` | preuve documentaire du bootstrap runtime PostgreSQL |
+| `ddf8d06` | fixtures runtime hermétiques sans résolution DNS réelle |
+| `826812e` | attente du serveur PostgreSQL final dans le smoke Docker |
+| `a6cc47a` | attestations modèles réutilisées et registre interdit au rôle review |
 
 ## Décision de livraison
 
-LOT41U peut passer à la vérification du head final puis à une PR dédiée. La
-fusion reste conditionnée aux checks `pull_request` du head exact, à l'absence
+LOT41U peut passer à la vérification du head final de la PR #88. La fusion
+reste conditionnée aux checks `pull_request` du head exact, à l'absence
 de fil non résolu et à la protection de `main`. Le commit de fusion ou de
 squash devra ensuite obtenir son propre run `push` vert sur `main`.
 
