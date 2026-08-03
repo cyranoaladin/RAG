@@ -166,18 +166,17 @@ NOT EXISTS (
 
 
 def no_executable_security_definer_routines_sql() -> str:
-    """Refuser toute routine utilisateur privilégiée exécutable par le rôle."""
+    """Refuser toute routine non native privilégiée exécutable par le rôle.
+
+    PostgreSQL réserve les OID inférieurs à FirstNormalObjectId (16384) aux
+    objets natifs du catalogue. Une routine créée ensuite reste donc contrôlée
+    même si un administrateur la place dans ``pg_catalog``.
+    """
     return """
 NOT EXISTS (
     SELECT 1
     FROM pg_proc AS privileged_routine
-    JOIN pg_namespace AS routine_namespace
-      ON routine_namespace.oid = privileged_routine.pronamespace
-    WHERE routine_namespace.nspname NOT IN (
-              'pg_catalog', 'information_schema'
-          )
-      AND routine_namespace.nspname NOT LIKE 'pg_toast%'
-      AND routine_namespace.nspname NOT LIKE 'pg_temp_%'
+    WHERE privileged_routine.oid >= 16384
       AND privileged_routine.prosecdef
       AND has_function_privilege(
           current_user, privileged_routine.oid, 'EXECUTE'

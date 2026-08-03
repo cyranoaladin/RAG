@@ -268,6 +268,19 @@ def test_runtime_database_budget_is_shared_by_nested_operations(
             assert pg_pool.remaining_database_budget_ms() == 1_000
 
 
+def test_runtime_request_budget_is_the_same_deadline_used_by_sql(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    moments = iter((10.0, 10.5, 11.0))
+    monkeypatch.setattr(pg_pool.time, "monotonic", lambda: next(moments))
+
+    with pg_pool.runtime_request_budget(2_000) as request_deadline:
+        assert pg_pool.remaining_request_budget_ms() == 1_500
+        with pg_pool.runtime_database_budget(1_000) as sql_deadline:
+            assert sql_deadline is request_deadline
+            assert pg_pool.remaining_database_budget_ms() == 1_000
+
+
 def test_runtime_database_budget_fails_after_its_deadline(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

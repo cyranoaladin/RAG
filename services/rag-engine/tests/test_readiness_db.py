@@ -78,12 +78,12 @@ def test_security_definer_predicate_rejects_every_executable_user_routine() -> N
     normalized = sql.upper()
     assert normalized.lstrip().startswith("NOT EXISTS")
     assert "PG_PROC" in normalized
-    assert "PG_NAMESPACE" in normalized
     assert "PROSECDEF" in normalized
     assert "PROKIND" not in normalized
     assert "HAS_FUNCTION_PRIVILEGE" in normalized
     assert "'EXECUTE'" in normalized
-    assert "PG_CATALOG" in normalized
+    assert "PRIVILEGED_ROUTINE.OID >= 16384" in normalized
+    assert "NSPNAME NOT IN" not in normalized
 
 
 def test_user_schema_predicate_rejects_effective_create_and_ownership() -> None:

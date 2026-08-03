@@ -47,12 +47,14 @@ try:
         runtime_embedding_dimension,
     )
     from .identity_v2 import VerifiedInternalIdentity, require_internal_identity
+    from .inference_runtime import BoundedInferenceEmbedder, BoundedInferenceReranker
     from .pg_pool import (
         PoolSettings,
         execute_with_database_budget,
         pool_connection,
         remaining_database_budget_ms,
         runtime_database_budget,
+        runtime_request_budget,
     )
     from .reranker_contract import load_reranker_model
     from .retrieval_contract_adapter import adapt_retrieval_request
@@ -96,12 +98,17 @@ except (ImportError, ValueError):
         VerifiedInternalIdentity,
         require_internal_identity,
     )
+    from inference_runtime import (  # type: ignore[no-redef]
+        BoundedInferenceEmbedder,
+        BoundedInferenceReranker,
+    )
     from pg_pool import (  # type: ignore[no-redef]
         PoolSettings,
         execute_with_database_budget,
         pool_connection,
         remaining_database_budget_ms,
         runtime_database_budget,
+        runtime_request_budget,
     )
     from reranker_contract import load_reranker_model  # type: ignore[no-redef]
     from retrieval_contract_adapter import (  # type: ignore[no-redef]
@@ -880,7 +887,7 @@ def _retrieve_hybrid_hits(
     """Compose the one canonical v2 pipeline without exposing failure context."""
     try:
         settings = PoolSettings.from_env()
-        with runtime_database_budget(settings.database_budget_ms):
+        with runtime_request_budget(settings.database_budget_ms):
             store = PgCandidateStore(
                 lambda: pool_connection(settings),
                 scope,
@@ -891,8 +898,8 @@ def _retrieve_hybrid_hits(
                 collection,
                 k,
                 store=store,
-                embedder=_get_embed_model(),
-                reranker=_get_reranker(),
+                embedder=BoundedInferenceEmbedder(_get_embed_model()),
+                reranker=BoundedInferenceReranker(_get_reranker()),
             )
     except Exception:
         logger.error("hybrid retrieval unavailable")
@@ -1043,7 +1050,7 @@ def chat(payload: ChatRequest, request: Request) -> ChatResponse:
     _require_chat_profile_match(payload, collections, scopes)
 
     all_hits: list[tuple[str, SearchV2Hit]] = []
-    with runtime_database_budget():
+    with runtime_request_budget():
         for collection in collections:
             all_hits.extend(
                 (collection, hit)

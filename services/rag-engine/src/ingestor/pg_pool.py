@@ -64,7 +64,7 @@ def runtime_database_budget_ms_from_env() -> int:
 def runtime_database_budget(
     budget_ms: int | None = None,
 ) -> Iterator[float]:
-    """Partager une deadline monotone unique entre toutes les phases SQL."""
+    """Partager la deadline de requête entre inférences et phases SQL."""
     existing = _database_deadline.get()
     if existing is not None:
         yield existing
@@ -89,7 +89,7 @@ def runtime_database_budget(
 
 
 def remaining_database_budget_ms() -> int:
-    """Retourner le reliquat courant ou refuser une phase SQL trop tardive."""
+    """Retourner le reliquat de requête ou refuser une opération trop tardive."""
     deadline = _database_deadline.get()
     if deadline is None:
         return runtime_database_budget_ms_from_env()
@@ -97,6 +97,13 @@ def remaining_database_budget_ms() -> int:
     if remaining_ms <= 0:
         raise PoolConfigurationError("Budget PostgreSQL épuisé.")
     return min(remaining_ms, MAX_RUNTIME_DATABASE_BUDGET_MS)
+
+
+# Noms explicites utilisés par le retrieval. Les alias historiques restent
+# l'API des primitives SQL et de review, mais partagent exactement le même
+# ContextVar et donc une seule deadline monotone de bout en bout.
+runtime_request_budget = runtime_database_budget
+remaining_request_budget_ms = remaining_database_budget_ms
 
 
 def bounded_database_wait_timeout_s(configured_timeout_s: float) -> float:

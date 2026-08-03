@@ -819,6 +819,31 @@ def test_runtime_roles_reject_executable_security_definer_routines() -> None:
     print("RUNTIME_SECURITY_DEFINER_EXECUTE_REJECTED=PASS")
 
 
+def test_runtime_roles_reject_non_builtin_security_definer_in_pg_catalog() -> None:
+    routine = "pg_catalog.lot41u_unexpected_catalog_security_definer()"
+    try:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(f"DROP FUNCTION IF EXISTS {routine}")
+            connection.execute(
+                """
+                CREATE FUNCTION pg_catalog.lot41u_unexpected_catalog_security_definer()
+                RETURNS bigint
+                LANGUAGE sql
+                SECURITY DEFINER
+                SET search_path = pg_catalog
+                AS 'SELECT 1::bigint'
+                """
+            )
+        assert retrieval_database_ready(APP_DSN) is False
+        assert review_database_ready(REVIEW_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(f"DROP FUNCTION IF EXISTS {routine}")
+    assert retrieval_database_ready(APP_DSN) is True
+    assert review_database_ready(REVIEW_DSN) is True
+    print("RUNTIME_PG_CATALOG_SECURITY_DEFINER_REJECTED=PASS")
+
+
 def test_runtime_roles_reject_executable_window_security_definer() -> None:
     routine = "public.lot41u_unexpected_window_security_definer()"
     try:

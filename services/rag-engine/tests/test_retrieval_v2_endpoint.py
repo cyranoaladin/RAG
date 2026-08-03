@@ -1027,13 +1027,17 @@ class TestHybridSearchDelegation:
         result = factory("question brute", "collection", 3, BASE_SCOPE)
 
         assert result == [_hybrid_hit()]
+        bounded_embedder = captured.pop("embedder")
+        bounded_reranker = captured.pop("reranker")
+        assert isinstance(bounded_embedder, endpoint.BoundedInferenceEmbedder)
+        assert isinstance(bounded_reranker, endpoint.BoundedInferenceReranker)
+        assert bounded_embedder._model is embedder
+        assert bounded_reranker._model is reranker
         assert captured == {
             "query": "question brute",
             "collection": "collection",
             "top_k": 3,
             "store": captured["store"],
-            "embedder": embedder,
-            "reranker": reranker,
             "pool_settings": settings,
             "connection": connection,
         }
