@@ -1,0 +1,65 @@
+name: Trusted human review
+
+"on":
+  pull_request_target:
+    branches: [main]
+    types: [opened, reopened, synchronize, ready_for_review]
+  pull_request_review:
+    types: [submitted, edited, dismissed]
+  workflow_dispatch:
+    inputs:
+      pull_request:
+        description: "Numéro de la pull request à réévaluer"
+        required: true
+        type: string
+      expected_head:
+        description: "SHA complet du head attendu"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: write
+  statuses: write
+
+concurrency:
+  group: trusted-human-review-${{ github.event.pull_request.number || inputs.pull_request }}
+  cancel-in-progress: true
+
+jobs:
+  evaluate:
+    name: Evaluate trusted human review
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout trusted base
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: refs/heads/main
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11"
+      - name: Evaluate and publish trusted review
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pull_request }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || inputs.expected_head }}
+        run: |
+          set -euo pipefail
+          [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]] || {
+            echo "::error::Invalid pull request number"
+            exit 2
+          }
+          [[ "$EXPECTED_HEAD" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "::error::Invalid expected head SHA"
+            exit 2
+          }
+          python scripts/github/trusted_human_review_github.py \
+            --repository "$GITHUB_REPOSITORY" \
+            --pull-request "$PR_NUMBER" \
+            --expected-head "$EXPECTED_HEAD" \
+            --publish \
+            --target-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
