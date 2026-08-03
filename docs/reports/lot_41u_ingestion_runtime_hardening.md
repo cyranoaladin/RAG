@@ -26,7 +26,7 @@ preuves opérationnelles externes doivent être obtenues. Aucun verrou
 | Date | 2026-08-03 |
 | Baseline `main` | `ea18ba52da5778f628c4943705dd81dfa43fbc15` |
 | Branche | `lot-41u-ingestion-runtime-hardening` |
-| Head applicatif audité avant ce commit documentaire | `54b5cb09f52088486ae5ee8e3579d3d6965201e2` |
+| Head applicatif audité avant ce commit documentaire | `ac55c0cdde6b60841950baf26417b82995581bf6` |
 | Plan de données | runtime FastAPI v2, PostgreSQL/pgvector, Compose, Nginx |
 | Contrats partagés | aucune évolution |
 | Verrous de gouvernance | aucun changement, 18/18 conformes |
@@ -977,6 +977,44 @@ partagent le challenge avec
 `RUNTIME_AUTHORITIES_SHARED_LIVE_INSTANCE=PASS`; le cycle complet se termine
 par `LOT40_HYBRID_INTEGRATION=PASS`.
 
+La revue Codex exacte du head
+`7a2e445fcaeb0fbe8d38658fa7361e37a1d5e170` a enfin identifié trois
+autorités PostgreSQL résiduelles. Le commit applicatif
+`ac55c0cdde6b60841950baf26417b82995581bf6` les ferme :
+
+- le cycle de vie FastAPI ouvre le véritable pool retrieval puis attend la
+  création de son minimum de connexions avant le chargement des modèles et
+  avant tout trafic ; un manque de slots ou une connexion impossible fait
+  échouer le démarrage et ferme le pool partiellement créé ;
+- l'empreinte exacte de `public.rag_chunks` inventorie désormais aussi toutes
+  les entrées `pg_rewrite`, avec type d'événement, caractère `INSTEAD`, état et
+  digest de `pg_get_ruledef`. Le contrat courant exige l'ensemble vide ;
+- les deux rôles runtime refusent tout large object PostgreSQL qu'ils
+  possèdent ou auquel ils accèdent directement, via `PUBLIC` ou par une
+  appartenance de rôle. Les ACL absentes sont évaluées selon
+  `acldefault('L', owner)` plutôt qu'interprétées comme vides.
+
+Une contre-revue indépendante a relevé que `lo_compat_privileges=on` désactive
+les contrôles ACL des large objects. Le même commit ajoute donc deux preuves
+distinctes au contrat retrieval et review : la valeur effective doit rester
+`off`, et le rôle ne doit posséder ni `SET` ni `ALTER SYSTEM` sur ce paramètre.
+Cette correction a été relue une seconde fois avec verdict `APPROVE`, sans
+nouveau P0/P1/P2.
+
+Les cycles RED ont reproduit l'absence d'ouverture du pool, l'acceptation d'une
+règle de réécriture, les grants/ownership de large objects et le contournement
+par paramètre. Après correction, Ruff est vert, `mypy` valide 52 fichiers et
+les 1 424 tests non-intégration du moteur réussissent. PostgreSQL 16 réel
+refuse une règle `DO INSTEAD`, un large object possédé ou accordé, un
+`ALTER ROLE ... SET lo_compat_privileges=on` et un
+`GRANT SET ON PARAMETER lo_compat_privileges` pour chacun des deux rôles. Les
+preuves dédiées sont
+`SCHEMA_REWRITE_RULE_DRIFT_REJECTED=PASS`,
+`RUNTIME_LARGE_OBJECT_PRIVILEGES_REJECTED=PASS`,
+`RUNTIME_LARGE_OBJECT_ACL_ENFORCEMENT_LOT40_APP=PASS` et
+`RUNTIME_LARGE_OBJECT_ACL_ENFORCEMENT_LOT41_REVIEW=PASS`; le scénario complet
+conclut encore `LOT40_HYBRID_INTEGRATION=PASS`.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -1058,6 +1096,7 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `a96bdb2` | routines fenêtre, échappements SQL, borne minimale et quota readiness |
 | `6f6bc3b` | quota readiness aligné sans surclassement |
 | `54b5cb0` | instance PostgreSQL vivante et sonde de santé globalement bornée |
+| `ac55c0c` | pool ouvert au démarrage, règles exactes et large objects interdits |
 
 ## Décision de livraison
 
