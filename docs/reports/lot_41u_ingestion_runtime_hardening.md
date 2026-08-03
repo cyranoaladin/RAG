@@ -2,7 +2,7 @@
 
 ## Verdict
 
-**LOT41U_POSTGRES_BOUNDARIES_GREEN_AWAITING_EXACT_HEAD_CI**
+**LOT41U_READINESS_BOUNDARIES_GREEN_AWAITING_EXACT_HEAD_CI**
 
 LOT41U ferme les quatre constats P1 du runtime relevés par l'audit indépendant
 de `main@ea18ba52da5778f628c4943705dd81dfa43fbc15`. Le stack v2 n'embarque
@@ -26,7 +26,7 @@ preuves opérationnelles externes doivent être obtenues. Aucun verrou
 | Date | 2026-08-02 |
 | Baseline `main` | `ea18ba52da5778f628c4943705dd81dfa43fbc15` |
 | Branche | `lot-41u-ingestion-runtime-hardening` |
-| Head applicatif audité avant ce commit documentaire | `dd2609732cc7b2c1c57c2cbd78bfcc1f0c9d91bd` |
+| Head applicatif audité avant ce commit documentaire | `760c7dd324d77148fc36cf5ea3ce2a773b75c3b4` |
 | Plan de données | runtime FastAPI v2, PostgreSQL/pgvector, Compose, Nginx |
 | Contrats partagés | aucune évolution |
 | Verrous de gouvernance | aucun changement, 18/18 conformes |
@@ -92,10 +92,11 @@ Une base neuve est initialisée dans cet ordre :
    passés sur la ligne de commande `psql` ;
 5. le healthcheck PostgreSQL recalcule les trois SHA, exige les 31 colonnes
    uniques,
-   les dix définitions d'index, l'expression générée `text_tsv`, cinq
-   définitions de contraintes validées, le prédicat exact de l'index de profil,
-   l'absence de RLS, de policy et de trigger applicatif, puis les trois entrées
-   exactes du registre ;
+   les dix définitions d'index, l'expression générée `text_tsv`, les six
+   contraintes exactes — cinq `CHECK` et la clé primaire —, le prédicat exact
+   de l'index de profil, la persistance permanente de la table, l'absence de
+   RLS, de policy et de trigger applicatif, puis les trois entrées exactes du
+   registre ;
 6. l'API relit les mêmes preuves via un rôle `SELECT`, avec `connect_timeout`,
    `statement_timeout` et transaction read-only, vérifie les privilèges
    effectifs des rôles retrieval et review, refuse toute cible de `SET ROLE`,
@@ -800,6 +801,39 @@ complet se termine par `LOT40_HYBRID_INTEGRATION=PASS`. L'hygiène du dépôt, l
 verts. Ces preuves locales doivent encore être remplacées par les checks et
 revues du nouveau head exact de la PR.
 
+Deux revues Codex sur le head documentaire `c4dbab1` ont ensuite ouvert trois
+P1 supplémentaires, tous reproduits avant correction. Une table
+`rag_chunks` passée en `UNLOGGED` conservait toutes les empreintes observées ;
+la requête de comptage de `/collections/readiness` ouvrait une connexion hors
+pool sans bornes réseau ou SQL ; enfin, `/health` acceptait un sujet pilote
+simplement déclaré alors que `/search/v2` exige son instanciation.
+
+Le commit applicatif `760c7dd324d77148fc36cf5ea3ce2a773b75c3b4` ferme ces
+trois frontières :
+
+- l'état de table attesté inclut désormais `pg_class.relpersistence = 'p'`,
+  dans la sonde Python comme dans le healthcheck PostgreSQL ;
+- le comptage scoped utilise le pool runtime partagé, donc
+  `connect_timeout`, `statement_timeout`, `lock_timeout` et timeout
+  d'acquisition. Une serrure process-local borne les requêtes concurrentes et
+  un cache d'une seconde coalesce les lectures identiques ; toute décision de
+  review l'invalide avec un compteur de génération qui empêche une requête en
+  vol de republier un résultat antérieur ;
+- l'alignement utilisé par `/health` passe par le résolveur instancié. Le
+  catalogue versionné conserve volontairement la collection pilote maths à
+  `instanciee: false`, donc le runtime reste indisponible tant que la chaîne de
+  gouvernance n'a pas produit le corpus et les preuves attendus. La route de
+  diagnostic conserve séparément son scope déclaré afin d'expliquer ce
+  blocage sans ouvrir la collection.
+
+Le cycle RED a produit 13 échecs ciblés. Après implémentation, les tests de
+schéma, scope, pool et healthcheck, Ruff et `mypy` sur 52 fichiers sont verts,
+puis toute la suite non-intégration du moteur a réussi. Sur PostgreSQL 16 réel,
+`ALTER TABLE rag_chunks SET UNLOGGED` rend la readiness négative ; après
+restauration `SET LOGGED`, elle redevient positive avec
+`SCHEMA_PERMANENT_STORAGE_DRIFT_REJECTED=PASS`. Le scénario intégral conclut à
+nouveau `LOT40_HYBRID_INTEGRATION=PASS`.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -875,6 +909,7 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `e4affc9` | fixture HNSW robuste aux candidats de charge approximatifs |
 | `83407cd` | prédicat PG16 mutualisé et timeouts personnalisés prouvés |
 | `dd26097` | timeouts review, contraintes exhaustives et routines privilégiées interdites |
+| `760c7dd` | stockage permanent, comptage borné et catalogue pilote fail-closed |
 
 ## Décision de livraison
 
