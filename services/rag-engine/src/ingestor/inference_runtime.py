@@ -44,11 +44,19 @@ def _release_capacity(_future: Future[Any]) -> None:
 
 
 def run_bounded_inference(operation: Callable[[], _Result]) -> _Result:
-    """Exécuter sans file d'attente au-delà d'un créneau et de la deadline."""
-    if not _inference_capacity.acquire(blocking=False):
-        raise InferenceRuntimeError("inference unavailable")
+    """Attendre un créneau sans jamais dépasser la deadline de requête."""
+    try:
+        capacity_wait_s = _remaining_timeout_s()
+        if not _inference_capacity.acquire(timeout=capacity_wait_s):
+            raise InferenceRuntimeError("inference unavailable")
+    except InferenceRuntimeError:
+        raise
+    except Exception:
+        raise InferenceRuntimeError("inference unavailable") from None
 
     try:
+        # L'attente du sémaphore consomme le même budget que l'inférence :
+        # une nouvelle lecture empêche de redonner une deadline complète au worker.
         timeout_s = _remaining_timeout_s()
         request_context = copy_context()
         future = _inference_executor.submit(request_context.run, operation)

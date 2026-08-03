@@ -22,17 +22,20 @@ def _run_after_capacity_release() -> tuple[float, ...]:
             time.sleep(0.001)
 
 
-def test_bounded_inference_refuses_saturation_without_queueing_work(
+def test_bounded_inference_waits_for_capacity_within_the_request_deadline(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     started = Event()
     release = Event()
-    rejected_operation_called = Event()
+    waiting_operation_called = Event()
+    second_budget_checked = Event()
     budget_calls = 0
 
     def remaining_budget() -> int:
         nonlocal budget_calls
         budget_calls += 1
+        if budget_calls == 3:
+            second_budget_checked.set()
         return 1_000
 
     monkeypatch.setattr(
@@ -46,20 +49,26 @@ def test_bounded_inference_refuses_saturation_without_queueing_work(
         assert release.wait(timeout=1.0)
         return (1.0,)
 
-    with ThreadPoolExecutor(max_workers=1) as caller:
+    with ThreadPoolExecutor(max_workers=2) as caller:
         first = caller.submit(inference_runtime.run_bounded_inference, blocking_operation)
         assert started.wait(timeout=1.0)
 
-        def rejected_operation() -> tuple[float, ...]:
-            rejected_operation_called.set()
+        def waiting_operation() -> tuple[float, ...]:
+            waiting_operation_called.set()
             return (2.0,)
 
-        with pytest.raises(inference_runtime.InferenceRuntimeError):
-            inference_runtime.run_bounded_inference(rejected_operation)
-        assert rejected_operation_called.is_set() is False
-        assert budget_calls == 1
+        second = caller.submit(
+            inference_runtime.run_bounded_inference,
+            waiting_operation,
+        )
+        assert second_budget_checked.wait(timeout=1.0)
+        assert second.done() is False
+        assert waiting_operation_called.is_set() is False
+        assert budget_calls == 3
         release.set()
         assert first.result(timeout=1.0) == (1.0,)
+        assert second.result(timeout=1.0) == (2.0,)
+        assert waiting_operation_called.is_set() is True
         monkeypatch.setattr(
             inference_runtime,
             "remaining_request_budget_ms",
