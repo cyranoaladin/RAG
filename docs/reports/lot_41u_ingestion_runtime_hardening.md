@@ -532,6 +532,20 @@ dans les exécutions précédentes et sans code retrieval modifié par ce patch.
 La relance complète sur une base neuve est verte et conclut le nouveau marqueur
 ainsi que `LOT40_HYBRID_INTEGRATION=PASS`. L'oracle ANN n'a pas été affaibli.
 
+Le run GitHub exact du head documentaire `3c32b0b`,
+[`30780741000`](https://github.com/cyranoaladin/RAG/actions/runs/30780741000),
+a reproduit cette variance HNSW : les cinq autres jobs sont verts et le job
+`rag-engine` ne tombe que sur l'égalité entre le préfixe ANN et l'oracle
+séquentiel, avec `target-000` omis au rang 50. Le commit `6e93b38` ne modifie
+pas le runtime, ses bornes de 200+1 candidats ni les réglages de plan testés.
+Il porte uniquement la connexion de **preuve empirique exacte** à
+`hnsw.ef_search = 1000`, valeur maximale, afin que la comparaison contre
+l'oracle séquentiel ne dépende plus de la construction aléatoire du graphe.
+Les contrôles séparés conservent `ef_search = 40` pour le plan runtime et
+`ef_search = 1` pour l'underfill borné. Deux smokes complets consécutifs sur
+deux bases neuves concluent `HNSW_DISTINCT_FIXTURE_EMPIRICAL_ORACLE_PREFIX=PASS`
+et `LOT40_HYBRID_INTEGRATION=PASS` après ce correctif de preuve.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -595,6 +609,7 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `a6cc47a` | attestations modèles réutilisées et registre interdit au rôle review |
 | `294ba28` | préchargement des modèles avant trafic et preuve `INSERT` précise |
 | `9084000` | dimension runtime, pool, scope packagé et `REFERENCES` review fail-closed |
+| `6e93b38` | exploration maximale réservée à l'oracle HNSW empirique |
 
 ## Décision de livraison
 
