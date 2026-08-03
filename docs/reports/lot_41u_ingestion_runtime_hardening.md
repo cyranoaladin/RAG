@@ -26,7 +26,7 @@ preuves opérationnelles externes doivent être obtenues. Aucun verrou
 | Date | 2026-08-03 |
 | Baseline `main` | `ea18ba52da5778f628c4943705dd81dfa43fbc15` |
 | Branche | `lot-41u-ingestion-runtime-hardening` |
-| Head applicatif audité avant ce commit documentaire | `ac55c0cdde6b60841950baf26417b82995581bf6` |
+| Head applicatif audité avant ce commit documentaire | `48d4752c7ee83f8352823c0edc578a70d4dd4bb5` |
 | Plan de données | runtime FastAPI v2, PostgreSQL/pgvector, Compose, Nginx |
 | Contrats partagés | aucune évolution |
 | Verrous de gouvernance | aucun changement, 18/18 conformes |
@@ -1032,6 +1032,35 @@ sain : `SCHEMA_INHERITANCE_HIERARCHY_DRIFT_REJECTED=PASS`. Le scénario complet
 conclut `LOT40_HYBRID_INTEGRATION=PASS`; Ruff, `mypy` sur 52 fichiers et les
 1 425 tests non-intégration du moteur sont verts.
 
+La revue Codex exacte du head
+`74ac04151daf430aaac321d6e26c35eb4f8c99a7` a ensuite relevé un dernier P1 :
+`/health` pouvait détecter une dérive et répondre `503`, mais les routes métier
+restaient montées et `/review/v2/decide` pouvait encore atteindre son `UPDATE`.
+Le commit applicatif `48d4752c7ee83f8352823c0edc578a70d4dd4bb5`
+lie désormais le trafic à la même preuve PostgreSQL :
+
+- le lifespan ouvre le pool puis exige une attestation complète et saine avant
+  de charger les modèles et avant de céder le contrôle à Uvicorn ;
+- le middleware authentifie d'abord le credential BFF, sans sonder PostgreSQL
+  pour une requête non fiable, puis refuse les sept routes métier avec un
+  `503` générique si la preuve coalescée est absente ou invalide ;
+- la sonde synchrone est déportée hors de la boucle événementielle FastAPI et
+  conserve le budget, le single-flight et le TTL bornés existants ;
+- `/health`, le démarrage et le trafic partagent un prédicat unique exigeant
+  dimension 1024, head 003 exact, rôles retrieval/review conformes et deux DSN
+  attachés à la même instance vivante.
+
+Le cycle RED a produit `422` sur une décision malformed au lieu du `503`
+attendu et laissait le lifespan poursuivre jusqu'aux modèles. Après correction,
+les tests runtime et cycle de vie, Ruff et `mypy` sur 52 fichiers sont verts ;
+la suite non-intégration complète sélectionne et réussit 1 432 tests. Sur
+PostgreSQL 16 réel, un trigger `BEFORE UPDATE` inattendu est créé, une décision
+authentifiée est envoyée via l'application `api_v2`, puis le test vérifie à la
+fois le `503` et le maintien du chunk en `needs_review` :
+`RUNTIME_REVIEW_TRIGGER_DRIFT_BLOCKED=PASS`. Après nettoyage, la readiness
+redevient saine et le scénario complet conclut
+`LOT40_HYBRID_INTEGRATION=PASS`.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -1115,6 +1144,7 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `54b5cb0` | instance PostgreSQL vivante et sonde de santé globalement bornée |
 | `ac55c0c` | pool ouvert au démarrage, règles exactes et large objects interdits |
 | `eea9e6c` | hiérarchie d'héritage PostgreSQL exactement vide |
+| `48d4752` | démarrage et routes métier bloqués par la readiness PostgreSQL |
 
 ## Décision de livraison
 
