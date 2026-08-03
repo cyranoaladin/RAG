@@ -2,16 +2,20 @@
 
 Exposes POST /ingest/v2/upload-files, /ingest/v2/urls, /ingest/v2/drive.
 All routes use the ingest_v2 pipeline (governance-compliant).
-Legacy /ingest/* endpoints remain intact (D-LEGACY-ISOLE).
+Legacy /ingest/* endpoints (defined in api.py) are still registered on this
+FastAPI app for internal/back-compat reasons, but Nginx closes them (410) at
+the edge — see infra/nginx/rag-v2.conf and rag-api.conf.template (LOT43).
 """
 from __future__ import annotations
 
 import hashlib
 import logging
+import os
 import tempfile
 import time
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel, Field
@@ -19,18 +23,46 @@ from pydantic import BaseModel, Field
 try:
     from .ingest_v2 import IngestV2Request, Provenance, ingest_document
     from .security_v2 import SecurityRole, require_role, token_hash
+    from .ssrf_guard import ResponseTooLargeError, SSRFValidationError, safe_fetch
 except (ImportError, ValueError):
     from ingest_v2 import IngestV2Request, Provenance, ingest_document  # type: ignore[no-redef]
     from security_v2 import SecurityRole, require_role, token_hash  # type: ignore[no-redef]
+    from ssrf_guard import (  # type: ignore[no-redef]
+        ResponseTooLargeError,
+        SSRFValidationError,
+        safe_fetch,
+    )
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/ingest/v2", tags=["ingestion_v2"])
 
 
-MAX_REMOTE_BYTES = 50 * 1024 * 1024  # 50 MB max per URL fetch
+MAX_REMOTE_BYTES = int(os.environ.get("MAX_REMOTE_BYTES", 50 * 1024 * 1024))  # 50 MB max per URL fetch
+MAX_UPLOAD_FILE_BYTES = int(os.environ.get("MAX_UPLOAD_FILE_BYTES", 50 * 1024 * 1024))  # 50 MB max per uploaded file
+MAX_FILES_PER_UPLOAD = int(os.environ.get("MAX_FILES_PER_UPLOAD", 20))
+MAX_URLS_PER_REQUEST = int(os.environ.get("MAX_URLS_PER_REQUEST", 20))
+MAX_URLS_PER_DOMAIN_PER_REQUEST = int(os.environ.get("MAX_URLS_PER_DOMAIN_PER_REQUEST", 10))
+MAX_EXTRACTED_TEXT_CHARS = int(os.environ.get("MAX_EXTRACTED_TEXT_CHARS", 5_000_000))
+MAX_PDF_PAGES = int(os.environ.get("MAX_PDF_PAGES", 2000))
 
-_BLOCKED_HOSTS = {"localhost", "127.0.0.1", "0.0.0.0", "[::1]", "metadata.google.internal"}
+
+def _read_upload_bounded(upload_file: UploadFile, max_bytes: int) -> bytes:
+    """Read an uploaded file's content, aborting before buffering past max_bytes+1.
+
+    Never calls the unbounded ``upload_file.file.read()`` — a single large
+    upload must not be able to exhaust worker memory.
+    """
+    chunk_size = 1024 * 1024
+    buffer = bytearray()
+    while True:
+        chunk = upload_file.file.read(chunk_size)
+        if not chunk:
+            break
+        buffer.extend(chunk)
+        if len(buffer) > max_bytes:
+            return bytes(buffer[: max_bytes + 1])
+    return bytes(buffer)
 
 
 def _enforce_security(request: Request) -> str:
@@ -44,28 +76,6 @@ def _enforce_security(request: Request) -> str:
     return token
 
 
-def _validate_url(url: str) -> None:
-    """Block private/loopback/metadata URLs (SSRF protection)."""
-    import ipaddress
-    from urllib.parse import urlparse
-
-    parsed = urlparse(url)
-    hostname = parsed.hostname or ""
-    if not hostname:
-        raise HTTPException(status_code=400, detail=f"Invalid URL: {url}")
-    if hostname in _BLOCKED_HOSTS:
-        raise HTTPException(status_code=400, detail=f"Blocked host: {hostname}")
-    # Block private IP ranges
-    try:
-        ip = ipaddress.ip_address(hostname)
-        if ip.is_private or ip.is_loopback or ip.is_link_local:
-            raise HTTPException(status_code=400, detail=f"Private IP blocked: {hostname}")
-    except ValueError:
-        pass  # hostname is a domain name, not an IP — OK
-    if parsed.scheme not in ("http", "https"):
-        raise HTTPException(status_code=400, detail=f"Unsupported scheme: {parsed.scheme}")
-
-
 def _extract_text_from_file(file_path: Path) -> str:
     """Extract text from a file (PDF, DOCX, MD, TXT, IPYNB, TEX)."""
     suffix = file_path.suffix.lower()
@@ -76,6 +86,10 @@ def _extract_text_from_file(file_path: Path) -> str:
     if suffix == ".pdf":
         import pypdf
         reader = pypdf.PdfReader(str(file_path))
+        if len(reader.pages) > MAX_PDF_PAGES:
+            raise ValueError(
+                f"PDF has too many pages ({len(reader.pages)} > {MAX_PDF_PAGES})"
+            )
         pages = [page.extract_text() or "" for page in reader.pages]
         return "\n\n".join(pages)
 
@@ -149,6 +163,12 @@ def ingest_upload_v2(
 
     All chunks get review_status=needs_review. F-01 guaranteed.
     """
+    if len(files) > MAX_FILES_PER_UPLOAD:
+        raise HTTPException(
+            status_code=400,
+            detail=f"too many files: {len(files)} > {MAX_FILES_PER_UPLOAD}",
+        )
+
     token = _enforce_security(request)
     provenance = Provenance(
         route="upload",
@@ -160,8 +180,15 @@ def ingest_upload_v2(
     results: list[dict[str, Any]] = []
     for upload_file in files:
         fname = upload_file.filename or "unknown"
+        content = _read_upload_bounded(upload_file, MAX_UPLOAD_FILE_BYTES)
+        if len(content) > MAX_UPLOAD_FILE_BYTES:
+            results.append({
+                "file": fname,
+                "error": f"file too large (>{MAX_UPLOAD_FILE_BYTES} bytes)",
+            })
+            continue
+
         with tempfile.NamedTemporaryFile(suffix=Path(fname).suffix, delete=False) as tmp:
-            content = upload_file.file.read()
             tmp.write(content)
             tmp_path = Path(tmp.name)
 
@@ -169,6 +196,12 @@ def ingest_upload_v2(
             text = _extract_text_from_file(tmp_path)
             if not text.strip():
                 results.append({"file": fname, "error": "empty content"})
+                continue
+            if len(text) > MAX_EXTRACTED_TEXT_CHARS:
+                results.append({
+                    "file": fname,
+                    "error": f"extracted text too large (>{MAX_EXTRACTED_TEXT_CHARS} chars)",
+                })
                 continue
 
             req = IngestV2Request(
@@ -202,6 +235,12 @@ def ingest_upload_v2(
 @router.post("/urls")
 def ingest_urls_v2(payload: UrlsV2Request, request: Request) -> dict[str, Any]:
     """Ingest content from URLs through the v2 pipeline."""
+    if len(payload.urls) > MAX_URLS_PER_REQUEST:
+        raise HTTPException(
+            status_code=400,
+            detail=f"too many urls: {len(payload.urls)} > {MAX_URLS_PER_REQUEST}",
+        )
+
     token = _enforce_security(request)
     provenance = Provenance(
         route="urls",
@@ -211,15 +250,29 @@ def ingest_urls_v2(payload: UrlsV2Request, request: Request) -> dict[str, Any]:
     )
 
     results: list[dict[str, Any]] = []
+    domain_counts: dict[str, int] = {}
     for url in payload.urls:
+        domain = urlparse(url).hostname or ""
+        domain_counts[domain] = domain_counts.get(domain, 0) + 1
+        if domain_counts[domain] > MAX_URLS_PER_DOMAIN_PER_REQUEST:
+            results.append({
+                "url": url,
+                "error": (
+                    f"too many requests to this domain in this batch "
+                    f"(>{MAX_URLS_PER_DOMAIN_PER_REQUEST} for {domain})"
+                ),
+            })
+            continue
         try:
-            _validate_url(url)
-            import httpx
-            resp = httpx.get(url, timeout=30.0, follow_redirects=True, headers={"Accept": "text/html,text/plain"})
-            resp.raise_for_status()
-            if len(resp.content) > MAX_REMOTE_BYTES:
+            try:
+                resp = safe_fetch(url, max_bytes=MAX_REMOTE_BYTES)
+            except ResponseTooLargeError:
                 results.append({"url": url, "error": f"too large (>{MAX_REMOTE_BYTES} bytes)"})
                 continue
+            except SSRFValidationError as exc:
+                results.append({"url": url, "error": f"blocked destination: {exc}"})
+                continue
+            resp.raise_for_status()
             text = resp.text
             if not text.strip():
                 results.append({"url": url, "error": "empty content"})

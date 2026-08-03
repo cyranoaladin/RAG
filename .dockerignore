@@ -89,3 +89,14 @@
 **/dist/**
 **/build
 **/build/**
+
+# Exception (LOT43) : la dénégation générique "artifacts" ci-dessus visait les
+# répertoires de build/CI, mais elle masquait aussi une ressource *requise au
+# runtime* — pilot-retrieval-scope-v1.json, lue par
+# identity_v2.load_identity_verifier_config(). Sans cette exception, toute
+# image construite depuis ce contexte plante en 500 sur chaque route qui
+# exige une identité interne signée (/review/v2/*, /search/v2,
+# /collections/v2, /collections/readiness). Confirmé par
+# tests/integration/test_docker_build_context_includes_pilot_artifact.py.
+!packages/contracts/src/nexus_contracts/artifacts
+!packages/contracts/src/nexus_contracts/artifacts/**

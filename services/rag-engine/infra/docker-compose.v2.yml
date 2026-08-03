@@ -49,6 +49,38 @@ services:
           memory: 4G
 
   # ════════════════════════════════════════
+  # MIGRATOR (schéma pgvector automatique, LOT43)
+  # ════════════════════════════════════════
+  # Applique/complète le schéma (registre + migrations 001..HEAD) à chaque
+  # démarrage, y compris sur un volume vierge où init.sql seul ne suffit pas
+  # à atteindre le head déclaré. Réutilise l'image pgvector (psql déjà
+  # présent) plutôt que d'ajouter un client Postgres à l'image applicative.
+  migrator:
+    image: pgvector/pgvector:pg16
+    container_name: rag_migrator
+    depends_on:
+      pgvector:
+        condition: service_healthy
+    environment:
+      PGHOST: pgvector
+      PGPORT: "5432"
+      PGUSER: ${PGVECTOR_USER:-raguser}
+      PGPASSWORD: ${PGVECTOR_PASSWORD:?PGVECTOR_PASSWORD requis}
+      PGDATABASE: ${PGVECTOR_DB:-ragdb}
+    volumes:
+      - ./postgres:/migrations/postgres:ro
+      - ./scripts:/migrations/scripts:ro
+    networks: [rag_net]
+    entrypoint: ["/migrations/scripts/bootstrap_pgvector_schema.sh"]
+    restart: "no"
+    security_opt: [no-new-privileges:true]
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # ════════════════════════════════════════
   # REDIS (cache embeddings + queue Celery)
   # ════════════════════════════════════════
   redis:
@@ -126,6 +158,8 @@ services:
     depends_on:
       pgvector:
         condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       ollama:
@@ -175,6 +209,13 @@ services:
       INGESTOR_TRUSTED_PROXY_CIDRS: "${INGESTOR_TRUSTED_PROXY_CIDRS:-}"
       ALLOWED_TENANTS: "${ALLOWED_TENANTS:-nsi,nexus,mfai,web3}"
       IP_ALLOWLIST: "${IP_ALLOWLIST:-}"
+      # Scope par défaut à l'ingestion (LOT43, provisoire — cf. ingest_v2.py).
+      # Requis : ingest_document échoue fail-closed si l'une manque.
+      NEXUS_DEFAULT_TENANT: "${NEXUS_DEFAULT_TENANT:?NEXUS_DEFAULT_TENANT requis}"
+      NEXUS_DEFAULT_CANDIDAT: "${NEXUS_DEFAULT_CANDIDAT:?NEXUS_DEFAULT_CANDIDAT requis}"
+      NEXUS_DEFAULT_VISIBILITY: "${NEXUS_DEFAULT_VISIBILITY:?NEXUS_DEFAULT_VISIBILITY requis}"
+      NEXUS_DEFAULT_SCHOOL_YEAR: "${NEXUS_DEFAULT_SCHOOL_YEAR:?NEXUS_DEFAULT_SCHOOL_YEAR requis}"
+      NEXUS_DEFAULT_PROGRAMME_VERSION: "${NEXUS_DEFAULT_PROGRAMME_VERSION:?NEXUS_DEFAULT_PROGRAMME_VERSION requis}"
       # Performance
       WORKERS: "${INGESTOR_WORKERS:-4}"
       MAX_CHUNK_SIZE: "${MAX_CHUNK_SIZE:-1000}"
@@ -234,6 +275,8 @@ services:
     depends_on:
       pgvector:
         condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       ollama:

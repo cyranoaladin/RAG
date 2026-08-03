@@ -17,6 +17,11 @@ import psycopg
 CANONICAL_EMBED_MODEL = "intfloat/multilingual-e5-large"
 CANONICAL_EMBED_DIM = 1024
 
+# LOT43 (suite) : borne la connexion Postgres du health-check pgvector — sans
+# cela, /health et /collections/readiness peuvent bloquer indéfiniment si
+# Postgres est injoignable ou trop lent à répondre.
+PG_HEALTHCHECK_CONNECT_TIMEOUT_S = int(os.environ.get("PG_HEALTHCHECK_CONNECT_TIMEOUT_S", "5"))
+
 
 class EmbeddingContractError(RuntimeError):
     """Raised when the v2 embedding contract cannot be proven consistent."""
@@ -66,8 +71,12 @@ def validate_embedding_contract(
 
 
 def pgvector_dimension(pg_dsn: str) -> int:
-    """Read the declared dimension of ``rag_chunks.vector`` without mutation."""
-    with psycopg.connect(pg_dsn) as conn:
+    """Read the declared dimension of ``rag_chunks.vector`` without mutation.
+
+    Bounded by ``PG_HEALTHCHECK_CONNECT_TIMEOUT_S``: a health/readiness check
+    must fail fast, not hang, when Postgres is unreachable or unresponsive.
+    """
+    with psycopg.connect(pg_dsn, connect_timeout=PG_HEALTHCHECK_CONNECT_TIMEOUT_S) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """

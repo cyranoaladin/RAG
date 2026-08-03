@@ -111,6 +111,12 @@ logger = logging.getLogger(__name__)
 
 MIN_COLLECTION_SUBSTANCE_CHUNKS = int(os.environ.get("RAG_MIN_COLLECTION_SUBSTANCE_CHUNKS", "1"))
 
+# LOT43 (suite) : borne la connexion Postgres directe utilisée par la
+# readiness — sans cela, /collections/readiness peut bloquer indéfiniment si
+# Postgres est injoignable ou trop lent à répondre. Même variable
+# d'environnement que embedding_contract.PG_HEALTHCHECK_CONNECT_TIMEOUT_S.
+PG_HEALTHCHECK_CONNECT_TIMEOUT_S = int(os.environ.get("PG_HEALTHCHECK_CONNECT_TIMEOUT_S", "5"))
+
 router = APIRouter(tags=["retrieval_v2"])
 
 # --- Cache de warmup/administration (SCALE-V1-1) ---
@@ -397,7 +403,7 @@ def _get_reviewed_chunk_counts(
         clauses.append(f"({_SCOPE_PREDICATE_SQL})")
         params.extend(_scope_params(scope))
     try:
-        conn = psycopg.connect(_get_pg_dsn())
+        conn = psycopg.connect(_get_pg_dsn(), connect_timeout=PG_HEALTHCHECK_CONNECT_TIMEOUT_S)
     except HTTPException:
         raise
     except Exception as exc:

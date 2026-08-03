@@ -82,6 +82,128 @@ def _get_pg_dsn() -> str:
     return dsn
 
 
+# --- Collection ingestion quota (LOT43) ---
+
+MAX_CHUNKS_PER_COLLECTION_PER_DAY = int(
+    os.environ.get("MAX_CHUNKS_PER_COLLECTION_PER_DAY", 5000)
+)
+
+
+class CollectionQuotaExceededError(ValueError):
+    """Raised when a collection's ingestion quota for the current period is exceeded."""
+
+
+def _count_recent_chunks(collection: str, pg_dsn: str) -> int:
+    """Count chunks indexed for a collection in the last 24h (rolling window)."""
+    conn = psycopg.connect(pg_dsn)
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT count(*) FROM rag_chunks "
+                "WHERE collection = %s AND indexed_at > now() - interval '1 day'",
+                (collection,),
+            )
+            row = cur.fetchone()
+            return int(row[0]) if row else 0
+    finally:
+        conn.close()
+
+
+def _check_collection_quota(collection: str, pg_dsn: str) -> None:
+    limit = MAX_CHUNKS_PER_COLLECTION_PER_DAY
+    if limit <= 0:
+        return
+    count = _count_recent_chunks(collection, pg_dsn)
+    if count >= limit:
+        raise CollectionQuotaExceededError(
+            f"Collection quota exceeded: '{collection}' has {count} chunks "
+            f"indexed in the last 24h (limit {limit})"
+        )
+
+
+# --- Server-side scope defaults (LOT43, provisional) ---
+#
+# tenant/candidat/visibility/school_year/programme_version are governed scope
+# columns (LOT41, migration 003_profile_filtering.sql) that ingest_document
+# never populated: every v2-ingested chunk had them NULL. Retrieval filters
+# with e.g. `WHERE c.tenant = $2` (database.py), and NULL never satisfies an
+# equality comparison in SQL — so no chunk ingested via /ingest/v2 could ever
+# be returned by a tenant-scoped search, even after human review.
+#
+# This is a MINIMAL, server-side, fail-closed fix: one configured default
+# value per dimension for the whole deployment. It does NOT model true
+# multi-tenancy or per-collection population — `candidat` genuinely varies
+# per collection per the tenant naming convention `{population}_{niveau}`
+# documented in AGENTS.md (e.g. libre_terminale, aefe_seconde). Modelling
+# that properly requires extending the 59-entry collection catalogue
+# (configs/rag_collections.yml) with a governed per-collection scope and a
+# dedicated ADR — tracked as a known limitation, not implemented here.
+_ALLOWED_CANDIDAT = {
+    "scolarise", "individuel", "libre", "cned_reglemente",
+    "cned_libre", "aefe", "both",
+}
+_ALLOWED_VISIBILITY = {"public", "internal", "restricted", "private"}
+_SCHOOL_YEAR_RE = re.compile(r"^(\d{4})-(\d{4})$")
+
+
+class ScopeConfigurationError(RuntimeError):
+    """Raised when the server-side default ingestion scope is missing or invalid."""
+
+
+@dataclass(frozen=True)
+class DefaultScope:
+    tenant: str
+    candidat: str
+    visibility: str
+    school_year: str
+    programme_version: str
+
+
+def _get_default_scope() -> DefaultScope:
+    """Read and validate the deployment-wide default scope from the environment.
+
+    Fails closed (raises) rather than writing any of these columns as NULL
+    or guessing a value — matches AGENTS.md: "toute ambiguïté doit produire
+    une quarantaine, jamais une affectation arbitraire".
+    """
+    tenant = os.environ.get("NEXUS_DEFAULT_TENANT", "").strip()
+    candidat = os.environ.get("NEXUS_DEFAULT_CANDIDAT", "").strip()
+    visibility = os.environ.get("NEXUS_DEFAULT_VISIBILITY", "").strip()
+    school_year = os.environ.get("NEXUS_DEFAULT_SCHOOL_YEAR", "").strip()
+    programme_version = os.environ.get("NEXUS_DEFAULT_PROGRAMME_VERSION", "").strip()
+
+    missing = [
+        name
+        for name, value in (
+            ("NEXUS_DEFAULT_TENANT", tenant),
+            ("NEXUS_DEFAULT_CANDIDAT", candidat),
+            ("NEXUS_DEFAULT_VISIBILITY", visibility),
+            ("NEXUS_DEFAULT_SCHOOL_YEAR", school_year),
+            ("NEXUS_DEFAULT_PROGRAMME_VERSION", programme_version),
+        )
+        if not value
+    ]
+    if missing:
+        raise ScopeConfigurationError(
+            f"Missing required scope configuration: {', '.join(missing)}"
+        )
+    if candidat not in _ALLOWED_CANDIDAT:
+        raise ScopeConfigurationError(f"NEXUS_DEFAULT_CANDIDAT invalid: {candidat!r}")
+    if visibility not in _ALLOWED_VISIBILITY:
+        raise ScopeConfigurationError(f"NEXUS_DEFAULT_VISIBILITY invalid: {visibility!r}")
+    match = _SCHOOL_YEAR_RE.match(school_year)
+    if not match or int(match.group(2)) != int(match.group(1)) + 1:
+        raise ScopeConfigurationError(f"NEXUS_DEFAULT_SCHOOL_YEAR invalid: {school_year!r}")
+
+    return DefaultScope(
+        tenant=tenant,
+        candidat=candidat,
+        visibility=visibility,
+        school_year=school_year,
+        programme_version=programme_version,
+    )
+
+
 # --- Base64/artifact filter (LOT 25a) ---
 _BASE64_RE = re.compile(r"[A-Za-z0-9+/=]{40,}")
 
@@ -165,6 +287,13 @@ def ingest_document(
     except CollectionConfigError as exc:
         raise ValueError(f"Collection gate: {exc}") from exc
 
+    # --- Gate: collection ingestion quota (fail fast, before chunking/embedding) ---
+    pg_dsn = _get_pg_dsn()
+    _check_collection_quota(request.collection, pg_dsn)
+
+    # --- Gate: server-side default scope (LOT43, provisional — see comment above) ---
+    default_scope = _get_default_scope()
+
     # --- Generate doc_id ---
     if not doc_id:
         doc_id = hashlib.sha256(
@@ -215,7 +344,6 @@ def ingest_document(
 
     # --- Embed ---
     embed_model = _get_embed_model()
-    pg_dsn = _get_pg_dsn()
     try:
         validate_runtime_embedding_contract(embed_model, pg_dsn)
     except EmbeddingContractError as exc:
@@ -244,11 +372,13 @@ def ingest_document(
                         collection, niveau, voie, audience, matiere,
                         statut_enseignement, domain,
                         source_label, source_uri, rights, type_doc, official,
-                        text, chunk_index, review_status, model, source_kind
+                        text, chunk_index, review_status, model, source_kind,
+                        tenant, candidat, visibility, school_year, programme_version
                     ) VALUES (
                         %s, %s, %s, %s::vector,
                         %s, %s, %s, %s, %s,
                         %s, %s,
+                        %s, %s, %s, %s, %s,
                         %s, %s, %s, %s, %s,
                         %s, %s, %s, %s, %s
                     )
@@ -271,6 +401,11 @@ def ingest_document(
                         review_status = 'needs_review',
                         model = EXCLUDED.model,
                         source_kind = EXCLUDED.source_kind,
+                        tenant = EXCLUDED.tenant,
+                        candidat = EXCLUDED.candidat,
+                        visibility = EXCLUDED.visibility,
+                        school_year = EXCLUDED.school_year,
+                        programme_version = EXCLUDED.programme_version,
                         indexed_at = NOW()
                     WHERE rag_chunks.chunk_sha256 <> EXCLUDED.chunk_sha256
                        OR rag_chunks.collection <> EXCLUDED.collection
@@ -288,6 +423,9 @@ def ingest_document(
                     chunk_text, i,
                     "needs_review",  # ALWAYS needs_review
                     EMBED_MODEL, provenance.source_type,
+                    default_scope.tenant, default_scope.candidat,
+                    default_scope.visibility, default_scope.school_year,
+                    default_scope.programme_version,
                 ))
                 if cur.rowcount > 0:
                     written += 1

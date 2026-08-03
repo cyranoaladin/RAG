@@ -1,3 +1,31 @@
+"""Adapte les payloads de recherche vers le routage Nexus interne.
+
+STATUT (LOT43, vérifié) : **ce module n'est câblé à aucune route de
+production.** `adapt_retrieval_request` et `adapt_legacy_search_payload` ne
+sont référencés nulle part ailleurs que par ce fichier et
+`tests/test_retrieval_contract_adapter.py` (confirmé par recherche
+exhaustive dans le dépôt). En particulier :
+
+- `adapt_retrieval_request` sait traduire `RetrievalRequest.need.notions`,
+  `desired_doc_types` et `difficulty_max` (contrat `nexus_contracts`) en
+  filtres — mais `POST /search/v2` (`retrieval_v2_endpoint.SearchV2Request`)
+  n'expose que `q`, `collection`, `k` : ces filtres ne sont même pas
+  acceptés en entrée par la route HTTP réelle, et le dict produit par cette
+  fonction n'a nulle part où atterrir dans `retrieval_pg_v2.py`.
+- `adapt_legacy_search_payload` cible le format historique de `/search`,
+  route fermée (410) au niveau Nginx depuis LOT41/LOT43.
+
+Ce n'est pas un problème de sécurité (rien n'est accepté silencieusement
+puis ignoré côté HTTP — les champs ne sont simplement pas dans le contrat
+de la route), mais une fonctionnalité de filtrage déclarée dans
+`nexus_contracts` et jamais raccordée au retrieval v2. Décider de câbler cet
+adaptateur à `/search/v2` (ou de le déprécier formellement) est explicitement
+hors périmètre du lot de durcissement P1 (`docs/reports/
+lot_43_rag_engine_p1_hardening.md`, section « Ce qui reste bloquant ») et
+relève de LOT44+. Ne pas supprimer ce module sans décision explicite : il
+est fonctionnellement correct, seulement non branché.
+"""
+
 from __future__ import annotations
 
 from collections.abc import Mapping

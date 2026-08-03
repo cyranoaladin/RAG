@@ -1,16 +1,20 @@
 """Fail-closed contract tests for the RAG v2 1024d embedding pipeline."""
 from __future__ import annotations
 
+import socket
+import time
 from pathlib import Path
 
 import pytest
 import yaml
 
+from src.ingestor import embedding_contract
 from src.ingestor.embedding_contract import (
     CANONICAL_EMBED_DIM,
     CANONICAL_EMBED_MODEL,
     EmbeddingContractError,
     embedding_contract_health,
+    pgvector_dimension,
     validate_embedding_contract,
 )
 
@@ -125,3 +129,72 @@ def test_smoke_imports_embedding_contract_from_compose_and_repo_contexts() -> No
     assert "from embedding_contract import" in source
     assert "from src.ingestor.embedding_contract import" in source
     assert 'error.name != "embedding_contract"' in source
+
+
+class TestPgvectorDimensionConnectTimeout:
+    """LOT43 (suite) : le health-check pgvector ne doit jamais bloquer
+    indéfiniment si Postgres est injoignable ou trop lent à répondre."""
+
+    def test_pgvector_dimension_passes_a_bounded_connect_timeout(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        captured: dict[str, object] = {}
+
+        class _FakeCursor:
+            def __enter__(self) -> _FakeCursor:
+                return self
+
+            def __exit__(self, *_args: object) -> bool:
+                return False
+
+            def execute(self, *_args: object, **_kwargs: object) -> None:
+                pass
+
+            def fetchone(self) -> tuple[str]:
+                return ("vector(1024)",)
+
+        class _FakeConn:
+            def __enter__(self) -> _FakeConn:
+                return self
+
+            def __exit__(self, *_args: object) -> bool:
+                return False
+
+            def cursor(self) -> _FakeCursor:
+                return _FakeCursor()
+
+        def fake_connect(dsn: str, **kwargs: object) -> _FakeConn:
+            captured["dsn"] = dsn
+            captured.update(kwargs)
+            return _FakeConn()
+
+        monkeypatch.setattr(embedding_contract.psycopg, "connect", fake_connect)
+
+        dim = pgvector_dimension("postgresql://x/y")
+
+        assert dim == 1024
+        assert captured["connect_timeout"] == embedding_contract.PG_HEALTHCHECK_CONNECT_TIMEOUT_S
+        assert isinstance(captured["connect_timeout"], int)
+        assert captured["connect_timeout"] > 0
+
+    def test_pgvector_dimension_gives_up_when_server_never_responds(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A listening socket that never accepts/replies simulates a stuck
+        Postgres: the TCP handshake completes (kernel backlog), but no
+        protocol byte ever comes back. Without a bounded connect_timeout this
+        call could hang far longer than any health-check budget allows."""
+        monkeypatch.setattr(embedding_contract, "PG_HEALTHCHECK_CONNECT_TIMEOUT_S", 1)
+
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+            listener.bind(("127.0.0.1", 0))
+            listener.listen(1)
+            port = listener.getsockname()[1]
+
+            dsn = f"postgresql://user:pwd@127.0.0.1:{port}/db"
+            start = time.monotonic()
+            with pytest.raises(Exception):  # noqa: B017 — driver-level connection error, not our type
+                pgvector_dimension(dsn)
+            elapsed = time.monotonic() - start
+
+        assert elapsed < 5.0

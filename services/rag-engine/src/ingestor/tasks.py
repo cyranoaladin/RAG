@@ -15,6 +15,8 @@ from celery import Celery
 
 logger = logging.getLogger(__name__)
 
+_MAX_URL_SOURCE_BYTES = 50 * 1024 * 1024  # 50 MB, aligné sur ingest_v2_endpoint
+
 celery_app = Celery(
     "rag_tasks",
     broker=os.getenv("REDIS_URL", "redis://redis:6379/0"),
@@ -197,9 +199,14 @@ def _load_source_text(source_type: str, source_path: str) -> str:
         return "\n".join(p.text for p in d.paragraphs if p.text.strip())
 
     if source_type == "url":
-        import requests
         from bs4 import BeautifulSoup
-        resp = requests.get(source_path, timeout=30)
+
+        try:
+            from .ssrf_guard import safe_fetch
+        except (ImportError, ValueError):
+            from ssrf_guard import safe_fetch  # type: ignore[no-redef]
+
+        resp = safe_fetch(source_path, max_bytes=_MAX_URL_SOURCE_BYTES)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, "html.parser")
         return soup.get_text("\n", strip=True)

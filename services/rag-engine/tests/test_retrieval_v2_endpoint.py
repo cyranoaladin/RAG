@@ -585,6 +585,81 @@ class TestLaunchReadiness:
         assert [item["name"] for item in response["collections"]] == list(allowed)
 
 
+class TestReadinessConnectTimeout:
+    """LOT43 (suite) : la lecture des compteurs de review pour la readiness
+    ne doit jamais bloquer indéfiniment si Postgres est injoignable."""
+
+    def test_reviewed_chunk_counts_passes_a_bounded_connect_timeout(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from ingestor import retrieval_v2_endpoint as endpoint
+
+        captured: dict[str, object] = {}
+
+        class _FakeCursor:
+            def __enter__(self) -> _FakeCursor:
+                return self
+
+            def __exit__(self, *_args: object) -> bool:
+                return False
+
+            def execute(self, *_args: object, **_kwargs: object) -> None:
+                pass
+
+            def fetchall(self) -> list[tuple[str, int]]:
+                return []
+
+        class _FakeConn:
+            def cursor(self) -> _FakeCursor:
+                return _FakeCursor()
+
+            def close(self) -> None:
+                pass
+
+        def fake_connect(dsn: str, **kwargs: object) -> _FakeConn:
+            captured["dsn"] = dsn
+            captured.update(kwargs)
+            return _FakeConn()
+
+        monkeypatch.setattr(endpoint, "_get_pg_dsn", lambda: "postgresql://x/y")
+        monkeypatch.setattr(endpoint.psycopg, "connect", fake_connect)
+
+        result = endpoint._get_reviewed_chunk_counts([BASE_SCOPE])
+
+        assert result == {}
+        assert captured["connect_timeout"] == endpoint.PG_HEALTHCHECK_CONNECT_TIMEOUT_S
+        assert isinstance(captured["connect_timeout"], int)
+        assert captured["connect_timeout"] > 0
+
+    def test_reviewed_chunk_counts_gives_up_when_server_never_responds(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A listening socket that never accepts/replies simulates a stuck
+        Postgres: the TCP handshake completes, but no protocol byte ever
+        comes back. Without a bounded connect_timeout, /collections/readiness
+        could hang far longer than any request budget allows."""
+        from ingestor import retrieval_v2_endpoint as endpoint
+
+        monkeypatch.setattr(endpoint, "PG_HEALTHCHECK_CONNECT_TIMEOUT_S", 1)
+
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+            listener.bind(("127.0.0.1", 0))
+            listener.listen(1)
+            port = listener.getsockname()[1]
+
+            monkeypatch.setattr(
+                endpoint, "_get_pg_dsn", lambda: f"postgresql://user:pwd@127.0.0.1:{port}/db"
+            )
+
+            start = time.monotonic()
+            with pytest.raises(HTTPException) as exc_info:
+                endpoint._get_reviewed_chunk_counts([BASE_SCOPE])
+            elapsed = time.monotonic() - start
+
+        assert exc_info.value.status_code == 503
+        assert elapsed < 5.0
+
+
 class TestHybridSearchDelegation:
     def test_search_delegates_raw_parameters_after_gate_and_ignores_cache(
         self,

@@ -40,10 +40,10 @@ server {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
   }
 
-  # Explicit rate-limited API endpoints
-  location = /ingest {
+  # Ingest v2 — seule surface d'ingestion exposée publiquement (rate limited).
+  location ^~ /ingest/v2/ {
     limit_req zone=api_rate burst=40 nodelay;
-    proxy_pass http://127.0.0.1:${NGINX_API_PORT}/ingest;
+    proxy_pass http://127.0.0.1:${NGINX_API_PORT}/ingest/v2/;
     proxy_http_version 1.1;
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection "upgrade";
@@ -51,6 +51,12 @@ server {
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_read_timeout 300s;
+  }
+
+  # Endpoints d'ingestion historiques (ChromaDB / pré-v2) — fermés (LOT43).
+  # Allowlist explicite : tout /ingest* non listé ci-dessus est refusé par défaut.
+  location ^~ /ingest {
+    return 410;
   }
 
   # Retrieval canonique — uniquement via le BFF authentifié.
@@ -87,6 +93,15 @@ server {
     return 410;
   }
   location ^~ /rag {
+    return 410;
+  }
+
+  # Stats /collections legacy (lecture directe ChromaDB) — fermés (LOT43).
+  # Remplacés par /collections/v2, /collections/readiness (retrieval_v2_endpoint).
+  location = /collections {
+    return 410;
+  }
+  location ^~ /stats {
     return 410;
   }
 
