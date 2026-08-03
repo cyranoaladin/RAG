@@ -934,6 +934,15 @@ les suites ciblées et la suite non-intégration complète sont vertes. PostgreS
 `LOT40_HYBRID_INTEGRATION=PASS`. Ruff et `mypy` sur 52 fichiers sont verts. Le
 commit documentaire suivant reste soumis à la CI locale et GitHub exactes.
 
+La revue Cubic de ce head a confirmé la séparation des quotas, mais a relevé
+que les valeurs initiales `100 r/s`, burst `200`, accordaient trop de débit à
+une route authentifiée seulement après le proxy. Le commit
+`6f6bc3b8221e1875238e48b69b34b32f81239b07` conserve la zone indépendante sans
+surclassement : `readiness_v2` reprend exactement `20 r/s`, burst `40`, dans le
+template hôte et `30 r/s`, burst `60`, dans le vhost matérialisable, comme leur
+zone métier respective. Les tests ont d'abord refusé les anciens plafonds puis
+valident les deux couples exacts et l'absence de consommation de `api_v2`.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
