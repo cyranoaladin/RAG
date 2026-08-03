@@ -2,7 +2,7 @@
 
 ## Verdict
 
-**LOT41U_CONTRACT_BOUNDARY_GREEN_AWAITING_EXACT_HEAD_CI**
+**LOT41U_FILTER_BOUNDARY_GREEN_AWAITING_EXACT_HEAD_CI**
 
 LOT41U ferme les quatre constats P1 du runtime relevés par l'audit indépendant
 de `main@ea18ba52da5778f628c4943705dd81dfa43fbc15`. Le stack v2 n'embarque
@@ -26,7 +26,7 @@ preuves opérationnelles externes doivent être obtenues. Aucun verrou
 | Date | 2026-08-02 |
 | Baseline `main` | `ea18ba52da5778f628c4943705dd81dfa43fbc15` |
 | Branche | `lot-41u-ingestion-runtime-hardening` |
-| Head applicatif audité avant ce commit documentaire | `83aa7360d85d4131014998796396bf14d95e8f1b` |
+| Head applicatif audité avant ce commit documentaire | `b6a628d159a604a66b4e86be5a19798d3cfa220c` |
 | Plan de données | runtime FastAPI v2, PostgreSQL/pgvector, Compose, Nginx |
 | Contrats partagés | aucune évolution |
 | Verrous de gouvernance | aucun changement, 18/18 conformes |
@@ -635,6 +635,23 @@ smoke PostgreSQL réel sont verts. Ce dernier conclut notamment
 `HTTP_SEARCH_V2=PASS`, `MONO_SUBJECT_HTTP_SCOPE=PASS`,
 `SIGNED_IDENTITY_HTTP_REAL_DB=PASS` et `LOT40_HYBRID_INTEGRATION=PASS`.
 
+La CI GitHub `pull_request` du head documentaire `3232a88` a ensuite réussi
+ses six jobs obligatoires, ainsi que GitGuardian et Cubic. Les revues
+exact-head Cubic et Codex ont toutefois détecté que les filtres optionnels
+`need.notions`, `need.desired_doc_types` et `need.difficulty_max` étaient
+adaptés puis ignorés par le pipeline PostgreSQL. Le test rouge a confirmé que
+les trois variantes retournaient `200` et lançaient le retrieval.
+
+Le commit `b6a628d` ferme cette ambiguïté sans inventer une sémantique SQL non
+prouvée : tant que ces filtres ne sont pas implémentés de bout en bout, la
+route les refuse explicitement en `422 Unsupported retrieval filters` avant
+tout appel au pipeline. Le test de visibilité fixe aussi explicitement
+`status_detail=candidat_libre`, source contractuelle de l'audience `libre`, au
+lieu de dépendre implicitement du comportement par défaut. Les trois tests
+rouge/vert, les cinq rôles de visibilité, Ruff, `mypy` sur 52 fichiers et la
+suite non-intégration complète du moteur sont verts. Ce nouveau head remplace
+la preuve `3232a88` et doit donc obtenir sa propre CI GitHub exacte.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -703,6 +720,7 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `3793f3f` | quarantaine fail-closed, tests catalogue isolés et preuve `ctime` stable |
 | `2c4322a` | exécution minimale de la sonde d'identité par les deux rôles runtime |
 | `83aa736` | frontière `/search/v2` alignée sur `RetrievalRequest → RetrievalResponse` |
+| `b6a628d` | refus fail-closed des filtres retrieval non implémentés |
 
 ## Décision de livraison
 
