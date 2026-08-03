@@ -124,13 +124,14 @@ export async function POST(request: Request) {
     if (engineRequests.some((engineRequest) => engineRequest === null)) {
       return NextResponse.json({ error: 'service_unavailable' }, { status: 503 })
     }
-    const results = await Promise.all(
-      engineRequests.map((engineRequest) => fetchEngine('/search/v2', {
+    const results = []
+    for (const engineRequest of engineRequests) {
+      results.push(await fetchEngine('/search/v2', {
         method: 'POST',
         body: engineRequest as RetrievalRequest,
         identityToken: authContext.identityToken,
-      })),
-    )
+      }))
+    }
     if (results.some((result) => result.status !== 200)) {
       return NextResponse.json({ error: 'service_unavailable' }, { status: 503 })
     }

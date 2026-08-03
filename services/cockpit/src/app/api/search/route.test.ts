@@ -210,6 +210,43 @@ describe('POST /api/search', () => {
     ])
   })
 
+  it('sérialise les appels moteur d’une recherche multi-collections', async () => {
+    let activeCalls = 0
+    let maximumActiveCalls = 0
+    let releaseFirstCall: (() => void) | undefined
+    const firstCallBlocked = new Promise<void>((resolve) => {
+      releaseFirstCall = resolve
+    })
+    mockedFetchEngine.mockImplementation(async () => {
+      const callIndex = mockedFetchEngine.mock.calls.length
+      activeCalls += 1
+      maximumActiveCalls = Math.max(maximumActiveCalls, activeCalls)
+      if (callIndex === 1) {
+        await firstCallBlocked
+      }
+      activeCalls -= 1
+      return {
+        status: 200,
+        payload: {
+          results: [],
+          warnings: [],
+          filters_applied: {},
+        },
+      }
+    })
+
+    const responsePromise = POST(searchRequest([MATHS_COLLECTION, NSI_COLLECTION]))
+    await vi.waitFor(() => expect(mockedFetchEngine).toHaveBeenCalledTimes(1))
+    expect(maximumActiveCalls).toBe(1)
+    releaseFirstCall?.()
+
+    const response = await responsePromise
+
+    expect(response.status).toBe(200)
+    expect(mockedFetchEngine).toHaveBeenCalledTimes(2)
+    expect(maximumActiveCalls).toBe(1)
+  })
+
   it('propage les avertissements du contrat moteur sans les réinterpréter', async () => {
     mockedFetchEngine.mockResolvedValue({
       status: 200,
