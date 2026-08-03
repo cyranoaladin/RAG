@@ -47,7 +47,13 @@ try:
         runtime_embedding_dimension,
     )
     from .identity_v2 import VerifiedInternalIdentity, require_internal_identity
-    from .pg_pool import PoolSettings, pool_connection
+    from .pg_pool import (
+        PoolSettings,
+        execute_with_database_budget,
+        pool_connection,
+        remaining_database_budget_ms,
+        runtime_database_budget,
+    )
     from .reranker_contract import load_reranker_model
     from .retrieval_contract_adapter import adapt_retrieval_request
     from .retrieval_hybrid_v2 import (
@@ -90,7 +96,13 @@ except (ImportError, ValueError):
         VerifiedInternalIdentity,
         require_internal_identity,
     )
-    from pg_pool import PoolSettings, pool_connection  # type: ignore[no-redef]
+    from pg_pool import (  # type: ignore[no-redef]
+        PoolSettings,
+        execute_with_database_budget,
+        pool_connection,
+        remaining_database_budget_ms,
+        runtime_database_budget,
+    )
     from reranker_contract import load_reranker_model  # type: ignore[no-redef]
     from retrieval_contract_adapter import (  # type: ignore[no-redef]
         adapt_retrieval_request,
@@ -481,12 +493,7 @@ def _get_reviewed_chunk_counts(
                 _reviewed_counts_inflight[cache_key] = flight
 
         if not is_leader:
-            wait_timeout_s = (
-                (2 * settings.timeout_s)
-                + settings.connect_timeout_s
-                + (settings.statement_timeout_ms / 1_000.0)
-                + 1.0
-            )
+            wait_timeout_s = remaining_database_budget_ms() / 1_000.0
             if not flight.event.wait(timeout=wait_timeout_s):
                 raise RuntimeError("reviewed count query exceeded its bounded lifetime")
             if flight.error is not None:
@@ -498,11 +505,13 @@ def _get_reviewed_chunk_counts(
         try:
             with pool_connection(settings) as connection:
                 with connection.cursor() as cursor:
-                    cursor.execute(
+                    execute_with_database_budget(
+                        cursor,
                         "SELECT collection, COUNT(*) FROM rag_chunks WHERE "
                         + " OR ".join(clauses)
                         + " GROUP BY collection",
                         tuple(params),
+                        statement_timeout_ms=settings.statement_timeout_ms,
                     )
                     counts = {
                         str(collection): int(count)
@@ -841,7 +850,8 @@ def get_collection_readiness(request: Request) -> dict[str, Any]:
         }
         if len(scoped_collections) != len(allowed):
             raise RetrievalScopeError("retrieval scope forbidden")
-        counts = _get_reviewed_chunk_counts(scopes)
+        with runtime_database_budget():
+            counts = _get_reviewed_chunk_counts(scopes)
         return _build_launch_readiness(
             {**cfg, "collections": scoped_collections},
             counts,
@@ -870,15 +880,20 @@ def _retrieve_hybrid_hits(
     """Compose the one canonical v2 pipeline without exposing failure context."""
     try:
         settings = PoolSettings.from_env()
-        store = PgCandidateStore(lambda: pool_connection(settings), scope)
-        return retrieve_hybrid(
-            query,
-            collection,
-            k,
-            store=store,
-            embedder=_get_embed_model(),
-            reranker=_get_reranker(),
-        )
+        with runtime_database_budget(settings.database_budget_ms):
+            store = PgCandidateStore(
+                lambda: pool_connection(settings),
+                scope,
+                statement_timeout_ms=settings.statement_timeout_ms,
+            )
+            return retrieve_hybrid(
+                query,
+                collection,
+                k,
+                store=store,
+                embedder=_get_embed_model(),
+                reranker=_get_reranker(),
+            )
     except Exception:
         logger.error("hybrid retrieval unavailable")
         raise _retrieval_unavailable() from None
@@ -1028,16 +1043,17 @@ def chat(payload: ChatRequest, request: Request) -> ChatResponse:
     _require_chat_profile_match(payload, collections, scopes)
 
     all_hits: list[tuple[str, SearchV2Hit]] = []
-    for collection in collections:
-        all_hits.extend(
-            (collection, hit)
-            for hit in _retrieve_endpoint_hits(
-                payload.query,
-                collection,
-                payload.top_k,
-                scopes[collection],
+    with runtime_database_budget():
+        for collection in collections:
+            all_hits.extend(
+                (collection, hit)
+                for hit in _retrieve_endpoint_hits(
+                    payload.query,
+                    collection,
+                    payload.top_k,
+                    scopes[collection],
+                )
             )
-        )
 
     unique_hits: list[tuple[str, SearchV2Hit]] = []
     seen_chunk_ids: set[str] = set()

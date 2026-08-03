@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   fetchEngine,
   isPublicLaunchReady,
+  resolveEngineTimeoutMs,
   type EngineReviewQueueQuery,
 } from './_engine'
 
@@ -38,6 +39,13 @@ describe('public launch readiness', () => {
     const headers = init.headers as Headers
     expect(headers.get('Authorization')).toBe('Bearer service-token')
     expect(headers.get('X-Nexus-Identity')).toBe('signed-identity-token')
+  })
+
+  it('conserve un délai BFF supérieur au budget PostgreSQL maximal', () => {
+    expect(resolveEngineTimeoutMs(undefined)).toBe(8000)
+    expect(resolveEngineTimeoutMs('7999')).toBe(8000)
+    expect(resolveEngineTimeoutMs('invalid')).toBe(8000)
+    expect(resolveEngineTimeoutMs('12000')).toBe(12000)
   })
 
   it('sépare le jeton service du header d’identité signé', async () => {

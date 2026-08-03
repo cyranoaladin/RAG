@@ -40,6 +40,7 @@ EXPECTED_REVIEW_PRIVILEGES = (
     False,  # aucune appartenance au propriétaire du registre
     True,  # aucun privilège sur une relation hors allowlist
     True,  # aucune routine utilisateur SECURITY DEFINER exécutable
+    True,  # aucun CREATE ni ownership sur un schéma utilisateur
 )
 
 
@@ -131,6 +132,7 @@ def test_review_database_ready_proves_the_exact_least_privilege_contract(
     assert "PG_PROC" in normalized
     assert "PROSECDEF" in normalized
     assert "HAS_FUNCTION_PRIVILEGE" in normalized
+    assert "NSPOWNER" in normalized
     assert "RAG_API_KEYS" not in normalized
     assert "RAG_EVAL_RUNS" not in normalized
     for forbidden in ("INSERT INTO", "UPDATE ", "DELETE FROM", "ALTER ", "CREATE ", "DROP "):

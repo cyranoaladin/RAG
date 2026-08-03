@@ -86,6 +86,20 @@ def test_security_definer_predicate_rejects_every_executable_user_routine() -> N
     assert "PG_CATALOG" in normalized
 
 
+def test_user_schema_predicate_rejects_effective_create_and_ownership() -> None:
+    sql = readiness_db.no_user_schema_create_privileges_sql()
+
+    normalized = sql.upper()
+    assert normalized.lstrip().startswith("NOT EXISTS")
+    assert "PG_NAMESPACE" in normalized
+    assert "HAS_SCHEMA_PRIVILEGE" in normalized
+    assert "'CREATE'" in normalized
+    assert "PG_HAS_ROLE" in normalized
+    assert "NSPOWNER" in normalized
+    assert "INFORMATION_SCHEMA" in normalized
+    assert "NOT LIKE 'PG\\_%' ESCAPE '\\'" in normalized
+
+
 def test_postgres_database_identity_is_bounded_read_only_and_cluster_specific(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

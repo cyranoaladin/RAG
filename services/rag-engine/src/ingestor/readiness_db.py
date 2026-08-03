@@ -131,6 +131,26 @@ NOT EXISTS (
 """.strip()
 
 
+def no_user_schema_create_privileges_sql() -> str:
+    """Refuser ownership et CREATE effectif sur tout schéma utilisateur."""
+    return r"""
+NOT EXISTS (
+    SELECT 1
+    FROM pg_namespace AS user_namespace
+    WHERE user_namespace.nspname <> 'information_schema'
+      AND user_namespace.nspname NOT LIKE 'pg\_%' ESCAPE '\'
+      AND (
+          has_schema_privilege(
+              current_user, user_namespace.oid, 'CREATE'
+          )
+          OR pg_has_role(
+              current_user, user_namespace.nspowner, 'MEMBER'
+          )
+      )
+)
+""".strip()
+
+
 def readiness_connection_options() -> str:
     """Retourner les options bornées et non mutantes du contrat de readiness."""
     return (
@@ -169,6 +189,7 @@ __all__ = [
     "RUNTIME_RELATION_ALLOWLIST",
     "no_auxiliary_relation_privileges_sql",
     "no_executable_security_definer_routines_sql",
+    "no_user_schema_create_privileges_sql",
     "postgres_database_identity",
     "readiness_connection_options",
 ]

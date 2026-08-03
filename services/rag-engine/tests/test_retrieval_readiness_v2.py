@@ -38,6 +38,7 @@ EXPECTED_RETRIEVAL_PRIVILEGES = (
     True,  # USAGE sur le type vector
     True,  # aucun privilège sur une relation hors allowlist
     True,  # aucune routine utilisateur SECURITY DEFINER exécutable
+    True,  # aucun CREATE ni ownership sur un schéma utilisateur
 )
 
 
@@ -124,6 +125,8 @@ def test_retrieval_database_ready_proves_exact_read_only_privileges(
     assert "PG_PROC" in normalized
     assert "PROSECDEF" in normalized
     assert "HAS_FUNCTION_PRIVILEGE" in normalized
+    assert "HAS_SCHEMA_PRIVILEGE" in normalized
+    assert "NSPOWNER" in normalized
     assert "RAG_API_KEYS" not in normalized
     assert "RAG_EVAL_RUNS" not in normalized
 

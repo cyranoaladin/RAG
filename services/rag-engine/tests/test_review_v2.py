@@ -264,7 +264,7 @@ class TestGovernanceInvariant:
         sentinel = object()
 
         monkeypatch.setenv("PG_CONNECT_TIMEOUT_S", "4")
-        monkeypatch.setenv("PG_STATEMENT_TIMEOUT_MS", "6500")
+        monkeypatch.setenv("PG_STATEMENT_TIMEOUT_MS", "5500")
         monkeypatch.setenv("PG_LOCK_TIMEOUT_MS", "750")
 
         def connect(dsn: str, **kwargs: object) -> object:
@@ -277,7 +277,7 @@ class TestGovernanceInvariant:
         assert observed == {
             "dsn": "postgresql://reviewer",
             "connect_timeout": 4,
-            "options": "-c statement_timeout=6500 -c lock_timeout=750",
+            "options": "-c statement_timeout=5500 -c lock_timeout=750",
         }
 
     def test_reviewer_token_fail_closed(self, monkeypatch: pytest.MonkeyPatch) -> None:

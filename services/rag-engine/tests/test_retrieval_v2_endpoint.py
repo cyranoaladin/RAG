@@ -129,7 +129,7 @@ def test_reviewed_chunk_counts_use_the_bounded_shared_pool(
 ) -> None:
     from ingestor import retrieval_v2_endpoint as endpoint
 
-    settings = SimpleNamespace(timeout_s=5.0)
+    settings = SimpleNamespace(timeout_s=5.0, statement_timeout_ms=3_000)
     executed: dict[str, object] = {}
     connection_calls = 0
 
@@ -977,7 +977,10 @@ class TestHybridSearchDelegation:
         factory = getattr(endpoint, "_retrieve_hybrid_hits", None)
         assert callable(factory)
 
-        settings = object()
+        settings = SimpleNamespace(
+            database_budget_ms=6_000,
+            statement_timeout_ms=3_000,
+        )
         connection = object()
         embedder = object()
         reranker = object()
@@ -989,9 +992,10 @@ class TestHybridSearchDelegation:
             yield connection
 
         class Store:
-            def __init__(self, provider, scope) -> None:
+            def __init__(self, provider, scope, *, statement_timeout_ms) -> None:
                 self.provider = provider
                 self.scope = scope
+                self.statement_timeout_ms = statement_timeout_ms
 
         def retrieve(query, collection, top_k, *, store, embedder, reranker):
             captured.update(
@@ -1033,6 +1037,7 @@ class TestHybridSearchDelegation:
             "pool_settings": settings,
             "connection": connection,
         }
+        assert captured["store"].statement_timeout_ms == 3_000
 
     def test_search_sanitizes_failure_through_real_core_and_pg_store(
         self,
@@ -1070,7 +1075,12 @@ class TestHybridSearchDelegation:
         monkeypatch.setattr(
             endpoint,
             "PoolSettings",
-            SimpleNamespace(from_env=lambda: object()),
+            SimpleNamespace(
+                from_env=lambda: SimpleNamespace(
+                    database_budget_ms=6_000,
+                    statement_timeout_ms=3_000,
+                )
+            ),
         )
         monkeypatch.setattr(endpoint, "pool_connection", connection_provider)
         monkeypatch.setattr(endpoint, "_get_embed_model", lambda: Embedder())
@@ -1084,12 +1094,15 @@ class TestHybridSearchDelegation:
 
         assert response.status_code == 503
         assert response.json() == {"detail": "retrieval unavailable"}
-        assert len(executed_sql) == 3
-        assert "SELECT %s::vector IS NOT NULL" in executed_sql[0]
-        assert executed_sql[1].strip() == ("SET LOCAL hnsw.iterative_scan = 'strict_order'")
-        assert "WITH hnsw_candidates AS MATERIALIZED" in executed_sql[2]
-        assert executed_sql[2].count("FROM rag_chunks") == 1
-        assert "ranked_pool.chunk_id ASC" in executed_sql[2]
+        assert len(executed_sql) == 6
+        assert executed_sql[0::2] == [
+            "SELECT set_config('statement_timeout', %s, true)",
+        ] * 3
+        assert "SELECT %s::vector IS NOT NULL" in executed_sql[1]
+        assert executed_sql[3].strip() == ("SET LOCAL hnsw.iterative_scan = 'strict_order'")
+        assert "WITH hnsw_candidates AS MATERIALIZED" in executed_sql[5]
+        assert executed_sql[5].count("FROM rag_chunks") == 1
+        assert "ranked_pool.chunk_id ASC" in executed_sql[5]
         assert "SENSITIVE_DSN_SENTINEL" not in response.text
         assert "SENSITIVE_QUERY_SENTINEL" not in response.text
         assert "requête extrêmement sensible" not in response.text

@@ -26,6 +26,7 @@ _ENV_KEYS = (
     "PG_CONNECT_TIMEOUT_S",
     "PG_STATEMENT_TIMEOUT_MS",
     "PG_LOCK_TIMEOUT_MS",
+    "PG_DATABASE_BUDGET_MS",
 )
 _ENGINE_ROOT = Path(__file__).resolve().parents[1]
 _THREE_PSYCOPG_PINS = {
@@ -72,7 +73,7 @@ def test_from_env_prefers_nonblank_pg_rag_dsn(monkeypatch: pytest.MonkeyPatch) -
         dsn="postgresql://primary.example/rag",
         min_size=1,
         max_size=10,
-        timeout_s=5.0,
+        timeout_s=1.0,
     )
 
 
@@ -108,7 +109,7 @@ def test_from_env_parses_explicit_pool_limits(monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.setenv("PG_POOL_MAX_SIZE", "25")
     monkeypatch.setenv("PG_POOL_TIMEOUT_S", "0.75")
     monkeypatch.setenv("PG_CONNECT_TIMEOUT_S", "4")
-    monkeypatch.setenv("PG_STATEMENT_TIMEOUT_MS", "6500")
+    monkeypatch.setenv("PG_STATEMENT_TIMEOUT_MS", "5500")
     monkeypatch.setenv("PG_LOCK_TIMEOUT_MS", "750")
 
     assert PoolSettings.from_env() == PoolSettings(
@@ -117,7 +118,7 @@ def test_from_env_parses_explicit_pool_limits(monkeypatch: pytest.MonkeyPatch) -
         max_size=25,
         timeout_s=0.75,
         connect_timeout_s=4,
-        statement_timeout_ms=6500,
+        statement_timeout_ms=5500,
         lock_timeout_ms=750,
     )
 
@@ -217,13 +218,85 @@ def test_direct_connection_kwargs_share_the_runtime_bounds(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("PG_CONNECT_TIMEOUT_S", "4")
-    monkeypatch.setenv("PG_STATEMENT_TIMEOUT_MS", "6500")
+    monkeypatch.setenv("PG_STATEMENT_TIMEOUT_MS", "5500")
     monkeypatch.setenv("PG_LOCK_TIMEOUT_MS", "750")
 
     assert pg_pool.runtime_connection_kwargs_from_env() == {
         "connect_timeout": 4,
-        "options": "-c statement_timeout=6500 -c lock_timeout=750",
+        "options": "-c statement_timeout=5500 -c lock_timeout=750",
     }
+
+
+def test_database_budget_is_strictly_below_the_cockpit_bff_deadline() -> None:
+    assert pg_pool.MAX_RUNTIME_DATABASE_BUDGET_MS == 6_000
+    assert pg_pool.COCKPIT_ENGINE_TIMEOUT_FLOOR_MS == 8_000
+    assert (
+        pg_pool.MAX_RUNTIME_DATABASE_BUDGET_MS
+        < pg_pool.COCKPIT_ENGINE_TIMEOUT_FLOOR_MS
+    )
+
+
+@pytest.mark.parametrize("value", ("0", "6001", "not-an-int"))
+def test_runtime_database_budget_rejects_unsafe_values(
+    monkeypatch: pytest.MonkeyPatch,
+    value: str,
+) -> None:
+    monkeypatch.setenv("PG_DATABASE_BUDGET_MS", value)
+
+    with pytest.raises(PoolConfigurationError, match="Budget PostgreSQL"):
+        pg_pool.runtime_database_budget_ms_from_env()
+
+
+def test_runtime_database_budget_is_shared_by_nested_operations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    moments = iter((10.0, 10.5, 11.0))
+    monkeypatch.setattr(pg_pool.time, "monotonic", lambda: next(moments))
+
+    with pg_pool.runtime_database_budget(2_000) as outer:
+        assert pg_pool.remaining_database_budget_ms() == 1_500
+        with pg_pool.runtime_database_budget(1_000) as nested:
+            assert nested is outer
+            assert pg_pool.remaining_database_budget_ms() == 1_000
+
+
+def test_runtime_database_budget_fails_after_its_deadline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    moments = iter((10.0, 16.1))
+    monkeypatch.setattr(pg_pool.time, "monotonic", lambda: next(moments))
+
+    with pg_pool.runtime_database_budget(6_000):
+        with pytest.raises(PoolConfigurationError, match="Budget PostgreSQL épuisé"):
+            pg_pool.remaining_database_budget_ms()
+
+
+def test_each_sql_statement_is_rebounded_to_the_aggregate_remainder(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    moments = iter((10.0, 10.5))
+    monkeypatch.setattr(pg_pool.time, "monotonic", lambda: next(moments))
+    executions: list[tuple[str, object]] = []
+
+    class Cursor:
+        def execute(self, sql: str, params: object = None) -> None:
+            executions.append((sql, params))
+
+    with pg_pool.runtime_database_budget(2_000):
+        pg_pool.execute_with_database_budget(
+            Cursor(),
+            "SELECT business_data FROM bounded_view",
+            ("scope",),
+            statement_timeout_ms=3_000,
+        )
+
+    assert executions == [
+        (
+            "SELECT set_config('statement_timeout', %s, true)",
+            ("1500",),
+        ),
+        ("SELECT business_data FROM bounded_view", ("scope",)),
+    ]
 
 
 @pytest.mark.parametrize("dsn", ["", " ", "\t"])
@@ -241,8 +314,8 @@ def test_settings_accept_boundary_values() -> None:
         min_size=1,
         max_size=1,
         timeout_s=1.0,
-        statement_timeout_ms=60_000,
-        lock_timeout_ms=60_000,
+        statement_timeout_ms=6_000,
+        lock_timeout_ms=6_000,
     )
 
 
@@ -368,7 +441,7 @@ def _settings(*, dsn: str = "postgresql://db.example/rag") -> PoolSettings:
         max_size=8,
         timeout_s=1.25,
         connect_timeout_s=4,
-        statement_timeout_ms=6_500,
+        statement_timeout_ms=5_500,
         lock_timeout_ms=750,
     )
 
@@ -416,7 +489,7 @@ def test_get_pool_constructs_opens_waits_then_reuses_singleton(
                     "connect_timeout": 4,
                     "options": (
                         "-c default_transaction_read_only=on "
-                        "-c statement_timeout=6500 -c lock_timeout=750"
+                        "-c statement_timeout=5500 -c lock_timeout=750"
                     ),
                 },
             },
@@ -477,9 +550,9 @@ def test_pool_connection_loads_settings_from_environment_when_omitted(
         assert connection == "connection"
 
     assert events[-3:] == [
-        ("connection-attempt", 5.0),
-        ("connection-enter", 5.0),
-        ("connection-exit", 5.0),
+        ("connection-attempt", 1.0),
+        ("connection-enter", 1.0),
+        ("connection-exit", 1.0),
     ]
 
 

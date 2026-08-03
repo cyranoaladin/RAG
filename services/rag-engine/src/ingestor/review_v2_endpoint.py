@@ -21,7 +21,13 @@ from pydantic import BeforeValidator
 try:
     from .collection_config import load_collection_config
     from .identity_v2 import VerifiedInternalIdentity, require_internal_identity
-    from .pg_pool import runtime_connection_kwargs_from_env
+    from .pg_pool import (
+        apply_database_budget_before_commit,
+        execute_with_database_budget,
+        runtime_connection_kwargs_from_env,
+        runtime_database_budget,
+        runtime_statement_timeout_ms_from_env,
+    )
     from .retrieval_scope_v2 import (
         RetrievalScopeError,
         ServerRetrievalScope,
@@ -36,7 +42,13 @@ except (ImportError, ValueError):
         VerifiedInternalIdentity,
         require_internal_identity,
     )
-    from pg_pool import runtime_connection_kwargs_from_env  # type: ignore[no-redef]
+    from pg_pool import (  # type: ignore[no-redef]
+        apply_database_budget_before_commit,
+        execute_with_database_budget,
+        runtime_connection_kwargs_from_env,
+        runtime_database_budget,
+        runtime_statement_timeout_ms_from_env,
+    )
     from retrieval_scope_v2 import (  # type: ignore[no-redef]
         RetrievalScopeError,
         ServerRetrievalScope,
@@ -222,40 +234,46 @@ def list_queue(
     )
     scope_sql, scope_params = _scope_filter(scopes)
     pg_dsn = _get_pg_dsn()
+    statement_timeout_ms = runtime_statement_timeout_ms_from_env()
 
     connection: Any | None = None
     try:
-        connection = _connect_review_database(pg_dsn)
-        with connection.cursor() as cursor:
-            cursor.execute(
-                "SELECT COUNT(*) FROM (SELECT 1 FROM rag_chunks "
-                "WHERE review_status = 'needs_review' AND "
-                + scope_sql
-                + " GROUP BY doc_id, collection) AS scoped_documents",
-                scope_params,
-            )
-            row = cursor.fetchone()
-            total_docs = int(row[0]) if row else 0
+        with runtime_database_budget():
+            connection = _connect_review_database(pg_dsn)
+            with connection.cursor() as cursor:
+                execute_with_database_budget(
+                    cursor,
+                    "SELECT COUNT(*) FROM (SELECT 1 FROM rag_chunks "
+                    "WHERE review_status = 'needs_review' AND "
+                    + scope_sql
+                    + " GROUP BY doc_id, collection) AS scoped_documents",
+                    scope_params,
+                    statement_timeout_ms=statement_timeout_ms,
+                )
+                row = cursor.fetchone()
+                total_docs = int(row[0]) if row else 0
 
-            cursor.execute(
-                """
-                SELECT doc_id, collection, source_label, source_uri, rights,
-                       source_kind, type_doc, COUNT(*) AS chunk_count,
-                       MIN(indexed_at) AS first_indexed,
-                       MAX(indexed_at) AS last_indexed
-                FROM rag_chunks
-                WHERE review_status = 'needs_review' AND
-                """
-                + scope_sql
-                + """
-                GROUP BY doc_id, collection, source_label, source_uri, rights,
-                         source_kind, type_doc
-                ORDER BY MIN(indexed_at) DESC, collection ASC, doc_id ASC
-                LIMIT %s OFFSET %s
-                """,
-                (*scope_params, payload.limit, payload.offset),
-            )
-            rows = cursor.fetchall()
+                execute_with_database_budget(
+                    cursor,
+                    """
+                    SELECT doc_id, collection, source_label, source_uri, rights,
+                           source_kind, type_doc, COUNT(*) AS chunk_count,
+                           MIN(indexed_at) AS first_indexed,
+                           MAX(indexed_at) AS last_indexed
+                    FROM rag_chunks
+                    WHERE review_status = 'needs_review' AND
+                    """
+                    + scope_sql
+                    + """
+                    GROUP BY doc_id, collection, source_label, source_uri, rights,
+                             source_kind, type_doc
+                    ORDER BY MIN(indexed_at) DESC, collection ASC, doc_id ASC
+                    LIMIT %s OFFSET %s
+                    """,
+                    (*scope_params, payload.limit, payload.offset),
+                    statement_timeout_ms=statement_timeout_ms,
+                )
+                rows = cursor.fetchall()
     except HTTPException:
         raise
     except Exception as exc:
@@ -310,27 +328,35 @@ def review_decide(
         else ["needs_review", "reviewed"]
     )
     pg_dsn = _get_pg_dsn()
+    statement_timeout_ms = runtime_statement_timeout_ms_from_env()
 
     connection: Any | None = None
     try:
-        connection = _connect_review_database(pg_dsn)
-        with connection.cursor() as cursor:
-            cursor.execute(
-                f"""
-                UPDATE rag_chunks SET review_status = %s
-                WHERE {target_column} = %s
-                  AND review_status = ANY(%s::text[])
-                  AND {scope_sql}
-                """,
-                (
-                    payload.decision,
-                    payload.target_id,
-                    source_states,
-                    *scope_params,
-                ),
+        with runtime_database_budget():
+            connection = _connect_review_database(pg_dsn)
+            with connection.cursor() as cursor:
+                execute_with_database_budget(
+                    cursor,
+                    f"""
+                    UPDATE rag_chunks SET review_status = %s
+                    WHERE {target_column} = %s
+                      AND review_status = ANY(%s::text[])
+                      AND {scope_sql}
+                    """,
+                    (
+                        payload.decision,
+                        payload.target_id,
+                        source_states,
+                        *scope_params,
+                    ),
+                    statement_timeout_ms=statement_timeout_ms,
+                )
+                affected = int(cursor.rowcount)
+            apply_database_budget_before_commit(
+                connection,
+                statement_timeout_ms=statement_timeout_ms,
             )
-            affected = int(cursor.rowcount)
-        connection.commit()
+            connection.commit()
     except Exception as exc:
         if connection is not None:
             connection.rollback()

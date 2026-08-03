@@ -11,6 +11,7 @@ from typing import Any, Literal
 from nexus_contracts import Rights
 
 if __package__:
+    from .pg_pool import execute_with_database_budget
     from .retrieval_hybrid_v2 import (
         CHANNEL_LIMIT,
         EMBED_DIMENSION,
@@ -20,6 +21,7 @@ if __package__:
     )
     from .retrieval_scope_v2 import ServerRetrievalScope
 else:
+    from pg_pool import execute_with_database_budget  # type: ignore[no-redef]
     from retrieval_hybrid_v2 import (  # type: ignore[no-redef]
         CHANNEL_LIMIT,
         EMBED_DIMENSION,
@@ -319,10 +321,28 @@ class PgCandidateStore(CandidateStore):
         self,
         connection_provider: _ConnectionProvider,
         scope: ServerRetrievalScope,
+        *,
+        statement_timeout_ms: int | None = None,
     ) -> None:
         self._connection_provider = connection_provider
         self._scope = scope
         self._scope_params = _scope_params(scope)
+        self._statement_timeout_ms = statement_timeout_ms
+
+    def _execute(
+        self,
+        cursor: Any,
+        sql: str,
+        params: object = None,
+    ) -> Any:
+        if self._statement_timeout_ms is None:
+            return cursor.execute(sql, params)
+        return execute_with_database_budget(
+            cursor,
+            sql,
+            params,
+            statement_timeout_ms=self._statement_timeout_ms,
+        )
 
     def _fetch(
         self,
@@ -338,8 +358,8 @@ class PgCandidateStore(CandidateStore):
         with self._connection_provider() as connection:
             with connection.cursor() as cursor:
                 for setup_sql, setup_params in setup_statements:
-                    cursor.execute(setup_sql, setup_params)
-                cursor.execute(sql, params)
+                    self._execute(cursor, setup_sql, setup_params)
+                self._execute(cursor, sql, params)
                 fetched = cursor.fetchall()
                 if isinstance(fetched, str | bytes) or not isinstance(fetched, Sequence):
                     raise RetrievalPipelineError("invalid database result")

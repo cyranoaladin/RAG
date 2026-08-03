@@ -17,10 +17,18 @@ export interface EngineFetchResult {
 }
 
 const DEFAULT_ENGINE_URL = 'http://rag-engine:8001'
-const ENGINE_TIMEOUT_MS = Number.parseInt(
-  process.env.RAG_ENGINE_REQUEST_TIMEOUT_MS ?? '8000',
-  10,
-) || 8000
+const ENGINE_TIMEOUT_FLOOR_MS = 8000
+
+export function resolveEngineTimeoutMs(rawValue: string | undefined): number {
+  const parsed = Number(rawValue)
+  return Number.isSafeInteger(parsed) && parsed >= ENGINE_TIMEOUT_FLOOR_MS
+    ? parsed
+    : ENGINE_TIMEOUT_FLOOR_MS
+}
+
+const ENGINE_TIMEOUT_MS = resolveEngineTimeoutMs(
+  process.env.RAG_ENGINE_REQUEST_TIMEOUT_MS,
+)
 
 function resolveEngineUrl(): string {
   return (process.env.RAG_ENGINE_INTERNAL_URL || DEFAULT_ENGINE_URL).replace(/\/$/, '')

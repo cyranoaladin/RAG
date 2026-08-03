@@ -817,6 +817,31 @@ def test_runtime_roles_reject_executable_security_definer_routines() -> None:
     print("RUNTIME_SECURITY_DEFINER_EXECUTE_REJECTED=PASS")
 
 
+def test_runtime_roles_reject_create_or_ownership_on_every_user_schema() -> None:
+    owned_schema = "lot41u_retrieval_owned"
+    granted_schema = "lot41u_review_create"
+    try:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(f"DROP SCHEMA IF EXISTS {owned_schema} CASCADE")
+            connection.execute(f"DROP SCHEMA IF EXISTS {granted_schema} CASCADE")
+            connection.execute(
+                f"CREATE SCHEMA {owned_schema} AUTHORIZATION lot40_app"
+            )
+            connection.execute(f"CREATE SCHEMA {granted_schema}")
+            connection.execute(
+                f"GRANT CREATE ON SCHEMA {granted_schema} TO lot41_review"
+            )
+        assert retrieval_database_ready(APP_DSN) is False
+        assert review_database_ready(REVIEW_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(f"DROP SCHEMA IF EXISTS {owned_schema} CASCADE")
+            connection.execute(f"DROP SCHEMA IF EXISTS {granted_schema} CASCADE")
+    assert retrieval_database_ready(APP_DSN) is True
+    assert review_database_ready(REVIEW_DSN) is True
+    print("RUNTIME_USER_SCHEMA_CREATE_REJECTED=PASS")
+
+
 def test_retrieval_pool_enforces_server_side_execution_timeouts() -> None:
     settings = PoolSettings(
         dsn=APP_DSN,
