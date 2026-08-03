@@ -2,7 +2,7 @@
 
 ## Verdict
 
-**LOT41U_RUNTIME_AND_FIXTURES_GREEN_AWAITING_EXACT_HEAD_CI**
+**LOT41U_PG16_POLICY_GREEN_AWAITING_EXACT_HEAD_CI**
 
 LOT41U ferme les quatre constats P1 du runtime relevés par l'audit indépendant
 de `main@ea18ba52da5778f628c4943705dd81dfa43fbc15`. Le stack v2 n'embarque
@@ -26,7 +26,7 @@ preuves opérationnelles externes doivent être obtenues. Aucun verrou
 | Date | 2026-08-02 |
 | Baseline `main` | `ea18ba52da5778f628c4943705dd81dfa43fbc15` |
 | Branche | `lot-41u-ingestion-runtime-hardening` |
-| Head applicatif audité avant ce commit documentaire | `e4affc95e206b232055abb1e3f6bb8629112cebe` |
+| Head applicatif audité avant ce commit documentaire | `83407cdc6ef80fd0c8dce4a8c117567f52cf916e` |
 | Plan de données | runtime FastAPI v2, PostgreSQL/pgvector, Compose, Nginx |
 | Contrats partagés | aucune évolution |
 | Verrous de gouvernance | aucun changement, 18/18 conformes |
@@ -744,6 +744,27 @@ exécution PostgreSQL complète sont verts ; le test auparavant en échec produi
 `HTTP_CHAT_LOCKED=PASS`, puis le run termine par
 `LOT40_HYBRID_INTEGRATION=PASS`.
 
+La revue Cubic du head documentaire `e2ba5b2` a ensuite formulé trois remarques.
+Deux P3 étaient valides : le prédicat de relations auxiliaires était dupliqué
+entre les sondes retrieval et review, et le test du pool ne prouvait
+l'interpolation que pour les timeouts par défaut. Le commit
+`83407cdc6ef80fd0c8dce4a8c117567f52cf916e` extrait le prédicat dans
+`readiness_db.py`, exige une allowlist explicite, non vide, unique et composée
+uniquement de noms sûrs, puis le réutilise dans les deux sondes. Le test du pool
+utilise désormais `6500/750` et accepte explicitement la borne positive
+`60000/60000`.
+
+Le P1 proposé sur le privilège `MAINTAIN` ne s'applique pas au runtime supporté.
+L'image est épinglée sur PostgreSQL `16.14` ; une preuve éphémère exécutée sur
+son digest exact a confirmé que `GRANT MAINTAIN` échoue avec
+`unrecognized privilege type "maintain"`
+(`PG16_MAINTAIN_PRIVILEGE_UNSUPPORTED=PASS`). Ajouter ce littéral à
+`has_table_privilege` ferait échouer la sonde PG16 au lieu de la durcir. Une
+future migration PostgreSQL 17 devra versionner simultanément la matrice des
+privilèges, le digest de l'image et ses tests. Ruff, `mypy`, toute la suite
+non-intégration et le smoke PostgreSQL complet restent verts après la
+mutualisation.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -817,6 +838,7 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `46c107b` | fixture de dérive des triggers PostgreSQL idempotente et nettoyée |
 | `45e87df` | relations auxiliaires interdites et exécution SQL bornée côté serveur |
 | `e4affc9` | fixture HNSW robuste aux candidats de charge approximatifs |
+| `83407cd` | prédicat PG16 mutualisé et timeouts personnalisés prouvés |
 
 ## Décision de livraison
 
