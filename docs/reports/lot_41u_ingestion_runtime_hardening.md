@@ -2,7 +2,7 @@
 
 ## Verdict
 
-**LOT41U_PG16_POLICY_GREEN_AWAITING_EXACT_HEAD_CI**
+**LOT41U_POSTGRES_BOUNDARIES_GREEN_AWAITING_EXACT_HEAD_CI**
 
 LOT41U ferme les quatre constats P1 du runtime relevés par l'audit indépendant
 de `main@ea18ba52da5778f628c4943705dd81dfa43fbc15`. Le stack v2 n'embarque
@@ -26,7 +26,7 @@ preuves opérationnelles externes doivent être obtenues. Aucun verrou
 | Date | 2026-08-02 |
 | Baseline `main` | `ea18ba52da5778f628c4943705dd81dfa43fbc15` |
 | Branche | `lot-41u-ingestion-runtime-hardening` |
-| Head applicatif audité avant ce commit documentaire | `83407cdc6ef80fd0c8dce4a8c117567f52cf916e` |
+| Head applicatif audité avant ce commit documentaire | `dd2609732cc7b2c1c57c2cbd78bfcc1f0c9d91bd` |
 | Plan de données | runtime FastAPI v2, PostgreSQL/pgvector, Compose, Nginx |
 | Contrats partagés | aucune évolution |
 | Verrous de gouvernance | aucun changement, 18/18 conformes |
@@ -37,7 +37,7 @@ preuves opérationnelles externes doivent être obtenues. Aucun verrou
 | Constat | Décision et correction | État |
 | --- | --- | --- |
 | `RAG-INGEST-001` — écritures sans scope complet | Le writer v2 non autoritaire est retiré de l'application, de l'image, de Compose et du proxy. Aucune donnée client libre n'est promue en scope signé. Un nouveau writer ne pourra revenir qu'avec LOT41A/LOT42. | fermé par suppression de la surface |
-| `RAG-MIGRATION-001` — base Compose neuve sans `003` | PostgreSQL monte `init.sql` puis `003_profile_filtering.sql`; son healthcheck et `/health` vérifient les SHA du registre, les 31 colonnes, les dix index, l'expression `text_tsv` et les cinq contraintes validées des migrations 001–003. `v2-up` attend la santé. | corrigé |
+| `RAG-MIGRATION-001` — base Compose neuve sans `003` | PostgreSQL monte `init.sql` puis `003_profile_filtering.sql`; son healthcheck et `/health` vérifient les SHA du registre, les 31 colonnes, les dix index, l'expression `text_tsv` et l'ensemble exact des six contraintes des migrations 001–003. `v2-up` attend la santé. | corrigé |
 | `RAG-LEGACY-001` — routes Chroma/legacy exposées | `api_v2.py` est l'unique application. L'image copie une liste explicite de modules, Compose n'exécute plus `api:app`, et Nginx refuse les routes legacy en `410` avant tout proxy. | corrigé |
 | `RAG-SSRF-001` — redirections URL non revalidées | Le runtime v2 n'embarque ni endpoint URL, ni client HTTP, ni module d'ingestion réseau. Il n'existe donc plus de redirection à suivre dans le service exposé. | fermé par suppression de la surface |
 | `RAG-UPLOAD-001` — upload lu sans borne | Aucun endpoint d'upload, parseur ou montage de dépôt n'est présent dans le runtime v2. | fermé par suppression de la surface |
@@ -765,6 +765,41 @@ privilèges, le digest de l'image et ses tests. Ruff, `mypy`, toute la suite
 non-intégration et le smoke PostgreSQL complet restent verts après la
 mutualisation.
 
+La revue Codex exacte du head documentaire `937b2fd` a finalement ouvert trois
+P1 valides avant fusion. Les opérations `/review/v2/queue` et
+`/review/v2/decide` ouvraient encore des connexions directes sans timeout
+réseau ni bornes SQL. L'empreinte de `rag_chunks` inventoriait seulement
+les contraintes `CHECK`, ce qui rendait une clé étrangère inattendue et ses
+triggers internes invisibles. Enfin, les rôles runtime pouvaient conserver
+`EXECUTE` — notamment via le grant par défaut à `PUBLIC` — sur une routine
+utilisateur `SECURITY DEFINER`.
+
+Le commit `dd2609732cc7b2c1c57c2cbd78bfcc1f0c9d91bd` ferme ces trois frontières :
+
+- les connexions retrieval et review partagent désormais des paramètres
+  validés `connect_timeout=3 s`, `statement_timeout=7000 ms` et
+  `lock_timeout=1000 ms`, avec overrides strictement bornés ;
+- la readiness et le healthcheck PostgreSQL comparent l'ensemble exact des
+  contraintes de `rag_chunks`, type, validation et empreinte de définition
+  inclus. La clé primaire canonique est ancrée sur PostgreSQL 16 et toute
+  contrainte supplémentaire, y compris `FOREIGN KEY NOT VALID`, ferme la
+  santé ;
+- les sondes retrieval et review refusent toute fonction ou procédure
+  utilisateur `SECURITY DEFINER` effectivement exécutable par le rôle courant.
+  Les schémas système sont les seuls exclus de cet inventaire.
+
+La séquence TDD a d'abord reproduit les trois lacunes, puis 210 tests ciblés,
+Ruff et `mypy` sur 52 modules sont devenus verts. Toute la suite
+non-intégration du moteur passe. Sur PostgreSQL/pgvector réel, un `pg_sleep` et
+un verrou exclusif produisent `REVIEW_CONNECTION_SERVER_TIMEOUTS=PASS`, une
+fonction `SECURITY DEFINER` temporaire produit
+`RUNTIME_SECURITY_DEFINER_EXECUTE_REJECTED=PASS`, et une clé étrangère
+inattendue produit `SCHEMA_ALL_CONSTRAINT_TYPES_DRIFT_REJECTED=PASS`. Le run
+complet se termine par `LOT40_HYBRID_INTEGRATION=PASS`. L'hygiène du dépôt, les
+18 verrous de gouvernance et Gitleaks sur les 75 commits du lot sont également
+verts. Ces preuves locales doivent encore être remplacées par les checks et
+revues du nouveau head exact de la PR.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -839,6 +874,7 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `45e87df` | relations auxiliaires interdites et exécution SQL bornée côté serveur |
 | `e4affc9` | fixture HNSW robuste aux candidats de charge approximatifs |
 | `83407cd` | prédicat PG16 mutualisé et timeouts personnalisés prouvés |
+| `dd26097` | timeouts review, contraintes exhaustives et routines privilégiées interdites |
 
 ## Décision de livraison
 
