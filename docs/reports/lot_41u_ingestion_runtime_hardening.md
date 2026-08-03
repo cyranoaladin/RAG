@@ -23,10 +23,10 @@ preuves opérationnelles externes doivent être obtenues. Aucun verrou
 
 | Élément | Valeur |
 | --- | --- |
-| Date | 2026-08-02 |
+| Date | 2026-08-03 |
 | Baseline `main` | `ea18ba52da5778f628c4943705dd81dfa43fbc15` |
 | Branche | `lot-41u-ingestion-runtime-hardening` |
-| Head applicatif audité avant ce commit documentaire | `760c7dd324d77148fc36cf5ea3ce2a773b75c3b4` |
+| Head applicatif audité avant ce commit documentaire | `ef9b428df30ad2cc759426730e57866df392d791` |
 | Plan de données | runtime FastAPI v2, PostgreSQL/pgvector, Compose, Nginx |
 | Contrats partagés | aucune évolution |
 | Verrous de gouvernance | aucun changement, 18/18 conformes |
@@ -834,6 +834,37 @@ restauration `SET LOGGED`, elle redevient positive avec
 `SCHEMA_PERMANENT_STORAGE_DRIFT_REJECTED=PASS`. Le scénario intégral conclut à
 nouveau `LOT40_HYBRID_INTEGRATION=PASS`.
 
+La revue exacte du head `4d8025bbfc76575acb3d2debbbddd274a03214b8` a ensuite
+ouvert deux P2 valides. La serrure globale du comptage pouvait renvoyer `503`
+à une seconde sonde identique pendant que la première travaillait encore dans
+ses bornes SQL. Par ailleurs, le catalogue savait signaler une taxonomie
+indisponible, mais l'image v2 ne copiait pas la source canonique de
+`services/rag-pedago/taxonomy` : cette indisponibilité était donc permanente
+dans le runtime Compose au lieu d'être une détection de dérive.
+
+Le commit `ef9b428df30ad2cc759426730e57866df392d791` ferme ces deux écarts :
+
+- un single-flight par tuple de digests partage maintenant le résultat SQL
+  entre probes identiques. Les scopes différents restent indépendants et le
+  pool PostgreSQL demeure la borne de capacité. L'attente d'un suiveur couvre
+  la durée cumulée bornée du pool, de la connexion et du statement ;
+- chaque flight porte la génération de review observée à son départ. Une
+  décision concurrente réveille le leader et tous ses suiveurs en échec fermé,
+  sans publier ni partager le snapshot devenu ancien ; la requête suivante
+  repart sur la nouvelle génération ;
+- l'allowlist du contexte Docker autorise uniquement le répertoire de
+  taxonomie pédagogique et le Dockerfile le copie immuablement sous
+  `/app/taxonomy`, emplacement résolu nativement par le catalogue.
+
+Les deux régressions initiales ont échoué avant l'implémentation. Le test
+supplémentaire d'invalidation en vol a lui aussi reproduit la publication
+ancienne avant le garde de génération. Après correction, les tests de
+coalescence, d'invalidation, de catalogue et de contexte Docker sont verts,
+ainsi que Ruff, `mypy` sur 52 fichiers et toute la suite non-intégration du
+moteur. L'image `rag-engine-v2:lot41u-taxonomy` a été construite réellement ;
+un processus lancé dans cette image résout `/app/taxonomy` et inventorie 65
+fichiers YAML avec `RUNTIME_TAXONOMY_PACKAGED=PASS`.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -910,6 +941,7 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `83407cd` | prédicat PG16 mutualisé et timeouts personnalisés prouvés |
 | `dd26097` | timeouts review, contraintes exhaustives et routines privilégiées interdites |
 | `760c7dd` | stockage permanent, comptage borné et catalogue pilote fail-closed |
+| `ef9b428` | single-flight de readiness et taxonomie canonique dans l'image v2 |
 
 ## Décision de livraison
 
