@@ -46,6 +46,13 @@
 - ADR-0004 — Ingestion agentique (à formaliser au Lot 4.1).
 - ADR-0024 — Runtime v2 lecture/revue fail-closed (accepté au LOT41U) : aucun
   writer n'est déployé avant les autorités LOT41A/LOT42.
+- ADR-0025 — Autorité de revue humaine GitHub (accepté au LOT41V) : review
+  formelle liée au head exact, workflow de base privilégié et checks associés
+  à l'application GitHub Actions.
+
+LOT41V installe uniquement la frontière d'identité et de décision humaine. Il
+ne constitue ni l'autorisation de scope LOT41A, ni les attestations de contenu
+`quality → gate → review` LOT42, et ne modifie aucun verrou métier.
 
 ## Cadence opérationnelle
 
