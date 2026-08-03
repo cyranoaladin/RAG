@@ -63,7 +63,7 @@ _DENSE_SQL = f"""
                collection, tenant, niveau, voie, matiere, statut_enseignement,
                candidat, audience, visibility, school_year, programme_version,
                vector <=> %s::vector AS distance
-        FROM rag_chunks
+        FROM public.rag_chunks
         WHERE {_SCOPE_PREDICATE_SQL}
           AND text IS NOT NULL AND btrim(text) <> '' AND vector IS NOT NULL
           AND btrim(source_label) <> '' AND btrim(source_uri) <> ''
@@ -113,7 +113,7 @@ _LEXICAL_SQL = f"""
            collection, tenant, niveau, voie, matiere, statut_enseignement,
            candidat, audience, visibility, school_year, programme_version,
            ts_rank_cd(text_tsv, lexical_query.value, 32) AS lexical_score
-    FROM rag_chunks
+    FROM public.rag_chunks
     CROSS JOIN lexical_query
     WHERE {_SCOPE_PREDICATE_SQL}
       AND text IS NOT NULL AND btrim(text) <> '' AND vector IS NOT NULL

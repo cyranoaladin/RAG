@@ -174,7 +174,9 @@ def test_reviewed_chunk_counts_use_the_bounded_shared_pool(
     }
     assert connection_calls == 1
     assert executed["settings"] is settings
-    assert "SELECT collection, COUNT(*) FROM rag_chunks" in str(executed["sql"])
+    assert "SELECT collection, COUNT(*) FROM public.rag_chunks" in str(
+        executed["sql"]
+    )
     assert BASE_SCOPE.tenant in executed["params"]
 
 
@@ -1105,7 +1107,8 @@ class TestHybridSearchDelegation:
         assert "SELECT %s::vector IS NOT NULL" in executed_sql[1]
         assert executed_sql[3].strip() == ("SET LOCAL hnsw.iterative_scan = 'strict_order'")
         assert "WITH hnsw_candidates AS MATERIALIZED" in executed_sql[5]
-        assert executed_sql[5].count("FROM rag_chunks") == 1
+        assert executed_sql[5].count("FROM public.rag_chunks") == 1
+        assert "FROM rag_chunks" not in executed_sql[5]
         assert "ranked_pool.chunk_id ASC" in executed_sql[5]
         assert "SENSITIVE_DSN_SENTINEL" not in response.text
         assert "SENSITIVE_QUERY_SENTINEL" not in response.text

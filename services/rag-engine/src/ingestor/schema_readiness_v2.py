@@ -299,7 +299,7 @@ SELECT
             jsonb_build_array(version, file_name, sha256)
             ORDER BY version
         )
-        FROM rag_schema_migrations
+        FROM public.rag_schema_migrations
     ), '[]'::jsonb),
     (
         SELECT jsonb_build_array(

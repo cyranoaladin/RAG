@@ -257,6 +257,17 @@ class TestGovernanceInvariant:
             review.review_decide
         )
 
+    def test_queue_and_decision_schema_qualify_the_review_relation(self) -> None:
+        """Le catalogue implicite ne doit jamais pouvoir détourner la review."""
+        import inspect
+
+        queue_source = inspect.getsource(review.list_queue)
+        decision_source = inspect.getsource(review.review_decide)
+        assert queue_source.count("public.rag_chunks") == 2
+        assert "FROM rag_chunks" not in queue_source
+        assert "UPDATE public.rag_chunks" in decision_source
+        assert "UPDATE rag_chunks" not in decision_source
+
     def test_review_connection_applies_connect_statement_and_lock_timeouts(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:

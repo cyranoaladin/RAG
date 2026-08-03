@@ -143,6 +143,16 @@ class TestReviewStatusAlwaysNeedsReview:
         )
         assert r.review_status == "needs_review"
 
+    def test_writer_schema_qualifies_the_governed_relation(self) -> None:
+        """Une relation homonyme du search path ne doit pas détourner l'écriture."""
+        import inspect
+
+        from ingestor.ingest_v2 import ingest_document
+
+        source = inspect.getsource(ingest_document)
+        assert "INSERT INTO public.rag_chunks" in source
+        assert "INSERT INTO rag_chunks" not in source
+
 
 class TestEndpointRoutes:
     """Verify v2 ingestion endpoints are registered."""

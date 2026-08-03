@@ -239,7 +239,7 @@ def ingest_document(
                 vec_str = "[" + ",".join(str(float(v)) for v in vec) + "]"
 
                 cur.execute("""
-                    INSERT INTO rag_chunks (
+                    INSERT INTO public.rag_chunks (
                         chunk_id, doc_id, chunk_sha256, vector,
                         collection, niveau, voie, audience, matiere,
                         statut_enseignement, domain,

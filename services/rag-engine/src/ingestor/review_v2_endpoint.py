@@ -243,7 +243,7 @@ def list_queue(
             with connection.cursor() as cursor:
                 execute_with_database_budget(
                     cursor,
-                    "SELECT COUNT(*) FROM (SELECT 1 FROM rag_chunks "
+                    "SELECT COUNT(*) FROM (SELECT 1 FROM public.rag_chunks "
                     "WHERE review_status = 'needs_review' AND "
                     + scope_sql
                     + " GROUP BY doc_id, collection) AS scoped_documents",
@@ -260,7 +260,7 @@ def list_queue(
                            source_kind, type_doc, COUNT(*) AS chunk_count,
                            MIN(indexed_at) AS first_indexed,
                            MAX(indexed_at) AS last_indexed
-                    FROM rag_chunks
+                    FROM public.rag_chunks
                     WHERE review_status = 'needs_review' AND
                     """
                     + scope_sql
@@ -338,7 +338,7 @@ def review_decide(
                 execute_with_database_budget(
                     cursor,
                     f"""
-                    UPDATE rag_chunks SET review_status = %s
+                    UPDATE public.rag_chunks SET review_status = %s
                     WHERE {target_column} = %s
                       AND review_status = ANY(%s::text[])
                       AND {scope_sql}

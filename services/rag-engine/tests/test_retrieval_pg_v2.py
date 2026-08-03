@@ -57,7 +57,7 @@ DENSE_SQL = _normalize_sql(
                collection, tenant, niveau, voie, matiere, statut_enseignement,
                candidat, audience, visibility, school_year, programme_version,
                vector <=> %s::vector AS distance
-        FROM rag_chunks
+        FROM public.rag_chunks
         WHERE collection = %s
           AND tenant = %s
           AND niveau = %s
@@ -124,7 +124,7 @@ LEXICAL_SQL = _normalize_sql(
            collection, tenant, niveau, voie, matiere, statut_enseignement,
            candidat, audience, visibility, school_year, programme_version,
            ts_rank_cd(text_tsv, lexical_query.value, 32) AS lexical_score
-    FROM rag_chunks
+    FROM public.rag_chunks
     CROSS JOIN lexical_query
     WHERE collection = %s
       AND tenant = %s
@@ -412,7 +412,10 @@ def test_dense_sql_is_one_bounded_ann_scan_with_determinism_inside_the_pool() ->
     assert _DENSE_ANN_POOL_FACTOR == 4
     assert _DENSE_ANN_POOL_LIMIT == CHANNEL_LIMIT * 4 == 200
     assert _DENSE_ANN_PROBE_LIMIT == _DENSE_ANN_POOL_LIMIT + 1 == 201
-    assert DENSE_SQL.count("FROM rag_chunks") == 1
+    assert DENSE_SQL.count("FROM public.rag_chunks") == 1
+    assert "FROM rag_chunks" not in DENSE_SQL
+    assert LEXICAL_SQL.count("FROM public.rag_chunks") == 1
+    assert "FROM rag_chunks" not in LEXICAL_SQL
     assert DENSE_SQL.count("collection = %s") == 1
     assert DENSE_SQL.count("review_status = 'reviewed'") == 1
     assert DENSE_SQL.count("vector IS NOT NULL") == 1

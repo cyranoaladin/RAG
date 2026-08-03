@@ -85,7 +85,12 @@ def apply_readiness_statement_budget(cursor: Any) -> None:
 def no_auxiliary_relation_privileges_sql(
     allowed_relations: tuple[tuple[str, str], ...],
 ) -> str:
-    """Construire le prédicat PG16 interdisant les droits hors allowlist."""
+    """Construire le prédicat PG16 interdisant les droits hors allowlist.
+
+    Les relations natives de ``pg_catalog`` ont un OID inférieur à
+    FirstNormalObjectId (16384). Une relation ajoutée ensuite dans ce schéma
+    reste donc inspectée au lieu de profiter de l'exclusion du catalogue.
+    """
     if (
         not allowed_relations
         or len(set(allowed_relations)) != len(allowed_relations)
@@ -108,9 +113,11 @@ NOT EXISTS (
     FROM pg_class AS auxiliary_relation
     JOIN pg_namespace AS auxiliary_namespace
       ON auxiliary_namespace.oid = auxiliary_relation.relnamespace
-    WHERE auxiliary_namespace.nspname NOT IN (
-              'pg_catalog', 'information_schema'
+    WHERE (
+              auxiliary_namespace.nspname <> 'pg_catalog'
+              OR auxiliary_relation.oid >= 16384
           )
+      AND auxiliary_namespace.nspname <> 'information_schema'
       AND auxiliary_namespace.nspname NOT LIKE 'pg_toast%'
       AND auxiliary_namespace.nspname NOT LIKE 'pg_temp_%'
       AND (

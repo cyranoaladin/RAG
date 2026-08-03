@@ -514,7 +514,7 @@ def _get_reviewed_chunk_counts(
                 with connection.cursor() as cursor:
                     execute_with_database_budget(
                         cursor,
-                        "SELECT collection, COUNT(*) FROM rag_chunks WHERE "
+                        "SELECT collection, COUNT(*) FROM public.rag_chunks WHERE "
                         + " OR ".join(clauses)
                         + " GROUP BY collection",
                         tuple(params),

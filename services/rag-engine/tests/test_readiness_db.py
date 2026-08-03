@@ -53,6 +53,9 @@ def test_auxiliary_relation_predicate_uses_an_explicit_safe_allowlist() -> None:
     assert "HAS_TABLE_PRIVILEGE" in normalized
     assert "HAS_ANY_COLUMN_PRIVILEGE" in normalized
     assert "HAS_SEQUENCE_PRIVILEGE" in normalized
+    assert "AUXILIARY_RELATION.OID >= 16384" in normalized
+    assert "AUXILIARY_NAMESPACE.NSPNAME <> 'PG_CATALOG'" in normalized
+    assert "'PG_CATALOG', 'INFORMATION_SCHEMA'" not in normalized
     assert "MAINTAIN" not in normalized  # PostgreSQL 16 ne supporte pas ce droit.
 
 
