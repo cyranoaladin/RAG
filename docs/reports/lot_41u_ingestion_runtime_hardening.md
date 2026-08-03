@@ -26,7 +26,7 @@ preuves opérationnelles externes doivent être obtenues. Aucun verrou
 | Date | 2026-08-02 |
 | Baseline `main` | `ea18ba52da5778f628c4943705dd81dfa43fbc15` |
 | Branche | `lot-41u-ingestion-runtime-hardening` |
-| Head applicatif audité avant ce commit documentaire | `a6cc47abee1aa6d247dfe9239a8a18c34f3437ee` |
+| Head applicatif audité avant ce commit documentaire | `294ba283b353e7a29741fe5d9d3eee2f431f3407` |
 | Plan de données | runtime FastAPI v2, PostgreSQL/pgvector, Compose, Nginx |
 | Contrats partagés | aucune évolution |
 | Verrous de gouvernance | aucun changement, 18/18 conformes |
@@ -487,7 +487,24 @@ le bootstrap frais.
 Le cycle TDD a d'abord échoué sur cinq régressions ciblées. Après correction,
 223 tests modèles/runtime/readiness/runner sont verts, Ruff et `mypy` sont
 verts, et l'intégration PostgreSQL réelle conclut
-`REVIEW_ROLE_MIGRATION_REGISTRY_ACCESS_REJECTED=PASS` puis
+`REVIEW_ROLE_MIGRATION_REGISTRY_INSERT_REJECTED=PASS` puis
+`LOT40_HYBRID_INTEGRATION=PASS`.
+
+La revue Cubic du head `4046f83` a correctement signalé que la sérialisation
+seule laissait encore une fenêtre entre l'attestation de démarrage et le premier
+retrieval. Le commit `294ba28` construit donc embedding et reranker dans le
+lifespan, avant le `yield` FastAPI, puis revalide l'ensemble borné des chemins,
+inodes, tailles, `mtime` et `ctime` attestés. Un changement pendant le
+chargement fait échouer le démarrage ; aucun trafic ne précède la construction
+des modèles. Le second constat ne portait pas sur le garde lui-même, couvert
+position par position en unité, mais sur une preuve d'intégration surqualifiée :
+le test et son marqueur nomment désormais exactement la mutation `INSERT`
+qu'ils exécutent.
+
+Les 33 tests ciblés du lifespan, des loaders et de la concurrence sont verts,
+comme Ruff et `mypy`. La suite non-intégration complète du moteur et le cycle
+PostgreSQL réel repassent verts ; ce dernier conclut
+`REVIEW_ROLE_MIGRATION_REGISTRY_INSERT_REJECTED=PASS` puis
 `LOT40_HYBRID_INTEGRATION=PASS`.
 
 ## Éléments restant hors de ce lot
@@ -551,6 +568,7 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `ddf8d06` | fixtures runtime hermétiques sans résolution DNS réelle |
 | `826812e` | attente du serveur PostgreSQL final dans le smoke Docker |
 | `a6cc47a` | attestations modèles réutilisées et registre interdit au rôle review |
+| `294ba28` | préchargement des modèles avant trafic et preuve `INSERT` précise |
 
 ## Décision de livraison
 
