@@ -26,7 +26,7 @@ preuves opérationnelles externes doivent être obtenues. Aucun verrou
 | Date | 2026-08-03 |
 | Baseline `main` | `ea18ba52da5778f628c4943705dd81dfa43fbc15` |
 | Branche | `lot-41u-ingestion-runtime-hardening` |
-| Head applicatif audité avant ce commit documentaire | `fccbeb58b83b22cbbb393fb01c287d95a7b627f6` |
+| Head applicatif audité avant ce commit documentaire | `1d49a4797c88c1c72e8c284049a55c88a57dcfcc` |
 | Plan de données | runtime FastAPI v2, PostgreSQL/pgvector, Compose, Nginx |
 | Contrats partagés | aucune évolution |
 | Verrous de gouvernance | aucun changement, 18/18 conformes |
@@ -1240,6 +1240,43 @@ ciblés de surface, readiness et pool sont verts ; Ruff et `mypy` le sont aussi.
 Le head documentaire suivant doit recevoir de nouvelles preuves locales et
 GitHub exactes avant fusion.
 
+La CI locale exhaustive du head documentaire `ed715c7` a ensuite réussi
+**13 contrôles sur 13**, sans échec : 1 757 tests `rag-pedago`, toute la suite
+non-intégration du moteur, le smoke PostgreSQL réel, 178 tests Cockpit, deux
+builds Next.js et zéro vulnérabilité npm. Le run GitHub `pull_request` exact
+[`30851343463`](https://github.com/cyranoaladin/RAG/actions/runs/30851343463)
+a réussi ses six jobs racine ; GitGuardian et Cubic sont verts, et la lecture
+GraphQL comptait zéro fil non résolu avant la revue Codex finale.
+
+Cette revue Codex exacte a néanmoins ouvert un nouveau P1 avant fusion : le
+prédicat de relations auxiliaires excluait globalement `pg_catalog`, tandis que
+les requêtes retrieval et review utilisaient encore `rag_chunks` sans schéma.
+Une relation utilisateur homonyme ajoutée au catalogue pouvait donc précéder
+`public` dans la résolution PostgreSQL tout en échappant à la readiness.
+
+Le commit applicatif `1d49a4797c88c1c72e8c284049a55c88a57dcfcc`
+ferme les deux couches du scénario :
+
+- toutes les lectures, décisions, écritures v2 et preuves de migration ciblent
+  explicitement `public.rag_chunks` ou `public.rag_schema_migrations` ; le
+  `search_path` ne participe plus au choix de la relation métier ;
+- le prédicat mutualisé continue d'ignorer les relations natives de
+  `pg_catalog`, dont l'OID est inférieur à `FirstNormalObjectId = 16384`, mais
+  inspecte toute relation ajoutée ensuite dans ce schéma ;
+- les tests exigent l'absence de chaque forme SQL non qualifiée dans les
+  canaux dense et lexical, le comptage, la queue, la décision, le writer v2 et
+  la sonde du registre.
+
+Les six tests rouges ont reproduit les références non qualifiées et
+l'exclusion du catalogue avant implémentation. Après correction, 229 tests
+ciblés passent, comme Ruff et `mypy` sur 53 fichiers ; toute la suite
+non-intégration du moteur est verte. PostgreSQL 16 réel conserve sa
+configuration de production — où la création directe d'une table dans
+`pg_catalog` est interdite par défaut — et le cycle complet conclut
+`LOT40_HYBRID_INTEGRATION=PASS`. Le test structurel couvre séparément le cas
+adversarial `OID >= 16384` sans activer le dangereux
+`allow_system_table_mods` dans le banc d'intégration.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -1335,6 +1372,7 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `274eef4` | nettoyage hermétique des tests et assertion SQL dédupliquée |
 | `9f7c9ef` | verrou transitif corrigé pour `fast-uri@3.1.5` |
 | `fccbeb5` | deadline unique de la readiness à l'exécution métier |
+| `1d49a47` | relations PostgreSQL v2 qualifiées et catalogue utilisateur inspecté |
 
 ## Décision de livraison
 
