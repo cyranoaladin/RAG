@@ -16,6 +16,7 @@ from unittest import mock
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MODULE_PATH = REPO_ROOT / "scripts" / "github" / "main_protection.py"
 POLICY_PATH = REPO_ROOT / "scripts" / "github" / "main-protection-policy.json"
+CODEOWNERS_PATH = REPO_ROOT / ".github" / "CODEOWNERS"
 
 SPEC = importlib.util.spec_from_file_location("main_protection", MODULE_PATH)
 if SPEC is None or SPEC.loader is None:
@@ -31,6 +32,7 @@ CONTEXTS = [
     "services/cockpit",
     "governance locks guard",
     "repository controls",
+    "trusted-human-review",
 ]
 _ABSENT = object()
 
@@ -40,10 +42,10 @@ def expected_policy() -> dict[str, object]:
         "required_status_checks": {"strict": True, "contexts": list(CONTEXTS)},
         "enforce_admins": True,
         "required_pull_request_reviews": {
-            "dismiss_stale_reviews": False,
-            "require_code_owner_reviews": False,
-            "required_approving_review_count": 0,
-            "require_last_push_approval": False,
+            "dismiss_stale_reviews": True,
+            "require_code_owner_reviews": True,
+            "required_approving_review_count": 1,
+            "require_last_push_approval": True,
         },
         "restrictions": None,
         "required_linear_history": True,
@@ -158,17 +160,23 @@ class PolicyContractTests(unittest.TestCase):
         for key in ("allow_force_pushes", "allow_deletions", "lock_branch"):
             self.assertIs(policy[key], False)
 
-    def test_policy_requires_prs_without_blocking_solo_approvals(self) -> None:
+    def test_policy_requires_an_independent_current_code_owner_review(self) -> None:
         policy = main_protection.load_policy(POLICY_PATH)
         reviews = policy["required_pull_request_reviews"]
         self.assertEqual(
             reviews,
             {
-                "dismiss_stale_reviews": False,
-                "require_code_owner_reviews": False,
-                "required_approving_review_count": 0,
-                "require_last_push_approval": False,
+                "dismiss_stale_reviews": True,
+                "require_code_owner_reviews": True,
+                "required_approving_review_count": 1,
+                "require_last_push_approval": True,
             },
+        )
+
+    def test_codeowners_requires_abenrhouma_for_every_path(self) -> None:
+        self.assertEqual(
+            CODEOWNERS_PATH.read_text(encoding="utf-8"),
+            "* @abenrhouma\n",
         )
 
     def test_load_policy_refuses_unknown_keys_and_duplicate_contexts(self) -> None:

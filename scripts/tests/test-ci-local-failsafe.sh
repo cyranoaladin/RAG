@@ -1098,7 +1098,7 @@ from pathlib import Path
 
 import yaml
 
-PROTECTED_CONTEXTS = (
+WORKFLOW_CONTEXTS = (
     "packages/contracts",
     "services/rag-pedago",
     "services/rag-engine",
@@ -1106,11 +1106,12 @@ PROTECTED_CONTEXTS = (
     "governance locks guard",
     "repository controls",
 )
+EXTERNAL_CONTEXTS = ("trusted-human-review",)
 
 workflows_dir = Path(sys.argv[1])
 errors: list[str] = []
 context_locations: dict[str, list[Path]] = {
-    context: [] for context in PROTECTED_CONTEXTS
+    context: [] for context in WORKFLOW_CONTEXTS + EXTERNAL_CONTEXTS
 }
 try:
     workflow_candidates = sorted(
@@ -1160,7 +1161,7 @@ for candidate in workflow_candidates:
                 )
             context_locations[effective_name].append(candidate)
 
-for context in PROTECTED_CONTEXTS:
+for context in WORKFLOW_CONTEXTS:
     locations = context_locations[context]
     if len(locations) != 1:
         errors.append(
@@ -1172,6 +1173,14 @@ for context in PROTECTED_CONTEXTS:
         errors.append(
             f"contexte protégé {context!r} interdit hors ci.yml: "
             + ", ".join(outside_ci)
+        )
+
+for context in EXTERNAL_CONTEXTS:
+    locations = context_locations[context]
+    if locations:
+        errors.append(
+            f"contexte externe {context!r} ne doit être le nom d'aucun job: "
+            + ", ".join(path.name for path in locations)
         )
 
 if errors:
@@ -1202,7 +1211,7 @@ assert_protected_context_provenance() {
     if validation_output="$(
         validate_protected_context_provenance "$workflows_dir"
     )"; then
-        echo "  PASS  les six contextes protégés proviennent uniquement de ci.yml"
+        echo "  PASS  les contextes CI sont uniques et le contexte externe n'est pas usurpé"
         TESTS_PASS=$((TESTS_PASS + 1))
     else
         echo "  FAIL  $validation_output"
