@@ -159,6 +159,29 @@ def test_cold_model_loads_reuse_startup_paths_and_are_serialized(
     ]
 
 
+def test_preload_runtime_models_rejects_wrong_embedding_dimension(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ingestor import retrieval_v2_endpoint as endpoint
+    from ingestor.embedding_contract import EmbeddingContractError
+
+    embedder = SimpleNamespace(get_sentence_embedding_dimension=lambda: 768)
+    reranker_loaded = False
+
+    def load_reranker() -> object:
+        nonlocal reranker_loaded
+        reranker_loaded = True
+        return object()
+
+    monkeypatch.setattr(endpoint, "_get_embed_model", lambda: embedder)
+    monkeypatch.setattr(endpoint, "_get_reranker", load_reranker)
+
+    with pytest.raises(EmbeddingContractError, match="EMBEDDING_RUNTIME_DIMENSION_MISMATCH"):
+        endpoint.preload_runtime_models()
+
+    assert reranker_loaded is False
+
+
 def _mock_retrieval_identity(endpoint: object, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         endpoint,

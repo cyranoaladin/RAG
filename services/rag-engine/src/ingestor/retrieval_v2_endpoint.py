@@ -37,7 +37,10 @@ try:
         resolve_collection_v2,
     )
     from .embedding_contract import (
+        EmbeddingContractError,
+        declared_embedding_dim,
         load_embedding_model,
+        runtime_embedding_dimension,
     )
     from .identity_v2 import VerifiedInternalIdentity, require_internal_identity
     from .pg_pool import PoolSettings, pool_connection
@@ -73,7 +76,10 @@ except (ImportError, ValueError):
         resolve_collection_v2,
     )
     from embedding_contract import (  # type: ignore[no-redef]
+        EmbeddingContractError,
+        declared_embedding_dim,
         load_embedding_model,
+        runtime_embedding_dimension,
     )
     from identity_v2 import (  # type: ignore[no-redef]
         VerifiedInternalIdentity,
@@ -217,8 +223,10 @@ def reset_runtime_model_state() -> None:
 
 
 def preload_runtime_models() -> None:
-    """Construire les deux modèles attestés avant d'accepter du trafic."""
-    _get_embed_model()
+    """Construire les modèles et prouver la dimension native avant trafic."""
+    embed_model = _get_embed_model()
+    if runtime_embedding_dimension(embed_model) != declared_embedding_dim():
+        raise EmbeddingContractError("EMBEDDING_RUNTIME_DIMENSION_MISMATCH")
     _get_reranker()
 
 

@@ -27,7 +27,7 @@ try:
         attest_verified_model_artifact,
         model_artifact_attestation_ready,
     )
-    from .pg_pool import close_pool
+    from .pg_pool import PoolSettings, close_pool
     from .reranker_contract import verify_configured_reranker_artifact
     from .retrieval_readiness_v2 import retrieval_database_ready
     from .review_readiness_v2 import review_database_ready
@@ -49,7 +49,7 @@ except (ImportError, ValueError):
         attest_verified_model_artifact,
         model_artifact_attestation_ready,
     )
-    from pg_pool import close_pool  # type: ignore[no-redef]
+    from pg_pool import PoolSettings, close_pool  # type: ignore[no-redef]
     from reranker_contract import (  # type: ignore[no-redef]
         verify_configured_reranker_artifact,
     )
@@ -265,6 +265,7 @@ def health_check() -> dict[str, str | int]:
     if not rag_dsn or not review_dsn:
         raise HTTPException(status_code=503, detail="service unavailable")
     try:
+        pool_settings = PoolSettings.from_env()
         model = declared_embedding_model()
         declared_dim = declared_embedding_dim()
         model_artifacts_ready = _model_artifacts_ready()
@@ -279,6 +280,7 @@ def health_check() -> dict[str, str | int]:
     if (
         model != CANONICAL_EMBED_MODEL
         or declared_dim != CANONICAL_EMBED_DIM
+        or pool_settings.dsn != rag_dsn
         or database_dim != CANONICAL_EMBED_DIM
         or not schema_ready
         or not retrieval_ready

@@ -112,3 +112,8 @@
 **/dist/**
 **/build
 **/build/**
+
+# The signed retrieval scope is package data required by every v2 identity
+# boundary. These rules intentionally follow the generic artifacts deny.
+!packages/contracts/src/nexus_contracts/artifacts/
+!packages/contracts/src/nexus_contracts/artifacts/pilot-retrieval-scope-v1.json

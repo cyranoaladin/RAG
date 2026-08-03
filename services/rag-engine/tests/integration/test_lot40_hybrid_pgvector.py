@@ -783,6 +783,22 @@ def test_review_readiness_rejects_trigger_privilege() -> None:
     print("REVIEW_ROLE_TRIGGER_PRIVILEGE_REJECTED=PASS")
 
 
+def test_review_readiness_rejects_column_level_references() -> None:
+    with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+        connection.execute(
+            "GRANT REFERENCES (source_label) ON TABLE rag_chunks TO lot41_review"
+        )
+    try:
+        assert review_database_ready(REVIEW_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(
+                "REVOKE REFERENCES (source_label) ON TABLE rag_chunks FROM lot41_review"
+            )
+    assert review_database_ready(REVIEW_DSN) is True
+    print("REVIEW_ROLE_COLUMN_LEVEL_REFERENCES_REJECTED=PASS")
+
+
 def test_review_readiness_rejects_migration_registry_insert() -> None:
     with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
         connection.execute(

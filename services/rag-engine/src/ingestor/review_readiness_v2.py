@@ -26,6 +26,7 @@ _REQUIRED_REVIEW_PRIVILEGES: Final = (
     False,  # pas de DELETE
     False,  # pas de TRUNCATE
     False,  # pas de TRIGGER
+    True,  # aucune colonne ne permet REFERENCES
     False,  # pas d'UPDATE au niveau table
     True,  # UPDATE limité à review_status
     True,  # aucune autre colonne modifiable
@@ -70,6 +71,9 @@ SELECT
     has_table_privilege(current_user, 'public.rag_chunks', 'DELETE'),
     has_table_privilege(current_user, 'public.rag_chunks', 'TRUNCATE'),
     has_table_privilege(current_user, 'public.rag_chunks', 'TRIGGER'),
+    NOT has_any_column_privilege(
+        current_user, 'public.rag_chunks', 'REFERENCES'
+    ),
     has_table_privilege(current_user, 'public.rag_chunks', 'UPDATE'),
     has_column_privilege(
         current_user, 'public.rag_chunks', 'review_status', 'UPDATE'

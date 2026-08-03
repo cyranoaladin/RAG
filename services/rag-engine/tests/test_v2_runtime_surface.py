@@ -151,6 +151,50 @@ def test_health_is_ready_only_for_schema_003_and_canonical_embedding(
     }
 
 
+@pytest.mark.parametrize(
+    ("variable", "value"),
+    (
+        ("PG_POOL_MIN_SIZE", "not-an-int"),
+        ("PG_POOL_MAX_SIZE", "0"),
+        ("PG_POOL_TIMEOUT_S", "nan"),
+    ),
+)
+def test_health_rejects_invalid_pool_configuration(
+    monkeypatch: pytest.MonkeyPatch,
+    variable: str,
+    value: str,
+) -> None:
+    monkeypatch.setenv("PG_RAG_DSN", "postgresql://reader")
+    monkeypatch.setenv("PG_REVIEW_DSN", "postgresql://reviewer")
+    monkeypatch.setenv(variable, value)
+    monkeypatch.setattr(
+        api_v2,
+        "_cached_database_readiness",
+        lambda _rag_dsn, _review_dsn: (
+            api_v2.CANONICAL_EMBED_DIM,
+            True,
+            True,
+            True,
+        ),
+    )
+    monkeypatch.setattr(api_v2, "_model_artifacts_ready", lambda: True)
+    monkeypatch.setattr(
+        api_v2,
+        "declared_embedding_model",
+        lambda: api_v2.CANONICAL_EMBED_MODEL,
+    )
+    monkeypatch.setattr(
+        api_v2,
+        "declared_embedding_dim",
+        lambda: api_v2.CANONICAL_EMBED_DIM,
+    )
+
+    response = TestClient(api_v2.app).get("/health")
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "service unavailable"}
+
+
 def test_health_caches_deep_database_readiness_for_a_bounded_interval(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -511,6 +555,17 @@ def test_v2_docker_context_allowlist_contains_every_explicit_copy_source() -> No
 
     assert copy_sources
     assert copy_sources <= allowlist
+
+
+def test_v2_docker_context_keeps_signed_scope_artifact_after_hard_denies() -> None:
+    rules = DOCKERIGNORE.read_text(encoding="utf-8").splitlines()
+    artifact_rule = (
+        "!packages/contracts/src/nexus_contracts/artifacts/"
+        "pilot-retrieval-scope-v1.json"
+    )
+
+    assert artifact_rule in rules
+    assert rules.index(artifact_rule) > rules.index("**/artifacts/**")
 
 
 @pytest.mark.parametrize(

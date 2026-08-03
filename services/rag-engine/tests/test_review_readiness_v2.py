@@ -15,6 +15,7 @@ EXPECTED_REVIEW_PRIVILEGES = (
     False,  # pas de DELETE
     False,  # pas de TRUNCATE
     False,  # pas de TRIGGER
+    True,  # aucune colonne ne permet REFERENCES
     False,  # pas d'UPDATE au niveau table
     True,  # UPDATE limité à review_status
     True,  # aucune autre colonne modifiable
@@ -119,6 +120,7 @@ def test_review_database_ready_proves_the_exact_least_privilege_contract(
     assert "ATTNAME" in normalized
     assert "'INSERT'" in normalized
     assert "'TRIGGER'" in normalized
+    assert "'REFERENCES'" in normalized
     assert "ATTNAME <> 'REVIEW_STATUS'" in normalized
     assert "RAG_SCHEMA_MIGRATIONS" in normalized
     assert normalized.count("HAS_ANY_COLUMN_PRIVILEGE") >= 4
