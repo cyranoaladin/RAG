@@ -2,7 +2,7 @@
 
 ## Verdict
 
-**LOT41U_SCOPE_SCHEMA_ATTESTATION_GREEN_AWAITING_EXACT_HEAD_CI**
+**LOT41U_TRIGGER_TEST_GREEN_AWAITING_EXACT_HEAD_CI**
 
 LOT41U ferme les quatre constats P1 du runtime relevés par l'audit indépendant
 de `main@ea18ba52da5778f628c4943705dd81dfa43fbc15`. Le stack v2 n'embarque
@@ -26,7 +26,7 @@ preuves opérationnelles externes doivent être obtenues. Aucun verrou
 | Date | 2026-08-02 |
 | Baseline `main` | `ea18ba52da5778f628c4943705dd81dfa43fbc15` |
 | Branche | `lot-41u-ingestion-runtime-hardening` |
-| Head applicatif audité avant ce commit documentaire | `9ac295d62d8f7d5a71563c48442b1fbaec3c9d6b` |
+| Head applicatif audité avant ce commit documentaire | `46c107b5ea4eb51b15a56852fb6961c4442e25e0` |
 | Plan de données | runtime FastAPI v2, PostgreSQL/pgvector, Compose, Nginx |
 | Contrats partagés | aucune évolution |
 | Verrous de gouvernance | aucun changement, 18/18 conformes |
@@ -682,6 +682,23 @@ non-intégration du moteur. Le smoke PostgreSQL 16 ajoute un vrai trigger
 head sain avec `SCHEMA_TRIGGER_DRIFT_REJECTED=PASS`; le run se termine par
 `LOT40_HYBRID_INTEGRATION=PASS`.
 
+La CI GitHub `pull_request` du head documentaire `ef5701f`,
+[`30788962089`](https://github.com/cyranoaladin/RAG/actions/runs/30788962089),
+a ensuite réussi les six jobs obligatoires sur ce SHA exact, ainsi que
+GitGuardian et Cubic. La revue Cubic exacte a toutefois relevé un P3 valide
+dans le test de dérive des triggers : la création de la fonction et du trigger
+précédait le `try/finally`, de sorte qu'un échec intermédiaire pouvait laisser
+le volume de test contaminé et rendre la relance non déterministe.
+
+Le commit `46c107b5ea4eb51b15a56852fb6961c4442e25e0` place désormais la remise à zéro,
+la création et l'assertion dans le même `try`, puis supprime le trigger et la
+fonction avec `IF EXISTS` dans le `finally`. La préparation est elle-même
+idempotente et nettoie un éventuel résidu d'une exécution interrompue. Ruff est
+vert et le cycle PostgreSQL réel complet repasse, notamment
+`SCHEMA_TRIGGER_DRIFT_REJECTED=PASS` et `LOT40_HYBRID_INTEGRATION=PASS`. Cette
+correction remplace la preuve exacte `ef5701f` et doit obtenir une nouvelle CI
+et une nouvelle revue sur le head documentaire final.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -752,6 +769,7 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `83aa736` | frontière `/search/v2` alignée sur `RetrievalRequest → RetrievalResponse` |
 | `b6a628d` | refus fail-closed des filtres retrieval non implémentés |
 | `9ac295d` | alignement scope/catalogue et attestation exacte des triggers PostgreSQL |
+| `46c107b` | fixture de dérive des triggers PostgreSQL idempotente et nettoyée |
 
 ## Décision de livraison
 
