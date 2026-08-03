@@ -283,6 +283,31 @@ def _validated_permissions(value: object) -> dict[str, dict[str, str]]:
     return normalized
 
 
+def build_expected_challenges(
+    pull_request: object, config: TrustedReviewerConfig
+) -> dict[str, str]:
+    """Dérive les challenges des reviewers depuis une PR validée."""
+
+    if not isinstance(config, TrustedReviewerConfig):
+        raise TypeError("config must be a TrustedReviewerConfig")
+    pr = _pull_request_dimensions(pull_request)
+    return {
+        reviewer: build_challenge(
+            {
+                "repository": config.repository,
+                "pull_request": pr["number"],
+                "base_ref": config.base_ref,
+                "base_sha": pr["base_sha"],
+                "head_sha": pr["head_sha"],
+                "author": pr["author"],
+                "reviewer": reviewer,
+                "protocol": config.protocol,
+            }
+        )
+        for reviewer in config.reviewers
+    }
+
+
 def _decision(
     *,
     approved: bool,
@@ -385,18 +410,7 @@ def evaluate_trusted_review(
             insufficient_permission = True
             continue
 
-        challenge = build_challenge(
-            {
-                "repository": config.repository,
-                "pull_request": pr["number"],
-                "base_ref": config.base_ref,
-                "base_sha": pr["base_sha"],
-                "head_sha": pr["head_sha"],
-                "author": pr["author"],
-                "reviewer": reviewer,
-                "protocol": config.protocol,
-            }
-        )
+        challenge = build_expected_challenges(pull_request, config)[reviewer]
         reviewer_reviews = sorted(
             (
                 review

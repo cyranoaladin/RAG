@@ -155,6 +155,16 @@ class CanonicalChallengeTests(unittest.TestCase):
             trusted_review.build_challenge(reversed_payload),
         )
 
+    def test_expected_challenges_are_derived_from_validated_pr_dimensions(self) -> None:
+        config = trusted_review.load_config(CONFIG_PATH)
+
+        self.assertEqual(
+            trusted_review.build_expected_challenges(
+                valid_pull_request(), config
+            ),
+            {"abenrhouma": trusted_review.build_challenge(valid_payload())},
+        )
+
     def test_challenge_refuses_unknown_missing_or_malformed_fields(self) -> None:
         cases: list[dict[str, object]] = []
 
