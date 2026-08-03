@@ -1015,6 +1015,23 @@ preuves dédiées sont
 `RUNTIME_LARGE_OBJECT_ACL_ENFORCEMENT_LOT41_REVIEW=PASS`; le scénario complet
 conclut encore `LOT40_HYBRID_INTEGRATION=PASS`.
 
+La revue Codex exacte du head
+`9bd18ac2d9e536adc5f0ca0ee7572778d7c0546c` a enfin relevé que le contrat
+de `public.rag_chunks` n'attestait pas encore sa hiérarchie d'héritage. Un
+descendant hérité ou partitionné pouvait donc rester traversé par une requête
+sur la table parente tout en portant ses propres triggers ou règles. Le commit
+applicatif `eea9e6ce89d2934969dc7890e12eccb56f508540` inventorie maintenant les
+deux directions de `pg_inherits` — `rag_chunks` parent ou enfant — avec les
+relations, l'ordre d'héritage et l'état de détachement. Le contrat canonique
+exige l'ensemble exact vide.
+
+Le cycle RED a d'abord échoué faute de ce dixième composant de fingerprint.
+PostgreSQL 16 réel crée ensuite une table héritant de `rag_chunks`, vérifie le
+refus de readiness, supprime le descendant puis vérifie le retour à l'état
+sain : `SCHEMA_INHERITANCE_HIERARCHY_DRIFT_REJECTED=PASS`. Le scénario complet
+conclut `LOT40_HYBRID_INTEGRATION=PASS`; Ruff, `mypy` sur 52 fichiers et les
+1 425 tests non-intégration du moteur sont verts.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -1097,6 +1114,7 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `6f6bc3b` | quota readiness aligné sans surclassement |
 | `54b5cb0` | instance PostgreSQL vivante et sonde de santé globalement bornée |
 | `ac55c0c` | pool ouvert au démarrage, règles exactes et large objects interdits |
+| `eea9e6c` | hiérarchie d'héritage PostgreSQL exactement vide |
 
 ## Décision de livraison
 
