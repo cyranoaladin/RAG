@@ -118,16 +118,24 @@ def test_deep_health_is_loopback_only(name: str) -> None:
     assert "deny all" in health
 
 
-@pytest.mark.parametrize("name", ["rag-v2.conf", "rag-api.conf.template"])
+@pytest.mark.parametrize(
+    ("name", "rate", "burst"),
+    [
+        ("rag-v2.conf", 30, 60),
+        ("rag-api.conf.template", 20, 40),
+    ],
+)
 def test_collection_readiness_does_not_charge_the_business_request_bucket(
     name: str,
+    rate: int,
+    burst: int,
 ) -> None:
     config = _read(name)
     readiness = _location_block(config, "location = /collections/readiness")
 
     assert "limit_req zone=api_v2" not in readiness
-    assert "limit_req zone=readiness_v2" in readiness
-    assert "zone=readiness_v2:" in config
+    assert f"limit_req zone=readiness_v2 burst={burst} nodelay;" in readiness
+    assert f"zone=readiness_v2:10m rate={rate}r/s;" in config
 
 
 def test_canonical_v2_runtime_uses_one_metrics_process() -> None:
