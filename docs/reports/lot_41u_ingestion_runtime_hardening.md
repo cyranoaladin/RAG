@@ -2,7 +2,7 @@
 
 ## Verdict
 
-**LOT41U_FINAL_REVIEW_FIXES_GREEN_AWAITING_EXACT_HEAD_CI**
+**LOT41U_CONTRACT_BOUNDARY_GREEN_AWAITING_EXACT_HEAD_CI**
 
 LOT41U ferme les quatre constats P1 du runtime relevés par l'audit indépendant
 de `main@ea18ba52da5778f628c4943705dd81dfa43fbc15`. Le stack v2 n'embarque
@@ -26,7 +26,7 @@ preuves opérationnelles externes doivent être obtenues. Aucun verrou
 | Date | 2026-08-02 |
 | Baseline `main` | `ea18ba52da5778f628c4943705dd81dfa43fbc15` |
 | Branche | `lot-41u-ingestion-runtime-hardening` |
-| Head applicatif audité avant ce commit documentaire | `2c4322aeecb19d75d7da35618fd90b9c0d650b64` |
+| Head applicatif audité avant ce commit documentaire | `83aa7360d85d4131014998796396bf14d95e8f1b` |
 | Plan de données | runtime FastAPI v2, PostgreSQL/pgvector, Compose, Nginx |
 | Contrats partagés | aucune évolution |
 | Verrous de gouvernance | aucun changement, 18/18 conformes |
@@ -607,6 +607,34 @@ aux rôles retrieval et review ; il n'accorde ni `pg_monitor`, ni héritage, ni
 `RUNTIME_ROLE_SHARED_DATABASE_IDENTITY=PASS`, puis tous les contrôles de
 moindre privilège et `LOT40_HYBRID_INTEGRATION=PASS`.
 
+La revue Codex du head documentaire `9d186ae` a enfin identifié que
+`/search/v2` exposait encore les modèles locaux `SearchV2Request` et
+`SearchV2Response`, tandis que le Cockpit traduisait manuellement
+`q/collection/hits`. Le test de frontière a d'abord échoué en observant
+`SearchV2Request` dans la route FastAPI. Le commit applicatif `83aa736` :
+
+- monte directement `RetrievalRequest → RetrievalResponse` depuis
+  `nexus-contracts` sur `/search/v2` et supprime les DTO publics locaux ;
+- fait construire la requête contractuelle par le BFF depuis l'identité signée
+  et l'artefact de scope, jamais depuis un profil fourni par le navigateur ;
+- résout la collection côté moteur à partir de l'unique matière contractuelle,
+  exige sa présence dans l'artefact signé, puis compare toutes les dimensions
+  d'autorité au scope serveur avant le retrieval ;
+- valide la requête et la réponse avec les schémas générés, propage directement
+  les résultats et avertissements contractuels, et retire la traduction manuelle
+  des hits dans le Cockpit ;
+- refuse l'ancien payload local en `422`, les divergences de profil en `403` et
+  les options de pipeline non supportées sans élargir le scope ;
+- ajoute l'adaptateur contractuel à l'allowlist du contexte Docker et à l'image
+  aplatie, afin que le runtime `api_v2:app` conserve le même chemin d'import que
+  les tests et le code source.
+
+Les tests rouge/vert de la route et du BFF, les 174 tests Cockpit, le lint, le
+typecheck, le build Next.js, la suite non-intégration complète du moteur et le
+smoke PostgreSQL réel sont verts. Ce dernier conclut notamment
+`HTTP_SEARCH_V2=PASS`, `MONO_SUBJECT_HTTP_SCOPE=PASS`,
+`SIGNED_IDENTITY_HTTP_REAL_DB=PASS` et `LOT40_HYBRID_INTEGRATION=PASS`.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -674,6 +702,7 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `8b56c6e` | autorités, catalogue et identité PostgreSQL attestés ; oracle dense exact |
 | `3793f3f` | quarantaine fail-closed, tests catalogue isolés et preuve `ctime` stable |
 | `2c4322a` | exécution minimale de la sonde d'identité par les deux rôles runtime |
+| `83aa736` | frontière `/search/v2` alignée sur `RetrievalRequest → RetrievalResponse` |
 
 ## Décision de livraison
 
