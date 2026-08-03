@@ -26,7 +26,7 @@ preuves opérationnelles externes doivent être obtenues. Aucun verrou
 | Date | 2026-08-03 |
 | Baseline `main` | `ea18ba52da5778f628c4943705dd81dfa43fbc15` |
 | Branche | `lot-41u-ingestion-runtime-hardening` |
-| Head applicatif audité avant ce commit documentaire | `ef9b428df30ad2cc759426730e57866df392d791` |
+| Head applicatif audité avant ce commit documentaire | `95637908ec3aa7d5f95e90b0244dfcb90d47f82e` |
 | Plan de données | runtime FastAPI v2, PostgreSQL/pgvector, Compose, Nginx |
 | Contrats partagés | aucune évolution |
 | Verrous de gouvernance | aucun changement, 18/18 conformes |
@@ -76,6 +76,13 @@ la configuration de déploiement hors du montage ; remplacer ensemble les
 poids, le manifeste et les checksums ne suffit donc plus à passer la readiness.
 Les anciennes variables sans effet `RERANKER_MODEL` et
 `RERANKER_TOP_N` ont été retirées du Compose et de son exemple d'environnement.
+Le BFF conserve au minimum huit secondes pour chaque appel moteur. Toutes les
+phases PostgreSQL d'une même requête partagent désormais une deadline monotone
+de six secondes au maximum, y compris les collections successives de `/chat`,
+les attentes du pool, chaque instruction SQL et le commit d'une décision de
+review. Les valeurs Compose par défaut sont ramenées à une seconde pour la
+connexion et l'acquisition, trois secondes par statement et 500 ms par verrou ;
+un override incompatible avec le budget agrégé échoue avant tout appel métier.
 
 ## Migrations et santé
 
@@ -100,6 +107,7 @@ Une base neuve est initialisée dans cet ordre :
 6. l'API relit les mêmes preuves via un rôle `SELECT`, avec `connect_timeout`,
    `statement_timeout` et transaction read-only, vérifie les privilèges
    effectifs des rôles retrieval et review, refuse toute cible de `SET ROLE`,
+   tout ownership ou droit `CREATE` sur chacun des schémas utilisateur,
    puis le modèle canonique et la dimension pgvector `1024` avant de rendre
    `healthy`.
 
@@ -865,6 +873,43 @@ moteur. L'image `rag-engine-v2:lot41u-taxonomy` a été construite réellement ;
 un processus lancé dans cette image résout `/app/taxonomy` et inventorie 65
 fichiers YAML avec `RUNTIME_TAXONOMY_PACKAGED=PASS`.
 
+La revue Codex exacte du head `955156e8fa2e515176d667caeb9f7df5608954e6`
+a ensuite ouvert deux P1 valides avant fusion. Les sondes limitaient `CREATE`
+au schéma `public` et à la base ; elles pouvaient donc accepter un rôle runtime
+propriétaire d'un autre schéma utilisateur ou autorisé à y créer des objets.
+Par ailleurs, les anciens maxima autorisaient à eux seuls trois secondes de
+connexion puis sept secondes de statement, alors que le Cockpit abandonnait
+l'appel moteur après huit secondes. Les canaux dense et lexical, la queue et
+le commit de review pouvaient donc continuer après le `503` déjà rendu au BFF.
+
+Le commit applicatif `95637908ec3aa7d5f95e90b0244dfcb90d47f82e`
+ferme ces deux frontières :
+
+- les readiness retrieval et review parcourent tous les schémas non système et
+  refusent à la fois le privilège effectif `CREATE` et toute appartenance au
+  rôle propriétaire ; les contrôles existants de `public`, de la base et des
+  chemins `SET ROLE` restent cumulatifs ;
+- un budget PostgreSQL agrégé, monotone et process-local à la requête fixe une
+  limite maximale de 6 000 ms, strictement inférieure au plancher BFF de
+  8 000 ms. Les appels imbriqués partagent la même deadline ; chaque attente
+  de pool et chaque statement est réduit au temps restant ;
+- `/review/v2/decide` réapplique la borne avant le commit qui rend la mutation
+  visible. Les paramètres individuels `connect`, `pool` et `statement` sont
+  rejetés s'ils dépassent le budget global ;
+- le Cockpit refuse une configuration de timeout inférieure à 8 000 ms et les
+  valeurs Compose par défaut deviennent `pool=1 s`, `connect=1 s`,
+  `statement=3 000 ms`, `lock=500 ms`, `budget=6 000 ms`.
+
+Les tests RED ont d'abord échoué sur l'absence du prédicat de schéma et du
+budget partagé. Après correction, toutes les suites unitaires non-intégration
+du moteur passent, Ruff et `mypy` sur 52 fichiers sont verts, et les sept tests
+ciblés du BFF passent. Sur PostgreSQL 16 réel, un schéma appartenant au rôle
+retrieval et un grant `CREATE` au rôle review ferment simultanément leur
+readiness ; après suppression, les deux sondes redeviennent vertes avec
+`RUNTIME_USER_SCHEMA_CREATE_REJECTED=PASS`. Le cycle complet migrations,
+rollback, moindre privilège, HNSW, GIN, HTTP et review conclut de nouveau
+`LOT40_HYBRID_INTEGRATION=PASS`.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -942,6 +987,7 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `dd26097` | timeouts review, contraintes exhaustives et routines privilégiées interdites |
 | `760c7dd` | stockage permanent, comptage borné et catalogue pilote fail-closed |
 | `ef9b428` | single-flight de readiness et taxonomie canonique dans l'image v2 |
+| `9563790` | schémas utilisateur interdits et budget PostgreSQL inférieur au BFF |
 
 ## Décision de livraison
 
