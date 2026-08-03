@@ -26,7 +26,7 @@ preuves opérationnelles externes doivent être obtenues. Aucun verrou
 | Date | 2026-08-03 |
 | Baseline `main` | `ea18ba52da5778f628c4943705dd81dfa43fbc15` |
 | Branche | `lot-41u-ingestion-runtime-hardening` |
-| Head applicatif audité avant ce commit documentaire | `48d4752c7ee83f8352823c0edc578a70d4dd4bb5` |
+| Head applicatif audité avant ce commit documentaire | `58f545f8c7fc1702ad1989fb2541df9cea1dc3d6` |
 | Plan de données | runtime FastAPI v2, PostgreSQL/pgvector, Compose, Nginx |
 | Contrats partagés | aucune évolution |
 | Verrous de gouvernance | aucun changement, 18/18 conformes |
@@ -1061,6 +1061,45 @@ fois le `503` et le maintien du chunk en `needs_review` :
 redevient saine et le scénario complet conclut
 `LOT40_HYBRID_INTEGRATION=PASS`.
 
+La revue Codex exacte du head
+`579ec365a56aa63ba51f9589975781a18480151a` a ensuite identifié deux P1
+valides. Le premier concernait les routines privilégiées créées dans un schéma
+système : la sonde excluait `pg_catalog` par son nom et pouvait donc ignorer
+une fonction `SECURITY DEFINER` ajoutée après l'installation. Le second
+concernait le budget du retrieval : sa deadline monotone couvrait le pipeline,
+mais seules les opérations PostgreSQL consultaient encore son reliquat ; une
+inférence lente pouvait continuer après le timeout du BFF et des requêtes
+concurrentes pouvaient multiplier les travaux CPU.
+
+Le commit applicatif `58f545f8c7fc1702ad1989fb2541df9cea1dc3d6`
+ferme les deux frontières :
+
+- les routines natives sont distinguées par la provenance garantie de leur
+  OID PostgreSQL, inférieur à `FirstNormalObjectId = 16384`. Toute routine
+  créée ultérieurement avec `SECURITY DEFINER` et exécutable par un rôle
+  runtime est refusée, y compris dans `pg_catalog`, `information_schema` ou un
+  schéma temporaire ;
+- embeddings, canaux SQL et reranking partagent la même deadline de requête,
+  bornée à six secondes et donc inférieure aux huit secondes du BFF ;
+- les résultats des modèles sont entièrement matérialisés sous cette deadline,
+  sans laisser un générateur différer du calcul hors de la borne ;
+- un exécuteur dédié possède exactement un worker et un sémaphore de capacité
+  un. Une requête saturée échoue immédiatement sans soumettre ni mettre en file
+  une nouvelle inférence. Une tâche ayant dépassé sa deadline conserve son
+  unique créneau jusqu'à sa terminaison, car interrompre arbitrairement du code
+  natif ML ne serait pas sûr ; elle ne peut donc pas provoquer une croissance
+  non bornée du travail CPU.
+
+Le cycle RED a échoué sur l'ancien prédicat par namespace et sur l'absence du
+module d'inférence bornée. Après implémentation, 135 tests ciblés de deadline,
+saturation, pool, endpoint et readiness sont verts ; Ruff est vert, `mypy`
+valide 53 fichiers et les 1 436 tests non-intégration du moteur réussissent.
+PostgreSQL 16 réel crée une fonction `SECURITY DEFINER` non native directement
+dans `pg_catalog`, constate le refus des deux rôles runtime, la supprime et
+retrouve une readiness saine :
+`RUNTIME_PG_CATALOG_SECURITY_DEFINER_REJECTED=PASS`. Le scénario complet
+conclut encore `LOT40_HYBRID_INTEGRATION=PASS`.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -1145,6 +1184,7 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `ac55c0c` | pool ouvert au démarrage, règles exactes et large objects interdits |
 | `eea9e6c` | hiérarchie d'héritage PostgreSQL exactement vide |
 | `48d4752` | démarrage et routes métier bloqués par la readiness PostgreSQL |
+| `58f545f` | routines non natives et inférences runtime bornées |
 
 ## Décision de livraison
 
