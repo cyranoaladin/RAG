@@ -1277,6 +1277,28 @@ configuration de production — où la création directe d'une table dans
 adversarial `OID >= 16384` sans activer le dangereux
 `allow_system_table_mods` dans le banc d'intégration.
 
+La CI locale exhaustive du head `ddd92ca` a ensuite réussi **13 contrôles sur
+13**, dont le smoke PostgreSQL réel. Le run GitHub exact
+[`30854699427`](https://github.com/cyranoaladin/RAG/actions/runs/30854699427)
+a validé cinq des six jobs racine, GitGuardian et Cubic, mais le job
+`rag-engine` a exposé une variance de construction HNSW : le voisin exact
+`target-dense-only` était absent du pool ANN, ce qui faisait échouer trois
+assertions exigeant à tort ce canari dans les réponses runtime. Les logs
+confirmaient que migrations, readiness, privilèges, schéma, plans HNSW/GIN et
+scopes étaient déjà passés ; seule cette prétention d'exactitude ANN tombait.
+
+Le commit `726e103` aligne la preuve sur le contrat LOT40 sans modifier le
+runtime : la fusion et les scores des canaris dense/lexical sont vérifiés par
+le store séquentiel exact, tandis que les routes HNSW réelles continuent de
+prouver le scope, la taille, le candidat lexical déterministe, les citations,
+les métadonnées de score et le verrouillage du chat sans imposer le retour
+d'un voisin exact par un index approximatif. Les contrôles distincts de plan,
+pool `200+1`, ordre interne, sentinelle d'égalité et underfill HNSW restent
+inchangés. Ruff est vert et un nouveau smoke complet sur une base neuve
+conclut `DENSE_EXACT_ORACLE_PREFIX=PASS`, `HYBRID_REAL_DB=PASS`,
+`HTTP_SEARCH_V2=PASS`, `HTTP_CHAT_LOCKED=PASS` puis
+`LOT40_HYBRID_INTEGRATION=PASS`.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -1373,6 +1395,7 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `9f7c9ef` | verrou transitif corrigé pour `fast-uri@3.1.5` |
 | `fccbeb5` | deadline unique de la readiness à l'exécution métier |
 | `1d49a47` | relations PostgreSQL v2 qualifiées et catalogue utilisateur inspecté |
+| `726e103` | assertions runtime alignées sur la sémantique ANN de HNSW |
 
 ## Décision de livraison
 
