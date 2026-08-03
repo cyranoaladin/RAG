@@ -26,7 +26,7 @@ preuves opérationnelles externes doivent être obtenues. Aucun verrou
 | Date | 2026-08-03 |
 | Baseline `main` | `ea18ba52da5778f628c4943705dd81dfa43fbc15` |
 | Branche | `lot-41u-ingestion-runtime-hardening` |
-| Head applicatif audité avant ce commit documentaire | `58f545f8c7fc1702ad1989fb2541df9cea1dc3d6` |
+| Head applicatif audité avant ce commit documentaire | `2885d505a2c90b78647044cc7571c16c9899b07f` |
 | Plan de données | runtime FastAPI v2, PostgreSQL/pgvector, Compose, Nginx |
 | Contrats partagés | aucune évolution |
 | Verrous de gouvernance | aucun changement, 18/18 conformes |
@@ -1100,6 +1100,22 @@ retrouve une readiness saine :
 `RUNTIME_PG_CATALOG_SECURITY_DEFINER_REJECTED=PASS`. Le scénario complet
 conclut encore `LOT40_HYBRID_INTEGRATION=PASS`.
 
+La CI locale exhaustive du head documentaire `592e283` a ensuite détecté un
+avis de sécurité publié pendant le lot : `GHSA-rgw5-rvv9-x895` classait
+`brace-expansion@5.0.8` en sévérité haute pour consommation non bornée de
+mémoire et de CPU. La dépendance était uniquement transitive et de
+développement, via `eslint → minimatch`, mais `npm audit --audit-level=high`
+a correctement rendu la cible Cockpit rouge et la CI a conclu 12 réussites sur
+13 plutôt que de masquer le signal.
+
+Le commit `2885d505a2c90b78647044cc7571c16c9899b07f` met à jour uniquement
+le verrou npm vers la version corrigée `brace-expansion@5.0.9`, autorisée par
+la plage existante de `minimatch`, avec l'URL et l'intégrité publiées par le
+registre npm. Aucun paquet direct ni override local n'est ajouté. Après un
+`npm ci` propre, les 21 fichiers et 175 tests Cockpit réussissent, le build
+Next.js et les contrats sont verts, et `npm audit --audit-level=high` ne
+signale plus aucune vulnérabilité.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -1185,6 +1201,7 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `eea9e6c` | hiérarchie d'héritage PostgreSQL exactement vide |
 | `48d4752` | démarrage et routes métier bloqués par la readiness PostgreSQL |
 | `58f545f` | routines non natives et inférences runtime bornées |
+| `2885d50` | verrou Cockpit corrigé pour `brace-expansion@5.0.9` |
 
 ## Décision de livraison
 
