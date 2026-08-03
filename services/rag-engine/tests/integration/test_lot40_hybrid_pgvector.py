@@ -1340,10 +1340,18 @@ class DeterministicReranker:
                 scores.append(2.60)
             elif text.count("algorithme graphe") == 3:
                 scores.append(2.55)
+            elif text == "algorithme graphe preuve pedagogique de charge":
+                scores.append(0.0)
             else:
                 ordinal = int(text.rsplit(" ", 1)[1])
                 scores.append(2.50 - ordinal / 1000)
         return scores
+
+
+def test_deterministic_reranker_accepts_ann_load_candidates() -> None:
+    assert DeterministicReranker().predict(
+        [(QUERY, "algorithme graphe preuve pedagogique de charge")]
+    ) == [0.0]
 
 
 class EmptyReranker:
