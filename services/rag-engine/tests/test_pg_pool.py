@@ -273,12 +273,30 @@ def test_runtime_request_budget_is_the_same_deadline_used_by_sql(
 ) -> None:
     moments = iter((10.0, 10.5, 11.0))
     monkeypatch.setattr(pg_pool.time, "monotonic", lambda: next(moments))
+    executions: list[tuple[str, object]] = []
+
+    class Cursor:
+        def execute(self, sql: str, params: object = None) -> None:
+            executions.append((sql, params))
 
     with pg_pool.runtime_request_budget(2_000) as request_deadline:
         assert pg_pool.remaining_request_budget_ms() == 1_500
         with pg_pool.runtime_database_budget(1_000) as sql_deadline:
             assert sql_deadline is request_deadline
-            assert pg_pool.remaining_database_budget_ms() == 1_000
+            pg_pool.execute_with_database_budget(
+                Cursor(),
+                "SELECT business_data FROM request_bounded_view",
+                ("scope",),
+                statement_timeout_ms=3_000,
+            )
+
+    assert executions == [
+        (
+            "SELECT set_config('statement_timeout', %s, true)",
+            ("1000",),
+        ),
+        ("SELECT business_data FROM request_bounded_view", ("scope",)),
+    ]
 
 
 def test_runtime_database_budget_fails_after_its_deadline(

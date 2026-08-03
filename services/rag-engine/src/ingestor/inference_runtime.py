@@ -6,6 +6,7 @@ import threading
 from collections.abc import Callable, Iterable, Sequence
 from concurrent.futures import Future, ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeout
+from contextvars import copy_context
 from typing import Any, Final, TypeVar
 
 try:
@@ -49,7 +50,8 @@ def run_bounded_inference(operation: Callable[[], _Result]) -> _Result:
 
     try:
         timeout_s = _remaining_timeout_s()
-        future = _inference_executor.submit(operation)
+        request_context = copy_context()
+        future = _inference_executor.submit(request_context.run, operation)
     except Exception:
         _inference_capacity.release()
         raise InferenceRuntimeError("inference unavailable") from None

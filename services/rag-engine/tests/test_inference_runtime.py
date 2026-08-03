@@ -8,7 +8,7 @@ from threading import Event
 
 import pytest
 
-from src.ingestor import inference_runtime
+from src.ingestor import inference_runtime, pg_pool
 
 
 def _run_after_capacity_release() -> tuple[float, ...]:
@@ -98,6 +98,16 @@ def test_bounded_inference_returns_on_deadline_and_holds_capacity_until_done(
         lambda: 1_000,
     )
     assert _run_after_capacity_release() == (3.0,)
+
+
+def test_bounded_inference_propagates_the_request_deadline_to_its_worker() -> None:
+    with pg_pool.runtime_request_budget(1_000):
+        caller_remainder_ms = pg_pool.remaining_request_budget_ms()
+        worker_remainder_ms = inference_runtime.run_bounded_inference(
+            pg_pool.remaining_request_budget_ms
+        )
+
+    assert 0 < worker_remainder_ms <= caller_remainder_ms <= 1_000
 
 
 def test_model_adapters_materialize_results_inside_bounded_operation(
