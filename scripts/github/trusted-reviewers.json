@@ -1,0 +1,8 @@
+{
+  "protocol": "NEXUS-TRUSTED-REVIEW-V1",
+  "repository": "cyranoaladin/RAG",
+  "base_ref": "main",
+  "reviewers": [
+    "abenrhouma"
+  ]
+}
