@@ -2,7 +2,7 @@
 
 ## Verdict
 
-**LOT41U_FILTER_BOUNDARY_GREEN_AWAITING_EXACT_HEAD_CI**
+**LOT41U_SCOPE_SCHEMA_ATTESTATION_GREEN_AWAITING_EXACT_HEAD_CI**
 
 LOT41U ferme les quatre constats P1 du runtime relevés par l'audit indépendant
 de `main@ea18ba52da5778f628c4943705dd81dfa43fbc15`. Le stack v2 n'embarque
@@ -26,7 +26,7 @@ preuves opérationnelles externes doivent être obtenues. Aucun verrou
 | Date | 2026-08-02 |
 | Baseline `main` | `ea18ba52da5778f628c4943705dd81dfa43fbc15` |
 | Branche | `lot-41u-ingestion-runtime-hardening` |
-| Head applicatif audité avant ce commit documentaire | `b6a628d159a604a66b4e86be5a19798d3cfa220c` |
+| Head applicatif audité avant ce commit documentaire | `9ac295d62d8f7d5a71563c48442b1fbaec3c9d6b` |
 | Plan de données | runtime FastAPI v2, PostgreSQL/pgvector, Compose, Nginx |
 | Contrats partagés | aucune évolution |
 | Verrous de gouvernance | aucun changement, 18/18 conformes |
@@ -94,7 +94,8 @@ Une base neuve est initialisée dans cet ordre :
    uniques,
    les dix définitions d'index, l'expression générée `text_tsv`, cinq
    définitions de contraintes validées, le prédicat exact de l'index de profil,
-   l'absence de RLS et de policy, puis les trois entrées exactes du registre ;
+   l'absence de RLS, de policy et de trigger applicatif, puis les trois entrées
+   exactes du registre ;
 6. l'API relit les mêmes preuves via un rôle `SELECT`, avec `connect_timeout`,
    `statement_timeout` et transaction read-only, vérifie les privilèges
    effectifs des rôles retrieval et review, refuse toute cible de `SET ROLE`,
@@ -652,6 +653,35 @@ rouge/vert, les cinq rôles de visibilité, Ruff, `mypy` sur 52 fichiers et la
 suite non-intégration complète du moteur sont verts. Ce nouveau head remplace
 la preuve `3232a88` et doit donc obtenir sa propre CI GitHub exacte.
 
+La CI GitHub `pull_request` du head documentaire `d4df590`,
+[`30787366866`](https://github.com/cyranoaladin/RAG/actions/runs/30787366866),
+a ensuite réussi ses six jobs obligatoires, ainsi que GitGuardian et Cubic. La
+revue Codex exacte a toutefois ouvert deux nouveaux P1 avant toute fusion :
+`/health` validait séparément le scope pilote signé et le catalogue monté, et
+l'empreinte du schéma ignorait les triggers non internes de `rag_chunks`.
+
+Le commit applicatif `9ac295d62d8f7d5a71563c48442b1fbaec3c9d6b`
+ferme les deux écarts :
+
+- la readiness croise chaque sujet de l'artefact signé avec sa collection
+  déclarée, son domaine strictement retrievable et les dimensions matière,
+  niveau, voie et statut. Une collection peut rester déclarée mais dormante
+  sans être artificiellement activée ; une collection absente, un domaine
+  fermé ou une dimension divergente rendent la santé indisponible ;
+- la sonde du head 003 inclut désormais l'ensemble exact des triggers non
+  internes. Le contrat courant en exige zéro, quelle que soit leur activation,
+  et ne peut donc plus déclarer sain un volume portant un trigger stale capable
+  d'altérer ou de bloquer les décisions de review.
+
+Les tests ont d'abord échoué avec une readiness qui ne consultait jamais
+l'alignement scope/catalogue et une ligne de schéma à huit composantes refusée
+par la sonde à sept composantes. Après correction, les suites unitaires ciblées,
+Ruff et `mypy` sur 52 fichiers sont verts, ainsi que toute la suite
+non-intégration du moteur. Le smoke PostgreSQL 16 ajoute un vrai trigger
+`BEFORE UPDATE`, observe la readiness négative, le supprime, puis retrouve le
+head sain avec `SCHEMA_TRIGGER_DRIFT_REJECTED=PASS`; le run se termine par
+`LOT40_HYBRID_INTEGRATION=PASS`.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -721,6 +751,7 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `2c4322a` | exécution minimale de la sonde d'identité par les deux rôles runtime |
 | `83aa736` | frontière `/search/v2` alignée sur `RetrievalRequest → RetrievalResponse` |
 | `b6a628d` | refus fail-closed des filtres retrieval non implémentés |
+| `9ac295d` | alignement scope/catalogue et attestation exacte des triggers PostgreSQL |
 
 ## Décision de livraison
 
