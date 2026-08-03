@@ -753,6 +753,7 @@ def test_runner_pins_security_bounds_and_cleanup_contract() -> None:
     assert content.index("container_cleanup_armed=1") < content.index("docker run -d")
     assert "LOT40_PG_READY_ATTEMPTS:-30" in content
     assert "LOT40_PG_READY_DELAY_S:-1" in content
+    assert "pg_isready --host 127.0.0.1 --port 5432" in content
     assert "postgresql://$PGVECTOR_USER@127.0.0.1:" in content
     assert "postgresql://$PGVECTOR_APP_USER@127.0.0.1:" in content
     assert "LOT40_PG_ADMIN_DSN" in content

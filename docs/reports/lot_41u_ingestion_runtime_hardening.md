@@ -456,6 +456,14 @@ de résolution ; la validation d'URL est maintenant neutralisée explicitement
 dans cette fixture. Les deux régressions ciblées et Ruff sont verts avant la
 relance exhaustive.
 
+Cette relance a ensuite révélé une course plus profonde dans le smoke Docker :
+`pg_isready` sans hôte interrogeait le socket Unix du serveur PostgreSQL
+temporaire utilisé par l'entrypoint pendant l'initialisation, puis le premier
+`psql` pouvait rencontrer son arrêt avant le lancement du serveur final. Le
+runner attend désormais `127.0.0.1:5432` dans le conteneur ; le serveur
+temporaire n'écoute volontairement pas TCP, donc seul le processus final peut
+satisfaire ce garde-fou.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :

@@ -333,7 +333,8 @@ fi
 ready=0
 for ((attempt = 1; attempt <= ready_attempts; attempt++)); do
     if docker exec "$PGVECTOR_CONTAINER_ID" \
-        pg_isready -U "$PGVECTOR_USER" -d "$PGVECTOR_DB" >/dev/null 2>&1; then
+        pg_isready --host 127.0.0.1 --port 5432 \
+        --username "$PGVECTOR_USER" --dbname "$PGVECTOR_DB" >/dev/null 2>&1; then
         ready=1
         break
     fi
