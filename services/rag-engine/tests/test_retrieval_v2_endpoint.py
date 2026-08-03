@@ -19,7 +19,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
-from nexus_contracts import Rights
+from nexus_contracts import RetrievalRequest, RetrievalResponse, Rights
 from pydantic import ValidationError
 
 # Ensure src/ is importable
@@ -29,7 +29,6 @@ from fastapi import HTTPException
 
 from ingestor.retrieval_scope_v2 import ServerRetrievalScope
 from ingestor.retrieval_v2_endpoint import (
-    SearchV2Request,
     _build_launch_readiness,
     _check_retrievable,
 )
@@ -93,6 +92,35 @@ BASE_SCOPE = ServerRetrievalScope(
     scope_digest="a" * 64,
     source_sha256="b" * 64,
 )
+
+
+def _retrieval_payload(
+    *,
+    query: str = "arbre binaire",
+    matiere: str = "nsi",
+    k: int = 5,
+) -> dict[str, object]:
+    return {
+        "student_profile": {
+            "niveau": "terminale",
+            "voie": "generale",
+            "matieres": [matiere],
+            "statut_enseignement": "specialite",
+            "candidat": "individuel",
+            "school_year": "2026-2027",
+            "zone": "libre",
+        },
+        "need": {
+            "intent": "context",
+            "query": query,
+        },
+        "retrieval": {
+            "k": k,
+            "hybrid": True,
+            "rerank": True,
+            "include_citations": True,
+        },
+    }
 
 
 def test_launch_readiness_dsn_refuses_owner_fallback(
@@ -183,10 +211,25 @@ def test_preload_runtime_models_rejects_wrong_embedding_dimension(
 
 
 def _mock_retrieval_identity(endpoint: object, monkeypatch: pytest.MonkeyPatch) -> None:
+    verified = SimpleNamespace(
+        artifact=SimpleNamespace(
+            subjects=(
+                SimpleNamespace(
+                    matiere="nsi",
+                    collection="rag_nexus_nsi_terminale_specialite",
+                ),
+            ),
+        ),
+    )
     monkeypatch.setattr(
         endpoint,
         "_require_retrieval_identity",
-        lambda _request, *, endpoint: SimpleNamespace(endpoint=endpoint),
+        lambda _request, *, endpoint: verified,
+    )
+    monkeypatch.setattr(
+        endpoint,
+        "effective_signed_collections",
+        lambda _verified: ("rag_nexus_nsi_terminale_specialite",),
     )
     monkeypatch.setattr(
         endpoint,
@@ -351,34 +394,39 @@ class TestListRetrievable:
 
 
 class TestSearchV2Request:
-    """Pydantic validation for SearchV2Request."""
+    """La frontière HTTP utilise le contrat Nexus partagé."""
+
+    def test_route_uses_versioned_retrieval_contract(self) -> None:
+        from ingestor import retrieval_v2_endpoint as endpoint
+
+        route = next(route for route in endpoint.router.routes if route.path == "/search/v2")
+
+        assert route.body_field is not None
+        assert route.body_field.type_ is RetrievalRequest
+        assert route.response_model is RetrievalResponse
 
     def test_valid_request(self) -> None:
-        req = SearchV2Request(
-            q="arbre binaire", collection="rag_nexus_nsi_terminale_specialite", k=5
-        )
-        assert req.q == "arbre binaire"
-        assert req.k == 5
+        req = RetrievalRequest.model_validate(_retrieval_payload())
+        assert req.need.query == "arbre binaire"
+        assert req.retrieval.k == 5
 
     def test_empty_query_rejected(self) -> None:
         with pytest.raises(ValueError):
-            SearchV2Request(q="", collection="test")
+            RetrievalRequest.model_validate(_retrieval_payload(query=""))
 
     def test_k_bounds(self) -> None:
         with pytest.raises(ValueError):
-            SearchV2Request(q="test", collection="test", k=0)
+            RetrievalRequest.model_validate(_retrieval_payload(k=0))
         with pytest.raises(ValueError):
-            SearchV2Request(q="test", collection="test", k=51)
+            RetrievalRequest.model_validate(_retrieval_payload(k=51))
 
 
 class TestResponseFormat:
-    """Verify SearchV2Response has answer_generation_allowed=false."""
+    """Vérifier la réponse contractuelle et les diagnostics internes."""
 
-    def test_answer_generation_always_false(self) -> None:
-        from ingestor.retrieval_v2_endpoint import SearchV2Response
-
-        resp = SearchV2Response(query="test", collection="test", seuil=1.90, returned=0, hits=[])
-        assert resp.answer_generation_allowed is False
+    def test_retrieval_response_contains_no_generated_answer(self) -> None:
+        resp = RetrievalResponse(results=[], warnings=[], filters_applied={})
+        assert "answer" not in resp.model_dump()
 
     def test_hit_exposes_review_status(self) -> None:
         """SCALE-04: review_status in each hit for agent layer."""
@@ -427,7 +475,8 @@ class TestResponseFormat:
             / "search"
             / "route.ts"
         ).read_text(encoding="utf-8")
-        assert "hit.dense_sim" in cockpit_route
+        assert "validateRetrievalResponse(result.payload)" in cockpit_route
+        assert "hit.dense_sim" not in cockpit_route
 
         with pytest.raises(ValidationError):
             SearchV2Hit(
@@ -500,10 +549,12 @@ class TestResponseFormat:
             "type_doc": "programme",
             "review_status": "reviewed",
             "dense_score": None,
+            "dense_sim": None,
             "lexical_score": 0.42,
             "rrf_score": 0.004918,
             "rerank_score": 2.75,
             "mmr_score": 0.612,
+            "score_final": 0.884,
         }
 
     def test_mapping_refuses_blank_provenance_and_preview(self) -> None:
@@ -544,7 +595,7 @@ class TestResponseFormat:
         source = inspect.getsource(endpoint)
         assert 'os.environ.get("RERANK_SCORE_THRESHOLD"' not in source
         assert 'os.environ.get("RERANK_CANDIDATES"' not in source
-        assert "seuil=RERANK_THRESHOLD" in inspect.getsource(endpoint.search_v2)
+        assert "response_model=RetrievalResponse" in inspect.getsource(endpoint)
 
 
 class TestLaunchReadiness:
@@ -691,11 +742,7 @@ class TestHybridSearchDelegation:
         response = client.post(
             "/search/v2",
             headers={"Authorization": "Bearer student-token"},
-            json={
-                "q": "  requête brute ?  ",
-                "collection": "rag_nexus_nsi_terminale_specialite",
-                "k": 4,
-            },
+            json=_retrieval_payload(query="  requête brute ?  ", k=4),
         )
 
         assert response.status_code == 200
@@ -708,14 +755,12 @@ class TestHybridSearchDelegation:
                 4,
             ),
         ]
-        assert response.json() == {
-            "query": "  requête brute ?  ",
-            "collection": "rag_nexus_nsi_terminale_specialite",
-            "seuil": 1.9,
-            "returned": 1,
-            "answer_generation_allowed": False,
-            "hits": [endpoint._to_search_hit(_hybrid_hit()).model_dump()],
-        }
+        body = response.json()
+        assert [item["chunk_id"] for item in body["results"]] == ["chunk-1"]
+        assert body["results"][0]["citation"]["source_label"] == "Programme NSI"
+        assert body["filters_applied"]["collection"] == (
+            "rag_nexus_nsi_terminale_specialite"
+        )
 
     def test_search_empty_hybrid_result_is_success(
         self,
@@ -728,16 +773,11 @@ class TestHybridSearchDelegation:
         response = client.post(
             "/search/v2",
             headers={"Authorization": "Bearer student-token"},
-            json={
-                "q": "aucun résultat",
-                "collection": "rag_nexus_nsi_terminale_specialite",
-                "k": 5,
-            },
+            json=_retrieval_payload(query="aucun résultat", k=5),
         )
 
         assert response.status_code == 200
-        assert response.json()["hits"] == []
-        assert response.json()["returned"] == 0
+        assert response.json()["results"] == []
 
     @pytest.mark.parametrize(
         "stage",
@@ -758,11 +798,7 @@ class TestHybridSearchDelegation:
         response = client.post(
             "/search/v2",
             headers={"Authorization": "Bearer student-token"},
-            json={
-                "q": "texte très secret",
-                "collection": "rag_nexus_nsi_terminale_specialite",
-                "k": 5,
-            },
+            json=_retrieval_payload(query="texte très secret", k=5),
         )
 
         assert response.status_code == 503
@@ -884,11 +920,7 @@ class TestHybridSearchDelegation:
         response = client.post(
             "/search/v2",
             headers={"Authorization": "Bearer student-token"},
-            json={
-                "q": "requête extrêmement sensible",
-                "collection": "rag_nexus_nsi_terminale_specialite",
-                "k": 5,
-            },
+            json=_retrieval_payload(query="requête extrêmement sensible", k=5),
         )
 
         assert response.status_code == 503
@@ -1098,8 +1130,11 @@ class TestCacheGateInvariant:
     change and advances a generation barrier before any warmup publication.
     """
 
-    def test_gate_before_cache(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Quarantine is refused by the gate BEFORE cache is even checked."""
+    def test_legacy_search_payload_is_rejected_before_cache(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """L'ancien DTO local ne traverse plus la frontière contractuelle."""
         import os
 
         from fastapi import FastAPI
@@ -1130,7 +1165,7 @@ class TestCacheGateInvariant:
             },
             headers=h,
         )
-        assert resp.status_code == 403, "Gate must refuse quarantine even with cache populated"
+        assert resp.status_code == 422
 
     def test_invalidation_purges_cache(self) -> None:
         """invalidate_cache() removes all entries."""

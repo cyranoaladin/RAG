@@ -161,6 +161,32 @@ def _scope(
     )
 
 
+def _retrieval_request_payload(
+    *,
+    matiere: str = "nsi",
+    query: str = QUERY,
+    k: int = 5,
+) -> dict[str, object]:
+    return {
+        "student_profile": {
+            "niveau": "terminale",
+            "voie": VOIE,
+            "matieres": [matiere],
+            "statut_enseignement": STATUT_ENSEIGNEMENT,
+            "candidat": CANDIDAT,
+            "school_year": SCHOOL_YEAR,
+            "zone": "libre",
+        },
+        "need": {"intent": "context", "query": query},
+        "retrieval": {
+            "k": k,
+            "hybrid": True,
+            "rerank": True,
+            "include_citations": True,
+        },
+    }
+
+
 def _scope_sql_params(collection: str) -> tuple[object, ...]:
     scope = _scope(collection)
     return (
@@ -1310,8 +1336,30 @@ def _test_app(monkeypatch: pytest.MonkeyPatch) -> TestClient:
         "_require_retrieval_identity",
         lambda *args, **kwargs: object(),
     )
-    monkeypatch.setattr(endpoint, "load_collection_config", lambda: {})
+    monkeypatch.setattr(
+        endpoint,
+        "load_collection_config",
+        lambda: {
+            "collections": {
+                TARGET_COLLECTION: {
+                    "domain": "education",
+                    "instanciee": True,
+                },
+            },
+            "domains": {"education": {"retrievable": True}},
+        },
+    )
     monkeypatch.setattr(endpoint, "_check_retrievable", lambda *args, **kwargs: {})
+    monkeypatch.setattr(
+        endpoint,
+        "_collection_for_retrieval_request",
+        lambda *_args, **_kwargs: TARGET_COLLECTION,
+    )
+    monkeypatch.setattr(
+        endpoint,
+        "_require_retrieval_profile_match",
+        lambda *_args, **_kwargs: None,
+    )
     monkeypatch.setattr(
         endpoint,
         "build_server_retrieval_scope",
@@ -1341,7 +1389,7 @@ def test_http_search_fails_closed_then_uses_real_hybrid_store(
     monkeypatch.setattr(endpoint, "_retrieve_hybrid_hits", fail_with_private_context)
     failed = client.post(
         "/search/v2",
-        json={"q": QUERY, "collection": TARGET_COLLECTION, "k": 5},
+        json=_retrieval_request_payload(),
     )
     assert failed.status_code == 503
     assert failed.json() == {"detail": "retrieval unavailable"}
@@ -1350,21 +1398,29 @@ def test_http_search_fails_closed_then_uses_real_hybrid_store(
     monkeypatch.setattr(endpoint, "_retrieve_hybrid_hits", real_retrieve)
     response = client.post(
         "/search/v2",
-        json={"q": QUERY, "collection": TARGET_COLLECTION, "k": 5},
+        json=_retrieval_request_payload(),
     )
     assert response.status_code == 200, response.text
     payload = response.json()
-    assert payload["returned"] == 5
-    assert [hit["chunk_id"] for hit in payload["hits"][:2]] == [
+    assert len(payload["results"]) == 5
+    assert [hit["chunk_id"] for hit in payload["results"][:2]] == [
         "target-dense-only",
         "target-lexical-only",
     ]
-    assert payload["hits"][0]["page"] is None
-    assert payload["hits"][1]["page"] == 7
-    assert all(hit["review_status"] == "reviewed" for hit in payload["hits"])
-    assert all(hit["source_label"] and hit["source_uri"] and hit["rights"] for hit in payload["hits"])
+    assert payload["results"][0]["citation"]["page"] is None
+    assert payload["results"][1]["citation"]["page"] == 7
     assert all(
-        key in payload["hits"][0]
+        hit["metadata"]["review_status"] == "reviewed"
+        for hit in payload["results"]
+    )
+    assert all(
+        hit["citation"]["source_label"]
+        and hit["citation"]["source_uri"]
+        and hit["citation"]["rights"]
+        for hit in payload["results"]
+    )
+    assert all(
+        key in payload["results"][0]["metadata"]
         for key in (
             "dense_score",
             "lexical_score",
@@ -1455,9 +1511,7 @@ def test_signed_identity_to_http_scope_and_real_database_is_end_to_end(
             "X-Nexus-Identity": maths_only_identity_token,
         },
         json={
-            "q": QUERY,
-            "collection": MATRIX_COLLECTIONS["nsi"],
-            "k": 5,
+            **_retrieval_request_payload(matiere="nsi"),
         },
     )
     assert cross_subject_response.status_code == 403
@@ -1471,14 +1525,12 @@ def test_signed_identity_to_http_scope_and_real_database_is_end_to_end(
             "X-Nexus-Identity": nsi_only_identity_token,
         },
         json={
-            "q": QUERY,
-            "collection": MATRIX_COLLECTIONS["nsi"],
-            "k": 5,
+            **_retrieval_request_payload(matiere="nsi"),
         },
     )
 
     assert response.status_code == 200, response.text
-    assert [hit["chunk_id"] for hit in response.json()["hits"]] == [
+    assert [hit["chunk_id"] for hit in response.json()["results"]] == [
         "matrix-nsi-individuel",
     ]
     assert retrieval_calls == [MATRIX_COLLECTIONS["nsi"]]

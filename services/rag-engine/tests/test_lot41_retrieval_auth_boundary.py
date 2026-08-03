@@ -18,6 +18,27 @@ def _client() -> TestClient:
     return TestClient(app)
 
 
+def _payload() -> dict[str, object]:
+    return {
+        "student_profile": {
+            "niveau": "terminale",
+            "voie": "generale",
+            "matieres": ["nsi"],
+            "statut_enseignement": "specialite",
+            "candidat": "individuel",
+            "school_year": "2026-2027",
+            "zone": "libre",
+        },
+        "need": {"intent": "context", "query": "question"},
+        "retrieval": {
+            "k": 5,
+            "hybrid": True,
+            "rerank": True,
+            "include_citations": True,
+        },
+    }
+
+
 def test_missing_identity_stops_before_collection_config_and_database(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -42,7 +63,7 @@ def test_missing_identity_stops_before_collection_config_and_database(
     response = _client().post(
         "/search/v2",
         headers={"Authorization": f"Bearer {service_token}"},
-        json={"q": "question", "collection": "arbitrary_collection", "k": 5},
+        json=_payload(),
     )
 
     assert response.status_code == 401
@@ -76,6 +97,11 @@ def test_scope_rejection_is_generic_and_happens_before_retrieval(
     monkeypatch.setattr(endpoint, "_check_retrievable", lambda *_args: {})
     monkeypatch.setattr(
         endpoint,
+        "_collection_for_retrieval_request",
+        lambda *_args, **_kwargs: "arbitrary_collection",
+    )
+    monkeypatch.setattr(
+        endpoint,
         "build_server_retrieval_scope",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(
             RetrievalScopeError("private scope details")
@@ -86,7 +112,7 @@ def test_scope_rejection_is_generic_and_happens_before_retrieval(
 
     response = _client().post(
         "/search/v2",
-        json={"q": "question", "collection": "arbitrary_collection", "k": 5},
+        json=_payload(),
     )
 
     assert response.status_code == 403
@@ -106,6 +132,11 @@ def test_collection_gate_rejection_is_generic_and_happens_before_scope(
     monkeypatch.setattr(endpoint, "load_collection_config", lambda: {})
     monkeypatch.setattr(
         endpoint,
+        "_collection_for_retrieval_request",
+        lambda *_args, **_kwargs: "secret_collection",
+    )
+    monkeypatch.setattr(
+        endpoint,
         "_check_retrievable",
         lambda *_args: (_ for _ in ()).throw(
             HTTPException(status_code=403, detail="private collection name")
@@ -118,7 +149,7 @@ def test_collection_gate_rejection_is_generic_and_happens_before_scope(
 
     response = _client().post(
         "/search/v2",
-        json={"q": "question", "collection": "secret_collection", "k": 5},
+        json=_payload(),
     )
 
     assert response.status_code == 403

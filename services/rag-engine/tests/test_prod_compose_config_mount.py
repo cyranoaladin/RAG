@@ -264,6 +264,10 @@ def test_v2_ingestor_uses_dedicated_dockerfile_with_contracts() -> None:
     assert "requirements.runtime-v2.txt" in content, (
         "Dockerfile.ingestor-v2 must install the minimal v2 runtime manifest"
     )
+    assert (
+        "COPY services/rag-engine/src/ingestor/retrieval_contract_adapter.py "
+        "/app/retrieval_contract_adapter.py"
+    ) in content, "the flattened v2 image must include every imported contract adapter"
 
 
 def test_v2_compose_has_no_writer_worker() -> None:

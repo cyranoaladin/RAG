@@ -68,6 +68,7 @@ async function expectedOutputs() {
     style: { singleQuote: true },
   })
   const validatorNames = [
+    'RetrievalRequest',
     'RetrievalResponse',
     'SearchPayload',
     'ChatPayload',

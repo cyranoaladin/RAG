@@ -6,19 +6,18 @@ from typing import Any
 
 from nexus_contracts.retrieval import RetrievalRequest
 
-from .collection_config import CollectionConfigError, resolve_collection
-
-EXAM_DOC_TYPES = {
-    "annale",
-    "sujet_zero",
-    "corrige",
-    "bareme",
-    "grille_evaluation",
-    "grille_grand_oral",
-    "bac_blanc",
-    "brevet_blanc",
-}
-OFFICIAL_DOC_TYPES = {"programme_officiel", "ressource_officielle", "referentiel"}
+try:
+    from .collection_config import (
+        CollectionConfigError,
+        resolve_collection,
+        resolve_collection_v2,
+    )
+except ImportError:
+    from collection_config import (  # type: ignore[no-redef]
+        CollectionConfigError,
+        resolve_collection,
+        resolve_collection_v2,
+    )
 
 
 @dataclass(frozen=True)
@@ -94,22 +93,20 @@ def adapt_legacy_search_payload(payload: Mapping[str, Any]) -> AdaptedRetrieval:
     )
 
 
-def _collection_for_contract(request: RetrievalRequest) -> str:
-    doc_types = {doc_type.value for doc_type in request.need.desired_doc_types}
-    if doc_types & OFFICIAL_DOC_TYPES:
-        return "rag_nexus_official"
-    if doc_types & EXAM_DOC_TYPES:
-        return "rag_nexus_exams"
-    return "rag_nexus_education"
-
-
-def adapt_retrieval_request(request: RetrievalRequest) -> AdaptedRetrieval:
-    """Convert the shared Nexus contract into server-side retrieval routing."""
-    nexus_collection = _collection_for_contract(request)
-    resolution = resolve_collection(collection=nexus_collection, allow_non_retrievable=False)
+def adapt_retrieval_request(
+    request: RetrievalRequest,
+    *,
+    collection: str,
+    collection_config: Mapping[str, Any] | None = None,
+) -> AdaptedRetrieval:
+    """Convertir le contrat partagé après résolution serveur de la collection."""
+    definition = resolve_collection_v2(collection, collection_config)
+    domain = definition.get("domain")
+    if not isinstance(domain, str) or not domain:
+        raise CollectionConfigError("resolved collection has no domain")
     filters: dict[str, Any] = dict(request.to_payload_filters())
-    filters["domain"] = resolution.domain
-    filters["nexus_collection"] = resolution.nexus_collection
+    filters["domain"] = domain
+    filters["nexus_collection"] = collection
     if request.need.notions:
         filters["notions"] = list(request.need.notions)
     if request.need.desired_doc_types:
@@ -122,9 +119,9 @@ def adapt_retrieval_request(request: RetrievalRequest) -> AdaptedRetrieval:
         query=request.need.query,
         top_k=request.retrieval.k,
         filters=filters,
-        nexus_collection=resolution.nexus_collection,
-        physical_collection=resolution.physical_collection,
-        domain=resolution.domain,
+        nexus_collection=collection,
+        physical_collection=collection,
+        domain=domain,
         include_citations=request.retrieval.include_citations,
     )
 

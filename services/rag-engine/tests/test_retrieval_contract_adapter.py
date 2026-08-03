@@ -58,12 +58,23 @@ def test_retrieval_request_is_adapted_without_client_collection_override() -> No
         retrieval=RetrievalOptions(k=5, include_citations=True),
     )
 
-    adapted = adapt_retrieval_request(request)
+    adapted = adapt_retrieval_request(
+        request,
+        collection="rag_nexus_maths_premiere_gen_specialite",
+        collection_config={
+            "collections": {
+                "rag_nexus_maths_premiere_gen_specialite": {
+                    "domain": "education",
+                    "instanciee": True,
+                },
+            },
+        },
+    )
 
     assert adapted.query == "limites de suites"
     assert adapted.top_k == 5
-    assert adapted.nexus_collection == "rag_nexus_education"
-    assert adapted.physical_collection == "rag_nexus_education"
+    assert adapted.nexus_collection == "rag_nexus_maths_premiere_gen_specialite"
+    assert adapted.physical_collection == "rag_nexus_maths_premiere_gen_specialite"
     assert adapted.filters["niveau"] == "premiere"
     assert adapted.filters["audience"] == "aefe"
     assert adapted.filters["type_doc"] == "cours"

@@ -4,9 +4,10 @@ Exposes POST /search/v2 wrapping the canonical LOT40 hybrid pipeline:
   resolve_collection_v2 → gate retrievable (fail-closed) → dense + lexical
   → RRF → rerank → seuil +1.90 → MMR.
 
-Models are cached at module level (loaded once, not per request).
+Les modèles ML sont chargés une fois au démarrage. La frontière HTTP utilise
+exclusivement RetrievalRequest → RetrievalResponse depuis nexus-contracts.
 DSN via PG_RAG_DSN only (R-01: no owner/migration fallback).
-answer_generation_allowed = false (retrieval only, no LLM generation).
+Retrieval seulement : aucun champ ni appel de génération LLM.
 """
 
 from __future__ import annotations
@@ -25,6 +26,8 @@ from nexus_contracts import (
     ChatRequest,
     ChatResponse,
     Citation,
+    RetrievalRequest,
+    RetrievalResponse,
     RetrievalResult,
 )
 from pydantic import BaseModel, ConfigDict, Field, computed_field
@@ -45,6 +48,7 @@ try:
     from .identity_v2 import VerifiedInternalIdentity, require_internal_identity
     from .pg_pool import PoolSettings, pool_connection
     from .reranker_contract import load_reranker_model
+    from .retrieval_contract_adapter import adapt_retrieval_request
     from .retrieval_hybrid_v2 import (
         CHANNEL_LIMIT,
         EMBED_MODEL,
@@ -87,6 +91,9 @@ except (ImportError, ValueError):
     )
     from pg_pool import PoolSettings, pool_connection  # type: ignore[no-redef]
     from reranker_contract import load_reranker_model  # type: ignore[no-redef]
+    from retrieval_contract_adapter import (  # type: ignore[no-redef]
+        adapt_retrieval_request,
+    )
     from retrieval_hybrid_v2 import (  # type: ignore[no-redef]
         CHANNEL_LIMIT,
         EMBED_MODEL,
@@ -309,13 +316,7 @@ def _check_retrievable(collection: str, cfg: dict) -> dict:
     return defn
 
 
-# --- Request/Response models ---
-
-
-class SearchV2Request(BaseModel):
-    q: str = Field(..., min_length=1, description="Query text")
-    collection: str = Field(..., min_length=1, description="Nexus v2 collection name")
-    k: int = Field(default=5, ge=1, le=50, description="Number of results")
+# --- Modèle interne d'un hit avant projection contractuelle ---
 
 
 class SearchV2Hit(BaseModel):
@@ -345,19 +346,6 @@ class SearchV2Hit(BaseModel):
     def dense_sim(self) -> float | None:
         """Alias de sérialisation déprécié, dérivé de l'unique score dense."""
         return self.dense_score
-
-
-class SearchV2Response(BaseModel):
-    query: str
-    collection: str
-    seuil: float = Field(
-        default=RERANK_SCORE_THRESHOLD,
-        ge=RERANK_SCORE_THRESHOLD,
-        le=RERANK_SCORE_THRESHOLD,
-    )
-    returned: int
-    answer_generation_allowed: Literal[False] = False
-    hits: list[SearchV2Hit]
 
 
 def _build_launch_readiness(
@@ -863,28 +851,39 @@ def _to_search_hit(hit: HybridHit) -> SearchV2Hit:
     )
 
 
-def _to_retrieval_result(hit: SearchV2Hit, collection: str) -> RetrievalResult:
+def _to_retrieval_result(
+    hit: SearchV2Hit,
+    collection: str,
+    *,
+    include_citation: bool = True,
+) -> RetrievalResult:
     return RetrievalResult(
         chunk_id=hit.chunk_id,
         doc_id=hit.doc_id,
         score=hit.score_final,
         title=hit.source_label,
         excerpt=hit.preview,
-        citation=Citation(
-            source_label=hit.source_label,
-            page=hit.page,
-            source_uri=hit.source_uri,
-            rights=hit.rights,
+        citation=(
+            Citation(
+                source_label=hit.source_label,
+                page=hit.page,
+                source_uri=hit.source_uri,
+                rights=hit.rights,
+            )
+            if include_citation
+            else None
         ),
         metadata={
             "collection": collection,
             "type_doc": hit.type_doc,
             "review_status": hit.review_status,
             "dense_score": hit.dense_score,
+            "dense_sim": hit.dense_sim,
             "lexical_score": hit.lexical_score,
             "rrf_score": hit.rrf_score,
             "rerank_score": hit.rerank_score,
             "mmr_score": hit.mmr_score,
+            "score_final": hit.score_final,
         },
     )
 
@@ -989,8 +988,57 @@ def chat(payload: ChatRequest, request: Request) -> ChatResponse:
 # --- Main search endpoint ---
 
 
-@router.post("/search/v2", response_model=SearchV2Response)
-def search_v2(payload: SearchV2Request, request: Request) -> SearchV2Response:
+def _collection_for_retrieval_request(
+    payload: RetrievalRequest,
+    verified: VerifiedInternalIdentity,
+) -> str:
+    """Résoudre une matière contractuelle vers l'artefact signé du serveur."""
+    matieres = payload.student_profile.matieres
+    if len(matieres) != 1:
+        raise RetrievalScopeError("retrieval scope forbidden")
+    allowed = set(effective_signed_collections(verified))
+    matches = [
+        subject.collection
+        for subject in verified.artifact.subjects
+        if subject.matiere == matieres[0] and subject.collection in allowed
+    ]
+    if len(matches) != 1:
+        raise RetrievalScopeError("retrieval scope forbidden")
+    return str(matches[0])
+
+
+def _require_retrieval_profile_match(
+    payload: RetrievalRequest,
+    scope: ServerRetrievalScope,
+) -> None:
+    """Refuser toute dimension contractuelle différente du scope signé."""
+    profile = payload.student_profile
+    expected = {
+        "niveau": scope.niveau,
+        "voie": scope.voie,
+        "matieres": [scope.matiere],
+        "statut_enseignement": scope.statut_enseignement,
+        "candidat": scope.candidat,
+        "school_year": scope.school_year,
+        "zone": scope.audiences[0],
+        "audience": scope.audiences[0],
+    }
+    actual = {
+        "niveau": profile.niveau.value,
+        "voie": profile.voie.value,
+        "matieres": list(profile.matieres),
+        "statut_enseignement": profile.statut_enseignement.value,
+        "candidat": profile.candidat.value,
+        "school_year": profile.school_year,
+        "zone": profile.zone,
+        "audience": profile.audience,
+    }
+    if actual != expected:
+        raise RetrievalScopeError("retrieval scope forbidden")
+
+
+@router.post("/search/v2", response_model=RetrievalResponse)
+def search_v2(payload: RetrievalRequest, request: Request) -> RetrievalResponse:
     """Retrieval v2: dense + lexical → RRF → rerank → seuil → MMR.
 
     Canonical pipeline LOT40. Gate retrievable fail-closed (GG-01).
@@ -998,27 +1046,49 @@ def search_v2(payload: SearchV2Request, request: Request) -> SearchV2Response:
     """
     verified = _require_retrieval_identity(request, endpoint="/search/v2")
 
-    # Gate: resolve + retrievable check (fail-closed)
     cfg = load_collection_config()
     try:
-        _check_retrievable(payload.collection, cfg)
+        collection = _collection_for_retrieval_request(payload, verified)
+        _check_retrievable(collection, cfg)
         scope = build_server_retrieval_scope(
             verified,
-            collection=payload.collection,
+            collection=collection,
+            collection_config=cfg,
+        )
+        _require_retrieval_profile_match(payload, scope)
+        adapted = adapt_retrieval_request(
+            payload,
+            collection=collection,
             collection_config=cfg,
         )
     except (RetrievalScopeError, CollectionConfigError, HTTPException) as exc:
         raise HTTPException(status_code=403, detail="Forbidden") from exc
 
-    # Public retrieval always re-reads PostgreSQL through the canonical pipeline.
-    hits = _retrieve_endpoint_hits(payload.q, payload.collection, payload.k, scope)
+    if not payload.retrieval.hybrid or not payload.retrieval.rerank:
+        raise HTTPException(status_code=422, detail="Unsupported retrieval options")
 
-    return SearchV2Response(
-        query=payload.q,
-        collection=payload.collection,
-        seuil=RERANK_THRESHOLD,
-        returned=len(hits),
-        hits=hits,
+    # Public retrieval always re-reads PostgreSQL through the canonical pipeline.
+    hits = _retrieve_endpoint_hits(
+        adapted.query,
+        adapted.nexus_collection,
+        adapted.top_k,
+        scope,
+    )
+
+    return RetrievalResponse(
+        results=[
+            _to_retrieval_result(
+                hit,
+                adapted.nexus_collection,
+                include_citation=adapted.include_citations,
+            )
+            for hit in hits
+        ],
+        warnings=list(adapted.warnings),
+        filters_applied={
+            "collection": adapted.nexus_collection,
+            "scope_digest": scope.filter_digest,
+        },
     )
 
 

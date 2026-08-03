@@ -40,17 +40,21 @@ Payload courant :
 
 Les filtres `niveau` et `audience` sont imposes par le profil HMAC signe. Cette API lit `rag_chunks_pilote` et reste read-only.
 
-## Contrat cible
+## Contrat canonique v2
 
 La source de verite est `packages/contracts/src/nexus_contracts/retrieval.py`.
 
-Endpoint futur propose :
+Endpoint exposé par le runtime v2 :
 
 ```text
-POST /retrieve
+POST /search/v2
 ```
 
-Il consommera un vrai `RetrievalRequest` et retournera un vrai `RetrievalResponse`.
+Depuis LOT41U, il consomme directement `RetrievalRequest` et retourne
+directement `RetrievalResponse`. Le Cockpit ne traduit plus un DTO moteur local
+`q/collection/hits` : son BFF construit le profil depuis l'identité signée,
+valide le contrat partagé, puis le moteur résout la collection à partir de la
+matière et de l'artefact de scope versionné.
 
 Principes :
 
@@ -58,7 +62,8 @@ Principes :
 - les filtres de profil viennent du contrat/profil verifie ;
 - les domaines et collections physiques sont resolus cote serveur ;
 - les citations utilisent `source_label`, `source_uri`, `rights` et `page` si disponible ;
-- aucune generation de reponse n'est ajoutee tant que `answer_generation_allowed=false`.
+- aucune génération de réponse n'est ajoutée ; la réponse de retrieval ne
+  contient aucun champ de génération.
 
 ## Adaptateur Lot 19
 
@@ -67,10 +72,12 @@ Module ajoute : `services/rag-engine/src/ingestor/retrieval_contract_adapter.py`
 Il fournit :
 
 - `adapt_legacy_search_payload()` pour convertir l'ancien payload UI en routage Nexus ;
-- `adapt_retrieval_request()` pour convertir `RetrievalRequest` en query, top-k, filtres et collection serveur ;
+- `adapt_retrieval_request()` pour convertir `RetrievalRequest` en query,
+  top-k et filtres après résolution autoritative de la collection côté serveur ;
 - `build_citation_payload()` pour produire le sous-ensemble compatible `Citation`.
 
-Cet adaptateur ne remplace pas brutalement `/search`. Il prepare la convergence et bloque l'elargissement de collection par le client.
+L'adaptateur legacy reste isolé dans le monolithe historique. Le runtime v2
+refuse l'ancien DTO et bloque tout élargissement de collection par le client.
 
 ## Resolution collection/domain
 

@@ -27,6 +27,7 @@
 !services/rag-engine/src/ingestor/model_artifact.py
 !services/rag-engine/src/ingestor/pg_pool.py
 !services/rag-engine/src/ingestor/readiness_db.py
+!services/rag-engine/src/ingestor/retrieval_contract_adapter.py
 !services/rag-engine/src/ingestor/retrieval_hybrid_v2.py
 !services/rag-engine/src/ingestor/retrieval_pg_v2.py
 !services/rag-engine/src/ingestor/retrieval_readiness_v2.py
