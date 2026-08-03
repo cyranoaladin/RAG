@@ -26,7 +26,7 @@ preuves opérationnelles externes doivent être obtenues. Aucun verrou
 | Date | 2026-08-02 |
 | Baseline `main` | `ea18ba52da5778f628c4943705dd81dfa43fbc15` |
 | Branche | `lot-41u-ingestion-runtime-hardening` |
-| Head source avant le commit de ce rapport | `f95e987` |
+| Head source avant le commit de ce rapport | `45c00e9` |
 | Plan de données | runtime FastAPI v2, PostgreSQL/pgvector, Compose, Nginx |
 | Contrats partagés | aucune évolution |
 | Verrous de gouvernance | aucun changement, 18/18 conformes |
@@ -410,6 +410,20 @@ test `TRIGGER`. Une instance pgvector 16 neuve utilisant le contrat partagé a
 atteint `POSTGRES_SHARED_COLUMN_CONTRACT_HEALTH=PASS`, puis son conteneur
 éphémère a été supprimé.
 
+La première CI locale exhaustive suivant ce cycle a détecté une course réelle
+dans la sonde bornée des modèles : sur le système de fichiers du runner, un
+fichier ajouté pouvait partager le timestamp observable du répertoire et ne
+pas être vu par la seule comparaison des entrées déjà attestées. Le commit
+`45c00e9` énumère désormais à chaque sonde au plus 10 000 chemins, compare
+l'ensemble exact aux chemins attestés et conserve aussi `st_ctime_ns` pour
+détecter une modification de même taille dont le `mtime` a été restauré. La
+sonde continue de ne lire aucun contenu de poids.
+
+Deux régressions déterministes couvrent le cas d'un répertoire dont les
+métadonnées semblent stables et la réécriture de même taille avec `mtime`
+restauré. Les sept tests d'attestation, Ruff et `mypy` sont verts ; la suite
+non-intégration complète du moteur repasse également verte.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -465,6 +479,7 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `9ebbf02` | sonde Cockpit alignée sur `/health` v2 |
 | `7bcf57f` | types, defaults, contraintes et index PostgreSQL exacts |
 | `f95e987` | privilège `TRIGGER`, taxonomies fail-closed, TTL et contrat de colonnes partagé |
+| `45c00e9` | inventaire borné exact et `ctime` des modèles attestés |
 
 ## Décision de livraison
 
