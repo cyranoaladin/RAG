@@ -26,7 +26,7 @@ preuves opérationnelles externes doivent être obtenues. Aucun verrou
 | Date | 2026-08-03 |
 | Baseline `main` | `ea18ba52da5778f628c4943705dd81dfa43fbc15` |
 | Branche | `lot-41u-ingestion-runtime-hardening` |
-| Head applicatif audité avant ce commit documentaire | `2885d505a2c90b78647044cc7571c16c9899b07f` |
+| Head applicatif audité avant ce commit documentaire | `c3cff22a249845319846e6d220f42b943a00de2c` |
 | Plan de données | runtime FastAPI v2, PostgreSQL/pgvector, Compose, Nginx |
 | Contrats partagés | aucune évolution |
 | Verrous de gouvernance | aucun changement, 18/18 conformes |
@@ -1116,6 +1116,25 @@ registre npm. Aucun paquet direct ni override local n'est ajouté. Après un
 Next.js et les contrats sont verts, et `npm audit --audit-level=high` ne
 signale plus aucune vulnérabilité.
 
+La relance locale exhaustive du head documentaire `2f81304` a ensuite produit
+**13 réussites et 0 échec**. Le run GitHub `pull_request` exact
+[`30838626943`](https://github.com/cyranoaladin/RAG/actions/runs/30838626943)
+a réussi ses six jobs racine ; GitGuardian est vert. Cubic a néanmoins publié
+deux remarques dans sa revue exacte et elles ont été traitées comme bloquantes
+malgré le statut vert du check.
+
+Le P1 est reproduit sans ambiguïté : dans le thread de la requête, le reliquat
+était de 1 000 ms, tandis que l'opération exécutée par `ThreadPoolExecutor`
+lisait 6 000 ms, valeur par défaut d'un `ContextVar` non propagé. Le commit
+applicatif `c3cff22a249845319846e6d220f42b943a00de2c` capture désormais le
+contexte de la requête avant la soumission et exécute l'opération via
+`copy_context().run`. Le worker voit ainsi la même deadline monotone que le
+caller et les phases SQL. Le test P3 du pool n'est plus seulement un test
+d'alias : il appelle réellement `execute_with_database_budget` sous
+`runtime_request_budget` et prouve le `statement_timeout` calculé sur le
+reliquat partagé. Les deux fichiers de tests ciblés, Ruff et `mypy` sur les
+trois fichiers modifiés sont verts après ce cycle rouge/vert.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -1202,6 +1221,7 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `48d4752` | démarrage et routes métier bloqués par la readiness PostgreSQL |
 | `58f545f` | routines non natives et inférences runtime bornées |
 | `2885d50` | verrou Cockpit corrigé pour `brace-expansion@5.0.9` |
+| `c3cff22` | contexte de deadline propagé aux workers d'inférence |
 
 ## Décision de livraison
 
