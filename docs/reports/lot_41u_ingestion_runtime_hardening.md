@@ -796,7 +796,7 @@ fonction `SECURITY DEFINER` temporaire produit
 `RUNTIME_SECURITY_DEFINER_EXECUTE_REJECTED=PASS`, et une clé étrangère
 inattendue produit `SCHEMA_ALL_CONSTRAINT_TYPES_DRIFT_REJECTED=PASS`. Le run
 complet se termine par `LOT40_HYBRID_INTEGRATION=PASS`. L'hygiène du dépôt, les
-18 verrous de gouvernance et Gitleaks sur les 75 commits du lot sont également
+18 verrous de gouvernance et Gitleaks sur la plage complète du lot sont également
 verts. Ces preuves locales doivent encore être remplacées par les checks et
 revues du nouveau head exact de la PR.
 
