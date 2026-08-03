@@ -26,7 +26,7 @@ preuves opérationnelles externes doivent être obtenues. Aucun verrou
 | Date | 2026-08-02 |
 | Baseline `main` | `ea18ba52da5778f628c4943705dd81dfa43fbc15` |
 | Branche | `lot-41u-ingestion-runtime-hardening` |
-| Head applicatif audité avant ce commit documentaire | `8b56c6e2bb848386caee556538b2dcc7d2885f82` |
+| Head applicatif audité avant ce commit documentaire | `3793f3f6a4beacf52c2178e474941defa90f0d87` |
 | Plan de données | runtime FastAPI v2, PostgreSQL/pgvector, Compose, Nginx |
 | Contrats partagés | aucune évolution |
 | Verrous de gouvernance | aucun changement, 18/18 conformes |
@@ -576,6 +576,28 @@ non-intégration `rag-engine`, 174 tests Cockpit, deux builds Next.js et zéro
 vulnérabilité npm. Cette preuve locale porte sur le commit applicatif cité ; le
 commit documentaire suivant doit encore recevoir ses propres checks GitHub.
 
+La revue Cubic du head documentaire `2aaf43a` a ensuite relevé deux écarts
+valides dans le validateur de catalogue. Le commit applicatif `3793f3f` :
+
+- impose structurellement `domains.quarantine.retrievable: false`, de sorte
+  qu'un catalogue monté ne puisse jamais promouvoir la quarantaine en surface
+  de retrieval ;
+- reconstruit chaque test négatif à partir du catalogue canonique complet et
+  vérifie le message de la règle ciblée : version, catalogue vide, voie inconnue
+  et quarantaine ; aucun test ne peut plus réussir prématurément sur l'absence
+  du premier champ obligatoire.
+
+Le test de quarantaine a d'abord échoué car la configuration interdite était
+acceptée, puis les quatre cas isolés sont passés après correction. La première
+relance exhaustive a gardé 12 cibles racine vertes mais rencontré une course
+préexistante de granularité `ctime` dans un test d'attestation de modèle. Cinq
+relances isolées ont confirmé le caractère intermittent. La préparation de ce
+test attend désormais, pendant au plus deux secondes, une mutation de
+métadonnées effectivement observable. Cinq nouvelles relances, toute la suite
+non-intégration du moteur et le smoke PostgreSQL réel sont verts, avec
+`DENSE_EXACT_ORACLE_PREFIX=PASS` et `LOT40_HYBRID_INTEGRATION=PASS`. Le head
+documentaire final reste soumis à la CI GitHub exacte.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -641,6 +663,7 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `9084000` | dimension runtime, pool, scope packagé et `REFERENCES` review fail-closed |
 | `6e93b38` | exploration maximale réservée à l'oracle HNSW empirique |
 | `8b56c6e` | autorités, catalogue et identité PostgreSQL attestés ; oracle dense exact |
+| `3793f3f` | quarantaine fail-closed, tests catalogue isolés et preuve `ctime` stable |
 
 ## Décision de livraison
 
