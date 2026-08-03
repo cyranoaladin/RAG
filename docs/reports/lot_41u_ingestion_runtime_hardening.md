@@ -26,7 +26,7 @@ preuves opérationnelles externes doivent être obtenues. Aucun verrou
 | Date | 2026-08-02 |
 | Baseline `main` | `ea18ba52da5778f628c4943705dd81dfa43fbc15` |
 | Branche | `lot-41u-ingestion-runtime-hardening` |
-| Head applicatif audité avant ce commit documentaire | `294ba283b353e7a29741fe5d9d3eee2f431f3407` |
+| Head applicatif audité avant ce commit documentaire | `90840000e616f23237d68cbd20aa8614302b2d11` |
 | Plan de données | runtime FastAPI v2, PostgreSQL/pgvector, Compose, Nginx |
 | Contrats partagés | aucune évolution |
 | Verrous de gouvernance | aucun changement, 18/18 conformes |
@@ -507,6 +507,31 @@ PostgreSQL réel repassent verts ; ce dernier conclut
 `REVIEW_ROLE_MIGRATION_REGISTRY_INSERT_REJECTED=PASS` puis
 `LOT40_HYBRID_INTEGRATION=PASS`.
 
+La revue Codex du head `d3d9f36` a ensuite produit cinq fils. Le constat selon
+lequel les modèles restaient lazy était déjà corrigé par `294ba28` : le
+lifespan appelle bien `preload_runtime_models()` avant son `yield`. Les quatre
+autres scénarios étaient recevables. Le commit `9084000` :
+
+- compare désormais la dimension native du modèle d'embedding préchargé à la
+  dimension canonique avant de construire le reranker et avant tout trafic ;
+- refuse tout grant `REFERENCES`, y compris limité à une colonne de
+  `rag_chunks`, sur le rôle review ;
+- réinclut explicitement l'artefact de scope signé du paquet
+  `nexus-contracts` après le hard-deny générique des répertoires `artifacts`
+  dans `.dockerignore` ;
+- valide les bornes et les types `PG_POOL_MIN_SIZE`, `PG_POOL_MAX_SIZE` et
+  `PG_POOL_TIMEOUT_S` dans la readiness publique, ainsi que la concordance du
+  DSN validé.
+
+Le cycle TDD a d'abord produit six échecs ciblés, puis **36 réussites** après
+correction. Ruff, `mypy`, `git diff --check` et toute la suite non-intégration
+du moteur sont verts. Le premier smoke PostgreSQL post-correctif a validé le
+nouveau marqueur `REVIEW_ROLE_COLUMN_LEVEL_REFERENCES_REJECTED=PASS`, puis a
+rencontré une variance HNSW approximative sur un voisin de rang 50 déjà verte
+dans les exécutions précédentes et sans code retrieval modifié par ce patch.
+La relance complète sur une base neuve est verte et conclut le nouveau marqueur
+ainsi que `LOT40_HYBRID_INTEGRATION=PASS`. L'oracle ANN n'a pas été affaibli.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -569,6 +594,7 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `826812e` | attente du serveur PostgreSQL final dans le smoke Docker |
 | `a6cc47a` | attestations modèles réutilisées et registre interdit au rôle review |
 | `294ba28` | préchargement des modèles avant trafic et preuve `INSERT` précise |
+| `9084000` | dimension runtime, pool, scope packagé et `REFERENCES` review fail-closed |
 
 ## Décision de livraison
 
