@@ -758,4 +758,3 @@ push l'invalide.
 
 Conserver `GO_LIVE: NO_GO`. Démarrer LOT41A dans une nouvelle branche et un
 nouveau worktree, sans réutiliser la branche LOT41V.
-
