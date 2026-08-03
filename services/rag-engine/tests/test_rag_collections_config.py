@@ -210,36 +210,49 @@ def test_validate_v3_catalogue_for_runtime_readiness() -> None:
     assert config["collections"]
 
 
-@pytest.mark.parametrize(
-    "invalid_config",
-    (
-        {"version": 3},
-        {"version": 3, "collections": {}},
-        {
-            "version": 3,
-            "collections": {
-                "rag_nexus_invalid": {
-                    "domain": "education",
-                    "instanciee": True,
-                    "voie": "unknown",
-                }
-            },
-            "domains": {"education": {"retrievable": True}},
-        },
-    ),
-)
-def test_runtime_catalogue_validation_rejects_incomplete_or_invalid_content(
-    tmp_path: Path,
-    invalid_config: dict[str, object],
-) -> None:
+def _write_runtime_catalogue(tmp_path: Path, config: dict) -> Path:
     config_path = tmp_path / "rag_collections.yml"
     config_path.write_text(
-        yaml.safe_dump(invalid_config, sort_keys=False),
+        yaml.safe_dump(config, sort_keys=False),
         encoding="utf-8",
     )
+    return config_path
 
-    with pytest.raises(CollectionConfigError):
-        validate_collection_catalogue_v2(config_path)
+
+def test_runtime_catalogue_validation_rejects_unsupported_version(
+    tmp_path: Path,
+) -> None:
+    config = _load_yaml(CONFIG_PATH)
+    config["version"] = 2
+
+    with pytest.raises(CollectionConfigError, match="Unsupported v2 catalogue version"):
+        validate_collection_catalogue_v2(_write_runtime_catalogue(tmp_path, config))
+
+
+def test_runtime_catalogue_validation_rejects_empty_catalogue(tmp_path: Path) -> None:
+    config = _load_yaml(CONFIG_PATH)
+    config["collections"] = {}
+
+    with pytest.raises(CollectionConfigError, match="Empty v2 collections catalogue"):
+        validate_collection_catalogue_v2(_write_runtime_catalogue(tmp_path, config))
+
+
+def test_runtime_catalogue_validation_rejects_unknown_voie(tmp_path: Path) -> None:
+    config = _load_yaml(CONFIG_PATH)
+    config["collections"]["rag_nexus_nsi_premiere_specialite"]["voie"] = "unknown"
+
+    with pytest.raises(CollectionConfigError, match="Unknown catalogue voie"):
+        validate_collection_catalogue_v2(_write_runtime_catalogue(tmp_path, config))
+
+
+def test_runtime_catalogue_validation_keeps_quarantine_fail_closed(
+    tmp_path: Path,
+) -> None:
+    config = _load_yaml(CONFIG_PATH)
+    config["domains"]["quarantine"]["retrievable"] = True
+
+    with pytest.raises(CollectionConfigError, match="Invalid v2 domain definition"):
+        validate_collection_catalogue_v2(_write_runtime_catalogue(tmp_path, config))
 
 
 def test_load_legacy_config() -> None:

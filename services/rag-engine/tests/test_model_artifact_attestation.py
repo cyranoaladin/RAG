@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import time
 from pathlib import Path
 
 import pytest
@@ -134,8 +135,15 @@ def test_bounded_attestation_rejects_same_size_content_with_restored_mtime(
     attestation, inventory_sha256 = _verified_attestation(root)
     weights = root / "model.safetensors"
     before = weights.stat()
-    weights.write_bytes(b"x" * before.st_size)
-    os.utime(weights, ns=(before.st_atime_ns, before.st_mtime_ns))
+    deadline = time.monotonic() + 2.0
+    while True:
+        weights.write_bytes(b"x" * before.st_size)
+        os.utime(weights, ns=(before.st_atime_ns, before.st_mtime_ns))
+        if weights.stat().st_ctime_ns != before.st_ctime_ns:
+            break
+        if time.monotonic() >= deadline:
+            pytest.fail("filesystem ctime did not advance after a bounded mutation")
+        time.sleep(0.01)
 
     assert not model_artifact_attestation_ready(
         attestation,

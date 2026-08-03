@@ -178,6 +178,10 @@ def validate_collection_catalogue_v2(path: Path | None = None) -> dict[str, Any]
             or not domain_name
             or not isinstance(definition, Mapping)
             or not isinstance(definition.get("retrievable"), bool)
+            or (
+                domain_name == "quarantine"
+                and definition.get("retrievable") is not False
+            )
         ):
             raise CollectionConfigLoadError("Invalid v2 domain definition")
         audiences = definition.get("audiences")
