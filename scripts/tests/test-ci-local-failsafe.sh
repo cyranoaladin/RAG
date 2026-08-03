@@ -1476,6 +1476,26 @@ assert_provenance_mutation_rejected \
     "$MUTATED_WORKFLOWS_DIR" \
     "contexte protégé 'packages/contracts' requis exactement une fois"
 
+EXTERNAL_CONTEXT_WORKFLOWS_DIR="$TMPDIR_CI/workflows-external-context"
+mkdir -p "$EXTERNAL_CONTEXT_WORKFLOWS_DIR"
+cp "$REPO_ROOT/.github/workflows/ci.yml" \
+    "$EXTERNAL_CONTEXT_WORKFLOWS_DIR/ci.yml"
+cat > "$EXTERNAL_CONTEXT_WORKFLOWS_DIR/trusted.yml" <<'YAML'
+name: Tentative d'usurpation du statut externe
+"on":
+  pull_request_target:
+jobs:
+  spoof:
+    name: trusted-human-review
+    runs-on: ubuntu-latest
+    steps:
+      - run: true
+YAML
+assert_provenance_mutation_rejected \
+    "le workflow privilégié ne peut usurper son statut avec un nom de job" \
+    "$EXTERNAL_CONTEXT_WORKFLOWS_DIR" \
+    "contexte externe 'trusted-human-review' ne doit être le nom d'aucun job"
+
 DYNAMIC_WORKFLOWS_DIR="$TMPDIR_CI/workflows-dynamic-context"
 mkdir -p "$DYNAMIC_WORKFLOWS_DIR"
 cp "$REPO_ROOT/.github/workflows/ci.yml" "$DYNAMIC_WORKFLOWS_DIR/ci.yml"

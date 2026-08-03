@@ -440,4 +440,72 @@ if ! validate_hybrid_integration_step "$REPO_ROOT/.github/workflows/ci.yml"; the
     exit 1
 fi
 
+validate_trusted_review_test_wiring() {
+    local workflow_file="$1"
+    local ci_local_file="$2"
+    local yaml_python
+
+    yaml_python="$(find_yaml_python)"
+    "$yaml_python" - "$workflow_file" "$ci_local_file" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+import yaml
+
+workflow_path = Path(sys.argv[1])
+ci_local_path = Path(sys.argv[2])
+document = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+jobs = document.get("jobs") if isinstance(document, dict) else None
+controls = jobs.get("repository-controls") if isinstance(jobs, dict) else None
+steps = controls.get("steps") if isinstance(controls, dict) else None
+if not isinstance(steps, list):
+    raise SystemExit("repository-controls.steps absent")
+
+required = (
+    "python scripts/tests/test-trusted-human-review.py",
+    "python scripts/tests/test-trusted-human-review-github.py",
+    "python scripts/tests/test-trusted-human-review-workflow.py",
+)
+commands = [
+    step.get("run")
+    for step in steps
+    if isinstance(step, dict) and isinstance(step.get("run"), str)
+]
+all_commands = [
+    step.get("run")
+    for job in jobs.values()
+    if isinstance(job, dict)
+    for step in job.get("steps", [])
+    if isinstance(step, dict) and isinstance(step.get("run"), str)
+]
+source = ci_local_path.read_text(encoding="utf-8")
+errors: list[str] = []
+for command in required:
+    if commands.count(command) != 1 or all_commands.count(command) != 1:
+        errors.append(f"commande GitHub absente ou dupliquée: {command}")
+    script = command.removeprefix("python ")
+    pattern = re.compile(
+        r'^run_target "trusted-human-review-[a-z-]+" '
+        + re.escape('"$PYTHON_BIN" ' + script)
+        + r"$",
+        re.MULTILINE,
+    )
+    if len(pattern.findall(source)) != 1:
+        errors.append(f"target CI local absent ou ambigu: {script}")
+
+if errors:
+    for error in errors:
+        print(f"- {error}", file=sys.stderr)
+    raise SystemExit(1)
+PY
+}
+
+if ! validate_trusted_review_test_wiring \
+    "$REPO_ROOT/.github/workflows/ci.yml" \
+    "$REPO_ROOT/scripts/ci-local.sh"; then
+    echo "FAIL: les tests LOT41V ne sont pas obligatoires dans les deux CI" >&2
+    exit 1
+fi
+
 echo "PASS: CI topology is acyclic and re-entry fails closed"
