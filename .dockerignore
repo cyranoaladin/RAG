@@ -23,6 +23,7 @@
 !services/rag-engine/src/ingestor/collection_config.py
 !services/rag-engine/src/ingestor/embedding_contract.py
 !services/rag-engine/src/ingestor/identity_v2.py
+!services/rag-engine/src/ingestor/inference_runtime.py
 !services/rag-engine/src/ingestor/metrics.py
 !services/rag-engine/src/ingestor/model_artifact.py
 !services/rag-engine/src/ingestor/pg_pool.py

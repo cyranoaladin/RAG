@@ -26,6 +26,7 @@ COPY services/rag-engine/src/ingestor/api_v2.py /app/api_v2.py
 COPY services/rag-engine/src/ingestor/collection_config.py /app/collection_config.py
 COPY services/rag-engine/src/ingestor/embedding_contract.py /app/embedding_contract.py
 COPY services/rag-engine/src/ingestor/identity_v2.py /app/identity_v2.py
+COPY services/rag-engine/src/ingestor/inference_runtime.py /app/inference_runtime.py
 COPY services/rag-engine/src/ingestor/metrics.py /app/metrics.py
 COPY services/rag-engine/src/ingestor/model_artifact.py /app/model_artifact.py
 COPY services/rag-engine/src/ingestor/pg_pool.py /app/pg_pool.py

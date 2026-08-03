@@ -861,6 +861,7 @@ def test_v2_dockerfile_copies_only_the_read_review_runtime() -> None:
         "collection_config.py",
         "embedding_contract.py",
         "identity_v2.py",
+        "inference_runtime.py",
         "metrics.py",
         "model_artifact.py",
         "pg_pool.py",
