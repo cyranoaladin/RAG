@@ -14,6 +14,7 @@ import {
 import { requireBffAuth } from '@/server/bff-auth'
 import type { BffAuthContext } from '@/server/bff-auth'
 import { PILOT_RETRIEVAL_SCOPE } from '@/server/pilot-scope'
+import { SEARCH_ROUTE_BUDGET_MS } from '@/lib/request-deadlines'
 
 import { fetchEngine, isPublicLaunchReady } from '../_engine'
 
@@ -93,6 +94,15 @@ function mergeCollectionHeads(
 }
 
 export async function POST(request: Request) {
+  const searchDeadlineMs = Date.now() + SEARCH_ROUTE_BUDGET_MS
+  const remainingSearchBudgetMs = (): number => {
+    const remainingMs = searchDeadlineMs - Date.now()
+    if (remainingMs <= 0) {
+      throw new Error('search deadline exhausted')
+    }
+    return remainingMs
+  }
+
   const authContext = await requireBffAuth(request)
   if (!authContext) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
@@ -114,11 +124,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'forbidden_collection' }, { status: 403 })
   }
 
-  if (!await isPublicLaunchReady(authContext.identityToken)) {
-    return NextResponse.json({ error: 'launch_not_ready' }, { status: 503 })
-  }
-
   try {
+    if (!await isPublicLaunchReady(authContext.identityToken, {
+      signal: request.signal,
+      timeoutMs: remainingSearchBudgetMs(),
+    })) {
+      return NextResponse.json({ error: 'launch_not_ready' }, { status: 503 })
+    }
+
     const engineRequests = payload.collections.map((collection) =>
       buildRetrievalRequest(authContext, payload, collection))
     if (engineRequests.some((engineRequest) => engineRequest === null)) {
@@ -130,6 +143,8 @@ export async function POST(request: Request) {
         method: 'POST',
         body: engineRequest as RetrievalRequest,
         identityToken: authContext.identityToken,
+        signal: request.signal,
+        timeoutMs: remainingSearchBudgetMs(),
       }))
     }
     if (results.some((result) => result.status !== 200)) {

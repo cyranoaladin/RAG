@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { fetchEngine, isPublicLaunchReady } from '../_engine'
 import { POST } from './route'
@@ -93,6 +93,10 @@ describe('POST /api/search', () => {
     mockedRequireBffAuth.mockResolvedValue(authContext)
   })
 
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   it('répond 401 avant tout appel moteur lorsque la session manque', async () => {
     mockedRequireBffAuth.mockResolvedValue(null)
 
@@ -148,7 +152,13 @@ describe('POST /api/search', () => {
       'second-mmr',
     ])
     expect(body.results?.map((hit) => hit.score)).toEqual([0.2, 0.9])
-    expect(mockedIsPublicLaunchReady).toHaveBeenCalledWith('signed-identity-token')
+    expect(mockedIsPublicLaunchReady).toHaveBeenCalledWith(
+      'signed-identity-token',
+      expect.objectContaining({
+        signal: expect.any(AbortSignal),
+        timeoutMs: expect.any(Number),
+      }),
+    )
     expect(mockedFetchEngine).toHaveBeenCalledWith('/search/v2', expect.objectContaining({
       identityToken: 'signed-identity-token',
       body: expect.objectContaining({
@@ -245,6 +255,29 @@ describe('POST /api/search', () => {
     expect(response.status).toBe(200)
     expect(mockedFetchEngine).toHaveBeenCalledTimes(2)
     expect(maximumActiveCalls).toBe(1)
+  })
+
+  it('n’entame pas une nouvelle collection lorsque le budget BFF global est épuisé', async () => {
+    let nowMs = 1_000
+    vi.spyOn(Date, 'now').mockImplementation(() => nowMs)
+    mockedFetchEngine.mockImplementation(async () => {
+      nowMs += 8_000
+      return {
+        status: 200,
+        payload: {
+          results: [],
+          warnings: [],
+          filters_applied: {},
+        },
+      }
+    })
+
+    const response = await POST(searchRequest([MATHS_COLLECTION, NSI_COLLECTION]))
+    const body = await responseBody(response)
+
+    expect(response.status).toBe(503)
+    expect(body.error).toBe('service_unavailable')
+    expect(mockedFetchEngine).toHaveBeenCalledTimes(1)
   })
 
   it('propage les avertissements du contrat moteur sans les réinterpréter', async () => {

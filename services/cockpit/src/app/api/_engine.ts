@@ -3,6 +3,8 @@ export interface EngineFetchParams {
   body?: unknown
   identityToken?: string
   query?: EngineReviewQueueQuery
+  signal?: AbortSignal
+  timeoutMs?: number
 }
 
 export type EngineReviewQueueQuery = {
@@ -80,7 +82,14 @@ export async function fetchEngine(
   const init: RequestInit = {
     method: params.method ?? 'GET',
     headers,
-    signal: AbortSignal.timeout(ENGINE_TIMEOUT_MS),
+    signal: AbortSignal.any([
+      AbortSignal.timeout(
+        params.timeoutMs === undefined
+          ? ENGINE_TIMEOUT_MS
+          : Math.max(1, Math.min(params.timeoutMs, ENGINE_TIMEOUT_MS)),
+      ),
+      ...(params.signal === undefined ? [] : [params.signal]),
+    ]),
   }
 
   if (params.body !== undefined) {
@@ -114,9 +123,15 @@ export async function fetchEngine(
 }
 
 /** Public endpoints are closed unless the engine proves every collection ready. */
-export async function isPublicLaunchReady(identityToken: string): Promise<boolean> {
+export async function isPublicLaunchReady(
+  identityToken: string,
+  requestBudget: Pick<EngineFetchParams, 'signal' | 'timeoutMs'> = {},
+): Promise<boolean> {
   try {
-    const result = await fetchEngine('/collections/readiness', { identityToken })
+    const result = await fetchEngine('/collections/readiness', {
+      identityToken,
+      ...requestBudget,
+    })
     if (result.status !== 200 || typeof result.payload !== 'object' || result.payload === null) {
       return false
     }
