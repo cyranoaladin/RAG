@@ -39,6 +39,11 @@
 !services/rag-engine/src/ingestor/schema_readiness_v2.py
 !services/rag-engine/src/ingestor/security_v2.py
 
+# Required authoritative taxonomy artefact for catalogue verification.
+!services/rag-pedago/
+!services/rag-pedago/taxonomy/
+!services/rag-pedago/taxonomy/**
+
 # Required UI image inputs. Keep this allowlist narrow because the Compose build
 # context is the repository root.
 !services/rag-engine/requirements.lock

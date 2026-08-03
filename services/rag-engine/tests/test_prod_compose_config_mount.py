@@ -13,6 +13,8 @@ DEFAULT_COMPOSE_PATH = ENGINE_ROOT / "infra" / "docker-compose.yml"
 V2_COMPOSE_PATH = ENGINE_ROOT / "infra" / "docker-compose.v2.yml"
 MAKEFILE_PATH = ENGINE_ROOT / "Makefile"
 CONFIGS_DIR = ENGINE_ROOT / "configs"
+TAXONOMY_DIR = REPO_ROOT / "services" / "rag-pedago" / "taxonomy"
+DOCKERIGNORE_PATH = REPO_ROOT / ".dockerignore"
 DEPLOYMENT_PLAN = REPO_ROOT / "docs" / "reports" / "lot_19_prod_deployment_plan.md"
 PROVISION_PROD_SCRIPT = ENGINE_ROOT / "infra" / "scripts" / "provision-prod.sh"
 LEGACY_INGESTOR_ENV_KEYS = {
@@ -268,6 +270,28 @@ def test_v2_ingestor_uses_dedicated_dockerfile_with_contracts() -> None:
         "COPY services/rag-engine/src/ingestor/retrieval_contract_adapter.py "
         "/app/retrieval_contract_adapter.py"
     ) in content, "the flattened v2 image must include every imported contract adapter"
+
+
+def test_v2_image_packages_the_authoritative_taxonomy() -> None:
+    """Le catalogue runtime doit pouvoir vérifier chaque taxonomie déclarée."""
+    dockerfile = (ENGINE_ROOT / "infra" / "Dockerfile.ingestor-v2").read_text(
+        encoding="utf-8"
+    )
+    dockerignore = DOCKERIGNORE_PATH.read_text(encoding="utf-8")
+    catalogue = yaml.safe_load((CONFIGS_DIR / "rag_collections.yml").read_text())
+
+    assert "COPY services/rag-pedago/taxonomy/ /app/taxonomy/" in dockerfile
+    assert "!services/rag-pedago/taxonomy/" in dockerignore
+    assert "!services/rag-pedago/taxonomy/**" in dockerignore
+    assert TAXONOMY_DIR.is_dir()
+
+    missing = sorted(
+        str(taxonomy_file)
+        for definition in catalogue["collections"].values()
+        if (taxonomy_file := definition.get("taxonomy_file"))
+        and not (TAXONOMY_DIR / str(taxonomy_file)).is_file()
+    )
+    assert missing == []
 
 
 def test_v2_compose_has_no_writer_worker() -> None:

@@ -18,6 +18,7 @@ import os
 import threading
 import time
 from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
@@ -149,7 +150,19 @@ _reviewed_counts_cache: (
 ) = None
 _reviewed_counts_cache_generation = 0
 _reviewed_counts_cache_lock = threading.Lock()
-_reviewed_counts_query_lock = threading.Lock()
+
+
+@dataclass
+class _ReviewedCountsFlight:
+    """Résultat partagé par les probes identiques lancées simultanément."""
+
+    event: threading.Event
+    generation: int
+    result: dict[str, int] | None = None
+    error: Exception | None = None
+
+
+_reviewed_counts_inflight: dict[tuple[str, ...], _ReviewedCountsFlight] = {}
 _CATALOGUE_ROLES = frozenset({"admin", "reviewer", "teacher", "ingest_agent"})
 
 
@@ -453,17 +466,36 @@ def _get_reviewed_chunk_counts(
 
     try:
         settings = PoolSettings.from_env()
-        acquired = _reviewed_counts_query_lock.acquire(timeout=settings.timeout_s)
-        if not acquired:
-            raise RuntimeError("reviewed count query already in progress")
-        try:
+        with _reviewed_counts_cache_lock:
+            cached = _reviewed_counts_cache
             now = time.monotonic()
-            with _reviewed_counts_cache_lock:
-                cached = _reviewed_counts_cache
-                if cached is not None and cached[0] == cache_key and cached[1] > now:
-                    return dict(cached[2])
-                generation = _reviewed_counts_cache_generation
+            if cached is not None and cached[0] == cache_key and cached[1] > now:
+                return dict(cached[2])
+            flight = _reviewed_counts_inflight.get(cache_key)
+            is_leader = flight is None
+            if flight is None:
+                flight = _ReviewedCountsFlight(
+                    event=threading.Event(),
+                    generation=_reviewed_counts_cache_generation,
+                )
+                _reviewed_counts_inflight[cache_key] = flight
 
+        if not is_leader:
+            wait_timeout_s = (
+                (2 * settings.timeout_s)
+                + settings.connect_timeout_s
+                + (settings.statement_timeout_ms / 1_000.0)
+                + 1.0
+            )
+            if not flight.event.wait(timeout=wait_timeout_s):
+                raise RuntimeError("reviewed count query exceeded its bounded lifetime")
+            if flight.error is not None:
+                raise flight.error
+            if flight.result is None:
+                raise RuntimeError("reviewed count query completed without a result")
+            return dict(flight.result)
+
+        try:
             with pool_connection(settings) as connection:
                 with connection.cursor() as cursor:
                     cursor.execute(
@@ -477,15 +509,30 @@ def _get_reviewed_chunk_counts(
                         for collection, count in cursor.fetchall()
                     }
             with _reviewed_counts_cache_lock:
-                if generation == _reviewed_counts_cache_generation:
+                publication_error: RuntimeError | None = None
+                if flight.generation == _reviewed_counts_cache_generation:
+                    flight.result = dict(counts)
                     _reviewed_counts_cache = (
                         cache_key,
                         time.monotonic() + _REVIEWED_COUNTS_CACHE_TTL_S,
                         dict(counts),
                     )
+                else:
+                    publication_error = RuntimeError(
+                        "reviewed count query invalidated by a review decision"
+                    )
+                    flight.error = publication_error
+                _reviewed_counts_inflight.pop(cache_key, None)
+                flight.event.set()
+            if publication_error is not None:
+                raise publication_error
             return counts
-        finally:
-            _reviewed_counts_query_lock.release()
+        except Exception as exc:
+            with _reviewed_counts_cache_lock:
+                flight.error = exc
+                _reviewed_counts_inflight.pop(cache_key, None)
+                flight.event.set()
+            raise
     except Exception as exc:
         logger.error("pgvector readiness query failed: %s", exc)
         raise HTTPException(status_code=503, detail="launch readiness unavailable") from exc

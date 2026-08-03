@@ -15,6 +15,7 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
+from threading import Event
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -175,6 +176,101 @@ def test_reviewed_chunk_counts_use_the_bounded_shared_pool(
     assert executed["settings"] is settings
     assert "SELECT collection, COUNT(*) FROM rag_chunks" in str(executed["sql"])
     assert BASE_SCOPE.tenant in executed["params"]
+
+
+def _install_blocking_reviewed_counts_db(
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[object, Event, Event, dict[str, int]]:
+    from ingestor import retrieval_v2_endpoint as endpoint
+
+    settings = SimpleNamespace(
+        timeout_s=0.01,
+        connect_timeout_s=1,
+        statement_timeout_ms=1_000,
+    )
+    query_started = Event()
+    release_query = Event()
+    state = {"connection_calls": 0}
+
+    class Cursor:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def execute(self, _sql: str, _params: tuple[object, ...]) -> None:
+            query_started.set()
+            assert release_query.wait(timeout=2.0)
+
+        def fetchall(self) -> list[tuple[str, int]]:
+            return [(BASE_SCOPE.collection, 12)]
+
+    class Connection:
+        def cursor(self) -> Cursor:
+            return Cursor()
+
+    @contextmanager
+    def connection_provider(_received_settings: object):
+        state["connection_calls"] += 1
+        yield Connection()
+
+    monkeypatch.setattr(
+        endpoint,
+        "PoolSettings",
+        SimpleNamespace(from_env=lambda: settings),
+    )
+    monkeypatch.setattr(endpoint, "pool_connection", connection_provider)
+    endpoint.invalidate_cache()
+    return endpoint, query_started, release_query, state
+
+
+def test_reviewed_chunk_counts_coalesce_concurrent_identical_queries(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Deux probes identiques partagent le même résultat SQL en cours."""
+    endpoint, query_started, release_query, state = (
+        _install_blocking_reviewed_counts_db(monkeypatch)
+    )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        first = executor.submit(endpoint._get_reviewed_chunk_counts, (BASE_SCOPE,))
+        assert query_started.wait(timeout=1.0)
+        second = executor.submit(endpoint._get_reviewed_chunk_counts, (BASE_SCOPE,))
+        time.sleep(0.05)
+        release_query.set()
+
+        expected = {BASE_SCOPE.collection: 12}
+        assert first.result(timeout=1.0) == expected
+        assert second.result(timeout=1.0) == expected
+
+    assert state["connection_calls"] == 1
+
+
+def test_reviewed_chunk_counts_fail_closed_when_review_invalidates_inflight_query(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Une décision de review interdit de publier ou partager le snapshot ancien."""
+    endpoint, query_started, release_query, state = (
+        _install_blocking_reviewed_counts_db(monkeypatch)
+    )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        first = executor.submit(endpoint._get_reviewed_chunk_counts, (BASE_SCOPE,))
+        assert query_started.wait(timeout=1.0)
+        second = executor.submit(endpoint._get_reviewed_chunk_counts, (BASE_SCOPE,))
+        endpoint.invalidate_cache()
+        release_query.set()
+
+        for future in (first, second):
+            with pytest.raises(HTTPException) as exc_info:
+                future.result(timeout=1.0)
+            assert exc_info.value.status_code == 503
+
+    assert endpoint._get_reviewed_chunk_counts((BASE_SCOPE,)) == {
+        BASE_SCOPE.collection: 12,
+    }
+    assert state["connection_calls"] == 2
 
 
 def test_cold_model_loads_reuse_startup_paths_and_are_serialized(
