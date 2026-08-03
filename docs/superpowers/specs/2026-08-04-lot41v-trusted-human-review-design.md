@@ -109,6 +109,8 @@ Le vérificateur reçoit des données JSON déjà collectées par le workflow et
 pur, déterministe et sans réseau. Il refuse par défaut lorsque :
 
 - le dépôt, la PR, la base ou le head diffèrent de l'événement courant ;
+- le dépôt du head diffère du dépôt audité : les PR provenant d'un fork sont
+  refusées par cette première version ;
 - la PR est en brouillon, fermée ou ne cible pas `main` ;
 - le reviewer n'est pas dans l'allowlist versionnée ;
 - le reviewer est l'auteur de la PR ;
@@ -205,4 +207,3 @@ LOT41V ne préjuge pas les décisions suivantes :
    supply chain, grants et rollback sur l'infrastructure cible.
 5. LOT47 reste une décision humaine finale de go-live et ne peut être produite
    par un agent.
-
