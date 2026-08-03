@@ -26,7 +26,7 @@ preuves opérationnelles externes doivent être obtenues. Aucun verrou
 | Date | 2026-08-02 |
 | Baseline `main` | `ea18ba52da5778f628c4943705dd81dfa43fbc15` |
 | Branche | `lot-41u-ingestion-runtime-hardening` |
-| Head applicatif audité avant ce commit documentaire | `3793f3f6a4beacf52c2178e474941defa90f0d87` |
+| Head applicatif audité avant ce commit documentaire | `2c4322aeecb19d75d7da35618fd90b9c0d650b64` |
 | Plan de données | runtime FastAPI v2, PostgreSQL/pgvector, Compose, Nginx |
 | Contrats partagés | aucune évolution |
 | Verrous de gouvernance | aucun changement, 18/18 conformes |
@@ -598,6 +598,15 @@ non-intégration du moteur et le smoke PostgreSQL réel sont verts, avec
 `DENSE_EXACT_ORACLE_PREFIX=PASS` et `LOT40_HYBRID_INTEGRATION=PASS`. Le head
 documentaire final reste soumis à la CI GitHub exacte.
 
+La revue Codex du même head a enfin identifié une incompatibilité entre la
+nouvelle sonde `pg_control_system()` et les rôles minimaux créés sur une base
+PostgreSQL 16 neuve. Le test statique a d'abord échoué faute de grant. Le
+commit `2c4322a` accorde ensuite directement `EXECUTE` sur cette seule fonction
+aux rôles retrieval et review ; il n'accorde ni `pg_monitor`, ni héritage, ni
+écriture. Le smoke sur PostgreSQL réel confirme
+`RUNTIME_ROLE_SHARED_DATABASE_IDENTITY=PASS`, puis tous les contrôles de
+moindre privilège et `LOT40_HYBRID_INTEGRATION=PASS`.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -664,6 +673,7 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `6e93b38` | exploration maximale réservée à l'oracle HNSW empirique |
 | `8b56c6e` | autorités, catalogue et identité PostgreSQL attestés ; oracle dense exact |
 | `3793f3f` | quarantaine fail-closed, tests catalogue isolés et preuve `ctime` stable |
+| `2c4322a` | exécution minimale de la sonde d'identité par les deux rôles runtime |
 
 ## Décision de livraison
 
