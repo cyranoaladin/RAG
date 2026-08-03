@@ -3,17 +3,73 @@
 from __future__ import annotations
 
 import re
-from typing import Final
+import secrets
+import time
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar, Token
+from typing import Any, Final
 
 import psycopg
 
 READINESS_CONNECT_TIMEOUT_S: Final = 3
 READINESS_STATEMENT_TIMEOUT_MS: Final = 3000
+READINESS_AGGREGATE_BUDGET_MS: Final = 7000
+_MIN_LIBPQ_CONNECT_TIMEOUT_S: Final = 2
 RUNTIME_RELATION_ALLOWLIST: Final = (
     ("public", "rag_chunks"),
     ("public", "rag_schema_migrations"),
 )
 _SAFE_CATALOG_NAME = re.compile(r"[a-z_][a-z0-9_]*\Z")
+_readiness_deadline: ContextVar[float | None] = ContextVar(
+    "readiness_database_deadline",
+    default=None,
+)
+
+
+@contextmanager
+def readiness_database_budget() -> Iterator[float]:
+    """Partager une deadline unique, plus courte que le healthcheck Compose."""
+    existing = _readiness_deadline.get()
+    if existing is not None:
+        yield existing
+        return
+    deadline = time.monotonic() + (READINESS_AGGREGATE_BUDGET_MS / 1000.0)
+    token: Token[float | None] = _readiness_deadline.set(deadline)
+    try:
+        yield deadline
+    finally:
+        _readiness_deadline.reset(token)
+
+
+def remaining_readiness_budget_ms() -> int:
+    """Retourner le reliquat de la sonde profonde ou échouer fermé."""
+    deadline = _readiness_deadline.get()
+    if deadline is None:
+        return READINESS_AGGREGATE_BUDGET_MS
+    remaining_ms = int((deadline - time.monotonic()) * 1000)
+    if remaining_ms <= 0:
+        raise RuntimeError("database readiness budget exhausted")
+    return min(remaining_ms, READINESS_AGGREGATE_BUDGET_MS)
+
+
+def readiness_connect_timeout_s() -> int:
+    """Borner libpq au reliquat, en respectant son minimum effectif de 2 s."""
+    if _readiness_deadline.get() is None:
+        return READINESS_CONNECT_TIMEOUT_S
+    remaining_s = remaining_readiness_budget_ms() // 1000
+    if remaining_s < _MIN_LIBPQ_CONNECT_TIMEOUT_S:
+        raise RuntimeError("database readiness budget exhausted")
+    return min(READINESS_CONNECT_TIMEOUT_S, remaining_s)
+
+
+def apply_readiness_statement_budget(cursor: Any) -> None:
+    """Réduire le timeout du prochain statement au reliquat agrégé."""
+    timeout_ms = min(
+        READINESS_STATEMENT_TIMEOUT_MS,
+        remaining_readiness_budget_ms(),
+    )
+    cursor.execute(f"SET LOCAL statement_timeout = {timeout_ms}")
 
 
 def no_auxiliary_relation_privileges_sql(
@@ -153,26 +209,20 @@ NOT EXISTS (
 def readiness_connection_options() -> str:
     """Retourner les options bornées et non mutantes du contrat de readiness."""
     return (
-        f"-c statement_timeout={READINESS_STATEMENT_TIMEOUT_MS} "
+        f"-c statement_timeout={min(READINESS_STATEMENT_TIMEOUT_MS, remaining_readiness_budget_ms())} "
         "-c default_transaction_read_only=on"
     )
 
 
-def postgres_database_identity(dsn: str) -> tuple[str, str]:
-    """Attester l'identifiant du cluster et le nom de base ciblés par un DSN."""
-    with psycopg.connect(
-        dsn,
-        connect_timeout=READINESS_CONNECT_TIMEOUT_S,
-        options=readiness_connection_options(),
-    ) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                SELECT system_identifier::text, current_database()
-                FROM pg_control_system()
-                """
-            )
-            row = cursor.fetchone()
+def _postgres_database_identity(cursor: Any) -> tuple[str, str]:
+    apply_readiness_statement_budget(cursor)
+    cursor.execute(
+        """
+        SELECT system_identifier::text, current_database()
+        FROM pg_control_system()
+        """
+    )
+    row = cursor.fetchone()
     if (
         not isinstance(row, tuple)
         or len(row) != 2
@@ -182,13 +232,85 @@ def postgres_database_identity(dsn: str) -> tuple[str, str]:
     return row[0], row[1]
 
 
+def postgres_database_identity(dsn: str) -> tuple[str, str]:
+    """Attester l'identifiant du cluster et le nom de base ciblés par un DSN."""
+    with psycopg.connect(
+        dsn,
+        connect_timeout=readiness_connect_timeout_s(),
+        options=readiness_connection_options(),
+    ) as connection:
+        with connection.cursor() as cursor:
+            return _postgres_database_identity(cursor)
+
+
+def postgres_database_authorities_share_instance(
+    rag_dsn: str,
+    review_dsn: str,
+) -> bool:
+    """Prouver en direct que les deux autorités partagent le même lock manager."""
+    challenge = secrets.randbits(63)
+    reader_acquired = False
+    reviewer_acquired = False
+    with psycopg.connect(
+        rag_dsn,
+        connect_timeout=readiness_connect_timeout_s(),
+        options=readiness_connection_options(),
+    ) as rag_connection:
+        with psycopg.connect(
+            review_dsn,
+            connect_timeout=readiness_connect_timeout_s(),
+            options=readiness_connection_options(),
+        ) as review_connection:
+            with rag_connection.cursor() as rag_cursor:
+                with review_connection.cursor() as review_cursor:
+                    try:
+                        if _postgres_database_identity(
+                            rag_cursor
+                        ) != _postgres_database_identity(review_cursor):
+                            return False
+                        apply_readiness_statement_budget(rag_cursor)
+                        rag_cursor.execute(
+                            "SELECT pg_try_advisory_lock(%s)",
+                            (challenge,),
+                        )
+                        reader_row = rag_cursor.fetchone()
+                        reader_acquired = reader_row == (True,)
+                        if not reader_acquired:
+                            return False
+                        apply_readiness_statement_budget(review_cursor)
+                        review_cursor.execute(
+                            "SELECT pg_try_advisory_lock(%s)",
+                            (challenge,),
+                        )
+                        review_row = review_cursor.fetchone()
+                        reviewer_acquired = review_row == (True,)
+                        return not reviewer_acquired
+                    finally:
+                        if reviewer_acquired:
+                            review_cursor.execute(
+                                "SELECT pg_advisory_unlock(%s)",
+                                (challenge,),
+                            )
+                        if reader_acquired:
+                            rag_cursor.execute(
+                                "SELECT pg_advisory_unlock(%s)",
+                                (challenge,),
+                            )
+
+
 __all__ = [
     "READINESS_CONNECT_TIMEOUT_S",
+    "READINESS_AGGREGATE_BUDGET_MS",
     "READINESS_STATEMENT_TIMEOUT_MS",
     "RUNTIME_RELATION_ALLOWLIST",
+    "apply_readiness_statement_budget",
     "no_auxiliary_relation_privileges_sql",
     "no_executable_security_definer_routines_sql",
     "no_user_schema_create_privileges_sql",
+    "postgres_database_authorities_share_instance",
     "postgres_database_identity",
+    "readiness_connect_timeout_s",
     "readiness_connection_options",
+    "readiness_database_budget",
+    "remaining_readiness_budget_ms",
 ]

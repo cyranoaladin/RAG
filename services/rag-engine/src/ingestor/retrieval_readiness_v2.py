@@ -11,9 +11,11 @@ try:
         READINESS_CONNECT_TIMEOUT_S,
         READINESS_STATEMENT_TIMEOUT_MS,
         RUNTIME_RELATION_ALLOWLIST,
+        apply_readiness_statement_budget,
         no_auxiliary_relation_privileges_sql,
         no_executable_security_definer_routines_sql,
         no_user_schema_create_privileges_sql,
+        readiness_connect_timeout_s,
         readiness_connection_options,
     )
 except ImportError:  # Image Docker aplatie sous /app.
@@ -21,9 +23,11 @@ except ImportError:  # Image Docker aplatie sous /app.
         READINESS_CONNECT_TIMEOUT_S,
         READINESS_STATEMENT_TIMEOUT_MS,
         RUNTIME_RELATION_ALLOWLIST,
+        apply_readiness_statement_budget,
         no_auxiliary_relation_privileges_sql,
         no_executable_security_definer_routines_sql,
         no_user_schema_create_privileges_sql,
+        readiness_connect_timeout_s,
         readiness_connection_options,
     )
 
@@ -191,10 +195,11 @@ def retrieval_database_ready(dsn: str) -> bool:
     """Prouver la connexion et le contrat exact du rôle de lecture."""
     with psycopg.connect(
         dsn,
-        connect_timeout=READINESS_CONNECT_TIMEOUT_S,
+        connect_timeout=readiness_connect_timeout_s(),
         options=readiness_connection_options(),
     ) as connection:
         with connection.cursor() as cursor:
+            apply_readiness_statement_budget(cursor)
             cursor.execute(_RETRIEVAL_PRIVILEGES_SQL)
             row = cursor.fetchone()
     return row == _REQUIRED_RETRIEVAL_PRIVILEGES

@@ -15,12 +15,16 @@ try:
     from .readiness_db import (
         READINESS_CONNECT_TIMEOUT_S,
         READINESS_STATEMENT_TIMEOUT_MS,
+        apply_readiness_statement_budget,
+        readiness_connect_timeout_s,
         readiness_connection_options,
     )
 except ImportError:  # Image Docker aplatie sous /app.
     from readiness_db import (  # type: ignore[no-redef]
         READINESS_CONNECT_TIMEOUT_S,
         READINESS_STATEMENT_TIMEOUT_MS,
+        apply_readiness_statement_budget,
+        readiness_connect_timeout_s,
         readiness_connection_options,
     )
 
@@ -347,10 +351,11 @@ def schema_head_003_ready(dsn: str) -> bool:
     """Prouver le registre, les SHA et les définitions exactes du head 003."""
     with psycopg.connect(
         dsn,
-        connect_timeout=READINESS_CONNECT_TIMEOUT_S,
+        connect_timeout=readiness_connect_timeout_s(),
         options=readiness_connection_options(),
     ) as connection:
         with connection.cursor() as cursor:
+            apply_readiness_statement_budget(cursor)
             cursor.execute(_SCHEMA_HEAD_003_SQL)
             row = cursor.fetchone()
 

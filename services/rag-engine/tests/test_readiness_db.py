@@ -149,3 +149,101 @@ def test_postgres_database_identity_rejects_incomplete_results(
 
     with pytest.raises(RuntimeError, match="database identity unavailable"):
         readiness_db.postgres_database_identity("postgresql://runtime")
+
+
+def test_shared_readiness_budget_shrinks_every_database_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = [100.0]
+    monkeypatch.setattr(readiness_db.time, "monotonic", lambda: now[0])
+
+    with readiness_db.readiness_database_budget() as deadline:
+        assert deadline == 107.0
+        now[0] = 104.5
+        assert readiness_db.remaining_readiness_budget_ms() == 2500
+        assert readiness_db.readiness_connect_timeout_s() == 2
+        assert "statement_timeout=2500" in readiness_db.readiness_connection_options()
+
+        now[0] = 105.1
+        with pytest.raises(RuntimeError, match="budget exhausted"):
+            readiness_db.readiness_connect_timeout_s()
+
+        now[0] = 107.1
+        with pytest.raises(RuntimeError, match="budget exhausted"):
+            readiness_db.remaining_readiness_budget_ms()
+
+    assert (
+        readiness_db.remaining_readiness_budget_ms()
+        == readiness_db.READINESS_AGGREGATE_BUDGET_MS
+    )
+
+
+@pytest.mark.parametrize(
+    ("review_acquires_challenge", "expected"),
+    ((False, True), (True, False)),
+)
+def test_live_instance_challenge_rejects_a_split_database(
+    monkeypatch: pytest.MonkeyPatch,
+    review_acquires_challenge: bool,
+    expected: bool,
+) -> None:
+    class _ChallengeCursor:
+        def __init__(self, *, acquires_challenge: bool) -> None:
+            self.acquires_challenge = acquires_challenge
+            self.row: object = None
+            self.queries: list[str] = []
+
+        def __enter__(self) -> _ChallengeCursor:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def execute(self, query: str, _params: object = None) -> None:
+            self.queries.append(query)
+            if "pg_control_system" in query:
+                self.row = ("cluster-1", "nexus")
+            elif "pg_try_advisory_lock" in query:
+                self.row = (self.acquires_challenge,)
+            elif "pg_advisory_unlock" in query:
+                self.row = (True,)
+
+        def fetchone(self) -> object:
+            return self.row
+
+    class _ChallengeConnection:
+        def __init__(self, cursor: _ChallengeCursor) -> None:
+            self._cursor = cursor
+
+        def __enter__(self) -> _ChallengeConnection:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def cursor(self) -> _ChallengeCursor:
+            return self._cursor
+
+    reader = _ChallengeCursor(acquires_challenge=True)
+    reviewer = _ChallengeCursor(acquires_challenge=review_acquires_challenge)
+    connections = iter((_ChallengeConnection(reader), _ChallengeConnection(reviewer)))
+    monkeypatch.setattr(
+        readiness_db,
+        "psycopg",
+        SimpleNamespace(connect=lambda *_args, **_kwargs: next(connections)),
+    )
+    monkeypatch.setattr(readiness_db.secrets, "randbits", lambda _bits: 4242)
+
+    assert (
+        readiness_db.postgres_database_authorities_share_instance(
+            "postgresql://reader",
+            "postgresql://reviewer",
+        )
+        is expected
+    )
+    assert any("pg_try_advisory_lock" in query for query in reader.queries)
+    assert any("pg_try_advisory_lock" in query for query in reviewer.queries)
+    assert any("pg_advisory_unlock" in query for query in reader.queries)
+    assert any("pg_advisory_unlock" in query for query in reviewer.queries) is (
+        review_acquires_challenge
+    )

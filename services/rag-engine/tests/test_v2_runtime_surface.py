@@ -52,8 +52,8 @@ def _clear_database_readiness_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     monkeypatch.setattr(
         api_v2,
-        "postgres_database_identity",
-        lambda _dsn: ("cluster-1", "nexus"),
+        "postgres_database_authorities_share_instance",
+        lambda _rag_dsn, _review_dsn: True,
         raising=False,
     )
     api_v2._reset_database_readiness_cache()
@@ -423,6 +423,66 @@ def test_health_cache_ttl_starts_after_a_slow_probe(
     assert calls == [1]
 
 
+def test_deep_database_readiness_uses_one_budget_below_health_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed: list[str] = []
+
+    class _Budget:
+        def __enter__(self) -> None:
+            observed.append("enter")
+
+        def __exit__(self, *_args: object) -> None:
+            observed.append("exit")
+
+    monkeypatch.setattr(api_v2, "readiness_database_budget", _Budget, raising=False)
+    monkeypatch.setattr(
+        api_v2,
+        "postgres_database_authorities_share_instance",
+        lambda _rag_dsn, _review_dsn: True,
+        raising=False,
+    )
+    monkeypatch.setattr(api_v2, "pgvector_dimension", lambda _dsn: 1024)
+    monkeypatch.setattr(api_v2, "schema_head_003_ready", lambda _dsn: True)
+    monkeypatch.setattr(api_v2, "retrieval_database_ready", lambda _dsn: True)
+    monkeypatch.setattr(api_v2, "review_database_ready", lambda _dsn: True)
+
+    assert api_v2._probe_database_readiness("reader", "reviewer") == (
+        1024,
+        True,
+        True,
+        True,
+        True,
+    )
+    assert observed == ["enter", "exit"]
+    assert api_v2.READINESS_AGGREGATE_BUDGET_MS < 10_000
+    assert api_v2._READINESS_LOCK_TIMEOUT_S < 10.0
+
+
+def test_health_follower_wait_is_bounded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed: list[float] = []
+
+    class _BusyLock:
+        def acquire(self, *, timeout: float) -> bool:
+            observed.append(timeout)
+            return False
+
+        def release(self) -> None:
+            raise AssertionError("unacquired lock must not be released")
+
+    original_lock = api_v2._database_readiness_cache_lock
+    api_v2._database_readiness_cache_lock = _BusyLock()  # type: ignore[assignment]
+    try:
+        with pytest.raises(RuntimeError, match="database readiness unavailable"):
+            api_v2._cached_database_readiness("reader", "reviewer")
+    finally:
+        api_v2._database_readiness_cache_lock = original_lock
+
+    assert observed == [api_v2._READINESS_LOCK_TIMEOUT_S]
+
+
 @pytest.mark.parametrize(
     "failure",
     (
@@ -483,12 +543,8 @@ def test_health_fails_closed_without_internal_details(
     elif failure == "database_identity":
         monkeypatch.setattr(
             api_v2,
-            "postgres_database_identity",
-            lambda dsn: (
-                ("cluster-rag", "nexus")
-                if "secret-reader" in dsn
-                else ("cluster-review", "nexus")
-            ),
+            "postgres_database_authorities_share_instance",
+            lambda _rag_dsn, _review_dsn: False,
         )
     else:
         monkeypatch.setattr(api_v2, "_model_artifacts_ready", lambda: False)

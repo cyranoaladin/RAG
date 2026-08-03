@@ -25,7 +25,7 @@ from ingestor import retrieval_v2_endpoint as endpoint
 from ingestor import review_v2_endpoint as review_endpoint
 from ingestor.identity_v2 import load_identity_verifier_config, verify_identity_token
 from ingestor.pg_pool import PoolSettings, close_pool, pool_connection
-from ingestor.readiness_db import postgres_database_identity
+from ingestor.readiness_db import postgres_database_authorities_share_instance
 from ingestor.retrieval_hybrid_v2 import (
     EMBED_DIMENSION,
     RetrievalPipelineError,
@@ -718,9 +718,9 @@ def test_application_role_is_non_superuser_and_select_only() -> None:
     print("APP_ROLE_NON_SUPERUSER_SELECT_ONLY=PASS")
 
 
-def test_runtime_roles_can_probe_the_same_database_identity() -> None:
-    assert postgres_database_identity(APP_DSN) == postgres_database_identity(REVIEW_DSN)
-    print("RUNTIME_ROLE_SHARED_DATABASE_IDENTITY=PASS")
+def test_runtime_roles_share_the_same_live_database_instance() -> None:
+    assert postgres_database_authorities_share_instance(APP_DSN, REVIEW_DSN) is True
+    print("RUNTIME_AUTHORITIES_SHARED_LIVE_INSTANCE=PASS")
 
 
 def test_review_role_can_only_select_and_update_review_status() -> None:

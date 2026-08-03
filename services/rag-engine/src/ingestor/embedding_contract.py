@@ -17,12 +17,14 @@ import psycopg
 
 try:
     from .readiness_db import (
-        READINESS_CONNECT_TIMEOUT_S,
+        apply_readiness_statement_budget,
+        readiness_connect_timeout_s,
         readiness_connection_options,
     )
 except ImportError:  # Image Docker aplatie sous /app.
     from readiness_db import (  # type: ignore[no-redef]
-        READINESS_CONNECT_TIMEOUT_S,
+        apply_readiness_statement_budget,
+        readiness_connect_timeout_s,
         readiness_connection_options,
     )
 
@@ -89,10 +91,11 @@ def pgvector_dimension(pg_dsn: str) -> int:
     """Read the declared dimension of ``rag_chunks.vector`` without mutation."""
     with psycopg.connect(
         pg_dsn,
-        connect_timeout=READINESS_CONNECT_TIMEOUT_S,
+        connect_timeout=readiness_connect_timeout_s(),
         options=readiness_connection_options(),
     ) as conn:
         with conn.cursor() as cur:
+            apply_readiness_statement_budget(cur)
             cur.execute(
                 """
                 SELECT format_type(a.atttypid, a.atttypmod)

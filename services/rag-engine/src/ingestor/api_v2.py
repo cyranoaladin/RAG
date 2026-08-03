@@ -30,7 +30,11 @@ try:
         model_artifact_attestation_ready,
     )
     from .pg_pool import PoolSettings, close_pool
-    from .readiness_db import postgres_database_identity
+    from .readiness_db import (
+        READINESS_AGGREGATE_BUDGET_MS,
+        postgres_database_authorities_share_instance,
+        readiness_database_budget,
+    )
     from .reranker_contract import verify_configured_reranker_artifact
     from .retrieval_readiness_v2 import retrieval_database_ready
     from .retrieval_scope_v2 import validate_pilot_scope_catalogue_alignment
@@ -62,7 +66,9 @@ except (ImportError, ValueError):
     )
     from pg_pool import PoolSettings, close_pool  # type: ignore[no-redef]
     from readiness_db import (  # type: ignore[no-redef]
-        postgres_database_identity,
+        READINESS_AGGREGATE_BUDGET_MS,
+        postgres_database_authorities_share_instance,
+        readiness_database_budget,
     )
     from reranker_contract import (  # type: ignore[no-redef]
         verify_configured_reranker_artifact,
@@ -102,6 +108,7 @@ _model_artifact_attestations: (
     tuple[ModelArtifactAttestation, ModelArtifactAttestation] | None
 ) = None
 _READINESS_CACHE_TTL_S = 5.0
+_READINESS_LOCK_TIMEOUT_S = (READINESS_AGGREGATE_BUDGET_MS + 1000) / 1000
 _database_readiness_cache_lock = Lock()
 _database_readiness_cache: (
     tuple[str, str, float, tuple[int, bool, bool, bool, bool] | None] | None
@@ -170,16 +177,18 @@ def _probe_database_readiness(
     review_dsn: str,
 ) -> tuple[int, bool, bool, bool, bool]:
     """Exécuter une unique sonde profonde des deux autorités PostgreSQL."""
-    same_database = postgres_database_identity(rag_dsn) == postgres_database_identity(
-        review_dsn
-    )
-    return (
-        pgvector_dimension(rag_dsn),
-        schema_head_003_ready(rag_dsn),
-        retrieval_database_ready(rag_dsn),
-        review_database_ready(review_dsn),
-        same_database,
-    )
+    with readiness_database_budget():
+        same_database = postgres_database_authorities_share_instance(
+            rag_dsn,
+            review_dsn,
+        )
+        return (
+            pgvector_dimension(rag_dsn),
+            schema_head_003_ready(rag_dsn),
+            retrieval_database_ready(rag_dsn),
+            review_database_ready(review_dsn),
+            same_database,
+        )
 
 
 def _cached_database_readiness(
@@ -188,8 +197,10 @@ def _cached_database_readiness(
 ) -> tuple[int, bool, bool, bool, bool]:
     """Coalescer les rafales de probes et borner leur travail PostgreSQL."""
     global _database_readiness_cache
-    now = time.monotonic()
-    with _database_readiness_cache_lock:
+    if not _database_readiness_cache_lock.acquire(timeout=_READINESS_LOCK_TIMEOUT_S):
+        raise RuntimeError("database readiness unavailable")
+    try:
+        now = time.monotonic()
         cached = _database_readiness_cache
         if (
             cached is not None
@@ -219,6 +230,8 @@ def _cached_database_readiness(
             readiness,
         )
         return readiness
+    finally:
+        _database_readiness_cache_lock.release()
 
 
 @asynccontextmanager
