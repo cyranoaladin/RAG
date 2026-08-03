@@ -59,7 +59,7 @@ psql \
     --tuples-only \
     --no-align <<'SQL' | grep -qx t
 CREATE TEMP TABLE expected_rag_chunks_columns (
-    column_name text,
+    column_name text PRIMARY KEY,
     data_type text,
     udt_name text,
     is_nullable text,
@@ -73,6 +73,8 @@ SELECT
     (SELECT count(*) = (SELECT count(*) FROM expected_rag_chunks_columns)
      FROM information_schema.columns
      WHERE table_schema = 'public' AND table_name = 'rag_chunks')
+    AND (SELECT count(*) = count(DISTINCT column_name)
+         FROM expected_rag_chunks_columns)
     AND NOT EXISTS (
         SELECT 1
         FROM expected_rag_chunks_columns AS expected
@@ -140,6 +142,13 @@ SELECT
          WHERE index_definition.indrelid = 'public.rag_chunks'::regclass
            AND index_definition.indisvalid
            AND index_definition.indisready)
+    AND (SELECT NOT relrowsecurity AND NOT relforcerowsecurity
+         FROM pg_class
+         WHERE oid = 'public.rag_chunks'::regclass)
+    AND NOT EXISTS (
+        SELECT 1 FROM pg_policy
+        WHERE polrelid = 'public.rag_chunks'::regclass
+    )
     AND (SELECT md5(pg_get_expr(indpred, indrelid, true)) =
                     :'profile_predicate_md5'
          FROM pg_index

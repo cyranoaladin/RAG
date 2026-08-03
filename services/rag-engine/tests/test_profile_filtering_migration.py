@@ -100,11 +100,14 @@ def test_bootstrap_stays_at_002_and_compose_applies_003_on_fresh_volume() -> Non
 
 def test_fresh_bootstrap_registers_the_exact_migration_head() -> None:
     registration_path = POSTGRES / "register_bootstrap_migrations.sh"
+    role_provisioning_path = POSTGRES / "provision_runtime_roles.sh"
     healthcheck_path = POSTGRES / "healthcheck.sh"
     compose = _read(ENGINE_ROOT / "infra" / "docker-compose.v2.yml")
 
     assert registration_path.is_file()
     assert registration_path.stat().st_mode & stat.S_IXUSR
+    assert role_provisioning_path.is_file()
+    assert role_provisioning_path.stat().st_mode & stat.S_IXUSR
     registration = _read(registration_path)
     assert "sha256sum" in registration
     assert "rag_schema_migrations" in registration
@@ -123,6 +126,22 @@ def test_fresh_bootstrap_registers_the_exact_migration_head() -> None:
         "./postgres/register_bootstrap_migrations.sh:"
         "/docker-entrypoint-initdb.d/02_register_bootstrap_migrations.sh:ro"
     ) in compose
+    assert (
+        "./postgres/provision_runtime_roles.sh:"
+        "/docker-entrypoint-initdb.d/03_provision_runtime_roles.sh:ro"
+    ) in compose
+    provisioning = _read(role_provisioning_path)
+    for setting in (
+        "PGVECTOR_RETRIEVAL_USER",
+        "PGVECTOR_RETRIEVAL_PASSWORD",
+        "PGVECTOR_REVIEW_USER",
+        "PGVECTOR_REVIEW_PASSWORD",
+    ):
+        assert setting in compose
+        assert setting in provisioning
+    assert "GRANT SELECT ON TABLE rag_chunks" in provisioning
+    assert "GRANT UPDATE (review_status) ON TABLE rag_chunks" in provisioning
+    assert "NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS" in provisioning
     assert healthcheck_path.is_file()
     healthcheck = _read(healthcheck_path)
     assert "sha256sum" in healthcheck
@@ -162,6 +181,10 @@ def test_schema_object_fingerprints_have_one_versioned_source() -> None:
     assert "column_default" in healthcheck
     assert "format_type" in healthcheck
     assert "atttypmod" in healthcheck
+    assert "count(DISTINCT column_name)" in healthcheck
+    assert "relrowsecurity" in healthcheck
+    assert "relforcerowsecurity" in healthcheck
+    assert "pg_policy" in healthcheck
     assert "vector(1024)" in _read(COLUMN_CONTRACT)
     for line in fingerprints.splitlines():
         _key, separator, fingerprint = line.partition("=")

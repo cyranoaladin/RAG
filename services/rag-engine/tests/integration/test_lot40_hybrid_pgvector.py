@@ -905,6 +905,18 @@ def test_schema_readiness_rejects_default_and_extra_index_drift() -> None:
     print("SCHEMA_DEFAULT_AND_EXTRA_INDEX_DRIFT_REJECTED=PASS")
 
 
+def test_schema_readiness_rejects_row_security_drift() -> None:
+    with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+        connection.execute("ALTER TABLE rag_chunks ENABLE ROW LEVEL SECURITY")
+    try:
+        assert schema_head_003_ready(APP_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute("ALTER TABLE rag_chunks DISABLE ROW LEVEL SECURITY")
+    assert schema_head_003_ready(APP_DSN) is True
+    print("SCHEMA_ROW_SECURITY_DRIFT_REJECTED=PASS")
+
+
 def test_equal_score_rank_50_is_deterministic_in_both_channels() -> None:
     store = PgCandidateStore(_app_store_connection, _scope(TIE_COLLECTION))
     dense = store.dense(

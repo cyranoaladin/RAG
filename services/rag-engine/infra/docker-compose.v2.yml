@@ -14,12 +14,17 @@ services:
       POSTGRES_DB: ${PGVECTOR_DB:-ragdb}
       POSTGRES_USER: ${PGVECTOR_USER:-raguser}
       POSTGRES_PASSWORD: ${PGVECTOR_PASSWORD:?PGVECTOR_PASSWORD requis}
+      PGVECTOR_RETRIEVAL_USER: ${PGVECTOR_RETRIEVAL_USER:-rag_reader}
+      PGVECTOR_RETRIEVAL_PASSWORD: ${PGVECTOR_RETRIEVAL_PASSWORD:?PGVECTOR_RETRIEVAL_PASSWORD requis}
+      PGVECTOR_REVIEW_USER: ${PGVECTOR_REVIEW_USER:-rag_reviewer}
+      PGVECTOR_REVIEW_PASSWORD: ${PGVECTOR_REVIEW_PASSWORD:?PGVECTOR_REVIEW_PASSWORD requis}
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C"
     volumes:
       - rag_pgvector_data:/var/lib/postgresql/data
       - ./postgres/init.sql:/docker-entrypoint-initdb.d/00_init.sql:ro
       - ./postgres/migrations/003_profile_filtering.sql:/docker-entrypoint-initdb.d/01_003_profile_filtering.sql:ro
       - ./postgres/register_bootstrap_migrations.sh:/docker-entrypoint-initdb.d/02_register_bootstrap_migrations.sh:ro
+      - ./postgres/provision_runtime_roles.sh:/docker-entrypoint-initdb.d/03_provision_runtime_roles.sh:ro
       - ./postgres/migrations:/docker-entrypoint-migrations:ro
       - ./postgres/healthcheck.sh:/docker-entrypoint-healthcheck.sh:ro
       - ./postgres/schema_head_003_fingerprints.env:/schema-head-003-fingerprints.env:ro

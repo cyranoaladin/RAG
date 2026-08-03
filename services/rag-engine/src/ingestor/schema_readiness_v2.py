@@ -199,6 +199,7 @@ REQUIRED_PROFILE_INDEX_DEFINITION: Final = (
 )
 REQUIRED_PROFILE_INDEX_PREDICATE: Final = _FINGERPRINTS[_INDEX_PREDICATE_KEY]
 REQUIRED_TEXT_TSV_EXPRESSION: Final = _FINGERPRINTS[_TEXT_TSV_EXPRESSION_KEY]
+REQUIRED_RAG_CHUNKS_ROW_SECURITY_STATE: Final = [False, False, []]
 
 _SCHEMA_HEAD_003_SQL = """
 SELECT
@@ -280,7 +281,20 @@ SELECT
             ORDER BY version
         )
         FROM rag_schema_migrations
-    ), '[]'::jsonb)
+    ), '[]'::jsonb),
+    (
+        SELECT jsonb_build_array(
+            table_definition.relrowsecurity,
+            table_definition.relforcerowsecurity,
+            COALESCE((
+                SELECT jsonb_agg(policy.polname ORDER BY policy.polname)
+                FROM pg_policy AS policy
+                WHERE policy.polrelid = table_definition.oid
+            ), '[]'::jsonb)
+        )
+        FROM pg_class AS table_definition
+        WHERE table_definition.oid = 'public.rag_chunks'::regclass
+    )
 """
 
 
@@ -316,7 +330,7 @@ def schema_head_003_ready(dsn: str) -> bool:
             cursor.execute(_SCHEMA_HEAD_003_SQL)
             row = cursor.fetchone()
 
-    if row is None or len(row) != 6:
+    if row is None or len(row) != 7:
         return False
     (
         columns,
@@ -325,6 +339,7 @@ def schema_head_003_ready(dsn: str) -> bool:
         index_predicate,
         text_tsv_expression,
         migrations,
+        row_security_state,
     ) = row
     return bool(
         columns == REQUIRED_RAG_CHUNKS_COLUMN_DEFINITIONS
@@ -334,6 +349,7 @@ def schema_head_003_ready(dsn: str) -> bool:
         and text_tsv_expression == REQUIRED_TEXT_TSV_EXPRESSION
         and migrations
         == [list(item) for item in expected_migration_records()]
+        and row_security_state == REQUIRED_RAG_CHUNKS_ROW_SECURITY_STATE
     )
 
 
@@ -342,6 +358,7 @@ __all__ = [
     "READINESS_STATEMENT_TIMEOUT_MS",
     "REQUIRED_RAG_CHUNKS_COLUMN_DEFINITIONS",
     "REQUIRED_RAG_CHUNKS_INDEX_DEFINITIONS",
+    "REQUIRED_RAG_CHUNKS_ROW_SECURITY_STATE",
     "REQUIRED_PROFILE_COLUMN_DEFINITIONS",
     "REQUIRED_PROFILE_CONSTRAINT_DEFINITIONS",
     "REQUIRED_PROFILE_INDEX_DEFINITION",

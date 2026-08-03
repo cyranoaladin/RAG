@@ -37,7 +37,8 @@ Un jeton humain présenté directement au moteur n'est jamais une autorité.
 - gestionnaire de secrets externe au dépôt ;
 - artefact local `intfloat/multilingual-e5-large` vérifié en 1024 dimensions ;
 - artefact local `cross-encoder/ms-marco-MiniLM-L-6-v2` vérifié hors-ligne ;
-- deux rôles PostgreSQL distincts déjà provisionnés et audités ;
+- deux rôles PostgreSQL runtime distincts, créés par le bootstrap sur un volume
+  neuf ou déjà provisionnés et audités sur un volume existant ;
 - Cockpit HTTPS et BFF déployés avec la même configuration d'identité interne ;
 - sauvegarde persistante avant toute migration d'un volume existant.
 
@@ -60,7 +61,9 @@ cp .env.example .env
 chmod 600 .env
 ```
 
-Remplir `.env` depuis le gestionnaire de secrets. Les autorités indispensables
+Remplir `.env` depuis le gestionnaire de secrets. Les mots de passe owner,
+retrieval et review doivent être distincts ; les deux secrets runtime font au
+moins 32 caractères. Les autorités indispensables
 sont `RAG_BFF_SERVICE_TOKEN`, `NEXUS_INTERNAL_TOKEN_SECRET`,
 `NEXUS_INTERNAL_TOKEN_ISSUER`, `NEXUS_INTERNAL_TOKEN_AUDIENCE`,
 `NEXUS_SSO_ISSUER` et `NEXUS_SSO_AUDIENCE`. Ne pas activer `xtrace` et ne jamais
@@ -104,12 +107,15 @@ dans `SHA256SUMS` doit être régénéré avec
 ### Volume neuf
 
 Au premier démarrage uniquement, PostgreSQL applique dans l'ordre
-`00_init.sql`, puis `01_003_profile_filtering.sql`. Son healthcheck échoue tant
+`00_init.sql`, puis `01_003_profile_filtering.sql`, enregistre les migrations et
+crée enfin les rôles minimaux avec `03_provision_runtime_roles.sh`. Son
+healthcheck échoue tant
 que le head `003_profile_filtering`, les SHA-256 canoniques, les définitions
 exactes des 31 colonnes, des dix index, de l'expression générée `text_tsv` et
 des cinq contraintes validées ne sont pas présents. Les colonnes incluent leurs
 valeurs par défaut et leurs typmods exacts (`vector(1024)`), et tout index
-supplémentaire rend également la base non prête. Le script
+supplémentaire, activation RLS ou policy RLS rend également la base non prête.
+Le script
 `02_register_bootstrap_migrations.sh` calcule les SHA-256 des trois migrations
 canoniques et enregistre atomiquement `001`, `002` et `003` dans
 `rag_schema_migrations`. Le runner transactionnel doit ensuite reconnaître ce
