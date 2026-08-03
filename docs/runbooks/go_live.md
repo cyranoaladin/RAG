@@ -52,6 +52,14 @@ Les DSN runtime sont :
 Le propriétaire PostgreSQL et les credentials de migration ne doivent jamais
 être fournis au conteneur API.
 
+Le pool de retrieval impose côté serveur `statement_timeout=7000 ms` et
+`lock_timeout=1000 ms` par défaut. Les overrides
+`PG_STATEMENT_TIMEOUT_MS` et `PG_LOCK_TIMEOUT_MS` doivent rester des entiers
+strictement positifs, avec `lock <= statement <= 60000`, et le délai de
+statement doit rester inférieur au timeout du BFF Cockpit. Ne pas les mettre à
+zéro : le timeout d'acquisition `PG_POOL_TIMEOUT_S` ne borne pas une requête
+déjà partie vers PostgreSQL.
+
 ## 3. Préparer la configuration sans exposer les secrets
 
 Depuis `services/rag-engine/infra` :
@@ -145,11 +153,17 @@ refuse également tout privilège d'écriture, de création, d'administration ou
 d'appartenance à un autre rôle, directement ou indirectement. Ce dernier
 contrôle couvre les cibles atteignables par `SET ROLE`, même avec `NOINHERIT` ;
 le pool force en plus les transactions read-only.
+La sonde inventorie aussi les tables, vues, tables étrangères et séquences de
+tous les schémas non système : tout privilège effectif hors de
+`rag_chunks`/`rag_schema_migrations` rend la santé négative, notamment un droit
+sur `rag_api_keys` ou `rag_eval_runs`.
 `/health` ouvre également `PG_REVIEW_DSN` et vérifie le rôle effectif : attributs
 non administratifs, `USAGE` sans `CREATE`, aucune table temporaire, lecture de
 `rag_chunks` et seul `UPDATE(review_status)`. Les grants `INSERT` ou `UPDATE`
 limités à une autre colonne sont également refusés. Un rôle absent,
 sous-privilégié ou sur-privilégié maintient volontairement l'API en `503`.
+La même interdiction de privilèges sur les relations auxiliaires s'applique au
+rôle de revue.
 
 ## 5. Démarrer le runtime fermé
 

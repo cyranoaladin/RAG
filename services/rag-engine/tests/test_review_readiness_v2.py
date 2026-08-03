@@ -38,6 +38,7 @@ EXPECTED_REVIEW_PRIVILEGES = (
     False,  # pas de TRUNCATE sur le registre des migrations
     False,  # pas de TRIGGER sur le registre des migrations
     False,  # aucune appartenance au propriétaire du registre
+    True,  # aucun privilège sur une relation hors allowlist
 )
 
 
@@ -124,6 +125,10 @@ def test_review_database_ready_proves_the_exact_least_privilege_contract(
     assert "ATTNAME <> 'REVIEW_STATUS'" in normalized
     assert "RAG_SCHEMA_MIGRATIONS" in normalized
     assert normalized.count("HAS_ANY_COLUMN_PRIVILEGE") >= 4
+    assert "PG_CLASS" in normalized
+    assert "PG_NAMESPACE" in normalized
+    assert "RAG_API_KEYS" not in normalized
+    assert "RAG_EVAL_RUNS" not in normalized
     for forbidden in ("INSERT INTO", "UPDATE ", "DELETE FROM", "ALTER ", "CREATE ", "DROP "):
         assert forbidden not in normalized
 

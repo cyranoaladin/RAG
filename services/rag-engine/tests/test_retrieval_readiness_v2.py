@@ -36,6 +36,7 @@ EXPECTED_RETRIEVAL_PRIVILEGES = (
     False,  # pas CREATE sur la base
     False,  # pas de tables temporaires
     True,  # USAGE sur le type vector
+    True,  # aucun privilège sur une relation hors allowlist
 )
 
 
@@ -117,6 +118,10 @@ def test_retrieval_database_ready_proves_exact_read_only_privileges(
     assert "PG_HAS_ROLE" in normalized
     assert "'MEMBER'" in normalized
     assert "REACHABLE_ROLE" in normalized
+    assert "PG_CLASS" in normalized
+    assert "PG_NAMESPACE" in normalized
+    assert "RAG_API_KEYS" not in normalized
+    assert "RAG_EVAL_RUNS" not in normalized
 
 
 @pytest.mark.parametrize("position", range(len(EXPECTED_RETRIEVAL_PRIVILEGES)))

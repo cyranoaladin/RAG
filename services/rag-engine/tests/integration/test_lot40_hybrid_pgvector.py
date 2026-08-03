@@ -24,7 +24,7 @@ from nexus_contracts import Rights, load_pilot_retrieval_scope
 from ingestor import retrieval_v2_endpoint as endpoint
 from ingestor import review_v2_endpoint as review_endpoint
 from ingestor.identity_v2 import load_identity_verifier_config, verify_identity_token
-from ingestor.pg_pool import close_pool
+from ingestor.pg_pool import PoolSettings, close_pool, pool_connection
 from ingestor.readiness_db import postgres_database_identity
 from ingestor.retrieval_hybrid_v2 import (
     EMBED_DIMENSION,
@@ -772,6 +772,49 @@ def test_retrieval_role_is_exactly_read_only() -> None:
             )
     assert retrieval_database_ready(APP_DSN) is True
     print("RETRIEVAL_ROLE_WRITE_PRIVILEGE_REJECTED=PASS")
+
+
+def test_runtime_roles_reject_privileges_on_auxiliary_relations() -> None:
+    with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+        connection.execute("GRANT SELECT ON TABLE rag_api_keys TO lot40_app")
+        connection.execute("GRANT SELECT ON TABLE rag_eval_runs TO lot41_review")
+    try:
+        assert retrieval_database_ready(APP_DSN) is False
+        assert review_database_ready(REVIEW_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute("REVOKE SELECT ON TABLE rag_api_keys FROM lot40_app")
+            connection.execute(
+                "REVOKE SELECT ON TABLE rag_eval_runs FROM lot41_review"
+            )
+    assert retrieval_database_ready(APP_DSN) is True
+    assert review_database_ready(REVIEW_DSN) is True
+    print("RUNTIME_ROLE_AUXILIARY_RELATION_PRIVILEGE_REJECTED=PASS")
+
+
+def test_retrieval_pool_enforces_server_side_execution_timeouts() -> None:
+    settings = PoolSettings(
+        dsn=APP_DSN,
+        min_size=1,
+        max_size=1,
+        timeout_s=5.0,
+        statement_timeout_ms=100,
+        lock_timeout_ms=50,
+    )
+    close_pool()
+    try:
+        with pytest.raises(psycopg.errors.QueryCanceled):
+            with pool_connection(settings) as connection:
+                connection.execute("SELECT pg_sleep(0.25)")
+
+        with psycopg.connect(ADMIN_DSN) as locker:
+            locker.execute("LOCK TABLE rag_chunks IN ACCESS EXCLUSIVE MODE")
+            with pytest.raises(psycopg.errors.LockNotAvailable):
+                with pool_connection(settings) as connection:
+                    connection.execute("SELECT 1 FROM rag_chunks LIMIT 1")
+    finally:
+        close_pool()
+    print("RETRIEVAL_POOL_SERVER_TIMEOUTS=PASS")
 
 
 def test_review_readiness_rejects_update_on_any_other_column() -> None:

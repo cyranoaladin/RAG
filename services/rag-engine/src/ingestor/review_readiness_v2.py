@@ -49,6 +49,7 @@ _REQUIRED_REVIEW_PRIVILEGES: Final = (
     False,  # pas de TRUNCATE sur le registre des migrations
     False,  # pas de TRIGGER sur le registre des migrations
     False,  # aucune appartenance au propriétaire du registre
+    True,  # aucun privilège effectif sur une relation hors allowlist
 )
 
 _REVIEW_PRIVILEGES_SQL = """
@@ -138,6 +139,77 @@ SELECT
               AND tablename = 'rag_schema_migrations'
         ),
         'MEMBER'
+    ),
+    NOT EXISTS (
+        SELECT 1
+        FROM pg_class AS auxiliary_relation
+        JOIN pg_namespace AS auxiliary_namespace
+          ON auxiliary_namespace.oid = auxiliary_relation.relnamespace
+        WHERE auxiliary_namespace.nspname NOT IN (
+                  'pg_catalog', 'information_schema'
+              )
+          AND auxiliary_namespace.nspname NOT LIKE 'pg_toast%'
+          AND auxiliary_namespace.nspname NOT LIKE 'pg_temp_%'
+          AND NOT (
+              auxiliary_namespace.nspname = 'public'
+              AND auxiliary_relation.relname IN (
+                  'rag_chunks', 'rag_schema_migrations'
+              )
+          )
+          AND (
+              (
+                  auxiliary_relation.relkind IN ('r', 'p', 'v', 'm', 'f')
+                  AND (
+                      has_table_privilege(
+                          current_user, auxiliary_relation.oid, 'SELECT'
+                      )
+                      OR has_table_privilege(
+                          current_user, auxiliary_relation.oid, 'INSERT'
+                      )
+                      OR has_table_privilege(
+                          current_user, auxiliary_relation.oid, 'UPDATE'
+                      )
+                      OR has_table_privilege(
+                          current_user, auxiliary_relation.oid, 'DELETE'
+                      )
+                      OR has_table_privilege(
+                          current_user, auxiliary_relation.oid, 'TRUNCATE'
+                      )
+                      OR has_table_privilege(
+                          current_user, auxiliary_relation.oid, 'REFERENCES'
+                      )
+                      OR has_table_privilege(
+                          current_user, auxiliary_relation.oid, 'TRIGGER'
+                      )
+                      OR has_any_column_privilege(
+                          current_user, auxiliary_relation.oid, 'SELECT'
+                      )
+                      OR has_any_column_privilege(
+                          current_user, auxiliary_relation.oid, 'INSERT'
+                      )
+                      OR has_any_column_privilege(
+                          current_user, auxiliary_relation.oid, 'UPDATE'
+                      )
+                      OR has_any_column_privilege(
+                          current_user, auxiliary_relation.oid, 'REFERENCES'
+                      )
+                  )
+              )
+              OR (
+                  auxiliary_relation.relkind = 'S'
+                  AND (
+                      has_sequence_privilege(
+                          current_user, auxiliary_relation.oid, 'USAGE'
+                      )
+                      OR has_sequence_privilege(
+                          current_user, auxiliary_relation.oid, 'SELECT'
+                      )
+                      OR has_sequence_privilege(
+                          current_user, auxiliary_relation.oid, 'UPDATE'
+                      )
+                  )
+              )
+          )
     )
 FROM pg_tables
 JOIN pg_roles ON rolname = current_user

@@ -67,6 +67,8 @@ services:
       PG_POOL_MIN_SIZE: "${PG_POOL_MIN_SIZE:-1}"
       PG_POOL_MAX_SIZE: "${PG_POOL_MAX_SIZE:-10}"
       PG_POOL_TIMEOUT_S: "${PG_POOL_TIMEOUT_S:-5.0}"
+      PG_STATEMENT_TIMEOUT_MS: "${PG_STATEMENT_TIMEOUT_MS:-7000}"
+      PG_LOCK_TIMEOUT_MS: "${PG_LOCK_TIMEOUT_MS:-1000}"
       EMBED_MODEL: intfloat/multilingual-e5-large
       EMBED_DIM: "1024"
       RAG_EMBEDDING_MODEL_CACHE_DIR: /models/e5-large

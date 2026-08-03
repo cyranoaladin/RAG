@@ -18,6 +18,11 @@ class PoolConfigurationError(RuntimeError):
     """Signale une configuration ou une initialisation de pool invalide."""
 
 
+_DEFAULT_STATEMENT_TIMEOUT_MS = 7_000
+_DEFAULT_LOCK_TIMEOUT_MS = 1_000
+_MAX_SERVER_TIMEOUT_MS = 60_000
+
+
 @dataclass(frozen=True)
 class PoolSettings:
     """Configuration immuable du pool PostgreSQL."""
@@ -26,6 +31,8 @@ class PoolSettings:
     min_size: int
     max_size: int
     timeout_s: float
+    statement_timeout_ms: int = _DEFAULT_STATEMENT_TIMEOUT_MS
+    lock_timeout_ms: int = _DEFAULT_LOCK_TIMEOUT_MS
 
     def __post_init__(self) -> None:
         normalized_dsn = self.dsn.strip()
@@ -46,6 +53,14 @@ class PoolSettings:
             )
         if not math.isfinite(self.timeout_s) or self.timeout_s <= 0:
             raise PoolConfigurationError("Délai du pool invalide: une valeur finie positive est requise.")
+        if (
+            not 1 <= self.statement_timeout_ms <= _MAX_SERVER_TIMEOUT_MS
+            or not 1 <= self.lock_timeout_ms <= _MAX_SERVER_TIMEOUT_MS
+            or self.lock_timeout_ms > self.statement_timeout_ms
+        ):
+            raise PoolConfigurationError(
+                "Configuration des délais SQL invalide: 1 <= lock <= statement <= 60000 ms requis."
+            )
         object.__setattr__(self, "dsn", normalized_dsn)
 
     @classmethod
@@ -54,12 +69,24 @@ class PoolSettings:
         if not dsn:
             raise PoolConfigurationError("DSN PostgreSQL requis pour le pool.")
 
-        parsed_values: tuple[int, int, float] | None = None
+        parsed_values: tuple[int, int, float, int, int] | None = None
         try:
             parsed_values = (
                 int(os.getenv("PG_POOL_MIN_SIZE", "1")),
                 int(os.getenv("PG_POOL_MAX_SIZE", "10")),
                 float(os.getenv("PG_POOL_TIMEOUT_S", "5.0")),
+                int(
+                    os.getenv(
+                        "PG_STATEMENT_TIMEOUT_MS",
+                        str(_DEFAULT_STATEMENT_TIMEOUT_MS),
+                    )
+                ),
+                int(
+                    os.getenv(
+                        "PG_LOCK_TIMEOUT_MS",
+                        str(_DEFAULT_LOCK_TIMEOUT_MS),
+                    )
+                ),
             )
         except ValueError:
             pass
@@ -67,13 +94,17 @@ class PoolSettings:
             raise PoolConfigurationError(
                 "Paramètres numériques du pool PostgreSQL invalides."
             ) from None
-        min_size, max_size, timeout_s = parsed_values
+        min_size, max_size, timeout_s, statement_timeout_ms, lock_timeout_ms = (
+            parsed_values
+        )
 
         return cls(
             dsn=dsn,
             min_size=min_size,
             max_size=max_size,
             timeout_s=timeout_s,
+            statement_timeout_ms=statement_timeout_ms,
+            lock_timeout_ms=lock_timeout_ms,
         )
 
 
@@ -104,7 +135,13 @@ def get_pool(settings: PoolSettings) -> ConnectionPool[Any]:
                 max_size=settings.max_size,
                 timeout=settings.timeout_s,
                 open=False,
-                kwargs={"options": "-c default_transaction_read_only=on"},
+                kwargs={
+                    "options": (
+                        "-c default_transaction_read_only=on "
+                        f"-c statement_timeout={settings.statement_timeout_ms} "
+                        f"-c lock_timeout={settings.lock_timeout_ms}"
+                    )
+                },
             )
             created_pool = pool_result
             pool_result.open(wait=False)

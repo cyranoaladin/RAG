@@ -23,6 +23,8 @@ _ENV_KEYS = (
     "PG_POOL_MIN_SIZE",
     "PG_POOL_MAX_SIZE",
     "PG_POOL_TIMEOUT_S",
+    "PG_STATEMENT_TIMEOUT_MS",
+    "PG_LOCK_TIMEOUT_MS",
 )
 _ENGINE_ROOT = Path(__file__).resolve().parents[1]
 _THREE_PSYCOPG_PINS = {
@@ -104,12 +106,16 @@ def test_from_env_parses_explicit_pool_limits(monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.setenv("PG_POOL_MIN_SIZE", "2")
     monkeypatch.setenv("PG_POOL_MAX_SIZE", "25")
     monkeypatch.setenv("PG_POOL_TIMEOUT_S", "0.75")
+    monkeypatch.setenv("PG_STATEMENT_TIMEOUT_MS", "6500")
+    monkeypatch.setenv("PG_LOCK_TIMEOUT_MS", "750")
 
     assert PoolSettings.from_env() == PoolSettings(
         dsn="postgresql://db.example/rag",
         min_size=2,
         max_size=25,
         timeout_s=0.75,
+        statement_timeout_ms=6500,
+        lock_timeout_ms=750,
     )
 
 
@@ -119,6 +125,8 @@ def test_from_env_parses_explicit_pool_limits(monkeypatch: pytest.MonkeyPatch) -
         ("PG_POOL_MIN_SIZE", "not-an-int"),
         ("PG_POOL_MAX_SIZE", "1.5"),
         ("PG_POOL_TIMEOUT_S", "not-a-float"),
+        ("PG_STATEMENT_TIMEOUT_MS", "1.5"),
+        ("PG_LOCK_TIMEOUT_MS", "not-an-int"),
     ],
 )
 def test_from_env_rejects_unparseable_pool_values(
@@ -161,6 +169,31 @@ def test_settings_reject_invalid_bounds(
             min_size=min_size,
             max_size=max_size,
             timeout_s=timeout_s,
+        )
+
+
+@pytest.mark.parametrize(
+    ("statement_timeout_ms", "lock_timeout_ms"),
+    [
+        (0, 1),
+        (60_001, 1),
+        (7_000, 0),
+        (7_000, 60_001),
+        (1_000, 1_001),
+    ],
+)
+def test_settings_reject_invalid_server_side_timeouts(
+    statement_timeout_ms: int,
+    lock_timeout_ms: int,
+) -> None:
+    with pytest.raises(PoolConfigurationError, match="délais SQL"):
+        PoolSettings(
+            dsn="postgresql://db.example/rag",
+            min_size=1,
+            max_size=10,
+            timeout_s=5.0,
+            statement_timeout_ms=statement_timeout_ms,
+            lock_timeout_ms=lock_timeout_ms,
         )
 
 
@@ -292,7 +325,14 @@ class FakePool:
 
 
 def _settings(*, dsn: str = "postgresql://db.example/rag") -> PoolSettings:
-    return PoolSettings(dsn=dsn, min_size=2, max_size=8, timeout_s=1.25)
+    return PoolSettings(
+        dsn=dsn,
+        min_size=2,
+        max_size=8,
+        timeout_s=1.25,
+        statement_timeout_ms=7_000,
+        lock_timeout_ms=1_000,
+    )
 
 
 def _install_factory(
@@ -335,7 +375,10 @@ def test_get_pool_constructs_opens_waits_then_reuses_singleton(
                 "timeout": 1.25,
                 "open": False,
                 "kwargs": {
-                    "options": "-c default_transaction_read_only=on",
+                    "options": (
+                        "-c default_transaction_read_only=on "
+                        "-c statement_timeout=7000 -c lock_timeout=1000"
+                    ),
                 },
             },
         ),
