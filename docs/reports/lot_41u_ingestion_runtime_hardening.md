@@ -2,7 +2,7 @@
 
 ## Verdict
 
-**LOT41U_RUNTIME_BOUNDARIES_GREEN_AWAITING_EXACT_HEAD_CI**
+**LOT41U_RUNTIME_AND_FIXTURES_GREEN_AWAITING_EXACT_HEAD_CI**
 
 LOT41U ferme les quatre constats P1 du runtime relevés par l'audit indépendant
 de `main@ea18ba52da5778f628c4943705dd81dfa43fbc15`. Le stack v2 n'embarque
@@ -26,7 +26,7 @@ preuves opérationnelles externes doivent être obtenues. Aucun verrou
 | Date | 2026-08-02 |
 | Baseline `main` | `ea18ba52da5778f628c4943705dd81dfa43fbc15` |
 | Branche | `lot-41u-ingestion-runtime-hardening` |
-| Head applicatif audité avant ce commit documentaire | `45e87df9e9ed6bfc8695e6177cbbcaca7c13751a` |
+| Head applicatif audité avant ce commit documentaire | `e4affc95e206b232055abb1e3f6bb8629112cebe` |
 | Plan de données | runtime FastAPI v2, PostgreSQL/pgvector, Compose, Nginx |
 | Contrats partagés | aucune évolution |
 | Verrous de gouvernance | aucun changement, 18/18 conformes |
@@ -727,6 +727,23 @@ annulés par les deux timeouts
 suite non-intégration et le smoke PostgreSQL complet sont verts, avec
 `LOT40_HYBRID_INTEGRATION=PASS`.
 
+Le run intermédiaire du head `6912622`,
+[`30789689778`](https://github.com/cyranoaladin/RAG/actions/runs/30789689778),
+a révélé une autre fragilité de fixture dans le smoke hybride. Selon la forme
+approximative du voisinage HNSW, un candidat de charge légitime pouvait entrer
+dans l'union dense/lexicale. Le reranker de test supposait à tort que tout texte
+non prioritaire se terminait par un ordinal numérique et levait `ValueError`
+sur le libellé stable `algorithme graphe preuve pedagogique de charge`. Les
+trois échecs HTTP suivants étaient des conséquences de cette même exception.
+
+Le commit `e4affc95e206b232055abb1e3f6bb8629112cebe` donne à ce libellé de charge un
+score explicite et ajoute un test dédié. Il ne modifie ni le reranker runtime,
+ni le ranking attendu des deux canaris fonctionnels. Ruff et une nouvelle
+exécution PostgreSQL complète sont verts ; le test auparavant en échec produit
+`HYBRID_REAL_DB=PASS`, les routes produisent `HTTP_SEARCH_V2=PASS` et
+`HTTP_CHAT_LOCKED=PASS`, puis le run termine par
+`LOT40_HYBRID_INTEGRATION=PASS`.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -799,6 +816,7 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `9ac295d` | alignement scope/catalogue et attestation exacte des triggers PostgreSQL |
 | `46c107b` | fixture de dérive des triggers PostgreSQL idempotente et nettoyée |
 | `45e87df` | relations auxiliaires interdites et exécution SQL bornée côté serveur |
+| `e4affc9` | fixture HNSW robuste aux candidats de charge approximatifs |
 
 ## Décision de livraison
 
