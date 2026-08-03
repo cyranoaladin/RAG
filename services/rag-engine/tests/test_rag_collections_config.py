@@ -18,6 +18,7 @@ from src.ingestor.collection_config import (
     load_legacy_mapping,
     resolve_collection,
     resolve_collection_v2,
+    validate_collection_catalogue_v2,
 )
 
 ENGINE_ROOT = Path(__file__).resolve().parents[1]
@@ -200,6 +201,45 @@ def test_legacy_mapping_content() -> None:
 def test_load_v3_config() -> None:
     config = load_collection_config()
     assert config["version"] == 3
+
+
+def test_validate_v3_catalogue_for_runtime_readiness() -> None:
+    config = validate_collection_catalogue_v2()
+
+    assert config["version"] == 3
+    assert config["collections"]
+
+
+@pytest.mark.parametrize(
+    "invalid_config",
+    (
+        {"version": 3},
+        {"version": 3, "collections": {}},
+        {
+            "version": 3,
+            "collections": {
+                "rag_nexus_invalid": {
+                    "domain": "education",
+                    "instanciee": True,
+                    "voie": "unknown",
+                }
+            },
+            "domains": {"education": {"retrievable": True}},
+        },
+    ),
+)
+def test_runtime_catalogue_validation_rejects_incomplete_or_invalid_content(
+    tmp_path: Path,
+    invalid_config: dict[str, object],
+) -> None:
+    config_path = tmp_path / "rag_collections.yml"
+    config_path.write_text(
+        yaml.safe_dump(invalid_config, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(CollectionConfigError):
+        validate_collection_catalogue_v2(config_path)
 
 
 def test_load_legacy_config() -> None:

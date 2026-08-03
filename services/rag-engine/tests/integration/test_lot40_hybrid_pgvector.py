@@ -541,17 +541,16 @@ def _app_store_connection() -> Iterator[psycopg.Connection[Any]]:
 
 
 @contextmanager
-def _empirical_plan_store_connection() -> Iterator[psycopg.Connection[Any]]:
-    """Connexion de preuve réglée pour comparer la fixture distincte à l'oracle."""
+def _exact_store_connection() -> Iterator[psycopg.Connection[Any]]:
+    """Connexion séquentielle réservée à l'oracle dense exact."""
 
     with psycopg.connect(APP_DSN) as connection:
         with connection.cursor() as cursor:
-            # L'oracle séquentiel exige ici le préfixe exact, tandis que HNSW
-            # reste approximatif et son graphe varie à la construction. Une
-            # exploration maximale rend cette preuve empirique reproductible
-            # sans modifier les réglages runtime testés séparément ci-dessous.
-            cursor.execute("SET LOCAL hnsw.ef_search = 1000")
-            cursor.execute("SET LOCAL hnsw.max_scan_tuples = 100000")
+            # Une égalité de préfixe est une propriété d'oracle exact, pas une
+            # garantie d'un index HNSW approximatif. Les propriétés HNSW sont
+            # prouvées séparément par leurs plans et leurs bornes ci-dessous.
+            cursor.execute("SET LOCAL enable_indexscan = off")
+            cursor.execute("SET LOCAL enable_bitmapscan = off")
         yield connection
 
 
@@ -1091,11 +1090,11 @@ def test_real_gin_and_hnsw_plans_filters_top_50_and_local_scope() -> None:
         for item in app_actual
     )
 
-    empirical_store = PgCandidateStore(
-        _empirical_plan_store_connection,
+    exact_store = PgCandidateStore(
+        _exact_store_connection,
         _scope(TARGET_COLLECTION),
     )
-    actual = empirical_store.dense(
+    actual = exact_store.dense(
         query_vector=QUERY_VECTOR,
         collection=TARGET_COLLECTION,
         limit=50,
@@ -1139,7 +1138,7 @@ def test_real_gin_and_hnsw_plans_filters_top_50_and_local_scope() -> None:
         [f"small-{index:03d}" for index in range(3)],
     )
     for variable_limit in (1, 17, 50):
-        limited = empirical_store.dense(
+        limited = exact_store.dense(
             query_vector=QUERY_VECTOR,
             collection=TARGET_COLLECTION,
             limit=variable_limit,
@@ -1204,7 +1203,7 @@ def test_real_gin_and_hnsw_plans_filters_top_50_and_local_scope() -> None:
     print(f"HNSW_BOUNDED_JSON_PLAN_MS={execution_ms:.3f}")
     print("HNSW_NATURAL_AND_STRUCTURAL_BOUNDED_PLAN=PASS")
     print("APP_STORE_DEFAULT_HNSW_SETTINGS=PASS")
-    print("HNSW_DISTINCT_FIXTURE_EMPIRICAL_ORACLE_PREFIX=PASS")
+    print("DENSE_EXACT_ORACLE_PREFIX=PASS")
     print("HNSW_UNDERFILL_BOUNDED_NO_GLOBAL_SCAN=PASS")
 
 

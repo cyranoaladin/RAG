@@ -25,7 +25,31 @@ MAKEFILE = ENGINE_ROOT / "Makefile"
 
 
 @pytest.fixture(autouse=True)
-def _clear_database_readiness_cache() -> None:
+def _clear_database_readiness_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        api_v2,
+        "validate_bff_service_configuration",
+        lambda: None,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        api_v2,
+        "load_identity_verifier_config",
+        lambda: object(),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        api_v2,
+        "validate_collection_catalogue_v2",
+        lambda: None,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        api_v2,
+        "postgres_database_identity",
+        lambda _dsn: ("cluster-1", "nexus"),
+        raising=False,
+    )
     api_v2._reset_database_readiness_cache()
     yield
     api_v2._reset_database_readiness_cache()
@@ -175,6 +199,7 @@ def test_health_rejects_invalid_pool_configuration(
             True,
             True,
             True,
+            True,
         ),
     )
     monkeypatch.setattr(api_v2, "_model_artifacts_ready", lambda: True)
@@ -193,6 +218,55 @@ def test_health_rejects_invalid_pool_configuration(
 
     assert response.status_code == 503
     assert response.json() == {"detail": "service unavailable"}
+
+
+@pytest.mark.parametrize(
+    "authority_probe",
+    (
+        "validate_bff_service_configuration",
+        "load_identity_verifier_config",
+        "validate_collection_catalogue_v2",
+    ),
+)
+def test_health_rejects_invalid_runtime_authorities_and_catalogue(
+    monkeypatch: pytest.MonkeyPatch,
+    authority_probe: str,
+) -> None:
+    monkeypatch.setenv("PG_RAG_DSN", "postgresql://reader")
+    monkeypatch.setenv("PG_REVIEW_DSN", "postgresql://reviewer")
+    monkeypatch.setattr(
+        api_v2,
+        "_cached_database_readiness",
+        lambda _rag_dsn, _review_dsn: (
+            api_v2.CANONICAL_EMBED_DIM,
+            True,
+            True,
+            True,
+            True,
+        ),
+    )
+    monkeypatch.setattr(api_v2, "_model_artifacts_ready", lambda: True)
+    monkeypatch.setattr(
+        api_v2,
+        "declared_embedding_model",
+        lambda: api_v2.CANONICAL_EMBED_MODEL,
+    )
+    monkeypatch.setattr(
+        api_v2,
+        "declared_embedding_dim",
+        lambda: api_v2.CANONICAL_EMBED_DIM,
+    )
+    monkeypatch.setattr(
+        api_v2,
+        authority_probe,
+        lambda: (_ for _ in ()).throw(RuntimeError("private configuration")),
+    )
+
+    response = TestClient(api_v2.app).get("/health")
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "service unavailable"}
+    assert "private configuration" not in response.text
 
 
 def test_health_caches_deep_database_readiness_for_a_bounded_interval(
@@ -263,10 +337,13 @@ def test_health_cache_ttl_starts_after_a_slow_probe(
     calls = [0]
     monkeypatch.setattr(api_v2.time, "monotonic", lambda: now[0])
 
-    def slow_probe(_rag_dsn: str, _review_dsn: str) -> tuple[int, bool, bool, bool]:
+    def slow_probe(
+        _rag_dsn: str,
+        _review_dsn: str,
+    ) -> tuple[int, bool, bool, bool, bool]:
         calls[0] += 1
         now[0] += api_v2._READINESS_CACHE_TTL_S * 2
-        return (api_v2.CANONICAL_EMBED_DIM, True, True, True)
+        return (api_v2.CANONICAL_EMBED_DIM, True, True, True, True)
 
     monkeypatch.setattr(api_v2, "_probe_database_readiness", slow_probe)
     api_v2._reset_database_readiness_cache()
@@ -292,6 +369,7 @@ def test_health_cache_ttl_starts_after_a_slow_probe(
         "rag_database",
         "retrieval_privileges",
         "review_database",
+        "database_identity",
         "model_artifacts",
     ),
 )
@@ -338,6 +416,16 @@ def test_health_fails_closed_without_internal_details(
         monkeypatch.setattr(api_v2, "retrieval_database_ready", lambda _dsn: False)
     elif failure == "review_database":
         monkeypatch.setattr(api_v2, "review_database_ready", lambda _dsn: False)
+    elif failure == "database_identity":
+        monkeypatch.setattr(
+            api_v2,
+            "postgres_database_identity",
+            lambda dsn: (
+                ("cluster-rag", "nexus")
+                if "secret-reader" in dsn
+                else ("cluster-review", "nexus")
+            ),
+        )
     else:
         monkeypatch.setattr(api_v2, "_model_artifacts_ready", lambda: False)
 

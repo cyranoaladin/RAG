@@ -217,27 +217,33 @@ def require_role(
 
 def require_bff_service(request: Request, *, endpoint: str) -> str:
     """Exiger le credential machine dédié au BFF, distinct des rôles humains."""
+    try:
+        configured = validate_bff_service_configuration()
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=f"{endpoint}: security configuration invalid",
+        ) from exc
+
+    candidate = extract_token(request)
+    if not candidate or not _token_matches(candidate, configured):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return candidate
+
+
+def validate_bff_service_configuration() -> str:
+    """Valider l'autorité machine BFF sans traiter de requête utilisateur."""
     configured = (os.getenv("RAG_BFF_SERVICE_TOKEN") or "").strip()
     try:
         configured_bytes = configured.encode("utf-8")
     except UnicodeError:
         configured_bytes = b""
     if len(configured_bytes) < 32:
-        raise HTTPException(
-            status_code=503,
-            detail=f"{endpoint}: security configuration invalid",
-        )
+        raise ValueError("BFF service configuration invalid")
 
     if any(_token_matches(configured, role_token) for role_token in _token_roles()):
-        raise HTTPException(
-            status_code=503,
-            detail=f"{endpoint}: security configuration invalid",
-        )
-
-    candidate = extract_token(request)
-    if not candidate or not _token_matches(candidate, configured):
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    return candidate
+        raise ValueError("BFF service configuration invalid")
+    return configured
 
 
 def _resolve_client_ip(request: Request) -> str | None:
