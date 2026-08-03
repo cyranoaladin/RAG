@@ -24,6 +24,7 @@ void assertEngineTypes
 
 describe('public launch readiness', () => {
   afterEach(() => {
+    vi.restoreAllMocks()
     vi.unstubAllGlobals()
     delete process.env.RAG_ENGINE_INTERNAL_TOKEN
     delete process.env.RAG_ENGINE_INTERNAL_URL
@@ -85,7 +86,6 @@ describe('public launch readiness', () => {
     expect(combinedSignal.aborted).toBe(false)
     caller.abort()
     expect(combinedSignal.aborted).toBe(true)
-    timeoutSpy.mockRestore()
   })
 
   it('refuse tout appel moteur sans jeton service BFF', async () => {

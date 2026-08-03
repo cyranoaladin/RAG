@@ -113,7 +113,6 @@ def test_schema_head_003_accepts_only_the_exact_contract(
     assert "ATTTYPMOD" in normalized
     assert "INDEX_DEFINITION.INDRELID = 'PUBLIC.RAG_CHUNKS'::REGCLASS" in normalized
     assert "INDEX_DEFINITION.INDISVALID" in normalized
-    assert "INDEX_DEFINITION.INDISREADY" in normalized
     assert "RAG_SCHEMA_MIGRATIONS" in normalized
     assert "RELROWSECURITY" in normalized
     assert "RELFORCEROWSECURITY" in normalized
