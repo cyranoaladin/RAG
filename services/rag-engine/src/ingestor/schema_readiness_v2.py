@@ -216,6 +216,7 @@ REQUIRED_TEXT_TSV_EXPRESSION: Final = _FINGERPRINTS[_TEXT_TSV_EXPRESSION_KEY]
 REQUIRED_RAG_CHUNKS_TABLE_STATE: Final = ["p", False, False, []]
 REQUIRED_RAG_CHUNKS_TRIGGER_DEFINITIONS: Final[dict[str, list[str]]] = {}
 REQUIRED_RAG_CHUNKS_RULE_DEFINITIONS: Final[dict[str, list[object]]] = {}
+REQUIRED_RAG_CHUNKS_INHERITANCE_DEFINITIONS: Final[list[object]] = []
 
 _SCHEMA_HEAD_003_SQL = """
 SELECT
@@ -336,7 +337,26 @@ SELECT
         )
         FROM pg_rewrite AS rewrite_definition
         WHERE rewrite_definition.ev_class = 'public.rag_chunks'::regclass
-    ), '{}'::jsonb)
+    ), '{}'::jsonb),
+    COALESCE((
+        SELECT jsonb_agg(
+            jsonb_build_array(
+                inheritance_definition.inhparent::regclass::text,
+                inheritance_definition.inhrelid::regclass::text,
+                inheritance_definition.inhseqno,
+                inheritance_definition.inhdetachpending
+            )
+            ORDER BY
+                inheritance_definition.inhparent,
+                inheritance_definition.inhseqno,
+                inheritance_definition.inhrelid
+        )
+        FROM pg_inherits AS inheritance_definition
+        WHERE inheritance_definition.inhparent =
+                'public.rag_chunks'::regclass
+           OR inheritance_definition.inhrelid =
+                'public.rag_chunks'::regclass
+    ), '[]'::jsonb)
 """
 
 
@@ -373,7 +393,7 @@ def schema_head_003_ready(dsn: str) -> bool:
             cursor.execute(_SCHEMA_HEAD_003_SQL)
             row = cursor.fetchone()
 
-    if row is None or len(row) != 9:
+    if row is None or len(row) != 10:
         return False
     (
         columns,
@@ -385,6 +405,7 @@ def schema_head_003_ready(dsn: str) -> bool:
         table_state,
         trigger_definitions,
         rule_definitions,
+        inheritance_definitions,
     ) = row
     return bool(
         columns == REQUIRED_RAG_CHUNKS_COLUMN_DEFINITIONS
@@ -397,6 +418,8 @@ def schema_head_003_ready(dsn: str) -> bool:
         and table_state == REQUIRED_RAG_CHUNKS_TABLE_STATE
         and trigger_definitions == REQUIRED_RAG_CHUNKS_TRIGGER_DEFINITIONS
         and rule_definitions == REQUIRED_RAG_CHUNKS_RULE_DEFINITIONS
+        and inheritance_definitions
+        == REQUIRED_RAG_CHUNKS_INHERITANCE_DEFINITIONS
     )
 
 
@@ -406,6 +429,7 @@ __all__ = [
     "REQUIRED_RAG_CHUNKS_COLUMN_DEFINITIONS",
     "REQUIRED_RAG_CHUNKS_CONSTRAINT_DEFINITIONS",
     "REQUIRED_RAG_CHUNKS_INDEX_DEFINITIONS",
+    "REQUIRED_RAG_CHUNKS_INHERITANCE_DEFINITIONS",
     "REQUIRED_RAG_CHUNKS_RULE_DEFINITIONS",
     "REQUIRED_RAG_CHUNKS_TABLE_STATE",
     "REQUIRED_RAG_CHUNKS_TRIGGER_DEFINITIONS",

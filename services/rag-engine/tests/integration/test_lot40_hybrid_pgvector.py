@@ -1299,6 +1299,21 @@ def test_schema_readiness_rejects_rewrite_rule_drift() -> None:
     print("SCHEMA_REWRITE_RULE_DRIFT_REJECTED=PASS")
 
 
+def test_schema_readiness_rejects_inheritance_hierarchy_drift() -> None:
+    try:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute("DROP TABLE IF EXISTS lot41u_rag_chunks_child")
+            connection.execute(
+                "CREATE TABLE lot41u_rag_chunks_child () INHERITS (rag_chunks)"
+            )
+        assert schema_head_003_ready(APP_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute("DROP TABLE IF EXISTS lot41u_rag_chunks_child")
+    assert schema_head_003_ready(APP_DSN) is True
+    print("SCHEMA_INHERITANCE_HIERARCHY_DRIFT_REJECTED=PASS")
+
+
 def test_schema_readiness_rejects_unexpected_foreign_key_constraint() -> None:
     try:
         with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
