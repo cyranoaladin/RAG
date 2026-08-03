@@ -4,9 +4,10 @@ Exposes POST /search/v2 wrapping the canonical LOT40 hybrid pipeline:
   resolve_collection_v2 → gate retrievable (fail-closed) → dense + lexical
   → RRF → rerank → seuil +1.90 → MMR.
 
-Models are cached at module level (loaded once, not per request).
+Les modèles ML sont chargés une fois au démarrage. La frontière HTTP utilise
+exclusivement RetrievalRequest → RetrievalResponse depuis nexus-contracts.
 DSN via PG_RAG_DSN only (R-01: no owner/migration fallback).
-answer_generation_allowed = false (retrieval only, no LLM generation).
+Retrieval seulement : aucun champ ni appel de génération LLM.
 """
 
 from __future__ import annotations
@@ -15,16 +16,19 @@ import hashlib
 import logging
 import os
 import threading
+import time
 from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
-import psycopg  # noqa: F811 — also in requirements.v2.txt
 from fastapi import APIRouter, HTTPException, Request
 from nexus_contracts import (
     ChatRequest,
     ChatResponse,
     Citation,
+    RetrievalRequest,
+    RetrievalResponse,
     RetrievalResult,
 )
 from pydantic import BaseModel, ConfigDict, Field, computed_field
@@ -37,10 +41,23 @@ try:
         resolve_collection_v2,
     )
     from .embedding_contract import (
+        EmbeddingContractError,
+        declared_embedding_dim,
         load_embedding_model,
+        runtime_embedding_dimension,
     )
     from .identity_v2 import VerifiedInternalIdentity, require_internal_identity
-    from .pg_pool import PoolSettings, pool_connection
+    from .inference_runtime import BoundedInferenceEmbedder, BoundedInferenceReranker
+    from .pg_pool import (
+        PoolSettings,
+        execute_with_database_budget,
+        pool_connection,
+        remaining_database_budget_ms,
+        runtime_database_budget,
+        runtime_request_budget,
+    )
+    from .reranker_contract import load_reranker_model
+    from .retrieval_contract_adapter import adapt_retrieval_request
     from .retrieval_hybrid_v2 import (
         CHANNEL_LIMIT,
         EMBED_MODEL,
@@ -72,13 +89,31 @@ except (ImportError, ValueError):
         resolve_collection_v2,
     )
     from embedding_contract import (  # type: ignore[no-redef]
+        EmbeddingContractError,
+        declared_embedding_dim,
         load_embedding_model,
+        runtime_embedding_dimension,
     )
     from identity_v2 import (  # type: ignore[no-redef]
         VerifiedInternalIdentity,
         require_internal_identity,
     )
-    from pg_pool import PoolSettings, pool_connection  # type: ignore[no-redef]
+    from inference_runtime import (  # type: ignore[no-redef]
+        BoundedInferenceEmbedder,
+        BoundedInferenceReranker,
+    )
+    from pg_pool import (  # type: ignore[no-redef]
+        PoolSettings,
+        execute_with_database_budget,
+        pool_connection,
+        remaining_database_budget_ms,
+        runtime_database_budget,
+        runtime_request_budget,
+    )
+    from reranker_contract import load_reranker_model  # type: ignore[no-redef]
+    from retrieval_contract_adapter import (  # type: ignore[no-redef]
+        adapt_retrieval_request,
+    )
     from retrieval_hybrid_v2 import (  # type: ignore[no-redef]
         CHANNEL_LIMIT,
         EMBED_MODEL,
@@ -128,6 +163,26 @@ CACHE_ENABLED = False
 _cache: dict[str, tuple[list, float]] = {}
 _cache_lock = threading.Lock()
 _cache_generation = 0
+_REVIEWED_COUNTS_CACHE_TTL_S = 1.0
+_reviewed_counts_cache: (
+    tuple[tuple[str, ...], float, dict[str, int]] | None
+) = None
+_reviewed_counts_cache_generation = 0
+_reviewed_counts_cache_lock = threading.Lock()
+
+
+@dataclass
+class _ReviewedCountsFlight:
+    """Résultat partagé par les probes identiques lancées simultanément."""
+
+    event: threading.Event
+    generation: int
+    result: dict[str, int] | None = None
+    error: Exception | None = None
+
+
+_reviewed_counts_inflight: dict[tuple[str, ...], _ReviewedCountsFlight] = {}
+_CATALOGUE_ROLES = frozenset({"admin", "reviewer", "teacher", "ingest_agent"})
 
 
 def _cache_key(query: str, collection: str, k: int) -> str:
@@ -144,12 +199,16 @@ def _cache_key(query: str, collection: str, k: int) -> str:
 
 def invalidate_cache() -> int:
     """Invalidate all cache entries. Called when review_status changes."""
-    global _cache_generation
+    global _cache_generation, _reviewed_counts_cache
+    global _reviewed_counts_cache_generation
     with _cache_lock:
         n = len(_cache)
         _cache.clear()
         _cache_generation += 1
-        return n
+    with _reviewed_counts_cache_lock:
+        _reviewed_counts_cache = None
+        _reviewed_counts_cache_generation += 1
+    return n
 
 
 # --- Configuration figée par le noyau hybride LOT40 ---
@@ -182,35 +241,73 @@ WARMUP_QUERIES = (
 # --- Lazy-loaded models (cached at module level) ---
 _embed_model = None
 _reranker = None
+_verified_embedding_artifact_root: Path | None = None
+_verified_reranker_artifact_root: Path | None = None
+_model_load_lock = threading.Lock()
+
+
+def configure_verified_model_artifacts(
+    *,
+    embedding_root: Path,
+    reranker_root: Path,
+) -> None:
+    """Transmettre les chemins attestés au lifespan sans rehacher les poids."""
+    global _embed_model, _reranker
+    global _verified_embedding_artifact_root, _verified_reranker_artifact_root
+    with _model_load_lock:
+        _embed_model = None
+        _reranker = None
+        _verified_embedding_artifact_root = embedding_root
+        _verified_reranker_artifact_root = reranker_root
+
+
+def reset_runtime_model_state() -> None:
+    """Effacer les modèles et preuves process-local à l'arrêt ou en test."""
+    global _embed_model, _reranker
+    global _verified_embedding_artifact_root, _verified_reranker_artifact_root
+    with _model_load_lock:
+        _embed_model = None
+        _reranker = None
+        _verified_embedding_artifact_root = None
+        _verified_reranker_artifact_root = None
+
+
+def preload_runtime_models() -> None:
+    """Construire les modèles et prouver la dimension native avant trafic."""
+    embed_model = _get_embed_model()
+    if runtime_embedding_dimension(embed_model) != declared_embedding_dim():
+        raise EmbeddingContractError("EMBEDDING_RUNTIME_DIMENSION_MISMATCH")
+    _get_reranker()
 
 
 def _get_embed_model():
     global _embed_model
     if _embed_model is None:
-        logger.info("Loading embedding model %s (one-time)", EMBED_MODEL)
-        _embed_model = load_embedding_model()
+        with _model_load_lock:
+            if _embed_model is None:
+                logger.info("Loading embedding model %s (one-time)", EMBED_MODEL)
+                if _verified_embedding_artifact_root is None:
+                    _embed_model = load_embedding_model()
+                else:
+                    _embed_model = load_embedding_model(
+                        verified_artifact_root=_verified_embedding_artifact_root
+                    )
     return _embed_model
 
 
 def _get_reranker():
     global _reranker
     if _reranker is None:
-        from sentence_transformers import CrossEncoder
-
-        logger.info("Loading reranker %s (one-time)", RERANK_MODEL)
-        _reranker = CrossEncoder(RERANK_MODEL, max_length=512)
+        with _model_load_lock:
+            if _reranker is None:
+                logger.info("Loading reranker %s (one-time)", RERANK_MODEL)
+                if _verified_reranker_artifact_root is None:
+                    _reranker = load_reranker_model()
+                else:
+                    _reranker = load_reranker_model(
+                        verified_artifact_root=_verified_reranker_artifact_root
+                    )
     return _reranker
-
-
-def _get_pg_dsn() -> str:
-    """Return the read-only pgvector DSN without owner fallback."""
-    dsn = os.environ.get("PG_RAG_DSN", "").strip()
-    if not dsn:
-        raise HTTPException(
-            status_code=503,
-            detail="launch readiness unavailable",
-        )
-    return dsn
 
 
 def _check_retrievable(collection: str, cfg: dict) -> dict:
@@ -251,13 +348,7 @@ def _check_retrievable(collection: str, cfg: dict) -> dict:
     return defn
 
 
-# --- Request/Response models ---
-
-
-class SearchV2Request(BaseModel):
-    q: str = Field(..., min_length=1, description="Query text")
-    collection: str = Field(..., min_length=1, description="Nexus v2 collection name")
-    k: int = Field(default=5, ge=1, le=50, description="Number of results")
+# --- Modèle interne d'un hit avant projection contractuelle ---
 
 
 class SearchV2Hit(BaseModel):
@@ -287,19 +378,6 @@ class SearchV2Hit(BaseModel):
     def dense_sim(self) -> float | None:
         """Alias de sérialisation déprécié, dérivé de l'unique score dense."""
         return self.dense_score
-
-
-class SearchV2Response(BaseModel):
-    query: str
-    collection: str
-    seuil: float = Field(
-        default=RERANK_SCORE_THRESHOLD,
-        ge=RERANK_SCORE_THRESHOLD,
-        le=RERANK_SCORE_THRESHOLD,
-    )
-    returned: int
-    answer_generation_allowed: Literal[False] = False
-    hits: list[SearchV2Hit]
 
 
 def _build_launch_readiness(
@@ -387,37 +465,93 @@ def _build_launch_readiness(
 def _get_reviewed_chunk_counts(
     scopes: Iterable[ServerRetrievalScope],
 ) -> dict[str, int]:
-    """Count only reviewed rows inside the exact signed retrieval scopes."""
+    """Count scoped reviewed rows through a bounded pool and a short cache."""
+    global _reviewed_counts_cache
     resolved_scopes = tuple(scopes)
     if not resolved_scopes:
         return {}
+    cache_key = tuple(scope.filter_digest for scope in resolved_scopes)
+    now = time.monotonic()
+    with _reviewed_counts_cache_lock:
+        cached = _reviewed_counts_cache
+        if cached is not None and cached[0] == cache_key and cached[1] > now:
+            return dict(cached[2])
+
     clauses: list[str] = []
     params: list[object] = []
     for scope in resolved_scopes:
         clauses.append(f"({_SCOPE_PREDICATE_SQL})")
         params.extend(_scope_params(scope))
-    try:
-        conn = psycopg.connect(_get_pg_dsn())
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.error("pgvector connection failed while checking launch readiness: %s", exc)
-        raise HTTPException(status_code=503, detail="launch readiness unavailable") from exc
 
     try:
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT collection, COUNT(*) FROM rag_chunks WHERE "
-                + " OR ".join(clauses)
-                + " GROUP BY collection",
-                tuple(params),
-            )
-            return {str(collection): int(count) for collection, count in cur.fetchall()}
+        settings = PoolSettings.from_env()
+        with _reviewed_counts_cache_lock:
+            cached = _reviewed_counts_cache
+            now = time.monotonic()
+            if cached is not None and cached[0] == cache_key and cached[1] > now:
+                return dict(cached[2])
+            flight = _reviewed_counts_inflight.get(cache_key)
+            is_leader = flight is None
+            if flight is None:
+                flight = _ReviewedCountsFlight(
+                    event=threading.Event(),
+                    generation=_reviewed_counts_cache_generation,
+                )
+                _reviewed_counts_inflight[cache_key] = flight
+
+        if not is_leader:
+            wait_timeout_s = remaining_database_budget_ms() / 1_000.0
+            if not flight.event.wait(timeout=wait_timeout_s):
+                raise RuntimeError("reviewed count query exceeded its bounded lifetime")
+            if flight.error is not None:
+                raise flight.error
+            if flight.result is None:
+                raise RuntimeError("reviewed count query completed without a result")
+            return dict(flight.result)
+
+        try:
+            with pool_connection(settings) as connection:
+                with connection.cursor() as cursor:
+                    execute_with_database_budget(
+                        cursor,
+                        "SELECT collection, COUNT(*) FROM public.rag_chunks WHERE "
+                        + " OR ".join(clauses)
+                        + " GROUP BY collection",
+                        tuple(params),
+                        statement_timeout_ms=settings.statement_timeout_ms,
+                    )
+                    counts = {
+                        str(collection): int(count)
+                        for collection, count in cursor.fetchall()
+                    }
+            with _reviewed_counts_cache_lock:
+                publication_error: RuntimeError | None = None
+                if flight.generation == _reviewed_counts_cache_generation:
+                    flight.result = dict(counts)
+                    _reviewed_counts_cache = (
+                        cache_key,
+                        time.monotonic() + _REVIEWED_COUNTS_CACHE_TTL_S,
+                        dict(counts),
+                    )
+                else:
+                    publication_error = RuntimeError(
+                        "reviewed count query invalidated by a review decision"
+                    )
+                    flight.error = publication_error
+                _reviewed_counts_inflight.pop(cache_key, None)
+                flight.event.set()
+            if publication_error is not None:
+                raise publication_error
+            return counts
+        except Exception as exc:
+            with _reviewed_counts_cache_lock:
+                flight.error = exc
+                _reviewed_counts_inflight.pop(cache_key, None)
+                flight.event.set()
+            raise
     except Exception as exc:
         logger.error("pgvector readiness query failed: %s", exc)
         raise HTTPException(status_code=503, detail="launch readiness unavailable") from exc
-    finally:
-        conn.close()
 
 
 # --- Cache management endpoints ---
@@ -596,9 +730,11 @@ def _full_catalogue() -> dict[str, Any]:
         taxonomy_file = defn.get("taxonomy_file")
 
         # Check taxonomy file existence
-        taxonomy_exists = True
-        if taxonomy_file and config_path:
-            taxonomy_exists = (config_path / taxonomy_file).is_file()
+        taxonomy_exists = bool(
+            taxonomy_file
+            and config_path is not None
+            and (config_path / taxonomy_file).is_file()
+        )
 
         # Coherence checks
         coherence_issues: list[str] = []
@@ -607,6 +743,8 @@ def _full_catalogue() -> dict[str, Any]:
         else:
             if not taxonomy_file:
                 coherence_issues.append("taxonomy_file absent")
+            elif config_path is None:
+                coherence_issues.append("taxonomy_file: vérification indisponible")
             elif not taxonomy_exists:
                 coherence_issues.append(f"taxonomy_file '{taxonomy_file}' non trouv\u00e9")
             if domain not in known_domains:
@@ -684,22 +822,10 @@ def _resolve_taxonomy_base() -> Path | None:
 def get_full_catalogue(request: Request) -> dict[str, Any]:
     """Full catalogue — all declared collections with status flags.
 
-    Used by Dashboard and Administration. Read-only.
-    INGEST_AGENT included: the Streamlit UI connects with this role
-    (INGESTOR_API_TOKEN) and needs catalogue data for Dashboard,
-    Administration, and Ingestion pages.
-    STUDENT excluded: catalogue exposes governance details.
+    Réservé au BFF et aux rôles humains signés autorisés. STUDENT est exclu,
+    car ce catalogue expose des détails de gouvernance.
     """
-    _enforce_security_v2(
-        request,
-        allowed_roles={
-            SecurityRole.ADMIN,
-            SecurityRole.REVIEWER,
-            SecurityRole.TEACHER,
-            SecurityRole.INGEST_AGENT,
-        },
-        endpoint="/catalogue/v2",
-    )
+    _require_catalogue_identity(request, endpoint="/catalogue/v2")
     return _full_catalogue()
 
 
@@ -731,7 +857,8 @@ def get_collection_readiness(request: Request) -> dict[str, Any]:
         }
         if len(scoped_collections) != len(allowed):
             raise RetrievalScopeError("retrieval scope forbidden")
-        counts = _get_reviewed_chunk_counts(scopes)
+        with runtime_database_budget():
+            counts = _get_reviewed_chunk_counts(scopes)
         return _build_launch_readiness(
             {**cfg, "collections": scoped_collections},
             counts,
@@ -760,15 +887,20 @@ def _retrieve_hybrid_hits(
     """Compose the one canonical v2 pipeline without exposing failure context."""
     try:
         settings = PoolSettings.from_env()
-        store = PgCandidateStore(lambda: pool_connection(settings), scope)
-        return retrieve_hybrid(
-            query,
-            collection,
-            k,
-            store=store,
-            embedder=_get_embed_model(),
-            reranker=_get_reranker(),
-        )
+        with runtime_request_budget(settings.database_budget_ms):
+            store = PgCandidateStore(
+                lambda: pool_connection(settings),
+                scope,
+                statement_timeout_ms=settings.statement_timeout_ms,
+            )
+            return retrieve_hybrid(
+                query,
+                collection,
+                k,
+                store=store,
+                embedder=BoundedInferenceEmbedder(_get_embed_model()),
+                reranker=BoundedInferenceReranker(_get_reranker()),
+            )
     except Exception:
         logger.error("hybrid retrieval unavailable")
         raise _retrieval_unavailable() from None
@@ -813,28 +945,39 @@ def _to_search_hit(hit: HybridHit) -> SearchV2Hit:
     )
 
 
-def _to_retrieval_result(hit: SearchV2Hit, collection: str) -> RetrievalResult:
+def _to_retrieval_result(
+    hit: SearchV2Hit,
+    collection: str,
+    *,
+    include_citation: bool = True,
+) -> RetrievalResult:
     return RetrievalResult(
         chunk_id=hit.chunk_id,
         doc_id=hit.doc_id,
         score=hit.score_final,
         title=hit.source_label,
         excerpt=hit.preview,
-        citation=Citation(
-            source_label=hit.source_label,
-            page=hit.page,
-            source_uri=hit.source_uri,
-            rights=hit.rights,
+        citation=(
+            Citation(
+                source_label=hit.source_label,
+                page=hit.page,
+                source_uri=hit.source_uri,
+                rights=hit.rights,
+            )
+            if include_citation
+            else None
         ),
         metadata={
             "collection": collection,
             "type_doc": hit.type_doc,
             "review_status": hit.review_status,
             "dense_score": hit.dense_score,
+            "dense_sim": hit.dense_sim,
             "lexical_score": hit.lexical_score,
             "rrf_score": hit.rrf_score,
             "rerank_score": hit.rerank_score,
             "mmr_score": hit.mmr_score,
+            "score_final": hit.score_final,
         },
     )
 
@@ -907,16 +1050,17 @@ def chat(payload: ChatRequest, request: Request) -> ChatResponse:
     _require_chat_profile_match(payload, collections, scopes)
 
     all_hits: list[tuple[str, SearchV2Hit]] = []
-    for collection in collections:
-        all_hits.extend(
-            (collection, hit)
-            for hit in _retrieve_endpoint_hits(
-                payload.query,
-                collection,
-                payload.top_k,
-                scopes[collection],
+    with runtime_request_budget():
+        for collection in collections:
+            all_hits.extend(
+                (collection, hit)
+                for hit in _retrieve_endpoint_hits(
+                    payload.query,
+                    collection,
+                    payload.top_k,
+                    scopes[collection],
+                )
             )
-        )
 
     unique_hits: list[tuple[str, SearchV2Hit]] = []
     seen_chunk_ids: set[str] = set()
@@ -939,8 +1083,57 @@ def chat(payload: ChatRequest, request: Request) -> ChatResponse:
 # --- Main search endpoint ---
 
 
-@router.post("/search/v2", response_model=SearchV2Response)
-def search_v2(payload: SearchV2Request, request: Request) -> SearchV2Response:
+def _collection_for_retrieval_request(
+    payload: RetrievalRequest,
+    verified: VerifiedInternalIdentity,
+) -> str:
+    """Résoudre une matière contractuelle vers l'artefact signé du serveur."""
+    matieres = payload.student_profile.matieres
+    if len(matieres) != 1:
+        raise RetrievalScopeError("retrieval scope forbidden")
+    allowed = set(effective_signed_collections(verified))
+    matches = [
+        subject.collection
+        for subject in verified.artifact.subjects
+        if subject.matiere == matieres[0] and subject.collection in allowed
+    ]
+    if len(matches) != 1:
+        raise RetrievalScopeError("retrieval scope forbidden")
+    return str(matches[0])
+
+
+def _require_retrieval_profile_match(
+    payload: RetrievalRequest,
+    scope: ServerRetrievalScope,
+) -> None:
+    """Refuser toute dimension contractuelle différente du scope signé."""
+    profile = payload.student_profile
+    expected = {
+        "niveau": scope.niveau,
+        "voie": scope.voie,
+        "matieres": [scope.matiere],
+        "statut_enseignement": scope.statut_enseignement,
+        "candidat": scope.candidat,
+        "school_year": scope.school_year,
+        "zone": scope.audiences[0],
+        "audience": scope.audiences[0],
+    }
+    actual = {
+        "niveau": profile.niveau.value,
+        "voie": profile.voie.value,
+        "matieres": list(profile.matieres),
+        "statut_enseignement": profile.statut_enseignement.value,
+        "candidat": profile.candidat.value,
+        "school_year": profile.school_year,
+        "zone": profile.zone,
+        "audience": profile.audience,
+    }
+    if actual != expected:
+        raise RetrievalScopeError("retrieval scope forbidden")
+
+
+@router.post("/search/v2", response_model=RetrievalResponse)
+def search_v2(payload: RetrievalRequest, request: Request) -> RetrievalResponse:
     """Retrieval v2: dense + lexical → RRF → rerank → seuil → MMR.
 
     Canonical pipeline LOT40. Gate retrievable fail-closed (GG-01).
@@ -948,27 +1141,56 @@ def search_v2(payload: SearchV2Request, request: Request) -> SearchV2Response:
     """
     verified = _require_retrieval_identity(request, endpoint="/search/v2")
 
-    # Gate: resolve + retrievable check (fail-closed)
     cfg = load_collection_config()
     try:
-        _check_retrievable(payload.collection, cfg)
+        collection = _collection_for_retrieval_request(payload, verified)
+        _check_retrievable(collection, cfg)
         scope = build_server_retrieval_scope(
             verified,
-            collection=payload.collection,
+            collection=collection,
+            collection_config=cfg,
+        )
+        _require_retrieval_profile_match(payload, scope)
+        adapted = adapt_retrieval_request(
+            payload,
+            collection=collection,
             collection_config=cfg,
         )
     except (RetrievalScopeError, CollectionConfigError, HTTPException) as exc:
         raise HTTPException(status_code=403, detail="Forbidden") from exc
 
-    # Public retrieval always re-reads PostgreSQL through the canonical pipeline.
-    hits = _retrieve_endpoint_hits(payload.q, payload.collection, payload.k, scope)
+    if (
+        payload.need.notions
+        or payload.need.desired_doc_types
+        or payload.need.difficulty_max is not None
+    ):
+        raise HTTPException(status_code=422, detail="Unsupported retrieval filters")
 
-    return SearchV2Response(
-        query=payload.q,
-        collection=payload.collection,
-        seuil=RERANK_THRESHOLD,
-        returned=len(hits),
-        hits=hits,
+    if not payload.retrieval.hybrid or not payload.retrieval.rerank:
+        raise HTTPException(status_code=422, detail="Unsupported retrieval options")
+
+    # Public retrieval always re-reads PostgreSQL through the canonical pipeline.
+    hits = _retrieve_endpoint_hits(
+        adapted.query,
+        adapted.nexus_collection,
+        adapted.top_k,
+        scope,
+    )
+
+    return RetrievalResponse(
+        results=[
+            _to_retrieval_result(
+                hit,
+                adapted.nexus_collection,
+                include_citation=adapted.include_citations,
+            )
+            for hit in hits
+        ],
+        warnings=list(adapted.warnings),
+        filters_applied={
+            "collection": adapted.nexus_collection,
+            "scope_digest": scope.filter_digest,
+        },
     )
 
 
@@ -990,3 +1212,15 @@ def _require_retrieval_identity(
     """Exiger le credential BFF puis l'enveloppe signée avant tout retrieval."""
     require_bff_service(request, endpoint=endpoint)
     return require_internal_identity(request)
+
+
+def _require_catalogue_identity(
+    request: Request,
+    *,
+    endpoint: str,
+) -> VerifiedInternalIdentity:
+    """Exiger le BFF, l'identité signée et un rôle autorisé au catalogue."""
+    verified = _require_retrieval_identity(request, endpoint=endpoint)
+    if verified.envelope.identity.role not in _CATALOGUE_ROLES:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return verified

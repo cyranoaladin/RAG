@@ -44,6 +44,8 @@
 - ADR-0002 — Contrat partagé `nexus-contracts` (à formaliser au Lot 0).
 - ADR-0003 — Tenants / isolation par niveau (à formaliser au Lot 1.2).
 - ADR-0004 — Ingestion agentique (à formaliser au Lot 4.1).
+- ADR-0024 — Runtime v2 lecture/revue fail-closed (accepté au LOT41U) : aucun
+  writer n'est déployé avant les autorités LOT41A/LOT42.
 
 ## Cadence opérationnelle
 

@@ -1,12 +1,17 @@
-# API reverse proxy with TLS and local-only /metrics
-# Rate limiting zone (per-IP) for API endpoints; 20 req/s with burst 40
-limit_req_zone $binary_remote_addr zone=api_rate:10m rate=20r/s;
+# API reverse proxy LOT41U : allowlist exacte, TLS et métriques locales.
+limit_req_zone $binary_remote_addr zone=api_v2:10m rate=20r/s;
+limit_req_zone $binary_remote_addr zone=readiness_v2:10m rate=20r/s;
 
 server {
   listen 80;
   server_name ${RAG_API_EXTERNAL_DOMAIN};
-  location ^~ /.well-known/acme-challenge/ { root /var/www/certbot; }
-  location / { return 301 https://$host$request_uri; }
+
+  location ^~ /.well-known/acme-challenge/ {
+    root /var/www/certbot;
+  }
+  location ^~ / {
+    return 308 https://${RAG_API_EXTERNAL_DOMAIN}$request_uri;
+  }
 }
 
 server {
@@ -18,69 +23,97 @@ server {
   include /etc/letsencrypt/options-ssl-nginx.conf;
   ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
-  client_max_body_size ${NGINX_CLIENT_MAX_BODY_SIZE};
-  
-  # Security headers
   add_header X-Content-Type-Options "nosniff" always;
   add_header Referrer-Policy "no-referrer" always;
-  add_header X-Frame-Options "SAMEORIGIN" always;
+  add_header X-Frame-Options "DENY" always;
   add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
-  add_header Content-Security-Policy "default-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self';" always;
-  
-  # HSTS (uncomment after TLS is verified in production)
-  # Recommended: test with max-age=300 (5 min) first, then increase to 63072000 (2 years)
-  # add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
+  add_header Content-Security-Policy "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none';" always;
 
-  # Protect metrics endpoint (local only)
-  location /metrics {
+  location = /health {
     allow 127.0.0.1;
+    allow ::1;
+    deny all;
+    proxy_pass http://127.0.0.1:${NGINX_API_PORT}/health;
+    proxy_http_version 1.1;
+    proxy_read_timeout 15s;
+  }
+
+  location = /metrics {
+    allow 127.0.0.1;
+    allow ::1;
     deny all;
     proxy_pass http://127.0.0.1:${NGINX_API_PORT}/metrics;
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-  }
-
-  # Explicit rate-limited API endpoints
-  location = /ingest {
-    limit_req zone=api_rate burst=40 nodelay;
-    proxy_pass http://127.0.0.1:${NGINX_API_PORT}/ingest;
     proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_read_timeout 300s;
   }
 
-  # Retrieval canonique — uniquement via le BFF authentifié.
   location = /search/v2 {
-    limit_req zone=api_rate burst=40 nodelay;
+    limit_req zone=api_v2 burst=40 nodelay;
     proxy_pass http://127.0.0.1:${NGINX_API_PORT}/search/v2;
     proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_read_timeout 300s;
+    proxy_read_timeout 60s;
   }
 
   location = /chat {
-    limit_req zone=api_rate burst=40 nodelay;
+    limit_req zone=api_v2 burst=40 nodelay;
     proxy_pass http://127.0.0.1:${NGINX_API_PORT}/chat;
     proxy_http_version 1.1;
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_read_timeout 300s;
+    proxy_read_timeout 60s;
   }
 
-  # Fermeture fail-closed des chemins historiques contournables.
+  location = /collections/v2 {
+    limit_req zone=api_v2 burst=40 nodelay;
+    proxy_pass http://127.0.0.1:${NGINX_API_PORT}/collections/v2;
+    proxy_http_version 1.1;
+    proxy_read_timeout 60s;
+  }
+
+  location = /catalogue/v2 {
+    limit_req zone=api_v2 burst=40 nodelay;
+    proxy_pass http://127.0.0.1:${NGINX_API_PORT}/catalogue/v2;
+    proxy_http_version 1.1;
+    proxy_read_timeout 60s;
+  }
+
+  location = /collections/readiness {
+    limit_req zone=readiness_v2 burst=40 nodelay;
+    proxy_pass http://127.0.0.1:${NGINX_API_PORT}/collections/readiness;
+    proxy_http_version 1.1;
+    proxy_read_timeout 60s;
+  }
+
+  location = /review/v2/queue {
+    limit_req zone=api_v2 burst=20 nodelay;
+    proxy_pass http://127.0.0.1:${NGINX_API_PORT}/review/v2/queue;
+    proxy_http_version 1.1;
+    proxy_read_timeout 60s;
+  }
+
+  location = /review/v2/decide {
+    limit_req zone=api_v2 burst=10 nodelay;
+    proxy_pass http://127.0.0.1:${NGINX_API_PORT}/review/v2/decide;
+    proxy_http_version 1.1;
+    proxy_read_timeout 60s;
+  }
+
+  location = /ingest {
+    return 410;
+  }
+  location ^~ /ingest/ {
+    return 410;
+  }
   location = /search {
     return 410;
   }
   location ^~ /search/ {
+    return 410;
+  }
+  location ^~ /admin {
+    return 410;
+  }
+  location ^~ /stats {
+    return 410;
+  }
+  location ^~ /eval {
     return 410;
   }
   location ^~ /kb {
@@ -90,15 +123,7 @@ server {
     return 410;
   }
 
-  # Default pass-through for other endpoints
   location / {
-    proxy_pass http://127.0.0.1:${NGINX_API_PORT};
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_read_timeout 300s;
+    return 404;
   }
 }

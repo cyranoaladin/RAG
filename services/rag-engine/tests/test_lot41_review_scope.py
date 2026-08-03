@@ -300,8 +300,19 @@ def test_queue_sql_applies_every_scope_dimension(
 
     assert response.status_code == 200
     ReviewQueueResponse.model_validate(response.json())
-    assert len(connection.cursor_spy.executions) == 2
-    for sql, params in connection.cursor_spy.executions:
+    timeout_updates = [
+        execution
+        for execution in connection.cursor_spy.executions
+        if "set_config('statement_timeout'" in execution[0]
+    ]
+    scoped_queries = [
+        execution
+        for execution in connection.cursor_spy.executions
+        if "set_config('statement_timeout'" not in execution[0]
+    ]
+    assert len(timeout_updates) == 2
+    assert len(scoped_queries) == 2
+    for sql, params in scoped_queries:
         assert "collection = %s" in sql
         assert "tenant = %s" in sql
         assert "niveau = %s" in sql
@@ -389,7 +400,19 @@ def test_decision_transitions_are_scoped_and_asymmetric(
     )
 
     assert response.status_code == 200
-    sql, params = connection.cursor_spy.executions[0]
+    timeout_updates = [
+        execution
+        for execution in connection.cursor_spy.executions
+        if "set_config('statement_timeout'" in execution[0]
+    ]
+    business_queries = [
+        execution
+        for execution in connection.cursor_spy.executions
+        if "set_config('statement_timeout'" not in execution[0]
+    ]
+    assert len(timeout_updates) == 2  # avant UPDATE puis avant COMMIT
+    assert len(business_queries) == 1
+    sql, params = business_queries[0]
     assert "doc_id = %s" in sql
     assert "review_status = ANY(%s::text[])" in sql
     assert "collection = %s" in sql

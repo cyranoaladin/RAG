@@ -12,11 +12,12 @@ COMPOSE_PATH = ENGINE_ROOT / "infra" / "docker-compose.prod.yml"
 DEFAULT_COMPOSE_PATH = ENGINE_ROOT / "infra" / "docker-compose.yml"
 V2_COMPOSE_PATH = ENGINE_ROOT / "infra" / "docker-compose.v2.yml"
 MAKEFILE_PATH = ENGINE_ROOT / "Makefile"
-V2_EFFECTIVE_API_TOKEN_REF = "${INGESTOR_API_TOKEN:-${API_SECRET_KEY}}"
 CONFIGS_DIR = ENGINE_ROOT / "configs"
+TAXONOMY_DIR = REPO_ROOT / "services" / "rag-pedago" / "taxonomy"
+DOCKERIGNORE_PATH = REPO_ROOT / ".dockerignore"
 DEPLOYMENT_PLAN = REPO_ROOT / "docs" / "reports" / "lot_19_prod_deployment_plan.md"
 PROVISION_PROD_SCRIPT = ENGINE_ROOT / "infra" / "scripts" / "provision-prod.sh"
-V2_INGESTOR_ENV_KEYS = {
+LEGACY_INGESTOR_ENV_KEYS = {
     "LEGACY_ADMIN_API_TOKEN",
     "RAG_ADMIN_TOKEN",
     "RAG_REVIEWER_TOKEN",
@@ -37,6 +38,17 @@ V2_INGESTOR_ENV_KEYS = {
     "INGESTOR_IP_ALLOWLIST",
     "INGESTOR_TRUSTED_PROXY_CIDRS",
 }
+V2_RUNTIME_ENV_KEYS = {
+    "PG_RAG_DSN",
+    "PG_REVIEW_DSN",
+    "RAG_BFF_SERVICE_TOKEN",
+    "NEXUS_INTERNAL_TOKEN_SECRET",
+    "NEXUS_INTERNAL_TOKEN_ISSUER",
+    "NEXUS_INTERNAL_TOKEN_AUDIENCE",
+    "NEXUS_SSO_ISSUER",
+    "NEXUS_SSO_AUDIENCE",
+}
+V2_FORBIDDEN_ENV_KEYS = LEGACY_INGESTOR_ENV_KEYS - V2_RUNTIME_ENV_KEYS
 
 
 def _load_compose(path: Path = COMPOSE_PATH) -> dict:
@@ -86,28 +98,14 @@ def _compose_env_ref_is_valid(value: str, key: str) -> bool:
     return False
 
 
-def _assert_ingestor_has_v2_env(compose_path: Path) -> None:
+def _assert_legacy_ingestor_has_v2_env(compose_path: Path) -> None:
     compose = _load_compose(compose_path)
     service = compose["services"]["ingestor"]
     configured = _environment_variables(service["environment"])
 
-    assert V2_INGESTOR_ENV_KEYS <= set(configured)
-    for key in V2_INGESTOR_ENV_KEYS:
+    assert LEGACY_INGESTOR_ENV_KEYS <= set(configured)
+    for key in LEGACY_INGESTOR_ENV_KEYS:
         assert _compose_env_ref_is_valid(configured[key], key)
-
-
-def _v2_api_token_refs() -> tuple[str, str]:
-    compose = _load_compose(V2_COMPOSE_PATH)
-    ingestor_env = _environment_variables(compose["services"]["ingestor"]["environment"])
-    ui_env = _environment_variables(compose["services"]["ui"]["environment"])
-    return ingestor_env["INGESTOR_API_TOKEN"], ui_env["RAG_API_TOKEN"]
-
-
-def _resolve_nested_default(expression: str, environment: dict[str, str]) -> str:
-    match = re.fullmatch(r"\$\{([A-Z0-9_]+):-\$\{([A-Z0-9_]+)\}\}", expression)
-    assert match is not None, f"unsupported compose token expression: {expression}"
-    primary, fallback = match.groups()
-    return environment.get(primary) or environment.get(fallback, "")
 
 
 def _make_target_recipe(makefile: str, target: str) -> str:
@@ -194,58 +192,59 @@ def test_versioned_prod_compose_mounts_configs_structurally() -> None:
 
 
 def test_prod_compose_passes_v2_role_tokens_to_ingestor() -> None:
-    _assert_ingestor_has_v2_env(COMPOSE_PATH)
+    _assert_legacy_ingestor_has_v2_env(COMPOSE_PATH)
 
 
 def test_default_compose_passes_v2_role_tokens_to_ingestor() -> None:
-    _assert_ingestor_has_v2_env(DEFAULT_COMPOSE_PATH)
+    _assert_legacy_ingestor_has_v2_env(DEFAULT_COMPOSE_PATH)
 
 
-def test_v2_compose_passes_v2_role_tokens_to_ingestor() -> None:
-    _assert_ingestor_has_v2_env(V2_COMPOSE_PATH)
+def test_v2_compose_requires_only_internal_runtime_authorities() -> None:
+    compose = _load_compose(V2_COMPOSE_PATH)
+    configured = _environment_variables(
+        compose["services"]["ingestor"]["environment"]
+    )
+
+    assert V2_RUNTIME_ENV_KEYS <= set(configured)
+    assert not (V2_FORBIDDEN_ENV_KEYS & set(configured))
+    for key in V2_RUNTIME_ENV_KEYS:
+        assert _compose_env_ref_is_valid(configured[key], key)
+        assert f"${{{key}:?" in configured[key]
 
 
-def test_v2_ui_uses_same_effective_token_reference_as_ingestor() -> None:
-    ingestor_token_ref, ui_token_ref = _v2_api_token_refs()
+def test_v2_compose_contains_only_the_read_review_stack() -> None:
+    compose = _load_compose(V2_COMPOSE_PATH)
 
-    assert ingestor_token_ref == V2_EFFECTIVE_API_TOKEN_REF
-    assert ui_token_ref == V2_EFFECTIVE_API_TOKEN_REF
-
-
-def test_v2_token_render_prefers_ingestor_api_token() -> None:
-    ingestor_token_ref, ui_token_ref = _v2_api_token_refs()
-    environment = {
-        "API_SECRET_KEY": "api-secret-dummy",
-        "INGESTOR_API_TOKEN": "ingestor-dummy",
-    }
-
-    assert _resolve_nested_default(ingestor_token_ref, environment) == "ingestor-dummy"
-    assert _resolve_nested_default(ui_token_ref, environment) == "ingestor-dummy"
+    assert set(compose["services"]) == {"pgvector", "ingestor", "prometheus"}
+    assert set(compose["volumes"]) == {"rag_pgvector_data", "rag_prometheus_data"}
 
 
-def test_v2_token_render_preserves_api_secret_fallback() -> None:
-    ingestor_token_ref, ui_token_ref = _v2_api_token_refs()
-    environment = {"API_SECRET_KEY": "api-secret-dummy"}
+def test_v2_ingestor_has_no_writer_mount_or_dependency() -> None:
+    compose = _load_compose(V2_COMPOSE_PATH)
+    ingestor = compose["services"]["ingestor"]
+    volumes = "\n".join(str(item) for item in ingestor["volumes"])
 
-    assert _resolve_nested_default(ingestor_token_ref, environment) == "api-secret-dummy"
-    assert _resolve_nested_default(ui_token_ref, environment) == "api-secret-dummy"
-
-
-def test_v2_makefile_clients_use_effective_ingestor_token() -> None:
-    makefile = MAKEFILE_PATH.read_text(encoding="utf-8")
-
-    for target in ("v2-eval", "v2-stats"):
-        recipe = _make_target_recipe(makefile, target)
-        assert "$${INGESTOR_API_TOKEN:-$${API_SECRET_KEY}}" in recipe
-        assert "Bearer $${TOKEN}" in recipe
-        assert "Bearer $${API_SECRET_KEY}" not in recipe
+    assert set(ingestor["depends_on"]) == {"pgvector"}
+    assert "/data/uploads" not in volumes
+    assert "/creds" not in volumes
 
 
 def test_v2_up_uses_wired_v2_compose() -> None:
     makefile = MAKEFILE_PATH.read_text(encoding="utf-8")
 
     assert "COMPOSE_V2=docker compose -f infra/docker-compose.v2.yml" in makefile
-    _assert_ingestor_has_v2_env(V2_COMPOSE_PATH)
+    recipe = _make_target_recipe(makefile, "v2-up")
+    assert "up -d --build --wait" in recipe
+    assert "sleep" not in recipe
+    assert "||" not in recipe
+    for obsolete_target in (
+        "v2-migrate-chroma:",
+        "v2-migrate-qdrant:",
+        "v2-eval:",
+        "v2-stats:",
+        "v2-cleanup:",
+    ):
+        assert obsolete_target not in makefile
 
 
 def test_v2_ingestor_uses_dedicated_dockerfile_with_contracts() -> None:
@@ -264,25 +263,46 @@ def test_v2_ingestor_uses_dedicated_dockerfile_with_contracts() -> None:
     assert "packages/contracts" in content, (
         "Dockerfile.ingestor-v2 must install packages/contracts"
     )
-    assert "requirements.v2.txt" in content, (
-        "Dockerfile.ingestor-v2 must install requirements.v2.txt"
+    assert "requirements.runtime-v2.txt" in content, (
+        "Dockerfile.ingestor-v2 must install the minimal v2 runtime manifest"
     )
+    assert (
+        "COPY services/rag-engine/src/ingestor/retrieval_contract_adapter.py "
+        "/app/retrieval_contract_adapter.py"
+    ) in content, "the flattened v2 image must include every imported contract adapter"
 
 
-def test_v2_worker_uses_same_dockerfile_as_ingestor() -> None:
+def test_v2_image_packages_the_authoritative_taxonomy() -> None:
+    """Le catalogue runtime doit pouvoir vérifier chaque taxonomie déclarée."""
+    dockerfile = (ENGINE_ROOT / "infra" / "Dockerfile.ingestor-v2").read_text(
+        encoding="utf-8"
+    )
+    dockerignore = DOCKERIGNORE_PATH.read_text(encoding="utf-8")
+    catalogue = yaml.safe_load((CONFIGS_DIR / "rag_collections.yml").read_text())
+
+    assert "COPY services/rag-pedago/taxonomy/ /app/taxonomy/" in dockerfile
+    assert "!services/rag-pedago/taxonomy/" in dockerignore
+    assert "!services/rag-pedago/taxonomy/**" in dockerignore
+    assert TAXONOMY_DIR.is_dir()
+
+    missing = sorted(
+        str(taxonomy_file)
+        for definition in catalogue["collections"].values()
+        if (taxonomy_file := definition.get("taxonomy_file"))
+        and not (TAXONOMY_DIR / str(taxonomy_file)).is_file()
+    )
+    assert missing == []
+
+
+def test_v2_compose_has_no_writer_worker() -> None:
     compose = _load_compose(V2_COMPOSE_PATH)
-    ingestor_build = compose["services"]["ingestor"]["build"]
-    worker_build = compose["services"]["worker"]["build"]
-
-    assert ingestor_build.get("dockerfile") == worker_build.get("dockerfile"), (
-        "worker must use the same Dockerfile as ingestor"
-    )
+    assert "worker" not in compose["services"]
 
 
 def test_v2_pydantic_pin_aligned_with_contracts() -> None:
-    """Pydantic pin in requirements.v2.txt must match contracts pyproject.toml."""
+    """Pydantic pin in the runtime manifest must match contracts."""
     contracts_toml = REPO_ROOT / "packages" / "contracts" / "pyproject.toml"
-    v2_reqs = ENGINE_ROOT / "src" / "ingestor" / "requirements.v2.txt"
+    v2_reqs = ENGINE_ROOT / "src" / "ingestor" / "requirements.runtime-v2.txt"
 
     assert contracts_toml.is_file()
     assert v2_reqs.is_file()
@@ -294,7 +314,7 @@ def test_v2_pydantic_pin_aligned_with_contracts() -> None:
     assert m, "contracts pyproject.toml must pin pydantic"
     contracts_pydantic = m.group(1)
 
-    # Extract pydantic pin from requirements.v2.txt
+    # Extract pydantic pin from the v2 runtime manifest
     v2_text = v2_reqs.read_text(encoding="utf-8")
     m2 = re.search(r"^pydantic==(.+)$", v2_text, re.MULTILINE)
     assert m2, "requirements.v2.txt must pin pydantic"
@@ -352,7 +372,7 @@ def test_provision_prod_uses_wired_default_compose() -> None:
     script = PROVISION_PROD_SCRIPT.read_text(encoding="utf-8")
 
     assert "docker compose -f docker-compose.yml" in script
-    _assert_ingestor_has_v2_env(DEFAULT_COMPOSE_PATH)
+    _assert_legacy_ingestor_has_v2_env(DEFAULT_COMPOSE_PATH)
 
 
 def test_provision_prod_generates_distinct_legacy_admin_token() -> None:

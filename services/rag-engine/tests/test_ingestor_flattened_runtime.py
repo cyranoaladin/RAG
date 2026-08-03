@@ -17,8 +17,8 @@ def test_ingestor_api_starts_from_flattened_runtime(tmp_path: Path) -> None:
             "import sys",
             f"sys.path.insert(0, {str(CONTRACTS_SRC)!r})",
             f"sys.path.insert(0, {str(INGESTOR_SRC)!r})",
-            "import api",
-            "print(api.app.title)",
+            "import api_v2",
+            "print(api_v2.app.title)",
         )
     )
 
@@ -31,4 +31,4 @@ def test_ingestor_api_starts_from_flattened_runtime(tmp_path: Path) -> None:
     )
 
     assert result.returncode == 0, result.stderr
-    assert result.stdout.strip() == "RAG Ingestor API"
+    assert result.stdout.strip() == "Nexus RAG Engine v2"

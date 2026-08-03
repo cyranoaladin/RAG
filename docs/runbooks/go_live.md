@@ -1,519 +1,270 @@
-# Runbook Go-Live — Plateforme RAG
+# Runbook de qualification avant go-live — Nexus RAG
 
-## Prérequis
+## Verdict courant
 
-- Serveur Ubuntu 22.04/24.04 provisionné
-- DNS configuré pour les domaines RAG
-- Ports 80/443 ouverts
-- Accès SSH opérationnel
-- Repo cloné sur le serveur
+**GO_LIVE: NO_GO**
 
-## 1. Provisionnement automatisé
+Ce runbook qualifie le runtime v2 ; il n'autorise pas son ouverture publique.
+Le moteur déployable est strictement un runtime **lecture/revue** lancé par
+`api_v2:app`. Il ne contient aucun writer, worker, parseur de document ou client
+de source distante. Toute publication demeure interdite tant qu'une remise
+autoritaire n'a pas prouvé la chaîne `quality → gate → review`.
+
+Les bloqueurs externes au runtime restent :
+
+- LOT41A : autorité humaine GitHub formelle, vérifiable et révocable ;
+- LOT42 : attestations autoritaires liées au contenu et au scope publié ;
+- revue humaine exhaustive de la suite golden ;
+- preuves de production pour TLS, secrets, sauvegarde/restauration et rollback ;
+- corpus réel, droits et licences vérifiés par une personne habilitée.
+
+## 1. Périmètre canonique
+
+Le stack versionné dans `services/rag-engine/infra/docker-compose.v2.yml`
+comprend uniquement PostgreSQL/pgvector, l'API v2 et Prometheus. Il expose les
+capacités suivantes : santé, métriques locales, retrieval, chat verrouillé,
+catalogue, readiness et revue. Toute route d'ingestion ou route legacy est
+fermée par l'image et par l'allowlist Nginx.
+
+Les requêtes métier passent exclusivement par le **Cockpit BFF** : session
+Auth.js, scope serveur, credential machine dédié et enveloppe d'identité signée.
+Un jeton humain présenté directement au moteur n'est jamais une autorité.
+
+## 2. Prérequis obligatoires
+
+- Docker Engine et plugin Compose supportant `up --wait` ;
+- DNS et TLS canoniques pour le Cockpit et l'API ;
+- gestionnaire de secrets externe au dépôt ;
+- artefact local `intfloat/multilingual-e5-large` vérifié en 1024 dimensions ;
+- artefact local `cross-encoder/ms-marco-MiniLM-L-6-v2` vérifié hors-ligne ;
+- deux rôles PostgreSQL runtime distincts, créés par le bootstrap sur un volume
+  neuf ou déjà provisionnés et audités sur un volume existant ;
+- Cockpit HTTPS et BFF déployés avec la même configuration d'identité interne ;
+- sauvegarde persistante avant toute migration d'un volume existant.
+
+Les DSN runtime sont :
+
+- `PG_RAG_DSN` : rôle limité à `SELECT` sur `rag_chunks` et
+  `rag_schema_migrations` ;
+- `PG_REVIEW_DSN` : rôle limité à `SELECT` sur `rag_chunks` et à la mise à jour
+  du seul statut de revue ; il n'a aucun droit sur `rag_schema_migrations`.
+
+Le propriétaire PostgreSQL et les credentials de migration ne doivent jamais
+être fournis au conteneur API.
+
+Les connexions runtime de retrieval et de revue imposent
+`connect_timeout=3 s`, `statement_timeout=7000 ms` et
+`lock_timeout=1000 ms` par défaut. Les overrides `PG_CONNECT_TIMEOUT_S`,
+`PG_STATEMENT_TIMEOUT_MS` et `PG_LOCK_TIMEOUT_MS` doivent rester des entiers
+strictement positifs, avec `connect <= 30` et
+`lock <= statement <= 60000`. Le délai de statement doit rester inférieur au
+timeout du BFF Cockpit. Ne pas les mettre à zéro : le timeout d'acquisition
+`PG_POOL_TIMEOUT_S` ne borne pas une requête déjà partie vers PostgreSQL.
+
+## 3. Préparer la configuration sans exposer les secrets
+
+Depuis `services/rag-engine/infra` :
 
 ```bash
-cd /opt/rag-local
-sudo bash services/rag-engine/infra/scripts/provision-prod.sh
-```
-
-Le script demande interactivement :
-- Domaine Streamlit (ex: `rag.nexusreussite.academy`)
-- Domaine n8n (optionnel)
-- Email Certbot
-- CIDR allowlist ingestor
-- CIDR trusted proxy
-- Basic Auth UI (optionnel)
-
-## 2. Provisionnement manuel (alternative)
-
-```bash
-cd /opt/rag-local/services/rag-engine/infra
-
-# Copier et éditer .env
 cp .env.example .env
 chmod 600 .env
-
-# Générer les tokens
-for var in LEGACY_ADMIN_API_TOKEN RAG_ADMIN_TOKEN RAG_REVIEWER_TOKEN \
-  RAG_TEACHER_TOKEN RAG_INGEST_AGENT_TOKEN INGESTOR_API_TOKEN \
-  INGEST_AUTH_TOKEN RAG_STUDENT_TOKEN; do
-  echo "${var}=$(openssl rand -hex 32)"
-done >> .env
-
-# Configurer les variables obligatoires dans .env :
-# RAG_ENV=production
-# ALLOW_UNAUTHENTICATED_ADMIN_DEV=false
-# RAG_ENGINE_CONFIG_DIR=/app/configs
-# PGVECTOR_PASSWORD=<generated>
-# REDIS_PASSWORD=<generated>
 ```
 
-## 3. Lancement du stack
+Remplir `.env` depuis le gestionnaire de secrets. Les mots de passe owner,
+retrieval et review doivent être distincts ; les deux secrets runtime font au
+moins 32 caractères. Les autorités indispensables
+sont `RAG_BFF_SERVICE_TOKEN`, `NEXUS_INTERNAL_TOKEN_SECRET`,
+`NEXUS_INTERNAL_TOKEN_ISSUER`, `NEXUS_INTERNAL_TOKEN_AUDIENCE`,
+`NEXUS_SSO_ISSUER` et `NEXUS_SSO_AUDIENCE`. Ne pas activer `xtrace` et ne jamais
+imprimer les valeurs.
+
+Valider ensuite le rendu sans afficher la configuration :
 
 ```bash
-# Stack v2 (pgvector)
-docker compose -f docker-compose.v2.yml up -d --build
-
-# OU stack prod (Chroma)
-docker compose -f docker-compose.prod.yml --profile db --profile llm \
-  --profile api --profile ui --profile obs up -d
+docker compose -f docker-compose.v2.yml --env-file .env config --quiet
 ```
 
-## 3b. Appliquer les migrations pgvector (volumes existants)
+Vérifier les deux artefacts avant démarrage :
 
-Si le volume pgvector existe déjà (upgrade, pas premier déploiement),
-appliquer les migrations versionnées **avant** les smoke tests :
+```bash
+RAG_ENV=preproduction \
+MODEL_ARTIFACT_DIR="$RAG_EMBEDDING_MODEL_ARTIFACT_HOST_DIR" \
+MODEL_ARTIFACT_INVENTORY_SHA256="$RAG_EMBEDDING_MODEL_INVENTORY_SHA256" \
+../../../scripts/e2e/verify-embedding-model-artifact.sh
+
+RAG_ENV=preproduction \
+MODEL_ARTIFACT_DIR="$RAG_RERANKER_MODEL_ARTIFACT_HOST_DIR" \
+MODEL_ARTIFACT_INVENTORY_SHA256="$RAG_RERANKER_MODEL_INVENTORY_SHA256" \
+../../../scripts/e2e/verify-reranker-model-artifact.sh
+```
+
+Chaque répertoire doit contenir `manifest.json`, `config.json`, au moins un
+poids `*.safetensors` ou `pytorch_model.bin`, et un `SHA256SUMS` exhaustif qui
+inclut le manifeste. Les scripts chargent aussi les modèles hors-ligne par
+défaut ; ne pas utiliser `SKIP_LOAD_TEST=1` pour une qualification de
+production. L'empreinte SHA-256 de `SHA256SUMS` doit être approuvée à la
+construction, conservée dans la configuration de déploiement protégée et
+distincte du montage modèle. Ne jamais la recalculer depuis le montage au
+moment de la promotion : elle constitue l'ancre externe qui empêche le
+remplacement simultané des poids, du manifeste et de leur inventaire. Un ancien
+artefact embedding dont le manifeste n'était pas inclus
+dans `SHA256SUMS` doit être régénéré avec
+`prepare-embedding-model-artifact.sh`, pas modifié dans le montage actif.
+
+## 4. Préparer PostgreSQL
+
+### Volume neuf
+
+Au premier démarrage uniquement, PostgreSQL applique dans l'ordre
+`00_init.sql`, puis `01_003_profile_filtering.sql`, enregistre les migrations et
+crée enfin les rôles minimaux avec `03_provision_runtime_roles.sh`. Son
+healthcheck échoue tant
+que le head `003_profile_filtering`, les SHA-256 canoniques, les définitions
+exactes des 31 colonnes, des dix index, de l'expression générée `text_tsv` et
+des cinq contraintes validées ne sont pas présents. Les colonnes incluent leurs
+valeurs par défaut et leurs typmods exacts (`vector(1024)`), et tout index
+supplémentaire, activation RLS ou policy RLS rend également la base non prête.
+Le script
+`02_register_bootstrap_migrations.sh` calcule les SHA-256 des trois migrations
+canoniques et enregistre atomiquement `001`, `002` et `003` dans
+`rag_schema_migrations`. Le runner transactionnel doit ensuite reconnaître ce
+volume avec `MIGRATIONS_APPLIED=0` et `MIGRATIONS_ADOPTED=0`.
+
+### Volume existant
+
+Ne pas compter sur les scripts d'initialisation Docker, qui ne sont rejoués que
+sur un volume vide. Sauvegarder, puis appliquer le runner transactionnel :
 
 ```bash
 cd services/rag-engine/infra
-chmod +x scripts/apply_pgvector_migrations.sh
 BACKUP_ROOT=/backup/rag ./scripts/apply_pgvector_migrations.sh
 ```
 
-`BACKUP_ROOT` is required — the script will refuse to run without it.
+Le runner doit terminer au head 003. En cas d'échec ou de données incompatibles,
+arrêter la procédure et restaurer selon le runbook de rollback ; ne jamais
+forcer le démarrage de l'API.
 
-Le script :
-- crée un backup automatique (`pg_dump -Fc`) ;
-- applique les migrations SQL triées depuis `postgres/migrations/` ;
-- vérifie que le schéma v2 est en place (colonnes + `vector(1024)`).
+Avant promotion, relire les `GRANT` effectifs et prouver que les deux DSN
+runtime n'ont ni création, ni suppression, ni modification de contenu ou de
+schéma.
 
-Si la migration échoue (legacy avec données), elle bloque avec un message
-explicite. Ne pas poursuivre sans résolution.
+Le rôle `PG_RAG_DSN` doit pouvoir lire `rag_schema_migrations`, sinon `/health`
+échoue volontairement en `503` : ne pas lui substituer le rôle owner. La sonde
+refuse également tout privilège d'écriture, de création, d'administration ou
+d'appartenance à un autre rôle, directement ou indirectement. Ce dernier
+contrôle couvre les cibles atteignables par `SET ROLE`, même avec `NOINHERIT` ;
+le pool force en plus les transactions read-only.
+La sonde inventorie aussi les tables, vues, tables étrangères et séquences de
+tous les schémas non système : tout privilège effectif hors de
+`rag_chunks`/`rag_schema_migrations` rend la santé négative, notamment un droit
+sur `rag_api_keys` ou `rag_eval_runs`.
+`/health` ouvre également `PG_REVIEW_DSN` et vérifie le rôle effectif : attributs
+non administratifs, `USAGE` sans `CREATE`, aucune table temporaire, lecture de
+`rag_chunks` et seul `UPDATE(review_status)`. Les grants `INSERT` ou `UPDATE`
+limités à une autre colonne sont également refusés. Un rôle absent,
+sous-privilégié ou sur-privilégié maintient volontairement l'API en `503`.
+La même interdiction de privilèges sur les relations auxiliaires s'applique au
+rôle de revue.
 
-## 4. Vérification des services
+## 5. Démarrer le runtime fermé
 
-```bash
-docker compose ps
-# Tous les services doivent être "healthy"
-
-# Health check API
-curl -sf http://localhost:8001/health | jq .
-
-# Health check UI
-curl -sf http://localhost:8501/_stcore/health
-```
-
-## 5. Preload des modèles
-
-```bash
-# Embedding model
-docker exec rag_ollama ollama pull intfloat/multilingual-e5-large
-
-# Vérification
-docker exec rag_ollama ollama list
-```
-
-## 6. Configuration Nginx
+Depuis `services/rag-engine` :
 
 ```bash
-# Si provision-prod.sh n'a pas été utilisé :
-cd infra
-set -a; . ./.env; set +a
-envsubst < nginx/rag-ui.conf.template > nginx/rendered/rag-ui.conf
-envsubst < nginx/rag-api.conf.template > nginx/rendered/rag-api.conf
-
-sudo cp nginx/rendered/*.conf /etc/nginx/sites-available/
-sudo ln -sf /etc/nginx/sites-available/rag-ui.conf /etc/nginx/sites-enabled/
-sudo ln -sf /etc/nginx/sites-available/rag-api.conf /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx
+make v2-up
 ```
 
-## 7. TLS (Certbot)
+Cette cible utilise `docker compose up -d --build --wait`. Un service unhealthy
+fait échouer la commande ; aucun délai arbitraire ni succès de substitution
+n'est accepté.
+
+Le processus Uvicorn unique rehache intégralement les deux artefacts pendant son
+démarrage, avant d'accepter du trafic. Les sondes internes suivantes comparent à coût
+borné l'ancre de l'inventaire et les métadonnées attestées ; elles ne relisent
+jamais les poids multi-gigaoctets. Le premier chargement du modèle refait la
+preuve cryptographique complète. Une modification d'artefact exige un nouveau
+déploiement ; ne jamais remplacer les poids sous un conteneur en cours
+d'exécution.
+
+La readiness PostgreSQL profonde est protégée par un verrou process-local et
+un cache positif ou négatif de cinq secondes. Le runtime canonique fixe Uvicorn
+à un worker afin que les compteurs Prometheus soient complets et monotones. Ne
+pas augmenter ce nombre : pour scaler, déployer des réplicas avec une solution
+d'agrégation Prometheus explicitement qualifiée.
+
+Contrôles locaux :
 
 ```bash
-sudo certbot --nginx --non-interactive --agree-tos --redirect \
-  -m admin@example.com -d rag.example.com -d rag-api.example.com
+curl -fsS http://127.0.0.1:8001/health | jq -e \
+  '.status == "healthy" and .schema_head == "003_profile_filtering" and .pgvector_dim == 1024'
+
+test "$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:8001/ingest)" = 404
+test "$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1/admin)" = 404
 ```
 
-## 8. Smoke tests post-déploiement
+Après au moins une requête métier de smoke, vérifier que `/metrics` contient
+`ingestor_requests_total` et `ingestor_request_latency_seconds`. Les chemins
+inconnus doivent être agrégés sous `path="unmatched"` afin de conserver une
+cardinalité bornée.
+
+## 6. Installer le proxy par allowlist
+
+Rendre `infra/nginx/rag-api.conf.template` avec le domaine API canonique et le
+port local, puis valider avant rechargement :
 
 ```bash
-API="https://rag-api.example.com"
-TOKEN="<RAG_ADMIN_TOKEN>"
-
-# Health
-curl -sf "$API/health" | jq .
-
-# Search v2 (admin)
-curl -sf -X POST "$API/search/v2" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"q":"test","collection":"rag_nexus_nsi_terminale_specialite","k":3}' | jq .
-
-# Collections v2
-curl -sf "$API/collections/v2" \
-  -H "Authorization: Bearer $TOKEN" | jq .
-
-# Search sans token (doit retourner 401)
-curl -s -o /dev/null -w "%{http_code}" -X POST "$API/search/v2" \
-  -H "Content-Type: application/json" \
-  -d '{"q":"test","collection":"rag_nexus_nsi_terminale_specialite","k":3}'
-# Attendu : 401
+envsubst '${RAG_API_EXTERNAL_DOMAIN} ${NGINX_API_PORT}' \
+  < infra/nginx/rag-api.conf.template \
+  | sudo tee /etc/nginx/sites-available/rag-api.conf >/dev/null
+sudo nginx -t
+sudo systemctl reload nginx
 ```
 
-## 9. Ingestion initiale
+La liste passée à `envsubst` est obligatoire : un appel sans liste effacerait
+les variables natives Nginx telles que `$binary_remote_addr` et `$request_uri`.
 
-```bash
-INGEST_TOKEN="<RAG_INGEST_AGENT_TOKEN>"
+Le proxy public doit :
 
-# Upload d'un fichier test
-curl -X POST "$API/ingest/v2/upload-files" \
-  -H "Authorization: Bearer $INGEST_TOKEN" \
-  -F "files=@/tmp/test_cours.md" \
-  -F "collection=rag_nexus_nsi_terminale_specialite" \
-  -F "source_label=Test cours NSI" \
-  -F "source_uri=file:///test_cours.md" \
-  -F "rights=nexus_owned" \
-  -F "type_doc=cours" | jq .
-```
+- transmettre seulement les neuf routes exactes du runtime ;
+- limiter `/health` aux adresses loopback ;
+- limiter `/metrics` aux adresses loopback ;
+- rendre `410` sur les chemins legacy explicitement révoqués ;
+- rendre `404` pour tout autre chemin ;
+- rediriger HTTP vers le domaine canonique configuré, sans faire confiance à
+  `Host` ni aux headers `X-Forwarded-*` comme autorité.
 
-## 10. Revue initiale via le Cockpit BFF
+Le vhost alternatif `infra/nginx/rag-v2.conf`, s'il est utilisé, doit lui aussi
+être rendu avec `NGINX_API_PORT` et vise exclusivement le port loopback publié
+par Compose. Aucun Nginx hôte ne doit résoudre le nom Docker `ingestor`.
 
-Les opérations humaines de review passent exclusivement par le Cockpit. Le
-reviewer doit avoir une session Auth.js active, non révoquée, avec le rôle
-`reviewer` ou `admin`.
+## 7. Vérifier le Cockpit BFF
 
-Ce runbook historique **ne provisionne pas le Cockpit**. La configuration
-canonique est décrite dans le
-[README Cockpit](../../services/cockpit/README.md).
-Arrêter la procédure si le Cockpit HTTPS et son BFF ne sont pas déjà déployés.
-Charger les variables depuis le gestionnaire de secrets dans un shell opérateur
-sécurisé, sans activer `xtrace`, puis exécuter le préflight ci-dessous. Il ne
-doit afficher aucune valeur. Tous les blocs de cette section s'exécutent dans
-ce même shell.
+Les tests fonctionnels authentifiés sont exécutés depuis le Cockpit, jamais par
+appel direct avec un rôle humain :
 
-```bash
-set +x
-set -euo pipefail
+1. une session `reviewer` autorisée lit la queue de son seul scope ;
+2. cette session peut prendre une décision `reviewed` ou `quarantined` ;
+3. une session `student` ou `teacher` reçoit `403` avant tout appel moteur de
+   décision ;
+4. une origine différente de `NEXUS_COCKPIT_PUBLIC_ORIGIN` est refusée avant la
+   lecture du corps ;
+5. une collection hors scope est refusée ;
+6. une recherche ne retourne que des chunks `reviewed` et produit des citations
+   conformes au contrat partagé ;
+7. le chat reste `answer_generation_locked`.
 
-required_secret_names=(
-  NEXTAUTH_SECRET
-  NEXUS_COCKPIT_PUBLIC_ORIGIN
-  NEXUS_SSO_ISSUER
-  NEXUS_SSO_AUDIENCE
-  NEXUS_RELEASE_SCHOOL_YEAR
-  NEXUS_INTERNAL_TOKEN_SECRET
-  NEXUS_INTERNAL_TOKEN_ISSUER
-  NEXUS_INTERNAL_TOKEN_AUDIENCE
-  NEXUS_SESSION_REDIS_URL
-  RAG_ENGINE_INTERNAL_TOKEN
-  RAG_BFF_SERVICE_TOKEN
-  RAG_ADMIN_TOKEN
-  RAG_REVIEWER_TOKEN
-  RAG_TEACHER_TOKEN
-  RAG_INGEST_AGENT_TOKEN
-  RAG_STUDENT_TOKEN
-)
-missing_secret=0
-for secret_name in "${required_secret_names[@]}"; do
-  if [ -z "${!secret_name:-}" ]; then
-    printf 'ERREUR: variable requise absente: %s\n' "$secret_name" >&2
-    missing_secret=1
-  fi
-done
-test "$missing_secret" -eq 0
+## 8. Preuves opérationnelles encore requises
 
-if ! COCKPIT="$(node - "$NEXUS_COCKPIT_PUBLIC_ORIGIN" <<'NODE'
-const [rawOrigin] = process.argv.slice(2)
-try {
-  const publicUrl = new URL(rawOrigin.trim())
-  const valid = publicUrl.protocol === 'https:'
-    && publicUrl.username === ''
-    && publicUrl.password === ''
-    && publicUrl.pathname === '/'
-    && publicUrl.search === ''
-    && publicUrl.hash === ''
-  if (!valid) throw new Error('invalid public origin')
-  process.stdout.write(publicUrl.origin)
-} catch {
-  process.exit(1)
-}
-NODE
-)"; then
-  printf '%s\n' "ERREUR: origine publique Cockpit HTTPS canonique requise" >&2
-  exit 1
-fi
+Avant de changer le verdict, archiver pour le SHA candidat exact :
 
-if [ -z "${NEXUS_SSO_JWKS_URL:-}" ] && [ -z "${NEXUS_SSO_SHARED_SECRET:-}" ]; then
-  printf '%s\n' \
-    "ERREUR: NEXUS_SSO_JWKS_URL ou NEXUS_SSO_SHARED_SECRET requis" >&2
-  exit 1
-fi
-case "$NEXUS_SSO_AUDIENCE" in
-  *,*) printf '%s\n' "ERREUR: audience SSO unique requise" >&2; exit 1 ;;
-esac
-printf '%s' "$NEXUS_RELEASE_SCHOOL_YEAR" \
-  | grep -Eq '^[0-9]{4}-[0-9]{4}$'
+- les checks `pull_request`, puis le run `push` du SHA fusionné sur `main` ;
+- le readback de protection de branche et une approbation formelle ;
+- le rendu Compose et l'identité des images épinglées ;
+- un démarrage sur volume vierge et un upgrade de volume restauré ;
+- un exercice backup → restore → rollback ;
+- les résultats TLS, rate limiting, logs sans secrets et alerting ;
+- l'attestation humaine golden et les attestations LOT41A/LOT42 ;
+- les preuves de droits et de couverture substantielle du corpus réel.
 
-if [ "$RAG_ENGINE_INTERNAL_TOKEN" != "$RAG_BFF_SERVICE_TOKEN" ]; then
-  printf '%s\n' "ERREUR: credentials BFF Cockpit/moteur différents" >&2
-  exit 1
-fi
-
-human_token_names=(
-  RAG_ADMIN_TOKEN
-  RAG_REVIEWER_TOKEN
-  RAG_TEACHER_TOKEN
-  RAG_INGEST_AGENT_TOKEN
-  RAG_STUDENT_TOKEN
-)
-for human_name in "${human_token_names[@]}"; do
-  if [ "${!human_name}" = "$RAG_ENGINE_INTERNAL_TOKEN" ]; then
-    printf 'ERREUR: credential BFF confondu avec le rôle %s\n' "$human_name" >&2
-    exit 1
-  fi
-done
-for ((left = 0; left < ${#human_token_names[@]}; left++)); do
-  for ((right = left + 1; right < ${#human_token_names[@]}; right++)); do
-    left_name="${human_token_names[$left]}"
-    right_name="${human_token_names[$right]}"
-    if [ "${!left_name}" = "${!right_name}" ]; then
-      printf 'ERREUR: tokens de rôles non distincts: %s/%s\n' \
-        "$left_name" "$right_name" >&2
-      exit 1
-    fi
-  done
-done
-```
-
-Obtenir ensuite trois jetons SSO éphémères de comptes de test
-`reviewer`, `student` et `teacher` par le parcours Nexus officiel. Les charger
-respectivement dans `NEXUS_REVIEWER_SSO_TOKEN`, `NEXUS_STUDENT_SSO_TOKEN` et
-`NEXUS_TEACHER_SSO_TOKEN` sans les afficher. Le bloc suivant utilise le provider
-Credentials Auth.js supporté, crée des cookie jars Netscape en mode privé et
-valide chaque session. Il ne fabrique ni JWT ni cookie.
-
-```bash
-umask 077
-for sso_name in \
-  NEXUS_REVIEWER_SSO_TOKEN NEXUS_STUDENT_SSO_TOKEN NEXUS_TEACHER_SSO_TOKEN; do
-  if [ -z "${!sso_name:-}" ]; then
-    printf 'ERREUR: jeton SSO éphémère absent: %s\n' "$sso_name" >&2
-    exit 1
-  fi
-done
-
-REVIEW_SMOKE_TMP="$(mktemp -d)"
-REVIEWER_COOKIE_JAR="$REVIEW_SMOKE_TMP/reviewer.cookies"
-STUDENT_COOKIE_JAR="$REVIEW_SMOKE_TMP/student.cookies"
-TEACHER_COOKIE_JAR="$REVIEW_SMOKE_TMP/teacher.cookies"
-
-cleanup_review_smoke() {
-  if [ -n "${REVIEW_SMOKE_TMP:-}" ] && [ -d "$REVIEW_SMOKE_TMP" ]; then
-    find "$REVIEW_SMOKE_TMP" -type f -delete
-    rmdir "$REVIEW_SMOKE_TMP"
-  fi
-}
-trap cleanup_review_smoke EXIT
-trap 'exit 129' HUP
-trap 'exit 130' INT
-trap 'exit 143' TERM
-
-assert_review_json_response() {
-  local expected_status="$1"
-  local actual_status="$2"
-  local headers_file="$3"
-  local body_file="$4"
-  local normalized_headers="$headers_file.normalized"
-  test "$actual_status" = "$expected_status"
-  tr -d '\r' < "$headers_file" > "$normalized_headers"
-  grep -Fxiq 'Cache-Control: private, no-store, max-age=0' \
-    "$normalized_headers"
-  jq -e . "$body_file" >/dev/null
-}
-
-# Prouve que le BFF review est déployé et fermé sans session.
-bff_preflight_status="$(curl -sS \
-  -D "$REVIEW_SMOKE_TMP/bff-preflight.headers" \
-  -o "$REVIEW_SMOKE_TMP/bff-preflight.json" \
-  -w '%{http_code}' \
-  "$COCKPIT/api/review/queue")"
-assert_review_json_response 401 "$bff_preflight_status" \
-  "$REVIEW_SMOKE_TMP/bff-preflight.headers" \
-  "$REVIEW_SMOKE_TMP/bff-preflight.json"
-
-create_authjs_cookie_jar() {
-  local label="$1"
-  local sso_token="$2"
-  local cookie_jar="$3"
-  local token_file="$REVIEW_SMOKE_TMP/$label.sso"
-  local csrf_status csrf_token callback_status session_status
-  printf '%s' "$sso_token" > "$token_file"
-
-  csrf_status="$(curl -sS \
-    -D "$REVIEW_SMOKE_TMP/$label-csrf.headers" \
-    -o "$REVIEW_SMOKE_TMP/$label-csrf.json" \
-    -w '%{http_code}' \
-    -c "$cookie_jar" \
-    "$COCKPIT/api/auth/csrf")"
-  test "$csrf_status" = "200"
-  csrf_token="$(jq -er \
-    '.csrfToken | select(type == "string" and length > 0)' \
-    "$REVIEW_SMOKE_TMP/$label-csrf.json")"
-
-  callback_status="$(curl -sS -X POST \
-    -D "$REVIEW_SMOKE_TMP/$label-callback.headers" \
-    -o "$REVIEW_SMOKE_TMP/$label-callback.json" \
-    -w '%{http_code}' \
-    -b "$cookie_jar" -c "$cookie_jar" \
-    -H 'Content-Type: application/x-www-form-urlencoded' \
-    --data-urlencode "csrfToken=$csrf_token" \
-    --data-urlencode "token@$token_file" \
-    --data-urlencode "callbackUrl=$COCKPIT/" \
-    --data-urlencode 'json=true' \
-    "$COCKPIT/api/auth/callback/credentials")"
-  test "$callback_status" = "200"
-  jq -e '.url | select(type == "string" and length > 0)' \
-    "$REVIEW_SMOKE_TMP/$label-callback.json" >/dev/null
-  find "$token_file" -type f -delete
-
-  session_status="$(curl -sS \
-    -D "$REVIEW_SMOKE_TMP/$label-session.headers" \
-    -o "$REVIEW_SMOKE_TMP/$label-session.json" \
-    -w '%{http_code}' \
-    -b "$cookie_jar" \
-    "$COCKPIT/api/auth/session")"
-  test "$session_status" = "200"
-  jq -e '.user != null' "$REVIEW_SMOKE_TMP/$label-session.json" >/dev/null
-}
-
-create_authjs_cookie_jar \
-  reviewer "$NEXUS_REVIEWER_SSO_TOKEN" "$REVIEWER_COOKIE_JAR"
-create_authjs_cookie_jar \
-  student "$NEXUS_STUDENT_SSO_TOKEN" "$STUDENT_COOKIE_JAR"
-create_authjs_cookie_jar \
-  teacher "$NEXUS_TEACHER_SSO_TOKEN" "$TEACHER_COOKIE_JAR"
-unset NEXUS_REVIEWER_SSO_TOKEN NEXUS_STUDENT_SSO_TOKEN NEXUS_TEACHER_SSO_TOKEN
-```
-
-Exécuter les contrôles positifs dans le même shell. Définir
-`REVIEW_TARGET_ID` avec l'identifiant non sensible d'un document
-`needs_review` de la collection de test.
-
-```bash
-REVIEW_COLLECTION="rag_nexus_nsi_terminale_specialite"
-: "${REVIEW_TARGET_ID:?identifiant de document needs_review requis}"
-
-# Queue de review ; collection, limit et offset sont les seuls filtres admis.
-queue_status="$(curl -sS -G \
-  -D "$REVIEW_SMOKE_TMP/queue.headers" \
-  -o "$REVIEW_SMOKE_TMP/queue.json" \
-  -w '%{http_code}' \
-  -b "$REVIEWER_COOKIE_JAR" \
-  --data-urlencode "collection=$REVIEW_COLLECTION" \
-  --data-urlencode 'limit=50' \
-  --data-urlencode 'offset=0' \
-  "$COCKPIT/api/review/queue")"
-assert_review_json_response 200 "$queue_status" \
-  "$REVIEW_SMOKE_TMP/queue.headers" "$REVIEW_SMOKE_TMP/queue.json"
-jq -e '.documents | type == "array"' \
-  "$REVIEW_SMOKE_TMP/queue.json" >/dev/null
-
-review_payload="$(jq -cn \
-  --arg target_id "$REVIEW_TARGET_ID" \
-  --arg collection "$REVIEW_COLLECTION" \
-  '{target_type:"doc", target_id:$target_id, decision:"reviewed", collection:$collection}')"
-
-# Approuver un document. Le navigateur ne fournit ni tenant ni reason.
-decide_status="$(curl -sS -X POST \
-  -D "$REVIEW_SMOKE_TMP/decide.headers" \
-  -o "$REVIEW_SMOKE_TMP/decide.json" \
-  -w '%{http_code}' \
-  -b "$REVIEWER_COOKIE_JAR" \
-  -H "Origin: $COCKPIT" \
-  -H "Content-Type: application/json" \
-  --data-binary "$review_payload" \
-  "$COCKPIT/api/review/decide")"
-assert_review_json_response 200 "$decide_status" \
-  "$REVIEW_SMOKE_TMP/decide.headers" "$REVIEW_SMOKE_TMP/decide.json"
-jq -e --arg target_id "$REVIEW_TARGET_ID" \
-  '.target_id == $target_id and .decision == "reviewed"' \
-  "$REVIEW_SMOKE_TMP/decide.json" >/dev/null
-```
-
-Toutes les réponses de ces routes, succès comme erreurs, doivent porter
-`Cache-Control: private, no-store, max-age=0`.
-
-Contrôles négatifs à conserver lors du smoke test :
-
-```bash
-HUMAN_REVIEW_HEADER="$REVIEW_SMOKE_TMP/human-review.header"
-printf 'Authorization: Bearer %s\n' "$RAG_REVIEWER_TOKEN" \
-  > "$HUMAN_REVIEW_HEADER"
-unset RAG_REVIEWER_TOKEN
-
-# Un simple token humain ne satisfait ni le credential BFF ni l'identité signée.
-for endpoint in queue decide; do
-  if [ "$endpoint" = "queue" ]; then
-    status="$(curl -sS -o /dev/null -w '%{http_code}' \
-      "$API/review/v2/queue" \
-      -H @"$HUMAN_REVIEW_HEADER")"
-  else
-    status="$(curl -sS -o /dev/null -w '%{http_code}' -X POST \
-      "$API/review/v2/decide" \
-      -H @"$HUMAN_REVIEW_HEADER" \
-      -H "Content-Type: application/json" \
-      -d '{"tenant":"libre_terminale","target_type":"doc","target_id":"smoke-review-target","decision":"reviewed"}')"
-  fi
-  test "$status" = "401"
-done
-
-# Le BFF refuse student et teacher avant tout appel moteur de décision.
-for role in student teacher; do
-  if [ "$role" = "student" ]; then
-    cookie_jar="$STUDENT_COOKIE_JAR"
-  else
-    cookie_jar="$TEACHER_COOKIE_JAR"
-  fi
-  status="$(curl -sS -X POST \
-    -D "$REVIEW_SMOKE_TMP/$role-forbidden.headers" \
-    -o "$REVIEW_SMOKE_TMP/$role-forbidden.json" \
-    -w '%{http_code}' \
-    "$COCKPIT/api/review/decide" \
-    -b "$cookie_jar" \
-    -H "Origin: $COCKPIT" \
-    -H "Content-Type: application/json" \
-    -d '{"target_type":"doc","target_id":"smoke-review-target","decision":"reviewed"}')"
-  assert_review_json_response 403 "$status" \
-    "$REVIEW_SMOKE_TMP/$role-forbidden.headers" \
-    "$REVIEW_SMOKE_TMP/$role-forbidden.json"
-  jq -e '.error == "forbidden"' \
-    "$REVIEW_SMOKE_TMP/$role-forbidden.json" >/dev/null
-done
-
-trap - HUP INT TERM EXIT
-cleanup_review_smoke
-```
-
-## 11. Backup initial
-
-```bash
-# Backup volumes
-bash infra/scripts/backup-volumes.sh
-
-# Pour v2 (pgvector) :
-docker exec rag_pgvector pg_dump -U raguser ragdb > /backup/ragdb_$(date +%Y%m%d).sql
-```
-
-## 12. Systemd (auto-start)
-
-```bash
-RAG_DIR=/opt/rag-local sudo bash infra/scripts/install-systemd.sh
-sudo systemctl enable rag-local
-sudo systemctl status rag-local
-```
-
-## 13. Validation finale
-
-- [ ] HTTPS fonctionnel sur les deux domaines
-- [ ] Search v2 retourne des résultats après ingestion + review
-- [ ] Review humaine effectuée uniquement via `/api/review/*` et une session Auth.js
-- [ ] Tokens distincts entre rôles
-- [ ] Logs propres (`docker compose logs --tail=50 ingestor`)
-- [ ] Aucun token visible dans les logs
-- [ ] Backup effectué
-
-## Contacts
-
-- Lead technique : à définir
-- Oncall : à définir
-- Alertes : à configurer via Alertmanager
+Tant qu'un de ces éléments ou un bloqueur initial manque, conserver
+**GO_LIVE: NO_GO** et ne pas ouvrir de capacité d'ingestion ou de génération.

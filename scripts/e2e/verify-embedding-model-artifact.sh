@@ -10,6 +10,7 @@ set -euo pipefail
 #
 # Required environment:
 #   MODEL_ARTIFACT_DIR    — path to the model artifact directory
+#   MODEL_ARTIFACT_INVENTORY_SHA256 — empreinte approuvée hors artefact de SHA256SUMS
 #
 # Optional:
 #   SKIP_LOAD_TEST        — set to "1" to skip the SentenceTransformer load test
@@ -17,6 +18,7 @@ set -euo pipefail
 
 CANONICAL_MODEL="intfloat/multilingual-e5-large"
 CANONICAL_DIM=1024
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 ERRORS=0
 
@@ -34,6 +36,11 @@ fi
 
 if [ ! -d "$MODEL_ARTIFACT_DIR" ]; then
     echo "ERROR: MODEL_ARTIFACT_DIR does not exist: $MODEL_ARTIFACT_DIR" >&2
+    exit 1
+fi
+
+if [[ ! "${MODEL_ARTIFACT_INVENTORY_SHA256:-}" =~ ^[0-9a-f]{64}$ ]]; then
+    echo "ERROR: MODEL_ARTIFACT_INVENTORY_SHA256 must be a lowercase SHA-256." >&2
     exit 1
 fi
 
@@ -78,6 +85,34 @@ else
         echo "OK: all checksums verified"
     fi
     popd > /dev/null
+fi
+
+# Reuse the exact verifier executed by the runtime healthcheck.  It rejects
+# symlinks, path escapes, unlisted files and an unauthenticated manifest.
+if ! PYTHONPATH="$REPO_ROOT/services/rag-engine/src${PYTHONPATH:+:$PYTHONPATH}" \
+    MODEL_ARTIFACT_DIR="$MODEL_ARTIFACT_DIR" \
+    MODEL_ARTIFACT_INVENTORY_SHA256="$MODEL_ARTIFACT_INVENTORY_SHA256" \
+    python3 - <<'PY'
+import os
+from pathlib import Path
+
+from ingestor.model_artifact import verify_model_artifact
+
+verify_model_artifact(
+    Path(os.environ["MODEL_ARTIFACT_DIR"]),
+    expected_inventory_sha256=os.environ["MODEL_ARTIFACT_INVENTORY_SHA256"],
+    expected_manifest={
+        "model_id": "intfloat/multilingual-e5-large",
+        "canonical_dim": 1024,
+    },
+    required_files=frozenset({"config.json"}),
+    require_model_weights=True,
+)
+PY
+then
+    fail "runtime artifact contract verification failed"
+else
+    echo "OK: runtime artifact contract verified"
 fi
 
 # --- Check no Nomic fallback ---

@@ -2,7 +2,8 @@
 import Ajv2020 from 'ajv/dist/2020.js'
 import addFormats from 'ajv-formats'
 
-import type { RetrievalResponse, SearchPayload, ChatPayload, ChatRequest, ChatResponse, InternalIdentity, InternalIdentityEnvelope, PilotRetrievalScopeArtifact, ReviewQueuePayload, ReviewDecisionPayload, ReviewDecisionRequest, ReviewQueueResponse, ReviewDecisionResponse } from './contracts'
+import type { RetrievalRequest, RetrievalResponse, SearchPayload, ChatPayload, ChatRequest, ChatResponse, InternalIdentity, InternalIdentityEnvelope, PilotRetrievalScopeArtifact, ReviewQueuePayload, ReviewDecisionPayload, ReviewDecisionRequest, ReviewQueueResponse, ReviewDecisionResponse } from './contracts'
+import RetrievalRequestSchema from './schema/retrieval-request.json'
 import RetrievalResponseSchema from './schema/retrieval-response.json'
 import SearchPayloadSchema from './schema/search-payload.json'
 import ChatPayloadSchema from './schema/chat-payload.json'
@@ -19,6 +20,7 @@ import ReviewDecisionResponseSchema from './schema/review-decision-response.json
 
 const ajv = new Ajv2020({ allErrors: true, strict: false })
 addFormats(ajv)
+const retrievalRequestValidator = ajv.compile<RetrievalRequest>(RetrievalRequestSchema)
 const retrievalResponseValidator = ajv.compile<RetrievalResponse>(RetrievalResponseSchema)
 const searchPayloadValidator = ajv.compile<SearchPayload>(SearchPayloadSchema)
 const chatPayloadValidator = ajv.compile<ChatPayload>(ChatPayloadSchema)
@@ -32,6 +34,8 @@ const reviewDecisionPayloadValidator = ajv.compile<ReviewDecisionPayload>(Review
 const reviewDecisionRequestValidator = ajv.compile<ReviewDecisionRequest>(ReviewDecisionRequestSchema)
 const reviewQueueResponseValidator = ajv.compile<ReviewQueueResponse>(ReviewQueueResponseSchema)
 const reviewDecisionResponseValidator = ajv.compile<ReviewDecisionResponse>(ReviewDecisionResponseSchema)
+
+export const validateRetrievalRequest = (payload: unknown): payload is RetrievalRequest => retrievalRequestValidator(payload) === true
 
 export const validateRetrievalResponse = (payload: unknown): payload is RetrievalResponse => retrievalResponseValidator(payload) === true
 

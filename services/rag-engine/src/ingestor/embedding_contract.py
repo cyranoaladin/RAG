@@ -10,9 +10,31 @@ from __future__ import annotations
 import os
 import re
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any
 
 import psycopg
+
+try:
+    from .readiness_db import (
+        apply_readiness_statement_budget,
+        readiness_connect_timeout_s,
+        readiness_connection_options,
+    )
+except ImportError:  # Image Docker aplatie sous /app.
+    from readiness_db import (  # type: ignore[no-redef]
+        apply_readiness_statement_budget,
+        readiness_connect_timeout_s,
+        readiness_connection_options,
+    )
+
+try:
+    from .model_artifact import ModelArtifactError, verify_model_artifact
+except ImportError:  # Image Docker aplatie sous /app.
+    from model_artifact import (  # type: ignore[no-redef]
+        ModelArtifactError,
+        verify_model_artifact,
+    )
 
 CANONICAL_EMBED_MODEL = "intfloat/multilingual-e5-large"
 CANONICAL_EMBED_DIM = 1024
@@ -67,8 +89,13 @@ def validate_embedding_contract(
 
 def pgvector_dimension(pg_dsn: str) -> int:
     """Read the declared dimension of ``rag_chunks.vector`` without mutation."""
-    with psycopg.connect(pg_dsn) as conn:
+    with psycopg.connect(
+        pg_dsn,
+        connect_timeout=readiness_connect_timeout_s(),
+        options=readiness_connection_options(),
+    ) as conn:
         with conn.cursor() as cur:
+            apply_readiness_statement_budget(cur)
             cur.execute(
                 """
                 SELECT format_type(a.atttypid, a.atttypmod)
@@ -91,7 +118,52 @@ def pgvector_dimension(pg_dsn: str) -> int:
     return int(match.group(1))
 
 
-def load_embedding_model() -> Any:
+def verify_embedding_artifact(
+    artifact_root: Path,
+    *,
+    expected_inventory_sha256: str,
+) -> Path:
+    """Vérifier le modèle contre l'empreinte d'inventaire externe attendue."""
+    try:
+        return verify_model_artifact(
+            artifact_root,
+            expected_inventory_sha256=expected_inventory_sha256,
+            expected_manifest={
+                "model_id": CANONICAL_EMBED_MODEL,
+                "canonical_dim": CANONICAL_EMBED_DIM,
+            },
+            required_files=frozenset({"config.json"}),
+            require_model_weights=True,
+        )
+    except ModelArtifactError as exc:
+        reason = (
+            "EMBEDDING_MODEL_ARTIFACT_PATH_MISSING"
+            if str(exc) == "MODEL_ARTIFACT_PATH_MISSING"
+            else "EMBEDDING_MODEL_ARTIFACT_INVALID"
+        )
+        raise EmbeddingContractError(reason) from exc
+
+
+def verify_configured_embedding_artifact() -> Path:
+    """Vérifier le répertoire explicitement monté par le déploiement."""
+    configured = os.environ.get("RAG_EMBEDDING_MODEL_CACHE_DIR", "").strip()
+    if not configured:
+        raise EmbeddingContractError("EMBEDDING_MODEL_ARTIFACT_PATH_REQUIRED")
+    inventory_sha256 = os.environ.get(
+        "RAG_EMBEDDING_MODEL_INVENTORY_SHA256", ""
+    ).strip()
+    if not inventory_sha256:
+        raise EmbeddingContractError("EMBEDDING_MODEL_INVENTORY_SHA256_REQUIRED")
+    return verify_embedding_artifact(
+        Path(configured),
+        expected_inventory_sha256=inventory_sha256,
+    )
+
+
+def load_embedding_model(
+    *,
+    verified_artifact_root: Path | None = None,
+) -> Any:
     """Load the canonical model only from the runtime image/cache.
 
     ``local_files_only`` prevents a request path from silently downloading or
@@ -103,19 +175,23 @@ def load_embedding_model() -> Any:
     must exist; an absent path is treated as a provisioning failure.
     """
     declared_embedding_model()  # enforce canonical model name
-    cache_dir = os.environ.get("RAG_EMBEDDING_MODEL_CACHE_DIR", "").strip()
+    if verified_artifact_root is None:
+        model_source = verify_configured_embedding_artifact()
+    else:
+        try:
+            if verified_artifact_root.is_symlink():
+                raise OSError("symlinked artifact root")
+            model_source = verified_artifact_root.resolve(strict=True)
+            if not model_source.is_dir():
+                raise OSError("artifact root is not a directory")
+        except OSError as exc:
+            raise EmbeddingContractError(
+                "EMBEDDING_MODEL_ARTIFACT_PATH_MISSING"
+            ) from exc
     try:
         from sentence_transformers import SentenceTransformer
 
-        if cache_dir:
-            if not os.path.isdir(cache_dir):
-                raise EmbeddingContractError(
-                    "EMBEDDING_MODEL_ARTIFACT_PATH_MISSING"
-                )
-            return SentenceTransformer(cache_dir, local_files_only=True)
-        return SentenceTransformer(
-            CANONICAL_EMBED_MODEL, local_files_only=True
-        )
+        return SentenceTransformer(str(model_source), local_files_only=True)
     except EmbeddingContractError:
         raise
     except Exception as exc:

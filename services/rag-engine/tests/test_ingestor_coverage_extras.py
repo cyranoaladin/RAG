@@ -359,6 +359,7 @@ def test_embedding_valueerror_non_404_causes_500(monkeypatch: pytest.MonkeyPatch
 
 def test_download_to_temp_skips_empty_chunk(monkeypatch: pytest.MonkeyPatch) -> None:
     api = _reload_api(monkeypatch)
+    monkeypatch.setattr(api, "_validate_remote_url", lambda _url: None)
 
     class Resp:
         def __init__(self):

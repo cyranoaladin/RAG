@@ -11,9 +11,9 @@ import {
   validateChatResponse,
   validateSearchPayload,
 } from '@/generated/validators'
+import { BFF_BROWSER_TIMEOUT_MS } from '@/lib/request-deadlines'
 
 export const BFF_ERROR_CODE = 'BFF_REQUEST_FAILED'
-const BFF_TIMEOUT_MS = 8000
 
 const DEFAULT_COLLECTIONS_FROM_ROUTE = '/api/collections'
 
@@ -32,7 +32,7 @@ function requestOptions(init?: RequestInit): RequestInit {
     headers: {
       'Content-Type': 'application/json',
     },
-    signal: AbortSignal.timeout(BFF_TIMEOUT_MS),
+    signal: AbortSignal.timeout(BFF_BROWSER_TIMEOUT_MS),
   }
 }
 

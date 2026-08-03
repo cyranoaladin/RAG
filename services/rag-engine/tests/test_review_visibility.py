@@ -45,6 +45,28 @@ SCOPE = ServerRetrievalScope(
 )
 
 
+def _payload(query: str, *, k: int = 5) -> dict[str, object]:
+    return {
+        "student_profile": {
+            "niveau": "terminale",
+            "voie": "generale",
+            "matieres": ["nsi"],
+            "statut_enseignement": "specialite",
+            "candidat": "individuel",
+            "status_detail": "candidat_libre",
+            "school_year": "2026-2027",
+            "zone": "libre",
+        },
+        "need": {"intent": "context", "query": query},
+        "retrieval": {
+            "k": k,
+            "hybrid": True,
+            "rerank": True,
+            "include_citations": True,
+        },
+    }
+
+
 def _base_cfg() -> dict:
     return {
         "collections": {
@@ -116,6 +138,11 @@ def _set_search_tokens(monkeypatch: pytest.MonkeyPatch) -> None:
         "build_server_retrieval_scope",
         lambda *_args, **_kwargs: SCOPE,
     )
+    monkeypatch.setattr(
+        endpoint,
+        "_collection_for_retrieval_request",
+        lambda *_args, **_kwargs: COLLECTION,
+    )
 
 
 def test_search_token_setup_is_reverted_after_monkeypatch_context(
@@ -160,15 +187,15 @@ def test_all_roles_only_receive_reviewed_hybrid_hits(
 
     response = _setup_app().post(
         "/search/v2",
-        json={"q": "algo", "collection": COLLECTION, "k": 5},
+        json=_payload("algo"),
         headers={"Authorization": f"Bearer {token}"},
     )
 
     assert response.status_code == 200
     body = response.json()
-    assert body["returned"] == 1
-    assert body["hits"][0]["chunk_id"] == "chunk-reviewed"
-    assert body["hits"][0]["review_status"] == "reviewed"
+    assert len(body["results"]) == 1
+    assert body["results"][0]["chunk_id"] == "chunk-reviewed"
+    assert body["results"][0]["metadata"]["review_status"] == "reviewed"
     retrieve.assert_called_once_with("algo", COLLECTION, 5, SCOPE)
 
 
@@ -187,12 +214,12 @@ def test_public_search_ignores_even_reviewed_cache_and_requeries_pipeline(
 
     response = _setup_app().post(
         "/search/v2",
-        json={"q": "query", "collection": COLLECTION, "k": 5},
+        json=_payload("query"),
         headers={"Authorization": "Bearer teacher-token"},
     )
 
     assert response.status_code == 200
-    assert response.json()["hits"] == []
+    assert response.json()["results"] == []
     retrieve.assert_called_once_with("query", COLLECTION, 5, SCOPE)
 
 

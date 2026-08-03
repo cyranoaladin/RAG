@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   fetchEngine,
   isPublicLaunchReady,
+  resolveEngineTimeoutMs,
   type EngineReviewQueueQuery,
 } from './_engine'
 
@@ -23,6 +24,7 @@ void assertEngineTypes
 
 describe('public launch readiness', () => {
   afterEach(() => {
+    vi.restoreAllMocks()
     vi.unstubAllGlobals()
     delete process.env.RAG_ENGINE_INTERNAL_TOKEN
     delete process.env.RAG_ENGINE_INTERNAL_URL
@@ -40,6 +42,13 @@ describe('public launch readiness', () => {
     expect(headers.get('X-Nexus-Identity')).toBe('signed-identity-token')
   })
 
+  it('conserve un délai BFF supérieur au budget PostgreSQL maximal', () => {
+    expect(resolveEngineTimeoutMs(undefined)).toBe(8000)
+    expect(resolveEngineTimeoutMs('7999')).toBe(8000)
+    expect(resolveEngineTimeoutMs('invalid')).toBe(8000)
+    expect(resolveEngineTimeoutMs('12000')).toBe(12000)
+  })
+
   it('sépare le jeton service du header d’identité signé', async () => {
     process.env.RAG_ENGINE_INTERNAL_TOKEN = 'service-token'
     const fetchMock = vi.fn().mockResolvedValue(Response.json({ hits: [] }))
@@ -55,6 +64,28 @@ describe('public launch readiness', () => {
     const headers = init.headers as Headers
     expect(headers.get('Authorization')).toBe('Bearer service-token')
     expect(headers.get('X-Nexus-Identity')).toBe('signed-identity-token')
+  })
+
+  it('borne un appel moteur par le reliquat partagé et le signal appelant', async () => {
+    process.env.RAG_ENGINE_INTERNAL_TOKEN = 'service-token'
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({ hits: [] }))
+    vi.stubGlobal('fetch', fetchMock)
+    const caller = new AbortController()
+    const timeoutSpy = vi.spyOn(AbortSignal, 'timeout')
+
+    await fetchEngine('/search/v2', {
+      method: 'POST',
+      body: { q: 'test' },
+      signal: caller.signal,
+      timeoutMs: 1_200,
+    })
+
+    expect(timeoutSpy).toHaveBeenCalledWith(1_200)
+    const init = fetchMock.mock.calls[0]?.[1] as RequestInit
+    const combinedSignal = init.signal as AbortSignal
+    expect(combinedSignal.aborted).toBe(false)
+    caller.abort()
+    expect(combinedSignal.aborted).toBe(true)
   })
 
   it('refuse tout appel moteur sans jeton service BFF', async () => {

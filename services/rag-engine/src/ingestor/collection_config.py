@@ -148,6 +148,73 @@ def load_collection_config(path: Path | None = None) -> dict[str, Any]:
     return _read_yaml(path or _resolve_config_path(CONFIG_FILENAME, CONFIG_ENV))
 
 
+def validate_collection_catalogue_v2(path: Path | None = None) -> dict[str, Any]:
+    """Valider intégralement le catalogue monté avant de déclarer le runtime prêt."""
+    config = load_collection_config(path)
+    if config.get("version") != 3:
+        raise CollectionConfigLoadError("Unsupported v2 catalogue version")
+
+    backend = config.get("physical_backend")
+    if not isinstance(backend, Mapping) or (
+        backend.get("type"), backend.get("table"), backend.get("vector_dim")
+    ) != ("pgvector", "rag_chunks", 1024):
+        raise CollectionConfigLoadError("Invalid v2 physical backend")
+
+    required_metadata = config.get("metadata_required")
+    if (
+        not isinstance(required_metadata, list)
+        or not required_metadata
+        or any(not isinstance(item, str) or not item for item in required_metadata)
+        or len(set(required_metadata)) != len(required_metadata)
+    ):
+        raise CollectionConfigLoadError("Invalid v2 metadata contract")
+
+    domains = config.get("domains")
+    if not isinstance(domains, Mapping) or not domains:
+        raise CollectionConfigLoadError("Missing v2 domains")
+    for domain_name, definition in domains.items():
+        if (
+            not isinstance(domain_name, str)
+            or not domain_name
+            or not isinstance(definition, Mapping)
+            or not isinstance(definition.get("retrievable"), bool)
+            or (
+                domain_name == "quarantine"
+                and definition.get("retrievable") is not False
+            )
+        ):
+            raise CollectionConfigLoadError("Invalid v2 domain definition")
+        audiences = definition.get("audiences")
+        if audiences is not None and (
+            not isinstance(audiences, list)
+            or not audiences
+            or any(not isinstance(item, str) or not item for item in audiences)
+        ):
+            raise CollectionConfigLoadError("Invalid v2 domain audiences")
+
+    collections = _v2_catalogue(config)
+    if not collections:
+        raise CollectionConfigLoadError("Empty v2 collections catalogue")
+    for collection_name, definition in collections.items():
+        if (
+            not isinstance(collection_name, str)
+            or not collection_name
+            or not isinstance(definition, Mapping)
+            or not isinstance(definition.get("instanciee"), bool)
+        ):
+            raise CollectionConfigLoadError("Invalid v2 collection definition")
+        domain = definition.get("domain")
+        if not isinstance(domain, str) or domain not in domains:
+            raise CollectionConfigLoadError("Unknown v2 collection domain")
+        canonicalize_catalogue_voie(definition.get("voie"))
+        if domain != "quarantine" and any(
+            not isinstance(definition.get(field), str) or not definition.get(field)
+            for field in ("matiere", "niveau", "statut", "taxonomy_file")
+        ):
+            raise CollectionConfigLoadError("Incomplete v2 collection definition")
+    return config
+
+
 def load_legacy_collection_config(path: Path | None = None) -> dict[str, Any]:
     """Load the legacy v1 config (rag_collections_legacy.yml)."""
     return _read_yaml(path or _resolve_config_path(LEGACY_CONFIG_FILENAME, LEGACY_CONFIG_ENV))

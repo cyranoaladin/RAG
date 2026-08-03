@@ -42,6 +42,7 @@ __all__ = [
     "INGEST_RESULT",
     "ingest_requests_total",
     "record_request",
+    "record_http_request",
     "observe_latency",
     "record_success",
     "record_failure",
@@ -168,6 +169,13 @@ def _guarded(func: F) -> F:
 @_guarded
 def record_request(route: str, method: str) -> None:
     _REQUESTS.labels(route=route, method=method).inc()
+
+
+@_guarded
+def record_http_request(path: str, method: str, code: int, seconds: float) -> None:
+    """Observer une requête HTTP sur une route à cardinalité déjà bornée."""
+    REQUEST_COUNT.labels(path=path, method=method, code=str(code)).inc()
+    REQUEST_LATENCY.labels(path=path, method=method).observe(max(seconds, 0.0))
 
 
 @_guarded

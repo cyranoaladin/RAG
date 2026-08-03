@@ -1,10 +1,38 @@
 # Nexus RAG Pedagogique
 
-Plateforme RAG pedagogique multi-services pour Nexus Reussite. Le depot combine un plan de controle pedagogique, un moteur de retrieval, un futur cockpit SaaS et un contrat partage. Il sert a construire une chaine auditable de bout en bout : sources pedagogiques gouvernees -> taxonomies -> chunks -> embeddings -> index pgvector -> retrieval filtre -> contexte exploitable par des agents, sans generation de reponse tant que la gouvernance ne l'autorise pas.
+Plateforme RAG pedagogique multi-services pour Nexus Reussite. Le depot combine un plan de controle pedagogique, un moteur de retrieval, un cockpit SaaS et un contrat partage. Il sert a construire une chaine auditable de bout en bout : sources pedagogiques gouvernees -> taxonomies -> chunks -> embeddings -> index pgvector -> retrieval filtre -> contexte exploitable par des agents, sans generation de reponse tant que la gouvernance ne l'autorise pas.
 
 Ce README est le point d'entree racine pour un auditeur. Les regles imperatives pour les agents restent dans `AGENTS.md`. Les decisions structurantes sont dans `docs/adr/`. Les rapports de lots sont dans `docs/reports/`.
 
-Note securite v2 LOT 26.3 : les tokens de roles doivent etre uniques entre roles distincts. `RAG_REVIEWER_TOKEN` et `REVIEWER_API_TOKEN` peuvent partager une valeur pour le role reviewer. `INGESTOR_API_TOKEN` et `INGEST_AUTH_TOKEN` restent des alias de compatibilite ingest_agent v2, mais `RAG_INGEST_AGENT_TOKEN` devrait rester distinct des tokens d'ingestion legacy. Les routes legacy `/admin/*` utilisent exclusivement `LEGACY_ADMIN_API_TOKEN`, qui doit etre distinct de `RAG_ADMIN_TOKEN`, `INGESTOR_API_TOKEN` et `INGEST_AUTH_TOKEN`. Une collision entre roles v2 distincts, par exemple `RAG_ADMIN_TOKEN` identique a `RAG_STUDENT_TOKEN`, bloque `security_v2` en fail-closed `503`. Les variables de securite, dont `LEGACY_ADMIN_API_TOKEN` et `INGESTOR_TRUSTED_PROXY_CIDRS`, sont transmises au conteneur `ingestor` par les compose prod, par defaut et v2 (`make v2-up`). Une configuration trusted-proxy explicitement non vide sans aucun CIDR valide bloque l'allowlist en fail-closed `503`. Depuis un peer non trusted, `X-Forwarded-For` et `X-Real-IP` sont ignores. Depuis un peer trusted, `X-Real-IP` reste ignore cote application tant qu'un template proxy versionne ne prouve pas sa reecriture stricte ; `X-Forwarded-For` est analyse de droite a gauche, jamais en premiere position naive. Ne pas utiliser `proxy_add_x_forwarded_for` sans strategie anti-spoof cote application ou sans reecriture stricte du header par le proxy.
+## État canonique LOT41U
+
+Le runtime v2 gouverné est désormais un service **lecture/revue** lancé par
+`api_v2:app`. Son image et son Compose n'embarquent aucun writer, worker,
+parseur, client distant ou route legacy. PostgreSQL doit être au head
+`003_profile_filtering` et l'accès humain passe uniquement par le **Cockpit BFF**,
+avec identité signée et scope dérivé côté serveur.
+La readiness refuse également tout artefact modèle absent ou non conforme et
+tout rôle PostgreSQL de retrieval ou de revue qui ne respecte pas son moindre
+privilège exact.
+Le head PostgreSQL est contrôlé sur les 31 colonnes, les dix index et
+l'expression générée `text_tsv` des migrations 001–003 ; un index lexical ou
+vectoriel manquant maintient le service indisponible. Les métriques HTTP
+normalisent également toute méthode non standard vers le seul label `other`.
+Les modèles sont hachés intégralement au démarrage ; la route publique de santé
+utilise ensuite une attestation bornée et ne relit pas les poids. Les rôles
+runtime ne peuvent être membres d'aucun autre rôle atteignable par `SET ROLE`.
+Les inventaires de modèles sont liés à deux empreintes SHA-256 de déploiement
+séparées des montages, afin qu'un remplacement cohérent du manifeste, des poids
+et de `SHA256SUMS` reste refusé.
+
+L'ingestion et la publication restent fermées jusqu'aux autorités LOT41A et
+LOT42 capables de prouver `quality → gate → review`. La génération de réponse
+reste également verrouillée. Le verdict global demeure **GO_LIVE: NO_GO** tant
+que la revue golden et les preuves externes de production ne sont pas établies.
+
+Le runbook actuel est [`docs/runbooks/go_live.md`](docs/runbooks/go_live.md).
+Les descriptions de la production historique plus bas sont conservées comme
+inventaire et ne constituent pas une procédure de déploiement du runtime v2.
 
 ## Sommaire
 
@@ -40,11 +68,11 @@ La decision fondatrice est la separation stricte entre trois plans :
 
 - `services/rag-pedago/` : plan de controle. Il porte la taxonomie, les profils, le referentiel officiel, les gates qualite, la revue humaine, le ledger et les agents d'acquisition ou de requete.
 - `services/rag-engine/` : plan de donnees. Il porte pgvector, l'indexation, le retrieval et l'API HTTP de recherche en lecture seule.
-- `services/cockpit/` : futur SaaS Next.js. Il ne doit jamais acceder directement a pgvector ni aux documents bruts.
+- `services/cockpit/` : SaaS Next.js et BFF authentifié. Il ne doit jamais acceder directement a pgvector ni aux documents bruts.
 
 La couture entre les plans est `packages/contracts/`, package Python `nexus-contracts`. Il contient les modeles Pydantic qui definissent les profils, documents, chunks, requetes de retrieval, citations, filtres et jetons de profil signes.
 
-L'etat courant correspond aux lots 0 a 18 :
+Les lots 0 à 22 ont établi les fondations historiques suivantes :
 
 - monorepo en place ;
 - contrat partage `nexus-contracts` v0.2.0 ;
@@ -57,11 +85,16 @@ L'etat courant correspond aux lots 0 a 18 :
 - API `/search` en lecture seule, filtree par profil signe HMAC ;
 - agents de requete `context_only`, sans generation de reponse.
 
-Le cockpit applicatif reste un placeholder (cible : post-LOT 25). La generation de reponse reste explicitement interdite (`answer_generation_allowed: false`).
+Les lots suivants ont livré le Cockpit Next.js, son BFF, l'identité interne
+signée, le retrieval hybride et la revue scopée. LOT41U isole leur runtime
+lecture/revue dans `api_v2:app`. La generation de reponse reste explicitement
+interdite (`answer_generation_allowed: false`).
 
 Lot 19 aligne la documentation entre la production historique et le chemin Nexus gouverne. Lot 20 inventorie la production `rag-ui.nexusreussite.academy` (17 912 vecteurs ChromaDB 768 dim, 6 collections, 3 rubriques UI cassees, code prod divergent du depot). Lot 21 pose l'infrastructure de convergence : ADR-0013 (e5-large 1024 dim + pgvector dedie), catalogue de 22 collections `rag_nexus_*` avec flags d'instanciation, invariant anti-auto-creation, table `rag_chunks` citations-ready (F-01). Lot 22a isole le moteur legacy (config separee `rag_collections_legacy.yml`) du code neuf (resolveur v2 etanche).
 
-La production publique sert encore l'UI historique Streamlit/ingestor (ChromaDB, nomic-embed-text 768 dim, Ollama). Elle ne doit pas etre confondue avec le pilote Nexus pgvector/HMAC 1024 dim.
+L'inventaire LOT20 observait une production historique Streamlit/ingestor en
+768 dimensions. Son état live actuel n'est pas déduit du dépôt et cette surface
+ne doit jamais être confondue avec le runtime Nexus v2 gouverné.
 
 ## 2. Logique metier
 
@@ -119,9 +152,10 @@ Les sources admises doivent etre :
 
 ## 3. Etat actuel du projet
 
-### 3.1 Chiffres de lecture du depot
+### 3.1 Snapshot historique de lecture du dépôt
 
-Etat mesure localement :
+Ces mesures proviennent des lots initiaux et ne valent pas readback du head
+courant ni preuve de couverture substantielle :
 
 | Element | Valeur |
 |---|---:|
@@ -178,11 +212,15 @@ Repartition taxonomique actuelle :
 - Indexation pgvector pilote gatee par le contrat de gouvernance `rag-pedago`.
 - API FastAPI `/search` lecture seule, filtree par niveau/audience depuis un profil signe.
 - Agents de requete qui assemblent un contexte structure sans generer de reponse.
+- Cockpit Next.js avec BFF, sessions Auth.js, identité interne signée et routes
+  de retrieval/revue scopées.
+- Runtime v2 PostgreSQL lecture/revue sans writer ni surface legacy.
 - CI locale racine avec contrats, services, garde-fous de gouvernance et validation taxonomie.
 
 ### 3.3 Ce qui n'est pas encore livre
 
-- Cockpit SaaS Next.js operationnel (differe post-LOT 25, D-M03).
+- Activation go-live du Cockpit et du moteur, encore bloquée par les preuves
+  d'autorité, de corpus et d'exploitation.
 - Generation de reponse eleve (`answer_generation_allowed: false`).
 - Interface de ressources curees.
 - Ingestion generale de vrais documents proprietaires.
@@ -199,7 +237,7 @@ Repartition taxonomique actuelle :
                                        |
                                        v
                          +---------------------------+
-                         | cockpit (futur SaaS)      |
+                         | cockpit SaaS + BFF        |
                          | Next.js, UI par profil    |
                          | pas d'acces direct DB     |
                          +-------------+-------------+
@@ -309,7 +347,8 @@ Plan de donnees : pgvector, scripts d'indexation pilote, API `/search`, moteur h
 
 ### 5.6 `services/cockpit/`
 
-Placeholder du futur SaaS Next.js. Le code applicatif n'est pas encore introduit.
+SaaS Next.js avec Auth.js, BFF authentifié, scope pilote dérivé côté serveur,
+identité interne signée et routes search/chat/collections/review.
 
 ## 6. Contrat partage `nexus-contracts`
 
@@ -732,12 +771,7 @@ Les tests du moteur legacy sont marques `@pytest.mark.legacy_engine` et tournent
 
 ## 9. Service `cockpit`
 
-`services/cockpit/` contient seulement :
-
-- `README.md`
-- `AGENTS.md`
-
-Le cockpit cible est un SaaS Next.js App Router :
+`services/cockpit/` contient un SaaS Next.js App Router :
 
 - authentification ;
 - resolution `StudentProfile` ;
@@ -746,7 +780,8 @@ Le cockpit cible est un SaaS Next.js App Router :
 - Q/R sourcees, revision, exercices, correction ;
 - consommation du retrieval via `rag-engine`.
 
-Statut actuel : placeholder. Le code applicatif est prevu au Lot 3 Cockpit MVP. Aucun acces direct a pgvector ne doit etre ajoute.
+Statut actuel : BFF de retrieval/revue livré et testé, sans accès direct à
+pgvector. L'ouverture publique reste bloquée par le verdict global NO_GO.
 
 ## 10. Donnees, corpus et artefacts
 
@@ -997,35 +1032,22 @@ Reponse :
 
 ### 13.2 Proprietes de securite
 
-#### Endpoints v2 — tokens de rôles statiques
+#### Runtime v2 gouverné — BFF et identité signée
 
 Les endpoints v2 de `rag-engine` appliquent les règles suivantes :
 
-- `/search/v2` reste `reviewed-only` pour tous les rôles autorisés.
-- `/review/v2/queue` est accessible à `admin`, `reviewer` et `teacher`.
-- `/review/v2/decide` est réservé à `admin` et `reviewer`.
-- `/ingest/v2` est réservé à `admin` et `ingest_agent`.
+- `/search/v2` reste `reviewed-only` ;
+- la queue et la décision de revue exigent le credential machine du Cockpit BFF,
+  une enveloppe d'identité valide et un rôle humain autorisé ;
+- les collections et le tenant sont dérivés de l'identité signée ;
+- aucune route d'ingestion, d'administration legacy, de statistiques ou
+  d'évaluation n'appartient à `api_v2:app` ;
+- le proxy ne transmet qu'une allowlist de neuf chemins exacts.
 
-Les variables de tokens v2 sont transmises sans valeur versionnée :
-
-- `RAG_ADMIN_TOKEN`
-- `RAG_REVIEWER_TOKEN`
-- `REVIEWER_API_TOKEN`
-- `RAG_TEACHER_TOKEN`
-- `RAG_INGEST_AGENT_TOKEN`
-- `INGESTOR_API_TOKEN`
-- `INGEST_AUTH_TOKEN`
-- `RAG_STUDENT_TOKEN`
-
-`REVIEWER_API_TOKEN` reste un alias du rôle reviewer. `INGESTOR_API_TOKEN` et
-`INGEST_AUTH_TOKEN` sont des alias de compatibilité ingest_agent v2, mais
-`RAG_INGEST_AGENT_TOKEN` devrait rester distinct des tokens d'ingestion legacy.
-Une même valeur configurée pour des rôles v2 distincts est une collision interdite
-et bloque l'authentification en fail-closed. Les routes legacy `/admin/*` utilisent
-exclusivement `LEGACY_ADMIN_API_TOKEN`, distinct des tokens v2 et d'ingestion.
-L'allowlist d'ingestion utilise `INGESTOR_IP_ALLOWLIST` ; les
-headers `X-Forwarded-For` ne sont acceptés que depuis les réseaux déclarés dans
-`INGESTOR_TRUSTED_PROXY_CIDRS`, sans fallback vers l'adresse du proxy trusted.
+Les seules autorités runtime sont le credential BFF, la clé de signature
+interne et les paramètres d'issuer/audience. Les DSN PostgreSQL sont séparés :
+lecture stricte pour le retrieval, droits minimaux de revue pour la décision.
+Il n'existe aucun fallback vers le propriétaire ou le DSN de migration.
 
 #### Endpoints legacy / v1 — profil, niveau, audience, HMAC
 
@@ -1219,7 +1241,8 @@ Le profil signe actuel ne porte que `niveau` et `audience`. Il ne transporte pas
 
 ### 16.3 Limites de conformité actuelles
 
-- Le cockpit reel n'existe pas encore, donc la gestion session/RBAC n'est pas livree.
+- La session/RBAC du Cockpit est livrée, mais son déploiement réel, ses secrets
+  et sa révocation doivent encore être prouvés sur l'environnement cible.
 - Les ressources curees enseignant ne sont pas alimentees.
 - Les documents reels proprietaires restent bloques.
 - Les tests d'integration pgvector du chemin pilote doivent etre industrialises.
@@ -1267,7 +1290,9 @@ Critere : `matiere` ET `niveau` ET `source_uri` (URL) presents. Scan exhaustif :
 
 ### 17.5 Strategie de migration (ADR-0013)
 
-Shadow puis canary (D-4), rollback nginx en une ligne. Cockpit differe post-LOT 25. Instanciation initiale : NSI + quarantaine. Prealables : backup ChromaDB frais, docker save des images, verification acces GDrive, gel du corpus.
+Plan historique LOT20 : shadow puis canary (D-4), rollback nginx en une ligne,
+instanciation initiale NSI + quarantaine et sauvegarde préalable. Cette stratégie
+ne constitue plus le runbook canonique LOT41U.
 
 Baseline de parite : `docs/audits/baseline_retrieval_prod.json` (16 requetes, 4 sections, sans texte non droite).
 

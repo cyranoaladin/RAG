@@ -1,7 +1,11 @@
 """Fail-closed contract tests for the RAG v2 1024d embedding pipeline."""
 from __future__ import annotations
 
+import hashlib
+import json
+import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import yaml
@@ -11,16 +15,43 @@ from src.ingestor.embedding_contract import (
     CANONICAL_EMBED_MODEL,
     EmbeddingContractError,
     embedding_contract_health,
+    load_embedding_model,
     validate_embedding_contract,
+    verify_configured_embedding_artifact,
+    verify_embedding_artifact,
 )
 
 ENGINE_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = ENGINE_ROOT.parents[1]
 COMPOSE = ENGINE_ROOT / "infra" / "docker-compose.v2.yml"
 CONFIG = ENGINE_ROOT / "configs" / "rag_collections.yml"
-API = ENGINE_ROOT / "src" / "ingestor" / "api.py"
+API = ENGINE_ROOT / "src" / "ingestor" / "api_v2.py"
 TASKS = ENGINE_ROOT / "src" / "ingestor" / "tasks.py"
 SMOKE = REPO_ROOT / "scripts" / "e2e" / "smoke-embedding-contract.sh"
+
+
+def _write_embedding_artifact(
+    root: Path,
+    *,
+    model_id: str = CANONICAL_EMBED_MODEL,
+    canonical_dim: int = CANONICAL_EMBED_DIM,
+) -> None:
+    root.mkdir()
+    files = {
+        "config.json": '{"architectures":["BertModel"]}\n',
+        "manifest.json": json.dumps(
+            {"model_id": model_id, "canonical_dim": canonical_dim}
+        )
+        + "\n",
+        "model.safetensors": "fake deterministic weights\n",
+    }
+    for relative_path, content in files.items():
+        (root / relative_path).write_text(content, encoding="utf-8")
+    checksums = "".join(
+        f"{hashlib.sha256(content.encode()).hexdigest()}  {relative_path}\n"
+        for relative_path, content in sorted(files.items())
+    )
+    (root / "SHA256SUMS").write_text(checksums, encoding="utf-8")
 
 
 def test_canonical_embedding_contract_is_e5_large_1024() -> None:
@@ -33,7 +64,8 @@ def test_v2_catalogue_and_compose_declare_1024_without_nomic_fallback() -> None:
     compose = COMPOSE.read_text(encoding="utf-8")
 
     assert catalogue["physical_backend"]["vector_dim"] == 1024
-    assert '${EMBED_DIM:-1024}' in compose
+    assert 'EMBED_DIM: "1024"' in compose
+    assert "${EMBED_DIM" not in compose
     assert "${EMBED_DIM:-768}" not in compose
     assert "nomic-embed-text:v1.5" not in compose
     assert "intfloat/multilingual-e5-large" in compose
@@ -88,15 +120,195 @@ def test_health_payload_exposes_only_non_sensitive_embedding_contract_fields() -
     }
 
 
+def test_embedding_artifact_contract_accepts_only_the_canonical_inventory(
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "embedding"
+    _write_embedding_artifact(artifact)
+    inventory_sha256 = hashlib.sha256((artifact / "SHA256SUMS").read_bytes()).hexdigest()
+
+    assert (
+        verify_embedding_artifact(
+            artifact,
+            expected_inventory_sha256=inventory_sha256,
+        )
+        == artifact.resolve()
+    )
+
+
+@pytest.mark.parametrize(
+    "tampering",
+    ("model_id", "dimension", "checksum", "missing_weight", "unlisted", "symlink"),
+)
+def test_embedding_artifact_contract_rejects_substitution(
+    tmp_path: Path,
+    tampering: str,
+) -> None:
+    artifact = tmp_path / "embedding"
+    _write_embedding_artifact(
+        artifact,
+        model_id="attacker/model" if tampering == "model_id" else CANONICAL_EMBED_MODEL,
+        canonical_dim=768 if tampering == "dimension" else CANONICAL_EMBED_DIM,
+    )
+    inventory_sha256 = hashlib.sha256((artifact / "SHA256SUMS").read_bytes()).hexdigest()
+    if tampering == "checksum":
+        (artifact / "config.json").write_text("substituted\n", encoding="utf-8")
+    elif tampering == "missing_weight":
+        (artifact / "model.safetensors").unlink()
+    elif tampering == "unlisted":
+        (artifact / "unlisted.bin").write_bytes(b"substituted")
+    elif tampering == "symlink":
+        (artifact / "linked-config.json").symlink_to(artifact / "config.json")
+
+    with pytest.raises(EmbeddingContractError):
+        verify_embedding_artifact(
+            artifact,
+            expected_inventory_sha256=inventory_sha256,
+        )
+
+
+def test_embedding_artifact_rejects_a_replaced_self_consistent_bundle(
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "embedding"
+    _write_embedding_artifact(artifact)
+    trusted_inventory_sha256 = hashlib.sha256(
+        (artifact / "SHA256SUMS").read_bytes()
+    ).hexdigest()
+
+    (artifact / "model.safetensors").write_bytes(b"replacement weights")
+    checksums = "".join(
+        f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}\n"
+        for path in sorted(artifact.iterdir())
+        if path.name != "SHA256SUMS"
+    )
+    (artifact / "SHA256SUMS").write_text(checksums, encoding="utf-8")
+
+    with pytest.raises(
+        EmbeddingContractError,
+        match="EMBEDDING_MODEL_ARTIFACT_INVALID",
+    ):
+        verify_embedding_artifact(
+            artifact,
+            expected_inventory_sha256=trusted_inventory_sha256,
+        )
+
+
+def test_embedding_artifact_must_be_explicitly_configured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("RAG_EMBEDDING_MODEL_CACHE_DIR", raising=False)
+    monkeypatch.delenv("RAG_EMBEDDING_MODEL_INVENTORY_SHA256", raising=False)
+
+    with pytest.raises(
+        EmbeddingContractError,
+        match="EMBEDDING_MODEL_ARTIFACT_PATH_REQUIRED",
+    ):
+        verify_configured_embedding_artifact()
+
+
+def test_embedding_artifact_requires_an_external_inventory_trust_anchor(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "embedding"
+    _write_embedding_artifact(artifact)
+    monkeypatch.setenv("RAG_EMBEDDING_MODEL_CACHE_DIR", str(artifact))
+    monkeypatch.delenv("RAG_EMBEDDING_MODEL_INVENTORY_SHA256", raising=False)
+
+    with pytest.raises(
+        EmbeddingContractError,
+        match="EMBEDDING_MODEL_INVENTORY_SHA256_REQUIRED",
+    ):
+        verify_configured_embedding_artifact()
+
+
+def test_configured_embedding_artifact_is_reverified_after_a_successful_probe(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "embedding"
+    _write_embedding_artifact(artifact)
+    trusted_inventory_sha256 = hashlib.sha256(
+        (artifact / "SHA256SUMS").read_bytes()
+    ).hexdigest()
+    monkeypatch.setenv("RAG_EMBEDDING_MODEL_CACHE_DIR", str(artifact))
+    monkeypatch.setenv(
+        "RAG_EMBEDDING_MODEL_INVENTORY_SHA256",
+        trusted_inventory_sha256,
+    )
+
+    assert verify_configured_embedding_artifact() == artifact.resolve()
+    (artifact / "model.safetensors").write_bytes(b"replaced after readiness")
+
+    with pytest.raises(
+        EmbeddingContractError,
+        match="EMBEDDING_MODEL_ARTIFACT_INVALID",
+    ):
+        verify_configured_embedding_artifact()
+
+
+def test_embedding_loader_verifies_before_offline_load(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "embedding"
+    _write_embedding_artifact(artifact)
+    calls: list[tuple[str, dict[str, object]]] = []
+
+    def sentence_transformer(path: str, **kwargs: object) -> object:
+        calls.append((path, kwargs))
+        return object()
+
+    monkeypatch.setenv("RAG_EMBEDDING_MODEL_CACHE_DIR", str(artifact))
+    monkeypatch.setenv(
+        "RAG_EMBEDDING_MODEL_INVENTORY_SHA256",
+        hashlib.sha256((artifact / "SHA256SUMS").read_bytes()).hexdigest(),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "sentence_transformers",
+        SimpleNamespace(SentenceTransformer=sentence_transformer),
+    )
+
+    load_embedding_model()
+
+    assert calls == [(str(artifact.resolve()), {"local_files_only": True})]
+
+
+def test_embedding_loader_reuses_a_startup_verified_artifact(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "embedding"
+    artifact.mkdir()
+    calls: list[tuple[str, dict[str, object]]] = []
+
+    monkeypatch.setattr(
+        "src.ingestor.embedding_contract.verify_configured_embedding_artifact",
+        lambda: pytest.fail("the startup-verified artifact must not be rehashed"),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "sentence_transformers",
+        SimpleNamespace(
+            SentenceTransformer=lambda path, **kwargs: calls.append((path, kwargs))
+            or object()
+        ),
+    )
+
+    load_embedding_model(verified_artifact_root=artifact.resolve())
+
+    assert calls == [(str(artifact.resolve()), {"local_files_only": True})]
+
+
 def test_public_health_uses_the_embedding_contract_payload() -> None:
     source = API.read_text(encoding="utf-8")
 
     for field in (
         "embedding_model",
         "embedding_dim_declared",
-        "embedding_dim_runtime",
         "pgvector_dim",
-        "embedding_contract_ok",
     ):
         assert field in source
 

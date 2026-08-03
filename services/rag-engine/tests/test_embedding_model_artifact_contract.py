@@ -50,6 +50,10 @@ class TestPrepareScript:
     def test_generates_checksums(self) -> None:
         assert "SHA256SUMS" in self.source
 
+    def test_emits_the_external_inventory_trust_anchor(self) -> None:
+        assert 'sha256sum "$CHECKSUM_FILE"' in self.source
+        assert "Inventory SHA-256 (conserver hors artefact)" in self.source
+
     def test_does_not_touch_docker_production(self) -> None:
         assert "docker push" not in self.source
         assert "docker-compose up" not in self.source
@@ -79,6 +83,9 @@ class TestVerifyScript:
     def test_checks_checksums(self) -> None:
         assert "SHA256SUMS" in self.source
         assert "sha256sum" in self.source
+
+    def test_requires_the_external_inventory_trust_anchor(self) -> None:
+        assert "MODEL_ARTIFACT_INVENTORY_SHA256" in self.source
 
     def test_verifies_canonical_model(self) -> None:
         assert "intfloat/multilingual-e5-large" in self.source
@@ -174,19 +181,13 @@ class TestComposeModelMount:
     def test_ingestor_has_model_cache_env(self) -> None:
         assert "RAG_EMBEDDING_MODEL_CACHE_DIR" in self.source
 
-    def test_worker_has_model_cache_env(self) -> None:
-        lines = self.source.split("\n")
-        in_worker = False
-        worker_has_env = False
-        for line in lines:
-            if "worker:" in line and not line.strip().startswith("#"):
-                in_worker = True
-            elif in_worker and "RAG_EMBEDDING_MODEL_CACHE_DIR" in line:
-                worker_has_env = True
-                break
-            elif in_worker and line.strip() and not line.startswith(" ") and ":" in line:
-                break
-        assert worker_has_env, "worker service should reference RAG_EMBEDDING_MODEL_CACHE_DIR"
+    def test_ingestor_requires_an_external_inventory_trust_anchor(self) -> None:
+        assert "RAG_EMBEDDING_MODEL_INVENTORY_SHA256:?" in self.source
+
+    def test_compose_has_no_embedding_writer_worker(self) -> None:
+        assert "\n  worker:" not in self.source
+        assert "\n  ollama:" not in self.source
+        assert "\n  redis:" not in self.source
 
     def test_volume_mount_uses_host_artifact_variable(self) -> None:
         """The volume source must use RAG_EMBEDDING_MODEL_ARTIFACT_HOST_DIR (host path)."""
@@ -240,6 +241,13 @@ class TestPrepareScriptPathHardening:
         """SHA256SUMS must be generated from inside the artifact dir (cd)."""
         assert 'cd "$MODEL_ARTIFACT_DIR"' in self.source
 
+    def test_manifest_is_created_before_the_exact_checksum_inventory(self) -> None:
+        manifest_position = self.source.index("with open('$MODEL_ARTIFACT_DIR/manifest.json'")
+        checksum_position = self.source.index("find . -type f ! -name SHA256SUMS")
+
+        assert manifest_position < checksum_position
+        assert "! -name manifest.json" not in self.source[checksum_position:]
+
     def test_checksums_strip_dot_slash_prefix(self) -> None:
         """The sed must remove ./ prefix from find output."""
         assert r"s|  \./|  |" in self.source
@@ -248,13 +256,8 @@ class TestPrepareScriptPathHardening:
 # -- Ollama embedding path still active (controlled blocker) --
 
 
-class TestOllamaEmbeddingPathBlocker:
-    """EmbeddingService still uses Ollama for v2 ingestion embeddings.
-
-    This is a known blocker: the worker calls EmbeddingService (Ollama) for
-    actual vector writes, not the local SentenceTransformer artifact.
-    These tests document this gap explicitly so it cannot be overlooked.
-    """
+class TestLegacyOllamaEmbeddingPathIsNotDeployed:
+    """Le code legacy reste auditable, mais n'appartient plus au runtime v2."""
 
     TASKS = ENGINE_ROOT / "src" / "ingestor" / "tasks.py"
 
@@ -271,6 +274,11 @@ class TestOllamaEmbeddingPathBlocker:
             "Ollama reference removed from tasks — update this test if "
             "ingestion embedding path has been migrated"
         )
+
+    def test_v2_compose_does_not_start_legacy_tasks_or_ollama(self) -> None:
+        compose = COMPOSE.read_text(encoding="utf-8")
+        assert "celery -A tasks" not in compose
+        assert "\n  ollama:" not in compose
 
 
 # -- No test downloads model --

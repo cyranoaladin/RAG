@@ -9,11 +9,41 @@
 !services/rag-engine/
 !services/rag-engine/infra/
 !services/rag-engine/infra/Dockerfile.ingestor-v2
+!services/rag-engine/infra/postgres/
+!services/rag-engine/infra/postgres/migrations/
+!services/rag-engine/infra/postgres/migrations/**
+!services/rag-engine/infra/postgres/schema_head_003_fingerprints.env
+!services/rag-engine/infra/postgres/schema_head_003_columns.tsv
 
-# Required ingestor application and dependency files.
+# Required v2 read/review modules only.
 !services/rag-engine/src/
 !services/rag-engine/src/ingestor/
-!services/rag-engine/src/ingestor/**
+!services/rag-engine/src/ingestor/requirements.runtime-v2.txt
+!services/rag-engine/src/ingestor/api_v2.py
+!services/rag-engine/src/ingestor/collection_config.py
+!services/rag-engine/src/ingestor/embedding_contract.py
+!services/rag-engine/src/ingestor/identity_v2.py
+!services/rag-engine/src/ingestor/inference_runtime.py
+!services/rag-engine/src/ingestor/metrics.py
+!services/rag-engine/src/ingestor/model_artifact.py
+!services/rag-engine/src/ingestor/pg_pool.py
+!services/rag-engine/src/ingestor/readiness_db.py
+!services/rag-engine/src/ingestor/retrieval_contract_adapter.py
+!services/rag-engine/src/ingestor/retrieval_hybrid_v2.py
+!services/rag-engine/src/ingestor/retrieval_pg_v2.py
+!services/rag-engine/src/ingestor/retrieval_readiness_v2.py
+!services/rag-engine/src/ingestor/retrieval_scope_v2.py
+!services/rag-engine/src/ingestor/retrieval_v2_endpoint.py
+!services/rag-engine/src/ingestor/review_v2_endpoint.py
+!services/rag-engine/src/ingestor/review_readiness_v2.py
+!services/rag-engine/src/ingestor/reranker_contract.py
+!services/rag-engine/src/ingestor/schema_readiness_v2.py
+!services/rag-engine/src/ingestor/security_v2.py
+
+# Required authoritative taxonomy artefact for catalogue verification.
+!services/rag-pedago/
+!services/rag-pedago/taxonomy/
+!services/rag-pedago/taxonomy/**
 
 # Required UI image inputs. Keep this allowlist narrow because the Compose build
 # context is the repository root.
@@ -89,3 +119,8 @@
 **/dist/**
 **/build
 **/build/**
+
+# The signed retrieval scope is package data required by every v2 identity
+# boundary. These rules intentionally follow the generic artifacts deny.
+!packages/contracts/src/nexus_contracts/artifacts/
+!packages/contracts/src/nexus_contracts/artifacts/pilot-retrieval-scope-v1.json

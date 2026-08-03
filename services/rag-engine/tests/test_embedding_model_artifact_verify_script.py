@@ -41,16 +41,18 @@ def _make_fake_artifact(
         "total_size_bytes": 100,
     }
     (artifact / "manifest.json").write_text(json.dumps(manifest))
+    (artifact / "config.json").write_text('{"architectures":["BertModel"]}')
+    (artifact / "model.safetensors").write_bytes(b"fake deterministic weights")
 
     # Write extra JSON files (e.g. tokenizer.json with vocabulary)
     if extra_json_files:
         for name, content in extra_json_files.items():
             (artifact / name).write_text(content)
 
-    # Generate SHA256SUMS for all files except manifest.json and SHA256SUMS
+    # Generate an exact inventory, including the security-relevant manifest.
     checksums_lines = []
     for f in sorted(artifact.rglob("*")):
-        if f.is_file() and f.name not in ("SHA256SUMS", "manifest.json"):
+        if f.is_file() and f.name != "SHA256SUMS":
             h = hashlib.sha256(f.read_bytes()).hexdigest()
             rel = f.relative_to(artifact)
             checksums_lines.append(f"{h}  {rel}")
@@ -63,6 +65,9 @@ def _run_verify(artifact_dir: Path) -> subprocess.CompletedProcess[str]:
     env = {
         **os.environ,
         "MODEL_ARTIFACT_DIR": str(artifact_dir),
+        "MODEL_ARTIFACT_INVENTORY_SHA256": hashlib.sha256(
+            (artifact_dir / "SHA256SUMS").read_bytes()
+        ).hexdigest(),
         "SKIP_LOAD_TEST": "1",
         "HF_HUB_OFFLINE": "1",
         "TRANSFORMERS_OFFLINE": "1",

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -15,6 +16,27 @@ def _client() -> TestClient:
     app = FastAPI()
     app.include_router(endpoint.router)
     return TestClient(app)
+
+
+def _payload() -> dict[str, object]:
+    return {
+        "student_profile": {
+            "niveau": "terminale",
+            "voie": "generale",
+            "matieres": ["nsi"],
+            "statut_enseignement": "specialite",
+            "candidat": "individuel",
+            "school_year": "2026-2027",
+            "zone": "libre",
+        },
+        "need": {"intent": "context", "query": "question"},
+        "retrieval": {
+            "k": 5,
+            "hybrid": True,
+            "rerank": True,
+            "include_citations": True,
+        },
+    }
 
 
 def test_missing_identity_stops_before_collection_config_and_database(
@@ -41,7 +63,7 @@ def test_missing_identity_stops_before_collection_config_and_database(
     response = _client().post(
         "/search/v2",
         headers={"Authorization": f"Bearer {service_token}"},
-        json={"q": "question", "collection": "arbitrary_collection", "k": 5},
+        json=_payload(),
     )
 
     assert response.status_code == 401
@@ -75,6 +97,11 @@ def test_scope_rejection_is_generic_and_happens_before_retrieval(
     monkeypatch.setattr(endpoint, "_check_retrievable", lambda *_args: {})
     monkeypatch.setattr(
         endpoint,
+        "_collection_for_retrieval_request",
+        lambda *_args, **_kwargs: "arbitrary_collection",
+    )
+    monkeypatch.setattr(
+        endpoint,
         "build_server_retrieval_scope",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(
             RetrievalScopeError("private scope details")
@@ -85,7 +112,7 @@ def test_scope_rejection_is_generic_and_happens_before_retrieval(
 
     response = _client().post(
         "/search/v2",
-        json={"q": "question", "collection": "arbitrary_collection", "k": 5},
+        json=_payload(),
     )
 
     assert response.status_code == 403
@@ -105,6 +132,11 @@ def test_collection_gate_rejection_is_generic_and_happens_before_scope(
     monkeypatch.setattr(endpoint, "load_collection_config", lambda: {})
     monkeypatch.setattr(
         endpoint,
+        "_collection_for_retrieval_request",
+        lambda *_args, **_kwargs: "secret_collection",
+    )
+    monkeypatch.setattr(
+        endpoint,
         "_check_retrievable",
         lambda *_args: (_ for _ in ()).throw(
             HTTPException(status_code=403, detail="private collection name")
@@ -117,7 +149,7 @@ def test_collection_gate_rejection_is_generic_and_happens_before_scope(
 
     response = _client().post(
         "/search/v2",
-        json={"q": "question", "collection": "secret_collection", "k": 5},
+        json=_payload(),
     )
 
     assert response.status_code == 403
@@ -184,3 +216,46 @@ def test_readiness_accepts_only_the_distinct_bff_credential_and_signed_scope(
     assert bff_response.status_code == 200
     assert bff_response.json()["total_collections"] == 1
     assert bff_response.json()["launch_ready"] is False
+
+
+@pytest.mark.parametrize(
+    ("role", "expected_status"),
+    [
+        ("admin", 200),
+        ("reviewer", 200),
+        ("teacher", 200),
+        ("ingest_agent", 200),
+        ("student", 403),
+    ],
+)
+def test_catalogue_requires_bff_identity_and_signed_human_role(
+    monkeypatch: pytest.MonkeyPatch,
+    role: str,
+    expected_status: int,
+) -> None:
+    service_token = "lot41-bff-service-token-at-least-32-bytes"
+    legacy_token = "legacy-human-token"
+    monkeypatch.setenv("RAG_BFF_SERVICE_TOKEN", service_token)
+    monkeypatch.setenv("RAG_ADMIN_TOKEN", legacy_token)
+    verified = SimpleNamespace(
+        envelope=SimpleNamespace(identity=SimpleNamespace(role=role)),
+    )
+    monkeypatch.setattr(endpoint, "require_internal_identity", lambda _request: verified)
+    full_catalogue = MagicMock(return_value={"version": 2, "collections": []})
+    monkeypatch.setattr(endpoint, "_full_catalogue", full_catalogue)
+
+    legacy_response = _client().get(
+        "/catalogue/v2",
+        headers={"Authorization": f"Bearer {legacy_token}", "X-Nexus-Identity": "signed"},
+    )
+    bff_response = _client().get(
+        "/catalogue/v2",
+        headers={"Authorization": f"Bearer {service_token}", "X-Nexus-Identity": "signed"},
+    )
+
+    assert legacy_response.status_code == 401
+    assert bff_response.status_code == expected_status
+    if expected_status == 200:
+        full_catalogue.assert_called_once_with()
+    else:
+        full_catalogue.assert_not_called()

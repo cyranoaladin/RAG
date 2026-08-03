@@ -3,6 +3,8 @@ export interface EngineFetchParams {
   body?: unknown
   identityToken?: string
   query?: EngineReviewQueueQuery
+  signal?: AbortSignal
+  timeoutMs?: number
 }
 
 export type EngineReviewQueueQuery = {
@@ -17,10 +19,18 @@ export interface EngineFetchResult {
 }
 
 const DEFAULT_ENGINE_URL = 'http://rag-engine:8001'
-const ENGINE_TIMEOUT_MS = Number.parseInt(
-  process.env.RAG_ENGINE_REQUEST_TIMEOUT_MS ?? '8000',
-  10,
-) || 8000
+const ENGINE_TIMEOUT_FLOOR_MS = 8000
+
+export function resolveEngineTimeoutMs(rawValue: string | undefined): number {
+  const parsed = Number(rawValue)
+  return Number.isSafeInteger(parsed) && parsed >= ENGINE_TIMEOUT_FLOOR_MS
+    ? parsed
+    : ENGINE_TIMEOUT_FLOOR_MS
+}
+
+const ENGINE_TIMEOUT_MS = resolveEngineTimeoutMs(
+  process.env.RAG_ENGINE_REQUEST_TIMEOUT_MS,
+)
 
 function resolveEngineUrl(): string {
   return (process.env.RAG_ENGINE_INTERNAL_URL || DEFAULT_ENGINE_URL).replace(/\/$/, '')
@@ -40,7 +50,7 @@ export type EngineEndpoint =
   | '/collections/v2'
   | '/collections/readiness'
   | '/chat'
-  | '/admin/health'
+  | '/health'
   | '/review/v2/queue'
   | '/review/v2/decide'
 
@@ -72,7 +82,14 @@ export async function fetchEngine(
   const init: RequestInit = {
     method: params.method ?? 'GET',
     headers,
-    signal: AbortSignal.timeout(ENGINE_TIMEOUT_MS),
+    signal: AbortSignal.any([
+      AbortSignal.timeout(
+        params.timeoutMs === undefined
+          ? ENGINE_TIMEOUT_MS
+          : Math.max(1, Math.min(params.timeoutMs, ENGINE_TIMEOUT_MS)),
+      ),
+      ...(params.signal === undefined ? [] : [params.signal]),
+    ]),
   }
 
   if (params.body !== undefined) {
@@ -106,9 +123,15 @@ export async function fetchEngine(
 }
 
 /** Public endpoints are closed unless the engine proves every collection ready. */
-export async function isPublicLaunchReady(identityToken: string): Promise<boolean> {
+export async function isPublicLaunchReady(
+  identityToken: string,
+  requestBudget: Pick<EngineFetchParams, 'signal' | 'timeoutMs'> = {},
+): Promise<boolean> {
   try {
-    const result = await fetchEngine('/collections/readiness', { identityToken })
+    const result = await fetchEngine('/collections/readiness', {
+      identityToken,
+      ...requestBudget,
+    })
     if (result.status !== 200 || typeof result.payload !== 'object' || result.payload === null) {
       return false
     }

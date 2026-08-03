@@ -1,79 +1,59 @@
 import { NextResponse } from 'next/server'
 
-import type { RetrievalResult, RetrievalResponse, SearchPayload } from '@/generated/contracts'
-import { validateRetrievalResponse, validateSearchPayload } from '@/generated/validators'
+import type {
+  RetrievalRequest,
+  RetrievalResult,
+  RetrievalResponse,
+  SearchPayload,
+} from '@/generated/contracts'
+import {
+  validateRetrievalRequest,
+  validateRetrievalResponse,
+  validateSearchPayload,
+} from '@/generated/validators'
 import { requireBffAuth } from '@/server/bff-auth'
+import type { BffAuthContext } from '@/server/bff-auth'
+import { PILOT_RETRIEVAL_SCOPE } from '@/server/pilot-scope'
+import { SEARCH_ROUTE_BUDGET_MS } from '@/lib/request-deadlines'
 
 import { fetchEngine, isPublicLaunchReady } from '../_engine'
 
 const MAX_COLLECTIONS_PER_REQUEST = 8
 
-type EngineSearchHit = {
-  chunk_id?: unknown
-  doc_id?: unknown
-  source_label?: unknown
-  source_uri?: unknown
-  rights?: unknown
-  type_doc?: unknown
-  review_status?: unknown
-  page?: unknown
-  preview?: unknown
-  dense_score?: unknown
-  rerank_score?: unknown
-  dense_sim?: unknown
-  lexical_score?: unknown
-  rrf_score?: unknown
-  mmr_score?: unknown
-  score_final?: unknown
-}
-
-function finiteNumberOrNull(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) ? value : null
-}
-
-function toRetrievalResult(hit: EngineSearchHit, collection: string): RetrievalResult | null {
-  if (
-    typeof hit.chunk_id !== 'string' ||
-    typeof hit.doc_id !== 'string' ||
-    typeof hit.preview !== 'string' ||
-    typeof hit.score_final !== 'number' ||
-    !Number.isFinite(hit.score_final) ||
-    hit.score_final < 0 ||
-    hit.score_final > 1 ||
-    !(hit.page === null || (Number.isInteger(hit.page) && Number(hit.page) >= 1)) ||
-    typeof hit.source_label !== 'string' ||
-    typeof hit.source_uri !== 'string' ||
-    typeof hit.rights !== 'string'
-  ) {
+function buildRetrievalRequest(
+  auth: BffAuthContext,
+  payload: SearchPayload,
+  collection: string,
+): RetrievalRequest | null {
+  const subject = PILOT_RETRIEVAL_SCOPE.subjects.find(
+    (candidate) => candidate.collection === collection,
+  )
+  if (!subject || !auth.identity.pedagogical_profile.matieres.includes(subject.matiere)) {
     return null
   }
-  return {
-    chunk_id: hit.chunk_id,
-    doc_id: hit.doc_id,
-    score: hit.score_final,
-    title: hit.source_label || null,
-    excerpt: hit.preview,
-    citation: hit.source_label && hit.source_uri && hit.rights
-      ? {
-          source_label: hit.source_label,
-          source_uri: hit.source_uri,
-          rights: hit.rights,
-          page: hit.page as number | null,
-        }
-      : null,
-    metadata: {
-      collection,
-      type_doc: typeof hit.type_doc === 'string' ? hit.type_doc : 'unknown',
-      review_status: typeof hit.review_status === 'string' ? hit.review_status : 'unknown',
-      dense_score: finiteNumberOrNull(hit.dense_score),
-      dense_sim: finiteNumberOrNull(hit.dense_sim),
-      lexical_score: finiteNumberOrNull(hit.lexical_score),
-      rrf_score: finiteNumberOrNull(hit.rrf_score),
-      rerank_score: finiteNumberOrNull(hit.rerank_score),
-      mmr_score: finiteNumberOrNull(hit.mmr_score),
-      score_final: hit.score_final,
+  const profile = auth.identity.pedagogical_profile
+  const request: RetrievalRequest = {
+    student_profile: {
+      niveau: auth.identity.niveau,
+      voie: profile.voie,
+      matieres: [subject.matiere],
+      statut_enseignement: profile.statut_enseignement,
+      candidat: profile.candidat,
+      school_year: auth.identity.school_year,
+      zone: profile.audience,
+    },
+    need: {
+      intent: 'context',
+      query: payload.query,
+    },
+    retrieval: {
+      k: payload.k ?? 8,
+      hybrid: true,
+      rerank: true,
+      include_citations: true,
     },
   }
+  return validateRetrievalRequest(request) ? request : null
 }
 
 /**
@@ -114,6 +94,15 @@ function mergeCollectionHeads(
 }
 
 export async function POST(request: Request) {
+  const searchDeadlineMs = Date.now() + SEARCH_ROUTE_BUDGET_MS
+  const remainingSearchBudgetMs = (): number => {
+    const remainingMs = searchDeadlineMs - Date.now()
+    if (remainingMs <= 0) {
+      throw new Error('search deadline exhausted')
+    }
+    return remainingMs
+  }
+
   const authContext = await requireBffAuth(request)
   if (!authContext) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
@@ -135,33 +124,43 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'forbidden_collection' }, { status: 403 })
   }
 
-  if (!await isPublicLaunchReady(authContext.identityToken)) {
-    return NextResponse.json({ error: 'launch_not_ready' }, { status: 503 })
-  }
-
   try {
-    const results = await Promise.all(
-      payload.collections.map((collection) => fetchEngine('/search/v2', {
+    if (!await isPublicLaunchReady(authContext.identityToken, {
+      signal: request.signal,
+      timeoutMs: remainingSearchBudgetMs(),
+    })) {
+      return NextResponse.json({ error: 'launch_not_ready' }, { status: 503 })
+    }
+
+    const engineRequests = payload.collections.map((collection) =>
+      buildRetrievalRequest(authContext, payload, collection))
+    if (engineRequests.some((engineRequest) => engineRequest === null)) {
+      return NextResponse.json({ error: 'service_unavailable' }, { status: 503 })
+    }
+    const results = []
+    for (const engineRequest of engineRequests) {
+      results.push(await fetchEngine('/search/v2', {
         method: 'POST',
-        body: { q: payload.query, collection, k: payload.k ?? 8 },
+        body: engineRequest as RetrievalRequest,
         identityToken: authContext.identityToken,
-      })),
-    )
+        signal: request.signal,
+        timeoutMs: remainingSearchBudgetMs(),
+      }))
+    }
     if (results.some((result) => result.status !== 200)) {
       return NextResponse.json({ error: 'service_unavailable' }, { status: 503 })
     }
-    const hitsByCollection = results.map((result, index) => {
-      const body = result.payload as { hits?: unknown }
-      if (!Array.isArray(body?.hits)) {
-        return []
-      }
-      return body.hits
-        .map((hit) => toRetrievalResult(hit as EngineSearchHit, payload.collections[index]))
-        .filter((hit): hit is RetrievalResult => hit !== null)
-    })
+    if (results.some((result) => !validateRetrievalResponse(result.payload))) {
+      return NextResponse.json({ error: 'invalid_upstream_response' }, { status: 502 })
+    }
+    const hitsByCollection = results.map(
+      (result) => (result.payload as RetrievalResponse).results ?? [],
+    )
     const response: RetrievalResponse = {
       results: mergeCollectionHeads(hitsByCollection, payload.k ?? 8),
-      warnings: [],
+      warnings: results.flatMap(
+        (result) => (result.payload as RetrievalResponse).warnings ?? [],
+      ),
       filters_applied: { collections: payload.collections },
     }
     if (!validateRetrievalResponse(response)) {

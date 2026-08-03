@@ -1,0 +1,221 @@
+"""Sonde read-only du rôle PostgreSQL dédié au retrieval v2."""
+
+from __future__ import annotations
+
+from typing import Final
+
+import psycopg
+
+try:
+    from .readiness_db import (
+        READINESS_CONNECT_TIMEOUT_S,
+        READINESS_STATEMENT_TIMEOUT_MS,
+        RUNTIME_RELATION_ALLOWLIST,
+        apply_readiness_statement_budget,
+        large_object_acl_enforcement_columns_sql,
+        no_auxiliary_relation_privileges_sql,
+        no_executable_security_definer_routines_sql,
+        no_large_object_privileges_sql,
+        no_user_schema_create_privileges_sql,
+        readiness_connect_timeout_s,
+        readiness_connection_options,
+    )
+except ImportError:  # Image Docker aplatie sous /app.
+    from readiness_db import (  # type: ignore[no-redef]
+        READINESS_CONNECT_TIMEOUT_S,
+        READINESS_STATEMENT_TIMEOUT_MS,
+        RUNTIME_RELATION_ALLOWLIST,
+        apply_readiness_statement_budget,
+        large_object_acl_enforcement_columns_sql,
+        no_auxiliary_relation_privileges_sql,
+        no_executable_security_definer_routines_sql,
+        no_large_object_privileges_sql,
+        no_user_schema_create_privileges_sql,
+        readiness_connect_timeout_s,
+        readiness_connection_options,
+    )
+
+_REQUIRED_RETRIEVAL_PRIVILEGES: Final = (
+    True,  # SELECT sur rag_chunks
+    False,  # pas d'INSERT, y compris au niveau colonne
+    False,  # pas d'UPDATE, y compris au niveau colonne
+    False,  # pas de DELETE
+    False,  # pas de TRUNCATE
+    False,  # pas de REFERENCES, y compris au niveau colonne
+    False,  # pas de TRIGGER
+    True,  # SELECT sur le registre des migrations
+    False,  # pas d'INSERT sur le registre, même au niveau colonne
+    False,  # pas d'UPDATE sur le registre, même au niveau colonne
+    False,  # pas de DELETE sur le registre
+    False,  # pas de TRUNCATE sur le registre
+    False,  # pas de REFERENCES sur le registre, même au niveau colonne
+    False,  # pas de TRIGGER sur le registre
+    False,  # aucune appartenance au propriétaire de rag_chunks
+    False,  # aucune appartenance au propriétaire du registre
+    False,  # aucun rôle atteignable par SET ROLE
+    False,  # pas superuser
+    False,  # pas CREATEDB
+    False,  # pas CREATEROLE
+    False,  # pas REPLICATION
+    False,  # pas BYPASSRLS
+    True,  # USAGE requis sur le schéma public
+    False,  # pas CREATE sur le schéma public
+    False,  # pas CREATE sur la base
+    False,  # pas de tables temporaires
+    True,  # USAGE requis sur le type vector
+    True,  # aucun privilège effectif sur une relation hors allowlist
+    True,  # aucune routine utilisateur SECURITY DEFINER exécutable
+    True,  # aucun CREATE ni ownership sur un schéma utilisateur
+    True,  # aucun large object possédé ou accessible
+    True,  # contrôles ACL des large objects activés
+    True,  # paramètre de compatibilité non modifiable
+)
+
+_RETRIEVAL_PRIVILEGES_SQL = f"""
+SELECT
+    has_table_privilege(current_user, 'public.rag_chunks', 'SELECT'),
+    EXISTS (
+        SELECT 1
+        FROM pg_attribute AS chunk_column
+        WHERE chunk_column.attrelid = 'public.rag_chunks'::regclass
+          AND chunk_column.attnum > 0
+          AND NOT chunk_column.attisdropped
+          AND has_column_privilege(
+              current_user, 'public.rag_chunks', chunk_column.attname, 'INSERT'
+          )
+    ),
+    EXISTS (
+        SELECT 1
+        FROM pg_attribute AS chunk_column
+        WHERE chunk_column.attrelid = 'public.rag_chunks'::regclass
+          AND chunk_column.attnum > 0
+          AND NOT chunk_column.attisdropped
+          AND has_column_privilege(
+              current_user, 'public.rag_chunks', chunk_column.attname, 'UPDATE'
+          )
+    ),
+    has_table_privilege(current_user, 'public.rag_chunks', 'DELETE'),
+    has_table_privilege(current_user, 'public.rag_chunks', 'TRUNCATE'),
+    EXISTS (
+        SELECT 1
+        FROM pg_attribute AS chunk_column
+        WHERE chunk_column.attrelid = 'public.rag_chunks'::regclass
+          AND chunk_column.attnum > 0
+          AND NOT chunk_column.attisdropped
+          AND has_column_privilege(
+              current_user,
+              'public.rag_chunks',
+              chunk_column.attname,
+              'REFERENCES'
+          )
+    ),
+    has_table_privilege(current_user, 'public.rag_chunks', 'TRIGGER'),
+    has_table_privilege(current_user, 'public.rag_schema_migrations', 'SELECT'),
+    EXISTS (
+        SELECT 1
+        FROM pg_attribute AS registry_column
+        WHERE registry_column.attrelid =
+              'public.rag_schema_migrations'::regclass
+          AND registry_column.attnum > 0
+          AND NOT registry_column.attisdropped
+          AND has_column_privilege(
+              current_user,
+              'public.rag_schema_migrations',
+              registry_column.attname,
+              'INSERT'
+          )
+    ),
+    EXISTS (
+        SELECT 1
+        FROM pg_attribute AS registry_column
+        WHERE registry_column.attrelid =
+              'public.rag_schema_migrations'::regclass
+          AND registry_column.attnum > 0
+          AND NOT registry_column.attisdropped
+          AND has_column_privilege(
+              current_user,
+              'public.rag_schema_migrations',
+              registry_column.attname,
+              'UPDATE'
+          )
+    ),
+    has_table_privilege(current_user, 'public.rag_schema_migrations', 'DELETE'),
+    has_table_privilege(current_user, 'public.rag_schema_migrations', 'TRUNCATE'),
+    EXISTS (
+        SELECT 1
+        FROM pg_attribute AS registry_column
+        WHERE registry_column.attrelid =
+              'public.rag_schema_migrations'::regclass
+          AND registry_column.attnum > 0
+          AND NOT registry_column.attisdropped
+          AND has_column_privilege(
+              current_user,
+              'public.rag_schema_migrations',
+              registry_column.attname,
+              'REFERENCES'
+          )
+    ),
+    has_table_privilege(current_user, 'public.rag_schema_migrations', 'TRIGGER'),
+    pg_has_role(
+        current_user,
+        (
+            SELECT tableowner
+            FROM pg_tables
+            WHERE schemaname = 'public' AND tablename = 'rag_chunks'
+        ),
+        'MEMBER'
+    ),
+    pg_has_role(
+        current_user,
+        (
+            SELECT tableowner
+            FROM pg_tables
+            WHERE schemaname = 'public' AND tablename = 'rag_schema_migrations'
+        ),
+        'MEMBER'
+    ),
+    EXISTS (
+        SELECT 1
+        FROM pg_roles AS reachable_role
+        WHERE reachable_role.oid <> current_user::regrole
+          AND pg_has_role(current_user, reachable_role.oid, 'MEMBER')
+    ),
+    rolsuper,
+    rolcreatedb,
+    rolcreaterole,
+    rolreplication,
+    rolbypassrls,
+    has_schema_privilege(current_user, 'public', 'USAGE'),
+    has_schema_privilege(current_user, 'public', 'CREATE'),
+    has_database_privilege(current_user, current_database(), 'CREATE'),
+    has_database_privilege(current_user, current_database(), 'TEMP'),
+    has_type_privilege(current_user, 'public.vector', 'USAGE'),
+    {no_auxiliary_relation_privileges_sql(RUNTIME_RELATION_ALLOWLIST)},
+    {no_executable_security_definer_routines_sql()},
+    {no_user_schema_create_privileges_sql()},
+    {no_large_object_privileges_sql()},
+    {large_object_acl_enforcement_columns_sql()}
+FROM pg_roles
+WHERE rolname = current_user
+"""
+
+
+def retrieval_database_ready(dsn: str) -> bool:
+    """Prouver la connexion et le contrat exact du rôle de lecture."""
+    with psycopg.connect(
+        dsn,
+        connect_timeout=readiness_connect_timeout_s(),
+        options=readiness_connection_options(),
+    ) as connection:
+        with connection.cursor() as cursor:
+            apply_readiness_statement_budget(cursor)
+            cursor.execute(_RETRIEVAL_PRIVILEGES_SQL)
+            row = cursor.fetchone()
+    return row == _REQUIRED_RETRIEVAL_PRIVILEGES
+
+
+__all__ = [
+    "READINESS_CONNECT_TIMEOUT_S",
+    "READINESS_STATEMENT_TIMEOUT_MS",
+    "retrieval_database_ready",
+]

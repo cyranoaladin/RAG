@@ -143,6 +143,90 @@ class TestReviewStatusAlwaysNeedsReview:
         )
         assert r.review_status == "needs_review"
 
+    def test_writer_executes_schema_qualified_insert(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """L'écriture réellement transmise cible la relation gouvernée."""
+        from ingestor import ingest_v2
+
+        executed_sql: list[str] = []
+
+        class RecordingCursor:
+            rowcount = 1
+
+            def __enter__(self) -> RecordingCursor:
+                return self
+
+            def __exit__(self, *_args: object) -> None:
+                return None
+
+            def execute(self, sql: str, _params: object = None) -> None:
+                executed_sql.append(sql)
+
+        class RecordingConnection:
+            committed = False
+            closed = False
+
+            def cursor(self) -> RecordingCursor:
+                return RecordingCursor()
+
+            def commit(self) -> None:
+                self.committed = True
+
+            def rollback(self) -> None:
+                raise AssertionError("rollback inattendu")
+
+            def close(self) -> None:
+                self.closed = True
+
+        connection = RecordingConnection()
+        monkeypatch.setattr(ingest_v2, "load_collection_config", lambda: {})
+        monkeypatch.setattr(
+            ingest_v2,
+            "resolve_collection_v2",
+            lambda *_args: {"statut": "mandatory", "domain": "education"},
+        )
+        monkeypatch.setattr(
+            ingest_v2,
+            "_get_embed_model",
+            lambda: SimpleNamespace(
+                encode=lambda texts, **_kwargs: [[0.0] * 1024 for _ in texts]
+            ),
+        )
+        monkeypatch.setattr(ingest_v2, "_get_pg_dsn", lambda: "postgresql://test")
+        monkeypatch.setattr(
+            ingest_v2,
+            "validate_runtime_embedding_contract",
+            lambda *_args: None,
+        )
+        monkeypatch.setattr(ingest_v2.psycopg, "connect", lambda _dsn: connection)
+
+        result = ingest_v2.ingest_document(
+            "Contenu pédagogique consacré aux arbres binaires.",
+            IngestV2Request(
+                collection="rag_nexus_nsi_terminale_specialite",
+                source_label="cours.txt",
+                source_uri="upload://cours.txt",
+                rights="usage_interne",
+                matiere="nsi",
+                niveau="terminale",
+            ),
+            Provenance(
+                route="upload",
+                timestamp=0,
+                token_hash="fingerprint",
+                source_type="file",
+            ),
+        )
+
+        assert result.chunks_written == len(executed_sql) == 1
+        assert executed_sql[0].lstrip().startswith(
+            "INSERT INTO public.rag_chunks"
+        )
+        assert connection.committed is True
+        assert connection.closed is True
+
 
 class TestEndpointRoutes:
     """Verify v2 ingestion endpoints are registered."""

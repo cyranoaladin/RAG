@@ -1,4 +1,45 @@
-# rag-local — Déploiement Production (VPS)
+# RAG Engine — opérations de production
+
+## Statut runtime v2 LOT41U
+
+Le runtime v2 canonique est un service **lecture/revue** lancé par
+`api_v2:app`, adossé à PostgreSQL/pgvector au head `003_profile_filtering`.
+L'image ne contient aucun writer ni route d'ingestion. Les appels métier passent
+uniquement par le **Cockpit BFF**, son credential machine et une identité interne
+signée.
+
+Les modèles d'embedding et de reranking sont des artefacts préprovisionnés,
+montés en lecture seule. Le runtime impose `local_files_only` et les modes
+Hugging Face/Transformers hors-ligne ; il ne télécharge aucun modèle au
+démarrage ni sur une requête. Le processus canonique unique vérifie intégralement leur manifeste
+canonique, leurs poids et leur inventaire SHA-256 avant d'accepter du trafic ;
+`/health` contrôle ensuite une attestation bornée sans rehacher les poids, puis
+prouve aussi la connexion et les privilèges minimaux du rôle `PG_REVIEW_DSN`.
+Le schéma n'est prêt que si les 31 colonnes ont leurs types, typmods — dont
+`vector(1024)` — nullabilités, générations et valeurs par défaut exacts, si les
+cinq contraintes sont validées et si l'ensemble des dix index est strictement
+identique au head canonique.
+La sonde profonde est coalescée et mémorisée cinq secondes : une rafale ne peut
+ouvrir qu'un cycle de connexions PostgreSQL. Les vhosts limitent `/health` et
+`/metrics` au loopback. Uvicorn reste à un worker, car le registre Prometheus
+est process-local ; toute montée en charge devra employer des réplicas derrière
+un agrégateur de métriques.
+Les empreintes attendues de
+`SHA256SUMS` sont fournies séparément par
+`RAG_EMBEDDING_MODEL_INVENTORY_SHA256` et
+`RAG_RERANKER_MODEL_INVENTORY_SHA256` : elles doivent provenir de la
+construction approuvée, jamais être recalculées depuis le montage au démarrage.
+Les rôles PostgreSQL runtime ne doivent être membres d'aucun autre rôle, y
+compris via une appartenance `NOINHERIT` utilisable par `SET ROLE`.
+
+Le verdict demeure **GO_LIVE: NO_GO** jusqu'aux autorités LOT41A/LOT42, à la
+revue golden et aux preuves opérationnelles externes. La seule procédure
+actuelle est [`../../docs/runbooks/go_live.md`](../../docs/runbooks/go_live.md).
+Ne pas utiliser les commandes archivées ci-dessous pour déployer Nexus v2.
+
+## Archive LOT19 — ne pas exécuter pour Nexus v2
+
+# rag-local — Déploiement historique (VPS)
 
 > Avertissement Lot 19 — prod historique, pas deploiement Nexus final.
 > Ce document reste utile pour comprendre et operer l'UI historique `rag-ui.nexusreussite.academy` (Streamlit + FastAPI ingestor + ChromaDB + Ollama). Il ne doit pas etre lu comme un plan de deploiement du futur RAG Nexus pgvector. Avant toute mise a jour de prod, utiliser `docs/reports/lot_19_prod_deployment_plan.md` : backup, diff prod/repo, rsync cible, post-check et rollback.
@@ -16,7 +57,7 @@ Securite admin Lot 19 follow-up : `RAG_ENV=production` doit etre explicite dans 
 - Docker Engine ≥ 24.0 + plugin Compose ≥ 2.24 (`docker compose version`).
 - Cloner le repo et copier `infra/.env.example` vers `infra/.env`, puis éditer `RAG_UI_EXTERNAL_DOMAIN`, `RAG_API_EXTERNAL_DOMAIN`, `NGINX_API_PORT`, `RAG_ENV=production`, `RAG_ENGINE_CONFIG_DIR=/app/configs`, `RAG_CONFIGS_HOST_DIR` si le compose n'est pas execute depuis `services/rag-engine/infra`, `LEGACY_ADMIN_API_TOKEN`, les tokens v2 par role (`RAG_ADMIN_TOKEN`, `RAG_REVIEWER_TOKEN`, `REVIEWER_API_TOKEN`, `RAG_TEACHER_TOKEN`, `RAG_INGEST_AGENT_TOKEN`, `INGESTOR_API_TOKEN`, `INGEST_AUTH_TOKEN`, `RAG_STUDENT_TOKEN`), et `INGESTOR_TRUSTED_PROXY_CIDRS` si `INGESTOR_IP_ALLOWLIST` doit lire `X-Forwarded-For` derriere un reverse proxy de confiance. Les compose prod, par defaut et v2 (`make v2-up`) transmettent ces variables au conteneur `ingestor`.
 - Le retrieval LOT41 exige aussi `RAG_BFF_SERVICE_TOKEN`, `NEXUS_INTERNAL_TOKEN_SECRET`, `NEXUS_INTERNAL_TOKEN_ISSUER`, `NEXUS_INTERNAL_TOKEN_AUDIENCE`, `NEXUS_SSO_ISSUER` et une valeur unique exacte `NEXUS_SSO_AUDIENCE` (aucune liste séparée par virgules). `RAG_BFF_SERVICE_TOKEN` doit être identique à `RAG_ENGINE_INTERNAL_TOKEN` côté Cockpit, tout en restant distinct de tous les jetons humains.
-- Fournir deux identifiants PostgreSQL runtime distincts : `PG_RAG_DSN` pour un rôle strictement `SELECT` et `PG_REVIEW_DSN` pour un rôle limité à `SELECT` plus `UPDATE(review_status)`. Le moteur refuse de retomber sur `DATABASE_URL_SYNC`, réservé au propriétaire et aux migrations.
+- Fournir deux identifiants PostgreSQL runtime distincts : `PG_RAG_DSN` pour un rôle strictement `SELECT` et `PG_REVIEW_DSN` pour un rôle limité à `SELECT` plus `UPDATE(review_status)`. `/health` vérifie les privilèges effectifs des deux rôles, y compris les grants `INSERT`, `UPDATE` et `REFERENCES` accordés à une seule colonne et les rôles atteignables par `SET ROLE`; le pool de retrieval impose en plus `default_transaction_read_only=on`. Le moteur refuse de retomber sur `DATABASE_URL_SYNC`, réservé au propriétaire et aux migrations.
 - Auditer les GRANT réels sur l'environnement cible avant promotion. Le runner éphémère prouve la politique attendue, mais ne remplace pas la preuve de déploiement LOT45.
 - `/collections/readiness` est réservé au credential BFF accompagné de l'identité signée. LOT41 ne permet jamais à un compteur de lignes de valider la substance : la route demeure `launch_ready=false` jusqu'à une preuve de release exhaustive produite par les lots d'évaluation et de promotion.
 
@@ -90,10 +131,15 @@ Exemple :
 export RAG_UI_EXTERNAL_DOMAIN="rag-ui.example.com"
 export RAG_API_EXTERNAL_DOMAIN="rag-api.example.com"
 export NGINX_API_PORT="8001"
+export NGINX_UI_UPSTREAM="127.0.0.1:8501"
 export NGINX_CLIENT_MAX_BODY_SIZE="16m"
 
-sudo -E bash -c 'envsubst < infra/nginx/rag-ui.conf.template  > /etc/nginx/sites-available/rag-ui.conf'
-sudo -E bash -c 'envsubst < infra/nginx/rag-api.conf.template > /etc/nginx/sites-available/rag-api.conf'
+envsubst '${RAG_UI_EXTERNAL_DOMAIN} ${NGINX_UI_UPSTREAM} ${NGINX_CLIENT_MAX_BODY_SIZE}' \
+  < infra/nginx/rag-ui.conf.template \
+  | sudo tee /etc/nginx/sites-available/rag-ui.conf >/dev/null
+envsubst '${RAG_API_EXTERNAL_DOMAIN} ${NGINX_API_PORT}' \
+  < infra/nginx/rag-api.conf.template \
+  | sudo tee /etc/nginx/sites-available/rag-api.conf >/dev/null
 sudo ln -sf /etc/nginx/sites-available/rag-ui.conf  /etc/nginx/sites-enabled/rag-ui.conf
 sudo ln -sf /etc/nginx/sites-available/rag-api.conf /etc/nginx/sites-enabled/rag-api.conf
 sudo nginx -t && sudo systemctl reload nginx
@@ -144,7 +190,7 @@ UC2=$(curl -sS -o /dev/null -w '%{http_code}' --user "$UI_USER:$UI_PASS" --resol
 echo "UI: sans creds=$UC1 (401 attendu), avec creds=$UC2 (200 attendu)"
 ```
 
-- Ingestor expose `GET /metrics` (Prometheus) lorsque `METRICS_ENABLED=true` dans `infra/.env`.
+- Ingestor expose `GET /metrics` (Prometheus) lorsque `METRICS_ENABLED=true` dans `infra/.env`. Le runtime v2 observe le code et la latence de chaque route autorisée ; tout chemin inconnu est agrégé sous le label borné `unmatched`.
 - Restreindre `/metrics` côté Nginx API à `127.0.0.1` (voir `infra/nginx/rag-api.conf.template`).
 - Métriques clés:
   - `ingestor_ingests_total{status}` pour identifier les échecs (`status=http_4xx/http_5xx`).

@@ -18,11 +18,13 @@ from fastapi.testclient import TestClient
 from nexus_contracts import (
     ReviewDecisionRequest,
     ReviewDecisionResponse,
+    ReviewQueuePayload,
     ReviewQueueResponse,
 )
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from ingestor import review_v2_endpoint as review
 from ingestor.review_v2_endpoint import router
 
 ROLE_TOKEN_ENV = (
@@ -244,6 +246,135 @@ class TestGovernanceInvariant:
         assert "require_bff_service" in source
         assert "require_internal_identity" in source
         assert "_REVIEW_ROLES" in source
+
+    def test_queue_and_decision_share_bounded_database_connections(self) -> None:
+        """Les deux opérations doivent partager les bornes SQL du runtime."""
+        import inspect
+
+        assert "_connect_review_database(pg_dsn)" in inspect.getsource(
+            review.list_queue
+        )
+        assert "_connect_review_database(pg_dsn)" in inspect.getsource(
+            review.review_decide
+        )
+
+    def test_queue_and_decision_execute_schema_qualified_queries(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Les requêtes réellement transmises ciblent la relation gouvernée."""
+        executed_sql: list[str] = []
+
+        class RecordingCursor:
+            rowcount = 1
+
+            def __enter__(self) -> RecordingCursor:
+                return self
+
+            def __exit__(self, *_args: object) -> None:
+                return None
+
+            def execute(self, sql: str, _params: object = None) -> None:
+                executed_sql.append(sql)
+
+            def fetchone(self) -> tuple[int]:
+                return (0,)
+
+            def fetchall(self) -> list[tuple[object, ...]]:
+                return []
+
+        class RecordingConnection:
+            def cursor(self) -> RecordingCursor:
+                return RecordingCursor()
+
+            def commit(self) -> None:
+                return None
+
+            def rollback(self) -> None:
+                raise AssertionError("rollback inattendu")
+
+            def close(self) -> None:
+                return None
+
+        verified = SimpleNamespace(scope_digest="scope-digest")
+        monkeypatch.setattr(
+            review,
+            "_require_review_identity",
+            lambda *_args, **_kwargs: verified,
+        )
+        monkeypatch.setattr(
+            review,
+            "_load_review_scopes",
+            lambda *_args, **_kwargs: (object(),),
+        )
+        monkeypatch.setattr(
+            review,
+            "_scope_filter",
+            lambda _scopes: ("TRUE", ()),
+        )
+        monkeypatch.setattr(review, "_get_pg_dsn", lambda: "postgresql://test")
+        monkeypatch.setattr(
+            review,
+            "_connect_review_database",
+            lambda _dsn: RecordingConnection(),
+        )
+        monkeypatch.setattr(review, "invalidate_cache", lambda: 0)
+
+        queue = review.list_queue(
+            MagicMock(),
+            ReviewQueuePayload(limit=50, offset=0),
+        )
+        queue_sql = list(executed_sql)
+        decision = review.review_decide(
+            ReviewDecisionRequest(
+                target_id="doc123",
+                decision="reviewed",
+                tenant="libre_terminale",
+            ),
+            MagicMock(),
+        )
+
+        queue_relation_queries = [sql for sql in queue_sql if "rag_chunks" in sql]
+        decision_relation_queries = [
+            sql for sql in executed_sql[len(queue_sql):] if "rag_chunks" in sql
+        ]
+        assert queue.total_pending_docs == 0
+        assert decision.chunks_affected == 1
+        assert queue_relation_queries
+        assert all(
+            "FROM public.rag_chunks" in sql for sql in queue_relation_queries
+        )
+        assert decision_relation_queries
+        assert all(
+            "public.rag_chunks" in sql for sql in decision_relation_queries
+        )
+        assert any(
+            sql.lstrip().startswith("UPDATE public.rag_chunks")
+            for sql in decision_relation_queries
+        )
+
+    def test_review_connection_applies_connect_statement_and_lock_timeouts(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        observed: dict[str, object] = {}
+        sentinel = object()
+
+        monkeypatch.setenv("PG_CONNECT_TIMEOUT_S", "4")
+        monkeypatch.setenv("PG_STATEMENT_TIMEOUT_MS", "5500")
+        monkeypatch.setenv("PG_LOCK_TIMEOUT_MS", "750")
+
+        def connect(dsn: str, **kwargs: object) -> object:
+            observed.update({"dsn": dsn, **kwargs})
+            return sentinel
+
+        monkeypatch.setattr(review.psycopg, "connect", connect)
+
+        assert review._connect_review_database("postgresql://reviewer") is sentinel
+        assert observed == {
+            "dsn": "postgresql://reviewer",
+            "connect_timeout": 4,
+            "options": "-c statement_timeout=5500 -c lock_timeout=750",
+        }
 
     def test_reviewer_token_fail_closed(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """If admin/reviewer tokens are not set, review decisions are blocked."""

@@ -62,7 +62,7 @@ test: install-dev
 	PYTHONPATH=src $(PYTEST) -q -m "not integration"
 
 test-integration: install-dev
-	$(PYTEST) tests/integration -q
+	PYTHONPATH=src $(PYTEST) tests/integration -q
 
 test-integration-hybrid: install-dev
 	bash infra/scripts/test_hybrid_integration.sh
@@ -144,15 +144,11 @@ compose-restart: compose-down compose-up
 
 COMPOSE_V2=docker compose -f infra/docker-compose.v2.yml --env-file infra/.env
 
-.PHONY: v2-up v2-down v2-build v2-migrate-chroma v2-migrate-qdrant v2-pull-models \
-        v2-eval v2-test v2-security-check v2-logs v2-stats v2-cleanup
+.PHONY: v2-up v2-down v2-build v2-pull-models v2-test v2-security-check v2-logs
 
 ## v2: Démarrage complet
 v2-up:
-	$(COMPOSE_V2) up -d --build
-	@echo "⏳ Attente services..."
-	@sleep 10
-	@$(COMPOSE_V2) exec ingestor curl -sf http://localhost:8001/health || echo "⚠️  Ingestor not ready yet"
+	$(COMPOSE_V2) up -d --build --wait
 	@echo "✅ RAG Service v2 démarré"
 
 ## v2: Arrêt
@@ -163,33 +159,10 @@ v2-down:
 v2-build:
 	$(COMPOSE_V2) build --parallel
 
-## v2: Migration ChromaDB → pgvector
-v2-migrate-chroma:
-	$(COMPOSE_V2) exec ingestor python /app/scripts/migrate_chroma_to_pgvector.py \
-		--chroma-host chroma --chroma-port 8000 \
-		--pg-dsn "$$DATABASE_URL_SYNC" \
-		--tenant nsi
-
-## v2: Migration Qdrant → pgvector
-v2-migrate-qdrant:
-	$(COMPOSE_V2) exec ingestor python /app/scripts/migrate_qdrant_to_pgvector.py \
-		--qdrant-url http://localhost:6333 \
-		--collection programmes_vf \
-		--pg-dsn "$$DATABASE_URL_SYNC" \
-		--tenant nexus
-
 ## v2: Vérifier le prérequis du modèle d'embedding certifié
 v2-pull-models:
-	@echo "intfloat/multilingual-e5-large (1024d) doit être préchargé dans l'image ingestor avant toute ingestion v2."
+	@echo "intfloat/multilingual-e5-large (1024d) doit être préparé avant tout démarrage v2."
 	@echo "Aucun téléchargement ou fallback de modèle n'est effectué par cette cible."
-
-## v2: Évaluation qualité RAG
-v2-eval:
-	@echo "📊 Lancement de l'évaluation RAG..."
-	@TOKEN="$${INGESTOR_API_TOKEN:-$${API_SECRET_KEY}}"; \
-		curl -sf -H "Authorization: Bearer $${TOKEN}" http://localhost:8001/eval/nsi | python3 -m json.tool || echo "⚠️  Eval nsi failed"
-	@TOKEN="$${INGESTOR_API_TOKEN:-$${API_SECRET_KEY}}"; \
-		curl -sf -H "Authorization: Bearer $${TOKEN}" http://localhost:8001/eval/nexus | python3 -m json.tool || echo "⚠️  Eval nexus failed"
 
 ## v2: Tests
 v2-test:
@@ -210,19 +183,4 @@ v2-security-check:
 
 ## v2: Logs
 v2-logs:
-	$(COMPOSE_V2) logs -f ingestor worker
-
-## v2: Stats en direct
-v2-stats:
-	@TOKEN="$${INGESTOR_API_TOKEN:-$${API_SECRET_KEY}}"; \
-		curl -sf -H "Authorization: Bearer $${TOKEN}" http://localhost:8001/stats/nsi | python3 -m json.tool || echo "⚠️  Stats nsi unavailable"
-	@TOKEN="$${INGESTOR_API_TOKEN:-$${API_SECRET_KEY}}"; \
-		curl -sf -H "Authorization: Bearer $${TOKEN}" http://localhost:8001/stats/nexus | python3 -m json.tool || echo "⚠️  Stats nexus unavailable"
-
-## v2: Nettoyage des instances orphelines
-v2-cleanup:
-	@echo "🧹 Nettoyage des instances RAG orphelines..."
-	@echo "  Instances à vérifier manuellement :"
-	@echo "  - /home/alaeddine/nexus_rag_pipeline/chroma_db/"
-	@echo "  - /home/alaeddine/workspace-agents/ (scaffold vide)"
-	@echo "  - /srv/rag/ingestor/api.py (snapshot orphelin)"
+	$(COMPOSE_V2) logs -f ingestor pgvector prometheus

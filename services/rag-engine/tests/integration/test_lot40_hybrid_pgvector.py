@@ -9,7 +9,7 @@ import json
 import math
 import os
 import time
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
@@ -20,11 +20,14 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from nexus_contracts import Rights, load_pilot_retrieval_scope
+from psycopg import sql
 
+from ingestor import api_v2 as runtime_api
 from ingestor import retrieval_v2_endpoint as endpoint
 from ingestor import review_v2_endpoint as review_endpoint
 from ingestor.identity_v2 import load_identity_verifier_config, verify_identity_token
-from ingestor.pg_pool import close_pool
+from ingestor.pg_pool import PoolSettings, close_pool, pool_connection
+from ingestor.readiness_db import postgres_database_authorities_share_instance
 from ingestor.retrieval_hybrid_v2 import (
     EMBED_DIMENSION,
     RetrievalPipelineError,
@@ -37,7 +40,10 @@ from ingestor.retrieval_pg_v2 import (
     _LEXICAL_SQL,
     PgCandidateStore,
 )
+from ingestor.retrieval_readiness_v2 import retrieval_database_ready
 from ingestor.retrieval_scope_v2 import ServerRetrievalScope
+from ingestor.review_readiness_v2 import review_database_ready
+from ingestor.schema_readiness_v2 import schema_head_003_ready
 
 pytestmark = pytest.mark.integration
 
@@ -155,6 +161,32 @@ def _scope(
         scope_digest="a" * 64,
         source_sha256="b" * 64,
     )
+
+
+def _retrieval_request_payload(
+    *,
+    matiere: str = "nsi",
+    query: str = QUERY,
+    k: int = 5,
+) -> dict[str, object]:
+    return {
+        "student_profile": {
+            "niveau": "terminale",
+            "voie": VOIE,
+            "matieres": [matiere],
+            "statut_enseignement": STATUT_ENSEIGNEMENT,
+            "candidat": CANDIDAT,
+            "school_year": SCHOOL_YEAR,
+            "zone": "libre",
+        },
+        "need": {"intent": "context", "query": query},
+        "retrieval": {
+            "k": k,
+            "hybrid": True,
+            "rerank": True,
+            "include_citations": True,
+        },
+    }
 
 
 def _scope_sql_params(collection: str) -> tuple[object, ...]:
@@ -538,13 +570,16 @@ def _app_store_connection() -> Iterator[psycopg.Connection[Any]]:
 
 
 @contextmanager
-def _empirical_plan_store_connection() -> Iterator[psycopg.Connection[Any]]:
-    """Connexion de preuve réglée pour comparer la fixture distincte à l'oracle."""
+def _exact_store_connection() -> Iterator[psycopg.Connection[Any]]:
+    """Connexion séquentielle réservée à l'oracle dense exact."""
 
     with psycopg.connect(APP_DSN) as connection:
         with connection.cursor() as cursor:
-            cursor.execute("SET LOCAL hnsw.ef_search = 40")
-            cursor.execute("SET LOCAL hnsw.max_scan_tuples = 100000")
+            # Une égalité de préfixe est une propriété d'oracle exact, pas une
+            # garantie d'un index HNSW approximatif. Les propriétés HNSW sont
+            # prouvées séparément par leurs plans et leurs bornes ci-dessous.
+            cursor.execute("SET LOCAL enable_indexscan = off")
+            cursor.execute("SET LOCAL enable_bitmapscan = off")
         yield connection
 
 
@@ -685,6 +720,11 @@ def test_application_role_is_non_superuser_and_select_only() -> None:
     print("APP_ROLE_NON_SUPERUSER_SELECT_ONLY=PASS")
 
 
+def test_runtime_roles_share_the_same_live_database_instance() -> None:
+    assert postgres_database_authorities_share_instance(APP_DSN, REVIEW_DSN) is True
+    print("RUNTIME_AUTHORITIES_SHARED_LIVE_INSTANCE=PASS")
+
+
 def test_review_role_can_only_select_and_update_review_status() -> None:
     with psycopg.connect(REVIEW_DSN, autocommit=True) as connection:
         role = connection.execute(
@@ -715,10 +755,399 @@ def test_review_role_can_only_select_and_update_review_status() -> None:
             """
         ).fetchone()
         assert privileges == (True, False, False, False, True, False, False)
+    assert review_database_ready(REVIEW_DSN) is True
     print("REVIEW_ROLE_COLUMN_LEVEL_UPDATE_ONLY=PASS")
 
 
-def test_schema_registry_and_real_migration_objects_are_exact() -> None:
+def test_retrieval_role_is_exactly_read_only() -> None:
+    assert retrieval_database_ready(APP_DSN) is True
+    with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+        connection.execute(
+            "GRANT UPDATE (source_label) ON TABLE rag_chunks TO lot40_app"
+        )
+    try:
+        assert retrieval_database_ready(APP_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(
+                "REVOKE UPDATE (source_label) ON TABLE rag_chunks FROM lot40_app"
+            )
+    assert retrieval_database_ready(APP_DSN) is True
+    print("RETRIEVAL_ROLE_WRITE_PRIVILEGE_REJECTED=PASS")
+
+
+def test_runtime_roles_reject_privileges_on_auxiliary_relations() -> None:
+    with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+        connection.execute("GRANT SELECT ON TABLE rag_api_keys TO lot40_app")
+        connection.execute("GRANT SELECT ON TABLE rag_eval_runs TO lot41_review")
+    try:
+        assert retrieval_database_ready(APP_DSN) is False
+        assert review_database_ready(REVIEW_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute("REVOKE SELECT ON TABLE rag_api_keys FROM lot40_app")
+            connection.execute(
+                "REVOKE SELECT ON TABLE rag_eval_runs FROM lot41_review"
+            )
+    assert retrieval_database_ready(APP_DSN) is True
+    assert review_database_ready(REVIEW_DSN) is True
+    print("RUNTIME_ROLE_AUXILIARY_RELATION_PRIVILEGE_REJECTED=PASS")
+
+
+def test_runtime_roles_reject_executable_security_definer_routines() -> None:
+    routine = "public.lot41u_unexpected_security_definer()"
+    try:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(f"DROP FUNCTION IF EXISTS {routine}")
+            connection.execute(
+                """
+                CREATE FUNCTION public.lot41u_unexpected_security_definer()
+                RETURNS bigint
+                LANGUAGE sql
+                SECURITY DEFINER
+                SET search_path = pg_catalog
+                AS 'SELECT 1::bigint'
+                """
+            )
+        assert retrieval_database_ready(APP_DSN) is False
+        assert review_database_ready(REVIEW_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(f"DROP FUNCTION IF EXISTS {routine}")
+    assert retrieval_database_ready(APP_DSN) is True
+    assert review_database_ready(REVIEW_DSN) is True
+    print("RUNTIME_SECURITY_DEFINER_EXECUTE_REJECTED=PASS")
+
+
+def test_runtime_roles_reject_non_builtin_security_definer_in_pg_catalog() -> None:
+    routine = "pg_catalog.lot41u_unexpected_catalog_security_definer()"
+    try:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(f"DROP FUNCTION IF EXISTS {routine}")
+            connection.execute(
+                """
+                CREATE FUNCTION pg_catalog.lot41u_unexpected_catalog_security_definer()
+                RETURNS bigint
+                LANGUAGE sql
+                SECURITY DEFINER
+                SET search_path = pg_catalog
+                AS 'SELECT 1::bigint'
+                """
+            )
+        assert retrieval_database_ready(APP_DSN) is False
+        assert review_database_ready(REVIEW_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(f"DROP FUNCTION IF EXISTS {routine}")
+    assert retrieval_database_ready(APP_DSN) is True
+    assert review_database_ready(REVIEW_DSN) is True
+    print("RUNTIME_PG_CATALOG_SECURITY_DEFINER_REJECTED=PASS")
+
+
+def test_runtime_roles_reject_executable_window_security_definer() -> None:
+    routine = "public.lot41u_unexpected_window_security_definer()"
+    try:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(f"DROP FUNCTION IF EXISTS {routine}")
+            connection.execute(
+                """
+                CREATE FUNCTION public.lot41u_unexpected_window_security_definer()
+                RETURNS bigint
+                AS 'window_row_number'
+                LANGUAGE internal
+                WINDOW
+                STABLE
+                STRICT
+                SECURITY DEFINER
+                """
+            )
+        assert retrieval_database_ready(APP_DSN) is False
+        assert review_database_ready(REVIEW_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(f"DROP FUNCTION IF EXISTS {routine}")
+    assert retrieval_database_ready(APP_DSN) is True
+    assert review_database_ready(REVIEW_DSN) is True
+    print("RUNTIME_WINDOW_SECURITY_DEFINER_REJECTED=PASS")
+
+
+def test_runtime_schema_predicate_is_independent_of_string_mode() -> None:
+    try:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(
+                "ALTER ROLE lot40_app SET standard_conforming_strings TO off"
+            )
+            connection.execute(
+                "ALTER ROLE lot41_review SET standard_conforming_strings TO off"
+            )
+        assert retrieval_database_ready(APP_DSN) is True
+        assert review_database_ready(REVIEW_DSN) is True
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(
+                "ALTER ROLE lot40_app RESET standard_conforming_strings"
+            )
+            connection.execute(
+                "ALTER ROLE lot41_review RESET standard_conforming_strings"
+            )
+    assert retrieval_database_ready(APP_DSN) is True
+    assert review_database_ready(REVIEW_DSN) is True
+    print("RUNTIME_SCHEMA_ESCAPE_STABLE=PASS")
+
+
+def test_runtime_roles_reject_create_or_ownership_on_every_user_schema() -> None:
+    owned_schema = "lot41u_retrieval_owned"
+    granted_schema = "lot41u_review_create"
+    try:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(f"DROP SCHEMA IF EXISTS {owned_schema} CASCADE")
+            connection.execute(f"DROP SCHEMA IF EXISTS {granted_schema} CASCADE")
+            connection.execute(
+                f"CREATE SCHEMA {owned_schema} AUTHORIZATION lot40_app"
+            )
+            connection.execute(f"CREATE SCHEMA {granted_schema}")
+            connection.execute(
+                f"GRANT CREATE ON SCHEMA {granted_schema} TO lot41_review"
+            )
+        assert retrieval_database_ready(APP_DSN) is False
+        assert review_database_ready(REVIEW_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(f"DROP SCHEMA IF EXISTS {owned_schema} CASCADE")
+            connection.execute(f"DROP SCHEMA IF EXISTS {granted_schema} CASCADE")
+    assert retrieval_database_ready(APP_DSN) is True
+    assert review_database_ready(REVIEW_DSN) is True
+    print("RUNTIME_USER_SCHEMA_CREATE_REJECTED=PASS")
+
+
+def test_runtime_roles_reject_large_object_ownership_and_privileges() -> None:
+    retrieval_object: int | None = None
+    review_object: int | None = None
+    try:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            retrieval_row = connection.execute("SELECT lo_create(0)").fetchone()
+            review_row = connection.execute("SELECT lo_create(0)").fetchone()
+            assert retrieval_row is not None and review_row is not None
+            retrieval_object = int(retrieval_row[0])
+            review_object = int(review_row[0])
+            connection.execute(
+                f"GRANT SELECT ON LARGE OBJECT {retrieval_object} TO lot40_app"
+            )
+            connection.execute(
+                f"ALTER LARGE OBJECT {review_object} OWNER TO lot41_review"
+            )
+        assert retrieval_database_ready(APP_DSN) is False
+        assert review_database_ready(REVIEW_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            if retrieval_object is not None:
+                connection.execute("SELECT lo_unlink(%s)", (retrieval_object,))
+            if review_object is not None:
+                connection.execute("SELECT lo_unlink(%s)", (review_object,))
+    assert retrieval_database_ready(APP_DSN) is True
+    assert review_database_ready(REVIEW_DSN) is True
+    print("RUNTIME_LARGE_OBJECT_PRIVILEGES_REJECTED=PASS")
+
+
+@pytest.mark.parametrize(
+    ("role", "dsn", "ready"),
+    (
+        ("lot40_app", APP_DSN, retrieval_database_ready),
+        ("lot41_review", REVIEW_DSN, review_database_ready),
+    ),
+)
+def test_runtime_roles_require_large_object_acl_enforcement(
+    role: str,
+    dsn: str,
+    ready: Callable[[str], bool],
+) -> None:
+    try:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(
+                sql.SQL("ALTER ROLE {} SET lo_compat_privileges = on").format(
+                    sql.Identifier(role)
+                )
+            )
+        assert ready(dsn) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(
+                sql.SQL("ALTER ROLE {} RESET lo_compat_privileges").format(
+                    sql.Identifier(role)
+                )
+            )
+    assert ready(dsn) is True
+
+    try:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(
+                sql.SQL(
+                    "GRANT SET ON PARAMETER lo_compat_privileges TO {}"
+                ).format(sql.Identifier(role))
+            )
+        assert ready(dsn) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(
+                sql.SQL(
+                    "REVOKE SET ON PARAMETER lo_compat_privileges FROM {}"
+                ).format(sql.Identifier(role))
+            )
+    assert ready(dsn) is True
+    print(f"RUNTIME_LARGE_OBJECT_ACL_ENFORCEMENT_{role.upper()}=PASS")
+
+
+def test_retrieval_pool_enforces_server_side_execution_timeouts() -> None:
+    settings = PoolSettings(
+        dsn=APP_DSN,
+        min_size=1,
+        max_size=1,
+        timeout_s=5.0,
+        statement_timeout_ms=100,
+        lock_timeout_ms=50,
+    )
+    close_pool()
+    try:
+        with pytest.raises(psycopg.errors.QueryCanceled):
+            with pool_connection(settings) as connection:
+                connection.execute("SELECT pg_sleep(0.25)")
+
+        with psycopg.connect(ADMIN_DSN) as locker:
+            locker.execute("LOCK TABLE rag_chunks IN ACCESS EXCLUSIVE MODE")
+            with pytest.raises(psycopg.errors.LockNotAvailable):
+                with pool_connection(settings) as connection:
+                    connection.execute("SELECT 1 FROM rag_chunks LIMIT 1")
+    finally:
+        close_pool()
+    print("RETRIEVAL_POOL_SERVER_TIMEOUTS=PASS")
+
+
+def test_review_connections_enforce_server_side_execution_timeouts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PG_CONNECT_TIMEOUT_S", "3")
+    monkeypatch.setenv("PG_STATEMENT_TIMEOUT_MS", "100")
+    monkeypatch.setenv("PG_LOCK_TIMEOUT_MS", "50")
+
+    with pytest.raises(psycopg.errors.QueryCanceled):
+        with review_endpoint._connect_review_database(REVIEW_DSN) as connection:
+            connection.execute("SELECT pg_sleep(0.25)")
+
+    with psycopg.connect(ADMIN_DSN) as locker:
+        locker.execute("LOCK TABLE rag_chunks IN ACCESS EXCLUSIVE MODE")
+        with pytest.raises(psycopg.errors.LockNotAvailable):
+            with review_endpoint._connect_review_database(REVIEW_DSN) as connection:
+                connection.execute("SELECT 1 FROM rag_chunks LIMIT 1")
+    print("REVIEW_CONNECTION_SERVER_TIMEOUTS=PASS")
+
+
+def test_review_readiness_rejects_update_on_any_other_column() -> None:
+    with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+        connection.execute(
+            "GRANT UPDATE (source_label) ON TABLE rag_chunks TO lot41_review"
+        )
+    try:
+        assert review_database_ready(REVIEW_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(
+                "REVOKE UPDATE (source_label) ON TABLE rag_chunks FROM lot41_review"
+            )
+    assert review_database_ready(REVIEW_DSN) is True
+    print("REVIEW_ROLE_OTHER_COLUMN_UPDATE_REJECTED=PASS")
+
+
+def test_review_readiness_rejects_column_level_insert() -> None:
+    with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+        connection.execute(
+            "GRANT INSERT (source_label) ON TABLE rag_chunks TO lot41_review"
+        )
+    try:
+        assert review_database_ready(REVIEW_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(
+                "REVOKE INSERT (source_label) ON TABLE rag_chunks FROM lot41_review"
+            )
+    assert review_database_ready(REVIEW_DSN) is True
+    print("REVIEW_ROLE_COLUMN_LEVEL_INSERT_REJECTED=PASS")
+
+
+def test_review_readiness_rejects_trigger_privilege() -> None:
+    with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+        connection.execute("GRANT TRIGGER ON TABLE rag_chunks TO lot41_review")
+    try:
+        assert review_database_ready(REVIEW_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute("REVOKE TRIGGER ON TABLE rag_chunks FROM lot41_review")
+    assert review_database_ready(REVIEW_DSN) is True
+    print("REVIEW_ROLE_TRIGGER_PRIVILEGE_REJECTED=PASS")
+
+
+def test_review_readiness_rejects_column_level_references() -> None:
+    with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+        connection.execute(
+            "GRANT REFERENCES (source_label) ON TABLE rag_chunks TO lot41_review"
+        )
+    try:
+        assert review_database_ready(REVIEW_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(
+                "REVOKE REFERENCES (source_label) ON TABLE rag_chunks FROM lot41_review"
+            )
+    assert review_database_ready(REVIEW_DSN) is True
+    print("REVIEW_ROLE_COLUMN_LEVEL_REFERENCES_REJECTED=PASS")
+
+
+def test_review_readiness_rejects_migration_registry_insert() -> None:
+    with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+        connection.execute(
+            "GRANT INSERT ON TABLE rag_schema_migrations TO lot41_review"
+        )
+    try:
+        assert review_database_ready(REVIEW_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(
+                "REVOKE INSERT ON TABLE rag_schema_migrations FROM lot41_review"
+            )
+    assert review_database_ready(REVIEW_DSN) is True
+    print("REVIEW_ROLE_MIGRATION_REGISTRY_INSERT_REJECTED=PASS")
+
+
+def test_runtime_roles_reject_every_set_role_membership_path() -> None:
+    with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+        connection.execute(
+            "CREATE ROLE lot41_set_role_writer "
+            "NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE "
+            "NOINHERIT NOREPLICATION NOBYPASSRLS"
+        )
+        connection.execute(
+            "GRANT UPDATE (source_label) ON TABLE rag_chunks "
+            "TO lot41_set_role_writer"
+        )
+        connection.execute("GRANT lot41_set_role_writer TO lot40_app")
+        connection.execute("GRANT lot41_set_role_writer TO lot41_review")
+    try:
+        assert retrieval_database_ready(APP_DSN) is False
+        assert review_database_ready(REVIEW_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute("REVOKE lot41_set_role_writer FROM lot40_app")
+            connection.execute("REVOKE lot41_set_role_writer FROM lot41_review")
+            connection.execute(
+                "REVOKE UPDATE (source_label) ON TABLE rag_chunks "
+                "FROM lot41_set_role_writer"
+            )
+            connection.execute("DROP ROLE lot41_set_role_writer")
+    assert retrieval_database_ready(APP_DSN) is True
+    assert review_database_ready(REVIEW_DSN) is True
+    print("RUNTIME_SET_ROLE_MEMBERSHIP_REJECTED=PASS")
+
+
+def test_schema_registry_fingerprints_and_real_migration_objects_are_exact() -> None:
     expected = {
         1: (
             "001_rag_chunks_v2_schema.sql",
@@ -764,7 +1193,286 @@ def test_schema_registry_and_real_migration_objects_are_exact() -> None:
             "idx_rag_chunks_profile_reviewed",
             "ALWAYS",
         )
-    print("MIGRATION_OBJECTS_REAL_DB=PASS")
+    assert schema_head_003_ready(APP_DSN) is True
+    print("SCHEMA_FINGERPRINTS_REAL_DB=PASS")
+
+
+def test_schema_readiness_rejects_missing_lexical_index() -> None:
+    with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+        connection.execute("DROP INDEX idx_rag_chunks_text_tsv")
+    try:
+        assert schema_head_003_ready(APP_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(
+                "CREATE INDEX idx_rag_chunks_text_tsv "
+                "ON rag_chunks USING gin (text_tsv)"
+            )
+    assert schema_head_003_ready(APP_DSN) is True
+    print("SCHEMA_BASE_INDEX_DRIFT_REJECTED=PASS")
+
+
+def test_schema_readiness_rejects_default_and_extra_index_drift() -> None:
+    with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+        connection.execute(
+            "ALTER TABLE rag_chunks ALTER COLUMN voie SET DEFAULT 'drifted'"
+        )
+    try:
+        assert schema_head_003_ready(APP_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(
+                "ALTER TABLE rag_chunks ALTER COLUMN voie SET DEFAULT 'generale'"
+            )
+    assert schema_head_003_ready(APP_DSN) is True
+
+    with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+        connection.execute(
+            "CREATE INDEX idx_rag_chunks_unexpected ON rag_chunks (doc_id)"
+        )
+    try:
+        assert schema_head_003_ready(APP_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute("DROP INDEX idx_rag_chunks_unexpected")
+    assert schema_head_003_ready(APP_DSN) is True
+    print("SCHEMA_DEFAULT_AND_EXTRA_INDEX_DRIFT_REJECTED=PASS")
+
+
+def test_schema_readiness_rejects_an_invalid_extra_index() -> None:
+    with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+        connection.execute(
+            "CREATE INDEX idx_rag_chunks_invalid_extra ON rag_chunks (doc_id)"
+        )
+        connection.execute(
+            "UPDATE pg_index SET indisvalid = false "
+            "WHERE indexrelid = 'idx_rag_chunks_invalid_extra'::regclass"
+        )
+    try:
+        assert schema_head_003_ready(APP_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute("DROP INDEX idx_rag_chunks_invalid_extra")
+    assert schema_head_003_ready(APP_DSN) is True
+    print("SCHEMA_INVALID_EXTRA_INDEX_DRIFT_REJECTED=PASS")
+
+
+def test_schema_readiness_rejects_row_security_drift() -> None:
+    with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+        connection.execute("ALTER TABLE rag_chunks ENABLE ROW LEVEL SECURITY")
+    try:
+        assert schema_head_003_ready(APP_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute("ALTER TABLE rag_chunks DISABLE ROW LEVEL SECURITY")
+    assert schema_head_003_ready(APP_DSN) is True
+    print("SCHEMA_ROW_SECURITY_DRIFT_REJECTED=PASS")
+
+
+def test_schema_readiness_rejects_unlogged_rag_chunks() -> None:
+    with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+        connection.execute("ALTER TABLE rag_chunks SET UNLOGGED")
+    try:
+        assert schema_head_003_ready(APP_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute("ALTER TABLE rag_chunks SET LOGGED")
+    assert schema_head_003_ready(APP_DSN) is True
+    print("SCHEMA_PERMANENT_STORAGE_DRIFT_REJECTED=PASS")
+
+
+def test_schema_readiness_rejects_non_internal_trigger_drift() -> None:
+    try:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(
+                "DROP TRIGGER IF EXISTS lot41u_unexpected_trigger ON rag_chunks"
+            )
+            connection.execute(
+                "DROP FUNCTION IF EXISTS lot41u_unexpected_trigger()"
+            )
+            connection.execute(
+                """
+                CREATE FUNCTION lot41u_unexpected_trigger()
+                RETURNS trigger
+                LANGUAGE plpgsql
+                AS $$
+                BEGIN
+                    RETURN NEW;
+                END;
+                $$
+                """
+            )
+            connection.execute(
+                """
+                CREATE TRIGGER lot41u_unexpected_trigger
+                BEFORE UPDATE ON rag_chunks
+                FOR EACH ROW
+                EXECUTE FUNCTION lot41u_unexpected_trigger()
+                """
+            )
+        assert schema_head_003_ready(APP_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(
+                "DROP TRIGGER IF EXISTS lot41u_unexpected_trigger ON rag_chunks"
+            )
+            connection.execute(
+                "DROP FUNCTION IF EXISTS lot41u_unexpected_trigger()"
+            )
+    assert schema_head_003_ready(APP_DSN) is True
+    print("SCHEMA_TRIGGER_DRIFT_REJECTED=PASS")
+
+
+def test_runtime_blocks_review_update_while_trigger_drift_is_detected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service_token = "lot41u-runtime-bff-service-token-32-bytes"
+    target = "doc-pending-000"
+    monkeypatch.setenv("RAG_BFF_SERVICE_TOKEN", service_token)
+    monkeypatch.setenv("PG_RAG_DSN", APP_DSN)
+    monkeypatch.setenv("PG_REVIEW_DSN", REVIEW_DSN)
+    monkeypatch.setattr(
+        review_endpoint,
+        "_require_review_identity",
+        lambda *_args, **_kwargs: SimpleNamespace(scope_digest="a" * 64),
+    )
+    monkeypatch.setattr(
+        review_endpoint,
+        "_load_review_scopes",
+        lambda *_args, **_kwargs: (_scope(TARGET_COLLECTION),),
+    )
+    monkeypatch.setattr(review_endpoint, "_get_pg_dsn", lambda: REVIEW_DSN)
+    runtime_api._reset_database_readiness_cache()
+    response = None
+    observed_status = None
+    try:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(
+                "DROP TRIGGER IF EXISTS lot41u_runtime_gate_trigger ON rag_chunks"
+            )
+            connection.execute(
+                "DROP FUNCTION IF EXISTS lot41u_runtime_gate_trigger()"
+            )
+            connection.execute(
+                """
+                CREATE FUNCTION lot41u_runtime_gate_trigger()
+                RETURNS trigger
+                LANGUAGE plpgsql
+                AS $$
+                BEGIN
+                    RETURN NEW;
+                END;
+                $$
+                """
+            )
+            connection.execute(
+                """
+                CREATE TRIGGER lot41u_runtime_gate_trigger
+                BEFORE UPDATE ON rag_chunks
+                FOR EACH ROW
+                EXECUTE FUNCTION lot41u_runtime_gate_trigger()
+                """
+            )
+
+        response = TestClient(runtime_api.app).post(
+            "/review/v2/decide",
+            headers={"Authorization": f"Bearer {service_token}"},
+            json={
+                "target_type": "doc",
+                "target_id": target,
+                "decision": "reviewed",
+                "tenant": TENANT,
+            },
+        )
+        with psycopg.connect(ADMIN_DSN) as connection:
+            observed_status = connection.execute(
+                "SELECT review_status FROM rag_chunks WHERE chunk_id = %s",
+                ("pending-000",),
+            ).fetchone()[0]
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(
+                "UPDATE rag_chunks SET review_status = 'needs_review' "
+                "WHERE chunk_id = 'pending-000'"
+            )
+            connection.execute(
+                "DROP TRIGGER IF EXISTS lot41u_runtime_gate_trigger ON rag_chunks"
+            )
+            connection.execute(
+                "DROP FUNCTION IF EXISTS lot41u_runtime_gate_trigger()"
+            )
+        runtime_api._reset_database_readiness_cache()
+
+    assert response is not None
+    assert response.status_code == 503
+    assert response.json() == {"detail": "service unavailable"}
+    assert observed_status == "needs_review"
+    assert schema_head_003_ready(APP_DSN) is True
+    print("RUNTIME_REVIEW_TRIGGER_DRIFT_BLOCKED=PASS")
+
+
+def test_schema_readiness_rejects_rewrite_rule_drift() -> None:
+    try:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(
+                "DROP RULE IF EXISTS lot41u_unexpected_rule ON rag_chunks"
+            )
+            connection.execute(
+                "CREATE RULE lot41u_unexpected_rule AS "
+                "ON UPDATE TO rag_chunks DO INSTEAD NOTHING"
+            )
+        assert schema_head_003_ready(APP_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(
+                "DROP RULE IF EXISTS lot41u_unexpected_rule ON rag_chunks"
+            )
+    assert schema_head_003_ready(APP_DSN) is True
+    print("SCHEMA_REWRITE_RULE_DRIFT_REJECTED=PASS")
+
+
+def test_schema_readiness_rejects_inheritance_hierarchy_drift() -> None:
+    try:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute("DROP TABLE IF EXISTS lot41u_rag_chunks_child")
+            connection.execute(
+                "CREATE TABLE lot41u_rag_chunks_child () INHERITS (rag_chunks)"
+            )
+        assert schema_head_003_ready(APP_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute("DROP TABLE IF EXISTS lot41u_rag_chunks_child")
+    assert schema_head_003_ready(APP_DSN) is True
+    print("SCHEMA_INHERITANCE_HIERARCHY_DRIFT_REJECTED=PASS")
+
+
+def test_schema_readiness_rejects_unexpected_foreign_key_constraint() -> None:
+    try:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(
+                "ALTER TABLE rag_chunks "
+                "DROP CONSTRAINT IF EXISTS lot41u_unexpected_fk"
+            )
+            connection.execute("DROP TABLE IF EXISTS lot41u_fk_target")
+            connection.execute(
+                "CREATE TABLE lot41u_fk_target (source_label text PRIMARY KEY)"
+            )
+            connection.execute(
+                "ALTER TABLE rag_chunks "
+                "ADD CONSTRAINT lot41u_unexpected_fk "
+                "FOREIGN KEY (source_label) "
+                "REFERENCES lot41u_fk_target(source_label) NOT VALID"
+            )
+        assert schema_head_003_ready(APP_DSN) is False
+    finally:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
+            connection.execute(
+                "ALTER TABLE rag_chunks "
+                "DROP CONSTRAINT IF EXISTS lot41u_unexpected_fk"
+            )
+            connection.execute("DROP TABLE IF EXISTS lot41u_fk_target")
+    assert schema_head_003_ready(APP_DSN) is True
+    print("SCHEMA_ALL_CONSTRAINT_TYPES_DRIFT_REJECTED=PASS")
 
 
 def test_equal_score_rank_50_is_deterministic_in_both_channels() -> None:
@@ -905,11 +1613,11 @@ def test_real_gin_and_hnsw_plans_filters_top_50_and_local_scope() -> None:
         for item in app_actual
     )
 
-    empirical_store = PgCandidateStore(
-        _empirical_plan_store_connection,
+    exact_store = PgCandidateStore(
+        _exact_store_connection,
         _scope(TARGET_COLLECTION),
     )
-    actual = empirical_store.dense(
+    actual = exact_store.dense(
         query_vector=QUERY_VECTOR,
         collection=TARGET_COLLECTION,
         limit=50,
@@ -953,7 +1661,7 @@ def test_real_gin_and_hnsw_plans_filters_top_50_and_local_scope() -> None:
         [f"small-{index:03d}" for index in range(3)],
     )
     for variable_limit in (1, 17, 50):
-        limited = empirical_store.dense(
+        limited = exact_store.dense(
             query_vector=QUERY_VECTOR,
             collection=TARGET_COLLECTION,
             limit=variable_limit,
@@ -1018,7 +1726,7 @@ def test_real_gin_and_hnsw_plans_filters_top_50_and_local_scope() -> None:
     print(f"HNSW_BOUNDED_JSON_PLAN_MS={execution_ms:.3f}")
     print("HNSW_NATURAL_AND_STRUCTURAL_BOUNDED_PLAN=PASS")
     print("APP_STORE_DEFAULT_HNSW_SETTINGS=PASS")
-    print("HNSW_DISTINCT_FIXTURE_EMPIRICAL_ORACLE_PREFIX=PASS")
+    print("DENSE_EXACT_ORACLE_PREFIX=PASS")
     print("HNSW_UNDERFILL_BOUNDED_NO_GLOBAL_SCAN=PASS")
 
 
@@ -1038,10 +1746,18 @@ class DeterministicReranker:
                 scores.append(2.60)
             elif text.count("algorithme graphe") == 3:
                 scores.append(2.55)
+            elif text == "algorithme graphe preuve pedagogique de charge":
+                scores.append(0.0)
             else:
                 ordinal = int(text.rsplit(" ", 1)[1])
                 scores.append(2.50 - ordinal / 1000)
         return scores
+
+
+def test_deterministic_reranker_accepts_ann_load_candidates() -> None:
+    assert DeterministicReranker().predict(
+        [(QUERY, "algorithme graphe preuve pedagogique de charge")]
+    ) == [0.0]
 
 
 class EmptyReranker:
@@ -1055,8 +1771,11 @@ class PilotFixtureReranker:
         return [2.60] * len(pairs)
 
 
-def test_real_store_and_core_prove_union_scores_page_dedup_and_dimension_failure() -> None:
-    store = PgCandidateStore(_app_store_connection, _scope(TARGET_COLLECTION))
+def test_exact_store_and_core_prove_union_scores_page_dedup_and_dimension_failure() -> None:
+    # Les canaris dense/lexical prouvent ici la fusion contre l'oracle exact.
+    # Le chemin HNSW runtime reste approximatif par contrat et ses propriétés
+    # de plan, de scope, de bornes et d'underfill sont prouvées séparément.
+    store = PgCandidateStore(_exact_store_connection, _scope(TARGET_COLLECTION))
     hits = retrieve_hybrid(
         QUERY,
         TARGET_COLLECTION,
@@ -1119,8 +1838,30 @@ def _test_app(monkeypatch: pytest.MonkeyPatch) -> TestClient:
         "_require_retrieval_identity",
         lambda *args, **kwargs: object(),
     )
-    monkeypatch.setattr(endpoint, "load_collection_config", lambda: {})
+    monkeypatch.setattr(
+        endpoint,
+        "load_collection_config",
+        lambda: {
+            "collections": {
+                TARGET_COLLECTION: {
+                    "domain": "education",
+                    "instanciee": True,
+                },
+            },
+            "domains": {"education": {"retrievable": True}},
+        },
+    )
     monkeypatch.setattr(endpoint, "_check_retrievable", lambda *args, **kwargs: {})
+    monkeypatch.setattr(
+        endpoint,
+        "_collection_for_retrieval_request",
+        lambda *_args, **_kwargs: TARGET_COLLECTION,
+    )
+    monkeypatch.setattr(
+        endpoint,
+        "_require_retrieval_profile_match",
+        lambda *_args, **_kwargs: None,
+    )
     monkeypatch.setattr(
         endpoint,
         "build_server_retrieval_scope",
@@ -1150,7 +1891,7 @@ def test_http_search_fails_closed_then_uses_real_hybrid_store(
     monkeypatch.setattr(endpoint, "_retrieve_hybrid_hits", fail_with_private_context)
     failed = client.post(
         "/search/v2",
-        json={"q": QUERY, "collection": TARGET_COLLECTION, "k": 5},
+        json=_retrieval_request_payload(),
     )
     assert failed.status_code == 503
     assert failed.json() == {"detail": "retrieval unavailable"}
@@ -1159,21 +1900,32 @@ def test_http_search_fails_closed_then_uses_real_hybrid_store(
     monkeypatch.setattr(endpoint, "_retrieve_hybrid_hits", real_retrieve)
     response = client.post(
         "/search/v2",
-        json={"q": QUERY, "collection": TARGET_COLLECTION, "k": 5},
+        json=_retrieval_request_payload(),
     )
     assert response.status_code == 200, response.text
     payload = response.json()
-    assert payload["returned"] == 5
-    assert [hit["chunk_id"] for hit in payload["hits"][:2]] == [
+    assert len(payload["results"]) == 5
+    results_by_id = {hit["chunk_id"]: hit for hit in payload["results"]}
+    assert "target-lexical-only" in results_by_id
+    assert results_by_id["target-lexical-only"]["citation"]["page"] == 7
+    assert payload["results"][0]["chunk_id"] in {
         "target-dense-only",
         "target-lexical-only",
-    ]
-    assert payload["hits"][0]["page"] is None
-    assert payload["hits"][1]["page"] == 7
-    assert all(hit["review_status"] == "reviewed" for hit in payload["hits"])
-    assert all(hit["source_label"] and hit["source_uri"] and hit["rights"] for hit in payload["hits"])
+    }
+    if "target-dense-only" in results_by_id:
+        assert results_by_id["target-dense-only"]["citation"]["page"] is None
     assert all(
-        key in payload["hits"][0]
+        hit["metadata"]["review_status"] == "reviewed"
+        for hit in payload["results"]
+    )
+    assert all(
+        hit["citation"]["source_label"]
+        and hit["citation"]["source_uri"]
+        and hit["citation"]["rights"]
+        for hit in payload["results"]
+    )
+    assert all(
+        key in payload["results"][0]["metadata"]
         for key in (
             "dense_score",
             "lexical_score",
@@ -1264,9 +2016,7 @@ def test_signed_identity_to_http_scope_and_real_database_is_end_to_end(
             "X-Nexus-Identity": maths_only_identity_token,
         },
         json={
-            "q": QUERY,
-            "collection": MATRIX_COLLECTIONS["nsi"],
-            "k": 5,
+            **_retrieval_request_payload(matiere="nsi"),
         },
     )
     assert cross_subject_response.status_code == 403
@@ -1280,14 +2030,12 @@ def test_signed_identity_to_http_scope_and_real_database_is_end_to_end(
             "X-Nexus-Identity": nsi_only_identity_token,
         },
         json={
-            "q": QUERY,
-            "collection": MATRIX_COLLECTIONS["nsi"],
-            "k": 5,
+            **_retrieval_request_payload(matiere="nsi"),
         },
     )
 
     assert response.status_code == 200, response.text
-    assert [hit["chunk_id"] for hit in response.json()["hits"]] == [
+    assert [hit["chunk_id"] for hit in response.json()["results"]] == [
         "matrix-nsi-individuel",
     ]
     assert retrieval_calls == [MATRIX_COLLECTIONS["nsi"]]
@@ -1376,7 +2124,14 @@ def test_http_chat_is_locked_with_zero_or_real_hits_and_never_calls_network(
     assert populated.json()["grounded"] is False
     assert populated.json()["citations"] == []
     assert len(populated.json()["retrieval_hits"]) == 3
-    assert populated.json()["retrieval_hits"][0]["chunk_id"] == "target-dense-only"
+    retrieval_ids = {
+        hit["chunk_id"] for hit in populated.json()["retrieval_hits"]
+    }
+    assert "target-lexical-only" in retrieval_ids
+    assert populated.json()["retrieval_hits"][0]["chunk_id"] in {
+        "target-dense-only",
+        "target-lexical-only",
+    }
 
     hidden_request = dict(base_request, include_retrieval=False)
     hidden = client.post("/chat", json=hidden_request)

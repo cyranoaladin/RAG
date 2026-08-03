@@ -1,12 +1,9 @@
-"""Tests — /catalogue/v2 auth policy.
-
-Verifies the role-based access control for the catalogue endpoint
-matches the expected policy after LOT 27.1 hotfix.
-"""
+"""Tests — autorité BFF et rôles signés de /catalogue/v2."""
 from __future__ import annotations
 
-import re
 from pathlib import Path
+
+import pytest
 
 ENGINE_ROOT = Path(__file__).resolve().parents[1]
 ENDPOINT_FILE = ENGINE_ROOT / "src" / "ingestor" / "retrieval_v2_endpoint.py"
@@ -16,50 +13,12 @@ def _read_endpoint() -> str:
     return ENDPOINT_FILE.read_text(encoding="utf-8")
 
 
-def _extract_catalogue_v2_roles(content: str) -> set[str]:
-    """Extract the allowed_roles set from the /catalogue/v2 endpoint."""
-    # Find the block: @router.get("/catalogue/v2") ... allowed_roles={...}
-    pattern = r'@router\.get\("/catalogue/v2"\).*?allowed_roles=\{([^}]+)\}'
-    match = re.search(pattern, content, re.DOTALL)
-    assert match, "/catalogue/v2 endpoint not found or allowed_roles missing"
-    roles_block = match.group(1)
-    roles = set(re.findall(r"SecurityRole\.(\w+)", roles_block))
-    return roles
-
-
-# --- /catalogue/v2 auth tests ---
-
-def test_catalogue_v2_allows_admin():
-    roles = _extract_catalogue_v2_roles(_read_endpoint())
-    assert "ADMIN" in roles
-
-
-def test_catalogue_v2_allows_reviewer():
-    roles = _extract_catalogue_v2_roles(_read_endpoint())
-    assert "REVIEWER" in roles
-
-
-def test_catalogue_v2_allows_teacher():
-    roles = _extract_catalogue_v2_roles(_read_endpoint())
-    assert "TEACHER" in roles
-
-
-def test_catalogue_v2_allows_ingest_agent():
-    """LOT 27.1: UI token is INGEST_AGENT; must be allowed."""
-    roles = _extract_catalogue_v2_roles(_read_endpoint())
-    assert "INGEST_AGENT" in roles
-
-
-def test_catalogue_v2_does_not_allow_student():
-    """STUDENT excluded: catalogue exposes governance details."""
-    roles = _extract_catalogue_v2_roles(_read_endpoint())
-    assert "STUDENT" not in roles
-
-
 # --- /collections/v2 LOT41 ---
 
 def test_collections_v2_requires_bff_identity_and_filters_signed_scope():
     """Le picker BFF ne réutilise plus les jetons humains historiques."""
+    import re
+
     content = _read_endpoint()
     pattern = (
         r'@router\.get\("/collections/v2"\)'
@@ -106,3 +65,29 @@ def test_catalogue_v2_function_returns_expected_structure():
             assert "search_enabled_reason" in c
     finally:
         sys.path.pop(0)
+
+
+def test_catalogue_fails_closed_when_taxonomy_artifacts_are_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """L'absence d'artefacts ne doit jamais être présentée comme une preuve verte."""
+    from src.ingestor import retrieval_v2_endpoint as endpoint
+
+    monkeypatch.setattr(endpoint, "_resolve_taxonomy_base", lambda: None)
+
+    result = endpoint._full_catalogue()
+    governed = [
+        collection
+        for collection in result["collections"]
+        if collection["domain"] != "quarantine" and collection["taxonomy_file"]
+    ]
+
+    assert governed
+    assert all(collection["taxonomy_exists"] is False for collection in governed)
+    assert all(
+        any(
+            "vérification indisponible" in issue
+            for issue in collection["coherence_issues"]
+        )
+        for collection in governed
+    )

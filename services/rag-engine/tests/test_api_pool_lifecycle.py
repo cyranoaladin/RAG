@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
-from src.ingestor import api, pg_pool
+from src.ingestor import api_v2, pg_pool
 
 
 class _FakePool:
@@ -38,7 +38,7 @@ def reset_pool() -> Iterator[None]:
 def test_fastapi_shutdown_closes_pool_once_and_allows_recreation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    assert hasattr(api, "close_pool")
+    assert hasattr(api_v2, "close_pool")
     instances: list[_FakePool] = []
 
     def factory(_dsn: str, **_kwargs: Any) -> _FakePool:
@@ -47,17 +47,38 @@ def test_fastapi_shutdown_closes_pool_once_and_allows_recreation(
         return pool
 
     monkeypatch.setattr(pg_pool, "_pool_factory", factory)
+    attestations = (
+        MagicMock(name="embedding_attestation"),
+        MagicMock(name="reranker_attestation"),
+    )
+    monkeypatch.setattr(
+        api_v2,
+        "_initialize_model_artifacts",
+        lambda: attestations,
+    )
+    monkeypatch.setattr(
+        api_v2.retrieval_v2_endpoint,
+        "preload_runtime_models",
+        lambda: None,
+    )
+    monkeypatch.setattr(api_v2, "_database_runtime_ready", lambda: True)
+    monkeypatch.setattr(api_v2, "_model_artifacts_ready", lambda: True)
     close_spy = MagicMock(wraps=pg_pool.close_pool)
-    monkeypatch.setattr(api, "close_pool", close_spy)
+    monkeypatch.setattr(api_v2, "close_pool", close_spy)
     settings = pg_pool.PoolSettings(
         dsn="postgresql://runtime.invalid/rag",
         min_size=1,
         max_size=2,
         timeout_s=1.0,
     )
+    monkeypatch.setattr(
+        api_v2.PoolSettings,
+        "from_env",
+        classmethod(lambda _cls: settings),
+    )
     first = pg_pool.get_pool(settings)
 
-    with TestClient(api.app):
+    with TestClient(api_v2.app):
         pass
 
     assert close_spy.call_count == 1

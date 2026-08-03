@@ -11,14 +11,16 @@ import inspect
 import socket
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
+from threading import Event
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
-from nexus_contracts import Rights
+from nexus_contracts import RetrievalRequest, RetrievalResponse, Rights
 from pydantic import ValidationError
 
 # Ensure src/ is importable
@@ -28,7 +30,6 @@ from fastapi import HTTPException
 
 from ingestor.retrieval_scope_v2 import ServerRetrievalScope
 from ingestor.retrieval_v2_endpoint import (
-    SearchV2Request,
     _build_launch_readiness,
     _check_retrievable,
 )
@@ -94,29 +95,275 @@ BASE_SCOPE = ServerRetrievalScope(
 )
 
 
-def test_launch_readiness_dsn_refuses_owner_fallback(
+def _retrieval_payload(
+    *,
+    query: str = "arbre binaire",
+    matiere: str = "nsi",
+    k: int = 5,
+) -> dict[str, object]:
+    return {
+        "student_profile": {
+            "niveau": "terminale",
+            "voie": "generale",
+            "matieres": [matiere],
+            "statut_enseignement": "specialite",
+            "candidat": "individuel",
+            "school_year": "2026-2027",
+            "zone": "libre",
+        },
+        "need": {
+            "intent": "context",
+            "query": query,
+        },
+        "retrieval": {
+            "k": k,
+            "hybrid": True,
+            "rerank": True,
+            "include_citations": True,
+        },
+    }
+
+
+def test_reviewed_chunk_counts_use_the_bounded_shared_pool(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from ingestor import retrieval_v2_endpoint as endpoint
 
-    monkeypatch.delenv("PG_RAG_DSN", raising=False)
-    monkeypatch.setenv("DATABASE_URL_SYNC", "postgresql://owner@localhost/rag")
+    settings = SimpleNamespace(timeout_s=5.0, statement_timeout_ms=3_000)
+    executed: dict[str, object] = {}
+    connection_calls = 0
 
-    with pytest.raises(HTTPException) as exc_info:
-        endpoint._get_pg_dsn()
+    class Cursor:
+        def __enter__(self):
+            return self
 
-    assert exc_info.value.status_code == 503
-    assert exc_info.value.detail == "launch readiness unavailable"
+        def __exit__(self, *_args: object) -> None:
+            return None
 
-    monkeypatch.setenv("PG_RAG_DSN", "  postgresql://reader@localhost/rag  ")
-    assert endpoint._get_pg_dsn() == "postgresql://reader@localhost/rag"
+        def execute(self, sql: str, params: tuple[object, ...]) -> None:
+            executed["sql"] = sql
+            executed["params"] = params
+
+        def fetchall(self) -> list[tuple[str, int]]:
+            return [(BASE_SCOPE.collection, 12)]
+
+    class Connection:
+        def cursor(self) -> Cursor:
+            return Cursor()
+
+    @contextmanager
+    def connection_provider(received_settings: object):
+        nonlocal connection_calls
+        connection_calls += 1
+        executed["settings"] = received_settings
+        yield Connection()
+
+    monkeypatch.setattr(
+        endpoint,
+        "PoolSettings",
+        SimpleNamespace(from_env=lambda: settings),
+    )
+    monkeypatch.setattr(endpoint, "pool_connection", connection_provider)
+    endpoint.invalidate_cache()
+
+    assert endpoint._get_reviewed_chunk_counts((BASE_SCOPE,)) == {
+        BASE_SCOPE.collection: 12,
+    }
+    assert endpoint._get_reviewed_chunk_counts((BASE_SCOPE,)) == {
+        BASE_SCOPE.collection: 12,
+    }
+    assert connection_calls == 1
+    assert executed["settings"] is settings
+    assert "SELECT collection, COUNT(*) FROM public.rag_chunks" in str(
+        executed["sql"]
+    )
+    assert BASE_SCOPE.tenant in executed["params"]
+
+
+def _install_blocking_reviewed_counts_db(
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[object, Event, Event, dict[str, int]]:
+    from ingestor import retrieval_v2_endpoint as endpoint
+
+    settings = SimpleNamespace(
+        timeout_s=0.01,
+        connect_timeout_s=1,
+        statement_timeout_ms=1_000,
+    )
+    query_started = Event()
+    release_query = Event()
+    state = {"connection_calls": 0}
+
+    class Cursor:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def execute(self, _sql: str, _params: tuple[object, ...]) -> None:
+            query_started.set()
+            assert release_query.wait(timeout=2.0)
+
+        def fetchall(self) -> list[tuple[str, int]]:
+            return [(BASE_SCOPE.collection, 12)]
+
+    class Connection:
+        def cursor(self) -> Cursor:
+            return Cursor()
+
+    @contextmanager
+    def connection_provider(_received_settings: object):
+        state["connection_calls"] += 1
+        yield Connection()
+
+    monkeypatch.setattr(
+        endpoint,
+        "PoolSettings",
+        SimpleNamespace(from_env=lambda: settings),
+    )
+    monkeypatch.setattr(endpoint, "pool_connection", connection_provider)
+    endpoint.invalidate_cache()
+    return endpoint, query_started, release_query, state
+
+
+def test_reviewed_chunk_counts_coalesce_concurrent_identical_queries(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Deux probes identiques partagent le même résultat SQL en cours."""
+    endpoint, query_started, release_query, state = (
+        _install_blocking_reviewed_counts_db(monkeypatch)
+    )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        first = executor.submit(endpoint._get_reviewed_chunk_counts, (BASE_SCOPE,))
+        assert query_started.wait(timeout=1.0)
+        second = executor.submit(endpoint._get_reviewed_chunk_counts, (BASE_SCOPE,))
+        time.sleep(0.05)
+        release_query.set()
+
+        expected = {BASE_SCOPE.collection: 12}
+        assert first.result(timeout=1.0) == expected
+        assert second.result(timeout=1.0) == expected
+
+    assert state["connection_calls"] == 1
+
+
+def test_reviewed_chunk_counts_fail_closed_when_review_invalidates_inflight_query(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Une décision de review interdit de publier ou partager le snapshot ancien."""
+    endpoint, query_started, release_query, state = (
+        _install_blocking_reviewed_counts_db(monkeypatch)
+    )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        first = executor.submit(endpoint._get_reviewed_chunk_counts, (BASE_SCOPE,))
+        assert query_started.wait(timeout=1.0)
+        second = executor.submit(endpoint._get_reviewed_chunk_counts, (BASE_SCOPE,))
+        endpoint.invalidate_cache()
+        release_query.set()
+
+        for future in (first, second):
+            with pytest.raises(HTTPException) as exc_info:
+                future.result(timeout=1.0)
+            assert exc_info.value.status_code == 503
+
+    assert endpoint._get_reviewed_chunk_counts((BASE_SCOPE,)) == {
+        BASE_SCOPE.collection: 12,
+    }
+    assert state["connection_calls"] == 2
+
+
+def test_cold_model_loads_reuse_startup_paths_and_are_serialized(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from ingestor import retrieval_v2_endpoint as endpoint
+
+    embedding_root = (tmp_path / "embedding").resolve()
+    reranker_root = (tmp_path / "reranker").resolve()
+    embedding_root.mkdir()
+    reranker_root.mkdir()
+    calls: list[tuple[str, Path | None]] = []
+    embedding_model = object()
+    reranker_model = object()
+
+    def load_embedding_model(*, verified_artifact_root: Path | None = None) -> object:
+        calls.append(("embedding", verified_artifact_root))
+        time.sleep(0.01)
+        return embedding_model
+
+    def load_reranker_model(*, verified_artifact_root: Path | None = None) -> object:
+        calls.append(("reranker", verified_artifact_root))
+        time.sleep(0.01)
+        return reranker_model
+
+    monkeypatch.setattr(endpoint, "load_embedding_model", load_embedding_model)
+    monkeypatch.setattr(endpoint, "load_reranker_model", load_reranker_model)
+    endpoint.reset_runtime_model_state()
+    endpoint.configure_verified_model_artifacts(
+        embedding_root=embedding_root,
+        reranker_root=reranker_root,
+    )
+    try:
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            embeddings = list(executor.map(lambda _index: endpoint._get_embed_model(), range(8)))
+            rerankers = list(executor.map(lambda _index: endpoint._get_reranker(), range(8)))
+    finally:
+        endpoint.reset_runtime_model_state()
+
+    assert embeddings == [embedding_model] * 8
+    assert rerankers == [reranker_model] * 8
+    assert calls == [
+        ("embedding", embedding_root),
+        ("reranker", reranker_root),
+    ]
+
+
+def test_preload_runtime_models_rejects_wrong_embedding_dimension(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ingestor import retrieval_v2_endpoint as endpoint
+    from ingestor.embedding_contract import EmbeddingContractError
+
+    embedder = SimpleNamespace(get_sentence_embedding_dimension=lambda: 768)
+    reranker_loaded = False
+
+    def load_reranker() -> object:
+        nonlocal reranker_loaded
+        reranker_loaded = True
+        return object()
+
+    monkeypatch.setattr(endpoint, "_get_embed_model", lambda: embedder)
+    monkeypatch.setattr(endpoint, "_get_reranker", load_reranker)
+
+    with pytest.raises(EmbeddingContractError, match="EMBEDDING_RUNTIME_DIMENSION_MISMATCH"):
+        endpoint.preload_runtime_models()
+
+    assert reranker_loaded is False
 
 
 def _mock_retrieval_identity(endpoint: object, monkeypatch: pytest.MonkeyPatch) -> None:
+    verified = SimpleNamespace(
+        artifact=SimpleNamespace(
+            subjects=(
+                SimpleNamespace(
+                    matiere="nsi",
+                    collection="rag_nexus_nsi_terminale_specialite",
+                ),
+            ),
+        ),
+    )
     monkeypatch.setattr(
         endpoint,
         "_require_retrieval_identity",
-        lambda _request, *, endpoint: SimpleNamespace(endpoint=endpoint),
+        lambda _request, *, endpoint: verified,
+    )
+    monkeypatch.setattr(
+        endpoint,
+        "effective_signed_collections",
+        lambda _verified: ("rag_nexus_nsi_terminale_specialite",),
     )
     monkeypatch.setattr(
         endpoint,
@@ -281,34 +528,39 @@ class TestListRetrievable:
 
 
 class TestSearchV2Request:
-    """Pydantic validation for SearchV2Request."""
+    """La frontière HTTP utilise le contrat Nexus partagé."""
+
+    def test_route_uses_versioned_retrieval_contract(self) -> None:
+        from ingestor import retrieval_v2_endpoint as endpoint
+
+        route = next(route for route in endpoint.router.routes if route.path == "/search/v2")
+
+        assert route.body_field is not None
+        assert route.body_field.type_ is RetrievalRequest
+        assert route.response_model is RetrievalResponse
 
     def test_valid_request(self) -> None:
-        req = SearchV2Request(
-            q="arbre binaire", collection="rag_nexus_nsi_terminale_specialite", k=5
-        )
-        assert req.q == "arbre binaire"
-        assert req.k == 5
+        req = RetrievalRequest.model_validate(_retrieval_payload())
+        assert req.need.query == "arbre binaire"
+        assert req.retrieval.k == 5
 
     def test_empty_query_rejected(self) -> None:
         with pytest.raises(ValueError):
-            SearchV2Request(q="", collection="test")
+            RetrievalRequest.model_validate(_retrieval_payload(query=""))
 
     def test_k_bounds(self) -> None:
         with pytest.raises(ValueError):
-            SearchV2Request(q="test", collection="test", k=0)
+            RetrievalRequest.model_validate(_retrieval_payload(k=0))
         with pytest.raises(ValueError):
-            SearchV2Request(q="test", collection="test", k=51)
+            RetrievalRequest.model_validate(_retrieval_payload(k=51))
 
 
 class TestResponseFormat:
-    """Verify SearchV2Response has answer_generation_allowed=false."""
+    """Vérifier la réponse contractuelle et les diagnostics internes."""
 
-    def test_answer_generation_always_false(self) -> None:
-        from ingestor.retrieval_v2_endpoint import SearchV2Response
-
-        resp = SearchV2Response(query="test", collection="test", seuil=1.90, returned=0, hits=[])
-        assert resp.answer_generation_allowed is False
+    def test_retrieval_response_contains_no_generated_answer(self) -> None:
+        resp = RetrievalResponse(results=[], warnings=[], filters_applied={})
+        assert "answer" not in resp.model_dump()
 
     def test_hit_exposes_review_status(self) -> None:
         """SCALE-04: review_status in each hit for agent layer."""
@@ -357,7 +609,8 @@ class TestResponseFormat:
             / "search"
             / "route.ts"
         ).read_text(encoding="utf-8")
-        assert "hit.dense_sim" in cockpit_route
+        assert "validateRetrievalResponse(result.payload)" in cockpit_route
+        assert "hit.dense_sim" not in cockpit_route
 
         with pytest.raises(ValidationError):
             SearchV2Hit(
@@ -430,10 +683,12 @@ class TestResponseFormat:
             "type_doc": "programme",
             "review_status": "reviewed",
             "dense_score": None,
+            "dense_sim": None,
             "lexical_score": 0.42,
             "rrf_score": 0.004918,
             "rerank_score": 2.75,
             "mmr_score": 0.612,
+            "score_final": 0.884,
         }
 
     def test_mapping_refuses_blank_provenance_and_preview(self) -> None:
@@ -474,7 +729,7 @@ class TestResponseFormat:
         source = inspect.getsource(endpoint)
         assert 'os.environ.get("RERANK_SCORE_THRESHOLD"' not in source
         assert 'os.environ.get("RERANK_CANDIDATES"' not in source
-        assert "seuil=RERANK_THRESHOLD" in inspect.getsource(endpoint.search_v2)
+        assert "response_model=RetrievalResponse" in inspect.getsource(endpoint)
 
 
 class TestLaunchReadiness:
@@ -586,6 +841,39 @@ class TestLaunchReadiness:
 
 
 class TestHybridSearchDelegation:
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [
+            ("notions", ["récursivité"]),
+            ("desired_doc_types", ["cours"]),
+            ("difficulty_max", 3),
+        ],
+    )
+    def test_search_rejects_unsupported_need_filters_before_retrieval(
+        self,
+        field: str,
+        value: object,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        endpoint, client = _api_client(monkeypatch)
+        monkeypatch.setattr(endpoint, "_check_retrievable", lambda *_args: {})
+        retrieve = MagicMock(return_value=[_hybrid_hit()])
+        monkeypatch.setattr(endpoint, "_retrieve_hybrid_hits", retrieve, raising=False)
+        payload = _retrieval_payload()
+        need = payload["need"]
+        assert isinstance(need, dict)
+        need[field] = value
+
+        response = client.post(
+            "/search/v2",
+            headers={"Authorization": "Bearer student-token"},
+            json=payload,
+        )
+
+        assert response.status_code == 422
+        assert response.json() == {"detail": "Unsupported retrieval filters"}
+        retrieve.assert_not_called()
+
     def test_search_delegates_raw_parameters_after_gate_and_ignores_cache(
         self,
         monkeypatch: pytest.MonkeyPatch,
@@ -610,22 +898,12 @@ class TestHybridSearchDelegation:
         monkeypatch.setattr(endpoint, "_check_retrievable", check)
         monkeypatch.setattr(endpoint, "_retrieve_hybrid_hits", retrieve, raising=False)
         assert "_cache" not in inspect.getsource(endpoint.search_v2)
-        monkeypatch.setattr(
-            endpoint.psycopg,
-            "connect",
-            lambda *_args, **_kwargs: (_ for _ in ()).throw(
-                AssertionError("direct retrieval connection")
-            ),
-        )
+        assert not hasattr(endpoint, "psycopg")
 
         response = client.post(
             "/search/v2",
             headers={"Authorization": "Bearer student-token"},
-            json={
-                "q": "  requête brute ?  ",
-                "collection": "rag_nexus_nsi_terminale_specialite",
-                "k": 4,
-            },
+            json=_retrieval_payload(query="  requête brute ?  ", k=4),
         )
 
         assert response.status_code == 200
@@ -638,14 +916,12 @@ class TestHybridSearchDelegation:
                 4,
             ),
         ]
-        assert response.json() == {
-            "query": "  requête brute ?  ",
-            "collection": "rag_nexus_nsi_terminale_specialite",
-            "seuil": 1.9,
-            "returned": 1,
-            "answer_generation_allowed": False,
-            "hits": [endpoint._to_search_hit(_hybrid_hit()).model_dump()],
-        }
+        body = response.json()
+        assert [item["chunk_id"] for item in body["results"]] == ["chunk-1"]
+        assert body["results"][0]["citation"]["source_label"] == "Programme NSI"
+        assert body["filters_applied"]["collection"] == (
+            "rag_nexus_nsi_terminale_specialite"
+        )
 
     def test_search_empty_hybrid_result_is_success(
         self,
@@ -658,16 +934,11 @@ class TestHybridSearchDelegation:
         response = client.post(
             "/search/v2",
             headers={"Authorization": "Bearer student-token"},
-            json={
-                "q": "aucun résultat",
-                "collection": "rag_nexus_nsi_terminale_specialite",
-                "k": 5,
-            },
+            json=_retrieval_payload(query="aucun résultat", k=5),
         )
 
         assert response.status_code == 200
-        assert response.json()["hits"] == []
-        assert response.json()["returned"] == 0
+        assert response.json()["results"] == []
 
     @pytest.mark.parametrize(
         "stage",
@@ -688,11 +959,7 @@ class TestHybridSearchDelegation:
         response = client.post(
             "/search/v2",
             headers={"Authorization": "Bearer student-token"},
-            json={
-                "q": "texte très secret",
-                "collection": "rag_nexus_nsi_terminale_specialite",
-                "k": 5,
-            },
+            json=_retrieval_payload(query="texte très secret", k=5),
         )
 
         assert response.status_code == 503
@@ -712,7 +979,10 @@ class TestHybridSearchDelegation:
         factory = getattr(endpoint, "_retrieve_hybrid_hits", None)
         assert callable(factory)
 
-        settings = object()
+        settings = SimpleNamespace(
+            database_budget_ms=6_000,
+            statement_timeout_ms=3_000,
+        )
         connection = object()
         embedder = object()
         reranker = object()
@@ -724,9 +994,10 @@ class TestHybridSearchDelegation:
             yield connection
 
         class Store:
-            def __init__(self, provider, scope) -> None:
+            def __init__(self, provider, scope, *, statement_timeout_ms) -> None:
                 self.provider = provider
                 self.scope = scope
+                self.statement_timeout_ms = statement_timeout_ms
 
         def retrieve(query, collection, top_k, *, store, embedder, reranker):
             captured.update(
@@ -758,16 +1029,21 @@ class TestHybridSearchDelegation:
         result = factory("question brute", "collection", 3, BASE_SCOPE)
 
         assert result == [_hybrid_hit()]
+        bounded_embedder = captured.pop("embedder")
+        bounded_reranker = captured.pop("reranker")
+        assert isinstance(bounded_embedder, endpoint.BoundedInferenceEmbedder)
+        assert isinstance(bounded_reranker, endpoint.BoundedInferenceReranker)
+        assert bounded_embedder._model is embedder
+        assert bounded_reranker._model is reranker
         assert captured == {
             "query": "question brute",
             "collection": "collection",
             "top_k": 3,
             "store": captured["store"],
-            "embedder": embedder,
-            "reranker": reranker,
             "pool_settings": settings,
             "connection": connection,
         }
+        assert captured["store"].statement_timeout_ms == 3_000
 
     def test_search_sanitizes_failure_through_real_core_and_pg_store(
         self,
@@ -805,7 +1081,12 @@ class TestHybridSearchDelegation:
         monkeypatch.setattr(
             endpoint,
             "PoolSettings",
-            SimpleNamespace(from_env=lambda: object()),
+            SimpleNamespace(
+                from_env=lambda: SimpleNamespace(
+                    database_budget_ms=6_000,
+                    statement_timeout_ms=3_000,
+                )
+            ),
         )
         monkeypatch.setattr(endpoint, "pool_connection", connection_provider)
         monkeypatch.setattr(endpoint, "_get_embed_model", lambda: Embedder())
@@ -814,21 +1095,21 @@ class TestHybridSearchDelegation:
         response = client.post(
             "/search/v2",
             headers={"Authorization": "Bearer student-token"},
-            json={
-                "q": "requête extrêmement sensible",
-                "collection": "rag_nexus_nsi_terminale_specialite",
-                "k": 5,
-            },
+            json=_retrieval_payload(query="requête extrêmement sensible", k=5),
         )
 
         assert response.status_code == 503
         assert response.json() == {"detail": "retrieval unavailable"}
-        assert len(executed_sql) == 3
-        assert "SELECT %s::vector IS NOT NULL" in executed_sql[0]
-        assert executed_sql[1].strip() == ("SET LOCAL hnsw.iterative_scan = 'strict_order'")
-        assert "WITH hnsw_candidates AS MATERIALIZED" in executed_sql[2]
-        assert executed_sql[2].count("FROM rag_chunks") == 1
-        assert "ranked_pool.chunk_id ASC" in executed_sql[2]
+        assert len(executed_sql) == 6
+        assert executed_sql[0::2] == [
+            "SELECT set_config('statement_timeout', %s, true)",
+        ] * 3
+        assert "SELECT %s::vector IS NOT NULL" in executed_sql[1]
+        assert executed_sql[3].strip() == ("SET LOCAL hnsw.iterative_scan = 'strict_order'")
+        assert "WITH hnsw_candidates AS MATERIALIZED" in executed_sql[5]
+        assert executed_sql[5].count("FROM public.rag_chunks") == 1
+        assert "FROM rag_chunks" not in executed_sql[5]
+        assert "ranked_pool.chunk_id ASC" in executed_sql[5]
         assert "SENSITIVE_DSN_SENTINEL" not in response.text
         assert "SENSITIVE_QUERY_SENTINEL" not in response.text
         assert "requête extrêmement sensible" not in response.text
@@ -1028,8 +1309,11 @@ class TestCacheGateInvariant:
     change and advances a generation barrier before any warmup publication.
     """
 
-    def test_gate_before_cache(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Quarantine is refused by the gate BEFORE cache is even checked."""
+    def test_legacy_search_payload_is_rejected_before_cache(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """L'ancien DTO local ne traverse plus la frontière contractuelle."""
         import os
 
         from fastapi import FastAPI
@@ -1060,7 +1344,7 @@ class TestCacheGateInvariant:
             },
             headers=h,
         )
-        assert resp.status_code == 403, "Gate must refuse quarantine even with cache populated"
+        assert resp.status_code == 422
 
     def test_invalidation_purges_cache(self) -> None:
         """invalidate_cache() removes all entries."""
