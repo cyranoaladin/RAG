@@ -31,7 +31,15 @@ try:
         attest_verified_model_artifact,
         model_artifact_attestation_ready,
     )
-    from .pg_pool import PoolSettings, close_pool, get_pool
+    from .pg_pool import (
+        PoolConfigurationError,
+        PoolSettings,
+        close_pool,
+        current_runtime_request_deadline,
+        get_pool,
+        remaining_request_budget_ms,
+        runtime_request_budget,
+    )
     from .readiness_db import (
         READINESS_AGGREGATE_BUDGET_MS,
         postgres_database_authorities_share_instance,
@@ -69,7 +77,15 @@ except (ImportError, ValueError):
         attest_verified_model_artifact,
         model_artifact_attestation_ready,
     )
-    from pg_pool import PoolSettings, close_pool, get_pool  # type: ignore[no-redef]
+    from pg_pool import (  # type: ignore[no-redef]
+        PoolConfigurationError,
+        PoolSettings,
+        close_pool,
+        current_runtime_request_deadline,
+        get_pool,
+        remaining_request_budget_ms,
+        runtime_request_budget,
+    )
     from readiness_db import (  # type: ignore[no-redef]
         READINESS_AGGREGATE_BUDGET_MS,
         postgres_database_authorities_share_instance,
@@ -183,7 +199,7 @@ def _probe_database_readiness(
     review_dsn: str,
 ) -> tuple[int, bool, bool, bool, bool]:
     """Exécuter une unique sonde profonde des deux autorités PostgreSQL."""
-    with readiness_database_budget():
+    with readiness_database_budget(current_runtime_request_deadline()):
         same_database = postgres_database_authorities_share_instance(
             rag_dsn,
             review_dsn,
@@ -203,7 +219,14 @@ def _cached_database_readiness(
 ) -> tuple[int, bool, bool, bool, bool]:
     """Coalescer les rafales de probes et borner leur travail PostgreSQL."""
     global _database_readiness_cache
-    if not _database_readiness_cache_lock.acquire(timeout=_READINESS_LOCK_TIMEOUT_S):
+    request_deadline = current_runtime_request_deadline()
+    lock_timeout_s = _READINESS_LOCK_TIMEOUT_S
+    if request_deadline is not None:
+        remaining_s = request_deadline - time.monotonic()
+        if remaining_s <= 0:
+            raise RuntimeError("database readiness unavailable")
+        lock_timeout_s = min(lock_timeout_s, remaining_s)
+    if not _database_readiness_cache_lock.acquire(timeout=lock_timeout_s):
         raise RuntimeError("database readiness unavailable")
     try:
         now = time.monotonic()
@@ -326,9 +349,20 @@ async def _metrics_middleware(request: Request, call_next):
                     headers=exc.headers,
                 )
             else:
-                if await run_in_threadpool(_database_runtime_ready):
-                    response = await call_next(request)
-                else:
+                try:
+                    with runtime_request_budget():
+                        database_ready = await run_in_threadpool(
+                            _database_runtime_ready
+                        )
+                        if database_ready:
+                            remaining_request_budget_ms()
+                            response = await call_next(request)
+                        else:
+                            response = JSONResponse(
+                                content={"detail": "service unavailable"},
+                                status_code=503,
+                            )
+                except PoolConfigurationError:
                     response = JSONResponse(
                         content={"detail": "service unavailable"},
                         status_code=503,

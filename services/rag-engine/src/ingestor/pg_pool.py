@@ -99,6 +99,11 @@ def remaining_database_budget_ms() -> int:
     return min(remaining_ms, MAX_RUNTIME_DATABASE_BUDGET_MS)
 
 
+def current_runtime_request_deadline() -> float | None:
+    """Exposer la deadline monotone active sans en créer une nouvelle."""
+    return _database_deadline.get()
+
+
 # Noms explicites utilisés par le retrieval. Les alias historiques restent
 # l'API des primitives SQL et de review, mais partagent exactement le même
 # ContextVar et donc une seule deadline monotone de bout en bout.

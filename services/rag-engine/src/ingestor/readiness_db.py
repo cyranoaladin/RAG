@@ -28,13 +28,23 @@ _readiness_deadline: ContextVar[float | None] = ContextVar(
 
 
 @contextmanager
-def readiness_database_budget() -> Iterator[float]:
-    """Partager une deadline unique, plus courte que le healthcheck Compose."""
+def readiness_database_budget(
+    outer_deadline: float | None = None,
+) -> Iterator[float]:
+    """Partager une deadline sans dépasser celle de la requête appelante."""
     existing = _readiness_deadline.get()
-    if existing is not None:
-        yield existing
+    now = time.monotonic()
+    readiness_deadline = now + (READINESS_AGGREGATE_BUDGET_MS / 1000.0)
+    deadline = min(
+        candidate
+        for candidate in (readiness_deadline, outer_deadline, existing)
+        if candidate is not None
+    )
+    if deadline <= now:
+        raise RuntimeError("database readiness budget exhausted")
+    if existing == deadline:
+        yield deadline
         return
-    deadline = time.monotonic() + (READINESS_AGGREGATE_BUDGET_MS / 1000.0)
     token: Token[float | None] = _readiness_deadline.set(deadline)
     try:
         yield deadline

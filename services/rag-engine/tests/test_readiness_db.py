@@ -178,6 +178,22 @@ def test_shared_readiness_budget_shrinks_every_database_timeout(
     )
 
 
+def test_nested_readiness_budget_never_extends_an_outer_request_deadline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = [100.0]
+    monkeypatch.setattr(readiness_db.time, "monotonic", lambda: now[0])
+
+    with readiness_db.readiness_database_budget() as probe_deadline:
+        assert probe_deadline == 107.0
+        with readiness_db.readiness_database_budget(102.0) as request_deadline:
+            assert request_deadline == 102.0
+            now[0] = 101.5
+            assert readiness_db.remaining_readiness_budget_ms() == 500
+
+        assert readiness_db.remaining_readiness_budget_ms() == 5500
+
+
 @pytest.mark.parametrize(
     ("review_acquires_challenge", "expected"),
     ((False, True), (True, False)),

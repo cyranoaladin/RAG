@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import asyncio
 import shlex
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from fastapi import Request
+from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
-from src.ingestor import api_v2
+from src.ingestor import api_v2, pg_pool, readiness_db
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 ADR = REPOSITORY_ROOT / "docs" / "adr" / "ADR-0024-runtime-v2-lecture-revue-fail-closed.md"
@@ -426,9 +429,12 @@ def test_health_cache_ttl_starts_after_a_slow_probe(
 def test_deep_database_readiness_uses_one_budget_below_health_timeout(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    observed: list[str] = []
+    observed: list[object] = []
 
     class _Budget:
+        def __init__(self, outer_deadline: float | None) -> None:
+            observed.append(outer_deadline)
+
         def __enter__(self) -> None:
             observed.append("enter")
 
@@ -454,7 +460,7 @@ def test_deep_database_readiness_uses_one_budget_below_health_timeout(
         True,
         True,
     )
-    assert observed == ["enter", "exit"]
+    assert observed == [None, "enter", "exit"]
     assert api_v2.READINESS_AGGREGATE_BUDGET_MS < 10_000
     assert api_v2._READINESS_LOCK_TIMEOUT_S < 10.0
 
@@ -481,6 +487,72 @@ def test_health_follower_wait_is_bounded(
         api_v2._database_readiness_cache_lock = original_lock
 
     assert observed == [api_v2._READINESS_LOCK_TIMEOUT_S]
+
+
+def test_business_readiness_follower_wait_uses_the_request_remainder(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = [100.0]
+    observed: list[float] = []
+    monkeypatch.setattr(pg_pool.time, "monotonic", lambda: now[0])
+
+    class _BusyLock:
+        def acquire(self, *, timeout: float) -> bool:
+            observed.append(timeout)
+            return False
+
+        def release(self) -> None:
+            raise AssertionError("unacquired lock must not be released")
+
+    original_lock = api_v2._database_readiness_cache_lock
+    api_v2._database_readiness_cache_lock = _BusyLock()  # type: ignore[assignment]
+    try:
+        with pg_pool.runtime_request_budget(1_000):
+            with pytest.raises(RuntimeError, match="database readiness unavailable"):
+                api_v2._cached_database_readiness("reader", "reviewer")
+    finally:
+        api_v2._database_readiness_cache_lock = original_lock
+
+    assert observed == [1.0]
+
+
+def test_deep_readiness_inherits_the_runtime_request_deadline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = [100.0]
+    observed: list[int] = []
+    monkeypatch.setattr(pg_pool.time, "monotonic", lambda: now[0])
+
+    def ready(*_args: object) -> bool:
+        observed.append(readiness_db.remaining_readiness_budget_ms())
+        return True
+
+    monkeypatch.setattr(
+        api_v2,
+        "postgres_database_authorities_share_instance",
+        ready,
+    )
+    monkeypatch.setattr(
+        api_v2,
+        "pgvector_dimension",
+        lambda _dsn: observed.append(readiness_db.remaining_readiness_budget_ms())
+        or api_v2.CANONICAL_EMBED_DIM,
+    )
+    monkeypatch.setattr(api_v2, "schema_head_003_ready", ready)
+    monkeypatch.setattr(api_v2, "retrieval_database_ready", ready)
+    monkeypatch.setattr(api_v2, "review_database_ready", ready)
+
+    with pg_pool.runtime_request_budget(1_000) as request_deadline:
+        assert request_deadline == 101.0
+        assert api_v2._probe_database_readiness("reader", "reviewer") == (
+            api_v2.CANONICAL_EMBED_DIM,
+            True,
+            True,
+            True,
+            True,
+        )
+
+    assert observed == [1_000, 1_000, 1_000, 1_000, 1_000]
 
 
 @pytest.mark.parametrize(
@@ -606,6 +678,85 @@ def test_untrusted_business_request_does_not_trigger_database_readiness(
     response = TestClient(api_v2.app).get("/collections/v2")
 
     assert response.status_code == 401
+
+
+def _business_request(path: str = "/collections/v2") -> Request:
+    return Request(
+        {
+            "type": "http",
+            "asgi": {"version": "3.0", "spec_version": "2.3"},
+            "http_version": "1.1",
+            "method": "GET",
+            "scheme": "http",
+            "path": path,
+            "raw_path": path.encode("ascii"),
+            "query_string": b"",
+            "headers": [],
+            "client": ("127.0.0.1", 12345),
+            "server": ("testserver", 80),
+            "root_path": "",
+        }
+    )
+
+
+def test_business_readiness_and_route_share_one_runtime_deadline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = [100.0]
+    observed: dict[str, float | int | None] = {}
+    monkeypatch.setenv("PG_DATABASE_BUDGET_MS", "6000")
+    monkeypatch.setattr(pg_pool.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(api_v2, "require_bff_service", lambda *_args, **_kwargs: None)
+
+    def readiness() -> bool:
+        observed["readiness_deadline"] = pg_pool.current_runtime_request_deadline()
+        observed["readiness_remaining_ms"] = pg_pool.remaining_request_budget_ms()
+        now[0] += 5.5
+        return True
+
+    async def route(_request: Request) -> JSONResponse:
+        observed["route_deadline"] = pg_pool.current_runtime_request_deadline()
+        observed["route_remaining_ms"] = pg_pool.remaining_request_budget_ms()
+        return JSONResponse({"ok": True})
+
+    monkeypatch.setattr(api_v2, "_database_runtime_ready", readiness)
+
+    response = asyncio.run(api_v2._metrics_middleware(_business_request(), route))
+
+    assert response.status_code == 200
+    assert observed == {
+        "readiness_deadline": 106.0,
+        "readiness_remaining_ms": 6000,
+        "route_deadline": 106.0,
+        "route_remaining_ms": 500,
+    }
+    assert pg_pool.current_runtime_request_deadline() is None
+
+
+def test_business_route_does_not_start_after_readiness_exhausts_shared_deadline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = [100.0]
+    route_calls: list[bool] = []
+    monkeypatch.setenv("PG_DATABASE_BUDGET_MS", "6000")
+    monkeypatch.setattr(pg_pool.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(api_v2, "require_bff_service", lambda *_args, **_kwargs: None)
+
+    def readiness() -> bool:
+        now[0] += 6.001
+        return True
+
+    async def route(_request: Request) -> JSONResponse:
+        route_calls.append(True)
+        return JSONResponse({"ok": True})
+
+    monkeypatch.setattr(api_v2, "_database_runtime_ready", readiness)
+
+    response = asyncio.run(api_v2._metrics_middleware(_business_request(), route))
+
+    assert response.status_code == 503
+    assert response.body == b'{"detail":"service unavailable"}'
+    assert route_calls == []
 
 
 def test_model_artifacts_are_fully_hashed_at_startup_not_on_public_health(
