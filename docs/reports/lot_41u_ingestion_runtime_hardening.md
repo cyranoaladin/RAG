@@ -26,7 +26,7 @@ preuves opérationnelles externes doivent être obtenues. Aucun verrou
 | Date | 2026-08-03 |
 | Baseline `main` | `ea18ba52da5778f628c4943705dd81dfa43fbc15` |
 | Branche | `lot-41u-ingestion-runtime-hardening` |
-| Head applicatif audité avant ce commit documentaire | `d22d1f5472107f268baeba50f67c941cbdb828a2` |
+| Head applicatif audité avant ce commit documentaire | `9f7c9efcc0a3f668cff2905aa7627e896bd71d40` |
 | Plan de données | runtime FastAPI v2, PostgreSQL/pgvector, Compose, Nginx |
 | Contrats partagés | aucune évolution |
 | Verrous de gouvernance | aucun changement, 18/18 conformes |
@@ -1194,6 +1194,29 @@ complet conclut `LOT40_HYBRID_INTEGRATION=PASS`, incluant le nouveau cas
 d'index invalide. Le head documentaire créé après ces preuves doit encore
 recevoir la CI locale et GitHub exactes avant fusion.
 
+Le run GitHub exact du head documentaire
+`fa2b440280c014e3e5a8e31ed446c0a77a61115d`,
+[`30845313097`](https://github.com/cyranoaladin/RAG/actions/runs/30845313097),
+a ensuite réussi les six jobs racine ; GitGuardian et Cubic sont verts. Cubic
+a néanmoins ouvert deux remarques P3 valides dans les tests. Le commit
+`274eef4` déplace la restauration de l'espion `AbortSignal.timeout` dans le
+`afterEach`, afin qu'une assertion rouge ne contamine jamais la suite, et
+supprime une assertion `indisready` dupliquée. Les 8 tests Cockpit et 17 tests
+de readiness ciblés, ESLint et Ruff sont verts.
+
+La CI locale exhaustive relancée après ce correctif a confirmé tous les tests
+et contrôles fonctionnels, dont 1 757 tests `rag-pedago`, 178 tests Cockpit et
+`LOT40_HYBRID_INTEGRATION=PASS`, mais son audit npm a détecté un avis publié
+pendant l'exécution : `GHSA-7p8r-x3mc-p8w7` affectait la dépendance transitive
+`fast-uri@3.1.4`. La cible Cockpit a donc échoué et le résumé est resté
+fail-closed à **12 réussites, 1 échec**. Le commit `9f7c9ef` met à jour
+uniquement le verrou transitif vers `fast-uri@3.1.5`, version autorisée par la plage
+existante d'Ajv, sans ajouter de dépendance directe ni d'override. Après
+`npm ci` sous Node 22.23.1, `npm audit --audit-level=high` annonce zéro
+vulnérabilité ; ESLint, les 8 tests ciblés et le build Next.js sont verts. Le
+nouveau head documentaire reste soumis à une ultime CI locale puis aux checks
+GitHub exacts avant fusion.
+
 ## Éléments restant hors de ce lot
 
 Ces points ne sont pas masqués par les corrections runtime :
@@ -1286,6 +1309,8 @@ Ces points ne sont pas masqués par les corrections runtime :
 | `a8899e7` | attente d'inférence inter-requêtes bornée par la deadline |
 | `348202e` | budget Cockpit agrégé et signal d'abandon partagés |
 | `d22d1f5` | inventaire exact des index PostgreSQL invalides ou non prêts |
+| `274eef4` | nettoyage hermétique des tests et assertion SQL dédupliquée |
+| `9f7c9ef` | verrou transitif corrigé pour `fast-uri@3.1.5` |
 
 ## Décision de livraison
 
