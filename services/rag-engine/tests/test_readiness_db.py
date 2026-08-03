@@ -41,6 +41,37 @@ class _FakeConnection:
         return self._cursor
 
 
+def test_auxiliary_relation_predicate_uses_an_explicit_safe_allowlist() -> None:
+    sql = readiness_db.no_auxiliary_relation_privileges_sql(
+        (("public", "rag_chunks"), ("public", "rag_schema_migrations"))
+    )
+
+    normalized = sql.upper()
+    assert normalized.lstrip().startswith("NOT EXISTS")
+    assert "('PUBLIC', 'RAG_CHUNKS')" in normalized
+    assert "('PUBLIC', 'RAG_SCHEMA_MIGRATIONS')" in normalized
+    assert "HAS_TABLE_PRIVILEGE" in normalized
+    assert "HAS_ANY_COLUMN_PRIVILEGE" in normalized
+    assert "HAS_SEQUENCE_PRIVILEGE" in normalized
+    assert "MAINTAIN" not in normalized  # PostgreSQL 16 ne supporte pas ce droit.
+
+
+@pytest.mark.parametrize(
+    "allowlist",
+    (
+        (),
+        (("public", "rag_chunks"), ("public", "rag_chunks")),
+        (("public;drop schema public", "rag_chunks"),),
+        (("public", "rag-chunks"),),
+    ),
+)
+def test_auxiliary_relation_predicate_rejects_unsafe_allowlists(
+    allowlist: tuple[tuple[str, str], ...],
+) -> None:
+    with pytest.raises(ValueError, match="allowlist"):
+        readiness_db.no_auxiliary_relation_privileges_sql(allowlist)
+
+
 def test_postgres_database_identity_is_bounded_read_only_and_cluster_specific(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

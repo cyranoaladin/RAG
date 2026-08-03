@@ -2,12 +2,111 @@
 
 from __future__ import annotations
 
+import re
 from typing import Final
 
 import psycopg
 
 READINESS_CONNECT_TIMEOUT_S: Final = 3
 READINESS_STATEMENT_TIMEOUT_MS: Final = 3000
+RUNTIME_RELATION_ALLOWLIST: Final = (
+    ("public", "rag_chunks"),
+    ("public", "rag_schema_migrations"),
+)
+_SAFE_CATALOG_NAME = re.compile(r"[a-z_][a-z0-9_]*\Z")
+
+
+def no_auxiliary_relation_privileges_sql(
+    allowed_relations: tuple[tuple[str, str], ...],
+) -> str:
+    """Construire le prédicat PG16 interdisant les droits hors allowlist."""
+    if (
+        not allowed_relations
+        or len(set(allowed_relations)) != len(allowed_relations)
+        or any(
+            _SAFE_CATALOG_NAME.fullmatch(name) is None
+            for relation in allowed_relations
+            if len(relation) == 2
+            for name in relation
+        )
+        or any(len(relation) != 2 for relation in allowed_relations)
+    ):
+        raise ValueError("allowlist de relations PostgreSQL invalide")
+
+    allowed_sql = ", ".join(
+        f"('{schema}', '{relation}')" for schema, relation in allowed_relations
+    )
+    return f"""
+NOT EXISTS (
+    SELECT 1
+    FROM pg_class AS auxiliary_relation
+    JOIN pg_namespace AS auxiliary_namespace
+      ON auxiliary_namespace.oid = auxiliary_relation.relnamespace
+    WHERE auxiliary_namespace.nspname NOT IN (
+              'pg_catalog', 'information_schema'
+          )
+      AND auxiliary_namespace.nspname NOT LIKE 'pg_toast%'
+      AND auxiliary_namespace.nspname NOT LIKE 'pg_temp_%'
+      AND (
+          auxiliary_namespace.nspname,
+          auxiliary_relation.relname
+      ) NOT IN ({allowed_sql})
+      AND (
+          (
+              auxiliary_relation.relkind IN ('r', 'p', 'v', 'm', 'f')
+              AND (
+                  has_table_privilege(
+                      current_user, auxiliary_relation.oid, 'SELECT'
+                  )
+                  OR has_table_privilege(
+                      current_user, auxiliary_relation.oid, 'INSERT'
+                  )
+                  OR has_table_privilege(
+                      current_user, auxiliary_relation.oid, 'UPDATE'
+                  )
+                  OR has_table_privilege(
+                      current_user, auxiliary_relation.oid, 'DELETE'
+                  )
+                  OR has_table_privilege(
+                      current_user, auxiliary_relation.oid, 'TRUNCATE'
+                  )
+                  OR has_table_privilege(
+                      current_user, auxiliary_relation.oid, 'REFERENCES'
+                  )
+                  OR has_table_privilege(
+                      current_user, auxiliary_relation.oid, 'TRIGGER'
+                  )
+                  OR has_any_column_privilege(
+                      current_user, auxiliary_relation.oid, 'SELECT'
+                  )
+                  OR has_any_column_privilege(
+                      current_user, auxiliary_relation.oid, 'INSERT'
+                  )
+                  OR has_any_column_privilege(
+                      current_user, auxiliary_relation.oid, 'UPDATE'
+                  )
+                  OR has_any_column_privilege(
+                      current_user, auxiliary_relation.oid, 'REFERENCES'
+                  )
+              )
+          )
+          OR (
+              auxiliary_relation.relkind = 'S'
+              AND (
+                  has_sequence_privilege(
+                      current_user, auxiliary_relation.oid, 'USAGE'
+                  )
+                  OR has_sequence_privilege(
+                      current_user, auxiliary_relation.oid, 'SELECT'
+                  )
+                  OR has_sequence_privilege(
+                      current_user, auxiliary_relation.oid, 'UPDATE'
+                  )
+              )
+          )
+      )
+)
+""".strip()
 
 
 def readiness_connection_options() -> str:
@@ -45,6 +144,8 @@ def postgres_database_identity(dsn: str) -> tuple[str, str]:
 __all__ = [
     "READINESS_CONNECT_TIMEOUT_S",
     "READINESS_STATEMENT_TIMEOUT_MS",
+    "RUNTIME_RELATION_ALLOWLIST",
+    "no_auxiliary_relation_privileges_sql",
     "postgres_database_identity",
     "readiness_connection_options",
 ]

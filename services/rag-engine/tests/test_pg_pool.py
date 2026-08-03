@@ -207,6 +207,14 @@ def test_settings_accept_boundary_values() -> None:
     PoolSettings(
         dsn="postgresql://db.example/rag", min_size=1, max_size=50, timeout_s=0.001
     )
+    PoolSettings(
+        dsn="postgresql://db.example/rag",
+        min_size=1,
+        max_size=1,
+        timeout_s=1.0,
+        statement_timeout_ms=60_000,
+        lock_timeout_ms=60_000,
+    )
 
 
 def test_settings_repr_never_contains_dsn_or_password() -> None:
@@ -330,8 +338,8 @@ def _settings(*, dsn: str = "postgresql://db.example/rag") -> PoolSettings:
         min_size=2,
         max_size=8,
         timeout_s=1.25,
-        statement_timeout_ms=7_000,
-        lock_timeout_ms=1_000,
+        statement_timeout_ms=6_500,
+        lock_timeout_ms=750,
     )
 
 
@@ -377,7 +385,7 @@ def test_get_pool_constructs_opens_waits_then_reuses_singleton(
                 "kwargs": {
                     "options": (
                         "-c default_transaction_read_only=on "
-                        "-c statement_timeout=7000 -c lock_timeout=1000"
+                        "-c statement_timeout=6500 -c lock_timeout=750"
                     ),
                 },
             },
