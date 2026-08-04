@@ -349,6 +349,20 @@ class TrustedReviewDecisionTests(unittest.TestCase):
         self.assertFalse(incomplete.approved)
         self.assertEqual(incomplete.reason, "reviews_incomplete")
 
+    def test_untrusted_bot_review_is_valid_input_but_cannot_approve(self) -> None:
+        decision = self.evaluate(
+            reviews=[
+                approved_review(
+                    state="COMMENTED",
+                    body="",
+                    reviewer="chatgpt-codex-connector[bot]",
+                )
+            ]
+        )
+
+        self.assertFalse(decision.approved)
+        self.assertEqual(decision.reason, "current_head_approval_missing")
+
     def test_malformed_inputs_are_rejected_without_approval(self) -> None:
         cases = (
             {"number": 89},

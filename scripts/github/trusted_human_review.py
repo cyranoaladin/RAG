@@ -28,6 +28,9 @@ _CHALLENGE_KEYS = {
 }
 _SHA_PATTERN = re.compile(r"[0-9a-f]{40}\Z")
 _LOGIN_PATTERN = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?\Z")
+_BOT_LOGIN_PATTERN = re.compile(
+    r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,93}[A-Za-z0-9])?\[bot\]\Z"
+)
 _TIMESTAMP_PATTERN = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\Z")
 _REVIEW_STATES = {
     "APPROVED",
@@ -95,6 +98,15 @@ def _require_literal(value: object, expected: str, label: str) -> str:
 def _require_login(value: object, label: str) -> str:
     if not isinstance(value, str) or _LOGIN_PATTERN.fullmatch(value) is None:
         raise TypeError(f"{label} must be a valid non-empty GitHub login")
+    return value
+
+
+def _require_actor_login(value: object, label: str) -> str:
+    if not isinstance(value, str) or (
+        _LOGIN_PATTERN.fullmatch(value) is None
+        and _BOT_LOGIN_PATTERN.fullmatch(value) is None
+    ):
+        raise TypeError(f"{label} must be a valid non-empty GitHub actor login")
     return value
 
 
@@ -250,7 +262,7 @@ def _validated_reviews(value: object) -> list[dict[str, object]]:
         if _TIMESTAMP_PATTERN.fullmatch(submitted_at) is None:
             raise ValueError(f"reviews[{index}].submitted_at must be canonical UTC")
         user = _require_mapping(review.get("user"), f"reviews[{index}].user")
-        reviewer = _require_login(
+        reviewer = _require_actor_login(
             user.get("login"), f"reviews[{index}].user.login"
         )
         normalized.append(

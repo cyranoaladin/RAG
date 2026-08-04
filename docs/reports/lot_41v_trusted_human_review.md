@@ -90,17 +90,19 @@ dernier push. Aucun bypass n'est admis.
 | --- | --- | --- |
 | Politique et Code Owner | quatre échecs et trois erreurs sur la politique historique et l'absence de CODEOWNERS | politique stricte et CODEOWNERS validés |
 | Challenge canonique | fonctions et configuration absentes | 5 tests canoniques verts, ensuite intégrés à la suite pure |
-| Décision pure | approbation exacte, révocation, fork et permissions non traités | 13 tests verts |
+| Décision pure | approbation exacte, révocation, fork, bots et permissions non traités | 14 tests verts |
 | Adaptateur GitHub | module absent | 9 tests verts |
 | Workflow privilégié | fichier absent | 6 tests verts |
 | Câblage CI | trois commandes absentes des deux CI | topologie verte et 51 mutants failsafe verts |
 | Origine des checks | politique aveugle à `app_id` | 34 tests de protection verts et sept checks liés à l'application `15368` |
-| Permission GitHub live | les fixtures historiques utilisaient `permission=push`, alors que l'API expose `permission=write` pour le rôle `write` | noyau et adaptateur alignés, 13 + 9 tests verts et décision live ramenée à la seule approbation manquante |
+| Permission GitHub live | les fixtures historiques utilisaient `permission=push`, alors que l'API expose `permission=write` pour le rôle `write` | noyau et adaptateur alignés, 14 + 9 tests verts |
+| Review de bot live | le login réel `chatgpt-codex-connector[bot]` arrêtait l'évaluation avant le filtrage de l'allowlist | acteur bot strictement parsé mais non autorisable, puis décision live ramenée à la seule approbation manquante |
 
 Les cas couvrent notamment l'auto-review, la permission insuffisante, l'ancien
 head, le mauvais challenge, la révocation, le fork, les pages incomplètes, la
-course de SHA, le timeout, le commentaire usurpé, les permissions du workflow,
-l'absence de checkout du head et l'absence de contexte de job homonyme.
+course de SHA, le timeout, le commentaire usurpé, une review de bot non
+autorisé, les permissions du workflow, l'absence de checkout du head et
+l'absence de contexte de job homonyme.
 
 ## État GitHub observé avant livraison
 
@@ -114,9 +116,13 @@ La première évaluation de la PR publiée a échoué fermé avec
 `reviewer_permission_insufficient` parce que les fixtures modélisaient la
 permission REST historique `push`. Un cycle RED → GREEN a aligné le noyau sur
 les valeurs GitHub actuelles `write`/`admin`, tout en conservant le contrôle
-séparé de `role_name` (`write`, `maintain` ou `admin`). Le même readback sur le
-head publié rend ensuite `current_head_approval_missing` : la permission est
-établie et seule la décision humaine personnelle reste absente.
+séparé de `role_name` (`write`, `maintain` ou `admin`). Le readback suivant a
+révélé que la review `COMMENTED` de `chatgpt-codex-connector[bot]` était rejetée
+avant filtrage. Un second cycle RED → GREEN accepte la forme bornée d'un acteur
+GitHub App pour lire toutes les reviews, sans permettre à un bot d'entrer dans
+l'allowlist humaine. Le readback rend alors `current_head_approval_missing` :
+la permission est établie et seule la décision humaine personnelle reste
+absente.
 
 La protection live reste volontairement celle de la transition : six checks
 CI, historique strict, administrateurs inclus, conversations résolues, zéro
