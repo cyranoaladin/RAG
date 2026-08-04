@@ -440,4 +440,173 @@ if ! validate_hybrid_integration_step "$REPO_ROOT/.github/workflows/ci.yml"; the
     exit 1
 fi
 
+validate_trusted_review_test_wiring() {
+    local workflow_file="$1"
+    local ci_local_file="$2"
+    local yaml_python
+
+    yaml_python="$(find_yaml_python)"
+    "$yaml_python" - "$workflow_file" "$ci_local_file" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+import yaml
+
+workflow_path = Path(sys.argv[1])
+ci_local_path = Path(sys.argv[2])
+document = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+jobs = document.get("jobs") if isinstance(document, dict) else None
+controls = jobs.get("repository-controls") if isinstance(jobs, dict) else None
+steps = controls.get("steps") if isinstance(controls, dict) else None
+if not isinstance(steps, list):
+    raise SystemExit("repository-controls.steps absent")
+
+required = (
+    "python scripts/tests/test-trusted-human-review.py",
+    "python scripts/tests/test-trusted-human-review-github.py",
+    "python scripts/tests/test-trusted-human-review-workflow.py",
+)
+local_runners = {
+    "scripts/tests/test-trusted-human-review.py": '"$PYTHON_BIN"',
+    "scripts/tests/test-trusted-human-review-github.py": '"$PYTHON_BIN"',
+    "scripts/tests/test-trusted-human-review-workflow.py": (
+        '"$REPO_ROOT/services/rag-pedago/.venv/bin/python"'
+    ),
+}
+commands = [
+    step.get("run")
+    for step in steps
+    if isinstance(step, dict) and isinstance(step.get("run"), str)
+]
+all_commands = [
+    step.get("run")
+    for job in jobs.values()
+    if isinstance(job, dict)
+    for step in job.get("steps", [])
+    if isinstance(step, dict) and isinstance(step.get("run"), str)
+]
+source = ci_local_path.read_text(encoding="utf-8")
+errors: list[str] = []
+for command in required:
+    if commands.count(command) != 1 or all_commands.count(command) != 1:
+        errors.append(f"commande GitHub absente ou dupliquée: {command}")
+    script = command.removeprefix("python ")
+    pattern = re.compile(
+        r'^run_target "trusted-human-review-[a-z-]+" '
+        + re.escape(local_runners[script] + " " + script)
+        + r"$",
+        re.MULTILINE,
+    )
+    if len(pattern.findall(source)) != 1:
+        errors.append(f"target CI local absent ou ambigu: {script}")
+
+if errors:
+    for error in errors:
+        print(f"- {error}", file=sys.stderr)
+    raise SystemExit(1)
+PY
+}
+
+probe_trusted_review_ci_execution() {
+    local source_file="$1"
+    local probe_root
+    local probe_python
+    local probe_status
+    local -a observed
+    local -a expected=(
+        "trusted-human-review-core-tests"
+        "trusted-human-review-github-tests"
+        "trusted-human-review-workflow-tests"
+    )
+
+    probe_root="$(mktemp -d "$TMP_ROOT/trusted-review-wiring.XXXXXX")"
+    mkdir -p "$probe_root/scripts/lib"
+    cp "$REPO_ROOT/scripts/lib/ci-common.sh" \
+        "$probe_root/scripts/lib/ci-common.sh"
+    printf '%s\n' '#!/usr/bin/env bash' 'printf "v22.22.0\n"' \
+        > "$probe_root/fake-node"
+    chmod +x "$probe_root/fake-node"
+    probe_python="$(
+        command -v python3.11 \
+            || command -v python3.12 \
+            || command -v python3
+    )"
+
+    if ! awk '
+        /^PYTHON_BIN=/ {
+            print "PYTHON_BIN=\"$NEXUS_CI_PROBE_PYTHON\""
+            next
+        }
+        /^NODE_BIN=/ {
+            print "NODE_BIN=\"$NEXUS_CI_PROBE_NODE\""
+            next
+        }
+        /^run_target\(\) \{/ {
+            print "run_target() {"
+            print "    case \"$1\" in"
+            print "        trusted-human-review-*)"
+            print "            printf \"%s\\n\" \"$1\" >> \"$NEXUS_CI_WIRING_LOG\" ;;"
+            print "    esac"
+            print "    return 0"
+            print "}"
+            skipping = 1
+            next
+        }
+        skipping && /^}$/ {
+            skipping = 0
+            next
+        }
+        !skipping { print }
+        END { if (skipping) exit 1 }
+    ' "$source_file" > "$probe_root/scripts/ci-local.sh"; then
+        return 1
+    fi
+    : > "$probe_root/wiring.log"
+
+    set +e
+    NEXUS_CI_PROBE_PYTHON="$probe_python" \
+        NEXUS_CI_PROBE_NODE="$probe_root/fake-node" \
+        NEXUS_CI_WIRING_LOG="$probe_root/wiring.log" \
+        bash "$probe_root/scripts/ci-local.sh" >/dev/null 2>&1
+    probe_status=$?
+    set -e
+    if [ "$probe_status" -ne 0 ]; then
+        return 1
+    fi
+
+    mapfile -t observed < "$probe_root/wiring.log"
+    [ "${observed[*]}" = "${expected[*]}" ]
+}
+
+if ! validate_trusted_review_test_wiring \
+    "$REPO_ROOT/.github/workflows/ci.yml" \
+    "$REPO_ROOT/scripts/ci-local.sh"; then
+    echo "FAIL: les tests LOT41V ne sont pas obligatoires dans les deux CI" >&2
+    exit 1
+fi
+
+if ! probe_trusted_review_ci_execution "$REPO_ROOT/scripts/ci-local.sh"; then
+    echo "FAIL: les trois tests LOT41V ne sont pas atteints par la CI locale" >&2
+    exit 1
+fi
+
+MUTATED_TRUSTED_WIRING="$TMP_ROOT/ci-local-trusted-after-exit.sh"
+awk '
+    /^run_target "trusted-human-review-/ {
+        delayed[++count] = $0
+        next
+    }
+    { print }
+    END {
+        for (item = 1; item <= count; item++) {
+            print delayed[item]
+        }
+    }
+' "$REPO_ROOT/scripts/ci-local.sh" > "$MUTATED_TRUSTED_WIRING"
+if probe_trusted_review_ci_execution "$MUTATED_TRUSTED_WIRING"; then
+    echo "FAIL: des tests LOT41V placés après exit 0 sont acceptés" >&2
+    exit 1
+fi
+
 echo "PASS: CI topology is acyclic and re-entry fails closed"

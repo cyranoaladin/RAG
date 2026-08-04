@@ -1,21 +1,40 @@
 {
   "required_status_checks": {
     "strict": true,
-    "contexts": [
-      "packages/contracts",
-      "services/rag-pedago",
-      "services/rag-engine",
-      "services/cockpit",
-      "governance locks guard",
-      "repository controls"
+    "contexts": [],
+    "checks": [
+      {
+        "context": "packages/contracts",
+        "app_id": 15368
+      },
+      {
+        "context": "services/rag-pedago",
+        "app_id": 15368
+      },
+      {
+        "context": "services/rag-engine",
+        "app_id": 15368
+      },
+      {
+        "context": "services/cockpit",
+        "app_id": 15368
+      },
+      {
+        "context": "governance locks guard",
+        "app_id": 15368
+      },
+      {
+        "context": "repository controls",
+        "app_id": 15368
+      }
     ]
   },
   "enforce_admins": true,
   "required_pull_request_reviews": {
-    "dismiss_stale_reviews": false,
-    "require_code_owner_reviews": false,
-    "required_approving_review_count": 0,
-    "require_last_push_approval": false
+    "dismiss_stale_reviews": true,
+    "require_code_owner_reviews": true,
+    "required_approving_review_count": 1,
+    "require_last_push_approval": true
   },
   "restrictions": null,
   "required_linear_history": true,
