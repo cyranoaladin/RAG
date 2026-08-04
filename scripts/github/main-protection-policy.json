@@ -26,10 +26,6 @@
       {
         "context": "repository controls",
         "app_id": 15368
-      },
-      {
-        "context": "trusted-human-review",
-        "app_id": 15368
       }
     ]
   },

@@ -363,6 +363,22 @@ class TrustedReviewDecisionTests(unittest.TestCase):
         self.assertFalse(decision.approved)
         self.assertEqual(decision.reason, "current_head_approval_missing")
 
+    def test_bot_authored_internal_pr_can_receive_independent_approval(self) -> None:
+        pull_request = valid_pull_request()
+        pull_request["user"] = {"login": "dependabot[bot]"}
+        config = trusted_review.load_config(CONFIG_PATH)
+        challenge = trusted_review.build_expected_challenges(
+            pull_request, config
+        )["abenrhouma"]
+
+        decision = self.evaluate(
+            pull_request=pull_request,
+            reviews=[approved_review(body=challenge)],
+        )
+
+        self.assertTrue(decision.approved)
+        self.assertEqual(decision.reviewer, "abenrhouma")
+
     def test_malformed_inputs_are_rejected_without_approval(self) -> None:
         cases = (
             {"number": 89},

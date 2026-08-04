@@ -1106,12 +1106,11 @@ WORKFLOW_CONTEXTS = (
     "governance locks guard",
     "repository controls",
 )
-EXTERNAL_CONTEXTS = ("trusted-human-review",)
 
 workflows_dir = Path(sys.argv[1])
 errors: list[str] = []
 context_locations: dict[str, list[Path]] = {
-    context: [] for context in WORKFLOW_CONTEXTS + EXTERNAL_CONTEXTS
+    context: [] for context in WORKFLOW_CONTEXTS
 }
 try:
     workflow_candidates = sorted(
@@ -1175,14 +1174,6 @@ for context in WORKFLOW_CONTEXTS:
             + ", ".join(outside_ci)
         )
 
-for context in EXTERNAL_CONTEXTS:
-    locations = context_locations[context]
-    if locations:
-        errors.append(
-            f"contexte externe {context!r} ne doit être le nom d'aucun job: "
-            + ", ".join(path.name for path in locations)
-        )
-
 if errors:
     print("provenance des contextes protégés invalide")
     for error in errors:
@@ -1211,7 +1202,7 @@ assert_protected_context_provenance() {
     if validation_output="$(
         validate_protected_context_provenance "$workflows_dir"
     )"; then
-        echo "  PASS  les contextes CI sont uniques et le contexte externe n'est pas usurpé"
+        echo "  PASS  les six contextes CI protégés sont uniques et bornés à ci.yml"
         TESTS_PASS=$((TESTS_PASS + 1))
     else
         echo "  FAIL  $validation_output"
@@ -1475,26 +1466,6 @@ assert_provenance_mutation_rejected \
     "un second workflow dupliquant packages/contracts est rejeté" \
     "$MUTATED_WORKFLOWS_DIR" \
     "contexte protégé 'packages/contracts' requis exactement une fois"
-
-EXTERNAL_CONTEXT_WORKFLOWS_DIR="$TMPDIR_CI/workflows-external-context"
-mkdir -p "$EXTERNAL_CONTEXT_WORKFLOWS_DIR"
-cp "$REPO_ROOT/.github/workflows/ci.yml" \
-    "$EXTERNAL_CONTEXT_WORKFLOWS_DIR/ci.yml"
-cat > "$EXTERNAL_CONTEXT_WORKFLOWS_DIR/trusted.yml" <<'YAML'
-name: Tentative d'usurpation du statut externe
-"on":
-  pull_request_target:
-jobs:
-  spoof:
-    name: trusted-human-review
-    runs-on: ubuntu-latest
-    steps:
-      - run: true
-YAML
-assert_provenance_mutation_rejected \
-    "le workflow privilégié ne peut usurper son statut avec un nom de job" \
-    "$EXTERNAL_CONTEXT_WORKFLOWS_DIR" \
-    "contexte externe 'trusted-human-review' ne doit être le nom d'aucun job"
 
 DYNAMIC_WORKFLOWS_DIR="$TMPDIR_CI/workflows-dynamic-context"
 mkdir -p "$DYNAMIC_WORKFLOWS_DIR"

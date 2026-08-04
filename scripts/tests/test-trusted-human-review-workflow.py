@@ -49,8 +49,6 @@ class TrustedHumanReviewWorkflowTests(unittest.TestCase):
             {
                 "contents": "read",
                 "pull-requests": "read",
-                "issues": "write",
-                "statuses": "write",
             },
         )
 
@@ -133,7 +131,9 @@ class TrustedHumanReviewWorkflowTests(unittest.TestCase):
         self.assertIn('[[ "$OBSERVED_BASE_REF" == "main" ]]', run)
         self.assertIn("PR hors main ignorée", run)
         self.assertIn('[[ "$EXPECTED_HEAD" =~ ^[0-9a-f]{40}$ ]]', run)
-        self.assertIn("--publish", run)
+        self.assertIn("--check", run)
+        self.assertNotIn("--publish", run)
+        self.assertNotIn("--target-url", run)
         self.assertIn('"$PR_NUMBER"', run)
         self.assertIn('"$EXPECTED_HEAD"', run)
 

@@ -80,7 +80,6 @@ class RecordingRunner:
         review_pages: dict[int, list[dict[str, object]]] | None = None,
         review_snapshots: list[list[dict[str, object]]] | None = None,
         permission_snapshots: list[dict[str, object]] | None = None,
-        comments: list[dict[str, object]] | None = None,
     ) -> None:
         self.pull_requests = list(
             pull_requests or [pull_request(), pull_request(), pull_request()]
@@ -88,10 +87,7 @@ class RecordingRunner:
         self.review_pages = review_pages or {1: [review()]}
         self.review_snapshots = list(review_snapshots or [])
         self.permission_snapshots = list(permission_snapshots or [])
-        self.comments = list(comments or [])
         self.calls: list[tuple[list[str], str | None]] = []
-        self.statuses: list[dict[str, object]] = []
-        self.comment_writes: list[tuple[str, dict[str, object]]] = []
 
     def __call__(
         self, argv: list[str], *, input_data: str | None = None
@@ -100,9 +96,6 @@ class RecordingRunner:
         if argv[:2] != ["gh", "api"]:
             raise AssertionError(f"Commande inattendue: {argv}")
 
-        method = "GET"
-        if "--method" in argv:
-            method = argv[argv.index("--method") + 1]
         endpoint = next(
             item
             for item in argv[2:]
@@ -131,27 +124,7 @@ class RecordingRunner:
                 "role_name": "write",
                 "user": {"login": "abenrhouma"},
             }
-        if endpoint == "repos/cyranoaladin/RAG/issues/89/comments?per_page=100&page=1":
-            return self.comments
-        if endpoint == f"repos/cyranoaladin/RAG/statuses/{HEAD_SHA}":
-            if method != "POST" or input_data is None:
-                raise AssertionError("écriture de statut mal formée")
-            payload = json.loads(input_data)
-            self.statuses.append(payload)
-            return payload
-        if endpoint == "repos/cyranoaladin/RAG/issues/89/comments":
-            if method != "POST" or input_data is None:
-                raise AssertionError("création de commentaire mal formée")
-            payload = json.loads(input_data)
-            self.comment_writes.append(("POST", payload))
-            return {"id": 501, **payload}
-        if endpoint.startswith("repos/cyranoaladin/RAG/issues/comments/"):
-            if method != "PATCH" or input_data is None:
-                raise AssertionError("mise à jour de commentaire mal formée")
-            payload = json.loads(input_data)
-            self.comment_writes.append(("PATCH", payload))
-            return payload
-        raise AssertionError(f"Endpoint inattendu: {method} {endpoint}")
+        raise AssertionError(f"Endpoint inattendu: {endpoint}")
 
 
 class GitHubReadbackTests(unittest.TestCase):
@@ -171,8 +144,6 @@ class GitHubReadbackTests(unittest.TestCase):
             result.challenges,
             {"abenrhouma": expected_challenge()},
         )
-        self.assertEqual(runner.statuses, [])
-        self.assertEqual(runner.comment_writes, [])
         self.assertTrue(
             all("--method" not in argv for argv, _ in runner.calls)
         )
@@ -282,140 +253,6 @@ class GitHubReadbackTests(unittest.TestCase):
         self.assertEqual(result.decision.reason, "reviewer_permission_insufficient")
 
 
-class GitHubPublicationTests(unittest.TestCase):
-    def test_untrusted_repository_is_rejected_before_any_mutation(self) -> None:
-        runner = RecordingRunner()
-
-        with self.assertRaisesRegex(
-            ValueError, "repository does not match trusted reviewer config"
-        ):
-            github_review.publish_github_review(
-                repository="someone/else",
-                pull_request_number=89,
-                expected_head=HEAD_SHA,
-                config_path=CONFIG_PATH,
-                target_url=None,
-                runner=runner,
-            )
-
-        self.assertEqual(runner.calls, [])
-        self.assertEqual(runner.statuses, [])
-
-    def test_publish_sets_pending_then_success_and_creates_comment(self) -> None:
-        runner = RecordingRunner()
-
-        result = github_review.publish_github_review(
-            repository="cyranoaladin/RAG",
-            pull_request_number=89,
-            expected_head=HEAD_SHA,
-            config_path=CONFIG_PATH,
-            target_url="https://github.com/cyranoaladin/RAG/actions/runs/1",
-            runner=runner,
-        )
-
-        self.assertTrue(result.decision.approved)
-        self.assertEqual(
-            [status["state"] for status in runner.statuses],
-            ["pending", "success"],
-        )
-        for status in runner.statuses:
-            self.assertEqual(status["context"], "trusted-human-review")
-            self.assertEqual(
-                status["target_url"],
-                "https://github.com/cyranoaladin/RAG/actions/runs/1",
-            )
-        self.assertEqual(len(runner.comment_writes), 1)
-        method, comment = runner.comment_writes[0]
-        self.assertEqual(method, "POST")
-        self.assertIn(github_review.COMMENT_MARKER, comment["body"])
-        self.assertIn(expected_challenge(), comment["body"])
-
-    def test_publish_race_sets_pending_then_failure(self) -> None:
-        runner = RecordingRunner(
-            pull_requests=[pull_request(), pull_request(head_sha="c" * 40)]
-        )
-
-        result = github_review.publish_github_review(
-            repository="cyranoaladin/RAG",
-            pull_request_number=89,
-            expected_head=HEAD_SHA,
-            config_path=CONFIG_PATH,
-            target_url=None,
-            runner=runner,
-        )
-
-        self.assertFalse(result.decision.approved)
-        self.assertEqual(result.decision.reason, "head_changed_during_evaluation")
-        self.assertEqual(
-            [status["state"] for status in runner.statuses],
-            ["pending", "failure"],
-        )
-
-    def test_initial_pull_request_read_failure_replaces_previous_success(self) -> None:
-        runner = RecordingRunner()
-
-        def fail_initial_read(
-            argv: list[str], *, input_data: str | None = None
-        ) -> object:
-            if (
-                "repos/cyranoaladin/RAG/pulls/89" in argv
-                and "--method" not in argv
-            ):
-                raise github_review.GitHubAdapterError("transient read failure")
-            return runner(argv, input_data=input_data)
-
-        with self.assertRaisesRegex(
-            github_review.GitHubAdapterError, "transient read failure"
-        ):
-            github_review.publish_github_review(
-                repository="cyranoaladin/RAG",
-                pull_request_number=89,
-                expected_head=HEAD_SHA,
-                config_path=CONFIG_PATH,
-                target_url=None,
-                runner=fail_initial_read,
-            )
-
-        self.assertEqual(
-            [status["state"] for status in runner.statuses],
-            ["pending", "failure"],
-        )
-
-    def test_existing_bot_comment_is_updated_not_duplicated(self) -> None:
-        runner = RecordingRunner(
-            comments=[
-                {
-                    "id": 77,
-                    "body": github_review.COMMENT_MARKER + "\nancien",
-                    "user": {"login": "github-actions[bot]"},
-                },
-                {
-                    "id": 78,
-                    "body": github_review.COMMENT_MARKER + "\nnon fiable",
-                    "user": {"login": "cyranoaladin"},
-                },
-            ]
-        )
-
-        github_review.publish_github_review(
-            repository="cyranoaladin/RAG",
-            pull_request_number=89,
-            expected_head=HEAD_SHA,
-            config_path=CONFIG_PATH,
-            target_url=None,
-            runner=runner,
-        )
-
-        self.assertEqual(len(runner.comment_writes), 1)
-        self.assertEqual(runner.comment_writes[0][0], "PATCH")
-        patch_call = next(
-            argv
-            for argv, _ in runner.calls
-            if "repos/cyranoaladin/RAG/issues/comments/77" in argv
-        )
-        self.assertIn("PATCH", patch_call)
-
-
 class CliTests(unittest.TestCase):
     def test_check_returns_three_until_approved_and_prints_json(self) -> None:
         runner = RecordingRunner(review_pages={1: []})
@@ -443,9 +280,33 @@ class CliTests(unittest.TestCase):
         self.assertFalse(payload["decision"]["approved"])
         self.assertEqual(payload["challenges"]["abenrhouma"], expected_challenge())
 
+    def test_publish_mode_is_not_exposed(self) -> None:
+        with redirect_stderr(StringIO()), self.assertRaises(SystemExit):
+            github_review._parser().parse_args(
+                [
+                    "--repository",
+                    "cyranoaladin/RAG",
+                    "--pull-request",
+                    "89",
+                    "--expected-head",
+                    HEAD_SHA,
+                    "--publish",
+                ]
+            )
+
     def test_run_gh_api_rejects_timeout_and_non_gh_commands(self) -> None:
         with self.assertRaises(ValueError):
             github_review.run_gh_api(["curl", "https://example.invalid"])
+        for mutation in (
+            ["--method", "POST"],
+            ["-X", "PATCH"],
+            ["--input", "-"],
+            ["-f", "state=success"],
+        ):
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                github_review.run_gh_api(
+                    ["gh", "api", "repos/cyranoaladin/RAG", *mutation]
+                )
 
         with mock.patch.object(
             github_review.subprocess,

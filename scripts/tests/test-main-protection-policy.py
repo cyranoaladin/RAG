@@ -32,7 +32,6 @@ CONTEXTS = [
     "services/cockpit",
     "governance locks guard",
     "repository controls",
-    "trusted-human-review",
 ]
 GITHUB_ACTIONS_APP_ID = 15368
 CHECKS = [

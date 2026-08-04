@@ -4,7 +4,7 @@
 
 **Goal:** Imposer et prouver une approbation GitHub indépendante sur le head exact d'une PR avant toute future autorisation LOT41A.
 
-**Architecture:** Un vérificateur Python pur calcule un challenge canonique et évalue les métadonnées GitHub. Un adaptateur GitHub séparé collecte les données et publie un statut, depuis un workflow privilégié présent uniquement sur `main` et n'exécutant jamais le code de la PR. La protection versionnée ajoute ce statut, une review Code Owner et l'approbation du dernier push après fusion du workflow.
+**Architecture:** Un vérificateur Python pur calcule un challenge canonique et évalue les métadonnées GitHub. Un adaptateur GitHub séparé collecte les données en lecture seule depuis un workflow présent uniquement sur `main` et n'exécutant jamais le code de la PR. La protection versionnée s'appuie sur la review Code Owner native et l'approbation du dernier push ; aucun statut Actions de review n'est une autorité de fusion.
 
 **Tech Stack:** Python 3.11+ standard library, GitHub Actions, `gh api`, JSON strict, `unittest`, Bash CI, CODEOWNERS.
 
@@ -49,7 +49,7 @@ gh api repos/cyranoaladin/RAG/collaborators/abenrhouma/permission \
   --jq '{user:.user.login,permission,role_name}'
 ```
 
-Expected: `permission=push` et `role_name=write`. Si une invitation reste en
+Expected: `permission=write` et `role_name=write`. Si une invitation reste en
 attente, arrêter avant toute activation de protection et demander à
 `abenrhouma` de l'accepter.
 
@@ -73,7 +73,6 @@ CONTEXTS = [
     "services/cockpit",
     "governance locks guard",
     "repository controls",
-    "trusted-human-review",
 ]
 
 "required_pull_request_reviews": {
@@ -90,9 +89,8 @@ Ajouter un test qui lit `.github/CODEOWNERS` et exige exactement :
 * @abenrhouma
 ```
 
-Dans le test fail-safe, distinguer les six contextes produits par `ci.yml` du
-contexte externe `trusted-human-review`; refuser qu'un job de PR puisse usurper
-ce dernier.
+Dans le test fail-safe, exiger que les six contextes produits par `ci.yml`
+restent uniques et absents des autres workflows.
 
 - [ ] **Step 2: Vérifier RED**
 
@@ -104,7 +102,7 @@ bash scripts/tests/test-ci-local-failsafe.sh
 ```
 
 Expected: échec sur les valeurs historiques `0/false` et l'absence de
-CODEOWNERS/contexte externe.
+CODEOWNERS.
 
 - [ ] **Step 3: Implémenter la politique minimale**
 
@@ -115,7 +113,9 @@ Créer `.github/CODEOWNERS` :
 ```
 
 Modifier `main-protection-policy.json` avec les quatre valeurs de review
-strictes et ajouter `trusted-human-review` une seule fois aux contextes.
+strictes et conserver uniquement les six contextes CI. Ne pas ajouter
+`trusted-human-review` : l'`app_id` GitHub Actions est partagé et n'authentifie
+pas un workflow unique.
 
 Adapter le test fail-safe avec deux constantes explicites :
 
@@ -128,12 +128,11 @@ WORKFLOW_CONTEXTS = (
     "governance locks guard",
     "repository controls",
 )
-EXTERNAL_CONTEXTS = ("trusted-human-review",)
 ```
 
 Le contrôle de provenance continue d'exiger chaque `WORKFLOW_CONTEXTS`
-exactement une fois dans le workflow `pull_request`; il exige en plus que le
-contexte externe n'apparaisse comme nom d'aucun job de PR.
+exactement une fois dans le workflow `pull_request` et n'accorde aucune
+autorité de fusion au workflow de readback.
 
 - [ ] **Step 4: Vérifier GREEN**
 
@@ -350,9 +349,9 @@ git add scripts/github/trusted_human_review.py \
 git commit -m "ci: vérifie les approbations du head exact"
 ```
 
-## Chunk 3: Adaptateur GitHub et workflow privilégié
+## Chunk 3: Adaptateur GitHub et workflow read-only
 
-### Task 5: Collecter et publier par API GitHub
+### Task 5: Collecter en lecture seule par API GitHub
 
 **Files:**
 - Create: `scripts/github/trusted_human_review_github.py`
@@ -367,16 +366,12 @@ Utiliser un `RecordingRunner` injecté, sur le modèle de
 GET repos/cyranoaladin/RAG/pulls/89
 GET repos/cyranoaladin/RAG/pulls/89/reviews?per_page=100
 GET repos/cyranoaladin/RAG/collaborators/abenrhouma/permission
-POST repos/cyranoaladin/RAG/statuses/<head>
-GET/POST/PATCH repos/cyranoaladin/RAG/issues/89/comments
 ```
 
 Tester : pagination complète, limite de pages, timeout, JSON malformé, course de
-head, statut `pending` avant toute première lecture de PR, `success` seulement
-après décision pure, `failure` sur tout refus ou erreur de lecture et commentaire
-géré par marqueur HTML unique. Tester aussi une review et une permission
-révoquées entre deux snapshots, ainsi que le refus d'un dépôt non configuré
-avant toute mutation.
+head et verdict positif seulement après décision pure. Tester aussi une review
+et une permission révoquées entre deux snapshots, le refus d'un dépôt non
+configuré et l'absence totale de requête mutante.
 
 - [ ] **Step 2: Vérifier RED**
 
@@ -390,25 +385,18 @@ Expected: module absent.
 
 - [ ] **Step 3: Implémenter l'adaptateur borné**
 
-Définir :
-
-```python
-STATUS_CONTEXT = "trusted-human-review"
-COMMENT_MARKER = "<!-- nexus:trusted-human-review:v1 -->"
-GH_API_TIMEOUT_SECONDS = 30
-MAX_REVIEW_PAGES = 20
-```
+Définir un timeout de 30 secondes et une limite de 20 pages de reviews.
 
 Le runner reçoit uniquement des listes d'arguments `gh api`, utilise
 `subprocess.run(..., shell=False, timeout=30)` et ne journalise jamais de token.
-Le dépôt est comparé à la configuration avant le premier statut. Les reviews et
+Le dépôt est comparé à la configuration avant le premier appel. Les reviews et
 permissions sont relues, le snapshot final est réévalué, puis la base et le head
-sont contrôlés une dernière fois avant `success`.
-Le mode `--check` est read-only et imprime le verdict normalisé. Le mode
-`--publish` place le statut et met à jour le commentaire géré.
+sont contrôlés une dernière fois avant un verdict positif.
+Le seul mode `--check` est read-only et imprime le verdict normalisé. Aucun
+mode de publication, statut ou commentaire n'est exposé.
 
-Une course entre l'event et le readback live ne peut jamais produire `success` :
-`--expected-head` doit correspondre au head relu avant publication.
+Une course entre l'event et le readback live ne peut jamais produire un verdict
+positif : `--expected-head` doit correspondre au head relu.
 
 - [ ] **Step 4: Vérifier GREEN**
 
@@ -426,7 +414,7 @@ Expected: tous les tests verts.
 ```bash
 git add scripts/github/trusted_human_review_github.py \
   scripts/tests/test-trusted-human-review-github.py
-git commit -m "ci: publie le verdict de revue GitHub"
+git commit -m "ci: vérifie le verdict de revue GitHub"
 ```
 
 ### Task 6: Installer le workflow de base sans exécuter la PR
@@ -448,8 +436,6 @@ on:
 permissions:
   contents: read
   pull-requests: read
-  issues: write
-  statuses: write
 ```
 
 Le test refuse `pull_request`, `pull_request_review`, `push`, `secrets.*`,
@@ -498,14 +484,14 @@ python scripts/tests/test-trusted-human-review-workflow.py
 bash scripts/tests/test-ci-local-failsafe.sh
 ```
 
-Expected: workflow accepté et contexte externe non usurpé.
+Expected: workflow read-only accepté.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add .github/workflows/trusted-human-review.yml \
   scripts/tests/test-trusted-human-review-workflow.py
-git commit -m "ci: installe la revue humaine privilégiée"
+git commit -m "ci: installe le readback de revue humaine"
 ```
 
 ## Chunk 4: CI, documentation et livraison
@@ -528,8 +514,8 @@ python scripts/tests/test-trusted-human-review-github.py
 python scripts/tests/test-trusted-human-review-workflow.py
 ```
 
-Exiger les trois mêmes cibles dans `ci-local.sh` et vérifier que le workflow
-privilégié ne produit aucun des six noms de jobs CI.
+Exiger les trois mêmes cibles dans `ci-local.sh` et vérifier que le workflow de
+readback ne produit aucun des six noms de jobs CI.
 
 - [ ] **Step 2: Vérifier RED**
 
@@ -758,15 +744,16 @@ python scripts/github/main_protection.py \
   --check
 ```
 
-Expected: politique exacte, sept contextes, une approbation, stale/code
+Expected: politique exacte, six contextes, une approbation, stale/code
 owner/last push activés, aucun bypass.
 
 - [ ] **Step 5: Prover le workflow sur une PR témoin non destructive**
 
 LOT41A sera la première vraie PR protégée. Avant toute autorisation métier,
-vérifier que son head reçoit `trusted-human-review=pending`, que seul le
-challenge approuvé par `abenrhouma` le fait passer à `success`, et qu'un nouveau
-push l'invalide.
+vérifier qu'un `/nexus-trusted-review` exécute le readback depuis `main`, que
+seul le challenge approuvé par `abenrhouma` rend ce snapshot positif et qu'un
+nouveau push exige un nouveau readback. Le résultat Actions n'est pas un garde
+de fusion et ne doit jamais être réutilisé comme preuve persistante.
 
 - [ ] **Step 6: Handoff au lot suivant**
 

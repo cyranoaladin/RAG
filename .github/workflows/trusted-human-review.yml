@@ -10,8 +10,6 @@ name: Trusted human review
 permissions:
   contents: read
   pull-requests: read
-  issues: write
-  statuses: write
 
 concurrency:
   group: trusted-human-review-${{ github.event.pull_request.number || github.event.issue.number }}
@@ -63,5 +61,4 @@ jobs:
             --repository "$GITHUB_REPOSITORY" \
             --pull-request "$PR_NUMBER" \
             --expected-head "$EXPECTED_HEAD" \
-            --publish \
-            --target-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            --check

@@ -20,10 +20,12 @@ GitHub formelle et porter sur le head exact de la pull request.
 
 ## Décision
 
-GitHub devient l'autorité d'identité et de review. Un workflow privilégié,
-chargé exclusivement depuis `main`, calcule un challenge canonique, relit la
-pull request, toutes ses reviews et la permission du reviewer, puis publie le
-statut `trusted-human-review` sur le head attendu.
+GitHub devient l'autorité d'identité, de review et de fusion. La protection
+native exige une approbation du Code Owner `@abenrhouma`, rejette les reviews
+périmées et impose l'approbation du dernier push. Un vérificateur en lecture
+seule calcule en plus un challenge canonique et relit la pull request, toutes
+ses reviews et la permission du reviewer. Son verdict est un snapshot de preuve
+à recalculer au moment de l'usage, jamais un statut persistant de fusion.
 
 Une décision positive exige simultanément :
 
@@ -41,16 +43,19 @@ La protection cible exige aussi une approbation, la review du Code Owner, le
 rejet des reviews périmées et l'approbation du dernier push. `.github/CODEOWNERS`
 désigne `@abenrhouma` pour tout le dépôt.
 
-Les sept checks requis sont associés explicitement à l'application GitHub
+Les six checks CI requis sont associés explicitement à l'application GitHub
 Actions `15368`. Les `contexts` non associés à une application sont interdits
-par la politique versionnée. Un statut homonyme créé par un autre producteur
-ne satisfait donc pas le readback gouverné.
+par la politique versionnée. Aucun statut `trusted-human-review` n'est requis :
+l'identifiant d'application GitHub Actions est partagé entre les workflows et
+ne permet pas de distinguer le vérificateur de code exécuté par une PR. La
+décision humaine de fusion repose donc sur la protection native Code Owner,
+pas sur un contexte Actions usurpable.
 
 `required_status_checks.strict = true` rend toute PR non fusionnable dès que
 `main` avance. La branche de tête doit alors intégrer la nouvelle base, ce qui
-change son head, invalide le statut précédent et impose un nouveau challenge.
-Le workflow n'a donc pas besoin d'un trigger `push` qui devrait énumérer et
-modifier toutes les PR ouvertes.
+change son head, invalide la review native antérieure et impose un nouveau
+challenge. Le workflow n'a donc pas besoin d'un trigger `push` qui devrait
+énumérer toutes les PR ouvertes.
 
 ## Challenge canonique
 
@@ -66,10 +71,10 @@ head, l'auteur, le reviewer et la version du protocole. Le challenge n'est pas
 un secret. Il lie l'acte GitHub authentifié à un état précis ; tout nouveau
 commit le rend caduc.
 
-## Sécurité du workflow privilégié
+## Sécurité du workflow de readback
 
 Seuls `pull_request_target` et `issue_comment` peuvent déclencher le workflow
-privilégié ; ils le chargent depuis la branche par défaut.
+de diagnostic ; ils le chargent depuis la branche par défaut.
 `pull_request_review` est interdit parce que son merge ref permettrait à la PR
 de proposer le YAML qui reçoit les permissions d'écriture. `workflow_dispatch`
 est interdit parce que son appelant peut choisir un `ref` différent de `main`.
@@ -91,43 +96,43 @@ Ces triggers sont acceptés uniquement avec les contraintes suivantes :
 - aucune utilisation de secret de dépôt ;
 - aucune interpolation du titre, du corps, de la branche ou de l'auteur dans
   une commande ;
-- permissions limitées à `contents: read`, `pull-requests: read`,
-  `issues: write` et `statuses: write` ;
+- permissions limitées à `contents: read` et `pull-requests: read` ;
 - numéro de PR et SHA contrôlés avant l'appel de l'adaptateur ;
 - pour `issue_comment`, commande littérale `/nexus-trusted-review`, PR exigée et
   base `main` vérifiée et head relu par API avant l'adaptateur ; le corps du
   commentaire ne devient jamais une commande shell ni une autorité ;
 - pagination et temps d'appel bornés, sans shell dans l'adaptateur GitHub.
 
-Le mode `--check` est strictement en lecture. Le mode `--publish` pose d'abord
-le statut à `pending` sur le head attendu, avant toute première lecture de PR,
-puis publie `success` uniquement après une décision pure positive. Toute erreur
-ou course tente de remplacer ce statut par `failure` et échoue fermée.
-Avant une réussite, l'adaptateur relit une seconde fois les reviews et les
-permissions, réévalue ce snapshot final, puis vérifie encore la base et le head.
+L'adaptateur n'expose que le mode `--check`, strictement en lecture. Avant une
+réussite, il relit une seconde fois les reviews et les permissions, réévalue ce
+snapshot final, puis vérifie encore la base et le head. Aucune permission
+`issues: write` ou `statuses: write` n'est accordée, et aucun statut ou
+commentaire n'est publié par l'automatisation.
 
 ## Révocation
 
 Une synchronisation ou un retargeting de la PR produit un nouveau calcul. Une
 review ancienne, une révocation, une demande de changements, une perte de
-permission ou le retrait de l'allowlist invalide le prochain calcul. Après une
-action de review, un commentaire `/nexus-trusted-review` déclenche le readback ;
-ce commentaire n'est jamais une autorité. Le commentaire géré par le workflow
-rend seulement le challenge visible.
+permission, une modification du challenge ou le retrait de l'allowlist invalide
+le prochain readback. Après une action de review, un commentaire
+`/nexus-trusted-review` déclenche ce readback ponctuel ; ce commentaire et le
+check Actions résultant ne sont jamais une autorité. GitHub protège la fusion
+par l'état natif de la review Code Owner. Toute future autorisation métier doit
+relancer `--check` et ne peut réutiliser un snapshot antérieur.
 
 ## Transition en deux temps
 
-LOT41V est fusionné sous la politique antérieure, car le workflow privilégié
+LOT41V est fusionné sous la politique antérieure, car le workflow de readback
 n'existe pas encore sur `main`. Avant cette fusion, le head final doit néanmoins
 recevoir une review formelle de `abenrhouma`, contrôlée en lecture par
 l'adaptateur local `--check` avec le head distant exact. Ce readback externe ne
 publie aucun statut et sa sortie normalisée est consignée dans la conversation
 de la PR bootstrap.
 
-Après fusion et CI `push` verte, le workflow est déclenché sur une PR témoin.
-La politique cible n'est appliquée qu'après un statut GitHub Actions observé et
-un readback complet de la protection. Cette séquence évite de rendre `main`
-impossible à mettre à jour avant l'installation de son producteur de statut.
+Après fusion et CI `push` verte, le workflow read-only est déclenché sur une PR
+témoin afin de vérifier son chargement depuis `main`. La politique cible exige
+alors les six checks CI et les gardes natives de review, puis fait l'objet d'un
+readback complet. Aucun producteur de statut supplémentaire n'est nécessaire.
 
 ## Alternatives rejetées
 
@@ -136,8 +141,9 @@ impossible à mettre à jour avant l'installation de son producteur de statut.
   ni lié au dernier commit.
 - Un workflow `pull_request` exécutant le head est rejeté : son vérificateur
   serait modifiable par le contributeur.
-- Un contexte requis sans `app_id` est rejeté : un producteur différent
-  pourrait publier le même nom.
+- Un statut Actions dédié à la review est rejeté comme autorité de fusion :
+  `app_id=15368` identifie GitHub Actions dans son ensemble, pas un workflow
+  unique, et une PR pourrait demander le même contexte.
 - L'usurpation de la décision humaine par un agent est interdite : l'action
   personnelle de `abenrhouma` est une dépendance irréductible.
 
@@ -154,8 +160,7 @@ puis une nouvelle décision d'architecture.
 
 ## Retour arrière
 
-Le retour arrière sûr conserve `main` protégé et retire d'abord le check
-`trusted-human-review` de la politique live avant de désactiver son workflow.
-Retirer le workflow en laissant son check obligatoire bloquerait toutes les PR.
-Réintroduire des approbations locales auto-déclarées n'est pas un rollback
-acceptable.
+Le retour arrière sûr conserve `main` protégé par les six checks et les gardes
+natives de review, puis désactive éventuellement le workflow read-only. Aucun
+contexte `trusted-human-review` n'est requis et ne doit être ajouté. Réintroduire
+des approbations locales auto-déclarées n'est pas un rollback acceptable.

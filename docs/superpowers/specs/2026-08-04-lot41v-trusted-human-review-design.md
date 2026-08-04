@@ -20,13 +20,13 @@ prétend pas terminer LOT41A, LOT42 ou le go-live. Le verdict global reste
 Le lot sépare trois autorités :
 
 1. GitHub conserve l'identité, la review formelle et la protection de branche.
-2. Un workflow privilégié présent uniquement sur la branche de base vérifie la
-   review et publie un statut sur le head exact.
+2. Un workflow read-only présent uniquement sur la branche de base vérifie la
+   review et produit un snapshot ponctuel sur le head exact.
 3. La politique versionnée décrit les règles que l'outil opérateur applique et
    relit sur `main`.
 
 Le workflow utilise `pull_request_target` et `issue_comment`, deux événements
-dont le code privilégié est chargé depuis la branche par défaut.
+dont le vérificateur de confiance est chargé depuis la branche par défaut.
 `issue_comment` ne lance le recalcul que pour la commande publique littérale
 `/nexus-trusted-review` sur une PR dont la base relue par API est `main` ; son
 contenu n'est jamais injecté dans un shell. Le workflow ne checkout jamais le
@@ -54,13 +54,14 @@ La transition se fait en deux temps :
    encore zéro et que le workflow bootstrap n'existe pas sur `main`. La sortie
    normalisée est publiée dans la conversation sans créer de statut.
 2. Après le run `push` vert du commit fusionné, la nouvelle politique est
-   appliquée à `main`. Les PR suivantes exigent alors le statut
-   `trusted-human-review`, une approbation, une review Code Owner et
-   l'approbation du dernier push.
+   appliquée à `main`. Les PR suivantes exigent alors les six checks CI, une
+   approbation, une review Code Owner et l'approbation du dernier push.
 
-Le statut privilégié n'est ajouté aux contextes obligatoires qu'après que le
-workflow correspondant existe sur `main`. Cette chronologie évite de rendre
-toute PR impossible à fusionner.
+Aucun contexte `trusted-human-review` n'est ajouté. GitHub Actions partage le
+même `app_id` entre ses workflows : ce lien ne distinguerait pas le readback de
+code exécuté par une PR. La protection native Code Owner reste l'autorité de
+fusion, tandis que `--check` fournit une preuve live à recalculer lors de chaque
+future autorisation.
 
 ## Politique GitHub cible
 
@@ -73,7 +74,6 @@ Les six contextes CI existants restent obligatoires et distincts :
 - `governance locks guard` ;
 - `repository controls`.
 
-Le contexte `trusted-human-review` est ajouté après installation du workflow.
 La protection cible impose également :
 
 - `required_approving_review_count = 1` ;
@@ -106,10 +106,9 @@ les champs suivants :
 - version du protocole LOT41V.
 
 La sérialisation utilise UTF-8, des clés triées et des séparateurs JSON compacts.
-Le challenge public est `NEXUS-TRUSTED-REVIEW-V1:<sha256>`. Le workflow publie ou
-met à jour un commentaire géré indiquant le challenge attendu pour le head
-courant. Le reviewer doit inclure ce challenge exact dans le corps de sa review
-`APPROVED`.
+Le challenge public est `NEXUS-TRUSTED-REVIEW-V1:<sha256>`. Il est obtenu par
+le readback et communiqué dans la conversation de la PR. Le reviewer doit
+inclure ce challenge exact dans le corps de sa review `APPROVED`.
 
 Tout changement de head produit un autre challenge et invalide les reviews
 précédentes. Aucun timestamp ni secret n'entre dans le digest ; l'autorité vient
@@ -136,10 +135,11 @@ pur, déterministe et sans réseau. Il refuse par défaut lorsque :
 
 Une réussite produit un document normalisé minimal contenant le dépôt, la PR,
 la base, le head, le reviewer, l'identifiant de review, sa date et le challenge.
-Ce document est une preuve de diagnostic ; le statut GitHub sur le head reste
-l'autorité de fusion.
+Ce document est une preuve ponctuelle. La review Code Owner et la protection
+native GitHub restent l'autorité de fusion ; une autorisation métier future doit
+relire l'état live et ne peut réutiliser ce document comme preuve persistante.
 
-## Workflow privilégié
+## Workflow de readback
 
 Le workflow est déclenché sur les événements qui peuvent changer le verdict :
 
@@ -148,34 +148,26 @@ Le workflow est déclenché sur les événements qui peuvent changer le verdict 
 - commentaire littéral `/nexus-trusted-review` sur une PR, posté après une
   soumission, modification ou révocation de review.
 
-Ses permissions sont minimales : `contents: read`, `pull-requests: read`,
-`issues: write` pour le commentaire géré et `statuses: write` pour le head. Il
-interdit la persistance de credentials dans un checkout et n'utilise aucun
-secret de dépôt. Pour le commentaire de recalcul, le numéro de PR est borné et
-le head est relu par API avant l'adaptateur. Les appels GitHub sont bornés,
-paginés et échouent fermés.
+Ses permissions sont minimales et strictement read-only : `contents: read` et
+`pull-requests: read`. Il interdit la persistance de credentials dans un
+checkout, n'utilise aucun secret de dépôt et n'expose aucun mode de publication.
+Pour le commentaire de recalcul, le numéro de PR est borné et le head est relu
+par API avant l'adaptateur. Les appels GitHub sont bornés, paginés et échouent
+fermés.
 
-Le workflow place `trusted-human-review` à `pending` sur le head attendu avant
-toute première lecture de PR susceptible d'échouer, puis à `success` ou
-`failure` avec une description non sensible. Il n'utilise jamais le nom d'un
-job du workflow PR pour satisfaire ce contexte.
-
-L'adaptateur valide le dépôt contre sa configuration locale avant toute
-écriture. Il collecte deux snapshots successifs des reviews et permissions,
-réévalue le second, puis relit encore la base et le head avant toute réussite.
+L'adaptateur valide le dépôt contre sa configuration locale avant tout appel.
+Il collecte deux snapshots successifs des reviews et permissions, réévalue le
+second, puis relit encore la base et le head avant toute réussite.
 
 ## Erreurs et révocation
 
 Les erreurs d'API, dépassements de pagination, réponses ambiguës et permissions
-insuffisantes donnent `failure`, jamais `success`. Une synchronisation de head
-replace immédiatement le nouveau SHA à `pending`. Une erreur après la tentative
-initiale de `pending` tente aussi un statut `failure`, afin qu'un succès ancien
-ne reste pas l'état le plus récent. Une review `CHANGES_REQUESTED` ou
-`DISMISSED` invalide le statut correspondant.
-
-La suppression future d'un reviewer de l'allowlist invalide les recalculs. Les
-statuts historiques restent visibles dans GitHub mais ne peuvent satisfaire une
-PR dont le head ou le challenge diffère.
+insuffisantes rendent le readback non nul, jamais positif. Une review
+`CHANGES_REQUESTED` ou `DISMISSED`, une modification du challenge ou la
+suppression future d'un reviewer de l'allowlist invalide le prochain readback.
+L'édition du corps d'une review ne révoque pas l'état `APPROVED` natif de GitHub,
+mais elle fait échouer toute nouvelle preuve LOT41V. Aucun succès persistant
+n'est utilisé comme garde de fusion ou d'autorisation.
 
 ## Tests exigés
 
@@ -190,7 +182,7 @@ Le développement suit RED → GREEN → REFACTOR. Les tests couvrent au minimum
 - changements demandés ou review révoquée après approbation ;
 - résultats paginés et données malformées ;
 - révocation de review ou de permission entre les deux snapshots ;
-- refus d'un dépôt non configuré avant toute écriture de statut ;
+- refus d'un dépôt non configuré avant tout appel GitHub ;
 - permissions et événements du workflow ;
 - absence de checkout du head et d'exécution de code PR ;
 - politique versionnée, CODEOWNERS et readback normalisé ;
@@ -202,7 +194,7 @@ Le lot produit :
 
 - la configuration des reviewers autorisés ;
 - le vérificateur pur et ses tests ;
-- le workflow privilégié ;
+- le workflow de readback en lecture seule ;
 - CODEOWNERS ;
 - la politique de protection cible et ses tests ;
 - un ADR de frontière de confiance ;

@@ -12,8 +12,8 @@ writer, aucune ingestion, aucune publication et aucun verrou `*_allowed`.
 
 La livraison reste conditionnée à une review formelle personnelle
 d'`abenrhouma` sur le head final, aux checks GitHub de ce head, puis à une
-fusion et un run `push` verts. La protection cible ne sera appliquée qu'après
-que le workflow producteur du statut existe sur `main`.
+fusion et un run `push` verts. La protection cible utilisera les gardes natives
+Code Owner ; aucun statut Actions de review ne sera rendu obligatoire.
 
 ## Identification
 
@@ -35,8 +35,8 @@ que le workflow producteur du statut existe sur `main`.
    authentifiée et indépendante.
 2. Lier cette review au dépôt, à la PR, à la base, au dernier head, à l'auteur
    et au reviewer au moyen d'un challenge canonique.
-3. Publier un statut fail-closed depuis un workflow présent uniquement sur la
-   branche de base, sans exécuter le code de la PR.
+3. Produire un readback fail-closed et strictement read-only depuis un workflow
+   présent uniquement sur la branche de base, sans exécuter le code de la PR.
 4. Rendre la protection cible stricte sans bloquer la fusion bootstrap qui
    installe le workflow.
 5. Conserver le projet fermé tant que LOT41A, LOT42 et les preuves
@@ -48,14 +48,11 @@ La configuration `trusted-reviewers.json` fixe le protocole, le dépôt, la base
 et l'allowlist. Le noyau Python pur valide strictement les formes JSON, calcule
 le challenge et rend une dataclass de décision. Il n'a aucun accès réseau.
 
-L'adaptateur GitHub sépare deux modes :
-
-- `--check`, lecture seule, retourne `0` uniquement si la review est valide et
-  `3` lorsqu'elle reste en attente ;
-- `--publish`, valide le dépôt, pose le statut `pending` avant toute lecture de
-  PR, collecte deux snapshots reviews/permissions, réévalue le dernier, relit
-  encore la base et le head, publie `success` ou `failure`, puis crée ou met à
-  jour un commentaire géré.
+L'adaptateur GitHub n'expose que `--check`. Ce mode lecture seule retourne `0`
+uniquement si la review est valide et `3` lorsqu'elle reste en attente. Il
+valide le dépôt avant tout appel, collecte deux snapshots reviews/permissions,
+réévalue le dernier, puis relit encore la base et le head. Le lot ne conserve
+aucun chemin de publication de statut ou de commentaire.
 
 La collecte utilise `gh api` avec un argv sans shell, un timeout de 30 secondes,
 des pages de 100 éléments et une limite de 20 pages. Une pagination saturée,
@@ -63,18 +60,20 @@ une réponse malformée, un doublon ou une course de head échoue fermé.
 
 Le workflow `trusted-human-review.yml` écoute `pull_request_target` et la
 commande publique littérale `/nexus-trusted-review` via `issue_comment`. Ces
-triggers chargent le workflow privilégié depuis la branche par défaut. Il
+triggers chargent le workflow de confiance depuis la branche par défaut. Il
 checkout uniquement `refs/heads/main`, avec des actions épinglées et sans
 credential persistant. Les champs libres d'une PR ne sont jamais interprétés.
 
-La politique cible exige sept checks, tous liés à l'application GitHub Actions
-`15368`, dont le statut externe `trusted-human-review`. Elle exige aussi une
-review, le Code Owner, le rejet des reviews obsolètes et l'approbation du
-dernier push. Aucun bypass n'est admis.
+La politique cible exige les six checks CI, tous liés à l'application GitHub
+Actions `15368`. Elle exige surtout une review, le Code Owner, le rejet des
+reviews obsolètes et l'approbation du dernier push. Aucun bypass n'est admis.
+Le statut `trusted-human-review` a été retiré de la politique : l'`app_id`
+Actions est partagé entre workflows et ne permet pas d'authentifier ce seul
+producteur. La protection native Code Owner est l'autorité de fusion.
 
 La politique conserve `required_status_checks.strict = true`. Si `main`
-avance, GitHub bloque donc la fusion jusqu'à intégration de cette base dans la
-branche de tête ; le nouveau head invalide le statut et le challenge antérieurs.
+  avance, GitHub bloque donc la fusion jusqu'à intégration de cette base dans la
+  branche de tête ; le nouveau head invalide la review et le challenge antérieurs.
 
 ## Fichiers concernés
 
@@ -97,18 +96,20 @@ branche de tête ; le nouveau head invalide le statut et le challenge antérieur
 | --- | --- | --- |
 | Politique et Code Owner | quatre échecs et trois erreurs sur la politique historique et l'absence de CODEOWNERS | politique stricte et CODEOWNERS validés |
 | Challenge canonique | fonctions et configuration absentes | 5 tests canoniques verts, ensuite intégrés à la suite pure |
-| Décision pure | approbation exacte, révocation, fork, bots et permissions non traités | 14 tests verts |
-| Adaptateur GitHub | module absent | 13 tests verts |
-| Workflow privilégié | fichier absent | 6 tests verts |
-| Câblage CI | trois commandes absentes des deux CI | topologie verte et 51 mutants failsafe verts |
-| Origine des checks | politique aveugle à `app_id` | 34 tests de protection verts et sept checks liés à l'application `15368` |
-| Permission GitHub live | les fixtures historiques utilisaient `permission=push`, alors que l'API expose `permission=write` pour le rôle `write` | noyau et adaptateur alignés, 14 + 13 tests verts |
+| Décision pure | approbation exacte, révocation, fork, bots et permissions non traités | 15 tests verts |
+| Adaptateur GitHub | module absent | 9 tests verts, surface de mutation supprimée |
+| Workflow read-only | fichier absent | 6 tests verts |
+| Câblage CI | trois commandes absentes des deux CI | topologie verte et 50 mutants failsafe verts |
+| Origine des checks | politique aveugle à `app_id` | 34 tests de protection verts et six checks CI liés à l'application `15368` |
+| Permission GitHub live | les fixtures historiques utilisaient `permission=push`, alors que l'API expose `permission=write` pour le rôle `write` | noyau et adaptateur alignés, 15 + 9 tests verts |
 | Review de bot live | le login réel `chatgpt-codex-connector[bot]` arrêtait l'évaluation avant le filtrage de l'allowlist | acteur bot strictement parsé mais non autorisable, puis décision live ramenée à la seule approbation manquante |
 | Source du workflow de review | `pull_request_review` a chargé le YAML depuis le merge ref et échoué après le checkout de `main` | trigger supprimé, recalcul déplacé vers `issue_comment` chargé depuis la branche par défaut, 6 tests workflow verts |
-| Révocation et retargeting | une erreur de première lecture pouvait laisser un ancien succès ; un changement de base n'était pas déclenché | `pending` publié avant la première lecture, repli `failure` testé et événement `edited` ajouté |
+| Révocation et retargeting | un statut Actions persistant ne pouvait pas être invalidé sûrement après édition d'une review | statut retiré de la protection, workflow et adaptateur rendus read-only ; toute preuve future exige un readback live |
 | Snapshot final | reviews, permission et dépôt n'étaient pas tous revalidés à la dernière frontière | dépôt validé avant écriture, double collecte, réévaluation finale et troisième lecture base/head |
 | Atteignabilité CI locale | le câblage LOT41V était seulement recherché comme texte | sonde d'exécution avec commandes neutralisées et mutant après `exit 0` rejeté |
-| Scope du commentaire | la commande pouvait lancer l'adaptateur pour une PR hors `main` | base relue par API et sortie sans mutation avant tout appel du publisher |
+| Scope du commentaire | la commande pouvait lancer l'adaptateur pour une PR hors `main` | base relue par API et sortie sans mutation avant tout appel du readback |
+| Identité du producteur | `app_id=15368` identifiait tous les workflows Actions, pas le vérificateur | `trusted-human-review` retiré des checks requis ; Code Owner natif rendu autoritaire |
+| Auteur GitHub App | un auteur `dependabot[bot]` était refusé avant évaluation | login bot accepté comme auteur borné, sans l'autoriser comme reviewer humain |
 
 Les cas couvrent notamment l'auto-review, la permission insuffisante, l'ancien
 head, le mauvais challenge, la révocation, le fork, les pages incomplètes, la
@@ -151,17 +152,18 @@ approbation obligatoire, pas de Code Owner obligatoire et pas d'approbation du
 dernier push. Elle n'est pas modifiée avant la présence du workflow sur `main`.
 
 Les six checks live existants sont déjà associés à l'application GitHub Actions
-`15368`. Le septième ne peut être ajouté qu'après installation et preuve du
-workflow.
+`15368`. Aucun septième statut de review ne sera ajouté ; le workflow Actions
+est seulement un moyen de relancer le readback ponctuel.
 
 ## Limites et dépendance humaine
 
-- Le workflow privilégié n'existe pas encore sur `main` et ne peut donc pas
+- Le workflow read-only n'existe pas encore sur `main` et ne peut donc pas
   certifier sa propre PR bootstrap.
 - `abenrhouma` doit personnellement lire le diff et utiliser le bouton GitHub
   **Approve** sur le head final avec le challenge exact ; aucun agent ne peut
   accomplir cet acte à sa place.
-- La politique live cible n'est pas encore appliquée.
+- La politique live cible, fondée sur Code Owner et une approbation native,
+  n'est pas encore appliquée.
 - LOT41V ne fournit ni autorisation de scope LOT41A, ni attestations LOT42, ni
   revue substantielle du corpus, ni preuve de sauvegarde/restauration ou de
   production.
@@ -178,15 +180,16 @@ workflow.
    challenge sur une ligne distincte.
 5. Pour la PR bootstrap uniquement, exécuter l'adaptateur local `--check` avec
    le head distant exact et publier sa sortie normalisée dans la conversation ;
-   aucun statut privilégié n'est revendiqué avant la fusion.
+   aucun statut de review n'est revendiqué avant ou après la fusion.
 6. Relire par API la permission, la review, son `commit_id`, son état et le
    head courant ; toute divergence impose un nouveau cycle.
 7. Fusionner sans bypass et attendre le run `push` du SHA fusionné.
-8. Sur une PR témoin, poster `/nexus-trusted-review`, puis prouver le statut
-   produit par le workflow désormais chargé depuis `main`.
+8. Sur une PR témoin, poster `/nexus-trusted-review`, puis vérifier la sortie
+   read-only du workflow désormais chargé depuis `main` ; ce check n'est pas un
+   garde de fusion.
 9. Appliquer la politique avec le SHA exact de `main` et la confirmation
    explicite `cyranoaladin/RAG@<sha>`.
-10. Relire les sept checks et leurs `app_id`, les quatre règles de review,
+10. Relire les six checks et leurs `app_id`, les quatre règles de review,
    l'absence de bypass et les protections destructives.
 
 ## Preuves locales exhaustives
@@ -194,11 +197,11 @@ workflow.
 Sur le head courant, les résultats ciblés frais sont :
 
 - `test-main-protection-policy.py` : 34 tests réussis ;
-- `test-trusted-human-review.py` : 14 tests réussis ;
-- `test-trusted-human-review-github.py` : 13 tests réussis ;
+- `test-trusted-human-review.py` : 15 tests réussis ;
+- `test-trusted-human-review-github.py` : 9 tests réussis ;
 - `test-trusted-human-review-workflow.py` : 6 tests réussis ;
 - `test-ci-local-topology.sh` : PASS ;
-- `test-ci-local-failsafe.sh` : 51 réussites, 0 échec ;
+- `test-ci-local-failsafe.sh` : 50 réussites, 0 échec ;
 - Ruff ciblé et `git diff --check` : PASS.
 
 La première tentative exhaustive s'est arrêtée avant les tests parce que le
@@ -222,7 +225,7 @@ La relance fraîche sur le head source exact
   concordance des snapshots et deux audits npm sans vulnérabilité ;
 - hygiène et tests d'hygiène, topologie CI, protection de `main`, trois suites
   LOT41V, taxonomie, preuves sources, verrous et tests de gouvernance : PASS ;
-- tests failsafe : 51 réussites, 0 échec ;
+- tests failsafe : 50 réussites, 0 échec sur le head de sécurité final ;
 - baseline de gouvernance : 18 clés, configuration : 18 clés, toutes
   conformes.
 
@@ -245,5 +248,6 @@ constitueront la preuve exhaustive du head distant final.
 ## Prochain jalon
 
 Obtenir la review indépendante de LOT41V, fusionner et appliquer la protection
-cible, puis démarrer LOT41A. LOT41A devra consommer cette frontière sans la
-confondre avec les attestations de contenu LOT42.
+native cible, puis démarrer LOT41A. LOT41A devra effectuer un readback GitHub
+frais au moment de l'autorisation, sans faire confiance à un statut Actions ou
+à un snapshot antérieur, et sans le confondre avec les attestations LOT42.

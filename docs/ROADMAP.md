@@ -47,8 +47,9 @@
 - ADR-0024 — Runtime v2 lecture/revue fail-closed (accepté au LOT41U) : aucun
   writer n'est déployé avant les autorités LOT41A/LOT42.
 - ADR-0025 — Autorité de revue humaine GitHub (accepté au LOT41V) : review
-  formelle liée au head exact, workflow de base privilégié et checks associés
-  à l'application GitHub Actions.
+  formelle liée au head exact, Code Owner natif obligatoire et readback
+  GitHub en lecture seule. Le workflow de base reste un diagnostic ponctuel,
+  jamais un contexte de fusion autoritaire.
 
 LOT41V installe uniquement la frontière d'identité et de décision humaine. Il
 ne constitue ni l'autorisation de scope LOT41A, ni les attestations de contenu

@@ -169,7 +169,7 @@ def validate_challenge_payload(value: object) -> dict[str, object]:
         ),
         "base_sha": _require_sha(document["base_sha"], "base_sha"),
         "head_sha": _require_sha(document["head_sha"], "head_sha"),
-        "author": _require_login(document["author"], "author"),
+        "author": _require_actor_login(document["author"], "author"),
         "reviewer": _require_login(document["reviewer"], "reviewer"),
         "protocol": _require_literal(document["protocol"], PROTOCOL, "protocol"),
     }
@@ -225,7 +225,9 @@ def _pull_request_dimensions(value: object) -> dict[str, object]:
     )
 
     user = _require_mapping(document.get("user"), "pull request.user")
-    author = _require_login(user.get("login"), "pull request.user.login")
+    author = _require_actor_login(
+        user.get("login"), "pull request.user.login"
+    )
     return {
         "number": number,
         "state": state,
