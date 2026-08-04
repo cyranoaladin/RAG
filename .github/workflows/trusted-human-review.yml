@@ -4,18 +4,8 @@ name: Trusted human review
   pull_request_target:
     branches: [main]
     types: [opened, reopened, synchronize, ready_for_review]
-  pull_request_review:
-    types: [submitted, edited, dismissed]
-  workflow_dispatch:
-    inputs:
-      pull_request:
-        description: "Numéro de la pull request à réévaluer"
-        required: true
-        type: string
-      expected_head:
-        description: "SHA complet du head attendu"
-        required: true
-        type: string
+  issue_comment:
+    types: [created]
 
 permissions:
   contents: read
@@ -24,12 +14,13 @@ permissions:
   statuses: write
 
 concurrency:
-  group: trusted-human-review-${{ github.event.pull_request.number || inputs.pull_request }}
+  group: trusted-human-review-${{ github.event.pull_request.number || github.event.issue.number }}
   cancel-in-progress: true
 
 jobs:
   evaluate:
     name: Evaluate trusted human review
+    if: ${{ github.event_name != 'issue_comment' || (github.event.issue.pull_request != null && github.event.comment.body == '/nexus-trusted-review') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -45,14 +36,19 @@ jobs:
       - name: Evaluate and publish trusted review
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pull_request }}
-          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || inputs.expected_head }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
           [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]] || {
             echo "::error::Invalid pull request number"
             exit 2
           }
+          if [[ -z "$EXPECTED_HEAD" ]]; then
+            EXPECTED_HEAD="$(
+              gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .head.sha
+            )"
+          fi
           [[ "$EXPECTED_HEAD" =~ ^[0-9a-f]{40}$ ]] || {
             echo "::error::Invalid expected head SHA"
             exit 2

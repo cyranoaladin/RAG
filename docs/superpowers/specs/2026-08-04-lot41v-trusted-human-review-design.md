@@ -6,11 +6,10 @@ Cette spécification est validée pour préparer la frontière de confiance requ
 par LOT41A sans activer de capacité métier. LOT41V rend une approbation humaine
 indépendante obligatoire et vérifiable sur le SHA exact d'une pull request.
 
-Le reviewer autorisé initial est `abenrhouma`, actuellement collaborateur en
-lecture. Le propriétaire du dépôt a explicitement autorisé sa promotion au rôle
-GitHub `write`. Cette promotion est un prérequis externe, pas une preuve
-d'approbation : seul un acte `APPROVED` effectué personnellement par ce reviewer
-sur le dernier head peut ouvrir le garde GitHub.
+Le reviewer autorisé initial est `abenrhouma`, collaborateur dont le rôle
+GitHub `write` est relu par API. Cette habilitation est un prérequis externe,
+pas une preuve d'approbation : seul un acte `APPROVED` effectué personnellement
+par ce reviewer sur le dernier head peut ouvrir le garde GitHub.
 
 LOT41V ne passe aucun verrou `*_allowed` à `true`, n'ingère aucun document et ne
 prétend pas terminer LOT41A, LOT42 ou le go-live. Le verdict global reste
@@ -26,10 +25,19 @@ Le lot sépare trois autorités :
 3. La politique versionnée décrit les règles que l'outil opérateur applique et
    relit sur `main`.
 
-Le workflow utilise `pull_request_target` uniquement pour lire les métadonnées
-GitHub et écrire un statut de commit. Il ne checkout jamais le head de la PR,
+Le workflow utilise `pull_request_target` et `issue_comment`, deux événements
+dont le code privilégié est chargé depuis la branche par défaut.
+`issue_comment` ne lance le recalcul que pour la commande publique littérale
+`/nexus-trusted-review` sur une PR ; son contenu n'est jamais injecté dans un
+shell. Le workflow ne checkout jamais le head de la PR,
 n'exécute aucun script provenant de la PR et n'interprète aucun champ libre
 comme une commande. Le vérificateur exécuté est celui de la branche de base.
+
+`pull_request_review` est explicitement exclu : cet événement utilise le merge
+ref de la PR et peut donc charger un YAML de workflow proposé par la branche à
+auditer. Le checkout ultérieur de `main` ne suffirait pas à protéger les étapes
+et permissions déjà définies par ce YAML. `workflow_dispatch` est également
+exclu parce qu'un opérateur peut sélectionner un `ref` autre que `main`.
 
 Cette architecture est préférée à un workflow `pull_request` modifiable par le
 contributeur, et à une preuve YAML locale que l'auteur pourrait recalculer.
@@ -131,13 +139,15 @@ l'autorité de fusion.
 Le workflow est déclenché sur les événements qui peuvent changer le verdict :
 
 - ouverture, réouverture, passage ready et synchronisation d'une PR ;
-- soumission, modification ou révocation d'une review ;
-- demande manuelle de recalcul réservée aux mainteneurs.
+- commentaire littéral `/nexus-trusted-review` sur une PR, posté après une
+  soumission, modification ou révocation de review.
 
 Ses permissions sont minimales : `contents: read`, `pull-requests: read`,
 `issues: write` pour le commentaire géré et `statuses: write` pour le head. Il
 interdit la persistance de credentials dans un checkout et n'utilise aucun
-secret de dépôt. Les appels GitHub sont bornés, paginés et échouent fermés.
+secret de dépôt. Pour le commentaire de recalcul, le numéro de PR est borné et
+le head est relu par API avant l'adaptateur. Les appels GitHub sont bornés,
+paginés et échouent fermés.
 
 Le workflow place `trusted-human-review` à `pending` avant l'évaluation, puis à
 `success` ou `failure` avec une description non sensible. Il n'utilise jamais le

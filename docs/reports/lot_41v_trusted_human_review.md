@@ -59,10 +59,11 @@ La collecte utilise `gh api` avec un argv sans shell, un timeout de 30 secondes,
 des pages de 100 éléments et une limite de 20 pages. Une pagination saturée,
 une réponse malformée, un doublon ou une course de head échoue fermé.
 
-Le workflow `trusted-human-review.yml` écoute les événements de PR et de review
-ainsi qu'un recalcul manuel. Il checkout uniquement `refs/heads/main`, avec des
-actions épinglées et sans credential persistant. Les champs libres d'une PR ne
-sont jamais interprétés.
+Le workflow `trusted-human-review.yml` écoute `pull_request_target` et la
+commande publique littérale `/nexus-trusted-review` via `issue_comment`. Ces
+triggers chargent le workflow privilégié depuis la branche par défaut. Il
+checkout uniquement `refs/heads/main`, avec des actions épinglées et sans
+credential persistant. Les champs libres d'une PR ne sont jamais interprétés.
 
 La politique cible exige sept checks, tous liés à l'application GitHub Actions
 `15368`, dont le statut externe `trusted-human-review`. Elle exige aussi une
@@ -97,12 +98,22 @@ dernier push. Aucun bypass n'est admis.
 | Origine des checks | politique aveugle à `app_id` | 34 tests de protection verts et sept checks liés à l'application `15368` |
 | Permission GitHub live | les fixtures historiques utilisaient `permission=push`, alors que l'API expose `permission=write` pour le rôle `write` | noyau et adaptateur alignés, 14 + 9 tests verts |
 | Review de bot live | le login réel `chatgpt-codex-connector[bot]` arrêtait l'évaluation avant le filtrage de l'allowlist | acteur bot strictement parsé mais non autorisable, puis décision live ramenée à la seule approbation manquante |
+| Source du workflow de review | `pull_request_review` a chargé le YAML depuis le merge ref et échoué après le checkout de `main` | trigger supprimé, recalcul déplacé vers `issue_comment` chargé depuis la branche par défaut, 6 tests workflow verts |
 
 Les cas couvrent notamment l'auto-review, la permission insuffisante, l'ancien
 head, le mauvais challenge, la révocation, le fork, les pages incomplètes, la
 course de SHA, le timeout, le commentaire usurpé, une review de bot non
 autorisé, les permissions du workflow, l'absence de checkout du head et
 l'absence de contexte de job homonyme.
+
+Le run GitHub `30864574764` a fourni la preuve que `pull_request_review`
+chargeait le workflow proposé par la PR : ses étapes ont démarré alors que le
+fichier n'existait pas sur `main`, puis le script correctement checkouté depuis
+`main` était absent. Ce trigger a donc été retiré, comme `workflow_dispatch`
+dont le `ref` peut être choisi par l'appelant. Le recalcul consécutif à une
+review passe désormais par un commentaire littéral
+`/nexus-trusted-review` ; son corps ne devient ni code, ni autorité, et le head
+est relu par API avant l'évaluation.
 
 ## État GitHub observé avant livraison
 
@@ -155,21 +166,22 @@ workflow.
 3. Calculer le challenge du head distant exact et le communiquer dans la PR.
 4. Faire soumettre par `abenrhouma` une review formelle `APPROVED` contenant ce
    challenge sur une ligne distincte.
-5. Relire par API la permission, la review, son `commit_id`, son état et le
+5. Poster `/nexus-trusted-review` pour déclencher le workflow de base.
+6. Relire par API la permission, la review, son `commit_id`, son état et le
    head courant ; toute divergence impose un nouveau cycle.
-6. Fusionner sans bypass et attendre le run `push` du SHA fusionné.
-7. Déclencher et prouver le workflow sur une PR témoin non destructive.
-8. Appliquer la politique avec le SHA exact de `main` et la confirmation
+7. Fusionner sans bypass et attendre le run `push` du SHA fusionné.
+8. Déclencher et prouver le workflow sur une PR témoin non destructive.
+9. Appliquer la politique avec le SHA exact de `main` et la confirmation
    explicite `cyranoaladin/RAG@<sha>`.
-9. Relire les sept checks et leurs `app_id`, les quatre règles de review,
+10. Relire les sept checks et leurs `app_id`, les quatre règles de review,
    l'absence de bypass et les protections destructives.
 
 ## Preuves locales exhaustives
 
-Au premier commit documentaire, les résultats frais sont :
+Sur le head courant, les résultats ciblés frais sont :
 
 - `test-main-protection-policy.py` : 34 tests réussis ;
-- `test-trusted-human-review.py` : 13 tests réussis ;
+- `test-trusted-human-review.py` : 14 tests réussis ;
 - `test-trusted-human-review-github.py` : 9 tests réussis ;
 - `test-trusted-human-review-workflow.py` : 6 tests réussis ;
 - `test-ci-local-topology.sh` : PASS ;

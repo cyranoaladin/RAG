@@ -437,9 +437,8 @@ Parser le YAML avec `yaml.safe_load` et exiger :
 on:
   pull_request_target:
     types: [opened, reopened, synchronize, ready_for_review]
-  pull_request_review:
-    types: [submitted, edited, dismissed]
-  workflow_dispatch:
+  issue_comment:
+    types: [created]
 permissions:
   contents: read
   pull-requests: read
@@ -447,9 +446,12 @@ permissions:
   statuses: write
 ```
 
-Le test refuse `pull_request`, `push`, `secrets.*`, `checkout` du head, toute
-référence à `github.event.pull_request.head.ref` dans `actions/checkout`, et tout
-`run` construit à partir du titre, corps, branche ou auteur de la PR.
+Le test refuse `pull_request`, `pull_request_review`, `push`, `secrets.*`,
+`checkout` du head, toute référence à
+`github.event.pull_request.head.ref` dans `actions/checkout`, et tout `run`
+construit à partir du titre, corps, branche ou auteur de la PR. Le trigger
+`issue_comment` n'accepte que la commande littérale
+`/nexus-trusted-review` sur une PR.
 
 - [ ] **Step 2: Vérifier RED**
 
@@ -467,13 +469,17 @@ Le job unique :
 
 1. checkout explicitement `refs/heads/main`, `persist-credentials: false` ;
 2. setup Python 3.11 ;
-3. calcule le numéro de PR depuis un champ numérique d'événement ou un input
-   `workflow_dispatch` ;
-4. appelle l'adaptateur avec `GH_TOKEN: ${{ github.token }}` et
-   `--expected-head` issu de l'événement ;
-5. utilise une concurrence par numéro de PR avec `cancel-in-progress: true`.
+3. calcule le numéro de PR depuis un champ numérique d'événement ;
+4. pour `issue_comment`, relit le head par API après validation du numéro ;
+5. appelle l'adaptateur avec `GH_TOKEN: ${{ github.token }}` et
+   `--expected-head` issu de l'événement ou du readback ;
+6. utilise une concurrence par numéro de PR avec `cancel-in-progress: true`.
 
 Aucun code, fichier ou action provenant du head n'est utilisé.
+`pull_request_review` est exclu car son merge ref pourrait charger un YAML
+proposé par la PR ; après une review, le recalcul sûr est déclenché par le
+commentaire littéral. `workflow_dispatch` est également exclu car son appelant
+peut choisir le `ref` exécuté.
 
 - [ ] **Step 4: Vérifier GREEN**
 

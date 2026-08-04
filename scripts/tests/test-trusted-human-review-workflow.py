@@ -33,24 +33,14 @@ class TrustedHumanReviewWorkflowTests(unittest.TestCase):
             set(events),
             {
                 "pull_request_target",
-                "pull_request_review",
-                "workflow_dispatch",
+                "issue_comment",
             },
         )
         self.assertEqual(
             events["pull_request_target"]["types"],
             ["opened", "reopened", "synchronize", "ready_for_review"],
         )
-        self.assertEqual(
-            events["pull_request_review"]["types"],
-            ["submitted", "edited", "dismissed"],
-        )
-        dispatch = events["workflow_dispatch"]
-        self.assertEqual(
-            set(dispatch["inputs"]), {"pull_request", "expected_head"}
-        )
-        self.assertTrue(dispatch["inputs"]["pull_request"]["required"])
-        self.assertTrue(dispatch["inputs"]["expected_head"]["required"])
+        self.assertEqual(events["issue_comment"]["types"], ["created"])
 
     def test_permissions_are_minimal_and_explicit(self) -> None:
         self.assertEqual(
@@ -71,6 +61,12 @@ class TrustedHumanReviewWorkflowTests(unittest.TestCase):
         job = jobs["evaluate"]
         self.assertNotEqual(job.get("name"), "trusted-human-review")
         self.assertEqual(job.get("timeout-minutes"), 5)
+        self.assertEqual(
+            job.get("if"),
+            "${{ github.event_name != 'issue_comment' || ("
+            "github.event.issue.pull_request != null && "
+            "github.event.comment.body == '/nexus-trusted-review') }}",
+        )
         self.assertNotIn("continue-on-error", json.dumps(job))
 
         steps = job.get("steps")
@@ -121,14 +117,18 @@ class TrustedHumanReviewWorkflowTests(unittest.TestCase):
         self.assertEqual(publish["env"]["GH_TOKEN"], "${{ github.token }}")
         self.assertEqual(
             publish["env"]["PR_NUMBER"],
-            "${{ github.event.pull_request.number || inputs.pull_request }}",
+            "${{ github.event.pull_request.number || "
+            "github.event.issue.number }}",
         )
         self.assertEqual(
             publish["env"]["EXPECTED_HEAD"],
-            "${{ github.event.pull_request.head.sha || inputs.expected_head }}",
+            "${{ github.event.pull_request.head.sha }}",
         )
         run = publish["run"]
         self.assertIn('[[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]', run)
+        self.assertIn('if [[ -z "$EXPECTED_HEAD" ]]', run)
+        self.assertIn('pulls/$PR_NUMBER', run)
+        self.assertIn('--jq .head.sha', run)
         self.assertIn('[[ "$EXPECTED_HEAD" =~ ^[0-9a-f]{40}$ ]]', run)
         self.assertIn("--publish", run)
         self.assertIn('"$PR_NUMBER"', run)
@@ -141,7 +141,8 @@ class TrustedHumanReviewWorkflowTests(unittest.TestCase):
             {
                 "group": (
                     "trusted-human-review-${{ "
-                    "github.event.pull_request.number || inputs.pull_request }}"
+                    "github.event.pull_request.number || "
+                    "github.event.issue.number }}"
                 ),
                 "cancel-in-progress": True,
             },

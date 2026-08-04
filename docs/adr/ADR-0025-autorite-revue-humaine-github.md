@@ -61,7 +61,15 @@ commit le rend caduc.
 
 ## Sécurité du workflow privilégié
 
-`pull_request_target` est accepté uniquement avec les contraintes suivantes :
+Seuls `pull_request_target` et `issue_comment` peuvent déclencher le workflow
+privilégié ; ils le chargent depuis la branche par défaut.
+`pull_request_review` est interdit parce que son merge ref permettrait à la PR
+de proposer le YAML qui reçoit les permissions d'écriture. `workflow_dispatch`
+est interdit parce que son appelant peut choisir un `ref` différent de `main`.
+Le checkout ultérieur de `main` ne protégerait pas les étapes du workflow
+elles-mêmes.
+
+Ces triggers sont acceptés uniquement avec les contraintes suivantes :
 
 - checkout explicite de `refs/heads/main` ;
 - aucune exécution ni lecture du code du head de la PR ;
@@ -73,6 +81,9 @@ commit le rend caduc.
 - permissions limitées à `contents: read`, `pull-requests: read`,
   `issues: write` et `statuses: write` ;
 - numéro de PR et SHA contrôlés avant l'appel de l'adaptateur ;
+- pour `issue_comment`, commande littérale `/nexus-trusted-review`, PR exigée et
+  head relu par API ; le corps du commentaire ne devient jamais une commande
+  shell ni une autorité ;
 - pagination et temps d'appel bornés, sans shell dans l'adaptateur GitHub.
 
 Le mode `--check` est strictement en lecture. Le mode `--publish` pose d'abord
@@ -83,8 +94,10 @@ positive. Toute erreur ou course donne `failure` ou un échec fermé.
 
 Une synchronisation de la PR produit un nouveau challenge. Une review ancienne,
 une révocation, une demande de changements, une perte de permission ou le
-retrait de l'allowlist invalide le prochain calcul. Le commentaire géré par le
-workflow n'est jamais une autorité : il rend seulement le challenge visible.
+retrait de l'allowlist invalide le prochain calcul. Après une action de review,
+un commentaire `/nexus-trusted-review` déclenche le readback ; ce commentaire
+n'est jamais une autorité. Le commentaire géré par le workflow rend seulement
+le challenge visible.
 
 ## Transition en deux temps
 
