@@ -457,7 +457,8 @@ Le test refuse `pull_request`, `pull_request_review`, `push`, `secrets.*`,
 `github.event.pull_request.head.ref` dans `actions/checkout`, et tout `run`
 construit à partir du titre, corps, branche ou auteur de la PR. Le trigger
 `issue_comment` n'accepte que la commande littérale
-`/nexus-trusted-review` sur une PR.
+`/nexus-trusted-review` sur une PR et exige une relecture de `base.ref = main`
+avant l'adaptateur.
 
 - [ ] **Step 2: Vérifier RED**
 
@@ -476,7 +477,8 @@ Le job unique :
 1. checkout explicitement `refs/heads/main`, `persist-credentials: false` ;
 2. setup Python 3.11 ;
 3. calcule le numéro de PR depuis un champ numérique d'événement ;
-4. pour `issue_comment`, relit le head par API après validation du numéro ;
+4. pour `issue_comment`, relit la base et le head par API après validation du
+   numéro, puis ignore sans mutation toute PR hors `main` ;
 5. appelle l'adaptateur avec `GH_TOKEN: ${{ github.token }}` et
    `--expected-head` issu de l'événement ou du readback ;
 6. utilise une concurrence par numéro de PR avec `cancel-in-progress: true`.

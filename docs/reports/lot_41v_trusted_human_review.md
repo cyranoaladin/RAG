@@ -108,6 +108,7 @@ branche de tête ; le nouveau head invalide le statut et le challenge antérieur
 | Révocation et retargeting | une erreur de première lecture pouvait laisser un ancien succès ; un changement de base n'était pas déclenché | `pending` publié avant la première lecture, repli `failure` testé et événement `edited` ajouté |
 | Snapshot final | reviews, permission et dépôt n'étaient pas tous revalidés à la dernière frontière | dépôt validé avant écriture, double collecte, réévaluation finale et troisième lecture base/head |
 | Atteignabilité CI locale | le câblage LOT41V était seulement recherché comme texte | sonde d'exécution avec commandes neutralisées et mutant après `exit 0` rejeté |
+| Scope du commentaire | la commande pouvait lancer l'adaptateur pour une PR hors `main` | base relue par API et sortie sans mutation avant tout appel du publisher |
 
 Les cas couvrent notamment l'auto-review, la permission insuffisante, l'ancien
 head, le mauvais challenge, la révocation, le fork, les pages incomplètes, la
@@ -175,11 +176,14 @@ workflow.
 3. Calculer le challenge du head distant exact et le communiquer dans la PR.
 4. Faire soumettre par `abenrhouma` une review formelle `APPROVED` contenant ce
    challenge sur une ligne distincte.
-5. Poster `/nexus-trusted-review` pour déclencher le workflow de base.
+5. Pour la PR bootstrap uniquement, exécuter l'adaptateur local `--check` avec
+   le head distant exact et publier sa sortie normalisée dans la conversation ;
+   aucun statut privilégié n'est revendiqué avant la fusion.
 6. Relire par API la permission, la review, son `commit_id`, son état et le
    head courant ; toute divergence impose un nouveau cycle.
 7. Fusionner sans bypass et attendre le run `push` du SHA fusionné.
-8. Déclencher et prouver le workflow sur une PR témoin non destructive.
+8. Sur une PR témoin, poster `/nexus-trusted-review`, puis prouver le statut
+   produit par le workflow désormais chargé depuis `main`.
 9. Appliquer la politique avec le SHA exact de `main` et la confirmation
    explicite `cyranoaladin/RAG@<sha>`.
 10. Relire les sept checks et leurs `app_id`, les quatre règles de review,

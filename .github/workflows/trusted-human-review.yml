@@ -45,9 +45,15 @@ jobs:
             exit 2
           }
           if [[ -z "$EXPECTED_HEAD" ]]; then
-            EXPECTED_HEAD="$(
-              gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .head.sha
+            PR_SCOPE="$(
+              gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" \
+                --jq '[.base.ref, .head.sha] | @tsv'
             )"
+            IFS=$'\t' read -r OBSERVED_BASE_REF EXPECTED_HEAD <<<"$PR_SCOPE"
+            [[ "$OBSERVED_BASE_REF" == "main" ]] || {
+              echo "::notice::PR hors main ignorée"
+              exit 0
+            }
           fi
           [[ "$EXPECTED_HEAD" =~ ^[0-9a-f]{40}$ ]] || {
             echo "::error::Invalid expected head SHA"

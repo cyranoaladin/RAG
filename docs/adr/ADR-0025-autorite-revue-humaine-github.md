@@ -76,6 +76,12 @@ est interdit parce que son appelant peut choisir un `ref` différent de `main`.
 Le checkout ultérieur de `main` ne protégerait pas les étapes du workflow
 elles-mêmes.
 
+Cette provenance n'est pas une hypothèse : le run bootstrap GitHub
+`30864574764` a exécuté le YAML `pull_request_review` du merge ref alors que le
+workflow et son script n'existaient pas dans `main`. La référence GitHub de cet
+événement indique également `GITHUB_REF = refs/pull/<n>/merge`, contrairement à
+`pull_request_target`, dont le contexte est la branche par défaut.
+
 Ces triggers sont acceptés uniquement avec les contraintes suivantes :
 
 - checkout explicite de `refs/heads/main` ;
@@ -89,8 +95,8 @@ Ces triggers sont acceptés uniquement avec les contraintes suivantes :
   `issues: write` et `statuses: write` ;
 - numéro de PR et SHA contrôlés avant l'appel de l'adaptateur ;
 - pour `issue_comment`, commande littérale `/nexus-trusted-review`, PR exigée et
-  head relu par API ; le corps du commentaire ne devient jamais une commande
-  shell ni une autorité ;
+  base `main` vérifiée et head relu par API avant l'adaptateur ; le corps du
+  commentaire ne devient jamais une commande shell ni une autorité ;
 - pagination et temps d'appel bornés, sans shell dans l'adaptateur GitHub.
 
 Le mode `--check` est strictement en lecture. Le mode `--publish` pose d'abord
@@ -114,7 +120,9 @@ rend seulement le challenge visible.
 LOT41V est fusionné sous la politique antérieure, car le workflow privilégié
 n'existe pas encore sur `main`. Avant cette fusion, le head final doit néanmoins
 recevoir une review formelle de `abenrhouma`, contrôlée en lecture par
-l'adaptateur.
+l'adaptateur local `--check` avec le head distant exact. Ce readback externe ne
+publie aucun statut et sa sortie normalisée est consignée dans la conversation
+de la PR bootstrap.
 
 Après fusion et CI `push` verte, le workflow est déclenché sur une PR témoin.
 La politique cible n'est appliquée qu'après un statut GitHub Actions observé et

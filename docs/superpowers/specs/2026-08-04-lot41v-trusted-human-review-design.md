@@ -28,8 +28,9 @@ Le lot sépare trois autorités :
 Le workflow utilise `pull_request_target` et `issue_comment`, deux événements
 dont le code privilégié est chargé depuis la branche par défaut.
 `issue_comment` ne lance le recalcul que pour la commande publique littérale
-`/nexus-trusted-review` sur une PR ; son contenu n'est jamais injecté dans un
-shell. Le workflow ne checkout jamais le head de la PR,
+`/nexus-trusted-review` sur une PR dont la base relue par API est `main` ; son
+contenu n'est jamais injecté dans un shell. Le workflow ne checkout jamais le
+head de la PR,
 n'exécute aucun script provenant de la PR et n'interprète aucun champ libre
 comme une commande. Le vérificateur exécuté est celui de la branche de base.
 
@@ -49,7 +50,9 @@ La transition se fait en deux temps :
 1. LOT41V est développé sous la protection actuelle. `abenrhouma` est promu à
    `write`, reçoit une demande de review et doit approuver personnellement le
    head final de LOT41V. Cette approbation est vérifiée par readback GitHub avant
-   fusion, même si le compteur live vaut encore zéro.
+   fusion au moyen de l'adaptateur local `--check`, même si le compteur live vaut
+   encore zéro et que le workflow bootstrap n'existe pas sur `main`. La sortie
+   normalisée est publiée dans la conversation sans créer de statut.
 2. Après le run `push` vert du commit fusionné, la nouvelle politique est
    appliquée à `main`. Les PR suivantes exigent alors le statut
    `trusted-human-review`, une approbation, une review Code Owner et
