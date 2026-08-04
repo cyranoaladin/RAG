@@ -87,17 +87,18 @@ Ces triggers sont acceptés uniquement avec les contraintes suivantes :
 - pagination et temps d'appel bornés, sans shell dans l'adaptateur GitHub.
 
 Le mode `--check` est strictement en lecture. Le mode `--publish` pose d'abord
-le statut à `pending`, puis publie `success` uniquement après une décision pure
-positive. Toute erreur ou course donne `failure` ou un échec fermé.
+le statut à `pending` sur le head attendu, avant toute première lecture de PR,
+puis publie `success` uniquement après une décision pure positive. Toute erreur
+ou course tente de remplacer ce statut par `failure` et échoue fermée.
 
 ## Révocation
 
-Une synchronisation de la PR produit un nouveau challenge. Une review ancienne,
-une révocation, une demande de changements, une perte de permission ou le
-retrait de l'allowlist invalide le prochain calcul. Après une action de review,
-un commentaire `/nexus-trusted-review` déclenche le readback ; ce commentaire
-n'est jamais une autorité. Le commentaire géré par le workflow rend seulement
-le challenge visible.
+Une synchronisation ou un retargeting de la PR produit un nouveau calcul. Une
+review ancienne, une révocation, une demande de changements, une perte de
+permission ou le retrait de l'allowlist invalide le prochain calcul. Après une
+action de review, un commentaire `/nexus-trusted-review` déclenche le readback ;
+ce commentaire n'est jamais une autorité. Le commentaire géré par le workflow
+rend seulement le challenge visible.
 
 ## Transition en deux temps
 

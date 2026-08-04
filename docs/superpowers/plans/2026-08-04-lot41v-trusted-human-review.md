@@ -372,8 +372,9 @@ GET/POST/PATCH repos/cyranoaladin/RAG/issues/89/comments
 ```
 
 Tester : pagination complète, limite de pages, timeout, JSON malformé, course de
-head, statut `pending` avant décision, `success` seulement après décision pure,
-`failure` sur tout refus et commentaire géré par marqueur HTML unique.
+head, statut `pending` avant toute première lecture de PR, `success` seulement
+après décision pure, `failure` sur tout refus ou erreur de lecture et commentaire
+géré par marqueur HTML unique.
 
 - [ ] **Step 2: Vérifier RED**
 
@@ -436,7 +437,7 @@ Parser le YAML avec `yaml.safe_load` et exiger :
 ```yaml
 on:
   pull_request_target:
-    types: [opened, reopened, synchronize, ready_for_review]
+    types: [opened, reopened, synchronize, ready_for_review, edited]
   issue_comment:
     types: [created]
 permissions:

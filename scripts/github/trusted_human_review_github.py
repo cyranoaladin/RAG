@@ -358,19 +358,19 @@ def publish_github_review(
     """Publie un statut explicite et le challenge, sans créer de review."""
 
     expected_head = _require_expected_head(expected_head)
-    initial_pull_request = _read_pull_request(
-        runner, repository, pull_request_number
-    )
-    observed_head = _head_sha(initial_pull_request)
-    _post_status(
-        runner=runner,
-        repository=repository,
-        head_sha=expected_head,
-        state="pending",
-        description="Revue humaine indépendante en cours",
-        target_url=target_url,
-    )
     try:
+        _post_status(
+            runner=runner,
+            repository=repository,
+            head_sha=expected_head,
+            state="pending",
+            description="Revue humaine indépendante en cours",
+            target_url=target_url,
+        )
+        initial_pull_request = _read_pull_request(
+            runner, repository, pull_request_number
+        )
+        observed_head = _head_sha(initial_pull_request)
         result = _evaluate(
             repository=repository,
             pull_request_number=pull_request_number,

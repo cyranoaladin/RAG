@@ -138,7 +138,8 @@ l'autorité de fusion.
 
 Le workflow est déclenché sur les événements qui peuvent changer le verdict :
 
-- ouverture, réouverture, passage ready et synchronisation d'une PR ;
+- ouverture, réouverture, passage ready, synchronisation et modification de la
+  base d'une PR ;
 - commentaire littéral `/nexus-trusted-review` sur une PR, posté après une
   soumission, modification ou révocation de review.
 
@@ -149,16 +150,19 @@ secret de dépôt. Pour le commentaire de recalcul, le numéro de PR est borné 
 le head est relu par API avant l'adaptateur. Les appels GitHub sont bornés,
 paginés et échouent fermés.
 
-Le workflow place `trusted-human-review` à `pending` avant l'évaluation, puis à
-`success` ou `failure` avec une description non sensible. Il n'utilise jamais le
-nom d'un job du workflow PR pour satisfaire ce contexte.
+Le workflow place `trusted-human-review` à `pending` sur le head attendu avant
+toute première lecture de PR susceptible d'échouer, puis à `success` ou
+`failure` avec une description non sensible. Il n'utilise jamais le nom d'un
+job du workflow PR pour satisfaire ce contexte.
 
 ## Erreurs et révocation
 
 Les erreurs d'API, dépassements de pagination, réponses ambiguës et permissions
 insuffisantes donnent `failure`, jamais `success`. Une synchronisation de head
-replace immédiatement le nouveau SHA à `pending`. Une review `CHANGES_REQUESTED`
-ou `DISMISSED` invalide le statut correspondant.
+replace immédiatement le nouveau SHA à `pending`. Une erreur après la tentative
+initiale de `pending` tente aussi un statut `failure`, afin qu'un succès ancien
+ne reste pas l'état le plus récent. Une review `CHANGES_REQUESTED` ou
+`DISMISSED` invalide le statut correspondant.
 
 La suppression future d'un reviewer de l'allowlist invalide les recalculs. Les
 statuts historiques restent visibles dans GitHub mais ne peuvent satisfaire une

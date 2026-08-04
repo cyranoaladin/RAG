@@ -38,7 +38,7 @@ class TrustedHumanReviewWorkflowTests(unittest.TestCase):
         )
         self.assertEqual(
             events["pull_request_target"]["types"],
-            ["opened", "reopened", "synchronize", "ready_for_review"],
+            ["opened", "reopened", "synchronize", "ready_for_review", "edited"],
         )
         self.assertEqual(events["issue_comment"]["types"], ["created"])
 

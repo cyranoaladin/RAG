@@ -289,6 +289,36 @@ class GitHubPublicationTests(unittest.TestCase):
             ["pending", "failure"],
         )
 
+    def test_initial_pull_request_read_failure_replaces_previous_success(self) -> None:
+        runner = RecordingRunner()
+
+        def fail_initial_read(
+            argv: list[str], *, input_data: str | None = None
+        ) -> object:
+            if (
+                "repos/cyranoaladin/RAG/pulls/89" in argv
+                and "--method" not in argv
+            ):
+                raise github_review.GitHubAdapterError("transient read failure")
+            return runner(argv, input_data=input_data)
+
+        with self.assertRaisesRegex(
+            github_review.GitHubAdapterError, "transient read failure"
+        ):
+            github_review.publish_github_review(
+                repository="cyranoaladin/RAG",
+                pull_request_number=89,
+                expected_head=HEAD_SHA,
+                config_path=CONFIG_PATH,
+                target_url=None,
+                runner=fail_initial_read,
+            )
+
+        self.assertEqual(
+            [status["state"] for status in runner.statuses],
+            ["pending", "failure"],
+        )
+
     def test_existing_bot_comment_is_updated_not_duplicated(self) -> None:
         runner = RecordingRunner(
             comments=[
