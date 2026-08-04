@@ -222,10 +222,11 @@ La relance fraîche sur le head source exact
 - baseline de gouvernance : 18 clés, configuration : 18 clés, toutes
   conformes.
 
-Le scan suivant couvre les 13 commits du lot :
+Le scan frais pré-documentaire couvre les 19 commits du lot jusqu'au head
+source `3b977ab16f02761453eb9f567d236424c118d52e` :
 
 ```text
-gitleaks git --log-opts="origin/main..HEAD" --redact --no-banner
+gitleaks git --log-opts="origin/main..3b977ab16f02761453eb9f567d236424c118d52e" --redact --no-banner
 ```
 
 Résultat : aucun secret détecté. `git diff --check origin/main...HEAD` est
