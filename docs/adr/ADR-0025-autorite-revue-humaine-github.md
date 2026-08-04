@@ -32,7 +32,8 @@ Une décision positive exige simultanément :
   `admin` ;
 - une review `APPROVED` dont `commit_id` égale le head courant ;
 - le challenge exact sur une ligne autonome du corps de cette review ;
-- aucune décision ultérieure `CHANGES_REQUESTED` ou `DISMISSED` ;
+- aucune décision ultérieure `CHANGES_REQUESTED` ou `DISMISSED` du même
+  reviewer autorisé ;
 - une collecte complète, bornée et non ambiguë ;
 - un second readback du head après l'évaluation.
 
@@ -44,6 +45,12 @@ Les sept checks requis sont associés explicitement à l'application GitHub
 Actions `15368`. Les `contexts` non associés à une application sont interdits
 par la politique versionnée. Un statut homonyme créé par un autre producteur
 ne satisfait donc pas le readback gouverné.
+
+`required_status_checks.strict = true` rend toute PR non fusionnable dès que
+`main` avance. La branche de tête doit alors intégrer la nouvelle base, ce qui
+change son head, invalide le statut précédent et impose un nouveau challenge.
+Le workflow n'a donc pas besoin d'un trigger `push` qui devrait énumérer et
+modifier toutes les PR ouvertes.
 
 ## Challenge canonique
 
@@ -90,6 +97,8 @@ Le mode `--check` est strictement en lecture. Le mode `--publish` pose d'abord
 le statut à `pending` sur le head attendu, avant toute première lecture de PR,
 puis publie `success` uniquement après une décision pure positive. Toute erreur
 ou course tente de remplacer ce statut par `failure` et échoue fermée.
+Avant une réussite, l'adaptateur relit une seconde fois les reviews et les
+permissions, réévalue ce snapshot final, puis vérifie encore la base et le head.
 
 ## Révocation
 

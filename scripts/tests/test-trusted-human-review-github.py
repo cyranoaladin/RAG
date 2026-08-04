@@ -78,12 +78,16 @@ class RecordingRunner:
         *,
         pull_requests: list[dict[str, object]] | None = None,
         review_pages: dict[int, list[dict[str, object]]] | None = None,
+        review_snapshots: list[list[dict[str, object]]] | None = None,
+        permission_snapshots: list[dict[str, object]] | None = None,
         comments: list[dict[str, object]] | None = None,
     ) -> None:
         self.pull_requests = list(
-            pull_requests or [pull_request(), pull_request()]
+            pull_requests or [pull_request(), pull_request(), pull_request()]
         )
         self.review_pages = review_pages or {1: [review()]}
+        self.review_snapshots = list(review_snapshots or [])
+        self.permission_snapshots = list(permission_snapshots or [])
         self.comments = list(comments or [])
         self.calls: list[tuple[list[str], str | None]] = []
         self.statuses: list[dict[str, object]] = []
@@ -113,10 +117,15 @@ class RecordingRunner:
             match = re.search(r"(?:^|&)page=(\d+)(?:&|$)", endpoint)
             if match is None:
                 raise AssertionError(f"page absente: {endpoint}")
-            return self.review_pages.get(int(match.group(1)), [])
+            page = int(match.group(1))
+            if page == 1 and self.review_snapshots:
+                return self.review_snapshots.pop(0)
+            return self.review_pages.get(page, [])
         if endpoint == (
             "repos/cyranoaladin/RAG/collaborators/abenrhouma/permission"
         ):
+            if self.permission_snapshots:
+                return self.permission_snapshots.pop(0)
             return {
                 "permission": "write",
                 "role_name": "write",
@@ -237,8 +246,61 @@ class GitHubReadbackTests(unittest.TestCase):
         self.assertFalse(result.decision.approved)
         self.assertEqual(result.decision.reason, "head_changed_during_evaluation")
 
+    def test_final_review_snapshot_revokes_same_head_approval(self) -> None:
+        runner = RecordingRunner(
+            review_snapshots=[[review()], [review(body="")]],
+        )
+
+        result = github_review.check_github_review(
+            repository="cyranoaladin/RAG",
+            pull_request_number=89,
+            expected_head=HEAD_SHA,
+            config_path=CONFIG_PATH,
+            runner=runner,
+        )
+
+        self.assertFalse(result.decision.approved)
+        self.assertEqual(result.decision.reason, "current_head_approval_missing")
+
+    def test_final_permission_snapshot_revokes_same_head_approval(self) -> None:
+        runner = RecordingRunner(
+            permission_snapshots=[
+                {"permission": "write", "role_name": "write"},
+                {"permission": "read", "role_name": "read"},
+            ],
+        )
+
+        result = github_review.check_github_review(
+            repository="cyranoaladin/RAG",
+            pull_request_number=89,
+            expected_head=HEAD_SHA,
+            config_path=CONFIG_PATH,
+            runner=runner,
+        )
+
+        self.assertFalse(result.decision.approved)
+        self.assertEqual(result.decision.reason, "reviewer_permission_insufficient")
+
 
 class GitHubPublicationTests(unittest.TestCase):
+    def test_untrusted_repository_is_rejected_before_any_mutation(self) -> None:
+        runner = RecordingRunner()
+
+        with self.assertRaisesRegex(
+            ValueError, "repository does not match trusted reviewer config"
+        ):
+            github_review.publish_github_review(
+                repository="someone/else",
+                pull_request_number=89,
+                expected_head=HEAD_SHA,
+                config_path=CONFIG_PATH,
+                target_url=None,
+                runner=runner,
+            )
+
+        self.assertEqual(runner.calls, [])
+        self.assertEqual(runner.statuses, [])
+
     def test_publish_sets_pending_then_success_and_creates_comment(self) -> None:
         runner = RecordingRunner()
 

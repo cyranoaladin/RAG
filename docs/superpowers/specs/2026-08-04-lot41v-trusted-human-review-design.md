@@ -74,6 +74,8 @@ Le contexte `trusted-human-review` est ajouté après installation du workflow.
 La protection cible impose également :
 
 - `required_approving_review_count = 1` ;
+- `required_status_checks.strict = true`, afin qu'une avance de `main` impose
+  l'intégration de la nouvelle base, un nouveau head et un nouveau challenge ;
 - `dismiss_stale_reviews = true` ;
 - `require_code_owner_reviews = true` ;
 - `require_last_push_approval = true` ;
@@ -155,6 +157,10 @@ toute première lecture de PR susceptible d'échouer, puis à `success` ou
 `failure` avec une description non sensible. Il n'utilise jamais le nom d'un
 job du workflow PR pour satisfaire ce contexte.
 
+L'adaptateur valide le dépôt contre sa configuration locale avant toute
+écriture. Il collecte deux snapshots successifs des reviews et permissions,
+réévalue le second, puis relit encore la base et le head avant toute réussite.
+
 ## Erreurs et révocation
 
 Les erreurs d'API, dépassements de pagination, réponses ambiguës et permissions
@@ -180,6 +186,8 @@ Le développement suit RED → GREEN → REFACTOR. Les tests couvrent au minimum
 - challenge absent, altéré ou d'une autre PR ;
 - changements demandés ou review révoquée après approbation ;
 - résultats paginés et données malformées ;
+- révocation de review ou de permission entre les deux snapshots ;
+- refus d'un dépôt non configuré avant toute écriture de statut ;
 - permissions et événements du workflow ;
 - absence de checkout du head et d'exécution de code PR ;
 - politique versionnée, CODEOWNERS et readback normalisé ;

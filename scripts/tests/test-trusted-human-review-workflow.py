@@ -40,6 +40,7 @@ class TrustedHumanReviewWorkflowTests(unittest.TestCase):
             events["pull_request_target"]["types"],
             ["opened", "reopened", "synchronize", "ready_for_review", "edited"],
         )
+        self.assertEqual(events["pull_request_target"]["branches"], ["main"])
         self.assertEqual(events["issue_comment"]["types"], ["created"])
 
     def test_permissions_are_minimal_and_explicit(self) -> None:

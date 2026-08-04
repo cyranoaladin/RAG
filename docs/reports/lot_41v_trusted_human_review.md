@@ -52,9 +52,10 @@ L'adaptateur GitHub sépare deux modes :
 
 - `--check`, lecture seule, retourne `0` uniquement si la review est valide et
   `3` lorsqu'elle reste en attente ;
-- `--publish`, pose le statut `pending` avant toute lecture de PR, évalue,
-  relit le head, publie
-  `success` ou `failure`, puis crée ou met à jour un commentaire géré.
+- `--publish`, valide le dépôt, pose le statut `pending` avant toute lecture de
+  PR, collecte deux snapshots reviews/permissions, réévalue le dernier, relit
+  encore la base et le head, publie `success` ou `failure`, puis crée ou met à
+  jour un commentaire géré.
 
 La collecte utilise `gh api` avec un argv sans shell, un timeout de 30 secondes,
 des pages de 100 éléments et une limite de 20 pages. Une pagination saturée,
@@ -70,6 +71,10 @@ La politique cible exige sept checks, tous liés à l'application GitHub Actions
 `15368`, dont le statut externe `trusted-human-review`. Elle exige aussi une
 review, le Code Owner, le rejet des reviews obsolètes et l'approbation du
 dernier push. Aucun bypass n'est admis.
+
+La politique conserve `required_status_checks.strict = true`. Si `main`
+avance, GitHub bloque donc la fusion jusqu'à intégration de cette base dans la
+branche de tête ; le nouveau head invalide le statut et le challenge antérieurs.
 
 ## Fichiers concernés
 
@@ -93,14 +98,16 @@ dernier push. Aucun bypass n'est admis.
 | Politique et Code Owner | quatre échecs et trois erreurs sur la politique historique et l'absence de CODEOWNERS | politique stricte et CODEOWNERS validés |
 | Challenge canonique | fonctions et configuration absentes | 5 tests canoniques verts, ensuite intégrés à la suite pure |
 | Décision pure | approbation exacte, révocation, fork, bots et permissions non traités | 14 tests verts |
-| Adaptateur GitHub | module absent | 10 tests verts |
+| Adaptateur GitHub | module absent | 13 tests verts |
 | Workflow privilégié | fichier absent | 6 tests verts |
 | Câblage CI | trois commandes absentes des deux CI | topologie verte et 51 mutants failsafe verts |
 | Origine des checks | politique aveugle à `app_id` | 34 tests de protection verts et sept checks liés à l'application `15368` |
-| Permission GitHub live | les fixtures historiques utilisaient `permission=push`, alors que l'API expose `permission=write` pour le rôle `write` | noyau et adaptateur alignés, 14 + 10 tests verts |
+| Permission GitHub live | les fixtures historiques utilisaient `permission=push`, alors que l'API expose `permission=write` pour le rôle `write` | noyau et adaptateur alignés, 14 + 13 tests verts |
 | Review de bot live | le login réel `chatgpt-codex-connector[bot]` arrêtait l'évaluation avant le filtrage de l'allowlist | acteur bot strictement parsé mais non autorisable, puis décision live ramenée à la seule approbation manquante |
 | Source du workflow de review | `pull_request_review` a chargé le YAML depuis le merge ref et échoué après le checkout de `main` | trigger supprimé, recalcul déplacé vers `issue_comment` chargé depuis la branche par défaut, 6 tests workflow verts |
 | Révocation et retargeting | une erreur de première lecture pouvait laisser un ancien succès ; un changement de base n'était pas déclenché | `pending` publié avant la première lecture, repli `failure` testé et événement `edited` ajouté |
+| Snapshot final | reviews, permission et dépôt n'étaient pas tous revalidés à la dernière frontière | dépôt validé avant écriture, double collecte, réévaluation finale et troisième lecture base/head |
+| Atteignabilité CI locale | le câblage LOT41V était seulement recherché comme texte | sonde d'exécution avec commandes neutralisées et mutant après `exit 0` rejeté |
 
 Les cas couvrent notamment l'auto-review, la permission insuffisante, l'ancien
 head, le mauvais challenge, la révocation, le fork, les pages incomplètes, la
@@ -184,7 +191,7 @@ Sur le head courant, les résultats ciblés frais sont :
 
 - `test-main-protection-policy.py` : 34 tests réussis ;
 - `test-trusted-human-review.py` : 14 tests réussis ;
-- `test-trusted-human-review-github.py` : 10 tests réussis ;
+- `test-trusted-human-review-github.py` : 13 tests réussis ;
 - `test-trusted-human-review-workflow.py` : 6 tests réussis ;
 - `test-ci-local-topology.sh` : PASS ;
 - `test-ci-local-failsafe.sh` : 51 réussites, 0 échec ;

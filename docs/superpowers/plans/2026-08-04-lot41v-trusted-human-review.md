@@ -374,7 +374,9 @@ GET/POST/PATCH repos/cyranoaladin/RAG/issues/89/comments
 Tester : pagination complète, limite de pages, timeout, JSON malformé, course de
 head, statut `pending` avant toute première lecture de PR, `success` seulement
 après décision pure, `failure` sur tout refus ou erreur de lecture et commentaire
-géré par marqueur HTML unique.
+géré par marqueur HTML unique. Tester aussi une review et une permission
+révoquées entre deux snapshots, ainsi que le refus d'un dépôt non configuré
+avant toute mutation.
 
 - [ ] **Step 2: Vérifier RED**
 
@@ -399,6 +401,9 @@ MAX_REVIEW_PAGES = 20
 
 Le runner reçoit uniquement des listes d'arguments `gh api`, utilise
 `subprocess.run(..., shell=False, timeout=30)` et ne journalise jamais de token.
+Le dépôt est comparé à la configuration avant le premier statut. Les reviews et
+permissions sont relues, le snapshot final est réévalué, puis la base et le head
+sont contrôlés une dernière fois avant `success`.
 Le mode `--check` est read-only et imprime le verdict normalisé. Le mode
 `--publish` place le statut et met à jour le commentaire géré.
 

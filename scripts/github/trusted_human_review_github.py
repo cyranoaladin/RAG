@@ -15,6 +15,7 @@ from typing import Any
 
 from trusted_human_review import (
     TrustedReviewDecision,
+    TrustedReviewerConfig,
     build_expected_challenges,
     evaluate_trusted_review,
     load_config,
@@ -145,6 +146,19 @@ def _head_sha(pull_request: Mapping[str, object]) -> str:
     return value
 
 
+def _pull_request_revision(
+    pull_request: Mapping[str, object],
+) -> tuple[str, str, str]:
+    base = _mapping(pull_request.get("base"), "pull request.base")
+    base_ref = base.get("ref")
+    base_sha = base.get("sha")
+    if not isinstance(base_ref, str) or not base_ref:
+        raise GitHubAdapterError("pull request.base.ref is malformed")
+    if not isinstance(base_sha, str) or _SHA_PATTERN.fullmatch(base_sha) is None:
+        raise GitHubAdapterError("pull request.base.sha is malformed")
+    return (_head_sha(pull_request), base_ref, base_sha)
+
+
 def _collect_reviews(
     runner: Runner, repository: str, pull_request_number: int
 ) -> tuple[list[object], bool]:
@@ -190,25 +204,30 @@ def _failure_decision(
     )
 
 
-def _evaluate(
+def _validated_scope(
     *,
     repository: str,
     pull_request_number: int,
     expected_head: str,
     config_path: Path,
-    runner: Runner,
-    initial_pull_request: Mapping[str, object] | None = None,
-) -> GitHubReviewResult:
+) -> tuple[str, TrustedReviewerConfig]:
     if type(pull_request_number) is not int or pull_request_number <= 0:
         raise ValueError("pull_request_number must be a positive integer")
-    expected_head = _require_expected_head(expected_head)
+    normalized_head = _require_expected_head(expected_head)
     config = load_config(config_path)
     if repository != config.repository:
         raise ValueError("repository does not match trusted reviewer config")
+    return normalized_head, config
 
-    pull_request = initial_pull_request or _read_pull_request(
-        runner, repository, pull_request_number
-    )
+
+def _evaluate_snapshot(
+    *,
+    pull_request: Mapping[str, object],
+    repository: str,
+    pull_request_number: int,
+    config: TrustedReviewerConfig,
+    runner: Runner,
+) -> GitHubReviewResult:
     challenges = build_expected_challenges(pull_request, config)
     reviews, reviews_complete = _collect_reviews(
         runner, repository, pull_request_number
@@ -221,17 +240,84 @@ def _evaluate(
         config=config,
         reviews_complete=reviews_complete,
     )
+    return GitHubReviewResult(decision=decision, challenges=challenges)
 
-    initial_head = _head_sha(pull_request)
-    if initial_head != expected_head:
-        decision = _failure_decision(decision, "expected_head_mismatch")
+
+def _evaluate(
+    *,
+    repository: str,
+    pull_request_number: int,
+    expected_head: str,
+    config_path: Path,
+    runner: Runner,
+    initial_pull_request: Mapping[str, object] | None = None,
+) -> GitHubReviewResult:
+    expected_head, config = _validated_scope(
+        repository=repository,
+        pull_request_number=pull_request_number,
+        expected_head=expected_head,
+        config_path=config_path,
+    )
+
+    pull_request = initial_pull_request or _read_pull_request(
+        runner, repository, pull_request_number
+    )
+    initial_result = _evaluate_snapshot(
+        pull_request=pull_request,
+        repository=repository,
+        pull_request_number=pull_request_number,
+        config=config,
+        runner=runner,
+    )
+
+    initial_revision = _pull_request_revision(pull_request)
+    if initial_revision[0] != expected_head:
+        return GitHubReviewResult(
+            decision=_failure_decision(
+                initial_result.decision, "expected_head_mismatch"
+            ),
+            challenges=initial_result.challenges,
+        )
 
     readback = _read_pull_request(runner, repository, pull_request_number)
-    if _head_sha(readback) != initial_head:
-        decision = _failure_decision(
-            decision, "head_changed_during_evaluation"
+    readback_revision = _pull_request_revision(readback)
+    if readback_revision != initial_revision:
+        return GitHubReviewResult(
+            decision=_failure_decision(
+                initial_result.decision,
+                (
+                    "head_changed_during_evaluation"
+                    if readback_revision[0] != initial_revision[0]
+                    else "base_changed_during_evaluation"
+                ),
+            ),
+            challenges=initial_result.challenges,
         )
-    return GitHubReviewResult(decision=decision, challenges=challenges)
+
+    final_result = _evaluate_snapshot(
+        pull_request=readback,
+        repository=repository,
+        pull_request_number=pull_request_number,
+        config=config,
+        runner=runner,
+    )
+    final_readback = _read_pull_request(
+        runner, repository, pull_request_number
+    )
+    final_revision = _pull_request_revision(final_readback)
+    if final_revision != readback_revision:
+        return GitHubReviewResult(
+            decision=_failure_decision(
+                final_result.decision,
+                (
+                    "head_changed_during_evaluation"
+                    if final_revision[0] != readback_revision[0]
+                    else "base_changed_during_evaluation"
+                ),
+            ),
+            challenges=final_result.challenges,
+        )
+    return final_result
 
 
 def check_github_review(
@@ -357,7 +443,12 @@ def publish_github_review(
 ) -> GitHubReviewResult:
     """Publie un statut explicite et le challenge, sans créer de review."""
 
-    expected_head = _require_expected_head(expected_head)
+    expected_head, _ = _validated_scope(
+        repository=repository,
+        pull_request_number=pull_request_number,
+        expected_head=expected_head,
+        config_path=config_path,
+    )
     try:
         _post_status(
             runner=runner,
