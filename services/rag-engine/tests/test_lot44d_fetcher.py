@@ -185,3 +185,39 @@ class TestRunFetcherWiring:
         )
 
         assert call_order == ["transition", "store", "transition"]
+
+    def test_job_id_is_forwarded_to_both_transitions(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        candidate = _candidate()
+        job_id = uuid4()
+        seen_job_ids: list[object] = []
+
+        fake_response = httpx.Response(
+            200, headers={"content-type": "text/html"}, content=b"contenu",
+            request=httpx.Request("GET", candidate.source_url),
+        )
+
+        def recording_apply(*args: object, **kwargs: object) -> TransitionResult:
+            seen_job_ids.append(kwargs["job_id"])
+            return TransitionResult(
+                resource_id=candidate.resource_id,
+                from_state=kwargs["expected_state"],
+                to_state=kwargs["new_state"],
+                state_version=kwargs["expected_version"] + 1,
+            )
+
+        monkeypatch.setattr(fetcher_module, "apply_resource_transition", recording_apply)
+
+        run_fetcher(
+            conn=MagicMock(),
+            candidate=candidate,
+            artifact_id=uuid4(),
+            collected_at=datetime(2026, 8, 4, tzinfo=UTC),
+            expected_version=1,
+            actor="fetcher-test",
+            max_bytes=1_000_000,
+            store_artifact=lambda *, artifact_id, content: "mem://x",
+            safe_fetch=lambda url, **kwargs: fake_response,
+            job_id=job_id,
+        )
+
+        assert seen_job_ids == [job_id, job_id]

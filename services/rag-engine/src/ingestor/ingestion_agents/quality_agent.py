@@ -183,6 +183,7 @@ def run_quality_agent(
     evaluated_at: datetime,
     expected_version: int,
     actor: str,
+    job_id: UUID | None = None,
 ) -> tuple[QualityReport, RoutingDecision, TransitionResult]:
     """Calcule le rapport qualité, transitionne
     ``RIGHTS_CHECKED -> QUALITY_CHECKED``, puis calcule (sans la persister)
@@ -209,6 +210,7 @@ def run_quality_agent(
         new_state=ResourceState.QUALITY_CHECKED,
         actor=actor,
         run_id=artifact.run_id,
+        job_id=job_id,
         payload={"report_id": str(report_id), "rejection_reasons": quality_report.rejection_reasons},
     )
 

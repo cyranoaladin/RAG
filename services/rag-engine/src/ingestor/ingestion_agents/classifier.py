@@ -69,6 +69,7 @@ def run_classifier(
     profile: CollectionProfile,
     expected_version: int,
     actor: str,
+    job_id: UUID | None = None,
 ) -> tuple[ConformityResult, TransitionResult]:
     """Calcule la conformité puis transitionne ``EXTRACTED -> CLASSIFIED``."""
     result = classify_conformity_core(extracted_text=extracted_text, profile=profile)
@@ -81,6 +82,7 @@ def run_classifier(
         new_state=ResourceState.CLASSIFIED,
         actor=actor,
         run_id=run_id,
+        job_id=job_id,
         payload={
             "matiere_conformity": result.matiere_conformity,
             "matiere_evidence": list(result.matiere_evidence),

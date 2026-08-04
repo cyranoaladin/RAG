@@ -92,6 +92,7 @@ def run_scout(
     proposed_type_doc: TypeDoc,
     expected_version: int,
     actor: str,
+    job_id: UUID | None = None,
     title: str | None = None,
     publisher: str | None = None,
     language: str = "fr",
@@ -127,6 +128,7 @@ def run_scout(
         new_state=ResourceState.CANDIDATE,
         actor=actor,
         run_id=search_plan.run_id,
+        job_id=job_id,
         payload={"candidate_id": str(candidate_id), "dedup_key": candidate.dedup_key},
     )
 

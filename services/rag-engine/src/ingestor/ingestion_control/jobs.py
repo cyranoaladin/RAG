@@ -47,10 +47,6 @@ DEFAULT_BACKOFF_FACTOR = 2.0
 DEFAULT_MAX_DELAY_S = 300.0
 
 
-class JobNotFoundError(ValueError):
-    """Aucun job ne correspond à l'identifiant fourni."""
-
-
 class JobLeaseConflictError(RuntimeError):
     """Le job n'est plus détenu par le bail attendu (perdu/expiré/déjà
     complété par un autre appelant) — jamais une complétion silencieuse."""
@@ -208,6 +204,7 @@ def record_job_retry(
     conn: psycopg.Connection,
     *,
     job_id: UUID,
+    lease_token: UUID,
     error: str,
     base_delay_s: float = DEFAULT_BASE_DELAY_S,
     backoff_factor: float = DEFAULT_BACKOFF_FACTOR,
@@ -217,7 +214,14 @@ def record_job_retry(
     assumée par rapport à ``record_retry`` (resources) — fait aussi
     progresser ``status`` : ``queued`` avec un nouveau ``next_attempt_at``
     si des tentatives restent, ``dead_letter`` si ``max_attempts`` est
-    atteint (jamais un ``status`` laissé à ``running`` après un échec)."""
+    atteint (jamais un ``status`` laissé à ``running`` après un échec).
+
+    ``lease_token`` est obligatoire et vérifié (même garde que
+    ``complete_job``) : un worker dont le bail a expiré et a été repris par
+    un autre worker ne peut **jamais** planifier de retry ni faire
+    régresser le job d'un autre détenteur — échec explicite
+    (``JobLeaseConflictError``), jamais un écrasement silencieux du
+    travail en cours d'un autre worker."""
     with conn.cursor() as cur:
         cur.execute(
             """
@@ -228,14 +232,18 @@ def record_job_retry(
                 lease_token = NULL,
                 lease_expires_at = NULL,
                 updated_at = now()
-            WHERE job_id = %s
+            WHERE job_id = %s AND lease_token = %s AND status = 'running'
             RETURNING attempt_count, max_attempts
             """,
-            (error, job_id),
+            (error, job_id, lease_token),
         )
         row = cur.fetchone()
         if row is None:
-            raise JobNotFoundError(f"job {job_id} not found")
+            raise JobLeaseConflictError(
+                f"job {job_id}: lease {lease_token} no longer held (expired, lost, "
+                "or already completed) — refusing to record a retry that could "
+                "clobber another worker's in-progress claim"
+            )
         attempt_count, max_attempts = row
 
         if attempt_count >= max_attempts:
@@ -313,7 +321,6 @@ __all__ = [
     "DEFAULT_MAX_DELAY_S",
     "JobClaim",
     "JobLeaseConflictError",
-    "JobNotFoundError",
     "JobRetryOutcome",
     "JobStatus",
     "ReapedJobLease",

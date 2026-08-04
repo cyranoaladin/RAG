@@ -21,11 +21,16 @@ from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel, Field
 
 try:
-    from .ingest_v2 import IngestV2Request, Provenance, ingest_document
+    from .ingest_v2 import IngestV2Request, Provenance, _get_default_scope, ingest_document
     from .security_v2 import SecurityRole, require_role, token_hash
     from .ssrf_guard import ResponseTooLargeError, SSRFValidationError, safe_fetch
 except (ImportError, ValueError):
-    from ingest_v2 import IngestV2Request, Provenance, ingest_document  # type: ignore[no-redef]
+    from ingest_v2 import (  # type: ignore[no-redef]
+        IngestV2Request,
+        Provenance,
+        _get_default_scope,
+        ingest_document,
+    )
     from security_v2 import SecurityRole, require_role, token_hash  # type: ignore[no-redef]
     from ssrf_guard import (  # type: ignore[no-redef]
         ResponseTooLargeError,
@@ -36,6 +41,46 @@ except (ImportError, ValueError):
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/ingest/v2", tags=["ingestion_v2"])
+
+
+def _best_effort_track_job(req: IngestV2Request, *, dedup_key: str) -> None:
+    """Câblage best-effort LOT44e (job de suivi ``ingestion_control``) —
+    ne modifie jamais la réponse, ne bloque jamais, ne lève jamais.
+    Aucun profil de production LOT44c n'est consulté ni contourné ici : ce
+    job de suivi n'est traité par aucun worker tant que LOT44c reste
+    bloqué (``PRODUCTION_BLOCKED_NO_PRODUCTION_PROFILES``)."""
+    try:
+        from .ingestion_worker.ingest_v2_bridge import best_effort_create_ingest_job
+    except (ImportError, ValueError):
+        try:
+            from ingestion_worker.ingest_v2_bridge import (  # type: ignore[no-redef]
+                best_effort_create_ingest_job,
+            )
+        except Exception:
+            logger.warning("ingest_v2_job_tracking_unavailable", exc_info=True)
+            return
+
+    try:
+        default_scope = _get_default_scope()
+        best_effort_create_ingest_job(
+            collection=req.collection,
+            source_label=req.source_label,
+            source_uri=req.source_uri,
+            rights=req.rights,
+            type_doc=req.type_doc,
+            matiere=req.matiere,
+            niveau=req.niveau,
+            voie=req.voie,
+            audience=req.audience,
+            default_tenant=default_scope.tenant,
+            default_candidat=default_scope.candidat,
+            default_visibility=default_scope.visibility,
+            default_school_year=default_scope.school_year,
+            default_programme_version=default_scope.programme_version,
+            dedup_key=dedup_key,
+        )
+    except Exception:
+        logger.warning("ingest_v2_job_tracking_failed", exc_info=True)
 
 
 MAX_REMOTE_BYTES = int(os.environ.get("MAX_REMOTE_BYTES", 50 * 1024 * 1024))  # 50 MB max per URL fetch
@@ -216,6 +261,7 @@ def ingest_upload_v2(
             )
             doc_id = hashlib.sha256(f"{collection}|".encode() + content).hexdigest()
             result = ingest_document(text, req, provenance, doc_id=doc_id)
+            _best_effort_track_job(req, dedup_key=doc_id)
             results.append({
                 "file": fname,
                 "doc_id": result.doc_id,
@@ -303,6 +349,7 @@ def ingest_urls_v2(payload: UrlsV2Request, request: Request) -> dict[str, Any]:
             )
             doc_id = hashlib.sha256(f"{payload.collection}|{url}".encode()).hexdigest()
             result = ingest_document(clean_text, req, provenance, doc_id=doc_id)
+            _best_effort_track_job(req, dedup_key=doc_id)
             results.append({
                 "url": url,
                 "doc_id": result.doc_id,

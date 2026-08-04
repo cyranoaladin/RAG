@@ -143,6 +143,27 @@ class TestRunRightsAgentWiring:
         assert kwargs["expected_state"] == ResourceState.CLASSIFIED
         assert kwargs["new_state"] == ResourceState.RIGHTS_CHECKED
 
+    def test_job_id_is_forwarded(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        artifact = _artifact(license="CC-BY-SA")
+        fake_transition = TransitionResult(
+            resource_id=artifact.resource_id, from_state=ResourceState.CLASSIFIED,
+            to_state=ResourceState.RIGHTS_CHECKED, state_version=6,
+        )
+        mock_apply = MagicMock(return_value=fake_transition)
+        monkeypatch.setattr(rights_agent_module, "apply_resource_transition", mock_apply)
+        job_id = uuid4()
+
+        run_rights_agent(
+            conn=MagicMock(),
+            artifact=artifact,
+            profile=_profile(source_authority="official"),
+            expected_version=5,
+            actor="rights-test",
+            job_id=job_id,
+        )
+
+        assert mock_apply.call_args.kwargs["job_id"] == job_id
+
     def test_rejection_happens_before_any_transition_call(self, monkeypatch: pytest.MonkeyPatch) -> None:
         mock_apply = MagicMock()
         monkeypatch.setattr(rights_agent_module, "apply_resource_transition", mock_apply)

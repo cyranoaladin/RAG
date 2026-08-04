@@ -12,6 +12,7 @@ de qualité n'est calculé ici (``extraction_quality``/``readability``/
 from __future__ import annotations
 
 import re
+from uuid import UUID
 
 import psycopg
 from nexus_contracts.ingestion import ArtifactRecord
@@ -66,6 +67,7 @@ def run_extractor(
     expected_version: int,
     actor: str,
     read_artifact: ArtifactReader,
+    job_id: UUID | None = None,
 ) -> tuple[str, TransitionResult]:
     """Relit le contenu persisté (``read_artifact`` injecté, aucun défaut
     réel), décode, puis transitionne ``STORED -> EXTRACTED``."""
@@ -83,6 +85,7 @@ def run_extractor(
         new_state=ResourceState.EXTRACTED,
         actor=actor,
         run_id=artifact.run_id,
+        job_id=job_id,
         payload={"artifact_id": str(artifact.artifact_id), "extracted_chars": len(extracted_text)},
     )
 

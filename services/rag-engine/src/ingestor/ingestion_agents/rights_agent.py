@@ -16,6 +16,8 @@ stage si le profil l'exige — jamais une acceptation silencieuse.
 """
 from __future__ import annotations
 
+from uuid import UUID
+
 import psycopg
 from nexus_contracts.document import Rights
 from nexus_contracts.ingestion import ArtifactRecord, CollectionProfile
@@ -62,6 +64,7 @@ def run_rights_agent(
     profile: CollectionProfile,
     expected_version: int,
     actor: str,
+    job_id: UUID | None = None,
 ) -> tuple[Rights, TransitionResult]:
     """Calcule les droits (échec explicite si rejetés) puis transitionne
     ``CLASSIFIED -> RIGHTS_CHECKED``."""
@@ -75,6 +78,7 @@ def run_rights_agent(
         new_state=ResourceState.RIGHTS_CHECKED,
         actor=actor,
         run_id=artifact.run_id,
+        job_id=job_id,
         payload={"rights_status": rights.value},
     )
 

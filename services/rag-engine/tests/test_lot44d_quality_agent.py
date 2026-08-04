@@ -234,6 +234,38 @@ class TestRunQualityAgentNeverActivatesRouted:
         assert routing_decision.decision == "DUPLICATE"
         assert quality_report.duplicate_detected is True
 
+    def test_job_id_is_forwarded_to_the_single_transition(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        artifact = _artifact()
+        fake_transition = TransitionResult(
+            resource_id=artifact.resource_id, from_state=ResourceState.RIGHTS_CHECKED,
+            to_state=ResourceState.QUALITY_CHECKED, state_version=7,
+        )
+        mock_apply = MagicMock(return_value=fake_transition)
+        monkeypatch.setattr(quality_agent_module, "apply_resource_transition", mock_apply)
+        job_id = uuid4()
+
+        run_quality_agent(
+            conn=MagicMock(),
+            artifact=artifact,
+            profile=_profile(),
+            conformity=_CONFORMITY_OK,
+            rights=Rights.officiel_public,
+            extracted_text="algorithmique et récursivité sont au programme. " * 20,
+            declared_language="fr",
+            pii_detected=False,
+            duplicate_detected=False,
+            report_id=uuid4(),
+            decision_id=uuid4(),
+            evaluated_at=datetime(2026, 8, 4, tzinfo=UTC),
+            expected_version=6,
+            actor="quality-test",
+            job_id=job_id,
+        )
+
+        assert mock_apply.call_args.kwargs["job_id"] == job_id
+
     def test_no_call_ever_targets_routed_state(self, monkeypatch: pytest.MonkeyPatch) -> None:
         artifact = _artifact()
         mock_apply = MagicMock(

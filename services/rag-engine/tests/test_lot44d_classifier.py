@@ -122,3 +122,25 @@ class TestRunClassifierWiring:
         assert kwargs["new_state"] == ResourceState.CLASSIFIED
         assert kwargs["resource_id"] == resource_id
         assert kwargs["run_id"] == run_id
+
+    def test_job_id_is_forwarded(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        fake_transition = TransitionResult(
+            resource_id=uuid4(), from_state=ResourceState.EXTRACTED,
+            to_state=ResourceState.CLASSIFIED, state_version=5,
+        )
+        mock_apply = MagicMock(return_value=fake_transition)
+        monkeypatch.setattr(classifier_module, "apply_resource_transition", mock_apply)
+        job_id = uuid4()
+
+        run_classifier(
+            conn=MagicMock(),
+            resource_id=uuid4(),
+            run_id=uuid4(),
+            extracted_text="algorithmique",
+            profile=_profile(),
+            expected_version=4,
+            actor="classifier-test",
+            job_id=job_id,
+        )
+
+        assert mock_apply.call_args.kwargs["job_id"] == job_id

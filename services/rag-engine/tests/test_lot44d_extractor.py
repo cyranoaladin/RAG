@@ -127,6 +127,27 @@ class TestRunExtractorWiring:
         assert kwargs["expected_state"] == ResourceState.STORED
         assert kwargs["new_state"] == ResourceState.EXTRACTED
 
+    def test_job_id_is_forwarded(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        artifact = _artifact(mime_detected="text/plain", extracted_text_ref="mem://artifact-1")
+        fake_transition = TransitionResult(
+            resource_id=artifact.resource_id, from_state=ResourceState.STORED,
+            to_state=ResourceState.EXTRACTED, state_version=4,
+        )
+        mock_apply = MagicMock(return_value=fake_transition)
+        monkeypatch.setattr(extractor_module, "apply_resource_transition", mock_apply)
+        job_id = uuid4()
+
+        run_extractor(
+            conn=MagicMock(),
+            artifact=artifact,
+            expected_version=3,
+            actor="extractor-test",
+            read_artifact=lambda *, extracted_text_ref: b"algorithmique",
+            job_id=job_id,
+        )
+
+        assert mock_apply.call_args.kwargs["job_id"] == job_id
+
     def test_missing_extracted_text_ref_raises_before_reading(self) -> None:
         artifact = _artifact(extracted_text_ref=None)
 

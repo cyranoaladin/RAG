@@ -83,6 +83,7 @@ def run_fetcher(
     actor: str,
     max_bytes: int,
     store_artifact: ArtifactStore,
+    job_id: UUID | None = None,
     mime_declared: str = "application/octet-stream",
     safe_fetch: SafeFetcher = default_safe_fetch,
 ) -> tuple[ArtifactRecord, TransitionResult, TransitionResult]:
@@ -105,6 +106,7 @@ def run_fetcher(
         new_state=ResourceState.FETCHED,
         actor=actor,
         run_id=candidate.run_id,
+        job_id=job_id,
         payload={"artifact_id": str(artifact_id), "sha256": sha256, "size_bytes": len(content)},
     )
 
@@ -118,6 +120,7 @@ def run_fetcher(
         new_state=ResourceState.STORED,
         actor=actor,
         run_id=candidate.run_id,
+        job_id=job_id,
         payload={"artifact_id": str(artifact_id), "extracted_text_ref": extracted_text_ref},
     )
 

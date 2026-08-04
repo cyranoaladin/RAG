@@ -179,3 +179,57 @@ class TestRunScoutWiring:
         assert kwargs["new_state"] == ResourceState.CANDIDATE
         assert kwargs["run_id"] == run_id
         assert candidate.candidate_id is not None
+
+    def test_job_id_is_forwarded_to_apply_resource_transition(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        fake_transition = TransitionResult(
+            resource_id=uuid4(), from_state=ResourceState.DISCOVERED,
+            to_state=ResourceState.CANDIDATE, state_version=2,
+        )
+        mock_apply = MagicMock(return_value=fake_transition)
+        monkeypatch.setattr(scout_module, "apply_resource_transition", mock_apply)
+        job_id = uuid4()
+
+        run_scout(
+            conn=MagicMock(),
+            search_plan=_search_plan(),
+            resource_id=uuid4(),
+            candidate_id=uuid4(),
+            discovered_at=datetime(2026, 8, 4, tzinfo=UTC),
+            source_url="https://eduscol.education.fr/nsi/algo",
+            canonical_url="https://eduscol.education.fr/nsi/algo",
+            domain="eduscol.education.fr",
+            proposed_type_doc="cours",
+            expected_version=1,
+            actor="scout-test",
+            job_id=job_id,
+            validate_destination=lambda url: url,
+        )
+
+        assert mock_apply.call_args.kwargs["job_id"] == job_id
+
+    def test_job_id_defaults_to_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        fake_transition = TransitionResult(
+            resource_id=uuid4(), from_state=ResourceState.DISCOVERED,
+            to_state=ResourceState.CANDIDATE, state_version=2,
+        )
+        mock_apply = MagicMock(return_value=fake_transition)
+        monkeypatch.setattr(scout_module, "apply_resource_transition", mock_apply)
+
+        run_scout(
+            conn=MagicMock(),
+            search_plan=_search_plan(),
+            resource_id=uuid4(),
+            candidate_id=uuid4(),
+            discovered_at=datetime(2026, 8, 4, tzinfo=UTC),
+            source_url="https://eduscol.education.fr/nsi/algo",
+            canonical_url="https://eduscol.education.fr/nsi/algo",
+            domain="eduscol.education.fr",
+            proposed_type_doc="cours",
+            expected_version=1,
+            actor="scout-test",
+            validate_destination=lambda url: url,
+        )
+
+        assert mock_apply.call_args.kwargs["job_id"] is None

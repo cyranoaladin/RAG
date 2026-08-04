@@ -294,6 +294,47 @@ class TestCompleteJob:
         with pytest.raises(JobLeaseConflictError):
             complete_job(app_conn, job_id=claim.job_id, lease_token=uuid.uuid4(), status="succeeded")
 
+    def test_stale_worker_cannot_complete_after_lease_reclaimed(
+        self, clean_db: None, app_conn: psycopg.Connection, superuser_conn: psycopg.Connection
+    ) -> None:
+        """Même scénario que ci-dessus, mais via une vraie reprise par un
+        second worker (reaper + reclaim), pas un lease_token arbitraire —
+        preuve que A ne peut jamais terminer le job de B."""
+        run_id = _insert_run(app_conn)
+        create_job(app_conn, run_id=run_id, job_type="ingest_v2_upload")
+        app_conn.commit()
+
+        claim_a = claim_job(app_conn, owner="worker-a")
+        app_conn.commit()
+        assert claim_a is not None
+
+        with superuser_conn.cursor() as cur:
+            cur.execute(
+                "UPDATE ingestion_control.jobs SET lease_expires_at = now() - interval '1 second' "
+                "WHERE job_id = %s",
+                (claim_a.job_id,),
+            )
+        assert len(reap_expired_job_leases(app_conn)) == 1
+        app_conn.commit()
+
+        claim_b = claim_job(app_conn, owner="worker-b")
+        app_conn.commit()
+        assert claim_b is not None
+
+        with pytest.raises(JobLeaseConflictError):
+            complete_job(
+                app_conn, job_id=claim_a.job_id, lease_token=claim_a.lease_token, status="succeeded"
+            )
+
+        with app_conn.cursor() as cur:
+            cur.execute(
+                "SELECT status, claimed_by FROM ingestion_control.jobs WHERE job_id = %s",
+                (claim_b.job_id,),
+            )
+            status, claimed_by = cur.fetchone()
+        assert status == "running"
+        assert claimed_by == "worker-b"
+
 
 class TestRecordJobRetry:
     def test_retry_reschedules_and_requeues(self, clean_db: None, app_conn: psycopg.Connection) -> None:
@@ -304,7 +345,9 @@ class TestRecordJobRetry:
         app_conn.commit()
         assert claim is not None
 
-        outcome = record_job_retry(app_conn, job_id=claim.job_id, error="download timeout")
+        outcome = record_job_retry(
+            app_conn, job_id=claim.job_id, lease_token=claim.lease_token, error="download timeout"
+        )
         app_conn.commit()
 
         assert outcome.exhausted is False
@@ -332,7 +375,9 @@ class TestRecordJobRetry:
         app_conn.commit()
         assert claim is not None
 
-        outcome = record_job_retry(app_conn, job_id=claim.job_id, error="fatal error")
+        outcome = record_job_retry(
+            app_conn, job_id=claim.job_id, lease_token=claim.lease_token, error="fatal error"
+        )
         app_conn.commit()
 
         assert outcome.exhausted is True
@@ -341,6 +386,53 @@ class TestRecordJobRetry:
             cur.execute("SELECT status FROM ingestion_control.jobs WHERE job_id = %s", (claim.job_id,))
             (status,) = cur.fetchone()
         assert status == "dead_letter"
+
+    def test_stale_worker_cannot_record_retry_after_lease_reclaimed(
+        self, clean_db: None, app_conn: psycopg.Connection, superuser_conn: psycopg.Connection
+    ) -> None:
+        """Scénario de concurrence explicite (contrainte LOT44e) : worker A
+        réclame, son bail expire, le reaper le libère, worker B réclame le
+        même job — A ne doit alors plus pouvoir planifier de retry avec son
+        ancien lease_token, et le job de B ne doit pas être perturbé."""
+        run_id = _insert_run(app_conn)
+        create_job(app_conn, run_id=run_id, job_type="ingest_v2_upload")
+        app_conn.commit()
+
+        claim_a = claim_job(app_conn, owner="worker-a")
+        app_conn.commit()
+        assert claim_a is not None
+
+        with superuser_conn.cursor() as cur:
+            cur.execute(
+                "UPDATE ingestion_control.jobs SET lease_expires_at = now() - interval '1 second' "
+                "WHERE job_id = %s",
+                (claim_a.job_id,),
+            )
+        reaped = reap_expired_job_leases(app_conn)
+        app_conn.commit()
+        assert len(reaped) == 1
+
+        claim_b = claim_job(app_conn, owner="worker-b")
+        app_conn.commit()
+        assert claim_b is not None
+        assert claim_b.job_id == claim_a.job_id
+        assert claim_b.lease_token != claim_a.lease_token
+
+        with pytest.raises(JobLeaseConflictError):
+            record_job_retry(
+                app_conn, job_id=claim_a.job_id, lease_token=claim_a.lease_token,
+                error="worker A was stale",
+            )
+
+        with app_conn.cursor() as cur:
+            cur.execute(
+                "SELECT status, claimed_by, lease_token FROM ingestion_control.jobs WHERE job_id = %s",
+                (claim_b.job_id,),
+            )
+            status, claimed_by, lease_token = cur.fetchone()
+        assert status == "running"
+        assert claimed_by == "worker-b"
+        assert lease_token == claim_b.lease_token
 
 
 class TestReapExpiredJobLeases:
