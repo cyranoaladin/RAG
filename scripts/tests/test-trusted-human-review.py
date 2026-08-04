@@ -82,7 +82,7 @@ def approved_review(
 
 def valid_permissions() -> dict[str, object]:
     return {
-        "abenrhouma": {"permission": "push", "role_name": "write"},
+        "abenrhouma": {"permission": "write", "role_name": "write"},
     }
 
 

@@ -118,7 +118,7 @@ class RecordingRunner:
             "repos/cyranoaladin/RAG/collaborators/abenrhouma/permission"
         ):
             return {
-                "permission": "push",
+                "permission": "write",
                 "role_name": "write",
                 "user": {"login": "abenrhouma"},
             }

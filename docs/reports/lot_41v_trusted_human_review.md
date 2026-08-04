@@ -95,6 +95,7 @@ dernier push. Aucun bypass n'est admis.
 | Workflow privilégié | fichier absent | 6 tests verts |
 | Câblage CI | trois commandes absentes des deux CI | topologie verte et 51 mutants failsafe verts |
 | Origine des checks | politique aveugle à `app_id` | 34 tests de protection verts et sept checks liés à l'application `15368` |
+| Permission GitHub live | les fixtures historiques utilisaient `permission=push`, alors que l'API expose `permission=write` pour le rôle `write` | noyau et adaptateur alignés, 13 + 9 tests verts et décision live ramenée à la seule approbation manquante |
 
 Les cas couvrent notamment l'auto-review, la permission insuffisante, l'ancien
 head, le mauvais challenge, la révocation, le fork, les pages incomplètes, la
@@ -108,6 +109,14 @@ Le 2026-08-04, le readback du collaborateur donne :
 ```json
 {"permission":"write","role_name":"write","user":"abenrhouma"}
 ```
+
+La première évaluation de la PR publiée a échoué fermé avec
+`reviewer_permission_insufficient` parce que les fixtures modélisaient la
+permission REST historique `push`. Un cycle RED → GREEN a aligné le noyau sur
+les valeurs GitHub actuelles `write`/`admin`, tout en conservant le contrôle
+séparé de `role_name` (`write`, `maintain` ou `admin`). Le même readback sur le
+head publié rend ensuite `current_head_approval_missing` : la permission est
+établie et seule la décision humaine personnelle reste absente.
 
 La protection live reste volontairement celle de la transition : six checks
 CI, historique strict, administrateurs inclus, conversations résolues, zéro

@@ -36,7 +36,7 @@ _REVIEW_STATES = {
     "DISMISSED",
     "PENDING",
 }
-_WRITE_PERMISSIONS = {"push", "maintain", "admin"}
+_WRITE_PERMISSIONS = {"write", "admin"}
 _WRITE_ROLES = {"write", "maintain", "admin"}
 
 
