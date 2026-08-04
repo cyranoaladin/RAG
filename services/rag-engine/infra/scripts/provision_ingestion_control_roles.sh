@@ -102,6 +102,7 @@ GRANT SELECT, INSERT, UPDATE ON ingestion_control.ingestion_runs TO :"app_role" 
 GRANT SELECT, INSERT, UPDATE ON ingestion_control.resources TO :"app_role" ;
 GRANT SELECT, INSERT, UPDATE ON ingestion_control.resource_candidates TO :"app_role" ;
 GRANT SELECT, INSERT, UPDATE ON ingestion_control.artifacts TO :"app_role" ;
+GRANT SELECT, INSERT, UPDATE ON ingestion_control.jobs TO :"app_role" ;
 
 -- Protection append-only réelle : INSERT/SELECT uniquement, jamais
 -- UPDATE/DELETE — appliquée au niveau du privilège SQL, pas seulement par

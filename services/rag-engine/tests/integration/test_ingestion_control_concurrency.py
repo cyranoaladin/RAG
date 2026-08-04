@@ -45,6 +45,7 @@ from ingestor.ingestion_control import (  # noqa: E402
     reap_expired_leases,
     record_retry,
 )
+from ingestor.ingestion_control.jobs import create_job  # noqa: E402
 from ingestor.ingestion_control.transitions import (  # noqa: E402
     InvalidTransitionError,
     TransitionConflictError,
@@ -251,9 +252,10 @@ def test_migration_applies_cleanly_on_fresh_volume(pg_container: dict[str, str])
                 "SELECT version, file_name FROM ingestion_control.schema_migrations ORDER BY version"
             )
             rows = cur.fetchall()
-        assert [r[0] for r in rows] == [1, 2, 3]
+        assert [r[0] for r in rows] == [1, 2, 3, 4]
         assert rows[0][1] == "001_ingestion_control_schema.sql"
         assert rows[2][1] == "003_workflow_events.sql"
+        assert rows[3][1] == "004_jobs.sql"
     finally:
         conn.close()
 
@@ -288,8 +290,11 @@ def test_expected_tables_constraints_and_indexes_exist(
                 "WHERE table_schema = 'ingestion_control' ORDER BY table_name"
             )
             tables = {row[0] for row in cur.fetchall()}
+        # "jobs" (migration 004, LOT44e) ajoutée à l'ensemble attendu — la
+        # dette FK workflow_events.job_id (ADR-0026) est fermée par la même
+        # migration, vérifiée séparément ci-dessous.
         assert tables == {
-            "artifacts", "ingestion_runs", "resource_candidates",
+            "artifacts", "ingestion_runs", "jobs", "resource_candidates",
             "resources", "schema_migrations", "workflow_events",
         }
 
@@ -303,6 +308,16 @@ def test_expected_tables_constraints_and_indexes_exist(
         assert "idx_ingestion_control_workflow_events_idempotency_key" in indexes
         assert "resources_collection_dedup_key_unique" in indexes
         assert "resource_candidates_resource_run_unique" in indexes
+        assert "idx_ingestion_control_jobs_claimable" in indexes
+        assert "idx_ingestion_control_jobs_lease_expiry" in indexes
+
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT conname FROM pg_constraint c "
+                "JOIN pg_namespace n ON n.oid = c.connamespace "
+                "WHERE n.nspname = 'ingestion_control' AND conname = 'workflow_events_job_id_fkey'"
+            )
+            assert cur.fetchone() is not None, "dette FK job_id (ADR-0026) non fermée"
 
         with conn.cursor() as cur:
             cur.execute(
@@ -978,7 +993,11 @@ def test_job_id_and_lease_token_remain_distinct_identities(
         conn.commit()
         assert claim is not None
 
-        explicit_job_id = uuid.uuid4()
+        # job_id doit référencer une ligne réelle de ingestion_control.jobs
+        # depuis la fermeture de la dette FK (migration 004, LOT44e) —
+        # explicit_job_id n'est donc plus un UUID arbitraire non rattaché.
+        explicit_job_id = create_job(superuser_conn, run_id=run_id, job_type="test_distinct_identities")
+        superuser_conn.commit()
         assert explicit_job_id != claim.lease_token, "précondition du test : les deux UUID générés diffèrent"
 
         cas_transition(
