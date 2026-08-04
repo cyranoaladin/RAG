@@ -99,7 +99,7 @@ La politique conserve `required_status_checks.strict = true`. Si `main`
 | Décision pure | approbation exacte, révocation, fork, bots et permissions non traités | 15 tests verts |
 | Adaptateur GitHub | module absent | 9 tests verts, surface de mutation supprimée |
 | Workflow read-only | fichier absent | 6 tests verts |
-| Câblage CI | trois commandes absentes des deux CI | topologie verte et 50 mutants failsafe verts |
+| Câblage CI | trois commandes absentes des deux CI | topologie verte et 51 mutants failsafe verts |
 | Origine des checks | politique aveugle à `app_id` | 34 tests de protection verts et six checks CI liés à l'application `15368` |
 | Permission GitHub live | les fixtures historiques utilisaient `permission=push`, alors que l'API expose `permission=write` pour le rôle `write` | noyau et adaptateur alignés, 15 + 9 tests verts |
 | Review de bot live | le login réel `chatgpt-codex-connector[bot]` arrêtait l'évaluation avant le filtrage de l'allowlist | acteur bot strictement parsé mais non autorisable, puis décision live ramenée à la seule approbation manquante |
@@ -110,6 +110,8 @@ La politique conserve `required_status_checks.strict = true`. Si `main`
 | Scope du commentaire | la commande pouvait lancer l'adaptateur pour une PR hors `main` | base relue par API et sortie sans mutation avant tout appel du readback |
 | Identité du producteur | `app_id=15368` identifiait tous les workflows Actions, pas le vérificateur | `trusted-human-review` retiré des checks requis ; Code Owner natif rendu autoritaire |
 | Auteur GitHub App | un auteur `dependabot[bot]` était refusé avant évaluation | login bot accepté comme auteur borné, sans l'autoriser comme reviewer humain |
+| Reproductibilité locale | le test YAML utilisait le Python système sans garantir PyYAML | interpréteur du venv `rag-pedago` explicitement sélectionné et câblage testé |
+| Nom de check trompeur | le statut n'était plus requis mais son nom pouvait être réintroduit | `trusted-human-review` reste réservé et tout workflow homonyme est rejeté |
 
 Les cas couvrent notamment l'auto-review, la permission insuffisante, l'ancien
 head, le mauvais challenge, la révocation, le fork, les pages incomplètes, la
@@ -201,7 +203,7 @@ Sur le head courant, les résultats ciblés frais sont :
 - `test-trusted-human-review-github.py` : 9 tests réussis ;
 - `test-trusted-human-review-workflow.py` : 6 tests réussis ;
 - `test-ci-local-topology.sh` : PASS ;
-- `test-ci-local-failsafe.sh` : 50 réussites, 0 échec ;
+- `test-ci-local-failsafe.sh` : 51 réussites, 0 échec ;
 - Ruff ciblé et `git diff --check` : PASS.
 
 La première tentative exhaustive s'est arrêtée avant les tests parce que le
@@ -225,7 +227,7 @@ La relance fraîche sur le head source exact
   concordance des snapshots et deux audits npm sans vulnérabilité ;
 - hygiène et tests d'hygiène, topologie CI, protection de `main`, trois suites
   LOT41V, taxonomie, preuves sources, verrous et tests de gouvernance : PASS ;
-- tests failsafe : 50 réussites, 0 échec sur le head de sécurité final ;
+- tests failsafe : 51 réussites, 0 échec sur le head de sécurité final ;
 - baseline de gouvernance : 18 clés, configuration : 18 clés, toutes
   conformes.
 

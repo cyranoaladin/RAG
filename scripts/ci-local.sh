@@ -182,7 +182,7 @@ run_target "main-protection-policy-tests" \
 # --- trusted human review ---
 run_target "trusted-human-review-core-tests" "$PYTHON_BIN" scripts/tests/test-trusted-human-review.py
 run_target "trusted-human-review-github-tests" "$PYTHON_BIN" scripts/tests/test-trusted-human-review-github.py
-run_target "trusted-human-review-workflow-tests" "$PYTHON_BIN" scripts/tests/test-trusted-human-review-workflow.py
+run_target "trusted-human-review-workflow-tests" "$REPO_ROOT/services/rag-pedago/.venv/bin/python" scripts/tests/test-trusted-human-review-workflow.py
 
 # --- governance locks ---
 run_target "governance-locks" bash scripts/check-governance-locks.sh

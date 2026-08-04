@@ -467,6 +467,13 @@ required = (
     "python scripts/tests/test-trusted-human-review-github.py",
     "python scripts/tests/test-trusted-human-review-workflow.py",
 )
+local_runners = {
+    "scripts/tests/test-trusted-human-review.py": '"$PYTHON_BIN"',
+    "scripts/tests/test-trusted-human-review-github.py": '"$PYTHON_BIN"',
+    "scripts/tests/test-trusted-human-review-workflow.py": (
+        '"$REPO_ROOT/services/rag-pedago/.venv/bin/python"'
+    ),
+}
 commands = [
     step.get("run")
     for step in steps
@@ -487,7 +494,7 @@ for command in required:
     script = command.removeprefix("python ")
     pattern = re.compile(
         r'^run_target "trusted-human-review-[a-z-]+" '
-        + re.escape('"$PYTHON_BIN" ' + script)
+        + re.escape(local_runners[script] + " " + script)
         + r"$",
         re.MULTILINE,
     )

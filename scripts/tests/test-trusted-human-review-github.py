@@ -290,6 +290,7 @@ class CliTests(unittest.TestCase):
                     "89",
                     "--expected-head",
                     HEAD_SHA,
+                    "--check",
                     "--publish",
                 ]
             )
