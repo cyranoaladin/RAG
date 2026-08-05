@@ -120,6 +120,27 @@ def create_job(
     return job_id
 
 
+def set_job_resource_id(conn: psycopg.Connection, *, job_id: UUID, resource_id: UUID) -> None:
+    """Rattache un ``resource_id`` à un job qui n'en avait pas encore
+    (LOT44f, reprise multi-claims) — appelée par le worker juste après avoir
+    créé la ressource associée à un job soumis sans ressource préexistante
+    (ex. pont ``/ingest/v2``), dans le même commit que cette création.
+
+    Sans cet appel, un job réclamé à nouveau après un crash (bail expiré,
+    ``reap_expired_job_leases``) verrait toujours ``resource_id IS NULL`` et
+    tenterait de recréer une ressource — collision garantie avec la
+    contrainte ``resources_collection_dedup_key_unique`` (migration 001),
+    puisque la ressource existe déjà. Idempotent : réécrire la même valeur
+    ne change rien ; ``resource_id`` n'est jamais réassigné à une valeur
+    différente une fois posé (aucun appelant de ce module ne le fait)."""
+    with conn.cursor() as cur:
+        cur.execute(
+            "UPDATE ingestion_control.jobs SET resource_id = %s, updated_at = now() "
+            "WHERE job_id = %s",
+            (resource_id, job_id),
+        )
+
+
 @dataclass(frozen=True)
 class JobClaim:
     job_id: UUID
@@ -368,4 +389,5 @@ __all__ = [
     "find_active_job_by_dedup_key",
     "reap_expired_job_leases",
     "record_job_retry",
+    "set_job_resource_id",
 ]

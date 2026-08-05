@@ -25,6 +25,7 @@ from uuid import UUID, uuid4
 
 import psycopg
 from nexus_contracts.ingestion import ResourceScope, SearchPlan
+from nexus_contracts.resource_state import ResourceState
 
 try:
     from ingestor.ingestion_agents.classifier import run_classifier
@@ -47,8 +48,16 @@ try:
         claim_job,
         complete_job,
         record_job_retry,
+        set_job_resource_id,
     )
-    from ingestor.ingestion_control.provisioning import create_resource
+    from ingestor.ingestion_control.provisioning import (
+        create_resource,
+        find_latest_artifact,
+        find_resource_candidate,
+        get_resource_state,
+        persist_artifact,
+        persist_resource_candidate,
+    )
     from ingestor.ingestion_profiles.registry import load_profile_registry, select_profile
     from ingestor.ingestion_profiles.validation import validate_scope_against_profile
 except (ImportError, ValueError):
@@ -75,8 +84,16 @@ except (ImportError, ValueError):
         claim_job,
         complete_job,
         record_job_retry,
+        set_job_resource_id,
     )
-    from ingestion_control.provisioning import create_resource
+    from ingestion_control.provisioning import (
+        create_resource,
+        find_latest_artifact,
+        find_resource_candidate,
+        get_resource_state,
+        persist_artifact,
+        persist_resource_candidate,
+    )
     from ingestion_profiles.registry import (
         load_profile_registry,
         select_profile,
@@ -118,7 +135,42 @@ class MissingPayloadFieldError(ValueError):
     jamais une valeur par défaut devinée."""
 
 
+class ResumeStateInconsistentError(RuntimeError):
+    """La ressource est dans un état qui implique qu'un candidat/artefact
+    aurait déjà dû être persisté (LOT44f), mais aucun n'est trouvé — jamais
+    une reprise silencieuse sur une hypothèse fausse. Situation qui ne
+    devrait jamais survenir en fonctionnement normal (les commits
+    intermédiaires de ``_process_claimed_job`` gardent état de ressource et
+    persistance de l'enregistrement dans la même transaction) ; sa
+    présence signale une incohérence à investiguer, pas un cas à masquer
+    par un retry aveugle infini (elle finira en ``dead_letter`` comme
+    n'importe quelle autre erreur, via ``record_job_retry``)."""
+
+
 def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: WorkerDeps) -> None:
+    """Traite un job du début (ou du point de reprise) à la fin.
+
+    Reprise multi-claims (LOT44f) : un job réclamé après expiration de bail
+    (crash worker, cf. ``reap_expired_job_leases``) porte déjà
+    ``claim.resource_id`` si une ressource a été créée lors d'une tentative
+    précédente. L'état durable de cette ressource (``resources.
+    resource_state``, committé) détermine alors quelles étapes ont déjà
+    réellement abouti :
+
+    - ``DISCOVERED`` (ou ressource fraîchement créée) : Scout doit encore
+      s'exécuter.
+    - ``CANDIDATE`` : Scout a committé, pas Fetcher — le ``ResourceCandidate``
+      persisté (migration 006) est relu, Fetcher s'exécute.
+    - tout état ``>= STORED`` : Fetcher a committé — l'``ArtifactRecord``
+      persisté est relu, Scout ET Fetcher sont sautés.
+
+    Aucun état intermédiaire (``EXTRACTED``/``CLASSIFIED``/
+    ``RIGHTS_CHECKED``) n'est jamais observé comme point de reprise durable :
+    ``run_worker_iteration`` ne committe qu'après chaque point de contrôle
+    explicite ci-dessous, jamais entre Extractor et QualityAgent — un crash
+    dans ce groupe fait donc toujours réapparaître la ressource à
+    ``STORED`` après rollback, jamais à un état intermédiaire non géré ici.
+    """
     payload = claim.payload
     missing = [key for key in REQUIRED_PAYLOAD_KEYS if key not in payload]
     if missing:
@@ -142,7 +194,19 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
             f"(status={validation_result.status}, issues={validation_result.issues})"
         )
 
-    resource_id = create_resource(conn, run_id=claim.run_id, dedup_key=payload["dedup_key"], scope=scope)
+    if claim.resource_id is not None:
+        resource_id = claim.resource_id
+    else:
+        resource_id = create_resource(
+            conn, run_id=claim.run_id, dedup_key=payload["dedup_key"], scope=scope
+        )
+        # Rattache resource_id au job dans le même commit : sans ça, une
+        # reprise après crash (claim.resource_id lu depuis jobs.resource_id
+        # à la prochaine réclamation) ne verrait jamais cette ressource et
+        # retenterait create_resource — collision garantie avec
+        # resources_collection_dedup_key_unique, la ressource existant déjà.
+        set_job_resource_id(conn, job_id=claim.job_id, resource_id=resource_id)
+        conn.commit()  # point de contrôle LOT44f : ressource durablement créée et rattachée
 
     now = datetime.now(UTC)
     search_plan = SearchPlan(
@@ -157,39 +221,66 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
         reason=f"soumission directe (worker CLI, job_id={claim.job_id})",
     )
 
-    candidate, scout_transition = run_scout(
-        conn,
-        search_plan=search_plan,
-        resource_id=resource_id,
-        candidate_id=uuid4(),
-        discovered_at=now,
-        source_url=str(payload["source_url"]),
-        canonical_url=str(payload["canonical_url"]),
-        domain=str(payload["domain"]),
-        proposed_type_doc=payload["proposed_type_doc"],
-        expected_version=0,
-        actor=deps.owner,
-        job_id=claim.job_id,
-        validate_destination=deps.validate_destination,
-    )
+    current_state = get_resource_state(conn, resource_id=resource_id)
+    if current_state is None:  # pragma: no cover - la ressource vient d'être créée/lue ci-dessus
+        raise RuntimeError(f"resource {resource_id} not found immediately after creation/lookup")
+    resource_state, state_version = current_state
 
-    artifact, _fetched, stored_transition = run_fetcher(
-        conn,
-        candidate=candidate,
-        artifact_id=uuid4(),
-        collected_at=now,
-        expected_version=scout_transition.state_version,
-        actor=deps.owner,
-        max_bytes=deps.max_bytes,
-        store_artifact=deps.artifact_store,
-        safe_fetch=deps.safe_fetch,
-        job_id=claim.job_id,
-    )
+    if resource_state == ResourceState.DISCOVERED:
+        candidate, scout_transition = run_scout(
+            conn,
+            search_plan=search_plan,
+            resource_id=resource_id,
+            candidate_id=uuid4(),
+            discovered_at=now,
+            source_url=str(payload["source_url"]),
+            canonical_url=str(payload["canonical_url"]),
+            domain=str(payload["domain"]),
+            proposed_type_doc=payload["proposed_type_doc"],
+            expected_version=state_version,
+            actor=deps.owner,
+            job_id=claim.job_id,
+            validate_destination=deps.validate_destination,
+        )
+        persist_resource_candidate(conn, candidate=candidate)
+        conn.commit()  # point de contrôle LOT44f : Scout durablement franchi
+        state_version = scout_transition.state_version
+    else:
+        candidate = find_resource_candidate(conn, resource_id=resource_id, run_id=claim.run_id)
+        if candidate is None:
+            raise ResumeStateInconsistentError(
+                f"resource {resource_id} at state={resource_state} but no persisted "
+                "ResourceCandidate found (expected after Scout committed)"
+            )
+
+    if resource_state in (ResourceState.DISCOVERED, ResourceState.CANDIDATE):
+        artifact, _fetched, stored_transition = run_fetcher(
+            conn,
+            candidate=candidate,
+            artifact_id=uuid4(),
+            collected_at=now,
+            expected_version=state_version,
+            actor=deps.owner,
+            max_bytes=deps.max_bytes,
+            store_artifact=deps.artifact_store,
+            safe_fetch=deps.safe_fetch,
+            job_id=claim.job_id,
+        )
+        persist_artifact(conn, artifact=artifact)
+        conn.commit()  # point de contrôle LOT44f : Fetcher durablement franchi
+        state_version = stored_transition.state_version
+    else:
+        artifact = find_latest_artifact(conn, resource_id=resource_id)
+        if artifact is None:
+            raise ResumeStateInconsistentError(
+                f"resource {resource_id} at state={resource_state} but no persisted "
+                "ArtifactRecord found (expected after Fetcher committed)"
+            )
 
     extracted_text, extract_transition = run_extractor(
         conn,
         artifact=artifact,
-        expected_version=stored_transition.state_version,
+        expected_version=state_version,
         actor=deps.owner,
         read_artifact=deps.artifact_reader,
         job_id=claim.job_id,
@@ -298,6 +389,7 @@ __all__ = [
     "REQUIRED_PAYLOAD_KEYS",
     "IterationOutcome",
     "MissingPayloadFieldError",
+    "ResumeStateInconsistentError",
     "WorkerDeps",
     "run_worker_iteration",
 ]

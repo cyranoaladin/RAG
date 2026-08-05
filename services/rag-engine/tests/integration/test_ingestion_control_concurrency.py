@@ -252,13 +252,15 @@ def test_migration_applies_cleanly_on_fresh_volume(pg_container: dict[str, str])
                 "SELECT version, file_name FROM ingestion_control.schema_migrations ORDER BY version"
             )
             rows = cur.fetchall()
-        # LOT44f/ADR-0029 : migration 005 (réconciliation jobs.status) ajoutée
-        # après 004 — liste étendue en conséquence, changement intentionnel.
-        assert [r[0] for r in rows] == [1, 2, 3, 4, 5]
+        # LOT44f/ADR-0029 : migration 005 (réconciliation jobs.status) puis 006
+        # (payload candidates/artifacts) ajoutées après 004 — liste étendue en
+        # conséquence, changement intentionnel.
+        assert [r[0] for r in rows] == [1, 2, 3, 4, 5, 6]
         assert rows[0][1] == "001_ingestion_control_schema.sql"
         assert rows[2][1] == "003_workflow_events.sql"
         assert rows[3][1] == "004_jobs.sql"
         assert rows[4][1] == "005_jobs_status_reconcile.sql"
+        assert rows[5][1] == "006_resource_candidates_and_artifacts_payload.sql"
     finally:
         conn.close()
 

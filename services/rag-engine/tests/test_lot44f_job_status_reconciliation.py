@@ -75,11 +75,15 @@ class TestJobStatusSqlPythonReconciliation:
         assert "claimed" not in _final_sql_declared_statuses()
         assert "claimed" not in _python_declared_statuses()
 
-    def test_reconciliation_migration_present_and_head_updated(self) -> None:
+    def test_reconciliation_migration_present_and_head_at_least_005(self) -> None:
         migration = MIGRATIONS_DIR / "005_jobs_status_reconcile.sql"
         head = MIGRATIONS_DIR / "HEAD"
         assert migration.is_file()
-        assert head.read_text(encoding="utf-8").strip() == "005_jobs_status_reconcile"
+        # >= 005, pas nécessairement == : des migrations additives ultérieures
+        # (ex. 006, LOT44f) font légitimement avancer HEAD sans invalider la
+        # réconciliation elle-même — seule sa présence dans la chaîne compte.
+        head_number = int(head.read_text(encoding="utf-8").strip().split("_", 1)[0])
+        assert head_number >= 5
 
     def test_rollback_for_005_exists(self) -> None:
         rollback = (
