@@ -11,7 +11,7 @@ lancé automatiquement par ``api.py``/``docker-compose.v2.yml``.
 """
 from __future__ import annotations
 
-from ingestor.ingestion_worker.runner import (
+from .runner import (
     IterationOutcome,
     MissingPayloadFieldError,
     WorkerDeps,

@@ -23,12 +23,12 @@ from nexus_contracts.document import Rights
 from nexus_contracts.ingestion import ArtifactRecord, ResourceCandidate
 from nexus_contracts.resource_state import ResourceState
 
-from ingestor.ingestion_agents.dependencies import (
+from .dependencies import (
     ArtifactStore,
     SafeFetcher,
     default_safe_fetch,
 )
-from ingestor.ingestion_agents.transitions import TransitionResult, apply_resource_transition
+from .transitions import TransitionResult, apply_resource_transition
 
 
 def build_artifact_core(

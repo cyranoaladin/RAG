@@ -22,7 +22,7 @@ le statut sont gérés ensemble par les mêmes primitives (``claim_job``,
 ``complete_job``, ``record_job_retry``) — un choix de simplicité délibéré,
 pas un oubli de séparation.
 
-Réconciliation LOT44f (migration 005, ADR-0027) : la contrainte SQL
+Réconciliation LOT44f (migration 005, ADR-0029) : la contrainte SQL
 ``jobs_status_valid`` portait historiquement une 7e valeur (``'claimed'``)
 absente de ce ``Literal`` et jamais écrite par aucune fonction de ce module
 — ``claim_job`` fait transitionner directement ``'queued' -> 'running'``,

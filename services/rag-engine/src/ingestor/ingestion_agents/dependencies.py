@@ -20,7 +20,13 @@ from uuid import UUID
 
 import httpx
 
-from ingestor import ssrf_guard
+try:
+    from ingestor import ssrf_guard
+except (ImportError, ValueError):
+    # Image Docker aplatie (LOT44f, ADR-0029) : "ingestor" n'existe pas comme
+    # paquet — ssrf_guard est importable directement au premier niveau,
+    # sibling de api.py. Même discipline que api.py.
+    import ssrf_guard
 
 
 class DestinationValidator(Protocol):

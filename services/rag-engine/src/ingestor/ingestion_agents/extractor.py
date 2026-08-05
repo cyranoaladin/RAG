@@ -18,8 +18,8 @@ import psycopg
 from nexus_contracts.ingestion import ArtifactRecord
 from nexus_contracts.resource_state import ResourceState
 
-from ingestor.ingestion_agents.dependencies import ArtifactReader
-from ingestor.ingestion_agents.transitions import TransitionResult, apply_resource_transition
+from .dependencies import ArtifactReader
+from .transitions import TransitionResult, apply_resource_transition
 
 #: MIME types explicitement pris en charge par ce décodage minimal — fail
 #: closed sur tout autre type (ex. PDF, image) plutôt qu'une tentative

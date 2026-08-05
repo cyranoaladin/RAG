@@ -22,7 +22,7 @@ import psycopg
 from nexus_contracts.ingestion import CollectionProfile
 from nexus_contracts.resource_state import ResourceState
 
-from ingestor.ingestion_agents.transitions import TransitionResult, apply_resource_transition
+from .transitions import TransitionResult, apply_resource_transition
 
 
 @dataclass(frozen=True)

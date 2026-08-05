@@ -1,13 +1,21 @@
 """Point d'entrée CLI autonome du worker (LOT44e).
 
 ``python -m ingestor.ingestion_worker.cli [--once] [--max-iterations N]
-[--poll-interval-s S]`` — jamais lancé automatiquement par ``api.py`` ou
-``docker-compose.v2.yml`` (aucune référence, vérifié). Boucle de scheduling
-volontairement simple (``time.sleep`` entre itérations vides) : le
-déterminisme réel réside dans ``run_worker_iteration`` (LOT44e,
+[--poll-interval-s S]`` — jamais lancé automatiquement par ``api.py``
+directement (aucune référence dans ce fichier), mais provisionné comme
+service dédié par ``docker-compose.v2.yml`` depuis LOT44f (voir ADR-0029).
+Boucle de scheduling volontairement simple (``time.sleep`` entre itérations
+vides) : le déterminisme réel réside dans ``run_worker_iteration`` (LOT44e,
 ``runner.py``), pas dans cette boucle, qui n'est jamais testée comme une
 boucle infinie — seul ``--once``/``--max-iterations`` est exercé par les
 tests.
+
+LOT44f/ADR-0029 : le gate de profils LOT44c (``enforce_production_manifest_
+gate``) est appelé ici de façon inconditionnelle, avant toute connexion
+PostgreSQL — ce processus n'a aucune raison d'exister sans plan de contrôle
+d'ingestion gouvernée, contrairement à ``api.py`` qui sert aussi le
+retrieval en lecture seule. Aucun moyen de le désactiver (pas de flag) —
+même discipline fail-closed que le module ``startup_gate`` lui-même.
 """
 from __future__ import annotations
 
@@ -18,12 +26,20 @@ from pathlib import Path
 
 import psycopg
 
-from ingestor.ingestion_control.db import get_ingestion_control_dsn
-from ingestor.ingestion_worker.runner import WorkerDeps, run_worker_iteration
-from ingestor.ingestion_worker.storage import (
-    make_filesystem_artifact_reader,
-    make_filesystem_artifact_store,
-)
+try:
+    from ingestor.ingestion_control.db import get_ingestion_control_dsn
+    from ingestor.ingestion_profiles.startup_gate import enforce_production_manifest_gate
+except (ImportError, ValueError):
+    # Image Docker aplatie (LOT44f, ADR-0029) : "ingestor" n'existe pas comme
+    # paquet — ingestion_control/ingestion_profiles sont importables
+    # directement au premier niveau. Même discipline que api.py.
+    from ingestion_control.db import get_ingestion_control_dsn
+    from ingestion_profiles.startup_gate import (
+        enforce_production_manifest_gate,
+    )
+
+from .runner import WorkerDeps, run_worker_iteration
+from .storage import make_filesystem_artifact_reader, make_filesystem_artifact_store
 
 DEFAULT_POLL_INTERVAL_S = 5.0
 
@@ -31,6 +47,7 @@ DEFAULT_POLL_INTERVAL_S = 5.0
 def _build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Worker CLI LOT44e — traite un job à la fois.")
     parser.add_argument("--profiles-dir", required=True, type=Path)
+    parser.add_argument("--manifest-path", required=True, type=Path)
     parser.add_argument("--artifact-store-dir", required=True, type=Path)
     parser.add_argument("--owner", required=True)
     parser.add_argument("--once", action="store_true", help="Traite au plus un job puis quitte.")
@@ -41,6 +58,13 @@ def _build_arg_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = _build_arg_parser().parse_args(argv)
+
+    try:
+        enforce_production_manifest_gate(args.profiles_dir, args.manifest_path)
+    except Exception as exc:  # noqa: BLE001 - frontière CLI volontaire, jamais silencieuse
+        print(f"WORKER_STARTUP_GATE_FAILED: {exc}", file=sys.stderr)
+        return 1
+
     deps = WorkerDeps(
         owner=args.owner,
         profiles_dir=args.profiles_dir,

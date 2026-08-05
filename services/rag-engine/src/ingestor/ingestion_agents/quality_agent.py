@@ -34,8 +34,8 @@ from nexus_contracts.ingestion import (
 )
 from nexus_contracts.resource_state import ResourceState
 
-from ingestor.ingestion_agents.classifier import ConformityResult
-from ingestor.ingestion_agents.transitions import TransitionResult, apply_resource_transition
+from .classifier import ConformityResult
+from .transitions import TransitionResult, apply_resource_transition
 
 _SENTENCE_BOUNDARY_PATTERN = re.compile(r"[.!?]")
 

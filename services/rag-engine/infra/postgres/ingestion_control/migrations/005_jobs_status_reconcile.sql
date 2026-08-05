@@ -18,7 +18,7 @@
 -- appelant actuel ne l'écrive : ce n'est pas une divergence inter-couches
 -- (les deux couches sont d'accord), seulement un état terminal réservé pour
 -- une classification d'échec non-retryable future — hors périmètre de cette
--- migration (cf. ADR-0027).
+-- migration (cf. ADR-0029).
 --
 -- Additive au sens migrations : ne réécrit pas 004 (gelée), ALTER seulement.
 -- Idempotent : DROP CONSTRAINT IF EXISTS puis ADD CONSTRAINT, sûr à rejouer.

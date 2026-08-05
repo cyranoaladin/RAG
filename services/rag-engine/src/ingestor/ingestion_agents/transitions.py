@@ -22,12 +22,23 @@ from uuid import UUID
 import psycopg
 from nexus_contracts.resource_state import ResourceState, is_valid_resource_transition
 
-from ingestor.ingestion_control.transitions import (
-    InvalidTransitionError,
-    TransitionConflictError,
-    TransitionResult,
-    cas_transition,
-)
+try:
+    from ingestor.ingestion_control.transitions import (
+        InvalidTransitionError,
+        TransitionConflictError,
+        TransitionResult,
+        cas_transition,
+    )
+except (ImportError, ValueError):
+    # Image Docker aplatie (LOT44f, ADR-0029) : "ingestor" n'existe pas comme
+    # paquet — ingestion_control est importable directement au premier
+    # niveau. Même discipline que api.py.
+    from ingestion_control.transitions import (
+        InvalidTransitionError,
+        TransitionConflictError,
+        TransitionResult,
+        cas_transition,
+    )
 
 
 def apply_resource_transition(

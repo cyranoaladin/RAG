@@ -18,11 +18,11 @@ from nexus_contracts.document import TypeDoc
 from nexus_contracts.ingestion import ResourceCandidate, SearchPlan
 from nexus_contracts.resource_state import ResourceState
 
-from ingestor.ingestion_agents.dependencies import (
+from .dependencies import (
     DestinationValidator,
     default_validate_destination,
 )
-from ingestor.ingestion_agents.transitions import TransitionResult, apply_resource_transition
+from .transitions import TransitionResult, apply_resource_transition
 
 
 class DomainNotAllowedError(ValueError):

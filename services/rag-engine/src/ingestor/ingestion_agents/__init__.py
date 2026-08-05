@@ -13,13 +13,13 @@ Aucune création de run/job/table ``jobs`` : ``job_id`` reste structurellement
 """
 from __future__ import annotations
 
-from ingestor.ingestion_agents.classifier import (
+from .classifier import (
     ConformityResult,
     classify_conformity_core,
     run_classifier,
 )
-from ingestor.ingestion_agents.coverage_agent import build_coverage_snapshot_core
-from ingestor.ingestion_agents.dependencies import (
+from .coverage_agent import build_coverage_snapshot_core
+from .dependencies import (
     ArtifactReader,
     ArtifactStore,
     DestinationValidator,
@@ -27,30 +27,30 @@ from ingestor.ingestion_agents.dependencies import (
     default_safe_fetch,
     default_validate_destination,
 )
-from ingestor.ingestion_agents.extractor import (
+from .extractor import (
     SUPPORTED_MIME_TYPES,
     UnsupportedMimeTypeError,
     extract_text_core,
     run_extractor,
 )
-from ingestor.ingestion_agents.fetcher import build_artifact_core, run_fetcher
-from ingestor.ingestion_agents.planner import plan_search_core, run_planner
-from ingestor.ingestion_agents.quality_agent import (
+from .fetcher import build_artifact_core, run_fetcher
+from .planner import plan_search_core, run_planner
+from .quality_agent import (
     build_quality_report_core,
     decide_routing_core,
     run_quality_agent,
 )
-from ingestor.ingestion_agents.rights_agent import (
+from .rights_agent import (
     UnknownRightsRejectedError,
     assess_rights_core,
     run_rights_agent,
 )
-from ingestor.ingestion_agents.scout import (
+from .scout import (
     DomainNotAllowedError,
     discover_candidate_core,
     run_scout,
 )
-from ingestor.ingestion_agents.transitions import (
+from .transitions import (
     InvalidTransitionError,
     TransitionConflictError,
     TransitionResult,

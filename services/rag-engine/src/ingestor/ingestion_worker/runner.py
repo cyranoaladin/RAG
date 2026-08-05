@@ -26,30 +26,64 @@ from uuid import UUID, uuid4
 import psycopg
 from nexus_contracts.ingestion import ResourceScope, SearchPlan
 
-from ingestor.ingestion_agents.classifier import run_classifier
-from ingestor.ingestion_agents.dependencies import (
-    ArtifactReader,
-    ArtifactStore,
-    DestinationValidator,
-    SafeFetcher,
-    default_safe_fetch,
-    default_validate_destination,
-)
-from ingestor.ingestion_agents.extractor import run_extractor
-from ingestor.ingestion_agents.fetcher import run_fetcher
-from ingestor.ingestion_agents.quality_agent import run_quality_agent
-from ingestor.ingestion_agents.rights_agent import run_rights_agent
-from ingestor.ingestion_agents.scout import run_scout
-from ingestor.ingestion_control.jobs import (
-    JobClaim,
-    JobLeaseConflictError,
-    claim_job,
-    complete_job,
-    record_job_retry,
-)
-from ingestor.ingestion_control.provisioning import create_resource
-from ingestor.ingestion_profiles.registry import load_profile_registry, select_profile
-from ingestor.ingestion_profiles.validation import validate_scope_against_profile
+try:
+    from ingestor.ingestion_agents.classifier import run_classifier
+    from ingestor.ingestion_agents.dependencies import (
+        ArtifactReader,
+        ArtifactStore,
+        DestinationValidator,
+        SafeFetcher,
+        default_safe_fetch,
+        default_validate_destination,
+    )
+    from ingestor.ingestion_agents.extractor import run_extractor
+    from ingestor.ingestion_agents.fetcher import run_fetcher
+    from ingestor.ingestion_agents.quality_agent import run_quality_agent
+    from ingestor.ingestion_agents.rights_agent import run_rights_agent
+    from ingestor.ingestion_agents.scout import run_scout
+    from ingestor.ingestion_control.jobs import (
+        JobClaim,
+        JobLeaseConflictError,
+        claim_job,
+        complete_job,
+        record_job_retry,
+    )
+    from ingestor.ingestion_control.provisioning import create_resource
+    from ingestor.ingestion_profiles.registry import load_profile_registry, select_profile
+    from ingestor.ingestion_profiles.validation import validate_scope_against_profile
+except (ImportError, ValueError):
+    # Image Docker aplatie (LOT44f, ADR-0029) : "ingestor" n'existe pas comme
+    # paquet — ces sous-paquets sont importables directement au premier
+    # niveau. Même discipline que api.py.
+    from ingestion_agents.classifier import run_classifier
+    from ingestion_agents.dependencies import (
+        ArtifactReader,
+        ArtifactStore,
+        DestinationValidator,
+        SafeFetcher,
+        default_safe_fetch,
+        default_validate_destination,
+    )
+    from ingestion_agents.extractor import run_extractor
+    from ingestion_agents.fetcher import run_fetcher
+    from ingestion_agents.quality_agent import run_quality_agent
+    from ingestion_agents.rights_agent import run_rights_agent
+    from ingestion_agents.scout import run_scout
+    from ingestion_control.jobs import (
+        JobClaim,
+        JobLeaseConflictError,
+        claim_job,
+        complete_job,
+        record_job_retry,
+    )
+    from ingestion_control.provisioning import create_resource
+    from ingestion_profiles.registry import (
+        load_profile_registry,
+        select_profile,
+    )
+    from ingestion_profiles.validation import (
+        validate_scope_against_profile,
+    )
 
 #: Champs obligatoires du payload d'un job "resource_pipeline" — absence de
 #: l'un d'eux échoue explicitement (ValueError, capturé et transformé en

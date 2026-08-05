@@ -34,9 +34,21 @@ from uuid import UUID
 import psycopg
 from nexus_contracts.ingestion import ResourceScope
 
-from ingestor.ingestion_control.db import get_ingestion_control_dsn
-from ingestor.ingestion_control.jobs import create_job
-from ingestor.ingestion_control.provisioning import create_ingestion_run
+try:
+    from ingestor.ingestion_control.db import get_ingestion_control_dsn
+    from ingestor.ingestion_control.jobs import create_job
+    from ingestor.ingestion_control.provisioning import create_ingestion_run
+except (ImportError, ValueError):
+    # Image Docker aplatie (LOT44f, ADR-0029) : "ingestor" n'existe pas comme
+    # paquet — ingestion_control est importable directement au premier
+    # niveau. Même discipline que api.py. Notons que ce module est déjà
+    # importé de façon défensive (try/except) par son unique appelant
+    # (ingest_v2_endpoint.py::_best_effort_track_job) — cette correction
+    # rend l'import lui-même robuste plutôt que de dépendre uniquement de
+    # ce filet de sécurité applicatif.
+    from ingestion_control.db import get_ingestion_control_dsn
+    from ingestion_control.jobs import create_job
+    from ingestion_control.provisioning import create_ingestion_run
 
 logger = logging.getLogger(__name__)
 

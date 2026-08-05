@@ -12,15 +12,15 @@ machine d'état n'est définie dans ce module.
 """
 from __future__ import annotations
 
-from ingestor.ingestion_control.claim import CLAIMABLE_STATES, Claim, claim_resource
-from ingestor.ingestion_control.db import get_ingestion_control_dsn
-from ingestor.ingestion_control.lease_reaper import ReapedLease, reap_expired_leases
-from ingestor.ingestion_control.retry import (
+from .claim import CLAIMABLE_STATES, Claim, claim_resource
+from .db import get_ingestion_control_dsn
+from .lease_reaper import ReapedLease, reap_expired_leases
+from .retry import (
     RetryOutcome,
     compute_backoff_seconds,
     record_retry,
 )
-from ingestor.ingestion_control.transitions import (
+from .transitions import (
     InvalidTransitionError,
     TransitionConflictError,
     TransitionResult,

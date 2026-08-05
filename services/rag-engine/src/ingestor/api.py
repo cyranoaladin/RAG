@@ -67,6 +67,17 @@ except (ImportError, ValueError):
     from pg_pool import close_pool  # type: ignore[no-redef]
 
 try:
+    from .ingestion_governance_gate import (
+        enforce_governance_gate_from_environment,
+        ingestion_control_plane_enabled,
+    )
+except (ImportError, ValueError):
+    from ingestion_governance_gate import (  # type: ignore[no-redef]
+        enforce_governance_gate_from_environment,
+        ingestion_control_plane_enabled,
+    )
+
+try:
     from .embedding_contract import (
         CANONICAL_EMBED_MODEL,
         embedding_contract_health_from_environment,
@@ -329,6 +340,14 @@ _openapi_url: str | None = "/openapi.json" if _rag_env != "production" else None
 
 @asynccontextmanager
 async def _app_lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    # LOT44f/ADR-0029 : le gate de profils LOT44c ne bloque le démarrage que
+    # si PG_INGESTION_CONTROL_DSN déclare l'intention d'utiliser le plan de
+    # contrôle d'ingestion gouvernée — sans quoi api.py reste démarrable en
+    # retrieval-only (pedago_interface_contract.yml: server_start_allowed
+    # est indépendant de real_documents_allowed). Échec non intercepté =
+    # échec du démarrage FastAPI (fail-closed), volontairement.
+    if ingestion_control_plane_enabled():
+        enforce_governance_gate_from_environment()
     try:
         yield
     finally:

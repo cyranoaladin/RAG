@@ -18,7 +18,7 @@ from uuid import UUID
 
 from nexus_contracts.ingestion import CollectionProfile, SearchPlan
 
-from ingestor.ingestion_agents.dependencies import (
+from .dependencies import (
     DestinationValidator,
     default_validate_destination,
 )
