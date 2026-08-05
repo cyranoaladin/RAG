@@ -1,0 +1,42 @@
+FROM python:3.11-slim@sha256:db3ff2e1800a8581e2c48a27c3995339d47bdf046da21c7627accd3d51053a93
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+  PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+# Dépendances du worker d'ingestion gouvernée uniquement — aucun serveur
+# HTTP, aucun parseur de production, aucun modèle d'embedding (cf.
+# requirements.ingestion-worker.txt pour le détail de l'audit d'imports).
+COPY services/rag-engine/src/ingestor/requirements.ingestion-worker.txt /tmp/requirements.ingestion-worker.txt
+RUN pip install --upgrade pip==26.2 \
+ && pip install --no-cache-dir -r /tmp/requirements.ingestion-worker.txt
+
+# Install shared contracts package (after requirements so its pydantic pin wins)
+COPY packages/contracts /tmp/nexus-contracts
+RUN pip install --no-cache-dir /tmp/nexus-contracts \
+ && python -m pip check \
+ && rm -rf /tmp/nexus-contracts
+
+# Allowlist applicative : réplique EXACTEMENT le principe de
+# Dockerfile.ingestor-v2 (COPY nommé, jamais de COPY générique du
+# répertoire ingestor/ complet) — mais pour un périmètre de fichiers
+# disjoint : ce worker n'a besoin d'aucun fichier retrieval/review/API
+# v2, et l'image v2 (api_v2.py) n'a inversement besoin d'aucun de ces
+# modules d'ingestion (allowlist de Dockerfile.ingestor-v2 inchangée).
+COPY services/rag-engine/src/ingestor/ssrf_guard.py /app/ssrf_guard.py
+COPY services/rag-engine/src/ingestor/ingestion_control/ /app/ingestion_control/
+COPY services/rag-engine/src/ingestor/ingestion_agents/ /app/ingestion_agents/
+COPY services/rag-engine/src/ingestor/ingestion_profiles/ /app/ingestion_profiles/
+COPY services/rag-engine/src/ingestor/ingestion_worker/ /app/ingestion_worker/
+
+# Outil opérateur de création de job (jamais un endpoint HTTP public — cf.
+# ADR-0031) : invoqué uniquement via `docker exec` par un opérateur humain
+# authentifié sur l'hôte, jamais exposé sur le réseau.
+COPY services/rag-engine/src/ingestor/ingestion_worker/create_job_cli.py /app/ingestion_worker/create_job_cli.py
+
+# Aucun processus HTTP démarré par cette image : pas d'EXPOSE, pas de
+# uvicorn. Le point d'entrée est une boucle CLI (ingestion_worker/cli.py),
+# jamais un serveur — cohérent avec l'exigence de non-exposition publique
+# (ADR-0024, ADR-0031).
+CMD ["python", "-m", "ingestion_worker.cli"]

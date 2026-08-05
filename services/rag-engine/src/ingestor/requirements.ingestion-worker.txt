@@ -1,0 +1,16 @@
+# Runtime worker d'ingestion gouvernée uniquement (LOT44e/LOT44f).
+#
+# Volontairement minimal : audité contre les imports réels de
+# ingestion_control/, ingestion_agents/, ingestion_profiles/,
+# ingestion_worker/ et ssrf_guard.py (aucun langchain, aucun parseur PDF/
+# DOCX/HTML, aucun client Google Drive, aucun modèle d'embedding — ce
+# worker ne fait pas de retrieval, l'Extractor LOT44d est un décodage texte
+# minimal, pas un moteur d'extraction de production). N'ajouter une
+# dépendance ici que lorsqu'un import réel l'exige.
+
+psycopg==3.2.1
+psycopg-binary==3.2.1
+psycopg-pool==3.2.1
+httpx==0.27.2
+PyYAML==6.0.3
+pydantic==2.13.4

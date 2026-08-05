@@ -60,6 +60,24 @@ from nexus_contracts.review import (
     ReviewQueuePayload,
     ReviewQueueResponse,
 )
+from nexus_contracts.ingestion import (
+    ArtifactRecord,
+    CollectionProfile,
+    CoverageSnapshot,
+    IngestionRun,
+    PublicationPolicy,
+    QualityReport,
+    ResourceCandidate,
+    ResourceScope,
+    RoutingDecision,
+    SearchPlan,
+)
+from nexus_contracts.resource_state import (
+    ALLOWED_RESOURCE_TRANSITIONS,
+    NORMAL_SEQUENCE,
+    ResourceState,
+    is_valid_resource_transition,
+)
 
 __all__ = [
     "AccessContext",
@@ -106,4 +124,18 @@ __all__ = [
     "TypeDoc",
     "Voie",
     "load_pilot_retrieval_scope",
+    "ArtifactRecord",
+    "CollectionProfile",
+    "CoverageSnapshot",
+    "IngestionRun",
+    "PublicationPolicy",
+    "QualityReport",
+    "ResourceCandidate",
+    "ResourceScope",
+    "RoutingDecision",
+    "SearchPlan",
+    "ALLOWED_RESOURCE_TRANSITIONS",
+    "NORMAL_SEQUENCE",
+    "ResourceState",
+    "is_valid_resource_transition",
 ]
