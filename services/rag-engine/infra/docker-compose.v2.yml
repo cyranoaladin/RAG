@@ -5,6 +5,10 @@ networks:
 volumes:
   rag_pgvector_data:
   rag_prometheus_data:
+  # LOT44f (ADR-0031) : stockage des artefacts bruts téléchargés par le
+  # worker d'ingestion gouvernée — jamais partagé avec rag_pgvector_data
+  # (ce n'est pas une donnée PostgreSQL) ni exposé à un autre service.
+  rag_ingestion_artifacts_data:
 
 services:
   pgvector:
@@ -148,3 +152,111 @@ services:
         limits:
           cpus: "0.5"
           memory: 512M
+
+  # ─────────────────────────────────────────────────────────────────────
+  # LOT44f (ADR-0031) : plan de contrôle d'ingestion gouvernée — additions
+  # pures, aucune modification des trois services ci-dessus. Schéma logique
+  # séparé sur la même instance PostgreSQL que `pgvector` (décision D1,
+  # LOT44b) : pas de conteneur PostgreSQL supplémentaire, pas de volume de
+  # données supplémentaire pour ce schéma — seulement un migrateur ponctuel
+  # (client psql) et un worker qui s'y connecte par le réseau.
+  # ─────────────────────────────────────────────────────────────────────
+
+  migrator-ingestion-control:
+    image: postgres:16-alpine@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
+    depends_on:
+      pgvector:
+        condition: service_healthy
+    environment:
+      PGHOST: pgvector
+      PGPORT: "5432"
+      PGDATABASE: ${PGVECTOR_DB:-ragdb}
+      # Rôle superutilisateur de bootstrap de `pgvector` (même identifiants
+      # que ce service, jamais dupliqués) : seul habilité CREATEROLE, requis
+      # par provision_ingestion_control_roles.sh — jamais utilisé comme rôle
+      # runtime (cf. ce script, qui crée deux rôles dédiés séparés).
+      PGUSER: ${PGVECTOR_USER:-raguser}
+      PGPASSWORD: "${PGVECTOR_PASSWORD:?PGVECTOR_PASSWORD requis}"
+      INGESTION_CONTROL_MIGRATOR_PASSWORD: "${INGESTION_CONTROL_MIGRATOR_PASSWORD:?INGESTION_CONTROL_MIGRATOR_PASSWORD requis}"
+      INGESTION_CONTROL_APP_PASSWORD: "${INGESTION_CONTROL_APP_PASSWORD:?INGESTION_CONTROL_APP_PASSWORD requis}"
+    volumes:
+      - ./postgres/ingestion_control/migrations:/infra/postgres/ingestion_control/migrations:ro
+      - ./scripts/bootstrap_ingestion_control_schema.sh:/infra/scripts/bootstrap_ingestion_control_schema.sh:ro
+      - ./scripts/provision_ingestion_control_roles.sh:/infra/scripts/provision_ingestion_control_roles.sh:ro
+      - ./scripts/provision_and_bootstrap_ingestion_control.sh:/infra/scripts/provision_and_bootstrap_ingestion_control.sh:ro
+    entrypoint: ["/infra/scripts/provision_and_bootstrap_ingestion_control.sh"]
+    networks: [rag_net]
+    # Tâche ponctuelle (bootstrap + provisioning des rôles), jamais un
+    # service de longue durée — ne redémarre jamais seul ; `ingestion-worker`
+    # attend explicitement sa complétion réussie (service_completed_successfully).
+    restart: "no"
+    security_opt: [no-new-privileges:true]
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  ingestion-worker:
+    build:
+      context: ../../..
+      dockerfile: services/rag-engine/infra/Dockerfile.ingestion-worker
+    restart: unless-stopped
+    depends_on:
+      migrator-ingestion-control:
+        condition: service_completed_successfully
+    environment:
+      TZ: ${TZ:-UTC}
+      # DSN complet du rôle runtime `ingestion_control_app` (fourni tel
+      # quel, jamais recomposé depuis des champs séparés dans ce fichier —
+      # même convention que PG_RAG_DSN/PG_REVIEW_DSN ci-dessus).
+      PG_INGESTION_CONTROL_DSN: "${PG_INGESTION_CONTROL_DSN:?PG_INGESTION_CONTROL_DSN requis (role ingestion_control_app)}"
+      INGESTION_WORKER_OWNER: ${INGESTION_WORKER_OWNER:-ingestion-worker}
+      INGESTION_WORKER_POLL_INTERVAL_S: ${INGESTION_WORKER_POLL_INTERVAL_S:-5}
+      XDG_CACHE_HOME: /tmp
+    volumes:
+      # Profils/manifest gouvernés (LOT44c) : lecture seule, jamais créés
+      # ni approuvés par ce fichier — leur absence fait échouer le gate au
+      # démarrage (fail-closed), comportement voulu tant qu'aucun profil
+      # approuvé n'existe réellement sur l'hôte.
+      - ${RAG_INGESTION_PROFILES_HOST_DIR:-./configs/ingestion_profiles}:/app/configs/ingestion_profiles:ro
+      - ${RAG_INGESTION_MANIFEST_HOST_PATH:-./configs/ingestion_manifest.yml}:/app/configs/ingestion_manifest.yml:ro
+      - rag_ingestion_artifacts_data:/app/data/artifacts
+    command:
+      - python
+      - -m
+      - ingestion_worker.cli
+      - --profiles-dir=/app/configs/ingestion_profiles
+      - --manifest-path=/app/configs/ingestion_manifest.yml
+      - --artifact-store-dir=/app/data/artifacts
+      - --owner=${INGESTION_WORKER_OWNER:-ingestion-worker}
+      - --poll-interval-s=${INGESTION_WORKER_POLL_INTERVAL_S:-5}
+      - --heartbeat-file=/tmp/ingestion-worker.heartbeat
+    networks: [rag_net]
+    # Aucun bloc `ports:` — ce service n'est et ne doit jamais être exposé,
+    # ni publiquement ni même en loopback (ADR-0024, ADR-0031). Seul un
+    # opérateur via `docker exec ... python -m ingestion_worker.create_job_cli`
+    # depuis l'hôte y accède ; aucune interface réseau entrante.
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test:
+        - "CMD"
+        - "python3"
+        - "-c"
+        - "import pathlib,sys,time; p=pathlib.Path('/tmp/ingestion-worker.heartbeat'); sys.exit(0 if p.exists() and time.time()-p.stat().st_mtime < 60 else 1)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G

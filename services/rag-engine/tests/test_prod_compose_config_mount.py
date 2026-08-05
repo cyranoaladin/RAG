@@ -215,8 +215,25 @@ def test_v2_compose_requires_only_internal_runtime_authorities() -> None:
 def test_v2_compose_contains_only_the_read_review_stack() -> None:
     compose = _load_compose(V2_COMPOSE_PATH)
 
-    assert set(compose["services"]) == {"pgvector", "ingestor", "prometheus"}
-    assert set(compose["volumes"]) == {"rag_pgvector_data", "rag_prometheus_data"}
+    assert {"pgvector", "ingestor", "prometheus"} <= set(compose["services"])
+    assert {"rag_pgvector_data", "rag_prometheus_data"} <= set(compose["volumes"])
+
+
+def test_v2_compose_ingestion_control_additions_are_isolated() -> None:
+    """LOT44f (ADR-0031) : le plan de contrôle d'ingestion gouvernée est une
+    addition pure — `pgvector`/`ingestor`/`prometheus` restent le seul
+    "read+review stack" exposé (`test_v2_ingestor_has_no_writer_mount_or_
+    dependency`, inchangé) ; les deux services ajoutés (`migrator-ingestion-
+    control`, `ingestion-worker`) ne sont ni publiquement exposés ni
+    permanents."""
+    compose = _load_compose(V2_COMPOSE_PATH)
+    services = compose["services"]
+
+    added = set(services) - {"pgvector", "ingestor", "prometheus"}
+    assert added == {"migrator-ingestion-control", "ingestion-worker"}
+
+    assert "ports" not in services["ingestion-worker"]
+    assert services["migrator-ingestion-control"]["restart"] == "no"
 
 
 def test_v2_ingestor_has_no_writer_mount_or_dependency() -> None:

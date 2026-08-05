@@ -1,0 +1,77 @@
+# ADR-0031 — Réconciliation LOT44 : worker d'ingestion gouvernée isolé, sur la base canonique du runtime v2
+
+- **Statut** : Proposé — **non Accepté**. Ce document ne peut pas s'auto-approuver : conformément à ADR-0025, une décision positive exige une review humaine `APPROVED` du Code Owner `@abenrhouma`, dont `commit_id` égale exactement le HEAD final de la branche `reconcile/lot44-governed-ingestion-on-main` au moment de la review — jamais une autorisation générale donnée avant que ce HEAD n'existe.
+- **Date** : 2026-08-05
+- **Décideur proposé** : à confirmer par `@abenrhouma` (Code Owner, ADR-0025) — cet ADR est rédigé par un agent de codage sous mandat explicite du propriétaire du dépôt (Alaeddine Ben Rhouma), pas par le Code Owner lui-même.
+- **Périmètre** : réconciliation entre deux lignes de travail développées indépendamment — LOT44a-f (pipeline d'ingestion agentique gouvernée, branche `feat/rag-go-live-20260804`) et LOT41U/LOT41V (fermeture du runtime v2 à lecture+revue, `origin/main`, ADR-0024/ADR-0025).
+- **S'appuie sur** : ADR-0001, ADR-0010, ADR-0011, ADR-0013, ADR-0021, ADR-0022, ADR-0023, ADR-0024, ADR-0025, et ADR-0026 à ADR-0030 (renumérotés depuis leur ancienne numérotation ADR-0024 à ADR-0028 sur `feat/rag-go-live-20260804` — cf. section « Renumérotation », plus bas).
+- **Ne supersede ADR-0024 ni ADR-0025** : aucune clause de ce document ne les remplace, ne les affaiblit ni ne les rouvre. Voir section dédiée.
+
+## Contexte
+
+`feat/rag-go-live-20260804` a développé, sur plusieurs lots (LOT44a à LOT44e), un pipeline d'ingestion agentique gouverné complet : contrats canoniques (`nexus_contracts.ingestion`, `resource_state`), plan de contrôle PostgreSQL (`ingestion_control`), huit stages déterministes (Scout → Fetcher → Extractor → Classifier → RightsAgent → QualityAgent, plus Planner/CoverageAgent), un scheduler/worker CLI, et un câblage best-effort de l'ancien endpoint `/ingest/v2` de `api.py`. Cette ligne de travail supposait implicitement que `api.py` (le monolithe historique, lecture + revue + écriture + administration) resterait le runtime de production.
+
+Indépendamment et en parallèle, `origin/main` a fermé cette même surface par LOT41U/LOT41V (ADR-0024, ADR-0025) : le runtime de production devient `api_v2.py`, une application minimale lecture + revue **sans aucune route d'écriture**, construite par allowlist Docker explicite (aucun parseur de document, aucun client de source distante, aucun Celery, `ssrf_guard.py` absent). ADR-0024 énonce explicitement que toute écriture future nécessite une autorité externe non encore implémentée (« LOT41A », « LOT42 ») et interdit toute réactivation de l'ancien writer par variable d'environnement. ADR-0025 exige une review humaine formelle du Code Owner `@abenrhouma` sur le HEAD exact avant fusion.
+
+Une inspection en lecture seule de la production Hetzner (`root@88.99.254.59`, `rag-ui.nexusreussite.academy` / `rag-api.nexusreussite.academy`) a confirmé que `api_v2:app` est le runtime réellement déployé — cohérent avec `origin/main`, pas avec `feat/rag-go-live-20260804`. Le propriétaire du dépôt a explicitement tranché ce conflit (décision de gouvernance verbale, consignée dans ce dépôt de travail, non reproduite ici in extenso) : `origin/main`, `api_v2:app`, ADR-0024 et ADR-0025 sont l'architecture et la gouvernance canoniques actuelles ; `feat/rag-go-live-20260804` n'est pas déployé tel quel ; le pipeline LOT44 doit être **réconcilié** sur la base d'`origin/main`, jamais fusionné aveuglément.
+
+Ce document propose cette réconciliation.
+
+## Décision 1 — Le worker d'ingestion gouvernée devient un composant isolé, jamais un correctif d'`api_v2.py`
+
+Le pipeline LOT44 (`ingestion_control`, `ingestion_agents`, `ingestion_profiles`, `ingestion_worker`, `ssrf_guard.py`) est porté sur cette branche **sans modifier `api_v2.py`, `Dockerfile.ingestor-v2` ni les services `pgvector`/`ingestor`/`prometheus` de `docker-compose.v2.yml`**. `git diff origin/main -- services/rag-engine/infra/docker-compose.v2.yml` ne contient aucune ligne supprimée : toute addition de ce lot est strictement additive.
+
+Le worker est construit par une image Docker séparée (`Dockerfile.ingestion-worker`), avec sa propre allowlist de fichiers COPY et son propre fichier de dépendances minimal (`requirements.ingestion-worker.txt`, audité contre les imports réels — ni FastAPI, ni Torch, ni modèle d'embedding : ce worker ne sert aucune route HTTP et ne fait aucun retrieval). Le service `ingestion-worker` ne déclare **aucun bloc `ports:`** — vérifié programmatiquement (`assert 'ports' not in doc['services']['ingestion-worker']`) et par `docker port` sur un conteneur réellement démarré, qui ne retourne rien. Aucune route publique, aucune interface réseau entrante : seul `docker exec` depuis l'hôte y donne accès.
+
+La création de job — qui reposait dans le prototype initial sur l'endpoint `/ingest/v2` d'`api.py` — devient un outil opérateur en ligne de commande (`ingestion_worker/create_job_cli.py`), invoqué uniquement via `docker exec` par un opérateur humain authentifié sur l'hôte. `ingest_v2_bridge.py` (le pont HTTP du prototype initial) n'est **pas** porté sur cette branche : `api_v2.py` ne possède et ne doit posséder aucun endpoint d'écriture — en créer un recréerait exactement le writer public qu'ADR-0024 a fermé.
+
+Le schéma `ingestion_control` reste, comme décidé dans le prototype initial (LOT44b, décision D1), un schéma logique séparé sur la **même** instance PostgreSQL que `pgvector` — aucun conteneur de base de données supplémentaire, aucun volume de données supplémentaire pour ce schéma. Son provisioning (migrations + rôles PostgreSQL dédiés `ingestion_control_migrator`/`ingestion_control_app`) est effectué par un service `migrator-ingestion-control` séparé, ponctuel (`restart: "no"`), qui se connecte au conteneur `pgvector` existant comme un client réseau ordinaire — jamais via les scripts `docker-entrypoint-initdb.d` du service `pgvector` lui-même, ce qui aurait exigé de modifier son bloc de service.
+
+**Preuve technique** (rejouée sur une stack Docker isolée, réseau/volumes/conteneurs dédiés, jamais la production) : `pgvector` → `migrator-ingestion-control` (6 migrations appliquées, 2 rôles provisionnés, sortie 0) → `ingestion-worker` (démarre, heartbeat sain) → un job soumis via `create_job_cli.py` traverse réellement DISCOVERED → CANDIDATE → FETCHED → STORED → EXTRACTED → CLASSIFIED → RIGHTS_CHECKED → QUALITY_CHECKED, avec un `job_id` unique propagé à travers `workflow_events`, et un artefact réel récupéré depuis `https://example.com/` (559 octets, `text/html`) — preuve en conditions réelles que le correctif SSRF (Décision 2, ci-dessous) fonctionne dans le runtime construit, pas seulement en test unitaire isolé. Le gate de démarrage a également été prouvé fail-closed : un worker lancé sans profil/manifest valide refuse de démarrer (`WORKER_STARTUP_GATE_FAILED`, code de sortie 1).
+
+## Décision 2 — Correctif LOT43 : double décompression dans `ssrf_guard.safe_fetch`
+
+`safe_fetch` reconstruisait un `httpx.Response` à partir du corps déjà décodé par `iter_bytes()` (qui décode automatiquement gzip/deflate/br/zstd selon `Content-Encoding`), tout en conservant l'en-tête `Content-Encoding` d'origine sur la réponse reconstruite. Tout appelant lisant ensuite `.content`/`.text` déclenchait une seconde tentative de décompression sur des octets déjà en clair (`zlib.error: incorrect header check`), un bug systématique sur toute réponse HTTPS compressée (reproduit indépendamment du domaine : `example.com`, `eduscol.education.fr`).
+
+**Correctif** : les en-têtes `content-encoding`/`content-length`/`transfer-encoding` — devenus caducs une fois le corps déjà décodé — sont retirés avant reconstruction de la réponse ; `httpx` recalcule un `Content-Length` exact sur le corps décodé. Toutes les protections SSRF existantes (revalidation DNS par saut, blocage IP privée/loopback/lien-local/metadata cloud, bornage de taille en streaming, limite de redirections) restent inchangées.
+
+Couverture de test ajoutée (`tests/test_ssrf_guard.py`, 23 tests au total, 7 nouveaux) : gzip et deflate valides (roundtrip exact + absence de `content-encoding` résiduel), recalcul correct de `Content-Length`, corps compressé malformé (rejet explicite `httpx.DecodingError`, jamais un contenu corrompu silencieux), bombe de décompression (bornée par `max_bytes` sur la taille décodée, pas la taille sur le fil), décompression across une redirection, non-régression sur une réponse non compressée.
+
+## Décision 3 — Couche d'autorité minimale (pas une implémentation de LOT41A/LOT42)
+
+ADR-0024 identifie explicitement « l'autorité externe LOT41A » et « les attestations de publication LOT42 » comme prérequis, non implémentés, à toute réouverture d'un chemin d'écriture. `docs/ROADMAP.md` les référence de la même façon, comme travaux futurs. Une recherche explicite dans ce dépôt — code, ADRs, traces serveur — confirme qu'**aucune définition, aucun contrat, aucune implémentation partielle de LOT41A ni LOT42 n'existe à ce jour**.
+
+Ce lot n'invente pas d'autorité de substitution. Il livre le strict minimum qui rend le gate LOT44c (`enforce_production_manifest_gate`) fail-closed sur l'**absence d'autorité**, pas seulement sur l'absence de fichier : chaque entrée de manifest (`ingestion_profiles/manifest.py`) doit désormais porter `approved_by` (identité humaine nommée, non vide) et `approved_at` (horodatage ISO 8601 valide), sous peine de rejet explicite (`ProfileManifestError`) — exactement au même niveau d'exigence que `fingerprint`. Ces deux champs font partie du contenu figé du manifest : falsifier l'un ou l'autre change l'empreinte SHA-256 du manifest entier (prouvé par test dédié). Le worker et l'outil de création de job consignent, à chaque démarrage/création, l'autorité et l'empreinte de manifest sous lesquelles ils opèrent (`WORKER_STARTUP_AUTHORITY`, `JOB_CREATION_AUTHORITY`), jamais silencieusement.
+
+Cette couche **ne constitue pas** une autorisation de scope (LOT41A) ni une chaîne d'attestations quality→gate→review (LOT42) : elle ne fait que garantir qu'aucune entrée de manifest ne peut être acceptée sans une trace d'approbation humaine attribuable. Tant qu'aucun manifest réel, approuvé par une autorité humaine nommée réelle, n'existe dans ce dépôt — ce qui reste le cas aujourd'hui, aucun profil de production n'étant livré par ce lot ni les précédents — le gate continue d'échouer explicitement, et le worker ne peut pas démarrer en production. Ce lot ne crée, n'approuve ni ne place aucun profil ou manifest réel.
+
+## Décision 4 — Renumérotation des ADR LOT44 (pas de conflit avec la numérotation acceptée)
+
+`feat/rag-go-live-20260804` avait numéroté ses cinq ADR LOT44a-e ADR-0024 à ADR-0028, en collision directe avec ADR-0024 (Accepté, runtime v2) et ADR-0025 (Accepté, autorité de revue) déjà acceptés sur `origin/main`. Ces cinq documents sont renumérotés ADR-0026 à ADR-0030 (mapping `0024→0026, 0025→0027, 0026→0028, 0027→0029, 0028→0030`, appliqué en une seule passe programmatique pour éviter toute double-substitution en cascade), et chaque référence croisée dans leur propre contenu ainsi que dans les docstrings/commentaires du code source LOT44 porté sur cette branche est mise à jour en conséquence. Le contenu technique de ces cinq documents n'est pas modifié au fond — seule leur numérotation change. Cet ADR-0031 est le premier numéro réellement libre après cette renumérotation.
+
+## Relation à ADR-0024 et ADR-0025 — non-supersession explicite
+
+Ce document ne déclare ADR-0024 ni ADR-0025 supersédés, affaiblis ou rouverts. `api_v2:app` reste l'unique point d'entrée du runtime de production. Aucune route d'écriture n'est ajoutée à `api_v2.py`. Le worker ne contourne jamais la gouvernance d'`api_v2.py` — il ne l'appelle jamais, ne partage aucun processus avec lui, et n'est joignable par aucun chemin réseau qu'`api_v2.py` emprunterait. Le principe fail-closed d'ADR-0024 (aucune activation par défaut, aucun bypass par variable d'environnement) et l'exigence de review humaine sur le HEAD exact d'ADR-0025 sont repris à l'identique pour ce lot : voir le champ **Statut**, ci-dessus.
+
+## Conséquences
+
+- Le pipeline d'ingestion agentique gouverné (LOT44a-f) devient disponible comme composant technique isolé, prêt pour une activation future — mais **non activé** par ce lot : `real_documents_allowed`/`curated_ingestion_allowed` (`services/rag-pedago/configs/pedago_interface_contract.yml`, `transition_authorization.yml`) restent inchangés, non touchés par ce lot.
+- Le worker et la création de job restent désactivés en production tant que (a) un manifest réel, approuvé par une autorité humaine nommée, n'existe pas, **et** (b) cet ADR n'est pas passé à Accepté par une review humaine formelle du Code Owner sur le HEAD exact (ADR-0025), **et** (c) un déploiement en production n'est pas séparément autorisé.
+- `ssrf_guard.py` redevient utilisable de façon fiable sur des sources HTTPS compressées (majorité du trafic web réel) — bénéfice indépendant de l'activation ou non du worker.
+- La dette explicitement non couverte par ce lot reste ouverte : LOT41A (autorisation de scope) et LOT42 (attestations quality→gate→review) restent à définir et implémenter intégralement ; ce lot ne les substitue pas.
+
+## Hors périmètre de ce lot (réserves explicites)
+
+- Aucun profil ni manifest de production réel n'est créé, approuvé ou placé dans `configs/` par ce lot.
+- Aucune activation de `real_documents_allowed`/`curated_ingestion_allowed`.
+- Aucun déploiement en production, aucune modification du serveur Hetzner, aucun redémarrage de service existant.
+- Aucune implémentation complète de LOT41A/LOT42 — seule la couche d'autorité minimale décrite en Décision 3.
+- Aucune activation de `RETRIEVAL_ELIGIBLE`/publication — hors périmètre, non abordé par ce lot.
+
+## Alternatives rejetées
+
+Fusionner `feat/rag-go-live-20260804` tel quel sur `origin/main` est rejeté : cela réintroduirait `api.py`/le writer public, contredirait ADR-0024 explicitement, et contournerait ADR-0025 (aucune review Code Owner sur cette architecture). Étendre `api_v2.py` avec un endpoint d'ingestion minimal (au lieu d'un CLI opérateur) est rejeté pour la même raison que celle qu'ADR-0024 donne pour fermer l'ancien writer : toute route d'écriture réseau redevient une autorité que l'appelant contrôle. Inventer une implémentation complète de LOT41A/LOT42 pour satisfaire ce lot est rejeté explicitement (instruction du propriétaire du dépôt) : une autorité fabriquée pour faire passer des tests n'est pas une autorité.
+
+## Retour arrière
+
+Le retour arrière sûr est de ne jamais démarrer les services `migrator-ingestion-control`/`ingestion-worker` (additions pures, jamais démarrées automatiquement par un déploiement qui ne les cible pas explicitement) et de ne fusionner cette branche que si ce document passe à Accepté. Aucune donnée de production n'est touchée par ce lot : aucune migration n'est appliquée à une base de production, aucun conteneur de production n'est modifié ou recréé.
