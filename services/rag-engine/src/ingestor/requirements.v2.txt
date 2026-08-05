@@ -18,9 +18,8 @@ pgvector==0.3.2
 # Embeddings HTTP client
 httpx==0.27.2
 
-# Redis + Celery (async ingestion + cache)
+# Redis (cache embeddings)
 redis[hiredis]==5.0.8
-celery==5.4.0
 
 # Reranking
 sentence-transformers==3.0.1

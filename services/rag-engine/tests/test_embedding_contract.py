@@ -23,7 +23,6 @@ REPO_ROOT = ENGINE_ROOT.parents[1]
 COMPOSE = ENGINE_ROOT / "infra" / "docker-compose.v2.yml"
 CONFIG = ENGINE_ROOT / "configs" / "rag_collections.yml"
 API = ENGINE_ROOT / "src" / "ingestor" / "api.py"
-TASKS = ENGINE_ROOT / "src" / "ingestor" / "tasks.py"
 SMOKE = REPO_ROOT / "scripts" / "e2e" / "smoke-embedding-contract.sh"
 
 
@@ -103,13 +102,6 @@ def test_public_health_uses_the_embedding_contract_payload() -> None:
         "embedding_contract_ok",
     ):
         assert field in source
-
-
-def test_worker_checks_the_v2_contract_before_any_legacy_write_path() -> None:
-    source = TASKS.read_text(encoding="utf-8")
-
-    assert "validate_runtime_embedding_contract" in source
-    assert "load_embedding_model" in source
 
 
 def test_smoke_script_is_present_and_read_only() -> None:

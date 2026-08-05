@@ -10,6 +10,8 @@ volumes:
   rag_redis_data:
   rag_ollama_data:
   rag_prometheus_data:
+  rag_ingestion_worker_artifacts:
+  rag_ingestion_worker_heartbeat:
 
 services:
 
@@ -216,6 +218,16 @@ services:
       NEXUS_DEFAULT_VISIBILITY: "${NEXUS_DEFAULT_VISIBILITY:?NEXUS_DEFAULT_VISIBILITY requis}"
       NEXUS_DEFAULT_SCHOOL_YEAR: "${NEXUS_DEFAULT_SCHOOL_YEAR:?NEXUS_DEFAULT_SCHOOL_YEAR requis}"
       NEXUS_DEFAULT_PROGRAMME_VERSION: "${NEXUS_DEFAULT_PROGRAMME_VERSION:?NEXUS_DEFAULT_PROGRAMME_VERSION requis}"
+      # Plan de contrôle ingestion gouvernée (LOT44e/44f, ADR-0029).
+      # Optionnel par défaut : PG_INGESTION_CONTROL_DSN vide = pont
+      # best-effort /ingest/v2 inactif ET gate LOT44c non appelée au
+      # démarrage — api.py reste démarrable en retrieval-only, comportement
+      # inchangé (pedago_interface_contract.yml: server_start_allowed est
+      # indépendant de real_documents_allowed). Le définir active le gate :
+      # RAG_ENGINE_INGESTION_MANIFEST_PATH devient alors obligatoire.
+      PG_INGESTION_CONTROL_DSN: "${PG_INGESTION_CONTROL_DSN:-}"
+      RAG_ENGINE_INGESTION_PROFILES_DIR: "${RAG_ENGINE_INGESTION_PROFILES_DIR:-}"
+      RAG_ENGINE_INGESTION_MANIFEST_PATH: "${RAG_ENGINE_INGESTION_MANIFEST_PATH:-}"
       # Performance
       WORKERS: "${INGESTOR_WORKERS:-4}"
       MAX_CHUNK_SIZE: "${MAX_CHUNK_SIZE:-1000}"
@@ -263,48 +275,89 @@ services:
           memory: 8G
 
   # ════════════════════════════════════════
-  # CELERY WORKER (ingestion async)
+  # MIGRATOR — INGESTION_CONTROL (LOT44f, ADR-0029)
   # ════════════════════════════════════════
-  worker:
+  # Provisionne le schéma ingestion_control (LOT44b-e, migrations 001..005)
+  # et les rôles migrator/app dédiés — jamais fait par le migrator pgvector
+  # ci-dessus, qui ne connaît que rag_chunks. Voir
+  # infra/scripts/provision_and_bootstrap_ingestion_control.sh pour l'ordre
+  # exact (bootstrap avant provision_roles — l'inverse échoue explicitement).
+  migrator-ingestion-control:
+    image: pgvector/pgvector:pg16
+    container_name: rag_migrator_ingestion_control
+    depends_on:
+      pgvector:
+        condition: service_healthy
+    environment:
+      PGHOST: pgvector
+      PGPORT: "5432"
+      PGUSER: ${PGVECTOR_USER:-raguser}
+      PGPASSWORD: ${PGVECTOR_PASSWORD:?PGVECTOR_PASSWORD requis}
+      PGDATABASE: ${PGVECTOR_DB:-ragdb}
+      INGESTION_CONTROL_MIGRATOR_PASSWORD: ${INGESTION_CONTROL_MIGRATOR_PASSWORD:?INGESTION_CONTROL_MIGRATOR_PASSWORD requis}
+      INGESTION_CONTROL_APP_PASSWORD: ${INGESTION_CONTROL_APP_PASSWORD:?INGESTION_CONTROL_APP_PASSWORD requis}
+    volumes:
+      - ./postgres:/migrations/postgres:ro
+      - ./scripts:/migrations/scripts:ro
+    networks: [rag_net]
+    entrypoint: ["/migrations/scripts/provision_and_bootstrap_ingestion_control.sh"]
+    restart: "no"
+    security_opt: [no-new-privileges:true]
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # ════════════════════════════════════════
+  # INGESTION WORKER (LOT44e/44f, ADR-0029)
+  # ════════════════════════════════════════
+  # Consomme réellement les jobs ingestion_control (huit stages LOT44d) —
+  # remplace le worker Celery retiré (tasks.py, aucun appelant réel, cf.
+  # ADR-0029 décision 3). Gate LOT44c inconditionnel au démarrage
+  # (ingestion_worker/cli.py) : ce service ne démarre jamais sans manifest
+  # de profils valide. RAG_ENGINE_INGESTION_PROFILES_HOST_DIR/
+  # RAG_ENGINE_INGESTION_MANIFEST_HOST_PATH doivent pointer vers un
+  # répertoire de profils et un manifest réels, fournis par la gouvernance —
+  # jamais un défaut permissif ici.
+  ingestion-worker:
     build:
       context: ../../..
       dockerfile: services/rag-engine/infra/Dockerfile.ingestor-v2
-    container_name: rag_worker
-    command: celery -A tasks worker --loglevel=info --concurrency=${CELERY_CONCURRENCY:-2}
+    container_name: rag_ingestion_worker
     restart: unless-stopped
     depends_on:
       pgvector:
         condition: service_healthy
-      migrator:
+      migrator-ingestion-control:
         condition: service_completed_successfully
-      redis:
-        condition: service_healthy
-      ollama:
-        condition: service_healthy
     environment:
       TZ: ${TZ:-UTC}
-      DATABASE_URL: "postgresql+asyncpg://${PGVECTOR_USER:-raguser}:${PGVECTOR_PASSWORD}@pgvector:5432/${PGVECTOR_DB:-ragdb}"
-      DATABASE_URL_SYNC: "postgresql://${PGVECTOR_USER:-raguser}:${PGVECTOR_PASSWORD}@pgvector:5432/${PGVECTOR_DB:-ragdb}"
-      REDIS_URL: "redis://:${REDIS_PASSWORD}@redis:6379/0"
-      REDIS_CACHE_URL: "redis://:${REDIS_PASSWORD}@redis:6379/1"
-      OLLAMA_BASE_URL: "http://ollama:11434"
-      OLLAMA_URL: "http://ollama:11434"
-      EMBED_MODEL: "${EMBED_MODEL:-intfloat/multilingual-e5-large}"
-      EMBED_DIM: "${EMBED_DIM:-1024}"
-      RAG_EMBEDDING_MODEL_CACHE_DIR: "/models/e5-large"
-      API_SECRET_KEY: "${API_SECRET_KEY}"
-      LOCAL_SOURCE_ROOT: /data/uploads
-      MAX_REMOTE_BYTES: ${MAX_REMOTE_BYTES:-26214400}
-      MAX_CHUNK_SIZE: "${MAX_CHUNK_SIZE:-1000}"
-      CHUNK_OVERLAP: "${CHUNK_OVERLAP:-200}"
-      METRICS_ENABLED: "true"
+      PG_INGESTION_CONTROL_DSN: "postgresql://ingestion_control_app:${INGESTION_CONTROL_APP_PASSWORD:?INGESTION_CONTROL_APP_PASSWORD requis}@pgvector:5432/${PGVECTOR_DB:-ragdb}"
       XDG_CACHE_HOME: /tmp
     volumes:
-      - ./data/uploads:/data/uploads:rw
-      - ${RAG_EMBEDDING_MODEL_ARTIFACT_HOST_DIR:-./data/.no-model-cache}:/models/e5-large:ro
+      - ${RAG_ENGINE_INGESTION_PROFILES_HOST_DIR:?RAG_ENGINE_INGESTION_PROFILES_HOST_DIR requis}:/app/ingestion_profiles:ro
+      - ${RAG_ENGINE_INGESTION_MANIFEST_HOST_PATH:?RAG_ENGINE_INGESTION_MANIFEST_HOST_PATH requis}:/app/ingestion_manifest.yml:ro
+      - rag_ingestion_worker_artifacts:/data/ingestion-artifacts
+      - rag_ingestion_worker_heartbeat:/run/ingestion-worker
     networks: [rag_net]
+    command: >
+      python -m ingestion_worker.cli
+      --profiles-dir /app/ingestion_profiles
+      --manifest-path /app/ingestion_manifest.yml
+      --artifact-store-dir /data/ingestion-artifacts
+      --owner ${INGESTION_WORKER_OWNER:-ingestion-worker-1}
+      --poll-interval-s ${INGESTION_WORKER_POLL_INTERVAL_S:-5}
+      --heartbeat-file /run/ingestion-worker/heartbeat
+    read_only: true
+    tmpfs: ["/tmp"]
     security_opt: [no-new-privileges:true]
-    tmpfs: ["/tmp", "/app/.cache", "/var/tmp"]
+    healthcheck:
+      test: ["CMD-SHELL", "find /run/ingestion-worker/heartbeat -newermt '-30 seconds' | grep -q ."]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     logging:
       driver: json-file
       options:
@@ -313,8 +366,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "2.0"
-          memory: 4G
+          cpus: "1.0"
+          memory: 2G
 
   # ════════════════════════════════════════
   # UI STREAMLIT (dashboard)

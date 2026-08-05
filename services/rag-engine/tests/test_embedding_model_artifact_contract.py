@@ -174,20 +174,6 @@ class TestComposeModelMount:
     def test_ingestor_has_model_cache_env(self) -> None:
         assert "RAG_EMBEDDING_MODEL_CACHE_DIR" in self.source
 
-    def test_worker_has_model_cache_env(self) -> None:
-        lines = self.source.split("\n")
-        in_worker = False
-        worker_has_env = False
-        for line in lines:
-            if "worker:" in line and not line.strip().startswith("#"):
-                in_worker = True
-            elif in_worker and "RAG_EMBEDDING_MODEL_CACHE_DIR" in line:
-                worker_has_env = True
-                break
-            elif in_worker and line.strip() and not line.startswith(" ") and ":" in line:
-                break
-        assert worker_has_env, "worker service should reference RAG_EMBEDDING_MODEL_CACHE_DIR"
-
     def test_volume_mount_uses_host_artifact_variable(self) -> None:
         """The volume source must use RAG_EMBEDDING_MODEL_ARTIFACT_HOST_DIR (host path)."""
         assert "RAG_EMBEDDING_MODEL_ARTIFACT_HOST_DIR" in self.source
@@ -243,34 +229,6 @@ class TestPrepareScriptPathHardening:
     def test_checksums_strip_dot_slash_prefix(self) -> None:
         """The sed must remove ./ prefix from find output."""
         assert r"s|  \./|  |" in self.source
-
-
-# -- Ollama embedding path still active (controlled blocker) --
-
-
-class TestOllamaEmbeddingPathBlocker:
-    """EmbeddingService still uses Ollama for v2 ingestion embeddings.
-
-    This is a known blocker: the worker calls EmbeddingService (Ollama) for
-    actual vector writes, not the local SentenceTransformer artifact.
-    These tests document this gap explicitly so it cannot be overlooked.
-    """
-
-    TASKS = ENGINE_ROOT / "src" / "ingestor" / "tasks.py"
-
-    def test_tasks_still_imports_embedding_service_ollama(self) -> None:
-        source = self.TASKS.read_text(encoding="utf-8")
-        assert "EmbeddingService" in source, (
-            "EmbeddingService import removed — update this test if ingestion "
-            "now uses local SentenceTransformer artifact"
-        )
-
-    def test_tasks_still_connects_to_ollama_url(self) -> None:
-        source = self.TASKS.read_text(encoding="utf-8")
-        assert "OLLAMA" in source, (
-            "Ollama reference removed from tasks — update this test if "
-            "ingestion embedding path has been migrated"
-        )
 
 
 # -- No test downloads model --

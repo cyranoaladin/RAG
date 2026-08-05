@@ -269,13 +269,16 @@ def test_v2_ingestor_uses_dedicated_dockerfile_with_contracts() -> None:
     )
 
 
-def test_v2_worker_uses_same_dockerfile_as_ingestor() -> None:
+def test_v2_ingestion_worker_uses_same_dockerfile_as_ingestor() -> None:
+    """LOT44f/ADR-0029 : le worker Celery orphelin ('worker') a été retiré ;
+    ingestion-worker (LOT44e, consommateur réel de jobs) le remplace et
+    partage la même image que l'API — même contrainte, service renommé."""
     compose = _load_compose(V2_COMPOSE_PATH)
     ingestor_build = compose["services"]["ingestor"]["build"]
-    worker_build = compose["services"]["worker"]["build"]
+    worker_build = compose["services"]["ingestion-worker"]["build"]
 
     assert ingestor_build.get("dockerfile") == worker_build.get("dockerfile"), (
-        "worker must use the same Dockerfile as ingestor"
+        "ingestion-worker must use the same Dockerfile as ingestor"
     )
 
 

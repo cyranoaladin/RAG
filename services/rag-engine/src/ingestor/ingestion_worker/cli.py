@@ -53,7 +53,25 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--once", action="store_true", help="Traite au plus un job puis quitte.")
     parser.add_argument("--max-iterations", type=int, default=None)
     parser.add_argument("--poll-interval-s", type=float, default=DEFAULT_POLL_INTERVAL_S)
+    parser.add_argument(
+        "--heartbeat-file",
+        type=Path,
+        default=None,
+        help=(
+            "Optionnel (LOT44f) : fichier réécrit avec l'horodatage courant après "
+            "chaque itération (réussie ou non) et une fois avant la première — "
+            "sert uniquement de liveness check externe (ex. HEALTHCHECK Docker "
+            "basé sur la fraîcheur du fichier). Aucune valeur par défaut : absent "
+            "signifie pas de heartbeat écrit, comportement inchangé."
+        ),
+    )
     return parser
+
+
+def _write_heartbeat(path: Path | None) -> None:
+    if path is None:
+        return
+    path.write_text(str(time.time()), encoding="utf-8")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -76,9 +94,11 @@ def main(argv: list[str] | None = None) -> int:
     iterations_done = 0
 
     with psycopg.connect(get_ingestion_control_dsn()) as conn:
+        _write_heartbeat(args.heartbeat_file)
         while max_iterations is None or iterations_done < max_iterations:
             outcome = run_worker_iteration(conn, deps=deps)
             iterations_done += 1
+            _write_heartbeat(args.heartbeat_file)
             if outcome.worked:
                 print(f"WORKER_ITERATION job_id={outcome.job_id} status={outcome.status}")
                 if outcome.error:

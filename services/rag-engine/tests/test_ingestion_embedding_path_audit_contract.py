@@ -40,19 +40,6 @@ class TestActiveRoutedIngestV2Path:
         assert "load_embedding_model()" in content
 
 
-class TestLegacyWorkerDebt:
-    """Keep the remaining Celery/Ollama embedding path visible as legacy debt."""
-
-    def test_legacy_worker_ollama_path_still_active(self) -> None:
-        """The registered Celery worker still delegates embeddings to Ollama."""
-        tasks_content = (SRC / "tasks.py").read_text()
-        service_content = (SRC / "embedding_service.py").read_text()
-
-        assert "EmbeddingService" in tasks_content
-        assert "/api/tags" in service_content
-        assert "/api/embeddings" in service_content
-
-
 class TestEmbeddingContract:
     """Document the canonical embedding contract shared by v2 paths."""
 
