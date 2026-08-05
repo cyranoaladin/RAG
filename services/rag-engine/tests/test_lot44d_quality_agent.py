@@ -194,8 +194,13 @@ class TestDecideRoutingCore:
         assert decision.agent_identity == "QualityAgent"
 
 
-class TestRunQualityAgentNeverActivatesRouted:
-    def test_exactly_one_transition_call_regardless_of_routing_decision(
+class TestRunQualityAgentRoutedActivation:
+    """LOT44f (ADR-0029) : QUALITY_CHECKED -> ROUTED est désormais appliquée,
+    mais **uniquement** quand la RoutingDecision calculée vaut "ROUTE" —
+    remplace l'ancienne classe TestRunQualityAgentNeverActivatesRouted
+    (LOT44d, ADR-0027 Décision 3, changement intentionnel documenté)."""
+
+    def test_non_route_decision_still_makes_exactly_one_transition_call(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         artifact = _artifact()
@@ -225,28 +230,31 @@ class TestRunQualityAgentNeverActivatesRouted:
             actor="quality-test",
         )
 
-        assert mock_apply.call_count == 1
+        assert mock_apply.call_count == 1, "DUPLICATE ne doit jamais déclencher de seconde transition"
         called_kwargs = mock_apply.call_args.kwargs
         assert called_kwargs["expected_state"] == ResourceState.RIGHTS_CHECKED
         assert called_kwargs["new_state"] == ResourceState.QUALITY_CHECKED
-        assert called_kwargs["new_state"] != ResourceState.ROUTED
         assert transition is fake_transition
         assert routing_decision.decision == "DUPLICATE"
         assert quality_report.duplicate_detected is True
 
-    def test_job_id_is_forwarded_to_the_single_transition(
+    def test_route_decision_makes_a_second_transition_to_routed(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         artifact = _artifact()
-        fake_transition = TransitionResult(
+        first_transition = TransitionResult(
             resource_id=artifact.resource_id, from_state=ResourceState.RIGHTS_CHECKED,
             to_state=ResourceState.QUALITY_CHECKED, state_version=7,
         )
-        mock_apply = MagicMock(return_value=fake_transition)
+        second_transition = TransitionResult(
+            resource_id=artifact.resource_id, from_state=ResourceState.QUALITY_CHECKED,
+            to_state=ResourceState.ROUTED, state_version=8,
+        )
+        mock_apply = MagicMock(side_effect=[first_transition, second_transition])
         monkeypatch.setattr(quality_agent_module, "apply_resource_transition", mock_apply)
         job_id = uuid4()
 
-        run_quality_agent(
+        quality_report, routing_decision, transition = run_quality_agent(
             conn=MagicMock(),
             artifact=artifact,
             profile=_profile(),
@@ -264,9 +272,25 @@ class TestRunQualityAgentNeverActivatesRouted:
             job_id=job_id,
         )
 
-        assert mock_apply.call_args.kwargs["job_id"] == job_id
+        assert routing_decision.decision == "ROUTE"
+        assert mock_apply.call_count == 2
+        first_call_kwargs, second_call_kwargs = (c.kwargs for c in mock_apply.call_args_list)
+        assert first_call_kwargs["expected_state"] == ResourceState.RIGHTS_CHECKED
+        assert first_call_kwargs["new_state"] == ResourceState.QUALITY_CHECKED
+        assert second_call_kwargs["expected_state"] == ResourceState.QUALITY_CHECKED
+        assert second_call_kwargs["new_state"] == ResourceState.ROUTED
+        # La seconde transition part de la version rendue par la première —
+        # jamais une valeur devinée ou l'expected_version d'origine réutilisée.
+        assert second_call_kwargs["expected_version"] == first_transition.state_version
+        assert second_call_kwargs["job_id"] == job_id
+        assert transition is second_transition, (
+            "le TransitionResult retourné doit être le dernier appliqué (ROUTED), "
+            "pas celui de QUALITY_CHECKED"
+        )
 
-    def test_no_call_ever_targets_routed_state(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_non_route_decisions_never_target_routed_state(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         artifact = _artifact()
         mock_apply = MagicMock(
             return_value=TransitionResult(
@@ -278,12 +302,13 @@ class TestRunQualityAgentNeverActivatesRouted:
         )
         monkeypatch.setattr(quality_agent_module, "apply_resource_transition", mock_apply)
 
+        # rights=unknown -> rejection_reasons non vide -> decision == "REJECT"
         run_quality_agent(
             conn=MagicMock(),
             artifact=artifact,
             profile=_profile(),
             conformity=_CONFORMITY_OK,
-            rights=Rights.officiel_public,
+            rights=Rights.unknown,
             extracted_text="algorithmique et récursivité sont au programme. " * 20,
             declared_language="fr",
             pii_detected=False,
@@ -297,3 +322,4 @@ class TestRunQualityAgentNeverActivatesRouted:
 
         all_new_states = [call.kwargs["new_state"] for call in mock_apply.call_args_list]
         assert ResourceState.ROUTED not in all_new_states
+        assert mock_apply.call_count == 1

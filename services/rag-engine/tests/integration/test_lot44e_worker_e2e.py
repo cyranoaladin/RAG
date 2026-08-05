@@ -8,8 +8,9 @@ jamais la vraie garde SSRF) ; stockage réel sur disque temporaire
 (``tmp_path``, filesystem local, pas de simulation).
 
 Preuves centrales :
-- la chaîne complète progresse jusqu'à ``QUALITY_CHECKED`` (jamais
-  ``ROUTED``) ;
+- la chaîne complète progresse jusqu'à ``ROUTED`` pour un scénario "propre"
+  (LOT44f, ADR-0029 — droits connus, pas de PII/doublon, qualité au-dessus
+  du seuil du profil) ;
 - **tous** les événements ``workflow_events`` de l'exécution portent le
   **même** ``job_id`` ;
 - le retry/backoff fonctionne réellement (échec de téléchargement ->
@@ -260,8 +261,27 @@ def _fake_safe_fetch_success(url: str, *, max_bytes: int, **kwargs: object) -> h
     )
 
 
+def _fake_safe_fetch_high_quality(url: str, *, max_bytes: int, **kwargs: object) -> httpx.Response:
+    """Contenu suffisamment long pour dépasser min_extraction_quality (0.1,
+    seuil du profil de test) — le contenu minimal de
+    ``_fake_safe_fetch_success`` (quelques mots) reste volontairement sous
+    ce seuil, donc n'atteint jamais ROUTE (cf. LOT44f, ADR-0029) : les
+    autres tests de ce fichier n'ont pas besoin d'atteindre ROUTED, celui-ci
+    si."""
+    return httpx.Response(
+        200,
+        headers={"content-type": "text/html"},
+        content=(
+            b"<p>Ce cours d'algorithmique aborde la recursivite, les structures "
+            b"de donnees, les boucles, les fonctions et plusieurs algorithmes "
+            b"de tri classiques pour le programme de terminale.</p>"
+        ),
+        request=httpx.Request("GET", url),
+    )
+
+
 class TestWorkerE2E:
-    def test_full_chain_reaches_quality_checked_with_consistent_job_id(
+    def test_full_chain_reaches_routed_with_consistent_job_id(
         self, tmp_path: Path, clean_db: None, app_conn: psycopg.Connection
     ) -> None:
         run_id = _insert_run(app_conn)
@@ -270,7 +290,7 @@ class TestWorkerE2E:
         )
         app_conn.commit()
 
-        deps = _worker_deps(tmp_path, safe_fetch=_fake_safe_fetch_success)
+        deps = _worker_deps(tmp_path, safe_fetch=_fake_safe_fetch_high_quality)
         outcome = run_worker_iteration(app_conn, deps=deps)
 
         assert outcome.worked is True
@@ -289,7 +309,7 @@ class TestWorkerE2E:
                 (run_id,),
             )
             (resource_state,) = cur.fetchone()
-        assert resource_state == "QUALITY_CHECKED"
+        assert resource_state == "ROUTED"
 
         with app_conn.cursor() as cur:
             cur.execute(
@@ -299,12 +319,14 @@ class TestWorkerE2E:
             )
             rows = cur.fetchall()
 
-        assert len(rows) >= 6, "attendu au moins 6 transitions (Scout..QualityAgent, Fetcher=2)"
+        assert len(rows) >= 7, (
+            "attendu au moins 7 transitions (Scout..QualityAgent, Fetcher=2, "
+            "+ QUALITY_CHECKED -> ROUTED depuis LOT44f)"
+        )
         job_ids_seen = {row[0] for row in rows}
         assert job_ids_seen == {job_id}, "tous les événements doivent porter le même job_id"
         to_states = [row[2] for row in rows]
-        assert "ROUTED" not in to_states
-        assert to_states[-1] == "QUALITY_CHECKED"
+        assert to_states[-1] == "ROUTED"
 
     def test_no_job_available_returns_worked_false(
         self, tmp_path: Path, clean_db: None, app_conn: psycopg.Connection

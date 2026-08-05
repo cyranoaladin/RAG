@@ -14,8 +14,10 @@ même convention que ``test_lot44c_profile_validation_events.py``).
 Preuves centrales de ce fichier :
 - ``job_id`` reste ``NULL`` sur chaque ligne ``workflow_events`` écrite par
   la chaîne (LOT44d ne crée ni run, ni job, ni table ``jobs``).
-- ``QUALITY_CHECKED -> ROUTED`` n'est jamais écrit, même après
-  ``QualityAgent`` — l'état final réel en base reste ``QUALITY_CHECKED``.
+- ``QUALITY_CHECKED -> ROUTED`` (activée LOT44f, ADR-0029) n'est écrite que
+  lorsque la ``RoutingDecision`` calculée vaut ``"ROUTE"`` — jamais pour
+  ``QUARANTINE``/``REJECT``/``DUPLICATE``, où l'état final réel reste
+  ``QUALITY_CHECKED``.
 - Aucun profil/manifest de production n'est créé : le registre LOT44c est
   chargé depuis un répertoire temporaire (fixture), jamais depuis
   l'emplacement de production réel.
@@ -387,8 +389,13 @@ class TestChainWiringToRealPostgres:
             actor="test-lot44d-chain",
         )
         app_conn.commit()
-        assert quality_transition.to_state.value == "QUALITY_CHECKED"
         assert routing_decision.decision in {"ROUTE", "QUARANTINE", "REJECT", "DUPLICATE"}
+        # LOT44f (ADR-0029) : QUALITY_CHECKED -> ROUTED est désormais appliquée
+        # quand (et seulement quand) la décision calculée vaut "ROUTE" — ce
+        # scénario est délibérément "propre" (droits connus, pas de PII/
+        # doublon), donc la décision réelle ici est ROUTE.
+        expected_final_state = "ROUTED" if routing_decision.decision == "ROUTE" else "QUALITY_CHECKED"
+        assert quality_transition.to_state.value == expected_final_state
 
         with app_conn.cursor() as cur:
             cur.execute(
@@ -399,8 +406,7 @@ class TestChainWiringToRealPostgres:
             row = cur.fetchone()
             assert row is not None
             final_state, final_version = row
-            # Preuve centrale : jamais ROUTED, malgré une RoutingDecision calculée.
-            assert final_state == "QUALITY_CHECKED"
+            assert final_state == expected_final_state
             assert final_version == quality_transition.state_version
 
             cur.execute(
@@ -417,4 +423,4 @@ class TestChainWiringToRealPostgres:
                 (run_id,),
             )
             (routed_count,) = cur.fetchone()
-            assert routed_count == 0
+            assert routed_count == (1 if routing_decision.decision == "ROUTE" else 0)

@@ -1,15 +1,16 @@
-"""QualityAgent — calcule QualityReport et RoutingDecision (LOT44d).
+"""QualityAgent — calcule QualityReport et RoutingDecision (LOT44d, étendu LOT44f).
 
-Porte l'unique transition persistée ``RIGHTS_CHECKED -> QUALITY_CHECKED``.
-
-Décision de gouvernance explicite (LOT44d, ne pas rouvrir) : ``QualityAgent``
-calcule ``RoutingDecision`` de façon déterministe, mais **la transition
-``QUALITY_CHECKED -> ROUTED`` n'est jamais appliquée par ce lot** — aucun
-appel à ``apply_resource_transition``/``cas_transition`` pour cette
-transition, aucune écriture d'événement pour ``ROUTED``. La décision est
-retournée comme une valeur pure à l'appelant ; l'état ``ROUTED`` reste
-structurellement inatteignable depuis ce stage. Activer cette transition
-est un choix distinct, hors périmètre de ce lot (cf. ADR-0027).
+Porte la transition persistée ``RIGHTS_CHECKED -> QUALITY_CHECKED``, et
+depuis LOT44f (ADR-0029), une seconde transition ``QUALITY_CHECKED ->
+ROUTED`` — **uniquement** quand la ``RoutingDecision`` calculée vaut
+``"ROUTE"``. Cette transition était déjà valide dans
+``nexus_contracts.resource_state`` (LOT44a) mais jamais appliquée (LOT44d,
+ADR-0027, Décision 3) : "la décision est retournée comme une valeur pure à
+l'appelant". LOT44f active exactement ce cas, sans rien changer d'autre —
+les autres décisions (``QUARANTINE``/``REJECT``/``DUPLICATE``) restent
+purement calculées, non appliquées, exactement comme avant (activer leurs
+transitions d'échappement respectives resterait une extension distincte,
+hors périmètre de cette passe).
 
 Toutes les heuristiques de qualité ci-dessous (``extraction_quality``,
 ``readability``, ``structure_score``, ``topic_coverage``, ``relevance_score``,
@@ -186,9 +187,12 @@ def run_quality_agent(
     job_id: UUID | None = None,
 ) -> tuple[QualityReport, RoutingDecision, TransitionResult]:
     """Calcule le rapport qualité, transitionne
-    ``RIGHTS_CHECKED -> QUALITY_CHECKED``, puis calcule (sans la persister)
-    la décision de routage. Un seul appel à ``apply_resource_transition``
-    dans cette fonction — jamais un second pour ``ROUTED``."""
+    ``RIGHTS_CHECKED -> QUALITY_CHECKED``, calcule la décision de routage,
+    puis — uniquement si ``decision == "ROUTE"`` (LOT44f, ADR-0029) —
+    applique une seconde transition ``QUALITY_CHECKED -> ROUTED``. Le
+    ``TransitionResult`` retourné est toujours le dernier appliqué : celui
+    de ``QUALITY_CHECKED`` si la décision n'est pas ``ROUTE``, celui de
+    ``ROUTED`` sinon."""
     quality_report = build_quality_report_core(
         artifact=artifact,
         profile=profile,
@@ -220,6 +224,19 @@ def run_quality_agent(
         decision_id=decision_id,
         decided_at=evaluated_at,
     )
+
+    if routing_decision.decision == "ROUTE":
+        transition = apply_resource_transition(
+            conn,
+            resource_id=artifact.resource_id,
+            expected_state=ResourceState.QUALITY_CHECKED,
+            expected_version=transition.state_version,
+            new_state=ResourceState.ROUTED,
+            actor=actor,
+            run_id=artifact.run_id,
+            job_id=job_id,
+            payload={"decision_id": str(decision_id), "rules_applied": routing_decision.rules_applied},
+        )
 
     return quality_report, routing_decision, transition
 
