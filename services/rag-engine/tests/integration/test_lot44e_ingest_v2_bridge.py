@@ -250,3 +250,279 @@ class TestIngestV2HttpEndpointCreatesJobWithoutChangingResponse:
             cur.execute("SELECT COUNT(*) FROM ingestion_control.jobs")
             (job_count,) = cur.fetchone()
         assert job_count == 1
+
+
+# -- LOT44f (ADR-0029) : résolution réelle de profile_version + idempotence --
+
+
+def _write_profile(directory: Path, filename: str, **overrides: object) -> None:
+    payload: dict[str, object] = {
+        "profile_version": "v1",
+        "enabled": True,
+        "scope": {
+            "tenant": "libre_terminale",
+            "collection": "rag_nexus_nsi_terminale_specialite",
+            "niveau": "terminale",
+            "voie": "generale",
+            "matiere": "nsi",
+            "candidat": "libre",
+            "audience": ["tous"],
+            "visibility": "internal",
+            "school_year": "2026-2027",
+            "programme_version": "BOEN_special_8_2019-07-25",
+        },
+        "title": "Profil de test — non production",
+        "owner": "equipe-test",
+        "expected_topics": ["sujet"],
+        "expected_resource_types": ["cours"],
+        "allowed_domains": ["eduscol.education.fr"],
+        "source_authority": "official",
+        "search_cadence": "weekly",
+        "max_queries_per_run": 10,
+        "max_documents_per_run": 20,
+        "max_chunk_size": 800,
+        "chunk_overlap": 100,
+        "min_source_confidence": 0.7,
+        "min_scope_confidence": 0.7,
+        "min_extraction_quality": 0.6,
+    }
+    payload.update(overrides)
+    import yaml
+    (directory / filename).write_text(yaml.safe_dump(payload), encoding="utf-8")
+
+
+class TestBridgeResolvesRealProfileVersion:
+    def test_exactly_one_matching_profile_resolves_and_governs(
+        self, pg_container: dict[str, str], clean_db: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        _write_profile(tmp_path, "a.yml")
+        monkeypatch.setenv("PG_INGESTION_CONTROL_DSN", _app_dsn(pg_container))
+        monkeypatch.setenv("RAG_ENGINE_INGESTION_PROFILES_DIR", str(tmp_path))
+
+        job_id = best_effort_create_ingest_job(
+            collection="rag_nexus_nsi_terminale_specialite",
+            source_label="eduscol.education.fr",
+            source_uri="https://eduscol.education.fr/nsi/algo",
+            rights="public_allowed",
+            type_doc="cours",
+            matiere="nsi",
+            niveau="terminale",
+            voie="generale",
+            audience=["tous"],
+            default_tenant="libre_terminale",
+            default_candidat="libre",
+            default_visibility="internal",
+            default_school_year="2026-2027",
+            default_programme_version="BOEN_special_8_2019-07-25",
+            dedup_key="b" * 64,
+        )
+        assert job_id is not None
+
+        dsn = (
+            f"host={pg_container['host']} port={pg_container['port']} "
+            f"dbname={pg_container['dbname']} user={PG_SUPERUSER} password={PG_SUPERUSER_PASSWORD}"
+        )
+        with psycopg.connect(dsn) as conn, conn.cursor() as cur:
+            cur.execute(
+                "SELECT payload FROM ingestion_control.jobs WHERE job_id = %s", (job_id,)
+            )
+            (payload,) = cur.fetchone()
+        assert payload["profile_version"] == "v1"
+        assert payload["governed"] is True
+
+    def test_two_matching_profiles_is_ambiguous_falls_back_to_legacy(
+        self, pg_container: dict[str, str], clean_db: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        _write_profile(tmp_path, "a.yml", profile_version="v1")
+        _write_profile(tmp_path, "b.yml", profile_version="v2")
+        monkeypatch.setenv("PG_INGESTION_CONTROL_DSN", _app_dsn(pg_container))
+        monkeypatch.setenv("RAG_ENGINE_INGESTION_PROFILES_DIR", str(tmp_path))
+
+        job_id = best_effort_create_ingest_job(
+            collection="rag_nexus_nsi_terminale_specialite",
+            source_label="eduscol.education.fr",
+            source_uri="https://eduscol.education.fr/nsi/algo",
+            rights="public_allowed",
+            type_doc="cours",
+            matiere="nsi",
+            niveau="terminale",
+            voie="generale",
+            audience=["tous"],
+            default_tenant="libre_terminale",
+            default_candidat="libre",
+            default_visibility="internal",
+            default_school_year="2026-2027",
+            default_programme_version="BOEN_special_8_2019-07-25",
+            dedup_key="c" * 64,
+        )
+        assert job_id is not None
+
+        dsn = (
+            f"host={pg_container['host']} port={pg_container['port']} "
+            f"dbname={pg_container['dbname']} user={PG_SUPERUSER} password={PG_SUPERUSER_PASSWORD}"
+        )
+        with psycopg.connect(dsn) as conn, conn.cursor() as cur:
+            cur.execute(
+                "SELECT payload FROM ingestion_control.jobs WHERE job_id = %s", (job_id,)
+            )
+            (payload,) = cur.fetchone()
+        assert payload["profile_version"] == UNSPECIFIED_PROFILE_VERSION
+        assert payload["governed"] is False
+
+    def test_matching_profile_but_disabled_falls_back_to_legacy(
+        self, pg_container: dict[str, str], clean_db: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        _write_profile(tmp_path, "a.yml", enabled=False)
+        monkeypatch.setenv("PG_INGESTION_CONTROL_DSN", _app_dsn(pg_container))
+        monkeypatch.setenv("RAG_ENGINE_INGESTION_PROFILES_DIR", str(tmp_path))
+
+        job_id = best_effort_create_ingest_job(
+            collection="rag_nexus_nsi_terminale_specialite",
+            source_label="eduscol.education.fr",
+            source_uri="https://eduscol.education.fr/nsi/algo",
+            rights="public_allowed",
+            type_doc="cours",
+            matiere="nsi",
+            niveau="terminale",
+            voie="generale",
+            audience=["tous"],
+            default_tenant="libre_terminale",
+            default_candidat="libre",
+            default_visibility="internal",
+            default_school_year="2026-2027",
+            default_programme_version="BOEN_special_8_2019-07-25",
+            dedup_key="d" * 64,
+        )
+        assert job_id is not None
+
+        dsn = (
+            f"host={pg_container['host']} port={pg_container['port']} "
+            f"dbname={pg_container['dbname']} user={PG_SUPERUSER} password={PG_SUPERUSER_PASSWORD}"
+        )
+        with psycopg.connect(dsn) as conn, conn.cursor() as cur:
+            cur.execute(
+                "SELECT payload FROM ingestion_control.jobs WHERE job_id = %s", (job_id,)
+            )
+            (payload,) = cur.fetchone()
+        assert payload["profile_version"] == UNSPECIFIED_PROFILE_VERSION
+
+
+class TestBridgeIdempotency:
+    def test_same_dedup_key_twice_returns_same_job_id_no_duplicate(
+        self, pg_container: dict[str, str], clean_db: None, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("PG_INGESTION_CONTROL_DSN", _app_dsn(pg_container))
+        kwargs = dict(
+            collection="rag_nexus_nsi_terminale_specialite",
+            source_label="eduscol.education.fr",
+            source_uri="https://eduscol.education.fr/nsi/algo",
+            rights="public_allowed",
+            type_doc="cours",
+            matiere="nsi",
+            niveau="terminale",
+            voie="generale",
+            audience=["tous"],
+            default_tenant="libre_terminale",
+            default_candidat="libre",
+            default_visibility="internal",
+            default_school_year="2026-2027",
+            default_programme_version="BOEN_special_8_2019-07-25",
+            dedup_key="e" * 64,
+        )
+
+        first_job_id = best_effort_create_ingest_job(**kwargs)
+        second_job_id = best_effort_create_ingest_job(**kwargs)
+
+        assert first_job_id is not None
+        assert second_job_id == first_job_id
+
+        dsn = (
+            f"host={pg_container['host']} port={pg_container['port']} "
+            f"dbname={pg_container['dbname']} user={PG_SUPERUSER} password={PG_SUPERUSER_PASSWORD}"
+        )
+        with psycopg.connect(dsn) as conn, conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM ingestion_control.jobs")
+            (job_count,) = cur.fetchone()
+        assert job_count == 1
+
+    def test_different_dedup_key_creates_a_second_job(
+        self, pg_container: dict[str, str], clean_db: None, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("PG_INGESTION_CONTROL_DSN", _app_dsn(pg_container))
+        base_kwargs = dict(
+            collection="rag_nexus_nsi_terminale_specialite",
+            source_label="eduscol.education.fr",
+            source_uri="https://eduscol.education.fr/nsi/algo",
+            rights="public_allowed",
+            type_doc="cours",
+            matiere="nsi",
+            niveau="terminale",
+            voie="generale",
+            audience=["tous"],
+            default_tenant="libre_terminale",
+            default_candidat="libre",
+            default_visibility="internal",
+            default_school_year="2026-2027",
+            default_programme_version="BOEN_special_8_2019-07-25",
+        )
+
+        first_job_id = best_effort_create_ingest_job(dedup_key="1" * 64, **base_kwargs)
+        second_job_id = best_effort_create_ingest_job(dedup_key="2" * 64, **base_kwargs)
+
+        assert first_job_id is not None
+        assert second_job_id is not None
+        assert second_job_id != first_job_id
+
+        dsn = (
+            f"host={pg_container['host']} port={pg_container['port']} "
+            f"dbname={pg_container['dbname']} user={PG_SUPERUSER} password={PG_SUPERUSER_PASSWORD}"
+        )
+        with psycopg.connect(dsn) as conn, conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM ingestion_control.jobs")
+            (job_count,) = cur.fetchone()
+        assert job_count == 2
+
+    def test_terminal_job_does_not_block_a_new_job_with_same_dedup_key(
+        self, pg_container: dict[str, str], clean_db: None, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("PG_INGESTION_CONTROL_DSN", _app_dsn(pg_container))
+        kwargs = dict(
+            collection="rag_nexus_nsi_terminale_specialite",
+            source_label="eduscol.education.fr",
+            source_uri="https://eduscol.education.fr/nsi/algo",
+            rights="public_allowed",
+            type_doc="cours",
+            matiere="nsi",
+            niveau="terminale",
+            voie="generale",
+            audience=["tous"],
+            default_tenant="libre_terminale",
+            default_candidat="libre",
+            default_visibility="internal",
+            default_school_year="2026-2027",
+            default_programme_version="BOEN_special_8_2019-07-25",
+            dedup_key="3" * 64,
+        )
+
+        first_job_id = best_effort_create_ingest_job(**kwargs)
+        assert first_job_id is not None
+
+        dsn = (
+            f"host={pg_container['host']} port={pg_container['port']} "
+            f"dbname={pg_container['dbname']} user={PG_SUPERUSER} password={PG_SUPERUSER_PASSWORD}"
+        )
+        with psycopg.connect(dsn) as conn, conn.cursor() as cur:
+            cur.execute(
+                "UPDATE ingestion_control.jobs SET status = 'succeeded' WHERE job_id = %s",
+                (first_job_id,),
+            )
+            conn.commit()
+
+        second_job_id = best_effort_create_ingest_job(**kwargs)
+        assert second_job_id is not None
+        assert second_job_id != first_job_id
+
+        with psycopg.connect(dsn) as conn, conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM ingestion_control.jobs")
+            (job_count,) = cur.fetchone()
+        assert job_count == 2

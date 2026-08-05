@@ -1,4 +1,4 @@
-"""Création best-effort d'un job à l'entrée ``/ingest/v2`` (LOT44e).
+"""Création best-effort d'un job à l'entrée ``/ingest/v2`` (LOT44e, LOT44f).
 
 Best-effort et non bloquant (choix explicitement validé) : toute erreur ici
 est loggée en structuré et **jamais propagée** — l'ingestion réelle
@@ -19,12 +19,21 @@ Réserve documentée (ADR-0028) : le vocabulaire libre de ``niveau``/``voie``
 côté v2 (ex. ``voie="gen"``) ne correspond pas toujours aux valeurs
 strictement énumérées de ``nexus_contracts.document.Niveau``/``Voie`` — la
 construction du scope échoue alors explicitement (capturée, loggée,
-aucun job créé) plutôt que d'être devinée. De même, aucun
-``profile_version`` LOT44c réel n'existe pour le chemin ``/ingest/v2`` :
-la valeur portée dans le payload du job est un repère explicite qui fera
-toujours échouer ``select_profile`` (``ProfileUnknownError``) tant qu'une
-convention réelle n'est pas établie — jamais un profil fabriqué qui
-laisserait croire qu'une validation LOT44c a eu lieu.
+aucun job créé) plutôt que d'être devinée.
+
+Résolution de ``profile_version`` (LOT44f, ADR-0029, ferme partiellement la
+dette ADR-0028) : ce pont tente de résoudre un profil LOT44c **réel** avant
+de retomber sur le repère legacy. La résolution n'a lieu que si le
+registre contient **exactement un** profil actif pour cette ``collection``
+et que le scope construit valide contre lui (``validate_scope_against_
+profile``, statut ``passed``) — jamais une inférence ambiguë : zéro ou
+plusieurs profils candidats retombent sur le mode legacy explicite. Cette
+tentative est elle-même best-effort (registre absent, profils LOT44c non
+provisionnés, etc. → mode legacy, jamais une exception qui bloque
+l'ingestion réelle). Tant qu'aucun profil réel n'est déclaré pour une
+collection donnée (état actuel du dépôt, aucun fichier sous
+``configs/ingestion_profiles/``), le mode legacy reste le seul chemin
+emprunté — documenté, pas masqué.
 """
 from __future__ import annotations
 
@@ -36,28 +45,71 @@ from nexus_contracts.ingestion import ResourceScope
 
 try:
     from ingestor.ingestion_control.db import get_ingestion_control_dsn
-    from ingestor.ingestion_control.jobs import create_job
+    from ingestor.ingestion_control.jobs import create_job, find_active_job_by_dedup_key
     from ingestor.ingestion_control.provisioning import create_ingestion_run
+    from ingestor.ingestion_governance_gate import resolve_profiles_dir
+    from ingestor.ingestion_profiles.registry import (
+        ProfileRegistryError,
+        load_profile_registry,
+    )
+    from ingestor.ingestion_profiles.validation import validate_scope_against_profile
 except (ImportError, ValueError):
     # Image Docker aplatie (LOT44f, ADR-0029) : "ingestor" n'existe pas comme
-    # paquet — ingestion_control est importable directement au premier
-    # niveau. Même discipline que api.py. Notons que ce module est déjà
-    # importé de façon défensive (try/except) par son unique appelant
-    # (ingest_v2_endpoint.py::_best_effort_track_job) — cette correction
-    # rend l'import lui-même robuste plutôt que de dépendre uniquement de
-    # ce filet de sécurité applicatif.
+    # paquet — ces sous-paquets sont importables directement au premier
+    # niveau. Même discipline que api.py.
     from ingestion_control.db import get_ingestion_control_dsn
-    from ingestion_control.jobs import create_job
+    from ingestion_control.jobs import create_job, find_active_job_by_dedup_key
     from ingestion_control.provisioning import create_ingestion_run
+    from ingestion_governance_gate import resolve_profiles_dir
+    from ingestion_profiles.registry import (
+        ProfileRegistryError,
+        load_profile_registry,
+    )
+    from ingestion_profiles.validation import validate_scope_against_profile
 
 logger = logging.getLogger(__name__)
 
-#: Jamais un profil réel : ce repère fait toujours échouer select_profile
-#: (LOT44c) tant qu'aucune convention profile_version n'existe pour le
-#: chemin /ingest/v2 — documente l'absence, ne la masque jamais.
+#: Repère explicite de mode legacy : jamais un profil réel. Utilisé quand
+#: aucune résolution non ambiguë n'a pu avoir lieu (cf. docstring module).
+#: Fait toujours échouer select_profile (LOT44c) côté worker — jamais un
+#: profil fabriqué qui laisserait croire qu'une validation a eu lieu.
 UNSPECIFIED_PROFILE_VERSION = "unspecified_legacy_ingest_v2"
 
 _CONNECT_TIMEOUT_S = 2
+
+
+def _resolve_governed_profile_version(*, collection: str, scope: ResourceScope) -> str | None:
+    """Retourne un ``profile_version`` réel si — et seulement si — le
+    registre LOT44c contient exactement un profil actif pour cette
+    ``collection`` et que le scope y valide (statut ``passed``). Toute
+    autre situation (registre absent/vide, zéro ou plusieurs candidats,
+    validation non passante, erreur de chargement) retourne ``None`` sans
+    jamais lever — c'est un enrichissement best-effort, pas une exigence."""
+    try:
+        registry = load_profile_registry(resolve_profiles_dir())
+    except ProfileRegistryError:
+        return None
+
+    candidates = sorted(
+        {
+            profile_version
+            for (reg_collection, profile_version), profile in registry.items()
+            if reg_collection == collection and profile.enabled
+        }
+    )
+    if len(candidates) != 1:
+        return None
+    profile_version: str = candidates[0]
+
+    result = validate_scope_against_profile(
+        raw_scope=scope.model_dump(mode="json"),
+        registry=registry,
+        collection=collection,
+        profile_version=profile_version,
+    )
+    if result.status != "passed":
+        return None
+    return profile_version
 
 
 def best_effort_create_ingest_job(
@@ -82,7 +134,12 @@ def best_effort_create_ingest_job(
     requête ``/ingest/v2`` — retourne ``None`` sans jamais lever si quoi
     que ce soit échoue (scope invalide, PostgreSQL injoignable, etc.), en
     loggant systématiquement l'échec (structuré, ``extra=``) pour qu'il
-    reste observable sans bloquer l'appelant."""
+    reste observable sans bloquer l'appelant.
+
+    Idempotent (LOT44f) : si un job non terminal porte déjà ce
+    ``dedup_key``, son ``job_id`` est retourné directement, aucun nouveau
+    run/job n'est créé — évite les doublons lors d'une nouvelle tentative
+    applicative (retry HTTP, double clic)."""
     try:
         scope = ResourceScope(
             tenant=default_tenant,
@@ -107,10 +164,19 @@ def best_effort_create_ingest_job(
         )
         return None
 
+    profile_version = _resolve_governed_profile_version(collection=collection, scope=scope)
+    governed = profile_version is not None
+    if profile_version is None:
+        profile_version = UNSPECIFIED_PROFILE_VERSION
+
     try:
         with psycopg.connect(get_ingestion_control_dsn(), connect_timeout=_CONNECT_TIMEOUT_S) as conn:
+            existing_job_id: UUID | None = find_active_job_by_dedup_key(conn, dedup_key=dedup_key)
+            if existing_job_id is not None:
+                return existing_job_id
+
             run_id = create_ingestion_run(
-                conn, scope=scope, profile_version=UNSPECIFIED_PROFILE_VERSION, trigger="manual"
+                conn, scope=scope, profile_version=profile_version, trigger="manual"
             )
             # resource_id volontairement absent : aucune ressource n'existe
             # encore à cet instant — c'est le worker (run_worker_iteration)
@@ -127,8 +193,9 @@ def best_effort_create_ingest_job(
                     "canonical_url": source_uri,
                     "domain": source_label,
                     "proposed_type_doc": type_doc,
-                    "profile_version": UNSPECIFIED_PROFILE_VERSION,
+                    "profile_version": profile_version,
                     "rights": rights,
+                    "governed": governed,
                 },
             )
             conn.commit()

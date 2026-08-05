@@ -62,6 +62,34 @@ class JobLeaseConflictError(RuntimeError):
     complété par un autre appelant) — jamais une complétion silencieuse."""
 
 
+def find_active_job_by_dedup_key(conn: psycopg.Connection, *, dedup_key: str) -> UUID | None:
+    """Recherche un job non terminal (``queued``/``running``) portant ce
+    ``dedup_key`` dans son ``payload`` — primitive d'idempotence LOT44f
+    utilisée par le pont best-effort ``/ingest/v2`` pour éviter de créer un
+    doublon lors d'une nouvelle tentative applicative (retry HTTP, double
+    clic, etc.). Un job déjà terminal (``succeeded``/``failed``/
+    ``dead_letter``/``cancelled``) n'est jamais considéré comme un doublon
+    actif : une tentative après complétion doit pouvoir créer un nouveau
+    job — cette fonction ne fait donc jamais barrage à une ré-ingestion
+    volontaire, seulement à un doublon concurrent du même envoi.
+
+    Requête sur ``payload->>'dedup_key'`` (pas d'index dédié — table à
+    faible volume à ce stade, cf. ADR-0029 ; à revisiter si le volume de
+    jobs actifs simultanés le justifie un jour)."""
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT job_id FROM ingestion_control.jobs
+            WHERE payload->>'dedup_key' = %s AND status IN ('queued', 'running')
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            (dedup_key,),
+        )
+        row = cur.fetchone()
+    return row[0] if row is not None else None
+
+
 def create_job(
     conn: psycopg.Connection,
     *,
@@ -337,6 +365,7 @@ __all__ = [
     "claim_job",
     "complete_job",
     "create_job",
+    "find_active_job_by_dedup_key",
     "reap_expired_job_leases",
     "record_job_retry",
 ]
