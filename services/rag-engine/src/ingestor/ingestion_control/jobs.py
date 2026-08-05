@@ -16,11 +16,21 @@ ressources, le bail (``claim_resource``) et l'état métier
 (``cas_transition``) sont deux primitives strictement séparées, parce que
 ``resource_state`` porte 20 valeurs gouvernées par un contrat externe
 (``nexus_contracts.resource_state``). Pour les jobs, aucun contrat
-``IngestionJob`` n'existe (ADR-0025, ADR-0026) : le statut à 7 valeurs
+``IngestionJob`` n'existe (ADR-0025, ADR-0026) : le statut à 6 valeurs
 défini ici est une notion strictement locale à ce module, donc le bail et
 le statut sont gérés ensemble par les mêmes primitives (``claim_job``,
 ``complete_job``, ``record_job_retry``) — un choix de simplicité délibéré,
 pas un oubli de séparation.
+
+Réconciliation LOT44f (migration 005, ADR-0027) : la contrainte SQL
+``jobs_status_valid`` portait historiquement une 7e valeur (``'claimed'``)
+absente de ce ``Literal`` et jamais écrite par aucune fonction de ce module
+— ``claim_job`` fait transitionner directement ``'queued' -> 'running'``,
+l'information "réclamé" étant déjà portée par ``lease_token``/
+``lease_expires_at``. La migration 005 aligne la contrainte SQL sur ce
+``Literal`` (6 valeurs) plutôt que d'ajouter un état ``'claimed'`` réellement
+traversé côté Python, qui aurait exigé une transition supplémentaire sans
+aucun appelant actuel.
 """
 from __future__ import annotations
 
