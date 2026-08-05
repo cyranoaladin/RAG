@@ -336,15 +336,22 @@ services:
       PG_INGESTION_CONTROL_DSN: "postgresql://ingestion_control_app:${INGESTION_CONTROL_APP_PASSWORD:?INGESTION_CONTROL_APP_PASSWORD requis}@pgvector:5432/${PGVECTOR_DB:-ragdb}"
       XDG_CACHE_HOME: /tmp
     volumes:
-      - ${RAG_ENGINE_INGESTION_PROFILES_HOST_DIR:?RAG_ENGINE_INGESTION_PROFILES_HOST_DIR requis}:/app/ingestion_profiles:ro
-      - ${RAG_ENGINE_INGESTION_MANIFEST_HOST_PATH:?RAG_ENGINE_INGESTION_MANIFEST_HOST_PATH requis}:/app/ingestion_manifest.yml:ro
+      # /app/configs/ingestion_profiles — jamais /app/ingestion_profiles :
+      # ce dernier est le paquet Python ingestion_profiles lui-même
+      # (registry.py, __init__.py, ...) — le monter écraserait le paquet
+      # avec le contenu du répertoire hôte et casserait tous les imports
+      # (constaté réellement lors de la validation LOT44f go-live : le
+      # worker crashait en boucle avec ModuleNotFoundError avant ce choix
+      # de chemin).
+      - ${RAG_ENGINE_INGESTION_PROFILES_HOST_DIR:?RAG_ENGINE_INGESTION_PROFILES_HOST_DIR requis}:/app/configs/ingestion_profiles:ro
+      - ${RAG_ENGINE_INGESTION_MANIFEST_HOST_PATH:?RAG_ENGINE_INGESTION_MANIFEST_HOST_PATH requis}:/app/configs/ingestion_manifest.yml:ro
       - rag_ingestion_worker_artifacts:/data/ingestion-artifacts
       - rag_ingestion_worker_heartbeat:/run/ingestion-worker
     networks: [rag_net]
     command: >
       python -m ingestion_worker.cli
-      --profiles-dir /app/ingestion_profiles
-      --manifest-path /app/ingestion_manifest.yml
+      --profiles-dir /app/configs/ingestion_profiles
+      --manifest-path /app/configs/ingestion_manifest.yml
       --artifact-store-dir /data/ingestion-artifacts
       --owner ${INGESTION_WORKER_OWNER:-ingestion-worker-1}
       --poll-interval-s ${INGESTION_WORKER_POLL_INTERVAL_S:-5}

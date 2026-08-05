@@ -76,13 +76,25 @@ def ingestion_control_plane_enabled() -> bool:
 
 def resolve_profiles_dir() -> Path:
     """Même résolution que ``ingestion_profiles.registry`` (variable
-    d'environnement puis répertoire par défaut) — dupliquée ici en 3 lignes
-    plutôt que d'importer un symbole privé (``_resolve_profiles_dir``) à
-    travers une frontière de module."""
+    d'environnement puis répertoire par défaut) — dupliquée ici en quelques
+    lignes plutôt que d'importer un symbole privé (``_resolve_profiles_dir``)
+    à travers une frontière de module.
+
+    Le calcul de la racine par défaut doit fonctionner dans les deux modes
+    d'exécution (paquet ``ingestor.X`` vs image Docker aplatie, LOT44f) —
+    ce fichier vit à une profondeur différente selon le mode
+    (``services/rag-engine/src/ingestor/`` vs ``/app/`` directement) : un
+    ``parents[2]`` fixe lève ``IndexError`` en mode aplati (racine
+    filesystem atteinte avant l'index 2), constaté réellement lors de la
+    validation go-live. ``parents[2]`` n'est donc utilisé que s'il existe
+    réellement ; sinon le dossier contenant ce fichier (``/app`` en mode
+    aplati, où ``configs/`` est monté par ``docker-compose.v2.yml``) sert de
+    racine."""
     env_dir = os.getenv(PROFILES_DIR_ENV)
     if env_dir:
         return Path(env_dir).expanduser()
-    engine_root = Path(__file__).resolve().parents[2]
+    parents = Path(__file__).resolve().parents
+    engine_root = parents[2] if len(parents) > 2 else parents[0]
     return Path(engine_root / "configs" / PROFILES_DIRNAME)
 
 

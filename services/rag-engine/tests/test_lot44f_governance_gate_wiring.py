@@ -21,6 +21,7 @@ from fastapi.testclient import TestClient
 from nexus_contracts.ingestion import CollectionProfile
 
 from ingestor import api as api_module
+from ingestor import ingestion_governance_gate
 from ingestor.ingestion_governance_gate import (
     IngestionGovernanceConfigError,
     ingestion_control_plane_enabled,
@@ -114,6 +115,32 @@ def profiles_dir(tmp_path: Path) -> Path:
     directory = tmp_path / "profiles"
     directory.mkdir()
     return directory
+
+
+class TestResolveProfilesDirFallback:
+    """LOT44f : resolve_profiles_dir() ne doit jamais lever IndexError,
+    quelle que soit la profondeur réelle de ce fichier sur le filesystem —
+    régression réelle découverte lors de la validation Docker go-live
+    (image aplatie, ce fichier vit à /app/, trop proche de la racine pour
+    un parents[2] fixe)."""
+
+    def test_no_env_var_does_not_raise_regardless_of_depth(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("RAG_ENGINE_INGESTION_PROFILES_DIR", raising=False)
+        result = ingestion_governance_gate.resolve_profiles_dir()
+        assert result.name == "ingestion_profiles"
+        assert result.parent.name == "configs"
+
+    def test_shallow_file_path_falls_back_to_containing_directory(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Simule le mode Docker aplati (ce fichier vivrait en
+        ``/app/ingestion_governance_gate.py``, 2 parents seulement, pas 3)."""
+        monkeypatch.delenv("RAG_ENGINE_INGESTION_PROFILES_DIR", raising=False)
+        monkeypatch.setattr(ingestion_governance_gate, "__file__", "/app/ingestion_governance_gate.py")
+        result = ingestion_governance_gate.resolve_profiles_dir()
+        assert result == Path("/app/configs/ingestion_profiles")
 
 
 class TestApiLifespanGateDisabledByDefault:
