@@ -87,3 +87,17 @@
 ## Validation finale
 
 Voir `docs/reports/lot_44f_reconciliation_worker_isole.md` (section mise à jour) pour les commandes exactes et codes de sortie : `ruff check .`, `mypy src`, suite unitaire complète, suite d'intégration complète, tous verts sur le HEAD remédié.
+
+## État des checks GitHub sur le HEAD remédié (`735945fc2f8dc67beef6c8d3c0a477f868d51dbf`)
+
+| Check | Résultat | Commentaire |
+|---|---|---|
+| `services/rag-engine` | ✅ pass (7m46s) | CI complète (lint/typecheck/tests) |
+| `services/rag-pedago` | ✅ pass (5m35s) | |
+| `services/cockpit` | ✅ pass | |
+| `governance locks guard` | ✅ pass | Aucun verrou de gouvernance modifié |
+| `packages/contracts` | ✅ pass | Contrat + golden queries |
+| `repository controls` | ✅ pass | |
+| `Evaluate trusted human review` | ❌ fail (attendu) | ADR-0025 : exige une review `APPROVED` du Code Owner `@abenrhouma` sur ce HEAD exact — n'existe pas encore, comportement fail-closed correct, pas un défaut à corriger |
+| `GitGuardian Security Checks` | ❌ fail | Le code source actuel ne contient plus aucune valeur statique flaguée (remplacées par génération dynamique, cf. section GitGuardian ci-dessus) — mais GitGuardian scanne l'historique complet des commits de la PR, et le commit initial `9306f1c` contenait encore ces chaînes dans son diff. Réécrire l'historique (rebase/force-push) est explicitement interdit par le mandat. Un dismissal manuel de l'incident sur le dashboard GitGuardian par un humain habilité reste la seule voie restante pour faire passer ce check au vert — hors de la portée d'un agent de codage. |
+| `cubic · AI code reviewer` | ⚪ neutral/skipped | Quota mensuel de révision de l'équipe atteint (82 062/80 000 lignes, reprise le 2026-09-01) — contrainte externe de facturation, sans rapport avec le contenu de cette PR. Le message de cubic confirme lui-même que « votre équipe a corrigé 614 problèmes signalés par cubic jusqu'ici » — cohérent avec les 44 fils résolus par cette remédiation. |
