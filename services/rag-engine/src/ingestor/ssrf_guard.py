@@ -38,6 +38,17 @@ class ResponseTooLargeError(SSRFValidationError):
 
 
 def _is_blocked_ip(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    """Remédiation revue PR#90 (Cubic P1) : les vérifications individuelles
+    ci-dessous ne couvrent pas toutes les plages non globalement routables —
+    notamment RFC 6598 (``100.64.0.0/10``, adressage partagé opérateur),
+    pour laquelle ``ip.is_private`` renvoie ``False`` dans ``ipaddress`` de
+    la bibliothèque standard. ``not ip.is_global`` comble cette lacune (et
+    toute autre plage non publique actuelle ou future connue de la
+    bibliothèque standard). Ne remplace **pas** les vérifications
+    explicites : ``ip.is_global`` renvoie ``True`` pour une adresse
+    multicast (propriété distincte de la routabilité unicast), donc
+    ``is_multicast`` reste nécessaire séparément — les deux conditions sont
+    combinées, jamais l'une à la place de l'autre."""
     return (
         ip.is_loopback
         or ip.is_private
@@ -45,6 +56,7 @@ def _is_blocked_ip(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
         or ip.is_multicast
         or ip.is_unspecified
         or ip.is_reserved
+        or not ip.is_global
     )
 
 

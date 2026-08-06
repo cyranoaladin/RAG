@@ -12,8 +12,10 @@
 #
 # Aucun mot de passe codé en dur : les deux mots de passe sont exigés en
 # variables d'environnement (échec explicite si absentes) et transmis à
-# psql via des variables liées (jamais interpolés dans une chaîne SQL par
-# concaténation Python/bash).
+# psql via ``\getenv`` (jamais visibles dans les arguments du processus
+# psql — remédiation revue PR#90, même motif que
+# ``infra/postgres/provision_runtime_roles.sh``) — jamais interpolés dans
+# une chaîne SQL par concaténation Python/bash.
 #
 # Note d'implémentation : la substitution de variable psql (:'var') ne
 # s'applique jamais à l'intérieur d'un corps délimité par $$ ... $$ (DO/
@@ -40,13 +42,32 @@ set -euo pipefail
 
 MIGRATOR_ROLE="${INGESTION_CONTROL_MIGRATOR_ROLE:-ingestion_control_migrator}"
 APP_ROLE="${INGESTION_CONTROL_APP_ROLE:-ingestion_control_app}"
+export MIGRATOR_ROLE APP_ROLE
 
-psql -X -q --single-transaction -v ON_ERROR_STOP=1 \
-    -v "migrator_role=$MIGRATOR_ROLE" \
-    -v "app_role=$APP_ROLE" \
-    -v "migrator_password=$INGESTION_CONTROL_MIGRATOR_PASSWORD" \
-    -v "app_password=$INGESTION_CONTROL_APP_PASSWORD" <<'SQL'
--- Créer ou faire évoluer le mot de passe des deux rôles, idempotent.
+# Remédiation revue PR#90 : un rôle mal formé (guillemet, espace) échoue
+# maintenant explicitement avant tout accès base, jamais interpolé tel quel.
+for role in "$MIGRATOR_ROLE" "$APP_ROLE"; do
+    if [[ ! "$role" =~ ^[a-z_][a-z0-9_]{0,62}$ ]]; then
+        printf 'ERROR: invalid PostgreSQL role name: %s\n' "$role" >&2
+        exit 1
+    fi
+done
+# Remédiation revue PR#90 (Cubic P1) : INGESTION_CONTROL_APP_ROLE identique
+# à INGESTION_CONTROL_MIGRATOR_ROLE donnerait au rôle runtime la propriété
+# du schéma (ALTER SCHEMA ... OWNER TO ci-dessous) et annulerait la
+# protection append-only de workflow_events — rejeté avant toute écriture.
+if [[ "$MIGRATOR_ROLE" == "$APP_ROLE" ]]; then
+    printf 'ERROR: INGESTION_CONTROL_MIGRATOR_ROLE and INGESTION_CONTROL_APP_ROLE must be distinct (both resolve to %s).\n' "$MIGRATOR_ROLE" >&2
+    exit 1
+fi
+
+psql -X -q --single-transaction -v ON_ERROR_STOP=1 <<'SQL'
+\getenv migrator_role MIGRATOR_ROLE
+\getenv app_role APP_ROLE
+\getenv migrator_password INGESTION_CONTROL_MIGRATOR_PASSWORD
+\getenv app_password INGESTION_CONTROL_APP_PASSWORD
+
+-- Créer ou faire évoluer les deux rôles, idempotent.
 --
 -- CREATEROLE n'est PAS accordé au rôle de migration : la création des deux
 -- rôles eux-mêmes est faite ici par la connexion administrative externe
@@ -63,7 +84,15 @@ SELECT format('CREATE ROLE %I LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERI
 WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'migrator_role')
 \gexec
 
-SELECT format('ALTER ROLE %I PASSWORD %L', :'migrator_role', :'migrator_password')
+-- Remédiation revue PR#90 (Cubic P1) : sur un rôle déjà existant, réaligne
+-- aussi ses attributs de moindre privilège — pas seulement le mot de
+-- passe. Sans cela, un rôle laissé NOLOGIN par une intervention externe
+-- ferait échouer le runtime, et un rôle laissé SUPERUSER/CREATEDB/
+-- CREATEROLE/REPLICATION/BYPASSRLS contournerait les protections
+-- ci-dessous — cet ALTER ROLE échoue explicitement ce script si le rôle
+-- dérive de la politique attendue plutôt que de le laisser silencieusement
+-- privilégié.
+SELECT format('ALTER ROLE %I LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS PASSWORD %L', :'migrator_role', :'migrator_password')
 WHERE EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'migrator_role')
 \gexec
 
@@ -71,7 +100,7 @@ SELECT format('CREATE ROLE %I LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERI
 WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'app_role')
 \gexec
 
-SELECT format('ALTER ROLE %I PASSWORD %L', :'app_role', :'app_password')
+SELECT format('ALTER ROLE %I LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS PASSWORD %L', :'app_role', :'app_password')
 WHERE EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'app_role')
 \gexec
 
