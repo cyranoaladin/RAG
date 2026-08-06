@@ -11,6 +11,7 @@ de qualité n'est calculé ici (``extraction_quality``/``readability``/
 """
 from __future__ import annotations
 
+import hashlib
 import re
 from uuid import UUID
 
@@ -33,6 +34,15 @@ _WHITESPACE_PATTERN = re.compile(r"\s+")
 class UnsupportedMimeTypeError(ValueError):
     """``mime_detected`` de l'artefact n'est pas pris en charge par ce
     décodage minimal — rejet explicite, jamais un texte vide silencieux."""
+
+
+class ArtifactIntegrityError(ValueError):
+    """Le contenu relu (``read_artifact``) ne correspond pas à
+    ``ArtifactRecord.size_bytes``/``sha256`` — remédiation revue PR#90 :
+    avant ce correctif, un objet corrompu ou substitué (stockage altéré,
+    reprise sur un mauvais fichier, etc.) était accepté sans vérification
+    et la ressource passait ``EXTRACTED`` sur un contenu jamais prouvé
+    identique à celui réellement téléchargé par Fetcher."""
 
 
 def extract_text_core(*, artifact: ArtifactRecord, raw_bytes: bytes) -> str:
@@ -75,6 +85,21 @@ def run_extractor(
         raise ValueError("artifact.extracted_text_ref is required to read back stored content")
 
     raw_bytes = read_artifact(extracted_text_ref=artifact.extracted_text_ref)
+
+    if len(raw_bytes) != artifact.size_bytes:
+        raise ArtifactIntegrityError(
+            f"artifact {artifact.artifact_id}: reread {len(raw_bytes)} bytes, "
+            f"expected size_bytes={artifact.size_bytes} — refusing to extract "
+            "from content that does not match the persisted record"
+        )
+    actual_sha256 = hashlib.sha256(raw_bytes).hexdigest()
+    if actual_sha256 != artifact.sha256:
+        raise ArtifactIntegrityError(
+            f"artifact {artifact.artifact_id}: reread content sha256={actual_sha256}, "
+            f"expected sha256={artifact.sha256} — refusing to extract from "
+            "corrupted or substituted content"
+        )
+
     extracted_text = extract_text_core(artifact=artifact, raw_bytes=raw_bytes)
 
     transition = apply_resource_transition(
@@ -94,6 +119,7 @@ def run_extractor(
 
 __all__ = [
     "SUPPORTED_MIME_TYPES",
+    "ArtifactIntegrityError",
     "UnsupportedMimeTypeError",
     "extract_text_core",
     "run_extractor",

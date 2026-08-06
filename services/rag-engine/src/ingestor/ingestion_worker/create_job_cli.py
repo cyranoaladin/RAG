@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import re
 import sys
 from pathlib import Path
 from uuid import UUID
@@ -32,7 +33,7 @@ from nexus_contracts.ingestion import ResourceScope
 
 try:
     from ingestor.ingestion_control.db import get_ingestion_control_dsn
-    from ingestor.ingestion_control.jobs import create_job
+    from ingestor.ingestion_control.jobs import find_or_create_job
     from ingestor.ingestion_control.provisioning import create_ingestion_run
     from ingestor.ingestion_profiles.registry import (
         load_profile_registry,
@@ -44,11 +45,19 @@ except (ImportError, ValueError):
     # Image Docker aplatie (LOT44f, ADR-0029/ADR-0031) : même discipline que
     # cli.py et runner.py — "ingestor" n'existe pas comme paquet ici.
     from ingestion_control.db import get_ingestion_control_dsn
-    from ingestion_control.jobs import create_job
+    from ingestion_control.jobs import find_or_create_job
     from ingestion_control.provisioning import create_ingestion_run
     from ingestion_profiles.registry import load_profile_registry, select_profile
     from ingestion_profiles.startup_gate import enforce_production_manifest_gate
     from ingestion_profiles.validation import validate_scope_against_profile
+
+#: Même contrainte que ``nexus_contracts.identity.Sha256Digest`` — répétée
+#: ici pour valider un ``--dedup-key`` fourni par l'opérateur sans tirer une
+#: dépendance pydantic supplémentaire dans un script CLI (remédiation revue
+#: PR#90 : avant ce correctif, une valeur arbitraire non-SHA-256 était
+#: acceptée telle quelle, contournant silencieusement le contrat d'identité
+#: canonique que Scout/``resources`` attendent).
+_SHA256_HEX_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
@@ -85,12 +94,15 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         "--dedup-key",
         default=None,
         help=(
-            "Clé d'idempotence. Par défaut : sha256(source_url) — déterministe, "
-            "jamais aléatoire, pour qu'une resoumission de la même URL soit "
-            "reconnaissable comme telle par l'opérateur, pas pour bloquer "
-            "une resoumission volontaire (aucune vérification de doublon "
-            "n'est faite ici ; ``resources_collection_dedup_key_unique`` "
-            "côté base est la seule barrière, avec un message d'erreur clair)."
+            "Clé d'idempotence, 64 caractères hexadécimaux (SHA-256) — même "
+            "format que celui que Scout calcule lui-même à partir de "
+            "canonical_url, jamais un format différent. Par défaut : "
+            "sha256(canonical_url) — déterministe, jamais aléatoire, calculé "
+            "à partir de la même URL que Scout pour que la déduplication au "
+            "niveau resources et celle au niveau job restent cohérentes "
+            "(remédiation revue PR#90 : un défaut basé sur source_url "
+            "aurait pu diverger de canonical_url et casser la contrainte "
+            "resources_collection_dedup_key_unique en cas de redirection)."
         ),
     )
     parser.add_argument("--query", default="operator-submitted")
@@ -103,8 +115,8 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _default_dedup_key(source_url: str) -> str:
-    return hashlib.sha256(source_url.encode("utf-8")).hexdigest()
+def _default_dedup_key(canonical_url: str) -> str:
+    return hashlib.sha256(canonical_url.encode("utf-8")).hexdigest()
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -143,7 +155,15 @@ def main(argv: list[str] | None = None) -> int:
         "programme_version": args.programme_version,
     }
 
-    dedup_key = args.dedup_key or _default_dedup_key(args.source_url)
+    dedup_key = args.dedup_key or _default_dedup_key(args.canonical_url)
+    if not _SHA256_HEX_PATTERN.match(dedup_key):
+        print(
+            f"INVALID_DEDUP_KEY: {dedup_key!r} is not 64 lowercase hexadecimal "
+            "characters (SHA-256) — refusing to bypass the canonical identity "
+            "contract",
+            file=sys.stderr,
+        )
+        return 1
 
     with psycopg.connect(get_ingestion_control_dsn()) as conn:
         registry = load_profile_registry(args.profiles_dir)
@@ -173,14 +193,21 @@ def main(argv: list[str] | None = None) -> int:
         run_id: UUID = create_ingestion_run(
             conn, scope=scope, profile_version=args.profile_version, trigger=args.trigger
         )
-        job_id: UUID = create_job(
+        # Remédiation revue PR#90 : find_or_create_job est atomique sous
+        # concurrence (verrou advisory transactionnel) — deux invocations
+        # concurrentes de cet outil avec le même dedup_key ne créent jamais
+        # deux jobs actifs, contrairement à un create_job() nu précédé d'une
+        # recherche séparée non protégée.
+        job_id: UUID
+        created: bool
+        job_id, created = find_or_create_job(
             conn,
             run_id=run_id,
             job_type="resource_pipeline",
+            dedup_key=dedup_key,
             resource_id=None,
             payload={
                 "scope": scope_dict,
-                "dedup_key": dedup_key,
                 "source_url": args.source_url,
                 "canonical_url": args.canonical_url,
                 "domain": args.domain,
@@ -191,7 +218,8 @@ def main(argv: list[str] | None = None) -> int:
         )
         conn.commit()
 
-    print(f"JOB_CREATED run_id={run_id} job_id={job_id} dedup_key={dedup_key}")
+    status = "JOB_CREATED" if created else "JOB_ALREADY_ACTIVE"
+    print(f"{status} run_id={run_id} job_id={job_id} dedup_key={dedup_key}")
     return 0
 
 

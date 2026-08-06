@@ -188,6 +188,30 @@ class TestProfileVersionFormat:
         with pytest.raises(ProfileRegistryLoadError, match="profile_version"):
             load_profile_registry(tmp_path)
 
+    def test_version_with_trailing_newline_is_rejected(self, tmp_path: Path) -> None:
+        """Revue PR#90 (Cubic P2) : ``re.Pattern.match`` (sans ``re.MULTILINE``)
+        autorise un saut de ligne final avant le ``$`` de fin d'ancre — un
+        ``profile_version`` de la forme ``"v1\\n"`` passait donc la
+        validation alors que le contrat proscrit explicitement les sauts de
+        ligne. ``fullmatch`` n'a pas cette tolérance."""
+        _write_profile(tmp_path, "bad.yml", profile_version="v1\n")
+        with pytest.raises(ProfileRegistryLoadError, match="profile_version"):
+            load_profile_registry(tmp_path)
+
+    def test_blank_expected_topics_entry_is_rejected(self, tmp_path: Path) -> None:
+        """Revue PR#90 (Cubic P1) : ``expected_topics: [""]`` ferait
+        accepter n'importe quel document comme conforme à la matière —
+        rejeté dès le chargement du profil, jamais seulement au moment du
+        classifier."""
+        _write_profile(tmp_path, "bad.yml", expected_topics=[""])
+        with pytest.raises(ProfileRegistryLoadError):
+            load_profile_registry(tmp_path)
+
+    def test_whitespace_only_expected_topics_entry_is_rejected(self, tmp_path: Path) -> None:
+        _write_profile(tmp_path, "bad.yml", expected_topics=["algorithmique", "   "])
+        with pytest.raises(ProfileRegistryLoadError):
+            load_profile_registry(tmp_path)
+
     def test_version_exceeding_max_length_is_rejected(self, tmp_path: Path) -> None:
         _write_profile(tmp_path, "bad.yml", profile_version="v" * 65)
         with pytest.raises(ProfileRegistryLoadError, match="profile_version"):

@@ -17,7 +17,7 @@ from nexus_contracts.ingestion import ResourceCandidate
 from nexus_contracts.resource_state import ResourceState
 
 from ingestor.ingestion_agents import fetcher as fetcher_module
-from ingestor.ingestion_agents.fetcher import build_artifact_core, run_fetcher
+from ingestor.ingestion_agents.fetcher import FetchHTTPError, build_artifact_core, run_fetcher
 from ingestor.ingestion_agents.transitions import TransitionResult
 
 SCOPE = {
@@ -186,6 +186,42 @@ class TestRunFetcherWiring:
 
         assert call_order == ["transition", "store", "transition"]
 
+    def test_license_is_persisted_on_the_returned_artifact(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Revue PR#90 (Cubic P2) : la licence doit être portée par
+        l'``ArtifactRecord`` que ``run_fetcher`` retourne (donc par celui
+        que l'appelant persiste), jamais reconstruite après coup sur une
+        copie en mémoire jamais écrite en base."""
+        candidate = _candidate()
+        fake_response = httpx.Response(
+            200, headers={"content-type": "text/html"}, content=b"contenu",
+            request=httpx.Request("GET", candidate.source_url),
+        )
+        monkeypatch.setattr(
+            fetcher_module,
+            "apply_resource_transition",
+            lambda *a, **kw: TransitionResult(
+                resource_id=candidate.resource_id, from_state=kw["expected_state"],
+                to_state=kw["new_state"], state_version=kw["expected_version"] + 1,
+            ),
+        )
+
+        artifact, _fetched, _stored = run_fetcher(
+            conn=MagicMock(),
+            candidate=candidate,
+            artifact_id=uuid4(),
+            collected_at=datetime(2026, 8, 4, tzinfo=UTC),
+            expected_version=1,
+            actor="fetcher-test",
+            max_bytes=1_000_000,
+            store_artifact=lambda *, artifact_id, content: "mem://x",
+            safe_fetch=lambda url, **kwargs: fake_response,
+            license="CC-BY-SA",
+        )
+
+        assert artifact.license == "CC-BY-SA"
+
     def test_job_id_is_forwarded_to_both_transitions(self, monkeypatch: pytest.MonkeyPatch) -> None:
         candidate = _candidate()
         job_id = uuid4()
@@ -221,3 +257,125 @@ class TestRunFetcherWiring:
         )
 
         assert seen_job_ids == [job_id, job_id]
+
+
+class TestRunFetcherRejectsHTTPErrors:
+    """Revue PR#90 (Cubic P1) : une réponse HTTP 4xx/5xx ne doit jamais être
+    traitée comme un artefact valide — ``safe_fetch`` réussit au niveau
+    transport (SSRF/connexion) même quand le serveur distant répond une
+    erreur applicative ; ``run_fetcher`` doit distinguer les deux."""
+
+    @pytest.mark.parametrize(
+        ("status_code", "expected_retryable"),
+        [
+            (404, False),
+            (401, False),
+            (403, False),
+            (429, True),
+            (500, True),
+            (502, True),
+            (503, True),
+        ],
+    )
+    def test_error_status_is_rejected_before_any_transition_or_store(
+        self, monkeypatch: pytest.MonkeyPatch, status_code: int, expected_retryable: bool
+    ) -> None:
+        candidate = _candidate()
+        fake_response = httpx.Response(
+            status_code,
+            headers={"content-type": "text/html"},
+            content=b"<html>error page</html>",
+            request=httpx.Request("GET", candidate.source_url),
+        )
+
+        mock_apply = MagicMock()
+        monkeypatch.setattr(fetcher_module, "apply_resource_transition", mock_apply)
+        store_calls: list[bytes] = []
+
+        def recording_store(*, artifact_id: object, content: bytes) -> str:
+            store_calls.append(content)
+            return "mem://x"
+
+        with pytest.raises(FetchHTTPError) as exc_info:
+            run_fetcher(
+                conn=MagicMock(),
+                candidate=candidate,
+                artifact_id=uuid4(),
+                collected_at=datetime(2026, 8, 4, tzinfo=UTC),
+                expected_version=1,
+                actor="fetcher-test",
+                max_bytes=1_000_000,
+                store_artifact=recording_store,
+                safe_fetch=lambda url, **kwargs: fake_response,
+            )
+
+        assert exc_info.value.status_code == status_code
+        assert exc_info.value.retryable is expected_retryable
+        mock_apply.assert_not_called()
+        assert store_calls == []
+
+    def test_redirect_ending_in_error_is_also_rejected(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """``safe_fetch`` résout déjà les redirections en interne (ssrf_guard) ;
+        ce test vérifie seulement que le statut final observé par
+        ``run_fetcher`` (après résolution) est bien contrôlé, quelle que
+        soit la chaîne de redirections qui y a mené."""
+        candidate = _candidate()
+        fake_response = httpx.Response(
+            404,
+            headers={"content-type": "text/html"},
+            content=b"not found after redirect",
+            request=httpx.Request("GET", "https://eduscol.education.fr/moved"),
+        )
+        mock_apply = MagicMock()
+        monkeypatch.setattr(fetcher_module, "apply_resource_transition", mock_apply)
+
+        with pytest.raises(FetchHTTPError):
+            run_fetcher(
+                conn=MagicMock(),
+                candidate=candidate,
+                artifact_id=uuid4(),
+                collected_at=datetime(2026, 8, 4, tzinfo=UTC),
+                expected_version=1,
+                actor="fetcher-test",
+                max_bytes=1_000_000,
+                store_artifact=lambda *, artifact_id, content: "mem://x",
+                safe_fetch=lambda url, **kwargs: fake_response,
+            )
+        mock_apply.assert_not_called()
+
+    def test_success_status_is_unaffected(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        candidate = _candidate()
+        fake_response = httpx.Response(
+            200,
+            headers={"content-type": "text/html"},
+            content=b"ok",
+            request=httpx.Request("GET", candidate.source_url),
+        )
+        mock_apply = MagicMock(
+            side_effect=[
+                TransitionResult(
+                    resource_id=candidate.resource_id, from_state=ResourceState.CANDIDATE,
+                    to_state=ResourceState.FETCHED, state_version=2,
+                ),
+                TransitionResult(
+                    resource_id=candidate.resource_id, from_state=ResourceState.FETCHED,
+                    to_state=ResourceState.STORED, state_version=3,
+                ),
+            ]
+        )
+        monkeypatch.setattr(fetcher_module, "apply_resource_transition", mock_apply)
+
+        artifact, _fetched, _stored = run_fetcher(
+            conn=MagicMock(),
+            candidate=candidate,
+            artifact_id=uuid4(),
+            collected_at=datetime(2026, 8, 4, tzinfo=UTC),
+            expected_version=1,
+            actor="fetcher-test",
+            max_bytes=1_000_000,
+            store_artifact=lambda *, artifact_id, content: "mem://x",
+            safe_fetch=lambda url, **kwargs: fake_response,
+        )
+        assert artifact is not None

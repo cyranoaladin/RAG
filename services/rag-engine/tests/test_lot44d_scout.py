@@ -81,6 +81,53 @@ class TestDiscoverCandidateCore:
                 proposed_type_doc="cours",
             )
 
+    def test_declared_domain_disagreeing_with_source_url_host_is_rejected(self) -> None:
+        """Revue PR#90 (Codex + Cubic) : un opérateur ne doit jamais pouvoir
+        déclarer ``domain="eduscol.education.fr"`` (allowlisté) tout en
+        fournissant une ``source_url`` pointant vers un tout autre hôte —
+        avant ce correctif, seule la chaîne déclarée était comparée à
+        ``allowed_domains``, jamais l'hôte réel de l'URL."""
+        with pytest.raises(DomainNotAllowedError, match="does not match"):
+            discover_candidate_core(
+                search_plan=_search_plan(allowed_domains=["eduscol.education.fr"]),
+                resource_id=uuid4(),
+                candidate_id=uuid4(),
+                discovered_at=datetime(2026, 8, 4, tzinfo=UTC),
+                source_url="https://evil.example.com/nsi/algo",
+                canonical_url="https://evil.example.com/nsi/algo",
+                domain="eduscol.education.fr",
+                proposed_type_doc="cours",
+            )
+
+    def test_canonical_url_host_outside_allowed_domains_is_rejected(self) -> None:
+        """``canonical_url`` sert d'identité de source faisant autorité
+        (``dedup_key`` en dépend) — son hôte doit lui aussi être
+        allowlisté, même quand ``source_url``/``domain`` sont cohérents."""
+        with pytest.raises(DomainNotAllowedError):
+            discover_candidate_core(
+                search_plan=_search_plan(allowed_domains=["eduscol.education.fr"]),
+                resource_id=uuid4(),
+                candidate_id=uuid4(),
+                discovered_at=datetime(2026, 8, 4, tzinfo=UTC),
+                source_url="https://eduscol.education.fr/nsi/algo",
+                canonical_url="https://evil.example.com/nsi/algo",
+                domain="eduscol.education.fr",
+                proposed_type_doc="cours",
+            )
+
+    def test_domain_case_and_trailing_dot_are_normalized(self) -> None:
+        candidate = discover_candidate_core(
+            search_plan=_search_plan(allowed_domains=["eduscol.education.fr"]),
+            resource_id=uuid4(),
+            candidate_id=uuid4(),
+            discovered_at=datetime(2026, 8, 4, tzinfo=UTC),
+            source_url="https://EDUSCOL.education.fr./nsi/algo",
+            canonical_url="https://EDUSCOL.education.fr./nsi/algo",
+            domain="eduscol.education.fr",
+            proposed_type_doc="cours",
+        )
+        assert candidate.domain == "eduscol.education.fr"
+
     def test_dedup_key_is_deterministic_for_same_canonical_url(self) -> None:
         kwargs = dict(
             search_plan=_search_plan(),

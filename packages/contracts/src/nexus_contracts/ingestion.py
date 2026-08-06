@@ -119,6 +119,21 @@ class CollectionProfile(StrictBaseModel):
 
     publication: PublicationPolicy = Field(default_factory=PublicationPolicy)
 
+    @field_validator("expected_topics")
+    @classmethod
+    def validate_expected_topics_are_non_blank(cls, values: list[str]) -> list[str]:
+        """Remédiation revue PR#90 (Cubic P1) : ``expected_topics: [""]``
+        (ou une entrée uniquement faite d'espaces) ferait accepter
+        n'importe quel document comme conforme à la matière — le
+        classifier (``classify_conformity_core``) considère une chaîne
+        vide comme présente dans tout texte non vide. ``min_length=1`` sur
+        la liste ne protège pas contre une chaîne vide *à l'intérieur* de
+        la liste."""
+        for topic in values:
+            if not topic.strip():
+                raise ValueError("expected_topics entries must not be blank")
+        return values
+
     @model_validator(mode="after")
     def validate_chunk_overlap_smaller_than_chunk_size(self) -> "CollectionProfile":
         if self.chunk_overlap >= self.max_chunk_size:
