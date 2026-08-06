@@ -10,6 +10,7 @@ volume qui contiendrait déjà des données.
 """
 from __future__ import annotations
 
+import secrets
 import shutil
 import socket
 import subprocess
@@ -26,7 +27,7 @@ MIGRATIONS_DIR = ENGINE_ROOT / "infra" / "postgres" / "ingestion_control" / "mig
 
 PG_IMAGE = "pgvector/pgvector:pg16"
 PG_SUPERUSER = "raguser"
-PG_SUPERUSER_PASSWORD = "test-password"
+PG_SUPERUSER_PASSWORD = secrets.token_urlsafe(24)  # revue PR#90 : jamais un litteral statique
 PG_DB = "ragdb"
 
 _DOCKER_AVAILABLE = shutil.which("docker") is not None and (
