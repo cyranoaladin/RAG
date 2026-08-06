@@ -30,6 +30,38 @@ from .dependencies import (
 )
 from .transitions import TransitionResult, apply_resource_transition
 
+#: Codes HTTP jamais transitoires — une nouvelle tentative identique
+#: échouerait de la même façon (ressource absente, accès refusé,
+#: redirection interdite déjà résolue par ssrf_guard, etc.). Tout le reste
+#: (429, 5xx) est traité comme potentiellement transitoire.
+_NON_RETRYABLE_STATUS_CODES = frozenset({400, 401, 403, 404, 405, 410, 451})
+
+
+class FetchHTTPError(RuntimeError):
+    """``safe_fetch`` a renvoyé un statut HTTP d'erreur (4xx/5xx) —
+    remédiation revue PR#90 : avant ce correctif, ce cas n'était jamais
+    distingué d'un téléchargement réussi, et le corps de la réponse
+    d'erreur (page 404, message d'accès refusé, etc.) pouvait être haché,
+    stocké et transitionné comme un artefact pédagogique valide.
+
+    ``retryable`` distingue une erreur probablement transitoire (429, 5xx —
+    une nouvelle tentative a une chance raisonnable de réussir) d'une
+    erreur définitive (4xx hors 429 — même contenu, même échec à coup
+    sûr) ; cette classification est portée par l'exception pour un futur
+    appelant qui voudrait l'exploiter, sans elle-même modifier ici le
+    comportement de retry/backoff déjà existant de
+    ``ingestion_worker.runner`` (qui reste, pour cette passe, uniforme
+    quel que soit le type d'échec — cf. rapport de lot)."""
+
+    def __init__(self, *, status_code: int, url: str) -> None:
+        self.status_code = status_code
+        self.url = url
+        self.retryable = status_code not in _NON_RETRYABLE_STATUS_CODES
+        super().__init__(
+            f"fetch failed with HTTP {status_code} for {url!r} "
+            f"({'retryable' if self.retryable else 'non-retryable'})"
+        )
+
 
 def build_artifact_core(
     *,
@@ -85,14 +117,26 @@ def run_fetcher(
     store_artifact: ArtifactStore,
     job_id: UUID | None = None,
     mime_declared: str = "application/octet-stream",
+    license: str | None = None,
     safe_fetch: SafeFetcher = default_safe_fetch,
 ) -> tuple[ArtifactRecord, TransitionResult, TransitionResult]:
     """Télécharge (garde SSRF), transitionne vers ``FETCHED``, persiste
     (``store_artifact`` injecté, aucun défaut réel), transitionne vers
     ``STORED``. Deux transitions CAS distinctes, chacune journalisée
     séparément — jamais une seule écriture combinée.
+
+    ``license`` (remédiation revue PR#90) : propagée à l'``ArtifactRecord``
+    construit ici, **avant** que l'appelant ne le persiste — avant ce
+    correctif, l'appelant (``ingestion_worker.runner``) reconstruisait un
+    ``ArtifactRecord`` avec la licence *après* la persistance, sur une
+    copie en mémoire jamais écrite en base : une reprise après crash
+    relisait alors un artefact durablement sans licence, faisant échouer
+    ``RightsAgent`` (``Rights.unknown`` forcé) même quand une licence avait
+    bien été déclarée par l'opérateur.
     """
     response = safe_fetch(candidate.source_url, max_bytes=max_bytes)
+    if response.status_code >= 400:
+        raise FetchHTTPError(status_code=response.status_code, url=candidate.source_url)
     content = response.content
     sha256 = hashlib.sha256(content).hexdigest()
     mime_detected = response.headers.get("content-type", mime_declared).split(";")[0].strip()
@@ -134,9 +178,10 @@ def run_fetcher(
         final_url=final_url,
         collected_at=collected_at,
         extracted_text_ref=extracted_text_ref,
+        license=license,
     )
 
     return artifact, fetched_transition, stored_transition
 
 
-__all__ = ["build_artifact_core", "run_fetcher"]
+__all__ = ["FetchHTTPError", "build_artifact_core", "run_fetcher"]

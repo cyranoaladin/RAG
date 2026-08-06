@@ -85,11 +85,18 @@ class TestClassifyConformityCore:
         )
         assert set(result.matiere_evidence) == {"algorithmique", "récursivité"}
 
-    def test_niveau_voie_programme_conformity_are_structural_placeholders(self) -> None:
+    def test_niveau_voie_programme_conformity_are_never_verified_placeholders(self) -> None:
+        """Revue PR#90 (Cubic P1 + Codex P1) : ces trois dimensions valent
+        désormais ``False`` ("non vérifié", jamais "vérifié conforme") tant
+        qu'aucun classifieur réel ne les calcule à partir du contenu —
+        changement intentionnel et documenté (cf. docstring du module) qui
+        remplace l'ancien comportement ``True`` inconditionnel, lequel
+        laissait QualityAgent router n'importe quel contenu sans jamais
+        prouver ces dimensions."""
         result = classify_conformity_core(extracted_text="cuisine", profile=_profile())
-        assert result.niveau_conformity is True
-        assert result.voie_conformity is True
-        assert result.programme_conformity is True
+        assert result.niveau_conformity is False
+        assert result.voie_conformity is False
+        assert result.programme_conformity is False
 
 
 class TestRunClassifierWiring:

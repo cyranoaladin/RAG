@@ -6,6 +6,7 @@ monkeypatché — aucun PostgreSQL réel, aucun stockage réel.
 """
 from __future__ import annotations
 
+import hashlib
 from datetime import UTC, datetime
 from unittest.mock import MagicMock
 from uuid import uuid4
@@ -16,6 +17,7 @@ from nexus_contracts.resource_state import ResourceState
 
 from ingestor.ingestion_agents import extractor as extractor_module
 from ingestor.ingestion_agents.extractor import (
+    ArtifactIntegrityError,
     UnsupportedMimeTypeError,
     extract_text_core,
     run_extractor,
@@ -96,7 +98,13 @@ class TestRunExtractorWiring:
     def test_reads_stored_content_then_transitions_stored_to_extracted(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        artifact = _artifact(mime_detected="text/plain", extracted_text_ref="mem://artifact-1")
+        content = b"algorithmique"
+        artifact = _artifact(
+            mime_detected="text/plain",
+            extracted_text_ref="mem://artifact-1",
+            sha256=hashlib.sha256(content).hexdigest(),
+            size_bytes=len(content),
+        )
         fake_transition = TransitionResult(
             resource_id=artifact.resource_id,
             from_state=ResourceState.STORED,
@@ -128,7 +136,13 @@ class TestRunExtractorWiring:
         assert kwargs["new_state"] == ResourceState.EXTRACTED
 
     def test_job_id_is_forwarded(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        artifact = _artifact(mime_detected="text/plain", extracted_text_ref="mem://artifact-1")
+        content = b"algorithmique"
+        artifact = _artifact(
+            mime_detected="text/plain",
+            extracted_text_ref="mem://artifact-1",
+            sha256=hashlib.sha256(content).hexdigest(),
+            size_bytes=len(content),
+        )
         fake_transition = TransitionResult(
             resource_id=artifact.resource_id, from_state=ResourceState.STORED,
             to_state=ResourceState.EXTRACTED, state_version=4,
@@ -162,3 +176,52 @@ class TestRunExtractorWiring:
                 actor="extractor-test",
                 read_artifact=must_not_be_called,
             )
+
+
+class TestRunExtractorArtifactIntegrity:
+    """Revue PR#90 (Cubic P1) : le contenu relu doit correspondre
+    exactement à ``ArtifactRecord.size_bytes``/``sha256`` avant toute
+    extraction/transition — jamais un objet corrompu ou substitué accepté
+    silencieusement."""
+
+    def test_rejects_content_with_wrong_size(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        content = b"algorithmique"
+        artifact = _artifact(
+            mime_detected="text/plain",
+            extracted_text_ref="mem://artifact-1",
+            sha256=hashlib.sha256(content).hexdigest(),
+            size_bytes=len(content) + 1,  # désaccord délibéré
+        )
+        mock_apply = MagicMock()
+        monkeypatch.setattr(extractor_module, "apply_resource_transition", mock_apply)
+
+        with pytest.raises(ArtifactIntegrityError, match="size_bytes"):
+            run_extractor(
+                conn=MagicMock(),
+                artifact=artifact,
+                expected_version=3,
+                actor="extractor-test",
+                read_artifact=lambda *, extracted_text_ref: content,
+            )
+        mock_apply.assert_not_called()
+
+    def test_rejects_content_with_wrong_sha256(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        content = b"algorithmique"
+        artifact = _artifact(
+            mime_detected="text/plain",
+            extracted_text_ref="mem://artifact-1",
+            sha256="0" * 64,  # ne correspond jamais au contenu réel
+            size_bytes=len(content),
+        )
+        mock_apply = MagicMock()
+        monkeypatch.setattr(extractor_module, "apply_resource_transition", mock_apply)
+
+        with pytest.raises(ArtifactIntegrityError, match="sha256"):
+            run_extractor(
+                conn=MagicMock(),
+                artifact=artifact,
+                expected_version=3,
+                actor="extractor-test",
+                read_artifact=lambda *, extracted_text_ref: content,
+            )
+        mock_apply.assert_not_called()

@@ -94,7 +94,28 @@ def build_quality_report_core(
         rejection_reasons.append("extraction_quality_below_threshold")
     if not conformity.matiere_conformity:
         rejection_reasons.append("matiere_conformity_failed")
-    if rights == Rights.unknown:
+    # Remédiation revue PR#90 (Cubic P1 + Codex P1) : niveau/voie/programme
+    # ne sont jamais vérifiés par un classifieur réel dans ce lot
+    # (classifier.py les renvoie toujours à False = "non vérifié") — les
+    # traiter comme un motif de rejet, au même titre qu'une non-conformité
+    # avérée, est le seul moyen d'empêcher QUALITY_CHECKED -> ROUTED de
+    # déclarer conforme un contenu dont ces trois dimensions n'ont jamais
+    # été prouvées. Reste inatteignable tant qu'aucun vrai classifieur ne
+    # remplace ce placeholder — comportement volontaire, pas une régression.
+    if not conformity.niveau_conformity:
+        rejection_reasons.append("niveau_conformity_not_verified")
+    if not conformity.voie_conformity:
+        rejection_reasons.append("voie_conformity_not_verified")
+    if not conformity.programme_conformity:
+        rejection_reasons.append("programme_conformity_not_verified")
+    # Remédiation revue PR#90 : cohérent avec RightsAgent (assess_rights_
+    # core), qui rejette déjà explicitement Rights.unknown en amont quand
+    # profile.reject_unknown_rights est vrai — si l'exécution atteint ce
+    # point avec rights == Rights.unknown, c'est nécessairement que le
+    # profil autorise ce cas (reject_unknown_rights=False). Rejeter quand
+    # même ici, sans condition, contredirait silencieusement la politique
+    # explicite du profil.
+    if rights == Rights.unknown and profile.reject_unknown_rights:
         rejection_reasons.append("rights_unknown")
     if pii_detected:
         rejection_reasons.append("pii_detected")

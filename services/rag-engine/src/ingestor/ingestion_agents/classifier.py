@@ -3,16 +3,28 @@
 Porte la transition ``EXTRACTED -> CLASSIFIED``.
 
 Avertissement explicite (non contourné silencieusement) : ce cœur n'est
-**pas** un classifieur de contenu pédagogique réel. ``niveau``/``voie``/
-``programme_conformity`` restent hérités du scope déjà porté par la
-ressource depuis ``Scout`` (jamais reclassés indépendamment du contenu,
-faute d'un modèle réel dans ce lot) ; seule ``matiere_conformity`` est
-recalculée à partir du texte, par une heuristique minimale (présence d'au
-moins un sujet attendu du profil) — un signal faible, pas une preuve de
-pertinence pédagogique. Un futur lot qui introduirait un vrai modèle de
-classification devra remplacer ``classify_conformity_core`` sans changer sa
-signature ; cf. ADR-0029 pour cette réserve.
-"""
+**pas** un classifieur de contenu pédagogique réel. Seule
+``matiere_conformity`` est recalculée à partir du texte, par une
+heuristique minimale (présence d'au moins un sujet attendu du profil) — un
+signal faible, pas une preuve de pertinence pédagogique. Un futur lot qui
+introduirait un vrai modèle de classification devra remplacer
+``classify_conformity_core`` sans changer sa signature ; cf. ADR-0029 pour
+cette réserve.
+
+Remédiation revue PR#90 (Cubic P1 + Codex P1) : ``niveau_conformity``/
+``voie_conformity``/``programme_conformity`` valaient auparavant toujours
+``True`` — jamais vérifiées, seulement héritées du scope déclaré par
+l'appelant. ``QualityAgent`` pouvait alors laisser router (``ROUTED``)
+n'importe quelle page suffisamment longue contenant un seul sujet attendu,
+même si elle enseignait le mauvais niveau, la mauvaise filière ou un
+programme différent — la couche qualité ne prouvait rien sur ces trois
+dimensions, elle affichait une conformité jamais vérifiée. Ces trois champs
+valent désormais ``False`` (non vérifié, jamais assimilé à "vérifié
+conforme") tant qu'aucun classifieur réel ne les calcule, et
+``QualityAgent`` les traite comme des motifs de rejet explicites (cf.
+``build_quality_report_core``) — ``ROUTED`` reste donc inatteignable par ce
+lot jusqu'à l'introduction d'un vrai modèle, ce qui est le comportement
+volontairement recherché par cette remédiation, pas une régression."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -45,6 +57,11 @@ def classify_conformity_core(
     profil apparaît (recherche insensible à la casse) dans le texte extrait
     — ``matiere_evidence`` porte la liste des sujets effectivement trouvés,
     jamais un booléen nu sans justification.
+
+    ``niveau_conformity``/``voie_conformity``/``programme_conformity``
+    valent ``False`` : aucun classifieur réel de ce lot ne vérifie ces
+    trois dimensions à partir du contenu — ``False`` signifie ici "non
+    vérifié", jamais "vérifié non-conforme" (cf. docstring du module).
     """
     normalized_text = extracted_text.casefold()
     found_topics = tuple(
@@ -52,10 +69,10 @@ def classify_conformity_core(
     )
 
     return ConformityResult(
-        niveau_conformity=True,
-        voie_conformity=True,
+        niveau_conformity=False,
+        voie_conformity=False,
         matiere_conformity=len(found_topics) > 0,
-        programme_conformity=True,
+        programme_conformity=False,
         matiere_evidence=found_topics,
     )
 

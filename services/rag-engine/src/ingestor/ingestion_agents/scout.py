@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 from datetime import datetime
+from urllib.parse import urlparse
 from uuid import UUID
 
 import psycopg
@@ -29,6 +30,25 @@ class DomainNotAllowedError(ValueError):
     """Le domaine du candidat découvert n'appartient pas à
     ``search_plan.allowed_domains`` — rejet explicite, jamais une
     acceptation silencieuse hors périmètre du plan."""
+
+
+def _hostname_of(url: str) -> str:
+    """Hôte canonique d'une URL — jamais une chaîne fournie par l'appelant.
+
+    Remédiation revue PR#90 : ``discover_candidate_core`` comparait
+    auparavant uniquement le paramètre ``domain`` (fourni par l'appelant,
+    ex. l'opérateur via ``create_job_cli.py``) à ``allowed_domains``, sans
+    jamais vérifier qu'il correspondait réellement à l'hôte de
+    ``source_url``/``canonical_url`` — un appelant pouvait déclarer
+    ``domain="eduscol.education.fr"`` tout en fournissant une
+    ``source_url`` pointant vers un tout autre hôte, et le candidat était
+    accepté. ``urlparse(...).hostname`` ignore déjà le port ; normalisé en
+    minuscules et sans point final pour éviter un contournement trivial
+    par la casse ou un point final superflu."""
+    hostname = urlparse(url).hostname
+    if not hostname:
+        raise DomainNotAllowedError(f"cannot derive a hostname from url {url!r}")
+    return hostname.rstrip(".").lower()
 
 
 def discover_candidate_core(
@@ -52,11 +72,35 @@ def discover_candidate_core(
     jamais une lecture d'état externe — la déduplication réelle contre des
     candidats déjà connus reste la responsabilité de l'appelant (contrainte
     ``UNIQUE(collection, dedup_key)``, ADR-0027, non modifiée ici).
+
+    Remédiation revue PR#90 : ``domain`` (fourni par l'appelant) n'est plus
+    la seule source de vérité pour l'autorisation — il doit correspondre
+    exactement à l'hôte réel de ``source_url``, et l'hôte de
+    ``canonical_url`` doit lui aussi appartenir à ``allowed_domains``
+    (``canonical_url`` sert d'identité de source faisant autorité —
+    ``dedup_key`` en dépend déjà). Un appelant qui déclare un ``domain``
+    allowlisté tout en fournissant une ``source_url`` vers un autre hôte
+    est rejeté explicitement, jamais silencieusement accepté sur la seule
+    foi de la chaîne déclarée.
     """
+    source_host = _hostname_of(source_url)
+    canonical_host = _hostname_of(canonical_url)
+
+    if source_host != domain:
+        raise DomainNotAllowedError(
+            f"declared domain {domain!r} does not match the source_url host "
+            f"{source_host!r} — refusing to trust a caller-supplied domain "
+            "that disagrees with the actual URL"
+        )
     if domain not in search_plan.allowed_domains:
         raise DomainNotAllowedError(
             f"domain {domain!r} is not in search_plan.allowed_domains "
             f"{sorted(search_plan.allowed_domains)!r}"
+        )
+    if canonical_host not in search_plan.allowed_domains:
+        raise DomainNotAllowedError(
+            f"canonical_url host {canonical_host!r} is not in "
+            f"search_plan.allowed_domains {sorted(search_plan.allowed_domains)!r}"
         )
 
     dedup_key = hashlib.sha256(canonical_url.encode("utf-8")).hexdigest()

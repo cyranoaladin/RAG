@@ -142,6 +142,41 @@ class TestBuildQualityReportCore:
             "duplicate_detected",
         ]
 
+    def test_unknown_rights_is_not_rejected_when_profile_allows_it(self) -> None:
+        """Revue PR#90 (Cubic P2) : ``reject_unknown_rights=False`` doit
+        réellement être honoré par QualityAgent, pas seulement par
+        RightsAgent en amont — avant ce correctif, ``rights_unknown``
+        était ajouté sans condition, contredisant silencieusement un
+        profil qui autorise explicitement ce cas."""
+        report = build_quality_report_core(
+            artifact=_artifact(),
+            profile=_profile(reject_unknown_rights=False),
+            conformity=_CONFORMITY_OK,
+            rights=Rights.unknown,
+            extracted_text="algorithmique et récursivité sont au programme. " * 20,
+            declared_language="fr",
+            pii_detected=False,
+            duplicate_detected=False,
+            report_id=uuid4(),
+            evaluated_at=datetime(2026, 8, 4, tzinfo=UTC),
+        )
+        assert "rights_unknown" not in report.rejection_reasons
+
+    def test_unknown_rights_is_still_rejected_when_profile_requires_it(self) -> None:
+        report = build_quality_report_core(
+            artifact=_artifact(),
+            profile=_profile(reject_unknown_rights=True),
+            conformity=_CONFORMITY_OK,
+            rights=Rights.unknown,
+            extracted_text="algorithmique et récursivité sont au programme. " * 20,
+            declared_language="fr",
+            pii_detected=False,
+            duplicate_detected=False,
+            report_id=uuid4(),
+            evaluated_at=datetime(2026, 8, 4, tzinfo=UTC),
+        )
+        assert "rights_unknown" in report.rejection_reasons
+
     def test_metadata_quality_measures_actual_field_completeness(self) -> None:
         full_metadata = _artifact(
             title="Algorithmique", publisher="Eduscol", license="CC-BY-SA",
