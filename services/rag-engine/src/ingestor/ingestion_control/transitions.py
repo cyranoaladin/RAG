@@ -73,6 +73,12 @@ def cas_transition(
     reste impossible ici comme dans les contrats Python, et aucune
     transition ne peut jamais viser ``PUBLISHED`` (absent de l'énumération).
 
+    Remédiation revue PR#90 : le CAS exige désormais aussi que ``run_id``
+    corresponde au ``run_id`` réel de la ressource — sans cela, un appelant
+    pouvait faire progresser une ressource avec succès tout en journalisant
+    la transition sous un ``run_id`` sans rapport, ce qui aurait faussé
+    silencieusement toute requête d'audit/replay filtrée par run.
+
     Ne committe pas la transaction : responsabilité de l'appelant.
     """
     if not is_valid_resource_transition(expected_state, new_state):
@@ -86,16 +92,18 @@ def cas_transition(
             UPDATE ingestion_control.resources
             SET resource_state = %s, state_version = state_version + 1, updated_at = now()
             WHERE resource_id = %s AND resource_state = %s AND state_version = %s
+              AND run_id = %s
             RETURNING state_version
             """,
-            (new_state.value, resource_id, expected_state.value, expected_version),
+            (new_state.value, resource_id, expected_state.value, expected_version, run_id),
         )
         row = cur.fetchone()
         if row is None:
             raise TransitionConflictError(
                 f"resource {resource_id}: expected state={expected_state.value} "
-                f"version={expected_version}, but the row did not match "
-                "(concurrent modification or stale caller state)"
+                f"version={expected_version} run_id={run_id}, but the row did not "
+                "match (concurrent modification, stale caller state, or run_id "
+                "mismatch)"
             )
         new_version = row[0]
 

@@ -30,17 +30,27 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .manifest import ManifestVerification, verify_profile_manifest
-from .registry import load_profile_registry
+from .registry import ProfileRegistry, load_profile_registry
 
 
 @dataclass(frozen=True)
 class StartupGateResult:
     """Preuve qu'un démarrage a été autorisé — jamais construite sans
-    passage réel par ``verify_profile_manifest``."""
+    passage réel par ``verify_profile_manifest``.
+
+    ``registry`` (remédiation revue PR#90) : l'exact ``ProfileRegistry``
+    chargé et vérifié par cet appel — jamais rechargé séparément depuis le
+    disque. Un appelant qui garde ce snapshot en mémoire pour le reste de
+    son cycle de vie (ex. ``ingestion_worker``) traite alors exactement le
+    contenu couvert par le fingerprint approuvé, même si le fichier monté
+    est modifié sur l'hôte après ce démarrage — un rechargement ultérieur
+    depuis ``profiles_dir`` recréerait la fenêtre TOCTOU que ce champ existe
+    pour éliminer."""
 
     manifest: ManifestVerification
     profiles_dir: Path
     manifest_path: Path
+    registry: ProfileRegistry
 
 
 def enforce_production_manifest_gate(
@@ -67,6 +77,7 @@ def enforce_production_manifest_gate(
         manifest=verification,
         profiles_dir=profiles_dir,
         manifest_path=manifest_path,
+        registry=registry,
     )
 
 

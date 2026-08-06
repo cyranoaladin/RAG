@@ -43,6 +43,7 @@ PROVISION_SCRIPT = INFRA_ROOT / "scripts" / "provision_ingestion_control_roles.s
 sys.path.insert(0, str(ENGINE_ROOT / "src"))
 
 from ingestor.ingestion_control.jobs import create_job  # noqa: E402
+from ingestor.ingestion_profiles.registry import load_profile_registry  # noqa: E402
 from ingestor.ingestion_worker.runner import WorkerDeps, run_worker_iteration  # noqa: E402
 from ingestor.ingestion_worker.storage import (  # noqa: E402
     make_filesystem_artifact_reader,
@@ -244,7 +245,7 @@ def _worker_deps(tmp_path: Path, *, safe_fetch, owner: str = "worker-e2e") -> Wo
     _write_profile(profiles_dir)
     return WorkerDeps(
         owner=owner,
-        profiles_dir=profiles_dir,
+        profile_registry=load_profile_registry(profiles_dir),
         artifact_store=make_filesystem_artifact_store(tmp_path / "artifacts"),
         artifact_reader=make_filesystem_artifact_reader(tmp_path / "artifacts"),
         validate_destination=lambda url: url,
@@ -281,12 +282,22 @@ def _fake_safe_fetch_high_quality(url: str, *, max_bytes: int, **kwargs: object)
 
 
 class TestWorkerE2E:
-    def test_full_chain_reaches_routed_with_consistent_job_id(
+    def test_full_chain_reaches_quality_checked_with_consistent_job_id(
         self, tmp_path: Path, clean_db: None, app_conn: psycopg.Connection
     ) -> None:
+        """Remédiation revue PR#90 (Cubic P1 + Codex P1) : ce test attendait
+        auparavant ``ROUTED`` — désormais structurellement inatteignable
+        tant qu'aucun classifieur réel ne vérifie niveau/voie/programme
+        (``classify_conformity_core`` les renvoie à ``False`` = "non
+        vérifié", et ``QualityAgent`` les traite comme des motifs de rejet
+        explicites). Changement intentionnel et documenté, pas une
+        régression : le scénario "propre" s'arrête maintenant à
+        ``QUALITY_CHECKED``, avec les trois motifs `_not_verified` dans
+        ``rejection_reasons`` — la chaîne complète (Scout..QualityAgent)
+        reste néanmoins exercée de bout en bout, job_id compris."""
         run_id = _insert_run(app_conn)
         job_id = create_job(
-            app_conn, run_id=run_id, job_type="ingest_v2_upload", payload=_job_payload()
+            app_conn, run_id=run_id, job_type="resource_pipeline", payload=_job_payload()
         )
         app_conn.commit()
 
@@ -309,24 +320,76 @@ class TestWorkerE2E:
                 (run_id,),
             )
             (resource_state,) = cur.fetchone()
-        assert resource_state == "ROUTED"
+        assert resource_state == "QUALITY_CHECKED"
 
         with app_conn.cursor() as cur:
             cur.execute(
-                "SELECT job_id, event_type, to_state FROM ingestion_control.workflow_events "
+                "SELECT job_id, event_type, to_state, payload FROM ingestion_control.workflow_events "
                 "WHERE run_id = %s ORDER BY occurred_at",
                 (run_id,),
             )
             rows = cur.fetchall()
 
-        assert len(rows) >= 7, (
-            "attendu au moins 7 transitions (Scout..QualityAgent, Fetcher=2, "
-            "+ QUALITY_CHECKED -> ROUTED depuis LOT44f)"
+        assert len(rows) >= 6, (
+            "attendu au moins 6 transitions (Scout..QualityAgent, Fetcher=2)"
         )
         job_ids_seen = {row[0] for row in rows}
         assert job_ids_seen == {job_id}, "tous les événements doivent porter le même job_id"
         to_states = [row[2] for row in rows]
-        assert to_states[-1] == "ROUTED"
+        assert to_states[-1] == "QUALITY_CHECKED"
+
+        quality_checked_payload = rows[-1][3]
+        rejection_reasons = quality_checked_payload["rejection_reasons"]
+        assert "niveau_conformity_not_verified" in rejection_reasons
+        assert "voie_conformity_not_verified" in rejection_reasons
+        assert "programme_conformity_not_verified" in rejection_reasons
+
+    def test_profile_modified_on_disk_after_startup_does_not_affect_running_worker(
+        self, tmp_path: Path, clean_db: None, app_conn: psycopg.Connection
+    ) -> None:
+        """Remédiation revue PR#90 (Codex + Cubic) : le worker garde en
+        mémoire le ``ProfileRegistry`` exact vérifié au démarrage
+        (``WorkerDeps.profile_registry``) — une modification du fichier de
+        profil sur l'hôte après ce démarrage (le montage lecture seule ne
+        protège que le conteneur) ne doit **jamais** être prise en compte
+        pendant la durée de vie de ce worker, même si un job est traité
+        après la modification. Preuve : désactiver le profil sur disque
+        (``enabled: False``) après avoir construit ``WorkerDeps`` ne bloque
+        pas le traitement — un rechargement depuis le disque aurait levé
+        ``ProfileDisabledError``."""
+        run_id = _insert_run(app_conn)
+        job_id = create_job(
+            app_conn, run_id=run_id, job_type="resource_pipeline", payload=_job_payload()
+        )
+        app_conn.commit()
+
+        profiles_dir = tmp_path / "profiles"
+        _write_profile(profiles_dir)
+        deps = WorkerDeps(
+            owner="worker-e2e",
+            profile_registry=load_profile_registry(profiles_dir),
+            artifact_store=make_filesystem_artifact_store(tmp_path / "artifacts"),
+            artifact_reader=make_filesystem_artifact_reader(tmp_path / "artifacts"),
+            validate_destination=lambda url: url,
+            safe_fetch=_fake_safe_fetch_high_quality,
+        )
+
+        # Modification post-démarrage : le profil approuvé devient désactivé
+        # sur le disque — un rechargement le rendrait immédiatement
+        # inutilisable (ProfileDisabledError dans select_profile).
+        (profiles_dir / "nsi.yml").write_text(
+            yaml.safe_dump(_profile_payload(enabled=False)), encoding="utf-8"
+        )
+
+        outcome = run_worker_iteration(app_conn, deps=deps)
+
+        assert outcome.worked is True
+        assert outcome.status == "succeeded"
+        assert outcome.error is None
+        with app_conn.cursor() as cur:
+            cur.execute("SELECT status FROM ingestion_control.jobs WHERE job_id = %s", (job_id,))
+            (status,) = cur.fetchone()
+        assert status == "succeeded"
 
     def test_no_job_available_returns_worked_false(
         self, tmp_path: Path, clean_db: None, app_conn: psycopg.Connection
@@ -341,7 +404,7 @@ class TestWorkerE2E:
     ) -> None:
         run_id = _insert_run(app_conn)
         job_id = create_job(
-            app_conn, run_id=run_id, job_type="ingest_v2_upload", payload=_job_payload()
+            app_conn, run_id=run_id, job_type="resource_pipeline", payload=_job_payload()
         )
         app_conn.commit()
 
@@ -352,7 +415,7 @@ class TestWorkerE2E:
         _write_profile(profiles_dir)
         deps = WorkerDeps(
             owner="worker-e2e",
-            profiles_dir=profiles_dir,
+            profile_registry=load_profile_registry(profiles_dir),
             artifact_store=make_filesystem_artifact_store(tmp_path / "artifacts"),
             artifact_reader=make_filesystem_artifact_reader(tmp_path / "artifacts"),
             validate_destination=blocking_validate_destination,
@@ -385,7 +448,7 @@ class TestWorkerE2E:
         next_attempt_at, pour ne pas dépendre du délai réel) réussit."""
         run_id = _insert_run(app_conn)
         job_id = create_job(
-            app_conn, run_id=run_id, job_type="ingest_v2_upload", payload=_job_payload()
+            app_conn, run_id=run_id, job_type="resource_pipeline", payload=_job_payload()
         )
         app_conn.commit()
 
@@ -395,7 +458,7 @@ class TestWorkerE2E:
         profiles_dir = tmp_path / "profiles"
         _write_profile(profiles_dir)
         failing_deps = WorkerDeps(
-            owner="worker-e2e", profiles_dir=profiles_dir,
+            owner="worker-e2e", profile_registry=load_profile_registry(profiles_dir),
             artifact_store=make_filesystem_artifact_store(tmp_path / "artifacts"),
             artifact_reader=make_filesystem_artifact_reader(tmp_path / "artifacts"),
             validate_destination=lambda url: url,

@@ -13,6 +13,8 @@ from uuid import UUID
 
 import psycopg
 
+from .claim import ResourceLeaseConflictError
+
 #: Valeurs par défaut actées (décisions opérationnelles LOT44a) :
 #: max_attempts = 3 (porté par resources.max_attempts, colonne, pas ici),
 #: backoff exponentiel, plafond 300s. Le jitter ±20% recommandé n'est
@@ -57,6 +59,7 @@ def record_retry(
     conn: psycopg.Connection,
     *,
     resource_id: UUID,
+    lease_token: UUID,
     error: str,
     base_delay_s: float = DEFAULT_BASE_DELAY_S,
     backoff_factor: float = DEFAULT_BACKOFF_FACTOR,
@@ -80,6 +83,19 @@ def record_retry(
       ``NULL``) — la ressource redevient éligible à un nouveau claim dès
       que ``next_attempt_at`` est atteint.
 
+    Remédiation revue PR#90 : ``lease_token`` est désormais obligatoire et
+    vérifié, avec ``lease_expires_at > now()`` (même sémantique stricte que
+    ``ingestion_control.jobs.record_job_retry``) — avant ce correctif, cette
+    primitive acceptait n'importe quel ``resource_id`` sans vérifier aucune
+    possession de bail, permettant à un appelant périmé d'effacer le bail
+    d'un détenteur plus récent et de faire retraiter la même ressource par
+    deux workers concurrents. Lève ``ResourceLeaseConflictError`` (jamais
+    silencieux) si le bail ne correspond plus ou si la ressource n'existe
+    pas — les deux cas sont indiscernables depuis l'extérieur de cette
+    fonction par construction (aucun appelant réel n'existe encore dans ce
+    dépôt qui ait besoin de les distinguer ; cf. absence totale d'appelant
+    avant ce correctif).
+
     Ne committe pas la transaction : responsabilité de l'appelant.
     """
     with conn.cursor() as cur:
@@ -92,14 +108,18 @@ def record_retry(
                 lease_token = NULL,
                 lease_expires_at = NULL,
                 updated_at = now()
-            WHERE resource_id = %s
+            WHERE resource_id = %s AND lease_token = %s AND lease_expires_at > now()
             RETURNING attempt_count, max_attempts
             """,
-            (error, resource_id),
+            (error, resource_id, lease_token),
         )
         row = cur.fetchone()
         if row is None:
-            raise ValueError(f"resource {resource_id} not found")
+            raise ResourceLeaseConflictError(
+                f"resource {resource_id}: lease {lease_token} not held (not found, "
+                "expired, or already released) — refusing to record a retry that "
+                "could clobber another worker's in-progress claim"
+            )
         attempt_count, max_attempts = row
 
         if attempt_count >= max_attempts:

@@ -28,12 +28,16 @@ import psycopg
 
 try:
     from ingestor.ingestion_control.db import get_ingestion_control_dsn
+    from ingestor.ingestion_control.jobs import reap_expired_job_leases
+    from ingestor.ingestion_control.lease_reaper import reap_expired_leases
     from ingestor.ingestion_profiles.startup_gate import enforce_production_manifest_gate
 except (ImportError, ValueError):
     # Image Docker aplatie (LOT44f, ADR-0029) : "ingestor" n'existe pas comme
     # paquet — ingestion_control/ingestion_profiles sont importables
     # directement au premier niveau. Même discipline que api.py.
     from ingestion_control.db import get_ingestion_control_dsn
+    from ingestion_control.jobs import reap_expired_job_leases
+    from ingestion_control.lease_reaper import reap_expired_leases
     from ingestion_profiles.startup_gate import (
         enforce_production_manifest_gate,
     )
@@ -44,15 +48,49 @@ from .storage import make_filesystem_artifact_reader, make_filesystem_artifact_s
 DEFAULT_POLL_INTERVAL_S = 5.0
 
 
+def _positive_int(raw: str) -> int:
+    """Remédiation revue PR#90 (Cubic P2) : ``--max-iterations`` négatif ou
+    nul produisait auparavant une boucle qui s'arrête immédiatement sans
+    la moindre erreur (``iterations_done < max_iterations`` faux dès le
+    départ) — silencieux, indiscernable d'une configuration correcte qui
+    n'aurait simplement rien eu à faire. Un opérateur qui tape ``-1`` par
+    erreur doit le savoir immédiatement."""
+    value = int(raw)
+    if value <= 0:
+        raise argparse.ArgumentTypeError(f"must be a positive integer, got {raw!r}")
+    return value
+
+
+def _finite_non_negative_float(raw: str) -> float:
+    """Remédiation revue PR#90 (Cubic P2) : une valeur infinie/NaN/négative
+    n'était rejetée qu'au premier passage dans ``time.sleep`` (erreur
+    tardive, worker déjà démarré et sorti du service) — rejetée ici avant
+    même de démarrer."""
+    value = float(raw)
+    if not (value >= 0) or value == float("inf"):
+        raise argparse.ArgumentTypeError(
+            f"must be a finite, non-negative number of seconds, got {raw!r}"
+        )
+    return value
+
+
+def _non_blank_str(raw: str) -> str:
+    if not raw.strip():
+        raise argparse.ArgumentTypeError("must not be blank")
+    return raw
+
+
 def _build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Worker CLI LOT44e — traite un job à la fois.")
     parser.add_argument("--profiles-dir", required=True, type=Path)
     parser.add_argument("--manifest-path", required=True, type=Path)
     parser.add_argument("--artifact-store-dir", required=True, type=Path)
-    parser.add_argument("--owner", required=True)
+    parser.add_argument("--owner", required=True, type=_non_blank_str)
     parser.add_argument("--once", action="store_true", help="Traite au plus un job puis quitte.")
-    parser.add_argument("--max-iterations", type=int, default=None)
-    parser.add_argument("--poll-interval-s", type=float, default=DEFAULT_POLL_INTERVAL_S)
+    parser.add_argument("--max-iterations", type=_positive_int, default=None)
+    parser.add_argument(
+        "--poll-interval-s", type=_finite_non_negative_float, default=DEFAULT_POLL_INTERVAL_S
+    )
     parser.add_argument(
         "--heartbeat-file",
         type=Path,
@@ -72,6 +110,23 @@ def _write_heartbeat(path: Path | None) -> None:
     if path is None:
         return
     path.write_text(str(time.time()), encoding="utf-8")
+
+
+def _reap_expired_leases(conn: psycopg.Connection) -> None:
+    """Libère les baux (jobs et ressources) expirés avant toute tentative de
+    réclamation — remédiation revue PR#90 : sans cet appel, ``reap_expired_
+    job_leases``/``reap_expired_leases`` n'étaient invoquées par aucun code
+    non-test, un job/ressource dont le bail expire restait donc bloqué
+    indéfiniment (``claim_job``/``claim_resource`` n'acceptent que
+    ``status='queued'``/``resource_state`` éligible, jamais un ``'running'``
+    au bail expiré) — y compris après un redémarrage de conteneur. Appelée à
+    chaque itération (pas seulement au démarrage) : un bail détenu par un
+    *autre* worker peut expirer pendant que celui-ci continue de tourner.
+    Idempotent et non bloquant (``SKIP LOCKED``) — sûr à appeler à chaque
+    itération, y compris quand rien n'a expiré."""
+    reap_expired_job_leases(conn)
+    reap_expired_leases(conn)
+    conn.commit()
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -97,7 +152,10 @@ def main(argv: list[str] | None = None) -> int:
 
     deps = WorkerDeps(
         owner=args.owner,
-        profiles_dir=args.profiles_dir,
+        # Remédiation revue PR#90 : le registre exact vérifié par le gate
+        # ci-dessus, jamais un Path rechargé depuis le disque à chaque job
+        # (cf. WorkerDeps.profile_registry).
+        profile_registry=gate_result.registry,
         artifact_store=make_filesystem_artifact_store(args.artifact_store_dir),
         artifact_reader=make_filesystem_artifact_reader(args.artifact_store_dir),
     )
@@ -108,6 +166,7 @@ def main(argv: list[str] | None = None) -> int:
     with psycopg.connect(get_ingestion_control_dsn()) as conn:
         _write_heartbeat(args.heartbeat_file)
         while max_iterations is None or iterations_done < max_iterations:
+            _reap_expired_leases(conn)
             outcome = run_worker_iteration(conn, deps=deps)
             iterations_done += 1
             _write_heartbeat(args.heartbeat_file)

@@ -26,14 +26,19 @@ PROVISION_SCRIPT = INFRA_ROOT / "scripts" / "provision_ingestion_control_roles.s
 
 sys.path.insert(0, str(ENGINE_ROOT / "src"))
 
+from nexus_contracts.ingestion import ResourceScope  # noqa: E402
+
 from ingestor.ingestion_control.jobs import (  # noqa: E402
     JobLeaseConflictError,
     claim_job,
     complete_job,
     create_job,
+    find_or_create_job,
     reap_expired_job_leases,
     record_job_retry,
+    set_job_resource_id,
 )
+from ingestor.ingestion_control.provisioning import create_resource  # noqa: E402
 
 PG_IMAGE = "pgvector/pgvector:pg16"
 PG_SUPERUSER = "raguser"
@@ -189,6 +194,15 @@ def _insert_run(conn: psycopg.Connection) -> uuid.UUID:
         return row[0]
 
 
+def _insert_resource(conn: psycopg.Connection, *, run_id: uuid.UUID) -> uuid.UUID:
+    return create_resource(
+        conn,
+        run_id=run_id,
+        dedup_key=f"dedup-{uuid.uuid4().hex}",
+        scope=ResourceScope.model_validate(VALID_SCOPE),
+    )
+
+
 class TestCreateJob:
     def test_creates_queued_job(self, clean_db: None, app_conn: psycopg.Connection) -> None:
         run_id = _insert_run(app_conn)
@@ -205,6 +219,117 @@ class TestCreateJob:
         run_id = _insert_run(app_conn)
         with pytest.raises(ValueError):
             create_job(app_conn, run_id=run_id, job_type="   ")
+
+
+class TestFindOrCreateJob:
+    """Revue PR#90 : idempotence réellement atomique sous concurrence —
+    ``find_active_job_by_dedup_key`` suivi d'un ``create_job`` séparé
+    laissait une fenêtre de course (SELECT non verrouillé, deux
+    connexions concurrentes voient chacune "aucun doublon" et créent
+    chacune un job)."""
+
+    def test_first_call_creates_second_call_finds(
+        self, clean_db: None, app_conn: psycopg.Connection
+    ) -> None:
+        run_id = _insert_run(app_conn)
+        dedup_key = "a" * 64
+
+        job_id_1, created_1 = find_or_create_job(
+            app_conn, run_id=run_id, job_type="resource_pipeline", dedup_key=dedup_key
+        )
+        app_conn.commit()
+        assert created_1 is True
+
+        job_id_2, created_2 = find_or_create_job(
+            app_conn, run_id=run_id, job_type="resource_pipeline", dedup_key=dedup_key
+        )
+        app_conn.commit()
+        assert created_2 is False
+        assert job_id_2 == job_id_1
+
+        with app_conn.cursor() as cur:
+            cur.execute(
+                "SELECT count(*) FROM ingestion_control.jobs WHERE payload->>'dedup_key' = %s",
+                (dedup_key,),
+            )
+            (count,) = cur.fetchone()
+        assert count == 1
+
+    def test_terminal_job_does_not_block_a_new_submission(
+        self, clean_db: None, app_conn: psycopg.Connection
+    ) -> None:
+        run_id = _insert_run(app_conn)
+        dedup_key = "b" * 64
+
+        job_id_1, created_1 = find_or_create_job(
+            app_conn, run_id=run_id, job_type="resource_pipeline", dedup_key=dedup_key
+        )
+        app_conn.commit()
+        assert created_1 is True
+
+        claim = claim_job(app_conn, owner="worker-1")
+        app_conn.commit()
+        assert claim is not None and claim.job_id == job_id_1
+        complete_job(app_conn, job_id=job_id_1, lease_token=claim.lease_token, status="succeeded")
+        app_conn.commit()
+
+        job_id_2, created_2 = find_or_create_job(
+            app_conn, run_id=run_id, job_type="resource_pipeline", dedup_key=dedup_key
+        )
+        app_conn.commit()
+        assert created_2 is True
+        assert job_id_2 != job_id_1
+
+    def test_concurrent_submissions_with_same_dedup_key_create_exactly_one_job(
+        self, clean_db: None, app_conn: psycopg.Connection, pg_container: dict[str, str]
+    ) -> None:
+        """Preuve réelle sous concurrence : deux connexions PostgreSQL
+        distinctes, deux threads, un seul ``dedup_key`` — jamais deux jobs
+        actifs, quel que soit l'entrelacement réel des deux transactions."""
+        import threading
+
+        run_id = _insert_run(app_conn)
+        app_conn.commit()
+        dedup_key = "c" * 64
+
+        results: list[tuple[uuid.UUID, bool]] = []
+        errors: list[BaseException] = []
+        start_barrier = threading.Barrier(2)
+
+        def _attempt() -> None:
+            conn = psycopg.connect(_app_dsn(pg_container), autocommit=False)
+            try:
+                start_barrier.wait(timeout=5)
+                job_id, created = find_or_create_job(
+                    conn, run_id=run_id, job_type="resource_pipeline", dedup_key=dedup_key
+                )
+                conn.commit()
+                results.append((job_id, created))
+            except BaseException as exc:  # noqa: BLE001 - capturé pour l'assertion du thread principal
+                errors.append(exc)
+            finally:
+                conn.close()
+
+        threads = [threading.Thread(target=_attempt) for _ in range(2)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=10)
+
+        assert not errors, f"unexpected errors in concurrent threads: {errors}"
+        assert len(results) == 2
+        job_ids = {job_id for job_id, _created in results}
+        created_flags = sorted(created for _job_id, created in results)
+        assert len(job_ids) == 1, "les deux tentatives concurrentes doivent converger sur le même job"
+        assert created_flags == [False, True], "exactement une tentative doit avoir créé le job"
+
+        with app_conn.cursor() as cur:
+            cur.execute(
+                "SELECT count(*) FROM ingestion_control.jobs WHERE payload->>'dedup_key' = %s",
+                (dedup_key,),
+            )
+            (count,) = cur.fetchone()
+        assert count == 1
 
 
 class TestClaimJob:
@@ -259,6 +384,180 @@ class TestClaimJob:
         with pytest.raises(ValueError):
             claim_job(app_conn, owner="worker-1", eligible_statuses=("succeeded",))
 
+    def test_rejects_non_positive_lease_duration(
+        self, clean_db: None, app_conn: psycopg.Connection
+    ) -> None:
+        """Revue PR#90 : ``lease_duration_s <= 0`` créerait un bail déjà
+        expiré au moment même de sa création, cassant la garantie de
+        non-double-claim (n'importe quel autre appelant le verrait
+        immédiatement éligible à un nouveau claim)."""
+        run_id = _insert_run(app_conn)
+        create_job(app_conn, run_id=run_id, job_type="ingest_v2_upload")
+        app_conn.commit()
+
+        with pytest.raises(ValueError):
+            claim_job(app_conn, owner="worker-1", lease_duration_s=0)
+        with pytest.raises(ValueError):
+            claim_job(app_conn, owner="worker-1", lease_duration_s=-5)
+
+    def test_job_types_filter_leaves_other_types_available(
+        self, clean_db: None, app_conn: psycopg.Connection
+    ) -> None:
+        """Revue PR#90 (Cubic P2) : un worker qui ne sait traiter qu'un
+        sous-ensemble de types (``job_types=("resource_pipeline",)``, cf.
+        ``ingestion_worker.runner.SUPPORTED_JOB_TYPES``) ne doit jamais
+        réclamer un job d'un autre type — celui-ci doit rester disponible
+        pour son propre consommateur."""
+        run_id = _insert_run(app_conn)
+        other_job_id = create_job(app_conn, run_id=run_id, job_type="planner_run")
+        app_conn.commit()
+
+        claim = claim_job(app_conn, owner="worker-1", job_types=("resource_pipeline",))
+        assert claim is None
+
+        with app_conn.cursor() as cur:
+            cur.execute(
+                "SELECT status FROM ingestion_control.jobs WHERE job_id = %s", (other_job_id,)
+            )
+            (status,) = cur.fetchone()
+        assert status == "queued", "job of another type must remain untouched and claimable"
+
+    def test_job_types_filter_still_claims_matching_type(
+        self, clean_db: None, app_conn: psycopg.Connection
+    ) -> None:
+        run_id = _insert_run(app_conn)
+        job_id = create_job(app_conn, run_id=run_id, job_type="resource_pipeline")
+        app_conn.commit()
+
+        claim = claim_job(app_conn, owner="worker-1", job_types=("resource_pipeline",))
+        assert claim is not None
+        assert claim.job_id == job_id
+
+    def test_job_types_rejects_empty_tuple(
+        self, clean_db: None, app_conn: psycopg.Connection
+    ) -> None:
+        with pytest.raises(ValueError):
+            claim_job(app_conn, owner="worker-1", job_types=())
+
+
+class TestSetJobResourceId:
+    """Revue PR#90 : ``set_job_resource_id`` exige désormais un
+    ``lease_token`` valide et n'écrase jamais un rattachement existant vers
+    une autre ressource — avant ce correctif, l'écriture était
+    inconditionnelle (aucune vérification de bail ni de valeur actuelle)."""
+
+    def test_attaches_resource_id_when_lease_valid(
+        self, clean_db: None, app_conn: psycopg.Connection
+    ) -> None:
+        run_id = _insert_run(app_conn)
+        create_job(app_conn, run_id=run_id, job_type="resource_pipeline")
+        app_conn.commit()
+        claim = claim_job(app_conn, owner="worker-1")
+        app_conn.commit()
+        assert claim is not None
+
+        resource_id = _insert_resource(app_conn, run_id=run_id)
+        app_conn.commit()
+        set_job_resource_id(
+            app_conn, job_id=claim.job_id, resource_id=resource_id, lease_token=claim.lease_token
+        )
+        app_conn.commit()
+
+        with app_conn.cursor() as cur:
+            cur.execute(
+                "SELECT resource_id FROM ingestion_control.jobs WHERE job_id = %s", (claim.job_id,)
+            )
+            (stored,) = cur.fetchone()
+        assert stored == resource_id
+
+    def test_idempotent_rewrite_of_same_resource_id_succeeds(
+        self, clean_db: None, app_conn: psycopg.Connection
+    ) -> None:
+        run_id = _insert_run(app_conn)
+        create_job(app_conn, run_id=run_id, job_type="resource_pipeline")
+        app_conn.commit()
+        claim = claim_job(app_conn, owner="worker-1")
+        app_conn.commit()
+        assert claim is not None
+
+        resource_id = _insert_resource(app_conn, run_id=run_id)
+        app_conn.commit()
+        set_job_resource_id(
+            app_conn, job_id=claim.job_id, resource_id=resource_id, lease_token=claim.lease_token
+        )
+        set_job_resource_id(
+            app_conn, job_id=claim.job_id, resource_id=resource_id, lease_token=claim.lease_token
+        )
+        app_conn.commit()
+
+        with app_conn.cursor() as cur:
+            cur.execute(
+                "SELECT resource_id FROM ingestion_control.jobs WHERE job_id = %s", (claim.job_id,)
+            )
+            (stored,) = cur.fetchone()
+        assert stored == resource_id
+
+    def test_rejects_overwrite_with_a_different_resource_id(
+        self, clean_db: None, app_conn: psycopg.Connection
+    ) -> None:
+        run_id = _insert_run(app_conn)
+        create_job(app_conn, run_id=run_id, job_type="resource_pipeline")
+        app_conn.commit()
+        claim = claim_job(app_conn, owner="worker-1")
+        app_conn.commit()
+        assert claim is not None
+
+        first_resource_id = _insert_resource(app_conn, run_id=run_id)
+        app_conn.commit()
+        set_job_resource_id(
+            app_conn, job_id=claim.job_id, resource_id=first_resource_id,
+            lease_token=claim.lease_token,
+        )
+        app_conn.commit()
+
+        with pytest.raises(JobLeaseConflictError):
+            set_job_resource_id(
+                app_conn, job_id=claim.job_id, resource_id=uuid.uuid4(),
+                lease_token=claim.lease_token,
+            )
+
+    def test_rejects_wrong_lease_token(self, clean_db: None, app_conn: psycopg.Connection) -> None:
+        run_id = _insert_run(app_conn)
+        create_job(app_conn, run_id=run_id, job_type="resource_pipeline")
+        app_conn.commit()
+        claim = claim_job(app_conn, owner="worker-1")
+        app_conn.commit()
+        assert claim is not None
+
+        with pytest.raises(JobLeaseConflictError):
+            set_job_resource_id(
+                app_conn, job_id=claim.job_id, resource_id=uuid.uuid4(), lease_token=uuid.uuid4()
+            )
+
+    def test_rejects_after_lease_expired(
+        self, clean_db: None, app_conn: psycopg.Connection, superuser_conn: psycopg.Connection
+    ) -> None:
+        run_id = _insert_run(app_conn)
+        create_job(app_conn, run_id=run_id, job_type="resource_pipeline")
+        app_conn.commit()
+        claim = claim_job(app_conn, owner="worker-1")
+        app_conn.commit()
+        assert claim is not None
+
+        with superuser_conn.cursor() as cur:
+            cur.execute(
+                "UPDATE ingestion_control.jobs SET lease_expires_at = now() - interval '1 second' "
+                "WHERE job_id = %s",
+                (claim.job_id,),
+            )
+        superuser_conn.commit()
+
+        with pytest.raises(JobLeaseConflictError):
+            set_job_resource_id(
+                app_conn, job_id=claim.job_id, resource_id=uuid.uuid4(),
+                lease_token=claim.lease_token,
+            )
+
 
 class TestCompleteJob:
     def test_succeeds_when_lease_matches(self, clean_db: None, app_conn: psycopg.Connection) -> None:
@@ -293,6 +592,46 @@ class TestCompleteJob:
 
         with pytest.raises(JobLeaseConflictError):
             complete_job(app_conn, job_id=claim.job_id, lease_token=uuid.uuid4(), status="succeeded")
+
+    def test_rejects_completion_after_lease_expired_even_without_reclaim(
+        self, clean_db: None, app_conn: psycopg.Connection, superuser_conn: psycopg.Connection
+    ) -> None:
+        """Revue PR#90 : sémantique de bail stricte — un ``lease_token`` qui
+        correspond encore ne suffit plus une fois ``lease_expires_at``
+        dépassé, même si personne d'autre n'a encore réclamé le job (le
+        reaper n'est pas encore passé). Distinct du test ci-dessus
+        (mauvais token) et de ``test_stale_worker_cannot_complete_after_
+        lease_reclaimed`` (token effacé par une reprise réelle) : ici le
+        token en base est toujours exactement celui du worker, seule
+        l'expiration est en cause."""
+        run_id = _insert_run(app_conn)
+        create_job(app_conn, run_id=run_id, job_type="ingest_v2_upload")
+        app_conn.commit()
+        claim = claim_job(app_conn, owner="worker-1")
+        app_conn.commit()
+        assert claim is not None
+
+        with superuser_conn.cursor() as cur:
+            cur.execute(
+                "UPDATE ingestion_control.jobs SET lease_expires_at = now() - interval '1 second' "
+                "WHERE job_id = %s",
+                (claim.job_id,),
+            )
+        superuser_conn.commit()
+
+        with pytest.raises(JobLeaseConflictError):
+            complete_job(
+                app_conn, job_id=claim.job_id, lease_token=claim.lease_token, status="succeeded"
+            )
+
+        with app_conn.cursor() as cur:
+            cur.execute(
+                "SELECT status, lease_token FROM ingestion_control.jobs WHERE job_id = %s",
+                (claim.job_id,),
+            )
+            status, lease_token = cur.fetchone()
+        assert status == "running"
+        assert lease_token == claim.lease_token
 
     def test_stale_worker_cannot_complete_after_lease_reclaimed(
         self, clean_db: None, app_conn: psycopg.Connection, superuser_conn: psycopg.Connection
@@ -387,6 +726,33 @@ class TestRecordJobRetry:
             (status,) = cur.fetchone()
         assert status == "dead_letter"
 
+    def test_rejects_retry_after_lease_expired_even_without_reclaim(
+        self, clean_db: None, app_conn: psycopg.Connection, superuser_conn: psycopg.Connection
+    ) -> None:
+        """Revue PR#90 : même sémantique stricte que ``TestCompleteJob::
+        test_rejects_completion_after_lease_expired_even_without_reclaim`` —
+        le lease_token en base est toujours celui du worker (personne ne l'a
+        encore réclamé), seule l'expiration est en cause."""
+        run_id = _insert_run(app_conn)
+        create_job(app_conn, run_id=run_id, job_type="ingest_v2_upload")
+        app_conn.commit()
+        claim = claim_job(app_conn, owner="worker-1")
+        app_conn.commit()
+        assert claim is not None
+
+        with superuser_conn.cursor() as cur:
+            cur.execute(
+                "UPDATE ingestion_control.jobs SET lease_expires_at = now() - interval '1 second' "
+                "WHERE job_id = %s",
+                (claim.job_id,),
+            )
+        superuser_conn.commit()
+
+        with pytest.raises(JobLeaseConflictError):
+            record_job_retry(
+                app_conn, job_id=claim.job_id, lease_token=claim.lease_token, error="too slow"
+            )
+
     def test_stale_worker_cannot_record_retry_after_lease_reclaimed(
         self, clean_db: None, app_conn: psycopg.Connection, superuser_conn: psycopg.Connection
     ) -> None:
@@ -477,6 +843,62 @@ class TestReapExpiredJobLeases:
 
         reaped = reap_expired_job_leases(app_conn)
         assert reaped == []
+
+
+class TestWorkerCliReapsExpiredLeasesOnEachIteration:
+    """Remédiation revue PR#90 (Codex) : avant ce correctif,
+    ``reap_expired_job_leases``/``reap_expired_leases`` n'étaient invoquées
+    par aucun code non-test — un conteneur worker qui s'arrête juste après
+    ``claim_job()`` (avant complétion) laissait le job bloqué indéfiniment,
+    y compris après redémarrage du conteneur, car ``run_worker_iteration``
+    ne réclame que ``status='queued'``, jamais un ``'running'`` au bail
+    expiré. Teste directement ``ingestion_worker.cli._reap_expired_leases``
+    (la fonction réellement appelée dans la boucle de ``main()``, cf.
+    ``cli.py``), pas seulement la primitive ``reap_expired_job_leases``
+    elle-même (déjà couverte ci-dessus)."""
+
+    def test_reaps_a_job_left_stuck_by_a_crashed_container(
+        self, clean_db: None, app_conn: psycopg.Connection, superuser_conn: psycopg.Connection
+    ) -> None:
+        from ingestor.ingestion_worker import cli as worker_cli
+
+        run_id = _insert_run(app_conn)
+        job_id = create_job(app_conn, run_id=run_id, job_type="ingest_v2_upload")
+        app_conn.commit()
+
+        # Simule un conteneur A qui réclame puis s'arrête (crash) avant
+        # complétion — jamais de complete_job()/record_job_retry() appelé.
+        claim = claim_job(app_conn, owner="worker-A-before-crash", lease_duration_s=1)
+        app_conn.commit()
+        assert claim is not None
+
+        with superuser_conn.cursor() as cur:
+            cur.execute(
+                "UPDATE ingestion_control.jobs SET lease_expires_at = now() - interval '1 second' "
+                "WHERE job_id = %s",
+                (job_id,),
+            )
+        superuser_conn.commit()
+
+        # "Redémarrage du conteneur" : exactement l'appel fait par
+        # main() au début de chaque itération de sa boucle.
+        worker_cli._reap_expired_leases(app_conn)
+
+        with app_conn.cursor() as cur:
+            cur.execute(
+                "SELECT status, lease_token, claimed_by FROM ingestion_control.jobs "
+                "WHERE job_id = %s",
+                (job_id,),
+            )
+            status, lease_token, claimed_by = cur.fetchone()
+        assert status == "queued"
+        assert lease_token is None
+        assert claimed_by is None
+
+        # Le job redevient réellement réclamable par un nouveau worker.
+        new_claim = claim_job(app_conn, owner="worker-B-after-restart")
+        assert new_claim is not None
+        assert new_claim.job_id == job_id
 
 
 class TestForeignKeyToWorkflowEvents:

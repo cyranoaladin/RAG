@@ -21,7 +21,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from pathlib import Path
 from uuid import UUID, uuid4
 
 import psycopg
@@ -59,7 +58,7 @@ try:
         persist_artifact,
         persist_resource_candidate,
     )
-    from ingestor.ingestion_profiles.registry import load_profile_registry, select_profile
+    from ingestor.ingestion_profiles.registry import ProfileRegistry, select_profile
     from ingestor.ingestion_profiles.validation import validate_scope_against_profile
 except (ImportError, ValueError):
     # Image Docker aplatie (LOT44f, ADR-0029) : "ingestor" n'existe pas comme
@@ -96,12 +95,20 @@ except (ImportError, ValueError):
         persist_resource_candidate,
     )
     from ingestion_profiles.registry import (
-        load_profile_registry,
+        ProfileRegistry,
         select_profile,
     )
     from ingestion_profiles.validation import (
         validate_scope_against_profile,
     )
+
+#: Seul type de job que cette boucle sait traiter — remédiation revue
+#: PR#90 (Cubic P2) : sans ce filtre explicite passé à ``claim_job``, un
+#: job d'un autre type (ex. un futur job "planner_run") aurait été réclamé
+#: ici, interprété comme un "resource_pipeline" incomplet (échec sur
+#: REQUIRED_PAYLOAD_KEYS), et épuisé en retries jusqu'au dead_letter au
+#: lieu d'être laissé disponible pour son propre consommateur.
+SUPPORTED_JOB_TYPES = ("resource_pipeline",)
 
 #: Champs obligatoires du payload d'un job "resource_pipeline" — absence de
 #: l'un d'eux échoue explicitement (ValueError, capturé et transformé en
@@ -114,8 +121,19 @@ REQUIRED_PAYLOAD_KEYS = (
 
 @dataclass(frozen=True)
 class WorkerDeps:
+    """``profile_registry`` (remédiation revue PR#90) : le ``ProfileRegistry``
+    exact chargé et vérifié une fois au démarrage par ``enforce_production_
+    manifest_gate`` (``StartupGateResult.registry``) — jamais un ``Path``
+    rechargé depuis le disque à chaque itération. Avant ce correctif,
+    ``_process_claimed_job`` rappelait ``load_profile_registry(profiles_dir)``
+    à chaque job, ce qui permettait à un profil modifié sur l'hôte après le
+    démarrage (le montage lecture seule ne protège que le conteneur, pas le
+    fichier côté hôte) d'être utilisé sans jamais être revérifié contre le
+    manifest approuvé — le worker traitait alors un contenu dont
+    l'empreinte n'avait jamais été validée."""
+
     owner: str
-    profiles_dir: Path
+    profile_registry: ProfileRegistry
     artifact_store: ArtifactStore
     artifact_reader: ArtifactReader
     max_bytes: int = 20_000_000
@@ -179,7 +197,10 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
 
     scope = ResourceScope.model_validate(payload["scope"])
 
-    registry = load_profile_registry(deps.profiles_dir)
+    # Remédiation revue PR#90 : jamais un rechargement depuis le disque ici
+    # — le registre approuvé au démarrage (deps.profile_registry) reste la
+    # seule source pour toute la durée de vie du worker (cf. WorkerDeps).
+    registry = deps.profile_registry
     profile = select_profile(
         registry, collection=scope.collection, profile_version=payload["profile_version"]
     )
@@ -206,7 +227,9 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
         # à la prochaine réclamation) ne verrait jamais cette ressource et
         # retenterait create_resource — collision garantie avec
         # resources_collection_dedup_key_unique, la ressource existant déjà.
-        set_job_resource_id(conn, job_id=claim.job_id, resource_id=resource_id)
+        set_job_resource_id(
+            conn, job_id=claim.job_id, resource_id=resource_id, lease_token=claim.lease_token
+        )
         conn.commit()  # point de contrôle LOT44f : ressource durablement créée et rattachée
 
     now = datetime.now(UTC)
@@ -255,6 +278,10 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
             )
 
     if resource_state in (ResourceState.DISCOVERED, ResourceState.CANDIDATE):
+        # Remédiation revue PR#90 : la licence est propagée ici, avant
+        # persist_artifact, jamais reconstruite après coup sur une copie en
+        # mémoire (cf. docstring de run_fetcher) — une reprise après crash
+        # relit alors le même ArtifactRecord, licence comprise.
         artifact, _fetched, stored_transition = run_fetcher(
             conn,
             candidate=candidate,
@@ -266,6 +293,7 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
             store_artifact=deps.artifact_store,
             safe_fetch=deps.safe_fetch,
             job_id=claim.job_id,
+            license=str(payload["license"]) if payload.get("license") else None,
         )
         persist_artifact(conn, artifact=artifact)
         conn.commit()  # point de contrôle LOT44f : Fetcher durablement franchi
@@ -298,13 +326,9 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
         job_id=claim.job_id,
     )
 
-    licensed_artifact = artifact
-    if payload.get("license"):
-        licensed_artifact = artifact.model_copy(update={"license": str(payload["license"])})
-
     rights, rights_transition = run_rights_agent(
         conn,
-        artifact=licensed_artifact,
+        artifact=artifact,
         profile=profile,
         expected_version=classify_transition.state_version,
         actor=deps.owner,
@@ -316,7 +340,7 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
     # (ADR-0029, Décision 5), jamais une détection fabriquée.
     run_quality_agent(
         conn,
-        artifact=licensed_artifact,
+        artifact=artifact,
         profile=profile,
         conformity=conformity,
         rights=rights,
@@ -349,7 +373,7 @@ def run_worker_iteration(conn: psycopg.Connection, *, deps: WorkerDeps) -> Itera
     directement — l'appelant reste responsable de la connexion elle-même
     (fermeture, pool), comme pour toutes les primitives LOT44b/44d/44e.
     """
-    claim = claim_job(conn, owner=deps.owner)
+    claim = claim_job(conn, owner=deps.owner, job_types=SUPPORTED_JOB_TYPES)
     conn.commit()
     if claim is None:
         return IterationOutcome(worked=False, job_id=None, status=None, error=None)
@@ -388,6 +412,7 @@ def run_worker_iteration(conn: psycopg.Connection, *, deps: WorkerDeps) -> Itera
 
 __all__ = [
     "REQUIRED_PAYLOAD_KEYS",
+    "SUPPORTED_JOB_TYPES",
     "IterationOutcome",
     "MissingPayloadFieldError",
     "ResumeStateInconsistentError",
