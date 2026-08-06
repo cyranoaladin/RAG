@@ -94,6 +94,22 @@ CREATE INDEX IF NOT EXISTS idx_ingestion_control_jobs_lease_expiry
 -- ligne jobs quand il est renseigné. NULL reste toujours valide (aucune
 -- ligne workflow_events existante, toutes à job_id NULL par construction
 -- LOT44b/44c/44d, n'est affectée par l'ajout de cette contrainte).
-ALTER TABLE ingestion_control.workflow_events
-    ADD CONSTRAINT workflow_events_job_id_fkey
-    FOREIGN KEY (job_id) REFERENCES ingestion_control.jobs (job_id);
+--
+-- Remédiation revue PR#90 (Cubic P2) : PostgreSQL ne supporte pas
+-- ``ADD CONSTRAINT IF NOT EXISTS`` — sans cette garde explicite, rejouer
+-- cette migration (registre absent/reconstruit, ou script rejoué à la
+-- main pour un diagnostic) échouait sur une contrainte déjà présente,
+-- contredisant la documentation "idempotent" du reste de ce dépôt.
+DO $nexus$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'workflow_events_job_id_fkey'
+          AND connamespace = 'ingestion_control'::regnamespace
+    ) THEN
+        ALTER TABLE ingestion_control.workflow_events
+            ADD CONSTRAINT workflow_events_job_id_fkey
+            FOREIGN KEY (job_id) REFERENCES ingestion_control.jobs (job_id);
+    END IF;
+END
+$nexus$;

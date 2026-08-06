@@ -180,8 +180,19 @@ CREATE TABLE IF NOT EXISTS ingestion_control.resources (
         CHECK ((lease_token IS NULL) = (lease_expires_at IS NULL)),
     -- Déduplication déterministe par identité : deux candidats de même
     -- collection et même dedup_key ne peuvent jamais produire deux lignes
-    -- "resources" — la seconde tentative récupère la première via
-    -- INSERT ... ON CONFLICT (cf. primitive attach_candidate côté Python).
+    -- "resources" simultanément valides. Remédiation revue PR#90 (Cubic
+    -- P2) : ce commentaire décrivait auparavant une primitive Python
+    -- "attach_candidate" qui n'a jamais existé dans ce dépôt —
+    -- ingestion_control.provisioning.create_resource fait un INSERT
+    -- simple, sans ON CONFLICT, et lève UniqueViolation sur collision.
+    -- La déduplication réelle est appliquée en amont, au niveau job (cf.
+    -- ingestion_control.jobs.find_or_create_job, verrou advisory
+    -- transactionnel) : un même dedup_key ne peut jamais produire deux
+    -- jobs actifs concurrents, donc jamais deux appels concurrents à
+    -- create_resource pour la même identité dans le flux nominal. Cette
+    -- contrainte UNIQUE reste un filet de sécurité au niveau base — sa
+    -- violation (cas résiduel hors flux nominal) échoue explicitement via
+    -- UniqueViolation, jamais une récupération silencieuse.
     CONSTRAINT resources_collection_dedup_key_unique
         UNIQUE (collection, dedup_key)
 );
