@@ -134,7 +134,7 @@ def load_profile_registry(directory: Path | None = None) -> ProfileRegistry:
                 f"Profile file {path.name} does not validate against CollectionProfile: {exc}"
             ) from exc
 
-        if not PROFILE_VERSION_PATTERN.match(profile.profile_version):
+        if PROFILE_VERSION_PATTERN.fullmatch(profile.profile_version) is None:
             raise ProfileRegistryLoadError(
                 f"Profile file {path.name}: profile_version {profile.profile_version!r} "
                 f"does not match the required pattern {PROFILE_VERSION_PATTERN.pattern!r} "

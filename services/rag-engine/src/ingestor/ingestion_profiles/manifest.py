@@ -100,11 +100,38 @@ class ManifestVerification:
     authorities: Mapping[ProfileKey, ProfileAuthority]
 
 
+class _DuplicateKeyRejectingLoader(yaml.SafeLoader):
+    """``yaml.SafeLoader`` qui refuse toute clé dupliquée dans n'importe
+    quel mapping du document (y compris les entrées de ``profiles``).
+
+    Remédiation revue PR#90 (Cubic P2) : ``yaml.safe_load`` standard
+    accepte silencieusement des clés YAML dupliquées — la valeur retenue
+    est la dernière, celle *écartée* n'apparaît jamais dans
+    ``manifest_fingerprint`` (calculé sur le dict Python déjà dédupliqué).
+    Un manifest ambigu (deux valeurs déclarées pour la même clé) pouvait
+    donc être audité/approuvé sur un contenu différent de celui
+    réellement appliqué par le gate — cassant la garantie de provenance
+    que ``manifest_fingerprint`` est censée porter."""
+
+    def construct_mapping(self, node: yaml.MappingNode, deep: bool = False) -> dict[Any, Any]:
+        seen: set[Any] = set()
+        for key_node, _value_node in node.value:
+            key = self.construct_object(key_node, deep=deep)
+            if key in seen:
+                raise yaml.constructor.ConstructorError(
+                    None, None, f"found duplicate key {key!r}", node.start_mark
+                )
+            seen.add(key)
+        return super().construct_mapping(node, deep=deep)
+
+
 def _read_manifest_yaml(path: Path) -> dict[str, Any]:
     if not path.is_file():
         raise ProfileManifestError(f"Production profile manifest not found: {path}")
     try:
-        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+        data = yaml.load(  # noqa: S506 - loader restreint (safe + rejet des doublons), jamais yaml.load nu
+            path.read_text(encoding="utf-8"), Loader=_DuplicateKeyRejectingLoader
+        )
     except yaml.YAMLError as exc:
         raise ProfileManifestError(f"Invalid YAML in manifest {path.name}: {exc}") from exc
     if not isinstance(data, dict):
