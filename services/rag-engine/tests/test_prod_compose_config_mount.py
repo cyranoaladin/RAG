@@ -215,25 +215,40 @@ def test_v2_compose_requires_only_internal_runtime_authorities() -> None:
 def test_v2_compose_contains_only_the_read_review_stack() -> None:
     compose = _load_compose(V2_COMPOSE_PATH)
 
-    assert {"pgvector", "ingestor", "prometheus"} <= set(compose["services"])
-    assert {"rag_pgvector_data", "rag_prometheus_data"} <= set(compose["volumes"])
+    assert set(compose["services"]) == {"pgvector", "ingestor", "prometheus"}
+    assert set(compose["volumes"]) == {"rag_pgvector_data", "rag_prometheus_data"}
 
 
-def test_v2_compose_ingestion_control_additions_are_isolated() -> None:
-    """LOT44f (ADR-0031) : le plan de contrôle d'ingestion gouvernée est une
-    addition pure — `pgvector`/`ingestor`/`prometheus` restent le seul
-    "read+review stack" exposé (`test_v2_ingestor_has_no_writer_mount_or_
-    dependency`, inchangé) ; les deux services ajoutés (`migrator-ingestion-
-    control`, `ingestion-worker`) ne sont ni publiquement exposés ni
-    permanents."""
-    compose = _load_compose(V2_COMPOSE_PATH)
+def test_v2_compose_ingestion_control_lives_in_a_separate_opt_in_file() -> None:
+    """LOT44f (ADR-0031), remédiation revue PR#90 : le plan de contrôle
+    d'ingestion gouvernée n'est jamais chargé par la commande normale du
+    runtime v2 — `docker-compose.v2.yml` est revenu à l'état exact
+    d'origin/main (assertion stricte ci-dessus). Il vit dans un fichier
+    Compose séparé, strictement additif, chargé uniquement par un second
+    `-f` explicite."""
+    ingestion_compose_path = V2_COMPOSE_PATH.parent / "docker-compose.ingestion.yml"
+    assert ingestion_compose_path.is_file()
+
+    compose = _load_compose(ingestion_compose_path)
     services = compose["services"]
 
-    added = set(services) - {"pgvector", "ingestor", "prometheus"}
-    assert added == {"migrator-ingestion-control", "ingestion-worker"}
+    assert set(services) == {"migrator-ingestion-control", "ingestion-worker"}
+    assert set(compose["volumes"]) == {"rag_ingestion_artifacts_data"}
 
     assert "ports" not in services["ingestion-worker"]
     assert services["migrator-ingestion-control"]["restart"] == "no"
+
+
+def test_v2_compose_alone_never_requires_ingestion_env_vars(tmp_path: Path) -> None:
+    """Le rendu de `docker-compose.v2.yml` seul ne doit jamais échouer sur
+    une variable d'environnement d'ingestion — sinon la commande normale du
+    runtime v2 serait cassée par une fonctionnalité opt-in non activée
+    (régression exacte signalée en revue PR#90)."""
+    content = V2_COMPOSE_PATH.read_text(encoding="utf-8")
+    assert "INGESTION_CONTROL" not in content
+    assert "PG_INGESTION_CONTROL_DSN" not in content
+    assert "ingestion-worker" not in content
+    assert "migrator-ingestion-control" not in content
 
 
 def test_v2_ingestor_has_no_writer_mount_or_dependency() -> None:

@@ -143,8 +143,11 @@ compose-restart: compose-down compose-up
 # ═══════════════════════════════════════════════
 
 COMPOSE_V2=docker compose -f infra/docker-compose.v2.yml --env-file infra/.env
+# LOT44f (ADR-0031) : plan de contrôle d'ingestion gouvernée — strictement
+# opt-in, jamais chargé par $(COMPOSE_V2) seul (cf. docker-compose.ingestion.yml).
+COMPOSE_V2_INGESTION=docker compose -f infra/docker-compose.v2.yml -f infra/docker-compose.ingestion.yml --env-file infra/.env
 
-.PHONY: v2-up v2-down v2-build v2-pull-models v2-test v2-security-check v2-logs
+.PHONY: v2-up v2-down v2-build v2-pull-models v2-test v2-security-check v2-logs v2-ingestion-up v2-ingestion-down
 
 ## v2: Démarrage complet
 v2-up:
@@ -154,6 +157,15 @@ v2-up:
 ## v2: Arrêt
 v2-down:
 	$(COMPOSE_V2) down
+
+## v2-ingestion: Démarrage explicite du plan de contrôle d'ingestion gouvernée (opt-in, LOT44f/ADR-0031)
+v2-ingestion-up:
+	$(COMPOSE_V2_INGESTION) up -d --build migrator-ingestion-control ingestion-worker
+	@echo "✅ Plan de contrôle d'ingestion (migrator + worker) démarré — reste fail-closed sans manifest approuvé"
+
+## v2-ingestion: Arrêt
+v2-ingestion-down:
+	$(COMPOSE_V2_INGESTION) down
 
 ## v2: Build images
 v2-build:
