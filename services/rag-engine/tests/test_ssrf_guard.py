@@ -74,6 +74,24 @@ def test_rejects_cloud_metadata_endpoint() -> None:
         validate_destination("http://169.254.169.254/latest/meta-data/")
 
 
+def test_rejects_rfc6598_shared_address_space() -> None:
+    """Revue PR#90 (Cubic P1) : 100.64.0.0/10 (RFC 6598, adressage partagé
+    opérateur/CGNAT) n'est pas couvert par ``ip.is_private`` dans
+    ``ipaddress`` — vérifie explicitement qu'il reste bloqué malgré
+    cette lacune de la bibliothèque standard."""
+    with pytest.raises(SSRFValidationError):
+        validate_destination("http://100.64.0.1/")
+
+
+def test_still_rejects_multicast_despite_is_global_quirk() -> None:
+    """``ipaddress.IPv4Address('224.0.0.1').is_global`` vaut ``True``
+    (propriété distincte de la routabilité unicast) — non-régression : le
+    correctif RFC 6598 (``not ip.is_global``) ne doit jamais remplacer la
+    vérification ``is_multicast`` explicite, seulement s'y ajouter."""
+    with pytest.raises(SSRFValidationError):
+        validate_destination("http://224.0.0.1/")
+
+
 def test_rejects_disallowed_scheme() -> None:
     with pytest.raises(SSRFValidationError):
         validate_destination("file:///etc/passwd")
