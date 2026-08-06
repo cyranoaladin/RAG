@@ -130,6 +130,46 @@ def _entry(
     return entry
 
 
+class TestManifestRejectsDuplicateYAMLKeys:
+    """Revue PR#90 (Cubic P2) : une clé YAML dupliquée doit faire échouer
+    le chargement du manifest, jamais être silencieusement résolue à la
+    dernière valeur (comportement par défaut de ``yaml.safe_load``)."""
+
+    def test_duplicate_top_level_key_is_rejected(self, tmp_path: Path) -> None:
+        registry: dict = {}
+        manifest_path = tmp_path / "manifest.yml"
+        manifest_path.write_text(
+            "manifest_version: '1'\n"
+            "provenance: first\n"
+            "provenance: second\n"
+            "generated_at: '2026-08-05T00:00:00Z'\n"
+            "profiles: []\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(ProfileManifestError, match="[Dd]uplicate"):
+            verify_profile_manifest(registry, manifest_path)
+
+    def test_duplicate_key_within_a_profile_entry_is_rejected(self, tmp_path: Path) -> None:
+        _write_profile(tmp_path, "a.yml")
+        registry = load_profile_registry(tmp_path)
+        manifest_path = tmp_path / "manifest.yml"
+        manifest_path.write_text(
+            "manifest_version: '1'\n"
+            "provenance: test\n"
+            "generated_at: '2026-08-05T00:00:00Z'\n"
+            "profiles:\n"
+            "  - collection: rag_nexus_nsi_terminale_specialite\n"
+            "    profile_version: v1\n"
+            "    fingerprint: 'a'\n"
+            "    fingerprint: 'b'\n"
+            "    approved_by: test\n"
+            "    approved_at: '2026-08-05T00:00:00Z'\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(ProfileManifestError, match="[Dd]uplicate"):
+            verify_profile_manifest(registry, manifest_path)
+
+
 class TestManifestAbsentOrMalformed:
     def test_missing_manifest_file_fails_explicitly(self, tmp_path: Path) -> None:
         _write_profile(tmp_path, "a.yml")
