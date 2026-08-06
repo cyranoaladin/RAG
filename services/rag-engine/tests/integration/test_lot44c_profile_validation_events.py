@@ -12,6 +12,7 @@ Convention reprise de tests/integration/test_ingestion_control_concurrency.py
 from __future__ import annotations
 
 import os
+import secrets
 import shutil
 import socket
 import subprocess
@@ -42,10 +43,10 @@ from ingestor.ingestion_profiles.validation import ValidationIssue, ValidationRe
 
 PG_IMAGE = "pgvector/pgvector:pg16"
 PG_SUPERUSER = "raguser"
-PG_SUPERUSER_PASSWORD = "test-password"
+PG_SUPERUSER_PASSWORD = secrets.token_urlsafe(24)  # revue PR#90 : jamais un litteral statique
 PG_DB = "ragdb"
-APP_PASSWORD = "ingestion-control-app-test-pw"
-MIGRATOR_PASSWORD = "ingestion-control-migrator-test-pw"
+APP_PASSWORD = secrets.token_urlsafe(24)  # revue PR#90 : jamais un litteral statique
+MIGRATOR_PASSWORD = secrets.token_urlsafe(24)  # revue PR#90 : jamais un litteral statique
 
 _DOCKER_AVAILABLE = shutil.which("docker") is not None and (
     subprocess.run(["docker", "info"], capture_output=True, check=False).returncode == 0

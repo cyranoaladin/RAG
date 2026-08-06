@@ -9,6 +9,7 @@ réel — pas les primitives Python (hors périmètre de ce fichier).
 from __future__ import annotations
 
 import os
+import secrets
 import shutil
 import socket
 import subprocess
@@ -26,7 +27,7 @@ PROVISION_SCRIPT = INFRA_ROOT / "scripts" / "provision_ingestion_control_roles.s
 
 PG_IMAGE = "pgvector/pgvector:pg16"
 PG_SUPERUSER = "raguser"
-PG_SUPERUSER_PASSWORD = "test-password"
+PG_SUPERUSER_PASSWORD = secrets.token_urlsafe(24)  # revue PR#90 : jamais un litteral statique
 PG_DB = "ragdb"
 
 _DOCKER_AVAILABLE = shutil.which("docker") is not None and (

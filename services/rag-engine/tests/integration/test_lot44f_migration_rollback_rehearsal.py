@@ -18,6 +18,7 @@ données de test résiduelles, jamais attendu ici.
 from __future__ import annotations
 
 import os
+import secrets
 import shutil
 import socket
 import subprocess
@@ -40,7 +41,7 @@ sys.path.insert(0, str(ENGINE_ROOT / "src"))
 
 PG_IMAGE = "pgvector/pgvector:pg16"
 PG_SUPERUSER = "raguser"
-PG_SUPERUSER_PASSWORD = "test-password"
+PG_SUPERUSER_PASSWORD = secrets.token_urlsafe(24)  # revue PR#90 : jamais un litteral statique
 PG_DB = "ragdb"
 
 _DOCKER_AVAILABLE = shutil.which("docker") is not None and (

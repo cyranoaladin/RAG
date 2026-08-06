@@ -72,11 +72,11 @@
 **Triage (valeurs non affichées ci-dessus conformément au mandat)** :
 1. **Nature** : valeurs de test explicitement factices, jamais un identifiant réutilisable ni un secret réel.
 2. **Portée** : chacune n'existe que le temps d'un conteneur PostgreSQL Docker jetable, créé (`docker run --rm`) et détruit (`docker rm -f`) dans le même processus de test, sur un réseau local (`127.0.0.1`, port éphémère). Aucune de ces valeurs n'a jamais existé en dehors du cycle de vie d'un test.
-3. **Aucune correspondance avec un secret de production** : confirmé — ces chaînes n'apparaissent dans aucun fichier `.env`, aucun secret manager, aucune configuration de déploiement réel ; elles sont générées/écrites uniquement par le code de test lui-même.
-4. **Décision** : documentation précise du caractère non sensible (option explicitement sanctionnée par le mandat, en alternative au remplacement mécanique) — aucune rotation nécessaire (ce ne sont pas des secrets), aucune modification de code nécessaire (les noms de variables portent déjà `_test_` / `test-password`, déjà suffisamment explicites). Aucune exclusion GitGuardian globale créée.
-5. **Nouveaux fichiers de test ajoutés par cette remédiation** (`test_lot44f_role_provisioning_hardening.py`, `test_lot44f_migration_upgrade_paths.py`) réutilisent le même motif — même triage, mêmes garanties.
+3. **Aucune correspondance avec un secret de production** : confirmé — ces chaînes n'apparaissent dans aucun fichier `.env`, aucun secret manager, aucune configuration de déploiement réel ; elles étaient générées/écrites uniquement par le code de test lui-même.
+4. **Décision finale** : plutôt que de s'arrêter à la documentation (option initialement retenue), les 3 constantes littérales (`PG_SUPERUSER_PASSWORD`, `APP_PASSWORD`, `MIGRATOR_PASSWORD`) ont été remplacées par une génération dynamique (`secrets.token_urlsafe(24)`, calculée une fois par import de module) dans les 8 fichiers de test concernés (les 5 originaux + 3 nouveaux fichiers de cette remédiation qui reprenaient le même motif) — option également sanctionnée par le mandat ("la générer dynamiquement pour le test"), et qui a l'avantage de faire disparaître le signalement à la racine (plus de motif statique à détecter) plutôt que de compter sur un examen humain de la documentation à chaque scan futur. Aucune exclusion GitGuardian globale ni ciblée créée — devenue inutile.
+5. Suite d'intégration complète revérifiée après ce changement (conteneurs PostgreSQL réels provisionnés avec les mots de passe dynamiques) : verte.
 
-**Statut** : Non déclenchant — confirmé factice, documenté, aucune action corrective de code nécessaire au-delà de cette documentation.
+**Statut** : Résolu à la racine — plus de valeur statique à détecter dans le code source.
 
 ## Récapitulatif des tests ajoutés
 
