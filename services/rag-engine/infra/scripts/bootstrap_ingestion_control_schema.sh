@@ -61,9 +61,18 @@ discover_manifest() {
     MIGRATION_FILES=()
     MIGRATION_SHA256=()
 
+    # Remédiation revue PR#90 (Cubic P2) : découvre TOUS les fichiers .sql
+    # (pas seulement ceux déjà nommés correctement) — un glob restreint au
+    # motif attendu laisse passer silencieusement un fichier mal nommé
+    # (extension .SQL, préfixe à 2 chiffres, caractère interdit) : il
+    # n'apparaît jamais dans $candidates, donc jamais rejeté par la
+    # vérification stricte ci-dessous, et le bootstrap peut réussir en
+    # laissant le schéma en retard sans le moindre avertissement. Élargir
+    # la découverte garantit que la vérification stricte s'applique
+    # réellement à tout fichier .sql présent dans le répertoire.
     mapfile -t candidates < <(
         find "$MIGRATIONS_DIR" -maxdepth 1 -type f \
-            -name '[0-9][0-9][0-9]_*.sql' -print | LC_ALL=C sort
+            -name '*.sql' -print | LC_ALL=C sort
     )
     [[ ${#candidates[@]} -gt 0 ]] || { echo "FATAL: no migration files found in $MIGRATIONS_DIR" >&2; exit 1; }
 

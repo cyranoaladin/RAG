@@ -22,6 +22,16 @@
 --
 -- Additive au sens migrations : ne réécrit pas 004 (gelée), ALTER seulement.
 -- Idempotent : DROP CONSTRAINT IF EXISTS puis ADD CONSTRAINT, sûr à rejouer.
+--
+-- Remédiation revue PR#90 (Cubic P1) : sur une base déjà peuplée où une
+-- ligne porterait malgré tout status='claimed' (intervention manuelle,
+-- ancienne version du code, corrigée avant même que jobs_status_valid ne
+-- l'autorise formellement) l'ajout de la contrainte à 6 valeurs échouerait
+-- sans ce backfill préalable. 'claimed' -> 'running' : sémantiquement
+-- équivalent (l'information "réclamé" est déjà portée par lease_token/
+-- lease_expires_at, jamais par un état SQL distinct, cf. commentaire
+-- ci-dessus), jamais un choix arbitraire.
+UPDATE ingestion_control.jobs SET status = 'running' WHERE status = 'claimed';
 
 ALTER TABLE ingestion_control.jobs
     DROP CONSTRAINT IF EXISTS jobs_status_valid;

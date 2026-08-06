@@ -7,6 +7,18 @@
 --
 -- Garde de sécurité, même motif que 002/003 : refuse si des données sont
 -- présentes plutôt que de les détruire silencieusement.
+--
+-- Remédiation revue PR#90 (Cubic P1) : LOCK TABLE ... ACCESS EXCLUSIVE
+-- avant la vérification, dans la même transaction que le DROP qui suit —
+-- sans ce verrou, une transaction concurrente pouvait valider un INSERT
+-- entre la vérification (aucune donnée présente) et le DROP, perdant
+-- silencieusement une écriture pourtant validée par PostgreSQL. Le verrou
+-- bloque tout INSERT/UPDATE/DELETE/SELECT concurrent sur ces deux tables
+-- jusqu'à la fin de cette transaction (commit du DROP ou rollback sur
+-- RAISE EXCEPTION) — jamais un simple contrôle de vacuité sans garantie.
+
+LOCK TABLE ingestion_control.resources, ingestion_control.ingestion_runs
+    IN ACCESS EXCLUSIVE MODE;
 
 DO $nexus$
 BEGIN

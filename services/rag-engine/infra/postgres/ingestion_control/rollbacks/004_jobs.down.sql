@@ -4,6 +4,10 @@
 -- NULL par construction LOT44b/44c/44d), donc son retrait ne dépend
 -- d'aucune donnée existante — seule la table jobs elle-même est gardée.
 
+-- Remédiation revue PR#90 (Cubic P1) : même motif que 001/002/003 —
+-- LOCK TABLE avant vérification, dans la même transaction que le DROP.
+LOCK TABLE ingestion_control.jobs IN ACCESS EXCLUSIVE MODE;
+
 DO $nexus$
 BEGIN
     IF EXISTS (SELECT 1 FROM ingestion_control.jobs) THEN
