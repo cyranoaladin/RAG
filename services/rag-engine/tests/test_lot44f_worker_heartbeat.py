@@ -118,6 +118,10 @@ def _run_worker(
         "run_worker_iteration",
         lambda _conn, deps: IterationOutcome(worked=False, job_id=None, status=None, error=None),
     )
+    # Isolation DB (revue PR#90) : _reap_expired_leases touche aussi la base
+    # réelle à chaque itération — hors périmètre de ce test, qui vérifie
+    # uniquement le mécanisme de heartbeat sur une fausse connexion.
+    monkeypatch.setattr(worker_cli, "_reap_expired_leases", lambda _conn: None)
     return worker_cli.main(
         [
             "--profiles-dir", str(profiles_dir),

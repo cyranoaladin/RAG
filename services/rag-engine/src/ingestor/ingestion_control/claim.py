@@ -27,6 +27,14 @@ DEFAULT_LEASE_DURATION_S = 300
 CLAIMABLE_STATES = frozenset(NORMAL_SEQUENCE) - {ResourceState.RETRIEVAL_ELIGIBLE}
 
 
+class ResourceLeaseConflictError(RuntimeError):
+    """Le bail de la ressource n'est plus détenu par le jeton attendu
+    (perdu, expiré, ou déjà repris par un autre appelant) — jamais une
+    écriture silencieuse. Remédiation revue PR#90 : miroir de
+    ``JobLeaseConflictError`` (``ingestion_control.jobs``), pour les
+    primitives de concurrence côté ``resources``."""
+
+
 @dataclass(frozen=True)
 class Claim:
     """Résultat d'une réclamation réussie.
@@ -106,6 +114,8 @@ def claim_resource(
             "eligible_states contains non-claimable (terminal/forbidden) states: "
             f"{sorted(state.value for state in disallowed)}"
         )
+    if lease_duration_s <= 0:
+        raise ValueError(f"lease_duration_s must be > 0, got {lease_duration_s!r}")
     state_values = [state.value for state in eligible_states]
     lease_token = uuid4()
     lease_expires_at = datetime.now(UTC) + timedelta(seconds=lease_duration_s)
@@ -150,4 +160,10 @@ def claim_resource(
     )
 
 
-__all__ = ["CLAIMABLE_STATES", "Claim", "DEFAULT_LEASE_DURATION_S", "claim_resource"]
+__all__ = [
+    "CLAIMABLE_STATES",
+    "Claim",
+    "DEFAULT_LEASE_DURATION_S",
+    "ResourceLeaseConflictError",
+    "claim_resource",
+]

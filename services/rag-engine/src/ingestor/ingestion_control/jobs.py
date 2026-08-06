@@ -34,6 +34,7 @@ aucun appelant actuel.
 """
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Literal
@@ -65,17 +66,25 @@ class JobLeaseConflictError(RuntimeError):
 def find_active_job_by_dedup_key(conn: psycopg.Connection, *, dedup_key: str) -> UUID | None:
     """Recherche un job non terminal (``queued``/``running``) portant ce
     ``dedup_key`` dans son ``payload`` — primitive d'idempotence LOT44f
-    utilisée par le pont best-effort ``/ingest/v2`` pour éviter de créer un
-    doublon lors d'une nouvelle tentative applicative (retry HTTP, double
-    clic, etc.). Un job déjà terminal (``succeeded``/``failed``/
-    ``dead_letter``/``cancelled``) n'est jamais considéré comme un doublon
-    actif : une tentative après complétion doit pouvoir créer un nouveau
-    job — cette fonction ne fait donc jamais barrage à une ré-ingestion
-    volontaire, seulement à un doublon concurrent du même envoi.
+    utilisée par ``find_or_create_job`` (ci-dessous) pour éviter de créer un
+    doublon lors d'une nouvelle tentative applicative (retry opérateur,
+    double invocation, etc.). Un job déjà terminal (``succeeded``/
+    ``failed``/``dead_letter``/``cancelled``) n'est jamais considéré comme
+    un doublon actif : une tentative après complétion doit pouvoir créer un
+    nouveau job — cette fonction ne fait donc jamais barrage à une
+    ré-ingestion volontaire, seulement à un doublon concurrent du même
+    envoi.
 
     Requête sur ``payload->>'dedup_key'`` (pas d'index dédié — table à
     faible volume à ce stade, cf. ADR-0029 ; à revisiter si le volume de
-    jobs actifs simultanés le justifie un jour)."""
+    jobs actifs simultanés le justifie un jour).
+
+    N'est **pas**, à elle seule, atomique avec une création ultérieure —
+    un appelant qui enchaîne cette fonction puis ``create_job`` séparément
+    reste exposé à une fenêtre de course entre deux soumissions
+    concurrentes (chacune ne voit aucun doublon actif, chacune crée son
+    propre job). Utiliser ``find_or_create_job`` pour une garantie
+    d'idempotence réelle sous concurrence."""
     with conn.cursor() as cur:
         cur.execute(
             """
@@ -88,6 +97,52 @@ def find_active_job_by_dedup_key(conn: psycopg.Connection, *, dedup_key: str) ->
         )
         row = cur.fetchone()
     return row[0] if row is not None else None
+
+
+def find_or_create_job(
+    conn: psycopg.Connection,
+    *,
+    run_id: UUID,
+    job_type: str,
+    dedup_key: str,
+    resource_id: UUID | None = None,
+    payload: dict[str, object] | None = None,
+) -> tuple[UUID, bool]:
+    """Trouve un job actif portant ``dedup_key``, ou en crée un nouveau —
+    atomique sous concurrence (remédiation revue PR#90) : deux soumissions
+    concurrentes du même ``dedup_key`` (deux processus, deux connexions
+    distinctes) ne créent jamais deux jobs actifs.
+
+    Garantie obtenue par ``pg_advisory_xact_lock`` (verrou transactionnel,
+    portée globale à l'instance PostgreSQL, jamais seulement local à cette
+    connexion) pris sur un hash de ``dedup_key`` **avant** la recherche —
+    une seconde connexion qui tente le même ``dedup_key`` pendant que la
+    première est encore en transaction attend simplement son tour (jamais
+    d'échec, jamais un ``SKIP LOCKED`` qui masquerait le doublon) ; le
+    verrou est relâché automatiquement à la fin de la transaction de
+    l'appelant (commit ou rollback) — jamais explicitement par cette
+    fonction, qui ne committe pas.
+
+    Retourne ``(job_id, created)`` : ``created=False`` si un job actif
+    existait déjà (aucune écriture), ``created=True`` sinon. ``payload``
+    reçoit systématiquement ``dedup_key`` (jamais un payload incohérent
+    avec la clé recherchée)."""
+    lock_key = int.from_bytes(
+        hashlib.sha256(dedup_key.encode("utf-8")).digest()[:8], "big", signed=True
+    )
+    with conn.cursor() as cur:
+        cur.execute("SELECT pg_advisory_xact_lock(%s)", (lock_key,))
+
+    existing = find_active_job_by_dedup_key(conn, dedup_key=dedup_key)
+    if existing is not None:
+        return existing, False
+
+    full_payload = dict(payload or {})
+    full_payload["dedup_key"] = dedup_key
+    job_id = create_job(
+        conn, run_id=run_id, job_type=job_type, resource_id=resource_id, payload=full_payload
+    )
+    return job_id, True
 
 
 def create_job(
@@ -120,7 +175,9 @@ def create_job(
     return job_id
 
 
-def set_job_resource_id(conn: psycopg.Connection, *, job_id: UUID, resource_id: UUID) -> None:
+def set_job_resource_id(
+    conn: psycopg.Connection, *, job_id: UUID, resource_id: UUID, lease_token: UUID
+) -> None:
     """Rattache un ``resource_id`` à un job qui n'en avait pas encore
     (LOT44f, reprise multi-claims) — appelée par le worker juste après avoir
     créé la ressource associée à un job soumis sans ressource préexistante
@@ -132,13 +189,31 @@ def set_job_resource_id(conn: psycopg.Connection, *, job_id: UUID, resource_id: 
     contrainte ``resources_collection_dedup_key_unique`` (migration 001),
     puisque la ressource existe déjà. Idempotent : réécrire la même valeur
     ne change rien ; ``resource_id`` n'est jamais réassigné à une valeur
-    différente une fois posé (aucun appelant de ce module ne le fait)."""
+    différente une fois posé (aucun appelant de ce module ne le fait).
+
+    Remédiation revue PR#90 : ``lease_token`` est désormais obligatoire et
+    vérifié (même garde que ``complete_job``/``record_job_retry``), avec
+    ``resource_id IS NULL OR resource_id = %s`` pour rester idempotent —
+    sans cela, un worker périmé (bail expiré, jamais réclamé par personne
+    d'autre) ou un appel répété pouvait écraser un rattachement déjà posé
+    par un autre détenteur, sans jamais lever d'erreur."""
     with conn.cursor() as cur:
         cur.execute(
-            "UPDATE ingestion_control.jobs SET resource_id = %s, updated_at = now() "
-            "WHERE job_id = %s",
-            (resource_id, job_id),
+            """
+            UPDATE ingestion_control.jobs
+            SET resource_id = %s, updated_at = now()
+            WHERE job_id = %s AND lease_token = %s AND lease_expires_at > now()
+              AND (resource_id IS NULL OR resource_id = %s)
+            RETURNING job_id
+            """,
+            (resource_id, job_id, lease_token, resource_id),
         )
+        if cur.fetchone() is None:
+            raise JobLeaseConflictError(
+                f"job {job_id}: lease {lease_token} no longer held (expired, lost, "
+                "or already completed), or resource_id already attached to a "
+                "different resource — refusing silent overwrite"
+            )
 
 
 @dataclass(frozen=True)
@@ -158,6 +233,7 @@ def claim_job(
     *,
     owner: str,
     eligible_statuses: tuple[str, ...] = ("queued",),
+    job_types: tuple[str, ...] | None = None,
     lease_duration_s: int = DEFAULT_LEASE_DURATION_S,
 ) -> JobClaim | None:
     """Réclame atomiquement un job éligible et le fait passer à ``running``.
@@ -166,6 +242,14 @@ def claim_job(
     UPDATE SKIP LOCKED``, ``eligible_statuses`` borné à
     ``CLAIMABLE_JOB_STATUSES``, ``None`` si aucun job disponible (jamais une
     exception pour ce cas nominal). Ne committe pas la transaction.
+
+    ``job_types`` (remédiation revue PR#90, Cubic P2) : filtre optionnel
+    sur ``job_type`` — ``None`` (défaut) réclame n'importe quel type,
+    comportement historique inchangé. Un worker qui ne sait traiter qu'un
+    sous-ensemble de types (ex. ``ingestion_worker.runner``, qui ne
+    comprend que ``"resource_pipeline"``) doit fournir explicitement ce
+    filtre pour ne jamais réclamer, puis épuiser en retries jusqu'au
+    ``dead_letter``, un job destiné à un autre type de consommateur.
     """
     if not eligible_statuses:
         raise ValueError("eligible_statuses must not be empty")
@@ -174,6 +258,10 @@ def claim_job(
         raise ValueError(
             f"eligible_statuses contains non-claimable statuses: {sorted(disallowed)}"
         )
+    if job_types is not None and not job_types:
+        raise ValueError("job_types must not be an empty tuple (use None for unfiltered)")
+    if lease_duration_s <= 0:
+        raise ValueError(f"lease_duration_s must be > 0, got {lease_duration_s!r}")
 
     lease_token = uuid4()
     lease_expires_at = datetime.now(UTC) + timedelta(seconds=lease_duration_s)
@@ -184,13 +272,18 @@ def claim_job(
             SELECT job_id, run_id, resource_id, job_type, payload, attempt_count
             FROM ingestion_control.jobs
             WHERE status = ANY(%s)
+              AND (%s::text[] IS NULL OR job_type = ANY(%s))
               AND next_attempt_at <= now()
               AND (lease_token IS NULL OR lease_expires_at < now())
             ORDER BY next_attempt_at, job_id
             FOR UPDATE SKIP LOCKED
             LIMIT 1
             """,
-            (list(eligible_statuses),),
+            (
+                list(eligible_statuses),
+                list(job_types) if job_types is not None else None,
+                list(job_types) if job_types is not None else None,
+            ),
         )
         row = cur.fetchone()
         if row is None:
@@ -232,7 +325,14 @@ def complete_job(
     """Termine un job détenu par ``lease_token`` — échec explicite
     (``JobLeaseConflictError``) si le bail ne correspond plus (expiré,
     perdu, ou déjà complété par un autre appelant). Jamais de complétion
-    silencieuse d'un job qu'on ne détient plus."""
+    silencieuse d'un job qu'on ne détient plus.
+
+    Remédiation revue PR#90 : la garde exige désormais aussi
+    ``lease_expires_at > now()`` — un ``lease_token`` qui correspond encore
+    ne suffit plus si le bail a expiré entre-temps (ex. traitement plus lent
+    que ``lease_duration_s``, avant même que le reaper n'ait pu agir) :
+    sémantique de bail stricte, jamais une complétion tardive tolérée
+    seulement parce que personne d'autre n'a encore réclamé le job."""
     with conn.cursor() as cur:
         cur.execute(
             """
@@ -240,6 +340,7 @@ def complete_job(
             SET status = %s, claimed_by = NULL, lease_token = NULL,
                 lease_expires_at = NULL, updated_at = now()
             WHERE job_id = %s AND lease_token = %s AND status = 'running'
+              AND lease_expires_at > now()
             RETURNING job_id
             """,
             (status, job_id, lease_token),
@@ -280,7 +381,9 @@ def record_job_retry(
     un autre worker ne peut **jamais** planifier de retry ni faire
     régresser le job d'un autre détenteur — échec explicite
     (``JobLeaseConflictError``), jamais un écrasement silencieux du
-    travail en cours d'un autre worker."""
+    travail en cours d'un autre worker. Remédiation revue PR#90 : la garde
+    exige aussi ``lease_expires_at > now()`` — mêmes raisons que
+    ``complete_job``, sémantique de bail stricte."""
     with conn.cursor() as cur:
         cur.execute(
             """
@@ -292,6 +395,7 @@ def record_job_retry(
                 lease_expires_at = NULL,
                 updated_at = now()
             WHERE job_id = %s AND lease_token = %s AND status = 'running'
+              AND lease_expires_at > now()
             RETURNING attempt_count, max_attempts
             """,
             (error, job_id, lease_token),
@@ -387,6 +491,7 @@ __all__ = [
     "complete_job",
     "create_job",
     "find_active_job_by_dedup_key",
+    "find_or_create_job",
     "reap_expired_job_leases",
     "record_job_retry",
     "set_job_resource_id",

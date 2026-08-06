@@ -37,6 +37,7 @@ PROVISION_SCRIPT = INFRA_ROOT / "scripts" / "provision_ingestion_control_roles.s
 sys.path.insert(0, str(ENGINE_ROOT / "src"))
 
 from ingestor.ingestion_control.jobs import create_job  # noqa: E402
+from ingestor.ingestion_profiles.registry import load_profile_registry  # noqa: E402
 from ingestor.ingestion_worker.runner import WorkerDeps, run_worker_iteration  # noqa: E402
 from ingestor.ingestion_worker.storage import (  # noqa: E402
     make_filesystem_artifact_reader,
@@ -247,7 +248,7 @@ def _worker_deps(tmp_path: Path, *, safe_fetch, owner: str = "worker-e2e") -> Wo
     _write_profile(profiles_dir)
     return WorkerDeps(
         owner=owner,
-        profiles_dir=profiles_dir,
+        profile_registry=load_profile_registry(profiles_dir),
         artifact_store=make_filesystem_artifact_store(tmp_path / "artifacts"),
         artifact_reader=make_filesystem_artifact_reader(tmp_path / "artifacts"),
         validate_destination=lambda url: url,
@@ -279,7 +280,7 @@ class TestCrashAfterScoutResumesFromFetcher:
     ) -> None:
         run_id = _insert_run(app_conn)
         job_id = create_job(
-            app_conn, run_id=run_id, job_type="ingest_v2_upload", payload=_job_payload()
+            app_conn, run_id=run_id, job_type="resource_pipeline", payload=_job_payload()
         )
         app_conn.commit()
 
@@ -346,7 +347,7 @@ class TestCrashAfterFetcherResumesFromExtractor:
     ) -> None:
         run_id = _insert_run(app_conn)
         job_id = create_job(
-            app_conn, run_id=run_id, job_type="ingest_v2_upload", payload=_job_payload()
+            app_conn, run_id=run_id, job_type="resource_pipeline", payload=_job_payload()
         )
         app_conn.commit()
 
@@ -360,7 +361,7 @@ class TestCrashAfterFetcherResumesFromExtractor:
 
         crashing_deps = WorkerDeps(
             owner="worker-A",
-            profiles_dir=profiles_dir,
+            profile_registry=load_profile_registry(profiles_dir),
             artifact_store=make_filesystem_artifact_store(tmp_path / "artifacts"),
             artifact_reader=failing_read_artifact,
             validate_destination=lambda url: url,
@@ -416,7 +417,7 @@ class TestResumeByDifferentWorker:
         le job — pas nécessairement celui qui a échoué."""
         run_id = _insert_run(app_conn)
         job_id = create_job(
-            app_conn, run_id=run_id, job_type="ingest_v2_upload", payload=_job_payload()
+            app_conn, run_id=run_id, job_type="resource_pipeline", payload=_job_payload()
         )
         app_conn.commit()
 
@@ -468,7 +469,7 @@ class TestDoubleExecutionIsPrevented:
              psycopg.connect(_app_dsn(pg_container), autocommit=False) as conn_b:
             run_id = _insert_run(conn_a)
             job_id = create_job(
-                conn_a, run_id=run_id, job_type="ingest_v2_upload", payload=_job_payload()
+                conn_a, run_id=run_id, job_type="resource_pipeline", payload=_job_payload()
             )
             conn_a.commit()
 
