@@ -105,6 +105,40 @@ Réseau/volumes/conteneurs dédiés (`lot44frecon_*`, sous-réseau `10.244.9.0/2
 
 Aucune activation de `real_documents_allowed`/`curated_ingestion_allowed` n'est incluse ni requise par cette liste.
 
+## 6bis. Remédiation de la revue PR#90 (Codex, Cubic, GitGuardian)
+
+Après ouverture de la PR sur le HEAD `9306f1cb4f92037c09a2edb63b78665be0afcc79`, le propriétaire du dépôt a explicitement refusé d'approuver ce HEAD, signalé que les revues automatisées avaient fait remonter des problèmes de sécurité/concurrence/intégrité/migration/exploitation, et mandaté leur traitement complet avant toute nouvelle demande de review. Traité intégralement : 40 signalements Cubic, 5 signalements Codex (dont recoupements documentés avec Cubic), 5 occurrences GitGuardian (1 seul incident logique). Matrice complète, signalement par signalement (diagnostic réel avant correction, jamais mécanique) : `docs/reports/pr90_review_remediation_matrix.md`.
+
+**Changements les plus significatifs** (liste complète dans la matrice et dans ADR-0031, Décision 5) :
+
+- Plan de contrôle d'ingestion déplacé dans un fichier Compose séparé, strictement opt-in (`docker-compose.ingestion.yml`) — `docker-compose.v2.yml` restauré à l'état exact d'`origin/main`.
+- Le worker garde en mémoire l'exact `ProfileRegistry` vérifié au démarrage pour toute sa durée de vie — plus de rechargement disque par job.
+- `niveau_conformity`/`voie_conformity`/`programme_conformity` valent désormais `False` ("non vérifié") — `QUALITY_CHECKED -> ROUTED` devient structurellement inatteignable tant qu'aucun classifieur réel de contenu n'existe (changement intentionnel).
+- Identité de dédoublonnage unifiée (job ↔ Scout, dérivée de `canonical_url`) ; nouvelle primitive `find_or_create_job` atomique sous concurrence (verrou advisory PostgreSQL), prouvée par un test à deux connexions réelles concurrentes.
+- Sémantique de bail stricte sur toutes les primitives de concurrence (expiration vérifiée, pas seulement le jeton).
+- SSRF : RFC 6598 désormais bloqué. Provisioning PostgreSQL : mots de passe hors ligne de commande (`\getenv`, prouvé par inspection `ps` réelle), collision de rôles rejetée, attributs réalignés sur rôle préexistant.
+- Migrations/rollbacks rendus concurrency-safe (`LOCK TABLE ACCESS EXCLUSIVE`) et upgrade-safe (backfill `claimed`, garde explicite sur table peuplée, `ADD CONSTRAINT` idempotent).
+
+**Non corrigé, hors périmètre documenté** : `planner.py::plan_search_core` n'applique toujours pas `max_queries_per_run` (Cubic P2, non trivial sans revoir la logique de couverture existante — signalé pour un lot LOT44d dédié).
+
+**Validation après remédiation** (commandes exactes, HEAD remédié) :
+
+```
+ruff check .        → All checks passed!
+mypy src             → Success: no issues found in 84 source files
+pytest (unitaire, hors integration)   → exit 0
+pytest tests/integration/ (PostgreSQL réel) → exit 0, y compris :
+  - un test de concurrence réel (2 threads, 2 connexions PostgreSQL distinctes,
+    synchronisées par threading.Barrier) prouvant l'atomicité de find_or_create_job
+  - un test d'inspection de processus réel (ps -eo args) prouvant l'absence de
+    mot de passe dans la ligne de commande psql
+  - le rollback rehearsal complet (001↔006) rejoué avec les nouveaux LOCK TABLE
+  - deux nouveaux scénarios d'upgrade sur base peuplée (jobs.status='claimed'
+    préexistant réconcilié ; migration 006 bloquée explicitement sur table non vide)
+```
+
+GitGuardian : 5 occurrences, un seul incident logique, triage complet dans la matrice — confirmées valeurs de test factices (mots de passe PostgreSQL pour des conteneurs Docker jetables créés et détruits dans le même processus de test), aucune correspondance avec un secret réel, aucune rotation nécessaire, aucune exclusion globale créée.
+
 ## 7. Verdicts
 
 - **`PRODUCTION_INFRASTRUCTURE_STATUS`** : `api_v2:app` confirmé comme runtime de production réel (inspection lecture seule antérieure dans cette session) — cohérent avec `origin/main`, gouvernance ADR-0024/ADR-0025 non modifiée.
