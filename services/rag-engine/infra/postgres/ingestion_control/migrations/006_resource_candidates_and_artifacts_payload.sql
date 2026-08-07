@@ -34,6 +34,21 @@
 -- avant de rejouer. Ne bloque jamais un rejeu idempotent sur une base où
 -- la colonne existe déjà (replay après succès, aucune donnée davantage
 -- exposée).
+--
+-- Remédiation revue PR#90 (Cubic P1, revue incrémentale) : le préflight de
+-- vacuité ci-dessous vérifiait l'absence de lignes SANS détenir aucun
+-- verrou — une transaction concurrente pouvait alors valider un INSERT
+-- entre ce préflight et l'ALTER TABLE ADD COLUMN qui suit, recevant le
+-- DEFAULT '{}'::jsonb inutilisable sans jamais être détectée par la garde
+-- (même défaut que celui déjà corrigé pour les rollbacks 001/002/003/004 —
+-- voir leurs commentaires). ``LOCK TABLE ... ACCESS EXCLUSIVE`` est donc
+-- pris ici, avant même le préflight, et retenu jusqu'à la fin de cette
+-- migration (cette instruction s'exécute dans la transaction unique de
+-- ``apply_migration`` / ``bootstrap_ingestion_control_schema.sh``, jamais
+-- relâché entre deux instructions de ce fichier).
+LOCK TABLE ingestion_control.resource_candidates, ingestion_control.artifacts
+    IN ACCESS EXCLUSIVE MODE;
+
 DO $nexus$
 BEGIN
     IF NOT EXISTS (

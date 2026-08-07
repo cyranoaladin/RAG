@@ -173,7 +173,7 @@ def clean_db(superuser_conn: psycopg.Connection) -> None:
         )
 
 
-def _insert_run(conn: psycopg.Connection) -> uuid.UUID:
+def _insert_run(conn: psycopg.Connection, *, collection: str | None = None) -> uuid.UUID:
     with conn.cursor() as cur:
         cur.execute(
             """
@@ -184,7 +184,7 @@ def _insert_run(conn: psycopg.Connection) -> uuid.UUID:
             RETURNING run_id
             """,
             (
-                VALID_SCOPE["tenant"], VALID_SCOPE["collection"], VALID_SCOPE["niveau"],
+                VALID_SCOPE["tenant"], collection or VALID_SCOPE["collection"], VALID_SCOPE["niveau"],
                 VALID_SCOPE["voie"], VALID_SCOPE["matiere"], VALID_SCOPE["candidat"],
                 VALID_SCOPE["audience"], VALID_SCOPE["visibility"], VALID_SCOPE["school_year"],
                 VALID_SCOPE["programme_version"], "v1", "manual",
@@ -236,13 +236,15 @@ class TestFindOrCreateJob:
         dedup_key = "a" * 64
 
         job_id_1, created_1 = find_or_create_job(
-            app_conn, run_id=run_id, job_type="resource_pipeline", dedup_key=dedup_key
+            app_conn, run_id=run_id, collection=VALID_SCOPE["collection"],
+            job_type="resource_pipeline", dedup_key=dedup_key,
         )
         app_conn.commit()
         assert created_1 is True
 
         job_id_2, created_2 = find_or_create_job(
-            app_conn, run_id=run_id, job_type="resource_pipeline", dedup_key=dedup_key
+            app_conn, run_id=run_id, collection=VALID_SCOPE["collection"],
+            job_type="resource_pipeline", dedup_key=dedup_key,
         )
         app_conn.commit()
         assert created_2 is False
@@ -263,7 +265,8 @@ class TestFindOrCreateJob:
         dedup_key = "b" * 64
 
         job_id_1, created_1 = find_or_create_job(
-            app_conn, run_id=run_id, job_type="resource_pipeline", dedup_key=dedup_key
+            app_conn, run_id=run_id, collection=VALID_SCOPE["collection"],
+            job_type="resource_pipeline", dedup_key=dedup_key,
         )
         app_conn.commit()
         assert created_1 is True
@@ -275,7 +278,8 @@ class TestFindOrCreateJob:
         app_conn.commit()
 
         job_id_2, created_2 = find_or_create_job(
-            app_conn, run_id=run_id, job_type="resource_pipeline", dedup_key=dedup_key
+            app_conn, run_id=run_id, collection=VALID_SCOPE["collection"],
+            job_type="resource_pipeline", dedup_key=dedup_key,
         )
         app_conn.commit()
         assert created_2 is True
@@ -302,7 +306,8 @@ class TestFindOrCreateJob:
             try:
                 start_barrier.wait(timeout=5)
                 job_id, created = find_or_create_job(
-                    conn, run_id=run_id, job_type="resource_pipeline", dedup_key=dedup_key
+                    conn, run_id=run_id, collection=VALID_SCOPE["collection"],
+                    job_type="resource_pipeline", dedup_key=dedup_key,
                 )
                 conn.commit()
                 results.append((job_id, created))
@@ -331,6 +336,60 @@ class TestFindOrCreateJob:
             )
             (count,) = cur.fetchone()
         assert count == 1
+
+    def test_same_dedup_key_in_two_different_collections_creates_two_jobs(
+        self, clean_db: None, app_conn: psycopg.Connection
+    ) -> None:
+        """Revue incrémentale PR#90 (Cubic P1) : ``dedup_key`` seul
+        (``sha256(canonical_url)``, cf. ``ingestion_agents/scout.py``) ne
+        contient jamais la collection — la même URL soumise pour deux
+        collections distinctes (ex. la même page eduscol pertinente à la
+        fois pour ``nsi_terminale`` et ``maths_terminale``) doit produire
+        deux jobs actifs indépendants, jamais un seul (ce que la version
+        non corrigée de ``find_active_job_by_dedup_key``, sans filtre de
+        collection, aurait silencieusement fait — la seconde soumission
+        aurait été traitée à tort comme un doublon de la première)."""
+        run_id_nsi = _insert_run(app_conn, collection="rag_nexus_nsi_terminale_specialite")
+        run_id_maths = _insert_run(app_conn, collection="rag_nexus_maths_terminale_specialite")
+        app_conn.commit()
+        shared_dedup_key = "d" * 64
+
+        job_id_nsi, created_nsi = find_or_create_job(
+            app_conn, run_id=run_id_nsi, collection="rag_nexus_nsi_terminale_specialite",
+            job_type="resource_pipeline", dedup_key=shared_dedup_key,
+        )
+        app_conn.commit()
+        assert created_nsi is True
+
+        job_id_maths, created_maths = find_or_create_job(
+            app_conn, run_id=run_id_maths, collection="rag_nexus_maths_terminale_specialite",
+            job_type="resource_pipeline", dedup_key=shared_dedup_key,
+        )
+        app_conn.commit()
+        assert created_maths is True, (
+            "a submission for a different collection must never be treated as a "
+            "duplicate of a same-URL submission in another collection"
+        )
+        assert job_id_maths != job_id_nsi
+
+        with app_conn.cursor() as cur:
+            cur.execute(
+                "SELECT count(*) FROM ingestion_control.jobs WHERE payload->>'dedup_key' = %s",
+                (shared_dedup_key,),
+            )
+            (count,) = cur.fetchone()
+        assert count == 2
+
+        # Une resoumission dans la MÊME collection, elle, doit toujours
+        # être reconnue comme un doublon — la portée par collection ne doit
+        # pas dégénérer en absence totale de déduplication.
+        job_id_nsi_again, created_nsi_again = find_or_create_job(
+            app_conn, run_id=run_id_nsi, collection="rag_nexus_nsi_terminale_specialite",
+            job_type="resource_pipeline", dedup_key=shared_dedup_key,
+        )
+        app_conn.commit()
+        assert created_nsi_again is False
+        assert job_id_nsi_again == job_id_nsi
 
 
 class TestClaimJob:
@@ -559,6 +618,28 @@ class TestSetJobResourceId:
                 lease_token=claim.lease_token,
             )
 
+    def test_rejects_when_transaction_began_before_expiry_but_runs_after(
+        self, clean_db: None, app_conn: psycopg.Connection
+    ) -> None:
+        """Même preuve directe ``clock_timestamp()`` vs ``now()`` que
+        ``TestCompleteJob::test_rejects_completion_when_transaction_began_
+        before_expiry_but_runs_after``, pour ``set_job_resource_id`` (revue
+        incrémentale PR#90, Cubic P1)."""
+        run_id = _insert_run(app_conn)
+        create_job(app_conn, run_id=run_id, job_type="resource_pipeline")
+        app_conn.commit()
+
+        claim = claim_job(app_conn, owner="worker-1", lease_duration_s=2)
+        assert claim is not None
+
+        time.sleep(3)  # l'horloge murale dépasse lease_expires_at
+
+        with pytest.raises(JobLeaseConflictError):
+            set_job_resource_id(
+                app_conn, job_id=claim.job_id, resource_id=uuid.uuid4(),
+                lease_token=claim.lease_token,
+            )
+
 
 class TestCompleteJob:
     def test_succeeds_when_lease_matches(self, clean_db: None, app_conn: psycopg.Connection) -> None:
@@ -633,6 +714,38 @@ class TestCompleteJob:
             status, lease_token = cur.fetchone()
         assert status == "running"
         assert lease_token == claim.lease_token
+
+    def test_rejects_completion_when_transaction_began_before_expiry_but_runs_after(
+        self, clean_db: None, app_conn: psycopg.Connection
+    ) -> None:
+        """Revue PR#90 (Cubic P1, revue incrémentale) : preuve directe que
+        la garde utilise ``clock_timestamp()``, pas ``now()``. ``now()``
+        reste figé à l'heure de **début** de la transaction PostgreSQL —
+        si ``complete_job`` l'utilisait, un appelant dont la transaction
+        est restée ouverte depuis avant l'expiration réelle du bail
+        (ex. le temps d'un appel HTTP lent) verrait la comparaison
+        toujours vraie même après l'expiration, contournant silencieusement
+        la sémantique de bail stricte. Scénario réel : la transaction
+        commence (première requête) avant l'expiration, puis l'horloge
+        murale dépasse ``lease_expires_at`` pendant que la transaction
+        reste ouverte, puis ``complete_job`` est tenté dans cette même
+        transaction, jamais recommencée."""
+        run_id = _insert_run(app_conn)
+        create_job(app_conn, run_id=run_id, job_type="ingest_v2_upload")
+        app_conn.commit()
+
+        claim = claim_job(app_conn, owner="worker-1", lease_duration_s=2)
+        # Toujours dans la même transaction (aucun commit) : "now()" pour
+        # PostgreSQL est déjà figé à l'instant de la requête ci-dessus,
+        # avant l'expiration du bail.
+        assert claim is not None
+
+        time.sleep(3)  # l'horloge murale dépasse lease_expires_at
+
+        with pytest.raises(JobLeaseConflictError):
+            complete_job(
+                app_conn, job_id=claim.job_id, lease_token=claim.lease_token, status="succeeded"
+            )
 
     def test_stale_worker_cannot_complete_after_lease_reclaimed(
         self, clean_db: None, app_conn: psycopg.Connection, superuser_conn: psycopg.Connection
@@ -752,6 +865,28 @@ class TestRecordJobRetry:
         with pytest.raises(JobLeaseConflictError):
             record_job_retry(
                 app_conn, job_id=claim.job_id, lease_token=claim.lease_token, error="too slow"
+            )
+
+    def test_rejects_retry_when_transaction_began_before_expiry_but_runs_after(
+        self, clean_db: None, app_conn: psycopg.Connection
+    ) -> None:
+        """Même preuve directe ``clock_timestamp()`` vs ``now()`` que
+        ``TestCompleteJob::test_rejects_completion_when_transaction_began_
+        before_expiry_but_runs_after``, pour ``record_job_retry`` (revue
+        incrémentale PR#90, Cubic P1)."""
+        run_id = _insert_run(app_conn)
+        create_job(app_conn, run_id=run_id, job_type="ingest_v2_upload")
+        app_conn.commit()
+
+        claim = claim_job(app_conn, owner="worker-1", lease_duration_s=2)
+        assert claim is not None
+
+        time.sleep(3)  # l'horloge murale dépasse lease_expires_at
+
+        with pytest.raises(JobLeaseConflictError):
+            record_job_retry(
+                app_conn, job_id=claim.job_id, lease_token=claim.lease_token,
+                error="too slow (transactional race test)",
             )
 
     def test_stale_worker_cannot_record_retry_after_lease_reclaimed(
