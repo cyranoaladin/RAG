@@ -159,9 +159,26 @@ v2-down:
 	$(COMPOSE_V2) down
 
 ## v2-ingestion: Démarrage explicite du plan de contrôle d'ingestion gouvernée (opt-in, LOT44f/ADR-0031)
+# Remédiation revue PR#90 (Cubic P1, revue incrémentale) : sans --wait, cette
+# cible annonçait toujours succès dès que `up -d` retournait — y compris si
+# migrator-ingestion-control avait déjà échoué (exit != 0) ou si
+# ingestion-worker ne devenait jamais healthy (gate LOT44c refusé, DSN
+# invalide, etc.) : `up -d` seul ne fait qu'émettre les commandes de
+# démarrage, il n'attend ni ne vérifie leur issue. `--wait` fait
+# explicitement attendre et vérifier : (1) migrator-ingestion-control est un
+# job ponctuel (`restart: "no"`) dont ingestion-worker dépend via
+# `service_completed_successfully` — `--wait` échoue avec un code non-nul si
+# ce job se termine en erreur, jamais un succès silencieux ; (2)
+# ingestion-worker porte un healthcheck (heartbeat file, docker-compose.
+# ingestion.yml) — `--wait` échoue aussi si le worker ne devient jamais
+# healthy, ce qui couvre transitivement le gate LOT44c (un worker dont le
+# gate refuse le démarrage ne touche jamais son heartbeat, donc reste
+# unhealthy). Comportement vérifié empiriquement (deux scénarios : migrator
+# en échec, worker jamais healthy — les deux font échouer `up --wait` avec
+# un code de sortie non-nul, jamais un succès rapporté à tort).
 v2-ingestion-up:
-	$(COMPOSE_V2_INGESTION) up -d --build migrator-ingestion-control ingestion-worker
-	@echo "✅ Plan de contrôle d'ingestion (migrator + worker) démarré — reste fail-closed sans manifest approuvé"
+	$(COMPOSE_V2_INGESTION) up -d --build --wait migrator-ingestion-control ingestion-worker
+	@echo "✅ Plan de contrôle d'ingestion (migrator + worker) démarré et vérifié sain — reste fail-closed sans manifest approuvé"
 
 ## v2-ingestion: Arrêt
 v2-ingestion-down:
