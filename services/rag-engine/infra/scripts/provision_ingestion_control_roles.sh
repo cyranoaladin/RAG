@@ -60,6 +60,23 @@ if [[ "$MIGRATOR_ROLE" == "$APP_ROLE" ]]; then
     printf 'ERROR: INGESTION_CONTROL_MIGRATOR_ROLE and INGESTION_CONTROL_APP_ROLE must be distinct (both resolve to %s).\n' "$MIGRATOR_ROLE" >&2
     exit 1
 fi
+# Remédiation revue PR#90 (Cubic P1, revue incrémentale) : PGUSER est la
+# connexion administrative externe (superutilisateur du conteneur) qui
+# exécute CE script — jamais l'un des deux rôles gouvernés eux-mêmes. Si
+# MIGRATOR_ROLE ou APP_ROLE résolvait à la même valeur que PGUSER, l'ALTER
+# ROLE ... NOSUPERUSER NOCREATEDB NOCREATEROLE ... ci-dessous s'appliquerait
+# au compte administratif utilisé pour se connecter, lui retirant ses
+# propres privilèges en cours de script (auto-verrouillage) et brouillant
+# la distinction stricte "connexion administrative externe" vs "rôle
+# gouverné" que ce script est censé garantir. Rejeté avant toute écriture.
+if [[ "$MIGRATOR_ROLE" == "$PGUSER" ]]; then
+    printf 'ERROR: INGESTION_CONTROL_MIGRATOR_ROLE must not equal PGUSER (both resolve to %s) — PGUSER is the external administrative connection, never one of the governed roles it provisions.\n' "$MIGRATOR_ROLE" >&2
+    exit 1
+fi
+if [[ "$APP_ROLE" == "$PGUSER" ]]; then
+    printf 'ERROR: INGESTION_CONTROL_APP_ROLE must not equal PGUSER (both resolve to %s) — PGUSER is the external administrative connection, never one of the governed roles it provisions.\n' "$APP_ROLE" >&2
+    exit 1
+fi
 
 psql -X -q --single-transaction -v ON_ERROR_STOP=1 <<'SQL'
 \getenv migrator_role MIGRATOR_ROLE
@@ -102,6 +119,31 @@ WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'app_role')
 
 SELECT format('ALTER ROLE %I LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS PASSWORD %L', :'app_role', :'app_password')
 WHERE EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'app_role')
+\gexec
+
+-- Remédiation revue PR#90 (Cubic P1, revue incrémentale) : ni MIGRATOR_ROLE
+-- ni APP_ROLE ne doivent jamais rester membres d'un autre rôle. NOINHERIT
+-- (ci-dessus) empêche seulement l'héritage *automatique* des privilèges
+-- d'un rôle dont on est membre — l'appartenance seule permet toujours un
+-- `SET ROLE` explicite vers ce rôle, une voie d'escalade que ce script ne
+-- peut jamais laisser en place silencieusement pour un rôle censé rester à
+-- privilège strictement minimal (ex. une intervention manuelle antérieure
+-- qui aurait fait `GRANT some_privileged_role TO ingestion_control_app`).
+-- Toute appartenance préexistante est donc révoquée inconditionnellement
+-- ici (fail-closed par suppression réelle, pas par simple détection qui
+-- laisserait la dérive en place) — ce script n'accorde lui-même aucune
+-- appartenance à un autre rôle, donc toute appartenance trouvée ici est
+-- par construction non autorisée.
+SELECT format('REVOKE %I FROM %I', g.rolname, :'migrator_role')
+FROM pg_auth_members m
+JOIN pg_roles g ON g.oid = m.roleid
+WHERE m.member = (SELECT oid FROM pg_roles WHERE rolname = :'migrator_role')
+\gexec
+
+SELECT format('REVOKE %I FROM %I', g.rolname, :'app_role')
+FROM pg_auth_members m
+JOIN pg_roles g ON g.oid = m.roleid
+WHERE m.member = (SELECT oid FROM pg_roles WHERE rolname = :'app_role')
 \gexec
 
 -- Rôle de migration : seul habilité à créer/modifier le schéma. Ne reçoit
