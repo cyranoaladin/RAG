@@ -1,11 +1,29 @@
 # ADR-0031 — Réconciliation LOT44 : worker d'ingestion gouvernée isolé, sur la base canonique du runtime v2
 
-- **Statut** : Proposé — **non Accepté**. Ce document ne peut pas s'auto-approuver : conformément à ADR-0025, une décision positive exige une review humaine `APPROVED` du Code Owner `@abenrhouma`, dont `commit_id` égale exactement le HEAD final de la branche `reconcile/lot44-governed-ingestion-on-main` au moment de la review — jamais une autorisation générale donnée avant que ce HEAD n'existe.
-- **Date** : 2026-08-05
-- **Décideur proposé** : à confirmer par `@abenrhouma` (Code Owner, ADR-0025) — cet ADR est rédigé par un agent de codage sous mandat explicite du propriétaire du dépôt (Alaeddine Ben Rhouma), pas par le Code Owner lui-même.
+- **Statut** : **Accepté** (2026-08-07). Décision positive rendue conformément à ADR-0025 : review humaine `APPROVED` du Code Owner `@abenrhouma`, `commit_id` égalant exactement le HEAD final de la branche `reconcile/lot44-governed-ingestion-on-main` au moment de la review — voir « Preuve d'acceptation », plus bas, pour le détail vérifiable.
+- **Date de rédaction** : 2026-08-05
+- **Date d'acceptation** : 2026-08-07
+- **Décideur** : `@abenrhouma` (Code Owner, ADR-0025) — cet ADR a été rédigé par un agent de codage sous mandat explicite du propriétaire du dépôt (Alaeddine Ben Rhouma), puis accepté par une review humaine indépendante du Code Owner, conformément à ADR-0025/LOT41V.
+- **Autorité de la décision** : ADR-0025 (autorité de revue humaine GitHub) / LOT41V (mécanisme de challenge-réponse « Trusted Human Review »).
+- **PR de décision** : [#90](https://github.com/cyranoaladin/RAG/pull/90).
 - **Périmètre** : réconciliation entre deux lignes de travail développées indépendamment — LOT44a-f (pipeline d'ingestion agentique gouvernée, branche `feat/rag-go-live-20260804`) et LOT41U/LOT41V (fermeture du runtime v2 à lecture+revue, `origin/main`, ADR-0024/ADR-0025).
 - **S'appuie sur** : ADR-0001, ADR-0010, ADR-0011, ADR-0013, ADR-0021, ADR-0022, ADR-0023, ADR-0024, ADR-0025, et ADR-0026 à ADR-0030 (renumérotés depuis leur ancienne numérotation ADR-0024 à ADR-0028 sur `feat/rag-go-live-20260804` — cf. section « Renumérotation », plus bas).
 - **Ne supersede ADR-0024 ni ADR-0025** : aucune clause de ce document ne les remplace, ne les affaiblit ni ne les rouvre. Voir section dédiée.
+
+## Preuve d'acceptation
+
+Cette section documente précisément ce qui a été approuvé, par qui, et distingue explicitement deux SHA différents qui ne doivent jamais être présentés comme le même commit :
+
+1. **`36dca9285004d6efe886daf16bc11e5e0e3214cd`** est le HEAD exact de la branche `reconcile/lot44-governed-ingestion-on-main`, tel qu'il existait au moment de la review — c'est **cet état précis** qui a été inspecté et approuvé humainement, base `3a199b39fcd74b4fd3c1a0282536a4e5ea4d6a87` (HEAD de `main` au moment de l'ouverture de la review).
+2. La review GitHub `APPROVED` et le challenge LOT41V portent explicitement sur cet état :
+   - **Reviewer** : `@abenrhouma`
+   - **Review GitHub** : id `4886435379`, état `APPROVED`, `commit_id` = `36dca9285004d6efe886daf16bc11e5e0e3214cd`, soumise le `2026-08-07T20:44:46Z`
+   - **Challenge LOT41V** : `NEXUS-TRUSTED-REVIEW-V1:a6d83c4b8f3ac362335922d282efbf5fb1dee67345916d3cca76a68b6ca1147f`
+   - **Readback du check `Evaluate trusted human review`** (dernière exécution avant fusion, `conclusion: success`, `2026-08-07T20:45:43Z`) : `{"decision": {"approved": true, "base_sha": "3a199b39fcd74b4fd3c1a0282536a4e5ea4d6a87", "challenge": "NEXUS-TRUSTED-REVIEW-V1:a6d83c4b8f3ac362335922d282efbf5fb1dee67345916d3cca76a68b6ca1147f", "head_sha": "36dca9285004d6efe886daf16bc11e5e0e3214cd", "pull_request": 90, "reason": "approved", "repository": "cyranoaladin/RAG", "review_id": 4886435379, "reviewer": "abenrhouma", "submitted_at": "2026-08-07T20:44:46Z"}}` — récupéré et recoupé via l'API GitHub, jamais pris pour argent comptant depuis une seule source.
+3. GitHub a ensuite fusionné PR #90 par **Rebase and merge** (`merged_at`: `2026-08-07T20:53:11Z`, `merged_by`: `abenrhouma`), ce qui **recrée nécessairement les SHA de commit** — un rebase réécrit chaque commit avec un nouveau parent, changeant son identifiant même si son contenu (diff) reste inchangé.
+4. **`e539dbb71e6710d2b275c268b0d5d22aa7fb8e9a`** est le résultat canonique de ce rebase, désormais le HEAD de `main`. Ce n'est **jamais** le même commit que `36dca928...` (SHA différent, par construction d'un rebase) — mais c'est le même **contenu**.
+5. **Équivalence de contenu vérifiée**, pas seulement supposée : `git diff 36dca928... e539dbb... --stat` ne retourne aucune différence, et surtout, **les deux arbres Git (`^{tree}`) sont strictement identiques** : `6aa57a6f66679d066540653b857dc8fd41239394` des deux côtés — preuve la plus forte possible d'équivalence de contenu, indépendante de l'historique de commits.
+6. **Cette acceptation est architecturale et documentaire uniquement.** Elle ne constitue **pas** une autorisation de déploiement, ni une autorisation d'ingestion de données réelles, ni une activation d'aucun verrou de gouvernance. `real_documents_allowed` et `curated_ingestion_allowed` restent `false` ; aucun manifest de production réel n'existe ; aucune écriture n'a eu lieu sur l'infrastructure de production (Hetzner) à l'occasion de cette acceptation.
 
 ## Contexte
 
@@ -97,12 +115,14 @@ Points structurants de cette seconde passe, qui **modifient** les décisions ci-
 
 Validation complète après cette seconde passe : `ruff check src/ingestor/` propre, `mypy` propre sur les 11 fichiers source modifiés, suite unitaire complète verte (1730 tests), suite d'intégration complète verte (PostgreSQL/Docker réels, 117 passés, 9 ignorés sans rapport avec cette passe, 0 échec) — détail exact dans `docs/reports/pr90_review_remediation_matrix.md`.
 
-**Statut de cet ADR à l'issue de cette seconde passe : toujours Proposé, non Accepté.** Cette passe ne constitue ni une approbation, ni une demande d'approbation implicite — la review humaine `APPROVED` du Code Owner exigée par ADR-0025, sur le HEAD exact final de cette passe, reste entièrement à obtenir séparément. Aucune fusion, aucune écriture de production, aucune activation de gouvernance n'a eu lieu ni n'est proposée par cette passe.
+**Statut de cet ADR à l'issue de cette seconde passe (constat historique, au moment de sa rédaction) : toujours Proposé, non Accepté.** Cette passe ne constituait ni une approbation, ni une demande d'approbation implicite — la review humaine `APPROVED` du Code Owner exigée par ADR-0025, sur le HEAD exact final de cette passe, restait entièrement à obtenir séparément. Aucune fusion, aucune écriture de production, aucune activation de gouvernance n'avait eu lieu ni n'était proposée par cette passe.
+
+**Ce constat est désormais dépassé** : la review humaine `APPROVED` a depuis été obtenue sur le HEAD exact `36dca9285004d6efe886daf16bc11e5e0e3214cd` de la branche `reconcile/lot44-governed-ingestion-on-main`, et cet ADR est passé au statut **Accepté** — voir « Preuve d'acceptation », plus bas, et le champ **Statut** en tête de document.
 
 ## Conséquences
 
 - Le pipeline d'ingestion agentique gouverné (LOT44a-f) devient disponible comme composant technique isolé, prêt pour une activation future — mais **non activé** par ce lot : `real_documents_allowed`/`curated_ingestion_allowed` (`services/rag-pedago/configs/pedago_interface_contract.yml`, `transition_authorization.yml`) restent inchangés, non touchés par ce lot.
-- Le worker et la création de job restent désactivés en production tant que (a) un manifest réel, approuvé par une autorité humaine nommée, n'existe pas, **et** (b) cet ADR n'est pas passé à Accepté par une review humaine formelle du Code Owner sur le HEAD exact (ADR-0025), **et** (c) un déploiement en production n'est pas séparément autorisé.
+- Le worker et la création de job restent désactivés en production : (a) aucun manifest réel, approuvé par une autorité humaine nommée, n'existe à ce jour ; (b) l'acceptation architecturale de cet ADR par une review humaine formelle du Code Owner sur le HEAD exact (ADR-0025) est désormais acquise (cf. « Preuve d'acceptation », plus haut) — **mais ceci n'est qu'une seule des conditions requises**, jamais une autorisation opérationnelle à elle seule ; (c) un déploiement en production reste, à ce jour, non séparément autorisé. Tant qu'une seule de ces trois conditions n'est pas levée — et (a) et (c) ne le sont pas —, aucune ingestion réelle ni aucune activation de production n'a lieu.
 - `ssrf_guard.py` redevient utilisable de façon fiable sur des sources HTTPS compressées (majorité du trafic web réel) — bénéfice indépendant de l'activation ou non du worker.
 - La dette explicitement non couverte par ce lot reste ouverte : LOT41A (autorisation de scope) et LOT42 (attestations quality→gate→review) restent à définir et implémenter intégralement ; ce lot ne les substitue pas.
 
