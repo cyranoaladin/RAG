@@ -128,6 +128,45 @@ class TestDiscoverCandidateCore:
         )
         assert candidate.domain == "eduscol.education.fr"
 
+    def test_declared_domain_with_mixed_case_and_trailing_dot_is_normalized(self) -> None:
+        """Revue incrémentale PR#90 (Cubic P2) : avant ce correctif, seul
+        l'hôte dérivé de l'URL (``_hostname_of``) était normalisé —
+        ``domain`` (fourni par l'appelant) était comparé tel quel. Un
+        appelant déclarant ``domain="EDUSCOL.education.fr."`` alors que
+        ``source_url``/``canonical_url`` pointent vers l'hôte équivalent en
+        minuscules aurait été rejeté à tort (``source_host != domain``,
+        chaîne normalisée vs chaîne brute)."""
+        candidate = discover_candidate_core(
+            search_plan=_search_plan(allowed_domains=["eduscol.education.fr"]),
+            resource_id=uuid4(),
+            candidate_id=uuid4(),
+            discovered_at=datetime(2026, 8, 4, tzinfo=UTC),
+            source_url="https://eduscol.education.fr/nsi/algo",
+            canonical_url="https://eduscol.education.fr/nsi/algo",
+            domain="EDUSCOL.education.fr.",
+            proposed_type_doc="cours",
+        )
+        assert candidate.domain == "eduscol.education.fr"
+
+    def test_allowed_domains_entry_with_mixed_case_still_matches(self) -> None:
+        """Revue incrémentale PR#90 (Cubic P2) : une entrée
+        ``allowed_domains`` saisie avec une casse différente (ex. par un
+        opérateur éditant un profil YAML à la main) ne doit jamais rejeter
+        à tort un hôte légitimement autorisé — les trois sources (domaine
+        déclaré, entrées d'allowlist, hôtes dérivés d'URL) doivent être
+        normalisées de façon identique avant toute comparaison."""
+        candidate = discover_candidate_core(
+            search_plan=_search_plan(allowed_domains=["Eduscol.Education.FR"]),
+            resource_id=uuid4(),
+            candidate_id=uuid4(),
+            discovered_at=datetime(2026, 8, 4, tzinfo=UTC),
+            source_url="https://eduscol.education.fr/nsi/algo",
+            canonical_url="https://eduscol.education.fr/nsi/algo",
+            domain="eduscol.education.fr",
+            proposed_type_doc="cours",
+        )
+        assert candidate.domain == "eduscol.education.fr"
+
     def test_dedup_key_is_deterministic_for_same_canonical_url(self) -> None:
         kwargs = dict(
             search_plan=_search_plan(),

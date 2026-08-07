@@ -30,11 +30,12 @@ from .dependencies import (
 )
 from .transitions import TransitionResult, apply_resource_transition
 
-#: Codes HTTP jamais transitoires — une nouvelle tentative identique
-#: échouerait de la même façon (ressource absente, accès refusé,
-#: redirection interdite déjà résolue par ssrf_guard, etc.). Tout le reste
-#: (429, 5xx) est traité comme potentiellement transitoire.
-_NON_RETRYABLE_STATUS_CODES = frozenset({400, 401, 403, 404, 405, 410, 451})
+#: Seule exception 4xx traitée comme transitoire — "Too Many Requests" :
+#: une nouvelle tentative après le délai de backoff a une chance
+#: raisonnable de réussir, contrairement au reste des 4xx (erreur définitive
+#: côté requête : ressource absente, accès refusé, requête malformée —
+#: identique à coup sûr en cas de nouvelle tentative).
+_RETRYABLE_4XX_STATUS_CODES = frozenset({429})
 
 
 class FetchHTTPError(RuntimeError):
@@ -46,17 +47,33 @@ class FetchHTTPError(RuntimeError):
 
     ``retryable`` distingue une erreur probablement transitoire (429, 5xx —
     une nouvelle tentative a une chance raisonnable de réussir) d'une
-    erreur définitive (4xx hors 429 — même contenu, même échec à coup
-    sûr) ; cette classification est portée par l'exception pour un futur
-    appelant qui voudrait l'exploiter, sans elle-même modifier ici le
+    erreur définitive (tout le reste des 4xx — même contenu, même échec à
+    coup sûr) ; cette classification est portée par l'exception pour un
+    futur appelant qui voudrait l'exploiter, sans elle-même modifier ici le
     comportement de retry/backoff déjà existant de
     ``ingestion_worker.runner`` (qui reste, pour cette passe, uniforme
-    quel que soit le type d'échec — cf. rapport de lot)."""
+    quel que soit le type d'échec — cf. rapport de lot).
+
+    Remédiation revue PR#90 (Cubic P2, revue incrémentale) : la version
+    précédente énumérait les codes 4xx *non*-réessayables
+    (``{400, 401, 403, 404, 405, 410, 451}``) — toute valeur 4xx absente de
+    cette liste (402, 406, 408, 409, 411-428, 431, etc.) était alors
+    silencieusement classée réessayable par défaut, à l'exact inverse de la
+    politique voulue ("tous les 4xx sauf 429 sont définitifs, sauf
+    justification explicite"). La classification dérive désormais
+    directement de la plage HTTP (``4xx`` vs ``5xx``) plutôt que d'une
+    énumération qui doit être tenue à jour manuellement à chaque nouveau
+    code HTTP — seul ``429`` est explicitement excepté."""
 
     def __init__(self, *, status_code: int, url: str) -> None:
         self.status_code = status_code
         self.url = url
-        self.retryable = status_code not in _NON_RETRYABLE_STATUS_CODES
+        if 400 <= status_code < 500:
+            self.retryable = status_code in _RETRYABLE_4XX_STATUS_CODES
+        else:
+            # 5xx (ou toute valeur hors 4xx que le serveur aurait renvoyée) :
+            # traité comme potentiellement transitoire, comportement inchangé.
+            self.retryable = True
         super().__init__(
             f"fetch failed with HTTP {status_code} for {url!r} "
             f"({'retryable' if self.retryable else 'non-retryable'})"
