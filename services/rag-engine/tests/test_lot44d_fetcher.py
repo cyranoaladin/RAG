@@ -275,6 +275,27 @@ class TestRunFetcherRejectsHTTPErrors:
             (500, True),
             (502, True),
             (503, True),
+            # Revue incrémentale PR#90 (Cubic P2) : ces codes 4xx étaient
+            # absents de l'ancienne énumération _NON_RETRYABLE_STATUS_CODES
+            # et donc classés (à tort) réessayables par défaut — la
+            # politique voulue est "tous les 4xx sauf 429 sont définitifs".
+            (400, False),
+            (402, False),
+            (405, False),
+            (406, False),
+            (408, False),
+            (409, False),
+            (410, False),
+            (412, False),
+            (413, False),
+            (415, False),
+            (418, False),
+            (422, False),
+            (423, False),
+            (426, False),
+            (428, False),
+            (431, False),
+            (451, False),
         ],
     )
     def test_error_status_is_rejected_before_any_transition_or_store(

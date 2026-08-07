@@ -32,6 +32,24 @@ class DomainNotAllowedError(ValueError):
     acceptation silencieuse hors périmètre du plan."""
 
 
+def _normalize_hostname(raw: str) -> str:
+    """Normalisation canonique d'un nom d'hôte — minuscules, sans point
+    final. Remédiation revue PR#90 (Cubic P2, revue incrémentale) : cette
+    normalisation doit s'appliquer de façon **identique** aux trois
+    sources de vérité comparées entre elles (``domain`` déclaré par
+    l'appelant, entrées de ``search_plan.allowed_domains``, hôtes dérivés
+    de ``source_url``/``canonical_url`` via ``_hostname_of``) — avant ce
+    correctif, seul ``_hostname_of`` (donc les hôtes dérivés d'URL) était
+    normalisé ; ``domain`` et les entrées de ``allowed_domains`` étaient
+    comparés tels quels, casse et point final compris. Un profil déclarant
+    ``allowed_domains: ["Eduscol.education.fr"]`` (majuscule) aurait alors
+    rejeté à tort un ``canonical_host`` légitimement identique mais
+    normalisé en minuscules par ``_hostname_of`` — un faux refus, jamais
+    un contournement de sécurité, mais un défaut opérationnel discret et
+    dépendant de la façon dont un opérateur a saisi le domaine."""
+    return raw.rstrip(".").lower()
+
+
 def _hostname_of(url: str) -> str:
     """Hôte canonique d'une URL — jamais une chaîne fournie par l'appelant.
 
@@ -48,7 +66,7 @@ def _hostname_of(url: str) -> str:
     hostname = urlparse(url).hostname
     if not hostname:
         raise DomainNotAllowedError(f"cannot derive a hostname from url {url!r}")
-    return hostname.rstrip(".").lower()
+    return _normalize_hostname(hostname)
 
 
 def discover_candidate_core(
@@ -85,19 +103,28 @@ def discover_candidate_core(
     """
     source_host = _hostname_of(source_url)
     canonical_host = _hostname_of(canonical_url)
+    # Remédiation revue PR#90 (Cubic P2, revue incrémentale) : normalise
+    # `domain` (déclaré par l'appelant) et `allowed_domains` (config du
+    # profil) exactement comme `_hostname_of` normalise les hôtes dérivés
+    # d'URL — les trois sources doivent être comparées sur un pied
+    # d'égalité, jamais l'une normalisée et les deux autres telles quelles.
+    normalized_domain = _normalize_hostname(domain)
+    normalized_allowed_domains = {
+        _normalize_hostname(allowed) for allowed in search_plan.allowed_domains
+    }
 
-    if source_host != domain:
+    if source_host != normalized_domain:
         raise DomainNotAllowedError(
             f"declared domain {domain!r} does not match the source_url host "
             f"{source_host!r} — refusing to trust a caller-supplied domain "
             "that disagrees with the actual URL"
         )
-    if domain not in search_plan.allowed_domains:
+    if normalized_domain not in normalized_allowed_domains:
         raise DomainNotAllowedError(
             f"domain {domain!r} is not in search_plan.allowed_domains "
             f"{sorted(search_plan.allowed_domains)!r}"
         )
-    if canonical_host not in search_plan.allowed_domains:
+    if canonical_host not in normalized_allowed_domains:
         raise DomainNotAllowedError(
             f"canonical_url host {canonical_host!r} is not in "
             f"search_plan.allowed_domains {sorted(search_plan.allowed_domains)!r}"
@@ -113,7 +140,7 @@ def discover_candidate_core(
         discovered_at=discovered_at,
         source_url=source_url,
         canonical_url=canonical_url,
-        domain=domain,
+        domain=normalized_domain,
         proposed_type_doc=proposed_type_doc,
         title=title,
         publisher=publisher,
