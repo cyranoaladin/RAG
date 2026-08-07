@@ -63,21 +63,37 @@ class JobLeaseConflictError(RuntimeError):
     complété par un autre appelant) — jamais une complétion silencieuse."""
 
 
-def find_active_job_by_dedup_key(conn: psycopg.Connection, *, dedup_key: str) -> UUID | None:
+def find_active_job_by_dedup_key(
+    conn: psycopg.Connection, *, collection: str, dedup_key: str
+) -> UUID | None:
     """Recherche un job non terminal (``queued``/``running``) portant ce
-    ``dedup_key`` dans son ``payload`` — primitive d'idempotence LOT44f
-    utilisée par ``find_or_create_job`` (ci-dessous) pour éviter de créer un
-    doublon lors d'une nouvelle tentative applicative (retry opérateur,
-    double invocation, etc.). Un job déjà terminal (``succeeded``/
-    ``failed``/``dead_letter``/``cancelled``) n'est jamais considéré comme
-    un doublon actif : une tentative après complétion doit pouvoir créer un
-    nouveau job — cette fonction ne fait donc jamais barrage à une
-    ré-ingestion volontaire, seulement à un doublon concurrent du même
-    envoi.
+    ``dedup_key`` dans son ``payload``, **au sein de la même collection**
+    — primitive d'idempotence LOT44f utilisée par ``find_or_create_job``
+    (ci-dessous) pour éviter de créer un doublon lors d'une nouvelle
+    tentative applicative (retry opérateur, double invocation, etc.). Un
+    job déjà terminal (``succeeded``/``failed``/``dead_letter``/
+    ``cancelled``) n'est jamais considéré comme un doublon actif : une
+    tentative après complétion doit pouvoir créer un nouveau job — cette
+    fonction ne fait donc jamais barrage à une ré-ingestion volontaire,
+    seulement à un doublon concurrent du même envoi.
 
-    Requête sur ``payload->>'dedup_key'`` (pas d'index dédié — table à
-    faible volume à ce stade, cf. ADR-0029 ; à revisiter si le volume de
-    jobs actifs simultanés le justifie un jour).
+    Remédiation revue PR#90 (Cubic P1, revue incrémentale) : ``dedup_key``
+    seul (``sha256(canonical_url)``, cf. ``ingestion_agents/scout.py``) ne
+    contient jamais la collection — sans le filtre ``collection`` ajouté
+    ici, la même URL soumise pour deux collections distinctes (ex. la même
+    page eduscol pertinente à la fois pour ``nsi_terminale`` et
+    ``maths_terminale``) partagerait le même ``dedup_key`` et la seconde
+    soumission serait silencieusement traitée comme un doublon de la
+    première, jamais créée. Même motif que la contrainte
+    ``resources_collection_dedup_key_unique`` (``UNIQUE(collection,
+    dedup_key)``, migration 001) côté ``resources`` — l'identité
+    d'idempotence complète est toujours ``(collection, dedup_key)``,
+    jamais ``dedup_key`` seul, à quelque niveau que ce soit.
+
+    Requête sur ``payload->>'dedup_key'`` jointe à ``ingestion_runs`` pour
+    filtrer par collection (pas d'index dédié — table à faible volume à ce
+    stade, cf. ADR-0029 ; à revisiter si le volume de jobs actifs
+    simultanés le justifie un jour).
 
     N'est **pas**, à elle seule, atomique avec une création ultérieure —
     un appelant qui enchaîne cette fonction puis ``create_job`` séparément
@@ -88,12 +104,14 @@ def find_active_job_by_dedup_key(conn: psycopg.Connection, *, dedup_key: str) ->
     with conn.cursor() as cur:
         cur.execute(
             """
-            SELECT job_id FROM ingestion_control.jobs
-            WHERE payload->>'dedup_key' = %s AND status IN ('queued', 'running')
-            ORDER BY created_at DESC
+            SELECT j.job_id FROM ingestion_control.jobs j
+            JOIN ingestion_control.ingestion_runs r ON r.run_id = j.run_id
+            WHERE j.payload->>'dedup_key' = %s AND j.status IN ('queued', 'running')
+              AND r.collection = %s
+            ORDER BY j.created_at DESC
             LIMIT 1
             """,
-            (dedup_key,),
+            (dedup_key, collection),
         )
         row = cur.fetchone()
     return row[0] if row is not None else None
@@ -103,20 +121,31 @@ def find_or_create_job(
     conn: psycopg.Connection,
     *,
     run_id: UUID,
+    collection: str,
     job_type: str,
     dedup_key: str,
     resource_id: UUID | None = None,
     payload: dict[str, object] | None = None,
 ) -> tuple[UUID, bool]:
-    """Trouve un job actif portant ``dedup_key``, ou en crée un nouveau —
-    atomique sous concurrence (remédiation revue PR#90) : deux soumissions
-    concurrentes du même ``dedup_key`` (deux processus, deux connexions
-    distinctes) ne créent jamais deux jobs actifs.
+    """Trouve un job actif portant ``dedup_key`` **dans cette collection**,
+    ou en crée un nouveau — atomique sous concurrence (remédiation revue
+    PR#90) : deux soumissions concurrentes du même ``(collection,
+    dedup_key)`` (deux processus, deux connexions distinctes) ne créent
+    jamais deux jobs actifs.
+
+    Remédiation revue PR#90 (Cubic P1, revue incrémentale) : ``collection``
+    est désormais un paramètre obligatoire, jamais optionnel — l'identité
+    d'idempotence complète est ``(collection, dedup_key)``, jamais
+    ``dedup_key`` seul (cf. docstring de ``find_active_job_by_dedup_key``).
+    Le verrou advisory est lui-même dérivé de ``(collection, dedup_key)``
+    ensemble, pas de ``dedup_key`` seul — deux soumissions pour la même URL
+    mais des collections différentes ne se bloquent jamais inutilement
+    l'une l'autre.
 
     Garantie obtenue par ``pg_advisory_xact_lock`` (verrou transactionnel,
     portée globale à l'instance PostgreSQL, jamais seulement local à cette
-    connexion) pris sur un hash de ``dedup_key`` **avant** la recherche —
-    une seconde connexion qui tente le même ``dedup_key`` pendant que la
+    connexion) pris sur un hash de ``(collection, dedup_key)`` **avant** la
+    recherche — une seconde connexion qui tente la même clé pendant que la
     première est encore en transaction attend simplement son tour (jamais
     d'échec, jamais un ``SKIP LOCKED`` qui masquerait le doublon) ; le
     verrou est relâché automatiquement à la fin de la transaction de
@@ -128,12 +157,13 @@ def find_or_create_job(
     reçoit systématiquement ``dedup_key`` (jamais un payload incohérent
     avec la clé recherchée)."""
     lock_key = int.from_bytes(
-        hashlib.sha256(dedup_key.encode("utf-8")).digest()[:8], "big", signed=True
+        hashlib.sha256(f"{collection}\x00{dedup_key}".encode()).digest()[:8],
+        "big", signed=True,
     )
     with conn.cursor() as cur:
         cur.execute("SELECT pg_advisory_xact_lock(%s)", (lock_key,))
 
-    existing = find_active_job_by_dedup_key(conn, dedup_key=dedup_key)
+    existing = find_active_job_by_dedup_key(conn, collection=collection, dedup_key=dedup_key)
     if existing is not None:
         return existing, False
 
@@ -202,7 +232,7 @@ def set_job_resource_id(
             """
             UPDATE ingestion_control.jobs
             SET resource_id = %s, updated_at = now()
-            WHERE job_id = %s AND lease_token = %s AND lease_expires_at > now()
+            WHERE job_id = %s AND lease_token = %s AND lease_expires_at > clock_timestamp()
               AND (resource_id IS NULL OR resource_id = %s)
             RETURNING job_id
             """,
@@ -328,11 +358,23 @@ def complete_job(
     silencieuse d'un job qu'on ne détient plus.
 
     Remédiation revue PR#90 : la garde exige désormais aussi
-    ``lease_expires_at > now()`` — un ``lease_token`` qui correspond encore
-    ne suffit plus si le bail a expiré entre-temps (ex. traitement plus lent
-    que ``lease_duration_s``, avant même que le reaper n'ait pu agir) :
-    sémantique de bail stricte, jamais une complétion tardive tolérée
-    seulement parce que personne d'autre n'a encore réclamé le job."""
+    ``lease_expires_at > now()`` — un ``lease_token`` qui
+    correspond encore ne suffit plus si le bail a expiré entre-temps (ex.
+    traitement plus lent que ``lease_duration_s``, avant même que le
+    reaper n'ait pu agir) : sémantique de bail stricte, jamais une
+    complétion tardive tolérée seulement parce que personne d'autre n'a
+    encore réclamé le job.
+
+    ``clock_timestamp()``, pas ``now()`` (revue incrémentale PR#90,
+    Cubic P1) : ``now()`` est figé à l'heure de **début** de la
+    transaction PostgreSQL, pas l'heure réelle de cette comparaison — un
+    appelant dont la transaction a démarré avant l'expiration du bail
+    (ex. ouverte pendant tout un appel HTTP lent) verrait encore
+    ``now() > lease_expires_at`` comme faux même après l'expiration
+    réelle, contournant silencieusement la garde stricte que ce correctif
+    prétend appliquer. ``clock_timestamp()`` renvoie l'heure murale
+    réelle au moment de l'évaluation, jamais figée par le début de
+    transaction."""
     with conn.cursor() as cur:
         cur.execute(
             """
@@ -340,7 +382,7 @@ def complete_job(
             SET status = %s, claimed_by = NULL, lease_token = NULL,
                 lease_expires_at = NULL, updated_at = now()
             WHERE job_id = %s AND lease_token = %s AND status = 'running'
-              AND lease_expires_at > now()
+              AND lease_expires_at > clock_timestamp()
             RETURNING job_id
             """,
             (status, job_id, lease_token),
@@ -382,8 +424,10 @@ def record_job_retry(
     régresser le job d'un autre détenteur — échec explicite
     (``JobLeaseConflictError``), jamais un écrasement silencieux du
     travail en cours d'un autre worker. Remédiation revue PR#90 : la garde
-    exige aussi ``lease_expires_at > now()`` — mêmes raisons que
-    ``complete_job``, sémantique de bail stricte."""
+    exige aussi ``lease_expires_at > now()`` — mêmes raisons
+    que ``complete_job`` (sémantique de bail stricte, ``clock_timestamp()``
+    plutôt que ``now()`` pour ne pas figer la comparaison à l'heure de
+    début de transaction)."""
     with conn.cursor() as cur:
         cur.execute(
             """
@@ -395,7 +439,7 @@ def record_job_retry(
                 lease_expires_at = NULL,
                 updated_at = now()
             WHERE job_id = %s AND lease_token = %s AND status = 'running'
-              AND lease_expires_at > now()
+              AND lease_expires_at > clock_timestamp()
             RETURNING attempt_count, max_attempts
             """,
             (error, job_id, lease_token),

@@ -95,21 +95,47 @@ CREATE INDEX IF NOT EXISTS idx_ingestion_control_jobs_lease_expiry
 -- ligne workflow_events existante, toutes à job_id NULL par construction
 -- LOT44b/44c/44d, n'est affectée par l'ajout de cette contrainte).
 --
--- Remédiation revue PR#90 (Cubic P2) : PostgreSQL ne supporte pas
--- ``ADD CONSTRAINT IF NOT EXISTS`` — sans cette garde explicite, rejouer
--- cette migration (registre absent/reconstruit, ou script rejoué à la
--- main pour un diagnostic) échouait sur une contrainte déjà présente,
--- contredisant la documentation "idempotent" du reste de ce dépôt.
+-- Remédiation revue PR#90 (Cubic P2, puis P1 en revue incrémentale) :
+-- PostgreSQL ne supporte pas ``ADD CONSTRAINT IF NOT EXISTS`` — sans cette
+-- garde explicite, rejouer cette migration (registre absent/reconstruit,
+-- ou script rejoué à la main pour un diagnostic) échouait sur une
+-- contrainte déjà présente, contredisant la documentation "idempotent" du
+-- reste de ce dépôt.
+--
+-- Un nom de contrainte PostgreSQL n'est unique **que par table**, jamais
+-- par schéma : la première version de cette garde ne filtrait que sur
+-- ``conname`` + ``connamespace``, donc une contrainte same-named sur une
+-- **autre** table de ce schéma (``jobs``, ``resources``, etc.) aurait fait
+-- passer ce garde-fou comme "déjà présent" et sauté silencieusement la
+-- création de la vraie FK sur ``workflow_events`` — le bootstrap aurait
+-- alors enregistré la migration comme appliquée avec succès alors que
+-- ``workflow_events.job_id`` resterait sans contrainte réelle, acceptant
+-- des valeurs invalides indéfiniment. ``conrelid`` scope désormais
+-- explicitement la recherche à ``ingestion_control.workflow_events``, et
+-- ``pg_get_constraintdef`` vérifie que la contrainte trouvée est bien
+-- exactement la FK attendue vers ``ingestion_control.jobs(job_id)`` —
+-- jamais une contrainte homonyme portant une définition différente.
 DO $nexus$
+DECLARE
+    existing_def text;
+    expected_def text := 'FOREIGN KEY (job_id) REFERENCES ingestion_control.jobs(job_id)';
 BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint
-        WHERE conname = 'workflow_events_job_id_fkey'
-          AND connamespace = 'ingestion_control'::regnamespace
-    ) THEN
+    SELECT pg_get_constraintdef(oid) INTO existing_def
+    FROM pg_constraint
+    WHERE conname = 'workflow_events_job_id_fkey'
+      AND conrelid = 'ingestion_control.workflow_events'::regclass
+      AND contype = 'f';
+
+    IF existing_def IS NULL THEN
         ALTER TABLE ingestion_control.workflow_events
             ADD CONSTRAINT workflow_events_job_id_fkey
             FOREIGN KEY (job_id) REFERENCES ingestion_control.jobs (job_id);
+    ELSIF existing_def IS DISTINCT FROM expected_def THEN
+        RAISE EXCEPTION 'MIGRATION_004_FK_MISMATCH: workflow_events_job_id_fkey '
+            'exists on ingestion_control.workflow_events but its definition '
+            '(%) does not match the expected FK (%) — refusing to silently '
+            'accept a differently-defined constraint of the same name',
+            existing_def, expected_def;
     END IF;
 END
 $nexus$;

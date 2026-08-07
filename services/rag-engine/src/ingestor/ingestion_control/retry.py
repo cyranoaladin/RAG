@@ -84,17 +84,26 @@ def record_retry(
       que ``next_attempt_at`` est atteint.
 
     Remédiation revue PR#90 : ``lease_token`` est désormais obligatoire et
-    vérifié, avec ``lease_expires_at > now()`` (même sémantique stricte que
-    ``ingestion_control.jobs.record_job_retry``) — avant ce correctif, cette
-    primitive acceptait n'importe quel ``resource_id`` sans vérifier aucune
-    possession de bail, permettant à un appelant périmé d'effacer le bail
-    d'un détenteur plus récent et de faire retraiter la même ressource par
-    deux workers concurrents. Lève ``ResourceLeaseConflictError`` (jamais
-    silencieux) si le bail ne correspond plus ou si la ressource n'existe
-    pas — les deux cas sont indiscernables depuis l'extérieur de cette
-    fonction par construction (aucun appelant réel n'existe encore dans ce
-    dépôt qui ait besoin de les distinguer ; cf. absence totale d'appelant
-    avant ce correctif).
+    vérifié, avec ``lease_expires_at > clock_timestamp()`` (même sémantique
+    stricte que ``ingestion_control.jobs.record_job_retry``) — avant ce
+    correctif, cette primitive acceptait n'importe quel ``resource_id``
+    sans vérifier aucune possession de bail, permettant à un appelant
+    périmé d'effacer le bail d'un détenteur plus récent et de faire
+    retraiter la même ressource par deux workers concurrents. Lève
+    ``ResourceLeaseConflictError`` (jamais silencieux) si le bail ne
+    correspond plus ou si la ressource n'existe pas — les deux cas sont
+    indiscernables depuis l'extérieur de cette fonction par construction
+    (aucun appelant réel n'existe encore dans ce dépôt qui ait besoin de
+    les distinguer ; cf. absence totale d'appelant avant ce correctif).
+
+    ``clock_timestamp()``, pas ``now()`` (revue incrémentale PR#90, Cubic
+    P2) : ``now()`` reste figé à l'heure de début de la transaction
+    PostgreSQL de l'appelant — si cette transaction est restée ouverte
+    depuis avant l'expiration réelle du bail (ex. le temps d'un appel
+    réseau lent), ``now() > lease_expires_at`` resterait faux même après
+    l'expiration réelle, défaisant silencieusement la garde stricte
+    promise. ``clock_timestamp()`` renvoie l'heure murale réelle au
+    moment de l'évaluation.
 
     Ne committe pas la transaction : responsabilité de l'appelant.
     """
@@ -108,7 +117,8 @@ def record_retry(
                 lease_token = NULL,
                 lease_expires_at = NULL,
                 updated_at = now()
-            WHERE resource_id = %s AND lease_token = %s AND lease_expires_at > now()
+            WHERE resource_id = %s AND lease_token = %s
+              AND lease_expires_at > clock_timestamp()
             RETURNING attempt_count, max_attempts
             """,
             (error, resource_id, lease_token),
