@@ -138,6 +138,41 @@ class TestRoleCollisionRejected:
             (count,) = cur.fetchone()
         assert count == 0, "no role should have been created when validation fails first"
 
+    def test_migrator_role_equal_to_pguser_is_rejected_before_any_db_write(
+        self, pg_container: dict[str, str]
+    ) -> None:
+        """Revue incrémentale PR#90 (Cubic P1) : PGUSER (connexion
+        administrative externe, ``raguser`` ici) ne doit jamais coïncider
+        avec le rôle de migration lui-même — sinon l'ALTER ROLE ...
+        NOSUPERUSER ci-dessous retirerait ses propres privilèges au compte
+        utilisé pour se connecter, en plein script."""
+        result = _run_provision_script(
+            pg_container,
+            INGESTION_CONTROL_MIGRATOR_ROLE=PG_SUPERUSER,
+        )
+        assert result.returncode != 0
+        assert "must not equal PGUSER" in result.stderr
+
+        with _superuser_conn(pg_container) as conn, conn.cursor() as cur:
+            cur.execute("SELECT rolsuper FROM pg_roles WHERE rolname = %s", (PG_SUPERUSER,))
+            (is_super,) = cur.fetchone()
+        assert is_super is True, "PGUSER's own role must never be altered by a rejected run"
+
+    def test_app_role_equal_to_pguser_is_rejected_before_any_db_write(
+        self, pg_container: dict[str, str]
+    ) -> None:
+        result = _run_provision_script(
+            pg_container,
+            INGESTION_CONTROL_APP_ROLE=PG_SUPERUSER,
+        )
+        assert result.returncode != 0
+        assert "must not equal PGUSER" in result.stderr
+
+        with _superuser_conn(pg_container) as conn, conn.cursor() as cur:
+            cur.execute("SELECT rolsuper FROM pg_roles WHERE rolname = %s", (PG_SUPERUSER,))
+            (is_super,) = cur.fetchone()
+        assert is_super is True, "PGUSER's own role must never be altered by a rejected run"
+
 
 class TestPreExistingMisconfiguredRoles:
     def test_nologin_migrator_role_is_reset_to_login(self, pg_container: dict[str, str]) -> None:
@@ -183,6 +218,45 @@ class TestPreExistingMisconfiguredRoles:
         assert (createdb, createrole, super_, replication, bypassrls) == (False,) * 5
         assert can_login is True
 
+    def test_preexisting_role_membership_is_revoked_and_set_role_refused(
+        self, pg_container: dict[str, str]
+    ) -> None:
+        """Revue incrémentale PR#90 (Cubic P1) : un rôle app préexistant
+        rendu membre d'un rôle privilégié tiers (ex. dérive manuelle) ne
+        doit conserver aucune voie d'escalade via `SET ROLE` après le
+        provisioning — la seule appartenance suffirait à contourner
+        NOINHERIT, donc elle doit être révoquée, pas seulement neutralisée
+        côté héritage."""
+        with _superuser_conn(pg_container) as conn, conn.cursor() as cur:
+            cur.execute("CREATE ROLE privileged_third_party_role NOLOGIN SUPERUSER")
+            cur.execute(
+                "CREATE ROLE ingestion_control_app LOGIN PASSWORD 'whatever-old-password'"
+            )
+            cur.execute("GRANT privileged_third_party_role TO ingestion_control_app")
+
+        result = _run_provision_script(pg_container)
+        assert result.returncode == 0, result.stderr
+
+        with _superuser_conn(pg_container) as conn, conn.cursor() as cur:
+            cur.execute(
+                "SELECT count(*) FROM pg_auth_members m "
+                "JOIN pg_roles g ON g.oid = m.roleid "
+                "WHERE m.member = (SELECT oid FROM pg_roles WHERE rolname = 'ingestion_control_app') "
+                "AND g.rolname = 'privileged_third_party_role'"
+            )
+            (membership_count,) = cur.fetchone()
+        assert membership_count == 0, "membership must be revoked, not merely left NOINHERIT"
+
+        # Preuve directe par comportement, pas seulement par catalogue :
+        # une connexion réelle en tant qu'ingestion_control_app ne peut
+        # plus SET ROLE vers le rôle tiers.
+        with psycopg.connect(
+            host=pg_container["host"], port=pg_container["port"], dbname=pg_container["dbname"],
+            user="ingestion_control_app", password="app-test-password-value", autocommit=True,
+        ) as app_conn, app_conn.cursor() as cur:
+            with pytest.raises(psycopg.errors.InsufficientPrivilege):
+                cur.execute("SET ROLE privileged_third_party_role")
+
     def test_password_visible_to_a_process_listing_is_never_the_real_secret(
         self, pg_container: dict[str, str]
     ) -> None:
@@ -212,5 +286,22 @@ class TestPreExistingMisconfiguredRoles:
 
         assert result.returncode == 0, result.stderr
         combined = "\n".join(seen_cmdlines)
+        # Remédiation revue PR#90 (Cubic P3, revue incrémentale) : sans
+        # cette assertion, le test pouvait passer de façon vacueuse — si le
+        # thread d'observation n'avait, par pur hasard de minutage, jamais
+        # capturé le moindre processus psql en cours d'exécution (script
+        # trop rapide, ordonnancement défavorable), l'absence des mots de
+        # passe dans des instantanés `ps` n'ayant JAMAIS vu psql ne prouve
+        # rien du tout — un faux sentiment de sécurité. Exige explicitement
+        # qu'au moins un instantané ait bien capturé le processus psql réel
+        # lancé par ce script (identifié par son flag caractéristique
+        # ``--single-transaction``, propre à ce script, pas seulement la
+        # chaîne générique "psql" qui pourrait apparaître dans un tout
+        # autre contexte du système sous test).
+        assert "psql" in combined and "--single-transaction" in combined, (
+            "the ps-watcher never actually observed the provisioning script's psql "
+            "process — this test would pass vacuously without ever having exercised "
+            "the password-visibility guarantee it claims to verify"
+        )
         assert "migrator-test-password-value" not in combined
         assert "app-test-password-value" not in combined
