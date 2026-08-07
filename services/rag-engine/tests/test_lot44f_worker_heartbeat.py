@@ -122,11 +122,26 @@ def _run_worker(
     # réelle à chaque itération — hors périmètre de ce test, qui vérifie
     # uniquement le mécanisme de heartbeat sur une fausse connexion.
     monkeypatch.setattr(worker_cli, "_reap_expired_leases", lambda _conn: None)
+    # Isolation attestation (item I) : _FakeConnection ne porte aucun
+    # curseur PostgreSQL réel — hors périmètre de ce test, qui vérifie
+    # uniquement le mécanisme de heartbeat, pas l'attestation de rôle
+    # (déjà couverte par test_lot44f_worker_attestation.py).
+    monkeypatch.setattr(
+        worker_cli,
+        "attest_runtime_role",
+        lambda _conn, expected_role: worker_cli.RoleAttestation(
+            current_user=expected_role, is_superuser=False, can_create_db=False,
+            can_create_role=False, can_replicate=False, can_bypass_rls=False,
+            owns_ingestion_control_schema=False, has_excessive_workflow_events_grant=False,
+            member_of_other_roles=False,
+        ),
+    )
     return worker_cli.main(
         [
             "--profiles-dir", str(profiles_dir),
             "--manifest-path", str(manifest_path),
             "--artifact-store-dir", str(artifact_dir),
+            "--expected-role", "ingestion_control_app_test",
             "--owner", "heartbeat-test",
             "--once",
             *extra_args,

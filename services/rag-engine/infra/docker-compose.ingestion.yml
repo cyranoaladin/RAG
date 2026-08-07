@@ -96,6 +96,10 @@ services:
       PG_INGESTION_CONTROL_DSN: "${PG_INGESTION_CONTROL_DSN:?PG_INGESTION_CONTROL_DSN requis (role ingestion_control_app)}"
       INGESTION_WORKER_OWNER: ${INGESTION_WORKER_OWNER:-ingestion-worker}
       INGESTION_WORKER_POLL_INTERVAL_S: ${INGESTION_WORKER_POLL_INTERVAL_S:-5}
+      # Remédiation revue PR#90 (item I) : même variable que celle passée au
+      # migrateur ci-dessus — le worker attend de se retrouver connecté sous
+      # exactement ce rôle, jamais dérivé du DSN lui-même (cf. attestation.py).
+      INGESTION_CONTROL_APP_ROLE: ${INGESTION_CONTROL_APP_ROLE:-ingestion_control_app}
       XDG_CACHE_HOME: /tmp
     volumes:
       # Profils/manifest gouvernés (LOT44c) : lecture seule, jamais créés
@@ -115,6 +119,7 @@ services:
       - --owner=${INGESTION_WORKER_OWNER:-ingestion-worker}
       - --poll-interval-s=${INGESTION_WORKER_POLL_INTERVAL_S:-5}
       - --heartbeat-file=/tmp/ingestion-worker.heartbeat
+      - --expected-role=${INGESTION_CONTROL_APP_ROLE:-ingestion_control_app}
     networks: [rag_net]
     # Aucun bloc `ports:` — ce service n'est et ne doit jamais être exposé,
     # ni publiquement ni même en loopback (ADR-0024, ADR-0031). Seul un
