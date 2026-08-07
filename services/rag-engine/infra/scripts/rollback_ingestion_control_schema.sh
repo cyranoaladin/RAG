@@ -21,15 +21,17 @@
 #      mise à jour de schema_migrations) s'exécute dans UNE seule
 #      transaction psql (`--single-transaction -v ON_ERROR_STOP=1`) —
 #      jamais fichier par fichier.
-#   3. Ordre de verrouillage canonique : les six tables du schéma sont
-#      verrouillées `IN ACCESS EXCLUSIVE MODE`, toutes ensemble, en tête de
-#      la transaction unique, dans un ordre alphabétique fixe (artifacts,
-#      ingestion_runs, jobs, resource_candidates, resources,
-#      workflow_events) — indépendamment du sous-ensemble de tables
-#      réellement affecté par la plage de versions annulée. Un ordre
-#      toujours identique élimine tout risque d'interblocage avec un autre
-#      processus (ex. le worker) qui verrouillerait plusieurs de ces mêmes
-#      tables dans un ordre différent.
+#   3. Ordre de verrouillage canonique : les huit tables du schéma (six
+#      LOT44b/e + scope_authorizations/publication_attestations, LOT41A/
+#      LOT42, migrations 007/008) sont verrouillées `IN ACCESS EXCLUSIVE
+#      MODE`, toutes ensemble, en tête de la transaction unique, dans un
+#      ordre alphabétique fixe (artifacts, ingestion_runs, jobs,
+#      publication_attestations, resource_candidates, resources,
+#      scope_authorizations, workflow_events) — indépendamment du
+#      sous-ensemble de tables réellement affecté par la plage de versions
+#      annulée. Un ordre toujours identique élimine tout risque
+#      d'interblocage avec un autre processus (ex. le worker) qui
+#      verrouillerait plusieurs de ces mêmes tables dans un ordre différent.
 #   4. Garde de données : chaque fichier `NNN_*.down.sql` porte déjà sa
 #      propre vérification de vacuité (`RAISE EXCEPTION` si des données
 #      sont présentes) — désormais réellement protégée par le verrou
@@ -68,7 +70,7 @@ fi
 
 # Ordre canonique de verrouillage — alphabétique, fixe, jamais dérivé de
 # l'ordre des migrations ni de la plage annulée (cf. point 3 ci-dessus).
-readonly CANONICAL_LOCK_ORDER="ingestion_control.artifacts, ingestion_control.ingestion_runs, ingestion_control.jobs, ingestion_control.resource_candidates, ingestion_control.resources, ingestion_control.workflow_events"
+readonly CANONICAL_LOCK_ORDER="ingestion_control.artifacts, ingestion_control.ingestion_runs, ingestion_control.jobs, ingestion_control.publication_attestations, ingestion_control.resource_candidates, ingestion_control.resources, ingestion_control.scope_authorizations, ingestion_control.workflow_events"
 
 current_head="$(psql -X -q -A -t -v ON_ERROR_STOP=1 -c \
     "SELECT COALESCE(max(version), 0) FROM ingestion_control.schema_migrations;")"

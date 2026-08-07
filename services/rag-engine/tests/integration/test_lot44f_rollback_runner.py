@@ -193,7 +193,13 @@ class TestRollbackRunnerRange:
     def test_partial_rollback_via_runner_undoes_only_the_requested_range(
         self, pg_container: dict[str, str]
     ) -> None:
-        target = _HEAD - 2  # annule 006 et 005 seulement
+        # Cible fixe (jamais _HEAD - 2) : ce test vérifie le contenu précis
+        # des migrations 005/006 (colonne artifacts.payload, contrainte
+        # jobs_status_valid) — un ancrage relatif à _HEAD casserait
+        # silencieusement à chaque migration ajoutée au-dessus de 006 (LOT41A/
+        # LOT42, migrations 007/008), en annulant des tables sans rapport
+        # plutôt que 005/006 eux-mêmes.
+        target = 4  # annule 006 et 005 seulement, quel que soit _HEAD actuel
         result = _run_rollback(pg_container, target_version=target)
         assert result.returncode == 0, result.stderr
         assert f"SCHEMA_HEAD={target}" in result.stdout

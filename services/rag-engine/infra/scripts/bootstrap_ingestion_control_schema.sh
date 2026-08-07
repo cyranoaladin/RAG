@@ -194,7 +194,9 @@ BEGIN
        OR to_regclass('ingestion_control.resource_candidates') IS NULL
        OR to_regclass('ingestion_control.artifacts') IS NULL
        OR to_regclass('ingestion_control.workflow_events') IS NULL
-       OR to_regclass('ingestion_control.jobs') IS NULL THEN
+       OR to_regclass('ingestion_control.jobs') IS NULL
+       OR to_regclass('ingestion_control.scope_authorizations') IS NULL
+       OR to_regclass('ingestion_control.publication_attestations') IS NULL THEN
         RAISE EXCEPTION 'INGESTION_CONTROL_SCHEMA_INCOMPLETE';
     END IF;
 END

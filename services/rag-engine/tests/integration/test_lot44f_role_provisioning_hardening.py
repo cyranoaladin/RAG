@@ -106,6 +106,8 @@ def _run_provision_script(pg_container: dict[str, str], **extra_env: str) -> sub
         "PGDATABASE": pg_container["dbname"],
         "INGESTION_CONTROL_MIGRATOR_PASSWORD": "migrator-test-password-value",
         "INGESTION_CONTROL_APP_PASSWORD": "app-test-password-value",
+        "INGESTION_CONTROL_AUTHORITY_PASSWORD": "authority-test-password-value",
+        "INGESTION_CONTROL_ATTESTOR_PASSWORD": "attestor-test-password-value",
     })
     env.update(extra_env)
     return subprocess.run(

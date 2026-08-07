@@ -16,11 +16,23 @@ ce module ne fait qu'appeler la chaîne, sans logique de routage propre.
 
 Aucun profil par défaut, aucune sélection de "dernière version" : le
 ``profile_version`` doit être fourni explicitement dans le payload du job.
+
+LOT41A (ADR-0032) : avant toute exécution de la chaîne, le scope du job est
+revérifié en direct (``deps.verify_scope_authorization``, par défaut
+``scope_authority.verify_scope_authorization``) contre une autorisation
+GitHub humaine — un refus est journalisé (``SCOPE_AUTHORIZATION_DENIED``)
+et le job échoue explicitement, jamais traité en supposant une
+autorisation implicite. Injectable via ``WorkerDeps`` (même motif que
+``safe_fetch``/``validate_destination``) : la production utilise toujours
+la vérification live réelle ; seuls des tests qui ne portent pas sur
+LOT41A lui-même peuvent y substituer un stub, plutôt que de reconstruire
+une frontière GitHub complète pour un scénario qui n'en a pas besoin.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Protocol
 from uuid import UUID, uuid4
 
 import psycopg
@@ -58,6 +70,13 @@ try:
         persist_artifact,
         persist_resource_candidate,
     )
+    from ingestor.ingestion_control.scope_authority import (
+        ScopeAuthorizationDeniedError,
+        record_scope_authorization_denied,
+    )
+    from ingestor.ingestion_control.scope_authority import (
+        verify_scope_authorization as verify_scope_authorization_default,
+    )
     from ingestor.ingestion_profiles.registry import ProfileRegistry, select_profile
     from ingestor.ingestion_profiles.validation import validate_scope_against_profile
 except (ImportError, ValueError):
@@ -94,6 +113,13 @@ except (ImportError, ValueError):
         persist_artifact,
         persist_resource_candidate,
     )
+    from ingestion_control.scope_authority import (
+        ScopeAuthorizationDeniedError,
+        record_scope_authorization_denied,
+    )
+    from ingestion_control.scope_authority import (
+        verify_scope_authorization as verify_scope_authorization_default,
+    )
     from ingestion_profiles.registry import (
         ProfileRegistry,
         select_profile,
@@ -119,6 +145,14 @@ REQUIRED_PAYLOAD_KEYS = (
 )
 
 
+class ScopeAuthorizationVerifier(Protocol):
+    """Signature de ``scope_authority.verify_scope_authorization``."""
+
+    def __call__(
+        self, conn: psycopg.Connection, *, scope: ResourceScope
+    ) -> object: ...
+
+
 @dataclass(frozen=True)
 class WorkerDeps:
     """``profile_registry`` (remédiation revue PR#90) : le ``ProfileRegistry``
@@ -139,6 +173,7 @@ class WorkerDeps:
     max_bytes: int = 20_000_000
     validate_destination: DestinationValidator = default_validate_destination
     safe_fetch: SafeFetcher = default_safe_fetch
+    verify_scope_authorization: ScopeAuthorizationVerifier = verify_scope_authorization_default
 
 
 @dataclass(frozen=True)
@@ -196,6 +231,22 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
         raise MissingPayloadFieldError(f"job {claim.job_id} payload missing keys: {missing}")
 
     scope = ResourceScope.model_validate(payload["scope"])
+
+    # LOT41A (ADR-0032) : avant toute réclamation effective du job pour ce
+    # scope — jamais après avoir déjà commencé Scout/Fetcher. Une
+    # ScopeAuthorizationDeniedError est journalisée explicitement
+    # (SCOPE_AUTHORIZATION_DENIED, workflow_events) puis committée
+    # immédiatement (point de contrôle durable, avant que le rollback de
+    # l'appelant sur l'exception ne l'efface) avant de se propager — le
+    # worker ne poursuit jamais en supposant une autorisation implicite.
+    try:
+        deps.verify_scope_authorization(conn, scope=scope)
+    except ScopeAuthorizationDeniedError as exc:
+        record_scope_authorization_denied(
+            conn, run_id=claim.run_id, job_id=claim.job_id, actor=deps.owner, reason=str(exc)
+        )
+        conn.commit()
+        raise
 
     # Remédiation revue PR#90 : jamais un rechargement depuis le disque ici
     # — le registre approuvé au démarrage (deps.profile_registry) reste la

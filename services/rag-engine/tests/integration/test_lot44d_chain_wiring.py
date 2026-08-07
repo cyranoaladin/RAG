@@ -65,6 +65,8 @@ PG_SUPERUSER_PASSWORD = secrets.token_urlsafe(24)  # revue PR#90 : jamais un lit
 PG_DB = "ragdb"
 APP_PASSWORD = secrets.token_urlsafe(24)  # revue PR#90 : jamais un litteral statique
 MIGRATOR_PASSWORD = secrets.token_urlsafe(24)  # revue PR#90 : jamais un litteral statique
+AUTHORITY_PASSWORD = secrets.token_urlsafe(24)  # revue PR#90 : jamais un litteral statique
+ATTESTOR_PASSWORD = secrets.token_urlsafe(24)  # revue PR#90 : jamais un litteral statique
 
 _DOCKER_AVAILABLE = shutil.which("docker") is not None and (
     subprocess.run(["docker", "info"], capture_output=True, check=False).returncode == 0
@@ -172,6 +174,8 @@ def pg_container() -> Iterator[dict[str, str]]:
         provision_env.update({
             "INGESTION_CONTROL_MIGRATOR_PASSWORD": MIGRATOR_PASSWORD,
             "INGESTION_CONTROL_APP_PASSWORD": APP_PASSWORD,
+            "INGESTION_CONTROL_AUTHORITY_PASSWORD": AUTHORITY_PASSWORD,
+            "INGESTION_CONTROL_ATTESTOR_PASSWORD": ATTESTOR_PASSWORD,
         })
         provision = subprocess.run(
             [str(PROVISION_SCRIPT)], cwd=ENGINE_ROOT, env=provision_env,

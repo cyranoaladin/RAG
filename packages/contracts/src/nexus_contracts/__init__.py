@@ -78,6 +78,24 @@ from nexus_contracts.resource_state import (
     ResourceState,
     is_valid_resource_transition,
 )
+from nexus_contracts.scope_authorization import (
+    AUTHORIZE_INGESTION_SCOPE_DECISION,
+    GitHubApprovalEvidence,
+    ScopeAuthorization,
+    ScopeAuthorizationRevocation,
+    is_expired,
+)
+from nexus_contracts.publication_attestation import (
+    PROTOCOL_VERSION as LOT42_PROTOCOL_VERSION,
+    GateAttestation,
+    HumanReviewEvidence,
+    PublicationAttestation,
+    QualityAttestation,
+    RightsAttestation,
+    is_invalidated_by_content_change,
+    is_invalidated_by_manifest_drift,
+    is_invalidated_by_profile_drift,
+)
 
 __all__ = [
     "AccessContext",
@@ -138,4 +156,18 @@ __all__ = [
     "NORMAL_SEQUENCE",
     "ResourceState",
     "is_valid_resource_transition",
+    "AUTHORIZE_INGESTION_SCOPE_DECISION",
+    "GitHubApprovalEvidence",
+    "ScopeAuthorization",
+    "ScopeAuthorizationRevocation",
+    "is_expired",
+    "LOT42_PROTOCOL_VERSION",
+    "GateAttestation",
+    "HumanReviewEvidence",
+    "PublicationAttestation",
+    "QualityAttestation",
+    "RightsAttestation",
+    "is_invalidated_by_content_change",
+    "is_invalidated_by_manifest_drift",
+    "is_invalidated_by_profile_drift",
 ]

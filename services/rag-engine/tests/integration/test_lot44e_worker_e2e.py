@@ -58,6 +58,8 @@ PG_SUPERUSER_PASSWORD = secrets.token_urlsafe(24)  # revue PR#90 : jamais un lit
 PG_DB = "ragdb"
 APP_PASSWORD = secrets.token_urlsafe(24)  # revue PR#90 : jamais un litteral statique
 MIGRATOR_PASSWORD = secrets.token_urlsafe(24)  # revue PR#90 : jamais un litteral statique
+AUTHORITY_PASSWORD = secrets.token_urlsafe(24)  # revue PR#90 : jamais un litteral statique
+ATTESTOR_PASSWORD = secrets.token_urlsafe(24)  # revue PR#90 : jamais un litteral statique
 
 _DOCKER_AVAILABLE = shutil.which("docker") is not None and (
     subprocess.run(["docker", "info"], capture_output=True, check=False).returncode == 0
@@ -174,6 +176,8 @@ def pg_container() -> Iterator[dict[str, str]]:
         provision_env.update({
             "INGESTION_CONTROL_MIGRATOR_PASSWORD": MIGRATOR_PASSWORD,
             "INGESTION_CONTROL_APP_PASSWORD": APP_PASSWORD,
+            "INGESTION_CONTROL_AUTHORITY_PASSWORD": AUTHORITY_PASSWORD,
+            "INGESTION_CONTROL_ATTESTOR_PASSWORD": ATTESTOR_PASSWORD,
         })
         provision = subprocess.run(
             [str(PROVISION_SCRIPT)], cwd=ENGINE_ROOT, env=provision_env,
@@ -241,6 +245,14 @@ def _write_profile(profiles_dir: Path) -> None:
     (profiles_dir / "nsi.yml").write_text(yaml.safe_dump(_profile_payload()), encoding="utf-8")
 
 
+def _always_authorized(conn: psycopg.Connection, *, scope: object) -> None:
+    """Stub LOT41A (ADR-0032) : ce fichier teste Scout->QualityAgent, jamais
+    la frontière GitHub d'autorisation de scope elle-même — reconstruire
+    une PR/review GitHub réelle ici serait hors périmètre. La vérification
+    live réelle (``scope_authority.verify_scope_authorization``) est
+    couverte indépendamment par ses propres tests dédiés."""
+
+
 def _worker_deps(tmp_path: Path, *, safe_fetch, owner: str = "worker-e2e") -> WorkerDeps:
     profiles_dir = tmp_path / "profiles"
     _write_profile(profiles_dir)
@@ -251,6 +263,7 @@ def _worker_deps(tmp_path: Path, *, safe_fetch, owner: str = "worker-e2e") -> Wo
         artifact_reader=make_filesystem_artifact_reader(tmp_path / "artifacts"),
         validate_destination=lambda url: url,
         safe_fetch=safe_fetch,
+        verify_scope_authorization=_always_authorized,
     )
 
 
@@ -373,6 +386,7 @@ class TestWorkerE2E:
             artifact_reader=make_filesystem_artifact_reader(tmp_path / "artifacts"),
             validate_destination=lambda url: url,
             safe_fetch=_fake_safe_fetch_high_quality,
+            verify_scope_authorization=_always_authorized,
         )
 
         # Modification post-démarrage : le profil approuvé devient désactivé
@@ -421,6 +435,7 @@ class TestWorkerE2E:
             artifact_reader=make_filesystem_artifact_reader(tmp_path / "artifacts"),
             validate_destination=blocking_validate_destination,
             safe_fetch=_fake_safe_fetch_success,
+            verify_scope_authorization=_always_authorized,
         )
 
         outcome = run_worker_iteration(app_conn, deps=deps)
@@ -464,6 +479,7 @@ class TestWorkerE2E:
             artifact_reader=make_filesystem_artifact_reader(tmp_path / "artifacts"),
             validate_destination=lambda url: url,
             safe_fetch=failing_safe_fetch,
+            verify_scope_authorization=_always_authorized,
         )
 
         first_outcome = run_worker_iteration(app_conn, deps=failing_deps)

@@ -37,6 +37,8 @@
 #         PGUSER=<superutilisateur> PGPASSWORD=<mot de passe superutilisateur> \
 #         INGESTION_CONTROL_MIGRATOR_PASSWORD=... \
 #         INGESTION_CONTROL_APP_PASSWORD=... \
+#         INGESTION_CONTROL_AUTHORITY_PASSWORD=... \
+#         INGESTION_CONTROL_ATTESTOR_PASSWORD=... \
 #         ./scripts/provision_and_bootstrap_ingestion_control.sh
 set -euo pipefail
 
@@ -48,6 +50,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 : "${PGPASSWORD:?PGPASSWORD must be set}"
 : "${INGESTION_CONTROL_MIGRATOR_PASSWORD:?INGESTION_CONTROL_MIGRATOR_PASSWORD must be set}"
 : "${INGESTION_CONTROL_APP_PASSWORD:?INGESTION_CONTROL_APP_PASSWORD must be set}"
+: "${INGESTION_CONTROL_AUTHORITY_PASSWORD:?INGESTION_CONTROL_AUTHORITY_PASSWORD must be set}"
+: "${INGESTION_CONTROL_ATTESTOR_PASSWORD:?INGESTION_CONTROL_ATTESTOR_PASSWORD must be set}"
 
 echo "STEP=bootstrap_schema"
 "$SCRIPT_DIR/bootstrap_ingestion_control_schema.sh"

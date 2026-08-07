@@ -35,6 +35,18 @@ COPY services/rag-engine/src/ingestor/ingestion_worker/ /app/ingestion_worker/
 # authentifié sur l'hôte, jamais exposé sur le réseau.
 COPY services/rag-engine/src/ingestor/ingestion_worker/create_job_cli.py /app/ingestion_worker/create_job_cli.py
 
+# LOT41A/LOT42 (ADR-0032/ADR-0033) : frontière GitHub partagée, racine du
+# dépôt, propriété d'aucun service (jamais importée directement — cf.
+# ingestion_control/_trusted_review.py, invoquée en sous-processus). Cette
+# image aplatie ne copie jamais le dépôt entier : NEXUS_TRUSTED_REVIEW_SCRIPT
+# pointe explicitement vers la copie ci-dessous, jamais un chemin dérivé
+# implicitement (qui échouerait silencieusement à trouver le script dans
+# cette arborescence réduite).
+COPY scripts/github/trusted_human_review.py /app/scripts/github/trusted_human_review.py
+COPY scripts/github/trusted_human_review_github.py /app/scripts/github/trusted_human_review_github.py
+COPY scripts/github/trusted-reviewers.json /app/scripts/github/trusted-reviewers.json
+ENV NEXUS_TRUSTED_REVIEW_SCRIPT=/app/scripts/github/trusted_human_review_github.py
+
 # Aucun processus HTTP démarré par cette image : pas d'EXPOSE, pas de
 # uvicorn. Le point d'entrée est une boucle CLI (ingestion_worker/cli.py),
 # jamais un serveur — cohérent avec l'exigence de non-exposition publique

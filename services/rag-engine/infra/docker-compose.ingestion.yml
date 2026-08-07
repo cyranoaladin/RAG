@@ -56,12 +56,19 @@ services:
       PGPASSWORD: "${PGVECTOR_PASSWORD:?PGVECTOR_PASSWORD requis}"
       INGESTION_CONTROL_MIGRATOR_PASSWORD: "${INGESTION_CONTROL_MIGRATOR_PASSWORD:?INGESTION_CONTROL_MIGRATOR_PASSWORD requis}"
       INGESTION_CONTROL_APP_PASSWORD: "${INGESTION_CONTROL_APP_PASSWORD:?INGESTION_CONTROL_APP_PASSWORD requis}"
+      # LOT41A/LOT42 (ADR-0032/ADR-0033) : deux rôles supplémentaires,
+      # même discipline de moindre privilège — provision_ingestion_control_
+      # roles.sh les exige désormais tout autant que migrator/app.
+      INGESTION_CONTROL_AUTHORITY_PASSWORD: "${INGESTION_CONTROL_AUTHORITY_PASSWORD:?INGESTION_CONTROL_AUTHORITY_PASSWORD requis}"
+      INGESTION_CONTROL_ATTESTOR_PASSWORD: "${INGESTION_CONTROL_ATTESTOR_PASSWORD:?INGESTION_CONTROL_ATTESTOR_PASSWORD requis}"
       # Revue PR#90 : les deux rôles ne doivent jamais être identiques (le
       # rôle applicatif hériterait de la propriété du schéma et annulerait
       # la protection append-only de workflow_events) — vérifié par
       # provision_ingestion_control_roles.sh avant toute création.
       INGESTION_CONTROL_MIGRATOR_ROLE: ${INGESTION_CONTROL_MIGRATOR_ROLE:-ingestion_control_migrator}
       INGESTION_CONTROL_APP_ROLE: ${INGESTION_CONTROL_APP_ROLE:-ingestion_control_app}
+      INGESTION_CONTROL_AUTHORITY_ROLE: ${INGESTION_CONTROL_AUTHORITY_ROLE:-ingestion_control_authority}
+      INGESTION_CONTROL_ATTESTOR_ROLE: ${INGESTION_CONTROL_ATTESTOR_ROLE:-ingestion_control_attestor}
     volumes:
       - ./postgres/ingestion_control/migrations:/infra/postgres/ingestion_control/migrations:ro
       - ./scripts/bootstrap_ingestion_control_schema.sh:/infra/scripts/bootstrap_ingestion_control_schema.sh:ro
