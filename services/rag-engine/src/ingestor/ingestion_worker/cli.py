@@ -27,6 +27,11 @@ from pathlib import Path
 import psycopg
 
 try:
+    from ingestor.ingestion_control.attestation import (
+        RoleAttestation,
+        WorkerAttestationError,
+        attest_runtime_role,
+    )
     from ingestor.ingestion_control.db import get_ingestion_control_dsn
     from ingestor.ingestion_control.jobs import reap_expired_job_leases
     from ingestor.ingestion_control.lease_reaper import reap_expired_leases
@@ -35,6 +40,11 @@ except (ImportError, ValueError):
     # Image Docker aplatie (LOT44f, ADR-0029) : "ingestor" n'existe pas comme
     # paquet — ingestion_control/ingestion_profiles sont importables
     # directement au premier niveau. Même discipline que api.py.
+    from ingestion_control.attestation import (
+        RoleAttestation,
+        WorkerAttestationError,
+        attest_runtime_role,
+    )
     from ingestion_control.db import get_ingestion_control_dsn
     from ingestion_control.jobs import reap_expired_job_leases
     from ingestion_control.lease_reaper import reap_expired_leases
@@ -86,6 +96,19 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--manifest-path", required=True, type=Path)
     parser.add_argument("--artifact-store-dir", required=True, type=Path)
     parser.add_argument("--owner", required=True, type=_non_blank_str)
+    parser.add_argument(
+        "--expected-role",
+        required=True,
+        type=_non_blank_str,
+        help=(
+            "Rôle PostgreSQL runtime attendu (LOT44f, item I) — vérifié contre "
+            "current_user après connexion, indépendamment du DSN : le worker "
+            "refuse de démarrer si la connexion réelle ne correspond pas, ou si "
+            "le rôle porte un privilège excédant strictement le nécessaire "
+            "(superutilisateur, CREATEDB/CREATEROLE/REPLICATION/BYPASSRLS, "
+            "propriété du schéma, appartenance à un autre rôle)."
+        ),
+    )
     parser.add_argument("--once", action="store_true", help="Traite au plus un job puis quitte.")
     parser.add_argument("--max-iterations", type=_positive_int, default=None)
     parser.add_argument(
@@ -164,6 +187,19 @@ def main(argv: list[str] | None = None) -> int:
     iterations_done = 0
 
     with psycopg.connect(get_ingestion_control_dsn()) as conn:
+        # Remédiation revue PR#90 (Cubic P1, revue incrémentale, item I) :
+        # attestation obligatoire avant toute autre opération sur cette
+        # connexion — un DSN mal configuré (ex. pointant vers le
+        # superutilisateur du conteneur pgvector) ne doit jamais faire
+        # tourner ce worker avec des privilèges non vérifiés, même une
+        # seule itération.
+        try:
+            attestation: RoleAttestation = attest_runtime_role(conn, expected_role=args.expected_role)
+        except WorkerAttestationError as exc:
+            print(f"WORKER_ATTESTATION_FAILED: {exc}", file=sys.stderr)
+            return 1
+        print(f"WORKER_ATTESTATION_OK current_user={attestation.current_user}")
+
         _write_heartbeat(args.heartbeat_file)
         while max_iterations is None or iterations_done < max_iterations:
             _reap_expired_leases(conn)

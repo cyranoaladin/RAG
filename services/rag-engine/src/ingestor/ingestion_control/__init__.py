@@ -12,7 +12,7 @@ machine d'état n'est définie dans ce module.
 """
 from __future__ import annotations
 
-from .claim import CLAIMABLE_STATES, Claim, claim_resource
+from .claim import CLAIMABLE_STATES, Claim, ResourceLeaseConflictError, claim_resource
 from .db import get_ingestion_control_dsn
 from .lease_reaper import ReapedLease, reap_expired_leases
 from .retry import (
@@ -30,6 +30,7 @@ from .transitions import (
 __all__ = [
     "CLAIMABLE_STATES",
     "Claim",
+    "ResourceLeaseConflictError",
     "claim_resource",
     "get_ingestion_control_dsn",
     "ReapedLease",

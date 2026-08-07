@@ -21,6 +21,7 @@ _REQUIRED_ARGS = [
     "--profiles-dir", "/tmp/profiles",
     "--manifest-path", "/tmp/manifest.yml",
     "--artifact-store-dir", "/tmp/artifacts",
+    "--expected-role", "ingestion_control_app",
     "--owner", "worker-1",
 ]
 
