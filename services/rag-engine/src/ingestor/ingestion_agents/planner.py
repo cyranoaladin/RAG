@@ -39,11 +39,20 @@ def plan_search_core(
     typiquement produites par ``CoverageAgent``) en priorité, complétées par
     les sujets attendus du profil (``expected_topics``) non déjà couverts —
     ordre stable, sans doublon, jamais une requête générique inventée.
-    """
+
+    Remédiation revue PR#90 (item, revue incrémentale) : bornées par
+    ``profile.max_queries_per_run`` — un profil porte ce budget
+    explicitement (LOT44a) ; le laisser sans effet ici produirait un
+    ``SearchPlan`` qui ignore silencieusement une limite pourtant déclarée
+    et gouvernée. La troncature intervient **après** la déduplication et
+    **après** l'assemblage gap-targets-d'abord : les cibles de couverture
+    prioritaires ne sont donc jamais évincées par des sujets génériques du
+    profil quand le budget est serré."""
     ordered_queries: list[str] = []
     for target in (*gap_targets, *profile.expected_topics):
         if target not in ordered_queries:
             ordered_queries.append(target)
+    ordered_queries = ordered_queries[: profile.max_queries_per_run]
 
     return SearchPlan(
         search_plan_id=search_plan_id,

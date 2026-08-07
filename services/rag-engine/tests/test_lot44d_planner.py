@@ -109,6 +109,99 @@ class TestPlanSearchCore:
         assert plan_a == plan_b
 
 
+class TestPlanSearchCoreMaxQueriesPerRunBudget:
+    """Revue incrémentale PR#90 : ``ordered_queries`` doit être borné par
+    ``profile.max_queries_per_run`` — un profil porte ce budget
+    explicitement (LOT44a) ; le laisser sans effet était inacceptable pour
+    une release gouvernée. L'ordre gap-targets-d'abord (déjà établi par
+    ``TestPlanSearchCore``) doit rester respecté même sous contrainte de
+    budget."""
+
+    def test_budget_of_one_keeps_only_the_single_highest_priority_query(self) -> None:
+        plan = plan_search_core(
+            profile=_profile(
+                max_queries_per_run=1,
+                expected_topics=["algorithmique", "structures de données"],
+            ),
+            run_id=uuid4(),
+            search_plan_id=uuid4(),
+            generated_at=datetime(2026, 8, 4, tzinfo=UTC),
+            reason="budget serré",
+            gap_targets=("récursivité",),
+        )
+        assert plan.queries == ["récursivité"]
+
+    def test_budget_smaller_than_gap_target_count_truncates_within_gap_targets(self) -> None:
+        plan = plan_search_core(
+            profile=_profile(max_queries_per_run=2, expected_topics=["algorithmique"]),
+            run_id=uuid4(),
+            search_plan_id=uuid4(),
+            generated_at=datetime(2026, 8, 4, tzinfo=UTC),
+            reason="budget serré",
+            gap_targets=("récursivité", "tri fusion", "complexité"),
+        )
+        assert plan.queries == ["récursivité", "tri fusion"]
+
+    def test_budget_larger_than_available_queries_keeps_everything(self) -> None:
+        plan = plan_search_core(
+            profile=_profile(
+                max_queries_per_run=50,
+                expected_topics=["algorithmique", "structures de données"],
+            ),
+            run_id=uuid4(),
+            search_plan_id=uuid4(),
+            generated_at=datetime(2026, 8, 4, tzinfo=UTC),
+            reason="budget large",
+            gap_targets=("récursivité",),
+        )
+        assert plan.queries == ["récursivité", "algorithmique", "structures de données"]
+
+    def test_deduplication_happens_before_the_budget_is_applied(self) -> None:
+        """Une cible de couverture déjà présente dans expected_topics ne
+        doit jamais consommer deux fois le budget — la déduplication
+        s'applique avant la troncature, jamais après."""
+        plan = plan_search_core(
+            profile=_profile(
+                max_queries_per_run=2,
+                expected_topics=["algorithmique", "structures de données"],
+            ),
+            run_id=uuid4(),
+            search_plan_id=uuid4(),
+            generated_at=datetime(2026, 8, 4, tzinfo=UTC),
+            reason="budget serré avec doublon",
+            gap_targets=("algorithmique",),
+        )
+        assert plan.queries == ["algorithmique", "structures de données"]
+
+    def test_gap_targets_retain_priority_over_expected_topics_under_budget(self) -> None:
+        plan = plan_search_core(
+            profile=_profile(
+                max_queries_per_run=3,
+                expected_topics=["algorithmique", "structures de données", "récursion"],
+            ),
+            run_id=uuid4(),
+            search_plan_id=uuid4(),
+            generated_at=datetime(2026, 8, 4, tzinfo=UTC),
+            reason="priorité gap-targets",
+            gap_targets=("tri fusion", "complexité"),
+        )
+        assert plan.queries == ["tri fusion", "complexité", "algorithmique"]
+
+    def test_result_never_exceeds_the_declared_budget(self) -> None:
+        plan = plan_search_core(
+            profile=_profile(
+                max_queries_per_run=2,
+                expected_topics=["a", "b", "c", "d", "e"],
+            ),
+            run_id=uuid4(),
+            search_plan_id=uuid4(),
+            generated_at=datetime(2026, 8, 4, tzinfo=UTC),
+            reason="pas de dépassement",
+            gap_targets=("g1", "g2", "g3"),
+        )
+        assert len(plan.queries) <= 2
+
+
 class TestRunPlannerSeedUrlValidation:
     def test_valid_seed_urls_are_validated_then_plan_is_built(self) -> None:
         calls: list[str] = []

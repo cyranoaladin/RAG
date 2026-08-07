@@ -239,7 +239,7 @@ def test_v2_compose_ingestion_control_lives_in_a_separate_opt_in_file() -> None:
     assert services["migrator-ingestion-control"]["restart"] == "no"
 
 
-def test_v2_compose_alone_never_requires_ingestion_env_vars(tmp_path: Path) -> None:
+def test_v2_compose_alone_never_requires_ingestion_env_vars() -> None:
     """Le rendu de `docker-compose.v2.yml` seul ne doit jamais échouer sur
     une variable d'environnement d'ingestion — sinon la commande normale du
     runtime v2 serait cassée par une fonctionnalité opt-in non activée
