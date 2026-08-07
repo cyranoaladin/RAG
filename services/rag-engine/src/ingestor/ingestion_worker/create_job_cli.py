@@ -203,6 +203,7 @@ def main(argv: list[str] | None = None) -> int:
         job_id, created = find_or_create_job(
             conn,
             run_id=run_id,
+            collection=args.collection,
             job_type="resource_pipeline",
             dedup_key=dedup_key,
             resource_id=None,
@@ -216,6 +217,39 @@ def main(argv: list[str] | None = None) -> int:
                 "query": args.query,
             },
         )
+        if not created:
+            # Remédiation revue PR#90 (Cubic P2, revue incrémentale) :
+            # create_ingestion_run ci-dessus a déjà inséré une ligne
+            # ingestion_runs (status='planned') avant même de savoir si un
+            # job actif existait déjà pour ce dedup_key — sur une
+            # soumission dupliquée, cette ligne ne serait jamais référencée
+            # par aucun job (celui retourné appartient à l'ancien run_id),
+            # restant orpheline en 'planned' pour toujours (jamais reprise
+            # par aucun worker, jamais visible comme "en cours" ni comme
+            # "terminée"). Marquée 'cancelled' ici plutôt que supprimée :
+            # le rôle runtime ingestion_control_app ne détient jamais
+            # DELETE sur ingestion_runs (privilège volontairement absent,
+            # cf. provision_ingestion_control_roles.sh — seuls SELECT/
+            # INSERT/UPDATE lui sont accordés), et lui accorder DELETE
+            # juste pour ce cas élargirait sa surface d'écriture au-delà du
+            # strict nécessaire. 'cancelled' est une valeur légale de
+            # ingestion_runs_status_valid (migration 001) qui documente
+            # explicitement pourquoi ce run n'a jamais progressé, plutôt
+            # que de le laisser silencieusement bloqué en 'planned'. run_id
+            # est ensuite corrigé pour refléter le run réel auquel le job
+            # réutilisé appartient, jamais le run superseded ci-dessus.
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE ingestion_control.ingestion_runs SET status = 'cancelled' "
+                    "WHERE run_id = %s", (run_id,)
+                )
+                cur.execute(
+                    "SELECT run_id FROM ingestion_control.jobs WHERE job_id = %s", (job_id,)
+                )
+                existing_job_row = cur.fetchone()
+                if existing_job_row is None:  # pragma: no cover - job_id vient de find_or_create_job
+                    raise RuntimeError(f"job {job_id} not found immediately after find_or_create_job")
+                (run_id,) = existing_job_row
         conn.commit()
 
     status = "JOB_CREATED" if created else "JOB_ALREADY_ACTIVE"
