@@ -70,9 +70,15 @@ discover_manifest() {
     # laissant le schéma en retard sans le moindre avertissement. Élargir
     # la découverte garantit que la vérification stricte s'applique
     # réellement à tout fichier .sql présent dans le répertoire.
+    # Remédiation revue PR#90 (Cubic P3, revue incrémentale) : `-name` est
+    # sensible à la casse sur Linux — malgré le commentaire ci-dessus
+    # annonçant explicitement la découverte d'un fichier `.SQL`, seul
+    # `-iname` le garantit réellement ; `-name '*.sql'` seul laissait
+    # passer silencieusement un fichier `.SQL` (majuscules), exactement le
+    # scénario que ce garde-fou prétend couvrir.
     mapfile -t candidates < <(
         find "$MIGRATIONS_DIR" -maxdepth 1 -type f \
-            -name '*.sql' -print | LC_ALL=C sort
+            -iname '*.sql' -print | LC_ALL=C sort
     )
     [[ ${#candidates[@]} -gt 0 ]] || { echo "FATAL: no migration files found in $MIGRATIONS_DIR" >&2; exit 1; }
 
@@ -154,9 +160,24 @@ apply_migration() {
         registry_schema_sql
         cat "$file"
         printf '\n'
+        # Remédiation revue PR#90 (Cubic P2, revue incrémentale) : deux
+        # instances de ce script démarrées en concurrence calculent chacune
+        # leur propre plage de versions à appliquer à partir d'une lecture
+        # de schema_migrations faite AVANT que le verrou advisory ne soit
+        # jamais pris (read_registry_state, au tout début du script) — la
+        # seconde instance, bloquée le temps que la première committe sa
+        # propre transaction pour cette version, reste programmée pour
+        # rejouer cette MÊME version dès que le verrou se libère. Le corps
+        # de chaque migration est déjà idempotent (IF NOT EXISTS partout,
+        # documenté comme tel), donc le rejeu du DDL lui-même est sans
+        # danger — seul cet INSERT ne l'était pas (échouait sur une
+        # violation de clé primaire au lieu d'un no-op silencieux).
+        # ``ON CONFLICT (version) DO NOTHING`` aligne l'enregistrement sur
+        # la même idempotence que le reste de cette migration.
         printf '%s\n' \
             "INSERT INTO ingestion_control.schema_migrations (version, file_name, sha256)" \
-            "VALUES (:'migration_version'::integer, :'migration_file', :'migration_sha');"
+            "VALUES (:'migration_version'::integer, :'migration_file', :'migration_sha')" \
+            "ON CONFLICT (version) DO NOTHING;"
     } | psql -X -q --single-transaction \
         -v ON_ERROR_STOP=1 \
         -v "migration_version=$version" \
@@ -183,7 +204,22 @@ SQL
 
 wait_for_connection
 discover_manifest
-registry_schema_sql | psql -X -q -v ON_ERROR_STOP=1 >/dev/null
+# Remédiation revue PR#90 (Cubic P2, revue incrémentale) : cette création
+# initiale du schéma/registre s'exécutait auparavant hors de toute
+# protection — deux instances de ce script démarrant en concurrence (ex.
+# conteneur migrateur relancé/dupliqué) pouvaient toutes deux voir
+# "n'existe pas encore" (CREATE SCHEMA/TABLE IF NOT EXISTS n'est pas
+# atomique contre une création concurrente en READ COMMITTED, comportement
+# documenté PostgreSQL) et tenter chacune la création, l'une des deux
+# échouant alors sur une erreur de clé dupliquée au lieu du no-op attendu.
+# Protégée désormais par le même verrou advisory transactionnel que
+# ``apply_migration`` (même clé, même transaction unique) — une seconde
+# instance concurrente attend simplement la fin de la première au lieu de
+# tenter la même création en parallèle.
+{
+    advisory_lock_sql
+    registry_schema_sql
+} | psql -X -q --single-transaction -v ON_ERROR_STOP=1 >/dev/null
 read_registry_state
 verify_no_checksum_drift
 
