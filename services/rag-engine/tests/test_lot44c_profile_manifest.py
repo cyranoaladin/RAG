@@ -170,6 +170,106 @@ class TestManifestRejectsDuplicateYAMLKeys:
             verify_profile_manifest(registry, manifest_path)
 
 
+class TestManifestRejectsUnhashableKeys:
+    """Revue incrémentale PR#90 (Cubic P2) : une clé YAML non-hachable
+    (séquence/mapping utilisé comme clé) doit échouer avec un
+    ``ProfileManifestError`` maîtrisé — avant ce correctif, le chargeur
+    personnalisé (``_DuplicateKeyRejectingLoader``) levait un ``TypeError``
+    brut lors de son propre contrôle de doublons, jamais capturé par
+    ``except yaml.YAMLError`` dans ``_read_manifest_yaml``."""
+
+    def test_unhashable_top_level_key_raises_profile_manifest_error(
+        self, tmp_path: Path
+    ) -> None:
+        registry: dict = {}
+        manifest_path = tmp_path / "manifest.yml"
+        manifest_path.write_text(
+            "? [a, b]\n: value\nprofiles: []\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(ProfileManifestError):
+            verify_profile_manifest(registry, manifest_path)
+
+    def test_unhashable_key_within_a_profile_entry_raises_profile_manifest_error(
+        self, tmp_path: Path
+    ) -> None:
+        _write_profile(tmp_path, "a.yml")
+        registry = load_profile_registry(tmp_path)
+        manifest_path = tmp_path / "manifest.yml"
+        manifest_path.write_text(
+            "manifest_version: '1'\n"
+            "provenance: test\n"
+            "generated_at: '2026-08-05T00:00:00Z'\n"
+            "profiles:\n"
+            "  - collection: rag_nexus_nsi_terminale_specialite\n"
+            "    profile_version: v1\n"
+            "    ? [a, b]\n"
+            "    : value\n"
+            "    fingerprint: 'a'\n"
+            "    approved_by: test\n"
+            "    approved_at: '2026-08-05T00:00:00Z'\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(ProfileManifestError):
+            verify_profile_manifest(registry, manifest_path)
+
+
+class TestManifestRejectsAnchorsAndMergeKeys:
+    """Revue incrémentale PR#90 (Cubic P2) : politique explicite pour les
+    ancres/alias/clés de fusion YAML — un manifest de production est une
+    déclaration d'approbation nominative par entrée, chaque entrée doit
+    rester littérale et auditable par simple lecture humaine du fichier,
+    jamais reconstituée indirectement via une référence à un autre nœud."""
+
+    def test_anchor_declaration_is_rejected(self, tmp_path: Path) -> None:
+        registry: dict = {}
+        manifest_path = tmp_path / "manifest.yml"
+        manifest_path.write_text(
+            "manifest_version: &v '1'\n"
+            "provenance: test\n"
+            "generated_at: '2026-08-05T00:00:00Z'\n"
+            "profiles: []\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(ProfileManifestError, match="anchor"):
+            verify_profile_manifest(registry, manifest_path)
+
+    def test_alias_reference_is_rejected(self, tmp_path: Path) -> None:
+        registry: dict = {}
+        manifest_path = tmp_path / "manifest.yml"
+        manifest_path.write_text(
+            "manifest_version: '1'\n"
+            "provenance: &p test\n"
+            "generated_at: '2026-08-05T00:00:00Z'\n"
+            "profiles: []\n"
+            "extra_note: *p\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(ProfileManifestError, match="anchor"):
+            verify_profile_manifest(registry, manifest_path)
+
+    def test_merge_key_is_rejected(self, tmp_path: Path) -> None:
+        _write_profile(tmp_path, "a.yml")
+        registry = load_profile_registry(tmp_path)
+        manifest_path = tmp_path / "manifest.yml"
+        manifest_path.write_text(
+            "manifest_version: '1'\n"
+            "provenance: test\n"
+            "generated_at: '2026-08-05T00:00:00Z'\n"
+            "shared_authority: &auth\n"
+            "  approved_by: test\n"
+            "  approved_at: '2026-08-05T00:00:00Z'\n"
+            "profiles:\n"
+            "  - collection: rag_nexus_nsi_terminale_specialite\n"
+            "    profile_version: v1\n"
+            "    fingerprint: 'a'\n"
+            "    <<: *auth\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(ProfileManifestError, match="anchor"):
+            verify_profile_manifest(registry, manifest_path)
+
+
 class TestManifestAbsentOrMalformed:
     def test_missing_manifest_file_fails_explicitly(self, tmp_path: Path) -> None:
         _write_profile(tmp_path, "a.yml")

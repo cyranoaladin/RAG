@@ -117,12 +117,60 @@ class _DuplicateKeyRejectingLoader(yaml.SafeLoader):
         seen: set[Any] = set()
         for key_node, _value_node in node.value:
             key = self.construct_object(key_node, deep=deep)
-            if key in seen:
+            # Remédiation revue PR#90 (Cubic P2, revue incrémentale) : une
+            # clé YAML non-hachable (ex. ``? [a, b]: value``, une séquence
+            # ou un mapping utilisé comme clé) faisait auparavant échouer
+            # ``key in seen`` avec un ``TypeError`` brut, jamais capturé par
+            # ``except yaml.YAMLError`` dans ``_read_manifest_yaml`` — un
+            # manifest malformé de cette façon plantait avec une erreur bas
+            # niveau confuse au lieu d'un ``ProfileManifestError`` maîtrisé.
+            # Rejeté ici explicitement, dans la même hiérarchie
+            # ``yaml.YAMLError`` que le reste des erreurs de ce chargeur.
+            try:
+                already_seen = key in seen
+            except TypeError as exc:
+                raise yaml.constructor.ConstructorError(
+                    None, None, f"unhashable mapping key {key!r}: {exc}", node.start_mark
+                ) from exc
+            if already_seen:
                 raise yaml.constructor.ConstructorError(
                     None, None, f"found duplicate key {key!r}", node.start_mark
                 )
             seen.add(key)
         return super().construct_mapping(node, deep=deep)
+
+    def compose_node(self, parent: yaml.Node | None, index: Any) -> yaml.Node | None:
+        # Remédiation revue PR#90 (Cubic P2, revue incrémentale) : politique
+        # explicite pour les ancres/alias/clés de fusion YAML (``&ancre``,
+        # ``*alias``, ``<<: *ancre``) — rejetés inconditionnellement, jamais
+        # tolérés silencieusement. Un manifest de production est une
+        # déclaration d'approbation nominative par entrée (cf. docstring de
+        # ce module) : chaque entrée doit être écrite littéralement et
+        # rester auditable par simple lecture humaine du fichier, jamais
+        # reconstituée indirectement via une référence à un autre nœud du
+        # document — une clé de fusion en particulier pourrait faire
+        # hériter silencieusement une entrée de champs déclarés ailleurs
+        # dans le fichier, rendant le contenu réellement approuvé moins
+        # évident qu'une lecture superficielle du fichier ne le suggère.
+        # PyYAML ne porte pas l'ancre sur l'objet ``Node`` composé lui-même
+        # (contrairement à une intuition naturelle) — elle n'existe que sur
+        # l'événement source (``event.anchor``), inspecté ici via
+        # ``peek_event()`` (sans le consommer) avant toute composition,
+        # pour les deux formes possibles : un nœud portant une déclaration
+        # d'ancre, et une référence d'alias (``AliasEvent``) elle-même.
+        event = self.peek_event()
+        anchor = getattr(event, "anchor", None)
+        if anchor is not None:
+            kind = "alias" if isinstance(event, yaml.events.AliasEvent) else "anchor"
+            raise yaml.constructor.ConstructorError(
+                None, None,
+                f"YAML {kind} {anchor!r} is not permitted in a production "
+                "profile manifest — every entry must be written explicitly and "
+                "literally, never referenced indirectly via an anchor/alias or "
+                "a merge key (<<)",
+                event.start_mark,
+            )
+        return super().compose_node(parent, index)
 
 
 def _read_manifest_yaml(path: Path) -> dict[str, Any]:
