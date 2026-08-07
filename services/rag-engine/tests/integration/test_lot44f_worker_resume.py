@@ -460,7 +460,7 @@ class TestResumeByDifferentWorker:
 
 class TestDoubleExecutionIsPrevented:
     def test_second_claim_finds_no_job_while_first_holds_the_lease(
-        self, tmp_path: Path, clean_db: None, pg_container: dict[str, str]
+        self, clean_db: None, pg_container: dict[str, str]
     ) -> None:
         """Deux workers ne peuvent jamais traiter le même job en parallèle :
         claim_job utilise FOR UPDATE SKIP LOCKED (LOT44b/44e) — une
