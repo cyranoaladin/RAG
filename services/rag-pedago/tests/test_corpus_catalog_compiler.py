@@ -466,6 +466,7 @@ class TestSealedCorpusCompilation:
             config,
             rights_cleared_sha256={_sha("a")},
             pii_cleared_sha256={_sha("a")},
+            authority_cleared_sha256={_sha("a")},
         )
 
         assert catalog.manifest_entries == 3
@@ -527,6 +528,7 @@ class TestSealedCorpusCompilation:
         assert candidate.gate_statuses == {
             "rights": "PASS",
             "pii": "BLOCKED_NOT_CLEARED",
+            "authority": "BLOCKED_NOT_CLEARED",
         }
 
         cleared = compile_sealed_catalog(
@@ -535,10 +537,40 @@ class TestSealedCorpusCompilation:
             config,
             rights_cleared_sha256={_sha("a")},
             pii_cleared_sha256={_sha("a")},
+            authority_cleared_sha256={_sha("a")},
         )
         eligible = cleared.object_by_path(candidate.path)
         assert eligible is not None
         assert eligible.disposition == Disposition.INGEST
+        assert eligible.gate_statuses == {
+            "rights": "PASS",
+            "pii": "PASS",
+            "authority": "PASS",
+        }
+
+    def test_ingest_is_refused_without_real_scope_authority(
+        self, tmp_path: Path
+    ) -> None:
+        manifest, placements, config = _write_sealed_fixture(tmp_path)
+
+        catalog = compile_sealed_catalog(
+            manifest,
+            placements,
+            config,
+            rights_cleared_sha256={_sha("a")},
+            pii_cleared_sha256={_sha("a")},
+        )
+
+        candidate = catalog.object_by_path(
+            "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/10_ACTUEL_CONFIRME/MATHS/doc.pdf"
+        )
+        assert candidate is not None
+        assert candidate.disposition == Disposition.REVIEW_REQUIRED
+        assert candidate.gate_statuses == {
+            "rights": "PASS",
+            "pii": "PASS",
+            "authority": "BLOCKED_NOT_CLEARED",
+        }
 
     def test_rejects_manifest_digest_drift(self, tmp_path: Path) -> None:
         manifest, placements, config = _write_sealed_fixture(tmp_path)
@@ -606,8 +638,12 @@ class TestGovernedSealedCorpusCompilation:
             "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/10_ACTUEL_CONFIRME/MATHS/doc.pdf"
         )
         assert eligible is not None
-        assert eligible.disposition == Disposition.INGEST
-        assert eligible.gate_statuses == {"rights": "PASS", "pii": "PASS"}
+        assert eligible.disposition == Disposition.REVIEW_REQUIRED
+        assert eligible.gate_statuses == {
+            "rights": "PASS",
+            "pii": "PASS",
+            "authority": "BLOCKED_NOT_CLEARED",
+        }
         assert sum(catalog.disposition_counts.values()) == 4
 
     def test_pii_signal_quarantines_current_ingest_candidate(

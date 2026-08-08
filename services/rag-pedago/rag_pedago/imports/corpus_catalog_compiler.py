@@ -403,6 +403,7 @@ def _apply_mandatory_ingest_gates(
     rights_cleared_sha256: set[str] | frozenset[str],
     pii_cleared_sha256: set[str] | frozenset[str],
     pii_quarantined_sha256: set[str] | frozenset[str],
+    authority_cleared_sha256: set[str] | frozenset[str],
 ) -> tuple[Disposition, str, dict[str, str]]:
     if base_disposition is not Disposition.INGEST:
         return base_disposition, "", {}
@@ -423,6 +424,11 @@ def _apply_mandatory_ingest_gates(
             else "BLOCKED_NOT_CLEARED"
         ),
         "pii": pii_status,
+        "authority": (
+            "PASS"
+            if content_sha256 in authority_cleared_sha256
+            else "BLOCKED_NOT_CLEARED"
+        ),
     }
     if pii_status == "BLOCKED_PII_DETECTED":
         return (
@@ -448,6 +454,7 @@ def compile_sealed_catalog(
     rights_cleared_sha256: set[str] | frozenset[str] = frozenset(),
     pii_cleared_sha256: set[str] | frozenset[str] = frozenset(),
     pii_quarantined_sha256: set[str] | frozenset[str] = frozenset(),
+    authority_cleared_sha256: set[str] | frozenset[str] = frozenset(),
 ) -> SealedCorpusCatalog:
     """Compile the real physical corpus and join every Eduscol placement by SHA."""
     manifest_sha256 = compute_file_sha256(manifest_path)
@@ -482,6 +489,7 @@ def compile_sealed_catalog(
             rights_cleared_sha256,
             pii_cleared_sha256,
             pii_quarantined_sha256,
+            authority_cleared_sha256,
         )
         physical_object = PhysicalCorpusObject(
             content_sha256=content_sha256,
