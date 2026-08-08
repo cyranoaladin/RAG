@@ -11,21 +11,28 @@ import os
 import time
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
+from uuid import UUID, uuid4
 
 import psycopg
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from nexus_contracts import Rights, load_pilot_retrieval_scope
+from nexus_contracts import Candidat, Niveau, Rights, Voie, load_pilot_retrieval_scope
+from nexus_contracts.ingestion import ResourceScope
 from psycopg import sql
 
 from ingestor import api_v2 as runtime_api
+from ingestor import governed_publisher_v2 as publisher
 from ingestor import retrieval_v2_endpoint as endpoint
 from ingestor import review_v2_endpoint as review_endpoint
 from ingestor.identity_v2 import load_identity_verifier_config, verify_identity_token
+from ingestor.ingestion_control.publication_attestation import VerifiedAttestation
+from ingestor.ingestion_control.publication_evidence import PublicationFacts
+from ingestor.ingestion_control.scope_authority import VerifiedAuthorization
 from ingestor.pg_pool import PoolSettings, close_pool, pool_connection
 from ingestor.readiness_db import postgres_database_authorities_share_instance
 from ingestor.retrieval_hybrid_v2 import (
@@ -164,6 +171,99 @@ def _scope(
     )
 
 
+def _governed_placement(
+    *, collection: str, source_suffix: str
+) -> publisher.EligiblePlacement:
+    return publisher.EligiblePlacement(
+        resource_id=uuid4(),
+        scope=ResourceScope(
+            tenant=TENANT,
+            collection=collection,
+            niveau=Niveau.terminale,
+            voie=Voie.generale,
+            matiere="nsi",
+            candidat=Candidat.individuel,
+            audience=["tous"],
+            visibility=VISIBILITY,
+            school_year=SCHOOL_YEAR,
+            programme_version=PROGRAMME_VERSION,
+        ),
+        statut_enseignement=STATUT_ENSEIGNEMENT,
+        domain="lycee",
+        source_scope=f"01_EDUSCOL_OFFICIEL/terminale/nsi/{source_suffix}",
+        source_placement_id=f"eduscol:governed:{source_suffix}",
+        source_path=f"01_EDUSCOL_OFFICIEL/nsi/{source_suffix}.pdf",
+        current_profile_fingerprint="c" * 64,
+        current_manifest_digest="d" * 64,
+    )
+
+
+def _verified_publication(
+    artifact: publisher.GovernedArtifact,
+    placement: publisher.EligiblePlacement,
+) -> VerifiedAttestation:
+    now = datetime.now(UTC)
+    authorization = VerifiedAuthorization(
+        authorization_id=f"AUTH-H2C-{placement.resource_id.hex}",
+        scope=placement.scope,
+        manifest_digest=placement.current_manifest_digest,
+        profile_id="h2-initial-governed-profile",
+        profile_version="1.0.0",
+        profile_fingerprint=placement.current_profile_fingerprint,
+        allowed_domains=("eduscol.education.fr",),
+        rights_categories=(Rights.usage_interne.value,),
+        exclusions=(),
+        pii_absence_attested=True,
+        valid_from=now - timedelta(minutes=1),
+        valid_until=now + timedelta(hours=1),
+        artifact_path=(
+            "governance/authorizations/"
+            f"AUTH-H2C-{placement.resource_id.hex}.json"
+        ),
+        artifact_blob_sha="e" * 40,
+        authorization_digest="f" * 64,
+        evidence_repository="cyranoaladin/RAG",
+        evidence_pull_request=999_041,
+        evidence_base_sha="1" * 40,
+        evidence_head_sha="2" * 40,
+        evidence_review_id=999_042,
+        evidence_reviewer="staging-human-reviewer",
+        evidence_challenge="LOT41V:" + "3" * 64,
+        verified_at=now,
+    )
+    facts = PublicationFacts(
+        resource_id=placement.resource_id,
+        artifact_id=uuid4(),
+        collection=str(placement.scope.collection),
+        canonical_url=artifact.source_uri,
+        content_sha256=artifact.content_sha256,
+        rights_status=Rights.usage_interne,
+        rights_assessed_at=now,
+        rights_event_id=uuid4(),
+        quality_passed=True,
+        quality_report_digest="4" * 64,
+        quality_assessed_at=now,
+        quality_event_id=uuid4(),
+        gate_passed=True,
+        gate_name="h2_governed_publication",
+        gate_evaluated_at=now,
+        gate_event_id=uuid4(),
+    )
+    return VerifiedAttestation(
+        attestation_id=uuid4(),
+        resource_id=placement.resource_id,
+        artifact_id=facts.artifact_id,
+        content_sha256=artifact.content_sha256,
+        scope_authorization_id=authorization.authorization_id,
+        profile_fingerprint=placement.current_profile_fingerprint,
+        manifest_digest=placement.current_manifest_digest,
+        review_id=f"LOT42-H2C-{placement.resource_id.hex}",
+        attestation_digest="5" * 64,
+        authorization=authorization,
+        facts=facts,
+    )
+
+
 def _retrieval_request_payload(
     *,
     matiere: str = "nsi",
@@ -192,6 +292,38 @@ def _retrieval_request_payload(
 
 def _scope_sql_params(collection: str) -> tuple[object, ...]:
     scope = _scope(collection)
+    legacy = (
+        scope.collection,
+        scope.tenant,
+        scope.niveau,
+        scope.voie,
+        scope.matiere,
+        scope.statut_enseignement,
+        [scope.candidat, "both"],
+        list(scope.audiences),
+        [right.value for right in scope.rights],
+        list(scope.visibilities),
+        scope.school_year,
+        scope.programme_version,
+    )
+    placement = (
+        scope.collection,
+        scope.tenant,
+        scope.niveau,
+        scope.voie,
+        scope.matiere,
+        scope.statut_enseignement,
+        [scope.candidat, "both"],
+        list(scope.audiences),
+        list(scope.visibilities),
+        scope.school_year,
+        scope.programme_version,
+    )
+    return (*placement, *legacy, [right.value for right in scope.rights])
+
+
+def _legacy_scope_sql_params(collection: str) -> tuple[object, ...]:
+    scope = _scope(collection)
     return (
         scope.collection,
         scope.tenant,
@@ -206,6 +338,31 @@ def _scope_sql_params(collection: str) -> tuple[object, ...]:
         scope.school_year,
         scope.programme_version,
     )
+
+
+def _placement_scope_sql_params(collection: str) -> tuple[object, ...]:
+    scope = _scope(collection)
+    return (
+        scope.collection,
+        scope.tenant,
+        scope.niveau,
+        scope.voie,
+        scope.matiere,
+        scope.statut_enseignement,
+        [scope.candidat, "both"],
+        list(scope.audiences),
+        list(scope.visibilities),
+        scope.school_year,
+        scope.programme_version,
+    )
+
+
+def _dense_filter_sql_params(collection: str) -> tuple[object, ...]:
+    scope = _scope(collection)
+    placement = _placement_scope_sql_params(collection)
+    rights = [right.value for right in scope.rights]
+    return (*_legacy_scope_sql_params(collection), *placement, rights)
+
 
 _DENSE_ORACLE_SQL = """
     SELECT chunk_id
@@ -502,7 +659,9 @@ def seeded_database() -> Iterator[None]:
     rows = _seed_rows()
     with psycopg.connect(ADMIN_DSN) as connection:
         with connection.cursor() as cursor:
-            cursor.execute("TRUNCATE TABLE rag_chunks")
+            cursor.execute(
+                "TRUNCATE TABLE rag_chunks, rag_artifact_placements, rag_artifacts"
+            )
             cursor.executemany(
                 """
                 INSERT INTO rag_chunks (
@@ -559,7 +718,9 @@ def seeded_database() -> Iterator[None]:
             cursor.execute("ANALYZE rag_chunks")
     yield
     with psycopg.connect(ADMIN_DSN) as connection:
-        connection.execute("TRUNCATE TABLE rag_chunks")
+        connection.execute(
+            "TRUNCATE TABLE rag_chunks, rag_artifact_placements, rag_artifacts"
+        )
 
 
 @contextmanager
@@ -664,8 +825,9 @@ def _assert_ids(actual: Sequence[str], expected: Sequence[str]) -> None:
 def _dense_params(collection: str) -> tuple[object, ...]:
     return (
         QUERY_VECTOR_TEXT,
-        *_scope_sql_params(collection),
+        *_dense_filter_sql_params(collection),
         _DENSE_ANN_PROBE_LIMIT,
+        *_placement_scope_sql_params(collection),
         _DENSE_ANN_POOL_LIMIT,
         _DENSE_ANN_PROBE_LIMIT,
         50,
@@ -859,6 +1021,242 @@ def test_publisher_role_is_insert_only_on_product_relations() -> None:
             False,
         )
     print("PUBLISHER_ROLE_INSERT_ONLY_PRODUCT_RELATIONS=PASS")
+
+
+def test_governed_publisher_is_atomic_idempotent_and_multi_placement(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    content = (
+        b"Titre: Graphes et algorithmes\n\n"
+        b"Cette ressource pedagogique explique les parcours de graphes, "
+        b"leurs invariants et leur usage dans un programme de terminale."
+    )
+    artifact = publisher.GovernedArtifact(
+        content=content,
+        content_sha256=hashlib.sha256(content).hexdigest(),
+        source_label="Ressource officielle multi-placement",
+        source_uri="https://eduscol.education.fr/governed-multi-placement.pdf",
+        rights=Rights.usage_interne.value,
+        official=True,
+        source_kind="eduscol",
+        type_doc="ressource_officielle",
+    )
+    placement_a = _governed_placement(
+        collection="lot42_governed_scope_a",
+        source_suffix="scope-a",
+    )
+    placement_b = _governed_placement(
+        collection="lot42_governed_scope_b",
+        source_suffix="scope-b",
+    )
+
+    changed_content = content + b" Revision substantielle."
+    changed_artifact = publisher.GovernedArtifact(
+        content=changed_content,
+        content_sha256=hashlib.sha256(changed_content).hexdigest(),
+        source_label=artifact.source_label,
+        source_uri=artifact.source_uri,
+        rights=artifact.rights,
+        official=artifact.official,
+        source_kind=artifact.source_kind,
+        type_doc=artifact.type_doc,
+    )
+    changed_placement = _governed_placement(
+        collection="lot42_governed_changed",
+        source_suffix="changed",
+    )
+    failed_content = b"contenu dont l'extraction echoue sans ecriture partielle"
+    failed_artifact = publisher.GovernedArtifact(
+        content=failed_content,
+        content_sha256=hashlib.sha256(failed_content).hexdigest(),
+        source_label=artifact.source_label,
+        source_uri=artifact.source_uri,
+        rights=artifact.rights,
+        official=artifact.official,
+        source_kind=artifact.source_kind,
+        type_doc=artifact.type_doc,
+    )
+    failed_placement = _governed_placement(
+        collection="lot42_governed_failed",
+        source_suffix="failed",
+    )
+
+    bindings = {
+        placement_a.resource_id: (artifact, placement_a),
+        placement_b.resource_id: (artifact, placement_b),
+        changed_placement.resource_id: (changed_artifact, changed_placement),
+        failed_placement.resource_id: (failed_artifact, failed_placement),
+    }
+    attestations = {
+        resource_id: _verified_publication(bound_artifact, placement)
+        for resource_id, (bound_artifact, placement) in bindings.items()
+    }
+
+    def verified_attestation(
+        _connection: psycopg.Connection[Any],
+        *,
+        resource_id: UUID,
+        current_content_sha256: str,
+        current_profile_fingerprint: str,
+        current_manifest_digest: str,
+    ) -> VerifiedAttestation:
+        bound_artifact, placement = bindings[resource_id]
+        assert current_content_sha256 == bound_artifact.content_sha256
+        assert current_profile_fingerprint == placement.current_profile_fingerprint
+        assert current_manifest_digest == placement.current_manifest_digest
+        return attestations[resource_id]
+
+    monkeypatch.setattr(publisher, "verify_publication_attestation", verified_attestation)
+    monkeypatch.setattr(
+        publisher,
+        "_resource_is_retrieval_eligible",
+        lambda _connection, *, resource_id: resource_id in bindings,
+    )
+
+    calls = {"extract": 0, "embed": 0}
+
+    def extract_text(value: bytes) -> str:
+        calls["extract"] += 1
+        return value.decode("utf-8")
+
+    def embed_chunks(passages: Sequence[str]) -> list[tuple[float, ...]]:
+        calls["embed"] += 1
+        return [QUERY_VECTOR for _ in passages]
+
+    with psycopg.connect(PUBLISHER_DSN) as product_connection:
+        created = publisher.publish_governed_artifact(
+            product_connection,
+            product_connection,
+            artifact,
+            (placement_a,),
+            extract_text,
+            embed_chunks,
+        )
+        retried = publisher.publish_governed_artifact(
+            product_connection,
+            product_connection,
+            artifact,
+            (placement_a,),
+            extract_text,
+            embed_chunks,
+        )
+        extended = publisher.publish_governed_artifact(
+            product_connection,
+            product_connection,
+            artifact,
+            (placement_a, placement_b),
+            extract_text,
+            embed_chunks,
+        )
+        changed = publisher.publish_governed_artifact(
+            product_connection,
+            product_connection,
+            changed_artifact,
+            (changed_placement,),
+            extract_text,
+            embed_chunks,
+        )
+
+        def extraction_failure(_value: bytes) -> str:
+            raise RuntimeError("synthetic extraction failure")
+
+        with pytest.raises(RuntimeError, match="synthetic extraction failure"):
+            publisher.publish_governed_artifact(
+                product_connection,
+                product_connection,
+                failed_artifact,
+                (failed_placement,),
+                extraction_failure,
+                embed_chunks,
+            )
+
+    assert created.artifact_created is True
+    assert created.placement_rows == 1
+    assert created.chunk_rows > 0
+    assert created.embedded is True
+    assert retried == publisher.GovernedPublicationResult(
+        artifact_id=artifact.artifact_id,
+        artifact_created=False,
+        placement_rows=1,
+        chunk_rows=created.chunk_rows,
+        embedded=False,
+    )
+    assert extended.placement_rows == 2
+    assert extended.chunk_rows == created.chunk_rows
+    assert extended.embedded is False
+    assert changed.artifact_id != artifact.artifact_id
+    assert changed.artifact_created is True
+    assert changed.embedded is True
+    assert calls == {"extract": 2, "embed": 2}
+
+    with psycopg.connect(ADMIN_DSN) as admin_connection:
+        counts = admin_connection.execute(
+            """
+            SELECT
+              (SELECT COUNT(*) FROM rag_artifacts WHERE artifact_id = %s),
+              (SELECT COUNT(*) FROM rag_artifact_placements WHERE artifact_id = %s),
+              (SELECT COUNT(*) FROM rag_chunks WHERE artifact_id = %s),
+              (SELECT COUNT(*) FROM rag_artifacts WHERE artifact_id = %s),
+              (SELECT COUNT(*) FROM rag_artifact_placements WHERE artifact_id = %s),
+              (SELECT COUNT(*) FROM rag_chunks WHERE artifact_id = %s)
+            """,
+            (
+                artifact.artifact_id,
+                artifact.artifact_id,
+                artifact.artifact_id,
+                failed_artifact.artifact_id,
+                failed_artifact.artifact_id,
+                failed_artifact.artifact_id,
+            ),
+        ).fetchone()
+    assert counts == (1, 2, created.chunk_rows, 0, 0, 0)
+
+    candidates_by_collection = {
+        collection: PgCandidateStore(
+            _app_store_connection,
+            _scope(collection),
+        ).dense(
+            query_vector=QUERY_VECTOR,
+            collection=collection,
+            limit=10,
+        )
+        for collection in (
+            str(placement_a.scope.collection),
+            str(placement_b.scope.collection),
+            "lot42_governed_wrong_scope",
+        )
+    }
+    scope_a = candidates_by_collection[str(placement_a.scope.collection)]
+    scope_b = candidates_by_collection[str(placement_b.scope.collection)]
+    wrong_scope = candidates_by_collection["lot42_governed_wrong_scope"]
+    expected_placement_ids = {
+        str(placement_a.scope.collection): publisher.canonical_placement_id(
+            artifact.artifact_id, placement_a
+        ),
+        str(placement_b.scope.collection): publisher.canonical_placement_id(
+            artifact.artifact_id, placement_b
+        ),
+    }
+    for collection, candidates in (
+        (str(placement_a.scope.collection), scope_a),
+        (str(placement_b.scope.collection), scope_b),
+    ):
+        assert len(candidates) == created.chunk_rows
+        assert len({candidate.chunk_id for candidate in candidates}) == len(candidates)
+        assert all(candidate.doc_id == artifact.artifact_id for candidate in candidates)
+        assert all(candidate.artifact_id == artifact.artifact_id for candidate in candidates)
+        assert all(
+            candidate.content_sha256 == artifact.content_sha256
+            for candidate in candidates
+        )
+        assert all(
+            candidate.placement_id == expected_placement_ids[collection]
+            for candidate in candidates
+        )
+        assert all(candidate.placement_source_path for candidate in candidates)
+    assert wrong_scope == []
+    print("GOVERNED_PUBLISHER_ATOMIC_IDEMPOTENT=PASS")
+    print("MULTI_PLACEMENT_RETRIEVAL_NO_DUPLICATE_CHUNKS=PASS")
 
 
 def test_retrieval_role_is_exactly_read_only() -> None:
@@ -1736,7 +2134,7 @@ def test_real_gin_and_hnsw_plans_filters_top_50_and_local_scope() -> None:
         connection.execute("SET LOCAL enable_bitmapscan = off")
         expected_rows = connection.execute(
             _DENSE_ORACLE_SQL,
-            (*_scope_sql_params(TARGET_COLLECTION), QUERY_VECTOR_TEXT),
+            (*_legacy_scope_sql_params(TARGET_COLLECTION), QUERY_VECTOR_TEXT),
         ).fetchall()
     expected_ids = [str(row[0]) for row in expected_rows]
     assert 0 < len(actual) <= 50

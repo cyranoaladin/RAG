@@ -31,7 +31,7 @@ from nexus_contracts import (
     RetrievalResponse,
     RetrievalResult,
 )
-from pydantic import BaseModel, ConfigDict, Field, computed_field
+from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
 
 try:
     from .collection_config import (
@@ -69,9 +69,9 @@ try:
         retrieve_hybrid,
     )
     from .retrieval_pg_v2 import (
-        _SCOPE_PREDICATE_SQL,
+        _READINESS_SCOPE_PREDICATE_SQL,
         PgCandidateStore,
-        _scope_params,
+        _readiness_scope_params,
     )
     from .retrieval_scope_v2 import (
         RetrievalScopeError,
@@ -125,9 +125,9 @@ except (ImportError, ValueError):
         retrieve_hybrid,
     )
     from retrieval_pg_v2 import (  # type: ignore[no-redef]
-        _SCOPE_PREDICATE_SQL,
+        _READINESS_SCOPE_PREDICATE_SQL,
         PgCandidateStore,
-        _scope_params,
+        _readiness_scope_params,
     )
     from retrieval_scope_v2 import (  # type: ignore[no-redef]
         RetrievalScopeError,
@@ -361,6 +361,18 @@ class SearchV2Hit(BaseModel):
     rights: str = Field(min_length=1, pattern=r".*\S.*")
     type_doc: str
     review_status: Literal["reviewed"]  # SCALE-04: reviewed only
+    artifact_id: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    content_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    placement_id: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    placement_source_scope: str | None = Field(
+        default=None, min_length=1, pattern=r".*\S.*"
+    )
+    placement_source_id: str | None = Field(
+        default=None, min_length=1, pattern=r".*\S.*"
+    )
+    placement_source_path: str | None = Field(
+        default=None, min_length=1, pattern=r".*\S.*"
+    )
     page: int | None = Field(default=None, ge=1)
     preview: str = Field(min_length=1, pattern=r".*\S.*")
     dense_score: float | None
@@ -369,6 +381,23 @@ class SearchV2Hit(BaseModel):
     rerank_score: float
     mmr_score: float
     score_final: float = Field(ge=0, le=1)
+
+    @model_validator(mode="after")
+    def validate_governed_traceability(self) -> SearchV2Hit:
+        trace = (
+            self.artifact_id,
+            self.content_sha256,
+            self.placement_id,
+            self.placement_source_scope,
+            self.placement_source_id,
+            self.placement_source_path,
+        )
+        if any(value is not None for value in trace):
+            if any(value is None for value in trace):
+                raise ValueError("governed traceability must be complete")
+            if self.artifact_id != self.content_sha256 or self.doc_id != self.artifact_id:
+                raise ValueError("governed identity must be content-bound")
+        return self
 
     @computed_field(  # type: ignore[prop-decorator]
         return_type=float | None,
@@ -477,11 +506,16 @@ def _get_reviewed_chunk_counts(
         if cached is not None and cached[0] == cache_key and cached[1] > now:
             return dict(cached[2])
 
-    clauses: list[str] = []
+    count_queries: list[str] = []
     params: list[object] = []
     for scope in resolved_scopes:
-        clauses.append(f"({_SCOPE_PREDICATE_SQL})")
-        params.extend(_scope_params(scope))
+        count_queries.append(
+            "SELECT %s::text AS collection, COUNT(*) "
+            "FROM public.rag_chunks AS chunk WHERE "
+            f"({_READINESS_SCOPE_PREDICATE_SQL})"
+        )
+        params.append(scope.collection)
+        params.extend(_readiness_scope_params(scope))
 
     try:
         settings = PoolSettings.from_env()
@@ -514,9 +548,7 @@ def _get_reviewed_chunk_counts(
                 with connection.cursor() as cursor:
                     execute_with_database_budget(
                         cursor,
-                        "SELECT collection, COUNT(*) FROM public.rag_chunks WHERE "
-                        + " OR ".join(clauses)
-                        + " GROUP BY collection",
+                        " UNION ALL ".join(count_queries),
                         tuple(params),
                         statement_timeout_ms=settings.statement_timeout_ms,
                     )
@@ -934,6 +966,12 @@ def _to_search_hit(hit: HybridHit) -> SearchV2Hit:
         rights=candidate.rights,
         type_doc=candidate.type_doc,
         review_status=candidate.review_status,
+        artifact_id=candidate.artifact_id,
+        content_sha256=candidate.content_sha256,
+        placement_id=candidate.placement_id,
+        placement_source_scope=candidate.placement_source_scope,
+        placement_source_id=candidate.placement_source_id,
+        placement_source_path=candidate.placement_source_path,
         page=candidate.page_start,
         preview=candidate.text.strip()[:200],
         dense_score=candidate.dense_score,
@@ -951,6 +989,29 @@ def _to_retrieval_result(
     *,
     include_citation: bool = True,
 ) -> RetrievalResult:
+    metadata: dict[str, object] = {
+        "collection": collection,
+        "type_doc": hit.type_doc,
+        "review_status": hit.review_status,
+        "dense_score": hit.dense_score,
+        "dense_sim": hit.dense_sim,
+        "lexical_score": hit.lexical_score,
+        "rrf_score": hit.rrf_score,
+        "rerank_score": hit.rerank_score,
+        "mmr_score": hit.mmr_score,
+        "score_final": hit.score_final,
+    }
+    if hit.artifact_id is not None:
+        metadata.update(
+            {
+                "artifact_id": hit.artifact_id,
+                "content_sha256": hit.content_sha256,
+                "placement_id": hit.placement_id,
+                "placement_source_scope": hit.placement_source_scope,
+                "placement_source_id": hit.placement_source_id,
+                "placement_source_path": hit.placement_source_path,
+            }
+        )
     return RetrievalResult(
         chunk_id=hit.chunk_id,
         doc_id=hit.doc_id,
@@ -967,18 +1028,7 @@ def _to_retrieval_result(
             if include_citation
             else None
         ),
-        metadata={
-            "collection": collection,
-            "type_doc": hit.type_doc,
-            "review_status": hit.review_status,
-            "dense_score": hit.dense_score,
-            "dense_sim": hit.dense_sim,
-            "lexical_score": hit.lexical_score,
-            "rrf_score": hit.rrf_score,
-            "rerank_score": hit.rerank_score,
-            "mmr_score": hit.mmr_score,
-            "score_final": hit.score_final,
-        },
+        metadata=metadata,
     )
 
 

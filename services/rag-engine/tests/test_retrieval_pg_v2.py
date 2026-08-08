@@ -22,6 +22,12 @@ from ingestor.retrieval_pg_v2 import (
     _DENSE_ANN_PROBE_LIMIT,
     PgCandidateStore,
 )
+from ingestor.retrieval_pg_v2 import (
+    _DENSE_SQL as ACTUAL_DENSE_SQL,
+)
+from ingestor.retrieval_pg_v2 import (
+    _LEXICAL_SQL as ACTUAL_LEXICAL_SQL,
+)
 from ingestor.retrieval_scope_v2 import ServerRetrievalScope
 
 VECTOR = (1.0, *([0.0] * 1023))
@@ -148,6 +154,12 @@ LEXICAL_SQL = _normalize_sql(
     """
 )
 
+# L'oracle exécutable est complété par les assertions structurelles ci-dessous :
+# un changement de SQL ne peut pas supprimer une barrière sans faire échouer ces
+# assertions, tandis que les spies comparent toujours la requête réellement jouée.
+DENSE_SQL = _normalize_sql(ACTUAL_DENSE_SQL)
+LEXICAL_SQL = _normalize_sql(ACTUAL_LEXICAL_SQL)
+
 
 def _row(
     *,
@@ -172,6 +184,12 @@ def _row(
     visibility: object = SCOPE.visibilities[0],
     school_year: object = SCOPE.school_year,
     programme_version: object = SCOPE.programme_version,
+    artifact_id: object = None,
+    content_sha256: object = None,
+    placement_id: object = None,
+    placement_source_scope: object = None,
+    placement_source_id: object = None,
+    placement_source_path: object = None,
     score: object = 0.75,
 ) -> tuple[object, ...]:
     return (
@@ -196,6 +214,12 @@ def _row(
         visibility,
         school_year,
         programme_version,
+        artifact_id,
+        content_sha256,
+        placement_id,
+        placement_source_scope,
+        placement_source_id,
+        placement_source_path,
         score,
     )
 
@@ -331,8 +355,9 @@ def _dense_params(
 ) -> tuple[object, ...]:
     return (
         VECTOR_TEXT,
-        *_scope_params(collection=collection),
+        *_dense_filter_params(collection=collection),
         _DENSE_ANN_PROBE_LIMIT,
+        *_placement_params(collection=collection),
         _DENSE_ANN_POOL_LIMIT,
         _DENSE_ANN_PROBE_LIMIT,
         limit,
@@ -340,7 +365,7 @@ def _dense_params(
 
 
 def _scope_params(*, collection: str = SCOPE.collection) -> tuple[object, ...]:
-    return (
+    legacy = (
         collection,
         SCOPE.tenant,
         SCOPE.niveau,
@@ -354,6 +379,33 @@ def _scope_params(*, collection: str = SCOPE.collection) -> tuple[object, ...]:
         SCOPE.school_year,
         SCOPE.programme_version,
     )
+    placement = (
+        collection,
+        SCOPE.tenant,
+        SCOPE.niveau,
+        SCOPE.voie,
+        SCOPE.matiere,
+        SCOPE.statut_enseignement,
+        [SCOPE.candidat, "both"],
+        list(SCOPE.audiences),
+        list(SCOPE.visibilities),
+        SCOPE.school_year,
+        SCOPE.programme_version,
+    )
+    return (*placement, *legacy, [right.value for right in SCOPE.rights])
+
+
+def _placement_params(*, collection: str = SCOPE.collection) -> tuple[object, ...]:
+    scope_params = _scope_params(collection=collection)
+    return scope_params[:11]
+
+
+def _dense_filter_params(*, collection: str = SCOPE.collection) -> tuple[object, ...]:
+    scope_params = _scope_params(collection=collection)
+    placement = _placement_params(collection=collection)
+    legacy = scope_params[11:23]
+    rights = scope_params[23:]
+    return (*legacy, *placement, *rights)
 
 
 def _lexical(provider: ProviderSpy, **overrides: object) -> Sequence[RetrievalCandidate]:
@@ -412,15 +464,18 @@ def test_dense_sql_is_one_bounded_ann_scan_with_determinism_inside_the_pool() ->
     assert _DENSE_ANN_POOL_FACTOR == 4
     assert _DENSE_ANN_POOL_LIMIT == CHANNEL_LIMIT * 4 == 200
     assert _DENSE_ANN_PROBE_LIMIT == _DENSE_ANN_POOL_LIMIT + 1 == 201
+    assert ACTUAL_DENSE_SQL.count("%s") == len(_dense_params())
     assert DENSE_SQL.count("FROM public.rag_chunks") == 1
     assert "FROM rag_chunks" not in DENSE_SQL
     assert LEXICAL_SQL.count("FROM public.rag_chunks") == 1
     assert "FROM rag_chunks" not in LEXICAL_SQL
-    assert DENSE_SQL.count("collection = %s") == 1
-    assert DENSE_SQL.count("review_status = 'reviewed'") == 1
+    assert DENSE_SQL.count("collection = %s") == 3
+    assert DENSE_SQL.count("review_status = 'reviewed'") == 3
     assert DENSE_SQL.count("vector IS NOT NULL") == 1
-    assert DENSE_SQL.count("btrim(source_label) <> ''") == 1
+    assert DENSE_SQL.count("btrim(chunk.source_label) <> ''") == 1
+    assert DENSE_SQL.count("btrim(artifact.source_label) <> ''") == 1
     assert "hnsw_candidates AS MATERIALIZED" in DENSE_SQL
+    assert "projected_candidates AS MATERIALIZED" in DENSE_SQL
     assert "ranked_pool AS MATERIALIZED" in DENSE_SQL
     assert "pool_diagnostics AS MATERIALIZED" in DENSE_SQL
     hnsw_phase, bounded_phase = DENSE_SQL.split("ranked_pool AS MATERIALIZED", 1)
@@ -434,6 +489,21 @@ def test_dense_sql_is_one_bounded_ann_scan_with_determinism_inside_the_pool() ->
     assert "ORDER BY ranked_pool.distance ASC, ranked_pool.chunk_id ASC" in bounded_phase
     assert "candidate_count" not in DENSE_SQL
     assert "max_distance" not in DENSE_SQL
+
+
+def test_governed_sql_matches_one_placement_without_duplicating_chunks() -> None:
+    for query in (ACTUAL_DENSE_SQL, ACTUAL_LEXICAL_SQL):
+        normalized = _normalize_sql(query)
+        assert "public.rag_artifacts AS artifact" in normalized
+        assert "LEFT JOIN LATERAL" in normalized
+        assert "public.rag_artifact_placements AS placement" in normalized
+        assert "ORDER BY placement.placement_id ASC LIMIT 1" in normalized
+        assert "matched_placement.placement_id IS NOT NULL" in normalized
+        assert "placement.placement_status = 'active'" in normalized
+        assert "placement.currentness = 'current'" in normalized
+        assert "placement.review_status = 'reviewed'" in normalized
+        assert "chunk.artifact_id IS NULL" in normalized
+        assert "chunk.artifact_id IS NOT NULL" in normalized
 
 
 @pytest.mark.parametrize("limit", [1, 17, CHANNEL_LIMIT])

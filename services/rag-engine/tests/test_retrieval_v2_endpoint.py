@@ -174,9 +174,9 @@ def test_reviewed_chunk_counts_use_the_bounded_shared_pool(
     }
     assert connection_calls == 1
     assert executed["settings"] is settings
-    assert "SELECT collection, COUNT(*) FROM public.rag_chunks" in str(
-        executed["sql"]
-    )
+    assert "SELECT %s::text AS collection, COUNT(*)" in str(executed["sql"])
+    assert "FROM public.rag_chunks AS chunk" in str(executed["sql"])
+    assert "public.rag_artifact_placements" in str(executed["sql"])
     assert BASE_SCOPE.tenant in executed["params"]
 
 
@@ -637,7 +637,7 @@ class TestResponseFormat:
 
         candidate = RetrievalCandidate(
             chunk_id="chunk-1",
-            doc_id="doc-1",
+            doc_id="a" * 64,
             source_label="Programme NSI",
             source_uri="https://example.edu/nsi",
             rights="official_public_administrative",
@@ -646,6 +646,12 @@ class TestResponseFormat:
             page_start=11,
             vector=(1.0,) + (0.0,) * 1023,
             review_status="reviewed",
+            artifact_id="a" * 64,
+            content_sha256="a" * 64,
+            placement_id="b" * 64,
+            placement_source_scope="01_EDUSCOL_OFFICIEL/terminale/philosophie",
+            placement_source_id="eduscol:5793:terminale:philosophie",
+            placement_source_path="01_EDUSCOL_OFFICIEL/philosophie/source.pdf",
             dense_score=None,
             lexical_score=0.42,
         )
@@ -689,6 +695,16 @@ class TestResponseFormat:
             "rerank_score": 2.75,
             "mmr_score": 0.612,
             "score_final": 0.884,
+            "artifact_id": "a" * 64,
+            "content_sha256": "a" * 64,
+            "placement_id": "b" * 64,
+            "placement_source_scope": (
+                "01_EDUSCOL_OFFICIEL/terminale/philosophie"
+            ),
+            "placement_source_id": "eduscol:5793:terminale:philosophie",
+            "placement_source_path": (
+                "01_EDUSCOL_OFFICIEL/philosophie/source.pdf"
+            ),
         }
 
     def test_mapping_refuses_blank_provenance_and_preview(self) -> None:
