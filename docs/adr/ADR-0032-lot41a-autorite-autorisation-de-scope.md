@@ -71,101 +71,213 @@ LOT41V correspondant — exactement la frontière qu'ADR-0025 a déjà
 construite et que cette session a déjà exercée avec succès trois fois
 (PR#90, PR#91, PR#92).
 
-### 2. Contrat `ScopeAuthorization`
+### 2. L'artefact canonique **est** la décision (remédiation GATE H1, item B)
 
-Nouveau module `packages/contracts/src/nexus_contracts/scope_authorization.py`
-(partagé, jamais possédé par un seul service) définissant un modèle Pydantic
-`ScopeAuthorization`, immuable, portant au minimum :
+Une review GitHub `APPROVED` prouve qu'un humain a lu **un diff précis, à un
+commit précis**. Elle ne prouve rien sur un fichier local que l'opérateur
+fournirait ensuite à un outil. Tant que la décision enregistrée provient
+d'une source indépendante de la review, les deux ne sont reliées par rien :
+faire approuver un scope étroit puis enregistrer un scope large ne viole
+aucune vérification.
+
+La décision est donc un **artefact canonique versionné dans Git** :
+
+```
+governance/authorizations/<authorization_id>.json
+```
+
+`packages/contracts/src/nexus_contracts/authority_artifacts.py` définit
+`ScopeAuthorizationArtifact` (Pydantic, `extra="forbid"`), portant
+l'intégralité de la décision :
 
 | Champ | Rôle |
 |---|---|
-| `authorization_id` | identifiant libre, unique |
-| `decision` | littéral fixe `"AUTHORIZE_INGESTION_SCOPE"` — jamais un texte libre |
-| `scope` | `nexus_contracts.ingestion.ResourceScope` complet (dix dimensions déjà contractuelles, réutilisées telles quelles, jamais redéfinies) |
-| `collection` | collection ciblée |
+| `protocol_version` | littéral `"LOT41A-V1"` — jamais implicite, jamais absent |
+| `authorization_id` | ASCII minuscule strict ; détermine à lui seul le chemin canonique |
+| `decision` | littéral fixe `"AUTHORIZE_INGESTION_SCOPE"` |
+| `scope` | `ResourceScope` complet (dix dimensions, réutilisées telles quelles) |
 | `manifest_digest` | SHA-256 du manifest de profils approuvé (LOT44c) |
 | `profile_id` / `profile_version` / `profile_fingerprint` | identité exacte du profil autorisé |
-| `allowed_domains` | sous-ensemble explicite, jamais un wildcard |
-| `rights_categories` | catégories de droits/licences autorisées |
-| `exclusions` | catégories explicitement exclues (ex. PII, documents nominatifs) |
-| `pii_absence_attested` | booléen strict + référence de preuve |
-| `valid_from` / `valid_until` | fenêtre de validité — `valid_until` **obligatoire**, jamais `None` (satisfait `expiry_required: true` de LOT38) |
-| `evidence` | voir ci-dessous |
+| `allowed_domains` | hôtes ASCII normalisés, triés, dédupliqués — jamais un wildcard |
+| `rights_categories` | catégories autorisées, triées ; `unknown` interdit |
+| `exclusions` | hôtes ou préfixes de chemin explicitement exclus |
+| `pii_absence_attested` / `pii_absence_evidence` | assertion + référence de preuve |
+| `valid_from` / `valid_until` | fenêtre obligatoire (satisfait `expiry_required` de LOT38) |
 
-`evidence` est un sous-modèle `GitHubApprovalEvidence` portant exactement
-les champs déjà produits par le readback JSON du check `Evaluate trusted
-human review` (vérifié empiriquement cette session sur PR#90) :
-`repository`, `pull_request`, `head_sha`, `base_sha`, `review_id`,
-`reviewer`, `submitted_at`, `challenge`.
+Trois propriétés rendent le lien inviolable :
 
-Aucun champ de confiance (`approved`, `valid`) n'est stocké : la validité
-n'est **jamais** un booléen figé dans l'enregistrement — elle est
-**toujours** recalculée en direct (voir § 4).
+1. **Chemin canonique déterministe** — dérivé de l'identifiant seul.
+   L'opérateur ne choisit jamais quel fichier est relu, et aucun
+   identifiant ne peut désigner un fichier hors de son répertoire.
+2. **Sérialisation canonique déterministe** — clés triées, indentation
+   fixe, dates UTC, listes normalisées. Les vérificateurs exigent
+   l'égalité **octet à octet** entre le blob relu et la re-sérialisation
+   de son parse : un fichier commité sous une autre forme est refusé, donc
+   les octets revus par l'humain sont exactement ceux dont le digest est
+   calculé. La forme est indentée, délibérément : ces octets doivent
+   rester lisibles dans un diff, sans quoi la review humaine — la seule
+   chose qui donne sa valeur à toute la chaîne — deviendrait impraticable.
+3. **Validation stricte** — un champ inconnu ne peut pas voyager
+   silencieusement à côté de la décision revue.
+
+L'évidence GitHub n'est délibérément **pas** un champ de l'artefact : un
+artefact ne peut pas contenir la preuve de sa propre approbation, qui
+n'existe qu'après le commit qui le porte.
 
 ### 3. Stockage — `ingestion_control.scope_authorizations`
 
-Nouvelle table PostgreSQL (migration additive, même schéma logique
-`ingestion_control` que LOT44b, décision D1 non remise en cause), portant
-la sérialisation de `ScopeAuthorization`, plus :
+La table PostgreSQL n'est **jamais** une autorisation : c'est un *index*
+vers les octets qui en sont une. Elle porte la projection de l'artefact,
+l'évidence GitHub relue à l'enregistrement, les colonnes de révocation, et
+surtout le lien cryptographique :
 
-- `revoked_at` / `revoked_by` / `revocation_reason` (nullable — présents
-  seulement si révoqué, jamais réutilisés pour autre chose) ;
-- `revocation_evidence` (même structure `GitHubApprovalEvidence`, sur une
-  PR de révocation dédiée — la révocation suit exactement la même frontière
-  humaine que l'octroi, jamais un simple `UPDATE` opérateur).
+- `artifact_path` — contraint par `CHECK` à valoir exactement
+  `governance/authorizations/<authorization_id>.json` ;
+- `artifact_blob_sha` — SHA-1 d'objet Git des octets approuvés ;
+- `authorization_digest` — SHA-256 de la forme canonique.
 
-Écriture réservée à un rôle dédié `ingestion_control_authority` (least
-privilege, même discipline que `provision_ingestion_control_roles.sh`),
-jamais au rôle `ingestion_control_app` du worker — le worker ne peut
-**jamais** s'auto-écrire une autorisation.
+Aucun champ de confiance (`approved`, `valid`) n'est stocké : la validité
+n'est jamais un booléen figé, toujours recalculée en direct (§ 4).
 
-### 4. Vérification — toujours en direct, jamais depuis un cache figé
+La révocation suit exactement la même frontière humaine que l'octroi (PR de
+révocation dédiée, approuvée), jamais un simple `UPDATE` opérateur.
 
-`ingestion_control/scope_authority.py` (nouveau module `rag-engine`) expose
-`verify_scope_authorization(conn, *, scope) -> VerifiedAuthorization` (le
-scope porte déjà `collection` comme l'une de ses dix dimensions — jamais un
-second paramètre redondant qui pourrait diverger silencieusement du champ
-`scope.collection`), qui :
+Écriture réservée au rôle `ingestion_control_authority`, jamais au rôle
+`ingestion_control_app` du worker — le worker ne peut jamais s'auto-écrire
+une autorisation.
 
-1. lit la ligne `scope_authorizations` correspondant au scope/collection
-   demandé, la plus récente non expirée ;
-2. si absente, expirée, ou révoquée : lève `ScopeAuthorizationDeniedError`
-   (fail-closed, jamais un `None` silencieux) ;
-3. **relit en direct** l'évidence GitHub embarquée via
-   `scripts/github/trusted_human_review_github.check_github_review`
-   (fonction déjà existante, testée, partagée) — jamais une simple
-   comparaison de champs stockés. Si la review a été dismissée, si le HEAD
-   ne correspond plus, ou si le challenge ne match plus : refus explicite,
-   même si la ligne PostgreSQL affirme le contraire.
-4. ne retourne un résultat positif que si la vérification live **et**
-   l'enregistrement stocké concordent.
+**Aucun index ordonné par `valid_until`** n'existe (item C, § 4).
 
-Cette double vérification (stockage + relecture live) est ce qui rend la
-révocation réelle : dismissre la review GitHub originale invalide
-l'autorisation **immédiatement**, sans attendre qu'un opérateur mette à
-jour PostgreSQL.
+### 4. Vérification — l'autorisation est **nommée**, jamais devinée
 
-### 5. CLI opérateur — jamais une auto-déclaration
+`ingestion_control/scope_authority.py` expose :
 
-`ingestion_worker/authorize_scope_cli.py` (nouveau, même discipline que
-`create_job_cli.py` : jamais un endpoint réseau, `docker exec` uniquement) :
+```python
+verify_scope_authorization(conn, *, authorization_id, scope=None, now=None)
+    -> VerifiedAuthorization
+```
 
-- `record-authorization --pull-request N --scope-file ... --manifest-digest ...` :
-  relit la PR N en direct via `check_github_review`, **refuse d'écrire si
-  la vérification live échoue**, n'écrit en base que le résultat déjà
-  vérifié — jamais une insertion aveugle d'un JSON fourni par l'opérateur ;
-- `revoke-authorization --authorization-id ... --revocation-pull-request M` :
-  même discipline, sur une PR de révocation séparée.
+`authorization_id` est **obligatoire**. Sélectionner « l'autorisation la
+plus récente couvrant ce scope » ferait d'une écriture en base une décision
+d'autorité : enregistrer une autorisation large plus tardive suffirait à
+élargir silencieusement un job déjà planifié. Un job est lié à **une**
+autorisation nommée, portée par son payload (`scope_authorization_id`) ;
+plusieurs autorisations historiques peuvent coexister pour un même scope
+sans qu'aucune ne supplante l'autre.
 
-### 6. Intégration au worker — fail-closed inchangé
+La vérification refait la chaîne entière, à chaque usage :
 
-`enforce_production_manifest_gate` (LOT44c) reste inchangé dans son
-périmètre actuel (manifest + `approved_by`/`approved_at` minimal, ADR-0031
-Décision 3). LOT41A ajoute une **seconde** vérification, orthogonale,
-avant toute réclamation de job pour un scope donné : `verify_scope_
-authorization` doit réussir, sinon le worker refuse de traiter ce job
-(nouvel état d'échec explicite, jamais un `dead_letter` silencieux —
-`SCOPE_AUTHORIZATION_DENIED`, journalisé dans `workflow_events`).
+1. **ligne exacte** chargée par clé primaire — aucun `ORDER BY`, aucun
+   `LIMIT` ;
+2. **révocation et fenêtre de validité** — `valid_from ≤ now < valid_until` ;
+3. **scope** — si fourni, les dix dimensions doivent coïncider exactement ;
+4. **review GitHub relue en direct**, comparée **champ par champ** :
+   `repository`, `pull_request`, `base_sha`, `head_sha`, `review_id`,
+   `reviewer`, `submitted_at`, `challenge` (remédiation item G — la forme
+   antérieure, « le challenge stocké appartient-il à l'ensemble des
+   challenges live ? », acceptait une évidence dont le reviewer ou la
+   review avaient changé) ;
+5. **blob Git relu** au head approuvé exact, au chemin canonique exact ;
+   SHA d'objet Git recalculé localement et comparé à celui annoncé par
+   GitHub **et** à celui persisté ;
+6. **parse canonique + digest recalculé intégralement**, comparé au digest
+   persisté ;
+7. **égalité champ par champ artefact ↔ ligne PostgreSQL** — sans quoi un
+   `UPDATE` direct en base (élargir `allowed_domains`, avancer
+   `valid_until`) survivrait à la relecture.
+
+Chacune de ces sept étapes peut refuser seule. C'est cette double
+vérification (stockage + relecture live) qui rend la révocation réelle :
+dismissre la review GitHub invalide l'autorisation **immédiatement**, sans
+qu'aucun opérateur ne touche PostgreSQL.
+
+**Transport.** La relecture passe par `ingestion_control/github_authority.py`
+— requêtes `GET` uniquement, jeton lu à l'exécution depuis un fichier
+secret, échéance globale bornée. La *décision* elle-même reste exactement
+celle d'ADR-0025 : la fonction pure `evaluate_trusted_review` est chargée
+non modifiée depuis `scripts/github/trusted_human_review.py`. Seul le
+transport change ; la sémantique d'autorité est partagée à l'octet près.
+
+### 4bis. Enforcement pendant l'ingestion (remédiation GATE H1, item D)
+
+Une `VerifiedAuthorization` calculée puis ignorée n'autorise rien : elle
+donne seulement le droit de *commencer*. `ingestion_control/
+scope_enforcement.py` transforme chaque contrainte en assertion, appliquée
+au moment où le fait correspondant devient connu :
+
+| Point de contrôle | Ce qui est confronté |
+|---|---|
+| `pre_fetch` | `authorization_id`, scope, `manifest_digest`, profil (id/version/empreinte), fenêtre de validité — **avant tout accès réseau** |
+| `destination` | hostname normalisé des URL du payload contre `allowed_domains` / `exclusions` |
+| `redirect` | **chaque saut réellement suivi** par `safe_fetch` — seul endroit d'où une chaîne de redirection est observable |
+| `rights` | catégorie de droits **produite par le pipeline** contre `rights_categories` |
+| `pii` | absence de PII (cette release n'en ingère aucune) |
+
+Les hôtes sont comparés par **égalité exacte** après normalisation, jamais
+par suffixe : une autorisation pour `education.fr` n'autorise ni
+`education.fr.attacker.test`, ni `www.education.fr`.
+
+**Revalidation live.** L'autorisation est revérifiée intégralement — donc
+relue contre GitHub — au point de contrôle `rights`, en plus de
+`pre_fetch`. Une révocation ou une expiration survenue *pendant*
+Scout/Fetcher/Extractor prend donc effet avant que la ressource n'avance,
+jamais seulement au job suivant. Les sauts de redirection, eux, réutilisent
+l'autorisation déjà vérifiée : imposer une requête GitHub par saut
+n'ajouterait aucune garantie et multiplierait la surface de panne.
+
+Toute violation est journalisée (`SCOPE_AUTHORIZATION_DENIED`, avec le nom
+du point de contrôle) puis **committée avant de se propager** — le rollback
+que l'appelant effectue sur l'exception effacerait sinon la seule trace
+durable du refus.
+
+### 5. CLI opérateur — l'opérateur choisit *quelle* autorisation, jamais *ce qu'elle dit*
+
+`ingestion_worker/authorize_scope_cli.py` (jamais un endpoint réseau,
+`docker exec` / conteneur ponctuel uniquement) :
+
+```
+record-authorization --authorization-id ID --repository R --pull-request N --expected-head SHA
+```
+
+Il n'existe **aucune** option décrivant le contenu de la décision — pas de
+`--scope-file`, pas de `--manifest-digest`. La chaîne exécutée est :
+
+```
+verify_review (live, lecture seule, temps borné)
+  -> refus si non APPROVED sur --expected-head exact
+  -> fetch_blob_at_ref(chemin canonique dérivé de l'ID, head approuvé)
+  -> parse canonique strict (refus si octets non canoniques)
+  -> digest SHA-256 recalculé intégralement
+  -> INSERT (décision + digest + évidence live)
+```
+
+`revoke-authorization` suit la même discipline sur une PR de révocation
+dédiée.
+
+**Rôle PostgreSQL.** L'outil se connecte via
+`PG_INGESTION_CONTROL_AUTHORITY_DSN`, jamais le DSN applicatif du worker,
+et sans aucun repli : l'absence de la variable est une erreur explicite.
+
+### 6. Intégration au worker — fail-closed, à chaque étape
+
+`enforce_production_manifest_gate` (LOT44c) reste inchangé. LOT41A ajoute
+une vérification orthogonale, avant toute réclamation effective de job pour
+un scope donné, puis les points de contrôle du § 4bis. Un refus fait
+échouer le job explicitement (retry/dead\_letter normal), jamais un
+traitement poursuivi sous une autorisation supposée.
+
+### 6bis. Isolation des autorités d'opérateur (remédiation GATE H1, item K)
+
+Le conteneur worker de longue durée ne reçoit **jamais** de credential
+d'autorité ou d'attestation. Deux services Compose ponctuels et isolés
+(`scope-authority-operator`, `publication-attestor-operator`,
+`profiles: [operator]`) portent chacun **un seul** secret, n'exposent aucun
+port, ne redémarrent pas, tournent en `read_only` avec
+`no-new-privileges`, et se terminent après l'opération.
+
+Le rôle `ingestion_control_app` ne détient que `SELECT` sur les deux tables
+d'autorité : le worker peut exécuter lui-même la vérification live, jamais
+s'écrire une autorisation.
 
 ### 7. Cycle de vie des PR d'autorité — décision (remédiation GATE H1, item H)
 

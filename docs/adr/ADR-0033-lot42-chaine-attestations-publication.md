@@ -41,68 +41,114 @@ autorité humaine. La seule attestation non-déterministe de la chaîne (la
 revue humaine finale) doit elle-même être ancrée sur la même frontière
 GitHub qu'ADR-0025/LOT41V, jamais auto-attribuée par un agent ou un script.
 
-### 2. Contrat `PublicationAttestation`
+### 2. Les faits viennent du pipeline, jamais de l'opérateur (remédiation GATE H1, item E)
 
-Nouveau module `packages/contracts/src/nexus_contracts/publication_
-attestation.py` définissant `PublicationAttestation`, immuable, liée au
-minimum à :
+La première implémentation acceptait `--content-sha256`, `--rights-status`,
+`--quality-passed`, `--gate-passed` en arguments libres. Un opérateur
+pouvait donc attester une publication conforme pour une ressource dont le
+gate avait échoué : rien ne confrontait ces affirmations aux faits
+réellement produits.
 
-| Champ | Source |
+Ces options **n'existent plus**. `ingestion_control/publication_evidence.py`
+est la seule source de ces faits, et ne lit que des données que le pipeline
+a écrites lui-même :
+
+| Fait | Source durable |
 |---|---|
-| `resource_id` / `artifact_id` | `ingestion_control.resources`/`artifacts` (déjà existants) |
-| `content_sha256` | `artifacts.sha256` (déjà existant, LOT44d) |
-| `canonical_url` | `resource_candidates.canonical_url` (déjà existant) |
-| `collection` | scope de la ressource |
-| `scope_authorization_id` | référence à LOT41A (ADR-0032) — jamais nulle |
-| `profile_id` / `profile_version` / `profile_fingerprint` | identité exacte du profil (LOT44c, déjà existants) |
-| `manifest_digest` | LOT44f, déjà calculé (`manifest_fingerprint`) |
-| `rights_result` | sortie déterministe de `RightsAgent` (déjà existant, LOT44d) |
-| `quality_result` | sortie déterministe de `QualityAgent`/`RoutingDecision` (déjà existant) |
-| `gate_result` | résultat de `enforce_production_manifest_gate` au moment du traitement |
-| `human_review` | sous-modèle `HumanReviewEvidence` (voir § 3) |
-| `protocol_version` | `"LOT42-V1"` — permet une évolution future sans ambiguïté rétroactive |
-| `created_at` | horodatage de construction de l'attestation |
-| `invalidated_at` / `invalidated_reason` | nullable, voir § 4 |
+| `collection` | `ingestion_control.resources` |
+| `content_sha256` | `ingestion_control.artifacts.sha256` |
+| `canonical_url` | `ingestion_control.resource_candidates` |
+| `rights_status`, `rights_assessed_at` | `workflow_events` — transition `RIGHTS_CHECKED` écrite par `run_rights_agent` |
+| `quality_passed`, `quality_report_digest`, `quality_assessed_at` | `workflow_events` — transition `QUALITY_CHECKED` écrite par `run_quality_agent` |
+| `gate_passed`, `gate_name`, `gate_evaluated_at` | `workflow_events` — événement `PUBLICATION_GATE_EVALUATED`, **émis quelle que soit sa valeur** |
 
-### 3. Revue humaine finale — même frontière GitHub, jamais une nouvelle
+`workflow_events` est append-only : aucun rôle ne détient `UPDATE` ni
+`DELETE` dessus. Un verdict de gate négatif ne produit aucune transition
+d'état ; sans l'événement dédié, « pas de preuve de succès » serait
+indistinguable de « pas de preuve du tout ».
 
-`HumanReviewEvidence` réutilise **exactement** la structure
-`GitHubApprovalEvidence` d'ADR-0032 (pas une seconde frontière parallèle) :
-la revue finale avant publication est elle-même une review GitHub
-`APPROVED`, sur une PR de revue de lot de publication, HEAD exact,
-challenge LOT41V, revérifiée en direct au moment de la construction de
-l'attestation — jamais stockée comme un simple booléen `reviewed: true`.
+**Pas de score scalaire.** L'attestation porte le *digest* du
+`QualityReport` complet, jamais un « score de qualité ». Les heuristiques
+de ce lot sont des placeholders explicitement documentés ; les résumer en
+un scalaire leur donnerait une autorité qu'elles n'ont pas. Le digest, lui,
+rend le rapport comparable dans le temps sans rien affirmer sur sa valeur.
 
-### 4. Invalidation — automatique, jamais un oubli opérateur
+### 3. L'artefact de revue canonique et la revue humaine
 
-Une attestation existante est automatiquement considérée invalide (relue
-à chaque vérification, jamais seulement au moment de sa création) si l'une
-de ces conditions est vraie :
+Comme LOT41A, la décision de publication **est** un artefact canonique
+versionné dans Git :
 
-- `artifacts.sha256` actuel du `artifact_id` référencé diverge de
-  `content_sha256` (contenu modifié après attestation) ;
-- le `profile_fingerprint` référencé ne correspond plus au profil actuel du
-  manifest (LOT44c, mécanisme déjà existant de détection de dérive) ;
-- `manifest_digest` référencé diverge du digest actuel du manifest
-  approuvé ;
-- l'autorisation de scope LOT41A référencée (`scope_authorization_id`) est
-  expirée ou révoquée (vérifiée en direct, ADR-0032 § 4) ;
-- la revue humaine finale (`human_review`) ne revérifie plus en direct
-  (review dismissée, HEAD divergent).
+```
+governance/publication-reviews/<review_id>-<digest>.json
+```
 
-`verify_publication_attestation(conn, *, resource_id) ->
-VerifiedAttestation` réévalue ces cinq conditions à chaque appel — jamais
-un statut mis en cache. Toute divergence renvoie `PublicationAttestation
-InvalidError`, jamais un `bool` silencieux.
+Le digest fait partie du nom : une décision modifiée ne peut jamais
+réutiliser le chemin d'une décision déjà approuvée.
 
-### 5. Stockage — `ingestion_control.publication_attestations`
+`PublicationReviewArtifact` (`nexus_contracts.authority_artifacts`) porte
+l'intégralité de la décision, **y compris les `event_id` des
+`workflow_events` qui ont produit chaque fait** — une preuve qui ne nomme
+pas son événement n'est pas une preuve.
 
-Nouvelle table PostgreSQL additive, même schéma `ingestion_control`.
-Écriture réservée à un rôle dédié `ingestion_control_attestor`, distinct du
-rôle worker `ingestion_control_app` (moindre privilège — le worker
-construit les CINQ premières attestations déterministes de la chaîne
-lui-même au fil de son traitement normal, mais **jamais** la revue humaine
-finale, qui exige le même CLI opérateur externe qu'ADR-0032).
+Le protocole est en deux temps :
+
+1. `attest_publication_cli propose-review` lit les faits durables, refuse
+   immédiatement toute chaîne négative, et écrit l'artefact canonique. **Ce
+   fichier, et lui seul, est ce que l'humain relit dans la PR.**
+2. `attest_publication_cli record-attestation`, après approbation :
+   revérifie la review en direct (champ par champ, même discipline
+   qu'ADR-0032 § 4), relit le blob Git au head approuvé, **recompare octet
+   à octet** avec l'artefact redérivé depuis la base, et n'écrit qu'ensuite.
+
+Une divergence DB ↔ artefact est un refus. Le digest faisant partie du
+chemin, un artefact falsifié n'est d'ailleurs même pas trouvable.
+
+La revue humaine finale réutilise **exactement** la même frontière GitHub
+qu'ADR-0032 — jamais une seconde frontière parallèle, jamais un booléen
+`reviewed: true`.
+
+### 4. Une chaîne négative ne publie jamais (remédiation GATE H1, item F)
+
+Le refus est imposé **trois fois, à trois niveaux indépendants**, parce
+qu'une seule barrière est une barrière qu'on peut contourner :
+
+1. **Irreprésentable dans l'artefact** — `PublicationReviewArtifact` refuse
+   de se construire si `quality_passed` ou `gate_passed` est faux, ou si
+   `rights_status` vaut `unknown`.
+2. **Irreprésentable en base** — les contraintes `CHECK` de la migration
+   008 (`quality_passed = true`, `gate_passed = true`, `rights_status`
+   n'incluant pas `unknown`) refusent la ligne, y compris à un accès SQL
+   privilégié.
+3. **Refusé à la relecture** — la vérification rejette la transition même
+   si une ligne avait été introduite par un chemin inattendu.
+
+### 5. Invalidation — automatique, jamais un oubli opérateur
+
+`verify_publication_attestation` réévalue **toute** la chaîne à chaque
+appel — jamais un statut mis en cache :
+
+- dérive de `content_sha256`, de `profile_fingerprint`, de
+  `manifest_digest` ;
+- faits durables du pipeline devenus négatifs, absents, ou divergents de
+  ceux revus ;
+- artefact de revue introuvable, non canonique, ou d'octets différents ;
+- review humaine finale qui ne revérifie plus (PR fermée, review
+  dismissée, HEAD divergent, reviewer ayant perdu ses droits) ;
+- autorisation de scope LOT41A référencée qui ne vérifie plus, ou qui ne
+  couvre plus la catégorie de droits produite.
+
+Toute divergence lève `PublicationAttestationInvalidError`, jamais un
+`bool` silencieux. L'invalidation détectée est persistée au mieux-effort
+(`invalidated_at`/`invalidated_reason`) — trace d'audit, jamais la source
+de vérité, qui reste toujours la relecture live elle-même.
+
+### 5bis. Stockage et rôle — `ingestion_control.publication_attestations`
+
+Écriture réservée au rôle `ingestion_control_attestor`, distinct du rôle
+worker. Ce rôle détient en outre `SELECT` sur `workflow_events` et sur les
+tables du pipeline : sans cette lecture, le conteneur d'attestation devrait
+*aussi* porter le DSN du worker — exactement le cumul de credentials que
+l'item K interdit. Il n'a aucune écriture sur ces tables.
 
 ### 6. Intégration à la machine d'état — un seul point d'ancrage
 

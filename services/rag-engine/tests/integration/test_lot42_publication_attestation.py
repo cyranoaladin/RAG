@@ -659,7 +659,12 @@ class TestNegativeChainsNeverPublish:
         record_authorization(github)
         code, _, error = propose(resource_id, artifact_id, capsys)
         assert code == 1
-        assert "PUBLICATION_DENIED_QUALITY" in error or "PUBLICATION_DENIED_GATE" in error
+        # Le motif exact, jamais « l'un ou l'autre » : accepter aussi
+        # PUBLICATION_DENIED_GATE rendrait ce test insensible au retrait de
+        # la garde qualité — il resterait vert alors que la protection qu'il
+        # prétend mesurer aurait disparu (constaté par la matrice de mutation,
+        # item N, avant durcissement).
+        assert "PUBLICATION_DENIED_QUALITY" in error, error
 
     def test_a_failing_chain_can_never_be_recorded(
         self, pg: dict[str, str], tmp_path: Path, github: LocalGitHub, operator_env: None

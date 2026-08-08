@@ -31,11 +31,18 @@ networks:
 secrets:
   # Remédiation GATE H1 (item I) : le jeton GitHub en lecture seule est un
   # fichier monté à l'exécution, jamais une valeur littérale de ce fichier
-  # ni une couche d'image. Son chemin hôte est fourni par l'opérateur ;
-  # aucune valeur par défaut n'existe, pour qu'un déploiement sans jeton
-  # échoue explicitement plutôt que de vérifier « en mode dégradé ».
+  # ni une couche d'image.
+  #
+  # Le défaut est `/dev/null` — délibérément, et non une variable requise
+  # (`:?`). Compose interpole TOUT le fichier avant d'appliquer `profiles:`,
+  # donc une variable requise ici casserait `make v2-ingestion-up` pour tout
+  # déploiement existant, y compris ceux qui n'activent aucune autorité.
+  # `/dev/null` produit un fichier de secret VIDE, et `github_authority`
+  # refuse explicitement un jeton vide : l'absence de configuration reste
+  # donc fail-closed (aucune vérification d'autorité ne réussit), sans
+  # jamais empêcher le runtime d'ingestion de démarrer.
   nexus_github_token:
-    file: ${NEXUS_GITHUB_TOKEN_HOST_FILE:?NEXUS_GITHUB_TOKEN_HOST_FILE requis (fichier contenant un token GitHub read-only)}
+    file: ${NEXUS_GITHUB_TOKEN_HOST_FILE:-/dev/null}
 
 volumes:
   # Stockage des artefacts bruts téléchargés par le worker — jamais partagé
@@ -211,7 +218,12 @@ services:
       TZ: ${TZ:-UTC}
       # Rôle ingestion_control_authority UNIQUEMENT. Ni PG_INGESTION_CONTROL_DSN
       # (worker) ni le DSN d'attestation ne figurent ici.
-      PG_INGESTION_CONTROL_AUTHORITY_DSN: "${PG_INGESTION_CONTROL_AUTHORITY_DSN:?PG_INGESTION_CONTROL_AUTHORITY_DSN requis (role ingestion_control_authority)}"
+      # Vide par défaut, jamais une variable requise : Compose interpole ce
+      # fichier entier avant d'appliquer `profiles:`, donc `:?` ici casserait
+      # le `up` normal du runtime d'ingestion. Un DSN vide fait échouer
+      # `db.get_authority_dsn()` explicitement au premier usage — fail-closed
+      # au bon endroit, jamais un démarrage bloqué au mauvais.
+      PG_INGESTION_CONTROL_AUTHORITY_DSN: "${PG_INGESTION_CONTROL_AUTHORITY_DSN:-}"
       NEXUS_GITHUB_TOKEN_FILE: ${NEXUS_GITHUB_TOKEN_FILE:-/run/secrets/nexus_github_token}
       XDG_CACHE_HOME: /tmp
     secrets: [nexus_github_token]
@@ -237,7 +249,9 @@ services:
       # Rôle ingestion_control_attestor UNIQUEMENT — il détient SELECT sur
       # les tables du pipeline et sur workflow_events (lecture des faits
       # durables, item E), donc aucun besoin du DSN du worker.
-      PG_INGESTION_CONTROL_ATTESTOR_DSN: "${PG_INGESTION_CONTROL_ATTESTOR_DSN:?PG_INGESTION_CONTROL_ATTESTOR_DSN requis (role ingestion_control_attestor)}"
+      # Même raison que ci-dessus : vide par défaut, refus explicite à
+      # l'usage via `db.get_attestor_dsn()`.
+      PG_INGESTION_CONTROL_ATTESTOR_DSN: "${PG_INGESTION_CONTROL_ATTESTOR_DSN:-}"
       NEXUS_GITHUB_TOKEN_FILE: ${NEXUS_GITHUB_TOKEN_FILE:-/run/secrets/nexus_github_token}
       XDG_CACHE_HOME: /tmp
     secrets: [nexus_github_token]

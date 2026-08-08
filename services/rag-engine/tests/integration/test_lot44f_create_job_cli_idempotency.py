@@ -228,6 +228,8 @@ def _cli_args(profiles_dir: Path, manifest_path: Path, *, canonical_url: str) ->
         "--school-year", VALID_SCOPE["school_year"],
         "--programme-version", VALID_SCOPE["programme_version"],
         "--profile-version", "v1",
+        # Item C (GATE H1) : un job nomme toujours son autorisation.
+        "--scope-authorization-id", "auth-test-stub-0001",
         "--source-url", canonical_url,
         "--canonical-url", canonical_url,
         "--domain", "eduscol.education.fr",

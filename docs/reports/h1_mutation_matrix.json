@@ -1,0 +1,122 @@
+[
+  {
+    "number": 1,
+    "invariant": "artifact binding",
+    "protection": "scope_authority._verify_reviewed_artifact compare le SHA de blob relu au SHA persist\u00e9",
+    "test": "tests/integration/test_lot41a_scope_authority.py::TestArtifactBytesAreBinding::test_modified_bytes_at_the_same_head_are_denied",
+    "green_before": true,
+    "red_under_mutation": true,
+    "green_after_restore": true,
+    "verdict": "NON_VACUOUS"
+  },
+  {
+    "number": 2,
+    "invariant": "authorization_id binding",
+    "protection": "scope_enforcement.enforce_before_fetch exige que l'autorisation v\u00e9rifi\u00e9e soit celle que le job nomme",
+    "test": "tests/test_lot41a_scope_enforcement.py::TestPreFetchCheckpoint::test_a_different_authorization_id_is_refused",
+    "green_before": true,
+    "red_under_mutation": true,
+    "green_after_restore": true,
+    "verdict": "NON_VACUOUS"
+  },
+  {
+    "number": 3,
+    "invariant": "GitHub review-id binding",
+    "protection": "scope_authority._verify_live_review compare evidence_review_id",
+    "test": "tests/integration/test_lot41a_scope_authority.py::TestLiveGitHubProofIsFieldByField::test_a_single_diverging_evidence_field_is_denied[evidence_review_id-999999]",
+    "green_before": true,
+    "red_under_mutation": true,
+    "green_after_restore": true,
+    "verdict": "NON_VACUOUS"
+  },
+  {
+    "number": 4,
+    "invariant": "reviewer binding",
+    "protection": "scope_authority._verify_live_review compare evidence_reviewer",
+    "test": "tests/integration/test_lot41a_scope_authority.py::TestLiveGitHubProofIsFieldByField::test_a_single_diverging_evidence_field_is_denied[evidence_reviewer-someone-else]",
+    "green_before": true,
+    "red_under_mutation": true,
+    "green_after_restore": true,
+    "verdict": "NON_VACUOUS"
+  },
+  {
+    "number": 5,
+    "invariant": "challenge binding",
+    "protection": "scope_authority._verify_live_review compare evidence_challenge",
+    "test": "tests/integration/test_lot41a_scope_authority.py::TestLiveGitHubProofIsFieldByField::test_a_challenge_belonging_to_another_pr_is_denied",
+    "green_before": true,
+    "red_under_mutation": true,
+    "green_after_restore": true,
+    "verdict": "NON_VACUOUS"
+  },
+  {
+    "number": 6,
+    "invariant": "revocation",
+    "protection": "scope_authority.verify_scope_authorization refuse une ligne r\u00e9voqu\u00e9e, ET refuse une review GitHub dismiss\u00e9e",
+    "test": "tests/integration/test_lot41a_scope_authority.py::TestLiveGitHubProofIsFieldByField::test_review_dismissal_is_denied",
+    "green_before": true,
+    "red_under_mutation": true,
+    "green_after_restore": true,
+    "verdict": "NON_VACUOUS"
+  },
+  {
+    "number": 7,
+    "invariant": "scope mismatch",
+    "protection": "scope_authority.verify_scope_authorization compare les dix dimensions du scope demand\u00e9 \u00e0 celles de l'autorisation",
+    "test": "tests/integration/test_lot41a_scope_authority.py::TestScopeBindingIsExplicit::test_a_different_scope_is_denied",
+    "green_before": true,
+    "red_under_mutation": true,
+    "green_after_restore": true,
+    "verdict": "NON_VACUOUS"
+  },
+  {
+    "number": 8,
+    "invariant": "quality false",
+    "protection": "attest_publication_cli._reject_negative_chain refuse une quality_passed=false avant toute construction d'artefact",
+    "test": "tests/integration/test_lot42_publication_attestation.py::TestNegativeChainsNeverPublish::test_a_failing_quality_chain_is_refused_at_proposal",
+    "green_before": true,
+    "red_under_mutation": true,
+    "green_after_restore": true,
+    "verdict": "NON_VACUOUS"
+  },
+  {
+    "number": 9,
+    "invariant": "gate false",
+    "protection": "PublicationReviewArtifact rend une d\u00e9cision \u00e0 gate_passed=false irrepr\u00e9sentable",
+    "test": "tests/test_lot41a_authority_artifacts.py::TestPublicationReviewArtifactRefusesNegativeChains::test_negative_chains_cannot_be_constructed[overrides1-gate_passed must be true]",
+    "green_before": true,
+    "red_under_mutation": true,
+    "green_after_restore": true,
+    "verdict": "NON_VACUOUS"
+  },
+  {
+    "number": 10,
+    "invariant": "rights forbidden",
+    "protection": "scope_enforcement.enforce_rights refuse une cat\u00e9gorie hors de rights_categories",
+    "test": "tests/integration/test_lot41a_worker_enforcement.py::TestRightsCheckpoint::test_a_forbidden_rights_category_denies_before_quality",
+    "green_before": true,
+    "red_under_mutation": true,
+    "green_after_restore": true,
+    "verdict": "NON_VACUOUS"
+  },
+  {
+    "number": 11,
+    "invariant": "global timeout",
+    "protection": "github_authority._Deadline borne l'op\u00e9ration compl\u00e8te (item J)",
+    "test": "tests/test_lot41a_github_authority_transport.py::TestOutageAndTimeoutAreBounded::test_total_deadline_is_enforced_across_multiple_requests",
+    "green_before": true,
+    "red_under_mutation": true,
+    "green_after_restore": true,
+    "verdict": "NON_VACUOUS"
+  },
+  {
+    "number": 12,
+    "invariant": "PostgreSQL privilege isolation",
+    "protection": "provision_ingestion_control_roles.sh n'accorde jamais INSERT sur scope_authorizations au r\u00f4le applicatif",
+    "test": "tests/integration/test_lot41a_operator_role_isolation.py::TestWorkerRoleCannotWriteAuthorityTables::test_insert_scope_authorization_is_denied",
+    "green_before": true,
+    "red_under_mutation": true,
+    "green_after_restore": true,
+    "verdict": "NON_VACUOUS"
+  }
+]
