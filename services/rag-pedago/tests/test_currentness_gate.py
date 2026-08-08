@@ -10,7 +10,6 @@ from rag_pedago.imports.currentness_gate import (
     load_config,
 )
 
-
 FIXTURES = Path(__file__).parent.parent / "data" / "fixtures" / "corpus_h2b"
 
 

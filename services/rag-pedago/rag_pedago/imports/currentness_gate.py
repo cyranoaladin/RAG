@@ -21,15 +21,15 @@ from __future__ import annotations
 import argparse
 import csv
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from enum import Enum
+from datetime import UTC, datetime
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
 import yaml
 
 
-class Currentness(str, Enum):
+class Currentness(StrEnum):
     """Document regulatory currentness."""
 
     ACTUEL = "actuel"
@@ -194,7 +194,7 @@ def evaluate_currentness_gate(
     return CurrentnessGateReport(
         manifest_path=str(manifest_path),
         config_id=config_id,
-        evaluated_at=datetime.now(timezone.utc).isoformat(),
+        evaluated_at=datetime.now(UTC).isoformat(),
         total_documents=total,
         ingest_eligible_count=ingest_eligible,
         review_required_count=review_required,

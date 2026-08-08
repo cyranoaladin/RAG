@@ -11,15 +11,15 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from enum import Enum
+from datetime import UTC, datetime
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
 import yaml
 
 
-class RightsStatus(str, Enum):
+class RightsStatus(StrEnum):
     """Rights resolution status."""
 
     RESOLVED = "RESOLVED"
@@ -161,7 +161,7 @@ def evaluate_registry(registry: dict[str, Any], path: Path) -> RightsGateReport:
     return RightsGateReport(
         registry_id=registry_id,
         registry_path=str(path),
-        evaluated_at=datetime.now(timezone.utc).isoformat(),
+        evaluated_at=datetime.now(UTC).isoformat(),
         total_zones=len(zone_statuses),
         resolved_zones=resolved,
         unresolved_zones=unresolved,
@@ -197,7 +197,7 @@ def print_report(report: RightsGateReport) -> None:
             print(f"      Human verification required: {z.human_verification_required}")
 
     print()
-    print(f"SUMMARY:")
+    print("SUMMARY:")
     print(f"  Total zones:      {report.total_zones}")
     print(f"  Resolved:         {report.resolved_zones}")
     print(f"  Unresolved:       {report.unresolved_zones}")

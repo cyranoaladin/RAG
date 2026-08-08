@@ -13,7 +13,7 @@ from __future__ import annotations
 import argparse
 import json
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -276,7 +276,7 @@ def validate_golden_corpus(
         spec_id=spec_id,
         spec_path=str(spec_path),
         catalog_path=str(catalog_path),
-        validated_at=datetime.now(timezone.utc).isoformat(),
+        validated_at=datetime.now(UTC).isoformat(),
         total_controls=len(results),
         passed_controls=passed,
         failed_controls=failed,

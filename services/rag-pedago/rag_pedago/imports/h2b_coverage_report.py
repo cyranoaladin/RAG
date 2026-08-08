@@ -20,7 +20,7 @@ import hashlib
 import json
 import subprocess
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -197,8 +197,8 @@ def generate_coverage_report(
     )
 
     return CoverageReport(
-        report_id=f"h2b_coverage_{git_commit}_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}",
-        generated_at=datetime.now(timezone.utc).isoformat(),
+        report_id=f"h2b_coverage_{git_commit}_{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}",
+        generated_at=datetime.now(UTC).isoformat(),
         git_commit=git_commit,
         git_branch=git_branch,
         corpus_total_expected=expected_total,

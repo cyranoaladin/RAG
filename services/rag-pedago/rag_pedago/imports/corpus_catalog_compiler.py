@@ -16,15 +16,15 @@ import csv
 import hashlib
 import json
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from enum import Enum
+from datetime import UTC, datetime
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
 import yaml
 
 
-class Disposition(str, Enum):
+class Disposition(StrEnum):
     """Mutually exclusive disposition for each corpus object."""
 
     INGEST = "INGEST"
@@ -290,7 +290,7 @@ def compile_catalog(
         expected_total=expected_total,
         totals=totals,
         objects=objects,
-        compiled_at=datetime.now(timezone.utc).isoformat(),
+        compiled_at=datetime.now(UTC).isoformat(),
     )
     report.verify()
 

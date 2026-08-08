@@ -9,7 +9,6 @@ from rag_pedago.imports.corpus_catalog_compiler import (
     load_routing_config,
 )
 
-
 FIXTURES = Path(__file__).parent.parent / "data" / "fixtures" / "corpus_h2b"
 
 

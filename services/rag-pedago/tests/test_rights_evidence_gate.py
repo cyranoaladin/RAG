@@ -9,7 +9,6 @@ from rag_pedago.imports.rights_evidence_gate import (
     load_registry,
 )
 
-
 CONFIGS = Path(__file__).parent.parent / "configs"
 
 

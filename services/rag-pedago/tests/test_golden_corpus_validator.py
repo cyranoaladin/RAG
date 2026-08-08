@@ -4,11 +4,10 @@ from pathlib import Path
 import pytest
 
 from rag_pedago.imports.golden_corpus_validator import (
-    _validate_positive_control,
     _validate_boundary_control,
     _validate_negative_control,
+    _validate_positive_control,
     validate_golden_corpus,
-    load_spec,
 )
 
 
