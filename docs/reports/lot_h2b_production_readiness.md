@@ -220,6 +220,33 @@ Le protocole temporaire baseline verte → neutralisation du guard → rouge cib
 
 `TEMPORARY_MUTATIONS_RESTORED=true`
 
+## CI locale
+
+La relance canonique complète, avec Python 3.12.3 et Node 22.22.0, a exécuté
+les seize cibles sans tolérance d'échec : contrats, `rag-pedago` (Ruff, mypy,
+1 904 tests), `rag-engine` (mypy sur 92 fichiers, suite unitaire et intégration
+PostgreSQL/pgvector), cockpit (178 tests, deux builds, audits npm), gouvernance
+et contrôles du dépôt. Elle a produit `15 PASS / 1 FAIL` sur le head source
+`c97ed283213f916a1620681e929be840becfde75`.
+
+L'unique échec venait de la sonde topologique LOT41V : elle lançait une copie
+instrumentée de la CI tout en héritant de `NEXUS_CI_LOCAL_RUNNING=1`, ce qui
+déclenchait le garde anti-réentrance avant d'observer les trois cibles. La sonde
+utilise maintenant explicitement un contexte frais. Après correction :
+
+- `test-ci-local-topology.sh` : PASS, y compris les 22 mutations hybrides et le
+  mutant qui place les contrôles après `exit 0` ;
+- `test-ci-local-failsafe.sh` : 51 PASS, 0 FAIL ;
+- `git diff --check` : PASS.
+
+La CI exhaustive n'est pas requalifiée verte sur le nouveau head sur la seule
+base de ces tests ciblés. Elle doit être rejouée après les trois remédiations
+H2-B bloquantes et avant l'audit indépendant.
+
+`LOCAL_CI_FULL_CURRENT_HEAD=NOT_RERUN_AFTER_TARGETED_FIX`
+
+`LOCAL_CI_TARGETED_TOPOLOGY=PASS`
+
 ## Arrêt gouverné
 
 Conformément aux hard stops, aucune des opérations suivantes n'a été exécutée :
@@ -310,6 +337,7 @@ CITATION_TRACEABILITY_PASS=UNVERIFIED_REAL_MULTIPLACEMENT_PATH
 === H2 ===
 H2_B_IMPLEMENTATION_COMPLETE=false
 H2_B_TECHNICAL_GATE=BLOCKED
+LOCAL_CI_FULL_CURRENT_HEAD=NOT_RERUN_AFTER_TARGETED_FIX
 INDEPENDENT_H2_AUDIT=NOT_RUN
 H2_HUMAN_DEPLOYMENT_AUTHORIZATION=GRANTED_STANDING_BUT_NOT_REACHED
 H2_MERGED=false
