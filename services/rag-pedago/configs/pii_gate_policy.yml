@@ -1,9 +1,9 @@
 # PII Gate Policy — H2-B
 # Purpose: Define PII detection requirements for corpus ingestion
-# Status: FRAMEWORK_ONLY — Full content scan requires corpus access
+# Status: SCANNER_IMPLEMENTED — Ready for full content scan
 
 policy_id: pii_gate_policy_h2b_v1
-status: framework_pending_content_access
+status: scanner_implemented
 
 # H2-A findings (filename-only scan)
 h2a_scan_results:
@@ -86,19 +86,21 @@ gate_behavior:
 
 # Current status
 current_status:
-  scan_complete: false
-  corpus_access_available: false
-  blocking_reason: |
-    H2-B phase does not include corpus content access.
-    Full PII scan requires:
-    1. Drive corpus mount or download
-    2. PDF text extraction pipeline
-    3. Pattern matching across all 2,451 Eduscol PDFs
-
-    Until corpus access is authorized, PII gate status is:
-    PII_SCAN_INCOMPLETE → INGEST blocked
+  scanner_implemented: true
+  scanner_module: "rag_pedago.imports.pii_scanner"
+  scan_complete: false  # Awaiting corpus download from Drive
+  corpus_access_available: true  # H2-B authorizes READ-ONLY Drive access
+  next_step: |
+    1. Download corpus PDFs from gdrive_ert:NEXUS_RAG/NEXUS_RAG_GDRIVE_READY
+    2. Run: python -m rag_pedago.imports.pii_scanner \
+         --corpus-manifest data/corpus_manifest.tsv \
+         --corpus-root /tmp/corpus_download \
+         --output data/reports/pii_scan_report.json
+    3. If pii_absent_attested=true, PII gate passes
 
   estimated_scope:
     total_pdfs: 2451
     estimated_pages: 50000  # ~20 pages per PDF average
-    extraction_method: "pypdf2 or pdfplumber"
+    extraction_method: "pypdf (v4+)"
+    patterns_count: 6
+    mutation_tests_count: 8
