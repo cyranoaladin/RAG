@@ -15,24 +15,24 @@ import argparse
 import csv
 import hashlib
 import json
+import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from enum import StrEnum
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 import yaml
 
+from rag_pedago.imports.artifact_placement_model import (
+    ContentArtifact,
+    Disposition,
+    PedagogicalPlacement,
+    PhysicalCorpusObject,
+    SealedCorpusCatalog,
+)
 
-class Disposition(StrEnum):
-    """Mutually exclusive disposition for each corpus object."""
-
-    INGEST = "INGEST"
-    REVIEW_REQUIRED = "REVIEW_REQUIRED"
-    QUARANTINE = "QUARANTINE"
-    ARCHIVE_ONLY = "ARCHIVE_ONLY"
-    EXCLUDE = "EXCLUDE"
-    UNSUPPORTED = "UNSUPPORTED"
+_GNU_SHA256_LINE = re.compile(r"([0-9a-f]{64})  (.*)\Z")
+_MANIFEST_SELF_PATH = "00_ADMIN/SHA256SUMS.txt"
 
 
 @dataclass(frozen=True)
@@ -295,6 +295,214 @@ def compile_catalog(
     report.verify()
 
     return report
+
+
+def _validate_manifest_path(path: str) -> None:
+    """Reject paths that cannot name a bounded object in the sealed corpus."""
+    candidate = PurePosixPath(path)
+    if (
+        not path
+        or candidate.is_absolute()
+        or "\\" in path
+        or "//" in path
+        or "\x00" in path
+        or any(part in {"", ".", ".."} for part in candidate.parts)
+    ):
+        raise ValueError(f"unsafe manifest path: {path!r}")
+
+
+def _parse_sealed_manifest(path: Path) -> list[tuple[str, str]]:
+    """Parse a GNU SHA256 manifest while allowing identical bytes at N paths."""
+    entries: list[tuple[str, str]] = []
+    seen_paths: set[str] = set()
+    with path.open(encoding="utf-8", newline="") as handle:
+        for line_number, raw_line in enumerate(handle, start=1):
+            line = raw_line.rstrip("\r\n")
+            match = _GNU_SHA256_LINE.fullmatch(line)
+            if match is None:
+                raise ValueError(f"invalid SHA256 manifest line {line_number}")
+            content_sha256, object_path = match.groups()
+            _validate_manifest_path(object_path)
+            if object_path in seen_paths:
+                raise ValueError(f"duplicate manifest path: {object_path}")
+            seen_paths.add(object_path)
+            entries.append((content_sha256, object_path))
+    return entries
+
+
+def _pedagogical_placement_from_row(row: dict[str, str]) -> PedagogicalPlacement:
+    return PedagogicalPlacement(
+        content_sha256=row["sha256"],
+        scope=row["scope"],
+        family=row["famille"],
+        subject=row["matiere_ou_rubrique"],
+        level=row["niveau"],
+        document_type=row["type_document"],
+        year=row["annee"],
+        status=row["statut"],
+        title=row["titre"],
+        source_url=row["url_source"],
+        source_object=row["objet_source"],
+        technical_path=row["chemin_technique_existant"],
+        level_path=row["chemin_par_niveau"],
+        scope_path=row["chemin_par_scope"],
+    )
+
+
+def _attach_eduscol_placements(
+    catalog: SealedCorpusCatalog,
+    placement_catalog_path: Path,
+) -> None:
+    required_columns = {
+        "sha256",
+        "scope",
+        "famille",
+        "matiere_ou_rubrique",
+        "niveau",
+        "type_document",
+        "annee",
+        "statut",
+        "titre",
+        "url_source",
+        "objet_source",
+        "chemin_technique_existant",
+        "chemin_par_niveau",
+        "chemin_par_scope",
+    }
+    with placement_catalog_path.open(encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle, delimiter="\t")
+        columns = set(reader.fieldnames or ())
+        missing = sorted(required_columns - columns)
+        if missing:
+            raise ValueError(
+                "placement catalog missing required columns: " + ", ".join(missing)
+            )
+        for line_number, row in enumerate(reader, start=2):
+            content_sha256 = row.get("sha256", "")
+            artifact = catalog.artifacts.get(content_sha256)
+            if artifact is None or not any(
+                item.path.startswith("01_EDUSCOL_OFFICIEL/")
+                for item in artifact.physical_objects
+            ):
+                raise ValueError(
+                    "unknown Eduscol content SHA256 at placement line "
+                    f"{line_number}: {content_sha256}"
+                )
+            artifact.pedagogical_placements.append(
+                _pedagogical_placement_from_row(row)
+            )
+
+
+def _apply_mandatory_ingest_gates(
+    base_disposition: Disposition,
+    content_sha256: str,
+    rights_cleared_sha256: set[str] | frozenset[str],
+    pii_cleared_sha256: set[str] | frozenset[str],
+) -> tuple[Disposition, str, dict[str, str]]:
+    if base_disposition is not Disposition.INGEST:
+        return base_disposition, "", {}
+
+    gate_statuses = {
+        "rights": (
+            "PASS"
+            if content_sha256 in rights_cleared_sha256
+            else "BLOCKED_NOT_CLEARED"
+        ),
+        "pii": (
+            "PASS"
+            if content_sha256 in pii_cleared_sha256
+            else "BLOCKED_NOT_CLEARED"
+        ),
+    }
+    blocked = [name for name, status in gate_statuses.items() if status != "PASS"]
+    if blocked:
+        return (
+            Disposition.REVIEW_REQUIRED,
+            "Mandatory gates not cleared: " + ", ".join(blocked),
+            gate_statuses,
+        )
+    return Disposition.INGEST, "", gate_statuses
+
+
+def compile_sealed_catalog(
+    manifest_path: Path,
+    placement_catalog_path: Path,
+    config: dict[str, Any],
+    *,
+    rights_cleared_sha256: set[str] | frozenset[str] = frozenset(),
+    pii_cleared_sha256: set[str] | frozenset[str] = frozenset(),
+) -> SealedCorpusCatalog:
+    """Compile the real physical corpus and join every Eduscol placement by SHA."""
+    manifest_sha256 = compute_file_sha256(manifest_path)
+    expected_manifest_sha256 = config.get("manifest_sha256")
+    if manifest_sha256 != expected_manifest_sha256:
+        raise ValueError(
+            "manifest SHA256 mismatch: "
+            f"expected={expected_manifest_sha256}, actual={manifest_sha256}"
+        )
+
+    entries = _parse_sealed_manifest(manifest_path)
+    if any(object_path == _MANIFEST_SELF_PATH for _, object_path in entries):
+        raise ValueError("sealed manifest must not contain its own path")
+
+    catalog = SealedCorpusCatalog(
+        config_id=str(config.get("config_id", "unknown")),
+        manifest_path=str(manifest_path),
+        manifest_sha256=manifest_sha256,
+        placement_catalog_path=str(placement_catalog_path),
+        placement_catalog_sha256=compute_file_sha256(placement_catalog_path),
+        compiled_at=datetime.now(UTC).isoformat(),
+        manifest_entries=len(entries),
+    )
+
+    for content_sha256, object_path in entries:
+        base, routing_reason, zone, currentness, rights_category = (
+            _determine_disposition(object_path, config)
+        )
+        disposition, gate_reason, gate_statuses = _apply_mandatory_ingest_gates(
+            base,
+            content_sha256,
+            rights_cleared_sha256,
+            pii_cleared_sha256,
+        )
+        physical_object = PhysicalCorpusObject(
+            content_sha256=content_sha256,
+            path=object_path,
+            base_disposition=base,
+            disposition=disposition,
+            disposition_reason=gate_reason or routing_reason,
+            zone=zone,
+            currentness=currentness,
+            rights_category_candidate=rights_category,
+            gate_statuses=gate_statuses,
+        )
+        catalog.physical_objects.append(physical_object)
+        artifact = catalog.artifacts.setdefault(
+            content_sha256,
+            ContentArtifact(sha256=content_sha256),
+        )
+        artifact.physical_objects.append(physical_object)
+
+    manifest_self = PhysicalCorpusObject(
+        content_sha256=manifest_sha256,
+        path=_MANIFEST_SELF_PATH,
+        base_disposition=Disposition.EXCLUDE,
+        disposition=Disposition.EXCLUDE,
+        disposition_reason="MANIFEST_SELF_OBJECT",
+        zone="00_ADMIN/",
+        currentness=None,
+        rights_category_candidate=None,
+        is_manifest_self=True,
+    )
+    catalog.physical_objects.append(manifest_self)
+    catalog.artifacts.setdefault(
+        manifest_sha256,
+        ContentArtifact(sha256=manifest_sha256),
+    ).physical_objects.append(manifest_self)
+
+    _attach_eduscol_placements(catalog, placement_catalog_path)
+    catalog.verify()
+    return catalog
 
 
 def _report_to_json(report: CompilationReport, include_objects: bool = False) -> dict[str, Any]:

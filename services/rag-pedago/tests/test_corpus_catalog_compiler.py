@@ -1,4 +1,5 @@
 """Tests for corpus catalog compiler — H2-B."""
+import hashlib
 from pathlib import Path
 
 import pytest
@@ -6,10 +7,133 @@ import pytest
 from rag_pedago.imports.corpus_catalog_compiler import (
     Disposition,
     compile_catalog,
+    compile_sealed_catalog,
     load_routing_config,
 )
 
 FIXTURES = Path(__file__).parent.parent / "data" / "fixtures" / "corpus_h2b"
+
+
+def _sha(value: str) -> str:
+    return value * 64
+
+
+def _write_sealed_fixture(tmp_path: Path) -> tuple[Path, Path, dict]:
+    manifest = tmp_path / "SHA256SUMS.txt"
+    manifest.write_text(
+        "\n".join(
+            (
+                f"{_sha('a')}  01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/10_ACTUEL_CONFIRME/MATHS/doc.pdf",
+                f"{_sha('a')}  00_INDEX_PROVENANCE/EDUSCOL_META/doc.pdf",
+                f"{_sha('b')}  00_ADMIN/BUILD_INFO.json",
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    placements = tmp_path / "catalogue-complet.tsv"
+    placements.write_text(
+        "\t".join(
+            (
+                "sha256",
+                "scope",
+                "famille",
+                "matiere_ou_rubrique",
+                "niveau",
+                "type_document",
+                "annee",
+                "statut",
+                "titre",
+                "url_source",
+                "objet_source",
+                "chemin_technique_existant",
+                "chemin_par_niveau",
+                "chemin_par_scope",
+                "taille_octets",
+                "pages_pdf",
+                "integrite",
+            )
+        )
+        + "\n"
+        + "\t".join(
+            (
+                _sha("a"),
+                "lycee/general/mathematiques",
+                "lycee",
+                "mathematiques",
+                "terminale",
+                "cours",
+                "2026",
+                "actuel",
+                "Document test",
+                "https://eduscol.education.gouv.fr/test",
+                "source/doc.pdf",
+                "by_scope/terminale/doc.pdf",
+                "by_level/terminale/doc.pdf",
+                "by_scope/terminale/doc.pdf",
+                "100",
+                "1",
+                "ok",
+            )
+        )
+        + "\n"
+        + "\t".join(
+            (
+                _sha("a"),
+                "lycee/seconde/mathematiques",
+                "lycee",
+                "mathematiques",
+                "seconde",
+                "cours",
+                "2026",
+                "actuel",
+                "Document test",
+                "https://eduscol.education.gouv.fr/test",
+                "source/doc.pdf",
+                "by_scope/seconde/doc.pdf",
+                "by_level/seconde/doc.pdf",
+                "by_scope/seconde/doc.pdf",
+                "100",
+                "1",
+                "ok",
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    manifest_digest = hashlib.sha256(manifest.read_bytes()).hexdigest()
+    config = {
+        "config_id": "sealed-test-v1",
+        "manifest_sha256": manifest_digest,
+        "zone_rules": [
+            {
+                "zone_prefix": "00_ADMIN/",
+                "disposition": "EXCLUDE",
+                "reason": "admin",
+            },
+            {
+                "zone_prefix": "00_INDEX_PROVENANCE/",
+                "disposition": "EXCLUDE",
+                "reason": "index",
+            },
+            {
+                "zone_prefix": "01_EDUSCOL_OFFICIEL/",
+                "sub_zone_routing": [
+                    {
+                        "sub_zone_suffix": "/10_ACTUEL_CONFIRME/",
+                        "disposition": "INGEST",
+                        "currentness": "actuel",
+                    },
+                    {
+                        "sub_zone_suffix": None,
+                        "disposition": "REVIEW_REQUIRED",
+                        "currentness": "unclassified",
+                    },
+                ],
+            },
+        ],
+    }
+    return manifest, placements, config
 
 
 class TestCorpusCatalogCompiler:
@@ -210,6 +334,28 @@ class TestCorpusCatalogCompiler:
         assert report.totals.exclude == 2
         assert report.totals.unsupported == 1
 
+    def test_root_import_readme_is_structurally_excluded(
+        self, tmp_path: Path
+    ) -> None:
+        """The Drive import README is metadata, never pedagogical content."""
+        manifest = tmp_path / "manifest.tsv"
+        manifest.write_text(
+            "sha256\tpath\ttaille_octets\n"
+            f"{_sha('a')}\tREADME_GDRIVE_IMPORT.md\t100\n",
+            encoding="utf-8",
+        )
+        config = load_routing_config(
+            Path(__file__).parent.parent / "configs" / "corpus_zone_routing.yml"
+        )
+        config["corpus_total_objects"] = 1
+
+        report = compile_catalog(manifest, config)
+
+        assert report.objects[0].disposition == Disposition.EXCLUDE
+        assert report.objects[0].disposition_reason == (
+            "Root import instructions — administrative metadata"
+        )
+
 
 class TestDispositionCoverageInvariant:
     """Test the SUM(dispositions) = TOTAL invariant."""
@@ -244,3 +390,138 @@ class TestDispositionCoverageInvariant:
 
         # Sum equals total objects
         assert sum(by_disposition.values()) == report.corpus_total_objects
+
+
+class TestSealedCorpusCompilation:
+    """The production catalog is derived from the sealed physical manifest."""
+
+    def test_preserves_physical_objects_content_identity_and_all_placements(
+        self, tmp_path: Path
+    ) -> None:
+        manifest, placements, config = _write_sealed_fixture(tmp_path)
+
+        catalog = compile_sealed_catalog(
+            manifest,
+            placements,
+            config,
+            rights_cleared_sha256={_sha("a")},
+            pii_cleared_sha256={_sha("a")},
+        )
+
+        assert catalog.manifest_entries == 3
+        assert catalog.physical_object_count == 4
+        assert catalog.content_artifact_count == 3
+        assert catalog.eduscol_unique_artifacts == 1
+        assert catalog.eduscol_placement_count == 2
+        assert catalog.eduscol_placements_classified == 2
+        assert catalog.eduscol_placements_unclassified == 0
+        assert catalog.multi_placement_artifacts == 1
+        assert catalog.verification_passed is True
+
+        content = catalog.artifacts[_sha("a")]
+        assert len(content.physical_objects) == 2
+        assert len(content.pedagogical_placements) == 2
+        assert {placement.level for placement in content.pedagogical_placements} == {
+            "seconde",
+            "terminale",
+        }
+
+    def test_manifest_self_is_excluded_without_self_referential_entry(
+        self, tmp_path: Path
+    ) -> None:
+        manifest, placements, config = _write_sealed_fixture(tmp_path)
+
+        catalog = compile_sealed_catalog(manifest, placements, config)
+
+        manifest_self = catalog.object_by_path("00_ADMIN/SHA256SUMS.txt")
+        assert manifest_self is not None
+        assert manifest_self.content_sha256 == hashlib.sha256(
+            manifest.read_bytes()
+        ).hexdigest()
+        assert manifest_self.base_disposition == Disposition.EXCLUDE
+        assert manifest_self.disposition == Disposition.EXCLUDE
+        assert manifest_self.disposition_reason == "MANIFEST_SELF_OBJECT"
+        assert all(
+            obj.path != "00_ADMIN/SHA256SUMS.txt"
+            for obj in catalog.physical_objects
+            if not obj.is_manifest_self
+        )
+
+    def test_ingest_is_refused_until_every_mandatory_gate_passes(
+        self, tmp_path: Path
+    ) -> None:
+        manifest, placements, config = _write_sealed_fixture(tmp_path)
+
+        without_pii = compile_sealed_catalog(
+            manifest,
+            placements,
+            config,
+            rights_cleared_sha256={_sha("a")},
+        )
+        candidate = without_pii.object_by_path(
+            "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/10_ACTUEL_CONFIRME/MATHS/doc.pdf"
+        )
+        assert candidate is not None
+        assert candidate.base_disposition == Disposition.INGEST
+        assert candidate.disposition == Disposition.REVIEW_REQUIRED
+        assert candidate.gate_statuses == {
+            "rights": "PASS",
+            "pii": "BLOCKED_NOT_CLEARED",
+        }
+
+        cleared = compile_sealed_catalog(
+            manifest,
+            placements,
+            config,
+            rights_cleared_sha256={_sha("a")},
+            pii_cleared_sha256={_sha("a")},
+        )
+        eligible = cleared.object_by_path(candidate.path)
+        assert eligible is not None
+        assert eligible.disposition == Disposition.INGEST
+
+    def test_rejects_manifest_digest_drift(self, tmp_path: Path) -> None:
+        manifest, placements, config = _write_sealed_fixture(tmp_path)
+        config["manifest_sha256"] = "0" * 64
+
+        with pytest.raises(ValueError, match="manifest SHA256 mismatch"):
+            compile_sealed_catalog(manifest, placements, config)
+
+    def test_rejects_unknown_placement_content(self, tmp_path: Path) -> None:
+        manifest, placements, config = _write_sealed_fixture(tmp_path)
+        placements.write_text(
+            placements.read_text(encoding="utf-8").replace(_sha("a"), _sha("c")),
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ValueError, match="unknown Eduscol content SHA256"):
+            compile_sealed_catalog(manifest, placements, config)
+
+    @pytest.mark.parametrize(
+        "unsafe_path",
+        ("/absolute.pdf", "../escape.pdf", "zone/../../escape.pdf", ""),
+    )
+    def test_rejects_unsafe_manifest_paths(
+        self, tmp_path: Path, unsafe_path: str
+    ) -> None:
+        manifest, placements, config = _write_sealed_fixture(tmp_path)
+        manifest.write_text(
+            f"{_sha('a')}  {unsafe_path}\n",
+            encoding="utf-8",
+        )
+        config["manifest_sha256"] = hashlib.sha256(manifest.read_bytes()).hexdigest()
+
+        with pytest.raises(ValueError, match="unsafe manifest path"):
+            compile_sealed_catalog(manifest, placements, config)
+
+    def test_rejects_duplicate_physical_path(self, tmp_path: Path) -> None:
+        manifest, placements, config = _write_sealed_fixture(tmp_path)
+        manifest.write_text(
+            f"{_sha('a')}  00_ADMIN/same.json\n"
+            f"{_sha('b')}  00_ADMIN/same.json\n",
+            encoding="utf-8",
+        )
+        config["manifest_sha256"] = hashlib.sha256(manifest.read_bytes()).hexdigest()
+
+        with pytest.raises(ValueError, match="duplicate manifest path"):
+            compile_sealed_catalog(manifest, placements, config)

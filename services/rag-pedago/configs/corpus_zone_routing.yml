@@ -21,6 +21,11 @@ dispositions:
 
 # Zone routing rules (path prefix matching, first match wins)
 zone_rules:
+  - zone_prefix: "README_GDRIVE_IMPORT.md"
+    disposition: EXCLUDE
+    reason: "Root import instructions — administrative metadata"
+    expected_count: 1
+
   # Administrative zones — EXCLUDE (not pedagogical content)
   - zone_prefix: "00_ADMIN/"
     disposition: EXCLUDE

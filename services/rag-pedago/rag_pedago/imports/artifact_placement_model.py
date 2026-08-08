@@ -104,6 +104,236 @@ class CorpusPlacement:
         }
 
 
+@dataclass(frozen=True)
+class PedagogicalPlacement:
+    """A retrieval scope attached to content, independent of its physical path."""
+
+    content_sha256: str
+    scope: str
+    family: str
+    subject: str
+    level: str
+    document_type: str
+    year: str
+    status: str
+    title: str
+    source_url: str
+    source_object: str
+    technical_path: str
+    level_path: str
+    scope_path: str
+
+    @property
+    def classified(self) -> bool:
+        """Return whether the placement has a concrete pedagogical level."""
+        normalized = self.level.strip().lower().replace("_", "-")
+        return bool(normalized) and normalized != "non-classe"
+
+    def to_dict(self) -> dict[str, str | bool]:
+        return {
+            "content_sha256": self.content_sha256,
+            "scope": self.scope,
+            "family": self.family,
+            "subject": self.subject,
+            "level": self.level,
+            "document_type": self.document_type,
+            "year": self.year,
+            "status": self.status,
+            "title": self.title,
+            "source_url": self.source_url,
+            "source_object": self.source_object,
+            "technical_path": self.technical_path,
+            "level_path": self.level_path,
+            "scope_path": self.scope_path,
+            "classified": self.classified,
+        }
+
+
+@dataclass(frozen=True)
+class PhysicalCorpusObject:
+    """One path in the sealed corpus with exactly one governed disposition."""
+
+    content_sha256: str
+    path: str
+    base_disposition: Disposition
+    disposition: Disposition
+    disposition_reason: str
+    zone: str
+    currentness: str | None
+    rights_category_candidate: str | None
+    gate_statuses: dict[str, str] = field(default_factory=dict)
+    is_manifest_self: bool = False
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "content_sha256": self.content_sha256,
+            "path": self.path,
+            "base_disposition": self.base_disposition.value,
+            "disposition": self.disposition.value,
+            "disposition_reason": self.disposition_reason,
+            "zone": self.zone,
+            "currentness": self.currentness,
+            "rights_category_candidate": self.rights_category_candidate,
+            "gate_statuses": dict(sorted(self.gate_statuses.items())),
+            "is_manifest_self": self.is_manifest_self,
+        }
+
+
+@dataclass
+class ContentArtifact:
+    """Unique bytes shared by physical objects and pedagogical placements."""
+
+    sha256: str
+    physical_objects: list[PhysicalCorpusObject] = field(default_factory=list)
+    pedagogical_placements: list[PedagogicalPlacement] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "sha256": self.sha256,
+            "physical_object_count": len(self.physical_objects),
+            "pedagogical_placement_count": len(self.pedagogical_placements),
+            "physical_objects": [item.to_dict() for item in self.physical_objects],
+            "pedagogical_placements": [
+                item.to_dict() for item in self.pedagogical_placements
+            ],
+        }
+
+
+@dataclass
+class SealedCorpusCatalog:
+    """Catalog binding the physical manifest to content and placement metadata."""
+
+    config_id: str
+    manifest_path: str
+    manifest_sha256: str
+    placement_catalog_path: str
+    placement_catalog_sha256: str
+    compiled_at: str
+    manifest_entries: int
+    physical_objects: list[PhysicalCorpusObject] = field(default_factory=list)
+    artifacts: dict[str, ContentArtifact] = field(default_factory=dict)
+    verification_passed: bool = False
+    verification_errors: list[str] = field(default_factory=list)
+
+    @property
+    def physical_object_count(self) -> int:
+        return len(self.physical_objects)
+
+    @property
+    def content_artifact_count(self) -> int:
+        return len(self.artifacts)
+
+    @property
+    def eduscol_artifacts(self) -> list[ContentArtifact]:
+        return [
+            artifact
+            for artifact in self.artifacts.values()
+            if any(
+                item.path.startswith("01_EDUSCOL_OFFICIEL/")
+                for item in artifact.physical_objects
+            )
+        ]
+
+    @property
+    def eduscol_unique_artifacts(self) -> int:
+        return len(self.eduscol_artifacts)
+
+    @property
+    def eduscol_placement_count(self) -> int:
+        return sum(
+            len(artifact.pedagogical_placements)
+            for artifact in self.eduscol_artifacts
+        )
+
+    @property
+    def eduscol_placements_classified(self) -> int:
+        return sum(
+            placement.classified
+            for artifact in self.eduscol_artifacts
+            for placement in artifact.pedagogical_placements
+        )
+
+    @property
+    def eduscol_placements_unclassified(self) -> int:
+        return self.eduscol_placement_count - self.eduscol_placements_classified
+
+    @property
+    def multi_placement_artifacts(self) -> int:
+        return sum(
+            len(artifact.pedagogical_placements) > 1
+            for artifact in self.eduscol_artifacts
+        )
+
+    @property
+    def disposition_counts(self) -> dict[str, int]:
+        counts = {disposition.value: 0 for disposition in Disposition}
+        for item in self.physical_objects:
+            counts[item.disposition.value] += 1
+        return counts
+
+    def object_by_path(self, path: str) -> PhysicalCorpusObject | None:
+        return next((item for item in self.physical_objects if item.path == path), None)
+
+    def verify(self) -> None:
+        """Verify measured invariants without accepting expected count constants."""
+        errors: list[str] = []
+        paths = [item.path for item in self.physical_objects]
+        if len(paths) != len(set(paths)):
+            errors.append("duplicate physical object path")
+        if self.physical_object_count != self.manifest_entries + 1:
+            errors.append(
+                "physical object count does not equal manifest entries plus self"
+            )
+        manifest_self = [item for item in self.physical_objects if item.is_manifest_self]
+        if len(manifest_self) != 1:
+            errors.append("manifest self object count is not exactly one")
+        if sum(self.disposition_counts.values()) != self.physical_object_count:
+            errors.append("disposition sum does not equal physical object count")
+        for artifact in self.artifacts.values():
+            if not artifact.physical_objects:
+                errors.append(f"orphan content artifact: {artifact.sha256}")
+            if any(
+                placement.content_sha256 != artifact.sha256
+                for placement in artifact.pedagogical_placements
+            ):
+                errors.append(f"placement content mismatch: {artifact.sha256}")
+        self.verification_errors = errors
+        self.verification_passed = not errors
+
+    def to_dict(self, *, include_objects: bool = True) -> dict[str, Any]:
+        result: dict[str, Any] = {
+            "catalog_kind": "REAL_SEALED_CORPUS",
+            "config_id": self.config_id,
+            "manifest_path": self.manifest_path,
+            "manifest_sha256": self.manifest_sha256,
+            "placement_catalog_path": self.placement_catalog_path,
+            "placement_catalog_sha256": self.placement_catalog_sha256,
+            "compiled_at": self.compiled_at,
+            "manifest_entries": self.manifest_entries,
+            "physical_object_count": self.physical_object_count,
+            "content_artifact_count": self.content_artifact_count,
+            "eduscol_unique_artifacts": self.eduscol_unique_artifacts,
+            "eduscol_placement_count": self.eduscol_placement_count,
+            "eduscol_placements_classified": self.eduscol_placements_classified,
+            "eduscol_placements_unclassified": self.eduscol_placements_unclassified,
+            "multi_placement_artifacts": self.multi_placement_artifacts,
+            "disposition_counts": self.disposition_counts,
+            "unclassified": 0,
+            "multiple_primary_disposition": 0,
+            "verification_passed": self.verification_passed,
+            "verification_errors": list(self.verification_errors),
+        }
+        if include_objects:
+            result["physical_objects"] = [
+                item.to_dict() for item in self.physical_objects
+            ]
+            result["artifacts"] = {
+                sha256: artifact.to_dict()
+                for sha256, artifact in sorted(self.artifacts.items())
+            }
+        return result
+
+
 @dataclass
 class CorpusArtifact:
     """A unique physical artifact in the corpus, identified by SHA256.
