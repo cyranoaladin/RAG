@@ -128,6 +128,32 @@ pour la même ressource), reprise (crash entre deux attestations de la
 chaîne — la reprise doit retrouver exactement l'état déterministe déjà
 construit, jamais le reconstruire différemment).
 
+### 8. Statut explicite du câblage (remédiation GATE H1, item L)
+
+Deux propriétés distinctes, à ne jamais confondre dans un rapport :
+
+| Drapeau | Valeur | Signification |
+|---|---|---|
+| `LOT42_MECHANISM_IMPLEMENTED` | voir rapport de lot | Le mécanisme (contrat, stockage, vérification live, point d'ancrage, tests) existe et est éprouvé. |
+| `LOT42_LIVE_PIPELINE_WIRED` | **`false`** | Le chemin `STAGED -> NEEDS_REVIEW -> REVIEWED` **n'existe pas encore**. Aucune ressource n'atteint donc `REVIEWED`, et `attempt_retrieval_eligible_transition` n'a en pratique aucun appelant en production. |
+
+`LOT42_LIVE_PIPELINE_WIRED` reste `false` — et doit être déclaré tel quel —
+tant que ce chemin n'est pas construit. Il ne s'agit pas d'un détail de
+présentation : décrire LOT42 comme « un runtime de publication opérationnel
+de bout en bout » serait faux tant que rien ne peut atteindre `REVIEWED`.
+Ce câblage relève du Track suivant, après GATE H1.
+
+**Garde-fou dépôt.** `tests/test_lot42_retrieval_eligible_anchor.py` analyse
+l'AST de tout `src/` et échoue si un module autre que le point d'ancrage
+demande une transition vers `RETRIEVAL_ELIGIBLE` (`new_state=`/`to_state=`).
+Il porte aussi une garde anti-vacuité (l'ancre doit réellement effectuer la
+transition) et une liste fermée des modules autorisés à seulement
+*mentionner* l'état (`claim.py`, qui l'exclut de l'ensemble réclamable).
+Non-vacuité démontrée en injectant un second chemin dans `transitions.py` :
+le test l'a détecté à la ligne exacte, puis est repassé au vert après
+restauration. Le futur lot qui câblera le pipeline devra donc passer par
+l'ancre, ou faire échouer ce test.
+
 ## Conséquences
 
 - `RETRIEVAL_ELIGIBLE` reste, comme avant, un état terminal jamais atteint
