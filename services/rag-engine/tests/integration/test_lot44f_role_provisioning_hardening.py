@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 import secrets
+import shlex
 import shutil
 import socket
 import subprocess
@@ -260,50 +261,65 @@ class TestPreExistingMisconfiguredRoles:
                 cur.execute("SET ROLE privileged_third_party_role")
 
     def test_password_visible_to_a_process_listing_is_never_the_real_secret(
-        self, pg_container: dict[str, str]
+        self, pg_container: dict[str, str], tmp_path: Path
     ) -> None:
         """Remédiation revue PR#90 (Cubic P1) : preuve directe que les mots
-        de passe ne sont plus passés comme arguments visibles du processus
-        psql — inspecte la ligne de commande psql réellement lancée (via
-        ``ps``, capturée pendant l'exécution) et vérifie qu'aucun des deux
-        mots de passe n'y apparaît."""
-        import threading
+        de passe ne sont jamais passés comme arguments de ligne de commande
+        au processus psql (donc jamais visibles dans un ``ps``).
 
-        seen_cmdlines: list[str] = []
-        stop = threading.Event()
+        Remédiation revue GATE H1 (item M) : ce test échantillonnait
+        auparavant ``ps -eo args`` toutes les 50 ms depuis un thread Python
+        pendant que le script lançait psql. C'était une course
+        d'échantillonnage intrinsèque — psql se termine régulièrement entre
+        deux instantanés (script rapide contre un conteneur local), le
+        garde-fou anti-vacuité ne trouvait alors aucune trace de psql et le
+        test échouait, sans qu'aucune propriété de sécurité ne soit en
+        cause. Rejouer jusqu'au vert aurait masqué la dette, pas corrigée.
 
-        def _watch_ps() -> None:
-            while not stop.is_set():
-                out = subprocess.run(["ps", "-eo", "args"], capture_output=True, text=True)
-                seen_cmdlines.append(out.stdout)
-                time.sleep(0.05)
+        L'observation par échantillonnage est donc entièrement supprimée et
+        remplacée par une capture **déterministe et exhaustive** : un shim
+        ``psql`` placé en tête de PATH enregistre son argv exact puis
+        ``exec`` le vrai binaire. Chaque invocation est enregistrée par
+        construction — aucune dépendance au minutage, et garantie
+        strictement plus forte que l'échantillonnage précédent (100 % des
+        invocations observées, au lieu d'un tirage aléatoire)."""
+        real_psql = shutil.which("psql")
+        assert real_psql is not None, "psql binary is required by this test"
 
-        watcher = threading.Thread(target=_watch_ps)
-        watcher.start()
-        try:
-            result = _run_provision_script(pg_container)
-        finally:
-            stop.set()
-            watcher.join(timeout=5)
+        shim_dir = tmp_path / "psql-shim-bin"
+        shim_dir.mkdir(parents=True, exist_ok=True)
+        argv_log = tmp_path / "psql-argv.log"
+        shim = shim_dir / "psql"
+        # Un argument par ligne : un mot de passe passé en argument
+        # apparaîtrait sur sa propre ligne, jamais noyé dans une
+        # concaténation ambiguë. `exec` préserve stdin (le heredoc SQL du
+        # script) et le code de retour du vrai psql.
+        shim.write_text(
+            "#!/usr/bin/env bash\n"
+            f'printf "%s\\n" "$@" >> {shlex.quote(str(argv_log))}\n'
+            f'exec {shlex.quote(real_psql)} "$@"\n',
+            encoding="utf-8",
+        )
+        shim.chmod(0o755)
+
+        result = _run_provision_script(
+            pg_container, PATH=f"{shim_dir}{os.pathsep}{os.environ['PATH']}"
+        )
 
         assert result.returncode == 0, result.stderr
-        combined = "\n".join(seen_cmdlines)
-        # Remédiation revue PR#90 (Cubic P3, revue incrémentale) : sans
-        # cette assertion, le test pouvait passer de façon vacueuse — si le
-        # thread d'observation n'avait, par pur hasard de minutage, jamais
-        # capturé le moindre processus psql en cours d'exécution (script
-        # trop rapide, ordonnancement défavorable), l'absence des mots de
-        # passe dans des instantanés `ps` n'ayant JAMAIS vu psql ne prouve
-        # rien du tout — un faux sentiment de sécurité. Exige explicitement
-        # qu'au moins un instantané ait bien capturé le processus psql réel
-        # lancé par ce script (identifié par son flag caractéristique
-        # ``--single-transaction``, propre à ce script, pas seulement la
-        # chaîne générique "psql" qui pourrait apparaître dans un tout
-        # autre contexte du système sous test).
-        assert "psql" in combined and "--single-transaction" in combined, (
-            "the ps-watcher never actually observed the provisioning script's psql "
-            "process — this test would pass vacuously without ever having exercised "
-            "the password-visibility guarantee it claims to verify"
+        assert argv_log.is_file(), (
+            "the psql shim was never invoked — the provisioning script did not run "
+            "psql through PATH, so this test would prove nothing"
         )
-        assert "migrator-test-password-value" not in combined
-        assert "app-test-password-value" not in combined
+        recorded_argv = argv_log.read_text(encoding="utf-8")
+        # Garde-fou anti-vacuité conservé, mais désormais déterministe :
+        # l'invocation psql caractéristique de CE script (--single-transaction)
+        # est enregistrée à coup sûr, jamais au hasard d'un échantillonnage.
+        assert "--single-transaction" in recorded_argv, (
+            "the recorded psql argv does not contain the provisioning script's "
+            "characteristic --single-transaction invocation"
+        )
+        assert "migrator-test-password-value" not in recorded_argv
+        assert "app-test-password-value" not in recorded_argv
+        assert "authority-test-password-value" not in recorded_argv
+        assert "attestor-test-password-value" not in recorded_argv
