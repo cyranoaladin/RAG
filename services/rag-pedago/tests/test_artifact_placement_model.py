@@ -1,6 +1,10 @@
-"""Tests for Artifact-Placement Model — H2-B."""
+"""Tests for Artifact-Placement Model — H2-B.
+
+CRITICAL: Tests verify FAIL-CLOSED semantics.
+Any blocking disposition MUST override INGEST.
+"""
 from rag_pedago.imports.artifact_placement_model import (
-    DISPOSITION_PRIORITY,
+    DISPOSITION_PRECEDENCE,
     ArtifactPlacementCatalog,
     CorpusArtifact,
     CorpusPlacement,
@@ -44,23 +48,15 @@ class TestCorpusArtifact:
             disposition_reason="Test",
         ))
         assert artifact.placement_count == 1
-        assert artifact.best_disposition == Disposition.INGEST
+        assert artifact.final_disposition == Disposition.INGEST
 
-    def test_artifact_multi_placement_best_wins(self) -> None:
-        """Artifact with multiple placements uses best disposition."""
+    def test_artifact_multi_placement_blocking_wins(self) -> None:
+        """FAIL-CLOSED: Blocking disposition wins over INGEST."""
         artifact = CorpusArtifact(
             sha256="def456",
             size_bytes=2048,
         )
-        # Add ARCHIVE placement first
-        artifact.add_placement(CorpusPlacement(
-            path="99_ARCHIVE/old/suites.pdf",
-            zone="99_ARCHIVE",
-            currentness=Currentness.ARCHIVE,
-            disposition=Disposition.ARCHIVE_ONLY,
-            disposition_reason="Archived version",
-        ))
-        # Add INGEST placement second
+        # Add INGEST placement first
         artifact.add_placement(CorpusPlacement(
             path="01_EDUSCOL/maths/suites.pdf",
             zone="01_EDUSCOL",
@@ -68,9 +64,17 @@ class TestCorpusArtifact:
             disposition=Disposition.INGEST,
             disposition_reason="Current version",
         ))
-        # Best should be INGEST (more favorable)
+        # Add ARCHIVE placement second
+        artifact.add_placement(CorpusPlacement(
+            path="99_ARCHIVE/old/suites.pdf",
+            zone="99_ARCHIVE",
+            currentness=Currentness.ARCHIVE,
+            disposition=Disposition.ARCHIVE_ONLY,
+            disposition_reason="Archived version",
+        ))
+        # ARCHIVE_ONLY must block INGEST (fail-closed)
         assert artifact.placement_count == 2
-        assert artifact.best_disposition == Disposition.INGEST
+        assert artifact.final_disposition == Disposition.ARCHIVE_ONLY
 
     def test_artifact_zones_property(self) -> None:
         """Artifact zones property collects all zones."""
@@ -102,29 +106,29 @@ class TestCorpusArtifact:
         assert result["pii_signal_count"] == 3
 
 
-class TestDispositionPriority:
-    """Test disposition priority ordering."""
+class TestDispositionPrecedence:
+    """Test FAIL-CLOSED disposition precedence."""
 
-    def test_ingest_is_best(self) -> None:
-        """INGEST has highest priority (lowest number)."""
-        assert DISPOSITION_PRIORITY[Disposition.INGEST] == 0
+    def test_exclude_has_highest_precedence(self) -> None:
+        """EXCLUDE blocks everything (lowest number)."""
+        assert DISPOSITION_PRECEDENCE[Disposition.EXCLUDE] == 0
 
-    def test_unsupported_is_worst(self) -> None:
-        """UNSUPPORTED has lowest priority (highest number)."""
-        assert DISPOSITION_PRIORITY[Disposition.UNSUPPORTED] == 5
+    def test_ingest_has_lowest_precedence(self) -> None:
+        """INGEST only wins if nothing blocks (highest number)."""
+        assert DISPOSITION_PRECEDENCE[Disposition.INGEST] == 5
 
-    def test_priority_order(self) -> None:
-        """Priority order is correct."""
-        priorities = sorted(Disposition, key=lambda d: DISPOSITION_PRIORITY[d])
+    def test_precedence_order_is_fail_closed(self) -> None:
+        """Precedence order: EXCLUDE > QUARANTINE > UNSUPPORTED > ARCHIVE > REVIEW > INGEST."""
+        order = sorted(Disposition, key=lambda d: DISPOSITION_PRECEDENCE[d])
         expected = [
-            Disposition.INGEST,
-            Disposition.REVIEW_REQUIRED,
-            Disposition.QUARANTINE,
-            Disposition.ARCHIVE_ONLY,
             Disposition.EXCLUDE,
+            Disposition.QUARANTINE,
             Disposition.UNSUPPORTED,
+            Disposition.ARCHIVE_ONLY,
+            Disposition.REVIEW_REQUIRED,
+            Disposition.INGEST,
         ]
-        assert priorities == expected
+        assert order == expected
 
 
 class TestArtifactPlacementCatalog:
@@ -192,7 +196,7 @@ class TestArtifactPlacementCatalog:
         ))
         catalog.add_artifact(a1)
 
-        # Multi-placement artifact
+        # Multi-placement artifact (final = ARCHIVE_ONLY due to fail-closed)
         a2 = CorpusArtifact(sha256="sha2", size_bytes=200)
         a2.add_placement(CorpusPlacement(
             path="/b1.pdf", zone="test", currentness=Currentness.ACTUEL,
@@ -213,47 +217,141 @@ class TestArtifactPlacementCatalog:
         assert catalog.max_placements_per_artifact == 2
 
 
-class TestMutationTests:
-    """H2-B mutation tests for artifact/placement model."""
+class TestFailClosedMutations:
+    """H2-B CRITICAL: Prove fail-closed semantics with mutation tests."""
 
-    def test_mut_apm_01_best_disposition_selects_ingest_over_archive(self) -> None:
-        """MUT-APM-01: Best disposition prefers INGEST over ARCHIVE."""
-        artifact = CorpusArtifact(sha256="mut01", size_bytes=100)
+    def test_mut_fc_01_exclude_blocks_ingest(self) -> None:
+        """MUT-FC-01: EXCLUDE + INGEST → EXCLUDE (never INGEST)."""
+        artifact = CorpusArtifact(sha256="fc01", size_bytes=100)
         artifact.add_placement(CorpusPlacement(
-            path="/archive/old.pdf", zone="archive",
-            currentness=Currentness.ARCHIVE,
-            disposition=Disposition.ARCHIVE_ONLY,
-            disposition_reason="Archived",
-        ))
-        artifact.add_placement(CorpusPlacement(
-            path="/current/new.pdf", zone="current",
+            path="/current/doc.pdf", zone="current",
             currentness=Currentness.ACTUEL,
             disposition=Disposition.INGEST,
             disposition_reason="Current",
         ))
-        assert artifact.best_disposition == Disposition.INGEST, \
-            "INGEST must win over ARCHIVE_ONLY"
+        artifact.add_placement(CorpusPlacement(
+            path="/admin/doc.pdf", zone="admin",
+            currentness=Currentness.ACTUEL,
+            disposition=Disposition.EXCLUDE,
+            disposition_reason="Admin metadata",
+        ))
+        assert artifact.final_disposition == Disposition.EXCLUDE, \
+            "EXCLUDE must block INGEST"
 
-    def test_mut_apm_02_single_placement_returns_its_disposition(self) -> None:
-        """MUT-APM-02: Single placement returns its own disposition."""
-        artifact = CorpusArtifact(sha256="mut02", size_bytes=100)
+    def test_mut_fc_02_quarantine_blocks_ingest(self) -> None:
+        """MUT-FC-02: QUARANTINE + INGEST → QUARANTINE (PII signal)."""
+        artifact = CorpusArtifact(sha256="fc02", size_bytes=100)
+        artifact.add_placement(CorpusPlacement(
+            path="/current/doc.pdf", zone="current",
+            currentness=Currentness.ACTUEL,
+            disposition=Disposition.INGEST,
+            disposition_reason="Current",
+        ))
+        artifact.add_placement(CorpusPlacement(
+            path="/quarantine/doc.pdf", zone="quarantine",
+            currentness=Currentness.ACTUEL,
+            disposition=Disposition.QUARANTINE,
+            disposition_reason="PII signal detected",
+        ))
+        assert artifact.final_disposition == Disposition.QUARANTINE, \
+            "QUARANTINE must block INGEST"
+
+    def test_mut_fc_03_unsupported_blocks_ingest(self) -> None:
+        """MUT-FC-03: UNSUPPORTED + INGEST → UNSUPPORTED."""
+        artifact = CorpusArtifact(sha256="fc03", size_bytes=100)
+        artifact.add_placement(CorpusPlacement(
+            path="/current/doc.pdf", zone="current",
+            currentness=Currentness.ACTUEL,
+            disposition=Disposition.INGEST,
+            disposition_reason="Current",
+        ))
+        artifact.add_placement(CorpusPlacement(
+            path="/interactive/doc.ggb", zone="interactive",
+            currentness=Currentness.ACTUEL,
+            disposition=Disposition.UNSUPPORTED,
+            disposition_reason="GeoGebra format",
+        ))
+        assert artifact.final_disposition == Disposition.UNSUPPORTED, \
+            "UNSUPPORTED must block INGEST"
+
+    def test_mut_fc_04_archive_blocks_ingest(self) -> None:
+        """MUT-FC-04: ARCHIVE_ONLY + INGEST → ARCHIVE_ONLY."""
+        artifact = CorpusArtifact(sha256="fc04", size_bytes=100)
+        artifact.add_placement(CorpusPlacement(
+            path="/current/doc.pdf", zone="current",
+            currentness=Currentness.ACTUEL,
+            disposition=Disposition.INGEST,
+            disposition_reason="Current",
+        ))
+        artifact.add_placement(CorpusPlacement(
+            path="/archive/doc.pdf", zone="archive",
+            currentness=Currentness.ARCHIVE,
+            disposition=Disposition.ARCHIVE_ONLY,
+            disposition_reason="Superseded",
+        ))
+        assert artifact.final_disposition == Disposition.ARCHIVE_ONLY, \
+            "ARCHIVE_ONLY must block INGEST"
+
+    def test_mut_fc_05_review_blocks_ingest(self) -> None:
+        """MUT-FC-05: REVIEW_REQUIRED + INGEST → REVIEW_REQUIRED."""
+        artifact = CorpusArtifact(sha256="fc05", size_bytes=100)
+        artifact.add_placement(CorpusPlacement(
+            path="/current/doc.pdf", zone="current",
+            currentness=Currentness.ACTUEL,
+            disposition=Disposition.INGEST,
+            disposition_reason="Current",
+        ))
+        artifact.add_placement(CorpusPlacement(
+            path="/review/doc.pdf", zone="review",
+            currentness=Currentness.A_VERIFIER,
+            disposition=Disposition.REVIEW_REQUIRED,
+            disposition_reason="Rights unresolved",
+        ))
+        assert artifact.final_disposition == Disposition.REVIEW_REQUIRED, \
+            "REVIEW_REQUIRED must block INGEST"
+
+    def test_mut_fc_06_only_ingest_produces_ingest(self) -> None:
+        """MUT-FC-06: ALL placements INGEST → INGEST."""
+        artifact = CorpusArtifact(sha256="fc06", size_bytes=100)
+        artifact.add_placement(CorpusPlacement(
+            path="/eduscol/doc.pdf", zone="eduscol",
+            currentness=Currentness.ACTUEL,
+            disposition=Disposition.INGEST,
+            disposition_reason="Cleared",
+        ))
+        artifact.add_placement(CorpusPlacement(
+            path="/nexus/doc.pdf", zone="nexus",
+            currentness=Currentness.ACTUEL,
+            disposition=Disposition.INGEST,
+            disposition_reason="Cleared",
+        ))
+        assert artifact.final_disposition == Disposition.INGEST, \
+            "All INGEST placements → INGEST"
+
+
+class TestMutationTests:
+    """Additional H2-B mutation tests for artifact/placement model."""
+
+    def test_mut_apm_01_single_placement_returns_its_disposition(self) -> None:
+        """MUT-APM-01: Single placement returns its own disposition."""
+        artifact = CorpusArtifact(sha256="mut01", size_bytes=100)
         artifact.add_placement(CorpusPlacement(
             path="/review/check.pdf", zone="review",
             currentness=Currentness.A_VERIFIER,
             disposition=Disposition.REVIEW_REQUIRED,
             disposition_reason="Needs review",
         ))
-        assert artifact.best_disposition == Disposition.REVIEW_REQUIRED
+        assert artifact.final_disposition == Disposition.REVIEW_REQUIRED
 
-    def test_mut_apm_03_no_placement_returns_review_required(self) -> None:
-        """MUT-APM-03: Artifact with no placements defaults to REVIEW_REQUIRED."""
-        artifact = CorpusArtifact(sha256="mut03", size_bytes=100)
-        assert artifact.best_disposition == Disposition.REVIEW_REQUIRED, \
+    def test_mut_apm_02_no_placement_returns_review_required(self) -> None:
+        """MUT-APM-02: Artifact with no placements defaults to REVIEW_REQUIRED."""
+        artifact = CorpusArtifact(sha256="mut02", size_bytes=100)
+        assert artifact.final_disposition == Disposition.REVIEW_REQUIRED, \
             "Orphan artifacts must default to REVIEW_REQUIRED"
 
-    def test_mut_apm_04_placement_count_increments(self) -> None:
-        """MUT-APM-04: Placement count increments correctly."""
-        artifact = CorpusArtifact(sha256="mut04", size_bytes=100)
+    def test_mut_apm_03_placement_count_increments(self) -> None:
+        """MUT-APM-03: Placement count increments correctly."""
+        artifact = CorpusArtifact(sha256="mut03", size_bytes=100)
         assert artifact.placement_count == 0
         artifact.add_placement(CorpusPlacement(
             path="/a.pdf", zone="test", currentness=Currentness.ACTUEL,
@@ -266,8 +364,8 @@ class TestMutationTests:
         ))
         assert artifact.placement_count == 2
 
-    def test_mut_apm_05_catalog_verification_fails_on_orphan(self) -> None:
-        """MUT-APM-05: Verification fails if artifact has no placements."""
+    def test_mut_apm_04_catalog_verification_fails_on_orphan(self) -> None:
+        """MUT-APM-04: Verification fails if artifact has no placements."""
         catalog = ArtifactPlacementCatalog(
             config_id="test",
             manifest_path="test.tsv",
@@ -284,23 +382,41 @@ class TestMutationTests:
         assert not catalog.verification_passed
         assert any("ORPHAN" in e for e in catalog.verification_errors)
 
-    def test_mut_apm_06_best_placement_returns_correct_one(self) -> None:
-        """MUT-APM-06: best_placement returns the placement with best disposition."""
-        artifact = CorpusArtifact(sha256="mut06", size_bytes=100)
-        p1 = CorpusPlacement(
-            path="/archive/old.pdf", zone="archive",
-            currentness=Currentness.ARCHIVE,
-            disposition=Disposition.ARCHIVE_ONLY,
-            disposition_reason="Archived",
-        )
-        p2 = CorpusPlacement(
+    def test_mut_apm_05_controlling_placement_is_blocking_one(self) -> None:
+        """MUT-APM-05: controlling_placement returns the blocking placement."""
+        artifact = CorpusArtifact(sha256="mut05", size_bytes=100)
+        p_ingest = CorpusPlacement(
             path="/current/new.pdf", zone="current",
             currentness=Currentness.ACTUEL,
             disposition=Disposition.INGEST,
             disposition_reason="Current",
         )
-        artifact.add_placement(p1)
-        artifact.add_placement(p2)
+        p_exclude = CorpusPlacement(
+            path="/admin/meta.txt", zone="admin",
+            currentness=Currentness.ACTUEL,
+            disposition=Disposition.EXCLUDE,
+            disposition_reason="Admin file",
+        )
+        artifact.add_placement(p_ingest)
+        artifact.add_placement(p_exclude)
 
-        assert artifact.best_placement is p2, \
-            "best_placement must return the INGEST placement"
+        assert artifact.controlling_placement is p_exclude, \
+            "controlling_placement must return the EXCLUDE placement"
+
+    def test_mut_apm_06_exclude_beats_quarantine(self) -> None:
+        """MUT-APM-06: EXCLUDE beats QUARANTINE (structural > safety)."""
+        artifact = CorpusArtifact(sha256="mut06", size_bytes=100)
+        artifact.add_placement(CorpusPlacement(
+            path="/quarantine/pii.pdf", zone="quarantine",
+            currentness=Currentness.ACTUEL,
+            disposition=Disposition.QUARANTINE,
+            disposition_reason="PII",
+        ))
+        artifact.add_placement(CorpusPlacement(
+            path="/admin/meta.txt", zone="admin",
+            currentness=Currentness.ACTUEL,
+            disposition=Disposition.EXCLUDE,
+            disposition_reason="Admin",
+        ))
+        assert artifact.final_disposition == Disposition.EXCLUDE, \
+            "EXCLUDE must beat QUARANTINE"

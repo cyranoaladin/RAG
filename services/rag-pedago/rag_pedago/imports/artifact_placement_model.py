@@ -13,11 +13,14 @@ Key concepts:
   - Currentness classification
   - Disposition (derived from placement, not artifact)
 
-Critical invariant:
+CRITICAL INVARIANT — FAIL-CLOSED DISPOSITION:
 - CORPUS_TOTAL = 2,584 unique artifacts
 - PLACEMENT_TOTAL = 2,956 placements (some artifacts have multiple placements)
 - Each artifact has >= 1 placement
-- Final disposition is determined by BEST placement (most favorable currentness)
+- Final disposition uses FAIL-CLOSED precedence:
+  EXCLUDE > QUARANTINE > UNSUPPORTED > ARCHIVE_ONLY > REVIEW_REQUIRED > INGEST
+- Any blocking placement disposition OVERRIDES INGEST
+- INGEST requires ALL placements to be INGEST (AND-gate, not priority)
 
 Usage:
     python -m rag_pedago.imports.artifact_placement_model \
@@ -62,15 +65,20 @@ class Currentness(StrEnum):
     UNCLASSIFIED = "unclassified"
 
 
-# Priority order for disposition (lower is better)
-DISPOSITION_PRIORITY = {
-    Disposition.INGEST: 0,
-    Disposition.REVIEW_REQUIRED: 1,
-    Disposition.QUARANTINE: 2,
-    Disposition.ARCHIVE_ONLY: 3,
-    Disposition.EXCLUDE: 4,
-    Disposition.UNSUPPORTED: 5,
+# FAIL-CLOSED disposition precedence (lower number = blocks, wins in min())
+# CRITICAL: INGEST must have HIGHEST number (lowest priority)
+# Any blocking disposition must override INGEST
+DISPOSITION_PRECEDENCE = {
+    Disposition.EXCLUDE: 0,       # Structural exclusion (admin, metadata)
+    Disposition.QUARANTINE: 1,    # Safety block (PII, provenance)
+    Disposition.UNSUPPORTED: 2,   # Format block (GGB, etc.)
+    Disposition.ARCHIVE_ONLY: 3,  # Currentness block (superseded)
+    Disposition.REVIEW_REQUIRED: 4,  # Needs human review
+    Disposition.INGEST: 5,        # ONLY if ALL gates pass
 }
+
+# Alias for backwards compatibility in tests
+DISPOSITION_PRIORITY = DISPOSITION_PRECEDENCE
 
 
 @dataclass
@@ -101,7 +109,8 @@ class CorpusArtifact:
     """A unique physical artifact in the corpus, identified by SHA256.
 
     Artifacts carry intrinsic properties (PII, rights) that don't depend on
-    where they're placed. Disposition is derived from the best placement.
+    where they're placed. Final disposition uses FAIL-CLOSED semantics:
+    any blocking placement disposition overrides INGEST.
     """
 
     sha256: str
@@ -127,29 +136,45 @@ class CorpusArtifact:
         return len(self.placements)
 
     @property
-    def best_disposition(self) -> Disposition:
-        """Return the most favorable disposition across all placements.
+    def final_disposition(self) -> Disposition:
+        """Return fail-closed disposition across all placements.
 
-        INGEST > REVIEW_REQUIRED > QUARANTINE > ARCHIVE_ONLY > EXCLUDE > UNSUPPORTED
+        FAIL-CLOSED PRECEDENCE (blocking wins):
+        EXCLUDE > QUARANTINE > UNSUPPORTED > ARCHIVE_ONLY > REVIEW_REQUIRED > INGEST
+
+        INGEST is assigned ONLY if no placement has a blocking disposition.
         """
         if not self.placements:
             return Disposition.REVIEW_REQUIRED
 
-        best = min(
+        # min() selects lowest precedence number = most blocking
+        controlling = min(
             self.placements,
-            key=lambda p: DISPOSITION_PRIORITY[p.disposition]
+            key=lambda p: DISPOSITION_PRECEDENCE[p.disposition]
         )
-        return best.disposition
+        return controlling.disposition
+
+    # Alias for backwards compatibility
+    @property
+    def best_disposition(self) -> Disposition:
+        """Alias for final_disposition (fail-closed semantics)."""
+        return self.final_disposition
 
     @property
-    def best_placement(self) -> CorpusPlacement | None:
-        """Return the placement with the most favorable disposition."""
+    def controlling_placement(self) -> CorpusPlacement | None:
+        """Return the placement that determines final disposition."""
         if not self.placements:
             return None
         return min(
             self.placements,
-            key=lambda p: DISPOSITION_PRIORITY[p.disposition]
+            key=lambda p: DISPOSITION_PRECEDENCE[p.disposition]
         )
+
+    # Alias for backwards compatibility
+    @property
+    def best_placement(self) -> CorpusPlacement | None:
+        """Alias for controlling_placement."""
+        return self.controlling_placement
 
     @property
     def zones(self) -> set[str]:
