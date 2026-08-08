@@ -167,6 +167,63 @@ authorization` doit réussir, sinon le worker refuse de traiter ce job
 (nouvel état d'échec explicite, jamais un `dead_letter` silencieux —
 `SCOPE_AUTHORIZATION_DENIED`, journalisé dans `workflow_events`).
 
+### 7. Cycle de vie des PR d'autorité — décision (remédiation GATE H1, item H)
+
+**Question posée.** Le vérificateur d'ADR-0025 a été conçu pour autoriser une
+*fusion* : il exige une PR **ouverte**. Or une autorisation LOT41A/LOT42 est
+une autorité *de longue durée*, consultée à chaque job. Que devient-elle
+lorsque sa PR est fusionnée ou fermée ?
+
+**Comportement réel, mesuré** (et non supposé) — `evaluate_trusted_review`
+d'ADR-0025, exercée directement sur des documents GitHub synthétiques :
+
+| Scénario | `approved` | `reason` |
+|---|---|---|
+| PR ouverte + review `APPROVED` au head exact | `true` | `approved` |
+| **PR fusionnée/fermée** | `false` | `pull_request_not_open` |
+| Review dismissée après approbation | `false` | `approval_revoked` |
+| Approbation sur un autre head | `false` | `current_head_approval_missing` |
+| Mauvaise base (`develop` au lieu de `main`) | `false` | `base_ref_mismatch` |
+| Challenge absent/incorrect dans le corps | `false` | `current_head_approval_missing` |
+| Relecteur sans droit d'écriture | `false` | `reviewer_permission_insufficient` |
+| Head sur un dépôt tiers | `false` | `head_repository_mismatch` |
+| PR en brouillon | `false` | `pull_request_is_draft` |
+
+**Décision : les PR d'autorité restent OUVERTES pendant toute la durée de vie
+de l'autorisation. Elles ne sont jamais fusionnées.**
+
+L'artefact d'autorisation (§ 2 bis) vit donc sur une branche dédiée
+`governance/authorization/<authorization_id>`, jamais fusionnée dans `main`.
+C'est cohérent avec sa nature : une autorisation est un **octroi révocable**,
+pas du code destiné à devenir un état permanent du dépôt.
+
+Conséquences, toutes fail-closed — aucune ne dépend d'une action opérateur :
+
+- **Révocation par fermeture** : fermer la PR rend l'autorisation invalide
+  immédiatement (`pull_request_not_open`), sans aucune écriture PostgreSQL.
+- **Révocation par dismissal** : dismisser la review a le même effet
+  (`approval_revoked`).
+- **Révocation explicite auditée** : artefact de révocation dédié (§ 3),
+  pour laisser une trace motivée — jamais l'unique mécanisme.
+- **Immutabilité de branche** : un `push --force` sur la branche d'autorité
+  change le head ; l'évidence stockée ne correspond alors plus
+  (`current_head_approval_missing` et, en amont, divergence de digest). La
+  protection de branche est donc une défense en profondeur, jamais le
+  garde-fou porteur.
+- **Suppression de branche** : GitHub ferme automatiquement la PR — retour au
+  cas « fermée », donc refus.
+- **Expiration** : `valid_until` est obligatoire et appliqué indépendamment de
+  l'état GitHub.
+
+**ADR-0025 n'est ni modifié, ni affaibli, ni contourné.** Aucun mode de
+« readback persistant » acceptant une PR fusionnée n'est introduit : il
+supprimerait précisément la révocation par fermeture, qui est ici la
+propriété la plus utile. L'exigence « PR ouverte », initialement une
+contrainte de fusion, devient dans ce contexte une **fonctionnalité** de
+révocabilité.
+
+Ces neuf scénarios sont exercés par des tests dédiés, chacun devant refuser.
+
 ## Conséquences
 
 - Aucune autorisation LOT41A n'existe à l'issue de ce lot — la table
