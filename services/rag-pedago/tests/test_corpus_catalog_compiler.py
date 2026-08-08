@@ -7,6 +7,7 @@ import pytest
 from rag_pedago.imports.corpus_catalog_compiler import (
     Disposition,
     compile_catalog,
+    compile_governed_sealed_catalog,
     compile_sealed_catalog,
     load_routing_config,
 )
@@ -134,6 +135,65 @@ def _write_sealed_fixture(tmp_path: Path) -> tuple[Path, Path, dict]:
         ],
     }
     return manifest, placements, config
+
+
+def _rights_registry(manifest_sha256: str) -> dict:
+    return {
+        "registry_id": "rights-test-v1",
+        "human_rights_decisions": {
+            "eduscol": {
+                "decision_type": "HUMAN_ORGANIZATIONAL_RIGHTS_APPROVAL",
+                "decision_maker": "Nexus Réussite",
+                "decision_date": "2026-08-08",
+                "scope_manifest_sha256": manifest_sha256,
+                "scope_zone": "01_EDUSCOL_OFFICIEL/",
+                "approved_for_production_rag": True,
+                "generic_rights_blocker": False,
+            }
+        },
+        "source_evidence": {
+            "eduscol": {
+                "zone": "01_EDUSCOL_OFFICIEL/",
+                "rights_status": "CLEARED_BY_HUMAN_DECISION",
+                "rights_decision_ref": "eduscol",
+            },
+            "index": {
+                "zone": "00_INDEX_PROVENANCE/",
+                "rights_status": "REVIEW_REQUIRED",
+                "disposition_override": "EXCLUDE",
+            },
+            "admin": {
+                "zone": "00_ADMIN/",
+                "rights_status": "REVIEW_REQUIRED",
+                "disposition_override": "EXCLUDE",
+            },
+        },
+    }
+
+
+def _pii_evidence(manifest_sha256: str, status: str = "CLEARED") -> dict:
+    return {
+        "evidence_kind": "REAL_CORPUS_PII_SCAN",
+        "scanner_version": "pii_scanner_h2b_v2",
+        "scanner_sha256": "1" * 64,
+        "policy_version": "pii-test-v1",
+        "policy_sha256": "2" * 64,
+        "corpus_manifest_sha256": manifest_sha256,
+        "remote_root": "gdrive_ert:NEXUS_RAG/NEXUS_RAG_GDRIVE_READY",
+        "remote_access_mode": "READ_ONLY",
+        "remote_write_operations": 0,
+        "raw_pii_in_output": False,
+        "raw_pii_in_logs": False,
+        "summary": {"sha256_mismatches": 0},
+        "results": [
+            {
+                "content_sha256": _sha("a"),
+                "physical_object_count": 2,
+                "status": status,
+                "error_code": None,
+            }
+        ],
+    }
 
 
 class TestCorpusCatalogCompiler:
@@ -525,3 +585,133 @@ class TestSealedCorpusCompilation:
 
         with pytest.raises(ValueError, match="duplicate manifest path"):
             compile_sealed_catalog(manifest, placements, config)
+
+
+class TestGovernedSealedCorpusCompilation:
+    def test_joins_manifest_bound_rights_and_pii_evidence(
+        self, tmp_path: Path
+    ) -> None:
+        manifest, placements, config = _write_sealed_fixture(tmp_path)
+        manifest_sha256 = hashlib.sha256(manifest.read_bytes()).hexdigest()
+
+        catalog = compile_governed_sealed_catalog(
+            manifest,
+            placements,
+            config,
+            _rights_registry(manifest_sha256),
+            _pii_evidence(manifest_sha256),
+        )
+
+        eligible = catalog.object_by_path(
+            "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/10_ACTUEL_CONFIRME/MATHS/doc.pdf"
+        )
+        assert eligible is not None
+        assert eligible.disposition == Disposition.INGEST
+        assert eligible.gate_statuses == {"rights": "PASS", "pii": "PASS"}
+        assert sum(catalog.disposition_counts.values()) == 4
+
+    def test_pii_signal_quarantines_current_ingest_candidate(
+        self, tmp_path: Path
+    ) -> None:
+        manifest, placements, config = _write_sealed_fixture(tmp_path)
+        manifest_sha256 = hashlib.sha256(manifest.read_bytes()).hexdigest()
+
+        catalog = compile_governed_sealed_catalog(
+            manifest,
+            placements,
+            config,
+            _rights_registry(manifest_sha256),
+            _pii_evidence(manifest_sha256, status="QUARANTINED_PII"),
+        )
+
+        candidate = catalog.object_by_path(
+            "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/10_ACTUEL_CONFIRME/MATHS/doc.pdf"
+        )
+        assert candidate is not None
+        assert candidate.disposition == Disposition.QUARANTINE
+        assert candidate.gate_statuses["pii"] == "BLOCKED_PII_DETECTED"
+
+    def test_rejects_pii_evidence_bound_to_another_manifest(
+        self, tmp_path: Path
+    ) -> None:
+        manifest, placements, config = _write_sealed_fixture(tmp_path)
+        manifest_sha256 = hashlib.sha256(manifest.read_bytes()).hexdigest()
+        evidence = _pii_evidence(manifest_sha256)
+        evidence["corpus_manifest_sha256"] = "0" * 64
+
+        with pytest.raises(ValueError, match="PII evidence manifest SHA256 mismatch"):
+            compile_governed_sealed_catalog(
+                manifest,
+                placements,
+                config,
+                _rights_registry(manifest_sha256),
+                evidence,
+            )
+
+    def test_rejects_rights_decision_bound_to_another_manifest(
+        self, tmp_path: Path
+    ) -> None:
+        manifest, placements, config = _write_sealed_fixture(tmp_path)
+        manifest_sha256 = hashlib.sha256(manifest.read_bytes()).hexdigest()
+        registry = _rights_registry(manifest_sha256)
+        registry["human_rights_decisions"]["eduscol"][
+            "scope_manifest_sha256"
+        ] = "0" * 64
+
+        with pytest.raises(ValueError, match="rights decision manifest SHA256 mismatch"):
+            compile_governed_sealed_catalog(
+                manifest,
+                placements,
+                config,
+                registry,
+                _pii_evidence(manifest_sha256),
+            )
+
+    def test_rejects_pii_result_for_unknown_content_sha(
+        self, tmp_path: Path
+    ) -> None:
+        manifest, placements, config = _write_sealed_fixture(tmp_path)
+        manifest_sha256 = hashlib.sha256(manifest.read_bytes()).hexdigest()
+        evidence = _pii_evidence(manifest_sha256)
+        evidence["results"][0]["content_sha256"] = "f" * 64
+
+        with pytest.raises(ValueError, match="unknown content SHA256 in PII evidence"):
+            compile_governed_sealed_catalog(
+                manifest,
+                placements,
+                config,
+                _rights_registry(manifest_sha256),
+                evidence,
+            )
+
+    def test_rejects_nexus_decision_when_exact_sha_set_digest_drifts(
+        self, tmp_path: Path
+    ) -> None:
+        manifest, placements, config = _write_sealed_fixture(tmp_path)
+        manifest_sha256 = hashlib.sha256(manifest.read_bytes()).hexdigest()
+        registry = _rights_registry(manifest_sha256)
+        registry["human_rights_decisions"]["nexus"] = {
+            "decision_type": "HUMAN_ORGANIZATIONAL_RIGHTS_APPROVAL",
+            "decision_maker": "Nexus Réussite",
+            "decision_date": "2026-08-08",
+            "scope_manifest_sha256": manifest_sha256,
+            "scope_zones": ["02_NEXUS_DIAGNOSTICS/"],
+            "artifact_count": 0,
+            "content_sha256_set_digest": "0" * 64,
+            "approved_for_production_rag": True,
+            "generic_rights_blocker": False,
+        }
+        registry["source_evidence"]["nexus"] = {
+            "zone": "02_NEXUS_DIAGNOSTICS/",
+            "rights_status": "CLEARED_BY_HUMAN_DECISION",
+            "rights_decision_ref": "nexus",
+        }
+
+        with pytest.raises(ValueError, match="Nexus rights SHA set binding mismatch"):
+            compile_governed_sealed_catalog(
+                manifest,
+                placements,
+                config,
+                registry,
+                _pii_evidence(manifest_sha256),
+            )

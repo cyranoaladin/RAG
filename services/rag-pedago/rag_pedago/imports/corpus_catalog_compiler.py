@@ -30,6 +30,10 @@ from rag_pedago.imports.artifact_placement_model import (
     PhysicalCorpusObject,
     SealedCorpusCatalog,
 )
+from rag_pedago.imports.rights_evidence_gate import (
+    RightsStatus,
+    evaluate_registry,
+)
 
 _GNU_SHA256_LINE = re.compile(r"([0-9a-f]{64})  (.*)\Z")
 _MANIFEST_SELF_PATH = "00_ADMIN/SHA256SUMS.txt"
@@ -398,22 +402,34 @@ def _apply_mandatory_ingest_gates(
     content_sha256: str,
     rights_cleared_sha256: set[str] | frozenset[str],
     pii_cleared_sha256: set[str] | frozenset[str],
+    pii_quarantined_sha256: set[str] | frozenset[str],
 ) -> tuple[Disposition, str, dict[str, str]]:
     if base_disposition is not Disposition.INGEST:
         return base_disposition, "", {}
 
+    pii_status = (
+        "BLOCKED_PII_DETECTED"
+        if content_sha256 in pii_quarantined_sha256
+        else (
+            "PASS"
+            if content_sha256 in pii_cleared_sha256
+            else "BLOCKED_NOT_CLEARED"
+        )
+    )
     gate_statuses = {
         "rights": (
             "PASS"
             if content_sha256 in rights_cleared_sha256
             else "BLOCKED_NOT_CLEARED"
         ),
-        "pii": (
-            "PASS"
-            if content_sha256 in pii_cleared_sha256
-            else "BLOCKED_NOT_CLEARED"
-        ),
+        "pii": pii_status,
     }
+    if pii_status == "BLOCKED_PII_DETECTED":
+        return (
+            Disposition.QUARANTINE,
+            "PII signal detected in current ingestion candidate",
+            gate_statuses,
+        )
     blocked = [name for name, status in gate_statuses.items() if status != "PASS"]
     if blocked:
         return (
@@ -431,6 +447,7 @@ def compile_sealed_catalog(
     *,
     rights_cleared_sha256: set[str] | frozenset[str] = frozenset(),
     pii_cleared_sha256: set[str] | frozenset[str] = frozenset(),
+    pii_quarantined_sha256: set[str] | frozenset[str] = frozenset(),
 ) -> SealedCorpusCatalog:
     """Compile the real physical corpus and join every Eduscol placement by SHA."""
     manifest_sha256 = compute_file_sha256(manifest_path)
@@ -464,6 +481,7 @@ def compile_sealed_catalog(
             content_sha256,
             rights_cleared_sha256,
             pii_cleared_sha256,
+            pii_quarantined_sha256,
         )
         physical_object = PhysicalCorpusObject(
             content_sha256=content_sha256,
@@ -503,6 +521,167 @@ def compile_sealed_catalog(
     _attach_eduscol_placements(catalog, placement_catalog_path)
     catalog.verify()
     return catalog
+
+
+def _sha256_set_digest(values: set[str]) -> str:
+    canonical = "".join(f"{value}\n" for value in sorted(values)).encode()
+    return hashlib.sha256(canonical).hexdigest()
+
+
+def _derive_rights_clearances(
+    entries: list[tuple[str, str]],
+    manifest_sha256: str,
+    rights_registry: dict[str, Any],
+) -> set[str]:
+    report = evaluate_registry(rights_registry, Path("rights_evidence_registry.yml"))
+    if not report.gate_passed:
+        raise ValueError("rights registry has unresolved ingest-capable zones")
+
+    decisions = rights_registry.get("human_rights_decisions", {})
+    source_evidence = rights_registry.get("source_evidence", {})
+    if not isinstance(decisions, dict) or not isinstance(source_evidence, dict):
+        raise ValueError("rights registry decisions and sources must be mappings")
+
+    cleared: set[str] = set()
+    for zone_status in report.zone_statuses:
+        if zone_status.status not in {
+            RightsStatus.RESOLVED,
+            RightsStatus.CLEARED_BY_HUMAN_DECISION,
+        }:
+            continue
+        evidence = next(
+            (
+                item
+                for item in source_evidence.values()
+                if isinstance(item, dict) and item.get("zone") == zone_status.zone
+            ),
+            None,
+        )
+        if not isinstance(evidence, dict):
+            raise ValueError(f"missing rights evidence for zone: {zone_status.zone}")
+
+        if zone_status.status is RightsStatus.CLEARED_BY_HUMAN_DECISION:
+            decision_ref = evidence.get("rights_decision_ref")
+            decision = decisions.get(decision_ref) if isinstance(decision_ref, str) else None
+            if not isinstance(decision, dict):
+                raise ValueError("missing human rights decision")
+            if decision.get("scope_manifest_sha256") != manifest_sha256:
+                raise ValueError("rights decision manifest SHA256 mismatch")
+
+            scope_zones = decision.get("scope_zones")
+            if scope_zones is not None:
+                if not isinstance(scope_zones, list) or not all(
+                    isinstance(zone, str) and zone for zone in scope_zones
+                ):
+                    raise ValueError("rights decision scope_zones must be strings")
+                scoped_sha256 = {
+                    content_sha256
+                    for content_sha256, object_path in entries
+                    if any(object_path.startswith(zone) for zone in scope_zones)
+                }
+                if (
+                    decision.get("artifact_count") != len(scoped_sha256)
+                    or decision.get("content_sha256_set_digest")
+                    != _sha256_set_digest(scoped_sha256)
+                ):
+                    raise ValueError("Nexus rights SHA set binding mismatch")
+
+        cleared.update(
+            content_sha256
+            for content_sha256, object_path in entries
+            if object_path.startswith(zone_status.zone)
+        )
+    return cleared
+
+
+def _derive_pii_clearances(
+    entries: list[tuple[str, str]],
+    manifest_sha256: str,
+    pii_evidence: dict[str, Any],
+) -> tuple[set[str], set[str]]:
+    if pii_evidence.get("evidence_kind") != "REAL_CORPUS_PII_SCAN":
+        raise ValueError("PII evidence is not a real corpus scan")
+    if pii_evidence.get("corpus_manifest_sha256") != manifest_sha256:
+        raise ValueError("PII evidence manifest SHA256 mismatch")
+    if (
+        pii_evidence.get("remote_access_mode") != "READ_ONLY"
+        or pii_evidence.get("remote_write_operations") != 0
+        or pii_evidence.get("raw_pii_in_output") is not False
+        or pii_evidence.get("raw_pii_in_logs") is not False
+    ):
+        raise ValueError("PII evidence safety binding is invalid")
+    for field_name in ("scanner_sha256", "policy_sha256"):
+        value = pii_evidence.get(field_name)
+        if not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{64}", value) is None:
+            raise ValueError(f"PII evidence {field_name} is invalid")
+    summary = pii_evidence.get("summary")
+    if not isinstance(summary, dict) or summary.get("sha256_mismatches") != 0:
+        raise ValueError("PII evidence contains content SHA256 mismatches")
+
+    pdf_counts: dict[str, int] = {}
+    for content_sha256, object_path in entries:
+        if object_path.lower().endswith(".pdf"):
+            pdf_counts[content_sha256] = pdf_counts.get(content_sha256, 0) + 1
+
+    results = pii_evidence.get("results")
+    if not isinstance(results, list):
+        raise ValueError("PII evidence results must be a list")
+    seen: set[str] = set()
+    cleared: set[str] = set()
+    quarantined: set[str] = set()
+    for result in results:
+        if not isinstance(result, dict):
+            raise ValueError("PII evidence result must be a mapping")
+        result_sha256 = result.get("content_sha256")
+        if not isinstance(result_sha256, str) or result_sha256 not in pdf_counts:
+            raise ValueError("unknown content SHA256 in PII evidence")
+        if result_sha256 in seen:
+            raise ValueError("duplicate content SHA256 in PII evidence")
+        seen.add(result_sha256)
+        if result.get("physical_object_count") != pdf_counts[result_sha256]:
+            raise ValueError("PII evidence physical object count mismatch")
+        status = result.get("status")
+        if status == "CLEARED":
+            cleared.add(result_sha256)
+        elif status == "QUARANTINED_PII":
+            quarantined.add(result_sha256)
+        elif not isinstance(status, str) or not status.startswith(
+            ("REVIEW_REQUIRED_", "QUARANTINED_")
+        ):
+            raise ValueError("unknown PII evidence status")
+    if seen != set(pdf_counts):
+        raise ValueError("PII evidence does not cover every physical PDF content")
+    return cleared, quarantined
+
+
+def compile_governed_sealed_catalog(
+    manifest_path: Path,
+    placement_catalog_path: Path,
+    config: dict[str, Any],
+    rights_registry: dict[str, Any],
+    pii_evidence: dict[str, Any],
+) -> SealedCorpusCatalog:
+    """Compile final dispositions from manifest-bound rights and PII evidence."""
+    manifest_sha256 = compute_file_sha256(manifest_path)
+    entries = _parse_sealed_manifest(manifest_path)
+    rights_cleared = _derive_rights_clearances(
+        entries,
+        manifest_sha256,
+        rights_registry,
+    )
+    pii_cleared, pii_quarantined = _derive_pii_clearances(
+        entries,
+        manifest_sha256,
+        pii_evidence,
+    )
+    return compile_sealed_catalog(
+        manifest_path,
+        placement_catalog_path,
+        config,
+        rights_cleared_sha256=rights_cleared,
+        pii_cleared_sha256=pii_cleared,
+        pii_quarantined_sha256=pii_quarantined,
+    )
 
 
 def _report_to_json(report: CompilationReport, include_objects: bool = False) -> dict[str, Any]:
