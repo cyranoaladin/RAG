@@ -68,6 +68,38 @@ def rclone_download(remote_source: str, local_target: Path) -> None:
         raise RemoteDownloadError("read-only corpus download failed") from error
 
 
+def rclone_bulk_download(remote_root: str, local_root: Path) -> None:
+    """Copy all PDFs from the canonical remote into a bounded local mirror."""
+    if remote_root != CANONICAL_REMOTE_ROOT:
+        raise ValueError("remote root is not the canonical read-only corpus remote")
+    mirror = _validated_scratch(local_root)
+    try:
+        subprocess.run(
+            [
+                "rclone",
+                "copy",
+                "--include",
+                "*.pdf",
+                "--transfers",
+                "8",
+                "--checkers",
+                "16",
+                "--retries",
+                "3",
+                "--low-level-retries",
+                "5",
+                remote_root,
+                str(mirror),
+            ],
+            capture_output=True,
+            check=True,
+            text=False,
+            timeout=7200,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        raise RemoteDownloadError("bulk read-only corpus download failed") from error
+
+
 def _validated_policy(policy_path: Path) -> tuple[str, str]:
     policy = yaml.safe_load(policy_path.read_text(encoding="utf-8"))
     if not isinstance(policy, dict):
@@ -150,11 +182,13 @@ def scan_remote_corpus(
     expected_manifest_sha256: str,
     download_file: DownloadFile = rclone_download,
     scan_file: ScanFile = scan_pdf,
+    local_mirror: Path | None = None,
 ) -> dict[str, Any]:
     """Scan all physical PDFs while downloading identical bytes only once."""
     if remote_root != CANONICAL_REMOTE_ROOT:
         raise ValueError("remote root is not the canonical read-only corpus remote")
     scratch = _validated_scratch(scratch_dir)
+    mirror = _validated_scratch(local_mirror) if local_mirror else None
     manifest_sha256 = _file_sha256(manifest_path)
     if manifest_sha256 != expected_manifest_sha256:
         raise ValueError("corpus manifest SHA256 mismatch")
@@ -172,23 +206,34 @@ def scan_remote_corpus(
 
     results: list[dict[str, Any]] = []
     for content_sha256, physical_paths in grouped.items():
-        local_target = scratch / f"{content_sha256}.pdf"
-        if local_target.exists():
-            raise ValueError("PII scratch target unexpectedly exists")
-        status: str
+        local_files: list[Path] = []
+        cleanup_targets: list[Path] = []
+        status = ""
         safe_payload: dict[str, Any] = {}
         error_code: str | None = None
         try:
-            download_file(f"{remote_root}/{physical_paths[0]}", local_target)
-            if not local_target.is_file():
-                status = "REVIEW_REQUIRED_DOWNLOAD_FAILED"
-                error_code = "DOWNLOAD_DID_NOT_CREATE_FILE"
-            elif _file_sha256(local_target) != content_sha256:
-                status = "QUARANTINED_SHA_MISMATCH"
-                error_code = "CONTENT_SHA256_MISMATCH"
-            else:
+            for index, physical_path in enumerate(physical_paths):
+                if mirror is not None:
+                    local_target = mirror.joinpath(*Path(physical_path).parts)
+                else:
+                    local_target = scratch / f"{content_sha256}-{index}.pdf"
+                    if local_target.exists():
+                        raise ValueError("PII scratch target unexpectedly exists")
+                    download_file(f"{remote_root}/{physical_path}", local_target)
+                cleanup_targets.append(local_target)
+                if not local_target.is_file():
+                    status = "REVIEW_REQUIRED_DOWNLOAD_FAILED"
+                    error_code = "DOWNLOAD_DID_NOT_CREATE_FILE"
+                    break
+                if _file_sha256(local_target) != content_sha256:
+                    status = "QUARANTINED_SHA_MISMATCH"
+                    error_code = "CONTENT_SHA256_MISMATCH"
+                    break
+                local_files.append(local_target)
+
+            if not status:
                 try:
-                    scan_result = scan_file(local_target)
+                    scan_result = scan_file(local_files[0])
                 except Exception:
                     status = "REVIEW_REQUIRED_SCANNER_FAILED"
                     error_code = "SCANNER_FAILED"
@@ -205,7 +250,8 @@ def scan_remote_corpus(
             status = "REVIEW_REQUIRED_DOWNLOAD_FAILED"
             error_code = "DOWNLOAD_FAILED"
         finally:
-            local_target.unlink(missing_ok=True)
+            for target in cleanup_targets:
+                target.unlink(missing_ok=True)
 
         result = {
             "content_sha256": content_sha256,
@@ -265,14 +311,24 @@ def main() -> int:
         prefix="nexus-h2b-pii-",
         dir=args.scratch_parent,
     ) as scratch:
-        evidence = scan_remote_corpus(
-            args.manifest,
-            args.policy,
-            args.remote_root,
-            Path(scratch),
-            expected_manifest_sha256=args.expected_manifest_sha256,
-            scan_file=configured_scan,
-        )
+        scratch_path = Path(scratch)
+        try:
+            rclone_bulk_download(args.remote_root, scratch_path)
+            evidence = scan_remote_corpus(
+                args.manifest,
+                args.policy,
+                args.remote_root,
+                scratch_path,
+                expected_manifest_sha256=args.expected_manifest_sha256,
+                scan_file=configured_scan,
+                local_mirror=scratch_path,
+            )
+        except KeyboardInterrupt:
+            print("PII_SCAN_INTERRUPTED=true")
+            return 130
+        except Exception:
+            print("PII_SCAN_FAILED=true")
+            return 2
     _write_json_atomic(args.output, evidence)
     summary = evidence["summary"]
     print(f"PII_SCAN_REQUIRED={summary['pii_scan_required']}")

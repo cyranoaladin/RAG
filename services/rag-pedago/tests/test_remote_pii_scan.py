@@ -11,6 +11,7 @@ import pytest
 from rag_pedago.imports.pii_scanner import PIIMatch, PIIScanResult
 from rag_pedago.imports.remote_pii_scan import (
     CANONICAL_REMOTE_ROOT,
+    rclone_bulk_download,
     rclone_download,
     scan_remote_corpus,
 )
@@ -55,12 +56,20 @@ def test_scans_each_unique_pdf_content_once_and_covers_every_physical_object(
     scratch = tmp_path / "scratch"
     scratch.mkdir()
     downloads: list[str] = []
+    scan_calls = 0
 
     def download(source: str, target: Path) -> None:
         downloads.append(source)
         target.write_bytes(
-            content["first"] if source.endswith("a.pdf") else content["second"]
+            content["first"]
+            if source.endswith(("a.pdf", "a-copy.pdf"))
+            else content["second"]
         )
+
+    def scan(path: Path) -> PIIScanResult:
+        nonlocal scan_calls
+        scan_calls += 1
+        return _clean_scan(path)
 
     evidence = scan_remote_corpus(
         manifest,
@@ -69,10 +78,11 @@ def test_scans_each_unique_pdf_content_once_and_covers_every_physical_object(
         scratch,
         expected_manifest_sha256=_digest(manifest.read_bytes()),
         download_file=download,
-        scan_file=_clean_scan,
+        scan_file=scan,
     )
 
-    assert len(downloads) == 2
+    assert len(downloads) == 3
+    assert scan_calls == 2
     assert evidence["summary"] == {
         "pdf_total": 3,
         "pii_scan_scope": "ALL_CORPUS_PDFS",
@@ -106,7 +116,9 @@ def test_external_evidence_never_contains_raw_pii_or_exception_text(
 
     def download(source: str, target: Path) -> None:
         target.write_bytes(
-            content["first"] if source.endswith("a.pdf") else content["second"]
+            content["first"]
+            if source.endswith(("a.pdf", "a-copy.pdf"))
+            else content["second"]
         )
 
     def scan(path: Path) -> PIIScanResult:
@@ -270,6 +282,80 @@ def test_rclone_download_only_builds_remote_to_local_copyto(
                 "check": True,
                 "text": False,
                 "timeout": 300,
+            },
+        )
+    ]
+
+
+def test_bulk_transport_scans_local_mirror_without_per_file_rclone(
+    tmp_path: Path,
+) -> None:
+    manifest, policy, content = _write_inputs(tmp_path)
+    mirror = tmp_path / "mirror"
+    for relative_path, payload in (
+        ("01_EDUSCOL_OFFICIEL/a.pdf", content["first"]),
+        ("00_INDEX_PROVENANCE/a-copy.pdf", content["first"]),
+        ("02_NEXUS_DIAGNOSTICS/b.pdf", content["second"]),
+    ):
+        target = mirror / relative_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(payload)
+
+    evidence = scan_remote_corpus(
+        manifest,
+        policy,
+        CANONICAL_REMOTE_ROOT,
+        mirror,
+        expected_manifest_sha256=_digest(manifest.read_bytes()),
+        download_file=lambda _source, _target: pytest.fail(
+            "per-file rclone must not run in bulk mode"
+        ),
+        scan_file=_clean_scan,
+        local_mirror=mirror,
+    )
+
+    assert evidence["summary"]["pii_cleared"] == 3
+    assert list(mirror.rglob("*.pdf")) == []
+
+
+def test_rclone_bulk_download_is_canonical_remote_to_bounded_local(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calls: list[tuple[list[str], dict[str, Any]]] = []
+
+    def fake_run(command: list[str], **kwargs: Any) -> object:
+        calls.append((command, kwargs))
+        return object()
+
+    monkeypatch.setattr("rag_pedago.imports.remote_pii_scan.subprocess.run", fake_run)
+    mirror = tmp_path / "mirror"
+    mirror.mkdir()
+
+    rclone_bulk_download(CANONICAL_REMOTE_ROOT, mirror)
+
+    assert calls == [
+        (
+            [
+                "rclone",
+                "copy",
+                "--include",
+                "*.pdf",
+                "--transfers",
+                "8",
+                "--checkers",
+                "16",
+                "--retries",
+                "3",
+                "--low-level-retries",
+                "5",
+                CANONICAL_REMOTE_ROOT,
+                str(mirror),
+            ],
+            {
+                "capture_output": True,
+                "check": True,
+                "text": False,
+                "timeout": 7200,
             },
         )
     ]
