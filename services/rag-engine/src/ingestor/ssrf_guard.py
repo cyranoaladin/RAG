@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import ipaddress
 import socket
+from collections.abc import Callable
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
@@ -127,11 +128,22 @@ class _RevalidatingTransport(httpx.BaseTransport):
     transport réseau sous-jacent.
     """
 
-    def __init__(self, inner: httpx.BaseTransport) -> None:
+    def __init__(
+        self,
+        inner: httpx.BaseTransport,
+        on_destination: Callable[[str], None] | None = None,
+    ) -> None:
         self._inner = inner
+        self._on_destination = on_destination
 
     def handle_request(self, request: httpx.Request) -> httpx.Response:
         validate_destination(str(request.url))
+        # Point le plus profond du chemin réseau : une politique d'appelant
+        # (ex. l'enforcement LOT41A des domaines autorisés) est appliquée ici
+        # aussi, de sorte qu'aucune requête ne parte sans y être passée —
+        # même si un futur chemin de code contournait la boucle ci-dessous.
+        if self._on_destination is not None:
+            self._on_destination(str(request.url))
         return self._inner.handle_request(request)
 
     def close(self) -> None:
@@ -145,6 +157,7 @@ def safe_fetch(
     max_redirects: int = DEFAULT_MAX_REDIRECTS,
     timeout: httpx.Timeout = DEFAULT_TIMEOUT,
     transport: httpx.BaseTransport | None = None,
+    on_destination: Callable[[str], None] | None = None,
 ) -> httpx.Response:
     """Télécharge une URL en revalidant la destination à chaque redirection.
 
@@ -154,18 +167,27 @@ def safe_fetch(
       pour empêcher le DNS rebinding et les rebonds vers des réseaux internes.
     - Limite le nombre de sauts à `max_redirects`.
     - Coupe le téléchargement en streaming dès que `max_bytes` est dépassé.
+
+    ``on_destination`` (remédiation GATE H1, item D) laisse l'appelant
+    imposer sa propre politique sur **chaque** URL réellement atteinte,
+    redirections comprises — la seule façon d'appliquer une contrainte de
+    domaine à une chaîne de redirection dont seul ce module connaît les
+    sauts. Une exception levée par ce rappel interrompt le téléchargement
+    immédiatement (fail-closed), jamais après coup.
     """
     current_url = url
     inner_transport = transport if transport is not None else httpx.HTTPTransport()
     client_kwargs: dict[str, Any] = {
         "follow_redirects": False,
         "timeout": timeout,
-        "transport": _RevalidatingTransport(inner_transport),
+        "transport": _RevalidatingTransport(inner_transport, on_destination),
     }
 
     with httpx.Client(**client_kwargs) as client:
         for _hop in range(max_redirects + 1):
             validate_destination(current_url)
+            if on_destination is not None:
+                on_destination(current_url)
 
             with client.stream("GET", current_url) as response:
                 if response.is_redirect:

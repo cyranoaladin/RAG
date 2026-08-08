@@ -29,6 +29,7 @@ import httpx
 import psycopg
 import pytest
 import yaml
+from nexus_contracts.ingestion import CollectionProfile
 
 ENGINE_ROOT = Path(__file__).resolve().parents[2]
 INFRA_ROOT = ENGINE_ROOT / "infra"
@@ -36,9 +37,22 @@ BOOTSTRAP_SCRIPT = INFRA_ROOT / "scripts" / "bootstrap_ingestion_control_schema.
 PROVISION_SCRIPT = INFRA_ROOT / "scripts" / "provision_ingestion_control_roles.sh"
 
 sys.path.insert(0, str(ENGINE_ROOT / "src"))
+sys.path.insert(0, str(ENGINE_ROOT / "tests"))
+
+from _authorization_stub import (  # noqa: E402
+    STUB_AUTHORIZATION_ID,
+    verified_authorization,
+)
 
 from ingestor.ingestion_control.jobs import create_job  # noqa: E402
-from ingestor.ingestion_profiles.registry import load_profile_registry  # noqa: E402
+from ingestor.ingestion_control.scope_authority import (  # noqa: E402
+    ScopeAuthorizationDeniedError,
+)
+from ingestor.ingestion_profiles.registry import (  # noqa: E402
+    load_profile_registry,
+    profile_fingerprint,
+    select_profile,
+)
 from ingestor.ingestion_worker.runner import WorkerDeps, run_worker_iteration  # noqa: E402
 from ingestor.ingestion_worker.storage import (  # noqa: E402
     make_filesystem_artifact_reader,
@@ -51,6 +65,8 @@ PG_SUPERUSER_PASSWORD = secrets.token_urlsafe(24)  # revue PR#90 : jamais un lit
 PG_DB = "ragdb"
 APP_PASSWORD = secrets.token_urlsafe(24)  # revue PR#90 : jamais un litteral statique
 MIGRATOR_PASSWORD = secrets.token_urlsafe(24)  # revue PR#90 : jamais un litteral statique
+AUTHORITY_PASSWORD = secrets.token_urlsafe(24)  # revue PR#90 : jamais un litteral statique
+ATTESTOR_PASSWORD = secrets.token_urlsafe(24)  # revue PR#90 : jamais un litteral statique
 
 _DOCKER_AVAILABLE = shutil.which("docker") is not None and (
     subprocess.run(["docker", "info"], capture_output=True, check=False).returncode == 0
@@ -108,6 +124,8 @@ def _job_payload(**overrides: object) -> dict[str, object]:
         "domain": "eduscol.education.fr",
         "proposed_type_doc": "cours",
         "profile_version": "v1",
+        # Item C : un job nomme TOUJOURS son autorisation, explicitement.
+        "scope_authorization_id": STUB_AUTHORIZATION_ID,
         "license": "CC-BY-SA",
     }
     payload.update(overrides)
@@ -167,6 +185,8 @@ def pg_container() -> Iterator[dict[str, str]]:
         provision_env.update({
             "INGESTION_CONTROL_MIGRATOR_PASSWORD": MIGRATOR_PASSWORD,
             "INGESTION_CONTROL_APP_PASSWORD": APP_PASSWORD,
+            "INGESTION_CONTROL_AUTHORITY_PASSWORD": AUTHORITY_PASSWORD,
+            "INGESTION_CONTROL_ATTESTOR_PASSWORD": ATTESTOR_PASSWORD,
         })
         provision = subprocess.run(
             [str(PROVISION_SCRIPT)], cwd=ENGINE_ROOT, env=provision_env,
@@ -244,6 +264,57 @@ def _write_profile(profiles_dir: Path) -> None:
     (profiles_dir / "nsi.yml").write_text(yaml.safe_dump(_profile_payload()), encoding="utf-8")
 
 
+#: Digest de manifest arbitraire mais FIXE de ces suites : le worker le
+#: porte, l'autorisation stub le déclare, et le point de contrôle pre_fetch
+#: les compare pour de vrai (item D).
+STUB_MANIFEST_DIGEST = "7" * 64
+
+_STUB_PROFILE = CollectionProfile.model_validate(_profile_payload())
+
+
+def _stub_registry():
+    """Registre équivalent à celui que le worker charge — construit depuis
+    le MÊME ``_profile_payload()``, donc de même empreinte."""
+    return {
+        (_STUB_PROFILE.scope.collection, _STUB_PROFILE.profile_version): _STUB_PROFILE
+    }
+
+
+def _always_authorized(conn, *, authorization_id, scope=None, now=None):
+    """Stub LOT41A (ADR-0032) : ce fichier teste la chaîne d'ingestion, jamais
+    la frontière GitHub d'autorisation de scope elle-même — reconstruire une
+    PR/review/blob GitHub réels ici serait hors périmètre, et c'est couvert
+    par les suites dédiées (``test_lot41a_scope_authority.py``, …).
+
+    L'autorisation rendue reste **cohérente avec le job** (mêmes domaines,
+    mêmes droits, même profil, même manifest) : les points de contrôle
+    d'enforcement (item D) s'exécutent donc réellement ici, et un job hors
+    périmètre y échouerait comme en production. Le stub refuse d'ailleurs un
+    ``authorization_id`` qu'il ne connaît pas, exactement comme la
+    vérification réelle."""
+    if authorization_id != STUB_AUTHORIZATION_ID:
+        raise ScopeAuthorizationDeniedError(
+            f"no scope_authorizations row with authorization_id={authorization_id!r}"
+        )
+    profile = select_profile(
+        _stub_registry(), collection=VALID_SCOPE["collection"], profile_version="v1"
+    )
+    return verified_authorization(
+        scope=scope if scope is not None else VALID_SCOPE,
+        manifest_digest=STUB_MANIFEST_DIGEST,
+        profile_id=profile.scope.collection,
+        profile_version=profile.profile_version,
+        profile_fingerprint=profile_fingerprint(profile),
+    )
+    return verified_authorization(
+        scope=scope if scope is not None else VALID_SCOPE,
+        manifest_digest=STUB_MANIFEST_DIGEST,
+        profile_id=profile.scope.collection,
+        profile_version=profile.profile_version,
+        profile_fingerprint=profile_fingerprint(profile),
+    )
+
+
 def _worker_deps(tmp_path: Path, *, safe_fetch, owner: str = "worker-e2e") -> WorkerDeps:
     profiles_dir = tmp_path / "profiles"
     _write_profile(profiles_dir)
@@ -254,6 +325,8 @@ def _worker_deps(tmp_path: Path, *, safe_fetch, owner: str = "worker-e2e") -> Wo
         artifact_reader=make_filesystem_artifact_reader(tmp_path / "artifacts"),
         validate_destination=lambda url: url,
         safe_fetch=safe_fetch,
+        verify_scope_authorization=_always_authorized,
+        manifest_digest=STUB_MANIFEST_DIGEST,
     )
 
 
@@ -367,6 +440,8 @@ class TestCrashAfterFetcherResumesFromExtractor:
             artifact_reader=failing_read_artifact,
             validate_destination=lambda url: url,
             safe_fetch=_fake_safe_fetch_success,
+            verify_scope_authorization=_always_authorized,
+            manifest_digest=STUB_MANIFEST_DIGEST,
         )
         first = run_worker_iteration(app_conn, deps=crashing_deps)
         assert first.status == "retried"

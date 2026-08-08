@@ -74,6 +74,8 @@ def _make_dummy_env_file(path: Path, *, pgvector_port: int, colliding_roles: boo
         f"PGVECTOR_REVIEW_PASSWORD={secrets.token_urlsafe(24)}",
         f"INGESTION_CONTROL_MIGRATOR_PASSWORD={secrets.token_urlsafe(24)}",
         f"INGESTION_CONTROL_APP_PASSWORD={secrets.token_urlsafe(24)}",
+        f"INGESTION_CONTROL_AUTHORITY_PASSWORD={secrets.token_urlsafe(24)}",
+        f"INGESTION_CONTROL_ATTESTOR_PASSWORD={secrets.token_urlsafe(24)}",
         f"INGESTION_CONTROL_MIGRATOR_ROLE={migrator_role}",
         f"INGESTION_CONTROL_APP_ROLE={app_role}",
         "PG_INGESTION_CONTROL_DSN=postgresql://ingestion_control_app_test:dummy@pgvector:5432/ragdb",

@@ -232,8 +232,23 @@ def test_v2_compose_ingestion_control_lives_in_a_separate_opt_in_file() -> None:
     compose = _load_compose(ingestion_compose_path)
     services = compose["services"]
 
-    assert set(services) == {"migrator-ingestion-control", "ingestion-worker"}
+    # Remédiation GATE H1 (item K) : deux autorités d'opérateur ponctuelles
+    # s'ajoutent aux deux services d'origine. Elles restent hors du `up`
+    # normal grâce à `profiles: [operator]` — vérifié explicitement ci-dessous
+    # plutôt que par leur simple absence de cette liste.
+    assert set(services) == {
+        "migrator-ingestion-control",
+        "ingestion-worker",
+        "scope-authority-operator",
+        "publication-attestor-operator",
+    }
     assert set(compose["volumes"]) == {"rag_ingestion_artifacts_data"}
+
+    for operator in ("scope-authority-operator", "publication-attestor-operator"):
+        assert services[operator]["profiles"] == ["operator"], (
+            f"{operator} must never start with a plain `up`"
+        )
+        assert "ports" not in services[operator]
 
     assert "ports" not in services["ingestion-worker"]
     assert services["migrator-ingestion-control"]["restart"] == "no"

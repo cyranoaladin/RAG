@@ -16,6 +16,7 @@ stage si le profil l'exige — jamais une acceptation silencieuse.
 """
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from uuid import UUID
 
 import psycopg
@@ -65,10 +66,17 @@ def run_rights_agent(
     expected_version: int,
     actor: str,
     job_id: UUID | None = None,
+    assessed_at: datetime | None = None,
 ) -> tuple[Rights, TransitionResult]:
     """Calcule les droits (échec explicite si rejetés) puis transitionne
-    ``CLASSIFIED -> RIGHTS_CHECKED``."""
+    ``CLASSIFIED -> RIGHTS_CHECKED``.
+
+    LOT42 (item E) : ``rights_status`` **et** l'instant de son évaluation
+    sont écrits dans le payload de la transition — donc dans
+    ``workflow_events``, append-only. Une attestation de publication lit
+    ce fait durable, elle ne le reçoit jamais d'un argument opérateur."""
     rights = assess_rights_core(artifact=artifact, profile=profile)
+    moment = assessed_at or datetime.now(UTC)
 
     transition = apply_resource_transition(
         conn,
@@ -79,7 +87,7 @@ def run_rights_agent(
         actor=actor,
         run_id=artifact.run_id,
         job_id=job_id,
-        payload={"rights_status": rights.value},
+        payload={"rights_status": rights.value, "rights_assessed_at": moment.isoformat()},
     )
 
     return rights, transition

@@ -78,6 +78,23 @@ from nexus_contracts.resource_state import (
     ResourceState,
     is_valid_resource_transition,
 )
+from nexus_contracts.authority_artifacts import (
+    AUTHORIZATIONS_DIR,
+    AUTHORIZE_INGESTION_SCOPE_DECISION,
+    AUTHORIZE_PUBLICATION_DECISION,
+    LOT41A_PROTOCOL_VERSION,
+    LOT42_PROTOCOL_VERSION,
+    PUBLICATION_REVIEWS_DIR,
+    CanonicalArtifactError,
+    PublicationReviewArtifact,
+    ScopeAuthorizationArtifact,
+    canonical_authorization_path,
+    canonical_publication_review_path,
+    git_blob_sha1,
+    normalize_hostname,
+    parse_publication_review_artifact,
+    parse_scope_authorization_artifact,
+)
 
 __all__ = [
     "AccessContext",
@@ -138,4 +155,19 @@ __all__ = [
     "NORMAL_SEQUENCE",
     "ResourceState",
     "is_valid_resource_transition",
+    "AUTHORIZATIONS_DIR",
+    "AUTHORIZE_INGESTION_SCOPE_DECISION",
+    "AUTHORIZE_PUBLICATION_DECISION",
+    "LOT41A_PROTOCOL_VERSION",
+    "LOT42_PROTOCOL_VERSION",
+    "PUBLICATION_REVIEWS_DIR",
+    "CanonicalArtifactError",
+    "PublicationReviewArtifact",
+    "ScopeAuthorizationArtifact",
+    "canonical_authorization_path",
+    "canonical_publication_review_path",
+    "git_blob_sha1",
+    "normalize_hostname",
+    "parse_publication_review_artifact",
+    "parse_scope_authorization_artifact",
 ]

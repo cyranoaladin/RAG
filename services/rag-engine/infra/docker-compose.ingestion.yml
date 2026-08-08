@@ -28,6 +28,22 @@ networks:
   rag_net:
     driver: bridge
 
+secrets:
+  # Remédiation GATE H1 (item I) : le jeton GitHub en lecture seule est un
+  # fichier monté à l'exécution, jamais une valeur littérale de ce fichier
+  # ni une couche d'image.
+  #
+  # Le défaut est `/dev/null` — délibérément, et non une variable requise
+  # (`:?`). Compose interpole TOUT le fichier avant d'appliquer `profiles:`,
+  # donc une variable requise ici casserait `make v2-ingestion-up` pour tout
+  # déploiement existant, y compris ceux qui n'activent aucune autorité.
+  # `/dev/null` produit un fichier de secret VIDE, et `github_authority`
+  # refuse explicitement un jeton vide : l'absence de configuration reste
+  # donc fail-closed (aucune vérification d'autorité ne réussit), sans
+  # jamais empêcher le runtime d'ingestion de démarrer.
+  nexus_github_token:
+    file: ${NEXUS_GITHUB_TOKEN_HOST_FILE:-/dev/null}
+
 volumes:
   # Stockage des artefacts bruts téléchargés par le worker — jamais partagé
   # avec rag_pgvector_data (ce n'est pas une donnée PostgreSQL) ni exposé à
@@ -56,12 +72,19 @@ services:
       PGPASSWORD: "${PGVECTOR_PASSWORD:?PGVECTOR_PASSWORD requis}"
       INGESTION_CONTROL_MIGRATOR_PASSWORD: "${INGESTION_CONTROL_MIGRATOR_PASSWORD:?INGESTION_CONTROL_MIGRATOR_PASSWORD requis}"
       INGESTION_CONTROL_APP_PASSWORD: "${INGESTION_CONTROL_APP_PASSWORD:?INGESTION_CONTROL_APP_PASSWORD requis}"
+      # LOT41A/LOT42 (ADR-0032/ADR-0033) : deux rôles supplémentaires,
+      # même discipline de moindre privilège — provision_ingestion_control_
+      # roles.sh les exige désormais tout autant que migrator/app.
+      INGESTION_CONTROL_AUTHORITY_PASSWORD: "${INGESTION_CONTROL_AUTHORITY_PASSWORD:?INGESTION_CONTROL_AUTHORITY_PASSWORD requis}"
+      INGESTION_CONTROL_ATTESTOR_PASSWORD: "${INGESTION_CONTROL_ATTESTOR_PASSWORD:?INGESTION_CONTROL_ATTESTOR_PASSWORD requis}"
       # Revue PR#90 : les deux rôles ne doivent jamais être identiques (le
       # rôle applicatif hériterait de la propriété du schéma et annulerait
       # la protection append-only de workflow_events) — vérifié par
       # provision_ingestion_control_roles.sh avant toute création.
       INGESTION_CONTROL_MIGRATOR_ROLE: ${INGESTION_CONTROL_MIGRATOR_ROLE:-ingestion_control_migrator}
       INGESTION_CONTROL_APP_ROLE: ${INGESTION_CONTROL_APP_ROLE:-ingestion_control_app}
+      INGESTION_CONTROL_AUTHORITY_ROLE: ${INGESTION_CONTROL_AUTHORITY_ROLE:-ingestion_control_authority}
+      INGESTION_CONTROL_ATTESTOR_ROLE: ${INGESTION_CONTROL_ATTESTOR_ROLE:-ingestion_control_attestor}
     volumes:
       - ./postgres/ingestion_control/migrations:/infra/postgres/ingestion_control/migrations:ro
       - ./scripts/bootstrap_ingestion_control_schema.sh:/infra/scripts/bootstrap_ingestion_control_schema.sh:ro
@@ -101,6 +124,21 @@ services:
       # exactement ce rôle, jamais dérivé du DSN lui-même (cf. attestation.py).
       INGESTION_CONTROL_APP_ROLE: ${INGESTION_CONTROL_APP_ROLE:-ingestion_control_app}
       XDG_CACHE_HOME: /tmp
+      # Remédiation GATE H1 (item I) : credential GitHub en LECTURE SEULE,
+      # monté à l'exécution depuis un fichier secret — jamais construit dans
+      # l'image, jamais dans une variable d'environnement du processus (donc
+      # jamais exposé via /proc/<pid>/environ à un autre processus du même
+      # utilisateur). Seul le CHEMIN transite par l'environnement.
+      NEXUS_GITHUB_TOKEN_FILE: ${NEXUS_GITHUB_TOKEN_FILE:-/run/secrets/nexus_github_token}
+    # Remédiation GATE H1 (item K) : AUCUNE des variables
+    # INGESTION_CONTROL_AUTHORITY_PASSWORD / _ATTESTOR_PASSWORD, ni
+    # PG_INGESTION_CONTROL_AUTHORITY_DSN / _ATTESTOR_DSN n'apparaît ci-dessus,
+    # et cette absence est un invariant testé (cf.
+    # tests/integration/test_lot41a_operator_role_isolation.py). Le worker de
+    # longue durée ne détient que le rôle ingestion_control_app, qui n'a que
+    # SELECT sur scope_authorizations/publication_attestations : même
+    # compromis, il ne peut pas s'auto-écrire une autorisation.
+    secrets: [nexus_github_token]
     volumes:
       # Profils/manifest gouvernés (LOT44c) : lecture seule, jamais créés
       # ni approuvés par ce fichier — leur absence fait échouer le gate au
@@ -148,3 +186,82 @@ services:
         limits:
           cpus: "1.0"
           memory: 1G
+
+  # ---------------------------------------------------------------------
+  # Remédiation GATE H1 (item K) — autorités d'opérateur, strictement isolées.
+  #
+  # Avant ce correctif, un opérateur exécutait authorize_scope_cli.py par
+  # `docker exec` DANS le conteneur worker : le seul moyen de lui donner le
+  # DSN d'autorité aurait été de le placer dans l'environnement d'un
+  # processus de longue durée exposé au réseau sortant — cumulant sur une
+  # même surface le rôle qui ingère et le rôle qui autorise.
+  #
+  # Ces deux services sont des tâches ponctuelles :
+  #   - `profiles:` — jamais démarrées par `up` ; uniquement sur demande
+  #     explicite (`docker compose --profile operator run --rm <service> …`) ;
+  #   - `restart: "no"` — se terminent après l'opération, ne survivent pas ;
+  #   - aucun bloc `ports:`, aucun `EXPOSE` — aucune interface entrante ;
+  #   - `read_only: true` + `no-new-privileges` + tmpfs — même durcissement
+  #     que le worker ;
+  #   - **un seul secret chacun** : le rôle d'autorité ne voit jamais le DSN
+  #     d'attestation, et réciproquement.
+  #
+  # Chacun réutilise l'image du worker : même code, mêmes vérifications
+  # d'autorité, aucune image parallèle qui pourrait diverger.
+  scope-authority-operator:
+    profiles: ["operator"]
+    build:
+      context: ../../..
+      dockerfile: services/rag-engine/infra/Dockerfile.ingestion-worker
+    restart: "no"
+    environment:
+      TZ: ${TZ:-UTC}
+      # Rôle ingestion_control_authority UNIQUEMENT. Ni PG_INGESTION_CONTROL_DSN
+      # (worker) ni le DSN d'attestation ne figurent ici.
+      # Vide par défaut, jamais une variable requise : Compose interpole ce
+      # fichier entier avant d'appliquer `profiles:`, donc `:?` ici casserait
+      # le `up` normal du runtime d'ingestion. Un DSN vide fait échouer
+      # `db.get_authority_dsn()` explicitement au premier usage — fail-closed
+      # au bon endroit, jamais un démarrage bloqué au mauvais.
+      PG_INGESTION_CONTROL_AUTHORITY_DSN: "${PG_INGESTION_CONTROL_AUTHORITY_DSN:-}"
+      NEXUS_GITHUB_TOKEN_FILE: ${NEXUS_GITHUB_TOKEN_FILE:-/run/secrets/nexus_github_token}
+      XDG_CACHE_HOME: /tmp
+    secrets: [nexus_github_token]
+    entrypoint: ["python", "-m", "ingestion_worker.authorize_scope_cli"]
+    networks: [rag_net]
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: [no-new-privileges:true]
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  publication-attestor-operator:
+    profiles: ["operator"]
+    build:
+      context: ../../..
+      dockerfile: services/rag-engine/infra/Dockerfile.ingestion-worker
+    restart: "no"
+    environment:
+      TZ: ${TZ:-UTC}
+      # Rôle ingestion_control_attestor UNIQUEMENT — il détient SELECT sur
+      # les tables du pipeline et sur workflow_events (lecture des faits
+      # durables, item E), donc aucun besoin du DSN du worker.
+      # Même raison que ci-dessus : vide par défaut, refus explicite à
+      # l'usage via `db.get_attestor_dsn()`.
+      PG_INGESTION_CONTROL_ATTESTOR_DSN: "${PG_INGESTION_CONTROL_ATTESTOR_DSN:-}"
+      NEXUS_GITHUB_TOKEN_FILE: ${NEXUS_GITHUB_TOKEN_FILE:-/run/secrets/nexus_github_token}
+      XDG_CACHE_HOME: /tmp
+    secrets: [nexus_github_token]
+    entrypoint: ["python", "-m", "ingestion_worker.attest_publication_cli"]
+    networks: [rag_net]
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: [no-new-privileges:true]
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
