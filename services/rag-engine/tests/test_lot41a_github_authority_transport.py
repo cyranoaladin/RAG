@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from nexus_contracts.authority_artifacts import git_blob_sha1
 
 from ingestor.ingestion_control.github_authority import (
     GitHubAuthorityError,
@@ -87,6 +88,8 @@ class _State:
         self.delay_s: float = 0.0
         self.force_status: int | None = None
         self.require_token: str | None = VALID_TOKEN
+        #: Force un `sha` erroné pour prouver que le client le recalcule.
+        self.lying_blob_sha: str | None = None
 
 
 def _make_handler(state: _State) -> type[BaseHTTPRequestHandler]:
@@ -145,6 +148,7 @@ def _make_handler(state: _State) -> type[BaseHTTPRequestHandler]:
                         "type": "file",
                         "encoding": "base64",
                         "size": len(blob),
+                        "sha": state.lying_blob_sha or git_blob_sha1(blob),
                         "content": _b64.b64encode(blob).decode("ascii"),
                     },
                 )
@@ -311,15 +315,33 @@ class TestLifecycleThroughTheRealTransport:
 
 class TestBlobFetch:
     def test_fetches_exact_bytes_at_ref(self, fake_github: _State) -> None:
-        fake_github.blobs["governance/authorizations/auth-1.json?ref=" + HEAD_SHA] = (
-            b'{"hello":"world"}'
-        )
-        raw = fetch_blob_at_ref(
+        content = b'{"hello":"world"}'
+        fake_github.blobs["governance/authorizations/auth-1.json?ref=" + HEAD_SHA] = content
+        blob = fetch_blob_at_ref(
             repository=REPOSITORY,
             path="governance/authorizations/auth-1.json",
             ref=HEAD_SHA,
         )
-        assert raw == b'{"hello":"world"}'
+        assert blob.content == content
+        assert blob.blob_sha == git_blob_sha1(content)
+        assert blob.ref == HEAD_SHA
+
+    def test_a_blob_sha_that_does_not_match_the_bytes_is_refused(
+        self, fake_github: _State
+    ) -> None:
+        """Un transport compromis qui renverrait un contenu substitué sous
+        un ``sha`` légitime est détecté : le SHA d'objet Git est recalculé
+        localement sur les octets reçus, jamais cru sur parole."""
+        fake_github.blobs["governance/authorizations/auth-1.json?ref=" + HEAD_SHA] = (
+            b'{"hello":"world"}'
+        )
+        fake_github.lying_blob_sha = "0" * 40
+        with pytest.raises(GitHubAuthorityError, match="blob sha mismatch"):
+            fetch_blob_at_ref(
+                repository=REPOSITORY,
+                path="governance/authorizations/auth-1.json",
+                ref=HEAD_SHA,
+            )
 
     def test_missing_blob_fails_closed(self, fake_github: _State) -> None:
         with pytest.raises(GitHubAuthorityError, match="HTTP 404"):

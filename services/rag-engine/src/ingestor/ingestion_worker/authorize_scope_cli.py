@@ -1,67 +1,97 @@
 """Outil opérateur LOT41A — enregistrement/révocation d'une autorisation de
 scope d'ingestion (ADR-0032).
 
-Même discipline que ``create_job_cli.py`` : jamais un endpoint réseau,
-``docker exec`` uniquement, invoqué par un opérateur humain après qu'une
-review GitHub ``APPROVED`` réelle existe déjà sur la PR de scope
-(``record-authorization``) ou de révocation (``revoke-authorization``).
+Remédiation GATE H1 (items **B**, **C**, **K**).
 
-Aucune sous-commande n'écrit jamais une ligne à partir d'une simple
-affirmation de l'opérateur : chacune revérifie en direct, via
-``ingestion_control._trusted_review.run_check_github_review``, l'évidence
-GitHub avant tout INSERT/UPDATE — refuse d'écrire si la vérification live
-échoue (ADR-0032 § 5). L'évidence effectivement enregistrée est toujours
-celle relue en direct (``decision``), jamais une valeur fournie par
-l'opérateur sur la ligne de commande.
+**Ce que cet outil ne fait plus.** Il n'accepte plus de ``--scope-file``.
+Un fichier local passé en argument n'a aucun lien avec ce qu'un humain a
+approuvé : il pouvait décrire un scope plus large que celui relu dans la
+PR, et l'outil l'aurait enregistré tel quel. La décision est désormais
+lue **uniquement** depuis le dépôt, au chemin canonique dérivé de
+``--authorization-id``, au commit exact approuvé. L'opérateur choisit
+*quelle* autorisation enregistrer ; il ne choisit jamais *ce qu'elle dit*.
+
+Chaîne réellement exécutée par ``record-authorization`` :
+
+    verify_review (live, lecture seule, temps borné)
+      -> refus si non APPROVED sur --expected-head exact
+      -> fetch_blob_at_ref(chemin canonique, head approuvé)
+      -> parse canonique strict (refus si octets non canoniques)
+      -> digest SHA-256 recalculé intégralement
+      -> INSERT (décision + digest + évidence live)
+
+L'évidence enregistrée est toujours celle relue en direct, jamais une
+valeur fournie sur la ligne de commande.
+
+**Rôle PostgreSQL (item K).** Cet outil se connecte via
+``PG_INGESTION_CONTROL_AUTHORITY_DSN`` — jamais le DSN applicatif du
+worker. Il est conçu pour tourner dans un conteneur ponctuel dédié
+(``scope-authority-operator``), pas dans le worker de longue durée, qui ne
+reçoit jamais ce secret.
 """
 from __future__ import annotations
 
 import argparse
 import sys
-from pathlib import Path
 
 import psycopg
-import yaml
-from nexus_contracts.ingestion import ResourceScope
 
 try:
-    from ingestor.ingestion_control._trusted_review import (
-        TrustedReviewVerificationError,
-        run_check_github_review,
+    from ingestor.ingestion_control.db import get_authority_dsn
+    from ingestor.ingestion_control.github_authority import (
+        GitHubAuthorityError,
+        ReviewVerification,
+        fetch_blob_at_ref,
+        verify_review,
     )
-    from ingestor.ingestion_control.db import get_ingestion_control_dsn
 except (ImportError, ValueError):
     # Image Docker aplatie (LOT44f, ADR-0029/ADR-0031) : même discipline que
     # create_job_cli.py — "ingestor" n'existe pas comme paquet ici.
-    from ingestion_control._trusted_review import (
-        TrustedReviewVerificationError,
-        run_check_github_review,
+    from ingestion_control.db import get_authority_dsn
+    from ingestion_control.github_authority import (
+        GitHubAuthorityError,
+        ReviewVerification,
+        fetch_blob_at_ref,
+        verify_review,
     )
-    from ingestion_control.db import get_ingestion_control_dsn
 
-_AUTHORIZE_DECISION = "AUTHORIZE_INGESTION_SCOPE"
+from nexus_contracts.authority_artifacts import (
+    CanonicalArtifactError,
+    ScopeAuthorizationArtifact,
+    canonical_authorization_path,
+    parse_scope_authorization_artifact,
+)
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
             "Enregistre ou révoque une autorisation de scope d'ingestion "
-            "LOT41A. Outil opérateur uniquement : jamais un endpoint réseau."
+            "LOT41A à partir d'un artefact canonique approuvé dans le dépôt. "
+            "Outil opérateur uniquement : jamais un endpoint réseau."
         )
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     record = subparsers.add_parser(
         "record-authorization",
-        help="Enregistre une nouvelle autorisation à partir d'une PR de scope déjà APPROVED.",
+        help=(
+            "Enregistre l'autorisation décrite par "
+            "governance/authorizations/<id>.json au HEAD approuvé de la PR."
+        ),
     )
-    record.add_argument("--authorization-id", required=True)
-    record.add_argument("--scope-file", required=True, type=Path)
+    record.add_argument(
+        "--authorization-id", required=True,
+        help=(
+            "Identifiant canonique. Détermine à lui seul le chemin de "
+            "l'artefact relu — jamais un chemin fourni librement."
+        ),
+    )
     record.add_argument("--repository", required=True)
     record.add_argument("--pull-request", required=True, type=int)
     record.add_argument(
         "--expected-head", required=True,
-        help="SHA (40 hex) du HEAD exact de la PR de scope au moment de la review — jamais déduit.",
+        help="SHA (40 hex) du HEAD exact de la PR d'autorité au moment de la review — jamais déduit.",
     )
 
     revoke = subparsers.add_parser(
@@ -80,145 +110,167 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _load_scope_file(path: Path) -> dict[str, object]:
-    data = yaml.safe_load(path.read_text(encoding="utf-8"))
-    if not isinstance(data, dict):
-        raise ValueError(f"{path} must contain a YAML/JSON mapping")
-    return data
-
-
-def _cmd_record_authorization(args: argparse.Namespace) -> int:
-    payload_file = _load_scope_file(args.scope_file)
-    required_top_level = {
-        "scope", "manifest_digest", "profile_id", "profile_version",
-        "profile_fingerprint", "allowed_domains", "rights_categories",
-        "pii_absence_attested", "pii_absence_evidence", "valid_from", "valid_until",
-    }
-    missing = required_top_level - payload_file.keys()
-    if missing:
-        print(f"SCOPE_FILE_MISSING_FIELDS: {sorted(missing)}", file=sys.stderr)
-        return 1
-
+def _verified_approval(
+    args: argparse.Namespace, *, label: str
+) -> ReviewVerification | None:
     try:
-        scope = ResourceScope.model_validate(payload_file["scope"])
-    except Exception as exc:  # noqa: BLE001 - frontière CLI volontaire, jamais silencieuse
-        print(f"SCOPE_VALIDATION_FAILED: {exc}", file=sys.stderr)
-        return 1
-
-    try:
-        review_payload = run_check_github_review(
+        live = verify_review(
             repository=args.repository,
             pull_request=args.pull_request,
             expected_head=args.expected_head,
         )
-    except TrustedReviewVerificationError as exc:
+    except GitHubAuthorityError as exc:
         print(f"LIVE_REVIEW_VERIFICATION_FAILED: {exc}", file=sys.stderr)
-        return 1
-
-    decision = review_payload["decision"]
-    if not decision.get("approved"):
+        return None
+    if not live.approved:
         print(
-            f"AUTHORIZATION_DENIED: PR #{args.pull_request} is not APPROVED "
-            f"at head {args.expected_head} — reason={decision.get('reason')}",
+            f"{label}: PR #{args.pull_request} is not APPROVED at head "
+            f"{args.expected_head} — reason={live.reason}",
             file=sys.stderr,
         )
+        return None
+    return live
+
+
+def _read_reviewed_artifact(
+    *, repository: str, authorization_id: str, head_sha: str
+) -> tuple[ScopeAuthorizationArtifact, str] | None:
+    """Relit l'artefact au chemin canonique et au commit approuvé, puis le
+    parse en exigeant la canonicité octet à octet. Retourne l'artefact et
+    le SHA de blob Git de ces octets exacts."""
+    path = canonical_authorization_path(authorization_id)
+    try:
+        blob = fetch_blob_at_ref(repository=repository, path=path, ref=head_sha)
+    except GitHubAuthorityError as exc:
+        print(f"REVIEWED_ARTIFACT_UNREADABLE: {path}@{head_sha}: {exc}", file=sys.stderr)
+        return None
+    try:
+        artifact = parse_scope_authorization_artifact(blob.content)
+    except CanonicalArtifactError as exc:
+        print(f"REVIEWED_ARTIFACT_NOT_CANONICAL: {path}@{head_sha}: {exc}", file=sys.stderr)
+        return None
+    if artifact.authorization_id != authorization_id:
+        # Impossible via le chemin canonique, mais vérifié explicitement :
+        # le contenu ne doit jamais pouvoir revendiquer un autre identifiant
+        # que celui sous lequel il est enregistré.
+        print(
+            f"REVIEWED_ARTIFACT_ID_MISMATCH: {path} declares "
+            f"{artifact.authorization_id!r}, expected {authorization_id!r}",
+            file=sys.stderr,
+        )
+        return None
+    return artifact, blob.blob_sha
+
+
+def _cmd_record_authorization(args: argparse.Namespace) -> int:
+    try:
+        canonical_authorization_path(args.authorization_id)
+    except ValueError as exc:
+        print(f"AUTHORIZATION_ID_NOT_CANONICAL: {exc}", file=sys.stderr)
         return 1
 
-    exclusions = payload_file.get("exclusions") or []
+    live = _verified_approval(args, label="AUTHORIZATION_DENIED")
+    if live is None:
+        return 1
 
-    with psycopg.connect(get_ingestion_control_dsn()) as conn:
+    read = _read_reviewed_artifact(
+        repository=live.repository,
+        authorization_id=args.authorization_id,
+        head_sha=live.head_sha,
+    )
+    if read is None:
+        return 1
+    artifact, blob_sha = read
+
+    # Digest recalculé intégralement ici, sur les octets relus — jamais
+    # accepté d'une source externe, jamais réutilisé d'un calcul antérieur.
+    digest = artifact.digest()
+
+    with psycopg.connect(get_authority_dsn()) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
                 INSERT INTO ingestion_control.scope_authorizations (
-                    authorization_id, decision,
+                    authorization_id, protocol_version, decision,
                     tenant, collection, niveau, voie, matiere, candidat,
                     audience, visibility, school_year, programme_version,
                     manifest_digest, profile_id, profile_version, profile_fingerprint,
                     allowed_domains, rights_categories, exclusions,
                     pii_absence_attested, pii_absence_evidence,
                     valid_from, valid_until,
+                    artifact_path, artifact_blob_sha, authorization_digest,
                     evidence_repository, evidence_pull_request, evidence_base_sha,
                     evidence_head_sha, evidence_review_id, evidence_reviewer,
                     evidence_submitted_at, evidence_challenge
                 ) VALUES (
-                    %(authorization_id)s, %(decision)s,
+                    %(authorization_id)s, %(protocol_version)s, %(decision)s,
                     %(tenant)s, %(collection)s, %(niveau)s, %(voie)s, %(matiere)s, %(candidat)s,
                     %(audience)s, %(visibility)s, %(school_year)s, %(programme_version)s,
                     %(manifest_digest)s, %(profile_id)s, %(profile_version)s, %(profile_fingerprint)s,
                     %(allowed_domains)s, %(rights_categories)s, %(exclusions)s,
                     %(pii_absence_attested)s, %(pii_absence_evidence)s,
                     %(valid_from)s, %(valid_until)s,
+                    %(artifact_path)s, %(artifact_blob_sha)s, %(authorization_digest)s,
                     %(evidence_repository)s, %(evidence_pull_request)s, %(evidence_base_sha)s,
                     %(evidence_head_sha)s, %(evidence_review_id)s, %(evidence_reviewer)s,
                     %(evidence_submitted_at)s, %(evidence_challenge)s
                 )
                 """,
                 {
-                    "authorization_id": args.authorization_id,
-                    "decision": _AUTHORIZE_DECISION,
-                    "tenant": scope.tenant,
-                    "collection": scope.collection,
-                    "niveau": scope.niveau,
-                    "voie": scope.voie,
-                    "matiere": scope.matiere,
-                    "candidat": scope.candidat,
-                    "audience": sorted(a.value if hasattr(a, "value") else str(a) for a in scope.audience),
-                    "visibility": scope.visibility,
-                    "school_year": scope.school_year,
-                    "programme_version": scope.programme_version,
-                    "manifest_digest": payload_file["manifest_digest"],
-                    "profile_id": payload_file["profile_id"],
-                    "profile_version": payload_file["profile_version"],
-                    "profile_fingerprint": payload_file["profile_fingerprint"],
-                    "allowed_domains": payload_file["allowed_domains"],
-                    "rights_categories": payload_file["rights_categories"],
-                    "exclusions": exclusions,
-                    "pii_absence_attested": payload_file["pii_absence_attested"],
-                    "pii_absence_evidence": payload_file["pii_absence_evidence"],
-                    "valid_from": payload_file["valid_from"],
-                    "valid_until": payload_file["valid_until"],
-                    "evidence_repository": decision["repository"],
-                    "evidence_pull_request": decision["pull_request"],
-                    "evidence_base_sha": decision["base_sha"],
-                    "evidence_head_sha": decision["head_sha"],
-                    "evidence_review_id": decision["review_id"],
-                    "evidence_reviewer": decision["reviewer"],
-                    "evidence_submitted_at": decision["submitted_at"],
-                    "evidence_challenge": decision["challenge"],
+                    "authorization_id": artifact.authorization_id,
+                    "protocol_version": artifact.protocol_version,
+                    "decision": artifact.decision,
+                    "tenant": artifact.scope.tenant,
+                    "collection": artifact.scope.collection,
+                    "niveau": artifact.scope.niveau.value,
+                    "voie": artifact.scope.voie.value,
+                    "matiere": artifact.scope.matiere,
+                    "candidat": artifact.scope.candidat.value,
+                    "audience": sorted(a.value for a in artifact.scope.audience),
+                    "visibility": artifact.scope.visibility,
+                    "school_year": artifact.scope.school_year,
+                    "programme_version": artifact.scope.programme_version,
+                    "manifest_digest": artifact.manifest_digest,
+                    "profile_id": artifact.profile_id,
+                    "profile_version": artifact.profile_version,
+                    "profile_fingerprint": artifact.profile_fingerprint,
+                    "allowed_domains": list(artifact.allowed_domains),
+                    "rights_categories": [r.value for r in artifact.rights_categories],
+                    "exclusions": list(artifact.exclusions),
+                    "pii_absence_attested": artifact.pii_absence_attested,
+                    "pii_absence_evidence": artifact.pii_absence_evidence,
+                    "valid_from": artifact.valid_from,
+                    "valid_until": artifact.valid_until,
+                    "artifact_path": artifact.canonical_path(),
+                    "artifact_blob_sha": blob_sha,
+                    "authorization_digest": digest,
+                    "evidence_repository": live.repository,
+                    "evidence_pull_request": live.pull_request,
+                    "evidence_base_sha": live.base_sha,
+                    "evidence_head_sha": live.head_sha,
+                    "evidence_review_id": live.review_id,
+                    "evidence_reviewer": live.reviewer,
+                    "evidence_submitted_at": live.submitted_at,
+                    "evidence_challenge": live.challenge,
                 },
             )
         conn.commit()
 
     print(
-        f"AUTHORIZATION_RECORDED authorization_id={args.authorization_id} "
-        f"collection={scope.collection} pull_request={args.pull_request} "
-        f"head_sha={args.expected_head}"
+        f"AUTHORIZATION_RECORDED authorization_id={artifact.authorization_id} "
+        f"collection={artifact.scope.collection} "
+        f"artifact={artifact.canonical_path()}@{live.head_sha} "
+        f"blob_sha={blob_sha} digest={digest}"
     )
     return 0
 
 
 def _cmd_revoke_authorization(args: argparse.Namespace) -> int:
-    try:
-        review_payload = run_check_github_review(
-            repository=args.repository,
-            pull_request=args.pull_request,
-            expected_head=args.expected_head,
-        )
-    except TrustedReviewVerificationError as exc:
-        print(f"LIVE_REVIEW_VERIFICATION_FAILED: {exc}", file=sys.stderr)
+    live = _verified_approval(args, label="REVOCATION_DENIED")
+    if live is None:
         return 1
 
-    decision = review_payload["decision"]
-    if not decision.get("approved"):
-        print(
-            f"REVOCATION_DENIED: revocation PR #{args.pull_request} is not "
-            f"APPROVED at head {args.expected_head} — reason={decision.get('reason')}",
-            file=sys.stderr,
-        )
-        return 1
-
-    with psycopg.connect(get_ingestion_control_dsn()) as conn:
+    with psycopg.connect(get_authority_dsn()) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -238,14 +290,14 @@ def _cmd_revoke_authorization(args: argparse.Namespace) -> int:
                 {
                     "authorization_id": args.authorization_id,
                     "reason": args.reason,
-                    "repository": decision["repository"],
-                    "pull_request": decision["pull_request"],
-                    "base_sha": decision["base_sha"],
-                    "head_sha": decision["head_sha"],
-                    "review_id": decision["review_id"],
-                    "reviewer": decision["reviewer"],
-                    "submitted_at": decision["submitted_at"],
-                    "challenge": decision["challenge"],
+                    "repository": live.repository,
+                    "pull_request": live.pull_request,
+                    "base_sha": live.base_sha,
+                    "head_sha": live.head_sha,
+                    "review_id": live.review_id,
+                    "reviewer": live.reviewer,
+                    "submitted_at": live.submitted_at,
+                    "challenge": live.challenge,
                 },
             )
             updated = cur.rowcount

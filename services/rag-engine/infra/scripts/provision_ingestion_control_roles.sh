@@ -301,6 +301,15 @@ GRANT SELECT ON ingestion_control.scope_authorizations TO :"attestor_role" ;
 GRANT SELECT ON ingestion_control.resources TO :"attestor_role" ;
 GRANT SELECT ON ingestion_control.artifacts TO :"attestor_role" ;
 GRANT SELECT ON ingestion_control.resource_candidates TO :"attestor_role" ;
+-- Remédiation GATE H1 (items E et K) : les faits durables de publication
+-- (résultat des droits, de la qualité, du gate) vivent dans
+-- workflow_events. Sans cette LECTURE, le conteneur d'attestation devrait
+-- recevoir en plus le DSN du worker pour les lire — exactement le cumul de
+-- credentials que l'isolation des rôles doit empêcher. SELECT seul :
+-- l'append-only de workflow_events reste intact (aucun INSERT/UPDATE/DELETE
+-- pour ce rôle, contrairement au worker qui y écrit).
+GRANT SELECT ON ingestion_control.workflow_events TO :"attestor_role" ;
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON ingestion_control.workflow_events FROM :"attestor_role" ;
 REVOKE ALL PRIVILEGES ON SCHEMA public FROM :"attestor_role" ;
 SQL
 

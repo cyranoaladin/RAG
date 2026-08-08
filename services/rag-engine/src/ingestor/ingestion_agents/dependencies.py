@@ -15,6 +15,7 @@ externe (LOT44d, consigne explicite) : ils passent exclusivement par
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Protocol
 from uuid import UUID
 
@@ -47,6 +48,7 @@ class SafeFetcher(Protocol):
         max_redirects: int = ...,
         timeout: httpx.Timeout = ...,
         transport: httpx.BaseTransport | None = ...,
+        on_destination: Callable[[str], None] | None = ...,
     ) -> httpx.Response: ...
 
 

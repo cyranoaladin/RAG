@@ -21,6 +21,8 @@ en décision de production réelle.
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 from datetime import datetime
 from uuid import UUID
@@ -34,6 +36,7 @@ from nexus_contracts.ingestion import (
     RoutingDecision,
 )
 from nexus_contracts.resource_state import ResourceState
+from psycopg.types.json import Jsonb
 
 from .classifier import ConformityResult
 from .transitions import TransitionResult, apply_resource_transition
@@ -146,6 +149,69 @@ def build_quality_report_core(
     )
 
 
+#: Nom canonique du gate de publication — une seule chaîne, jamais un
+#: texte libre côté opérateur (item E : rien de « fourni librement »).
+PUBLICATION_GATE_NAME = "routing_gate"
+
+
+def quality_passed_core(report: QualityReport) -> bool:
+    """Verdict qualité binaire et déterministe : aucun motif de rejet.
+
+    Pur, sans E/S : le même rapport donne toujours le même verdict, ce qui
+    permet de le recalculer lors d'une relecture d'attestation."""
+    return not report.rejection_reasons
+
+
+def quality_report_digest(report: QualityReport) -> str:
+    """SHA-256 canonique du rapport qualité complet.
+
+    Rend le rapport *comparable* dans le temps sans le dupliquer : une
+    attestation le mémorise, et toute relecture ultérieure détecte qu'un
+    rapport différent a été substitué."""
+    canonical = json.dumps(
+        report.model_dump(mode="json"), sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def record_publication_gate_evaluated(
+    conn: psycopg.Connection,
+    *,
+    resource_id: UUID,
+    run_id: UUID,
+    job_id: UUID | None,
+    actor: str,
+    decision: RoutingDecision,
+) -> UUID:
+    """Journalise le verdict du gate dans ``workflow_events`` (append-only).
+
+    Ne committe pas — même convention que les primitives LOT44b/44d,
+    responsabilité de l'appelant."""
+    payload: dict[str, object] = {
+        "decision_id": str(decision.decision_id),
+        "decision": decision.decision,
+        "gate_name": PUBLICATION_GATE_NAME,
+        "gate_passed": decision.decision == "ROUTE",
+        "gate_evaluated_at": decision.decided_at.isoformat(),
+        "rules_applied": list(decision.rules_applied),
+    }
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO ingestion_control.workflow_events
+                (run_id, job_id, resource_id, event_type, from_state, to_state, actor, payload)
+            VALUES (%s, %s, %s, %s, NULL, NULL, %s, %s)
+            RETURNING event_id
+            """,
+            (run_id, job_id, resource_id, "PUBLICATION_GATE_EVALUATED", actor, Jsonb(payload)),
+        )
+        row = cur.fetchone()
+        if row is None:  # pragma: no cover - INSERT ... RETURNING rend toujours une ligne
+            raise RuntimeError("workflow_events insert did not return event_id")
+        event_id: UUID = row[0]
+        return event_id
+
+
 def decide_routing_core(
     *,
     quality_report: QualityReport,
@@ -227,6 +293,21 @@ def run_quality_agent(
         evaluated_at=evaluated_at,
     )
 
+    # LOT42 (item E) : le résultat qualité devient un **fait durable**
+    # lisible, pas seulement une valeur retournée en mémoire. Sans cela,
+    # une attestation de publication devrait croire un opérateur sur parole
+    # quand il affirme `--quality-passed true`. Le digest du rapport
+    # complet est stocké plutôt qu'un score scalaire inventé : les
+    # heuristiques de ce module sont explicitement des placeholders (cf.
+    # docstring), et résumer leur sortie en un unique « score de qualité »
+    # donnerait à une mesure non validée une autorité qu'elle n'a pas.
+    payload = {
+        "report_id": str(report_id),
+        "rejection_reasons": quality_report.rejection_reasons,
+        "quality_passed": quality_passed_core(quality_report),
+        "quality_report_digest": quality_report_digest(quality_report),
+        "quality_assessed_at": quality_report.evaluated_at.isoformat(),
+    }
     transition = apply_resource_transition(
         conn,
         resource_id=artifact.resource_id,
@@ -236,7 +317,7 @@ def run_quality_agent(
         actor=actor,
         run_id=artifact.run_id,
         job_id=job_id,
-        payload={"report_id": str(report_id), "rejection_reasons": quality_report.rejection_reasons},
+        payload=payload,
     )
 
     routing_decision = decide_routing_core(
@@ -244,6 +325,21 @@ def run_quality_agent(
         profile=profile,
         decision_id=decision_id,
         decided_at=evaluated_at,
+    )
+
+    # LOT42 (item E) : le verdict du gate est enregistré **quelle que soit
+    # sa valeur**. Un gate négatif ne produit aucune transition d'état ;
+    # sans cet événement, l'échec ne laisserait aucune trace durable et
+    # « pas de preuve de succès » serait indistinguable de « pas de preuve
+    # du tout ». Une attestation ne peut se construire que sur un
+    # PUBLICATION_GATE_EVALUATED dont gate_passed vaut true.
+    record_publication_gate_evaluated(
+        conn,
+        resource_id=artifact.resource_id,
+        run_id=artifact.run_id,
+        job_id=job_id,
+        actor=actor,
+        decision=routing_decision,
     )
 
     if routing_decision.decision == "ROUTE":
@@ -263,6 +359,10 @@ def run_quality_agent(
 
 
 __all__ = [
+    "PUBLICATION_GATE_NAME",
+    "quality_passed_core",
+    "quality_report_digest",
+    "record_publication_gate_evaluated",
     "build_quality_report_core",
     "decide_routing_core",
     "run_quality_agent",

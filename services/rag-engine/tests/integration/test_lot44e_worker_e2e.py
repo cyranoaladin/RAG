@@ -35,6 +35,7 @@ import httpx
 import psycopg
 import pytest
 import yaml
+from nexus_contracts.ingestion import CollectionProfile
 
 ENGINE_ROOT = Path(__file__).resolve().parents[2]
 INFRA_ROOT = ENGINE_ROOT / "infra"
@@ -42,9 +43,22 @@ BOOTSTRAP_SCRIPT = INFRA_ROOT / "scripts" / "bootstrap_ingestion_control_schema.
 PROVISION_SCRIPT = INFRA_ROOT / "scripts" / "provision_ingestion_control_roles.sh"
 
 sys.path.insert(0, str(ENGINE_ROOT / "src"))
+sys.path.insert(0, str(ENGINE_ROOT / "tests"))
+
+from _authorization_stub import (  # noqa: E402
+    STUB_AUTHORIZATION_ID,
+    verified_authorization,
+)
 
 from ingestor.ingestion_control.jobs import create_job  # noqa: E402
-from ingestor.ingestion_profiles.registry import load_profile_registry  # noqa: E402
+from ingestor.ingestion_control.scope_authority import (  # noqa: E402
+    ScopeAuthorizationDeniedError,
+)
+from ingestor.ingestion_profiles.registry import (  # noqa: E402
+    load_profile_registry,
+    profile_fingerprint,
+    select_profile,
+)
 from ingestor.ingestion_worker.runner import WorkerDeps, run_worker_iteration  # noqa: E402
 from ingestor.ingestion_worker.storage import (  # noqa: E402
     make_filesystem_artifact_reader,
@@ -117,6 +131,8 @@ def _job_payload(**overrides: object) -> dict[str, object]:
         "domain": "eduscol.education.fr",
         "proposed_type_doc": "cours",
         "profile_version": "v1",
+        # Item C : un job nomme TOUJOURS son autorisation, explicitement.
+        "scope_authorization_id": STUB_AUTHORIZATION_ID,
         "license": "CC-BY-SA",
     }
     payload.update(overrides)
@@ -245,12 +261,55 @@ def _write_profile(profiles_dir: Path) -> None:
     (profiles_dir / "nsi.yml").write_text(yaml.safe_dump(_profile_payload()), encoding="utf-8")
 
 
-def _always_authorized(conn: psycopg.Connection, *, scope: object) -> None:
-    """Stub LOT41A (ADR-0032) : ce fichier teste Scout->QualityAgent, jamais
-    la frontière GitHub d'autorisation de scope elle-même — reconstruire
-    une PR/review GitHub réelle ici serait hors périmètre. La vérification
-    live réelle (``scope_authority.verify_scope_authorization``) est
-    couverte indépendamment par ses propres tests dédiés."""
+#: Digest de manifest arbitraire mais FIXE de ces suites : le worker le
+#: porte, l'autorisation stub le déclare, et le point de contrôle pre_fetch
+#: les compare pour de vrai (item D).
+STUB_MANIFEST_DIGEST = "7" * 64
+
+_STUB_PROFILE = CollectionProfile.model_validate(_profile_payload())
+
+
+def _stub_registry():
+    """Registre équivalent à celui que le worker charge — construit depuis
+    le MÊME ``_profile_payload()``, donc de même empreinte."""
+    return {
+        (_STUB_PROFILE.scope.collection, _STUB_PROFILE.profile_version): _STUB_PROFILE
+    }
+
+
+def _always_authorized(conn, *, authorization_id, scope=None, now=None):
+    """Stub LOT41A (ADR-0032) : ce fichier teste la chaîne d'ingestion, jamais
+    la frontière GitHub d'autorisation de scope elle-même — reconstruire une
+    PR/review/blob GitHub réels ici serait hors périmètre, et c'est couvert
+    par les suites dédiées (``test_lot41a_scope_authority.py``, …).
+
+    L'autorisation rendue reste **cohérente avec le job** (mêmes domaines,
+    mêmes droits, même profil, même manifest) : les points de contrôle
+    d'enforcement (item D) s'exécutent donc réellement ici, et un job hors
+    périmètre y échouerait comme en production. Le stub refuse d'ailleurs un
+    ``authorization_id`` qu'il ne connaît pas, exactement comme la
+    vérification réelle."""
+    if authorization_id != STUB_AUTHORIZATION_ID:
+        raise ScopeAuthorizationDeniedError(
+            f"no scope_authorizations row with authorization_id={authorization_id!r}"
+        )
+    profile = select_profile(
+        _stub_registry(), collection=VALID_SCOPE["collection"], profile_version="v1"
+    )
+    return verified_authorization(
+        scope=scope if scope is not None else VALID_SCOPE,
+        manifest_digest=STUB_MANIFEST_DIGEST,
+        profile_id=profile.scope.collection,
+        profile_version=profile.profile_version,
+        profile_fingerprint=profile_fingerprint(profile),
+    )
+    return verified_authorization(
+        scope=scope if scope is not None else VALID_SCOPE,
+        manifest_digest=STUB_MANIFEST_DIGEST,
+        profile_id=profile.scope.collection,
+        profile_version=profile.profile_version,
+        profile_fingerprint=profile_fingerprint(profile),
+    )
 
 
 def _worker_deps(tmp_path: Path, *, safe_fetch, owner: str = "worker-e2e") -> WorkerDeps:
@@ -264,6 +323,7 @@ def _worker_deps(tmp_path: Path, *, safe_fetch, owner: str = "worker-e2e") -> Wo
         validate_destination=lambda url: url,
         safe_fetch=safe_fetch,
         verify_scope_authorization=_always_authorized,
+        manifest_digest=STUB_MANIFEST_DIGEST,
     )
 
 
@@ -349,10 +409,24 @@ class TestWorkerE2E:
         )
         job_ids_seen = {row[0] for row in rows}
         assert job_ids_seen == {job_id}, "tous les événements doivent porter le même job_id"
-        to_states = [row[2] for row in rows]
+
+        # Depuis LOT42 (item E), le verdict du gate est journalisé après la
+        # dernière transition — il n'a pas de to_state (ce n'est pas une
+        # transition d'état). Les assertions ci-dessous portent donc sur les
+        # transitions, filtrées explicitement, jamais sur « le dernier
+        # événement » qui n'en est plus une.
+        transitions = [row for row in rows if row[1] == "transition"]
+        to_states = [row[2] for row in transitions]
         assert to_states[-1] == "QUALITY_CHECKED"
 
-        quality_checked_payload = rows[-1][3]
+        gate_events = [row for row in rows if row[1] == "PUBLICATION_GATE_EVALUATED"]
+        assert len(gate_events) == 1, "le verdict du gate est toujours journalisé, positif ou non"
+        assert gate_events[0][3]["gate_passed"] is False, (
+            "ce contenu court ne franchit pas le seuil de qualité — le gate "
+            "négatif doit laisser une trace durable, pas rien du tout"
+        )
+
+        quality_checked_payload = transitions[-1][3]
         rejection_reasons = quality_checked_payload["rejection_reasons"]
         assert "niveau_conformity_not_verified" in rejection_reasons
         assert "voie_conformity_not_verified" in rejection_reasons
@@ -387,6 +461,7 @@ class TestWorkerE2E:
             validate_destination=lambda url: url,
             safe_fetch=_fake_safe_fetch_high_quality,
             verify_scope_authorization=_always_authorized,
+            manifest_digest=STUB_MANIFEST_DIGEST,
         )
 
         # Modification post-démarrage : le profil approuvé devient désactivé
@@ -436,6 +511,7 @@ class TestWorkerE2E:
             validate_destination=blocking_validate_destination,
             safe_fetch=_fake_safe_fetch_success,
             verify_scope_authorization=_always_authorized,
+            manifest_digest=STUB_MANIFEST_DIGEST,
         )
 
         outcome = run_worker_iteration(app_conn, deps=deps)
@@ -480,6 +556,7 @@ class TestWorkerE2E:
             validate_destination=lambda url: url,
             safe_fetch=failing_safe_fetch,
             verify_scope_authorization=_always_authorized,
+            manifest_digest=STUB_MANIFEST_DIGEST,
         )
 
         first_outcome = run_worker_iteration(app_conn, deps=failing_deps)

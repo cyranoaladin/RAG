@@ -181,6 +181,12 @@ def main(argv: list[str] | None = None) -> int:
         profile_registry=gate_result.registry,
         artifact_store=make_filesystem_artifact_store(args.artifact_store_dir),
         artifact_reader=make_filesystem_artifact_reader(args.artifact_store_dir),
+        # LOT41A (item D) : l'empreinte du manifest réellement vérifié par
+        # le gate ci-dessus, jamais recalculée ailleurs ni relue du disque.
+        # Confrontée au manifest_digest de chaque autorisation : un worker
+        # qui tourne sur un autre manifest que celui autorisé ne traite
+        # plus aucun job de ce scope.
+        manifest_digest=gate_result.manifest.manifest_fingerprint,
     )
 
     max_iterations = 1 if args.once else args.max_iterations

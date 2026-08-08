@@ -42,6 +42,7 @@ from __future__ import annotations
 import base64
 import importlib.util
 import os
+import re
 import sys
 import time
 from dataclasses import dataclass
@@ -49,11 +50,21 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+from nexus_contracts.authority_artifacts import git_blob_sha1
 
 #: services/rag-engine/src/ingestor/ingestion_control/github_authority.py ->
-#: racine du dépôt. Jamais un chemin absolu machine-local (AGENTS.md) ;
-#: surchargeable pour l'image aplatie, qui copie ces fichiers sous /app.
-_DEFAULT_REPO_ROOT = Path(__file__).resolve().parents[5]
+#: racine du dépôt (cinq niveaux au-dessus). Jamais un chemin absolu
+#: machine-local (AGENTS.md).
+#:
+#: Cette profondeur n'existe PAS dans l'image Docker aplatie, où ce fichier
+#: vit sous ``/app/ingestion_control/`` — soit deux niveaux seulement.
+#: Calculer ``parents[5]`` au moment de l'import y levait ``IndexError``
+#: **avant même** que les surcharges d'environnement du Dockerfile puissent
+#: servir : toute vérification d'autorité échouait dans l'image réellement
+#: déployée, alors qu'elle passait en développement. Détecté par le E2E
+#: Docker (item I) — invisible depuis ruff, mypy et les tests unitaires.
+#: La résolution est donc paresseuse et tolère une arborescence courte.
+_REPO_ROOT_DEPTH = 5
 _TRUSTED_REVIEW_MODULE_ENV = "NEXUS_TRUSTED_REVIEW_MODULE"
 _TRUSTED_REVIEWERS_CONFIG_ENV = "NEXUS_TRUSTED_REVIEWERS_CONFIG"
 
@@ -74,6 +85,7 @@ _MAX_REVIEW_PAGES = 20
 #: anormalement gros est rejeté avant tout décodage, jamais chargé en
 #: mémoire sans borne.
 _MAX_BLOB_BYTES = 1_048_576
+_BLOB_SHA_PATTERN = re.compile(r"[0-9a-f]{40}")
 
 
 class GitHubAuthorityError(RuntimeError):
@@ -86,6 +98,34 @@ class GitHubAuthorityTimeoutError(GitHubAuthorityError):
     (item J), jamais une attente indéfinie."""
 
 
+def _default_repo_root() -> Path | None:
+    """Racine du dépôt si ce fichier vit dans un checkout complet, ``None``
+    dans l'image aplatie. ``None`` n'est pas une erreur : l'image fournit
+    toujours les surcharges explicites, et un défaut absent y est plus sûr
+    qu'un chemin deviné."""
+    here = Path(__file__).resolve()
+    if len(here.parents) <= _REPO_ROOT_DEPTH:
+        return None
+    return here.parents[_REPO_ROOT_DEPTH]
+
+
+def _resolve_shared_path(env_var: str, relative: str) -> Path:
+    """Surcharge d'environnement d'abord (image aplatie), défaut dérivé du
+    checkout ensuite. Si aucune des deux ne s'applique, l'erreur est
+    explicite — jamais un chemin inventé."""
+    override = os.environ.get(env_var, "").strip()
+    if override:
+        return Path(override)
+    root = _default_repo_root()
+    if root is None:
+        raise GitHubAuthorityError(
+            f"{env_var} must be set: this build has no repository checkout to "
+            f"derive {relative} from, and an authority decision is never "
+            "loaded from a guessed path"
+        )
+    return root / relative
+
+
 def _load_trusted_review_module() -> Any:
     """Charge la fonction de décision pure d'ADR-0025 par chemin de fichier.
 
@@ -93,11 +133,8 @@ def _load_trusted_review_module() -> Any:
     (importlib depuis un chemin) : ``scripts/github/`` n'est pas un paquet
     installable et n'appartient à aucun service — il n'est donc jamais
     importé par un ``import`` ordinaire, jamais copié/dupliqué non plus."""
-    override = os.environ.get(_TRUSTED_REVIEW_MODULE_ENV, "").strip()
-    module_path = (
-        Path(override)
-        if override
-        else _DEFAULT_REPO_ROOT / "scripts" / "github" / "trusted_human_review.py"
+    module_path = _resolve_shared_path(
+        _TRUSTED_REVIEW_MODULE_ENV, "scripts/github/trusted_human_review.py"
     )
     if not module_path.is_file():
         raise GitHubAuthorityError(
@@ -128,10 +165,9 @@ def _load_trusted_review_module() -> Any:
 
 
 def _trusted_reviewers_config_path() -> Path:
-    override = os.environ.get(_TRUSTED_REVIEWERS_CONFIG_ENV, "").strip()
-    if override:
-        return Path(override)
-    return _DEFAULT_REPO_ROOT / "scripts" / "github" / "trusted-reviewers.json"
+    return _resolve_shared_path(
+        _TRUSTED_REVIEWERS_CONFIG_ENV, "scripts/github/trusted-reviewers.json"
+    )
 
 
 def _read_token() -> str:
@@ -392,7 +428,23 @@ def _revision(pull_request_doc: Any) -> tuple[str, str, str]:
     return (str(head.get("sha")), str(base.get("sha")), str(base.get("ref")))
 
 
-def fetch_blob_at_ref(*, repository: str, path: str, ref: str) -> bytes:
+@dataclass(frozen=True)
+class GitHubBlob:
+    """Octets exacts d'un fichier à un commit exact, plus l'identifiant Git
+    que GitHub attribue à ces octets. Les deux sont conservés : le
+    vérificateur recoupe le ``blob_sha`` annoncé par GitHub avec celui
+    recalculé localement sur les octets reçus (``git_blob_sha1``), de sorte
+    qu'un contenu substitué en transit ne puisse pas se faire passer pour
+    le blob revu."""
+
+    repository: str
+    path: str
+    ref: str
+    blob_sha: str
+    content: bytes
+
+
+def fetch_blob_at_ref(*, repository: str, path: str, ref: str) -> GitHubBlob:
     """Relit le contenu **exact** d'un fichier au commit ``ref`` exact.
 
     Utilisé pour lier une autorisation/attestation aux octets réellement
@@ -430,12 +482,29 @@ def fetch_blob_at_ref(*, repository: str, path: str, ref: str) -> bytes:
         raise GitHubAuthorityError(
             f"{path} at {ref} decodes to {len(raw)} bytes, exceeding the cap"
         )
-    return raw
+
+    # Les octets reçus doivent être *exactement* ceux que GitHub identifie
+    # comme le blob de ce chemin à ce commit. Recalculer le SHA-1 d'objet
+    # Git localement et exiger l'égalité ferme la fenêtre où un transport
+    # compromis renverrait un `content` substitué sous un `sha` légitime.
+    announced = payload.get("sha")
+    if not isinstance(announced, str) or not _BLOB_SHA_PATTERN.fullmatch(announced):
+        raise GitHubAuthorityError(f"missing or malformed blob sha for {path} at {ref}")
+    recomputed = git_blob_sha1(raw)
+    if recomputed != announced:
+        raise GitHubAuthorityError(
+            f"blob sha mismatch for {path} at {ref}: GitHub announced "
+            f"{announced}, the received bytes hash to {recomputed} — failing closed"
+        )
+    return GitHubBlob(
+        repository=repository, path=path, ref=ref, blob_sha=recomputed, content=raw
+    )
 
 
 __all__ = [
     "GitHubAuthorityError",
     "GitHubAuthorityTimeoutError",
+    "GitHubBlob",
     "ReviewVerification",
     "fetch_blob_at_ref",
     "verify_review",

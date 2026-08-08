@@ -38,12 +38,30 @@ CREATE TABLE IF NOT EXISTS ingestion_control.publication_attestations (
     rights_assessed_at         TIMESTAMPTZ NOT NULL,
 
     quality_passed              BOOLEAN NOT NULL,
-    quality_score                 DOUBLE PRECISION NOT NULL,
+    -- Remédiation GATE H1 (item E) : digest du QualityReport complet, jamais
+    -- un score scalaire. Les heuristiques de qualité de ce lot sont des
+    -- placeholders explicites ; les résumer en un « score » donnerait à une
+    -- mesure non validée une autorité qu'elle n'a pas. Le digest, lui, rend
+    -- le rapport comparable dans le temps sans rien prétendre sur sa valeur.
+    quality_report_digest         TEXT NOT NULL,
     quality_assessed_at            TIMESTAMPTZ NOT NULL,
 
     gate_passed                     BOOLEAN NOT NULL,
     gate_name                        TEXT NOT NULL,
     gate_evaluated_at                 TIMESTAMPTZ NOT NULL,
+
+    -- Remédiation GATE H1 (item E) : les workflow_events append-only qui
+    -- ont produit les trois faits ci-dessus. Une attestation qui ne
+    -- nommerait pas ses événements ne serait pas vérifiable a posteriori.
+    evidence_event_ids                 UUID[] NOT NULL,
+
+    -- Remédiation GATE H1 (item E) : lien cryptographique vers l'artefact
+    -- de revue de publication réellement approuvé dans Git — même
+    -- discipline que scope_authorizations (007).
+    review_id                           TEXT NOT NULL,
+    review_artifact_path                 TEXT NOT NULL,
+    review_artifact_blob_sha              TEXT NOT NULL,
+    attestation_digest                     TEXT NOT NULL,
 
     -- human_review — HumanReviewEvidence, alias exact de
     -- GitHubApprovalEvidence (ADR-0033 § 3, jamais une seconde frontière).
@@ -81,14 +99,37 @@ CREATE TABLE IF NOT EXISTS ingestion_control.publication_attestations (
         CHECK (profile_fingerprint ~ '^[0-9a-f]{64}$'),
     CONSTRAINT publication_attestations_manifest_digest_valid
         CHECK (manifest_digest ~ '^[0-9a-f]{64}$'),
+    -- 'unknown' est volontairement ABSENT de cette liste (item F) : des
+    -- droits indéterminés ne sont jamais publiables, et l'attestation
+    -- correspondante ne doit pas pouvoir exister en base — pas seulement
+    -- être refusée à la relecture.
     CONSTRAINT publication_attestations_rights_status_valid
         CHECK (rights_status IN (
             'officiel_public', 'public_allowed', 'nexus_proprietaire',
             'usage_interne', 'student_private', 'parent_private',
-            'commercial_confidential', 'restricted', 'unknown'
+            'commercial_confidential', 'restricted'
         )),
-    CONSTRAINT publication_attestations_quality_score_range
-        CHECK (quality_score >= 0 AND quality_score <= 1),
+    -- Item F, barrière structurelle : une chaîne négative n'est pas
+    -- « refusée à la publication », elle est **irreprésentable**. Aucune
+    -- ligne d'attestation ne peut exister avec quality_passed = false ou
+    -- gate_passed = false, quel que soit le chemin d'écriture utilisé.
+    CONSTRAINT publication_attestations_quality_passed_true
+        CHECK (quality_passed = true),
+    CONSTRAINT publication_attestations_gate_passed_true
+        CHECK (gate_passed = true),
+    CONSTRAINT publication_attestations_quality_report_digest_valid
+        CHECK (quality_report_digest ~ '^[0-9a-f]{64}$'),
+    CONSTRAINT publication_attestations_evidence_event_ids_not_empty
+        CHECK (cardinality(evidence_event_ids) > 0),
+    CONSTRAINT publication_attestations_review_id_canonical
+        CHECK (review_id ~ '^[a-z0-9][a-z0-9._-]{0,127}$'),
+    CONSTRAINT publication_attestations_review_artifact_path_canonical
+        CHECK (review_artifact_path =
+            'governance/publication-reviews/' || review_id || '-' || attestation_digest || '.json'),
+    CONSTRAINT publication_attestations_review_artifact_blob_sha_valid
+        CHECK (review_artifact_blob_sha ~ '^[0-9a-f]{40}$'),
+    CONSTRAINT publication_attestations_attestation_digest_valid
+        CHECK (attestation_digest ~ '^[0-9a-f]{64}$'),
     CONSTRAINT publication_attestations_gate_name_not_blank
         CHECK (btrim(gate_name) <> ''),
     CONSTRAINT publication_attestations_human_review_repository_not_blank

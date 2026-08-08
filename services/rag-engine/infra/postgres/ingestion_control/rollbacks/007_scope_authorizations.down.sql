@@ -14,3 +14,5 @@ $nexus$;
 
 DROP TABLE ingestion_control.scope_authorizations;
 DROP FUNCTION IF EXISTS ingestion_control._scope_authorizations_no_wildcard_domain(TEXT[]);
+DROP FUNCTION IF EXISTS ingestion_control._scope_authorizations_rights_canonical(TEXT[]);
+DROP FUNCTION IF EXISTS ingestion_control._scope_authorizations_domains_canonical(TEXT[]);

@@ -17,22 +17,43 @@ ce module ne fait qu'appeler la chaîne, sans logique de routage propre.
 Aucun profil par défaut, aucune sélection de "dernière version" : le
 ``profile_version`` doit être fourni explicitement dans le payload du job.
 
-LOT41A (ADR-0032) : avant toute exécution de la chaîne, le scope du job est
-revérifié en direct (``deps.verify_scope_authorization``, par défaut
-``scope_authority.verify_scope_authorization``) contre une autorisation
-GitHub humaine — un refus est journalisé (``SCOPE_AUTHORIZATION_DENIED``)
-et le job échoue explicitement, jamais traité en supposant une
-autorisation implicite. Injectable via ``WorkerDeps`` (même motif que
-``safe_fetch``/``validate_destination``) : la production utilise toujours
-la vérification live réelle ; seuls des tests qui ne portent pas sur
-LOT41A lui-même peuvent y substituer un stub, plutôt que de reconstruire
-une frontière GitHub complète pour un scénario qui n'en a pas besoin.
+LOT41A (ADR-0032, remédiation GATE H1 items **C** et **D**) — l'autorisation
+n'est pas un feu vert calculé une fois puis oublié, c'est une contrainte
+appliquée tout au long de la chaîne, à quatre points de contrôle :
+
+1. **pre_fetch** — avant toute requête sortante et avant toute création de
+   ressource : l'autorisation *nommée par le job* (``scope_authorization_id``,
+   champ obligatoire du payload — jamais « la plus récente pour ce scope »)
+   est revérifiée en direct contre GitHub, puis confrontée au scope, au
+   digest de manifest du worker, et à l'empreinte du profil sélectionné.
+2. **destination** — les URL source/canonique du payload sont confrontées
+   à ``allowed_domains``/``exclusions`` avant même leur résolution DNS.
+3. **redirect** — chaque saut réellement suivi par ``safe_fetch``
+   (cf. ``_authorized_fetcher``) repasse par le même enforcement : une
+   redirection hors domaine autorisé interrompt le téléchargement.
+4. **rights** — la catégorie de droits *produite* par le RightsAgent est
+   confrontée à ``rights_categories``, et l'autorisation est **revérifiée
+   en direct une seconde fois** : une révocation ou une expiration
+   survenue pendant Scout/Fetcher/Extractor prend effet avant que la
+   ressource n'avance, jamais seulement au job suivant.
+
+Tout refus est journalisé (``SCOPE_AUTHORIZATION_DENIED``, avec le nom du
+point de contrôle) et committé avant de se propager ; le job échoue
+explicitement, jamais traité en supposant une autorisation implicite.
+
+``verify_scope_authorization`` est injectable via ``WorkerDeps`` (même
+motif que ``safe_fetch``/``validate_destination``) : la production utilise
+toujours la vérification live réelle ; seuls des tests qui ne portent pas
+sur LOT41A lui-même peuvent y substituer un stub, plutôt que de
+reconstruire une frontière GitHub complète pour un scénario qui n'en a pas
+besoin.
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Protocol
+from typing import Any, Protocol
 from uuid import UUID, uuid4
 
 import psycopg
@@ -72,12 +93,23 @@ try:
     )
     from ingestor.ingestion_control.scope_authority import (
         ScopeAuthorizationDeniedError,
+        VerifiedAuthorization,
         record_scope_authorization_denied,
     )
     from ingestor.ingestion_control.scope_authority import (
         verify_scope_authorization as verify_scope_authorization_default,
     )
-    from ingestor.ingestion_profiles.registry import ProfileRegistry, select_profile
+    from ingestor.ingestion_control.scope_enforcement import (
+        enforce_before_fetch,
+        enforce_destination,
+        enforce_pii,
+        enforce_rights,
+    )
+    from ingestor.ingestion_profiles.registry import (
+        ProfileRegistry,
+        profile_fingerprint,
+        select_profile,
+    )
     from ingestor.ingestion_profiles.validation import validate_scope_against_profile
 except (ImportError, ValueError):
     # Image Docker aplatie (LOT44f, ADR-0029) : "ingestor" n'existe pas comme
@@ -115,13 +147,21 @@ except (ImportError, ValueError):
     )
     from ingestion_control.scope_authority import (
         ScopeAuthorizationDeniedError,
+        VerifiedAuthorization,
         record_scope_authorization_denied,
     )
     from ingestion_control.scope_authority import (
         verify_scope_authorization as verify_scope_authorization_default,
     )
+    from ingestion_control.scope_enforcement import (
+        enforce_before_fetch,
+        enforce_destination,
+        enforce_pii,
+        enforce_rights,
+    )
     from ingestion_profiles.registry import (
         ProfileRegistry,
+        profile_fingerprint,
         select_profile,
     )
     from ingestion_profiles.validation import (
@@ -141,16 +181,24 @@ SUPPORTED_JOB_TYPES = ("resource_pipeline",)
 #: retry par l'appelant), jamais une valeur devinée.
 REQUIRED_PAYLOAD_KEYS = (
     "scope", "dedup_key", "source_url", "canonical_url", "domain",
-    "proposed_type_doc", "profile_version",
+    "proposed_type_doc", "profile_version", "scope_authorization_id",
 )
 
 
 class ScopeAuthorizationVerifier(Protocol):
-    """Signature de ``scope_authority.verify_scope_authorization``."""
+    """Signature de ``scope_authority.verify_scope_authorization``.
+
+    ``authorization_id`` est **obligatoire** (item C) : il n'existe aucune
+    surcharge qui déduirait l'autorisation depuis le seul scope."""
 
     def __call__(
-        self, conn: psycopg.Connection, *, scope: ResourceScope
-    ) -> object: ...
+        self,
+        conn: psycopg.Connection,
+        *,
+        authorization_id: str,
+        scope: ResourceScope | None = ...,
+        now: datetime | None = ...,
+    ) -> VerifiedAuthorization: ...
 
 
 @dataclass(frozen=True)
@@ -174,6 +222,14 @@ class WorkerDeps:
     validate_destination: DestinationValidator = default_validate_destination
     safe_fetch: SafeFetcher = default_safe_fetch
     verify_scope_authorization: ScopeAuthorizationVerifier = verify_scope_authorization_default
+    #: Empreinte du manifest de production réellement chargé au démarrage
+    #: (``StartupGateResult.manifest.manifest_fingerprint``). Confrontée au
+    #: ``manifest_digest`` de l'autorisation à chaque job (item D) : un
+    #: worker qui tourne sur un autre manifest que celui autorisé ne
+    #: traite plus rien. La valeur par défaut vide ne peut satisfaire
+    #: aucune autorisation réelle — un appelant qui oublie de la fournir
+    #: échoue fail-closed, jamais silencieusement en mode « non vérifié ».
+    manifest_digest: str = ""
 
 
 @dataclass(frozen=True)
@@ -199,6 +255,124 @@ class ResumeStateInconsistentError(RuntimeError):
     présence signale une incohérence à investiguer, pas un cas à masquer
     par un retry aveugle infini (elle finira en ``dead_letter`` comme
     n'importe quelle autre erreur, via ``record_job_retry``)."""
+
+
+def _authorize_or_record_denial(
+    conn: psycopg.Connection,
+    *,
+    claim: JobClaim,
+    deps: WorkerDeps,
+    authorization_id: str,
+    scope: ResourceScope,
+    checkpoint: str,
+    then: Callable[[VerifiedAuthorization], None] | None = None,
+) -> VerifiedAuthorization:
+    """Revalide **en direct** l'autorisation nommée, puis applique le point
+    de contrôle ``then``.
+
+    Tout refus — absence, révocation, expiration, divergence GitHub,
+    divergence d'artefact, ou violation d'un point de contrôle — est
+    journalisé dans ``workflow_events`` (``SCOPE_AUTHORIZATION_DENIED``,
+    avec le nom du point de contrôle) **et committé immédiatement** avant
+    de se propager : le rollback que l'appelant effectue sur l'exception
+    effacerait sinon la seule trace durable du refus. Le job échoue
+    ensuite normalement (retry/dead_letter) — jamais une poursuite vers
+    l'étape suivante.
+
+    Appelé à chaque point de contrôle sensible, pas une seule fois au
+    début : c'est ce qui rend une révocation intervenue *pendant* un run
+    effective avant que la ressource n'avance."""
+    try:
+        authorization = deps.verify_scope_authorization(
+            conn, authorization_id=authorization_id, scope=scope
+        )
+        if then is not None:
+            then(authorization)
+    except ScopeAuthorizationDeniedError as exc:
+        conn.rollback()
+        record_scope_authorization_denied(
+            conn,
+            run_id=claim.run_id,
+            job_id=claim.job_id,
+            actor=deps.owner,
+            reason=str(exc),
+            checkpoint=checkpoint,
+            authorization_id=authorization_id,
+        )
+        conn.commit()
+        raise
+    return authorization
+
+
+def _enforce_scope_destinations(
+    conn: psycopg.Connection,
+    *,
+    claim: JobClaim,
+    deps: WorkerDeps,
+    authorization: VerifiedAuthorization,
+    authorization_id: str,
+    urls: tuple[str, ...],
+) -> None:
+    """Applique l'enforcement de domaine à des URL déjà connues du payload.
+
+    Pas de revalidation live ici : l'autorisation vient d'être revérifiée
+    au point de contrôle précédent, et ces URL sont statiques (elles ne
+    dépendent d'aucun aller-retour réseau). Les sauts dynamiques, eux,
+    passent par ``_authorized_fetcher``."""
+    try:
+        for url in urls:
+            enforce_destination(authorization, url=url, checkpoint="destination")
+    except ScopeAuthorizationDeniedError as exc:
+        conn.rollback()
+        record_scope_authorization_denied(
+            conn,
+            run_id=claim.run_id,
+            job_id=claim.job_id,
+            actor=deps.owner,
+            reason=str(exc),
+            checkpoint="destination",
+            authorization_id=authorization_id,
+        )
+        conn.commit()
+        raise
+
+
+def _authorized_fetcher(
+    deps: WorkerDeps, authorization: VerifiedAuthorization
+) -> SafeFetcher:
+    """Enveloppe ``deps.safe_fetch`` d'un rappel d'enforcement par saut.
+
+    Conserve exactement la signature de ``SafeFetcher`` : le Fetcher
+    n'apprend rien de LOT41A, il reçoit simplement un téléchargeur dont la
+    politique de destination est déjà celle de l'autorisation. Un appelant
+    qui fournirait explicitement ``on_destination`` verrait sa valeur
+    ignorée au profit de la politique d'autorisation — c'est voulu : cette
+    politique n'est jamais désactivable depuis un appelant."""
+
+    def fetch(
+        url: str,
+        *,
+        max_bytes: int,
+        max_redirects: int = 5,
+        timeout: Any = None,
+        transport: Any = None,
+        on_destination: Callable[[str], None] | None = None,
+    ) -> Any:
+        del on_destination  # jamais honoré : la politique d'autorisation prime
+        kwargs: dict[str, Any] = {
+            "max_bytes": max_bytes,
+            "max_redirects": max_redirects,
+            "on_destination": lambda hop: enforce_destination(
+                authorization, url=hop, checkpoint="redirect"
+            ),
+        }
+        if timeout is not None:
+            kwargs["timeout"] = timeout
+        if transport is not None:
+            kwargs["transport"] = transport
+        return deps.safe_fetch(url, **kwargs)
+
+    return fetch
 
 
 def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: WorkerDeps) -> None:
@@ -231,22 +405,7 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
         raise MissingPayloadFieldError(f"job {claim.job_id} payload missing keys: {missing}")
 
     scope = ResourceScope.model_validate(payload["scope"])
-
-    # LOT41A (ADR-0032) : avant toute réclamation effective du job pour ce
-    # scope — jamais après avoir déjà commencé Scout/Fetcher. Une
-    # ScopeAuthorizationDeniedError est journalisée explicitement
-    # (SCOPE_AUTHORIZATION_DENIED, workflow_events) puis committée
-    # immédiatement (point de contrôle durable, avant que le rollback de
-    # l'appelant sur l'exception ne l'efface) avant de se propager — le
-    # worker ne poursuit jamais en supposant une autorisation implicite.
-    try:
-        deps.verify_scope_authorization(conn, scope=scope)
-    except ScopeAuthorizationDeniedError as exc:
-        record_scope_authorization_denied(
-            conn, run_id=claim.run_id, job_id=claim.job_id, actor=deps.owner, reason=str(exc)
-        )
-        conn.commit()
-        raise
+    authorization_id = str(payload["scope_authorization_id"])
 
     # Remédiation revue PR#90 : jamais un rechargement depuis le disque ici
     # — le registre approuvé au démarrage (deps.profile_registry) reste la
@@ -266,6 +425,33 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
             f"job {claim.job_id}: scope validation against profile did not pass "
             f"(status={validation_result.status}, issues={validation_result.issues})"
         )
+
+    # LOT41A (ADR-0032, item D) : premier point de contrôle, avant toute
+    # requête sortante et avant toute création de ressource. Le profil est
+    # sélectionné juste au-dessus parce que le point de contrôle confronte
+    # aussi son empreinte — mais aucun octet n'a encore quitté le worker.
+    #
+    # ``profile_id`` : l'identité d'un profil dans ce dépôt est le couple
+    # (collection, profile_version) — cf. ProfileKey. La collection en est
+    # la composante stable, et c'est elle que l'artefact d'autorité nomme.
+    authorization = _authorize_or_record_denial(
+        conn,
+        claim=claim,
+        deps=deps,
+        authorization_id=authorization_id,
+        scope=scope,
+        checkpoint="pre_fetch",
+        then=lambda auth: enforce_before_fetch(
+            auth,
+            authorization_id=authorization_id,
+            scope=scope,
+            manifest_digest=deps.manifest_digest,
+            profile_id=profile.scope.collection,
+            profile_version=profile.profile_version,
+            profile_fingerprint=profile_fingerprint(profile),
+            now=datetime.now(UTC),
+        ),
+    )
 
     if claim.resource_id is not None:
         resource_id = claim.resource_id
@@ -300,6 +486,19 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
     if current_state is None:  # pragma: no cover - la ressource vient d'être créée/lue ci-dessus
         raise RuntimeError(f"resource {resource_id} not found immediately after creation/lookup")
     resource_state, state_version = current_state
+
+    # LOT41A (item D) : deuxième point de contrôle, au moment où les URL
+    # réellement visées sont connues. Appliqué AVANT Scout, donc avant la
+    # première résolution DNS de ``validate_destination`` — une URL hors
+    # domaine autorisé n'est jamais résolue, encore moins contactée.
+    _enforce_scope_destinations(
+        conn,
+        claim=claim,
+        deps=deps,
+        authorization=authorization,
+        authorization_id=authorization_id,
+        urls=(str(payload["source_url"]), str(payload["canonical_url"])),
+    )
 
     if resource_state == ResourceState.DISCOVERED:
         candidate, scout_transition = run_scout(
@@ -342,7 +541,12 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
             actor=deps.owner,
             max_bytes=deps.max_bytes,
             store_artifact=deps.artifact_store,
-            safe_fetch=deps.safe_fetch,
+            # LOT41A (item D) : chaque saut réseau — URL initiale ET toute
+            # redirection — repasse par l'enforcement de domaine avant
+            # d'être contacté. C'est le seul endroit d'où la chaîne de
+            # redirection est observable ; une redirection hors domaine
+            # autorisé interrompt le téléchargement immédiatement.
+            safe_fetch=_authorized_fetcher(deps, authorization),
             job_id=claim.job_id,
             license=str(payload["license"]) if payload.get("license") else None,
         )
@@ -386,9 +590,32 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
         job_id=claim.job_id,
     )
 
+    # LOT41A (item D) : troisième point de contrôle. La catégorie de droits
+    # vient d'être *produite* par le pipeline ; c'est maintenant, et
+    # seulement maintenant, qu'on peut la confronter aux catégories
+    # autorisées. L'autorisation est **revalidée en direct** ici : une
+    # révocation ou une expiration survenue pendant Scout/Fetcher/Extractor
+    # (qui peuvent être longs) prend effet avant que la ressource ne
+    # franchisse la qualité, jamais seulement au job suivant.
+    pii_detected = False
+    _authorize_or_record_denial(
+        conn,
+        claim=claim,
+        deps=deps,
+        authorization_id=authorization_id,
+        scope=scope,
+        checkpoint="rights",
+        then=lambda auth: (
+            enforce_rights(auth, rights=rights, now=datetime.now(UTC)),
+            enforce_pii(auth, pii_detected=pii_detected),
+        )[-1],
+    )
+
     # pii_detected/duplicate_detected : aucun détecteur réel dans ce lot,
     # toujours False — placeholder explicite, cohérent avec LOT44d
-    # (ADR-0029, Décision 5), jamais une détection fabriquée.
+    # (ADR-0029, Décision 5), jamais une détection fabriquée. La valeur
+    # traverse quand même le point de contrôle PII ci-dessus : le jour où
+    # un détecteur réel la renseigne, l'enforcement est déjà en place.
     run_quality_agent(
         conn,
         artifact=artifact,
@@ -397,7 +624,7 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
         rights=rights,
         extracted_text=extracted_text,
         declared_language=candidate.language,
-        pii_detected=False,
+        pii_detected=pii_detected,
         duplicate_detected=False,
         report_id=uuid4(),
         decision_id=uuid4(),

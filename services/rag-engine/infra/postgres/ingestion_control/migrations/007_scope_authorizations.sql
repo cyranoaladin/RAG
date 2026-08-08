@@ -1,15 +1,22 @@
 -- Migration 007 : table scope_authorizations — LOT41A, ADR-0032.
 --
--- Porte la sérialisation de nexus_contracts.scope_authorization
--- .ScopeAuthorization, plus les colonnes de révocation (même frontière
--- GitHub que l'octroi, jamais un simple UPDATE opérateur, ADR-0032 § 3).
+-- Porte la projection de l'artefact canonique
+-- nexus_contracts.authority_artifacts.ScopeAuthorizationArtifact, plus
+-- l'évidence GitHub de son approbation et les colonnes de révocation (même
+-- frontière GitHub que l'octroi, jamais un simple UPDATE opérateur,
+-- ADR-0032 § 3).
 --
 -- Aucune colonne "approved"/"valid" figée : la validité n'est jamais un
 -- booléen stocké ici, toujours recalculée en direct par
 -- ingestor.ingestion_control.scope_authority.verify_scope_authorization
--- (ADR-0032 § 4) contre la frontière GitHub (scripts/github/
--- trusted_human_review_github.check_github_review) au moment de l'usage.
--- Cette table ne fait que transporter ce qu'une autorisation prétend être.
+-- (ADR-0032 § 4) contre la frontière GitHub au moment de l'usage.
+--
+-- Remédiation GATE H1 (item B) : cette table n'est qu'un INDEX vers la
+-- décision réelle, qui vit dans un blob Git approuvé. Les trois colonnes
+-- artifact_path / artifact_blob_sha / authorization_digest portent ce lien.
+-- Toute divergence entre ces colonnes, les octets relus à
+-- evidence_head_sha, et les colonnes de décision ci-dessous est un refus :
+-- une ligne modifiée directement en base ne survit jamais à sa relecture.
 --
 -- Écriture réservée à un rôle dédié ingestion_control_authority (least
 -- privilege, distinct du rôle worker ingestion_control_app — le worker ne
@@ -35,8 +42,47 @@ AS $func$
     )
 $func$;
 
+-- Même invariant que ScopeAuthorizationArtifact._rights_are_sorted_and_unique,
+-- reproduit en base : aucune catégorie inconnue, jamais 'unknown' (qui
+-- pré-autoriserait des droits indéterminés), aucun doublon, ordre canonique.
+CREATE OR REPLACE FUNCTION ingestion_control._scope_authorizations_rights_canonical(cats TEXT[])
+RETURNS boolean
+LANGUAGE sql
+IMMUTABLE
+AS $func$
+    SELECT cardinality(cats) > 0
+       AND NOT EXISTS (
+            SELECT 1 FROM unnest(cats) AS c(cat)
+            WHERE c.cat NOT IN (
+                'officiel_public', 'public_allowed', 'nexus_proprietaire',
+                'usage_interne', 'student_private', 'parent_private',
+                'commercial_confidential', 'restricted'
+            )
+       )
+       AND cats = (SELECT array_agg(DISTINCT c.cat ORDER BY c.cat) FROM unnest(cats) AS c(cat))
+$func$;
+
+-- Domaines : forme canonique exacte de authority_artifacts.normalize_hostname
+-- (minuscule ASCII, points, jamais de schéma/port/chemin/wildcard),
+-- dédupliquée et triée. Reproduite en base pour qu'une insertion hors du
+-- chemin Python contrôlé ne puisse pas introduire une autre forme.
+CREATE OR REPLACE FUNCTION ingestion_control._scope_authorizations_domains_canonical(domains TEXT[])
+RETURNS boolean
+LANGUAGE sql
+IMMUTABLE
+AS $func$
+    SELECT cardinality(domains) > 0
+       AND NOT EXISTS (
+            SELECT 1 FROM unnest(domains) AS d(domain)
+            WHERE d.domain !~ '^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$'
+               OR d.domain ~ '^[0-9.]+$'
+       )
+       AND domains = (SELECT array_agg(DISTINCT d.domain ORDER BY d.domain) FROM unnest(domains) AS d(domain))
+$func$;
+
 CREATE TABLE IF NOT EXISTS ingestion_control.scope_authorizations (
     authorization_id    TEXT PRIMARY KEY,
+    protocol_version     TEXT NOT NULL,
     decision             TEXT NOT NULL,
 
     -- Scope complet obligatoire et fail-closed — mêmes dix dimensions et
@@ -67,6 +113,14 @@ CREATE TABLE IF NOT EXISTS ingestion_control.scope_authorizations (
     valid_from            TIMESTAMPTZ NOT NULL,
     valid_until           TIMESTAMPTZ NOT NULL,
 
+    -- Lien cryptographique vers les octets réellement revus (item B).
+    -- artifact_path est dérivable de authorization_id seul — il est stocké
+    -- pour l'audit, jamais utilisé comme source (le vérificateur redérive
+    -- le chemin et exige l'égalité).
+    artifact_path          TEXT NOT NULL,
+    artifact_blob_sha      TEXT NOT NULL,
+    authorization_digest   TEXT NOT NULL,
+
     -- evidence — GitHubApprovalEvidence, mêmes champs que le readback du
     -- check "Evaluate trusted human review" (ADR-0025/LOT41V).
     evidence_repository        TEXT NOT NULL,
@@ -94,10 +148,22 @@ CREATE TABLE IF NOT EXISTS ingestion_control.scope_authorizations (
     revocation_evidence_submitted_at      TIMESTAMPTZ,
     revocation_evidence_challenge         TEXT,
 
-    CONSTRAINT scope_authorizations_authorization_id_not_blank
-        CHECK (btrim(authorization_id) <> ''),
+    -- Même motif que authority_artifacts._IDENTIFIER_PATTERN : minuscule
+    -- ASCII, aucun séparateur de chemin, aucun '..'. Le chemin canonique
+    -- dérivé de cet identifiant ne peut donc jamais sortir de
+    -- governance/authorizations/.
+    CONSTRAINT scope_authorizations_authorization_id_canonical
+        CHECK (authorization_id ~ '^[a-z0-9][a-z0-9._-]{0,127}$'),
+    CONSTRAINT scope_authorizations_protocol_version_valid
+        CHECK (protocol_version = 'LOT41A-V1'),
     CONSTRAINT scope_authorizations_decision_valid
         CHECK (decision = 'AUTHORIZE_INGESTION_SCOPE'),
+    CONSTRAINT scope_authorizations_artifact_path_canonical
+        CHECK (artifact_path = 'governance/authorizations/' || authorization_id || '.json'),
+    CONSTRAINT scope_authorizations_artifact_blob_sha_valid
+        CHECK (artifact_blob_sha ~ '^[0-9a-f]{40}$'),
+    CONSTRAINT scope_authorizations_authorization_digest_valid
+        CHECK (authorization_digest ~ '^[0-9a-f]{64}$'),
     CONSTRAINT scope_authorizations_tenant_not_blank
         CHECK (btrim(tenant) <> ''),
     CONSTRAINT scope_authorizations_collection_not_blank
@@ -136,13 +202,15 @@ CREATE TABLE IF NOT EXISTS ingestion_control.scope_authorizations (
     CONSTRAINT scope_authorizations_allowed_domains_not_empty
         CHECK (cardinality(allowed_domains) > 0),
     -- Jamais un wildcard — même invariant que
-    -- nexus_contracts.scope_authorization._no_wildcard_domain, reproduit en
-    -- base pour qu'une insertion hors du chemin Python contrôlé (ex.
-    -- intervention manuelle) ne puisse pas non plus l'introduire.
+    -- authority_artifacts.normalize_hostname, reproduit en base pour qu'une
+    -- insertion hors du chemin Python contrôlé (ex. intervention manuelle)
+    -- ne puisse pas non plus l'introduire.
     CONSTRAINT scope_authorizations_allowed_domains_no_wildcard
         CHECK (ingestion_control._scope_authorizations_no_wildcard_domain(allowed_domains)),
-    CONSTRAINT scope_authorizations_rights_categories_not_empty
-        CHECK (cardinality(rights_categories) > 0),
+    CONSTRAINT scope_authorizations_allowed_domains_canonical
+        CHECK (ingestion_control._scope_authorizations_domains_canonical(allowed_domains)),
+    CONSTRAINT scope_authorizations_rights_categories_canonical
+        CHECK (ingestion_control._scope_authorizations_rights_canonical(rights_categories)),
     CONSTRAINT scope_authorizations_pii_absence_attested_true
         CHECK (pii_absence_attested = true),
     CONSTRAINT scope_authorizations_pii_absence_evidence_not_blank
@@ -188,11 +256,20 @@ CREATE TABLE IF NOT EXISTS ingestion_control.scope_authorizations (
         )
 );
 
--- Recherche de l'autorisation active la plus récente pour un scope/
--- collection donné — prédicat exact de verify_scope_authorization.
-CREATE INDEX IF NOT EXISTS idx_ingestion_control_scope_authorizations_lookup
+-- Remédiation GATE H1 (item C) : il n'existe volontairement AUCUN index
+-- ordonné par valid_until. L'ancien index (…, valid_until DESC) matérialisait
+-- une notion d'« autorisation la plus récente pour ce scope », qui était
+-- précisément le mécanisme de décision d'autorité implicite supprimé :
+-- verify_scope_authorization ne recherche jamais par scope, elle charge
+-- l'autorisation NOMMÉE par le job (clé primaire). Laisser l'index en place
+-- inviterait un futur lot à réintroduire ORDER BY valid_until DESC LIMIT 1.
+--
+-- Cet index-ci ne sert qu'à l'inventaire d'audit (« quelles autorisations
+-- ont existé pour ce scope ? »), sans ordre implicite de préséance.
+CREATE INDEX IF NOT EXISTS idx_ingestion_control_scope_authorizations_scope_audit
     ON ingestion_control.scope_authorizations (
         collection, tenant, niveau, voie, matiere, candidat,
-        visibility, school_year, programme_version, valid_until DESC
-    )
-    WHERE revoked_at IS NULL;
+        visibility, school_year, programme_version
+    );
+
+DROP INDEX IF EXISTS ingestion_control.idx_ingestion_control_scope_authorizations_lookup;

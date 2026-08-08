@@ -35,17 +35,28 @@ COPY services/rag-engine/src/ingestor/ingestion_worker/ /app/ingestion_worker/
 # authentifié sur l'hôte, jamais exposé sur le réseau.
 COPY services/rag-engine/src/ingestor/ingestion_worker/create_job_cli.py /app/ingestion_worker/create_job_cli.py
 
-# LOT41A/LOT42 (ADR-0032/ADR-0033) : frontière GitHub partagée, racine du
-# dépôt, propriété d'aucun service (jamais importée directement — cf.
-# ingestion_control/_trusted_review.py, invoquée en sous-processus). Cette
-# image aplatie ne copie jamais le dépôt entier : NEXUS_TRUSTED_REVIEW_SCRIPT
-# pointe explicitement vers la copie ci-dessous, jamais un chemin dérivé
-# implicitement (qui échouerait silencieusement à trouver le script dans
-# cette arborescence réduite).
+# LOT41A/LOT42 (ADR-0032/ADR-0033) — remédiation GATE H1, item I.
+#
+# Seule la **fonction de décision pure** d'ADR-0025 est copiée ici, avec sa
+# configuration de reviewers de confiance. Le transport HTTP vers GitHub est
+# assuré par ingestion_control/github_authority.py (httpx, déjà une
+# dépendance du worker) : cette image ne contient donc AUCUN binaire `gh`,
+# et n'en a jamais besoin.
+#
+# Le fichier trusted_human_review_github.py (adaptateur `gh api`) est
+# volontairement ABSENT : il n'aurait jamais pu s'exécuter ici faute de
+# `gh`, et l'installer ajouterait une surface non auditée pour trois
+# requêtes GET. La décision d'autorité, elle, reste partagée à l'octet près
+# avec la CI — c'est le même fichier, non modifié.
 COPY scripts/github/trusted_human_review.py /app/scripts/github/trusted_human_review.py
-COPY scripts/github/trusted_human_review_github.py /app/scripts/github/trusted_human_review_github.py
 COPY scripts/github/trusted-reviewers.json /app/scripts/github/trusted-reviewers.json
-ENV NEXUS_TRUSTED_REVIEW_SCRIPT=/app/scripts/github/trusted_human_review_github.py
+ENV NEXUS_TRUSTED_REVIEW_MODULE=/app/scripts/github/trusted_human_review.py \
+    NEXUS_TRUSTED_REVIEWERS_CONFIG=/app/scripts/github/trusted-reviewers.json
+
+# Aucun secret n'est jamais construit dans cette image (item I) : ni ARG, ni
+# ENV portant un jeton, ni fichier de credential. Le jeton GitHub en lecture
+# seule est lu à l'exécution depuis NEXUS_GITHUB_TOKEN_FILE (montage de
+# secret, cf. docker-compose.ingestion.yml) — jamais depuis une couche.
 
 # Aucun processus HTTP démarré par cette image : pas d'EXPOSE, pas de
 # uvicorn. Le point d'entrée est une boucle CLI (ingestion_worker/cli.py),

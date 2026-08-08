@@ -86,6 +86,18 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     scope.add_argument("--programme-version", required=True)
 
     parser.add_argument("--profile-version", required=True)
+    parser.add_argument(
+        "--scope-authorization-id",
+        required=True,
+        help=(
+            "Identifiant de l'autorisation LOT41A sous laquelle ce job "
+            "s'exécute (remédiation GATE H1, item C). Obligatoire et "
+            "explicite : le worker ne déduit jamais « l'autorisation la plus "
+            "récente couvrant ce scope » — plusieurs autorisations "
+            "historiques peuvent coexister, et un job est lié à une seule, "
+            "nommée ici."
+        ),
+    )
     parser.add_argument("--source-url", required=True)
     parser.add_argument("--canonical-url", required=True)
     parser.add_argument("--domain", required=True)
@@ -214,6 +226,7 @@ def main(argv: list[str] | None = None) -> int:
                 "domain": args.domain,
                 "proposed_type_doc": args.proposed_type_doc,
                 "profile_version": args.profile_version,
+                "scope_authorization_id": args.scope_authorization_id,
                 "query": args.query,
             },
         )
