@@ -2,6 +2,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from rag_pedago.imports.pii_scanner import (
     DEFAULT_PII_PATTERNS,
     PIIMatch,
@@ -310,13 +312,29 @@ class TestPIISanitization:
         assert sanitized["signals"][0]["pattern_id"] == "email_address"
         assert sanitized["signals"][0]["match_length"] > 0
 
-    def test_unsanitized_only_for_internal_use(self) -> None:
-        """Unsanitized output is available but flagged for internal use only."""
+    def test_serializer_exposes_no_unsanitized_mode(self) -> None:
+        """External serialization has no flag capable of emitting raw PII."""
         result = self._create_result_with_pii()
-        # Explicit sanitize=False for internal debugging
-        output = result_to_dict(result, sanitize=False)
-        serialized = json.dumps(output)
 
-        # This WOULD contain PII - for internal use only
-        assert self.FAKE_EMAIL in serialized
-        assert "match_text" in serialized
+        with pytest.raises(TypeError):
+            result_to_dict(result, sanitize=False)  # type: ignore[call-arg]
+
+    def test_sanitized_result_excludes_local_path_and_error_details(self) -> None:
+        """Paths and exception messages may contain PII and stay internal."""
+        canary = "CANARY.student@example.invalid"
+        result = PIIScanResult(
+            file_path=f"/tmp/{canary}/document.pdf",
+            sha256="ab" * 32,
+            pages_scanned=0,
+            characters_scanned=0,
+            pii_detected=False,
+            extraction_error=f"PDF extraction failed near {canary}",
+        )
+
+        payload = result_to_dict(result)
+        serialized = json.dumps(payload)
+
+        assert canary not in serialized
+        assert "file_path" not in payload
+        assert "extraction_error" not in payload
+        assert payload["extraction_error_code"] == "PDF_EXTRACTION_FAILED"
