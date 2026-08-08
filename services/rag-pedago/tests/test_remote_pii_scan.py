@@ -105,6 +105,53 @@ def test_scans_each_unique_pdf_content_once_and_covers_every_physical_object(
     assert evidence["remote_write_operations"] == 0
 
 
+def test_initial_promotion_scope_scans_every_candidate_and_counts_exemptions(
+    tmp_path: Path,
+) -> None:
+    manifest, policy, content = _write_inputs(tmp_path)
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    required_paths = {
+        "01_EDUSCOL_OFFICIEL/a.pdf",
+        "00_INDEX_PROVENANCE/a-copy.pdf",
+    }
+
+    def download(source: str, target: Path) -> None:
+        assert any(source.endswith(path) for path in required_paths)
+        target.write_bytes(content["first"])
+
+    evidence = scan_remote_corpus(
+        manifest,
+        policy,
+        CANONICAL_REMOTE_ROOT,
+        scratch,
+        expected_manifest_sha256=_digest(manifest.read_bytes()),
+        download_file=download,
+        scan_file=_clean_scan,
+        required_pdf_paths=required_paths,
+    )
+
+    assert evidence["summary"] == {
+        "pdf_total": 3,
+        "pii_scan_scope": "INITIAL_PRODUCTION_ELIGIBLE_PDFS",
+        "pii_scan_required": 2,
+        "pii_scan_exempt": 1,
+        "unique_pdf_content": 1,
+        "unique_content_attempted": 1,
+        "pii_scanned": 2,
+        "pii_cleared": 2,
+        "pii_review_required": 0,
+        "pii_quarantined": 0,
+        "pii_extraction_failed": 0,
+        "pii_not_scanned": 0,
+        "pii_scan_coverage": 1.0,
+        "sha256_mismatches": 0,
+    }
+    assert evidence["required_pdf_path_count"] == 2
+    assert len(evidence["required_pdf_path_set_digest"]) == 64
+    assert len(evidence["results"]) == 1
+
+
 def test_external_evidence_never_contains_raw_pii_or_exception_text(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],

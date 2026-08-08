@@ -172,6 +172,10 @@ def _rights_registry(manifest_sha256: str) -> dict:
 
 
 def _pii_evidence(manifest_sha256: str, status: str = "CLEARED") -> dict:
+    pdf_paths = {
+        "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/10_ACTUEL_CONFIRME/MATHS/doc.pdf",
+        "00_INDEX_PROVENANCE/EDUSCOL_META/doc.pdf",
+    }
     return {
         "evidence_kind": "REAL_CORPUS_PII_SCAN",
         "scanner_version": "pii_scanner_h2b_v2",
@@ -184,7 +188,16 @@ def _pii_evidence(manifest_sha256: str, status: str = "CLEARED") -> dict:
         "remote_write_operations": 0,
         "raw_pii_in_output": False,
         "raw_pii_in_logs": False,
-        "summary": {"sha256_mismatches": 0},
+        "required_pdf_path_count": 2,
+        "required_pdf_path_set_digest": hashlib.sha256(
+            "".join(f"{value}\n" for value in sorted(pdf_paths)).encode()
+        ).hexdigest(),
+        "summary": {
+            "sha256_mismatches": 0,
+            "pii_scan_scope": "ALL_CORPUS_PDFS",
+            "pii_scan_required": 2,
+            "pii_scan_exempt": 0,
+        },
         "results": [
             {
                 "content_sha256": _sha("a"),
@@ -666,6 +679,42 @@ class TestGovernedSealedCorpusCompilation:
         assert candidate is not None
         assert candidate.disposition == Disposition.QUARANTINE
         assert candidate.gate_statuses["pii"] == "BLOCKED_PII_DETECTED"
+
+    def test_accepts_manifest_bound_initial_candidate_pii_scope(
+        self, tmp_path: Path
+    ) -> None:
+        manifest, placements, config = _write_sealed_fixture(tmp_path)
+        manifest_sha256 = hashlib.sha256(manifest.read_bytes()).hexdigest()
+        required_path = (
+            "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/10_ACTUEL_CONFIRME/"
+            "MATHS/doc.pdf"
+        )
+        evidence = _pii_evidence(manifest_sha256)
+        evidence["summary"].update(
+            {
+                "pii_scan_scope": "INITIAL_PRODUCTION_ELIGIBLE_PDFS",
+                "pii_scan_required": 1,
+                "pii_scan_exempt": 1,
+            }
+        )
+        evidence["required_pdf_path_count"] = 1
+        evidence["required_pdf_path_set_digest"] = hashlib.sha256(
+            f"{required_path}\n".encode()
+        ).hexdigest()
+        evidence["results"][0]["physical_object_count"] = 1
+
+        catalog = compile_governed_sealed_catalog(
+            manifest,
+            placements,
+            config,
+            _rights_registry(manifest_sha256),
+            evidence,
+        )
+
+        candidate = catalog.object_by_path(required_path)
+        assert candidate is not None
+        assert candidate.gate_statuses["pii"] == "PASS"
+        assert candidate.gate_statuses["authority"] == "BLOCKED_NOT_CLEARED"
 
     def test_rejects_pii_evidence_bound_to_another_manifest(
         self, tmp_path: Path

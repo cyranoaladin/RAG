@@ -606,6 +606,7 @@ def _derive_pii_clearances(
     entries: list[tuple[str, str]],
     manifest_sha256: str,
     pii_evidence: dict[str, Any],
+    config: dict[str, Any],
 ) -> tuple[set[str], set[str]]:
     if pii_evidence.get("evidence_kind") != "REAL_CORPUS_PII_SCAN":
         raise ValueError("PII evidence is not a real corpus scan")
@@ -626,10 +627,39 @@ def _derive_pii_clearances(
     if not isinstance(summary, dict) or summary.get("sha256_mismatches") != 0:
         raise ValueError("PII evidence contains content SHA256 mismatches")
 
+    all_pdf_entries = [
+        (content_sha256, object_path)
+        for content_sha256, object_path in entries
+        if object_path.lower().endswith(".pdf")
+    ]
+    scan_scope = summary.get("pii_scan_scope")
+    if scan_scope == "ALL_CORPUS_PDFS":
+        required_pdf_entries = all_pdf_entries
+    elif scan_scope == "INITIAL_PRODUCTION_ELIGIBLE_PDFS":
+        required_pdf_entries = [
+            (content_sha256, object_path)
+            for content_sha256, object_path in all_pdf_entries
+            if _determine_disposition(object_path, config)[0] is Disposition.INGEST
+        ]
+    else:
+        raise ValueError("PII evidence scan scope is invalid")
+
+    required_paths = {object_path for _, object_path in required_pdf_entries}
+    required_path_digest = hashlib.sha256(
+        "".join(f"{value}\n" for value in sorted(required_paths)).encode()
+    ).hexdigest()
+    if (
+        pii_evidence.get("required_pdf_path_count") != len(required_paths)
+        or pii_evidence.get("required_pdf_path_set_digest") != required_path_digest
+        or summary.get("pii_scan_required") != len(required_pdf_entries)
+        or summary.get("pii_scan_exempt")
+        != len(all_pdf_entries) - len(required_pdf_entries)
+    ):
+        raise ValueError("PII evidence required PDF scope mismatch")
+
     pdf_counts: dict[str, int] = {}
-    for content_sha256, object_path in entries:
-        if object_path.lower().endswith(".pdf"):
-            pdf_counts[content_sha256] = pdf_counts.get(content_sha256, 0) + 1
+    for content_sha256, _ in required_pdf_entries:
+        pdf_counts[content_sha256] = pdf_counts.get(content_sha256, 0) + 1
 
     results = pii_evidence.get("results")
     if not isinstance(results, list):
@@ -681,6 +711,7 @@ def compile_governed_sealed_catalog(
         entries,
         manifest_sha256,
         pii_evidence,
+        config,
     )
     return compile_sealed_catalog(
         manifest_path,

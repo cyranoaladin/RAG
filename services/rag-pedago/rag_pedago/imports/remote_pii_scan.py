@@ -14,8 +14,11 @@ from typing import Any
 import yaml
 
 from rag_pedago.imports.corpus_catalog_compiler import (
+    Disposition,
+    _determine_disposition,
     _parse_sealed_manifest,
     _validate_manifest_path,
+    load_routing_config,
 )
 from rag_pedago.imports.pii_scanner import (
     PIIScanResult,
@@ -146,9 +149,12 @@ def _safe_scan_payload(result: PIIScanResult) -> dict[str, Any]:
 
 
 def _build_summary(
-    physical_pdf_count: int,
+    physical_pdf_total: int,
+    required_pdf_count: int,
     unique_pdf_count: int,
     results: list[dict[str, Any]],
+    *,
+    scan_scope: str,
 ) -> dict[str, int | float | str]:
     def physical_count(*statuses: str) -> int:
         accepted = set(statuses)
@@ -172,13 +178,13 @@ def _build_summary(
     )
     extraction_failed = physical_count("REVIEW_REQUIRED_EXTRACTION_FAILED")
     sha256_mismatches = physical_count("QUARANTINED_SHA_MISMATCH")
-    not_scanned = physical_pdf_count - scanned
-    coverage = scanned / physical_pdf_count if physical_pdf_count else 1.0
+    not_scanned = required_pdf_count - scanned
+    coverage = scanned / required_pdf_count if required_pdf_count else 1.0
     return {
-        "pdf_total": physical_pdf_count,
-        "pii_scan_scope": "ALL_CORPUS_PDFS",
-        "pii_scan_required": physical_pdf_count,
-        "pii_scan_exempt": 0,
+        "pdf_total": physical_pdf_total,
+        "pii_scan_scope": scan_scope,
+        "pii_scan_required": required_pdf_count,
+        "pii_scan_exempt": physical_pdf_total - required_pdf_count,
         "unique_pdf_content": unique_pdf_count,
         "unique_content_attempted": len(results),
         "pii_scanned": scanned,
@@ -202,6 +208,7 @@ def scan_remote_corpus(
     download_file: DownloadFile = rclone_download,
     scan_file: ScanFile = scan_pdf,
     local_mirror: Path | None = None,
+    required_pdf_paths: set[str] | frozenset[str] | None = None,
 ) -> dict[str, Any]:
     """Scan all physical PDFs while downloading identical bytes only once."""
     if remote_root != CANONICAL_REMOTE_ROOT:
@@ -214,11 +221,22 @@ def scan_remote_corpus(
     policy_version, policy_sha256 = _validated_policy(policy_path)
     scanner_sha256 = _file_sha256(Path(__file__).with_name("pii_scanner.py"))
 
-    pdf_entries = [
+    all_pdf_entries = [
         (content_sha256, object_path)
         for content_sha256, object_path in _parse_sealed_manifest(manifest_path)
         if object_path.lower().endswith(".pdf")
     ]
+    all_pdf_paths = {object_path for _, object_path in all_pdf_entries}
+    if required_pdf_paths is None:
+        pdf_entries = all_pdf_entries
+        scan_scope = "ALL_CORPUS_PDFS"
+    else:
+        if not required_pdf_paths or not required_pdf_paths <= all_pdf_paths:
+            raise ValueError("required PDF paths must be a non-empty manifest subset")
+        pdf_entries = [
+            entry for entry in all_pdf_entries if entry[1] in required_pdf_paths
+        ]
+        scan_scope = "INITIAL_PRODUCTION_ELIGIBLE_PDFS"
     grouped: dict[str, list[str]] = {}
     for content_sha256, object_path in pdf_entries:
         grouped.setdefault(content_sha256, []).append(object_path)
@@ -282,7 +300,16 @@ def scan_remote_corpus(
         result.pop("extraction_error_code", None)
         results.append(result)
 
-    summary = _build_summary(len(pdf_entries), len(grouped), results)
+    summary = _build_summary(
+        len(all_pdf_entries),
+        len(pdf_entries),
+        len(grouped),
+        results,
+        scan_scope=scan_scope,
+    )
+    required_path_digest = hashlib.sha256(
+        "".join(f"{value}\n" for value in sorted(path for _, path in pdf_entries)).encode()
+    ).hexdigest()
     return {
         "evidence_kind": "REAL_CORPUS_PII_SCAN",
         "generated_at": datetime.now(UTC).isoformat(),
@@ -296,6 +323,8 @@ def scan_remote_corpus(
         "remote_write_operations": 0,
         "raw_pii_in_output": False,
         "raw_pii_in_logs": False,
+        "required_pdf_path_count": len(pdf_entries),
+        "required_pdf_path_set_digest": required_path_digest,
         "summary": summary,
         "results": results,
     }
@@ -319,6 +348,12 @@ def main() -> int:
     parser.add_argument("--remote-root", default=CANONICAL_REMOTE_ROOT)
     parser.add_argument("--expected-manifest-sha256", required=True)
     parser.add_argument("--scratch-parent", type=Path, default=Path("/tmp"))
+    parser.add_argument(
+        "--scan-scope",
+        choices=("all", "initial-production-eligible"),
+        default="all",
+    )
+    parser.add_argument("--routing-config", type=Path)
     args = parser.parse_args()
 
     patterns = load_patterns_from_config(args.policy)
@@ -334,12 +369,30 @@ def main() -> int:
         try:
             if _file_sha256(args.manifest) != args.expected_manifest_sha256:
                 raise ValueError("corpus manifest SHA256 mismatch")
-            pdf_paths = [
+            all_entries = _parse_sealed_manifest(args.manifest)
+            all_pdf_paths = [
                 object_path
-                for _, object_path in _parse_sealed_manifest(args.manifest)
+                for _, object_path in all_entries
                 if object_path.lower().endswith(".pdf")
             ]
-            rclone_bulk_download(args.remote_root, scratch_path, pdf_paths)
+            required_pdf_paths: set[str] | None = None
+            if args.scan_scope == "initial-production-eligible":
+                if args.routing_config is None:
+                    raise ValueError("initial scan scope requires a routing config")
+                routing = load_routing_config(args.routing_config)
+                required_pdf_paths = {
+                    object_path
+                    for _, object_path in all_entries
+                    if object_path.lower().endswith(".pdf")
+                    and _determine_disposition(object_path, routing)[0]
+                    is Disposition.INGEST
+                }
+            transport_paths = (
+                sorted(required_pdf_paths)
+                if required_pdf_paths is not None
+                else all_pdf_paths
+            )
+            rclone_bulk_download(args.remote_root, scratch_path, transport_paths)
             evidence = scan_remote_corpus(
                 args.manifest,
                 args.policy,
@@ -348,6 +401,7 @@ def main() -> int:
                 expected_manifest_sha256=args.expected_manifest_sha256,
                 scan_file=configured_scan,
                 local_mirror=scratch_path,
+                required_pdf_paths=required_pdf_paths,
             )
         except KeyboardInterrupt:
             print("PII_SCAN_INTERRUPTED=true")
