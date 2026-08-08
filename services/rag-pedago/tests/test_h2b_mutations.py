@@ -47,7 +47,6 @@ from rag_pedago.imports.pii_scanner import (
 from rag_pedago.imports.rights_evidence_gate import (
     RightsStatus,
     evaluate_zone,
-    load_registry,
 )
 
 
@@ -56,26 +55,17 @@ class TestMutH2B01RightsBlocksUnknown:
 
     def test_unknown_rights_blocks_ingest(self) -> None:
         """A zone with unknown rights status cannot proceed to INGEST."""
-        registry_path = Path("configs/rights_evidence_registry.yml")
-        if not registry_path.exists():
-            pytest.skip("Rights registry not found")
+        result = evaluate_zone(
+            "synthetic_unresolved_zone",
+            {
+                "zone": "synthetic_unresolved_zone/",
+                "rights_status": "UNRESOLVED",
+            },
+        )
 
-        registry = load_registry(registry_path)
-
-        # Find zones with UNRESOLVED status
-        source_evidence = registry.get("source_evidence", {})
-        unresolved_zones = [
-            zone_id for zone_id, zone_data in source_evidence.items()
-            if zone_data.get("rights_status") == "UNRESOLVED"
-        ]
-
-        assert len(unresolved_zones) > 0, \
-            "Must have at least one UNRESOLVED zone to prove blocking"
-
-        for zone_id in unresolved_zones:
-            result = evaluate_zone(zone_id, source_evidence[zone_id])
-            assert result.status != RightsStatus.RESOLVED, \
-                f"Zone {zone_id} with UNRESOLVED status must NOT pass rights gate"
+        assert result.status is RightsStatus.UNRESOLVED
+        assert result.ingest_allowed is False
+        assert result.go_live_blocking is True
 
 
 class TestMutH2B02RightsBlocksNoEvidence:
