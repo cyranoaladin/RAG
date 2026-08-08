@@ -331,15 +331,19 @@ def test_rclone_bulk_download_is_canonical_remote_to_bounded_local(
     mirror = tmp_path / "mirror"
     mirror.mkdir()
 
-    rclone_bulk_download(CANONICAL_REMOTE_ROOT, mirror)
+    rclone_bulk_download(
+        CANONICAL_REMOTE_ROOT,
+        mirror,
+        ["01_EDUSCOL_OFFICIEL/a.pdf", "02_NEXUS_DIAGNOSTICS/b.pdf"],
+    )
 
     assert calls == [
         (
             [
                 "rclone",
                 "copy",
-                "--include",
-                "*.pdf",
+                "--files-from-raw",
+                "-",
                 "--transfers",
                 "4",
                 "--checkers",
@@ -358,6 +362,10 @@ def test_rclone_bulk_download_is_canonical_remote_to_bounded_local(
             {
                 "capture_output": True,
                 "check": True,
+                "input": (
+                    b"01_EDUSCOL_OFFICIEL/a.pdf\n"
+                    b"02_NEXUS_DIAGNOSTICS/b.pdf\n"
+                ),
                 "text": False,
                 "timeout": 7200,
             },

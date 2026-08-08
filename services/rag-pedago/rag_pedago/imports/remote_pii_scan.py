@@ -13,7 +13,10 @@ from typing import Any
 
 import yaml
 
-from rag_pedago.imports.corpus_catalog_compiler import _parse_sealed_manifest
+from rag_pedago.imports.corpus_catalog_compiler import (
+    _parse_sealed_manifest,
+    _validate_manifest_path,
+)
 from rag_pedago.imports.pii_scanner import (
     PIIScanResult,
     load_patterns_from_config,
@@ -68,18 +71,29 @@ def rclone_download(remote_source: str, local_target: Path) -> None:
         raise RemoteDownloadError("read-only corpus download failed") from error
 
 
-def rclone_bulk_download(remote_root: str, local_root: Path) -> None:
-    """Copy all PDFs from the canonical remote into a bounded local mirror."""
+def rclone_bulk_download(
+    remote_root: str,
+    local_root: Path,
+    pdf_paths: list[str],
+) -> None:
+    """Copy the exact manifest-listed PDFs into a bounded local mirror."""
     if remote_root != CANONICAL_REMOTE_ROOT:
         raise ValueError("remote root is not the canonical read-only corpus remote")
     mirror = _validated_scratch(local_root)
+    if not pdf_paths:
+        raise ValueError("manifest PDF path list must not be empty")
+    for object_path in pdf_paths:
+        _validate_manifest_path(object_path)
+        if not object_path.lower().endswith(".pdf"):
+            raise ValueError("bulk PII transport accepts only manifest PDF paths")
+    file_list = ("\n".join(pdf_paths) + "\n").encode()
     try:
         subprocess.run(
             [
                 "rclone",
                 "copy",
-                "--include",
-                "*.pdf",
+                "--files-from-raw",
+                "-",
                 "--transfers",
                 "4",
                 "--checkers",
@@ -97,6 +111,7 @@ def rclone_bulk_download(remote_root: str, local_root: Path) -> None:
             ],
             capture_output=True,
             check=True,
+            input=file_list,
             text=False,
             timeout=7200,
         )
@@ -317,7 +332,14 @@ def main() -> int:
     ) as scratch:
         scratch_path = Path(scratch)
         try:
-            rclone_bulk_download(args.remote_root, scratch_path)
+            if _file_sha256(args.manifest) != args.expected_manifest_sha256:
+                raise ValueError("corpus manifest SHA256 mismatch")
+            pdf_paths = [
+                object_path
+                for _, object_path in _parse_sealed_manifest(args.manifest)
+                if object_path.lower().endswith(".pdf")
+            ]
+            rclone_bulk_download(args.remote_root, scratch_path, pdf_paths)
             evidence = scan_remote_corpus(
                 args.manifest,
                 args.policy,
