@@ -1,0 +1,196 @@
+# Golden Corpus Specification — H2-B
+# Purpose: Test suite for corpus disposition verification
+# Reference: H2A_corpus_discovery_b512c9f_20260808T171708Z.md
+# Total: 12+ controls (6 positive, 3 boundary, 3 negative)
+
+spec_id: golden_corpus_h2b_v1
+status: active
+created_at: "2026-08-08"
+h2a_commit: b512c9f48ac896c534aa30242ab9b73ffc2ed55a
+
+# Positive controls — SHOULD be INGEST eligible (with rights/PII gates passing)
+positive_controls:
+  - control_id: pos_01_prog_maths_spe_term
+    sha256_prefix: eb8369e7c1
+    title: "Programme spécialité maths terminale BO 25/07/2019"
+    niveau: terminale
+    matiere: mathematiques
+    currentness: actuel
+    zone: "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/"
+    expected_disposition: INGEST
+    gates_required:
+      - rights: PENDING  # Requires Eduscol license verification
+      - pii: PENDING  # Requires content scan
+      - format: PASS  # PDF supported
+      - currentness: PASS  # In 10_ACTUEL_CONFIRME
+
+  - control_id: pos_02_prog_maths_exp_term
+    sha256_prefix: c491ac1ccb
+    title: "Programme maths expertes terminale BO 25/07/2019"
+    niveau: terminale
+    matiere: mathematiques
+    currentness: actuel
+    zone: "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/"
+    expected_disposition: INGEST
+    gates_required:
+      - rights: PENDING
+      - pii: PENDING
+      - format: PASS
+      - currentness: PASS
+
+  - control_id: pos_03_prog_maths_comp_term
+    sha256_prefix: f9ea141d0d
+    title: "Programme maths complémentaires terminale BO 25/07/2019"
+    niveau: terminale
+    matiere: mathematiques
+    currentness: actuel
+    zone: "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/"
+    expected_disposition: INGEST
+    gates_required:
+      - rights: PENDING
+      - pii: PENDING
+      - format: PASS
+      - currentness: PASS
+
+  - control_id: pos_04_prog_nsi_term
+    sha256_prefix: "10ce34666e"
+    title: "Programme NSI terminale BO 25/07/2019"
+    niveau: terminale
+    matiere: nsi
+    currentness: actuel
+    zone: "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/"
+    expected_disposition: INGEST
+    gates_required:
+      - rights: PENDING
+      - pii: PENDING
+      - format: PASS
+      - currentness: PASS
+
+  - control_id: pos_05_recursivite_accomp
+    sha256_prefix: fb89457f3b
+    title: "Récursivité (ressource accompagnement)"
+    niveau: terminale
+    matiere: nsi
+    currentness: actuel
+    zone: "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/"
+    expected_disposition: INGEST
+    gates_required:
+      - rights: PENDING
+      - pii: PENDING
+      - format: PASS
+      - currentness: PASS
+
+  - control_id: pos_06_tests_accomp
+    sha256_prefix: 28f92cfe1c
+    title: "Écriture de tests (ressource accompagnement)"
+    niveau: terminale
+    matiere: nsi
+    currentness: actuel
+    zone: "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/"
+    expected_disposition: INGEST
+    gates_required:
+      - rights: PENDING
+      - pii: PENDING
+      - format: PASS
+      - currentness: PASS
+
+# Boundary controls — REVIEW_REQUIRED (disposition depends on verification)
+boundary_controls:
+  - control_id: bnd_01_a_verifier_sample
+    sha256_prefix: null  # Any document in 80_A_VERIFIER
+    title: "Sample document from 80_A_VERIFIER zone"
+    currentness: a_verifier
+    zone: "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/"
+    expected_disposition: REVIEW_REQUIRED
+    review_reason: "Regulatory currentness not yet classified"
+    expected_count_in_zone: 805
+
+  - control_id: bnd_02_transition_sample
+    sha256_prefix: null  # Any document in 20_TRANSITION_OU_ACTUEL
+    title: "Sample document from 20_TRANSITION_OU_ACTUEL zone"
+    currentness: transition
+    zone: "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/TRANSVERSAL_MULTI_NIVEAUX/20_TRANSITION_OU_ACTUEL/"
+    expected_disposition: REVIEW_REQUIRED
+    review_reason: "Regulatory status ambiguous (transition vs actuel)"
+    expected_count_in_zone: 49
+
+  - control_id: bnd_03_archive_sample
+    sha256_prefix: null  # Any document in 90_ARCHIVE_CATALOGUE
+    title: "Sample document from 90_ARCHIVE_CATALOGUE zone"
+    currentness: archive
+    zone: "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/TRANSVERSAL_MULTI_NIVEAUX/90_ARCHIVE_CATALOGUE/"
+    expected_disposition: ARCHIVE_ONLY
+    archive_reason: "Superseded by newer programme version"
+    expected_count_in_zone: 19
+
+# Negative controls — SHOULD be EXCLUDE or UNSUPPORTED
+negative_controls:
+  - control_id: neg_01_admin_manifest
+    sha256_prefix: null  # SHA256SUMS.txt in 00_ADMIN
+    title: "SHA256SUMS.txt"
+    zone: "00_ADMIN/"
+    expected_disposition: EXCLUDE
+    exclusion_reason: "Administrative zone — not pedagogical content"
+
+  - control_id: neg_02_guide_famille
+    filename_pattern: "Nexus_Reussite_Guide_Candidat_Individuel_*.pdf"
+    title: "Guide candidat individuel (information familles)"
+    zone: null  # Explicit exclusion
+    expected_disposition: EXCLUDE
+    exclusion_reason: "Information for families, not pedagogical content"
+
+  - control_id: neg_03_scan_blanc
+    filename_pattern: "t_nexus_scan_blanc_non_pedagogique.pdf"
+    title: "Scan blanc non pédagogique"
+    zone: null  # Explicit exclusion
+    expected_disposition: EXCLUDE
+    exclusion_reason: "Non-pedagogical test scan"
+
+  - control_id: neg_04_geogebra_format
+    sha256_prefix: null  # Any .ggb file
+    title: "GeoGebra interactive resource"
+    zone: "03_RESSOURCES_INTERACTIVES/"
+    expected_disposition: UNSUPPORTED
+    unsupported_reason: "GeoGebra .ggb format requires specialized extraction"
+    expected_count_in_zone: 37
+
+# Test assertions
+test_assertions:
+  - assertion_id: assert_positive_ingest_eligible
+    description: "All positive controls are INGEST eligible when gates pass"
+    controls: [pos_01, pos_02, pos_03, pos_04, pos_05, pos_06]
+    check: "disposition == INGEST && currentness == actuel"
+
+  - assertion_id: assert_boundary_review_required
+    description: "All boundary controls are REVIEW_REQUIRED or ARCHIVE_ONLY"
+    controls: [bnd_01, bnd_02, bnd_03]
+    check: "disposition in [REVIEW_REQUIRED, ARCHIVE_ONLY]"
+
+  - assertion_id: assert_negative_excluded
+    description: "All negative controls are EXCLUDE or UNSUPPORTED"
+    controls: [neg_01, neg_02, neg_03, neg_04]
+    check: "disposition in [EXCLUDE, UNSUPPORTED]"
+
+  - assertion_id: assert_no_implicit_ingest
+    description: "No document gets INGEST without passing all gates"
+    check: "disposition == INGEST implies gates_all_pass"
+
+# Coverage summary
+coverage_summary:
+  total_controls: 13
+  positive_controls: 6
+  boundary_controls: 3
+  negative_controls: 4
+  zones_covered:
+    - "00_ADMIN/"
+    - "01_EDUSCOL_OFFICIEL/.../10_ACTUEL_CONFIRME/"
+    - "01_EDUSCOL_OFFICIEL/.../20_TRANSITION_OU_ACTUEL/"
+    - "01_EDUSCOL_OFFICIEL/.../80_A_VERIFIER/"
+    - "01_EDUSCOL_OFFICIEL/.../90_ARCHIVE_CATALOGUE/"
+    - "03_RESSOURCES_INTERACTIVES/"
+  dispositions_tested:
+    - INGEST
+    - REVIEW_REQUIRED
+    - ARCHIVE_ONLY
+    - EXCLUDE
+    - UNSUPPORTED
