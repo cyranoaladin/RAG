@@ -40,12 +40,16 @@ def _write_real_catalog(tmp_path: Path, *, authority_status: str = "PASS") -> Pa
             {
                 "content_sha256": "a" * 64,
                 "path": "01_EDUSCOL_OFFICIEL/current.pdf",
+                "base_disposition": "INGEST",
                 "disposition": "INGEST",
                 "zone": "01_EDUSCOL_OFFICIEL/",
                 "currentness": "actuel",
-                "gate_statuses": {"rights": "PASS", "pii": "PASS"},
+                "gate_statuses": {
+                    "rights": "PASS",
+                    "pii": "PASS",
+                    "authority": authority_status,
+                },
                 "provenance_status": "VERIFIED",
-                "authority_status": authority_status,
                 "attribution_metadata": {
                     "source": "Eduscol",
                     "source_url": "https://eduscol.education.gouv.fr/test",
@@ -92,6 +96,7 @@ def test_real_catalog_proves_coverage_and_all_ingest_safety_invariants(
         "INGEST_WITHOUT_ATTRIBUTION_METADATA": 0,
     }
     assert report.coverage_complete is True
+    assert report.blocked_ingest_candidates == 0
     markdown = render_markdown(report)
     assert "REAL_CORPUS_CATALOG_SOURCE=true" in markdown
     assert "SYNTHETIC_CATALOG_USED_FOR_FINAL_GATE=false" in markdown
@@ -106,6 +111,31 @@ def test_missing_authority_keeps_coverage_gate_red(tmp_path: Path) -> None:
 
     assert report.safety_invariants["INGEST_WITHOUT_AUTHORITY"] == 1
     assert report.coverage_complete is False
+
+
+def test_blocked_candidates_prevent_vacuous_zero_ingest_green(
+    tmp_path: Path,
+) -> None:
+    path = _write_real_catalog(tmp_path)
+    catalog = json.loads(path.read_text(encoding="utf-8"))
+    catalog["physical_objects"][0]["disposition"] = "REVIEW_REQUIRED"
+    catalog["physical_objects"][0]["gate_statuses"]["authority"] = (
+        "BLOCKED_NOT_CLEARED"
+    )
+    catalog["disposition_counts"]["INGEST"] = 0
+    catalog["disposition_counts"]["REVIEW_REQUIRED"] = 1
+    path.write_text(json.dumps(catalog), encoding="utf-8")
+
+    report = generate_coverage_report(
+        path,
+        expected_total=2,
+        expected_manifest_sha256=MANIFEST_SHA256,
+    )
+
+    assert report.blocked_ingest_candidates == 1
+    assert report.mandatory_gate_blockers == {"authority": 1}
+    assert report.coverage_complete is False
+    assert "BLOCKED_INGEST_CANDIDATES=1" in render_markdown(report)
 
 
 def test_rejects_synthetic_catalog_for_final_gate(tmp_path: Path) -> None:

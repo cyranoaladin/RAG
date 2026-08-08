@@ -59,6 +59,8 @@ class CoverageReport:
     unclassified: int = 0
     multiple_primary_disposition: int = 0
     safety_invariants: dict[str, int] = field(default_factory=dict)
+    blocked_ingest_candidates: int = 0
+    mandatory_gate_blockers: dict[str, int] = field(default_factory=dict)
 
     # Artifact / placement integration
     content_artifact_count: int = 0
@@ -190,10 +192,25 @@ def generate_coverage_report(
     physical_objects = catalog.get("physical_objects")
     if not isinstance(physical_objects, list):
         raise ValueError("real catalog must include physical objects")
+    blocked_ingest_candidates = 0
+    mandatory_gate_blockers: dict[str, int] = {}
     for item in physical_objects:
-        if not isinstance(item, dict) or item.get("disposition") != "INGEST":
+        if not isinstance(item, dict):
             continue
         gates = item.get("gate_statuses")
+        if (
+            item.get("base_disposition") == "INGEST"
+            and item.get("disposition") != "INGEST"
+        ):
+            blocked_ingest_candidates += 1
+            if isinstance(gates, dict):
+                for gate_name, status in gates.items():
+                    if status != "PASS":
+                        mandatory_gate_blockers[gate_name] = (
+                            mandatory_gate_blockers.get(gate_name, 0) + 1
+                        )
+        if item.get("disposition") != "INGEST":
+            continue
         if not isinstance(gates, dict) or gates.get("rights") != "PASS":
             safety_invariants["INGEST_WITHOUT_RIGHTS_CLEARANCE"] += 1
         if not isinstance(gates, dict) or gates.get("pii") != "PASS":
@@ -210,7 +227,7 @@ def generate_coverage_report(
             r"[0-9a-f]{64}", content_sha256
         ) is None:
             safety_invariants["INGEST_WITHOUT_CONTENT_SHA"] += 1
-        if item.get("authority_status") != "PASS":
+        if not isinstance(gates, dict) or gates.get("authority") != "PASS":
             safety_invariants["INGEST_WITHOUT_AUTHORITY"] += 1
         attribution = item.get("attribution_metadata")
         if not isinstance(attribution, dict) or not all(
@@ -270,6 +287,7 @@ def generate_coverage_report(
         and zero_overlap
         and zero_gap
         and corpus_match
+        and blocked_ingest_candidates == 0
         and all(value == 0 for value in safety_invariants.values())
     )
 
@@ -293,6 +311,8 @@ def generate_coverage_report(
         unclassified=unclassified,
         multiple_primary_disposition=multiple_primary,
         safety_invariants=safety_invariants,
+        blocked_ingest_candidates=blocked_ingest_candidates,
+        mandatory_gate_blockers=dict(sorted(mandatory_gate_blockers.items())),
         content_artifact_count=catalog.get("content_artifact_count", 0),
         eduscol_unique_artifacts=catalog.get("eduscol_unique_artifacts", 0),
         eduscol_placement_count=catalog.get("eduscol_placement_count", 0),
@@ -367,6 +387,9 @@ def render_markdown(report: CoverageReport) -> str:
         f"| Corpus total matches expected | **{'PASS' if report.corpus_match else 'FAIL'}** |",
         f"| Unclassified objects | **{report.unclassified}** |",
         f"| Multiple primary dispositions | **{report.multiple_primary_disposition}** |",
+        f"| Blocked ingest candidates | **{report.blocked_ingest_candidates}** |",
+        "",
+        f"BLOCKED_INGEST_CANDIDATES={report.blocked_ingest_candidates}",
         "",
         f"**COVERAGE_COMPLETE = {'TRUE' if report.coverage_complete else 'FALSE'}**",
         "",
@@ -430,6 +453,11 @@ def render_markdown(report: CoverageReport) -> str:
         blocking.append(f"- Currentness gate: `{report.currentness_gate_status}`")
     if not report.corpus_match:
         blocking.append(f"- Corpus total mismatch: {report.corpus_total_actual} vs {report.corpus_total_expected}")
+    if report.blocked_ingest_candidates:
+        blocking.append(
+            f"- Blocked ingest candidates: {report.blocked_ingest_candidates} "
+            f"({report.mandatory_gate_blockers})"
+        )
     for invariant, count in report.safety_invariants.items():
         if count:
             blocking.append(f"- {invariant}: {count}")
