@@ -198,21 +198,69 @@ class TestAuthorityPullRequestStaysOpen:
         assert decision.reason == "pull_request_is_draft"
 
     def test_unknown_reviewer_cannot_authorize(self, thr: Any, config: Any) -> None:
-        """Une approbation par une identité non listée dans
-        ``trusted-reviewers.json`` n'autorise jamais, même avec un challenge
-        bien formé pour cette identité."""
+        """Le contrôle d'**identité** du relecteur, isolé de tout autre contrôle
+        (remédiation GATE H1, FINDING_4).
+
+        La version antérieure de ce test n'accordait la permission qu'à
+        l'identité pirate. Le relecteur de confiance n'ayant alors aucune
+        entrée de permission, la décision était refusée par
+        ``reviewer_permission_insufficient`` — c'est-à-dire par le contrôle de
+        permission, **jamais** par le contrôle d'identité. Neutraliser
+        ``review["reviewer"] == reviewer`` laissait donc le test vert : il ne
+        prouvait pas ce qu'il prétendait prouver.
+
+        Le scénario est ici construit pour qu'**aucune autre cause de refus ne
+        soit disponible** :
+
+        - le relecteur de confiance (``abenrhouma``) a bien la permission
+          ``write`` requise — le contrôle de permission est donc satisfait et
+          ne peut pas expliquer le refus ;
+        - la review est ``APPROVED``, au head exact, et porte le challenge
+          canonique **valide pour le relecteur de confiance** ;
+        - seule l'identité de l'auteur de la review diffère.
+
+        Le seul contrôle capable de refuser est donc l'égalité d'identité. Si
+        elle est retirée, la review pirate est comptée comme celle du
+        relecteur de confiance et la décision devient ``approved`` — ce test
+        passe alors au rouge, comme il se doit."""
         pr = _pull_request()
+        # Challenge et commit_id valides POUR le relecteur de confiance…
         rogue = _approval(thr, config, pr, reviewer="abenrhouma")
-        rogue["user"] = {"login": "someone-else"}
-        decision = _decide(
-            thr,
-            config,
-            pr,
-            [rogue],
-            {"someone-else": {"permission": "write", "role_name": "write"}},
-        )
+        # …mais soumis par une autre identité.
+        rogue["user"] = {"login": "mallory"}
+
+        decision = _decide(thr, config, pr, [rogue], WRITE_PERMS)
+
         assert decision.approved is False
-        assert decision.reason != "approved"
+        # Raison canonique exacte : le relecteur de confiance a la permission,
+        # mais aucune approbation ne lui appartient au head courant. Jamais
+        # ``reviewer_permission_insufficient``, qui signalerait que c'est le
+        # contrôle de permission — et non l'identité — qui a refusé.
+        assert decision.reason == "current_head_approval_missing", (
+            f"expected the identity control to reject, got reason="
+            f"{decision.reason!r}"
+        )
+        assert decision.reviewer is None
+        assert decision.challenge is None
+
+    def test_the_identity_control_is_the_only_thing_rejecting_the_rogue_review(
+        self, thr: Any, config: Any
+    ) -> None:
+        """Garde anti-masquage explicite (FINDING_4).
+
+        Vérifie que, dans le scénario ci-dessus, le contrôle de permission est
+        réellement satisfait : la même review, soumise par le relecteur de
+        confiance lui-même, est acceptée. Si ce contrôle ne passait pas, le
+        refus observé plus haut serait attribuable à la permission et le test
+        d'identité redeviendrait vacant."""
+        pr = _pull_request()
+        legitimate = _approval(thr, config, pr, reviewer="abenrhouma")
+        decision = _decide(thr, config, pr, [legitimate], WRITE_PERMS)
+        assert decision.approved is True, (
+            "the permission control must be satisfied in this fixture, otherwise "
+            "the identity test above would be proving the permission control instead"
+        )
+        assert decision.reason == "approved"
 
 
 class TestAdr0025IsNotWeakened:

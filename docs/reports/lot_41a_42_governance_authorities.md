@@ -93,20 +93,43 @@ La résolution est désormais paresseuse et tolère une arborescence courte ; un
 
 **Fichiers générés** — introduits par le commit `9cdd100`, mesurés par `git show --numstat 9cdd100` :
 
-| Fichier | Lignes | Devenir |
-|---|---|---|
-| `tests/integration/_fake_github.py` | 195 | **Supprimé** |
-| `tests/integration/test_lot41a_scope_authority.py` | 464 | **Remplacé intégralement** |
-| `tests/integration/test_lot42_publication_attestation.py` | 663 | **Remplacé intégralement** |
-| **Total** | **1322** | **0 ligne conservée** |
+| Fichier | Lignes d'origine | Lignes au HEAD | Conservées verbatim | Devenir |
+|---|---|---|---|---|
+| `tests/integration/_fake_github.py` | 195 | absent | 0 | **Supprimé** |
+| `tests/integration/test_lot41a_scope_authority.py` | 464 | 669 | 50 | **Réécrit** |
+| `tests/integration/test_lot42_publication_attestation.py` | 663 | 817 | 60 | **Réécrit** |
+| **Total** | **1322** | — | **110** | — |
 
-**Revue manuelle indépendante.** Les trois fichiers ont été relus ligne à ligne pendant cette remédiation. Aucun n'a été conservé, pour trois raisons distinctes :
+**Correction d'une mesure antérieure (remédiation GATE H1, FINDING_3).** Une version
+précédente de ce rapport affirmait « **0 ligne conservée** ». C'était **faux**, et la
+mesure exacte est rétablie ci-dessus : **110 lignes non vides subsistent verbatim**,
+obtenues par comparaison des blobs `9cdd100` et du HEAD
+(`diff --unchanged-group-format`).
+
+Ces 110 lignes sont **exclusivement de l'échafaudage** : `from __future__ import
+annotations`, `import`, `sys.path.insert`, le dictionnaire `VALID_SCOPE`, et des
+délimiteurs de docstring — c'est-à-dire des lignes qu'une réécriture indépendante
+produirait à l'identique. La distinction doit rester explicite :
+
+| Mesure | Valeur |
+|---|---|
+| Lignes revues | 1322 |
+| Lignes conservées verbatim | **110** (échafaudage) |
+| **Assertions** conservées | **0** |
+| **Logique de test substantielle** conservée | **0** |
+
+L'affirmation défendable est donc « aucune assertion ni logique de test
+fork-authored ne subsiste », **jamais** « aucune ligne ne subsiste ». Le premier
+énoncé est vérifiable et vrai ; le second était une approximation commode qui ne
+résistait pas à la mesure — exactement le type d'écart que cet audit doit refuser.
+
+**Revue manuelle indépendante.** Les trois fichiers ont été relus ligne à ligne pendant cette remédiation. Aucune logique de test n'a été conservée, pour trois raisons distinctes :
 
 1. **`_fake_github.py` reposait sur un transport qui n'existe plus.** Il simulait `gh` sur `PATH`. Or l'item I a établi que `gh` n'a jamais été présent dans l'image du worker : ces tests validaient donc un chemin de code qui ne pouvait pas s'exécuter en production. Remplacé par `tests/_local_github.py`, un vrai serveur HTTP qui exerce le transport réellement déployé.
 2. **`test_lot41a_scope_authority.py` testait un mécanisme qui a changé de nature.** Il exerçait `--scope-file` et `verify_scope_authorization_by_id`, tous deux supprimés par les items B et C. Ses assertions étaient correctes pour l'ancien mécanisme et sans objet pour le nouveau.
 3. **`test_lot42_publication_attestation.py` fabriquait lui-même les faits qu'il vérifiait.** Il insérait des lignes `resources`/`artifacts` par SQL direct puis attestait dessus. Un test qui écrit lui-même sa propre preuve ne prouve rien sur le système ; la nouvelle version fait produire les `workflow_events` par les vraies fonctions du pipeline.
 
-**Conclusion.** Aucune ligne fork-authored ne subsiste. La question « les tests fork-authored conservés prouvent-ils leur valeur ? » est donc sans objet — mais la question sous-jacente (« ces tests prouvent-ils quelque chose ? ») reste posée pour les tests **actuels**, et c'est l'objet de la matrice de mutation ci-dessous.
+**Conclusion.** Aucune **assertion** ni **logique de test** fork-authored ne subsiste ; seules 110 lignes d'échafaudage demeurent, sans portée probatoire. La question « les tests fork-authored conservés prouvent-ils leur valeur ? » est donc sans objet — mais la question sous-jacente (« ces tests prouvent-ils quelque chose ? ») reste posée pour les tests **actuels**, et c'est l'objet de la matrice de mutation ci-dessous.
 
 ---
 
