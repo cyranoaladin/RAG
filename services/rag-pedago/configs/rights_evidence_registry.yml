@@ -1,0 +1,229 @@
+# Rights Evidence Registry — H2-B
+# Purpose: Document explicit rights evidence for corpus sources
+# Invariant: PROVENANCE ≠ RIGHTS — each source requires explicit evidence
+# Status: UNRESOLVED until human verification with primary source citation
+
+registry_id: rights_evidence_registry_h2b_v1
+status: draft_pending_human_verification
+compiled_at: "2026-08-08T18:00:00Z"
+
+# Rights categories from LOT41A (ADR-0032)
+rights_categories:
+  officiel_public:
+    description: "Official government content explicitly marked for public redistribution"
+    evidence_required:
+      - type: license_statement
+        description: "Explicit license (CC-BY, Etalab, etc.) on source"
+      - type: legal_mention
+        description: "Legal notice authorizing redistribution"
+      - type: official_decree
+        description: "Official decree or circular authorizing use"
+
+  public_allowed:
+    description: "Public content with redistribution rights from non-government source"
+    evidence_required:
+      - type: license_statement
+        description: "Explicit license on source"
+      - type: terms_of_use
+        description: "Terms of use permitting redistribution"
+
+  nexus_proprietaire:
+    description: "Nexus-owned content with full rights"
+    evidence_required:
+      - type: authorship_proof
+        description: "Proof of Nexus authorship or acquisition"
+
+# Source evidence (per corpus zone)
+source_evidence:
+  eduscol_education_gouv_fr:
+    zone: "01_EDUSCOL_OFFICIEL/"
+    domain: "eduscol.education.gouv.fr"
+    provenance_status: VERIFIED
+    provenance_evidence:
+      - "Domain owned by French Ministry of Education"
+      - "Harvester v1.10.0 run 2026-08-04T23:07:53+01:00"
+      - "2,451 unique PDFs catalogued"
+
+    rights_status: UNRESOLVED
+    rights_investigation:
+      attempted_sources:
+        - url: "https://eduscol.education.gouv.fr/mentions-legales"
+          description: "Legal mentions page"
+          evidence_found: null
+          human_verification_required: true
+
+        - url: "https://www.education.gouv.fr/conditions-generales-d-utilisation"
+          description: "General terms of use"
+          evidence_found: null
+          human_verification_required: true
+
+        - url: "https://www.etalab.gouv.fr/licence-ouverte-open-licence/"
+          description: "Etalab Open License (used by French government)"
+          evidence_found: null
+          relevance_to_eduscol: "Unknown — requires verification"
+          human_verification_required: true
+
+      known_facts:
+        - fact: "French government documents may fall under Etalab License"
+          source: "https://www.etalab.gouv.fr/"
+          applicability: "Unknown for Eduscol specifically"
+
+        - fact: "Some Eduscol resources may have specific licenses"
+          source: "Observation of PDF footers in some documents"
+          applicability: "Not systematically verified"
+
+      blocking_questions:
+        - question: "Does Eduscol explicitly license content under Etalab?"
+          answer: null
+          human_verification_required: true
+
+        - question: "Are there different rights for different document types?"
+          answer: null
+          examples: "Programmes officiels vs ressources d'accompagnement"
+          human_verification_required: true
+
+        - question: "Do official programmes (BO) have different rights than companion resources?"
+          answer: null
+          human_verification_required: true
+
+    recommended_rights_category: null
+    recommended_rights_category_rationale: |
+      Cannot recommend a rights category without explicit evidence.
+      The following evidence would be required:
+      1. Explicit license statement on eduscol.education.gouv.fr
+      2. Or: Official decree authorizing redistribution
+      3. Or: Citation of Etalab License applicability
+      Until this evidence is provided, status remains UNRESOLVED.
+
+  nexus_diagnostics:
+    zone: "02_NEXUS_DIAGNOSTICS/"
+    domain: null
+    provenance_status: VERIFIED
+    provenance_evidence:
+      - "Nexus-authored diagnostic content"
+      - "38 files (19 PDF, 17 YAML)"
+
+    rights_status: RESOLVED
+    rights_evidence:
+      - type: authorship_proof
+        description: "Content authored by Nexus team"
+        evidence: "Internal provenance chain documented"
+
+    recommended_rights_category: nexus_proprietaire
+    recommended_rights_category_rationale: |
+      Nexus-authored content. Full rights held by Nexus.
+      No external license required.
+
+  geogebra_ressources:
+    zone: "03_RESSOURCES_INTERACTIVES/"
+    domain: "geogebra.org"
+    provenance_status: VERIFIED
+    provenance_evidence:
+      - "37 GeoGebra files (.ggb)"
+
+    rights_status: UNRESOLVED
+    rights_investigation:
+      attempted_sources:
+        - url: "https://www.geogebra.org/license"
+          description: "GeoGebra license terms"
+          evidence_found: null
+          human_verification_required: true
+
+      blocking_questions:
+        - question: "Does GeoGebra license allow redistribution?"
+          answer: null
+          human_verification_required: true
+
+        - question: "Are these GeoGebra files original or third-party?"
+          answer: null
+          human_verification_required: true
+
+    recommended_rights_category: null
+    recommended_rights_category_rationale: |
+      GeoGebra materials require license verification.
+      Additionally, format is UNSUPPORTED by current pipeline.
+      Rights investigation secondary to format support.
+
+  complements_institutionnels:
+    zone: "04_COMPLEMENTS_PEDAGOGIQUES/01_SOURCES_INSTITUTIONNELLES/"
+    domain: "education.gouv.fr"
+    provenance_status: VERIFIED
+    provenance_evidence:
+      - "DEPP reports and official statistics"
+
+    rights_status: UNRESOLVED
+    rights_investigation:
+      attempted_sources:
+        - url: "https://www.education.gouv.fr/mentions-legales"
+          description: "Legal mentions"
+          evidence_found: null
+          human_verification_required: true
+
+      blocking_questions:
+        - question: "Same as Eduscol — government content rights?"
+          answer: null
+          human_verification_required: true
+
+    recommended_rights_category: null
+    recommended_rights_category_rationale: |
+      Same uncertainty as Eduscol. Requires explicit evidence.
+
+  complements_nexus:
+    zone: "04_COMPLEMENTS_PEDAGOGIQUES/02_RESSOURCES_AUTEUR_NEXUS/"
+    domain: null
+    provenance_status: VERIFIED
+    provenance_evidence:
+      - "Nexus-authored complement content"
+
+    rights_status: RESOLVED
+    rights_evidence:
+      - type: authorship_proof
+        description: "Content authored by Nexus team"
+        evidence: "Internal provenance chain documented"
+
+    recommended_rights_category: nexus_proprietaire
+    recommended_rights_category_rationale: |
+      Nexus-authored content. Full rights held by Nexus.
+
+# Summary
+summary:
+  total_zones: 5
+  resolved: 2
+  unresolved: 3
+  blocking_for_ingestion:
+    - zone: "01_EDUSCOL_OFFICIEL/"
+      status: UNRESOLVED
+      action_required: "Human verification of Eduscol rights"
+    - zone: "03_RESSOURCES_INTERACTIVES/"
+      status: UNSUPPORTED
+      action_required: "Format support + rights verification"
+    - zone: "04_COMPLEMENTS_PEDAGOGIQUES/01_SOURCES_INSTITUTIONNELLES/"
+      status: UNRESOLVED
+      action_required: "Human verification of government content rights"
+
+# Human verification checklist
+human_verification_checklist:
+  - task: "Visit eduscol.education.gouv.fr/mentions-legales"
+    verifier: null
+    verified_at: null
+    result: null
+
+  - task: "Search for explicit license statement (CC-BY, Etalab, etc.)"
+    verifier: null
+    verified_at: null
+    result: null
+
+  - task: "Check if Etalab License applies to Eduscol content"
+    verifier: null
+    verified_at: null
+    result: null
+
+  - task: "Document any document-type-specific licenses"
+    verifier: null
+    verified_at: null
+    result: null
+
+  - task: "Record evidence with URL and date"
+    verifier: null
+    verified_at: null
+    result: null
