@@ -1,4 +1,4 @@
-"""Tests for rights evidence gate — H2-B."""
+"""Tests for the fail-closed H2-B rights evidence gate."""
 from pathlib import Path
 
 import pytest
@@ -10,100 +10,163 @@ from rag_pedago.imports.rights_evidence_gate import (
 )
 
 CONFIGS = Path(__file__).parent.parent / "configs"
+MANIFEST_SHA256 = "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e"
+NEXUS_SET_DIGEST = "877591ddc3a1be85da2c09b61bd4e161020bb0a7cb135ad33c68b5c27de0eb38"
 
 
-class TestRightsEvidenceGate:
-    """Test rights evidence gate evaluation."""
+@pytest.fixture
+def registry_path() -> Path:
+    return CONFIGS / "rights_evidence_registry.yml"
 
-    @pytest.fixture
-    def registry(self) -> dict:
-        registry_path = CONFIGS / "rights_evidence_registry.yml"
-        return load_registry(registry_path)
 
-    @pytest.fixture
-    def registry_path(self) -> Path:
-        return CONFIGS / "rights_evidence_registry.yml"
+@pytest.fixture
+def registry(registry_path: Path) -> dict:
+    return load_registry(registry_path)
 
-    def test_gate_blocks_on_unresolved_rights(
+
+def _zone(report, prefix: str):  # noqa: ANN001, ANN202
+    return next(item for item in report.zone_statuses if item.zone.startswith(prefix))
+
+
+class TestRecordedHumanDecisions:
+    def test_generic_eduscol_decision_clears_only_the_generic_rights_gate(
         self, registry: dict, registry_path: Path
     ) -> None:
-        """Gate blocks when any zone has unresolved rights."""
         report = evaluate_registry(registry, registry_path)
+        eduscol = _zone(report, "01_EDUSCOL_OFFICIEL/")
 
-        # Current registry has unresolved zones
-        assert not report.gate_passed
-        assert report.unresolved_zones > 0
+        assert eduscol.status == RightsStatus.CLEARED_BY_HUMAN_DECISION
+        assert eduscol.ingest_allowed is True
+        assert eduscol.go_live_blocking is False
+        assert report.gate_passed is True
+        assert report.blocking_zones == []
+        assert not any(
+            "eduscol" in action.lower()
+            for action in report.human_actions_required
+        )
 
-    def test_resolved_zones_are_counted(
+    def test_eduscol_decision_is_organizational_and_bound_to_sealed_manifest(
+        self, registry: dict
+    ) -> None:
+        decision = registry["human_rights_decisions"]["eduscol_generic_approval"]
+
+        assert decision["decision_type"] == "HUMAN_ORGANIZATIONAL_RIGHTS_APPROVAL"
+        assert decision["decision_maker"] == "Nexus Réussite"
+        assert decision["decision_source"] == "EXPLICIT_GO_LIVE_INSTRUCTION"
+        assert decision["scope_manifest_sha256"] == MANIFEST_SHA256
+        assert decision["scope_zone"] == "01_EDUSCOL_OFFICIEL/"
+        assert decision["approved_for_production_rag"] is True
+        assert decision["generic_rights_blocker"] is False
+        assert decision["external_legal_opinion"] is False
+
+    def test_nexus_decision_is_bound_to_the_exact_current_sha_set(
+        self, registry: dict
+    ) -> None:
+        decision = registry["human_rights_decisions"]["nexus_internal_approval"]
+
+        assert decision["scope_manifest_sha256"] == MANIFEST_SHA256
+        assert decision["artifact_count"] == 39
+        assert decision["content_sha256_set_digest"] == NEXUS_SET_DIGEST
+        assert decision["set_digest_canonicalization"] == (
+            "lowercase SHA256 values, lexicographically sorted, one per line, "
+            "final newline"
+        )
+        assert decision["cryptographic_signature_claimed"] is False
+
+
+class TestDocumentSpecificFailClosedHandling:
+    def test_depp_review_does_not_authorize_ingest_or_block_other_content(
         self, registry: dict, registry_path: Path
     ) -> None:
-        """Resolved zones (Nexus content) are properly counted."""
         report = evaluate_registry(registry, registry_path)
+        depp = _zone(
+            report,
+            "04_COMPLEMENTS_PEDAGOGIQUES/01_SOURCES_INSTITUTIONNELLES/",
+        )
 
-        # Should have resolved zones for Nexus content
-        assert report.resolved_zones >= 2
+        assert depp.status == RightsStatus.REVIEW_REQUIRED
+        assert depp.ingest_allowed is False
+        assert depp.go_live_blocking is False
 
-        resolved_zones = [
-            z for z in report.zone_statuses
-            if z.status == RightsStatus.RESOLVED
-        ]
-        assert any("NEXUS" in z.zone.upper() for z in resolved_zones)
-
-    def test_blocking_zones_identified(
+    def test_unsupported_geogebra_is_not_rights_authorized(
         self, registry: dict, registry_path: Path
     ) -> None:
-        """Blocking zones requiring human verification are identified."""
         report = evaluate_registry(registry, registry_path)
+        geogebra = _zone(report, "03_RESSOURCES_INTERACTIVES/")
 
-        # Eduscol should be blocking
-        assert any("EDUSCOL" in zone.upper() for zone in report.blocking_zones)
+        assert geogebra.status == RightsStatus.UNSUPPORTED
+        assert geogebra.ingest_allowed is False
+        assert geogebra.go_live_blocking is False
 
-    def test_human_actions_listed(
-        self, registry: dict, registry_path: Path
+    def test_unresolved_ingest_capable_zone_remains_a_global_blocker(
+        self, tmp_path: Path
     ) -> None:
-        """Human actions required are listed."""
-        report = evaluate_registry(registry, registry_path)
+        path = tmp_path / "unresolved.yml"
+        registry = {
+            "registry_id": "unresolved-test",
+            "source_evidence": {
+                "unsafe": {
+                    "zone": "01_EXTERNAL/",
+                    "rights_status": "UNRESOLVED",
+                }
+            },
+        }
 
-        assert len(report.human_actions_required) > 0
-        assert any("eduscol" in action.lower() for action in report.human_actions_required)
+        report = evaluate_registry(registry, path)
 
-    def test_fail_closed_behavior(
-        self, registry: dict, registry_path: Path
+        assert report.gate_passed is False
+        assert report.blocking_zones == ["01_EXTERNAL/"]
+        assert report.gate_status == "BLOCKED_UNRESOLVED_RIGHTS"
+
+    @pytest.mark.parametrize(
+        "decision_ref",
+        ("missing", []),
+        ids=("missing", "malformed"),
+    )
+    def test_invalid_human_decision_reference_fails_closed(
+        self, tmp_path: Path, decision_ref: object
     ) -> None:
-        """Gate implements fail-closed: unresolved = blocked."""
-        report = evaluate_registry(registry, registry_path)
+        path = tmp_path / "invalid-decision.yml"
+        registry = {
+            "registry_id": "invalid-decision-test",
+            "human_rights_decisions": {},
+            "source_evidence": {
+                "unsafe": {
+                    "zone": "01_EXTERNAL/",
+                    "rights_status": "CLEARED_BY_HUMAN_DECISION",
+                    "rights_decision_ref": decision_ref,
+                }
+            },
+        }
 
-        # Fail-closed: any unresolved zone blocks the gate
-        if report.unresolved_zones > 0:
-            assert not report.gate_passed
-            assert "BLOCKED" in report.gate_status
+        report = evaluate_registry(registry, path)
+
+        unsafe = report.zone_statuses[0]
+        assert unsafe.status == RightsStatus.UNRESOLVED
+        assert unsafe.ingest_allowed is False
+        assert unsafe.go_live_blocking is True
+        assert report.gate_passed is False
 
 
 class TestRightsGateInvariants:
-    """Test rights gate invariants."""
-
-    @pytest.fixture
-    def registry_path(self) -> Path:
-        return CONFIGS / "rights_evidence_registry.yml"
-
-    @pytest.fixture
-    def report(self, registry_path: Path) -> any:
-        registry = load_registry(registry_path)
-        return evaluate_registry(registry, registry_path)
-
-    def test_zone_counts_sum_correctly(self, report) -> None:
-        """Zone counts sum to total."""
-        total = report.resolved_zones + report.unresolved_zones + report.unsupported_zones
+    def test_zone_counts_sum_correctly(
+        self, registry: dict, registry_path: Path
+    ) -> None:
+        report = evaluate_registry(registry, registry_path)
+        total = (
+            report.resolved_zones
+            + report.cleared_by_human_decision_zones
+            + report.review_required_zones
+            + report.unresolved_zones
+            + report.unsupported_zones
+        )
         assert total == report.total_zones
 
-    def test_all_zones_have_status(self, report) -> None:
-        """Every zone has a rights status."""
-        for zone_status in report.zone_statuses:
-            assert zone_status.status is not None
-            assert isinstance(zone_status.status, RightsStatus)
+    def test_every_zone_has_exactly_one_rights_status(
+        self, registry: dict, registry_path: Path
+    ) -> None:
+        report = evaluate_registry(registry, registry_path)
 
-    def test_resolved_zones_have_category(self, report) -> None:
-        """Resolved zones have a recommended rights category."""
-        for zone_status in report.zone_statuses:
-            if zone_status.status == RightsStatus.RESOLVED:
-                assert zone_status.recommended_category is not None
+        assert report.total_zones == 5
+        assert all(isinstance(item.status, RightsStatus) for item in report.zone_statuses)
+        assert sum(item.ingest_allowed for item in report.zone_statuses) == 3
