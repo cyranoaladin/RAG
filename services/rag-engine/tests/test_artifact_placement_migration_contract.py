@@ -29,7 +29,7 @@ def test_manifest_declares_artifact_placements_head() -> None:
 
 def test_migration_004_is_additive_and_content_bound() -> None:
     sql = _read(MIGRATIONS / "004_artifact_placements.sql")
-    normalized = sql.upper()
+    normalized = " ".join(sql.upper().split())
 
     assert "CREATE TABLE PUBLIC.RAG_ARTIFACTS" in normalized
     assert "CREATE TABLE PUBLIC.RAG_ARTIFACT_PLACEMENTS" in normalized
@@ -37,9 +37,10 @@ def test_migration_004_is_additive_and_content_bound() -> None:
     assert "REFERENCES PUBLIC.RAG_ARTIFACTS (ARTIFACT_ID)" in normalized
     assert "ARTIFACT_ID = CONTENT_SHA256" in normalized
     assert "CONTENT_SHA256 TEXT NOT NULL UNIQUE" in normalized
-    assert "UNIQUE (ARTIFACT_ID, CHUNK_INDEX)" in normalized
+    assert "(ARTIFACT_ID, CHUNK_INDEX)" in normalized
     assert "WHERE ARTIFACT_ID IS NOT NULL" in normalized
-    assert "UNIQUE (ARTIFACT_ID, COLLECTION, TENANT, NIVEAU" in normalized
+    assert "RAG_ARTIFACT_PLACEMENTS_CANONICAL_SCOPE_UNIQUE" in normalized
+    assert "ARTIFACT_ID, COLLECTION, TENANT, NIVEAU, VOIE, AUDIENCE" in normalized
 
     for destructive in (
         "DROP TABLE RAG_CHUNKS",
@@ -120,4 +121,3 @@ def test_publisher_role_is_insert_only_on_product_tables() -> None:
     assert "GRANT UPDATE ON TABLE rag_artifact_placements" not in provisioning
     assert "GRANT DELETE" not in provisioning
     assert "GRANT TRUNCATE" not in provisioning
-

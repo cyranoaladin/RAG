@@ -146,6 +146,11 @@ run_readonly_preflight_validation() {
             else
                 validate_003_absent_sql
             fi
+            if (( EFFECTIVE_HEAD >= 4 )); then
+                validate_004_sql
+            else
+                validate_004_absent_sql
+            fi
             validate_registry_sql "$EFFECTIVE_HEAD"
         } | docker exec -i "$PGVECTOR_CONTAINER" \
             psql -X -q -v ON_ERROR_STOP=1 \
@@ -159,6 +164,7 @@ run_readonly_preflight_validation() {
                 validate_002_absent_sql
             fi
             validate_003_absent_sql
+            validate_004_absent_sql
         } | docker exec -i "$PGVECTOR_CONTAINER" \
             psql -X -q -v ON_ERROR_STOP=1 \
             -U "$PGVECTOR_USER" -d "$PGVECTOR_DB" >/dev/null
@@ -194,6 +200,7 @@ run_adoption_transition() {
             validate_002_absent_sql
         fi
         validate_003_absent_sql
+        validate_004_absent_sql
         for ((version = 1; version <= adopted_head; version++)); do
             variable_prefix="migration_$(printf '%03d' "$version")"
             printf '%s\n' \
@@ -208,6 +215,7 @@ run_adoption_transition() {
             validate_002_absent_sql
         fi
         validate_003_absent_sql
+        validate_004_absent_sql
         validate_registry_sql "$adopted_head"
     } | docker exec -i "$PGVECTOR_CONTAINER" \
         psql -X -q --single-transaction \
@@ -274,6 +282,11 @@ SQL
             validate_003_sql
         else
             validate_003_absent_sql
+        fi
+        if (( version >= 4 )); then
+            validate_004_sql
+        else
+            validate_004_absent_sql
         fi
         validate_registry_sql "$version"
     } | docker exec -i "$PGVECTOR_CONTAINER" \

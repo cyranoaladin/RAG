@@ -760,6 +760,7 @@ def test_runner_pins_security_bounds_and_cleanup_contract() -> None:
     assert "provision_runtime_roles.sh" in content
     assert "LOGIN PASSWORD :'retrieval_password'" in provisioning
     assert "LOGIN PASSWORD :'review_password'" in provisioning
+    assert "LOGIN PASSWORD :'publisher_password'" in provisioning
     assert "NOSUPERUSER NOCREATEDB NOCREATEROLE" in provisioning
     assert "GRANT SELECT ON TABLE rag_chunks" in provisioning
     assert provisioning.count("GRANT SELECT ON TABLE rag_schema_migrations") == 1
@@ -768,7 +769,11 @@ def test_runner_pins_security_bounds_and_cleanup_contract() -> None:
         < provisioning.index('CREATE ROLE :"review_user"')
     )
     assert "GRANT UPDATE (review_status) ON TABLE rag_chunks" in provisioning
-    assert "GRANT INSERT" not in provisioning
+    assert "GRANT SELECT, INSERT ON TABLE rag_artifacts" in provisioning
+    assert "GRANT SELECT, INSERT ON TABLE rag_artifact_placements" in provisioning
+    assert "GRANT SELECT, INSERT ON TABLE rag_chunks" in provisioning
+    assert "GRANT UPDATE ON TABLE rag_artifacts" not in provisioning
+    assert "GRANT UPDATE ON TABLE rag_artifact_placements" not in provisioning
     assert "GRANT TRUNCATE" not in provisioning
     assert '[[ "$1" =~ [Nn]o[[:space:]]such' not in content
     assert '[[ "$1" =~ [Nn]ot[[:space:]]found' not in content
@@ -791,16 +796,17 @@ def test_runner_exercises_canonical_cycle_and_both_atomic_rollbacks() -> None:
     assert "BOOTSTRAP_002_UNREGISTERED=PASS" in content
     assert "ATOMIC_ADOPTION_002_ROLLBACK=PASS" in content
     assert "BOOTSTRAP_ADOPTION_002=PASS" in content
-    assert "expect_failure FRESH_HEAD_003_NEGATIVE" in content
+    assert "expect_failure FRESH_HEAD_004_NEGATIVE" in content
     assert "apply_pgvector_migrations.sh" in content
     assert "rollback_pgvector_migration.sh" in content
     assert "rollback_pgvector_profile_filtering.sh" in content
-    assert "MIGRATION_CYCLE_001_002_003_002_001_003=PASS" in content
+    assert "MIGRATION_CYCLE_001_002_003_004_003_002_001_004=PASS" in content
     assert content.count("SELECT 1 / 0;") == 3
     assert "ATOMIC_UP_ROLLBACK=PASS" in content
     assert "ATOMIC_DOWN_ROLLBACK=PASS" in content
     assert "ROLLBACK_003_DATA_GUARD=PASS" in content
-    assert "MIGRATION_FINAL_HEAD_003=PASS" in content
+    assert "ROLLBACK_004_DATA_GUARD=PASS" in content
+    assert "MIGRATION_FINAL_HEAD_004=PASS" in content
 
 
 def test_runner_invokes_only_the_lot40_real_pgvector_module() -> None:

@@ -43,16 +43,17 @@ from ingestor.retrieval_pg_v2 import (
 from ingestor.retrieval_readiness_v2 import retrieval_database_ready
 from ingestor.retrieval_scope_v2 import ServerRetrievalScope
 from ingestor.review_readiness_v2 import review_database_ready
-from ingestor.schema_readiness_v2 import schema_head_003_ready
+from ingestor.schema_readiness_v2 import schema_head_004_ready
 
 pytestmark = pytest.mark.integration
 
 APP_DSN = os.environ.get("LOT40_PG_DSN", "").strip()
 ADMIN_DSN = os.environ.get("LOT40_PG_ADMIN_DSN", "").strip()
 REVIEW_DSN = os.environ.get("LOT41_PG_REVIEW_DSN", "").strip()
-if not APP_DSN or not ADMIN_DSN or not REVIEW_DSN:
+PUBLISHER_DSN = os.environ.get("LOT42_PG_PUBLISHER_DSN", "").strip()
+if not APP_DSN or not ADMIN_DSN or not REVIEW_DSN or not PUBLISHER_DSN:
     pytest.skip(
-        "DSN applicatif, admin et review requis par le runner ephemere",
+        "DSN applicatif, admin, review et publisher requis par le runner ephemere",
         allow_module_level=True,
     )
 
@@ -717,6 +718,30 @@ def test_application_role_is_non_superuser_and_select_only() -> None:
             False,
             False,
         )
+        governed_privileges = connection.execute(
+            """
+            SELECT
+              has_table_privilege(
+                  current_user, 'public.rag_artifacts', 'SELECT'
+              ),
+              has_table_privilege(
+                  current_user, 'public.rag_artifacts', 'INSERT'
+              ),
+              has_table_privilege(
+                  current_user, 'public.rag_artifacts', 'UPDATE'
+              ),
+              has_table_privilege(
+                  current_user, 'public.rag_artifact_placements', 'SELECT'
+              ),
+              has_table_privilege(
+                  current_user, 'public.rag_artifact_placements', 'INSERT'
+              ),
+              has_table_privilege(
+                  current_user, 'public.rag_artifact_placements', 'UPDATE'
+              )
+            """
+        ).fetchone()
+        assert governed_privileges == (True, False, False, True, False, False)
     print("APP_ROLE_NON_SUPERUSER_SELECT_ONLY=PASS")
 
 
@@ -755,8 +780,85 @@ def test_review_role_can_only_select_and_update_review_status() -> None:
             """
         ).fetchone()
         assert privileges == (True, False, False, False, True, False, False)
+        governed_writes = connection.execute(
+            """
+            SELECT
+              has_table_privilege(
+                  current_user, 'public.rag_artifacts', 'INSERT'
+              ),
+              has_table_privilege(
+                  current_user, 'public.rag_artifact_placements', 'INSERT'
+              ),
+              has_table_privilege(
+                  current_user, 'public.rag_artifacts', 'UPDATE'
+              ),
+              has_table_privilege(
+                  current_user, 'public.rag_artifact_placements', 'UPDATE'
+              )
+            """
+        ).fetchone()
+        assert governed_writes == (False, False, False, False)
     assert review_database_ready(REVIEW_DSN) is True
     print("REVIEW_ROLE_COLUMN_LEVEL_UPDATE_ONLY=PASS")
+
+
+def test_publisher_role_is_insert_only_on_product_relations() -> None:
+    with psycopg.connect(PUBLISHER_DSN, autocommit=True) as connection:
+        role = connection.execute(
+            """
+            SELECT current_user, rolsuper, rolcreatedb, rolcreaterole,
+                   rolreplication, rolbypassrls
+            FROM pg_roles
+            WHERE rolname = current_user
+            """
+        ).fetchone()
+        assert role == ("lot42_publisher", False, False, False, False, False)
+        privileges = connection.execute(
+            """
+            SELECT
+              has_table_privilege(current_user, 'public.rag_chunks', 'SELECT'),
+              has_table_privilege(current_user, 'public.rag_chunks', 'INSERT'),
+              has_table_privilege(current_user, 'public.rag_chunks', 'UPDATE'),
+              has_table_privilege(current_user, 'public.rag_chunks', 'DELETE'),
+              has_table_privilege(
+                  current_user, 'public.rag_artifacts', 'SELECT'
+              ),
+              has_table_privilege(
+                  current_user, 'public.rag_artifacts', 'INSERT'
+              ),
+              has_table_privilege(
+                  current_user, 'public.rag_artifacts', 'UPDATE'
+              ),
+              has_table_privilege(
+                  current_user, 'public.rag_artifact_placements', 'SELECT'
+              ),
+              has_table_privilege(
+                  current_user, 'public.rag_artifact_placements', 'INSERT'
+              ),
+              has_table_privilege(
+                  current_user, 'public.rag_artifact_placements', 'UPDATE'
+              ),
+              has_table_privilege(
+                  current_user, 'public.rag_schema_migrations', 'SELECT'
+              ),
+              has_table_privilege(current_user, 'public.rag_api_keys', 'SELECT')
+            """
+        ).fetchone()
+        assert privileges == (
+            True,
+            True,
+            False,
+            False,
+            True,
+            True,
+            False,
+            True,
+            True,
+            False,
+            False,
+            False,
+        )
+    print("PUBLISHER_ROLE_INSERT_ONLY_PRODUCT_RELATIONS=PASS")
 
 
 def test_retrieval_role_is_exactly_read_only() -> None:
@@ -1170,12 +1272,19 @@ def test_schema_registry_fingerprints_and_real_migration_objects_are_exact() -> 
                 .read_bytes()
             ).hexdigest(),
         ),
+        4: (
+            "004_artifact_placements.sql",
+            hashlib.sha256(
+                (SERVICE_ROOT / "infra/postgres/migrations/004_artifact_placements.sql")
+                .read_bytes()
+            ).hexdigest(),
+        ),
     }
     with psycopg.connect(ADMIN_DSN) as connection:
         rows = connection.execute(
             "SELECT version, file_name, sha256 FROM rag_schema_migrations ORDER BY version"
         ).fetchall()
-        assert rows == [(version, *expected[version]) for version in (1, 2, 3)]
+        assert rows == [(version, *expected[version]) for version in (1, 2, 3, 4)]
         objects = connection.execute(
             """
             SELECT
@@ -1193,7 +1302,7 @@ def test_schema_registry_fingerprints_and_real_migration_objects_are_exact() -> 
             "idx_rag_chunks_profile_reviewed",
             "ALWAYS",
         )
-    assert schema_head_003_ready(APP_DSN) is True
+    assert schema_head_004_ready(APP_DSN) is True
     print("SCHEMA_FINGERPRINTS_REAL_DB=PASS")
 
 
@@ -1201,14 +1310,14 @@ def test_schema_readiness_rejects_missing_lexical_index() -> None:
     with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
         connection.execute("DROP INDEX idx_rag_chunks_text_tsv")
     try:
-        assert schema_head_003_ready(APP_DSN) is False
+        assert schema_head_004_ready(APP_DSN) is False
     finally:
         with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
             connection.execute(
                 "CREATE INDEX idx_rag_chunks_text_tsv "
                 "ON rag_chunks USING gin (text_tsv)"
             )
-    assert schema_head_003_ready(APP_DSN) is True
+    assert schema_head_004_ready(APP_DSN) is True
     print("SCHEMA_BASE_INDEX_DRIFT_REJECTED=PASS")
 
 
@@ -1218,24 +1327,24 @@ def test_schema_readiness_rejects_default_and_extra_index_drift() -> None:
             "ALTER TABLE rag_chunks ALTER COLUMN voie SET DEFAULT 'drifted'"
         )
     try:
-        assert schema_head_003_ready(APP_DSN) is False
+        assert schema_head_004_ready(APP_DSN) is False
     finally:
         with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
             connection.execute(
                 "ALTER TABLE rag_chunks ALTER COLUMN voie SET DEFAULT 'generale'"
             )
-    assert schema_head_003_ready(APP_DSN) is True
+    assert schema_head_004_ready(APP_DSN) is True
 
     with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
         connection.execute(
             "CREATE INDEX idx_rag_chunks_unexpected ON rag_chunks (doc_id)"
         )
     try:
-        assert schema_head_003_ready(APP_DSN) is False
+        assert schema_head_004_ready(APP_DSN) is False
     finally:
         with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
             connection.execute("DROP INDEX idx_rag_chunks_unexpected")
-    assert schema_head_003_ready(APP_DSN) is True
+    assert schema_head_004_ready(APP_DSN) is True
     print("SCHEMA_DEFAULT_AND_EXTRA_INDEX_DRIFT_REJECTED=PASS")
 
 
@@ -1249,11 +1358,11 @@ def test_schema_readiness_rejects_an_invalid_extra_index() -> None:
             "WHERE indexrelid = 'idx_rag_chunks_invalid_extra'::regclass"
         )
     try:
-        assert schema_head_003_ready(APP_DSN) is False
+        assert schema_head_004_ready(APP_DSN) is False
     finally:
         with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
             connection.execute("DROP INDEX idx_rag_chunks_invalid_extra")
-    assert schema_head_003_ready(APP_DSN) is True
+    assert schema_head_004_ready(APP_DSN) is True
     print("SCHEMA_INVALID_EXTRA_INDEX_DRIFT_REJECTED=PASS")
 
 
@@ -1261,11 +1370,11 @@ def test_schema_readiness_rejects_row_security_drift() -> None:
     with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
         connection.execute("ALTER TABLE rag_chunks ENABLE ROW LEVEL SECURITY")
     try:
-        assert schema_head_003_ready(APP_DSN) is False
+        assert schema_head_004_ready(APP_DSN) is False
     finally:
         with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
             connection.execute("ALTER TABLE rag_chunks DISABLE ROW LEVEL SECURITY")
-    assert schema_head_003_ready(APP_DSN) is True
+    assert schema_head_004_ready(APP_DSN) is True
     print("SCHEMA_ROW_SECURITY_DRIFT_REJECTED=PASS")
 
 
@@ -1273,11 +1382,11 @@ def test_schema_readiness_rejects_unlogged_rag_chunks() -> None:
     with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
         connection.execute("ALTER TABLE rag_chunks SET UNLOGGED")
     try:
-        assert schema_head_003_ready(APP_DSN) is False
+        assert schema_head_004_ready(APP_DSN) is False
     finally:
         with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
             connection.execute("ALTER TABLE rag_chunks SET LOGGED")
-    assert schema_head_003_ready(APP_DSN) is True
+    assert schema_head_004_ready(APP_DSN) is True
     print("SCHEMA_PERMANENT_STORAGE_DRIFT_REJECTED=PASS")
 
 
@@ -1310,7 +1419,7 @@ def test_schema_readiness_rejects_non_internal_trigger_drift() -> None:
                 EXECUTE FUNCTION lot41u_unexpected_trigger()
                 """
             )
-        assert schema_head_003_ready(APP_DSN) is False
+        assert schema_head_004_ready(APP_DSN) is False
     finally:
         with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
             connection.execute(
@@ -1319,7 +1428,7 @@ def test_schema_readiness_rejects_non_internal_trigger_drift() -> None:
             connection.execute(
                 "DROP FUNCTION IF EXISTS lot41u_unexpected_trigger()"
             )
-    assert schema_head_003_ready(APP_DSN) is True
+    assert schema_head_004_ready(APP_DSN) is True
     print("SCHEMA_TRIGGER_DRIFT_REJECTED=PASS")
 
 
@@ -1407,7 +1516,7 @@ def test_runtime_blocks_review_update_while_trigger_drift_is_detected(
     assert response.status_code == 503
     assert response.json() == {"detail": "service unavailable"}
     assert observed_status == "needs_review"
-    assert schema_head_003_ready(APP_DSN) is True
+    assert schema_head_004_ready(APP_DSN) is True
     print("RUNTIME_REVIEW_TRIGGER_DRIFT_BLOCKED=PASS")
 
 
@@ -1421,13 +1530,13 @@ def test_schema_readiness_rejects_rewrite_rule_drift() -> None:
                 "CREATE RULE lot41u_unexpected_rule AS "
                 "ON UPDATE TO rag_chunks DO INSTEAD NOTHING"
             )
-        assert schema_head_003_ready(APP_DSN) is False
+        assert schema_head_004_ready(APP_DSN) is False
     finally:
         with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
             connection.execute(
                 "DROP RULE IF EXISTS lot41u_unexpected_rule ON rag_chunks"
             )
-    assert schema_head_003_ready(APP_DSN) is True
+    assert schema_head_004_ready(APP_DSN) is True
     print("SCHEMA_REWRITE_RULE_DRIFT_REJECTED=PASS")
 
 
@@ -1438,11 +1547,11 @@ def test_schema_readiness_rejects_inheritance_hierarchy_drift() -> None:
             connection.execute(
                 "CREATE TABLE lot41u_rag_chunks_child () INHERITS (rag_chunks)"
             )
-        assert schema_head_003_ready(APP_DSN) is False
+        assert schema_head_004_ready(APP_DSN) is False
     finally:
         with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
             connection.execute("DROP TABLE IF EXISTS lot41u_rag_chunks_child")
-    assert schema_head_003_ready(APP_DSN) is True
+    assert schema_head_004_ready(APP_DSN) is True
     print("SCHEMA_INHERITANCE_HIERARCHY_DRIFT_REJECTED=PASS")
 
 
@@ -1463,7 +1572,7 @@ def test_schema_readiness_rejects_unexpected_foreign_key_constraint() -> None:
                 "FOREIGN KEY (source_label) "
                 "REFERENCES lot41u_fk_target(source_label) NOT VALID"
             )
-        assert schema_head_003_ready(APP_DSN) is False
+        assert schema_head_004_ready(APP_DSN) is False
     finally:
         with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
             connection.execute(
@@ -1471,7 +1580,7 @@ def test_schema_readiness_rejects_unexpected_foreign_key_constraint() -> None:
                 "DROP CONSTRAINT IF EXISTS lot41u_unexpected_fk"
             )
             connection.execute("DROP TABLE IF EXISTS lot41u_fk_target")
-    assert schema_head_003_ready(APP_DSN) is True
+    assert schema_head_004_ready(APP_DSN) is True
     print("SCHEMA_ALL_CONSTRAINT_TYPES_DRIFT_REJECTED=PASS")
 
 

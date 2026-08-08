@@ -14,6 +14,8 @@
 !services/rag-engine/infra/postgres/migrations/**
 !services/rag-engine/infra/postgres/schema_head_003_fingerprints.env
 !services/rag-engine/infra/postgres/schema_head_003_columns.tsv
+!services/rag-engine/infra/postgres/schema_head_004_fingerprints.env
+!services/rag-engine/infra/postgres/schema_head_004_columns.tsv
 
 # Required v2 read/review modules only.
 !services/rag-engine/src/

@@ -323,7 +323,7 @@ def test_up_recognizes_existing_001_only_after_exhaustive_validation(
     assert "CREATE EXTENSION" not in recognition
     assert "ADD COLUMN" not in recognition
     assert "MIGRATIONS_ADOPTED=1" in result.stdout
-    assert "MIGRATIONS_APPLIED=2" in result.stdout
+    assert "MIGRATIONS_APPLIED=3" in result.stdout
 
 
 def test_up_adopts_exact_existing_002_atomically_without_reapplying_ddl(
@@ -361,7 +361,7 @@ def test_up_adopts_exact_existing_002_atomically_without_reapplying_ddl(
         assert any(str(row["file_name"]) in arg for arg in adoption["args"])
         assert any(str(row["sha256"]) in arg for arg in adoption["args"])
     assert "MIGRATIONS_ADOPTED=2" in result.stdout
-    assert "MIGRATIONS_APPLIED=1" in result.stdout
+    assert "MIGRATIONS_APPLIED=2" in result.stdout
 
 
 def test_up_adoption_002_failure_stops_without_followup_transition(

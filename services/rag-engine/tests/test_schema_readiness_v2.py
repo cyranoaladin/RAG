@@ -1,4 +1,4 @@
-"""Sonde read-only du head PostgreSQL LOT41U."""
+"""Sonde read-only du head PostgreSQL produit H2-C 004."""
 
 from __future__ import annotations
 
@@ -52,16 +52,16 @@ class _Connection:
 
 def _valid_row() -> tuple[object, ...]:
     return (
-        readiness.REQUIRED_RAG_CHUNKS_COLUMN_DEFINITIONS,
-        readiness.REQUIRED_RAG_CHUNKS_CONSTRAINT_DEFINITIONS,
-        readiness.REQUIRED_RAG_CHUNKS_INDEX_DEFINITIONS,
-        readiness.REQUIRED_PROFILE_INDEX_PREDICATE,
+        readiness.REQUIRED_PRODUCT_COLUMN_DEFINITIONS,
+        readiness.REQUIRED_PRODUCT_CONSTRAINT_DEFINITIONS,
+        readiness.REQUIRED_PRODUCT_INDEX_DEFINITIONS,
+        readiness.REQUIRED_PRODUCT_INDEX_PREDICATES,
         readiness.REQUIRED_TEXT_TSV_EXPRESSION,
         [list(item) for item in readiness.expected_migration_records(MIGRATIONS)],
-        readiness.REQUIRED_RAG_CHUNKS_TABLE_STATE,
-        readiness.REQUIRED_RAG_CHUNKS_TRIGGER_DEFINITIONS,
-        readiness.REQUIRED_RAG_CHUNKS_RULE_DEFINITIONS,
-        readiness.REQUIRED_RAG_CHUNKS_INHERITANCE_DEFINITIONS,
+        readiness.REQUIRED_PRODUCT_TABLE_STATES,
+        readiness.REQUIRED_PRODUCT_TRIGGER_DEFINITIONS,
+        readiness.REQUIRED_PRODUCT_RULE_DEFINITIONS,
+        readiness.REQUIRED_PRODUCT_INHERITANCE_DEFINITIONS,
     )
 
 
@@ -93,14 +93,14 @@ def _patched_connection(
     }
 
 
-def test_schema_head_003_accepts_only_the_exact_contract(
+def test_schema_head_004_accepts_only_the_exact_contract(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     with _patched_connection(monkeypatch, _valid_row()) as cursor:
-        assert readiness.schema_head_003_ready("postgresql://reader") is True
+        assert readiness.schema_head_004_ready("postgresql://reader") is True
 
     normalized = cursor.sql.upper()
-    assert normalized.lstrip().startswith("SELECT")
+    assert normalized.lstrip().startswith("WITH TARGET_TABLES")
     assert "CONVALIDATED" in normalized
     assert "CONTYPE" in normalized
     assert "PG_GET_CONSTRAINTDEF" in normalized
@@ -111,7 +111,7 @@ def test_schema_head_003_accepts_only_the_exact_contract(
     assert "COLUMN_DEFAULT" in normalized
     assert "FORMAT_TYPE" in normalized
     assert "ATTTYPMOD" in normalized
-    assert "INDEX_DEFINITION.INDRELID = 'PUBLIC.RAG_CHUNKS'::REGCLASS" in normalized
+    assert "TO_REGCLASS('PUBLIC.' || TARGET.TABLE_NAME)" in normalized
     assert "INDEX_DEFINITION.INDISVALID" in normalized
     assert "FROM PUBLIC.RAG_SCHEMA_MIGRATIONS" in normalized
     assert "FROM RAG_SCHEMA_MIGRATIONS" not in normalized
@@ -148,12 +148,16 @@ def test_schema_head_003_accepts_only_the_exact_contract(
 
 
 def test_schema_contract_is_loaded_from_the_shared_versioned_source() -> None:
-    contract = ENGINE_ROOT / "infra" / "postgres" / "schema_head_003_columns.tsv"
+    contract = ENGINE_ROOT / "infra" / "postgres" / "schema_head_004_columns.tsv"
 
-    assert readiness.load_rag_chunks_column_definitions(contract) == (
-        readiness.REQUIRED_RAG_CHUNKS_COLUMN_DEFINITIONS
+    assert readiness.load_product_column_definitions(contract) == (
+        readiness.REQUIRED_PRODUCT_COLUMN_DEFINITIONS
     )
-    assert len(readiness.REQUIRED_RAG_CHUNKS_COLUMN_DEFINITIONS) == 31
+    assert len(readiness.REQUIRED_RAG_CHUNKS_COLUMN_DEFINITIONS) == 32
+    assert {
+        table: len(columns)
+        for table, columns in readiness.REQUIRED_PRODUCT_COLUMN_DEFINITIONS.items()
+    } == {"rag_artifact_placements": 22, "rag_artifacts": 10, "rag_chunks": 32}
 
 
 @pytest.mark.parametrize(
@@ -172,17 +176,17 @@ def test_schema_contract_is_loaded_from_the_shared_versioned_source() -> None:
         "inheritance-hierarchy",
     ),
 )
-def test_schema_head_003_rejects_every_drifted_contract_component(
+def test_schema_head_004_rejects_every_drifted_contract_component(
     monkeypatch: pytest.MonkeyPatch,
     position: int,
 ) -> None:
     row = list(_valid_row())
     row[position] = {} if position < 3 else "drifted"
     with _patched_connection(monkeypatch, tuple(row)):
-        assert readiness.schema_head_003_ready("postgresql://reader") is False
+        assert readiness.schema_head_004_ready("postgresql://reader") is False
 
 
-def test_schema_head_003_rejects_registry_hash_drift(
+def test_schema_head_004_rejects_registry_hash_drift(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     row = list(_valid_row())
@@ -190,31 +194,37 @@ def test_schema_head_003_rejects_registry_hash_drift(
     migrations[2][2] = "0" * 64
     row[5] = migrations
     with _patched_connection(monkeypatch, tuple(row)):
-        assert readiness.schema_head_003_ready("postgresql://reader") is False
+        assert readiness.schema_head_004_ready("postgresql://reader") is False
 
 
-def test_schema_head_003_rejects_unexpected_ready_index(
+def test_schema_head_004_rejects_unexpected_ready_index(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     row = list(_valid_row())
     row[2] = {
-        **readiness.REQUIRED_RAG_CHUNKS_INDEX_DEFINITIONS,
-        "idx_rag_chunks_unexpected": "0" * 32,
+        **readiness.REQUIRED_PRODUCT_INDEX_DEFINITIONS,
+        "rag_chunks": {
+            **readiness.REQUIRED_RAG_CHUNKS_INDEX_DEFINITIONS,
+            "idx_rag_chunks_unexpected": ["0" * 32, True, True],
+        },
     }
     with _patched_connection(monkeypatch, tuple(row)):
-        assert readiness.schema_head_003_ready("postgresql://reader") is False
+        assert readiness.schema_head_004_ready("postgresql://reader") is False
 
 
-def test_schema_head_003_rejects_an_unexpected_foreign_key(
+def test_schema_head_004_rejects_an_unexpected_foreign_key(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     row = list(_valid_row())
     row[1] = {
-        **readiness.REQUIRED_RAG_CHUNKS_CONSTRAINT_DEFINITIONS,
-        "lot41u_unexpected_fk": ["f", False, "0" * 32],
+        **readiness.REQUIRED_PRODUCT_CONSTRAINT_DEFINITIONS,
+        "rag_chunks": {
+            **readiness.REQUIRED_RAG_CHUNKS_CONSTRAINT_DEFINITIONS,
+            "lot41u_unexpected_fk": ["f", False, "0" * 32],
+        },
     }
     with _patched_connection(monkeypatch, tuple(row)):
-        assert readiness.schema_head_003_ready("postgresql://reader") is False
+        assert readiness.schema_head_004_ready("postgresql://reader") is False
 
 
 def test_expected_migration_records_hash_the_canonical_files() -> None:
@@ -234,10 +244,15 @@ def test_expected_migration_records_hash_the_canonical_files() -> None:
             "003_profile_filtering.sql",
             "069cd391d77ee47a6daae037221dbef7403e7710d35abecaecb0484f05d0428a",
         ),
+        (
+            4,
+            "004_artifact_placements.sql",
+            "9ca86b14cdfe3bf178aae4f65dfdd4075a53e11a0e4283bc664d9e68ff4b4ba9",
+        ),
     )
 
 
-def test_schema_head_003_does_not_hide_database_errors(
+def test_schema_head_004_does_not_hide_database_errors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def fail(_dsn: str, **_kwargs: object) -> None:
@@ -246,4 +261,4 @@ def test_schema_head_003_does_not_hide_database_errors(
     monkeypatch.setattr(readiness.psycopg, "connect", fail)
 
     with pytest.raises(readiness.psycopg.OperationalError):
-        readiness.schema_head_003_ready("postgresql://reader")
+        readiness.schema_head_004_ready("postgresql://reader")

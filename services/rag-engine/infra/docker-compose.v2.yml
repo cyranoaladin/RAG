@@ -18,17 +18,21 @@ services:
       PGVECTOR_RETRIEVAL_PASSWORD: ${PGVECTOR_RETRIEVAL_PASSWORD:?PGVECTOR_RETRIEVAL_PASSWORD requis}
       PGVECTOR_REVIEW_USER: ${PGVECTOR_REVIEW_USER:-rag_reviewer}
       PGVECTOR_REVIEW_PASSWORD: ${PGVECTOR_REVIEW_PASSWORD:?PGVECTOR_REVIEW_PASSWORD requis}
+      PGVECTOR_PUBLISHER_USER: ${PGVECTOR_PUBLISHER_USER:-rag_publisher}
+      PGVECTOR_PUBLISHER_PASSWORD: ${PGVECTOR_PUBLISHER_PASSWORD:?PGVECTOR_PUBLISHER_PASSWORD requis}
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C"
     volumes:
       - rag_pgvector_data:/var/lib/postgresql/data
       - ./postgres/init.sql:/docker-entrypoint-initdb.d/00_init.sql:ro
       - ./postgres/migrations/003_profile_filtering.sql:/docker-entrypoint-initdb.d/01_003_profile_filtering.sql:ro
-      - ./postgres/register_bootstrap_migrations.sh:/docker-entrypoint-initdb.d/02_register_bootstrap_migrations.sh:ro
-      - ./postgres/provision_runtime_roles.sh:/docker-entrypoint-initdb.d/03_provision_runtime_roles.sh:ro
+      - ./postgres/migrations/004_artifact_placements.sql:/docker-entrypoint-initdb.d/02_004_artifact_placements.sql:ro
+      - ./postgres/register_bootstrap_migrations.sh:/docker-entrypoint-initdb.d/03_register_bootstrap_migrations.sh:ro
+      - ./postgres/provision_runtime_roles.sh:/docker-entrypoint-initdb.d/04_provision_runtime_roles.sh:ro
       - ./postgres/migrations:/docker-entrypoint-migrations:ro
       - ./postgres/healthcheck.sh:/docker-entrypoint-healthcheck.sh:ro
-      - ./postgres/schema_head_003_fingerprints.env:/schema-head-003-fingerprints.env:ro
-      - ./postgres/schema_head_003_columns.tsv:/schema-head-003-columns.tsv:ro
+      - ./scripts/lib/pgvector_migration_state.sh:/pgvector-migration-state.sh:ro
+      - ./postgres/schema_head_004_fingerprints.env:/schema-head-004-fingerprints.env:ro
+      - ./postgres/schema_head_004_columns.tsv:/schema-head-004-columns.tsv:ro
     ports:
       - "127.0.0.1:${PGVECTOR_PORT:-5435}:5432"
     networks: [rag_net]
@@ -76,8 +80,8 @@ services:
       RAG_EMBEDDING_MODEL_CACHE_DIR: /models/e5-large
       RAG_EMBEDDING_MODEL_INVENTORY_SHA256: "${RAG_EMBEDDING_MODEL_INVENTORY_SHA256:?empreinte SHA-256 externe de l inventaire embedding requise}"
       RAG_MIGRATIONS_DIR: /app/migrations
-      RAG_SCHEMA_HEAD_FINGERPRINTS: /app/schema_head_003_fingerprints.env
-      RAG_SCHEMA_HEAD_COLUMNS: /app/schema_head_003_columns.tsv
+      RAG_SCHEMA_HEAD_FINGERPRINTS: /app/schema_head_004_fingerprints.env
+      RAG_SCHEMA_HEAD_COLUMNS: /app/schema_head_004_columns.tsv
       RAG_RERANKER_MODEL_CACHE_DIR: /models/reranker
       RAG_RERANKER_MODEL_INVENTORY_SHA256: "${RAG_RERANKER_MODEL_INVENTORY_SHA256:?empreinte SHA-256 externe de l inventaire reranker requise}"
       RERANK_CACHE_TTL: "${RERANK_CACHE_TTL:-300}"

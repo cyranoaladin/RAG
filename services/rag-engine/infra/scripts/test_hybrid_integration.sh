@@ -23,8 +23,10 @@ PGVECTOR_DB="$PGVECTOR_BOOTSTRAP_DB"
 PGVECTOR_USER="lot40user"
 PGVECTOR_APP_USER="lot40_app"
 PGVECTOR_REVIEW_USER="lot41_review"
+PGVECTOR_PUBLISHER_USER="lot42_publisher"
 PGVECTOR_APP_PASSWORD="lot40-app-$LOT40_OWNER_TOKEN"
 PGVECTOR_REVIEW_PASSWORD="lot41-review-$LOT40_OWNER_TOKEN"
+PGVECTOR_PUBLISHER_PASSWORD="lot42-publisher-$LOT40_OWNER_TOKEN"
 RUN_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/lot40-hybrid.XXXXXX")"
 BACKUP_ROOT="$RUN_ROOT/backups"
 container_cleanup_armed=0
@@ -356,6 +358,7 @@ PGVECTOR_PORT="${BASH_REMATCH[1]}"
 export LOT40_PG_ADMIN_DSN="postgresql://$PGVECTOR_USER@127.0.0.1:$PGVECTOR_PORT/$PGVECTOR_DB"
 export LOT40_PG_DSN="postgresql://$PGVECTOR_APP_USER@127.0.0.1:$PGVECTOR_PORT/$PGVECTOR_DB"
 export LOT41_PG_REVIEW_DSN="postgresql://$PGVECTOR_REVIEW_USER@127.0.0.1:$PGVECTOR_PORT/$PGVECTOR_DB"
+export LOT42_PG_PUBLISHER_DSN="postgresql://$PGVECTOR_PUBLISHER_USER@127.0.0.1:$PGVECTOR_PORT/$PGVECTOR_DB"
 
 echo "LOT40_DATABASE_READY=PASS"
 
@@ -404,11 +407,19 @@ run_down_003() {
         bash "$1/scripts/rollback_pgvector_profile_filtering.sh" 003_profile_filtering
 }
 
-assert_fresh_head_003() {
+run_down_004() {
+    PGVECTOR_CONTAINER="$PGVECTOR_CONTAINER_ID" \
+    PGVECTOR_DB="$PGVECTOR_DB" \
+    PGVECTOR_USER="$PGVECTOR_USER" \
+    BACKUP_ROOT="$BACKUP_ROOT" \
+        bash "$1/scripts/rollback_pgvector_artifact_placements.sh" 004_artifact_placements
+}
+
+assert_fresh_head_004() {
     container_psql <<'SQL'
 SELECT version
 FROM rag_schema_migrations
-WHERE version = 3 AND file_name = '003_profile_filtering.sql';
+WHERE version = 4 AND file_name = '004_artifact_placements.sql';
 SQL
 }
 
@@ -434,6 +445,7 @@ SQL
 sha_001="$(sha256sum "$INFRA_DIR/postgres/migrations/001_rag_chunks_v2_schema.sql" | awk '{print $1}')"
 sha_002="$(sha256sum "$INFRA_DIR/postgres/migrations/002_hybrid_retrieval.sql" | awk '{print $1}')"
 sha_003="$(sha256sum "$INFRA_DIR/postgres/migrations/003_profile_filtering.sql" | awk '{print $1}')"
+sha_004="$(sha256sum "$INFRA_DIR/postgres/migrations/004_artifact_placements.sql" | awk '{print $1}')"
 
 assert_state_001() {
     container_psql <<SQL
@@ -448,6 +460,7 @@ BEGIN
        )
        OR EXISTS (SELECT 1 FROM rag_schema_migrations WHERE version = 2)
        OR EXISTS (SELECT 1 FROM rag_schema_migrations WHERE version = 3)
+       OR EXISTS (SELECT 1 FROM rag_schema_migrations WHERE version = 4)
        OR EXISTS (
            SELECT 1 FROM information_schema.columns
            WHERE table_schema = 'public' AND table_name = 'rag_chunks'
@@ -489,6 +502,7 @@ BEGIN
        )
        OR (SELECT max(version) FROM rag_schema_migrations) <> 2
        OR EXISTS (SELECT 1 FROM rag_schema_migrations WHERE version = 3)
+       OR EXISTS (SELECT 1 FROM rag_schema_migrations WHERE version = 4)
        OR NOT EXISTS (
            SELECT 1 FROM information_schema.columns
            WHERE table_schema = 'public' AND table_name = 'rag_chunks'
@@ -535,6 +549,7 @@ BEGIN
              AND sha256 = '$sha_003'
        )
        OR (SELECT max(version) FROM rag_schema_migrations) <> 3
+       OR EXISTS (SELECT 1 FROM rag_schema_migrations WHERE version = 4)
        OR (
            SELECT count(*) FROM information_schema.columns
            WHERE table_schema = 'public' AND table_name = 'rag_chunks'
@@ -555,12 +570,44 @@ END
 SQL
 }
 
+assert_state_004() {
+    container_psql <<SQL
+DO \$\$
+BEGIN
+    IF (SELECT count(*) FROM rag_schema_migrations) <> 4
+       OR NOT EXISTS (
+           SELECT 1 FROM rag_schema_migrations
+           WHERE version = 4
+             AND file_name = '004_artifact_placements.sql'
+             AND sha256 = '$sha_004'
+       )
+       OR (SELECT max(version) FROM rag_schema_migrations) <> 4
+       OR to_regclass('public.rag_artifacts') IS NULL
+       OR to_regclass('public.rag_artifact_placements') IS NULL
+       OR NOT EXISTS (
+           SELECT 1 FROM information_schema.columns
+           WHERE table_schema = 'public' AND table_name = 'rag_chunks'
+             AND column_name = 'artifact_id'
+             AND data_type = 'text' AND is_nullable = 'YES'
+             AND column_default IS NULL
+       )
+       OR to_regclass('public.idx_rag_chunks_artifact_chunk_index_unique') IS NULL
+       OR to_regclass('public.idx_rag_artifact_placements_scope_active') IS NULL THEN
+        RAISE EXCEPTION 'H2C_EXPECTED_HEAD_004';
+    END IF;
+END
+\$\$;
+SQL
+}
+
 provision_app_role() {
     docker exec -i \
         -e "PGVECTOR_RETRIEVAL_USER=$PGVECTOR_APP_USER" \
         -e "PGVECTOR_RETRIEVAL_PASSWORD=$PGVECTOR_APP_PASSWORD" \
         -e "PGVECTOR_REVIEW_USER=$PGVECTOR_REVIEW_USER" \
         -e "PGVECTOR_REVIEW_PASSWORD=$PGVECTOR_REVIEW_PASSWORD" \
+        -e "PGVECTOR_PUBLISHER_USER=$PGVECTOR_PUBLISHER_USER" \
+        -e "PGVECTOR_PUBLISHER_PASSWORD=$PGVECTOR_PUBLISHER_PASSWORD" \
         "$PGVECTOR_CONTAINER_ID" bash -s \
         < "$INFRA_DIR/postgres/provision_runtime_roles.sh"
 }
@@ -582,56 +629,79 @@ echo "ATOMIC_ADOPTION_002_ROLLBACK=PASS"
 bootstrap_adoption_output="$(run_apply "$INFRA_DIR")"
 printf '%s\n' "$bootstrap_adoption_output"
 grep -qx 'MIGRATIONS_ADOPTED=2' <<< "$bootstrap_adoption_output"
-grep -qx 'MIGRATIONS_APPLIED=1' <<< "$bootstrap_adoption_output"
-assert_state_003
+grep -qx 'MIGRATIONS_APPLIED=2' <<< "$bootstrap_adoption_output"
+assert_state_004
 echo "BOOTSTRAP_ADOPTION_002=PASS"
 
+run_down_004 "$INFRA_DIR"
+assert_state_003
 run_down_003 "$INFRA_DIR"
 assert_state_002
 run_down_002 "$INFRA_DIR"
 assert_state_001
 run_apply "$INFRA_DIR"
-assert_state_003
-echo "BOOTSTRAP_CYCLE_003_002_001_003=PASS"
+assert_state_004
+echo "BOOTSTRAP_CYCLE_004_003_002_001_004=PASS"
 
 docker exec "$PGVECTOR_CONTAINER_ID" \
     createdb -U "$PGVECTOR_USER" -T template0 "$PGVECTOR_FRESH_DB"
 PGVECTOR_DB="$PGVECTOR_FRESH_DB"
 
-expect_failure FRESH_HEAD_003_NEGATIVE assert_fresh_head_003
+expect_failure FRESH_HEAD_004_NEGATIVE assert_fresh_head_004
 
 run_apply "$INFRA_DIR"
+assert_state_004
+run_down_004 "$INFRA_DIR"
 assert_state_003
 run_down_003 "$INFRA_DIR"
 assert_state_002
 run_down_002 "$INFRA_DIR"
 assert_state_001
 run_apply "$INFRA_DIR"
-assert_state_003
-echo "MIGRATION_CYCLE_001_002_003_002_001_003=PASS"
+assert_state_004
+echo "MIGRATION_CYCLE_001_002_003_004_003_002_001_004=PASS"
 
-run_down_003 "$INFRA_DIR"
-assert_state_002
+run_down_004 "$INFRA_DIR"
+assert_state_003
 atomic_up_root="$RUN_ROOT/atomic-up"
 mkdir -p "$atomic_up_root"
 cp -a -- "$INFRA_DIR" "$atomic_up_root/infra"
 printf '\nSELECT 1 / 0;\n' \
-    >> "$atomic_up_root/infra/postgres/migrations/003_profile_filtering.sql"
+    >> "$atomic_up_root/infra/postgres/migrations/004_artifact_placements.sql"
 expect_failure ATOMIC_UP_EXPECTED_FAILURE run_apply "$atomic_up_root/infra"
-assert_state_002
+assert_state_003
 echo "ATOMIC_UP_ROLLBACK=PASS"
 
 run_apply "$INFRA_DIR"
-assert_state_003
+assert_state_004
 atomic_down_root="$RUN_ROOT/atomic-down"
 mkdir -p "$atomic_down_root"
 cp -a -- "$INFRA_DIR" "$atomic_down_root/infra"
 printf '\nSELECT 1 / 0;\n' \
-    >> "$atomic_down_root/infra/postgres/rollbacks/003_profile_filtering.down.sql"
-expect_failure ATOMIC_DOWN_EXPECTED_FAILURE run_down_003 "$atomic_down_root/infra"
-assert_state_003
+    >> "$atomic_down_root/infra/postgres/rollbacks/004_artifact_placements.down.sql"
+expect_failure ATOMIC_DOWN_EXPECTED_FAILURE run_down_004 "$atomic_down_root/infra"
+assert_state_004
 echo "ATOMIC_DOWN_ROLLBACK=PASS"
 
+container_psql <<'SQL'
+INSERT INTO rag_artifacts (
+    artifact_id, content_sha256, source_label, source_uri, rights,
+    source_kind, type_doc, ingestion_artifact_id
+) VALUES (
+    repeat('a', 64), repeat('a', 64), 'H2-C rollback guard',
+    'urn:nexus:h2c:rollback-guard', 'usage_interne', 'test', 'cours',
+    '00000000-0000-0000-0000-000000000004'
+);
+SQL
+expect_failure ROLLBACK_004_GOVERNED_DATA_REFUSED run_down_004 "$INFRA_DIR"
+assert_state_004
+container_psql <<'SQL'
+DELETE FROM rag_artifacts WHERE artifact_id = repeat('a', 64);
+SQL
+echo "ROLLBACK_004_DATA_GUARD=PASS"
+
+run_down_004 "$INFRA_DIR"
+assert_state_003
 container_psql <<'SQL'
 INSERT INTO rag_chunks (
     chunk_id, doc_id, chunk_sha256, collection, niveau, matiere,
@@ -649,7 +719,9 @@ container_psql <<'SQL'
 DELETE FROM rag_chunks WHERE chunk_id = 'lot41-rollback-guard';
 SQL
 echo "ROLLBACK_003_DATA_GUARD=PASS"
-echo "MIGRATION_FINAL_HEAD_003=PASS"
+run_apply "$INFRA_DIR"
+assert_state_004
+echo "MIGRATION_FINAL_HEAD_004=PASS"
 
 PGVECTOR_DB="$PGVECTOR_BOOTSTRAP_DB"
 provision_app_role
@@ -662,7 +734,8 @@ fi
 LOT40_PG_DSN="$LOT40_PG_DSN" \
 LOT40_PG_ADMIN_DSN="$LOT40_PG_ADMIN_DSN" \
 LOT41_PG_REVIEW_DSN="$LOT41_PG_REVIEW_DSN" \
+LOT42_PG_PUBLISHER_DSN="$LOT42_PG_PUBLISHER_DSN" \
 PYTHONPATH="$SERVICE_ROOT/src" "$PYTEST_BIN" "$SERVICE_ROOT/tests/integration/test_lot40_hybrid_pgvector.py" -q -s
 
-assert_state_003
+assert_state_004
 echo "LOT40_HYBRID_INTEGRATION=PASS"

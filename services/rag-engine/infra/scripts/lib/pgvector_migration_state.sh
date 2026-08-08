@@ -307,7 +307,7 @@ BEGIN
           'type_doc', 'official', 'text', 'chunk_index', 'page_start',
           'page_end', 'review_status', 'model', 'source_kind', 'indexed_at',
           'text_tsv', 'tenant', 'candidat', 'visibility', 'school_year',
-          'programme_version'
+          'programme_version', 'artifact_id'
       );
     IF invalid_count <> 0 THEN
         RAISE EXCEPTION 'SCHEMA_HEAD_001_INVALID: unexpected columns';
@@ -336,7 +336,9 @@ BEGIN
           'rag_chunks_candidat_lot41_check',
           'rag_chunks_visibility_lot41_check',
           'rag_chunks_school_year_lot41_check',
-          'rag_chunks_programme_version_lot41_check'
+          'rag_chunks_programme_version_lot41_check',
+          'rag_chunks_artifact_id_fkey',
+          'rag_chunks_governed_identity_check'
       );
     IF invalid_count <> 0 THEN
         RAISE EXCEPTION 'SCHEMA_HEAD_001_INVALID: unexpected constraints';
@@ -443,7 +445,9 @@ BEGIN
           'idx_rag_chunks_rights',
           'idx_rag_chunks_review',
           'idx_rag_chunks_text_tsv',
-          'idx_rag_chunks_profile_reviewed'
+          'idx_rag_chunks_profile_reviewed',
+          'idx_rag_chunks_artifact_chunk_index_unique',
+          'idx_rag_chunks_artifact_id'
       );
     IF invalid_count <> 0 THEN
         RAISE EXCEPTION 'SCHEMA_HEAD_001_INVALID: unexpected indexes';
@@ -712,6 +716,192 @@ BEGIN
       AND index_class.relname = 'idx_rag_chunks_profile_reviewed';
     IF invalid_count <> 0 THEN
         RAISE EXCEPTION 'SCHEMA_HEAD_002_INVALID: LOT41 index still present';
+    END IF;
+END
+$nexus$;
+SQL
+}
+
+validate_004_sql() {
+    cat <<'SQL'
+-- NEXUS_VALIDATE_SCHEMA_004
+DO $nexus$
+DECLARE
+    invalid_count integer;
+BEGIN
+    IF to_regclass('public.rag_artifacts') IS NULL
+       OR to_regclass('public.rag_artifact_placements') IS NULL THEN
+        RAISE EXCEPTION 'SCHEMA_HEAD_004_INVALID: product tables missing';
+    END IF;
+
+    SELECT count(*) INTO invalid_count
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'rag_chunks'
+      AND column_name = 'artifact_id'
+      AND data_type = 'text'
+      AND is_nullable = 'YES'
+      AND column_default IS NULL;
+    IF invalid_count <> 1 THEN
+        RAISE EXCEPTION 'SCHEMA_HEAD_004_INVALID: rag_chunks artifact_id';
+    END IF;
+
+    SELECT count(*) INTO invalid_count
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'rag_artifacts';
+    IF invalid_count <> 10 THEN
+        RAISE EXCEPTION 'SCHEMA_HEAD_004_INVALID: rag_artifacts column count';
+    END IF;
+
+    SELECT count(*) INTO invalid_count
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'rag_artifact_placements';
+    IF invalid_count <> 22 THEN
+        RAISE EXCEPTION 'SCHEMA_HEAD_004_INVALID: placements column count';
+    END IF;
+
+    SELECT count(*) INTO invalid_count
+    FROM pg_constraint
+    WHERE conrelid IN (
+        'public.rag_chunks'::regclass,
+        'public.rag_artifacts'::regclass,
+        'public.rag_artifact_placements'::regclass
+    )
+      AND convalidated
+      AND conname IN (
+        'rag_chunks_artifact_id_fkey',
+        'rag_chunks_governed_identity_check',
+        'rag_artifacts_pkey',
+        'rag_artifacts_content_sha256_key',
+        'rag_artifacts_identity_is_content_sha256_check',
+        'rag_artifacts_artifact_id_sha256_check',
+        'rag_artifact_placements_pkey',
+        'rag_artifact_placements_artifact_id_fkey',
+        'rag_artifact_placements_canonical_scope_unique',
+        'rag_artifact_placements_source_unique',
+        'rag_artifact_placements_currentness_check',
+        'rag_artifact_placements_status_check',
+        'rag_artifact_placements_review_status_check'
+      );
+    IF invalid_count <> 13 THEN
+        RAISE EXCEPTION 'SCHEMA_HEAD_004_INVALID: exact core constraints';
+    END IF;
+
+    SELECT count(*) INTO invalid_count
+    FROM pg_constraint
+    WHERE conrelid = 'public.rag_artifacts'::regclass;
+    IF invalid_count <> 9 THEN
+        RAISE EXCEPTION 'SCHEMA_HEAD_004_INVALID: rag_artifacts constraints';
+    END IF;
+
+    SELECT count(*) INTO invalid_count
+    FROM pg_constraint
+    WHERE conrelid = 'public.rag_artifact_placements'::regclass;
+    IF invalid_count <> 13 THEN
+        RAISE EXCEPTION 'SCHEMA_HEAD_004_INVALID: placement constraints';
+    END IF;
+
+    SELECT count(*) INTO invalid_count
+    FROM pg_constraint
+    WHERE conrelid = 'public.rag_chunks'::regclass;
+    IF invalid_count <> 8 THEN
+        RAISE EXCEPTION 'SCHEMA_HEAD_004_INVALID: rag_chunks constraints';
+    END IF;
+
+    SELECT count(*) INTO invalid_count
+    FROM pg_class index_class
+    JOIN pg_namespace namespace_definition
+      ON namespace_definition.oid = index_class.relnamespace
+    JOIN pg_index index_definition
+      ON index_definition.indexrelid = index_class.oid
+    WHERE namespace_definition.nspname = 'public'
+      AND index_class.relname IN (
+        'idx_rag_chunks_artifact_chunk_index_unique',
+        'idx_rag_chunks_artifact_id',
+        'idx_rag_artifact_placements_scope_active',
+        'idx_rag_artifact_placements_audience',
+        'idx_rag_artifact_placements_artifact_id'
+      )
+      AND index_definition.indisvalid
+      AND index_definition.indisready;
+    IF invalid_count <> 5 THEN
+        RAISE EXCEPTION 'SCHEMA_HEAD_004_INVALID: product indexes';
+    END IF;
+
+    SELECT count(*) INTO invalid_count
+    FROM pg_index
+    WHERE indrelid = 'public.rag_artifacts'::regclass;
+    IF invalid_count <> 2 THEN
+        RAISE EXCEPTION 'SCHEMA_HEAD_004_INVALID: rag_artifacts indexes';
+    END IF;
+
+    SELECT count(*) INTO invalid_count
+    FROM pg_index
+    WHERE indrelid = 'public.rag_artifact_placements'::regclass;
+    IF invalid_count <> 6 THEN
+        RAISE EXCEPTION 'SCHEMA_HEAD_004_INVALID: placement indexes';
+    END IF;
+
+    SELECT count(*) INTO invalid_count
+    FROM pg_index
+    WHERE indrelid = 'public.rag_chunks'::regclass;
+    IF invalid_count <> 12 THEN
+        RAISE EXCEPTION 'SCHEMA_HEAD_004_INVALID: rag_chunks indexes';
+    END IF;
+
+    SELECT count(*) INTO invalid_count
+    FROM pg_index index_definition
+    JOIN pg_class index_class ON index_class.oid = index_definition.indexrelid
+    WHERE index_definition.indrelid = 'public.rag_chunks'::regclass
+      AND index_class.relname = 'idx_rag_chunks_artifact_chunk_index_unique'
+      AND index_definition.indisunique
+      AND pg_get_expr(index_definition.indpred, index_definition.indrelid)
+            = '(artifact_id IS NOT NULL)';
+    IF invalid_count <> 1 THEN
+        RAISE EXCEPTION 'SCHEMA_HEAD_004_INVALID: governed chunk uniqueness';
+    END IF;
+END
+$nexus$;
+SQL
+}
+
+validate_004_absent_sql() {
+    cat <<'SQL'
+-- NEXUS_VALIDATE_SCHEMA_004_ABSENT
+DO $nexus$
+DECLARE
+    invalid_count integer;
+BEGIN
+    IF to_regclass('public.rag_artifacts') IS NOT NULL
+       OR to_regclass('public.rag_artifact_placements') IS NOT NULL THEN
+        RAISE EXCEPTION 'SCHEMA_HEAD_003_INVALID: product tables still present';
+    END IF;
+
+    SELECT count(*) INTO invalid_count
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'rag_chunks'
+      AND column_name = 'artifact_id';
+    IF invalid_count <> 0 THEN
+        RAISE EXCEPTION 'SCHEMA_HEAD_003_INVALID: artifact_id still present';
+    END IF;
+
+    SELECT count(*) INTO invalid_count
+    FROM pg_class index_class
+    JOIN pg_namespace namespace_definition
+      ON namespace_definition.oid = index_class.relnamespace
+    WHERE namespace_definition.nspname = 'public'
+      AND index_class.relname IN (
+        'idx_rag_chunks_artifact_chunk_index_unique',
+        'idx_rag_chunks_artifact_id',
+        'idx_rag_artifact_placements_scope_active',
+        'idx_rag_artifact_placements_audience',
+        'idx_rag_artifact_placements_artifact_id'
+      );
+    IF invalid_count <> 0 THEN
+        RAISE EXCEPTION 'SCHEMA_HEAD_003_INVALID: product indexes still present';
     END IF;
 END
 $nexus$;

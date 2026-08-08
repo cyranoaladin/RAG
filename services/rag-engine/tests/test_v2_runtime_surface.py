@@ -152,7 +152,7 @@ def test_health_is_ready_only_for_schema_003_and_canonical_embedding(
 ) -> None:
     monkeypatch.setenv("PG_RAG_DSN", "postgresql://reader")
     monkeypatch.setenv("PG_REVIEW_DSN", "postgresql://reviewer")
-    monkeypatch.setattr(api_v2, "schema_head_003_ready", lambda _dsn: True)
+    monkeypatch.setattr(api_v2, "schema_head_004_ready", lambda _dsn: True)
     monkeypatch.setattr(api_v2, "retrieval_database_ready", lambda _dsn: True)
     monkeypatch.setattr(api_v2, "review_database_ready", lambda _dsn: True)
     monkeypatch.setattr(api_v2, "_model_artifacts_ready", lambda: True)
@@ -362,7 +362,7 @@ def test_health_caches_deep_database_readiness_for_a_bounded_interval(
     )
     monkeypatch.setattr(
         api_v2,
-        "schema_head_003_ready",
+        "schema_head_004_ready",
         lambda _dsn: calls.append("schema") or True,
     )
     monkeypatch.setattr(
@@ -449,7 +449,7 @@ def test_deep_database_readiness_uses_one_budget_below_health_timeout(
         raising=False,
     )
     monkeypatch.setattr(api_v2, "pgvector_dimension", lambda _dsn: 1024)
-    monkeypatch.setattr(api_v2, "schema_head_003_ready", lambda _dsn: True)
+    monkeypatch.setattr(api_v2, "schema_head_004_ready", lambda _dsn: True)
     monkeypatch.setattr(api_v2, "retrieval_database_ready", lambda _dsn: True)
     monkeypatch.setattr(api_v2, "review_database_ready", lambda _dsn: True)
 
@@ -538,7 +538,7 @@ def test_deep_readiness_inherits_the_runtime_request_deadline(
         lambda _dsn: observed.append(readiness_db.remaining_readiness_budget_ms())
         or api_v2.CANONICAL_EMBED_DIM,
     )
-    monkeypatch.setattr(api_v2, "schema_head_003_ready", ready)
+    monkeypatch.setattr(api_v2, "schema_head_004_ready", ready)
     monkeypatch.setattr(api_v2, "retrieval_database_ready", ready)
     monkeypatch.setattr(api_v2, "review_database_ready", ready)
 
@@ -575,7 +575,7 @@ def test_health_fails_closed_without_internal_details(
 ) -> None:
     monkeypatch.setenv("PG_RAG_DSN", "postgresql://secret-reader")
     monkeypatch.setenv("PG_REVIEW_DSN", "postgresql://secret-reviewer")
-    monkeypatch.setattr(api_v2, "schema_head_003_ready", lambda _dsn: True)
+    monkeypatch.setattr(api_v2, "schema_head_004_ready", lambda _dsn: True)
     monkeypatch.setattr(api_v2, "retrieval_database_ready", lambda _dsn: True)
     monkeypatch.setattr(api_v2, "review_database_ready", lambda _dsn: True)
     monkeypatch.setattr(api_v2, "_model_artifacts_ready", lambda: True)
@@ -599,13 +599,13 @@ def test_health_fails_closed_without_internal_details(
     elif failure == "missing_review_dsn":
         monkeypatch.delenv("PG_REVIEW_DSN")
     elif failure == "schema":
-        monkeypatch.setattr(api_v2, "schema_head_003_ready", lambda _dsn: False)
+        monkeypatch.setattr(api_v2, "schema_head_004_ready", lambda _dsn: False)
     elif failure == "dimension":
         monkeypatch.setattr(api_v2, "pgvector_dimension", lambda _dsn: 768)
     elif failure == "rag_database":
         monkeypatch.setattr(
             api_v2,
-            "schema_head_003_ready",
+            "schema_head_004_ready",
             lambda _dsn: (_ for _ in ()).throw(RuntimeError("private database failure")),
         )
     elif failure == "retrieval_privileges":
@@ -1031,8 +1031,8 @@ def test_v2_dockerfile_copies_only_the_read_review_runtime() -> None:
         assert f"services/rag-engine/src/ingestor/{required_module}" in content
     assert "infra/postgres/migrations/ /app/migrations/" in content
     assert (
-        "infra/postgres/schema_head_003_fingerprints.env "
-        "/app/schema_head_003_fingerprints.env" in content
+        "infra/postgres/schema_head_004_fingerprints.env "
+        "/app/schema_head_004_fingerprints.env" in content
     )
     for forbidden_module in (
         "api.py",
