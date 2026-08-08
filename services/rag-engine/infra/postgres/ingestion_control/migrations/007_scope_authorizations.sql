@@ -39,6 +39,16 @@ CREATE TABLE IF NOT EXISTS ingestion_control.scope_authorizations (
     authorization_id    TEXT PRIMARY KEY,
     decision             TEXT NOT NULL,
 
+    -- Liaison aux octets exactement revus (remédiation GATE H1, item B).
+    -- protocol_version/artifact_path/authorization_digest identifient
+    -- l'artefact canonique versionné dans le HEAD revu ; le digest est
+    -- recalculé à chaque vérification (a) depuis les colonnes de CETTE
+    -- ligne et (b) depuis le blob relu en direct à ce HEAD — toute
+    -- divergence de l'un ou l'autre côté échoue fail-closed.
+    protocol_version       TEXT NOT NULL DEFAULT 'LOT41A-ARTIFACT-V1',
+    artifact_path          TEXT NOT NULL,
+    authorization_digest   TEXT NOT NULL,
+
     -- Scope complet obligatoire et fail-closed — mêmes dix dimensions et
     -- mêmes contraintes que ingestion_control.resources/ingestion_runs
     -- (nexus_contracts.ingestion.ResourceScope, réutilisé tel quel).
@@ -85,6 +95,10 @@ CREATE TABLE IF NOT EXISTS ingestion_control.scope_authorizations (
     revoked_at                            TIMESTAMPTZ,
     revoked_by                            TEXT,
     revocation_reason                     TEXT,
+    -- Même liaison au contenu revu pour la révocation (item B) :
+    -- authorization_id et motif font partie des octets approuvés.
+    revocation_artifact_path              TEXT,
+    revocation_digest                     TEXT,
     revocation_evidence_repository        TEXT,
     revocation_evidence_pull_request      INTEGER,
     revocation_evidence_base_sha          TEXT,
@@ -96,6 +110,19 @@ CREATE TABLE IF NOT EXISTS ingestion_control.scope_authorizations (
 
     CONSTRAINT scope_authorizations_authorization_id_not_blank
         CHECK (btrim(authorization_id) <> ''),
+    CONSTRAINT scope_authorizations_protocol_version_valid
+        CHECK (protocol_version = 'LOT41A-ARTIFACT-V1'),
+    CONSTRAINT scope_authorizations_artifact_path_canonical
+        CHECK (artifact_path = 'governance/authorizations/' || authorization_id || '.json'),
+    CONSTRAINT scope_authorizations_authorization_digest_valid
+        CHECK (authorization_digest ~ '^[0-9a-f]{64}$'),
+    CONSTRAINT scope_authorizations_revocation_digest_valid
+        CHECK (revocation_digest IS NULL OR revocation_digest ~ '^[0-9a-f]{64}$'),
+    CONSTRAINT scope_authorizations_revocation_artifact_path_canonical
+        CHECK (
+            revocation_artifact_path IS NULL
+            OR revocation_artifact_path = 'governance/revocations/' || authorization_id || '.json'
+        ),
     CONSTRAINT scope_authorizations_decision_valid
         CHECK (decision = 'AUTHORIZE_INGESTION_SCOPE'),
     CONSTRAINT scope_authorizations_tenant_not_blank
@@ -171,11 +198,12 @@ CREATE TABLE IF NOT EXISTS ingestion_control.scope_authorizations (
         CHECK (
             num_nulls(
                 revoked_at, revoked_by, revocation_reason,
+                revocation_artifact_path, revocation_digest,
                 revocation_evidence_repository, revocation_evidence_pull_request,
                 revocation_evidence_base_sha, revocation_evidence_head_sha,
                 revocation_evidence_review_id, revocation_evidence_reviewer,
                 revocation_evidence_submitted_at, revocation_evidence_challenge
-            ) IN (0, 11)
+            ) IN (0, 13)
         ),
     CONSTRAINT scope_authorizations_revocation_base_sha_valid
         CHECK (revocation_evidence_base_sha IS NULL OR revocation_evidence_base_sha ~ '^[0-9a-f]{40}$'),

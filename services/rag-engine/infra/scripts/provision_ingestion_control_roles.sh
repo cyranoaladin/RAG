@@ -270,6 +270,7 @@ GRANT SELECT, INSERT ON ingestion_control.scope_authorizations TO :"authority_ro
 -- UPDATE de table.
 GRANT UPDATE (
     revoked_at, revoked_by, revocation_reason,
+    revocation_artifact_path, revocation_digest,
     revocation_evidence_repository, revocation_evidence_pull_request,
     revocation_evidence_base_sha, revocation_evidence_head_sha,
     revocation_evidence_review_id, revocation_evidence_reviewer,
