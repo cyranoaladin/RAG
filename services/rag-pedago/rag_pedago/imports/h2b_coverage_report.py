@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import subprocess
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -36,6 +37,11 @@ class CoverageReport:
     git_commit: str
     git_branch: str
 
+    # Evidence provenance
+    real_corpus_catalog_source: bool
+    synthetic_catalog_used_for_final_gate: bool
+    manifest_sha256: str
+
     # Corpus totals
     corpus_total_expected: int
     corpus_total_actual: int
@@ -50,6 +56,17 @@ class CoverageReport:
     zero_overlap: bool = False
     zero_gap: bool = False
     coverage_complete: bool = False
+    unclassified: int = 0
+    multiple_primary_disposition: int = 0
+    safety_invariants: dict[str, int] = field(default_factory=dict)
+
+    # Artifact / placement integration
+    content_artifact_count: int = 0
+    eduscol_unique_artifacts: int = 0
+    eduscol_placement_count: int = 0
+    eduscol_placements_classified: int = 0
+    eduscol_placements_unclassified: int = 0
+    multi_placement_artifacts: int = 0
 
     # Gate statuses
     rights_gate_status: str = "UNKNOWN"
@@ -120,24 +137,88 @@ def generate_coverage_report(
     rights_path: Path | None = None,
     golden_path: Path | None = None,
     expected_total: int = 2584,
+    expected_manifest_sha256: str | None = None,
 ) -> CoverageReport:
     """Generate H2-B coverage report."""
     catalog = load_catalog(catalog_path)
+    if catalog.get("catalog_kind") != "REAL_SEALED_CORPUS":
+        raise ValueError("final gate requires a real sealed corpus catalog")
+    manifest_sha256 = catalog.get("manifest_sha256")
+    if not isinstance(manifest_sha256, str) or re.fullmatch(
+        r"[0-9a-f]{64}", manifest_sha256
+    ) is None:
+        raise ValueError("catalog manifest SHA256 is invalid")
+    if (
+        expected_manifest_sha256 is not None
+        and manifest_sha256 != expected_manifest_sha256
+    ):
+        raise ValueError("catalog manifest SHA256 mismatch")
 
     # Git info
     git_commit = _get_git_commit()
     git_branch = _get_git_branch()
 
     # Corpus totals
-    actual_total = catalog.get("corpus_total_objects", 0)
-    totals = catalog.get("totals", {})
-    totals_sum = catalog.get("totals_sum", sum(totals.values()))
+    actual_total = catalog.get("physical_object_count", 0)
+    totals = catalog.get("disposition_counts", {})
+    if not isinstance(totals, dict) or not all(
+        isinstance(value, int) and value >= 0 for value in totals.values()
+    ):
+        raise ValueError("catalog disposition counts are invalid")
+    totals_sum = sum(totals.values())
 
     # Verification
     sum_equals_total = totals_sum == actual_total
-    zero_overlap = catalog.get("verification_passed", False)
-    zero_gap = sum_equals_total and zero_overlap
+    unclassified = catalog.get("unclassified", -1)
+    multiple_primary = catalog.get("multiple_primary_disposition", -1)
+    zero_overlap = (
+        catalog.get("verification_passed") is True and multiple_primary == 0
+    )
+    zero_gap = sum_equals_total and unclassified == 0
     corpus_match = actual_total == expected_total
+
+    safety_invariants = {
+        "INGEST_WITHOUT_RIGHTS_CLEARANCE": 0,
+        "INGEST_WITHOUT_PII_CLEARANCE": 0,
+        "INGEST_WITHOUT_CURRENTNESS_CLEARANCE": 0,
+        "INGEST_WITH_UNSUPPORTED_FORMAT": 0,
+        "INGEST_WITHOUT_PROVENANCE": 0,
+        "INGEST_WITHOUT_CONTENT_SHA": 0,
+        "INGEST_WITHOUT_AUTHORITY": 0,
+        "INGEST_WITHOUT_ATTRIBUTION_METADATA": 0,
+    }
+    physical_objects = catalog.get("physical_objects")
+    if not isinstance(physical_objects, list):
+        raise ValueError("real catalog must include physical objects")
+    for item in physical_objects:
+        if not isinstance(item, dict) or item.get("disposition") != "INGEST":
+            continue
+        gates = item.get("gate_statuses")
+        if not isinstance(gates, dict) or gates.get("rights") != "PASS":
+            safety_invariants["INGEST_WITHOUT_RIGHTS_CLEARANCE"] += 1
+        if not isinstance(gates, dict) or gates.get("pii") != "PASS":
+            safety_invariants["INGEST_WITHOUT_PII_CLEARANCE"] += 1
+        if item.get("currentness") != "actuel":
+            safety_invariants["INGEST_WITHOUT_CURRENTNESS_CLEARANCE"] += 1
+        path_value = item.get("path")
+        if not isinstance(path_value, str) or not path_value.lower().endswith(".pdf"):
+            safety_invariants["INGEST_WITH_UNSUPPORTED_FORMAT"] += 1
+        if item.get("provenance_status") != "VERIFIED":
+            safety_invariants["INGEST_WITHOUT_PROVENANCE"] += 1
+        content_sha256 = item.get("content_sha256")
+        if not isinstance(content_sha256, str) or re.fullmatch(
+            r"[0-9a-f]{64}", content_sha256
+        ) is None:
+            safety_invariants["INGEST_WITHOUT_CONTENT_SHA"] += 1
+        if item.get("authority_status") != "PASS":
+            safety_invariants["INGEST_WITHOUT_AUTHORITY"] += 1
+        attribution = item.get("attribution_metadata")
+        if not isinstance(attribution, dict) or not all(
+            isinstance(attribution.get(field_name), str)
+            and bool(attribution.get(field_name))
+            for field_name in ("source", "source_url")
+        ):
+            safety_invariants["INGEST_WITHOUT_ATTRIBUTION_METADATA"] += 1
 
     # Input files
     input_files = {
@@ -145,34 +226,29 @@ def generate_coverage_report(
     }
 
     # Rights gate
-    rights_gate_status = "UNKNOWN"
+    rights_gate_status = (
+        "PASS"
+        if safety_invariants["INGEST_WITHOUT_RIGHTS_CLEARANCE"] == 0
+        else "BLOCKED_INGEST_WITHOUT_CLEARANCE"
+    )
     if rights_path and rights_path.exists():
-        rights = load_yaml(rights_path)
-        summary = rights.get("summary", {})
-        unresolved = summary.get("unresolved", 0)
-        if unresolved == 0:
-            rights_gate_status = "PASS"
-        else:
-            rights_gate_status = f"BLOCKED_{unresolved}_UNRESOLVED"
         input_files["rights"] = _file_sha256(rights_path)
 
-    # PII gate
-    pii_gate_status = "BLOCKED_SCAN_INCOMPLETE"  # H2-B: no corpus access
+    pii_gate_status = (
+        "PASS"
+        if safety_invariants["INGEST_WITHOUT_PII_CLEARANCE"] == 0
+        else "BLOCKED_INGEST_WITHOUT_CLEARANCE"
+    )
 
     # Currentness gate (derived from catalog)
-    currentness_counts: dict[str, int] = {}
-    for obj in catalog.get("objects", []):
-        c = obj.get("currentness")
-        if c:
-            currentness_counts[c] = currentness_counts.get(c, 0) + 1
-    if currentness_counts.get("unclassified", 0) == 0:
+    if safety_invariants["INGEST_WITHOUT_CURRENTNESS_CLEARANCE"] == 0:
         currentness_gate_status = "PASS"
     else:
-        currentness_gate_status = f"INCOMPLETE_{currentness_counts.get('unclassified', 0)}_UNCLASSIFIED"
+        currentness_gate_status = "BLOCKED_INGEST_WITHOUT_CURRENTNESS"
 
     # Format gate (derived from catalog)
     unsupported = totals.get("UNSUPPORTED", 0)
-    if unsupported == 37:  # Expected GeoGebra count
+    if safety_invariants["INGEST_WITH_UNSUPPORTED_FORMAT"] == 0:
         format_gate_status = f"PASS_WITH_{unsupported}_UNSUPPORTED"
     else:
         format_gate_status = f"CHECK_{unsupported}_UNSUPPORTED"
@@ -194,6 +270,7 @@ def generate_coverage_report(
         and zero_overlap
         and zero_gap
         and corpus_match
+        and all(value == 0 for value in safety_invariants.values())
     )
 
     return CoverageReport(
@@ -201,6 +278,9 @@ def generate_coverage_report(
         generated_at=datetime.now(UTC).isoformat(),
         git_commit=git_commit,
         git_branch=git_branch,
+        real_corpus_catalog_source=True,
+        synthetic_catalog_used_for_final_gate=False,
+        manifest_sha256=manifest_sha256,
         corpus_total_expected=expected_total,
         corpus_total_actual=actual_total,
         corpus_match=corpus_match,
@@ -210,6 +290,19 @@ def generate_coverage_report(
         zero_overlap=zero_overlap,
         zero_gap=zero_gap,
         coverage_complete=coverage_complete,
+        unclassified=unclassified,
+        multiple_primary_disposition=multiple_primary,
+        safety_invariants=safety_invariants,
+        content_artifact_count=catalog.get("content_artifact_count", 0),
+        eduscol_unique_artifacts=catalog.get("eduscol_unique_artifacts", 0),
+        eduscol_placement_count=catalog.get("eduscol_placement_count", 0),
+        eduscol_placements_classified=catalog.get(
+            "eduscol_placements_classified", 0
+        ),
+        eduscol_placements_unclassified=catalog.get(
+            "eduscol_placements_unclassified", 0
+        ),
+        multi_placement_artifacts=catalog.get("multi_placement_artifacts", 0),
         rights_gate_status=rights_gate_status,
         pii_gate_status=pii_gate_status,
         currentness_gate_status=currentness_gate_status,
@@ -230,6 +323,11 @@ def render_markdown(report: CoverageReport) -> str:
         f"**Generated**: {report.generated_at}",
         f"**Git Commit**: `{report.git_commit}`",
         f"**Git Branch**: `{report.git_branch}`",
+        "",
+        f"REAL_CORPUS_CATALOG_SOURCE={'true' if report.real_corpus_catalog_source else 'false'}",
+        "SYNTHETIC_CATALOG_USED_FOR_FINAL_GATE="
+        f"{'true' if report.synthetic_catalog_used_for_final_gate else 'false'}",
+        f"CORPUS_MANIFEST_SHA256={report.manifest_sha256}",
         "",
         "---",
         "",
@@ -267,12 +365,27 @@ def render_markdown(report: CoverageReport) -> str:
         f"| Zero overlap (no duplicate SHA256) | **{'PASS' if report.zero_overlap else 'FAIL'}** |",
         f"| Zero gap (all objects assigned) | **{'PASS' if report.zero_gap else 'FAIL'}** |",
         f"| Corpus total matches expected | **{'PASS' if report.corpus_match else 'FAIL'}** |",
+        f"| Unclassified objects | **{report.unclassified}** |",
+        f"| Multiple primary dispositions | **{report.multiple_primary_disposition}** |",
         "",
         f"**COVERAGE_COMPLETE = {'TRUE' if report.coverage_complete else 'FALSE'}**",
         "",
         "---",
         "",
-        "## 4. GATE STATUSES",
+        "## 4. INGEST SAFETY INVARIANTS",
+        "",
+        "| Invariant | Count |",
+        "|-----------|-------|",
+    ])
+
+    for invariant, count in report.safety_invariants.items():
+        lines.append(f"| {invariant} | {count} |")
+
+    lines.extend([
+        "",
+        "---",
+        "",
+        "## 5. GATE STATUSES",
         "",
         "| Gate | Status |",
         "|------|--------|",
@@ -283,7 +396,7 @@ def render_markdown(report: CoverageReport) -> str:
         "",
         "---",
         "",
-        "## 5. GOLDEN CORPUS VALIDATION",
+        "## 6. GOLDEN CORPUS VALIDATION",
         "",
         f"- Total controls: {report.golden_controls_total}",
         f"- Passed controls: {report.golden_controls_passed}",
@@ -291,7 +404,7 @@ def render_markdown(report: CoverageReport) -> str:
         "",
         "---",
         "",
-        "## 6. INPUT FILE HASHES",
+        "## 7. INPUT FILE HASHES",
         "",
         "| File | SHA256 (first 16) |",
         "|------|-------------------|",
@@ -304,7 +417,7 @@ def render_markdown(report: CoverageReport) -> str:
         "",
         "---",
         "",
-        "## 7. BLOCKING ITEMS FOR GO-LIVE",
+        "## 8. BLOCKING ITEMS FOR GO-LIVE",
         "",
     ])
 
@@ -317,6 +430,9 @@ def render_markdown(report: CoverageReport) -> str:
         blocking.append(f"- Currentness gate: `{report.currentness_gate_status}`")
     if not report.corpus_match:
         blocking.append(f"- Corpus total mismatch: {report.corpus_total_actual} vs {report.corpus_total_expected}")
+    for invariant, count in report.safety_invariants.items():
+        if count:
+            blocking.append(f"- {invariant}: {count}")
 
     if blocking:
         lines.extend(blocking)
@@ -358,6 +474,10 @@ def main() -> int:
         default=2584,
         help="Expected corpus total",
     )
+    parser.add_argument(
+        "--expected-manifest-sha256",
+        help="Expected sealed SHA256SUMS digest",
+    )
     args = parser.parse_args()
 
     report = generate_coverage_report(
@@ -365,6 +485,7 @@ def main() -> int:
         rights_path=args.rights,
         golden_path=args.golden,
         expected_total=args.expected_total,
+        expected_manifest_sha256=args.expected_manifest_sha256,
     )
 
     markdown = render_markdown(report)
