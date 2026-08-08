@@ -160,7 +160,7 @@ def generate_coverage_report(
     pii_gate_status = "BLOCKED_SCAN_INCOMPLETE"  # H2-B: no corpus access
 
     # Currentness gate (derived from catalog)
-    currentness_counts = {}
+    currentness_counts: dict[str, int] = {}
     for obj in catalog.get("objects", []):
         c = obj.get("currentness")
         if c:
