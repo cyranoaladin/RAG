@@ -388,8 +388,47 @@ def scan_corpus(
     )
 
 
-def result_to_dict(result: PIIScanResult) -> dict[str, Any]:
-    """Convert PIIScanResult to dict for JSON serialization."""
+def result_to_dict_sanitized(result: PIIScanResult) -> dict[str, Any]:
+    """Convert PIIScanResult to sanitized dict for external evidence.
+
+    CRITICAL: This function NEVER includes raw PII values.
+    Only safe metadata is exposed for audit trail.
+    """
+    return {
+        "file_path": result.file_path,
+        "sha256": result.sha256,
+        "pages_scanned": result.pages_scanned,
+        "characters_scanned": result.characters_scanned,
+        "pii_detected": result.pii_detected,
+        "signal_count": len(result.matches),
+        "signal_classes": list({m.pattern_id for m in result.matches}),
+        "signals": [
+            {
+                "pattern_id": m.pattern_id,
+                "page_number": m.page_number,
+                "match_length": len(m.match_text),
+                # NO match_text - contains raw PII
+                # NO context - contains raw PII
+            }
+            for m in result.matches
+        ],
+        "extraction_error": result.extraction_error,
+        "scan_duration_ms": result.scan_duration_ms,
+    }
+
+
+def result_to_dict(result: PIIScanResult, *, sanitize: bool = True) -> dict[str, Any]:
+    """Convert PIIScanResult to dict for JSON serialization.
+
+    Args:
+        result: The scan result to convert.
+        sanitize: If True (default), redact raw PII values.
+                  If False, include full match details (INTERNAL USE ONLY).
+    """
+    if sanitize:
+        return result_to_dict_sanitized(result)
+
+    # INTERNAL USE ONLY - never persist to external evidence
     return {
         "file_path": result.file_path,
         "sha256": result.sha256,
@@ -412,8 +451,14 @@ def result_to_dict(result: PIIScanResult) -> dict[str, Any]:
     }
 
 
-def report_to_dict(report: PIIScanReport) -> dict[str, Any]:
-    """Convert PIIScanReport to dict for JSON serialization."""
+def report_to_dict(report: PIIScanReport, *, sanitize: bool = True) -> dict[str, Any]:
+    """Convert PIIScanReport to dict for JSON serialization.
+
+    Args:
+        report: The scan report to convert.
+        sanitize: If True (default), redact raw PII values from all results.
+                  External evidence MUST use sanitize=True.
+    """
     return {
         "report_id": report.report_id,
         "generated_at": report.generated_at,
@@ -428,7 +473,7 @@ def report_to_dict(report: PIIScanReport) -> dict[str, Any]:
             "total_matches": report.total_matches,
             "matches_by_pattern": report.matches_by_pattern,
         },
-        "results": [result_to_dict(r) for r in report.results],
+        "results": [result_to_dict(r, sanitize=sanitize) for r in report.results],
     }
 
 

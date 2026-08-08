@@ -1,10 +1,17 @@
 """Tests for PII scanner — H2-B."""
+import json
 from pathlib import Path
 
 from rag_pedago.imports.pii_scanner import (
     DEFAULT_PII_PATTERNS,
+    PIIMatch,
+    PIIScanReport,
+    PIIScanResult,
     extract_context,
     is_allowlisted,
+    report_to_dict,
+    result_to_dict,
+    result_to_dict_sanitized,
     scan_pdf,
     scan_text_for_pii,
 )
@@ -188,3 +195,128 @@ class TestMutationTests:
         for m in matches:
             assert m.match_text in m.context, \
                 "Context must include the matched text"
+
+
+class TestPIISanitization:
+    """H2-B CRITICAL: Verify raw PII never appears in external evidence."""
+
+    # Synthetic fake PII for testing - NOT real data
+    FAKE_EMAIL = "fake.student.test@fakeuniversity.example.org"
+    FAKE_PHONE = "06 98 76 54 32"
+    FAKE_ADDRESS = "123 Rue Fictive, 75000 Fakeville"
+    FAKE_SSN = "1 99 12 75 999 888 77"
+    FAKE_STUDENT_ID = "INE123456789X"
+
+    def _create_result_with_pii(self) -> PIIScanResult:
+        """Create a scan result containing fake PII for testing."""
+        return PIIScanResult(
+            file_path="/test/document.pdf",
+            sha256="abc123def456",
+            pages_scanned=5,
+            characters_scanned=10000,
+            pii_detected=True,
+            matches=[
+                PIIMatch(
+                    pattern_id="email_address",
+                    description="Email addresses",
+                    match_text=self.FAKE_EMAIL,
+                    page_number=1,
+                    char_offset=100,
+                    context=f"Contact: {self.FAKE_EMAIL} for questions",
+                ),
+                PIIMatch(
+                    pattern_id="phone_french",
+                    description="French phone numbers",
+                    match_text=self.FAKE_PHONE,
+                    page_number=2,
+                    char_offset=200,
+                    context=f"Tel: {self.FAKE_PHONE}",
+                ),
+            ],
+            extraction_error=None,
+            scan_duration_ms=500,
+        )
+
+    def test_sanitized_result_excludes_match_text(self) -> None:
+        """CRITICAL: Sanitized result must NOT contain match_text."""
+        result = self._create_result_with_pii()
+        sanitized = result_to_dict_sanitized(result)
+        serialized = json.dumps(sanitized)
+
+        assert self.FAKE_EMAIL not in serialized, \
+            "Sanitized output must NOT contain fake email"
+        assert self.FAKE_PHONE not in serialized, \
+            "Sanitized output must NOT contain fake phone"
+
+    def test_sanitized_result_excludes_context(self) -> None:
+        """CRITICAL: Sanitized result must NOT contain context."""
+        result = self._create_result_with_pii()
+        sanitized = result_to_dict_sanitized(result)
+        serialized = json.dumps(sanitized)
+
+        assert "Contact:" not in serialized, \
+            "Sanitized output must NOT contain context"
+        assert "Tel:" not in serialized, \
+            "Sanitized output must NOT contain context"
+
+    def test_default_result_to_dict_is_sanitized(self) -> None:
+        """Default result_to_dict() must use sanitization."""
+        result = self._create_result_with_pii()
+        output = result_to_dict(result)  # Default sanitize=True
+        serialized = json.dumps(output)
+
+        assert self.FAKE_EMAIL not in serialized
+        assert self.FAKE_PHONE not in serialized
+        assert "match_text" not in serialized
+        assert "context" not in serialized
+
+    def test_sanitized_report_excludes_all_pii(self) -> None:
+        """CRITICAL: Full report must NOT contain any raw PII."""
+        result = self._create_result_with_pii()
+        report = PIIScanReport(
+            report_id="test_report",
+            generated_at="2026-08-08T00:00:00Z",
+            policy_version="test_v1",
+            total_files=1,
+            files_scanned=1,
+            files_with_errors=0,
+            files_with_pii=1,
+            files_clean=0,
+            pii_absent_attested=False,
+            total_matches=2,
+            matches_by_pattern={"email_address": 1, "phone_french": 1},
+            results=[result],
+        )
+        output = report_to_dict(report)  # Default sanitize=True
+        serialized = json.dumps(output)
+
+        assert self.FAKE_EMAIL not in serialized, \
+            "Report must NOT contain fake email"
+        assert self.FAKE_PHONE not in serialized, \
+            "Report must NOT contain fake phone"
+
+    def test_sanitized_output_contains_safe_metadata(self) -> None:
+        """Sanitized output must still contain safe audit metadata."""
+        result = self._create_result_with_pii()
+        sanitized = result_to_dict_sanitized(result)
+
+        # Safe metadata that SHOULD be present
+        assert sanitized["sha256"] == "abc123def456"
+        assert sanitized["pii_detected"] is True
+        assert sanitized["signal_count"] == 2
+        assert "email_address" in sanitized["signal_classes"]
+        assert "phone_french" in sanitized["signal_classes"]
+        assert len(sanitized["signals"]) == 2
+        assert sanitized["signals"][0]["pattern_id"] == "email_address"
+        assert sanitized["signals"][0]["match_length"] > 0
+
+    def test_unsanitized_only_for_internal_use(self) -> None:
+        """Unsanitized output is available but flagged for internal use only."""
+        result = self._create_result_with_pii()
+        # Explicit sanitize=False for internal debugging
+        output = result_to_dict(result, sanitize=False)
+        serialized = json.dumps(output)
+
+        # This WOULD contain PII - for internal use only
+        assert self.FAKE_EMAIL in serialized
+        assert "match_text" in serialized
