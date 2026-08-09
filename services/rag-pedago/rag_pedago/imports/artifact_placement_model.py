@@ -161,6 +161,8 @@ class PhysicalCorpusObject:
     zone: str
     currentness: str | None
     rights_category_candidate: str | None
+    provenance_status: str = "VERIFIED"
+    attribution_metadata: dict[str, str] = field(default_factory=dict)
     gate_statuses: dict[str, str] = field(default_factory=dict)
     is_manifest_self: bool = False
 
@@ -174,6 +176,8 @@ class PhysicalCorpusObject:
             "zone": self.zone,
             "currentness": self.currentness,
             "rights_category_candidate": self.rights_category_candidate,
+            "provenance_status": self.provenance_status,
+            "attribution_metadata": dict(sorted(self.attribution_metadata.items())),
             "gate_statuses": dict(sorted(self.gate_statuses.items())),
             "is_manifest_self": self.is_manifest_self,
         }

@@ -238,15 +238,28 @@ class TestMutH2B10GoldenPositiveControlsPass:
         """Positive control validates actuel documents."""
         control = {
             "control_id": "pos_test",
-            "sha256_prefix": "abc123",
-            "expected_disposition": "INGEST",
+            "sha256_prefix": "a" * 12,
+            "expected_base_disposition": "INGEST",
+            "expected_final_disposition": "REVIEW_REQUIRED",
+            "expected_currentness": "actuel",
+            "expected_gate_statuses": {
+                "rights": "PASS",
+                "pii": "PASS",
+                "authority": "BLOCKED_NOT_CLEARED",
+            },
         }
         objects = [
             {
-                "sha256": "abc123def456",
+                "content_sha256": "a" * 64,
                 "path": "01_EDUSCOL/10_ACTUEL_CONFIRME/prog.pdf",
-                "disposition": "INGEST",
+                "base_disposition": "INGEST",
+                "disposition": "REVIEW_REQUIRED",
                 "currentness": "actuel",
+                "gate_statuses": {
+                    "rights": "PASS",
+                    "pii": "PASS",
+                    "authority": "BLOCKED_NOT_CLEARED",
+                },
             },
         ]
 
@@ -264,11 +277,12 @@ class TestMutH2B11GoldenNegativeControlsBlock:
         control = {
             "control_id": "neg_test",
             "zone": "00_ADMIN/",
+            "expected_count_in_zone": 1,
             "expected_disposition": "EXCLUDE",
         }
         objects = [
             {
-                "sha256": "abc123",
+                "content_sha256": "a" * 64,
                 "path": "00_ADMIN/manifest.txt",
                 "disposition": "EXCLUDE",
             },
@@ -284,11 +298,12 @@ class TestMutH2B11GoldenNegativeControlsBlock:
         control = {
             "control_id": "neg_fail_test",
             "zone": "00_ADMIN/",
+            "expected_count_in_zone": 1,
             "expected_disposition": "EXCLUDE",
         }
         objects = [
             {
-                "sha256": "abc123",
+                "content_sha256": "a" * 64,
                 "path": "00_ADMIN/manifest.txt",
                 "disposition": "INGEST",  # Wrong! Should be EXCLUDE
             },

@@ -353,10 +353,9 @@ def _pedagogical_placement_from_row(row: dict[str, str]) -> PedagogicalPlacement
     )
 
 
-def _attach_eduscol_placements(
-    catalog: SealedCorpusCatalog,
+def _load_eduscol_placements(
     placement_catalog_path: Path,
-) -> None:
+) -> list[PedagogicalPlacement]:
     required_columns = {
         "sha256",
         "scope",
@@ -373,6 +372,7 @@ def _attach_eduscol_placements(
         "chemin_par_niveau",
         "chemin_par_scope",
     }
+    placements: list[PedagogicalPlacement] = []
     with placement_catalog_path.open(encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle, delimiter="\t")
         columns = set(reader.fieldnames or ())
@@ -382,19 +382,76 @@ def _attach_eduscol_placements(
                 "placement catalog missing required columns: " + ", ".join(missing)
             )
         for line_number, row in enumerate(reader, start=2):
-            content_sha256 = row.get("sha256", "")
-            artifact = catalog.artifacts.get(content_sha256)
-            if artifact is None or not any(
-                item.path.startswith("01_EDUSCOL_OFFICIEL/")
-                for item in artifact.physical_objects
-            ):
+            placement = _pedagogical_placement_from_row(row)
+            if re.fullmatch(r"[0-9a-f]{64}", placement.content_sha256) is None:
                 raise ValueError(
-                    "unknown Eduscol content SHA256 at placement line "
-                    f"{line_number}: {content_sha256}"
+                    "invalid Eduscol content SHA256 at placement line "
+                    f"{line_number}: {placement.content_sha256}"
                 )
-            artifact.pedagogical_placements.append(
-                _pedagogical_placement_from_row(row)
+            placements.append(placement)
+    return placements
+
+
+def _attach_eduscol_placements(
+    catalog: SealedCorpusCatalog,
+    placements: list[PedagogicalPlacement],
+) -> None:
+    for placement in placements:
+        content_sha256 = placement.content_sha256
+        artifact = catalog.artifacts.get(content_sha256)
+        if artifact is None or not any(
+            item.path.startswith("01_EDUSCOL_OFFICIEL/")
+            for item in artifact.physical_objects
+        ):
+            raise ValueError(
+                "unknown Eduscol content SHA256 in placement catalog: "
+                f"{content_sha256}"
             )
+        artifact.pedagogical_placements.append(placement)
+
+
+def _placement_attribution(
+    placements: list[PedagogicalPlacement],
+) -> dict[str, dict[str, str]]:
+    references: dict[str, set[str]] = {}
+    for placement in placements:
+        references.setdefault(placement.content_sha256, set()).add(
+            placement.source_url
+        )
+    result: dict[str, dict[str, str]] = {}
+    for content_sha256, source_urls in references.items():
+        ordered = sorted(source_urls)
+        result[content_sha256] = {
+            "source": "EDUSCOL",
+            "source_reference": ordered[0],
+            "source_url": ordered[0],
+            "source_urls": json.dumps(
+                ordered,
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ),
+        }
+    return result
+
+
+def _physical_object_attribution(
+    content_sha256: str,
+    object_path: str,
+    eduscol_attribution: dict[str, dict[str, str]],
+) -> dict[str, str]:
+    if object_path.startswith("01_EDUSCOL_OFFICIEL/"):
+        attribution = eduscol_attribution.get(content_sha256)
+        if attribution is None:
+            raise ValueError(
+                "missing Eduscol attribution for physical object: "
+                f"{content_sha256}"
+            )
+        return dict(attribution)
+    source_scope = PurePosixPath(object_path).parts[0]
+    return {
+        "source": source_scope,
+        "source_reference": object_path,
+    }
 
 
 def _apply_mandatory_ingest_gates(
@@ -472,6 +529,26 @@ def compile_sealed_catalog(
     entries = _parse_sealed_manifest(manifest_path)
     if any(object_path == _MANIFEST_SELF_PATH for _, object_path in entries):
         raise ValueError("sealed manifest must not contain its own path")
+    placements = _load_eduscol_placements(placement_catalog_path)
+    eduscol_manifest_sha256 = {
+        content_sha256
+        for content_sha256, object_path in entries
+        if object_path.startswith("01_EDUSCOL_OFFICIEL/")
+    }
+    placement_sha256 = {placement.content_sha256 for placement in placements}
+    unknown_placements = sorted(placement_sha256 - eduscol_manifest_sha256)
+    if unknown_placements:
+        raise ValueError(
+            "unknown Eduscol content SHA256 in placement catalog: "
+            f"{unknown_placements[0]}"
+        )
+    missing_attribution = sorted(eduscol_manifest_sha256 - placement_sha256)
+    if missing_attribution:
+        raise ValueError(
+            "missing Eduscol attribution for physical object: "
+            f"{missing_attribution[0]}"
+        )
+    eduscol_attribution = _placement_attribution(placements)
 
     catalog = SealedCorpusCatalog(
         config_id=str(config.get("config_id", "unknown")),
@@ -503,6 +580,12 @@ def compile_sealed_catalog(
             zone=zone,
             currentness=currentness,
             rights_category_candidate=rights_category,
+            provenance_status="VERIFIED",
+            attribution_metadata=_physical_object_attribution(
+                content_sha256,
+                object_path,
+                eduscol_attribution,
+            ),
             gate_statuses=gate_statuses,
         )
         catalog.physical_objects.append(physical_object)
@@ -521,6 +604,11 @@ def compile_sealed_catalog(
         zone="00_ADMIN/",
         currentness=None,
         rights_category_candidate=None,
+        provenance_status="VERIFIED",
+        attribution_metadata={
+            "source": "NEXUS_CORPUS_GOVERNANCE",
+            "source_reference": _MANIFEST_SELF_PATH,
+        },
         is_manifest_self=True,
     )
     catalog.physical_objects.append(manifest_self)
@@ -529,7 +617,7 @@ def compile_sealed_catalog(
         ContentArtifact(sha256=manifest_sha256),
     ).physical_objects.append(manifest_self)
 
-    _attach_eduscol_placements(catalog, placement_catalog_path)
+    _attach_eduscol_placements(catalog, placements)
     catalog.verify()
     return catalog
 

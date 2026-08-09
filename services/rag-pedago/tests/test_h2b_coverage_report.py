@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 
 import pytest
+import yaml
 
 from rag_pedago.imports.h2b_coverage_report import (
     generate_coverage_report,
@@ -58,10 +59,16 @@ def _write_real_catalog(tmp_path: Path, *, authority_status: str = "PASS") -> Pa
             {
                 "content_sha256": MANIFEST_SHA256,
                 "path": "00_ADMIN/SHA256SUMS.txt",
+                "base_disposition": "EXCLUDE",
                 "disposition": "EXCLUDE",
                 "zone": "00_ADMIN/",
                 "currentness": None,
                 "gate_statuses": {},
+                "provenance_status": "VERIFIED",
+                "attribution_metadata": {
+                    "source": "NEXUS_CORPUS_GOVERNANCE",
+                    "source_reference": "00_ADMIN/SHA256SUMS.txt",
+                },
             },
         ],
     }
@@ -70,11 +77,60 @@ def _write_real_catalog(tmp_path: Path, *, authority_status: str = "PASS") -> Pa
     return path
 
 
+def _write_golden_spec(
+    tmp_path: Path,
+    *,
+    expected_final: str = "INGEST",
+    expected_authority: str = "PASS",
+) -> Path:
+    spec = {
+        "spec_id": "coverage_fixture_v2",
+        "catalog_kind_required": "REAL_SEALED_CORPUS",
+        "positive_controls": [
+            {
+                "control_id": "pos_01",
+                "sha256_prefix": "a" * 12,
+                "expected_base_disposition": "INGEST",
+                "expected_final_disposition": expected_final,
+                "expected_currentness": "actuel",
+                "expected_gate_statuses": {
+                    "rights": "PASS",
+                    "pii": "PASS",
+                    "authority": expected_authority,
+                },
+            }
+        ],
+        "boundary_controls": [],
+        "negative_controls": [
+            {
+                "control_id": "neg_manifest",
+                "path": "00_ADMIN/SHA256SUMS.txt",
+                "expected_count": 1,
+                "expected_disposition": "EXCLUDE",
+            }
+        ],
+        "descriptive_assertions": {
+            "authoritative": False,
+            "items": [],
+        },
+        "coverage_summary": {
+            "total_controls": 2,
+            "positive_controls": 1,
+            "boundary_controls": 0,
+            "negative_controls": 1,
+        },
+    }
+    path = tmp_path / "golden.yml"
+    path.write_text(yaml.safe_dump(spec, sort_keys=False), encoding="utf-8")
+    return path
+
+
 def test_real_catalog_proves_coverage_and_all_ingest_safety_invariants(
     tmp_path: Path,
 ) -> None:
     report = generate_coverage_report(
         _write_real_catalog(tmp_path),
+        golden_path=_write_golden_spec(tmp_path),
         expected_total=2,
         expected_manifest_sha256=MANIFEST_SHA256,
     )
@@ -105,6 +161,7 @@ def test_real_catalog_proves_coverage_and_all_ingest_safety_invariants(
 def test_missing_authority_keeps_coverage_gate_red(tmp_path: Path) -> None:
     report = generate_coverage_report(
         _write_real_catalog(tmp_path, authority_status="MISSING"),
+        golden_path=_write_golden_spec(tmp_path),
         expected_total=2,
         expected_manifest_sha256=MANIFEST_SHA256,
     )
@@ -113,7 +170,7 @@ def test_missing_authority_keeps_coverage_gate_red(tmp_path: Path) -> None:
     assert report.coverage_complete is False
 
 
-def test_blocked_candidates_prevent_vacuous_zero_ingest_green(
+def test_expected_authority_blocked_candidate_can_pass_inert_h2_gate(
     tmp_path: Path,
 ) -> None:
     path = _write_real_catalog(tmp_path)
@@ -128,13 +185,18 @@ def test_blocked_candidates_prevent_vacuous_zero_ingest_green(
 
     report = generate_coverage_report(
         path,
+        golden_path=_write_golden_spec(
+            tmp_path,
+            expected_final="REVIEW_REQUIRED",
+            expected_authority="BLOCKED_NOT_CLEARED",
+        ),
         expected_total=2,
         expected_manifest_sha256=MANIFEST_SHA256,
     )
 
     assert report.blocked_ingest_candidates == 1
     assert report.mandatory_gate_blockers == {"authority": 1}
-    assert report.coverage_complete is False
+    assert report.coverage_complete is True
     assert "BLOCKED_INGEST_CANDIDATES=1" in render_markdown(report)
 
 

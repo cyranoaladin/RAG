@@ -498,6 +498,22 @@ class TestSealedCorpusCompilation:
             "seconde",
             "terminale",
         }
+        serialized = catalog.to_dict()
+        for item in serialized["physical_objects"]:
+            assert item["provenance_status"] == "VERIFIED"
+            assert item["attribution_metadata"]
+            assert all(item["attribution_metadata"].values())
+        eduscol = next(
+            item
+            for item in serialized["physical_objects"]
+            if item["path"].startswith("01_EDUSCOL_OFFICIEL/")
+        )
+        assert eduscol["attribution_metadata"] == {
+            "source": "EDUSCOL",
+            "source_reference": "https://eduscol.education.gouv.fr/test",
+            "source_url": "https://eduscol.education.gouv.fr/test",
+            "source_urls": '["https://eduscol.education.gouv.fr/test"]',
+        }
 
     def test_manifest_self_is_excluded_without_self_referential_entry(
         self, tmp_path: Path
@@ -607,8 +623,10 @@ class TestSealedCorpusCompilation:
 
     def test_rejects_unknown_placement_content(self, tmp_path: Path) -> None:
         manifest, placements, config = _write_sealed_fixture(tmp_path)
+        placement_text = placements.read_text(encoding="utf-8")
+        unknown_row = placement_text.splitlines()[-1].replace(_sha("a"), _sha("c"))
         placements.write_text(
-            placements.read_text(encoding="utf-8").replace(_sha("a"), _sha("c")),
+            placement_text + unknown_row + "\n",
             encoding="utf-8",
         )
 

@@ -1,203 +1,166 @@
-"""Tests for golden corpus validator — H2-B."""
-from pathlib import Path
+"""Focused unit tests for exhaustive H2 golden controls."""
 
-import pytest
+from __future__ import annotations
 
 from rag_pedago.imports.golden_corpus_validator import (
     _validate_boundary_control,
     _validate_negative_control,
     _validate_positive_control,
-    validate_golden_corpus,
 )
 
 
-class TestPositiveControlValidation:
-    """Test positive control validation."""
-
-    def test_positive_control_passes_when_disposition_matches(self) -> None:
-        """Positive control passes when disposition matches expected."""
-        control = {
-            "control_id": "pos_01",
-            "sha256_prefix": "abc123",
-            "expected_disposition": "INGEST",
-        }
-        objects = [
-            {"sha256": "abc123def456", "disposition": "INGEST", "currentness": "actuel"},
-        ]
-
-        result = _validate_positive_control(control, objects)
-        assert result.passed
-        assert result.actual_disposition == "INGEST"
-
-    def test_positive_control_passes_when_currentness_actuel(self) -> None:
-        """Positive control passes when currentness is actuel (INGEST eligible)."""
-        control = {
-            "control_id": "pos_01",
-            "sha256_prefix": "abc123",
-            "expected_disposition": "INGEST",
-        }
-        objects = [
-            {"sha256": "abc123def456", "disposition": "INGEST", "currentness": "actuel"},
-        ]
-
-        result = _validate_positive_control(control, objects)
-        assert result.passed
-        assert result.control_type == "positive"
-
-    def test_positive_control_fails_when_not_found(self) -> None:
-        """Positive control fails when object not found."""
-        control = {
-            "control_id": "pos_01",
-            "sha256_prefix": "abc123",
-            "expected_disposition": "INGEST",
-        }
-        objects = [
-            {"sha256": "xyz789", "disposition": "INGEST"},
-        ]
-
-        result = _validate_positive_control(control, objects)
-        assert not result.passed
-        assert "not found" in result.failure_reason.lower()
+def _positive_control() -> dict[str, object]:
+    return {
+        "control_id": "pos_01",
+        "sha256_prefix": "a" * 12,
+        "expected_base_disposition": "INGEST",
+        "expected_final_disposition": "REVIEW_REQUIRED",
+        "expected_currentness": "actuel",
+        "expected_gate_statuses": {
+            "rights": "PASS",
+            "pii": "PASS",
+            "authority": "BLOCKED_NOT_CLEARED",
+        },
+    }
 
 
-class TestBoundaryControlValidation:
-    """Test boundary control validation."""
+def _positive_object() -> dict[str, object]:
+    return {
+        "content_sha256": "a" * 64,
+        "path": "01_EDUSCOL/10_ACTUEL_CONFIRME/a.pdf",
+        "base_disposition": "INGEST",
+        "disposition": "REVIEW_REQUIRED",
+        "currentness": "actuel",
+        "gate_statuses": {
+            "rights": "PASS",
+            "pii": "PASS",
+            "authority": "BLOCKED_NOT_CLEARED",
+        },
+    }
 
-    def test_boundary_control_passes_when_review_required(self) -> None:
-        """Boundary control passes when disposition is REVIEW_REQUIRED."""
-        control = {
+
+def test_positive_control_checks_base_final_currentness_and_gates() -> None:
+    result = _validate_positive_control(
+        _positive_control(),
+        [_positive_object()],
+    )
+
+    assert result.passed is True
+    assert result.actual_base_disposition == "INGEST"
+    assert result.actual_disposition == "REVIEW_REQUIRED"
+
+
+def test_positive_control_does_not_infer_ingest_from_currentness() -> None:
+    item = _positive_object()
+    item["base_disposition"] = "REVIEW_REQUIRED"
+
+    result = _validate_positive_control(_positive_control(), [item])
+
+    assert result.passed is False
+    assert "base expected INGEST" in str(result.failure_reason)
+
+
+def test_positive_control_fails_when_prefix_has_no_match() -> None:
+    result = _validate_positive_control(
+        _positive_control(),
+        [{**_positive_object(), "content_sha256": "b" * 64}],
+    )
+
+    assert result.passed is False
+    assert result.actual_count == 0
+
+
+def test_boundary_control_validates_all_objects() -> None:
+    control = {
+        "control_id": "bnd_01",
+        "zone": "01_EDUSCOL/80_A_VERIFIER/",
+        "expected_count_in_zone": 2,
+        "expected_disposition": "REVIEW_REQUIRED",
+        "expected_currentness": "a_verifier",
+    }
+    objects = [
+        {
+            "content_sha256": "a" * 64,
+            "path": "01_EDUSCOL/80_A_VERIFIER/a.pdf",
+            "disposition": "REVIEW_REQUIRED",
+            "currentness": "a_verifier",
+        },
+        {
+            "content_sha256": "b" * 64,
+            "path": "01_EDUSCOL/80_A_VERIFIER/b.pdf",
+            "disposition": "REVIEW_REQUIRED",
+            "currentness": "a_verifier",
+        },
+    ]
+
+    assert _validate_boundary_control(control, objects).passed is True
+    objects[1]["disposition"] = "INGEST"
+    result = _validate_boundary_control(control, objects)
+    assert result.passed is False
+    assert result.mismatching_count == 1
+
+
+def test_boundary_control_requires_exact_count() -> None:
+    result = _validate_boundary_control(
+        {
             "control_id": "bnd_01",
-            "zone": "80_A_VERIFIER",
+            "zone": "01_EDUSCOL/80_A_VERIFIER/",
+            "expected_count_in_zone": 2,
             "expected_disposition": "REVIEW_REQUIRED",
-        }
-        objects = [
-            {"sha256": "abc123", "path": "01_EDUSCOL/.../80_A_VERIFIER/doc.pdf", "disposition": "REVIEW_REQUIRED"},
-        ]
+        },
+        [
+            {
+                "content_sha256": "a" * 64,
+                "path": "01_EDUSCOL/80_A_VERIFIER/a.pdf",
+                "disposition": "REVIEW_REQUIRED",
+            }
+        ],
+    )
 
-        result = _validate_boundary_control(control, objects)
-        assert result.passed
-
-    def test_boundary_control_fails_when_wrong_disposition(self) -> None:
-        """Boundary control fails when disposition doesn't match."""
-        control = {
-            "control_id": "bnd_01",
-            "zone": "80_A_VERIFIER",
-            "expected_disposition": "REVIEW_REQUIRED",
-        }
-        objects = [
-            {"sha256": "abc123", "path": "01_EDUSCOL/.../80_A_VERIFIER/doc.pdf", "disposition": "INGEST"},
-        ]
-
-        result = _validate_boundary_control(control, objects)
-        assert not result.passed
+    assert result.passed is False
+    assert result.actual_count == 1
 
 
-class TestNegativeControlValidation:
-    """Test negative control validation."""
+def test_negative_control_is_exact_and_absence_is_failure() -> None:
+    control = {
+        "control_id": "neg_manifest",
+        "path": "00_ADMIN/SHA256SUMS.txt",
+        "expected_count": 1,
+        "expected_disposition": "EXCLUDE",
+    }
+    item = {
+        "content_sha256": "a" * 64,
+        "path": "00_ADMIN/SHA256SUMS.txt",
+        "disposition": "EXCLUDE",
+    }
 
-    def test_negative_control_passes_when_excluded(self) -> None:
-        """Negative control passes when disposition is EXCLUDE."""
-        control = {
-            "control_id": "neg_01",
-            "zone": "00_ADMIN/",
-            "expected_disposition": "EXCLUDE",
-        }
-        objects = [
-            {"sha256": "abc123", "path": "00_ADMIN/SHA256SUMS.txt", "disposition": "EXCLUDE"},
-        ]
-
-        result = _validate_negative_control(control, objects)
-        assert result.passed
-
-    def test_negative_control_passes_when_not_in_catalog(self) -> None:
-        """Negative control passes when object not in catalog (properly excluded)."""
-        control = {
-            "control_id": "neg_01",
-            "filename_pattern": "excluded_file.pdf",
-            "expected_disposition": "EXCLUDE",
-        }
-        objects = []  # Object not in catalog
-
-        result = _validate_negative_control(control, objects)
-        assert result.passed  # Not in catalog = properly excluded
-
-    def test_negative_control_passes_when_unsupported(self) -> None:
-        """Negative control passes when disposition is UNSUPPORTED."""
-        control = {
-            "control_id": "neg_04",
-            "zone": "03_RESSOURCES_INTERACTIVES/",
-            "expected_disposition": "UNSUPPORTED",
-        }
-        objects = [
-            {"sha256": "abc123", "path": "03_RESSOURCES_INTERACTIVES/geo.ggb", "disposition": "UNSUPPORTED"},
-        ]
-
-        result = _validate_negative_control(control, objects)
-        assert result.passed
+    assert _validate_negative_control(control, [item]).passed is True
+    absent = _validate_negative_control(control, [])
+    assert absent.passed is False
+    assert absent.actual_count == 0
 
 
-class TestGoldenCorpusValidation:
-    """Test full golden corpus validation."""
+def test_negative_zone_control_checks_every_match() -> None:
+    control = {
+        "control_id": "neg_geogebra",
+        "zone": "03_RESSOURCES_INTERACTIVES/",
+        "expected_count_in_zone": 2,
+        "expected_disposition": "UNSUPPORTED",
+    }
+    objects = [
+        {
+            "content_sha256": "a" * 64,
+            "path": "03_RESSOURCES_INTERACTIVES/a.ggb",
+            "disposition": "UNSUPPORTED",
+        },
+        {
+            "content_sha256": "b" * 64,
+            "path": "03_RESSOURCES_INTERACTIVES/b.ggb",
+            "disposition": "INGEST",
+        },
+    ]
 
-    @pytest.fixture
-    def spec(self) -> dict:
-        return {
-            "spec_id": "test_spec",
-            "positive_controls": [
-                {
-                    "control_id": "pos_01",
-                    "sha256_prefix": "aaa",
-                    "expected_disposition": "INGEST",
-                },
-            ],
-            "boundary_controls": [
-                {
-                    "control_id": "bnd_01",
-                    "zone": "80_A_VERIFIER",
-                    "expected_disposition": "REVIEW_REQUIRED",
-                },
-            ],
-            "negative_controls": [
-                {
-                    "control_id": "neg_01",
-                    "zone": "00_ADMIN/",
-                    "expected_disposition": "EXCLUDE",
-                },
-            ],
-        }
+    result = _validate_negative_control(control, objects)
 
-    @pytest.fixture
-    def catalog(self) -> dict:
-        return {
-            "objects": [
-                {"sha256": "aaa111", "path": "01_EDUSCOL/.../10_ACTUEL_CONFIRME/prog.pdf", "disposition": "INGEST", "currentness": "actuel"},
-                {"sha256": "bbb222", "path": "01_EDUSCOL/.../80_A_VERIFIER/doc.pdf", "disposition": "REVIEW_REQUIRED"},
-                {"sha256": "ccc333", "path": "00_ADMIN/SHA256SUMS.txt", "disposition": "EXCLUDE"},
-            ],
-        }
-
-    def test_validation_passes_when_all_controls_pass(
-        self, spec: dict, catalog: dict
-    ) -> None:
-        """Validation passes when all controls pass."""
-        report = validate_golden_corpus(
-            spec, catalog,
-            Path("test_spec.yml"), Path("test_catalog.json"),
-        )
-
-        assert report.validation_passed
-        assert report.failed_controls == 0
-        assert report.passed_controls == 3
-
-    def test_validation_counts_by_control_type(
-        self, spec: dict, catalog: dict
-    ) -> None:
-        """Validation summary includes counts by control type."""
-        report = validate_golden_corpus(
-            spec, catalog,
-            Path("test_spec.yml"), Path("test_catalog.json"),
-        )
-
-        assert report.summary["positive_passed"] == 1
-        assert report.summary["boundary_passed"] == 1
-        assert report.summary["negative_passed"] == 1
+    assert result.passed is False
+    assert result.mismatching_count == 1

@@ -25,7 +25,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-import yaml
+from rag_pedago.imports.golden_corpus_validator import (
+    load_spec,
+    validate_golden_corpus,
+)
 
 
 @dataclass
@@ -55,6 +58,7 @@ class CoverageReport:
     sum_equals_total: bool = False
     zero_overlap: bool = False
     zero_gap: bool = False
+    decision_coverage_complete: bool = False
     coverage_complete: bool = False
     unclassified: int = 0
     multiple_primary_disposition: int = 0
@@ -79,7 +83,10 @@ class CoverageReport:
     # Golden corpus
     golden_controls_total: int = 0
     golden_controls_passed: int = 0
+    golden_controls_failed: int = 0
     golden_validation_status: str = "UNKNOWN"
+    golden_validation_pass: bool = False
+    h2_coverage_gate_pass: bool = False
 
     # Files and hashes
     input_files: dict[str, str] = field(default_factory=dict)
@@ -87,16 +94,16 @@ class CoverageReport:
 
 def _get_git_commit() -> str:
     """Get current git commit hash."""
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        return result.stdout.strip()[:12]
-    except Exception:
-        return "unknown"
+    result = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    commit = result.stdout.strip()
+    if re.fullmatch(r"[0-9a-f]{40}", commit) is None:
+        raise ValueError("git HEAD is not a full commit SHA")
+    return commit
 
 
 def _get_git_branch() -> str:
@@ -119,19 +126,13 @@ def _file_sha256(path: Path) -> str:
         return "file_not_found"
     sha = hashlib.sha256()
     sha.update(path.read_bytes())
-    return sha.hexdigest()[:16]
+    return sha.hexdigest()
 
 
 def load_catalog(path: Path) -> dict[str, Any]:
     """Load corpus disposition catalog."""
     content = path.read_text(encoding="utf-8")
     return json.loads(content)
-
-
-def load_yaml(path: Path) -> dict[str, Any]:
-    """Load YAML file."""
-    content = path.read_text(encoding="utf-8")
-    return yaml.safe_load(content)
 
 
 def generate_coverage_report(
@@ -155,24 +156,46 @@ def generate_coverage_report(
         and manifest_sha256 != expected_manifest_sha256
     ):
         raise ValueError("catalog manifest SHA256 mismatch")
+    if golden_path is None or not golden_path.is_file():
+        raise ValueError("golden specification is required for the final gate")
 
     # Git info
     git_commit = _get_git_commit()
     git_branch = _get_git_branch()
 
     # Corpus totals
-    actual_total = catalog.get("physical_object_count", 0)
+    actual_total = catalog.get("physical_object_count")
+    if (
+        isinstance(actual_total, bool)
+        or not isinstance(actual_total, int)
+        or actual_total < 0
+    ):
+        raise ValueError("catalog physical_object_count is invalid")
     totals = catalog.get("disposition_counts", {})
     if not isinstance(totals, dict) or not all(
-        isinstance(value, int) and value >= 0 for value in totals.values()
+        isinstance(key, str)
+        and key
+        and not isinstance(value, bool)
+        and isinstance(value, int)
+        and value >= 0
+        for key, value in totals.items()
     ):
         raise ValueError("catalog disposition counts are invalid")
     totals_sum = sum(totals.values())
 
     # Verification
     sum_equals_total = totals_sum == actual_total
-    unclassified = catalog.get("unclassified", -1)
-    multiple_primary = catalog.get("multiple_primary_disposition", -1)
+    unclassified = catalog.get("unclassified")
+    multiple_primary = catalog.get("multiple_primary_disposition")
+    if (
+        isinstance(unclassified, bool)
+        or not isinstance(unclassified, int)
+        or unclassified < 0
+        or isinstance(multiple_primary, bool)
+        or not isinstance(multiple_primary, int)
+        or multiple_primary < 0
+    ):
+        raise ValueError("catalog classification counters are invalid")
     zero_overlap = (
         catalog.get("verification_passed") is True and multiple_primary == 0
     )
@@ -192,6 +215,22 @@ def generate_coverage_report(
     physical_objects = catalog.get("physical_objects")
     if not isinstance(physical_objects, list):
         raise ValueError("real catalog must include physical objects")
+    if len(physical_objects) != actual_total:
+        raise ValueError("physical object list does not match reported total")
+    measured_dispositions: dict[str, int] = {}
+    for item in physical_objects:
+        if not isinstance(item, dict):
+            raise ValueError("real catalog physical object must be a mapping")
+        disposition = item.get("disposition")
+        if not isinstance(disposition, str) or not disposition:
+            raise ValueError("real catalog physical object disposition is invalid")
+        measured_dispositions[disposition] = (
+            measured_dispositions.get(disposition, 0) + 1
+        )
+    if {
+        key: value for key, value in totals.items() if value != 0
+    } != measured_dispositions:
+        raise ValueError("disposition_counts do not match physical objects")
     blocked_ingest_candidates = 0
     mandatory_gate_blockers: dict[str, int] = {}
     for item in physical_objects:
@@ -270,24 +309,30 @@ def generate_coverage_report(
     else:
         format_gate_status = f"CHECK_{unsupported}_UNSUPPORTED"
 
-    # Golden corpus
-    golden_total = 0
-    golden_passed = 0
-    golden_status = "UNKNOWN"
-    if golden_path and golden_path.exists():
-        golden = load_yaml(golden_path)
-        coverage = golden.get("coverage_summary", {})
-        golden_total = coverage.get("total_controls", 0)
-        # Note: actual validation requires catalog with objects
-        golden_status = "SPEC_LOADED"
-        input_files["golden"] = _file_sha256(golden_path)
+    # Golden corpus — the final gate executes the validator on this exact catalog.
+    golden = load_spec(golden_path)
+    golden_report = validate_golden_corpus(
+        golden,
+        catalog,
+        golden_path,
+        catalog_path,
+    )
+    golden_total = golden_report.total_controls
+    golden_passed = golden_report.passed_controls
+    golden_failed = golden_report.failed_controls
+    golden_pass = golden_report.validation_passed
+    golden_status = "PASS" if golden_pass else "FAIL"
+    input_files["golden"] = _file_sha256(golden_path)
 
-    coverage_complete = (
+    decision_coverage_complete = (
         sum_equals_total
         and zero_overlap
         and zero_gap
         and corpus_match
-        and blocked_ingest_candidates == 0
+    )
+    h2_coverage_gate_pass = (
+        decision_coverage_complete
+        and golden_pass
         and all(value == 0 for value in safety_invariants.values())
     )
 
@@ -307,7 +352,8 @@ def generate_coverage_report(
         sum_equals_total=sum_equals_total,
         zero_overlap=zero_overlap,
         zero_gap=zero_gap,
-        coverage_complete=coverage_complete,
+        decision_coverage_complete=decision_coverage_complete,
+        coverage_complete=h2_coverage_gate_pass,
         unclassified=unclassified,
         multiple_primary_disposition=multiple_primary,
         safety_invariants=safety_invariants,
@@ -329,7 +375,10 @@ def generate_coverage_report(
         format_gate_status=format_gate_status,
         golden_controls_total=golden_total,
         golden_controls_passed=golden_passed,
+        golden_controls_failed=golden_failed,
         golden_validation_status=golden_status,
+        golden_validation_pass=golden_pass,
+        h2_coverage_gate_pass=h2_coverage_gate_pass,
         input_files=input_files,
     )
 
@@ -388,8 +437,17 @@ def render_markdown(report: CoverageReport) -> str:
         f"| Unclassified objects | **{report.unclassified}** |",
         f"| Multiple primary dispositions | **{report.multiple_primary_disposition}** |",
         f"| Blocked ingest candidates | **{report.blocked_ingest_candidates}** |",
+        f"| Decision coverage complete | **{'PASS' if report.decision_coverage_complete else 'FAIL'}** |",
+        f"| Golden validation | **{'PASS' if report.golden_validation_pass else 'FAIL'}** |",
+        f"| H2 coverage gate | **{'PASS' if report.h2_coverage_gate_pass else 'FAIL'}** |",
         "",
         f"BLOCKED_INGEST_CANDIDATES={report.blocked_ingest_candidates}",
+        "DECISION_COVERAGE_COMPLETE="
+        f"{'true' if report.decision_coverage_complete else 'false'}",
+        "GOLDEN_VALIDATION_PASS="
+        f"{'true' if report.golden_validation_pass else 'false'}",
+        "H2_COVERAGE_GATE_PASS="
+        f"{'true' if report.h2_coverage_gate_pass else 'false'}",
         "",
         f"**COVERAGE_COMPLETE = {'TRUE' if report.coverage_complete else 'FALSE'}**",
         "",
@@ -423,14 +481,15 @@ def render_markdown(report: CoverageReport) -> str:
         "",
         f"- Total controls: {report.golden_controls_total}",
         f"- Passed controls: {report.golden_controls_passed}",
+        f"- Failed controls: {report.golden_controls_failed}",
         f"- Status: `{report.golden_validation_status}`",
         "",
         "---",
         "",
         "## 7. INPUT FILE HASHES",
         "",
-        "| File | SHA256 (first 16) |",
-        "|------|-------------------|",
+        "| File | SHA256 |",
+        "|------|--------|",
     ])
 
     for name, sha in sorted(report.input_files.items()):
@@ -461,6 +520,10 @@ def render_markdown(report: CoverageReport) -> str:
     for invariant, count in report.safety_invariants.items():
         if count:
             blocking.append(f"- {invariant}: {count}")
+    if not report.golden_validation_pass:
+        blocking.append(
+            f"- Golden validation: {report.golden_controls_failed} failed controls"
+        )
 
     if blocking:
         lines.extend(blocking)

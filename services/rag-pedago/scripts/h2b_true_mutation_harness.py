@@ -145,19 +145,24 @@ CHECKS: tuple[Check, ...] = (
         (
             Mutation(
                 pedago_source("corpus_catalog_compiler.py"),
-                '''            if artifact is None or not any(
+                "    if unknown_placements:",
+                "    if False:  # MUT-H2B-06 precheck",
+            ),
+            Mutation(
+                pedago_source("corpus_catalog_compiler.py"),
+                '''        if artifact is None or not any(
+            item.path.startswith("01_EDUSCOL_OFFICIEL/")
+            for item in artifact.physical_objects
+        ):
+            raise ValueError(
+                "unknown Eduscol content SHA256 in placement catalog: "
+                f"{content_sha256}"
+            )''',
+                '''        if artifact is None or not any(
                 item.path.startswith("01_EDUSCOL_OFFICIEL/")
                 for item in artifact.physical_objects
             ):
-                raise ValueError(
-                    "unknown Eduscol content SHA256 at placement line "
-                    f"{line_number}: {content_sha256}"
-                )''',
-                '''            if artifact is None or not any(
-                item.path.startswith("01_EDUSCOL_OFFICIEL/")
-                for item in artifact.physical_objects
-            ):
-                continue  # MUT-H2B-06''',
+            continue  # MUT-H2B-06 attach''',
             ),
         ),
         "tests/test_corpus_catalog_compiler.py::TestSealedCorpusCompilation::test_rejects_unknown_placement_content",
