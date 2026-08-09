@@ -734,12 +734,14 @@ fi
 integration_tests=(
     "$SERVICE_ROOT/tests/integration/test_lot40_hybrid_pgvector.py"
 )
+lot40_integration_executed=1
 if [[ -n "${NEXUS_H2C_REHEARSAL_ONLY:-}" ]]; then
     if [[ -z "${NEXUS_H2C_REAL_REHEARSAL:-}" ]]; then
         echo "H2C_REHEARSAL_ONLY_REQUIRES_REAL_INPUTS" >&2
         exit 1
     fi
     integration_tests=()
+    lot40_integration_executed=0
 fi
 if [[ -n "${NEXUS_H2C_REAL_REHEARSAL:-}" ]]; then
     integration_tests+=(
@@ -754,4 +756,8 @@ DRIVE_SYNC_DB_PATH="$RUN_ROOT/drive_sync_state.db" \
 PYTHONPATH="$SERVICE_ROOT/src" "$PYTEST_BIN" "${integration_tests[@]}" -q -s
 
 assert_state_004
-echo "LOT40_HYBRID_INTEGRATION=PASS"
+if (( lot40_integration_executed == 1 )); then
+    echo "LOT40_HYBRID_INTEGRATION=PASS"
+else
+    echo "H2E_V2_GOVERNED_REHEARSAL=PASS"
+fi

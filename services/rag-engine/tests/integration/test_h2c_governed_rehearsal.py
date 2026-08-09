@@ -14,13 +14,17 @@ import io
 import json
 import os
 import sys
+import threading
 import uuid
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from datetime import UTC, datetime, timedelta
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
+from unittest.mock import Mock
 
+import httpx
 import psycopg
 import pytest
 from pypdf import PdfReader
@@ -62,6 +66,10 @@ from ingestor.governed_publisher_v2 import (  # noqa: E402
     publish_governed_artifact,
 )
 from ingestor.ingestion_agents.classifier import ConformityResult  # noqa: E402
+from ingestor.ingestion_agents.fetcher import (  # noqa: E402
+    ContentAuthorizationBinding,
+    run_fetcher,
+)
 from ingestor.ingestion_agents.quality_agent import run_quality_agent  # noqa: E402
 from ingestor.ingestion_agents.rights_agent import run_rights_agent  # noqa: E402
 from ingestor.ingestion_agents.transitions import (  # noqa: E402
@@ -254,6 +262,85 @@ def _make_run(conn: psycopg.Connection[Any], scope: ResourceScope) -> uuid.UUID:
     run_id = row[0]
     assert isinstance(run_id, uuid.UUID)
     return run_id
+
+
+@contextmanager
+def _local_pdf_server(content: bytes) -> Iterator[str]:
+    """Sert les octets négatifs par un vrai aller-retour HTTP local."""
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:  # noqa: N802 - API BaseHTTPRequestHandler
+            self.send_response(200)
+            self.send_header("Content-Type", "application/pdf")
+            self.send_header("Content-Length", str(len(content)))
+            self.end_headers()
+            self.wfile.write(content)
+
+        def log_message(self, format: str, *args: object) -> None:
+            del format, args
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address
+        host_text = host.decode("ascii") if isinstance(host, bytes) else host
+        yield f"http://{host_text}:{port}/same-domain-unlisted.pdf"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def _candidate_at_candidate_state(
+    control_dsn: str,
+    *,
+    source: dict[str, Any],
+    profile: CollectionProfile,
+) -> tuple[ResourceCandidate, int]:
+    source_url = str(source["source_url"])
+    negative_dedup_key = hashlib.sha256(
+        f"{source_url}#h2e-same-domain-unlisted".encode()
+    ).hexdigest()
+    with psycopg.connect(control_dsn) as conn:
+        run_id = _make_run(conn, profile.scope)
+        resource_id = create_resource(
+            conn,
+            run_id=run_id,
+            dedup_key=negative_dedup_key,
+            scope=profile.scope,
+        )
+        candidate = ResourceCandidate(
+            candidate_id=uuid.uuid4(),
+            resource_id=resource_id,
+            run_id=run_id,
+            scope=profile.scope,
+            discovered_at=datetime.now(UTC),
+            source_url=source_url,
+            canonical_url=source_url,
+            domain="eduscol.education.gouv.fr",
+            proposed_type_doc="programme_officiel",
+            title=str(source["title"]),
+            publisher="Eduscol",
+            language="fr",
+            relevance_evidence=[str(source["scope_path"])],
+            dedup_key=negative_dedup_key,
+        )
+        persist_resource_candidate(conn, candidate=candidate)
+        current = get_resource_state(conn, resource_id=resource_id)
+        assert current is not None
+        state, version = current
+        transition = apply_resource_transition(
+            conn,
+            resource_id=resource_id,
+            expected_state=state,
+            expected_version=version,
+            new_state=ResourceState.CANDIDATE,
+            actor="h2e-negative-rehearsal",
+            run_id=run_id,
+        )
+        conn.commit()
+    return candidate, transition.state_version
 
 
 def _enforce_fetched_content(
@@ -536,32 +623,101 @@ def test_real_pdf_runs_through_lot41_lot42_publisher_and_retrieval(
         negative_bytes = raw + b"\n% H2E same-domain unlisted bytes\n"
         negative_sha = hashlib.sha256(negative_bytes).hexdigest()
         assert negative_sha != REAL_SHA
-        negative_trace = {
-            "domain_gate_pass": False,
-            "fetch_called": False,
-            "content_gate_pass": False,
-            "extractor_called": False,
-            "rights_agent_called": False,
-            "quality_agent_called": False,
-        }
-        with pytest.raises(ScopeEnforcementViolation) as denied:
-            _enforce_fetched_content(
-                control_dsn,
-                source=source_placements[0],
-                profile=profiles[0],
-                authorization=authorizations[0],
-                content=negative_bytes,
-                trace=negative_trace,
-            )
+        negative_source = source_placements[0]
+        negative_profile = profiles[0]
+        negative_authorization = authorizations[0]
+        negative_candidate, negative_version = _candidate_at_candidate_state(
+            control_dsn,
+            source=negative_source,
+            profile=negative_profile,
+        )
+        fetch_calls: list[str] = []
+        domain_gate_passes: list[str] = []
+        store_calls: list[bytes] = []
+        extractor_spy = Mock(name="negative_extractor")
+        rights_agent_spy = Mock(name="negative_rights_agent")
+        quality_agent_spy = Mock(name="negative_quality_agent")
+
+        with psycopg.connect(control_dsn) as negative_conn:
+
+            def authorize_content(
+                *, content_sha256: str, final_url: str
+            ) -> ContentAuthorizationBinding:
+                verified = verify_scope_authorization(
+                    negative_conn,
+                    authorization_id=negative_authorization.authorization_id,
+                    scope=negative_profile.scope,
+                )
+                enforce_destination(verified, url=final_url)
+                require_h2_content_bound_authority(verified)
+                enforce_content_sha256(verified, content_sha256=content_sha256)
+                return ContentAuthorizationBinding(
+                    authorization_id=verified.authorization_id,
+                    authorization_digest=verified.authorization_digest,
+                    protocol_version=verified.protocol_version,
+                )
+
+            def store_negative(*, artifact_id: uuid.UUID, content: bytes) -> str:
+                del artifact_id
+                store_calls.append(content)
+                return "memory://forbidden"
+
+            with _local_pdf_server(negative_bytes) as local_url:
+
+                def safe_fetch(
+                    url: str, *, max_bytes: int, **kwargs: Any
+                ) -> httpx.Response:
+                    del kwargs
+                    verified = verify_scope_authorization(
+                        negative_conn,
+                        authorization_id=negative_authorization.authorization_id,
+                        scope=negative_profile.scope,
+                    )
+                    enforce_before_fetch(
+                        verified,
+                        authorization_id=negative_authorization.authorization_id,
+                        scope=negative_profile.scope,
+                        manifest_digest=CORPUS_MANIFEST_SHA,
+                        profile_id=str(negative_profile.scope.collection),
+                        profile_version=negative_profile.profile_version,
+                        profile_fingerprint=profile_fingerprint(negative_profile),
+                        now=datetime.now(UTC),
+                    )
+                    enforce_destination(verified, url=url)
+                    domain_gate_passes.append(url)
+                    fetch_calls.append(url)
+                    response = httpx.get(local_url, timeout=10)
+                    assert len(response.content) <= max_bytes
+                    return httpx.Response(
+                        response.status_code,
+                        headers=response.headers,
+                        content=response.content,
+                        request=httpx.Request("GET", url),
+                    )
+
+                with pytest.raises(ScopeEnforcementViolation) as denied:
+                    artifact, _, _ = run_fetcher(
+                        negative_conn,
+                        candidate=negative_candidate,
+                        artifact_id=uuid.uuid4(),
+                        collected_at=datetime.now(UTC),
+                        expected_version=negative_version,
+                        actor="h2e-negative-rehearsal",
+                        max_bytes=len(negative_bytes) + 1,
+                        store_artifact=store_negative,
+                        authorize_content=authorize_content,
+                        safe_fetch=safe_fetch,
+                    )
+                    extracted_negative = extractor_spy(artifact)
+                    rights_negative = rights_agent_spy(artifact, extracted_negative)
+                    quality_agent_spy(artifact, rights_negative)
         assert denied.value.checkpoint == "content"
-        assert negative_trace == {
-            "domain_gate_pass": True,
-            "fetch_called": True,
-            "content_gate_pass": False,
-            "extractor_called": False,
-            "rights_agent_called": False,
-            "quality_agent_called": False,
-        }
+        assert fetch_calls == [str(negative_source["source_url"])]
+        assert domain_gate_passes == fetch_calls
+        assert store_calls == []
+        extractor_spy.assert_not_called()
+        rights_agent_spy.assert_not_called()
+        quality_agent_spy.assert_not_called()
         with psycopg.connect(ADMIN_DSN) as conn:
             negative_product_rows = conn.execute(
                 "SELECT COUNT(*) FROM rag_artifacts WHERE content_sha256 = %s",
@@ -569,11 +725,25 @@ def test_real_pdf_runs_through_lot41_lot42_publisher_and_retrieval(
             ).fetchone()
         assert negative_product_rows == (0,)
         with psycopg.connect(control_dsn) as conn:
-            negative_control_rows = conn.execute(
+            negative_state_row = get_resource_state(
+                conn, resource_id=negative_candidate.resource_id
+            )
+            assert negative_state_row is not None
+            negative_state, _ = negative_state_row
+            negative_control_artifact_row = conn.execute(
                 "SELECT COUNT(*) FROM ingestion_control.artifacts WHERE sha256 = %s",
                 (negative_sha,),
             ).fetchone()
-        assert negative_control_rows == (0,)
+            negative_eligibility_row = conn.execute(
+                "SELECT COUNT(*) FROM ingestion_control.workflow_events "
+                "WHERE resource_id = %s AND to_state = 'RETRIEVAL_ELIGIBLE'",
+                (negative_candidate.resource_id,),
+            ).fetchone()
+        assert negative_control_artifact_row == (0,)
+        assert negative_eligibility_row == (0,)
+        assert negative_state is ResourceState.CANDIDATE
+        negative_control_artifact_rows = int(negative_control_artifact_row[0])
+        negative_retrieval_eligible = bool(negative_eligibility_row[0])
 
         resources: list[tuple[uuid.UUID, uuid.UUID]] = []
         positive_traces: list[dict[str, bool]] = []
@@ -597,8 +767,20 @@ def test_real_pdf_runs_through_lot41_lot42_publisher_and_retrieval(
             )
             positive_traces.append(trace)
 
-        extracted = _extract_pdf(raw)
+        extraction_calls = 0
+
+        def measured_extract(content: bytes) -> str:
+            nonlocal extraction_calls
+            extraction_calls += 1
+            return _extract_pdf(content)
+
+        extracted = measured_extract(raw)
         assert len(extracted.strip()) > 100_000
+
+        def cached_extract(content: bytes) -> str:
+            assert hashlib.sha256(content).hexdigest() == REAL_SHA
+            return extracted
+
         for source, profile, authorization, trace in zip(
             source_placements,
             profiles,
@@ -747,7 +929,7 @@ def test_real_pdf_runs_through_lot41_lot42_publisher_and_retrieval(
                 product_conn,
                 artifact,
                 placements,
-                _extract_pdf,
+                cached_extract,
                 _embed,
             )
             retried = publish_governed_artifact(
@@ -755,7 +937,7 @@ def test_real_pdf_runs_through_lot41_lot42_publisher_and_retrieval(
                 product_conn,
                 artifact,
                 placements,
-                _extract_pdf,
+                cached_extract,
                 _embed,
             )
 
@@ -830,15 +1012,18 @@ def test_real_pdf_runs_through_lot41_lot42_publisher_and_retrieval(
         "real_multi_placement_sha": REAL_SHA,
         "negative_same_domain_unlisted": {
             "content_allowlist_gate": "DENY",
-            "domain_gate": "PASS",
-            "extractor_called": False,
-            "quality_agent_called": False,
-            "retrieval_eligible": False,
-            "rights_agent_called": False,
-            "pgvector_rows_created": 0,
+            "control_artifact_rows": negative_control_artifact_rows,
+            "domain_gate": "PASS" if domain_gate_passes == fetch_calls else "DENY",
+            "extractor_called": bool(extractor_spy.call_count),
+            "quality_agent_called": bool(quality_agent_spy.call_count),
+            "resource_state": negative_state.value,
+            "retrieval_eligible": negative_retrieval_eligible,
+            "rights_agent_called": bool(rights_agent_spy.call_count),
+            "store_called": bool(store_calls),
+            "pgvector_rows_created": int(negative_product_rows[0]),
         },
         "positive_content_allowlist_gate": "PASS",
-        "positive_extractor_calls": 1,
+        "positive_extractor_calls": extraction_calls,
         "scope_a_retrieval_pass": bool(retrieval),
         "scope_b_retrieval_pass": len(retrieval) >= 2,
         "wrong_scope_retrieval_blocked": True,

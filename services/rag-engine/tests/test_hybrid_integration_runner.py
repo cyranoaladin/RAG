@@ -823,6 +823,15 @@ def test_runner_invokes_lot40_and_only_opts_into_the_real_h2c_rehearsal() -> Non
     assert 'LOT41_PG_REVIEW_DSN="$LOT41_PG_REVIEW_DSN"' in content
 
 
+def test_runner_reports_only_the_integration_suite_it_actually_executed() -> None:
+    content = RUNNER.read_text(encoding="utf-8")
+    assert "lot40_integration_executed=1" in content
+    assert "lot40_integration_executed=0" in content
+    assert "if (( lot40_integration_executed == 1 )); then" in content
+    assert 'echo "LOT40_HYBRID_INTEGRATION=PASS"' in content
+    assert 'echo "H2E_V2_GOVERNED_REHEARSAL=PASS"' in content
+
+
 def test_real_module_explains_the_exact_production_lexical_sql() -> None:
     content = INTEGRATION_TEST.read_text(encoding="utf-8")
     assert "_LEXICAL_PLAN_SQL" not in content
