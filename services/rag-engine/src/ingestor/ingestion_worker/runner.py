@@ -185,6 +185,22 @@ REQUIRED_PAYLOAD_KEYS = (
 )
 
 
+def _lot41a_rights_evidence(authorization: VerifiedAuthorization) -> str:
+    """Dérive la preuve portée par ``ArtifactRecord.license``.
+
+    Le job opérateur n'est pas une source de droits et ne peut donc jamais
+    fournir lui-même une licence faisant autorité. La seule valeur admise
+    vient de l'autorisation LOT41A qui vient d'être revérifiée contre le blob
+    et la review GitHub : identifiant canonique + digest des octets revus.
+    ``enforce_rights`` confronte ensuite le verdict réel du RightsAgent aux
+    catégories permises par cette même autorisation.
+    """
+    return (
+        f"LOT41A:{authorization.authorization_id}:"
+        f"{authorization.authorization_digest}"
+    )
+
+
 class ScopeAuthorizationVerifier(Protocol):
     """Signature de ``scope_authority.verify_scope_authorization``.
 
@@ -528,10 +544,10 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
             )
 
     if resource_state in (ResourceState.DISCOVERED, ResourceState.CANDIDATE):
-        # Remédiation revue PR#90 : la licence est propagée ici, avant
-        # persist_artifact, jamais reconstruite après coup sur une copie en
-        # mémoire (cf. docstring de run_fetcher) — une reprise après crash
-        # relit alors le même ArtifactRecord, licence comprise.
+        # La preuve de droits vient exclusivement de l'autorisation LOT41A
+        # revérifiée ci-dessus, jamais d'un champ libre du payload opérateur.
+        # Elle est propagée avant persist_artifact : une reprise après crash
+        # relit donc le même ArtifactRecord, lié au digest exact approuvé.
         artifact, _fetched, stored_transition = run_fetcher(
             conn,
             candidate=candidate,
@@ -548,7 +564,7 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
             # autorisé interrompt le téléchargement immédiatement.
             safe_fetch=_authorized_fetcher(deps, authorization),
             job_id=claim.job_id,
-            license=str(payload["license"]) if payload.get("license") else None,
+            license=_lot41a_rights_evidence(authorization),
         )
         persist_artifact(conn, artifact=artifact)
         conn.commit()  # point de contrôle LOT44f : Fetcher durablement franchi

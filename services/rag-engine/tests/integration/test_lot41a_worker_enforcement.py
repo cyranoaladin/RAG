@@ -104,7 +104,6 @@ def job_payload(**overrides: Any) -> dict[str, Any]:
         "proposed_type_doc": "cours",
         "profile_version": "v1",
         "scope_authorization_id": STUB_AUTHORIZATION_ID,
-        "license": "CC-BY-SA",
     }
     payload.update(overrides)
     return payload
@@ -221,9 +220,39 @@ class TestNominalRunPassesEveryCheckpoint:
         self, conn: psycopg.Connection, tmp_path: Path
     ) -> None:
         submit(conn)
-        outcome = run_once(conn, deps_for(tmp_path, auth=authorization()))
+        auth = authorization()
+        outcome = run_once(conn, deps_for(tmp_path, auth=auth))
         assert outcome.status == "succeeded", outcome.error
         assert denial_events(conn) == []
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT j.payload ? 'license', a.payload->>'license' "
+                "FROM ingestion_control.jobs j "
+                "JOIN ingestion_control.artifacts a ON a.resource_id = j.resource_id"
+            )
+            row = cur.fetchone()
+        assert row == (
+            False,
+            f"LOT41A:{auth.authorization_id}:{auth.authorization_digest}",
+        ), (
+            "the supported job shape carries no caller-controlled license; "
+            "the durable artifact must instead bind rights evidence to the "
+            "live-verified LOT41A authorization digest"
+        )
+
+    def test_a_payload_license_cannot_override_verified_rights_evidence(
+        self, conn: psycopg.Connection, tmp_path: Path
+    ) -> None:
+        submit(conn, license="FORGED-OPERATOR-ASSERTION")
+        auth = authorization()
+        outcome = run_once(conn, deps_for(tmp_path, auth=auth))
+        assert outcome.status == "succeeded", outcome.error
+        with conn.cursor() as cur:
+            cur.execute("SELECT payload->>'license' FROM ingestion_control.artifacts")
+            row = cur.fetchone()
+        assert row == (
+            f"LOT41A:{auth.authorization_id}:{auth.authorization_digest}",
+        )
 
 
 class TestPreFetchCheckpointIsDurable:
