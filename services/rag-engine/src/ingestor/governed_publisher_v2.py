@@ -214,6 +214,7 @@ def _verify_placements(
             current_content_sha256=artifact.content_sha256,
             current_profile_fingerprint=placement.current_profile_fingerprint,
             current_manifest_digest=placement.current_manifest_digest,
+            require_content_bound_authority=True,
         )
         if not isinstance(attestation, VerifiedAttestation):
             raise GovernedPublicationError("LOT42 verifier returned an invalid object")
@@ -456,6 +457,21 @@ def publish_governed_artifact(
     )
     embedded = False
     with product_conn.transaction():
+        # Revérification live dans la transaction d'écriture : une révocation
+        # ou une dérive détectée après le préflight ne laisse aucune ligne
+        # produit partiellement publiée.
+        ordered = tuple(
+            sorted(
+                _verify_placements(
+                    control_conn,
+                    artifact=artifact,
+                    placements=tuple(item.placement for item in ordered),
+                ),
+                key=lambda item: canonical_placement_id(
+                    artifact.artifact_id, item.placement
+                ),
+            )
+        )
         with product_conn.cursor() as cursor:
             _lock_artifact(cursor, artifact.artifact_id)
             existing = _artifact_row(cursor, artifact.artifact_id)

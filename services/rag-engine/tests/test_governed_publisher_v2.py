@@ -4,19 +4,24 @@ from __future__ import annotations
 
 import hashlib
 import inspect
+from contextlib import nullcontext
 from pathlib import Path
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
 from nexus_contracts import Candidat, Niveau, Voie
+from nexus_contracts.document import Rights
 from nexus_contracts.ingestion import ResourceScope
 
+import ingestor.governed_publisher_v2 as publisher_module
 from ingestor.governed_publisher_v2 import (
     EligiblePlacement,
     GovernedArtifact,
     canonical_placement_id,
     publish_governed_artifact,
 )
+from ingestor.ingestion_control.publication_attestation import VerifiedAttestation
 
 CONTENT = b"octets canoniques d'un document pedagogique"
 CONTENT_SHA = hashlib.sha256(CONTENT).hexdigest()
@@ -133,3 +138,119 @@ def test_no_http_writer_mount_imports_the_internal_publisher() -> None:
 
     assert "governed_publisher_v2" not in api
     assert "governed_publisher_v2" not in endpoint
+
+
+def test_v1_or_unbound_attestation_fails_before_any_product_write(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifact = GovernedArtifact(
+        content=CONTENT,
+        content_sha256=CONTENT_SHA,
+        source_label="Ressource Eduscol",
+        source_uri="https://eduscol.education.gouv.fr/philosophie",
+        rights="officiel_public",
+        official=True,
+        source_kind="eduscol",
+        type_doc="ressource_officielle",
+    )
+    placement = _placement(
+        collection="rag_nexus_philo_terminale_tc",
+        matiere="philosophie",
+    )
+    verifier_calls: list[bool] = []
+
+    def deny_v1(_conn: object, **kwargs: object) -> object:
+        verifier_calls.append(bool(kwargs.get("require_content_bound_authority")))
+        raise RuntimeError("CONTENT_ALLOWLIST_AUTHORITY_REQUIRED")
+
+    class NoProductWrites:
+        def transaction(self) -> object:
+            pytest.fail("product transaction must not start after LOT42 denial")
+
+    monkeypatch.setattr(publisher_module, "verify_publication_attestation", deny_v1)
+
+    with pytest.raises(RuntimeError, match="CONTENT_ALLOWLIST_AUTHORITY_REQUIRED"):
+        publish_governed_artifact(
+            object(),
+            NoProductWrites(),
+            artifact,
+            (placement,),
+            lambda raw: raw.decode(),
+            lambda _chunks: (),
+        )
+
+    assert verifier_calls == [True]
+
+
+def test_atomic_reverification_denial_rolls_back_before_product_cursor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifact = GovernedArtifact(
+        content=CONTENT,
+        content_sha256=CONTENT_SHA,
+        source_label="Ressource Eduscol",
+        source_uri="https://eduscol.education.gouv.fr/philosophie",
+        rights="officiel_public",
+        official=True,
+        source_kind="eduscol",
+        type_doc="ressource_officielle",
+    )
+    placement = _placement(
+        collection="rag_nexus_philo_terminale_tc",
+        matiere="philosophie",
+    )
+    facts = SimpleNamespace(
+        content_sha256=CONTENT_SHA,
+        collection=str(placement.scope.collection),
+        canonical_url=placement.source_uri,
+        rights_status=Rights.officiel_public,
+    )
+    verified = VerifiedAttestation(
+        attestation_id=uuid4(),
+        resource_id=placement.resource_id,
+        artifact_id=uuid4(),
+        content_sha256=CONTENT_SHA,
+        scope_authorization_id="h2-v2",
+        profile_fingerprint=placement.current_profile_fingerprint,
+        manifest_digest=placement.current_manifest_digest,
+        review_id="lot42-v2",
+        attestation_digest="3" * 64,
+        authorization=SimpleNamespace(scope=placement.scope),
+        facts=facts,
+    )
+    calls = {"verify": 0, "transaction": 0, "cursor": 0}
+
+    def verify(_conn: object, **kwargs: object) -> VerifiedAttestation:
+        assert kwargs["require_content_bound_authority"] is True
+        calls["verify"] += 1
+        if calls["verify"] == 2:
+            raise RuntimeError("authority revoked during product transaction")
+        return verified
+
+    class ProductConnection:
+        def transaction(self) -> object:
+            calls["transaction"] += 1
+            return nullcontext()
+
+        def cursor(self) -> object:
+            calls["cursor"] += 1
+            pytest.fail("no product cursor is allowed after atomic reverify denial")
+
+    monkeypatch.setattr(publisher_module, "verify_publication_attestation", verify)
+    monkeypatch.setattr(
+        publisher_module,
+        "_resource_is_retrieval_eligible",
+        lambda *_args, **_kwargs: True,
+    )
+
+    with pytest.raises(RuntimeError, match="revoked during product transaction"):
+        publish_governed_artifact(
+            object(),
+            ProductConnection(),
+            artifact,
+            (placement,),
+            lambda raw: raw.decode(),
+            lambda _chunks: (),
+        )
+
+    assert calls == {"verify": 2, "transaction": 1, "cursor": 0}

@@ -45,7 +45,7 @@ from _pg_authority import (  # noqa: E402
 )
 from nexus_contracts import Candidat, Niveau, Rights, Voie  # noqa: E402
 from nexus_contracts.authority_artifacts import (  # noqa: E402
-    ScopeAuthorizationArtifact,
+    ScopeAuthorizationArtifactV2,
     canonical_authorization_path,
 )
 from nexus_contracts.ingestion import (  # noqa: E402
@@ -195,10 +195,10 @@ def _authorization_id(source: dict[str, Any]) -> str:
 
 def _authorization(
     source: dict[str, Any], profile: CollectionProfile
-) -> ScopeAuthorizationArtifact:
+) -> ScopeAuthorizationArtifactV2:
     now = datetime.now(UTC)
-    return ScopeAuthorizationArtifact(
-        protocol_version="LOT41A-V1",
+    return ScopeAuthorizationArtifactV2(
+        protocol_version="LOT41A-V2",
         authorization_id=_authorization_id(source),
         decision="AUTHORIZE_INGESTION_SCOPE",
         scope=profile.scope,
@@ -209,6 +209,7 @@ def _authorization(
         allowed_domains=("eduscol.education.gouv.fr",),
         rights_categories=(Rights.officiel_public,),
         exclusions=(),
+        allowed_content_sha256=(REAL_SHA,),
         pii_absence_attested=True,
         pii_absence_evidence=(
             f"H2 PII evidence sha256={PII_EVIDENCE_SHA}; "
@@ -254,6 +255,7 @@ def _build_publishable_resource(
     *,
     source: dict[str, Any],
     profile: CollectionProfile,
+    authorization: ScopeAuthorizationArtifactV2,
     content: bytes,
     extracted: str,
 ) -> tuple[uuid.UUID, uuid.UUID]:
@@ -324,6 +326,19 @@ def _build_publishable_resource(
                 new_state=after,
                 actor="h2c-rehearsal",
                 run_id=run_id,
+                payload=(
+                    {
+                        "artifact_id": str(artifact.artifact_id),
+                        "sha256": artifact.sha256,
+                        "scope_authorization_id": authorization.authorization_id,
+                        "scope_authorization_digest": authorization.digest(),
+                        "scope_authorization_protocol_version": (
+                            authorization.protocol_version
+                        ),
+                    }
+                    if after is ResourceState.FETCHED
+                    else None
+                ),
             ).state_version
         rights, transition = run_rights_agent(
             conn,
@@ -467,12 +482,15 @@ def test_real_pdf_runs_through_lot41_lot42_publisher_and_retrieval(
 
         control_dsn = app_dsn(control_pg)
         resources: list[tuple[uuid.UUID, uuid.UUID]] = []
-        for source, profile in zip(source_placements, profiles, strict=True):
+        for source, profile, authorization in zip(
+            source_placements, profiles, authorizations, strict=True
+        ):
             resources.append(
                 _build_publishable_resource(
                     control_dsn,
                     source=source,
                     profile=profile,
+                    authorization=authorization,
                     content=raw,
                     extracted=extracted,
                 )

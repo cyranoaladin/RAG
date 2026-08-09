@@ -103,6 +103,7 @@ def promote_reviewed_publication(
             current_content_sha256=current_content_sha256,
             current_profile_fingerprint=current_profile_fingerprint,
             current_manifest_digest=current_manifest_digest,
+            require_content_bound_authority=True,
         )
         reviewed = cas_transition(
             conn,
@@ -129,6 +130,7 @@ def promote_reviewed_publication(
             current_profile_fingerprint=current_profile_fingerprint,
             current_manifest_digest=current_manifest_digest,
             job_id=job_id,
+            require_content_bound_authority=True,
         )
     return GovernedEligibilityPromotion(
         attestation=attestation,

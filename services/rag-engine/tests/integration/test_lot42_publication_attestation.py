@@ -66,7 +66,7 @@ from _pg_authority import (  # noqa: E402
     superuser_dsn,
 )
 from nexus_contracts.authority_artifacts import (  # noqa: E402
-    ScopeAuthorizationArtifact,
+    ScopeAuthorizationArtifactV2,
     canonical_authorization_path,
 )
 from nexus_contracts.document import Rights  # noqa: E402
@@ -165,14 +165,15 @@ RICH_CONTENT = (
     b"classiques du programme de terminale, avec exemples et exercices "
     b"corriges pour couvrir largement la notion.</p>"
 )
+RICH_CONTENT_SHA = hashlib.sha256(RICH_CONTENT).hexdigest()
 
 
 def authorization_document() -> dict[str, Any]:
     from datetime import UTC, datetime, timedelta
 
-    now = datetime.now(UTC)
+    now = datetime(2026, 8, 9, 12, 0, tzinfo=UTC)
     return {
-        "protocol_version": "LOT41A-V1",
+        "protocol_version": "LOT41A-V2",
         "authorization_id": STUB_AUTHORIZATION_ID,
         "decision": "AUTHORIZE_INGESTION_SCOPE",
         "scope": dict(VALID_SCOPE),
@@ -183,6 +184,7 @@ def authorization_document() -> dict[str, Any]:
         "allowed_domains": ["eduscol.education.fr"],
         "rights_categories": ["officiel_public"],
         "exclusions": [],
+        "allowed_content_sha256": [RICH_CONTENT_SHA],
         "pii_absence_attested": True,
         "pii_absence_evidence": "Corpus officiel, aucune donnee personnelle.",
         "valid_from": (now - timedelta(days=1)).isoformat(),
@@ -221,7 +223,7 @@ def github(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[LocalGit
     state.put_blob(
         path=canonical_authorization_path(STUB_AUTHORIZATION_ID),
         ref=AUTH_HEAD,
-        content=ScopeAuthorizationArtifact.model_validate(
+        content=ScopeAuthorizationArtifactV2.model_validate(
             authorization_document()
         ).canonical_bytes(),
     )
@@ -287,6 +289,8 @@ def run_real_pipeline(
         profile_version=PROFILE.profile_version,
         profile_fingerprint=PROFILE_FINGERPRINT,
         rights_categories=("officiel_public",),
+        protocol_version="LOT41A-V2",
+        allowed_content_sha256=(hashlib.sha256(content).hexdigest(),),
     )
     deps = WorkerDeps(
         owner="worker-lot42",
@@ -415,6 +419,21 @@ def build_publishable_resource(pg: dict[str, str]) -> tuple[uuid.UUID, uuid.UUID
                 new_state=to_state,
                 actor="lot42-fixture",
                 run_id=run_id,
+                payload=(
+                    {
+                        "artifact_id": str(artifact.artifact_id),
+                        "sha256": artifact.sha256,
+                        "scope_authorization_id": STUB_AUTHORIZATION_ID,
+                        "scope_authorization_digest": (
+                            ScopeAuthorizationArtifactV2.model_validate(
+                                authorization_document()
+                            ).digest()
+                        ),
+                        "scope_authorization_protocol_version": "LOT41A-V2",
+                    }
+                    if to_state is ResourceState.FETCHED
+                    else None
+                ),
             )
             version = transition.state_version
 
@@ -560,7 +579,7 @@ class TestDurableEvidenceIsTheOnlySource:
         assert facts.gate_name == "routing_gate"
         assert facts.rights_status.value == "officiel_public"
         assert len(facts.quality_report_digest) == 64
-        assert len(facts.evidence_event_ids) == 3
+        assert len(facts.evidence_event_ids) == 4
 
     def test_a_resource_without_pipeline_evidence_cannot_be_attested(
         self, pg: dict[str, str]
@@ -609,7 +628,7 @@ class TestAttestationBindsTheReviewedArtifact:
     def test_the_full_chain_records_and_verifies(
         self, pg: dict[str, str], attested: dict[str, Any]
     ) -> None:
-        result = verify(pg, attested)
+        result = verify(pg, attested, require_content_bound_authority=True)
         assert result.review_id == REVIEW_ID
         assert result.scope_authorization_id == STUB_AUTHORIZATION_ID
         assert result.facts.gate_passed is True

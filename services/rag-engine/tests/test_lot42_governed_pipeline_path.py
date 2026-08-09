@@ -36,13 +36,15 @@ def test_stage_path_is_exactly_routed_staged_needs_review(
         calls.append(kwargs)
         expected = kwargs["expected_state"]
         target = kwargs["new_state"]
+        version = kwargs["expected_version"]
         assert isinstance(expected, ResourceState)
         assert isinstance(target, ResourceState)
+        assert isinstance(version, int)
         return TransitionResult(
             resource_id=resource_id,
             from_state=expected,
             to_state=target,
-            state_version=int(kwargs["expected_version"]) + 1,
+            state_version=version + 1,
         )
 
     monkeypatch.setattr(path, "cas_transition", transition)
@@ -71,7 +73,7 @@ def test_review_path_verifies_then_uses_the_unique_lot42_anchor(
 ) -> None:
     path = _path()
     resource_id, run_id, job_id = uuid4(), uuid4(), uuid4()
-    events: list[tuple[str, object]] = []
+    events: list[tuple[str, dict[str, object]]] = []
     verified = SimpleNamespace(
         attestation_id=uuid4(),
         review_id="LOT42-H2-REVIEW",
@@ -120,6 +122,8 @@ def test_review_path_verifies_then_uses_the_unique_lot42_anchor(
     )
 
     assert [event[0] for event in events] == ["verify", "reviewed", "anchor"]
+    assert events[0][1]["require_content_bound_authority"] is True
+    assert events[2][1]["require_content_bound_authority"] is True
     assert result.attestation is verified
     assert result.reviewed.state_version == 11
     assert result.retrieval_eligible.state_version == 12

@@ -231,6 +231,8 @@ def _verified_publication(
         evidence_reviewer="staging-human-reviewer",
         evidence_challenge="LOT41V:" + "3" * 64,
         verified_at=now,
+        protocol_version="LOT41A-V2",
+        allowed_content_sha256=(artifact.content_sha256,),
     )
     facts = PublicationFacts(
         resource_id=placement.resource_id,
@@ -238,6 +240,10 @@ def _verified_publication(
         collection=str(placement.scope.collection),
         canonical_url=placement.source_uri,
         content_sha256=artifact.content_sha256,
+        content_event_id=uuid4(),
+        content_scope_authorization_id=authorization.authorization_id,
+        content_scope_authorization_digest=authorization.authorization_digest,
+        content_scope_authorization_protocol_version=authorization.protocol_version,
         rights_status=Rights.usage_interne,
         rights_assessed_at=now,
         rights_event_id=uuid4(),
@@ -1100,7 +1106,9 @@ def test_governed_publisher_is_atomic_idempotent_and_multi_placement(
         current_content_sha256: str,
         current_profile_fingerprint: str,
         current_manifest_digest: str,
+        require_content_bound_authority: bool = False,
     ) -> VerifiedAttestation:
+        assert require_content_bound_authority is True
         bound_artifact, placement = bindings[resource_id]
         assert current_content_sha256 == bound_artifact.content_sha256
         assert current_profile_fingerprint == placement.current_profile_fingerprint

@@ -67,6 +67,11 @@ from .scope_authority import (
     authorization_allows_rights,
     verify_scope_authorization,
 )
+from .scope_enforcement import (
+    ScopeEnforcementViolation,
+    enforce_content_sha256,
+    require_h2_content_bound_authority,
+)
 from .transitions import TransitionResult, cas_transition
 
 
@@ -313,6 +318,7 @@ def verify_publication_attestation(
     current_content_sha256: str,
     current_profile_fingerprint: str,
     current_manifest_digest: str,
+    require_content_bound_authority: bool = False,
 ) -> VerifiedAttestation:
     """Revérifie **intégralement** la chaîne LOT42 d'une ressource.
 
@@ -380,6 +386,34 @@ def verify_publication_attestation(
             f"current={current_manifest_digest!r})"
         )
 
+    if require_content_bound_authority:
+        try:
+            require_h2_content_bound_authority(authorization)
+        except ScopeEnforcementViolation as exc:
+            raise invalidator.fail(str(exc)) from exc
+        invalidator.require_equal(
+            "FETCHED authority id",
+            facts.content_scope_authorization_id,
+            authorization.authorization_id,
+        )
+        invalidator.require_equal(
+            "FETCHED authority digest",
+            facts.content_scope_authorization_digest,
+            authorization.authorization_digest,
+        )
+        invalidator.require_equal(
+            "FETCHED authority protocol",
+            facts.content_scope_authorization_protocol_version,
+            authorization.protocol_version,
+        )
+        try:
+            enforce_content_sha256(
+                authorization,
+                content_sha256=facts.content_sha256,
+            )
+        except ScopeEnforcementViolation as exc:
+            raise invalidator.fail(str(exc)) from exc
+
     return VerifiedAttestation(
         attestation_id=row["attestation_id"],
         resource_id=row["resource_id"],
@@ -406,6 +440,7 @@ def attempt_retrieval_eligible_transition(
     current_profile_fingerprint: str,
     current_manifest_digest: str,
     job_id: UUID | None = None,
+    require_content_bound_authority: bool = False,
 ) -> TransitionResult:
     """Point d'ancrage unique LOT42 (ADR-0033 § 6) : la SEULE fonction
     autorisée à faire transitionner une ressource ``REVIEWED ->
@@ -427,6 +462,7 @@ def attempt_retrieval_eligible_transition(
         current_content_sha256=current_content_sha256,
         current_profile_fingerprint=current_profile_fingerprint,
         current_manifest_digest=current_manifest_digest,
+        require_content_bound_authority=require_content_bound_authority,
     )
     return cas_transition(
         conn,
