@@ -15,10 +15,10 @@ REVIEW_SCHEMAS = {
 }
 
 
-def test_package_version_is_0_5_0() -> None:
+def test_package_version_is_0_7_0() -> None:
     root = Path(__file__).resolve().parents[1]
     pyproject = tomllib.loads((root / "pyproject.toml").read_text())
-    assert pyproject["project"]["version"] == "0.5.0"
+    assert pyproject["project"]["version"] == "0.7.0"
 
 
 def test_schema_export_is_deterministic(tmp_path: Path) -> None:

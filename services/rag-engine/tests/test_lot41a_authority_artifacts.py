@@ -18,6 +18,9 @@ from nexus_contracts.authority_artifacts import (
     CanonicalArtifactError,
     PublicationReviewArtifact,
     ScopeAuthorizationArtifact,
+    ScopeAuthorizationArtifactAny,
+    ScopeAuthorizationArtifactV1,
+    ScopeAuthorizationArtifactV2,
     canonical_authorization_path,
     canonical_publication_review_path,
     git_blob_sha1,
@@ -66,6 +69,103 @@ def canonical_authorization_bytes(**overrides: Any) -> bytes:
     return ScopeAuthorizationArtifact.model_validate(
         authorization_document(**overrides)
     ).canonical_bytes()
+
+
+def authorization_v2_document(**overrides: Any) -> dict[str, Any]:
+    document = authorization_document(
+        protocol_version="LOT41A-V2",
+        allowed_content_sha256=["1" * 64, "a" * 64],
+    )
+    document.update(overrides)
+    return document
+
+
+def canonical_authorization_v2_bytes(**overrides: Any) -> bytes:
+    return ScopeAuthorizationArtifactV2.model_validate(
+        authorization_v2_document(**overrides)
+    ).canonical_bytes()
+
+
+class TestLot41aV2ContentAllowlist:
+    def test_v1_public_model_is_preserved_as_an_explicit_alias(self) -> None:
+        assert ScopeAuthorizationArtifactV1 is ScopeAuthorizationArtifact
+
+    def test_v2_round_trip_preserves_the_closed_variant_and_immutable_list(self) -> None:
+        raw = canonical_authorization_v2_bytes()
+
+        parsed: ScopeAuthorizationArtifactAny = parse_scope_authorization_artifact(raw)
+
+        assert isinstance(parsed, ScopeAuthorizationArtifactV2)
+        assert parsed.allowed_content_sha256 == ("1" * 64, "a" * 64)
+        assert parsed.canonical_document()["allowed_content_sha256"] == [
+            "1" * 64,
+            "a" * 64,
+        ]
+        assert parsed.canonical_bytes() == raw
+
+    @pytest.mark.parametrize(
+        "allowed_content_sha256",
+        [
+            [],
+            ["a" * 64, "a" * 64],
+            ["a" * 64, "1" * 64],
+            ["A" * 64],
+            ["not-a-sha256"],
+            [""],
+        ],
+        ids=["empty", "duplicate", "unsorted", "uppercase", "malformed", "blank"],
+    )
+    def test_v2_rejects_non_canonical_allowlists(
+        self, allowed_content_sha256: list[str]
+    ) -> None:
+        with pytest.raises(ValueError):
+            ScopeAuthorizationArtifactV2.model_validate(
+                authorization_v2_document(
+                    allowed_content_sha256=allowed_content_sha256
+                )
+            )
+
+    def test_v2_requires_the_allowlist(self) -> None:
+        document = authorization_v2_document()
+        del document["allowed_content_sha256"]
+        raw = (json.dumps(document, sort_keys=True, indent=2) + "\n").encode()
+
+        with pytest.raises(CanonicalArtifactError, match="strict validation"):
+            parse_scope_authorization_artifact(raw)
+
+    def test_v1_rejects_the_v2_allowlist_field(self) -> None:
+        document = authorization_document(allowed_content_sha256=["a" * 64])
+        raw = (json.dumps(document, sort_keys=True, indent=2) + "\n").encode()
+
+        with pytest.raises(CanonicalArtifactError, match="strict validation"):
+            parse_scope_authorization_artifact(raw)
+
+    def test_unknown_protocol_fails_closed(self) -> None:
+        document = authorization_document(protocol_version="LOT41A-V999")
+        raw = (json.dumps(document, sort_keys=True, indent=2) + "\n").encode()
+
+        with pytest.raises(CanonicalArtifactError, match="protocol_version"):
+            parse_scope_authorization_artifact(raw)
+
+    def test_one_allowed_sha_changes_canonical_bytes_and_digest(self) -> None:
+        first = ScopeAuthorizationArtifactV2.model_validate(
+            authorization_v2_document()
+        )
+        second = ScopeAuthorizationArtifactV2.model_validate(
+            authorization_v2_document(
+                allowed_content_sha256=["1" * 64, "b" * 64]
+            )
+        )
+
+        assert first.canonical_bytes() != second.canonical_bytes()
+        assert first.digest() != second.digest()
+
+    def test_v2_non_canonical_json_bytes_are_rejected(self) -> None:
+        document = authorization_v2_document()
+        non_canonical = json.dumps(document, sort_keys=True).encode()
+
+        with pytest.raises(CanonicalArtifactError, match="canonical"):
+            parse_scope_authorization_artifact(non_canonical)
 
 
 class TestCanonicalFormIsUnique:

@@ -44,7 +44,7 @@ import json
 import re
 from datetime import UTC, datetime
 from hashlib import sha256
-from typing import Any, Literal
+from typing import Any, Literal, TypeAlias
 
 from pydantic import (
     AwareDatetime,
@@ -61,6 +61,11 @@ from nexus_contracts.ingestion import ResourceScope
 #: Version de protocole des artefacts LOT41A — jamais implicite, jamais
 #: absente : un artefact sans version ne peut pas être parsé.
 LOT41A_PROTOCOL_VERSION = "LOT41A-V1"
+
+#: Version content-bound introduite par ADR-0034. La constante historique
+#: ci-dessus reste volontairement V1 : changer sa valeur modifierait
+#: silencieusement le sens des intégrations V1 existantes.
+LOT41A_V2_PROTOCOL_VERSION = "LOT41A-V2"
 
 #: Version de protocole des artefacts de revue de publication LOT42.
 LOT42_PROTOCOL_VERSION = "LOT42-V1"
@@ -326,6 +331,54 @@ class ScopeAuthorizationArtifact(StrictBaseModel):
         return canonical_authorization_path(self.authorization_id)
 
 
+# Alias public explicite : le nom historique reste l'exact modèle V1 et ses
+# octets canoniques ne changent pas avec l'introduction de V2.
+ScopeAuthorizationArtifactV1 = ScopeAuthorizationArtifact
+
+
+class ScopeAuthorizationArtifactV2(ScopeAuthorizationArtifact):
+    """Autorisation LOT41A liée positivement aux contenus exacts revus.
+
+    La liste est exigée sous sa forme déjà canonique. Aucune casse, aucun
+    ordre et aucun doublon n'est corrigé en silence : les octets visibles
+    dans la PR sont donc ceux qui déterminent la décision et son digest.
+    """
+
+    protocol_version: Literal["LOT41A-V2"]
+    allowed_content_sha256: tuple[StrictStr, ...] = Field(min_length=1)
+
+    @field_validator("allowed_content_sha256")
+    @classmethod
+    def _content_allowlist_is_canonical(
+        cls, values: tuple[str, ...]
+    ) -> tuple[str, ...]:
+        for value in values:
+            if not re.fullmatch(_HEX64[1:-1], value):
+                raise ValueError(
+                    "allowed_content_sha256 entries must be exactly 64 "
+                    "lowercase hexadecimal characters"
+                )
+        if len(set(values)) != len(values):
+            raise ValueError("allowed_content_sha256 must not contain duplicates")
+        expected = sorted(values)
+        if list(values) != expected:
+            raise ValueError(
+                "allowed_content_sha256 must be committed sorted; "
+                f"expected {expected!r}, got {list(values)!r}"
+            )
+        return values
+
+    def canonical_document(self) -> dict[str, Any]:
+        document = super().canonical_document()
+        document["allowed_content_sha256"] = list(self.allowed_content_sha256)
+        return document
+
+
+ScopeAuthorizationArtifactAny: TypeAlias = (
+    ScopeAuthorizationArtifactV1 | ScopeAuthorizationArtifactV2
+)
+
+
 class PublicationReviewArtifact(StrictBaseModel):
     """Décision de publication LOT42 **dans son intégralité** (item E).
 
@@ -497,7 +550,7 @@ def _parse_canonical(raw: bytes, model: type[Any]) -> Any:
     return parsed
 
 
-def parse_scope_authorization_artifact(raw: bytes) -> ScopeAuthorizationArtifact:
+def parse_scope_authorization_artifact(raw: bytes) -> ScopeAuthorizationArtifactAny:
     """Parse strict + exigence de canonicité **octet à octet**.
 
     L'égalité octet à octet est le cœur de l'item B : sans elle, deux
@@ -505,7 +558,26 @@ def parse_scope_authorization_artifact(raw: bytes) -> ScopeAuthorizationArtifact
     pourraient produire la même décision logique avec des digests
     différents — ou pire, un digest identique pour des octets que l'humain
     n'a pas relus."""
-    artifact: ScopeAuthorizationArtifact = _parse_canonical(raw, ScopeAuthorizationArtifact)
+    try:
+        document = json.loads(raw.decode("utf-8"))
+    except UnicodeDecodeError as exc:
+        raise CanonicalArtifactError(f"artifact bytes are not valid UTF-8: {exc}") from exc
+    except json.JSONDecodeError as exc:
+        raise CanonicalArtifactError(f"artifact bytes are not valid JSON: {exc}") from exc
+    if not isinstance(document, dict):
+        raise CanonicalArtifactError("artifact must be a JSON object")
+
+    protocol_version = document.get("protocol_version")
+    model: type[ScopeAuthorizationArtifactAny]
+    if protocol_version == LOT41A_PROTOCOL_VERSION:
+        model = ScopeAuthorizationArtifactV1
+    elif protocol_version == LOT41A_V2_PROTOCOL_VERSION:
+        model = ScopeAuthorizationArtifactV2
+    else:
+        raise CanonicalArtifactError(
+            f"unsupported scope authorization protocol_version {protocol_version!r}"
+        )
+    artifact: ScopeAuthorizationArtifactAny = _parse_canonical(raw, model)
     return artifact
 
 
@@ -534,10 +606,14 @@ __all__ = [
     "AUTHORIZE_PUBLICATION_DECISION",
     "CanonicalArtifactError",
     "LOT41A_PROTOCOL_VERSION",
+    "LOT41A_V2_PROTOCOL_VERSION",
     "LOT42_PROTOCOL_VERSION",
     "PUBLICATION_REVIEWS_DIR",
     "PublicationReviewArtifact",
     "ScopeAuthorizationArtifact",
+    "ScopeAuthorizationArtifactAny",
+    "ScopeAuthorizationArtifactV1",
+    "ScopeAuthorizationArtifactV2",
     "canonical_authorization_path",
     "canonical_publication_review_path",
     "git_blob_sha1",
