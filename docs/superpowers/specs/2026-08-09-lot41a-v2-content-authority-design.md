@@ -112,6 +112,23 @@ reçoit donc jamais un fait LOT42 fondé sur une autorité V1 large, un SHA V2 n
 listé ou une affirmation libre. Aucun second chemin de promotion ni writer HTTP
 n'est ajouté.
 
+## Compilation gouvernée H2
+
+La préparation H2 sépare la readiness pédagogique de l'autorité réelle. Une
+fonction dédiée confronte chaque `eligible_artifact` de la politique de
+placement à une `VerifiedAuthorization` sans jamais déduire l'autorité du seul
+scope :
+
+- V2 et SHA présent dans `allowed_content_sha256` : clearance d'autorité ;
+- même scope/domaine mais SHA absent : `REVIEW_REQUIRED`/refus ;
+- V1 : refus `CONTENT_ALLOWLIST_AUTHORITY_REQUIRED` ;
+- autorisation réelle absente : l'artefact reste `REVIEW_REQUIRED`.
+
+Cette fonction est utilisée par la répétition V2 et par le futur compilateur de
+promotion. Avant l'approbation post-fusion de PR #96, la compilation réelle
+peut donc rester à `INGEST=0` tout en prouvant que l'implémentation V2 de
+staging produit un ensemble non vide et exactement borné.
+
 ## Génération de la future autorisation
 
 Un helper H2 peut dériver la proposition V2 depuis l'intersection exacte du
