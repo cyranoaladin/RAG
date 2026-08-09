@@ -212,13 +212,20 @@ ne peut donc pas passer sur le chemin runtime actuel.
 
 ## Mutations
 
-Les tests négatifs existants ne sont pas requalifiés en « vraies mutations ».
-Le protocole temporaire baseline verte → neutralisation du guard → rouge ciblé
-→ restauration exacte → vert n'a pas encore fourni une preuve 12/12.
+Le harnais `h2b_true_mutation_harness.py` exécute désormais douze mutations
+réelles et indépendantes : droits, PII, actualité, exclusion, format non pris
+en charge, objet inconnu, SHA contenu, manifest, autorité de scope, révocation,
+échec d'extraction et disposition primaire unique. Chaque cas a prouvé :
+baseline verte, neutralisation d'une ancre exacte, rouge du test nommé pour la
+raison attendue, restauration SHA-256 octet pour octet, puis retour au vert.
+La révocation a été exercée sur PostgreSQL jetable avec la chaîne LOT41A
+réelle ; aucune base de production n'a été ciblée.
 
-`H2B_TRUE_MUTATIONS_NON_VACUOUS=UNVERIFIED`
+`H2B_TRUE_MUTATIONS_NON_VACUOUS=12/12`
 
 `TEMPORARY_MUTATIONS_RESTORED=true`
+
+`H2B_TRUE_MUTATION_EVIDENCE_SHA256=6a84327e188e67fde1e10693d1c0670b8c850fea6130e69bec4237e2e687dbe4`
 
 ## CI locale
 
@@ -325,7 +332,9 @@ REAL_SCOPE_AUTHORIZATION_PRESENT=false
 BLOCKED_INGEST_CANDIDATES_WITHOUT_AUTHORITY=64
 
 === MUTATIONS ===
-H2B_TRUE_MUTATIONS_NON_VACUOUS=UNVERIFIED
+H2B_TRUE_MUTATIONS_NON_VACUOUS=12/12
+TEMPORARY_MUTATIONS_RESTORED=true
+H2B_TRUE_MUTATION_EVIDENCE_SHA256=6a84327e188e67fde1e10693d1c0670b8c850fea6130e69bec4237e2e687dbe4
 
 === RETRIEVAL ===
 EPHEMERAL_INDEXING_PASS=PASS_EXISTING_SCOPE_MODEL
