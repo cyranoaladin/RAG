@@ -4,8 +4,10 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import subprocess
 from pathlib import Path
 from types import ModuleType
+from typing import Any
 
 import pytest
 
@@ -36,7 +38,17 @@ def _result() -> dict[str, object]:
         "placement_rows": 7,
         "placement_traceability_pass": True,
         "positive_content_allowlist_gate": "PASS",
+        "positive_blob_readbacks": 1,
+        "positive_control_artifact_rows": 7,
         "positive_extractor_calls": 1,
+        "positive_fetched_events": 7,
+        "positive_network_fetches": 7,
+        "positive_physical_blob_writes": 1,
+        "positive_rights_agent_calls": 7,
+        "positive_quality_agent_calls": 7,
+        "positive_store_callbacks": 7,
+        "positive_stored_events": 7,
+        "positive_unique_content_sha": 1,
         "real_multi_placement_placements": 7,
         "real_multi_placement_sha": (
             "371d0c82ed1f47614ee9cbfdaa86cfb4add1f239a84882d9731fbd125105925d"
@@ -64,7 +76,7 @@ def _sha256(path: Path) -> str:
 
 
 def _materialized_inputs(
-    module: ModuleType,
+    module: Any,
     tmp_path: Path,
 ) -> tuple[Path, dict[str, object], dict[str, object]]:
     pdf = tmp_path / "371d0c82ed.pdf"
@@ -144,7 +156,17 @@ def test_accepts_only_a_complete_v2_positive_and_negative_rehearsal() -> None:
         (("placement_rows",), False),
         (("placement_traceability_pass",), 1),
         (("positive_content_allowlist_gate",), "DENY"),
+        (("positive_blob_readbacks",), False),
+        (("positive_control_artifact_rows",), False),
         (("positive_extractor_calls",), True),
+        (("positive_fetched_events",), False),
+        (("positive_network_fetches",), False),
+        (("positive_physical_blob_writes",), False),
+        (("positive_rights_agent_calls",), False),
+        (("positive_quality_agent_calls",), False),
+        (("positive_store_callbacks",), False),
+        (("positive_stored_events",), False),
+        (("positive_unique_content_sha",), False),
         (("real_multi_placement_placements",), False),
         (("real_multi_placement_sha",), "0" * 64),
         (("scope_a_retrieval_pass",), 1),
@@ -271,7 +293,139 @@ def test_negative_rehearsal_uses_the_real_fetcher_and_observed_side_effects() ->
 
 def test_positive_rehearsal_reports_the_measured_single_pdf_parse() -> None:
     content = INTEGRATION.read_text(encoding="utf-8")
+    assert "def _run_positive_fetcher(" in content
+    assert "_enforce_fetched_content" not in content
+    assert "_build_publishable_resource" not in content
+    assert "positive_network_fetches.append(url)" in content
+    assert "positive_store_callbacks.append(content)" in content
+    assert "positive_blobs: dict" not in content
+    assert 'positive_blob_path.open("xb")' in content
+    assert "positive_physical_blob_writes += 1" in content
+    assert "positive_blob_readbacks += 1" in content
+    assert '"positive_network_fetches": len(positive_network_fetches)' in content
+    assert '"positive_store_callbacks": len(positive_store_callbacks)' in content
+    assert '"positive_physical_blob_writes": positive_physical_blob_writes' in content
+    assert '"positive_blob_readbacks": positive_blob_readbacks' in content
+    assert '"positive_unique_content_sha": positive_unique_content_sha' in content
+    assert '"positive_fetched_events": positive_fetched_events' in content
+    assert '"positive_stored_events": positive_stored_events' in content
     assert "extraction_calls += 1" in content
     assert "def cached_extract(" in content
     assert '"positive_extractor_calls": extraction_calls' in content
     assert content.count("return _extract_pdf(content)") == 1
+
+
+def test_repository_binding_names_the_exact_clean_head_and_bound_bytes(
+    tmp_path: Path,
+) -> None:
+    module = _module()
+    repository = tmp_path / "repository"
+    repository.mkdir()
+    runner = repository / "runner.sh"
+    integration = repository / "integration.py"
+    runner.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    integration.write_text("RESULT = 'green'\n", encoding="utf-8")
+    for arguments in (
+        ("init", "-q"),
+        ("config", "user.email", "h2-audit@example.invalid"),
+        ("config", "user.name", "H2 Audit"),
+        ("add", "runner.sh", "integration.py"),
+        ("commit", "-q", "-m", "test fixture"),
+    ):
+        subprocess.run(
+            ["git", "-C", str(repository), *arguments],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+    binding = module._repository_binding(
+        repository,
+        bound_paths=("runner.sh", "integration.py"),
+    )
+
+    expected_head = subprocess.run(
+        ["git", "-C", str(repository), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    expected_tree = subprocess.run(
+        ["git", "-C", str(repository), "rev-parse", "HEAD^{tree}"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    assert binding["git_head_sha"] == expected_head
+    assert binding["git_tree_sha"] == expected_tree
+    assert binding["verified_tracked_files"] == 2
+    assert isinstance(binding["tracked_worktree_sha256"], str)
+    assert len(binding["tracked_worktree_sha256"]) == 64
+    assert binding["bound_files_sha256"] == {
+        "integration.py": _sha256(integration),
+        "runner.sh": _sha256(runner),
+    }
+    assert str(repository) not in json.dumps(binding)
+
+    runner.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="H2E_REPOSITORY_NOT_CLEAN"):
+        module._repository_binding(
+            repository,
+            bound_paths=("runner.sh", "integration.py"),
+        )
+
+
+def test_repository_binding_rejects_assume_unchanged_byte_drift(
+    tmp_path: Path,
+) -> None:
+    module = _module()
+    repository = tmp_path / "repository"
+    repository.mkdir()
+    runner = repository / "runner.sh"
+    runner.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    for arguments in (
+        ("init", "-q"),
+        ("config", "user.email", "h2-audit@example.invalid"),
+        ("config", "user.name", "H2 Audit"),
+        ("add", "runner.sh"),
+        ("commit", "-q", "-m", "test fixture"),
+        ("update-index", "--assume-unchanged", "runner.sh"),
+    ):
+        subprocess.run(
+            ["git", "-C", str(repository), *arguments],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    runner.write_text("#!/bin/sh\nexit 99\n", encoding="utf-8")
+    status = subprocess.run(
+        ["git", "-C", str(repository), "status", "--porcelain"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert status.stdout == ""
+
+    with pytest.raises(RuntimeError, match="H2E_TRACKED_WORKTREE_DRIFT"):
+        module._repository_binding(repository, bound_paths=("runner.sh",))
+
+    subprocess.run(
+        ["git", "-C", str(repository), "restore", "--", "runner.sh"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    (repository / "untracked.py").write_text("UNTRACKED = True\n", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="H2E_REPOSITORY_NOT_CLEAN"):
+        module._repository_binding(
+            repository,
+            bound_paths=("runner.sh", "integration.py"),
+        )
+
+
+def test_rehearsal_rechecks_the_repository_binding_after_execution() -> None:
+    content = SCRIPT.read_text(encoding="utf-8")
+    assert "repository_before = _repository_binding(" in content
+    assert "repository_after = _repository_binding(" in content
+    assert "H2E_REPOSITORY_CHANGED_DURING_REHEARSAL" in content
+    assert '"repository_binding": repository_before' in content

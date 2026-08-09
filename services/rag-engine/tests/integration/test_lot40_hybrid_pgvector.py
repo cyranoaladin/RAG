@@ -8,6 +8,7 @@ import hmac
 import json
 import math
 import os
+import threading
 import time
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
@@ -24,6 +25,7 @@ from fastapi.testclient import TestClient
 from nexus_contracts import Candidat, Niveau, Rights, Voie, load_pilot_retrieval_scope
 from nexus_contracts.ingestion import ResourceScope
 from psycopg import sql
+from psycopg.conninfo import make_conninfo
 
 from ingestor import api_v2 as runtime_api
 from ingestor import governed_publisher_v2 as publisher
@@ -91,6 +93,15 @@ INTERNAL_TOKEN_ISSUER = "lot41-integration-cockpit"
 INTERNAL_TOKEN_AUDIENCE = "lot41-integration-engine"
 SSO_ISSUER = "lot41-integration-sso"
 SSO_AUDIENCE = "lot41-integration-cockpit-audience"
+
+ROLLBACK_004 = (
+    SERVICE_ROOT
+    / "infra"
+    / "postgres"
+    / "rollbacks"
+    / "004_artifact_placements.down.sql"
+)
+MIGRATIONS = SERVICE_ROOT / "infra" / "postgres" / "migrations"
 
 
 def _b64url(value: bytes) -> str:
@@ -295,6 +306,109 @@ def _retrieval_request_payload(
             "include_citations": True,
         },
     }
+
+
+def test_rollback_004_rechecks_after_a_concurrent_writer_commits() -> None:
+    """La garde de données doit observer une écriture arrivée pendant le rollback.
+
+    La base dédiée permet de rejouer le vrai SQL destructif dans une
+    transaction finalement rollbackée, sans perturber les autres preuves du
+    runner. Le writer garde un RowExclusive non committé ; le rollback doit
+    demander ACCESS EXCLUSIVE *avant* sa garde, attendre, puis refuser après
+    le commit du writer. Sans ce verrou initial, la garde passe sur un
+    snapshot vide et le DROP réussit après le commit concurrent.
+    """
+    database = f"h2_rollback_{uuid4().hex}"
+    database_dsn = make_conninfo(ADMIN_DSN, dbname=database)
+    rollback_sql = ROLLBACK_004.read_text(encoding="utf-8")
+    writer: psycopg.Connection[Any] | None = None
+    try:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as admin:
+            admin.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(database)))
+        with psycopg.connect(database_dsn, autocommit=True) as setup:
+            for version in range(1, 5):
+                migration = next(MIGRATIONS.glob(f"{version:03d}_*.sql"))
+                setup.execute(migration.read_text(encoding="utf-8"))
+
+        writer = psycopg.connect(database_dsn)
+        writer.execute(
+            """
+            INSERT INTO public.rag_artifacts (
+                artifact_id, content_sha256, source_label, source_uri,
+                rights, official, source_kind, type_doc, ingestion_artifact_id
+            ) VALUES (%s, %s, 'rollback concurrency', 'urn:h2:rollback',
+                      'internal', true, 'test', 'test', %s)
+            """,
+            ("a" * 64, "a" * 64, uuid4()),
+        )
+
+        outcome: dict[str, object] = {}
+        rollback_started = threading.Event()
+
+        def execute_rollback() -> None:
+            with psycopg.connect(database_dsn) as connection:
+                try:
+                    rollback_started.set()
+                    connection.execute(rollback_sql)
+                    outcome["completed"] = True
+                except BaseException as error:  # résultat inspecté par le thread principal
+                    outcome["error"] = error
+                finally:
+                    connection.rollback()
+
+        rollback_thread = threading.Thread(target=execute_rollback, daemon=True)
+        rollback_thread.start()
+        assert rollback_started.wait(timeout=5)
+
+        queued = False
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            with psycopg.connect(database_dsn, autocommit=True) as observer:
+                row = observer.execute(
+                    """
+                    SELECT EXISTS (
+                        SELECT 1
+                        FROM pg_locks
+                        WHERE relation = 'public.rag_artifacts'::regclass
+                          AND mode = 'AccessExclusiveLock'
+                          AND NOT granted
+                    )
+                    """
+                ).fetchone()
+            if row == (True,):
+                queued = True
+                break
+            time.sleep(0.05)
+        assert queued, "rollback never queued ACCESS EXCLUSIVE on rag_artifacts"
+
+        writer.commit()
+        rollback_thread.join(timeout=10)
+        assert not rollback_thread.is_alive()
+        error = outcome.get("error")
+        assert isinstance(error, psycopg.errors.RaiseException)
+        assert "ROLLBACK_004_DATA_PRESENT" in str(error)
+        assert "completed" not in outcome
+
+        with psycopg.connect(database_dsn, autocommit=True) as observer:
+            assert observer.execute(
+                "SELECT COUNT(*) FROM public.rag_artifacts WHERE artifact_id = %s",
+                ("a" * 64,),
+            ).fetchone() == (1,)
+            observer.execute(
+                "DELETE FROM public.rag_artifacts WHERE artifact_id = %s",
+                ("a" * 64,),
+            )
+        print("ROLLBACK_004_CONCURRENT_WRITER_REFUSED=PASS")
+    finally:
+        if writer is not None:
+            writer.close()
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as admin:
+            admin.execute(
+                "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                "WHERE datname = %s AND pid <> pg_backend_pid()",
+                (database,),
+            )
+            admin.execute(sql.SQL("DROP DATABASE IF EXISTS {}").format(sql.Identifier(database)))
 
 
 def _scope_sql_params(collection: str) -> tuple[object, ...]:

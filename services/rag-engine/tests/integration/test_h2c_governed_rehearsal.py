@@ -141,7 +141,7 @@ def control_pg() -> Iterator[dict[str, str]]:
     yield from start_ingestion_control_postgres("h2c-governed-rehearsal")
 
 
-def _real_inputs() -> tuple[bytes, tuple[dict[str, Any], ...]]:
+def _real_inputs() -> tuple[bytes, tuple[dict[str, Any], ...], str]:
     raw = PDF_PATH.read_bytes()
     assert hashlib.sha256(raw).hexdigest() == REAL_SHA
     document = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
@@ -158,7 +158,11 @@ def _real_inputs() -> tuple[bytes, tuple[dict[str, Any], ...]]:
     assert all(item.get("classified") is True for item in placements)
     assert all(item.get("content_sha256") == REAL_SHA for item in placements)
     assert all(item.get("status") == "actuel" for item in placements)
-    return raw, tuple(placements)
+    placement_catalog_sha256 = document.get("placement_catalog_sha256")
+    assert isinstance(placement_catalog_sha256, str)
+    assert len(placement_catalog_sha256) == 64
+    assert all(character in "0123456789abcdef" for character in placement_catalog_sha256)
+    return raw, tuple(placements), placement_catalog_sha256
 
 
 def _slug(value: str) -> str:
@@ -283,7 +287,8 @@ def _local_pdf_server(content: bytes) -> Iterator[str]:
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
-        host, port = server.server_address
+        address = server.server_address
+        host, port = address[0], address[1]
         host_text = host.decode("ascii") if isinstance(host, bytes) else host
         yield f"http://{host_text}:{port}/same-domain-unlisted.pdf"
     finally:
@@ -297,17 +302,19 @@ def _candidate_at_candidate_state(
     *,
     source: dict[str, Any],
     profile: CollectionProfile,
+    actor: str,
+    identity_suffix: str,
 ) -> tuple[ResourceCandidate, int]:
     source_url = str(source["source_url"])
-    negative_dedup_key = hashlib.sha256(
-        f"{source_url}#h2e-same-domain-unlisted".encode()
+    dedup_key = hashlib.sha256(
+        f"{source_url}#{identity_suffix}".encode()
     ).hexdigest()
     with psycopg.connect(control_dsn) as conn:
         run_id = _make_run(conn, profile.scope)
         resource_id = create_resource(
             conn,
             run_id=run_id,
-            dedup_key=negative_dedup_key,
+            dedup_key=dedup_key,
             scope=profile.scope,
         )
         candidate = ResourceCandidate(
@@ -324,7 +331,7 @@ def _candidate_at_candidate_state(
             publisher="Eduscol",
             language="fr",
             relevance_evidence=[str(source["scope_path"])],
-            dedup_key=negative_dedup_key,
+            dedup_key=dedup_key,
         )
         persist_resource_candidate(conn, candidate=candidate)
         current = get_resource_state(conn, resource_id=resource_id)
@@ -336,157 +343,154 @@ def _candidate_at_candidate_state(
             expected_state=state,
             expected_version=version,
             new_state=ResourceState.CANDIDATE,
-            actor="h2e-negative-rehearsal",
+            actor=actor,
             run_id=run_id,
         )
         conn.commit()
     return candidate, transition.state_version
 
 
-def _enforce_fetched_content(
+def _run_positive_fetcher(
     control_dsn: str,
     *,
     source: dict[str, Any],
     profile: CollectionProfile,
     authorization: ScopeAuthorizationArtifactV2,
-    content: bytes,
-    trace: dict[str, bool],
-) -> None:
-    """Exercise both live checks around fetch before any semantic processing."""
+    local_url: str,
+    store_artifact: Any,
+    positive_network_fetches: list[str],
+) -> tuple[ArtifactRecord, int]:
+    """Run the real fetcher and persist its exact durable artifact record."""
     scope = profile.scope
-    source_url = str(source["source_url"])
+    candidate, expected_version = _candidate_at_candidate_state(
+        control_dsn,
+        source=source,
+        profile=profile,
+        actor="h2e-positive-rehearsal",
+        identity_suffix=str(source["scope_path"]),
+    )
     with psycopg.connect(control_dsn) as conn:
-        verified = verify_scope_authorization(
-            conn,
-            authorization_id=authorization.authorization_id,
-            scope=scope,
-        )
-        enforce_before_fetch(
-            verified,
-            authorization_id=authorization.authorization_id,
-            scope=scope,
-            manifest_digest=CORPUS_MANIFEST_SHA,
-            profile_id=str(scope.collection),
-            profile_version=profile.profile_version,
-            profile_fingerprint=profile_fingerprint(profile),
-            now=datetime.now(UTC),
-        )
-        enforce_destination(verified, url=source_url)
-        trace["domain_gate_pass"] = True
-        trace["fetch_called"] = True
-        content_sha256 = hashlib.sha256(content).hexdigest()
-        verified = verify_scope_authorization(
-            conn,
-            authorization_id=authorization.authorization_id,
-            scope=scope,
-        )
-        require_h2_content_bound_authority(verified)
-        enforce_content_sha256(verified, content_sha256=content_sha256)
-        trace["content_gate_pass"] = True
+        def safe_fetch(url: str, *, max_bytes: int, **kwargs: Any) -> httpx.Response:
+            del kwargs
+            verified = verify_scope_authorization(
+                conn,
+                authorization_id=authorization.authorization_id,
+                scope=scope,
+            )
+            enforce_before_fetch(
+                verified,
+                authorization_id=authorization.authorization_id,
+                scope=scope,
+                manifest_digest=CORPUS_MANIFEST_SHA,
+                profile_id=str(scope.collection),
+                profile_version=profile.profile_version,
+                profile_fingerprint=profile_fingerprint(profile),
+                now=datetime.now(UTC),
+            )
+            enforce_destination(verified, url=url)
+            response = httpx.get(local_url, timeout=10)
+            assert len(response.content) <= max_bytes
+            positive_network_fetches.append(url)
+            return httpx.Response(
+                response.status_code,
+                headers=response.headers,
+                content=response.content,
+                request=httpx.Request("GET", url),
+            )
 
+        def authorize_content(
+            *, content_sha256: str, final_url: str
+        ) -> ContentAuthorizationBinding:
+            verified = verify_scope_authorization(
+                conn,
+                authorization_id=authorization.authorization_id,
+                scope=scope,
+            )
+            enforce_destination(verified, url=final_url)
+            require_h2_content_bound_authority(verified)
+            enforce_content_sha256(verified, content_sha256=content_sha256)
+            return ContentAuthorizationBinding(
+                authorization_id=verified.authorization_id,
+                authorization_digest=verified.authorization_digest,
+                protocol_version=verified.protocol_version,
+            )
 
-def _build_publishable_resource(
-    control_dsn: str,
-    *,
-    source: dict[str, Any],
-    profile: CollectionProfile,
-    authorization: ScopeAuthorizationArtifactV2,
-    content: bytes,
-    extracted: str,
-    trace: dict[str, bool],
-) -> tuple[uuid.UUID, uuid.UUID]:
-    scope = profile.scope
-    source_url = str(source["source_url"])
-    content_sha256 = hashlib.sha256(content).hexdigest()
-    with psycopg.connect(control_dsn) as conn:
-        run_id = _make_run(conn, scope)
-        resource_id = create_resource(
+        artifact, _, stored = run_fetcher(
             conn,
-            run_id=run_id,
-            dedup_key=hashlib.sha256(source_url.encode()).hexdigest(),
-            scope=scope,
-        )
-        now = datetime.now(UTC)
-        candidate = ResourceCandidate(
-            candidate_id=uuid.uuid4(),
-            resource_id=resource_id,
-            run_id=run_id,
-            scope=scope,
-            discovered_at=now,
-            source_url=source_url,
-            canonical_url=source_url,
-            domain="eduscol.education.gouv.fr",
-            proposed_type_doc="programme_officiel",
-            title=str(source["title"]),
-            publisher="Eduscol",
-            language="fr",
-            relevance_evidence=[str(source["scope_path"])],
-            dedup_key=hashlib.sha256(source_url.encode()).hexdigest(),
-        )
-        persist_resource_candidate(conn, candidate=candidate)
-        artifact = ArtifactRecord(
+            candidate=candidate,
             artifact_id=uuid.uuid4(),
-            resource_id=resource_id,
-            run_id=run_id,
-            scope=scope,
-            sha256=content_sha256,
-            size_bytes=len(content),
+            collected_at=datetime.now(UTC),
+            expected_version=expected_version,
+            actor="h2e-positive-rehearsal",
+            max_bytes=1_000_000,
+            store_artifact=store_artifact,
+            authorize_content=authorize_content,
             mime_declared="application/pdf",
-            mime_detected="application/pdf",
-            original_url=source_url,
-            final_url=source_url,
-            collected_at=now,
-            domain="eduscol.education.gouv.fr",
             license="EDUSCOL_RIGHTS_HUMAN_REVIEW_APPROVED",
-            rights_status=Rights.unknown,
-            title=str(source["title"]),
-            publisher="Eduscol",
-            pages_count=60,
-            version="2019",
+            safe_fetch=safe_fetch,
         )
         persist_artifact(conn, artifact=artifact)
-        current = get_resource_state(conn, resource_id=resource_id)
-        assert current is not None
-        _, version = current
-        for before, after in (
-            (ResourceState.DISCOVERED, ResourceState.CANDIDATE),
-            (ResourceState.CANDIDATE, ResourceState.FETCHED),
-            (ResourceState.FETCHED, ResourceState.STORED),
-            (ResourceState.STORED, ResourceState.EXTRACTED),
-            (ResourceState.EXTRACTED, ResourceState.CLASSIFIED),
-        ):
-            version = apply_resource_transition(
-                conn,
-                resource_id=resource_id,
-                expected_state=before,
-                expected_version=version,
-                new_state=after,
-                actor="h2c-rehearsal",
-                run_id=run_id,
-                payload=(
-                    {
-                        "artifact_id": str(artifact.artifact_id),
-                        "sha256": artifact.sha256,
-                        "scope_authorization_id": authorization.authorization_id,
-                        "scope_authorization_digest": authorization.digest(),
-                        "scope_authorization_protocol_version": (
-                            authorization.protocol_version
-                        ),
-                    }
-                    if after is ResourceState.FETCHED
-                    else None
-                ),
-            ).state_version
-        trace["rights_agent_called"] = True
+        conn.commit()
+    return artifact, stored.state_version
+
+
+def _advance_stored_placement(
+    control_dsn: str,
+    *,
+    source: dict[str, Any],
+    profile: CollectionProfile,
+    artifact: ArtifactRecord,
+    expected_version: int,
+    extracted: str,
+    placement_catalog_sha256: str,
+) -> tuple[uuid.UUID, uuid.UUID]:
+    """Use canonical CAS after the one measured PDF parse.
+
+    PDF extraction and classification are rehearsal adapters because the
+    generic LOT44 extractor deliberately rejects PDF.  Their evidence is
+    bound to the sealed placement catalog and the exact stored content SHA.
+    """
+    assert artifact.sha256 == REAL_SHA
+    assert source["content_sha256"] == artifact.sha256
+    with psycopg.connect(control_dsn) as conn:
+        extracted_transition = apply_resource_transition(
+            conn,
+            resource_id=artifact.resource_id,
+            expected_state=ResourceState.STORED,
+            expected_version=expected_version,
+            new_state=ResourceState.EXTRACTED,
+            actor="h2e-pdf-extraction-adapter",
+            run_id=artifact.run_id,
+            payload={
+                "artifact_id": str(artifact.artifact_id),
+                "content_sha256": artifact.sha256,
+                "extracted_chars": len(extracted),
+                "extracted_text_ref": artifact.extracted_text_ref,
+            },
+        )
+        classified_transition = apply_resource_transition(
+            conn,
+            resource_id=artifact.resource_id,
+            expected_state=ResourceState.EXTRACTED,
+            expected_version=extracted_transition.state_version,
+            new_state=ResourceState.CLASSIFIED,
+            actor="h2e-sealed-catalog-classifier",
+            run_id=artifact.run_id,
+            payload={
+                "classified": source["classified"],
+                "content_sha256": artifact.sha256,
+                "placement_catalog_sha256": placement_catalog_sha256,
+                "scope_path": str(source["scope_path"]),
+            },
+        )
         rights, transition = run_rights_agent(
             conn,
             artifact=artifact,
             profile=profile,
-            expected_version=version,
-            actor="h2c-rehearsal",
+            expected_version=classified_transition.state_version,
+            actor="h2e-positive-rehearsal",
         )
         assert rights is Rights.officiel_public
-        trace["quality_agent_called"] = True
         _, decision, routed = run_quality_agent(
             conn,
             artifact=artifact,
@@ -505,14 +509,14 @@ def _build_publishable_resource(
             duplicate_detected=False,
             report_id=uuid.uuid4(),
             decision_id=uuid.uuid4(),
-            evaluated_at=now,
+            evaluated_at=datetime.now(UTC),
             expected_version=transition.state_version,
-            actor="h2c-rehearsal",
+            actor="h2e-positive-rehearsal",
         )
         assert decision.decision == "ROUTE"
         assert routed.to_state is ResourceState.ROUTED
         conn.commit()
-    return resource_id, artifact.artifact_id
+    return artifact.resource_id, artifact.artifact_id
 
 
 def _capture_cli(function: Any, arguments: list[str]) -> tuple[int, str, str]:
@@ -574,7 +578,7 @@ def test_real_pdf_runs_through_lot41_lot42_publisher_and_retrieval(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    raw, source_placements = _real_inputs()
+    raw, source_placements, placement_catalog_sha256 = _real_inputs()
     profiles = tuple(_profile(_scope(source)) for source in source_placements)
     authorizations = tuple(
         _authorization(source, profile)
@@ -630,6 +634,8 @@ def test_real_pdf_runs_through_lot41_lot42_publisher_and_retrieval(
             control_dsn,
             source=negative_source,
             profile=negative_profile,
+            actor="h2e-negative-rehearsal",
+            identity_suffix="same-domain-unlisted",
         )
         fetch_calls: list[str] = []
         domain_gate_passes: list[str] = []
@@ -745,27 +751,65 @@ def test_real_pdf_runs_through_lot41_lot42_publisher_and_retrieval(
         negative_control_artifact_rows = int(negative_control_artifact_row[0])
         negative_retrieval_eligible = bool(negative_eligibility_row[0])
 
-        resources: list[tuple[uuid.UUID, uuid.UUID]] = []
-        positive_traces: list[dict[str, bool]] = []
-        for source, profile, authorization in zip(
-            source_placements, profiles, authorizations, strict=True
-        ):
-            trace = {
-                "domain_gate_pass": False,
-                "fetch_called": False,
-                "content_gate_pass": False,
-                "rights_agent_called": False,
-                "quality_agent_called": False,
-            }
-            _enforce_fetched_content(
-                control_dsn,
-                source=source,
-                profile=profile,
-                authorization=authorization,
-                content=raw,
-                trace=trace,
-            )
-            positive_traces.append(trace)
+        positive_network_fetches: list[str] = []
+        positive_store_callbacks: list[bytes] = []
+        positive_physical_blob_writes = 0
+        positive_blob_readbacks = 0
+        blob_root = tmp_path / "content-store"
+        blob_root.mkdir(mode=0o700)
+
+        def store_positive(*, artifact_id: uuid.UUID, content: bytes) -> str:
+            del artifact_id
+            nonlocal positive_physical_blob_writes
+            positive_store_callbacks.append(content)
+            content_sha256 = hashlib.sha256(content).hexdigest()
+            positive_blob_path = blob_root / f"{content_sha256}.pdf"
+            if not positive_blob_path.exists():
+                with positive_blob_path.open("xb") as stream:
+                    assert stream.write(content) == len(content)
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                positive_physical_blob_writes += 1
+            else:
+                assert positive_blob_path.is_file()
+                assert not positive_blob_path.is_symlink()
+            return str(positive_blob_path)
+
+        fetched: list[tuple[ArtifactRecord, int]] = []
+        with _local_pdf_server(raw) as positive_local_url:
+            for source, profile, authorization in zip(
+                source_placements, profiles, authorizations, strict=True
+            ):
+                fetched.append(
+                    _run_positive_fetcher(
+                        control_dsn,
+                        source=source,
+                        profile=profile,
+                        authorization=authorization,
+                        local_url=positive_local_url,
+                        store_artifact=store_positive,
+                        positive_network_fetches=positive_network_fetches,
+                    )
+                )
+
+        artifacts = tuple(item[0] for item in fetched)
+        assert len(positive_network_fetches) == 7
+        assert len(positive_store_callbacks) == 7
+        assert positive_physical_blob_writes == 1
+        assert len(tuple(blob_root.iterdir())) == 1
+        stored_references = {artifact.extracted_text_ref for artifact in artifacts}
+        assert len(stored_references) == 1
+        stored_reference = next(iter(stored_references))
+        assert isinstance(stored_reference, str)
+        stored_path = Path(stored_reference)
+        assert stored_path.parent == blob_root
+        assert stored_path.is_file()
+        assert not stored_path.is_symlink()
+        stored_raw = stored_path.read_bytes()
+        positive_blob_readbacks += 1
+        assert hashlib.sha256(stored_raw).hexdigest() == REAL_SHA
+        assert all(artifact.sha256 == REAL_SHA for artifact in artifacts)
+        assert all(artifact.size_bytes == len(stored_raw) for artifact in artifacts)
 
         extraction_calls = 0
 
@@ -774,32 +818,57 @@ def test_real_pdf_runs_through_lot41_lot42_publisher_and_retrieval(
             extraction_calls += 1
             return _extract_pdf(content)
 
-        extracted = measured_extract(raw)
+        extracted = measured_extract(stored_raw)
         assert len(extracted.strip()) > 100_000
 
         def cached_extract(content: bytes) -> str:
             assert hashlib.sha256(content).hexdigest() == REAL_SHA
             return extracted
 
-        for source, profile, authorization, trace in zip(
-            source_placements,
-            profiles,
-            authorizations,
-            positive_traces,
-            strict=True,
-        ):
-            resources.append(
-                _build_publishable_resource(
-                    control_dsn,
-                    source=source,
-                    profile=profile,
-                    authorization=authorization,
-                    content=raw,
-                    extracted=extracted,
-                    trace=trace,
-                )
+        resources = [
+            _advance_stored_placement(
+                control_dsn,
+                source=source,
+                profile=profile,
+                artifact=artifact,
+                expected_version=stored_version,
+                extracted=extracted,
+                placement_catalog_sha256=placement_catalog_sha256,
             )
-        assert all(all(trace.values()) for trace in positive_traces)
+            for source, profile, (artifact, stored_version) in zip(
+                source_placements, profiles, fetched, strict=True
+            )
+        ]
+        resource_ids = [resource_id for resource_id, _ in resources]
+        with psycopg.connect(control_dsn) as conn:
+            artifact_metrics = conn.execute(
+                """
+                SELECT COUNT(*), COUNT(DISTINCT sha256)
+                FROM ingestion_control.artifacts
+                WHERE resource_id = ANY(%s) AND sha256 = %s
+                """,
+                (resource_ids, REAL_SHA),
+            ).fetchone()
+            transition_metrics = conn.execute(
+                """
+                SELECT
+                    COUNT(*) FILTER (WHERE to_state = 'FETCHED'),
+                    COUNT(*) FILTER (WHERE to_state = 'STORED'),
+                    COUNT(*) FILTER (WHERE to_state = 'RIGHTS_CHECKED'),
+                    COUNT(*) FILTER (WHERE to_state = 'QUALITY_CHECKED')
+                FROM ingestion_control.workflow_events
+                WHERE resource_id = ANY(%s) AND event_type = 'transition'
+                """,
+                (resource_ids,),
+            ).fetchone()
+        assert artifact_metrics == (7, 1)
+        assert transition_metrics == (7, 7, 7, 7)
+        positive_control_artifact_rows = int(artifact_metrics[0])
+        positive_unique_content_sha = int(artifact_metrics[1])
+        positive_fetched_events = int(transition_metrics[0])
+        positive_stored_events = int(transition_metrics[1])
+        positive_rights_agent_calls = int(transition_metrics[2])
+        positive_quality_agent_calls = int(transition_metrics[3])
 
         proposals: list[tuple[str, bytes]] = []
         for index, ((resource_id, artifact_id), authorization) in enumerate(
@@ -887,6 +956,18 @@ def test_real_pdf_runs_through_lot41_lot42_publisher_and_retrieval(
                 assert promoted.retrieval_eligible.to_state is ResourceState.RETRIEVAL_ELIGIBLE
                 conn.commit()
 
+        with psycopg.connect(control_dsn) as conn:
+            retrieval_eligible_row = conn.execute(
+                """
+                SELECT COUNT(*)
+                FROM ingestion_control.resources
+                WHERE resource_id = ANY(%s) AND resource_state = 'RETRIEVAL_ELIGIBLE'
+                """,
+                (resource_ids,),
+            ).fetchone()
+        assert retrieval_eligible_row == (7,)
+        lot42_retrieval_eligible_resources = int(retrieval_eligible_row[0])
+
         artifact = GovernedArtifact(
             content=raw,
             content_sha256=REAL_SHA,
@@ -962,9 +1043,17 @@ def test_real_pdf_runs_through_lot41_lot42_publisher_and_retrieval(
                 (REAL_SHA, REAL_SHA, REAL_SHA, REAL_SHA),
             ).fetchone()
         assert counts == (1, 7, published.chunk_rows, 1)
+        artifact_rows_for_sha = int(counts[0])
+        placement_rows = int(counts[1])
+        chunk_set_count = int(counts[3])
+        duplicate_vector_sets = max(chunk_set_count - 1, 0)
+        duplicate_chunk_sets = max(chunk_set_count - 1, 0)
 
         query_vector = _embed(("programme arts première terminale",))[0]
         retrieval: dict[str, Any] = {}
+        duplicate_result_chunks = 0
+        citation_checks: list[bool] = []
+        placement_checks: list[bool] = []
         for source, profile in zip(source_placements, profiles, strict=True):
             candidates = PgCandidateStore(
                 _retrieval_connection,
@@ -981,6 +1070,20 @@ def test_real_pdf_runs_through_lot41_lot42_publisher_and_retrieval(
             assert all(candidate.source_uri == source["source_url"] for candidate in candidates)
             assert all(candidate.placement_source_path == source["technical_path"] for candidate in candidates)
             retrieval[str(profile.scope.collection)] = candidates
+            duplicate_result_chunks += len(candidates) - len(
+                {candidate.chunk_id for candidate in candidates}
+            )
+            citation_checks.extend(
+                bool(candidate.chunk_id)
+                and candidate.artifact_id == REAL_SHA
+                and candidate.content_sha256 == REAL_SHA
+                and candidate.source_uri == source["source_url"]
+                for candidate in candidates
+            )
+            placement_checks.extend(
+                candidate.placement_source_path == source["technical_path"]
+                for candidate in candidates
+            )
 
         wrong_scope = profiles[0].scope.model_copy(
             update={"collection": "h2c_rehearsal_wrong_scope"}
@@ -996,18 +1099,66 @@ def test_real_pdf_runs_through_lot41_lot42_publisher_and_retrieval(
         assert wrong == []
         assert github.non_get_requests == []
 
+    first_collection = str(profiles[0].scope.collection)
+    second_collection = str(profiles[1].scope.collection)
+    scope_a_retrieval_pass = bool(retrieval.get(first_collection))
+    scope_b_retrieval_pass = bool(retrieval.get(second_collection))
+    wrong_scope_retrieval_blocked = not wrong
+    citation_traceability_pass = bool(citation_checks) and all(citation_checks)
+    placement_traceability_pass = bool(placement_checks) and all(placement_checks)
+    lot41a_v2_content_bound = all(
+        authorization.protocol_version == "LOT41A-V2"
+        and authorization.allowed_content_sha256 == (REAL_SHA,)
+        for authorization in authorizations
+    )
+    lot42_pipeline_path_implemented = lot42_retrieval_eligible_resources == 7
+    positive_content_allowlist_gate = (
+        "PASS"
+        if len(positive_network_fetches) == 7
+        and all(artifact.sha256 == REAL_SHA for artifact in artifacts)
+        else "DENY"
+    )
+    full_governed_rehearsal_pass = all(
+        (
+            lot41a_v2_content_bound,
+            lot42_pipeline_path_implemented,
+            positive_content_allowlist_gate == "PASS",
+            positive_control_artifact_rows == 7,
+            positive_unique_content_sha == 1,
+            positive_fetched_events == 7,
+            positive_stored_events == 7,
+            positive_rights_agent_calls == 7,
+            positive_quality_agent_calls == 7,
+            len(positive_store_callbacks) == 7,
+            positive_physical_blob_writes == 1,
+            positive_blob_readbacks == 1,
+            extraction_calls == 1,
+            artifact_rows_for_sha == 1,
+            placement_rows == 7,
+            chunk_set_count == 1,
+            duplicate_vector_sets == 0,
+            duplicate_chunk_sets == 0,
+            duplicate_result_chunks == 0,
+            scope_a_retrieval_pass,
+            scope_b_retrieval_pass,
+            wrong_scope_retrieval_blocked,
+            citation_traceability_pass,
+            placement_traceability_pass,
+        )
+    )
+
     result = {
-        "artifact_rows_for_sha": 1,
-        "chunk_set_count": 1,
-        "citation_traceability_pass": True,
-        "duplicate_chunk_sets": 0,
-        "duplicate_result_chunks": 0,
-        "duplicate_vector_sets": 0,
-        "full_governed_rehearsal_pass": True,
-        "lot41a_v2_content_bound": True,
-        "lot42_pipeline_path_implemented": True,
-        "placement_rows": 7,
-        "placement_traceability_pass": True,
+        "artifact_rows_for_sha": artifact_rows_for_sha,
+        "chunk_set_count": chunk_set_count,
+        "citation_traceability_pass": citation_traceability_pass,
+        "duplicate_chunk_sets": duplicate_chunk_sets,
+        "duplicate_result_chunks": duplicate_result_chunks,
+        "duplicate_vector_sets": duplicate_vector_sets,
+        "full_governed_rehearsal_pass": full_governed_rehearsal_pass,
+        "lot41a_v2_content_bound": lot41a_v2_content_bound,
+        "lot42_pipeline_path_implemented": lot42_pipeline_path_implemented,
+        "placement_rows": placement_rows,
+        "placement_traceability_pass": placement_traceability_pass,
         "real_multi_placement_placements": 7,
         "real_multi_placement_sha": REAL_SHA,
         "negative_same_domain_unlisted": {
@@ -1022,10 +1173,20 @@ def test_real_pdf_runs_through_lot41_lot42_publisher_and_retrieval(
             "store_called": bool(store_calls),
             "pgvector_rows_created": int(negative_product_rows[0]),
         },
-        "positive_content_allowlist_gate": "PASS",
+        "positive_content_allowlist_gate": positive_content_allowlist_gate,
+        "positive_blob_readbacks": positive_blob_readbacks,
+        "positive_control_artifact_rows": positive_control_artifact_rows,
         "positive_extractor_calls": extraction_calls,
-        "scope_a_retrieval_pass": bool(retrieval),
-        "scope_b_retrieval_pass": len(retrieval) >= 2,
-        "wrong_scope_retrieval_blocked": True,
+        "positive_fetched_events": positive_fetched_events,
+        "positive_network_fetches": len(positive_network_fetches),
+        "positive_physical_blob_writes": positive_physical_blob_writes,
+        "positive_quality_agent_calls": positive_quality_agent_calls,
+        "positive_rights_agent_calls": positive_rights_agent_calls,
+        "positive_store_callbacks": len(positive_store_callbacks),
+        "positive_stored_events": positive_stored_events,
+        "positive_unique_content_sha": positive_unique_content_sha,
+        "scope_a_retrieval_pass": scope_a_retrieval_pass,
+        "scope_b_retrieval_pass": scope_b_retrieval_pass,
+        "wrong_scope_retrieval_blocked": wrong_scope_retrieval_blocked,
     }
     print("H2E_V2_GOVERNED_REHEARSAL_RESULT=" + json.dumps(result, sort_keys=True))

@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import re
+import stat
 import subprocess
 import sys
 from datetime import UTC, datetime
@@ -27,6 +28,11 @@ EXPECTED_MANIFEST_ENTRIES = 2583
 EXPECTED_PHYSICAL_OBJECTS = 2584
 EXPECTED_EDUSCOL_ARTIFACTS = 2451
 EXPECTED_EDUSCOL_PLACEMENTS = 2956
+BOUND_REPOSITORY_PATHS = (
+    "services/rag-engine/infra/scripts/test_hybrid_integration.sh",
+    "services/rag-engine/scripts/h2c_governed_rehearsal.py",
+    "services/rag-engine/tests/integration/test_h2c_governed_rehearsal.py",
+)
 
 
 class MaterializedInputs(NamedTuple):
@@ -46,6 +52,130 @@ def _sha256(path: Path) -> str:
         for block in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def _git_output(repository_root: Path, *arguments: str) -> str:
+    completed = subprocess.run(
+        ["git", "-C", str(repository_root), *arguments],
+        capture_output=True,
+        text=True,
+        timeout=15,
+        check=False,
+    )
+    if completed.returncode != 0:
+        raise RuntimeError("H2E_REPOSITORY_BINDING_FAILED")
+    return completed.stdout.strip()
+
+
+def _git_bytes(repository_root: Path, *arguments: str) -> bytes:
+    completed = subprocess.run(
+        ["git", "-C", str(repository_root), *arguments],
+        capture_output=True,
+        timeout=30,
+        check=False,
+    )
+    if completed.returncode != 0:
+        raise RuntimeError("H2E_REPOSITORY_BINDING_FAILED")
+    return completed.stdout
+
+
+def _verify_tracked_worktree(repository_root: Path) -> tuple[int, str]:
+    """Compare chaque octet suivi au blob HEAD, sans faire confiance à l'index.
+
+    ``git status`` et ``git diff`` respectent ``assume-unchanged``. La preuve
+    recalcule donc directement l'identité Git de chaque fichier du tree HEAD,
+    y compris le contenu des liens symboliques et le bit exécutable.
+    """
+    object_format = _git_output(
+        repository_root, "rev-parse", "--show-object-format"
+    )
+    if object_format not in {"sha1", "sha256"}:
+        raise RuntimeError("H2E_REPOSITORY_OBJECT_FORMAT_INVALID")
+    raw_tree = _git_bytes(
+        repository_root, "ls-tree", "-rz", "--full-tree", "HEAD"
+    )
+    aggregate = hashlib.sha256()
+    verified = 0
+    for entry in raw_tree.split(b"\0"):
+        if not entry:
+            continue
+        metadata, separator, relative_bytes = entry.partition(b"\t")
+        fields = metadata.split()
+        if separator != b"\t" or len(fields) != 3 or fields[1] != b"blob":
+            raise RuntimeError("H2E_REPOSITORY_TRACKED_OBJECT_INVALID")
+        mode, _, expected_object = fields
+        relative = relative_bytes.decode("utf-8", errors="surrogateescape")
+        path = repository_root / relative
+        try:
+            file_stat = path.lstat()
+        except FileNotFoundError as exc:
+            raise RuntimeError("H2E_TRACKED_WORKTREE_DRIFT") from exc
+        if mode == b"120000":
+            if not stat.S_ISLNK(file_stat.st_mode):
+                raise RuntimeError("H2E_TRACKED_WORKTREE_DRIFT")
+            content = os.readlink(path).encode("utf-8", errors="surrogateescape")
+        elif mode in {b"100644", b"100755"}:
+            if not stat.S_ISREG(file_stat.st_mode) or path.is_symlink():
+                raise RuntimeError("H2E_TRACKED_WORKTREE_DRIFT")
+            executable = bool(file_stat.st_mode & stat.S_IXUSR)
+            expected_executable = mode == b"100755"
+            if executable != expected_executable:
+                raise RuntimeError("H2E_TRACKED_WORKTREE_DRIFT")
+            content = path.read_bytes()
+        else:
+            raise RuntimeError("H2E_REPOSITORY_TRACKED_OBJECT_INVALID")
+        object_header = b"blob " + str(len(content)).encode("ascii") + b"\0"
+        actual_object = hashlib.new(object_format, object_header + content).hexdigest()
+        if actual_object.encode("ascii") != expected_object:
+            raise RuntimeError("H2E_TRACKED_WORKTREE_DRIFT")
+        aggregate.update(relative_bytes)
+        aggregate.update(b"\0")
+        aggregate.update(hashlib.sha256(content).hexdigest().encode("ascii"))
+        aggregate.update(b"\n")
+        verified += 1
+    if verified == 0:
+        raise RuntimeError("H2E_REPOSITORY_TRACKED_OBJECT_INVALID")
+    return verified, aggregate.hexdigest()
+
+
+def _repository_binding(
+    repository_root: Path,
+    *,
+    bound_paths: tuple[str, ...] = BOUND_REPOSITORY_PATHS,
+) -> dict[str, Any]:
+    """Lie la preuve à un HEAD propre et aux exécutables H2-E exacts."""
+    if _git_output(repository_root, "status", "--porcelain"):
+        raise RuntimeError("H2E_REPOSITORY_NOT_CLEAN")
+    head_sha = _git_output(repository_root, "rev-parse", "HEAD")
+    tree_sha = _git_output(repository_root, "rev-parse", "HEAD^{tree}")
+    if re.fullmatch(r"[0-9a-f]{40}", head_sha) is None:
+        raise RuntimeError("H2E_REPOSITORY_HEAD_INVALID")
+    if re.fullmatch(r"[0-9a-f]{40}", tree_sha) is None:
+        raise RuntimeError("H2E_REPOSITORY_TREE_INVALID")
+    verified_tracked_files, tracked_worktree_sha256 = _verify_tracked_worktree(
+        repository_root
+    )
+
+    canonical_paths = tuple(sorted(bound_paths))
+    if not canonical_paths or len(canonical_paths) != len(set(canonical_paths)):
+        raise RuntimeError("H2E_BOUND_REPOSITORY_PATHS_INVALID")
+    digests: dict[str, str] = {}
+    for relative in canonical_paths:
+        candidate = Path(relative)
+        if candidate.is_absolute() or ".." in candidate.parts:
+            raise RuntimeError("H2E_BOUND_REPOSITORY_PATH_INVALID")
+        _git_output(repository_root, "ls-files", "--error-unmatch", "--", relative)
+        path = repository_root / candidate
+        if path.is_symlink() or not path.is_file():
+            raise RuntimeError("H2E_BOUND_REPOSITORY_FILE_INVALID")
+        digests[relative] = _sha256(path)
+    return {
+        "git_head_sha": head_sha,
+        "git_tree_sha": tree_sha,
+        "verified_tracked_files": verified_tracked_files,
+        "tracked_worktree_sha256": tracked_worktree_sha256,
+        "bound_files_sha256": digests,
+    }
 
 
 def _arguments() -> argparse.Namespace:
@@ -238,7 +368,17 @@ def _validate_rehearsal_result(result: dict[str, Any]) -> None:
         and result.get("citation_traceability_pass") is True
         and result.get("placement_traceability_pass") is True
         and result.get("positive_content_allowlist_gate") == "PASS"
+        and _is_exact_int(result.get("positive_blob_readbacks"), expected=1)
+        and _is_exact_int(result.get("positive_control_artifact_rows"), expected=7)
         and _is_exact_int(result.get("positive_extractor_calls"), expected=1)
+        and _is_exact_int(result.get("positive_fetched_events"), expected=7)
+        and _is_exact_int(result.get("positive_network_fetches"), expected=7)
+        and _is_exact_int(result.get("positive_physical_blob_writes"), expected=1)
+        and _is_exact_int(result.get("positive_quality_agent_calls"), expected=7)
+        and _is_exact_int(result.get("positive_rights_agent_calls"), expected=7)
+        and _is_exact_int(result.get("positive_store_callbacks"), expected=7)
+        and _is_exact_int(result.get("positive_stored_events"), expected=7)
+        and _is_exact_int(result.get("positive_unique_content_sha"), expected=1)
         and isinstance(negative, dict)
         and negative.get("domain_gate") == "PASS"
         and negative.get("content_allowlist_gate") == "DENY"
@@ -257,10 +397,12 @@ def _validate_rehearsal_result(result: dict[str, Any]) -> None:
 
 def main() -> int:
     args = _arguments()
+    service_root = Path(__file__).resolve().parents[1]
+    repository_root = service_root.parents[1]
+    repository_before = _repository_binding(repository_root)
     inputs = _load_materialized_inputs(args.inputs_manifest)
     pii = _pii_binding(inputs.pii_evidence_path)
 
-    service_root = Path(__file__).resolve().parents[1]
     runner = service_root / "infra" / "scripts" / "test_hybrid_integration.sh"
     environment = os.environ.copy()
     environment.update(
@@ -295,6 +437,9 @@ def main() -> int:
     if not isinstance(result, dict):
         raise RuntimeError("H2E_V2_REHEARSAL_RESULT_INVALID")
     _validate_rehearsal_result(result)
+    repository_after = _repository_binding(repository_root)
+    if repository_after != repository_before:
+        raise RuntimeError("H2E_REPOSITORY_CHANGED_DURING_REHEARSAL")
 
     evidence = {
         "corpus_manifest_sha256": CORPUS_MANIFEST_SHA,
@@ -311,6 +456,7 @@ def main() -> int:
         "real_catalog_sha256": _sha256(inputs.catalog_path),
         "real_pdf_sha256": REAL_SHA,
         "real_placement_count": len(inputs.placements),
+        "repository_binding": repository_before,
         "rehearsal": result,
         "runner_output_sha256": hashlib.sha256(completed.stdout.encode()).hexdigest(),
     }

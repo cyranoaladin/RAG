@@ -2,11 +2,11 @@
 
 ## Verdict technique au 9 août 2026
 
-Ce rapport remplace les états H2-B/H2-C devenus obsolètes. Il décrit la tête
-d'implémentation `8affc88e01b634a4580df4935347e5abbcc85d11` et les preuves
-externes scellées qui lui sont liées. La tête PR finale sera figée après ce
-rapport, puis toute la CI canonique, les migrations jetables, la sécurité et
-l'audit H2 indépendant seront rejoués sur cette tête exacte.
+Ce rapport remplace les états H2-B/H2-C devenus obsolètes. La tête PR finale
+sera figée par le commit qui porte ce rapport, puis toute la CI canonique, les
+migrations jetables, la sécurité, les preuves externes et l'audit H2
+indépendant seront rejoués sur cette tête exacte. Une preuve antérieure ne
+vaut jamais pour cette future tête.
 
 ```text
 LOT41A_V2_IMPLEMENTED=true
@@ -139,6 +139,9 @@ La migration produit `004_artifact_placements` est additive :
   par identité de chunk ; le chemin legacy ne peut pas être élargi ;
 - le publisher interne exige l'attestation vérifiée, écrit atomiquement et
   reste idempotent ; aucune route HTTP d'écriture n'est ajoutée.
+- le rollback 004 prend `ACCESS EXCLUSIVE` sur les trois relations avant sa
+  garde de vacuité. Un test PostgreSQL concurrent prouve qu'une publication
+  committée pendant l'attente rend le rollback rouge et conserve ses lignes.
 
 ```text
 PRODUCT_SCHEMA_HEAD=004_artifact_placements
@@ -184,13 +187,18 @@ lié au manifest scellé et à son propre digest.
 
 La répétition PostgreSQL/pgvector jetable prouve :
 
-- autorité V2, destination, fetch, SHA, allowlist, extraction, rights,
-  quality, review, LOT42, publication et retrieval ;
+- 7 vrais appels réseau au fetcher, un par ressource/scope, avec destination,
+  revérification live, SHA et allowlist effectivement exécutés ;
+- 7 callbacks de stockage et 7 artefacts control liés au même SHA, mais une
+  seule écriture de blob content-addressed sur stockage temporaire réel ;
+- une seule relecture vérifiée taille/SHA et un seul parse PDF après `STORED` ;
+- transitions CAS `EXTRACTED`/`CLASSIFIED` liées au catalogue scellé, puis
+  rights, quality, review, LOT42, publication et retrieval sur les 7 chaînes ;
 - une ligne artefact, 7 placements, un seul jeu de chunks/vecteurs ;
 - zéro doublon vecteur, chunk et résultat ;
 - retrieval dans deux scopes réels et blocage du mauvais scope ;
 - traçabilité citation et placement ;
-- exactement un appel d'extraction pour le parcours positif ;
+- exactement un parse/extraction pour le parcours positif ;
 - parcours négatif via le vrai fetcher HTTP : domaine `PASS`, contenu `DENY`,
   état `CANDIDATE`, zéro store/extractor/rights/quality, zéro artefact contrôle,
   zéro éligibilité retrieval et zéro ligne produit.
@@ -213,18 +221,32 @@ SCOPE_B_RETRIEVAL_PASS=true
 WRONG_SCOPE_RETRIEVAL_BLOCKED=true
 V2_FULL_GOVERNED_REHEARSAL_PASS=true
 V2_NEGATIVE_REHEARSAL_PASS=true
+POSITIVE_NETWORK_FETCHES=7
+POSITIVE_STORE_CALLBACKS=7
+POSITIVE_PHYSICAL_BLOB_WRITES=1
+POSITIVE_BLOB_READBACKS=1
+POSITIVE_CONTROL_ARTIFACT_ROWS=7
+POSITIVE_UNIQUE_CONTENT_SHA=1
+POSITIVE_PDF_PARSES=1
 ```
 
-Preuve externe :
-`h2e_v2_governed_rehearsal.json`, SHA-256
-`8785f8ee3f21699f4d133704963c68a5eb7374774b203724c768e31abbe4ca22`.
-Elle est liée au manifest d'inputs
-`da8909d5a3abb029db239cdcbb269749c72da501e344700d670e0101f08fab41`,
-au catalogue de placements
-`095ca37cc4c2126d06b77106f9f1663d4f5ad881ae4952dbf5b951477fd54c39`
-et au catalogue compilé réel
-`a66df3a9560c7a9f0d62eb4f8d378a9a99ae0c79b39a15d900adc879bdb69aba`.
-Aucun chemin local, secret ou contenu brut n'est inclus.
+La preuve antérieure à l'audit indépendant est explicitement obsolète. La
+nouvelle `h2e_v2_governed_rehearsal.json` sera régénérée seulement après le
+commit final. Son sceau inclura le HEAD, le tree Git et les SHA-256 du runner,
+du scelleur et du test d'intégration exacts, vérifiés avant et après le run.
+Le digest final sera publié dans le corps de la PR et le rapport machine,
+jamais deviné dans ce commit. Aucun chemin local, secret ou contenu brut ne
+sera inclus.
+
+## Findings de l'audit indépendant et remédiation
+
+Le premier audit indépendant de la tête `b7449fdb11a14748545881b9a6a3c7eedc337344`
+a correctement rendu `FAIL` sur trois P1 : parcours positif H2-E simulé,
+preuve non liée à la tête exacte et fenêtre TOCTOU du rollback 004. Aucun de
+ces findings n'est ignoré : les trois remédiations sont décrites ci-dessus et
+ont chacune un test rouge→vert. Cette tête candidate doit encore subir une
+nouvelle répétition scellée, la CI complète et un nouvel audit indépendant ;
+le verdict final reste donc fermé jusque-là.
 
 ## Mutations vraies
 

@@ -86,11 +86,15 @@ def test_migration_004_encodes_fail_closed_placement_state() -> None:
 
 def test_rollback_004_refuses_to_drop_governed_rows() -> None:
     sql = _read(ROLLBACKS / "004_artifact_placements.down.sql")
-    normalized = sql.upper()
+    normalized = " ".join(sql.upper().split())
 
+    lock = normalized.index(
+        "LOCK TABLE PUBLIC.RAG_ARTIFACTS, PUBLIC.RAG_ARTIFACT_PLACEMENTS, "
+        "PUBLIC.RAG_CHUNKS IN ACCESS EXCLUSIVE MODE"
+    )
     guard = normalized.index("ROLLBACK_004_DATA_PRESENT")
     first_drop = normalized.index("DROP INDEX")
-    assert guard < first_drop
+    assert lock < guard < first_drop
     assert "ARTIFACT_ID IS NOT NULL" in normalized
     assert "PUBLIC.RAG_ARTIFACTS" in normalized
     assert "PUBLIC.RAG_ARTIFACT_PLACEMENTS" in normalized
