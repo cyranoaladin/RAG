@@ -7,10 +7,10 @@
   "exclusions": [
     "/5793/programmes-et-ressources-en-francais-voie-gt"
   ],
-  "manifest_digest": "7c7509e3f92c3495fed9392c807007defa1507c6f8aaf4437b1191869a4ae032",
+  "manifest_digest": "33539ec74db91d80da728e214e83ec7397f87c51064e50bae120fae73636253b",
   "pii_absence_attested": true,
   "pii_absence_evidence": "H2B_PII_EVIDENCE_SHA256=76e6ba3cd5b1c116c8647b611eb3fdeb2aba6b8c7fdfbad9e71048354956f311; CLEARED_ARTIFACTS=5; CLEARED_SHA_SET_DIGEST=a8fab59c6b1ccd4f777b9128180092362c3d7e98a3077f97f9080e7a7bbec642; CORPUS_MANIFEST_SHA256=d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e",
-  "profile_fingerprint": "2758845f9212bdf1da99cb02608ab84adc6a60b83bdb1344685a1902c9068fbb",
+  "profile_fingerprint": "993b350071ffa961c2be47738aa138b95db56317f117d7b4086461dbfd0acefc",
   "profile_id": "rag_nexus_philo_terminale_tc",
   "profile_version": "h2c-v1",
   "protocol_version": "LOT41A-V1",
@@ -26,7 +26,7 @@
     "collection": "rag_nexus_philo_terminale_tc",
     "matiere": "philosophie",
     "niveau": "terminale",
-    "programme_version": "BO_2019-01-22",
+    "programme_version": "BOEN_special_8_2019-07-25",
     "school_year": "2026-2027",
     "tenant": "libre_terminale",
     "visibility": "internal",
