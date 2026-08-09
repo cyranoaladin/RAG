@@ -213,13 +213,32 @@ def _write_json(path: Path, document: dict[str, Any]) -> None:
     temporary.replace(path)
 
 
+def _is_exact_int(value: object, *, expected: int) -> bool:
+    """Refuse notamment ``bool``, sous-classe de ``int`` en Python."""
+    return type(value) is int and value == expected
+
+
 def _validate_rehearsal_result(result: dict[str, Any]) -> None:
     negative = result.get("negative_same_domain_unlisted")
     valid = (
-        result.get("full_governed_rehearsal_pass") is True
+        result.get("real_multi_placement_sha") == REAL_SHA
+        and _is_exact_int(result.get("real_multi_placement_placements"), expected=7)
+        and _is_exact_int(result.get("artifact_rows_for_sha"), expected=1)
+        and _is_exact_int(result.get("placement_rows"), expected=7)
+        and _is_exact_int(result.get("chunk_set_count"), expected=1)
+        and _is_exact_int(result.get("duplicate_vector_sets"), expected=0)
+        and _is_exact_int(result.get("duplicate_chunk_sets"), expected=0)
+        and _is_exact_int(result.get("duplicate_result_chunks"), expected=0)
+        and result.get("full_governed_rehearsal_pass") is True
         and result.get("lot41a_v2_content_bound") is True
+        and result.get("lot42_pipeline_path_implemented") is True
+        and result.get("scope_a_retrieval_pass") is True
+        and result.get("scope_b_retrieval_pass") is True
+        and result.get("wrong_scope_retrieval_blocked") is True
+        and result.get("citation_traceability_pass") is True
+        and result.get("placement_traceability_pass") is True
         and result.get("positive_content_allowlist_gate") == "PASS"
-        and result.get("positive_extractor_calls") == 1
+        and _is_exact_int(result.get("positive_extractor_calls"), expected=1)
         and isinstance(negative, dict)
         and negative.get("domain_gate") == "PASS"
         and negative.get("content_allowlist_gate") == "DENY"
@@ -229,9 +248,8 @@ def _validate_rehearsal_result(result: dict[str, Any]) -> None:
         and negative.get("quality_agent_called") is False
         and negative.get("resource_state") == "CANDIDATE"
         and negative.get("retrieval_eligible") is False
-        and negative.get("control_artifact_rows") == 0
-        and type(negative.get("pgvector_rows_created")) is int
-        and negative.get("pgvector_rows_created") == 0
+        and _is_exact_int(negative.get("control_artifact_rows"), expected=0)
+        and _is_exact_int(negative.get("pgvector_rows_created"), expected=0)
     )
     if not valid:
         raise RuntimeError("H2E_V2_REHEARSAL_NOT_GREEN")
