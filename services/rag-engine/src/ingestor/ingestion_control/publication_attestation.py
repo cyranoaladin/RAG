@@ -132,18 +132,34 @@ def _mark_invalidated(conn: psycopg.Connection, *, attestation_id: UUID, reason:
     """Meilleur effort : persiste la raison d'invalidation détectée pour
     audit. N'est jamais la condition de fail-closed elle-même — l'appelant
     lève déjà ``PublicationAttestationInvalidError`` indépendamment de la
-    réussite de cette écriture."""
-    conn.rollback()
-    with conn.cursor() as cur:
-        cur.execute(
-            """
-            UPDATE ingestion_control.publication_attestations
-            SET invalidated_at = now(), invalidated_reason = %s
-            WHERE attestation_id = %s AND invalidated_at IS NULL
-            """,
-            (reason[:2000], attestation_id),
-        )
-    conn.commit()
+    réussite de cette écriture.
+
+    Le rôle runtime est volontairement en lecture seule sur cette table et
+    la vérification gouvernée peut s'exécuter dans ``conn.transaction()``.
+    Un rollback/UPDATE alors interdit ne doit donc jamais masquer le refus
+    de sécurité déjà déterminé. Le rôle attestor, lui, conserve la
+    persistance de ce cache d'audit lors d'une vérification autonome."""
+    try:
+        conn.rollback()
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE ingestion_control.publication_attestations
+                SET invalidated_at = now(), invalidated_reason = %s
+                WHERE attestation_id = %s AND invalidated_at IS NULL
+                """,
+                (reason[:2000], attestation_id),
+            )
+        conn.commit()
+    except psycopg.Error:
+        # Hors contexte transactionnel, nettoie l'état aborted laissé par un
+        # UPDATE refusé au rôle app. Dans un ``conn.transaction()`` externe,
+        # ce rollback est lui-même interdit : l'exception de sécurité qui
+        # sortira du contexte effectuera alors le rollback atomique attendu.
+        try:
+            conn.rollback()
+        except psycopg.Error:
+            pass
 
 
 class _Invalidator:
@@ -440,7 +456,6 @@ def attempt_retrieval_eligible_transition(
     current_profile_fingerprint: str,
     current_manifest_digest: str,
     job_id: UUID | None = None,
-    require_content_bound_authority: bool = False,
 ) -> TransitionResult:
     """Point d'ancrage unique LOT42 (ADR-0033 § 6) : la SEULE fonction
     autorisée à faire transitionner une ressource ``REVIEWED ->
@@ -462,7 +477,7 @@ def attempt_retrieval_eligible_transition(
         current_content_sha256=current_content_sha256,
         current_profile_fingerprint=current_profile_fingerprint,
         current_manifest_digest=current_manifest_digest,
-        require_content_bound_authority=require_content_bound_authority,
+        require_content_bound_authority=True,
     )
     return cas_transition(
         conn,

@@ -123,7 +123,7 @@ def test_review_path_verifies_then_uses_the_unique_lot42_anchor(
 
     assert [event[0] for event in events] == ["verify", "reviewed", "anchor"]
     assert events[0][1]["require_content_bound_authority"] is True
-    assert events[2][1]["require_content_bound_authority"] is True
+    assert "require_content_bound_authority" not in events[2][1]
     assert result.attestation is verified
     assert result.reviewed.state_version == 11
     assert result.retrieval_eligible.state_version == 12

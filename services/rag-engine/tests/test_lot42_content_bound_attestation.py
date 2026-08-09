@@ -1,6 +1,7 @@
 """LOT42 lie la publication H2 au FETCHED autorisé et durable."""
 from __future__ import annotations
 
+import inspect
 from contextlib import AbstractContextManager
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
@@ -14,6 +15,7 @@ from nexus_contracts.ingestion import ResourceScope
 import ingestor.ingestion_control.publication_attestation as attestation_module
 from ingestor.ingestion_control.publication_attestation import (
     PublicationAttestationInvalidError,
+    attempt_retrieval_eligible_transition,
     verify_publication_attestation,
 )
 from ingestor.ingestion_control.publication_evidence import (
@@ -165,6 +167,51 @@ def test_content_bound_verification_rejects_v1_but_legacy_default_preserves_it(
         match="CONTENT_ALLOWLIST_AUTHORITY_REQUIRED",
     ):
         _verify_with(monkeypatch, authorization=authorization, facts=facts)
+
+
+def test_retrieval_anchor_has_no_content_authority_downgrade_parameter() -> None:
+    parameters = inspect.signature(attempt_retrieval_eligible_transition).parameters
+
+    assert "require_content_bound_authority" not in parameters
+
+
+def test_direct_retrieval_anchor_rejects_v1_before_cas(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    resource_id = uuid4()
+    calls = {"verify": 0, "cas": 0}
+
+    def verify(_conn: object, **kwargs: object) -> object:
+        calls["verify"] += 1
+        if kwargs.get("require_content_bound_authority") is True:
+            raise PublicationAttestationInvalidError(
+                "CONTENT_ALLOWLIST_AUTHORITY_REQUIRED"
+            )
+        return object()
+
+    def cas(*_args: object, **_kwargs: object) -> object:
+        calls["cas"] += 1
+        return object()
+
+    monkeypatch.setattr(attestation_module, "verify_publication_attestation", verify)
+    monkeypatch.setattr(attestation_module, "cas_transition", cas)
+
+    with pytest.raises(
+        PublicationAttestationInvalidError,
+        match="CONTENT_ALLOWLIST_AUTHORITY_REQUIRED",
+    ):
+        attempt_retrieval_eligible_transition(
+            object(),
+            resource_id=resource_id,
+            run_id=uuid4(),
+            expected_version=7,
+            actor="test-direct-anchor",
+            current_content_sha256=CONTENT_SHA,
+            current_profile_fingerprint="4" * 64,
+            current_manifest_digest="3" * 64,
+        )
+
+    assert calls == {"verify": 1, "cas": 0}
 
 
 @pytest.mark.parametrize(

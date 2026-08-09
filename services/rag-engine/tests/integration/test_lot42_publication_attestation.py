@@ -775,6 +775,59 @@ class TestVerificationRejectsEveryDrift:
         with pytest.raises(PublicationAttestationInvalidError, match="no active"):
             verify(pg, attested)
 
+    def test_attestor_role_persists_standalone_invalidation_cache(
+        self, pg: dict[str, str], attested: dict[str, Any]
+    ) -> None:
+        with psycopg.connect(attestor_dsn(pg)) as conn:
+            with pytest.raises(
+                PublicationAttestationInvalidError,
+                match="content_sha256 drift",
+            ):
+                verify_publication_attestation(
+                    conn,
+                    resource_id=attested["resource_id"],
+                    current_content_sha256="9" * 64,
+                    current_profile_fingerprint=PROFILE_FINGERPRINT,
+                    current_manifest_digest=MANIFEST_DIGEST,
+                )
+
+        with psycopg.connect(superuser_dsn(pg)) as conn:
+            row = conn.execute(
+                "SELECT invalidated_at, invalidated_reason "
+                "FROM ingestion_control.publication_attestations "
+                "WHERE resource_id = %s",
+                (attested["resource_id"],),
+            ).fetchone()
+        assert row is not None
+        assert row[0] is not None
+        assert "content_sha256 drift" in str(row[1])
+
+    def test_app_role_standalone_denial_keeps_connection_usable(
+        self, pg: dict[str, str], attested: dict[str, Any]
+    ) -> None:
+        with psycopg.connect(app_dsn(pg)) as conn:
+            with pytest.raises(
+                PublicationAttestationInvalidError,
+                match="content_sha256 drift",
+            ):
+                verify_publication_attestation(
+                    conn,
+                    resource_id=attested["resource_id"],
+                    current_content_sha256="9" * 64,
+                    current_profile_fingerprint=PROFILE_FINGERPRINT,
+                    current_manifest_digest=MANIFEST_DIGEST,
+                )
+            invalidation = conn.execute(
+                "SELECT invalidated_at, invalidated_reason "
+                "FROM ingestion_control.publication_attestations "
+                "WHERE resource_id = %s",
+                (attested["resource_id"],),
+            ).fetchone()
+            connection_probe = conn.execute("SELECT 1").fetchone()
+
+        assert invalidation == (None, None)
+        assert connection_probe == (1,)
+
 
 class TestRetrievalEligibleAnchor:
     def test_the_transition_is_never_attempted_when_verification_fails(
@@ -802,6 +855,65 @@ class TestRetrievalEligibleAnchor:
 
 
 class TestDormantGovernedPublicationPath:
+    def test_app_role_denial_in_transaction_is_not_masked_and_rolls_back(
+        self,
+        pg: dict[str, str],
+        attested: dict[str, Any],
+    ) -> None:
+        resource_id = attested["resource_id"]
+        artifact_id = attested["artifact_id"]
+        with psycopg.connect(app_dsn(pg)) as conn:
+            row = conn.execute(
+                "SELECT run_id, state_version FROM ingestion_control.resources "
+                "WHERE resource_id = %s",
+                (resource_id,),
+            ).fetchone()
+            assert row is not None
+            run_id, version = row
+            conn.commit()
+
+            staged = stage_publication_for_review(
+                conn,
+                resource_id=resource_id,
+                run_id=run_id,
+                expected_version=version,
+                actor="lot42-app-role-negative",
+            )
+            assert staged.needs_review.to_state is ResourceState.NEEDS_REVIEW
+
+            with pytest.raises(
+                PublicationAttestationInvalidError,
+                match="content_sha256 drift",
+            ):
+                promote_reviewed_publication(
+                    conn,
+                    resource_id=resource_id,
+                    run_id=run_id,
+                    expected_version=staged.needs_review.state_version,
+                    actor="lot42-app-role-negative",
+                    current_content_sha256="9" * 64,
+                    current_profile_fingerprint=PROFILE_FINGERPRINT,
+                    current_manifest_digest=MANIFEST_DIGEST,
+                )
+
+            state = conn.execute(
+                "SELECT resource_state FROM ingestion_control.resources "
+                "WHERE resource_id = %s",
+                (resource_id,),
+            ).fetchone()
+            invalidation = conn.execute(
+                "SELECT invalidated_at, invalidated_reason "
+                "FROM ingestion_control.publication_attestations "
+                "WHERE resource_id = %s",
+                (resource_id,),
+            ).fetchone()
+            connection_probe = conn.execute("SELECT 1").fetchone()
+
+        assert state == (ResourceState.NEEDS_REVIEW.value,)
+        assert invalidation == (None, None)
+        assert connection_probe == (1,)
+        assert content_sha(pg, artifact_id) != "9" * 64
+
     def test_real_control_events_reach_the_unique_anchor_in_rehearsal(
         self,
         pg: dict[str, str],
