@@ -72,7 +72,7 @@ du même lot et rend caduc le verdict H2-F attaché à ce SHA :
   mismatch SHA.
 
 Sur les entrées réelles, le registre de droits conserve cinq zones et passe.
-La preuve PII scellée `76e6ba3cd5b1c116c8647b611eb3fdeb2aba6b8c7fdfbad9e71048354956f311`
+La preuve PII scellée `c559891f8f636a5b25fc97e25ab959c143b1e352e36d150139c8737ee33060d6`
 conserve 64 objets requis, 64 scannés, 63 clairs, un mis en quarantaine et zéro
 objet non scanné. Le périmètre Eduscol physique dérivé du catalogue réel compte
 2 451 lignes, toutes évaluées, sans ligne mal formée ou ignorée. Ses 1 513
@@ -108,3 +108,19 @@ l'orchestrateur hors service.
 Le code de sortie de la preuve agrégée vérifie aussi que les comptes `CLEARED`
 et `QUARANTINED` forment exactement le périmètre scanné. Aucun résumé
 auto-déclaré incohérent ne peut donc rendre le gate vert.
+
+La preuve historique a ensuite été régénérée avec ce scanner corrigé, sur un
+miroir local borné dérivé des 64 chemins PDF autorisés par le manifeste. Le
+nouveau sceau
+`c559891f8f636a5b25fc97e25ab959c143b1e352e36d150139c8737ee33060d6`
+lie le manifeste canonique, le scanner `pii_scanner_h2b_v2` et la politique
+PII. Le résultat réel reste 64/64 : 63 objets clairs, un objet en quarantaine,
+zéro review, zéro échec d'extraction, zéro objet non scanné et zéro mismatch
+SHA. Les liaisons H2-E et la readiness produit utilisent exclusivement ce
+nouveau sceau ; l'ancienne preuve n'autorise plus la répétition finale.
+
+La matérialisation Drive H2-E conserve `--immutable` et ajoute des retries
+bornés ainsi qu'un timeout total de 1 800 secondes. Cette correction est
+nécessaire parce que le téléchargement réel du manifeste dépassait la limite
+historique de 300 secondes ; elle n'ajoute aucune opération d'écriture
+distante et chaque objet reste vérifié par SHA-256 avant consommation.

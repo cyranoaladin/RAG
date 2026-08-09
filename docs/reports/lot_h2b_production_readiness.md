@@ -292,7 +292,7 @@ catalogue synthétique :
 Le scope PII initial comprend les 64 PDF qui pouvaient être promus : 64
 scannés, 63 `CLEARED`, un `QUARANTINED_PII`, zéro échec et zéro non scanné.
 La preuve PII externe vaut
-`76e6ba3cd5b1c116c8647b611eb3fdeb2aba6b8c7fdfbad9e71048354956f311`.
+`c559891f8f636a5b25fc97e25ab959c143b1e352e36d150139c8737ee33060d6`.
 Le SHA quarantiné
 `b81201b857c67e4e928a079cfe9d5b9b402537d0101bfccc730465631d5e8376`
 n'apparaît dans aucune allowlist de répétition.
