@@ -6,8 +6,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
-from types import ModuleType
-from typing import Any
+from typing import Any, Protocol, cast
 
 import pytest
 import yaml
@@ -21,16 +20,33 @@ PDF_REMOTE_PATH = (
 )
 
 
+class MaterializerModule(Protocol):
+    REAL_SHA256: str
+    EXPECTED_MANIFEST_SHA256: str
+    EXPECTED_PII_EVIDENCE_SHA256: str
+    EXPECTED_REAL_PLACEMENTS: int
+
+    def materialize_rehearsal_inputs(
+        self,
+        *,
+        scratch_dir: Path,
+        pii_evidence_path: Path,
+        output_manifest_path: Path,
+        routing_config_path: Path,
+        rights_registry_path: Path,
+    ) -> dict[str, Any]: ...
+
+
 def _sha256(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
 
 
-def _module() -> ModuleType:
+def _module() -> MaterializerModule:
     spec = importlib.util.spec_from_file_location("h2e_materialize_rehearsal_inputs", SCRIPT)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    return module
+    return cast(MaterializerModule, module)
 
 
 def _placement_row(content_sha256: str) -> str:
@@ -210,7 +226,7 @@ shutil.copyfile(origin, target)
 
 
 def _run_materializer(
-    module: ModuleType,
+    module: MaterializerModule,
     fixture: dict[str, Any],
     scratch: Path,
     output: Path,
