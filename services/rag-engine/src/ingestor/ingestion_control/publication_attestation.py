@@ -414,14 +414,13 @@ def attempt_retrieval_eligible_transition(
     échoue, et la ressource reste ``REVIEWED`` (état stable, jamais un état
     d'erreur nouveau).
 
-    Non encore appelée par ``ingestion_worker.runner`` : aucune ressource
-    n'atteint ``REVIEWED`` dans le pipeline actuel (il s'arrête à
-    ``ROUTED`` — les états ``STAGED``/``NEEDS_REVIEW``/``REVIEWED`` restent
-    hors périmètre, explicitement escaladés, cf.
-    ``LOT42_LIVE_PIPELINE_WIRED=false``). Cette fonction existe et est
-    testée indépendamment pour qu'un futur lot qui construit le pipeline
-    jusqu'à ``REVIEWED`` n'ait qu'à l'appeler — jamais à réinventer sa
-    propre vérification LOT42 ni un second point d'ancrage."""
+    Non appelée par ``ingestion_worker.runner`` : le chemin interne de
+    répétition ``governed_publication_path`` atteint ``REVIEWED`` sous tests,
+    puis appelle cette ancre. Il n'est monté ni dans le worker vivant, ni
+    dans une API, un démarrage ou un cron ;
+    ``LOT42_LIVE_PIPELINE_WIRED=false`` reste donc vrai. Toute activation
+    ultérieure doit réutiliser cette ancre — jamais réinventer sa propre
+    vérification LOT42 ni un second point d'accès."""
     verify_publication_attestation(
         conn,
         resource_id=resource_id,

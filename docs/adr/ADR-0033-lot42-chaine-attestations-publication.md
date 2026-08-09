@@ -181,13 +181,14 @@ Deux propriétés distinctes, à ne jamais confondre dans un rapport :
 | Drapeau | Valeur | Signification |
 |---|---|---|
 | `LOT42_MECHANISM_IMPLEMENTED` | voir rapport de lot | Le mécanisme (contrat, stockage, vérification live, point d'ancrage, tests) existe et est éprouvé. |
-| `LOT42_LIVE_PIPELINE_WIRED` | **`false`** | Le chemin `STAGED -> NEEDS_REVIEW -> REVIEWED` **n'existe pas encore**. Aucune ressource n'atteint donc `REVIEWED`, et `attempt_retrieval_eligible_transition` n'a en pratique aucun appelant en production. |
+| `LOT42_PIPELINE_PATH_IMPLEMENTED` | voir rapport de lot | Le chemin interne `ROUTED -> STAGED -> NEEDS_REVIEW -> REVIEWED`, suivi de l'ancre unique, existe pour les répétitions isolées. |
+| `LOT42_LIVE_PIPELINE_WIRED` | **`false`** | Ce chemin n'est importé ni par le runner vivant, ni par une API, un démarrage ou un cron. Aucune ressource de production ne peut donc l'emprunter. |
 
 `LOT42_LIVE_PIPELINE_WIRED` reste `false` — et doit être déclaré tel quel —
-tant que ce chemin n'est pas construit. Il ne s'agit pas d'un détail de
-présentation : décrire LOT42 comme « un runtime de publication opérationnel
-de bout en bout » serait faux tant que rien ne peut atteindre `REVIEWED`.
-Ce câblage relève du Track suivant, après GATE H1.
+tant que l'activation gouvernée de ce chemin n'est pas réalisée lors de la
+phase de production autorisée. Il ne s'agit pas d'un détail de présentation :
+décrire LOT42 comme « un runtime de publication production opérationnel de
+bout en bout » serait faux tant que le runner vivant ne l'appelle pas.
 
 **Garde-fou dépôt.** `tests/test_lot42_retrieval_eligible_anchor.py` analyse
 l'AST de tout `src/` et échoue si un module autre que le point d'ancrage
@@ -203,8 +204,8 @@ l'ancre, ou faire échouer ce test.
 ## Conséquences
 
 - `RETRIEVAL_ELIGIBLE` reste, comme avant, un état terminal jamais atteint
-  par ce lot seul — aucune ressource n'y accède tant qu'aucune PR de scope
-  LOT41A ni de revue de publication LOT42 n'a été humainement approuvée.
+  par le pipeline vivant de ce lot. Une répétition isolée ne peut l'atteindre
+  qu'avec une autorisation LOT41A et une revue LOT42 revérifiées en direct.
 - La publication produit réelle (écriture dans `rag_chunks`/pgvector, hors
   périmètre de `nexus_contracts.resource_state` par sa propre docstring)
   reste un sous-système distinct et **hors périmètre de ce document** — cf.

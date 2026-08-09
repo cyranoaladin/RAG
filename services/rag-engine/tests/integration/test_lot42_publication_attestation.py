@@ -11,10 +11,11 @@ qu'il prétend vérifier ne prouverait rien sur le système.
 Une seule pièce est substituée pour les scénarios *positifs* : la sortie du
 classifieur. ``classify_conformity_core`` est un placeholder documenté qui
 laisse niveau/voie/programme « non vérifiés », de sorte qu'aucune ressource
-ne peut aujourd'hui franchir le gate. Ce fait n'est pas contourné en
-silence — il est vérifié explicitement par
-``TestLivePipelineCannotYetPublish``, et c'est très exactement ce que
-``LOT42_LIVE_PIPELINE_WIRED=false`` signifie.
+ne peut aujourd'hui franchir le gate dans le worker vivant. Ce fait n'est
+pas contourné en silence — il est vérifié explicitement par
+``TestLivePipelineCannotYetPublish``. Le chemin après ``ROUTED`` est testé
+séparément sans être importé par ce worker :
+``LOT42_LIVE_PIPELINE_WIRED=false`` reste donc exact.
 
 **Item E.** L'opérateur ne fournit plus aucune donnée technique. La
 sous-commande ``propose-review`` dérive l'artefact depuis la base ; la
@@ -82,6 +83,10 @@ from ingestor.ingestion_agents.quality_agent import run_quality_agent  # noqa: E
 from ingestor.ingestion_agents.rights_agent import run_rights_agent  # noqa: E402
 from ingestor.ingestion_agents.transitions import (  # noqa: E402
     apply_resource_transition,
+)
+from ingestor.ingestion_control.governed_publication_path import (  # noqa: E402
+    promote_reviewed_publication,
+    stage_publication_for_review,
 )
 from ingestor.ingestion_control.jobs import create_job  # noqa: E402
 from ingestor.ingestion_control.provisioning import (  # noqa: E402
@@ -775,6 +780,85 @@ class TestRetrievalEligibleAnchor:
                 (attested["resource_id"],),
             )
             assert cur.fetchone()[0] != ResourceState.RETRIEVAL_ELIGIBLE.value
+
+
+class TestDormantGovernedPublicationPath:
+    def test_real_control_events_reach_the_unique_anchor_in_rehearsal(
+        self,
+        pg: dict[str, str],
+        attested: dict[str, Any],
+    ) -> None:
+        resource_id = attested["resource_id"]
+        artifact_id = attested["artifact_id"]
+        with psycopg.connect(app_dsn(pg)) as conn:
+            row = conn.execute(
+                "SELECT run_id, resource_state, state_version "
+                "FROM ingestion_control.resources WHERE resource_id = %s",
+                (resource_id,),
+            ).fetchone()
+            assert row is not None
+            run_id, state, version = row
+            assert state == ResourceState.ROUTED.value
+
+            staged = stage_publication_for_review(
+                conn,
+                resource_id=resource_id,
+                run_id=run_id,
+                expected_version=version,
+                actor="lot42-h2-rehearsal",
+            )
+            assert staged.staged.to_state is ResourceState.STAGED
+            assert staged.needs_review.to_state is ResourceState.NEEDS_REVIEW
+
+            promoted = promote_reviewed_publication(
+                conn,
+                resource_id=resource_id,
+                run_id=run_id,
+                expected_version=staged.needs_review.state_version,
+                actor="lot42-h2-rehearsal",
+                current_content_sha256=content_sha(pg, artifact_id),
+                current_profile_fingerprint=PROFILE_FINGERPRINT,
+                current_manifest_digest=MANIFEST_DIGEST,
+            )
+            assert promoted.reviewed.to_state is ResourceState.REVIEWED
+            assert (
+                promoted.retrieval_eligible.to_state
+                is ResourceState.RETRIEVAL_ELIGIBLE
+            )
+
+        with psycopg.connect(superuser_dsn(pg)) as conn:
+            row = conn.execute(
+                "SELECT resource_state, state_version "
+                "FROM ingestion_control.resources WHERE resource_id = %s",
+                (resource_id,),
+            ).fetchone()
+            assert row == (
+                ResourceState.RETRIEVAL_ELIGIBLE.value,
+                promoted.retrieval_eligible.state_version,
+            )
+            transitions = conn.execute(
+                """
+                SELECT from_state, to_state
+                FROM ingestion_control.workflow_events
+                WHERE resource_id = %s
+                  AND event_type = 'transition'
+                  AND from_state IN ('ROUTED', 'STAGED', 'NEEDS_REVIEW', 'REVIEWED')
+                ORDER BY CASE from_state
+                    WHEN 'ROUTED' THEN 1
+                    WHEN 'STAGED' THEN 2
+                    WHEN 'NEEDS_REVIEW' THEN 3
+                    WHEN 'REVIEWED' THEN 4
+                    ELSE 5
+                END
+                """,
+                (resource_id,),
+            ).fetchall()
+        assert transitions == [
+            (ResourceState.ROUTED.value, ResourceState.STAGED.value),
+            (ResourceState.STAGED.value, ResourceState.NEEDS_REVIEW.value),
+            (ResourceState.NEEDS_REVIEW.value, ResourceState.REVIEWED.value),
+            (ResourceState.REVIEWED.value, ResourceState.RETRIEVAL_ELIGIBLE.value),
+        ]
 
 
 class TestLivePipelineCannotYetPublish:
