@@ -12,7 +12,7 @@ import re
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 import yaml
 
@@ -20,6 +20,12 @@ from .collection_config import (
     CollectionConfigError,
     resolve_collection_v2,
     resolve_declared_collection_v2,
+)
+from .ingestion_control.scope_authority import VerifiedAuthorization
+from .ingestion_control.scope_enforcement import (
+    ScopeEnforcementViolation,
+    enforce_content_sha256,
+    require_h2_content_bound_authority,
 )
 
 POLICY_FILENAME = "h2_initial_placement_policy.yml"
@@ -101,6 +107,37 @@ class PlacementReadinessReport:
     required_collections_instantiated: int
     required_collections_not_instantiated: tuple[str, ...]
     ingested_placements_with_unknown_scope: int
+
+    def as_dict(self) -> dict[str, object]:
+        return asdict(self)
+
+
+AuthorityDecisionStatus = Literal["PASS", "BLOCKED"]
+
+
+@dataclass(frozen=True)
+class AuthorityArtifactDecision:
+    """Décision finale d'autorité pour un candidat déjà prêt au placement."""
+
+    content_sha256: str
+    status: AuthorityDecisionStatus
+    reason: str
+    collection: str
+
+
+@dataclass(frozen=True)
+class AuthorityReadinessReport:
+    """Intersection immuable entre readiness locale et autorité live vérifiée."""
+
+    corpus_manifest_sha256: str
+    protocol_state: str
+    placement_ready_artifacts: tuple[str, ...]
+    placement_ready_count: int
+    authorized_artifacts: tuple[str, ...]
+    authorized_count: int
+    authority_blocked_artifacts: tuple[str, ...]
+    authority_blocked_count: int
+    decisions: tuple[AuthorityArtifactDecision, ...]
 
     def as_dict(self) -> dict[str, object]:
         return asdict(self)
@@ -355,6 +392,133 @@ def compile_initial_placement_readiness(
     )
 
 
+def _authority_report(
+    readiness: PlacementReadinessReport,
+    policy: InitialPlacementPolicy,
+    *,
+    protocol_state: str,
+    default_reason: str | None = None,
+    authorization: VerifiedAuthorization | None = None,
+) -> AuthorityReadinessReport:
+    """Construit la projection finale sans jamais élargir ``eligible_artifacts``."""
+    placement_ready = tuple(sorted(set(readiness.eligible_artifacts)))
+    decisions: list[AuthorityArtifactDecision] = []
+    authorized: list[str] = []
+
+    for content_sha256 in placement_ready:
+        rule = policy.approved_artifacts.get(content_sha256)
+        if rule is None:
+            reason = "PLACEMENT_POLICY_MISMATCH"
+        elif content_sha256 == policy.known_quarantine_sha256:
+            reason = "PII_QUARANTINE_NOT_AUTHORIZABLE"
+        elif default_reason is not None:
+            reason = default_reason
+        elif authorization is None:  # pragma: no cover - invariant d'appel
+            reason = "SCOPE_AUTHORIZATION_NOT_PRESENT"
+        elif authorization.scope.collection != rule.collection:
+            reason = "AUTHORITY_COLLECTION_MISMATCH"
+        else:
+            try:
+                enforce_content_sha256(
+                    authorization,
+                    content_sha256=content_sha256,
+                )
+            except ScopeEnforcementViolation:
+                reason = "CONTENT_SHA256_NOT_AUTHORIZED"
+            else:
+                reason = "CONTENT_SHA256_AUTHORIZED"
+                authorized.append(content_sha256)
+
+        decisions.append(
+            AuthorityArtifactDecision(
+                content_sha256=content_sha256,
+                status="PASS" if reason == "CONTENT_SHA256_AUTHORIZED" else "BLOCKED",
+                reason=reason,
+                collection=rule.collection if rule is not None else "",
+            )
+        )
+
+    authorized_tuple = tuple(authorized)
+    blocked_tuple = tuple(
+        decision.content_sha256 for decision in decisions if decision.status == "BLOCKED"
+    )
+    return AuthorityReadinessReport(
+        corpus_manifest_sha256=readiness.corpus_manifest_sha256,
+        protocol_state=protocol_state,
+        placement_ready_artifacts=placement_ready,
+        placement_ready_count=len(placement_ready),
+        authorized_artifacts=authorized_tuple,
+        authorized_count=len(authorized_tuple),
+        authority_blocked_artifacts=blocked_tuple,
+        authority_blocked_count=len(blocked_tuple),
+        decisions=tuple(decisions),
+    )
+
+
+def finalize_initial_authority(
+    readiness: PlacementReadinessReport,
+    policy: InitialPlacementPolicy,
+    authorization: VerifiedAuthorization | None,
+) -> AuthorityReadinessReport:
+    """Finalise H2 depuis une ``VerifiedAuthorization`` en mémoire uniquement.
+
+    L'appelant doit fournir l'objet issu de la vérification GitHub live. Cette
+    fonction n'accepte ni fichier, ni projection HTTP, ni liste de SHA fournie
+    par un opérateur. Elle ne peut qu'intersecter l'autorité V2 avec les
+    artefacts déjà déclarés éligibles par les gates PII/placement/collection.
+    """
+    if readiness.corpus_manifest_sha256 != policy.corpus_manifest_sha256:
+        raise PlacementReadinessError(
+            "placement readiness manifest does not match placement policy manifest"
+        )
+    if authorization is None:
+        return _authority_report(
+            readiness,
+            policy,
+            protocol_state="ABSENT",
+            default_reason="SCOPE_AUTHORIZATION_NOT_PRESENT",
+        )
+
+    try:
+        require_h2_content_bound_authority(authorization)
+    except ScopeEnforcementViolation:
+        if authorization.protocol_version == "LOT41A-V1":
+            protocol_state = "LOT41A-V1"
+            reason = "CONTENT_ALLOWLIST_AUTHORITY_REQUIRED"
+        else:
+            protocol_state = "INVALID_LOT41A-V2"
+            reason = "INVALID_CONTENT_BOUND_AUTHORITY"
+        return _authority_report(
+            readiness,
+            policy,
+            protocol_state=protocol_state,
+            default_reason=reason,
+        )
+
+    if authorization.manifest_digest != readiness.corpus_manifest_sha256:
+        return _authority_report(
+            readiness,
+            policy,
+            protocol_state="LOT41A-V2",
+            default_reason="AUTHORITY_MANIFEST_MISMATCH",
+        )
+
+    if authorization.scope.collection not in readiness.required_collections:
+        return _authority_report(
+            readiness,
+            policy,
+            protocol_state="LOT41A-V2",
+            default_reason="AUTHORITY_COLLECTION_MISMATCH",
+        )
+
+    return _authority_report(
+        readiness,
+        policy,
+        protocol_state="LOT41A-V2",
+        authorization=authorization,
+    )
+
+
 def write_readiness_evidence(report: PlacementReadinessReport, destination: Path) -> None:
     """Écrit uniquement des compteurs/identifiants non sensibles."""
     destination.write_text(
@@ -363,10 +527,13 @@ def write_readiness_evidence(report: PlacementReadinessReport, destination: Path
 
 
 __all__ = [
+    "AuthorityArtifactDecision",
+    "AuthorityReadinessReport",
     "InitialPlacementPolicy",
     "PlacementReadinessError",
     "PlacementReadinessReport",
     "compile_initial_placement_readiness",
+    "finalize_initial_authority",
     "load_initial_placement_policy",
     "write_readiness_evidence",
 ]

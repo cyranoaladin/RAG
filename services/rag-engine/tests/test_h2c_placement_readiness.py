@@ -3,17 +3,22 @@ from __future__ import annotations
 
 import json
 from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
 
 from ingestor.collection_config import load_collection_config
 from ingestor.h2c_placement_readiness import (
+    AuthorityReadinessReport,
     PlacementReadinessError,
     compile_initial_placement_readiness,
+    finalize_initial_authority,
     load_initial_placement_policy,
 )
+from ingestor.ingestion_control.scope_authority import VerifiedAuthorization
 from ingestor.ingestion_profiles.manifest import verify_profile_manifest
 from ingestor.ingestion_profiles.registry import load_profile_registry
 
@@ -113,6 +118,50 @@ def _single_artifact_policy():
     return replace(policy, approved_artifacts={SAFE_SHA: policy.approved_artifacts[SAFE_SHA]})
 
 
+def _placement_readiness():
+    return compile_initial_placement_readiness(
+        _catalog(),
+        _single_artifact_policy(),
+        load_collection_config(COLLECTIONS_PATH),
+    )
+
+
+def _authorization(**overrides: Any) -> VerifiedAuthorization:
+    now = datetime.now(UTC)
+    profile = load_profile_registry(PROFILES_DIR)[
+        ("rag_nexus_philo_terminale_tc", "h2c-v1")
+    ]
+    defaults: dict[str, Any] = {
+        "authorization_id": "h2-staging-philosophie-v2",
+        "scope": profile.scope,
+        "manifest_digest": MANIFEST_SHA,
+        "profile_id": "rag_nexus_philo_terminale_tc",
+        "profile_version": "h2c-v1",
+        "profile_fingerprint": "a" * 64,
+        "allowed_domains": ("eduscol.education.gouv.fr",),
+        "rights_categories": ("officiel_public",),
+        "exclusions": (),
+        "pii_absence_attested": True,
+        "valid_from": now - timedelta(days=1),
+        "valid_until": now + timedelta(days=1),
+        "artifact_path": "governance/authorizations/h2-staging-philosophie-v2.json",
+        "artifact_blob_sha": "b" * 40,
+        "authorization_digest": "c" * 64,
+        "evidence_repository": "cyranoaladin/RAG",
+        "evidence_pull_request": 999,
+        "evidence_base_sha": "d" * 40,
+        "evidence_head_sha": "e" * 40,
+        "evidence_review_id": 1,
+        "evidence_reviewer": "abenrhouma",
+        "evidence_challenge": "NEXUS-TRUSTED-REVIEW-V1:" + "f" * 64,
+        "verified_at": now,
+        "protocol_version": "LOT41A-V2",
+        "allowed_content_sha256": (SAFE_SHA,),
+    }
+    defaults.update(overrides)
+    return VerifiedAuthorization(**defaults)
+
+
 def test_policy_resolves_only_exact_allowlisted_placement() -> None:
     policy = _single_artifact_policy()
     config = load_collection_config(COLLECTIONS_PATH)
@@ -133,6 +182,117 @@ def test_policy_resolves_only_exact_allowlisted_placement() -> None:
     assert report.required_collections_not_instantiated == ()
     assert report.ingested_placements_with_unknown_scope == 0
     assert QUARANTINE_SHA not in report.eligible_artifacts
+
+
+def test_v2_authority_finalizes_only_exact_placement_ready_sha() -> None:
+    report = finalize_initial_authority(
+        _placement_readiness(),
+        _single_artifact_policy(),
+        _authorization(),
+    )
+
+    assert isinstance(report, AuthorityReadinessReport)
+    assert report.protocol_state == "LOT41A-V2"
+    assert report.placement_ready_artifacts == (SAFE_SHA,)
+    assert report.placement_ready_count == 1
+    assert report.authorized_artifacts == (SAFE_SHA,)
+    assert report.authorized_count == 1
+    assert report.authority_blocked_artifacts == ()
+    assert report.authority_blocked_count == 0
+    assert report.decisions[0].status == "PASS"
+    assert report.decisions[0].reason == "CONTENT_SHA256_AUTHORIZED"
+
+
+def test_same_scope_unlisted_sha_is_authority_blocked() -> None:
+    report = finalize_initial_authority(
+        _placement_readiness(),
+        _single_artifact_policy(),
+        _authorization(allowed_content_sha256=("2" * 64,)),
+    )
+
+    assert report.authorized_artifacts == ()
+    assert report.authority_blocked_artifacts == (SAFE_SHA,)
+    assert report.decisions[0].reason == "CONTENT_SHA256_NOT_AUTHORIZED"
+
+
+@pytest.mark.parametrize(
+    ("authorization", "protocol_state", "reason"),
+    (
+        (None, "ABSENT", "SCOPE_AUTHORIZATION_NOT_PRESENT"),
+        (
+            _authorization(
+                protocol_version="LOT41A-V1", allowed_content_sha256=None
+            ),
+            "LOT41A-V1",
+            "CONTENT_ALLOWLIST_AUTHORITY_REQUIRED",
+        ),
+        (
+            _authorization(allowed_content_sha256=(SAFE_SHA.upper(),)),
+            "INVALID_LOT41A-V2",
+            "INVALID_CONTENT_BOUND_AUTHORITY",
+        ),
+    ),
+)
+def test_missing_v1_or_malformed_v2_authority_blocks_all(
+    authorization: VerifiedAuthorization | None,
+    protocol_state: str,
+    reason: str,
+) -> None:
+    report = finalize_initial_authority(
+        _placement_readiness(),
+        _single_artifact_policy(),
+        authorization,
+    )
+
+    assert report.protocol_state == protocol_state
+    assert report.authorized_artifacts == ()
+    assert report.authority_blocked_artifacts == (SAFE_SHA,)
+    assert report.decisions[0].reason == reason
+
+
+@pytest.mark.parametrize(
+    ("authorization", "reason"),
+    (
+        (
+            _authorization(manifest_digest="0" * 64),
+            "AUTHORITY_MANIFEST_MISMATCH",
+        ),
+        (
+            _authorization(
+                scope=load_profile_registry(PROFILES_DIR)[
+                    ("rag_nexus_philo_terminale_tc", "h2c-v1")
+                ].scope.model_copy(update={"collection": "rag_nexus_autre_collection"})
+            ),
+            "AUTHORITY_COLLECTION_MISMATCH",
+        ),
+    ),
+)
+def test_manifest_or_collection_authority_drift_blocks_all(
+    authorization: VerifiedAuthorization,
+    reason: str,
+) -> None:
+    report = finalize_initial_authority(
+        _placement_readiness(),
+        _single_artifact_policy(),
+        authorization,
+    )
+
+    assert report.authorized_artifacts == ()
+    assert report.decisions[0].reason == reason
+
+
+def test_authority_is_intersection_only_and_never_widens_to_quarantine() -> None:
+    report = finalize_initial_authority(
+        _placement_readiness(),
+        _single_artifact_policy(),
+        _authorization(
+            allowed_content_sha256=tuple(sorted((SAFE_SHA, QUARANTINE_SHA, "2" * 64)))
+        ),
+    )
+
+    assert report.authorized_artifacts == (SAFE_SHA,)
+    assert QUARANTINE_SHA not in report.authorized_artifacts
+    assert "2" * 64 not in report.authorized_artifacts
 
 
 def test_source_scope_drift_is_review_required_not_guessed() -> None:
