@@ -336,7 +336,7 @@ class ScopeAuthorizationArtifact(StrictBaseModel):
 ScopeAuthorizationArtifactV1 = ScopeAuthorizationArtifact
 
 
-class ScopeAuthorizationArtifactV2(ScopeAuthorizationArtifact):
+class ScopeAuthorizationArtifactV2(StrictBaseModel):
     """Autorisation LOT41A liée positivement aux contenus exacts revus.
 
     La liste est exigée sous sa forme déjà canonique. Aucune casse, aucun
@@ -345,7 +345,43 @@ class ScopeAuthorizationArtifactV2(ScopeAuthorizationArtifact):
     """
 
     protocol_version: Literal["LOT41A-V2"]
+    authorization_id: StrictStr = Field(min_length=1, max_length=128)
+    decision: Literal["AUTHORIZE_INGESTION_SCOPE"]
+    scope: ResourceScope
+    manifest_digest: StrictStr = Field(pattern=_HEX64)
+    profile_id: StrictStr = Field(min_length=1)
+    profile_version: StrictStr = Field(min_length=1)
+    profile_fingerprint: StrictStr = Field(pattern=_HEX64)
+    allowed_domains: tuple[StrictStr, ...] = Field(min_length=1)
+    rights_categories: tuple[Rights, ...] = Field(min_length=1)
+    exclusions: tuple[StrictStr, ...] = Field(default=())
+    pii_absence_attested: StrictBool
+    pii_absence_evidence: StrictStr = Field(min_length=1)
+    valid_from: AwareDatetime
+    valid_until: AwareDatetime
     allowed_content_sha256: tuple[StrictStr, ...] = Field(min_length=1)
+
+    @field_validator("authorization_id")
+    @classmethod
+    def _identifier_is_canonical(cls, value: str) -> str:
+        return ScopeAuthorizationArtifactV1._identifier_is_canonical(value)
+
+    @field_validator("allowed_domains")
+    @classmethod
+    def _domains_are_normalized(cls, values: tuple[str, ...]) -> tuple[str, ...]:
+        return ScopeAuthorizationArtifactV1._domains_are_normalized(values)
+
+    @field_validator("rights_categories")
+    @classmethod
+    def _rights_are_sorted_and_unique(
+        cls, values: tuple[Rights, ...]
+    ) -> tuple[Rights, ...]:
+        return ScopeAuthorizationArtifactV1._rights_are_sorted_and_unique(values)
+
+    @field_validator("exclusions")
+    @classmethod
+    def _exclusions_are_normalized(cls, values: tuple[str, ...]) -> tuple[str, ...]:
+        return ScopeAuthorizationArtifactV1._exclusions_are_normalized(values)
 
     @field_validator("allowed_content_sha256")
     @classmethod
@@ -368,10 +404,50 @@ class ScopeAuthorizationArtifactV2(ScopeAuthorizationArtifact):
             )
         return values
 
+    @model_validator(mode="after")
+    def _validity_window_is_coherent(self) -> ScopeAuthorizationArtifactV2:
+        if self.valid_until <= self.valid_from:
+            raise ValueError("valid_until must be strictly after valid_from")
+        return self
+
+    @model_validator(mode="after")
+    def _pii_attestation_is_asserted(self) -> ScopeAuthorizationArtifactV2:
+        if not self.pii_absence_attested:
+            raise ValueError(
+                "pii_absence_attested must be true — this release ingests no "
+                "PII, so an authorization can never be constructed for a scope "
+                "where PII absence is not attested"
+            )
+        return self
+
     def canonical_document(self) -> dict[str, Any]:
-        document = super().canonical_document()
-        document["allowed_content_sha256"] = list(self.allowed_content_sha256)
-        return document
+        return {
+            "allowed_content_sha256": list(self.allowed_content_sha256),
+            "allowed_domains": list(self.allowed_domains),
+            "authorization_id": self.authorization_id,
+            "decision": self.decision,
+            "exclusions": list(self.exclusions),
+            "manifest_digest": self.manifest_digest,
+            "pii_absence_attested": self.pii_absence_attested,
+            "pii_absence_evidence": self.pii_absence_evidence,
+            "profile_fingerprint": self.profile_fingerprint,
+            "profile_id": self.profile_id,
+            "profile_version": self.profile_version,
+            "protocol_version": self.protocol_version,
+            "rights_categories": [r.value for r in self.rights_categories],
+            "scope": _canonical_scope(self.scope),
+            "valid_from": _canonical_datetime(self.valid_from),
+            "valid_until": _canonical_datetime(self.valid_until),
+        }
+
+    def canonical_bytes(self) -> bytes:
+        return _dump_canonical(self.canonical_document())
+
+    def digest(self) -> str:
+        return sha256(self.canonical_bytes()).hexdigest()
+
+    def canonical_path(self) -> str:
+        return canonical_authorization_path(self.authorization_id)
 
 
 ScopeAuthorizationArtifactAny: TypeAlias = (

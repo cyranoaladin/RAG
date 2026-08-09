@@ -90,6 +90,13 @@ class TestLot41aV2ContentAllowlist:
     def test_v1_public_model_is_preserved_as_an_explicit_alias(self) -> None:
         assert ScopeAuthorizationArtifactV1 is ScopeAuthorizationArtifact
 
+    def test_v1_and_v2_are_disjoint_runtime_variants(self) -> None:
+        v2 = ScopeAuthorizationArtifactV2.model_validate(
+            authorization_v2_document()
+        )
+
+        assert not isinstance(v2, ScopeAuthorizationArtifactV1)
+
     def test_v2_round_trip_preserves_the_closed_variant_and_immutable_list(self) -> None:
         raw = canonical_authorization_v2_bytes()
 
@@ -137,6 +144,16 @@ class TestLot41aV2ContentAllowlist:
         document = authorization_document(allowed_content_sha256=["a" * 64])
         raw = (json.dumps(document, sort_keys=True, indent=2) + "\n").encode()
 
+        with pytest.raises(CanonicalArtifactError, match="strict validation"):
+            parse_scope_authorization_artifact(raw)
+
+    def test_v2_rejects_unknown_fields_in_model_and_parser(self) -> None:
+        document = authorization_v2_document(unreviewed_override=True)
+
+        with pytest.raises(ValueError, match="Extra inputs are not permitted"):
+            ScopeAuthorizationArtifactV2.model_validate(document)
+
+        raw = (json.dumps(document, sort_keys=True, indent=2) + "\n").encode()
         with pytest.raises(CanonicalArtifactError, match="strict validation"):
             parse_scope_authorization_artifact(raw)
 
