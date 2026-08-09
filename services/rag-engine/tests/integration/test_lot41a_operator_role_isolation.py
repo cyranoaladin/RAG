@@ -92,6 +92,13 @@ class TestWorkerRoleCannotWriteAuthorityTables:
             "UPDATE ingestion_control.scope_authorizations SET valid_until = now()",
         ) == "42501"
 
+    def test_update_content_allowlist_is_denied(self, pg: dict[str, str]) -> None:
+        assert denied(
+            app_dsn(pg),
+            "UPDATE ingestion_control.scope_authorizations "
+            "SET allowed_content_sha256 = ARRAY[repeat('1', 64)]",
+        ) == "42501"
+
     def test_delete_scope_authorization_is_denied(self, pg: dict[str, str]) -> None:
         assert denied(
             app_dsn(pg), "DELETE FROM ingestion_control.scope_authorizations"
@@ -156,6 +163,13 @@ class TestAuthorityRoleIsConfinedToItsTable:
             "UPDATE ingestion_control.scope_authorizations SET allowed_domains = ARRAY['x']",
         ) == "42501"
 
+    def test_cannot_update_the_content_allowlist(self, pg: dict[str, str]) -> None:
+        assert denied(
+            authority_dsn(pg),
+            "UPDATE ingestion_control.scope_authorizations "
+            "SET allowed_content_sha256 = ARRAY[repeat('1', 64)]",
+        ) == "42501"
+
 
 class TestAttestorRoleIsConfinedToItsTable:
     def test_cannot_write_scope_authorizations(self, pg: dict[str, str]) -> None:
@@ -168,6 +182,13 @@ class TestAttestorRoleIsConfinedToItsTable:
         assert denied(
             attestor_dsn(pg),
             "UPDATE ingestion_control.scope_authorizations SET revoked_at = now()",
+        ) == "42501"
+
+    def test_cannot_update_the_content_allowlist(self, pg: dict[str, str]) -> None:
+        assert denied(
+            attestor_dsn(pg),
+            "UPDATE ingestion_control.scope_authorizations "
+            "SET allowed_content_sha256 = ARRAY[repeat('1', 64)]",
         ) == "42501"
 
     @pytest.mark.parametrize(

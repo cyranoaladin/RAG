@@ -22,7 +22,7 @@ import sys
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import psycopg
 import pytest
@@ -48,6 +48,7 @@ from _pg_authority import (  # noqa: E402
 )
 from nexus_contracts.authority_artifacts import (  # noqa: E402
     ScopeAuthorizationArtifact,
+    ScopeAuthorizationArtifactV2,
     canonical_authorization_path,
 )
 from nexus_contracts.ingestion import ResourceScope  # noqa: E402
@@ -67,6 +68,7 @@ REVIEW_ID = 777
 HEAD_SHA = "b" * 40
 BASE_SHA = "a" * 40
 SUBMITTED_AT = "2026-08-08T10:00:00Z"
+ALLOWED_CONTENT_SHA256 = ("1" * 64, "2" * 64)
 
 VALID_SCOPE: dict[str, Any] = {
     "tenant": "libre_terminale",
@@ -106,9 +108,22 @@ def artifact_document(**overrides: Any) -> dict[str, Any]:
 
 
 def canonical_bytes(**overrides: Any) -> bytes:
-    return ScopeAuthorizationArtifact.model_validate(
-        artifact_document(**overrides)
-    ).canonical_bytes()
+    return cast(
+        bytes,
+        ScopeAuthorizationArtifact.model_validate(
+            artifact_document(**overrides)
+        ).canonical_bytes(),
+    )
+
+
+def v2_canonical_bytes(**overrides: Any) -> bytes:
+    document = artifact_document(protocol_version="LOT41A-V2")
+    document["allowed_content_sha256"] = list(ALLOWED_CONTENT_SHA256)
+    document.update(overrides)
+    return cast(
+        bytes,
+        ScopeAuthorizationArtifactV2.model_validate(document).canonical_bytes(),
+    )
 
 
 @pytest.fixture(scope="module")
@@ -159,17 +174,29 @@ def publish_artifact(
     return raw
 
 
+def publish_v2_artifact(
+    github: LocalGitHub, *, authorization_id: str = AUTHORIZATION_ID,
+    ref: str = HEAD_SHA, **overrides: Any,
+) -> bytes:
+    raw = v2_canonical_bytes(authorization_id=authorization_id, **overrides)
+    github.put_blob(path=canonical_authorization_path(authorization_id), ref=ref, content=raw)
+    return raw
+
+
 def record(
     *, authorization_id: str = AUTHORIZATION_ID, pull_request: int = PR_NUMBER,
     expected_head: str = HEAD_SHA,
 ) -> int:
-    return authorize_scope_main([
-        "record-authorization",
-        "--authorization-id", authorization_id,
-        "--repository", REPOSITORY,
-        "--pull-request", str(pull_request),
-        "--expected-head", expected_head,
-    ])
+    return cast(
+        int,
+        authorize_scope_main([
+            "record-authorization",
+            "--authorization-id", authorization_id,
+            "--repository", REPOSITORY,
+            "--pull-request", str(pull_request),
+            "--expected-head", expected_head,
+        ]),
+    )
 
 
 @pytest.fixture
@@ -181,13 +208,47 @@ def recorded(
     assert record() == 0
     with psycopg.connect(superuser_dsn(pg)) as conn, conn.cursor() as cur:
         cur.execute(
-            "SELECT authorization_digest, artifact_blob_sha, artifact_path "
+            "SELECT authorization_digest, artifact_blob_sha, artifact_path, "
+            "protocol_version, allowed_content_sha256 "
             "FROM ingestion_control.scope_authorizations WHERE authorization_id = %s",
             (AUTHORIZATION_ID,),
         )
         row = cur.fetchone()
     assert row is not None
-    return {"raw": raw, "digest": row[0], "blob_sha": row[1], "path": row[2]}
+    return {
+        "raw": raw,
+        "digest": row[0],
+        "blob_sha": row[1],
+        "path": row[2],
+        "protocol_version": row[3],
+        "allowed_content_sha256": row[4],
+    }
+
+
+@pytest.fixture
+def recorded_v2(
+    github: LocalGitHub, authority_env: None, pg: dict[str, str]
+) -> dict[str, Any]:
+    """Une autorisation V2 enregistrée par le chemin opérateur canonique."""
+    raw = publish_v2_artifact(github)
+    assert record() == 0
+    with psycopg.connect(superuser_dsn(pg)) as conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT authorization_digest, artifact_blob_sha, artifact_path, "
+            "protocol_version, allowed_content_sha256 "
+            "FROM ingestion_control.scope_authorizations WHERE authorization_id = %s",
+            (AUTHORIZATION_ID,),
+        )
+        row = cur.fetchone()
+    assert row is not None
+    return {
+        "raw": raw,
+        "digest": row[0],
+        "blob_sha": row[1],
+        "path": row[2],
+        "protocol_version": row[3],
+        "allowed_content_sha256": row[4],
+    }
 
 
 def verify(pg: dict[str, str], *, authorization_id: str = AUTHORIZATION_ID,
@@ -228,6 +289,10 @@ class TestRecordingBindsTheReviewedBytes:
         assert result.rights_categories == ("officiel_public",)
         assert result.evidence_review_id == REVIEW_ID
         assert result.evidence_reviewer == REVIEWER
+        assert recorded["protocol_version"] == "LOT41A-V1"
+        assert recorded["allowed_content_sha256"] is None
+        assert result.protocol_version == "LOT41A-V1"
+        assert result.allowed_content_sha256 is None
 
     def test_the_stored_digest_is_the_digest_of_the_reviewed_bytes(
         self, recorded: dict[str, Any]
@@ -245,6 +310,34 @@ class TestRecordingBindsTheReviewedBytes:
         pas seulement par relecture du code."""
         verify(pg)
         assert github.non_get_requests == []
+
+
+class TestV2RecordingBindsTheReviewedContentAllowlist:
+    def test_operator_records_and_reads_back_the_exact_v2_allowlist(
+        self, pg: dict[str, str], recorded_v2: dict[str, Any]
+    ) -> None:
+        result = verify(pg)
+        assert recorded_v2["protocol_version"] == "LOT41A-V2"
+        assert recorded_v2["allowed_content_sha256"] == list(ALLOWED_CONTENT_SHA256)
+        assert result.protocol_version == "LOT41A-V2"
+        assert result.allowed_content_sha256 == ALLOWED_CONTENT_SHA256
+
+    @pytest.mark.parametrize(
+        "forbidden_option",
+        ["--allowed-content-sha", "--content-file", "--pii-cleared-hash"],
+    )
+    def test_operator_cli_exposes_no_content_decision_argument(
+        self, forbidden_option: str
+    ) -> None:
+        with pytest.raises(SystemExit):
+            authorize_scope_main([
+                "record-authorization",
+                "--authorization-id", AUTHORIZATION_ID,
+                "--repository", REPOSITORY,
+                "--pull-request", str(PR_NUMBER),
+                "--expected-head", HEAD_SHA,
+                forbidden_option, "3" * 64,
+            ])
 
 
 class TestScopeBindingIsExplicit:
@@ -462,6 +555,138 @@ class TestDatabaseTamperingNeverSurvives:
                         ("governance/authorizations/other.json", AUTHORIZATION_ID),
                     )
             conn.rollback()
+
+    @pytest.mark.parametrize(
+        "tampered",
+        [
+            pytest.param(("1" * 64, "2" * 64, "3" * 64), id="widened"),
+            pytest.param(("1" * 64,), id="narrowed"),
+            pytest.param(("1" * 64, "3" * 64), id="replaced"),
+        ],
+    )
+    def test_v2_allowlist_tampering_is_denied_by_the_exact_field_comparison(
+        self,
+        pg: dict[str, str],
+        recorded_v2: dict[str, Any],
+        tampered: tuple[str, ...],
+    ) -> None:
+        tamper(pg, column="allowed_content_sha256", value=list(tampered))
+        with pytest.raises(
+            ScopeAuthorizationDeniedError,
+            match="stored allowed_content_sha256",
+        ) as denied:
+            verify(pg)
+        assert "artifact_blob_sha" not in str(denied.value)
+        assert "authorization_digest" not in str(denied.value)
+
+    def test_v2_allowlist_reordering_is_denied_by_live_readback_even_if_db_constraint_is_bypassed(
+        self, pg: dict[str, str], recorded_v2: dict[str, Any]
+    ) -> None:
+        """Un superutilisateur peut supprimer une contrainte : la relecture
+        Git reste donc une barrière indépendante. La transaction est annulée
+        pour restaurer exactement la contrainte 009 après le test."""
+        with psycopg.connect(superuser_dsn(pg)) as conn, conn.cursor() as cur:
+            cur.execute(
+                "ALTER TABLE ingestion_control.scope_authorizations DROP CONSTRAINT "
+                "scope_authorizations_content_allowlist_by_protocol"
+            )
+            cur.execute(
+                "UPDATE ingestion_control.scope_authorizations "
+                "SET allowed_content_sha256 = %s WHERE authorization_id = %s",
+                (["2" * 64, "1" * 64], AUTHORIZATION_ID),
+            )
+            with pytest.raises(
+                ScopeAuthorizationDeniedError,
+                match="stored allowed_content_sha256",
+            ):
+                verify_scope_authorization(conn, authorization_id=AUTHORIZATION_ID)
+            conn.rollback()
+
+    def test_v2_protocol_downgrade_is_denied_by_live_readback(
+        self, pg: dict[str, str], recorded_v2: dict[str, Any]
+    ) -> None:
+        with psycopg.connect(superuser_dsn(pg)) as conn, conn.cursor() as cur:
+            cur.execute(
+                "ALTER TABLE ingestion_control.scope_authorizations DROP CONSTRAINT "
+                "scope_authorizations_content_allowlist_by_protocol"
+            )
+            cur.execute(
+                "UPDATE ingestion_control.scope_authorizations "
+                "SET protocol_version = 'LOT41A-V1' WHERE authorization_id = %s",
+                (AUTHORIZATION_ID,),
+            )
+            with pytest.raises(
+                ScopeAuthorizationDeniedError,
+                match="stored protocol_version",
+            ):
+                verify_scope_authorization(conn, authorization_id=AUTHORIZATION_ID)
+            conn.rollback()
+
+    def test_v2_blob_allowlist_drift_is_denied_by_the_git_blob_binding(
+        self,
+        pg: dict[str, str],
+        github: LocalGitHub,
+        recorded_v2: dict[str, Any],
+    ) -> None:
+        publish_v2_artifact(
+            github,
+            allowed_content_sha256=["1" * 64, "3" * 64],
+        )
+        with pytest.raises(ScopeAuthorizationDeniedError, match="artifact_blob_sha"):
+            verify(pg)
+
+    def test_v2_blob_allowlist_drift_is_denied_by_the_digest_after_blob_projection_sync(
+        self,
+        pg: dict[str, str],
+        github: LocalGitHub,
+        recorded_v2: dict[str, Any],
+    ) -> None:
+        raw = publish_v2_artifact(
+            github,
+            allowed_content_sha256=["1" * 64, "3" * 64],
+        )
+        tamper(pg, column="artifact_blob_sha", value=git_blob_sha(raw))
+        with pytest.raises(ScopeAuthorizationDeniedError, match="authorization_digest"):
+            verify(pg)
+
+    def test_v2_blob_allowlist_drift_is_denied_by_readback_after_crypto_projection_sync(
+        self,
+        pg: dict[str, str],
+        github: LocalGitHub,
+        recorded_v2: dict[str, Any],
+    ) -> None:
+        from hashlib import sha256
+
+        raw = publish_v2_artifact(
+            github,
+            allowed_content_sha256=["1" * 64, "3" * 64],
+        )
+        tamper(pg, column="artifact_blob_sha", value=git_blob_sha(raw))
+        tamper(pg, column="authorization_digest", value=sha256(raw).hexdigest())
+        with pytest.raises(
+            ScopeAuthorizationDeniedError,
+            match="stored allowed_content_sha256",
+        ):
+            verify(pg)
+
+    @pytest.mark.parametrize(
+        ("column", "value", "expected"),
+        [
+            ("authorization_digest", "0" * 64, "authorization_digest"),
+            ("artifact_blob_sha", "0" * 40, "artifact_blob_sha"),
+        ],
+    )
+    def test_v2_cryptographic_projection_tampering_is_denied(
+        self,
+        pg: dict[str, str],
+        recorded_v2: dict[str, Any],
+        column: str,
+        value: str,
+        expected: str,
+    ) -> None:
+        tamper(pg, column=column, value=value)
+        with pytest.raises(ScopeAuthorizationDeniedError, match=expected):
+            verify(pg)
 
 
 # ---------------------------------------------------------------------------
