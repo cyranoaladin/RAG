@@ -302,7 +302,10 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: philosophie/terminale_tronc_commun.yml
-    instanciee: false
+    # H2-C : première vague réelle, cinq artefacts Eduscol explicitement
+    # résolus par h2_initial_placement_policy.yml. Toute autre ressource
+    # reste REVIEW_REQUIRED ; cette activation n'est pas un routeur large.
+    instanciee: true
 
   # =====================================================================
   # SNT

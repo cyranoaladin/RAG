@@ -93,6 +93,7 @@ def test_instanciated_match_perimetre() -> None:
     assert inst == {
         "rag_nexus_nsi_premiere_specialite",
         "rag_nexus_nsi_terminale_specialite",
+        "rag_nexus_philo_terminale_tc",
         "rag_nexus_quarantine",
     }
 

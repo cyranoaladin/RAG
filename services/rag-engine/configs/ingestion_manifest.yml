@@ -1,0 +1,9 @@
+manifest_version: "1"
+provenance: H2-C initial governed Eduscol philosophy release
+generated_at: "2026-08-09T00:00:00+01:00"
+profiles:
+  - collection: rag_nexus_philo_terminale_tc
+    profile_version: h2c-v1
+    fingerprint: 2758845f9212bdf1da99cb02608ab84adc6a60b83bdb1344685a1902c9068fbb
+    approved_by: Nexus Réussite
+    approved_at: "2026-08-09T00:00:00+01:00"
