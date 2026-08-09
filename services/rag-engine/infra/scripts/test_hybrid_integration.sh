@@ -731,11 +731,20 @@ if [[ ! -x "$PYTEST_BIN" ]]; then
     echo "LOT40_PYTEST_BIN_INVALID" >&2
     exit 1
 fi
+integration_tests=(
+    "$SERVICE_ROOT/tests/integration/test_lot40_hybrid_pgvector.py"
+)
+if [[ -n "${NEXUS_H2C_REAL_REHEARSAL:-}" ]]; then
+    integration_tests+=(
+        "$SERVICE_ROOT/tests/integration/test_h2c_governed_rehearsal.py"
+    )
+fi
 LOT40_PG_DSN="$LOT40_PG_DSN" \
 LOT40_PG_ADMIN_DSN="$LOT40_PG_ADMIN_DSN" \
 LOT41_PG_REVIEW_DSN="$LOT41_PG_REVIEW_DSN" \
 LOT42_PG_PUBLISHER_DSN="$LOT42_PG_PUBLISHER_DSN" \
-PYTHONPATH="$SERVICE_ROOT/src" "$PYTEST_BIN" "$SERVICE_ROOT/tests/integration/test_lot40_hybrid_pgvector.py" -q -s
+DRIVE_SYNC_DB_PATH="$RUN_ROOT/drive_sync_state.db" \
+PYTHONPATH="$SERVICE_ROOT/src" "$PYTEST_BIN" "${integration_tests[@]}" -q -s
 
 assert_state_004
 echo "LOT40_HYBRID_INTEGRATION=PASS"
