@@ -35,6 +35,7 @@ EXPECTED_MANIFEST_SHA256 = (
 EXPECTED_PII_EVIDENCE_SHA256 = (
     "76e6ba3cd5b1c116c8647b611eb3fdeb2aba6b8c7fdfbad9e71048354956f311"
 )
+RCLONE_PROCESS_TIMEOUT_SECONDS = 1800
 ROUTING_CONFIG_PATH = SERVICE_ROOT / "configs" / "corpus_zone_routing.yml"
 RIGHTS_REGISTRY_PATH = SERVICE_ROOT / "configs" / "rights_evidence_registry.yml"
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
@@ -97,10 +98,18 @@ def _copyto(scratch: Path, relative_remote_path: str, local_path: Path) -> None:
             f"{CANONICAL_REMOTE_ROOT}/{relative_remote_path}",
             str(local_path),
             "--immutable",
+            "--retries",
+            "10",
+            "--low-level-retries",
+            "20",
+            "--contimeout",
+            "60s",
+            "--timeout",
+            "10m",
         ],
         capture_output=True,
         text=True,
-        timeout=300,
+        timeout=RCLONE_PROCESS_TIMEOUT_SECONDS,
         check=False,
     )
     if completed.returncode != 0:

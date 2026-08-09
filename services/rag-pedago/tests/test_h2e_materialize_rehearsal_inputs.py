@@ -207,7 +207,14 @@ import sys
 args = sys.argv[1:]
 with pathlib.Path(os.environ["H2E_RCLONE_LOG"]).open("a", encoding="utf-8") as out:
     out.write(json.dumps(args) + "\\n")
-if len(args) != 4 or args[0] != "copyto" or args[3] != "--immutable":
+expected_tail = [
+    "--immutable",
+    "--retries", "10",
+    "--low-level-retries", "20",
+    "--contimeout", "60s",
+    "--timeout", "10m",
+]
+if len(args) != 12 or args[0] != "copyto" or args[3:] != expected_tail:
     raise SystemExit(97)
 prefix = "gdrive_ert:NEXUS_RAG/NEXUS_RAG_GDRIVE_READY/"
 if not args[1].startswith(prefix):
@@ -268,6 +275,21 @@ def test_materializes_exactly_three_read_only_objects_and_compiles_catalog(
             "00_INDEX_PROVENANCE/EDUSCOL_CATALOGUES/catalogue-complet.tsv",
             PDF_REMOTE_PATH,
         ]
+        assert all(
+            command[3:]
+            == [
+                "--immutable",
+                "--retries",
+                "10",
+                "--low-level-retries",
+                "20",
+                "--contimeout",
+                "60s",
+                "--timeout",
+                "10m",
+            ]
+            for command in commands
+        )
         flattened = " ".join(part for command in commands for part in command)
         assert all(verb not in flattened.split() for verb in ("sync", "delete", "move", "copy"))
         assert all(not command[2].startswith("gdrive_ert:") for command in commands)
