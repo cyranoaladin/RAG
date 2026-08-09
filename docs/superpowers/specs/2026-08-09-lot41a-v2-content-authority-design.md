@@ -117,12 +117,22 @@ n'est ajouté.
 La préparation H2 sépare la readiness pédagogique de l'autorité réelle. Une
 fonction dédiée confronte chaque `eligible_artifact` de la politique de
 placement à une `VerifiedAuthorization` sans jamais déduire l'autorité du seul
-scope :
+scope. Le résultat de cette vérification est projeté dans un contrat partagé
+immuable qui porte au minimum l'identifiant, le digest, la version du protocole,
+le HEAD Git revu et l'allowlist exacte. Seul le vérificateur live LOT41A produit
+cette projection dans le chemin réel ; le compilateur `rag-pedago` ne reçoit ni
+artefact V2 librement construit, ni ensemble de SHA opérateur, et aucun argument
+CLI ne permet de fabriquer la projection. Cette frontière respecte la séparation
+des services sans importer `rag-engine` dans `rag-pedago` :
 
 - V2 et SHA présent dans `allowed_content_sha256` : clearance d'autorité ;
 - même scope/domaine mais SHA absent : `REVIEW_REQUIRED`/refus ;
 - V1 : refus `CONTENT_ALLOWLIST_AUTHORITY_REQUIRED` ;
 - autorisation réelle absente : l'artefact reste `REVIEW_REQUIRED`.
+
+La projection est une donnée de décision issue de la relecture Git/DB, pas une
+nouvelle source d'autorité. Une divergence d'identifiant, digest, HEAD, version
+ou allowlist empêche sa production avant le compilateur.
 
 Cette fonction est utilisée par la répétition V2 et par le futur compilateur de
 promotion. Avant l'approbation post-fusion de PR #96, la compilation réelle

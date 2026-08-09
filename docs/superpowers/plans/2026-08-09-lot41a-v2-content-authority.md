@@ -30,6 +30,11 @@ empty, duplicate, unsorted, uppercase and malformed values. Add explicit tests
 that V1 rejects the V2 field, an unknown protocol fails closed, and one changed
 SHA changes canonical bytes and digest.
 
+Add an immutable shared `VerifiedScopeAuthorizationProjection` carrying the
+authorization ID/digest, protocol version, reviewed repository/PR/head/blob
+binding and exact V2 tuple. This projection is the only cross-service input
+allowed to clear the real compiler; it is not parsed from operator text.
+
 - [ ] **Step 2: Verify RED**
 
 Run:
@@ -147,7 +152,9 @@ Exact command:
 
 Extend `_AUTHORIZATION_COLUMNS`, row/artifact comparison, record SQL,
 `VerifiedAuthorization` and test stubs. V1 maps to NULL, V2 to the exact list.
-The operator CLI remains identity/PR/head-only.
+The live verifier alone exposes the shared verified projection after every
+Git/DB field has matched. The operator CLI remains identity/PR/head-only and no
+compiler CLI accepts a projection or SHA list.
 
 - [ ] **Step 4: Verify GREEN and role isolation**
 
@@ -231,10 +238,12 @@ Run:
 - [ ] **Step 1: Write compiler policy RED tests**
 
 Replace the raw `authority_cleared_sha256` compiler input with a shared
-`nexus_contracts` V1/V2 decision object received at the service boundary; never
-import `rag-engine`. Prove V2 listed SHA passes, same-scope unlisted SHA is
-blocked, V1 returns `CONTENT_ALLOWLIST_AUTHORITY_REQUIRED`, and absent authority
-leaves every real candidate `REVIEW_REQUIRED`.
+`nexus_contracts.VerifiedScopeAuthorizationProjection` received only from the
+live LOT41A verifier boundary; never accept a raw V1/V2 artifact, SHA set or
+`rag-engine` import. Prove a verified V2 listed SHA passes, same-scope unlisted
+SHA is blocked, V1 returns `CONTENT_ALLOWLIST_AUTHORITY_REQUIRED`, and absent
+authority leaves every real candidate `REVIEW_REQUIRED`. Prove the public CLI
+cannot inject the projection or an allowlist.
 
 - [ ] **Step 2: Write LOT42 RED tests**
 
@@ -256,11 +265,13 @@ Exact commands:
 - [ ] **Step 4: Implement H2 and durable-event binding**
 
 Update the real `rag-pedago` compiler to derive authority clearance only from
-the shared V2 object's exact list; V1/None yields no cleared SHA. Add a focused
-rag-engine H2 authority-clearance result. Extend `PublicationFacts` with the
-content event and binding; include its ID in canonical evidence events. Add an
-opt-in `require_content_bound_authority` parameter to general LOT42 verification
-and require it unconditionally from the dormant H2 path and governed publisher.
+the shared verified projection's exact V2 list; V1/None yields no cleared SHA.
+The `rag-engine` live verifier constructs that projection only after exact
+Git/DB readback, and its H2 authority-clearance path consumes the same result.
+Extend `PublicationFacts` with the content event and binding; include its ID in
+canonical evidence events. Add an opt-in `require_content_bound_authority`
+parameter to general LOT42 verification and require it unconditionally from the
+dormant H2 path and governed publisher.
 
 - [ ] **Step 5: Verify GREEN**
 
@@ -277,6 +288,8 @@ Run:
 ### Task 6: V2 rehearsals and mutation 13
 
 **Files:**
+- Create: `services/rag-pedago/scripts/h2e_materialize_rehearsal_inputs.py`
+- Create: `services/rag-pedago/tests/test_h2e_materialize_rehearsal_inputs.py`
 - Modify: `services/rag-engine/tests/integration/test_h2c_governed_rehearsal.py`
 - Modify: `services/rag-engine/scripts/h2c_governed_rehearsal.py`
 - Modify: `services/rag-pedago/scripts/h2b_true_mutation_harness.py`
@@ -288,6 +301,13 @@ Run:
 Use a V2 fixture listing the real sealed SHA for the positive path. Add a
 same-domain unlisted-byte path and assert no extraction, rights, quality,
 eligibility or pgvector row.
+
+Add a tested read-only materializer which accepts a caller-created bounded
+`/tmp` directory, downloads only `00_ADMIN/SHA256SUMS.txt`,
+`00_INDEX_PROVENANCE/EDUSCOL_CATALOGUES/catalogue-complet.tsv`, and the selected
+real PDF with `rclone copyto` from the canonical remote, recompiles the governed
+catalog from versioned routing/rights inputs, and verifies the manifest, PII
+evidence and PDF SHA before emitting paths. It must expose no remote-write verb.
 
 - [ ] **Step 2: Add MUT-H2B-13 test-first**
 
@@ -312,7 +332,10 @@ Exact command:
 `services/rag-pedago/.venv/bin/python services/rag-pedago/scripts/h2b_true_mutation_harness.py --report "$HOME/Documents/NEXUS_RAG_H2_EVIDENCE/h2b_true_mutations_h2e.json"`
 
 Run the isolated V2 rehearsal with:
-`services/rag-engine/.venv/bin/python services/rag-engine/scripts/h2c_governed_rehearsal.py --pdf /tmp/nexus-h2c-multiplacement.xi4DGC/artifact.pdf --catalog /tmp/h2b_real_governed_catalog_20260808.json --pii-evidence "$HOME/Documents/NEXUS_RAG_H2_EVIDENCE/h2b_pii_evidence_20260808.json" --output "$HOME/Documents/NEXUS_RAG_H2_EVIDENCE/h2e_v2_governed_rehearsal.json"`
+create `nexus_h2e_scratch="$(mktemp -d /tmp/nexus-h2e.XXXXXX)"`, run the
+checked-in materializer into that directory, verify its emitted digests, then
+pass its PDF/catalog paths to `h2c_governed_rehearsal.py`. Remove only that exact
+scratch directory after the run.
 
 - [ ] **Step 5: Commit**
 
@@ -335,7 +358,10 @@ edit versioned files after the exact-head verification begins.
 - [ ] **Step 2: Re-run disposable migrations**
 
 Run product migration 004 apply/rollback/reapply:
-`cd services/rag-engine && .venv/bin/python -m pytest -q -m integration tests/integration/test_lot40_hybrid_pgvector.py -k 'migration or rollback or artifact_placement'`
+`cd services/rag-engine && bash infra/scripts/test_hybrid_integration.sh`
+
+The harness must emit the 004 apply, rollback, data-guard and reapply markers;
+the targeted pytest suite alone is not accepted as rollback evidence.
 
 Run ingestion-control 009 apply/schema/V1/V2/rollback/reapply:
 `cd services/rag-engine && .venv/bin/python -m pytest -q tests/test_lot41a_v2_migration_contract.py`
@@ -351,8 +377,10 @@ Use the sealed real PDF/catalog evidence outside Git. Record artifact=1,
 placement count, chunk set=1, duplicate vectors/chunks/results=0, positive V2
 retrieval and negative same-domain denial.
 
-Run:
-`services/rag-engine/.venv/bin/python services/rag-engine/scripts/h2c_governed_rehearsal.py --pdf /tmp/nexus-h2c-multiplacement.xi4DGC/artifact.pdf --catalog /tmp/h2b_real_governed_catalog_20260808.json --pii-evidence "$HOME/Documents/NEXUS_RAG_H2_EVIDENCE/h2b_pii_evidence_20260808.json" --output "$HOME/Documents/NEXUS_RAG_H2_EVIDENCE/h2e_v2_governed_rehearsal.json"`
+Create a new bounded `mktemp -d` directory, run the checked-in read-only
+materializer, verify the downloaded metadata/PDF and external PII evidence
+digests, run `h2c_governed_rehearsal.py` using only the emitted paths, then
+remove that exact scratch directory. Never reuse a path from a prior run.
 
 - [ ] **Step 4: Run canonical local CI on exact HEAD**
 
@@ -372,7 +400,7 @@ Run:
 `test -z "$(git diff --name-only origin/main..HEAD | rg -i '(^|/)(\\.env($|\\.)|credentials?|secrets?|id_rsa|id_ed25519)')"`
 
 Run the PII sanitization/output tests:
-`cd services/rag-pedago && .venv/bin/python -m pytest -q tests/test_pii_gate.py tests/test_remote_pii_scan.py`
+`cd services/rag-pedago && .venv/bin/python -m pytest -q tests/test_pii_scanner.py tests/test_remote_pii_scan.py`
 
 - [ ] **Step 6: Push the already-verified exact head normally**
 
