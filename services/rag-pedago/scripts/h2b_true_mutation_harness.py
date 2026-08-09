@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exécute douze vraies mutations H2-B et restaure exactement les octets.
+"""Exécute treize vraies mutations H2-B et restaure exactement les octets.
 
 Chaque contrôle suit la même séquence : test ciblé vert, neutralisation
 textuelle exacte du garde, test rouge pour la raison attendue, restauration
@@ -252,6 +252,24 @@ CHECKS: tuple[Check, ...] = (
         ),
         "tests/test_h2b_true_mutation_targets.py::test_mut_h2b_12_single_disposition_sum_guard_detects_corruption",
         "MUT-H2B-12 single-disposition sum guard was neutralized",
+    ),
+    Check(
+        13,
+        "content allowlist",
+        "enforce_content_sha256 refuse les octets absents de l'allowlist V2",
+        "engine",
+        (
+            Mutation(
+                engine_source("ingestion_control/scope_enforcement.py"),
+                "    if content_sha256 not in allowlist:",
+                "    if False:  # MUT-H2B-13",
+            ),
+        ),
+        (
+            "tests/test_lot41a_scope_enforcement.py::TestContentCheckpoint::"
+            "test_mut_h2b_13_same_host_unlisted_content_stops_before_extraction"
+        ),
+        "MUT-H2B-13 content allowlist guard was neutralized",
     ),
 )
 

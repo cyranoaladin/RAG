@@ -235,6 +235,24 @@ class TestContentCheckpoint:
         assert excinfo.value.checkpoint == "content"
         assert "not in" in str(excinfo.value)
 
+    def test_mut_h2b_13_same_host_unlisted_content_stops_before_extraction(
+        self,
+    ) -> None:
+        auth = authorization(
+            protocol_version="LOT41A-V2",
+            allowed_content_sha256=(CONTENT_SHA,),
+        )
+        enforce_destination(auth, url="https://eduscol.education.fr/other.pdf")
+        extractor_called = False
+        try:
+            enforce_content_sha256(auth, content_sha256="2" * 64)
+            extractor_called = True
+        except ScopeEnforcementViolation as exc:
+            assert exc.checkpoint == "content"
+            assert extractor_called is False
+            return
+        pytest.fail("MUT-H2B-13 content allowlist guard was neutralized")
+
     @pytest.mark.parametrize(
         "allowlist",
         [
@@ -277,7 +295,7 @@ class TestContentCheckpoint:
             allowed_content_sha256=(CONTENT_SHA,),
         )
         with pytest.raises(ScopeEnforcementViolation) as excinfo:
-            enforce_content_sha256(auth, content_sha256=content_sha256)  # type: ignore[arg-type]
+            enforce_content_sha256(auth, content_sha256=content_sha256)
         assert excinfo.value.checkpoint == "content"
 
     def test_v1_content_checkpoint_preserves_historical_runtime_behavior(self) -> None:

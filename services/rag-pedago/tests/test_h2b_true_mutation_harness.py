@@ -16,9 +16,9 @@ def _module():
     return module
 
 
-def test_matrix_has_the_exact_twelve_required_guards() -> None:
+def test_matrix_has_the_exact_thirteen_required_guards() -> None:
     module = _module()
-    assert [check.number for check in module.CHECKS] == list(range(1, 13))
+    assert [check.number for check in module.CHECKS] == list(range(1, 14))
     assert [check.invariant for check in module.CHECKS] == [
         "rights",
         "PII",
@@ -32,6 +32,7 @@ def test_matrix_has_the_exact_twelve_required_guards() -> None:
         "revocation",
         "extraction failure",
         "single primary disposition",
+        "content allowlist",
     ]
 
 
