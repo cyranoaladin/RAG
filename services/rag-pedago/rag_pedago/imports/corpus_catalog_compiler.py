@@ -403,8 +403,15 @@ def _apply_mandatory_ingest_gates(
     rights_cleared_sha256: set[str] | frozenset[str],
     pii_cleared_sha256: set[str] | frozenset[str],
     pii_quarantined_sha256: set[str] | frozenset[str],
-    authority_cleared_sha256: set[str] | frozenset[str],
 ) -> tuple[Disposition, str, dict[str, str]]:
+    """Compile les seules preuves locales ; l'autorité reste hors catalogue.
+
+    Ce plan de contrôle produit un catalogue de *candidats*. Une autorité
+    LOT41A vérifiée en direct n'est disponible que dans ``rag-engine`` et ne
+    doit jamais être reconstruite ici depuis une liste fournie par
+    l'opérateur. Même droits et PII au vert, un candidat réel reste donc
+    ``REVIEW_REQUIRED`` avec une autorité non franchie.
+    """
     if base_disposition is not Disposition.INGEST:
         return base_disposition, "", {}
 
@@ -424,11 +431,7 @@ def _apply_mandatory_ingest_gates(
             else "BLOCKED_NOT_CLEARED"
         ),
         "pii": pii_status,
-        "authority": (
-            "PASS"
-            if content_sha256 in authority_cleared_sha256
-            else "BLOCKED_NOT_CLEARED"
-        ),
+        "authority": "BLOCKED_NOT_CLEARED",
     }
     if pii_status == "BLOCKED_PII_DETECTED":
         return (
@@ -443,7 +446,9 @@ def _apply_mandatory_ingest_gates(
             "Mandatory gates not cleared: " + ", ".join(blocked),
             gate_statuses,
         )
-    return Disposition.INGEST, "", gate_statuses
+    # L'autorité n'est jamais injectée dans ce compilateur candidat. La
+    # branche INGEST demeure donc volontairement inaccessible ici.
+    return Disposition.REVIEW_REQUIRED, "Mandatory authority not cleared", gate_statuses
 
 
 def compile_sealed_catalog(
@@ -454,9 +459,8 @@ def compile_sealed_catalog(
     rights_cleared_sha256: set[str] | frozenset[str] = frozenset(),
     pii_cleared_sha256: set[str] | frozenset[str] = frozenset(),
     pii_quarantined_sha256: set[str] | frozenset[str] = frozenset(),
-    authority_cleared_sha256: set[str] | frozenset[str] = frozenset(),
 ) -> SealedCorpusCatalog:
-    """Compile the real physical corpus and join every Eduscol placement by SHA."""
+    """Compile le corpus réel comme catalogue candidat, jamais comme autorité."""
     manifest_sha256 = compute_file_sha256(manifest_path)
     expected_manifest_sha256 = config.get("manifest_sha256")
     if manifest_sha256 != expected_manifest_sha256:
@@ -489,7 +493,6 @@ def compile_sealed_catalog(
             rights_cleared_sha256,
             pii_cleared_sha256,
             pii_quarantined_sha256,
-            authority_cleared_sha256,
         )
         physical_object = PhysicalCorpusObject(
             content_sha256=content_sha256,

@@ -479,7 +479,6 @@ class TestSealedCorpusCompilation:
             config,
             rights_cleared_sha256={_sha("a")},
             pii_cleared_sha256={_sha("a")},
-            authority_cleared_sha256={_sha("a")},
         )
 
         assert catalog.manifest_entries == 3
@@ -544,22 +543,36 @@ class TestSealedCorpusCompilation:
             "authority": "BLOCKED_NOT_CLEARED",
         }
 
-        cleared = compile_sealed_catalog(
+        cleared_candidate = compile_sealed_catalog(
             manifest,
             placements,
             config,
             rights_cleared_sha256={_sha("a")},
             pii_cleared_sha256={_sha("a")},
-            authority_cleared_sha256={_sha("a")},
         )
-        eligible = cleared.object_by_path(candidate.path)
+        eligible = cleared_candidate.object_by_path(candidate.path)
         assert eligible is not None
-        assert eligible.disposition == Disposition.INGEST
+        assert eligible.disposition == Disposition.REVIEW_REQUIRED
         assert eligible.gate_statuses == {
             "rights": "PASS",
             "pii": "PASS",
-            "authority": "PASS",
+            "authority": "BLOCKED_NOT_CLEARED",
         }
+
+    def test_candidate_compiler_rejects_operator_authority_injection(
+        self, tmp_path: Path
+    ) -> None:
+        manifest, placements, config = _write_sealed_fixture(tmp_path)
+
+        with pytest.raises(TypeError, match="authority_cleared_sha256"):
+            compile_sealed_catalog(
+                manifest,
+                placements,
+                config,
+                rights_cleared_sha256={_sha("a")},
+                pii_cleared_sha256={_sha("a")},
+                authority_cleared_sha256={_sha("a")},  # type: ignore[call-arg]
+            )
 
     def test_ingest_is_refused_without_real_scope_authority(
         self, tmp_path: Path

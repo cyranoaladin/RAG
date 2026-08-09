@@ -26,7 +26,6 @@ def test_mut_h2b_01_rights_guard_blocks_uncleared_ingest() -> None:
         rights_cleared_sha256=set(),
         pii_cleared_sha256={"a" * 64},
         pii_quarantined_sha256=set(),
-        authority_cleared_sha256={"a" * 64},
     )
     assert gates["rights"] == "BLOCKED_NOT_CLEARED", (
         "MUT-H2B-01 rights guard was neutralized"
@@ -41,7 +40,6 @@ def test_mut_h2b_02_pii_guard_quarantines_detected_signal() -> None:
         rights_cleared_sha256={"a" * 64},
         pii_cleared_sha256={"a" * 64},
         pii_quarantined_sha256={"a" * 64},
-        authority_cleared_sha256={"a" * 64},
     )
     assert gates["pii"] == "BLOCKED_PII_DETECTED", (
         "MUT-H2B-02 PII guard was neutralized"
