@@ -467,7 +467,7 @@
     "statut": "tronc_commun",
     "domain": "education",
     "taxonomy_file": "philosophie/terminale_tronc_commun.yml",
-    "instanciee": false
+    "instanciee": true
   },
   {
     "name": "rag_nexus_pc_terminale_specialite",
