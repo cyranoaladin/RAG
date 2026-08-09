@@ -37,8 +37,8 @@
 
 **Files:**
 - Read: `/tmp/h2b_real_governed_catalog_20260808.json`
-- Read: `/home/alaeddine/Documents/NEXUS_RAG_H2_EVIDENCE/h2b_pii_evidence_20260808.json`
-- Read: `/home/alaeddine/Documents/NEXUS_RAG_H2_EVIDENCE/h2c_placement_readiness_20260809.json`
+- Read: `$HOME/Documents/NEXUS_RAG_H2_EVIDENCE/h2b_pii_evidence_20260808.json`
+- Read: `$HOME/Documents/NEXUS_RAG_H2_EVIDENCE/h2c_placement_readiness_20260809.json`
 - Modify in authority worktree: `governance/authorizations/h2-initial-philosophie-20260809.json`
 
 1. Reverify all external evidence hashes and corpus-manifest bindings.

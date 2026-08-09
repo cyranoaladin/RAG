@@ -71,8 +71,8 @@
 ### Task 5: Scanner les 2 476 PDF réels
 
 **Files:**
-- External output: `/home/alaeddine/Documents/NEXUS_RAG_H2_EVIDENCE/h2b_pii_evidence_20260808.json`
-- External output: `/home/alaeddine/Documents/NEXUS_RAG_H2_EVIDENCE/H2B_EVIDENCE_MANIFEST.json`
+- External output: `$HOME/Documents/NEXUS_RAG_H2_EVIDENCE/h2b_pii_evidence_20260808.json`
+- External output: `$HOME/Documents/NEXUS_RAG_H2_EVIDENCE/H2B_EVIDENCE_MANIFEST.json`
 
 - [ ] Mesurer disque, nombre et taille ; refuser si la marge devient insuffisante.
 - [ ] Exécuter le scan séquentiel complet depuis le remote Drive en lecture seule.

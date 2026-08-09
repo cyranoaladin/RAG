@@ -78,7 +78,7 @@ n’est autorisé. Une extraction impossible reste bloquante.
 Avant le corpus réel, des canaris synthétiques prouvent que ni valeurs PII ni
 contexte brut n’entrent dans la sortie ou les logs. La preuve externe ne contient
 que SHA, statuts, classes de signaux, compteurs, versions et digests de politique.
-Elle est scellée sous `/home/alaeddine/Documents/NEXUS_RAG_H2_EVIDENCE/`.
+Elle est scellée sous `$HOME/Documents/NEXUS_RAG_H2_EVIDENCE/`.
 
 Le texte déjà extrait est aussi soumis, sur tout le périmètre Eduscol, à des
 détecteurs conservateurs de restriction documentaire explicite. Un signal
