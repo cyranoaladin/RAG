@@ -128,6 +128,65 @@ class TestCurrentnessGate:
         assert report.gate_passed
         assert "PASS" in report.gate_status
 
+    def test_empty_manifest_is_not_complete(
+        self, tmp_path: Path, config: dict
+    ) -> None:
+        manifest = tmp_path / "empty.tsv"
+        manifest.write_text(
+            "sha256\tchemin_technique_existant\n",
+            encoding="utf-8",
+        )
+
+        report = evaluate_currentness_gate(manifest, config)
+
+        assert report.total_documents == 0
+        assert report.coverage_complete is False
+        assert report.gate_passed is False
+        assert report.gate_status == "BLOCKED_MANIFEST_PERIMETER_INCOMPLETE"
+
+    def test_renamed_identity_headers_fail_closed(
+        self, tmp_path: Path, config: dict
+    ) -> None:
+        manifest = tmp_path / "renamed.tsv"
+        manifest.write_text(
+            "digest\tlocation\n"
+            f"{'a' * 64}\t01_EDUSCOL_OFFICIEL/10_ACTUEL_CONFIRME/a.pdf\n",
+            encoding="utf-8",
+        )
+
+        report = evaluate_currentness_gate(manifest, config)
+
+        assert report.manifest_schema_valid is False
+        assert report.malformed_manifest_rows == 1
+        assert report.coverage_complete is False
+        assert report.gate_passed is False
+
+    @pytest.mark.parametrize(
+        "row",
+        [
+            "\t01_EDUSCOL_OFFICIEL/10_ACTUEL_CONFIRME/a.pdf\n",
+            f"{'a' * 64}\t\n",
+            "not-a-sha\t01_EDUSCOL_OFFICIEL/10_ACTUEL_CONFIRME/a.pdf\n",
+        ],
+        ids=("missing-sha", "missing-path", "malformed-sha"),
+    )
+    def test_malformed_manifest_rows_make_coverage_incomplete(
+        self, tmp_path: Path, config: dict, row: str
+    ) -> None:
+        manifest = tmp_path / "malformed.tsv"
+        manifest.write_text(
+            "sha256\tchemin_technique_existant\tfamille\n" + row.rstrip("\n") + "\teduscol\n",
+            encoding="utf-8",
+        )
+
+        report = evaluate_currentness_gate(manifest, config)
+
+        assert report.manifest_rows == 1
+        assert report.malformed_manifest_rows == 1
+        assert report.skipped_eduscol_rows == 1
+        assert report.coverage_complete is False
+        assert report.gate_passed is False
+
 
 class TestCurrentnessInvariants:
     """Test currentness classification invariants."""

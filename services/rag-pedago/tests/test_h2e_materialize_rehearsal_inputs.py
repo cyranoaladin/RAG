@@ -143,7 +143,10 @@ def _fixture_inputs(tmp_path: Path) -> dict[str, Any]:
                         "rights_decision_ref": "eduscol",
                     }
                 },
-                "summary": {"unresolved_ingest_capable": 0},
+                "summary": {
+                    "total_zones": 1,
+                    "unresolved_ingest_capable": 0,
+                },
             },
             sort_keys=False,
         ),

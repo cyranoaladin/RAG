@@ -9,7 +9,7 @@ import tempfile
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeGuard
 
 import yaml
 
@@ -340,6 +340,38 @@ def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
     temporary.replace(path)
 
 
+def pii_scan_exit_code(summary: dict[str, int | float | str]) -> int:
+    """Return success only for a non-empty, conclusively scanned perimeter."""
+    def is_exact_int(value: object) -> TypeGuard[int]:
+        return isinstance(value, int) and not isinstance(value, bool)
+
+    required = summary.get("pii_scan_required")
+    scanned = summary.get("pii_scanned")
+    not_scanned = summary.get("pii_not_scanned")
+    review_required = summary.get("pii_review_required")
+    extraction_failed = summary.get("pii_extraction_failed")
+    coverage = summary.get("pii_scan_coverage")
+    mismatches = summary.get("sha256_mismatches")
+    complete = (
+        is_exact_int(required)
+        and required > 0
+        and is_exact_int(scanned)
+        and scanned == required
+        and is_exact_int(not_scanned)
+        and not_scanned == 0
+        and is_exact_int(review_required)
+        and review_required == 0
+        and is_exact_int(extraction_failed)
+        and extraction_failed == 0
+        and isinstance(coverage, int | float)
+        and not isinstance(coverage, bool)
+        and coverage == 1.0
+        and is_exact_int(mismatches)
+        and mismatches == 0
+    )
+    return 0 if complete else 1
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", type=Path, required=True)
@@ -418,7 +450,7 @@ def main() -> int:
     print(f"PII_QUARANTINED={summary['pii_quarantined']}")
     print(f"PII_EXTRACTION_FAILED={summary['pii_extraction_failed']}")
     print(f"PII_NOT_SCANNED={summary['pii_not_scanned']}")
-    return 1 if summary["sha256_mismatches"] else 0
+    return pii_scan_exit_code(summary)
 
 
 if __name__ == "__main__":

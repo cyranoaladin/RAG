@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -68,6 +69,11 @@ class CurrentnessGateReport:
     classifications: list[CurrentnessClassification] = field(default_factory=list)
     coverage_complete: bool = True
     unclassified_count: int = 0
+    manifest_rows: int = 0
+    eduscol_manifest_rows: int = 0
+    malformed_manifest_rows: int = 0
+    skipped_eduscol_rows: int = 0
+    manifest_schema_valid: bool = False
 
 
 def _extract_currentness_from_path(path: str, config: dict[str, Any]) -> Currentness:
@@ -143,24 +149,48 @@ def evaluate_currentness_gate(
     config_id = config.get("config_id", "unknown")
     classifications: list[CurrentnessClassification] = []
     by_currentness: dict[str, int] = {}
+    manifest_rows = 0
+    eduscol_manifest_rows = 0
+    malformed_manifest_rows = 0
+    skipped_eduscol_rows = 0
 
     # Parse manifest
     with manifest_path.open(encoding="utf-8") as f:
         reader = csv.DictReader(f, delimiter="\t")
+        fieldnames = set(reader.fieldnames or [])
+        manifest_schema_valid = (
+            "sha256" in fieldnames
+            and bool({"chemin_technique_existant", "path"} & fieldnames)
+        )
         for line in reader:
+            manifest_rows += 1
             sha256 = line.get("sha256", "")
             path = (
                 line.get("chemin_technique_existant")
                 or line.get("path")
                 or ""
             )
+            looks_eduscol = (
+                path.startswith("01_EDUSCOL_OFFICIEL/")
+                or str(line.get("famille", "")).strip().lower() == "eduscol"
+                or "eduscol.education.gouv.fr" in str(line.get("url_source", ""))
+            )
 
-            if not sha256 or not path:
+            row_valid = (
+                manifest_schema_valid
+                and re.fullmatch(r"[0-9a-f]{64}", sha256) is not None
+                and bool(path)
+            )
+            if not row_valid:
+                malformed_manifest_rows += 1
+                if looks_eduscol or not manifest_schema_valid:
+                    skipped_eduscol_rows += 1
                 continue
 
             # Only classify Eduscol documents (01_EDUSCOL_OFFICIEL/)
             if not path.startswith("01_EDUSCOL_OFFICIEL/"):
                 continue
+            eduscol_manifest_rows += 1
 
             classification = classify_document(sha256, path, config)
             classifications.append(classification)
@@ -180,11 +210,23 @@ def evaluate_currentness_gate(
     )
     unclassified = by_currentness.get("unclassified", 0)
 
-    # Gate passes if all documents are classified (no unclassified)
-    coverage_complete = unclassified == 0
+    eduscol_manifest_rows += skipped_eduscol_rows
+    perimeter_complete = (
+        manifest_schema_valid
+        and manifest_rows > 0
+        and eduscol_manifest_rows > 0
+        and malformed_manifest_rows == 0
+        and skipped_eduscol_rows == 0
+        and total == eduscol_manifest_rows
+    )
+    # Gate passes only when the complete declared Eduscol perimeter is classified.
+    coverage_complete = perimeter_complete and unclassified == 0
 
     # Gate status
-    if coverage_complete:
+    if not perimeter_complete:
+        gate_status = "BLOCKED_MANIFEST_PERIMETER_INCOMPLETE"
+        gate_passed = False
+    elif coverage_complete:
         gate_status = "PASS_COVERAGE_COMPLETE"
         gate_passed = True
     else:
@@ -205,6 +247,11 @@ def evaluate_currentness_gate(
         classifications=classifications,
         coverage_complete=coverage_complete,
         unclassified_count=unclassified,
+        manifest_rows=manifest_rows,
+        eduscol_manifest_rows=eduscol_manifest_rows,
+        malformed_manifest_rows=malformed_manifest_rows,
+        skipped_eduscol_rows=skipped_eduscol_rows,
+        manifest_schema_valid=manifest_schema_valid,
     )
 
 

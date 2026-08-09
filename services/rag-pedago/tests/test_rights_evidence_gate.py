@@ -104,6 +104,7 @@ class TestDocumentSpecificFailClosedHandling:
         path = tmp_path / "unresolved.yml"
         registry = {
             "registry_id": "unresolved-test",
+            "summary": {"total_zones": 1},
             "source_evidence": {
                 "unsafe": {
                     "zone": "01_EXTERNAL/",
@@ -129,6 +130,7 @@ class TestDocumentSpecificFailClosedHandling:
         path = tmp_path / "invalid-decision.yml"
         registry = {
             "registry_id": "invalid-decision-test",
+            "summary": {"total_zones": 1},
             "human_rights_decisions": {},
             "source_evidence": {
                 "unsafe": {
@@ -149,6 +151,54 @@ class TestDocumentSpecificFailClosedHandling:
 
 
 class TestRightsGateInvariants:
+    def test_missing_rights_perimeter_fails_closed(self, tmp_path: Path) -> None:
+        report = evaluate_registry(
+            {
+                "registry_id": "missing-perimeter-test",
+                "summary": {"total_zones": 1},
+            },
+            tmp_path / "registry.yml",
+        )
+
+        assert report.total_zones == 0
+        assert report.gate_passed is False
+        assert report.gate_status == "BLOCKED_RIGHTS_PERIMETER_INCOMPLETE"
+
+    @pytest.mark.parametrize(
+        ("source_evidence", "summary"),
+        [
+            ({}, {"total_zones": 0}),
+            ({}, {"total_zones": 5}),
+            (
+                {
+                    "only-zone": {
+                        "zone": "01_ONLY/",
+                        "rights_status": "RESOLVED",
+                    }
+                },
+                {"total_zones": 5},
+            ),
+        ],
+        ids=("empty-perimeter", "missing-five-zones", "truncated-perimeter"),
+    )
+    def test_empty_or_truncated_rights_perimeter_fails_closed(
+        self,
+        tmp_path: Path,
+        source_evidence: dict,
+        summary: dict,
+    ) -> None:
+        report = evaluate_registry(
+            {
+                "registry_id": "perimeter-test",
+                "source_evidence": source_evidence,
+                "summary": summary,
+            },
+            tmp_path / "registry.yml",
+        )
+
+        assert report.gate_passed is False
+        assert report.gate_status == "BLOCKED_RIGHTS_PERIMETER_INCOMPLETE"
+
     def test_zone_counts_sum_correctly(
         self, registry: dict, registry_path: Path
     ) -> None:

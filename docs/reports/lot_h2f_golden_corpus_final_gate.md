@@ -55,3 +55,26 @@ Ce lot ne touche aucune base de production, n'active aucun writer public ou
 caché, ne câble pas le pipeline LOT42 en production et ne modifie pas PR #96.
 L'autorité réelle reste différée après la fusion de PR #95, conformément à la
 séquence LOT41A-V2.
+
+## Revue automatisée après le premier correctif H2-F
+
+La revue Codex exécutée sur `b4f8870d4b9e667fd7456214bf207333fcde5800`
+a trouvé trois autres chemins de succès incomplets. Leur fermeture fait partie
+du même lot et rend caduc le verdict H2-F attaché à ce SHA :
+
+- le gate de droits exige désormais un `source_evidence` non vide dont la
+  population est exactement celle déclarée dans `summary.total_zones` ;
+- le gate de currentness valide ses en-têtes, chaque identité SHA/chemin et la
+  concordance entre le périmètre Eduscol déclaré et les lignes effectivement
+  classifiées ; un fichier vide, renommé, tronqué ou mal formé reste rouge ;
+- le runner PII ne renvoie zéro que pour un périmètre non vide intégralement
+  scanné, sans objet `REVIEW_REQUIRED`, échec d'extraction, objet non scanné ni
+  mismatch SHA.
+
+Sur les entrées réelles, le registre de droits conserve cinq zones et passe.
+La preuve PII scellée `76e6ba3cd5b1c116c8647b611eb3fdeb2aba6b8c7fdfbad9e71048354956f311`
+conserve 64 objets requis, 64 scannés, 63 clairs, un mis en quarantaine et zéro
+objet non scanné. Le périmètre Eduscol physique dérivé du catalogue réel compte
+2 451 lignes, toutes évaluées, sans ligne mal formée ou ignorée. Ses 1 513
+documents encore non classés restent correctement bloqués/reviewables ; ils ne
+sont pas transformés en éligibilité d'ingestion.

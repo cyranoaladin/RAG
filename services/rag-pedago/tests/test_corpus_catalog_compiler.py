@@ -168,6 +168,7 @@ def _rights_registry(manifest_sha256: str) -> dict:
                 "disposition_override": "EXCLUDE",
             },
         },
+        "summary": {"total_zones": 3},
     }
 
 
@@ -822,6 +823,7 @@ class TestGovernedSealedCorpusCompilation:
             "rights_status": "CLEARED_BY_HUMAN_DECISION",
             "rights_decision_ref": "nexus",
         }
+        registry["summary"]["total_zones"] = 4
 
         with pytest.raises(ValueError, match="Nexus rights SHA set binding mismatch"):
             compile_governed_sealed_catalog(

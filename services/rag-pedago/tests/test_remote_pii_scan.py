@@ -11,6 +11,7 @@ import pytest
 from rag_pedago.imports.pii_scanner import PIIMatch, PIIScanResult
 from rag_pedago.imports.remote_pii_scan import (
     CANONICAL_REMOTE_ROOT,
+    pii_scan_exit_code,
     rclone_bulk_download,
     rclone_download,
     scan_remote_corpus,
@@ -47,6 +48,56 @@ def _clean_scan(path: Path) -> PIIScanResult:
         characters_scanned=100,
         pii_detected=False,
     )
+
+
+@pytest.mark.parametrize(
+    ("overrides", "expected"),
+    [
+        ({}, 0),
+        ({"pii_not_scanned": 1, "pii_scan_coverage": 0.5}, 1),
+        ({"pii_extraction_failed": 1, "pii_not_scanned": 1}, 1),
+        ({"pii_extraction_failed": 1}, 1),
+        ({"pii_review_required": 1, "pii_not_scanned": 1}, 1),
+        ({"pii_review_required": 1}, 1),
+        ({"sha256_mismatches": 1, "pii_not_scanned": 1}, 1),
+        ({"pii_scan_required": 0, "pii_scanned": 0}, 1),
+        ({"pii_not_scanned": False}, 1),
+        ({"pii_review_required": False}, 1),
+        ({"pii_extraction_failed": False}, 1),
+        ({"sha256_mismatches": False}, 1),
+        ({"pii_scan_coverage": True}, 1),
+    ],
+    ids=(
+        "complete",
+        "missing-local-file",
+        "extraction-failed",
+        "inconsistent-extraction-failed",
+        "scanner-failed",
+        "inconsistent-review-required",
+        "sha-mismatch",
+        "empty-perimeter",
+        "boolean-not-scanned",
+        "boolean-review-required",
+        "boolean-extraction-failed",
+        "boolean-mismatch",
+        "boolean-coverage",
+    ),
+)
+def test_cli_exit_code_requires_conclusive_scan_coverage(
+    overrides: dict[str, int | float], expected: int
+) -> None:
+    summary: dict[str, int | float] = {
+        "pii_scan_required": 2,
+        "pii_scanned": 2,
+        "pii_review_required": 0,
+        "pii_extraction_failed": 0,
+        "pii_not_scanned": 0,
+        "pii_scan_coverage": 1.0,
+        "sha256_mismatches": 0,
+    }
+    summary.update(overrides)
+
+    assert pii_scan_exit_code(summary) == expected
 
 
 def test_scans_each_unique_pdf_content_once_and_covers_every_physical_object(

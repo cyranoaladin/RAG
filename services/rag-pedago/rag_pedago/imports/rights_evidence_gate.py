@@ -198,13 +198,36 @@ def evaluate_zone(
 def evaluate_registry(registry: dict[str, Any], path: Path) -> RightsGateReport:
     """Evaluate full rights evidence registry."""
     registry_id = registry.get("registry_id", "unknown")
-    source_evidence = registry.get("source_evidence", {})
+    source_evidence_raw = registry.get("source_evidence")
+    summary = registry.get("summary")
+    declared_total = summary.get("total_zones") if isinstance(summary, dict) else None
+    source_evidence = (
+        source_evidence_raw
+        if isinstance(source_evidence_raw, dict)
+        else {}
+    )
+    evidence_records_valid = all(
+        isinstance(zone_id, str)
+        and bool(zone_id)
+        and isinstance(evidence, dict)
+        for zone_id, evidence in source_evidence.items()
+    )
+    perimeter_complete = (
+        bool(source_evidence)
+        and evidence_records_valid
+        and isinstance(declared_total, int)
+        and not isinstance(declared_total, bool)
+        and declared_total > 0
+        and declared_total == len(source_evidence)
+    )
     human_decisions = registry.get("human_rights_decisions", {})
     if not isinstance(human_decisions, dict):
         human_decisions = {}
 
     zone_statuses: list[ZoneRightsStatus] = []
     for zone_id, evidence in source_evidence.items():
+        if not isinstance(zone_id, str) or not isinstance(evidence, dict):
+            continue
         zone_status = evaluate_zone(zone_id, evidence, human_decisions)
         zone_statuses.append(zone_status)
 
@@ -233,9 +256,11 @@ def evaluate_registry(registry: dict[str, Any], path: Path) -> RightsGateReport:
 
     # Global go-live is blocked only by an ingest-capable unresolved zone.
     # REVIEW_REQUIRED and UNSUPPORTED remain individually non-ingestible.
-    gate_passed = not blocking_zones
+    gate_passed = perimeter_complete and not blocking_zones
 
-    if gate_passed:
+    if not perimeter_complete:
+        gate_status = "BLOCKED_RIGHTS_PERIMETER_INCOMPLETE"
+    elif gate_passed:
         gate_status = "PASS"
     else:
         gate_status = "BLOCKED_UNRESOLVED_RIGHTS"
