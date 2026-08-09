@@ -281,6 +281,22 @@ def test_manifest_or_collection_authority_drift_blocks_all(
     assert report.decisions[0].reason == reason
 
 
+def test_authority_collection_must_remain_instantiated() -> None:
+    readiness = replace(
+        _placement_readiness(),
+        required_collections_not_instantiated=("rag_nexus_philo_terminale_tc",),
+    )
+
+    report = finalize_initial_authority(
+        readiness,
+        _single_artifact_policy(),
+        _authorization(),
+    )
+
+    assert report.authorized_artifacts == ()
+    assert report.decisions[0].reason == "AUTHORITY_COLLECTION_MISMATCH"
+
+
 def test_authority_is_intersection_only_and_never_widens_to_quarantine() -> None:
     report = finalize_initial_authority(
         _placement_readiness(),

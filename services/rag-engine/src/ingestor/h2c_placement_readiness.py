@@ -503,7 +503,11 @@ def finalize_initial_authority(
             default_reason="AUTHORITY_MANIFEST_MISMATCH",
         )
 
-    if authorization.scope.collection not in readiness.required_collections:
+    if (
+        authorization.scope.collection not in readiness.required_collections
+        or authorization.scope.collection
+        in readiness.required_collections_not_instantiated
+    ):
         return _authority_report(
             readiness,
             policy,
