@@ -19,7 +19,8 @@ from rag_pedago.imports.corpus_catalog_compiler import (
     load_routing_config,
 )
 
-SERVICE_ROOT = Path(__file__).resolve().parents[1]
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+SERVICE_ROOT = REPOSITORY_ROOT / "services/rag-pedago"
 CANONICAL_REMOTE_ROOT = "gdrive_ert:NEXUS_RAG/NEXUS_RAG_GDRIVE_READY"
 MANIFEST_REMOTE_PATH = "00_ADMIN/SHA256SUMS.txt"
 PLACEMENT_CATALOG_REMOTE_PATH = (

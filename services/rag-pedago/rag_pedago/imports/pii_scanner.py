@@ -303,14 +303,14 @@ def scan_corpus(
     file_column: str = "path",
     sha_column: str = "sha256",
 ) -> PIIScanReport:
-    """Scan entire corpus from manifest."""
+    """Scan the exact non-empty PDF perimeter declared by a local manifest."""
     patterns = patterns or DEFAULT_PII_PATTERNS
 
     # Read manifest (TSV format)
     manifest_content = manifest_path.read_text(encoding="utf-8")
-    lines = manifest_content.strip().split("\n")
+    lines = manifest_content.splitlines()
 
-    if not lines:
+    if not lines or not manifest_content.strip():
         raise ValueError(f"Empty manifest: {manifest_path}")
 
     # Parse header
@@ -320,7 +320,12 @@ def scan_corpus(
     except ValueError as e:
         raise ValueError(f"Column '{file_column}' not found in manifest header: {header}") from e
 
-    sha_idx = header.index(sha_column) if sha_column in header else -1
+    try:
+        sha_idx = header.index(sha_column)
+    except ValueError as e:
+        raise ValueError(
+            f"Column '{sha_column}' not found in manifest header: {header}"
+        ) from e
 
     results: list[PIIScanResult] = []
     total_matches = 0
@@ -328,35 +333,69 @@ def scan_corpus(
     files_with_pii = 0
     files_with_errors = 0
 
-    for line in lines[1:]:
+    expected_pdf_count = 0
+    root = corpus_root.resolve()
+    for line_number, line in enumerate(lines[1:], start=2):
         if not line.strip():
             continue
 
         cols = line.split("\t")
-        if len(cols) <= path_idx:
-            continue
+        if len(cols) <= max(path_idx, sha_idx):
+            raise ValueError(f"Malformed manifest row {line_number}")
 
-        rel_path = cols[path_idx]
-        pdf_path = corpus_root / rel_path
+        rel_path = cols[path_idx].strip()
+        if not rel_path:
+            raise ValueError(f"Manifest row {line_number} has an empty path")
 
         # Only scan PDFs
         if not rel_path.lower().endswith(".pdf"):
             continue
+        expected_pdf_count += 1
 
-        result = scan_pdf(pdf_path, patterns)
-
-        # Override sha256 from manifest if available
-        if sha_idx >= 0 and len(cols) > sha_idx:
-            result = PIIScanResult(
-                file_path=result.file_path,
-                sha256=cols[sha_idx],
-                pages_scanned=result.pages_scanned,
-                characters_scanned=result.characters_scanned,
-                pii_detected=result.pii_detected,
-                matches=result.matches,
-                extraction_error=result.extraction_error,
-                scan_duration_ms=result.scan_duration_ms,
+        expected_sha256 = cols[sha_idx].strip()
+        if re.fullmatch(r"[0-9a-f]{64}", expected_sha256) is None:
+            raise ValueError(
+                f"Manifest row {line_number} requires a canonical SHA256"
             )
+
+        relative = Path(rel_path)
+        if relative.is_absolute() or ".." in relative.parts:
+            raise ValueError(f"Manifest row {line_number} has an unsafe PDF path")
+        pdf_path = (root / relative).resolve()
+        if root not in pdf_path.parents:
+            raise ValueError(f"Manifest row {line_number} escapes corpus root")
+
+        if not pdf_path.is_file():
+            result = PIIScanResult(
+                file_path=str(pdf_path),
+                sha256="",
+                pages_scanned=0,
+                characters_scanned=0,
+                pii_detected=False,
+                extraction_error="LOCAL_FILE_MISSING",
+            )
+        else:
+            observed_sha256 = compute_file_sha256(pdf_path)
+            if observed_sha256 != expected_sha256:
+                result = PIIScanResult(
+                    file_path=str(pdf_path),
+                    sha256=observed_sha256,
+                    pages_scanned=0,
+                    characters_scanned=0,
+                    pii_detected=False,
+                    extraction_error="CONTENT_SHA256_MISMATCH",
+                )
+            else:
+                result = scan_pdf(pdf_path, patterns)
+                if result.sha256 != observed_sha256:
+                    result = PIIScanResult(
+                        file_path=str(pdf_path),
+                        sha256=observed_sha256,
+                        pages_scanned=0,
+                        characters_scanned=0,
+                        pii_detected=False,
+                        extraction_error="SCANNER_SHA256_DRIFT",
+                    )
 
         results.append(result)
 
@@ -369,15 +408,25 @@ def scan_corpus(
         for m in result.matches:
             matches_by_pattern[m.pattern_id] = matches_by_pattern.get(m.pattern_id, 0) + 1
 
-    files_clean = len(results) - files_with_pii - files_with_errors
-    pii_absent = files_with_pii == 0 and files_with_errors == 0
+    if expected_pdf_count == 0:
+        raise ValueError("Manifest must declare a non-empty PDF perimeter")
+    if len(results) != expected_pdf_count:
+        raise RuntimeError("PDF scan perimeter was not evaluated completely")
+
+    files_clean = expected_pdf_count - files_with_pii - files_with_errors
+    pii_absent = (
+        expected_pdf_count > 0
+        and len(results) == expected_pdf_count
+        and files_with_pii == 0
+        and files_with_errors == 0
+    )
 
     return PIIScanReport(
         report_id=f"pii_scan_{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}",
         generated_at=datetime.now(UTC).isoformat(),
         policy_version="pii_gate_policy_h2b_v1",
-        total_files=len(results),
-        files_scanned=len(results) - files_with_errors,
+        total_files=expected_pdf_count,
+        files_scanned=expected_pdf_count - files_with_errors,
         files_with_errors=files_with_errors,
         files_with_pii=files_with_pii,
         files_clean=files_clean,
@@ -397,6 +446,12 @@ def result_to_dict_sanitized(result: PIIScanResult) -> dict[str, Any]:
     extraction_error_code = None
     if result.extraction_error == "pypdf not installed":
         extraction_error_code = "PYPDF_UNAVAILABLE"
+    elif result.extraction_error in {
+        "CONTENT_SHA256_MISMATCH",
+        "LOCAL_FILE_MISSING",
+        "SCANNER_SHA256_DRIFT",
+    }:
+        extraction_error_code = result.extraction_error
     elif result.extraction_error:
         extraction_error_code = "PDF_EXTRACTION_FAILED"
 
@@ -493,11 +548,15 @@ def main() -> int:
 
         print(json.dumps(output, indent=2, ensure_ascii=False))
 
-        return 1 if result.pii_detected else 0
+        return 1 if result.pii_detected or result.extraction_error else 0
 
     elif args.corpus_manifest and args.corpus_root:
         # Corpus mode
-        report = scan_corpus(args.corpus_manifest, args.corpus_root, patterns)
+        try:
+            report = scan_corpus(args.corpus_manifest, args.corpus_root, patterns)
+        except Exception:
+            print("PII_SCAN_FAILED=true")
+            return 2
         output = report_to_dict(report)
 
         if args.output:

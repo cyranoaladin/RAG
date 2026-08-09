@@ -282,7 +282,7 @@ Run:
 ### Task 6: V2 rehearsals and mutation 13
 
 **Files:**
-- Create: `services/rag-pedago/scripts/h2e_materialize_rehearsal_inputs.py`
+- Create: `scripts/h2e_materialize_rehearsal_inputs.py`
 - Create: `services/rag-pedago/tests/test_h2e_materialize_rehearsal_inputs.py`
 - Modify: `services/rag-engine/tests/integration/test_h2c_governed_rehearsal.py`
 - Modify: `services/rag-engine/scripts/h2c_governed_rehearsal.py`
@@ -349,7 +349,7 @@ trap cleanup_nexus_h2e EXIT
 
 Then run:
 
-`services/rag-pedago/.venv/bin/python services/rag-pedago/scripts/h2e_materialize_rehearsal_inputs.py --scratch-dir "$nexus_h2e_scratch" --pii-evidence "$HOME/Documents/NEXUS_RAG_H2_EVIDENCE/h2b_pii_evidence_20260808.json" --output-manifest "$nexus_h2e_scratch/inputs.json"`
+`services/rag-pedago/.venv/bin/python scripts/h2e_materialize_rehearsal_inputs.py --scratch-dir "$nexus_h2e_scratch" --pii-evidence "$HOME/Documents/NEXUS_RAG_H2_EVIDENCE/h2b_pii_evidence_20260808.json" --output-manifest "$nexus_h2e_scratch/inputs.json"`
 
 Read the three paths with:
 

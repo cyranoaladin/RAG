@@ -1,9 +1,12 @@
 """Tests for PII scanner — H2-B."""
+import hashlib
 import json
+import sys
 from pathlib import Path
 
 import pytest
 
+from rag_pedago.imports import pii_scanner
 from rag_pedago.imports.pii_scanner import (
     DEFAULT_PII_PATTERNS,
     PIIMatch,
@@ -14,6 +17,7 @@ from rag_pedago.imports.pii_scanner import (
     report_to_dict,
     result_to_dict,
     result_to_dict_sanitized,
+    scan_corpus,
     scan_pdf,
     scan_text_for_pii,
 )
@@ -126,6 +130,111 @@ class TestPDFScanning:
         assert result.extraction_error is not None
         assert result.pii_detected is False
         assert result.pages_scanned == 0
+
+    def test_single_file_cli_fails_when_extraction_did_not_complete(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        pdf = tmp_path / "unreadable.pdf"
+        pdf.write_bytes(b"not-a-pdf")
+        monkeypatch.setattr(
+            pii_scanner,
+            "scan_pdf",
+            lambda _path, _patterns: PIIScanResult(
+                file_path=str(pdf),
+                sha256=hashlib.sha256(pdf.read_bytes()).hexdigest(),
+                pages_scanned=0,
+                characters_scanned=0,
+                pii_detected=False,
+                extraction_error="synthetic extraction failure",
+            ),
+        )
+        monkeypatch.setattr(sys, "argv", ["pii-scanner", "--pdf", str(pdf)])
+
+        assert pii_scanner.main() == 1
+
+
+class TestCorpusScanningFailClosed:
+    def test_batch_cli_returns_sanitized_failure_for_invalid_perimeter(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        manifest = tmp_path / "manifest.tsv"
+        manifest.write_text("sha256\tpath\n", encoding="utf-8")
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "pii-scanner",
+                "--corpus-manifest",
+                str(manifest),
+                "--corpus-root",
+                str(tmp_path),
+            ],
+        )
+
+        assert pii_scanner.main() == 2
+        assert capsys.readouterr().out == "PII_SCAN_FAILED=true\n"
+
+    @pytest.mark.parametrize(
+        "rows",
+        (
+            "sha256\tpath\n",
+            f"sha256\tpath\n{'a' * 64}\tnotes.txt\n",
+        ),
+        ids=("header-only", "no-pdf-perimeter"),
+    )
+    def test_batch_requires_a_non_empty_pdf_perimeter(
+        self,
+        tmp_path: Path,
+        rows: str,
+    ) -> None:
+        manifest = tmp_path / "manifest.tsv"
+        manifest.write_text(rows, encoding="utf-8")
+
+        with pytest.raises(ValueError, match="non-empty PDF perimeter"):
+            scan_corpus(manifest, tmp_path)
+
+    def test_batch_rejects_malformed_pdf_rows(self, tmp_path: Path) -> None:
+        manifest = tmp_path / "manifest.tsv"
+        manifest.write_text(
+            "sha256\tpath\n"
+            "not-a-sha\tdocument.pdf\n",
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ValueError, match="canonical SHA256"):
+            scan_corpus(manifest, tmp_path)
+
+    def test_batch_rejects_wrong_local_bytes_before_extraction(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        expected = "b" * 64
+        pdf = tmp_path / "document.pdf"
+        pdf.write_bytes(b"different local bytes")
+        manifest = tmp_path / "manifest.tsv"
+        manifest.write_text(
+            f"sha256\tpath\n{expected}\tdocument.pdf\n",
+            encoding="utf-8",
+        )
+
+        def forbidden_scan(*_args: object, **_kwargs: object) -> PIIScanResult:
+            raise AssertionError("extractor must not run on unreviewed bytes")
+
+        monkeypatch.setattr(pii_scanner, "scan_pdf", forbidden_scan)
+        report = scan_corpus(manifest, tmp_path)
+
+        assert report.total_files == 1
+        assert report.files_scanned == 0
+        assert report.files_with_errors == 1
+        assert report.pii_absent_attested is False
+        assert report.results[0].sha256 == hashlib.sha256(pdf.read_bytes()).hexdigest()
+        assert report.results[0].extraction_error == "CONTENT_SHA256_MISMATCH"
 
 
 class TestMutationTests:

@@ -78,3 +78,33 @@ objet non scanné. Le périmètre Eduscol physique dérivé du catalogue réel c
 2 451 lignes, toutes évaluées, sans ligne mal formée ou ignorée. Ses 1 513
 documents encore non classés restent correctement bloqués/reviewables ; ils ne
 sont pas transformés en éligibilité d'ingestion.
+
+## Revue automatisée du deuxième correctif H2-F
+
+La revue Codex exécutée sur `4d09148976e71c8bfa24e5377d1d42f90939e96e`
+a rendu caducs la CI, les preuves et l'audit attachés à ce HEAD. Elle a
+identifié quatre fermetures supplémentaires sur le gate PII :
+
+- le transport Google Drive est sorti de `services/rag-pedago/`. Le scanner
+  H2-B ne possède plus de dépendance réseau ou `rclone` et accepte uniquement
+  un miroir local pré-matérialisé ;
+- le CLI mono-PDF renvoie un échec si l'extraction n'a pas abouti, même en
+  l'absence de détection PII ;
+- le mode corpus refuse un manifest vide, sans PDF, mal formé ou incomplet. Un
+  périmètre non vide et intégralement évalué est obligatoire avant toute
+  attestation ;
+- le SHA-256 des octets locaux est calculé et comparé au manifest avant tout
+  appel d'extraction. Le SHA observé n'est jamais remplacé par une valeur
+  déclarative.
+
+Le transport opérateur est désormais un processus séparé à la racine du dépôt.
+Il matérialise en lecture seule une liste positive dérivée du manifest dans un
+répertoire borné `/tmp/nexus-h2b-pii.*` de mode `0700`. Son reçu non sensible ne
+constitue pas une attestation PII : seul le scanner local, après vérification de
+chaque contenu, peut produire la preuve. Les fichiers pré-matérialisés ne sont
+jamais supprimés par le plan de contrôle ; leur cycle de vie reste à
+l'orchestrateur hors service.
+
+Le code de sortie de la preuve agrégée vérifie aussi que les comptes `CLEARED`
+et `QUARANTINED` forment exactement le périmètre scanné. Aucun résumé
+auto-déclaré incohérent ne peut donc rendre le gate vert.

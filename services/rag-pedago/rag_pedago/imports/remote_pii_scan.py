@@ -4,8 +4,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import subprocess
-import tempfile
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -17,7 +15,6 @@ from rag_pedago.imports.corpus_catalog_compiler import (
     Disposition,
     _determine_disposition,
     _parse_sealed_manifest,
-    _validate_manifest_path,
     load_routing_config,
 )
 from rag_pedago.imports.pii_scanner import (
@@ -30,12 +27,7 @@ from rag_pedago.imports.pii_scanner import (
 CANONICAL_REMOTE_ROOT = "gdrive_ert:NEXUS_RAG/NEXUS_RAG_GDRIVE_READY"
 SCANNER_VERSION = "pii_scanner_h2b_v2"
 
-DownloadFile = Callable[[str, Path], None]
 ScanFile = Callable[[Path], PIIScanResult]
-
-
-class RemoteDownloadError(RuntimeError):
-    """Sanitized failure for a read-only corpus download."""
 
 
 def _file_sha256(path: Path) -> str:
@@ -44,82 +36,6 @@ def _file_sha256(path: Path) -> str:
         for block in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
-
-
-def rclone_download(remote_source: str, local_target: Path) -> None:
-    """Copy exactly one canonical remote object to a local scratch target."""
-    if not remote_source.startswith(f"{CANONICAL_REMOTE_ROOT}/"):
-        raise ValueError("source is outside the canonical read-only corpus remote")
-    if not local_target.is_absolute() or ":" in str(local_target):
-        raise ValueError("rclone destination must be an absolute local path")
-    try:
-        subprocess.run(
-            [
-                "rclone",
-                "copyto",
-                "--no-traverse",
-                "--retries",
-                "3",
-                "--low-level-retries",
-                "5",
-                remote_source,
-                str(local_target),
-            ],
-            capture_output=True,
-            check=True,
-            text=False,
-            timeout=300,
-        )
-    except (OSError, subprocess.SubprocessError) as error:
-        raise RemoteDownloadError("read-only corpus download failed") from error
-
-
-def rclone_bulk_download(
-    remote_root: str,
-    local_root: Path,
-    pdf_paths: list[str],
-) -> None:
-    """Copy the exact manifest-listed PDFs into a bounded local mirror."""
-    if remote_root != CANONICAL_REMOTE_ROOT:
-        raise ValueError("remote root is not the canonical read-only corpus remote")
-    mirror = _validated_scratch(local_root)
-    if not pdf_paths:
-        raise ValueError("manifest PDF path list must not be empty")
-    for object_path in pdf_paths:
-        _validate_manifest_path(object_path)
-        if not object_path.lower().endswith(".pdf"):
-            raise ValueError("bulk PII transport accepts only manifest PDF paths")
-    file_list = ("\n".join(pdf_paths) + "\n").encode()
-    try:
-        subprocess.run(
-            [
-                "rclone",
-                "copy",
-                "--files-from-raw",
-                "-",
-                "--transfers",
-                "4",
-                "--checkers",
-                "1",
-                "--tpslimit",
-                "4",
-                "--tpslimit-burst",
-                "4",
-                "--retries",
-                "10",
-                "--low-level-retries",
-                "20",
-                remote_root,
-                str(mirror),
-            ],
-            capture_output=True,
-            check=True,
-            input=file_list,
-            text=False,
-            timeout=7200,
-        )
-    except (OSError, subprocess.SubprocessError) as error:
-        raise RemoteDownloadError("bulk read-only corpus download failed") from error
 
 
 def _validated_policy(policy_path: Path) -> tuple[str, str]:
@@ -132,13 +48,13 @@ def _validated_policy(policy_path: Path) -> tuple[str, str]:
     return policy_id, _file_sha256(policy_path)
 
 
-def _validated_scratch(scratch_dir: Path) -> Path:
-    resolved = scratch_dir.resolve()
+def _validated_local_mirror(local_mirror: Path) -> Path:
+    resolved = local_mirror.resolve()
     tmp_root = Path("/tmp").resolve()
     if resolved == tmp_root or tmp_root not in resolved.parents:
-        raise ValueError("PII scratch directory must be a dedicated path under /tmp")
+        raise ValueError("PII local mirror must be a dedicated path under /tmp")
     if not resolved.is_dir():
-        raise ValueError("PII scratch directory must already exist")
+        raise ValueError("PII local mirror must already exist")
     return resolved
 
 
@@ -202,19 +118,16 @@ def scan_remote_corpus(
     manifest_path: Path,
     policy_path: Path,
     remote_root: str,
-    scratch_dir: Path,
+    local_mirror: Path,
     *,
     expected_manifest_sha256: str,
-    download_file: DownloadFile = rclone_download,
     scan_file: ScanFile = scan_pdf,
-    local_mirror: Path | None = None,
     required_pdf_paths: set[str] | frozenset[str] | None = None,
 ) -> dict[str, Any]:
-    """Scan all physical PDFs while downloading identical bytes only once."""
+    """Scan only a pre-staged local mirror; this boundary performs no transport."""
     if remote_root != CANONICAL_REMOTE_ROOT:
         raise ValueError("remote root is not the canonical read-only corpus remote")
-    scratch = _validated_scratch(scratch_dir)
-    mirror = _validated_scratch(local_mirror) if local_mirror else None
+    mirror = _validated_local_mirror(local_mirror)
     manifest_sha256 = _file_sha256(manifest_path)
     if manifest_sha256 != expected_manifest_sha256:
         raise ValueError("corpus manifest SHA256 mismatch")
@@ -244,23 +157,15 @@ def scan_remote_corpus(
     results: list[dict[str, Any]] = []
     for content_sha256, physical_paths in grouped.items():
         local_files: list[Path] = []
-        cleanup_targets: list[Path] = []
         status = ""
         safe_payload: dict[str, Any] = {}
         error_code: str | None = None
         try:
-            for index, physical_path in enumerate(physical_paths):
-                if mirror is not None:
-                    local_target = mirror.joinpath(*Path(physical_path).parts)
-                else:
-                    local_target = scratch / f"{content_sha256}-{index}.pdf"
-                    if local_target.exists():
-                        raise ValueError("PII scratch target unexpectedly exists")
-                    download_file(f"{remote_root}/{physical_path}", local_target)
-                cleanup_targets.append(local_target)
+            for physical_path in physical_paths:
+                local_target = mirror.joinpath(*Path(physical_path).parts)
                 if not local_target.is_file():
-                    status = "REVIEW_REQUIRED_DOWNLOAD_FAILED"
-                    error_code = "DOWNLOAD_DID_NOT_CREATE_FILE"
+                    status = "REVIEW_REQUIRED_LOCAL_FILE_MISSING"
+                    error_code = "LOCAL_FILE_MISSING"
                     break
                 if _file_sha256(local_target) != content_sha256:
                     status = "QUARANTINED_SHA_MISMATCH"
@@ -284,11 +189,8 @@ def scan_remote_corpus(
                     else:
                         status = "CLEARED"
         except Exception:
-            status = "REVIEW_REQUIRED_DOWNLOAD_FAILED"
-            error_code = "DOWNLOAD_FAILED"
-        finally:
-            for target in cleanup_targets:
-                target.unlink(missing_ok=True)
+            status = "REVIEW_REQUIRED_LOCAL_INPUT_FAILED"
+            error_code = "LOCAL_INPUT_FAILED"
 
         result = {
             "content_sha256": content_sha256,
@@ -347,6 +249,8 @@ def pii_scan_exit_code(summary: dict[str, int | float | str]) -> int:
 
     required = summary.get("pii_scan_required")
     scanned = summary.get("pii_scanned")
+    cleared = summary.get("pii_cleared")
+    quarantined = summary.get("pii_quarantined")
     not_scanned = summary.get("pii_not_scanned")
     review_required = summary.get("pii_review_required")
     extraction_failed = summary.get("pii_extraction_failed")
@@ -357,6 +261,11 @@ def pii_scan_exit_code(summary: dict[str, int | float | str]) -> int:
         and required > 0
         and is_exact_int(scanned)
         and scanned == required
+        and is_exact_int(cleared)
+        and cleared >= 0
+        and is_exact_int(quarantined)
+        and quarantined >= 0
+        and cleared + quarantined == scanned
         and is_exact_int(not_scanned)
         and not_scanned == 0
         and is_exact_int(review_required)
@@ -379,7 +288,7 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--remote-root", default=CANONICAL_REMOTE_ROOT)
     parser.add_argument("--expected-manifest-sha256", required=True)
-    parser.add_argument("--scratch-parent", type=Path, default=Path("/tmp"))
+    parser.add_argument("--local-mirror", type=Path, required=True)
     parser.add_argument(
         "--scan-scope",
         choices=("all", "initial-production-eligible"),
@@ -393,54 +302,37 @@ def main() -> int:
     def configured_scan(path: Path) -> PIIScanResult:
         return scan_pdf(path, patterns)
 
-    with tempfile.TemporaryDirectory(
-        prefix="nexus-h2b-pii-",
-        dir=args.scratch_parent,
-    ) as scratch:
-        scratch_path = Path(scratch)
-        try:
-            if _file_sha256(args.manifest) != args.expected_manifest_sha256:
-                raise ValueError("corpus manifest SHA256 mismatch")
-            all_entries = _parse_sealed_manifest(args.manifest)
-            all_pdf_paths = [
+    try:
+        if _file_sha256(args.manifest) != args.expected_manifest_sha256:
+            raise ValueError("corpus manifest SHA256 mismatch")
+        all_entries = _parse_sealed_manifest(args.manifest)
+        required_pdf_paths: set[str] | None = None
+        if args.scan_scope == "initial-production-eligible":
+            if args.routing_config is None:
+                raise ValueError("initial scan scope requires a routing config")
+            routing = load_routing_config(args.routing_config)
+            required_pdf_paths = {
                 object_path
                 for _, object_path in all_entries
                 if object_path.lower().endswith(".pdf")
-            ]
-            required_pdf_paths: set[str] | None = None
-            if args.scan_scope == "initial-production-eligible":
-                if args.routing_config is None:
-                    raise ValueError("initial scan scope requires a routing config")
-                routing = load_routing_config(args.routing_config)
-                required_pdf_paths = {
-                    object_path
-                    for _, object_path in all_entries
-                    if object_path.lower().endswith(".pdf")
-                    and _determine_disposition(object_path, routing)[0]
-                    is Disposition.INGEST
-                }
-            transport_paths = (
-                sorted(required_pdf_paths)
-                if required_pdf_paths is not None
-                else all_pdf_paths
-            )
-            rclone_bulk_download(args.remote_root, scratch_path, transport_paths)
-            evidence = scan_remote_corpus(
-                args.manifest,
-                args.policy,
-                args.remote_root,
-                scratch_path,
-                expected_manifest_sha256=args.expected_manifest_sha256,
-                scan_file=configured_scan,
-                local_mirror=scratch_path,
-                required_pdf_paths=required_pdf_paths,
-            )
-        except KeyboardInterrupt:
-            print("PII_SCAN_INTERRUPTED=true")
-            return 130
-        except Exception:
-            print("PII_SCAN_FAILED=true")
-            return 2
+                and _determine_disposition(object_path, routing)[0]
+                is Disposition.INGEST
+            }
+        evidence = scan_remote_corpus(
+            args.manifest,
+            args.policy,
+            args.remote_root,
+            args.local_mirror,
+            expected_manifest_sha256=args.expected_manifest_sha256,
+            scan_file=configured_scan,
+            required_pdf_paths=required_pdf_paths,
+        )
+    except KeyboardInterrupt:
+        print("PII_SCAN_INTERRUPTED=true")
+        return 130
+    except Exception:
+        print("PII_SCAN_FAILED=true")
+        return 2
     _write_json_atomic(args.output, evidence)
     summary = evidence["summary"]
     print(f"PII_SCAN_REQUIRED={summary['pii_scan_required']}")

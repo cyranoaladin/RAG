@@ -12,7 +12,7 @@ import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[3]
-SCRIPT = ROOT / "services" / "rag-pedago" / "scripts" / "h2e_materialize_rehearsal_inputs.py"
+SCRIPT = ROOT / "scripts" / "h2e_materialize_rehearsal_inputs.py"
 REMOTE_ROOT = "gdrive_ert:NEXUS_RAG/NEXUS_RAG_GDRIVE_READY"
 PDF_REMOTE_PATH = (
     "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/"

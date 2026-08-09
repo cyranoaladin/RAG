@@ -2,9 +2,9 @@
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
 from pathlib import Path
-from typing import Any
 
 import pytest
 
@@ -12,8 +12,6 @@ from rag_pedago.imports.pii_scanner import PIIMatch, PIIScanResult
 from rag_pedago.imports.remote_pii_scan import (
     CANONICAL_REMOTE_ROOT,
     pii_scan_exit_code,
-    rclone_bulk_download,
-    rclone_download,
     scan_remote_corpus,
 )
 
@@ -38,6 +36,24 @@ def _write_inputs(tmp_path: Path) -> tuple[Path, Path, dict[str, bytes]]:
     policy = tmp_path / "pii_gate_policy.yml"
     policy.write_text("policy_id: pii-test-v1\n", encoding="utf-8")
     return manifest, policy, content
+
+
+def _write_mirror(
+    tmp_path: Path,
+    content: dict[str, bytes],
+    *,
+    corrupt: bool = False,
+) -> Path:
+    mirror = tmp_path / "mirror"
+    for relative_path, payload in (
+        ("01_EDUSCOL_OFFICIEL/a.pdf", content["first"]),
+        ("00_INDEX_PROVENANCE/a-copy.pdf", content["first"]),
+        ("02_NEXUS_DIAGNOSTICS/b.pdf", content["second"]),
+    ):
+        target = mirror / relative_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(b"corrupted" if corrupt else payload)
+    return mirror
 
 
 def _clean_scan(path: Path) -> PIIScanResult:
@@ -86,9 +102,11 @@ def _clean_scan(path: Path) -> PIIScanResult:
 def test_cli_exit_code_requires_conclusive_scan_coverage(
     overrides: dict[str, int | float], expected: int
 ) -> None:
-    summary: dict[str, int | float] = {
+    summary: dict[str, int | float | str] = {
         "pii_scan_required": 2,
         "pii_scanned": 2,
+        "pii_cleared": 2,
+        "pii_quarantined": 0,
         "pii_review_required": 0,
         "pii_extraction_failed": 0,
         "pii_not_scanned": 0,
@@ -100,22 +118,46 @@ def test_cli_exit_code_requires_conclusive_scan_coverage(
     assert pii_scan_exit_code(summary) == expected
 
 
+@pytest.mark.parametrize(
+    "overrides",
+    (
+        {"pii_cleared": 1},
+        {"pii_quarantined": 1},
+        {"pii_cleared": True},
+        {"pii_quarantined": False},
+    ),
+    ids=(
+        "unaccounted-scanned-object",
+        "inconsistent-quarantine-total",
+        "boolean-cleared",
+        "boolean-quarantined",
+    ),
+)
+def test_cli_exit_code_rejects_inconsistent_disposition_totals(
+    overrides: dict[str, int | bool],
+) -> None:
+    summary: dict[str, int | float | str] = {
+        "pii_scan_required": 2,
+        "pii_scanned": 2,
+        "pii_cleared": 2,
+        "pii_quarantined": 0,
+        "pii_review_required": 0,
+        "pii_extraction_failed": 0,
+        "pii_not_scanned": 0,
+        "pii_scan_coverage": 1.0,
+        "sha256_mismatches": 0,
+    }
+    summary.update(overrides)
+
+    assert pii_scan_exit_code(summary) == 1
+
+
 def test_scans_each_unique_pdf_content_once_and_covers_every_physical_object(
     tmp_path: Path,
 ) -> None:
     manifest, policy, content = _write_inputs(tmp_path)
-    scratch = tmp_path / "scratch"
-    scratch.mkdir()
-    downloads: list[str] = []
+    mirror = _write_mirror(tmp_path, content)
     scan_calls = 0
-
-    def download(source: str, target: Path) -> None:
-        downloads.append(source)
-        target.write_bytes(
-            content["first"]
-            if source.endswith(("a.pdf", "a-copy.pdf"))
-            else content["second"]
-        )
 
     def scan(path: Path) -> PIIScanResult:
         nonlocal scan_calls
@@ -126,13 +168,11 @@ def test_scans_each_unique_pdf_content_once_and_covers_every_physical_object(
         manifest,
         policy,
         CANONICAL_REMOTE_ROOT,
-        scratch,
+        mirror,
         expected_manifest_sha256=_digest(manifest.read_bytes()),
-        download_file=download,
         scan_file=scan,
     )
 
-    assert len(downloads) == 3
     assert scan_calls == 2
     assert evidence["summary"] == {
         "pdf_total": 3,
@@ -152,7 +192,7 @@ def test_scans_each_unique_pdf_content_once_and_covers_every_physical_object(
     }
     assert len(evidence["results"]) == 2
     assert sorted(item["physical_object_count"] for item in evidence["results"]) == [1, 2]
-    assert list(scratch.iterdir()) == []
+    assert len(list(mirror.rglob("*.pdf"))) == 3
     assert evidence["remote_write_operations"] == 0
 
 
@@ -160,24 +200,18 @@ def test_initial_promotion_scope_scans_every_candidate_and_counts_exemptions(
     tmp_path: Path,
 ) -> None:
     manifest, policy, content = _write_inputs(tmp_path)
-    scratch = tmp_path / "scratch"
-    scratch.mkdir()
+    mirror = _write_mirror(tmp_path, content)
     required_paths = {
         "01_EDUSCOL_OFFICIEL/a.pdf",
         "00_INDEX_PROVENANCE/a-copy.pdf",
     }
 
-    def download(source: str, target: Path) -> None:
-        assert any(source.endswith(path) for path in required_paths)
-        target.write_bytes(content["first"])
-
     evidence = scan_remote_corpus(
         manifest,
         policy,
         CANONICAL_REMOTE_ROOT,
-        scratch,
+        mirror,
         expected_manifest_sha256=_digest(manifest.read_bytes()),
-        download_file=download,
         scan_file=_clean_scan,
         required_pdf_paths=required_paths,
     )
@@ -208,16 +242,8 @@ def test_external_evidence_never_contains_raw_pii_or_exception_text(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     manifest, policy, content = _write_inputs(tmp_path)
-    scratch = tmp_path / "scratch"
-    scratch.mkdir()
+    mirror = _write_mirror(tmp_path, content)
     canary = "CANARY.student@example.invalid"
-
-    def download(source: str, target: Path) -> None:
-        target.write_bytes(
-            content["first"]
-            if source.endswith(("a.pdf", "a-copy.pdf"))
-            else content["second"]
-        )
 
     def scan(path: Path) -> PIIScanResult:
         if path.read_bytes() == content["first"]:
@@ -251,9 +277,8 @@ def test_external_evidence_never_contains_raw_pii_or_exception_text(
         manifest,
         policy,
         CANONICAL_REMOTE_ROOT,
-        scratch,
+        mirror,
         expected_manifest_sha256=_digest(manifest.read_bytes()),
-        download_file=download,
         scan_file=scan,
     )
     serialized = json.dumps(evidence)
@@ -270,13 +295,9 @@ def test_external_evidence_never_contains_raw_pii_or_exception_text(
 
 
 def test_sha_mismatch_blocks_before_scanner_execution(tmp_path: Path) -> None:
-    manifest, policy, _content = _write_inputs(tmp_path)
-    scratch = tmp_path / "scratch"
-    scratch.mkdir()
+    manifest, policy, content = _write_inputs(tmp_path)
+    mirror = _write_mirror(tmp_path, content, corrupt=True)
     scan_calls = 0
-
-    def corrupt_download(_source: str, target: Path) -> None:
-        target.write_bytes(b"corrupted")
 
     def scan(_path: Path) -> PIIScanResult:
         nonlocal scan_calls
@@ -287,9 +308,8 @@ def test_sha_mismatch_blocks_before_scanner_execution(tmp_path: Path) -> None:
         manifest,
         policy,
         CANONICAL_REMOTE_ROOT,
-        scratch,
+        mirror,
         expected_manifest_sha256=_digest(manifest.read_bytes()),
-        download_file=corrupt_download,
         scan_file=scan,
     )
 
@@ -298,28 +318,21 @@ def test_sha_mismatch_blocks_before_scanner_execution(tmp_path: Path) -> None:
     assert evidence["summary"]["pii_quarantined"] == 3
     assert evidence["summary"]["pii_not_scanned"] == 3
     assert all(item["status"] == "QUARANTINED_SHA_MISMATCH" for item in evidence["results"])
-    assert list(scratch.iterdir()) == []
+    assert len(list(mirror.rglob("*.pdf"))) == 3
 
 
 def test_evidence_is_bound_to_scanner_policy_content_and_manifest(
     tmp_path: Path,
 ) -> None:
     manifest, policy, content = _write_inputs(tmp_path)
-    scratch = tmp_path / "scratch"
-    scratch.mkdir()
-
-    def download(source: str, target: Path) -> None:
-        target.write_bytes(
-            content["first"] if source.endswith("a.pdf") else content["second"]
-        )
+    mirror = _write_mirror(tmp_path, content)
 
     evidence = scan_remote_corpus(
         manifest,
         policy,
         CANONICAL_REMOTE_ROOT,
-        scratch,
+        mirror,
         expected_manifest_sha256=_digest(manifest.read_bytes()),
-        download_file=download,
         scan_file=_clean_scan,
     )
 
@@ -331,73 +344,26 @@ def test_evidence_is_bound_to_scanner_policy_content_and_manifest(
     assert all(len(item["content_sha256"]) == 64 for item in evidence["results"])
 
 
-def test_rejects_noncanonical_remote_before_any_download(tmp_path: Path) -> None:
-    manifest, policy, _content = _write_inputs(tmp_path)
-    scratch = tmp_path / "scratch"
-    scratch.mkdir()
+def test_rejects_noncanonical_remote_before_local_read(tmp_path: Path) -> None:
+    manifest, policy, content = _write_inputs(tmp_path)
+    mirror = _write_mirror(tmp_path, content)
 
     with pytest.raises(ValueError, match="canonical read-only corpus remote"):
         scan_remote_corpus(
             manifest,
             policy,
             "gdrive_ert:another-folder",
-            scratch,
+            mirror,
             expected_manifest_sha256=_digest(manifest.read_bytes()),
-            download_file=lambda _source, _target: None,
             scan_file=_clean_scan,
         )
 
 
-def test_rclone_download_only_builds_remote_to_local_copyto(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    calls: list[tuple[list[str], dict[str, Any]]] = []
-
-    def fake_run(command: list[str], **kwargs: Any) -> object:
-        calls.append((command, kwargs))
-        return object()
-
-    monkeypatch.setattr("rag_pedago.imports.remote_pii_scan.subprocess.run", fake_run)
-    target = tmp_path / "content.pdf"
-
-    rclone_download(f"{CANONICAL_REMOTE_ROOT}/01_EDUSCOL_OFFICIEL/a.pdf", target)
-
-    assert calls == [
-        (
-            [
-                "rclone",
-                "copyto",
-                "--no-traverse",
-                "--retries",
-                "3",
-                "--low-level-retries",
-                "5",
-                f"{CANONICAL_REMOTE_ROOT}/01_EDUSCOL_OFFICIEL/a.pdf",
-                str(target),
-            ],
-            {
-                "capture_output": True,
-                "check": True,
-                "text": False,
-                "timeout": 300,
-            },
-        )
-    ]
-
-
-def test_bulk_transport_scans_local_mirror_without_per_file_rclone(
+def test_scans_pre_staged_local_mirror_without_mutating_it(
     tmp_path: Path,
 ) -> None:
     manifest, policy, content = _write_inputs(tmp_path)
-    mirror = tmp_path / "mirror"
-    for relative_path, payload in (
-        ("01_EDUSCOL_OFFICIEL/a.pdf", content["first"]),
-        ("00_INDEX_PROVENANCE/a-copy.pdf", content["first"]),
-        ("02_NEXUS_DIAGNOSTICS/b.pdf", content["second"]),
-    ):
-        target = mirror / relative_path
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(payload)
+    mirror = _write_mirror(tmp_path, content)
 
     evidence = scan_remote_corpus(
         manifest,
@@ -405,67 +371,30 @@ def test_bulk_transport_scans_local_mirror_without_per_file_rclone(
         CANONICAL_REMOTE_ROOT,
         mirror,
         expected_manifest_sha256=_digest(manifest.read_bytes()),
-        download_file=lambda _source, _target: pytest.fail(
-            "per-file rclone must not run in bulk mode"
-        ),
         scan_file=_clean_scan,
-        local_mirror=mirror,
     )
 
     assert evidence["summary"]["pii_cleared"] == 3
-    assert list(mirror.rglob("*.pdf")) == []
+    assert len(list(mirror.rglob("*.pdf"))) == 3
 
 
-def test_rclone_bulk_download_is_canonical_remote_to_bounded_local(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    calls: list[tuple[list[str], dict[str, Any]]] = []
-
-    def fake_run(command: list[str], **kwargs: Any) -> object:
-        calls.append((command, kwargs))
-        return object()
-
-    monkeypatch.setattr("rag_pedago.imports.remote_pii_scan.subprocess.run", fake_run)
-    mirror = tmp_path / "mirror"
-    mirror.mkdir()
-
-    rclone_bulk_download(
-        CANONICAL_REMOTE_ROOT,
-        mirror,
-        ["01_EDUSCOL_OFFICIEL/a.pdf", "02_NEXUS_DIAGNOSTICS/b.pdf"],
+def test_control_plane_scanner_has_no_network_or_rclone_dependency() -> None:
+    module_path = (
+        Path(__file__).parent.parent
+        / "rag_pedago/imports/remote_pii_scan.py"
     )
+    source = module_path.read_text(encoding="utf-8")
 
-    assert calls == [
-        (
-            [
-                "rclone",
-                "copy",
-                "--files-from-raw",
-                "-",
-                "--transfers",
-                "4",
-                "--checkers",
-                "1",
-                "--tpslimit",
-                "4",
-                "--tpslimit-burst",
-                "4",
-                "--retries",
-                "10",
-                "--low-level-retries",
-                "20",
-                CANONICAL_REMOTE_ROOT,
-                str(mirror),
-            ],
-            {
-                "capture_output": True,
-                "check": True,
-                "input": (
-                    b"01_EDUSCOL_OFFICIEL/a.pdf\n"
-                    b"02_NEXUS_DIAGNOSTICS/b.pdf\n"
-                ),
-                "text": False,
-                "timeout": 7200,
-            },
-        )
-    ]
+    assert "import subprocess" not in source
+    assert "rclone" not in source.lower()
+    assert "download_file" not in inspect.signature(scan_remote_corpus).parameters
+
+
+def test_h2e_network_materializer_lives_outside_rag_pedago_service() -> None:
+    repository_root = Path(__file__).resolve().parents[3]
+
+    assert not (
+        repository_root
+        / "services/rag-pedago/scripts/h2e_materialize_rehearsal_inputs.py"
+    ).exists()
+    assert (repository_root / "scripts/h2e_materialize_rehearsal_inputs.py").is_file()
