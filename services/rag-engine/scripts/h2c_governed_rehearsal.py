@@ -131,6 +131,7 @@ def main() -> int:
     environment.update(
         {
             "NEXUS_H2C_REAL_REHEARSAL": "1",
+            "NEXUS_H2C_REHEARSAL_ONLY": "1",
             "NEXUS_H2C_REAL_PDF_PATH": str(args.pdf.resolve()),
             "NEXUS_H2C_REAL_CATALOG_PATH": str(args.catalog.resolve()),
         }

@@ -813,6 +813,8 @@ def test_runner_invokes_lot40_and_only_opts_into_the_real_h2c_rehearsal() -> Non
     content = RUNNER.read_text(encoding="utf-8")
     assert '"$SERVICE_ROOT/tests/integration/test_lot40_hybrid_pgvector.py"' in content
     assert 'if [[ -n "${NEXUS_H2C_REAL_REHEARSAL:-}" ]]' in content
+    assert 'if [[ -n "${NEXUS_H2C_REHEARSAL_ONLY:-}" ]]' in content
+    assert 'integration_tests=()' in content
     assert '"$SERVICE_ROOT/tests/integration/test_h2c_governed_rehearsal.py"' in content
     assert '"${integration_tests[@]}" -q -s' in content
     assert 'PYTEST_BIN="${NEXUS_RAG_ENGINE_PYTEST:-' in content

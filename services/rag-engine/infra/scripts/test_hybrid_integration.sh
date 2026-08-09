@@ -734,6 +734,13 @@ fi
 integration_tests=(
     "$SERVICE_ROOT/tests/integration/test_lot40_hybrid_pgvector.py"
 )
+if [[ -n "${NEXUS_H2C_REHEARSAL_ONLY:-}" ]]; then
+    if [[ -z "${NEXUS_H2C_REAL_REHEARSAL:-}" ]]; then
+        echo "H2C_REHEARSAL_ONLY_REQUIRES_REAL_INPUTS" >&2
+        exit 1
+    fi
+    integration_tests=()
+fi
 if [[ -n "${NEXUS_H2C_REAL_REHEARSAL:-}" ]]; then
     integration_tests+=(
         "$SERVICE_ROOT/tests/integration/test_h2c_governed_rehearsal.py"
