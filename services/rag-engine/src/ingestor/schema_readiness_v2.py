@@ -111,7 +111,7 @@ def load_product_column_definitions(
     except OSError as exc:
         raise RuntimeError("SCHEMA_HEAD_004_COLUMNS_UNAVAILABLE") from exc
     expected_counts = {
-        "rag_artifact_placements": 22,
+        "rag_artifact_placements": 23,
         "rag_artifacts": 10,
         "rag_chunks": 32,
     }

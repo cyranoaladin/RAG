@@ -81,7 +81,7 @@ _GOVERNED_SCOPE_JOINS_SQL = f"""
                    placement.visibility, placement.school_year,
                    placement.programme_version, placement.review_status,
                    placement.source_scope, placement.source_placement_id,
-                   placement.source_path
+                   placement.source_path, placement.source_uri
             FROM public.rag_artifact_placements AS placement
             WHERE chunk.artifact_id IS NOT NULL
               AND placement.artifact_id = chunk.artifact_id
@@ -124,6 +124,7 @@ _READINESS_SCOPE_PREDICATE_SQL = f"""
                       AND artifact.rights = ANY(%s::text[])
                       AND btrim(artifact.source_label) <> ''
                       AND btrim(artifact.source_uri) <> ''
+                      AND btrim(placement.source_uri) <> ''
                       AND btrim(artifact.rights) <> ''
                 )
             )
@@ -155,7 +156,11 @@ _DENSE_SQL = f"""
     projected_candidates AS MATERIALIZED (
         SELECT chunk.chunk_id, chunk.doc_id,
                COALESCE(artifact.source_label, chunk.source_label) AS source_label,
-               COALESCE(artifact.source_uri, chunk.source_uri) AS source_uri,
+               COALESCE(
+                   matched_placement.source_uri,
+                   artifact.source_uri,
+                   chunk.source_uri
+               ) AS source_uri,
                COALESCE(artifact.rights, chunk.rights) AS rights,
                COALESCE(artifact.type_doc, chunk.type_doc) AS type_doc,
                chunk.text, chunk.page_start,
@@ -240,7 +245,11 @@ _LEXICAL_SQL = f"""
     WITH lexical_query AS MATERIALIZED (SELECT plainto_tsquery('french', %s) AS value)
     SELECT chunk.chunk_id, chunk.doc_id,
            COALESCE(artifact.source_label, chunk.source_label) AS source_label,
-           COALESCE(artifact.source_uri, chunk.source_uri) AS source_uri,
+           COALESCE(
+               matched_placement.source_uri,
+               artifact.source_uri,
+               chunk.source_uri
+           ) AS source_uri,
            COALESCE(artifact.rights, chunk.rights) AS rights,
            COALESCE(artifact.type_doc, chunk.type_doc) AS type_doc,
            chunk.text, chunk.page_start, chunk.vector::text,
@@ -274,7 +283,9 @@ _LEXICAL_SQL = f"""
       AND chunk.text IS NOT NULL AND btrim(chunk.text) <> ''
       AND chunk.vector IS NOT NULL
       AND btrim(COALESCE(artifact.source_label, chunk.source_label)) <> ''
-      AND btrim(COALESCE(artifact.source_uri, chunk.source_uri)) <> ''
+      AND btrim(COALESCE(
+          matched_placement.source_uri, artifact.source_uri, chunk.source_uri
+      )) <> ''
       AND btrim(COALESCE(artifact.rights, chunk.rights)) <> ''
       AND chunk.text_tsv @@ lexical_query.value
     ORDER BY lexical_score DESC, chunk_id ASC

@@ -157,7 +157,7 @@ def test_schema_contract_is_loaded_from_the_shared_versioned_source() -> None:
     assert {
         table: len(columns)
         for table, columns in readiness.REQUIRED_PRODUCT_COLUMN_DEFINITIONS.items()
-    } == {"rag_artifact_placements": 22, "rag_artifacts": 10, "rag_chunks": 32}
+    } == {"rag_artifact_placements": 23, "rag_artifacts": 10, "rag_chunks": 32}
 
 
 @pytest.mark.parametrize(
@@ -247,7 +247,7 @@ def test_expected_migration_records_hash_the_canonical_files() -> None:
         (
             4,
             "004_artifact_placements.sql",
-            "9ca86b14cdfe3bf178aae4f65dfdd4075a53e11a0e4283bc664d9e68ff4b4ba9",
+            "fe32b14e6c9cdce8eb9f76e67285967ed8fd4e7f875ca2aaf3436a2e34f37489",
         ),
     )
 

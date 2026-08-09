@@ -74,6 +74,7 @@ def test_migration_004_encodes_fail_closed_placement_state() -> None:
         "placement_status",
         "source_scope",
         "source_placement_id",
+        "source_uri",
         "authorization_id",
         "publication_attestation_id",
     ):

@@ -193,6 +193,7 @@ def _governed_placement(
         source_scope=f"01_EDUSCOL_OFFICIEL/terminale/nsi/{source_suffix}",
         source_placement_id=f"eduscol:governed:{source_suffix}",
         source_path=f"01_EDUSCOL_OFFICIEL/nsi/{source_suffix}.pdf",
+        source_uri=f"https://eduscol.education.gouv.fr/{source_suffix}",
         current_profile_fingerprint="c" * 64,
         current_manifest_digest="d" * 64,
     )
@@ -235,7 +236,7 @@ def _verified_publication(
         resource_id=placement.resource_id,
         artifact_id=uuid4(),
         collection=str(placement.scope.collection),
-        canonical_url=artifact.source_uri,
+        canonical_url=placement.source_uri,
         content_sha256=artifact.content_sha256,
         rights_status=Rights.usage_interne,
         rights_assessed_at=now,

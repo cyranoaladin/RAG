@@ -52,6 +52,7 @@ CREATE TABLE public.rag_artifact_placements (
     source_scope                   TEXT NOT NULL,
     source_placement_id            TEXT NOT NULL,
     source_path                    TEXT NOT NULL,
+    source_uri                     TEXT NOT NULL,
     authorization_id               TEXT NOT NULL,
     publication_attestation_id     UUID NOT NULL,
     created_at                     TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -72,6 +73,7 @@ CREATE TABLE public.rag_artifact_placements (
             AND btrim(source_scope) <> ''
             AND btrim(source_placement_id) <> ''
             AND btrim(source_path) <> ''
+            AND btrim(source_uri) <> ''
             AND btrim(authorization_id) <> ''
         ),
     CONSTRAINT rag_artifact_placements_audience_no_blank_check
@@ -139,4 +141,3 @@ CREATE INDEX idx_rag_artifact_placements_audience
 
 CREATE INDEX idx_rag_artifact_placements_artifact_id
     ON public.rag_artifact_placements (artifact_id);
-

@@ -17,6 +17,7 @@ rag_artifact_placements	school_year	text	text	NO	NEVER	\N	text	-1
 rag_artifact_placements	source_path	text	text	NO	NEVER	\N	text	-1
 rag_artifact_placements	source_placement_id	text	text	NO	NEVER	\N	text	-1
 rag_artifact_placements	source_scope	text	text	NO	NEVER	\N	text	-1
+rag_artifact_placements	source_uri	text	text	NO	NEVER	\N	text	-1
 rag_artifact_placements	statut_enseignement	text	text	NO	NEVER	\N	text	-1
 rag_artifact_placements	tenant	text	text	NO	NEVER	\N	text	-1
 rag_artifact_placements	visibility	text	text	NO	NEVER	\N	text	-1

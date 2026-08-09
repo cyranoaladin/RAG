@@ -105,6 +105,7 @@ class EligiblePlacement:
     source_scope: str
     source_placement_id: str
     source_path: str
+    source_uri: str
     current_profile_fingerprint: str
     current_manifest_digest: str
     currentness: Literal["current"] = "current"
@@ -120,6 +121,7 @@ class EligiblePlacement:
             "source_scope",
             "source_placement_id",
             "source_path",
+            "source_uri",
         ):
             _nonblank(getattr(self, field), field=field)
         for field in ("current_profile_fingerprint", "current_manifest_digest"):
@@ -221,7 +223,7 @@ def _verify_placements(
             or attestation.content_sha256 != artifact.content_sha256
             or facts.content_sha256 != artifact.content_sha256
             or facts.collection != str(placement.scope.collection)
-            or facts.canonical_url != artifact.source_uri
+            or facts.canonical_url != placement.source_uri
             or facts.rights_status.value != artifact.rights
             or scope_key(attestation.authorization.scope) != scope_key(placement.scope)
         ):
@@ -327,6 +329,7 @@ def _insert_placement(
         placement.source_scope,
         placement.source_placement_id,
         placement.source_path,
+        placement.source_uri,
         attestation.scope_authorization_id,
         attestation.attestation_id,
     )
@@ -337,10 +340,10 @@ def _insert_placement(
             audience, matiere, statut_enseignement, candidat, visibility,
             school_year, programme_version, currentness, placement_status,
             review_status, source_scope, source_placement_id, source_path,
-            authorization_id, publication_attestation_id
+            source_uri, authorization_id, publication_attestation_id
         ) VALUES (
             %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
         )
         ON CONFLICT (placement_id) DO NOTHING
         """,
@@ -352,7 +355,7 @@ def _insert_placement(
                audience, matiere, statut_enseignement, candidat, visibility,
                school_year, programme_version, currentness, placement_status,
                review_status, source_scope, source_placement_id, source_path,
-               authorization_id, publication_attestation_id
+               source_uri, authorization_id, publication_attestation_id
         FROM public.rag_artifact_placements
         WHERE placement_id = %s
         """,

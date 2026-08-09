@@ -46,6 +46,7 @@ def _placement(*, collection: str, matiere: str) -> EligiblePlacement:
         source_scope=f"01_EDUSCOL_OFFICIEL/terminale/{matiere}",
         source_placement_id=f"eduscol:5793:terminale:{matiere}",
         source_path=f"01_EDUSCOL_OFFICIEL/{matiere}/source.pdf",
+        source_uri=f"https://eduscol.education.gouv.fr/{matiere}",
         current_profile_fingerprint="1" * 64,
         current_manifest_digest="2" * 64,
     )
@@ -97,6 +98,15 @@ def test_placement_identity_changes_without_changing_artifact_identity() -> None
     assert canonical_placement_id(CONTENT_SHA, philosophy) == canonical_placement_id(
         CONTENT_SHA, philosophy
     )
+
+
+def test_placement_preserves_its_own_source_uri() -> None:
+    philosophy = _placement(
+        collection="rag_nexus_philo_terminale_tc",
+        matiere="philosophie",
+    )
+
+    assert philosophy.source_uri == "https://eduscol.education.gouv.fr/philosophie"
 
 
 def test_publisher_surface_requires_governance_objects_not_bare_text() -> None:

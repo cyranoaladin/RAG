@@ -758,7 +758,7 @@ BEGIN
     FROM information_schema.columns
     WHERE table_schema = 'public'
       AND table_name = 'rag_artifact_placements';
-    IF invalid_count <> 22 THEN
+    IF invalid_count <> 23 THEN
         RAISE EXCEPTION 'SCHEMA_HEAD_004_INVALID: placements column count';
     END IF;
 
