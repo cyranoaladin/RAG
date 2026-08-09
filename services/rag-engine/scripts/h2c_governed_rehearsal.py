@@ -20,7 +20,7 @@ CORPUS_MANIFEST_SHA = (
 PII_EVIDENCE_SHA = (
     "76e6ba3cd5b1c116c8647b611eb3fdeb2aba6b8c7fdfbad9e71048354956f311"
 )
-RESULT_PREFIX = "H2C_GOVERNED_REHEARSAL_RESULT="
+RESULT_PREFIX = "H2E_V2_GOVERNED_REHEARSAL_RESULT="
 
 
 def _sha256(path: Path) -> str:
@@ -97,6 +97,27 @@ def _write_json(path: Path, document: dict[str, Any]) -> None:
     temporary.replace(path)
 
 
+def _validate_rehearsal_result(result: dict[str, Any]) -> None:
+    negative = result.get("negative_same_domain_unlisted")
+    valid = (
+        result.get("full_governed_rehearsal_pass") is True
+        and result.get("lot41a_v2_content_bound") is True
+        and result.get("positive_content_allowlist_gate") == "PASS"
+        and result.get("positive_extractor_calls") == 1
+        and isinstance(negative, dict)
+        and negative.get("domain_gate") == "PASS"
+        and negative.get("content_allowlist_gate") == "DENY"
+        and negative.get("extractor_called") is False
+        and negative.get("rights_agent_called") is False
+        and negative.get("quality_agent_called") is False
+        and negative.get("retrieval_eligible") is False
+        and type(negative.get("pgvector_rows_created")) is int
+        and negative.get("pgvector_rows_created") == 0
+    )
+    if not valid:
+        raise RuntimeError("H2E_V2_REHEARSAL_NOT_GREEN")
+
+
 def main() -> int:
     args = _arguments()
     if _sha256(args.pdf) != REAL_SHA:
@@ -135,18 +156,20 @@ def main() -> int:
     if len(result_lines) != 1:
         raise RuntimeError("H2C_REHEARSAL_RESULT_MISSING_OR_DUPLICATED")
     result = json.loads(result_lines[0])
-    if result.get("full_governed_rehearsal_pass") is not True:
-        raise RuntimeError("H2C_REHEARSAL_NOT_GREEN")
+    if not isinstance(result, dict):
+        raise RuntimeError("H2E_V2_REHEARSAL_RESULT_INVALID")
+    _validate_rehearsal_result(result)
 
     evidence = {
         "corpus_manifest_sha256": CORPUS_MANIFEST_SHA,
-        "evidence_kind": "H2C_REAL_GOVERNED_REHEARSAL",
+        "evidence_kind": "H2E_V2_REAL_GOVERNED_REHEARSAL",
         "generated_at": datetime.now(UTC).isoformat(),
         "github_boundary": "LOCAL_HTTP_REHEARSAL_WITH_CANONICAL_LIVE_VERIFIERS",
         "pii_binding": pii,
         "product_database": "DISPOSABLE_POSTGRESQL_PGVECTOR",
         "production_database_touched": False,
         "production_publication_attestation": False,
+        "rehearsal_authority": "STAGING_TEST_LOT41A_V2",
         "real_catalog_sha256": _sha256(args.catalog),
         "real_pdf_sha256": REAL_SHA,
         "real_placement_count": len(placements),
@@ -154,7 +177,7 @@ def main() -> int:
         "runner_output_sha256": hashlib.sha256(completed.stdout.encode()).hexdigest(),
     }
     _write_json(args.output, evidence)
-    print(f"H2C_GOVERNED_REHEARSAL_EVIDENCE_SHA256={_sha256(args.output)}")
+    print(f"H2E_V2_GOVERNED_REHEARSAL_EVIDENCE_SHA256={_sha256(args.output)}")
     print("PRODUCTION_DATABASE_TOUCHED=false")
     print("REAL_PRODUCTION_PUBLICATION_ATTESTATIONS=DEFERRED_TO_P4_BY_DESIGN")
     return 0

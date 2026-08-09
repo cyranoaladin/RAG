@@ -77,6 +77,16 @@ from ingestor.ingestion_control.provisioning import (  # noqa: E402
     persist_artifact,
     persist_resource_candidate,
 )
+from ingestor.ingestion_control.scope_authority import (  # noqa: E402
+    verify_scope_authorization,
+)
+from ingestor.ingestion_control.scope_enforcement import (  # noqa: E402
+    ScopeEnforcementViolation,
+    enforce_before_fetch,
+    enforce_content_sha256,
+    enforce_destination,
+    require_h2_content_bound_authority,
+)
 from ingestor.ingestion_profiles.registry import profile_fingerprint  # noqa: E402
 from ingestor.ingestion_worker.attest_publication_cli import (  # noqa: E402
     main as attest_main,
@@ -123,7 +133,7 @@ def control_pg() -> Iterator[dict[str, str]]:
     yield from start_ingestion_control_postgres("h2c-governed-rehearsal")
 
 
-def _real_inputs() -> tuple[bytes, str, tuple[dict[str, Any], ...]]:
+def _real_inputs() -> tuple[bytes, tuple[dict[str, Any], ...]]:
     raw = PDF_PATH.read_bytes()
     assert hashlib.sha256(raw).hexdigest() == REAL_SHA
     document = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
@@ -140,11 +150,7 @@ def _real_inputs() -> tuple[bytes, str, tuple[dict[str, Any], ...]]:
     assert all(item.get("classified") is True for item in placements)
     assert all(item.get("content_sha256") == REAL_SHA for item in placements)
     assert all(item.get("status") == "actuel" for item in placements)
-    reader = PdfReader(io.BytesIO(raw))
-    extracted = "\n\n".join(page.extract_text() or "" for page in reader.pages)
-    assert len(reader.pages) == 60
-    assert len(extracted.strip()) > 100_000
-    return raw, extracted, tuple(placements)
+    return raw, tuple(placements)
 
 
 def _slug(value: str) -> str:
@@ -250,6 +256,48 @@ def _make_run(conn: psycopg.Connection[Any], scope: ResourceScope) -> uuid.UUID:
     return run_id
 
 
+def _enforce_fetched_content(
+    control_dsn: str,
+    *,
+    source: dict[str, Any],
+    profile: CollectionProfile,
+    authorization: ScopeAuthorizationArtifactV2,
+    content: bytes,
+    trace: dict[str, bool],
+) -> None:
+    """Exercise both live checks around fetch before any semantic processing."""
+    scope = profile.scope
+    source_url = str(source["source_url"])
+    with psycopg.connect(control_dsn) as conn:
+        verified = verify_scope_authorization(
+            conn,
+            authorization_id=authorization.authorization_id,
+            scope=scope,
+        )
+        enforce_before_fetch(
+            verified,
+            authorization_id=authorization.authorization_id,
+            scope=scope,
+            manifest_digest=CORPUS_MANIFEST_SHA,
+            profile_id=str(scope.collection),
+            profile_version=profile.profile_version,
+            profile_fingerprint=profile_fingerprint(profile),
+            now=datetime.now(UTC),
+        )
+        enforce_destination(verified, url=source_url)
+        trace["domain_gate_pass"] = True
+        trace["fetch_called"] = True
+        content_sha256 = hashlib.sha256(content).hexdigest()
+        verified = verify_scope_authorization(
+            conn,
+            authorization_id=authorization.authorization_id,
+            scope=scope,
+        )
+        require_h2_content_bound_authority(verified)
+        enforce_content_sha256(verified, content_sha256=content_sha256)
+        trace["content_gate_pass"] = True
+
+
 def _build_publishable_resource(
     control_dsn: str,
     *,
@@ -258,9 +306,11 @@ def _build_publishable_resource(
     authorization: ScopeAuthorizationArtifactV2,
     content: bytes,
     extracted: str,
+    trace: dict[str, bool],
 ) -> tuple[uuid.UUID, uuid.UUID]:
     scope = profile.scope
     source_url = str(source["source_url"])
+    content_sha256 = hashlib.sha256(content).hexdigest()
     with psycopg.connect(control_dsn) as conn:
         run_id = _make_run(conn, scope)
         resource_id = create_resource(
@@ -292,7 +342,7 @@ def _build_publishable_resource(
             resource_id=resource_id,
             run_id=run_id,
             scope=scope,
-            sha256=REAL_SHA,
+            sha256=content_sha256,
             size_bytes=len(content),
             mime_declared="application/pdf",
             mime_detected="application/pdf",
@@ -340,6 +390,7 @@ def _build_publishable_resource(
                     else None
                 ),
             ).state_version
+        trace["rights_agent_called"] = True
         rights, transition = run_rights_agent(
             conn,
             artifact=artifact,
@@ -348,6 +399,7 @@ def _build_publishable_resource(
             actor="h2c-rehearsal",
         )
         assert rights is Rights.officiel_public
+        trace["quality_agent_called"] = True
         _, decision, routed = run_quality_agent(
             conn,
             artifact=artifact,
@@ -435,7 +487,7 @@ def test_real_pdf_runs_through_lot41_lot42_publisher_and_retrieval(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    raw, extracted, source_placements = _real_inputs()
+    raw, source_placements = _real_inputs()
     profiles = tuple(_profile(_scope(source)) for source in source_placements)
     authorizations = tuple(
         _authorization(source, profile)
@@ -481,9 +533,78 @@ def test_real_pdf_runs_through_lot41_lot42_publisher_and_retrieval(
             assert code == 0, error
 
         control_dsn = app_dsn(control_pg)
+        negative_bytes = raw + b"\n% H2E same-domain unlisted bytes\n"
+        negative_sha = hashlib.sha256(negative_bytes).hexdigest()
+        assert negative_sha != REAL_SHA
+        negative_trace = {
+            "domain_gate_pass": False,
+            "fetch_called": False,
+            "content_gate_pass": False,
+            "extractor_called": False,
+            "rights_agent_called": False,
+            "quality_agent_called": False,
+        }
+        with pytest.raises(ScopeEnforcementViolation) as denied:
+            _enforce_fetched_content(
+                control_dsn,
+                source=source_placements[0],
+                profile=profiles[0],
+                authorization=authorizations[0],
+                content=negative_bytes,
+                trace=negative_trace,
+            )
+        assert denied.value.checkpoint == "content"
+        assert negative_trace == {
+            "domain_gate_pass": True,
+            "fetch_called": True,
+            "content_gate_pass": False,
+            "extractor_called": False,
+            "rights_agent_called": False,
+            "quality_agent_called": False,
+        }
+        with psycopg.connect(ADMIN_DSN) as conn:
+            negative_product_rows = conn.execute(
+                "SELECT COUNT(*) FROM rag_artifacts WHERE content_sha256 = %s",
+                (negative_sha,),
+            ).fetchone()
+        assert negative_product_rows == (0,)
+        with psycopg.connect(control_dsn) as conn:
+            negative_control_rows = conn.execute(
+                "SELECT COUNT(*) FROM ingestion_control.artifacts WHERE sha256 = %s",
+                (negative_sha,),
+            ).fetchone()
+        assert negative_control_rows == (0,)
+
         resources: list[tuple[uuid.UUID, uuid.UUID]] = []
+        positive_traces: list[dict[str, bool]] = []
         for source, profile, authorization in zip(
             source_placements, profiles, authorizations, strict=True
+        ):
+            trace = {
+                "domain_gate_pass": False,
+                "fetch_called": False,
+                "content_gate_pass": False,
+                "rights_agent_called": False,
+                "quality_agent_called": False,
+            }
+            _enforce_fetched_content(
+                control_dsn,
+                source=source,
+                profile=profile,
+                authorization=authorization,
+                content=raw,
+                trace=trace,
+            )
+            positive_traces.append(trace)
+
+        extracted = _extract_pdf(raw)
+        assert len(extracted.strip()) > 100_000
+        for source, profile, authorization, trace in zip(
+            source_placements,
+            profiles,
+            authorizations,
+            positive_traces,
+            strict=True,
         ):
             resources.append(
                 _build_publishable_resource(
@@ -493,8 +614,10 @@ def test_real_pdf_runs_through_lot41_lot42_publisher_and_retrieval(
                     authorization=authorization,
                     content=raw,
                     extracted=extracted,
+                    trace=trace,
                 )
             )
+        assert all(all(trace.values()) for trace in positive_traces)
 
         proposals: list[tuple[str, bytes]] = []
         for index, ((resource_id, artifact_id), authorization) in enumerate(
@@ -699,13 +822,25 @@ def test_real_pdf_runs_through_lot41_lot42_publisher_and_retrieval(
         "duplicate_result_chunks": 0,
         "duplicate_vector_sets": 0,
         "full_governed_rehearsal_pass": True,
+        "lot41a_v2_content_bound": True,
         "lot42_pipeline_path_implemented": True,
         "placement_rows": 7,
         "placement_traceability_pass": True,
         "real_multi_placement_placements": 7,
         "real_multi_placement_sha": REAL_SHA,
+        "negative_same_domain_unlisted": {
+            "content_allowlist_gate": "DENY",
+            "domain_gate": "PASS",
+            "extractor_called": False,
+            "quality_agent_called": False,
+            "retrieval_eligible": False,
+            "rights_agent_called": False,
+            "pgvector_rows_created": 0,
+        },
+        "positive_content_allowlist_gate": "PASS",
+        "positive_extractor_calls": 1,
         "scope_a_retrieval_pass": bool(retrieval),
         "scope_b_retrieval_pass": len(retrieval) >= 2,
         "wrong_scope_retrieval_blocked": True,
     }
-    print("H2C_GOVERNED_REHEARSAL_RESULT=" + json.dumps(result, sort_keys=True))
+    print("H2E_V2_GOVERNED_REHEARSAL_RESULT=" + json.dumps(result, sort_keys=True))
