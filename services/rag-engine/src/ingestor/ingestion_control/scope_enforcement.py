@@ -211,7 +211,10 @@ def _require_canonical_v2_allowlist(
             f"authorization {authorization.authorization_id!r} is LOT41A-V2 "
             "but has no canonical non-empty allowed_content_sha256 boundary",
         )
-    if any(not _LOWERCASE_SHA256_RE.fullmatch(value) for value in allowlist):
+    if any(
+        not isinstance(value, str) or not _LOWERCASE_SHA256_RE.fullmatch(value)
+        for value in allowlist
+    ):
         raise ScopeEnforcementViolation(
             "content",
             f"authorization {authorization.authorization_id!r} carries a malformed "
@@ -244,7 +247,9 @@ def enforce_content_sha256(
             f"authorization {authorization.authorization_id!r} uses unsupported "
             f"protocol {authorization.protocol_version!r}",
         )
-    if not _LOWERCASE_SHA256_RE.fullmatch(content_sha256):
+    if not isinstance(content_sha256, str) or not _LOWERCASE_SHA256_RE.fullmatch(
+        content_sha256
+    ):
         raise ScopeEnforcementViolation(
             "content", f"downloaded content SHA-256 {content_sha256!r} is not canonical"
         )
@@ -342,8 +347,10 @@ def enforce_pii(authorization: VerifiedAuthorization, *, pii_detected: bool) -> 
 __all__ = [
     "ScopeEnforcementViolation",
     "enforce_before_fetch",
+    "enforce_content_sha256",
     "enforce_destination",
     "enforce_pii",
     "enforce_rights",
     "enforce_validity_window",
+    "require_h2_content_bound_authority",
 ]

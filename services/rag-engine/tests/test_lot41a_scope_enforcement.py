@@ -15,6 +15,7 @@ import pytest
 from nexus_contracts.document import Rights
 from nexus_contracts.ingestion import ResourceScope
 
+from ingestor.ingestion_control import scope_enforcement as scope_enforcement_module
 from ingestor.ingestion_control.scope_authority import (
     VerifiedAuthorization,
     authorization_allows_rights,
@@ -256,14 +257,27 @@ class TestContentCheckpoint:
             enforce_content_sha256(auth, content_sha256=CONTENT_SHA)
         assert excinfo.value.checkpoint == "content"
 
-    @pytest.mark.parametrize("content_sha256", ["", "x" * 64, "A" * 64, "1" * 63])
-    def test_invalid_supplied_sha_fails_closed(self, content_sha256: str) -> None:
+    def test_injected_non_string_v2_allowlist_entry_fails_as_content_violation(
+        self,
+    ) -> None:
+        auth = authorization(
+            protocol_version="LOT41A-V2",
+            allowed_content_sha256=(1,),
+        )
+        with pytest.raises(ScopeEnforcementViolation) as excinfo:
+            enforce_content_sha256(auth, content_sha256=CONTENT_SHA)
+        assert excinfo.value.checkpoint == "content"
+
+    @pytest.mark.parametrize(
+        "content_sha256", [None, 123, b"1" * 64, "", "x" * 64, "A" * 64, "1" * 63]
+    )
+    def test_invalid_supplied_sha_fails_closed(self, content_sha256: object) -> None:
         auth = authorization(
             protocol_version="LOT41A-V2",
             allowed_content_sha256=(CONTENT_SHA,),
         )
         with pytest.raises(ScopeEnforcementViolation) as excinfo:
-            enforce_content_sha256(auth, content_sha256=content_sha256)
+            enforce_content_sha256(auth, content_sha256=content_sha256)  # type: ignore[arg-type]
         assert excinfo.value.checkpoint == "content"
 
     def test_v1_content_checkpoint_preserves_historical_runtime_behavior(self) -> None:
@@ -294,6 +308,12 @@ class TestContentCheckpoint:
                 allowed_content_sha256=(CONTENT_SHA,),
             )
         )
+
+    def test_content_guards_are_explicit_public_exports(self) -> None:
+        assert {
+            "enforce_content_sha256",
+            "require_h2_content_bound_authority",
+        } <= set(scope_enforcement_module.__all__)
 
 
 class TestRightsCheckpoint:
