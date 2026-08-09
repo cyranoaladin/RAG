@@ -5,7 +5,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
+import stat
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -54,23 +56,39 @@ def _load_mapping(path: Path, *, kind: str) -> dict[str, Any]:
 
 
 def _validate_scratch(scratch_dir: Path, output_manifest_path: Path) -> Path:
-    if scratch_dir.is_symlink() or not scratch_dir.is_dir():
+    if scratch_dir.is_symlink():
         raise ValueError("scratch must be an existing bounded /tmp/nexus-h2e.* directory")
     scratch = scratch_dir.resolve()
     if scratch.parent != _TMP_ROOT or not scratch.name.startswith("nexus-h2e."):
         raise ValueError("scratch must be an existing bounded /tmp/nexus-h2e.* directory")
-    output = output_manifest_path.resolve(strict=False)
-    if output.parent != scratch:
+    try:
+        metadata = scratch.stat(follow_symlinks=False)
+    except FileNotFoundError as exc:
+        raise ValueError(
+            "scratch must be an existing bounded /tmp/nexus-h2e.* directory"
+        ) from exc
+    if not stat.S_ISDIR(metadata.st_mode):
+        raise ValueError("scratch must be an existing bounded /tmp/nexus-h2e.* directory")
+    if metadata.st_uid != os.geteuid():
+        raise ValueError("scratch must be owned by the current effective user")
+    if stat.S_IMODE(metadata.st_mode) != 0o700:
+        raise ValueError("scratch must have exact mode 0700")
+    if output_manifest_path.parent.resolve() != scratch:
         raise ValueError("output manifest must be a direct child of bounded scratch")
     return scratch
 
 
-def _copyto(relative_remote_path: str, local_path: Path) -> None:
+def _require_available_direct_child(scratch: Path, target: Path) -> None:
+    if target.parent.resolve() != scratch:
+        raise RuntimeError("LOCAL_MATERIALIZATION_TARGET_OUTSIDE_SCRATCH")
+    if os.path.lexists(target):
+        raise RuntimeError("LOCAL_MATERIALIZATION_TARGET_EXISTS")
+
+
+def _copyto(scratch: Path, relative_remote_path: str, local_path: Path) -> None:
     if relative_remote_path.startswith(("/", "..")) or "\\" in relative_remote_path:
         raise RuntimeError("REMOTE_OBJECT_PATH_INVALID")
-    if local_path.exists():
-        raise RuntimeError("LOCAL_MATERIALIZATION_TARGET_ALREADY_EXISTS")
-    local_path.parent.mkdir(parents=True, exist_ok=True)
+    _require_available_direct_child(scratch, local_path)
     completed = subprocess.run(
         [
             "rclone",
@@ -90,8 +108,10 @@ def _copyto(relative_remote_path: str, local_path: Path) -> None:
         raise RuntimeError(f"READ_ONLY_RCLONE_COPYTO_FAILED:{relative_remote_path}")
 
 
-def _write_json(path: Path, document: dict[str, Any]) -> None:
+def _write_json(scratch: Path, path: Path, document: dict[str, Any]) -> None:
     temporary = path.with_suffix(path.suffix + ".tmp")
+    _require_available_direct_child(scratch, path)
+    _require_available_direct_child(scratch, temporary)
     temporary.write_text(
         json.dumps(document, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
@@ -167,7 +187,23 @@ def materialize_rehearsal_inputs(
 
     manifest_path = scratch / "SHA256SUMS.txt"
     placement_catalog_path = scratch / "catalogue-complet.tsv"
-    _copyto(MANIFEST_REMOTE_PATH, manifest_path)
+    pdf_path = scratch / REAL_PDF_SUFFIX
+    compiled_catalog_path = scratch / "h2e_governed_catalog.json"
+    targets = (
+        manifest_path,
+        placement_catalog_path,
+        pdf_path,
+        compiled_catalog_path,
+        compiled_catalog_path.with_suffix(compiled_catalog_path.suffix + ".tmp"),
+        output_manifest_path,
+        output_manifest_path.with_suffix(output_manifest_path.suffix + ".tmp"),
+    )
+    if len(set(targets)) != len(targets):
+        raise RuntimeError("LOCAL_MATERIALIZATION_TARGETS_OVERLAP")
+    for target in targets:
+        _require_available_direct_child(scratch, target)
+
+    _copyto(scratch, MANIFEST_REMOTE_PATH, manifest_path)
     manifest_sha256 = _sha256(manifest_path)
     if manifest_sha256 != EXPECTED_MANIFEST_SHA256:
         raise RuntimeError("MANIFEST_SHA256_MISMATCH")
@@ -177,7 +213,7 @@ def materialize_rehearsal_inputs(
         raise RuntimeError("ROUTING_MANIFEST_SHA256_MISMATCH")
     rights_registry = _load_mapping(rights_registry_path, kind="RIGHTS_REGISTRY")
 
-    _copyto(PLACEMENT_CATALOG_REMOTE_PATH, placement_catalog_path)
+    _copyto(scratch, PLACEMENT_CATALOG_REMOTE_PATH, placement_catalog_path)
     catalog = compile_governed_sealed_catalog(
         manifest_path,
         placement_catalog_path,
@@ -189,14 +225,13 @@ def materialize_rehearsal_inputs(
         raise RuntimeError("GOVERNED_CATALOG_VERIFICATION_FAILED")
     remote_pdf_path = _selected_remote_path(catalog)
 
-    pdf_path = scratch / REAL_PDF_SUFFIX
-    _copyto(remote_pdf_path, pdf_path)
+    _copyto(scratch, remote_pdf_path, pdf_path)
     if _sha256(pdf_path) != REAL_SHA256:
         raise RuntimeError("PDF_SHA256_MISMATCH")
 
-    compiled_catalog_path = scratch / "h2e_governed_catalog.json"
-    _write_json(compiled_catalog_path, catalog.to_dict(include_objects=True))
+    _write_json(scratch, compiled_catalog_path, catalog.to_dict(include_objects=True))
     output = {
+        "inputs_manifest_kind": "H2E_MATERIALIZED_REHEARSAL_INPUTS",
         "catalog_path": str(compiled_catalog_path),
         "catalog_sha256": _sha256(compiled_catalog_path),
         "manifest_sha256": manifest_sha256,
@@ -204,9 +239,10 @@ def materialize_rehearsal_inputs(
         "pdf_sha256": REAL_SHA256,
         "pii_evidence_path": str(pii_evidence_path.resolve()),
         "pii_evidence_sha256": EXPECTED_PII_EVIDENCE_SHA256,
+        "placement_catalog_sha256": catalog.placement_catalog_sha256,
         "remote_write_operations": 0,
     }
-    _write_json(output_manifest_path, output)
+    _write_json(scratch, output_manifest_path, output)
     return output
 
 

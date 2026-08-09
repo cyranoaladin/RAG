@@ -234,7 +234,7 @@ def test_materializes_exactly_three_read_only_objects_and_compiles_catalog(
     module = _module()
     fixture = _fixture_inputs(tmp_path)
     scratch = Path("/tmp") / f"nexus-h2e.pytest-{os.getpid()}-{tmp_path.name}"
-    scratch.mkdir()
+    scratch.mkdir(mode=0o700)
     try:
         log = _fake_rclone(tmp_path, monkeypatch, fixture["remote"])
         output = scratch / "inputs.json"
@@ -262,6 +262,7 @@ def test_materializes_exactly_three_read_only_objects_and_compiles_catalog(
         assert document["manifest_sha256"] == fixture["manifest_sha"]
         assert document["remote_write_operations"] == 0
         catalog = json.loads(Path(document["catalog_path"]).read_text(encoding="utf-8"))
+        assert document["placement_catalog_sha256"] == catalog["placement_catalog_sha256"]
         assert catalog["catalog_kind"] == "REAL_SEALED_CORPUS"
         assert catalog["artifacts"][fixture["pdf_sha"]]["pedagogical_placement_count"] == 1
         assert catalog["artifacts"][fixture["pdf_sha"]]["physical_objects"][0][
@@ -291,7 +292,7 @@ def test_rejects_every_sealed_input_drift(
     module = _module()
     fixture = _fixture_inputs(tmp_path)
     scratch = Path("/tmp") / f"nexus-h2e.pytest-{os.getpid()}-{tmp_path.name}-{drift}"
-    scratch.mkdir()
+    scratch.mkdir(mode=0o700)
     try:
         _fake_rclone(tmp_path, monkeypatch, fixture["remote"])
         if drift == "manifest":
@@ -310,3 +311,91 @@ def test_rejects_every_sealed_input_drift(
                 elif child.is_dir():
                     child.rmdir()
             scratch.rmdir()
+
+
+def test_rejects_scratch_with_group_or_other_permissions(tmp_path: Path) -> None:
+    module = _module()
+    fixture = _fixture_inputs(tmp_path)
+    scratch = Path("/tmp") / f"nexus-h2e.pytest-{os.getpid()}-{tmp_path.name}-mode"
+    scratch.mkdir(mode=0o755)
+    try:
+        with pytest.raises(ValueError, match="mode 0700"):
+            _run_materializer(module, fixture, scratch, scratch / "inputs.json")
+        assert scratch.stat().st_mode & 0o777 == 0o755
+    finally:
+        scratch.rmdir()
+
+
+@pytest.mark.parametrize(
+    "planted_name",
+    [
+        "SHA256SUMS.txt",
+        "catalogue-complet.tsv",
+        "371d0c82ed.pdf",
+        "h2e_governed_catalog.json",
+        "inputs.json",
+    ],
+)
+def test_rejects_every_planted_final_target_before_overwrite(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    planted_name: str,
+) -> None:
+    module = _module()
+    fixture = _fixture_inputs(tmp_path)
+    scratch = Path("/tmp") / (
+        f"nexus-h2e.pytest-{os.getpid()}-{tmp_path.name}-{planted_name.replace('.', '-')}"
+    )
+    scratch.mkdir(mode=0o700)
+    planted = scratch / planted_name
+    planted.write_text("keep", encoding="utf-8")
+    try:
+        _fake_rclone(tmp_path, monkeypatch, fixture["remote"])
+        with pytest.raises(RuntimeError, match="LOCAL_MATERIALIZATION_TARGET_EXISTS"):
+            _run_materializer(module, fixture, scratch, scratch / "inputs.json")
+        assert planted.read_text(encoding="utf-8") == "keep"
+    finally:
+        for child in scratch.iterdir():
+            child.unlink()
+        scratch.rmdir()
+
+
+def test_rejects_broken_destination_symlink_without_following_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = _module()
+    fixture = _fixture_inputs(tmp_path)
+    scratch = Path("/tmp") / f"nexus-h2e.pytest-{os.getpid()}-{tmp_path.name}-broken"
+    scratch.mkdir(mode=0o700)
+    missing = tmp_path / "outside-missing"
+    (scratch / "SHA256SUMS.txt").symlink_to(missing)
+    try:
+        _fake_rclone(tmp_path, monkeypatch, fixture["remote"])
+        with pytest.raises(RuntimeError, match="LOCAL_MATERIALIZATION_TARGET_EXISTS"):
+            _run_materializer(module, fixture, scratch, scratch / "inputs.json")
+        assert not missing.exists()
+    finally:
+        (scratch / "SHA256SUMS.txt").unlink()
+        scratch.rmdir()
+
+
+def test_rejects_json_temp_symlink_escape_and_preserves_outside_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = _module()
+    fixture = _fixture_inputs(tmp_path)
+    scratch = Path("/tmp") / f"nexus-h2e.pytest-{os.getpid()}-{tmp_path.name}-temp"
+    scratch.mkdir(mode=0o700)
+    outside = tmp_path / "outside.json"
+    outside.write_text("keep", encoding="utf-8")
+    planted = scratch / "h2e_governed_catalog.json.tmp"
+    planted.symlink_to(outside)
+    try:
+        _fake_rclone(tmp_path, monkeypatch, fixture["remote"])
+        with pytest.raises(RuntimeError, match="LOCAL_MATERIALIZATION_TARGET_EXISTS"):
+            _run_materializer(module, fixture, scratch, scratch / "inputs.json")
+        assert outside.read_text(encoding="utf-8") == "keep"
+    finally:
+        for child in scratch.iterdir():
+            child.unlink()
+        scratch.rmdir()
