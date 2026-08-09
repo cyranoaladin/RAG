@@ -1,137 +1,281 @@
-# Rapport de lot — H2-B préparation corpus et production
+# Rapport de lot — H2-E autorité de contenu et préparation corpus
 
-## Verdict courant
+## Verdict technique au 9 août 2026
 
-Ce rapport remplace les affirmations H2-B non committées et non démontrées du
-8 août 2026. Il repose sur le manifest et le catalogue réellement téléchargés
-depuis la source Drive scellée, en lecture seule.
+Ce rapport remplace les états H2-B/H2-C devenus obsolètes. Il décrit la tête
+d'implémentation `8affc88e01b634a4580df4935347e5abbcc85d11` et les preuves
+externes scellées qui lui sont liées. La tête PR finale sera figée après ce
+rapport, puis toute la CI canonique, les migrations jetables, la sécurité et
+l'audit H2 indépendant seront rejoués sur cette tête exacte.
 
-`H2_B_IMPLEMENTATION_COMPLETE=false`
+```text
+LOT41A_V2_IMPLEMENTED=true
+CONTENT_ALLOWLIST_ENFORCED=true
+REAL_SCOPE_AUTHORIZATION_PRESENT=false
+REAL_SCOPE_AUTHORIZATION_DEFERRED_UNTIL_POST_MERGE=true
+LIVE_INGESTION=false
+LOT42_LIVE_PIPELINE_WIRED=false
+PUBLIC_WRITER=false
+H2_TECHNICAL_GATE=PENDING_FINAL_EXACT_HEAD_VERIFICATION
+```
 
-`H2_B_TECHNICAL_GATE=BLOCKED`
+L'absence d'autorisation réelle n'empêche plus la fusion du code inerte : le
+protocole V2 doit d'abord être présent sur `main` avant que la PR d'autorité 96
+puisse publier et faire relire un artefact V2. Elle reste néanmoins un verrou
+absolu avant toute promotion réelle, tout démarrage P1 et toute ingestion.
 
-`GO_LIVE_READY=false`
+## État GitHub observé au début de H2-E
 
-`GO_LIVE_COMPLETED=false`
+- `START_H2_HEAD=f843c8fe89a8ebca76d0ee0037f13456ca4ec378` ;
+- branche : `track-a/lot-h2b-corpus-production-readiness` ;
+- PR d'implémentation : `#95`, ouverte et draft ;
+- PR d'autorité : `#96` ;
+- `PR96_HEAD=f0f8b723debc8d4d1038c1e33de2f808f5d37ba8` ;
+- `PR96_BASE_SHA=a956441645d48107ab983fad62b80f0848345e81` ;
+- PR 96 ouverte, prête, non fusionnée et marquée `DO NOT APPROVE` ;
+- le finding P1 de la PR 96 sur l'absence d'allowlist positive reste ouvert
+  jusqu'à la fusion de LOT41A-V2 sur `main`.
 
-`NEXT_ACTION=GO_LIVE_REMEDIATION`
+Aucun challenge PR 96 n'a été généré et aucune approbation n'a été demandée.
 
-Le pipeline s'arrête avant audit, merge et déploiement : l'autorité LOT41A
-réelle est absente et le runtime de retrieval ne sait pas encore représenter
-un artefact avec plusieurs placements sans dupliquer ses chunks. Ces deux
-constats sont des gates obligatoires, pas des dettes non bloquantes.
+## Contrat partagé et ADR
 
-## Préflight observé
+Le contrat distingue strictement les deux protocoles :
 
-- `START_HEAD=9e70225b33a12bf54f05fbd8b69aa4d5e43b70b0` ;
-- `START_BRANCH=track-a/lot-h2b-corpus-production-readiness` ;
-- `WORKTREE_CLEAN=false` : le registre de droits modifié et le rapport non
-  suivi ont été inspectés et conservés avant correction ;
-- `MAIN_SHA=a956441645d48107ab983fad62b80f0848345e81` ;
-- `ORIGIN_MAIN_SHA=a956441645d48107ab983fad62b80f0848345e81` ;
-- `PR95_HEAD=9e70225b33a12bf54f05fbd8b69aa4d5e43b70b0` au préflight ;
-- `PR95_IS_DRAFT=true` ;
-- checks techniques GitHub du head initial : verts ; check de revue de confiance
-  rouge uniquement parce que la PR était draft et sans approbation exigée.
+- `LOT41A-V1` conserve exactement sa sémantique historique et n'accepte pas
+  de champ V2 ;
+- `LOT41A-V2` exige `allowed_content_sha256`, liste positive non vide de
+  SHA-256 minuscules, triés, uniques et présents directement dans les octets
+  canoniques revus sur GitHub ;
+- un protocole inconnu, un champ inconnu, une liste absente, vide, non triée,
+  dupliquée, majuscule ou mal formée échoue fermé ;
+- changer un seul SHA change les octets canoniques et le digest
+  d'autorisation ;
+- `pii_absence_evidence` reste une référence d'audit et n'est jamais interprété
+  comme une allowlist machine.
 
-## Décisions humaines de droits
+`nexus-contracts` passe de `0.6.0` à `0.7.0`, incrément mineur pour l'ajout
+rétro-compatible d'un protocole public. L'ADR
+`ADR-0034-lot41a-v2-autorite-liee-contenu.md` reste
+`Proposé — non Accepté`, conformément à la gouvernance.
 
-La consigne explicite de Nexus Réussite est enregistrée comme décision
-organisationnelle humaine, jamais comme avis juridique externe ni signature
-cryptographique :
+```text
+OLD_LOT41A_PROTOCOL=LOT41A-V1
+NEW_LOT41A_PROTOCOL=LOT41A-V2
+CONTENT_ALLOWLIST_FIELD=allowed_content_sha256
+OLD_NEXUS_CONTRACTS_VERSION=0.6.0
+NEW_NEXUS_CONTRACTS_VERSION=0.7.0
+V1_SEMANTICS_PRESERVED=true
+V1_CAN_SATISFY_H2_PRODUCTION_POLICY=false
+```
 
-- `EDUSCOL_RIGHTS_HUMAN_REVIEW=APPROVED` ;
-- `EDUSCOL_RIGHTS_HUMAN_DECISION_SOURCE=NEXUS_REUSSITE` ;
-- `EDUSCOL_GENERIC_RIGHTS_BLOCKER=false` ;
-- scope : `01_EDUSCOL_OFFICIEL/` ;
-- manifest :
-  `d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e` ;
-- une restriction explicite propre à un document reste fail-closed et ne
-  bloque que cet artefact ;
-- les deux documents DEPP restent `REVIEW_REQUIRED` ;
-- les 39 contenus Nexus sont liés à l'ensemble exact de leurs SHA par le
-  digest `877591ddc3a1be85da2c09b61bd4e161020bb0a7cb135ad33c68b5c27de0eb38`,
-  sans signature fabriquée.
+## Plan de contrôle : migration 009 et vérification live
 
-## Réconciliation du corpus réel
+La migration additive
+`009_scope_authorization_content_allowlist.sql` ajoute
+`allowed_content_sha256 TEXT[]` et autorise exactement V1/V2. PostgreSQL
+réplique indépendamment de Python les invariants de forme, dimension, borne,
+cardinalité, ordre, unicité et casse. V1 exige `NULL`; V2 exige une liste
+canonique non vide. Le rollback refuse explicitement de supprimer la frontière
+si une ligne V2 existe.
 
-| Mesure | Valeur réelle |
+Les répétitions PostgreSQL jetables ont prouvé :
+
+- upgrade d'une base V1, insertion V2 et contraintes SQL directes ;
+- rejet de `NULL`, vide, hash invalide/majuscule, doublon, désordre, tableau
+  multidimensionnel ou à borne non canonique et membre `NULL` ;
+- rollback V1, réapplication et conservation de la ligne ;
+- refus fail-closed du rollback lorsqu'une autorité V2 existe ;
+- projection exacte par l'opérateur depuis le blob Git revu, sans argument CLI
+  permettant d'injecter un SHA ;
+- rejet live d'un élargissement, rétrécissement, remplacement ou réordre de la
+  liste DB, d'un downgrade V2→V1 et des dérives digest/blob ;
+- rôle de retrieval en lecture seule, rôle review sans droit de publication et
+  rôle opérateur limité aux écritures requises.
+
+```text
+INGESTION_CONTROL_SCHEMA_HEAD=009_scope_authorization_content_allowlist
+AUTH_MIGRATION_009_APPLY=PASS
+AUTH_MIGRATION_009_SCHEMA=PASS
+AUTH_MIGRATION_009_EXISTING_V1_COMPATIBILITY=PASS
+AUTH_MIGRATION_009_V2_CONSTRAINTS=PASS
+AUTH_MIGRATION_009_ROLLBACK=PASS_FAIL_CLOSED
+AUTH_MIGRATION_009_REAPPLY=PASS
+```
+
+## Frontière de contenu avant extraction
+
+Le worker vérifie l'autorité live avant fetch, applique les règles de
+destination et de redirection, télécharge en stockage temporaire borné, calcule
+le SHA des octets bruts, revérifie l'autorité live puis applique l'allowlist
+avant tout stockage, extraction ou agent. Une révocation pendant le fetch
+empêche donc l'extraction.
+
+Le cas d'attaque P1 — autre ressource du même domaine Eduscol — passe le gate
+de domaine puis est refusé au checkpoint `content`. Le buffer est libéré et
+aucun appel extractor, rights, quality, LOT42 ou pgvector n'a lieu. Un SHA
+autorisé ne peut jamais sauver une URL ou redirection interdite.
+
+```text
+SAME_DOMAIN_UNLISTED_CONTENT=DENY_AT_CONTENT
+ALLOWED_CONTENT=PASS
+WRONG_BYTES_AT_ALLOWED_URL=DENY_AT_CONTENT
+ALLOWED_SHA_AT_EXCLUDED_URL=DENY_AT_DESTINATION
+UNAUTHORIZED_CONTENT_EXTRACTED=false
+UNAUTHORIZED_CONTENT_PERSISTED=false
+UNAUTHORIZED_CONTENT_PUBLISHED=false
+```
+
+## Plan de données : artefacts et placements 1:N
+
+La migration produit `004_artifact_placements` est additive :
+
+- `rag_artifacts` porte l'identité stable liée au SHA du contenu ;
+- `rag_artifact_placements` porte N placements pédagogiques canoniques ;
+- `rag_chunks.artifact_id` est nullable pour préserver les lignes legacy ;
+- un artefact gouverné est extrait, chunké et vectorisé une seule fois ;
+- l'ajout d'un placement n'entraîne ni ré-extraction ni ré-embedding ;
+- la retrieval gouvernée filtre par `EXISTS` sur les placements et déduplique
+  par identité de chunk ; le chemin legacy ne peut pas être élargi ;
+- le publisher interne exige l'attestation vérifiée, écrit atomiquement et
+  reste idempotent ; aucune route HTTP d'écriture n'est ajoutée.
+
+```text
+PRODUCT_SCHEMA_HEAD=004_artifact_placements
+MIGRATION_004_APPLY=PASS
+MIGRATION_004_ROLLBACK=PASS
+MIGRATION_004_REAPPLY=PASS
+LEGACY_COMPATIBILITY=PASS
+PUBLIC_WRITER=false
+HIDDEN_WRITER=false
+```
+
+## LOT42 lié à l'autorité V2
+
+L'événement durable `FETCHED` lie le SHA réel, l'identifiant, le digest et le
+protocole d'autorisation. Il appartient aux faits revus par LOT42. L'unique
+ancre `RETRIEVAL_ELIGIBLE` exige structurellement une autorité V2 et ne propose
+aucun paramètre de downgrade. Le publisher revérifie la chaîne avant et dans
+la transaction produit ; un refus ne peut être masqué par l'écriture best-effort
+du cache d'invalidation.
+
+Le chemin dormant STAGED → NEEDS_REVIEW → REVIEWED → LOT42 →
+RETRIEVAL_ELIGIBLE est implémenté sous tests. Son activation production reste
+désactivée et les attestations de publication production seront créées plus
+tard à partir des événements durables réels.
+
+```text
+LOT42_MECHANISM_IMPLEMENTED=true
+LOT42_PIPELINE_PATH_IMPLEMENTED=true
+LOT42_V2_CONTENT_BOUND=true
+REAL_PRODUCTION_PUBLICATION_ATTESTATIONS=DEFERRED_TO_P4_BY_DESIGN
+LOT42_LIVE_PIPELINE_WIRED=false
+```
+
+## Répétition H2-E réelle et scellée
+
+La répétition utilise le vrai PDF scellé
+`371d0c82ed1f47614ee9cbfdaa86cfb4add1f239a84882d9731fbd125105925d`,
+classé PII `CLEARED` sur 60 pages, et ses 7 placements réels. Le matérialiseur
+effectue exactement trois copies Drive en lecture seule dans un scratch direct
+sous `/tmp`, propriétaire et mode 0700 ; les destinations finales et
+temporaires refusent les liens. Le catalogue doit être marqué réel, vérifié,
+lié au manifest scellé et à son propre digest.
+
+La répétition PostgreSQL/pgvector jetable prouve :
+
+- autorité V2, destination, fetch, SHA, allowlist, extraction, rights,
+  quality, review, LOT42, publication et retrieval ;
+- une ligne artefact, 7 placements, un seul jeu de chunks/vecteurs ;
+- zéro doublon vecteur, chunk et résultat ;
+- retrieval dans deux scopes réels et blocage du mauvais scope ;
+- traçabilité citation et placement ;
+- exactement un appel d'extraction pour le parcours positif ;
+- parcours négatif via le vrai fetcher HTTP : domaine `PASS`, contenu `DENY`,
+  état `CANDIDATE`, zéro store/extractor/rights/quality, zéro artefact contrôle,
+  zéro éligibilité retrieval et zéro ligne produit.
+
+Le scelleur valide indépendamment chaque métrique substantielle. Une matrice
+adversariale de 28 cas refuse champ absent, métrique altérée et confusion
+`bool`/`int`.
+
+```text
+REAL_MULTI_PLACEMENT_SHA=371d0c82ed1f47614ee9cbfdaa86cfb4add1f239a84882d9731fbd125105925d
+REAL_MULTI_PLACEMENT_PLACEMENTS=7
+ARTIFACT_ROWS_FOR_SHA=1
+PLACEMENT_ROWS=7
+CHUNK_SET_COUNT=1
+DUPLICATE_VECTOR_SETS=0
+DUPLICATE_CHUNK_SETS=0
+DUPLICATE_RESULT_CHUNKS=0
+SCOPE_A_RETRIEVAL_PASS=true
+SCOPE_B_RETRIEVAL_PASS=true
+WRONG_SCOPE_RETRIEVAL_BLOCKED=true
+V2_FULL_GOVERNED_REHEARSAL_PASS=true
+V2_NEGATIVE_REHEARSAL_PASS=true
+```
+
+Preuve externe :
+`h2e_v2_governed_rehearsal.json`, SHA-256
+`8785f8ee3f21699f4d133704963c68a5eb7374774b203724c768e31abbe4ca22`.
+Elle est liée au manifest d'inputs
+`da8909d5a3abb029db239cdcbb269749c72da501e344700d670e0101f08fab41`,
+au catalogue de placements
+`095ca37cc4c2126d06b77106f9f1663d4f5ad881ae4952dbf5b951477fd54c39`
+et au catalogue compilé réel
+`a66df3a9560c7a9f0d62eb4f8d378a9a99ae0c79b39a15d900adc879bdb69aba`.
+Aucun chemin local, secret ou contenu brut n'est inclus.
+
+## Mutations vraies
+
+Le harnais couvre désormais treize gardes indépendantes : droits, PII,
+actualité, exclusion, format non supporté, objet inconnu, SHA contenu,
+manifest, scope, révocation, extraction, disposition unique et appartenance à
+l'allowlist positive. Chaque mutant part d'une baseline verte, neutralise la
+garde exacte, rend rouge le test ciblé pour la cause attendue, restaure les
+octets originaux dans `finally`, vérifie leur SHA puis revient au vert.
+
+```text
+H2B_TRUE_MUTATIONS_NON_VACUOUS=13/13
+MUT_CONTENT_ALLOWLIST=PASS_NON_VACUOUS
+TEMPORARY_MUTATIONS_RESTORED=true
+MUTATED_FILE_BYTES_MATCH_ORIGINAL=true
+```
+
+Preuve externe : `h2b_true_mutations_h2e.json`, SHA-256
+`e29668c5b76cec89565c6c6f722c945bc42d86d5198657ea9ec96867547e6211`.
+Le SHA restauré de `scope_enforcement.py` est
+`eee1d2ee885155f0c079d80e8a9555982ae2f2e81553474faa5160a5820964e5`.
+
+## Corpus réel et PII
+
+Les compteurs sont dérivés des métadonnées Drive scellées, jamais d'un
+catalogue synthétique :
+
+| Mesure | Valeur |
 |---|---:|
-| Objets distants | 2 584 |
-| Entrées de `SHA256SUMS.txt` | 2 583 |
-| SHA-256 du manifest | `d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e` |
-| Objets physiques, manifest self inclus | 2 584 |
-| Identités de contenu | 2 583 |
+| Objets distants/physiques | 2 584 |
+| Entrées du manifest | 2 583 |
+| PDF | 2 476 |
 | Artefacts Eduscol uniques | 2 451 |
 | Placements Eduscol | 2 956 |
-| Placements classifiés | 2 109 |
-| Placements non classifiés | 847 |
 | Artefacts multi-placement | 433 |
+| Placements classifiés | 2 109 |
+| Placements historiques non classifiés | 847 |
 
-`00_ADMIN/SHA256SUMS.txt` est représenté séparément comme
-`EXCLUDE/MANIFEST_SELF_OBJECT` ; le manifest scellé n'a pas été modifié.
+`SHA256SUMS.txt` est l'objet physique 2 584 et reste
+`EXCLUDE/MANIFEST_SELF_OBJECT`. Le manifest vaut
+`d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e`.
 
-### Formats physiques
-
-| Format | Nombre |
-|---|---:|
-| PDF | 2 476 |
-| GGB | 37 |
-| TSV | 29 |
-| YAML | 18 |
-| JSON | 9 |
-| TXT | 4 |
-| MD | 4 |
-| ZIP | 3 |
-| SHA256 | 3 |
-| CSV | 1 |
-| OTHER | 0 |
-| **Total** | **2 584** |
-
-## Scan PII réel
-
-La tentative intégrale a rencontré le quota Google Drive
-`403 rateLimitExceeded`. Elle a échoué fermée, n'a écrit aucune preuve finale
-et son scratch a été nettoyé. Conformément au repli explicitement autorisé, le
-scan final couvre tous les 64 PDF susceptibles de finir `INGEST` dans la
-promotion initiale ; les 2 412 autres PDF sont `EXEMPT`, jamais déclarés
-scannés.
-
-Le téléchargement Drive est resté en lecture seule. Chaque SHA a été vérifié
-avant extraction, le contenu identique n'a été scanné qu'une fois, l'extraction
-est native et la sortie est aseptisée. Aucun OCR de masse n'a été utilisé.
-
-| Mesure PII | Valeur |
-|---|---:|
-| PDF total corpus | 2 476 |
-| Scope | `INITIAL_PRODUCTION_ELIGIBLE_PDFS` |
-| Requis | 64 |
-| Exempt | 2 412 |
-| Scannés | 64 |
-| Cleared | 63 |
-| Review required | 0 |
-| Quarantined | 1 |
-| Extraction failed | 0 |
-| Non scannés dans le scope requis | 0 |
-| Couverture du scope requis | 100 % |
-| Mismatches SHA | 0 |
-
-L'unique signal `postal_address` place le SHA
+Le scope PII initial comprend les 64 PDF qui pouvaient être promus : 64
+scannés, 63 `CLEARED`, un `QUARANTINED_PII`, zéro échec et zéro non scanné.
+La preuve PII externe vaut
+`76e6ba3cd5b1c116c8647b611eb3fdeb2aba6b8c7fdfbad9e71048354956f311`.
+Le SHA quarantiné
 `b81201b857c67e4e928a079cfe9d5b9b402537d0101bfccc730465631d5e8376`
-en `QUARANTINE`. Aucun texte détecté n'est consigné.
+n'apparaît dans aucune allowlist de répétition.
 
-- preuve PII :
-  `76e6ba3cd5b1c116c8647b611eb3fdeb2aba6b8c7fdfbad9e71048354956f311` ;
-- manifest externe de preuve :
-  `641ad5b10e21c9b18a79e63feb7cf380cf1aa8b06026f50fd79ab997c30cd95e` ;
-- `RAW_PII_IN_OUTPUT=false` ;
-- `RAW_PII_IN_LOGS=false` ;
-- `REMOTE_WRITE_OPERATIONS=0`.
-
-## Compilation gouvernée finale au gate courant
-
-La preuve droits et le scan PII sont joints au vrai manifest. L'autorité réelle
-reste absente, donc aucun candidat ne devient `INGEST`.
+Faute d'autorisation PR 96 réelle, la compilation production reste fermée :
 
 | Disposition | Nombre |
 |---|---:|
@@ -143,254 +287,56 @@ reste absente, donc aucun candidat ne devient `INGEST`.
 | UNSUPPORTED | 37 |
 | **Somme** | **2 584** |
 
-`UNCLASSIFIED=0`
+`UNCLASSIFIED=0` et `MULTIPLE_PRIMARY_DISPOSITION=0`. Cet `INGEST=0` est
+attendu pour la clôture du code H2 ; la compilation non vacante sera effectuée
+après fusion H2 et approbation réelle de la PR 96 V2.
 
-`MULTIPLE_PRIMARY_DISPOSITION=0`
+## Décisions humaines de droits
 
-`BLOCKED_INGEST_CANDIDATES=64`
-
-`BLOCKED_GATE_AUTHORITY=64`
-
-`BLOCKED_GATE_PII=1`
-
-Le catalogue réel temporaire est scellé par
-`52d63a0ccf16bd2a0ed42fb62f468ef9c817bf3b7242ce9594200a24d1e34c54`.
-Il n'est pas committé car il contient des chemins machine temporaires dans ses
-métadonnées de compilation ; les entrées sources, compteurs et digests restent
-reproductibles depuis les preuves nommées ci-dessus.
-
-## Autorité LOT41A/LOT42
-
-Les 83 tests d'intégration du mécanisme LOT41A/LOT42 passent sur PostgreSQL
-isolé : octets exacts, contenu, manifest, artefacts de gouvernance, expiration,
-révocation et mauvais scope refusent correctement les dérives.
-
-Cela ne constitue pas une autorisation réelle. Le dépôt ne contient aucun
-`governance/authorizations/<authorization_id>.json` approuvé pour ce corpus et
-les ADR-0032/0033 restent `Proposé — non Accepté`. Ils exigent une review GitHub
-humaine `APPROVED` du Code Owner sur le HEAD exact. La consigne organisationnelle
-de Nexus Réussite ne peut pas être transformée par l'agent en cette review.
-
-Le compilateur a donc été durci : droits et PII verts ne suffisent plus ; sans
-autorité réelle, le candidat reste `REVIEW_REQUIRED`.
-
-`EXTERNAL_AUTHORITY_MECHANISM_TESTS=83/83`
-
-`REAL_SCOPE_AUTHORIZATION_PRESENT=false`
-
-`AUTHORITY_CLEARED_OBJECTS=0`
-
-## Retrieval et multi-placement
-
-La répétition PostgreSQL/pgvector éphémère passe : migrations et rollbacks
-atomiques, rôles minimaux, schéma, retrieval hybride, identité signée et
-isolation des scopes existants sont verts.
-
-`EPHEMERAL_PGVECTOR_REHEARSAL=PASS`
-
-`LOT40_HYBRID_INTEGRATION=PASS`
-
-Le schéma de production `rag_chunks` porte un seul niveau, une seule matière et
-une seule collection par ligne. Il ne contient ni relation de placements 1:N,
-ni métadonnée équivalente. Le compilateur de contrôle conserve bien les 2 956
-placements, mais `rag-engine` ne peut pas encore les consommer sans dupliquer
-les lignes de chunks. Le test réel demandé sur le SHA multi-placement
-`371d0c82ed1f47614ee9cbfdaa86cfb4add1f239a84882d9731fbd125105925d`
-ne peut donc pas passer sur le chemin runtime actuel.
-
-`CORPUS_COMPILER_USES_ARTIFACT_PLACEMENT_MODEL=true`
-
-`COVERAGE_REPORT_USES_ARTIFACT_PLACEMENT_MODEL=true`
-
-`RAG_ENGINE_CONSUMES_PLACEMENT_METADATA=false`
-
-`MULTI_SCOPE_METADATA_PRESERVED_CONTROL_PLANE=true`
-
-`MULTI_SCOPE_METADATA_PRESERVED_DATA_PLANE=false`
-
-`MULTI_PLACEMENT_RETRIEVAL_PASS=false`
-
-## Mutations
-
-Le harnais `h2b_true_mutation_harness.py` exécute désormais douze mutations
-réelles et indépendantes : droits, PII, actualité, exclusion, format non pris
-en charge, objet inconnu, SHA contenu, manifest, autorité de scope, révocation,
-échec d'extraction et disposition primaire unique. Chaque cas a prouvé :
-baseline verte, neutralisation d'une ancre exacte, rouge du test nommé pour la
-raison attendue, restauration SHA-256 octet pour octet, puis retour au vert.
-La révocation a été exercée sur PostgreSQL jetable avec la chaîne LOT41A
-réelle ; aucune base de production n'a été ciblée.
-
-`H2B_TRUE_MUTATIONS_NON_VACUOUS=12/12`
-
-`TEMPORARY_MUTATIONS_RESTORED=true`
-
-`H2B_TRUE_MUTATION_EVIDENCE_SHA256=6a84327e188e67fde1e10693d1c0670b8c850fea6130e69bec4237e2e687dbe4`
-
-## CI locale
-
-La relance canonique complète, avec Python 3.12.3 et Node 22.22.0, a exécuté
-les seize cibles sans tolérance d'échec : contrats, `rag-pedago` (Ruff, mypy,
-1 904 tests), `rag-engine` (mypy sur 92 fichiers, suite unitaire et intégration
-PostgreSQL/pgvector), cockpit (178 tests, deux builds, audits npm), gouvernance
-et contrôles du dépôt. Elle a produit `15 PASS / 1 FAIL` sur le head source
-`c97ed283213f916a1620681e929be840becfde75`.
-
-L'unique échec venait de la sonde topologique LOT41V : elle lançait une copie
-instrumentée de la CI tout en héritant de `NEXUS_CI_LOCAL_RUNNING=1`, ce qui
-déclenchait le garde anti-réentrance avant d'observer les trois cibles. La sonde
-utilise maintenant explicitement un contexte frais. Après correction :
-
-- `test-ci-local-topology.sh` : PASS, y compris les 22 mutations hybrides et le
-  mutant qui place les contrôles après `exit 0` ;
-- `test-ci-local-failsafe.sh` : 51 PASS, 0 FAIL ;
-- `git diff --check` : PASS.
-
-La CI exhaustive n'est pas requalifiée verte sur le nouveau head sur la seule
-base de ces tests ciblés. Elle doit être rejouée après les trois remédiations
-H2-B bloquantes et avant l'audit indépendant.
-
-`LOCAL_CI_FULL_CURRENT_HEAD=NOT_RERUN_AFTER_TARGETED_FIX`
-
-`LOCAL_CI_TARGETED_TOPOLOGY=PASS`
-
-## Arrêt gouverné
-
-Conformément aux hard stops, aucune des opérations suivantes n'a été exécutée :
-
-- audit H2 indépendant ;
-- passage de la PR 95 en ready ;
-- merge H2 ;
-- déploiement P1/P2/P3/P4 ;
-- activation LOT42 live ;
-- ingestion de production.
-
-`LOT42_LIVE_PIPELINE_WIRED=false`
-
-`PUBLIC_WRITER=false`
-
-`HIDDEN_WRITER=false`
-
-`SECRETS_EXPOSED=0`
-
-`RAW_PII_LOGGED=0`
-
-## Remédiations obligatoires
-
-1. Introduire une représentation data-plane des placements 1:N, avec migration,
-   rollback, test réel multi-placement et isolation des tuples de scope.
-2. Produire les autorisations LOT41A et attestations LOT42 réelles, puis obtenir
-   la review GitHub Code Owner exigée sur le HEAD exact.
-3. Exécuter et sceller les douze vraies mutations temporaires.
-4. Rejouer CI et sécurité sur le HEAD final avant audit indépendant.
-
-Tant que ces remédiations ne sont pas toutes vertes, aucune disposition ne peut
-être promue vers `INGEST` et aucun déploiement n'est autorisé par le gate
-technique.
-
-## Matrice de clôture demandée
+La décision explicite de Nexus Réussite reste enregistrée comme décision
+organisationnelle humaine, sans avis juridique ni signature fabriqués :
 
 ```text
-=== RIGHTS HUMAN DECISION ===
 EDUSCOL_RIGHTS_HUMAN_REVIEW=APPROVED
+EDUSCOL_RIGHTS_HUMAN_DECISION_SOURCE=NEXUS_REUSSITE
 EDUSCOL_GENERIC_RIGHTS_BLOCKER=false
 EDUSCOL_RIGHTS_SCOPE_MANIFEST=d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e
+```
 
-=== H2 CORPUS ===
-REMOTE_OBJECTS=2584
-MANIFEST_ENTRIES=2583
-EDUSCOL_UNIQUE_ARTIFACTS=2451
-EDUSCOL_PLACEMENTS_TOTAL=2956
-PDF_TOTAL=2476
-INGEST=0
-REVIEW_REQUIRED=2471
-QUARANTINE=2
-ARCHIVE_ONLY=19
-EXCLUDE=55
-UNSUPPORTED=37
-UNCLASSIFIED=0
-MULTIPLE_PRIMARY_DISPOSITION=0
+Une restriction spécifique reste fail-closed au niveau de l'artefact. Les
+documents DEPP non clarifiés restent `REVIEW_REQUIRED` sans bloquer le reste.
 
-=== PII ===
-PII_SCAN_SCOPE=INITIAL_PRODUCTION_ELIGIBLE_PDFS
-PII_SCAN_REQUIRED=64
-PII_SCANNED=64
-PII_CLEARED=63
-PII_REVIEW_REQUIRED=0
-PII_QUARANTINED=1
-PII_EXTRACTION_FAILED=0
-INGEST_WITHOUT_PII_CLEARANCE=0
+## Gates encore à exécuter sur la tête finale
 
-=== RIGHTS SAFETY ===
-INGEST_WITHOUT_RIGHTS_CLEARANCE=0
-DEPP_INGEST_WITHOUT_RIGHTS=0
+Après le présent commit de rapport, aucun fichier versionné ne sera modifié
+avant la fin des gates. La tête résultante devra passer :
 
-=== AUTHORITY ===
-EXTERNAL_AUTHORITY_TESTS=83/83_MECHANISM_ONLY
-INGEST_WITHOUT_AUTHORITY=0
+1. migration produit 004 apply/rollback/reapply et migration autorité 009
+   apply/contraintes/rollback/reapply sur PostgreSQL jetable ;
+2. nouvelle répétition H2-E et matrice 13/13 liées à la tête exacte ;
+3. `scripts/ci-local.sh` complet avec l'environnement valide ;
+4. scans secrets, PII, PDF réel et credentials sur `main..HEAD` ;
+5. push fast-forward et tous les checks GitHub techniques sur le même SHA ;
+6. audit H2 véritablement indépendant avec zéro finding bloquant ;
+7. passage de la PR 95 en ready et génération de son challenge propre.
+
+Jusqu'à leur réussite :
+
+```text
+H2_IMPLEMENTATION_READY=PENDING_FINAL_GATES
+H2_TECHNICAL_GATE=PENDING_FINAL_GATES
+H2_READY_FOR_HUMAN_REVIEW=false
+INDEPENDENT_H2_AUDIT=NOT_RUN_ON_FINAL_HEAD
 REAL_SCOPE_AUTHORIZATION_PRESENT=false
-BLOCKED_INGEST_CANDIDATES_WITHOUT_AUTHORITY=64
-
-=== MUTATIONS ===
-H2B_TRUE_MUTATIONS_NON_VACUOUS=12/12
-TEMPORARY_MUTATIONS_RESTORED=true
-H2B_TRUE_MUTATION_EVIDENCE_SHA256=6a84327e188e67fde1e10693d1c0670b8c850fea6130e69bec4237e2e687dbe4
-
-=== RETRIEVAL ===
-EPHEMERAL_INDEXING_PASS=PASS_EXISTING_SCOPE_MODEL
-RETRIEVAL_SCOPE_ISOLATION_PASS=PASS_EXISTING_SCOPE_MODEL
-MULTI_PLACEMENT_RETRIEVAL_PASS=false
-CONTENT_SHA_TRACEABILITY_PASS=UNVERIFIED_REAL_MULTIPLACEMENT_PATH
-CITATION_TRACEABILITY_PASS=UNVERIFIED_REAL_MULTIPLACEMENT_PATH
-
-=== H2 ===
-H2_B_IMPLEMENTATION_COMPLETE=false
-H2_B_TECHNICAL_GATE=BLOCKED
-LOCAL_CI_FULL_CURRENT_HEAD=NOT_RERUN_AFTER_TARGETED_FIX
-INDEPENDENT_H2_AUDIT=NOT_RUN
-H2_HUMAN_DEPLOYMENT_AUTHORIZATION=GRANTED_STANDING_BUT_NOT_REACHED
-H2_MERGED=false
-H2_MERGE_COMMIT=NONE
-
-=== P1 ===
-P1_PASS=NOT_RUN
-BACKUP_VERIFIED=false
-ROLLBACK_PLAN_READY=false
-
-=== P2 ===
-P2_REHEARSAL_PASS=NOT_RUN
-
-=== P3 ===
-P3_CANARY_PASS=NOT_RUN
-
-=== P4 ===
-P4_DEPLOYMENT_PASS=NOT_RUN
-LOT42_LIVE_PIPELINE_WIRED=false
-PUBLIC_WRITER=false
-
-=== PRODUCTION INGESTION ===
-FINAL_INGEST_ELIGIBLE=0
-FINAL_INGEST_ATTEMPTED=0
-FINAL_INGEST_SUCCESS=0
-FINAL_INGEST_FAILED=0
-UNAUTHORIZED_INGESTED_ARTIFACTS=0
-
-=== PRODUCTION RETRIEVAL ===
-PRODUCTION_RETRIEVAL_SMOKE_PASS=NOT_RUN
-PRODUCTION_SCOPE_ISOLATION_PASS=NOT_RUN
-PRODUCTION_CITATION_TRACEABILITY_PASS=NOT_RUN
-
-=== SAFETY ===
-SECRETS_EXPOSED=0
-RAW_PII_LOGGED=0
+PR96_APPROVAL_REQUESTED=false
+PRODUCTION_DATABASE_TOUCHED=false
+PRODUCTION_DEPLOY=false
+LIVE_INGESTION=false
 PUBLIC_WRITER=false
 HIDDEN_WRITER=false
-PRODUCTION_BACKUP_AVAILABLE=false
-ROLLBACK_AVAILABLE=false
-
-=== FINAL ===
-GO_LIVE_READY=false
-GO_LIVE_COMPLETED=false
-PRODUCTION_HEALTH=NOT_DEPLOYED
-NEXT_ACTION=GO_LIVE_REMEDIATION
+LOT42_LIVE_PIPELINE_WIRED=false
 ```
+
+La prochaine étape après gates et audit verts est
+`NEXT_ACTION=H2_TRUSTED_HUMAN_REVIEW`. Si un gate rougit, elle redevient
+`NEXT_ACTION=LOT41A_V2_REMEDIATION`.
