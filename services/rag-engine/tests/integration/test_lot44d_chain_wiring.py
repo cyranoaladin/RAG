@@ -52,7 +52,10 @@ from nexus_contracts.ingestion import SearchPlan  # noqa: E402
 
 from ingestor.ingestion_agents.classifier import run_classifier  # noqa: E402
 from ingestor.ingestion_agents.extractor import run_extractor  # noqa: E402
-from ingestor.ingestion_agents.fetcher import run_fetcher  # noqa: E402
+from ingestor.ingestion_agents.fetcher import (  # noqa: E402
+    ContentAuthorizationBinding,
+    run_fetcher,
+)
 from ingestor.ingestion_agents.quality_agent import run_quality_agent  # noqa: E402
 from ingestor.ingestion_agents.rights_agent import run_rights_agent  # noqa: E402
 from ingestor.ingestion_agents.scout import run_scout  # noqa: E402
@@ -338,6 +341,11 @@ class TestChainWiringToRealPostgres:
             max_bytes=1_000_000,
             store_artifact=fake_store_artifact,
             safe_fetch=lambda url, **kwargs: fake_response,
+            authorize_content=lambda **kwargs: ContentAuthorizationBinding(
+                authorization_id="auth-chain-test",
+                authorization_digest="d" * 64,
+                protocol_version="LOT41A-V1",
+            ),
         )
         app_conn.commit()
         assert stored_transition.to_state.value == "STORED"

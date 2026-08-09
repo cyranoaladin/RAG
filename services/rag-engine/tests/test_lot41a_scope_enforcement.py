@@ -22,10 +22,12 @@ from ingestor.ingestion_control.scope_authority import (
 from ingestor.ingestion_control.scope_enforcement import (
     ScopeEnforcementViolation,
     enforce_before_fetch,
+    enforce_content_sha256,
     enforce_destination,
     enforce_pii,
     enforce_rights,
     enforce_validity_window,
+    require_h2_content_bound_authority,
 )
 
 NOW = datetime(2026, 8, 8, 12, 0, tzinfo=UTC)
@@ -45,6 +47,7 @@ SCOPE = ResourceScope(
 
 MANIFEST = "a" * 64
 FINGERPRINT = "b" * 64
+CONTENT_SHA = "1" * 64
 
 
 def authorization(**overrides: Any) -> VerifiedAuthorization:
@@ -211,6 +214,86 @@ class TestDestinationCheckpoint:
         enforce_destination(auth, url="https://eduscol.education.fr/public")
         with pytest.raises(ScopeEnforcementViolation, match="matches exclusion"):
             enforce_destination(auth, url="https://eduscol.education.fr/interne/x")
+
+
+class TestContentCheckpoint:
+    def test_v2_allowed_content_passes(self) -> None:
+        auth = authorization(
+            protocol_version="LOT41A-V2",
+            allowed_content_sha256=(CONTENT_SHA, "2" * 64),
+        )
+        enforce_content_sha256(auth, content_sha256=CONTENT_SHA)
+
+    def test_v2_unlisted_content_is_refused_at_content_checkpoint(self) -> None:
+        auth = authorization(
+            protocol_version="LOT41A-V2",
+            allowed_content_sha256=(CONTENT_SHA,),
+        )
+        with pytest.raises(ScopeEnforcementViolation) as excinfo:
+            enforce_content_sha256(auth, content_sha256="2" * 64)
+        assert excinfo.value.checkpoint == "content"
+        assert "not in" in str(excinfo.value)
+
+    @pytest.mark.parametrize(
+        "allowlist",
+        [
+            None,
+            (),
+            ("not-a-sha",),
+            ("A" * 64,),
+            ("2" * 64, "1" * 64),
+            ("1" * 64, "1" * 64),
+        ],
+    )
+    def test_injected_noncanonical_v2_state_fails_closed(
+        self, allowlist: tuple[str, ...] | None
+    ) -> None:
+        auth = authorization(
+            protocol_version="LOT41A-V2",
+            allowed_content_sha256=allowlist,
+        )
+        with pytest.raises(ScopeEnforcementViolation) as excinfo:
+            enforce_content_sha256(auth, content_sha256=CONTENT_SHA)
+        assert excinfo.value.checkpoint == "content"
+
+    @pytest.mark.parametrize("content_sha256", ["", "x" * 64, "A" * 64, "1" * 63])
+    def test_invalid_supplied_sha_fails_closed(self, content_sha256: str) -> None:
+        auth = authorization(
+            protocol_version="LOT41A-V2",
+            allowed_content_sha256=(CONTENT_SHA,),
+        )
+        with pytest.raises(ScopeEnforcementViolation) as excinfo:
+            enforce_content_sha256(auth, content_sha256=content_sha256)
+        assert excinfo.value.checkpoint == "content"
+
+    def test_v1_content_checkpoint_preserves_historical_runtime_behavior(self) -> None:
+        enforce_content_sha256(
+            authorization(protocol_version="LOT41A-V1", allowed_content_sha256=None),
+            content_sha256=CONTENT_SHA,
+        )
+
+    def test_unknown_protocol_injected_state_fails_closed(self) -> None:
+        auth = authorization(
+            protocol_version="LOT41A-V3",
+            allowed_content_sha256=(CONTENT_SHA,),
+        )
+        with pytest.raises(ScopeEnforcementViolation, match="unsupported protocol"):
+            enforce_content_sha256(auth, content_sha256=CONTENT_SHA)
+
+    def test_h2_policy_rejects_v1_with_stable_reason(self) -> None:
+        with pytest.raises(
+            ScopeEnforcementViolation, match="CONTENT_ALLOWLIST_AUTHORITY_REQUIRED"
+        ) as excinfo:
+            require_h2_content_bound_authority(authorization())
+        assert excinfo.value.checkpoint == "content"
+
+    def test_h2_policy_accepts_a_canonical_v2_authorization(self) -> None:
+        require_h2_content_bound_authority(
+            authorization(
+                protocol_version="LOT41A-V2",
+                allowed_content_sha256=(CONTENT_SHA,),
+            )
+        )
 
 
 class TestRightsCheckpoint:

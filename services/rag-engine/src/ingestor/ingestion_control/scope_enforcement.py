@@ -24,6 +24,8 @@ Point de contrôle            Ce qui est confronté
                              (URL initiale, canonique, et toute
                              redirection) contre ``allowed_domains`` et
                              ``exclusions``
+``enforce_content_sha256``   SHA-256 des octets bruts contre l'allowlist
+                             positive LOT41A-V2, avant stockage/extraction
 ``enforce_rights``           catégorie de droits produite par le
                              RightsAgent contre ``rights_categories``
 ``enforce_pii``              absence de PII (cette release n'ingère
@@ -39,13 +41,15 @@ qu'un chemin d'erreur distinct puisse passer inaperçu.
 PostgreSQL ni à GitHub. La politique de revalidation appartient à
 l'appelant (``ingestion_worker.runner``), qui relance
 ``verify_scope_authorization`` — donc une relecture GitHub complète — à
-deux moments : avant tout accès réseau, et de nouveau avant que la
-ressource ne franchisse l'étape des droits. Une révocation intervenue
-pendant un run long est donc effective avant que la ressource n'avance,
-sans imposer une requête GitHub par saut de redirection.
+trois moments : avant tout accès réseau, après le téléchargement mais avant
+``FETCHED``/stockage, et de nouveau avant que la ressource ne franchisse
+l'étape des droits. Une révocation intervenue pendant un run long est donc
+effective avant que la ressource n'avance, sans imposer une requête GitHub
+par saut de redirection.
 """
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from urllib.parse import urlsplit
 
@@ -54,6 +58,8 @@ from nexus_contracts.document import Rights
 from nexus_contracts.ingestion import ResourceScope
 
 from .scope_authority import ScopeAuthorizationDeniedError, VerifiedAuthorization, scope_key
+
+_LOWERCASE_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
 class ScopeEnforcementViolation(ScopeAuthorizationDeniedError):
@@ -186,6 +192,80 @@ def enforce_destination(
                 f"{authorization.authorization_id!r}",
             )
     return normalized
+
+
+def _require_canonical_v2_allowlist(
+    authorization: VerifiedAuthorization,
+) -> tuple[str, ...]:
+    """Relit défensivement la frontière V2 déjà vérifiée.
+
+    Le modèle canonique et PostgreSQL garantissent normalement ces
+    invariants. Les reproduire au point d'usage empêche toutefois un état
+    injecté, une doublure de test défectueuse ou une future régression de
+    désérialisation de transformer ``None``/``()`` en autorisation large.
+    """
+    allowlist = authorization.allowed_content_sha256
+    if not isinstance(allowlist, tuple) or not allowlist:
+        raise ScopeEnforcementViolation(
+            "content",
+            f"authorization {authorization.authorization_id!r} is LOT41A-V2 "
+            "but has no canonical non-empty allowed_content_sha256 boundary",
+        )
+    if any(not _LOWERCASE_SHA256_RE.fullmatch(value) for value in allowlist):
+        raise ScopeEnforcementViolation(
+            "content",
+            f"authorization {authorization.authorization_id!r} carries a malformed "
+            "allowed_content_sha256 boundary",
+        )
+    if tuple(sorted(allowlist)) != allowlist or len(set(allowlist)) != len(allowlist):
+        raise ScopeEnforcementViolation(
+            "content",
+            f"authorization {authorization.authorization_id!r} carries a non-canonical "
+            "allowed_content_sha256 boundary",
+        )
+    return allowlist
+
+
+def enforce_content_sha256(
+    authorization: VerifiedAuthorization, *, content_sha256: str
+) -> None:
+    """Contrôle les octets téléchargés avant ``FETCHED`` et tout stockage.
+
+    V1 conserve sa sémantique historique : il ne possède pas de frontière
+    de contenu et ce point de contrôle ne lui en invente aucune. La politique
+    H2, distincte, appelle :func:`require_h2_content_bound_authority` quand
+    elle exige explicitement V2.
+    """
+    if authorization.protocol_version == "LOT41A-V1":
+        return
+    if authorization.protocol_version != "LOT41A-V2":
+        raise ScopeEnforcementViolation(
+            "content",
+            f"authorization {authorization.authorization_id!r} uses unsupported "
+            f"protocol {authorization.protocol_version!r}",
+        )
+    if not _LOWERCASE_SHA256_RE.fullmatch(content_sha256):
+        raise ScopeEnforcementViolation(
+            "content", f"downloaded content SHA-256 {content_sha256!r} is not canonical"
+        )
+    allowlist = _require_canonical_v2_allowlist(authorization)
+    if content_sha256 not in allowlist:
+        raise ScopeEnforcementViolation(
+            "content",
+            f"downloaded content SHA-256 {content_sha256!r} is not in authorization "
+            f"{authorization.authorization_id!r} allowed_content_sha256",
+        )
+
+
+def require_h2_content_bound_authority(authorization: VerifiedAuthorization) -> None:
+    """Exige la frontière positive requise par la politique H2 réelle."""
+    if authorization.protocol_version != "LOT41A-V2":
+        raise ScopeEnforcementViolation(
+            "content",
+            "CONTENT_ALLOWLIST_AUTHORITY_REQUIRED: H2 real-document publication "
+            "requires a LOT41A-V2 authorization",
+        )
+    _require_canonical_v2_allowlist(authorization)
 
 
 def _matches_exclusion(*, url: str, hostname: str, exclusion: str) -> bool:

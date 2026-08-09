@@ -17,9 +17,9 @@ ce module ne fait qu'appeler la chaîne, sans logique de routage propre.
 Aucun profil par défaut, aucune sélection de "dernière version" : le
 ``profile_version`` doit être fourni explicitement dans le payload du job.
 
-LOT41A (ADR-0032, remédiation GATE H1 items **C** et **D**) — l'autorisation
+LOT41A (ADR-0032/ADR-0034, remédiation GATE H1 items **C** et **D**) — l'autorisation
 n'est pas un feu vert calculé une fois puis oublié, c'est une contrainte
-appliquée tout au long de la chaîne, à quatre points de contrôle :
+appliquée tout au long de la chaîne, à cinq points de contrôle :
 
 1. **pre_fetch** — avant toute requête sortante et avant toute création de
    ressource : l'autorisation *nommée par le job* (``scope_authorization_id``,
@@ -31,9 +31,12 @@ appliquée tout au long de la chaîne, à quatre points de contrôle :
 3. **redirect** — chaque saut réellement suivi par ``safe_fetch``
    (cf. ``_authorized_fetcher``) repasse par le même enforcement : une
    redirection hors domaine autorisé interrompt le téléchargement.
-4. **rights** — la catégorie de droits *produite* par le RightsAgent est
+4. **content** — après le téléchargement borné, l'autorisation est revérifiée
+   en direct et le SHA-256 des octets bruts est confronté à l'allowlist V2,
+   avant ``FETCHED``, tout stockage et toute extraction.
+5. **rights** — la catégorie de droits *produite* par le RightsAgent est
    confrontée à ``rights_categories``, et l'autorisation est **revérifiée
-   en direct une seconde fois** : une révocation ou une expiration
+   en direct une troisième fois** : une révocation ou une expiration
    survenue pendant Scout/Fetcher/Extractor prend effet avant que la
    ressource n'avance, jamais seulement au job suivant.
 
@@ -71,7 +74,7 @@ try:
         default_validate_destination,
     )
     from ingestor.ingestion_agents.extractor import run_extractor
-    from ingestor.ingestion_agents.fetcher import run_fetcher
+    from ingestor.ingestion_agents.fetcher import ContentAuthorizationBinding, run_fetcher
     from ingestor.ingestion_agents.quality_agent import run_quality_agent
     from ingestor.ingestion_agents.rights_agent import run_rights_agent
     from ingestor.ingestion_agents.scout import run_scout
@@ -101,6 +104,7 @@ try:
     )
     from ingestor.ingestion_control.scope_enforcement import (
         enforce_before_fetch,
+        enforce_content_sha256,
         enforce_destination,
         enforce_pii,
         enforce_rights,
@@ -125,7 +129,7 @@ except (ImportError, ValueError):
         default_validate_destination,
     )
     from ingestion_agents.extractor import run_extractor
-    from ingestion_agents.fetcher import run_fetcher
+    from ingestion_agents.fetcher import ContentAuthorizationBinding, run_fetcher
     from ingestion_agents.quality_agent import run_quality_agent
     from ingestion_agents.rights_agent import run_rights_agent
     from ingestion_agents.scout import run_scout
@@ -155,6 +159,7 @@ except (ImportError, ValueError):
     )
     from ingestion_control.scope_enforcement import (
         enforce_before_fetch,
+        enforce_content_sha256,
         enforce_destination,
         enforce_pii,
         enforce_rights,
@@ -548,6 +553,34 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
         # revérifiée ci-dessus, jamais d'un champ libre du payload opérateur.
         # Elle est propagée avant persist_artifact : une reprise après crash
         # relit donc le même ArtifactRecord, lié au digest exact approuvé.
+        def authorize_downloaded_content(
+            *, content_sha256: str, final_url: str
+        ) -> ContentAuthorizationBinding:
+            """Revérifie après le téléchargement, avant ``FETCHED``.
+
+            La destination finale est reconfrontée à l'autorisation fraîche
+            avant le SHA. Une révocation/expiration/head drift survenue
+            pendant le transfert est donc durablement refusée au checkpoint
+            ``content`` avant que les octets ne quittent le buffer borné.
+            """
+            fresh_authorization = _authorize_or_record_denial(
+                conn,
+                claim=claim,
+                deps=deps,
+                authorization_id=authorization_id,
+                scope=scope,
+                checkpoint="content",
+                then=lambda auth: (
+                    enforce_destination(auth, url=final_url, checkpoint="destination"),
+                    enforce_content_sha256(auth, content_sha256=content_sha256),
+                )[-1],
+            )
+            return ContentAuthorizationBinding(
+                authorization_id=fresh_authorization.authorization_id,
+                authorization_digest=fresh_authorization.authorization_digest,
+                protocol_version=fresh_authorization.protocol_version,
+            )
+
         artifact, _fetched, stored_transition = run_fetcher(
             conn,
             candidate=candidate,
@@ -563,6 +596,7 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
             # redirection est observable ; une redirection hors domaine
             # autorisé interrompt le téléchargement immédiatement.
             safe_fetch=_authorized_fetcher(deps, authorization),
+            authorize_content=authorize_downloaded_content,
             job_id=claim.job_id,
             license=_lot41a_rights_evidence(authorization),
         )

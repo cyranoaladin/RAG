@@ -15,7 +15,9 @@ documentée explicitement plutôt que contournée silencieusement).
 from __future__ import annotations
 
 import hashlib
+from dataclasses import dataclass
 from datetime import datetime
+from typing import Literal, Protocol
 from uuid import UUID
 
 import psycopg
@@ -36,6 +38,28 @@ from .transitions import TransitionResult, apply_resource_transition
 #: côté requête : ressource absente, accès refusé, requête malformée —
 #: identique à coup sûr en cas de nouvelle tentative).
 _RETRYABLE_4XX_STATUS_CODES = frozenset({429})
+
+
+@dataclass(frozen=True)
+class ContentAuthorizationBinding:
+    """Métadonnées assainies issues du checkpoint de contenu.
+
+    Le fetcher ne reçoit jamais l'objet d'autorité complet et ne laisse pas
+    un callback lui fournir un payload libre : seuls ces trois champs
+    machine-enforced sont copiés dans l'événement ``FETCHED``.
+    """
+
+    authorization_id: str
+    authorization_digest: str
+    protocol_version: Literal["LOT41A-V1", "LOT41A-V2"]
+
+
+class ContentAuthorizer(Protocol):
+    """Checkpoint obligatoire exécuté sur le SHA brut avant persistance."""
+
+    def __call__(
+        self, *, content_sha256: str, final_url: str
+    ) -> ContentAuthorizationBinding: ...
 
 
 class FetchHTTPError(RuntimeError):
@@ -132,6 +156,7 @@ def run_fetcher(
     actor: str,
     max_bytes: int,
     store_artifact: ArtifactStore,
+    authorize_content: ContentAuthorizer,
     job_id: UUID | None = None,
     mime_declared: str = "application/octet-stream",
     license: str | None = None,
@@ -150,6 +175,10 @@ def run_fetcher(
     relisait alors un artefact durablement sans licence, faisant échouer
     ``RightsAgent`` (``Rights.unknown`` forcé) même quand une licence avait
     bien été déclarée par l'opérateur.
+
+    ``authorize_content`` est volontairement obligatoire : il reçoit
+    uniquement le SHA-256 brut et l'URL finale, puis rend la liaison
+    d'autorité assainie. Aucun appelant ne peut obtenir un no-op implicite.
     """
     response = safe_fetch(candidate.source_url, max_bytes=max_bytes)
     if response.status_code >= 400:
@@ -158,6 +187,28 @@ def run_fetcher(
     sha256 = hashlib.sha256(content).hexdigest()
     mime_detected = response.headers.get("content-type", mime_declared).split(";")[0].strip()
     final_url = str(response.request.url) if response.request is not None else candidate.source_url
+
+    # LOT41A-V2 : cette frontière est volontairement obligatoire. Il
+    # n'existe aucun défaut/no-op qui permettrait à un nouvel appelant de
+    # stocker des octets sans autorisation post-hash. Elle précède même la
+    # transition FETCHED afin qu'un refus laisse la ressource CANDIDATE.
+    try:
+        authorization_binding = authorize_content(
+            content_sha256=sha256, final_url=final_url
+        )
+    except BaseException:
+        # Aucun fichier temporaire n'existe dans ce fetcher : les octets sont
+        # uniquement dans le buffer borné de httpx. Fermer la réponse puis
+        # supprimer nos références locales garantit qu'ils ne passent ni au
+        # store, ni à un événement, ni à un ArtifactRecord. L'exception
+        # originale reste toujours celle propagée.
+        content = b""
+        try:
+            response.close()
+        except Exception:  # pragma: no cover - fermeture best-effort, refus inchangé
+            pass
+        del response
+        raise
 
     fetched_transition = apply_resource_transition(
         conn,
@@ -168,7 +219,14 @@ def run_fetcher(
         actor=actor,
         run_id=candidate.run_id,
         job_id=job_id,
-        payload={"artifact_id": str(artifact_id), "sha256": sha256, "size_bytes": len(content)},
+        payload={
+            "artifact_id": str(artifact_id),
+            "sha256": sha256,
+            "size_bytes": len(content),
+            "scope_authorization_id": authorization_binding.authorization_id,
+            "scope_authorization_digest": authorization_binding.authorization_digest,
+            "scope_authorization_protocol_version": authorization_binding.protocol_version,
+        },
     )
 
     extracted_text_ref = store_artifact(artifact_id=artifact_id, content=content)
@@ -201,4 +259,10 @@ def run_fetcher(
     return artifact, fetched_transition, stored_transition
 
 
-__all__ = ["FetchHTTPError", "build_artifact_core", "run_fetcher"]
+__all__ = [
+    "ContentAuthorizationBinding",
+    "ContentAuthorizer",
+    "FetchHTTPError",
+    "build_artifact_core",
+    "run_fetcher",
+]
