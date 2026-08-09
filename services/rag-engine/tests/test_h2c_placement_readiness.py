@@ -18,10 +18,23 @@ from ingestor.ingestion_profiles.manifest import verify_profile_manifest
 from ingestor.ingestion_profiles.registry import load_profile_registry
 
 ENGINE_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = ENGINE_ROOT.parents[1]
 POLICY_PATH = ENGINE_ROOT / "configs" / "h2_initial_placement_policy.yml"
 COLLECTIONS_PATH = ENGINE_ROOT / "configs" / "rag_collections.yml"
 PROFILES_DIR = ENGINE_ROOT / "configs" / "ingestion_profiles"
 MANIFEST_PATH = ENGINE_ROOT / "configs" / "ingestion_manifest.yml"
+TERMINALE_INDEX_PATH = (
+    REPO_ROOT / "corpus" / "Lycee" / "Terminale" / "Tronc_commun" / "_index.yml"
+)
+PHILOSOPHIE_CARD_PATH = TERMINALE_INDEX_PATH.with_name("T_PHILOSOPHIE.md")
+PROGRAMME_REGISTRY_PATH = (
+    REPO_ROOT
+    / "services"
+    / "rag-pedago"
+    / "data"
+    / "programmes"
+    / "registre_programmes.yml"
+)
 
 MANIFEST_SHA = "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e"
 PII_EVIDENCE_SHA = "76e6ba3cd5b1c116c8647b611eb3fdeb2aba6b8c7fdfbad9e71048354956f311"
@@ -172,6 +185,35 @@ def test_canonical_profile_manifest_is_exact_and_organizationally_attributed() -
     assert registry[key].scope.niveau.value == "terminale"
     assert registry[key].scope.matiere == "philosophie"
     assert verification.authorities[key].approved_by == "Nexus Réussite"
+
+
+def test_philosophy_profile_uses_the_canonical_terminale_programme() -> None:
+    index = yaml.safe_load(TERMINALE_INDEX_PATH.read_text(encoding="utf-8"))
+    philosophy_entry = next(
+        item for item in index["fiches"] if item["fichier"] == "T_PHILOSOPHIE.md"
+    )
+    canonical_programme = philosophy_entry["programme_version"]
+
+    registry_document = yaml.safe_load(
+        PROGRAMME_REGISTRY_PATH.read_text(encoding="utf-8")
+    )
+    registry_entry = next(
+        item
+        for item in registry_document["programmes"]
+        if item["matiere"] == "philosophie"
+        and item["niveau"] == "terminale"
+        and item["voie"] == "generale"
+        and item["type"] == "tronc_commun"
+    )
+    philosophy_card = PHILOSOPHIE_CARD_PATH.read_text(encoding="utf-8")
+    profile = load_profile_registry(PROFILES_DIR)[
+        ("rag_nexus_philo_terminale_tc", "h2c-v1")
+    ]
+
+    assert canonical_programme == "BOEN_special_8_2019-07-25"
+    assert registry_entry["boen_reference"] == "BOEN spécial n°8 du 25 juillet 2019"
+    assert canonical_programme in philosophy_card
+    assert profile.scope.programme_version == canonical_programme
 
 
 def test_policy_is_canonical_json_serializable_without_machine_paths() -> None:
