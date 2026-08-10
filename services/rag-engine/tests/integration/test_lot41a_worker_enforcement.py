@@ -15,6 +15,7 @@ fichier prouve, et que les suites de contrat ne peuvent pas prouver seules :
 from __future__ import annotations
 
 import hashlib
+import socket
 import sys
 import uuid
 from collections.abc import Iterator
@@ -401,7 +402,10 @@ class TestDestinationCheckpoint:
         assert "matches exclusion" in denial_events(conn)[0]["reason"]
 
     def test_a_redirect_out_of_scope_stops_the_download(
-        self, conn: psycopg.Connection, tmp_path: Path
+        self,
+        conn: psycopg.Connection,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Scénario invisible depuis le payload : l'URL demandée est
         autorisée, la redirection ne l'est pas. Le vrai ``safe_fetch`` est
@@ -424,6 +428,16 @@ class TestDestinationCheckpoint:
                 url, max_bytes=max_bytes, transport=RedirectingTransport(), **kwargs
             )
 
+        # Le scénario porte sur la redirection et non sur le résolveur DNS de
+        # l'hôte de CI. Une résolution DNS64 (64:ff9b::/96) ferait refuser
+        # l'URL initiale par le garde SSRF avant même le premier saut.
+        monkeypatch.setattr(
+            socket,
+            "getaddrinfo",
+            lambda *_args, **_kwargs: [
+                (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 0))
+            ],
+        )
         submit(conn)
         deps = deps_for(
             tmp_path,
