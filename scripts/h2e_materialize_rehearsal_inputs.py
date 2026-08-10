@@ -9,6 +9,7 @@ import os
 import re
 import stat
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -39,7 +40,7 @@ RCLONE_PROCESS_TIMEOUT_SECONDS = 1800
 ROUTING_CONFIG_PATH = SERVICE_ROOT / "configs" / "corpus_zone_routing.yml"
 RIGHTS_REGISTRY_PATH = SERVICE_ROOT / "configs" / "rights_evidence_registry.yml"
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
-_TMP_ROOT = Path("/tmp").resolve()
+H2E_SCRATCH_ROOT_ENV = "NEXUS_H2E_SCRATCH_ROOT"
 
 
 def _sha256(path: Path) -> str:
@@ -57,20 +58,48 @@ def _load_mapping(path: Path, *, kind: str) -> dict[str, Any]:
     return document
 
 
-def _validate_scratch(scratch_dir: Path, output_manifest_path: Path) -> Path:
+def _configured_scratch_root(explicit_root: Path | None) -> Path:
+    configured = explicit_root
+    if configured is None:
+        configured = Path(
+            os.environ.get(H2E_SCRATCH_ROOT_ENV, tempfile.gettempdir())
+        )
+    resolved = configured.resolve(strict=True)
+    if not resolved.is_dir():
+        raise ValueError("configured scratch root must be an existing directory")
+    return resolved
+
+
+def _validate_scratch(
+    scratch_dir: Path,
+    output_manifest_path: Path,
+    *,
+    scratch_root: Path | None,
+) -> Path:
+    root = _configured_scratch_root(scratch_root)
     if scratch_dir.is_symlink():
-        raise ValueError("scratch must be an existing bounded /tmp/nexus-h2e.* directory")
+        raise ValueError(
+            "scratch must be a dedicated nexus-h2e.* directory under "
+            "configured scratch root"
+        )
     scratch = scratch_dir.resolve()
-    if scratch.parent != _TMP_ROOT or not scratch.name.startswith("nexus-h2e."):
-        raise ValueError("scratch must be an existing bounded /tmp/nexus-h2e.* directory")
+    if scratch.parent != root or not scratch.name.startswith("nexus-h2e."):
+        raise ValueError(
+            "scratch must be a dedicated nexus-h2e.* directory under "
+            "configured scratch root"
+        )
     try:
         metadata = scratch.stat(follow_symlinks=False)
     except FileNotFoundError as exc:
         raise ValueError(
-            "scratch must be an existing bounded /tmp/nexus-h2e.* directory"
+            "scratch must be a dedicated nexus-h2e.* directory under "
+            "configured scratch root"
         ) from exc
     if not stat.S_ISDIR(metadata.st_mode):
-        raise ValueError("scratch must be an existing bounded /tmp/nexus-h2e.* directory")
+        raise ValueError(
+            "scratch must be a dedicated nexus-h2e.* directory under "
+            "configured scratch root"
+        )
     if metadata.st_uid != os.geteuid():
         raise ValueError("scratch must be owned by the current effective user")
     if stat.S_IMODE(metadata.st_mode) != 0o700:
@@ -184,9 +213,14 @@ def materialize_rehearsal_inputs(
     output_manifest_path: Path,
     routing_config_path: Path = ROUTING_CONFIG_PATH,
     rights_registry_path: Path = RIGHTS_REGISTRY_PATH,
+    scratch_root: Path | None = None,
 ) -> dict[str, Any]:
     """Télécharge trois objets, vérifie leurs sceaux et compile le catalogue."""
-    scratch = _validate_scratch(scratch_dir, output_manifest_path)
+    scratch = _validate_scratch(
+        scratch_dir,
+        output_manifest_path,
+        scratch_root=scratch_root,
+    )
     if not pii_evidence_path.is_file():
         raise RuntimeError("PII_EVIDENCE_MISSING")
     if _SHA256.fullmatch(REAL_SHA256) is None:
@@ -261,6 +295,14 @@ def _arguments() -> argparse.Namespace:
     parser.add_argument("--scratch-dir", required=True, type=Path)
     parser.add_argument("--pii-evidence", required=True, type=Path)
     parser.add_argument("--output-manifest", required=True, type=Path)
+    parser.add_argument(
+        "--scratch-root",
+        type=Path,
+        help=(
+            "Racine temporaire approuvee; sinon "
+            f"{H2E_SCRATCH_ROOT_ENV}, puis le repertoire temporaire du systeme."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -270,6 +312,7 @@ def main() -> int:
         scratch_dir=args.scratch_dir,
         pii_evidence_path=args.pii_evidence,
         output_manifest_path=args.output_manifest,
+        scratch_root=args.scratch_root,
     )
     print(f"REAL_MULTI_PLACEMENT_SHA={output['pdf_sha256']}")
     print("REMOTE_WRITE_OPERATIONS=0")

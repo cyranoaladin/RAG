@@ -34,6 +34,7 @@ class MaterializerModule(Protocol):
         output_manifest_path: Path,
         routing_config_path: Path,
         rights_registry_path: Path,
+        scratch_root: Path | None = None,
     ) -> dict[str, Any]: ...
 
 
@@ -240,6 +241,8 @@ def _run_materializer(
     fixture: dict[str, Any],
     scratch: Path,
     output: Path,
+    *,
+    scratch_root: Path | None = None,
 ) -> dict[str, Any]:
     module.REAL_SHA256 = fixture["pdf_sha"]
     module.EXPECTED_MANIFEST_SHA256 = fixture["manifest_sha"]
@@ -251,6 +254,7 @@ def _run_materializer(
         output_manifest_path=output,
         routing_config_path=fixture["routing"],
         rights_registry_path=fixture["rights"],
+        scratch_root=scratch_root,
     )
 
 
@@ -322,8 +326,57 @@ def test_materializes_exactly_three_read_only_objects_and_compiles_catalog(
 def test_rejects_unbounded_scratch_before_rclone(tmp_path: Path) -> None:
     module = _module()
     fixture = _fixture_inputs(tmp_path)
-    with pytest.raises(ValueError, match="bounded /tmp/nexus-h2e"):
+    with pytest.raises(ValueError, match="configured scratch root"):
         _run_materializer(module, fixture, tmp_path / "scratch", tmp_path / "inputs.json")
+
+
+def test_accepts_nonstandard_configured_scratch_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = _module()
+    fixture = _fixture_inputs(tmp_path)
+    scratch_root = tmp_path / "approved-scratch"
+    scratch_root.mkdir()
+    scratch = scratch_root / "nexus-h2e.configured"
+    scratch.mkdir(mode=0o700)
+    _fake_rclone(tmp_path, monkeypatch, fixture["remote"])
+    monkeypatch.setenv("NEXUS_H2E_SCRATCH_ROOT", str(scratch_root))
+
+    document = _run_materializer(
+        module,
+        fixture,
+        scratch,
+        scratch / "inputs.json",
+    )
+
+    assert document["remote_write_operations"] == 0
+
+
+def test_rejects_scratch_outside_explicit_configured_root_before_rclone(
+    tmp_path: Path,
+) -> None:
+    module = _module()
+    fixture = _fixture_inputs(tmp_path)
+    scratch_root = tmp_path / "approved-scratch"
+    scratch_root.mkdir()
+    outside = tmp_path / "outside" / "nexus-h2e.invalid"
+    outside.mkdir(parents=True, mode=0o700)
+
+    with pytest.raises(ValueError, match="configured scratch root"):
+        _run_materializer(
+            module,
+            fixture,
+            outside,
+            outside / "inputs.json",
+            scratch_root=scratch_root,
+        )
+
+
+def test_cli_exposes_portable_h2e_scratch_root() -> None:
+    source = SCRIPT.read_text(encoding="utf-8")
+
+    assert "NEXUS_H2E_SCRATCH_ROOT" in source
+    assert 'Path("/tmp")' not in source
 
 
 @pytest.mark.parametrize("drift", ["manifest", "pii", "pdf"])
