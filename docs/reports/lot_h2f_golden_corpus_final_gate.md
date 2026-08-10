@@ -72,7 +72,7 @@ du même lot et rend caduc le verdict H2-F attaché à ce SHA :
   mismatch SHA.
 
 Sur les entrées réelles, le registre de droits conserve cinq zones et passe.
-La preuve PII scellée `c559891f8f636a5b25fc97e25ab959c143b1e352e36d150139c8737ee33060d6`
+La preuve PII scellée `1ea7655b4e390fa08916b3d4303a3424f3306e65a4149b9841c0f77aee773691`
 conserve 64 objets requis, 64 scannés, 63 clairs, un mis en quarantaine et zéro
 objet non scanné. Le périmètre Eduscol physique dérivé du catalogue réel compte
 2 451 lignes, toutes évaluées, sans ligne mal formée ou ignorée. Ses 1 513
@@ -112,7 +112,7 @@ auto-déclaré incohérent ne peut donc rendre le gate vert.
 La preuve historique a ensuite été régénérée avec ce scanner corrigé, sur un
 miroir local borné dérivé des 64 chemins PDF autorisés par le manifeste. Le
 nouveau sceau
-`c559891f8f636a5b25fc97e25ab959c143b1e352e36d150139c8737ee33060d6`
+`1ea7655b4e390fa08916b3d4303a3424f3306e65a4149b9841c0f77aee773691`
 lie le manifeste canonique, le scanner `pii_scanner_h2b_v2` et la politique
 PII. Le résultat réel reste 64/64 : 63 objets clairs, un objet en quarantaine,
 zéro review, zéro échec d'extraction, zéro objet non scanné et zéro mismatch
@@ -124,3 +124,18 @@ bornés ainsi qu'un timeout total de 1 800 secondes. Cette correction est
 nécessaire parce que le téléchargement réel du manifeste dépassait la limite
 historique de 300 secondes ; elle n'ajoute aucune opération d'écriture
 distante et chaque objet reste vérifié par SHA-256 avant consommation.
+
+## Revue automatisée du troisième correctif H2-F
+
+La revue Codex sur `48378d3e862fb8615959629e80f1ce67103b8623` a
+identifié trois derniers succès silencieux. Le scanner refuse désormais un PDF
+ouvert correctement mais sans aucun texte extractible, et il refuse toute la
+politique si une regex configurée est invalide. Le gate de currentness compte
+également comme erreur de périmètre une identité Eduscol déclarée par famille
+ou URL mais placée hors du préfixe `01_EDUSCOL_OFFICIEL/`.
+
+Ces corrections ont été éprouvées par des tests rouges puis verts. La preuve
+PII réelle a été régénérée sur les 64 octets PDF vérifiés : son sceau est
+`1ea7655b4e390fa08916b3d4303a3424f3306e65a4149b9841c0f77aee773691`,
+avec 63 objets clairs, un en quarantaine et aucune extraction vide ou échouée
+dans le périmètre autorisable.
