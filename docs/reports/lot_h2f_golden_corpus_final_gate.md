@@ -158,4 +158,20 @@ scanner local et le matérialiseur opérateur partagent la même configuration
 `NEXUS_H2_PII_SCRATCH_ROOT`, avec `--scratch-root` explicite et le répertoire
 temporaire du système comme repli. Un miroir hors de cette racine est rejeté
 avant transport ou lecture ; le répertoire dédié conserve son mode `0700` et
-sa garde de vacuité.
+  sa garde de vacuité.
+
+## Revue automatisée du cinquième correctif H2-F
+
+La revue Codex sur `30801f3118f31b77f2a247c78d8a8154e805a42e` a
+identifié trois écarts P2. Le compilateur applique désormais réellement les
+`explicit_exclusions` du routage canonique, de façon prioritaire et avec leur
+motif gouverné, au lieu de laisser ces règles déclaratives sans effet. Les
+audiences des placements sont triées une seule fois pour l'identité canonique
+comme pour leur projection PostgreSQL : une répétition avec le même ensemble
+d'audiences dans un ordre différent reste donc idempotente.
+
+Enfin, la répétition H2-E ne dépend plus de la chaîne littérale `/tmp`. Sa
+racine est fournie par `--scratch-root` ou `NEXUS_H2E_SCRATCH_ROOT`, avec le
+répertoire temporaire du système comme repli portable. Les contrôles existants
+restent obligatoires : racine existante, enfant direct dédié, propriétaire
+courant, mode `0700`, refus des liens symboliques et absence d'écrasement.

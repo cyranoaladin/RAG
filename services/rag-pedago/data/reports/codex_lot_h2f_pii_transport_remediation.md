@@ -66,6 +66,12 @@ tests prouvent qu'une racine approuvée non standard fonctionne pour le
 matérialiseur comme pour le scanner, et qu'un miroir voisin mais hors racine
 est refusé avant tout transport ou appel extracteur.
 
+Le scratch de répétition H2-E possède sa configuration distincte
+`NEXUS_H2E_SCRATCH_ROOT` et son option `--scratch-root`. Il conserve les mêmes
+garanties opérateur : enfant direct de la racine résolue, mode `0700`, refus
+des liens symboliques et des fichiers préexistants, sans chemin temporaire
+absolu codé dans le programme.
+
 ## Sécurité
 
 Aucune base de production n'est visée. Aucun writer n'est activé. PR #96 reste
