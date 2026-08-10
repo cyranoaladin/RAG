@@ -289,6 +289,22 @@ def test_final_gate_rejects_duplicate_control_ids(tmp_path: Path) -> None:
         _validate(tmp_path, spec=spec)
 
 
+def test_final_gate_rejects_empty_executable_perimeter(tmp_path: Path) -> None:
+    spec = _spec()
+    spec["positive_controls"] = []
+    spec["boundary_controls"] = []
+    spec["negative_controls"] = []
+    spec["coverage_summary"] = {
+        "total_controls": 0,
+        "positive_controls": 0,
+        "boundary_controls": 0,
+        "negative_controls": 0,
+    }
+
+    with pytest.raises(ValueError, match="at least one executable control"):
+        _validate(tmp_path, spec=spec)
+
+
 def test_positive_control_requires_unique_sha_prefix(tmp_path: Path) -> None:
     spec = _spec()
     spec["positive_controls"][0]["sha256_prefix"] = ""  # type: ignore[index]

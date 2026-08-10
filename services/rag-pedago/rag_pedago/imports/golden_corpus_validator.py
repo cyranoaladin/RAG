@@ -515,6 +515,8 @@ def _validate_spec_perimeter(
         "boundary_controls": len(boundary),
         "negative_controls": len(negative),
     }
+    if actual["total_controls"] == 0:
+        raise ValueError("golden spec requires at least one executable control")
     for field_name, actual_value in actual.items():
         if coverage.get(field_name) != actual_value:
             raise ValueError(f"golden coverage_summary {field_name} mismatch")
