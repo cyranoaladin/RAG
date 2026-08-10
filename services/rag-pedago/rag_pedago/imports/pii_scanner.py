@@ -287,6 +287,17 @@ def scan_pdf(
             extraction_error="PDF_TEXT_EXTRACTION_EMPTY",
             scan_duration_ms=int((time.monotonic() - start) * 1000),
         )
+    if any(not page_text.strip() for page_text in pages_text):
+        return PIIScanResult(
+            file_path=str(pdf_path),
+            sha256=sha256,
+            pages_scanned=0,
+            characters_scanned=0,
+            pii_detected=False,
+            matches=[],
+            extraction_error="PDF_PAGE_TEXT_EXTRACTION_EMPTY",
+            scan_duration_ms=int((time.monotonic() - start) * 1000),
+        )
 
     all_matches: list[PIIMatch] = []
     total_chars = 0
@@ -463,6 +474,7 @@ def result_to_dict_sanitized(result: PIIScanResult) -> dict[str, Any]:
     elif result.extraction_error in {
         "CONTENT_SHA256_MISMATCH",
         "LOCAL_FILE_MISSING",
+        "PDF_PAGE_TEXT_EXTRACTION_EMPTY",
         "PDF_TEXT_EXTRACTION_EMPTY",
         "SCANNER_SHA256_DRIFT",
     }:

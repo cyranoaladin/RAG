@@ -155,6 +155,30 @@ class TestPDFScanning:
             "PDF_TEXT_EXTRACTION_EMPTY"
         )
 
+    def test_scan_pdf_rejects_one_unextractable_page_before_scanning(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        pdf = tmp_path / "mixed-text-and-image.pdf"
+        pdf.write_bytes(b"synthetic mixed pdf")
+        monkeypatch.setattr(
+            pii_scanner,
+            "extract_pdf_text",
+            lambda _path: (["Texte inspectable", " \n\t", "Autre texte"], None),
+        )
+
+        result = scan_pdf(pdf)
+
+        assert result.pii_detected is False
+        assert result.pages_scanned == 0
+        assert result.characters_scanned == 0
+        assert result.matches == []
+        assert result.extraction_error == "PDF_PAGE_TEXT_EXTRACTION_EMPTY"
+        assert result_to_dict_sanitized(result)["extraction_error_code"] == (
+            "PDF_PAGE_TEXT_EXTRACTION_EMPTY"
+        )
+
     def test_single_file_cli_fails_when_extraction_did_not_complete(
         self,
         monkeypatch: pytest.MonkeyPatch,
