@@ -224,14 +224,14 @@ def submit(conn: psycopg.Connection, **payload_overrides: Any) -> uuid.UUID:
     return run_id
 
 
-class TestNominalRunPassesEveryCheckpoint:
-    def test_an_in_scope_job_completes(
+class TestRightsEvidenceIsIndependentFromScopeAuthority:
+    def test_scope_authority_alone_cannot_manufacture_rights_evidence(
         self, conn: psycopg.Connection, tmp_path: Path
     ) -> None:
         submit(conn)
-        auth = authorization()
-        outcome = run_once(conn, deps_for(tmp_path, auth=auth))
-        assert outcome.status == "succeeded", outcome.error
+        outcome = run_once(conn, deps_for(tmp_path, auth=authorization()))
+        assert outcome.status in ("retried", "dead_letter")
+        assert "Rights.unknown" in str(outcome.error)
         assert denial_events(conn) == []
         with conn.cursor() as cur:
             cur.execute(
@@ -240,28 +240,22 @@ class TestNominalRunPassesEveryCheckpoint:
                 "JOIN ingestion_control.artifacts a ON a.resource_id = j.resource_id"
             )
             row = cur.fetchone()
-        assert row == (
-            False,
-            f"LOT41A:{auth.authorization_id}:{auth.authorization_digest}",
-        ), (
+        assert row == (False, None), (
             "the supported job shape carries no caller-controlled license; "
-            "the durable artifact must instead bind rights evidence to the "
-            "live-verified LOT41A authorization digest"
+            "LOT41A constrains categories but is never itself license evidence"
         )
 
-    def test_a_payload_license_cannot_override_verified_rights_evidence(
+    def test_a_payload_license_cannot_inject_rights_evidence(
         self, conn: psycopg.Connection, tmp_path: Path
     ) -> None:
         submit(conn, license="FORGED-OPERATOR-ASSERTION")
-        auth = authorization()
-        outcome = run_once(conn, deps_for(tmp_path, auth=auth))
-        assert outcome.status == "succeeded", outcome.error
+        outcome = run_once(conn, deps_for(tmp_path, auth=authorization()))
+        assert outcome.status in ("retried", "dead_letter")
+        assert "Rights.unknown" in str(outcome.error)
         with conn.cursor() as cur:
             cur.execute("SELECT payload->>'license' FROM ingestion_control.artifacts")
             row = cur.fetchone()
-        assert row == (
-            f"LOT41A:{auth.authorization_id}:{auth.authorization_digest}",
-        )
+        assert row == (None,)
 
 
 class TestPreFetchCheckpointIsDurable:
@@ -560,7 +554,7 @@ class TestContentCheckpoint:
             )
             assert cur.fetchone() == (0,)
 
-    def test_allowed_v2_bytes_complete_and_bind_the_fetched_event(
+    def test_allowed_v2_bytes_bind_the_fetched_event_before_rights_fail_closed(
         self, conn: psycopg.Connection, tmp_path: Path
     ) -> None:
         expected_sha = hashlib.sha256(FETCH_CONTENT).hexdigest()
@@ -570,7 +564,8 @@ class TestContentCheckpoint:
         )
         submit(conn)
         outcome = run_once(conn, deps_for(tmp_path, auth=auth))
-        assert outcome.status == "succeeded", outcome.error
+        assert outcome.status in ("retried", "dead_letter")
+        assert "Rights.unknown" in str(outcome.error)
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT payload FROM ingestion_control.workflow_events "
@@ -585,18 +580,16 @@ class TestContentCheckpoint:
 
 
 class TestRightsCheckpoint:
-    def test_a_forbidden_rights_category_denies_before_quality(
+    def test_scope_categories_do_not_replace_missing_rights_evidence(
         self, conn: psycopg.Connection, tmp_path: Path
     ) -> None:
-        """Le profil produit ``officiel_public`` (source_authority=official,
-        licence présente) ; l'autorisation ne couvre que ``restricted``."""
+        """Même une catégorie autorisée ne crée aucune licence."""
         submit(conn)
-        auth = authorization(rights_categories=("restricted",))
+        auth = authorization(rights_categories=("officiel_public",))
         outcome = run_once(conn, deps_for(tmp_path, auth=auth))
         assert outcome.status in ("retried", "dead_letter")
-        events = denial_events(conn)
-        assert events[0]["checkpoint"] == "rights"
-        assert "officiel_public" in events[0]["reason"]
+        assert "Rights.unknown" in str(outcome.error)
+        assert denial_events(conn) == []
 
     def test_the_resource_never_reaches_quality_checked_when_rights_are_denied(
         self, conn: psycopg.Connection, tmp_path: Path

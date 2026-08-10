@@ -258,6 +258,7 @@ class TestScopeAuthorizationContentAllowlistRollback:
                 protocol_version="LOT41A-V2",
                 allowed_content_sha256=["1" * 64],
             )
+            _apply_rollback_file(conn, version=10)
 
             with pytest.raises(psycopg.errors.RaiseException, match="ROLLBACK_009_V2_DATA_PRESENT"):
                 _apply_rollback_file(conn, version=9)
@@ -289,6 +290,7 @@ class TestScopeAuthorizationContentAllowlistRollback:
                 protocol_version="LOT41A-V1",
                 allowed_content_sha256=None,
             )
+            _apply_rollback_file(conn, version=10)
             _apply_rollback_file(conn, version=9)
 
             with conn.cursor() as cur:
@@ -323,8 +325,8 @@ class TestScopeAuthorizationContentAllowlistRollback:
 
         reapply = _run_bootstrap(pg_container)
         assert reapply.returncode == 0, reapply.stderr
-        assert "MIGRATIONS_APPLIED=1" in reapply.stdout
-        assert "SCHEMA_HEAD=9" in reapply.stdout
+        assert "MIGRATIONS_APPLIED=2" in reapply.stdout
+        assert "SCHEMA_HEAD=10" in reapply.stdout
 
         with psycopg.connect(_superuser_dsn(pg_container)) as conn, conn.cursor() as cur:
             cur.execute(

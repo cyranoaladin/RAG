@@ -31,6 +31,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sys
+import threading
 import uuid
 from collections.abc import Iterator
 from datetime import UTC, datetime
@@ -78,6 +79,9 @@ from nexus_contracts.ingestion import (  # noqa: E402
 )
 from nexus_contracts.resource_state import ResourceState  # noqa: E402
 
+from ingestor.governed_publisher_v2 import (  # noqa: E402
+    _lock_governance_commit_fence,
+)
 from ingestor.ingestion_agents.classifier import ConformityResult  # noqa: E402
 from ingestor.ingestion_agents.quality_agent import run_quality_agent  # noqa: E402
 from ingestor.ingestion_agents.rights_agent import run_rights_agent  # noqa: E402
@@ -270,12 +274,11 @@ def run_real_pipeline(
     """Exécute le VRAI worker de bout en bout et rend ``(resource_id,
     artifact_id)``.
 
-    Utilisé pour le cas **négatif** : dans l'état actuel du pipeline, le
-    classifieur est un placeholder documenté qui laisse ``niveau``/``voie``/
-    ``programme`` non vérifiés, donc toute ressource porte des motifs de
-    rejet et le gate est nécessairement négatif. C'est précisément ce que
-    ``LOT42_LIVE_PIPELINE_WIRED=false`` signifie, et c'est vérifié
-    explicitement par ``TestLivePipelineCannotYetPublish``."""
+    Utilisé pour le cas **négatif** : aucun champ du job ni LOT41A ne vaut
+    preuve de licence. Le worker vivant doit donc s'arrêter explicitement à
+    ``Rights.unknown`` avant qualité tant qu'une preuve de droits distincte
+    n'est pas câblée. ``LOT42_LIVE_PIPELINE_WIRED=false`` reste ainsi
+    mesuré sur le vrai worker, sans fausse licence synthétique."""
     def fetch(url: str, *, max_bytes: int, **kwargs: Any) -> httpx.Response:
         return httpx.Response(
             200, headers={"content-type": "text/html"}, content=content,
@@ -320,7 +323,8 @@ def run_real_pipeline(
         )
         conn.commit()
         outcome = run_worker_iteration(conn, deps=deps)
-        assert outcome.status == "succeeded", outcome.error
+        assert outcome.status in ("retried", "dead_letter")
+        assert "Rights.unknown" in str(outcome.error)
         conn.rollback()
         with conn.cursor() as cur:
             cur.execute("SELECT resource_id FROM ingestion_control.resources")
@@ -340,9 +344,18 @@ CONFORMING = ConformityResult(
     programme_conformity=True,
     matiere_evidence=("algorithmique",),
 )
+NONCONFORMING = ConformityResult(
+    niveau_conformity=False,
+    voie_conformity=False,
+    matiere_conformity=False,
+    programme_conformity=False,
+    matiere_evidence=(),
+)
 
 
-def build_publishable_resource(pg: dict[str, str]) -> tuple[uuid.UUID, uuid.UUID]:
+def build_publishable_resource(
+    pg: dict[str, str], *, conformity: ConformityResult = CONFORMING
+) -> tuple[uuid.UUID, uuid.UUID]:
     """Produit une ressource dont la chaîne durable est POSITIVE, en
     exécutant les **vrais** émetteurs d'évidence.
 
@@ -446,7 +459,7 @@ def build_publishable_resource(pg: dict[str, str]) -> tuple[uuid.UUID, uuid.UUID
             conn,
             artifact=artifact,
             profile=PROFILE,
-            conformity=CONFORMING,
+            conformity=conformity,
             rights=rights,
             extracted_text=RICH_CONTENT.decode(),
             declared_language="fr",
@@ -674,12 +687,14 @@ class TestAttestationBindsTheReviewedArtifact:
 
 class TestNegativeChainsNeverPublish:
     def test_a_failing_quality_chain_is_refused_at_proposal(
-        self, pg: dict[str, str], tmp_path: Path, github: LocalGitHub,
+        self, pg: dict[str, str], github: LocalGitHub,
         operator_env: None, capsys: Any,
     ) -> None:
-        """Contenu trop pauvre : le pipeline produit quality_passed=false et
-        gate_passed=false. Aucune proposition n'est possible."""
-        resource_id, artifact_id = run_real_pipeline(pg, tmp_path, content=b"<p>court</p>")
+        """Une conformité négative produit quality/gate=false ; aucune
+        proposition n'est possible."""
+        resource_id, artifact_id = build_publishable_resource(
+            pg, conformity=NONCONFORMING
+        )
         record_authorization(github)
         code, _, error = propose(resource_id, artifact_id, capsys)
         assert code == 1
@@ -691,9 +706,11 @@ class TestNegativeChainsNeverPublish:
         assert "PUBLICATION_DENIED_QUALITY" in error, error
 
     def test_a_failing_chain_can_never_be_recorded(
-        self, pg: dict[str, str], tmp_path: Path, github: LocalGitHub, operator_env: None
+        self, pg: dict[str, str], github: LocalGitHub, operator_env: None
     ) -> None:
-        resource_id, artifact_id = run_real_pipeline(pg, tmp_path, content=b"<p>court</p>")
+        resource_id, artifact_id = build_publishable_resource(
+            pg, conformity=NONCONFORMING
+        )
         record_authorization(github)
         assert attest(resource_id, artifact_id) == 1
         with psycopg.connect(superuser_dsn(pg)) as conn, conn.cursor() as cur:
@@ -827,6 +844,128 @@ class TestVerificationRejectsEveryDrift:
 
         assert invalidation == (None, None)
         assert connection_probe == (1,)
+
+
+class TestGovernanceCommitFence:
+    """Une mutation control ne peut committer avant le commit produit.
+
+    Le test structurel du publisher prouve l'imbrication des transactions ;
+    ces deux cas PostgreSQL réels prouvent que les rôles canoniques de
+    révocation rencontrent effectivement les triggers de migration 010.
+    """
+
+    def test_attestation_invalidation_waits_until_the_fence_is_released(
+        self, pg: dict[str, str], attested: dict[str, Any]
+    ) -> None:
+        attempted = threading.Event()
+        completed = threading.Event()
+        errors: list[BaseException] = []
+
+        def invalidate() -> None:
+            try:
+                with psycopg.connect(attestor_dsn(pg)) as conn:
+                    attempted.set()
+                    conn.execute(
+                        "UPDATE ingestion_control.publication_attestations "
+                        "SET invalidated_at = now(), invalidated_reason = %s "
+                        "WHERE resource_id = %s",
+                        ("concurrent invalidation", attested["resource_id"]),
+                    )
+                    conn.commit()
+            except BaseException as exc:  # pragma: no cover - assertion ci-dessous
+                errors.append(exc)
+            finally:
+                completed.set()
+
+        with psycopg.connect(app_dsn(pg)) as control_conn:
+            with control_conn.transaction():
+                _lock_governance_commit_fence(
+                    control_conn,
+                    resource_ids=(attested["resource_id"],),
+                )
+                worker = threading.Thread(target=invalidate, daemon=True)
+                worker.start()
+                assert attempted.wait(timeout=5)
+                assert not completed.wait(timeout=0.25), (
+                    "attestation invalidation committed before the fenced product commit"
+                )
+            assert completed.wait(timeout=5)
+            worker.join(timeout=5)
+
+        assert errors == []
+        with psycopg.connect(superuser_dsn(pg)) as conn:
+            invalidated = conn.execute(
+                "SELECT invalidated_at IS NOT NULL "
+                "FROM ingestion_control.publication_attestations "
+                "WHERE resource_id = %s",
+                (attested["resource_id"],),
+            ).fetchone()
+        assert invalidated == (True,)
+
+    def test_scope_revocation_waits_until_the_fence_is_released(
+        self, pg: dict[str, str], attested: dict[str, Any]
+    ) -> None:
+        attempted = threading.Event()
+        completed = threading.Event()
+        errors: list[BaseException] = []
+
+        def revoke() -> None:
+            try:
+                with psycopg.connect(authority_dsn(pg)) as conn:
+                    attempted.set()
+                    conn.execute(
+                        """
+                        UPDATE ingestion_control.scope_authorizations
+                        SET revoked_at = now(), revoked_by = 'abenrhouma',
+                            revocation_reason = 'concurrent revocation',
+                            revocation_evidence_repository = %s,
+                            revocation_evidence_pull_request = 9999,
+                            revocation_evidence_base_sha = %s,
+                            revocation_evidence_head_sha = %s,
+                            revocation_evidence_review_id = 9999,
+                            revocation_evidence_reviewer = 'abenrhouma',
+                            revocation_evidence_submitted_at = now(),
+                            revocation_evidence_challenge = %s
+                        WHERE authorization_id = %s
+                        """,
+                        (
+                            REPOSITORY,
+                            "d" * 40,
+                            "e" * 40,
+                            "NEXUS-TRUSTED-REVIEW-V1:" + "f" * 64,
+                            STUB_AUTHORIZATION_ID,
+                        ),
+                    )
+                    conn.commit()
+            except BaseException as exc:  # pragma: no cover - assertion ci-dessous
+                errors.append(exc)
+            finally:
+                completed.set()
+
+        with psycopg.connect(app_dsn(pg)) as control_conn:
+            with control_conn.transaction():
+                _lock_governance_commit_fence(
+                    control_conn,
+                    authorization_ids=(STUB_AUTHORIZATION_ID,),
+                )
+                worker = threading.Thread(target=revoke, daemon=True)
+                worker.start()
+                assert attempted.wait(timeout=5)
+                assert not completed.wait(timeout=0.25), (
+                    "scope revocation committed before the fenced product commit"
+                )
+            assert completed.wait(timeout=5)
+            worker.join(timeout=5)
+
+        assert errors == []
+        with psycopg.connect(superuser_dsn(pg)) as conn:
+            revoked = conn.execute(
+                "SELECT revoked_at IS NOT NULL "
+                "FROM ingestion_control.scope_authorizations "
+                "WHERE authorization_id = %s",
+                (STUB_AUTHORIZATION_ID,),
+            ).fetchone()
+        assert revoked == (True,)
 
 
 class TestRetrievalEligibleAnchor:
@@ -995,38 +1134,36 @@ class TestDormantGovernedPublicationPath:
 class TestLivePipelineCannotYetPublish:
     """État honnête du pipeline : `LOT42_LIVE_PIPELINE_WIRED=false`.
 
-    Le classifieur de ce lot laisse niveau/voie/programme « non vérifiés »
-    (placeholder documenté, remédiation PR#90). Toute ressource porte donc
-    des motifs de rejet, le gate est négatif, et **aucune publication n'est
-    possible via le pipeline vivant** — quelle que soit la richesse du
-    contenu. Ce test fixe cet état pour qu'il ne puisse pas changer sans
-    qu'on s'en aperçoive."""
+    LOT41A contraint les droits autorisés mais ne prouve aucune licence.
+    Tant qu'une preuve distincte n'est pas câblée, le worker s'arrête donc
+    avant qualité et **aucune publication n'est possible via le pipeline
+    vivant** — quelle que soit la richesse du contenu."""
 
-    def test_even_rich_content_does_not_pass_the_live_gate(
+    def test_even_rich_content_stops_at_unknown_rights(
         self, pg: dict[str, str], tmp_path: Path
     ) -> None:
         resource_id, artifact_id = run_real_pipeline(pg, tmp_path)
         with psycopg.connect(superuser_dsn(pg)) as conn:
-            facts = collect_publication_facts(
-                conn, resource_id=resource_id, artifact_id=artifact_id
-            )
-        assert facts.quality_passed is False
-        assert facts.gate_passed is False
+            with pytest.raises(
+                PublicationEvidenceMissingError,
+                match="RIGHTS_CHECKED",
+            ):
+                collect_publication_facts(
+                    conn, resource_id=resource_id, artifact_id=artifact_id
+                )
 
-    def test_the_negative_verdict_is_nonetheless_durable(
+    def test_no_quality_or_gate_fact_is_fabricated_after_rights_denial(
         self, pg: dict[str, str], tmp_path: Path
     ) -> None:
-        """Un gate négatif ne produit aucune transition d'état ; sans
-        l'événement dédié, « pas de preuve de succès » serait
-        indistinguable de « pas de preuve du tout »."""
+        """Un refus de droits ne doit pas être reconstruit en faux gate."""
         resource_id, _ = run_real_pipeline(pg, tmp_path)
         with psycopg.connect(superuser_dsn(pg)) as conn, conn.cursor() as cur:
             cur.execute(
-                "SELECT payload FROM ingestion_control.workflow_events "
-                "WHERE resource_id = %s AND event_type = 'PUBLICATION_GATE_EVALUATED'",
+                "SELECT to_state, event_type FROM ingestion_control.workflow_events "
+                "WHERE resource_id = %s AND (to_state IN "
+                "('RIGHTS_CHECKED', 'QUALITY_CHECKED') "
+                "OR event_type = 'PUBLICATION_GATE_EVALUATED')",
                 (resource_id,),
             )
             rows = cur.fetchall()
-        assert len(rows) == 1
-        assert rows[0][0]["gate_passed"] is False
-        assert rows[0][0]["decision"] == "REJECT"
+        assert rows == []

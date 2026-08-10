@@ -22,6 +22,7 @@ import psycopg
 from nexus_contracts.embedding_utils import format_passage
 from nexus_contracts.ingestion import ResourceScope
 from nexus_contracts.resource_state import ResourceState
+from psycopg.pq import TransactionStatus
 
 try:
     from .embedding_contract import CANONICAL_EMBED_MODEL
@@ -241,6 +242,107 @@ def _verify_placements(
     return tuple(verified)
 
 
+_CONTROL_FENCE_SCHEMA_KEY = "nexus:governed-publication:schema"
+_CONTROL_FENCE_TRIGGER_ROWS = (
+    (
+        "artifacts",
+        "trg_governed_publication_fence_artifacts",
+        "_governed_publication_resource_fence",
+        "O",
+    ),
+    (
+        "publication_attestations",
+        "trg_governed_publication_fence_publication_attestations",
+        "_governed_publication_resource_fence",
+        "O",
+    ),
+    (
+        "resource_candidates",
+        "trg_governed_publication_fence_resource_candidates",
+        "_governed_publication_resource_fence",
+        "O",
+    ),
+    (
+        "resources",
+        "trg_governed_publication_fence_resources",
+        "_governed_publication_resource_fence",
+        "O",
+    ),
+    (
+        "scope_authorizations",
+        "trg_governed_publication_fence_scope_authorizations",
+        "_governed_publication_authorization_fence",
+        "O",
+    ),
+    (
+        "workflow_events",
+        "trg_governed_publication_fence_workflow_events",
+        "_governed_publication_resource_fence",
+        "O",
+    ),
+)
+
+
+def _lock_governance_commit_fence(
+    control_conn: psycopg.Connection,
+    *,
+    resource_ids: Sequence[UUID] = (),
+    authorization_ids: Sequence[str] = (),
+) -> None:
+    """Conserver la gouvernance durable stable jusqu'au commit produit.
+
+    La migration 010 installe, sur chaque table relue par LOT42, des
+    triggers qui prennent les mêmes verrous advisory. Le verrou de schéma
+    partagé empêche en plus le rollback 010 de retirer ces triggers pendant
+    une publication. Cette fonction doit être appelée dans la transaction
+    ``control_conn`` externe qui englobe la transaction produit.
+    """
+    resources = tuple(sorted({str(resource_id) for resource_id in resource_ids}))
+    authorizations = tuple(sorted(set(authorization_ids)))
+    if not resources and not authorizations:
+        raise GovernedPublicationError("governance commit fence requires an identifier")
+    if any(not authorization_id for authorization_id in authorizations):
+        raise GovernedPublicationError("governance commit fence authorization is blank")
+
+    with control_conn.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT relation.relname, trigger_definition.tgname,
+                   routine.proname, trigger_definition.tgenabled
+            FROM pg_catalog.pg_trigger AS trigger_definition
+            JOIN pg_catalog.pg_class AS relation
+              ON relation.oid = trigger_definition.tgrelid
+            JOIN pg_catalog.pg_namespace AS namespace
+              ON namespace.oid = relation.relnamespace
+            JOIN pg_catalog.pg_proc AS routine
+              ON routine.oid = trigger_definition.tgfoid
+            WHERE namespace.nspname = 'ingestion_control'
+              AND NOT trigger_definition.tgisinternal
+              AND trigger_definition.tgname LIKE 'trg_governed_publication_fence_%'
+            ORDER BY relation.relname COLLATE "C", trigger_definition.tgname COLLATE "C"
+            """
+        )
+        rows = tuple(tuple(row) for row in cursor.fetchall())
+        if rows != _CONTROL_FENCE_TRIGGER_ROWS:
+            raise GovernedPublicationError(
+                "ingestion-control commit fence migration 010 is not active"
+            )
+        cursor.execute(
+            "SELECT pg_advisory_xact_lock_shared(hashtextextended(%s, 0))",
+            (_CONTROL_FENCE_SCHEMA_KEY,),
+        )
+        for resource_id in resources:
+            cursor.execute(
+                "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
+                (f"nexus:governed-publication:resource:{resource_id}",),
+            )
+        for authorization_id in authorizations:
+            cursor.execute(
+                "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
+                (f"nexus:governed-publication:authorization:{authorization_id}",),
+            )
+
+
 def _chunk_text(extracted_text: str) -> tuple[str, ...]:
     if not isinstance(extracted_text, str) or not extracted_text.strip():
         raise GovernedPublicationError("extraction produced no substantive text")
@@ -435,22 +537,16 @@ def _insert_chunks(
         )
 
 
-def publish_governed_artifact(
+def _publish_under_governance_fence(
     control_conn: psycopg.Connection,
     product_conn: psycopg.Connection,
     artifact: GovernedArtifact,
     placements: Sequence[EligiblePlacement],
+    verified: Sequence[_VerifiedPlacement],
     extract_text: ExtractText,
     embed_chunks: EmbedChunks,
 ) -> GovernedPublicationResult:
-    """Revérifier LOT42 puis publier une fois, sans writer HTTP ou bypass."""
-    if not isinstance(artifact, GovernedArtifact):
-        raise TypeError("artifact must be GovernedArtifact")
-    verified = _verify_placements(
-        control_conn,
-        artifact=artifact,
-        placements=placements,
-    )
+    """Écrire le produit tandis que l'appelant conserve les verrous control."""
     ordered = tuple(
         sorted(
             verified,
@@ -595,6 +691,85 @@ def publish_governed_artifact(
         chunk_rows=int(chunk_count_row[0]),
         embedded=embedded,
     )
+
+
+def _require_idle_connection(conn: object, *, label: str) -> None:
+    """Refuser un savepoint implicite qui ne committerait pas à la sortie.
+
+    Les doubles de tests ne sont pas des ``psycopg.Connection`` ; ils sont
+    validés par leurs propres assertions d'ordre. En runtime, la transaction
+    doit en revanche être une vraie transaction racine et non un savepoint
+    imbriqué dans un travail appartenant à l'appelant.
+    """
+    if (
+        isinstance(conn, psycopg.Connection)
+        and conn.info.transaction_status != TransactionStatus.IDLE
+    ):
+        raise GovernedPublicationError(f"{label} connection must be idle")
+
+
+def publish_governed_artifact(
+    control_conn: psycopg.Connection,
+    product_conn: psycopg.Connection,
+    artifact: GovernedArtifact,
+    placements: Sequence[EligiblePlacement],
+    extract_text: ExtractText,
+    embed_chunks: EmbedChunks,
+) -> GovernedPublicationResult:
+    """Revérifier LOT42 puis publier une fois, sans fenêtre de révocation.
+
+    La transaction control est externe à la transaction produit. Les
+    triggers 010 font attendre toute modification des faits relus par LOT42
+    jusqu'après le commit produit. Une modification qui gagne la course
+    avant le verrou est observée par la relecture qui suit et refuse.
+    """
+    if not isinstance(artifact, GovernedArtifact):
+        raise TypeError("artifact must be GovernedArtifact")
+    if control_conn is product_conn:
+        raise GovernedPublicationError(
+            "control and product connections must be distinct"
+        )
+    _require_idle_connection(control_conn, label="control")
+    _require_idle_connection(product_conn, label="product")
+
+    with control_conn.transaction():
+        # Les faits liés à une ressource (state, candidat, artefact,
+        # événements, attestation) sont d'abord gelés sans faire confiance
+        # à l'autorisation qu'ils nomment encore.
+        _lock_governance_commit_fence(
+            control_conn,
+            resource_ids=tuple(placement.resource_id for placement in placements),
+        )
+        verified = _verify_placements(
+            control_conn,
+            artifact=artifact,
+            placements=placements,
+        )
+
+        # Puis les autorisations exactes découvertes sous le verrou ressource
+        # sont gelées et toute la chaîne est relue une dernière fois. Une
+        # révocation déjà committée est donc refusée ; une révocation
+        # concurrente attendra le commit produit.
+        _lock_governance_commit_fence(
+            control_conn,
+            authorization_ids=tuple(
+                item.attestation.scope_authorization_id for item in verified
+            ),
+        )
+        fenced_verified = _verify_placements(
+            control_conn,
+            artifact=artifact,
+            placements=placements,
+        )
+        return _publish_under_governance_fence(
+            control_conn,
+            product_conn,
+            artifact,
+            placements,
+            fenced_verified,
+            extract_text,
+            embed_chunks,
+        )
 
 
 __all__ = [

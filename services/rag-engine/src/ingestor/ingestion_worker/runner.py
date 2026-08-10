@@ -190,22 +190,6 @@ REQUIRED_PAYLOAD_KEYS = (
 )
 
 
-def _lot41a_rights_evidence(authorization: VerifiedAuthorization) -> str:
-    """Dérive la preuve portée par ``ArtifactRecord.license``.
-
-    Le job opérateur n'est pas une source de droits et ne peut donc jamais
-    fournir lui-même une licence faisant autorité. La seule valeur admise
-    vient de l'autorisation LOT41A qui vient d'être revérifiée contre le blob
-    et la review GitHub : identifiant canonique + digest des octets revus.
-    ``enforce_rights`` confronte ensuite le verdict réel du RightsAgent aux
-    catégories permises par cette même autorisation.
-    """
-    return (
-        f"LOT41A:{authorization.authorization_id}:"
-        f"{authorization.authorization_digest}"
-    )
-
-
 class ScopeAuthorizationVerifier(Protocol):
     """Signature de ``scope_authority.verify_scope_authorization``.
 
@@ -598,7 +582,12 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
             safe_fetch=_authorized_fetcher(deps, authorization),
             authorize_content=authorize_downloaded_content,
             job_id=claim.job_id,
-            license=_lot41a_rights_evidence(authorization),
+            # LOT41A borne le scope et les catégories de droits admises ;
+            # il n'est jamais une preuve de licence sur l'artefact. Le job
+            # ne porte aucune preuve de droits gouvernée et ne peut donc pas
+            # en injecter une : RightsAgent doit rester fail-closed sur
+            # Rights.unknown jusqu'à l'arrivée d'une preuve distincte.
+            license=None,
         )
         persist_artifact(conn, artifact=artifact)
         conn.commit()  # point de contrôle LOT44f : Fetcher durablement franchi

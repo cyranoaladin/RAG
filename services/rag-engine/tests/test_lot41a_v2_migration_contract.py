@@ -14,8 +14,9 @@ def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def test_ingestion_control_head_is_lot41a_v2_allowlist() -> None:
-    assert _read(MIGRATIONS / "HEAD") == "009_scope_authorization_content_allowlist\n"
+def test_migration_009_remains_the_canonical_v2_allowlist_step() -> None:
+    assert _read(MIGRATIONS / "HEAD") == "010_governed_publication_commit_fence\n"
+    assert MIGRATION.name == "009_scope_authorization_content_allowlist.sql"
 
 
 def test_migration_is_additive_and_version_discriminated() -> None:

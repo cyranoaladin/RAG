@@ -220,11 +220,20 @@ def test_v1_or_unbound_attestation_fails_before_any_product_write(
         def transaction(self) -> object:
             pytest.fail("product transaction must not start after LOT42 denial")
 
+    class ControlConnection:
+        def transaction(self) -> object:
+            return nullcontext()
+
     monkeypatch.setattr(publisher_module, "verify_publication_attestation", deny_v1)
+    monkeypatch.setattr(
+        publisher_module,
+        "_lock_governance_commit_fence",
+        lambda *_args, **_kwargs: None,
+    )
 
     with pytest.raises(RuntimeError, match="CONTENT_ALLOWLIST_AUTHORITY_REQUIRED"):
         publish_governed_artifact(
-            object(),
+            ControlConnection(),
             NoProductWrites(),
             artifact,
             (placement,),
@@ -289,7 +298,16 @@ def test_atomic_reverification_denial_rolls_back_before_product_cursor(
             calls["cursor"] += 1
             pytest.fail("no product cursor is allowed after atomic reverify denial")
 
+    class ControlConnection:
+        def transaction(self) -> object:
+            return nullcontext()
+
     monkeypatch.setattr(publisher_module, "verify_publication_attestation", verify)
+    monkeypatch.setattr(
+        publisher_module,
+        "_lock_governance_commit_fence",
+        lambda *_args, **_kwargs: None,
+    )
     monkeypatch.setattr(
         publisher_module,
         "_resource_is_retrieval_eligible",
@@ -298,7 +316,7 @@ def test_atomic_reverification_denial_rolls_back_before_product_cursor(
 
     with pytest.raises(RuntimeError, match="revoked during product transaction"):
         publish_governed_artifact(
-            object(),
+            ControlConnection(),
             ProductConnection(),
             artifact,
             (placement,),
@@ -306,4 +324,124 @@ def test_atomic_reverification_denial_rolls_back_before_product_cursor(
             lambda _chunks: (),
         )
 
-    assert calls == {"verify": 2, "transaction": 1, "cursor": 0}
+    assert calls == {"verify": 2, "transaction": 0, "cursor": 0}
+
+
+def test_product_commit_occurs_while_control_revocation_fence_is_held(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifact = GovernedArtifact(
+        content=CONTENT,
+        content_sha256=CONTENT_SHA,
+        source_label="Ressource Eduscol",
+        source_uri="https://eduscol.education.gouv.fr/philosophie",
+        rights="officiel_public",
+        official=True,
+        source_kind="eduscol",
+        type_doc="ressource_officielle",
+    )
+    placement = _placement(
+        collection="rag_nexus_philo_terminale_tc",
+        matiere="philosophie",
+    )
+    facts = SimpleNamespace(
+        content_sha256=CONTENT_SHA,
+        collection=str(placement.scope.collection),
+        canonical_url=placement.source_uri,
+        rights_status=Rights.officiel_public,
+    )
+    verified = VerifiedAttestation(
+        attestation_id=uuid4(),
+        resource_id=placement.resource_id,
+        artifact_id=uuid4(),
+        content_sha256=CONTENT_SHA,
+        scope_authorization_id="h2-v2",
+        profile_fingerprint=placement.current_profile_fingerprint,
+        manifest_digest=placement.current_manifest_digest,
+        review_id="lot42-v2",
+        attestation_digest="3" * 64,
+        authorization=SimpleNamespace(
+            authorization_id="h2-v2",
+            authorization_digest="4" * 64,
+            scope=placement.scope,
+        ),
+        facts=facts,
+    )
+    events: list[str] = []
+
+    class Transaction:
+        def __init__(self, label: str) -> None:
+            self.label = label
+
+        def __enter__(self) -> None:
+            events.append(f"{self.label}:enter")
+
+        def __exit__(self, *_args: object) -> None:
+            events.append(f"{self.label}:exit")
+
+    class Cursor:
+        last_query = ""
+
+        def __enter__(self) -> Cursor:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def execute(self, query: str, _params: object = None) -> None:
+            self.last_query = query
+
+        def fetchone(self) -> tuple[int]:
+            return (1,)
+
+    class Connection:
+        def __init__(self, label: str) -> None:
+            self.label = label
+
+        def transaction(self) -> Transaction:
+            return Transaction(self.label)
+
+        def cursor(self) -> Cursor:
+            return Cursor()
+
+    def verify(*_args: object, **_kwargs: object) -> VerifiedAttestation:
+        events.append("verify")
+        return verified
+
+    def fence(*_args: object, **_kwargs: object) -> None:
+        events.append("fence")
+
+    monkeypatch.setattr(publisher_module, "verify_publication_attestation", verify)
+    monkeypatch.setattr(
+        publisher_module,
+        "_resource_is_retrieval_eligible",
+        lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(publisher_module, "_lock_governance_commit_fence", fence)
+    monkeypatch.setattr(publisher_module, "_lock_artifact", lambda *_args: None)
+    monkeypatch.setattr(
+        publisher_module,
+        "_artifact_row",
+        lambda *_args: (
+            CONTENT_SHA,
+            artifact.rights,
+            artifact.official,
+            artifact.source_kind,
+            artifact.type_doc,
+        ),
+    )
+    monkeypatch.setattr(publisher_module, "_insert_placement", lambda *_args, **_kwargs: None)
+
+    result = publish_governed_artifact(
+        Connection("control"),
+        Connection("product"),
+        artifact,
+        (placement,),
+        lambda raw: raw.decode(),
+        lambda _chunks: (),
+    )
+
+    assert result.artifact_created is False
+    assert events.index("control:enter") < events.index("fence")
+    assert events.index("fence") < events.index("product:enter")
+    assert events.index("product:exit") < events.index("control:exit")

@@ -1246,6 +1246,18 @@ def test_governed_publisher_is_atomic_idempotent_and_multi_placement(
         "_resource_is_retrieval_eligible",
         lambda _connection, *, resource_id: resource_id in bindings,
     )
+    monkeypatch.setattr(
+        publisher,
+        "_lock_governance_commit_fence",
+        lambda *_args, **_kwargs: None,
+    )
+
+    class VerifiedControlConnection:
+        @contextmanager
+        def transaction(self) -> Iterator[None]:
+            yield
+
+    control_connection = VerifiedControlConnection()
 
     calls = {"extract": 0, "embed": 0}
 
@@ -1259,7 +1271,7 @@ def test_governed_publisher_is_atomic_idempotent_and_multi_placement(
 
     with psycopg.connect(PUBLISHER_DSN) as product_connection:
         created = publisher.publish_governed_artifact(
-            product_connection,
+            control_connection,
             product_connection,
             artifact,
             (placement_a,),
@@ -1267,7 +1279,7 @@ def test_governed_publisher_is_atomic_idempotent_and_multi_placement(
             embed_chunks,
         )
         retried = publisher.publish_governed_artifact(
-            product_connection,
+            control_connection,
             product_connection,
             artifact,
             (placement_a,),
@@ -1275,7 +1287,7 @@ def test_governed_publisher_is_atomic_idempotent_and_multi_placement(
             embed_chunks,
         )
         reordered_retry = publisher.publish_governed_artifact(
-            product_connection,
+            control_connection,
             product_connection,
             artifact,
             (placement_a_reordered,),
@@ -1283,7 +1295,7 @@ def test_governed_publisher_is_atomic_idempotent_and_multi_placement(
             embed_chunks,
         )
         extended = publisher.publish_governed_artifact(
-            product_connection,
+            control_connection,
             product_connection,
             artifact,
             (placement_a, placement_b),
@@ -1291,7 +1303,7 @@ def test_governed_publisher_is_atomic_idempotent_and_multi_placement(
             embed_chunks,
         )
         changed = publisher.publish_governed_artifact(
-            product_connection,
+            control_connection,
             product_connection,
             changed_artifact,
             (changed_placement,),
@@ -1304,7 +1316,7 @@ def test_governed_publisher_is_atomic_idempotent_and_multi_placement(
 
         with pytest.raises(RuntimeError, match="synthetic extraction failure"):
             publisher.publish_governed_artifact(
-                product_connection,
+                control_connection,
                 product_connection,
                 failed_artifact,
                 (failed_placement,),
