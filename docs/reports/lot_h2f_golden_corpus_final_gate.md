@@ -175,3 +175,17 @@ racine est fournie par `--scratch-root` ou `NEXUS_H2E_SCRATCH_ROOT`, avec le
 répertoire temporaire du système comme repli portable. Les contrôles existants
 restent obligatoires : racine existante, enfant direct dédié, propriétaire
 courant, mode `0700`, refus des liens symboliques et absence d'écrasement.
+
+## Revue automatisée du sixième correctif H2-F
+
+La revue Codex sur `f348ff84c929263a21781d14573c7d517368e709` a fermé
+deux nouveaux périmètres vacuaires. Le scanner PII ne considère plus un PDF
+mixte comme inspecté lorsqu'une seule page fournit du texte : toute page sans
+texte extractible produit désormais l'échec explicite
+`PDF_PAGE_TEXT_EXTRACTION_EMPTY`, avant toute décision `CLEARED`. Cette règle
+reste distincte de l'échec d'un document entièrement vide.
+
+Le validateur golden refuse aussi une spécification dont les trois listes de
+contrôles sont vides, même lorsque son résumé déclare correctement zéro. Le
+gate final exige donc au moins un contrôle exécutable avant de calculer un
+verdict vert.

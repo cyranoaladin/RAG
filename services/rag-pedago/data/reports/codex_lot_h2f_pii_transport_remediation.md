@@ -72,6 +72,12 @@ garanties opérateur : enfant direct de la racine résolue, mode `0700`, refus
 des liens symboliques et des fichiers préexistants, sans chemin temporaire
 absolu codé dans le programme.
 
+Le contrôle d'extraction est désormais complet page par page. Un PDF qui
+combine des pages textuelles et une page sans texte extractible est classé
+`REVIEW_REQUIRED_EXTRACTION_FAILED` avec le code expurgé
+`PDF_PAGE_TEXT_EXTRACTION_EMPTY`; la présence de texte ailleurs dans le
+document ne peut plus attester implicitement la page non inspectable.
+
 ## Sécurité
 
 Aucune base de production n'est visée. Aucun writer n'est activé. PR #96 reste
