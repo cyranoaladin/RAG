@@ -1,12 +1,14 @@
-# Rapport de lot — H2-E autorité de contenu et préparation corpus
+# Rapport de lot — H2-F autorité de contenu et préparation corpus
 
-## Verdict technique au 9 août 2026
+## Verdict technique au 10 août 2026
 
-Ce rapport remplace les états H2-B/H2-C devenus obsolètes. La tête PR finale
-sera figée par le commit qui porte ce rapport, puis toute la CI canonique, les
-migrations jetables, la sécurité, les preuves externes et l'audit H2
-indépendant seront rejoués sur cette tête exacte. Une preuve antérieure ne
-vaut jamais pour cette future tête.
+Ce rapport remplace les états H2-B/H2-C/H2-E devenus obsolètes. Les gates
+techniques ont été rejoués dans l'ordre demandé sur la tête d'implémentation
+`f2a662bc8054e35643cda0aa71cd8496aca2e8fe`. Le commit qui porte ce rapport
+est exclusivement documentaire : il synchronise le plan et lie les sceaux
+externes à cette tête d'implémentation vérifiée, sans modifier le code testé.
+Un nouvel audit indépendant reste interdit tant que ce commit documentaire
+n'est pas créé et poussé.
 
 ```text
 LOT41A_V2_IMPLEMENTED=true
@@ -16,7 +18,10 @@ REAL_SCOPE_AUTHORIZATION_DEFERRED_UNTIL_POST_MERGE=true
 LIVE_INGESTION=false
 LOT42_LIVE_PIPELINE_WIRED=false
 PUBLIC_WRITER=false
-H2_TECHNICAL_GATE=PENDING_FINAL_EXACT_HEAD_VERIFICATION
+H2_IMPLEMENTATION_HEAD=f2a662bc8054e35643cda0aa71cd8496aca2e8fe
+H2_PRE_AUDIT_TECHNICAL_GATES=PASS
+H2_TECHNICAL_GATE=PENDING_NEW_INDEPENDENT_AUDIT
+H2_READY_FOR_HUMAN_REVIEW=false
 ```
 
 L'absence d'autorisation réelle n'empêche plus la fusion du code inerte : le
@@ -230,13 +235,16 @@ POSITIVE_UNIQUE_CONTENT_SHA=1
 POSITIVE_PDF_PARSES=1
 ```
 
-La preuve antérieure à l'audit indépendant est explicitement obsolète. La
-nouvelle `h2e_v2_governed_rehearsal.json` sera régénérée seulement après le
-commit final. Son sceau inclura le HEAD, le tree Git et les SHA-256 du runner,
-du scelleur et du test d'intégration exacts, vérifiés avant et après le run.
-Le digest final sera publié dans le corps de la PR et le rapport machine,
-jamais deviné dans ce commit. Aucun chemin local, secret ou contenu brut ne
-sera inclus.
+La preuve H2-E a été régénérée et validée sur la tête d'implémentation exacte.
+Son sceau inclut le HEAD, le tree Git et les SHA-256 du runner, du scelleur et
+du test d'intégration, vérifiés avant et après le run. Elle ne contient ni
+chemin local, ni secret, ni contenu brut.
+
+```text
+H2E_EVIDENCE_FILE=h2f_h2e_v2_governed_rehearsal_f2a662b.json
+H2E_EVIDENCE_SHA256=130547315f7cc09f6ca08a988ce8b9ad61844c0093b181909e87b01af93f12f2
+H2E_EVIDENCE_HEAD=f2a662bc8054e35643cda0aa71cd8496aca2e8fe
+```
 
 ## Findings de l'audit indépendant et remédiation
 
@@ -264,8 +272,8 @@ TEMPORARY_MUTATIONS_RESTORED=true
 MUTATED_FILE_BYTES_MATCH_ORIGINAL=true
 ```
 
-Preuve externe : `h2b_true_mutations_h2e.json`, SHA-256
-`e29668c5b76cec89565c6c6f722c945bc42d86d5198657ea9ec96867547e6211`.
+Preuve externe : `h2b_true_mutations_h2f_f2a662b.json`, SHA-256
+`d5baf652aa1d9b9e3eaaee59af09ed5ed7bfafa1e7bcb181cb3c7e235d244796`.
 Le SHA restauré de `scope_enforcement.py` est
 `eee1d2ee885155f0c079d80e8a9555982ae2f2e81553474faa5160a5820964e5`.
 
@@ -334,7 +342,22 @@ documents DEPP non clarifiés restent `REVIEW_REQUIRED` sans bloquer le reste.
 
 Le verdict antérieur est devenu non autoritatif après trois nouveaux findings
 sur la tête `3a23f4f3c8506a245c2b97299f376dbfa14a57b3`. La remédiation H2-F
-reste fermée jusqu'au nouveau cycle CI, revue automatisée et audit :
+reste fermée jusqu'à la nouvelle revue automatisée et au nouvel audit, mais
+les corrections et leurs gates techniques sont désormais exécutés :
+
+- le validateur golden final accepte exclusivement
+  `catalog_kind=REAL_SEALED_CORPUS` avec
+  `physical_objects/content_sha256`, rejette les enregistrements incomplets et
+  les préfixes SHA absents ou ambigus ;
+- les contrôles positifs distinguent l'éligibilité de base de la disposition
+  finale, sans raccourci `currentness=actuel => INGEST` ;
+- l'absence d'un contrôle négatif dans un catalogue scellé est un échec ;
+- les contrôles de frontière et négatifs parcourent tout leur périmètre et
+  exigent les populations réelles 805/49/19/37 ;
+- le rapport de couverture exécute réellement le validateur golden et son
+  code de sortie final dépend de son verdict ;
+- une mutation dédiée prouve que contourner ce résultat rend le gate rouge,
+  puis que les octets et le vert sont restaurés ;
 
 - le périmètre attendu du registre de droits vient désormais de
   `corpus_zone_routing.yml`, pas du `summary.total_zones` auto-déclaré par le
@@ -351,38 +374,86 @@ reste fermée jusqu'au nouveau cycle CI, revue automatisée et audit :
 Les tests rouges ont respectivement prouvé la suppression d'une zone du
 registre, la falsification `rights=PASS`/`pii=PASS` dans le catalogue, puis
 l'absence de migration/pin et la dérive d'un pin avant la transaction produit.
-Les preuves réelles et le verdict seront régénérés seulement sur la prochaine
-tête figée.
+La validation réelle porte sur les 2 584 objets physiques et treize contrôles
+golden, tous verts : 919 objets ont été évalués sans échantillonnage.
 
 ```text
-H2_IMPLEMENTATION_READY=UNVERIFIED_AFTER_REVIEW
-H2_TECHNICAL_GATE=BLOCKED_REVIEW_FINDINGS
+REAL_CATALOG_KIND=REAL_SEALED_CORPUS
+REAL_CATALOG_SHA256=9912d89916984d744dd9f6d0b7c3f747cbe7c35517cf48a64b2e43a05c0a3069
+REAL_COVERAGE_REPORT_SHA256=2e7738c74590f743253f8632ee7db6448e375342a2fba0baaf943b9a5f122778
+REAL_GOLDEN_CONTROLS_TOTAL=13
+REAL_GOLDEN_CONTROLS_PASSED=13
+REAL_GOLDEN_CONTROLS_FAILED=0
+REAL_GOLDEN_OBJECTS_EVALUATED=919
+BOUNDARY_80_A_VERIFIER_ACTUAL=805
+BOUNDARY_TRANSITION_ACTUAL=49
+BOUNDARY_ARCHIVE_ACTUAL=19
+GEOGEBRA_ACTUAL=37
+PHYSICAL_OBJECTS=2584
+SUM_DISPOSITIONS=2584
+UNCLASSIFIED=0
+MULTIPLE_PRIMARY_DISPOSITION=0
+DECISION_COVERAGE_COMPLETE=true
+GOLDEN_VALIDATION_PASS=true
+H2_COVERAGE_GATE_PASS=true
+GOLDEN_GATE_NON_VACUOUS=true
+GOLDEN_MUTATION_EVIDENCE_SHA256=8ef23be81f5ceed703ea6493032e8323ab0fc3bd26b501707ed035cc07dd73b6
+```
+
+```text
+H2_IMPLEMENTATION_READY=PENDING_NEW_INDEPENDENT_AUDIT
+H2_TECHNICAL_GATE=PENDING_NEW_INDEPENDENT_AUDIT
 INDEPENDENT_H2_AUDIT=STALE_AFTER_NEW_FINDINGS
 H2_READY_FOR_HUMAN_REVIEW=false
 PR96_DO_NOT_APPROVE=true
 ```
 
-## Gates encore à exécuter sur la tête finale
+## Gates finaux exécutés sur la tête d'implémentation
 
-Après le présent commit de rapport, aucun fichier versionné ne sera modifié
-avant la fin des gates. La tête résultante devra passer :
+Les gates ont été exécutés séquentiellement sur
+`f2a662bc8054e35643cda0aa71cd8496aca2e8fe`. Tous les journaux sont externes
+au dépôt et ne contiennent aucun secret ni corpus brut.
 
-1. migration produit 004 apply/rollback/reapply et migrations control 009 à
-   011 apply/contraintes/rollback/reapply sur PostgreSQL jetable ;
-2. nouvelle répétition H2-E et matrice 13/13 liées à la tête exacte ;
-3. `scripts/ci-local.sh` complet avec l'environnement valide ;
-4. scans secrets, PII, PDF réel et credentials sur `main..HEAD` ;
-5. push fast-forward et tous les checks GitHub techniques sur le même SHA ;
-6. audit H2 véritablement indépendant avec zéro finding bloquant ;
-7. passage de la PR 95 en ready et génération de son challenge propre.
+| Gate | Verdict | SHA-256 de la preuve externe |
+|---|---|---|
+| Migration produit 004, rollback concurrent et réapplication | PASS | `cdaa18e63ba6cea41027e3c2883f99afdd15d317a93bbfbcc4b60e9c346de86e` |
+| Migrations ingestion-control 009–011, rollback et réapplication | PASS | `b3160e43604c5191dfaaa1ec22927701bc8f7e08b2774daa734617bd5d4e07a7` |
+| CI locale canonique | PASS 16/16 | `1523da9554333872955e23d282f97dd8a9f990e655c1df00e8b61978cae73e15` |
+| Gitleaks `origin/main..HEAD` | PASS, 89 commits, 0 fuite | `a014c5f3e4254ddd40f68c11c826e4e9610653d724cbc3679f8593504334d939` |
+| Sanitisation PII | PASS 66/66 | `9930b8fef08bb72fc78831b926219db488e6cc15c8b51862fc5d90c1c119caa7` |
+| Classification fichiers suivis | PASS | `03585b4d7cb272e58525525af5896c4a87fb296222a754e3b97181dee9a548fc` |
 
-Jusqu'à leur réussite :
+La CI canonique a terminé avec `Total: 16 passed, 0 failed`, dont 2 002 tests
+`rag-pedago`, le test PostgreSQL hybride réel, le cockpit et les garde-fous
+repository/gouvernance. La classification sécurité distingue les deux PDF de
+référentiels pédagogiques déjà présents sur `origin/main` du corpus Drive
+scellé : aucun PDF/GGB du corpus réel n'est suivi. Les trois `.env.example`
+sont des modèles sans secret et ne sont pas des fichiers credentials.
 
 ```text
-H2_IMPLEMENTATION_READY=PENDING_FINAL_GATES
-H2_TECHNICAL_GATE=PENDING_FINAL_GATES
+PRODUCT_MIGRATION_004=PASS
+INGESTION_CONTROL_MIGRATIONS_009_011=PASS
+CANONICAL_LOCAL_CI=PASS_16_OF_16
+SECRETS_FOUND=0
+RAW_PII_TRACKED=0
+REAL_CORPUS_PDF_TRACKED=0
+CREDENTIAL_FILES_TRACKED=0
+EXTERNAL_H2_EVIDENCE_TRACKED=0
+```
+
+Le plan contient 38 étapes achevées : les 33 étapes des Tasks 1–6, puis la
+consignation et les répétitions migrations, H2-E, CI et sécurité de la Task 7.
+Le commit documentaire qui inclut ce rapport réalise cette consignation.
+Après son push fast-forward, seulement alors pourront commencer la nouvelle
+revue automatisée et le nouvel audit indépendant.
+
+Jusqu'à ces contrôles post-commit :
+
+```text
+H2_IMPLEMENTATION_READY=PENDING_NEW_INDEPENDENT_AUDIT
+H2_TECHNICAL_GATE=PENDING_NEW_INDEPENDENT_AUDIT
 H2_READY_FOR_HUMAN_REVIEW=false
-INDEPENDENT_H2_AUDIT=NOT_RUN_ON_FINAL_HEAD
+INDEPENDENT_H2_AUDIT=NOT_RUN_AFTER_PLAN_AND_REPORT_SYNC
 REAL_SCOPE_AUTHORIZATION_PRESENT=false
 PR96_APPROVAL_REQUESTED=false
 PRODUCTION_DATABASE_TOUCHED=false
@@ -393,6 +464,6 @@ HIDDEN_WRITER=false
 LOT42_LIVE_PIPELINE_WIRED=false
 ```
 
-La prochaine étape après gates et audit verts est
-`NEXT_ACTION=H2_TRUSTED_HUMAN_REVIEW`. Si un gate rougit, elle redevient
-`NEXT_ACTION=LOT41A_V2_REMEDIATION`.
+La prochaine étape est
+`NEXT_ACTION=COMMIT_FINAL_REPORT_THEN_INDEPENDENT_AUDIT`. Aucun audit humain,
+challenge ou approbation PR 95/96 n'est demandé par ce rapport.

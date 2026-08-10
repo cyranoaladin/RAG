@@ -22,7 +22,7 @@
 - Modify: `services/rag-engine/tests/test_lot41a_authority_artifacts.py`
 - Existing ADR: `docs/adr/ADR-0034-lot41a-v2-autorite-liee-contenu.md`
 
-- [ ] **Step 1: Write failing V2 contract tests**
+- [x] **Step 1: Write failing V2 contract tests**
 
 Add tests constructing `ScopeAuthorizationArtifactV2` with a sorted non-empty
 `allowed_content_sha256`, parsing its canonical bytes, and rejecting missing,
@@ -30,7 +30,7 @@ empty, duplicate, unsorted, uppercase and malformed values. Add explicit tests
 that V1 rejects the V2 field, an unknown protocol fails closed, and one changed
 SHA changes canonical bytes and digest.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run:
 `services/rag-engine/.venv/bin/python -m pytest -q services/rag-engine/tests/test_lot41a_authority_artifacts.py`
@@ -38,7 +38,7 @@ Run:
 Expected: collection fails because `ScopeAuthorizationArtifactV2` and V2
 dispatch do not exist.
 
-- [ ] **Step 3: Implement the minimal discriminated contract**
+- [x] **Step 3: Implement the minimal discriminated contract**
 
 Keep `ScopeAuthorizationArtifact` byte-compatible as V1, export
 `ScopeAuthorizationArtifactV1` as its alias, add strict
@@ -46,13 +46,13 @@ Keep `ScopeAuthorizationArtifact` byte-compatible as V1, export
 `ScopeAuthorizationArtifactAny`. Dispatch `parse_scope_authorization_artifact`
 on the exact `protocol_version`; never normalize a submitted list.
 
-- [ ] **Step 4: Bump shared SemVer and repair its assertion**
+- [x] **Step 4: Bump shared SemVer and repair its assertion**
 
 Set `packages/contracts/pyproject.toml` to `0.7.0` and update the obsolete
 package-version assertion while keeping the schema namespace constant described
 by ADR-0026.
 
-- [ ] **Step 5: Verify GREEN and quality**
+- [x] **Step 5: Verify GREEN and quality**
 
 Run:
 `services/rag-engine/.venv/bin/python -m pytest -q services/rag-engine/tests/test_lot41a_authority_artifacts.py packages/contracts/tests/test_schema_export.py`
@@ -60,7 +60,7 @@ Run:
 Run:
 `services/rag-engine/.venv/bin/python -m ruff check packages/contracts/src/nexus_contracts/authority_artifacts.py services/rag-engine/tests/test_lot41a_authority_artifacts.py`
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 `git commit -m "contracts: ajoute le protocole LOT41A-V2"`
 
@@ -74,7 +74,7 @@ Run:
 - Modify: `services/rag-engine/tests/integration/test_lot44f_migration_upgrade_paths.py`
 - Modify: `services/rag-engine/tests/integration/test_lot44f_migration_rollback_rehearsal.py`
 
-- [ ] **Step 1: Write failing migration contract tests**
+- [x] **Step 1: Write failing migration contract tests**
 
 Require the new files, HEAD 009, nullable `TEXT[]`, protocol CHECK V1/V2, an
 IMMUTABLE array validator, the cross-version constraint, and a rollback guard
@@ -85,7 +85,7 @@ compatibility and valid V2, then reject V2 NULL/empty/malformed/uppercase/
 duplicate/unsorted/noncanonical-array and V1 populated list. Add apply →
 rollback → reapply plus rollback refusal with a V2 row.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run:
 `services/rag-engine/.venv/bin/python -m pytest -q services/rag-engine/tests/test_lot41a_v2_migration_contract.py`
@@ -95,7 +95,7 @@ Run:
 
 Expected: missing migration/rollback and absent column/constraints.
 
-- [ ] **Step 3: Implement migration and fail-closed rollback**
+- [x] **Step 3: Implement migration and fail-closed rollback**
 
 Add `allowed_content_sha256 TEXT[]`. The helper must return false for NULL,
 non-1D arrays, lower bound not 1, empty arrays, NULL members, values outside
@@ -103,7 +103,7 @@ non-1D arrays, lower bound not 1, empty arrays, NULL members, values outside
 Require V1+NULL and V2+valid-list. Rollback must lock the table, refuse any V2
 row, restore the V1-only protocol CHECK, then drop the column/helper.
 
-- [ ] **Step 4: Verify GREEN**
+- [x] **Step 4: Verify GREEN**
 
 Run:
 `cd services/rag-engine && .venv/bin/python -m pytest -q tests/test_lot41a_v2_migration_contract.py`
@@ -114,7 +114,7 @@ Run:
 Run:
 `cd services/rag-engine && .venv/bin/python -m pytest -q -m integration tests/integration/test_lot44f_migration_rollback_rehearsal.py`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 `git commit -m "rag-engine: ajoute la migration d'autorité LOT41A-V2"`
 
@@ -127,7 +127,7 @@ Run:
 - Modify: `services/rag-engine/tests/integration/test_lot41a_scope_authority.py`
 - Modify: `services/rag-engine/tests/integration/test_lot41a_operator_role_isolation.py`
 
-- [ ] **Step 1: Write failing readback and tampering tests**
+- [x] **Step 1: Write failing readback and tampering tests**
 
 Record a canonical V2 blob without any content CLI option. Require
 `VerifiedAuthorization.protocol_version == "LOT41A-V2"` and the exact tuple.
@@ -135,7 +135,7 @@ Then mutate the DB by append/remove/replace/reorder, change V2 to V1, change
 only digest and only blob SHA; each live verification must fail for its direct
 field mismatch.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run the targeted integration tests; expect missing column/fields or mismatches
 not detected.
@@ -143,19 +143,19 @@ not detected.
 Exact command:
 `cd services/rag-engine && .venv/bin/python -m pytest -q -m integration tests/integration/test_lot41a_scope_authority.py tests/integration/test_lot41a_operator_role_isolation.py`
 
-- [ ] **Step 3: Implement exact storage and readback**
+- [x] **Step 3: Implement exact storage and readback**
 
 Extend `_AUTHORIZATION_COLUMNS`, row/artifact comparison, record SQL,
 `VerifiedAuthorization` and test stubs. V1 maps to NULL, V2 to the exact list.
 The operator CLI remains identity/PR/head-only. No compiler CLI accepts an
 authority artifact, projection, or SHA list.
 
-- [ ] **Step 4: Verify GREEN and role isolation**
+- [x] **Step 4: Verify GREEN and role isolation**
 
 Run:
 `cd services/rag-engine && .venv/bin/python -m pytest -q -m integration tests/integration/test_lot41a_scope_authority.py tests/integration/test_lot41a_operator_role_isolation.py`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 `git commit -m "rag-engine: vérifie l'allowlist LOT41A-V2 en lecture live"`
 
@@ -171,14 +171,14 @@ Run:
 - Modify: `services/rag-engine/tests/integration/test_lot41a_worker_enforcement.py`
 - Modify: `services/rag-engine/tests/test_lot44d_fetcher.py`
 
-- [ ] **Step 1: Write the pure guard RED tests**
+- [x] **Step 1: Write the pure guard RED tests**
 
 Require V2 listed SHA to pass, V2 unlisted SHA to raise checkpoint `content`,
 and V1 to retain its historical guard behavior. Add a separate
 `require_h2_content_bound_authority` test that rejects V1 with
 `CONTENT_ALLOWLIST_AUTHORITY_REQUIRED`.
 
-- [ ] **Step 2: Write the exact P1 worker RED test**
+- [x] **Step 2: Write the exact P1 worker RED test**
 
 Return same-domain bytes not in the V2 list. Assert destination passed,
 checkpoint is `content`, fetch occurred once, artifact store/extractor/rights/
@@ -187,7 +187,7 @@ quality were not called, no artifact row exists and resource never reached
 allowed bytes behind an excluded destination, and revocation between fetch and
 content check.
 
-- [ ] **Step 3: Verify RED**
+- [x] **Step 3: Verify RED**
 
 Run the pure guard and targeted worker tests. Expected: unlisted content
 currently succeeds and reaches storage.
@@ -195,7 +195,7 @@ currently succeeds and reaches storage.
 Exact command:
 `cd services/rag-engine && .venv/bin/python -m pytest -q tests/test_lot41a_scope_enforcement.py tests/test_lot44d_fetcher.py tests/integration/test_lot41a_worker_enforcement.py`
 
-- [ ] **Step 4: Implement minimal ordered enforcement**
+- [x] **Step 4: Implement minimal ordered enforcement**
 
 Add `enforce_content_sha256`. Give `run_fetcher` an injected post-hash,
 pre-transition callback returning sanitized authorization-binding metadata.
@@ -203,7 +203,7 @@ Runner callback live-reverifies the named authority, performs membership, and
 returns protocol/id/digest for the `FETCHED` event. Do not log or persist raw
 bytes on denial.
 
-- [ ] **Step 5: Verify GREEN**
+- [x] **Step 5: Verify GREEN**
 
 Run:
 `cd services/rag-engine && .venv/bin/python -m pytest -q tests/test_lot41a_scope_enforcement.py tests/test_lot44d_fetcher.py tests/integration/test_lot41a_worker_enforcement.py`
@@ -211,7 +211,7 @@ Run:
 Run:
 `cd services/rag-engine && .venv/bin/python -m ruff check src/ingestor/ingestion_control/scope_enforcement.py src/ingestor/ingestion_agents/fetcher.py src/ingestor/ingestion_worker/runner.py tests/test_lot41a_scope_enforcement.py tests/test_lot44d_fetcher.py tests/integration/test_lot41a_worker_enforcement.py && .venv/bin/python -m mypy src/ingestor/ingestion_control/scope_enforcement.py src/ingestor/ingestion_agents/fetcher.py src/ingestor/ingestion_worker/runner.py`
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 `git commit -m "rag-engine: bloque le contenu hors allowlist avant stockage"`
 
@@ -229,7 +229,7 @@ Run:
 - Modify: `services/rag-engine/tests/integration/test_lot42_publication_attestation.py`
 - Modify: `services/rag-engine/tests/integration/test_h2c_governed_rehearsal.py`
 
-- [ ] **Step 1: Write compiler policy RED tests**
+- [x] **Step 1: Write compiler policy RED tests**
 
 Remove the raw `authority_cleared_sha256` input from the `rag-pedago` compiler.
 Prove it always leaves real candidates `REVIEW_REQUIRED` on the authority gate
@@ -239,14 +239,14 @@ input. In `rag-engine`, write the finalizer RED tests against the in-process
 is blocked, V1 returns `CONTENT_ALLOWLIST_AUTHORITY_REQUIRED`, and absent
 authority leaves every candidate blocked.
 
-- [ ] **Step 2: Write LOT42 RED tests**
+- [x] **Step 2: Write LOT42 RED tests**
 
 Require H2 promotion/publisher to validate the durable `FETCHED` content event,
 including authorization protocol/id/digest and SHA. V1, missing event, unlisted
 SHA, caller-supplied mismatch, or tampered event must prevent
 `RETRIEVAL_ELIGIBLE` and product writes.
 
-- [ ] **Step 3: Verify RED**
+- [x] **Step 3: Verify RED**
 
 Run the targeted compiler and LOT42 tests; expect V1/broad authority to be
 accepted today.
@@ -256,7 +256,7 @@ Exact commands:
 
 `cd services/rag-engine && .venv/bin/python -m pytest -q tests/test_h2c_placement_readiness.py tests/integration/test_lot42_publication_attestation.py tests/integration/test_h2c_governed_rehearsal.py tests/test_lot42_retrieval_eligible_anchor.py`
 
-- [ ] **Step 4: Implement H2 and durable-event binding**
+- [x] **Step 4: Implement H2 and durable-event binding**
 
 Make the real `rag-pedago` compiler candidate-only by deleting its raw authority
 set input. Add the authority finalization to `rag-engine` placement readiness,
@@ -267,7 +267,7 @@ include its ID in canonical evidence events. Add an opt-in
 `require_content_bound_authority` parameter to general LOT42 verification and
 require it unconditionally from the dormant H2 path and governed publisher.
 
-- [ ] **Step 5: Verify GREEN**
+- [x] **Step 5: Verify GREEN**
 
 Run:
 `cd services/rag-pedago && .venv/bin/python -m pytest -q tests/test_corpus_catalog_compiler.py`
@@ -275,7 +275,7 @@ Run:
 Run:
 `cd services/rag-engine && .venv/bin/python -m pytest -q tests/test_h2c_placement_readiness.py tests/test_governed_publisher_v2.py tests/integration/test_lot42_publication_attestation.py tests/integration/test_h2c_governed_rehearsal.py tests/test_lot42_retrieval_eligible_anchor.py`
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 `git commit -m "rag-engine: lie LOT42 et le compilateur H2 au contenu V2"`
 
@@ -290,7 +290,7 @@ Run:
 - Modify: `services/rag-engine/tests/test_lot41a_scope_enforcement.py`
 - Modify: `services/rag-pedago/tests/test_h2b_true_mutation_harness.py` if present
 
-- [ ] **Step 1: Add staging V2 positive and negative rehearsals**
+- [x] **Step 1: Add staging V2 positive and negative rehearsals**
 
 Use a V2 fixture listing the real sealed SHA for the positive path. Add a
 same-domain unlisted-byte path and assert no extraction, rights, quality,
@@ -312,13 +312,13 @@ with top-level `pdf_path`, `pdf_sha256`, `catalog_path`, `catalog_sha256`,
 Run and observe RED:
 `cd services/rag-pedago && .venv/bin/python -m pytest -q tests/test_h2e_materialize_rehearsal_inputs.py`.
 
-- [ ] **Step 2: Add MUT-H2B-13 test-first**
+- [x] **Step 2: Add MUT-H2B-13 test-first**
 
 Add the target test whose message appears only if
 `if content_sha256 not in authorization.allowed_content_sha256` is neutralized.
 Then add Check 13 to the harness with one exact textual mutation anchor.
 
-- [ ] **Step 3: Verify mutation RED/GREEN/restore**
+- [x] **Step 3: Verify mutation RED/GREEN/restore**
 
 Run `--only 13`; require baseline green, mutant red for the exact message,
 restored SHA match and restored green.
@@ -326,7 +326,7 @@ restored SHA match and restored green.
 Exact command:
 `services/rag-pedago/.venv/bin/python services/rag-pedago/scripts/h2b_true_mutation_harness.py --only 13 --report /tmp/h2b_mutation_13.json`
 
-- [ ] **Step 4: Run full 13-mutation matrix**
+- [x] **Step 4: Run full 13-mutation matrix**
 
 Write non-sensitive evidence outside Git and require `13/13` plus byte-perfect
 restoration.
@@ -368,7 +368,7 @@ run:
 Finally run the materializer unit test GREEN and let the validated trap remove
 only the new scratch directory.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 `git commit -m "test(governance): étend les mutations H2 à l'allowlist contenu"`
 
@@ -380,13 +380,14 @@ only the new scratch directory.
 - Modify: `docs/reports/lot_h2b_production_readiness.md`
 - Modify: PR #95 body only after evidence is final
 
-- [ ] **Step 1: Prepare and commit the evidence report before the final gate**
+- [x] **Step 1: Finalize and commit the evidence report after the final gates**
 
-Update the report with implementation facts and the exact commands to be run,
-commit it, and treat the resulting commit as the candidate final head. Do not
-edit versioned files after the exact-head verification begins.
+La correction de trajectoire H2 du 10 août 2026 remplace l'ordre initial :
+exécuter les gates sur la tête d'implémentation figée, puis mettre à jour et
+committer ce plan et le rapport avec les vrais digests externes. Le commit
+documentaire ne modifie aucun octet d'implémentation vérifié.
 
-- [ ] **Step 2: Re-run disposable migrations**
+- [x] **Step 2: Re-run disposable migrations**
 
 Run product migration 004 apply/rollback/reapply:
 `cd services/rag-engine && bash infra/scripts/test_hybrid_integration.sh`
@@ -402,7 +403,7 @@ Then:
 
 No production DSN may be present.
 
-- [ ] **Step 3: Re-run real multi-placement and V2 governed rehearsals**
+- [x] **Step 3: Re-run real multi-placement and V2 governed rehearsals**
 
 Use the sealed real PDF/catalog evidence outside Git. Record artifact=1,
 placement count, chunk set=1, duplicate vectors/chunks/results=0, positive V2
@@ -412,13 +413,13 @@ Repeat the exact Task 6 materializer and rehearsal commands with a new bounded
 `mktemp -d` directory and a cleanup trap restricted by a
 `/tmp/nexus-h2e.*` case check. Never reuse a path from a prior run.
 
-- [ ] **Step 4: Run canonical local CI on exact HEAD**
+- [x] **Step 4: Run canonical local CI on exact HEAD**
 
 Use Python 3.12 and Node 22.22 without changing CI semantics:
 `bash scripts/ci-local.sh` after selecting the host's Python 3.12 and Node
 22.22 installations through the normal version managers.
 
-- [ ] **Step 5: Run final security scans**
+- [x] **Step 5: Run final security scans**
 
 Run:
 `gitleaks detect --source . --log-opts="$(git rev-parse origin/main)..$(git rev-parse HEAD)" --redact --no-banner`
