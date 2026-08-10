@@ -27,7 +27,12 @@ CONTENT = b"octets canoniques d'un document pedagogique"
 CONTENT_SHA = hashlib.sha256(CONTENT).hexdigest()
 
 
-def _scope(*, collection: str, matiere: str) -> ResourceScope:
+def _scope(
+    *,
+    collection: str,
+    matiere: str,
+    audience: list[str] | None = None,
+) -> ResourceScope:
     return ResourceScope(
         tenant="libre_terminale",
         collection=collection,
@@ -35,7 +40,7 @@ def _scope(*, collection: str, matiere: str) -> ResourceScope:
         voie=Voie.generale,
         matiere=matiere,
         candidat=Candidat.libre,
-        audience=["tous"],
+        audience=audience or ["tous"],
         visibility="public",
         school_year="2026-2027",
         programme_version="BOEN_2025",
@@ -112,6 +117,54 @@ def test_placement_preserves_its_own_source_uri() -> None:
     )
 
     assert philosophy.source_uri == "https://eduscol.education.gouv.fr/philosophie"
+
+
+def test_persisted_placement_uses_the_same_canonical_audience_order_as_identity() -> None:
+    placement = EligiblePlacement(
+        resource_id=uuid4(),
+        scope=_scope(
+            collection="rag_nexus_philo_terminale_tc",
+            matiere="philosophie",
+            audience=["tous", "libre"],
+        ),
+        statut_enseignement="tronc_commun",
+        domain="lycee",
+        source_scope="01_EDUSCOL_OFFICIEL/terminale/philosophie",
+        source_placement_id="eduscol:5793:terminale:philosophie",
+        source_path="01_EDUSCOL_OFFICIEL/philosophie/source.pdf",
+        source_uri="https://eduscol.education.gouv.fr/philosophie",
+        current_profile_fingerprint="1" * 64,
+        current_manifest_digest="2" * 64,
+    )
+
+    class Cursor:
+        inserted: tuple[object, ...] | None = None
+
+        def execute(self, query: str, params: tuple[object, ...]) -> None:
+            if "INSERT INTO" in query:
+                self.inserted = params
+
+        def fetchone(self) -> tuple[object, ...]:
+            assert self.inserted is not None
+            return self.inserted
+
+    cursor = Cursor()
+    verified = SimpleNamespace(
+        placement=placement,
+        attestation=SimpleNamespace(
+            scope_authorization_id="AUTH-H2-V2",
+            attestation_id=uuid4(),
+        ),
+    )
+
+    publisher_module._insert_placement(
+        cursor,
+        artifact_id=CONTENT_SHA,
+        verified=verified,
+    )
+
+    assert cursor.inserted is not None
+    assert cursor.inserted[6] == ["libre", "tous"]
 
 
 def test_publisher_surface_requires_governance_objects_not_bare_text() -> None:

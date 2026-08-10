@@ -150,6 +150,10 @@ def _enum_value(value: object) -> str:
     return str(getattr(value, "value", value))
 
 
+def _canonical_audience(scope: ResourceScope) -> list[str]:
+    return sorted(_enum_value(value) for value in scope.audience)
+
+
 def canonical_placement_id(artifact_id: str, placement: EligiblePlacement) -> str:
     """Identité stable du tuple pédagogique, indépendante de l'autorité."""
     if _SHA256.fullmatch(artifact_id) is None:
@@ -157,7 +161,7 @@ def canonical_placement_id(artifact_id: str, placement: EligiblePlacement) -> st
     scope = placement.scope
     document = {
         "artifact_id": artifact_id,
-        "audience": sorted(_enum_value(value) for value in scope.audience),
+        "audience": _canonical_audience(scope),
         "candidat": _enum_value(scope.candidat),
         "collection": str(scope.collection),
         "matiere": str(scope.matiere),
@@ -317,7 +321,7 @@ def _insert_placement(
         str(scope.tenant),
         _enum_value(scope.niveau),
         _enum_value(scope.voie),
-        [_enum_value(value) for value in scope.audience],
+        _canonical_audience(scope),
         str(scope.matiere),
         placement.statut_enseignement,
         _enum_value(scope.candidat),
@@ -407,7 +411,7 @@ def _insert_chunks(
                 str(scope.collection),
                 _enum_value(scope.niveau),
                 _enum_value(scope.voie),
-                [_enum_value(value) for value in scope.audience],
+                _canonical_audience(scope),
                 str(scope.matiere),
                 placement.statut_enseignement,
                 placement.domain,

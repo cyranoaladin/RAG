@@ -12,6 +12,7 @@ import threading
 import time
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
@@ -183,7 +184,10 @@ def _scope(
 
 
 def _governed_placement(
-    *, collection: str, source_suffix: str
+    *,
+    collection: str,
+    source_suffix: str,
+    audience: list[str] | None = None,
 ) -> publisher.EligiblePlacement:
     return publisher.EligiblePlacement(
         resource_id=uuid4(),
@@ -194,7 +198,7 @@ def _governed_placement(
             voie=Voie.generale,
             matiere="nsi",
             candidat=Candidat.individuel,
-            audience=["tous"],
+            audience=audience or ["tous"],
             visibility=VISIBILITY,
             school_year=SCHOOL_YEAR,
             programme_version=PROGRAMME_VERSION,
@@ -1165,6 +1169,13 @@ def test_governed_publisher_is_atomic_idempotent_and_multi_placement(
     placement_a = _governed_placement(
         collection="lot42_governed_scope_a",
         source_suffix="scope-a",
+        audience=["libre", "tous"],
+    )
+    placement_a_reordered = replace(
+        placement_a,
+        scope=placement_a.scope.model_copy(
+            update={"audience": ["tous", "libre"]}
+        ),
     )
     placement_b = _governed_placement(
         collection="lot42_governed_scope_b",
@@ -1263,6 +1274,14 @@ def test_governed_publisher_is_atomic_idempotent_and_multi_placement(
             extract_text,
             embed_chunks,
         )
+        reordered_retry = publisher.publish_governed_artifact(
+            product_connection,
+            product_connection,
+            artifact,
+            (placement_a_reordered,),
+            extract_text,
+            embed_chunks,
+        )
         extended = publisher.publish_governed_artifact(
             product_connection,
             product_connection,
@@ -1304,6 +1323,7 @@ def test_governed_publisher_is_atomic_idempotent_and_multi_placement(
         chunk_rows=created.chunk_rows,
         embedded=False,
     )
+    assert reordered_retry == retried
     assert extended.placement_rows == 2
     assert extended.chunk_rows == created.chunk_rows
     assert extended.embedded is False
