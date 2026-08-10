@@ -99,7 +99,8 @@ identifié quatre fermetures supplémentaires sur le gate PII :
 
 Le transport opérateur est désormais un processus séparé à la racine du dépôt.
 Il matérialise en lecture seule une liste positive dérivée du manifest dans un
-répertoire borné `/tmp/nexus-h2b-pii.*` de mode `0700`. Son reçu non sensible ne
+répertoire borné `nexus-h2b-pii.*` de mode `0700`, sous la racine approuvée par
+`--scratch-root` ou `NEXUS_H2_PII_SCRATCH_ROOT`. Son reçu non sensible ne
 constitue pas une attestation PII : seul le scanner local, après vérification de
 chaque contenu, peut produire la preuve. Les fichiers pré-matérialisés ne sont
 jamais supprimés par le plan de contrôle ; leur cycle de vie reste à
@@ -128,7 +129,7 @@ distante et chaque objet reste vérifié par SHA-256 avant consommation.
 ## Revue automatisée du troisième correctif H2-F
 
 La revue Codex sur `48378d3e862fb8615959629e80f1ce67103b8623` a
-identifié trois derniers succès silencieux. Le scanner refuse désormais un PDF
+identifié trois succès silencieux. Le scanner refuse désormais un PDF
 ouvert correctement mais sans aucun texte extractible, et il refuse toute la
 politique si une regex configurée est invalide. Le gate de currentness compte
 également comme erreur de périmètre une identité Eduscol déclarée par famille
@@ -139,3 +140,22 @@ PII réelle a été régénérée sur les 64 octets PDF vérifiés : son sceau e
 `1ea7655b4e390fa08916b3d4303a3424f3306e65a4149b9841c0f77aee773691`,
 avec 63 objets clairs, un en quarantaine et aucune extraction vide ou échouée
 dans le périmètre autorisable.
+
+## Revue automatisée du quatrième correctif H2-F
+
+La revue Codex sur `60b9edd81766e3b58129cef5772c66bee78b40b5` a fermé
+deux écarts supplémentaires. La transition produit 004 injecte désormais,
+dans la même transaction que le schéma et son registre, une projection
+rejouable des rôles runtime. Un volume existant à HEAD 003 reçoit donc les
+droits `SELECT` du rôle de retrieval et les seuls droits `SELECT, INSERT` du
+publisher sur les nouvelles relations ; aucun secret ne figure dans la ligne
+de commande Docker. Le runner PostgreSQL réel construit un état 003 avec
+rôles préexistants, applique 004, vérifie ces privilèges, puis rejoue tous les
+cycles de rollback et de migration.
+
+Le miroir PII ne dépend plus d'une racine absolue codée dans le programme. Le
+scanner local et le matérialiseur opérateur partagent la même configuration
+`NEXUS_H2_PII_SCRATCH_ROOT`, avec `--scratch-root` explicite et le répertoire
+temporaire du système comme repli. Un miroir hors de cette racine est rejeté
+avant transport ou lecture ; le répertoire dédié conserve son mode `0700` et
+sa garde de vacuité.
