@@ -187,6 +187,39 @@ class TestCurrentnessGate:
         assert report.coverage_complete is False
         assert report.gate_passed is False
 
+    @pytest.mark.parametrize(
+        ("famille", "url_source"),
+        [
+            ("eduscol", ""),
+            ("", "https://eduscol.education.gouv.fr/resource.pdf"),
+        ],
+        ids=("eduscol-family", "eduscol-source-url"),
+    )
+    def test_valid_eduscol_identity_outside_canonical_prefix_fails_closed(
+        self,
+        tmp_path: Path,
+        config: dict,
+        famille: str,
+        url_source: str,
+    ) -> None:
+        manifest = tmp_path / "off-prefix.tsv"
+        manifest.write_text(
+            "sha256\tchemin_technique_existant\tfamille\turl_source\n"
+            f"{'a' * 64}\t02_NEXUS_DIAGNOSTICS/conflict.pdf\t"
+            f"{famille}\t{url_source}\n",
+            encoding="utf-8",
+        )
+
+        report = evaluate_currentness_gate(manifest, config)
+
+        assert report.manifest_rows == 1
+        assert report.eduscol_manifest_rows == 1
+        assert report.total_documents == 0
+        assert report.skipped_eduscol_rows == 1
+        assert report.coverage_complete is False
+        assert report.gate_passed is False
+        assert report.gate_status == "BLOCKED_MANIFEST_PERIMETER_INCOMPLETE"
+
 
 class TestCurrentnessInvariants:
     """Test currentness classification invariants."""

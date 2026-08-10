@@ -14,6 +14,7 @@ from rag_pedago.imports.pii_scanner import (
     PIIScanResult,
     extract_context,
     is_allowlisted,
+    load_patterns_from_config,
     report_to_dict,
     result_to_dict,
     result_to_dict_sanitized,
@@ -131,6 +132,29 @@ class TestPDFScanning:
         assert result.pii_detected is False
         assert result.pages_scanned == 0
 
+    def test_scan_pdf_rejects_pages_without_extractable_text(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        pdf = tmp_path / "image-only.pdf"
+        pdf.write_bytes(b"synthetic image-only pdf")
+        monkeypatch.setattr(
+            pii_scanner,
+            "extract_pdf_text",
+            lambda _path: (["", " \n\t"], None),
+        )
+
+        result = scan_pdf(pdf)
+
+        assert result.pii_detected is False
+        assert result.pages_scanned == 0
+        assert result.characters_scanned == 0
+        assert result.extraction_error == "PDF_TEXT_EXTRACTION_EMPTY"
+        assert result_to_dict_sanitized(result)["extraction_error_code"] == (
+            "PDF_TEXT_EXTRACTION_EMPTY"
+        )
+
     def test_single_file_cli_fails_when_extraction_did_not_complete(
         self,
         monkeypatch: pytest.MonkeyPatch,
@@ -235,6 +259,31 @@ class TestCorpusScanningFailClosed:
         assert report.pii_absent_attested is False
         assert report.results[0].sha256 == hashlib.sha256(pdf.read_bytes()).hexdigest()
         assert report.results[0].extraction_error == "CONTENT_SHA256_MISMATCH"
+
+
+class TestPIIPolicyLoadingFailClosed:
+    def test_invalid_regex_rejects_the_entire_reviewed_policy(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        config = tmp_path / "pii-policy.yml"
+        config.write_text(
+            "full_content_scan:\n"
+            "  patterns_to_search:\n"
+            "    - pattern_id: valid_email\n"
+            "      description: valid\n"
+            "      regex: '@'\n"
+            "    - pattern_id: broken_detector\n"
+            "      description: invalid\n"
+            "      regex: '[unterminated'\n",
+            encoding="utf-8",
+        )
+
+        with pytest.raises(
+            ValueError,
+            match="Invalid PII regex for pattern 'broken_detector'",
+        ):
+            load_patterns_from_config(config)
 
 
 class TestMutationTests:

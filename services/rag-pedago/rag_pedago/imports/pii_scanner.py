@@ -172,8 +172,11 @@ def load_patterns_from_config(config_path: Path) -> list[PIIPattern]:
                     severity=p.get("severity", "high"),
                 )
             )
-        except re.error:
-            continue  # Skip invalid patterns
+        except re.error as exc:
+            pattern_id = p.get("pattern_id", "unknown")
+            raise ValueError(
+                f"Invalid PII regex for pattern {pattern_id!r}"
+            ) from exc
 
     return patterns if patterns else DEFAULT_PII_PATTERNS
 
@@ -271,6 +274,17 @@ def scan_pdf(
             pii_detected=False,
             matches=[],
             extraction_error=error,
+            scan_duration_ms=int((time.monotonic() - start) * 1000),
+        )
+    if not pages_text or not any(page_text.strip() for page_text in pages_text):
+        return PIIScanResult(
+            file_path=str(pdf_path),
+            sha256=sha256,
+            pages_scanned=0,
+            characters_scanned=0,
+            pii_detected=False,
+            matches=[],
+            extraction_error="PDF_TEXT_EXTRACTION_EMPTY",
             scan_duration_ms=int((time.monotonic() - start) * 1000),
         )
 
@@ -449,6 +463,7 @@ def result_to_dict_sanitized(result: PIIScanResult) -> dict[str, Any]:
     elif result.extraction_error in {
         "CONTENT_SHA256_MISMATCH",
         "LOCAL_FILE_MISSING",
+        "PDF_TEXT_EXTRACTION_EMPTY",
         "SCANNER_SHA256_DRIFT",
     }:
         extraction_error_code = result.extraction_error

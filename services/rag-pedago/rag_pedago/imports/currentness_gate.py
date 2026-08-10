@@ -187,8 +187,12 @@ def evaluate_currentness_gate(
                     skipped_eduscol_rows += 1
                 continue
 
-            # Only classify Eduscol documents (01_EDUSCOL_OFFICIEL/)
+            # A row that declares an Eduscol identity outside the canonical
+            # prefix is part of the perimeter, but cannot be classified from
+            # an ambiguous path. Count it and fail the perimeter closed.
             if not path.startswith("01_EDUSCOL_OFFICIEL/"):
+                if looks_eduscol:
+                    skipped_eduscol_rows += 1
                 continue
             eduscol_manifest_rows += 1
 

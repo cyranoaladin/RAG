@@ -46,6 +46,19 @@ Les vérifications ciblées, la CI complète, le corpus réel et les preuves H2-
 seront consignés sur le HEAD final. Aucun résultat d'un HEAD antérieur ne sera
 présenté comme autorisant le nouveau code.
 
+La revue automatisée suivante a fermé trois autres faux verts par TDD. Un PDF
+dont toutes les pages sont dépourvues de texte extractible reste désormais en
+échec explicite `PDF_TEXT_EXTRACTION_EMPTY`; une expression régulière invalide
+rend toute la politique PII invalide au lieu d'être ignorée; enfin une ligne
+qui se déclare Eduscol par sa famille ou son URL mais se trouve hors du préfixe
+canonique est comptée dans le périmètre incomplet et bloque la currentness.
+
+Le scan réel a été rejoué après ces changements sur les 64 PDF positifs
+matérialisés en lecture seule. Le sceau
+`1ea7655b4e390fa08916b3d4303a3424f3306e65a4149b9841c0f77aee773691`
+conserve 64 objets scannés, 63 clairs, un en quarantaine et zéro échec
+d'extraction, objet non scanné ou mismatch SHA-256.
+
 ## Sécurité
 
 Aucune base de production n'est visée. Aucun writer n'est activé. PR #96 reste
