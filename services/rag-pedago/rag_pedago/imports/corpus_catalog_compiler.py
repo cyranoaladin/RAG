@@ -18,6 +18,7 @@ import json
 import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from fnmatch import fnmatchcase
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -159,14 +160,11 @@ def _match_sub_zone(path: str, sub_zone_suffix: str | None) -> bool:
     return sub_zone_suffix in path
 
 
-def _determine_disposition(
+def _route_disposition(
     path: str,
     config: dict[str, Any],
 ) -> tuple[Disposition, str, str, str | None, str | None]:
-    """Determine disposition for a path based on routing rules.
-
-    Returns: (disposition, reason, zone, currentness, rights_category_candidate)
-    """
+    """Determine the zone-level disposition before explicit exclusions."""
     zone_rules = config.get("zone_rules", [])
 
     for rule in zone_rules:
@@ -211,6 +209,57 @@ def _determine_disposition(
         "UNKNOWN",
         None,
         None,
+    )
+
+
+def _explicit_exclusion_reason(path: str, config: dict[str, Any]) -> str | None:
+    """Return the single configured exclusion reason matching ``path``."""
+    exclusions = config.get("explicit_exclusions", [])
+    if not isinstance(exclusions, list):
+        raise ValueError("explicit_exclusions must be a list")
+    matches: list[str] = []
+    filename = PurePosixPath(path).name
+    for index, exclusion in enumerate(exclusions):
+        if not isinstance(exclusion, dict):
+            raise ValueError(f"explicit exclusion {index} must be a mapping")
+        pattern = exclusion.get("pattern")
+        reason = exclusion.get("reason")
+        if (
+            not isinstance(pattern, str)
+            or not pattern
+            or "\x00" in pattern
+            or "\\" in pattern
+            or pattern.startswith("/")
+            or ".." in PurePosixPath(pattern).parts
+        ):
+            raise ValueError(f"explicit exclusion {index} pattern is invalid")
+        if exclusion.get("disposition") != Disposition.EXCLUDE.value:
+            raise ValueError(f"explicit exclusion {index} must use EXCLUDE")
+        if not isinstance(reason, str) or not reason.strip():
+            raise ValueError(f"explicit exclusion {index} reason is invalid")
+        candidate = path if "/" in pattern else filename
+        if fnmatchcase(candidate, pattern):
+            matches.append(reason)
+    if len(matches) > 1:
+        raise ValueError(f"multiple explicit exclusions match path: {path}")
+    return matches[0] if matches else None
+
+
+def _determine_disposition(
+    path: str,
+    config: dict[str, Any],
+) -> tuple[Disposition, str, str, str | None, str | None]:
+    """Apply explicit exclusions over the deterministic zone-level route."""
+    routed = _route_disposition(path, config)
+    exclusion_reason = _explicit_exclusion_reason(path, config)
+    if exclusion_reason is None:
+        return routed
+    return (
+        Disposition.EXCLUDE,
+        exclusion_reason,
+        routed[2],
+        routed[3],
+        routed[4],
     )
 
 

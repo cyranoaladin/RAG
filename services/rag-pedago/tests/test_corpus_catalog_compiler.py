@@ -6,6 +6,7 @@ import pytest
 
 from rag_pedago.imports.corpus_catalog_compiler import (
     Disposition,
+    _determine_disposition,
     compile_catalog,
     compile_governed_sealed_catalog,
     compile_sealed_catalog,
@@ -429,6 +430,67 @@ class TestCorpusCatalogCompiler:
         assert report.objects[0].disposition_reason == (
             "Root import instructions — administrative metadata"
         )
+
+    @pytest.mark.parametrize(
+        ("path", "expected_reason"),
+        [
+            (
+                "00_ADMIN/EXCLUSIONS_HORS_CORPUS/DOCUMENTS_INFORMATION_FAMILLES/"
+                "Nexus_Reussite_Guide_Candidat_Individuel_2026_2027.pdf",
+                "Information for families, not pedagogical content",
+            ),
+            (
+                "00_ADMIN/EXCLUSIONS_HORS_CORPUS/PDF_NON_PEDAGOGIQUES/"
+                "t_nexus_scan_blanc_non_pedagogique.pdf",
+                "Non-pedagogical test scan",
+            ),
+        ],
+    )
+    def test_explicit_exclusions_override_the_zone_disposition(
+        self,
+        path: str,
+        expected_reason: str,
+    ) -> None:
+        config = load_routing_config(
+            Path(__file__).parent.parent / "configs" / "corpus_zone_routing.yml"
+        )
+
+        disposition, reason, zone, currentness, rights = _determine_disposition(
+            path, config
+        )
+
+        assert disposition == Disposition.EXCLUDE
+        assert reason == expected_reason
+        assert zone == "00_ADMIN/"
+        assert currentness is None
+        assert rights is None
+
+    def test_explicit_exclusion_overrides_an_otherwise_ingest_route(
+        self,
+    ) -> None:
+        config = {
+            "explicit_exclusions": [
+                {
+                    "pattern": "blocked.pdf",
+                    "disposition": "EXCLUDE",
+                    "reason": "explicitly outside the pedagogical corpus",
+                }
+            ],
+            "zone_rules": [
+                {
+                    "zone_prefix": "01_EDUSCOL_OFFICIEL/",
+                    "disposition": "INGEST",
+                    "reason": "otherwise eligible",
+                }
+            ],
+        }
+
+        disposition, reason, *_ = _determine_disposition(
+            "01_EDUSCOL_OFFICIEL/blocked.pdf", config
+        )
+
+        assert disposition == Disposition.EXCLUDE
+        assert reason == "explicitly outside the pedagogical corpus"
 
 
 class TestDispositionCoverageInvariant:
