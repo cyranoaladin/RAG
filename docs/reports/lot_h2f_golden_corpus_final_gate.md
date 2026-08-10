@@ -189,3 +189,10 @@ Le validateur golden refuse aussi une spécification dont les trois listes de
 contrôles sont vides, même lorsque son résumé déclare correctement zéro. Le
 gate final exige donc au moins un contrôle exécutable avant de calculer un
 verdict vert.
+
+Le scan réel des 64 candidats a confirmé 61 objets clairs, un objet en
+quarantaine et deux échecs page par page, tous deux hors du slice philosophie
+approuvé. Son nouveau sceau est
+`3db37e916250300f0a0d538fd924802f222ce3a8880b595971f3cf4ab2b29b87`.
+Les liaisons H2-E et readiness utilisent ce sceau ; les deux objets non
+inspectables restent `REVIEW_REQUIRED`.

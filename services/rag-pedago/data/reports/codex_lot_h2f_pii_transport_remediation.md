@@ -78,6 +78,12 @@ combine des pages textuelles et une page sans texte extractible est classé
 `PDF_PAGE_TEXT_EXTRACTION_EMPTY`; la présence de texte ailleurs dans le
 document ne peut plus attester implicitement la page non inspectable.
 
+Le rejeu réel a trouvé deux PDF EPS dans ce cas. La preuve scellée
+`3db37e916250300f0a0d538fd924802f222ce3a8880b595971f3cf4ab2b29b87`
+conserve 61 objets clairs et un en quarantaine ; les deux objets restants sont
+explicitement `REVIEW_REQUIRED_EXTRACTION_FAILED` et ne font partie d'aucune
+allowlist philosophie.
+
 ## Sécurité
 
 Aucune base de production n'est visée. Aucun writer n'est activé. PR #96 reste

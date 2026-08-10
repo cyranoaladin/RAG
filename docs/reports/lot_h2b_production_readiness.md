@@ -289,10 +289,12 @@ catalogue synthétique :
 `EXCLUDE/MANIFEST_SELF_OBJECT`. Le manifest vaut
 `d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e`.
 
-Le scope PII initial comprend les 64 PDF qui pouvaient être promus : 64
-scannés, 63 `CLEARED`, un `QUARANTINED_PII`, zéro échec et zéro non scanné.
-La preuve PII externe vaut
-`1ea7655b4e390fa08916b3d4303a3424f3306e65a4149b9841c0f77aee773691`.
+Le scope PII initial comprend les 64 PDF qui pouvaient être promus : 61
+`CLEARED`, un `QUARANTINED_PII` et deux
+`REVIEW_REQUIRED_EXTRACTION_FAILED`. Ces deux derniers ont été tentés mais
+contiennent au moins une page sans texte extractible ; ils restent donc hors
+de toute promotion. La preuve PII externe vaut
+`3db37e916250300f0a0d538fd924802f222ce3a8880b595971f3cf4ab2b29b87`.
 Le SHA quarantiné
 `b81201b857c67e4e928a079cfe9d5b9b402537d0101bfccc730465631d5e8376`
 n'apparaît dans aucune allowlist de répétition.
