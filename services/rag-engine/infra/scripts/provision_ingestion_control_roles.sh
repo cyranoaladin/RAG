@@ -249,6 +249,11 @@ REVOKE UPDATE, DELETE, TRUNCATE ON ingestion_control.workflow_events FROM :"app_
 -- (rôles authority_role/attestor_role dédiés ci-dessus), en a le droit.
 GRANT SELECT ON ingestion_control.scope_authorizations TO :"app_role" ;
 GRANT SELECT ON ingestion_control.publication_attestations TO :"app_role" ;
+-- Migration 011 : le runtime peut seulement ajouter/relever le pin exact
+-- produit par sa vérification GitHub live. La preuve est append-only :
+-- aucun rôle gouverné ne peut la corriger ou la supprimer après coup.
+GRANT SELECT, INSERT ON ingestion_control.publication_commit_pins TO :"app_role" ;
+REVOKE UPDATE, DELETE, TRUNCATE ON ingestion_control.publication_commit_pins FROM :"app_role" ;
 
 -- Aucune écriture directe dans rag_chunks/public depuis le rôle runtime
 -- ingestion_control — vérifié explicitement, jamais supposé.

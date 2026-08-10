@@ -18,6 +18,7 @@ import ingestor.governed_publisher_v2 as publisher_module
 from ingestor.governed_publisher_v2 import (
     EligiblePlacement,
     GovernedArtifact,
+    GovernedPublicationError,
     canonical_placement_id,
     publish_governed_artifact,
 )
@@ -327,7 +328,7 @@ def test_atomic_reverification_denial_rolls_back_before_product_cursor(
     assert calls == {"verify": 2, "transaction": 0, "cursor": 0}
 
 
-def test_product_commit_occurs_while_control_revocation_fence_is_held(
+def test_external_authority_pin_commits_before_fenced_product_commit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     artifact = GovernedArtifact(
@@ -411,6 +412,10 @@ def test_product_commit_occurs_while_control_revocation_fence_is_held(
     def fence(*_args: object, **_kwargs: object) -> None:
         events.append("fence")
 
+    def pin(*_args: object, **_kwargs: object) -> tuple[str, ...]:
+        events.append("pin")
+        return ("5" * 64,)
+
     monkeypatch.setattr(publisher_module, "verify_publication_attestation", verify)
     monkeypatch.setattr(
         publisher_module,
@@ -418,6 +423,7 @@ def test_product_commit_occurs_while_control_revocation_fence_is_held(
         lambda *_args, **_kwargs: True,
     )
     monkeypatch.setattr(publisher_module, "_lock_governance_commit_fence", fence)
+    monkeypatch.setattr(publisher_module, "_persist_external_authority_pins", pin)
     monkeypatch.setattr(publisher_module, "_lock_artifact", lambda *_args: None)
     monkeypatch.setattr(
         publisher_module,
@@ -442,6 +448,92 @@ def test_product_commit_occurs_while_control_revocation_fence_is_held(
     )
 
     assert result.artifact_created is False
-    assert events.index("control:enter") < events.index("fence")
-    assert events.index("fence") < events.index("product:enter")
-    assert events.index("product:exit") < events.index("control:exit")
+    first_control_exit = events.index("control:exit")
+    product_enter = events.index("product:enter")
+    assert events.index("pin") < first_control_exit < product_enter
+    assert events.count("pin") == 2
+    assert events.count("control:enter") == 2
+    assert events[-1] == "control:exit"
+    assert events.index("product:exit") < len(events) - 1
+
+
+def test_external_pin_drift_refuses_before_the_product_transaction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifact = GovernedArtifact(
+        content=CONTENT,
+        content_sha256=CONTENT_SHA,
+        source_label="Ressource Eduscol",
+        source_uri="https://eduscol.education.gouv.fr/philosophie",
+        rights="officiel_public",
+        official=True,
+        source_kind="eduscol",
+        type_doc="ressource_officielle",
+    )
+    placement = _placement(
+        collection="rag_nexus_philo_terminale_tc",
+        matiere="philosophie",
+    )
+    facts = SimpleNamespace(
+        content_sha256=CONTENT_SHA,
+        collection=str(placement.scope.collection),
+        canonical_url=placement.source_uri,
+        rights_status=Rights.officiel_public,
+    )
+    verified = VerifiedAttestation(
+        attestation_id=uuid4(),
+        resource_id=placement.resource_id,
+        artifact_id=uuid4(),
+        content_sha256=CONTENT_SHA,
+        scope_authorization_id="h2-v2",
+        profile_fingerprint=placement.current_profile_fingerprint,
+        manifest_digest=placement.current_manifest_digest,
+        review_id="lot42-v2",
+        attestation_digest="3" * 64,
+        authorization=SimpleNamespace(
+            authorization_id="h2-v2",
+            authorization_digest="4" * 64,
+            scope=placement.scope,
+        ),
+        facts=facts,
+    )
+    pins = iter((("5" * 64,), ("6" * 64,)))
+
+    class ControlConnection:
+        def transaction(self) -> object:
+            return nullcontext()
+
+    class NoProductWrites:
+        def transaction(self) -> object:
+            pytest.fail("pin drift must refuse before product transaction")
+
+    monkeypatch.setattr(
+        publisher_module,
+        "verify_publication_attestation",
+        lambda *_args, **_kwargs: verified,
+    )
+    monkeypatch.setattr(
+        publisher_module,
+        "_resource_is_retrieval_eligible",
+        lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        publisher_module,
+        "_lock_governance_commit_fence",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        publisher_module,
+        "_persist_external_authority_pins",
+        lambda *_args, **_kwargs: next(pins),
+    )
+
+    with pytest.raises(GovernedPublicationError, match="external authority pin drift"):
+        publish_governed_artifact(
+            ControlConnection(),
+            NoProductWrites(),
+            artifact,
+            (placement,),
+            lambda raw: raw.decode(),
+            lambda _chunks: (),
+        )

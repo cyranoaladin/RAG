@@ -3,8 +3,8 @@
 -- Le verrou advisory exclusif attend la fin de tous les publishers qui
 -- détiennent la variante partagée. Les ACCESS EXCLUSIVE empêchent ensuite
 -- toute écriture de gouvernance de traverser la suppression des triggers.
--- Le code publisher exige en outre le HEAD 010 : après rollback, une
--- publication neuve refuse avant toute transaction produit.
+-- Le publisher exige en outre les triggers 010 puis le pin 011 : après
+-- rollback, une publication neuve refuse avant toute transaction produit.
 
 SELECT pg_catalog.pg_advisory_xact_lock(
     pg_catalog.hashtextextended('nexus:governed-publication:schema', 0)

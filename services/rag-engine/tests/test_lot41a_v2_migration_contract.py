@@ -8,6 +8,9 @@ MIGRATIONS = ENGINE_ROOT / "infra" / "postgres" / "ingestion_control" / "migrati
 ROLLBACKS = ENGINE_ROOT / "infra" / "postgres" / "ingestion_control" / "rollbacks"
 MIGRATION = MIGRATIONS / "009_scope_authorization_content_allowlist.sql"
 ROLLBACK = ROLLBACKS / "009_scope_authorization_content_allowlist.down.sql"
+PIN_MIGRATION = MIGRATIONS / "011_external_authority_commit_pins.sql"
+PIN_ROLLBACK = ROLLBACKS / "011_external_authority_commit_pins.down.sql"
+ROLE_PROVISIONING = ENGINE_ROOT / "infra" / "scripts" / "provision_ingestion_control_roles.sh"
 
 
 def _read(path: Path) -> str:
@@ -15,7 +18,7 @@ def _read(path: Path) -> str:
 
 
 def test_migration_009_remains_the_canonical_v2_allowlist_step() -> None:
-    assert _read(MIGRATIONS / "HEAD") == "010_governed_publication_commit_fence\n"
+    assert _read(MIGRATIONS / "HEAD") == "011_external_authority_commit_pins\n"
     assert MIGRATION.name == "009_scope_authorization_content_allowlist.sql"
 
 
@@ -54,3 +57,54 @@ def test_rollback_is_locked_and_refuses_to_discard_v2_rows() -> None:
     assert "WHERE protocol_version = 'LOT41A-V2'" in sql
     assert "CHECK (protocol_version = 'LOT41A-V1')" in sql
     assert "DROP FUNCTION" in sql
+
+
+def test_migration_011_persists_an_immutable_external_review_snapshot() -> None:
+    sql = _read(PIN_MIGRATION)
+
+    assert "CREATE TABLE IF NOT EXISTS ingestion_control.publication_commit_pins" in sql
+    assert "publication_attestation_id" in sql
+    assert "publication_review_head_sha" in sql
+    assert "publication_review_review_id" in sql
+    assert "scope_authorization_id" in sql
+    assert "authorization_digest" in sql
+    assert "authorization_review_head_sha" in sql
+    assert "authorization_review_review_id" in sql
+    assert "authorization_protocol_version" in sql
+    assert "pin_digest" in sql
+    assert "LOT41A-V2" in sql
+    assert "UPDATE" not in sql.upper()
+    assert "DELETE" not in sql.upper()
+
+
+def test_rollback_011_is_locked_and_refuses_to_discard_commit_pins() -> None:
+    sql = _read(PIN_ROLLBACK)
+
+    lock = sql.index(
+        "LOCK TABLE ingestion_control.publication_commit_pins IN ACCESS EXCLUSIVE MODE"
+    )
+    refusal = sql.index("ROLLBACK_011_PUBLICATION_COMMIT_PINS_PRESENT")
+    drop = sql.index("DROP TABLE ingestion_control.publication_commit_pins")
+    assert lock < refusal < drop
+
+
+def test_only_runtime_can_append_commit_pins_and_nobody_can_mutate_them() -> None:
+    script = _read(ROLE_PROVISIONING)
+
+    assert (
+        'GRANT SELECT, INSERT ON ingestion_control.publication_commit_pins TO :"app_role"'
+        in script
+    )
+    assert (
+        "REVOKE UPDATE, DELETE, TRUNCATE ON "
+        'ingestion_control.publication_commit_pins FROM :"app_role"'
+        in script
+    )
+    assert (
+        'GRANT SELECT, INSERT ON ingestion_control.publication_commit_pins TO :"authority_role"'
+        not in script
+    )
+    assert (
+        'GRANT SELECT, INSERT ON ingestion_control.publication_commit_pins TO :"attestor_role"'
+        not in script
+    )

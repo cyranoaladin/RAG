@@ -94,7 +94,7 @@ Les répétitions PostgreSQL jetables ont prouvé :
   rôle opérateur limité aux écritures requises.
 
 ```text
-INGESTION_CONTROL_SCHEMA_HEAD=009_scope_authorization_content_allowlist
+INGESTION_CONTROL_SCHEMA_HEAD=011_external_authority_commit_pins
 AUTH_MIGRATION_009_APPLY=PASS
 AUTH_MIGRATION_009_SCHEMA=PASS
 AUTH_MIGRATION_009_EXISTING_V1_COMPATIBILITY=PASS
@@ -330,13 +330,45 @@ EDUSCOL_RIGHTS_SCOPE_MANIFEST=d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c60
 Une restriction spécifique reste fail-closed au niveau de l'artefact. Les
 documents DEPP non clarifiés restent `REVIEW_REQUIRED` sans bloquer le reste.
 
+## Remédiation H2-F après revue automatisée
+
+Le verdict antérieur est devenu non autoritatif après trois nouveaux findings
+sur la tête `3a23f4f3c8506a245c2b97299f376dbfa14a57b3`. La remédiation H2-F
+reste fermée jusqu'au nouveau cycle CI, revue automatisée et audit :
+
+- le périmètre attendu du registre de droits vient désormais de
+  `corpus_zone_routing.yml`, pas du `summary.total_zones` auto-déclaré par le
+  registre ; supprimer une source et décrémenter le résumé échoue donc fermé ;
+- le rapport final exige le registre de droits, la preuve PII scellée et la
+  politique de routage. Il recalcule pour chaque candidat les statuts droits
+  et PII depuis ces preuves, exige l'égalité avec le catalogue et scelle les
+  SHA-256 complets des quatre entrées ;
+- la migration 011 ajoute le pin append-only des décisions GitHub LOT41A/LOT42
+  qui sert de point de linéarisation externe avant le commit produit. La
+  migration 010 continue de fermer les courses sur les faits PostgreSQL
+  locaux ; elle n'est plus décrite à tort comme un verrou sur GitHub.
+
+Les tests rouges ont respectivement prouvé la suppression d'une zone du
+registre, la falsification `rights=PASS`/`pii=PASS` dans le catalogue, puis
+l'absence de migration/pin et la dérive d'un pin avant la transaction produit.
+Les preuves réelles et le verdict seront régénérés seulement sur la prochaine
+tête figée.
+
+```text
+H2_IMPLEMENTATION_READY=UNVERIFIED_AFTER_REVIEW
+H2_TECHNICAL_GATE=BLOCKED_REVIEW_FINDINGS
+INDEPENDENT_H2_AUDIT=STALE_AFTER_NEW_FINDINGS
+H2_READY_FOR_HUMAN_REVIEW=false
+PR96_DO_NOT_APPROVE=true
+```
+
 ## Gates encore à exécuter sur la tête finale
 
 Après le présent commit de rapport, aucun fichier versionné ne sera modifié
 avant la fin des gates. La tête résultante devra passer :
 
-1. migration produit 004 apply/rollback/reapply et migration autorité 009
-   apply/contraintes/rollback/reapply sur PostgreSQL jetable ;
+1. migration produit 004 apply/rollback/reapply et migrations control 009 à
+   011 apply/contraintes/rollback/reapply sur PostgreSQL jetable ;
 2. nouvelle répétition H2-E et matrice 13/13 liées à la tête exacte ;
 3. `scripts/ci-local.sh` complet avec l'environnement valide ;
 4. scans secrets, PII, PDF réel et credentials sur `main..HEAD` ;

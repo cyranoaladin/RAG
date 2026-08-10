@@ -196,7 +196,8 @@ BEGIN
        OR to_regclass('ingestion_control.workflow_events') IS NULL
        OR to_regclass('ingestion_control.jobs') IS NULL
        OR to_regclass('ingestion_control.scope_authorizations') IS NULL
-       OR to_regclass('ingestion_control.publication_attestations') IS NULL THEN
+       OR to_regclass('ingestion_control.publication_attestations') IS NULL
+       OR to_regclass('ingestion_control.publication_commit_pins') IS NULL THEN
         RAISE EXCEPTION 'INGESTION_CONTROL_SCHEMA_INCOMPLETE';
     END IF;
 END

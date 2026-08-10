@@ -9,9 +9,9 @@ MIGRATION = MIGRATIONS / "010_governed_publication_commit_fence.sql"
 ROLLBACK = ROLLBACKS / "010_governed_publication_commit_fence.down.sql"
 
 
-def test_migration_010_is_the_declared_ingestion_control_head() -> None:
+def test_migration_010_remains_the_declared_commit_fence_step() -> None:
     assert (MIGRATIONS / "HEAD").read_text(encoding="utf-8") == (
-        "010_governed_publication_commit_fence\n"
+        "011_external_authority_commit_pins\n"
     )
     assert MIGRATION.is_file()
     assert ROLLBACK.is_file()

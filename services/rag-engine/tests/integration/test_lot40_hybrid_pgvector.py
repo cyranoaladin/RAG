@@ -1251,6 +1251,13 @@ def test_governed_publisher_is_atomic_idempotent_and_multi_placement(
         "_lock_governance_commit_fence",
         lambda *_args, **_kwargs: None,
     )
+    monkeypatch.setattr(
+        publisher,
+        "_persist_external_authority_pins",
+        lambda _connection, verified: tuple(
+            sorted(item.attestation.attestation_digest for item in verified)
+        ),
+    )
 
     class VerifiedControlConnection:
         @contextmanager

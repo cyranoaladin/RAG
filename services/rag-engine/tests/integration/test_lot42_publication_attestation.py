@@ -36,6 +36,7 @@ import uuid
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import httpx
@@ -81,6 +82,7 @@ from nexus_contracts.resource_state import ResourceState  # noqa: E402
 
 from ingestor.governed_publisher_v2 import (  # noqa: E402
     _lock_governance_commit_fence,
+    _persist_external_authority_pins,
 )
 from ingestor.ingestion_agents.classifier import ConformityResult  # noqa: E402
 from ingestor.ingestion_agents.quality_agent import run_quality_agent  # noqa: E402
@@ -206,6 +208,7 @@ def _clean(pg: dict[str, str]) -> Iterator[None]:
     with psycopg.connect(superuser_dsn(pg)) as conn:
         with conn.cursor() as cur:
             for table in (
+                "publication_commit_pins",
                 "publication_attestations", "scope_authorizations", "workflow_events",
                 "artifacts", "resource_candidates", "jobs", "resources", "ingestion_runs",
             ):
@@ -645,6 +648,56 @@ class TestAttestationBindsTheReviewedArtifact:
         assert result.review_id == REVIEW_ID
         assert result.scope_authorization_id == STUB_AUTHORIZATION_ID
         assert result.facts.gate_passed is True
+
+    def test_live_verified_external_reviews_are_pinned_immutably_before_product(
+        self, pg: dict[str, str], attested: dict[str, Any]
+    ) -> None:
+        with psycopg.connect(app_dsn(pg)) as conn:
+            with conn.transaction():
+                verified = verify_publication_attestation(
+                    conn,
+                    resource_id=attested["resource_id"],
+                    current_content_sha256=content_sha(pg, attested["artifact_id"]),
+                    current_profile_fingerprint=PROFILE_FINGERPRINT,
+                    current_manifest_digest=MANIFEST_DIGEST,
+                    require_content_bound_authority=True,
+                )
+                first = _persist_external_authority_pins(
+                    conn,
+                    (SimpleNamespace(attestation=verified),),
+                )
+            with conn.transaction():
+                verified_again = verify_publication_attestation(
+                    conn,
+                    resource_id=attested["resource_id"],
+                    current_content_sha256=content_sha(pg, attested["artifact_id"]),
+                    current_profile_fingerprint=PROFILE_FINGERPRINT,
+                    current_manifest_digest=MANIFEST_DIGEST,
+                    require_content_bound_authority=True,
+                )
+                second = _persist_external_authority_pins(
+                    conn,
+                    (SimpleNamespace(attestation=verified_again),),
+                )
+            row = conn.execute(
+                "SELECT publication_review_head_sha, authorization_review_head_sha, "
+                "authorization_protocol_version, pin_digest "
+                "FROM ingestion_control.publication_commit_pins "
+                "WHERE publication_attestation_id = %s",
+                (verified.attestation_id,),
+            ).fetchone()
+
+            with pytest.raises(psycopg.errors.InsufficientPrivilege):
+                conn.execute(
+                    "UPDATE ingestion_control.publication_commit_pins "
+                    "SET pin_digest = %s WHERE publication_attestation_id = %s",
+                    ("0" * 64, verified.attestation_id),
+                )
+            conn.rollback()
+
+        assert first == second
+        assert len(first) == 1
+        assert row == (PUB_HEAD, AUTH_HEAD, "LOT41A-V2", first[0])
 
     def test_an_artifact_diverging_from_the_database_is_refused_at_record_time(
         self, pg: dict[str, str], tmp_path: Path, github: LocalGitHub,

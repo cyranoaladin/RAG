@@ -174,6 +174,34 @@ pour la même ressource), reprise (crash entre deux attestations de la
 chaîne — la reprise doit retrouver exactement l'état déterministe déjà
 construit, jamais le reconstruire différemment).
 
+### 7bis. Point de linéarisation GitHub → commit produit
+
+Une base PostgreSQL ne peut pas verrouiller l'état externe de GitHub. Une
+dernière relecture live, même placée juste avant `COMMIT`, laisserait donc
+toujours un intervalle non atomique où une review pourrait être dismissée.
+La migration 011 rend cet ordre explicite au lieu de prétendre supprimer cet
+intervalle par un verrou local :
+
+1. LOT41A et LOT42 sont revérifiés live sous les fences locales de la
+   migration 010 ;
+2. l'instantané exact des deux décisions (`repository`, PR, base/head,
+   review, reviewer, challenge, digests des artefacts et protocoles) est
+   sérialisé canoniquement et persisté dans
+   `ingestion_control.publication_commit_pins` ;
+3. cette transaction control committe **avant** toute transaction produit ;
+4. une seconde relecture live sous les mêmes fences doit reproduire le même
+   pin avant que le publisher ouvre sa transaction produit ;
+5. chaque placement produit porte déjà `publication_attestation_id`, qui est
+   aussi la clé immuable du pin.
+
+Le pin est le point de linéarisation de la décision externe : une évolution
+GitHub postérieure est ordonnée après l'opération déjà autorisée. Elle bloque
+toute nouvelle tentative, qui doit toujours refaire les vérifications live ;
+elle ne peut ni modifier ni réutiliser un pin portant une autre tête, review
+ou autorisation. Le rôle runtime ne détient que `SELECT, INSERT` sur cette
+table append-only, jamais `UPDATE`/`DELETE`. Le rollback 011 refuse une table
+non vide afin de ne pas détruire la preuve d'un commit produit potentiel.
+
 ### 8. Statut explicite du câblage (remédiation GATE H1, item L)
 
 Deux propriétés distinctes, à ne jamais confondre dans un rapport :

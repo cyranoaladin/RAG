@@ -15,6 +15,7 @@ import math
 import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any, Literal
 from uuid import UUID
 
@@ -281,6 +282,126 @@ _CONTROL_FENCE_TRIGGER_ROWS = (
         "O",
     ),
 )
+
+_PIN_COLUMNS = """
+    publication_attestation_id, resource_id, content_sha256,
+    attestation_digest, publication_artifact_blob_sha,
+    publication_review_repository, publication_review_pull_request,
+    publication_review_base_sha, publication_review_head_sha,
+    publication_review_review_id, publication_review_reviewer,
+    publication_review_submitted_at, publication_review_challenge,
+    publication_protocol_version,
+    scope_authorization_id, authorization_digest,
+    authorization_artifact_blob_sha,
+    authorization_review_repository, authorization_review_pull_request,
+    authorization_review_base_sha, authorization_review_head_sha,
+    authorization_review_review_id, authorization_review_reviewer,
+    authorization_review_submitted_at, authorization_review_challenge,
+    authorization_protocol_version, pin_digest
+"""
+
+
+def _canonical_pin_value(value: object) -> object:
+    if isinstance(value, UUID):
+        return str(value)
+    if isinstance(value, datetime):
+        moment = value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+        return moment.astimezone(UTC).isoformat()
+    if isinstance(value, str | int) and not isinstance(value, bool):
+        return value
+    raise GovernedPublicationError("external authority pin contains invalid data")
+
+
+def _persist_external_authority_pins(
+    control_conn: psycopg.Connection,
+    verified: Sequence[_VerifiedPlacement],
+) -> tuple[str, ...]:
+    """Persister l'instantané GitHub exact déjà vérifié en direct.
+
+    La clé du pin est l'attestation LOT42 déjà écrite dans chaque placement
+    produit. Un conflit n'est accepté que si tous les octets projetés et le
+    digest canonique sont strictement identiques : aucun ancien pin ne peut
+    être recyclé pour une nouvelle tête, review ou autorisation.
+    """
+    digests: list[str] = []
+    for item in sorted(verified, key=lambda value: str(value.attestation.attestation_id)):
+        attestation = item.attestation
+        with control_conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    pa.attestation_id, pa.resource_id, pa.content_sha256,
+                    pa.attestation_digest, pa.review_artifact_blob_sha,
+                    pa.human_review_repository, pa.human_review_pull_request,
+                    pa.human_review_base_sha, pa.human_review_head_sha,
+                    pa.human_review_review_id, pa.human_review_reviewer,
+                    pa.human_review_submitted_at, pa.human_review_challenge,
+                    pa.protocol_version,
+                    sa.authorization_id, sa.authorization_digest,
+                    sa.artifact_blob_sha,
+                    sa.evidence_repository, sa.evidence_pull_request,
+                    sa.evidence_base_sha, sa.evidence_head_sha,
+                    sa.evidence_review_id, sa.evidence_reviewer,
+                    sa.evidence_submitted_at, sa.evidence_challenge,
+                    sa.protocol_version
+                FROM ingestion_control.publication_attestations AS pa
+                JOIN ingestion_control.scope_authorizations AS sa
+                  ON sa.authorization_id = pa.scope_authorization_id
+                WHERE pa.attestation_id = %s
+                  AND pa.invalidated_at IS NULL
+                  AND sa.revoked_at IS NULL
+                """,
+                (attestation.attestation_id,),
+            )
+            source = cursor.fetchone()
+            if source is None:
+                raise GovernedPublicationError(
+                    "verified external authority snapshot disappeared"
+                )
+            source_values = tuple(source)
+            if (
+                len(source_values) != 26
+                or source_values[0] != attestation.attestation_id
+                or source_values[1] != attestation.resource_id
+                or source_values[2] != attestation.content_sha256
+                or source_values[3] != attestation.attestation_digest
+                or source_values[14] != attestation.scope_authorization_id
+                or source_values[15]
+                != attestation.authorization.authorization_digest
+                or source_values[25] != "LOT41A-V2"
+            ):
+                raise GovernedPublicationError(
+                    "verified external authority snapshot differs from readback"
+                )
+            canonical = json.dumps(
+                [_canonical_pin_value(value) for value in source_values],
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ).encode("utf-8")
+            pin_digest = hashlib.sha256(canonical).hexdigest()
+            pinned_values = source_values + (pin_digest,)
+            cursor.execute(
+                f"""
+                INSERT INTO ingestion_control.publication_commit_pins (
+                    {_PIN_COLUMNS}
+                ) VALUES ({", ".join(["%s"] * len(pinned_values))})
+                ON CONFLICT (publication_attestation_id) DO NOTHING
+                """,  # noqa: S608 - colonnes et placeholders constants
+                pinned_values,
+            )
+            cursor.execute(
+                f"SELECT {_PIN_COLUMNS} "  # noqa: S608 - colonnes constantes
+                "FROM ingestion_control.publication_commit_pins "
+                "WHERE publication_attestation_id = %s",
+                (attestation.attestation_id,),
+            )
+            stored = cursor.fetchone()
+        if stored is None or tuple(stored) != pinned_values:
+            raise GovernedPublicationError("external authority pin readback drift")
+        digests.append(pin_digest)
+    if not digests:
+        raise GovernedPublicationError("external authority pin set is empty")
+    return tuple(digests)
 
 
 def _lock_governance_commit_fence(
@@ -716,12 +837,14 @@ def publish_governed_artifact(
     extract_text: ExtractText,
     embed_chunks: EmbedChunks,
 ) -> GovernedPublicationResult:
-    """Revérifier LOT42 puis publier une fois, sans fenêtre de révocation.
+    """Linéariser l'autorité externe puis publier sous les verrous locaux.
 
-    La transaction control est externe à la transaction produit. Les
-    triggers 010 font attendre toute modification des faits relus par LOT42
-    jusqu'après le commit produit. Une modification qui gagne la course
-    avant le verrou est observée par la relecture qui suit et refuse.
+    PostgreSQL ne verrouille pas GitHub. La première transaction control
+    persiste donc un pin immuable des deux revues vérifiées live. La seconde
+    refait la vérification sous les fences 010 et exige le même pin avant
+    d'ouvrir la transaction produit. Une évolution GitHub postérieure est
+    ordonnée après ce point de linéarisation ; une nouvelle tentative doit
+    toujours refaire la vérification live et retrouver l'instantané exact.
     """
     if not isinstance(artifact, GovernedArtifact):
         raise TypeError("artifact must be GovernedArtifact")
@@ -733,9 +856,6 @@ def publish_governed_artifact(
     _require_idle_connection(product_conn, label="product")
 
     with control_conn.transaction():
-        # Les faits liés à une ressource (state, candidat, artefact,
-        # événements, attestation) sont d'abord gelés sans faire confiance
-        # à l'autorisation qu'ils nomment encore.
         _lock_governance_commit_fence(
             control_conn,
             resource_ids=tuple(placement.resource_id for placement in placements),
@@ -746,10 +866,35 @@ def publish_governed_artifact(
             placements=placements,
         )
 
-        # Puis les autorisations exactes découvertes sous le verrou ressource
-        # sont gelées et toute la chaîne est relue une dernière fois. Une
-        # révocation déjà committée est donc refusée ; une révocation
-        # concurrente attendra le commit produit.
+        _lock_governance_commit_fence(
+            control_conn,
+            authorization_ids=tuple(
+                item.attestation.scope_authorization_id for item in verified
+            ),
+        )
+        pinned_verified = _verify_placements(
+            control_conn,
+            artifact=artifact,
+            placements=placements,
+        )
+        committed_pin_digests = _persist_external_authority_pins(
+            control_conn,
+            pinned_verified,
+        )
+
+    # Le pin externe est désormais durable avant toute transaction produit.
+    # Les faits locaux restent gelés par 010 pendant le commit produit ; une
+    # nouvelle relecture live doit encore correspondre exactement au pin.
+    with control_conn.transaction():
+        _lock_governance_commit_fence(
+            control_conn,
+            resource_ids=tuple(placement.resource_id for placement in placements),
+        )
+        verified = _verify_placements(
+            control_conn,
+            artifact=artifact,
+            placements=placements,
+        )
         _lock_governance_commit_fence(
             control_conn,
             authorization_ids=tuple(
@@ -761,6 +906,12 @@ def publish_governed_artifact(
             artifact=artifact,
             placements=placements,
         )
+        current_pin_digests = _persist_external_authority_pins(
+            control_conn,
+            fenced_verified,
+        )
+        if current_pin_digests != committed_pin_digests:
+            raise GovernedPublicationError("external authority pin drift")
         return _publish_under_governance_fence(
             control_conn,
             product_conn,
