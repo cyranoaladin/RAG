@@ -103,6 +103,7 @@ def _fixture_inputs(tmp_path: Path) -> dict[str, Any]:
             {
                 "config_id": "h2e-materializer-test-v1",
                 "manifest_sha256": manifest_sha,
+                "rights_evidence_perimeter": ["01_EDUSCOL_OFFICIEL/"],
                 "zone_rules": [
                     {
                         "zone_prefix": "01_EDUSCOL_OFFICIEL/",
