@@ -153,32 +153,59 @@ ALLOWLIST_PATTERNS = [
 
 
 def load_patterns_from_config(config_path: Path) -> list[PIIPattern]:
-    """Load PII patterns from YAML configuration."""
+    """Load PII patterns from YAML configuration.
+
+    Fail-closed: If a config file exists, it MUST contain valid patterns.
+    Silent fallback to defaults is forbidden (H2-F Défaut 2).
+    """
     if not config_path.exists():
         return DEFAULT_PII_PATTERNS
 
     content = config_path.read_text(encoding="utf-8")
     config = yaml.safe_load(content)
 
+    if not isinstance(config, dict):
+        raise ValueError("PII policy must be a YAML mapping")
+
+    full_content_scan = config.get("full_content_scan")
+    if not isinstance(full_content_scan, dict):
+        raise ValueError("full_content_scan section is required in PII policy")
+
+    patterns_raw = full_content_scan.get("patterns_to_search")
+    if not isinstance(patterns_raw, list) or len(patterns_raw) == 0:
+        raise ValueError(
+            "patterns_to_search must be a non-empty list in PII policy"
+        )
+
     patterns = []
-    for p in config.get("full_content_scan", {}).get("patterns_to_search", []):
+    for p in patterns_raw:
+        if not isinstance(p, dict):
+            raise ValueError("Each pattern in patterns_to_search must be a mapping")
+        pattern_id = p.get("pattern_id")
+        if not isinstance(pattern_id, str) or not pattern_id:
+            raise ValueError("pattern_id must be a non-empty string")
+        description = p.get("description")
+        if not isinstance(description, str) or not description:
+            raise ValueError(f"description must be a non-empty string for pattern {pattern_id!r}")
+        regex_str = p.get("regex")
+        if not isinstance(regex_str, str) or not regex_str:
+            raise ValueError(f"regex must be a non-empty string for pattern {pattern_id!r}")
         try:
-            regex = re.compile(p["regex"], re.IGNORECASE if "IGNORECASE" in p.get("flags", "") else 0)
+            regex = re.compile(regex_str, re.IGNORECASE if "IGNORECASE" in p.get("flags", "") else 0)
             patterns.append(
                 PIIPattern(
-                    pattern_id=p["pattern_id"],
-                    description=p["description"],
+                    pattern_id=pattern_id,
+                    description=description,
                     regex=regex,
                     severity=p.get("severity", "high"),
                 )
             )
         except re.error as exc:
-            pattern_id = p.get("pattern_id", "unknown")
             raise ValueError(
                 f"Invalid PII regex for pattern {pattern_id!r}"
             ) from exc
 
-    return patterns if patterns else DEFAULT_PII_PATTERNS
+    return patterns
 
 
 def is_allowlisted(match_text: str) -> bool:

@@ -309,6 +309,66 @@ class TestPIIPolicyLoadingFailClosed:
         ):
             load_patterns_from_config(config)
 
+    def test_empty_patterns_list_rejects_policy(self, tmp_path: Path) -> None:
+        """H2-F Défaut 2: Empty patterns_to_search must reject, no silent fallback."""
+        config = tmp_path / "pii-policy-empty.yml"
+        config.write_text(
+            "full_content_scan:\n"
+            "  patterns_to_search: []\n",
+            encoding="utf-8",
+        )
+
+        with pytest.raises(
+            ValueError,
+            match="patterns_to_search must be a non-empty list",
+        ):
+            load_patterns_from_config(config)
+
+    def test_missing_patterns_key_rejects_policy(self, tmp_path: Path) -> None:
+        """H2-F Défaut 2: Missing patterns_to_search must reject, no silent fallback."""
+        config = tmp_path / "pii-policy-missing.yml"
+        config.write_text(
+            "full_content_scan:\n"
+            "  some_other_key: value\n",
+            encoding="utf-8",
+        )
+
+        with pytest.raises(
+            ValueError,
+            match="patterns_to_search must be a non-empty list",
+        ):
+            load_patterns_from_config(config)
+
+    def test_patterns_wrong_type_rejects_policy(self, tmp_path: Path) -> None:
+        """H2-F Défaut 2: patterns_to_search with wrong type must reject."""
+        config = tmp_path / "pii-policy-wrong-type.yml"
+        config.write_text(
+            "full_content_scan:\n"
+            "  patterns_to_search: 'not-a-list'\n",
+            encoding="utf-8",
+        )
+
+        with pytest.raises(
+            ValueError,
+            match="patterns_to_search must be a non-empty list",
+        ):
+            load_patterns_from_config(config)
+
+    def test_missing_full_content_scan_rejects_policy(self, tmp_path: Path) -> None:
+        """H2-F Défaut 2: Missing full_content_scan section must reject."""
+        config = tmp_path / "pii-policy-no-section.yml"
+        config.write_text(
+            "other_section:\n"
+            "  key: value\n",
+            encoding="utf-8",
+        )
+
+        with pytest.raises(
+            ValueError,
+            match="full_content_scan section is required",
+        ):
+            load_patterns_from_config(config)
+
 
 class TestMutationTests:
     """H2-B mutation tests — prove patterns are non-vacuous."""

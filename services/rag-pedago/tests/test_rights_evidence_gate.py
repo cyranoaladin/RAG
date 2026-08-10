@@ -256,3 +256,111 @@ class TestRightsGateInvariants:
         assert report.gate_passed is False
         assert report.gate_status == "BLOCKED_RIGHTS_PERIMETER_INCOMPLETE"
         assert report.missing_expected_zones
+
+
+class TestHumanDecisionManifestBinding:
+    """H2-F Défaut 3: Human decisions must be bound to the exact routed manifest."""
+
+    def test_decision_with_wrong_manifest_sha256_fails_closed(
+        self, tmp_path: Path
+    ) -> None:
+        """Decision with mismatched manifest SHA256 must be rejected."""
+        expected_manifest = "a" * 64  # The routing manifest
+        wrong_manifest = "b" * 64  # The decision claims a different manifest
+
+        path = tmp_path / "wrong-manifest.yml"
+        registry = {
+            "registry_id": "wrong-manifest-test",
+            "summary": {"total_zones": 1},
+            "human_rights_decisions": {
+                "wrong_manifest_decision": {
+                    "decision_type": "HUMAN_ORGANIZATIONAL_RIGHTS_APPROVAL",
+                    "decision_maker": "Test User",
+                    "decision_date": "2026-08-10",
+                    "scope_manifest_sha256": wrong_manifest,
+                    "approved_for_production_rag": True,
+                    "generic_rights_blocker": False,
+                }
+            },
+            "source_evidence": {
+                "test-zone": {
+                    "zone": "01_TEST/",
+                    "rights_status": "CLEARED_BY_HUMAN_DECISION",
+                    "rights_decision_ref": "wrong_manifest_decision",
+                }
+            },
+        }
+
+        report = evaluate_registry(
+            registry,
+            path,
+            expected_zones=frozenset({"01_TEST/"}),
+            expected_manifest_sha256=expected_manifest,
+        )
+
+        zone = report.zone_statuses[0]
+        assert zone.status == RightsStatus.UNRESOLVED
+        assert zone.ingest_allowed is False
+        assert zone.go_live_blocking is True
+        assert "manifest" in zone.rationale.lower()
+        assert report.gate_passed is False
+
+    def test_decision_with_correct_manifest_sha256_is_accepted(
+        self, tmp_path: Path
+    ) -> None:
+        """Decision with matching manifest SHA256 must be accepted."""
+        manifest = "c" * 64
+
+        path = tmp_path / "correct-manifest.yml"
+        registry = {
+            "registry_id": "correct-manifest-test",
+            "summary": {"total_zones": 1},
+            "human_rights_decisions": {
+                "correct_decision": {
+                    "decision_type": "HUMAN_ORGANIZATIONAL_RIGHTS_APPROVAL",
+                    "decision_maker": "Test User",
+                    "decision_date": "2026-08-10",
+                    "scope_manifest_sha256": manifest,
+                    "approved_for_production_rag": True,
+                    "generic_rights_blocker": False,
+                }
+            },
+            "source_evidence": {
+                "test-zone": {
+                    "zone": "01_TEST/",
+                    "rights_status": "CLEARED_BY_HUMAN_DECISION",
+                    "rights_decision_ref": "correct_decision",
+                }
+            },
+        }
+
+        report = evaluate_registry(
+            registry,
+            path,
+            expected_zones=frozenset({"01_TEST/"}),
+            expected_manifest_sha256=manifest,
+        )
+
+        zone = report.zone_statuses[0]
+        assert zone.status == RightsStatus.CLEARED_BY_HUMAN_DECISION
+        assert zone.ingest_allowed is True
+        assert report.gate_passed is True
+
+    def test_real_registry_decisions_match_routing_manifest(
+        self, registry: dict, registry_path: Path
+    ) -> None:
+        """Real registry decisions must match the routing manifest."""
+        report = evaluate_registry(
+            registry,
+            registry_path,
+            expected_zones=EXPECTED_ZONES,
+            expected_manifest_sha256=MANIFEST_SHA256,
+        )
+
+        # All decisions should still be valid
+        assert report.gate_passed is True
+        eduscol = next(
+            z for z in report.zone_statuses
+            if z.zone.startswith("01_EDUSCOL")
+        )
+        assert eduscol.status == RightsStatus.CLEARED_BY_HUMAN_DECISION

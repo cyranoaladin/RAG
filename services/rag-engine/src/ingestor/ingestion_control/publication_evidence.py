@@ -51,7 +51,13 @@ class PublicationEvidenceMissingError(RuntimeError):
 
 @dataclass(frozen=True)
 class PublicationFacts:
-    """Ce que le pipeline a réellement produit, et rien d'autre."""
+    """Ce que le pipeline a réellement produit, et rien d'autre.
+
+    H2-F Défaut 6: Les champs d'attribution (source_label, official,
+    source_kind, type_doc) sont requis et doivent être vérifiés avant
+    publication. Ils proviennent de rag_artifacts et sont liés aux
+    faits revus persistés, pas recalculés après revue.
+    """
 
     resource_id: UUID
     artifact_id: UUID
@@ -73,6 +79,11 @@ class PublicationFacts:
     gate_name: str
     gate_evaluated_at: datetime
     gate_event_id: UUID
+    # H2-F Défaut 6: Attribution durable liée aux faits revus
+    source_label: str
+    official: bool
+    source_kind: str
+    type_doc: str
 
     @property
     def evidence_event_ids(self) -> tuple[str, ...]:
@@ -200,6 +211,36 @@ def collect_publication_facts(
             f"artifact {artifact_id} does not belong to resource {resource_id}"
         )
     (content_sha256,) = row
+
+    # H2-F Défaut 6: Collecter les attributs d'attribution durables depuis rag_artifacts
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT source_label, official, source_kind, type_doc "
+            "FROM public.rag_artifacts WHERE artifact_id = %s",
+            (str(artifact_id),),
+        )
+        attribution_row = cur.fetchone()
+    if attribution_row is None:
+        raise PublicationEvidenceMissingError(
+            f"artifact {artifact_id} has no rag_artifacts record with durable attribution"
+        )
+    (artifact_source_label, artifact_official, artifact_source_kind, artifact_type_doc) = attribution_row
+    if not isinstance(artifact_source_label, str) or not artifact_source_label.strip():
+        raise PublicationEvidenceMissingError(
+            f"artifact {artifact_id}: source_label is missing or blank"
+        )
+    if not isinstance(artifact_official, bool):
+        raise PublicationEvidenceMissingError(
+            f"artifact {artifact_id}: official is not a boolean"
+        )
+    if not isinstance(artifact_source_kind, str) or not artifact_source_kind.strip():
+        raise PublicationEvidenceMissingError(
+            f"artifact {artifact_id}: source_kind is missing or blank"
+        )
+    if not isinstance(artifact_type_doc, str) or not artifact_type_doc.strip():
+        raise PublicationEvidenceMissingError(
+            f"artifact {artifact_id}: type_doc is missing or blank"
+        )
 
     with conn.cursor() as cur:
         cur.execute(
@@ -352,6 +393,11 @@ def collect_publication_facts(
             resource_id=resource_id, label="gate_evaluated_at",
         ),
         gate_event_id=gate_event_id,
+        # H2-F Défaut 6: Attribution durable liée aux faits revus
+        source_label=artifact_source_label,
+        official=artifact_official,
+        source_kind=artifact_source_kind,
+        type_doc=artifact_type_doc,
     )
 
 

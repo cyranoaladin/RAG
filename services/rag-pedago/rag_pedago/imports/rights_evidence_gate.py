@@ -147,29 +147,49 @@ def _needs_human_verification(source_evidence: dict[str, Any]) -> bool:
     return False
 
 
-def _human_decision_is_valid(decision: Any) -> bool:
+def _human_decision_is_valid(
+    decision: Any,
+    expected_manifest_sha256: str | None = None,
+) -> tuple[bool, str]:
+    """Validate a human rights decision.
+
+    H2-F Défaut 3: If expected_manifest_sha256 is provided, the decision's
+    scope_manifest_sha256 MUST match exactly. Fail-closed on mismatch.
+
+    Returns:
+        Tuple of (is_valid, error_reason).
+    """
     if not isinstance(decision, dict):
-        return False
+        return False, "Decision is not a mapping"
     manifest_sha256 = decision.get("scope_manifest_sha256")
-    return (
-        decision.get("decision_type") == "HUMAN_ORGANIZATIONAL_RIGHTS_APPROVAL"
-        and isinstance(decision.get("decision_maker"), str)
-        and bool(decision.get("decision_maker"))
-        and isinstance(decision.get("decision_date"), str)
-        and bool(decision.get("decision_date"))
-        and isinstance(manifest_sha256, str)
-        and re.fullmatch(r"[0-9a-f]{64}", manifest_sha256) is not None
-        and decision.get("approved_for_production_rag") is True
-        and decision.get("generic_rights_blocker") is False
-    )
+    if not isinstance(manifest_sha256, str) or re.fullmatch(r"[0-9a-f]{64}", manifest_sha256) is None:
+        return False, "scope_manifest_sha256 is missing or invalid"
+    if expected_manifest_sha256 is not None and manifest_sha256 != expected_manifest_sha256:
+        return False, f"scope_manifest_sha256 mismatch: decision={manifest_sha256[:16]}... expected={expected_manifest_sha256[:16]}..."
+    if decision.get("decision_type") != "HUMAN_ORGANIZATIONAL_RIGHTS_APPROVAL":
+        return False, "decision_type is not HUMAN_ORGANIZATIONAL_RIGHTS_APPROVAL"
+    if not isinstance(decision.get("decision_maker"), str) or not decision.get("decision_maker"):
+        return False, "decision_maker is missing or empty"
+    if not isinstance(decision.get("decision_date"), str) or not decision.get("decision_date"):
+        return False, "decision_date is missing or empty"
+    if decision.get("approved_for_production_rag") is not True:
+        return False, "approved_for_production_rag is not True"
+    if decision.get("generic_rights_blocker") is not False:
+        return False, "generic_rights_blocker is not False"
+    return True, ""
 
 
 def evaluate_zone(
     zone_id: str,
     source_evidence: dict[str, Any],
     human_decisions: dict[str, Any] | None = None,
+    expected_manifest_sha256: str | None = None,
 ) -> ZoneRightsStatus:
-    """Evaluate rights status for a zone."""
+    """Evaluate rights status for a zone.
+
+    H2-F Défaut 3: If expected_manifest_sha256 is provided, human decisions
+    MUST have a matching scope_manifest_sha256. Fail-closed on mismatch.
+    """
     zone = source_evidence.get("zone", zone_id)
     rights_status_str = source_evidence.get("rights_status", "UNRESOLVED")
 
@@ -193,9 +213,12 @@ def evaluate_zone(
             if isinstance(decision_ref, str)
             else None
         )
-        if not _human_decision_is_valid(decision):
+        is_valid, error_reason = _human_decision_is_valid(
+            decision, expected_manifest_sha256
+        )
+        if not is_valid:
             status = RightsStatus.UNRESOLVED
-            decision_error = "Invalid or missing human organizational rights decision"
+            decision_error = error_reason or "Invalid or missing human organizational rights decision"
 
     recommended = source_evidence.get("recommended_rights_category")
     rationale = source_evidence.get("recommended_rights_category_rationale", "")
@@ -239,8 +262,13 @@ def evaluate_registry(
     path: Path,
     *,
     expected_zones: frozenset[str],
+    expected_manifest_sha256: str | None = None,
 ) -> RightsGateReport:
-    """Evaluate full rights evidence registry."""
+    """Evaluate full rights evidence registry.
+
+    H2-F Défaut 3: If expected_manifest_sha256 is provided, all human decisions
+    MUST have a matching scope_manifest_sha256. Fail-closed on mismatch.
+    """
     registry_id = registry.get("registry_id", "unknown")
     source_evidence_raw = registry.get("source_evidence")
     summary = registry.get("summary")
@@ -288,7 +316,9 @@ def evaluate_registry(
     for zone_id, evidence in source_evidence.items():
         if not isinstance(zone_id, str) or not isinstance(evidence, dict):
             continue
-        zone_status = evaluate_zone(zone_id, evidence, human_decisions)
+        zone_status = evaluate_zone(
+            zone_id, evidence, human_decisions, expected_manifest_sha256
+        )
         zone_statuses.append(zone_status)
 
     resolved = sum(1 for z in zone_statuses if z.status == RightsStatus.RESOLVED)

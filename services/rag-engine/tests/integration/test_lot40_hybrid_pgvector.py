@@ -270,6 +270,11 @@ def _verified_publication(
         gate_name="h2_governed_publication",
         gate_evaluated_at=now,
         gate_event_id=uuid4(),
+        # H2-F Défaut 6: Attribution durable
+        source_label="Ressource interne Nexus",
+        official=False,
+        source_kind="interne",
+        type_doc="ressource",
     )
     return VerifiedAttestation(
         attestation_id=uuid4(),

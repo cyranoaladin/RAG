@@ -151,16 +151,155 @@ def _load_yaml_mapping(path: Path, *, label: str) -> dict[str, Any]:
     return value
 
 
+_GNU_SHA256_LINE = re.compile(r"([0-9a-f]{64})  (.*)\Z")
+
+
+def _parse_manifest(path: Path) -> list[tuple[str, str]]:
+    """Parse a GNU SHA256 manifest, returning (sha256, path) pairs."""
+    entries: list[tuple[str, str]] = []
+    with path.open(encoding="utf-8", newline="") as handle:
+        for line_number, raw_line in enumerate(handle, start=1):
+            line = raw_line.rstrip("\r\n")
+            match = _GNU_SHA256_LINE.fullmatch(line)
+            if match is None:
+                raise ValueError(f"H2-F Défaut 1: invalid manifest line {line_number}")
+            content_sha256, object_path = match.groups()
+            entries.append((content_sha256, object_path))
+    return entries
+
+
+def _verify_manifest_binding(
+    manifest_path: Path,
+    catalog: dict[str, Any],
+) -> None:
+    """H2-F Défaut 1: Verify exact binding between sealed manifest and catalog."""
+    # Compute actual manifest SHA256
+    actual_manifest_sha256 = _file_sha256(manifest_path)
+    if actual_manifest_sha256 is None:
+        raise ValueError("H2-F Défaut 1: cannot compute manifest SHA256")
+
+    # Compare with catalog-declared SHA256
+    catalog_manifest_sha256 = catalog.get("manifest_sha256")
+    if actual_manifest_sha256 != catalog_manifest_sha256:
+        raise ValueError(
+            f"H2-F Défaut 1: manifest SHA256 mismatch: "
+            f"actual={actual_manifest_sha256}, catalog={catalog_manifest_sha256}"
+        )
+
+    # Parse manifest and compare with catalog
+    manifest_entries = _parse_manifest(manifest_path)
+    manifest_set = frozenset(manifest_entries)
+
+    physical_objects = catalog.get("physical_objects", [])
+    catalog_entries = [
+        (obj.get("content_sha256"), obj.get("path"))
+        for obj in physical_objects
+        if isinstance(obj, dict)
+    ]
+    catalog_set = frozenset(catalog_entries)
+
+    # Check for exact match
+    only_in_manifest = manifest_set - catalog_set
+    only_in_catalog = catalog_set - manifest_set
+
+    if only_in_manifest or only_in_catalog:
+        errors = []
+        if only_in_manifest:
+            errors.append(f"{len(only_in_manifest)} entries only in manifest")
+        if only_in_catalog:
+            errors.append(f"{len(only_in_catalog)} entries only in catalog")
+        raise ValueError(
+            f"H2-F Défaut 1: manifest/catalog mismatch: {', '.join(errors)}"
+        )
+
+
+def _load_authority_evidence(
+    authority_path: Path,
+    manifest_sha256: str,
+) -> frozenset[str]:
+    """H2-F Défaut 5: Load and validate LOT41A authority evidence.
+
+    Returns the set of content SHA256 hashes authorized for ingestion.
+    Raises ValueError if:
+    - The file does not exist or is not valid JSON
+    - The protocol_version is not LOT41A-V1 or LOT41A-V2
+    - The manifest_digest does not match the expected manifest_sha256
+    - For V2, allowed_content_sha256 is missing or empty
+    """
+    if not authority_path.is_file():
+        raise ValueError(
+            f"H2-F Défaut 5: authority evidence file does not exist: {authority_path}"
+        )
+    content = authority_path.read_text(encoding="utf-8")
+    try:
+        evidence = json.loads(content)
+    except json.JSONDecodeError as exc:
+        raise ValueError(
+            f"H2-F Défaut 5: authority evidence is not valid JSON: {exc}"
+        ) from exc
+    if not isinstance(evidence, dict):
+        raise ValueError("H2-F Défaut 5: authority evidence must be a JSON object")
+
+    protocol = evidence.get("protocol_version")
+    if protocol not in ("LOT41A-V1", "LOT41A-V2"):
+        raise ValueError(
+            f"H2-F Défaut 5: unsupported authority protocol_version: {protocol!r}"
+        )
+
+    # Verify binding to the exact manifest
+    evidence_manifest = evidence.get("manifest_digest")
+    if not isinstance(evidence_manifest, str) or re.fullmatch(
+        r"[0-9a-f]{64}", evidence_manifest
+    ) is None:
+        raise ValueError("H2-F Défaut 5: authority manifest_digest is invalid")
+    if evidence_manifest != manifest_sha256:
+        raise ValueError(
+            f"H2-F Défaut 5: authority evidence is bound to wrong manifest: "
+            f"evidence={evidence_manifest[:16]}..., catalog={manifest_sha256[:16]}..."
+        )
+
+    # For V1, there's no content allowlist - it's domain-based only
+    # For H2-B coverage, we need V2 with content allowlist for full verification
+    if protocol == "LOT41A-V1":
+        # V1 has no content allowlist - cannot verify individual content hashes
+        # Return empty set to indicate no positive content verification possible
+        return frozenset()
+
+    # V2: require allowed_content_sha256
+    allowlist = evidence.get("allowed_content_sha256")
+    if not isinstance(allowlist, list) or len(allowlist) == 0:
+        raise ValueError(
+            "H2-F Défaut 5: LOT41A-V2 requires non-empty allowed_content_sha256"
+        )
+    for item in allowlist:
+        if not isinstance(item, str) or re.fullmatch(r"[0-9a-f]{64}", item) is None:
+            raise ValueError(
+                f"H2-F Défaut 5: invalid SHA256 in allowed_content_sha256: {item!r}"
+            )
+    return frozenset(allowlist)
+
+
 def generate_coverage_report(
     catalog_path: Path,
     rights_path: Path | None = None,
     pii_path: Path | None = None,
     routing_path: Path | None = None,
     golden_path: Path | None = None,
+    manifest_path: Path | None = None,
+    authority_path: Path | None = None,
     expected_total: int = 2584,
     expected_manifest_sha256: str | None = None,
 ) -> CoverageReport:
-    """Generate H2-B coverage report."""
+    """Generate H2-B coverage report.
+
+    H2-F Défaut 1: If manifest_path is provided, the report will verify
+    exact binding between the sealed manifest file and the catalog entries.
+
+    H2-F Défaut 5: If authority_path is provided, the report will verify
+    that each INGEST item's content_sha256 is in the LOT41A authority
+    evidence's allowed_content_sha256 list. Without authority_path, any
+    authority=PASS in the catalog is flagged as self-declared.
+    """
     catalog = load_catalog(catalog_path)
     if catalog.get("catalog_kind") != "REAL_SEALED_CORPUS":
         raise ValueError("final gate requires a real sealed corpus catalog")
@@ -174,6 +313,11 @@ def generate_coverage_report(
         and manifest_sha256 != expected_manifest_sha256
     ):
         raise ValueError("catalog manifest SHA256 mismatch")
+    # H2-F Défaut 1: Verify manifest binding if path provided
+    if manifest_path is not None:
+        if not manifest_path.is_file():
+            raise ValueError("H2-F Défaut 1: manifest file does not exist")
+        _verify_manifest_binding(manifest_path, catalog)
     if golden_path is None or not golden_path.is_file():
         raise ValueError("golden specification is required for the final gate")
     if rights_path is None or not rights_path.is_file():
@@ -234,6 +378,7 @@ def generate_coverage_report(
         "INGEST_WITHOUT_PROVENANCE": 0,
         "INGEST_WITHOUT_CONTENT_SHA": 0,
         "INGEST_WITHOUT_AUTHORITY": 0,
+        "INGEST_WITH_SELF_DECLARED_AUTHORITY": 0,
         "INGEST_WITHOUT_ATTRIBUTION_METADATA": 0,
     }
     physical_objects = catalog.get("physical_objects")
@@ -267,6 +412,12 @@ def generate_coverage_report(
         rights_registry,
         pii_evidence,
     )
+
+    # H2-F Défaut 5: Load authority evidence if provided
+    authority_allowlist: frozenset[str] | None = None
+    if authority_path is not None:
+        authority_allowlist = _load_authority_evidence(authority_path, manifest_sha256)
+
     blocked_ingest_candidates = 0
     mandatory_gate_blockers: dict[str, int] = {}
     for item in physical_objects:
@@ -302,8 +453,23 @@ def generate_coverage_report(
             r"[0-9a-f]{64}", content_sha256
         ) is None:
             safety_invariants["INGEST_WITHOUT_CONTENT_SHA"] += 1
+        # H2-F Défaut 5: authority gate verification
+        # The catalog compiler cannot produce authority=PASS (always BLOCKED_NOT_CLEARED).
+        # authority=PASS can only be accepted if:
+        # 1. External LOT41A authority evidence is provided
+        # 2. The content_sha256 is in the evidence's allowed_content_sha256 list
         if not isinstance(gates, dict) or gates.get("authority") != "PASS":
             safety_invariants["INGEST_WITHOUT_AUTHORITY"] += 1
+        elif authority_allowlist is None:
+            # No authority evidence provided - any authority=PASS is self-declared
+            safety_invariants["INGEST_WITH_SELF_DECLARED_AUTHORITY"] += 1
+        elif len(authority_allowlist) == 0:
+            # V1 authority (no content allowlist) - cannot verify individual items
+            safety_invariants["INGEST_WITH_SELF_DECLARED_AUTHORITY"] += 1
+        elif content_sha256 not in authority_allowlist:
+            # Content not in authority allowlist - authority claim is invalid
+            safety_invariants["INGEST_WITHOUT_AUTHORITY"] += 1
+        # else: authority=PASS is backed by external evidence - OK
         attribution = item.get("attribution_metadata")
         if not isinstance(attribution, dict) or not all(
             isinstance(attribution.get(field_name), str)
@@ -319,6 +485,8 @@ def generate_coverage_report(
         "rights": _file_sha256(rights_path),
         "routing": _file_sha256(routing_path),
     }
+    if authority_path is not None:
+        input_files["authority"] = _file_sha256(authority_path)
 
     # Rights gate
     rights_gate_status = (
@@ -610,6 +778,16 @@ def main() -> int:
         help="Path to golden corpus specification (YAML)",
     )
     parser.add_argument(
+        "--manifest",
+        type=Path,
+        help="H2-F Défaut 1: Path to sealed SHA256SUMS.txt for exact binding verification",
+    )
+    parser.add_argument(
+        "--authority",
+        type=Path,
+        help="H2-F Défaut 5: Path to LOT41A authority evidence (JSON)",
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         help="Output path for Markdown report",
@@ -632,6 +810,8 @@ def main() -> int:
         pii_path=args.pii,
         routing_path=args.routing,
         golden_path=args.golden,
+        manifest_path=args.manifest,
+        authority_path=args.authority,
         expected_total=args.expected_total,
         expected_manifest_sha256=args.expected_manifest_sha256,
     )

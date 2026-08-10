@@ -14,7 +14,19 @@ from rag_pedago.imports.h2b_coverage_report import (
 MANIFEST_SHA256 = "d" * 64
 
 
-def _write_external_evidence(tmp_path: Path) -> tuple[Path, Path, Path]:
+CONTENT_SHA256 = "a" * 64  # SHA256 of the PDF content
+
+
+def _write_external_evidence(
+    tmp_path: Path,
+    *,
+    include_authority: bool = True,
+) -> tuple[Path, Path, Path, Path | None]:
+    """Write external evidence files for testing.
+
+    Returns (routing_path, rights_path, pii_path, authority_path).
+    If include_authority is False, authority_path will be None.
+    """
     routing = {
         "config_id": "coverage-routing-v1",
         "manifest_sha256": MANIFEST_SHA256,
@@ -86,7 +98,7 @@ def _write_external_evidence(tmp_path: Path) -> tuple[Path, Path, Path]:
         },
         "results": [
             {
-                "content_sha256": "a" * 64,
+                "content_sha256": CONTENT_SHA256,
                 "physical_object_count": 1,
                 "status": "CLEARED",
                 "error_code": None,
@@ -99,22 +111,67 @@ def _write_external_evidence(tmp_path: Path) -> tuple[Path, Path, Path]:
     routing_path.write_text(yaml.safe_dump(routing), encoding="utf-8")
     rights_path.write_text(yaml.safe_dump(rights), encoding="utf-8")
     pii_path.write_text(json.dumps(pii), encoding="utf-8")
-    return routing_path, rights_path, pii_path
+
+    # H2-F Défaut 5: LOT41A-V2 authority evidence with content allowlist
+    authority_path: Path | None = None
+    if include_authority:
+        authority = {
+            "protocol_version": "LOT41A-V2",
+            "authorization_id": "h2b_test_authority_v1",
+            "decision": "AUTHORIZE_INGESTION_SCOPE",
+            "manifest_digest": MANIFEST_SHA256,
+            "profile_id": "h2b_test_profile",
+            "profile_version": "1.0.0",
+            "profile_fingerprint": "f" * 64,
+            "allowed_domains": ["eduscol.education.fr"],
+            "rights_categories": ["officiel_public"],
+            "exclusions": [],
+            "pii_absence_attested": True,
+            "pii_absence_evidence": "Manual review: no PII found",
+            "valid_from": "2026-01-01T00:00:00.000000Z",
+            "valid_until": "2026-12-31T23:59:59.999999Z",
+            "allowed_content_sha256": [CONTENT_SHA256],
+            "scope": {
+                "audience": ["libre"],
+                "candidat": "libre",
+                "collection": "test_collection",
+                "matiere": "maths",
+                "niveau": "terminale",
+                "programme_version": "v1",
+                "school_year": "2026-2027",
+                "tenant": "libre_terminale",
+                "visibility": "public",
+                "voie": "generale",
+            },
+        }
+        authority_path = tmp_path / "authority.json"
+        authority_path.write_text(json.dumps(authority), encoding="utf-8")
+
+    return routing_path, rights_path, pii_path, authority_path
 
 
 def _generate(
     tmp_path: Path,
     catalog_path: Path,
     golden_path: Path,
+    *,
+    include_authority: bool = True,
     **kwargs: object,
 ):
-    routing_path, rights_path, pii_path = _write_external_evidence(tmp_path)
+    """Generate coverage report with external evidence.
+
+    If include_authority=True (default), LOT41A-V2 authority evidence is included.
+    """
+    routing_path, rights_path, pii_path, authority_path = _write_external_evidence(
+        tmp_path, include_authority=include_authority
+    )
     return generate_coverage_report(
         catalog_path,
         rights_path=rights_path,
         pii_path=pii_path,
         routing_path=routing_path,
         golden_path=golden_path,
+        authority_path=authority_path,
         **kwargs,
     )
 
@@ -145,7 +202,7 @@ def _write_real_catalog(tmp_path: Path, *, authority_status: str = "PASS") -> Pa
         "verification_errors": [],
         "physical_objects": [
             {
-                "content_sha256": "a" * 64,
+                "content_sha256": CONTENT_SHA256,
                 "path": "01_EDUSCOL_OFFICIEL/current.pdf",
                 "base_disposition": "INGEST",
                 "disposition": "INGEST",
@@ -195,7 +252,7 @@ def _write_golden_spec(
         "positive_controls": [
             {
                 "control_id": "pos_01",
-                "sha256_prefix": "a" * 12,
+                "sha256_prefix": CONTENT_SHA256[:12],
                 "expected_base_disposition": "INGEST",
                 "expected_final_disposition": expected_final,
                 "expected_currentness": "actuel",
@@ -234,10 +291,12 @@ def _write_golden_spec(
 def test_real_catalog_proves_coverage_and_all_ingest_safety_invariants(
     tmp_path: Path,
 ) -> None:
+    """Nominal test: with proper LOT41A-V2 authority evidence, coverage is complete."""
     report = _generate(
         tmp_path,
         _write_real_catalog(tmp_path),
         _write_golden_spec(tmp_path),
+        include_authority=True,  # Include LOT41A-V2 authority evidence
         expected_total=2,
         expected_manifest_sha256=MANIFEST_SHA256,
     )
@@ -248,6 +307,7 @@ def test_real_catalog_proves_coverage_and_all_ingest_safety_invariants(
     assert report.sum_equals_total is True
     assert report.zero_gap is True
     assert report.zero_overlap is True
+    # With proper LOT41A-V2 authority evidence, all invariants should be 0
     assert report.safety_invariants == {
         "INGEST_WITHOUT_RIGHTS_CLEARANCE": 0,
         "INGEST_WITHOUT_PII_CLEARANCE": 0,
@@ -256,8 +316,10 @@ def test_real_catalog_proves_coverage_and_all_ingest_safety_invariants(
         "INGEST_WITHOUT_PROVENANCE": 0,
         "INGEST_WITHOUT_CONTENT_SHA": 0,
         "INGEST_WITHOUT_AUTHORITY": 0,
+        "INGEST_WITH_SELF_DECLARED_AUTHORITY": 0,
         "INGEST_WITHOUT_ATTRIBUTION_METADATA": 0,
     }
+    # With proper authority evidence, coverage is complete
     assert report.coverage_complete is True
     assert report.blocked_ingest_candidates == 0
     markdown = render_markdown(report)
@@ -314,7 +376,7 @@ def test_rejects_catalog_rights_pass_not_derived_from_registry(
 ) -> None:
     catalog_path = _write_real_catalog(tmp_path)
     golden_path = _write_golden_spec(tmp_path)
-    routing_path, rights_path, pii_path = _write_external_evidence(tmp_path)
+    routing_path, rights_path, pii_path, _ = _write_external_evidence(tmp_path)
     rights = yaml.safe_load(rights_path.read_text(encoding="utf-8"))
     rights["source_evidence"]["eduscol"]["rights_status"] = "REVIEW_REQUIRED"
     rights["source_evidence"]["eduscol"]["disposition_override"] = (
@@ -339,7 +401,7 @@ def test_rejects_catalog_pii_pass_not_derived_from_sealed_scan(
 ) -> None:
     catalog_path = _write_real_catalog(tmp_path)
     golden_path = _write_golden_spec(tmp_path)
-    routing_path, rights_path, pii_path = _write_external_evidence(tmp_path)
+    routing_path, rights_path, pii_path, _ = _write_external_evidence(tmp_path)
     pii = json.loads(pii_path.read_text(encoding="utf-8"))
     pii["results"][0]["status"] = "REVIEW_REQUIRED_EXTRACTION_FAILED"
     pii_path.write_text(json.dumps(pii), encoding="utf-8")
@@ -391,3 +453,280 @@ def test_rejects_catalog_bound_to_another_manifest(tmp_path: Path) -> None:
             expected_total=2,
             expected_manifest_sha256="0" * 64,
         )
+
+
+def test_h2f_defaut1_manifest_sha256_mismatch_is_detected(
+    tmp_path: Path,
+) -> None:
+    """H2-F Défaut 1: Any manifest content mismatch must be detected.
+
+    When --manifest is provided, the coverage report MUST verify that:
+    1. The manifest file's actual SHA256 matches the catalog's declared manifest_sha256
+    2. The manifest entries exactly match the catalog's physical_objects
+
+    If either check fails, the report must reject with a clear error.
+    """
+    catalog_path = _write_real_catalog(tmp_path)
+    golden_path = _write_golden_spec(tmp_path)
+    routing_path, rights_path, pii_path, _ = _write_external_evidence(tmp_path)
+
+    # Create a manifest with different content (will have different SHA256)
+    manifest_path = tmp_path / "SHA256SUMS.txt"
+    manifest_path.write_text(
+        "c" * 64 + "  completely_different_file.pdf\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="H2-F Défaut 1"):
+        generate_coverage_report(
+            catalog_path,
+            rights_path=rights_path,
+            pii_path=pii_path,
+            routing_path=routing_path,
+            golden_path=golden_path,
+            manifest_path=manifest_path,
+            expected_total=2,
+            expected_manifest_sha256=MANIFEST_SHA256,
+        )
+
+
+def test_h2f_defaut1_missing_manifest_file_is_rejected(
+    tmp_path: Path,
+) -> None:
+    """H2-F Défaut 1: Non-existent manifest file must be rejected."""
+    catalog_path = _write_real_catalog(tmp_path)
+    golden_path = _write_golden_spec(tmp_path)
+    routing_path, rights_path, pii_path, _ = _write_external_evidence(tmp_path)
+
+    # Point to non-existent manifest
+    manifest_path = tmp_path / "nonexistent_SHA256SUMS.txt"
+
+    with pytest.raises(ValueError, match="H2-F Défaut 1.*does not exist"):
+        generate_coverage_report(
+            catalog_path,
+            rights_path=rights_path,
+            pii_path=pii_path,
+            routing_path=routing_path,
+            golden_path=golden_path,
+            manifest_path=manifest_path,
+            expected_total=2,
+            expected_manifest_sha256=MANIFEST_SHA256,
+        )
+
+
+def test_h2f_defaut5_authority_pass_autodeclare_is_not_sufficient(
+    tmp_path: Path,
+) -> None:
+    """H2-F Défaut 5: authority=PASS auto-déclaré ne suffit pas sans preuve LOT41A/42.
+
+    Le catalogue peut contenir authority=PASS mais le coverage report doit
+    comptabiliser cela comme INGEST_WITH_SELF_DECLARED_AUTHORITY car aucune
+    preuve LOT41A/42 externe n'est fournie et liée au manifest exact.
+
+    Note: Le compilateur candidat ne peut jamais produire authority=PASS
+    (il est toujours BLOCKED_NOT_CLEARED). Ce test vérifie qu'un catalogue
+    manuellement modifié avec authority=PASS est tout de même détecté.
+    """
+    catalog_path = _write_real_catalog(tmp_path)
+    # Simulate a manually injected authority=PASS without LOT41A/42 evidence
+    catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+    catalog["physical_objects"][0]["gate_statuses"]["authority"] = "PASS"
+    catalog["physical_objects"][0]["disposition"] = "INGEST"
+    catalog_path.write_text(json.dumps(catalog), encoding="utf-8")
+
+    # The spec expects authority=PASS but the system must still count it
+    # as a violation if there's no external LOT41A/42 proof
+    golden_path = _write_golden_spec(tmp_path, expected_authority="PASS")
+
+    # Key: include_authority=False - no external LOT41A evidence
+    report = _generate(
+        tmp_path,
+        catalog_path,
+        golden_path,
+        include_authority=False,  # No authority evidence provided
+        expected_total=2,
+        expected_manifest_sha256=MANIFEST_SHA256,
+    )
+
+    # H2-F Défaut 5: Self-declared authority=PASS MUST be flagged
+    assert report.safety_invariants.get("INGEST_WITH_SELF_DECLARED_AUTHORITY", 0) == 1, \
+        "Self-declared authority=PASS should be counted as a violation"
+    assert report.coverage_complete is False, \
+        "Coverage cannot be complete with self-declared authority"
+
+
+def test_h2f_defaut5_authority_bound_to_wrong_manifest_is_rejected(
+    tmp_path: Path,
+) -> None:
+    """H2-F Défaut 5: Authority evidence bound to a different manifest must fail closed."""
+    catalog_path = _write_real_catalog(tmp_path)
+    golden_path = _write_golden_spec(tmp_path)
+    routing_path, rights_path, pii_path, _ = _write_external_evidence(
+        tmp_path, include_authority=False
+    )
+
+    # Create authority evidence bound to a DIFFERENT manifest
+    wrong_manifest_sha256 = "b" * 64  # Different from MANIFEST_SHA256
+    authority = {
+        "protocol_version": "LOT41A-V2",
+        "authorization_id": "wrong_manifest_authority",
+        "decision": "AUTHORIZE_INGESTION_SCOPE",
+        "manifest_digest": wrong_manifest_sha256,  # Wrong manifest!
+        "profile_id": "test_profile",
+        "profile_version": "1.0.0",
+        "profile_fingerprint": "f" * 64,
+        "allowed_domains": ["eduscol.education.fr"],
+        "rights_categories": ["officiel_public"],
+        "exclusions": [],
+        "pii_absence_attested": True,
+        "pii_absence_evidence": "Manual review",
+        "valid_from": "2026-01-01T00:00:00.000000Z",
+        "valid_until": "2026-12-31T23:59:59.999999Z",
+        "allowed_content_sha256": [CONTENT_SHA256],
+        "scope": {
+            "audience": ["libre"],
+            "candidat": "libre",
+            "collection": "test",
+            "matiere": "maths",
+            "niveau": "terminale",
+            "programme_version": "v1",
+            "school_year": "2026-2027",
+            "tenant": "libre_terminale",
+            "visibility": "public",
+            "voie": "generale",
+        },
+    }
+    authority_path = tmp_path / "wrong_authority.json"
+    authority_path.write_text(json.dumps(authority), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="H2-F Défaut 5.*wrong manifest"):
+        generate_coverage_report(
+            catalog_path,
+            rights_path=rights_path,
+            pii_path=pii_path,
+            routing_path=routing_path,
+            golden_path=golden_path,
+            authority_path=authority_path,
+            expected_total=2,
+            expected_manifest_sha256=MANIFEST_SHA256,
+        )
+
+
+def test_h2f_defaut5_content_not_in_authority_allowlist_fails(
+    tmp_path: Path,
+) -> None:
+    """H2-F Défaut 5: Content not in authority allowlist must be flagged."""
+    catalog_path = _write_real_catalog(tmp_path)
+    golden_path = _write_golden_spec(tmp_path)
+    routing_path, rights_path, pii_path, _ = _write_external_evidence(
+        tmp_path, include_authority=False
+    )
+
+    # Create authority evidence that does NOT include the catalog's content SHA256
+    different_content_sha256 = "c" * 64  # Different from CONTENT_SHA256
+    authority = {
+        "protocol_version": "LOT41A-V2",
+        "authorization_id": "narrow_authority",
+        "decision": "AUTHORIZE_INGESTION_SCOPE",
+        "manifest_digest": MANIFEST_SHA256,
+        "profile_id": "test_profile",
+        "profile_version": "1.0.0",
+        "profile_fingerprint": "f" * 64,
+        "allowed_domains": ["eduscol.education.fr"],
+        "rights_categories": ["officiel_public"],
+        "exclusions": [],
+        "pii_absence_attested": True,
+        "pii_absence_evidence": "Manual review",
+        "valid_from": "2026-01-01T00:00:00.000000Z",
+        "valid_until": "2026-12-31T23:59:59.999999Z",
+        "allowed_content_sha256": [different_content_sha256],  # Wrong content!
+        "scope": {
+            "audience": ["libre"],
+            "candidat": "libre",
+            "collection": "test",
+            "matiere": "maths",
+            "niveau": "terminale",
+            "programme_version": "v1",
+            "school_year": "2026-2027",
+            "tenant": "libre_terminale",
+            "visibility": "public",
+            "voie": "generale",
+        },
+    }
+    authority_path = tmp_path / "narrow_authority.json"
+    authority_path.write_text(json.dumps(authority), encoding="utf-8")
+
+    report = generate_coverage_report(
+        catalog_path,
+        rights_path=rights_path,
+        pii_path=pii_path,
+        routing_path=routing_path,
+        golden_path=golden_path,
+        authority_path=authority_path,
+        expected_total=2,
+        expected_manifest_sha256=MANIFEST_SHA256,
+    )
+
+    # Content not in allowlist = INGEST_WITHOUT_AUTHORITY (authority claim invalid)
+    assert report.safety_invariants["INGEST_WITHOUT_AUTHORITY"] == 1, \
+        "Content not in authority allowlist should be flagged as without authority"
+    assert report.coverage_complete is False
+
+
+def test_h2f_defaut5_lot41a_v1_has_no_content_verification(
+    tmp_path: Path,
+) -> None:
+    """H2-F Défaut 5: LOT41A-V1 (no content allowlist) cannot verify content authority."""
+    catalog_path = _write_real_catalog(tmp_path)
+    golden_path = _write_golden_spec(tmp_path)
+    routing_path, rights_path, pii_path, _ = _write_external_evidence(
+        tmp_path, include_authority=False
+    )
+
+    # Create V1 authority (no allowed_content_sha256)
+    authority = {
+        "protocol_version": "LOT41A-V1",  # V1, no content list
+        "authorization_id": "v1_authority",
+        "decision": "AUTHORIZE_INGESTION_SCOPE",
+        "manifest_digest": MANIFEST_SHA256,
+        "profile_id": "test_profile",
+        "profile_version": "1.0.0",
+        "profile_fingerprint": "f" * 64,
+        "allowed_domains": ["eduscol.education.fr"],
+        "rights_categories": ["officiel_public"],
+        "exclusions": [],
+        "pii_absence_attested": True,
+        "pii_absence_evidence": "Manual review",
+        "valid_from": "2026-01-01T00:00:00.000000Z",
+        "valid_until": "2026-12-31T23:59:59.999999Z",
+        "scope": {
+            "audience": ["libre"],
+            "candidat": "libre",
+            "collection": "test",
+            "matiere": "maths",
+            "niveau": "terminale",
+            "programme_version": "v1",
+            "school_year": "2026-2027",
+            "tenant": "libre_terminale",
+            "visibility": "public",
+            "voie": "generale",
+        },
+    }
+    authority_path = tmp_path / "v1_authority.json"
+    authority_path.write_text(json.dumps(authority), encoding="utf-8")
+
+    report = generate_coverage_report(
+        catalog_path,
+        rights_path=rights_path,
+        pii_path=pii_path,
+        routing_path=routing_path,
+        golden_path=golden_path,
+        authority_path=authority_path,
+        expected_total=2,
+        expected_manifest_sha256=MANIFEST_SHA256,
+    )
+
+    # V1 cannot verify individual content = self-declared
+    assert report.safety_invariants["INGEST_WITH_SELF_DECLARED_AUTHORITY"] == 1, \
+        "V1 authority without content allowlist should be flagged as self-declared"
+    assert report.coverage_complete is False

@@ -700,6 +700,22 @@ def test_every_post_database_scope_dimension_is_verified(
 
 
 @pytest.mark.parametrize(
+    "review_status",
+    ["quarantine", "pending", "revoked", "draft", "unreviewed", ""],
+)
+def test_h2f_defaut4_non_reviewed_chunks_are_rejected(review_status: str) -> None:
+    """H2-F Défaut 4: Retrieval governed MUST exclude quarantined/pending/revoked chunks.
+
+    Only chunks with review_status='reviewed' are allowed. Any other status
+    must fail-closed, even if the chunk has a valid embedding.
+    """
+    provider = ProviderSpy([_dense_row(review_status=review_status)])
+
+    with pytest.raises(RetrievalPipelineError, match="dense channel query failed"):
+        _dense(provider)
+
+
+@pytest.mark.parametrize(
     "vector_text",
     [
         None,

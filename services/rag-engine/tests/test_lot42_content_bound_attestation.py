@@ -100,6 +100,11 @@ def _facts(**overrides: Any) -> PublicationFacts:
         "gate_name": "h2-governed",
         "gate_evaluated_at": NOW,
         "gate_event_id": uuid4(),
+        # H2-F Défaut 6: Attribution durable
+        "source_label": "Éduscol officiel",
+        "official": True,
+        "source_kind": "programme",
+        "type_doc": "programme",
     }
     defaults.update(overrides)
     return PublicationFacts(**defaults)
@@ -264,6 +269,9 @@ class _MissingFetchedCursor(AbstractContextManager["_MissingFetchedCursor"]):
             return ("rag_nexus_philo_terminale_tc",)
         if "FROM ingestion_control.artifacts" in self.query:
             return (CONTENT_SHA,)
+        # H2-F Défaut 6: Handle rag_artifacts attribution query
+        if "FROM public.rag_artifacts" in self.query:
+            return ("Référentiel officiel", True, "programme", "programme")
         if "FROM ingestion_control.resource_candidates" in self.query:
             return ("https://eduscol.education.gouv.fr/philosophie.pdf",)
         return None
@@ -304,6 +312,9 @@ class _TamperedFetchedCursor(AbstractContextManager["_TamperedFetchedCursor"]):
             return ("rag_nexus_philo_terminale_tc",)
         if "FROM ingestion_control.artifacts" in self.query:
             return (CONTENT_SHA,)
+        # H2-F Défaut 6: Handle rag_artifacts attribution query
+        if "FROM public.rag_artifacts" in self.query:
+            return ("Référentiel officiel", True, "programme", "programme")
         if "FROM ingestion_control.resource_candidates" in self.query:
             return ("https://eduscol.education.gouv.fr/philosophie.pdf",)
         if self.params.get("to_state") == "FETCHED":
