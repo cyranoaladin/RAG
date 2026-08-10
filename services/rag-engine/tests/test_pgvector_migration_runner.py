@@ -210,6 +210,14 @@ def runner_env(tmp_path: Path) -> tuple[dict[str, str], Path, Path]:
             "PGVECTOR_CONTAINER": "lot40-test-pgvector",
             "PGVECTOR_DB": "testdb",
             "PGVECTOR_USER": "testuser",
+            "PGVECTOR_RETRIEVAL_USER": "test_reader",
+            "PGVECTOR_RETRIEVAL_PASSWORD": "test-reader-password-at-least-32-chars",
+            "PGVECTOR_REVIEW_USER": "test_reviewer",
+            "PGVECTOR_REVIEW_PASSWORD": "test-review-password-at-least-32-chars",
+            "PGVECTOR_PUBLISHER_USER": "test_publisher",
+            "PGVECTOR_PUBLISHER_PASSWORD": (
+                "test-publisher-password-at-least-32-chars"
+            ),
             "TMPDIR": str(snapshot_root),
         }
     )

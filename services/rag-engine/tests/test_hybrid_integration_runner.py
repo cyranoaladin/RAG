@@ -758,15 +758,16 @@ def test_runner_pins_security_bounds_and_cleanup_contract() -> None:
     assert "postgresql://$PGVECTOR_APP_USER@127.0.0.1:" in content
     assert "LOT40_PG_ADMIN_DSN" in content
     assert "provision_runtime_roles.sh" in content
-    assert "LOGIN PASSWORD :'retrieval_password'" in provisioning
-    assert "LOGIN PASSWORD :'review_password'" in provisioning
-    assert "LOGIN PASSWORD :'publisher_password'" in provisioning
+    assert "CREATE ROLE %I LOGIN PASSWORD %L" in provisioning
+    assert ":'retrieval_password'" in provisioning
+    assert ":'review_password'" in provisioning
+    assert ":'publisher_password'" in provisioning
     assert "NOSUPERUSER NOCREATEDB NOCREATEROLE" in provisioning
     assert "GRANT SELECT ON TABLE rag_chunks" in provisioning
     assert provisioning.count("GRANT SELECT ON TABLE rag_schema_migrations") == 1
     assert (
         provisioning.index("GRANT SELECT ON TABLE rag_schema_migrations")
-        < provisioning.index('CREATE ROLE :"review_user"')
+        < provisioning.index(":'review_user', :'review_password'")
     )
     assert "GRANT UPDATE (review_status) ON TABLE rag_chunks" in provisioning
     assert "GRANT SELECT, INSERT ON TABLE rag_artifacts" in provisioning
@@ -807,6 +808,8 @@ def test_runner_exercises_canonical_cycle_and_both_atomic_rollbacks() -> None:
     assert "ROLLBACK_003_DATA_GUARD=PASS" in content
     assert "ROLLBACK_004_DATA_GUARD=PASS" in content
     assert "MIGRATION_FINAL_HEAD_004=PASS" in content
+    assert "HEAD_003_RUNTIME_ROLES_PROVISIONED=PASS" in content
+    assert "UPGRADE_004_RUNTIME_GRANTS=PASS" in content
 
 
 def test_runner_invokes_lot40_and_only_opts_into_the_real_h2c_rehearsal() -> None:

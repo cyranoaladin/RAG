@@ -24,9 +24,15 @@ PGVECTOR_USER="lot40user"
 PGVECTOR_APP_USER="lot40_app"
 PGVECTOR_REVIEW_USER="lot41_review"
 PGVECTOR_PUBLISHER_USER="lot42_publisher"
+UPGRADE_RETRIEVAL_USER="lot40_upgrade_reader"
+UPGRADE_REVIEW_USER="lot41_upgrade_review"
+UPGRADE_PUBLISHER_USER="lot42_upgrade_publisher"
 PGVECTOR_APP_PASSWORD="lot40-app-$LOT40_OWNER_TOKEN"
 PGVECTOR_REVIEW_PASSWORD="lot41-review-$LOT40_OWNER_TOKEN"
 PGVECTOR_PUBLISHER_PASSWORD="lot42-publisher-$LOT40_OWNER_TOKEN"
+UPGRADE_RETRIEVAL_PASSWORD="upgrade-reader-$LOT40_OWNER_TOKEN"
+UPGRADE_REVIEW_PASSWORD="upgrade-review-$LOT40_OWNER_TOKEN"
+UPGRADE_PUBLISHER_PASSWORD="upgrade-publisher-$LOT40_OWNER_TOKEN"
 RUN_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/lot40-hybrid.XXXXXX")"
 BACKUP_ROOT="$RUN_ROOT/backups"
 container_cleanup_armed=0
@@ -387,6 +393,26 @@ run_apply() {
     PGVECTOR_CONTAINER="$PGVECTOR_CONTAINER_ID" \
     PGVECTOR_DB="$PGVECTOR_DB" \
     PGVECTOR_USER="$PGVECTOR_USER" \
+    PGVECTOR_RETRIEVAL_USER="$PGVECTOR_APP_USER" \
+    PGVECTOR_RETRIEVAL_PASSWORD="$PGVECTOR_APP_PASSWORD" \
+    PGVECTOR_REVIEW_USER="$PGVECTOR_REVIEW_USER" \
+    PGVECTOR_REVIEW_PASSWORD="$PGVECTOR_REVIEW_PASSWORD" \
+    PGVECTOR_PUBLISHER_USER="$PGVECTOR_PUBLISHER_USER" \
+    PGVECTOR_PUBLISHER_PASSWORD="$PGVECTOR_PUBLISHER_PASSWORD" \
+    BACKUP_ROOT="$BACKUP_ROOT" \
+        bash "$1/scripts/apply_pgvector_migrations.sh"
+}
+
+run_apply_upgrade_roles() {
+    PGVECTOR_CONTAINER="$PGVECTOR_CONTAINER_ID" \
+    PGVECTOR_DB="$PGVECTOR_DB" \
+    PGVECTOR_USER="$PGVECTOR_USER" \
+    PGVECTOR_RETRIEVAL_USER="$UPGRADE_RETRIEVAL_USER" \
+    PGVECTOR_RETRIEVAL_PASSWORD="$UPGRADE_RETRIEVAL_PASSWORD" \
+    PGVECTOR_REVIEW_USER="$UPGRADE_REVIEW_USER" \
+    PGVECTOR_REVIEW_PASSWORD="$UPGRADE_REVIEW_PASSWORD" \
+    PGVECTOR_PUBLISHER_USER="$UPGRADE_PUBLISHER_USER" \
+    PGVECTOR_PUBLISHER_PASSWORD="$UPGRADE_PUBLISHER_PASSWORD" \
     BACKUP_ROOT="$BACKUP_ROOT" \
         bash "$1/scripts/apply_pgvector_migrations.sh"
 }
@@ -612,6 +638,57 @@ provision_app_role() {
         < "$INFRA_DIR/postgres/provision_runtime_roles.sh"
 }
 
+provision_head_003_runtime_roles() {
+    container_psql <<SQL
+CREATE ROLE $UPGRADE_RETRIEVAL_USER LOGIN PASSWORD '$UPGRADE_RETRIEVAL_PASSWORD'
+    NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;
+GRANT CONNECT ON DATABASE $PGVECTOR_DB TO $UPGRADE_RETRIEVAL_USER;
+GRANT USAGE ON SCHEMA public TO $UPGRADE_RETRIEVAL_USER;
+GRANT USAGE ON TYPE vector TO $UPGRADE_RETRIEVAL_USER;
+GRANT SELECT ON TABLE rag_chunks TO $UPGRADE_RETRIEVAL_USER;
+
+CREATE ROLE $UPGRADE_REVIEW_USER LOGIN PASSWORD '$UPGRADE_REVIEW_PASSWORD'
+    NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;
+GRANT CONNECT ON DATABASE $PGVECTOR_DB TO $UPGRADE_REVIEW_USER;
+GRANT USAGE ON SCHEMA public TO $UPGRADE_REVIEW_USER;
+GRANT USAGE ON TYPE vector TO $UPGRADE_REVIEW_USER;
+GRANT SELECT ON TABLE rag_chunks TO $UPGRADE_REVIEW_USER;
+GRANT UPDATE (review_status) ON TABLE rag_chunks TO $UPGRADE_REVIEW_USER;
+SQL
+}
+
+assert_upgrade_004_runtime_grants() {
+    container_psql <<SQL
+DO \$\$
+BEGIN
+    IF NOT has_table_privilege(
+        '$UPGRADE_RETRIEVAL_USER', 'public.rag_artifacts', 'SELECT'
+    ) OR NOT has_table_privilege(
+        '$UPGRADE_RETRIEVAL_USER', 'public.rag_artifact_placements', 'SELECT'
+    ) OR has_table_privilege(
+        '$UPGRADE_RETRIEVAL_USER', 'public.rag_artifacts', 'INSERT'
+    ) OR NOT EXISTS (
+        SELECT 1 FROM pg_roles WHERE rolname = '$UPGRADE_PUBLISHER_USER'
+    ) OR NOT has_table_privilege(
+        '$UPGRADE_PUBLISHER_USER', 'public.rag_artifacts', 'SELECT'
+    ) OR NOT has_table_privilege(
+        '$UPGRADE_PUBLISHER_USER', 'public.rag_artifacts', 'INSERT'
+    ) OR NOT has_table_privilege(
+        '$UPGRADE_PUBLISHER_USER', 'public.rag_artifact_placements', 'SELECT'
+    ) OR NOT has_table_privilege(
+        '$UPGRADE_PUBLISHER_USER', 'public.rag_artifact_placements', 'INSERT'
+    ) OR has_table_privilege(
+        '$UPGRADE_PUBLISHER_USER', 'public.rag_artifacts', 'UPDATE'
+    ) OR has_table_privilege(
+        '$UPGRADE_REVIEW_USER', 'public.rag_artifacts', 'INSERT'
+    ) THEN
+        RAISE EXCEPTION 'UPGRADE_004_RUNTIME_GRANTS_INVALID';
+    END IF;
+END
+\$\$;
+SQL
+}
+
 assert_unregistered_bootstrap_002
 echo "BOOTSTRAP_002_UNREGISTERED=PASS"
 
@@ -633,6 +710,14 @@ grep -qx 'MIGRATIONS_APPLIED=2' <<< "$bootstrap_adoption_output"
 assert_state_004
 echo "BOOTSTRAP_ADOPTION_002=PASS"
 
+run_down_004 "$INFRA_DIR"
+assert_state_003
+provision_head_003_runtime_roles
+echo "HEAD_003_RUNTIME_ROLES_PROVISIONED=PASS"
+run_apply_upgrade_roles "$INFRA_DIR"
+assert_state_004
+assert_upgrade_004_runtime_grants
+echo "UPGRADE_004_RUNTIME_GRANTS=PASS"
 run_down_004 "$INFRA_DIR"
 assert_state_003
 run_down_003 "$INFRA_DIR"

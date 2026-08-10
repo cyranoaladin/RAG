@@ -7,6 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 INFRA_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 MIGRATIONS_DIR="$INFRA_DIR/postgres/migrations"
 MIGRATION_HEAD_FILE="$MIGRATIONS_DIR/HEAD"
+RUNTIME_ROLE_PROVISIONING="$INFRA_DIR/postgres/provision_runtime_roles.sh"
 
 # Load the deployment environment without displaying it.
 if [[ -f "$INFRA_DIR/.env" ]]; then
@@ -23,6 +24,8 @@ PGVECTOR_USER="${PGVECTOR_USER:-raguser}"
 
 # shellcheck source=lib/pgvector_migration_state.sh
 source "$SCRIPT_DIR/lib/pgvector_migration_state.sh"
+# shellcheck source=../postgres/provision_runtime_roles.sh
+source "$RUNTIME_ROLE_PROVISIONING"
 
 discover_manifest "$MIGRATIONS_DIR" "$MIGRATION_HEAD_FILE"
 MIGRATION_SNAPSHOT_DIR=""
@@ -256,6 +259,26 @@ run_up_transition() {
     local migration_file="${MIGRATION_FILES[$index]}"
     local migration_name="${MIGRATION_NAMES[$index]}"
     local migration_sha="${MIGRATION_SHA256[$index]}"
+    local -a docker_environment=()
+
+    if (( version == 4 )); then
+        POSTGRES_USER="$PGVECTOR_USER"
+        POSTGRES_DB="$PGVECTOR_DB"
+        export POSTGRES_USER POSTGRES_DB \
+            PGVECTOR_RETRIEVAL_USER PGVECTOR_RETRIEVAL_PASSWORD \
+            PGVECTOR_REVIEW_USER PGVECTOR_REVIEW_PASSWORD \
+            PGVECTOR_PUBLISHER_USER PGVECTOR_PUBLISHER_PASSWORD
+        validate_runtime_role_environment
+        docker_environment=(
+            -e POSTGRES_DB
+            -e PGVECTOR_RETRIEVAL_USER
+            -e PGVECTOR_RETRIEVAL_PASSWORD
+            -e PGVECTOR_REVIEW_USER
+            -e PGVECTOR_REVIEW_PASSWORD
+            -e PGVECTOR_PUBLISHER_USER
+            -e PGVECTOR_PUBLISHER_PASSWORD
+        )
+    fi
 
     {
         advisory_lock_sql
@@ -267,6 +290,9 @@ run_up_transition() {
         else
             command cat "$migration_file"
             printf '\n'
+        fi
+        if (( version == 4 )); then
+            provision_runtime_roles_sql
         fi
         cat <<'SQL'
 INSERT INTO rag_schema_migrations (version, file_name, sha256)
@@ -289,7 +315,7 @@ SQL
             validate_004_absent_sql
         fi
         validate_registry_sql "$version"
-    } | docker exec -i "$PGVECTOR_CONTAINER" \
+    } | docker exec -i "${docker_environment[@]}" "$PGVECTOR_CONTAINER" \
         psql -X -q --single-transaction \
         -v ON_ERROR_STOP=1 \
         -v "migration_version=$version" \

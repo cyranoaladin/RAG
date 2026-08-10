@@ -115,6 +115,25 @@ def test_migration_runtime_validates_004_and_rollback() -> None:
     assert "validate_registry_sql 3" in rollback
 
 
+def test_upgrade_runner_reconciles_runtime_roles_after_head_004() -> None:
+    apply = _read(SCRIPTS / "apply_pgvector_migrations.sh")
+    provisioning = _read(POSTGRES / "provision_runtime_roles.sh")
+
+    assert "provision_runtime_roles" in apply
+    assert "PGVECTOR_RETRIEVAL_USER" in apply
+    assert "PGVECTOR_REVIEW_USER" in apply
+    assert "PGVECTOR_PUBLISHER_USER" in apply
+    assert '-e "PGVECTOR_RETRIEVAL_PASSWORD=$' not in apply
+    assert '-e "PGVECTOR_REVIEW_PASSWORD=$' not in apply
+    assert '-e "PGVECTOR_PUBLISHER_PASSWORD=$' not in apply
+    transition = apply.index("run_up_transition")
+    assert transition < apply.index("provision_runtime_roles_sql", transition)
+    assert "WHERE NOT EXISTS" in provisioning
+    assert "ALTER ROLE" in provisioning
+    assert "GRANT SELECT ON TABLE rag_chunks, rag_artifacts" in provisioning
+    assert "GRANT SELECT, INSERT ON TABLE rag_artifacts" in provisioning
+
+
 def test_publisher_role_is_insert_only_on_product_tables() -> None:
     provisioning = _read(POSTGRES / "provision_runtime_roles.sh")
 
