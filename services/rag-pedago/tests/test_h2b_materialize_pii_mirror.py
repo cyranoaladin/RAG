@@ -25,6 +25,7 @@ class MaterializerModule(Protocol):
         remote_root: str,
         local_mirror: Path,
         required_pdf_paths: set[str] | None = None,
+        scratch_root: Path | None = None,
     ) -> dict[str, object]: ...
 
 
@@ -111,6 +112,66 @@ def test_materializer_rejects_noncanonical_remote_before_transport(
                 expected_manifest_sha256=_sha256(manifest.read_bytes()),
                 remote_root="gdrive_ert:wrong",
                 local_mirror=mirror,
+            )
+    finally:
+        mirror.rmdir()
+
+
+def test_materializer_and_scanner_share_the_configurable_scratch_root(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    module = _module()
+    scratch_root = tmp_path / "approved-scratch"
+    scratch_root.mkdir()
+    mirror = scratch_root / "nexus-h2b-pii.configured"
+    mirror.mkdir(mode=0o700)
+    manifest = tmp_path / "SHA256SUMS.txt"
+    manifest.write_text(f"{'a' * 64}  a.pdf\n", encoding="utf-8")
+    monkeypatch.setenv("NEXUS_H2_PII_SCRATCH_ROOT", str(scratch_root))
+    monkeypatch.setattr(module.subprocess, "run", lambda *_args, **_kwargs: object())
+
+    try:
+        receipt = module.materialize_pii_mirror(
+            manifest_path=manifest,
+            expected_manifest_sha256=_sha256(manifest.read_bytes()),
+            remote_root=REMOTE_ROOT,
+            local_mirror=mirror,
+        )
+    finally:
+        mirror.rmdir()
+
+    assert receipt["pdf_path_count"] == 1
+    source = SCRIPT.read_text(encoding="utf-8")
+    assert "NEXUS_H2_PII_SCRATCH_ROOT" in source
+    assert 'Path("/tmp")' not in source
+
+
+def test_materializer_rejects_mirror_outside_configured_root_before_transport(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    module = _module()
+    scratch_root = tmp_path / "approved-scratch"
+    scratch_root.mkdir()
+    mirror = tmp_path / "nexus-h2b-pii.outside"
+    mirror.mkdir(mode=0o700)
+    manifest = tmp_path / "SHA256SUMS.txt"
+    manifest.write_text(f"{'a' * 64}  a.pdf\n", encoding="utf-8")
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda *_args, **_kwargs: pytest.fail("transport must not run"),
+    )
+
+    try:
+        with pytest.raises(ValueError, match="configured scratch root"):
+            module.materialize_pii_mirror(
+                manifest_path=manifest,
+                expected_manifest_sha256=_sha256(manifest.read_bytes()),
+                remote_root=REMOTE_ROOT,
+                local_mirror=mirror,
+                scratch_root=scratch_root,
             )
     finally:
         mirror.rmdir()

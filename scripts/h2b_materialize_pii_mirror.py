@@ -5,12 +5,15 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import stat
 import subprocess
+import tempfile
 from pathlib import Path, PurePosixPath
 
 CANONICAL_REMOTE_ROOT = "gdrive_ert:NEXUS_RAG/NEXUS_RAG_GDRIVE_READY"
+PII_SCRATCH_ROOT_ENV = "NEXUS_H2_PII_SCRATCH_ROOT"
 _MANIFEST_LINE = re.compile(r"^([0-9a-f]{64})  (.+)$")
 
 
@@ -45,16 +48,29 @@ def _manifest_pdf_paths(manifest_path: Path) -> set[str]:
     return paths
 
 
-def _validated_mirror(path: Path) -> Path:
+def _configured_scratch_root(explicit_root: Path | None) -> Path:
+    configured = explicit_root
+    if configured is None:
+        configured = Path(os.environ.get(PII_SCRATCH_ROOT_ENV, tempfile.gettempdir()))
+    resolved = configured.resolve(strict=True)
+    if not resolved.is_dir():
+        raise ValueError("configured PII scratch root must be an existing directory")
+    return resolved
+
+
+def _validated_mirror(path: Path, *, scratch_root: Path | None) -> Path:
+    root = _configured_scratch_root(scratch_root)
     resolved = path.resolve(strict=True)
-    tmp_root = Path("/tmp").resolve()
     if (
-        resolved == tmp_root
-        or tmp_root not in resolved.parents
+        resolved == root
+        or root not in resolved.parents
         or not resolved.name.startswith("nexus-h2b-pii.")
         or not resolved.is_dir()
     ):
-        raise ValueError("local mirror must be a dedicated /tmp/nexus-h2b-pii.* directory")
+        raise ValueError(
+            "local mirror must be a dedicated nexus-h2b-pii.* directory "
+            "under configured scratch root"
+        )
     if stat.S_IMODE(resolved.stat().st_mode) != 0o700:
         raise ValueError("local mirror must use mode 0700")
     if any(resolved.iterdir()):
@@ -69,6 +85,7 @@ def materialize_pii_mirror(
     remote_root: str,
     local_mirror: Path,
     required_pdf_paths: set[str] | None = None,
+    scratch_root: Path | None = None,
 ) -> dict[str, object]:
     """Copie une liste positive issue du manifest vers un miroir local borné."""
     if remote_root != CANONICAL_REMOTE_ROOT:
@@ -78,7 +95,7 @@ def materialize_pii_mirror(
     manifest_sha256 = _sha256(manifest_path)
     if manifest_sha256 != expected_manifest_sha256:
         raise ValueError("corpus manifest SHA256 mismatch")
-    mirror = _validated_mirror(local_mirror)
+    mirror = _validated_mirror(local_mirror, scratch_root=scratch_root)
     available_paths = _manifest_pdf_paths(manifest_path)
     selected = available_paths if required_pdf_paths is None else set(required_pdf_paths)
     if not selected or not selected <= available_paths:
@@ -137,6 +154,14 @@ def main() -> int:
     parser.add_argument("--remote-root", default=CANONICAL_REMOTE_ROOT)
     parser.add_argument("--local-mirror", type=Path, required=True)
     parser.add_argument(
+        "--scratch-root",
+        type=Path,
+        help=(
+            "Racine locale approuvee du miroir; sinon "
+            f"{PII_SCRATCH_ROOT_ENV}, puis le repertoire temporaire du systeme."
+        ),
+    )
+    parser.add_argument(
         "--required-paths",
         type=Path,
         help="Fichier local contenant un chemin PDF autorisé par ligne.",
@@ -156,6 +181,7 @@ def main() -> int:
             remote_root=args.remote_root,
             local_mirror=args.local_mirror,
             required_pdf_paths=required,
+            scratch_root=args.scratch_root,
         )
     except KeyboardInterrupt:
         print("PII_MIRROR_MATERIALIZATION_INTERRUPTED=true")

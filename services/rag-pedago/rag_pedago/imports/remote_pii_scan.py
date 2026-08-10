@@ -4,6 +4,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
+import tempfile
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -26,6 +28,7 @@ from rag_pedago.imports.pii_scanner import (
 
 CANONICAL_REMOTE_ROOT = "gdrive_ert:NEXUS_RAG/NEXUS_RAG_GDRIVE_READY"
 SCANNER_VERSION = "pii_scanner_h2b_v2"
+PII_SCRATCH_ROOT_ENV = "NEXUS_H2_PII_SCRATCH_ROOT"
 
 ScanFile = Callable[[Path], PIIScanResult]
 
@@ -48,11 +51,27 @@ def _validated_policy(policy_path: Path) -> tuple[str, str]:
     return policy_id, _file_sha256(policy_path)
 
 
-def _validated_local_mirror(local_mirror: Path) -> Path:
-    resolved = local_mirror.resolve()
-    tmp_root = Path("/tmp").resolve()
-    if resolved == tmp_root or tmp_root not in resolved.parents:
-        raise ValueError("PII local mirror must be a dedicated path under /tmp")
+def _configured_scratch_root(explicit_root: Path | None) -> Path:
+    configured = explicit_root
+    if configured is None:
+        configured = Path(os.environ.get(PII_SCRATCH_ROOT_ENV, tempfile.gettempdir()))
+    resolved = configured.resolve(strict=True)
+    if not resolved.is_dir():
+        raise ValueError("configured PII scratch root must be an existing directory")
+    return resolved
+
+
+def _validated_local_mirror(
+    local_mirror: Path,
+    *,
+    scratch_root: Path | None,
+) -> Path:
+    root = _configured_scratch_root(scratch_root)
+    resolved = local_mirror.resolve(strict=True)
+    if resolved == root or root not in resolved.parents:
+        raise ValueError(
+            "PII local mirror must be a dedicated path under configured scratch root"
+        )
     if not resolved.is_dir():
         raise ValueError("PII local mirror must already exist")
     return resolved
@@ -123,11 +142,12 @@ def scan_remote_corpus(
     expected_manifest_sha256: str,
     scan_file: ScanFile = scan_pdf,
     required_pdf_paths: set[str] | frozenset[str] | None = None,
+    scratch_root: Path | None = None,
 ) -> dict[str, Any]:
     """Scan only a pre-staged local mirror; this boundary performs no transport."""
     if remote_root != CANONICAL_REMOTE_ROOT:
         raise ValueError("remote root is not the canonical read-only corpus remote")
-    mirror = _validated_local_mirror(local_mirror)
+    mirror = _validated_local_mirror(local_mirror, scratch_root=scratch_root)
     manifest_sha256 = _file_sha256(manifest_path)
     if manifest_sha256 != expected_manifest_sha256:
         raise ValueError("corpus manifest SHA256 mismatch")
@@ -290,6 +310,14 @@ def main() -> int:
     parser.add_argument("--expected-manifest-sha256", required=True)
     parser.add_argument("--local-mirror", type=Path, required=True)
     parser.add_argument(
+        "--scratch-root",
+        type=Path,
+        help=(
+            "Racine locale approuvee du miroir; sinon "
+            f"{PII_SCRATCH_ROOT_ENV}, puis le repertoire temporaire du systeme."
+        ),
+    )
+    parser.add_argument(
         "--scan-scope",
         choices=("all", "initial-production-eligible"),
         default="all",
@@ -326,6 +354,7 @@ def main() -> int:
             expected_manifest_sha256=args.expected_manifest_sha256,
             scan_file=configured_scan,
             required_pdf_paths=required_pdf_paths,
+            scratch_root=args.scratch_root,
         )
     except KeyboardInterrupt:
         print("PII_SCAN_INTERRUPTED=true")

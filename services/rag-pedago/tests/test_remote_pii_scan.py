@@ -378,6 +378,56 @@ def test_scans_pre_staged_local_mirror_without_mutating_it(
     assert len(list(mirror.rglob("*.pdf"))) == 3
 
 
+def test_accepts_a_mirror_under_the_explicit_configured_scratch_root(
+    tmp_path: Path,
+) -> None:
+    manifest, policy, content = _write_inputs(tmp_path)
+    scratch_root = tmp_path / "approved-scratch"
+    scratch_root.mkdir()
+    mirror = _write_mirror(scratch_root, content)
+
+    evidence = scan_remote_corpus(
+        manifest,
+        policy,
+        CANONICAL_REMOTE_ROOT,
+        mirror,
+        expected_manifest_sha256=_digest(manifest.read_bytes()),
+        scan_file=_clean_scan,
+        scratch_root=scratch_root,
+    )
+
+    assert evidence["summary"]["pii_scanned"] == 3
+
+
+def test_rejects_a_mirror_outside_the_explicit_configured_scratch_root(
+    tmp_path: Path,
+) -> None:
+    manifest, policy, content = _write_inputs(tmp_path)
+    scratch_root = tmp_path / "approved-scratch"
+    scratch_root.mkdir()
+    mirror = _write_mirror(tmp_path / "other", content)
+
+    with pytest.raises(ValueError, match="configured scratch root"):
+        scan_remote_corpus(
+            manifest,
+            policy,
+            CANONICAL_REMOTE_ROOT,
+            mirror,
+            expected_manifest_sha256=_digest(manifest.read_bytes()),
+            scan_file=_clean_scan,
+            scratch_root=scratch_root,
+        )
+
+
+def test_cli_exposes_a_configurable_scratch_root_without_literal_tmp() -> None:
+    import rag_pedago.imports.remote_pii_scan as module
+
+    source = inspect.getsource(module)
+    assert "--scratch-root" in source
+    assert "NEXUS_H2_PII_SCRATCH_ROOT" in source
+    assert 'Path("/tmp")' not in source
+
+
 def test_control_plane_scanner_has_no_network_or_rclone_dependency() -> None:
     module_path = (
         Path(__file__).parent.parent

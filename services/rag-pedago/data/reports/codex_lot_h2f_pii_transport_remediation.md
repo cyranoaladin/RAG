@@ -26,8 +26,10 @@ le périmètre PDF positif du manifest.
 ## Transport opérateur
 
 `scripts/h2b_materialize_pii_mirror.py` accepte uniquement le remote canonique,
-le SHA-256 exact du manifest et un répertoire vide
-`/tmp/nexus-h2b-pii.*` de mode `0700`. Il exécute une seule copie `rclone`
+le SHA-256 exact du manifest et un répertoire vide `nexus-h2b-pii.*` de mode
+`0700`, enfant de la racine fournie par `--scratch-root` ou
+`NEXUS_H2_PII_SCRATCH_ROOT`. Le scanner utilise exactement la même racine.
+Le matérialiseur exécute une seule copie `rclone`
 lecture seule de la liste positive et ne publie qu'un reçu non sensible. Ce
 reçu n'accorde aucune clearance : la décision demeure produite par le scan
 local des octets vérifiés.
@@ -58,6 +60,11 @@ matérialisés en lecture seule. Le sceau
 `1ea7655b4e390fa08916b3d4303a3424f3306e65a4149b9841c0f77aee773691`
 conserve 64 objets scannés, 63 clairs, un en quarantaine et zéro échec
 d'extraction, objet non scanné ou mismatch SHA-256.
+
+Une revue ultérieure a supprimé le chemin temporaire absolu codé en dur. Des
+tests prouvent qu'une racine approuvée non standard fonctionne pour le
+matérialiseur comme pour le scanner, et qu'un miroir voisin mais hors racine
+est refusé avant tout transport ou appel extracteur.
 
 ## Sécurité
 
