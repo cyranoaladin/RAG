@@ -199,6 +199,134 @@ def _write_inputs(
     return catalog_path, spec_path
 
 
+def _write_external_evidence(tmp_path: Path) -> tuple[Path, Path, Path]:
+    routing = {
+        "config_id": "h2f-routing-v1",
+        "manifest_sha256": MANIFEST_SHA256,
+        "rights_evidence_perimeter": [
+            "00_ADMIN/",
+            "01_EDUSCOL_OFFICIEL/",
+            "03_RESSOURCES_INTERACTIVES/",
+        ],
+        "zone_rules": [
+            {
+                "zone_prefix": "00_ADMIN/",
+                "disposition": "EXCLUDE",
+                "reason": "admin",
+            },
+            {
+                "zone_prefix": "01_EDUSCOL_OFFICIEL/",
+                "sub_zone_routing": [
+                    {
+                        "sub_zone_suffix": "/10_ACTUEL_CONFIRME/",
+                        "disposition": "INGEST",
+                        "currentness": "actuel",
+                    },
+                    {
+                        "sub_zone_suffix": None,
+                        "disposition": "REVIEW_REQUIRED",
+                        "currentness": "unclassified",
+                    },
+                ],
+            },
+            {
+                "zone_prefix": "03_RESSOURCES_INTERACTIVES/",
+                "disposition": "UNSUPPORTED",
+                "reason": "format",
+            },
+        ],
+    }
+    rights = {
+        "registry_id": "h2f-rights-v1",
+        "human_rights_decisions": {
+            "eduscol": {
+                "decision_type": "HUMAN_ORGANIZATIONAL_RIGHTS_APPROVAL",
+                "decision_maker": "Nexus Réussite",
+                "decision_date": "2026-08-08",
+                "scope_manifest_sha256": MANIFEST_SHA256,
+                "scope_zone": "01_EDUSCOL_OFFICIEL/",
+                "approved_for_production_rag": True,
+                "generic_rights_blocker": False,
+            }
+        },
+        "source_evidence": {
+            "admin": {
+                "zone": "00_ADMIN/",
+                "rights_status": "REVIEW_REQUIRED",
+                "disposition_override": "EXCLUDE",
+            },
+            "eduscol": {
+                "zone": "01_EDUSCOL_OFFICIEL/",
+                "rights_status": "CLEARED_BY_HUMAN_DECISION",
+                "rights_decision_ref": "eduscol",
+            },
+            "interactive": {
+                "zone": "03_RESSOURCES_INTERACTIVES/",
+                "rights_status": "UNSUPPORTED",
+                "disposition_override": "UNSUPPORTED",
+            },
+        },
+        "summary": {"total_zones": 3},
+    }
+    required_path = (
+        "01_EDUSCOL_OFFICIEL/LYCEE/10_ACTUEL_CONFIRME/PHILOSOPHIE/a.pdf"
+    )
+    pii = {
+        "evidence_kind": "REAL_CORPUS_PII_SCAN",
+        "scanner_version": "h2f-scanner-v1",
+        "scanner_sha256": "1" * 64,
+        "policy_version": "h2f-policy-v1",
+        "policy_sha256": "2" * 64,
+        "corpus_manifest_sha256": MANIFEST_SHA256,
+        "remote_access_mode": "READ_ONLY",
+        "remote_write_operations": 0,
+        "raw_pii_in_output": False,
+        "raw_pii_in_logs": False,
+        "required_pdf_path_count": 1,
+        "required_pdf_path_set_digest": hashlib.sha256(
+            f"{required_path}\n".encode()
+        ).hexdigest(),
+        "summary": {
+            "sha256_mismatches": 0,
+            "pii_scan_scope": "INITIAL_PRODUCTION_ELIGIBLE_PDFS",
+            "pii_scan_required": 1,
+            "pii_scan_exempt": 2,
+        },
+        "results": [
+            {
+                "content_sha256": _sha(1),
+                "physical_object_count": 1,
+                "status": "CLEARED",
+                "error_code": None,
+            }
+        ],
+    }
+    routing_path = tmp_path / "routing.yml"
+    rights_path = tmp_path / "rights.yml"
+    pii_path = tmp_path / "pii.json"
+    routing_path.write_text(yaml.safe_dump(routing), encoding="utf-8")
+    rights_path.write_text(yaml.safe_dump(rights), encoding="utf-8")
+    pii_path.write_text(json.dumps(pii), encoding="utf-8")
+    return routing_path, rights_path, pii_path
+
+
+def _coverage(
+    tmp_path: Path,
+    catalog_path: Path,
+    spec_path: Path,
+):
+    routing_path, rights_path, pii_path = _write_external_evidence(tmp_path)
+    return generate_coverage_report(
+        catalog_path,
+        rights_path=rights_path,
+        pii_path=pii_path,
+        routing_path=routing_path,
+        golden_path=spec_path,
+        expected_total=6,
+        expected_manifest_sha256=MANIFEST_SHA256,
+    )
+
+
 def _validate(
     tmp_path: Path,
     *,
@@ -436,12 +564,7 @@ def test_coverage_gate_executes_golden_and_separates_decision_coverage(
 ) -> None:
     catalog_path, spec_path = _write_inputs(tmp_path)
 
-    report = generate_coverage_report(
-        catalog_path,
-        golden_path=spec_path,
-        expected_total=6,
-        expected_manifest_sha256=MANIFEST_SHA256,
-    )
+    report = _coverage(tmp_path, catalog_path, spec_path)
 
     assert report.decision_coverage_complete is True
     assert report.golden_controls_total == 4
@@ -465,12 +588,7 @@ def test_perfect_counts_with_one_golden_failure_keep_coverage_red(
     spec["boundary_controls"][0]["expected_disposition"] = "ARCHIVE_ONLY"  # type: ignore[index]
     catalog_path, spec_path = _write_inputs(tmp_path, spec=spec)
 
-    report = generate_coverage_report(
-        catalog_path,
-        golden_path=spec_path,
-        expected_total=6,
-        expected_manifest_sha256=MANIFEST_SHA256,
-    )
+    report = _coverage(tmp_path, catalog_path, spec_path)
 
     assert report.decision_coverage_complete is True
     assert report.golden_validation_pass is False
@@ -496,6 +614,7 @@ def test_cli_returns_nonzero_for_golden_failure_and_malformed_spec(
     spec = _spec()
     spec["boundary_controls"][0]["expected_disposition"] = "ARCHIVE_ONLY"  # type: ignore[index]
     catalog_path, spec_path = _write_inputs(tmp_path, spec=spec)
+    routing_path, rights_path, pii_path = _write_external_evidence(tmp_path)
     monkeypatch.setattr(
         sys,
         "argv",
@@ -505,6 +624,12 @@ def test_cli_returns_nonzero_for_golden_failure_and_malformed_spec(
             str(catalog_path),
             "--golden",
             str(spec_path),
+            "--rights",
+            str(rights_path),
+            "--pii",
+            str(pii_path),
+            "--routing",
+            str(routing_path),
             "--expected-total",
             "6",
             "--expected-manifest-sha256",

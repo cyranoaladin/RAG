@@ -62,6 +62,9 @@ class RightsGateReport:
     zone_statuses: list[ZoneRightsStatus] = field(default_factory=list)
     blocking_zones: list[str] = field(default_factory=list)
     human_actions_required: list[str] = field(default_factory=list)
+    expected_zones: list[str] = field(default_factory=list)
+    missing_expected_zones: list[str] = field(default_factory=list)
+    unexpected_zones: list[str] = field(default_factory=list)
 
 
 def load_registry(path: Path) -> dict[str, Any]:
@@ -71,6 +74,42 @@ def load_registry(path: Path) -> dict[str, Any]:
     if not isinstance(registry, dict):
         raise ValueError(f"Invalid registry format: {path}")
     return registry
+
+
+def expected_rights_zones(routing_config: dict[str, Any]) -> frozenset[str]:
+    """Dériver le périmètre droits depuis la politique indépendante."""
+    raw = routing_config.get("rights_evidence_perimeter")
+    if not isinstance(raw, list) or not raw:
+        raise ValueError("routing rights_evidence_perimeter must be non-empty")
+    if not all(
+        isinstance(zone, str)
+        and bool(zone)
+        and zone.endswith("/")
+        and not zone.startswith("/")
+        and ".." not in zone.split("/")
+        for zone in raw
+    ):
+        raise ValueError("routing rights evidence zone is not canonical")
+    zones = frozenset(raw)
+    if len(zones) != len(raw):
+        raise ValueError("routing rights evidence zones must be unique")
+
+    rules = routing_config.get("zone_rules")
+    if not isinstance(rules, list):
+        raise ValueError("routing zone_rules must be a list")
+    prefixes = tuple(
+        rule.get("zone_prefix")
+        for rule in rules
+        if isinstance(rule, dict)
+        and isinstance(rule.get("zone_prefix"), str)
+        and str(rule.get("zone_prefix")).endswith("/")
+    )
+    for zone in zones:
+        if not any(zone.startswith(prefix) for prefix in prefixes):
+            raise ValueError(
+                f"rights evidence zone is outside routing policy: {zone}"
+            )
+    return zones
 
 
 def _count_blocking_questions(source_evidence: dict[str, Any]) -> int:
@@ -195,7 +234,12 @@ def evaluate_zone(
     )
 
 
-def evaluate_registry(registry: dict[str, Any], path: Path) -> RightsGateReport:
+def evaluate_registry(
+    registry: dict[str, Any],
+    path: Path,
+    *,
+    expected_zones: frozenset[str],
+) -> RightsGateReport:
     """Evaluate full rights evidence registry."""
     registry_id = registry.get("registry_id", "unknown")
     source_evidence_raw = registry.get("source_evidence")
@@ -212,13 +256,29 @@ def evaluate_registry(registry: dict[str, Any], path: Path) -> RightsGateReport:
         and isinstance(evidence, dict)
         for zone_id, evidence in source_evidence.items()
     )
+    observed_zone_values = [
+        evidence.get("zone")
+        for evidence in source_evidence.values()
+        if isinstance(evidence, dict)
+    ]
+    observed_zones = {
+        zone for zone in observed_zone_values if isinstance(zone, str) and zone
+    }
+    zone_values_unique = len(observed_zones) == len(observed_zone_values)
+    missing_expected_zones = sorted(expected_zones - observed_zones)
+    unexpected_zones = sorted(observed_zones - expected_zones)
     perimeter_complete = (
-        bool(source_evidence)
+        bool(expected_zones)
+        and bool(source_evidence)
         and evidence_records_valid
+        and zone_values_unique
         and isinstance(declared_total, int)
         and not isinstance(declared_total, bool)
         and declared_total > 0
         and declared_total == len(source_evidence)
+        and declared_total == len(expected_zones)
+        and not missing_expected_zones
+        and not unexpected_zones
     )
     human_decisions = registry.get("human_rights_decisions", {})
     if not isinstance(human_decisions, dict):
@@ -280,6 +340,9 @@ def evaluate_registry(registry: dict[str, Any], path: Path) -> RightsGateReport:
         zone_statuses=zone_statuses,
         blocking_zones=blocking_zones,
         human_actions_required=human_actions,
+        expected_zones=sorted(expected_zones),
+        missing_expected_zones=missing_expected_zones,
+        unexpected_zones=unexpected_zones,
     )
 
 
@@ -344,10 +407,21 @@ def main() -> int:
         default=Path("configs/rights_evidence_registry.yml"),
         help="Path to rights evidence registry",
     )
+    parser.add_argument(
+        "--routing",
+        type=Path,
+        default=Path("configs/corpus_zone_routing.yml"),
+        help="Independent routing policy defining the rights perimeter",
+    )
     args = parser.parse_args()
 
     registry = load_registry(args.registry)
-    report = evaluate_registry(registry, args.registry)
+    routing = load_registry(args.routing)
+    report = evaluate_registry(
+        registry,
+        args.registry,
+        expected_zones=expected_rights_zones(routing),
+    )
 
     print_report(report)
 

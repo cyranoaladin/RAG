@@ -20,6 +20,13 @@ dispositions:
   UNSUPPORTED: "Resource format not supported by current pipeline"
 
 # Zone routing rules (path prefix matching, first match wins)
+rights_evidence_perimeter:
+  - "01_EDUSCOL_OFFICIEL/"
+  - "02_NEXUS_DIAGNOSTICS/"
+  - "03_RESSOURCES_INTERACTIVES/"
+  - "04_COMPLEMENTS_PEDAGOGIQUES/01_SOURCES_INSTITUTIONNELLES/"
+  - "04_COMPLEMENTS_PEDAGOGIQUES/02_RESSOURCES_AUTEUR_NEXUS/"
+
 zone_rules:
   - zone_prefix: "README_GDRIVE_IMPORT.md"
     disposition: EXCLUDE

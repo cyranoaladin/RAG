@@ -107,6 +107,11 @@ def _write_sealed_fixture(tmp_path: Path) -> tuple[Path, Path, dict]:
     config = {
         "config_id": "sealed-test-v1",
         "manifest_sha256": manifest_digest,
+        "rights_evidence_perimeter": [
+            "00_ADMIN/",
+            "00_INDEX_PROVENANCE/",
+            "01_EDUSCOL_OFFICIEL/",
+        ],
         "zone_rules": [
             {
                 "zone_prefix": "00_ADMIN/",
@@ -886,6 +891,14 @@ class TestGovernedSealedCorpusCompilation:
             "rights_decision_ref": "nexus",
         }
         registry["summary"]["total_zones"] = 4
+        config["rights_evidence_perimeter"].append("02_NEXUS_DIAGNOSTICS/")
+        config["zone_rules"].append(
+            {
+                "zone_prefix": "02_NEXUS_DIAGNOSTICS/",
+                "disposition": "REVIEW_REQUIRED",
+                "reason": "nexus-test",
+            }
+        )
 
         with pytest.raises(ValueError, match="Nexus rights SHA set binding mismatch"):
             compile_governed_sealed_catalog(

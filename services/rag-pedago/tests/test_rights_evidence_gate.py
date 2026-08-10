@@ -2,16 +2,20 @@
 from pathlib import Path
 
 import pytest
+import yaml
 
 from rag_pedago.imports.rights_evidence_gate import (
     RightsStatus,
     evaluate_registry,
+    expected_rights_zones,
     load_registry,
 )
 
 CONFIGS = Path(__file__).parent.parent / "configs"
 MANIFEST_SHA256 = "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e"
 NEXUS_SET_DIGEST = "877591ddc3a1be85da2c09b61bd4e161020bb0a7cb135ad33c68b5c27de0eb38"
+ROUTING = yaml.safe_load((CONFIGS / "corpus_zone_routing.yml").read_text())
+EXPECTED_ZONES = expected_rights_zones(ROUTING)
 
 
 @pytest.fixture
@@ -32,7 +36,9 @@ class TestRecordedHumanDecisions:
     def test_generic_eduscol_decision_clears_only_the_generic_rights_gate(
         self, registry: dict, registry_path: Path
     ) -> None:
-        report = evaluate_registry(registry, registry_path)
+        report = evaluate_registry(
+            registry, registry_path, expected_zones=EXPECTED_ZONES
+        )
         eduscol = _zone(report, "01_EDUSCOL_OFFICIEL/")
 
         assert eduscol.status == RightsStatus.CLEARED_BY_HUMAN_DECISION
@@ -78,7 +84,9 @@ class TestDocumentSpecificFailClosedHandling:
     def test_depp_review_does_not_authorize_ingest_or_block_other_content(
         self, registry: dict, registry_path: Path
     ) -> None:
-        report = evaluate_registry(registry, registry_path)
+        report = evaluate_registry(
+            registry, registry_path, expected_zones=EXPECTED_ZONES
+        )
         depp = _zone(
             report,
             "04_COMPLEMENTS_PEDAGOGIQUES/01_SOURCES_INSTITUTIONNELLES/",
@@ -91,7 +99,9 @@ class TestDocumentSpecificFailClosedHandling:
     def test_unsupported_geogebra_is_not_rights_authorized(
         self, registry: dict, registry_path: Path
     ) -> None:
-        report = evaluate_registry(registry, registry_path)
+        report = evaluate_registry(
+            registry, registry_path, expected_zones=EXPECTED_ZONES
+        )
         geogebra = _zone(report, "03_RESSOURCES_INTERACTIVES/")
 
         assert geogebra.status == RightsStatus.UNSUPPORTED
@@ -113,7 +123,9 @@ class TestDocumentSpecificFailClosedHandling:
             },
         }
 
-        report = evaluate_registry(registry, path)
+        report = evaluate_registry(
+            registry, path, expected_zones=frozenset({"01_EXTERNAL/"})
+        )
 
         assert report.gate_passed is False
         assert report.blocking_zones == ["01_EXTERNAL/"]
@@ -141,7 +153,9 @@ class TestDocumentSpecificFailClosedHandling:
             },
         }
 
-        report = evaluate_registry(registry, path)
+        report = evaluate_registry(
+            registry, path, expected_zones=frozenset({"01_EXTERNAL/"})
+        )
 
         unsafe = report.zone_statuses[0]
         assert unsafe.status == RightsStatus.UNRESOLVED
@@ -158,6 +172,7 @@ class TestRightsGateInvariants:
                 "summary": {"total_zones": 1},
             },
             tmp_path / "registry.yml",
+            expected_zones=EXPECTED_ZONES,
         )
 
         assert report.total_zones == 0
@@ -194,6 +209,7 @@ class TestRightsGateInvariants:
                 "summary": summary,
             },
             tmp_path / "registry.yml",
+            expected_zones=EXPECTED_ZONES,
         )
 
         assert report.gate_passed is False
@@ -202,7 +218,9 @@ class TestRightsGateInvariants:
     def test_zone_counts_sum_correctly(
         self, registry: dict, registry_path: Path
     ) -> None:
-        report = evaluate_registry(registry, registry_path)
+        report = evaluate_registry(
+            registry, registry_path, expected_zones=EXPECTED_ZONES
+        )
         total = (
             report.resolved_zones
             + report.cleared_by_human_decision_zones
@@ -215,8 +233,26 @@ class TestRightsGateInvariants:
     def test_every_zone_has_exactly_one_rights_status(
         self, registry: dict, registry_path: Path
     ) -> None:
-        report = evaluate_registry(registry, registry_path)
+        report = evaluate_registry(
+            registry, registry_path, expected_zones=EXPECTED_ZONES
+        )
 
         assert report.total_zones == 5
         assert all(isinstance(item.status, RightsStatus) for item in report.zone_statuses)
         assert sum(item.ingest_allowed for item in report.zone_statuses) == 3
+
+    def test_registry_cannot_shrink_its_own_expected_perimeter(
+        self, registry: dict, registry_path: Path
+    ) -> None:
+        source_evidence = registry["source_evidence"]
+        removed_key = next(iter(source_evidence))
+        del source_evidence[removed_key]
+        registry["summary"]["total_zones"] -= 1
+
+        report = evaluate_registry(
+            registry, registry_path, expected_zones=EXPECTED_ZONES
+        )
+
+        assert report.gate_passed is False
+        assert report.gate_status == "BLOCKED_RIGHTS_PERIMETER_INCOMPLETE"
+        assert report.missing_expected_zones

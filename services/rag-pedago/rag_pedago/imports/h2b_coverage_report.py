@@ -10,6 +10,8 @@ Usage:
     python -m rag_pedago.imports.h2b_coverage_report \
         --catalog data/reports/corpus_disposition_catalog.json \
         --rights configs/rights_evidence_registry.yml \
+        --pii /path/to/sealed_pii_evidence.json \
+        --routing configs/corpus_zone_routing.yml \
         --golden configs/golden_corpus_h2b.yml \
         --output data/reports/h2b_coverage_report.md
 """
@@ -25,6 +27,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+import yaml
+
+from rag_pedago.imports.corpus_catalog_compiler import (
+    verify_catalog_evidence_bindings,
+)
 from rag_pedago.imports.golden_corpus_validator import (
     load_spec,
     validate_golden_corpus,
@@ -77,6 +84,8 @@ class CoverageReport:
     # Gate statuses
     rights_gate_status: str = "UNKNOWN"
     pii_gate_status: str = "UNKNOWN"
+    rights_evidence_bound: bool = False
+    pii_evidence_bound: bool = False
     currentness_gate_status: str = "UNKNOWN"
     format_gate_status: str = "UNKNOWN"
 
@@ -135,9 +144,18 @@ def load_catalog(path: Path) -> dict[str, Any]:
     return json.loads(content)
 
 
+def _load_yaml_mapping(path: Path, *, label: str) -> dict[str, Any]:
+    value = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not isinstance(value, dict):
+        raise ValueError(f"{label} must be a mapping")
+    return value
+
+
 def generate_coverage_report(
     catalog_path: Path,
     rights_path: Path | None = None,
+    pii_path: Path | None = None,
+    routing_path: Path | None = None,
     golden_path: Path | None = None,
     expected_total: int = 2584,
     expected_manifest_sha256: str | None = None,
@@ -158,6 +176,12 @@ def generate_coverage_report(
         raise ValueError("catalog manifest SHA256 mismatch")
     if golden_path is None or not golden_path.is_file():
         raise ValueError("golden specification is required for the final gate")
+    if rights_path is None or not rights_path.is_file():
+        raise ValueError("rights evidence is required for the final gate")
+    if pii_path is None or not pii_path.is_file():
+        raise ValueError("PII evidence is required for the final gate")
+    if routing_path is None or not routing_path.is_file():
+        raise ValueError("routing policy is required for the final gate")
 
     # Git info
     git_commit = _get_git_commit()
@@ -231,6 +255,18 @@ def generate_coverage_report(
         key: value for key, value in totals.items() if value != 0
     } != measured_dispositions:
         raise ValueError("disposition_counts do not match physical objects")
+
+    rights_registry = _load_yaml_mapping(rights_path, label="rights registry")
+    routing_config = _load_yaml_mapping(routing_path, label="routing policy")
+    pii_evidence = load_catalog(pii_path)
+    if not isinstance(pii_evidence, dict):
+        raise ValueError("PII evidence must be a mapping")
+    verify_catalog_evidence_bindings(
+        catalog,
+        routing_config,
+        rights_registry,
+        pii_evidence,
+    )
     blocked_ingest_candidates = 0
     mandatory_gate_blockers: dict[str, int] = {}
     for item in physical_objects:
@@ -279,6 +315,9 @@ def generate_coverage_report(
     # Input files
     input_files = {
         "catalog": _file_sha256(catalog_path),
+        "pii": _file_sha256(pii_path),
+        "rights": _file_sha256(rights_path),
+        "routing": _file_sha256(routing_path),
     }
 
     # Rights gate
@@ -287,9 +326,6 @@ def generate_coverage_report(
         if safety_invariants["INGEST_WITHOUT_RIGHTS_CLEARANCE"] == 0
         else "BLOCKED_INGEST_WITHOUT_CLEARANCE"
     )
-    if rights_path and rights_path.exists():
-        input_files["rights"] = _file_sha256(rights_path)
-
     pii_gate_status = (
         "PASS"
         if safety_invariants["INGEST_WITHOUT_PII_CLEARANCE"] == 0
@@ -333,6 +369,8 @@ def generate_coverage_report(
     h2_coverage_gate_pass = (
         decision_coverage_complete
         and golden_pass
+        and rights_gate_status == "PASS"
+        and pii_gate_status == "PASS"
         and all(value == 0 for value in safety_invariants.values())
     )
 
@@ -371,6 +409,8 @@ def generate_coverage_report(
         multi_placement_artifacts=catalog.get("multi_placement_artifacts", 0),
         rights_gate_status=rights_gate_status,
         pii_gate_status=pii_gate_status,
+        rights_evidence_bound=True,
+        pii_evidence_bound=True,
         currentness_gate_status=currentness_gate_status,
         format_gate_status=format_gate_status,
         golden_controls_total=golden_total,
@@ -472,6 +512,8 @@ def render_markdown(report: CoverageReport) -> str:
         "|------|--------|",
         f"| Rights evidence | `{report.rights_gate_status}` |",
         f"| PII content scan | `{report.pii_gate_status}` |",
+        f"| Rights evidence bound | `{'PASS' if report.rights_evidence_bound else 'FAIL'}` |",
+        f"| PII evidence bound | `{'PASS' if report.pii_evidence_bound else 'FAIL'}` |",
         f"| Currentness classification | `{report.currentness_gate_status}` |",
         f"| Format support | `{report.format_gate_status}` |",
         "",
@@ -547,7 +589,20 @@ def main() -> int:
     parser.add_argument(
         "--rights",
         type=Path,
+        required=True,
         help="Path to rights evidence registry (YAML)",
+    )
+    parser.add_argument(
+        "--pii",
+        type=Path,
+        required=True,
+        help="Path to sealed PII evidence (JSON)",
+    )
+    parser.add_argument(
+        "--routing",
+        type=Path,
+        required=True,
+        help="Path to independent corpus routing policy (YAML)",
     )
     parser.add_argument(
         "--golden",
@@ -574,6 +629,8 @@ def main() -> int:
     report = generate_coverage_report(
         catalog_path=args.catalog,
         rights_path=args.rights,
+        pii_path=args.pii,
+        routing_path=args.routing,
         golden_path=args.golden,
         expected_total=args.expected_total,
         expected_manifest_sha256=args.expected_manifest_sha256,

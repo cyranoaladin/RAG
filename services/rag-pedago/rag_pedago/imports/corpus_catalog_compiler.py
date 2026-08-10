@@ -34,6 +34,7 @@ from rag_pedago.imports.artifact_placement_model import (
 from rag_pedago.imports.rights_evidence_gate import (
     RightsStatus,
     evaluate_registry,
+    expected_rights_zones,
 )
 
 _GNU_SHA256_LINE = re.compile(r"([0-9a-f]{64})  (.*)\Z")
@@ -680,8 +681,13 @@ def _derive_rights_clearances(
     entries: list[tuple[str, str]],
     manifest_sha256: str,
     rights_registry: dict[str, Any],
+    config: dict[str, Any],
 ) -> set[str]:
-    report = evaluate_registry(rights_registry, Path("rights_evidence_registry.yml"))
+    report = evaluate_registry(
+        rights_registry,
+        Path("rights_evidence_registry.yml"),
+        expected_zones=expected_rights_zones(config),
+    )
     if not report.gate_passed:
         raise ValueError("rights registry has unresolved ingest-capable zones")
 
@@ -832,6 +838,82 @@ def _derive_pii_clearances(
     return cleared, quarantined
 
 
+def verify_catalog_evidence_bindings(
+    catalog: dict[str, Any],
+    routing_config: dict[str, Any],
+    rights_registry: dict[str, Any],
+    pii_evidence: dict[str, Any],
+) -> None:
+    """Recalculer droits et PII depuis les preuves, sans croire le catalogue."""
+    manifest_sha256 = catalog.get("manifest_sha256")
+    if not isinstance(manifest_sha256, str) or re.fullmatch(
+        r"[0-9a-f]{64}", manifest_sha256
+    ) is None:
+        raise ValueError("catalog manifest SHA256 is invalid")
+    if routing_config.get("manifest_sha256") != manifest_sha256:
+        raise ValueError("routing policy manifest SHA256 mismatch")
+
+    raw_objects = catalog.get("physical_objects")
+    if not isinstance(raw_objects, list):
+        raise ValueError("real catalog must include physical objects")
+    entries: list[tuple[str, str]] = []
+    candidates: list[dict[str, Any]] = []
+    for item in raw_objects:
+        if not isinstance(item, dict):
+            raise ValueError("real catalog physical object must be a mapping")
+        content_sha256 = item.get("content_sha256")
+        object_path = item.get("path")
+        if not isinstance(content_sha256, str) or re.fullmatch(
+            r"[0-9a-f]{64}", content_sha256
+        ) is None:
+            raise ValueError("real catalog content SHA256 is invalid")
+        if not isinstance(object_path, str) or not object_path:
+            raise ValueError("real catalog object path is invalid")
+        if not (
+            item.get("is_manifest_self") is True
+            or object_path == _MANIFEST_SELF_PATH
+        ):
+            entries.append((content_sha256, object_path))
+        if item.get("base_disposition") == Disposition.INGEST.value:
+            candidates.append(item)
+
+    rights_cleared = _derive_rights_clearances(
+        entries,
+        manifest_sha256,
+        rights_registry,
+        routing_config,
+    )
+    pii_cleared, pii_quarantined = _derive_pii_clearances(
+        entries,
+        manifest_sha256,
+        pii_evidence,
+        routing_config,
+    )
+    for item in candidates:
+        gates = item.get("gate_statuses")
+        if not isinstance(gates, dict):
+            raise ValueError("catalog candidate gate_statuses must be a mapping")
+        content_sha256 = item["content_sha256"]
+        expected_rights = (
+            "PASS"
+            if content_sha256 in rights_cleared
+            else "BLOCKED_NOT_CLEARED"
+        )
+        expected_pii = (
+            "BLOCKED_PII_DETECTED"
+            if content_sha256 in pii_quarantined
+            else (
+                "PASS"
+                if content_sha256 in pii_cleared
+                else "BLOCKED_NOT_CLEARED"
+            )
+        )
+        if gates.get("rights") != expected_rights:
+            raise ValueError("catalog rights gate evidence mismatch")
+        if gates.get("pii") != expected_pii:
+            raise ValueError("catalog PII gate evidence mismatch")
+
+
 def compile_governed_sealed_catalog(
     manifest_path: Path,
     placement_catalog_path: Path,
@@ -846,6 +928,7 @@ def compile_governed_sealed_catalog(
         entries,
         manifest_sha256,
         rights_registry,
+        config,
     )
     pii_cleared, pii_quarantined = _derive_pii_clearances(
         entries,
