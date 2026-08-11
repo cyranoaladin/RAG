@@ -380,3 +380,86 @@ class TestRehearsalIsIsolated:
             enforce_readiness_gate(
                 manifest_path=path, release_sha=MERGE_SHA, environment="rehearsal"
             )
+
+
+# ---------------------------------------------------------------------------
+# A3 — les deux ancres gouvernées ne désignent pas le même fichier.
+#
+# La séparation des clés était prouvée par type d'objet, par protocole
+# d'ancre et par clé publique. Il manquait la propriété la plus simple et
+# la plus facile à casser par accident : que les deux CHEMINS canoniques
+# diffèrent. Une constante readiness pointant par erreur vers l'ancre de
+# review binding ferait accepter, en production, une clé destinée à une
+# tout autre autorité — sans qu'aucun test existant ne rougisse.
+# ---------------------------------------------------------------------------
+
+#: Verrou de gouvernance. Cette valeur appartient au gate H2-B de
+#: ``rag-pedago`` (``_GOVERNED_TRUST_ANCHOR_PATH``) et est répétée ici
+#: **délibérément** : ``rag-engine`` n'importe jamais ``rag-pedago``
+#: (AGENTS.md, ADR-0001), et une dépendance interservice créée pour un
+#: test serait un remède pire que le mal. Si l'un des deux chemins change,
+#: ce test doit être relu — c'est précisément son rôle.
+REVIEW_BINDING_ANCHOR_PATH = "governance/trust-anchors/review-binding-v1.json"
+
+
+def _anchors_are_separated(readiness_path: str, review_path: str) -> bool:
+    """Prédicat unique, partagé par l'assertion réelle et par la preuve de
+    mutation — pour que la preuve porte sur ce qui est réellement asserté."""
+    if readiness_path == review_path:
+        return False
+    if Path(readiness_path).name == Path(review_path).name:
+        return False
+    root = Path("/nexus-governed-root")
+    return (root / readiness_path).resolve() != (root / review_path).resolve()
+
+
+class TestGovernedAnchorPathsAreSeparate:
+    def test_the_readiness_anchor_is_the_expected_governed_path(self) -> None:
+        assert (
+            GOVERNED_TRUST_ANCHOR_PATH
+            == "governance/trust-anchors/production-readiness-v1.json"
+        )
+
+    def test_the_two_governed_anchors_are_distinct(self) -> None:
+        assert GOVERNED_TRUST_ANCHOR_PATH != REVIEW_BINDING_ANCHOR_PATH
+        assert (
+            Path(GOVERNED_TRUST_ANCHOR_PATH).name
+            != Path(REVIEW_BINDING_ANCHOR_PATH).name
+        )
+        assert _anchors_are_separated(
+            GOVERNED_TRUST_ANCHOR_PATH, REVIEW_BINDING_ANCHOR_PATH
+        )
+
+    def test_the_two_anchors_never_resolve_to_the_same_file(
+        self, tmp_path: Path
+    ) -> None:
+        """Résolution réelle sous une racine commune : deux chemins
+        distincts qui se résoudraient au même inode (lien, ``..``) seraient
+        aussi dangereux qu'un seul chemin."""
+        root = tmp_path / "governed_root"
+        for relative in (GOVERNED_TRUST_ANCHOR_PATH, REVIEW_BINDING_ANCHOR_PATH):
+            target = root / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("{}", encoding="utf-8")
+        readiness = (root / GOVERNED_TRUST_ANCHOR_PATH).resolve()
+        review = (root / REVIEW_BINDING_ANCHOR_PATH).resolve()
+        assert readiness != review
+        assert readiness.stat().st_ino != review.stat().st_ino
+
+    def test_pointing_readiness_at_the_review_anchor_is_detected(self) -> None:
+        """Preuve de mutation, locale et sans effet de bord : si la
+        constante readiness désignait l'ancre de review binding, le
+        prédicat asserté ci-dessus deviendrait faux."""
+        assert not _anchors_are_separated(
+            REVIEW_BINDING_ANCHOR_PATH, REVIEW_BINDING_ANCHOR_PATH
+        )
+
+    def test_a_same_named_file_in_another_directory_is_still_a_collision(
+        self,
+    ) -> None:
+        """Garde-fou de sensibilité : le prédicat ne se contente pas de
+        comparer les chaînes, il refuse aussi un nom de fichier identique
+        déplacé ailleurs — cas typique d'une réorganisation hâtive."""
+        assert not _anchors_are_separated(
+            "governance/other/review-binding-v1.json", REVIEW_BINDING_ANCHOR_PATH
+        )
