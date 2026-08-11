@@ -35,6 +35,10 @@ try:
     from ingestor.ingestion_control.db import get_ingestion_control_dsn
     from ingestor.ingestion_control.jobs import reap_expired_job_leases
     from ingestor.ingestion_control.lease_reaper import reap_expired_leases
+    from ingestor.ingestion_profiles.readiness_gate import (
+        ReadinessGateError,
+        enforce_readiness_gate,
+    )
     from ingestor.ingestion_profiles.startup_gate import enforce_production_manifest_gate
 except (ImportError, ValueError):
     # Image Docker aplatie (LOT44f, ADR-0029) : "ingestor" n'existe pas comme
@@ -48,6 +52,10 @@ except (ImportError, ValueError):
     from ingestion_control.db import get_ingestion_control_dsn
     from ingestion_control.jobs import reap_expired_job_leases
     from ingestion_control.lease_reaper import reap_expired_leases
+    from ingestion_profiles.readiness_gate import (
+        ReadinessGateError,
+        enforce_readiness_gate,
+    )
     from ingestion_profiles.startup_gate import (
         enforce_production_manifest_gate,
     )
@@ -154,6 +162,23 @@ def _reap_expired_leases(conn: psycopg.Connection) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     args = _build_arg_parser().parse_args(argv)
+
+    # ADR-0036 : avant tout le reste, la preuve que ce worker tourne sous
+    # une release réellement promue. Défense en profondeur — pas une
+    # protection contre le root de l'hôte, qui est dans la base de
+    # confiance — contre le déploiement privé de preuve, l'erreur de
+    # configuration et la substitution par un processus non privilégié.
+    try:
+        readiness = enforce_readiness_gate()
+    except ReadinessGateError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    print(
+        f"WORKER_READINESS release_sha={readiness.manifest.merge_sha} "
+        f"release_tag={readiness.manifest.release_tag} "
+        f"environment={readiness.environment} "
+        f"run_id={readiness.manifest.run_id}"
+    )
 
     try:
         gate_result = enforce_production_manifest_gate(args.profiles_dir, args.manifest_path)

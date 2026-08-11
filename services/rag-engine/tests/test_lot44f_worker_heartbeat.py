@@ -35,6 +35,23 @@ VALID_SCOPE = {
 }
 
 
+def _readiness_stub() -> object:
+    """Résultat de readiness minimal — jamais un contournement du gate lui-même.
+
+    Le gate réel est mesuré ailleurs ; ici il serait un bruit de fond qui
+    ferait échouer un test de heartbeat pour une raison sans rapport."""
+    from types import SimpleNamespace
+
+    return SimpleNamespace(
+        environment="production",
+        manifest=SimpleNamespace(
+            merge_sha="a" * 40,
+            release_tag="release/rag/20260811-" + "a" * 12,
+            run_id=1,
+        ),
+    )
+
+
 def _profile_payload(**overrides: object) -> dict[str, object]:
     payload: dict[str, object] = {
         "profile_version": "v1",
@@ -122,6 +139,15 @@ def _run_worker(
     # réelle à chaque itération — hors périmètre de ce test, qui vérifie
     # uniquement le mécanisme de heartbeat sur une fausse connexion.
     monkeypatch.setattr(worker_cli, "_reap_expired_leases", lambda _conn: None)
+    # Isolation readiness (ADR-0036) : depuis la phase A, le worker exige
+    # un manifeste de readiness signé avant tout démarrage. Ce test mesure
+    # le mécanisme de heartbeat, pas cette barrière — qui a ses propres
+    # tests dédiés (test_readiness_gate.py et
+    # tests/integration/test_startup_gate_requires_readiness_manifest.py,
+    # lesquels prouvent que le point d'application est bien atteint).
+    monkeypatch.setattr(
+        worker_cli, "enforce_readiness_gate", _readiness_stub
+    )
     # Isolation attestation (item I) : _FakeConnection ne porte aucun
     # curseur PostgreSQL réel — hors périmètre de ce test, qui vérifie
     # uniquement le mécanisme de heartbeat, pas l'attestation de rôle
