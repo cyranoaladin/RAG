@@ -260,3 +260,39 @@ class TestFlatDockerRuntime:
     def test_a_sibling_dependency_never_allows_the_fallback(self) -> None:
         exc = ModuleNotFoundError("No module named 'torch'", name="torch")
         assert is_missing_module(exc, "src.ingestor.inference_runtime") is False
+
+
+class TestMakefileDeclaresWhatItNeeds:
+    """La cause réelle de l'échec CI, une fois démasquée : les suites
+    importent ``nexus_contracts`` mais dépendaient de ``install-dev``, qui
+    ne l'installe pas. Elles ne passaient que si un ``make install``
+    manuel les avait précédées."""
+
+    def _deps(self, target: str) -> set[str]:
+        from pathlib import Path
+
+        makefile = Path(__file__).resolve().parents[1] / "Makefile"
+        for line in makefile.read_text().splitlines():
+            if line.startswith(f"{target}:"):
+                return set(line.split(":", 1)[1].split())
+        raise AssertionError(f"target {target} not found")
+
+    @pytest.mark.parametrize(
+        "target",
+        ["test", "test-integration", "test-integration-hybrid", "test-governance-pg"],
+    )
+    def test_suites_depend_on_the_target_that_installs_contracts(
+        self, target: str
+    ) -> None:
+        assert "install" in self._deps(target), (
+            f"{target} imports nexus_contracts but does not depend on install"
+        )
+
+    def test_install_is_the_target_that_provides_contracts(self) -> None:
+        from pathlib import Path
+
+        makefile = (
+            Path(__file__).resolve().parents[1] / "Makefile"
+        ).read_text()
+        body = makefile.split("install: venv", 1)[1].split("\ninstall-dev:", 1)[0]
+        assert "packages/contracts" in body

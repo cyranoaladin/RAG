@@ -58,13 +58,18 @@ lint: install-dev
 typecheck: install-dev
 	$(MYPY) src
 
-test: install-dev
+# Les suites importent ``nexus_contracts`` : elles dépendent donc de la cible
+# qui l'installe. ``install-dev`` ne pose que l'outillage de développement et
+# ne fournit pas le contrat ; une cible qui s'y arrêtait échouait par
+# ModuleNotFoundError dès qu'elle n'était pas précédée d'un ``make install``
+# manuel — ce qui était le cas du job « governance postgres ».
+test: install
 	PYTHONPATH=src $(PYTEST) -q -m "not integration"
 
-test-integration: install-dev
+test-integration: install
 	PYTHONPATH=src $(PYTEST) tests/integration -q
 
-test-integration-hybrid: install-dev
+test-integration-hybrid: install
 	bash infra/scripts/test_hybrid_integration.sh
 
 # Suites de gouvernance sur PostgreSQL REEL (G2). Perimetre volontairement
@@ -82,7 +87,7 @@ test-integration-hybrid: install-dev
 #     pytest qui contournerait cette recette.
 # La valeur est imposée ici et jamais héritée de l'appelant : un
 # environnement mal configuré ne doit pas pouvoir désactiver la barrière.
-test-governance-pg: install-dev
+test-governance-pg: install
 	bash infra/scripts/require_docker.sh
 	NEXUS_REQUIRE_DOCKER=1 PYTHONPATH=src $(PYTEST) -q \
 	    tests/integration/test_lot42_v2_migration_013.py \
