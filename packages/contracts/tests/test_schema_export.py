@@ -15,17 +15,22 @@ REVIEW_SCHEMAS = {
 }
 
 
-def test_package_version_is_0_8_0() -> None:
-    """0.8.0 (ADR-0035) contient : l'ajout du protocole ``review_binding``,
-    l'ajout de la dépendance ``cryptography``, une **rupture** du contrat
-    ``PublicationReviewArtifact`` et le passage de LOT42-V1 à LOT42-V2.
+def test_package_version_is_0_9_0() -> None:
+    """0.9.0 (ADR-0036) ajoute le protocole public
+    ``NEXUS-PRODUCTION-READINESS-V1``, contrat sérialisé entre le workflow
+    de promotion, le wrapper de déploiement et le runtime d'ingestion.
 
-    Un incrément mineur suffit malgré la rupture : le paquet est en 0.x,
-    où SemVer laisse les mineures rompre, et les seuls consommateurs sont
-    les services de ce monorepo, mis à jour dans le même changement."""
+    Ajout purement additif : rien de 0.8.0 ne change de sens. La mineure
+    est néanmoins obligatoire — un nouveau contrat public est une
+    évolution d'API, et les trois consommateurs doivent pouvoir exiger la
+    version qui le contient.
+
+    Rappel de 0.8.0 (ADR-0035) : protocole ``review_binding``, dépendance
+    ``cryptography``, rupture de ``PublicationReviewArtifact``, passage de
+    LOT42-V1 à LOT42-V2."""
     root = Path(__file__).resolve().parents[1]
     pyproject = tomllib.loads((root / "pyproject.toml").read_text())
-    assert pyproject["project"]["version"] == "0.8.0"
+    assert pyproject["project"]["version"] == "0.9.0"
 
 
 def test_schema_export_is_deterministic(tmp_path: Path) -> None:
