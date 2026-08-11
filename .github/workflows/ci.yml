@@ -81,6 +81,13 @@ jobs:
       # runner est vierge. Un filtre par préfixe de nom serait fragile (il
       # dépendrait des labels internes des harnais) et capterait des
       # conteneurs sans rapport.
+      # Préflight visible : si Docker manque, la cause apparaît dans les
+      # logs GitHub avant toute exécution de pytest, plutôt qu'au travers
+      # d'une erreur de collecte. Le script est partagé avec la cible Make,
+      # de sorte que CI et poste local refusent avec le même message.
+      - name: Require a real Docker daemon
+        working-directory: services/rag-engine
+        run: bash infra/scripts/require_docker.sh
       - name: Snapshot containers before
         run: docker ps -aq | sort > /tmp/containers-before.txt
       - working-directory: services/rag-engine

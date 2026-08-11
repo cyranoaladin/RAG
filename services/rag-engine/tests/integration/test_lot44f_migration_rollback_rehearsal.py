@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import os
 import secrets
-import shutil
 import socket
 import subprocess
 import sys
@@ -38,6 +37,9 @@ MIGRATIONS_DIR = INFRA_ROOT / "postgres" / "ingestion_control" / "migrations"
 ROLLBACKS_DIR = INFRA_ROOT / "postgres" / "ingestion_control" / "rollbacks"
 
 sys.path.insert(0, str(ENGINE_ROOT / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import _pg_authority  # noqa: E402
 
 #: Image épinglée par digest — jamais un tag mutable. La valeur est
 #: celle déjà vérifiée et versionnée dans ``infra/docker-compose.v2.yml``
@@ -49,9 +51,12 @@ PG_SUPERUSER = "raguser"
 PG_SUPERUSER_PASSWORD = secrets.token_urlsafe(24)  # revue PR#90 : jamais un litteral statique
 PG_DB = "ragdb"
 
-_DOCKER_AVAILABLE = shutil.which("docker") is not None and (
-    subprocess.run(["docker", "info"], capture_output=True, check=False).returncode == 0
-)
+# Cette suite portait sa propre détection Docker, donc sa propre porte de
+# sortie silencieuse. Elle passe désormais par la barrière partagée : en
+# mode NEXUS_REQUIRE_DOCKER=1, l'absence de Docker est une erreur, jamais
+# un skip. Deux détections indépendantes finiraient par diverger, et c'est
+# la plus permissive qui déciderait.
+_DOCKER_AVAILABLE = _pg_authority.DOCKER_AVAILABLE
 
 pytestmark = [
     pytest.mark.integration,

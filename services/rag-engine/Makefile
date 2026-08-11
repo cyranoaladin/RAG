@@ -74,8 +74,17 @@ test-integration-hybrid: install-dev
 # dimensionne pour bloquer chaque PR.
 # Chaque suite demarre son propre conteneur jetable et le supprime ; aucune
 # base partagee, aucun credential durable, aucun secret CI necessaire.
+# Deux barrières, parce qu'une seule laisserait une porte ouverte :
+#  1. le préflight refuse avant même de lancer pytest, avec un message
+#     identique en CI et en local (script partagé) ;
+#  2. NEXUS_REQUIRE_DOCKER=1 transforme, DANS pytest, l'absence de Docker
+#     en erreur de collecte — ce qui couvre une invocation directe de
+#     pytest qui contournerait cette recette.
+# La valeur est imposée ici et jamais héritée de l'appelant : un
+# environnement mal configuré ne doit pas pouvoir désactiver la barrière.
 test-governance-pg: install-dev
-	PYTHONPATH=src $(PYTEST) -q \
+	bash infra/scripts/require_docker.sh
+	NEXUS_REQUIRE_DOCKER=1 PYTHONPATH=src $(PYTEST) -q \
 	    tests/integration/test_lot42_v2_migration_013.py \
 	    tests/integration/test_h2f_artifact_attribution_pg.py \
 	    tests/integration/test_h2f_attribution_concurrency_pg.py \
