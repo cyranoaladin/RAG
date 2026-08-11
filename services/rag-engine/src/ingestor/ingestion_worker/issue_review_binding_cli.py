@@ -42,7 +42,7 @@ try:
 except (ImportError, ValueError):
     # Image Docker aplatie (LOT44f, ADR-0029/ADR-0031) — même discipline que
     # attest_publication_cli.py.
-    from ingestion_control.github_authority import (  # type: ignore[no-redef]
+    from ingestion_control.github_authority import (
         GitHubAuthorityError,
         fetch_blob_at_ref,
         pull_request_actor_context,
@@ -310,9 +310,20 @@ def _issue_binding(args: argparse.Namespace, *, now: datetime) -> bytes:
         expected_repository=args.repository,
     )
 
-    return sign_review_binding(
+    # ``nexus_contracts`` ne publie pas de marqueur ``py.typed`` : mypy voit
+    # donc ``Any`` derrière cette frontière. Plutôt que de le masquer par un
+    # ``cast`` non vérifié, la sortie du sceau est contrôlée à l'exécution —
+    # ce producteur n'écrit jamais sur stdout autre chose que des octets.
+    raw = sign_review_binding(
         binding, private_key_hex=signing_key, key_id=args.key_id
     ).canonical_bytes()
+    if not isinstance(raw, bytes):
+        raise ReviewBindingProductionError(
+            "the signed receipt serializer returned "
+            f"{type(raw).__name__}, not bytes — refusing to emit a receipt "
+            "whose canonical form cannot be trusted"
+        )
+    return raw
 
 
 def _cmd_issue(args: argparse.Namespace) -> int:
