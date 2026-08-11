@@ -92,8 +92,16 @@ class CompilationReport:
     """Full compilation result with verification."""
 
     config_id: str
-    manifest_path: str
-    manifest_sha256: str
+
+    #: Inventaire d'import TSV — **jamais** un manifeste scellé. Le nom
+    #: précédent (``manifest_path``) laissait croire le contraire, et son
+    #: digest était sérialisé sous la clé ``manifest_sha256``, celle que
+    #: le gate H2 lit comme identité du corpus scellé. Un TSV et un GNU
+    #: divergents produisaient donc deux identités sans que rien ne le
+    #: signale.
+    import_inventory_path: str
+    import_inventory_sha256: str
+
     corpus_total_objects: int
     expected_total: int
     totals: DispositionTotals
@@ -101,6 +109,14 @@ class CompilationReport:
     verification_passed: bool = False
     verification_errors: list[str] = field(default_factory=list)
     compiled_at: str = ""
+
+    #: Rendus explicitement dans le JSON : ce rapport ne peut pas servir
+    #: de preuve scellée. La production passe par
+    #: ``compile_sealed_catalog``, qui lie le catalogue au manifeste GNU
+    #: canonique. Une docstring ne suffirait pas — un consommateur lit le
+    #: JSON, pas le code.
+    legacy_input: bool = True
+    sealed_manifest_authority: bool = False
 
     def verify(self) -> None:
         """Verify SUM(dispositions) = corpus_total_objects."""
@@ -286,11 +302,23 @@ def _parse_manifest_line(
 
 
 def compile_catalog(
-    manifest_path: Path,
+    import_inventory_path: Path,
     config: dict[str, Any],
 ) -> CompilationReport:
-    """Compile corpus catalog with disposition assignments."""
-    manifest_sha256 = compute_file_sha256(manifest_path)
+    """Compile un catalogue depuis un **inventaire d'import TSV**.
+
+    Chemin historique, explicitement **non autoritaire**. Le TSV déclare
+    des chemins et des digests sans que rien ne les recoupe avec des
+    octets réels : il ne peut donc pas sceller un corpus. Son digest est
+    rendu sous ``import_inventory_sha256`` et n'alimente jamais
+    ``manifest_sha256``, la clé que le gate H2 lit comme identité du
+    corpus scellé.
+
+    La production utilise ``compile_sealed_catalog``, qui part du
+    manifeste GNU canonique et vérifie son digest contre la campagne
+    approuvée.
+    """
+    import_inventory_sha256 = compute_file_sha256(import_inventory_path)
     config_id = config.get("config_id", "unknown")
     expected_total = config.get("corpus_total_objects", 0)
 
@@ -298,7 +326,7 @@ def compile_catalog(
     objects: list[CorpusObject] = []
 
     # Parse manifest (TSV format)
-    with manifest_path.open(encoding="utf-8") as f:
+    with import_inventory_path.open(encoding="utf-8") as f:
         reader = csv.DictReader(f, delimiter="\t")
         for line in reader:
             sha256, path, size_bytes = _parse_manifest_line(line)
@@ -338,8 +366,8 @@ def compile_catalog(
 
     report = CompilationReport(
         config_id=config_id,
-        manifest_path=str(manifest_path),
-        manifest_sha256=manifest_sha256,
+        import_inventory_path=str(import_inventory_path),
+        import_inventory_sha256=import_inventory_sha256,
         corpus_total_objects=len(objects),
         expected_total=expected_total,
         totals=totals,
@@ -953,8 +981,12 @@ def _report_to_json(report: CompilationReport, include_objects: bool = False) ->
     """Convert report to JSON-serializable dict."""
     result = {
         "config_id": report.config_id,
-        "manifest_path": report.manifest_path,
-        "manifest_sha256": report.manifest_sha256,
+        # Jamais "manifest_sha256" ici : cette clé désigne le manifeste
+        # scellé, et ce rapport n'en a pas vu un seul.
+        "import_inventory_path": report.import_inventory_path,
+        "import_inventory_sha256": report.import_inventory_sha256,
+        "legacy_input": report.legacy_input,
+        "sealed_manifest_authority": report.sealed_manifest_authority,
         "corpus_total_objects": report.corpus_total_objects,
         "expected_total": report.expected_total,
         "totals": report.totals.to_dict(),
@@ -986,8 +1018,9 @@ def print_summary(report: CompilationReport) -> None:
     """Print compilation summary to stdout."""
     print(f"CORPUS CATALOG COMPILATION — {report.config_id}")
     print("=" * 60)
-    print(f"Manifest: {report.manifest_path}")
-    print(f"Manifest SHA256: {report.manifest_sha256}")
+    print(f"Import inventory (legacy, not sealed): {report.import_inventory_path}")
+    print(f"Import inventory SHA256: {report.import_inventory_sha256}")
+    print("Sealed manifest authority: NO — use compile_sealed_catalog")
     print(f"Compiled at: {report.compiled_at}")
     print()
     print("DISPOSITION TOTALS:")

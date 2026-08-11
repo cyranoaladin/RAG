@@ -915,3 +915,102 @@ class TestGovernedSealedCorpusCompilation:
                 registry,
                 _pii_evidence(manifest_sha256),
             )
+
+
+# ---------------------------------------------------------------------------
+# Réconciliation TSV → GNU : le TSV n'est plus jamais une preuve scellée.
+#
+# Le défaut fermé ici : ``compile_catalog`` calculait un digest sur le TSV
+# et le sérialisait sous la clé ``manifest_sha256`` — celle que le gate H2
+# lit comme identité du corpus scellé. Un TSV et un GNU divergents
+# produisaient donc deux identités sans que rien ne le signale.
+# ---------------------------------------------------------------------------
+
+
+class TestTsvIsNeverASealedManifest:
+    def _inventory(self, tmp_path: Path) -> Path:
+        path = tmp_path / "import_inventory.tsv"
+        path.write_text(
+            "sha256\tpath\ttaille_octets\n"
+            f"{'a' * 64}\t01_EDUSCOL_OFFICIEL/x.pdf\t10\n",
+            encoding="utf-8",
+        )
+        return path
+
+    def _config(self) -> dict[str, object]:
+        return {
+            "config_id": "tsv-legacy-test",
+            "corpus_total_objects": 1,
+            "zone_rules": [
+                {
+                    "zone_prefix": "01_EDUSCOL_OFFICIEL/",
+                    "disposition": "INGEST",
+                    "currentness": "actuel",
+                }
+            ],
+        }
+
+    def test_the_report_never_exposes_a_sealed_manifest_digest(
+        self, tmp_path: Path
+    ) -> None:
+        report = compile_catalog(self._inventory(tmp_path), self._config())
+        assert not hasattr(report, "manifest_sha256")
+        assert not hasattr(report, "manifest_path")
+        assert report.import_inventory_sha256
+
+    def test_the_report_declares_itself_non_authoritative(
+        self, tmp_path: Path
+    ) -> None:
+        report = compile_catalog(self._inventory(tmp_path), self._config())
+        assert report.legacy_input is True
+        assert report.sealed_manifest_authority is False
+
+    def test_the_json_never_carries_the_sealed_key(self, tmp_path: Path) -> None:
+        """Un consommateur lit le JSON, pas la docstring : la clé
+        ``manifest_sha256`` ne doit pas y apparaître depuis ce chemin."""
+        from rag_pedago.imports.corpus_catalog_compiler import _report_to_json
+
+        payload = _report_to_json(
+            compile_catalog(self._inventory(tmp_path), self._config()),
+            include_objects=False,
+        )
+        assert "manifest_sha256" not in payload
+        assert "manifest_path" not in payload
+        assert payload["sealed_manifest_authority"] is False
+        assert payload["legacy_input"] is True
+
+    def test_the_tsv_digest_is_not_the_gnu_digest(self, tmp_path: Path) -> None:
+        """Preuve de mutation dirigée : si un jour le digest du TSV
+        réalimentait ``manifest_sha256``, il désignerait des octets que
+        personne n'a scellés."""
+        import hashlib
+
+        inventory = self._inventory(tmp_path)
+        gnu = tmp_path / "SHA256SUMS.txt"
+        gnu.write_text(f"{'a' * 64}  01_EDUSCOL_OFFICIEL/x.pdf\n", encoding="utf-8")
+
+        report = compile_catalog(inventory, self._config())
+        gnu_digest = hashlib.sha256(gnu.read_bytes()).hexdigest()
+        assert report.import_inventory_sha256 != gnu_digest
+
+
+class TestSealedPathRemainsGnuBound:
+    def test_the_sealed_compiler_reads_a_gnu_manifest(self) -> None:
+        """Garde-fou : le chemin de production ne doit pas dériver vers le
+        TSV. Il n'utilise ni ``csv`` ni un délimiteur tabulation."""
+        import inspect
+
+        from rag_pedago.imports.corpus_catalog_compiler import compile_sealed_catalog
+
+        source = inspect.getsource(compile_sealed_catalog)
+        assert "_parse_sealed_manifest" in source
+        assert "csv.DictReader" not in source
+        assert 'delimiter="\\t"' not in source
+
+    def test_the_sealed_compiler_refuses_a_self_referential_manifest(self) -> None:
+        import inspect
+
+        from rag_pedago.imports.corpus_catalog_compiler import compile_sealed_catalog
+
+        source = inspect.getsource(compile_sealed_catalog)
+        assert "must not contain its own path" in source
