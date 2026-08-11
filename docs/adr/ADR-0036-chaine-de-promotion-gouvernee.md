@@ -144,6 +144,82 @@ chemin distinct. Accepter silencieusement `rehearsal` dans le contrat de
 production reviendrait à rendre indiscernables une preuve et une
 répétition.
 
+### 7. Politique de rejeu — pas d'`expires_at`, et pourquoi
+
+```text
+READINESS_EXPIRY_REQUIRED=false
+READINESS_SAME_RELEASE_REPLAY_ALLOWED=true
+READINESS_CROSS_RELEASE_REPLAY_ALLOWED=false
+```
+
+Le manifeste `NEXUS-PRODUCTION-READINESS-V1` n'a **volontairement** pas de
+date d'expiration, contrairement au reçu de liaison de revue d'ADR-0035.
+La différence n'est pas un oubli : les deux objets prouvent des choses de
+natures différentes. Un reçu de revue atteste un *état GitHub à un
+instant* — une PR peut être ré-ouverte, une approbation retirée — donc il
+vieillit. Un manifeste de readiness atteste une *identité immuable* :
+mêmes SHA, mêmes arbres, mêmes digests d'images, même Compose. Cette
+identité ne vieillit pas.
+
+**Ce que le binding rend impossible.** Le manifeste nomme le dépôt, la PR,
+le HEAD de PR, l'arbre du HEAD de PR, le commit de merge, l'arbre de
+merge, les sept digests de preuves de gouvernance, les digests OCI de
+toutes les images et le digest du Compose résolu. Un manifeste d'une
+release ne peut donc pas en valider une autre : `require_manifest_matches
+_release` compare le merge SHA, et tout le reste est dans les octets
+signés.
+
+**Pourquoi une expiration nuirait.** Rejouer le même manifeste pour la
+même unité immuable est exactement ce qu'un rollback et un redéploiement
+idempotent exigent. Une expiration arbitraire rendrait un rollback
+légitime impossible au pire moment — pendant un incident — sans rien
+empêcher qu'une divergence de SHA ou de digest n'empêche déjà. L'
+expiration de l'artifact GitHub bloque une *nouvelle* promotion dont la
+preuve manque ; elle ne doit pas invalider rétroactivement une release
+déjà gouvernée et conservée sur le serveur.
+
+| Scénario | Verdict |
+|---|---|
+| même merge SHA, mêmes arbres, mêmes digests | **autorisé** — rollback et redéploiement idempotent |
+| autre merge SHA | refusé — `require_manifest_matches_release` |
+| tree SHA différent | refusé — invariant du modèle (`pr_head_tree_sha == merge_tree_sha`) |
+| autre Compose ou digest d'image | refusé — signature invalidée |
+| autre environnement | refusé — `environment` est dans les octets signés |
+| signature par une clé absente de l'ancre readiness | refusé — `key()` de l'ancre |
+| clé readiness retirée de l'ancre | refusé à **toute nouvelle vérification** |
+| autorisation de scope révoquée | publication refusée par la vérification live (`scope_authority`, `revoked_at`) |
+| registre de révocation modifié | vérification live obligatoire à chaque publication |
+| artifact GitHub expiré avant promotion | promotion refusée — la preuve requise manque |
+| manifeste déjà installé, rollback connu | autorisé si **toutes** les identités correspondent |
+
+Le rejeu d'un manifeste ancien ne peut donc pas publier du contenu
+révoqué : la révocation est revérifiée en direct contre la base à chaque
+vérification d'attestation, indépendamment du manifeste. Le manifeste
+prouve *quelle release tourne*, pas *ce qui est encore autorisé* — et
+c'est cette séparation qui rend le rejeu sûr sans expiration.
+
+### 8. Rotation des clés de readiness
+
+La politique de rotation remplace le besoin d'un `expires_at` aveugle :
+elle révoque par **décision**, là où une expiration révoque par
+**écoulement du temps**, sans rapport avec la sûreté de la release.
+
+- une clé publique readiness **ne doit pas être retirée** de l'ancre tant
+  qu'une release signée par elle reste un candidat de rollback autorisé ;
+- retirer la clé invalide volontairement les manifestes correspondants à
+  toute nouvelle vérification — c'est le mécanisme de révocation ;
+- la liste des releases rollbackables doit donc être mise à jour **avant**
+  tout retrait, et le retrait constaté comme sûr ;
+- aucune ancienne clé ne reste autorisée indéfiniment sans justification
+  écrite : une clé conservée « au cas où » est une clé dont personne ne
+  décide plus ;
+- la rotation ménage une période de recouvrement contrôlée, pendant
+  laquelle ancienne et nouvelle clés sont déclarées, afin qu'aucun
+  rollback ne devienne impossible entre deux promotions ;
+- la procédure break-glass ne doit jamais réintroduire silencieusement une
+  clé retirée : l'ancre est versionnée, donc toute réintroduction est un
+  diff soumis à revue.
+
 ## Modèle de menace
 
 ```text
