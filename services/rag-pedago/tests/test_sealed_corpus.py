@@ -366,3 +366,62 @@ class TestDigestDomainsAreDistinct:
         (root / "01_EDUSCOL").rename(root / "01_EDUSCOL_tmp")
         (root / "01_EDUSCOL_tmp").rename(root / "01_EDUSCOL")
         assert compute_tree_digest(generate_sealed_manifest(root)) == first
+
+
+class TestStreamingArchiveMatchesInMemory:
+    """``write_canonical_archive`` existe parce que ``build_canonical_archive``
+    immobilise l'archive entière en mémoire — 1,75 Gio sur le corpus réel,
+    doublés par tout appelant qui la compresse ensuite, alors que
+    ``MAX_TOTAL_BYTES`` en autorise 8. Les deux doivent produire des octets
+    identiques, sinon le chemin de production et le chemin de test
+    scelleraient deux objets différents."""
+
+    def _tree(self, tmp_path: Path) -> Path:
+        root = tmp_path / "corpus"
+        (root / "01_EDUSCOL_OFFICIEL").mkdir(parents=True)
+        (root / "01_EDUSCOL_OFFICIEL" / "a.pdf").write_bytes(b"%PDF-a" * 500)
+        (root / "01_EDUSCOL_OFFICIEL" / "b.pdf").write_bytes(b"%PDF-b" * 300)
+        (root / "04_COMPLEMENTS_PEDAGOGIQUES").mkdir(parents=True)
+        (root / "04_COMPLEMENTS_PEDAGOGIQUES" / "c.pdf").write_bytes(b"%PDF-c")
+        return root
+
+    def test_both_paths_produce_identical_bytes(self, tmp_path: Path) -> None:
+        import io
+
+        from rag_pedago.governance.sealed_corpus import write_canonical_archive
+
+        root = self._tree(tmp_path)
+        manifest = generate_sealed_manifest(root)
+
+        in_memory = build_canonical_archive(root, manifest)
+        buffer = io.BytesIO()
+        digest = write_canonical_archive(root, manifest, buffer)
+
+        assert buffer.getvalue() == in_memory
+        assert digest == hashlib.sha256(in_memory).hexdigest()
+
+    def test_the_streamed_digest_is_computed_without_a_second_pass(
+        self, tmp_path: Path
+    ) -> None:
+        """Le digest sort de l'écriture elle-même : sur plusieurs gigaoctets,
+        une relecture doublerait le coût d'E/S pour rien."""
+        from rag_pedago.governance.sealed_corpus import write_canonical_archive
+
+        root = self._tree(tmp_path)
+        manifest = generate_sealed_manifest(root)
+        target = tmp_path / "corpus.tar"
+        with target.open("wb") as handle:
+            digest = write_canonical_archive(root, manifest, handle)
+
+        assert digest == hashlib.sha256(target.read_bytes()).hexdigest()
+
+    def test_the_streamed_archive_is_deterministic(self, tmp_path: Path) -> None:
+        import io
+
+        from rag_pedago.governance.sealed_corpus import write_canonical_archive
+
+        root = self._tree(tmp_path)
+        manifest = generate_sealed_manifest(root)
+        first = write_canonical_archive(root, manifest, io.BytesIO())
+        second = write_canonical_archive(root, manifest, io.BytesIO())
+        assert first == second

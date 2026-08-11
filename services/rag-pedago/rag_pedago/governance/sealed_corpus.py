@@ -35,6 +35,7 @@ import tarfile
 import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
+from typing import IO
 
 #: Nom du self-object, tel que le gate l'attend dans le catalogue.
 MANIFEST_SELF_PATH = "00_ADMIN/SHA256SUMS.txt"
@@ -205,6 +206,80 @@ def compute_tree_digest(manifest: SealedManifest) -> str:
     return digest.hexdigest()
 
 
+class _DigestWriter:
+    """Enveloppe un flux et hache ce qui le traverse.
+
+    Permet d'obtenir ``source_archive_sha256`` sans relire l'archive : sur
+    un corpus de plusieurs gigaoctets, une seconde passe doublerait le
+    coût d'E/S pour un résultat déjà calculable au vol."""
+
+    def __init__(self, stream: IO[bytes]) -> None:
+        self._stream = stream
+        self._digest = hashlib.sha256()
+
+    def write(self, data: bytes) -> int:
+        self._digest.update(data)
+        return self._stream.write(data)
+
+    def tell(self) -> int:
+        return self._stream.tell()
+
+    def flush(self) -> None:
+        self._stream.flush()
+
+    @property
+    def hexdigest(self) -> str:
+        return self._digest.hexdigest()
+
+
+def _add_canonical_members(archive: tarfile.TarFile, root: Path,
+                           manifest: SealedManifest) -> None:
+    """Écrit les membres avec des métadonnées entièrement normalisées."""
+    for _digest, posix in manifest.entries:
+        source = root / posix
+        info = tarfile.TarInfo(name=posix)
+        info.size = source.stat().st_size
+        info.mtime = 0
+        info.uid = 0
+        info.gid = 0
+        info.uname = ""
+        info.gname = ""
+        info.mode = 0o644
+        info.type = tarfile.REGTYPE
+        with source.open("rb") as handle:
+            archive.addfile(info, handle)
+
+
+def write_canonical_archive(
+    root: Path, manifest: SealedManifest, destination: IO[bytes]
+) -> str:
+    """Écrit l'archive canonique dans un flux et rend son SHA-256.
+
+    **Pourquoi cette variante existe.** ``build_canonical_archive`` rend
+    des ``bytes`` : sur le corpus réel — 1,75 Gio pour 2 583 objets — cela
+    immobilise l'archive entière en mémoire, et tout appelant qui la
+    compresse ensuite en détient une seconde copie. ``MAX_TOTAL_BYTES``
+    autorise 8 Gio, soit un corpus qu'aucun runner ne pourrait empaqueter
+    par cette voie. Le chemin de production écrit donc au fil de l'eau et
+    hache ce qui passe, à mémoire constante.
+
+    ``build_canonical_archive`` reste disponible pour les petits arbres
+    des tests, et les deux produisent les mêmes octets — c'est vérifié.
+    """
+    writer = _DigestWriter(destination)
+    # ``tarfile`` type-hinte ``fileobj`` comme un vrai fichier, mais
+    # n'appelle en écriture que ``write``, ``tell`` et ``flush`` — que
+    # ``_DigestWriter`` fournit. Le déterminisme du format en dépend :
+    # ``tell`` sert au calcul du remplissage des blocs.
+    with tarfile.open(
+        fileobj=writer,  # type: ignore[call-overload]
+        mode="w",
+        format=tarfile.PAX_FORMAT,
+    ) as archive:
+        _add_canonical_members(archive, root, manifest)
+    return writer.hexdigest
+
+
 def build_canonical_archive(root: Path, manifest: SealedManifest) -> bytes:
     """Archive tar déterministe des objets scellés (non compressée).
 
@@ -227,19 +302,7 @@ def build_canonical_archive(root: Path, manifest: SealedManifest) -> bytes:
     """
     buffer = io.BytesIO()
     with tarfile.open(fileobj=buffer, mode="w", format=tarfile.PAX_FORMAT) as archive:
-        for _digest, posix in manifest.entries:
-            source = root / posix
-            info = tarfile.TarInfo(name=posix)
-            info.size = source.stat().st_size
-            info.mtime = 0
-            info.uid = 0
-            info.gid = 0
-            info.uname = ""
-            info.gname = ""
-            info.mode = 0o644
-            info.type = tarfile.REGTYPE
-            with source.open("rb") as handle:
-                archive.addfile(info, handle)
+        _add_canonical_members(archive, root, manifest)
     return buffer.getvalue()
 
 
@@ -264,6 +327,7 @@ __all__ = [
     "SealedCorpusError",
     "SealedManifest",
     "build_canonical_archive",
+    "write_canonical_archive",
     "catalog_self_object",
     "compute_tree_digest",
     "generate_sealed_manifest",
