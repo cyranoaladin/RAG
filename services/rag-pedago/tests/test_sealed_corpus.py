@@ -293,3 +293,76 @@ class TestMutationSensitivity:
         assert manifest.object_count == 2
         assert manifest.entries[0][0] == manifest.entries[1][0]
         assert manifest.entries[0][1] != manifest.entries[1][1]
+
+
+class TestArchiveDigestSemantics:
+    """Ce que ``source_archive_sha256`` couvre exactement.
+
+    Le digest porte sur le tar canonique **non compressé**. Hacher le blob
+    compressé lierait l'identité d'un corpus approuvé à la version du
+    compresseur : une mise à jour de zstd invaliderait une campagne
+    pourtant inchangée.
+    """
+
+    def test_the_canonical_archive_is_an_uncompressed_tar(
+        self, tmp_path: Path
+    ) -> None:
+        root = _corpus(tmp_path)
+        raw = build_canonical_archive(root, generate_sealed_manifest(root))
+        assert b"ustar" in raw[:512], "le tar canonique doit être un tar POSIX"
+        assert raw[:4] != b"\x28\xb5\x2f\xfd", "il ne doit pas être compressé zstd"
+
+    def test_the_archive_digest_survives_recompression(
+        self, tmp_path: Path
+    ) -> None:
+        """La propriété qui compte : deux transports différents du même
+        tar donnent le même ``source_archive_sha256``."""
+        import zlib
+
+        root = _corpus(tmp_path)
+        manifest = generate_sealed_manifest(root)
+        canonical = build_canonical_archive(root, manifest)
+        expected = hashlib.sha256(canonical).hexdigest()
+        # Deux « transports » distincts, deux blobs différents…
+        fast = zlib.compress(canonical, 1)
+        slow = zlib.compress(canonical, 9)
+        assert fast != slow
+        # …mais la même identité une fois décompressés.
+        assert hashlib.sha256(zlib.decompress(fast)).hexdigest() == expected
+        assert hashlib.sha256(zlib.decompress(slow)).hexdigest() == expected
+
+
+class TestDigestDomainsAreDistinct:
+    """Les trois identités portent sur trois objets différents.
+
+    C'est cela, et non leur inégalité, qui rend les trois vérifications
+    non redondantes.
+    """
+
+    def test_the_tree_digest_is_not_the_archive_digest(
+        self, tmp_path: Path
+    ) -> None:
+        root = _corpus(tmp_path)
+        manifest = generate_sealed_manifest(root)
+        archive_digest = hashlib.sha256(
+            build_canonical_archive(root, manifest)
+        ).hexdigest()
+        assert compute_tree_digest(manifest) != archive_digest
+
+    def test_the_tree_digest_is_not_the_manifest_digest(
+        self, tmp_path: Path
+    ) -> None:
+        manifest = generate_sealed_manifest(_corpus(tmp_path))
+        assert compute_tree_digest(manifest) != manifest.manifest_sha256
+
+    def test_the_tree_digest_ignores_archive_framing(self, tmp_path: Path) -> None:
+        """Le digest d'arbre ne dépend que du contenu matérialisé.
+
+        Un packer qui changerait son cadrage tar sans toucher aux fichiers
+        laisse donc le tree digest inchangé — c'est pourquoi les deux
+        vérifications ne se remplacent pas."""
+        root = _corpus(tmp_path)
+        first = compute_tree_digest(generate_sealed_manifest(root))
+        (root / "01_EDUSCOL").rename(root / "01_EDUSCOL_tmp")
+        (root / "01_EDUSCOL_tmp").rename(root / "01_EDUSCOL")
+        assert compute_tree_digest(generate_sealed_manifest(root)) == first

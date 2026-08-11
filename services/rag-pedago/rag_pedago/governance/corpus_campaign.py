@@ -123,7 +123,16 @@ class CorpusCampaignV1(StrictBaseModel):
     source_registry: Literal["ghcr.io"]
     source_repository: Literal["cyranoaladin/rag-corpus"]
     source_oci_digest: StrictStr = Field(pattern=_OCI_DIGEST)
+
+    #: SHA-256 du **tar canonique non compressé**, jamais du blob
+    #: transporté. La compression zstd n'est pas déterministe d'une
+    #: version ou d'un niveau à l'autre : hacher le blob compressé ferait
+    #: dépendre l'identité du corpus de la build du compresseur, et une
+    #: campagne approuvée cesserait de se vérifier après une mise à jour
+    #: de zstd. ``archive_format`` décrit l'encodage de transport ; le
+    #: résolveur décompresse, puis vérifie ce digest.
     source_archive_sha256: StrictStr = Field(pattern=_HEX64)
+
     source_tree_digest: StrictStr = Field(pattern=_HEX64)
     archive_format: Literal["tar.zst"]
     source_root: StrictStr = Field(min_length=1, max_length=255)
@@ -181,18 +190,34 @@ class CorpusCampaignV1(StrictBaseModel):
 
     @model_validator(mode="after")
     def _identities_are_distinct(self) -> CorpusCampaignV1:
-        """Les trois preuves d'identité doivent être trois valeurs.
+        """Défense en profondeur — **pas** la preuve d'indépendance.
 
-        Si deux coïncidaient, l'une des vérifications serait tautologique
-        et le producteur croirait avoir contrôlé deux choses en n'en
-        contrôlant qu'une."""
+        L'inégalité de trois chaînes ne prouve rien sur le plan
+        cryptographique : trois valeurs distinctes peuvent parfaitement
+        provenir du même calcul. La propriété de sécurité réelle est
+        ailleurs, et elle est portée par ``corpus_source_resolver`` :
+
+        * chaque digest a un **domaine** propre — descripteur OCI, octets
+          du tar canonique, arbre matérialisé — et ces domaines ne se
+          recouvrent pas ;
+        * chacun est **recalculé depuis son propre objet**, jamais recopié
+          d'un autre champ ;
+        * les **trois** comparaisons sont obligatoires, dans cet ordre, et
+          une seule qui manque est un refus.
+
+        Ce validateur ne fait qu'attraper tôt le cas dégénéré où un auteur
+        de campagne aurait recopié une valeur dans deux champs. Le prendre
+        pour la garantie principale serait exactement l'erreur que ce
+        commentaire existe pour empêcher."""
         oci_hex = self.source_oci_digest.split(":", 1)[1]
         if len({oci_hex, self.source_archive_sha256, self.source_tree_digest}) != 3:
             raise ValueError(
                 "source_oci_digest, source_archive_sha256 and source_tree_digest "
-                "must be three distinct values — an OCI descriptor digest, the "
-                "archive bytes and the extracted tree never share a digest, so "
-                "equality here means one check has become tautological"
+                "must be three distinct values — three digests over three "
+                "different domains never coincide in practice, so equality here "
+                "means a value was copied from one field into another. This is a "
+                "cheap early check, not the independence proof: that proof is the "
+                "three mandatory recomputations performed by the resolver."
             )
         return self
 

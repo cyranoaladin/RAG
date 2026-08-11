@@ -214,10 +214,16 @@ def build_canonical_archive(root: Path, manifest: SealedManifest) -> bytes:
     produiraient deux archives différentes, et le digest cesserait d'être
     une identité de contenu pour devenir une identité de build.
 
-    La compression zstd est appliquée séparément par l'outil de
-    publication, avec des paramètres explicites : mélanger les deux ici
-    rendrait le déterminisme dépendant de la version de la bibliothèque de
-    compression installée.
+    **Ce que ce tar est, et ce qu'il n'est pas.** C'est lui qui porte
+    l'identité : ``source_archive_sha256`` est le SHA-256 de *ces* octets,
+    pas de leur forme compressée. La compression zstd est appliquée
+    séparément, à la publication, et n'est qu'un encodage de transport —
+    elle n'est déterministe ni d'une version à l'autre, ni d'un niveau à
+    l'autre. Sceller le blob compressé ferait dépendre l'identité d'un
+    corpus approuvé de la build du compresseur installé, et une campagne
+    valide cesserait de se vérifier après une simple mise à jour.
+
+    Le résolveur décompresse donc d'abord, puis vérifie ce digest.
     """
     buffer = io.BytesIO()
     with tarfile.open(fileobj=buffer, mode="w", format=tarfile.PAX_FORMAT) as archive:
