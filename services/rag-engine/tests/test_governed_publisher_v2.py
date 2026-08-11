@@ -245,6 +245,87 @@ def test_v1_or_unbound_attestation_fails_before_any_product_write(
     assert verifier_calls == [True]
 
 
+def test_publisher_refuses_a_lot42_v1_attestation_before_any_product_write(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """G4, barrière 4/4 : le publisher exige LOT42-V2 **explicitement**.
+
+    Le vérificateur refuse déjà les artefacts V1 en amont ; cette barrière
+    est redondante par construction et le reste volontairement. Une
+    publication ne doit pas dépendre d'une garantie qu'elle n'énonce pas
+    elle-même. Le test épingle donc la cause exacte, pour qu'un futur
+    refactor qui la supprimerait ne reste pas vert grâce à la barrière
+    amont."""
+    artifact = GovernedArtifact(
+        content=CONTENT,
+        content_sha256=CONTENT_SHA,
+        source_label="Ressource Eduscol",
+        source_uri="https://eduscol.education.gouv.fr/philosophie",
+        rights="officiel_public",
+        official=True,
+        source_kind="eduscol",
+        type_doc="ressource_officielle",
+    )
+    placement = _placement(
+        collection="rag_nexus_philo_terminale_tc",
+        matiere="philosophie",
+    )
+    facts = SimpleNamespace(
+        artifact_id=uuid4(),
+        content_sha256=CONTENT_SHA,
+        collection=str(placement.scope.collection),
+        canonical_url=placement.source_uri,
+        rights_status=SimpleNamespace(value=artifact.rights),
+        source_label=artifact.source_label,
+        official=artifact.official,
+        source_kind=artifact.source_kind,
+        type_doc=artifact.type_doc,
+    )
+    legacy = VerifiedAttestation(
+        attestation_id=uuid4(),
+        resource_id=placement.resource_id,
+        artifact_id=facts.artifact_id,
+        content_sha256=CONTENT_SHA,
+        scope_authorization_id="h2-v1",
+        profile_fingerprint=placement.current_profile_fingerprint,
+        manifest_digest=placement.current_manifest_digest,
+        review_id="lot42-v1",
+        attestation_digest="3" * 64,
+        # Une attestation historique : V1, sans digest d'attribution.
+        protocol_version="LOT42-V1",
+        attributed_facts_digest=None,
+        authorization=SimpleNamespace(scope=placement.scope),
+        facts=facts,
+    )
+
+    class NoProductWrites:
+        def transaction(self) -> object:
+            pytest.fail("product transaction must not start after a V1 attestation")
+
+    class ControlConnection:
+        def transaction(self) -> object:
+            return nullcontext()
+
+    monkeypatch.setattr(
+        publisher_module, "verify_publication_attestation", lambda *_a, **_k: legacy
+    )
+    monkeypatch.setattr(
+        publisher_module,
+        "_lock_governance_commit_fence",
+        lambda *_args, **_kwargs: None,
+    )
+
+    with pytest.raises(GovernedPublicationError, match=r"is not LOT42-V2"):
+        publish_governed_artifact(
+            ControlConnection(),
+            NoProductWrites(),
+            artifact,
+            (placement,),
+            lambda raw: raw.decode(),
+            lambda _chunks: (),
+        )
+
+
 def test_atomic_reverification_denial_rolls_back_before_product_cursor(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

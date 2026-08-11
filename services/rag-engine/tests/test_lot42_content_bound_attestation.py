@@ -393,3 +393,139 @@ def test_tampered_fetched_event_cannot_become_publication_facts(
             resource_id=uuid4(),
             artifact_id=artifact_id,
         )
+
+
+# ---------------------------------------------------------------------------
+# G4 — la troisième barrière LOT42-V1 : le blob Git relu est un V1.
+#
+# Les quatre barrières refusent toutes une V1, mais pour des raisons
+# distinctes et à des étapes distinctes. Les épingler séparément est ce qui
+# empêche un test de rester vert alors que la barrière qu'il prétend
+# mesurer a disparu et qu'une autre l'a remplacée par accident.
+# ---------------------------------------------------------------------------
+
+
+def _publication_review_document(protocol_version: str, **overrides: Any) -> dict[str, Any]:
+    document: dict[str, Any] = {
+        "protocol_version": protocol_version,
+        "review_id": "pub-g4-001",
+        "decision": "AUTHORIZE_PUBLICATION",
+        "resource_id": "11111111-1111-4111-8111-111111111111",
+        "artifact_id": "22222222-2222-4222-8222-222222222222",
+        "collection": "rag_nexus_philo_terminale_tc",
+        "canonical_url": "https://eduscol.education.gouv.fr/philosophie",
+        "content_sha256": "d" * 64,
+        "scope_authorization_id": AUTHORIZATION_ID,
+        "profile_id": "rag_nexus_philo_terminale_tc",
+        "profile_version": "v1",
+        "profile_fingerprint": "b" * 64,
+        "manifest_digest": "a" * 64,
+        "rights_status": "officiel_public",
+        "rights_assessed_at": "2026-08-08T10:00:00Z",
+        "quality_passed": True,
+        "quality_report_digest": "e" * 64,
+        "quality_assessed_at": "2026-08-08T10:01:00Z",
+        "gate_passed": True,
+        "gate_name": "routing_gate",
+        "gate_evaluated_at": "2026-08-08T10:02:00Z",
+        "evidence_event_ids": ["33333333-3333-4333-8333-333333333333"],
+    }
+    document.update(overrides)
+    return document
+
+
+def test_a_v1_blob_in_git_is_refused_when_the_artifact_is_re_read(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Barrière 3/4 : ``_verify_review_artifact`` relit le blob approuvé et
+    exige LOT42-V2 avant toute comparaison de champs.
+
+    Seule la frontière réseau est substituée : ``fetch_blob_at_ref`` rend
+    des octets canoniques V1. La barrière mesurée — ``require_publication
+    _review_v2`` à l'intérieur de la fonction testée — n'est pas
+    monkeypatchée."""
+    from nexus_contracts.authority_artifacts import (
+        LOT42_PROTOCOL_VERSION,
+        PublicationReviewArtifactV1,
+        canonical_publication_review_path,
+    )
+
+    artifact = PublicationReviewArtifactV1.model_validate(
+        _publication_review_document(LOT42_PROTOCOL_VERSION)
+    )
+    raw = artifact.canonical_bytes()
+    digest = artifact.digest()
+    row = {
+        "attestation_id": uuid4(),
+        "review_id": artifact.review_id,
+        "attestation_digest": digest,
+        "review_artifact_path": canonical_publication_review_path(
+            review_id=artifact.review_id, digest=digest
+        ),
+        "review_artifact_blob_sha": "f" * 40,
+    }
+
+    monkeypatch.setattr(
+        attestation_module,
+        "fetch_blob_at_ref",
+        lambda **_kwargs: SimpleNamespace(
+            content=raw, blob_sha=row["review_artifact_blob_sha"]
+        ),
+    )
+    monkeypatch.setattr(attestation_module, "_mark_invalidated", lambda *_a, **_k: None)
+
+    invalidator = attestation_module._Invalidator(object(), row["attestation_id"])
+    live = SimpleNamespace(repository="cyranoaladin/RAG", head_sha="c" * 40)
+
+    with pytest.raises(
+        PublicationAttestationInvalidError, match=r"not canonical.*LOT42-V2"
+    ):
+        attestation_module._verify_review_artifact(
+            row, live=live, invalidator=invalidator
+        )
+
+
+def test_a_v2_blob_in_git_passes_the_same_barrier(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Garde-fou de sensibilité : le refus ci-dessus vient de la version du
+    protocole, pas de la mécanique de relecture elle-même."""
+    from nexus_contracts.authority_artifacts import (
+        LOT42_V2_PROTOCOL_VERSION,
+        PublicationReviewArtifactV2,
+        canonical_publication_review_path,
+    )
+
+    artifact = PublicationReviewArtifactV2.model_validate(
+        _publication_review_document(
+            LOT42_V2_PROTOCOL_VERSION, attributed_facts_digest="ab" * 32
+        )
+    )
+    raw = artifact.canonical_bytes()
+    digest = artifact.digest()
+    row = {
+        "attestation_id": uuid4(),
+        "review_id": artifact.review_id,
+        "attestation_digest": digest,
+        "review_artifact_path": canonical_publication_review_path(
+            review_id=artifact.review_id, digest=digest
+        ),
+        "review_artifact_blob_sha": "f" * 40,
+    }
+
+    monkeypatch.setattr(
+        attestation_module,
+        "fetch_blob_at_ref",
+        lambda **_kwargs: SimpleNamespace(
+            content=raw, blob_sha=row["review_artifact_blob_sha"]
+        ),
+    )
+    monkeypatch.setattr(attestation_module, "_mark_invalidated", lambda *_a, **_k: None)
+
+    invalidator = attestation_module._Invalidator(object(), row["attestation_id"])
+    live = SimpleNamespace(repository="cyranoaladin/RAG", head_sha="c" * 40)
+
+    verified = attestation_module._verify_review_artifact(
+        row, live=live, invalidator=invalidator
+    )
+    assert verified.protocol_version == LOT42_V2_PROTOCOL_VERSION

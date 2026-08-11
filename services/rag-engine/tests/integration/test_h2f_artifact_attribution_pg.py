@@ -952,7 +952,15 @@ class TestTheReviewedArtifactIsLot42V2:
             )
             conn.commit()
             try:
-                with pytest.raises(PublicationAttestationInvalidError):
+                # G4 : la cause est épinglée. Sans ``match``, ce test
+                # passerait aussi bien pour une fixture cassée que pour la
+                # barrière visée. Le blob Git reste V2 ; c'est donc la
+                # comparaison artefact revu <-> ligne attestée qui doit
+                # refuser, en nommant le champ divergent.
+                with pytest.raises(
+                    PublicationAttestationInvalidError,
+                    match=r"protocol_version drift",
+                ):
                     _verify(pg, attested)
             finally:
                 conn.execute(
