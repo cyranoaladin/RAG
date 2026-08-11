@@ -7,9 +7,11 @@ import pytest
 from rag_pedago.imports.corpus_catalog_compiler import (
     Disposition,
     _determine_disposition,
+    _parse_sealed_manifest,
     compile_catalog,
     compile_governed_sealed_catalog,
     compile_sealed_catalog,
+    compute_file_sha256,
     load_routing_config,
 )
 
@@ -995,22 +997,128 @@ class TestTsvIsNeverASealedManifest:
 
 
 class TestSealedPathRemainsGnuBound:
-    def test_the_sealed_compiler_reads_a_gnu_manifest(self) -> None:
-        """Garde-fou : le chemin de production ne doit pas dériver vers le
-        TSV. Il n'utilise ni ``csv`` ni un délimiteur tabulation."""
-        import inspect
+    """Preuves comportementales : on compile un vrai catalogue et on lit
+    *quel* digest en ressort. Un test qui inspecterait le texte du code
+    prouverait qu'un commentaire existe, pas qu'un mécanisme fonctionne."""
 
-        from rag_pedago.imports.corpus_catalog_compiler import compile_sealed_catalog
+    def test_the_catalog_digest_is_the_digest_of_the_gnu_file_itself(
+        self, tmp_path: Path
+    ) -> None:
+        """L'invariant central : ``catalog.manifest_sha256`` doit être le
+        SHA-256 des octets du fichier GNU, et d'aucun autre objet."""
+        import hashlib
 
-        source = inspect.getsource(compile_sealed_catalog)
-        assert "_parse_sealed_manifest" in source
-        assert "csv.DictReader" not in source
-        assert 'delimiter="\\t"' not in source
+        manifest, placements, config = _write_sealed_fixture(tmp_path)
+        catalog = compile_sealed_catalog(manifest, placements, config)
 
-    def test_the_sealed_compiler_refuses_a_self_referential_manifest(self) -> None:
-        import inspect
+        expected = hashlib.sha256(manifest.read_bytes()).hexdigest()
+        assert catalog.manifest_sha256 == expected
 
-        from rag_pedago.imports.corpus_catalog_compiler import compile_sealed_catalog
+    def test_the_catalog_digest_is_never_the_digest_of_a_tsv(
+        self, tmp_path: Path
+    ) -> None:
+        """Le défaut fermé par ce lot : un TSV d'inventaire décrivant le
+        *même* corpus produit un digest différent. Si celui-ci réalimentait
+        ``manifest_sha256``, il désignerait des octets que personne n'a
+        scellés."""
+        import hashlib
 
-        source = inspect.getsource(compile_sealed_catalog)
-        assert "must not contain its own path" in source
+        manifest, placements, config = _write_sealed_fixture(tmp_path)
+        catalog = compile_sealed_catalog(manifest, placements, config)
+
+        inventory = tmp_path / "import_inventory.tsv"
+        inventory.write_text(
+            "sha256\tpath\ttaille_octets\n"
+            + "".join(
+                f"{digest}\t{path}\t10\n"
+                for digest, path in (
+                    line.split("  ", 1)
+                    for line in manifest.read_text().splitlines()
+                )
+            ),
+            encoding="utf-8",
+        )
+        tsv_digest = hashlib.sha256(inventory.read_bytes()).hexdigest()
+
+        assert catalog.manifest_sha256 != tsv_digest
+        assert catalog.manifest_sha256 == hashlib.sha256(
+            manifest.read_bytes()
+        ).hexdigest()
+
+    def test_a_single_space_manifest_is_refused(self, tmp_path: Path) -> None:
+        """GNU ``sha256sum`` sépare par **deux** espaces. Un seul espace
+        n'est pas une variante tolérable : c'est un format différent, donc
+        un objet dont le parseur ne sait pas ce qu'il contient."""
+        manifest, placements, config = _write_sealed_fixture(tmp_path)
+        manifest.write_text(
+            manifest.read_text().replace("  ", " "), encoding="utf-8"
+        )
+        config["manifest_sha256"] = compute_file_sha256(manifest)
+
+        with pytest.raises(ValueError):
+            compile_sealed_catalog(manifest, placements, config)
+
+    def test_an_uppercase_digest_is_refused(self, tmp_path: Path) -> None:
+        manifest, placements, config = _write_sealed_fixture(tmp_path)
+        manifest.write_text(manifest.read_text().upper(), encoding="utf-8")
+        config["manifest_sha256"] = compute_file_sha256(manifest)
+
+        with pytest.raises(ValueError):
+            compile_sealed_catalog(manifest, placements, config)
+
+    def test_a_self_referential_manifest_is_refused(self, tmp_path: Path) -> None:
+        """Un fichier ne peut pas contenir son propre digest : la ligne
+        serait fausse dès son écriture."""
+        manifest, placements, config = _write_sealed_fixture(tmp_path)
+        manifest.write_text(
+            manifest.read_text() + f"{_sha('c')}  00_ADMIN/SHA256SUMS.txt\n",
+            encoding="utf-8",
+        )
+        config["manifest_sha256"] = compute_file_sha256(manifest)
+
+        with pytest.raises(ValueError, match="must not contain its own path"):
+            compile_sealed_catalog(manifest, placements, config)
+
+    def test_a_manifest_modified_after_the_campaign_is_refused(
+        self, tmp_path: Path
+    ) -> None:
+        """Le fichier réel a changé après que la campagne l'a épinglé."""
+        manifest, placements, config = _write_sealed_fixture(tmp_path)
+        manifest.write_text(
+            manifest.read_text() + f"{_sha('d')}  04_COMPLEMENTS_PEDAGOGIQUES/x.pdf\n",
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ValueError, match="manifest SHA256 mismatch"):
+            compile_sealed_catalog(manifest, placements, config)
+
+    def test_a_nominal_verified_tree_compiles(self, tmp_path: Path) -> None:
+        """Réussite nominale : le chemin de production accepte un arbre
+        vérifié et publie l'identité attendue."""
+        manifest, placements, config = _write_sealed_fixture(tmp_path)
+        catalog = compile_sealed_catalog(manifest, placements, config)
+
+        assert catalog.verification_passed is True
+        assert catalog.manifest_entries == 3
+        assert catalog.manifest_sha256 == config["manifest_sha256"]
+
+    def test_the_generator_and_the_compiler_agree_on_the_same_tree(
+        self, tmp_path: Path
+    ) -> None:
+        """Preuve de bout en bout que les deux moitiés se rejoignent :
+        ``generate_sealed_manifest`` écrit le fichier, ``compile_sealed_catalog``
+        le relit, et les digests coïncident. C'est la seule façon de
+        prouver qu'il n'existe pas deux formats en circulation."""
+        from rag_pedago.governance.sealed_corpus import generate_sealed_manifest
+
+        root = tmp_path / "corpus"
+        (root / "01_EDUSCOL_OFFICIEL").mkdir(parents=True)
+        (root / "01_EDUSCOL_OFFICIEL" / "doc.pdf").write_bytes(b"%PDF-1.4 test")
+
+        generated = generate_sealed_manifest(root)
+        manifest_file = tmp_path / "SHA256SUMS.txt"
+        manifest_file.write_bytes(generated.content)
+
+        assert compute_file_sha256(manifest_file) == generated.manifest_sha256
+        parsed = _parse_sealed_manifest(manifest_file)
+        assert [(d, p) for d, p in parsed] == list(generated.entries)
