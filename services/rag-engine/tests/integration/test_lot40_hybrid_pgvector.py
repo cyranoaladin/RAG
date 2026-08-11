@@ -270,11 +270,19 @@ def _verified_publication(
         gate_name="h2_governed_publication",
         gate_evaluated_at=now,
         gate_event_id=uuid4(),
-        # H2-F Défaut 6: Attribution durable
-        source_label="Ressource interne Nexus",
-        official=False,
-        source_kind="interne",
-        type_doc="ressource",
+        # H2-F (défaut 6) : l'attribution attestée est DÉRIVÉE de l'artefact
+        # que ce scénario publie, exactement comme ``content_sha256`` et
+        # ``allowed_content_sha256`` ci-dessus. Ces quatre champs étaient
+        # auparavant écrits en dur avec des valeurs sans rapport : le
+        # publisher confronte désormais les faits attestés à l'artefact
+        # publié (``_verify_placements``), et une fixture figée aurait
+        # rendu ce scénario faux sans que personne ne le voie. Dériver ici
+        # est structurel : les trois artefacts de ce test — nominal, révisé
+        # et en échec d'extraction — restent cohérents sans duplication.
+        source_label=artifact.source_label,
+        official=artifact.official,
+        source_kind=artifact.source_kind,
+        type_doc=artifact.type_doc,
     )
     return VerifiedAttestation(
         attestation_id=uuid4(),
@@ -1244,6 +1252,24 @@ def test_governed_publisher_is_atomic_idempotent_and_multi_placement(
         assert current_profile_fingerprint == placement.current_profile_fingerprint
         assert current_manifest_digest == placement.current_manifest_digest
         return attestations[resource_id]
+
+    # Précondition lisible : l'attestation retenue pour chaque placement doit
+    # décrire l'artefact réellement publié. Sans elle, un binding mal câblé
+    # échouerait au fond du publisher avec « verified LOT42 facts do not
+    # match publication », loin de sa cause.
+    for resource_id, (bound_artifact, _placement) in bindings.items():
+        attested = attestations[resource_id].facts
+        assert (
+            attested.source_label,
+            attested.official,
+            attested.source_kind,
+            attested.type_doc,
+        ) == (
+            bound_artifact.source_label,
+            bound_artifact.official,
+            bound_artifact.source_kind,
+            bound_artifact.type_doc,
+        ), f"attested attribution diverges from the published artifact for {resource_id}"
 
     monkeypatch.setattr(publisher, "verify_publication_attestation", verified_attestation)
     monkeypatch.setattr(
