@@ -102,7 +102,6 @@ from ingestor.ingestion_control.artifact_attribution import (  # noqa: E402
 )
 from ingestor.ingestion_control.governed_publication_path import (  # noqa: E402
     promote_reviewed_publication,
-    stage_publication_for_review,
 )
 from ingestor.ingestion_control.jobs import create_job  # noqa: E402
 from ingestor.ingestion_control.provisioning import get_resource_state  # noqa: E402
@@ -433,7 +432,14 @@ def run_production_pipeline(
                 (resource_id,),
             )
             (artifact_id,) = cur.fetchone()
-    assert resource_state == ResourceState.ROUTED.value
+    # Le worker ne s'arrête plus à ``ROUTED`` : il enchaîne la mise en
+    # revue et termine sur ``NEEDS_REVIEW``. ``ROUTED`` ne signifiait que
+    # « le gate qualité a conclu », et laisser la ressource là obligeait un
+    # appelant extérieur à porter les deux pas suivants.
+    #
+    # L'invariant que ce test protège est inchangé : l'attribution est
+    # écrite, et la ressource n'a pas franchi la frontière de revue.
+    assert resource_state == ResourceState.NEEDS_REVIEW.value
     return resource_id, artifact_id, run_id
 
 
@@ -491,7 +497,10 @@ class TestProductionWorkflowWritesTheAttribution:
                 "WHERE resource_id = %s",
                 (resource_id,),
             )
-            assert cur.fetchone() == (ResourceState.ROUTED.value,)
+            # Le worker enchaîne désormais la mise en revue dans la même
+            # transaction : ce que ce test protège est que l'attribution
+            # est écrite sans commit intermédiaire, pas l'état terminal.
+            assert cur.fetchone() == (ResourceState.NEEDS_REVIEW.value,)
             cur.execute(
                 "SELECT COUNT(*) FROM ingestion_control.workflow_events "
                 "WHERE resource_id = %s AND event_type = 'PUBLICATION_GATE_EVALUATED' "
@@ -1154,19 +1163,18 @@ class TestFullChainReachesPublication:
         with psycopg.connect(app_dsn(pg)) as conn:
             state = get_resource_state(conn, resource_id=attested["resource_id"])
             assert state is not None
-            _current, version = state
-            staged = stage_publication_for_review(
-                conn,
-                resource_id=attested["resource_id"],
-                run_id=attested["run_id"],
-                expected_version=version,
-                actor="worker-h2f",
+            current, version = state
+            # La mise en revue est désormais faite par le worker : la
+            # refaire ici échouerait sur le CAS, et l'ajouter au test
+            # rejouerait un pas que le runtime porte déjà.
+            assert current == ResourceState.NEEDS_REVIEW.value, (
+                f"the worker must have staged the resource, found {current!r}"
             )
             promote_reviewed_publication(
                 conn,
                 resource_id=attested["resource_id"],
                 run_id=attested["run_id"],
-                expected_version=staged.needs_review.state_version,
+                expected_version=version,
                 actor="worker-h2f",
                 current_content_sha256=RICH_CONTENT_SHA,
                 current_profile_fingerprint=PROFILE_FINGERPRINT,
