@@ -187,16 +187,45 @@ déjà gouvernée et conservée sur le serveur.
 | autre environnement | refusé — `environment` est dans les octets signés |
 | signature par une clé absente de l'ancre readiness | refusé — `key()` de l'ancre |
 | clé readiness retirée de l'ancre | refusé à **toute nouvelle vérification** |
-| autorisation de scope révoquée | publication refusée par la vérification live (`scope_authority`, `revoked_at`) |
-| registre de révocation modifié | vérification live obligatoire à chaque publication |
+| autorisation révoquée par `authorize_scope_cli --revoke` | publication refusée — `verify_scope_authorization` lit `scope_authorizations.revoked_at` à chaque vérification d'attestation |
+| registre gouverné `authorization-revocations-v1.json` modifié seul | **ne bloque aucune publication déjà attestée** — voir § 9 |
 | artifact GitHub expiré avant promotion | promotion refusée — la preuve requise manque |
 | manifeste déjà installé, rollback connu | autorisé si **toutes** les identités correspondent |
 
 Le rejeu d'un manifeste ancien ne peut donc pas publier du contenu
-révoqué : la révocation est revérifiée en direct contre la base à chaque
-vérification d'attestation, indépendamment du manifeste. Le manifeste
-prouve *quelle release tourne*, pas *ce qui est encore autorisé* — et
-c'est cette séparation qui rend le rejeu sûr sans expiration.
+révoqué : la révocation runtime est revérifiée en direct contre la base à
+chaque vérification d'attestation, indépendamment du manifeste. Le
+manifeste prouve *quelle release tourne*, pas *ce qui est encore
+autorisé* — et c'est cette séparation qui rend le rejeu sûr sans
+expiration.
+
+### 9. Deux surfaces de révocation, à ne pas confondre
+
+Une version antérieure de ce document laissait entendre qu'éditer le
+registre gouverné bloquait une publication. C'est faux, et l'imprécision
+était dangereuse : elle pouvait conduire un opérateur à croire une
+révocation effective alors qu'elle ne l'était pas. Les deux surfaces sont
+distinctes, complémentaires, et **ne se remplacent pas**.
+
+| | Registre gouverné | Révocation runtime |
+|---|---|---|
+| Fichier / colonne | `governance/trust-anchors/authorization-revocations-v1.json` | `ingestion_control.scope_authorizations.revoked_at` |
+| Écrit par | un diff versionné, soumis à revue humaine | `authorize_scope_cli --revoke`, sous autorité GitHub vérifiée |
+| Lu par | le gate de campagne H2-B/H2-F (`rag-pedago`) | `verify_scope_authorization` (`rag-engine`), avant toute publication |
+| Effet | empêche une **future** campagne de produire une preuve H2 verte | refuse **immédiatement** toute publication, y compris pour une release déjà déployée |
+| Ne fait pas | ne touche pas une publication déjà attestée ni un worker déjà démarré | ne bloque pas la génération d'un rapport H2 |
+
+`rag-engine` ne lit **jamais** le fichier registre : la séparation des
+plans (ADR-0001) l'interdit, et la révocation qui compte pour une
+publication vit dans le plan de contrôle, sous les mêmes preuves d'autorité
+GitHub que l'autorisation qu'elle annule.
+
+**Conséquence opérationnelle.** Une révocation d'urgence passe
+obligatoirement par `authorize_scope_cli --revoke`. Éditer le registre
+gouverné seul est une décision de *campagne* — utile, tracée, revue — mais
+qui laisse tourner ce qui tourne déjà. Les deux gestes sont normalement
+faits ensemble ; les confondre revient à croire qu'on a fermé une porte
+qu'on n'a pas touchée.
 
 ### 8. Rotation des clés de readiness
 
