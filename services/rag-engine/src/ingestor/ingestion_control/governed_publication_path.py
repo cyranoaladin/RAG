@@ -1,10 +1,18 @@
-"""Chemin interne LOT42 préparé pour répétition, jamais câblé au runtime.
+"""Chemin interne LOT42 : mise en revue, puis promotion gouvernée.
 
-Ce module matérialise les pas manquants de la machine d'état sans créer de
-second chemin vers ``RETRIEVAL_ELIGIBLE`` : seul
+Ce module matérialise les pas de la machine d'état sans créer de second
+chemin vers ``RETRIEVAL_ELIGIBLE`` : seul
 ``attempt_retrieval_eligible_transition`` effectue toujours ce dernier pas.
-Il n'est importé ni par le worker vivant, ni par une API, ni par un cron.
-L'activation production reste donc explicitement hors de ce module.
+
+``stage_publication_for_review`` est appelée par le worker d'ingestion,
+qui termine donc sur ``NEEDS_REVIEW`` et non sur ``ROUTED``. S'arrêter à
+``ROUTED`` obligeait un appelant extérieur — en pratique un test — à
+porter les deux pas suivants, donc à prouver l'appelant plutôt que le
+pipeline.
+
+``promote_reviewed_publication`` reste en revanche hors du worker : elle
+franchit la frontière de revue et exige une attestation LOT42 vérifiée.
+Aucune surface HTTP n'importe ce module.
 """
 
 from __future__ import annotations

@@ -82,6 +82,9 @@ try:
         derive_artifact_attribution,
         persist_artifact_attribution,
     )
+    from ingestor.ingestion_control.governed_publication_path import (
+        stage_publication_for_review,
+    )
     from ingestor.ingestion_control.jobs import (
         JobClaim,
         JobLeaseConflictError,
@@ -140,6 +143,9 @@ except (ImportError, ValueError):
     from ingestion_control.artifact_attribution import (
         derive_artifact_attribution,
         persist_artifact_attribution,
+    )
+    from ingestion_control.governed_publication_path import (
+        stage_publication_for_review,
     )
     from ingestion_control.jobs import (
         JobClaim,
@@ -663,7 +669,7 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
     # (ADR-0029, Décision 5), jamais une détection fabriquée. La valeur
     # traverse quand même le point de contrôle PII ci-dessus : le jour où
     # un détecteur réel la renseigne, l'enforcement est déjà en place.
-    run_quality_agent(
+    _quality_report, gate_decision, routed_transition = run_quality_agent(
         conn,
         artifact=artifact,
         profile=profile,
@@ -711,6 +717,32 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
         run_id=claim.run_id,
         actor=deps.owner,
     )
+
+    # Phase A se termine ici, sur ``NEEDS_REVIEW`` — pas sur ``ROUTED``.
+    #
+    # ``ROUTED`` signifie « le gate qualité a conclu » ; il ne dit rien de
+    # la mise en revue. Laisser la ressource là obligeait un appelant
+    # extérieur — en pratique un test — à porter les deux pas suivants,
+    # donc à prouver l'appelant plutôt que le pipeline.
+    #
+    # Aucun raccourci n'est ouvert pour autant : ``stage_publication_for_review``
+    # applique ``ROUTED -> STAGED -> NEEDS_REVIEW`` par CAS sur l'état et la
+    # version exacts, et s'arrête là. Le passage à ``REVIEWED`` puis
+    # ``RETRIEVAL_ELIGIBLE`` reste derrière l'attestation LOT42, qui exige
+    # une revue humaine vérifiée — c'est la Phase B, un autre job.
+    #
+    # Une ressource refusée par le gate n'est pas mise en revue : son
+    # attribution est enregistrée (un refus doit rester attribuable) mais
+    # elle ne quitte pas l'état où le refus l'a laissée.
+    if gate_decision.decision == "ROUTE":
+        stage_publication_for_review(
+            conn,
+            resource_id=artifact.resource_id,
+            run_id=claim.run_id,
+            expected_version=routed_transition.state_version,
+            actor=deps.owner,
+            job_id=claim.job_id,
+        )
 
 
 def run_worker_iteration(conn: psycopg.Connection, *, deps: WorkerDeps) -> IterationOutcome:

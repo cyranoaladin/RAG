@@ -162,14 +162,32 @@ def test_failed_review_verification_never_changes_resource_state(
         )
 
 
-def test_path_is_dormant_and_exposes_no_public_or_worker_writer() -> None:
-    path = _path()
-    source = inspect.getsource(path)
+def test_path_exposes_no_public_writer() -> None:
+    """Aucune surface HTTP ne peut publier : la publication n'est jamais
+    déclenchable depuis l'extérieur."""
+    source = inspect.getsource(_path())
+
+    assert "FastAPI" not in source
+    assert "APIRouter" not in source
+
+
+def test_the_worker_stages_for_review_but_never_publishes() -> None:
+    """Ce que le worker a le droit de faire, et ce qu'il n'a pas le droit
+    de faire.
+
+    Le worker atteint désormais ``NEEDS_REVIEW`` lui-même : s'arrêter à
+    ``ROUTED`` obligeait un appelant extérieur à porter les deux pas
+    suivants, donc à prouver l'appelant plutôt que le pipeline.
+
+    Mais il ne franchit pas la revue. ``promote_reviewed_publication`` et
+    ``publish_governed_artifact`` restent hors de son code : un worker qui
+    publierait sans attestation LOT42 supprimerait la frontière humaine
+    que toute la chaîne existe pour tenir."""
     runner = inspect.getsource(
         importlib.import_module("ingestor.ingestion_worker.runner")
     )
 
-    assert "FastAPI" not in source
-    assert "APIRouter" not in source
-    assert "governed_publication_path" not in runner
+    assert "stage_publication_for_review" in runner
+    assert "promote_reviewed_publication" not in runner
     assert "publish_governed_artifact" not in runner
+    assert "attempt_retrieval_eligible_transition" not in runner
