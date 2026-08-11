@@ -1185,6 +1185,6 @@ def test_integration_make_target_exposes_the_ingestor_package() -> None:
     makefile = MAKEFILE.read_text(encoding="utf-8")
 
     assert (
-        "test-integration: install-dev\n"
+        "test-integration: install\n"
         "\tPYTHONPATH=src $(PYTEST) tests/integration -q"
     ) in makefile

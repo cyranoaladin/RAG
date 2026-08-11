@@ -784,7 +784,7 @@ def test_runner_pins_security_bounds_and_cleanup_contract() -> None:
 def test_make_target_runs_the_dedicated_runner_after_dev_install() -> None:
     content = MAKEFILE.read_text(encoding="utf-8")
     assert re.search(
-        r"^test-integration-hybrid: install-dev\n"
+        r"^test-integration-hybrid: install\n"
         r"\tbash infra/scripts/test_hybrid_integration[.]sh$",
         content,
         re.MULTILINE,

@@ -210,7 +210,7 @@ class TestRequiredDockerMode:
     def test_the_make_target_imposes_the_required_mode_itself(self) -> None:
         """La recette ne doit pas dépendre de l'environnement hérité."""
         makefile = (ENGINE_ROOT / "Makefile").read_text(encoding="utf-8")
-        recipe = makefile.split("test-governance-pg: install-dev", 1)[1]
+        recipe = makefile.split("test-governance-pg: install", 1)[1]
         recipe = recipe.split("\n\n", 1)[0]
         assert "NEXUS_REQUIRE_DOCKER=1" in recipe
 
