@@ -4,8 +4,10 @@ anyio==4.14.1
 ast_serialize==0.5.0
 beautifulsoup4==4.15.0
 certifi==2026.6.17
+cffi==2.1.1
 charset-normalizer==3.4.7
 click==8.4.2
+cryptography==49.0.0
 cuda-bindings==13.3.1
 cuda-pathfinder==1.5.5
 cuda-toolkit==13.0.2
@@ -50,6 +52,7 @@ pathspec==1.1.1
 pluggy==1.6.0
 psycopg==3.3.4
 psycopg-binary==3.3.4
+pycparser==3.0
 pydantic==2.13.4
 pydantic_core==2.46.4
 Pygments==2.20.0

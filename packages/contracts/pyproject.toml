@@ -9,6 +9,11 @@ description = "Shared retrieval contract for the Nexus RAG platform"
 requires-python = ">=3.11"
 dependencies = [
     "pydantic==2.13.4",
+    # ADR-0035 : vérification hors ligne des reçus de liaison de revue
+    # (Ed25519). Importée uniquement par nexus_contracts.review_binding,
+    # jamais au niveau du paquet — un consommateur qui n'utilise pas la
+    # gouvernance ne paie pas cet import.
+    "cryptography==49.0.0",
 ]
 
 [project.optional-dependencies]

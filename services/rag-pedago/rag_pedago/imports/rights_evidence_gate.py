@@ -149,12 +149,13 @@ def _needs_human_verification(source_evidence: dict[str, Any]) -> bool:
 
 def _human_decision_is_valid(
     decision: Any,
-    expected_manifest_sha256: str | None = None,
+    expected_manifest_sha256: str,
 ) -> tuple[bool, str]:
     """Validate a human rights decision.
 
-    H2-F Défaut 3: If expected_manifest_sha256 is provided, the decision's
-    scope_manifest_sha256 MUST match exactly. Fail-closed on mismatch.
+    P1 PRRT_kwDOTEIbbs6X3cnJ: expected_manifest_sha256 is REQUIRED.
+    H2-F Défaut 3: The decision's scope_manifest_sha256 MUST match exactly.
+    Fail-closed on mismatch.
 
     Returns:
         Tuple of (is_valid, error_reason).
@@ -164,7 +165,8 @@ def _human_decision_is_valid(
     manifest_sha256 = decision.get("scope_manifest_sha256")
     if not isinstance(manifest_sha256, str) or re.fullmatch(r"[0-9a-f]{64}", manifest_sha256) is None:
         return False, "scope_manifest_sha256 is missing or invalid"
-    if expected_manifest_sha256 is not None and manifest_sha256 != expected_manifest_sha256:
+    # P1: Always compare - expected_manifest_sha256 is no longer optional
+    if manifest_sha256 != expected_manifest_sha256:
         return False, f"scope_manifest_sha256 mismatch: decision={manifest_sha256[:16]}... expected={expected_manifest_sha256[:16]}..."
     if decision.get("decision_type") != "HUMAN_ORGANIZATIONAL_RIGHTS_APPROVAL":
         return False, "decision_type is not HUMAN_ORGANIZATIONAL_RIGHTS_APPROVAL"
@@ -183,12 +185,14 @@ def evaluate_zone(
     zone_id: str,
     source_evidence: dict[str, Any],
     human_decisions: dict[str, Any] | None = None,
-    expected_manifest_sha256: str | None = None,
+    *,
+    expected_manifest_sha256: str,
 ) -> ZoneRightsStatus:
     """Evaluate rights status for a zone.
 
-    H2-F Défaut 3: If expected_manifest_sha256 is provided, human decisions
-    MUST have a matching scope_manifest_sha256. Fail-closed on mismatch.
+    P1 PRRT_kwDOTEIbbs6X3cnJ: expected_manifest_sha256 is REQUIRED.
+    H2-F Défaut 3: Human decisions MUST have a matching scope_manifest_sha256.
+    Fail-closed on mismatch.
     """
     zone = source_evidence.get("zone", zone_id)
     rights_status_str = source_evidence.get("rights_status", "UNRESOLVED")
@@ -262,12 +266,13 @@ def evaluate_registry(
     path: Path,
     *,
     expected_zones: frozenset[str],
-    expected_manifest_sha256: str | None = None,
+    expected_manifest_sha256: str,
 ) -> RightsGateReport:
     """Evaluate full rights evidence registry.
 
-    H2-F Défaut 3: If expected_manifest_sha256 is provided, all human decisions
-    MUST have a matching scope_manifest_sha256. Fail-closed on mismatch.
+    P1 PRRT_kwDOTEIbbs6X3cnJ: expected_manifest_sha256 is REQUIRED.
+    H2-F Défaut 3: All human decisions MUST have a matching scope_manifest_sha256.
+    Fail-closed on mismatch.
     """
     registry_id = registry.get("registry_id", "unknown")
     source_evidence_raw = registry.get("source_evidence")
@@ -317,7 +322,10 @@ def evaluate_registry(
         if not isinstance(zone_id, str) or not isinstance(evidence, dict):
             continue
         zone_status = evaluate_zone(
-            zone_id, evidence, human_decisions, expected_manifest_sha256
+            zone_id,
+            evidence,
+            human_decisions,
+            expected_manifest_sha256=expected_manifest_sha256,
         )
         zone_statuses.append(zone_status)
 
@@ -443,7 +451,19 @@ def main() -> int:
         default=Path("configs/corpus_zone_routing.yml"),
         help="Independent routing policy defining the rights perimeter",
     )
+    # P1 PRRT_kwDOTEIbbs6X3cnJ: manifest SHA256 is REQUIRED
+    parser.add_argument(
+        "--manifest-sha256",
+        type=str,
+        required=True,
+        help="Expected manifest SHA256 for human decision binding verification",
+    )
     args = parser.parse_args()
+
+    # Validate manifest SHA256 format
+    if not re.fullmatch(r"[0-9a-f]{64}", args.manifest_sha256):
+        print("ERROR: --manifest-sha256 must be a 64-character lowercase hex string")
+        return 1
 
     registry = load_registry(args.registry)
     routing = load_registry(args.routing)
@@ -451,6 +471,7 @@ def main() -> int:
         registry,
         args.registry,
         expected_zones=expected_rights_zones(routing),
+        expected_manifest_sha256=args.manifest_sha256,
     )
 
     print_report(report)

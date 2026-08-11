@@ -1,8 +1,6 @@
 """Tests H2-F pour publication_evidence.py — Défaut 6: Attribution durable."""
 from dataclasses import fields
 
-import pytest
-
 from ingestor.ingestion_control.publication_evidence import PublicationFacts
 
 

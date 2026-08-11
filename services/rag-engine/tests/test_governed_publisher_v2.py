@@ -267,6 +267,12 @@ def test_atomic_reverification_denial_rolls_back_before_product_cursor(
         collection=str(placement.scope.collection),
         canonical_url=placement.source_uri,
         rights_status=Rights.officiel_public,
+        # H2-F (défaut 6) : le publisher confronte désormais l'attribution
+        # attestée à celle de l'artefact publié.
+        source_label="Ressource Eduscol",
+        official=True,
+        source_kind="eduscol",
+        type_doc="ressource_officielle",
     )
     verified = VerifiedAttestation(
         attestation_id=uuid4(),
@@ -350,6 +356,12 @@ def test_external_authority_pin_commits_before_fenced_product_commit(
         collection=str(placement.scope.collection),
         canonical_url=placement.source_uri,
         rights_status=Rights.officiel_public,
+        # H2-F (défaut 6) : le publisher confronte désormais l'attribution
+        # attestée à celle de l'artefact publié.
+        source_label="Ressource Eduscol",
+        official=True,
+        source_kind="eduscol",
+        type_doc="ressource_officielle",
     )
     verified = VerifiedAttestation(
         attestation_id=uuid4(),
@@ -479,6 +491,12 @@ def test_external_pin_drift_refuses_before_the_product_transaction(
         collection=str(placement.scope.collection),
         canonical_url=placement.source_uri,
         rights_status=Rights.officiel_public,
+        # H2-F (défaut 6) : le publisher confronte désormais l'attribution
+        # attestée à celle de l'artefact publié.
+        source_label="Ressource Eduscol",
+        official=True,
+        source_kind="eduscol",
+        type_doc="ressource_officielle",
     )
     verified = VerifiedAttestation(
         attestation_id=uuid4(),

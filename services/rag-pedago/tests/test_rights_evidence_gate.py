@@ -37,7 +37,8 @@ class TestRecordedHumanDecisions:
         self, registry: dict, registry_path: Path
     ) -> None:
         report = evaluate_registry(
-            registry, registry_path, expected_zones=EXPECTED_ZONES
+            registry, registry_path, expected_zones=EXPECTED_ZONES,
+            expected_manifest_sha256=MANIFEST_SHA256,
         )
         eduscol = _zone(report, "01_EDUSCOL_OFFICIEL/")
 
@@ -85,7 +86,8 @@ class TestDocumentSpecificFailClosedHandling:
         self, registry: dict, registry_path: Path
     ) -> None:
         report = evaluate_registry(
-            registry, registry_path, expected_zones=EXPECTED_ZONES
+            registry, registry_path, expected_zones=EXPECTED_ZONES,
+            expected_manifest_sha256=MANIFEST_SHA256,
         )
         depp = _zone(
             report,
@@ -100,7 +102,8 @@ class TestDocumentSpecificFailClosedHandling:
         self, registry: dict, registry_path: Path
     ) -> None:
         report = evaluate_registry(
-            registry, registry_path, expected_zones=EXPECTED_ZONES
+            registry, registry_path, expected_zones=EXPECTED_ZONES,
+            expected_manifest_sha256=MANIFEST_SHA256,
         )
         geogebra = _zone(report, "03_RESSOURCES_INTERACTIVES/")
 
@@ -124,7 +127,8 @@ class TestDocumentSpecificFailClosedHandling:
         }
 
         report = evaluate_registry(
-            registry, path, expected_zones=frozenset({"01_EXTERNAL/"})
+            registry, path, expected_zones=frozenset({"01_EXTERNAL/"}),
+            expected_manifest_sha256="0" * 64,
         )
 
         assert report.gate_passed is False
@@ -154,7 +158,8 @@ class TestDocumentSpecificFailClosedHandling:
         }
 
         report = evaluate_registry(
-            registry, path, expected_zones=frozenset({"01_EXTERNAL/"})
+            registry, path, expected_zones=frozenset({"01_EXTERNAL/"}),
+            expected_manifest_sha256="0" * 64,
         )
 
         unsafe = report.zone_statuses[0]
@@ -173,6 +178,7 @@ class TestRightsGateInvariants:
             },
             tmp_path / "registry.yml",
             expected_zones=EXPECTED_ZONES,
+            expected_manifest_sha256=MANIFEST_SHA256,
         )
 
         assert report.total_zones == 0
@@ -210,6 +216,7 @@ class TestRightsGateInvariants:
             },
             tmp_path / "registry.yml",
             expected_zones=EXPECTED_ZONES,
+            expected_manifest_sha256=MANIFEST_SHA256,
         )
 
         assert report.gate_passed is False
@@ -219,7 +226,8 @@ class TestRightsGateInvariants:
         self, registry: dict, registry_path: Path
     ) -> None:
         report = evaluate_registry(
-            registry, registry_path, expected_zones=EXPECTED_ZONES
+            registry, registry_path, expected_zones=EXPECTED_ZONES,
+            expected_manifest_sha256=MANIFEST_SHA256,
         )
         total = (
             report.resolved_zones
@@ -234,7 +242,8 @@ class TestRightsGateInvariants:
         self, registry: dict, registry_path: Path
     ) -> None:
         report = evaluate_registry(
-            registry, registry_path, expected_zones=EXPECTED_ZONES
+            registry, registry_path, expected_zones=EXPECTED_ZONES,
+            expected_manifest_sha256=MANIFEST_SHA256,
         )
 
         assert report.total_zones == 5
@@ -250,7 +259,8 @@ class TestRightsGateInvariants:
         registry["summary"]["total_zones"] -= 1
 
         report = evaluate_registry(
-            registry, registry_path, expected_zones=EXPECTED_ZONES
+            registry, registry_path, expected_zones=EXPECTED_ZONES,
+            expected_manifest_sha256=MANIFEST_SHA256,
         )
 
         assert report.gate_passed is False

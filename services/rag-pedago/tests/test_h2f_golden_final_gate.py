@@ -6,10 +6,21 @@ import copy
 import hashlib
 import json
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 import yaml
+from nexus_contracts import ScopeAuthorizationArtifactV2
+from nexus_contracts.authority_artifacts import canonical_authorization_path, git_blob_sha1
+from nexus_contracts.review_binding import (
+    REVIEW_BINDING_PROTOCOL_VERSION,
+    TRUSTED_REVIEW_PROTOCOL,
+    ScopeAuthorizationReviewBindingV1,
+    expected_challenge_digest,
+    public_key_hex,
+    sign_review_binding,
+)
 
 from rag_pedago.imports.golden_corpus_validator import validate_golden_corpus
 from rag_pedago.imports.h2b_coverage_report import (
@@ -18,11 +29,26 @@ from rag_pedago.imports.h2b_coverage_report import (
     render_markdown,
 )
 
-MANIFEST_SHA256 = "d" * 64
-
 
 def _sha(index: int) -> str:
     return hashlib.sha256(str(index).encode()).hexdigest()
+
+
+# P1: Manifest content must match catalog entries; compute SHA256 at module load
+def _manifest_content() -> str:
+    """Build manifest content from catalog entries (excluding self-object)."""
+    lines = [
+        f"{_sha(1)}  01_EDUSCOL_OFFICIEL/LYCEE/10_ACTUEL_CONFIRME/PHILOSOPHIE/a.pdf",
+        f"{_sha(2)}  01_EDUSCOL_OFFICIEL/LYCEE/80_A_VERIFIER/b.pdf",
+        f"{_sha(3)}  01_EDUSCOL_OFFICIEL/LYCEE/80_A_VERIFIER/c.pdf",
+        f"{_sha(4)}  03_RESSOURCES_INTERACTIVES/a.ggb",
+        f"{_sha(5)}  03_RESSOURCES_INTERACTIVES/b.ggb",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+_MANIFEST_CONTENT = _manifest_content()
+MANIFEST_SHA256 = hashlib.sha256(_MANIFEST_CONTENT.encode()).hexdigest()
 
 
 def _object(
@@ -33,9 +59,10 @@ def _object(
     final: str,
     currentness: str | None,
     gates: dict[str, str] | None = None,
+    content_sha256_override: str | None = None,
 ) -> dict[str, object]:
     return {
-        "content_sha256": _sha(index),
+        "content_sha256": content_sha256_override or _sha(index),
         "path": path,
         "base_disposition": base,
         "disposition": final,
@@ -97,6 +124,7 @@ def _catalog() -> dict[str, object]:
             base="EXCLUDE",
             final="EXCLUDE",
             currentness=None,
+            content_sha256_override=MANIFEST_SHA256,  # P1: Self-object must match manifest
         ),
     ]
     counts: dict[str, int] = {}
@@ -199,7 +227,16 @@ def _write_inputs(
     return catalog_path, spec_path
 
 
-def _write_external_evidence(tmp_path: Path) -> tuple[Path, Path, Path]:
+def _write_external_evidence(tmp_path: Path) -> tuple[Path, Path, Path, Path]:
+    """Write external evidence files including manifest.
+
+    Returns (routing_path, rights_path, pii_path, manifest_path).
+    """
+    # P1: Create manifest file first
+    manifest_path = tmp_path / "00_ADMIN" / "SHA256SUMS.txt"
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(_MANIFEST_CONTENT, encoding="utf-8")
+
     routing = {
         "config_id": "h2f-routing-v1",
         "manifest_sha256": MANIFEST_SHA256,
@@ -307,7 +344,120 @@ def _write_external_evidence(tmp_path: Path) -> tuple[Path, Path, Path]:
     routing_path.write_text(yaml.safe_dump(routing), encoding="utf-8")
     rights_path.write_text(yaml.safe_dump(rights), encoding="utf-8")
     pii_path.write_text(json.dumps(pii), encoding="utf-8")
-    return routing_path, rights_path, pii_path
+    return routing_path, rights_path, pii_path, manifest_path
+
+
+#: ADR-0035 — clé Ed25519 de test, engendrée dans ``tmp_path``, jamais
+#: commitée. Le dépôt ne contient aucune ancre de production.
+TEST_SIGNING_SEED = "66" * 32
+TEST_KEY_ID = "nexus-governance-test-1"
+AUTHORITY_ID = "h2f_golden_authority_v1"
+AUTHORITY_NOW = datetime(2026, 6, 1, tzinfo=UTC)
+REPOSITORY = "cyranoaladin/RAG"
+TRUSTED_REVIEWER = "abenrhouma"
+PR_AUTHOR = "cyranoaladin"
+PULL_REQUEST = 95
+BASE_SHA = "1" * 40
+HEAD_SHA = "2" * 40
+
+
+def _authority_document() -> dict[str, object]:
+    """Autorisation minimale mais complète. Le catalogue golden ne route
+    aucun objet vers l'ingestion : l'allowlist n'a donc rien à couvrir, mais
+    le gate final exige quand même une autorité revue — c'est précisément
+    ce que ce lot corrige (auparavant, zéro objet INGEST suffisait à passer
+    sans la moindre preuve d'autorité)."""
+    return {
+        "protocol_version": "LOT41A-V2",
+        "authorization_id": AUTHORITY_ID,
+        "decision": "AUTHORIZE_INGESTION_SCOPE",
+        "manifest_digest": MANIFEST_SHA256,
+        "profile_id": "h2f_golden_profile",
+        "profile_version": "1.0.0",
+        "profile_fingerprint": "f" * 64,
+        "allowed_domains": ["eduscol.education.fr"],
+        "rights_categories": ["officiel_public"],
+        "exclusions": [],
+        "pii_absence_attested": True,
+        "pii_absence_evidence": "Manual review: no PII found",
+        "valid_from": "2026-01-01T00:00:00.000000Z",
+        "valid_until": "2026-12-31T23:59:59.999999Z",
+        "allowed_content_sha256": [_sha(1)],
+        "scope": {
+            "audience": ["libre"],
+            "candidat": "libre",
+            "collection": "test_collection",
+            "matiere": "maths",
+            "niveau": "terminale",
+            "programme_version": "v1",
+            "school_year": "2026-2027",
+            "tenant": "libre_terminale",
+            "visibility": "public",
+            "voie": "generale",
+        },
+    }
+
+
+def _write_authority_chain(tmp_path: Path) -> tuple[Path, Path, Path]:
+    """Écrit l'autorisation canonique, son reçu de revue signé et l'ancre."""
+    document = _authority_document()
+    artifact = ScopeAuthorizationArtifactV2.model_validate(document)
+    raw = artifact.canonical_bytes()
+    authority_path = tmp_path / "authority.json"
+    authority_path.write_bytes(raw)
+
+    binding = ScopeAuthorizationReviewBindingV1.model_validate({
+        "protocol_version": REVIEW_BINDING_PROTOCOL_VERSION,
+        "repository": REPOSITORY,
+        "pull_request": PULL_REQUEST,
+        "base_ref": "main",
+        "base_sha": BASE_SHA,
+        "head_sha": HEAD_SHA,
+        "authorization_artifact_path": canonical_authorization_path(AUTHORITY_ID),
+        "authorization_artifact_sha256": hashlib.sha256(raw).hexdigest(),
+        "authorization_artifact_git_blob_sha1": git_blob_sha1(raw),
+        "authorization_id": AUTHORITY_ID,
+        "authorization_decision": "AUTHORIZE_INGESTION_SCOPE",
+        "review_id": 4242,
+        "reviewer_login": TRUSTED_REVIEWER,
+        "reviewer_permission": "admin",
+        "author_login": PR_AUTHOR,
+        "submitted_at": "2026-05-01T10:00:00Z",
+        "challenge_protocol": TRUSTED_REVIEW_PROTOCOL,
+        "challenge_digest": expected_challenge_digest(
+            repository=REPOSITORY,
+            pull_request=PULL_REQUEST,
+            base_ref="main",
+            base_sha=BASE_SHA,
+            head_sha=HEAD_SHA,
+            author=PR_AUTHOR,
+            reviewer=TRUSTED_REVIEWER,
+        ),
+        "verified_at": "2026-05-15T09:00:00Z",
+        "verifier_version": "nexus-review-binding-producer/1",
+        "expires_at": "2026-12-01T09:00:00Z",
+    })
+    binding_path = tmp_path / "review_binding.json"
+    binding_path.write_bytes(
+        sign_review_binding(
+            binding, private_key_hex=TEST_SIGNING_SEED, key_id=TEST_KEY_ID
+        ).canonical_bytes()
+    )
+
+    anchor_path = tmp_path / "trust_anchor.json"
+    anchor_path.write_text(
+        json.dumps({
+            "protocol_version": REVIEW_BINDING_PROTOCOL_VERSION,
+            "keys": [{
+                "key_id": TEST_KEY_ID,
+                "algorithm": "ed25519",
+                "public_key": public_key_hex(TEST_SIGNING_SEED),
+                "environment": "production",
+            }],
+        }),
+        encoding="utf-8",
+    )
+    return authority_path, binding_path, anchor_path
 
 
 def _coverage(
@@ -315,13 +465,20 @@ def _coverage(
     catalog_path: Path,
     spec_path: Path,
 ):
-    routing_path, rights_path, pii_path = _write_external_evidence(tmp_path)
+    routing_path, rights_path, pii_path, manifest_path = _write_external_evidence(tmp_path)
+    authority_path, binding_path, anchor_path = _write_authority_chain(tmp_path)
     return generate_coverage_report(
         catalog_path,
         rights_path=rights_path,
         pii_path=pii_path,
         routing_path=routing_path,
         golden_path=spec_path,
+        manifest_path=manifest_path,
+        authority_path=authority_path,
+        authority_review_binding_path=binding_path,
+        authority_trust_anchor_path=anchor_path,
+        authority_environment="production",
+        authority_now=AUTHORITY_NOW,
         expected_total=6,
         expected_manifest_sha256=MANIFEST_SHA256,
     )
@@ -596,10 +753,12 @@ def test_perfect_counts_with_one_golden_failure_keep_coverage_red(
     assert report.coverage_complete is False
 
 
-def test_final_coverage_gate_requires_golden_spec(tmp_path: Path) -> None:
+def test_final_coverage_gate_requires_manifest_and_golden_spec(tmp_path: Path) -> None:
+    """P1 PRRT_kwDOTEIbbs6X3cnO: Final gate requires manifest (checked first)."""
     catalog_path, _ = _write_inputs(tmp_path)
 
-    with pytest.raises(ValueError, match="golden specification is required"):
+    # P1: Manifest is now required first
+    with pytest.raises(ValueError, match="sealed manifest file is required"):
         generate_coverage_report(
             catalog_path,
             expected_total=6,
@@ -614,7 +773,7 @@ def test_cli_returns_nonzero_for_golden_failure_and_malformed_spec(
     spec = _spec()
     spec["boundary_controls"][0]["expected_disposition"] = "ARCHIVE_ONLY"  # type: ignore[index]
     catalog_path, spec_path = _write_inputs(tmp_path, spec=spec)
-    routing_path, rights_path, pii_path = _write_external_evidence(tmp_path)
+    routing_path, rights_path, pii_path, manifest_path = _write_external_evidence(tmp_path)
     monkeypatch.setattr(
         sys,
         "argv",
@@ -630,6 +789,8 @@ def test_cli_returns_nonzero_for_golden_failure_and_malformed_spec(
             str(pii_path),
             "--routing",
             str(routing_path),
+            "--manifest",
+            str(manifest_path),
             "--expected-total",
             "6",
             "--expected-manifest-sha256",

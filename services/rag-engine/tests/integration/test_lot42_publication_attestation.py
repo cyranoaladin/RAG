@@ -90,6 +90,10 @@ from ingestor.ingestion_agents.rights_agent import run_rights_agent  # noqa: E40
 from ingestor.ingestion_agents.transitions import (  # noqa: E402
     apply_resource_transition,
 )
+from ingestor.ingestion_control.artifact_attribution import (  # noqa: E402
+    derive_artifact_attribution,
+    persist_artifact_attribution,
+)
 from ingestor.ingestion_control.governed_publication_path import (  # noqa: E402
     promote_reviewed_publication,
     stage_publication_for_review,
@@ -209,7 +213,8 @@ def _clean(pg: dict[str, str]) -> Iterator[None]:
         with conn.cursor() as cur:
             for table in (
                 "publication_commit_pins",
-                "publication_attestations", "scope_authorizations", "workflow_events",
+                "publication_attestations", "artifact_attributions",
+                "scope_authorizations", "workflow_events",
                 "artifacts", "resource_candidates", "jobs", "resources", "ingestion_runs",
             ):
                 cur.execute(f"DELETE FROM ingestion_control.{table}")  # noqa: S608
@@ -472,6 +477,21 @@ def build_publishable_resource(
             decision_id=uuid.uuid4(),
             evaluated_at=now,
             expected_version=rights_transition.state_version,
+            actor="lot42-fixture",
+        )
+        # H2-F (défaut 6) : le VRAI writer, dans la même transaction que le
+        # gate — exactement ce que ``runner._process_claimed_job`` fait en
+        # production, y compris pour une chaîne négative : l'attribution est
+        # figée par le VERDICT du gate, quel que soit son signe, de sorte
+        # qu'un refus reste attribuable et soit nommé par son motif réel.
+        persist_artifact_attribution(
+            conn,
+            attribution=derive_artifact_attribution(
+                ingestion_artifact_id=artifact.artifact_id,
+                candidate=candidate,
+                profile=PROFILE,
+            ),
+            run_id=run_id,
             actor="lot42-fixture",
         )
         conn.commit()

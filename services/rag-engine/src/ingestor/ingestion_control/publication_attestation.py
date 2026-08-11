@@ -93,7 +93,7 @@ _ATTESTATION_COLUMNS = """
     human_review_repository, human_review_pull_request, human_review_base_sha,
     human_review_head_sha, human_review_review_id, human_review_reviewer,
     human_review_submitted_at, human_review_challenge,
-    protocol_version
+    protocol_version, attributed_facts_digest
 """
 
 
@@ -318,6 +318,24 @@ def _require_facts_still_hold(
     )
     invalidator.require_equal(
         "facts.quality_report_digest", row["quality_report_digest"], facts.quality_report_digest
+    )
+    # H2-F (défaut 6) : les quatre faits d'attribution scellés par cette
+    # attestation doivent être *exactement* ceux qui sont persistés
+    # maintenant. Le trigger de la migration 012 interdit déjà de les
+    # modifier tant qu'une attestation active les nomme ; cette
+    # comparaison ferme le cas restant — une attestation écrite avant que
+    # le scellement n'existe, ou une ligne d'attestation modifiée
+    # directement en base. Un digest absent n'est jamais interprété comme
+    # « rien à vérifier ».
+    if not row["attributed_facts_digest"]:
+        raise invalidator.fail(
+            "attestation carries no attributed_facts_digest — it predates the "
+            "H2-F attribution binding and can never authorize a publication"
+        )
+    invalidator.require_equal(
+        "facts.attribution_digest",
+        row["attributed_facts_digest"],
+        facts.attribution_digest,
     )
     invalidator.require_equal("facts.gate_name", artifact.gate_name, facts.gate_name)
     invalidator.require_equal(

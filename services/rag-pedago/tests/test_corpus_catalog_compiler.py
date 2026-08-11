@@ -835,6 +835,12 @@ class TestGovernedSealedCorpusCompilation:
     def test_rejects_rights_decision_bound_to_another_manifest(
         self, tmp_path: Path
     ) -> None:
+        """P1 PRRT_kwDOTEIbbs6X3cnJ: Human decisions bound to a different manifest are rejected.
+
+        The rights evidence gate validates scope_manifest_sha256 BEFORE the catalog
+        compiler does its own check. When the decision's manifest doesn't match,
+        the zone becomes UNRESOLVED, and gate_passed=False triggers this error.
+        """
         manifest, placements, config = _write_sealed_fixture(tmp_path)
         manifest_sha256 = hashlib.sha256(manifest.read_bytes()).hexdigest()
         registry = _rights_registry(manifest_sha256)
@@ -842,7 +848,8 @@ class TestGovernedSealedCorpusCompilation:
             "scope_manifest_sha256"
         ] = "0" * 64
 
-        with pytest.raises(ValueError, match="rights decision manifest SHA256 mismatch"):
+        # P1: Decision validation now happens in rights_evidence_gate first
+        with pytest.raises(ValueError, match="rights registry has unresolved"):
             compile_governed_sealed_catalog(
                 manifest,
                 placements,

@@ -39,6 +39,10 @@ from uuid import UUID
 import psycopg
 
 try:
+    from ingestor.ingestion_control.artifact_attribution import (
+        ArtifactAttributionError,
+        load_artifact_attribution,
+    )
     from ingestor.ingestion_control.db import get_attestor_dsn
     from ingestor.ingestion_control.github_authority import (
         GitHubAuthorityError,
@@ -60,6 +64,10 @@ try:
 except (ImportError, ValueError):
     # Image Docker aplatie (LOT44f, ADR-0029/ADR-0031) : "ingestor" n'existe
     # pas comme paquet ici — même discipline que create_job_cli.py.
+    from ingestion_control.artifact_attribution import (
+        ArtifactAttributionError,
+        load_artifact_attribution,
+    )
     from ingestion_control.db import get_attestor_dsn
     from ingestion_control.github_authority import (
         GitHubAuthorityError,
@@ -335,6 +343,29 @@ def _cmd_record_attestation(args: argparse.Namespace) -> int:
         return 1
 
     with psycopg.connect(get_attestor_dsn()) as conn:
+        # H2-F (défaut 6) : les faits ont été lus sur une connexion déjà
+        # refermée. Ils sont donc relus ICI, dans la transaction qui écrit
+        # l'attestation et sous ``FOR SHARE`` : un writer concurrent qui
+        # voudrait changer l'attribution est bloqué jusqu'au commit, et une
+        # attribution qui aurait changé depuis la revue est refusée plutôt
+        # que scellée à l'insu de l'humain qui a approuvé.
+        try:
+            _attribution, attributed_facts_digest = load_artifact_attribution(
+                conn, ingestion_artifact_id=args.artifact_id, lock=True
+            )
+        except ArtifactAttributionError as exc:
+            print(f"ATTRIBUTION_EVIDENCE_MISSING: {exc}", file=sys.stderr)
+            return 1
+        if attributed_facts_digest != facts.attribution_digest:
+            print(
+                "ATTRIBUTION_DRIFTED_SINCE_REVIEW: the control-plane attribution "
+                f"of artifact {args.artifact_id} changed between the reviewed "
+                f"proposal ({facts.attribution_digest}) and this attestation "
+                f"({attributed_facts_digest}) — re-propose the review",
+                file=sys.stderr,
+            )
+            return 1
+
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -350,7 +381,7 @@ def _cmd_record_attestation(args: argparse.Namespace) -> int:
                     human_review_repository, human_review_pull_request, human_review_base_sha,
                     human_review_head_sha, human_review_review_id, human_review_reviewer,
                     human_review_submitted_at, human_review_challenge,
-                    protocol_version
+                    protocol_version, attributed_facts_digest
                 ) VALUES (
                     %(resource_id)s, %(artifact_id)s, %(content_sha256)s, %(canonical_url)s, %(collection)s,
                     %(scope_authorization_id)s, %(profile_id)s, %(profile_version)s, %(profile_fingerprint)s,
@@ -363,7 +394,7 @@ def _cmd_record_attestation(args: argparse.Namespace) -> int:
                     %(human_review_repository)s, %(human_review_pull_request)s, %(human_review_base_sha)s,
                     %(human_review_head_sha)s, %(human_review_review_id)s, %(human_review_reviewer)s,
                     %(human_review_submitted_at)s, %(human_review_challenge)s,
-                    %(protocol_version)s
+                    %(protocol_version)s, %(attributed_facts_digest)s
                 )
                 """,
                 {
@@ -399,6 +430,7 @@ def _cmd_record_attestation(args: argparse.Namespace) -> int:
                     "human_review_submitted_at": live.submitted_at,
                     "human_review_challenge": live.challenge,
                     "protocol_version": LOT42_PROTOCOL_VERSION,
+                    "attributed_facts_digest": attributed_facts_digest,
                 },
             )
         conn.commit()

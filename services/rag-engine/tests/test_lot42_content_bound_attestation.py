@@ -13,6 +13,7 @@ from nexus_contracts.document import Rights
 from nexus_contracts.ingestion import ResourceScope
 
 import ingestor.ingestion_control.publication_attestation as attestation_module
+from ingestor.ingestion_control.artifact_attribution import attribution_digest
 from ingestor.ingestion_control.publication_attestation import (
     PublicationAttestationInvalidError,
     attempt_retrieval_eligible_transition,
@@ -29,6 +30,27 @@ NOW = datetime(2026, 8, 9, 12, 0, tzinfo=UTC)
 CONTENT_SHA = "1" * 64
 AUTHORIZATION_ID = "h2-content-bound-v2"
 AUTHORIZATION_DIGEST = "2" * 64
+
+#: Attribution H2-F telle que le pipeline gouverné l'aurait persistée pour
+#: cet artefact. Le digest est recalculé depuis l'``ingestion_artifact_id``
+#: réellement demandé — un tuple figé masquerait la liaison entre les quatre
+#: faits et leur artefact, qui est précisément ce que ce digest prouve.
+ATTRIBUTION_FACTS = ("Référentiel officiel", True, "eduscol.education.gouv.fr", "programme_officiel")
+
+
+def _attribution_row(params: object) -> tuple[object, ...]:
+    artifact_id = params[0] if isinstance(params, tuple) else params
+    source_label, official, source_kind, type_doc = ATTRIBUTION_FACTS
+    return (
+        *ATTRIBUTION_FACTS,
+        attribution_digest(
+            ingestion_artifact_id=artifact_id,
+            source_label=source_label,
+            official=official,
+            source_kind=source_kind,
+            type_doc=type_doc,
+        ),
+    )
 
 
 def _scope() -> ResourceScope:
@@ -254,6 +276,7 @@ def test_content_event_is_part_of_canonical_evidence_ids() -> None:
 class _MissingFetchedCursor(AbstractContextManager["_MissingFetchedCursor"]):
     def __init__(self) -> None:
         self.query = ""
+        self.params: object = ()
 
     def __enter__(self) -> _MissingFetchedCursor:
         return self
@@ -261,17 +284,18 @@ class _MissingFetchedCursor(AbstractContextManager["_MissingFetchedCursor"]):
     def __exit__(self, *_args: object) -> None:
         return None
 
-    def execute(self, query: str, _params: object) -> None:
+    def execute(self, query: str, params: object) -> None:
         self.query = query
+        self.params = params
 
     def fetchone(self) -> tuple[object, ...] | None:
         if "FROM ingestion_control.resources" in self.query:
             return ("rag_nexus_philo_terminale_tc",)
         if "FROM ingestion_control.artifacts" in self.query:
             return (CONTENT_SHA,)
-        # H2-F Défaut 6: Handle rag_artifacts attribution query
-        if "FROM public.rag_artifacts" in self.query:
-            return ("Référentiel officiel", True, "programme", "programme")
+        # H2-F (défaut 6) : attribution lue dans le plan de contrôle.
+        if "FROM ingestion_control.artifact_attributions" in self.query:
+            return _attribution_row(self.params)
         if "FROM ingestion_control.resource_candidates" in self.query:
             return ("https://eduscol.education.gouv.fr/philosophie.pdf",)
         return None
@@ -296,6 +320,7 @@ class _TamperedFetchedCursor(AbstractContextManager["_TamperedFetchedCursor"]):
         self.fetched_payload = fetched_payload
         self.query = ""
         self.params: dict[str, object] = {}
+        self.raw_params: object = ()
 
     def __enter__(self) -> _TamperedFetchedCursor:
         return self
@@ -305,6 +330,7 @@ class _TamperedFetchedCursor(AbstractContextManager["_TamperedFetchedCursor"]):
 
     def execute(self, query: str, params: object) -> None:
         self.query = query
+        self.raw_params = params
         self.params = params if isinstance(params, dict) else {}
 
     def fetchone(self) -> tuple[object, ...] | None:
@@ -312,9 +338,9 @@ class _TamperedFetchedCursor(AbstractContextManager["_TamperedFetchedCursor"]):
             return ("rag_nexus_philo_terminale_tc",)
         if "FROM ingestion_control.artifacts" in self.query:
             return (CONTENT_SHA,)
-        # H2-F Défaut 6: Handle rag_artifacts attribution query
-        if "FROM public.rag_artifacts" in self.query:
-            return ("Référentiel officiel", True, "programme", "programme")
+        # H2-F (défaut 6) : attribution lue dans le plan de contrôle.
+        if "FROM ingestion_control.artifact_attributions" in self.query:
+            return _attribution_row(self.raw_params)
         if "FROM ingestion_control.resource_candidates" in self.query:
             return ("https://eduscol.education.gouv.fr/philosophie.pdf",)
         if self.params.get("to_state") == "FETCHED":

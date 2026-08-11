@@ -49,6 +49,9 @@ from rag_pedago.imports.rights_evidence_gate import (
     evaluate_zone,
 )
 
+# P1 PRRT_kwDOTEIbbs6X3cnJ: Dummy manifest SHA256 for tests
+_DUMMY_MANIFEST_SHA256 = "0" * 64
+
 
 class TestMutH2B01RightsBlocksUnknown:
     """MUT-H2B-01: Rights gate blocks unknown/unresolved rights."""
@@ -61,6 +64,7 @@ class TestMutH2B01RightsBlocksUnknown:
                 "zone": "synthetic_unresolved_zone/",
                 "rights_status": "UNRESOLVED",
             },
+            expected_manifest_sha256=_DUMMY_MANIFEST_SHA256,
         )
 
         assert result.status is RightsStatus.UNRESOLVED
@@ -75,7 +79,11 @@ class TestMutH2B02RightsBlocksNoEvidence:
         """A zone not in the registry cannot proceed to INGEST."""
         # Empty evidence = no rights cleared (defaults to UNRESOLVED)
         empty_evidence: dict = {}
-        result = evaluate_zone("nonexistent_zone", empty_evidence)
+        result = evaluate_zone(
+            "nonexistent_zone",
+            empty_evidence,
+            expected_manifest_sha256=_DUMMY_MANIFEST_SHA256,
+        )
         assert result.status != RightsStatus.RESOLVED, \
             "Zone without evidence must NOT pass rights gate"
 
@@ -354,7 +362,9 @@ class TestGateNonVacuityMatrix:
         """Every gate must have at least one path that blocks."""
         # Rights gate blocking
         unresolved_evidence = {"rights_status": "UNRESOLVED"}
-        result = evaluate_zone("zone_x", unresolved_evidence)
+        result = evaluate_zone(
+            "zone_x", unresolved_evidence, expected_manifest_sha256=_DUMMY_MANIFEST_SHA256
+        )
         assert result.status != RightsStatus.RESOLVED, "Rights gate must have blocking path"
 
         # PII gate blocking
@@ -372,7 +382,9 @@ class TestGateNonVacuityMatrix:
         """Every gate must have at least one path that passes."""
         # Rights gate passing
         resolved_evidence = {"rights_status": "RESOLVED", "recommended_rights_category": "officiel_public"}
-        result = evaluate_zone("zone_x", resolved_evidence)
+        result = evaluate_zone(
+            "zone_x", resolved_evidence, expected_manifest_sha256=_DUMMY_MANIFEST_SHA256
+        )
         assert result.status == RightsStatus.RESOLVED, "Rights gate must have passing path"
 
         # PII gate passing

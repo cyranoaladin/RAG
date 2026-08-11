@@ -78,6 +78,10 @@ try:
     from ingestor.ingestion_agents.quality_agent import run_quality_agent
     from ingestor.ingestion_agents.rights_agent import run_rights_agent
     from ingestor.ingestion_agents.scout import run_scout
+    from ingestor.ingestion_control.artifact_attribution import (
+        derive_artifact_attribution,
+        persist_artifact_attribution,
+    )
     from ingestor.ingestion_control.jobs import (
         JobClaim,
         JobLeaseConflictError,
@@ -133,6 +137,10 @@ except (ImportError, ValueError):
     from ingestion_agents.quality_agent import run_quality_agent
     from ingestion_agents.rights_agent import run_rights_agent
     from ingestion_agents.scout import run_scout
+    from ingestion_control.artifact_attribution import (
+        derive_artifact_attribution,
+        persist_artifact_attribution,
+    )
     from ingestion_control.jobs import (
         JobClaim,
         JobLeaseConflictError,
@@ -671,6 +679,37 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
         expected_version=rights_transition.state_version,
         actor=deps.owner,
         job_id=claim.job_id,
+    )
+
+    # LOT H2-F (défaut 6) : les quatre faits d'attribution deviennent
+    # définitifs exactement ici — au **verdict** du gate, quel que soit son
+    # signe. Avant lui, ``type_doc`` n'est qu'une proposition de Scout et
+    # rien n'a confronté cette proposition au profil approuvé ; après lui,
+    # aucune étape du pipeline ne les touche plus et l'étape suivante est
+    # la mise en revue de publication.
+    #
+    # Écrit aussi pour une ressource refusée, délibérément : un refus doit
+    # rester attribuable (« quelle source a produit cette ressource
+    # rejetée ? »), et l'ordre des refus en aval reste celui de leur
+    # gravité — une chaîne qualité négative est nommée comme telle plutôt
+    # que masquée par une attribution absente. La publication reste bloquée
+    # par ``gate_passed=false`` à trois niveaux indépendants.
+    #
+    # L'écriture partage la transaction de l'événement
+    # ``PUBLICATION_GATE_EVALUATED`` et, le cas échéant, de la transition
+    # ``ROUTED`` (aucun commit entre les deux) : une ressource ne peut donc
+    # jamais atteindre ``ROUTED`` sans son attribution. Toute erreur se
+    # propage et fait échouer le job — jamais une publication ultérieure
+    # sur une attribution absente ou devinée.
+    persist_artifact_attribution(
+        conn,
+        attribution=derive_artifact_attribution(
+            ingestion_artifact_id=artifact.artifact_id,
+            candidate=candidate,
+            profile=profile,
+        ),
+        run_id=claim.run_id,
+        actor=deps.owner,
     )
 
 

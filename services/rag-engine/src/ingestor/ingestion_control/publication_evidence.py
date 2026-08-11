@@ -36,6 +36,12 @@ from uuid import UUID
 import psycopg
 from nexus_contracts.document import Rights
 
+from .artifact_attribution import (
+    ArtifactAttributionError,
+    attribution_digest,
+    load_artifact_attribution,
+)
+
 #: Valeur exacte écrite par ``transitions.apply_resource_transition`` —
 #: jamais une constante parallèle réinventée ici.
 _TRANSITION_EVENT_TYPE = "transition"
@@ -53,10 +59,13 @@ class PublicationEvidenceMissingError(RuntimeError):
 class PublicationFacts:
     """Ce que le pipeline a réellement produit, et rien d'autre.
 
-    H2-F Défaut 6: Les champs d'attribution (source_label, official,
-    source_kind, type_doc) sont requis et doivent être vérifiés avant
-    publication. Ils proviennent de rag_artifacts et sont liés aux
-    faits revus persistés, pas recalculés après revue.
+    H2-F Défaut 6: Les quatre champs d'attribution (source_label,
+    official, source_kind, type_doc) sont requis et vérifiés avant
+    publication. Ils proviennent de ``ingestion_control
+    .artifact_attributions`` — le plan de contrôle, écrit par le pipeline
+    gouverné lui-même — jamais de ``public.rag_artifacts``, qui n'existe
+    pas encore lors d'une première publication et que le rôle attestor n'a
+    pas le droit de lire.
     """
 
     resource_id: UUID
@@ -84,6 +93,21 @@ class PublicationFacts:
     official: bool
     source_kind: str
     type_doc: str
+
+    @property
+    def attribution_digest(self) -> str:
+        """Digest canonique des quatre faits d'attribution.
+
+        C'est cette valeur que l'attestation mémorise et que le publisher
+        recompare avant d'écrire : une attribution modifiée après revue
+        change son digest, et la publication s'arrête."""
+        return attribution_digest(
+            ingestion_artifact_id=self.artifact_id,
+            source_label=self.source_label,
+            official=self.official,
+            source_kind=self.source_kind,
+            type_doc=self.type_doc,
+        )
 
     @property
     def evidence_event_ids(self) -> tuple[str, ...]:
@@ -212,36 +236,6 @@ def collect_publication_facts(
         )
     (content_sha256,) = row
 
-    # H2-F Défaut 6: Collecter les attributs d'attribution durables depuis rag_artifacts
-    with conn.cursor() as cur:
-        cur.execute(
-            "SELECT source_label, official, source_kind, type_doc "
-            "FROM public.rag_artifacts WHERE artifact_id = %s",
-            (str(artifact_id),),
-        )
-        attribution_row = cur.fetchone()
-    if attribution_row is None:
-        raise PublicationEvidenceMissingError(
-            f"artifact {artifact_id} has no rag_artifacts record with durable attribution"
-        )
-    (artifact_source_label, artifact_official, artifact_source_kind, artifact_type_doc) = attribution_row
-    if not isinstance(artifact_source_label, str) or not artifact_source_label.strip():
-        raise PublicationEvidenceMissingError(
-            f"artifact {artifact_id}: source_label is missing or blank"
-        )
-    if not isinstance(artifact_official, bool):
-        raise PublicationEvidenceMissingError(
-            f"artifact {artifact_id}: official is not a boolean"
-        )
-    if not isinstance(artifact_source_kind, str) or not artifact_source_kind.strip():
-        raise PublicationEvidenceMissingError(
-            f"artifact {artifact_id}: source_kind is missing or blank"
-        )
-    if not isinstance(artifact_type_doc, str) or not artifact_type_doc.strip():
-        raise PublicationEvidenceMissingError(
-            f"artifact {artifact_id}: type_doc is missing or blank"
-        )
-
     with conn.cursor() as cur:
         cur.execute(
             "SELECT canonical_url FROM ingestion_control.resource_candidates "
@@ -332,6 +326,27 @@ def collect_publication_facts(
         required_key="gate_passed",
     )
 
+    # H2-F (défaut 6) : l'attribution est lue dans le PLAN DE CONTRÔLE, sous
+    # la clé canonique ``ingestion_artifact_id``. Jamais dans
+    # ``public.rag_artifacts`` : cette table n'existe pas encore lors d'une
+    # première publication (le publisher l'écrit *après* l'attestation) et
+    # le rôle attestor n'a aucun privilège sur le schéma ``public``. La
+    # lecture recalcule le digest canonique et refuse toute dérive entre
+    # les quatre faits et le digest que PostgreSQL a généré pour eux.
+    #
+    # Lue APRÈS les faits du pipeline, délibérément : une ressource que le
+    # pipeline n'a jamais menée jusqu'au gate doit être refusée en nommant
+    # l'étape qui manque (droits, qualité, gate), pas son attribution — le
+    # message d'un refus est ce qui rend ce refus diagnosticable.
+    try:
+        attribution, _stored_digest = load_artifact_attribution(
+            conn, ingestion_artifact_id=artifact_id
+        )
+    except ArtifactAttributionError as exc:
+        raise PublicationEvidenceMissingError(
+            f"resource {resource_id}: {exc}"
+        ) from exc
+
     rights_value = str(_require(
         rights_payload, "rights_status", resource_id=resource_id, event_type="RIGHTS_CHECKED transition"
     ))
@@ -393,11 +408,12 @@ def collect_publication_facts(
             resource_id=resource_id, label="gate_evaluated_at",
         ),
         gate_event_id=gate_event_id,
-        # H2-F Défaut 6: Attribution durable liée aux faits revus
-        source_label=artifact_source_label,
-        official=artifact_official,
-        source_kind=artifact_source_kind,
-        type_doc=artifact_type_doc,
+        # H2-F Défaut 6 : attribution durable du plan de contrôle, écrite
+        # par le pipeline gouverné avant toute attestation.
+        source_label=attribution.source_label,
+        official=attribution.official,
+        source_kind=attribution.source_kind,
+        type_doc=attribution.type_doc,
     )
 
 

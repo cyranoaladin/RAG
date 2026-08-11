@@ -13,13 +13,32 @@ Usage:
         --pii /path/to/sealed_pii_evidence.json \
         --routing configs/corpus_zone_routing.yml \
         --golden configs/golden_corpus_h2b.yml \
+        --manifest /path/to/SHA256SUMS.txt \
+        --authority /path/to/scope_authorization.json \
+        --authority-review-binding /path/to/review_binding.json \
+        --authority-trust-anchor /path/to/trust_anchor.json \
+        --authority-environment production \
         --output data/reports/h2b_coverage_report.md
+
+Modes (ADR-0035) :
+
+- ``--authority-environment production`` (défaut) exige une clé de
+  production ; seul ce mode peut produire ``coverage_complete=true``.
+- ``--authority-environment rehearsal`` exerce les clés de test et vérifie
+  toute la chaîne, mais ne rend **jamais** un verdict final vert.
+
+Le reçu de liaison de revue est émis par le plan de données :
+
+    python -m ingestor.ingestion_worker.issue_review_binding_cli issue \
+        --repository cyranoaladin/RAG --pull-request <n> \
+        --expected-head <sha> --authorization-id <id> --key-id <key>
 """
 from __future__ import annotations
 
 import argparse
 import hashlib
 import json
+import os
 import re
 import subprocess
 from dataclasses import dataclass, field
@@ -28,6 +47,20 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from nexus_contracts import ScopeAuthorizationArtifactV2
+from nexus_contracts.authority_artifacts import (
+    CanonicalArtifactError,
+    canonical_authorization_path,
+    git_blob_sha1,
+    parse_scope_authorization_artifact,
+)
+from nexus_contracts.review_binding import (
+    ReviewBindingError,
+    parse_trust_anchor,
+    require_challenge_is_bound,
+    require_matches_authorization,
+    verify_review_binding,
+)
 
 from rag_pedago.imports.corpus_catalog_compiler import (
     verify_catalog_evidence_bindings,
@@ -96,6 +129,10 @@ class CoverageReport:
     golden_validation_status: str = "UNKNOWN"
     golden_validation_pass: bool = False
     h2_coverage_gate_pass: bool = False
+
+    # ADR-0035 — liaison de revue scellée
+    authority_environment: str = "production"
+    authority_review_binding_verified: bool = False
 
     # Files and hashes
     input_files: dict[str, str] = field(default_factory=dict)
@@ -168,11 +205,26 @@ def _parse_manifest(path: Path) -> list[tuple[str, str]]:
     return entries
 
 
+# P1 PRRT_kwDOTEIbbs6X3cnF: Canonical path of the synthetic manifest self-object
+# The compiler adds this object AFTER generating the manifest, so it's not
+# in the manifest itself but must be present exactly once in the catalog.
+_MANIFEST_SELF_PATH = "00_ADMIN/SHA256SUMS.txt"
+
+
 def _verify_manifest_binding(
     manifest_path: Path,
     catalog: dict[str, Any],
 ) -> None:
-    """H2-F Défaut 1: Verify exact binding between sealed manifest and catalog."""
+    """H2-F Défaut 1: Verify exact binding between sealed manifest and catalog.
+
+    P1 PRRT_kwDOTEIbbs6X3cnF: The catalog contains 2584 objects while the manifest
+    contains 2583 entries because the compiler adds the synthetic manifest self-object
+    (00_ADMIN/SHA256SUMS.txt) AFTER generating the manifest. This function:
+    1. Verifies the self-object exists exactly once in the catalog
+    2. Verifies the self-object's content_sha256 equals the manifest file's SHA256
+    3. Excludes the self-object from the manifest/catalog comparison
+    4. Requires exact equality of all other entries
+    """
     # Compute actual manifest SHA256
     actual_manifest_sha256 = _file_sha256(manifest_path)
     if actual_manifest_sha256 is None:
@@ -191,14 +243,41 @@ def _verify_manifest_binding(
     manifest_set = frozenset(manifest_entries)
 
     physical_objects = catalog.get("physical_objects", [])
+    if not isinstance(physical_objects, list):
+        raise ValueError("H2-F Défaut 1: catalog physical_objects must be a list")
+
+    # P1 PRRT_kwDOTEIbbs6X3cnF: Find and validate the synthetic self-object
+    self_objects = [
+        obj for obj in physical_objects
+        if isinstance(obj, dict) and obj.get("path") == _MANIFEST_SELF_PATH
+    ]
+    if len(self_objects) == 0:
+        raise ValueError(
+            f"H2-F Défaut 1: synthetic manifest self-object '{_MANIFEST_SELF_PATH}' "
+            "is missing from catalog"
+        )
+    if len(self_objects) > 1:
+        raise ValueError(
+            f"H2-F Défaut 1: synthetic manifest self-object '{_MANIFEST_SELF_PATH}' "
+            f"appears {len(self_objects)} times in catalog (must be exactly once)"
+        )
+    self_object = self_objects[0]
+    self_object_sha256 = self_object.get("content_sha256")
+    if self_object_sha256 != actual_manifest_sha256:
+        raise ValueError(
+            f"H2-F Défaut 1: synthetic self-object content_sha256 mismatch: "
+            f"self_object={self_object_sha256}, manifest_file={actual_manifest_sha256}"
+        )
+
+    # Build catalog set EXCLUDING the self-object
     catalog_entries = [
         (obj.get("content_sha256"), obj.get("path"))
         for obj in physical_objects
-        if isinstance(obj, dict)
+        if isinstance(obj, dict) and obj.get("path") != _MANIFEST_SELF_PATH
     ]
     catalog_set = frozenset(catalog_entries)
 
-    # Check for exact match
+    # Check for exact match (self-object already excluded from comparison)
     only_in_manifest = manifest_set - catalog_set
     only_in_catalog = catalog_set - manifest_set
 
@@ -213,70 +292,345 @@ def _verify_manifest_binding(
         )
 
 
-def _load_authority_evidence(
-    authority_path: Path,
-    manifest_sha256: str,
-) -> frozenset[str]:
-    """H2-F Défaut 5: Load and validate LOT41A authority evidence.
+#: Catégorie de droits qui n'autorise jamais rien — la voir dans une
+#: autorisation signifie qu'aucune décision de droits n'a été prise.
+_UNKNOWN_RIGHTS = "unknown"
 
-    Returns the set of content SHA256 hashes authorized for ingestion.
-    Raises ValueError if:
-    - The file does not exist or is not valid JSON
-    - The protocol_version is not LOT41A-V1 or LOT41A-V2
-    - The manifest_digest does not match the expected manifest_sha256
-    - For V2, allowed_content_sha256 is missing or empty
+
+def _authority_structural_validation(
+    authority_path: Path,
+) -> tuple[ScopeAuthorizationArtifactV2, bytes]:
+    """STRUCTURAL_VALIDATION — les octets sont-ils une autorisation LOT41A ?
+
+    ``parse_scope_authorization_artifact`` fait deux choses que
+    ``model_validate(json.loads(...))`` ne faisait pas :
+
+    1. il valide le schéma strict (aucune clé en trop, types stricts) ;
+    2. il exige la **canonicité octet à octet** — les octets du fichier
+       doivent être exactement leur propre re-sérialisation canonique.
+
+    Le point 2 est la correction réelle : sans lui, un fichier aux clés
+    réordonnées ou ré-indenté passait la validation Pydantic tout en ayant
+    un digest qui ne correspondait à aucun octet relisible. Le digest
+    calculé ensuite porte donc sur les octets réellement présents sur le
+    disque, jamais sur une reconstruction.
     """
     if not authority_path.is_file():
         raise ValueError(
             f"H2-F Défaut 5: authority evidence file does not exist: {authority_path}"
         )
-    content = authority_path.read_text(encoding="utf-8")
+    raw = authority_path.read_bytes()
     try:
-        evidence = json.loads(content)
+        artifact = parse_scope_authorization_artifact(raw)
+    except CanonicalArtifactError as exc:
+        raise ValueError(
+            f"STRUCTURAL_VALIDATION failed: {authority_path} is not a canonical "
+            f"LOT41A authorization artifact: {exc}"
+        ) from exc
+    if not isinstance(artifact, ScopeAuthorizationArtifactV2):
+        raise ValueError(
+            "STRUCTURAL_VALIDATION failed: the final gate requires a LOT41A-V2 "
+            f"authorization (content allowlist), got {artifact.protocol_version!r} "
+            "— a V1 authorization is domain-scoped only and can never prove that "
+            "a given corpus object was authorized"
+        )
+    return artifact, raw
+
+
+def _authority_semantic_validation(
+    artifact: ScopeAuthorizationArtifactV2,
+    *,
+    manifest_sha256: str,
+    ingest_content_sha256: frozenset[str],
+    now: datetime,
+    revoked_authorization_ids: frozenset[str],
+) -> frozenset[str]:
+    """SEMANTIC_VALIDATION — l'autorisation dit-elle réellement *ceci* ?
+
+    Un JSON bien formé n'est pas une autorisation. Chaque contrôle
+    ci-dessous refuse seul, et chacun a son test de rejet dédié :
+    décision, périmètre du manifest, complétude de l'allowlist, catégories
+    de droits, attestation PII, fenêtre de validité, non-révocation.
+    """
+    if artifact.decision != "AUTHORIZE_INGESTION_SCOPE":
+        raise ValueError(
+            "SEMANTIC_VALIDATION failed: authority decision must be "
+            f"AUTHORIZE_INGESTION_SCOPE, got {artifact.decision!r}"
+        )
+    if artifact.manifest_digest != manifest_sha256:
+        raise ValueError(
+            "SEMANTIC_VALIDATION failed: authority is bound to another manifest "
+            f"(authority={artifact.manifest_digest[:16]}..., "
+            f"catalog={manifest_sha256[:16]}...)"
+        )
+    if artifact.authorization_id in revoked_authorization_ids:
+        raise ValueError(
+            "SEMANTIC_VALIDATION failed: authorization "
+            f"{artifact.authorization_id!r} appears in the revocation registry — "
+            "a revoked authorization never authorizes anything again"
+        )
+    if not artifact.pii_absence_attested:
+        raise ValueError(
+            "SEMANTIC_VALIDATION failed: pii_absence_attested is false"
+        )
+    rights = tuple(category.value for category in artifact.rights_categories)
+    if _UNKNOWN_RIGHTS in rights:
+        raise ValueError(
+            "SEMANTIC_VALIDATION failed: rights_categories contains "
+            f"{_UNKNOWN_RIGHTS!r} — an undetermined rights category authorizes "
+            "nothing and can never appear in a granted authorization"
+        )
+    if now < artifact.valid_from:
+        raise ValueError(
+            "SEMANTIC_VALIDATION failed: authorization is not valid yet "
+            f"(valid_from={artifact.valid_from.isoformat()}, now={now.isoformat()})"
+        )
+    if now >= artifact.valid_until:
+        raise ValueError(
+            "SEMANTIC_VALIDATION failed: authorization expired at "
+            f"{artifact.valid_until.isoformat()} (now={now.isoformat()})"
+        )
+
+    allowlist = frozenset(artifact.allowed_content_sha256)
+    # Complétude, pas échantillon : chaque objet destiné à l'ingestion doit
+    # être nommé par l'autorisation. Un objet manquant est un objet que
+    # personne n'a autorisé — le compter comme « invariant de sécurité »
+    # a posteriori laisserait le gate produire un rapport où l'autorisation
+    # est présentée comme vérifiée alors qu'elle ne couvre pas son périmètre.
+    uncovered = ingest_content_sha256 - allowlist
+    if uncovered:
+        sample = sorted(uncovered)[:3]
+        raise ValueError(
+            "SEMANTIC_VALIDATION failed: the authority allowlist does not cover "
+            f"{len(uncovered)} of the {len(ingest_content_sha256)} objects routed "
+            f"to ingestion (e.g. {sample}) — an authorization that names only "
+            "part of its perimeter authorizes none of it"
+        )
+    return allowlist
+
+
+#: Racine du dépôt, dérivée de l'emplacement de CE fichier — jamais un
+#: chemin absolu machine-local (AGENTS.md), avec override explicite par
+#: variable d'environnement pour un checkout non standard.
+_REPOSITORY_ROOT = Path(
+    os.environ.get("NEXUS_REPOSITORY_ROOT", "")
+    or Path(__file__).resolve().parents[4]
+)
+
+#: Reviewers habilités, lus depuis la configuration versionnée d'ADR-0025 —
+#: jamais une liste parallèle réinventée ici.
+_TRUSTED_REVIEWERS_CONFIG = "scripts/github/trusted-reviewers.json"
+
+
+def _load_trusted_reviewers(repository_root: Path) -> tuple[str, tuple[str, ...]]:
+    """Relit l'allowlist de reviewers d'ADR-0025 depuis le dépôt.
+
+    Lecture de fichier, jamais un import de ``scripts/`` : le gate reste
+    hors ligne et sans dépendance de code croisée."""
+    path = repository_root / _TRUSTED_REVIEWERS_CONFIG
+    if not path.is_file():
+        raise ValueError(
+            f"REVIEW_BINDING_VALIDATION failed: trusted reviewer configuration "
+            f"is missing at {path}"
+        )
+    document = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(document, dict):
+        raise ValueError(
+            "REVIEW_BINDING_VALIDATION failed: trusted reviewer configuration "
+            "must be a JSON object"
+        )
+    repository = document.get("repository")
+    reviewers = document.get("reviewers")
+    if not isinstance(repository, str) or not repository.strip():
+        raise ValueError(
+            "REVIEW_BINDING_VALIDATION failed: trusted reviewer configuration "
+            "declares no repository"
+        )
+    if not isinstance(reviewers, list) or not reviewers or any(
+        not isinstance(item, str) or not item.strip() for item in reviewers
+    ):
+        raise ValueError(
+            "REVIEW_BINDING_VALIDATION failed: trusted reviewer configuration "
+            "declares no reviewers"
+        )
+    return repository, tuple(reviewers)
+
+
+def _authority_review_binding_validation(
+    artifact: ScopeAuthorizationArtifactV2,
+    raw: bytes,
+    *,
+    binding_path: Path,
+    trust_anchor_path: Path,
+    environment: str,
+    now: datetime,
+    revoked_authorization_ids: frozenset[str],
+    repository_root: Path,
+) -> dict[str, str]:
+    """REVIEW_BINDING_VALIDATION — ces octets ont-ils réellement été revus ?
+
+    C'est la couche qui manquait. Les deux précédentes sont entièrement
+    satisfaisables par un fichier fabriqué localement : un JSON canonique,
+    sémantiquement cohérent, que personne n'a jamais relu. Sans preuve de
+    revue, le gate final devenait vert sur une autorisation inventée.
+
+    Le reçu ``ScopeAuthorizationReviewBindingV1`` (ADR-0035) transporte ici,
+    **hors ligne et signé**, le résultat de la vérification GitHub effectuée
+    par le vérificateur canonique d'ADR-0025. Ce module ne parle jamais au
+    réseau et n'importe jamais ``rag-engine`` : seul le contrat partagé
+    ``nexus_contracts.review_binding`` traverse la frontière (ADR-0001).
+
+    Ordre des contrôles, délibéré : signature d'abord — un reçu non vérifié
+    n'a le droit de rien affirmer, pas même sur lui-même — puis liaison aux
+    octets exacts de l'autorisation, puis au challenge, puis à la
+    révocation.
+    """
+    if artifact.canonical_bytes() != raw:
+        raise ValueError(  # pragma: no cover - déjà garanti par la couche structurelle
+            "REVIEW_BINDING_VALIDATION failed: artifact bytes are not canonical"
+        )
+    if not binding_path.is_file():
+        raise ValueError(
+            f"REVIEW_BINDING_VALIDATION failed: the sealed review binding receipt "
+            f"does not exist at {binding_path} — an authorization whose review "
+            "cannot be verified never turns the final gate green"
+        )
+    if not trust_anchor_path.is_file():
+        raise ValueError(
+            f"REVIEW_BINDING_VALIDATION failed: the trust anchor does not exist at "
+            f"{trust_anchor_path} — an unanchored signature proves nothing"
+        )
+
+    try:
+        trust_anchor = parse_trust_anchor(trust_anchor_path.read_bytes())
+        binding = verify_review_binding(
+            binding_path.read_bytes(),
+            trust_anchor=trust_anchor,
+            environment=environment,
+            now=now,
+        )
+    except ReviewBindingError as exc:
+        raise ValueError(f"REVIEW_BINDING_VALIDATION failed: {exc}") from exc
+
+    repository, reviewers = _load_trusted_reviewers(repository_root)
+    try:
+        require_matches_authorization(
+            binding,
+            authorization_id=artifact.authorization_id,
+            authorization_bytes=raw,
+            authorization_git_blob_sha1=git_blob_sha1(raw),
+            expected_repository=repository,
+            accepted_reviewers=reviewers,
+        )
+        require_challenge_is_bound(binding)
+    except ReviewBindingError as exc:
+        raise ValueError(f"REVIEW_BINDING_VALIDATION failed: {exc}") from exc
+
+    if binding.authorization_decision != artifact.decision:
+        raise ValueError(
+            f"REVIEW_BINDING_VALIDATION failed: the receipt seals decision "
+            f"{binding.authorization_decision!r} while the authorization declares "
+            f"{artifact.decision!r}"
+        )
+    if binding.authorization_id in revoked_authorization_ids:
+        raise ValueError(
+            f"REVIEW_BINDING_VALIDATION failed: authorization "
+            f"{binding.authorization_id!r} is revoked — a sealed review never "
+            "outlives the revocation of what it reviewed"
+        )
+
+    return {
+        "authorization_id": artifact.authorization_id,
+        "canonical_path": canonical_authorization_path(artifact.authorization_id),
+        "authorization_digest": artifact.digest(),
+        "artifact_blob_sha": git_blob_sha1(raw),
+        "review_repository": binding.repository,
+        "review_pull_request": str(binding.pull_request),
+        "review_base_sha": binding.base_sha,
+        "review_head_sha": binding.head_sha,
+        "review_id": str(binding.review_id),
+        "review_reviewer": binding.reviewer_login,
+        "review_reviewer_permission": binding.reviewer_permission,
+        "review_author": binding.author_login,
+        "review_challenge_digest": binding.challenge_digest,
+        "review_binding_environment": environment,
+        "review_binding_expires_at": binding.expires_at.isoformat(),
+        "review_binding_verifier": binding.verifier_version,
+    }
+
+
+def _load_revoked_authorization_ids(path: Path | None) -> frozenset[str]:
+    """Registre de révocation scellé, optionnel mais jamais deviné.
+
+    Absent, il vaut « aucune révocation connue » — et le rapport le dit
+    (``authority_revocations_checked=False``) plutôt que de laisser croire
+    que la non-révocation a été prouvée."""
+    if path is None:
+        return frozenset()
+    if not path.is_file():
+        raise ValueError(
+            f"H2-F Défaut 5: authority revocation registry does not exist: {path}"
+        )
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         raise ValueError(
-            f"H2-F Défaut 5: authority evidence is not valid JSON: {exc}"
+            f"H2-F Défaut 5: authority revocation registry is not valid JSON: {exc}"
         ) from exc
-    if not isinstance(evidence, dict):
-        raise ValueError("H2-F Défaut 5: authority evidence must be a JSON object")
-
-    protocol = evidence.get("protocol_version")
-    if protocol not in ("LOT41A-V1", "LOT41A-V2"):
+    if not isinstance(document, dict):
         raise ValueError(
-            f"H2-F Défaut 5: unsupported authority protocol_version: {protocol!r}"
+            "H2-F Défaut 5: authority revocation registry must be a JSON object"
         )
-
-    # Verify binding to the exact manifest
-    evidence_manifest = evidence.get("manifest_digest")
-    if not isinstance(evidence_manifest, str) or re.fullmatch(
-        r"[0-9a-f]{64}", evidence_manifest
-    ) is None:
-        raise ValueError("H2-F Défaut 5: authority manifest_digest is invalid")
-    if evidence_manifest != manifest_sha256:
+    revoked = document.get("revoked_authorization_ids")
+    if not isinstance(revoked, list) or any(
+        not isinstance(item, str) or not item.strip() for item in revoked
+    ):
         raise ValueError(
-            f"H2-F Défaut 5: authority evidence is bound to wrong manifest: "
-            f"evidence={evidence_manifest[:16]}..., catalog={manifest_sha256[:16]}..."
+            "H2-F Défaut 5: revoked_authorization_ids must be a list of non-empty "
+            "strings"
         )
+    return frozenset(revoked)
 
-    # For V1, there's no content allowlist - it's domain-based only
-    # For H2-B coverage, we need V2 with content allowlist for full verification
-    if protocol == "LOT41A-V1":
-        # V1 has no content allowlist - cannot verify individual content hashes
-        # Return empty set to indicate no positive content verification possible
-        return frozenset()
 
-    # V2: require allowed_content_sha256
-    allowlist = evidence.get("allowed_content_sha256")
-    if not isinstance(allowlist, list) or len(allowlist) == 0:
-        raise ValueError(
-            "H2-F Défaut 5: LOT41A-V2 requires non-empty allowed_content_sha256"
-        )
-    for item in allowlist:
-        if not isinstance(item, str) or re.fullmatch(r"[0-9a-f]{64}", item) is None:
-            raise ValueError(
-                f"H2-F Défaut 5: invalid SHA256 in allowed_content_sha256: {item!r}"
-            )
-    return frozenset(allowlist)
+def _load_authority_evidence(
+    authority_path: Path,
+    manifest_sha256: str,
+    *,
+    ingest_content_sha256: frozenset[str],
+    now: datetime,
+    revocations_path: Path | None,
+    binding_path: Path,
+    trust_anchor_path: Path,
+    environment: str,
+    repository_root: Path,
+) -> tuple[frozenset[str], dict[str, str]]:
+    """H2-F Défaut 5 : les trois couches, dans cet ordre, toutes exécutées.
+
+    Une validation Pydantic réussie n'est que la première. Aucune n'est
+    optionnelle : le retour porte l'allowlist vérifiée **et** la liaison de
+    revue scellée, pour que le rapport publie ce sur quoi il s'est appuyé
+    plutôt qu'un simple booléen.
+    """
+    revoked = _load_revoked_authorization_ids(revocations_path)
+    artifact, raw = _authority_structural_validation(authority_path)
+    allowlist = _authority_semantic_validation(
+        artifact,
+        manifest_sha256=manifest_sha256,
+        ingest_content_sha256=ingest_content_sha256,
+        now=now,
+        revoked_authorization_ids=revoked,
+    )
+    binding = _authority_review_binding_validation(
+        artifact,
+        raw,
+        binding_path=binding_path,
+        trust_anchor_path=trust_anchor_path,
+        environment=environment,
+        now=now,
+        revoked_authorization_ids=revoked,
+        repository_root=repository_root,
+    )
+    return allowlist, binding
 
 
 def generate_coverage_report(
@@ -287,6 +641,12 @@ def generate_coverage_report(
     golden_path: Path | None = None,
     manifest_path: Path | None = None,
     authority_path: Path | None = None,
+    authority_revocations_path: Path | None = None,
+    authority_review_binding_path: Path | None = None,
+    authority_trust_anchor_path: Path | None = None,
+    authority_environment: str = "production",
+    authority_now: datetime | None = None,
+    repository_root: Path | None = None,
     expected_total: int = 2584,
     expected_manifest_sha256: str | None = None,
 ) -> CoverageReport:
@@ -313,11 +673,14 @@ def generate_coverage_report(
         and manifest_sha256 != expected_manifest_sha256
     ):
         raise ValueError("catalog manifest SHA256 mismatch")
-    # H2-F Défaut 1: Verify manifest binding if path provided
-    if manifest_path is not None:
-        if not manifest_path.is_file():
-            raise ValueError("H2-F Défaut 1: manifest file does not exist")
-        _verify_manifest_binding(manifest_path, catalog)
+    # P1 PRRT_kwDOTEIbbs6X3cnO: manifest is REQUIRED for the final gate
+    # H2-F Défaut 1: Verify exact binding between manifest file and catalog
+    if manifest_path is None or not manifest_path.is_file():
+        raise ValueError(
+            "H2-F Défaut 1: sealed manifest file is required for the final gate "
+            "(cannot produce coverage_complete=True without verifying manifest bytes)"
+        )
+    _verify_manifest_binding(manifest_path, catalog)
     if golden_path is None or not golden_path.is_file():
         raise ValueError("golden specification is required for the final gate")
     if rights_path is None or not rights_path.is_file():
@@ -413,10 +776,48 @@ def generate_coverage_report(
         pii_evidence,
     )
 
-    # H2-F Défaut 5: Load authority evidence if provided
+    # H2-F Défaut 5 : les trois couches de validation d'autorité. La
+    # complétude de l'allowlist est vérifiée sur le périmètre RÉEL (tous
+    # les objets routés vers l'ingestion), jamais sur un échantillon —
+    # d'où la collecte préalable de leurs empreintes.
+    ingest_content_sha256 = frozenset(
+        str(item.get("content_sha256"))
+        for item in physical_objects
+        if isinstance(item, dict)
+        and item.get("disposition") == "INGEST"
+        and isinstance(item.get("content_sha256"), str)
+    )
     authority_allowlist: frozenset[str] | None = None
+    authority_binding: dict[str, str] = {}
+    if authority_environment not in ("production", "rehearsal"):
+        raise ValueError(
+            f"authority_environment must be 'production' or 'rehearsal', got "
+            f"{authority_environment!r}"
+        )
     if authority_path is not None:
-        authority_allowlist = _load_authority_evidence(authority_path, manifest_sha256)
+        # ADR-0035 : aucune de ces trois preuves n'est optionnelle. Rendre
+        # le reçu ou l'ancre facultatifs reviendrait à laisser le gate
+        # vert sur une autorisation que personne n'a relue — le défaut
+        # exact que ce lot ferme.
+        if authority_review_binding_path is None or authority_trust_anchor_path is None:
+            raise ValueError(
+                "REVIEW_BINDING_VALIDATION failed: an authority artifact requires "
+                "both a sealed review binding receipt and a trust anchor — a "
+                "locally authored authorization is not evidence of human review"
+            )
+        authority_allowlist, authority_binding = _load_authority_evidence(
+            authority_path,
+            manifest_sha256,
+            ingest_content_sha256=ingest_content_sha256,
+            now=authority_now or datetime.now(UTC),
+            revocations_path=authority_revocations_path,
+            binding_path=authority_review_binding_path,
+            trust_anchor_path=authority_trust_anchor_path,
+            # Le mode ``rehearsal`` exerce les clés de test et ne peut jamais
+            # produire un verdict final vert (cf. ``coverage_complete``).
+            environment="test" if authority_environment == "rehearsal" else "production",
+            repository_root=repository_root or _REPOSITORY_ROOT,
+        )
 
     blocked_ingest_candidates = 0
     mandatory_gate_blockers: dict[str, int] = {}
@@ -487,6 +888,14 @@ def generate_coverage_report(
     }
     if authority_path is not None:
         input_files["authority"] = _file_sha256(authority_path)
+        # Publier la liaison recalculée plutôt qu'un booléen : le chemin
+        # canonique, le digest et le SHA-1 de blob Git sont ce par quoi une
+        # revue GitHub désigne ces octets exacts.
+        input_files.update(
+            {f"authority_{key}": value for key, value in authority_binding.items()}
+        )
+    if authority_revocations_path is not None:
+        input_files["authority_revocations"] = _file_sha256(authority_revocations_path)
 
     # Rights gate
     rights_gate_status = (
@@ -534,11 +943,20 @@ def generate_coverage_report(
         and zero_gap
         and corpus_match
     )
+    # ADR-0035 : la liaison de revue scellée est une condition du verdict
+    # final, au même titre que le manifest, les droits, la PII et le golden.
+    # Le mode ``rehearsal`` exerce des clés de test : il vérifie donc toute
+    # la chaîne mais ne peut, par construction, jamais rendre un verdict
+    # final vert — une répétition ne publie rien.
+    authority_review_binding_verified = bool(authority_binding)
+    final_mode = authority_environment == "production"
     h2_coverage_gate_pass = (
         decision_coverage_complete
         and golden_pass
         and rights_gate_status == "PASS"
         and pii_gate_status == "PASS"
+        and authority_review_binding_verified
+        and final_mode
         and all(value == 0 for value in safety_invariants.values())
     )
 
@@ -560,6 +978,8 @@ def generate_coverage_report(
         zero_gap=zero_gap,
         decision_coverage_complete=decision_coverage_complete,
         coverage_complete=h2_coverage_gate_pass,
+        authority_environment=authority_environment,
+        authority_review_binding_verified=authority_review_binding_verified,
         unclassified=unclassified,
         multiple_primary_disposition=multiple_primary,
         safety_invariants=safety_invariants,
@@ -647,6 +1067,9 @@ def render_markdown(report: CoverageReport) -> str:
         f"| Blocked ingest candidates | **{report.blocked_ingest_candidates}** |",
         f"| Decision coverage complete | **{'PASS' if report.decision_coverage_complete else 'FAIL'}** |",
         f"| Golden validation | **{'PASS' if report.golden_validation_pass else 'FAIL'}** |",
+        "| Authority review binding (ADR-0035) | "
+        f"**{'PASS' if report.authority_review_binding_verified else 'FAIL'}** |",
+        f"| Authority evidence mode | **{report.authority_environment}** |",
         f"| H2 coverage gate | **{'PASS' if report.h2_coverage_gate_pass else 'FAIL'}** |",
         "",
         f"BLOCKED_INGEST_CANDIDATES={report.blocked_ingest_candidates}",
@@ -654,6 +1077,9 @@ def render_markdown(report: CoverageReport) -> str:
         f"{'true' if report.decision_coverage_complete else 'false'}",
         "GOLDEN_VALIDATION_PASS="
         f"{'true' if report.golden_validation_pass else 'false'}",
+        "AUTHORITY_REVIEW_BINDING_VERIFIED="
+        f"{'true' if report.authority_review_binding_verified else 'false'}",
+        f"AUTHORITY_EVIDENCE_MODE={report.authority_environment}",
         "H2_COVERAGE_GATE_PASS="
         f"{'true' if report.h2_coverage_gate_pass else 'false'}",
         "",
@@ -788,6 +1214,39 @@ def main() -> int:
         help="H2-F Défaut 5: Path to LOT41A authority evidence (JSON)",
     )
     parser.add_argument(
+        "--authority-review-binding",
+        type=Path,
+        help=(
+            "ADR-0035 : reçu de liaison de revue scellé (JSON signé) qui prouve "
+            "hors ligne que l'autorisation a été approuvée sur GitHub par un "
+            "relecteur habilité, distinct de son auteur, au HEAD exact"
+        ),
+    )
+    parser.add_argument(
+        "--authority-trust-anchor",
+        type=Path,
+        help="ADR-0035 : ancre de confiance déclarant les clés publiques reconnues",
+    )
+    parser.add_argument(
+        "--authority-environment",
+        choices=("production", "rehearsal"),
+        default="production",
+        help=(
+            "'production' (défaut) exige une clé de production et peut rendre "
+            "coverage_complete=True ; 'rehearsal' exerce les clés de test et ne "
+            "peut jamais produire un verdict final vert"
+        ),
+    )
+    parser.add_argument(
+        "--authority-revocations",
+        type=Path,
+        help=(
+            "H2-F Défaut 5: sealed revocation registry (JSON, "
+            "{'revoked_authorization_ids': [...]}) — absent, la non-révocation "
+            "n'est pas prouvée et le rapport le consigne"
+        ),
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         help="Output path for Markdown report",
@@ -812,6 +1271,10 @@ def main() -> int:
         golden_path=args.golden,
         manifest_path=args.manifest,
         authority_path=args.authority,
+        authority_revocations_path=args.authority_revocations,
+        authority_review_binding_path=args.authority_review_binding,
+        authority_trust_anchor_path=args.authority_trust_anchor,
+        authority_environment=args.authority_environment,
         expected_total=args.expected_total,
         expected_manifest_sha256=args.expected_manifest_sha256,
     )

@@ -233,6 +233,14 @@ def _verify_placements(
             or facts.canonical_url != placement.source_uri
             or facts.rights_status.value != artifact.rights
             or scope_key(attestation.authorization.scope) != scope_key(placement.scope)
+            # H2-F (défaut 6) : l'attribution écrite dans le produit est
+            # celle que le plan de contrôle a persistée et que
+            # l'attestation a scellée — jamais une valeur que l'appelant du
+            # publisher aurait choisie librement au moment d'écrire.
+            or facts.source_label != artifact.source_label
+            or facts.official != artifact.official
+            or facts.source_kind != artifact.source_kind
+            or facts.type_doc != artifact.type_doc
         ):
             raise GovernedPublicationError("verified LOT42 facts do not match publication")
         if not _resource_is_retrieval_eligible(

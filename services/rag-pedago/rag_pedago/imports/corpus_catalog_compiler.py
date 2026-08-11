@@ -683,10 +683,13 @@ def _derive_rights_clearances(
     rights_registry: dict[str, Any],
     config: dict[str, Any],
 ) -> set[str]:
+    # P1 PRRT_kwDOTEIbbs6X3cnJ: Pass the verified manifest digest to ensure
+    # human decisions are bound to this exact manifest
     report = evaluate_registry(
         rights_registry,
         Path("rights_evidence_registry.yml"),
         expected_zones=expected_rights_zones(config),
+        expected_manifest_sha256=manifest_sha256,
     )
     if not report.gate_passed:
         raise ValueError("rights registry has unresolved ingest-capable zones")

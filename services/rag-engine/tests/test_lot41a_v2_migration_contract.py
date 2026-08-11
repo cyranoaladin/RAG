@@ -18,7 +18,7 @@ def _read(path: Path) -> str:
 
 
 def test_migration_009_remains_the_canonical_v2_allowlist_step() -> None:
-    assert _read(MIGRATIONS / "HEAD") == "011_external_authority_commit_pins\n"
+    assert _read(MIGRATIONS / "HEAD") == "012_artifact_attributions\n"
     assert MIGRATION.name == "009_scope_authorization_content_allowlist.sql"
 
 

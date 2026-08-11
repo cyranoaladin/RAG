@@ -1,32 +1,169 @@
 """Tests for the real sealed-corpus H2-B coverage report."""
 import hashlib
 import json
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
+from nexus_contracts import ScopeAuthorizationArtifactV1, ScopeAuthorizationArtifactV2
+from nexus_contracts.authority_artifacts import canonical_authorization_path, git_blob_sha1
+from nexus_contracts.review_binding import (
+    REVIEW_BINDING_PROTOCOL_VERSION,
+    TRUSTED_REVIEW_PROTOCOL,
+    ScopeAuthorizationReviewBindingV1,
+    expected_challenge_digest,
+    public_key_hex,
+    sign_review_binding,
+)
+from pydantic import ValidationError
 
 from rag_pedago.imports.h2b_coverage_report import (
     generate_coverage_report,
     render_markdown,
 )
 
-MANIFEST_SHA256 = "d" * 64
+#: Instant fixe DANS la fenêtre de validité des autorisations de test — la
+#: fenêtre est désormais réellement vérifiée, donc l'horloge ne peut plus
+#: être celle de la machine sans rendre ces tests périssables.
+AUTHORITY_NOW = datetime(2026, 6, 1, tzinfo=UTC)
 
+#: ADR-0035 — graine Ed25519 de test. L'ancre qui la déclare porte
+#: ``environment="test"``, et le contrat refuse de l'exercer en mode
+#: production : cette clé ne peut donc jamais rendre un gate final vert
+#: (cf. ``test_a_rehearsal_key_can_never_turn_the_final_gate_green``).
+TEST_SIGNING_SEED = "44" * 32
+TEST_KEY_ID = "nexus-governance-test-1"
+REPOSITORY = "cyranoaladin/RAG"
+TRUSTED_REVIEWER = "abenrhouma"
+PR_AUTHOR = "cyranoaladin"
+PULL_REQUEST = 95
+BASE_SHA = "1" * 40
+HEAD_SHA = "2" * 40
+
+
+def _write_trust_anchor(
+    tmp_path: Path, *, environment: str = "test", seed: str = TEST_SIGNING_SEED
+) -> Path:
+    path = tmp_path / "trust_anchor.json"
+    path.write_text(
+        json.dumps(
+            {
+                "protocol_version": REVIEW_BINDING_PROTOCOL_VERSION,
+                "keys": [
+                    {
+                        "key_id": TEST_KEY_ID,
+                        "algorithm": "ed25519",
+                        "public_key": public_key_hex(seed),
+                        "environment": environment,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+def _review_binding_document(
+    authority_document: dict[str, Any], **overrides: Any
+) -> dict[str, Any]:
+    raw = ScopeAuthorizationArtifactV2.model_validate(
+        authority_document
+    ).canonical_bytes()
+    authorization_id = str(authority_document["authorization_id"])
+    document: dict[str, Any] = {
+        "protocol_version": REVIEW_BINDING_PROTOCOL_VERSION,
+        "repository": REPOSITORY,
+        "pull_request": PULL_REQUEST,
+        "base_ref": "main",
+        "base_sha": BASE_SHA,
+        "head_sha": HEAD_SHA,
+        "authorization_artifact_path": canonical_authorization_path(authorization_id),
+        "authorization_artifact_sha256": hashlib.sha256(raw).hexdigest(),
+        "authorization_artifact_git_blob_sha1": git_blob_sha1(raw),
+        "authorization_id": authorization_id,
+        "authorization_decision": "AUTHORIZE_INGESTION_SCOPE",
+        "review_id": 4242,
+        "reviewer_login": TRUSTED_REVIEWER,
+        "reviewer_permission": "admin",
+        "author_login": PR_AUTHOR,
+        "submitted_at": "2026-05-01T10:00:00Z",
+        "challenge_protocol": TRUSTED_REVIEW_PROTOCOL,
+        "challenge_digest": expected_challenge_digest(
+            repository=REPOSITORY,
+            pull_request=PULL_REQUEST,
+            base_ref="main",
+            base_sha=BASE_SHA,
+            head_sha=HEAD_SHA,
+            author=PR_AUTHOR,
+            reviewer=TRUSTED_REVIEWER,
+        ),
+        "verified_at": "2026-05-15T09:00:00Z",
+        "verifier_version": "nexus-review-binding-producer/1",
+        "expires_at": "2026-12-01T09:00:00Z",
+    }
+    document.update(overrides)
+    return document
+
+
+def _write_review_binding(
+    tmp_path: Path,
+    authority_document: dict[str, Any],
+    *,
+    seed: str = TEST_SIGNING_SEED,
+    key_id: str = TEST_KEY_ID,
+    filename: str = "review_binding.json",
+    **overrides: Any,
+) -> Path:
+    binding = ScopeAuthorizationReviewBindingV1.model_validate(
+        _review_binding_document(authority_document, **overrides)
+    )
+    path = tmp_path / filename
+    path.write_bytes(
+        sign_review_binding(
+            binding, private_key_hex=seed, key_id=key_id
+        ).canonical_bytes()
+    )
+    return path
+
+
+def _write_authority(path: Path, document: dict[str, object]) -> Path:
+    """Écrit l'autorisation sous sa forme CANONIQUE octet à octet.
+
+    ``json.dumps`` produisait des octets qui n'étaient pas leur propre
+    re-sérialisation canonique : le digest calculé dessus ne désignait donc
+    aucun fichier relisible. La couche structurelle refuse maintenant ce
+    cas, et ce helper est la seule façon d'écrire une évidence valide."""
+    path.write_bytes(
+        ScopeAuthorizationArtifactV2.model_validate(document).canonical_bytes()
+    )
+    return path
 
 CONTENT_SHA256 = "a" * 64  # SHA256 of the PDF content
+# P1: Manifest content and SHA256 must be consistent across all fixtures
+_MANIFEST_CONTENT = f"{CONTENT_SHA256}  01_EDUSCOL_OFFICIEL/current.pdf\n"
+MANIFEST_SHA256 = hashlib.sha256(_MANIFEST_CONTENT.encode()).hexdigest()
 
 
 def _write_external_evidence(
     tmp_path: Path,
     *,
     include_authority: bool = True,
-) -> tuple[Path, Path, Path, Path | None]:
+    environment: str = "production",
+) -> tuple[Path, Path, Path, Path | None, Path]:
     """Write external evidence files for testing.
 
-    Returns (routing_path, rights_path, pii_path, authority_path).
+    Returns (routing_path, rights_path, pii_path, authority_path, manifest_path).
     If include_authority is False, authority_path will be None.
+    Uses the module-level MANIFEST_SHA256 constant for consistency.
     """
+    # P1: Create manifest file with consistent content
+    manifest_path = tmp_path / "00_ADMIN" / "SHA256SUMS.txt"
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(_MANIFEST_CONTENT, encoding="utf-8")
+
     routing = {
         "config_id": "coverage-routing-v1",
         "manifest_sha256": MANIFEST_SHA256,
@@ -144,10 +281,21 @@ def _write_external_evidence(
                 "voie": "generale",
             },
         }
-        authority_path = tmp_path / "authority.json"
-        authority_path.write_text(json.dumps(authority), encoding="utf-8")
+        authority_path = _write_authority(tmp_path / "authority.json", authority)
+        _write_review_binding(tmp_path, authority)
+        # Ancre déclarée ``production`` : c'est une clé engendrée dans
+        # ``tmp_path``, jamais commitée, dont l'unique rôle est d'exercer le
+        # chemin de code du mode final. Le dépôt ne contient aucune ancre de
+        # production (cf. ``test_the_repository_ships_no_production_trust_anchor``).
+        # Le gate traduit son mode (``production``/``rehearsal``) en
+        # environnement de clé (``production``/``test``) — l'ancre déclare
+        # donc le second, jamais le premier.
+        _write_trust_anchor(
+            tmp_path,
+            environment="test" if environment == "rehearsal" else "production",
+        )
 
-    return routing_path, rights_path, pii_path, authority_path
+    return routing_path, rights_path, pii_path, authority_path, manifest_path
 
 
 def _generate(
@@ -156,14 +304,15 @@ def _generate(
     golden_path: Path,
     *,
     include_authority: bool = True,
+    environment: str = "production",
     **kwargs: object,
 ):
     """Generate coverage report with external evidence.
 
     If include_authority=True (default), LOT41A-V2 authority evidence is included.
     """
-    routing_path, rights_path, pii_path, authority_path = _write_external_evidence(
-        tmp_path, include_authority=include_authority
+    routing_path, rights_path, pii_path, authority_path, manifest_path = _write_external_evidence(
+        tmp_path, include_authority=include_authority, environment=environment
     )
     return generate_coverage_report(
         catalog_path,
@@ -172,6 +321,16 @@ def _generate(
         routing_path=routing_path,
         golden_path=golden_path,
         authority_path=authority_path,
+        manifest_path=manifest_path,
+        expected_manifest_sha256=MANIFEST_SHA256,
+        authority_now=AUTHORITY_NOW,
+        authority_review_binding_path=(
+            tmp_path / "review_binding.json" if authority_path is not None else None
+        ),
+        authority_trust_anchor_path=(
+            tmp_path / "trust_anchor.json" if authority_path is not None else None
+        ),
+        authority_environment=environment,
         **kwargs,
     )
 
@@ -298,7 +457,6 @@ def test_real_catalog_proves_coverage_and_all_ingest_safety_invariants(
         _write_golden_spec(tmp_path),
         include_authority=True,  # Include LOT41A-V2 authority evidence
         expected_total=2,
-        expected_manifest_sha256=MANIFEST_SHA256,
     )
 
     assert report.real_corpus_catalog_source is True
@@ -333,7 +491,6 @@ def test_missing_authority_keeps_coverage_gate_red(tmp_path: Path) -> None:
         _write_real_catalog(tmp_path, authority_status="MISSING"),
         _write_golden_spec(tmp_path),
         expected_total=2,
-        expected_manifest_sha256=MANIFEST_SHA256,
     )
 
     assert report.safety_invariants["INGEST_WITHOUT_AUTHORITY"] == 1
@@ -362,7 +519,6 @@ def test_expected_authority_blocked_candidate_can_pass_inert_h2_gate(
             expected_authority="BLOCKED_NOT_CLEARED",
         ),
         expected_total=2,
-        expected_manifest_sha256=MANIFEST_SHA256,
     )
 
     assert report.blocked_ingest_candidates == 1
@@ -376,7 +532,7 @@ def test_rejects_catalog_rights_pass_not_derived_from_registry(
 ) -> None:
     catalog_path = _write_real_catalog(tmp_path)
     golden_path = _write_golden_spec(tmp_path)
-    routing_path, rights_path, pii_path, _ = _write_external_evidence(tmp_path)
+    routing_path, rights_path, pii_path, _, manifest_path = _write_external_evidence(tmp_path)
     rights = yaml.safe_load(rights_path.read_text(encoding="utf-8"))
     rights["source_evidence"]["eduscol"]["rights_status"] = "REVIEW_REQUIRED"
     rights["source_evidence"]["eduscol"]["disposition_override"] = (
@@ -391,6 +547,7 @@ def test_rejects_catalog_rights_pass_not_derived_from_registry(
             pii_path=pii_path,
             routing_path=routing_path,
             golden_path=golden_path,
+            manifest_path=manifest_path,
             expected_total=2,
             expected_manifest_sha256=MANIFEST_SHA256,
         )
@@ -401,7 +558,7 @@ def test_rejects_catalog_pii_pass_not_derived_from_sealed_scan(
 ) -> None:
     catalog_path = _write_real_catalog(tmp_path)
     golden_path = _write_golden_spec(tmp_path)
-    routing_path, rights_path, pii_path, _ = _write_external_evidence(tmp_path)
+    routing_path, rights_path, pii_path, _, manifest_path = _write_external_evidence(tmp_path)
     pii = json.loads(pii_path.read_text(encoding="utf-8"))
     pii["results"][0]["status"] = "REVIEW_REQUIRED_EXTRACTION_FAILED"
     pii_path.write_text(json.dumps(pii), encoding="utf-8")
@@ -413,15 +570,18 @@ def test_rejects_catalog_pii_pass_not_derived_from_sealed_scan(
             pii_path=pii_path,
             routing_path=routing_path,
             golden_path=golden_path,
+            manifest_path=manifest_path,
             expected_total=2,
             expected_manifest_sha256=MANIFEST_SHA256,
         )
 
 
-def test_final_gate_requires_rights_pii_and_routing_evidence(
+def test_final_gate_requires_manifest_rights_pii_and_routing_evidence(
     tmp_path: Path,
 ) -> None:
-    with pytest.raises(ValueError, match="rights evidence is required"):
+    """P1 PRRT_kwDOTEIbbs6X3cnO: Final gate requires manifest, rights, PII, and routing."""
+    # P1: Manifest is now required first
+    with pytest.raises(ValueError, match="sealed manifest file is required"):
         generate_coverage_report(
             _write_real_catalog(tmp_path),
             golden_path=_write_golden_spec(tmp_path),
@@ -468,7 +628,7 @@ def test_h2f_defaut1_manifest_sha256_mismatch_is_detected(
     """
     catalog_path = _write_real_catalog(tmp_path)
     golden_path = _write_golden_spec(tmp_path)
-    routing_path, rights_path, pii_path, _ = _write_external_evidence(tmp_path)
+    routing_path, rights_path, pii_path, _, _ = _write_external_evidence(tmp_path)
 
     # Create a manifest with different content (will have different SHA256)
     manifest_path = tmp_path / "SHA256SUMS.txt"
@@ -493,15 +653,19 @@ def test_h2f_defaut1_manifest_sha256_mismatch_is_detected(
 def test_h2f_defaut1_missing_manifest_file_is_rejected(
     tmp_path: Path,
 ) -> None:
-    """H2-F Défaut 1: Non-existent manifest file must be rejected."""
+    """H2-F Défaut 1: Non-existent manifest file must be rejected.
+
+    P1 PRRT_kwDOTEIbbs6X3cnO: Manifest is now required for the final gate.
+    """
     catalog_path = _write_real_catalog(tmp_path)
     golden_path = _write_golden_spec(tmp_path)
-    routing_path, rights_path, pii_path, _ = _write_external_evidence(tmp_path)
+    routing_path, rights_path, pii_path, _, _ = _write_external_evidence(tmp_path)
 
     # Point to non-existent manifest
     manifest_path = tmp_path / "nonexistent_SHA256SUMS.txt"
 
-    with pytest.raises(ValueError, match="H2-F Défaut 1.*does not exist"):
+    # P1: Error message changed to "sealed manifest file is required"
+    with pytest.raises(ValueError, match="sealed manifest file is required"):
         generate_coverage_report(
             catalog_path,
             rights_path=rights_path,
@@ -545,7 +709,6 @@ def test_h2f_defaut5_authority_pass_autodeclare_is_not_sufficient(
         golden_path,
         include_authority=False,  # No authority evidence provided
         expected_total=2,
-        expected_manifest_sha256=MANIFEST_SHA256,
     )
 
     # H2-F Défaut 5: Self-declared authority=PASS MUST be flagged
@@ -561,7 +724,7 @@ def test_h2f_defaut5_authority_bound_to_wrong_manifest_is_rejected(
     """H2-F Défaut 5: Authority evidence bound to a different manifest must fail closed."""
     catalog_path = _write_real_catalog(tmp_path)
     golden_path = _write_golden_spec(tmp_path)
-    routing_path, rights_path, pii_path, _ = _write_external_evidence(
+    routing_path, rights_path, pii_path, _, manifest_path = _write_external_evidence(
         tmp_path, include_authority=False
     )
 
@@ -596,19 +759,27 @@ def test_h2f_defaut5_authority_bound_to_wrong_manifest_is_rejected(
             "voie": "generale",
         },
     }
-    authority_path = tmp_path / "wrong_authority.json"
-    authority_path.write_text(json.dumps(authority), encoding="utf-8")
+    authority_path = _write_authority(tmp_path / "wrong_authority.json", authority)
 
-    with pytest.raises(ValueError, match="H2-F Défaut 5.*wrong manifest"):
+    with pytest.raises(
+        ValueError, match="SEMANTIC_VALIDATION failed: authority is bound to another"
+    ):
         generate_coverage_report(
             catalog_path,
             rights_path=rights_path,
             pii_path=pii_path,
             routing_path=routing_path,
             golden_path=golden_path,
+            manifest_path=manifest_path,
             authority_path=authority_path,
+            authority_review_binding_path=_write_review_binding(
+                tmp_path, _valid_authority_document()
+            ),
+            authority_trust_anchor_path=_write_trust_anchor(tmp_path),
+            authority_environment="rehearsal",
             expected_total=2,
             expected_manifest_sha256=MANIFEST_SHA256,
+            authority_now=AUTHORITY_NOW,
         )
 
 
@@ -618,7 +789,7 @@ def test_h2f_defaut5_content_not_in_authority_allowlist_fails(
     """H2-F Défaut 5: Content not in authority allowlist must be flagged."""
     catalog_path = _write_real_catalog(tmp_path)
     golden_path = _write_golden_spec(tmp_path)
-    routing_path, rights_path, pii_path, _ = _write_external_evidence(
+    routing_path, rights_path, pii_path, _, manifest_path = _write_external_evidence(
         tmp_path, include_authority=False
     )
 
@@ -653,24 +824,32 @@ def test_h2f_defaut5_content_not_in_authority_allowlist_fails(
             "voie": "generale",
         },
     }
-    authority_path = tmp_path / "narrow_authority.json"
-    authority_path.write_text(json.dumps(authority), encoding="utf-8")
+    authority_path = _write_authority(tmp_path / "narrow_authority.json", authority)
 
-    report = generate_coverage_report(
-        catalog_path,
-        rights_path=rights_path,
-        pii_path=pii_path,
-        routing_path=routing_path,
-        golden_path=golden_path,
-        authority_path=authority_path,
-        expected_total=2,
-        expected_manifest_sha256=MANIFEST_SHA256,
-    )
-
-    # Content not in allowlist = INGEST_WITHOUT_AUTHORITY (authority claim invalid)
-    assert report.safety_invariants["INGEST_WITHOUT_AUTHORITY"] == 1, \
-        "Content not in authority allowlist should be flagged as without authority"
-    assert report.coverage_complete is False
+    # L'allowlist doit couvrir TOUT le périmètre d'ingestion, pas un
+    # échantillon : une couverture partielle est un refus, pas un simple
+    # invariant compté dans un rapport par ailleurs présenté comme vérifié.
+    with pytest.raises(
+        ValueError,
+        match="SEMANTIC_VALIDATION failed: the authority allowlist does not cover",
+    ):
+        generate_coverage_report(
+            catalog_path,
+            rights_path=rights_path,
+            pii_path=pii_path,
+            routing_path=routing_path,
+            golden_path=golden_path,
+            manifest_path=manifest_path,
+            authority_path=authority_path,
+            authority_review_binding_path=_write_review_binding(
+                tmp_path, _valid_authority_document()
+            ),
+            authority_trust_anchor_path=_write_trust_anchor(tmp_path),
+            authority_environment="rehearsal",
+            expected_total=2,
+            expected_manifest_sha256=MANIFEST_SHA256,
+            authority_now=AUTHORITY_NOW,
+        )
 
 
 def test_h2f_defaut5_lot41a_v1_has_no_content_verification(
@@ -679,7 +858,7 @@ def test_h2f_defaut5_lot41a_v1_has_no_content_verification(
     """H2-F Défaut 5: LOT41A-V1 (no content allowlist) cannot verify content authority."""
     catalog_path = _write_real_catalog(tmp_path)
     golden_path = _write_golden_spec(tmp_path)
-    routing_path, rights_path, pii_path, _ = _write_external_evidence(
+    routing_path, rights_path, pii_path, _, manifest_path = _write_external_evidence(
         tmp_path, include_authority=False
     )
 
@@ -713,20 +892,571 @@ def test_h2f_defaut5_lot41a_v1_has_no_content_verification(
         },
     }
     authority_path = tmp_path / "v1_authority.json"
-    authority_path.write_text(json.dumps(authority), encoding="utf-8")
+    authority_path.write_bytes(
+        ScopeAuthorizationArtifactV1.model_validate(authority).canonical_bytes()
+    )
 
-    report = generate_coverage_report(
+    # V1 ne porte aucune allowlist de contenu : elle ne peut donc jamais
+    # prouver qu'un objet précis du corpus a été autorisé. Le gate final la
+    # refuse au lieu de la compter comme « auto-déclarée » dans un rapport
+    # qui prétendrait par ailleurs avoir vérifié l'autorité.
+    with pytest.raises(
+        ValueError, match="STRUCTURAL_VALIDATION failed: the final gate requires"
+    ):
+        generate_coverage_report(
+            catalog_path,
+            rights_path=rights_path,
+            pii_path=pii_path,
+            routing_path=routing_path,
+            golden_path=golden_path,
+            manifest_path=manifest_path,
+            authority_path=authority_path,
+            authority_review_binding_path=_write_review_binding(
+                tmp_path, _valid_authority_document()
+            ),
+            authority_trust_anchor_path=_write_trust_anchor(tmp_path),
+            authority_environment="rehearsal",
+            expected_total=2,
+            expected_manifest_sha256=MANIFEST_SHA256,
+            authority_now=AUTHORITY_NOW,
+        )
+
+
+# ---------------------------------------------------------------------------
+# H2-F : les trois couches de validation d'autorité, un rejet par contrôle
+# ---------------------------------------------------------------------------
+
+
+def _valid_authority_document() -> dict[str, object]:
+    """L'autorisation nominale — chaque test ci-dessous n'en change qu'UNE
+    chose, pour qu'un rejet ne puisse jamais être attribué au mauvais
+    contrôle."""
+    return {
+        "protocol_version": "LOT41A-V2",
+        "authorization_id": "h2b_test_authority_v1",
+        "decision": "AUTHORIZE_INGESTION_SCOPE",
+        "manifest_digest": MANIFEST_SHA256,
+        "profile_id": "h2b_test_profile",
+        "profile_version": "1.0.0",
+        "profile_fingerprint": "f" * 64,
+        "allowed_domains": ["eduscol.education.fr"],
+        "rights_categories": ["officiel_public"],
+        "exclusions": [],
+        "pii_absence_attested": True,
+        "pii_absence_evidence": "Manual review: no PII found",
+        "valid_from": "2026-01-01T00:00:00.000000Z",
+        "valid_until": "2026-12-31T23:59:59.999999Z",
+        "allowed_content_sha256": [CONTENT_SHA256],
+        "scope": {
+            "audience": ["libre"],
+            "candidat": "libre",
+            "collection": "test_collection",
+            "matiere": "maths",
+            "niveau": "terminale",
+            "programme_version": "v1",
+            "school_year": "2026-2027",
+            "tenant": "libre_terminale",
+            "visibility": "public",
+            "voie": "generale",
+        },
+    }
+
+
+def _generate_with_authority(
+    tmp_path: Path,
+    *,
+    authority_path: Path,
+    now=AUTHORITY_NOW,
+    revocations_path: Path | None = None,
+    binding_path: Path | None = None,
+    trust_anchor_path: Path | None = None,
+    environment: str = "rehearsal",
+):
+    catalog_path = _write_real_catalog(tmp_path)
+    golden_path = _write_golden_spec(tmp_path)
+    routing_path, rights_path, pii_path, _, manifest_path = _write_external_evidence(
+        tmp_path, include_authority=False
+    )
+    if binding_path is None:
+        binding_path = _write_review_binding(tmp_path, _valid_authority_document())
+    if trust_anchor_path is None:
+        trust_anchor_path = _write_trust_anchor(tmp_path)
+    return generate_coverage_report(
         catalog_path,
         rights_path=rights_path,
         pii_path=pii_path,
         routing_path=routing_path,
         golden_path=golden_path,
+        manifest_path=manifest_path,
         authority_path=authority_path,
+        authority_revocations_path=revocations_path,
+        authority_review_binding_path=binding_path,
+        authority_trust_anchor_path=trust_anchor_path,
+        authority_environment=environment,
+        authority_now=now,
         expected_total=2,
         expected_manifest_sha256=MANIFEST_SHA256,
     )
 
-    # V1 cannot verify individual content = self-declared
-    assert report.safety_invariants["INGEST_WITH_SELF_DECLARED_AUTHORITY"] == 1, \
-        "V1 authority without content allowlist should be flagged as self-declared"
-    assert report.coverage_complete is False
+
+class TestAuthorityStructuralValidation:
+    def test_a_merely_well_formed_json_is_never_an_authorization(
+        self, tmp_path: Path
+    ) -> None:
+        """« JSON bien formé » n'est pas « autorisation ». Le minimum
+        syntaxique doit être refusé par la couche structurelle."""
+        path = tmp_path / "minimal.json"
+        path.write_bytes(b'{"protocol_version": "LOT41A-V2"}\n')
+        with pytest.raises(ValueError, match="STRUCTURAL_VALIDATION failed"):
+            _generate_with_authority(tmp_path, authority_path=path)
+
+    def test_non_canonical_bytes_are_refused(self, tmp_path: Path) -> None:
+        """Le contrôle réellement ajouté : des octets valides au sens du
+        schéma mais réordonnés/ré-indentés produisaient auparavant une
+        autorisation dont le digest ne désignait aucun fichier relisible."""
+        document = _valid_authority_document()
+        path = tmp_path / "non_canonical.json"
+        path.write_text(json.dumps(document, indent=4), encoding="utf-8")
+        with pytest.raises(ValueError, match="not in canonical form"):
+            _generate_with_authority(tmp_path, authority_path=path)
+
+    def test_an_unknown_protocol_is_refused(self, tmp_path: Path) -> None:
+        document = _valid_authority_document()
+        document["protocol_version"] = "LOT41A-V3"
+        path = tmp_path / "bad_protocol.json"
+        path.write_text(json.dumps(document), encoding="utf-8")
+        with pytest.raises(ValueError, match="STRUCTURAL_VALIDATION failed"):
+            _generate_with_authority(tmp_path, authority_path=path)
+
+
+class TestAuthoritySemanticValidation:
+    def test_an_expired_authorization_is_refused(self, tmp_path: Path) -> None:
+        path = _write_authority(
+            tmp_path / "authority.json", _valid_authority_document()
+        )
+        with pytest.raises(ValueError, match="SEMANTIC_VALIDATION failed: .*expired"):
+            _generate_with_authority(
+                tmp_path,
+                authority_path=path,
+                now=datetime(2027, 1, 1, tzinfo=UTC),
+            )
+
+    def test_an_authorization_not_valid_yet_is_refused(self, tmp_path: Path) -> None:
+        path = _write_authority(
+            tmp_path / "authority.json", _valid_authority_document()
+        )
+        with pytest.raises(
+            ValueError, match="SEMANTIC_VALIDATION failed: .*not valid yet"
+        ):
+            _generate_with_authority(
+                tmp_path,
+                authority_path=path,
+                now=datetime(2025, 1, 1, tzinfo=UTC),
+            )
+
+    def test_a_revoked_authorization_is_refused(self, tmp_path: Path) -> None:
+        path = _write_authority(
+            tmp_path / "authority.json", _valid_authority_document()
+        )
+        revocations = tmp_path / "revocations.json"
+        revocations.write_text(
+            json.dumps({"revoked_authorization_ids": ["h2b_test_authority_v1"]}),
+            encoding="utf-8",
+        )
+        with pytest.raises(
+            ValueError, match="SEMANTIC_VALIDATION failed: .*revocation registry"
+        ):
+            _generate_with_authority(
+                tmp_path, authority_path=path, revocations_path=revocations
+            )
+
+    def test_a_revocation_registry_naming_another_id_does_not_block(
+        self, tmp_path: Path
+    ) -> None:
+        """Garde-fou de sensibilité : le refus ci-dessus doit venir de
+        l'identifiant, pas de la simple présence d'un registre."""
+        path = _write_authority(
+            tmp_path / "authority.json", _valid_authority_document()
+        )
+        revocations = tmp_path / "revocations.json"
+        revocations.write_text(
+            json.dumps({"revoked_authorization_ids": ["some_other_authority"]}),
+            encoding="utf-8",
+        )
+        report = _generate_with_authority(
+            tmp_path, authority_path=path, revocations_path=revocations
+        )
+        assert report.safety_invariants["INGEST_WITHOUT_AUTHORITY"] == 0
+
+    def test_an_undetermined_rights_category_is_refused(self, tmp_path: Path) -> None:
+        """Deux barrières indépendantes, mesurées ensemble : le contrat rend
+        ``unknown`` irreprésentable (le fichier ne peut donc pas être écrit
+        sous forme canonique), et la couche sémantique le refuserait quand
+        même si une telle ligne apparaissait par un chemin inattendu."""
+        document = _valid_authority_document()
+        document["rights_categories"] = ["unknown"]
+        with pytest.raises(ValidationError, match="never contain 'unknown'"):
+            ScopeAuthorizationArtifactV2.model_validate(document)
+
+        path = tmp_path / "unknown_rights.json"
+        path.write_text(json.dumps(document), encoding="utf-8")
+        with pytest.raises(ValueError, match="STRUCTURAL_VALIDATION failed"):
+            _generate_with_authority(tmp_path, authority_path=path)
+
+    def test_a_malformed_revocation_registry_is_refused(self, tmp_path: Path) -> None:
+        path = _write_authority(
+            tmp_path / "authority.json", _valid_authority_document()
+        )
+        revocations = tmp_path / "revocations.json"
+        revocations.write_text(json.dumps({"revoked_authorization_ids": [""]}), encoding="utf-8")
+        with pytest.raises(ValueError, match="revoked_authorization_ids"):
+            _generate_with_authority(
+                tmp_path, authority_path=path, revocations_path=revocations
+            )
+
+
+class TestAuthorityReviewBindingValidation:
+    def test_the_report_publishes_the_recomputed_binding(self, tmp_path: Path) -> None:
+        """Le rapport publie ce sur quoi il s'est appuyé — chemin canonique
+        dérivé de l'identifiant, digest recalculé, SHA-1 de blob Git des
+        octets exacts — plutôt qu'un booléen « vérifié »."""
+        document = _valid_authority_document()
+        path = _write_authority(tmp_path / "authority.json", document)
+        report = _generate_with_authority(tmp_path, authority_path=path)
+
+        artifact = ScopeAuthorizationArtifactV2.model_validate(document)
+        assert report.input_files["authority_canonical_path"] == (
+            "governance/authorizations/h2b_test_authority_v1.json"
+        )
+        assert report.input_files["authority_authorization_digest"] == artifact.digest()
+        assert report.input_files["authority_artifact_blob_sha"] == git_blob_sha1(
+            artifact.canonical_bytes()
+        )
+
+    def test_the_canonical_path_is_derived_from_the_identifier_only(
+        self, tmp_path: Path
+    ) -> None:
+        """Un opérateur ne choisit jamais le chemin relu : renommer le
+        fichier local ne change pas le chemin gouverné qui sera relu."""
+        document = _valid_authority_document()
+        path = _write_authority(tmp_path / "renamed-by-operator.json", document)
+        report = _generate_with_authority(tmp_path, authority_path=path)
+        assert report.input_files["authority_canonical_path"] == (
+            "governance/authorizations/h2b_test_authority_v1.json"
+        )
+
+
+# ---------------------------------------------------------------------------
+# ADR-0035 — le gate final exige une liaison de revue scellée
+# ---------------------------------------------------------------------------
+
+
+def _generate_with_binding(
+    tmp_path: Path,
+    *,
+    binding_path: Path | None = None,
+    trust_anchor_path: Path | None = None,
+    environment: str = "production",
+    now: datetime = AUTHORITY_NOW,
+    **binding_overrides: Any,
+):
+    """Chemin nominal, avec un seul paramètre du reçu modifié à la fois."""
+    authority = _valid_authority_document()
+    authority_path = _write_authority(tmp_path / "authority.json", authority)
+    if binding_path is None:
+        binding_path = _write_review_binding(tmp_path, authority, **binding_overrides)
+    if trust_anchor_path is None:
+        trust_anchor_path = _write_trust_anchor(tmp_path, environment=environment)
+    return _generate_with_authority(
+        tmp_path,
+        authority_path=authority_path,
+        binding_path=binding_path,
+        trust_anchor_path=trust_anchor_path,
+        environment=environment,
+        now=now,
+    )
+
+
+class TestFinalGateRequiresReviewBinding:
+    def test_a_valid_receipt_lets_the_final_gate_pass_the_binding_layer(
+        self, tmp_path: Path
+    ) -> None:
+        report = _generate_with_binding(tmp_path)
+        assert report.authority_review_binding_verified is True
+        assert report.authority_environment == "production"
+        assert report.input_files["authority_review_reviewer"] == TRUSTED_REVIEWER
+        assert report.input_files["authority_review_head_sha"] == HEAD_SHA
+        assert report.input_files["authority_review_repository"] == REPOSITORY
+
+    def test_a_missing_receipt_is_refused(self, tmp_path: Path) -> None:
+        """Le défaut fermé par ce lot : sans preuve de revue, le gate ne peut
+        plus être vert — et ce n'est pas un avertissement, c'est un refus."""
+        authority = _valid_authority_document()
+        authority_path = _write_authority(tmp_path / "authority.json", authority)
+        catalog_path = _write_real_catalog(tmp_path)
+        golden_path = _write_golden_spec(tmp_path)
+        routing_path, rights_path, pii_path, _, manifest_path = (
+            _write_external_evidence(tmp_path, include_authority=False)
+        )
+        with pytest.raises(ValueError, match="requires .*review binding receipt"):
+            generate_coverage_report(
+                catalog_path,
+                rights_path=rights_path,
+                pii_path=pii_path,
+                routing_path=routing_path,
+                golden_path=golden_path,
+                manifest_path=manifest_path,
+                authority_path=authority_path,
+                authority_now=AUTHORITY_NOW,
+                expected_total=2,
+                expected_manifest_sha256=MANIFEST_SHA256,
+            )
+
+    def test_a_receipt_file_that_does_not_exist_is_refused(
+        self, tmp_path: Path
+    ) -> None:
+        with pytest.raises(ValueError, match="does not exist"):
+            _generate_with_binding(tmp_path, binding_path=tmp_path / "absent.json")
+
+    def test_a_missing_trust_anchor_is_refused(self, tmp_path: Path) -> None:
+        with pytest.raises(ValueError, match="trust anchor does not exist"):
+            _generate_with_binding(
+                tmp_path, trust_anchor_path=tmp_path / "absent_anchor.json"
+            )
+
+    def test_a_caller_authored_unsigned_receipt_is_refused(
+        self, tmp_path: Path
+    ) -> None:
+        """Un JSON écrit à la main — le scénario exact que ce lot ferme."""
+        path = tmp_path / "forged.json"
+        path.write_text(
+            json.dumps(_review_binding_document(_valid_authority_document())),
+            encoding="utf-8",
+        )
+        with pytest.raises(ValueError, match="REVIEW_BINDING_VALIDATION failed"):
+            _generate_with_binding(tmp_path, binding_path=path)
+
+    def test_a_receipt_signed_by_an_unapproved_key_is_refused(
+        self, tmp_path: Path
+    ) -> None:
+        path = _write_review_binding(
+            tmp_path,
+            _valid_authority_document(),
+            seed="55" * 32,
+            filename="rogue.json",
+        )
+        with pytest.raises(ValueError, match="signature does not verify"):
+            _generate_with_binding(tmp_path, binding_path=path)
+
+    def test_an_unknown_key_id_is_refused(self, tmp_path: Path) -> None:
+        path = _write_review_binding(
+            tmp_path,
+            _valid_authority_document(),
+            key_id="rogue-signer",
+            filename="unknown_key.json",
+        )
+        with pytest.raises(ValueError, match="not declared in the trust anchor"):
+            _generate_with_binding(tmp_path, binding_path=path)
+
+    def test_a_tampered_receipt_is_refused(self, tmp_path: Path) -> None:
+        path = tmp_path / "review_binding.json"
+        _write_review_binding(tmp_path, _valid_authority_document())
+        document = json.loads(path.read_text(encoding="utf-8"))
+        document["binding"]["reviewer_login"] = "attacker"
+        path.write_text(
+            json.dumps(document, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(ValueError, match="REVIEW_BINDING_VALIDATION failed"):
+            _generate_with_binding(tmp_path, binding_path=path)
+
+    @pytest.mark.parametrize(
+        ("override", "message"),
+        (
+            ({"repository": "attacker/RAG"}, "another repository"),
+            ({"reviewer_login": "stranger"}, "not among the trusted"),
+        ),
+    )
+    def test_a_receipt_from_another_context_is_refused(
+        self, tmp_path: Path, override: dict[str, Any], message: str
+    ) -> None:
+        with pytest.raises(ValueError, match=message):
+            _generate_with_binding(tmp_path, **override)
+
+    @pytest.mark.parametrize(
+        "override",
+        (
+            {"pull_request": 96},
+            {"base_sha": "9" * 40},
+            {"head_sha": "8" * 40},
+        ),
+    )
+    def test_a_receipt_for_another_pr_base_or_head_is_refused(
+        self, tmp_path: Path, override: dict[str, Any]
+    ) -> None:
+        """Le challenge dérive de ces dimensions : les changer sans le
+        recalculer casse la liaison, et le recalculer produirait un
+        challenge qu'aucune review n'a jamais porté."""
+        with pytest.raises(ValueError, match="challenge recycled"):
+            _generate_with_binding(tmp_path, **override)
+
+    def test_a_receipt_for_another_artifact_is_refused(self, tmp_path: Path) -> None:
+        other = _valid_authority_document()
+        other["allowed_content_sha256"] = ["b" * 64]
+        path = _write_review_binding(tmp_path, other, filename="other_artifact.json")
+        with pytest.raises(ValueError, match="different authorization bytes"):
+            _generate_with_binding(tmp_path, binding_path=path)
+
+    def test_a_receipt_with_another_git_blob_sha1_is_refused(
+        self, tmp_path: Path
+    ) -> None:
+        with pytest.raises(ValueError, match="Git blob SHA-1"):
+            _generate_with_binding(
+                tmp_path, authorization_artifact_git_blob_sha1="c" * 40
+            )
+
+    def test_a_receipt_naming_another_authorization_is_refused(
+        self, tmp_path: Path
+    ) -> None:
+        with pytest.raises(ValueError, match="covers authorization"):
+            _generate_with_binding(
+                tmp_path,
+                authorization_id="other-authority-v1",
+                authorization_artifact_path=(
+                    "governance/authorizations/other-authority-v1.json"
+                ),
+            )
+
+    def test_a_self_approved_receipt_is_refused(self, tmp_path: Path) -> None:
+        with pytest.raises(ValueError, match="self-approval"):
+            _generate_with_binding(
+                tmp_path,
+                author_login=TRUSTED_REVIEWER,
+                challenge_digest=expected_challenge_digest(
+                    repository=REPOSITORY,
+                    pull_request=PULL_REQUEST,
+                    base_ref="main",
+                    base_sha=BASE_SHA,
+                    head_sha=HEAD_SHA,
+                    author=TRUSTED_REVIEWER,
+                    reviewer=TRUSTED_REVIEWER,
+                ),
+            )
+
+    def test_an_insufficient_permission_is_unrepresentable(self, tmp_path: Path) -> None:
+        with pytest.raises(Exception, match="reviewer_permission"):
+            _write_review_binding(
+                tmp_path, _valid_authority_document(), reviewer_permission="read"
+            )
+
+    def test_an_expired_receipt_is_refused(self, tmp_path: Path) -> None:
+        with pytest.raises(ValueError, match="expired"):
+            _generate_with_binding(tmp_path, now=datetime(2027, 1, 1, tzinfo=UTC))
+
+    def test_a_revoked_authorization_is_refused_even_with_a_valid_receipt(
+        self, tmp_path: Path
+    ) -> None:
+        """Une revue scellée ne survit jamais à la révocation de ce qu'elle
+        a relu."""
+        authority = _valid_authority_document()
+        authority_path = _write_authority(tmp_path / "authority.json", authority)
+        revocations = tmp_path / "revocations.json"
+        revocations.write_text(
+            json.dumps(
+                {"revoked_authorization_ids": [str(authority["authorization_id"])]}
+            ),
+            encoding="utf-8",
+        )
+        with pytest.raises(ValueError, match="revocation registry"):
+            _generate_with_authority(
+                tmp_path,
+                authority_path=authority_path,
+                revocations_path=revocations,
+                binding_path=_write_review_binding(tmp_path, authority),
+                trust_anchor_path=_write_trust_anchor(tmp_path, environment="production"),
+                environment="production",
+            )
+
+    def test_a_receipt_reused_for_another_corpus_is_refused(
+        self, tmp_path: Path
+    ) -> None:
+        """Le reçu couvre des octets, pas un corpus : le réutiliser pour une
+        autre autorisation est refusé même s'il est parfaitement signé."""
+        first = _valid_authority_document()
+        second = _valid_authority_document()
+        second["authorization_id"] = "h2b_other_corpus_v1"
+        second["allowed_content_sha256"] = ["d" * 64]
+        binding_for_second = _write_review_binding(
+            tmp_path, second, filename="binding_for_second.json"
+        )
+        authority_path = _write_authority(tmp_path / "authority.json", first)
+        with pytest.raises(ValueError, match="covers authorization"):
+            _generate_with_authority(
+                tmp_path,
+                authority_path=authority_path,
+                binding_path=binding_for_second,
+                trust_anchor_path=_write_trust_anchor(tmp_path, environment="production"),
+                environment="production",
+            )
+
+
+class TestRehearsalCanNeverBeGreen:
+    def test_a_rehearsal_run_verifies_the_chain_but_never_turns_green(
+        self, tmp_path: Path
+    ) -> None:
+        """Un mode non final existe, il est explicitement nommé, et il est
+        structurellement incapable de rendre un verdict final vert."""
+        report = _generate(
+            tmp_path,
+            _write_real_catalog(tmp_path),
+            _write_golden_spec(tmp_path),
+            include_authority=True,
+            environment="rehearsal",
+            expected_total=2,
+        )
+        assert report.authority_review_binding_verified is True
+        assert report.decision_coverage_complete is True
+        assert report.golden_validation_pass is True
+        assert all(value == 0 for value in report.safety_invariants.values())
+        # Toute la chaîne est vérifiée, et pourtant :
+        assert report.coverage_complete is False
+        assert report.authority_environment == "rehearsal"
+        assert "AUTHORITY_EVIDENCE_MODE=rehearsal" in render_markdown(report)
+
+    def test_a_test_key_can_never_validate_a_production_run(
+        self, tmp_path: Path
+    ) -> None:
+        authority = _valid_authority_document()
+        authority_path = _write_authority(tmp_path / "authority.json", authority)
+        with pytest.raises(ValueError, match="'test' environment"):
+            _generate_with_authority(
+                tmp_path,
+                authority_path=authority_path,
+                binding_path=_write_review_binding(tmp_path, authority),
+                trust_anchor_path=_write_trust_anchor(tmp_path, environment="test"),
+                environment="production",
+            )
+
+    def test_an_invalid_environment_is_refused(self, tmp_path: Path) -> None:
+        authority = _valid_authority_document()
+        authority_path = _write_authority(tmp_path / "authority.json", authority)
+        with pytest.raises(ValueError, match="authority_environment must be"):
+            _generate_with_authority(
+                tmp_path, authority_path=authority_path, environment="whatever"
+            )
+
+
+def test_the_repository_ships_no_production_trust_anchor() -> None:
+    """Barrière de go-live, mesurée plutôt que promise : tant qu'aucune ancre
+    de production n'est provisionnée, aucun reçu de production ne peut être
+    vérifié. Ce test tombera le jour où l'ancre réelle sera commitée — ce
+    sera alors une décision consciente, pas un glissement."""
+    from rag_pedago.imports.h2b_coverage_report import _REPOSITORY_ROOT
+
+    anchors = list((_REPOSITORY_ROOT / "governance").rglob("*trust*anchor*.json")) if (
+        _REPOSITORY_ROOT / "governance"
+    ).is_dir() else []
+    assert anchors == [], (
+        "a production trust anchor appeared in the repository — provisioning it "
+        "is a deliberate go-live decision that must be reviewed on its own"
+    )
