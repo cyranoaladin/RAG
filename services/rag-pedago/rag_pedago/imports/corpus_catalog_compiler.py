@@ -1044,14 +1044,36 @@ def print_summary(report: CompilationReport) -> None:
 
 
 def main() -> int:
+    """Deux modes explicites, jamais un défaut implicite.
+
+    Jusqu'ici la CLI n'exposait que ``--manifest``, c'est-à-dire
+    l'inventaire TSV historique — la voie que ce lot a marquée comme non
+    autoritaire. Un auteur de workflow qui cherchait « le » compilateur
+    obtenait donc la mauvaise. ``--sealed-manifest`` sélectionne
+    désormais le chemin GNU, et les deux modes s'excluent : compiler à la
+    fois un TSV et un manifeste scellé produirait deux identités sans que
+    rien ne dise laquelle prévaut.
+    """
     parser = argparse.ArgumentParser(
         description="Compile corpus catalog with disposition assignments."
     )
     parser.add_argument(
         "--manifest",
         type=Path,
-        required=True,
-        help="Path to corpus manifest (TSV format)",
+        help=(
+            "Legacy TSV import inventory. NOT a sealed manifest: the resulting "
+            "report cannot serve as H2 evidence."
+        ),
+    )
+    parser.add_argument(
+        "--sealed-manifest",
+        type=Path,
+        help="Path to the canonical GNU sha256sum manifest (production path).",
+    )
+    parser.add_argument(
+        "--placement-catalog",
+        type=Path,
+        help="TSV of pedagogical placements; required with --sealed-manifest.",
     )
     parser.add_argument(
         "--config",
@@ -1071,7 +1093,44 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    if bool(args.manifest) == bool(args.sealed_manifest):
+        parser.error(
+            "provide exactly one of --manifest (legacy TSV, non-authoritative) "
+            "or --sealed-manifest (canonical GNU manifest)"
+        )
+
     config = load_routing_config(args.config)
+
+    if args.sealed_manifest:
+        if not args.placement_catalog:
+            parser.error("--placement-catalog is required with --sealed-manifest")
+        # Le digest attendu est celui du fichier présenté : la campagne le
+        # recoupe en amont, et le compilateur refuse toute divergence entre
+        # ce qu'il lit et ce qu'il déclare.
+        config["manifest_sha256"] = compute_file_sha256(args.sealed_manifest)
+        catalog = compile_sealed_catalog(
+            args.sealed_manifest, args.placement_catalog, config
+        )
+        print(f"Sealed manifest: {catalog.manifest_sha256}")
+        print(f"Manifest entries: {catalog.manifest_entries}")
+        print(f"Physical objects: {catalog.physical_object_count}")
+        print(f"Content artifacts: {catalog.content_artifact_count}")
+        print(f"Eduscol placements: {catalog.eduscol_placement_count}")
+        if args.output:
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(
+                json.dumps(
+                    catalog.to_dict(include_objects=args.include_objects),
+                    indent=2,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            print(f"\nSealed catalog written to: {args.output}")
+        return 0 if catalog.verification_passed else 1
+
     report = compile_catalog(args.manifest, config)
 
     print_summary(report)
