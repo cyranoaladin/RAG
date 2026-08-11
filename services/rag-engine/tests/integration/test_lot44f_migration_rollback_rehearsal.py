@@ -39,7 +39,12 @@ ROLLBACKS_DIR = INFRA_ROOT / "postgres" / "ingestion_control" / "rollbacks"
 
 sys.path.insert(0, str(ENGINE_ROOT / "src"))
 
-PG_IMAGE = "pgvector/pgvector:pg16"
+#: Image épinglée par digest — jamais un tag mutable. La valeur est
+#: celle déjà vérifiée et versionnée dans ``infra/docker-compose.v2.yml``
+#: (source de vérité unique) : un test de gouvernance qui tournerait sur
+#: une image différente de celle du runtime ne prouverait rien sur le
+#: runtime.
+PG_IMAGE = "pgvector/pgvector:pg16@sha256:00ba258a66dac104fd5171074a0084462a64a1369d8513f3d0a634e2f24d15bc"
 PG_SUPERUSER = "raguser"
 PG_SUPERUSER_PASSWORD = secrets.token_urlsafe(24)  # revue PR#90 : jamais un litteral statique
 PG_DB = "ragdb"

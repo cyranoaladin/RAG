@@ -15,7 +15,7 @@ MYPY   := $(PY) -m mypy
 PYTEST := $(PY) -m pytest
 
 .PHONY: help venv install install-dev lint typecheck test test-integration \
-    test-integration-hybrid smoke \
+    test-integration-hybrid test-governance-pg smoke \
     obs-up obs-down obs-smoke obs-quickcheck obs-restart obs-status \
     compose-test-up compose-test-down print-tools dev compose-up compose-down compose-restart \
     eval
@@ -66,6 +66,23 @@ test-integration: install-dev
 
 test-integration-hybrid: install-dev
 	bash infra/scripts/test_hybrid_integration.sh
+
+# Suites de gouvernance sur PostgreSQL REEL (G2). Perimetre volontairement
+# etroit : uniquement les suites qui prouvent les invariants gouvernes
+# (migration 013, LOT42-V2, attribution H2-F, rollbacks, concurrence).
+# Le e2e Docker authority en est exclu : il construit une image et n'est pas
+# dimensionne pour bloquer chaque PR.
+# Chaque suite demarre son propre conteneur jetable et le supprime ; aucune
+# base partagee, aucun credential durable, aucun secret CI necessaire.
+test-governance-pg: install-dev
+	PYTHONPATH=src $(PYTEST) -q \
+	    tests/integration/test_lot42_v2_migration_013.py \
+	    tests/integration/test_h2f_artifact_attribution_pg.py \
+	    tests/integration/test_h2f_attribution_concurrency_pg.py \
+	    tests/integration/test_lot42_publication_attestation.py \
+	    tests/integration/test_lot44f_migration_rollback_rehearsal.py \
+	    tests/integration/test_lot44f_migration_upgrade_paths.py \
+	    tests/integration/test_lot44f_rollback_runner.py
 
 # Smoke RAG deja present (si votre repo inclut infra/scripts/smoke.sh)
 smoke:
