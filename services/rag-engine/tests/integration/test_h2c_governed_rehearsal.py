@@ -66,6 +66,7 @@ from ingestor.governed_publisher_v2 import (  # noqa: E402
     publish_governed_artifact,
 )
 from ingestor.ingestion_agents.classifier import ConformityResult  # noqa: E402
+from ingestor.ingestion_agents.extractor import run_extractor  # noqa: E402
 from ingestor.ingestion_agents.fetcher import (  # noqa: E402
     ContentAuthorizationBinding,
     run_fetcher,
@@ -74,6 +75,11 @@ from ingestor.ingestion_agents.quality_agent import run_quality_agent  # noqa: E
 from ingestor.ingestion_agents.rights_agent import run_rights_agent  # noqa: E402
 from ingestor.ingestion_agents.transitions import (  # noqa: E402
     apply_resource_transition,
+)
+from ingestor.ingestion_control.artifact_attribution import (  # noqa: E402
+    derive_artifact_attribution,
+    load_artifact_attribution,
+    persist_artifact_attribution,
 )
 from ingestor.ingestion_control.governed_publication_path import (  # noqa: E402
     promote_reviewed_publication,
@@ -431,7 +437,7 @@ def _run_positive_fetcher(
         )
         persist_artifact(conn, artifact=artifact)
         conn.commit()
-    return artifact, stored.state_version
+    return artifact, stored.state_version, candidate
 
 
 def _advance_stored_placement(
@@ -440,33 +446,34 @@ def _advance_stored_placement(
     source: dict[str, Any],
     profile: CollectionProfile,
     artifact: ArtifactRecord,
+    candidate: ResourceCandidate,
     expected_version: int,
-    extracted: str,
+    stored_raw: bytes,
     placement_catalog_sha256: str,
-) -> tuple[uuid.UUID, uuid.UUID]:
-    """Use canonical CAS after the one measured PDF parse.
+) -> tuple[uuid.UUID, uuid.UUID, str]:
+    """Avance la ressource par les fonctions de production.
 
-    PDF extraction and classification are rehearsal adapters because the
-    generic LOT44 extractor deliberately rejects PDF.  Their evidence is
-    bound to the sealed placement catalog and the exact stored content SHA.
+    **Ce qui a changé.** L'extraction passait par un adaptateur de
+    répétition parce que l'extracteur générique refusait le PDF ; il
+    l'accepte désormais, donc ``run_extractor`` — le même appel que le
+    worker — porte la transition ``STORED -> EXTRACTED``. Et l'attribution
+    durable est écrite par ``persist_artifact_attribution``, comme le
+    worker le fait après le gate qualité : sans elle, l'attestation LOT42
+    refusait la ressource (``DURABLE_EVIDENCE_MISSING``), et l'ajouter à
+    la main dans le test aurait prouvé le test plutôt que le pipeline.
+
+    La classification reste liée au catalogue de placements scellé.
     """
     assert artifact.sha256 == REAL_SHA
     assert source["content_sha256"] == artifact.sha256
     with psycopg.connect(control_dsn) as conn:
-        extracted_transition = apply_resource_transition(
+        extracted, extracted_transition = run_extractor(
             conn,
-            resource_id=artifact.resource_id,
-            expected_state=ResourceState.STORED,
+            artifact=artifact,
             expected_version=expected_version,
-            new_state=ResourceState.EXTRACTED,
-            actor="h2e-pdf-extraction-adapter",
-            run_id=artifact.run_id,
-            payload={
-                "artifact_id": str(artifact.artifact_id),
-                "content_sha256": artifact.sha256,
-                "extracted_chars": len(extracted),
-                "extracted_text_ref": artifact.extracted_text_ref,
-            },
+            actor="h2e-positive-rehearsal",
+            read_artifact=lambda *, extracted_text_ref: stored_raw,
+            job_id=None,
         )
         classified_transition = apply_resource_transition(
             conn,
@@ -515,8 +522,22 @@ def _advance_stored_placement(
         )
         assert decision.decision == "ROUTE"
         assert routed.to_state is ResourceState.ROUTED
+
+        # Même appel que ``_process_claimed_job`` : l'attestation LOT42
+        # exige cet enregistrement, et une attribution fabriquée par le
+        # test prouverait le test.
+        persist_artifact_attribution(
+            conn,
+            attribution=derive_artifact_attribution(
+                ingestion_artifact_id=artifact.artifact_id,
+                candidate=candidate,
+                profile=profile,
+            ),
+            run_id=artifact.run_id,
+            actor="h2e-positive-rehearsal",
+        )
         conn.commit()
-    return artifact.resource_id, artifact.artifact_id
+    return artifact.resource_id, artifact.artifact_id, extracted
 
 
 def _capture_cli(function: Any, arguments: list[str]) -> tuple[int, str, str]:
@@ -825,21 +846,28 @@ def test_real_pdf_runs_through_lot41_lot42_publisher_and_retrieval(
             assert hashlib.sha256(content).hexdigest() == REAL_SHA
             return extracted
 
-        resources = [
+        advanced = [
             _advance_stored_placement(
                 control_dsn,
                 source=source,
                 profile=profile,
                 artifact=artifact,
+                candidate=candidate,
                 expected_version=stored_version,
-                extracted=extracted,
+                stored_raw=stored_raw,
                 placement_catalog_sha256=placement_catalog_sha256,
             )
-            for source, profile, (artifact, stored_version) in zip(
+            for source, profile, (artifact, stored_version, candidate) in zip(
                 source_placements, profiles, fetched, strict=True
             )
         ]
+        # Le texte extrait vient désormais de ``run_extractor`` : on le
+        # récupère ici et on garde ``resources`` à sa forme d'origine pour
+        # que les appelants en aval restent inchangés.
+        resources = [(resource_id, artifact_id) for resource_id, artifact_id, _ in advanced]
         resource_ids = [resource_id for resource_id, _ in resources]
+        extracted = advanced[0][2]
+        assert all(text == extracted for _, _, text in advanced)
         with psycopg.connect(control_dsn) as conn:
             artifact_metrics = conn.execute(
                 """
@@ -968,15 +996,25 @@ def test_real_pdf_runs_through_lot41_lot42_publisher_and_retrieval(
         assert retrieval_eligible_row == (7,)
         lot42_retrieval_eligible_resources = int(retrieval_eligible_row[0])
 
+        # Les faits publiés sont **dérivés de l'attribution durable**, pas
+        # écrits à la main. Le publisher confronte les deux ; un artefact
+        # composé dans le test affirmerait des faits que personne n'a
+        # dérivés du candidat réel, et le refus « verified LOT42 facts do
+        # not match publication » est exactement ce contrôle qui fait son
+        # travail.
+        with psycopg.connect(control_dsn) as conn:
+            recorded, _digest = load_artifact_attribution(
+                conn, ingestion_artifact_id=resources[0][1]
+            )
         artifact = GovernedArtifact(
             content=raw,
             content_sha256=REAL_SHA,
-            source_label=str(source_placements[0]["title"]),
+            source_label=recorded.source_label,
             source_uri=f"urn:nexus:sha256:{REAL_SHA}",
             rights=Rights.officiel_public.value,
-            official=True,
-            source_kind="eduscol",
-            type_doc="programme_officiel",
+            official=recorded.official,
+            source_kind=recorded.source_kind,
+            type_doc=recorded.type_doc,
         )
         placements = tuple(
             EligiblePlacement(
