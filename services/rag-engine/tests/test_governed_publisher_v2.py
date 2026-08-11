@@ -284,6 +284,8 @@ def test_atomic_reverification_denial_rolls_back_before_product_cursor(
         manifest_digest=placement.current_manifest_digest,
         review_id="lot42-v2",
         attestation_digest="3" * 64,
+        protocol_version="LOT42-V2",
+        attributed_facts_digest="5" * 64,
         authorization=SimpleNamespace(scope=placement.scope),
         facts=facts,
     )
@@ -373,6 +375,8 @@ def test_external_authority_pin_commits_before_fenced_product_commit(
         manifest_digest=placement.current_manifest_digest,
         review_id="lot42-v2",
         attestation_digest="3" * 64,
+        protocol_version="LOT42-V2",
+        attributed_facts_digest="5" * 64,
         authorization=SimpleNamespace(
             authorization_id="h2-v2",
             authorization_digest="4" * 64,
@@ -508,6 +512,8 @@ def test_external_pin_drift_refuses_before_the_product_transaction(
         manifest_digest=placement.current_manifest_digest,
         review_id="lot42-v2",
         attestation_digest="3" * 64,
+        protocol_version="LOT42-V2",
+        attributed_facts_digest="5" * 64,
         authorization=SimpleNamespace(
             authorization_id="h2-v2",
             authorization_digest="4" * 64,

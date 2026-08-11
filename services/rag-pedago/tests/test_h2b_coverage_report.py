@@ -19,6 +19,7 @@ from nexus_contracts.review_binding import (
 )
 from pydantic import ValidationError
 
+from rag_pedago.imports import h2b_coverage_report as module
 from rag_pedago.imports.h2b_coverage_report import (
     generate_coverage_report,
     render_markdown,
@@ -59,6 +60,97 @@ def _write_trust_anchor(
                         "environment": environment,
                     }
                 ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+def _install_governed_root(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    *,
+    anchor_environment: str = "production",
+    anchor_seed: str = TEST_SIGNING_SEED,
+    revoked: list[str] | None = None,
+    write_anchor: bool = True,
+    write_revocations: bool = True,
+) -> Path:
+    """Installe une racine gouvernée de test (ADR-0035, F1/F2).
+
+    ``_GOVERNED_REPOSITORY_ROOT`` est délibérément **non surchargeable
+    depuis le code de production** : ni argument, ni variable
+    d'environnement. Le seul moyen de l'exercer est donc de le remplacer
+    dans le module, ce qui est hors d'atteinte d'un opérateur. Les tests
+    de gouvernance vérifient séparément qu'aucun *vrai* vecteur de
+    redirection ne fonctionne (``NEXUS_REPOSITORY_ROOT``, argument CLI,
+    symlink, évasion).
+    """
+    root = tmp_path / "governed_root"
+    (root / "governance" / "trust-anchors").mkdir(parents=True, exist_ok=True)
+    # Le faux checkout doit porter les marqueurs de racine : la garde de
+    # packaging refuse toute racine qui ne ressemble pas au dépôt.
+    for marker in module._GOVERNED_ROOT_MARKERS:
+        target = root / marker
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if "." in target.name:
+            target.write_text("", encoding="utf-8")
+        else:
+            target.mkdir(parents=True, exist_ok=True)
+    if write_anchor:
+        (root / module._GOVERNED_TRUST_ANCHOR_PATH).write_text(
+            json.dumps(
+                {
+                    "protocol_version": REVIEW_BINDING_PROTOCOL_VERSION,
+                    "keys": [
+                        {
+                            "key_id": TEST_KEY_ID,
+                            "algorithm": "ed25519",
+                            "public_key": public_key_hex(anchor_seed),
+                            "environment": anchor_environment,
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+    if write_revocations:
+        (root / module._GOVERNED_REVOCATIONS_PATH).write_text(
+            json.dumps(
+                {
+                    "protocol_version": module._REVOCATIONS_PROTOCOL_VERSION,
+                    "revoked_authorization_ids": revoked or [],
+                }
+            ),
+            encoding="utf-8",
+        )
+    # F1 : l'allowlist des relecteurs habilités est elle aussi lue au
+    # chemin gouverné en production — le faux checkout doit donc la porter.
+    reviewers_path = root / module._TRUSTED_REVIEWERS_CONFIG
+    reviewers_path.parent.mkdir(parents=True, exist_ok=True)
+    reviewers_path.write_text(
+        (
+            module._REPOSITORY_ROOT / module._TRUSTED_REVIEWERS_CONFIG
+        ).read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(module, "_GOVERNED_REPOSITORY_ROOT", root)
+    return root
+
+
+def _write_revocations(
+    path: Path, revoked: list[str], *, protocol_version: str | None = None
+) -> Path:
+    path.write_text(
+        json.dumps(
+            {
+                "protocol_version": (
+                    module._REVOCATIONS_PROTOCOL_VERSION
+                    if protocol_version is None
+                    else protocol_version
+                ),
+                "revoked_authorization_ids": revoked,
             }
         ),
         encoding="utf-8",
@@ -327,8 +419,12 @@ def _generate(
         authority_review_binding_path=(
             tmp_path / "review_binding.json" if authority_path is not None else None
         ),
+        # F1 : en production l'ancre est gouvernée et fournir l'argument
+        # est un refus ; la fixture n'est donc passée qu'en rehearsal.
         authority_trust_anchor_path=(
-            tmp_path / "trust_anchor.json" if authority_path is not None else None
+            tmp_path / "trust_anchor.json"
+            if authority_path is not None and environment == "rehearsal"
+            else None
         ),
         authority_environment=environment,
         **kwargs,
@@ -367,6 +463,9 @@ def _write_real_catalog(tmp_path: Path, *, authority_status: str = "PASS") -> Pa
                 "disposition": "INGEST",
                 "zone": "01_EDUSCOL_OFFICIEL/",
                 "currentness": "actuel",
+                # F4 : la catégorie de droits fait partie du périmètre que
+                # l'autorisation doit couvrir exhaustivement.
+                "rights_category_candidate": "officiel_public",
                 "gate_statuses": {
                     "rights": "PASS",
                     "pii": "PASS",
@@ -448,9 +547,13 @@ def _write_golden_spec(
 
 
 def test_real_catalog_proves_coverage_and_all_ingest_safety_invariants(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Nominal test: with proper LOT41A-V2 authority evidence, coverage is complete."""
+    """Nominal test: with proper LOT41A-V2 authority evidence, coverage is complete.
+
+    F1/F2 : le run est en mode production, donc l'ancre et le registre
+    viennent des chemins gouvernés — aucun argument ne les désigne."""
+    _install_governed_root(monkeypatch, tmp_path)
     report = _generate(
         tmp_path,
         _write_real_catalog(tmp_path),
@@ -485,7 +588,10 @@ def test_real_catalog_proves_coverage_and_all_ingest_safety_invariants(
     assert "SYNTHETIC_CATALOG_USED_FOR_FINAL_GATE=false" in markdown
 
 
-def test_missing_authority_keeps_coverage_gate_red(tmp_path: Path) -> None:
+def test_missing_authority_keeps_coverage_gate_red(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _install_governed_root(monkeypatch, tmp_path)
     report = _generate(
         tmp_path,
         _write_real_catalog(tmp_path, authority_status="MISSING"),
@@ -498,8 +604,9 @@ def test_missing_authority_keeps_coverage_gate_red(tmp_path: Path) -> None:
 
 
 def test_expected_authority_blocked_candidate_can_pass_inert_h2_gate(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    _install_governed_root(monkeypatch, tmp_path)
     path = _write_real_catalog(tmp_path)
     catalog = json.loads(path.read_text(encoding="utf-8"))
     catalog["physical_objects"][0]["disposition"] = "REVIEW_REQUIRED"
@@ -971,15 +1078,19 @@ def _generate_with_authority(
     binding_path: Path | None = None,
     trust_anchor_path: Path | None = None,
     environment: str = "rehearsal",
+    catalog_path: Path | None = None,
 ):
-    catalog_path = _write_real_catalog(tmp_path)
+    if catalog_path is None:
+        catalog_path = _write_real_catalog(tmp_path)
     golden_path = _write_golden_spec(tmp_path)
     routing_path, rights_path, pii_path, _, manifest_path = _write_external_evidence(
         tmp_path, include_authority=False
     )
     if binding_path is None:
         binding_path = _write_review_binding(tmp_path, _valid_authority_document())
-    if trust_anchor_path is None:
+    # F1 : en production, l'ancre est gouvernée et fournir l'argument est
+    # un refus — la fixture ne sert donc qu'en rehearsal.
+    if trust_anchor_path is None and environment != "production":
         trust_anchor_path = _write_trust_anchor(tmp_path)
     return generate_coverage_report(
         catalog_path,
@@ -1058,10 +1169,8 @@ class TestAuthoritySemanticValidation:
         path = _write_authority(
             tmp_path / "authority.json", _valid_authority_document()
         )
-        revocations = tmp_path / "revocations.json"
-        revocations.write_text(
-            json.dumps({"revoked_authorization_ids": ["h2b_test_authority_v1"]}),
-            encoding="utf-8",
+        revocations = _write_revocations(
+            tmp_path / "revocations.json", ["h2b_test_authority_v1"]
         )
         with pytest.raises(
             ValueError, match="SEMANTIC_VALIDATION failed: .*revocation registry"
@@ -1078,10 +1187,8 @@ class TestAuthoritySemanticValidation:
         path = _write_authority(
             tmp_path / "authority.json", _valid_authority_document()
         )
-        revocations = tmp_path / "revocations.json"
-        revocations.write_text(
-            json.dumps({"revoked_authorization_ids": ["some_other_authority"]}),
-            encoding="utf-8",
+        revocations = _write_revocations(
+            tmp_path / "revocations.json", ["some_other_authority"]
         )
         report = _generate_with_authority(
             tmp_path, authority_path=path, revocations_path=revocations
@@ -1107,9 +1214,8 @@ class TestAuthoritySemanticValidation:
         path = _write_authority(
             tmp_path / "authority.json", _valid_authority_document()
         )
-        revocations = tmp_path / "revocations.json"
-        revocations.write_text(json.dumps({"revoked_authorization_ids": [""]}), encoding="utf-8")
-        with pytest.raises(ValueError, match="revoked_authorization_ids"):
+        revocations = _write_revocations(tmp_path / "revocations.json", [""])
+        with pytest.raises(ValueError, match="REVOCATION_REGISTRY_INVALID"):
             _generate_with_authority(
                 tmp_path, authority_path=path, revocations_path=revocations
             )
@@ -1156,17 +1262,24 @@ def _generate_with_binding(
     *,
     binding_path: Path | None = None,
     trust_anchor_path: Path | None = None,
-    environment: str = "production",
+    environment: str = "rehearsal",
     now: datetime = AUTHORITY_NOW,
     **binding_overrides: Any,
 ):
-    """Chemin nominal, avec un seul paramètre du reçu modifié à la fois."""
+    """Chemin nominal, avec un seul paramètre du reçu modifié à la fois.
+
+    Mode ``rehearsal`` par défaut (ADR-0035, F1) : ces tests portent sur la
+    *sémantique du reçu*, et une ancre de fixture n'est légitime qu'en
+    répétition. La gouvernance du chemin de l'ancre elle-même est couverte
+    par ``TestGovernedTrustAnchor``."""
     authority = _valid_authority_document()
     authority_path = _write_authority(tmp_path / "authority.json", authority)
     if binding_path is None:
         binding_path = _write_review_binding(tmp_path, authority, **binding_overrides)
-    if trust_anchor_path is None:
-        trust_anchor_path = _write_trust_anchor(tmp_path, environment=environment)
+    # F1 : en production, aucune ancre n'est fournie — elle est gouvernée.
+    # Le mode CLI ``rehearsal`` correspond à des clés ``environment="test"``.
+    if trust_anchor_path is None and environment != "production":
+        trust_anchor_path = _write_trust_anchor(tmp_path, environment="test")
     return _generate_with_authority(
         tmp_path,
         authority_path=authority_path,
@@ -1183,10 +1296,23 @@ class TestFinalGateRequiresReviewBinding:
     ) -> None:
         report = _generate_with_binding(tmp_path)
         assert report.authority_review_binding_verified is True
-        assert report.authority_environment == "production"
+        assert report.authority_environment == "rehearsal"
         assert report.input_files["authority_review_reviewer"] == TRUSTED_REVIEWER
         assert report.input_files["authority_review_head_sha"] == HEAD_SHA
         assert report.input_files["authority_review_repository"] == REPOSITORY
+
+    def test_a_valid_receipt_under_the_governed_root_passes_in_production(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Le pendant positif, en production réelle : l'ancre et le registre
+        viennent des chemins gouvernés, aucun argument n'est fourni."""
+        _install_governed_root(monkeypatch, tmp_path)
+        report = _generate_with_binding(
+            tmp_path, environment="production", trust_anchor_path=None
+        )
+        assert report.authority_review_binding_verified is True
+        assert report.authority_revocations_checked is True
+        assert report.authority_environment == "production"
 
     def test_a_missing_receipt_is_refused(self, tmp_path: Path) -> None:
         """Le défaut fermé par ce lot : sans preuve de revue, le gate ne peut
@@ -1357,15 +1483,11 @@ class TestFinalGateRequiresReviewBinding:
         self, tmp_path: Path
     ) -> None:
         """Une revue scellée ne survit jamais à la révocation de ce qu'elle
-        a relu."""
+        a relu. Le registre est celui, gouverné, du mode rehearsal."""
         authority = _valid_authority_document()
         authority_path = _write_authority(tmp_path / "authority.json", authority)
-        revocations = tmp_path / "revocations.json"
-        revocations.write_text(
-            json.dumps(
-                {"revoked_authorization_ids": [str(authority["authorization_id"])]}
-            ),
-            encoding="utf-8",
+        revocations = _write_revocations(
+            tmp_path / "revocations.json", [str(authority["authorization_id"])]
         )
         with pytest.raises(ValueError, match="revocation registry"):
             _generate_with_authority(
@@ -1373,8 +1495,8 @@ class TestFinalGateRequiresReviewBinding:
                 authority_path=authority_path,
                 revocations_path=revocations,
                 binding_path=_write_review_binding(tmp_path, authority),
-                trust_anchor_path=_write_trust_anchor(tmp_path, environment="production"),
-                environment="production",
+                trust_anchor_path=_write_trust_anchor(tmp_path, environment="test"),
+                environment="rehearsal",
             )
 
     def test_a_receipt_reused_for_another_corpus_is_refused(
@@ -1395,9 +1517,419 @@ class TestFinalGateRequiresReviewBinding:
                 tmp_path,
                 authority_path=authority_path,
                 binding_path=binding_for_second,
-                trust_anchor_path=_write_trust_anchor(tmp_path, environment="production"),
+                trust_anchor_path=_write_trust_anchor(tmp_path, environment="test"),
+                environment="rehearsal",
+            )
+
+
+class TestGovernedTrustAnchor:
+    """F1 — l'ancre de production n'est jamais désignée par l'appelant."""
+
+    def test_a_caller_supplied_anchor_is_refused_in_production(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Le cœur du constat F1 : jusqu'ici, l'opérateur choisissait le
+        fichier qui déclarait quelles clés étaient dignes de confiance."""
+        _install_governed_root(monkeypatch, tmp_path)
+        external = _write_trust_anchor(tmp_path, environment="production")
+        with pytest.raises(ValueError, match="TRUST_ANCHOR_ARGUMENT_FORBIDDEN"):
+            _generate_with_binding(
+                tmp_path, environment="production", trust_anchor_path=external
+            )
+
+    def test_an_absent_governed_anchor_refuses_in_production(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _install_governed_root(monkeypatch, tmp_path, write_anchor=False)
+        with pytest.raises(ValueError, match="TRUST_ANCHOR_MISSING"):
+            _generate_with_binding(tmp_path, environment="production")
+
+    def test_a_self_declared_production_key_elsewhere_confers_no_authority(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Un fichier arbitraire peut écrire ``environment="production"`` ;
+        cela ne lui donne rien, car il n'est jamais ouvert."""
+        _install_governed_root(monkeypatch, tmp_path, write_anchor=False)
+        impostor = tmp_path / "impostor_anchor.json"
+        impostor.write_text(
+            json.dumps(
+                {
+                    "protocol_version": REVIEW_BINDING_PROTOCOL_VERSION,
+                    "keys": [
+                        {
+                            "key_id": TEST_KEY_ID,
+                            "algorithm": "ed25519",
+                            "public_key": public_key_hex(TEST_SIGNING_SEED),
+                            "environment": "production",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        with pytest.raises(ValueError, match="TRUST_ANCHOR_ARGUMENT_FORBIDDEN"):
+            _generate_with_binding(
+                tmp_path, environment="production", trust_anchor_path=impostor
+            )
+
+    def test_nexus_repository_root_never_redirects_the_governed_root(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """L'override d'environnement existant était lui-même un vecteur de
+        contournement : il ne doit rien pouvoir déplacer."""
+        elsewhere = tmp_path / "elsewhere"
+        (elsewhere / "governance" / "trust-anchors").mkdir(parents=True)
+        monkeypatch.setenv("NEXUS_REPOSITORY_ROOT", str(elsewhere))
+        import importlib
+
+        reloaded = importlib.reload(module)
+        try:
+            assert reloaded._GOVERNED_REPOSITORY_ROOT != elsewhere
+            assert (
+                reloaded._GOVERNED_REPOSITORY_ROOT
+                == Path(reloaded.__file__).resolve().parents[4]
+            )
+        finally:
+            monkeypatch.delenv("NEXUS_REPOSITORY_ROOT", raising=False)
+            importlib.reload(module)
+
+    def test_a_symlinked_anchor_file_is_refused(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        root = _install_governed_root(monkeypatch, tmp_path, write_anchor=False)
+        real = tmp_path / "real_anchor.json"
+        real.write_text(
+            json.dumps(
+                {"protocol_version": REVIEW_BINDING_PROTOCOL_VERSION, "keys": []}
+            ),
+            encoding="utf-8",
+        )
+        (root / module._GOVERNED_TRUST_ANCHOR_PATH).symlink_to(real)
+        with pytest.raises(ValueError, match="TRUST_ANCHOR failed: .*symlink"):
+            _generate_with_binding(tmp_path, environment="production")
+
+    def test_a_symlinked_path_component_is_refused(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Un lien sur un *répertoire* intermédiaire redirige tout aussi
+        efficacement qu'un lien sur le fichier."""
+        root = _install_governed_root(
+            monkeypatch, tmp_path, write_anchor=False, write_revocations=False
+        )
+        (root / "governance" / "trust-anchors").rmdir()
+        real_dir = tmp_path / "real_anchors"
+        real_dir.mkdir()
+        (root / "governance" / "trust-anchors").symlink_to(real_dir)
+        with pytest.raises(ValueError, match="trust-anchors is a symlink"):
+            _generate_with_binding(tmp_path, environment="production")
+
+
+class TestRightsCategoriesAreCoveredExhaustively:
+    """F4 — l'autorisation doit couvrir *toutes* les catégories de droits
+    des objets qu'elle prétend autoriser, pas seulement leurs empreintes.
+
+    Le verdict est un refus, jamais un compteur : incrémenter un invariant
+    de sécurité laisserait le rapport présenter l'autorisation comme
+    vérifiée alors qu'elle ne couvre pas son périmètre.
+    """
+
+    def _catalog_with(self, tmp_path: Path, **object_overrides: Any) -> Path:
+        path = _write_real_catalog(tmp_path)
+        catalog = json.loads(path.read_text(encoding="utf-8"))
+        catalog["physical_objects"][0].update(object_overrides)
+        path.write_text(json.dumps(catalog), encoding="utf-8")
+        return path
+
+    def _run(self, tmp_path: Path, catalog_path: Path):
+        return _generate_with_authority(
+            tmp_path,
+            authority_path=_write_authority(
+                tmp_path / "authority.json", _valid_authority_document()
+            ),
+            catalog_path=catalog_path,
+        )
+
+    def test_a_covered_category_is_accepted(self, tmp_path: Path) -> None:
+        catalog_path = self._catalog_with(
+            tmp_path, rights_category_candidate="officiel_public"
+        )
+        report = self._run(tmp_path, catalog_path)
+        assert report.safety_invariants["INGEST_WITHOUT_AUTHORITY"] == 0
+
+    def test_a_missing_category_is_refused(self, tmp_path: Path) -> None:
+        catalog_path = self._catalog_with(tmp_path, rights_category_candidate=None)
+        with pytest.raises(ValueError, match="without a rights_category_candidate"):
+            self._run(tmp_path, catalog_path)
+
+    def test_an_absent_field_is_refused(self, tmp_path: Path) -> None:
+        path = _write_real_catalog(tmp_path)
+        catalog = json.loads(path.read_text(encoding="utf-8"))
+        del catalog["physical_objects"][0]["rights_category_candidate"]
+        path.write_text(json.dumps(catalog), encoding="utf-8")
+        with pytest.raises(ValueError, match="without a rights_category_candidate"):
+            self._run(tmp_path, path)
+
+    def test_a_value_outside_the_canonical_vocabulary_is_refused(
+        self, tmp_path: Path
+    ) -> None:
+        catalog_path = self._catalog_with(
+            tmp_path, rights_category_candidate="totally_made_up"
+        )
+        with pytest.raises(ValueError, match="not in the canonical vocabulary"):
+            self._run(tmp_path, catalog_path)
+
+    def test_a_category_the_authorization_does_not_grant_is_refused(
+        self, tmp_path: Path
+    ) -> None:
+        catalog_path = self._catalog_with(
+            tmp_path, rights_category_candidate="nexus_proprietaire"
+        )
+        with pytest.raises(ValueError, match="does not cover every rights category"):
+            self._run(tmp_path, catalog_path)
+
+    def test_non_ingest_objects_are_outside_this_perimeter(
+        self, tmp_path: Path
+    ) -> None:
+        """Un objet EXCLUDE n'est pas publié : sa catégorie n'a pas à être
+        couverte, et l'exiger rendrait le gate faussement rouge."""
+        catalog_path = self._catalog_with(
+            tmp_path,
+            disposition="REVIEW_REQUIRED",
+            rights_category_candidate="nexus_proprietaire",
+        )
+        catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+        catalog["disposition_counts"]["INGEST"] = 0
+        catalog["disposition_counts"]["REVIEW_REQUIRED"] = 1
+        catalog_path.write_text(json.dumps(catalog), encoding="utf-8")
+        report = self._run(tmp_path, catalog_path)
+        assert report.safety_invariants["INGEST_WITHOUT_AUTHORITY"] == 0
+
+    def test_two_objects_of_the_same_content_but_distinct_categories(
+        self, tmp_path: Path
+    ) -> None:
+        """Les deux catégories doivent être couvertes — dédupliquer par
+        contenu ferait disparaître la seconde.
+
+        Testé au niveau de la couche sémantique : au niveau du gate, la
+        liaison manifeste (F5) refuserait d'abord le second objet, ce qui
+        masquerait précisément la règle mesurée ici."""
+        artifact = ScopeAuthorizationArtifactV2.model_validate(
+            _valid_authority_document()
+        )
+        candidates = (
+            (CONTENT_SHA256, "officiel_public"),
+            (CONTENT_SHA256, "nexus_proprietaire"),
+        )
+        with pytest.raises(ValueError, match="nexus_proprietaire"):
+            module._authority_semantic_validation(
+                artifact,
+                manifest_sha256=artifact.manifest_digest,
+                ingest_content_sha256=frozenset({CONTENT_SHA256}),
+                ingest_rights_candidates=candidates,
+                now=AUTHORITY_NOW,
+                revoked_authorization_ids=frozenset(),
+            )
+
+    def test_the_same_pair_twice_stays_acceptable(self, tmp_path: Path) -> None:
+        """Garde-fou de sensibilité : c'est la *catégorie non couverte* qui
+        refuse, pas la simple présence de deux entrées."""
+        artifact = ScopeAuthorizationArtifactV2.model_validate(
+            _valid_authority_document()
+        )
+        module._authority_semantic_validation(
+            artifact,
+            manifest_sha256=artifact.manifest_digest,
+            ingest_content_sha256=frozenset({CONTENT_SHA256}),
+            ingest_rights_candidates=(
+                (CONTENT_SHA256, "officiel_public"),
+                (CONTENT_SHA256, "officiel_public"),
+            ),
+            now=AUTHORITY_NOW,
+            revoked_authorization_ids=frozenset(),
+        )
+
+
+class TestTheGovernedRootIsADeploymentContract:
+    """F1, volet déploiement.
+
+    La racine gouvernée est dérivée par remontée depuis l'emplacement du
+    module. Cette dérivation n'a de sens que dans un checkout : le paquet
+    ``rag-pedago`` n'embarque que des packages Python, et ``governance/``
+    vit à la racine du dépôt, hors de tout wheel. Le gate doit donc
+    refuser bruyamment plutôt que faire autorité sur un répertoire
+    quelconque de ``site-packages``.
+    """
+
+    def test_the_real_governed_root_is_the_repository_checkout(self) -> None:
+        root = module._GOVERNED_REPOSITORY_ROOT
+        for marker in module._GOVERNED_ROOT_MARKERS:
+            assert (root / marker).exists(), f"{marker} missing from {root}"
+
+    def test_the_governed_paths_are_the_canonical_ones(self) -> None:
+        assert (
+            module._GOVERNED_TRUST_ANCHOR_PATH
+            == "governance/trust-anchors/review-binding-v1.json"
+        )
+        assert (
+            module._GOVERNED_REVOCATIONS_PATH
+            == "governance/trust-anchors/authorization-revocations-v1.json"
+        )
+
+    def test_the_trusted_reviewer_allowlist_is_governed_too(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """F1, second point d'application : ce fichier décide *qui* compte
+        comme relecteur habilité. Le laisser dépendre d'une racine
+        redirigeable serait le même défaut, à un autre endroit."""
+        root = _install_governed_root(monkeypatch, tmp_path)
+        (root / module._TRUSTED_REVIEWERS_CONFIG).unlink()
+        with pytest.raises(ValueError, match="trusted reviewer configuration"):
+            _generate_with_binding(tmp_path, environment="production")
+
+    def test_a_redirected_repository_root_cannot_swap_the_reviewers(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Un attaquant qui pointerait ``NEXUS_REPOSITORY_ROOT`` vers un
+        dépôt portant sa propre allowlist ne gagne rien : en production, ce
+        chemin n'est jamais consulté."""
+        _install_governed_root(monkeypatch, tmp_path)
+        impostor = tmp_path / "impostor_repo"
+        (impostor / "scripts" / "github").mkdir(parents=True)
+        (impostor / module._TRUSTED_REVIEWERS_CONFIG).write_text(
+            json.dumps(
+                {
+                    "protocol": TRUSTED_REVIEW_PROTOCOL,
+                    "repository": REPOSITORY,
+                    "base_ref": "main",
+                    "reviewers": ["attacker"],
+                }
+            ),
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(module, "_REPOSITORY_ROOT", impostor)
+        report = _generate_with_binding(tmp_path, environment="production")
+        assert report.input_files["authority_review_reviewer"] == TRUSTED_REVIEWER
+
+    def test_a_root_without_the_repository_markers_is_refused(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Simule exactement l'installation en wheel : le calcul de racine
+        aboutit dans un répertoire qui n'est pas le dépôt."""
+        stray = tmp_path / "site-packages-ish"
+        (stray / "governance" / "trust-anchors").mkdir(parents=True)
+        (stray / module._GOVERNED_TRUST_ANCHOR_PATH).write_text("{}", encoding="utf-8")
+        monkeypatch.setattr(module, "_GOVERNED_REPOSITORY_ROOT", stray)
+        with pytest.raises(ValueError, match="does not look like the Nexus repository"):
+            _generate_with_binding(tmp_path, environment="production")
+
+
+class TestGovernedRevocationRegistry:
+    """F2 — la non-révocation est prouvée, jamais supposée."""
+
+    def test_an_absent_governed_registry_refuses_in_production(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _install_governed_root(monkeypatch, tmp_path, write_revocations=False)
+        with pytest.raises(ValueError, match="REVOCATION_REGISTRY_MISSING"):
+            _generate_with_binding(tmp_path, environment="production")
+
+    def test_a_caller_supplied_registry_is_refused_in_production(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _install_governed_root(monkeypatch, tmp_path)
+        external = _write_revocations(tmp_path / "external.json", [])
+        with pytest.raises(ValueError, match="REVOCATION_REGISTRY_ARGUMENT_FORBIDDEN"):
+            _generate_with_authority(
+                tmp_path,
+                authority_path=_write_authority(
+                    tmp_path / "authority.json", _valid_authority_document()
+                ),
+                revocations_path=external,
                 environment="production",
             )
+
+    def test_an_empty_governed_registry_is_valid(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """« Rien n'est révoqué » est une affirmation légitime — c'est
+        l'absence de fichier qui ne l'est pas."""
+        _install_governed_root(monkeypatch, tmp_path, revoked=[])
+        report = _generate_with_binding(tmp_path, environment="production")
+        assert report.authority_revocations_checked is True
+
+    def test_a_revoked_authorization_is_refused_from_the_governed_registry(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _install_governed_root(
+            monkeypatch, tmp_path, revoked=[_valid_authority_document()["authorization_id"]]
+        )
+        with pytest.raises(ValueError, match="revocation registry"):
+            _generate_with_binding(tmp_path, environment="production")
+
+    def test_a_registry_without_protocol_version_is_refused(
+        self, tmp_path: Path
+    ) -> None:
+        registry = tmp_path / "revocations.json"
+        registry.write_text(
+            json.dumps({"revoked_authorization_ids": []}), encoding="utf-8"
+        )
+        with pytest.raises(ValueError, match="REVOCATION_REGISTRY_INVALID.*protocol_version"):
+            _generate_with_authority(
+                tmp_path,
+                authority_path=_write_authority(
+                    tmp_path / "authority.json", _valid_authority_document()
+                ),
+                revocations_path=registry,
+            )
+
+    def test_a_registry_with_duplicate_ids_is_refused(self, tmp_path: Path) -> None:
+        registry = _write_revocations(
+            tmp_path / "revocations.json", ["dup-authorization", "dup-authorization"]
+        )
+        with pytest.raises(ValueError, match="REVOCATION_REGISTRY_INVALID.*repeats"):
+            _generate_with_authority(
+                tmp_path,
+                authority_path=_write_authority(
+                    tmp_path / "authority.json", _valid_authority_document()
+                ),
+                revocations_path=registry,
+            )
+
+    def test_a_registry_with_unknown_keys_is_refused(self, tmp_path: Path) -> None:
+        registry = tmp_path / "revocations.json"
+        registry.write_text(
+            json.dumps(
+                {
+                    "protocol_version": module._REVOCATIONS_PROTOCOL_VERSION,
+                    "revoked_authorization_ids": [],
+                    "trusted": True,
+                }
+            ),
+            encoding="utf-8",
+        )
+        with pytest.raises(ValueError, match="REVOCATION_REGISTRY_INVALID.*unknown keys"):
+            _generate_with_authority(
+                tmp_path,
+                authority_path=_write_authority(
+                    tmp_path / "authority.json", _valid_authority_document()
+                ),
+                revocations_path=registry,
+            )
+
+    def test_a_rehearsal_run_without_registry_reports_unchecked(
+        self, tmp_path: Path
+    ) -> None:
+        report = _generate_with_binding(tmp_path)
+        assert report.authority_revocations_checked is False
+        assert report.coverage_complete is False
+
+    def test_the_report_renders_the_revocation_evidence_field(
+        self, tmp_path: Path
+    ) -> None:
+        report = _generate_with_binding(tmp_path)
+        markdown = render_markdown(report)
+        assert "AUTHORITY_REVOCATIONS_CHECKED=false" in markdown
+        assert "Authority revocations checked (F2)" in markdown
 
 
 class TestRehearsalCanNeverBeGreen:
@@ -1424,16 +1956,19 @@ class TestRehearsalCanNeverBeGreen:
         assert "AUTHORITY_EVIDENCE_MODE=rehearsal" in render_markdown(report)
 
     def test_a_test_key_can_never_validate_a_production_run(
-        self, tmp_path: Path
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         authority = _valid_authority_document()
         authority_path = _write_authority(tmp_path / "authority.json", authority)
+        # F1 : l'ancre de production est gouvernée. On installe donc une
+        # racine gouvernée dont la clé se déclare ``test`` — le refus doit
+        # venir de l'environnement de la clé, pas de l'absence d'ancre.
+        _install_governed_root(monkeypatch, tmp_path, anchor_environment="test")
         with pytest.raises(ValueError, match="'test' environment"):
             _generate_with_authority(
                 tmp_path,
                 authority_path=authority_path,
                 binding_path=_write_review_binding(tmp_path, authority),
-                trust_anchor_path=_write_trust_anchor(tmp_path, environment="test"),
                 environment="production",
             )
 

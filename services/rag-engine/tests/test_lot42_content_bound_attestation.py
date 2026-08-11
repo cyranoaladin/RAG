@@ -149,6 +149,12 @@ def _verify_with(
         "scope_authorization_id": AUTHORIZATION_ID,
         "review_id": "LOT42-H2-V2",
         "attestation_digest": "a" * 64,
+        # ADR-0035 : la ligne attestée porte désormais sa version de
+        # protocole et le digest d'attribution qu'elle scelle. Ce test
+        # cible l'axe LOT41A (autorité liée au contenu) ; il fournit donc
+        # une ligne LOT42-V2 conforme pour ne rien masquer de cet axe-là.
+        "protocol_version": "LOT42-V2",
+        "attributed_facts_digest": "b" * 64,
     }
     monkeypatch.setattr(attestation_module, "_load_active_row", lambda *_a, **_k: row)
     monkeypatch.setattr(attestation_module, "collect_publication_facts", lambda *_a, **_k: facts)

@@ -24,6 +24,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from nexus_contracts import Candidat, Niveau, Rights, Voie, load_pilot_retrieval_scope
+from nexus_contracts.authority_artifacts import LOT42_V2_PROTOCOL_VERSION
 from nexus_contracts.ingestion import ResourceScope
 from psycopg import sql
 from psycopg.conninfo import make_conninfo
@@ -33,6 +34,7 @@ from ingestor import governed_publisher_v2 as publisher
 from ingestor import retrieval_v2_endpoint as endpoint
 from ingestor import review_v2_endpoint as review_endpoint
 from ingestor.identity_v2 import load_identity_verifier_config, verify_identity_token
+from ingestor.ingestion_control.artifact_attribution import attribution_digest
 from ingestor.ingestion_control.publication_attestation import VerifiedAttestation
 from ingestor.ingestion_control.publication_evidence import PublicationFacts
 from ingestor.ingestion_control.scope_authority import VerifiedAuthorization
@@ -294,6 +296,19 @@ def _verified_publication(
         manifest_digest=placement.current_manifest_digest,
         review_id=f"LOT42-H2C-{placement.resource_id.hex}",
         attestation_digest="5" * 64,
+        # ADR-0035 : le publisher exige explicitement LOT42-V2 et un digest
+        # d'attribution non vide. Le digest est CALCULÉ depuis les mêmes
+        # quatre faits que ceux dérivés ci-dessus — jamais une constante
+        # figée, qui redeviendrait fausse dès que l'artefact du scénario
+        # change.
+        protocol_version=LOT42_V2_PROTOCOL_VERSION,
+        attributed_facts_digest=attribution_digest(
+            ingestion_artifact_id=facts.artifact_id,
+            source_label=artifact.source_label,
+            official=artifact.official,
+            source_kind=artifact.source_kind,
+            type_doc=artifact.type_doc,
+        ),
         authorization=authorization,
         facts=facts,
     )

@@ -290,6 +290,12 @@ class TestScopeAuthorizationContentAllowlistRollback:
                 protocol_version="LOT41A-V1",
                 allowed_content_sha256=None,
             )
+            # Ordre inverse strict, désormais depuis 013 : rembobiner
+            # jusqu'à 009 sans défaire 013 laisserait sa version enregistrée
+            # dans ``schema_migrations`` alors que ses contraintes ont
+            # disparu avec la colonne que 012 supprime — le re-bootstrap
+            # sauterait 013 et s'arrêterait à la tête 12.
+            _apply_rollback_file(conn, version=13)
             _apply_rollback_file(conn, version=12)
             _apply_rollback_file(conn, version=11)
             _apply_rollback_file(conn, version=10)
@@ -327,8 +333,9 @@ class TestScopeAuthorizationContentAllowlistRollback:
 
         reapply = _run_bootstrap(pg_container)
         assert reapply.returncode == 0, reapply.stderr
-        assert "MIGRATIONS_APPLIED=4" in reapply.stdout
-        assert "SCHEMA_HEAD=12" in reapply.stdout
+        # 009 -> 013 : cinq migrations réappliquées depuis l'ajout de 013.
+        assert "MIGRATIONS_APPLIED=5" in reapply.stdout
+        assert "SCHEMA_HEAD=13" in reapply.stdout
 
         with psycopg.connect(_superuser_dsn(pg_container)) as conn, conn.cursor() as cur:
             cur.execute(

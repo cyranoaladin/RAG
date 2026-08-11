@@ -41,6 +41,7 @@ import json
 import os
 import re
 import subprocess
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -54,6 +55,7 @@ from nexus_contracts.authority_artifacts import (
     git_blob_sha1,
     parse_scope_authorization_artifact,
 )
+from nexus_contracts.document import Rights
 from nexus_contracts.review_binding import (
     ReviewBindingError,
     parse_trust_anchor,
@@ -133,6 +135,10 @@ class CoverageReport:
     # ADR-0035 — liaison de revue scellée
     authority_environment: str = "production"
     authority_review_binding_verified: bool = False
+    #: F2 : la non-révocation a-t-elle été *prouvée* contre un registre
+    #: gouverné, ou seulement supposée faute de registre ? Le rapport
+    #: publie la différence au lieu de la lisser.
+    authority_revocations_checked: bool = False
 
     # Files and hashes
     input_files: dict[str, str] = field(default_factory=dict)
@@ -192,8 +198,29 @@ _GNU_SHA256_LINE = re.compile(r"([0-9a-f]{64})  (.*)\Z")
 
 
 def _parse_manifest(path: Path) -> list[tuple[str, str]]:
-    """Parse a GNU SHA256 manifest, returning (sha256, path) pairs."""
+    """Parse un manifeste GNU SHA256 en paires ``(sha256, path)``.
+
+    F5 : les entrées sont conservées **avec leur cardinalité** — la liste
+    n'est jamais réduite en ensemble ici. Deux refus explicites :
+
+    * une ligne strictement dupliquée ;
+    * un même chemin associé plusieurs fois, que le digest soit identique
+      ou non.
+
+    Le second est le cas dangereux : deux digests différents pour un même
+    chemin décrivent deux contenus, et un ensemble en absorbe un
+    silencieusement. Le même digest pour deux chemins **distincts** reste
+    autorisé — c'est un doublon de contenu légitime, que le format GNU
+    exprime normalement.
+
+    Aucune normalisation de chemin n'est faite ici : décider que deux
+    écritures différentes désignent le même fichier appartient aux règles
+    de canonicité, pas à ce parseur, qui les rapporterait sinon comme un
+    seul chemin sans que personne ne l'ait décidé.
+    """
     entries: list[tuple[str, str]] = []
+    seen_lines: set[tuple[str, str]] = set()
+    path_first_line: dict[str, int] = {}
     with path.open(encoding="utf-8", newline="") as handle:
         for line_number, raw_line in enumerate(handle, start=1):
             line = raw_line.rstrip("\r\n")
@@ -201,7 +228,22 @@ def _parse_manifest(path: Path) -> list[tuple[str, str]]:
             if match is None:
                 raise ValueError(f"H2-F Défaut 1: invalid manifest line {line_number}")
             content_sha256, object_path = match.groups()
-            entries.append((content_sha256, object_path))
+            entry = (content_sha256, object_path)
+            if entry in seen_lines:
+                raise ValueError(
+                    f"H2-F Défaut 1: manifest line {line_number} duplicates an "
+                    f"earlier identical entry for path {object_path!r}"
+                )
+            if object_path in path_first_line:
+                raise ValueError(
+                    f"H2-F Défaut 1: manifest line {line_number} re-declares path "
+                    f"{object_path!r}, already declared at line "
+                    f"{path_first_line[object_path]} — a path has exactly one "
+                    "digest in a sealed manifest"
+                )
+            seen_lines.add(entry)
+            path_first_line[object_path] = line_number
+            entries.append(entry)
     return entries
 
 
@@ -238,9 +280,13 @@ def _verify_manifest_binding(
             f"actual={actual_manifest_sha256}, catalog={catalog_manifest_sha256}"
         )
 
-    # Parse manifest and compare with catalog
+    # Parse manifest and compare with catalog.
+    # F5 : multiensemble, pas ensemble. ``frozenset`` rendait deux
+    # catalogues de tailles différentes égaux dès lors qu'ils portaient
+    # les mêmes entrées distinctes — exactement l'écart qu'un doublon
+    # injecté exploite.
     manifest_entries = _parse_manifest(manifest_path)
-    manifest_set = frozenset(manifest_entries)
+    manifest_counts = Counter(manifest_entries)
 
     physical_objects = catalog.get("physical_objects", [])
     if not isinstance(physical_objects, list):
@@ -269,32 +315,58 @@ def _verify_manifest_binding(
             f"self_object={self_object_sha256}, manifest_file={actual_manifest_sha256}"
         )
 
-    # Build catalog set EXCLUDING the self-object
+    # Build catalog multiset EXCLUDING the self-object. L'exclusion reste
+    # unique et explicite, et n'intervient qu'APRÈS que la présence et
+    # l'unicité du self-object ont été prouvées ci-dessus.
     catalog_entries = [
         (obj.get("content_sha256"), obj.get("path"))
         for obj in physical_objects
         if isinstance(obj, dict) and obj.get("path") != _MANIFEST_SELF_PATH
     ]
-    catalog_set = frozenset(catalog_entries)
+    catalog_counts: Counter[tuple[Any, Any]] = Counter(catalog_entries)
 
-    # Check for exact match (self-object already excluded from comparison)
-    only_in_manifest = manifest_set - catalog_set
-    only_in_catalog = catalog_set - manifest_set
+    # F5 : les doublons côté catalogue sont *rapportés*, pas absorbés.
+    catalog_duplicates = sorted(
+        (entry for entry, count in catalog_counts.items() if count > 1),
+        key=lambda item: (str(item[1]), str(item[0])),
+    )
+    if catalog_duplicates:
+        sample = catalog_duplicates[0]
+        raise ValueError(
+            f"H2-F Défaut 1: catalog declares {len(catalog_duplicates)} duplicated "
+            f"(content_sha256, path) entries, e.g. path {sample[1]!r} appearing "
+            f"{catalog_counts[sample]} times — a physical object is listed once"
+        )
 
-    if only_in_manifest or only_in_catalog:
+    # Comparaison de multiensembles : l'égalité porte sur les entrées ET
+    # sur leurs cardinalités.
+    if manifest_counts != catalog_counts:
+        only_in_manifest = manifest_counts - catalog_counts
+        only_in_catalog = catalog_counts - manifest_counts
         errors = []
         if only_in_manifest:
-            errors.append(f"{len(only_in_manifest)} entries only in manifest")
+            errors.append(f"{sum(only_in_manifest.values())} entries only in manifest")
         if only_in_catalog:
-            errors.append(f"{len(only_in_catalog)} entries only in catalog")
+            errors.append(f"{sum(only_in_catalog.values())} entries only in catalog")
+        if not errors:  # pragma: no cover - cardinalités seules
+            errors.append("entry cardinalities differ")
+        total_manifest = sum(manifest_counts.values())
+        total_catalog = sum(catalog_counts.values())
         raise ValueError(
-            f"H2-F Défaut 1: manifest/catalog mismatch: {', '.join(errors)}"
+            f"H2-F Défaut 1: manifest/catalog mismatch: {', '.join(errors)} "
+            f"(manifest={total_manifest} entries, catalog={total_catalog} entries)"
         )
 
 
 #: Catégorie de droits qui n'autorise jamais rien — la voir dans une
 #: autorisation signifie qu'aucune décision de droits n'a été prise.
 _UNKNOWN_RIGHTS = "unknown"
+
+#: F4 : vocabulaire canonique des catégories de droits — celui du
+#: contrat partagé, jamais une liste parallèle redéfinie ici. Une
+#: valeur hors de cet ensemble n'est pas « inconnue », elle est
+#: refusée.
+_RIGHTS_VOCABULARY = frozenset(item.value for item in Rights)
 
 
 def _authority_structural_validation(
@@ -342,6 +414,7 @@ def _authority_semantic_validation(
     *,
     manifest_sha256: str,
     ingest_content_sha256: frozenset[str],
+    ingest_rights_candidates: tuple[tuple[str, str | None], ...],
     now: datetime,
     revoked_authorization_ids: frozenset[str],
 ) -> frozenset[str]:
@@ -397,6 +470,43 @@ def _authority_semantic_validation(
     # personne n'a autorisé — le compter comme « invariant de sécurité »
     # a posteriori laisserait le gate produire un rapport où l'autorisation
     # est présentée comme vérifiée alors qu'elle ne couvre pas son périmètre.
+    # F4 : la couverture des *catégories de droits*, sur le même périmètre
+    # réel. Nommer les empreintes ne suffit pas : une autorisation peut
+    # couvrir chaque octet et ne pas couvrir la catégorie de droits sous
+    # laquelle cet octet serait publié. Le verdict est un refus, jamais un
+    # compteur — un invariant de sécurité incrémenté laisserait le rapport
+    # présenter l'autorisation comme vérifiée.
+    granted = frozenset(rights)
+    missing_category: dict[str, list[str]] = {}
+    for content_sha, candidate in ingest_rights_candidates:
+        if candidate is None:
+            raise ValueError(
+                "SEMANTIC_VALIDATION failed: object "
+                f"{content_sha!r} is routed to ingestion without a "
+                "rights_category_candidate — an object whose rights category is "
+                "unknown is never covered by any authorization"
+            )
+        if candidate not in _RIGHTS_VOCABULARY:
+            raise ValueError(
+                "SEMANTIC_VALIDATION failed: object "
+                f"{content_sha!r} declares rights_category_candidate "
+                f"{candidate!r}, which is not in the canonical vocabulary "
+                f"{sorted(_RIGHTS_VOCABULARY)!r}"
+            )
+        if candidate not in granted:
+            missing_category.setdefault(candidate, []).append(content_sha)
+    if missing_category:
+        detail = ", ".join(
+            f"{category} ({len(shas)} object(s), e.g. {sorted(shas)[0]})"
+            for category, shas in sorted(missing_category.items())
+        )
+        raise ValueError(
+            "SEMANTIC_VALIDATION failed: the authorization grants rights "
+            f"categories {sorted(granted)!r} but objects routed to ingestion "
+            f"require {detail} — an authorization that does not cover every "
+            "rights category in its perimeter authorizes none of it"
+        )
+
     uncovered = ingest_content_sha256 - allowlist
     if uncovered:
         sample = sorted(uncovered)[:3]
@@ -409,25 +519,128 @@ def _authority_semantic_validation(
     return allowlist
 
 
-#: Racine du dépôt, dérivée de l'emplacement de CE fichier — jamais un
-#: chemin absolu machine-local (AGENTS.md), avec override explicite par
-#: variable d'environnement pour un checkout non standard.
+#: Racine **gouvernée** : dérivée exclusivement de l'emplacement de CE
+#: fichier. Aucun override, par aucun moyen. C'est la remédiation du
+#: constat F1 : tant que la racine était redirigeable par
+#: ``NEXUS_REPOSITORY_ROOT``, « ancre canonique » ne voulait rien dire —
+#: l'appelant choisissait le dépôt, donc l'ancre, donc les clés réputées
+#: de confiance.
+_GOVERNED_REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
+
+#: Racine *de commodité*, celle-ci redirigeable, utilisée uniquement pour
+#: les lectures qui ne fondent aucune confiance (rehearsal, tests). Elle
+#: ne doit jamais servir à résoudre une ancre ou un registre en
+#: production : ``_governed_path`` ignore délibérément cette variable.
 _REPOSITORY_ROOT = Path(
     os.environ.get("NEXUS_REPOSITORY_ROOT", "")
-    or Path(__file__).resolve().parents[4]
+    or _GOVERNED_REPOSITORY_ROOT
 )
+
+#: Chemins canoniques gouvernés (ADR-0035 § 4). Versionnés dans Git, donc
+#: eux-mêmes soumis à revue humaine : changer une clé de confiance ou
+#: révoquer une autorisation est un diff, pas un argument de ligne de
+#: commande.
+_GOVERNED_TRUST_ANCHOR_PATH = "governance/trust-anchors/review-binding-v1.json"
+_GOVERNED_REVOCATIONS_PATH = "governance/trust-anchors/authorization-revocations-v1.json"
+
+#: Version de schéma du registre de révocation. Un registre sans version
+#: est refusé : sa forme pourrait changer sans que rien ne le signale.
+_REVOCATIONS_PROTOCOL_VERSION = "NEXUS-AUTHORIZATION-REVOCATIONS-V1"
+
+#: Marqueurs qui identifient la racine du dépôt Nexus. Versionnés, donc
+#: présents dans tout checkout, et absents de tout ``site-packages``.
+_GOVERNED_ROOT_MARKERS = ("AGENTS.md", "services/rag-pedago", "docs/adr")
+
+
+def _governed_path(relative: str, *, label: str) -> Path:
+    """Résout un chemin gouverné sous la racine dérivée du code.
+
+    Trois refus, dans cet ordre :
+
+    1. **Symlink** — sur le fichier final comme sur chaque composant sous
+       la racine. Un lien est une redirection : autoriser l'un des deux
+       rendrait le confinement décoratif, puisqu'un attaquant disposant
+       d'un accès en écriture au dépôt pourrait faire pointer l'ancre
+       ailleurs sans que le chemin change.
+    2. **Évasion** — le chemin résolu doit rester sous la racine gouvernée
+       résolue.
+    3. **Non-identité** — le chemin résolu doit être *exactement* le
+       chemin canonique attendu. Ce contrôle est redondant avec les deux
+       précédents et le reste volontairement.
+
+    Ne vérifie pas l'existence : l'absence est un refus, mais c'est à
+    l'appelant de le formuler dans son propre vocabulaire.
+    """
+    root = _GOVERNED_REPOSITORY_ROOT
+    # Garde de packaging : la racine est dérivée par remontée de quatre
+    # niveaux depuis ce fichier. Cette dérivation n'est vraie que dans un
+    # checkout du dépôt. Installé en wheel dans ``site-packages``, le même
+    # calcul désignerait un répertoire arbitraire — et une ancre déposée
+    # là ferait autorité. Le refus est donc explicite plutôt que
+    # silencieux : ce gate est un outil de checkout, pas un artefact
+    # déployable, et il doit le dire quand il ne l'est pas.
+    for marker in _GOVERNED_ROOT_MARKERS:
+        if not (root / marker).exists():
+            raise ValueError(
+                f"{label} failed: {root} does not look like the Nexus repository "
+                f"checkout (missing {marker}). The governed root is derived from "
+                "the location of this module and is only meaningful inside a "
+                "checkout — refusing rather than trusting an arbitrary directory."
+            )
+    candidate = root.joinpath(relative)
+
+    # Chaque composant intermédiaire, de la racine jusqu'au fichier.
+    parts = Path(relative).parts
+    walked = root
+    for part in parts:
+        walked = walked / part
+        if walked.is_symlink():
+            raise ValueError(
+                f"{label} failed: {walked} is a symlink — a governed path is "
+                "never allowed to redirect, on any of its components"
+            )
+
+    resolved_root = root.resolve()
+    try:
+        resolved = candidate.resolve()
+    except OSError as exc:
+        raise ValueError(f"{label} failed: cannot resolve {candidate}: {exc}") from exc
+
+    if not resolved.is_relative_to(resolved_root):
+        raise ValueError(
+            f"{label} failed: {resolved} escapes the governed root {resolved_root}"
+        )
+    expected = resolved_root.joinpath(relative)
+    if resolved != expected:
+        raise ValueError(
+            f"{label} failed: resolved path {resolved} is not the canonical "
+            f"governed path {expected}"
+        )
+    return candidate
 
 #: Reviewers habilités, lus depuis la configuration versionnée d'ADR-0025 —
 #: jamais une liste parallèle réinventée ici.
 _TRUSTED_REVIEWERS_CONFIG = "scripts/github/trusted-reviewers.json"
 
 
-def _load_trusted_reviewers(repository_root: Path) -> tuple[str, tuple[str, ...]]:
+def _load_trusted_reviewers(
+    repository_root: Path, *, environment: str
+) -> tuple[str, tuple[str, ...]]:
     """Relit l'allowlist de reviewers d'ADR-0025 depuis le dépôt.
 
     Lecture de fichier, jamais un import de ``scripts/`` : le gate reste
-    hors ligne et sans dépendance de code croisée."""
-    path = repository_root / _TRUSTED_REVIEWERS_CONFIG
+    hors ligne et sans dépendance de code croisée.
+
+    F1, second point d'application. Ce fichier décide **qui compte comme
+    relecteur habilité** : le laisser dépendre d'une racine redirigeable
+    par ``NEXUS_REPOSITORY_ROOT`` ou par un paramètre d'appelant serait
+    exactement le défaut fermé pour l'ancre de confiance, à un autre
+    endroit. En production, il est donc lu au chemin gouverné, et lui
+    seul."""
+    if environment == "production":
+        path = _governed_path(_TRUSTED_REVIEWERS_CONFIG, label="TRUSTED_REVIEWERS")
+    else:
+        path = repository_root / _TRUSTED_REVIEWERS_CONFIG
     if not path.is_file():
         raise ValueError(
             f"REVIEW_BINDING_VALIDATION failed: trusted reviewer configuration "
@@ -512,7 +725,9 @@ def _authority_review_binding_validation(
     except ReviewBindingError as exc:
         raise ValueError(f"REVIEW_BINDING_VALIDATION failed: {exc}") from exc
 
-    repository, reviewers = _load_trusted_reviewers(repository_root)
+    repository, reviewers = _load_trusted_reviewers(
+        repository_root, environment=environment
+    )
     try:
         require_matches_authorization(
             binding,
@@ -559,37 +774,148 @@ def _authority_review_binding_validation(
     }
 
 
-def _load_revoked_authorization_ids(path: Path | None) -> frozenset[str]:
-    """Registre de révocation scellé, optionnel mais jamais deviné.
+def _parse_revocation_registry(raw: bytes, *, origin: Path) -> frozenset[str]:
+    """Schéma strict et versionné du registre de révocation (F2).
 
-    Absent, il vaut « aucune révocation connue » — et le rapport le dit
-    (``authority_revocations_checked=False``) plutôt que de laisser croire
-    que la non-révocation a été prouvée."""
-    if path is None:
-        return frozenset()
-    if not path.is_file():
-        raise ValueError(
-            f"H2-F Défaut 5: authority revocation registry does not exist: {path}"
-        )
+    Un registre **gouverné vide** est valide : « aucune autorisation
+    révoquée » est une affirmation légitime, et le fichier prouve que
+    quelqu'un l'a affirmée. C'est l'*absence* de registre qui ne l'est
+    pas — elle ne distingue pas « rien n'est révoqué » de « personne n'a
+    regardé ».
+
+    Un doublon est refusé plutôt qu'absorbé par le ``frozenset`` : deux
+    lignes identiques signalent une édition concurrente mal fusionnée, et
+    un registre de révocation dont on ignore l'historique d'édition ne
+    mérite pas la confiance qu'on lui accorde.
+    """
     try:
-        document = json.loads(path.read_text(encoding="utf-8"))
+        document = json.loads(raw.decode("utf-8"))
+    except UnicodeDecodeError as exc:
+        raise ValueError(
+            f"REVOCATION_REGISTRY_INVALID: {origin} is not valid UTF-8: {exc}"
+        ) from exc
     except json.JSONDecodeError as exc:
         raise ValueError(
-            f"H2-F Défaut 5: authority revocation registry is not valid JSON: {exc}"
+            f"REVOCATION_REGISTRY_INVALID: {origin} is not valid JSON: {exc}"
         ) from exc
     if not isinstance(document, dict):
         raise ValueError(
-            "H2-F Défaut 5: authority revocation registry must be a JSON object"
+            f"REVOCATION_REGISTRY_INVALID: {origin} must be a JSON object"
         )
+
+    unexpected = set(document) - {"protocol_version", "revoked_authorization_ids"}
+    if unexpected:
+        raise ValueError(
+            f"REVOCATION_REGISTRY_INVALID: {origin} carries unknown keys "
+            f"{sorted(unexpected)!r} — a governed registry never smuggles fields "
+            "past the schema"
+        )
+
+    protocol_version = document.get("protocol_version")
+    if protocol_version != _REVOCATIONS_PROTOCOL_VERSION:
+        raise ValueError(
+            f"REVOCATION_REGISTRY_INVALID: {origin} declares protocol_version "
+            f"{protocol_version!r}, expected {_REVOCATIONS_PROTOCOL_VERSION!r}"
+        )
+
     revoked = document.get("revoked_authorization_ids")
     if not isinstance(revoked, list) or any(
         not isinstance(item, str) or not item.strip() for item in revoked
     ):
         raise ValueError(
-            "H2-F Défaut 5: revoked_authorization_ids must be a list of non-empty "
-            "strings"
+            f"REVOCATION_REGISTRY_INVALID: {origin} must declare "
+            "revoked_authorization_ids as a list of non-empty strings"
+        )
+    duplicates = sorted({item for item in revoked if revoked.count(item) > 1})
+    if duplicates:
+        raise ValueError(
+            f"REVOCATION_REGISTRY_INVALID: {origin} repeats authorization ids "
+            f"{duplicates!r} — a revocation registry is a set, and a duplicate "
+            "signals an unreviewed merge"
         )
     return frozenset(revoked)
+
+
+def _load_revoked_authorization_ids(
+    path: Path | None, *, environment: str
+) -> tuple[frozenset[str], bool]:
+    """Charge le registre de révocation et dit **si** il a été vérifié.
+
+    En ``production`` le chemin est celui, canonique et gouverné, dérivé
+    du code : ni argument CLI, ni variable d'environnement ne peuvent le
+    déplacer, et son absence est un refus. En ``rehearsal`` une fixture
+    peut être fournie ; son absence rend simplement le second membre du
+    tuple faux, ce que le rapport publie.
+    """
+    if environment == "production":
+        governed = _governed_path(
+            _GOVERNED_REVOCATIONS_PATH, label="REVOCATION_REGISTRY"
+        )
+        if path is not None and path != governed:
+            raise ValueError(
+                "REVOCATION_REGISTRY_ARGUMENT_FORBIDDEN: --authority-revocations "
+                f"is never honoured in production (got {path}). The registry is "
+                f"read from the governed path {governed} only."
+            )
+        if not governed.is_file():
+            raise ValueError(
+                f"REVOCATION_REGISTRY_MISSING: {governed} does not exist. An "
+                "absent registry is not an empty registry — it proves nobody "
+                "checked, so the production gate refuses rather than assumes."
+            )
+        return _parse_revocation_registry(governed.read_bytes(), origin=governed), True
+
+    if path is None:
+        return frozenset(), False
+    if not path.is_file():
+        raise ValueError(
+            f"REVOCATION_REGISTRY_MISSING: authority revocation registry does "
+            f"not exist: {path}"
+        )
+    return _parse_revocation_registry(path.read_bytes(), origin=path), True
+
+
+def _resolve_trust_anchor_path(
+    supplied: Path | None, *, environment: str
+) -> Path:
+    """Chemin de l'ancre de confiance — gouverné en production (F1).
+
+    En production, ``--authority-trust-anchor`` n'est pas ignoré : il est
+    **refusé**. Ignorer silencieusement un argument laisserait un
+    opérateur croire qu'il a désigné une ancre alors que le gate en lit
+    une autre ; le refus explicite supprime cette ambiguïté.
+
+    Il n'existe aucun chemin de code par lequel une ancre de production
+    puisse venir d'ailleurs. En particulier, un fichier arbitraire qui
+    déclarerait ``environment="production"`` dans ses clés ne confère
+    aucune autorité : cette auto-déclaration n'est jamais lue, parce que
+    le fichier n'est jamais ouvert.
+    """
+    if environment == "production":
+        governed = _governed_path(
+            _GOVERNED_TRUST_ANCHOR_PATH, label="TRUST_ANCHOR"
+        )
+        if supplied is not None and supplied != governed:
+            raise ValueError(
+                "TRUST_ANCHOR_ARGUMENT_FORBIDDEN: --authority-trust-anchor is "
+                f"never honoured in production (got {supplied}). The anchor is "
+                f"read from the governed path {governed} only — a key that "
+                "declares itself trusted is not a trusted key."
+            )
+        if not governed.is_file():
+            raise ValueError(
+                f"TRUST_ANCHOR_MISSING: the governed production trust anchor "
+                f"{governed} does not exist — an unanchored signature proves "
+                "nothing, so the production gate refuses."
+            )
+        return governed
+
+    if supplied is None:
+        raise ValueError(
+            "TRUST_ANCHOR_MISSING: --authority-trust-anchor is required in "
+            "rehearsal mode"
+        )
+    return supplied
 
 
 def _load_authority_evidence(
@@ -597,26 +923,36 @@ def _load_authority_evidence(
     manifest_sha256: str,
     *,
     ingest_content_sha256: frozenset[str],
+    ingest_rights_candidates: tuple[tuple[str, str | None], ...],
     now: datetime,
     revocations_path: Path | None,
     binding_path: Path,
-    trust_anchor_path: Path,
+    trust_anchor_path: Path | None,
     environment: str,
     repository_root: Path,
-) -> tuple[frozenset[str], dict[str, str]]:
+) -> tuple[frozenset[str], dict[str, str], bool]:
     """H2-F Défaut 5 : les trois couches, dans cet ordre, toutes exécutées.
 
     Une validation Pydantic réussie n'est que la première. Aucune n'est
-    optionnelle : le retour porte l'allowlist vérifiée **et** la liaison de
-    revue scellée, pour que le rapport publie ce sur quoi il s'est appuyé
+    optionnelle : le retour porte l'allowlist vérifiée, la liaison de
+    revue scellée **et** le fait que la révocation ait été réellement
+    vérifiée — pour que le rapport publie ce sur quoi il s'est appuyé
     plutôt qu'un simple booléen.
     """
-    revoked = _load_revoked_authorization_ids(revocations_path)
+    # Ordre délibéré : l'ancre d'abord. La confiance précède la
+    # révocation — un registre lu sous une ancre non résolue ne dit rien.
+    trust_anchor_path = _resolve_trust_anchor_path(
+        trust_anchor_path, environment=environment
+    )
+    revoked, revocations_checked = _load_revoked_authorization_ids(
+        revocations_path, environment=environment
+    )
     artifact, raw = _authority_structural_validation(authority_path)
     allowlist = _authority_semantic_validation(
         artifact,
         manifest_sha256=manifest_sha256,
         ingest_content_sha256=ingest_content_sha256,
+        ingest_rights_candidates=ingest_rights_candidates,
         now=now,
         revoked_authorization_ids=revoked,
     )
@@ -630,7 +966,7 @@ def _load_authority_evidence(
         revoked_authorization_ids=revoked,
         repository_root=repository_root,
     )
-    return allowlist, binding
+    return allowlist, binding, revocations_checked
 
 
 def generate_coverage_report(
@@ -787,8 +1123,27 @@ def generate_coverage_report(
         and item.get("disposition") == "INGEST"
         and isinstance(item.get("content_sha256"), str)
     )
+    # F4 : les catégories de droits réellement portées par les objets
+    # routés vers l'ingestion. Collectées sur **tous** ces objets, pas sur
+    # un échantillon, et gardées avec l'identité de l'objet pour que le
+    # refus puisse nommer le fautif. Deux objets de même contenu mais de
+    # catégories différentes produisent donc deux entrées : les deux
+    # catégories devront être couvertes.
+    ingest_rights_candidates: tuple[tuple[str, str | None], ...] = tuple(
+        (
+            str(item.get("content_sha256")),
+            item.get("rights_category_candidate")
+            if isinstance(item.get("rights_category_candidate"), str)
+            else None,
+        )
+        for item in physical_objects
+        if isinstance(item, dict) and item.get("disposition") == "INGEST"
+    )
     authority_allowlist: frozenset[str] | None = None
     authority_binding: dict[str, str] = {}
+    # Fail-closed par défaut : sans artefact d'autorité, aucune révocation
+    # n'a été vérifiée, et le rapport doit le dire.
+    authority_revocations_checked: bool = False
     if authority_environment not in ("production", "rehearsal"):
         raise ValueError(
             f"authority_environment must be 'production' or 'rehearsal', got "
@@ -799,16 +1154,20 @@ def generate_coverage_report(
         # le reçu ou l'ancre facultatifs reviendrait à laisser le gate
         # vert sur une autorisation que personne n'a relue — le défaut
         # exact que ce lot ferme.
-        if authority_review_binding_path is None or authority_trust_anchor_path is None:
+        if authority_review_binding_path is None:
             raise ValueError(
                 "REVIEW_BINDING_VALIDATION failed: an authority artifact requires "
-                "both a sealed review binding receipt and a trust anchor — a "
-                "locally authored authorization is not evidence of human review"
+                "a sealed review binding receipt — a locally authored "
+                "authorization is not evidence of human review"
             )
-        authority_allowlist, authority_binding = _load_authority_evidence(
+        # L'ancre n'est plus un argument obligatoire : en production elle
+        # est gouvernée (F1) et fournir l'argument est un refus ; en
+        # rehearsal ``_resolve_trust_anchor_path`` exige la fixture.
+        authority_allowlist, authority_binding, authority_revocations_checked = _load_authority_evidence(
             authority_path,
             manifest_sha256,
             ingest_content_sha256=ingest_content_sha256,
+            ingest_rights_candidates=ingest_rights_candidates,
             now=authority_now or datetime.now(UTC),
             revocations_path=authority_revocations_path,
             binding_path=authority_review_binding_path,
@@ -956,6 +1315,8 @@ def generate_coverage_report(
         and rights_gate_status == "PASS"
         and pii_gate_status == "PASS"
         and authority_review_binding_verified
+        # F2 : sans preuve de non-révocation, le gate final reste faux.
+        and authority_revocations_checked
         and final_mode
         and all(value == 0 for value in safety_invariants.values())
     )
@@ -980,6 +1341,7 @@ def generate_coverage_report(
         coverage_complete=h2_coverage_gate_pass,
         authority_environment=authority_environment,
         authority_review_binding_verified=authority_review_binding_verified,
+        authority_revocations_checked=authority_revocations_checked,
         unclassified=unclassified,
         multiple_primary_disposition=multiple_primary,
         safety_invariants=safety_invariants,
@@ -1069,6 +1431,8 @@ def render_markdown(report: CoverageReport) -> str:
         f"| Golden validation | **{'PASS' if report.golden_validation_pass else 'FAIL'}** |",
         "| Authority review binding (ADR-0035) | "
         f"**{'PASS' if report.authority_review_binding_verified else 'FAIL'}** |",
+        "| Authority revocations checked (F2) | "
+        f"**{'PASS' if report.authority_revocations_checked else 'FAIL'}** |",
         f"| Authority evidence mode | **{report.authority_environment}** |",
         f"| H2 coverage gate | **{'PASS' if report.h2_coverage_gate_pass else 'FAIL'}** |",
         "",
@@ -1079,6 +1443,8 @@ def render_markdown(report: CoverageReport) -> str:
         f"{'true' if report.golden_validation_pass else 'false'}",
         "AUTHORITY_REVIEW_BINDING_VERIFIED="
         f"{'true' if report.authority_review_binding_verified else 'false'}",
+        "AUTHORITY_REVOCATIONS_CHECKED="
+        f"{'true' if report.authority_revocations_checked else 'false'}",
         f"AUTHORITY_EVIDENCE_MODE={report.authority_environment}",
         "H2_COVERAGE_GATE_PASS="
         f"{'true' if report.h2_coverage_gate_pass else 'false'}",
@@ -1225,7 +1591,12 @@ def main() -> int:
     parser.add_argument(
         "--authority-trust-anchor",
         type=Path,
-        help="ADR-0035 : ancre de confiance déclarant les clés publiques reconnues",
+        help=(
+            "ADR-0035 : ancre de confiance déclarant les clés publiques "
+            "reconnues. **Rehearsal uniquement.** En production l'ancre est "
+            "lue au chemin gouverné governance/trust-anchors/"
+            "review-binding-v1.json et fournir cet argument est un refus."
+        ),
     )
     parser.add_argument(
         "--authority-environment",
@@ -1241,9 +1612,11 @@ def main() -> int:
         "--authority-revocations",
         type=Path,
         help=(
-            "H2-F Défaut 5: sealed revocation registry (JSON, "
-            "{'revoked_authorization_ids': [...]}) — absent, la non-révocation "
-            "n'est pas prouvée et le rapport le consigne"
+            "Registre de révocation scellé (JSON versionné). **Rehearsal "
+            "uniquement** : en production il est lu au chemin gouverné "
+            "governance/trust-anchors/authorization-revocations-v1.json, son "
+            "absence est un refus, et fournir cet argument est un refus. En "
+            "rehearsal, son absence laisse AUTHORITY_REVOCATIONS_CHECKED=false."
         ),
     )
     parser.add_argument(

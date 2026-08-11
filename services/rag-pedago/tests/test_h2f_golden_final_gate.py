@@ -22,6 +22,7 @@ from nexus_contracts.review_binding import (
     sign_review_binding,
 )
 
+from rag_pedago.imports import h2b_coverage_report as module
 from rag_pedago.imports.golden_corpus_validator import validate_golden_corpus
 from rag_pedago.imports.h2b_coverage_report import (
     generate_coverage_report,
@@ -444,8 +445,30 @@ def _write_authority_chain(tmp_path: Path) -> tuple[Path, Path, Path]:
         ).canonical_bytes()
     )
 
-    anchor_path = tmp_path / "trust_anchor.json"
-    anchor_path.write_text(
+    return authority_path, binding_path
+
+
+def _install_governed_root(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> Path:
+    """ADR-0035 F1/F2 : ancre et registre viennent des chemins gouvernés.
+
+    Écrire une ancre de fixture qui se déclare ``environment="production"``
+    et la passer en argument était précisément le défaut F1 : l'appelant
+    choisissait quelles clés étaient dignes de confiance. Le mode
+    production ne lit plus que la racine dérivée du code."""
+    root = tmp_path / "governed_root"
+    (root / "governance" / "trust-anchors").mkdir(parents=True, exist_ok=True)
+    # Le faux checkout doit porter les marqueurs de racine : la garde de
+    # packaging refuse toute racine qui ne ressemble pas au dépôt.
+    for marker in module._GOVERNED_ROOT_MARKERS:
+        target = root / marker
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if "." in target.name:
+            target.write_text("", encoding="utf-8")
+        else:
+            target.mkdir(parents=True, exist_ok=True)
+    (root / module._GOVERNED_TRUST_ANCHOR_PATH).write_text(
         json.dumps({
             "protocol_version": REVIEW_BINDING_PROTOCOL_VERSION,
             "keys": [{
@@ -457,16 +480,36 @@ def _write_authority_chain(tmp_path: Path) -> tuple[Path, Path, Path]:
         }),
         encoding="utf-8",
     )
-    return authority_path, binding_path, anchor_path
+    (root / module._GOVERNED_REVOCATIONS_PATH).write_text(
+        json.dumps({
+            "protocol_version": module._REVOCATIONS_PROTOCOL_VERSION,
+            "revoked_authorization_ids": [],
+        }),
+        encoding="utf-8",
+    )
+    # F1 : l'allowlist des relecteurs habilités est elle aussi lue au
+    # chemin gouverné en production — le faux checkout doit donc la porter.
+    reviewers_path = root / module._TRUSTED_REVIEWERS_CONFIG
+    reviewers_path.parent.mkdir(parents=True, exist_ok=True)
+    reviewers_path.write_text(
+        (
+            module._REPOSITORY_ROOT / module._TRUSTED_REVIEWERS_CONFIG
+        ).read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(module, "_GOVERNED_REPOSITORY_ROOT", root)
+    return root
 
 
 def _coverage(
     tmp_path: Path,
     catalog_path: Path,
     spec_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ):
     routing_path, rights_path, pii_path, manifest_path = _write_external_evidence(tmp_path)
-    authority_path, binding_path, anchor_path = _write_authority_chain(tmp_path)
+    authority_path, binding_path = _write_authority_chain(tmp_path)
+    _install_governed_root(monkeypatch, tmp_path)
     return generate_coverage_report(
         catalog_path,
         rights_path=rights_path,
@@ -476,7 +519,6 @@ def _coverage(
         manifest_path=manifest_path,
         authority_path=authority_path,
         authority_review_binding_path=binding_path,
-        authority_trust_anchor_path=anchor_path,
         authority_environment="production",
         authority_now=AUTHORITY_NOW,
         expected_total=6,
@@ -717,11 +759,11 @@ def test_negative_absence_and_one_wrong_match_fail_closed(tmp_path: Path) -> Non
 
 
 def test_coverage_gate_executes_golden_and_separates_decision_coverage(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     catalog_path, spec_path = _write_inputs(tmp_path)
 
-    report = _coverage(tmp_path, catalog_path, spec_path)
+    report = _coverage(tmp_path, catalog_path, spec_path, monkeypatch)
 
     assert report.decision_coverage_complete is True
     assert report.golden_controls_total == 4
@@ -739,13 +781,13 @@ def test_coverage_gate_executes_golden_and_separates_decision_coverage(
 
 
 def test_perfect_counts_with_one_golden_failure_keep_coverage_red(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     spec = _spec()
     spec["boundary_controls"][0]["expected_disposition"] = "ARCHIVE_ONLY"  # type: ignore[index]
     catalog_path, spec_path = _write_inputs(tmp_path, spec=spec)
 
-    report = _coverage(tmp_path, catalog_path, spec_path)
+    report = _coverage(tmp_path, catalog_path, spec_path, monkeypatch)
 
     assert report.decision_coverage_complete is True
     assert report.golden_validation_pass is False

@@ -43,9 +43,10 @@ from uuid import UUID
 import psycopg
 from nexus_contracts.authority_artifacts import (
     CanonicalArtifactError,
-    PublicationReviewArtifact,
+    PublicationReviewArtifactV2,
     canonical_publication_review_path,
     parse_publication_review_artifact,
+    require_publication_review_v2,
 )
 from nexus_contracts.document import Rights
 from nexus_contracts.resource_state import ResourceState
@@ -108,6 +109,12 @@ class VerifiedAttestation:
     manifest_digest: str
     review_id: str
     attestation_digest: str
+    #: ADR-0035 : exposé pour que le publisher puisse exiger LOT42-V2
+    #: *explicitement*, plutôt que d'hériter silencieusement du refus
+    #: appliqué ici. Une garantie transitive est une garantie qu'un
+    #: futur refactor peut retirer sans qu'aucun test ne rougisse.
+    protocol_version: str
+    attributed_facts_digest: str
     authorization: VerifiedAuthorization
     facts: PublicationFacts
 
@@ -230,9 +237,14 @@ def _verify_human_review(row: dict[str, Any], invalidator: _Invalidator) -> Revi
 
 def _verify_review_artifact(
     row: dict[str, Any], *, live: ReviewVerification, invalidator: _Invalidator
-) -> PublicationReviewArtifact:
+) -> PublicationReviewArtifactV2:
     """Item E : la décision de publication est relue depuis le blob Git
-    approuvé, jamais reconstruite depuis les colonnes de la base."""
+    approuvé, jamais reconstruite depuis les colonnes de la base.
+
+    ADR-0035 : seul un artefact **LOT42-V2** peut autoriser une
+    publication. Un V1 historique reste parsable — il doit le rester pour
+    l'audit — mais il est refusé ici, avant toute comparaison, parce qu'il
+    n'a jamais lié la provenance publiée à la relecture humaine."""
     expected_path = canonical_publication_review_path(
         review_id=row["review_id"], digest=row["attestation_digest"]
     )
@@ -251,7 +263,8 @@ def _verify_review_artifact(
     invalidator.require_equal("review_artifact_blob_sha", row["review_artifact_blob_sha"], blob.blob_sha)
 
     try:
-        artifact = parse_publication_review_artifact(blob.content)
+        parsed = parse_publication_review_artifact(blob.content)
+        artifact = require_publication_review_v2(parsed)
     except CanonicalArtifactError as exc:
         raise invalidator.fail(
             f"reviewed publication artifact is not canonical: {exc}"
@@ -262,12 +275,17 @@ def _verify_review_artifact(
 
 
 def _require_row_matches_artifact(
-    row: dict[str, Any], artifact: PublicationReviewArtifact, invalidator: _Invalidator
+    row: dict[str, Any], artifact: PublicationReviewArtifactV2, invalidator: _Invalidator
 ) -> None:
     """Toute colonne persistée doit être dérivable de l'artefact revu — un
-    UPDATE direct en base ne survit jamais à la relecture."""
+    UPDATE direct en base ne survit jamais à la relecture.
+
+    ADR-0035 : ``attributed_facts_digest`` en fait désormais partie. Sans
+    cette comparaison, la ligne pourrait citer une attribution différente
+    de celle que l'humain a relue dans les octets de l'artefact."""
     expected: dict[str, Any] = {
         "protocol_version": artifact.protocol_version,
+        "attributed_facts_digest": artifact.attributed_facts_digest,
         "review_id": artifact.review_id,
         "resource_id": str(row["resource_id"]),
         "artifact_id": str(row["artifact_id"]),
@@ -298,7 +316,7 @@ def _require_row_matches_artifact(
 
 
 def _require_facts_still_hold(
-    row: dict[str, Any], artifact: PublicationReviewArtifact, invalidator: _Invalidator,
+    row: dict[str, Any], artifact: PublicationReviewArtifactV2, invalidator: _Invalidator,
     facts: PublicationFacts,
 ) -> None:
     """Item F : les résultats du pipeline sont relus **maintenant** et
@@ -335,6 +353,18 @@ def _require_facts_still_hold(
     invalidator.require_equal(
         "facts.attribution_digest",
         row["attributed_facts_digest"],
+        facts.attribution_digest,
+    )
+    # ADR-0035, troisième branche de l'égalité à trois voies : les octets
+    # relus par l'humain doivent désigner l'attribution vivante. Les deux
+    # autres branches (artefact ↔ ligne, ligne ↔ faits) sont vérifiées
+    # ci-dessus et dans ``_require_row_matches_artifact`` ; celle-ci est
+    # redondante par construction et le reste **volontairement** : elle
+    # tombe en panne bruyamment si l'une des deux autres était un jour
+    # affaiblie.
+    invalidator.require_equal(
+        "artifact.attributed_facts_digest",
+        artifact.attributed_facts_digest,
         facts.attribution_digest,
     )
     invalidator.require_equal("facts.gate_name", artifact.gate_name, facts.gate_name)
@@ -458,6 +488,8 @@ def verify_publication_attestation(
         manifest_digest=row["manifest_digest"],
         review_id=row["review_id"],
         attestation_digest=row["attestation_digest"],
+        protocol_version=row["protocol_version"],
+        attributed_facts_digest=row["attributed_facts_digest"],
         authorization=authorization,
         facts=facts,
     )

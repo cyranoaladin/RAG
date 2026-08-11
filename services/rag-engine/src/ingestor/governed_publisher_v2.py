@@ -20,6 +20,7 @@ from typing import Any, Literal
 from uuid import UUID
 
 import psycopg
+from nexus_contracts.authority_artifacts import LOT42_V2_PROTOCOL_VERSION
 from nexus_contracts.embedding_utils import format_passage
 from nexus_contracts.ingestion import ResourceScope
 from nexus_contracts.resource_state import ResourceState
@@ -224,6 +225,21 @@ def _verify_placements(
         )
         if not isinstance(attestation, VerifiedAttestation):
             raise GovernedPublicationError("LOT42 verifier returned an invalid object")
+        # ADR-0035 : exigence **explicite** de LOT42-V2. Le vérificateur
+        # refuse déjà les artefacts V1, mais une publication ne doit pas
+        # dépendre d'une garantie qu'elle n'énonce pas elle-même : une
+        # attestation V1 historique ne publie rien sous ce runtime.
+        if attestation.protocol_version != LOT42_V2_PROTOCOL_VERSION:
+            raise GovernedPublicationError(
+                f"attestation protocol {attestation.protocol_version} is not "
+                f"{LOT42_V2_PROTOCOL_VERSION} — a LOT42-V1 attestation never bound "
+                "the published attribution facts to a human review and can never "
+                "authorize a publication"
+            )
+        if not attestation.attributed_facts_digest:
+            raise GovernedPublicationError(
+                "attestation carries no attributed_facts_digest — never publishable"
+            )
         facts = attestation.facts
         if (
             attestation.resource_id != placement.resource_id

@@ -890,6 +890,81 @@ def _verify(pg: dict[str, str], attested: dict[str, Any]) -> Any:
         )
 
 
+class TestTheReviewedArtifactIsLot42V2:
+    """ADR-0035 § 6 (constat F3) : ce que l'humain approuve désigne
+    l'attribution exacte, et une V1 n'autorise plus rien."""
+
+    def test_the_attestation_row_is_v2(
+        self, pg: dict[str, str], attested: dict[str, Any]
+    ) -> None:
+        with psycopg.connect(superuser_dsn(pg)) as conn, conn.cursor() as cur:
+            cur.execute(
+                "SELECT protocol_version FROM "
+                "ingestion_control.publication_attestations WHERE resource_id = %s",
+                (attested["resource_id"],),
+            )
+            assert cur.fetchone() == ("LOT42-V2",)
+
+    def test_the_reviewed_artifact_bytes_carry_the_attribution_digest(
+        self, pg: dict[str, str], attested: dict[str, Any]
+    ) -> None:
+        """Le digest n'est pas seulement en base : il est **dans les octets
+        que l'humain a relus**, donc dans leur digest et dans leur chemin
+        canonique."""
+        from nexus_contracts.authority_artifacts import (
+            parse_publication_review_artifact,
+            require_publication_review_v2,
+        )
+
+        with psycopg.connect(attestor_dsn(pg)) as conn:
+            facts = collect_publication_facts(
+                conn,
+                resource_id=attested["resource_id"],
+                artifact_id=attested["artifact_id"],
+            )
+        reviewed = require_publication_review_v2(
+            parse_publication_review_artifact(attested["raw"])
+        )
+        assert reviewed.attributed_facts_digest == facts.attribution_digest
+        assert reviewed.attributed_facts_digest in reviewed.canonical_bytes().decode()
+        assert reviewed.digest() in reviewed.canonical_path()
+
+    def test_a_v1_attestation_can_never_publish(
+        self, pg: dict[str, str], attested: dict[str, Any]
+    ) -> None:
+        """Coexistence historique côté schéma, refus côté runtime : la
+        ligne est repassée en V1 (digest retiré, comme une vraie ligne
+        historique) et la publication doit être refusée."""
+        with psycopg.connect(superuser_dsn(pg)) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT attributed_facts_digest FROM "
+                    "ingestion_control.publication_attestations "
+                    "WHERE resource_id = %s",
+                    (attested["resource_id"],),
+                )
+                (digest,) = cur.fetchone()
+            conn.execute(
+                "UPDATE ingestion_control.publication_attestations "
+                "SET protocol_version = 'LOT42-V1', attributed_facts_digest = NULL "
+                "WHERE resource_id = %s",
+                (attested["resource_id"],),
+            )
+            conn.commit()
+            try:
+                with pytest.raises(PublicationAttestationInvalidError):
+                    _verify(pg, attested)
+            finally:
+                conn.execute(
+                    "UPDATE ingestion_control.publication_attestations "
+                    "SET protocol_version = 'LOT42-V2', "
+                    "    attributed_facts_digest = %s "
+                    "WHERE resource_id = %s",
+                    (digest, attested["resource_id"]),
+                )
+                conn.commit()
+
+
 class TestAttestationSealsTheAttribution:
     def test_the_reviewed_proposal_carries_the_persisted_attribution(
         self, pg: dict[str, str], attested: dict[str, Any]
@@ -988,25 +1063,37 @@ class TestAttestationSealsTheAttribution:
                 ("0" * 64, attested["resource_id"]),
             )
             conn.commit()
-        with pytest.raises(
-            PublicationAttestationInvalidError, match="facts.attribution_digest"
-        ):
-            _verify(pg, attested)
-
-    def test_an_attestation_without_attribution_digest_never_publishes(
-        self, pg: dict[str, str], attested: dict[str, Any]
-    ) -> None:
-        with psycopg.connect(superuser_dsn(pg)) as conn:
-            conn.execute(
-                "UPDATE ingestion_control.publication_attestations "
-                "SET attributed_facts_digest = NULL WHERE resource_id = %s",
-                (attested["resource_id"],),
-            )
-            conn.commit()
+        # ADR-0035 : le refus arrive désormais plus tôt qu'avant. La
+        # comparaison artefact revu <-> ligne attestée
+        # (``_require_row_matches_artifact``) voit la dérive avant la
+        # comparaison ligne <-> faits relus. Les deux branches de
+        # l'égalité à trois voies protègent le même invariant ; c'est la
+        # première atteinte qui nomme l'écart.
         with pytest.raises(
             PublicationAttestationInvalidError, match="attributed_facts_digest"
         ):
             _verify(pg, attested)
+
+    def test_a_v2_attestation_cannot_even_be_stripped_of_its_digest(
+        self, pg: dict[str, str], attested: dict[str, Any]
+    ) -> None:
+        """ADR-0035 § 7 : l'invariant a migré du runtime vers le schéma.
+
+        Retirer le digest d'une attestation V2 n'aboutit plus à une
+        publication refusée à la relecture — l'écriture elle-même est
+        impossible. Une attestation sans digest ne peut exister que sous
+        l'étiquette V1, et une V1 ne publie rien
+        (``test_a_v1_attestation_can_never_publish``)."""
+        with psycopg.connect(superuser_dsn(pg)) as conn:
+            with pytest.raises(
+                psycopg.errors.CheckViolation,
+                match="attribution_digest_matches_protocol",
+            ):
+                conn.execute(
+                    "UPDATE ingestion_control.publication_attestations "
+                    "SET attributed_facts_digest = NULL WHERE resource_id = %s",
+                    (attested["resource_id"],),
+                )
 
 
 class TestMissingWriterFailsClosed:

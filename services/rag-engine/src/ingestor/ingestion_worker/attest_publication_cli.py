@@ -88,11 +88,12 @@ except (ImportError, ValueError):
     )
 
 from nexus_contracts.authority_artifacts import (
-    LOT42_PROTOCOL_VERSION,
+    LOT42_V2_PROTOCOL_VERSION,
     CanonicalArtifactError,
-    PublicationReviewArtifact,
+    PublicationReviewArtifactV2,
     canonical_publication_review_path,
     parse_publication_review_artifact,
+    require_publication_review_v2,
 )
 from nexus_contracts.document import Rights
 
@@ -168,11 +169,17 @@ def _build_artifact(
     review_id: str,
     facts: PublicationFacts,
     authorization: VerifiedAuthorization,
-) -> PublicationReviewArtifact:
+) -> PublicationReviewArtifactV2:
     """Construit l'artefact **entièrement** depuis les faits durables et
-    l'autorisation vérifiée. Aucun champ n'a d'autre origine."""
-    return PublicationReviewArtifact(
-        protocol_version=LOT42_PROTOCOL_VERSION,
+    l'autorisation vérifiée. Aucun champ n'a d'autre origine.
+
+    ADR-0035 : le producteur n'émet plus que du LOT42-V2.
+    ``attributed_facts_digest`` vient de ``facts.attribution_digest``,
+    c'est-à-dire de la colonne générée par PostgreSQL — jamais d'un calcul
+    côté client, qui pourrait diverger de ce que la base scelle."""
+    return PublicationReviewArtifactV2(
+        protocol_version=LOT42_V2_PROTOCOL_VERSION,
+        attributed_facts_digest=facts.attribution_digest,
         review_id=review_id,
         decision="AUTHORIZE_PUBLICATION",
         resource_id=str(facts.resource_id),
@@ -337,7 +344,9 @@ def _cmd_record_attestation(args: argparse.Namespace) -> int:
         return 1
 
     try:
-        reviewed = parse_publication_review_artifact(blob.content)
+        reviewed = require_publication_review_v2(
+            parse_publication_review_artifact(blob.content)
+        )
     except CanonicalArtifactError as exc:
         print(f"REVIEWED_ARTIFACT_NOT_CANONICAL: {exc}", file=sys.stderr)
         return 1
@@ -362,6 +371,21 @@ def _cmd_record_attestation(args: argparse.Namespace) -> int:
                 f"of artifact {args.artifact_id} changed between the reviewed "
                 f"proposal ({facts.attribution_digest}) and this attestation "
                 f"({attributed_facts_digest}) — re-propose the review",
+                file=sys.stderr,
+            )
+            return 1
+        # ADR-0035 : troisième branche. Les deux comparaisons ci-dessus
+        # relient la base d'alors à la base de maintenant ; celle-ci relie
+        # les **octets que l'humain a effectivement approuvés** à
+        # l'attribution vivante. Sans elle, un artefact byte-identique aux
+        # faits d'alors resterait acceptable alors même que son digest
+        # d'attribution désignerait autre chose.
+        if reviewed.attributed_facts_digest != attributed_facts_digest:
+            print(
+                "REVIEWED_ATTRIBUTION_MISMATCH: the human-reviewed artifact names "
+                f"attribution digest {reviewed.attributed_facts_digest} but the "
+                f"control plane currently holds {attributed_facts_digest} for "
+                f"artifact {args.artifact_id}",
                 file=sys.stderr,
             )
             return 1
@@ -429,7 +453,7 @@ def _cmd_record_attestation(args: argparse.Namespace) -> int:
                     "human_review_reviewer": live.reviewer,
                     "human_review_submitted_at": live.submitted_at,
                     "human_review_challenge": live.challenge,
-                    "protocol_version": LOT42_PROTOCOL_VERSION,
+                    "protocol_version": LOT42_V2_PROTOCOL_VERSION,
                     "attributed_facts_digest": attributed_facts_digest,
                 },
             )

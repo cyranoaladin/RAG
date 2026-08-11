@@ -15,10 +15,17 @@ REVIEW_SCHEMAS = {
 }
 
 
-def test_package_version_is_0_7_0() -> None:
+def test_package_version_is_0_8_0() -> None:
+    """0.8.0 (ADR-0035) contient : l'ajout du protocole ``review_binding``,
+    l'ajout de la dépendance ``cryptography``, une **rupture** du contrat
+    ``PublicationReviewArtifact`` et le passage de LOT42-V1 à LOT42-V2.
+
+    Un incrément mineur suffit malgré la rupture : le paquet est en 0.x,
+    où SemVer laisse les mineures rompre, et les seuls consommateurs sont
+    les services de ce monorepo, mis à jour dans le même changement."""
     root = Path(__file__).resolve().parents[1]
     pyproject = tomllib.loads((root / "pyproject.toml").read_text())
-    assert pyproject["project"]["version"] == "0.7.0"
+    assert pyproject["project"]["version"] == "0.8.0"
 
 
 def test_schema_export_is_deterministic(tmp_path: Path) -> None:

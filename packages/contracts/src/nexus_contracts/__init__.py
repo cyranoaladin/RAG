@@ -85,9 +85,13 @@ from nexus_contracts.authority_artifacts import (
     LOT41A_PROTOCOL_VERSION,
     LOT41A_V2_PROTOCOL_VERSION,
     LOT42_PROTOCOL_VERSION,
+    LOT42_V2_PROTOCOL_VERSION,
     PUBLICATION_REVIEWS_DIR,
     CanonicalArtifactError,
     PublicationReviewArtifact,
+    PublicationReviewArtifactAny,
+    PublicationReviewArtifactV1,
+    PublicationReviewArtifactV2,
     ScopeAuthorizationArtifact,
     ScopeAuthorizationArtifactAny,
     ScopeAuthorizationArtifactV1,
@@ -98,6 +102,7 @@ from nexus_contracts.authority_artifacts import (
     normalize_hostname,
     parse_publication_review_artifact,
     parse_scope_authorization_artifact,
+    require_publication_review_v2,
 )
 
 __all__ = [
@@ -165,9 +170,13 @@ __all__ = [
     "LOT41A_PROTOCOL_VERSION",
     "LOT41A_V2_PROTOCOL_VERSION",
     "LOT42_PROTOCOL_VERSION",
+    "LOT42_V2_PROTOCOL_VERSION",
     "PUBLICATION_REVIEWS_DIR",
     "CanonicalArtifactError",
     "PublicationReviewArtifact",
+    "PublicationReviewArtifactAny",
+    "PublicationReviewArtifactV1",
+    "PublicationReviewArtifactV2",
     "ScopeAuthorizationArtifact",
     "ScopeAuthorizationArtifactAny",
     "ScopeAuthorizationArtifactV1",
@@ -178,4 +187,5 @@ __all__ = [
     "normalize_hostname",
     "parse_publication_review_artifact",
     "parse_scope_authorization_artifact",
+    "require_publication_review_v2",
 ]
