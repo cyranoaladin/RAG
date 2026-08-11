@@ -13,6 +13,27 @@ from fastapi.responses import JSONResponse
 from prometheus_client import CONTENT_TYPE_LATEST
 from starlette.concurrency import run_in_threadpool
 
+
+def _missing_sibling(exc: ImportError) -> bool:
+    """Le frère visé est-il absent, ou son exécution a-t-elle échoué ?
+
+    Deux situations autorisent le repli : le module frère (ou son paquet
+    parent) est introuvable, et le runtime aplati de l'image Docker, où
+    les modules n'ont pas de paquet parent et ``from .x import y`` lève
+    « attempted relative import with no known parent package ».
+
+    Tout le reste — une dépendance transitive manquante, un ``cannot
+    import name``, une configuration refusée — remonte intact : réessayer
+    par un autre chemin rejouerait le même échec sous un autre nom.
+    """
+    if not isinstance(exc, ModuleNotFoundError):
+        return exc.name is None and "relative import" in str(exc)
+    name = exc.name or ""
+    return name == name.rsplit(".", 1)[-1] or name in (
+        "src", "src.ingestor", "ingestor",
+    )
+
+
 try:
     from . import metrics as ingest_metrics
     from . import retrieval_v2_endpoint, review_v2_endpoint
@@ -54,7 +75,12 @@ try:
         require_bff_service,
         validate_bff_service_configuration,
     )
-except (ImportError, ValueError):
+except ImportError as _exc:  # repli à plat, cause réelle préservée
+    if not _missing_sibling(_exc):
+        # Le module frère existe : c'est l'une de ses dépendances qui
+        # manque, ou sa configuration qui a été refusée. Réessayer par un
+        # autre chemin rejouerait le même échec sous un autre nom.
+        raise
     import metrics as ingest_metrics  # type: ignore[no-redef]
     import retrieval_v2_endpoint  # type: ignore[no-redef]
     import review_v2_endpoint  # type: ignore[no-redef]

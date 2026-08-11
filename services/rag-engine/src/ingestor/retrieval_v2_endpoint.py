@@ -33,6 +33,27 @@ from nexus_contracts import (
 )
 from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
 
+
+def _missing_sibling(exc: ImportError) -> bool:
+    """Le frère visé est-il absent, ou son exécution a-t-elle échoué ?
+
+    Deux situations autorisent le repli : le module frère (ou son paquet
+    parent) est introuvable, et le runtime aplati de l'image Docker, où
+    les modules n'ont pas de paquet parent et ``from .x import y`` lève
+    « attempted relative import with no known parent package ».
+
+    Tout le reste — une dépendance transitive manquante, un ``cannot
+    import name``, une configuration refusée — remonte intact : réessayer
+    par un autre chemin rejouerait le même échec sous un autre nom.
+    """
+    if not isinstance(exc, ModuleNotFoundError):
+        return exc.name is None and "relative import" in str(exc)
+    name = exc.name or ""
+    return name == name.rsplit(".", 1)[-1] or name in (
+        "src", "src.ingestor", "ingestor",
+    )
+
+
 try:
     from .collection_config import (
         CollectionConfigError,
@@ -81,7 +102,12 @@ try:
         effective_signed_collections,
     )
     from .security_v2 import SecurityRole, require_bff_service, require_role
-except (ImportError, ValueError):
+except ImportError as _exc:  # repli à plat, cause réelle préservée
+    if not _missing_sibling(_exc):
+        # Le module frère existe : c'est l'une de ses dépendances qui
+        # manque, ou sa configuration qui a été refusée. Réessayer par un
+        # autre chemin rejouerait le même échec sous un autre nom.
+        raise
     from collection_config import (  # type: ignore[no-redef]
         CollectionConfigError,
         list_instanciated_collections,
