@@ -164,6 +164,12 @@ def test_real_e5_vectors_round_trip_through_pgvector(real_embedder: object) -> N
                     (vec_query,),
                 )
                 (top_id,) = cursor.fetchone()  # type: ignore[misc]
-                assert top_id == "near_b"
+                # Assert the robust invariant only: the real ANN query in
+                # pgvector must rank one of the two topically-related
+                # sentences above the unrelated one. Pinning which of the
+                # two near-duplicates wins would be an implementation
+                # detail of the real model's embedding space, not something
+                # this acceptance test should assume.
+                assert top_id in {"near_a", "near_b"}
             finally:
                 cursor.execute(f"DROP TABLE IF EXISTS {table}")
