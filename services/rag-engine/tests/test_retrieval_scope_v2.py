@@ -132,12 +132,11 @@ def test_pilot_scope_catalogue_alignment_rejects_declared_dormant_subjects() -> 
         validate_pilot_scope_catalogue_alignment(ARTIFACT, config)
 
 
-def test_mounted_catalogue_keeps_health_closed_until_every_pilot_subject_exists() -> None:
-    with pytest.raises(RetrievalScopeError, match="retrieval scope forbidden"):
-        validate_pilot_scope_catalogue_alignment(
-            ARTIFACT,
-            validate_collection_catalogue_v2(),
-        )
+def test_mounted_catalogue_aligns_every_instantiated_pilot_subject() -> None:
+    validate_pilot_scope_catalogue_alignment(
+        ARTIFACT,
+        validate_collection_catalogue_v2(),
+    )
 
 
 def test_runtime_registry_alignment_accepts_declared_dormant_legacy_scope() -> None:
