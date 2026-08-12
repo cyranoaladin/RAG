@@ -37,6 +37,18 @@ def canonical_json_bytes(value: object) -> bytes:
     return (json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode("utf-8")
 
 
+class _DigestBoundDocument(dict[str, Any]):
+    """Document chargé depuis des octets exacts et protégé contre la mutation."""
+
+    source_sha256: str
+    canonical_sha256: str
+
+    def __init__(self, document: Mapping[str, Any], *, source_sha256: str) -> None:
+        super().__init__(document)
+        self.source_sha256 = source_sha256
+        self.canonical_sha256 = hashlib.sha256(canonical_json_bytes(self)).hexdigest()
+
+
 def file_sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as stream:
@@ -965,8 +977,12 @@ def _set_digest(values: Sequence[object]) -> str:
 
 def _require_document_digest(document: Mapping[str, Any], expected_sha256: str, label: str) -> None:
     expected = _require_sha(expected_sha256, f"{label} SHA")
-    actual = hashlib.sha256(canonical_json_bytes(document)).hexdigest()
-    if actual != expected:
+    canonical = hashlib.sha256(canonical_json_bytes(document)).hexdigest()
+    if isinstance(document, _DigestBoundDocument):
+        valid = document.source_sha256 == expected and document.canonical_sha256 == canonical
+    else:
+        valid = canonical == expected
+    if not valid:
         raise ValueError(f"{label} digest differs")
 
 
@@ -1152,8 +1168,8 @@ def _validate_pii_release_evidence(
 
 def _validate_rights_registry(
     registry: Mapping[str, Any], *, registry_sha256: str, corpus_manifest_sha256: str
-) -> str:
-    _require_sha(registry_sha256, "rights registry SHA")
+) -> tuple[str, frozenset[str]]:
+    _require_document_digest(registry, registry_sha256, "rights registry")
     decisions = _require_mapping(registry.get("human_rights_decisions"), "human rights decisions")
     sources = _require_mapping(registry.get("source_evidence"), "rights sources")
     matches = [
@@ -1175,7 +1191,17 @@ def _validate_rights_registry(
         or decision.get("generic_rights_blocker") is not False
     ):
         raise ValueError("Eduscol rights authority is not cleared")
-    return "officiel_public"
+    raw_exceptions = registry.get("document_specific_exceptions") or []
+    if not isinstance(raw_exceptions, list):
+        raise ValueError("rights document exceptions must be a list")
+    excepted: set[str] = set()
+    for raw in raw_exceptions:
+        exception = _require_mapping(raw, "rights document exception")
+        sha = _require_sha(exception.get("content_sha256"), "rights exception SHA")
+        if sha in excepted:
+            raise ValueError("rights document exception is duplicated")
+        excepted.add(sha)
+    return "officiel_public", frozenset(excepted)
 
 
 def _validate_mapping(
@@ -1186,7 +1212,7 @@ def _validate_mapping(
     values_field: str,
     label: str,
 ) -> dict[str, str]:
-    _require_sha(expected_sha256, f"{label} SHA")
+    _require_document_digest(document, expected_sha256, label)
     if document.get("mapping_kind") != kind:
         raise ValueError(f"{label} kind is invalid")
     if set(document) != {"mapping_kind", values_field}:
@@ -1207,7 +1233,7 @@ def _validate_programme_registry(
     programme_indexes_by_path: Mapping[str, dict[str, Any]],
     preflight: Mapping[str, Any],
 ) -> dict[str, dict[str, str]]:
-    _require_sha(registry_sha256, "programme registry SHA")
+    _require_document_digest(registry, registry_sha256, "programme registry")
     if (
         registry.get("registry_kind") != "NEXUS_PROGRAMME_INDEX_REGISTRY_V3"
         or registry.get("school_year") != SCHOOL_YEAR
@@ -1226,6 +1252,7 @@ def _validate_programme_registry(
             raise ValueError("programme index path is duplicated")
         index_digests[path] = _require_sha(entry.get("sha256"), "programme index SHA")
         document = _require_mapping(programme_indexes_by_path.get(path), f"programme index {path}")
+        _require_document_digest(document, index_digests[path], f"programme index {path}")
         if not isinstance(document.get("fiches"), list):
             raise ValueError("programme index entries are absent")
     preflight_indexes = _require_mapping(
@@ -1268,7 +1295,7 @@ def _validate_profiles(
     level_mapping: Mapping[str, str],
     subject_mapping: Mapping[str, str],
 ) -> dict[str, tuple[CollectionProfile, str]]:
-    _require_sha(profile_manifest_sha256, "profile manifest SHA")
+    _require_document_digest(profile_manifest, profile_manifest_sha256, "profile manifest")
     if (
         profile_manifest.get("manifest_kind") != "NEXUS_STAGING_PROFILE_MANIFEST_V1"
         or profile_manifest.get("authority_mode") != "STAGING_LOCAL_GITHUB_ONLY"
@@ -1439,7 +1466,12 @@ def _validate_preflight(
             if chunk.get("chunk_index") != index:
                 raise ValueError("preflight chunk indexes are not contiguous")
             chunk_id = _require_sha(chunk.get("chunk_id"), "chunk ID")
-            _require_sha(chunk.get("chunk_sha256"), "chunk SHA")
+            chunk_sha = _require_sha(chunk.get("chunk_sha256"), "chunk SHA")
+            expected_chunk_id = hashlib.sha256(
+                f"{sha}:{index}:{chunk_sha}".encode()
+            ).hexdigest()
+            if chunk_id != expected_chunk_id:
+                raise ValueError("preflight chunk differs from canonical publisher identity")
             if chunk_id in chunk_ids:
                 raise ValueError("preflight chunk ID is duplicated")
             chunk_ids.add(chunk_id)
@@ -1522,7 +1554,7 @@ def _release_context(
         corpus_manifest_sha256=corpus_manifest_sha,
         expected_shas=set(artifacts),
     )
-    rights = _validate_rights_registry(
+    rights, rights_exceptions = _validate_rights_registry(
         rights_registry,
         registry_sha256=rights_registry_sha256,
         corpus_manifest_sha256=corpus_manifest_sha,
@@ -1589,6 +1621,7 @@ def _release_context(
         sha
         for sha, artifact in artifacts.items()
         if rights == "officiel_public"
+        and sha not in rights_exceptions
         and str(artifact["physical_path"]).startswith("01_EDUSCOL_OFFICIEL/")
     }
     preflight_required = current_shas & pii_cleared_shas & rights_cleared_shas
@@ -2030,7 +2063,7 @@ def _load_release_cli_inputs(args: argparse.Namespace) -> dict[str, Any]:
     for name, (path, digest, loader) in document_specs.items():
         label = name.replace("_", " ")
         _require_file_sha(path, digest, label)
-        inputs[name] = loader(path)
+        inputs[name] = _DigestBoundDocument(loader(path), source_sha256=digest)
         inputs[digest_input_names.get(name, f"{name}_sha256")] = digest
 
     profiles_dir = Path(args.profiles_dir)
@@ -2062,7 +2095,10 @@ def _load_release_cli_inputs(args: argparse.Namespace) -> dict[str, Any]:
             _require_sha(entry.get("sha256"), "programme index SHA"),
             f"programme index {relative}",
         )
-        index_documents[relative] = _load_yaml(path)
+        index_documents[relative] = _DigestBoundDocument(
+            _load_yaml(path),
+            source_sha256=_require_sha(entry.get("sha256"), "programme index SHA"),
+        )
     raw_taxonomies = registry.get("taxonomies")
     if not isinstance(raw_taxonomies, list) or len(raw_taxonomies) != len(TARGET_MATRIX):
         raise ValueError("programme registry taxonomies are absent")

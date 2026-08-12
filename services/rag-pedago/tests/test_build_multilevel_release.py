@@ -1314,8 +1314,8 @@ def _synthetic_release_inputs(builder: MultilevelBuilder) -> dict[str, Any]:
                 "error_code": None,
             }
         )
-        chunk_id = hashlib.sha256(f"chunk:{content_sha}".encode()).hexdigest()
         chunk_sha = hashlib.sha256(f"text:{content_sha}".encode()).hexdigest()
+        chunk_id = hashlib.sha256(f"{content_sha}:0:{chunk_sha}".encode()).hexdigest()
         preflight_rows.append(
             {
                 "content_sha256": content_sha,
@@ -1740,6 +1740,93 @@ def test_release_bundle_builds_ten_nonempty_subjects_and_exact_aggregate() -> No
     assert artifact["chunk_sha256_set_digest"]
     assert artifact["page_coverage_digest"]
     assert artifact["placements"][0]["source_placement_id"].startswith("par-scope/")
+
+
+def test_release_bundle_refuses_chunk_identity_that_publisher_cannot_reproduce() -> None:
+    builder = _module()
+    inputs = _synthetic_release_inputs(builder)
+    first = inputs["preflight_evidence"]["artifacts"][0]
+    chunk = first["chunks"][0]
+    chunk["chunk_id"] = "f" * 64
+    inputs["preflight_evidence_sha256"] = hashlib.sha256(
+        builder.canonical_json_bytes(inputs["preflight_evidence"])
+    ).hexdigest()
+
+    with pytest.raises(ValueError, match="canonical publisher identity"):
+        builder.build_release_bundle(**inputs)
+
+
+@pytest.mark.parametrize(
+    "authority",
+    [
+        "rights_registry",
+        "profile_manifest",
+        "programme_registry",
+        "programme_indexes_by_path",
+        "level_mapping",
+        "subject_mapping",
+        "document_type_mapping",
+    ],
+)
+def test_direct_release_builder_rejects_in_memory_authority_digest_drift(
+    authority: str,
+) -> None:
+    builder = _module()
+    inputs = _synthetic_release_inputs(builder)
+    if authority == "rights_registry":
+        inputs[authority]["document_specific_exceptions"] = [
+            {
+                "content_sha256": inputs["inventory"]["collections"][0]["candidates"][0][
+                    "content_sha256"
+                ],
+                "reason": "EXPLICIT_DOCUMENT_RESTRICTION",
+            }
+        ]
+    elif authority == "programme_indexes_by_path":
+        first_path = next(iter(inputs[authority]))
+        inputs[authority][first_path]["review_marker"] = "drift"
+    else:
+        inputs[authority]["review_marker"] = "drift"
+
+    with pytest.raises(ValueError, match="digest differs"):
+        builder.build_release_bundle(**inputs)
+
+
+def test_digest_bound_rights_exception_makes_only_that_artifact_noneligible() -> None:
+    builder = _module()
+    inputs = _synthetic_release_inputs(builder)
+    excepted_sha = inputs["inventory"]["collections"][0]["candidates"][0]["content_sha256"]
+    inputs["rights_registry"]["document_specific_exceptions"] = [
+        {
+            "content_sha256": excepted_sha,
+            "reason": "EXPLICIT_DOCUMENT_RESTRICTION",
+        }
+    ]
+    rights_sha = hashlib.sha256(
+        builder.canonical_json_bytes(inputs["rights_registry"])
+    ).hexdigest()
+    inputs["rights_registry_sha256"] = rights_sha
+    preflight = inputs["preflight_evidence"]
+    preflight["rights_registry_sha256"] = rights_sha
+    preflight["artifacts"] = [
+        row for row in preflight["artifacts"] if row["content_sha256"] != excepted_sha
+    ]
+    preflight["selection"]["current_and_pii_cleared"] = 9
+    preflight["selection"]["excluded_current_pii_sha256"] = [excepted_sha]
+    for field in ("required", "evaluated", "pass", "total_chunks", "total_pages"):
+        preflight["summary"][field] = 9
+    inputs["preflight_evidence_sha256"] = hashlib.sha256(
+        builder.canonical_json_bytes(preflight)
+    ).hexdigest()
+
+    eligibility = builder.evaluate_release_eligibility(**inputs)
+
+    assert eligibility["by_content"][excepted_sha] == {
+        "release_eligible": False,
+        "reason_codes": ["RIGHTS_NOT_CLEARED"],
+        "collections": ["rag_nexus_maths_seconde_tc"],
+    }
+    assert eligibility["counts"]["release_eligible"] == 9
 
 
 def test_release_eligibility_is_complete_and_never_invents_currentness() -> None:
