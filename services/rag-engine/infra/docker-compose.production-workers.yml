@@ -1,0 +1,245 @@
+# LOT H2-B remédiation (finding P1-workers) — topologie de PRODUCTION pour
+# Worker A / Worker B multi-niveaux (release registry LOT H2-B, registre
+# de révocation gouverné, ancre de confiance de production).
+#
+# Fichier Compose additionnel, jamais chargé implicitement par la commande
+# normale du runtime v2 ni par docker-compose.ingestion.yml (rehearsal).
+# Activation explicite par un second/troisième `-f` :
+#
+#   docker compose -f docker-compose.v2.yml -f docker-compose.production-workers.yml \
+#     up -d multilevel-worker-a-production multilevel-worker-b-production
+#
+# Cette mission ne démarre RIEN : versionné seulement
+# (PRODUCTION_WORKERS_DEPLOYED=false). Sans une ancre de confiance de
+# production réelle montée sur PRODUCTION_TRUST_ANCHOR_HOST_FILE — jamais
+# créée ici (PRODUCTION_TRUST_ANCHOR_PROVISIONED=false, cf. docs/reports/
+# h2_exact_head_remediation_pre_go_live.md) — les deux workers refusent de
+# démarrer : fail-closed, jamais un repli vers rehearsal ni une production
+# dégradée. Image : Dockerfile.multilevel-worker-production (jamais
+# Dockerfile.ingestion-worker — cf. son en-tête pour la raison structurelle :
+# la racine gouvernée doit se résoudre à la vraie profondeur du dépôt).
+
+networks:
+  rag_net:
+    driver: bridge
+
+secrets:
+  # Même convention que docker-compose.ingestion.yml : défaut /dev/null
+  # (jamais une variable requise), refus explicite fail-closed à l'usage
+  # plutôt qu'un `up` cassé pour tout déploiement qui n'active pas ce
+  # fichier.
+  nexus_github_token:
+    file: ${NEXUS_GITHUB_TOKEN_HOST_FILE:-/dev/null}
+
+volumes:
+  rag_multilevel_worker_a_production_artifacts:
+  rag_multilevel_worker_b_production_artifacts:
+
+x-multilevel-production-common: &multilevel-production-common
+  restart: unless-stopped
+  networks: [rag_net]
+  # Aucun bloc `ports:` sur aucun des deux services de cette topologie —
+  # ni Worker A ni Worker B ne sont, ni ne doivent jamais être, exposés
+  # (ADR-0024, ADR-0031) : seule une boucle CLI qui consomme des jobs,
+  # jamais un serveur.
+  read_only: true
+  tmpfs: ["/tmp"]
+  security_opt: [no-new-privileges:true]
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "5"
+
+services:
+  multilevel-worker-a-production:
+    <<: *multilevel-production-common
+    build:
+      context: ../../..
+      dockerfile: services/rag-engine/infra/Dockerfile.multilevel-worker-production
+    environment:
+      TZ: ${TZ:-UTC}
+      NEXUS_ENVIRONMENT: production
+      NEXUS_READINESS_MANIFEST_PATH: /app/production/readiness-manifest.json
+      NEXUS_RELEASE_SHA: "${NEXUS_RELEASE_SHA:?NEXUS_RELEASE_SHA requis (merge commit deploye)}"
+      # Rôle applicatif du plan de contrôle d'ingestion uniquement — jamais
+      # le rôle migrateur/autorité/attestateur (même séparation que
+      # docker-compose.ingestion.yml). Aucun rôle superutilisateur.
+      PG_INGESTION_CONTROL_DSN: "${PG_INGESTION_CONTROL_DSN:?PG_INGESTION_CONTROL_DSN requis (role ingestion_control_app)}"
+      INGESTION_CONTROL_APP_ROLE: ${INGESTION_CONTROL_APP_ROLE:-ingestion_control_app}
+      MULTILEVEL_WORKER_A_OWNER: ${MULTILEVEL_WORKER_A_OWNER:-multilevel-worker-a-production}
+      MULTILEVEL_WORKER_A_POLL_INTERVAL_S: ${MULTILEVEL_WORKER_A_POLL_INTERVAL_S:-5}
+      XDG_CACHE_HOME: /tmp
+      NEXUS_GITHUB_TOKEN_FILE: ${NEXUS_GITHUB_TOKEN_FILE:-/run/secrets/nexus_github_token}
+    secrets: [nexus_github_token]
+    volumes:
+      # Ancre de confiance de production gouvernée — chemin fixé par
+      # readiness_gate.GOVERNED_TRUST_ANCHOR_PATH, jamais surchargeable.
+      # Défaut : fichier vide inexistant en pratique (aucune ancre réelle
+      # provisionnée par cette mission) — le worker refuse alors de
+      # démarrer, ce qui est le comportement voulu tant que LOT41A/LOT42
+      # production n'ont pas produit d'ancre réelle par le mécanisme
+      # gouverné existant.
+      - ${PRODUCTION_TRUST_ANCHOR_HOST_FILE:-./data/.no-production-trust-anchor}:/app/governance/trust-anchors/production-readiness-v1.json:ro
+      - ${PRODUCTION_READINESS_MANIFEST_HOST_FILE:?PRODUCTION_READINESS_MANIFEST_HOST_FILE requis}:/app/production/readiness-manifest.json:ro
+      - ${RAG_INGESTION_PROFILES_HOST_DIR:-./configs/ingestion_profiles}:/app/configs/ingestion_profiles:ro
+      # Registre de releases canonique (LOT H2-B, finding P1-api-release) et
+      # les manifests qu'il nomme — même racine montée que docker-compose.v2.yml.
+      - ${RAG_RELEASE_REGISTRY_HOST_DIR:-../../rag-pedago/data/releases/prerentree_2026_2027}:/app/production/release:ro
+      - ${PRODUCTION_REVOCATION_REGISTRY_HOST_FILE:?PRODUCTION_REVOCATION_REGISTRY_HOST_FILE requis}:/app/production/revocation-registry.json:ro
+      - ${RAG_MULTILEVEL_AUTHORITY_HOST_DIR:?RAG_MULTILEVEL_AUTHORITY_HOST_DIR requis}:/app/production/authority:ro
+      # services/rag-pedago/taxonomy : requis par programme_registry.py,
+      # résolu depuis --repository-root (racine gouvernée, jamais dérivée
+      # ailleurs que du disque monté ici).
+      - ${RAG_PEDAGO_TAXONOMY_HOST_DIR:-../../rag-pedago/taxonomy}:/app/services/rag-pedago/taxonomy:ro
+      - rag_multilevel_worker_a_production_artifacts:/app/data/artifacts
+    command:
+      - python
+      - -m
+      - ingestor.ingestion_worker.multilevel_cli
+      - --profiles-dir=/app/configs/ingestion_profiles
+      - --artifact-store-dir=/app/data/artifacts
+      - --owner=${MULTILEVEL_WORKER_A_OWNER:-multilevel-worker-a-production}
+      - --expected-role=${INGESTION_CONTROL_APP_ROLE:-ingestion_control_app}
+      - --poll-interval-s=${MULTILEVEL_WORKER_A_POLL_INTERVAL_S:-5}
+      - --release-registry-path=/app/production/release/release-registry.json
+      - --release-registry-sha256=${RAG_RELEASE_REGISTRY_SHA256:?RAG_RELEASE_REGISTRY_SHA256 requis}
+      - --revocation-registry-path=/app/production/revocation-registry.json
+      - --revocation-registry-sha256=${PRODUCTION_REVOCATION_REGISTRY_SHA256:?PRODUCTION_REVOCATION_REGISTRY_SHA256 requis}
+      - --candidate-inventory-path=/app/production/authority/candidate_inventory.json
+      - --candidate-inventory-sha256=${PRODUCTION_CANDIDATE_INVENTORY_SHA256:?PRODUCTION_CANDIDATE_INVENTORY_SHA256 requis}
+      - --currentness-evidence-path=/app/production/authority/currentness.yml
+      - --currentness-evidence-sha256=${PRODUCTION_CURRENTNESS_EVIDENCE_SHA256:?PRODUCTION_CURRENTNESS_EVIDENCE_SHA256 requis}
+      - --levels-mapping-path=/app/production/authority/levels.yml
+      - --levels-mapping-sha256=${PRODUCTION_LEVELS_MAPPING_SHA256:?PRODUCTION_LEVELS_MAPPING_SHA256 requis}
+      - --subjects-mapping-path=/app/production/authority/subjects.yml
+      - --subjects-mapping-sha256=${PRODUCTION_SUBJECTS_MAPPING_SHA256:?PRODUCTION_SUBJECTS_MAPPING_SHA256 requis}
+      - --document-types-mapping-path=/app/production/authority/document_types.yml
+      - --document-types-mapping-sha256=${PRODUCTION_DOCUMENT_TYPES_MAPPING_SHA256:?PRODUCTION_DOCUMENT_TYPES_MAPPING_SHA256 requis}
+      - --release-manifest-path=/app/production/release/multilevel/multilevel.release.json
+      - --release-manifest-sha256=${PRODUCTION_MULTILEVEL_RELEASE_MANIFEST_SHA256:?PRODUCTION_MULTILEVEL_RELEASE_MANIFEST_SHA256 requis}
+      - --programme-registry-path=/app/production/authority/programme_index.yml
+      - --programme-registry-sha256=${PRODUCTION_PROGRAMME_REGISTRY_SHA256:?PRODUCTION_PROGRAMME_REGISTRY_SHA256 requis}
+      - --profile-manifest-path=/app/production/authority/profiles.json
+      - --profile-manifest-sha256=${PRODUCTION_PROFILE_MANIFEST_SHA256:?PRODUCTION_PROFILE_MANIFEST_SHA256 requis}
+      - --collection-config-path=/app/production/authority/rag_collections.yml
+      - --collection-config-sha256=${PRODUCTION_COLLECTION_CONFIG_SHA256:?PRODUCTION_COLLECTION_CONFIG_SHA256 requis}
+      - --pii-evidence-path=/app/production/authority/pii.json
+      - --pii-evidence-sha256=${PRODUCTION_PII_EVIDENCE_SHA256:?PRODUCTION_PII_EVIDENCE_SHA256 requis}
+      - --rights-evidence-path=/app/production/authority/rights.yml
+      - --rights-evidence-sha256=${PRODUCTION_RIGHTS_EVIDENCE_SHA256:?PRODUCTION_RIGHTS_EVIDENCE_SHA256 requis}
+      - --corpus-manifest-sha256=${PRODUCTION_CORPUS_MANIFEST_SHA256:?PRODUCTION_CORPUS_MANIFEST_SHA256 requis}
+      - --repository-root=/app
+      - --heartbeat-file=/tmp/multilevel-worker-a-production.heartbeat
+    healthcheck:
+      test:
+        - "CMD"
+        - "python3"
+        - "-c"
+        - "import pathlib,sys,time; p=pathlib.Path('/tmp/multilevel-worker-a-production.heartbeat'); sys.exit(0 if p.exists() and time.time()-p.stat().st_mtime < 60 else 1)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+
+  multilevel-worker-b-production:
+    <<: *multilevel-production-common
+    build:
+      context: ../../..
+      dockerfile: services/rag-engine/infra/Dockerfile.multilevel-worker-production
+    environment:
+      TZ: ${TZ:-UTC}
+      NEXUS_ENVIRONMENT: production
+      NEXUS_READINESS_MANIFEST_PATH: /app/production/readiness-manifest.json
+      NEXUS_RELEASE_SHA: "${NEXUS_RELEASE_SHA:?NEXUS_RELEASE_SHA requis (merge commit deploye)}"
+      PG_INGESTION_CONTROL_DSN: "${PG_INGESTION_CONTROL_DSN:?PG_INGESTION_CONTROL_DSN requis (role ingestion_control_app)}"
+      # DSN produit distinct du DSN de contrôle d'ingestion ci-dessus —
+      # jamais le même rôle, jamais superutilisateur (vérifié au démarrage
+      # par _enforce_production_evidence, jamais seulement supposé ici).
+      PG_RAG_DSN: "${PG_RAG_DSN:?PG_RAG_DSN requis (role publisher, distinct du role ingestion_control_app)}"
+      INGESTION_CONTROL_APP_ROLE: ${INGESTION_CONTROL_APP_ROLE:-ingestion_control_app}
+      PRODUCTION_PUBLISHER_ROLE: ${PRODUCTION_PUBLISHER_ROLE:-rag_publisher}
+      MULTILEVEL_WORKER_B_OWNER: ${MULTILEVEL_WORKER_B_OWNER:-multilevel-worker-b-production}
+      MULTILEVEL_WORKER_B_POLL_INTERVAL_S: ${MULTILEVEL_WORKER_B_POLL_INTERVAL_S:-5}
+      # Worker B ne télécharge jamais de modèle au runtime — l'artefact E5
+      # est monté localement, offline forcé (même discipline que
+      # docker-compose.v2.yml/docker-compose.ingestion.yml).
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+      XDG_CACHE_HOME: /tmp
+      NEXUS_GITHUB_TOKEN_FILE: ${NEXUS_GITHUB_TOKEN_FILE:-/run/secrets/nexus_github_token}
+    secrets: [nexus_github_token]
+    volumes:
+      - ${PRODUCTION_TRUST_ANCHOR_HOST_FILE:-./data/.no-production-trust-anchor}:/app/governance/trust-anchors/production-readiness-v1.json:ro
+      - ${PRODUCTION_READINESS_MANIFEST_HOST_FILE:?PRODUCTION_READINESS_MANIFEST_HOST_FILE requis}:/app/production/readiness-manifest.json:ro
+      - ${RAG_INGESTION_PROFILES_HOST_DIR:-./configs/ingestion_profiles}:/app/configs/ingestion_profiles:ro
+      - ${RAG_RELEASE_REGISTRY_HOST_DIR:-../../rag-pedago/data/releases/prerentree_2026_2027}:/app/production/release:ro
+      - ${PRODUCTION_REVOCATION_REGISTRY_HOST_FILE:?PRODUCTION_REVOCATION_REGISTRY_HOST_FILE requis}:/app/production/revocation-registry.json:ro
+      - ${RAG_MULTILEVEL_AUTHORITY_HOST_DIR:?RAG_MULTILEVEL_AUTHORITY_HOST_DIR requis}:/app/production/authority:ro
+      - ${RAG_PEDAGO_TAXONOMY_HOST_DIR:-../../rag-pedago/taxonomy}:/app/services/rag-pedago/taxonomy:ro
+      # Artefact modèle E5, lecture seule — jamais téléchargé, jamais
+      # réutilisé pour un autre service (volume dédié, distinct de celui
+      # de l'API v2).
+      - ${RAG_EMBEDDING_MODEL_ARTIFACT_HOST_DIR:?RAG_EMBEDDING_MODEL_ARTIFACT_HOST_DIR requis}:/app/models/e5:ro
+      - rag_multilevel_worker_b_production_artifacts:/app/data/artifacts:ro
+    command:
+      - python
+      - -m
+      - ingestor.ingestion_worker.multilevel_publication_resume_cli
+      - --profiles-dir=/app/configs/ingestion_profiles
+      - --artifact-store-dir=/app/data/artifacts
+      - --owner=${MULTILEVEL_WORKER_B_OWNER:-multilevel-worker-b-production}
+      - --expected-role=${INGESTION_CONTROL_APP_ROLE:-ingestion_control_app}
+      - --expected-product-role=${PRODUCTION_PUBLISHER_ROLE:-rag_publisher}
+      - --poll-interval-s=${MULTILEVEL_WORKER_B_POLL_INTERVAL_S:-5}
+      - --embedding-artifact-root=/app/models/e5
+      - --embedding-inventory-sha256=${RAG_EMBEDDING_MODEL_INVENTORY_SHA256:?RAG_EMBEDDING_MODEL_INVENTORY_SHA256 requis}
+      - --release-registry-path=/app/production/release/release-registry.json
+      - --release-registry-sha256=${RAG_RELEASE_REGISTRY_SHA256:?RAG_RELEASE_REGISTRY_SHA256 requis}
+      - --revocation-registry-path=/app/production/revocation-registry.json
+      - --revocation-registry-sha256=${PRODUCTION_REVOCATION_REGISTRY_SHA256:?PRODUCTION_REVOCATION_REGISTRY_SHA256 requis}
+      - --candidate-inventory-path=/app/production/authority/candidate_inventory.json
+      - --candidate-inventory-sha256=${PRODUCTION_CANDIDATE_INVENTORY_SHA256:?PRODUCTION_CANDIDATE_INVENTORY_SHA256 requis}
+      - --currentness-evidence-path=/app/production/authority/currentness.yml
+      - --currentness-evidence-sha256=${PRODUCTION_CURRENTNESS_EVIDENCE_SHA256:?PRODUCTION_CURRENTNESS_EVIDENCE_SHA256 requis}
+      - --levels-mapping-path=/app/production/authority/levels.yml
+      - --levels-mapping-sha256=${PRODUCTION_LEVELS_MAPPING_SHA256:?PRODUCTION_LEVELS_MAPPING_SHA256 requis}
+      - --subjects-mapping-path=/app/production/authority/subjects.yml
+      - --subjects-mapping-sha256=${PRODUCTION_SUBJECTS_MAPPING_SHA256:?PRODUCTION_SUBJECTS_MAPPING_SHA256 requis}
+      - --document-types-mapping-path=/app/production/authority/document_types.yml
+      - --document-types-mapping-sha256=${PRODUCTION_DOCUMENT_TYPES_MAPPING_SHA256:?PRODUCTION_DOCUMENT_TYPES_MAPPING_SHA256 requis}
+      - --release-manifest-path=/app/production/release/multilevel/multilevel.release.json
+      - --release-manifest-sha256=${PRODUCTION_MULTILEVEL_RELEASE_MANIFEST_SHA256:?PRODUCTION_MULTILEVEL_RELEASE_MANIFEST_SHA256 requis}
+      - --programme-registry-path=/app/production/authority/programme_index.yml
+      - --programme-registry-sha256=${PRODUCTION_PROGRAMME_REGISTRY_SHA256:?PRODUCTION_PROGRAMME_REGISTRY_SHA256 requis}
+      - --profile-manifest-path=/app/production/authority/profiles.json
+      - --profile-manifest-sha256=${PRODUCTION_PROFILE_MANIFEST_SHA256:?PRODUCTION_PROFILE_MANIFEST_SHA256 requis}
+      - --collection-config-path=/app/production/authority/rag_collections.yml
+      - --collection-config-sha256=${PRODUCTION_COLLECTION_CONFIG_SHA256:?PRODUCTION_COLLECTION_CONFIG_SHA256 requis}
+      - --pii-evidence-path=/app/production/authority/pii.json
+      - --pii-evidence-sha256=${PRODUCTION_PII_EVIDENCE_SHA256:?PRODUCTION_PII_EVIDENCE_SHA256 requis}
+      - --rights-evidence-path=/app/production/authority/rights.yml
+      - --rights-evidence-sha256=${PRODUCTION_RIGHTS_EVIDENCE_SHA256:?PRODUCTION_RIGHTS_EVIDENCE_SHA256 requis}
+      - --corpus-manifest-sha256=${PRODUCTION_CORPUS_MANIFEST_SHA256:?PRODUCTION_CORPUS_MANIFEST_SHA256 requis}
+      - --repository-root=/app
+      - --heartbeat-file=/tmp/multilevel-worker-b-production.heartbeat
+    healthcheck:
+      test:
+        - "CMD"
+        - "python3"
+        - "-c"
+        - "import pathlib,sys,time; p=pathlib.Path('/tmp/multilevel-worker-b-production.heartbeat'); sys.exit(0 if p.exists() and time.time()-p.stat().st_mtime < 60 else 1)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 6G

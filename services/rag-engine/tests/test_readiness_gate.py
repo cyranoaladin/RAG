@@ -463,3 +463,43 @@ class TestGovernedAnchorPathsAreSeparate:
         assert not _anchors_are_separated(
             "governance/other/review-binding-v1.json", REVIEW_BINDING_ANCHOR_PATH
         )
+
+
+class TestTheRealGovernedRootResolvesOnAnActualCheckout:
+    """Tous les autres tests de ce fichier installent une racine gouvernée
+    synthétique via ``_install_governed_root`` (monkeypatch de
+    ``_GOVERNED_REPOSITORY_ROOT``) — aucun n'exerce jamais la dérivation
+    RÉELLE depuis l'emplacement de ``readiness_gate.py`` sur le disque. LOT
+    H2-B remédiation : cette dérivation était fausse de deux niveaux
+    (``parents[3]`` au lieu de ``parents[5]``), ce qui rendait
+    ``enforce_readiness_gate(environment="production")`` incapable de
+    résoudre les marqueurs sur *tout* checkout réel, indépendamment de la
+    présence de l'ancre — et donc production totalement inatteignable,
+    jamais détecté faute d'un test contre le vrai disque."""
+
+    def test_the_unmocked_root_is_the_actual_repository_root(self) -> None:
+        assert gate_module._GOVERNED_REPOSITORY_ROOT == Path(__file__).resolve().parents[3]
+
+    def test_the_unmocked_root_carries_both_governed_markers(self) -> None:
+        root = gate_module._GOVERNED_REPOSITORY_ROOT
+        for marker in gate_module._GOVERNED_ROOT_MARKERS:
+            assert (root / marker).is_dir(), f"missing governed root marker: {marker}"
+
+    def test_production_without_a_provisioned_anchor_fails_on_the_anchor_alone(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Sensitivity guard: against the real (unmocked) root, the only
+        thing standing between here and a resolvable production path is the
+        anchor file itself — not a broken marker/root derivation. This is
+        exactly ``PRODUCTION_TRUST_ANCHOR_PROVISIONED=false`` from the audit,
+        never a structural failure."""
+        manifest_path = tmp_path / "readiness.json"
+        manifest_path.write_bytes(b"{}")
+        manifest_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+
+        with pytest.raises(ReadinessGateError, match="governed production readiness anchor"):
+            enforce_readiness_gate(
+                manifest_path=manifest_path,
+                release_sha=MERGE_SHA,
+                environment="production",
+            )

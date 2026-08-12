@@ -16,8 +16,16 @@ from ingestor.ingestion_control.attestation import (
 from ingestor.ingestion_control.db import get_ingestion_control_dsn
 from ingestor.ingestion_control.jobs import reap_expired_job_leases
 from ingestor.ingestion_control.lease_reaper import reap_expired_leases
-from ingestor.ingestion_profiles.readiness_gate import enforce_readiness_gate
+from ingestor.ingestion_control.revocation_registry import (
+    load_revocation_registry,
+    require_revocation_registry_matches_manifest,
+)
+from ingestor.ingestion_profiles.readiness_gate import (
+    ReadinessGateResult,
+    enforce_readiness_gate,
+)
 from ingestor.ingestion_profiles.registry import load_profile_registry
+from ingestor.release_readiness import load_release_registry_file
 
 from .multilevel_runtime_authority import (
     add_multilevel_runtime_authority_arguments,
@@ -60,6 +68,13 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--owner", required=True, type=_non_blank)
     parser.add_argument("--expected-role", required=True, type=_non_blank)
     add_multilevel_runtime_authority_arguments(parser)
+    # Preuves exigées uniquement en production (cf. _enforce_production_evidence) :
+    # rehearsal ne les fournit jamais, et cela ne les rend pas moins exactes
+    # quand elles sont fournies.
+    parser.add_argument("--release-registry-path", type=Path, default=None)
+    parser.add_argument("--release-registry-sha256", default=None)
+    parser.add_argument("--revocation-registry-path", type=Path, default=None)
+    parser.add_argument("--revocation-registry-sha256", default=None)
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--max-iterations", type=_positive_int, default=None)
     parser.add_argument(
@@ -67,7 +82,25 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         type=_finite_non_negative_float,
         default=DEFAULT_POLL_INTERVAL_S,
     )
+    parser.add_argument(
+        "--heartbeat-file",
+        type=Path,
+        default=None,
+        help=(
+            "Optionnel : fichier réécrit avec l'horodatage courant après "
+            "chaque itération (réussie ou non) et une fois avant la première — "
+            "sert uniquement de liveness check externe (ex. HEALTHCHECK Docker "
+            "basé sur la fraîcheur du fichier). Aucune valeur par défaut : "
+            "absent signifie pas de heartbeat écrit, comportement inchangé."
+        ),
+    )
     return parser
+
+
+def _write_heartbeat(path: Path | None) -> None:
+    if path is None:
+        return
+    path.write_text(str(time.time()), encoding="utf-8")
 
 
 def _reap_expired_leases(conn: psycopg.Connection[object]) -> None:
@@ -76,14 +109,50 @@ def _reap_expired_leases(conn: psycopg.Connection[object]) -> None:
     conn.commit()
 
 
+def _enforce_production_evidence(
+    args: argparse.Namespace, readiness: ReadinessGateResult
+) -> None:
+    """Production exige des preuves supplémentaires, jamais un check en moins.
+
+    ``enforce_readiness_gate`` a déjà refusé de démarrer sans l'ancre de
+    confiance de production gouvernée — cette fonction n'y ajoute rien.
+    Ce qu'elle ajoute : le registre de releases canonique borné (LOT H2-B,
+    ``release_readiness.load_release_registry_file``) et un registre de
+    révocation gouverné, lié par digest au manifeste de readiness signé.
+    L'un ou l'autre absent est un refus de démarrage, jamais une
+    dégradation silencieuse en « aucune révocation »."""
+    if args.release_registry_path is None or not args.release_registry_sha256:
+        raise RuntimeAuthorityStartupError(
+            "production requires the canonical release registry "
+            "(--release-registry-path/--release-registry-sha256)"
+        )
+    load_release_registry_file(args.release_registry_path, args.release_registry_sha256)
+
+    if args.revocation_registry_path is None or not args.revocation_registry_sha256:
+        raise RuntimeAuthorityStartupError(
+            "production requires a governed revocation registry "
+            "(--revocation-registry-path/--revocation-registry-sha256)"
+        )
+    revocation = load_revocation_registry(
+        args.revocation_registry_path,
+        expected_sha256=args.revocation_registry_sha256,
+    )
+    require_revocation_registry_matches_manifest(
+        revocation,
+        manifest_revocation_registry_digest=readiness.manifest.revocation_registry_digest,
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _build_arg_parser().parse_args(argv)
     try:
         readiness = enforce_readiness_gate()
-        if readiness.environment != "rehearsal":
+        if readiness.environment not in ("rehearsal", "production"):
             raise RuntimeAuthorityStartupError(
-                "multilevel staging worker requires rehearsal readiness"
+                "multilevel worker requires rehearsal or production readiness"
             )
+        if readiness.environment == "production":
+            _enforce_production_evidence(args, readiness)
         profiles = load_profile_registry(args.profiles_dir)
         authorities = load_multilevel_runtime_authorities(
             multilevel_runtime_authority_inputs_from_args(args),
@@ -95,13 +164,23 @@ def main(argv: list[str] | None = None) -> int:
         print(f"MULTILEVEL_WORKER_STARTUP_FAILED: {exc}", file=sys.stderr)
         return 1
 
-    print(
-        "MULTILEVEL_WORKER_STARTUP_AUTHORITY "
-        "authority_mode=STAGING_LOCAL_GITHUB_ONLY production_approval=false "
-        f"release_manifest_sha256={args.release_manifest_sha256} "
-        f"profile_manifest_sha256={args.profile_manifest_sha256} "
-        f"declared_count={len(profiles)}"
-    )
+    if readiness.environment == "production":
+        print(
+            "MULTILEVEL_WORKER_STARTUP_AUTHORITY "
+            "authority_mode=PRODUCTION_SIGNED_READINESS_MANIFEST "
+            f"release_registry_sha256={args.release_registry_sha256} "
+            f"revocation_registry_sha256={args.revocation_registry_sha256} "
+            f"profile_manifest_sha256={args.profile_manifest_sha256} "
+            f"declared_count={len(profiles)}"
+        )
+    else:
+        print(
+            "MULTILEVEL_WORKER_STARTUP_AUTHORITY "
+            "authority_mode=STAGING_LOCAL_GITHUB_ONLY production_approval=false "
+            f"release_manifest_sha256={args.release_manifest_sha256} "
+            f"profile_manifest_sha256={args.profile_manifest_sha256} "
+            f"declared_count={len(profiles)}"
+        )
     deps = WorkerDeps(
         owner=args.owner,
         profile_registry=profiles,
@@ -125,10 +204,12 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"MULTILEVEL_WORKER_ATTESTATION_FAILED: {exc}", file=sys.stderr)
                 return 1
             print("MULTILEVEL_WORKER_ATTESTATION_OK " f"current_user={attestation.current_user}")
+            _write_heartbeat(args.heartbeat_file)
             while max_iterations is None or iterations < max_iterations:
                 _reap_expired_leases(conn)
                 outcome = run_worker_iteration(conn, deps=deps)
                 iterations += 1
+                _write_heartbeat(args.heartbeat_file)
                 if outcome.worked:
                     print(
                         f"MULTILEVEL_WORKER_ITERATION job_id={outcome.job_id} "

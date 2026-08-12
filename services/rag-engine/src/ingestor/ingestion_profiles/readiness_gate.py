@@ -77,7 +77,15 @@ REHEARSAL_TRUST_ANCHOR_ENV = "NEXUS_READINESS_REHEARSAL_TRUST_ANCHOR"
 #: override, par aucun moyen. Même discipline que le gate H2-B côté
 #: rag-pedago : une racine redirigeable rendrait « ancre gouvernée »
 #: dépourvu de sens.
-_GOVERNED_REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
+#:
+#: Ce fichier vit à ``services/rag-engine/src/ingestor/ingestion_profiles/``,
+#: soit 5 niveaux sous la racine du dépôt (ingestion_profiles, ingestor,
+#: src, rag-engine, services) — jamais 3, qui désignerait ``services/
+#: rag-engine`` lui-même et ferait échouer la résolution des marqueurs sur
+#: tout checkout réel (cf. le même calcul pour le gate H2-B, ``rag_pedago/
+#: imports/h2b_coverage_report.py``, 4 niveaux sous sa racine avec un seul
+#: répertoire de paquet entre le fichier et le service).
+_GOVERNED_REPOSITORY_ROOT = Path(__file__).resolve().parents[5]
 
 #: Marqueurs du dépôt. La dérivation par remontée n'est vraie que dans un
 #: checkout ; installée ailleurs, elle désignerait un répertoire

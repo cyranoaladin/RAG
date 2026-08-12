@@ -17,8 +17,16 @@ from ingestor.ingestion_control.attestation import (
 )
 from ingestor.ingestion_control.db import get_ingestion_control_dsn
 from ingestor.ingestion_control.jobs import reap_expired_job_leases
-from ingestor.ingestion_profiles.readiness_gate import enforce_readiness_gate
+from ingestor.ingestion_control.revocation_registry import (
+    load_revocation_registry,
+    require_revocation_registry_matches_manifest,
+)
+from ingestor.ingestion_profiles.readiness_gate import (
+    ReadinessGateResult,
+    enforce_readiness_gate,
+)
 from ingestor.ingestion_profiles.registry import load_profile_registry
+from ingestor.release_readiness import load_release_registry_file
 
 from .multilevel_runtime_authority import (
     add_multilevel_runtime_authority_arguments,
@@ -67,6 +75,12 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         required=True,
         type=_non_blank,
     )
+    # Preuves exigées uniquement en production (cf. _enforce_production_evidence).
+    parser.add_argument("--release-registry-path", type=Path, default=None)
+    parser.add_argument("--release-registry-sha256", default=None)
+    parser.add_argument("--revocation-registry-path", type=Path, default=None)
+    parser.add_argument("--revocation-registry-sha256", default=None)
+    parser.add_argument("--expected-product-role", type=_non_blank, default=None)
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--max-iterations", type=_positive_int, default=None)
     parser.add_argument(
@@ -74,7 +88,25 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         type=_finite_non_negative_float,
         default=DEFAULT_POLL_INTERVAL_S,
     )
+    parser.add_argument(
+        "--heartbeat-file",
+        type=Path,
+        default=None,
+        help=(
+            "Optionnel : fichier réécrit avec l'horodatage courant après "
+            "chaque itération (réussie ou non) et une fois avant la première — "
+            "sert uniquement de liveness check externe (ex. HEALTHCHECK Docker "
+            "basé sur la fraîcheur du fichier). Aucune valeur par défaut : "
+            "absent signifie pas de heartbeat écrit, comportement inchangé."
+        ),
+    )
     return parser
+
+
+def _write_heartbeat(path: Path | None) -> None:
+    if path is None:
+        return
+    path.write_text(str(time.time()), encoding="utf-8")
 
 
 def _product_dsn() -> str:
@@ -91,14 +123,69 @@ def _extract_non_pdf_text(raw_bytes: bytes) -> str:
         return raw_bytes.decode("latin-1")
 
 
+def _enforce_production_evidence(
+    args: argparse.Namespace,
+    readiness: ReadinessGateResult,
+    *,
+    product_dsn: str,
+) -> None:
+    """Production exige des preuves supplémentaires, jamais un check en moins.
+
+    Au-delà du registre de releases et du registre de révocation gouvernés
+    (identiques à Worker A), Worker B publie réellement dans la base
+    produit : son DSN produit ne doit jamais coïncider avec le DSN de
+    contrôle d'ingestion, et le rôle qui l'utilise ne doit jamais être un
+    superutilisateur ou porter un privilège de repli élevé."""
+    if args.release_registry_path is None or not args.release_registry_sha256:
+        raise RuntimeAuthorityStartupError(
+            "production requires the canonical release registry "
+            "(--release-registry-path/--release-registry-sha256)"
+        )
+    load_release_registry_file(args.release_registry_path, args.release_registry_sha256)
+
+    if args.revocation_registry_path is None or not args.revocation_registry_sha256:
+        raise RuntimeAuthorityStartupError(
+            "production requires a governed revocation registry "
+            "(--revocation-registry-path/--revocation-registry-sha256)"
+        )
+    revocation = load_revocation_registry(
+        args.revocation_registry_path,
+        expected_sha256=args.revocation_registry_sha256,
+    )
+    require_revocation_registry_matches_manifest(
+        revocation,
+        manifest_revocation_registry_digest=readiness.manifest.revocation_registry_digest,
+    )
+
+    if args.expected_product_role is None:
+        raise RuntimeAuthorityStartupError(
+            "production requires --expected-product-role for the product-publisher DSN"
+        )
+    if product_dsn == get_ingestion_control_dsn():
+        raise RuntimeAuthorityStartupError(
+            "production requires the product-publisher DSN and the ingestion-control "
+            "DSN to be distinct — a single shared DSN collapses the role separation"
+        )
+    try:
+        with psycopg.connect(product_dsn) as product_conn:
+            attest_runtime_role(product_conn, expected_role=args.expected_product_role)
+    except WorkerAttestationError as exc:
+        raise RuntimeAuthorityStartupError(
+            f"product-publisher DSN attestation failed: {exc}"
+        ) from exc
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _build_arg_parser().parse_args(argv)
     try:
         readiness = enforce_readiness_gate()
-        if readiness.environment != "rehearsal":
+        if readiness.environment not in ("rehearsal", "production"):
             raise RuntimeAuthorityStartupError(
-                "multilevel staging worker requires rehearsal readiness"
+                "multilevel worker requires rehearsal or production readiness"
             )
+        product_dsn = _product_dsn()
+        if readiness.environment == "production":
+            _enforce_production_evidence(args, readiness, product_dsn=product_dsn)
         profiles = load_profile_registry(args.profiles_dir)
         authorities = load_multilevel_runtime_authorities(
             multilevel_runtime_authority_inputs_from_args(args),
@@ -113,7 +200,6 @@ def main(argv: list[str] | None = None) -> int:
             raise RuntimeAuthorityStartupError(
                 "embedding provider inputs differ from the release manifest"
             )
-        product_dsn = _product_dsn()
         provider = VerifiedE5EmbeddingProvider.from_artifact(
             artifact_root=args.embedding_artifact_root,
             inventory_sha256=args.embedding_inventory_sha256,
@@ -123,14 +209,25 @@ def main(argv: list[str] | None = None) -> int:
         print(f"MULTILEVEL_PUBLICATION_WORKER_STARTUP_FAILED: {exc}", file=sys.stderr)
         return 1
 
-    print(
-        "MULTILEVEL_PUBLICATION_WORKER_STARTUP_AUTHORITY "
-        "authority_mode=STAGING_LOCAL_GITHUB_ONLY production_approval=false "
-        f"release_manifest_sha256={args.release_manifest_sha256} "
-        f"profile_manifest_sha256={args.profile_manifest_sha256} "
-        f"declared_count={len(profiles)} "
-        f"embedding_inventory_sha256={args.embedding_inventory_sha256}"
-    )
+    if readiness.environment == "production":
+        print(
+            "MULTILEVEL_PUBLICATION_WORKER_STARTUP_AUTHORITY "
+            "authority_mode=PRODUCTION_SIGNED_READINESS_MANIFEST "
+            f"release_registry_sha256={args.release_registry_sha256} "
+            f"revocation_registry_sha256={args.revocation_registry_sha256} "
+            f"profile_manifest_sha256={args.profile_manifest_sha256} "
+            f"declared_count={len(profiles)} "
+            f"embedding_inventory_sha256={args.embedding_inventory_sha256}"
+        )
+    else:
+        print(
+            "MULTILEVEL_PUBLICATION_WORKER_STARTUP_AUTHORITY "
+            "authority_mode=STAGING_LOCAL_GITHUB_ONLY production_approval=false "
+            f"release_manifest_sha256={args.release_manifest_sha256} "
+            f"profile_manifest_sha256={args.profile_manifest_sha256} "
+            f"declared_count={len(profiles)} "
+            f"embedding_inventory_sha256={args.embedding_inventory_sha256}"
+        )
     deps = PublicationResumeDeps(
         owner=args.owner,
         product_dsn=product_dsn,
@@ -157,11 +254,13 @@ def main(argv: list[str] | None = None) -> int:
             "MULTILEVEL_PUBLICATION_WORKER_ATTESTATION_OK "
             f"current_user={attestation.current_user}"
         )
+        _write_heartbeat(args.heartbeat_file)
         while max_iterations is None or iterations < max_iterations:
             reap_expired_job_leases(conn)
             conn.commit()
             outcome = run_publication_resume_iteration(conn, deps=deps)
             iterations += 1
+            _write_heartbeat(args.heartbeat_file)
             if outcome.worked:
                 print(
                     f"MULTILEVEL_PUBLICATION_WORKER_ITERATION job_id={outcome.job_id} "
