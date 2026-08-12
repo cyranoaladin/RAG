@@ -43,6 +43,7 @@ try:
     )
     from ingestor.ingestion_control.jobs import (
         JobClaim,
+        JobLeaseConflictError,
         claim_job,
         complete_job,
         record_job_retry,
@@ -70,6 +71,7 @@ except ImportError as _exc:  # repli à plat, cause réelle préservée
     )
     from ingestion_control.jobs import (
         JobClaim,
+        JobLeaseConflictError,
         claim_job,
         complete_job,
         record_job_retry,
@@ -190,10 +192,25 @@ def resume_publication(
     # encore : une preuve remplacée entre-temps invalide la publication.
     pii_registry, rights_registry = deps.require_sealed_evidence()
     pii_registry.verify_content_clearance(artifact_record.sha256)
-    rights_registry.resolve_rights(
+    rights_clearance = rights_registry.resolve_rights(
         content_sha256=artifact_record.sha256,
         source_path=str(payload.get("source_path") or artifact_record.final_url),
     )
+
+    # Les droits publiés sont ceux que le fait durable porte, et ils doivent
+    # coïncider avec ce que le registre résout aujourd'hui. Publier la
+    # valeur du registre seule laisserait une dérive du registre réécrire
+    # silencieusement des droits déjà attestés ; publier le fait durable
+    # seul ignorerait une restriction apparue depuis.
+    durable_rights = getattr(
+        artifact_record.rights_status, "value", artifact_record.rights_status
+    )
+    if str(durable_rights) != rights_clearance.rights.value:
+        raise PublicationResumeError(
+            f"durable rights {durable_rights!r} disagree with the registry's "
+            f"{rights_clearance.rights.value!r} for content "
+            f"{artifact_record.sha256} — refusing rather than choosing one"
+        )
 
     attribution, _digest = load_artifact_attribution(
         control_conn, ingestion_artifact_id=artifact_record.artifact_id
@@ -208,7 +225,7 @@ def resume_publication(
         content_sha256=artifact_record.sha256,
         source_label=attribution.source_label,
         source_uri=f"urn:nexus:sha256:{artifact_record.sha256}",
-        rights=str(artifact_record.rights_status),
+        rights=str(durable_rights),
         official=attribution.official,
         source_kind=attribution.source_kind,
         type_doc=attribution.type_doc,
@@ -282,22 +299,62 @@ def run_publication_resume_iteration(
             worked=False, job_id=None, status=None, error=None
         )
 
+    # Le claim est rendu durable tout de suite. Le garder dans la même
+    # transaction que la vérification GitHub, l'extraction et les
+    # embeddings maintiendrait une transaction ouverte pendant des
+    # minutes — et ``publish_governed_artifact`` exige de toute façon une
+    # connexion control *idle*.
+    control_conn.commit()
+
     try:
         outcome = resume_publication(
             control_conn, claim=claim, deps=deps, build_placements=build_placements
         )
+    except JobLeaseConflictError:
+        # Le bail a expiré pendant le travail : un autre worker a pu
+        # reprendre le job. Terminer ici écraserait son verdict.
+        control_conn.rollback()
+        return PublicationResumeOutcome(
+            worked=True,
+            job_id=claim.job_id,
+            status="lease_lost",
+            error="lease expired during publication",
+        )
     except Exception as exc:  # refus nommé, jamais silencieux
         control_conn.rollback()
-        record_job_retry(
-            control_conn, job_id=claim.job_id, owner=deps.owner, error=str(exc)
-        )
-        control_conn.commit()
+        try:
+            record_job_retry(
+                control_conn,
+                job_id=claim.job_id,
+                lease_token=claim.lease_token,
+                error=str(exc),
+            )
+            control_conn.commit()
+        except JobLeaseConflictError:
+            control_conn.rollback()
+            return PublicationResumeOutcome(
+                worked=True, job_id=claim.job_id, status="lease_lost", error=str(exc)
+            )
         return PublicationResumeOutcome(
             worked=True, job_id=claim.job_id, status="retried", error=str(exc)
         )
 
-    complete_job(control_conn, job_id=claim.job_id, owner=deps.owner)
-    control_conn.commit()
+    try:
+        complete_job(
+            control_conn,
+            job_id=claim.job_id,
+            lease_token=claim.lease_token,
+            status="succeeded",
+        )
+        control_conn.commit()
+    except JobLeaseConflictError:
+        control_conn.rollback()
+        return PublicationResumeOutcome(
+            worked=True,
+            job_id=claim.job_id,
+            status="lease_lost",
+            error="lease expired before completion",
+        )
     return outcome
 
 
