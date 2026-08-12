@@ -18,9 +18,11 @@ from typing import Any
 from urllib.parse import urlparse
 
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
-_AGGREGATE_KIND = "WAVE0_AGGREGATE_RELEASE_V1"
-_SUBJECT_KIND = "WAVE0_SUBJECT_RELEASE_V1"
-_AUTHORITY_FIELDS = frozenset(
+_WAVE0_AGGREGATE_KIND = "WAVE0_AGGREGATE_RELEASE_V1"
+_WAVE0_SUBJECT_KIND = "WAVE0_SUBJECT_RELEASE_V1"
+_MULTILEVEL_AGGREGATE_KIND = "MULTILEVEL_AGGREGATE_RELEASE_V1"
+_MULTILEVEL_SUBJECT_KIND = "MULTILEVEL_SUBJECT_RELEASE_V1"
+_WAVE0_AUTHORITY_FIELDS = frozenset(
     {
         "corpus_manifest_sha256",
         "sealed_catalog_sha256",
@@ -30,6 +32,29 @@ _AUTHORITY_FIELDS = frozenset(
         "pii_evidence_sha256",
         "pii_policy_sha256",
         "rights_registry_sha256",
+    }
+)
+_MULTILEVEL_AUTHORITY_FIELDS = frozenset(
+    {
+        "corpus_manifest_sha256",
+        "parent_sealed_catalog_sha256",
+        "placement_catalog_sha256",
+        "catalog_delta_sha256",
+        "effective_catalog_authority_sha256",
+        "candidate_inventory_sha256",
+        "currentness_evidence_sha256",
+        "pii_evidence_sha256",
+        "pii_policy_sha256",
+        "pii_scanner_sha256",
+        "rights_registry_sha256",
+        "preflight_evidence_sha256",
+        "programme_registry_sha256",
+        "profile_manifest_sha256",
+        "level_mapping_sha256",
+        "subject_mapping_sha256",
+        "document_type_mapping_sha256",
+        "embedding_inventory_sha256",
+        "reranker_inventory_sha256",
     }
 )
 
@@ -202,8 +227,14 @@ def _validate_artifact_digests(artifact: Mapping[str, Any], field: str) -> None:
             raise ReleaseReadinessError(f"{field}.{name} mismatch")
 
 
-def _parse_subject(payload: Mapping[str, Any], field: str) -> tuple[str, list[ExpectedArtifact]]:
-    if payload.get("release_kind") != _SUBJECT_KIND:
+def _parse_subject(
+    payload: Mapping[str, Any],
+    field: str,
+    *,
+    expected_kind: str,
+    authority_fields: frozenset[str],
+) -> tuple[str, list[ExpectedArtifact]]:
+    if payload.get("release_kind") != expected_kind:
         raise ReleaseReadinessError(f"{field}.release_kind is unsupported")
     collection = _require_nonblank(payload.get("collection"), f"{field}.collection")
     school_year = _require_nonblank(payload.get("school_year"), f"{field}.school_year")
@@ -211,9 +242,9 @@ def _parse_subject(payload: Mapping[str, Any], field: str) -> tuple[str, list[Ex
         payload.get("programme_version"), f"{field}.programme_version"
     )
     authorities = _require_mapping(payload.get("authorities"), f"{field}.authorities")
-    if set(authorities) != _AUTHORITY_FIELDS:
+    if set(authorities) != authority_fields:
         raise ReleaseReadinessError(f"{field}.authorities fields mismatch")
-    for name in _AUTHORITY_FIELDS:
+    for name in authority_fields:
         _require_sha256(authorities.get(name), f"{field}.authorities.{name}")
     profile = _require_mapping(payload.get("profile"), f"{field}.profile")
     if set(profile) != {"version", "fingerprint", "manifest_digest"}:
@@ -333,14 +364,21 @@ def _parse_subject(payload: Mapping[str, Any], field: str) -> tuple[str, list[Ex
 def load_release_expectation(path: Path, expected_sha256: str) -> ReleaseExpectation:
     """Charger l'agrégat et chaque manifest matière sous digest exact."""
     aggregate = _read_json_with_digest(Path(path), expected_sha256, "release manifest")
-    if aggregate.get("release_kind") != _AGGREGATE_KIND:
+    aggregate_kind = aggregate.get("release_kind")
+    if aggregate_kind == _WAVE0_AGGREGATE_KIND:
+        subject_kind = _WAVE0_SUBJECT_KIND
+        authority_fields = _WAVE0_AUTHORITY_FIELDS
+    elif aggregate_kind == _MULTILEVEL_AGGREGATE_KIND:
+        subject_kind = _MULTILEVEL_SUBJECT_KIND
+        authority_fields = _MULTILEVEL_AUTHORITY_FIELDS
+    else:
         raise ReleaseReadinessError("release manifest kind is unsupported")
     release_id = _require_nonblank(aggregate.get("release_id"), "release_id")
     school_year = _require_nonblank(aggregate.get("school_year"), "school_year")
     aggregate_authorities = _require_mapping(aggregate.get("authorities"), "authorities")
-    if set(aggregate_authorities) != _AUTHORITY_FIELDS:
+    if set(aggregate_authorities) != authority_fields:
         raise ReleaseReadinessError("authorities fields mismatch")
-    for name in _AUTHORITY_FIELDS:
+    for name in authority_fields:
         _require_sha256(aggregate_authorities.get(name), f"authorities.{name}")
     aggregate_models = _require_mapping(aggregate.get("models"), "models")
     if set(aggregate_models) != {"embedding", "reranker"}:
@@ -391,7 +429,12 @@ def load_release_expectation(path: Path, expected_sha256: str) -> ReleaseExpecta
             _require_sha256(subject.get("sha256"), f"subjects[{index}].sha256"),
             "subject release manifest",
         )
-        collection, subject_artifacts = _parse_subject(subject_payload, f"subjects[{index}]")
+        collection, subject_artifacts = _parse_subject(
+            subject_payload,
+            f"subjects[{index}]",
+            expected_kind=subject_kind,
+            authority_fields=authority_fields,
+        )
         if collection != subject.get("collection") or collection in collections:
             raise ReleaseReadinessError("subject collection mismatch or duplicate")
         if subject_payload.get("school_year") != school_year:

@@ -240,6 +240,52 @@ def test_exact_snapshot_is_ready(tmp_path: Path) -> None:
     assert report.unexpected_chunks == 0
 
 
+def test_multilevel_aggregate_uses_its_extended_authority_contract(
+    tmp_path: Path,
+) -> None:
+    manifest, _digest = _release_files(tmp_path)
+    aggregate = json.loads(manifest.read_text(encoding="utf-8"))
+    subject_path = tmp_path / aggregate["subjects"][0]["path"]
+    subject = json.loads(subject_path.read_text(encoding="utf-8"))
+    authority_names = (
+        "corpus_manifest_sha256",
+        "parent_sealed_catalog_sha256",
+        "placement_catalog_sha256",
+        "catalog_delta_sha256",
+        "effective_catalog_authority_sha256",
+        "candidate_inventory_sha256",
+        "currentness_evidence_sha256",
+        "pii_evidence_sha256",
+        "pii_policy_sha256",
+        "pii_scanner_sha256",
+        "rights_registry_sha256",
+        "preflight_evidence_sha256",
+        "programme_registry_sha256",
+        "profile_manifest_sha256",
+        "level_mapping_sha256",
+        "subject_mapping_sha256",
+        "document_type_mapping_sha256",
+        "embedding_inventory_sha256",
+        "reranker_inventory_sha256",
+    )
+    authorities = {
+        name: hashlib.sha256(name.encode("utf-8")).hexdigest()
+        for name in authority_names
+    }
+    subject["release_kind"] = "MULTILEVEL_SUBJECT_RELEASE_V1"
+    subject["authorities"] = authorities
+    subject_sha = _write_json(subject_path, subject)
+    aggregate["release_kind"] = "MULTILEVEL_AGGREGATE_RELEASE_V1"
+    aggregate["authorities"] = authorities
+    aggregate["subjects"][0]["sha256"] = subject_sha
+    aggregate_sha = _write_json(manifest, aggregate)
+
+    expectation = load_release_expectation(manifest, aggregate_sha)
+
+    assert expectation.collections == (COLLECTION,)
+    assert expectation.artifacts[0].content_sha256 == ARTIFACT_SHA
+
+
 @pytest.mark.parametrize(
     ("kind", "mutation", "counter"),
     [
