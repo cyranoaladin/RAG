@@ -34,3 +34,20 @@ def test_multilevel_e2e_is_opt_in_and_uses_real_postgresql() -> None:
     assert "start_ingestion_control_postgres" in source
     assert "docker" in source
     assert "pgvector" in source.lower()
+
+
+def test_multilevel_http_acceptance_is_semantic_exact_and_isolated() -> None:
+    source = E2E.read_text(encoding="utf-8")
+
+    assert "class SearchCase" in source
+    assert "expected_concepts_any" in source
+    assert "assert len(SEARCH_CASES) == TARGET_COLLECTIONS" in source
+    assert "assert all(len(cases) == 3 for cases in SEARCH_CASES.values())" in source
+    assert "expected_chunk_by_id" in source
+    assert "expected_artifact_by_sha" in source
+    assert 'citation.page == expected_chunk["page_start"]' in source
+    assert "citation.source_uri == expected_artifact.source_url" in source
+    assert 'metadata.get("placement_source_path") == expected_artifact.source_path' in source
+    assert "cross_scope.status_code == 403" in source
+    assert 'child_env.pop("RAG_RELEASE_MANIFEST_PATH", None)' in source
+    assert 'child_env.pop("RAG_RELEASE_MANIFEST_SHA256", None)' in source

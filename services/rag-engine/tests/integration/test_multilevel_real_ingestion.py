@@ -7,15 +7,22 @@ restent hors Git et sont désignés uniquement par variables d'environnement.
 
 from __future__ import annotations
 
+import base64
 import hashlib
+import hmac
+import json
 import os
 import secrets
 import subprocess
 import sys
+import tempfile
+import time
+import unicodedata
 import uuid
 from collections import defaultdict
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from contextlib import ExitStack
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -49,6 +56,12 @@ from _pg_authority import (  # noqa: E402
     requires_docker,
     start_ingestion_control_postgres,
     superuser_dsn,
+)
+from nexus_contracts import (  # noqa: E402
+    InternalIdentityEnvelope,
+    RetrievalResponse,
+    RetrievalScopeArtifactV2,
+    load_retrieval_scope_artifact,
 )
 from nexus_contracts.authority_artifacts import (  # noqa: E402
     ScopeAuthorizationArtifactV2,
@@ -154,6 +167,8 @@ DOCUMENT_TYPES_PATH = ENGINE_ROOT / "configs" / "mappings" / "eduscol_multilevel
 PDF_MIRROR = Path(os.environ.get("NEXUS_MULTILEVEL_PDF_MIRROR", ""))
 PII_PATH = Path(os.environ.get("NEXUS_MULTILEVEL_PII_EVIDENCE_PATH", ""))
 E5_PATH = Path(os.environ.get("RAG_EMBEDDING_MODEL_CACHE_DIR", ""))
+RERANKER_PATH = Path(os.environ.get("RAG_RERANKER_MODEL_CACHE_DIR", ""))
+RERANKER_INVENTORY_SHA256 = "bdcedc4d7cfe647b9aaa5a7546822dfee7826ebb3c64472bf89eae7592e08fe1"
 if not os.environ.get("NEXUS_REQUIRE_DOCKER", "").strip() or not all(
     os.environ.get(name, "").strip()
     for name in (
@@ -161,6 +176,8 @@ if not os.environ.get("NEXUS_REQUIRE_DOCKER", "").strip() or not all(
         "NEXUS_MULTILEVEL_PII_EVIDENCE_PATH",
         "RAG_EMBEDDING_MODEL_CACHE_DIR",
         "RAG_EMBEDDING_MODEL_INVENTORY_SHA256",
+        "RAG_RERANKER_MODEL_CACHE_DIR",
+        "RAG_RERANKER_MODEL_INVENTORY_SHA256",
     )
 ):
     pytest.skip("multilevel real ingestion not requested", allow_module_level=True)
@@ -271,6 +288,14 @@ def product_pg() -> Iterator[dict[str, str]]:
             "publisher_dsn": (
                 f"host=127.0.0.1 port={port} dbname={PG_DB} "
                 f"user=multilevel_publisher password={publisher_password}"
+            ),
+            "retrieval_dsn": (
+                f"host=127.0.0.1 port={port} dbname={PG_DB} "
+                f"user=multilevel_retrieval password={retrieval_password}"
+            ),
+            "review_dsn": (
+                f"host=127.0.0.1 port={port} dbname={PG_DB} "
+                f"user=multilevel_review password={review_password}"
             ),
         }
     finally:
@@ -405,6 +430,517 @@ def _parse_proposal(output: str) -> tuple[str, bytes]:
 
 def _reject_duplicate_pdf_extraction(_raw: bytes) -> str:
     raise AssertionError("PDF text must come only from extract_pdf_pages")
+
+
+@dataclass(frozen=True)
+class SearchCase:
+    query: str
+    expected_artifact_sha256: str
+    expected_concepts_any: tuple[str, ...]
+
+
+SEARCH_CASES: Mapping[str, tuple[SearchCase, ...]] = {
+    "entree_premiere_maths_v1": (
+        SearchCase(
+            "Comment le programme aborde-t-il les vecteurs et la géométrie repérée en seconde ?",
+            "05c5403d45bfc3631fa13b5c334822de09bcd68d850d0611044045cddba270de",
+            ("vecteur", "geometrie"),
+        ),
+        SearchCase(
+            "Quelles capacités sont attendues sur les fonctions en classe de seconde ?",
+            "05c5403d45bfc3631fa13b5c334822de09bcd68d850d0611044045cddba270de",
+            ("fonction",),
+        ),
+        SearchCase(
+            "Comment les probabilités et statistiques sont-elles enseignées en seconde ?",
+            "05c5403d45bfc3631fa13b5c334822de09bcd68d850d0611044045cddba270de",
+            ("probabil", "statisti"),
+        ),
+    ),
+    "entree_premiere_francais_v1": (
+        SearchCase(
+            "Quel est le programme de français en classe de seconde générale et technologique ?",
+            "b54b6422d0eb2fb906e6ad6c79a2e95e6cae00e3fa113da5f7499eee4cc53ae7",
+            ("programme",),
+        ),
+        SearchCase(
+            "Comment enseigner explicitement la compréhension de l'écrit en seconde ?",
+            "c4e3cc6fb201f4dabc78fa47206c1b498b3ed46496cf05165a74e0ecd8856fb1",
+            ("comprehension",),
+        ),
+        SearchCase(
+            "Quelles démarches permettent d'enseigner explicitement la compréhension de textes en seconde ?",
+            "c4e3cc6fb201f4dabc78fa47206c1b498b3ed46496cf05165a74e0ecd8856fb1",
+            ("comprehension",),
+        ),
+    ),
+    "entree_troisieme_maths_v1": (
+        SearchCase(
+            "Quels sont les attendus de fin d'année en mathématiques en quatrième ?",
+            "d0edabd6a21d6345d36d32c5506ddcf225e819ddca25d27c1ecc3f97b87a8966",
+            ("attendus",),
+        ),
+        SearchCase(
+            "Que doit savoir faire un élève de quatrième en calcul littéral ?",
+            "d0edabd6a21d6345d36d32c5506ddcf225e819ddca25d27c1ecc3f97b87a8966",
+            ("calcul litteral",),
+        ),
+        SearchCase(
+            "Quels sont les attendus de fin d'année pour calculer avec des nombres rationnels en quatrième ?",
+            "d0edabd6a21d6345d36d32c5506ddcf225e819ddca25d27c1ecc3f97b87a8966",
+            ("nombres",),
+        ),
+    ),
+    "entree_troisieme_francais_v1": (
+        SearchCase(
+            "Quels sont les attendus de fin d'année en français en quatrième ?",
+            "73c001b93cf2151924da5245c4d740b56a5194c17e29c37cda2e1c0593711fae",
+            ("attendus",),
+        ),
+        SearchCase(
+            "Quels attendus de fin d'année concernent l'expression orale en quatrième ?",
+            "73c001b93cf2151924da5245c4d740b56a5194c17e29c37cda2e1c0593711fae",
+            ("oral",),
+        ),
+        SearchCase(
+            "Comment un élève de quatrième doit-il justifier son interprétation d'un texte ?",
+            "73c001b93cf2151924da5245c4d740b56a5194c17e29c37cda2e1c0593711fae",
+            ("interpret",),
+        ),
+    ),
+    "entree_terminale_maths_v1": (
+        SearchCase(
+            "Quel est le programme 2026 de spécialité mathématiques en première générale ?",
+            "5303df0fcf6335f06d00c969a61dcd82cc3fdfd105271ae5c2ef580ff49b6c08",
+            ("programme",),
+        ),
+        SearchCase(
+            "Comment le programme de première aborde-t-il l'algèbre et l'analyse ?",
+            "5303df0fcf6335f06d00c969a61dcd82cc3fdfd105271ae5c2ef580ff49b6c08",
+            ("analyse", "algebre"),
+        ),
+        SearchCase(
+            "Quelle place occupent les probabilités conditionnelles et les variables aléatoires en première ?",
+            "5303df0fcf6335f06d00c969a61dcd82cc3fdfd105271ae5c2ef580ff49b6c08",
+            ("probabil",),
+        ),
+    ),
+    "entree_terminale_nsi_v1": (
+        SearchCase(
+            "Quel est le programme de spécialité NSI en première générale ?",
+            "7ca9a32e1823be6c1120cb0417324c3cb01688d1d194c7614a88ea851ccc60b0",
+            ("programme",),
+        ),
+        SearchCase(
+            "Quelles notions de programmation et d'algorithmique sont étudiées en NSI première ?",
+            "7ca9a32e1823be6c1120cb0417324c3cb01688d1d194c7614a88ea851ccc60b0",
+            ("algorithm",),
+        ),
+        SearchCase(
+            "Quels apprentissages concernent le Web et les interactions entre l'homme et la machine en première NSI ?",
+            "7ca9a32e1823be6c1120cb0417324c3cb01688d1d194c7614a88ea851ccc60b0",
+            ("web", "interaction"),
+        ),
+    ),
+    "eaf_premiere_francais_v1": (
+        SearchCase(
+            "Quel est le programme de français en première générale et technologique ?",
+            "b88b5c685ec05d44b0c22d64f491443759fc0f544fe9ad33e626fb6cc29bf65a",
+            ("programme",),
+        ),
+        SearchCase(
+            "Quelles compétences prépare-t-on pour les épreuves anticipées de français ?",
+            "b88b5c685ec05d44b0c22d64f491443759fc0f544fe9ad33e626fb6cc29bf65a",
+            ("epreuves anticipees",),
+        ),
+        SearchCase(
+            "Comment le programme de première organise-t-il lecture, écriture et étude de la langue ?",
+            "b88b5c685ec05d44b0c22d64f491443759fc0f544fe9ad33e626fb6cc29bf65a",
+            ("langue",),
+        ),
+    ),
+    "terminale_maths_v1": (
+        SearchCase(
+            "Quel est le programme de spécialité mathématiques en terminale générale ?",
+            "eb8369e7c1611e90f51491fecc5a7c2081a9c57f9c7fbb08d0414677b56ce16f",
+            ("programme",),
+        ),
+        SearchCase(
+            "Comment étudie-t-on les suites, les limites et la dérivation en terminale ?",
+            "eb8369e7c1611e90f51491fecc5a7c2081a9c57f9c7fbb08d0414677b56ce16f",
+            ("suite", "limite"),
+        ),
+        SearchCase(
+            "Comment le programme de terminale traite-t-il probabilités et géométrie ?",
+            "eb8369e7c1611e90f51491fecc5a7c2081a9c57f9c7fbb08d0414677b56ce16f",
+            ("probabil", "geometr"),
+        ),
+    ),
+    "terminale_nsi_v1": (
+        SearchCase(
+            "Quel est le programme de spécialité NSI en terminale générale ?",
+            "10ce34666edd722a3d8d86642a9f1ac205c7a9d128d6142a17effcba2fb85e69",
+            ("programme",),
+        ),
+        SearchCase(
+            "Quelles structures de données et bases de données sont étudiées en NSI terminale ?",
+            "10ce34666edd722a3d8d86642a9f1ac205c7a9d128d6142a17effcba2fb85e69",
+            ("base", "donnees"),
+        ),
+        SearchCase(
+            "Comment le programme aborde-t-il la récursivité et les algorithmes diviser pour régner ?",
+            "10ce34666edd722a3d8d86642a9f1ac205c7a9d128d6142a17effcba2fb85e69",
+            ("diviser pour regner",),
+        ),
+    ),
+    "terminale_physique_chimie_v1": (
+        SearchCase(
+            "Quel est le programme de spécialité physique-chimie en terminale générale ?",
+            "c07f8b2db9d22a6c2b9ab8386cf7ba323bc2c56abacb3f560dd97d02b383de18",
+            ("programme",),
+        ),
+        SearchCase(
+            "Comment prévoir le sens d'évolution spontanée d'un système chimique ?",
+            "c07f8b2db9d22a6c2b9ab8386cf7ba323bc2c56abacb3f560dd97d02b383de18",
+            ("evolution", "systeme chimique"),
+        ),
+        SearchCase(
+            "Quelles notions de mécanique, d'ondes et de mesures sont étudiées en physique-chimie terminale ?",
+            "c07f8b2db9d22a6c2b9ab8386cf7ba323bc2c56abacb3f560dd97d02b383de18",
+            ("mecanique", "ondes"),
+        ),
+    ),
+}
+FR_SECONDE_SECOND_ARTIFACT_SHA = "c4e3cc6fb201f4dabc78fa47206c1b498b3ed46496cf05165a74e0ecd8856fb1"
+
+
+def _urlsafe_json(value: dict[str, object]) -> str:
+    raw = json.dumps(value, separators=(",", ":"), sort_keys=True).encode()
+    return base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
+
+
+def _identity_token(
+    scope_id: str,
+    *,
+    secret: str,
+    issuer: str,
+    audience: str,
+    identity_issuer: str,
+    identity_audience: str,
+) -> str:
+    artifact = load_retrieval_scope_artifact(scope_id)
+    assert isinstance(artifact, RetrievalScopeArtifactV2)
+    target = artifact.target_identity
+    evidence = artifact.evidence_subject
+    issued_at = int(time.time())
+    expires_at = issued_at + 600
+    jti = f"multilevel-{uuid.uuid4().hex}"
+    payload: dict[str, object] = {
+        "protocol_version": "1",
+        "iss": issuer,
+        "aud": audience,
+        "sub": "psn_multilevel_search_acceptance",
+        "jti": jti,
+        "iat": issued_at,
+        "exp": expires_at,
+        "identity": {
+            "iss": identity_issuer,
+            "aud": identity_audience,
+            "sub": "psn_multilevel_search_acceptance",
+            "jti": jti,
+            "exp": expires_at,
+            "tenant": target.tenant,
+            "niveau": target.niveau.value,
+            "role": "teacher",
+            "school_year": evidence.school_year,
+            "pedagogical_profile": {
+                "voie": target.voie.value,
+                "matieres": [target.matiere],
+                "statut_enseignement": target.statut_enseignement.value,
+                "candidat": target.candidates[0].value,
+                "audience": target.audience,
+            },
+        },
+        "scope_id": artifact.scope_id,
+        "scope_digest": artifact.sha256_digest(),
+        "allowed_collections": [evidence.collection],
+    }
+    InternalIdentityEnvelope.model_validate(payload)
+    header = _urlsafe_json({"alg": "HS256", "typ": "JWT"})
+    body = _urlsafe_json(payload)
+    signing_input = f"{header}.{body}"
+    signature = hmac.new(secret.encode(), signing_input.encode("ascii"), hashlib.sha256).digest()
+    encoded = base64.urlsafe_b64encode(signature).rstrip(b"=").decode()
+    return f"{signing_input}.{encoded}"
+
+
+def _search_payload(scope_id: str, query: str) -> dict[str, object]:
+    artifact = load_retrieval_scope_artifact(scope_id)
+    assert isinstance(artifact, RetrievalScopeArtifactV2)
+    target = artifact.target_identity
+    evidence = artifact.evidence_subject
+    return {
+        "student_profile": {
+            "niveau": target.niveau.value,
+            "voie": target.voie.value,
+            "matieres": [target.matiere],
+            "statut_enseignement": target.statut_enseignement.value,
+            "candidat": target.candidates[0].value,
+            "school_year": evidence.school_year,
+            "zone": target.audience,
+        },
+        "curriculum_scope": {
+            "niveau": evidence.niveau.value,
+            "voie": evidence.voie.value,
+            "matiere": evidence.matiere,
+            "statut_enseignement": evidence.statut_enseignement.value,
+        },
+        "need": {"intent": "remediation", "query": query},
+        "retrieval": {
+            "k": 8,
+            "hybrid": True,
+            "rerank": True,
+            "include_citations": True,
+        },
+    }
+
+
+def _normalized_search_text(value: str) -> str:
+    decomposed = unicodedata.normalize("NFKD", value.casefold())
+    return " ".join(
+        "".join(
+            character for character in decomposed if not unicodedata.combining(character)
+        ).split()
+    )
+
+
+def _run_real_http_search_acceptance(product_pg: Mapping[str, str]) -> None:
+    assert os.environ["RAG_RERANKER_MODEL_INVENTORY_SHA256"] == (RERANKER_INVENTORY_SHA256)
+    assert len(SEARCH_CASES) == TARGET_COLLECTIONS
+    assert all(len(cases) == 3 for cases in SEARCH_CASES.values())
+    expectation = load_release_expectation(RELEASE_PATH, RELEASE_SHA256)
+    expected_artifact_by_sha = {
+        artifact.content_sha256: artifact for artifact in expectation.artifacts
+    }
+    expected_chunk_by_id: dict[str, tuple[Any, Mapping[str, Any]]] = {}
+    for artifact in expectation.artifacts:
+        for chunk in artifact.chunks:
+            chunk_id = str(chunk["chunk_id"])
+            assert chunk_id not in expected_chunk_by_id
+            expected_chunk_by_id[chunk_id] = (artifact, chunk)
+
+    bff_token = secrets.token_urlsafe(48)
+    identity_secret = secrets.token_urlsafe(48)
+    token_issuer = "multilevel-http-bff"
+    token_audience = "multilevel-rag-engine"
+    identity_issuer = "multilevel-nexus-sso"
+    identity_audience = "multilevel-nexus-cockpit"
+    port = free_port()
+    base_url = f"http://127.0.0.1:{port}"
+    release_registry = json.dumps(
+        [{"path": str(RELEASE_PATH), "sha256": RELEASE_SHA256}],
+        separators=(",", ":"),
+    )
+    child_env = dict(os.environ)
+    child_env.pop("RAG_RELEASE_MANIFEST_PATH", None)
+    child_env.pop("RAG_RELEASE_MANIFEST_SHA256", None)
+    child_env.pop("RAG_RELEASE_MANIFESTS_JSON", None)
+    child_env.update(
+        {
+            "PYTHONPATH": str(ENGINE_ROOT),
+            "RAG_ENV": "production",
+            "RAG_BFF_SERVICE_TOKEN": bff_token,
+            "NEXUS_INTERNAL_TOKEN_SECRET": identity_secret,
+            "NEXUS_INTERNAL_TOKEN_ISSUER": token_issuer,
+            "NEXUS_INTERNAL_TOKEN_AUDIENCE": token_audience,
+            "NEXUS_SSO_ISSUER": identity_issuer,
+            "NEXUS_SSO_AUDIENCE": identity_audience,
+            "PG_RAG_DSN": product_pg["retrieval_dsn"],
+            "PG_REVIEW_DSN": product_pg["review_dsn"],
+            "RAG_COLLECTIONS_CONFIG": str(ENGINE_ROOT / "configs" / "rag_collections.yml"),
+            "RAG_RELEASE_MANIFESTS_JSON": release_registry,
+            "RAG_EMBEDDING_MODEL_CACHE_DIR": str(E5_PATH),
+            "RAG_EMBEDDING_MODEL_INVENTORY_SHA256": E5_INVENTORY_SHA256,
+            "RAG_RERANKER_MODEL_CACHE_DIR": str(RERANKER_PATH),
+            "RAG_RERANKER_MODEL_INVENTORY_SHA256": RERANKER_INVENTORY_SHA256,
+            "EMBED_MODEL": CANONICAL_EMBED_MODEL,
+            "EMBED_DIM": "1024",
+            "CUDA_VISIBLE_DEVICES": "",
+            "HF_HUB_OFFLINE": "1",
+            "TRANSFORMERS_OFFLINE": "1",
+        }
+    )
+    process_log = tempfile.TemporaryFile(mode="w+", encoding="utf-8")
+    process = subprocess.Popen(
+        [
+            sys.executable,
+            "-m",
+            "uvicorn",
+            "src.ingestor.api_v2:app",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            str(port),
+            "--log-level",
+            "warning",
+        ],
+        cwd=ENGINE_ROOT,
+        env=child_env,
+        stdout=subprocess.DEVNULL,
+        stderr=process_log,
+        text=True,
+    )
+    stderr = ""
+    try:
+        deadline = time.monotonic() + 300
+        with httpx.Client(base_url=base_url, timeout=120.0) as client:
+            while True:
+                if process.poll() is not None:
+                    pytest.fail("uvicorn exited before multilevel readiness")
+                try:
+                    health = client.get("/health")
+                    if health.status_code == 200:
+                        break
+                except httpx.HTTPError:
+                    pass
+                if time.monotonic() >= deadline:
+                    pytest.fail("uvicorn multilevel readiness deadline exceeded")
+                time.sleep(0.25)
+
+            passed = 0
+            discovered: set[str] = set()
+            collections_seen: set[str] = set()
+            headers_by_scope: dict[str, dict[str, str]] = {}
+            for scope_id, cases in SEARCH_CASES.items():
+                artifact = load_retrieval_scope_artifact(scope_id)
+                assert isinstance(artifact, RetrievalScopeArtifactV2)
+                expected_collection = artifact.evidence_subject.collection
+                token = _identity_token(
+                    scope_id,
+                    secret=identity_secret,
+                    issuer=token_issuer,
+                    audience=token_audience,
+                    identity_issuer=identity_issuer,
+                    identity_audience=identity_audience,
+                )
+                headers = {
+                    "Authorization": f"Bearer {bff_token}",
+                    "X-Nexus-Identity": token,
+                }
+                headers_by_scope[scope_id] = headers
+                picker = client.get("/collections/v2", headers=headers)
+                assert picker.status_code == 200, (scope_id, picker.text)
+                assert [item["name"] for item in picker.json()["collections"]] == [
+                    expected_collection
+                ]
+                readiness = client.get("/collections/readiness", headers=headers)
+                assert readiness.status_code == 200, (scope_id, readiness.text)
+                ready_rows = readiness.json()["collections"]
+                assert len(ready_rows) == 1
+                assert ready_rows[0]["name"] == expected_collection
+                assert ready_rows[0]["ready"] is True
+                collections_seen.add(expected_collection)
+                for case in cases:
+                    response = client.post(
+                        "/search/v2",
+                        headers=headers,
+                        json=_search_payload(scope_id, case.query),
+                    )
+                    assert response.status_code == 200, (scope_id, response.text)
+                    parsed = RetrievalResponse.model_validate(response.json())
+                    assert parsed.results, (scope_id, case.query)
+                    for result in parsed.results:
+                        expected_artifact, expected_chunk = expected_chunk_by_id[result.chunk_id]
+                        metadata = result.metadata
+                        citation = result.citation
+                        assert metadata.get("collection") == expected_collection
+                        assert expected_artifact.collection == expected_collection
+                        assert metadata.get("content_sha256") == expected_artifact.content_sha256
+                        assert metadata.get("artifact_id") == expected_artifact.content_sha256
+                        assert result.doc_id == expected_artifact.content_sha256
+                        assert metadata.get("review_status") == "reviewed"
+                        assert (
+                            metadata.get("placement_source_path") == expected_artifact.source_path
+                        )
+                        assert citation is not None
+                        assert citation.page == expected_chunk["page_start"]
+                        assert citation.source_uri == expected_artifact.source_url
+                        assert citation.rights == Rights.officiel_public.value
+                    returned = {str(result.metadata["content_sha256"]) for result in parsed.results}
+                    assert case.expected_artifact_sha256 in returned
+                    top_excerpt = _normalized_search_text(parsed.results[0].excerpt)
+                    assert any(
+                        _normalized_search_text(concept) in top_excerpt
+                        for concept in case.expected_concepts_any
+                    ), (scope_id, case.query, parsed.results[0].metadata.get("rerank_score"))
+                    discovered.add(case.expected_artifact_sha256)
+                    passed += 1
+            assert len(collections_seen) == TARGET_COLLECTIONS
+            assert passed == TARGET_COLLECTIONS * 3
+
+            cross_scope = client.post(
+                "/search/v2",
+                headers=headers_by_scope["entree_premiere_maths_v1"],
+                json=_search_payload(
+                    "entree_premiere_francais_v1",
+                    SEARCH_CASES["entree_premiere_francais_v1"][0].query,
+                ),
+            )
+            assert cross_scope.status_code == 403
+
+            fr_scope = "entree_premiere_francais_v1"
+            fr_token = _identity_token(
+                fr_scope,
+                secret=identity_secret,
+                issuer=token_issuer,
+                audience=token_audience,
+                identity_issuer=identity_issuer,
+                identity_audience=identity_audience,
+            )
+            probe = client.post(
+                "/search/v2",
+                headers={
+                    "Authorization": f"Bearer {bff_token}",
+                    "X-Nexus-Identity": fr_token,
+                },
+                json=_search_payload(
+                    fr_scope,
+                    "Comment enseigner explicitement la compréhension de l'écrit ou des écrits en seconde ?",
+                ),
+            )
+            assert probe.status_code == 200, probe.text
+            probe_results = RetrievalResponse.model_validate(probe.json()).results
+            probe_by_sha = {str(result.metadata.get("content_sha256")) for result in probe_results}
+            assert FR_SECONDE_SECOND_ARTIFACT_SHA in probe_by_sha
+            for result in probe_results:
+                expected_artifact, expected_chunk = expected_chunk_by_id[result.chunk_id]
+                citation = result.citation
+                assert expected_artifact.collection == "rag_nexus_francais_seconde_tc"
+                assert result.metadata.get("collection") == expected_artifact.collection
+                assert result.metadata.get("placement_source_path") == expected_artifact.source_path
+                assert citation is not None
+                assert citation.page == expected_chunk["page_start"]
+                assert citation.source_uri == expected_artifact.source_url
+                assert citation.rights == Rights.officiel_public.value
+            discovered.add(FR_SECONDE_SECOND_ARTIFACT_SHA)
+            assert discovered == set(expected_artifact_by_sha)
+    finally:
+        process.terminate()
+        try:
+            process.wait(timeout=15)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=15)
+        process_log.flush()
+        process_log.seek(0)
+        stderr = process_log.read()
+        process_log.close()
+        if process.returncode not in (0, -15):
+            sanitized = "\n".join(stderr.splitlines()[-50:])[:10_000]
+            sanitized = sanitized.replace(bff_token, "<redacted>").replace(
+                identity_secret, "<redacted>"
+            )
+            pytest.fail(f"uvicorn multilevel acceptance failed:\n{sanitized}")
 
 
 def test_multilevel_real_governed_batch_ingestion_and_idempotence(
@@ -744,3 +1280,5 @@ def test_multilevel_real_governed_batch_ingestion_and_idempotence(
             "SELECT COUNT(*) FROM (SELECT chunk_id FROM rag_chunks "
             "GROUP BY chunk_id HAVING COUNT(*) > 1) duplicate"
         ).fetchone() == (0,)
+
+    _run_real_http_search_acceptance(product_pg)
