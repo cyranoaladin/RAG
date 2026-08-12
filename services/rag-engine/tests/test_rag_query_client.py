@@ -12,7 +12,11 @@ from types import ModuleType
 from typing import Any
 
 import pytest
-from nexus_contracts import RetrievalResponse
+from nexus_contracts import (
+    RetrievalResponse,
+    RetrievalScopeArtifactV2,
+    load_retrieval_scope_registry,
+)
 
 from ingestor.identity_v2 import (
     IdentityVerifierConfig,
@@ -238,6 +242,92 @@ def test_help_needs_no_credentials() -> None:
     )
 
     assert result.returncode == 0
-    assert "entree_seconde_maths_v1" in result.stdout
-    assert "entree_seconde_francais_v1" in result.stdout
+    for scope_id in load_retrieval_scope_registry():
+        assert scope_id in result.stdout
     assert result.stderr == ""
+
+
+def test_list_scopes_prints_the_full_registry_without_credentials(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Scope discovery must never require the internal signing secret —
+    only issuing an identity does."""
+    client = _load_client()
+    for key in VALID_ENV:
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setattr(
+        client.urllib.request,
+        "urlopen",
+        lambda *_args, **_kwargs: pytest.fail("HTTP must not run"),
+    )
+
+    assert client.main(["--list-scopes"]) == 0
+
+    listed = capsys.readouterr().out.splitlines()
+    assert sorted(listed) == sorted(load_retrieval_scope_registry())
+
+
+def test_internal_cli_covers_every_backend_scope() -> None:
+    """LOT H2-B remédiation (finding P2-cli-scope-coverage) : le client
+    interne doit reconnaître 100% des scopes du registre canonique — plus
+    l'allowlist statique de 2 scopes qui divergeait déjà du backend
+    (BACKEND_SCOPE_COUNT=13 à l'audit)."""
+    client = _load_client()
+    backend_scopes = load_retrieval_scope_registry()
+
+    assert set(client.available_scopes()) == set(backend_scopes)
+    assert len(client.available_scopes()) == len(backend_scopes) == 13
+
+
+def test_internal_cli_can_issue_an_identity_for_every_v2_scope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Every V2 scope in the registry (12 of the 13) must reach a signed,
+    self-verifying identity through the same code path — not just the two
+    Wave 0 scopes the old hardcoded allowlist happened to cover."""
+    client = _load_client()
+    for key, value in VALID_ENV.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.setattr(client.time, "time", lambda: 1_800_000_000)
+    config = client.load_client_config()
+
+    v2_scopes = {
+        scope_id: artifact
+        for scope_id, artifact in load_retrieval_scope_registry().items()
+        if isinstance(artifact, RetrievalScopeArtifactV2)
+    }
+    assert len(v2_scopes) == 12
+
+    for scope_id in v2_scopes:
+        token, artifact = client.issue_scope_identity(scope_id, config=config)
+        assert isinstance(artifact, RetrievalScopeArtifactV2)
+        verified = verify_identity_token(
+            token,
+            config=IdentityVerifierConfig(
+                secret=SECRET,
+                issuer=VALID_ENV["NEXUS_INTERNAL_TOKEN_ISSUER"],
+                audience=VALID_ENV["NEXUS_INTERNAL_TOKEN_AUDIENCE"],
+                identity_issuer=VALID_ENV["NEXUS_SSO_ISSUER"],
+                identity_audience=VALID_ENV["NEXUS_SSO_AUDIENCE"],
+                artifact=artifact,
+                artifacts={scope_id: artifact},
+            ),
+            now=1_800_000_000,
+        )
+        assert verified.envelope.scope_id == scope_id
+
+
+def test_internal_cli_refuses_the_pilot_scope_cleanly(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The 13th registry entry (``libre_terminale_maths_nsi_real_v1``) is a
+    pilot-shaped artifact, not a V2 one — this CLI's identity issuance only
+    speaks V2. Listing it as an available scope must never crash; it must
+    fail with a clear, controlled error instead."""
+    client = _load_client()
+    for key, value in VALID_ENV.items():
+        monkeypatch.setenv(key, value)
+    config = client.load_client_config()
+
+    with pytest.raises(client.RagQueryClientError, match="scope Wave 0 invalide"):
+        client.issue_scope_identity("libre_terminale_maths_nsi_real_v1", config=config)

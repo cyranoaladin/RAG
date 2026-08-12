@@ -1,5 +1,17 @@
 #!/usr/bin/env python3
-"""Interroger `/search/v2` avec un scope Wave 0 signé et étroit."""
+"""Interroger `/search/v2` avec un scope signé et étroit.
+
+INTERNAL_OPERATOR_TOOL=true
+
+Outil opérateur INTERNE — il détient (`NEXUS_INTERNAL_TOKEN_SECRET`) et
+utilise le secret de signature d'identité interne pour émettre sa propre
+enveloppe HS256. Il ne doit **jamais** être distribué à un agent externe
+ni exécuté hors d'un environnement opérateur de confiance : quiconque
+détient ce secret peut signer une identité pour n'importe quel scope
+qu'il connaît. Pour un client destiné à un agent externe, voir
+`scripts/rag_query_external.py`, qui ne lit jamais ce secret et reçoit une
+identité déjà émise.
+"""
 
 from __future__ import annotations
 
@@ -44,10 +56,14 @@ from ingestor.identity_v2 import (  # noqa: E402
     verify_identity_token,
 )
 
-ALLOWED_SCOPES = (
-    "entree_seconde_maths_v1",
-    "entree_seconde_francais_v1",
-)
+
+def available_scopes() -> tuple[str, ...]:
+    """Dériver les scopes autorisés depuis le registre canonique — jamais
+    une allowlist recopiée à la main, qui divergerait silencieusement du
+    backend dès qu'un scope y est ajouté ou retiré."""
+    return tuple(sorted(load_retrieval_scope_registry()))
+
+
 HTTP_TIMEOUT_SECONDS = 120.0
 MAX_RESPONSE_BYTES = 16 * 1024 * 1024
 IDENTITY_TTL_SECONDS = 300
@@ -285,16 +301,29 @@ def print_response(response: RetrievalResponse) -> None:
         print(f"path={_one_line(metadata.get('placement_source_path'))}")
 
 
-def _parser() -> argparse.ArgumentParser:
+def _parser(*, scopes: Sequence[str]) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--scope", choices=ALLOWED_SCOPES, required=True)
-    parser.add_argument("--query", required=True)
+    parser.add_argument(
+        "--list-scopes",
+        action="store_true",
+        help="Lister les scopes du registre canonique et quitter, sans requête.",
+    )
+    parser.add_argument("--scope", choices=tuple(scopes))
+    parser.add_argument("--query")
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    args = _parser().parse_args(argv)
-    if not args.query.strip():
+    scopes = available_scopes()
+    args = _parser(scopes=scopes).parse_args(argv)
+    if args.list_scopes:
+        for scope_id in scopes:
+            print(scope_id)
+        return 0
+    if not args.scope:
+        print("ERROR: --scope requis (ou --list-scopes)", file=sys.stderr)
+        return 2
+    if not args.query or not args.query.strip():
         print("ERROR: requête vide", file=sys.stderr)
         return 2
     try:
