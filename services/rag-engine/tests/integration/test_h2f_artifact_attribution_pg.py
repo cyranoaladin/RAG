@@ -397,7 +397,7 @@ def _sealed_evidence(tmp_path: Path) -> tuple[Any, Any]:
         "registry_id: h2f_test_registry\n"
         "human_rights_decisions:\n"
         "  eduscol:\n"
-        f"    scope_manifest_sha256: {MANIFEST_DIGEST}\n"
+        f"    scope_manifest_sha256: \"{MANIFEST_DIGEST}\"\n"
         f"    scope_zone: https://{DOMAIN}/\n"
         "    approved_for_production_rag: true\n"
         "source_evidence:\n"

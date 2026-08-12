@@ -353,3 +353,60 @@ class TestAgainstTheRealSealedEvidence:
                 content_sha256=SHA_A,
                 source_path="03_RESSOURCES_INTERACTIVES/x.ggb",
             )
+
+
+class TestDigestsMustBeQuotedStrings:
+    """Un digest YAML non cité est lu comme un entier.
+
+    ``str()`` ne le rattrape pas : ``0077…`` a déjà perdu ses zéros de
+    tête au parsing, et la conversion produirait un digest silencieusement
+    faux qui pourrait *coïncider* avec un autre. Le registre doit citer
+    ses digests."""
+
+    def test_an_unquoted_all_digit_digest_is_refused(self, tmp_path: Path) -> None:
+        numeric = "7" * 64
+        path = tmp_path / "rights.yml"
+        path.write_text(
+            "registry_id: t\n"
+            "human_rights_decisions:\n"
+            "  z:\n"
+            f"    scope_manifest_sha256: {numeric}\n"
+            "    scope_zone: 01_EDUSCOL_OFFICIEL/\n"
+            "    approved_for_production_rag: true\n"
+            "source_evidence:\n"
+            "  z:\n"
+            "    zone: 01_EDUSCOL_OFFICIEL/\n"
+            "    recommended_rights_category: officiel_public\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(SealedEvidenceError, match="quoted lowercase 64-hex"):
+            VerifiedRightsEvidenceRegistry.load(
+                path,
+                expected_registry_sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+                expected_corpus_manifest_sha256=numeric,
+            )
+
+    def test_a_quoted_all_digit_digest_is_accepted(self, tmp_path: Path) -> None:
+        numeric = "7" * 64
+        path = tmp_path / "rights.yml"
+        path.write_text(
+            "registry_id: t\n"
+            "human_rights_decisions:\n"
+            "  z:\n"
+            f'    scope_manifest_sha256: "{numeric}"\n'
+            "    scope_zone: 01_EDUSCOL_OFFICIEL/\n"
+            "    approved_for_production_rag: true\n"
+            "source_evidence:\n"
+            "  z:\n"
+            "    zone: 01_EDUSCOL_OFFICIEL/\n"
+            "    recommended_rights_category: officiel_public\n",
+            encoding="utf-8",
+        )
+        registry = VerifiedRightsEvidenceRegistry.load(
+            path,
+            expected_registry_sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+            expected_corpus_manifest_sha256=numeric,
+        )
+        assert registry.resolve_rights(
+            content_sha256=SHA_A, source_path="01_EDUSCOL_OFFICIEL/a.pdf"
+        ).rights is Rights.officiel_public

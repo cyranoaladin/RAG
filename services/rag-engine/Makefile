@@ -96,7 +96,8 @@ test-governance-pg: install
 	    tests/integration/test_lot42_publication_attestation.py \
 	    tests/integration/test_lot44f_migration_rollback_rehearsal.py \
 	    tests/integration/test_lot44f_migration_upgrade_paths.py \
-	    tests/integration/test_lot44f_rollback_runner.py
+	    tests/integration/test_lot44f_rollback_runner.py \
+	    tests/integration/test_lot44e_worker_e2e.py
 
 # Smoke RAG deja present (si votre repo inclut infra/scripts/smoke.sh)
 smoke:

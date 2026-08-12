@@ -208,7 +208,7 @@ def write_sealed_evidence(root: Path) -> list[str]:
         "registry_id: test\n"
         "human_rights_decisions:\n"
         "  eduscol:\n"
-        f"    scope_manifest_sha256: {manifest}\n"
+        f"    scope_manifest_sha256: \"{manifest}\"\n"
         "    scope_zone: 01_EDUSCOL_OFFICIEL/\n"
         "    approved_for_production_rag: true\n"
         "source_evidence:\n"

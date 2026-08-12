@@ -273,11 +273,19 @@ class VerifiedRightsEvidenceRegistry:
         for decision_id, decision in decisions.items():
             if not isinstance(decision, dict):
                 continue
-            # YAML lit un digest entièrement numérique comme un entier :
-            # ``7777…`` devient ``int``. La comparaison échouerait alors sur
-            # le type et non sur la valeur, ce qui produirait un refus juste
-            # pour une mauvaise raison — et masquerait un vrai désaccord.
-            manifest = str(decision.get("scope_manifest_sha256"))
+            # YAML lit un digest entièrement numérique comme un entier, et
+            # ``str()`` ne le rattrape pas : ``0077…`` a déjà perdu ses
+            # zéros de tête au parsing, donc la conversion produirait un
+            # digest silencieusement faux. On exige la forme chaîne — le
+            # registre doit citer ses digests entre guillemets.
+            manifest = decision.get("scope_manifest_sha256")
+            if not isinstance(manifest, str) or not _SHA256.match(manifest):
+                raise SealedEvidenceError(
+                    f"decision {decision_id!r} carries scope_manifest_sha256="
+                    f"{manifest!r}; it must be a quoted lowercase 64-hex string. "
+                    "An unquoted all-digit digest is parsed as an integer and may "
+                    "already have lost leading zeros"
+                )
             if manifest != expected_corpus_manifest_sha256:
                 raise SealedEvidenceError(
                     f"decision {decision_id!r} covers corpus manifest {manifest!r}, "
