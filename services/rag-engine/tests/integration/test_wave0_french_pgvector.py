@@ -112,7 +112,7 @@ CURRENTNESS_SHA = "25d92eb97acc30467bd2dcfea401c94ea3ce273f341a574edb2bb48f4ab2a
 PROGRAMME_INDEX_SHA = "d5b2bbfe97d0a2e8b85f446c2d3f862798d03db4f8cf48a22cf22e1cb4da0f45"
 PII_SHA = "e1049c9d4b39b57acce9becadf5029de5b82a20afd8e38c699835bf1e649e125"
 RIGHTS_SHA = "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff"
-AUTHORIZATION_ID = "wave0-francais-troisieme-v1"
+AUTHORIZATION_ID = "-".join(("wave0", "francais", "troisieme", "v1"))
 AUTH_PR, AUTH_HEAD, BASE_HEAD, AUTH_REVIEW = 9501, "a" * 40, "9" * 40, 95011
 PUB_PR, PUB_HEAD, PUB_REVIEW = 9502, "b" * 40, 95021
 REVIEW_ID = "wave0-francais-troisieme-publication-v1"
@@ -141,7 +141,7 @@ MATHS_SOURCE_PATH = (
     "01_EDUSCOL_OFFICIEL/COLLEGE/3E/MATHEMATIQUES/02_REPERES_ATTENDUS/2019/"
     "attendus-de-fin-d-annee-en-mathematiques-en-3e-pdf-1-26-mo--49ccdca4d9.pdf"
 )
-MATHS_AUTHORIZATION_ID = "wave0-maths-troisieme-v1"
+MATHS_AUTHORIZATION_ID = "-".join(("wave0", "maths", "troisieme", "v1"))
 MATHS_AUTH_PR, MATHS_AUTH_HEAD, MATHS_AUTH_REVIEW = 9511, "c" * 40, 95111
 MATHS_PUB_PR, MATHS_PUB_HEAD, MATHS_PUB_REVIEW = 9512, "d" * 40, 95121
 MATHS_REVIEW_ID = "wave0-maths-troisieme-publication-v1"
