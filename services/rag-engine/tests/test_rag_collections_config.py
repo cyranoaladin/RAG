@@ -88,7 +88,7 @@ def test_instanciation_flags_present() -> None:
         assert "instanciee" in defn, f"{name} missing instanciee"
 
 
-def test_quatrieme_collections_are_declared_dormant_exactly() -> None:
+def test_quatrieme_collections_are_declared_and_release_activated_exactly() -> None:
     config = _load_yaml(CONFIG_PATH)
 
     assert config["collections"]["rag_nexus_maths_quatrieme_tc"] == {
@@ -99,7 +99,7 @@ def test_quatrieme_collections_are_declared_dormant_exactly() -> None:
         "domain": "education",
         "session_policy": "declared_or_null",
         "taxonomy_file": "maths/quatrieme.yml",
-        "instanciee": False,
+        "instanciee": True,
     }
     assert config["collections"]["rag_nexus_francais_quatrieme_tc"] == {
         "matiere": "francais",
@@ -109,7 +109,7 @@ def test_quatrieme_collections_are_declared_dormant_exactly() -> None:
         "domain": "education",
         "session_policy": "declared_or_null",
         "taxonomy_file": "francais/quatrieme.yml",
-        "instanciee": False,
+        "instanciee": True,
     }
 
 
@@ -117,13 +117,41 @@ def test_instanciated_match_perimetre() -> None:
     config = _load_yaml(CONFIG_PATH)
     inst = {n for n, d in config["collections"].items() if d.get("instanciee") is True}
     assert inst == {
+        "rag_nexus_francais_premiere_tc",
+        "rag_nexus_francais_quatrieme_tc",
+        "rag_nexus_francais_seconde_tc",
         "rag_nexus_francais_troisieme_tc",
+        "rag_nexus_maths_premiere_gen_specialite",
+        "rag_nexus_maths_quatrieme_tc",
+        "rag_nexus_maths_seconde_tc",
+        "rag_nexus_maths_terminale_gen_specialite",
         "rag_nexus_maths_troisieme_tc",
         "rag_nexus_nsi_premiere_specialite",
         "rag_nexus_nsi_terminale_specialite",
+        "rag_nexus_pc_terminale_specialite",
         "rag_nexus_philo_terminale_tc",
         "rag_nexus_quarantine",
     }
+
+
+def test_multilevel_canonical_activation_delta_is_exactly_eight() -> None:
+    canonical = load_collection_config(CONFIG_PATH)
+    newly_activated = {
+        "rag_nexus_maths_seconde_tc",
+        "rag_nexus_francais_seconde_tc",
+        "rag_nexus_maths_quatrieme_tc",
+        "rag_nexus_francais_quatrieme_tc",
+        "rag_nexus_maths_premiere_gen_specialite",
+        "rag_nexus_francais_premiere_tc",
+        "rag_nexus_maths_terminale_gen_specialite",
+        "rag_nexus_pc_terminale_specialite",
+    }
+
+    assert {
+        name
+        for name in newly_activated
+        if canonical["collections"][name]["instanciee"] is True
+    } == newly_activated
 
 
 def test_wave0_canonical_activation_is_exactly_two_collections() -> None:

@@ -77,7 +77,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: maths/quatrieme.yml
-    instanciee: false
+    instanciee: true
   rag_nexus_maths_troisieme_tc:
     matiere: maths
     niveau: troisieme
@@ -95,7 +95,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: maths/seconde_tronc_commun.yml
-    instanciee: false
+    instanciee: true
   rag_nexus_maths_premiere_gen_specialite:
     matiere: maths
     niveau: premiere
@@ -104,7 +104,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: maths/premiere_gen_specialite.yml
-    instanciee: false
+    instanciee: true
   rag_nexus_maths_premiere_gen_tc:
     matiere: maths
     niveau: premiere
@@ -132,7 +132,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: maths/terminale_gen_specialite.yml
-    instanciee: false
+    instanciee: true
   rag_nexus_maths_terminale_gen_option_comp:
     matiere: maths
     niveau: terminale
@@ -174,7 +174,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: francais/quatrieme.yml
-    instanciee: false
+    instanciee: true
   rag_nexus_francais_troisieme_tc:
     matiere: francais
     niveau: troisieme
@@ -192,7 +192,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: francais/seconde_tc.yml
-    instanciee: false
+    instanciee: true
   rag_nexus_francais_premiere_tc:
     matiere: francais
     niveau: premiere
@@ -201,7 +201,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: francais/premiere_eaf.yml
-    instanciee: false
+    instanciee: true
 
   # =====================================================================
   # Histoire-Géo
@@ -263,7 +263,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: physique_chimie/terminale_specialite.yml
-    instanciee: false
+    instanciee: true
 
   # =====================================================================
   # SVT
