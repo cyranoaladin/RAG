@@ -74,6 +74,10 @@ class ExpectedArtifact:
     collection: str
     embedding_model: str
     embedding_dimension: int
+    programme_version: str
+    profile_version: str
+    profile_fingerprint: str
+    profile_manifest_digest: str
     placements: tuple[Mapping[str, Any], ...]
     chunks: tuple[Mapping[str, Any], ...]
 
@@ -249,9 +253,15 @@ def _parse_subject(
     profile = _require_mapping(payload.get("profile"), f"{field}.profile")
     if set(profile) != {"version", "fingerprint", "manifest_digest"}:
         raise ReleaseReadinessError(f"{field}.profile fields mismatch")
-    _require_nonblank(profile.get("version"), f"{field}.profile.version")
-    _require_sha256(profile.get("fingerprint"), f"{field}.profile.fingerprint")
-    _require_sha256(profile.get("manifest_digest"), f"{field}.profile.manifest_digest")
+    profile_version = _require_nonblank(
+        profile.get("version"), f"{field}.profile.version"
+    )
+    profile_fingerprint = _require_sha256(
+        profile.get("fingerprint"), f"{field}.profile.fingerprint"
+    )
+    profile_manifest_digest = _require_sha256(
+        profile.get("manifest_digest"), f"{field}.profile.manifest_digest"
+    )
     models = _require_mapping(payload.get("models"), f"{field}.models")
     if set(models) != {"embedding", "reranker"}:
         raise ReleaseReadinessError(f"{field}.models fields mismatch")
@@ -346,6 +356,10 @@ def _parse_subject(
                 collection=collection,
                 embedding_model=model_id,
                 embedding_dimension=dimension,
+                programme_version=programme_version,
+                profile_version=profile_version,
+                profile_fingerprint=profile_fingerprint,
+                profile_manifest_digest=profile_manifest_digest,
                 placements=placements,
                 chunks=chunks,
             )
