@@ -68,7 +68,10 @@ try:
         postgres_database_authorities_share_instance,
         readiness_database_budget,
     )
-    from .reranker_contract import verify_configured_reranker_artifact
+    from .reranker_contract import (
+        CANONICAL_RERANK_MODEL,
+        verify_configured_reranker_artifact,
+    )
     from .retrieval_readiness_v2 import retrieval_database_ready
     from .retrieval_scope_v2 import validate_scope_registry_catalogue_alignment
     from .review_readiness_v2 import review_database_ready
@@ -120,6 +123,7 @@ except ImportError as _exc:  # repli à plat, cause réelle préservée
         readiness_database_budget,
     )
     from reranker_contract import (  # type: ignore[no-redef]
+        CANONICAL_RERANK_MODEL,
         verify_configured_reranker_artifact,
     )
     from retrieval_readiness_v2 import (  # type: ignore[no-redef]
@@ -192,6 +196,25 @@ def _initialize_model_artifacts() -> (
         ),
     )
     return embedding_attestation, reranker_attestation
+
+
+def _validate_release_model_attestations(
+    embedding_attestation: ModelArtifactAttestation,
+    reranker_attestation: ModelArtifactAttestation,
+) -> None:
+    """Lier les poids attestés aux inventaires scellés de la release active."""
+    expected = retrieval_v2_endpoint.configured_release_model_contract()
+    if expected is None:
+        return
+    actual = (
+        CANONICAL_EMBED_MODEL,
+        embedding_attestation.inventory_sha256,
+        CANONICAL_EMBED_DIM,
+        CANONICAL_RERANK_MODEL,
+        reranker_attestation.inventory_sha256,
+    )
+    if actual != expected:
+        raise RuntimeError("release model inventory mismatch")
 
 
 def _model_artifacts_ready() -> bool:
@@ -331,6 +354,10 @@ def _validate_runtime_authorities() -> None:
         identity_config.artifacts,
         collection_catalogue,
     )
+    retrieval_v2_endpoint.validate_release_startup_configuration(
+        identity_config.artifacts,
+        collection_catalogue,
+    )
 
 
 @asynccontextmanager
@@ -342,8 +369,13 @@ async def _app_lifespan(_app: FastAPI) -> AsyncIterator[None]:
         get_pool(PoolSettings.from_env())
         if not _database_runtime_ready():
             raise RuntimeError("database readiness unavailable")
+        retrieval_v2_endpoint.validate_configured_release_database()
         _model_artifact_attestations = _initialize_model_artifacts()
         embedding_attestation, reranker_attestation = _model_artifact_attestations
+        _validate_release_model_attestations(
+            embedding_attestation,
+            reranker_attestation,
+        )
         retrieval_v2_endpoint.configure_verified_model_artifacts(
             embedding_root=embedding_attestation.root,
             reranker_root=reranker_attestation.root,

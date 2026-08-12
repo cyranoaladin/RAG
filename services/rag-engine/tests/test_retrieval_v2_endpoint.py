@@ -895,6 +895,124 @@ class TestLaunchReadiness:
 
         assert [item["name"] for item in response["collections"]] == list(allowed)
 
+    def test_readiness_uses_exact_release_evidence_for_wave0(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from ingestor import retrieval_v2_endpoint as endpoint
+
+        monkeypatch.setattr(
+            endpoint, "_require_retrieval_identity", lambda *_args, **_kwargs: object()
+        )
+        monkeypatch.setattr(endpoint, "load_collection_config", lambda: FULL_CFG)
+        monkeypatch.setattr(
+            endpoint,
+            "effective_signed_collections",
+            lambda _verified: (BASE_SCOPE.collection,),
+        )
+        monkeypatch.setattr(
+            endpoint,
+            "build_server_readiness_scope",
+            lambda *_args, **_kwargs: BASE_SCOPE,
+        )
+        monkeypatch.setattr(
+            endpoint,
+            "_get_reviewed_chunk_counts",
+            lambda _scopes: {BASE_SCOPE.collection: 12_000},
+        )
+        monkeypatch.setattr(
+            endpoint,
+            "_release_evidence_for_collection",
+            lambda collection: True if collection == BASE_SCOPE.collection else None,
+        )
+
+        response = endpoint.get_collection_readiness(SimpleNamespace())
+
+        assert response["release_evidence_verified"] is True
+        assert response["launch_ready"] is True
+
+
+def test_retrievable_gate_blocks_only_a_governed_unready_collection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ingestor import retrieval_v2_endpoint as endpoint
+
+    events: list[str] = []
+    monkeypatch.setattr(
+        endpoint,
+        "_release_evidence_for_collection",
+        lambda collection: events.append(collection) or False,
+    )
+
+    cfg = copy.deepcopy(FULL_CFG)
+    collection = "rag_nexus_maths_troisieme_tc"
+    cfg["collections"][collection] = {
+        "matiere": "maths",
+        "niveau": "troisieme",
+        "statut": "tronc_commun",
+        "domain": "education",
+        "instanciee": True,
+    }
+
+    with pytest.raises(HTTPException) as exc_info:
+        endpoint._check_retrievable(collection, cfg)
+
+    assert exc_info.value.status_code == 503
+    assert events == [collection]
+
+
+def test_instanciated_v2_collection_without_manifest_is_not_retrievable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ingestor import retrieval_v2_endpoint as endpoint
+
+    cfg = copy.deepcopy(FULL_CFG)
+    collection = "rag_nexus_maths_troisieme_tc"
+    cfg["collections"][collection] = {
+        "matiere": "maths",
+        "niveau": "troisieme",
+        "statut": "tronc_commun",
+        "domain": "education",
+        "instanciee": True,
+    }
+    monkeypatch.delenv("RAG_RELEASE_MANIFEST_PATH", raising=False)
+    monkeypatch.delenv("RAG_RELEASE_MANIFEST_SHA256", raising=False)
+
+    with pytest.raises(HTTPException) as exc_info:
+        endpoint._check_retrievable(collection, cfg)
+
+    assert exc_info.value.status_code == 503
+
+
+def test_picker_keeps_historical_collection_and_hides_governed_unready_collection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ingestor import retrieval_v2_endpoint as endpoint
+
+    allowed = (
+        "rag_nexus_nsi_terminale_specialite",
+        "rag_nexus_nsi_premiere_specialite",
+    )
+    monkeypatch.setattr(
+        endpoint, "_require_retrieval_identity", lambda *_args, **_kwargs: object()
+    )
+    monkeypatch.setattr(endpoint, "load_collection_config", lambda: FULL_CFG)
+    monkeypatch.setattr(endpoint, "effective_signed_collections", lambda _verified: allowed)
+    monkeypatch.setattr(endpoint, "build_server_retrieval_scope", lambda *_args, **_kwargs: BASE_SCOPE)
+    monkeypatch.setattr(
+        endpoint,
+        "_release_evidence_for_collection",
+        lambda collection: (
+            False if collection == "rag_nexus_nsi_premiere_specialite" else None
+        ),
+    )
+
+    response = endpoint.list_retrievable_collections(SimpleNamespace())
+
+    assert [item["name"] for item in response["collections"]] == [
+        "rag_nexus_nsi_terminale_specialite"
+    ]
+
 
 class TestHybridSearchDelegation:
     @pytest.mark.parametrize(

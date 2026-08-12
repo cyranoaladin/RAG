@@ -20,6 +20,7 @@
 # Required v2 read/review modules only.
 !services/rag-engine/src/
 !services/rag-engine/src/ingestor/
+!services/rag-engine/src/ingestor/__init__.py
 !services/rag-engine/src/ingestor/requirements.runtime-v2.txt
 !services/rag-engine/src/ingestor/api_v2.py
 !services/rag-engine/src/ingestor/collection_config.py
@@ -30,6 +31,7 @@
 !services/rag-engine/src/ingestor/model_artifact.py
 !services/rag-engine/src/ingestor/pg_pool.py
 !services/rag-engine/src/ingestor/readiness_db.py
+!services/rag-engine/src/ingestor/release_readiness.py
 !services/rag-engine/src/ingestor/retrieval_contract_adapter.py
 !services/rag-engine/src/ingestor/retrieval_hybrid_v2.py
 !services/rag-engine/src/ingestor/retrieval_pg_v2.py

@@ -160,7 +160,6 @@ def _read_collection_config(path: Path) -> dict[str, Any]:
         or not relative_base
         or Path(relative_base).is_absolute()
         or not isinstance(overrides, Mapping)
-        or not overrides
         or any(
             not isinstance(name, str) or not name or value is not True
             for name, value in overrides.items()

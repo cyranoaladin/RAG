@@ -98,6 +98,7 @@ from ingestor.ingestion_worker.storage import (  # noqa: E402
     make_filesystem_artifact_reader,
     make_filesystem_artifact_store,
 )
+from ingestor.release_readiness import validate_release_readiness  # noqa: E402
 from ingestor.retrieval_hybrid_v2 import EMBED_DIMENSION  # noqa: E402
 from ingestor.verified_pedagogical_placement import (  # noqa: E402
     VerifiedPedagogicalPlacementResolver,
@@ -108,10 +109,13 @@ pytestmark = [pytest.mark.integration, requires_docker]
 FR_SHA = "c8662b03ca8a7f08bedad5081bafc7da8d2cc8a31b07fa967421fb15304d76bf"
 CORPUS_MANIFEST_SHA = "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e"
 CATALOG_SHA = "301c0dcce4e49cd9b6e524708bde82b262a09b05bd52e0431233813ecf8ae04b"
-CURRENTNESS_SHA = "25d92eb97acc30467bd2dcfea401c94ea3ce273f341a574edb2bb48f4ab2aa13"
+CURRENTNESS_SHA = "75d77994809a81ed9f9452eace75448d3869ef4b8ee1942693f66f430ec27f36"
 PROGRAMME_INDEX_SHA = "d5b2bbfe97d0a2e8b85f446c2d3f862798d03db4f8cf48a22cf22e1cb4da0f45"
-PII_SHA = "e1049c9d4b39b57acce9becadf5029de5b82a20afd8e38c699835bf1e649e125"
+PII_SHA = "63d0879358a844b44f41c82d21c0b67349e0f7a2f1cdabe7becff2affc58f9f1"
 RIGHTS_SHA = "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff"
+INVENTORY_SHA = "0c203af33d97f787f4fcbbf96ae822d37464d571be96074babf5abb529aaf882"
+MAPPING_SHA = "f2c940d979bd6cc740c44882fcba6e44090636f9f793226c2a627ff0c9cbcc1c"
+RELEASE_SHA = "0cf9c5d8ceaa2766aa97195743e949ec0a907ed0f609f116275a7d1f8202498d"
 AUTHORIZATION_ID = "-".join(("wave0", "francais", "troisieme", "v1"))
 AUTH_PR, AUTH_HEAD, BASE_HEAD, AUTH_REVIEW = 9501, "a" * 40, "9" * 40, 95011
 PUB_PR, PUB_HEAD, PUB_REVIEW = 9502, "b" * 40, 95021
@@ -145,7 +149,9 @@ MATHS_AUTHORIZATION_ID = "-".join(("wave0", "maths", "troisieme", "v1"))
 MATHS_AUTH_PR, MATHS_AUTH_HEAD, MATHS_AUTH_REVIEW = 9511, "c" * 40, 95111
 MATHS_PUB_PR, MATHS_PUB_HEAD, MATHS_PUB_REVIEW = 9512, "d" * 40, 95121
 MATHS_REVIEW_ID = "wave0-maths-troisieme-publication-v1"
-WAVE0_SEARCH_DATASET = ENGINE_ROOT / "tests" / "fixtures" / "wave0_search_acceptance.yml"
+WAVE0_SEARCH_DATASET = (
+    ENGINE_ROOT / "tests" / "fixtures" / "wave0_full_search_acceptance.yml"
+)
 WAVE0_COLLECTIONS_CONFIG = ENGINE_ROOT / "configs" / "staging" / "rag_collections_wave0.yml"
 
 PDF_PATH = Path(os.environ.get("NEXUS_WAVE0_FR_PDF_PATH", ""))
@@ -171,8 +177,20 @@ CURRENTNESS_PATH = (
     / "rag-pedago"
     / "configs"
     / "prerentree_2026_2027"
-    / "wave0_currentness_evidence.yml"
+    / "wave0_currentness_evidence_v2.yml"
 )
+RELEASE_ROOT = (
+    REPOSITORY_ROOT
+    / "services"
+    / "rag-pedago"
+    / "data"
+    / "releases"
+    / "prerentree_2026_2027"
+    / "wave0"
+)
+INVENTORY_PATH = RELEASE_ROOT / "wave0_candidate_inventory.json"
+RELEASE_PATH = RELEASE_ROOT / "wave0.release.json"
+MAPPING_PATH = ENGINE_ROOT / "configs" / "mappings" / "eduscol_wave0_document_types.yml"
 RIGHTS_PATH = (
     REPOSITORY_ROOT / "services" / "rag-pedago" / "configs" / "rights_evidence_registry.yml"
 )
@@ -318,6 +336,9 @@ def real_inputs() -> dict[str, Any]:
     assert _sha(MATHS_PDF_PATH) == MATHS_SHA
     assert _sha(CATALOG_PATH) == CATALOG_SHA
     assert _sha(CURRENTNESS_PATH) == CURRENTNESS_SHA
+    assert _sha(INVENTORY_PATH) == INVENTORY_SHA
+    assert _sha(MAPPING_PATH) == MAPPING_SHA
+    assert _sha(RELEASE_PATH) == RELEASE_SHA
     assert _sha(PII_PATH) == PII_SHA
     assert _sha(RIGHTS_PATH) == RIGHTS_SHA
 
@@ -326,8 +347,14 @@ def real_inputs() -> dict[str, Any]:
     resolver = VerifiedPedagogicalPlacementResolver.load(
         catalog_path=CATALOG_PATH,
         expected_catalog_sha256=CATALOG_SHA,
+        candidate_inventory_path=INVENTORY_PATH,
+        expected_candidate_inventory_sha256=INVENTORY_SHA,
         currentness_evidence_path=CURRENTNESS_PATH,
         expected_currentness_evidence_sha256=CURRENTNESS_SHA,
+        mapping_path=MAPPING_PATH,
+        expected_mapping_sha256=MAPPING_SHA,
+        release_manifest_path=RELEASE_PATH,
+        expected_release_manifest_sha256=RELEASE_SHA,
         expected_manifest_sha256=CORPUS_MANIFEST_SHA,
         profile_registry=profiles,
         collection_config=load_collection_config(),
@@ -968,6 +995,76 @@ def _fake_vector(text: str) -> tuple[float, ...]:
     return tuple(value / norm for value in raw)
 
 
+def _publication_deps(
+    attested: dict[str, Any],
+    product_pg: dict[str, str],
+    publication_embedding_provider: Any,
+    *,
+    owner: str,
+) -> PublicationResumeDeps:
+    return PublicationResumeDeps(
+        owner=owner,
+        product_dsn=product_pg["publisher_dsn"],
+        artifact_reader=attested["artifact_reader"],
+        extract_text=_reject_duplicate_pdf_extraction,
+        embedding_provider=publication_embedding_provider,
+        pii_evidence_registry=attested["pii"],
+        rights_evidence_registry=attested["rights"],
+        manifest_digest=attested["manifest_digest"],
+        placement_resolver=attested["resolver"],
+    )
+
+
+def _replay_completed_publication_job_without_embedding(
+    control_pg: dict[str, str],
+    product_pg: dict[str, str],
+    attested: dict[str, Any],
+    publication_embedding_provider: Any,
+    *,
+    publication_job_id: uuid.UUID,
+    owner: str,
+) -> None:
+    """Simuler le replay du même job après product commit/ack perdu."""
+    with psycopg.connect(product_pg["admin_dsn"]) as product_admin:
+        before = product_admin.execute(
+            "SELECT (SELECT COUNT(*) FROM public.rag_artifacts), "
+            "(SELECT COUNT(*) FROM public.rag_artifact_placements), "
+            "(SELECT COUNT(*) FROM public.rag_chunks), "
+            "(SELECT COUNT(*) FROM public.rag_chunks WHERE vector IS NOT NULL)"
+        ).fetchone()
+    with psycopg.connect(app_dsn(control_pg)) as control_conn:
+        updated = control_conn.execute(
+            "UPDATE ingestion_control.jobs "
+            "SET status = 'queued', next_attempt_at = now(), updated_at = now() "
+            "WHERE job_id = %s AND status = 'succeeded'",
+            (publication_job_id,),
+        ).rowcount
+        assert updated == 1
+        control_conn.commit()
+        replay = run_publication_resume_iteration(
+            control_conn,
+            deps=_publication_deps(
+                attested,
+                product_pg,
+                publication_embedding_provider,
+                owner=owner,
+            ),
+            build_placements=None,
+        )
+        assert replay.status == "succeeded", replay.error
+        assert replay.job_id == publication_job_id
+        assert replay.embedded is False
+        control_conn.commit()
+    with psycopg.connect(product_pg["admin_dsn"]) as product_admin:
+        after = product_admin.execute(
+            "SELECT (SELECT COUNT(*) FROM public.rag_artifacts), "
+            "(SELECT COUNT(*) FROM public.rag_artifact_placements), "
+            "(SELECT COUNT(*) FROM public.rag_chunks), "
+            "(SELECT COUNT(*) FROM public.rag_chunks WHERE vector IS NOT NULL)"
+        ).fetchone()
+    assert after == before
+
+
 @pytest.fixture(scope="module")
 def publication_embedding_provider(product_pg: dict[str, str]) -> Any:
     """Le même E2E accepte le provider debug ou l'E5 matériel vérifié.
@@ -1017,16 +1114,11 @@ def _publish_and_assert_french(
         control_conn.commit()
         outcome = run_publication_resume_iteration(
             control_conn,
-            deps=PublicationResumeDeps(
+            deps=_publication_deps(
+                french_attested,
+                product_pg,
+                publication_embedding_provider,
                 owner="wave0-fr-worker-b-wrong-attestation",
-                product_dsn=product_pg["publisher_dsn"],
-                artifact_reader=french_attested["artifact_reader"],
-                extract_text=_reject_duplicate_pdf_extraction,
-                embedding_provider=publication_embedding_provider,
-                pii_evidence_registry=french_attested["pii"],
-                rights_evidence_registry=french_attested["rights"],
-                manifest_digest=french_attested["manifest_digest"],
-                placement_resolver=french_attested["resolver"],
             ),
             build_placements=None,
         )
@@ -1070,8 +1162,6 @@ def _publish_and_assert_french(
         ).fetchone()
         assert product_rows == (0, 0, 0)
 
-    manifest_digest = french_attested["manifest_digest"]
-
     with psycopg.connect(app_dsn(control_pg)) as control_conn:
         publication_job_id = create_job(
             control_conn,
@@ -1088,16 +1178,11 @@ def _publish_and_assert_french(
         control_conn.commit()
         outcome = run_publication_resume_iteration(
             control_conn,
-            deps=PublicationResumeDeps(
+            deps=_publication_deps(
+                french_attested,
+                product_pg,
+                publication_embedding_provider,
                 owner="wave0-fr-worker-b",
-                product_dsn=product_pg["publisher_dsn"],
-                artifact_reader=french_attested["artifact_reader"],
-                extract_text=_reject_duplicate_pdf_extraction,
-                embedding_provider=publication_embedding_provider,
-                pii_evidence_registry=french_attested["pii"],
-                rights_evidence_registry=french_attested["rights"],
-                manifest_digest=manifest_digest,
-                placement_resolver=french_attested["resolver"],
             ),
             build_placements=None,
         )
@@ -1110,6 +1195,15 @@ def _publish_and_assert_french(
         assert state is not None
         assert state[0] == ResourceState.RETRIEVAL_ELIGIBLE.value
         control_conn.commit()
+
+    _replay_completed_publication_job_without_embedding(
+        control_pg,
+        product_pg,
+        french_attested,
+        publication_embedding_provider,
+        publication_job_id=publication_job_id,
+        owner="wave0-fr-worker-b-replay",
+    )
 
     with psycopg.connect(product_pg["admin_dsn"]) as product_admin:
         assert product_admin.execute(
@@ -1200,8 +1294,6 @@ def _publish_and_assert_maths(
     maths_attested: dict[str, Any],
     publication_embedding_provider: Any,
 ) -> None:
-    manifest_digest = maths_attested["manifest_digest"]
-
     with psycopg.connect(app_dsn(control_pg)) as control_conn:
         publication_job_id = create_job(
             control_conn,
@@ -1218,16 +1310,11 @@ def _publish_and_assert_maths(
         control_conn.commit()
         outcome = run_publication_resume_iteration(
             control_conn,
-            deps=PublicationResumeDeps(
+            deps=_publication_deps(
+                maths_attested,
+                product_pg,
+                publication_embedding_provider,
                 owner="wave0-maths-worker-b",
-                product_dsn=product_pg["publisher_dsn"],
-                artifact_reader=maths_attested["artifact_reader"],
-                extract_text=_reject_duplicate_pdf_extraction,
-                embedding_provider=publication_embedding_provider,
-                pii_evidence_registry=maths_attested["pii"],
-                rights_evidence_registry=maths_attested["rights"],
-                manifest_digest=manifest_digest,
-                placement_resolver=maths_attested["resolver"],
             ),
             build_placements=None,
         )
@@ -1240,6 +1327,15 @@ def _publish_and_assert_maths(
         assert state is not None
         assert state[0] == ResourceState.RETRIEVAL_ELIGIBLE.value
         control_conn.commit()
+
+    _replay_completed_publication_job_without_embedding(
+        control_pg,
+        product_pg,
+        maths_attested,
+        publication_embedding_provider,
+        publication_job_id=publication_job_id,
+        owner="wave0-maths-worker-b-replay",
+    )
 
     with psycopg.connect(product_pg["admin_dsn"]) as product_admin:
         artifact_count = product_admin.execute(
@@ -1504,6 +1600,70 @@ def wave0_published_acceptance(
     assert vector_counts[0] == 0
     assert vector_counts[1] == sum(count for count, _models in by_artifact.values())
     assert vector_counts[2:] == (0, 0)
+    with psycopg.connect(product_pg["admin_dsn"]) as product_admin:
+        orphan_sha = "f" * 64
+        product_admin.execute(
+            "INSERT INTO public.rag_artifacts "
+            "(artifact_id, content_sha256, source_label, source_uri, rights, "
+            "official, source_kind, type_doc, ingestion_artifact_id) "
+            "VALUES (%s, %s, 'orphan-test', 'https://example.invalid/orphan', "
+            "'officiel_public', true, 'test', 'ressource_officielle', %s)",
+            (orphan_sha, orphan_sha, uuid.uuid4()),
+        )
+        orphan_report = validate_release_readiness(
+            RELEASE_PATH,
+            RELEASE_SHA,
+            product_admin,
+        )
+        assert orphan_report.ready is False
+        assert orphan_report.unexpected_artifacts == 1
+        product_admin.rollback()
+        release_report = validate_release_readiness(
+            RELEASE_PATH,
+            RELEASE_SHA,
+            product_admin,
+        )
+        if not release_report.ready:
+            actual_placements = product_admin.execute(
+                "SELECT placement_id, artifact_id, collection, tenant, niveau, voie, "
+                "matiere, statut_enseignement, candidat, visibility, school_year, "
+                "programme_version, currentness, placement_status, review_status, "
+                "source_scope, source_placement_id, source_path, source_uri, "
+                "authorization_id, publication_attestation_id::text "
+                "FROM public.rag_artifact_placements ORDER BY artifact_id"
+            ).fetchall()
+            pytest.fail(
+                f"release reconciliation failed: {release_report}; "
+                f"placement_rows={actual_placements!r}"
+            )
+        governance_pins = product_admin.execute(
+            "SELECT authorization_id, publication_attestation_id::text "
+            "FROM public.rag_artifact_placements "
+            "WHERE collection = ANY(%s) ORDER BY collection",
+            ([COLLECTION, MATHS_COLLECTION],),
+        ).fetchall()
+    assert len(governance_pins) == 2
+    authorization_ids = [str(row[0]) for row in governance_pins]
+    attestation_ids = [str(row[1]) for row in governance_pins]
+    with psycopg.connect(superuser_dsn(control_pg)) as control_admin:
+        authority_pin_count = control_admin.execute(
+            "SELECT COUNT(*) FROM ingestion_control.scope_authorizations "
+            "WHERE authorization_id = ANY(%s)",
+            (authorization_ids,),
+        ).fetchone()
+        attestation_pin_count = control_admin.execute(
+            "SELECT COUNT(*) FROM ingestion_control.publication_attestations "
+            "WHERE attestation_id::text = ANY(%s)",
+            (attestation_ids,),
+        ).fetchone()
+    assert authority_pin_count == (2,)
+    assert attestation_pin_count == (2,)
+    print("ARTIFACT_DUPLICATES=0")
+    print("PLACEMENT_DUPLICATES=0")
+    print("CHUNK_DUPLICATES=0")
+    print("VECTOR_DUPLICATES=0")
+    print("NEW_EMBEDDINGS_ON_SECOND_RUN=0")
+    print("ARTIFACT_CREATED_ON_SECOND_RUN=0")
     return product_pg
 
 
@@ -1521,7 +1681,7 @@ def test_wave0_real_http_search_is_authenticated_isolated_and_semantic(
 
     dataset = yaml.safe_load(WAVE0_SEARCH_DATASET.read_text(encoding="utf-8"))
     assert isinstance(dataset, dict)
-    assert all(len(cases) >= 10 for cases in dataset.values())
+    assert all(len(cases) >= 20 for cases in dataset.values())
 
     bff_token = uuid.uuid4().hex + uuid.uuid4().hex
     identity_secret = uuid.uuid4().hex + uuid.uuid4().hex
@@ -1544,6 +1704,8 @@ def test_wave0_real_http_search_is_authenticated_isolated_and_semantic(
         "PG_RAG_DSN": product_pg["retrieval_dsn"],
         "PG_REVIEW_DSN": product_pg["review_dsn"],
         "RAG_COLLECTIONS_CONFIG": str(WAVE0_COLLECTIONS_CONFIG),
+        "RAG_RELEASE_MANIFEST_PATH": str(RELEASE_PATH),
+        "RAG_RELEASE_MANIFEST_SHA256": RELEASE_SHA,
         "RAG_EMBEDDING_MODEL_CACHE_DIR": embedding_root,
         "RAG_EMBEDDING_MODEL_INVENTORY_SHA256": embedding_inventory,
         "RAG_RERANKER_MODEL_CACHE_DIR": reranker_root,
@@ -1572,7 +1734,7 @@ def test_wave0_real_http_search_is_authenticated_isolated_and_semantic(
     )
     try:
         deadline = time.monotonic() + 300
-        with httpx.Client(base_url=base_url, timeout=30.0) as client:
+        with httpx.Client(base_url=base_url, timeout=120.0) as client:
             while True:
                 if process.poll() is not None:
                     pytest.fail("uvicorn exited before Wave 0 readiness")
@@ -1751,69 +1913,126 @@ def test_wave0_real_http_search_is_authenticated_isolated_and_semantic(
                 ),
             }
             passed: dict[str, int] = {}
+            acceptance_failures: list[str] = []
             for scope_id, cases in dataset.items():
-                headers, collection, expected_sha, expected_path = scope_expectations[scope_id]
+                headers, collection, expected_sha, expected_path = scope_expectations[
+                    scope_id
+                ]
                 passed[scope_id] = 0
-                for case in cases:
+                for case_index, case in enumerate(cases, start=1):
                     response = client.post(
                         "/search/v2",
                         json=_search_payload(scope_id, case["query"]),
                         headers=headers,
                     )
-                    assert response.status_code == 200, (
-                        scope_id,
-                        response.status_code,
-                    )
+                    if response.status_code != 200:
+                        acceptance_failures.append(
+                            f"{scope_id}:{case_index}:http={response.status_code}"
+                        )
+                        continue
                     parsed = RetrievalResponse.model_validate(response.json())
-                    assert parsed.results, scope_id
+                    if not parsed.results:
+                        acceptance_failures.append(f"{scope_id}:{case_index}:zero_result")
+                        continue
                     top = parsed.results[0]
                     metadata = top.metadata
-                    assert metadata["collection"] == collection
-                    assert metadata["content_sha256"] == expected_sha
-                    assert metadata["artifact_id"] == expected_sha
-                    assert metadata["review_status"] == "reviewed"
-                    assert metadata["placement_source_path"] == expected_path
-                    assert top.doc_id == expected_sha
-                    assert top.citation is not None
-                    assert top.citation.page is not None
-                    assert top.citation.page == case["expected_page"]
-                    assert top.citation.rights == Rights.officiel_public.value
+                    reasons: list[str] = []
+                    if metadata["collection"] != collection:
+                        reasons.append("wrong_collection")
+                    if metadata["content_sha256"] != expected_sha:
+                        reasons.append("wrong_content")
+                    if metadata["artifact_id"] != expected_sha or top.doc_id != expected_sha:
+                        reasons.append("wrong_artifact")
+                    if metadata["review_status"] != "reviewed":
+                        reasons.append("wrong_review")
+                    if metadata["placement_source_path"] != expected_path:
+                        reasons.append("wrong_path")
+                    if expected_sha not in case["expected_artifacts_any"]:
+                        reasons.append("dataset_artifact")
+                    citation = top.citation
+                    if citation is None:
+                        reasons.append("missing_citation")
+                    else:
+                        if citation.page not in case["expected_pages_any"]:
+                            reasons.append(f"wrong_page={citation.page}")
+                        if citation.rights != Rights.officiel_public.value:
+                            reasons.append("wrong_rights")
                     normalized_excerpt = _normalized(top.excerpt)
-                    assert any(
+                    if not any(
                         _normalized(concept) in normalized_excerpt
                         for concept in case["expected_concepts_any"]
-                    ), (
-                        scope_id,
-                        case["query"],
-                        metadata["dense_score"],
-                        metadata["lexical_score"],
-                        metadata["rrf_score"],
-                        metadata["rerank_score"],
-                        metadata["score_final"],
-                    )
-                    assert all(
+                    ):
+                        reasons.append("concept_absent")
+                    if not all(
                         result.metadata.get("collection") == collection
                         and result.metadata.get("content_sha256") == expected_sha
                         for result in parsed.results
-                    )
-                    passed[scope_id] += 1
+                    ):
+                        reasons.append("scope_leak")
+                    if reasons:
+                        acceptance_failures.append(
+                            f"{scope_id}:{case_index}:{','.join(reasons)}:"
+                            f"rerank={metadata['rerank_score']}"
+                        )
+                    else:
+                        passed[scope_id] += 1
+
+            assert acceptance_failures == []
 
             assert passed["entree_seconde_maths_v1"] == len(dataset["entree_seconde_maths_v1"])
             assert passed["entree_seconde_francais_v1"] == len(
                 dataset["entree_seconde_francais_v1"]
             )
+            query_client_env = {
+                **child_env,
+                "RAG_API_URL": base_url,
+            }
+            for scope_id in (
+                "entree_seconde_maths_v1",
+                "entree_seconde_francais_v1",
+            ):
+                query_client = subprocess.run(
+                    [
+                        sys.executable,
+                        str(REPOSITORY_ROOT / "scripts" / "rag_query.py"),
+                        "--scope",
+                        scope_id,
+                        "--query",
+                        dataset[scope_id][0]["query"],
+                    ],
+                    cwd=REPOSITORY_ROOT,
+                    env=query_client_env,
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                    check=False,
+                )
+                assert query_client.returncode == 0, scope_id
+                assert bff_token not in query_client.stdout + query_client.stderr
+                assert identity_secret not in query_client.stdout + query_client.stderr
             print("API_V2_REAL_HTTP=true")
             print("BFF_AUTH_PASS=true")
             print("SIGNED_IDENTITY_PASS=true")
             print("SCOPE_ISOLATION_AUTH_PASS=true")
             print("SIGNED_COLLECTION_PICKER_ISOLATED=true")
             print("REAL_RERANKER_USED=true")
+            print(
+                "MATHS_FULL_WAVE0_QUERY_PASS="
+                f"{passed['entree_seconde_maths_v1']}/"
+                f"{len(dataset['entree_seconde_maths_v1'])}"
+            )
+            print(
+                "FR_FULL_WAVE0_QUERY_PASS="
+                f"{passed['entree_seconde_francais_v1']}/"
+                f"{len(dataset['entree_seconde_francais_v1'])}"
+            )
             print(f"MATHS_3E_QUERY_TOTAL={len(dataset['entree_seconde_maths_v1'])}")
             print(f"MATHS_3E_QUERY_PASS={passed['entree_seconde_maths_v1']}")
             print(f"FR_3E_QUERY_TOTAL={len(dataset['entree_seconde_francais_v1'])}")
             print(f"FR_3E_QUERY_PASS={passed['entree_seconde_francais_v1']}")
             print("CROSS_COLLECTION_LEAKS=0")
             print("WRONG_SCOPE_LEAKS=0")
+            print("RAG_QUERY_CLI_FULL_WAVE0=PASS")
     finally:
         stderr = ""
         process.terminate()

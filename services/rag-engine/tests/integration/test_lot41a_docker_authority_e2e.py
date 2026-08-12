@@ -54,7 +54,7 @@ PR_NUMBER, HEAD_SHA, BASE_SHA, REVIEW_ID = 4242, "b" * 40, "a" * 40, 777
 #: ce que l'item I veut détecter.
 E2E_SCRIPT = '''
 import json, sys, time
-from ingestion_control.github_authority import (
+from ingestor.ingestion_control.github_authority import (
     GitHubAuthorityError, verify_review,
 )
 
@@ -152,6 +152,21 @@ def run_in_container(
 
 
 class TestTheImageNeedsNoGitHubCli:
+    def test_both_worker_entrypoints_import_inside_the_real_image(
+        self, worker_image: str
+    ) -> None:
+        result = _docker(
+            "run",
+            "--rm",
+            worker_image,
+            "python",
+            "-c",
+            "import ingestor.ingestion_worker.cli; "
+            "import ingestor.ingestion_worker.publication_resume_cli; "
+            "print('WORKER_ENTRYPOINTS_OK')",
+        )
+        assert result.stdout.strip() == "WORKER_ENTRYPOINTS_OK"
+
     def test_gh_is_absent_from_the_image(self, worker_image: str) -> None:
         """Le transport ``gh api`` n'aurait jamais fonctionné ici. Sa
         disparition est vérifiée, pas supposée."""

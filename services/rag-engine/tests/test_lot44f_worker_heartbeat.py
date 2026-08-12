@@ -135,6 +135,21 @@ def _run_worker(
         "run_worker_iteration",
         lambda _conn, deps: IterationOutcome(worked=False, job_id=None, status=None, error=None),
     )
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(
+        worker_cli,
+        "load_governed_runtime_authorities",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            pii_evidence_registry=SimpleNamespace(
+                evidence_sha256="1" * 64, cleared_count=1
+            ),
+            rights_evidence_registry=SimpleNamespace(
+                registry_sha256="2" * 64, registry_id="heartbeat-test"
+            ),
+            placement_resolver=SimpleNamespace(release_manifest_sha256="3" * 64),
+        ),
+    )
     # Isolation DB (revue PR#90) : _reap_expired_leases touche aussi la base
     # réelle à chaque itération — hors périmètre de ce test, qui vérifie
     # uniquement le mécanisme de heartbeat sur une fausse connexion.
@@ -170,6 +185,20 @@ def _run_worker(
             "--expected-role", "ingestion_control_app_test",
             "--owner", "heartbeat-test",
             *write_sealed_evidence(artifact_dir.parent),
+            "--catalog-path", str(artifact_dir.parent / "catalog.json"),
+            "--catalog-sha256", "3" * 64,
+            "--candidate-inventory-path", str(artifact_dir.parent / "inventory.json"),
+            "--candidate-inventory-sha256", "4" * 64,
+            "--currentness-evidence-path", str(artifact_dir.parent / "currentness.yml"),
+            "--currentness-evidence-sha256", "5" * 64,
+            "--mapping-path", str(artifact_dir.parent / "mapping.yml"),
+            "--mapping-sha256", "6" * 64,
+            "--release-manifest-path", str(artifact_dir.parent / "release.json"),
+            "--release-manifest-sha256", "7" * 64,
+            "--programme-index-path", str(artifact_dir.parent / "programme.yml"),
+            "--programme-index-sha256", "8" * 64,
+            "--collection-config-path", str(artifact_dir.parent / "collections.yml"),
+            "--collection-config-sha256", "9" * 64,
             "--once",
             *extra_args,
         ]

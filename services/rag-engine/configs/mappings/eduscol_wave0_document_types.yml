@@ -1,0 +1,23 @@
+mapping_kind: EDUSCOL_WAVE0_PEDAGOGICAL_MAPPING_V1
+
+pedagogical_mappings:
+  - external_level: "3e"
+    external_scope: college/cycle-4/mathematiques
+    external_subject: mathematiques
+    nexus_collection: rag_nexus_maths_troisieme_tc
+    nexus_niveau: troisieme
+    nexus_voie: college
+    nexus_matiere: maths
+    nexus_statut_enseignement: tronc_commun
+
+  - external_level: "3e"
+    external_scope: college/cycle-4/francais
+    external_subject: francais
+    nexus_collection: rag_nexus_francais_troisieme_tc
+    nexus_niveau: troisieme
+    nexus_voie: college
+    nexus_matiere: francais
+    nexus_statut_enseignement: tronc_commun
+
+document_types:
+  reperes-attendus: ressource_officielle

@@ -35,10 +35,6 @@ try:
     from ingestor.ingestion_control.db import get_ingestion_control_dsn
     from ingestor.ingestion_control.jobs import reap_expired_job_leases
     from ingestor.ingestion_control.lease_reaper import reap_expired_leases
-    from ingestor.ingestion_control.sealed_evidence import (
-        VerifiedPIIEvidenceRegistry,
-        VerifiedRightsEvidenceRegistry,
-    )
     from ingestor.ingestion_profiles.readiness_gate import (
         ReadinessGateError,
         enforce_readiness_gate,
@@ -56,10 +52,6 @@ except (ImportError, ValueError):
     from ingestion_control.db import get_ingestion_control_dsn
     from ingestion_control.jobs import reap_expired_job_leases
     from ingestion_control.lease_reaper import reap_expired_leases
-    from ingestion_control.sealed_evidence import (
-        VerifiedPIIEvidenceRegistry,
-        VerifiedRightsEvidenceRegistry,
-    )
     from ingestion_profiles.readiness_gate import (
         ReadinessGateError,
         enforce_readiness_gate,
@@ -69,6 +61,12 @@ except (ImportError, ValueError):
     )
 
 from .runner import WorkerDeps, run_worker_iteration
+from .runtime_authority import (
+    RuntimeAuthorityStartupError,
+    add_runtime_authority_arguments,
+    load_governed_runtime_authorities,
+    runtime_authority_inputs_from_args,
+)
 from .storage import make_filesystem_artifact_reader, make_filesystem_artifact_store
 
 DEFAULT_POLL_INTERVAL_S = 5.0
@@ -121,6 +119,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--rights-evidence-path", required=True, type=Path)
     parser.add_argument("--rights-evidence-sha256", required=True, type=_non_blank_str)
     parser.add_argument("--corpus-manifest-sha256", required=True, type=_non_blank_str)
+    add_runtime_authority_arguments(parser)
     parser.add_argument(
         "--expected-role",
         required=True,
@@ -215,24 +214,26 @@ def main(argv: list[str] | None = None) -> int:
             f"manifest_fingerprint={gate_result.manifest.manifest_fingerprint}"
         )
 
-    # Chargées **avant** la boucle de jobs : un digest qui a dérivé doit
-    # empêcher le démarrage, pas se révéler au premier document traité.
-    pii_evidence_registry = VerifiedPIIEvidenceRegistry.load(
-        args.pii_evidence_path,
-        expected_evidence_sha256=args.pii_evidence_sha256,
-        expected_corpus_manifest_sha256=args.corpus_manifest_sha256,
-    )
-    rights_evidence_registry = VerifiedRightsEvidenceRegistry.load(
-        args.rights_evidence_path,
-        expected_registry_sha256=args.rights_evidence_sha256,
-        expected_corpus_manifest_sha256=args.corpus_manifest_sha256,
-    )
+    # Toutes les autorités de publication sont chargées une seule fois et
+    # reliées entre elles avant d'ouvrir PostgreSQL. Un worker sans resolver
+    # n'est pas un worker "legacy" : c'est un processus non publiable qui
+    # doit échouer au startup.
+    try:
+        runtime_authorities = load_governed_runtime_authorities(
+            runtime_authority_inputs_from_args(args),
+            profile_registry=gate_result.registry,
+            profile_manifest_digest=gate_result.manifest.manifest_fingerprint,
+        )
+    except RuntimeAuthorityStartupError as exc:
+        print(f"WORKER_RUNTIME_AUTHORITY_FAILED: {exc}", file=sys.stderr)
+        return 1
     print(
         "WORKER_STARTUP_SEALED_EVIDENCE "
-        f"pii_evidence_sha256={pii_evidence_registry.evidence_sha256} "
-        f"pii_cleared={pii_evidence_registry.cleared_count} "
-        f"rights_registry_sha256={rights_evidence_registry.registry_sha256} "
-        f"rights_registry_id={rights_evidence_registry.registry_id} "
+        f"pii_evidence_sha256={runtime_authorities.pii_evidence_registry.evidence_sha256} "
+        f"pii_cleared={runtime_authorities.pii_evidence_registry.cleared_count} "
+        f"rights_registry_sha256={runtime_authorities.rights_evidence_registry.registry_sha256} "
+        f"rights_registry_id={runtime_authorities.rights_evidence_registry.registry_id} "
+        f"release_manifest_sha256={runtime_authorities.placement_resolver.release_manifest_sha256} "
         f"corpus_manifest_sha256={args.corpus_manifest_sha256}"
     )
 
@@ -244,8 +245,9 @@ def main(argv: list[str] | None = None) -> int:
         profile_registry=gate_result.registry,
         artifact_store=make_filesystem_artifact_store(args.artifact_store_dir),
         artifact_reader=make_filesystem_artifact_reader(args.artifact_store_dir),
-        pii_evidence_registry=pii_evidence_registry,
-        rights_evidence_registry=rights_evidence_registry,
+        pii_evidence_registry=runtime_authorities.pii_evidence_registry,
+        rights_evidence_registry=runtime_authorities.rights_evidence_registry,
+        placement_resolver=runtime_authorities.placement_resolver,
         # LOT41A (item D) : l'empreinte du manifest réellement vérifié par
         # le gate ci-dessus, jamais recalculée ailleurs ni relue du disque.
         # Confrontée au manifest_digest de chaque autorisation : un worker

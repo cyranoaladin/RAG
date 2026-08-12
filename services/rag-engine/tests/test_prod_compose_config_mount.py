@@ -212,6 +212,31 @@ def test_v2_compose_requires_only_internal_runtime_authorities() -> None:
         assert f"${{{key}:?" in configured[key]
 
 
+def test_v2_compose_mounts_exact_wave0_release_authority_read_only() -> None:
+    compose = _load_compose(V2_COMPOSE_PATH)
+    service = compose["services"]["ingestor"]
+    configured = _environment_variables(service["environment"])
+
+    assert configured["RAG_RELEASE_MANIFEST_PATH"] == "/app/release/wave0.release.json"
+    assert _compose_env_ref_is_valid(
+        configured["RAG_RELEASE_MANIFEST_SHA256"],
+        "RAG_RELEASE_MANIFEST_SHA256",
+    )
+    assert "${RAG_RELEASE_MANIFEST_SHA256:?" in configured[
+        "RAG_RELEASE_MANIFEST_SHA256"
+    ]
+
+    release_mounts = [
+        volume
+        for volume in service["volumes"]
+        if isinstance(volume, str) and ":/app/release:" in volume
+    ]
+    assert release_mounts == [
+        "${RAG_RELEASE_MANIFEST_HOST_DIR:-../../rag-pedago/data/releases/"
+        "prerentree_2026_2027/wave0}:/app/release:ro"
+    ]
+
+
 def test_v2_compose_contains_only_the_read_review_stack() -> None:
     compose = _load_compose(V2_COMPOSE_PATH)
 
@@ -239,6 +264,7 @@ def test_v2_compose_ingestion_control_lives_in_a_separate_opt_in_file() -> None:
     assert set(services) == {
         "migrator-ingestion-control",
         "ingestion-worker",
+        "publication-resume-worker",
         "scope-authority-operator",
         "publication-attestor-operator",
     }
@@ -251,6 +277,7 @@ def test_v2_compose_ingestion_control_lives_in_a_separate_opt_in_file() -> None:
         assert "ports" not in services[operator]
 
     assert "ports" not in services["ingestion-worker"]
+    assert "ports" not in services["publication-resume-worker"]
     assert services["migrator-ingestion-control"]["restart"] == "no"
 
 
@@ -317,6 +344,32 @@ def test_v2_ingestor_uses_dedicated_dockerfile_with_contracts() -> None:
         "COPY services/rag-engine/src/ingestor/retrieval_contract_adapter.py "
         "/app/retrieval_contract_adapter.py"
     ) in content, "the flattened v2 image must include every imported contract adapter"
+
+
+def test_ingestion_worker_image_preserves_the_ingestor_package_boundary() -> None:
+    dockerfile = (
+        ENGINE_ROOT / "infra" / "Dockerfile.ingestion-worker"
+    ).read_text(encoding="utf-8")
+    compose = _load_compose(ENGINE_ROOT / "infra" / "docker-compose.ingestion.yml")
+
+    assert (
+        "COPY services/rag-engine/src/ingestor/__init__.py "
+        "/app/ingestor/__init__.py"
+    ) in dockerfile
+    assert "/app/ingestor/ingestion_agents/" in dockerfile
+    assert "/app/ingestor/ingestion_control/" in dockerfile
+    assert 'CMD ["python", "-m", "ingestor.ingestion_worker.cli"]' in dockerfile
+
+    assert compose["services"]["ingestion-worker"]["command"][:3] == [
+        "python",
+        "-m",
+        "ingestor.ingestion_worker.cli",
+    ]
+    assert compose["services"]["publication-resume-worker"]["command"][:3] == [
+        "python",
+        "-m",
+        "ingestor.ingestion_worker.publication_resume_cli",
+    ]
 
 
 def test_v2_image_packages_the_authoritative_taxonomy() -> None:

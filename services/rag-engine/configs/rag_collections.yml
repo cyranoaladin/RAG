@@ -77,7 +77,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: maths/troisieme.yml
-    instanciee: false
+    instanciee: true
   rag_nexus_maths_seconde_tc:
     matiere: maths
     niveau: seconde
@@ -165,7 +165,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: francais/troisieme.yml
-    instanciee: false
+    instanciee: true
   rag_nexus_francais_seconde_tc:
     matiere: francais
     niveau: seconde

@@ -1,7 +1,8 @@
-"""Wave 0 : currentness artifact-bound et placement pédagogique unique."""
+"""Wave 0 : release artifact-bound et placement pédagogique gouverné."""
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
 from copy import deepcopy
 from pathlib import Path
@@ -15,6 +16,7 @@ from nexus_contracts.ingestion import CollectionProfile
 
 from ingestor.ingestion_profiles.manifest import verify_profile_manifest
 from ingestor.ingestion_profiles.registry import load_profile_registry
+from ingestor.ingestion_profiles.registry import profile_fingerprint as compute_profile_fingerprint
 from ingestor.verified_pedagogical_placement import (
     PlacementResolutionError,
     VerifiedPedagogicalPlacementResolver,
@@ -37,6 +39,10 @@ MATHS_PATH = (
 FR_SOURCE_URL = (
     "https://eduscol.education.gouv.fr/5733/"
     "ressources-d-accompagnement-du-programme-de-francais-au-cycle-4"
+)
+FR_PLACEMENT_ID = (
+    "par-scope/college/cycle-4/francais/3e/reperes-attendus/2019/"
+    "attendus-de-fin-d-annee-en-francais-en-3e-pdf-971-01-ko--c8662b03ca.pdf"
 )
 COLLECTION = "rag_nexus_francais_troisieme_tc"
 PROFILE_VERSION = "wave0-v1"
@@ -134,11 +140,51 @@ def _catalog() -> dict[str, Any]:
     }
 
 
-def _evidence() -> dict[str, Any]:
+def _inventory() -> dict[str, Any]:
+    placement = _catalog()["artifacts"][FR_SHA]["pedagogical_placements"][0]
     return {
-        "evidence_kind": "WAVE0_ARTIFACT_CURRENTNESS_V1",
+        "inventory_kind": "WAVE0_EXACT_GRADE_CANDIDATE_INVENTORY_V1",
         "school_year": "2026-2027",
         "corpus_manifest_sha256": MANIFEST_SHA,
+        "sealed_catalog_sha256": "catalog digest is injected by _write_inputs",
+        "placement_catalog_sha256": PLACEMENT_CATALOG_SHA,
+        "selection": {
+            "external_level": "3e",
+            "external_subjects": ["francais", "mathematiques", "maths"],
+            "source_zone": "01_EDUSCOL_OFFICIEL/",
+            "media_type": "application/pdf",
+        },
+        "counts": {
+            "unique_artifacts": 1,
+            "placements": 1,
+            "physical_objects": 1,
+            "multi_placement_artifacts": 0,
+        },
+        "candidates": [
+            {
+                "content_sha256": FR_SHA,
+                "physical_path": FR_PATH,
+                "source_url": FR_SOURCE_URL,
+                "title": placement["title"],
+                "source_placement_id": placement["scope_path"],
+                "external_scope": placement["scope"],
+                "external_level": placement["level"],
+                "external_subject": placement["subject"],
+                "external_document_type": placement["document_type"],
+                "pedagogical_status": placement["status"],
+                "physical_currentness_candidate": "unclassified",
+                "physical_disposition_candidate": "REVIEW_REQUIRED",
+            }
+        ],
+    }
+
+
+def _evidence(*, inventory_sha: str) -> dict[str, Any]:
+    return {
+        "evidence_kind": "WAVE0_ARTIFACT_CURRENTNESS_V2",
+        "school_year": "2026-2027",
+        "corpus_manifest_sha256": MANIFEST_SHA,
+        "candidate_inventory_sha256": inventory_sha,
         "decision": {
             "decision_maker": "Nexus Réussite",
             "decision_source": "EXPLICIT_PEDAGOGICAL_DECISION",
@@ -156,15 +202,80 @@ def _evidence() -> dict[str, Any]:
                 "subject": "francais",
                 "effective_currentness": "actuel",
                 "current_for_school_year": "2026-2027",
+                "current_source_listing_url": FR_SOURCE_URL,
+                "current_download_url": "https://eduscol.education.fr/document/14062/download",
+                "current_download_sha256": FR_SHA,
+                "byte_identity": True,
             },
+        ],
+    }
+
+
+def _mapping() -> dict[str, Any]:
+    return {
+        "mapping_kind": "EDUSCOL_WAVE0_PEDAGOGICAL_MAPPING_V1",
+        "pedagogical_mappings": [
             {
-                "content_sha256": MATHS_SHA,
-                "exact_path": MATHS_PATH,
                 "external_level": "3e",
-                "subject": "mathematiques",
-                "effective_currentness": "actuel",
-                "current_for_school_year": "2026-2027",
+                "external_scope": "college/cycle-4/francais",
+                "external_subject": "francais",
+                "nexus_collection": COLLECTION,
+                "nexus_niveau": "troisieme",
+                "nexus_voie": "college",
+                "nexus_matiere": "francais",
+                "nexus_statut_enseignement": "tronc_commun",
+            }
+        ],
+        "document_types": {"reperes-attendus": "ressource_officielle"},
+    }
+
+
+def _release(*, inventory_sha: str, currentness_sha: str) -> dict[str, Any]:
+    return {
+        "release_kind": "WAVE0_SUBJECT_RELEASE_V1",
+        "release_id": "wave0-francais-troisieme-2026-2027",
+        "school_year": "2026-2027",
+        "collection": COLLECTION,
+        "authorities": {
+            "corpus_manifest_sha256": MANIFEST_SHA,
+            "sealed_catalog_sha256": "catalog digest is injected by _write_inputs",
+            "placement_catalog_sha256": PLACEMENT_CATALOG_SHA,
+            "candidate_inventory_sha256": inventory_sha,
+            "currentness_evidence_sha256": currentness_sha,
+            "pii_evidence_sha256": "4" * 64,
+            "pii_policy_sha256": "5" * 64,
+            "rights_registry_sha256": "6" * 64,
+        },
+        "programme_version": PROGRAMME_VERSION,
+        "profile": {
+            "version": PROFILE_VERSION,
+            "fingerprint": compute_profile_fingerprint(_profile()),
+            "manifest_digest": "8" * 64,
+        },
+        "models": {
+            "embedding": {
+                "model_id": "intfloat/multilingual-e5-large",
+                "inventory_sha256": "9" * 64,
+                "dimension": 1024,
             },
+            "reranker": {
+                "model_id": "cross-encoder/ms-marco-MiniLM-L-6-v2",
+                "inventory_sha256": "a" * 64,
+            },
+        },
+        "expected_counts": {"artifacts": 1, "placements": 1, "chunks": 1},
+        "artifacts": [
+            {
+                "content_sha256": FR_SHA,
+                "source_path": FR_PATH,
+                "placements": [
+                    {
+                        "source_placement_id": FR_PLACEMENT_ID,
+                        "collection": COLLECTION,
+                    }
+                ],
+                "chunks": [{"chunk_id": "b" * 64}],
+            }
         ],
     }
 
@@ -190,16 +301,72 @@ def _write_inputs(
     *,
     catalog: dict[str, Any] | None = None,
     evidence: dict[str, Any] | None = None,
-) -> tuple[Path, str, Path, str]:
+    inventory: dict[str, Any] | None = None,
+    mapping: dict[str, Any] | None = None,
+    release: dict[str, Any] | None = None,
+) -> dict[str, Path | str]:
     catalog_path = tmp_path / "h2e_governed_catalog.json"
     catalog_path.write_text(
         json.dumps(catalog or _catalog(), sort_keys=True), encoding="utf-8"
     )
-    evidence_path = tmp_path / "wave0_currentness_evidence.yml"
-    evidence_path.write_text(
-        yaml.safe_dump(evidence or _evidence(), sort_keys=False), encoding="utf-8"
+    catalog_sha = _sha(catalog_path)
+    inventory_document = deepcopy(inventory or _inventory())
+    inventory_document["sealed_catalog_sha256"] = catalog_sha
+    inventory_path = tmp_path / "wave0_candidate_inventory.json"
+    inventory_path.write_text(
+        json.dumps(inventory_document, sort_keys=True), encoding="utf-8"
     )
-    return catalog_path, _sha(catalog_path), evidence_path, _sha(evidence_path)
+    inventory_sha = _sha(inventory_path)
+    evidence_document = deepcopy(evidence or _evidence(inventory_sha=inventory_sha))
+    evidence_document["candidate_inventory_sha256"] = inventory_sha
+    evidence_path = tmp_path / "wave0_currentness_evidence_v2.yml"
+    evidence_path.write_text(
+        yaml.safe_dump(evidence_document, sort_keys=False), encoding="utf-8"
+    )
+    evidence_sha = _sha(evidence_path)
+    mapping_path = tmp_path / "eduscol_wave0_document_types.yml"
+    mapping_path.write_text(
+        yaml.safe_dump(mapping or _mapping(), sort_keys=False), encoding="utf-8"
+    )
+    release_document = deepcopy(
+        release
+        or _release(inventory_sha=inventory_sha, currentness_sha=evidence_sha)
+    )
+    release_document["authorities"]["sealed_catalog_sha256"] = catalog_sha
+    release_document["authorities"]["candidate_inventory_sha256"] = inventory_sha
+    release_document["authorities"]["currentness_evidence_sha256"] = evidence_sha
+    subject_path = tmp_path / "francais_troisieme.release.json"
+    subject_path.write_text(json.dumps(release_document, sort_keys=True), encoding="utf-8")
+    subject_sha = _sha(subject_path)
+    aggregate_document = {
+        "release_kind": "WAVE0_AGGREGATE_RELEASE_V1",
+        "release_id": "wave0-exact-grade-troisieme-2026-2027-v1",
+        "school_year": "2026-2027",
+        "authorities": release_document["authorities"],
+        "models": release_document["models"],
+        "expected_counts": release_document["expected_counts"],
+        "subjects": [
+            {
+                "collection": COLLECTION,
+                "path": subject_path.name,
+                "sha256": subject_sha,
+            }
+        ],
+    }
+    release_path = tmp_path / "wave0.release.json"
+    release_path.write_text(json.dumps(aggregate_document, sort_keys=True), encoding="utf-8")
+    return {
+        "catalog_path": catalog_path,
+        "catalog_sha": catalog_sha,
+        "inventory_path": inventory_path,
+        "inventory_sha": inventory_sha,
+        "evidence_path": evidence_path,
+        "evidence_sha": evidence_sha,
+        "mapping_path": mapping_path,
+        "mapping_sha": _sha(mapping_path),
+        "release_path": release_path,
+        "release_sha": _sha(release_path),
+    }
 
 
 def _resolver(
@@ -207,17 +374,31 @@ def _resolver(
     *,
     catalog: dict[str, Any] | None = None,
     evidence: dict[str, Any] | None = None,
+    inventory: dict[str, Any] | None = None,
+    mapping: dict[str, Any] | None = None,
+    release: dict[str, Any] | None = None,
     profile: CollectionProfile | None = None,
 ) -> VerifiedPedagogicalPlacementResolver:
-    catalog_path, catalog_sha, evidence_path, evidence_sha = _write_inputs(
-        tmp_path, catalog=catalog, evidence=evidence
+    inputs = _write_inputs(
+        tmp_path,
+        catalog=catalog,
+        evidence=evidence,
+        inventory=inventory,
+        mapping=mapping,
+        release=release,
     )
     selected_profile = profile or _profile()
     return VerifiedPedagogicalPlacementResolver.load(
-        catalog_path=catalog_path,
-        expected_catalog_sha256=catalog_sha,
-        currentness_evidence_path=evidence_path,
-        expected_currentness_evidence_sha256=evidence_sha,
+        catalog_path=Path(inputs["catalog_path"]),
+        expected_catalog_sha256=str(inputs["catalog_sha"]),
+        candidate_inventory_path=Path(inputs["inventory_path"]),
+        expected_candidate_inventory_sha256=str(inputs["inventory_sha"]),
+        currentness_evidence_path=Path(inputs["evidence_path"]),
+        expected_currentness_evidence_sha256=str(inputs["evidence_sha"]),
+        mapping_path=Path(inputs["mapping_path"]),
+        expected_mapping_sha256=str(inputs["mapping_sha"]),
+        release_manifest_path=Path(inputs["release_path"]),
+        expected_release_manifest_sha256=str(inputs["release_sha"]),
         expected_manifest_sha256=MANIFEST_SHA,
         profile_registry={(COLLECTION, PROFILE_VERSION): selected_profile},
         collection_config=_collections(),
@@ -233,7 +414,7 @@ def test_profile_programme_must_match_canonical_troisieme_index(
     raw_profile["scope"]["programme_version"] = "BOEN_2018"
     divergent = CollectionProfile.model_validate(raw_profile)
 
-    with pytest.raises(PlacementResolutionError, match="canonical programme"):
+    with pytest.raises(PlacementResolutionError, match="runtime profile"):
         _resolver(tmp_path, profile=divergent).resolve(
             content_sha256=FR_SHA,
             collection=COLLECTION,
@@ -381,27 +562,40 @@ def test_candidate_claims_must_match_governed_placement(
 def test_currentness_evidence_fails_closed(
     tmp_path: Path, mutation: Any, message: str
 ) -> None:
-    evidence = _evidence()
+    evidence = _evidence(inventory_sha="0" * 64)
     mutation(evidence)
     with pytest.raises(PlacementResolutionError, match=message):
         _resolver(tmp_path, evidence=evidence)
 
 
+def test_currentness_school_year_must_equal_candidate_inventory_year(
+    tmp_path: Path,
+) -> None:
+    evidence = _evidence(inventory_sha="0" * 64)
+    evidence["school_year"] = "2027-2028"
+    for artifact in evidence["artifacts"]:
+        artifact["current_for_school_year"] = "2027-2028"
+
+    with pytest.raises(PlacementResolutionError, match="candidate inventory school year"):
+        _resolver(tmp_path, evidence=evidence)
+
+
 def test_duplicate_currentness_sha_is_rejected(tmp_path: Path) -> None:
-    evidence = _evidence()
+    evidence = _evidence(inventory_sha="0" * 64)
     evidence["artifacts"].append(deepcopy(evidence["artifacts"][0]))
     with pytest.raises(PlacementResolutionError, match="twice"):
         _resolver(tmp_path, evidence=evidence)
 
 
 def test_currentness_overlay_rejects_an_unrelated_third_artifact(tmp_path: Path) -> None:
-    evidence = _evidence()
+    evidence = _evidence(inventory_sha="0" * 64)
     unrelated = deepcopy(evidence["artifacts"][0])
     unrelated["content_sha256"] = "b" * 64
+    unrelated["current_download_sha256"] = "b" * 64
     unrelated["exact_path"] = "01_EDUSCOL_OFFICIEL/unrelated.pdf"
     evidence["artifacts"].append(unrelated)
 
-    with pytest.raises(PlacementResolutionError, match="exact two-artifact scope"):
+    with pytest.raises(PlacementResolutionError, match="candidate inventory"):
         _resolver(tmp_path, evidence=evidence)
 
 
@@ -416,14 +610,14 @@ def test_currentness_overlay_rejects_an_unrelated_third_artifact(tmp_path: Path)
 def test_currentness_must_match_catalog_placement(
     tmp_path: Path, field: str, value: str
 ) -> None:
-    evidence = _evidence()
+    evidence = _evidence(inventory_sha="0" * 64)
     evidence["artifacts"][0][field] = value
-    with pytest.raises(PlacementResolutionError, match="exact two-artifact scope"):
+    with pytest.raises(PlacementResolutionError, match="candidate inventory|catalog"):
         _resolver(tmp_path, evidence=evidence)
 
 
 def test_unrelated_artifact_remains_unresolved(tmp_path: Path) -> None:
-    with pytest.raises(PlacementResolutionError, match="currentness evidence"):
+    with pytest.raises(PlacementResolutionError, match="release-eligible"):
         _resolver(tmp_path).resolve(
             content_sha256="b" * 64,
             collection=COLLECTION,
@@ -432,23 +626,85 @@ def test_unrelated_artifact_remains_unresolved(tmp_path: Path) -> None:
         )
 
 
-@pytest.mark.parametrize("kind", ["zero", "multiple"])
-def test_requires_exactly_one_physical_object_and_placement(
-    tmp_path: Path, kind: str
-) -> None:
+def test_requires_a_matching_physical_object(tmp_path: Path) -> None:
     catalog = _catalog()
     artifact = catalog["artifacts"][FR_SHA]
-    key = "physical_objects" if kind == "zero" else "pedagogical_placements"
-    if kind == "zero":
-        artifact[key] = []
-        artifact["physical_object_count"] = 0
-    else:
-        artifact[key].append(deepcopy(artifact[key][0]))
-        artifact["pedagogical_placement_count"] = 2
-    with pytest.raises(PlacementResolutionError, match="exactly one"):
+    artifact["physical_objects"] = []
+    artifact["physical_object_count"] = 0
+    with pytest.raises(PlacementResolutionError, match="physical object"):
         _resolver(tmp_path, catalog=catalog).resolve(
             content_sha256=FR_SHA,
             collection=COLLECTION,
             profile_version=PROFILE_VERSION,
             school_year="2026-2027",
         )
+
+
+def test_runtime_resolver_contains_no_pilot_sha_special_case() -> None:
+    source = inspect.getsource(
+        __import__(
+            "ingestor.verified_pedagogical_placement", fromlist=["unused"]
+        )
+    )
+
+    assert FR_SHA not in source
+    assert MATHS_SHA not in source
+    assert "_WAVE0_CURRENTNESS_SCOPE" not in source
+    assert "_MAPPINGS" not in source
+
+
+def test_unknown_external_document_type_is_denied_at_startup(tmp_path: Path) -> None:
+    mapping = _mapping()
+    mapping["document_types"] = {"programme": "programme_officiel"}
+
+    with pytest.raises(PlacementResolutionError, match="document type"):
+        _resolver(tmp_path, mapping=mapping)
+
+
+def test_multi_placement_artifact_requires_exact_placement_identity(
+    tmp_path: Path,
+) -> None:
+    catalog = _catalog()
+    second = deepcopy(catalog["artifacts"][FR_SHA]["pedagogical_placements"][0])
+    second["scope_path"] = f"{FR_PLACEMENT_ID}.second"
+    catalog["artifacts"][FR_SHA]["pedagogical_placements"].append(second)
+    catalog["artifacts"][FR_SHA]["pedagogical_placement_count"] = 2
+
+    inventory = _inventory()
+    second_candidate = deepcopy(inventory["candidates"][0])
+    second_candidate["source_placement_id"] = second["scope_path"]
+    inventory["candidates"].append(second_candidate)
+    inventory["counts"]["placements"] = 2
+    inventory["counts"]["multi_placement_artifacts"] = 1
+
+    # Les digests sont injectés par le helper : seule la forme métier compte ici.
+    placeholder_inventory_sha = "0" * 64
+    placeholder_currentness_sha = "1" * 64
+    release = _release(
+        inventory_sha=placeholder_inventory_sha,
+        currentness_sha=placeholder_currentness_sha,
+    )
+    release["artifacts"][0]["placements"].append(
+        {"source_placement_id": second["scope_path"], "collection": COLLECTION}
+    )
+    release["expected_counts"]["placements"] = 2
+    resolver = _resolver(
+        tmp_path, catalog=catalog, inventory=inventory, release=release
+    )
+
+    with pytest.raises(PlacementResolutionError, match="ambiguous"):
+        resolver.resolve(
+            content_sha256=FR_SHA,
+            collection=COLLECTION,
+            profile_version=PROFILE_VERSION,
+            school_year="2026-2027",
+        )
+
+    verified = resolver.resolve(
+        content_sha256=FR_SHA,
+        collection=COLLECTION,
+        profile_version=PROFILE_VERSION,
+        school_year="2026-2027",
+        source_placement_id=second["scope_path"],
+    )
+    assert verified.source_placement_id == second["scope_path"]

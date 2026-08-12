@@ -517,7 +517,7 @@
     "statut": "tronc_commun",
     "domain": "education",
     "taxonomy_file": "francais/troisieme.yml",
-    "instanciee": false
+    "instanciee": true
   },
   {
     "name": "rag_nexus_hg_troisieme_tc",
@@ -547,7 +547,7 @@
     "statut": "tronc_commun",
     "domain": "education",
     "taxonomy_file": "maths/troisieme.yml",
-    "instanciee": false
+    "instanciee": true
   },
   {
     "name": "rag_nexus_pc_troisieme_tc",

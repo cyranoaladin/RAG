@@ -60,6 +60,16 @@ def _clear_database_readiness_cache(monkeypatch: pytest.MonkeyPatch) -> None:
         raising=False,
     )
     monkeypatch.setattr(
+        api_v2.retrieval_v2_endpoint,
+        "validate_release_startup_configuration",
+        lambda _artifacts, _catalogue: None,
+    )
+    monkeypatch.setattr(
+        api_v2.retrieval_v2_endpoint,
+        "validate_configured_release_database",
+        lambda: None,
+    )
+    monkeypatch.setattr(
         api_v2,
         "postgres_database_authorities_share_instance",
         lambda _rag_dsn, _review_dsn: True,
@@ -138,6 +148,16 @@ def test_v2_application_exposes_only_the_governed_runtime_surface() -> None:
     }
     for forbidden_prefix in ("/ingest", "/admin", "/cache", "/stats", "/rag"):
         assert not any(path.startswith(forbidden_prefix) for path in routes)
+
+
+def test_v2_image_packages_release_readiness_runtime() -> None:
+    """L'image aplatie doit embarquer chaque import de l'API activée."""
+    dockerfile = V2_DOCKERFILE.read_text(encoding="utf-8")
+
+    assert (
+        "COPY services/rag-engine/src/ingestor/release_readiness.py "
+        "/app/release_readiness.py"
+    ) in dockerfile
 
 
 def test_lot41u_plan_contains_no_machine_local_absolute_path() -> None:
@@ -808,6 +828,29 @@ def test_model_artifacts_are_fully_hashed_at_startup_not_on_public_health(
     ]
 
 
+def test_release_model_inventory_mismatch_refuses_startup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        api_v2.retrieval_v2_endpoint,
+        "configured_release_model_contract",
+        lambda: (
+            api_v2.CANONICAL_EMBED_MODEL,
+            "1" * 64,
+            api_v2.CANONICAL_EMBED_DIM,
+            api_v2.CANONICAL_RERANK_MODEL,
+            "2" * 64,
+        ),
+        raising=False,
+    )
+
+    with pytest.raises(RuntimeError, match="release model inventory mismatch"):
+        api_v2._validate_release_model_attestations(
+            SimpleNamespace(inventory_sha256="9" * 64),
+            SimpleNamespace(inventory_sha256="2" * 64),
+        )
+
+
 def test_lifespan_installs_then_clears_the_startup_attestations(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -862,6 +905,20 @@ def test_lifespan_installs_then_clears_the_startup_attestations(
         else pytest.fail("lifespan authority binding drifted"),
         raising=False,
     )
+    monkeypatch.setattr(
+        api_v2.retrieval_v2_endpoint,
+        "validate_release_startup_configuration",
+        lambda loaded_artifacts, loaded_catalogue: lifecycle_events.append(
+            "release_configuration"
+        )
+        if (loaded_artifacts, loaded_catalogue) == (artifacts, catalogue)
+        else pytest.fail("release startup authority binding drifted"),
+    )
+    monkeypatch.setattr(
+        api_v2.retrieval_v2_endpoint,
+        "validate_configured_release_database",
+        lambda: lifecycle_events.append("release_database"),
+    )
     monkeypatch.setattr(api_v2, "close_pool", lambda: None)
     monkeypatch.setattr(
         api_v2.PoolSettings,
@@ -905,7 +962,9 @@ def test_lifespan_installs_then_clears_the_startup_attestations(
         "identity",
         "catalogue",
         "registry_alignment",
+        "release_configuration",
         "pool",
+        "release_database",
         (embedding_attestation.root, reranker_attestation.root),
         "preload",
         None,
@@ -950,6 +1009,37 @@ def test_lifespan_refuses_startup_when_database_readiness_is_unhealthy(
 
     assert model_initialization_calls == []
     assert closed == [True]
+
+
+def test_lifespan_refuses_startup_when_release_database_is_not_exact(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pool_settings = object()
+    model_initialization_calls: list[bool] = []
+    monkeypatch.setattr(
+        api_v2.PoolSettings,
+        "from_env",
+        classmethod(lambda _cls: pool_settings),
+    )
+    monkeypatch.setattr(api_v2, "get_pool", lambda _settings: object())
+    monkeypatch.setattr(api_v2, "close_pool", lambda: None)
+    monkeypatch.setattr(api_v2, "_database_runtime_ready", lambda: True)
+    monkeypatch.setattr(
+        api_v2.retrieval_v2_endpoint,
+        "validate_configured_release_database",
+        lambda: (_ for _ in ()).throw(RuntimeError("release database reconciliation unavailable")),
+    )
+    monkeypatch.setattr(
+        api_v2,
+        "_initialize_model_artifacts",
+        lambda: model_initialization_calls.append(True),
+    )
+
+    with pytest.raises(RuntimeError, match="release database reconciliation unavailable"):
+        with TestClient(api_v2.app):
+            pytest.fail("le runtime ne doit pas accepter une release partielle")
+
+    assert model_initialization_calls == []
 
 
 def test_lifespan_refuses_startup_when_the_real_retrieval_pool_cannot_open(

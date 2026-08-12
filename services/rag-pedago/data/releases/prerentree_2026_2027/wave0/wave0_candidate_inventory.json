@@ -1,0 +1,63 @@
+{
+  "candidates": [
+    {
+      "content_sha256": "49ccdca4d97ba4cf25875dfc731474e84d0332985c15396d3abfb9107f5f545a",
+      "external_document_type": "reperes-attendus",
+      "external_level": "3e",
+      "external_scope": "college/cycle-4/mathematiques",
+      "external_subject": "mathematiques",
+      "pedagogical_status": "transition-ou-actuel",
+      "physical_currentness_candidate": "unclassified",
+      "physical_disposition_candidate": "REVIEW_REQUIRED",
+      "physical_path": "01_EDUSCOL_OFFICIEL/COLLEGE/3E/MATHEMATIQUES/02_REPERES_ATTENDUS/2019/attendus-de-fin-d-annee-en-mathematiques-en-3e-pdf-1-26-mo--49ccdca4d9.pdf",
+      "source_placement_id": "par-scope/college/cycle-4/mathematiques/3e/reperes-attendus/2019/attendus-de-fin-d-annee-en-mathematiques-en-3e-pdf-1-26-mo--49ccdca4d9.pdf",
+      "source_url": "https://eduscol.education.gouv.fr/5736/ressources-d-accompagnement-du-programme-de-mathematiques-au-cycle-4",
+      "title": "Attendus de fin d'année en mathématiques en 3ᵉ PDF - 1.26 Mo"
+    },
+    {
+      "content_sha256": "c8662b03ca8a7f08bedad5081bafc7da8d2cc8a31b07fa967421fb15304d76bf",
+      "external_document_type": "reperes-attendus",
+      "external_level": "3e",
+      "external_scope": "college/cycle-4/francais",
+      "external_subject": "francais",
+      "pedagogical_status": "transition-ou-actuel",
+      "physical_currentness_candidate": "unclassified",
+      "physical_disposition_candidate": "REVIEW_REQUIRED",
+      "physical_path": "01_EDUSCOL_OFFICIEL/COLLEGE/3E/FRANCAIS/02_REPERES_ATTENDUS/2019/attendus-de-fin-d-annee-en-francais-en-3e-pdf-971-01-ko--c8662b03ca.pdf",
+      "source_placement_id": "par-scope/college/cycle-4/francais/3e/reperes-attendus/2019/attendus-de-fin-d-annee-en-francais-en-3e-pdf-971-01-ko--c8662b03ca.pdf",
+      "source_url": "https://eduscol.education.gouv.fr/5733/ressources-d-accompagnement-du-programme-de-francais-au-cycle-4",
+      "title": "Attendus de fin d'année en français en 3e PDF - 971.01 Ko"
+    }
+  ],
+  "corpus_manifest_sha256": "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e",
+  "counts": {
+    "by_subject": {
+      "francais": {
+        "placements": 1,
+        "unique_artifacts": 1
+      },
+      "mathematiques": {
+        "placements": 1,
+        "unique_artifacts": 1
+      }
+    },
+    "multi_placement_artifacts": 0,
+    "physical_objects": 2,
+    "placements": 2,
+    "unique_artifacts": 2
+  },
+  "inventory_kind": "WAVE0_EXACT_GRADE_CANDIDATE_INVENTORY_V1",
+  "placement_catalog_sha256": "095ca37cc4c2126d06b77106f9f1663d4f5ad881ae4952dbf5b951477fd54c39",
+  "school_year": "2026-2027",
+  "sealed_catalog_sha256": "301c0dcce4e49cd9b6e524708bde82b262a09b05bd52e0431233813ecf8ae04b",
+  "selection": {
+    "external_level": "3e",
+    "external_subjects": [
+      "francais",
+      "mathematiques",
+      "maths"
+    ],
+    "media_type": "application/pdf",
+    "source_zone": "01_EDUSCOL_OFFICIEL/"
+  }
+}

@@ -28,6 +28,20 @@ _REQUIRED_ARGS = [
     "--rights-evidence-path", "/tmp/rights.yml",
     "--rights-evidence-sha256", "b" * 64,
     "--corpus-manifest-sha256", "d" * 64,
+    "--catalog-path", "/tmp/catalog.json",
+    "--catalog-sha256", "e" * 64,
+    "--candidate-inventory-path", "/tmp/inventory.json",
+    "--candidate-inventory-sha256", "f" * 64,
+    "--currentness-evidence-path", "/tmp/currentness.yml",
+    "--currentness-evidence-sha256", "1" * 64,
+    "--mapping-path", "/tmp/mapping.yml",
+    "--mapping-sha256", "2" * 64,
+    "--release-manifest-path", "/tmp/release.json",
+    "--release-manifest-sha256", "3" * 64,
+    "--programme-index-path", "/tmp/programme.yml",
+    "--programme-index-sha256", "4" * 64,
+    "--collection-config-path", "/tmp/collections.yml",
+    "--collection-config-sha256", "5" * 64,
 ]
 
 
@@ -81,9 +95,10 @@ class TestArgParserIntegration:
 
     def test_blank_owner_is_rejected_at_parse_time(self) -> None:
         parser = _build_arg_parser()
-        args_without_owner = _REQUIRED_ARGS[:-1]  # drop the value, keep --owner flag position
+        args_without_owner = list(_REQUIRED_ARGS)
+        args_without_owner[args_without_owner.index("--owner") + 1] = "   "
         with pytest.raises(SystemExit):
-            parser.parse_args([*args_without_owner, "   "])
+            parser.parse_args(args_without_owner)
 
     def test_valid_arguments_parse_successfully(self) -> None:
         parser = _build_arg_parser()

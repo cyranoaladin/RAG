@@ -11,11 +11,13 @@ from nexus_contracts.document import Rights
 
 import ingestor.ingestion_worker.publication_resume as resume_module
 from ingestor.embedding_provider import CallableEmbeddingProvider
-from ingestor.ingestion_control.jobs import JobClaim
+from ingestor.ingestion_control.jobs import JobClaim, JobLeaseConflictError
 from ingestor.ingestion_worker.publication_resume import (
     PublicationResumeDeps,
     PublicationResumeError,
+    PublicationResumeOutcome,
     resume_publication,
+    run_publication_resume_iteration,
 )
 
 
@@ -33,6 +35,37 @@ class _ControlConnection:
         self.commits += 1
         self.status = "IDLE"
         self.events.append("control_commit")
+
+    def rollback(self) -> None:
+        self.status = "IDLE"
+        self.events.append("control_rollback")
+
+
+class _RecoveryCursor:
+    def __init__(self, rows: list[tuple[str, str, dict[str, object]]]) -> None:
+        self.rows = rows
+        self.params: tuple[object, ...] | None = None
+
+    def __enter__(self) -> _RecoveryCursor:
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        return None
+
+    def execute(self, _query: str, params: tuple[object, ...]) -> None:
+        self.params = params
+
+    def fetchall(self) -> list[tuple[str, str, dict[str, object]]]:
+        return self.rows
+
+
+class _RecoveryControlConnection(_ControlConnection):
+    def __init__(self, rows: list[tuple[str, str, dict[str, object]]]) -> None:
+        super().__init__()
+        self.recovery_cursor = _RecoveryCursor(rows)
+
+    def cursor(self) -> _RecoveryCursor:
+        return self.recovery_cursor
 
 
 class _ProductConnection:
@@ -460,3 +493,324 @@ def test_resume_enters_promotion_and_publisher_with_idle_connections(
         "publish",
     ]
     assert product_conn.commits == 0
+
+
+def _install_recovery_context(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    resource_id: UUID,
+    run_id: UUID,
+    attestation_id: UUID,
+    raw_bytes: bytes,
+    publish_embedded: bool,
+) -> tuple[PublicationResumeDeps, dict[str, object]]:
+    content_sha256 = hashlib.sha256(raw_bytes).hexdigest()
+    placement = SimpleNamespace(
+        source_path="01_EDUSCOL_OFFICIEL/COLLEGE/3E/FRANCAIS/document.pdf",
+        source_uri="https://eduscol.education.gouv.fr/5733/francais-cycle-4",
+        current_profile_fingerprint="a" * 64,
+        current_manifest_digest="b" * 64,
+    )
+    artifact = SimpleNamespace(
+        artifact_id=uuid4(),
+        sha256=content_sha256,
+        extracted_text_ref="artifact://fr",
+        mime_detected="application/pdf",
+    )
+    durable_facts = SimpleNamespace(
+        rights_status=Rights.officiel_public,
+        canonical_url=placement.source_uri,
+        collection="rag_nexus_francais_troisieme_tc",
+        type_doc="ressource_officielle",
+    )
+    calls: dict[str, object] = {
+        "promote": 0,
+        "verify": [],
+        "publish": 0,
+        "encoded": 0,
+    }
+
+    class Resolver:
+        def resolve(self, **_kwargs: object) -> object:
+            return SimpleNamespace(content_sha256=content_sha256)
+
+    monkeypatch.setattr(
+        resume_module,
+        "get_resource_state",
+        lambda *_a, **_k: ("RETRIEVAL_ELIGIBLE", 9),
+    )
+    monkeypatch.setattr(resume_module, "find_latest_artifact", lambda *_a, **_k: artifact)
+    monkeypatch.setattr(
+        resume_module, "collect_publication_facts", lambda *_a, **_k: durable_facts
+    )
+    monkeypatch.setattr(
+        resume_module,
+        "_load_run_placement_context",
+        lambda *_a, **_k: ("rag_nexus_francais_troisieme_tc", "wave0-v1", "2026-2027"),
+    )
+    monkeypatch.setattr(
+        resume_module,
+        "to_eligible_placement",
+        lambda verified, *, resource_id, current_profile_manifest_digest: placement,
+    )
+    monkeypatch.setattr(
+        resume_module,
+        "load_artifact_attribution",
+        lambda *_a, **_k: (
+            SimpleNamespace(
+                source_label="Éduscol officiel",
+                official=True,
+                source_kind="eduscol",
+                type_doc="ressource_officielle",
+            ),
+            "c" * 64,
+        ),
+    )
+
+    def reject_duplicate_promotion(*_args: object, **_kwargs: object) -> object:
+        calls["promote"] = int(calls["promote"]) + 1
+        pytest.fail("a recovered RETRIEVAL_ELIGIBLE resource must not be promoted again")
+
+    def verify(*_args: object, **kwargs: object) -> object:
+        cast_calls = calls["verify"]
+        assert isinstance(cast_calls, list)
+        cast_calls.append(kwargs)
+        return SimpleNamespace(attestation_id=attestation_id)
+
+    def publish(*_args: object, **_kwargs: object) -> object:
+        calls["publish"] = int(calls["publish"]) + 1
+        return SimpleNamespace(
+            artifact_id=content_sha256,
+            chunk_rows=17,
+            placement_rows=1,
+            embedded=publish_embedded,
+        )
+
+    monkeypatch.setattr(
+        resume_module, "promote_reviewed_publication", reject_duplicate_promotion
+    )
+    monkeypatch.setattr(resume_module, "verify_publication_attestation", verify)
+    monkeypatch.setattr(resume_module, "publish_governed_artifact", publish)
+    monkeypatch.setattr(
+        resume_module.psycopg, "connect", lambda *_a, **_k: _ProductConnection()
+    )
+
+    def encode(_passages: object) -> list[list[float]]:
+        calls["encoded"] = int(calls["encoded"]) + 1
+        return [[1.0] + [0.0] * 1023]
+
+    return (
+        PublicationResumeDeps(
+            owner="publication-resume-recovery-test",
+            product_dsn="postgresql://product",
+            artifact_reader=lambda **_k: raw_bytes,
+            extract_text=lambda _content: "texte",
+            embedding_provider=CallableEmbeddingProvider(encoder=encode),
+            pii_evidence_registry=_PIIRegistry(),
+            rights_evidence_registry=_RightsRegistry(),
+            manifest_digest="b" * 64,
+            placement_resolver=Resolver(),
+        ),
+        calls,
+    )
+
+
+def _completed_promotion_events(
+    attestation_id: UUID,
+) -> list[tuple[str, str, dict[str, object]]]:
+    return [
+        (
+            "NEEDS_REVIEW",
+            "REVIEWED",
+            {"publication_attestation_id": str(attestation_id)},
+        ),
+        ("REVIEWED", "RETRIEVAL_ELIGIBLE", {}),
+    ]
+
+
+def test_resume_after_crash_at_eligibility_reuses_exact_promotion_events(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    resource_id, run_id, attestation_id = uuid4(), uuid4(), uuid4()
+    deps, calls = _install_recovery_context(
+        monkeypatch,
+        resource_id=resource_id,
+        run_id=run_id,
+        attestation_id=attestation_id,
+        raw_bytes=b"crash after eligibility",
+        publish_embedded=True,
+    )
+    control_conn = _RecoveryControlConnection(
+        _completed_promotion_events(attestation_id)
+    )
+    claim = _claim(
+        resource_id=resource_id,
+        run_id=run_id,
+        attestation_id=attestation_id,
+        state_version=7,
+    )
+
+    outcome = resume_publication(control_conn, claim=claim, deps=deps)
+
+    assert outcome.status == "succeeded"
+    assert outcome.embedded is True
+    assert calls["promote"] == 0
+    assert calls["publish"] == 1
+    assert control_conn.recovery_cursor.params == (
+        resource_id,
+        run_id,
+        claim.job_id,
+    )
+    verifies = calls["verify"]
+    assert isinstance(verifies, list) and len(verifies) == 1
+    assert verifies[0]["expected_attestation_id"] == attestation_id
+
+
+@pytest.mark.parametrize(
+    "events",
+    [
+        [("NEEDS_REVIEW", "REVIEWED", {})],
+        [
+            ("NEEDS_REVIEW", "REVIEWED", {"publication_attestation_id": str(uuid4())}),
+            ("REVIEWED", "RETRIEVAL_ELIGIBLE", {}),
+        ],
+        [
+            ("NEEDS_REVIEW", "REVIEWED", {"publication_attestation_id": "MATCH"}),
+            ("REVIEWED", "RETRIEVAL_ELIGIBLE", {}),
+            ("REVIEWED", "RETRIEVAL_ELIGIBLE", {}),
+        ],
+    ],
+)
+def test_recovery_refuses_missing_wrong_or_duplicate_promotion_events(
+    monkeypatch: pytest.MonkeyPatch,
+    events: list[tuple[str, str, dict[str, object]]],
+) -> None:
+    resource_id, run_id, attestation_id = uuid4(), uuid4(), uuid4()
+    normalized = [
+        (
+            from_state,
+            to_state,
+            {
+                key: str(attestation_id) if value == "MATCH" else value
+                for key, value in payload.items()
+            },
+        )
+        for from_state, to_state, payload in events
+    ]
+    deps, calls = _install_recovery_context(
+        monkeypatch,
+        resource_id=resource_id,
+        run_id=run_id,
+        attestation_id=attestation_id,
+        raw_bytes=b"invalid promotion history",
+        publish_embedded=True,
+    )
+
+    with pytest.raises(PublicationResumeError, match="promotion evidence"):
+        resume_publication(
+            _RecoveryControlConnection(normalized),
+            claim=_claim(
+                resource_id=resource_id,
+                run_id=run_id,
+                attestation_id=attestation_id,
+                state_version=7,
+            ),
+            deps=deps,
+        )
+
+    assert calls["publish"] == 0
+
+
+def test_resume_after_product_commit_reports_no_new_embedding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    resource_id, run_id, attestation_id = uuid4(), uuid4(), uuid4()
+    deps, calls = _install_recovery_context(
+        monkeypatch,
+        resource_id=resource_id,
+        run_id=run_id,
+        attestation_id=attestation_id,
+        raw_bytes=b"crash after product commit",
+        publish_embedded=False,
+    )
+
+    outcome = resume_publication(
+        _RecoveryControlConnection(_completed_promotion_events(attestation_id)),
+        claim=_claim(
+            resource_id=resource_id,
+            run_id=run_id,
+            attestation_id=attestation_id,
+            state_version=7,
+        ),
+        deps=deps,
+    )
+
+    assert outcome.status == "succeeded"
+    assert outcome.embedded is False
+    assert calls["publish"] == 1
+    assert calls["encoded"] == 0
+
+
+def test_lease_expiry_then_reclaim_completes_the_same_job(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    resource_id, run_id, attestation_id = uuid4(), uuid4(), uuid4()
+    first = _claim(
+        resource_id=resource_id,
+        run_id=run_id,
+        attestation_id=attestation_id,
+        state_version=7,
+    )
+    second = JobClaim(
+        **{
+            **first.__dict__,
+            "lease_token": uuid4(),
+            "attempt_count": first.attempt_count + 1,
+        }
+    )
+    claims = [first, second]
+    completed: list[UUID] = []
+    resume_claims: list[JobClaim] = []
+
+    monkeypatch.setattr(resume_module, "claim_job", lambda *_a, **_k: claims.pop(0))
+
+    def resumed(_conn: object, *, claim: JobClaim, **_kwargs: object) -> object:
+        resume_claims.append(claim)
+        return PublicationResumeOutcome(
+            worked=True,
+            job_id=claim.job_id,
+            status="succeeded",
+            error=None,
+            artifact_id="a" * 64,
+            chunk_rows=17,
+            placement_rows=1,
+            embedded=False,
+        )
+
+    monkeypatch.setattr(resume_module, "resume_publication", resumed)
+
+    def complete(_conn: object, *, lease_token: UUID, **_kwargs: object) -> None:
+        if lease_token == first.lease_token:
+            raise JobLeaseConflictError("first lease expired")
+        completed.append(lease_token)
+
+    monkeypatch.setattr(resume_module, "complete_job", complete)
+    deps = PublicationResumeDeps(
+        owner="publication-resume-lease-test",
+        product_dsn="postgresql://product",
+        artifact_reader=lambda **_k: b"unused",
+        extract_text=lambda _content: "unused",
+        embedding_provider=CallableEmbeddingProvider(encoder=lambda _chunks: ()),
+    )
+    conn = _ControlConnection()
+
+    lost = run_publication_resume_iteration(conn, deps=deps)
+    recovered = run_publication_resume_iteration(conn, deps=deps)
+
+    assert lost.status == "lease_lost"
+    assert recovered.status == "succeeded"
+    assert [claim.lease_token for claim in resume_claims] == [
+        first.lease_token,
+        second.lease_token,
+    ]
+    assert completed == [second.lease_token]

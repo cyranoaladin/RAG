@@ -92,6 +92,8 @@ def test_instanciated_match_perimetre() -> None:
     config = _load_yaml(CONFIG_PATH)
     inst = {n for n, d in config["collections"].items() if d.get("instanciee") is True}
     assert inst == {
+        "rag_nexus_francais_troisieme_tc",
+        "rag_nexus_maths_troisieme_tc",
         "rag_nexus_nsi_premiere_specialite",
         "rag_nexus_nsi_terminale_specialite",
         "rag_nexus_philo_terminale_tc",
@@ -99,26 +101,26 @@ def test_instanciated_match_perimetre() -> None:
     }
 
 
-def test_wave0_staging_overlay_activates_exactly_two_declared_collections() -> None:
+def test_wave0_canonical_activation_is_exactly_two_collections() -> None:
     canonical = load_collection_config(CONFIG_PATH)
-    staging = load_collection_config(WAVE0_CONFIG_PATH)
     expected = {
         "rag_nexus_maths_troisieme_tc",
         "rag_nexus_francais_troisieme_tc",
     }
-    activated = {
+    activated_wave0 = {
         name
-        for name, definition in staging["collections"].items()
-        if definition["instanciee"] is True
-        and canonical["collections"][name]["instanciee"] is False
+        for name, definition in canonical["collections"].items()
+        if name in expected and definition["instanciee"] is True
     }
 
-    assert activated == expected
-    for name, definition in canonical["collections"].items():
-        expected_definition = dict(definition)
-        if name in expected:
-            expected_definition["instanciee"] = True
-        assert staging["collections"][name] == expected_definition
+    assert activated_wave0 == expected
+
+
+def test_wave0_staging_overlay_is_a_noop_after_canonical_activation() -> None:
+    canonical = load_collection_config(CONFIG_PATH)
+    staging = load_collection_config(WAVE0_CONFIG_PATH)
+
+    assert staging == canonical
 
 
 def test_wave0_college_collections_have_an_explicit_canonical_voie() -> None:

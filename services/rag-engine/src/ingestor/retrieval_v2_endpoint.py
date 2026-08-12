@@ -32,6 +32,7 @@ from nexus_contracts import (
     RetrievalResponse,
     RetrievalResult,
     RetrievalScopeArtifactV2,
+    load_retrieval_scope_registry,
 )
 from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
 
@@ -78,6 +79,11 @@ try:
         remaining_database_budget_ms,
         runtime_database_budget,
         runtime_request_budget,
+    )
+    from .release_readiness import (
+        ReleaseReadinessError,
+        load_release_expectation,
+        validate_release_readiness,
     )
     from .reranker_contract import load_reranker_model
     from .retrieval_contract_adapter import adapt_retrieval_request
@@ -137,6 +143,11 @@ except ImportError as _exc:  # repli à plat, cause réelle préservée
         remaining_database_budget_ms,
         runtime_database_budget,
         runtime_request_budget,
+    )
+    from release_readiness import (  # type: ignore[no-redef]
+        ReleaseReadinessError,
+        load_release_expectation,
+        validate_release_readiness,
     )
     from reranker_contract import load_reranker_model  # type: ignore[no-redef]
     from retrieval_contract_adapter import (  # type: ignore[no-redef]
@@ -373,7 +384,141 @@ def _check_retrievable(collection: str, cfg: dict) -> dict:
             detail=f"Collection '{collection}' is not retrievable (domain '{domain}').",
         )
 
+    _require_release_ready_if_governed(collection, cfg)
     return defn
+
+
+def _configured_release_manifest() -> tuple[Path, str] | None:
+    path_raw = os.environ.get("RAG_RELEASE_MANIFEST_PATH")
+    digest = os.environ.get("RAG_RELEASE_MANIFEST_SHA256")
+    if path_raw is None and digest is None:
+        return None
+    if not path_raw or not digest:
+        raise ReleaseReadinessError("release manifest configuration incomplete")
+    return Path(path_raw), digest
+
+
+def configured_release_model_contract() -> tuple[str, str, int, str, str] | None:
+    """Retourner le contrat modèles complet scellé par la release active."""
+    configured = _configured_release_manifest()
+    if configured is None:
+        return None
+    expectation = load_release_expectation(*configured)
+    return (
+        expectation.embedding_model_id,
+        expectation.embedding_inventory_sha256,
+        expectation.embedding_dimension,
+        expectation.reranker_model_id,
+        expectation.reranker_inventory_sha256,
+    )
+
+
+def _release_evidence_for_collection(collection: str) -> bool | None:
+    """Retourner None hors release configurée, sinon l'état exact de la release."""
+    try:
+        configured = _configured_release_manifest()
+    except ReleaseReadinessError:
+        return False
+    if configured is None:
+        return None
+    manifest_path, expected_sha256 = configured
+    try:
+        expectation = load_release_expectation(manifest_path, expected_sha256)
+    except ReleaseReadinessError:
+        # Une configuration explicitement fournie mais illisible ne peut ouvrir
+        # aucun chemin de serving : l'appartenance elle-même n'est plus prouvée.
+        return False
+    if collection not in expectation.collections:
+        return None
+    try:
+        settings = PoolSettings.from_env()
+        with runtime_database_budget():
+            with pool_connection(settings) as connection:
+                return validate_release_readiness(
+                    manifest_path,
+                    expected_sha256,
+                    connection,
+                ).ready
+    except Exception:
+        logger.error("release readiness unavailable")
+        return False
+
+
+def _v2_evidence_collections(
+    artifacts: Mapping[str, object] | None = None,
+) -> frozenset[str]:
+    registry = load_retrieval_scope_registry() if artifacts is None else artifacts
+    return frozenset(
+        str(artifact.evidence_subject.collection)
+        for artifact in registry.values()
+        if isinstance(artifact, RetrievalScopeArtifactV2)
+    )
+
+
+def _instanciated_v2_collections(
+    artifacts: Mapping[str, object],
+    cfg: Mapping[str, Any],
+) -> frozenset[str]:
+    collections = cfg.get("collections")
+    if not isinstance(collections, Mapping):
+        raise RuntimeError("release collection catalogue malformed")
+    return frozenset(
+        collection
+        for collection in _v2_evidence_collections(artifacts)
+        if isinstance(collections.get(collection), Mapping)
+        and collections[collection].get("instanciee") is True
+    )
+
+
+def validate_release_startup_configuration(
+    artifacts: Mapping[str, object],
+    cfg: Mapping[str, Any],
+) -> None:
+    """Exiger un manifest exact dès qu'un scope V2 est instancié."""
+    required = _instanciated_v2_collections(artifacts, cfg)
+    if not required:
+        return
+    try:
+        configured = _configured_release_manifest()
+        if configured is None:
+            raise ReleaseReadinessError("release manifest unavailable")
+        expectation = load_release_expectation(*configured)
+    except ReleaseReadinessError as exc:
+        raise RuntimeError("release manifest unavailable or invalid") from exc
+    if set(expectation.collections) != set(required):
+        raise RuntimeError("release manifest collection set mismatch")
+
+
+def validate_configured_release_database() -> None:
+    """Vérifier le manifest configuré contre PostgreSQL avant tout trafic."""
+    configured = _configured_release_manifest()
+    if configured is None:
+        return
+    manifest_path, expected_sha256 = configured
+    settings = PoolSettings.from_env()
+    with runtime_database_budget():
+        with pool_connection(settings) as connection:
+            report = validate_release_readiness(
+                manifest_path,
+                expected_sha256,
+                connection,
+            )
+    if not report.ready:
+        raise RuntimeError("release database reconciliation unavailable")
+
+
+def _require_release_ready_if_governed(collection: str, cfg: Mapping[str, Any]) -> None:
+    collections = cfg.get("collections")
+    definition = collections.get(collection) if isinstance(collections, Mapping) else None
+    if (
+        collection not in _v2_evidence_collections()
+        or not isinstance(definition, Mapping)
+        or definition.get("instanciee") is not True
+    ):
+        return
+    state = _release_evidence_for_collection(collection)
+    if state is not True:
+        raise HTTPException(status_code=503, detail="release evidence unavailable")
 
 
 # --- Modèle interne d'un hit avant projection contractuelle ---
@@ -737,6 +882,7 @@ def list_retrievable_collections(request: Request) -> dict[str, Any]:
             catalogue_by_name[collection]
             for collection in allowed
             if collection in catalogue_by_name
+            and _release_evidence_for_collection(collection) is not False
         ]
         for item in scoped_items:
             build_server_retrieval_scope(
@@ -919,11 +1065,17 @@ def get_collection_readiness(request: Request) -> dict[str, Any]:
             raise RetrievalScopeError("retrieval scope forbidden")
         with runtime_database_budget():
             counts = _get_reviewed_chunk_counts(scopes)
+        release_states = tuple(
+            _release_evidence_for_collection(collection) for collection in allowed
+        )
+        release_evidence_verified = bool(release_states) and all(
+            state is True for state in release_states
+        )
         return _build_launch_readiness(
             {**cfg, "collections": scoped_collections},
             counts,
             min_chunks=MIN_COLLECTION_SUBSTANCE_CHUNKS,
-            release_evidence_verified=False,
+            release_evidence_verified=release_evidence_verified,
         )
     except (RetrievalScopeError, CollectionConfigError) as exc:
         raise HTTPException(status_code=403, detail="Forbidden") from exc

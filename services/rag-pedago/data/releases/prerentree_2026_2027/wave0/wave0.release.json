@@ -1,0 +1,43 @@
+{
+  "authorities": {
+    "candidate_inventory_sha256": "0c203af33d97f787f4fcbbf96ae822d37464d571be96074babf5abb529aaf882",
+    "corpus_manifest_sha256": "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e",
+    "currentness_evidence_sha256": "75d77994809a81ed9f9452eace75448d3869ef4b8ee1942693f66f430ec27f36",
+    "pii_evidence_sha256": "63d0879358a844b44f41c82d21c0b67349e0f7a2f1cdabe7becff2affc58f9f1",
+    "pii_policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+    "placement_catalog_sha256": "095ca37cc4c2126d06b77106f9f1663d4f5ad881ae4952dbf5b951477fd54c39",
+    "rights_registry_sha256": "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff",
+    "sealed_catalog_sha256": "301c0dcce4e49cd9b6e524708bde82b262a09b05bd52e0431233813ecf8ae04b"
+  },
+  "expected_counts": {
+    "artifacts": 2,
+    "chunks": 36,
+    "placements": 2
+  },
+  "models": {
+    "embedding": {
+      "dimension": 1024,
+      "inventory_sha256": "e2c7384ba36096b3f3bdfff4973f728596104aff0f1d38f1b6463e60765fe22a",
+      "model_id": "intfloat/multilingual-e5-large"
+    },
+    "reranker": {
+      "inventory_sha256": "bdcedc4d7cfe647b9aaa5a7546822dfee7826ebb3c64472bf89eae7592e08fe1",
+      "model_id": "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    }
+  },
+  "release_id": "wave0-exact-grade-troisieme-2026-2027-v1",
+  "release_kind": "WAVE0_AGGREGATE_RELEASE_V1",
+  "school_year": "2026-2027",
+  "subjects": [
+    {
+      "collection": "rag_nexus_francais_troisieme_tc",
+      "path": "francais_troisieme.release.json",
+      "sha256": "4b6c184ec8e3dc5bcf84c374f9d51d5f7bc9305747ba113b635431d72566b567"
+    },
+    {
+      "collection": "rag_nexus_maths_troisieme_tc",
+      "path": "maths_troisieme.release.json",
+      "sha256": "18035126ebaa2c89b9e1a8c9d2c5e0e82a1280a8c0e16dd2e65f593177f6875e"
+    }
+  ]
+}

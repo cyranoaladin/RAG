@@ -23,6 +23,7 @@ constats périmés reviendrait à publier sans constats.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
@@ -55,6 +56,9 @@ try:
     from ingestor.ingestion_control.provisioning import (
         find_latest_artifact,
         get_resource_state,
+    )
+    from ingestor.ingestion_control.publication_attestation import (
+        verify_publication_attestation,
     )
     from ingestor.ingestion_control.publication_evidence import (
         collect_publication_facts,
@@ -91,6 +95,9 @@ except ImportError as _exc:  # repli à plat, cause réelle préservée
     from ingestion_control.provisioning import (
         find_latest_artifact,
         get_resource_state,
+    )
+    from ingestion_control.publication_attestation import (
+        verify_publication_attestation,
     )
     from ingestion_control.publication_evidence import (
         collect_publication_facts,
@@ -132,6 +139,7 @@ class PublicationResumeOutcome:
     artifact_id: str | None = None
     chunk_rows: int = 0
     placement_rows: int = 0
+    embedded: bool | None = None
 
 
 @dataclass
@@ -202,6 +210,80 @@ def _load_run_placement_context(
     return str(collection), str(profile_version), str(school_year)
 
 
+def _verify_completed_promotion_events(
+    conn: psycopg.Connection,
+    *,
+    resource_id: UUID,
+    run_id: UUID,
+    job_id: UUID,
+    expected_attestation_id: UUID,
+) -> None:
+    """Prouve qu'une reprise part du résultat exact de ce même job.
+
+    ``RETRIEVAL_ELIGIBLE`` n'est récupérable que lorsque les deux CAS de
+    promotion sont déjà durables sous le même triplet ressource/run/job.
+    L'événement ``NEEDS_REVIEW -> REVIEWED`` lie en plus l'attestation
+    exacte citée par le job. Une histoire incomplète, dupliquée ou issue
+    d'un autre job reste donc irrécupérable, même si l'état courant semble
+    compatible.
+    """
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT from_state, to_state, payload
+            FROM ingestion_control.workflow_events
+            WHERE resource_id = %s
+              AND run_id = %s
+              AND job_id = %s
+              AND event_type = 'transition'
+              AND (
+                (from_state = 'NEEDS_REVIEW' AND to_state = 'REVIEWED')
+                OR
+                (from_state = 'REVIEWED' AND to_state = 'RETRIEVAL_ELIGIBLE')
+              )
+            """,
+            (resource_id, run_id, job_id),
+        )
+        rows = cur.fetchall()
+
+    if len(rows) != 2:
+        raise PublicationResumeError(
+            "recovery promotion evidence must contain exactly the two governed "
+            "transitions for this resource/run/job"
+        )
+
+    events: dict[tuple[str, str], Mapping[str, object]] = {}
+    for from_state, to_state, raw_payload in rows:
+        key = (str(from_state), str(to_state))
+        if key in events or not isinstance(raw_payload, Mapping):
+            raise PublicationResumeError(
+                "recovery promotion evidence is duplicated or has an invalid payload"
+            )
+        events[key] = raw_payload
+
+    required_pairs = {
+        ("NEEDS_REVIEW", "REVIEWED"),
+        ("REVIEWED", "RETRIEVAL_ELIGIBLE"),
+    }
+    if set(events) != required_pairs:
+        raise PublicationResumeError(
+            "recovery promotion evidence does not prove the exact governed transitions"
+        )
+
+    expected = str(expected_attestation_id)
+    reviewed_payload = events[("NEEDS_REVIEW", "REVIEWED")]
+    if reviewed_payload.get("publication_attestation_id") != expected:
+        raise PublicationResumeError(
+            "recovery promotion evidence does not cite the job's exact attestation"
+        )
+    eligible_payload = events[("REVIEWED", "RETRIEVAL_ELIGIBLE")]
+    eligible_attestation = eligible_payload.get("publication_attestation_id")
+    if eligible_attestation is not None and eligible_attestation != expected:
+        raise PublicationResumeError(
+            "recovery promotion evidence disagrees on the publication attestation"
+        )
+
+
 def resume_publication(
     control_conn: psycopg.Connection,
     *,
@@ -230,16 +312,31 @@ def resume_publication(
     if state is None:
         raise PublicationResumeError(f"resource {resource_id} does not exist")
     current_state, current_version = state
-    if current_state != EXPECTED_STATE:
+    expected_version = int(payload["expected_state_version"])
+    expected_attestation_id = UUID(str(payload["publication_attestation_id"]))
+    recovering_eligible = current_state == "RETRIEVAL_ELIGIBLE"
+    if current_state == EXPECTED_STATE:
+        required_version = expected_version
+    elif recovering_eligible:
+        required_version = expected_version + 2
+    else:
         raise PublicationResumeError(
-            f"resource {resource_id} is {current_state!r}, not {EXPECTED_STATE!r} — "
-            "either phase A has not finished or another worker already resumed it"
+            f"resource {resource_id} is {current_state!r}, neither "
+            f"{EXPECTED_STATE!r} nor a provable RETRIEVAL_ELIGIBLE recovery"
         )
-    if int(payload["expected_state_version"]) != current_version:
+    if current_version != required_version:
         raise PublicationResumeError(
             f"resource {resource_id} is at version {current_version}, the job "
-            f"expected {payload['expected_state_version']} — refusing to publish "
+            f"requires {required_version} — refusing to publish "
             "against a state that moved since the job was created"
+        )
+    if recovering_eligible:
+        _verify_completed_promotion_events(
+            control_conn,
+            resource_id=resource_id,
+            run_id=payload_run_id,
+            job_id=claim.job_id,
+            expected_attestation_id=expected_attestation_id,
         )
 
     artifact_record = find_latest_artifact(control_conn, resource_id=resource_id)
@@ -361,22 +458,37 @@ def resume_publication(
     # racines et exigent donc une connexion control IDLE à leur entrée.
     control_conn.commit()
 
-    promotion = promote_reviewed_publication(
-        control_conn,
-        resource_id=resource_id,
-        run_id=payload_run_id,
-        expected_version=current_version,
-        actor=deps.owner,
-        current_content_sha256=artifact_record.sha256,
-        current_profile_fingerprint=placements[0].current_profile_fingerprint,
-        current_manifest_digest=deps.manifest_digest
-        or placements[0].current_manifest_digest,
-        job_id=claim.job_id,
-        expected_attestation_id=UUID(str(payload["publication_attestation_id"])),
-    )
-    if str(promotion.attestation.attestation_id) != str(
-        payload["publication_attestation_id"]
-    ):
+    attestation = None
+    if recovering_eligible:
+        attestation = verify_publication_attestation(
+            control_conn,
+            resource_id=resource_id,
+            current_content_sha256=artifact_record.sha256,
+            current_profile_fingerprint=placements[0].current_profile_fingerprint,
+            current_manifest_digest=deps.manifest_digest
+            or placements[0].current_manifest_digest,
+            require_content_bound_authority=True,
+            expected_attestation_id=expected_attestation_id,
+        )
+        # La revérification live ouvre une transaction de lecture ; le
+        # publisher exige une connexion control IDLE à son entrée.
+        control_conn.commit()
+    else:
+        promotion = promote_reviewed_publication(
+            control_conn,
+            resource_id=resource_id,
+            run_id=payload_run_id,
+            expected_version=current_version,
+            actor=deps.owner,
+            current_content_sha256=artifact_record.sha256,
+            current_profile_fingerprint=placements[0].current_profile_fingerprint,
+            current_manifest_digest=deps.manifest_digest
+            or placements[0].current_manifest_digest,
+            job_id=claim.job_id,
+            expected_attestation_id=expected_attestation_id,
+        )
+        attestation = promotion.attestation
+    if attestation.attestation_id != expected_attestation_id:
         raise PublicationResumeError(
             "the attestation verified live is not the one the job names — refusing "
             "rather than publishing under a review the job did not cite"
@@ -400,6 +512,7 @@ def resume_publication(
         artifact_id=result.artifact_id,
         chunk_rows=result.chunk_rows,
         placement_rows=result.placement_rows,
+        embedded=getattr(result, "embedded", None),
     )
 
 

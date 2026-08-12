@@ -13,7 +13,6 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import cast
 from urllib.parse import urlparse
 from uuid import UUID
 
@@ -21,31 +20,47 @@ import yaml
 from nexus_contracts.document import Niveau, TypeDoc, Voie
 from nexus_contracts.ingestion import ResourceScope
 
-from .governed_publisher_v2 import EligiblePlacement
-from .ingestion_profiles.registry import (
-    ProfileRegistry,
-    profile_fingerprint,
-    select_profile,
-)
+try:
+    from .governed_publisher_v2 import EligiblePlacement
+    from .ingestion_profiles.registry import (
+        ProfileRegistry,
+        profile_fingerprint,
+        select_profile,
+    )
+    from .wave0_release import (
+        CandidateInventory,
+        CandidatePlacement,
+        ClosedPedagogicalMapping,
+        PedagogicalMapping,
+        ReleaseAuthorityError,
+        Wave0ReleaseAuthority,
+        load_aggregate_release,
+        load_candidate_inventory,
+        load_pedagogical_mapping,
+    )
+except ImportError:  # image worker aplatie
+    from governed_publisher_v2 import EligiblePlacement  # type: ignore[no-redef]
+    from ingestion_profiles.registry import (  # type: ignore[no-redef]
+        ProfileRegistry,
+        profile_fingerprint,
+        select_profile,
+    )
+    from wave0_release import (  # type: ignore[no-redef]
+        CandidateInventory,
+        CandidatePlacement,
+        ClosedPedagogicalMapping,
+        PedagogicalMapping,
+        ReleaseAuthorityError,
+        Wave0ReleaseAuthority,
+        load_aggregate_release,
+        load_candidate_inventory,
+        load_pedagogical_mapping,
+    )
 
-CURRENTNESS_EVIDENCE_KIND = "WAVE0_ARTIFACT_CURRENTNESS_V1"
+CURRENTNESS_EVIDENCE_KIND = "WAVE0_ARTIFACT_CURRENTNESS_V2"
 SEALED_CATALOG_KIND = "REAL_SEALED_CORPUS"
 _SHA256 = re.compile(r"\A[0-9a-f]{64}\Z")
 _SCHOOL_YEAR = re.compile(r"\A[0-9]{4}-[0-9]{4}\Z")
-_WAVE0_CURRENTNESS_SCOPE = {
-    "49ccdca4d97ba4cf25875dfc731474e84d0332985c15396d3abfb9107f5f545a": (
-        "01_EDUSCOL_OFFICIEL/COLLEGE/3E/MATHEMATIQUES/02_REPERES_ATTENDUS/2019/"
-        "attendus-de-fin-d-annee-en-mathematiques-en-3e-pdf-1-26-mo--49ccdca4d9.pdf",
-        "3e",
-        "mathematiques",
-    ),
-    "c8662b03ca8a7f08bedad5081bafc7da8d2cc8a31b07fa967421fb15304d76bf": (
-        "01_EDUSCOL_OFFICIEL/COLLEGE/3E/FRANCAIS/02_REPERES_ATTENDUS/2019/"
-        "attendus-de-fin-d-annee-en-francais-en-3e-pdf-971-01-ko--c8662b03ca.pdf",
-        "3e",
-        "francais",
-    ),
-}
 
 
 class PlacementResolutionError(RuntimeError):
@@ -60,48 +75,6 @@ class _CurrentnessArtifact:
     subject: str
     effective_currentness: str
     current_for_school_year: str
-
-
-@dataclass(frozen=True)
-class _NexusMapping:
-    external_level: str
-    external_scope: str
-    external_subject: str
-    external_document_type: str
-    nexus_collection: str
-    nexus_niveau: Niveau
-    nexus_voie: Voie
-    nexus_matiere: str
-    nexus_statut_enseignement: str
-    type_doc: TypeDoc
-
-
-_MAPPINGS = (
-    _NexusMapping(
-        external_level="3e",
-        external_scope="college/cycle-4/francais",
-        external_subject="francais",
-        external_document_type="reperes-attendus",
-        nexus_collection="rag_nexus_francais_troisieme_tc",
-        nexus_niveau=Niveau.troisieme,
-        nexus_voie=Voie.college,
-        nexus_matiere="francais",
-        nexus_statut_enseignement="tronc_commun",
-        type_doc=TypeDoc.ressource_officielle,
-    ),
-    _NexusMapping(
-        external_level="3e",
-        external_scope="college/cycle-4/mathematiques",
-        external_subject="mathematiques",
-        external_document_type="reperes-attendus",
-        nexus_collection="rag_nexus_maths_troisieme_tc",
-        nexus_niveau=Niveau.troisieme,
-        nexus_voie=Voie.college,
-        nexus_matiere="maths",
-        nexus_statut_enseignement="tronc_commun",
-        type_doc=TypeDoc.ressource_officielle,
-    ),
-)
 
 
 @dataclass(frozen=True)
@@ -161,28 +134,12 @@ def _require_file_digest(path: Path, expected: str, *, label: str) -> str:
     return actual
 
 
-def _mapping_for(placement: Mapping[str, object], collection: str) -> _NexusMapping:
-    matching = [
-        mapping
-        for mapping in _MAPPINGS
-        if mapping.nexus_collection == collection
-        and placement.get("level") == mapping.external_level
-        and placement.get("scope") == mapping.external_scope
-        and placement.get("subject") == mapping.external_subject
-        and placement.get("document_type") == mapping.external_document_type
-    ]
-    if len(matching) != 1:
-        raise PlacementResolutionError(
-            "catalog placement has no unique governed external-to-Nexus mapping"
-        )
-    return matching[0]
-
-
 def _load_currentness(
     path: Path,
     *,
     expected_sha256: str,
     expected_manifest_sha256: str,
+    candidate_inventory: CandidateInventory,
 ) -> tuple[str, str, dict[str, _CurrentnessArtifact]]:
     evidence_sha = _require_file_digest(
         path, expected_sha256, label="currentness evidence"
@@ -198,8 +155,14 @@ def _load_currentness(
     school_year = document.get("school_year")
     if not isinstance(school_year, str) or _SCHOOL_YEAR.fullmatch(school_year) is None:
         raise PlacementResolutionError("currentness evidence school year is invalid")
+    if school_year != candidate_inventory.school_year:
+        raise PlacementResolutionError(
+            "currentness evidence differs from candidate inventory school year"
+        )
     if document.get("corpus_manifest_sha256") != expected_manifest_sha256:
         raise PlacementResolutionError("currentness evidence manifest differs")
+    if document.get("candidate_inventory_sha256") != candidate_inventory.sha256:
+        raise PlacementResolutionError("currentness evidence candidate inventory differs")
     raw_artifacts = document.get("artifacts")
     if not isinstance(raw_artifacts, list) or not raw_artifacts:
         raise PlacementResolutionError("currentness evidence artifacts are absent")
@@ -234,6 +197,15 @@ def _load_currentness(
             raise PlacementResolutionError("currentness artifact level is invalid")
         if not isinstance(subject, str) or not subject:
             raise PlacementResolutionError("currentness artifact subject is invalid")
+        if raw.get("current_download_sha256") != sha or raw.get("byte_identity") is not True:
+            raise PlacementResolutionError("currentness byte identity is not exact")
+        for url_field in ("current_source_listing_url", "current_download_url"):
+            url = raw.get(url_field)
+            if not isinstance(url, str) or urlparse(url).hostname not in {
+                "eduscol.education.fr",
+                "eduscol.education.gouv.fr",
+            }:
+                raise PlacementResolutionError("currentness official URL is invalid")
         artifacts[sha] = _CurrentnessArtifact(
             content_sha256=sha,
             exact_path=exact_path,
@@ -242,19 +214,20 @@ def _load_currentness(
             effective_currentness="actuel",
             current_for_school_year=school_year,
         )
-    if set(artifacts) != set(_WAVE0_CURRENTNESS_SCOPE):
+    if set(artifacts) != set(candidate_inventory.unique_content_sha256):
         raise PlacementResolutionError(
-            "currentness evidence differs from the exact two-artifact scope"
+            "currentness evidence differs from the candidate inventory artifact set"
         )
-    for sha, (exact_path, level, subject) in _WAVE0_CURRENTNESS_SCOPE.items():
-        artifact = artifacts[sha]
-        if (
-            artifact.exact_path != exact_path
-            or artifact.external_level != level
-            or artifact.subject != subject
+    for sha, artifact in artifacts.items():
+        candidates = candidate_inventory.candidates_for(sha)
+        if not candidates or any(
+            candidate.physical_path != artifact.exact_path
+            or candidate.external_level != artifact.external_level
+            or candidate.external_subject != artifact.subject
+            for candidate in candidates
         ):
             raise PlacementResolutionError(
-                "currentness evidence differs from the exact two-artifact scope"
+                "currentness evidence differs from the candidate inventory facts"
             )
     return evidence_sha, school_year, artifacts
 
@@ -303,10 +276,23 @@ class VerifiedPedagogicalPlacementResolver:
     corpus_manifest_sha256: str
     placement_catalog_sha256: str
     currentness_evidence_sha256: str
+    candidate_inventory_sha256: str
+    mapping_sha256: str
+    release_manifest_sha256: str
+    release_pii_evidence_sha256: str
+    release_pii_policy_sha256: str
+    release_rights_registry_sha256: str
+    release_profile_manifest_digest: str
+    release_embedding_model_id: str
+    release_embedding_inventory_sha256: str
+    release_embedding_dimension: int
     currentness_school_year: str
     programme_index_sha256: str
     _artifacts: Mapping[str, Mapping[str, object]]
     _currentness: Mapping[str, _CurrentnessArtifact]
+    _candidate_inventory: CandidateInventory
+    _mapping: ClosedPedagogicalMapping
+    _release: Wave0ReleaseAuthority
     _profiles: ProfileRegistry
     _collection_config: Mapping[str, object]
     _canonical_programme_by_collection: Mapping[str, str]
@@ -317,8 +303,14 @@ class VerifiedPedagogicalPlacementResolver:
         *,
         catalog_path: Path,
         expected_catalog_sha256: str,
+        candidate_inventory_path: Path,
+        expected_candidate_inventory_sha256: str,
         currentness_evidence_path: Path,
         expected_currentness_evidence_sha256: str,
+        mapping_path: Path,
+        expected_mapping_sha256: str,
+        release_manifest_path: Path,
+        expected_release_manifest_sha256: str,
         expected_manifest_sha256: str,
         profile_registry: ProfileRegistry,
         collection_config: Mapping[str, object],
@@ -347,24 +339,98 @@ class VerifiedPedagogicalPlacementResolver:
         artifacts = catalog.get("artifacts")
         if not isinstance(artifacts, Mapping):
             raise PlacementResolutionError("sealed catalog artifacts are absent")
+        try:
+            candidate_inventory = load_candidate_inventory(
+                candidate_inventory_path,
+                expected_sha256=expected_candidate_inventory_sha256,
+            )
+            mapping = load_pedagogical_mapping(
+                mapping_path, expected_sha256=expected_mapping_sha256
+            )
+        except ReleaseAuthorityError as exc:
+            raise PlacementResolutionError(str(exc)) from exc
+        if (
+            candidate_inventory.corpus_manifest_sha256 != manifest
+            or candidate_inventory.sealed_catalog_sha256 != catalog_sha
+            or candidate_inventory.placement_catalog_sha256 != placement_catalog_sha
+        ):
+            raise PlacementResolutionError(
+                "candidate inventory differs from the sealed catalog authorities"
+            )
         evidence_sha, school_year, currentness = _load_currentness(
             currentness_evidence_path,
             expected_sha256=expected_currentness_evidence_sha256,
             expected_manifest_sha256=manifest,
+            candidate_inventory=candidate_inventory,
         )
+        try:
+            release = load_aggregate_release(
+                release_manifest_path,
+                expected_sha256=expected_release_manifest_sha256,
+                candidate_inventory=candidate_inventory,
+                expected_currentness_evidence_sha256=evidence_sha,
+            )
+        except ReleaseAuthorityError as exc:
+            raise PlacementResolutionError(str(exc)) from exc
+        for candidate in candidate_inventory.candidates:
+            release_collections = {
+                collection
+                for collection, sha in release.artifacts
+                if sha == candidate.content_sha256
+                and candidate.source_placement_id
+                in release.artifacts[(collection, sha)].expected_placement_ids
+            }
+            if not release_collections:
+                continue
+            try:
+                mapping.resolve_type_doc(candidate.external_document_type)
+                for release_collection in release_collections:
+                    mapping.resolve_placement(
+                        candidate, collection=release_collection
+                    )
+            except ReleaseAuthorityError as exc:
+                raise PlacementResolutionError(str(exc)) from exc
         programme_index_sha, canonical_programmes = _load_programme_index(
             programme_index_path,
             expected_sha256=expected_programme_index_sha256,
         )
+        profile_manifest_digests = {
+            authority.profile_manifest_digest
+            for authority in release.artifacts.values()
+        }
+        if len(profile_manifest_digests) != 1:
+            raise PlacementResolutionError(
+                "release subject manifests disagree on profile manifest digest"
+            )
+        embedding = release.models.get("embedding")
+        if not isinstance(embedding, Mapping):
+            raise PlacementResolutionError("release embedding model is absent")
         return cls(
             catalog_sha256=catalog_sha,
             corpus_manifest_sha256=manifest,
             placement_catalog_sha256=placement_catalog_sha,
             currentness_evidence_sha256=evidence_sha,
+            candidate_inventory_sha256=candidate_inventory.sha256,
+            mapping_sha256=mapping.sha256,
+            release_manifest_sha256=release.sha256,
+            release_pii_evidence_sha256=release.authorities["pii_evidence_sha256"],
+            release_pii_policy_sha256=release.authorities["pii_policy_sha256"],
+            release_rights_registry_sha256=release.authorities["rights_registry_sha256"],
+            release_profile_manifest_digest=next(iter(profile_manifest_digests)),
+            release_embedding_model_id=str(embedding["model_id"]),
+            release_embedding_inventory_sha256=str(embedding["inventory_sha256"]),
+            release_embedding_dimension=int(embedding["dimension"]),
             currentness_school_year=school_year,
             programme_index_sha256=programme_index_sha,
-            _artifacts=cast(Mapping[str, Mapping[str, object]], artifacts),
+            _artifacts={
+                str(key): value
+                for key, value in artifacts.items()
+                if isinstance(key, str) and isinstance(value, Mapping)
+            },
             _currentness=currentness,
+            _candidate_inventory=candidate_inventory,
+            _mapping=mapping,
+            _release=release,
             _profiles=dict(profile_registry),
             _collection_config=dict(collection_config),
             _canonical_programme_by_collection=canonical_programmes,
@@ -377,11 +443,32 @@ class VerifiedPedagogicalPlacementResolver:
         collection: str,
         profile_version: str,
         school_year: str,
+        source_placement_id: str | None = None,
         claimed_source_path: str | None = None,
         claimed_source_url: str | None = None,
         claimed_type_doc: str | None = None,
     ) -> VerifiedPedagogicalPlacement:
         sha = _require_sha(content_sha256, label="content SHA")
+        release_artifact = self._release.artifact_for(
+            collection=collection, content_sha256=sha
+        )
+        if release_artifact is None:
+            raise PlacementResolutionError(
+                "content is absent from the release-eligible allowlist"
+            )
+        allowed_placement_ids = release_artifact.expected_placement_ids
+        if source_placement_id is None:
+            if len(allowed_placement_ids) != 1:
+                raise PlacementResolutionError(
+                    "release artifact has ambiguous placements; source_placement_id is required"
+                )
+            selected_placement_id = next(iter(allowed_placement_ids))
+        else:
+            selected_placement_id = source_placement_id
+            if selected_placement_id not in allowed_placement_ids:
+                raise PlacementResolutionError(
+                    "source placement identity is absent from the release allowlist"
+                )
         currentness = self._currentness.get(sha)
         if currentness is None:
             raise PlacementResolutionError(f"content {sha} has no currentness evidence")
@@ -393,16 +480,38 @@ class VerifiedPedagogicalPlacementResolver:
             raise PlacementResolutionError("content is absent from the sealed catalog")
         physical_objects = artifact.get("physical_objects")
         placements = artifact.get("pedagogical_placements")
-        if not isinstance(physical_objects, list) or len(physical_objects) != 1:
-            raise PlacementResolutionError("artifact must have exactly one physical object")
-        if not isinstance(placements, list) or len(placements) != 1:
-            raise PlacementResolutionError("artifact must have exactly one pedagogical placement")
-        if artifact.get("physical_object_count") != 1:
+        if not isinstance(physical_objects, list) or not physical_objects:
+            raise PlacementResolutionError("artifact has no physical object")
+        if not isinstance(placements, list) or not placements:
+            raise PlacementResolutionError("artifact has no pedagogical placement")
+        if artifact.get("physical_object_count") != len(physical_objects):
             raise PlacementResolutionError("artifact physical object count differs")
-        if artifact.get("pedagogical_placement_count") != 1:
+        if artifact.get("pedagogical_placement_count") != len(placements):
             raise PlacementResolutionError("artifact placement count differs")
-        physical = physical_objects[0]
-        placement = placements[0]
+        matching_physical = [
+            raw
+            for raw in physical_objects
+            if isinstance(raw, Mapping)
+            and raw.get("content_sha256") == sha
+            and raw.get("path") == release_artifact.source_path
+        ]
+        matching_placements = [
+            raw
+            for raw in placements
+            if isinstance(raw, Mapping)
+            and raw.get("content_sha256") == sha
+            and raw.get("scope_path") == selected_placement_id
+        ]
+        if len(matching_physical) != 1:
+            raise PlacementResolutionError(
+                "release source path has no unique sealed physical object"
+            )
+        if len(matching_placements) != 1:
+            raise PlacementResolutionError(
+                "release placement identity has no unique catalog placement"
+            )
+        physical = matching_physical[0]
+        placement = matching_placements[0]
         if not isinstance(physical, Mapping) or not isinstance(placement, Mapping):
             raise PlacementResolutionError("artifact placement records are malformed")
         if physical.get("content_sha256") != sha or placement.get("content_sha256") != sha:
@@ -417,16 +526,52 @@ class VerifiedPedagogicalPlacementResolver:
         if placement.get("subject") != currentness.subject:
             raise PlacementResolutionError("currentness subject differs from catalog placement")
 
-        mapping = _mapping_for(placement, collection)
+        inventory_candidates = [
+            candidate
+            for candidate in self._candidate_inventory.candidates_for(sha)
+            if candidate.source_placement_id == selected_placement_id
+        ]
+        if len(inventory_candidates) != 1:
+            raise PlacementResolutionError(
+                "release placement has no unique candidate inventory record"
+            )
+        inventory_candidate: CandidatePlacement = inventory_candidates[0]
+        catalog_facts = {
+            "level": inventory_candidate.external_level,
+            "scope": inventory_candidate.external_scope,
+            "subject": inventory_candidate.external_subject,
+            "document_type": inventory_candidate.external_document_type,
+            "source_url": inventory_candidate.source_url,
+        }
+        if any(placement.get(field) != value for field, value in catalog_facts.items()):
+            raise PlacementResolutionError(
+                "candidate inventory differs from the sealed catalog placement"
+            )
+        try:
+            mapping: PedagogicalMapping = self._mapping.resolve_placement(
+                inventory_candidate, collection=collection
+            )
+            type_doc = self._mapping.resolve_type_doc(
+                inventory_candidate.external_document_type
+            )
+        except ReleaseAuthorityError as exc:
+            raise PlacementResolutionError(str(exc)) from exc
         profile = select_profile(
             self._profiles, collection=collection, profile_version=profile_version
         )
+        if (
+            release_artifact.profile_version != profile.profile_version
+            or release_artifact.profile_fingerprint != profile_fingerprint(profile)
+        ):
+            raise PlacementResolutionError(
+                "runtime profile differs from the release manifest profile"
+            )
         source_url = placement.get("source_url")
         if not isinstance(source_url, str) or not source_url:
             raise PlacementResolutionError("catalog placement source URL is absent")
         if claimed_source_url is not None and claimed_source_url != source_url:
             raise PlacementResolutionError("claimed source URL differs from sealed catalog")
-        if claimed_type_doc is not None and claimed_type_doc != mapping.type_doc.value:
+        if claimed_type_doc is not None and claimed_type_doc != type_doc.value:
             raise PlacementResolutionError("claimed document type differs from governed mapping")
         if urlparse(source_url).hostname not in profile.allowed_domains:
             raise PlacementResolutionError("catalog source URL is outside profile domains")
@@ -441,7 +586,10 @@ class VerifiedPedagogicalPlacementResolver:
         if not str(profile.scope.programme_version).strip():
             raise PlacementResolutionError("profile programme version is absent")
         canonical_programme = self._canonical_programme_by_collection.get(collection)
-        if canonical_programme != str(profile.scope.programme_version):
+        if (
+            canonical_programme != str(profile.scope.programme_version)
+            or release_artifact.programme_version != canonical_programme
+        ):
             raise PlacementResolutionError(
                 "profile differs from the canonical programme version"
             )
@@ -465,10 +613,6 @@ class VerifiedPedagogicalPlacementResolver:
             or catalogue_voie != mapping.nexus_voie.value
         ):
             raise PlacementResolutionError("declared collection differs from governed placement")
-
-        source_placement_id = placement.get("scope_path")
-        if not isinstance(source_placement_id, str) or not source_placement_id:
-            raise PlacementResolutionError("catalog source placement identity is absent")
 
         niveau_conformity = (
             placement.get("level") == currentness.external_level
@@ -496,11 +640,11 @@ class VerifiedPedagogicalPlacementResolver:
             content_sha256=sha,
             source_path=source_path,
             source_url=source_url,
-            source_placement_id=source_placement_id,
+            source_placement_id=selected_placement_id,
             external_level=mapping.external_level,
             external_subject=mapping.external_subject,
             external_scope=mapping.external_scope,
-            external_document_type=mapping.external_document_type,
+            external_document_type=inventory_candidate.external_document_type,
             effective_currentness=currentness.effective_currentness,
             nexus_collection=mapping.nexus_collection,
             nexus_niveau=mapping.nexus_niveau,
@@ -510,7 +654,7 @@ class VerifiedPedagogicalPlacementResolver:
             nexus_programme_version=str(profile.scope.programme_version),
             nexus_domain=nexus_domain,
             nexus_scope=profile.scope,
-            type_doc=mapping.type_doc,
+            type_doc=type_doc,
             profile_version=profile.profile_version,
             profile_fingerprint=profile_fingerprint(profile),
             corpus_manifest_sha256=self.corpus_manifest_sha256,
