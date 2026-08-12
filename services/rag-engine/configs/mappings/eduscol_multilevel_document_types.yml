@@ -1,0 +1,6 @@
+mapping_kind: EDUSCOL_MULTILEVEL_DOCUMENT_TYPES_V1
+document_types:
+  diaporama: diaporama
+  programme-officiel: programme_officiel
+  reperes-attendus: ressource_officielle
+  ressource-accompagnement: ressource_officielle

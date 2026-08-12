@@ -1,0 +1,6 @@
+mapping_kind: EDUSCOL_MULTILEVEL_SUBJECTS_V1
+external_subjects:
+  mathematiques: maths
+  francais: francais
+  nsi: nsi
+  physique-chimie: physique_chimie

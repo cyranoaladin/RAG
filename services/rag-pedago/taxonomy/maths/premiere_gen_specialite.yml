@@ -3,8 +3,22 @@ matiere: maths
 niveau: premiere
 voie: generale
 statut_enseignement: specialite
-programme_version: BOEN_special_1_2019-01-22
+programme_version: BOEN_14_2026-04-02_MENE2602917A
 themes:
+- id: algorithmique_programmation
+  label: Algorithmique et programmation
+  notions:
+  - id: fonctions_programmation
+    label: Programmation modulaire et fonctions
+  - id: listes
+    label: Listes en extension et en compréhension, parcours et opérations
+- id: automatismes
+  label: Automatismes
+  notions:
+  - id: evolutions_calcul
+    label: Évolutions, calcul numérique et algébrique
+  - id: representations_statistiques
+    label: Fonctions, représentations, statistiques et probabilités
 - id: algebre
   label: Algèbre
   notions:
@@ -41,10 +55,12 @@ themes:
     label: Probabilités conditionnelles et indépendance
   - id: variables_aleatoires
     label: Variables aléatoires et espérance
-  - id: loi_binomiale
-    label: La loi binomiale
-- id: algorithmique
-  label: Algorithmique et programmation
-  notions:
-  - id: python
-    label: Python en appui des autres domaines
+  - id: experimentations
+    label: Expérimentations, simulations et échantillonnage
+competences:
+- chercher
+- modeliser
+- representer
+- raisonner
+- calculer
+- communiquer

@@ -1,0 +1,13 @@
+registry_kind: NEXUS_PROGRAMME_INDEX_REGISTRY_V2
+school_year: '2026-2027'
+indexes:
+  - path: corpus/College/Quatrieme/_index.yml
+    sha256: cd8acc426db05eeca116cb12d3fa7fe949b3303ca73547e4361f46d3572be167
+  - path: corpus/Lycee/Seconde/_index.yml
+    sha256: 6082ab4cce300fb57824e06da32da365d3b8411e1076e91b773749a7b99f10d5
+  - path: corpus/Lycee/Premiere/Specialites/_index.yml
+    sha256: 9a7f53a1989520cd9b20544a00371ed2858dff76f160f0d95f4294f899186441
+  - path: corpus/Lycee/Premiere/Tronc_commun/_index.yml
+    sha256: 34dea32ccca1dcfa16bc534b1e370bb04746818c3f238d574333ca1043c0eb9e
+  - path: corpus/Lycee/Terminale/Specialites/_index.yml
+    sha256: 82911d2497119412005830f6ee2298f72aff7831a9a686e87ca177595fc33827

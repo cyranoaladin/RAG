@@ -90,7 +90,7 @@ collections:
   rag_nexus_maths_seconde_tc:
     matiere: maths
     niveau: seconde
-    voie: null  # 2de commune: pas de voie
+    voie: generale
     statut: tronc_commun
     domain: education
     session_policy: declared_or_null
@@ -187,7 +187,7 @@ collections:
   rag_nexus_francais_seconde_tc:
     matiere: francais
     niveau: seconde
-    voie: null
+    voie: generale
     statut: tronc_commun
     domain: education
     session_policy: declared_or_null

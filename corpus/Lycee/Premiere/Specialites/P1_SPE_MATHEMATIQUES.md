@@ -1,14 +1,15 @@
 # Spécialité Mathématiques — Première
 
 > Fiche corpus. Gabarit : identité × programme × épreuve × spécificité candidat libre × attendus × notes RAG.
-> Sources : programme officiel (BOEN_special_1_2019-01-22) ; eduscol ; notes de service de la session (declared_or_null).
+> Sources : programme officiel 2026 (`BOEN_14_2026-04-02_MENE2602917A`) ;
+> éduscol ; notes de service de la session (declared_or_null).
 
 ## 1. Identité
 - Niveau : **premiere** — voie générale — spécialité.
 - Horaire : 4 h/semaine.
 - Collection cible : `rag_nexus_maths_premiere_gen_specialite` (ADR-0015 — convention rag_nexus_{matiere}_{niveau}_{voie}_{statut}).
 
-## 2. Programme officiel (BOEN_special_1_2019-01-22)
+## 2. Programme officiel (`BOEN_14_2026-04-02_MENE2602917A`)
 - **Algèbre** : Suites numériques : modes de génération et variations, Second degré : forme canonique, équations, signe, Manipulations algébriques et dénombrement introductif.
 - **Analyse** : Dérivation : nombre dérivé, fonction dérivée, Variations et courbes représentatives, La fonction exponentielle, Fonctions trigonométriques.
 - **Géométrie** : Calcul vectoriel et colinéarité, Produit scalaire et applications, Géométrie repérée : droites et cercles.

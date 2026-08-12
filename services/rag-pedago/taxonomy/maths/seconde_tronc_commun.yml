@@ -1,19 +1,40 @@
-# PREMIER JET — À RÉVISER par expert matière
+# Programme officiel publié au BO du 2 avril 2026, applicable en 2026-2027.
 id: maths_seconde_tronc_commun
-matiere: mathematiques
+matiere: maths
 niveau: seconde
 voie: generale
-statut_enseignement: enseignement_commun
-programme_version: BOEN_special_1_2019-01-22
+statut_enseignement: tronc_commun
+programme_version: BOEN_14_2026-04-02_MENE2602914A
 themes:
+  - id: algorithmique_programmation
+    label: Algorithmique et programmation
+    notions:
+      - id: variables_instructions
+        label: Variables, affectation, conditions et boucles
+      - id: notion_fonction_programmation
+        label: Fonctions informatiques, paramètres et valeurs renvoyées
+
+  - id: automatismes
+    label: Automatismes
+    notions:
+      - id: calcul_numerique_algebrique
+        label: Calcul numérique et algébrique mental ou réfléchi
+      - id: information_chiffree
+        label: Proportions, pourcentages, évolutions et variations
+      - id: representations
+        label: Fonctions, graphiques, géométrie, statistiques et probabilités
+
   - id: nombres_calculs
     label: Nombres et calculs
     notions:
       - id: ensembles_nombres
-        label: Ensembles de nombres et calculs
+        label: Nombres réels, intervalles et valeur absolue
         subnotions:
           - intervalles
           - valeur_absolue
+          - nombres_rationnels_irrationnels
+      - id: arithmetique
+        label: Multiples, diviseurs, parité et fractions irréductibles
       - id: equations_inequations
         label: Équations et inéquations
       - id: calcul_litteral
@@ -63,6 +84,8 @@ themes:
           - moyenne
           - mediane
           - ecart_type
+      - id: variables_qualitatives
+        label: Croisement de deux variables qualitatives et fréquences conditionnelles
       - id: probabilites
         label: Probabilités
       - id: echantillonnage
@@ -74,3 +97,4 @@ competences:
   - representer
   - raisonner
   - calculer
+  - communiquer

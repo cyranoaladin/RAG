@@ -8,11 +8,11 @@ PR #95 reste Draft, sans écriture publique ni mutation de production.
 
 | Phase | Collection | Externe | Preuve curriculum | Cible élève | Programme exact | Scope signé |
 |---|---|---|---|---|---|---|
-| A | `rag_nexus_maths_seconde_tc` | `seconde`/`mathematiques` | `seconde`/`generale`/`maths`/`tronc_commun` | `premiere`/`generale`/`maths`/`tronc_commun` | `BOEN_special_1_2019-01-22` | `entree_premiere_maths_v1` |
+| A | `rag_nexus_maths_seconde_tc` | `seconde`/`mathematiques` | `seconde`/`generale`/`maths`/`tronc_commun` | `premiere`/`generale`/`maths`/`tronc_commun` | `BOEN_14_2026-04-02_MENE2602914A` | `entree_premiere_maths_v1` |
 | A | `rag_nexus_francais_seconde_tc` | `seconde`/`francais` | `seconde`/`generale`/`francais`/`tronc_commun` | `premiere`/`generale`/`francais`/`tronc_commun` | `BOEN_special_1_2019-01-22` | `entree_premiere_francais_v1` |
 | A | `rag_nexus_maths_quatrieme_tc` | `4e`/`mathematiques` | `quatrieme`/`college`/`maths`/`tronc_commun` | `troisieme`/`college`/`maths`/`tronc_commun` | `BOEN_special_11_2018-07-26_aj_2020` | `entree_troisieme_maths_v1` |
 | A | `rag_nexus_francais_quatrieme_tc` | `4e`/`francais` | `quatrieme`/`college`/`francais`/`tronc_commun` | `troisieme`/`college`/`francais`/`tronc_commun` | `BOEN_special_11_2018-07-26_aj_2020` | `entree_troisieme_francais_v1` |
-| B | `rag_nexus_maths_premiere_gen_specialite` | `premiere`/`mathematiques` | `premiere`/`generale`/`maths`/`specialite` | `terminale`/`generale`/`maths`/`specialite` | `BOEN_special_1_2019-01-22` | `entree_terminale_maths_v1` |
+| B | `rag_nexus_maths_premiere_gen_specialite` | `premiere`/`mathematiques` | `premiere`/`generale`/`maths`/`specialite` | `terminale`/`generale`/`maths`/`specialite` | `BOEN_14_2026-04-02_MENE2602917A` | `entree_terminale_maths_v1` |
 | B | `rag_nexus_nsi_premiere_specialite` | `premiere`/`nsi` | `premiere`/`generale`/`nsi`/`specialite` | `terminale`/`generale`/`nsi`/`specialite` | programme NSI Première résolu depuis son index canonique | `entree_terminale_nsi_v1` |
 | B | `rag_nexus_francais_premiere_tc` | `premiere`/`francais` | `premiere`/`generale`/`francais`/`tronc_commun` | `premiere`/`generale`/`francais`/`tronc_commun` | `BOEN_special_1_2019-01-22` | `eaf_premiere_francais_v1` |
 | C | `rag_nexus_maths_terminale_gen_specialite` | `terminale`/`mathematiques` | `terminale`/`generale`/`maths`/`specialite` | `terminale`/`generale`/`maths`/`specialite` | `BOEN_special_8_2019-07-25` | `terminale_maths_v1` |

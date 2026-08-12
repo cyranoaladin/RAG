@@ -27,6 +27,12 @@ fiches:
   collection_cible: rag_nexus_maths_terminale_gen_specialite
   taxonomy_file: maths/terminale_gen_specialite.yml
   programme_version: BOEN_special_8_2019-07-25
+- fichier: T_SPE_NSI.md
+  matiere: nsi
+  statut_enseignement: specialite
+  collection_cible: rag_nexus_nsi_terminale_specialite
+  taxonomy_file: nsi/terminale.yml
+  programme_version: BOEN_special_8_2019-07-25
 - fichier: T_OPT_MATHS_EXPERTES.md
   matiere: maths
   statut_enseignement: option
