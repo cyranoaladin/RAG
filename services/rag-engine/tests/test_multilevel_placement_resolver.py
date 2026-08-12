@@ -584,6 +584,14 @@ def _resolver(
         levels_mapping_sha256=mapping.levels_sha256,
         subjects_mapping_sha256=mapping.subjects_sha256,
         document_types_mapping_sha256=mapping.document_types_sha256,
+        pii_evidence_sha256="d" * 64,
+        pii_policy_sha256="e" * 64,
+        rights_registry_sha256="f" * 64,
+        embedding_model_id="intfloat/multilingual-e5-large",
+        embedding_inventory_sha256="1" * 64,
+        embedding_dimension=1024,
+        reranker_model_id="cross-encoder/ms-marco-MiniLM-L-6-v2",
+        reranker_inventory_sha256="2" * 64,
         placements=frozenset(
             {
                 MultilevelReleasePlacement(

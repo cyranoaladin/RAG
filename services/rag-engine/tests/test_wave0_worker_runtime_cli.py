@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from ingestor.ingestion_worker import cli as worker_a_cli
-from ingestor.ingestion_worker import runtime_authority
+from ingestor.ingestion_worker import multilevel_runtime_authority, runtime_authority
 
 
 def test_worker_a_parser_requires_governed_placement_authorities() -> None:
@@ -145,3 +145,43 @@ def test_runtime_authority_rejects_pii_policy_drift(
             profile_registry={},
             profile_manifest_digest=sha,
         )
+
+
+def test_multilevel_runtime_authority_has_every_digest_bound_input() -> None:
+    fields = set(multilevel_runtime_authority.MultilevelRuntimeAuthorityInputs.__dataclass_fields__)
+
+    assert fields == {
+        "candidate_inventory_path",
+        "candidate_inventory_sha256",
+        "currentness_evidence_path",
+        "currentness_evidence_sha256",
+        "levels_mapping_path",
+        "levels_mapping_sha256",
+        "subjects_mapping_path",
+        "subjects_mapping_sha256",
+        "document_types_mapping_path",
+        "document_types_mapping_sha256",
+        "release_manifest_path",
+        "release_manifest_sha256",
+        "programme_registry_path",
+        "programme_registry_sha256",
+        "profile_manifest_path",
+        "profile_manifest_sha256",
+        "collection_config_path",
+        "collection_config_sha256",
+        "pii_evidence_path",
+        "pii_evidence_sha256",
+        "rights_evidence_path",
+        "rights_evidence_sha256",
+        "corpus_manifest_sha256",
+        "repository_root",
+    }
+
+
+def test_multilevel_runtime_authority_module_never_uses_pilot_sha_allowlist() -> None:
+    source = Path(multilevel_runtime_authority.__file__).read_text(encoding="utf-8")
+
+    assert "49ccdca4" not in source
+    assert "c8662b03" not in source
+    assert "VerifiedPedagogicalPlacementResolver.load" not in source
+    assert "MultilevelVerifiedPedagogicalPlacementResolver.from_authorities" in source

@@ -93,6 +93,14 @@ class MultilevelReleaseEligibility:
     levels_mapping_sha256: str
     subjects_mapping_sha256: str
     document_types_mapping_sha256: str
+    pii_evidence_sha256: str
+    pii_policy_sha256: str
+    rights_registry_sha256: str
+    embedding_model_id: str
+    embedding_inventory_sha256: str
+    embedding_dimension: int
+    reranker_model_id: str
+    reranker_inventory_sha256: str
     placements: frozenset[MultilevelReleasePlacement]
 
     def __post_init__(self) -> None:
@@ -105,8 +113,17 @@ class MultilevelReleaseEligibility:
             "levels_mapping_sha256",
             "subjects_mapping_sha256",
             "document_types_mapping_sha256",
+            "pii_evidence_sha256",
+            "pii_policy_sha256",
+            "rights_registry_sha256",
+            "embedding_inventory_sha256",
+            "reranker_inventory_sha256",
         ):
             _require_sha256(getattr(self, field), label=field)
+        _require_nonempty(self.embedding_model_id, label="embedding model identity")
+        _require_nonempty(self.reranker_model_id, label="reranker model identity")
+        if self.embedding_dimension != 1024:
+            raise MultilevelPlacementResolutionError("embedding dimension is not canonical")
         if not self.placements:
             raise MultilevelPlacementResolutionError("release allowlist is empty")
         if any(
@@ -190,6 +207,20 @@ def load_multilevel_release_eligibility(
             authorities.get("document_type_mapping_sha256"),
             label="document types mapping SHA",
         ),
+        pii_evidence_sha256=_require_sha256(
+            authorities.get("pii_evidence_sha256"), label="PII evidence SHA"
+        ),
+        pii_policy_sha256=_require_sha256(
+            authorities.get("pii_policy_sha256"), label="PII policy SHA"
+        ),
+        rights_registry_sha256=_require_sha256(
+            authorities.get("rights_registry_sha256"), label="rights registry SHA"
+        ),
+        embedding_model_id=expectation.embedding_model_id,
+        embedding_inventory_sha256=expectation.embedding_inventory_sha256,
+        embedding_dimension=expectation.embedding_dimension,
+        reranker_model_id=expectation.reranker_model_id,
+        reranker_inventory_sha256=expectation.reranker_inventory_sha256,
         placements=frozenset(placements),
     )
 
@@ -214,6 +245,30 @@ class MultilevelVerifiedPedagogicalPlacementResolver:
     _programme_registry: ProgrammeIndexRegistry
     _collection_config: Mapping[str, object]
     _release_eligibility: MultilevelReleaseEligibility
+
+    @property
+    def release_pii_evidence_sha256(self) -> str:
+        return self._release_eligibility.pii_evidence_sha256
+
+    @property
+    def release_pii_policy_sha256(self) -> str:
+        return self._release_eligibility.pii_policy_sha256
+
+    @property
+    def release_rights_registry_sha256(self) -> str:
+        return self._release_eligibility.rights_registry_sha256
+
+    @property
+    def release_embedding_model_id(self) -> str:
+        return self._release_eligibility.embedding_model_id
+
+    @property
+    def release_embedding_inventory_sha256(self) -> str:
+        return self._release_eligibility.embedding_inventory_sha256
+
+    @property
+    def release_embedding_dimension(self) -> int:
+        return self._release_eligibility.embedding_dimension
 
     @classmethod
     def from_authorities(
