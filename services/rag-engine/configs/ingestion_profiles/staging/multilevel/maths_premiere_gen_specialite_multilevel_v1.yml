@@ -17,7 +17,7 @@ owner: "Nexus Réussite"
 expected_topics: [algèbre, analyse, géométrie, probabilités]
 expected_resource_types: [programme_officiel, ressource_officielle]
 excluded_topics: [données personnelles, voie technologique, mathématiques intégrées]
-allowed_domains: [eduscol.education.gouv.fr]
+allowed_domains: [eduscol.education.gouv.fr, www.education.gouv.fr]
 seed_urls: [https://eduscol.education.gouv.fr/5817/programmes-et-ressources-en-mathematiques-voie-gt]
 source_authority: official
 search_cadence: manual

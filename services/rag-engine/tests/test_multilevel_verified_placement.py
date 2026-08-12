@@ -222,7 +222,13 @@ def test_multilevel_profiles_are_exact_and_fail_closed() -> None:
         assert profile.scope.visibility == "internal"
         assert profile.publication.mode == "human_review"
         assert profile.publication.auto_publish is False
-        assert profile.allowed_domains == ["eduscol.education.gouv.fr"]
+        expected_domains = {"eduscol.education.gouv.fr"}
+        if collection in {
+            "rag_nexus_maths_seconde_tc",
+            "rag_nexus_maths_premiere_gen_specialite",
+        }:
+            expected_domains.add("www.education.gouv.fr")
+        assert set(profile.allowed_domains) == expected_domains
         assert profile.expected_topics
         assert profile.expected_resource_types
 

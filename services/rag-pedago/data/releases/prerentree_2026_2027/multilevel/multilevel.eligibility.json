@@ -1,0 +1,1604 @@
+{
+  "authorities": {
+    "candidate_inventory_sha256": "86531933e0779a739f20c347d32dd02e54672f058024d16e1198809cef965300",
+    "catalog_delta_sha256": "cc12e73643bcb36102a992982e756356b34a908c60d0d742ea48d2ee61cfd99b",
+    "corpus_manifest_sha256": "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e",
+    "currentness_evidence_sha256": "2ad7209f28cd7cbf9f1ea91724b687983579c36c91619e8d107d28b72b849122",
+    "document_type_mapping_sha256": "ce5e51b7c6890120bec1e7394d2f649ce0b4a2590ea8765d964a5576b99f871f",
+    "effective_catalog_authority_sha256": "5cc8e30b81157fbc1789a0b82ad38cd3673276167890bced55151cbac1523c2f",
+    "embedding_inventory_sha256": "e2c7384ba36096b3f3bdfff4973f728596104aff0f1d38f1b6463e60765fe22a",
+    "level_mapping_sha256": "8ad9e7a6d62e26e5c233f8a3c62fba7a1df72da29f690a3c17d5e7660e740e1e",
+    "parent_sealed_catalog_sha256": "301c0dcce4e49cd9b6e524708bde82b262a09b05bd52e0431233813ecf8ae04b",
+    "pii_evidence_sha256": "46d6c738ebc230dedb95ada2d07bd17a0907d75ee8aedcd556d27027ad50daa8",
+    "pii_policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+    "pii_scanner_sha256": "0517a34c1b18eee05e3b9694cc2d774754b3a04b694c90aca1faaa48e262e1b7",
+    "placement_catalog_sha256": "095ca37cc4c2126d06b77106f9f1663d4f5ad881ae4952dbf5b951477fd54c39",
+    "preflight_evidence_sha256": "e440745c7bc04b5398863a80bf6d4ad8128fc8726d0615d6947412f8d557cf5f",
+    "profile_manifest_sha256": "47c86091687fc7a4a7e6d76aa8ff65eb02f3ab861dd15c7600dc93e6eb98b753",
+    "programme_registry_sha256": "9822f795f7c293618305a7ed9ad9087f68a96267415472fc0c3e39d3c89aa58c",
+    "reranker_inventory_sha256": "bdcedc4d7cfe647b9aaa5a7546822dfee7826ebb3c64472bf89eae7592e08fe1",
+    "rights_registry_sha256": "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff",
+    "subject_mapping_sha256": "c3c2d20bd27243a77795b3a056441d256f0b0b9b73306b3a1e710eee61407ed6"
+  },
+  "by_content": {
+    "03788d78554bd28fc68458da9fc325d5255179e06884e5ad46a224d85fe37e20": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "03a19e82fcf28419b23a69f2e45faa9ee14241bd002938ec77dac9d142384b31": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "05c5403d45bfc3631fa13b5c334822de09bcd68d850d0611044045cddba270de": {
+      "collections": [
+        "rag_nexus_maths_seconde_tc"
+      ],
+      "reason_codes": [],
+      "release_eligible": true
+    },
+    "07791b9022ab71dbd63b8e7329b76145358dd636b9017dc959b794e9bea38a2d": {
+      "collections": [
+        "rag_nexus_maths_premiere_gen_specialite"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "08008aaebb6754c653434c9b63bf8ff7c646ae87b48c6f145bd1d672c0030428": {
+      "collections": [
+        "rag_nexus_maths_premiere_gen_specialite"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "0b75310187bbda9f9df7baa660b3ee068c23d209cbd9ed43e923b8403197c667": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "0d7f21bbc0b3f670935d80f2672254e73ada4430eac89cff18e44f6e545adbf8": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "10ce34666edd722a3d8d86642a9f1ac205c7a9d128d6142a17effcba2fb85e69": {
+      "collections": [
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "reason_codes": [],
+      "release_eligible": true
+    },
+    "12a3940f0eb1af58af2429484b647db289c1d03777a1e3f4efc81302f2b8cefa": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "1353162992d9eb58da292c4a98a5918710c62c95ab80bd3605db3b7b344b06e5": {
+      "collections": [
+        "rag_nexus_francais_quatrieme_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "1552a0d2cc59d6bb5875b9e5a0acc4494aff8b717bba1f3592cfffa3ec14c021": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "15af1a9b52ec8b579958e4f5e6f66db097b966ab3a75aa0c88604776df404f12": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "1661a43d35c7486d69eaadde2b9602742152ccea00c01ce543aba2adb07f38d5": {
+      "collections": [
+        "rag_nexus_francais_quatrieme_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "175d3ea566ae70d26ffc731570b97547bff41cf45ac9150adf243c6ab39e98f7": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "198d55962321c1877e5c7d7f7375568b31d3988d76cfd7bf27dd7266313c9201": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "19e93ee98040d5301c8b7f1a0d133af39f44a837867049e49eb6d5dcd5d53102": {
+      "collections": [
+        "rag_nexus_maths_premiere_gen_specialite"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "1a339b3b7bf2dc3153d0b09846dcbf870354b0b7baf41c46d4df7cee938e7778": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "1b34f7fade7fbf3180d54cd650bd466f1e4f1d83e8940faac1ed40ab44d7b029": {
+      "collections": [
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "1ddb97cf73d859ba5aaf4510a2ede99952333fe007fa0a0860c17c8ea34b30a5": {
+      "collections": [
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "1f1344c11dfa005508c68e3b10f1dd7860216fb86877534a744bcc4e89fe1c3d": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "205ed40f429905ede609871b75655fdeaf899ba5f3b8418c6f092ed1797b19a6": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "217cb73d8e9a2ea709c751352d8af61e69d23264329e1533217f47837b9270da": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "24d24d6cbf25bab57cbcf91daba46b6286b0b602ee3cda4c6606c8d2b8dfe1d4": {
+      "collections": [
+        "rag_nexus_maths_terminale_gen_specialite"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "262463e40ef019b07ff3e4c567e829827311dba394dd91a856fc8291096faf49": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "28f92cfe1c81f2a4bab17aa2a9bff9a05f43a265ecad03214fe452a4ac53202d": {
+      "collections": [
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "PII_NOT_CLEARED"
+      ],
+      "release_eligible": false
+    },
+    "2ade3f0ca2285ef658992cbda6f41497305a6952f34f5437f68f15a92c72e9ac": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "2d02927a1cd8bce7fad20c6492b1da3303af34227b1e954eca4e4dfc00767b9e": {
+      "collections": [
+        "rag_nexus_maths_premiere_gen_specialite"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "2dc0676aef5fcfc259bd41f2d51818de052c4b03940a681213b15859f3eece8b": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "2e4cf73987c49c22f5b699c772f594025281fab42157604e5c5bec797dc10803": {
+      "collections": [
+        "rag_nexus_maths_seconde_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "2ef39773d21814ebda8f2e4e0b5d2970b5c81c5042285685cce28c263b2a562f": {
+      "collections": [
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "2fb28b71adff69e6c022c3b77e05ecfcb646005b4d36ff44fd7f203026248295": {
+      "collections": [
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "304c6529578b8f1ade69375f5e463f50849b25271253d61bfb002aef4ba0c789": {
+      "collections": [
+        "rag_nexus_maths_seconde_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "31903807f1db276944ca63b4cd00011d3294e5f475374bb32490516ccbe69e7a": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "340784293b39005bd06c374946ec99641b8e30e7c71c36788b7e3b66317e140a": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "35391baf521bad1be9355fed7fc28e811f5a77a2f1d453782eb0786b4fc6dd80": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "3730b790fb8457b45cfaea2e27aa73e4843a2efcd3a9b8e2b227f052435b1126": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "3a3ee74972291e37a88b16ae320f7a0a0f1f5c733555cec952b054321125898c": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "3b67a8c43981ee05b58862dbb48766f1a738c9b149c9fa6a221dd2c8d57a9f16": {
+      "collections": [
+        "rag_nexus_francais_seconde_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "3fa5c53b24cdb626050a7e67b52adea6013c80f3c8c986036f456508fd0f0914": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "403eccd579176da6f1ae2b97c2cf2ad186050931f227aa34f337f6dc8961b2b3": {
+      "collections": [
+        "rag_nexus_francais_seconde_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "447bdee89af9f0ab07460bd279f81647824c2d91ba7be1eff6daa133c5e8467d": {
+      "collections": [
+        "rag_nexus_nsi_premiere_specialite"
+      ],
+      "reason_codes": [
+        "PII_NOT_CLEARED"
+      ],
+      "release_eligible": false
+    },
+    "44e4bd5998e354ea61362f1540e9f9c715df8db677561ce8413c20aa09757825": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "45a87602cfefb2a551b8e70133a23df854d5401540b3af5e5b5c8c626de30cf5": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "461e89b1b1a24a83a1598fe3d55a1aa040d9e305f63b8348bc6042ce96d5687b": {
+      "collections": [
+        "rag_nexus_nsi_premiere_specialite"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "PII_NOT_CLEARED"
+      ],
+      "release_eligible": false
+    },
+    "4b7f7204fd5ad677cd323579fcd1e220f3f843f966fa5ec00cd5c277e08f934d": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "5303df0fcf6335f06d00c969a61dcd82cc3fdfd105271ae5c2ef580ff49b6c08": {
+      "collections": [
+        "rag_nexus_maths_premiere_gen_specialite"
+      ],
+      "reason_codes": [],
+      "release_eligible": true
+    },
+    "53754bc8556aab5e74a47df47c9622d2d9525b7952b70806ec2d53dd428df1ce": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "54da913e0208595ad2f15b4d2e0b2406a1e7ee8467ac9c863e7ff3923aa82797": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "5e23b528a2c2963841cd99d4597825f6b1379be09e712df940ac1775a30018f9": {
+      "collections": [
+        "rag_nexus_francais_seconde_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "625c18760b6c7257ede013c9de8555c2097d796d63db350e32a3fc4f07b8ff00": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "64ada4ca6239329913bbe815ba6577dd1b2f413f707a90cff6ddd84733242f09": {
+      "collections": [
+        "rag_nexus_francais_quatrieme_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "65bc5a26c55dfa46623d2d918112aa3af67db0534b45654e8214c6e0211c483a": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "6636473e5411b5393bceb7be19d65176230eb39736f36f7b9f498899f82989b8": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "66c3005e5d31fe32cacae9160765063350086dd1feee27a002013d77b640e154": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "672229ad2d434591d1e79db72cfe1c779a8820ddc4b9af52debf803386b1fc7c": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "6785b69e3b2042393fc7717fe9955e530a1f2253add2cacc60b833e5be5fc86a": {
+      "collections": [
+        "rag_nexus_francais_quatrieme_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "6a7942128b8404ac0b98e819c0f1482a6bac353bd2ea5a6269f7081676a65150": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "PII_NOT_CLEARED"
+      ],
+      "release_eligible": false
+    },
+    "6b813bd52f782bf50eaf7abd66e9568401505c612b852d0bee2015d66855031e": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "6faf2dcd07750352a03cb106a84afb1a1da355c354b6392be041c21a1d4c1d52": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "703cbd759841b016d5acac15df02a3c17ef273430e28f46fd5d9498b0606d3f5": {
+      "collections": [
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "PII_NOT_CLEARED",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "725ce7c370157f0adbbdcc6863587c63c5f262a8952e621e3d1f915207b21cd3": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "732bf55ee80af1b5c8a13243652a4784be134ce4b636ac8d9893f7377a28e7df": {
+      "collections": [
+        "rag_nexus_nsi_premiere_specialite"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "73c001b93cf2151924da5245c4d740b56a5194c17e29c37cda2e1c0593711fae": {
+      "collections": [
+        "rag_nexus_francais_quatrieme_tc"
+      ],
+      "reason_codes": [],
+      "release_eligible": true
+    },
+    "762ba62c44159d6717170dc7bc4ab72e9ce119c624b43542249bba7dab767f9f": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "779d2c850af0e9b84543cde5cf7f887c8688df58cb6c0a9890a9d94f59833efe": {
+      "collections": [
+        "rag_nexus_maths_seconde_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "7ca9a32e1823be6c1120cb0417324c3cb01688d1d194c7614a88ea851ccc60b0": {
+      "collections": [
+        "rag_nexus_nsi_premiere_specialite"
+      ],
+      "reason_codes": [],
+      "release_eligible": true
+    },
+    "7db6f781808d069a4024f2a92e60bd5d60233a2ac4de9eabe380ffd3149de11a": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "7e4121f2eac0784e2cb5f5f75b5521ecdcb36044fc9adbc929614b686a71b07c": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "7e48c40413ca57a5dcf66230648ea69eaef55d40e620736f0c7eff7bbc82069f": {
+      "collections": [
+        "rag_nexus_maths_premiere_gen_specialite"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "7f4fe9747468bc08e188cfa798edac2ad621426c59d512c151c6d9f4e93ca8e4": {
+      "collections": [
+        "rag_nexus_maths_seconde_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "80b8ef1440548faeb5861adc764e6c9740cc2d2c806685287b72eabb5aeeea73": {
+      "collections": [
+        "rag_nexus_maths_premiere_gen_specialite"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "852f56f2b7de9b0137db59de6ca646079958452f29f77c5d2d29b1670469b406": {
+      "collections": [
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "85a762fa9358222ad68296842c49d8de6f44ef7a3f7c696cad450709c7d5e892": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "861db0641d5ee6ec44e698d00155c8e3d518610408e78a6a891bc25fc6b26f8f": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "8679534f23867eca9018bfc811abee222aa019ef828e0b30ec21dfa0bc54d63e": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "8b0e8e9a61faf826c76b34ea27aef4fece406b0d6ecc57a2be84daf4c5984775": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "8bcce2891c997cb0ee7319fbd261c4c3f7c9ed20f7269fb3ab7a005c11b8a7cf": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "8cd68fa37419dfa8545fc2d6231394d9e927c9e980fcd29306110b9035667d59": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "8d8d833b4051c7c709a90866263284f67e8246ff9ad6a8938d95bcf396e70ad5": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "91a47029cfd21dd02f00a65a575c804ffcc660dae62fe575104c3fc2ea0284e8": {
+      "collections": [
+        "rag_nexus_francais_quatrieme_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "924d7be788d12cf014d8b010ba9a39241ebe81bc2a5704c6f360e3e983639d75": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "92dd9de47df5faacda229ef71672da8d33cebc2654f1aa3eb29d3683e920a7ab": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "950e7b8e08bfb62135e514c7ad91e3e219e74e65f7cd4824052c4a32ab0a8efe": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "951a2ea262c2d8707dc0a1edc54ade120930665a063a40a8e091b85030b53501": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "9721d0d489d5fc495958d787a4be9aa94454ce90929c669fe4bc9bc6a1eeb433": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "97ff99342a3c7a980ffeb65f888c78aee4ab4785071c05f76fc8c47821659173": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "999309fc465ff84d106d7f679df036d97d7d260a60ebce9058ab2d835df8f622": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "9a711d61afbe6488fb459f0cc66564de39a89a824bc63849706a21c098cbf1f3": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "9b0f2814e2a6c21c9a4981b3734ad89ef8a32c2d25fe2fa9616a4f593b04538b": {
+      "collections": [
+        "rag_nexus_nsi_premiere_specialite"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "9ba787513e326fc9e8fe803a6324cff91289a77d8a0f64835e3bd25cbb425dff": {
+      "collections": [
+        "rag_nexus_maths_premiere_gen_specialite"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "9c99a32bb3e5f14d8906783f86a9a0fd86a99543b032a20fe388841d024ed4a5": {
+      "collections": [
+        "rag_nexus_maths_terminale_gen_specialite"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "a05f8caf81c600909731ac30f586aa6f420e8d837604fbbea7435859c7eab697": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "a13ec16ea7628cc5e9a14b21cd36f85dd62f51b2fe06ad228a6d7b32d2b8e4d0": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "a33a12a6c4f3206776c834a359a46962aa264f4364ca51e860e41afbe4292470": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "a66af1168d146e6961a2cf5be7f66f4dfb32635e28cf4db0eadc35d64a3e2d32": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "a748dfe26bef104ba7a463cf5182a64e844388cb05b1e4193223b4e9429a7a96": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "a7aa8d3753d202f387d02cd22731f409962b536576b5da4b678d3eb904e67880": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "a7c58f6d6efbaf9cb2a9ef35f04b880670b3fc5630a204577a1c640f44fd0c56": {
+      "collections": [
+        "rag_nexus_francais_quatrieme_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "acebc5228c464ee1a5122587c4a407e01db692dc590ef9b33856af33cefffba0": {
+      "collections": [
+        "rag_nexus_maths_seconde_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "PII_NOT_CLEARED"
+      ],
+      "release_eligible": false
+    },
+    "ada21b5f9dc2e93461b95ff10d73610818601a10b012dc14a8ac4ce103624160": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "af3eaa9c37d902063bcdb6a35d1973307c78f1bbb58ee3aec0b6c56770b05ac8": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "b0a46d4909697a6eeda5c21bd721b8d644c140e766873aaff4d5a18eedcd171b": {
+      "collections": [
+        "rag_nexus_francais_quatrieme_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "b54b6422d0eb2fb906e6ad6c79a2e95e6cae00e3fa113da5f7499eee4cc53ae7": {
+      "collections": [
+        "rag_nexus_francais_seconde_tc"
+      ],
+      "reason_codes": [],
+      "release_eligible": true
+    },
+    "b7603cb79a8c164d8d4d5ddc1e11a83a2b866df12dcaa72440eb3f4ea9eb9caa": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "b826be9b151801ff936a29859b36b68cd2febca6870dca8e9dd842894f83dd80": {
+      "collections": [
+        "rag_nexus_nsi_premiere_specialite"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "b88b5c685ec05d44b0c22d64f491443759fc0f544fe9ad33e626fb6cc29bf65a": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [],
+      "release_eligible": true
+    },
+    "b9cc16e59be0d9d797369048240c506162a80f06f855fda24333561c473f15d5": {
+      "collections": [
+        "rag_nexus_francais_seconde_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "be520aa9043f050fabd2570ada553fc2c59ed1b3762c84374c67c9c28dfdbd38": {
+      "collections": [
+        "rag_nexus_francais_seconde_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "bf74787fb5074c460501a62abf6b11c5ce1b63eb63776feea4cc2502f2b1a4c5": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "c07f8b2db9d22a6c2b9ab8386cf7ba323bc2c56abacb3f560dd97d02b383de18": {
+      "collections": [
+        "rag_nexus_pc_terminale_specialite"
+      ],
+      "reason_codes": [],
+      "release_eligible": true
+    },
+    "c491ac1ccb63dbce86f59767d6826f4d13afb3efa782ed1176621aa691329ebd": {
+      "collections": [
+        "rag_nexus_maths_terminale_gen_specialite"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "c4e3cc6fb201f4dabc78fa47206c1b498b3ed46496cf05165a74e0ecd8856fb1": {
+      "collections": [
+        "rag_nexus_francais_seconde_tc"
+      ],
+      "reason_codes": [],
+      "release_eligible": true
+    },
+    "c6af1ff6a268086dd12262f93a6c5412dead79ba1b2d8ab2b74ffbffc0fb16ae": {
+      "collections": [
+        "rag_nexus_nsi_premiere_specialite"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "cbc5415887bdad979236635b07645938e0792f0bc1bfad653e43de54830a51d0": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "ce1c36a1b8d9cae0624c334409fe1f5239420d9948ee75db474a5b597c944f06": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "d0edabd6a21d6345d36d32c5506ddcf225e819ddca25d27c1ecc3f97b87a8966": {
+      "collections": [
+        "rag_nexus_maths_quatrieme_tc"
+      ],
+      "reason_codes": [],
+      "release_eligible": true
+    },
+    "d22bdad4ec497c898a5ce3047e8150d3539505520c5852805ea73b50835bd860": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "d26151f93aa87061f84302ea3ad8679f1b9c245c383abf269fcf651d1b389fd0": {
+      "collections": [
+        "rag_nexus_maths_premiere_gen_specialite"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "d604d6a97323968ad6efca34cc1debc4e857a5cc2ef916df7ce9e95df181feef": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "d6846fd984ef06ce7583e5a0c65f3e5dd10d0bb67a65a180e8bfb451d4c8c5f1": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "d9079f79992de3dbce0b238423d7f8a87273fcce74f8aa5bb17e25dc7dcd528a": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "d9ab739cf2ae5232a0f09e7346314a833c397259dbc959cf06d00c9c736cc841": {
+      "collections": [
+        "rag_nexus_maths_terminale_gen_specialite"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "db9e06168efff6568971a2625d99bfb264fad1e87f0a1dd88b107b9fb8c34415": {
+      "collections": [
+        "rag_nexus_maths_premiere_gen_specialite"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "dc684395e15830f3c45817afa0781ed1ee05af3b85ad4541f2bb7de62a03524e": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "de148d1dba2a07ba2b4197260b682a8b2905b8941b20e97451b2bbff5d25a459": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "df03a74b6f788dd1a29be8d793f898391ae94c0a819111f19b89fe72b74070f3": {
+      "collections": [
+        "rag_nexus_maths_premiere_gen_specialite"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "df3346bd9ccc2be16c48dcd0a96e9dd353494d2a909491f84503b73391ed7e29": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "df8f8b860960adfed1c9dbbf069f99f091e96f5b901d10dfcb4cbdeacaab67aa": {
+      "collections": [
+        "rag_nexus_maths_terminale_gen_specialite"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "e068c65d1a156f96ea60276406611cfbb57145189046c98fad51c1d23db51b2f": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "e20a163eb24d6a6d1b5e602887e8c6cd6c6f74e76f7b8ae1f798da6346100712": {
+      "collections": [
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "e20b73d10c46a2e681422756b7f981911d752fe8ae3721db4c0156a099070bdc": {
+      "collections": [
+        "rag_nexus_nsi_premiere_specialite"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "PII_NOT_CLEARED"
+      ],
+      "release_eligible": false
+    },
+    "e3e80cf82b341c713f689cfe79591b3c435243127c3dbac440a422b7ff3a0915": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "e486ccb56403933ad6a189130382a209a6bdaa6504d317669d210ad5844041c2": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "e4e4ee96bb093fa266ec3544725d2d11c93b2026700e0493ba9292d0cd1fe54f": {
+      "collections": [
+        "rag_nexus_francais_quatrieme_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "e57dc041b1eb7ce7d68ecf8a3adde8613eba65dc8472d0747c93cb341346765e": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "e772ccd8d680588dcd898c2e10fd7603fa540027b4140f3c4318fc5d90badf8e": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "e92251099c30fc4b171e5c31a189f48f0b522f249cd20662fd3cb89e29c24dd9": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "e938314178c2198be07ab3d14a953fc87898320c3ec17c1e9dc50aaebf9ae578": {
+      "collections": [
+        "rag_nexus_maths_premiere_gen_specialite"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "e9c110c13397be4f6a2398b783a6ea1a0041f293de68427b6faf075f3a4ffd63": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "eb8369e7c1611e90f51491fecc5a7c2081a9c57f9c7fbb08d0414677b56ce16f": {
+      "collections": [
+        "rag_nexus_maths_terminale_gen_specialite"
+      ],
+      "reason_codes": [],
+      "release_eligible": true
+    },
+    "ec52fcecf7c0b8d11b2670c8fec3a65f864c1a210fc7006099d8c7e55d7d9097": {
+      "collections": [
+        "rag_nexus_maths_terminale_gen_specialite"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "f21c80ab3aaa9084fe631f7c38d6ca1451f77c529f8ab2d62296817741bf8963": {
+      "collections": [
+        "rag_nexus_nsi_premiere_specialite"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "PII_NOT_CLEARED"
+      ],
+      "release_eligible": false
+    },
+    "f342f4efc55b105db4250b17d671daa00860dd878430fa23cdc26301b9741cd0": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "f5516f1bbcaae63e9aeaa833299cf0318769bce2b0eee74007ec0dd72e2c16ca": {
+      "collections": [
+        "rag_nexus_nsi_premiere_specialite"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "f636ef6038c2379502bae01d5fdf06556aea70500a42b7adf9bd9f3996fe1d13": {
+      "collections": [
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "PII_NOT_CLEARED"
+      ],
+      "release_eligible": false
+    },
+    "f97d7c8adb40ba032b6bb5f9dabc67f3c555805209574bc3a6faad619b87c1c6": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "f9ea141d0d5dd692a1d870f5d7370734803625f1eef9ffb8b22e2179d859437b": {
+      "collections": [
+        "rag_nexus_maths_terminale_gen_specialite"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "fb064ccb320e5b13b3d62b5d67a7fb0b5f9cfba3cbcd4ade5d78e62c1bef18c1": {
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    },
+    "fb89457f3bb84300cee45d5ad833fb7d8f44dc1f5b43a7a760487faac3ddae00": {
+      "collections": [
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT"
+      ],
+      "release_eligible": false
+    },
+    "fbdc74fa24cd996a63d845576018bc78deaf753f28e7dfb54d06df1afebe5fe0": {
+      "collections": [
+        "rag_nexus_francais_seconde_tc"
+      ],
+      "reason_codes": [
+        "CURRENTNESS_NOT_CURRENT",
+        "TYPE_DOC_UNMAPPED"
+      ],
+      "release_eligible": false
+    }
+  },
+  "counts": {
+    "candidate_artifacts": 150,
+    "named_noneligible": 139,
+    "release_eligible": 11,
+    "unevaluated": 0
+  },
+  "evidence_kind": "MULTILEVEL_RELEASE_ELIGIBILITY_V1",
+  "partition": {
+    "named_noneligible": [
+      "03788d78554bd28fc68458da9fc325d5255179e06884e5ad46a224d85fe37e20",
+      "03a19e82fcf28419b23a69f2e45faa9ee14241bd002938ec77dac9d142384b31",
+      "07791b9022ab71dbd63b8e7329b76145358dd636b9017dc959b794e9bea38a2d",
+      "08008aaebb6754c653434c9b63bf8ff7c646ae87b48c6f145bd1d672c0030428",
+      "0b75310187bbda9f9df7baa660b3ee068c23d209cbd9ed43e923b8403197c667",
+      "0d7f21bbc0b3f670935d80f2672254e73ada4430eac89cff18e44f6e545adbf8",
+      "12a3940f0eb1af58af2429484b647db289c1d03777a1e3f4efc81302f2b8cefa",
+      "1353162992d9eb58da292c4a98a5918710c62c95ab80bd3605db3b7b344b06e5",
+      "1552a0d2cc59d6bb5875b9e5a0acc4494aff8b717bba1f3592cfffa3ec14c021",
+      "15af1a9b52ec8b579958e4f5e6f66db097b966ab3a75aa0c88604776df404f12",
+      "1661a43d35c7486d69eaadde2b9602742152ccea00c01ce543aba2adb07f38d5",
+      "175d3ea566ae70d26ffc731570b97547bff41cf45ac9150adf243c6ab39e98f7",
+      "198d55962321c1877e5c7d7f7375568b31d3988d76cfd7bf27dd7266313c9201",
+      "19e93ee98040d5301c8b7f1a0d133af39f44a837867049e49eb6d5dcd5d53102",
+      "1a339b3b7bf2dc3153d0b09846dcbf870354b0b7baf41c46d4df7cee938e7778",
+      "1b34f7fade7fbf3180d54cd650bd466f1e4f1d83e8940faac1ed40ab44d7b029",
+      "1ddb97cf73d859ba5aaf4510a2ede99952333fe007fa0a0860c17c8ea34b30a5",
+      "1f1344c11dfa005508c68e3b10f1dd7860216fb86877534a744bcc4e89fe1c3d",
+      "205ed40f429905ede609871b75655fdeaf899ba5f3b8418c6f092ed1797b19a6",
+      "217cb73d8e9a2ea709c751352d8af61e69d23264329e1533217f47837b9270da",
+      "24d24d6cbf25bab57cbcf91daba46b6286b0b602ee3cda4c6606c8d2b8dfe1d4",
+      "262463e40ef019b07ff3e4c567e829827311dba394dd91a856fc8291096faf49",
+      "28f92cfe1c81f2a4bab17aa2a9bff9a05f43a265ecad03214fe452a4ac53202d",
+      "2ade3f0ca2285ef658992cbda6f41497305a6952f34f5437f68f15a92c72e9ac",
+      "2d02927a1cd8bce7fad20c6492b1da3303af34227b1e954eca4e4dfc00767b9e",
+      "2dc0676aef5fcfc259bd41f2d51818de052c4b03940a681213b15859f3eece8b",
+      "2e4cf73987c49c22f5b699c772f594025281fab42157604e5c5bec797dc10803",
+      "2ef39773d21814ebda8f2e4e0b5d2970b5c81c5042285685cce28c263b2a562f",
+      "2fb28b71adff69e6c022c3b77e05ecfcb646005b4d36ff44fd7f203026248295",
+      "304c6529578b8f1ade69375f5e463f50849b25271253d61bfb002aef4ba0c789",
+      "31903807f1db276944ca63b4cd00011d3294e5f475374bb32490516ccbe69e7a",
+      "340784293b39005bd06c374946ec99641b8e30e7c71c36788b7e3b66317e140a",
+      "35391baf521bad1be9355fed7fc28e811f5a77a2f1d453782eb0786b4fc6dd80",
+      "3730b790fb8457b45cfaea2e27aa73e4843a2efcd3a9b8e2b227f052435b1126",
+      "3a3ee74972291e37a88b16ae320f7a0a0f1f5c733555cec952b054321125898c",
+      "3b67a8c43981ee05b58862dbb48766f1a738c9b149c9fa6a221dd2c8d57a9f16",
+      "3fa5c53b24cdb626050a7e67b52adea6013c80f3c8c986036f456508fd0f0914",
+      "403eccd579176da6f1ae2b97c2cf2ad186050931f227aa34f337f6dc8961b2b3",
+      "447bdee89af9f0ab07460bd279f81647824c2d91ba7be1eff6daa133c5e8467d",
+      "44e4bd5998e354ea61362f1540e9f9c715df8db677561ce8413c20aa09757825",
+      "45a87602cfefb2a551b8e70133a23df854d5401540b3af5e5b5c8c626de30cf5",
+      "461e89b1b1a24a83a1598fe3d55a1aa040d9e305f63b8348bc6042ce96d5687b",
+      "4b7f7204fd5ad677cd323579fcd1e220f3f843f966fa5ec00cd5c277e08f934d",
+      "53754bc8556aab5e74a47df47c9622d2d9525b7952b70806ec2d53dd428df1ce",
+      "54da913e0208595ad2f15b4d2e0b2406a1e7ee8467ac9c863e7ff3923aa82797",
+      "5e23b528a2c2963841cd99d4597825f6b1379be09e712df940ac1775a30018f9",
+      "625c18760b6c7257ede013c9de8555c2097d796d63db350e32a3fc4f07b8ff00",
+      "64ada4ca6239329913bbe815ba6577dd1b2f413f707a90cff6ddd84733242f09",
+      "65bc5a26c55dfa46623d2d918112aa3af67db0534b45654e8214c6e0211c483a",
+      "6636473e5411b5393bceb7be19d65176230eb39736f36f7b9f498899f82989b8",
+      "66c3005e5d31fe32cacae9160765063350086dd1feee27a002013d77b640e154",
+      "672229ad2d434591d1e79db72cfe1c779a8820ddc4b9af52debf803386b1fc7c",
+      "6785b69e3b2042393fc7717fe9955e530a1f2253add2cacc60b833e5be5fc86a",
+      "6a7942128b8404ac0b98e819c0f1482a6bac353bd2ea5a6269f7081676a65150",
+      "6b813bd52f782bf50eaf7abd66e9568401505c612b852d0bee2015d66855031e",
+      "6faf2dcd07750352a03cb106a84afb1a1da355c354b6392be041c21a1d4c1d52",
+      "703cbd759841b016d5acac15df02a3c17ef273430e28f46fd5d9498b0606d3f5",
+      "725ce7c370157f0adbbdcc6863587c63c5f262a8952e621e3d1f915207b21cd3",
+      "732bf55ee80af1b5c8a13243652a4784be134ce4b636ac8d9893f7377a28e7df",
+      "762ba62c44159d6717170dc7bc4ab72e9ce119c624b43542249bba7dab767f9f",
+      "779d2c850af0e9b84543cde5cf7f887c8688df58cb6c0a9890a9d94f59833efe",
+      "7db6f781808d069a4024f2a92e60bd5d60233a2ac4de9eabe380ffd3149de11a",
+      "7e4121f2eac0784e2cb5f5f75b5521ecdcb36044fc9adbc929614b686a71b07c",
+      "7e48c40413ca57a5dcf66230648ea69eaef55d40e620736f0c7eff7bbc82069f",
+      "7f4fe9747468bc08e188cfa798edac2ad621426c59d512c151c6d9f4e93ca8e4",
+      "80b8ef1440548faeb5861adc764e6c9740cc2d2c806685287b72eabb5aeeea73",
+      "852f56f2b7de9b0137db59de6ca646079958452f29f77c5d2d29b1670469b406",
+      "85a762fa9358222ad68296842c49d8de6f44ef7a3f7c696cad450709c7d5e892",
+      "861db0641d5ee6ec44e698d00155c8e3d518610408e78a6a891bc25fc6b26f8f",
+      "8679534f23867eca9018bfc811abee222aa019ef828e0b30ec21dfa0bc54d63e",
+      "8b0e8e9a61faf826c76b34ea27aef4fece406b0d6ecc57a2be84daf4c5984775",
+      "8bcce2891c997cb0ee7319fbd261c4c3f7c9ed20f7269fb3ab7a005c11b8a7cf",
+      "8cd68fa37419dfa8545fc2d6231394d9e927c9e980fcd29306110b9035667d59",
+      "8d8d833b4051c7c709a90866263284f67e8246ff9ad6a8938d95bcf396e70ad5",
+      "91a47029cfd21dd02f00a65a575c804ffcc660dae62fe575104c3fc2ea0284e8",
+      "924d7be788d12cf014d8b010ba9a39241ebe81bc2a5704c6f360e3e983639d75",
+      "92dd9de47df5faacda229ef71672da8d33cebc2654f1aa3eb29d3683e920a7ab",
+      "950e7b8e08bfb62135e514c7ad91e3e219e74e65f7cd4824052c4a32ab0a8efe",
+      "951a2ea262c2d8707dc0a1edc54ade120930665a063a40a8e091b85030b53501",
+      "9721d0d489d5fc495958d787a4be9aa94454ce90929c669fe4bc9bc6a1eeb433",
+      "97ff99342a3c7a980ffeb65f888c78aee4ab4785071c05f76fc8c47821659173",
+      "999309fc465ff84d106d7f679df036d97d7d260a60ebce9058ab2d835df8f622",
+      "9a711d61afbe6488fb459f0cc66564de39a89a824bc63849706a21c098cbf1f3",
+      "9b0f2814e2a6c21c9a4981b3734ad89ef8a32c2d25fe2fa9616a4f593b04538b",
+      "9ba787513e326fc9e8fe803a6324cff91289a77d8a0f64835e3bd25cbb425dff",
+      "9c99a32bb3e5f14d8906783f86a9a0fd86a99543b032a20fe388841d024ed4a5",
+      "a05f8caf81c600909731ac30f586aa6f420e8d837604fbbea7435859c7eab697",
+      "a13ec16ea7628cc5e9a14b21cd36f85dd62f51b2fe06ad228a6d7b32d2b8e4d0",
+      "a33a12a6c4f3206776c834a359a46962aa264f4364ca51e860e41afbe4292470",
+      "a66af1168d146e6961a2cf5be7f66f4dfb32635e28cf4db0eadc35d64a3e2d32",
+      "a748dfe26bef104ba7a463cf5182a64e844388cb05b1e4193223b4e9429a7a96",
+      "a7aa8d3753d202f387d02cd22731f409962b536576b5da4b678d3eb904e67880",
+      "a7c58f6d6efbaf9cb2a9ef35f04b880670b3fc5630a204577a1c640f44fd0c56",
+      "acebc5228c464ee1a5122587c4a407e01db692dc590ef9b33856af33cefffba0",
+      "ada21b5f9dc2e93461b95ff10d73610818601a10b012dc14a8ac4ce103624160",
+      "af3eaa9c37d902063bcdb6a35d1973307c78f1bbb58ee3aec0b6c56770b05ac8",
+      "b0a46d4909697a6eeda5c21bd721b8d644c140e766873aaff4d5a18eedcd171b",
+      "b7603cb79a8c164d8d4d5ddc1e11a83a2b866df12dcaa72440eb3f4ea9eb9caa",
+      "b826be9b151801ff936a29859b36b68cd2febca6870dca8e9dd842894f83dd80",
+      "b9cc16e59be0d9d797369048240c506162a80f06f855fda24333561c473f15d5",
+      "be520aa9043f050fabd2570ada553fc2c59ed1b3762c84374c67c9c28dfdbd38",
+      "bf74787fb5074c460501a62abf6b11c5ce1b63eb63776feea4cc2502f2b1a4c5",
+      "c491ac1ccb63dbce86f59767d6826f4d13afb3efa782ed1176621aa691329ebd",
+      "c6af1ff6a268086dd12262f93a6c5412dead79ba1b2d8ab2b74ffbffc0fb16ae",
+      "cbc5415887bdad979236635b07645938e0792f0bc1bfad653e43de54830a51d0",
+      "ce1c36a1b8d9cae0624c334409fe1f5239420d9948ee75db474a5b597c944f06",
+      "d22bdad4ec497c898a5ce3047e8150d3539505520c5852805ea73b50835bd860",
+      "d26151f93aa87061f84302ea3ad8679f1b9c245c383abf269fcf651d1b389fd0",
+      "d604d6a97323968ad6efca34cc1debc4e857a5cc2ef916df7ce9e95df181feef",
+      "d6846fd984ef06ce7583e5a0c65f3e5dd10d0bb67a65a180e8bfb451d4c8c5f1",
+      "d9079f79992de3dbce0b238423d7f8a87273fcce74f8aa5bb17e25dc7dcd528a",
+      "d9ab739cf2ae5232a0f09e7346314a833c397259dbc959cf06d00c9c736cc841",
+      "db9e06168efff6568971a2625d99bfb264fad1e87f0a1dd88b107b9fb8c34415",
+      "dc684395e15830f3c45817afa0781ed1ee05af3b85ad4541f2bb7de62a03524e",
+      "de148d1dba2a07ba2b4197260b682a8b2905b8941b20e97451b2bbff5d25a459",
+      "df03a74b6f788dd1a29be8d793f898391ae94c0a819111f19b89fe72b74070f3",
+      "df3346bd9ccc2be16c48dcd0a96e9dd353494d2a909491f84503b73391ed7e29",
+      "df8f8b860960adfed1c9dbbf069f99f091e96f5b901d10dfcb4cbdeacaab67aa",
+      "e068c65d1a156f96ea60276406611cfbb57145189046c98fad51c1d23db51b2f",
+      "e20a163eb24d6a6d1b5e602887e8c6cd6c6f74e76f7b8ae1f798da6346100712",
+      "e20b73d10c46a2e681422756b7f981911d752fe8ae3721db4c0156a099070bdc",
+      "e3e80cf82b341c713f689cfe79591b3c435243127c3dbac440a422b7ff3a0915",
+      "e486ccb56403933ad6a189130382a209a6bdaa6504d317669d210ad5844041c2",
+      "e4e4ee96bb093fa266ec3544725d2d11c93b2026700e0493ba9292d0cd1fe54f",
+      "e57dc041b1eb7ce7d68ecf8a3adde8613eba65dc8472d0747c93cb341346765e",
+      "e772ccd8d680588dcd898c2e10fd7603fa540027b4140f3c4318fc5d90badf8e",
+      "e92251099c30fc4b171e5c31a189f48f0b522f249cd20662fd3cb89e29c24dd9",
+      "e938314178c2198be07ab3d14a953fc87898320c3ec17c1e9dc50aaebf9ae578",
+      "e9c110c13397be4f6a2398b783a6ea1a0041f293de68427b6faf075f3a4ffd63",
+      "ec52fcecf7c0b8d11b2670c8fec3a65f864c1a210fc7006099d8c7e55d7d9097",
+      "f21c80ab3aaa9084fe631f7c38d6ca1451f77c529f8ab2d62296817741bf8963",
+      "f342f4efc55b105db4250b17d671daa00860dd878430fa23cdc26301b9741cd0",
+      "f5516f1bbcaae63e9aeaa833299cf0318769bce2b0eee74007ec0dd72e2c16ca",
+      "f636ef6038c2379502bae01d5fdf06556aea70500a42b7adf9bd9f3996fe1d13",
+      "f97d7c8adb40ba032b6bb5f9dabc67f3c555805209574bc3a6faad619b87c1c6",
+      "f9ea141d0d5dd692a1d870f5d7370734803625f1eef9ffb8b22e2179d859437b",
+      "fb064ccb320e5b13b3d62b5d67a7fb0b5f9cfba3cbcd4ade5d78e62c1bef18c1",
+      "fb89457f3bb84300cee45d5ad833fb7d8f44dc1f5b43a7a760487faac3ddae00",
+      "fbdc74fa24cd996a63d845576018bc78deaf753f28e7dfb54d06df1afebe5fe0"
+    ],
+    "release_eligible": [
+      "05c5403d45bfc3631fa13b5c334822de09bcd68d850d0611044045cddba270de",
+      "10ce34666edd722a3d8d86642a9f1ac205c7a9d128d6142a17effcba2fb85e69",
+      "5303df0fcf6335f06d00c969a61dcd82cc3fdfd105271ae5c2ef580ff49b6c08",
+      "73c001b93cf2151924da5245c4d740b56a5194c17e29c37cda2e1c0593711fae",
+      "7ca9a32e1823be6c1120cb0417324c3cb01688d1d194c7614a88ea851ccc60b0",
+      "b54b6422d0eb2fb906e6ad6c79a2e95e6cae00e3fa113da5f7499eee4cc53ae7",
+      "b88b5c685ec05d44b0c22d64f491443759fc0f544fe9ad33e626fb6cc29bf65a",
+      "c07f8b2db9d22a6c2b9ab8386cf7ba323bc2c56abacb3f560dd97d02b383de18",
+      "c4e3cc6fb201f4dabc78fa47206c1b498b3ed46496cf05165a74e0ecd8856fb1",
+      "d0edabd6a21d6345d36d32c5506ddcf225e819ddca25d27c1ecc3f97b87a8966",
+      "eb8369e7c1611e90f51491fecc5a7c2081a9c57f9c7fbb08d0414677b56ce16f"
+    ],
+    "unevaluated": []
+  },
+  "school_year": "2026-2027"
+}

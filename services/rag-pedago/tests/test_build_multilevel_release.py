@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Protocol, cast
 
 import pytest
+from nexus_contracts.ingestion import CollectionProfile
 
 ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = ROOT / "services" / "rag-pedago" / "scripts" / "build_multilevel_release.py"
@@ -38,6 +39,35 @@ class MultilevelBuilder(Protocol):
         audited_currentness: dict[str, Any],
         audited_currentness_sha256: str,
     ) -> dict[str, Any]: ...
+
+    def build_release_bundle(
+        self,
+        *,
+        inventory: dict[str, Any],
+        candidate_inventory_sha256: str,
+        currentness_evidence: dict[str, Any],
+        currentness_evidence_sha256: str,
+        pii_evidence: dict[str, Any],
+        pii_evidence_sha256: str,
+        preflight_evidence: dict[str, Any],
+        preflight_evidence_sha256: str,
+        rights_registry: dict[str, Any],
+        rights_registry_sha256: str,
+        profiles_by_collection: dict[str, dict[str, Any]],
+        profile_manifest: dict[str, Any],
+        profile_manifest_sha256: str,
+        programme_registry: dict[str, Any],
+        programme_registry_sha256: str,
+        programme_indexes_by_path: dict[str, dict[str, Any]],
+        level_mapping: dict[str, Any],
+        level_mapping_sha256: str,
+        subject_mapping: dict[str, Any],
+        subject_mapping_sha256: str,
+        document_type_mapping: dict[str, Any],
+        document_type_mapping_sha256: str,
+    ) -> dict[str, Any]: ...
+
+    def evaluate_release_eligibility(self, **inputs: Any) -> dict[str, Any]: ...
 
     def main(self, argv: list[str] | None = None) -> int: ...
 
@@ -1179,3 +1209,758 @@ def test_materialized_currentness_evidence_matches_exact_inventory_and_audit() -
         audited_currentness_sha256=audit_sha,
     )
     assert builder.canonical_json_bytes(regenerated) == evidence_path.read_bytes()
+
+
+def _synthetic_release_inputs(builder: MultilevelBuilder) -> dict[str, Any]:
+    candidates_by_collection: dict[str, list[dict[str, Any]]] = {}
+    currentness_rows: list[dict[str, Any]] = []
+    pii_rows: list[dict[str, Any]] = []
+    preflight_rows: list[dict[str, Any]] = []
+    profiles: dict[str, dict[str, Any]] = {}
+    profile_entries: list[dict[str, str]] = []
+    programme_indexes: dict[str, dict[str, Any]] = {}
+    registry_indexes: list[dict[str, str]] = []
+    registry_taxonomies: list[dict[str, str]] = []
+    level_mapping = {
+        "mapping_kind": "EDUSCOL_MULTILEVEL_LEVELS_V1",
+        "external_levels": {
+            "4e": "quatrieme",
+            "seconde": "seconde",
+            "premiere": "premiere",
+            "terminale": "terminale",
+        },
+    }
+    subject_mapping = {
+        "mapping_kind": "EDUSCOL_MULTILEVEL_SUBJECTS_V1",
+        "external_subjects": {
+            "mathematiques": "maths",
+            "francais": "francais",
+            "nsi": "nsi",
+            "physique-chimie": "physique_chimie",
+        },
+    }
+    document_type_mapping = {
+        "mapping_kind": "EDUSCOL_MULTILEVEL_DOCUMENT_TYPES_V1",
+        "document_types": {
+            "diaporama": "diaporama",
+            "programme-officiel": "programme_officiel",
+            "reperes-attendus": "ressource_officielle",
+            "ressource-accompagnement": "ressource_officielle",
+        },
+    }
+    external_levels = cast(dict[str, str], level_mapping["external_levels"])
+    external_subjects = cast(dict[str, str], subject_mapping["external_subjects"])
+    programme_versions = {
+        "rag_nexus_maths_seconde_tc": "BOEN_14_2026-04-02_MENE2602914A",
+        "rag_nexus_francais_seconde_tc": "BOEN_special_1_2019-01-22",
+        "rag_nexus_maths_quatrieme_tc": "BOEN_special_11_2018-07-26_aj_2020",
+        "rag_nexus_francais_quatrieme_tc": "BOEN_special_11_2018-07-26_aj_2020",
+        "rag_nexus_maths_premiere_gen_specialite": ("BOEN_14_2026-04-02_MENE2602917A"),
+        "rag_nexus_nsi_premiere_specialite": "BOEN_special_1_2019-01-22",
+        "rag_nexus_francais_premiere_tc": "BOEN_special_1_2019-01-22",
+        "rag_nexus_maths_terminale_gen_specialite": "BOEN_special_8_2019-07-25",
+        "rag_nexus_nsi_terminale_specialite": "BOEN_special_8_2019-07-25",
+        "rag_nexus_pc_terminale_specialite": "BOEN_special_8_2019-07-25",
+    }
+    for index, target in enumerate(builder.TARGET_MATRIX, start=1):
+        collection = target["collection"]
+        content_sha = f"{index:064x}"
+        source_placement_id = f"par-scope/{collection}/{content_sha}.pdf"
+        candidate = {
+            "content_sha256": content_sha,
+            "physical_path": f"01_EDUSCOL_OFFICIEL/{collection}/{content_sha}.pdf",
+            "physical_currentness_candidate": "unclassified",
+            "physical_disposition_candidate": "REVIEW_REQUIRED",
+            "placements": [
+                {
+                    "source_placement_id": source_placement_id,
+                    "source_url": f"https://eduscol.education.gouv.fr/{index}/document",
+                    "title": f"Document officiel {collection}",
+                    "external_level": target["external_level"],
+                    "external_subject": target["external_subject"],
+                    "external_scope": target["external_scope"],
+                    "external_document_type": "programme-officiel",
+                    "pedagogical_status": "current",
+                    "year": "2026",
+                    "placement_origin": "SEALED_PARENT_CATALOG",
+                    "placement_reason_code": None,
+                }
+            ],
+        }
+        candidates_by_collection[collection] = [candidate]
+        currentness_rows.append(
+            {
+                "content_sha256": content_sha,
+                "exact_path": candidate["physical_path"],
+                "collections": [collection],
+                "placement_facts": [],
+                "current_for_school_year": "2026-2027",
+                "decision": "CURRENT",
+                "reason_codes": ["OFFICIAL_CURRENT_BYTE_IDENTITY_EXACT"],
+                "effective_currentness": "actuel",
+                "current_source_listing_url": (
+                    f"https://eduscol.education.gouv.fr/{index}/listing"
+                ),
+                "current_download_url": (f"https://eduscol.education.gouv.fr/{index}/document.pdf"),
+                "current_download_sha256": content_sha,
+                "byte_identity": True,
+            }
+        )
+        pii_rows.append(
+            {
+                "content_sha256": content_sha,
+                "status": "CLEARED",
+                "pii_detected": False,
+                "error_code": None,
+            }
+        )
+        chunk_id = hashlib.sha256(f"chunk:{content_sha}".encode()).hexdigest()
+        chunk_sha = hashlib.sha256(f"text:{content_sha}".encode()).hexdigest()
+        preflight_rows.append(
+            {
+                "content_sha256": content_sha,
+                "collections": [
+                    {
+                        "collection": collection,
+                        "profile_fingerprint": "TO_BE_REPLACED",
+                        "profile_version": "multilevel-v1",
+                        "programme_version": programme_versions[collection],
+                    }
+                ],
+                "extraction_complete": True,
+                "page_count": 1,
+                "empty_extracted_pages": 0,
+                "chunking_complete": True,
+                "page_coverage": 1.0,
+                "empty_chunks": 0,
+                "oversized_model_chunks": 0,
+                "null_page_metadata": 0,
+                "min_real_e5_tokens": 32,
+                "max_real_e5_tokens": 64,
+                "rights": "officiel_public",
+                "profile_conformity": True,
+                "programme_conformity": True,
+                "placement_clear": True,
+                "chunks": [
+                    {
+                        "chunk_index": 0,
+                        "chunk_id": chunk_id,
+                        "chunk_sha256": chunk_sha,
+                        "page_start": 1,
+                        "page_end": 1,
+                        "real_e5_tokens": 64,
+                    }
+                ],
+            }
+        )
+        mapped_level = external_levels[target["external_level"]]
+        mapped_subject = external_subjects[target["external_subject"]]
+        statut = "tronc_commun" if collection.endswith("_tc") else "specialite"
+        voie = "college" if target["external_level"] == "4e" else "generale"
+        profile = {
+            "profile_version": "multilevel-v1",
+            "enabled": True,
+            "scope": {
+                "tenant": f"libre_{mapped_level}",
+                "collection": collection,
+                "niveau": mapped_level,
+                "voie": voie,
+                "matiere": mapped_subject,
+                "candidat": "libre",
+                "audience": ["libre", "tous"],
+                "visibility": "internal",
+                "school_year": "2026-2027",
+                "programme_version": programme_versions[collection],
+            },
+            "title": f"Profil {collection}",
+            "language": "fr",
+            "owner": "Nexus Réussite",
+            "expected_topics": ["programme"],
+            "expected_resource_types": ["programme_officiel"],
+            "excluded_topics": [],
+            "allowed_domains": ["eduscol.education.gouv.fr"],
+            "seed_urls": ["https://eduscol.education.gouv.fr/programmes"],
+            "source_authority": "official",
+            "search_cadence": "manual",
+            "max_queries_per_run": 1,
+            "max_documents_per_run": 1,
+            "max_chunk_size": 800,
+            "chunk_overlap": 100,
+            "min_source_confidence": 0.9,
+            "min_scope_confidence": 0.9,
+            "min_extraction_quality": 0.1,
+            "reject_unknown_rights": True,
+            "reject_ambiguous_routing": True,
+            "publication": {"mode": "human_review", "auto_publish": False},
+        }
+        profiles[collection] = profile
+        validated_profile = CollectionProfile.model_validate(profile)
+        profile_fingerprint = hashlib.sha256(
+            json.dumps(
+                validated_profile.model_dump(mode="json"),
+                ensure_ascii=True,
+                sort_keys=True,
+            ).encode()
+        ).hexdigest()
+        profile_entries.append(
+            {
+                "collection": collection,
+                "profile_version": "multilevel-v1",
+                "fingerprint": profile_fingerprint,
+            }
+        )
+        preflight_rows[-1]["collections"][0]["profile_fingerprint"] = profile_fingerprint
+        index_path = f"indexes/{index}.yml"
+        index_document = {
+            "niveau": mapped_level,
+            "voie": voie,
+            "school_year": "2026-2027",
+            "fiches": [
+                {
+                    "collection_cible": collection,
+                    "matiere": mapped_subject,
+                    "statut_enseignement": statut,
+                    "programme_version": programme_versions[collection],
+                }
+            ],
+        }
+        programme_indexes[index_path] = index_document
+        registry_indexes.append(
+            {
+                "path": index_path,
+                "sha256": hashlib.sha256(builder.canonical_json_bytes(index_document)).hexdigest(),
+            }
+        )
+        taxonomy_document = {"collection": collection}
+        registry_taxonomies.append(
+            {
+                "collection": collection,
+                "path": f"taxonomy/{collection}.yml",
+                "sha256": hashlib.sha256(
+                    builder.canonical_json_bytes(taxonomy_document)
+                ).hexdigest(),
+                "niveau": mapped_level,
+                "voie": voie,
+                "matiere": mapped_subject,
+                "statut_enseignement": statut,
+                "programme_version": programme_versions[collection],
+            }
+        )
+
+    collection_rows = []
+    all_shas: set[str] = set()
+    placement_count = 0
+    for target in builder.TARGET_MATRIX:
+        collection = target["collection"]
+        candidates = candidates_by_collection[collection]
+        all_shas.update(row["content_sha256"] for row in candidates)
+        placement_count += sum(len(row["placements"]) for row in candidates)
+        collection_rows.append(
+            {
+                "phase": target["phase"],
+                "collection": collection,
+                "selection": {
+                    "external_level": target["external_level"],
+                    "external_subject": target["external_subject"],
+                    "external_scope": target["external_scope"],
+                    "source_zone": "01_EDUSCOL_OFFICIEL/",
+                    "media_type": "application/pdf",
+                },
+                "counts": {
+                    "unique_artifacts": len(candidates),
+                    "placements": sum(len(row["placements"]) for row in candidates),
+                    "physical_objects": len(candidates),
+                    "multi_placement_artifacts": 0,
+                },
+                "observed": {},
+                "discovery_routes": [],
+                "inventory_disposition": "EXACT_GRADE_GATES_PENDING",
+                "candidate_partition": {
+                    "exact_grade_gates_pending": [row["content_sha256"] for row in candidates],
+                    "named_noneligible": [],
+                    "placement_proof_or_corpus_delta_required": [],
+                    "unevaluated": [],
+                },
+                "candidates": candidates,
+            }
+        )
+    inventory = {
+        "inventory_kind": "MULTILEVEL_CANDIDATE_INVENTORY_V1",
+        "school_year": "2026-2027",
+        "corpus_manifest_sha256": "a" * 64,
+        "sealed_catalog_sha256": "b" * 64,
+        "placement_catalog_sha256": "c" * 64,
+        "catalog_delta_sha256": "d" * 64,
+        "catalog_delta_payload_sha256": "e" * 64,
+        "effective_catalog_authority_sha256": "f" * 64,
+        "counts": {
+            "target_collections": 10,
+            "unique_artifacts": len(all_shas),
+            "placements": placement_count,
+            "physical_objects": len(all_shas),
+            "multi_placement_artifacts": 0,
+        },
+        "collection_partition": {
+            "exact_grade_gates_pending": [target["collection"] for target in builder.TARGET_MATRIX],
+            "placement_proof_or_corpus_delta_required": [],
+            "unevaluated": [],
+        },
+        "collections": collection_rows,
+    }
+    inventory_sha = hashlib.sha256(builder.canonical_json_bytes(inventory)).hexdigest()
+    currentness = {
+        "evidence_kind": "MULTILEVEL_ARTIFACT_CURRENTNESS_V1",
+        "school_year": "2026-2027",
+        "candidate_inventory_sha256": inventory_sha,
+        "counts": {
+            "artifacts": 10,
+            "evaluated": 10,
+            "current": 10,
+            "review_required": 0,
+            "unevaluated": 0,
+            "by_collection": {},
+        },
+        "partition": {
+            "current": sorted(all_shas),
+            "review_required": [],
+            "unevaluated": [],
+        },
+        "artifacts": sorted(currentness_rows, key=lambda row: row["content_sha256"]),
+    }
+    currentness_sha = hashlib.sha256(builder.canonical_json_bytes(currentness)).hexdigest()
+    pii = {
+        "evidence_kind": "REAL_CORPUS_PII_SCAN",
+        "school_year": "2026-2027",
+        "candidate_inventory_sha256": inventory_sha,
+        "corpus_manifest_sha256": inventory["corpus_manifest_sha256"],
+        "policy_version": "pii_gate_policy_h2b_v5",
+        "policy_sha256": "1" * 64,
+        "scanner_version": "v5",
+        "scanner_sha256": "2" * 64,
+        "required_pdf_path_count": 10,
+        "remote_access_mode": "READ_ONLY",
+        "remote_write_operations": 0,
+        "raw_pii_in_output": False,
+        "raw_pii_in_logs": False,
+        "summary": {
+            "pii_scan_required": 10,
+            "pii_scanned": 10,
+            "pii_scan_coverage": 1.0,
+            "pii_not_scanned": 0,
+            "sha256_mismatches": 0,
+        },
+        "results": sorted(pii_rows, key=lambda row: row["content_sha256"]),
+    }
+    pii_sha = hashlib.sha256(builder.canonical_json_bytes(pii)).hexdigest()
+    profile_manifest = {
+        "manifest_kind": "NEXUS_STAGING_PROFILE_MANIFEST_V1",
+        "provenance": "Fixture staging multi-niveaux",
+        "generated_at": "2026-08-12T00:00:00Z",
+        "authority_mode": "STAGING_LOCAL_GITHUB_ONLY",
+        "production_approval": False,
+        "profiles": sorted(profile_entries, key=lambda row: row["collection"]),
+    }
+    profile_manifest_sha = hashlib.sha256(
+        builder.canonical_json_bytes(profile_manifest)
+    ).hexdigest()
+    programme_registry = {
+        "registry_kind": "NEXUS_PROGRAMME_INDEX_REGISTRY_V3",
+        "school_year": "2026-2027",
+        "indexes": registry_indexes,
+        "taxonomies": registry_taxonomies,
+    }
+    programme_registry_sha = hashlib.sha256(
+        builder.canonical_json_bytes(programme_registry)
+    ).hexdigest()
+    mappings = {
+        "level_mapping": level_mapping,
+        "level_mapping_sha256": hashlib.sha256(
+            builder.canonical_json_bytes(level_mapping)
+        ).hexdigest(),
+        "subject_mapping": subject_mapping,
+        "subject_mapping_sha256": hashlib.sha256(
+            builder.canonical_json_bytes(subject_mapping)
+        ).hexdigest(),
+        "document_type_mapping": document_type_mapping,
+        "document_type_mapping_sha256": hashlib.sha256(
+            builder.canonical_json_bytes(document_type_mapping)
+        ).hexdigest(),
+    }
+    rights = {
+        "registry_id": "rights_evidence_registry_h2b_v3",
+        "human_rights_decisions": {
+            "eduscol_generic_approval": {
+                "scope_manifest_sha256": inventory["corpus_manifest_sha256"],
+                "approved_for_internal_rag": True,
+                "approved_for_production_rag": True,
+                "generic_rights_blocker": False,
+            }
+        },
+        "source_evidence": {
+            "eduscol": {
+                "zone": "01_EDUSCOL_OFFICIEL/",
+                "rights_status": "CLEARED_BY_HUMAN_DECISION",
+                "rights_decision_ref": "eduscol_generic_approval",
+                "recommended_rights_category": "officiel_public",
+            }
+        },
+    }
+    rights_sha = hashlib.sha256(builder.canonical_json_bytes(rights)).hexdigest()
+    preflight = {
+        "evidence_kind": "MULTILEVEL_RELEASE_PREFLIGHT_V1",
+        "school_year": "2026-2027",
+        "candidate_inventory_sha256": inventory_sha,
+        "corpus_manifest_sha256": inventory["corpus_manifest_sha256"],
+        "currentness_evidence_sha256": currentness_sha,
+        "pii_evidence_sha256": pii_sha,
+        "pii_policy_sha256": pii["policy_sha256"],
+        "rights_registry_sha256": rights_sha,
+        "profile_manifest_sha256": profile_manifest_sha,
+        "profile_manifest_declared_count": 10,
+        "programme_registry_sha256": programme_registry_sha,
+        "programme_index_sha256_by_path": {row["path"]: row["sha256"] for row in registry_indexes},
+        "embedding_model_id": "intfloat/multilingual-e5-large",
+        "embedding_inventory_sha256": (
+            "e2c7384ba36096b3f3bdfff4973f728596104aff0f1d38f1b6463e60765fe22a"
+        ),
+        "embedding_dimension": 1024,
+        "embedding_max_sequence_length": 512,
+        "raw_pii_in_evidence": False,
+        "raw_text_in_evidence": False,
+        "selection": {
+            "current_artifacts": 10,
+            "current_and_pii_cleared": 10,
+            "excluded_current_pii_sha256": [],
+        },
+        "summary": {
+            "required": 10,
+            "evaluated": 10,
+            "pass": 10,
+            "review_required": 0,
+            "total_chunks": 10,
+            "total_pages": 10,
+            "extraction_failures": 0,
+            "full_page_coverage_artifacts": 10,
+            "empty_chunks": 0,
+            "oversized_model_chunks": 0,
+            "null_page_metadata": 0,
+        },
+        "artifacts": sorted(preflight_rows, key=lambda row: row["content_sha256"]),
+    }
+    return {
+        "inventory": inventory,
+        "candidate_inventory_sha256": inventory_sha,
+        "currentness_evidence": currentness,
+        "currentness_evidence_sha256": currentness_sha,
+        "pii_evidence": pii,
+        "pii_evidence_sha256": pii_sha,
+        "preflight_evidence": preflight,
+        "preflight_evidence_sha256": hashlib.sha256(
+            builder.canonical_json_bytes(preflight)
+        ).hexdigest(),
+        "rights_registry": rights,
+        "rights_registry_sha256": rights_sha,
+        "profiles_by_collection": profiles,
+        "profile_manifest": profile_manifest,
+        "profile_manifest_sha256": profile_manifest_sha,
+        "programme_registry": programme_registry,
+        "programme_registry_sha256": programme_registry_sha,
+        "programme_indexes_by_path": programme_indexes,
+        **mappings,
+    }
+
+
+def test_release_bundle_builds_ten_nonempty_subjects_and_exact_aggregate() -> None:
+    builder = _module()
+    inputs = _synthetic_release_inputs(builder)
+
+    bundle = builder.build_release_bundle(**inputs)
+
+    assert bundle["eligibility"]["counts"] == {
+        "candidate_artifacts": 10,
+        "release_eligible": 10,
+        "named_noneligible": 0,
+        "unevaluated": 0,
+    }
+    assert len(bundle["subject_releases"]) == 10
+    assert all(
+        release["manifest"]["release_kind"] == "MULTILEVEL_SUBJECT_RELEASE_V1"
+        and release["manifest"]["expected_counts"]["artifacts"] == 1
+        and release["manifest"]["expected_counts"]["placements"] == 1
+        and release["manifest"]["expected_counts"]["chunks"] == 1
+        for release in bundle["subject_releases"]
+    )
+    aggregate = bundle["aggregate_release"]
+    assert aggregate["release_kind"] == "MULTILEVEL_AGGREGATE_RELEASE_V1"
+    assert len(aggregate["subjects"]) == 10
+    assert aggregate["expected_counts"] == {
+        "artifacts": 10,
+        "placements": 10,
+        "chunks": 10,
+    }
+    assert all(subject["sha256"] for subject in aggregate["subjects"])
+    assert all(subject["path"].endswith(".release.json") for subject in aggregate["subjects"])
+    manifest = bundle["subject_releases"][0]["manifest"]
+    assert set(manifest["authorities"]) == {
+        "corpus_manifest_sha256",
+        "parent_sealed_catalog_sha256",
+        "placement_catalog_sha256",
+        "catalog_delta_sha256",
+        "effective_catalog_authority_sha256",
+        "candidate_inventory_sha256",
+        "currentness_evidence_sha256",
+        "pii_evidence_sha256",
+        "pii_policy_sha256",
+        "pii_scanner_sha256",
+        "rights_registry_sha256",
+        "preflight_evidence_sha256",
+        "programme_registry_sha256",
+        "profile_manifest_sha256",
+        "level_mapping_sha256",
+        "subject_mapping_sha256",
+        "document_type_mapping_sha256",
+        "embedding_inventory_sha256",
+        "reranker_inventory_sha256",
+    }
+    artifact = manifest["artifacts"][0]
+    currentness_row = next(
+        row
+        for row in inputs["currentness_evidence"]["artifacts"]
+        if row["content_sha256"] == artifact["content_sha256"]
+    )
+    assert artifact["source_url"] == currentness_row["current_download_url"]
+    assert (
+        artifact["source_url"]
+        != inputs["inventory"]["collections"][0]["candidates"][0]["placements"][0]["source_url"]
+    )
+    assert artifact["page_count"] == 1
+    assert artifact["type_doc"] == "programme_officiel"
+    assert artifact["placement_id_set_digest"]
+    assert artifact["chunk_id_set_digest"]
+    assert artifact["chunk_sha256_set_digest"]
+    assert artifact["page_coverage_digest"]
+    assert artifact["placements"][0]["source_placement_id"].startswith("par-scope/")
+
+
+def test_release_eligibility_is_complete_and_never_invents_currentness() -> None:
+    builder = _module()
+    inputs = _synthetic_release_inputs(builder)
+    first_sha = inputs["inventory"]["collections"][0]["candidates"][0]["content_sha256"]
+    current_row = next(
+        row
+        for row in inputs["currentness_evidence"]["artifacts"]
+        if row["content_sha256"] == first_sha
+    )
+    current_row["decision"] = "REVIEW_REQUIRED"
+    current_row["effective_currentness"] = None
+    inputs["currentness_evidence"]["partition"]["current"].remove(first_sha)
+    inputs["currentness_evidence"]["partition"]["review_required"].append(first_sha)
+    inputs["currentness_evidence"]["counts"]["current"] = 9
+    inputs["currentness_evidence"]["counts"]["review_required"] = 1
+    inputs["currentness_evidence_sha256"] = hashlib.sha256(
+        builder.canonical_json_bytes(inputs["currentness_evidence"])
+    ).hexdigest()
+    inputs["preflight_evidence"]["currentness_evidence_sha256"] = inputs[
+        "currentness_evidence_sha256"
+    ]
+    inputs["preflight_evidence"]["artifacts"] = [
+        row
+        for row in inputs["preflight_evidence"]["artifacts"]
+        if row["content_sha256"] != first_sha
+    ]
+    inputs["preflight_evidence"]["selection"]["current_artifacts"] = 9
+    inputs["preflight_evidence"]["selection"]["current_and_pii_cleared"] = 9
+    for field in ("required", "evaluated", "pass", "total_chunks", "total_pages"):
+        inputs["preflight_evidence"]["summary"][field] = 9
+    inputs["preflight_evidence_sha256"] = hashlib.sha256(
+        builder.canonical_json_bytes(inputs["preflight_evidence"])
+    ).hexdigest()
+
+    eligibility = builder.evaluate_release_eligibility(**inputs)
+
+    assert eligibility["counts"] == {
+        "candidate_artifacts": 10,
+        "release_eligible": 9,
+        "named_noneligible": 1,
+        "unevaluated": 0,
+    }
+    decision = eligibility["by_content"][first_sha]
+    assert decision == {
+        "release_eligible": False,
+        "reason_codes": ["CURRENTNESS_NOT_CURRENT"],
+        "collections": ["rag_nexus_maths_seconde_tc"],
+    }
+    assert set(eligibility["partition"]["release_eligible"]) | set(
+        eligibility["partition"]["named_noneligible"]
+    ) == set(eligibility["by_content"])
+
+
+@pytest.mark.parametrize(
+    ("mutation", "match"),
+    [
+        (
+            lambda values: values["preflight_evidence"]["artifacts"].pop(),
+            "preflight artifact set",
+        ),
+        (
+            lambda values: values["preflight_evidence"].update(
+                {"profile_manifest_sha256": "9" * 64}
+            ),
+            "preflight authority",
+        ),
+    ],
+)
+def test_release_bundle_refuses_absent_drifted_or_unknown_authority(
+    mutation: Any, match: str
+) -> None:
+    builder = _module()
+    inputs = _synthetic_release_inputs(builder)
+    mutation(inputs)
+    if "preflight" in match:
+        inputs["preflight_evidence_sha256"] = hashlib.sha256(
+            builder.canonical_json_bytes(inputs["preflight_evidence"])
+        ).hexdigest()
+
+    with pytest.raises(ValueError, match=match):
+        builder.build_release_bundle(**inputs)
+
+
+def test_unknown_document_type_is_named_noneligible_without_stopping_batch() -> None:
+    builder = _module()
+    inputs = _synthetic_release_inputs(builder)
+    first_sha = inputs["inventory"]["collections"][0]["candidates"][0]["content_sha256"]
+    inputs["inventory"]["collections"][0]["candidates"][0]["placements"][0][
+        "external_document_type"
+    ] = "unknown-type"
+    inputs["candidate_inventory_sha256"] = hashlib.sha256(
+        builder.canonical_json_bytes(inputs["inventory"])
+    ).hexdigest()
+    inputs["currentness_evidence"]["candidate_inventory_sha256"] = inputs[
+        "candidate_inventory_sha256"
+    ]
+    inputs["currentness_evidence_sha256"] = hashlib.sha256(
+        builder.canonical_json_bytes(inputs["currentness_evidence"])
+    ).hexdigest()
+    inputs["pii_evidence"]["candidate_inventory_sha256"] = inputs["candidate_inventory_sha256"]
+    inputs["pii_evidence_sha256"] = hashlib.sha256(
+        builder.canonical_json_bytes(inputs["pii_evidence"])
+    ).hexdigest()
+    inputs["preflight_evidence"].update(
+        {
+            "candidate_inventory_sha256": inputs["candidate_inventory_sha256"],
+            "currentness_evidence_sha256": inputs["currentness_evidence_sha256"],
+            "pii_evidence_sha256": inputs["pii_evidence_sha256"],
+        }
+    )
+    inputs["preflight_evidence_sha256"] = hashlib.sha256(
+        builder.canonical_json_bytes(inputs["preflight_evidence"])
+    ).hexdigest()
+
+    eligibility = builder.evaluate_release_eligibility(**inputs)
+
+    assert eligibility["by_content"][first_sha]["release_eligible"] is False
+    assert eligibility["by_content"][first_sha]["reason_codes"] == ["TYPE_DOC_UNMAPPED"]
+    assert eligibility["counts"]["release_eligible"] == 9
+
+
+def test_release_cli_writes_ten_subjects_and_aggregate_deterministically(
+    tmp_path: Path,
+) -> None:
+    builder = _module()
+    inputs = _synthetic_release_inputs(builder)
+    repository_root = tmp_path / "repository"
+    profiles_dir = tmp_path / "profiles"
+    output_root = tmp_path / "release"
+    paths: dict[str, Path] = {}
+    document_names = {
+        "inventory": "inventory.json",
+        "currentness_evidence": "currentness.json",
+        "pii_evidence": "pii.json",
+        "preflight_evidence": "preflight.json",
+        "rights_registry": "rights.yml",
+        "profile_manifest": "profiles.json",
+        "programme_registry": "programme.yml",
+        "level_mapping": "levels.yml",
+        "subject_mapping": "subjects.yml",
+        "document_type_mapping": "document-types.yml",
+    }
+    for name, filename in document_names.items():
+        path = tmp_path / filename
+        path.write_bytes(builder.canonical_json_bytes(inputs[name]))
+        paths[name] = path
+    for collection, profile in inputs["profiles_by_collection"].items():
+        profile_path = profiles_dir / f"{collection}.yml"
+        profile_path.parent.mkdir(parents=True, exist_ok=True)
+        profile_path.write_bytes(builder.canonical_json_bytes(profile))
+    for relative, document in inputs["programme_indexes_by_path"].items():
+        index_path = repository_root / relative
+        index_path.parent.mkdir(parents=True, exist_ok=True)
+        index_path.write_bytes(builder.canonical_json_bytes(document))
+    for taxonomy in inputs["programme_registry"]["taxonomies"]:
+        taxonomy_path = repository_root / taxonomy["path"]
+        taxonomy_path.parent.mkdir(parents=True, exist_ok=True)
+        taxonomy_path.write_bytes(
+            builder.canonical_json_bytes({"collection": taxonomy["collection"]})
+        )
+    digest_args = {
+        "inventory": "candidate_inventory_sha256",
+        "currentness_evidence": "currentness_evidence_sha256",
+        "pii_evidence": "pii_evidence_sha256",
+        "preflight_evidence": "preflight_evidence_sha256",
+        "rights_registry": "rights_registry_sha256",
+        "profile_manifest": "profile_manifest_sha256",
+        "programme_registry": "programme_registry_sha256",
+        "level_mapping": "level_mapping_sha256",
+        "subject_mapping": "subject_mapping_sha256",
+        "document_type_mapping": "document_type_mapping_sha256",
+    }
+    argv = ["release"]
+    cli_names = {
+        "currentness_evidence": "currentness",
+        "pii_evidence": "pii",
+        "preflight_evidence": "preflight",
+        "rights_registry": "rights-registry",
+        "profile_manifest": "profile-manifest",
+        "programme_registry": "programme-registry",
+        "level_mapping": "level-mapping",
+        "subject_mapping": "subject-mapping",
+        "document_type_mapping": "document-type-mapping",
+        "inventory": "inventory",
+    }
+    for name, path in paths.items():
+        option = cli_names[name]
+        argv.extend(
+            [
+                f"--{option}",
+                str(path),
+                f"--{option}-sha256",
+                str(inputs[digest_args[name]]),
+            ]
+        )
+    argv.extend(
+        [
+            "--profiles-dir",
+            str(profiles_dir),
+            "--repository-root",
+            str(repository_root),
+            "--output-root",
+            str(output_root),
+        ]
+    )
+
+    assert builder.main(argv) == 0
+    aggregate_path = output_root / "multilevel.release.json"
+    assert (output_root / "multilevel.eligibility.json").is_file()
+    first_aggregate = aggregate_path.read_bytes()
+    aggregate = json.loads(first_aggregate)
+    assert aggregate["release_kind"] == "MULTILEVEL_AGGREGATE_RELEASE_V1"
+    assert len(aggregate["subjects"]) == 10
+    assert all((output_root / row["path"]).is_file() for row in aggregate["subjects"])
+    assert builder.main(argv) == 0
+    assert aggregate_path.read_bytes() == first_aggregate
+
+    wrong = argv.copy()
+    index = wrong.index("--programme-registry-sha256") + 1
+    wrong[index] = "9" * 64
+    with pytest.raises(ValueError, match="programme registry digest differs"):
+        builder.main(wrong)
