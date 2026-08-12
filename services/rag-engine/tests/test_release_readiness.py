@@ -15,9 +15,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from ingestor import release_readiness as readiness  # noqa: E402
 from ingestor.release_readiness import (  # noqa: E402
     ReleaseDatabaseSnapshot,
+    ReleaseReadinessError,
     collect_release_snapshot,
     evaluate_release_snapshot,
     load_release_expectation,
+    load_release_registry_file,
     validate_release_readiness,
 )
 
@@ -31,6 +33,10 @@ WAVE0_RELEASE = (
 MULTILEVEL_RELEASE = (
     REPO_ROOT
     / "services/rag-pedago/data/releases/prerentree_2026_2027/multilevel/multilevel.release.json"
+)
+RELEASE_REGISTRY = (
+    REPO_ROOT
+    / "services/rag-pedago/data/releases/prerentree_2026_2027/release-registry.json"
 )
 ARTIFACT_SHA = "a" * 64
 PLACEMENT_ID = "b" * 64
@@ -869,4 +875,439 @@ def test_runtime_startup_accepts_wave0_and_multilevel_registry(
     endpoint.validate_release_startup_configuration(
         load_retrieval_scope_registry(),
         config,
+    )
+
+
+def _write_registry(tmp_path: Path, payload: object, *, name: str = "release-registry.json") -> tuple[Path, str]:
+    path = tmp_path / name
+    digest = _write_json(path, payload)
+    return path, digest
+
+
+def _registry_entry(
+    manifest: Path,
+    digest: str,
+    *,
+    release_id: str,
+    collections: list[str],
+    registry_root: Path,
+    release_kind: str = "WAVE0_AGGREGATE_RELEASE_V1",
+) -> dict[str, object]:
+    return {
+        "release_id": release_id,
+        "collections": collections,
+        "manifest_path": str(
+            Path(manifest).resolve().relative_to(Path(registry_root).resolve())
+        ),
+        "expected_manifest_sha256": digest,
+        "release_kind": release_kind,
+    }
+
+
+def test_real_release_registry_file_preserves_all_twelve_collections() -> None:
+    registry_sha256 = hashlib.sha256(RELEASE_REGISTRY.read_bytes()).hexdigest()
+
+    registry = load_release_registry_file(RELEASE_REGISTRY, registry_sha256)
+
+    assert len(registry.collections) == 12
+    assert {
+        "rag_nexus_maths_troisieme_tc",
+        "rag_nexus_francais_troisieme_tc",
+    } < set(registry.collections)
+
+
+def test_release_registry_file_refuses_digest_mismatch(tmp_path: Path) -> None:
+    manifest, digest = _release_files(tmp_path / "wave0")
+    registry_path, _registry_digest = _write_registry(
+        tmp_path,
+        {
+            "registry_version": "1",
+            "school_year": "2026-2027",
+            "releases": [
+                _registry_entry(
+                    manifest,
+                    digest,
+                    release_id="r1",
+                    collections=[COLLECTION],
+                    registry_root=tmp_path,
+                )
+            ],
+        },
+    )
+
+    with pytest.raises(ReleaseReadinessError, match="digest mismatch"):
+        load_release_registry_file(registry_path, "0" * 64)
+
+
+def test_release_registry_file_refuses_missing_file(tmp_path: Path) -> None:
+    with pytest.raises(ReleaseReadinessError, match="unavailable"):
+        load_release_registry_file(tmp_path / "missing-registry.json", "0" * 64)
+
+
+def test_release_registry_file_refuses_manifest_digest_drift(tmp_path: Path) -> None:
+    manifest, _digest = _release_files(tmp_path / "wave0")
+    registry_path, registry_digest = _write_registry(
+        tmp_path,
+        {
+            "registry_version": "1",
+            "school_year": "2026-2027",
+            "releases": [
+                _registry_entry(
+                    manifest,
+                    "0" * 64,
+                    release_id="r1",
+                    collections=[COLLECTION],
+                    registry_root=tmp_path,
+                )
+            ],
+        },
+    )
+
+    with pytest.raises(ReleaseReadinessError, match="digest mismatch"):
+        load_release_registry_file(registry_path, registry_digest)
+
+
+def test_release_registry_file_refuses_manifest_absent(tmp_path: Path) -> None:
+    registry_path, registry_digest = _write_registry(
+        tmp_path,
+        {
+            "registry_version": "1",
+            "school_year": "2026-2027",
+            "releases": [
+                {
+                    "release_id": "r1",
+                    "collections": [COLLECTION],
+                    "manifest_path": "does-not-exist.json",
+                    "expected_manifest_sha256": "0" * 64,
+                    "release_kind": "WAVE0_AGGREGATE_RELEASE_V1",
+                }
+            ],
+        },
+    )
+
+    with pytest.raises(ReleaseReadinessError, match="unavailable"):
+        load_release_registry_file(registry_path, registry_digest)
+
+
+def test_release_registry_file_refuses_unsupported_version(tmp_path: Path) -> None:
+    manifest, digest = _release_files(tmp_path / "wave0")
+    registry_path, registry_digest = _write_registry(
+        tmp_path,
+        {
+            "registry_version": "999",
+            "school_year": "2026-2027",
+            "releases": [
+                _registry_entry(
+                    manifest,
+                    digest,
+                    release_id="r1",
+                    collections=[COLLECTION],
+                    registry_root=tmp_path,
+                )
+            ],
+        },
+    )
+
+    with pytest.raises(ReleaseReadinessError, match="version is unsupported"):
+        load_release_registry_file(registry_path, registry_digest)
+
+
+def test_release_registry_file_refuses_wildcard_manifest_path(tmp_path: Path) -> None:
+    manifest, digest = _release_files(tmp_path / "wave0")
+    registry_path, registry_digest = _write_registry(
+        tmp_path,
+        {
+            "registry_version": "1",
+            "school_year": "2026-2027",
+            "releases": [
+                {
+                    "release_id": "r1",
+                    "collections": [COLLECTION],
+                    "manifest_path": "*.json",
+                    "expected_manifest_sha256": digest,
+                    "release_kind": "WAVE0_AGGREGATE_RELEASE_V1",
+                }
+            ],
+        },
+    )
+
+    with pytest.raises(ReleaseReadinessError, match="must be explicit"):
+        load_release_registry_file(registry_path, registry_digest)
+
+
+def test_release_registry_file_refuses_duplicate_release_id(tmp_path: Path) -> None:
+    first = _release_files(tmp_path / "first")
+    second = _release_files(
+        tmp_path / "second",
+        collection="rag_nexus_francais_seconde_tc",
+        artifact_sha="3" * 64,
+        placement_id="4" * 64,
+        chunk_id="5" * 64,
+        chunk_sha="6" * 64,
+    )
+    registry_path, registry_digest = _write_registry(
+        tmp_path,
+        {
+            "registry_version": "1",
+            "school_year": "2026-2027",
+            "releases": [
+                _registry_entry(
+                    *first,
+                    release_id="same",
+                    collections=[COLLECTION],
+                    registry_root=tmp_path,
+                ),
+                _registry_entry(
+                    *second,
+                    release_id="same",
+                    collections=["rag_nexus_francais_seconde_tc"],
+                    registry_root=tmp_path,
+                ),
+            ],
+        },
+    )
+
+    with pytest.raises(ReleaseReadinessError, match="duplicate release_id"):
+        load_release_registry_file(registry_path, registry_digest)
+
+
+def test_release_registry_file_refuses_declared_collection_collision(
+    tmp_path: Path,
+) -> None:
+    first = _release_files(tmp_path / "first")
+    second = _release_files(
+        tmp_path / "second",
+        collection="rag_nexus_francais_seconde_tc",
+        artifact_sha="3" * 64,
+        placement_id="4" * 64,
+        chunk_id="5" * 64,
+        chunk_sha="6" * 64,
+    )
+    registry_path, registry_digest = _write_registry(
+        tmp_path,
+        {
+            "registry_version": "1",
+            "school_year": "2026-2027",
+            "releases": [
+                _registry_entry(
+                    *first,
+                    release_id="r1",
+                    collections=[COLLECTION],
+                    registry_root=tmp_path,
+                ),
+                _registry_entry(
+                    *second,
+                    release_id="r2",
+                    # Declares a collection already claimed by r1 — must be
+                    # refused before the manifests are even reconciled.
+                    collections=[COLLECTION],
+                    registry_root=tmp_path,
+                ),
+            ],
+        },
+    )
+
+    with pytest.raises(ReleaseReadinessError, match="collection collision"):
+        load_release_registry_file(registry_path, registry_digest)
+
+
+def test_release_registry_file_refuses_declared_collections_not_matching_manifest(
+    tmp_path: Path,
+) -> None:
+    manifest, digest = _release_files(tmp_path / "wave0")
+    registry_path, registry_digest = _write_registry(
+        tmp_path,
+        {
+            "registry_version": "1",
+            "school_year": "2026-2027",
+            "releases": [
+                _registry_entry(
+                    manifest,
+                    digest,
+                    release_id="r1",
+                    collections=["rag_nexus_this_collection_does_not_exist"],
+                    registry_root=tmp_path,
+                )
+            ],
+        },
+    )
+
+    with pytest.raises(ReleaseReadinessError, match="declared collections"):
+        load_release_registry_file(registry_path, registry_digest)
+
+
+def test_release_registry_file_refuses_release_kind_drift(tmp_path: Path) -> None:
+    manifest, digest = _release_files(tmp_path / "wave0")
+    registry_path, registry_digest = _write_registry(
+        tmp_path,
+        {
+            "registry_version": "1",
+            "school_year": "2026-2027",
+            "releases": [
+                _registry_entry(
+                    manifest,
+                    digest,
+                    release_id="r1",
+                    collections=[COLLECTION],
+                    release_kind="MULTILEVEL_AGGREGATE_RELEASE_V1",
+                    registry_root=tmp_path,
+                )
+            ],
+        },
+    )
+
+    with pytest.raises(ReleaseReadinessError, match="release_kind"):
+        load_release_registry_file(registry_path, registry_digest)
+
+
+def test_runtime_uses_release_registry_file_as_primary_mechanism(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ingestor import retrieval_v2_endpoint as endpoint
+
+    registry_sha256 = hashlib.sha256(RELEASE_REGISTRY.read_bytes()).hexdigest()
+    monkeypatch.delenv("RAG_RELEASE_MANIFEST_PATH", raising=False)
+    monkeypatch.delenv("RAG_RELEASE_MANIFEST_SHA256", raising=False)
+    monkeypatch.delenv("RAG_RELEASE_MANIFESTS_JSON", raising=False)
+    monkeypatch.setenv("RAG_RELEASE_REGISTRY_PATH", str(RELEASE_REGISTRY))
+    monkeypatch.setenv("RAG_RELEASE_REGISTRY_SHA256", registry_sha256)
+
+    registry = endpoint._configured_release_registry()
+
+    assert registry is not None
+    assert len(registry.collections) == 12
+
+
+def test_runtime_release_registry_file_refuses_ambiguous_with_manifests_json(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ingestor import retrieval_v2_endpoint as endpoint
+
+    manifest, digest = _release_files(tmp_path)
+    registry_sha256 = hashlib.sha256(RELEASE_REGISTRY.read_bytes()).hexdigest()
+    monkeypatch.delenv("RAG_RELEASE_MANIFEST_PATH", raising=False)
+    monkeypatch.delenv("RAG_RELEASE_MANIFEST_SHA256", raising=False)
+    monkeypatch.setenv("RAG_RELEASE_REGISTRY_PATH", str(RELEASE_REGISTRY))
+    monkeypatch.setenv("RAG_RELEASE_REGISTRY_SHA256", registry_sha256)
+    monkeypatch.setenv(
+        "RAG_RELEASE_MANIFESTS_JSON",
+        json.dumps([{"path": str(manifest), "sha256": digest}]),
+    )
+
+    with pytest.raises(ValueError, match="ambiguous"):
+        endpoint._configured_release_registry()
+
+
+def test_runtime_release_registry_file_refuses_ambiguous_with_legacy_manifest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ingestor import retrieval_v2_endpoint as endpoint
+
+    manifest, digest = _release_files(tmp_path)
+    registry_sha256 = hashlib.sha256(RELEASE_REGISTRY.read_bytes()).hexdigest()
+    monkeypatch.delenv("RAG_RELEASE_MANIFESTS_JSON", raising=False)
+    monkeypatch.setenv("RAG_RELEASE_REGISTRY_PATH", str(RELEASE_REGISTRY))
+    monkeypatch.setenv("RAG_RELEASE_REGISTRY_SHA256", registry_sha256)
+    monkeypatch.setenv("RAG_RELEASE_MANIFEST_PATH", str(manifest))
+    monkeypatch.setenv("RAG_RELEASE_MANIFEST_SHA256", digest)
+
+    with pytest.raises(ValueError, match="ambiguous"):
+        endpoint._configured_release_registry()
+
+
+def test_runtime_release_registry_file_incomplete_configuration_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ingestor import retrieval_v2_endpoint as endpoint
+
+    monkeypatch.delenv("RAG_RELEASE_MANIFEST_PATH", raising=False)
+    monkeypatch.delenv("RAG_RELEASE_MANIFEST_SHA256", raising=False)
+    monkeypatch.delenv("RAG_RELEASE_MANIFESTS_JSON", raising=False)
+    monkeypatch.setenv("RAG_RELEASE_REGISTRY_PATH", str(RELEASE_REGISTRY))
+    monkeypatch.delenv("RAG_RELEASE_REGISTRY_SHA256", raising=False)
+
+    with pytest.raises(ValueError, match="incomplete"):
+        endpoint._configured_release_registry()
+
+
+def test_runtime_startup_accepts_release_registry_file(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import yaml
+    from nexus_contracts import load_retrieval_scope_registry
+
+    from ingestor import retrieval_v2_endpoint as endpoint
+
+    registry_sha256 = hashlib.sha256(RELEASE_REGISTRY.read_bytes()).hexdigest()
+    monkeypatch.delenv("RAG_RELEASE_MANIFEST_PATH", raising=False)
+    monkeypatch.delenv("RAG_RELEASE_MANIFEST_SHA256", raising=False)
+    monkeypatch.delenv("RAG_RELEASE_MANIFESTS_JSON", raising=False)
+    monkeypatch.setenv("RAG_RELEASE_REGISTRY_PATH", str(RELEASE_REGISTRY))
+    monkeypatch.setenv("RAG_RELEASE_REGISTRY_SHA256", registry_sha256)
+    config = yaml.safe_load(CANONICAL_COLLECTIONS.read_text(encoding="utf-8"))
+
+    endpoint.validate_release_startup_configuration(
+        load_retrieval_scope_registry(),
+        config,
+    )
+
+
+def test_runtime_blocks_retrieval_for_a_collection_outside_the_active_registry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A canonically instanciated collection that the *active* registry does
+    not cover must never be treated as retrievable: ``validate_release_
+    startup_configuration`` tolerates a registry that is an explicit,
+    non-empty subset of the instanciated V2 collections (phased rollout —
+    see ``test_startup_accepts_explicit_nonempty_release_subset_of_v2_
+    registry`` in ``test_multilevel_scope_registry.py``), but per-collection
+    release evidence must still fail closed for whatever the registry
+    leaves out, via ``_release_evidence_for_collection``."""
+    import shutil
+
+    from ingestor import retrieval_v2_endpoint as endpoint
+
+    # Manifests must live under the registry's own root (no escaping paths),
+    # so the real wave0/ tree is copied alongside the synthetic registry.
+    wave0_copy = tmp_path / "wave0"
+    shutil.copytree(WAVE0_RELEASE.parent, wave0_copy)
+    wave0_sha256 = hashlib.sha256((wave0_copy / WAVE0_RELEASE.name).read_bytes()).hexdigest()
+    registry_path, registry_digest = _write_registry(
+        tmp_path,
+        {
+            "registry_version": "1",
+            "school_year": "2026-2027",
+            "releases": [
+                {
+                    "release_id": "wave0-only",
+                    "collections": [
+                        "rag_nexus_francais_troisieme_tc",
+                        "rag_nexus_maths_troisieme_tc",
+                    ],
+                    "manifest_path": f"wave0/{WAVE0_RELEASE.name}",
+                    "expected_manifest_sha256": wave0_sha256,
+                    "release_kind": "WAVE0_AGGREGATE_RELEASE_V1",
+                }
+            ],
+        },
+    )
+    monkeypatch.delenv("RAG_RELEASE_MANIFEST_PATH", raising=False)
+    monkeypatch.delenv("RAG_RELEASE_MANIFEST_SHA256", raising=False)
+    monkeypatch.delenv("RAG_RELEASE_MANIFESTS_JSON", raising=False)
+    monkeypatch.setenv("RAG_RELEASE_REGISTRY_PATH", str(registry_path))
+    monkeypatch.setenv("RAG_RELEASE_REGISTRY_SHA256", registry_digest)
+
+    # Covered by the active (wave0-only) registry: eligible for evidence.
+    assert (
+        endpoint._release_evidence_for_collection("rag_nexus_maths_troisieme_tc")
+        is not None
+    )
+    # Canonically instanciated but outside the active registry: never
+    # silently treated as ready — the request path must refuse it.
+    assert (
+        endpoint._release_evidence_for_collection("rag_nexus_maths_seconde_tc")
+        is None
     )

@@ -85,6 +85,7 @@ try:
         ReleaseReadinessError,
         ReleaseRegistryExpectation,
         load_release_registry,
+        load_release_registry_file,
         validate_release_collection_readiness,
         validate_release_registry_readiness,
     )
@@ -151,6 +152,7 @@ except ImportError as _exc:  # repli à plat, cause réelle préservée
         ReleaseReadinessError,
         ReleaseRegistryExpectation,
         load_release_registry,
+        load_release_registry_file,
         validate_release_collection_readiness,
         validate_release_registry_readiness,
     )
@@ -407,14 +409,33 @@ def _configured_release_manifest() -> tuple[Path, str] | None:
     return Path(path_raw), digest
 
 
+def _configured_release_registry_file() -> tuple[Path, str] | None:
+    path_raw = os.environ.get("RAG_RELEASE_REGISTRY_PATH")
+    digest = os.environ.get("RAG_RELEASE_REGISTRY_SHA256")
+    if path_raw is None and digest is None:
+        return None
+    if not path_raw or not digest:
+        raise ReleaseReadinessError("release registry configuration incomplete")
+    return Path(path_raw), digest
+
+
 def _configured_release_registry() -> ReleaseRegistryExpectation | None:
-    """Charger l'autorité multi-release explicite ou le couple historique."""
+    """Charger l'autorité release active : registre canonique borné, couple
+    de manifests explicite (``RAG_RELEASE_MANIFESTS_JSON``), ou manifest
+    historique unique — jamais plus d'un mécanisme à la fois."""
+    registry_file = _configured_release_registry_file()
     registry_raw = os.environ.get("RAG_RELEASE_MANIFESTS_JSON")
     legacy = _configured_release_manifest()
+    configured_mechanisms = sum(
+        mechanism is not None for mechanism in (registry_file, registry_raw, legacy)
+    )
+    if configured_mechanisms > 1:
+        raise ReleaseReadinessError("release manifest configuration is ambiguous")
+    if registry_file is not None:
+        registry_file_path, registry_file_digest = registry_file
+        return load_release_registry_file(registry_file_path, registry_file_digest)
     if registry_raw is None:
         return load_release_registry((legacy,)) if legacy is not None else None
-    if legacy is not None:
-        raise ReleaseReadinessError("release manifest configuration is ambiguous")
     try:
         payload = json.loads(registry_raw)
     except json.JSONDecodeError as exc:

@@ -1,0 +1,34 @@
+{
+  "registry_version": "1",
+  "school_year": "2026-2027",
+  "releases": [
+    {
+      "release_id": "wave0-exact-grade-troisieme-2026-2027-v1",
+      "collections": [
+        "rag_nexus_francais_troisieme_tc",
+        "rag_nexus_maths_troisieme_tc"
+      ],
+      "manifest_path": "wave0/wave0.release.json",
+      "expected_manifest_sha256": "0cf9c5d8ceaa2766aa97195743e949ec0a907ed0f609f116275a7d1f8202498d",
+      "release_kind": "WAVE0_AGGREGATE_RELEASE_V1"
+    },
+    {
+      "release_id": "multilevel-2026-2027-v1",
+      "collections": [
+        "rag_nexus_maths_seconde_tc",
+        "rag_nexus_francais_seconde_tc",
+        "rag_nexus_maths_quatrieme_tc",
+        "rag_nexus_francais_quatrieme_tc",
+        "rag_nexus_maths_premiere_gen_specialite",
+        "rag_nexus_nsi_premiere_specialite",
+        "rag_nexus_francais_premiere_tc",
+        "rag_nexus_maths_terminale_gen_specialite",
+        "rag_nexus_nsi_terminale_specialite",
+        "rag_nexus_pc_terminale_specialite"
+      ],
+      "manifest_path": "multilevel/multilevel.release.json",
+      "expected_manifest_sha256": "d8ee6703d3497e34e6e5273bee00da90ab9c82094f0f9a1257eef0ff91da1828",
+      "release_kind": "MULTILEVEL_AGGREGATE_RELEASE_V1"
+    }
+  ]
+}

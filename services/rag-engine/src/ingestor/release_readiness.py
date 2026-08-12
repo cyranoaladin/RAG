@@ -23,6 +23,19 @@ _WAVE0_SUBJECT_KIND = "WAVE0_SUBJECT_RELEASE_V1"
 _MULTILEVEL_AGGREGATE_KIND = "MULTILEVEL_AGGREGATE_RELEASE_V1"
 _MULTILEVEL_SUBJECT_KIND = "MULTILEVEL_SUBJECT_RELEASE_V1"
 MAX_RELEASE_MANIFESTS = 32
+_REGISTRY_SUPPORTED_VERSIONS = frozenset({"1"})
+_REGISTRY_ENTRY_FIELDS = frozenset(
+    {
+        "release_id",
+        "collections",
+        "manifest_path",
+        "expected_manifest_sha256",
+        "release_kind",
+    }
+)
+_REGISTRY_SUPPORTED_RELEASE_KINDS = frozenset(
+    {_WAVE0_AGGREGATE_KIND, _MULTILEVEL_AGGREGATE_KIND}
+)
 _WAVE0_AUTHORITY_FIELDS = frozenset(
     {
         "corpus_manifest_sha256",
@@ -591,6 +604,108 @@ def load_release_registry(
         manifests=tuple(manifests),
         collections=tuple(collections),
     )
+
+
+def load_release_registry_file(
+    path: Path, expected_sha256: str
+) -> ReleaseRegistryExpectation:
+    """Charger le registre canonique borné des releases actives.
+
+    Le registre est un fichier versionné, vérifié par sa propre empreinte
+    externe, qui énumère explicitement chaque release active (2 releases
+    Troisième + 10 releases multi-niveaux au démarrage courant). Il ne fait
+    que borner *quels* manifests agrégés sont chargés — toute la validation
+    de contenu (digest par manifest, collisions de collection/artefact,
+    contrat modèle unique) reste celle de :func:`load_release_registry`,
+    jamais dupliquée ici.
+    """
+    payload = _read_json_with_digest(Path(path), expected_sha256, "release registry")
+    if payload.get("registry_version") not in _REGISTRY_SUPPORTED_VERSIONS:
+        raise ReleaseReadinessError("release registry version is unsupported")
+    school_year = _require_nonblank(
+        payload.get("school_year"), "release registry.school_year"
+    )
+    releases_raw = _require_list(payload.get("releases"), "release registry.releases")
+    if not releases_raw:
+        raise ReleaseReadinessError("release registry must declare at least one release")
+    if len(releases_raw) > MAX_RELEASE_MANIFESTS:
+        raise ReleaseReadinessError("release registry declares too many releases")
+
+    root = Path(path).resolve().parent
+    configurations: list[tuple[Path, str]] = []
+    declared_collections_by_index: list[tuple[str, ...]] = []
+    declared_kind_by_index: list[str] = []
+    seen_release_ids: set[str] = set()
+    seen_manifest_paths: set[Path] = set()
+    seen_declared_collections: set[str] = set()
+    for index, entry_raw in enumerate(releases_raw):
+        field = f"release registry.releases[{index}]"
+        entry = _require_mapping(entry_raw, field)
+        if set(entry) != _REGISTRY_ENTRY_FIELDS:
+            raise ReleaseReadinessError(f"{field} fields mismatch")
+
+        release_id = _require_nonblank(entry.get("release_id"), f"{field}.release_id")
+        if release_id in seen_release_ids:
+            raise ReleaseReadinessError(f"{field} declares a duplicate release_id")
+        seen_release_ids.add(release_id)
+
+        release_kind = entry.get("release_kind")
+        if release_kind not in _REGISTRY_SUPPORTED_RELEASE_KINDS:
+            raise ReleaseReadinessError(f"{field}.release_kind is unsupported")
+
+        collections_raw = _require_list(entry.get("collections"), f"{field}.collections")
+        if not collections_raw:
+            raise ReleaseReadinessError(f"{field}.collections must not be empty")
+        collections = tuple(
+            _require_nonblank(item, f"{field}.collections") for item in collections_raw
+        )
+        if len(set(collections)) != len(collections):
+            raise ReleaseReadinessError(f"{field}.collections contains duplicates")
+        if seen_declared_collections.intersection(collections):
+            raise ReleaseReadinessError("release registry collection collision")
+        seen_declared_collections.update(collections)
+
+        manifest_path_raw = _require_nonblank(
+            entry.get("manifest_path"), f"{field}.manifest_path"
+        )
+        if any(character in manifest_path_raw for character in "*?["):
+            raise ReleaseReadinessError(f"{field}.manifest_path must be explicit")
+        manifest_path = (root / manifest_path_raw).resolve()
+        if not manifest_path.is_relative_to(root):
+            raise ReleaseReadinessError(f"{field}.manifest_path escapes the release root")
+        if manifest_path in seen_manifest_paths:
+            raise ReleaseReadinessError("release registry manifest path collision")
+        seen_manifest_paths.add(manifest_path)
+
+        expected_manifest_sha256 = _require_sha256(
+            entry.get("expected_manifest_sha256"), f"{field}.expected_manifest_sha256"
+        )
+        configurations.append((manifest_path, expected_manifest_sha256))
+        declared_collections_by_index.append(collections)
+        declared_kind_by_index.append(release_kind)
+
+    registry = load_release_registry(tuple(configurations))
+
+    for binding, declared_collections, declared_kind in zip(
+        registry.manifests,
+        declared_collections_by_index,
+        declared_kind_by_index,
+        strict=True,
+    ):
+        if binding.expectation.release_kind != declared_kind:
+            raise ReleaseReadinessError(
+                "release registry release_kind does not match the manifest it names"
+            )
+        if set(binding.expectation.collections) != set(declared_collections):
+            raise ReleaseReadinessError(
+                "release registry declared collections do not match the manifest"
+            )
+        if binding.expectation.school_year != school_year:
+            raise ReleaseReadinessError(
+                "release registry school_year does not match the manifest"
+            )
+
+    return registry
 
 
 def _mapping_by(rows: Sequence[Mapping[str, Any]], key: str) -> dict[str, Mapping[str, Any]]:

@@ -212,18 +212,21 @@ def test_v2_compose_requires_only_internal_runtime_authorities() -> None:
         assert f"${{{key}:?" in configured[key]
 
 
-def test_v2_compose_mounts_exact_wave0_release_authority_read_only() -> None:
+def test_v2_compose_mounts_exact_release_registry_authority_read_only() -> None:
     compose = _load_compose(V2_COMPOSE_PATH)
     service = compose["services"]["ingestor"]
     configured = _environment_variables(service["environment"])
 
-    assert configured["RAG_RELEASE_MANIFEST_PATH"] == "/app/release/wave0.release.json"
-    assert _compose_env_ref_is_valid(
-        configured["RAG_RELEASE_MANIFEST_SHA256"],
-        "RAG_RELEASE_MANIFEST_SHA256",
+    assert (
+        configured["RAG_RELEASE_REGISTRY_PATH"]
+        == "/app/release/release-registry.json"
     )
-    assert "${RAG_RELEASE_MANIFEST_SHA256:?" in configured[
-        "RAG_RELEASE_MANIFEST_SHA256"
+    assert _compose_env_ref_is_valid(
+        configured["RAG_RELEASE_REGISTRY_SHA256"],
+        "RAG_RELEASE_REGISTRY_SHA256",
+    )
+    assert "${RAG_RELEASE_REGISTRY_SHA256:?" in configured[
+        "RAG_RELEASE_REGISTRY_SHA256"
     ]
 
     release_mounts = [
@@ -232,9 +235,17 @@ def test_v2_compose_mounts_exact_wave0_release_authority_read_only() -> None:
         if isinstance(volume, str) and ":/app/release:" in volume
     ]
     assert release_mounts == [
-        "${RAG_RELEASE_MANIFEST_HOST_DIR:-../../rag-pedago/data/releases/"
-        "prerentree_2026_2027/wave0}:/app/release:ro"
+        "${RAG_RELEASE_REGISTRY_HOST_DIR:-../../rag-pedago/data/releases/"
+        "prerentree_2026_2027}:/app/release:ro"
     ]
+
+    source = release_mounts[0].rsplit(":", 2)[0]
+    match = re.fullmatch(r"\$\{RAG_RELEASE_REGISTRY_HOST_DIR:-([^}]+)\}", source)
+    assert match is not None
+    resolved = (V2_COMPOSE_PATH.parent / match.group(1)).resolve()
+    assert (resolved / "release-registry.json").is_file()
+    assert (resolved / "wave0" / "wave0.release.json").is_file()
+    assert (resolved / "multilevel" / "multilevel.release.json").is_file()
 
 
 def test_v2_compose_contains_only_the_read_review_stack() -> None:
