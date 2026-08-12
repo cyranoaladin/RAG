@@ -116,6 +116,10 @@ try:
         enforce_pii,
         enforce_rights,
     )
+    from ingestor.ingestion_control.sealed_evidence import (
+        VerifiedPIIEvidenceRegistry,
+        VerifiedRightsEvidenceRegistry,
+    )
     from ingestor.ingestion_profiles.registry import (
         ProfileRegistry,
         profile_fingerprint,
@@ -177,6 +181,10 @@ except (ImportError, ValueError):
         enforce_destination,
         enforce_pii,
         enforce_rights,
+    )
+    from ingestion_control.sealed_evidence import (
+        VerifiedPIIEvidenceRegistry,
+        VerifiedRightsEvidenceRegistry,
     )
     from ingestion_profiles.registry import (
         ProfileRegistry,
@@ -249,6 +257,19 @@ class WorkerDeps:
     #: aucune autorisation réelle — un appelant qui oublie de la fournir
     #: échoue fail-closed, jamais silencieusement en mode « non vérifié ».
     manifest_digest: str = ""
+
+    #: Preuves scellées, chargées et vérifiées **une fois** au démarrage.
+    #:
+    #: ``None`` conserve le comportement historique pour les appelants qui
+    #: ne publient rien (tests unitaires d'une seule transition). Le chemin
+    #: de production les fournit toujours : sans elles, le worker devrait
+    #: décider de la PII et des droits sans preuve, ce que ce lot supprime.
+    #:
+    #: Recharger un fichier à chaque job rouvrirait la faille — un
+    #: opérateur pourrait éditer la preuve entre deux ressources sans
+    #: qu'elle soit revérifiée.
+    pii_evidence_registry: VerifiedPIIEvidenceRegistry | None = None
+    rights_evidence_registry: VerifiedRightsEvidenceRegistry | None = None
 
 
 @dataclass(frozen=True)
@@ -614,6 +635,21 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
                 "ArtifactRecord found (expected after Fetcher committed)"
             )
 
+    # La PII n'est plus un fait inventé. Le SHA interrogé est celui des
+    # octets **réellement téléchargés** — ``artifact.sha256``, calculé par
+    # Fetcher — et non celui que le job annonçait : c'est le seul qui
+    # décrive ce qui serait indexé.
+    #
+    # Toute absence de couverture est un refus qui remonte et fait échouer
+    # le job : ni extraction, ni gate qualité, ni mise en revue sur un
+    # document que personne n'a regardé.
+    if deps.pii_evidence_registry is not None:
+        pii_detected = deps.pii_evidence_registry.verify_content_clearance(
+            artifact.sha256
+        ).pii_detected
+    else:
+        pii_detected = False
+
     extracted_text, extract_transition = run_extractor(
         conn,
         artifact=artifact,
@@ -634,6 +670,21 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
         job_id=claim.job_id,
     )
 
+    # Les droits viennent du registre gouverné, jamais de
+    # ``artifact.license`` — une valeur du payload, donc choisie par
+    # l'opérateur qui soumet la ressource.
+    #
+    # ``source_path`` est le chemin dans le manifeste scellé : la seule
+    # désignation que l'appelant ne choisit pas. En son absence on retombe
+    # sur l'URL canonique, qui ne correspondra à aucune zone approuvée et
+    # produira donc un refus nommé plutôt qu'une résolution optimiste.
+    rights_clearance = None
+    if deps.rights_evidence_registry is not None:
+        rights_clearance = deps.rights_evidence_registry.resolve_rights(
+            content_sha256=artifact.sha256,
+            source_path=str(payload.get("source_path") or candidate.canonical_url),
+        )
+
     rights, rights_transition = run_rights_agent(
         conn,
         artifact=artifact,
@@ -641,6 +692,7 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
         expected_version=classify_transition.state_version,
         actor=deps.owner,
         job_id=claim.job_id,
+        clearance=rights_clearance,
     )
 
     # LOT41A (item D) : troisième point de contrôle. La catégorie de droits
@@ -650,7 +702,6 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
     # révocation ou une expiration survenue pendant Scout/Fetcher/Extractor
     # (qui peuvent être longs) prend effet avant que la ressource ne
     # franchisse la qualité, jamais seulement au job suivant.
-    pii_detected = False
     _authorize_or_record_denial(
         conn,
         claim=claim,

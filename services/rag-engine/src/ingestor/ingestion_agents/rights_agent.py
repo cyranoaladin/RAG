@@ -24,6 +24,7 @@ from nexus_contracts.document import Rights
 from nexus_contracts.ingestion import ArtifactRecord, CollectionProfile
 from nexus_contracts.resource_state import ResourceState
 
+from ..ingestion_control.sealed_evidence import RightsClearance
 from .transitions import TransitionResult, apply_resource_transition
 
 
@@ -33,13 +34,34 @@ class UnknownRightsRejectedError(ValueError):
     vers les stages suivants."""
 
 
-def assess_rights_core(*, artifact: ArtifactRecord, profile: CollectionProfile) -> Rights:
+def assess_rights_core(
+    *,
+    artifact: ArtifactRecord,
+    profile: CollectionProfile,
+    clearance: RightsClearance | None = None,
+) -> Rights:
     """Dérive une décision de droits déterministe — aucune E/S.
 
-    Aucune licence déclarée : toujours ``Rights.unknown``, quelle que soit
-    l'autorité de la source (l'absence de licence est un fait sur
-    l'artefact, jamais compensé par la réputation de la source).
+    **``clearance`` est l'autorité quand elle existe.** Elle vient du
+    registre de droits gouverné : une décision humaine nommant une zone du
+    manifeste scellé, et la catégorie que cette zone porte. C'est la seule
+    voie positive du runtime.
+
+    Sans elle, le repli historique lit ``artifact.license`` — une valeur
+    du payload du job, donc choisie par l'opérateur qui soumet la
+    ressource. Un champ que l'appelant contrôle ne peut pas décider de ses
+    propres droits ; ce chemin ne subsiste que pour les appelants qui ne
+    publient rien, et il rend ``Rights.unknown`` en l'absence de licence,
+    quelle que soit l'autorité de la source.
     """
+    if clearance is not None:
+        if clearance.rights is Rights.unknown:
+            raise UnknownRightsRejectedError(
+                f"artifact {artifact.artifact_id}: the governed rights registry "
+                "resolved to unknown, which never authorizes publication"
+            )
+        return clearance.rights
+
     if not artifact.license:
         rights = Rights.unknown
     elif profile.source_authority == "official":
@@ -67,6 +89,7 @@ def run_rights_agent(
     actor: str,
     job_id: UUID | None = None,
     assessed_at: datetime | None = None,
+    clearance: RightsClearance | None = None,
 ) -> tuple[Rights, TransitionResult]:
     """Calcule les droits (échec explicite si rejetés) puis transitionne
     ``CLASSIFIED -> RIGHTS_CHECKED``.
@@ -75,7 +98,9 @@ def run_rights_agent(
     sont écrits dans le payload de la transition — donc dans
     ``workflow_events``, append-only. Une attestation de publication lit
     ce fait durable, elle ne le reçoit jamais d'un argument opérateur."""
-    rights = assess_rights_core(artifact=artifact, profile=profile)
+    rights = assess_rights_core(
+        artifact=artifact, profile=profile, clearance=clearance
+    )
     moment = assessed_at or datetime.now(UTC)
 
     transition = apply_resource_transition(
