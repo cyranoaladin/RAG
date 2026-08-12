@@ -117,6 +117,7 @@ try:
         enforce_rights,
     )
     from ingestor.ingestion_control.sealed_evidence import (
+        SealedEvidenceError,
         VerifiedPIIEvidenceRegistry,
         VerifiedRightsEvidenceRegistry,
     )
@@ -183,6 +184,7 @@ except (ImportError, ValueError):
         enforce_rights,
     )
     from ingestion_control.sealed_evidence import (
+        SealedEvidenceError,
         VerifiedPIIEvidenceRegistry,
         VerifiedRightsEvidenceRegistry,
     )
@@ -270,6 +272,40 @@ class WorkerDeps:
     #: qu'elle soit revérifiée.
     pii_evidence_registry: VerifiedPIIEvidenceRegistry | None = None
     rights_evidence_registry: VerifiedRightsEvidenceRegistry | None = None
+
+    #: Worker délibérément incapable de publier.
+    #:
+    #: ``None`` sur les deux registres était ambigu : un worker de
+    #: production mal configuré et un worker de test volontairement nu
+    #: avaient exactement la même forme, et le runtime retombait
+    #: silencieusement sur ``pii_detected = False`` et
+    #: ``artifact.license``. La CLI de production ne pose jamais ce
+    #: drapeau ; un worker qui le porte ne met aucune ressource en revue,
+    #: donc rien de ce qu'il traite ne peut être publié.
+    non_publishable: bool = False
+
+    def require_sealed_evidence(
+        self,
+    ) -> tuple[VerifiedPIIEvidenceRegistry, VerifiedRightsEvidenceRegistry]:
+        """Rend les deux registres, ou refuse de traiter le job.
+
+        Appelée avant tout téléchargement : un worker sans preuve échoue
+        avant d'agir, pas après avoir écrit."""
+        if self.pii_evidence_registry is None or self.rights_evidence_registry is None:
+            missing = [
+                name
+                for name, value in (
+                    ("pii_evidence_registry", self.pii_evidence_registry),
+                    ("rights_evidence_registry", self.rights_evidence_registry),
+                )
+                if value is None
+            ]
+            raise SealedEvidenceError(
+                f"worker {self.owner!r} is missing {missing} and is not marked "
+                "non_publishable — refusing to process a job it could not prove "
+                "anything about"
+            )
+        return self.pii_evidence_registry, self.rights_evidence_registry
 
 
 @dataclass(frozen=True)
@@ -643,12 +679,15 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
     # Toute absence de couverture est un refus qui remonte et fait échouer
     # le job : ni extraction, ni gate qualité, ni mise en revue sur un
     # document que personne n'a regardé.
-    if deps.pii_evidence_registry is not None:
-        pii_detected = deps.pii_evidence_registry.verify_content_clearance(
+    if deps.non_publishable:
+        # Voie explicitement non publiable : la ressource ne sera pas mise
+        # en revue plus bas, donc rien de ce qui suit ne peut être publié.
+        pii_detected = False
+    else:
+        pii_registry, _ = deps.require_sealed_evidence()
+        pii_detected = pii_registry.verify_content_clearance(
             artifact.sha256
         ).pii_detected
-    else:
-        pii_detected = False
 
     extracted_text, extract_transition = run_extractor(
         conn,
@@ -679,8 +718,9 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
     # sur l'URL canonique, qui ne correspondra à aucune zone approuvée et
     # produira donc un refus nommé plutôt qu'une résolution optimiste.
     rights_clearance = None
-    if deps.rights_evidence_registry is not None:
-        rights_clearance = deps.rights_evidence_registry.resolve_rights(
+    if not deps.non_publishable:
+        _, rights_registry = deps.require_sealed_evidence()
+        rights_clearance = rights_registry.resolve_rights(
             content_sha256=artifact.sha256,
             source_path=str(payload.get("source_path") or candidate.canonical_url),
         )
@@ -785,7 +825,7 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
     # Une ressource refusée par le gate n'est pas mise en revue : son
     # attribution est enregistrée (un refus doit rester attribuable) mais
     # elle ne quitte pas l'état où le refus l'a laissée.
-    if gate_decision.decision == "ROUTE":
+    if gate_decision.decision == "ROUTE" and not deps.non_publishable:
         stage_publication_for_review(
             conn,
             resource_id=artifact.resource_id,

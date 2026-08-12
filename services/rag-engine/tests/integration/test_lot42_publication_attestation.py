@@ -332,7 +332,12 @@ def run_real_pipeline(
         conn.commit()
         outcome = run_worker_iteration(conn, deps=deps)
         assert outcome.status in ("retried", "dead_letter")
-        assert "Rights.unknown" in str(outcome.error)
+        # Le worker est construit sans preuves scellées : il refuse le job
+        # avant tout téléchargement. Auparavant il allait plus loin et
+        # butait sur ``Rights.unknown`` faute de licence — la preuve de
+        # droits est désormais câblée, et c'est son absence de
+        # configuration qui arrête ce pipeline-ci.
+        assert "sealed evidence" in str(outcome.error) or "missing" in str(outcome.error)
         conn.rollback()
         with conn.cursor() as cur:
             cur.execute("SELECT resource_id FROM ingestion_control.resources")
@@ -1207,20 +1212,22 @@ class TestDormantGovernedPublicationPath:
 class TestLivePipelineCannotYetPublish:
     """État honnête du pipeline : `LOT42_LIVE_PIPELINE_WIRED=false`.
 
-    LOT41A contraint les droits autorisés mais ne prouve aucune licence.
-    Tant qu'une preuve distincte n'est pas câblée, le worker s'arrête donc
-    avant qualité et **aucune publication n'est possible via le pipeline
-    vivant** — quelle que soit la richesse du contenu."""
+    **La raison a changé.** Le worker s'arrêtait faute de licence prouvée ;
+    la preuve de droits est désormais câblée. Ce qui l'arrête ici, c'est
+    qu'un worker construit sans preuves scellées refuse de traiter le job
+    — avant tout téléchargement, donc avant qu'aucun fait de droits ou de
+    qualité n'existe.
 
-    def test_even_rich_content_stops_at_unknown_rights(
+    L'invariant protégé est le même : rien n'est fabriqué, et aucune
+    publication n'est possible par ce chemin."""
+
+    def test_even_rich_content_stops_without_sealed_evidence(
         self, pg: dict[str, str], tmp_path: Path
     ) -> None:
+        """Aucune richesse de contenu ne compense une preuve absente."""
         resource_id, artifact_id = run_real_pipeline(pg, tmp_path)
         with psycopg.connect(superuser_dsn(pg)) as conn:
-            with pytest.raises(
-                PublicationEvidenceMissingError,
-                match="RIGHTS_CHECKED",
-            ):
+            with pytest.raises(PublicationEvidenceMissingError):
                 collect_publication_facts(
                     conn, resource_id=resource_id, artifact_id=artifact_id
                 )
@@ -1228,7 +1235,7 @@ class TestLivePipelineCannotYetPublish:
     def test_no_quality_or_gate_fact_is_fabricated_after_rights_denial(
         self, pg: dict[str, str], tmp_path: Path
     ) -> None:
-        """Un refus de droits ne doit pas être reconstruit en faux gate."""
+        """Un refus ne doit pas être reconstruit en faux gate."""
         resource_id, _ = run_real_pipeline(pg, tmp_path)
         with psycopg.connect(superuser_dsn(pg)) as conn, conn.cursor() as cur:
             cur.execute(

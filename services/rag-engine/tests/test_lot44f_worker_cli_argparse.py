@@ -23,6 +23,11 @@ _REQUIRED_ARGS = [
     "--artifact-store-dir", "/tmp/artifacts",
     "--expected-role", "ingestion_control_app",
     "--owner", "worker-1",
+    "--pii-evidence-path", "/tmp/pii.json",
+    "--pii-evidence-sha256", "a" * 64,
+    "--rights-evidence-path", "/tmp/rights.yml",
+    "--rights-evidence-sha256", "b" * 64,
+    "--corpus-manifest-sha256", "d" * 64,
 ]
 
 

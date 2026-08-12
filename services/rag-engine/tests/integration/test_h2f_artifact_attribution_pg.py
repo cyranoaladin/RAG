@@ -113,6 +113,10 @@ from ingestor.ingestion_control.publication_evidence import (  # noqa: E402
     PublicationEvidenceMissingError,
     collect_publication_facts,
 )
+from ingestor.ingestion_control.sealed_evidence import (  # noqa: E402
+    VerifiedPIIEvidenceRegistry,
+    VerifiedRightsEvidenceRegistry,
+)
 from ingestor.ingestion_profiles.registry import profile_fingerprint  # noqa: E402
 from ingestor.ingestion_worker.attest_publication_cli import (  # noqa: E402
     main as attest_main,
@@ -360,6 +364,64 @@ def _unblock_documented_placeholders(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
+def _sealed_evidence(tmp_path: Path) -> tuple[Any, Any]:
+    """Preuves scellées synthétiques couvrant exactement le contenu de ce
+    test. Le worker en exige désormais : sans elles il refuse de traiter
+    un job, ce qui est le comportement voulu.
+
+    La zone de droits est ici le préfixe d'URL canonique, parce que ce
+    test travaille sur un artefact fabriqué et non sur un chemin du
+    manifeste scellé."""
+    import hashlib
+    import json
+
+    pii_path = tmp_path / "pii-evidence.json"
+    pii_path.write_text(
+        json.dumps({
+            "evidence_kind": "REAL_CORPUS_PII_SCAN",
+            "corpus_manifest_sha256": MANIFEST_DIGEST,
+            "remote_access_mode": "READ_ONLY",
+            "remote_write_operations": 0,
+            "raw_pii_in_output": False,
+            "raw_pii_in_logs": False,
+            "results": [
+                {"content_sha256": RICH_CONTENT_SHA, "status": "CLEARED",
+                 "pii_detected": False, "pages_scanned": 1,
+                 "characters_scanned": len(RICH_CONTENT)},
+            ],
+        }),
+        encoding="utf-8",
+    )
+    rights_path = tmp_path / "rights-registry.yml"
+    rights_path.write_text(
+        "registry_id: h2f_test_registry\n"
+        "human_rights_decisions:\n"
+        "  eduscol:\n"
+        f"    scope_manifest_sha256: {MANIFEST_DIGEST}\n"
+        f"    scope_zone: https://{DOMAIN}/\n"
+        "    approved_for_production_rag: true\n"
+        "source_evidence:\n"
+        "  eduscol:\n"
+        f"    zone: https://{DOMAIN}/\n"
+        "    recommended_rights_category: officiel_public\n",
+        encoding="utf-8",
+    )
+    return (
+        VerifiedPIIEvidenceRegistry.load(
+            pii_path,
+            expected_evidence_sha256=hashlib.sha256(pii_path.read_bytes()).hexdigest(),
+            expected_corpus_manifest_sha256=MANIFEST_DIGEST,
+        ),
+        VerifiedRightsEvidenceRegistry.load(
+            rights_path,
+            expected_registry_sha256=hashlib.sha256(
+                rights_path.read_bytes()
+            ).hexdigest(),
+            expected_corpus_manifest_sha256=MANIFEST_DIGEST,
+        ),
+    )
+
+
 def run_production_pipeline(
     pg: dict[str, str], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> tuple[uuid.UUID, uuid.UUID, uuid.UUID]:
@@ -392,6 +454,7 @@ def run_production_pipeline(
             authorization_document()
         ).digest(),
     )
+    _pii_registry, _rights_registry = _sealed_evidence(tmp_path)
     deps = WorkerDeps(
         owner="worker-h2f",
         profile_registry=REGISTRY,
@@ -401,6 +464,8 @@ def run_production_pipeline(
         safe_fetch=fetch,
         verify_scope_authorization=stub_verifier(auth),
         manifest_digest=MANIFEST_DIGEST,
+        pii_evidence_registry=_pii_registry,
+        rights_evidence_registry=_rights_registry,
     )
     with psycopg.connect(app_dsn(pg)) as conn:
         run_id = _make_run(conn)

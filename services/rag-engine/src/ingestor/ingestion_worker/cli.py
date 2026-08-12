@@ -35,6 +35,10 @@ try:
     from ingestor.ingestion_control.db import get_ingestion_control_dsn
     from ingestor.ingestion_control.jobs import reap_expired_job_leases
     from ingestor.ingestion_control.lease_reaper import reap_expired_leases
+    from ingestor.ingestion_control.sealed_evidence import (
+        VerifiedPIIEvidenceRegistry,
+        VerifiedRightsEvidenceRegistry,
+    )
     from ingestor.ingestion_profiles.readiness_gate import (
         ReadinessGateError,
         enforce_readiness_gate,
@@ -52,6 +56,10 @@ except (ImportError, ValueError):
     from ingestion_control.db import get_ingestion_control_dsn
     from ingestion_control.jobs import reap_expired_job_leases
     from ingestion_control.lease_reaper import reap_expired_leases
+    from ingestion_control.sealed_evidence import (
+        VerifiedPIIEvidenceRegistry,
+        VerifiedRightsEvidenceRegistry,
+    )
     from ingestion_profiles.readiness_gate import (
         ReadinessGateError,
         enforce_readiness_gate,
@@ -104,6 +112,15 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--manifest-path", required=True, type=Path)
     parser.add_argument("--artifact-store-dir", required=True, type=Path)
     parser.add_argument("--owner", required=True, type=_non_blank_str)
+    # Preuves scellées — chemins et digests attendus. Ce ne sont pas des
+    # secrets : ce sont les identités des preuves que ce worker accepte.
+    # Obligatoires : un worker de production sans elles devrait décider de
+    # la PII et des droits sans rien pour l'établir.
+    parser.add_argument("--pii-evidence-path", required=True, type=Path)
+    parser.add_argument("--pii-evidence-sha256", required=True, type=_non_blank_str)
+    parser.add_argument("--rights-evidence-path", required=True, type=Path)
+    parser.add_argument("--rights-evidence-sha256", required=True, type=_non_blank_str)
+    parser.add_argument("--corpus-manifest-sha256", required=True, type=_non_blank_str)
     parser.add_argument(
         "--expected-role",
         required=True,
@@ -198,6 +215,27 @@ def main(argv: list[str] | None = None) -> int:
             f"manifest_fingerprint={gate_result.manifest.manifest_fingerprint}"
         )
 
+    # Chargées **avant** la boucle de jobs : un digest qui a dérivé doit
+    # empêcher le démarrage, pas se révéler au premier document traité.
+    pii_evidence_registry = VerifiedPIIEvidenceRegistry.load(
+        args.pii_evidence_path,
+        expected_evidence_sha256=args.pii_evidence_sha256,
+        expected_corpus_manifest_sha256=args.corpus_manifest_sha256,
+    )
+    rights_evidence_registry = VerifiedRightsEvidenceRegistry.load(
+        args.rights_evidence_path,
+        expected_registry_sha256=args.rights_evidence_sha256,
+        expected_corpus_manifest_sha256=args.corpus_manifest_sha256,
+    )
+    print(
+        "WORKER_STARTUP_SEALED_EVIDENCE "
+        f"pii_evidence_sha256={pii_evidence_registry.evidence_sha256} "
+        f"pii_cleared={pii_evidence_registry.cleared_count} "
+        f"rights_registry_sha256={rights_evidence_registry.registry_sha256} "
+        f"rights_registry_id={rights_evidence_registry.registry_id} "
+        f"corpus_manifest_sha256={args.corpus_manifest_sha256}"
+    )
+
     deps = WorkerDeps(
         owner=args.owner,
         # Remédiation revue PR#90 : le registre exact vérifié par le gate
@@ -206,6 +244,8 @@ def main(argv: list[str] | None = None) -> int:
         profile_registry=gate_result.registry,
         artifact_store=make_filesystem_artifact_store(args.artifact_store_dir),
         artifact_reader=make_filesystem_artifact_reader(args.artifact_store_dir),
+        pii_evidence_registry=pii_evidence_registry,
+        rights_evidence_registry=rights_evidence_registry,
         # LOT41A (item D) : l'empreinte du manifest réellement vérifié par
         # le gate ci-dessus, jamais recalculée ailleurs ni relue du disque.
         # Confrontée au manifest_digest de chaque autorisation : un worker
