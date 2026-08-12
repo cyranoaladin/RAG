@@ -116,6 +116,10 @@ def verify_staging_profile_manifest(
             "staging profile manifest differs from the loaded registry"
         )
     for key, profile in registry.items():
+        if not profile.enabled:
+            raise StagingProfileManifestError(
+                f"staging profile {key!r} is disabled"
+            )
         if declared[key] != profile_fingerprint(profile):
             raise StagingProfileManifestError(
                 f"staging profile fingerprint differs for {key!r}"

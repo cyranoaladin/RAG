@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, cast
@@ -14,13 +15,22 @@ from ingestor.collection_config import (
     canonicalize_catalogue_voie,
     load_collection_config,
 )
-from ingestor.ingestion_profiles.registry import load_profile_registry
+from ingestor.ingestion_profiles.registry import (
+    load_profile_registry,
+    profile_fingerprint,
+)
 from ingestor.multilevel_mapping import (
     MultilevelMappingError,
     load_multilevel_mapping,
 )
-from ingestor.programme_registry import load_programme_index_registry
-from ingestor.staging_profile_manifest import verify_staging_profile_manifest
+from ingestor.programme_registry import (
+    ProgrammeRegistryError,
+    load_programme_index_registry,
+)
+from ingestor.staging_profile_manifest import (
+    StagingProfileManifestError,
+    verify_staging_profile_manifest,
+)
 
 ENGINE_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = ENGINE_ROOT.parents[1]
@@ -223,6 +233,36 @@ def test_multilevel_profiles_are_exact_and_fail_closed() -> None:
     assert verification.authority_mode == "STAGING_LOCAL_GITHUB_ONLY"
 
 
+def test_staging_manifest_rejects_a_disabled_profile(tmp_path: Path) -> None:
+    source = next(PROFILES.glob("*.yml"))
+    raw_profile = _yaml(source)
+    raw_profile["enabled"] = False
+    (tmp_path / source.name).write_text(
+        yaml.safe_dump(raw_profile, sort_keys=False), encoding="utf-8"
+    )
+    registry = load_profile_registry(tmp_path)
+    manifest = {
+        "manifest_kind": "NEXUS_STAGING_PROFILE_MANIFEST_V1",
+        "provenance": "test",
+        "generated_at": "2026-08-12T18:49:34+01:00",
+        "authority_mode": "STAGING_LOCAL_GITHUB_ONLY",
+        "production_approval": False,
+        "profiles": [
+            {
+                "collection": profile.scope.collection,
+                "profile_version": profile.profile_version,
+                "fingerprint": profile_fingerprint(profile),
+            }
+            for profile in registry.values()
+        ],
+    }
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(StagingProfileManifestError, match="disabled"):
+        verify_staging_profile_manifest(registry, manifest_path)
+
+
 def test_multilevel_collections_match_governed_profiles() -> None:
     collections = cast(
         Mapping[str, Mapping[str, object]],
@@ -293,6 +333,7 @@ def test_nsi_has_grade_specific_canonical_programme_index(
 
 def test_programme_registry_loads_multiple_grade_indexes(tmp_path: Path) -> None:
     relative_paths = [
+        "corpus/College/Quatrieme/_index.yml",
         "corpus/Lycee/Seconde/_index.yml",
         "corpus/Lycee/Premiere/Specialites/_index.yml",
         "corpus/Lycee/Premiere/Tronc_commun/_index.yml",
@@ -302,11 +343,49 @@ def test_programme_registry_loads_multiple_grade_indexes(tmp_path: Path) -> None
     registry_path.write_text(
         yaml.safe_dump(
             {
-                "registry_kind": "NEXUS_PROGRAMME_INDEX_REGISTRY_V2",
+                "registry_kind": "NEXUS_PROGRAMME_INDEX_REGISTRY_V3",
                 "school_year": "2026-2027",
                 "indexes": [
                     {"path": path, "sha256": _sha256(REPO_ROOT / path)}
                     for path in relative_paths
+                ],
+                "taxonomies": [
+                    {
+                        "collection": collection,
+                        "path": (
+                            "services/rag-pedago/taxonomy/"
+                            + str(
+                                cast(
+                                    Mapping[str, object],
+                                    cast(
+                                        Mapping[str, object],
+                                        load_collection_config()["collections"],
+                                    )[collection],
+                                )["taxonomy_file"]
+                            )
+                        ),
+                        "sha256": _sha256(
+                            REPO_ROOT
+                            / "services"
+                            / "rag-pedago"
+                            / "taxonomy"
+                            / str(
+                                cast(
+                                    Mapping[str, object],
+                                    cast(
+                                        Mapping[str, object],
+                                        load_collection_config()["collections"],
+                                    )[collection],
+                                )["taxonomy_file"]
+                            )
+                        ),
+                        "niveau": niveau,
+                        "voie": voie,
+                        "matiere": matiere,
+                        "statut_enseignement": EXPECTED_STATUS[collection],
+                        "programme_version": programme,
+                    }
+                    for collection, (niveau, voie, matiere, programme) in EXPECTED.items()
                 ],
             },
             sort_keys=False,
@@ -329,6 +408,7 @@ def test_programme_registry_loads_multiple_grade_indexes(tmp_path: Path) -> None
     assert registry.programme_for("rag_nexus_nsi_terminale_specialite") == (
         "BOEN_special_8_2019-07-25"
     )
+    assert set(registry.taxonomy_sha256_by_collection) == set(EXPECTED)
 
 
 def test_versioned_programme_registry_is_digest_bound_and_complete() -> None:
@@ -342,9 +422,88 @@ def test_versioned_programme_registry_is_digest_bound_and_complete() -> None:
         assert registry.programme_for(collection) == programme
     assert registry.school_year == "2026-2027"
 
-    with pytest.raises(Exception, match="digest"):
+    with pytest.raises(ProgrammeRegistryError, match="digest"):
         load_programme_index_registry(
             registry_path=PROGRAMME_REGISTRY,
             expected_registry_sha256="0" * 64,
             repository_root=REPO_ROOT,
+        )
+
+
+def test_programme_registry_rejects_taxonomy_drift(tmp_path: Path) -> None:
+    root = tmp_path / "repository"
+    index_dir = root / "corpus" / "Test"
+    taxonomy_dir = root / "services" / "rag-pedago" / "taxonomy" / "maths"
+    index_dir.mkdir(parents=True)
+    taxonomy_dir.mkdir(parents=True)
+    (index_dir / "FICHE.md").write_text("# Test\n", encoding="utf-8")
+    taxonomy = {
+        "id": "test",
+        "niveau": "seconde",
+        "voie": "generale",
+        "matiere": "maths",
+        "statut_enseignement": "tronc_commun",
+        "programme_version": "PROGRAMME_TEST",
+        "themes": [{"id": "test", "label": "Test", "notions": []}],
+    }
+    taxonomy_path = taxonomy_dir / "test.yml"
+    taxonomy_path.write_text(yaml.safe_dump(taxonomy), encoding="utf-8")
+    index = {
+        "index_version": "1.0",
+        "niveau": "seconde",
+        "voie": "generale",
+        "fiches": [
+            {
+                "fichier": "FICHE.md",
+                "matiere": "maths",
+                "statut_enseignement": "tronc_commun",
+                "collection_cible": "rag_nexus_test",
+                "taxonomy_file": "maths/test.yml",
+                "programme_version": "PROGRAMME_TEST",
+            }
+        ],
+    }
+    index_path = index_dir / "_index.yml"
+    index_path.write_text(yaml.safe_dump(index), encoding="utf-8")
+    registry_document = {
+        "registry_kind": "NEXUS_PROGRAMME_INDEX_REGISTRY_V3",
+        "school_year": "2026-2027",
+        "indexes": [
+            {
+                "path": "corpus/Test/_index.yml",
+                "sha256": _sha256(index_path),
+            }
+        ],
+        "taxonomies": [
+            {
+                "collection": "rag_nexus_test",
+                "path": "services/rag-pedago/taxonomy/maths/test.yml",
+                "sha256": _sha256(taxonomy_path),
+                "niveau": "seconde",
+                "voie": "generale",
+                "matiere": "maths",
+                "statut_enseignement": "tronc_commun",
+                "programme_version": "PROGRAMME_TEST",
+            }
+        ],
+    }
+    registry_path = root / "registry.yml"
+    registry_path.write_text(
+        yaml.safe_dump(registry_document, sort_keys=False), encoding="utf-8"
+    )
+    registry_sha = _sha256(registry_path)
+
+    load_programme_index_registry(
+        registry_path=registry_path,
+        expected_registry_sha256=registry_sha,
+        repository_root=root,
+    )
+    taxonomy["niveau"] = "terminale"
+    taxonomy_path.write_text(yaml.safe_dump(taxonomy), encoding="utf-8")
+
+    with pytest.raises(ProgrammeRegistryError, match="digest"):
+        load_programme_index_registry(
+            registry_path=registry_path,
+            expected_registry_sha256=registry_sha,
+            repository_root=root,
         )

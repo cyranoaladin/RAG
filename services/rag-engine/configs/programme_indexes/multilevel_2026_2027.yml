@@ -1,4 +1,4 @@
-registry_kind: NEXUS_PROGRAMME_INDEX_REGISTRY_V2
+registry_kind: NEXUS_PROGRAMME_INDEX_REGISTRY_V3
 school_year: '2026-2027'
 indexes:
   - path: corpus/College/Quatrieme/_index.yml
@@ -11,3 +11,84 @@ indexes:
     sha256: 34dea32ccca1dcfa16bc534b1e370bb04746818c3f238d574333ca1043c0eb9e
   - path: corpus/Lycee/Terminale/Specialites/_index.yml
     sha256: 82911d2497119412005830f6ee2298f72aff7831a9a686e87ca177595fc33827
+taxonomies:
+  - collection: rag_nexus_maths_seconde_tc
+    path: services/rag-pedago/taxonomy/maths/seconde_tronc_commun.yml
+    sha256: 22fbefe63eb226857619f7fc3604db170ac9cd036d0612afcac510034cc40bc7
+    niveau: seconde
+    voie: generale
+    matiere: maths
+    statut_enseignement: tronc_commun
+    programme_version: BOEN_14_2026-04-02_MENE2602914A
+  - collection: rag_nexus_francais_seconde_tc
+    path: services/rag-pedago/taxonomy/francais/seconde_tc.yml
+    sha256: 0d500e34d14fcd0e49f3544746151f666a0fe50425928c2e72cecc8b5f618911
+    niveau: seconde
+    voie: generale
+    matiere: francais
+    statut_enseignement: tronc_commun
+    programme_version: BOEN_special_1_2019-01-22
+  - collection: rag_nexus_maths_quatrieme_tc
+    path: services/rag-pedago/taxonomy/maths/quatrieme.yml
+    sha256: 1143584759914d9229347bb93768d1d548bd9bd3bb4702db30936c2f97cd78a3
+    niveau: quatrieme
+    voie: college
+    matiere: maths
+    statut_enseignement: tronc_commun
+    programme_version: BOEN_special_11_2018-07-26_aj_2020
+  - collection: rag_nexus_francais_quatrieme_tc
+    path: services/rag-pedago/taxonomy/francais/quatrieme.yml
+    sha256: 0e5d32612f8a4e66d1dfc5dd7fad0a0c471961e1f4e017b073227d37ea396cd9
+    niveau: quatrieme
+    voie: college
+    matiere: francais
+    statut_enseignement: tronc_commun
+    programme_version: BOEN_special_11_2018-07-26_aj_2020
+  - collection: rag_nexus_maths_premiere_gen_specialite
+    path: services/rag-pedago/taxonomy/maths/premiere_gen_specialite.yml
+    sha256: 64ef308db6146cded002c55931c96d5f14f257f8b5a8e8c4ecc71882c4dae1f9
+    niveau: premiere
+    voie: generale
+    matiere: maths
+    statut_enseignement: specialite
+    programme_version: BOEN_14_2026-04-02_MENE2602917A
+  - collection: rag_nexus_nsi_premiere_specialite
+    path: services/rag-pedago/taxonomy/nsi/premiere_specialite.yml
+    sha256: 8f623fef1f79d15a8a2f9d3b992b0b3c064ae0b03a54fbb559f229df2363fa49
+    niveau: premiere
+    voie: generale
+    matiere: nsi
+    statut_enseignement: specialite
+    programme_version: BOEN_special_1_2019-01-22
+  - collection: rag_nexus_francais_premiere_tc
+    path: services/rag-pedago/taxonomy/francais/premiere_eaf.yml
+    sha256: bddfb68e05e7ba019ec4d97b3acb9802e0f8166e8117c66bae256427bc08a287
+    niveau: premiere
+    voie: generale
+    matiere: francais
+    statut_enseignement: tronc_commun
+    programme_version: BOEN_special_1_2019-01-22
+  - collection: rag_nexus_maths_terminale_gen_specialite
+    path: services/rag-pedago/taxonomy/maths/terminale_gen_specialite.yml
+    sha256: 4a91661a381751573425b30667c53fc8f44df04fa4e0f7a0c4e71f0ec64005a6
+    niveau: terminale
+    voie: generale
+    matiere: maths
+    statut_enseignement: specialite
+    programme_version: BOEN_special_8_2019-07-25
+  - collection: rag_nexus_nsi_terminale_specialite
+    path: services/rag-pedago/taxonomy/nsi/terminale.yml
+    sha256: b93a3e4017e99f1647861abac46b5f3136ee8611e7142d4fca2a33a5929eb05f
+    niveau: terminale
+    voie: generale
+    matiere: nsi
+    statut_enseignement: specialite
+    programme_version: BOEN_special_8_2019-07-25
+  - collection: rag_nexus_pc_terminale_specialite
+    path: services/rag-pedago/taxonomy/physique_chimie/terminale_specialite.yml
+    sha256: 60ba40c6e8cca54caf4a911eb8aea1b08871409a31eedcf8c052438ae16312a9
+    niveau: terminale
+    voie: generale
+    matiere: physique_chimie
+    statut_enseignement: specialite
+    programme_version: BOEN_special_8_2019-07-25

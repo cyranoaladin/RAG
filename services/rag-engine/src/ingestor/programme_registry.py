@@ -22,6 +22,7 @@ class ProgrammeIndexRegistry:
     sha256: str
     school_year: str
     index_sha256_by_path: Mapping[str, str]
+    taxonomy_sha256_by_collection: Mapping[str, str]
     programme_by_collection: Mapping[str, str]
 
     def programme_for(self, collection: str) -> str:
@@ -83,9 +84,9 @@ def load_programme_index_registry(
         expected_sha256=expected_registry_sha256,
         label="programme index registry",
     )
-    if set(document) != {"registry_kind", "school_year", "indexes"}:
+    if set(document) != {"registry_kind", "school_year", "indexes", "taxonomies"}:
         raise ProgrammeRegistryError("programme index registry fields are not exact")
-    if document.get("registry_kind") != "NEXUS_PROGRAMME_INDEX_REGISTRY_V2":
+    if document.get("registry_kind") != "NEXUS_PROGRAMME_INDEX_REGISTRY_V3":
         raise ProgrammeRegistryError("programme index registry kind is invalid")
     school_year = document.get("school_year")
     if (
@@ -99,6 +100,7 @@ def load_programme_index_registry(
 
     index_digests: dict[str, str] = {}
     programmes: dict[str, str] = {}
+    taxonomy_path_by_collection: dict[str, str] = {}
     for raw_entry in raw_indexes:
         if not isinstance(raw_entry, Mapping) or set(raw_entry) != {"path", "sha256"}:
             raise ProgrammeRegistryError("programme index registry entry is not exact")
@@ -162,11 +164,76 @@ def load_programme_index_registry(
                     f"programme taxonomy {taxonomy_file!r} is absent"
                 )
             programmes[collection] = programme
+            taxonomy_path_by_collection[collection] = (
+                Path("services")
+                / "rag-pedago"
+                / "taxonomy"
+                / taxonomy_file
+            ).as_posix()
         index_digests[relative] = index_sha
+
+    raw_taxonomies = document.get("taxonomies")
+    if not isinstance(raw_taxonomies, list) or not raw_taxonomies:
+        raise ProgrammeRegistryError("programme taxonomy registry is empty")
+    taxonomy_digests: dict[str, str] = {}
+    taxonomy_fields = {
+        "collection",
+        "path",
+        "sha256",
+        "niveau",
+        "voie",
+        "matiere",
+        "statut_enseignement",
+        "programme_version",
+    }
+    for raw_entry in raw_taxonomies:
+        if not isinstance(raw_entry, Mapping) or set(raw_entry) != taxonomy_fields:
+            raise ProgrammeRegistryError("programme taxonomy entry is not exact")
+        collection = raw_entry.get("collection")
+        if not isinstance(collection, str) or not collection:
+            raise ProgrammeRegistryError("programme taxonomy collection is invalid")
+        if collection in taxonomy_digests:
+            raise ProgrammeRegistryError("programme taxonomy collection is duplicated")
+        relative, taxonomy_path = _resolve_bounded(
+            repository_root, raw_entry.get("path")
+        )
+        if taxonomy_path_by_collection.get(collection) != relative:
+            raise ProgrammeRegistryError(
+                f"programme taxonomy path differs for {collection!r}"
+            )
+        taxonomy_sha, taxonomy = _read_digest_bound_yaml(
+            taxonomy_path,
+            expected_sha256=_require_sha256(
+                raw_entry.get("sha256"), label="programme taxonomy digest"
+            ),
+            label=f"programme taxonomy {collection}",
+        )
+        for field in (
+            "niveau",
+            "voie",
+            "matiere",
+            "statut_enseignement",
+            "programme_version",
+        ):
+            expected = raw_entry.get(field)
+            if not isinstance(expected, str) or not expected:
+                raise ProgrammeRegistryError(
+                    f"programme taxonomy {field} is invalid"
+                )
+            if taxonomy.get(field) != expected:
+                raise ProgrammeRegistryError(
+                    f"programme taxonomy {field} differs for {collection!r}"
+                )
+        if programmes.get(collection) != raw_entry.get("programme_version"):
+            raise ProgrammeRegistryError(
+                f"canonical programme differs for {collection!r}"
+            )
+        taxonomy_digests[collection] = taxonomy_sha
     return ProgrammeIndexRegistry(
         sha256=registry_sha,
         school_year=school_year,
         index_sha256_by_path=index_digests,
+        taxonomy_sha256_by_collection=taxonomy_digests,
         programme_by_collection=programmes,
     )
 
