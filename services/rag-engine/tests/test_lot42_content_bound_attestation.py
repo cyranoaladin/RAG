@@ -202,6 +202,46 @@ def test_content_bound_verification_rejects_v1_but_legacy_default_preserves_it(
         _verify_with(monkeypatch, authorization=authorization, facts=facts)
 
 
+def test_expected_attestation_mismatch_fails_before_live_verification(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    resource_id = uuid4()
+    active_attestation_id = uuid4()
+    expected_attestation_id = uuid4()
+    row = {
+        "attestation_id": active_attestation_id,
+        "resource_id": resource_id,
+    }
+    downstream_calls: list[str] = []
+
+    monkeypatch.setattr(attestation_module, "_load_active_row", lambda *_a, **_k: row)
+    monkeypatch.setattr(
+        attestation_module,
+        "collect_publication_facts",
+        lambda *_a, **_k: downstream_calls.append("facts"),
+    )
+    monkeypatch.setattr(
+        attestation_module,
+        "_mark_invalidated",
+        lambda *_a, **_k: downstream_calls.append("invalidated"),
+    )
+
+    with pytest.raises(
+        PublicationAttestationInvalidError,
+        match=f"expected attestation {expected_attestation_id}",
+    ):
+        verify_publication_attestation(
+            object(),
+            resource_id=resource_id,
+            current_content_sha256=CONTENT_SHA,
+            current_profile_fingerprint="4" * 64,
+            current_manifest_digest="3" * 64,
+            expected_attestation_id=expected_attestation_id,
+        )
+
+    assert downstream_calls == []
+
+
 def test_retrieval_anchor_has_no_content_authority_downgrade_parameter() -> None:
     parameters = inspect.signature(attempt_retrieval_eligible_transition).parameters
 
@@ -245,6 +285,39 @@ def test_direct_retrieval_anchor_rejects_v1_before_cas(
         )
 
     assert calls == {"verify": 1, "cas": 0}
+
+
+def test_retrieval_anchor_propagates_expected_attestation_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    resource_id = uuid4()
+    expected_attestation_id = uuid4()
+    verified_kwargs: dict[str, object] = {}
+
+    def verify(_conn: object, **kwargs: object) -> object:
+        verified_kwargs.update(kwargs)
+        return object()
+
+    monkeypatch.setattr(attestation_module, "verify_publication_attestation", verify)
+    monkeypatch.setattr(
+        attestation_module,
+        "cas_transition",
+        lambda *_a, **_k: object(),
+    )
+
+    attempt_retrieval_eligible_transition(
+        object(),
+        resource_id=resource_id,
+        run_id=uuid4(),
+        expected_version=7,
+        actor="test-direct-anchor",
+        current_content_sha256=CONTENT_SHA,
+        current_profile_fingerprint="4" * 64,
+        current_manifest_digest="3" * 64,
+        expected_attestation_id=expected_attestation_id,
+    )
+
+    assert verified_kwargs["expected_attestation_id"] == expected_attestation_id
 
 
 @pytest.mark.parametrize(

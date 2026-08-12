@@ -1,0 +1,27 @@
+evidence_kind: WAVE0_ARTIFACT_CURRENTNESS_V1
+school_year: "2026-2027"
+corpus_manifest_sha256: "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e"
+
+decision:
+  decision_maker: "Nexus Réussite"
+  decision_source: EXPLICIT_PEDAGOGICAL_DECISION
+  decided_at: "2026-08-12T09:54:44Z"
+  scope: "Wave 0 pre-rentree 2026-2027"
+
+regulatory_basis:
+  new_cycle4_program_3e_effective_school_year: "2028-2029"
+
+artifacts:
+  - content_sha256: "49ccdca4d97ba4cf25875dfc731474e84d0332985c15396d3abfb9107f5f545a"
+    exact_path: "01_EDUSCOL_OFFICIEL/COLLEGE/3E/MATHEMATIQUES/02_REPERES_ATTENDUS/2019/attendus-de-fin-d-annee-en-mathematiques-en-3e-pdf-1-26-mo--49ccdca4d9.pdf"
+    external_level: "3e"
+    subject: mathematiques
+    effective_currentness: actuel
+    current_for_school_year: "2026-2027"
+
+  - content_sha256: "c8662b03ca8a7f08bedad5081bafc7da8d2cc8a31b07fa967421fb15304d76bf"
+    exact_path: "01_EDUSCOL_OFFICIEL/COLLEGE/3E/FRANCAIS/02_REPERES_ATTENDUS/2019/attendus-de-fin-d-annee-en-francais-en-3e-pdf-971-01-ko--c8662b03ca.pdf"
+    external_level: "3e"
+    subject: francais
+    effective_currentness: actuel
+    current_for_school_year: "2026-2027"

@@ -23,6 +23,8 @@ from rag_pedago.imports.pii_scanner import (
     scan_text_for_pii,
 )
 
+PII_POLICY_PATH = Path(__file__).resolve().parents[1] / "configs/pii_gate_policy.yml"
+
 
 class TestPIIPatternMatching:
     """Test PII pattern detection."""
@@ -85,6 +87,54 @@ class TestPIIPatternMatching:
         """
         matches = scan_text_for_pii(text, DEFAULT_PII_PATTERNS)
         assert len(matches) == 0
+
+    def test_configured_postal_rule_ignores_five_digit_math_token_without_location_context(
+        self,
+    ) -> None:
+        patterns = load_patterns_from_config(PII_POLICY_PATH)
+
+        matches = scan_text_for_pii(
+            "Une notation mathématique aplatie contient 77777;2.",
+            patterns,
+        )
+
+        assert "postal_address" not in {match.pattern_id for match in matches}
+
+    def test_configured_postal_rule_ignores_math_token_before_non_postal_france_mention(
+        self,
+    ) -> None:
+        patterns = load_patterns_from_config(PII_POLICY_PATH)
+
+        matches = scan_text_for_pii(
+            "Une notation contient 77777 solutions en France.",
+            patterns,
+        )
+
+        assert "postal_address" not in {match.pattern_id for match in matches}
+
+    @pytest.mark.parametrize(
+        "text",
+        (
+            "Adresse institutionnelle : 12 rue des Écoles, 75001 Paris, France.",
+            "Service administratif, 75001 CEDEX.",
+            "Service administratif, 75001 Cedex.",
+            "Service administratif, 75001 FRANCE.",
+            "Service administratif, 75001 Paris.",
+            "Service administratif, 75001\nParis.",
+            "Adresse : 75001 paris.",
+            "Adresse : 12 rue des Écoles\n75001 paris.",
+            "Adresse : 12 rue des Écoles\r\n75001 paris.",
+        ),
+    )
+    def test_configured_postal_rule_keeps_explicit_location_context(
+        self,
+        text: str,
+    ) -> None:
+        patterns = load_patterns_from_config(PII_POLICY_PATH)
+
+        matches = scan_text_for_pii(text, patterns)
+
+        assert "postal_address" in {match.pattern_id for match in matches}
 
 
 class TestAllowlist:

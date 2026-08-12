@@ -2,7 +2,7 @@
 # Purpose: Define PII detection requirements for corpus ingestion
 # Status: SCANNER_IMPLEMENTED — Ready for full content scan
 
-policy_id: pii_gate_policy_h2b_v1
+policy_id: pii_gate_policy_h2b_v5
 status: scanner_implemented
 
 # H2-A findings (filename-only scan)
@@ -43,8 +43,8 @@ full_content_scan:
       regex: "(?:(?:\\+|00)33[\\s.-]?|0)[1-9](?:[\\s.-]?\\d{2}){4}"
 
     - pattern_id: postal_address
-      description: "French postal codes with context"
-      regex: "\\b\\d{5}\\b[^\\d]+(?:CEDEX|France)?"
+      description: "French postal codes with explicit locality context"
+      regex: "(?:(?i:\\b(?:adresse|rue|avenue|boulevard|chemin|place|allée|allee)\\b)(?:[^\\r\\n]{0,80}|[^\\r\\n]{0,80}\\r?\\n[^\\r\\n]{0,80})\\b\\d{5}\\b(?:[ \\t,;:-]+|\\r?\\n[ \\t]*)(?i:[a-zà-öø-ÿ][a-zà-öø-ÿ'’.-]+(?:[ \\t-]+[a-zà-öø-ÿ][a-zà-öø-ÿ'’.-]+){0,3})\\b|\\b\\d{5}\\b(?:[ \\t,;:-]+|\\r?\\n[ \\t]*)(?:(?i:CEDEX)(?:[ \\t]+\\d{1,2})?|(?i:France)|[A-ZÀ-ÖØ-Ý][A-Za-zÀ-ÖØ-öø-ÿ'’.-]+(?:[ \\t-]+[A-ZÀ-ÖØ-Ý][A-Za-zÀ-ÖØ-öø-ÿ'’.-]+){0,3})\\b)"
 
     - pattern_id: iban_french
       description: "French IBAN"

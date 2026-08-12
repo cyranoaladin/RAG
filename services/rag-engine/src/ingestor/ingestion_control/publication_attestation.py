@@ -383,6 +383,7 @@ def verify_publication_attestation(
     current_profile_fingerprint: str,
     current_manifest_digest: str,
     require_content_bound_authority: bool = False,
+    expected_attestation_id: UUID | None = None,
 ) -> VerifiedAttestation:
     """Revérifie **intégralement** la chaîne LOT42 d'une ressource.
 
@@ -394,6 +395,14 @@ def verify_publication_attestation(
         raise PublicationAttestationInvalidError(
             f"no active (non-invalidated) publication_attestations row for "
             f"resource_id={resource_id}"
+        )
+    if (
+        expected_attestation_id is not None
+        and row["attestation_id"] != expected_attestation_id
+    ):
+        raise PublicationAttestationInvalidError(
+            f"expected attestation {expected_attestation_id} for resource "
+            f"{resource_id}, but the active attestation is {row['attestation_id']}"
         )
     invalidator = _Invalidator(conn, row["attestation_id"])
 
@@ -506,6 +515,7 @@ def attempt_retrieval_eligible_transition(
     current_profile_fingerprint: str,
     current_manifest_digest: str,
     job_id: UUID | None = None,
+    expected_attestation_id: UUID | None = None,
 ) -> TransitionResult:
     """Point d'ancrage unique LOT42 (ADR-0033 § 6) : la SEULE fonction
     autorisée à faire transitionner une ressource ``REVIEWED ->
@@ -528,6 +538,7 @@ def attempt_retrieval_eligible_transition(
         current_profile_fingerprint=current_profile_fingerprint,
         current_manifest_digest=current_manifest_digest,
         require_content_bound_authority=True,
+        expected_attestation_id=expected_attestation_id,
     )
     return cas_transition(
         conn,

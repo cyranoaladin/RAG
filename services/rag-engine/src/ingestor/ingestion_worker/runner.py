@@ -64,7 +64,11 @@ from nexus_contracts.ingestion import ResourceScope, SearchPlan
 from nexus_contracts.resource_state import ResourceState
 
 try:
-    from ingestor.ingestion_agents.classifier import run_classifier
+    from ingestor.ingestion_agents.classifier import (
+        ConformityProvenance,
+        ConformityResult,
+        run_classifier,
+    )
     from ingestor.ingestion_agents.dependencies import (
         ArtifactReader,
         ArtifactStore,
@@ -127,11 +131,19 @@ try:
         select_profile,
     )
     from ingestor.ingestion_profiles.validation import validate_scope_against_profile
+    from ingestor.verified_pedagogical_placement import (
+        VerifiedPedagogicalPlacement,
+        VerifiedPedagogicalPlacementResolver,
+    )
 except (ImportError, ValueError):
     # Image Docker aplatie (LOT44f, ADR-0029) : "ingestor" n'existe pas comme
     # paquet — ces sous-paquets sont importables directement au premier
     # niveau. Même discipline que api.py.
-    from ingestion_agents.classifier import run_classifier
+    from ingestion_agents.classifier import (
+        ConformityProvenance,
+        ConformityResult,
+        run_classifier,
+    )
     from ingestion_agents.dependencies import (
         ArtifactReader,
         ArtifactStore,
@@ -195,6 +207,10 @@ except (ImportError, ValueError):
     )
     from ingestion_profiles.validation import (
         validate_scope_against_profile,
+    )
+    from verified_pedagogical_placement import (
+        VerifiedPedagogicalPlacement,
+        VerifiedPedagogicalPlacementResolver,
     )
 
 #: Seul type de job que cette boucle sait traiter — remédiation revue
@@ -272,6 +288,9 @@ class WorkerDeps:
     #: qu'elle soit revérifiée.
     pii_evidence_registry: VerifiedPIIEvidenceRegistry | None = None
     rights_evidence_registry: VerifiedRightsEvidenceRegistry | None = None
+    #: Résolution artifact-bound commune aux Workers A/B. Son absence
+    #: conserve le Classifier non vérifié, donc structurellement non routable.
+    placement_resolver: VerifiedPedagogicalPlacementResolver | None = None
 
     #: Worker délibérément incapable de publier.
     #:
@@ -671,6 +690,20 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
                 "ArtifactRecord found (expected after Fetcher committed)"
             )
 
+    verified_placement: VerifiedPedagogicalPlacement | None = None
+    if deps.placement_resolver is not None:
+        verified_placement = deps.placement_resolver.resolve(
+            content_sha256=artifact.sha256,
+            collection=str(scope.collection),
+            profile_version=profile.profile_version,
+            school_year=str(scope.school_year),
+            claimed_source_path=(
+                str(payload["source_path"]) if "source_path" in payload else None
+            ),
+            claimed_source_url=candidate.canonical_url,
+            claimed_type_doc=candidate.proposed_type_doc.value,
+        )
+
     # La PII n'est plus un fait inventé. Le SHA interrogé est celui des
     # octets **réellement téléchargés** — ``artifact.sha256``, calculé par
     # Fetcher — et non celui que le job annonçait : c'est le seul qui
@@ -698,6 +731,29 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
         job_id=claim.job_id,
     )
 
+    verified_conformity = None
+    if verified_placement is not None:
+        verified_conformity = ConformityResult(
+            niveau_conformity=verified_placement.niveau_conformity,
+            voie_conformity=verified_placement.voie_conformity,
+            matiere_conformity=verified_placement.matiere_conformity,
+            programme_conformity=verified_placement.programme_conformity,
+            matiere_evidence=(
+                f"sealed_pedagogical_placement:{verified_placement.external_subject}",
+            ),
+            provenance=ConformityProvenance(
+                conformity_source="sealed_pedagogical_placement",
+                content_sha256=verified_placement.content_sha256,
+                placement_catalog_sha256=(
+                    verified_placement.placement_catalog_sha256
+                ),
+                currentness_evidence_sha256=(
+                    verified_placement.currentness_evidence_sha256
+                ),
+                profile_fingerprint=verified_placement.profile_fingerprint,
+            ),
+        )
+
     conformity, classify_transition = run_classifier(
         conn,
         resource_id=resource_id,
@@ -707,6 +763,7 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
         expected_version=extract_transition.state_version,
         actor=deps.owner,
         job_id=claim.job_id,
+        verified_conformity=verified_conformity,
     )
 
     # Les droits viennent du registre gouverné, jamais de
@@ -720,9 +777,14 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
     rights_clearance = None
     if not deps.non_publishable:
         _, rights_registry = deps.require_sealed_evidence()
+        rights_source_path = (
+            verified_placement.source_path
+            if verified_placement is not None
+            else candidate.canonical_url
+        )
         rights_clearance = rights_registry.resolve_rights(
             content_sha256=artifact.sha256,
-            source_path=str(payload.get("source_path") or candidate.canonical_url),
+            source_path=rights_source_path,
         )
 
     rights, rights_transition = run_rights_agent(

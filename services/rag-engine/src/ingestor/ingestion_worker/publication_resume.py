@@ -31,7 +31,6 @@ import psycopg
 
 try:
     from ingestor.governed_publisher_v2 import (
-        EligiblePlacement,
         GovernedArtifact,
         publish_governed_artifact,
     )
@@ -52,14 +51,17 @@ try:
         find_latest_artifact,
         get_resource_state,
     )
+    from ingestor.ingestion_control.publication_evidence import (
+        collect_publication_facts,
+    )
     from ingestor.ingestion_control.sealed_evidence import SealedEvidenceError
+    from ingestor.verified_pedagogical_placement import to_eligible_placement
 except ImportError as _exc:  # repli à plat, cause réelle préservée
     if not (_exc.name is None and "relative import" in str(_exc)) and (
         _exc.name or ""
     ) not in ("ingestor", "src", "src.ingestor"):
         raise
     from governed_publisher_v2 import (
-        EligiblePlacement,
         GovernedArtifact,
         publish_governed_artifact,
     )
@@ -80,8 +82,14 @@ except ImportError as _exc:  # repli à plat, cause réelle préservée
         find_latest_artifact,
         get_resource_state,
     )
+    from ingestion_control.publication_evidence import (
+        collect_publication_facts,
+    )
     from ingestion_control.sealed_evidence import (
         SealedEvidenceError,
+    )
+    from verified_pedagogical_placement import (
+        to_eligible_placement,
     )
 
 #: Type de job consommé par ce worker, et par lui seul.
@@ -132,6 +140,7 @@ class PublicationResumeDeps:
     pii_evidence_registry: Any = None
     rights_evidence_registry: Any = None
     manifest_digest: str = ""
+    placement_resolver: Any = None
 
     def require_sealed_evidence(self) -> tuple[Any, Any]:
         if self.pii_evidence_registry is None or self.rights_evidence_registry is None:
@@ -153,20 +162,47 @@ def _require_payload(payload: dict[str, Any]) -> dict[str, Any]:
     return payload
 
 
+def _load_run_placement_context(
+    conn: psycopg.Connection,
+    *,
+    run_id: UUID,
+) -> tuple[str, str, str]:
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT collection, profile_version, school_year "
+            "FROM ingestion_control.ingestion_runs WHERE run_id = %s",
+            (run_id,),
+        )
+        row = cur.fetchone()
+    if row is None:
+        raise PublicationResumeError(f"ingestion run {run_id} does not exist")
+    collection, profile_version, school_year = row
+    return str(collection), str(profile_version), str(school_year)
+
+
 def resume_publication(
     control_conn: psycopg.Connection,
     *,
     claim: JobClaim,
     deps: PublicationResumeDeps,
-    build_placements: Any,
+    build_placements: Any = None,
 ) -> PublicationResumeOutcome:
     """Reprend une ressource en revue et la publie, ou refuse.
 
-    ``build_placements`` fournit les ``EligiblePlacement`` gouvernés pour
-    cette ressource ; ils viennent du catalogue scellé, jamais du payload
-    du job."""
+    ``build_placements`` est conservé uniquement pour compatibilité d'appel.
+    La publication exige toujours ``deps.placement_resolver`` afin de relire
+    le catalogue, la currentness et le profil scellés."""
     payload = _require_payload(dict(claim.payload or {}))
     resource_id = UUID(str(payload["resource_id"]))
+    payload_run_id = UUID(str(payload["run_id"]))
+    if payload_run_id != claim.run_id:
+        raise PublicationResumeError(
+            "publication_resume payload run_id disagrees with the claimed job"
+        )
+    if claim.resource_id is not None and resource_id != claim.resource_id:
+        raise PublicationResumeError(
+            "publication_resume payload resource_id disagrees with the claimed job"
+        )
 
     state = get_resource_state(control_conn, resource_id=resource_id)
     if state is None:
@@ -188,13 +224,81 @@ def resume_publication(
     if artifact_record is None:
         raise PublicationResumeError(f"resource {resource_id} has no stored artifact")
 
+    durable_facts = collect_publication_facts(
+        control_conn,
+        resource_id=resource_id,
+        artifact_id=artifact_record.artifact_id,
+    )
+    if deps.placement_resolver is not None:
+        if not deps.manifest_digest:
+            raise PublicationResumeError(
+                "the governed placement requires the approved profile manifest digest"
+            )
+        collection, profile_version, school_year = _load_run_placement_context(
+            control_conn,
+            run_id=payload_run_id,
+        )
+        if collection != durable_facts.collection:
+            raise PublicationResumeError(
+                "the ingestion run collection disagrees with the durable publication facts"
+            )
+        resolver_kwargs: dict[str, Any] = {
+            "content_sha256": artifact_record.sha256,
+            "collection": collection,
+            "profile_version": profile_version,
+            "school_year": school_year,
+            "claimed_source_url": durable_facts.canonical_url,
+            "claimed_type_doc": durable_facts.type_doc,
+        }
+        if payload.get("source_path") is not None:
+            resolver_kwargs["claimed_source_path"] = str(payload["source_path"])
+        verified = deps.placement_resolver.resolve(**resolver_kwargs)
+        placements = (
+            to_eligible_placement(
+                verified,
+                resource_id=resource_id,
+                current_profile_manifest_digest=deps.manifest_digest,
+            ),
+        )
+    else:
+        raise PublicationResumeError(
+            f"resource {resource_id} has no governed placement resolver"
+        )
+    if not placements:
+        raise PublicationResumeError(
+            f"resource {resource_id} has no eligible placement; publishing content "
+            "no collection claims would make it unreachable and unattributable"
+        )
+    governed_source_paths = {placement.source_path for placement in placements}
+    if len(governed_source_paths) != 1:
+        raise PublicationResumeError(
+            f"resource {resource_id} resolves to conflicting sealed source paths"
+        )
+    governed_source_path = next(iter(governed_source_paths))
+    claimed_source_path = payload.get("source_path")
+    if claimed_source_path is not None and str(claimed_source_path) != governed_source_path:
+        raise PublicationResumeError(
+            "the job source_path disagrees with the sealed pedagogical placement"
+        )
+    governed_source_uris = {placement.source_uri for placement in placements}
+    if len(governed_source_uris) != 1:
+        raise PublicationResumeError(
+            f"resource {resource_id} resolves to conflicting governed source URIs"
+        )
+    governed_source_uri = next(iter(governed_source_uris))
+
+    if governed_source_uri != durable_facts.canonical_url:
+        raise PublicationResumeError(
+            "the governed placement source URI disagrees with the durable canonical URL"
+        )
+
     # Les clairances qui justifiaient la mise en revue doivent tenir
     # encore : une preuve remplacée entre-temps invalide la publication.
     pii_registry, rights_registry = deps.require_sealed_evidence()
     pii_registry.verify_content_clearance(artifact_record.sha256)
     rights_clearance = rights_registry.resolve_rights(
         content_sha256=artifact_record.sha256,
-        source_path=str(payload.get("source_path") or artifact_record.final_url),
+        source_path=governed_source_path,
     )
 
     # Les droits publiés sont ceux que le fait durable porte, et ils doivent
@@ -202,9 +306,7 @@ def resume_publication(
     # valeur du registre seule laisserait une dérive du registre réécrire
     # silencieusement des droits déjà attestés ; publier le fait durable
     # seul ignorerait une restriction apparue depuis.
-    durable_rights = getattr(
-        artifact_record.rights_status, "value", artifact_record.rights_status
-    )
+    durable_rights = durable_facts.rights_status.value
     if str(durable_rights) != rights_clearance.rights.value:
         raise PublicationResumeError(
             f"durable rights {durable_rights!r} disagree with the registry's "
@@ -224,23 +326,22 @@ def resume_publication(
         content=raw_bytes,
         content_sha256=artifact_record.sha256,
         source_label=attribution.source_label,
-        source_uri=f"urn:nexus:sha256:{artifact_record.sha256}",
+        source_uri=governed_source_uri,
         rights=str(durable_rights),
         official=attribution.official,
         source_kind=attribution.source_kind,
         type_doc=attribution.type_doc,
     )
-    placements: tuple[EligiblePlacement, ...] = tuple(build_placements(resource_id))
-    if not placements:
-        raise PublicationResumeError(
-            f"resource {resource_id} has no eligible placement; publishing content "
-            "no collection claims would make it unreachable and unattributable"
-        )
+
+    # Les lectures de préflight ci-dessus ouvrent une transaction psycopg.
+    # La promotion et le publisher gèrent chacun leurs propres transactions
+    # racines et exigent donc une connexion control IDLE à leur entrée.
+    control_conn.commit()
 
     promotion = promote_reviewed_publication(
         control_conn,
         resource_id=resource_id,
-        run_id=UUID(str(payload["run_id"])),
+        run_id=payload_run_id,
         expected_version=current_version,
         actor=deps.owner,
         current_content_sha256=artifact_record.sha256,
@@ -248,6 +349,7 @@ def resume_publication(
         current_manifest_digest=deps.manifest_digest
         or placements[0].current_manifest_digest,
         job_id=claim.job_id,
+        expected_attestation_id=UUID(str(payload["publication_attestation_id"])),
     )
     if str(promotion.attestation.attestation_id) != str(
         payload["publication_attestation_id"]
@@ -266,7 +368,6 @@ def resume_publication(
             deps.extract_text,
             deps.embed_chunks,
         )
-        product_conn.commit()
 
     return PublicationResumeOutcome(
         worked=True,
@@ -283,7 +384,7 @@ def run_publication_resume_iteration(
     control_conn: psycopg.Connection,
     *,
     deps: PublicationResumeDeps,
-    build_placements: Any,
+    build_placements: Any = None,
 ) -> PublicationResumeOutcome:
     """Une itération : réclame un job de reprise, publie, complète.
 

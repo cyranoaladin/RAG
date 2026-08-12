@@ -96,6 +96,7 @@ def promote_reviewed_publication(
     current_profile_fingerprint: str,
     current_manifest_digest: str,
     job_id: UUID | None = None,
+    expected_attestation_id: UUID | None = None,
 ) -> GovernedEligibilityPromotion:
     """Valider la revue humaine puis emprunter l'unique ancre LOT42.
 
@@ -112,6 +113,7 @@ def promote_reviewed_publication(
             current_profile_fingerprint=current_profile_fingerprint,
             current_manifest_digest=current_manifest_digest,
             require_content_bound_authority=True,
+            expected_attestation_id=expected_attestation_id,
         )
         reviewed = cas_transition(
             conn,
@@ -138,6 +140,7 @@ def promote_reviewed_publication(
             current_profile_fingerprint=current_profile_fingerprint,
             current_manifest_digest=current_manifest_digest,
             job_id=job_id,
+            expected_attestation_id=expected_attestation_id,
         )
     return GovernedEligibilityPromotion(
         attestation=attestation,

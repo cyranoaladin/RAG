@@ -119,11 +119,14 @@ def test_review_path_verifies_then_uses_the_unique_lot42_anchor(
         current_profile_fingerprint="b" * 64,
         current_manifest_digest="c" * 64,
         job_id=job_id,
+        expected_attestation_id=verified.attestation_id,
     )
 
     assert [event[0] for event in events] == ["verify", "reviewed", "anchor"]
     assert events[0][1]["require_content_bound_authority"] is True
+    assert events[0][1]["expected_attestation_id"] == verified.attestation_id
     assert "require_content_bound_authority" not in events[2][1]
+    assert events[2][1]["expected_attestation_id"] == verified.attestation_id
     assert result.attestation is verified
     assert result.reviewed.state_version == 11
     assert result.retrieval_eligible.state_version == 12
@@ -159,6 +162,42 @@ def test_failed_review_verification_never_changes_resource_state(
             current_content_sha256="a" * 64,
             current_profile_fingerprint="b" * 64,
             current_manifest_digest="c" * 64,
+        )
+
+
+def test_attestation_named_by_job_is_checked_before_review_transition(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = _path()
+    expected_attestation_id = uuid4()
+
+    def verify(_conn: object, **kwargs: object) -> object:
+        assert kwargs["expected_attestation_id"] == expected_attestation_id
+        raise RuntimeError("expected attestation does not match active attestation")
+
+    monkeypatch.setattr(path, "verify_publication_attestation", verify)
+    monkeypatch.setattr(
+        path,
+        "cas_transition",
+        lambda *_args, **_kwargs: pytest.fail("state transition must not run"),
+    )
+    monkeypatch.setattr(
+        path,
+        "attempt_retrieval_eligible_transition",
+        lambda *_args, **_kwargs: pytest.fail("LOT42 anchor must not run"),
+    )
+
+    with pytest.raises(RuntimeError, match="expected attestation"):
+        path.promote_reviewed_publication(
+            _connection(),
+            resource_id=uuid4(),
+            run_id=uuid4(),
+            expected_version=10,
+            actor="publication-resume",
+            current_content_sha256="a" * 64,
+            current_profile_fingerprint="b" * 64,
+            current_manifest_digest="c" * 64,
+            expected_attestation_id=expected_attestation_id,
         )
 
 
