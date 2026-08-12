@@ -462,7 +462,7 @@ class VerifiedPedagogicalPlacementResolver:
             collection_entry.get("niveau") != mapping.nexus_niveau.value
             or collection_entry.get("matiere") != mapping.nexus_matiere
             or collection_entry.get("statut") != mapping.nexus_statut_enseignement
-            or not (mapping.nexus_voie is Voie.college and catalogue_voie is None)
+            or catalogue_voie != mapping.nexus_voie.value
         ):
             raise PlacementResolutionError("declared collection differs from governed placement")
 

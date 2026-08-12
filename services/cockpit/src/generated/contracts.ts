@@ -10,11 +10,32 @@ export type ContractBundle =
   | InternalIdentity
   | InternalIdentityEnvelope
   | PilotRetrievalScopeArtifact
+  | RetrievalScopeArtifactV2
   | ReviewQueuePayload
   | ReviewDecisionPayload
   | ReviewDecisionRequest
   | ReviewQueueResponse
   | ReviewDecisionResponse;
+export type Matiere = string;
+export type Niveau =
+  'troisieme' | 'seconde' | 'premiere' | 'terminale' | 'cycle4' | 'lycee_gt' | 'voie_generale' | 'voie_technologique';
+export type StatutEnseignement =
+  | 'tronc_commun'
+  | 'enseignement_commun'
+  | 'specialite'
+  | 'eds'
+  | 'option'
+  | 'maths_complementaires'
+  | 'maths_expertes'
+  | 'snt'
+  | 'enseignement_scientifique'
+  | 'emc'
+  | 'atelier'
+  | 'stage'
+  | 'remediation'
+  | 'examen'
+  | 'unknown';
+export type Voie = 'college' | 'generale' | 'technologique' | 'professionnelle' | 'aefe' | 'unknown';
 export type TypeDoc =
   | 'programme_officiel'
   | 'ressource_officielle'
@@ -68,8 +89,6 @@ export type Matieres = [string, ...string[]];
 export type Needs = string[];
 export type NexusGroupId = string | null;
 export type NexusOffer = string | null;
-export type Niveau =
-  'troisieme' | 'seconde' | 'premiere' | 'terminale' | 'cycle4' | 'lycee_gt' | 'voie_generale' | 'voie_technologique';
 export type Objective = string | null;
 export type OfficialLevelRef = string | null;
 export type Options = string[];
@@ -86,26 +105,9 @@ export type StatusDetail =
   | 'cned_reglemente'
   | 'cned_libre'
   | 'unknown';
-export type StatutEnseignement =
-  | 'tronc_commun'
-  | 'enseignement_commun'
-  | 'specialite'
-  | 'eds'
-  | 'option'
-  | 'maths_complementaires'
-  | 'maths_expertes'
-  | 'snt'
-  | 'enseignement_scientifique'
-  | 'emc'
-  | 'atelier'
-  | 'stage'
-  | 'remediation'
-  | 'examen'
-  | 'unknown';
 export type StudentId = string | null;
 export type TargetPathway = string | null;
 export type TeacherConfirmed = boolean;
-export type Voie = 'college' | 'generale' | 'technologique' | 'professionnelle' | 'aefe' | 'unknown';
 export type Warnings = string[];
 export type Zone = string;
 export type ChunkId = string;
@@ -565,26 +567,236 @@ export type Subjects =
       PilotScopeSubject
     ];
 export type Collection = string;
-export type Matiere = string;
+export type Matiere1 = string;
 export type ProgrammeVersion = string;
-export type Collection1 = string | null;
+export type ArtifactVersion1 = '2';
+/**
+ * @minItems 1
+ * @maxItems 3
+ */
+export type Audiences =
+  | ['libre' | 'aefe' | 'tous']
+  | ['libre' | 'aefe' | 'tous', 'libre' | 'aefe' | 'tous']
+  | ['libre' | 'aefe' | 'tous', 'libre' | 'aefe' | 'tous', 'libre' | 'aefe' | 'tous'];
+export type Collection1 = string;
+export type Matiere2 = string;
+export type ProgrammeVersion1 = string;
+/**
+ * @minItems 1
+ * @maxItems 16
+ */
+export type Rights2 =
+  | [Rights3]
+  | [Rights3, Rights3]
+  | [Rights3, Rights3, Rights3]
+  | [Rights3, Rights3, Rights3, Rights3]
+  | [Rights3, Rights3, Rights3, Rights3, Rights3]
+  | [Rights3, Rights3, Rights3, Rights3, Rights3, Rights3]
+  | [Rights3, Rights3, Rights3, Rights3, Rights3, Rights3, Rights3]
+  | [Rights3, Rights3, Rights3, Rights3, Rights3, Rights3, Rights3, Rights3]
+  | [Rights3, Rights3, Rights3, Rights3, Rights3, Rights3, Rights3, Rights3, Rights3]
+  | [Rights3, Rights3, Rights3, Rights3, Rights3, Rights3, Rights3, Rights3, Rights3, Rights3]
+  | [Rights3, Rights3, Rights3, Rights3, Rights3, Rights3, Rights3, Rights3, Rights3, Rights3, Rights3]
+  | [Rights3, Rights3, Rights3, Rights3, Rights3, Rights3, Rights3, Rights3, Rights3, Rights3, Rights3, Rights3]
+  | [
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3
+    ]
+  | [
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3
+    ]
+  | [
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3
+    ]
+  | [
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3,
+      Rights3
+    ];
+export type Rights3 =
+  | 'officiel_public'
+  | 'public_allowed'
+  | 'nexus_proprietaire'
+  | 'usage_interne'
+  | 'student_private'
+  | 'parent_private'
+  | 'commercial_confidential'
+  | 'restricted'
+  | 'unknown';
+export type SchoolYear3 = string;
+export type Tenant2 = string;
+export type Visibility = 'public' | 'internal' | 'restricted' | 'private';
+export type ScopeId2 = string;
+export type SourceSha2561 = string;
+export type Status1 = 'eligible_for_promotion';
+export type Audience2 = 'libre' | 'aefe' | 'tous';
+/**
+ * @minItems 1
+ * @maxItems 16
+ */
+export type Candidates1 =
+  | [Candidat]
+  | [Candidat, Candidat]
+  | [Candidat, Candidat, Candidat]
+  | [Candidat, Candidat, Candidat, Candidat]
+  | [Candidat, Candidat, Candidat, Candidat, Candidat]
+  | [Candidat, Candidat, Candidat, Candidat, Candidat, Candidat]
+  | [Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat]
+  | [Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat]
+  | [Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat]
+  | [Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat]
+  | [Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat]
+  | [
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat
+    ]
+  | [
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat
+    ]
+  | [
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat
+    ]
+  | [
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat
+    ]
+  | [
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat
+    ];
+export type Matiere3 = string;
+export type Tenant3 = string;
+export type Collection2 = string | null;
 export type Limit = number;
 export type Offset = number;
-export type Collection2 = string | null;
+export type Collection3 = string | null;
 export type Decision = 'reviewed' | 'quarantined';
 export type TargetId = string;
 export type TargetType = 'doc' | 'chunk';
-export type Collection3 = string | null;
+export type Collection4 = string | null;
 export type Decision1 = 'reviewed' | 'quarantined';
 export type TargetId1 = string;
 export type TargetType1 = 'doc' | 'chunk';
-export type Tenant2 = string;
+export type Tenant4 = string;
 export type ChunkCount = number;
-export type Collection4 = string;
+export type Collection5 = string;
 export type DocId2 = string;
 export type FirstIndexed = string | null;
 export type LastIndexed = string | null;
-export type Rights2 = string;
+export type Rights4 = string;
 export type SourceKind = string;
 export type SourceLabel2 = string;
 export type SourceUri2 = string;
@@ -601,9 +813,19 @@ export type TargetId2 = string;
 export type TargetType2 = 'doc' | 'chunk';
 
 export interface RetrievalRequest {
+  curriculum_scope?: RetrievalCurriculumScope | null;
   need: RetrievalNeed;
   retrieval?: RetrievalOptions;
   student_profile: StudentProfile;
+}
+/**
+ * Portée de la preuve pédagogique, distincte de la cible élève.
+ */
+export interface RetrievalCurriculumScope {
+  matiere: Matiere;
+  niveau: Niveau;
+  statut_enseignement: StatutEnseignement;
+  voie: Voie;
 }
 export interface RetrievalNeed {
   desired_doc_types?: DesiredDocTypes;
@@ -788,14 +1010,54 @@ export interface PilotScopeIdentity {
  */
 export interface PilotScopeSubject {
   collection: Collection;
-  matiere: Matiere;
+  matiere: Matiere1;
   programme_version: ProgrammeVersion;
+}
+/**
+ * Scope étroit séparant identité cible et preuve pédagogique.
+ */
+export interface RetrievalScopeArtifactV2 {
+  artifact_version: ArtifactVersion1;
+  evidence_subject: RetrievalScopeEvidenceSubject;
+  scope_id: ScopeId2;
+  source_sha256: SourceSha2561;
+  status: Status1;
+  target_identity: RetrievalScopeTargetIdentity;
+}
+/**
+ * Dimensions SQL autoritatives de la preuve curriculaire V2.
+ */
+export interface RetrievalScopeEvidenceSubject {
+  audiences: Audiences;
+  candidat: Candidat;
+  collection: Collection1;
+  matiere: Matiere2;
+  niveau: Niveau;
+  programme_version: ProgrammeVersion1;
+  rights: Rights2;
+  school_year: SchoolYear3;
+  statut_enseignement: StatutEnseignement;
+  tenant: Tenant2;
+  visibility: Visibility;
+  voie: Voie;
+}
+/**
+ * Cible élève exacte portée par un scope de retrieval V2.
+ */
+export interface RetrievalScopeTargetIdentity {
+  audience: Audience2;
+  candidates: Candidates1;
+  matiere: Matiere3;
+  niveau: Niveau;
+  statut_enseignement: StatutEnseignement;
+  tenant: Tenant3;
+  voie: Voie;
 }
 /**
  * Paramètres navigateur vers BFF pour consulter la file de review.
  */
 export interface ReviewQueuePayload {
-  collection?: Collection1;
+  collection?: Collection2;
   limit?: Limit;
   offset?: Offset;
 }
@@ -803,7 +1065,7 @@ export interface ReviewQueuePayload {
  * Décision navigateur vers BFF, sans identité ni texte libre.
  */
 export interface ReviewDecisionPayload {
-  collection?: Collection2;
+  collection?: Collection3;
   decision: Decision;
   target_id: TargetId;
   target_type?: TargetType;
@@ -812,11 +1074,11 @@ export interface ReviewDecisionPayload {
  * Décision BFF vers moteur enrichie du tenant signé.
  */
 export interface ReviewDecisionRequest {
-  collection?: Collection3;
+  collection?: Collection4;
   decision: Decision1;
   target_id: TargetId1;
   target_type?: TargetType1;
-  tenant: Tenant2;
+  tenant: Tenant4;
 }
 /**
  * Page de documents en attente retournée par le moteur.
@@ -832,11 +1094,11 @@ export interface ReviewQueueResponse {
  */
 export interface ReviewQueueDocument {
   chunk_count: ChunkCount;
-  collection: Collection4;
+  collection: Collection5;
   doc_id: DocId2;
   first_indexed: FirstIndexed;
   last_indexed: LastIndexed;
-  rights: Rights2;
+  rights: Rights4;
   source_kind: SourceKind;
   source_label: SourceLabel2;
   source_uri: SourceUri2;

@@ -10,6 +10,7 @@ import pytest
 from nexus_contracts.document import Rights
 
 import ingestor.ingestion_worker.publication_resume as resume_module
+from ingestor.embedding_provider import CallableEmbeddingProvider
 from ingestor.ingestion_control.jobs import JobClaim
 from ingestor.ingestion_worker.publication_resume import (
     PublicationResumeDeps,
@@ -84,6 +85,17 @@ def _claim(
     )
 
 
+def test_worker_b_dependencies_reject_a_bare_embedding_callable() -> None:
+    with pytest.raises(PublicationResumeError, match="explicit embedding provider"):
+        PublicationResumeDeps(
+            owner="publication-resume-test",
+            product_dsn="postgresql://product",
+            artifact_reader=lambda **_kwargs: b"unused",
+            extract_text=lambda _content: "unused",
+            embedding_provider=lambda _passages: (),  # type: ignore[arg-type]
+        )
+
+
 def test_resume_uses_governed_source_path_and_prebound_attestation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -104,6 +116,7 @@ def test_resume_uses_governed_source_path_and_prebound_attestation(
         final_url="https://eduscol.education.fr/document.pdf",
         rights_status=Rights.officiel_public,
         extracted_text_ref="artifact://fr",
+        mime_detected="application/pdf",
     )
     durable_facts = SimpleNamespace(
         rights_status=Rights.officiel_public,
@@ -158,8 +171,20 @@ def test_resume_uses_governed_source_path_and_prebound_attestation(
         return SimpleNamespace(attestation=SimpleNamespace(attestation_id=attestation_id))
 
     monkeypatch.setattr(resume_module, "promote_reviewed_publication", promote)
-    def publish(_control: object, _product: object, governed: object, *_a: object) -> object:
+    provider = CallableEmbeddingProvider(
+        encoder=lambda _chunks: [[1.0] + [0.0] * 1023]
+    )
+
+    def publish(
+        _control: object,
+        _product: object,
+        governed: object,
+        _placements: object,
+        _extract_text: object,
+        embedding_provider: object,
+    ) -> object:
         published["governed"] = governed
+        published["embedding_provider"] = embedding_provider
         return SimpleNamespace(
             artifact_id=content_sha256, chunk_rows=1, placement_rows=1
         )
@@ -173,7 +198,7 @@ def test_resume_uses_governed_source_path_and_prebound_attestation(
         product_dsn="postgresql://product",
         artifact_reader=lambda **_k: raw_bytes,
         extract_text=lambda _content: "texte",
-        embed_chunks=lambda _chunks: [[0.0] * 1024],
+        embedding_provider=provider,
         pii_evidence_registry=_PIIRegistry(),
         rights_evidence_registry=rights_registry,
         manifest_digest="b" * 64,
@@ -196,6 +221,8 @@ def test_resume_uses_governed_source_path_and_prebound_attestation(
     assert rights_registry.source_paths == [sealed_source_path]
     assert promotion_kwargs["expected_attestation_id"] == attestation_id
     assert published["governed"].source_uri == placement.source_uri
+    assert published["governed"].mime_detected == "application/pdf"
+    assert published["embedding_provider"] is provider
     assert resolved == {
         "content_sha256": content_sha256,
         "collection": "rag_nexus_francais_troisieme_tc",
@@ -259,7 +286,7 @@ def test_resume_rejects_payload_source_path_that_disagrees_with_placement(
         product_dsn="postgresql://product",
         artifact_reader=lambda **_k: b"unused",
         extract_text=lambda _content: "unused",
-        embed_chunks=lambda _chunks: (),
+        embedding_provider=CallableEmbeddingProvider(encoder=lambda _chunks: ()),
         manifest_digest="b" * 64,
         placement_resolver=Resolver(),
     )
@@ -295,7 +322,7 @@ def test_resume_rejects_payload_run_that_disagrees_with_claim(
         product_dsn="postgresql://product",
         artifact_reader=lambda **_k: b"unused",
         extract_text=lambda _content: "unused",
-        embed_chunks=lambda _chunks: (),
+        embedding_provider=CallableEmbeddingProvider(encoder=lambda _chunks: ()),
     )
 
     with pytest.raises(PublicationResumeError, match="run_id disagrees"):
@@ -325,6 +352,7 @@ def test_resume_enters_promotion_and_publisher_with_idle_connections(
         sha256=content_sha256,
         rights_status=Rights.officiel_public,
         extracted_text_ref="artifact://fr",
+        mime_detected="application/pdf",
     )
     durable_facts = SimpleNamespace(
         rights_status=Rights.officiel_public,
@@ -401,7 +429,9 @@ def test_resume_enters_promotion_and_publisher_with_idle_connections(
         product_dsn="postgresql://product",
         artifact_reader=lambda **_k: raw_bytes,
         extract_text=lambda _content: "texte",
-        embed_chunks=lambda _chunks: [[0.0] * 1024],
+        embedding_provider=CallableEmbeddingProvider(
+            encoder=lambda _chunks: [[1.0] + [0.0] * 1023]
+        ),
         pii_evidence_registry=_PIIRegistry(),
         rights_evidence_registry=_RightsRegistry(),
         manifest_digest="b" * 64,

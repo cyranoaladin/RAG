@@ -30,6 +30,11 @@ from uuid import UUID
 import psycopg
 
 try:
+    from ingestor.embedding_provider import (
+        EmbeddingProvider,
+        EmbeddingProviderError,
+        coerce_embedding_provider,
+    )
     from ingestor.governed_publisher_v2 import (
         GovernedArtifact,
         publish_governed_artifact,
@@ -61,6 +66,11 @@ except ImportError as _exc:  # repli à plat, cause réelle préservée
         _exc.name or ""
     ) not in ("ingestor", "src", "src.ingestor"):
         raise
+    from embedding_provider import (
+        EmbeddingProvider,
+        EmbeddingProviderError,
+        coerce_embedding_provider,
+    )
     from governed_publisher_v2 import (
         GovernedArtifact,
         publish_governed_artifact,
@@ -136,11 +146,23 @@ class PublicationResumeDeps:
     product_dsn: str
     artifact_reader: Any
     extract_text: Any
-    embed_chunks: Any
+    embedding_provider: EmbeddingProvider
     pii_evidence_registry: Any = None
     rights_evidence_registry: Any = None
     manifest_digest: str = ""
     placement_resolver: Any = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.embedding_provider, EmbeddingProvider):
+            raise PublicationResumeError(
+                "publication worker requires an explicit embedding provider"
+            )
+        try:
+            self.embedding_provider = coerce_embedding_provider(
+                self.embedding_provider
+            )
+        except EmbeddingProviderError as exc:
+            raise PublicationResumeError(str(exc)) from exc
 
     def require_sealed_evidence(self) -> tuple[Any, Any]:
         if self.pii_evidence_registry is None or self.rights_evidence_registry is None:
@@ -331,6 +353,7 @@ def resume_publication(
         official=attribution.official,
         source_kind=attribution.source_kind,
         type_doc=attribution.type_doc,
+        mime_detected=artifact_record.mime_detected,
     )
 
     # Les lectures de préflight ci-dessus ouvrent une transaction psycopg.
@@ -366,7 +389,7 @@ def resume_publication(
             governed,
             placements,
             deps.extract_text,
-            deps.embed_chunks,
+            deps.embedding_provider,
         )
 
     return PublicationResumeOutcome(

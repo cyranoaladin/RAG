@@ -38,7 +38,7 @@ def _clear_database_readiness_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         api_v2,
         "load_identity_verifier_config",
-        lambda: SimpleNamespace(artifact=object()),
+        lambda: SimpleNamespace(artifacts={"test-scope": object()}),
         raising=False,
     )
     monkeypatch.setattr(
@@ -51,6 +51,12 @@ def _clear_database_readiness_cache(monkeypatch: pytest.MonkeyPatch) -> None:
         api_v2,
         "validate_pilot_scope_catalogue_alignment",
         lambda _artifact, _catalogue: None,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        api_v2,
+        "validate_scope_registry_catalogue_alignment",
+        lambda _artifacts, _catalogue: None,
         raising=False,
     )
     monkeypatch.setattr(
@@ -147,7 +153,7 @@ def test_lot41u_plan_contains_no_machine_local_absolute_path() -> None:
     assert "/Users/" not in plan
 
 
-def test_health_is_ready_only_for_schema_003_and_canonical_embedding(
+def test_health_is_ready_only_for_schema_004_and_canonical_embedding(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("PG_RAG_DSN", "postgresql://reader")
@@ -177,25 +183,25 @@ def test_health_is_ready_only_for_schema_003_and_canonical_embedding(
     assert response.status_code == 200
     assert response.json() == {
         "status": "healthy",
-        "schema_head": "003_profile_filtering",
+        "schema_head": "004_artifact_placements",
         "embedding_model": "intfloat/multilingual-e5-large",
         "embedding_dim_declared": 1024,
         "pgvector_dim": 1024,
     }
 
 
-def test_health_binds_the_identity_artifact_to_the_mounted_catalogue(
+def test_health_binds_the_identity_registry_to_the_mounted_catalogue(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("PG_RAG_DSN", "postgresql://reader")
     monkeypatch.setenv("PG_REVIEW_DSN", "postgresql://reviewer")
-    artifact = object()
+    artifacts = {"scope-a": object(), "scope-b": object()}
     catalogue = object()
     calls: list[tuple[object, object]] = []
     monkeypatch.setattr(
         api_v2,
         "load_identity_verifier_config",
-        lambda: SimpleNamespace(artifact=artifact),
+        lambda: SimpleNamespace(artifacts=artifacts),
     )
     monkeypatch.setattr(
         api_v2,
@@ -204,9 +210,9 @@ def test_health_binds_the_identity_artifact_to_the_mounted_catalogue(
     )
     monkeypatch.setattr(
         api_v2,
-        "validate_pilot_scope_catalogue_alignment",
-        lambda loaded_artifact, loaded_catalogue: calls.append(
-            (loaded_artifact, loaded_catalogue)
+        "validate_scope_registry_catalogue_alignment",
+        lambda loaded_artifacts, loaded_catalogue: calls.append(
+            (loaded_artifacts, loaded_catalogue)
         ),
         raising=False,
     )
@@ -236,7 +242,7 @@ def test_health_binds_the_identity_artifact_to_the_mounted_catalogue(
     response = TestClient(api_v2.app).get("/health")
 
     assert response.status_code == 200
-    assert calls == [(artifact, catalogue)]
+    assert calls == [(artifacts, catalogue)]
 
 
 @pytest.mark.parametrize(
@@ -809,6 +815,8 @@ def test_lifespan_installs_then_clears_the_startup_attestations(
     reranker_attestation = SimpleNamespace(root=Path("/models/reranker"))
     attestations = (embedding_attestation, reranker_attestation)
     pool_settings = object()
+    artifacts = {"scope-a": object(), "scope-b": object()}
+    catalogue = object()
     lifecycle_events: list[tuple[Path, Path] | str | None] = []
     monkeypatch.setenv("PG_RAG_DSN", "postgresql://reader")
     monkeypatch.setenv("PG_REVIEW_DSN", "postgresql://reviewer")
@@ -827,6 +835,32 @@ def test_lifespan_installs_then_clears_the_startup_attestations(
         api_v2,
         "_initialize_model_artifacts",
         lambda: attestations,
+    )
+    monkeypatch.setattr(
+        api_v2,
+        "validate_bff_service_configuration",
+        lambda: lifecycle_events.append("bff"),
+    )
+    monkeypatch.setattr(
+        api_v2,
+        "load_identity_verifier_config",
+        lambda: lifecycle_events.append("identity")
+        or SimpleNamespace(artifacts=artifacts),
+    )
+    monkeypatch.setattr(
+        api_v2,
+        "validate_collection_catalogue_v2",
+        lambda: lifecycle_events.append("catalogue") or catalogue,
+    )
+    monkeypatch.setattr(
+        api_v2,
+        "validate_scope_registry_catalogue_alignment",
+        lambda loaded_artifacts, loaded_catalogue: lifecycle_events.append(
+            "registry_alignment"
+        )
+        if (loaded_artifacts, loaded_catalogue) == (artifacts, catalogue)
+        else pytest.fail("lifespan authority binding drifted"),
+        raising=False,
     )
     monkeypatch.setattr(api_v2, "close_pool", lambda: None)
     monkeypatch.setattr(
@@ -867,6 +901,10 @@ def test_lifespan_installs_then_clears_the_startup_attestations(
 
     assert api_v2._model_artifact_attestations is None
     assert lifecycle_events == [
+        "bff",
+        "identity",
+        "catalogue",
+        "registry_alignment",
         "pool",
         (embedding_attestation.root, reranker_attestation.root),
         "preload",

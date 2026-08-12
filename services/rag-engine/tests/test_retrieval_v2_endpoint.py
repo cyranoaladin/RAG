@@ -707,6 +707,46 @@ class TestResponseFormat:
             ),
         }
 
+    def test_mapping_hybrid_hit_builds_a_query_relevant_short_preview(self) -> None:
+        from ingestor.retrieval_hybrid_v2 import HybridHit, RetrievalCandidate
+        from ingestor.retrieval_v2_endpoint import _to_search_hit
+
+        candidate = RetrievalCandidate(
+            chunk_id="chunk-query-preview",
+            doc_id="a" * 64,
+            source_label="Attendus de mathématiques",
+            source_uri="https://example.edu/maths",
+            rights="officiel_public",
+            type_doc="attendus",
+            text=(
+                "Introduction générale sans le concept recherché. " * 8
+                + "Calculer avec des fractions et des nombres relatifs."
+            ),
+            page_start=5,
+            vector=(1.0,) + (0.0,) * 1023,
+            review_status="reviewed",
+            dense_score=0.8,
+            lexical_score=None,
+        )
+        hybrid_hit = HybridHit(
+            candidate=candidate,
+            dense_rank=1,
+            lexical_rank=None,
+            rrf_score=0.01,
+            rerank_score=3.2,
+            mmr_score=0.7,
+            score_final=0.9,
+        )
+
+        hit = _to_search_hit(
+            hybrid_hit,
+            query="Comment calculer des fractions avec des nombres relatifs ?",
+        )
+
+        assert len(hit.preview) <= 200
+        assert "fractions" in hit.preview
+        assert "nombres relatifs" in hit.preview
+
     def test_mapping_refuses_blank_provenance_and_preview(self) -> None:
         from ingestor.retrieval_v2_endpoint import SearchV2Hit
 

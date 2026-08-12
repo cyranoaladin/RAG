@@ -15,6 +15,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
+import re
 import threading
 import time
 from collections.abc import Iterable, Mapping
@@ -30,6 +31,7 @@ from nexus_contracts import (
     RetrievalRequest,
     RetrievalResponse,
     RetrievalResult,
+    RetrievalScopeArtifactV2,
 )
 from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
 
@@ -971,7 +973,10 @@ def _retrieve_endpoint_hits(
     scope: ServerRetrievalScope,
 ) -> list[SearchV2Hit]:
     try:
-        return [_to_search_hit(hit) for hit in _retrieve_hybrid_hits(query, collection, k, scope)]
+        return [
+            _to_search_hit(hit, query=query)
+            for hit in _retrieve_hybrid_hits(query, collection, k, scope)
+        ]
     except Exception:
         raise _retrieval_unavailable() from None
 
@@ -982,7 +987,47 @@ def _retrieve_reviewed_hits(query: str, collection: str, k: int) -> list[SearchV
     raise _retrieval_unavailable()
 
 
-def _to_search_hit(hit: HybridHit) -> SearchV2Hit:
+_PREVIEW_LIMIT = 200
+_QUERY_PREVIEW_STOP_WORDS = frozenset(
+    {"avec", "cette", "comment", "dans", "pour", "sans", "une", "des"}
+)
+
+
+def _query_relevant_preview(text: str, query: str | None) -> str:
+    source = text.strip()
+    if len(source) <= _PREVIEW_LIMIT or not query:
+        return source[:_PREVIEW_LIMIT]
+
+    query_terms = {
+        term
+        for term in re.findall(r"[^\W\d_]{4,}", query.casefold(), flags=re.UNICODE)
+        if term not in _QUERY_PREVIEW_STOP_WORDS
+    }
+    folded = source.casefold()
+    anchors = sorted(
+        {
+            match.start()
+            for term in query_terms
+            for match in re.finditer(re.escape(term), folded)
+        }
+    )
+    if not anchors:
+        return source[:_PREVIEW_LIMIT]
+
+    candidates: list[tuple[int, int, str]] = []
+    for anchor in anchors:
+        start = max(0, anchor - (_PREVIEW_LIMIT // 3))
+        if start > 0:
+            next_space = source.find(" ", start)
+            if 0 < next_space < anchor:
+                start = next_space + 1
+        preview = source[start : start + _PREVIEW_LIMIT].strip()
+        score = sum(term in preview.casefold() for term in query_terms)
+        candidates.append((score, -start, preview))
+    return max(candidates)[2]
+
+
+def _to_search_hit(hit: HybridHit, *, query: str | None = None) -> SearchV2Hit:
     candidate = hit.candidate
     return SearchV2Hit(
         chunk_id=candidate.chunk_id,
@@ -999,7 +1044,7 @@ def _to_search_hit(hit: HybridHit) -> SearchV2Hit:
         placement_source_id=candidate.placement_source_id,
         placement_source_path=candidate.placement_source_path,
         page=candidate.page_start,
-        preview=candidate.text.strip()[:200],
+        preview=_query_relevant_preview(candidate.text, query),
         dense_score=candidate.dense_score,
         lexical_score=candidate.lexical_score,
         rrf_score=hit.rrf_score,
@@ -1164,14 +1209,40 @@ def _collection_for_retrieval_request(
     verified: VerifiedInternalIdentity,
 ) -> str:
     """Résoudre une matière contractuelle vers l'artefact signé du serveur."""
+    artifact = verified.artifact
+    if isinstance(artifact, RetrievalScopeArtifactV2):
+        curriculum = payload.curriculum_scope
+        evidence = artifact.evidence_subject
+        if curriculum is None:
+            raise RetrievalScopeError("retrieval scope forbidden")
+        requested = (
+            curriculum.niveau.value,
+            curriculum.voie.value,
+            curriculum.matiere,
+            curriculum.statut_enseignement.value,
+        )
+        expected = (
+            evidence.niveau.value,
+            evidence.voie.value,
+            evidence.matiere,
+            evidence.statut_enseignement.value,
+        )
+        if requested != expected:
+            raise RetrievalScopeError("retrieval scope forbidden")
+        allowed = effective_signed_collections(verified)
+        if allowed != (evidence.collection,):
+            raise RetrievalScopeError("retrieval scope forbidden")
+        return str(evidence.collection)
+
     matieres = payload.student_profile.matieres
     if len(matieres) != 1:
         raise RetrievalScopeError("retrieval scope forbidden")
-    allowed = set(effective_signed_collections(verified))
+    allowed_collections = set(effective_signed_collections(verified))
     matches = [
         subject.collection
         for subject in verified.artifact.subjects
-        if subject.matiere == matieres[0] and subject.collection in allowed
+        if subject.matiere == matieres[0]
+        and subject.collection in allowed_collections
     ]
     if len(matches) != 1:
         raise RetrievalScopeError("retrieval scope forbidden")
@@ -1181,8 +1252,16 @@ def _collection_for_retrieval_request(
 def _require_retrieval_profile_match(
     payload: RetrievalRequest,
     scope: ServerRetrievalScope,
+    verified: VerifiedInternalIdentity | None = None,
 ) -> None:
     """Refuser toute dimension contractuelle différente du scope signé."""
+    artifact = getattr(verified, "artifact", None)
+    if isinstance(artifact, RetrievalScopeArtifactV2):
+        assert verified is not None
+        _require_student_target_match(payload, verified)
+        _require_curriculum_evidence_match(payload, scope, verified)
+        return
+
     profile = payload.student_profile
     expected = {
         "niveau": scope.niveau,
@@ -1206,6 +1285,86 @@ def _require_retrieval_profile_match(
     }
     if actual != expected:
         raise RetrievalScopeError("retrieval scope forbidden")
+    curriculum = payload.curriculum_scope
+    if curriculum is not None and (
+        curriculum.niveau.value,
+        curriculum.voie.value,
+        curriculum.matiere,
+        curriculum.statut_enseignement.value,
+    ) != (
+        scope.niveau,
+        scope.voie,
+        scope.matiere,
+        scope.statut_enseignement,
+    ):
+        raise RetrievalScopeError("retrieval scope forbidden")
+
+
+def _require_student_target_match(
+    payload: RetrievalRequest,
+    verified: VerifiedInternalIdentity,
+) -> None:
+    """Lier le profil de requête à la cible élève signée V2."""
+    artifact = verified.artifact
+    if not isinstance(artifact, RetrievalScopeArtifactV2):
+        raise RetrievalScopeError("retrieval scope forbidden")
+    profile = payload.student_profile
+    target = artifact.target_identity
+    actual = (
+        profile.niveau.value,
+        profile.voie.value,
+        tuple(profile.matieres),
+        profile.statut_enseignement.value,
+        profile.candidat.value,
+        profile.school_year,
+        profile.zone,
+        profile.audience,
+    )
+    expected = (
+        target.niveau.value,
+        target.voie.value,
+        (target.matiere,),
+        target.statut_enseignement.value,
+        verified.envelope.identity.pedagogical_profile.candidat.value,
+        artifact.evidence_subject.school_year,
+        target.audience,
+        target.audience,
+    )
+    if actual != expected:
+        raise RetrievalScopeError("retrieval scope forbidden")
+
+
+def _require_curriculum_evidence_match(
+    payload: RetrievalRequest,
+    scope: ServerRetrievalScope,
+    verified: VerifiedInternalIdentity,
+) -> None:
+    """Lier la portée curriculaire aux dimensions SQL signées V2."""
+    artifact = verified.artifact
+    curriculum = payload.curriculum_scope
+    if not isinstance(artifact, RetrievalScopeArtifactV2) or curriculum is None:
+        raise RetrievalScopeError("retrieval scope forbidden")
+    evidence = artifact.evidence_subject
+    requested = (
+        curriculum.niveau.value,
+        curriculum.voie.value,
+        curriculum.matiere,
+        curriculum.statut_enseignement.value,
+    )
+    signed = (
+        evidence.niveau.value,
+        evidence.voie.value,
+        evidence.matiere,
+        evidence.statut_enseignement.value,
+    )
+    server = (
+        scope.niveau,
+        scope.voie,
+        scope.matiere,
+        scope.statut_enseignement,
+    )
+    if requested != signed or server != signed or scope.collection != evidence.collection:
+        raise RetrievalScopeError("retrieval scope forbidden")
 
 
 @router.post("/search/v2", response_model=RetrievalResponse)
@@ -1226,7 +1385,7 @@ def search_v2(payload: RetrievalRequest, request: Request) -> RetrievalResponse:
             collection=collection,
             collection_config=cfg,
         )
-        _require_retrieval_profile_match(payload, scope)
+        _require_retrieval_profile_match(payload, scope, verified)
         adapted = adapt_retrieval_request(
             payload,
             collection=collection,

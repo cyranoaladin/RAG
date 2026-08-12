@@ -23,6 +23,7 @@ from src.ingestor.collection_config import (
 
 ENGINE_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = ENGINE_ROOT / "configs" / "rag_collections.yml"
+WAVE0_CONFIG_PATH = ENGINE_ROOT / "configs" / "staging" / "rag_collections_wave0.yml"
 LEGACY_CONFIG_PATH = ENGINE_ROOT / "configs" / "rag_collections_legacy.yml"
 MAPPING_PATH = ENGINE_ROOT / "configs" / "legacy_collection_mapping.yml"
 COLLECTION_CONFIG_MODULE = ENGINE_ROOT / "src" / "ingestor" / "collection_config.py"
@@ -96,6 +97,36 @@ def test_instanciated_match_perimetre() -> None:
         "rag_nexus_philo_terminale_tc",
         "rag_nexus_quarantine",
     }
+
+
+def test_wave0_staging_overlay_activates_exactly_two_declared_collections() -> None:
+    canonical = load_collection_config(CONFIG_PATH)
+    staging = load_collection_config(WAVE0_CONFIG_PATH)
+    expected = {
+        "rag_nexus_maths_troisieme_tc",
+        "rag_nexus_francais_troisieme_tc",
+    }
+    activated = {
+        name
+        for name, definition in staging["collections"].items()
+        if definition["instanciee"] is True
+        and canonical["collections"][name]["instanciee"] is False
+    }
+
+    assert activated == expected
+    for name, definition in canonical["collections"].items():
+        expected_definition = dict(definition)
+        if name in expected:
+            expected_definition["instanciee"] = True
+        assert staging["collections"][name] == expected_definition
+
+
+def test_wave0_college_collections_have_an_explicit_canonical_voie() -> None:
+    canonical = load_collection_config(CONFIG_PATH)
+    staging = load_collection_config(WAVE0_CONFIG_PATH)
+    for config in (canonical, staging):
+        assert config["collections"]["rag_nexus_maths_troisieme_tc"]["voie"] == "college"
+        assert config["collections"]["rag_nexus_francais_troisieme_tc"]["voie"] == "college"
 
 
 def test_no_web3_domain() -> None:

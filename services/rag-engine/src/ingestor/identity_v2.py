@@ -15,7 +15,8 @@ from fastapi import HTTPException, Request
 from nexus_contracts import (
     InternalIdentityEnvelope,
     PilotRetrievalScopeArtifact,
-    load_pilot_retrieval_scope,
+    RetrievalScopeArtifact,
+    load_retrieval_scope_registry,
 )
 from pydantic import ValidationError
 
@@ -44,7 +45,8 @@ class IdentityVerifierConfig:
     audience: str
     identity_issuer: str
     identity_audience: str
-    artifact: PilotRetrievalScopeArtifact
+    artifact: RetrievalScopeArtifact
+    artifacts: Mapping[str, RetrievalScopeArtifact] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         required = (
@@ -60,6 +62,10 @@ class IdentityVerifierConfig:
             raise IdentityConfigurationError("identity configuration invalid")
         if "," in self.identity_audience:
             raise IdentityConfigurationError("identity configuration invalid")
+        if self.artifacts:
+            selected = self.artifacts.get(self.artifact.scope_id)
+            if selected is None or selected != self.artifact:
+                raise IdentityConfigurationError("identity configuration invalid")
 
 
 @dataclass(frozen=True, repr=False)
@@ -67,7 +73,7 @@ class VerifiedInternalIdentity:
     """Enveloppe validée liée à l'artefact moteur, sans repr personnelle."""
 
     envelope: InternalIdentityEnvelope
-    artifact: PilotRetrievalScopeArtifact
+    artifact: RetrievalScopeArtifact
 
     @property
     def scope_digest(self) -> str:
@@ -83,14 +89,32 @@ def load_identity_verifier_config(
     """Charger fail-closed la politique moteur et l'artefact contractuel."""
     source = os.environ if environ is None else environ
     secret = source.get("NEXUS_INTERNAL_TOKEN_SECRET", "")
+    artifacts = load_retrieval_scope_registry()
+    legacy = artifacts["libre_terminale_maths_nsi_real_v1"]
+    if not isinstance(legacy, PilotRetrievalScopeArtifact):
+        raise IdentityConfigurationError("identity configuration invalid")
     return IdentityVerifierConfig(
         secret=secret,
         issuer=source.get("NEXUS_INTERNAL_TOKEN_ISSUER", "").strip(),
         audience=source.get("NEXUS_INTERNAL_TOKEN_AUDIENCE", "").strip(),
         identity_issuer=source.get("NEXUS_SSO_ISSUER", "").strip(),
         identity_audience=source.get("NEXUS_SSO_AUDIENCE", "").strip(),
-        artifact=load_pilot_retrieval_scope(),
+        artifact=legacy,
+        artifacts=artifacts,
     )
+
+
+def resolve_identity_scope(
+    scope_id: str,
+    *,
+    config: IdentityVerifierConfig,
+) -> RetrievalScopeArtifact:
+    """Résoudre exactement le scope signé, sans repli sur le pilote V1."""
+    registry = config.artifacts or {config.artifact.scope_id: config.artifact}
+    try:
+        return registry[scope_id]
+    except KeyError as exc:
+        raise IdentityScopeError("identity scope forbidden") from exc
 
 
 def _decode_segment(value: str) -> bytes:
@@ -155,10 +179,11 @@ def verify_identity_token(
     ):
         raise IdentityTokenError("invalid identity token")
     try:
-        config.artifact.validate_envelope(envelope)
+        artifact = resolve_identity_scope(envelope.scope_id, config=config)
+        artifact.validate_envelope(envelope)
     except ValueError as exc:
         raise IdentityScopeError("identity scope forbidden") from exc
-    return VerifiedInternalIdentity(envelope=envelope, artifact=config.artifact)
+    return VerifiedInternalIdentity(envelope=envelope, artifact=artifact)
 
 
 def require_internal_identity(
@@ -195,5 +220,6 @@ __all__ = [
     "VerifiedInternalIdentity",
     "load_identity_verifier_config",
     "require_internal_identity",
+    "resolve_identity_scope",
     "verify_identity_token",
 ]

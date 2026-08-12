@@ -2,7 +2,7 @@
 import Ajv2020 from 'ajv/dist/2020.js'
 import addFormats from 'ajv-formats'
 
-import type { RetrievalRequest, RetrievalResponse, SearchPayload, ChatPayload, ChatRequest, ChatResponse, InternalIdentity, InternalIdentityEnvelope, PilotRetrievalScopeArtifact, ReviewQueuePayload, ReviewDecisionPayload, ReviewDecisionRequest, ReviewQueueResponse, ReviewDecisionResponse } from './contracts'
+import type { RetrievalRequest, RetrievalResponse, SearchPayload, ChatPayload, ChatRequest, ChatResponse, InternalIdentity, InternalIdentityEnvelope, PilotRetrievalScopeArtifact, RetrievalScopeArtifactV2, ReviewQueuePayload, ReviewDecisionPayload, ReviewDecisionRequest, ReviewQueueResponse, ReviewDecisionResponse } from './contracts'
 import RetrievalRequestSchema from './schema/retrieval-request.json'
 import RetrievalResponseSchema from './schema/retrieval-response.json'
 import SearchPayloadSchema from './schema/search-payload.json'
@@ -12,6 +12,7 @@ import ChatResponseSchema from './schema/chat-response.json'
 import InternalIdentitySchema from './schema/internal-identity.json'
 import InternalIdentityEnvelopeSchema from './schema/internal-identity-envelope.json'
 import PilotRetrievalScopeArtifactSchema from './schema/pilot-retrieval-scope-artifact.json'
+import RetrievalScopeArtifactV2Schema from './schema/retrieval-scope-artifact-v2.json'
 import ReviewQueuePayloadSchema from './schema/review-queue-payload.json'
 import ReviewDecisionPayloadSchema from './schema/review-decision-payload.json'
 import ReviewDecisionRequestSchema from './schema/review-decision-request.json'
@@ -29,6 +30,7 @@ const chatResponseValidator = ajv.compile<ChatResponse>(ChatResponseSchema)
 const internalIdentityValidator = ajv.compile<InternalIdentity>(InternalIdentitySchema)
 const internalIdentityEnvelopeValidator = ajv.compile<InternalIdentityEnvelope>(InternalIdentityEnvelopeSchema)
 const pilotRetrievalScopeArtifactValidator = ajv.compile<PilotRetrievalScopeArtifact>(PilotRetrievalScopeArtifactSchema)
+const retrievalScopeArtifactV2Validator = ajv.compile<RetrievalScopeArtifactV2>(RetrievalScopeArtifactV2Schema)
 const reviewQueuePayloadValidator = ajv.compile<ReviewQueuePayload>(ReviewQueuePayloadSchema)
 const reviewDecisionPayloadValidator = ajv.compile<ReviewDecisionPayload>(ReviewDecisionPayloadSchema)
 const reviewDecisionRequestValidator = ajv.compile<ReviewDecisionRequest>(ReviewDecisionRequestSchema)
@@ -52,6 +54,8 @@ export const validateInternalIdentity = (payload: unknown): payload is InternalI
 export const validateInternalIdentityEnvelope = (payload: unknown): payload is InternalIdentityEnvelope => internalIdentityEnvelopeValidator(payload) === true
 
 export const validatePilotRetrievalScopeArtifact = (payload: unknown): payload is PilotRetrievalScopeArtifact => pilotRetrievalScopeArtifactValidator(payload) === true
+
+export const validateRetrievalScopeArtifactV2 = (payload: unknown): payload is RetrievalScopeArtifactV2 => retrievalScopeArtifactV2Validator(payload) === true
 
 export const validateReviewQueuePayload = (payload: unknown): payload is ReviewQueuePayload => reviewQueuePayloadValidator(payload) === true
 

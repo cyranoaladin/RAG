@@ -1,0 +1,5 @@
+kind: RAG_COLLECTIONS_STAGING_OVERLAY_V1
+base: ../rag_collections.yml
+instanciee_overrides:
+  rag_nexus_maths_troisieme_tc: true
+  rag_nexus_francais_troisieme_tc: true

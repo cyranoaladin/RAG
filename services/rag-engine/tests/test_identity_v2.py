@@ -10,7 +10,12 @@ from dataclasses import replace
 
 import pytest
 from fastapi import HTTPException
-from nexus_contracts import load_pilot_retrieval_scope
+from nexus_contracts import (
+    RetrievalScopeArtifactV2,
+    load_pilot_retrieval_scope,
+    load_retrieval_scope_artifact,
+    load_retrieval_scope_registry,
+)
 from starlette.requests import Request
 
 from src.ingestor.identity_v2 import (
@@ -149,6 +154,50 @@ def test_valid_signed_envelope_is_bound_to_the_canonical_artifact() -> None:
     assert verified.envelope.identity.tenant == "libre_terminale"
     assert verified.artifact is TEST_CONFIG.artifact
     assert verified.scope_digest == TEST_CONFIG.artifact.sha256_digest()
+
+
+def test_signed_envelope_selects_the_exact_wave0_scope_from_registry() -> None:
+    artifact = load_retrieval_scope_artifact("entree_seconde_maths_v1")
+    assert isinstance(artifact, RetrievalScopeArtifactV2)
+    target = artifact.target_identity
+    evidence = artifact.evidence_subject
+    identity = _identity_payload(
+        tenant=target.tenant,
+        niveau=target.niveau.value,
+        role="teacher",
+        school_year=evidence.school_year,
+        pedagogical_profile={
+            "voie": target.voie.value,
+            "matieres": [target.matiere],
+            "statut_enseignement": target.statut_enseignement.value,
+            "candidat": target.candidates[0].value,
+            "audience": target.audience,
+        },
+    )
+    token = _sign(
+        _envelope_payload(
+            identity=identity,
+            scope_id=artifact.scope_id,
+            scope_digest=artifact.sha256_digest(),
+            allowed_collections=[evidence.collection],
+        )
+    )
+    config = replace(TEST_CONFIG, artifacts=load_retrieval_scope_registry())
+
+    verified = verify_identity_token(token, config=config, now=NOW)
+
+    assert verified.artifact is config.artifacts[artifact.scope_id]
+    assert verified.artifact.scope_id == "entree_seconde_maths_v1"
+
+
+def test_signed_envelope_with_unknown_registry_scope_is_forbidden() -> None:
+    config = replace(TEST_CONFIG, artifacts=load_retrieval_scope_registry())
+    with pytest.raises(IdentityScopeError, match="identity scope forbidden"):
+        verify_identity_token(
+            _sign(_envelope_payload(scope_id="unknown_scope")),
+            config=config,
+            now=NOW,
+        )
 
 
 @pytest.mark.parametrize(

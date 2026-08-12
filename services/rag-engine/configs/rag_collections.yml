@@ -72,7 +72,7 @@ collections:
   rag_nexus_maths_troisieme_tc:
     matiere: maths
     niveau: troisieme
-    voie: null  # collège: pas de voie
+    voie: college
     statut: tronc_commun
     domain: education
     session_policy: declared_or_null
@@ -160,7 +160,7 @@ collections:
   rag_nexus_francais_troisieme_tc:
     matiere: francais
     niveau: troisieme
-    voie: null
+    voie: college
     statut: tronc_commun
     domain: education
     session_policy: declared_or_null

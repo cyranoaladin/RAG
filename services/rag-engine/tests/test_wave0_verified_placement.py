@@ -175,7 +175,7 @@ def _collections() -> dict[str, Any]:
             COLLECTION: {
                 "matiere": "francais",
                 "niveau": "troisieme",
-                "voie": None,
+                "voie": "college",
                 "statut": "tronc_commun",
                 "domain": "education",
                 "taxonomy_file": "francais/troisieme.yml",

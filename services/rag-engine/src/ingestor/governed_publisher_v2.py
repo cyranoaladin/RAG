@@ -27,7 +27,11 @@ from nexus_contracts.resource_state import ResourceState
 from psycopg.pq import TransactionStatus
 
 try:
-    from .embedding_contract import CANONICAL_EMBED_MODEL
+    from .embedding_provider import (
+        EmbeddingProvider,
+        EmbeddingProviderError,
+        coerce_embedding_provider,
+    )
     from .ingest_v2 import _is_artifact
     from .ingestion_control.publication_attestation import (
         VerifiedAttestation,
@@ -35,9 +39,14 @@ try:
     )
     from .ingestion_control.scope_authority import scope_key
     from .pedagogical_chunker import RawChunk, _flatten_section, parse_sections
+    from .publication_chunking import PDF_MIME_TYPE, PublicationChunk, chunk_publication
     from .retrieval_hybrid_v2 import EMBED_DIMENSION
 except (ImportError, ValueError):
-    from embedding_contract import CANONICAL_EMBED_MODEL  # type: ignore[no-redef]
+    from embedding_provider import (  # type: ignore[no-redef]
+        EmbeddingProvider,
+        EmbeddingProviderError,
+        coerce_embedding_provider,
+    )
     from ingest_v2 import _is_artifact  # type: ignore[no-redef]
     from ingestion_control.publication_attestation import (  # type: ignore[no-redef]
         VerifiedAttestation,
@@ -49,11 +58,15 @@ except (ImportError, ValueError):
         _flatten_section,
         parse_sections,
     )
+    from publication_chunking import (  # type: ignore[no-redef]
+        PDF_MIME_TYPE,
+        PublicationChunk,
+        chunk_publication,
+    )
     from retrieval_hybrid_v2 import EMBED_DIMENSION  # type: ignore[no-redef]
 
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 ExtractText = Callable[[bytes], str]
-EmbedChunks = Callable[[Sequence[str]], Sequence[Sequence[float]]]
 
 
 class GovernedPublicationError(RuntimeError):
@@ -76,6 +89,7 @@ class GovernedArtifact:
     official: bool
     source_kind: str
     type_doc: str
+    mime_detected: str = "text/plain"
 
     def __post_init__(self) -> None:
         if not isinstance(self.content, bytes) or not self.content:
@@ -89,6 +103,7 @@ class GovernedArtifact:
             "rights",
             "source_kind",
             "type_doc",
+            "mime_detected",
         ):
             _nonblank(getattr(self, field), field=field)
         if not isinstance(self.official, bool):
@@ -151,6 +166,16 @@ class _VerifiedPlacement:
 
 def _enum_value(value: object) -> str:
     return str(getattr(value, "value", value))
+
+
+def _extracted_text_for_chunking(
+    artifact: GovernedArtifact,
+    extract_text: ExtractText,
+) -> str:
+    """Ne jamais reparcourir un PDF avant l'extracteur page-aware canonique."""
+    if artifact.mime_detected == PDF_MIME_TYPE:
+        return ""
+    return extract_text(artifact.content)
 
 
 def _canonical_audience(scope: ResourceScope) -> list[str]:
@@ -510,11 +535,14 @@ def _chunk_text(extracted_text: str) -> tuple[str, ...]:
 
 
 def _vectors(
-    chunks: Sequence[str],
-    embed_chunks: EmbedChunks,
+    chunks: Sequence[PublicationChunk],
+    embedding_provider: EmbeddingProvider,
 ) -> tuple[tuple[float, ...], ...]:
-    passages = [format_passage(chunk) for chunk in chunks]
-    encoded = embed_chunks(passages)
+    passages = [format_passage(chunk.text) for chunk in chunks]
+    try:
+        encoded = embedding_provider.encode(passages)
+    except EmbeddingProviderError as exc:
+        raise GovernedPublicationError(str(exc)) from exc
     if len(encoded) != len(chunks):
         raise GovernedPublicationError("embedding cardinality mismatch")
     vectors: list[tuple[float, ...]] = []
@@ -622,11 +650,13 @@ def _insert_chunks(
     *,
     artifact: GovernedArtifact,
     placement: EligiblePlacement,
-    chunks: Sequence[str],
+    chunks: Sequence[PublicationChunk],
     vectors: Sequence[Sequence[float]],
+    model_id: str,
 ) -> None:
     scope = placement.scope
-    for index, (text, vector) in enumerate(zip(chunks, vectors, strict=True)):
+    for index, (chunk, vector) in enumerate(zip(chunks, vectors, strict=True)):
+        text = chunk.text
         chunk_sha = hashlib.sha256(text.encode("utf-8")).hexdigest()
         chunk_id = hashlib.sha256(
             f"{artifact.artifact_id}:{index}:{chunk_sha}".encode()
@@ -639,7 +669,8 @@ def _insert_chunks(
                 collection, niveau, voie, audience, matiere,
                 statut_enseignement, domain, source_label, source_uri,
                 rights, type_doc, official, text, chunk_index,
-                review_status, model, source_kind, tenant, candidat,
+                page_start, page_end, review_status, model,
+                source_kind, tenant, candidat,
                 visibility, school_year, programme_version, artifact_id
             ) VALUES (
                 %s, %s, %s, %s::vector,
@@ -647,7 +678,7 @@ def _insert_chunks(
                 %s, %s, %s, %s,
                 %s, %s, %s, %s, %s,
                 %s, %s, %s, %s, %s,
-                %s, %s, %s, %s
+                %s, %s, %s, %s, %s, %s
             )
             """,
             (
@@ -669,8 +700,10 @@ def _insert_chunks(
                 artifact.official,
                 text,
                 index,
+                chunk.page_start,
+                chunk.page_end,
                 "reviewed",
-                CANONICAL_EMBED_MODEL,
+                model_id,
                 artifact.source_kind,
                 str(scope.tenant),
                 _enum_value(scope.candidat),
@@ -689,7 +722,7 @@ def _publish_under_governance_fence(
     placements: Sequence[EligiblePlacement],
     verified: Sequence[_VerifiedPlacement],
     extract_text: ExtractText,
-    embed_chunks: EmbedChunks,
+    embedding_provider: EmbeddingProvider,
 ) -> GovernedPublicationResult:
     """Écrire le produit tandis que l'appelant conserve les verrous control."""
     ordered = tuple(
@@ -762,15 +795,33 @@ def _publish_under_governance_fence(
                 )
 
             if artifact_created:
-                extracted = extract_text(artifact.content)
-                chunks = _chunk_text(extracted)
-                vectors = _vectors(chunks, embed_chunks)
+                extracted = _extracted_text_for_chunking(artifact, extract_text)
+                chunks = tuple(
+                    PublicationChunk(
+                        text=chunk.text.replace("\x00", "").strip(),
+                        page_start=chunk.page_start,
+                        page_end=chunk.page_end,
+                    )
+                    for chunk in chunk_publication(
+                        content=artifact.content,
+                        mime_detected=artifact.mime_detected,
+                        extracted_text=extracted,
+                        token_counter=embedding_provider,
+                    )
+                    if not _is_artifact(chunk.text.replace("\x00", ""))
+                )
+                if not chunks:
+                    raise GovernedPublicationError(
+                        "chunking produced no substantive text"
+                    )
+                vectors = _vectors(chunks, embedding_provider)
                 _insert_chunks(
                     cursor,
                     artifact=artifact,
                     placement=ordered[0].placement,
                     chunks=chunks,
                     vectors=vectors,
+                    model_id=embedding_provider.model_id,
                 )
                 embedded = True
             else:
@@ -859,7 +910,7 @@ def publish_governed_artifact(
     artifact: GovernedArtifact,
     placements: Sequence[EligiblePlacement],
     extract_text: ExtractText,
-    embed_chunks: EmbedChunks,
+    embedding_provider: object,
 ) -> GovernedPublicationResult:
     """Linéariser l'autorité externe puis publier sous les verrous locaux.
 
@@ -872,6 +923,12 @@ def publish_governed_artifact(
     """
     if not isinstance(artifact, GovernedArtifact):
         raise TypeError("artifact must be GovernedArtifact")
+    try:
+        provider = coerce_embedding_provider(embedding_provider)
+    except EmbeddingProviderError as exc:
+        raise GovernedPublicationError(str(exc)) from exc
+    if provider.dimension != EMBED_DIMENSION:
+        raise GovernedPublicationError("embedding provider dimension mismatch")
     if control_conn is product_conn:
         raise GovernedPublicationError(
             "control and product connections must be distinct"
@@ -943,7 +1000,7 @@ def publish_governed_artifact(
             placements,
             fenced_verified,
             extract_text,
-            embed_chunks,
+            provider,
         )
 
 

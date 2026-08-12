@@ -1,0 +1,283 @@
+{
+  "$defs": {
+    "Candidat": {
+      "enum": [
+        "scolarise",
+        "individuel",
+        "libre",
+        "cned_reglemente",
+        "cned_libre",
+        "aefe",
+        "both"
+      ],
+      "title": "Candidat",
+      "type": "string"
+    },
+    "Niveau": {
+      "enum": [
+        "troisieme",
+        "seconde",
+        "premiere",
+        "terminale",
+        "cycle4",
+        "lycee_gt",
+        "voie_generale",
+        "voie_technologique"
+      ],
+      "title": "Niveau",
+      "type": "string"
+    },
+    "RetrievalScopeEvidenceSubject": {
+      "additionalProperties": false,
+      "description": "Dimensions SQL autoritatives de la preuve curriculaire V2.",
+      "properties": {
+        "audiences": {
+          "items": {
+            "enum": [
+              "libre",
+              "aefe",
+              "tous"
+            ],
+            "type": "string"
+          },
+          "maxItems": 3,
+          "minItems": 1,
+          "title": "Audiences",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "candidat": {
+          "$ref": "#/$defs/Candidat"
+        },
+        "collection": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Collection",
+          "type": "string"
+        },
+        "matiere": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Matiere",
+          "type": "string"
+        },
+        "niveau": {
+          "$ref": "#/$defs/Niveau"
+        },
+        "programme_version": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Programme Version",
+          "type": "string"
+        },
+        "rights": {
+          "items": {
+            "$ref": "#/$defs/Rights"
+          },
+          "maxItems": 16,
+          "minItems": 1,
+          "title": "Rights",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "school_year": {
+          "pattern": "^\\d{4}-\\d{4}$",
+          "title": "School Year",
+          "type": "string"
+        },
+        "statut_enseignement": {
+          "$ref": "#/$defs/StatutEnseignement"
+        },
+        "tenant": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Tenant",
+          "type": "string"
+        },
+        "visibility": {
+          "enum": [
+            "public",
+            "internal",
+            "restricted",
+            "private"
+          ],
+          "title": "Visibility",
+          "type": "string"
+        },
+        "voie": {
+          "$ref": "#/$defs/Voie"
+        }
+      },
+      "required": [
+        "collection",
+        "tenant",
+        "niveau",
+        "voie",
+        "matiere",
+        "statut_enseignement",
+        "candidat",
+        "audiences",
+        "visibility",
+        "rights",
+        "school_year",
+        "programme_version"
+      ],
+      "title": "RetrievalScopeEvidenceSubject",
+      "type": "object"
+    },
+    "RetrievalScopeTargetIdentity": {
+      "additionalProperties": false,
+      "description": "Cible élève exacte portée par un scope de retrieval V2.",
+      "properties": {
+        "audience": {
+          "enum": [
+            "libre",
+            "aefe",
+            "tous"
+          ],
+          "title": "Audience",
+          "type": "string"
+        },
+        "candidates": {
+          "items": {
+            "$ref": "#/$defs/Candidat"
+          },
+          "maxItems": 16,
+          "minItems": 1,
+          "title": "Candidates",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "matiere": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Matiere",
+          "type": "string"
+        },
+        "niveau": {
+          "$ref": "#/$defs/Niveau"
+        },
+        "statut_enseignement": {
+          "$ref": "#/$defs/StatutEnseignement"
+        },
+        "tenant": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Tenant",
+          "type": "string"
+        },
+        "voie": {
+          "$ref": "#/$defs/Voie"
+        }
+      },
+      "required": [
+        "tenant",
+        "niveau",
+        "voie",
+        "matiere",
+        "statut_enseignement",
+        "audience",
+        "candidates"
+      ],
+      "title": "RetrievalScopeTargetIdentity",
+      "type": "object"
+    },
+    "Rights": {
+      "enum": [
+        "officiel_public",
+        "public_allowed",
+        "nexus_proprietaire",
+        "usage_interne",
+        "student_private",
+        "parent_private",
+        "commercial_confidential",
+        "restricted",
+        "unknown"
+      ],
+      "title": "Rights",
+      "type": "string"
+    },
+    "StatutEnseignement": {
+      "enum": [
+        "tronc_commun",
+        "enseignement_commun",
+        "specialite",
+        "eds",
+        "option",
+        "maths_complementaires",
+        "maths_expertes",
+        "snt",
+        "enseignement_scientifique",
+        "emc",
+        "atelier",
+        "stage",
+        "remediation",
+        "examen",
+        "unknown"
+      ],
+      "title": "StatutEnseignement",
+      "type": "string"
+    },
+    "Voie": {
+      "enum": [
+        "college",
+        "generale",
+        "technologique",
+        "professionnelle",
+        "aefe",
+        "unknown"
+      ],
+      "title": "Voie",
+      "type": "string"
+    }
+  },
+  "$id": "https://nexusreussite.academy/contracts/v0.5/retrieval-scope-artifact-v2.json",
+  "additionalProperties": false,
+  "description": "Scope étroit séparant identité cible et preuve pédagogique.",
+  "properties": {
+    "artifact_version": {
+      "const": "2",
+      "title": "Artifact Version",
+      "type": "string"
+    },
+    "evidence_subject": {
+      "$ref": "#/$defs/RetrievalScopeEvidenceSubject"
+    },
+    "scope_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^[a-z0-9_]+$",
+      "title": "Scope Id",
+      "type": "string"
+    },
+    "source_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source Sha256",
+      "type": "string"
+    },
+    "status": {
+      "const": "eligible_for_promotion",
+      "title": "Status",
+      "type": "string"
+    },
+    "target_identity": {
+      "$ref": "#/$defs/RetrievalScopeTargetIdentity"
+    }
+  },
+  "required": [
+    "artifact_version",
+    "scope_id",
+    "status",
+    "source_sha256",
+    "target_identity",
+    "evidence_subject"
+  ],
+  "title": "RetrievalScopeArtifactV2",
+  "type": "object"
+}

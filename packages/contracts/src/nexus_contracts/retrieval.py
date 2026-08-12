@@ -4,7 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from nexus_contracts.document import TypeDoc
+from nexus_contracts.document import Niveau, StatutEnseignement, TypeDoc, Voie
+from nexus_contracts.identity import BoundedSlug
 from nexus_contracts.student_profile import StudentProfile
 
 
@@ -35,19 +36,48 @@ class RetrievalOptions(BaseModel):
     include_citations: bool = True
 
 
+class RetrievalCurriculumScope(BaseModel):
+    """Portée de la preuve pédagogique, distincte de la cible élève."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    niveau: Niveau
+    voie: Voie
+    matiere: BoundedSlug
+    statut_enseignement: StatutEnseignement
+
+
 class RetrievalRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     student_profile: StudentProfile
+    curriculum_scope: RetrievalCurriculumScope | None = None
     need: RetrievalNeed
     retrieval: RetrievalOptions = Field(default_factory=RetrievalOptions)
 
     def to_payload_filters(self) -> dict[str, str]:
+        curriculum = self.curriculum_scope
         return {
-            "niveau": self.student_profile.niveau.value,
-            "voie": self.student_profile.voie.value,
-            "matiere": self.student_profile.primary_matiere,
-            "statut_enseignement": self.student_profile.statut_enseignement.value,
+            "niveau": (
+                curriculum.niveau.value
+                if curriculum is not None
+                else self.student_profile.niveau.value
+            ),
+            "voie": (
+                curriculum.voie.value
+                if curriculum is not None
+                else self.student_profile.voie.value
+            ),
+            "matiere": (
+                curriculum.matiere
+                if curriculum is not None
+                else self.student_profile.primary_matiere
+            ),
+            "statut_enseignement": (
+                curriculum.statut_enseignement.value
+                if curriculum is not None
+                else self.student_profile.statut_enseignement.value
+            ),
             "candidat": self.student_profile.candidat.value,
             "audience": self.student_profile.audience,
         }

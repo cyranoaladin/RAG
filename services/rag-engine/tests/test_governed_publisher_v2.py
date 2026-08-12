@@ -79,6 +79,28 @@ def test_artifact_identity_is_exactly_the_content_sha() -> None:
     assert artifact.content_sha256 == hashlib.sha256(artifact.content).hexdigest()
 
 
+def test_pdf_publication_defers_extraction_to_the_page_aware_chunker() -> None:
+    artifact = GovernedArtifact(
+        content=CONTENT,
+        content_sha256=CONTENT_SHA,
+        source_label="Ressource Eduscol",
+        source_uri="https://eduscol.education.fr/document.pdf",
+        rights="officiel_public",
+        official=True,
+        source_kind="eduscol",
+        type_doc="ressource_officielle",
+        mime_detected="application/pdf",
+    )
+
+    def duplicate_extractor(_raw: bytes) -> str:
+        pytest.fail("the legacy flat extractor must not parse PDF bytes")
+
+    assert publisher_module._extracted_text_for_chunking(
+        artifact,
+        duplicate_extractor,
+    ) == ""
+
+
 def test_artifact_rejects_a_content_sha_drift() -> None:
     with pytest.raises(ValueError, match="content SHA-256"):
         GovernedArtifact(
@@ -177,7 +199,7 @@ def test_publisher_surface_requires_governance_objects_not_bare_text() -> None:
         "artifact",
         "placements",
         "extract_text",
-        "embed_chunks",
+        "embedding_provider",
     )
     assert "text" not in parameters
     assert "collection" not in parameters
