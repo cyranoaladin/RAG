@@ -58,6 +58,99 @@ jobs:
       - working-directory: services/rag-engine
         run: make test-integration-hybrid
 
+  real-model-acceptance:
+    name: "real-model acceptance (E5 + reranker + pgvector)"
+    runs-on: ubuntu-latest
+    needs: contracts
+    timeout-minutes: 30
+    # LOT H2-B remédiation (finding P2-real-model-ci-coverage) : distinct de
+    # "rag-engine" (CI code rapide, tests réels exclus via `-m "not
+    # integration"`). Ce job matérialise les VRAIS modèles E5/reranker à
+    # des révisions HuggingFace épinglées (jamais "latest"), les vérifie
+    # par inventaire SHA-256, puis exécute une acceptance minimale contre
+    # un VRAI pgvector éphémère (service container ci-dessous, même image
+    # que docker-compose.v2.yml). Portée honnête, documentée dans
+    # docs/reports/h2_exact_head_remediation_pre_go_live.md : real E5
+    # encode + real reranker rerank + real vectors round-trip through
+    # pgvector — jamais l'ingestion complète du corpus propriétaire (PDF
+    # non commités, hors de portée d'un runner hosted).
+    env:
+      EMBEDDING_MODEL_REVISION: 3d7cfbdacd47fdda877c5cd8a79fbcc4f2a574f3
+      RERANKER_MODEL_REVISION: 233902d25c440f23af6f7d6e94d2946bac0bee0a
+    services:
+      pgvector:
+        image: pgvector/pgvector:pg16@sha256:00ba258a66dac104fd5171074a0084462a64a1369d8513f3d0a634e2f24d15bc
+        env:
+          POSTGRES_DB: real_model_acceptance
+          POSTGRES_USER: real_model_acceptance
+          POSTGRES_PASSWORD: real-model-acceptance-ci-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U real_model_acceptance"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - working-directory: services/rag-engine
+        run: make install
+      - name: Cache real embedding model artifact
+        id: cache-e5
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/model-cache/e5-large
+          key: real-model-e5-large-${{ env.EMBEDDING_MODEL_REVISION }}
+      - name: Cache real reranker model artifact
+        id: cache-reranker
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/model-cache/reranker
+          key: real-model-reranker-${{ env.RERANKER_MODEL_REVISION }}
+      - name: Prepare embedding model artifact (cache miss only)
+        if: steps.cache-e5.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          source services/rag-engine/.venv/bin/activate
+          MODEL_ARTIFACT_DIR="${{ runner.temp }}/model-cache/e5-large" \
+          EMBEDDING_MODEL_REVISION="${{ env.EMBEDDING_MODEL_REVISION }}" \
+          bash scripts/e2e/prepare-embedding-model-artifact.sh
+      - name: Prepare reranker model artifact (cache miss only)
+        if: steps.cache-reranker.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          source services/rag-engine/.venv/bin/activate
+          MODEL_ARTIFACT_DIR="${{ runner.temp }}/model-cache/reranker" \
+          RERANKER_MODEL_REVISION="${{ env.RERANKER_MODEL_REVISION }}" \
+          bash scripts/e2e/prepare-reranker-model-artifact.sh
+      - name: Fail closed if a cached artifact is missing its inventory
+        run: |
+          set -euo pipefail
+          test -f "${{ runner.temp }}/model-cache/e5-large/SHA256SUMS"
+          test -f "${{ runner.temp }}/model-cache/reranker/SHA256SUMS"
+      - name: Compute model inventory digests
+        id: digests
+        run: |
+          set -euo pipefail
+          echo "e5_sha256=$(sha256sum "${{ runner.temp }}/model-cache/e5-large/SHA256SUMS" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "reranker_sha256=$(sha256sum "${{ runner.temp }}/model-cache/reranker/SHA256SUMS" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+      - name: Real-model acceptance (E5 + reranker + pgvector)
+        working-directory: services/rag-engine
+        env:
+          RAG_EMBEDDING_MODEL_CACHE_DIR: ${{ runner.temp }}/model-cache/e5-large
+          RAG_EMBEDDING_MODEL_INVENTORY_SHA256: ${{ steps.digests.outputs.e5_sha256 }}
+          RAG_RERANKER_MODEL_CACHE_DIR: ${{ runner.temp }}/model-cache/reranker
+          RAG_RERANKER_MODEL_INVENTORY_SHA256: ${{ steps.digests.outputs.reranker_sha256 }}
+          NEXUS_REAL_MODEL_PGVECTOR_DSN: "postgresql://real_model_acceptance:real-model-acceptance-ci-only@localhost:5432/real_model_acceptance"
+          HF_HUB_OFFLINE: "1"
+          TRANSFORMERS_OFFLINE: "1"
+        run: |
+          set -euo pipefail
+          PYTHONPATH=src .venv/bin/pytest tests/integration/test_real_model_ci_acceptance.py -v
+
   governance-postgres:
     name: "governance postgres"
     runs-on: ubuntu-latest
