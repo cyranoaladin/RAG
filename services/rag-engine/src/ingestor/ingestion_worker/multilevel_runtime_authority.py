@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -53,6 +54,73 @@ class MultilevelRuntimeAuthorityInputs:
     rights_evidence_sha256: str
     corpus_manifest_sha256: str
     repository_root: Path
+
+
+_MULTILEVEL_RUNTIME_FILE_ARGUMENTS = (
+    ("candidate-inventory", "sealed multi-level candidate inventory"),
+    ("currentness-evidence", "artifact-bound multi-level currentness evidence"),
+    ("levels-mapping", "closed external level mapping"),
+    ("subjects-mapping", "closed external subject mapping"),
+    ("document-types-mapping", "closed external document type mapping"),
+    ("release-manifest", "aggregate multi-level release manifest"),
+    ("programme-registry", "canonical multi-level programme registry"),
+    ("profile-manifest", "sealed multi-level staging profile manifest"),
+    ("collection-config", "canonical Nexus collection catalogue"),
+    ("pii-evidence", "sealed targeted PII evidence"),
+    ("rights-evidence", "sealed rights registry"),
+)
+
+
+def add_multilevel_runtime_authority_arguments(
+    parser: argparse.ArgumentParser,
+) -> None:
+    """Déclarer toutes les autorités nécessaires avant ouverture de PostgreSQL."""
+    for name, description in _MULTILEVEL_RUNTIME_FILE_ARGUMENTS:
+        parser.add_argument(
+            f"--{name}-path",
+            required=True,
+            type=Path,
+            help=description,
+        )
+        parser.add_argument(
+            f"--{name}-sha256",
+            required=True,
+            help=f"expected SHA-256: {description}",
+        )
+    parser.add_argument("--corpus-manifest-sha256", required=True)
+    parser.add_argument("--repository-root", required=True, type=Path)
+
+
+def multilevel_runtime_authority_inputs_from_args(
+    args: argparse.Namespace,
+) -> MultilevelRuntimeAuthorityInputs:
+    """Construire l'entrée typée sans dériver ni deviner une autorité."""
+    return MultilevelRuntimeAuthorityInputs(
+        candidate_inventory_path=args.candidate_inventory_path,
+        candidate_inventory_sha256=args.candidate_inventory_sha256,
+        currentness_evidence_path=args.currentness_evidence_path,
+        currentness_evidence_sha256=args.currentness_evidence_sha256,
+        levels_mapping_path=args.levels_mapping_path,
+        levels_mapping_sha256=args.levels_mapping_sha256,
+        subjects_mapping_path=args.subjects_mapping_path,
+        subjects_mapping_sha256=args.subjects_mapping_sha256,
+        document_types_mapping_path=args.document_types_mapping_path,
+        document_types_mapping_sha256=args.document_types_mapping_sha256,
+        release_manifest_path=args.release_manifest_path,
+        release_manifest_sha256=args.release_manifest_sha256,
+        programme_registry_path=args.programme_registry_path,
+        programme_registry_sha256=args.programme_registry_sha256,
+        profile_manifest_path=args.profile_manifest_path,
+        profile_manifest_sha256=args.profile_manifest_sha256,
+        collection_config_path=args.collection_config_path,
+        collection_config_sha256=args.collection_config_sha256,
+        pii_evidence_path=args.pii_evidence_path,
+        pii_evidence_sha256=args.pii_evidence_sha256,
+        rights_evidence_path=args.rights_evidence_path,
+        rights_evidence_sha256=args.rights_evidence_sha256,
+        corpus_manifest_sha256=args.corpus_manifest_sha256,
+        repository_root=args.repository_root,
+    )
 
 
 def load_multilevel_runtime_authorities(
@@ -144,5 +212,7 @@ def load_multilevel_runtime_authorities(
 
 __all__ = [
     "MultilevelRuntimeAuthorityInputs",
+    "add_multilevel_runtime_authority_arguments",
     "load_multilevel_runtime_authorities",
+    "multilevel_runtime_authority_inputs_from_args",
 ]
