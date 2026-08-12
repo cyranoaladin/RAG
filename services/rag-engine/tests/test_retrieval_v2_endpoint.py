@@ -17,10 +17,17 @@ from dataclasses import replace
 from pathlib import Path
 from threading import Event
 from types import SimpleNamespace
+from typing import cast
 from unittest.mock import MagicMock, patch
 
 import pytest
-from nexus_contracts import RetrievalRequest, RetrievalResponse, Rights
+from nexus_contracts import (
+    RetrievalRequest,
+    RetrievalResponse,
+    RetrievalScopeArtifactV2,
+    Rights,
+    load_retrieval_scope_artifact,
+)
 from pydantic import ValidationError
 
 # Ensure src/ is importable
@@ -28,6 +35,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from fastapi import HTTPException
 
+from ingestor.identity_v2 import VerifiedInternalIdentity
 from ingestor.retrieval_scope_v2 import ServerRetrievalScope
 from ingestor.retrieval_v2_endpoint import (
     _build_launch_readiness,
@@ -93,6 +101,12 @@ BASE_SCOPE = ServerRetrievalScope(
     scope_digest="a" * 64,
     source_sha256="b" * 64,
 )
+
+
+def _v2_gate_identity() -> VerifiedInternalIdentity:
+    artifact = load_retrieval_scope_artifact("entree_seconde_maths_v1")
+    assert isinstance(artifact, RetrievalScopeArtifactV2)
+    return cast(VerifiedInternalIdentity, SimpleNamespace(artifact=artifact))
 
 
 def _retrieval_payload(
@@ -931,6 +945,34 @@ class TestLaunchReadiness:
         assert response["release_evidence_verified"] is True
         assert response["launch_ready"] is True
 
+    def test_readiness_reports_release_evidence_per_collection(self) -> None:
+        cfg = copy.deepcopy(FULL_CFG)
+        collections = (
+            "rag_nexus_nsi_terminale_specialite",
+            "rag_nexus_nsi_premiere_specialite",
+        )
+        cfg["collections"] = {
+            collection: cfg["collections"][collection] for collection in collections
+        }
+
+        readiness = _build_launch_readiness(
+            cfg,
+            {collection: 3 for collection in collections},
+            min_chunks=3,
+            release_evidence_verified={
+                collections[0]: True,
+                collections[1]: False,
+            },
+        )
+
+        by_name = {item["name"]: item for item in readiness["collections"]}
+        assert readiness["launch_ready"] is False
+        assert readiness["release_evidence_verified"] is False
+        assert readiness["ready_collections"] == 1
+        assert by_name[collections[0]]["ready"] is True
+        assert by_name[collections[1]]["ready"] is False
+        assert "preuve exhaustive de release absente" in by_name[collections[1]]["reasons"]
+
 
 def test_retrievable_gate_blocks_only_a_governed_unready_collection(
     monkeypatch: pytest.MonkeyPatch,
@@ -955,7 +997,11 @@ def test_retrievable_gate_blocks_only_a_governed_unready_collection(
     }
 
     with pytest.raises(HTTPException) as exc_info:
-        endpoint._check_retrievable(collection, cfg)
+        endpoint._check_retrievable(
+            collection,
+            cfg,
+            verified=_v2_gate_identity(),
+        )
 
     assert exc_info.value.status_code == 503
     assert events == [collection]
@@ -979,7 +1025,11 @@ def test_instanciated_v2_collection_without_manifest_is_not_retrievable(
     monkeypatch.delenv("RAG_RELEASE_MANIFEST_SHA256", raising=False)
 
     with pytest.raises(HTTPException) as exc_info:
-        endpoint._check_retrievable(collection, cfg)
+        endpoint._check_retrievable(
+            collection,
+            cfg,
+            verified=_v2_gate_identity(),
+        )
 
     assert exc_info.value.status_code == 503
 
@@ -1055,7 +1105,7 @@ class TestHybridSearchDelegation:
         endpoint, client = _api_client(monkeypatch)
         events: list[object] = []
 
-        def check(collection: str, _cfg: dict) -> dict:
+        def check(collection: str, _cfg: dict, _verified: object) -> dict:
             events.append(("gate", collection))
             return {"domain": "education"}
 
@@ -1375,7 +1425,7 @@ class TestCitedChat:
         _mock_retrieval_identity(endpoint, monkeypatch)
         events: list[tuple[str, str]] = []
 
-        def gate(collection: str, _cfg: dict) -> dict:
+        def gate(collection: str, _cfg: dict, _verified: object) -> dict:
             events.append(("gate", collection))
             if collection == "rag_nexus_nsi_premiere_specialite":
                 raise HTTPException(status_code=403, detail="closed")

@@ -13,6 +13,16 @@ EXPECTED = {
     "libre_terminale_maths_nsi_real_v1",
     "entree_seconde_maths_v1",
     "entree_seconde_francais_v1",
+    "entree_premiere_maths_v1",
+    "entree_premiere_francais_v1",
+    "entree_troisieme_maths_v1",
+    "entree_troisieme_francais_v1",
+    "entree_terminale_maths_v1",
+    "entree_terminale_nsi_v1",
+    "eaf_premiere_francais_v1",
+    "terminale_maths_v1",
+    "terminale_nsi_v1",
+    "terminale_physique_chimie_v1",
 }
 
 
@@ -52,14 +62,18 @@ def _wave0_envelope(artifact: RetrievalScopeArtifactV2) -> InternalIdentityEnvel
     )
 
 
-def test_registry_contains_only_the_legacy_and_two_narrow_wave0_scopes() -> None:
+def test_registry_contains_only_the_legacy_wave0_and_multilevel_scopes() -> None:
     registry = load_retrieval_scope_registry()
+    maths = registry["entree_seconde_maths_v1"]
+    francais = registry["entree_seconde_francais_v1"]
 
     assert set(registry) == EXPECTED
-    assert registry["entree_seconde_maths_v1"].evidence_subject.collection == (
+    assert isinstance(maths, RetrievalScopeArtifactV2)
+    assert isinstance(francais, RetrievalScopeArtifactV2)
+    assert maths.evidence_subject.collection == (
         "rag_nexus_maths_troisieme_tc"
     )
-    assert registry["entree_seconde_francais_v1"].evidence_subject.collection == (
+    assert francais.evidence_subject.collection == (
         "rag_nexus_francais_troisieme_tc"
     )
 

@@ -13,6 +13,7 @@ Retrieval seulement : aucun champ ni appel de génération LLM.
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import os
 import re
@@ -82,8 +83,10 @@ try:
     )
     from .release_readiness import (
         ReleaseReadinessError,
-        load_release_expectation,
-        validate_release_readiness,
+        ReleaseRegistryExpectation,
+        load_release_registry,
+        validate_release_collection_readiness,
+        validate_release_registry_readiness,
     )
     from .reranker_contract import load_reranker_model
     from .retrieval_contract_adapter import adapt_retrieval_request
@@ -146,8 +149,10 @@ except ImportError as _exc:  # repli à plat, cause réelle préservée
     )
     from release_readiness import (  # type: ignore[no-redef]
         ReleaseReadinessError,
-        load_release_expectation,
-        validate_release_readiness,
+        ReleaseRegistryExpectation,
+        load_release_registry,
+        validate_release_collection_readiness,
+        validate_release_registry_readiness,
     )
     from reranker_contract import load_reranker_model  # type: ignore[no-redef]
     from retrieval_contract_adapter import (  # type: ignore[no-redef]
@@ -349,7 +354,11 @@ def _get_reranker():
     return _reranker
 
 
-def _check_retrievable(collection: str, cfg: dict) -> dict:
+def _check_retrievable(
+    collection: str,
+    cfg: dict,
+    verified: VerifiedInternalIdentity | None = None,
+) -> dict:
     """Gate retrievable FAIL-CLOSED (GG-01).
 
     Reads domain from the collection's DECLARED definition.
@@ -384,7 +393,7 @@ def _check_retrievable(collection: str, cfg: dict) -> dict:
             detail=f"Collection '{collection}' is not retrievable (domain '{domain}').",
         )
 
-    _require_release_ready_if_governed(collection, cfg)
+    _require_release_ready_if_governed(collection, cfg, verified=verified)
     return defn
 
 
@@ -398,50 +407,93 @@ def _configured_release_manifest() -> tuple[Path, str] | None:
     return Path(path_raw), digest
 
 
+def _configured_release_registry() -> ReleaseRegistryExpectation | None:
+    """Charger l'autorité multi-release explicite ou le couple historique."""
+    registry_raw = os.environ.get("RAG_RELEASE_MANIFESTS_JSON")
+    legacy = _configured_release_manifest()
+    if registry_raw is None:
+        return load_release_registry((legacy,)) if legacy is not None else None
+    if legacy is not None:
+        raise ReleaseReadinessError("release manifest configuration is ambiguous")
+    try:
+        payload = json.loads(registry_raw)
+    except json.JSONDecodeError as exc:
+        raise ReleaseReadinessError("release manifest registry is not valid JSON") from exc
+    if not isinstance(payload, list):
+        raise ReleaseReadinessError("release manifest registry must be an array")
+    configurations: list[tuple[Path, str]] = []
+    for index, entry in enumerate(payload):
+        if not isinstance(entry, Mapping) or set(entry) != {"path", "sha256"}:
+            raise ReleaseReadinessError(
+                f"release manifest registry entry {index} is invalid"
+            )
+        path = entry.get("path")
+        digest = entry.get("sha256")
+        if not isinstance(path, str) or not path.strip() or not isinstance(digest, str):
+            raise ReleaseReadinessError(
+                f"release manifest registry entry {index} is invalid"
+            )
+        configurations.append((Path(path), digest))
+    return load_release_registry(tuple(configurations))
+
+
 def configured_release_model_contract() -> tuple[str, str, int, str, str] | None:
     """Retourner le contrat modèles complet scellé par la release active."""
-    configured = _configured_release_manifest()
-    if configured is None:
+    registry = _configured_release_registry()
+    if registry is None:
         return None
-    expectation = load_release_expectation(*configured)
-    return (
-        expectation.embedding_model_id,
-        expectation.embedding_inventory_sha256,
-        expectation.embedding_dimension,
-        expectation.reranker_model_id,
-        expectation.reranker_inventory_sha256,
-    )
+    return registry.model_contract
 
 
 def _release_evidence_for_collection(collection: str) -> bool | None:
     """Retourner None hors release configurée, sinon l'état exact de la release."""
     try:
-        configured = _configured_release_manifest()
+        registry = _configured_release_registry()
     except ReleaseReadinessError:
         return False
-    if configured is None:
+    if registry is None:
         return None
-    manifest_path, expected_sha256 = configured
-    try:
-        expectation = load_release_expectation(manifest_path, expected_sha256)
-    except ReleaseReadinessError:
-        # Une configuration explicitement fournie mais illisible ne peut ouvrir
-        # aucun chemin de serving : l'appartenance elle-même n'est plus prouvée.
-        return False
-    if collection not in expectation.collections:
+    if collection not in registry.collections:
         return None
     try:
         settings = PoolSettings.from_env()
         with runtime_database_budget():
             with pool_connection(settings) as connection:
-                return validate_release_readiness(
-                    manifest_path,
-                    expected_sha256,
+                return validate_release_collection_readiness(
+                    registry,
+                    collection,
                     connection,
                 ).ready
     except Exception:
         logger.error("release readiness unavailable")
         return False
+
+
+def _release_evidence_for_v2_artifact(
+    artifact: RetrievalScopeArtifactV2,
+) -> bool | None:
+    """Lier les nouveaux scopes au subject release exact, en gardant Wave 0."""
+    collection = str(artifact.evidence_subject.collection)
+    state = _release_evidence_for_collection(collection)
+    if state is not True:
+        return state
+    try:
+        registry = _configured_release_registry()
+        if registry is None:
+            return state
+    except ReleaseReadinessError:
+        return False
+    manifest = registry.manifest_for_collection(collection)
+    if manifest is None:
+        return None
+    expectation = manifest.expectation
+    if expectation.release_kind == "MULTILEVEL_AGGREGATE_RELEASE_V1":
+        subject_sha_by_collection = dict(
+            expectation.subject_manifest_sha256_by_collection
+        )
+        if artifact.source_sha256 != subject_sha_by_collection.get(collection):
+            return False
+    return state
 
 
 def _v2_evidence_collections(
@@ -479,44 +531,72 @@ def validate_release_startup_configuration(
     if not required:
         return
     try:
-        configured = _configured_release_manifest()
-        if configured is None:
+        registry = _configured_release_registry()
+        if registry is None:
             raise ReleaseReadinessError("release manifest unavailable")
-        expectation = load_release_expectation(*configured)
     except ReleaseReadinessError as exc:
         raise RuntimeError("release manifest unavailable or invalid") from exc
-    if set(expectation.collections) != set(required):
+    configured_collections = set(registry.collections)
+    if not configured_collections or not configured_collections <= set(required):
         raise RuntimeError("release manifest collection set mismatch")
+    subject_sha_by_collection = {
+        collection: sha256
+        for manifest in registry.manifests
+        if manifest.expectation.release_kind == "MULTILEVEL_AGGREGATE_RELEASE_V1"
+        for collection, sha256 in (
+            manifest.expectation.subject_manifest_sha256_by_collection
+        )
+    }
+    scoped_artifacts = {
+        artifact.evidence_subject.collection: artifact
+        for artifact in artifacts.values()
+        if isinstance(artifact, RetrievalScopeArtifactV2)
+        and artifact.evidence_subject.collection in subject_sha_by_collection
+    }
+    if set(scoped_artifacts) != set(subject_sha_by_collection) or any(
+        artifact.source_sha256 != subject_sha_by_collection.get(collection)
+        for collection, artifact in scoped_artifacts.items()
+    ):
+        raise RuntimeError("scope source SHA differs from subject release")
 
 
 def validate_configured_release_database() -> None:
     """Vérifier le manifest configuré contre PostgreSQL avant tout trafic."""
-    configured = _configured_release_manifest()
-    if configured is None:
+    registry = _configured_release_registry()
+    if registry is None:
         return
-    manifest_path, expected_sha256 = configured
     settings = PoolSettings.from_env()
     with runtime_database_budget():
         with pool_connection(settings) as connection:
-            report = validate_release_readiness(
-                manifest_path,
-                expected_sha256,
-                connection,
-            )
-    if not report.ready:
+            reports = validate_release_registry_readiness(registry, connection)
+    if set(reports) != set(registry.collections) or any(
+        not report.ready for report in reports.values()
+    ):
         raise RuntimeError("release database reconciliation unavailable")
 
 
-def _require_release_ready_if_governed(collection: str, cfg: Mapping[str, Any]) -> None:
+def _require_release_ready_if_governed(
+    collection: str,
+    cfg: Mapping[str, Any],
+    *,
+    verified: VerifiedInternalIdentity | None = None,
+) -> None:
     collections = cfg.get("collections")
     definition = collections.get(collection) if isinstance(collections, Mapping) else None
+    if verified is None:
+        return
+    artifact = verified.artifact
+    if not isinstance(artifact, RetrievalScopeArtifactV2):
+        return
+    if artifact.evidence_subject.collection != collection:
+        return
     if (
         collection not in _v2_evidence_collections()
         or not isinstance(definition, Mapping)
         or definition.get("instanciee") is not True
     ):
         return
-    state = _release_evidence_for_collection(collection)
+    state = _release_evidence_for_v2_artifact(artifact)
     if state is not True:
         raise HTTPException(status_code=503, detail="release evidence unavailable")
 
@@ -587,7 +667,7 @@ def _build_launch_readiness(
     reviewed_counts: Mapping[str, int],
     *,
     min_chunks: int,
-    release_evidence_verified: bool,
+    release_evidence_verified: bool | Mapping[str, bool],
 ) -> dict[str, Any]:
     """Expose diagnostics without turning a row count into release evidence.
 
@@ -602,7 +682,13 @@ def _build_launch_readiness(
 
     collections: list[dict[str, Any]] = []
     blockers: list[str] = []
-    if not release_evidence_verified:
+    aggregate_release_evidence = (
+        release_evidence_verified
+        if isinstance(release_evidence_verified, bool)
+        else bool(release_evidence_verified)
+        and all(release_evidence_verified.values())
+    )
+    if not aggregate_release_evidence:
         blockers.append("preuve exhaustive de release absente")
     for name in collections_raw:
         definition = collections_raw[name]
@@ -627,6 +713,11 @@ def _build_launch_readiness(
         retrievable = isinstance(domain_cfg, Mapping) and domain_cfg.get("retrievable") is True
         reviewed_chunks = max(0, int(reviewed_counts.get(name, 0)))
         reviewed_chunk_floor_met = reviewed_chunks >= min_chunks
+        collection_release_evidence = (
+            release_evidence_verified
+            if isinstance(release_evidence_verified, bool)
+            else release_evidence_verified.get(name) is True
+        )
         reasons: list[str] = []
         if not instanciee:
             reasons.append("collection non instanciée")
@@ -636,9 +727,9 @@ def _build_launch_readiness(
             reasons.append(
                 f"plancher de chunks reviewed non atteint ({reviewed_chunks}/{min_chunks})",
             )
-        if not release_evidence_verified:
+        if not collection_release_evidence:
             reasons.append("preuve exhaustive de release absente")
-        ready = release_evidence_verified and not reasons
+        ready = collection_release_evidence and not reasons
         if reasons:
             blockers.append(f"{name}: {', '.join(reasons)}")
         collections.append(
@@ -658,7 +749,7 @@ def _build_launch_readiness(
         "total_collections": len(collections),
         "ready_collections": sum(1 for item in collections if item["ready"]),
         "minimum_reviewed_chunks": min_chunks,
-        "release_evidence_verified": release_evidence_verified,
+        "release_evidence_verified": aggregate_release_evidence,
         "blockers": blockers,
         "collections": collections,
     }
@@ -878,11 +969,20 @@ def list_retrievable_collections(request: Request) -> dict[str, Any]:
             raise RetrievalScopeError("retrieval scope forbidden")
         catalogue = _list_retrievable_collections(cfg)
         catalogue_by_name = {item["name"]: item for item in catalogue["collections"]}
+        require_exact_release = isinstance(
+            getattr(verified, "artifact", None),
+            RetrievalScopeArtifactV2,
+        )
+        verified_artifact = getattr(verified, "artifact", None)
         scoped_items = [
             catalogue_by_name[collection]
             for collection in allowed
             if collection in catalogue_by_name
-            and _release_evidence_for_collection(collection) is not False
+            and (
+                _release_evidence_for_v2_artifact(verified_artifact) is True
+                if require_exact_release
+                else _release_evidence_for_collection(collection) is not False
+            )
         ]
         for item in scoped_items:
             build_server_retrieval_scope(
@@ -1065,12 +1165,10 @@ def get_collection_readiness(request: Request) -> dict[str, Any]:
             raise RetrievalScopeError("retrieval scope forbidden")
         with runtime_database_budget():
             counts = _get_reviewed_chunk_counts(scopes)
-        release_states = tuple(
-            _release_evidence_for_collection(collection) for collection in allowed
-        )
-        release_evidence_verified = bool(release_states) and all(
-            state is True for state in release_states
-        )
+        release_evidence_verified = {
+            collection: _release_evidence_for_collection(collection) is True
+            for collection in allowed
+        }
         return _build_launch_readiness(
             {**cfg, "collections": scoped_collections},
             counts,
@@ -1274,20 +1372,37 @@ def _require_chat_profile_match(
     payload: ChatRequest,
     collections: list[str],
     scopes: Mapping[str, ServerRetrievalScope],
+    *,
+    verified: VerifiedInternalIdentity | None = None,
 ) -> None:
     """Refuser toute divergence entre le DTO historique et le scope signé."""
     if not collections:
         raise HTTPException(status_code=403, detail="Forbidden")
     first = scopes[collections[0]]
-    expected = {
-        "niveau": first.niveau,
-        "voie": first.voie,
-        "matieres": [scopes[collection].matiere for collection in collections],
-        "statut_enseignement": first.statut_enseignement,
-        "candidat": first.candidat,
-        "school_year": first.school_year,
-        "zone": first.audiences[0],
-    }
+    artifact = getattr(verified, "artifact", None)
+    if isinstance(artifact, RetrievalScopeArtifactV2):
+        if collections != [artifact.evidence_subject.collection]:
+            raise HTTPException(status_code=403, detail="Forbidden")
+        target = artifact.target_identity
+        expected = {
+            "niveau": target.niveau.value,
+            "voie": target.voie.value,
+            "matieres": [target.matiere],
+            "statut_enseignement": target.statut_enseignement.value,
+            "candidat": target.candidates[0].value,
+            "school_year": artifact.evidence_subject.school_year,
+            "zone": target.audience,
+        }
+    else:
+        expected = {
+            "niveau": first.niveau,
+            "voie": first.voie,
+            "matieres": [scopes[collection].matiere for collection in collections],
+            "statut_enseignement": first.statut_enseignement,
+            "candidat": first.candidat,
+            "school_year": first.school_year,
+            "zone": first.audiences[0],
+        }
     profile = payload.student_profile
     actual = {
         "niveau": profile.niveau.value,
@@ -1311,7 +1426,7 @@ def chat(payload: ChatRequest, request: Request) -> ChatResponse:
     scopes: dict[str, ServerRetrievalScope] = {}
     for collection in collections:
         try:
-            _check_retrievable(collection, cfg)
+            _check_retrievable(collection, cfg, verified)
             scopes[collection] = build_server_retrieval_scope(
                 verified,
                 collection=collection,
@@ -1320,7 +1435,12 @@ def chat(payload: ChatRequest, request: Request) -> ChatResponse:
         except (RetrievalScopeError, CollectionConfigError, HTTPException) as exc:
             raise HTTPException(status_code=403, detail="Forbidden") from exc
 
-    _require_chat_profile_match(payload, collections, scopes)
+    _require_chat_profile_match(
+        payload,
+        collections,
+        scopes,
+        verified=verified,
+    )
 
     all_hits: list[tuple[str, SearchV2Hit]] = []
     with runtime_request_budget():
@@ -1531,7 +1651,7 @@ def search_v2(payload: RetrievalRequest, request: Request) -> RetrievalResponse:
     cfg = load_collection_config()
     try:
         collection = _collection_for_retrieval_request(payload, verified)
-        _check_retrievable(collection, cfg)
+        _check_retrievable(collection, cfg, verified)
         scope = build_server_retrieval_scope(
             verified,
             collection=collection,

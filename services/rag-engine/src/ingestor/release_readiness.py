@@ -12,7 +12,7 @@ import hashlib
 import json
 import re
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -22,6 +22,7 @@ _WAVE0_AGGREGATE_KIND = "WAVE0_AGGREGATE_RELEASE_V1"
 _WAVE0_SUBJECT_KIND = "WAVE0_SUBJECT_RELEASE_V1"
 _MULTILEVEL_AGGREGATE_KIND = "MULTILEVEL_AGGREGATE_RELEASE_V1"
 _MULTILEVEL_SUBJECT_KIND = "MULTILEVEL_SUBJECT_RELEASE_V1"
+MAX_RELEASE_MANIFESTS = 32
 _WAVE0_AUTHORITY_FIELDS = frozenset(
     {
         "corpus_manifest_sha256",
@@ -84,6 +85,7 @@ class ExpectedArtifact:
 
 @dataclass(frozen=True)
 class ReleaseExpectation:
+    release_kind: str
     release_id: str
     school_year: str
     collections: tuple[str, ...]
@@ -93,6 +95,41 @@ class ReleaseExpectation:
     embedding_dimension: int
     reranker_model_id: str
     reranker_inventory_sha256: str
+    subject_manifest_sha256_by_collection: tuple[tuple[str, str], ...]
+
+
+@dataclass(frozen=True)
+class ReleaseManifestBinding:
+    """Manifest explicitement nommé et lié à son empreinte externe."""
+
+    path: Path
+    expected_sha256: str
+    expectation: ReleaseExpectation
+
+
+@dataclass(frozen=True)
+class ReleaseRegistryExpectation:
+    """Union bornée de manifests sans découverte implicite du filesystem."""
+
+    manifests: tuple[ReleaseManifestBinding, ...]
+    collections: tuple[str, ...]
+
+    @property
+    def model_contract(self) -> tuple[str, str, int, str, str]:
+        expectation = self.manifests[0].expectation
+        return (
+            expectation.embedding_model_id,
+            expectation.embedding_inventory_sha256,
+            expectation.embedding_dimension,
+            expectation.reranker_model_id,
+            expectation.reranker_inventory_sha256,
+        )
+
+    def manifest_for_collection(self, collection: str) -> ReleaseManifestBinding | None:
+        for manifest in self.manifests:
+            if collection in manifest.expectation.collections:
+                return manifest
+        return None
 
 
 @dataclass(frozen=True)
@@ -430,6 +467,7 @@ def load_release_expectation(path: Path, expected_sha256: str) -> ReleaseExpecta
     root = Path(path).resolve().parent
     collections: list[str] = []
     artifacts: list[ExpectedArtifact] = []
+    subject_manifest_sha256_by_collection: list[tuple[str, str]] = []
     seen_subject_paths: set[Path] = set()
     for index, subject_raw in enumerate(subjects):
         subject = _require_mapping(subject_raw, f"subjects[{index}]")
@@ -438,9 +476,12 @@ def load_release_expectation(path: Path, expected_sha256: str) -> ReleaseExpecta
         if not subject_path.is_relative_to(root) or subject_path in seen_subject_paths:
             raise ReleaseReadinessError("subject path escapes or is duplicated")
         seen_subject_paths.add(subject_path)
+        subject_sha256 = _require_sha256(
+            subject.get("sha256"), f"subjects[{index}].sha256"
+        )
         subject_payload = _read_json_with_digest(
             subject_path,
-            _require_sha256(subject.get("sha256"), f"subjects[{index}].sha256"),
+            subject_sha256,
             "subject release manifest",
         )
         collection, subject_artifacts = _parse_subject(
@@ -458,6 +499,7 @@ def load_release_expectation(path: Path, expected_sha256: str) -> ReleaseExpecta
         if subject_payload.get("models") != aggregate.get("models"):
             raise ReleaseReadinessError("subject models mismatch")
         collections.append(collection)
+        subject_manifest_sha256_by_collection.append((collection, subject_sha256))
         artifacts.extend(subject_artifacts)
     if len({item.content_sha256 for item in artifacts}) != len(artifacts):
         raise ReleaseReadinessError("artifact is duplicated across subjects")
@@ -470,6 +512,7 @@ def load_release_expectation(path: Path, expected_sha256: str) -> ReleaseExpecta
     if any(counts.get(name) != value for name, value in aggregate_counts.items()):
         raise ReleaseReadinessError("expected_counts mismatch")
     return ReleaseExpectation(
+        release_kind=str(aggregate_kind),
         release_id=release_id,
         school_year=school_year,
         collections=tuple(collections),
@@ -479,6 +522,74 @@ def load_release_expectation(path: Path, expected_sha256: str) -> ReleaseExpecta
         embedding_dimension=embedding_dimension,
         reranker_model_id=reranker_model_id,
         reranker_inventory_sha256=reranker_inventory_sha256,
+        subject_manifest_sha256_by_collection=tuple(
+            subject_manifest_sha256_by_collection
+        ),
+    )
+
+
+def _expectation_model_contract(
+    expectation: ReleaseExpectation,
+) -> tuple[str, str, int, str, str]:
+    return (
+        expectation.embedding_model_id,
+        expectation.embedding_inventory_sha256,
+        expectation.embedding_dimension,
+        expectation.reranker_model_id,
+        expectation.reranker_inventory_sha256,
+    )
+
+
+def load_release_registry(
+    configurations: Sequence[tuple[Path, str]],
+) -> ReleaseRegistryExpectation:
+    """Charger 1..N manifests explicitement pinnés, sans glob ni collision."""
+    if not configurations:
+        raise ReleaseReadinessError("release manifest registry must not be empty")
+    if len(configurations) > MAX_RELEASE_MANIFESTS:
+        raise ReleaseReadinessError("release manifest registry is too large")
+
+    manifests: list[ReleaseManifestBinding] = []
+    collections: list[str] = []
+    seen_paths: set[Path] = set()
+    seen_artifacts: set[str] = set()
+    expected_model_contract: tuple[str, str, int, str, str] | None = None
+    expected_school_year: str | None = None
+    for path_raw, expected_sha256 in configurations:
+        if any(character in str(path_raw) for character in "*?["):
+            raise ReleaseReadinessError("release manifest path must be explicit")
+        path = Path(path_raw).resolve()
+        if path in seen_paths:
+            raise ReleaseReadinessError("release manifest path collision")
+        seen_paths.add(path)
+        expectation = load_release_expectation(path, expected_sha256)
+        model_contract = _expectation_model_contract(expectation)
+        if expected_model_contract is None:
+            expected_model_contract = model_contract
+            expected_school_year = expectation.school_year
+        elif model_contract != expected_model_contract:
+            raise ReleaseReadinessError("release registry model contract mismatch")
+        elif expectation.school_year != expected_school_year:
+            raise ReleaseReadinessError("release registry school year mismatch")
+
+        duplicate_collections = set(expectation.collections).intersection(collections)
+        if duplicate_collections:
+            raise ReleaseReadinessError("release registry collection collision")
+        artifact_ids = {artifact.content_sha256 for artifact in expectation.artifacts}
+        if artifact_ids.intersection(seen_artifacts):
+            raise ReleaseReadinessError("release registry artifact collision")
+        collections.extend(expectation.collections)
+        seen_artifacts.update(artifact_ids)
+        manifests.append(
+            ReleaseManifestBinding(
+                path=path,
+                expected_sha256=expected_sha256,
+                expectation=expectation,
+            )
+        )
+    return ReleaseRegistryExpectation(
+        manifests=tuple(manifests),
+        collections=tuple(collections),
     )
 
 
@@ -761,6 +872,55 @@ def collect_release_snapshot(
         placements=placements,
         chunks=chunks,
     )
+
+
+def validate_release_registry_readiness(
+    registry: ReleaseRegistryExpectation,
+    connection: Any,
+) -> dict[str, ReleaseReadinessReport]:
+    """Réconcilier séparément chaque collection déclarée par le registre."""
+    return {
+        collection: validate_release_collection_readiness(
+            registry,
+            collection,
+            connection,
+        )
+        for collection in registry.collections
+    }
+
+
+def validate_release_collection_readiness(
+    registry: ReleaseRegistryExpectation,
+    collection: str,
+    connection: Any,
+) -> ReleaseReadinessReport:
+    """Réconcilier une collection avec l'unique manifest qui la possède."""
+    manifest = registry.manifest_for_collection(collection)
+    if manifest is None:
+        return ReleaseReadinessReport(
+            ready=False,
+            collections=(collection,),
+            blockers=("release collection is not configured",),
+        )
+    artifacts = tuple(
+        artifact
+        for artifact in manifest.expectation.artifacts
+        if artifact.collection == collection
+    )
+    expectation = replace(
+        manifest.expectation,
+        collections=(collection,),
+        artifacts=artifacts,
+    )
+    try:
+        snapshot = collect_release_snapshot(connection, (collection,))
+        return evaluate_release_snapshot(expectation, snapshot)
+    except Exception:
+        return ReleaseReadinessReport(
+            ready=False,
+            collections=(collection,),
+            blockers=("release database reconciliation unavailable",),
+        )
 
 
 def validate_release_readiness(

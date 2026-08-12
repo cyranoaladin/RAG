@@ -269,6 +269,56 @@ _RETRIEVAL_SCOPE_RESOURCES: Mapping[str, tuple[str, str, Literal["1", "2"]]] = (
                 "1793ae29067f6f499f73e2d2dfdfc6b5bef5a7f809b75bc6165010165860b983",
                 "2",
             ),
+            "entree_premiere_maths_v1": (
+                "artifacts/retrieval-scope-entree-premiere-maths-v1.json",
+                "ea588c50397e720174f45d4ae85d851d49ad743e81899fc7b28a15cb8f890831",
+                "2",
+            ),
+            "entree_premiere_francais_v1": (
+                "artifacts/retrieval-scope-entree-premiere-francais-v1.json",
+                "f983959892ec90ca68de8d6bf7649f76b76a52c449171cd59073305e2302cfb4",
+                "2",
+            ),
+            "entree_troisieme_maths_v1": (
+                "artifacts/retrieval-scope-entree-troisieme-maths-v1.json",
+                "f2bf84333a33cf4408e95901805066870a1e38cc361db0fd472943e5a4f3cbdf",
+                "2",
+            ),
+            "entree_troisieme_francais_v1": (
+                "artifacts/retrieval-scope-entree-troisieme-francais-v1.json",
+                "f2a483dfe490ea07bf13f30a907a54f05cf235a62fde05e832ffdbb708037b5f",
+                "2",
+            ),
+            "entree_terminale_maths_v1": (
+                "artifacts/retrieval-scope-entree-terminale-maths-v1.json",
+                "17bb7b8accfc1c738dc3cf75a424808c39900100a771e71d29cb0bcb5fdceee1",
+                "2",
+            ),
+            "entree_terminale_nsi_v1": (
+                "artifacts/retrieval-scope-entree-terminale-nsi-v1.json",
+                "a5e311149bba4863125a9ca8c8e28b0400a27dc855b2cd37c329ebf56f104a93",
+                "2",
+            ),
+            "eaf_premiere_francais_v1": (
+                "artifacts/retrieval-scope-eaf-premiere-francais-v1.json",
+                "d674858bbe13c6c82a6b688a9444af8d7d1521b7fb5dd8763eb551a694fa2fb2",
+                "2",
+            ),
+            "terminale_maths_v1": (
+                "artifacts/retrieval-scope-terminale-maths-v1.json",
+                "3ea4cc2898f590bc0377f751b2e52a2a81f8878975eff0cb3b08382ec5bb3c63",
+                "2",
+            ),
+            "terminale_nsi_v1": (
+                "artifacts/retrieval-scope-terminale-nsi-v1.json",
+                "22b4dd4be1e6c1eb52603a8f0f88a1e362b2b7c7ec2b291b34c5166d1175113b",
+                "2",
+            ),
+            "terminale_physique_chimie_v1": (
+                "artifacts/retrieval-scope-terminale-physique-chimie-v1.json",
+                "16ffcc4090f5e04531668ceaa66c19fad9eeb13e6d076b2793d607aefb9079f5",
+                "2",
+            ),
         }
     )
 )
