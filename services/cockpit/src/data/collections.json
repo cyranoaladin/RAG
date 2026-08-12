@@ -1,5 +1,25 @@
 [
   {
+    "name": "rag_nexus_francais_quatrieme_tc",
+    "matiere": "francais",
+    "niveau": "quatrieme",
+    "voie": "college",
+    "statut": "tronc_commun",
+    "domain": "education",
+    "taxonomy_file": "francais/quatrieme.yml",
+    "instanciee": false
+  },
+  {
+    "name": "rag_nexus_maths_quatrieme_tc",
+    "matiere": "maths",
+    "niveau": "quatrieme",
+    "voie": "college",
+    "statut": "tronc_commun",
+    "domain": "education",
+    "taxonomy_file": "maths/quatrieme.yml",
+    "instanciee": false
+  },
+  {
     "name": "rag_nexus_droiteco_premiere_stmg_specialite",
     "matiere": "droit_economie",
     "niveau": "premiere",

@@ -88,6 +88,31 @@ def test_instanciation_flags_present() -> None:
         assert "instanciee" in defn, f"{name} missing instanciee"
 
 
+def test_quatrieme_collections_are_declared_dormant_exactly() -> None:
+    config = _load_yaml(CONFIG_PATH)
+
+    assert config["collections"]["rag_nexus_maths_quatrieme_tc"] == {
+        "matiere": "maths",
+        "niveau": "quatrieme",
+        "voie": "college",
+        "statut": "tronc_commun",
+        "domain": "education",
+        "session_policy": "declared_or_null",
+        "taxonomy_file": "maths/quatrieme.yml",
+        "instanciee": False,
+    }
+    assert config["collections"]["rag_nexus_francais_quatrieme_tc"] == {
+        "matiere": "francais",
+        "niveau": "quatrieme",
+        "voie": "college",
+        "statut": "tronc_commun",
+        "domain": "education",
+        "session_policy": "declared_or_null",
+        "taxonomy_file": "francais/quatrieme.yml",
+        "instanciee": False,
+    }
+
+
 def test_instanciated_match_perimetre() -> None:
     config = _load_yaml(CONFIG_PATH)
     inst = {n for n, d in config["collections"].items() if d.get("instanciee") is True}

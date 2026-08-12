@@ -1,0 +1,45 @@
+# Programme officiel cycle 4 applicable en 4e pour l'année scolaire 2026-2027.
+id: francais_quatrieme
+matiere: francais
+niveau: quatrieme
+voie: college
+statut_enseignement: tronc_commun
+programme_version: BOEN_special_11_2018-07-26_aj_2020
+themes:
+  - id: dire_amour
+    label: Dire l'amour
+    notions:
+      - id: poesie_lyrique
+        label: Poésie lyrique et expression des sentiments
+  - id: individu_societe
+    label: Individu et société, confrontations de valeurs
+    notions:
+      - id: theatre_conflits
+        label: Conflits, valeurs et relations au théâtre
+  - id: fiction_reel
+    label: La fiction pour interroger le réel
+    notions:
+      - id: recit_realiste_fantastique
+        label: Récits réalistes et fantastiques
+  - id: informer_deformer
+    label: Informer, s'informer, déformer
+    notions:
+      - id: presse_medias
+        label: Sources, information et médias
+  - id: ville_possibles
+    label: La ville, lieu de tous les possibles
+    notions:
+      - id: representations_ville
+        label: Représentations littéraires et artistiques de la ville
+  - id: langue_expression
+    label: Langue, écriture et oral
+    notions:
+      - id: phrase_complexe
+        label: Phrase complexe et relations logiques
+      - id: ecriture_argumentative
+        label: Écriture narrative et argumentative
+competences:
+  - lire_interpreter
+  - ecrire
+  - oral
+  - maitriser_langue

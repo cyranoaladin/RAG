@@ -1,5 +1,5 @@
 version: 3
-# LOT 28 (ADR-0015): catalogue étendu à 59 collections (35 + 24). Aucune nouvelle collection instanciee dans ce lot.
+# Catalogue canonique : 61 collections. Les extensions 4e d'ADR-0040 restent dormantes.
 # ADR-0013 — Convention: rag_nexus_{matiere}_{niveau}_{statut}
 # Extension FE-06: rag_nexus_{matiere}_{niveau}_{voie}_{statut} quand voie pertinente
 # Exceptions nommées: grand_oral, exams, candidats_libres, quarantine, dnb (cf. ADR)
@@ -39,7 +39,7 @@ metadata_required:
   - chunk_id
   - chunk_sha256
 
-# Catalogue taxonomique (59 entrées — LOT 28)
+# Catalogue taxonomique (61 entrées — LOT 28 + ADR-0040)
 # Schéma validé FE-05b: nom = matière×niveau×voie ; métadonnées = dispositif, session
 # Source de vérité: services/rag-pedago/taxonomy/
 collections:
@@ -69,6 +69,15 @@ collections:
   # =====================================================================
   # Maths — multi-nature (FE-05e: routage par niveau×voie×type_enseignement)
   # =====================================================================
+  rag_nexus_maths_quatrieme_tc:
+    matiere: maths
+    niveau: quatrieme
+    voie: college
+    statut: tronc_commun
+    domain: education
+    session_policy: declared_or_null
+    taxonomy_file: maths/quatrieme.yml
+    instanciee: false
   rag_nexus_maths_troisieme_tc:
     matiere: maths
     niveau: troisieme
@@ -157,6 +166,15 @@ collections:
   # =====================================================================
   # Français
   # =====================================================================
+  rag_nexus_francais_quatrieme_tc:
+    matiere: francais
+    niveau: quatrieme
+    voie: college
+    statut: tronc_commun
+    domain: education
+    session_policy: declared_or_null
+    taxonomy_file: francais/quatrieme.yml
+    instanciee: false
   rag_nexus_francais_troisieme_tc:
     matiere: francais
     niveau: troisieme

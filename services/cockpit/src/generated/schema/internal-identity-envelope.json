@@ -99,6 +99,7 @@
     },
     "Niveau": {
       "enum": [
+        "quatrieme",
         "troisieme",
         "seconde",
         "premiere",

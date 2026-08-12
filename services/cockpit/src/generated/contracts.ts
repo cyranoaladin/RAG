@@ -18,7 +18,15 @@ export type ContractBundle =
   | ReviewDecisionResponse;
 export type Matiere = string;
 export type Niveau =
-  'troisieme' | 'seconde' | 'premiere' | 'terminale' | 'cycle4' | 'lycee_gt' | 'voie_generale' | 'voie_technologique';
+  | 'quatrieme'
+  | 'troisieme'
+  | 'seconde'
+  | 'premiere'
+  | 'terminale'
+  | 'cycle4'
+  | 'lycee_gt'
+  | 'voie_generale'
+  | 'voie_technologique';
 export type StatutEnseignement =
   | 'tronc_commun'
   | 'enseignement_commun'
@@ -162,7 +170,15 @@ export type Jti = string;
  * Niveau principal du profil
  */
 export type Niveau1 =
-  'troisieme' | 'seconde' | 'premiere' | 'terminale' | 'cycle4' | 'lycee_gt' | 'voie_generale' | 'voie_technologique';
+  | 'quatrieme'
+  | 'troisieme'
+  | 'seconde'
+  | 'premiere'
+  | 'terminale'
+  | 'cycle4'
+  | 'lycee_gt'
+  | 'voie_generale'
+  | 'voie_technologique';
 /**
  * Audience ciblée
  */

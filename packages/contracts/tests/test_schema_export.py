@@ -15,11 +15,11 @@ REVIEW_SCHEMAS = {
 }
 
 
-def test_package_version_is_0_10_0() -> None:
-    """0.10.0 (ADR-0038) sépare cible élève et preuve curriculaire."""
+def test_package_version_is_0_11_0() -> None:
+    """0.11.0 (ADR-0040) ajoute la Quatrième sans rupture de contrat."""
     root = Path(__file__).resolve().parents[1]
     pyproject = tomllib.loads((root / "pyproject.toml").read_text())
-    assert pyproject["project"]["version"] == "0.10.0"
+    assert pyproject["project"]["version"] == "0.11.0"
 
 
 def test_schema_export_is_deterministic(tmp_path: Path) -> None:

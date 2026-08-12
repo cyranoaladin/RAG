@@ -26,6 +26,16 @@ from nexus_contracts import (
 from nexus_contracts.student_profile import StatusDetail
 
 
+# --- Niveaux canoniques ---
+
+
+def test_niveau_quatrieme_is_contractual() -> None:
+    assert Niveau.quatrieme.value == "quatrieme"
+    assert Niveau("quatrieme") is Niveau.quatrieme
+    with pytest.raises(ValueError):
+        Niveau("4e")
+
+
 # --- ChunkMetadata ---
 
 
