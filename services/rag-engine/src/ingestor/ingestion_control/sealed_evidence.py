@@ -273,7 +273,11 @@ class VerifiedRightsEvidenceRegistry:
         for decision_id, decision in decisions.items():
             if not isinstance(decision, dict):
                 continue
-            manifest = decision.get("scope_manifest_sha256")
+            # YAML lit un digest entièrement numérique comme un entier :
+            # ``7777…`` devient ``int``. La comparaison échouerait alors sur
+            # le type et non sur la valeur, ce qui produirait un refus juste
+            # pour une mauvaise raison — et masquerait un vrai désaccord.
+            manifest = str(decision.get("scope_manifest_sha256"))
             if manifest != expected_corpus_manifest_sha256:
                 raise SealedEvidenceError(
                     f"decision {decision_id!r} covers corpus manifest {manifest!r}, "
