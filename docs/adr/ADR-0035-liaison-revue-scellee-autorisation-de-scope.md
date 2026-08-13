@@ -1,10 +1,17 @@
 # ADR-0035 — Liaison de revue scellée d'une autorisation de scope
 
-- **Statut** : Proposé — **non Accepté**. Une acceptation exige une review
-  humaine `APPROVED` du Code Owner `@abenrhouma` sur le HEAD exact de la PR
-  d'implémentation.
-- **Date** : 2026-08-10
-- **Décideur proposé** : à confirmer par `@abenrhouma`.
+- **Statut** : **Accepté** (2026-08-13). Décision positive rendue
+  conformément à ADR-0025 : review humaine `APPROVED` du Code Owner
+  `@abenrhouma`, `commit_id` égalant exactement le HEAD final de PR #95 au
+  moment de la review — voir « Preuve d'acceptation », plus bas, pour le
+  détail vérifiable.
+- **Date de rédaction** : 2026-08-10
+- **Date d'acceptation** : 2026-08-13
+- **Décideur** : `@abenrhouma` (Code Owner, ADR-0025).
+- **Autorité de la décision** : ADR-0025 (autorité de revue humaine GitHub).
+- **PR de décision** : [#95](https://github.com/cyranoaladin/RAG/pull/95) —
+  la même PR qui introduit à la fois ce document et le code qui implémente
+  son mécanisme (`packages/contracts/src/nexus_contracts/review_binding.py`).
 - **Périmètre** : passerelle additive entre l'autorité en ligne (ADR-0025 /
   ADR-0032 / ADR-0034) et le gate final hors ligne du plan de contrôle
   pédagogique. Ce document n'autorise aucun corpus et n'active aucune
@@ -16,8 +23,51 @@
   réécrit — mais **perd toute capacité d'autorisation** (§ 6 ci-dessous).
 - **Amendé le 2026-08-11** en réponse aux constats F1, F2 et F3 de la
   review Codex `4904995785` sur `b595fd9`. Les sections 5, 6 et 7 sont
-  nouvelles ; la section « Ancre de confiance » est resserrée. Le statut
-  reste **Proposé**.
+  nouvelles ; la section « Ancre de confiance » est resserrée. Ce constat
+  historique reste vrai ; le statut est passé à **Accepté** depuis (voir
+  « Preuve d'acceptation », plus bas).
+
+## Preuve d'acceptation
+
+Cette section documente précisément ce qui a été approuvé, par qui, vérifié
+en direct plutôt que déduit d'un texte historique :
+
+1. **`3d0cf47133dfdba488890a9be3e6fe1fc83bd863`** est le HEAD exact de PR
+   #95 tel qu'il existait immédiatement avant son merge — c'est **cet état
+   précis** qui a été inspecté et approuvé humainement, base
+   `a956441645d48107ab983fad62b80f0848345e81`.
+2. La review GitHub `APPROVED` et le challenge ADR-0025 portent
+   explicitement sur cet état :
+   - **Reviewer** : `@abenrhouma`
+   - **Review GitHub** : id `4923100913`, état `APPROVED`, `commit_id` =
+     `3d0cf47133dfdba488890a9be3e6fe1fc83bd863`, soumise le
+     `2026-08-13T03:22:26Z`
+   - **Challenge** :
+     `NEXUS-TRUSTED-REVIEW-V1:ab4e17ab79bb118ab4661cadef9f48820a02d5c9bf3c30baa9b003d07f785fff`
+   - **Readback du check `Evaluate trusted human review`** (run GitHub
+     Actions `31663947902`, job `94334449566`, `conclusion: success`,
+     `2026-08-13T03:26:57Z`) : `{"decision": {"approved": true, "base_sha":
+     "a956441645d48107ab983fad62b80f0848345e81", "challenge":
+     "NEXUS-TRUSTED-REVIEW-V1:ab4e17ab79bb118ab4661cadef9f48820a02d5c9bf3c30baa9b003d07f785fff",
+     "head_sha": "3d0cf47133dfdba488890a9be3e6fe1fc83bd863", "pull_request":
+     95, "reason": "approved", "repository": "cyranoaladin/RAG",
+     "review_id": 4923100913, "reviewer": "abenrhouma", "submitted_at":
+     "2026-08-13T03:22:26Z"}}` — recoupé via l'API GitHub (endpoint reviews
+     paginé, 45 entrées au total), jamais pris pour argent comptant depuis
+     un seul appel non paginé.
+3. Aucune review `DISMISSED` ni `CHANGES_REQUESTED` d'`@abenrhouma`
+   n'existe après cette approbation. Les deux seules reviews `DISMISSED`
+   du même reviewer portent sur des heads antérieurs
+   (`f2a662bc8054e35643cda0aa71cd8496aca2e8fe`,
+   `e9708feca0b3438f2667c872a70106095abf0ba1`, toutes deux du 2026-08-10,
+   bien avant l'approbation finale).
+4. GitHub a ensuite fusionné PR #95 (`merged_at`: `2026-08-13T03:35:10Z`),
+   produisant le commit `2182339fb9a0df49419370e5ead8b92ef4d62305` sur
+   `main` — 13 minutes après l'approbation, sans review intermédiaire.
+5. **Cette acceptation est architecturale et documentaire uniquement.**
+   Elle ne constitue pas une autorisation de publication de contenu réel :
+   aucun reçu de review-binding n'a été émis pour aucune autorisation à ce
+   jour, et LOT41A/LOT42 restent gouvernés séparément (ADR-0032/ADR-0033/ADR-0034).
 
 ## Contexte
 
