@@ -14,6 +14,7 @@ from nexus_contracts.review_binding import (
     TRUSTED_REVIEW_PROTOCOL,
     ScopeAuthorizationReviewBindingV1,
     expected_challenge_digest,
+    parse_trust_anchor,
     public_key_hex,
     sign_review_binding,
 )
@@ -1773,6 +1774,65 @@ class TestTheGovernedRootIsADeploymentContract:
         assert (
             module._GOVERNED_REVOCATIONS_PATH
             == "governance/trust-anchors/authorization-revocations-v1.json"
+        )
+
+    def test_the_repository_ships_exactly_the_provisioned_review_binding_anchor(
+        self,
+    ) -> None:
+        """H2-B: the review-binding trust anchor (ADR-0035, distinct key
+        from the production-readiness anchor of PR #97) is now
+        provisioned, discovered by content (protocol_version) rather than
+        filename, at the exact governed path this module resolves — never
+        a path recomputed independently that could diverge. Sensitivity
+        canary, same discipline as the production-readiness anchor: fails
+        red on zero or ambiguous matches, never silently accepts either."""
+        root = module._GOVERNED_REPOSITORY_ROOT
+        governance_dir = root / "governance"
+        candidates = []
+        for path in sorted(governance_dir.rglob("*.json")):
+            try:
+                document = json.loads(path.read_bytes())
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+                continue
+            if (
+                isinstance(document, dict)
+                and document.get("protocol_version") == "NEXUS-REVIEW-BINDING-V1"
+            ):
+                candidates.append(path)
+        assert len(candidates) == 1, (
+            f"expected exactly one review-binding trust anchor under "
+            f"{governance_dir}, found {[str(p) for p in candidates]}"
+        )
+        expected_path = root / module._GOVERNED_TRUST_ANCHOR_PATH
+        assert candidates[0] == expected_path, (
+            f"the anchor discovered by content ({candidates[0]}) is not at the "
+            f"path this module resolves ({expected_path}) — F1 would never "
+            "find it"
+        )
+
+        anchor = parse_trust_anchor(expected_path.read_bytes())
+        for key in anchor.keys:
+            assert key.environment == "production", (
+                f"{expected_path} declares key_id {key.key_id!r} for "
+                f"environment {key.environment!r} — a rehearsal/test key must "
+                "never live at the governed production path"
+            )
+        # Distinct from the production-readiness key (PR #97) by construction:
+        # different protocol_version means this loop never even sees that key.
+
+    def test_the_repository_ships_the_governed_revocation_registry(self) -> None:
+        """F2: the governed 'no revocations known' registry is provisioned
+        (empty, not absent — REVOCATION_REGISTRY_MISSING is exactly the
+        failure this distinguishes from). Parsed through the real
+        production parser, not hand-checked."""
+        root = module._GOVERNED_REPOSITORY_ROOT
+        path = root / module._GOVERNED_REVOCATIONS_PATH
+        assert path.is_file(), f"governed revocation registry missing at {path}"
+        revoked = module._parse_revocation_registry(path.read_bytes(), origin=path)
+        assert revoked == frozenset(), (
+            "the governed registry is expected to start empty — a real "
+            "revocation appearing here without this test being deliberately "
+            "updated would be a silent authority change"
         )
 
     def test_the_trusted_reviewer_allowlist_is_governed_too(
