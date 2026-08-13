@@ -222,11 +222,45 @@ provenance-run-id`, appel à `verify_application_image_provenance` dans
 `assemble_and_sign`) est un commit séparé sur la branche PR #100, après
 merge de ce lot — §28 de l'instruction humaine.
 
+## 7bis. Codex — deux constats sur ce diff, vérifiés en direct et corrigés
+
+- **P1 — « Require the complete production service inventory ».** Constat
+  exact, et sa propre preuve était déjà dans mon diff : le test
+  `test_worker_a_and_worker_b_sharing_one_build_is_explicit_not_implicit`
+  supprimait `multilevel-worker-b-production` de l'inventaire puis
+  affirmait que la carte de digests retournée l'omettait simplement —
+  démontrant, sans le vouloir, que `verify_application_image_provenance`
+  acceptait un inventaire incomplet plutôt que de le refuser. Corrigé :
+  nouvelle constante `_EXPECTED_APPLICATION_SERVICES` (le set exact des
+  trois services `build:` réels, §4), `set(services) !=
+  _EXPECTED_APPLICATION_SERVICES` refusé avant toute dérivation de
+  digest. Le test fautif est réécrit pour affirmer le refus
+  (`test_an_omitted_service_is_refused_not_silently_dropped`) ; un
+  nouveau test couvre le service inventé (`test_an_invented_extra_
+  service_is_refused`). Mutation-testé : condition retirée → les deux
+  tests échouent effectivement en acceptant un inventaire partiel.
+- **P2 — « Reject mutable tags in the release overlay ».** Constat exact :
+  `${NEXUS_INGESTOR_IMAGE_DIGEST:?requis}` ne prouve que la non-vacuité,
+  jamais que la valeur est réellement épinglée par digest — rien
+  n'empêchait aujourd'hui un opérateur (ou un futur wrapper cassé) d'y
+  placer un tag mutable. **Corrigé par l'ajout d'une primitive
+  testable**, pas encore câblée dans un wrapper (qui n'existe pas encore
+  dans ce dépôt, §9) :
+  `deployment_image_inventory.require_resolved_compose_images_are_pinned()`
+  confronte un Compose **déjà résolu** (`docker compose ... config
+  --format json`, jamais le YAML source) : chaque service attendu existe,
+  ne porte plus aucun `build` résiduel, et son `image` est strictement
+  `name@sha256:<64hex>`. Vérifié empiriquement (pas supposé) que
+  `docker compose config` **ne retire pas** un tag qui coexiste avec un
+  digest (`name:tag@sha256:...` reste tel quel) — donc cette forme est
+  explicitement refusée, pas seulement un tag nu. 7 nouveaux tests
+  (`TestResolvedComposeImagesArePinned`), mutation-testés.
+
 ## 8. Tests — résultats exacts
 
 ```
 $ PYTHONPATH=src .venv/bin/python -m pytest tests/test_deployment_image_inventory.py -v
-23 passed in 0.14s
+31 passed in 0.15s
 
 $ .venv/bin/python -m ruff check scripts/deployment_image_inventory.py tests/test_deployment_image_inventory.py
 All checks passed!
@@ -251,7 +285,7 @@ $ gitleaks detect --source services/rag-engine/infra/docker-compose.production-r
 no leaks found
 ```
 
-Couverture adversariale (23 tests) : run/inventaire concordants →
+Couverture adversariale (31 tests) : run/inventaire concordants →
 digests dérivés corrects ; téléchargement du bon artefact pour le bon
 run ; **chemin de workflow erroné → refusé** ; **repository erroné →
 refusé** ; **déclenchement autre que `workflow_dispatch` → refusé** ;
@@ -261,12 +295,16 @@ commit signé → refusé** ; **artefact absent → refusé** ;
 `source_commit_sha`/`source_tree_sha`/`workflow_run_id` de l'inventaire ≠
 ceux attendus → refusés** ; **plateforme non supportée → refusée** ;
 **JSON malformé → refusé** ; **aucun service déclaré → refusé** ;
-**`source_kind=upstream` sur un service applicatif → refusé** ; **tag
-mutable au lieu d'un digest → refusé** ; **digest absent → refusé** ;
-**`dockerfile_sha256` absent → refusé** ; **nom de repository d'image
-invalide → refusé** ; **Worker B absent de l'inventaire → n'apparaît pas
-dans les digests dérivés** (la relation service→digest reste explicite,
-jamais devinée).
+**service omis (Worker B) → refusé, plus de carte partielle** ;
+**service inventé → refusé** ; **`source_kind=upstream` sur un service
+applicatif → refusé** ; **tag mutable au lieu d'un digest → refusé** ;
+**digest absent → refusé** ; **`dockerfile_sha256` absent → refusé** ;
+**nom de repository d'image invalide → refusé**. Compose déjà résolu
+(`TestResolvedComposeImagesArePinned`, 7 tests) : trois services
+correctement épinglés → acceptés ; **tag mutable → refusé** ; **tag
+coexistant avec un digest → refusé** ; **clé `build` résiduelle →
+refusée** ; **service manquant → refusé** ; **champ `image` absent →
+refusé** ; **Compose sans mapping `services` → refusé**.
 
 Chaque refus critique prouvé par mutation (liaison `head_sha`, format du
 digest) : régression injectée → test réagit pour la raison attendue ;

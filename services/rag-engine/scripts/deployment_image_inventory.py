@@ -29,6 +29,16 @@ _ARTIFACT_NAME = "nexus-deployment-image-inventory"
 _ARTIFACT_FILENAME = "nexus-deployment-image-inventory.json"
 _SUPPORTED_PLATFORM = "linux/amd64"
 
+#: Le set exact des services applicatifs de production, dérivé de
+#: docker-compose.v2.yml + docker-compose.production-workers.yml (les
+#: seuls services `build:` réels de ce dépôt aujourd'hui — voir
+#: docs/reports/lot_h2b_production_image_provenance.md §4). Un inventaire
+#: qui omet ou invente un service est refusé, jamais silencieusement
+#: accepté avec une carte de digests partielle (Codex P1, PR #102).
+_EXPECTED_APPLICATION_SERVICES = frozenset(
+    {"ingestor", "multilevel-worker-a-production", "multilevel-worker-b-production"}
+)
+
 _HEX40 = re.compile(r"^[0-9a-f]{40}$")
 _OCI_DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 _IMAGE_REPOSITORY = re.compile(r"^[a-z0-9][a-z0-9._/-]*$")
@@ -236,9 +246,72 @@ def verify_application_image_provenance(
     services = document.get("services")
     if not isinstance(services, dict) or not services:
         raise DeploymentImageInventoryError("image inventory declares no services")
+    if set(services) != _EXPECTED_APPLICATION_SERVICES:
+        raise DeploymentImageInventoryError(
+            "image inventory does not name exactly the production application "
+            f"services (declared={sorted(services)}, "
+            f"expected={sorted(_EXPECTED_APPLICATION_SERVICES)}) — an omitted or "
+            "invented service is never silently accepted"
+        )
 
     digests: dict[str, str] = {}
     for name, service in services.items():
         verified_name, image_ref = _verify_service_entry(name, service)
         digests[verified_name] = image_ref
     return digests
+
+
+#: ``name@sha256:<64hex>`` — un Compose déjà résolu ne porte plus de tag
+#: (contrairement au fichier source, cf. `sign_production_readiness_
+#: manifest_cli._COMPOSE_IMAGE_REF`) : `docker compose config` normalise
+#: `name:tag@sha256:...` en gardant le digest, jamais le tag, pour les
+#: références déjà digest-pinnées côté source.
+_PINNED_IMAGE_REF = re.compile(r"^[a-z0-9][a-z0-9._/-]*@sha256:[0-9a-f]{64}$")
+
+
+def require_resolved_compose_images_are_pinned(
+    resolved_config: dict[str, Any],
+    *,
+    expected_services: frozenset[str] = _EXPECTED_APPLICATION_SERVICES,
+) -> dict[str, str]:
+    """Confronte un Compose **déjà résolu** (sortie de ``docker compose
+    -f ... config --format json``, jamais le YAML source non interpolé) :
+    chaque service applicatif attendu doit exister, ne porter aucun
+    ``build`` résiduel, et son ``image`` doit être épinglée par digest —
+    jamais un tag mutable (Codex P2, PR #102).
+
+    ``docker-compose.production-release.yml``'s ``${VAR:?requis}`` only
+    proves the variable is *non-empty* — an operator or a broken wrapper
+    could still set it to a mutable tag and Compose would accept it
+    silently. This function is the primitive a future host deployment
+    wrapper must call before any ``docker compose up`` — it does not call
+    itself: that wrapper does not exist yet in this repository (see
+    docs/reports/lot_h2b_production_image_provenance.md §9)."""
+    services = resolved_config.get("services")
+    if not isinstance(services, dict):
+        raise DeploymentImageInventoryError("resolved compose config has no 'services' mapping")
+    missing = expected_services - set(services)
+    if missing:
+        raise DeploymentImageInventoryError(
+            f"resolved compose config is missing expected service(s): {sorted(missing)}"
+        )
+    pinned: dict[str, str] = {}
+    for name in expected_services:
+        service = services[name]
+        if not isinstance(service, dict):
+            raise DeploymentImageInventoryError(f"service {name!r} is not a mapping")
+        if "build" in service:
+            raise DeploymentImageInventoryError(
+                f"service {name!r} still resolves with a 'build' key — the release "
+                "overlay's `!reset null` did not take effect, or the wrong compose "
+                "files were combined"
+            )
+        image = service.get("image")
+        if not isinstance(image, str) or _PINNED_IMAGE_REF.fullmatch(image) is None:
+            raise DeploymentImageInventoryError(
+                f"service {name!r} resolves to image {image!r}, which is not pinned "
+                "by digest (name@sha256:<64hex>) — a mutable tag is never accepted "
+                "for a production release"
+            )
+        pinned[name] = image
+    return pinned

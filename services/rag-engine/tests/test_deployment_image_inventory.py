@@ -269,16 +269,92 @@ class TestPerServiceRefusals:
         with pytest.raises(dii.DeploymentImageInventoryError, match="image_repository"):
             _verify(fakes, tmp_path)
 
-    def test_worker_a_and_worker_b_sharing_one_build_is_explicit_not_implicit(
-        self, tmp_path: Path
-    ) -> None:
-        """Both worker services must appear as distinct, explicit entries in
-        the inventory (even though they share one underlying build) -- an
-        inventory that only lists one of the two must not silently cover
-        both."""
+    def test_an_omitted_service_is_refused_not_silently_dropped(self, tmp_path: Path) -> None:
+        """Codex P1 (PR #102): both worker services must appear as distinct,
+        explicit entries (even though they share one underlying build) --
+        an inventory missing one of the three production services must be
+        refused outright, never silently accepted with a partial digest
+        map. The original version of this test asserted the opposite
+        (partial acceptance) and was itself the evidence of the bug."""
         inventory = _inventory_document()
         del inventory["services"]["multilevel-worker-b-production"]
         fakes = _Fakes(run=_run_document(), inventory=inventory)
-        digests = _verify(fakes, tmp_path)
-        assert "multilevel-worker-b-production" not in digests
-        assert "multilevel-worker-a-production" in digests
+        with pytest.raises(dii.DeploymentImageInventoryError, match="exactly the production"):
+            _verify(fakes, tmp_path)
+
+    def test_an_invented_extra_service_is_refused(self, tmp_path: Path) -> None:
+        inventory = _inventory_document()
+        inventory["services"]["invented-service"] = dict(
+            inventory["services"]["ingestor"], image_repository="ghcr.io/x/invented"
+        )
+        fakes = _Fakes(run=_run_document(), inventory=inventory)
+        with pytest.raises(dii.DeploymentImageInventoryError, match="exactly the production"):
+            _verify(fakes, tmp_path)
+
+
+EXPECTED_SERVICES = (
+    "ingestor",
+    "multilevel-worker-a-production",
+    "multilevel-worker-b-production",
+)
+
+
+def _resolved_compose(**per_service_overrides: dict[str, Any]) -> dict[str, Any]:
+    services: dict[str, Any] = {
+        name: {"image": f"ghcr.io/cyranoaladin/rag-x@sha256:{str(i + 1) * 64}"}
+        for i, name in enumerate(EXPECTED_SERVICES)
+    }
+    for name, override in per_service_overrides.items():
+        services[name] = override
+    return {"services": services}
+
+
+class TestResolvedComposeImagesArePinned:
+    """Codex P2 (PR #102): ``${VAR:?requis}`` only proves non-empty, never
+    digest-pinned. This is the primitive a future deployment wrapper must
+    call before ``docker compose up`` -- proven here directly against
+    ``docker compose ... config`` shaped output."""
+
+    def test_all_three_services_pinned_by_digest_is_accepted(self) -> None:
+        resolved = _resolved_compose()
+        pinned = dii.require_resolved_compose_images_are_pinned(resolved)
+        assert set(pinned) == set(EXPECTED_SERVICES)
+        for image in pinned.values():
+            assert dii._PINNED_IMAGE_REF.fullmatch(image)
+
+    def test_mutable_tag_is_refused(self) -> None:
+        resolved = _resolved_compose(ingestor={"image": "ghcr.io/cyranoaladin/rag-ingestor:latest"})
+        with pytest.raises(dii.DeploymentImageInventoryError, match="not pinned by digest"):
+            dii.require_resolved_compose_images_are_pinned(resolved)
+
+    def test_tag_alongside_digest_is_refused(self) -> None:
+        # Real docker compose config does NOT strip a tag that coexists
+        # with a digest (verified empirically against Docker Compose
+        # v5.4.0) -- so this must be refused, not silently accepted.
+        resolved = _resolved_compose(
+            ingestor={"image": "ghcr.io/cyranoaladin/rag-ingestor:sha-abc@sha256:" + "1" * 64}
+        )
+        with pytest.raises(dii.DeploymentImageInventoryError, match="not pinned by digest"):
+            dii.require_resolved_compose_images_are_pinned(resolved)
+
+    def test_residual_build_key_is_refused(self) -> None:
+        resolved = _resolved_compose(
+            ingestor={"image": "ghcr.io/cyranoaladin/rag-ingestor@sha256:" + "1" * 64, "build": {}}
+        )
+        with pytest.raises(dii.DeploymentImageInventoryError, match="still resolves with a 'build'"):
+            dii.require_resolved_compose_images_are_pinned(resolved)
+
+    def test_missing_service_is_refused(self) -> None:
+        resolved = _resolved_compose()
+        del resolved["services"]["multilevel-worker-b-production"]
+        with pytest.raises(dii.DeploymentImageInventoryError, match="missing expected service"):
+            dii.require_resolved_compose_images_are_pinned(resolved)
+
+    def test_missing_image_field_is_refused(self) -> None:
+        resolved = _resolved_compose(ingestor={})
+        with pytest.raises(dii.DeploymentImageInventoryError, match="not pinned by digest"):
+            dii.require_resolved_compose_images_are_pinned(resolved)
+
+    def test_no_services_mapping_is_refused(self) -> None:
+        with pytest.raises(dii.DeploymentImageInventoryError, match="no 'services' mapping"):
+            dii.require_resolved_compose_images_are_pinned({})
