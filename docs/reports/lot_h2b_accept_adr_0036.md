@@ -24,35 +24,55 @@ que PR #95 (ni PR #102) est la PR d'implémentation sans preuve — l'audit
 ci-dessous établit ce fait depuis l'historique Git et l'API GitHub, pas
 depuis un raisonnement par analogie avec ADR-0035.
 
-## Codex — un constat réel, corrigé avant merge
+## Codex — deux constats réels, corrigés successivement avant merge
 
-Codex (review sur le HEAD `3841862`) a signalé, à raison : `git log --all`
-sur le clone local ne prouve rien d'autoritaire — cette commande ne voit
-que les refs déjà récupérées localement (pas nécessairement toutes les
-branches de PR, y compris fermées/non fusionnées/jamais récupérées), et
-ma première version de ce rapport ne distinguait pas explicitement la
-présente PR documentaire (#103, qui modifie légitimement ce même fichier)
-d'une éventuelle « autre PR d'implémentation ».
+**Round 1 (review sur `3841862`).** `git log --all` sur le clone local ne
+prouve rien d'autoritaire — cette commande ne voit que les refs déjà
+récupérées localement, et ma première version de ce rapport ne
+distinguait pas explicitement la présente PR documentaire (#103, qui
+modifie légitimement ce même fichier) d'une éventuelle « autre PR
+d'implémentation ». Corrigé par un premier remplacement, interrogeant
+GitHub directement : `gh api commits?path=...` (historique serveur sur
+`main`) **et** `gh pr list --state all --json files` (toutes les PR, tout
+état, filtrées sur ce chemin).
 
-**Corrigé par une preuve plus forte, interrogeant GitHub directement plutôt
-que le clone local :**
+**Round 2 (review sur `56692ac`), constat plus profond et confirmé
+empiriquement avant d'être accepté.** Le second des deux remplacements
+ci-dessus était lui-même silencieusement incomplet : `gh pr list --json
+files` compile sa liste de fichiers via GraphQL avec un fragment
+`files(first: 100)` — un plafond dur de 100 fichiers par PR, jamais
+paginé par ce flag. PR #95 a réellement changé bien plus de fichiers, il
+suffirait qu'un autre PR de plus de 100 fichiers ait cette ADR au-delà
+des 100 premiers pour qu'elle disparaisse silencieusement du résultat.
+**Vérifié avant de corriger, pas supposé :**
 
 ```
-$ gh api "repos/cyranoaladin/RAG/commits?path=docs/adr/ADR-0036-chaine-de-promotion-gouvernee.md&per_page=100" --paginate
-→ un seul commit dans l'historique de main avant ce lot : 2182339 (PR #95)
+$ gh --version
+gh version 2.45.0
 
-$ gh pr list --state all --json number,title,files --limit 200 \
-    --jq '.[] | select(.files[]?.path == "docs/adr/ADR-0036-chaine-de-promotion-gouvernee.md") | {number, title}'
-→ {"number":103,"title":"docs(adr): accept ADR-0036 after governed PR #95 review"}
-→ {"number":95,"title":"H2-B: corpus production-readiness authority and evidence gates "}
+$ gh pr view 95 --json files --jq '.files | length'
+100   # plafonné — PR #95 a en réalité changé bien plus de fichiers
+
+$ GH_DEBUG=api gh pr list --state all --json number,files -S "..." --limit 1
+fragment pr on PullRequest{number,files(first: 100) {nodes {...}}}
 ```
 
-Deux résultats, tout état confondu (open/closed/merged) : PR #95
-(l'implémentation, déjà utilisée comme preuve) et PR #103 (la présente PR
-documentaire, explicitement exclue du décompte des PR d'implémentation).
-Aucune autre PR, à aucun état, n'a jamais touché ce fichier. Le texte de
-l'ADR et de ce rapport sont corrigés pour citer cette méthode plutôt que
-`git log --all`.
+**Correction retenue : abandonner ce second contrôle plutôt que le
+réparer, et s'appuyer uniquement sur le premier** (`commits?path=...`),
+qui n'est pas affecté par ce plafond — c'est un endpoint REST qui
+interroge directement l'historique serveur d'un chemin, sans passer par
+une liste de fichiers par PR. Ce dépôt fusionne exclusivement par
+squash (confirmé tout au long de cette mission — chaque merge produit
+exactement un commit sur `main` portant le diff complet de la PR) : donc
+« aucun commit autre que `2182339` ne touche ce chemin dans l'historique
+de `main` » équivaut exactement à « aucune PR fusionnée autre que #95 ne
+touche jamais ce fichier » — une preuve complète, pas un échantillon.
+Le champ des PR *non fusionnées* (ouvertes ou fermées sans merge) reste
+hors de portée de cette méthode, mais n'est pas pertinent ici : le
+mécanisme d'acceptation (précédent ADR-0031/ADR-0035) exige une PR
+**mergée** avec review approuvée sur son HEAD exact — une PR jamais
+fusionnée ne peut structurellement jamais être « la PR d'implémentation »
+au sens de ce mécanisme.
 
 ## Preuve vérifiée en direct (pas déduite d'un texte historique, pas réutilisée sans revérification)
 
@@ -67,9 +87,10 @@ ADR0036_TRUSTED_WORKFLOW_SUCCESS=true
 ADR0036_ACCEPTANCE_CONDITION_SATISFIED=true
 ```
 
-- **Aucune autre PR d'implémentation ne touche jamais ce fichier** —
-  vérifié via l'API GitHub sur toutes les PR, tout état confondu (voir
-  section Codex ci-dessus), pas via l'historique Git local seul.
+- **Aucune autre PR fusionnée ne touche jamais ce fichier** — vérifié via
+  l'historique serveur GitHub d'un chemin (`commits?path=...`, non
+  plafonné), voir section Codex ci-dessus pour la méthode retenue et
+  celle rejetée après vérification empirique.
 - Review GitHub `id=4923100913`, `state=APPROVED`, `commit_id` identique
   au head réel de PR #95 (`3d0cf471...`, confirmé par
   `gh pr view 95 --json headRefOid,mergeCommit,mergedAt`), soumise
