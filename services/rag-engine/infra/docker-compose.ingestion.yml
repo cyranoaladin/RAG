@@ -146,11 +146,12 @@ services:
       # approuvé n'existe réellement sur l'hôte.
       - ${RAG_INGESTION_PROFILES_HOST_DIR:-./configs/ingestion_profiles}:/app/configs/ingestion_profiles:ro
       - ${RAG_INGESTION_MANIFEST_HOST_PATH:-./configs/ingestion_manifest.yml}:/app/configs/ingestion_manifest.yml:ro
+      - ${RAG_WAVE0_AUTHORITY_HOST_DIR:?RAG_WAVE0_AUTHORITY_HOST_DIR requis}:/app/authority:ro
       - rag_ingestion_artifacts_data:/app/data/artifacts
     command:
       - python
       - -m
-      - ingestion_worker.cli
+      - ingestor.ingestion_worker.cli
       - --profiles-dir=/app/configs/ingestion_profiles
       - --manifest-path=/app/configs/ingestion_manifest.yml
       - --artifact-store-dir=/app/data/artifacts
@@ -158,10 +159,29 @@ services:
       - --poll-interval-s=${INGESTION_WORKER_POLL_INTERVAL_S:-5}
       - --heartbeat-file=/tmp/ingestion-worker.heartbeat
       - --expected-role=${INGESTION_CONTROL_APP_ROLE:-ingestion_control_app}
+      - --pii-evidence-path=/app/authority/pii.json
+      - --pii-evidence-sha256=${RAG_WAVE0_PII_EVIDENCE_SHA256:?RAG_WAVE0_PII_EVIDENCE_SHA256 requis}
+      - --rights-evidence-path=/app/authority/rights.yml
+      - --rights-evidence-sha256=${RAG_WAVE0_RIGHTS_EVIDENCE_SHA256:?RAG_WAVE0_RIGHTS_EVIDENCE_SHA256 requis}
+      - --corpus-manifest-sha256=${RAG_WAVE0_CORPUS_MANIFEST_SHA256:?RAG_WAVE0_CORPUS_MANIFEST_SHA256 requis}
+      - --catalog-path=/app/authority/catalog.json
+      - --catalog-sha256=${RAG_WAVE0_CATALOG_SHA256:?RAG_WAVE0_CATALOG_SHA256 requis}
+      - --candidate-inventory-path=/app/authority/wave0_candidate_inventory.json
+      - --candidate-inventory-sha256=${RAG_WAVE0_CANDIDATE_INVENTORY_SHA256:?RAG_WAVE0_CANDIDATE_INVENTORY_SHA256 requis}
+      - --currentness-evidence-path=/app/authority/wave0_currentness_evidence_v2.yml
+      - --currentness-evidence-sha256=${RAG_WAVE0_CURRENTNESS_EVIDENCE_SHA256:?RAG_WAVE0_CURRENTNESS_EVIDENCE_SHA256 requis}
+      - --mapping-path=/app/authority/eduscol_wave0_document_types.yml
+      - --mapping-sha256=${RAG_WAVE0_MAPPING_SHA256:?RAG_WAVE0_MAPPING_SHA256 requis}
+      - --release-manifest-path=/app/authority/release/wave0.release.json
+      - --release-manifest-sha256=${RAG_WAVE0_RELEASE_MANIFEST_SHA256:?RAG_WAVE0_RELEASE_MANIFEST_SHA256 requis}
+      - --programme-index-path=/app/authority/programme_index.yml
+      - --programme-index-sha256=${RAG_WAVE0_PROGRAMME_INDEX_SHA256:?RAG_WAVE0_PROGRAMME_INDEX_SHA256 requis}
+      - --collection-config-path=/app/authority/rag_collections.yml
+      - --collection-config-sha256=${RAG_WAVE0_COLLECTION_CONFIG_SHA256:?RAG_WAVE0_COLLECTION_CONFIG_SHA256 requis}
     networks: [rag_net]
     # Aucun bloc `ports:` — ce service n'est et ne doit jamais être exposé,
     # ni publiquement ni même en loopback (ADR-0024, ADR-0031). Seul un
-    # opérateur via `docker exec ... python -m ingestion_worker.create_job_cli`
+    # opérateur via `docker exec ... python -m ingestor.ingestion_worker.create_job_cli`
     # depuis l'hôte y accède ; aucune interface réseau entrante.
     read_only: true
     tmpfs: ["/tmp"]
@@ -186,6 +206,80 @@ services:
         limits:
           cpus: "1.0"
           memory: 1G
+
+  publication-resume-worker:
+    build:
+      context: ../../..
+      dockerfile: services/rag-engine/infra/Dockerfile.ingestion-worker
+    restart: unless-stopped
+    depends_on:
+      migrator-ingestion-control:
+        condition: service_completed_successfully
+      pgvector:
+        condition: service_healthy
+    environment:
+      TZ: ${TZ:-UTC}
+      PG_INGESTION_CONTROL_DSN: "${PG_INGESTION_CONTROL_DSN:?PG_INGESTION_CONTROL_DSN requis}"
+      PG_RAG_DSN: "${PG_RAG_DSN:?PG_RAG_DSN requis}"
+      INGESTION_CONTROL_APP_ROLE: ${INGESTION_CONTROL_APP_ROLE:-ingestion_control_app}
+      PUBLICATION_WORKER_OWNER: ${PUBLICATION_WORKER_OWNER:-publication-resume-worker}
+      PUBLICATION_WORKER_POLL_INTERVAL_S: ${PUBLICATION_WORKER_POLL_INTERVAL_S:-5}
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+      XDG_CACHE_HOME: /tmp
+      NEXUS_GITHUB_TOKEN_FILE: ${NEXUS_GITHUB_TOKEN_FILE:-/run/secrets/nexus_github_token}
+    secrets: [nexus_github_token]
+    volumes:
+      - ${RAG_INGESTION_PROFILES_HOST_DIR:-./configs/ingestion_profiles}:/app/configs/ingestion_profiles:ro
+      - ${RAG_INGESTION_MANIFEST_HOST_PATH:-./configs/ingestion_manifest.yml}:/app/configs/ingestion_manifest.yml:ro
+      - ${RAG_WAVE0_AUTHORITY_HOST_DIR:?RAG_WAVE0_AUTHORITY_HOST_DIR requis}:/app/authority:ro
+      - ${RAG_EMBEDDING_MODEL_CACHE_DIR:?RAG_EMBEDDING_MODEL_CACHE_DIR requis}:/app/models/e5:ro
+      - rag_ingestion_artifacts_data:/app/data/artifacts:ro
+    command:
+      - python
+      - -m
+      - ingestor.ingestion_worker.publication_resume_cli
+      - --profiles-dir=/app/configs/ingestion_profiles
+      - --manifest-path=/app/configs/ingestion_manifest.yml
+      - --artifact-store-dir=/app/data/artifacts
+      - --owner=${PUBLICATION_WORKER_OWNER:-publication-resume-worker}
+      - --expected-role=${INGESTION_CONTROL_APP_ROLE:-ingestion_control_app}
+      - --poll-interval-s=${PUBLICATION_WORKER_POLL_INTERVAL_S:-5}
+      - --pii-evidence-path=/app/authority/pii.json
+      - --pii-evidence-sha256=${RAG_WAVE0_PII_EVIDENCE_SHA256:?RAG_WAVE0_PII_EVIDENCE_SHA256 requis}
+      - --rights-evidence-path=/app/authority/rights.yml
+      - --rights-evidence-sha256=${RAG_WAVE0_RIGHTS_EVIDENCE_SHA256:?RAG_WAVE0_RIGHTS_EVIDENCE_SHA256 requis}
+      - --corpus-manifest-sha256=${RAG_WAVE0_CORPUS_MANIFEST_SHA256:?RAG_WAVE0_CORPUS_MANIFEST_SHA256 requis}
+      - --catalog-path=/app/authority/catalog.json
+      - --catalog-sha256=${RAG_WAVE0_CATALOG_SHA256:?RAG_WAVE0_CATALOG_SHA256 requis}
+      - --candidate-inventory-path=/app/authority/wave0_candidate_inventory.json
+      - --candidate-inventory-sha256=${RAG_WAVE0_CANDIDATE_INVENTORY_SHA256:?RAG_WAVE0_CANDIDATE_INVENTORY_SHA256 requis}
+      - --currentness-evidence-path=/app/authority/wave0_currentness_evidence_v2.yml
+      - --currentness-evidence-sha256=${RAG_WAVE0_CURRENTNESS_EVIDENCE_SHA256:?RAG_WAVE0_CURRENTNESS_EVIDENCE_SHA256 requis}
+      - --mapping-path=/app/authority/eduscol_wave0_document_types.yml
+      - --mapping-sha256=${RAG_WAVE0_MAPPING_SHA256:?RAG_WAVE0_MAPPING_SHA256 requis}
+      - --release-manifest-path=/app/authority/release/wave0.release.json
+      - --release-manifest-sha256=${RAG_WAVE0_RELEASE_MANIFEST_SHA256:?RAG_WAVE0_RELEASE_MANIFEST_SHA256 requis}
+      - --programme-index-path=/app/authority/programme_index.yml
+      - --programme-index-sha256=${RAG_WAVE0_PROGRAMME_INDEX_SHA256:?RAG_WAVE0_PROGRAMME_INDEX_SHA256 requis}
+      - --collection-config-path=/app/authority/rag_collections.yml
+      - --collection-config-sha256=${RAG_WAVE0_COLLECTION_CONFIG_SHA256:?RAG_WAVE0_COLLECTION_CONFIG_SHA256 requis}
+      - --embedding-artifact-root=/app/models/e5
+      - --embedding-inventory-sha256=${RAG_EMBEDDING_MODEL_INVENTORY_SHA256:?RAG_EMBEDDING_MODEL_INVENTORY_SHA256 requis}
+    networks: [rag_net]
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: [no-new-privileges:true]
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 6G
 
   # ---------------------------------------------------------------------
   # Remédiation GATE H1 (item K) — autorités d'opérateur, strictement isolées.
@@ -227,7 +321,7 @@ services:
       NEXUS_GITHUB_TOKEN_FILE: ${NEXUS_GITHUB_TOKEN_FILE:-/run/secrets/nexus_github_token}
       XDG_CACHE_HOME: /tmp
     secrets: [nexus_github_token]
-    entrypoint: ["python", "-m", "ingestion_worker.authorize_scope_cli"]
+    entrypoint: ["python", "-m", "ingestor.ingestion_worker.authorize_scope_cli"]
     networks: [rag_net]
     read_only: true
     tmpfs: ["/tmp"]
@@ -255,7 +349,7 @@ services:
       NEXUS_GITHUB_TOKEN_FILE: ${NEXUS_GITHUB_TOKEN_FILE:-/run/secrets/nexus_github_token}
       XDG_CACHE_HOME: /tmp
     secrets: [nexus_github_token]
-    entrypoint: ["python", "-m", "ingestion_worker.attest_publication_cli"]
+    entrypoint: ["python", "-m", "ingestor.ingestion_worker.attest_publication_cli"]
     networks: [rag_net]
     read_only: true
     tmpfs: ["/tmp"]

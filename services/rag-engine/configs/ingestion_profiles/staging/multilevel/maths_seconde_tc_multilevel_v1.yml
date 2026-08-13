@@ -1,0 +1,33 @@
+profile_version: multilevel-v1
+enabled: true
+scope:
+  tenant: libre_seconde
+  collection: rag_nexus_maths_seconde_tc
+  niveau: seconde
+  voie: generale
+  matiere: maths
+  candidat: libre
+  audience: [libre, tous]
+  visibility: internal
+  school_year: "2026-2027"
+  programme_version: BOEN_14_2026-04-02_MENE2602914A
+title: "Mathématiques Seconde — release multi-niveaux"
+language: fr
+owner: "Nexus Réussite"
+expected_topics: [nombres et calculs, géométrie, fonctions, probabilités]
+expected_resource_types: [programme_officiel, ressource_officielle]
+excluded_topics: [données personnelles, voie technologique]
+allowed_domains: [eduscol.education.gouv.fr, www.education.gouv.fr]
+seed_urls: [https://eduscol.education.gouv.fr/5817/programmes-et-ressources-en-mathematiques-voie-gt]
+source_authority: official
+search_cadence: manual
+max_queries_per_run: 16
+max_documents_per_run: 64
+max_chunk_size: 800
+chunk_overlap: 100
+min_source_confidence: 0.9
+min_scope_confidence: 0.9
+min_extraction_quality: 0.1
+reject_unknown_rights: true
+reject_ambiguous_routing: true
+publication: {mode: human_review, auto_publish: false}

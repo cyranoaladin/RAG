@@ -26,6 +26,11 @@ from .manifest import (
     manifest_fingerprint,
     verify_profile_manifest,
 )
+from .readiness_gate import (
+    ReadinessGateError,
+    ReadinessGateResult,
+    enforce_readiness_gate,
+)
 from .registry import (
     PROFILE_VERSION_PATTERN,
     ProfileDisabledError,
@@ -63,7 +68,10 @@ __all__ = [
     "StartupGateResult",
     "canonical_json_bytes",
     "detect_profile_drift",
+    "ReadinessGateError",
+    "ReadinessGateResult",
     "enforce_production_manifest_gate",
+    "enforce_readiness_gate",
     "load_profile_registry",
     "manifest_fingerprint",
     "profile_fingerprint",

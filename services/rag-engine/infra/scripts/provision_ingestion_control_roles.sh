@@ -249,6 +249,21 @@ REVOKE UPDATE, DELETE, TRUNCATE ON ingestion_control.workflow_events FROM :"app_
 -- (rôles authority_role/attestor_role dédiés ci-dessus), en a le droit.
 GRANT SELECT ON ingestion_control.scope_authorizations TO :"app_role" ;
 GRANT SELECT ON ingestion_control.publication_attestations TO :"app_role" ;
+-- Migration 011 : le runtime peut seulement ajouter/relever le pin exact
+-- produit par sa vérification GitHub live. La preuve est append-only :
+-- aucun rôle gouverné ne peut la corriger ou la supprimer après coup.
+GRANT SELECT, INSERT ON ingestion_control.publication_commit_pins TO :"app_role" ;
+REVOKE UPDATE, DELETE, TRUNCATE ON ingestion_control.publication_commit_pins FROM :"app_role" ;
+-- Migration 012 (LOT H2-F) : les quatre faits d'attribution sont écrits
+-- par le pipeline gouverné lui-même, sous ce rôle et lui seul. UPDATE est
+-- nécessaire (correction avant attestation, réécriture idempotente après)
+-- mais DELETE ne l'est jamais : une attribution écrite ne disparaît pas,
+-- et le trigger de la migration 012 refuse en plus toute divergence après
+-- attestation.
+GRANT SELECT, INSERT, UPDATE ON ingestion_control.artifact_attributions TO :"app_role" ;
+REVOKE DELETE, TRUNCATE ON ingestion_control.artifact_attributions FROM :"app_role" ;
+GRANT EXECUTE ON FUNCTION ingestion_control.artifact_attribution_digest(
+    uuid, text, boolean, text, text) TO :"app_role" ;
 
 -- Aucune écriture directe dans rag_chunks/public depuis le rôle runtime
 -- ingestion_control — vérifié explicitement, jamais supposé.
@@ -310,6 +325,18 @@ GRANT SELECT ON ingestion_control.resource_candidates TO :"attestor_role" ;
 -- pour ce rôle, contrairement au worker qui y écrit).
 GRANT SELECT ON ingestion_control.workflow_events TO :"attestor_role" ;
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON ingestion_control.workflow_events FROM :"attestor_role" ;
+-- Migration 012 (LOT H2-F) : les quatre faits d'attribution
+-- (source_label/official/source_kind/type_doc) sont relus ici, dans le plan
+-- de contrôle. Avant cette migration ils étaient cherchés dans
+-- public.rag_artifacts — table que ce rôle n'a jamais eu le droit de lire
+-- (REVOKE ci-dessous) et qui n'existe pas encore lors d'une première
+-- publication. SELECT seul : produire une attribution est le travail du
+-- pipeline, jamais celui de l'attestation qui la scelle.
+GRANT SELECT ON ingestion_control.artifact_attributions TO :"attestor_role" ;
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE
+    ON ingestion_control.artifact_attributions FROM :"attestor_role" ;
+GRANT EXECUTE ON FUNCTION ingestion_control.artifact_attribution_digest(
+    uuid, text, boolean, text, text) TO :"attestor_role" ;
 REVOKE ALL PRIVILEGES ON SCHEMA public FROM :"attestor_role" ;
 SQL
 

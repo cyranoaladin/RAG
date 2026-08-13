@@ -23,6 +23,7 @@ from src.ingestor.collection_config import (
 
 ENGINE_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = ENGINE_ROOT / "configs" / "rag_collections.yml"
+WAVE0_CONFIG_PATH = ENGINE_ROOT / "configs" / "staging" / "rag_collections_wave0.yml"
 LEGACY_CONFIG_PATH = ENGINE_ROOT / "configs" / "rag_collections_legacy.yml"
 MAPPING_PATH = ENGINE_ROOT / "configs" / "legacy_collection_mapping.yml"
 COLLECTION_CONFIG_MODULE = ENGINE_ROOT / "src" / "ingestor" / "collection_config.py"
@@ -87,14 +88,100 @@ def test_instanciation_flags_present() -> None:
         assert "instanciee" in defn, f"{name} missing instanciee"
 
 
+def test_quatrieme_collections_are_declared_and_release_activated_exactly() -> None:
+    config = _load_yaml(CONFIG_PATH)
+
+    assert config["collections"]["rag_nexus_maths_quatrieme_tc"] == {
+        "matiere": "maths",
+        "niveau": "quatrieme",
+        "voie": "college",
+        "statut": "tronc_commun",
+        "domain": "education",
+        "session_policy": "declared_or_null",
+        "taxonomy_file": "maths/quatrieme.yml",
+        "instanciee": True,
+    }
+    assert config["collections"]["rag_nexus_francais_quatrieme_tc"] == {
+        "matiere": "francais",
+        "niveau": "quatrieme",
+        "voie": "college",
+        "statut": "tronc_commun",
+        "domain": "education",
+        "session_policy": "declared_or_null",
+        "taxonomy_file": "francais/quatrieme.yml",
+        "instanciee": True,
+    }
+
+
 def test_instanciated_match_perimetre() -> None:
     config = _load_yaml(CONFIG_PATH)
     inst = {n for n, d in config["collections"].items() if d.get("instanciee") is True}
     assert inst == {
+        "rag_nexus_francais_premiere_tc",
+        "rag_nexus_francais_quatrieme_tc",
+        "rag_nexus_francais_seconde_tc",
+        "rag_nexus_francais_troisieme_tc",
+        "rag_nexus_maths_premiere_gen_specialite",
+        "rag_nexus_maths_quatrieme_tc",
+        "rag_nexus_maths_seconde_tc",
+        "rag_nexus_maths_terminale_gen_specialite",
+        "rag_nexus_maths_troisieme_tc",
         "rag_nexus_nsi_premiere_specialite",
         "rag_nexus_nsi_terminale_specialite",
+        "rag_nexus_pc_terminale_specialite",
+        "rag_nexus_philo_terminale_tc",
         "rag_nexus_quarantine",
     }
+
+
+def test_multilevel_canonical_activation_delta_is_exactly_eight() -> None:
+    canonical = load_collection_config(CONFIG_PATH)
+    newly_activated = {
+        "rag_nexus_maths_seconde_tc",
+        "rag_nexus_francais_seconde_tc",
+        "rag_nexus_maths_quatrieme_tc",
+        "rag_nexus_francais_quatrieme_tc",
+        "rag_nexus_maths_premiere_gen_specialite",
+        "rag_nexus_francais_premiere_tc",
+        "rag_nexus_maths_terminale_gen_specialite",
+        "rag_nexus_pc_terminale_specialite",
+    }
+
+    assert {
+        name
+        for name in newly_activated
+        if canonical["collections"][name]["instanciee"] is True
+    } == newly_activated
+
+
+def test_wave0_canonical_activation_is_exactly_two_collections() -> None:
+    canonical = load_collection_config(CONFIG_PATH)
+    expected = {
+        "rag_nexus_maths_troisieme_tc",
+        "rag_nexus_francais_troisieme_tc",
+    }
+    activated_wave0 = {
+        name
+        for name, definition in canonical["collections"].items()
+        if name in expected and definition["instanciee"] is True
+    }
+
+    assert activated_wave0 == expected
+
+
+def test_wave0_staging_overlay_is_a_noop_after_canonical_activation() -> None:
+    canonical = load_collection_config(CONFIG_PATH)
+    staging = load_collection_config(WAVE0_CONFIG_PATH)
+
+    assert staging == canonical
+
+
+def test_wave0_college_collections_have_an_explicit_canonical_voie() -> None:
+    canonical = load_collection_config(CONFIG_PATH)
+    staging = load_collection_config(WAVE0_CONFIG_PATH)
+    for config in (canonical, staging):
+        assert config["collections"]["rag_nexus_maths_troisieme_tc"]["voie"] == "college"
+        assert config["collections"]["rag_nexus_francais_troisieme_tc"]["voie"] == "college"
 
 
 def test_no_web3_domain() -> None:

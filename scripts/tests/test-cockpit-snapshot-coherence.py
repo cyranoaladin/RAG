@@ -8,6 +8,8 @@ import unittest
 from copy import deepcopy
 from pathlib import Path
 
+import yaml
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 VALIDATOR = REPO_ROOT / "scripts/lib/validate_cockpit_snapshots.py"
 SOURCES_JSON = REPO_ROOT / "services/cockpit/src/data/sources.json"
@@ -57,14 +59,35 @@ class CockpitSnapshotCoherenceTest(unittest.TestCase):
         return json.loads(COLLECTIONS_JSON.read_text(encoding="utf-8"))
 
     def test_snapshots_canoniques_sont_exhaustivement_concordants(self) -> None:
+        expected_count = len(self.load_collections())
         result = self.run_validator()
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("PASS (20 sources)", result.stdout)
         self.assertIn(
-            "PASS (59 collections; catalogue uniquement, corpus non validé)",
+            f"PASS ({expected_count} collections; catalogue uniquement, corpus non validé)",
             result.stdout,
         )
+
+    def test_compteur_collections_est_derive_des_deux_sources_canoniques(self) -> None:
+        collections = self.load_collections()
+        extra = deepcopy(collections[0])
+        extra["name"] = "rag_nexus_collection_compteur_derive"
+        extra["instanciee"] = False
+        canonical = yaml.safe_load(COLLECTIONS_YAML.read_text(encoding="utf-8"))
+        canonical["collections"][extra["name"]] = {
+            **{key: value for key, value in extra.items() if key != "name"},
+            "session_policy": "declared_or_null",
+        }
+        mutated = yaml.safe_dump(canonical, sort_keys=False, allow_unicode=True)
+
+        result = self.run_validator(
+            collections=[*collections, extra],
+            collections_yaml=mutated,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(f"PASS ({len(collections) + 1} collections", result.stdout)
 
     def test_collection_manquante_est_rejetee(self) -> None:
         collections = self.load_collections()

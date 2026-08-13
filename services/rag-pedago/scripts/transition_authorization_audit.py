@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 from pathlib import Path
 from typing import Any
 
@@ -65,7 +66,23 @@ REQUIRED_AUTHORIZATION_FIELDS = [
     "real_file_authorized",
     "pipeline_authorized",
 ]
+#: Décisions que la configuration **doit** déclarer. Une décision retirée
+#: d'ici cesserait d'être exigée, ce qui reviendrait à l'autoriser
+#: implicitement : elles y restent toutes.
+MANDATORY_AUTHORIZATION_DECISIONS = {
+    "authorize_metadata_only_preparation",
+    "require_final_human_signoff",
+    "block_real_corpus_transition",
+    "defer_to_separate_real_lot",
+}
+
+#: Décisions que l'audit *sait* évaluer. Sur-ensemble du précédent :
+#: ``authorize_governed_public_corpus`` est reconnue et intégralement
+#: contrôlée dès qu'elle apparaît, mais n'est pas exigée tant qu'aucune
+#: campagne ne l'emprunte. Exiger sa déclaration forcerait à écrire
+#: aujourd'hui le cas d'autorisation qu'un humain doit décider demain.
 ALLOWED_AUTHORIZATION_DECISIONS = {
+    "authorize_governed_public_corpus",  # ADR-0037
     "authorize_metadata_only_preparation",
     "require_final_human_signoff",
     "block_real_corpus_transition",
@@ -76,6 +93,7 @@ REQUIRED_DECISION_REASONS = {
     "block_real_corpus_transition": "real_corpus_requires_separate_authorization",
     "require_final_human_signoff": "final_human_signoff_missing",
     "defer_to_separate_real_lot": "separate_real_lot_required",
+    "authorize_governed_public_corpus": "governed_public_institutional_corpus_authorized",
 }
 REQUIRED_AUTHORIZATION_DECISION_COVERAGE = {
     "authorize_metadata_only_preparation",
@@ -97,6 +115,117 @@ REQUIRED_FALSE_SAFETY_FIELDS = [
     "real_file_authorized",
     "pipeline_authorized",
 ]
+#: ADR-0037 — l'unique exception à ``REQUIRED_FALSE_SAFETY_FIELDS``.
+#:
+#: Le champ n'est pas retiré de la liste : il le resterait pour toutes les
+#: décisions, y compris celles qui n'ont rien à voir avec un corpus. Il
+#: devient *conditionnellement* exempté, pour une décision nommée et à
+#: condition que la campagne soit entièrement épinglée. Une transition qui
+#: manque une seule des conditions est refusée, jamais dégradée.
+GOVERNED_PUBLIC_CORPUS_DECISION = "authorize_governed_public_corpus"
+GOVERNED_PUBLIC_CORPUS_REASON = "governed_public_institutional_corpus_authorized"
+
+#: Seul ``real_corpus_authorized`` peut être exempté.
+#: ``real_file_authorized`` désignerait un fichier arbitraire choisi par un
+#: opérateur, et ``pipeline_authorized`` un pipeline sans campagne : ni
+#: l'un ni l'autre ne peut être rendu sûr par un digest, ils restent donc
+#: faux en toutes circonstances.
+CONDITIONALLY_EXEMPT_SAFETY_FIELDS = {
+    "real_corpus_authorized": GOVERNED_PUBLIC_CORPUS_DECISION,
+}
+
+#: Ce qu'une autorisation de corpus gouverné doit épingler. Chacun est un
+#: digest recalculable : la transition ne désigne pas « le corpus », elle
+#: désigne *un* corpus, celui qu'un humain a relu.
+GOVERNED_PUBLIC_CORPUS_REQUIRED_FIELDS = [
+    "adr_reference",
+    "campaign_id",
+    "campaign_sha256",
+    "catalog_sha256",
+    "corpus_classification",
+    "corpus_manifest_sha256",
+    "corpus_oci_digest",
+    "corpus_tree_digest",
+    "h2_evidence_sha256",
+    "private_corpus_included",
+    "review_view_sha256",
+]
+GOVERNED_PUBLIC_CORPUS_HEX_FIELDS = [
+    "campaign_sha256",
+    "catalog_sha256",
+    "corpus_manifest_sha256",
+    "corpus_tree_digest",
+    "h2_evidence_sha256",
+    "review_view_sha256",
+]
+#: La seule classification admissible. Un corpus privé ou mixte ne peut pas
+#: emprunter cette voie, même accompagné de digests valides.
+GOVERNED_PUBLIC_CORPUS_CLASSIFICATION = "PUBLIC_INSTITUTIONAL"
+
+_HEX64 = re.compile(r"\A[0-9a-f]{64}\Z")
+_OCI_DIGEST = re.compile(r"\Asha256:[0-9a-f]{64}\Z")
+
+
+def _governed_public_corpus_failures(label: str, case: dict[str, Any]) -> list[str]:
+    """Conditions de l'exemption. Toutes obligatoires, aucune implicite."""
+    failures: list[str] = []
+
+    if case.get("decision_reason") != GOVERNED_PUBLIC_CORPUS_REASON:
+        failures.append(
+            f"authorization {label} must carry decision_reason "
+            f"{GOVERNED_PUBLIC_CORPUS_REASON}"
+        )
+
+    for field in GOVERNED_PUBLIC_CORPUS_REQUIRED_FIELDS:
+        if field not in case:
+            failures.append(
+                f"authorization {label} authorizes a real corpus without {field}"
+            )
+
+    for field in GOVERNED_PUBLIC_CORPUS_HEX_FIELDS:
+        value = case.get(field)
+        if field in case and (not isinstance(value, str) or not _HEX64.match(value)):
+            failures.append(
+                f"authorization {label} {field} must be a lowercase 64-hex digest"
+            )
+
+    oci = case.get("corpus_oci_digest")
+    if "corpus_oci_digest" in case and (
+        not isinstance(oci, str) or not _OCI_DIGEST.match(oci)
+    ):
+        failures.append(
+            f"authorization {label} corpus_oci_digest must be 'sha256:<64 hex>' — a "
+            "mutable tag cannot pin what was reviewed"
+        )
+
+    classification = case.get("corpus_classification")
+    if "corpus_classification" in case and (
+        classification != GOVERNED_PUBLIC_CORPUS_CLASSIFICATION
+    ):
+        failures.append(
+            f"authorization {label} corpus_classification must be "
+            f"{GOVERNED_PUBLIC_CORPUS_CLASSIFICATION}, got {classification!r}"
+        )
+
+    if "private_corpus_included" in case and (
+        case.get("private_corpus_included") is not False
+    ):
+        failures.append(
+            f"authorization {label} private_corpus_included must be false — this "
+            "transition never covers private content"
+        )
+
+    adr = case.get("adr_reference")
+    if "adr_reference" in case and (
+        not isinstance(adr, str) or not adr.strip().startswith("ADR-")
+    ):
+        failures.append(
+            f"authorization {label} adr_reference must name an accepted ADR"
+        )
+
+    return failures
+
+
 FORBIDDEN_AUTHORIZATION_FIELDS = {
     "file_path",
     "path",
@@ -167,7 +296,7 @@ def audit_config(config: dict[str, Any]) -> dict[str, list[str]]:
     configured_decisions = set(_string_list(config.get("allowed_authorization_decisions")))
     configured_fields = set(_string_list(config.get("required_authorization_fields")))
 
-    for decision in ALLOWED_AUTHORIZATION_DECISIONS:
+    for decision in MANDATORY_AUTHORIZATION_DECISIONS:
         if decision not in configured_decisions:
             missing_required_fields.append(f"missing allowed_authorization_decisions: {decision}")
     for decision in sorted(configured_decisions.difference(ALLOWED_AUTHORIZATION_DECISIONS)):
@@ -223,8 +352,24 @@ def audit_config(config: dict[str, Any]) -> dict[str, list[str]]:
                 authorization_safety_errors.append(f"authorization {label} {field} must be true")
 
         for field in REQUIRED_FALSE_SAFETY_FIELDS:
-            if authorization_case.get(field) is not False:
-                authorization_safety_errors.append(f"authorization {label} {field} must be false")
+            if authorization_case.get(field) is False:
+                continue
+            exempting_decision = CONDITIONALLY_EXEMPT_SAFETY_FIELDS.get(field)
+            if (
+                exempting_decision is None
+                or decision != exempting_decision
+                or authorization_case.get(field) is not True
+            ):
+                authorization_safety_errors.append(
+                    f"authorization {label} {field} must be false"
+                )
+                continue
+            # Le champ est exempté *pour cette décision* : toutes les
+            # conditions de l'exemption s'appliquent alors, et un manquement
+            # refuse la transition au lieu de la laisser passer amoindrie.
+            authorization_safety_errors.extend(
+                _governed_public_corpus_failures(label, authorization_case)
+            )
 
         if decision in REQUIRED_DECISION_REASONS:
             expected_reason = REQUIRED_DECISION_REASONS[decision]

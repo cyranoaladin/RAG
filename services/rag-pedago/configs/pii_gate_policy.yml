@@ -1,0 +1,106 @@
+# PII Gate Policy — H2-B
+# Purpose: Define PII detection requirements for corpus ingestion
+# Status: SCANNER_IMPLEMENTED — Ready for full content scan
+
+policy_id: pii_gate_policy_h2b_v5
+status: scanner_implemented
+
+# H2-A findings (filename-only scan)
+h2a_scan_results:
+  scan_scope: FILENAMES_ONLY
+  patterns_searched:
+    - "@"  # emails
+    - "nom_"
+    - "prenom"
+    - "telephone"
+    - "adresse"
+    - "email"
+    - "etudiant"
+  occurrences_found: 0
+  false_negative_risk: HIGH
+  rationale: |
+    Filename patterns do not detect PII in content.
+    "eleve" in filenames are pedagogical terms (fiche-eleve),
+    not personal identifiers.
+
+# Full content scan requirements
+full_content_scan:
+  required: true
+  blocking_for_ingestion: true
+
+  patterns_to_search:
+    # French personal identifiers
+    - pattern_id: french_ssn
+      description: "Numéro de sécurité sociale"
+      regex: "\\b[12]\\s?\\d{2}\\s?\\d{2}\\s?\\d{2}\\s?\\d{3}\\s?\\d{3}\\s?\\d{2}\\b"
+
+    - pattern_id: email_address
+      description: "Email addresses"
+      regex: "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}"
+
+    - pattern_id: phone_french
+      description: "French phone numbers"
+      regex: "(?:(?:\\+|00)33[\\s.-]?|0)[1-9](?:[\\s.-]?\\d{2}){4}"
+
+    - pattern_id: postal_address
+      description: "French postal codes with explicit locality context"
+      regex: "(?:(?i:\\b(?:adresse|rue|avenue|boulevard|chemin|place|allée|allee)\\b)(?:[^\\r\\n]{0,80}|[^\\r\\n]{0,80}\\r?\\n[^\\r\\n]{0,80})\\b\\d{5}\\b(?:[ \\t,;:-]+|\\r?\\n[ \\t]*)(?i:[a-zà-öø-ÿ][a-zà-öø-ÿ'’.-]+(?:[ \\t-]+[a-zà-öø-ÿ][a-zà-öø-ÿ'’.-]+){0,3})\\b|\\b\\d{5}\\b(?:[ \\t,;:-]+|\\r?\\n[ \\t]*)(?:(?i:CEDEX)(?:[ \\t]+\\d{1,2})?|(?i:France)|[A-ZÀ-ÖØ-Ý][A-Za-zÀ-ÖØ-öø-ÿ'’.-]+(?:[ \\t-]+[A-ZÀ-ÖØ-Ý][A-Za-zÀ-ÖØ-öø-ÿ'’.-]+){0,3})\\b)"
+
+    - pattern_id: iban_french
+      description: "French IBAN"
+      regex: "FR\\d{2}\\s?\\d{4}\\s?\\d{4}\\s?\\d{4}\\s?\\d{4}\\s?\\d{4}\\s?\\d{3}"
+
+    - pattern_id: student_name_pattern
+      description: "Student name indicators (Nom: Prénom:)"
+      regex: "(?:Nom|Prénom|Élève|Candidat)\\s*:?\\s*[A-Z][a-zéèêëàâäùûüïîôöç]+"
+
+    - pattern_id: date_of_birth
+      description: "Date de naissance with context"
+      regex: "(?:né\\(e\\)|date de naissance|naissance)\\s*:?\\s*\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{2,4}"
+
+  extraction_method:
+    pdf_text_extraction: true
+    ocr_if_needed: false  # First pass: text-only PDFs
+    image_analysis: false  # Future: image-embedded PII
+
+  false_positive_handling:
+    example_identifiers_allowed: true  # "Jean DUPONT" as example
+    pedagogical_context_allowed: true  # Teaching materials about PII
+    threshold_for_investigation: 5  # More than 5 matches = human review
+
+# Gate behavior
+gate_behavior:
+  pii_detected:
+    action: QUARANTINE
+    human_review_required: true
+    rationale: "Document contains potential PII - requires human verification"
+
+  pii_absent:
+    action: PROCEED
+    pii_absence_attested: true
+    rationale: "Full content scan found no PII patterns"
+
+  scan_incomplete:
+    action: BLOCK
+    rationale: "Cannot attest PII absence without full content scan"
+
+# Current status
+current_status:
+  scanner_implemented: true
+  scanner_module: "rag_pedago.imports.pii_scanner"
+  scan_complete: false  # Awaiting corpus download from Drive
+  corpus_access_available: true  # H2-B authorizes READ-ONLY Drive access
+  next_step: |
+    1. Download corpus PDFs from gdrive_ert:NEXUS_RAG/NEXUS_RAG_GDRIVE_READY
+    2. Run: python -m rag_pedago.imports.pii_scanner \
+         --corpus-manifest data/corpus_manifest.tsv \
+         --corpus-root /tmp/corpus_download \
+         --output data/reports/pii_scan_report.json
+    3. If pii_absent_attested=true, PII gate passes
+
+  estimated_scope:
+    total_pdfs: 2451
+    estimated_pages: 50000  # ~20 pages per PDF average
+    extraction_method: "pypdf (v4+)"
+    patterns_count: 6
+    mutation_tests_count: 8

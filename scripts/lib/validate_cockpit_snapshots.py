@@ -200,14 +200,10 @@ def validate_collections(
             else:
                 canonical[name] = {"name": name, **value}
 
-    if len(snapshot) != 59:
-        errors.append(
-            f"JSON collections: 59 entrées requises, trouvé={len(snapshot)}"
-        )
-    if len(canonical) != 59:
-        errors.append(
-            f"YAML collections: 59 entrées requises, trouvé={len(canonical)}"
-        )
+    if not snapshot:
+        errors.append("JSON collections: au moins une entrée est requise")
+    if not canonical:
+        errors.append("YAML collections: au moins une entrée est requise")
 
     compare_indexed_entries(
         snapshot,

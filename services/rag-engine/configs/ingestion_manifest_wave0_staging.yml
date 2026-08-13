@@ -1,0 +1,14 @@
+manifest_version: "1"
+provenance: Wave 0 pre-rentree 2026-2027 staging technique
+generated_at: "2026-08-12T10:15:00+01:00"
+profiles:
+  - collection: rag_nexus_francais_troisieme_tc
+    profile_version: wave0-v1
+    fingerprint: 78ed50c80a0ef508a76568881b843642cabaeed3ae4d66098fa2cf4b531dcd72
+    approved_by: Nexus Réussite
+    approved_at: "2026-08-12T10:15:00+01:00"
+  - collection: rag_nexus_maths_troisieme_tc
+    profile_version: wave0-v1
+    fingerprint: d9d68c1cd0cce24076593b49b5c16aa2e0c44fc31117c9929128c5a4fc3be09d
+    approved_by: Nexus Réussite
+    approved_at: "2026-08-12T10:15:00+01:00"

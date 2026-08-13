@@ -22,6 +22,7 @@ from nexus_contracts import (  # noqa: E402
     InternalIdentity,
     InternalIdentityEnvelope,
     PilotRetrievalScopeArtifact,
+    RetrievalScopeArtifactV2,
     RetrievalRequest,
     RetrievalResponse,
     ReviewDecisionPayload,
@@ -47,6 +48,7 @@ SCHEMAS: dict[str, type[BaseModel]] = {
     "internal-identity.json": InternalIdentity,
     "internal-identity-envelope.json": InternalIdentityEnvelope,
     "pilot-retrieval-scope-artifact.json": PilotRetrievalScopeArtifact,
+    "retrieval-scope-artifact-v2.json": RetrievalScopeArtifactV2,
     "search-payload.json": SearchPayload,
 }
 

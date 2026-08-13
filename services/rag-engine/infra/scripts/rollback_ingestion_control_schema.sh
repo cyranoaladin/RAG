@@ -70,7 +70,7 @@ fi
 
 # Ordre canonique de verrouillage — alphabétique, fixe, jamais dérivé de
 # l'ordre des migrations ni de la plage annulée (cf. point 3 ci-dessus).
-readonly CANONICAL_LOCK_ORDER="ingestion_control.artifacts, ingestion_control.ingestion_runs, ingestion_control.jobs, ingestion_control.publication_attestations, ingestion_control.resource_candidates, ingestion_control.resources, ingestion_control.scope_authorizations, ingestion_control.workflow_events"
+readonly CANONICAL_LOCK_ORDER="ingestion_control.artifacts, ingestion_control.ingestion_runs, ingestion_control.jobs, ingestion_control.publication_attestations, ingestion_control.publication_commit_pins, ingestion_control.resource_candidates, ingestion_control.resources, ingestion_control.scope_authorizations, ingestion_control.workflow_events"
 
 current_head="$(psql -X -q -A -t -v ON_ERROR_STOP=1 -c \
     "SELECT COALESCE(max(version), 0) FROM ingestion_control.schema_migrations;")"

@@ -57,7 +57,7 @@ except (ImportError, ValueError):
 
 from nexus_contracts.authority_artifacts import (
     CanonicalArtifactError,
-    ScopeAuthorizationArtifact,
+    ScopeAuthorizationArtifactAny,
     canonical_authorization_path,
     parse_scope_authorization_artifact,
 )
@@ -134,7 +134,7 @@ def _verified_approval(
 
 def _read_reviewed_artifact(
     *, repository: str, authorization_id: str, head_sha: str
-) -> tuple[ScopeAuthorizationArtifact, str] | None:
+) -> tuple[ScopeAuthorizationArtifactAny, str] | None:
     """Relit l'artefact au chemin canonique et au commit approuvé, puis le
     parse en exigeant la canonicité octet à octet. Retourne l'artefact et
     le SHA de blob Git de ces octets exacts."""
@@ -196,6 +196,7 @@ def _cmd_record_authorization(args: argparse.Namespace) -> int:
                     audience, visibility, school_year, programme_version,
                     manifest_digest, profile_id, profile_version, profile_fingerprint,
                     allowed_domains, rights_categories, exclusions,
+                    allowed_content_sha256,
                     pii_absence_attested, pii_absence_evidence,
                     valid_from, valid_until,
                     artifact_path, artifact_blob_sha, authorization_digest,
@@ -208,6 +209,7 @@ def _cmd_record_authorization(args: argparse.Namespace) -> int:
                     %(audience)s, %(visibility)s, %(school_year)s, %(programme_version)s,
                     %(manifest_digest)s, %(profile_id)s, %(profile_version)s, %(profile_fingerprint)s,
                     %(allowed_domains)s, %(rights_categories)s, %(exclusions)s,
+                    %(allowed_content_sha256)s,
                     %(pii_absence_attested)s, %(pii_absence_evidence)s,
                     %(valid_from)s, %(valid_until)s,
                     %(artifact_path)s, %(artifact_blob_sha)s, %(authorization_digest)s,
@@ -237,6 +239,11 @@ def _cmd_record_authorization(args: argparse.Namespace) -> int:
                     "allowed_domains": list(artifact.allowed_domains),
                     "rights_categories": [r.value for r in artifact.rights_categories],
                     "exclusions": list(artifact.exclusions),
+                    "allowed_content_sha256": (
+                        list(artifact.allowed_content_sha256)
+                        if artifact.protocol_version == "LOT41A-V2"
+                        else None
+                    ),
                     "pii_absence_attested": artifact.pii_absence_attested,
                     "pii_absence_evidence": artifact.pii_absence_evidence,
                     "valid_from": artifact.valid_from,

@@ -11,6 +11,7 @@ from nexus_contracts import (
     InternalIdentityEnvelope,
     Rights,
     load_pilot_retrieval_scope,
+    load_retrieval_scope_registry,
 )
 
 from src.ingestor.collection_config import (
@@ -29,6 +30,7 @@ from src.ingestor.retrieval_scope_v2 import (
     build_server_retrieval_scope,
     effective_signed_collections,
     validate_pilot_scope_catalogue_alignment,
+    validate_scope_registry_catalogue_alignment,
 )
 
 ARTIFACT = load_pilot_retrieval_scope()
@@ -130,10 +132,31 @@ def test_pilot_scope_catalogue_alignment_rejects_declared_dormant_subjects() -> 
         validate_pilot_scope_catalogue_alignment(ARTIFACT, config)
 
 
-def test_mounted_catalogue_keeps_health_closed_until_every_pilot_subject_exists() -> None:
+def test_mounted_catalogue_aligns_every_instantiated_pilot_subject() -> None:
+    validate_pilot_scope_catalogue_alignment(
+        ARTIFACT,
+        validate_collection_catalogue_v2(),
+    )
+
+
+def test_runtime_registry_alignment_accepts_declared_dormant_legacy_scope() -> None:
+    config = validate_collection_catalogue_v2()
+
+    validate_scope_registry_catalogue_alignment(
+        load_retrieval_scope_registry(),
+        config,
+    )
+
+
+def test_runtime_registry_alignment_rejects_a_scope_key_mismatch() -> None:
+    registry = dict(load_retrieval_scope_registry())
+    registry["not-the-artifact-scope-id"] = registry.pop(
+        "entree_seconde_maths_v1"
+    )
+
     with pytest.raises(RetrievalScopeError, match="retrieval scope forbidden"):
-        validate_pilot_scope_catalogue_alignment(
-            ARTIFACT,
+        validate_scope_registry_catalogue_alignment(
+            registry,
             validate_collection_catalogue_v2(),
         )
 
@@ -174,6 +197,7 @@ def test_pilot_scope_catalogue_alignment_rejects_every_runtime_drift(
         ("stmg", "technologique"),
         ("generale", "generale"),
         ("technologique", "technologique"),
+        ("college", "college"),
         (None, None),
     ],
 )

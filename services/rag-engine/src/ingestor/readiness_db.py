@@ -18,6 +18,8 @@ READINESS_AGGREGATE_BUDGET_MS: Final = 7000
 _MIN_LIBPQ_CONNECT_TIMEOUT_S: Final = 2
 RUNTIME_RELATION_ALLOWLIST: Final = (
     ("public", "rag_chunks"),
+    ("public", "rag_artifacts"),
+    ("public", "rag_artifact_placements"),
     ("public", "rag_schema_migrations"),
 )
 _SAFE_CATALOG_NAME = re.compile(r"[a-z_][a-z0-9_]*\Z")

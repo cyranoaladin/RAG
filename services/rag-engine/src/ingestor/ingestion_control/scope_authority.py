@@ -37,13 +37,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 import psycopg
 from nexus_contracts.authority_artifacts import (
     CanonicalArtifactError,
-    ScopeAuthorizationArtifact,
+    ScopeAuthorizationArtifactAny,
     canonical_authorization_path,
     parse_scope_authorization_artifact,
 )
@@ -72,7 +72,7 @@ _AUTHORIZATION_COLUMNS = """
     tenant, collection, niveau, voie, matiere, candidat, audience,
     visibility, school_year, programme_version,
     manifest_digest, profile_id, profile_version, profile_fingerprint,
-    allowed_domains, rights_categories, exclusions,
+    allowed_domains, rights_categories, exclusions, allowed_content_sha256,
     pii_absence_attested, pii_absence_evidence,
     valid_from, valid_until,
     artifact_path, artifact_blob_sha, authorization_digest,
@@ -118,6 +118,12 @@ class VerifiedAuthorization:
     #: revalide à un point de contrôle ultérieur peut prouver quand la
     #: dernière relecture GitHub réelle a eu lieu.
     verified_at: datetime
+    #: Version explicitement relue dans l'artefact Git. V1 et V2 ne sont
+    #: jamais interprétées implicitement l'une comme l'autre.
+    protocol_version: Literal["LOT41A-V1", "LOT41A-V2"] = "LOT41A-V1"
+    #: Frontière positive de contenu LOT41A-V2. Elle reste explicitement
+    #: absente pour V1 : ``None`` ne signifie jamais « tous les SHA ».
+    allowed_content_sha256: tuple[str, ...] | None = None
 
 
 def _load_row(conn: psycopg.Connection, *, authorization_id: str) -> dict[str, Any]:
@@ -246,7 +252,7 @@ def _normalize_submitted_at(value: Any) -> str:
 
 def _verify_reviewed_artifact(
     row: dict[str, Any], *, live: ReviewVerification
-) -> ScopeAuthorizationArtifact:
+) -> ScopeAuthorizationArtifactAny:
     """Item B : relit les octets exacts approuvés et recompose la décision
     depuis eux — jamais depuis la ligne PostgreSQL."""
     authorization_id = row["authorization_id"]
@@ -294,7 +300,7 @@ def _verify_reviewed_artifact(
 
 
 def _require_row_matches_artifact(
-    row: dict[str, Any], artifact: ScopeAuthorizationArtifact
+    row: dict[str, Any], artifact: ScopeAuthorizationArtifactAny
 ) -> None:
     """Toute colonne persistée doit être *dérivable* de l'artefact revu.
 
@@ -324,6 +330,11 @@ def _require_row_matches_artifact(
         "allowed_domains": list(artifact.allowed_domains),
         "rights_categories": [r.value for r in artifact.rights_categories],
         "exclusions": list(artifact.exclusions),
+        "allowed_content_sha256": (
+            list(artifact.allowed_content_sha256)
+            if artifact.protocol_version == "LOT41A-V2"
+            else None
+        ),
         "pii_absence_attested": artifact.pii_absence_attested,
         "pii_absence_evidence": artifact.pii_absence_evidence,
         "valid_from": artifact.valid_from,
@@ -414,6 +425,12 @@ def verify_scope_authorization(
         evidence_reviewer=str(live.reviewer),
         evidence_challenge=str(live.challenge),
         verified_at=moment,
+        protocol_version=artifact.protocol_version,
+        allowed_content_sha256=(
+            tuple(artifact.allowed_content_sha256)
+            if artifact.protocol_version == "LOT41A-V2"
+            else None
+        ),
     )
 
 

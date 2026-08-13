@@ -15,7 +15,7 @@ MYPY   := $(PY) -m mypy
 PYTEST := $(PY) -m pytest
 
 .PHONY: help venv install install-dev lint typecheck test test-integration \
-    test-integration-hybrid smoke \
+    test-integration-hybrid test-governance-pg smoke \
     obs-up obs-down obs-smoke obs-quickcheck obs-restart obs-status \
     compose-test-up compose-test-down print-tools dev compose-up compose-down compose-restart \
     eval
@@ -58,14 +58,46 @@ lint: install-dev
 typecheck: install-dev
 	$(MYPY) src
 
-test: install-dev
+# Les suites importent ``nexus_contracts`` : elles dépendent donc de la cible
+# qui l'installe. ``install-dev`` ne pose que l'outillage de développement et
+# ne fournit pas le contrat ; une cible qui s'y arrêtait échouait par
+# ModuleNotFoundError dès qu'elle n'était pas précédée d'un ``make install``
+# manuel — ce qui était le cas du job « governance postgres ».
+test: install
 	PYTHONPATH=src $(PYTEST) -q -m "not integration"
 
-test-integration: install-dev
+test-integration: install
 	PYTHONPATH=src $(PYTEST) tests/integration -q
 
-test-integration-hybrid: install-dev
+test-integration-hybrid: install
 	bash infra/scripts/test_hybrid_integration.sh
+
+# Suites de gouvernance sur PostgreSQL REEL (G2). Perimetre volontairement
+# etroit : uniquement les suites qui prouvent les invariants gouvernes
+# (migration 013, LOT42-V2, attribution H2-F, rollbacks, concurrence).
+# Le e2e Docker authority en est exclu : il construit une image et n'est pas
+# dimensionne pour bloquer chaque PR.
+# Chaque suite demarre son propre conteneur jetable et le supprime ; aucune
+# base partagee, aucun credential durable, aucun secret CI necessaire.
+# Deux barrières, parce qu'une seule laisserait une porte ouverte :
+#  1. le préflight refuse avant même de lancer pytest, avec un message
+#     identique en CI et en local (script partagé) ;
+#  2. NEXUS_REQUIRE_DOCKER=1 transforme, DANS pytest, l'absence de Docker
+#     en erreur de collecte — ce qui couvre une invocation directe de
+#     pytest qui contournerait cette recette.
+# La valeur est imposée ici et jamais héritée de l'appelant : un
+# environnement mal configuré ne doit pas pouvoir désactiver la barrière.
+test-governance-pg: install
+	bash infra/scripts/require_docker.sh
+	NEXUS_REQUIRE_DOCKER=1 PYTHONPATH=src $(PYTEST) -q \
+	    tests/integration/test_lot42_v2_migration_013.py \
+	    tests/integration/test_h2f_artifact_attribution_pg.py \
+	    tests/integration/test_h2f_attribution_concurrency_pg.py \
+	    tests/integration/test_lot42_publication_attestation.py \
+	    tests/integration/test_lot44f_migration_rollback_rehearsal.py \
+	    tests/integration/test_lot44f_migration_upgrade_paths.py \
+	    tests/integration/test_lot44f_rollback_runner.py \
+	    tests/integration/test_lot44e_worker_e2e.py
 
 # Smoke RAG deja present (si votre repo inclut infra/scripts/smoke.sh)
 smoke:

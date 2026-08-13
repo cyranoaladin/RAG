@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import re
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, replace
 from fractions import Fraction
@@ -10,6 +11,8 @@ from numbers import Real
 from typing import Literal, Protocol
 
 from nexus_contracts.embedding_utils import format_query
+
+_SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 
 try:
     from .reranker_contract import CANONICAL_RERANK_MODEL
@@ -70,6 +73,12 @@ class RetrievalCandidate:
     page_start: int | None
     vector: tuple[float, ...]
     review_status: Literal["reviewed"]
+    artifact_id: str | None = None
+    content_sha256: str | None = None
+    placement_id: str | None = None
+    placement_source_scope: str | None = None
+    placement_source_id: str | None = None
+    placement_source_path: str | None = None
     dense_score: float | None = None
     lexical_score: float | None = None
 
@@ -87,6 +96,26 @@ class RetrievalCandidate:
             raise RetrievalPipelineError("invalid type_doc")
         if self.review_status != "reviewed":
             raise RetrievalPipelineError("invalid review_status")
+        trace = (
+            self.artifact_id,
+            self.content_sha256,
+            self.placement_id,
+            self.placement_source_scope,
+            self.placement_source_id,
+            self.placement_source_path,
+        )
+        if any(value is not None for value in trace):
+            if any(value is None for value in trace):
+                raise RetrievalPipelineError("incomplete governed traceability")
+            for value in trace:
+                _require_nonblank(value, "governed traceability")
+            if (
+                self.artifact_id != self.content_sha256
+                or self.doc_id != self.artifact_id
+                or _SHA256.fullmatch(self.artifact_id or "") is None
+                or _SHA256.fullmatch(self.placement_id or "") is None
+            ):
+                raise RetrievalPipelineError("invalid governed traceability")
         if self.page_start is not None:
             if (
                 isinstance(self.page_start, bool)
@@ -212,6 +241,12 @@ def _substantive_fields(item: RetrievalCandidate) -> tuple[object, ...]:
         item.page_start,
         item.vector,
         item.review_status,
+        item.artifact_id,
+        item.content_sha256,
+        item.placement_id,
+        item.placement_source_scope,
+        item.placement_source_id,
+        item.placement_source_path,
     )
 
 

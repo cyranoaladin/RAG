@@ -16,6 +16,20 @@ EXPECTED_RETRIEVAL_PRIVILEGES = (
     False,  # pas de TRUNCATE
     False,  # pas de REFERENCES, y compris par colonne
     False,  # pas de TRIGGER
+    True,  # SELECT sur rag_artifacts
+    False,  # pas d'INSERT artefacts, y compris par colonne
+    False,  # pas d'UPDATE artefacts, y compris par colonne
+    False,  # pas de DELETE artefacts
+    False,  # pas de TRUNCATE artefacts
+    False,  # pas de REFERENCES artefacts, y compris par colonne
+    False,  # pas de TRIGGER artefacts
+    True,  # SELECT sur rag_artifact_placements
+    False,  # pas d'INSERT placements, y compris par colonne
+    False,  # pas d'UPDATE placements, y compris par colonne
+    False,  # pas de DELETE placements
+    False,  # pas de TRUNCATE placements
+    False,  # pas de REFERENCES placements, y compris par colonne
+    False,  # pas de TRIGGER placements
     True,  # SELECT sur rag_schema_migrations
     False,  # pas d'INSERT registre, y compris par colonne
     False,  # pas d'UPDATE registre, y compris par colonne
@@ -24,6 +38,8 @@ EXPECTED_RETRIEVAL_PRIVILEGES = (
     False,  # pas de REFERENCES registre, y compris par colonne
     False,  # pas de TRIGGER registre
     False,  # aucune appartenance au propriétaire de rag_chunks
+    False,  # aucune appartenance au propriétaire de rag_artifacts
+    False,  # aucune appartenance au propriétaire de rag_artifact_placements
     False,  # aucune appartenance au propriétaire du registre
     False,  # aucun rôle atteignable par SET ROLE
     False,  # pas superuser
@@ -116,6 +132,8 @@ def test_retrieval_database_ready_proves_exact_read_only_privileges(
     normalized = cursor.sql.upper()
     assert normalized.lstrip().startswith("SELECT")
     assert "RAG_CHUNKS" in normalized
+    assert "RAG_ARTIFACTS" in normalized
+    assert "RAG_ARTIFACT_PLACEMENTS" in normalized
     assert "RAG_SCHEMA_MIGRATIONS" in normalized
     assert "HAS_COLUMN_PRIVILEGE" in normalized
     assert "PG_ATTRIBUTE" in normalized

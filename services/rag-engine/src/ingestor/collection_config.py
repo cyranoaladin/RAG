@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 import os
 from collections.abc import Mapping
+from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -25,6 +26,7 @@ CONFIG_ENV = "RAG_COLLECTIONS_CONFIG"
 LEGACY_CONFIG_ENV = "RAG_LEGACY_COLLECTIONS_CONFIG"
 MAPPING_ENV = "RAG_LEGACY_COLLECTION_MAPPING"
 CONFIG_DIR_ENV = "RAG_ENGINE_CONFIG_DIR"
+STAGING_OVERLAY_KIND = "RAG_COLLECTIONS_STAGING_OVERLAY_V1"
 
 
 def _candidate_config_paths(filename: str, file_env: str) -> list[Path]:
@@ -101,6 +103,7 @@ class CollectionUnknownError(CollectionConfigError):
 
 
 _CATALOGUE_VOIE_MAPPING: dict[str, str] = {
+    "college": "college",
     "gen": "generale",
     "generale": "generale",
     "stmg": "technologique",
@@ -143,9 +146,49 @@ def _read_yaml(path: Path) -> dict[str, Any]:
     return cast(dict[str, Any], data)
 
 
+def _read_collection_config(path: Path) -> dict[str, Any]:
+    """Charger un catalogue complet ou un overlay staging strict."""
+    raw = _read_yaml(path)
+    if raw.get("kind") != STAGING_OVERLAY_KIND:
+        return raw
+    if set(raw) != {"kind", "base", "instanciee_overrides"}:
+        raise CollectionConfigLoadError("Invalid staging collection overlay")
+    relative_base = raw.get("base")
+    overrides = raw.get("instanciee_overrides")
+    if (
+        not isinstance(relative_base, str)
+        or not relative_base
+        or Path(relative_base).is_absolute()
+        or not isinstance(overrides, Mapping)
+        or any(
+            not isinstance(name, str) or not name or value is not True
+            for name, value in overrides.items()
+        )
+    ):
+        raise CollectionConfigLoadError("Invalid staging collection overlay")
+    base_path = (path.parent / relative_base).resolve()
+    if base_path == path.resolve() or not base_path.is_file():
+        raise CollectionConfigLoadError("Invalid staging collection overlay")
+    base = _read_yaml(base_path)
+    collections = base.get("collections")
+    if not isinstance(collections, Mapping) or any(
+        name not in collections
+        or not isinstance(collections[name], Mapping)
+        or collections[name].get("instanciee") is not False
+        for name in overrides
+    ):
+        raise CollectionConfigLoadError("Invalid staging collection overlay")
+    derived = deepcopy(base)
+    for name in overrides:
+        derived["collections"][name]["instanciee"] = True
+    return derived
+
+
 def load_collection_config(path: Path | None = None) -> dict[str, Any]:
     """Load the v2 catalogue (rag_collections.yml)."""
-    return _read_yaml(path or _resolve_config_path(CONFIG_FILENAME, CONFIG_ENV))
+    return _read_collection_config(
+        path or _resolve_config_path(CONFIG_FILENAME, CONFIG_ENV)
+    )
 
 
 def validate_collection_catalogue_v2(path: Path | None = None) -> dict[str, Any]:

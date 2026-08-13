@@ -44,7 +44,7 @@ import json
 import re
 from datetime import UTC, datetime
 from hashlib import sha256
-from typing import Any, Literal
+from typing import Any, Literal, TypeAlias
 
 from pydantic import (
     AwareDatetime,
@@ -62,8 +62,23 @@ from nexus_contracts.ingestion import ResourceScope
 #: absente : un artefact sans version ne peut pas être parsé.
 LOT41A_PROTOCOL_VERSION = "LOT41A-V1"
 
+#: Version content-bound introduite par ADR-0034. La constante historique
+#: ci-dessus reste volontairement V1 : changer sa valeur modifierait
+#: silencieusement le sens des intégrations V1 existantes.
+LOT41A_V2_PROTOCOL_VERSION = "LOT41A-V2"
+
 #: Version de protocole des artefacts de revue de publication LOT42.
+#: Reste volontairement ``LOT42-V1`` : cette constante nomme la structure
+#: historique, qui garde exactement le sens qu'elle avait quand des humains
+#: l'ont relue. La faire pointer vers V2 réétiquetterait ces relectures.
 LOT42_PROTOCOL_VERSION = "LOT42-V1"
+
+#: Version attribution-bound introduite par ADR-0035. Un artefact V2 nomme
+#: le digest d'attribution du control plane : l'humain qui approuve les
+#: octets approuve donc *aussi* les quatre faits d'attribution publiés.
+#: Seule cette version peut encore être proposée à la revue, produire une
+#: attestation et autoriser une publication (ADR-0035 § 6).
+LOT42_V2_PROTOCOL_VERSION = "LOT42-V2"
 
 #: Seule valeur de décision acceptée — jamais un texte libre (ADR-0032 § 2).
 AUTHORIZE_INGESTION_SCOPE_DECISION = "AUTHORIZE_INGESTION_SCOPE"
@@ -326,6 +341,130 @@ class ScopeAuthorizationArtifact(StrictBaseModel):
         return canonical_authorization_path(self.authorization_id)
 
 
+# Alias public explicite : le nom historique reste l'exact modèle V1 et ses
+# octets canoniques ne changent pas avec l'introduction de V2.
+ScopeAuthorizationArtifactV1 = ScopeAuthorizationArtifact
+
+
+class ScopeAuthorizationArtifactV2(StrictBaseModel):
+    """Autorisation LOT41A liée positivement aux contenus exacts revus.
+
+    La liste est exigée sous sa forme déjà canonique. Aucune casse, aucun
+    ordre et aucun doublon n'est corrigé en silence : les octets visibles
+    dans la PR sont donc ceux qui déterminent la décision et son digest.
+    """
+
+    protocol_version: Literal["LOT41A-V2"]
+    authorization_id: StrictStr = Field(min_length=1, max_length=128)
+    decision: Literal["AUTHORIZE_INGESTION_SCOPE"]
+    scope: ResourceScope
+    manifest_digest: StrictStr = Field(pattern=_HEX64)
+    profile_id: StrictStr = Field(min_length=1)
+    profile_version: StrictStr = Field(min_length=1)
+    profile_fingerprint: StrictStr = Field(pattern=_HEX64)
+    allowed_domains: tuple[StrictStr, ...] = Field(min_length=1)
+    rights_categories: tuple[Rights, ...] = Field(min_length=1)
+    exclusions: tuple[StrictStr, ...] = Field(default=())
+    pii_absence_attested: StrictBool
+    pii_absence_evidence: StrictStr = Field(min_length=1)
+    valid_from: AwareDatetime
+    valid_until: AwareDatetime
+    allowed_content_sha256: tuple[StrictStr, ...] = Field(min_length=1)
+
+    @field_validator("authorization_id")
+    @classmethod
+    def _identifier_is_canonical(cls, value: str) -> str:
+        return ScopeAuthorizationArtifactV1._identifier_is_canonical(value)
+
+    @field_validator("allowed_domains")
+    @classmethod
+    def _domains_are_normalized(cls, values: tuple[str, ...]) -> tuple[str, ...]:
+        return ScopeAuthorizationArtifactV1._domains_are_normalized(values)
+
+    @field_validator("rights_categories")
+    @classmethod
+    def _rights_are_sorted_and_unique(
+        cls, values: tuple[Rights, ...]
+    ) -> tuple[Rights, ...]:
+        return ScopeAuthorizationArtifactV1._rights_are_sorted_and_unique(values)
+
+    @field_validator("exclusions")
+    @classmethod
+    def _exclusions_are_normalized(cls, values: tuple[str, ...]) -> tuple[str, ...]:
+        return ScopeAuthorizationArtifactV1._exclusions_are_normalized(values)
+
+    @field_validator("allowed_content_sha256")
+    @classmethod
+    def _content_allowlist_is_canonical(
+        cls, values: tuple[str, ...]
+    ) -> tuple[str, ...]:
+        for value in values:
+            if not re.fullmatch(_HEX64[1:-1], value):
+                raise ValueError(
+                    "allowed_content_sha256 entries must be exactly 64 "
+                    "lowercase hexadecimal characters"
+                )
+        if len(set(values)) != len(values):
+            raise ValueError("allowed_content_sha256 must not contain duplicates")
+        expected = sorted(values)
+        if list(values) != expected:
+            raise ValueError(
+                "allowed_content_sha256 must be committed sorted; "
+                f"expected {expected!r}, got {list(values)!r}"
+            )
+        return values
+
+    @model_validator(mode="after")
+    def _validity_window_is_coherent(self) -> ScopeAuthorizationArtifactV2:
+        if self.valid_until <= self.valid_from:
+            raise ValueError("valid_until must be strictly after valid_from")
+        return self
+
+    @model_validator(mode="after")
+    def _pii_attestation_is_asserted(self) -> ScopeAuthorizationArtifactV2:
+        if not self.pii_absence_attested:
+            raise ValueError(
+                "pii_absence_attested must be true — this release ingests no "
+                "PII, so an authorization can never be constructed for a scope "
+                "where PII absence is not attested"
+            )
+        return self
+
+    def canonical_document(self) -> dict[str, Any]:
+        return {
+            "allowed_content_sha256": list(self.allowed_content_sha256),
+            "allowed_domains": list(self.allowed_domains),
+            "authorization_id": self.authorization_id,
+            "decision": self.decision,
+            "exclusions": list(self.exclusions),
+            "manifest_digest": self.manifest_digest,
+            "pii_absence_attested": self.pii_absence_attested,
+            "pii_absence_evidence": self.pii_absence_evidence,
+            "profile_fingerprint": self.profile_fingerprint,
+            "profile_id": self.profile_id,
+            "profile_version": self.profile_version,
+            "protocol_version": self.protocol_version,
+            "rights_categories": [r.value for r in self.rights_categories],
+            "scope": _canonical_scope(self.scope),
+            "valid_from": _canonical_datetime(self.valid_from),
+            "valid_until": _canonical_datetime(self.valid_until),
+        }
+
+    def canonical_bytes(self) -> bytes:
+        return _dump_canonical(self.canonical_document())
+
+    def digest(self) -> str:
+        return sha256(self.canonical_bytes()).hexdigest()
+
+    def canonical_path(self) -> str:
+        return canonical_authorization_path(self.authorization_id)
+
+
+ScopeAuthorizationArtifactAny: TypeAlias = (
+    ScopeAuthorizationArtifactV1 | ScopeAuthorizationArtifactV2
+)
+
+
 class PublicationReviewArtifact(StrictBaseModel):
     """Décision de publication LOT42 **dans son intégralité** (item E).
 
@@ -451,6 +590,50 @@ class PublicationReviewArtifact(StrictBaseModel):
         )
 
 
+#: Alias explicite : la classe non suffixée *est* la structure V1, comme
+#: pour ``ScopeAuthorizationArtifactV1``. Elle reste lisible pour l'audit
+#: historique et ne peut plus rien autoriser (ADR-0035 § 6).
+PublicationReviewArtifactV1 = PublicationReviewArtifact
+
+
+class PublicationReviewArtifactV2(PublicationReviewArtifact):
+    """Décision de publication LOT42-V2 — *attribution-bound* (ADR-0035).
+
+    V1 laissait les quatre faits d'attribution (``source_label``,
+    ``official``, ``source_kind``, ``type_doc``) hors des octets relus :
+    l'humain approuvait une publication sans jamais voir ce qui serait
+    publié *comme* provenance. V2 rend ce silence impossible en plaçant le
+    digest calculé par le control plane dans les octets canoniques eux-
+    mêmes. Le champ étant obligatoire, un artefact V2 sans lui n'est pas
+    « invalide » : il est **irreprésentable**.
+
+    Conséquence voulue et non contournable : le digest entre dans
+    ``canonical_bytes()``, donc dans ``digest()``, donc dans
+    ``canonical_path()`` et dans le challenge soumis à l'humain. Modifier
+    l'attribution après la revue change le chemin canonique — les octets
+    approuvés ne peuvent plus être retrouvés là où l'attestation les
+    cherche.
+    """
+
+    protocol_version: Literal["LOT42-V2"]  # type: ignore[assignment]
+
+    #: Digest ``NEXUS-ATTRIBUTION-V1`` de la ligne
+    #: ``ingestion_control.artifact_attributions`` de cet artefact, tel que
+    #: calculé par la colonne générée du control plane. Jamais recalculé
+    #: côté client, jamais « reconstruit » : l'artefact cite la base.
+    attributed_facts_digest: StrictStr = Field(pattern=_HEX64)
+
+    def canonical_document(self) -> dict[str, Any]:
+        document = super().canonical_document()
+        document["attributed_facts_digest"] = self.attributed_facts_digest
+        return document
+
+
+PublicationReviewArtifactAny: TypeAlias = (
+    PublicationReviewArtifactV1 | PublicationReviewArtifactV2
+)
+
+
 def canonical_authorization_path(authorization_id: str) -> str:
     """Chemin Git canonique déterministe d'une autorisation. Dérivé de
     l'identifiant seul — jamais choisi par l'opérateur, jamais capable de
@@ -497,7 +680,7 @@ def _parse_canonical(raw: bytes, model: type[Any]) -> Any:
     return parsed
 
 
-def parse_scope_authorization_artifact(raw: bytes) -> ScopeAuthorizationArtifact:
+def parse_scope_authorization_artifact(raw: bytes) -> ScopeAuthorizationArtifactAny:
     """Parse strict + exigence de canonicité **octet à octet**.
 
     L'égalité octet à octet est le cœur de l'item B : sans elle, deux
@@ -505,14 +688,78 @@ def parse_scope_authorization_artifact(raw: bytes) -> ScopeAuthorizationArtifact
     pourraient produire la même décision logique avec des digests
     différents — ou pire, un digest identique pour des octets que l'humain
     n'a pas relus."""
-    artifact: ScopeAuthorizationArtifact = _parse_canonical(raw, ScopeAuthorizationArtifact)
+    try:
+        document = json.loads(raw.decode("utf-8"))
+    except UnicodeDecodeError as exc:
+        raise CanonicalArtifactError(f"artifact bytes are not valid UTF-8: {exc}") from exc
+    except json.JSONDecodeError as exc:
+        raise CanonicalArtifactError(f"artifact bytes are not valid JSON: {exc}") from exc
+    if not isinstance(document, dict):
+        raise CanonicalArtifactError("artifact must be a JSON object")
+
+    protocol_version = document.get("protocol_version")
+    model: type[ScopeAuthorizationArtifactAny]
+    if protocol_version == LOT41A_PROTOCOL_VERSION:
+        model = ScopeAuthorizationArtifactV1
+    elif protocol_version == LOT41A_V2_PROTOCOL_VERSION:
+        model = ScopeAuthorizationArtifactV2
+    else:
+        raise CanonicalArtifactError(
+            f"unsupported scope authorization protocol_version {protocol_version!r}"
+        )
+    artifact: ScopeAuthorizationArtifactAny = _parse_canonical(raw, model)
     return artifact
 
 
-def parse_publication_review_artifact(raw: bytes) -> PublicationReviewArtifact:
+def parse_publication_review_artifact(raw: bytes) -> PublicationReviewArtifactAny:
     """Même discipline canonique que ``parse_scope_authorization_artifact``,
-    appliquée à la décision de publication LOT42 (item E)."""
-    artifact: PublicationReviewArtifact = _parse_canonical(raw, PublicationReviewArtifact)
+    appliquée à la décision de publication LOT42 (item E).
+
+    Dispatch **exact** sur ``protocol_version`` : V1 et V2 ne sont jamais
+    interchangeables, et une version inconnue est refusée plutôt que
+    devinée. V1 reste parsable pour l'audit historique ; c'est aux
+    appelants qui autorisent quelque chose d'exiger V2 (ADR-0035 § 6)."""
+    try:
+        document = json.loads(raw.decode("utf-8"))
+    except UnicodeDecodeError as exc:
+        raise CanonicalArtifactError(f"artifact bytes are not valid UTF-8: {exc}") from exc
+    except json.JSONDecodeError as exc:
+        raise CanonicalArtifactError(f"artifact bytes are not valid JSON: {exc}") from exc
+    if not isinstance(document, dict):
+        raise CanonicalArtifactError("artifact must be a JSON object")
+
+    protocol_version = document.get("protocol_version")
+    model: type[PublicationReviewArtifactAny]
+    if protocol_version == LOT42_PROTOCOL_VERSION:
+        model = PublicationReviewArtifactV1
+    elif protocol_version == LOT42_V2_PROTOCOL_VERSION:
+        model = PublicationReviewArtifactV2
+    else:
+        raise CanonicalArtifactError(
+            f"unsupported publication review protocol_version {protocol_version!r}"
+        )
+    artifact: PublicationReviewArtifactAny = _parse_canonical(raw, model)
+    return artifact
+
+
+def require_publication_review_v2(
+    artifact: PublicationReviewArtifactAny,
+) -> PublicationReviewArtifactV2:
+    """Barrière unique par laquelle passe tout appelant qui *autorise*
+    quelque chose à partir d'un artefact de revue.
+
+    Un artefact V1 est refusé ici, pas plus loin : il n'a jamais lié la
+    provenance publiée à la relecture humaine, donc aucune attestation
+    et aucune publication ne peut s'en réclamer sous ce runtime."""
+    if not isinstance(artifact, PublicationReviewArtifactV2):
+        raise CanonicalArtifactError(
+            f"publication review artifact is {artifact.protocol_version}, but only "
+            f"{LOT42_V2_PROTOCOL_VERSION} may be proposed for review, produce an "
+            "attestation or authorize a publication — a "
+            f"{LOT42_PROTOCOL_VERSION} artifact never bound the published "
+            "attribution facts to the human review (ADR-0035). It is readable "
+            "for audit only and is never relabelled automatically."
+        )
     return artifact
 
 
@@ -534,14 +781,23 @@ __all__ = [
     "AUTHORIZE_PUBLICATION_DECISION",
     "CanonicalArtifactError",
     "LOT41A_PROTOCOL_VERSION",
+    "LOT41A_V2_PROTOCOL_VERSION",
     "LOT42_PROTOCOL_VERSION",
+    "LOT42_V2_PROTOCOL_VERSION",
     "PUBLICATION_REVIEWS_DIR",
     "PublicationReviewArtifact",
+    "PublicationReviewArtifactAny",
+    "PublicationReviewArtifactV1",
+    "PublicationReviewArtifactV2",
     "ScopeAuthorizationArtifact",
+    "ScopeAuthorizationArtifactAny",
+    "ScopeAuthorizationArtifactV1",
+    "ScopeAuthorizationArtifactV2",
     "canonical_authorization_path",
     "canonical_publication_review_path",
     "git_blob_sha1",
     "normalize_hostname",
     "parse_publication_review_artifact",
     "parse_scope_authorization_artifact",
+    "require_publication_review_v2",
 ]

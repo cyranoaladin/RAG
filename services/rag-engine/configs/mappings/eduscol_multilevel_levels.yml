@@ -1,0 +1,6 @@
+mapping_kind: EDUSCOL_MULTILEVEL_LEVELS_V1
+external_levels:
+  4e: quatrieme
+  seconde: seconde
+  premiere: premiere
+  terminale: terminale

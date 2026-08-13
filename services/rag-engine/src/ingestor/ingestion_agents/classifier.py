@@ -38,12 +38,24 @@ from .transitions import TransitionResult, apply_resource_transition
 
 
 @dataclass(frozen=True)
+class ConformityProvenance:
+    """Sceaux qui expliquent une conformité fournie par un resolver gouverné."""
+
+    conformity_source: str
+    content_sha256: str
+    placement_catalog_sha256: str
+    currentness_evidence_sha256: str
+    profile_fingerprint: str
+
+
+@dataclass(frozen=True)
 class ConformityResult:
     niveau_conformity: bool
     voie_conformity: bool
     matiere_conformity: bool
     programme_conformity: bool
     matiere_evidence: tuple[str, ...]
+    provenance: ConformityProvenance | None = None
 
 
 def classify_conformity_core(
@@ -87,9 +99,30 @@ def run_classifier(
     expected_version: int,
     actor: str,
     job_id: UUID | None = None,
+    verified_conformity: ConformityResult | None = None,
 ) -> tuple[ConformityResult, TransitionResult]:
     """Calcule la conformité puis transitionne ``EXTRACTED -> CLASSIFIED``."""
-    result = classify_conformity_core(extracted_text=extracted_text, profile=profile)
+    result = verified_conformity or classify_conformity_core(
+        extracted_text=extracted_text, profile=profile
+    )
+
+    payload: dict[str, object] = {
+        "niveau_conformity": result.niveau_conformity,
+        "voie_conformity": result.voie_conformity,
+        "matiere_conformity": result.matiere_conformity,
+        "programme_conformity": result.programme_conformity,
+        "matiere_evidence": list(result.matiere_evidence),
+    }
+    if result.provenance is not None:
+        payload.update(
+            conformity_source=result.provenance.conformity_source,
+            content_sha256=result.provenance.content_sha256,
+            placement_catalog_sha256=result.provenance.placement_catalog_sha256,
+            currentness_evidence_sha256=(
+                result.provenance.currentness_evidence_sha256
+            ),
+            profile_fingerprint=result.provenance.profile_fingerprint,
+        )
 
     transition = apply_resource_transition(
         conn,
@@ -100,13 +133,15 @@ def run_classifier(
         actor=actor,
         run_id=run_id,
         job_id=job_id,
-        payload={
-            "matiere_conformity": result.matiere_conformity,
-            "matiere_evidence": list(result.matiere_evidence),
-        },
+        payload=payload,
     )
 
     return result, transition
 
 
-__all__ = ["ConformityResult", "classify_conformity_core", "run_classifier"]
+__all__ = [
+    "ConformityProvenance",
+    "ConformityResult",
+    "classify_conformity_core",
+    "run_classifier",
+]

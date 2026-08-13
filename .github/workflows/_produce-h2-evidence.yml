@@ -1,0 +1,367 @@
+# Producteur canonique de preuves H2 — NEXUS-H2-EVIDENCE-V1
+#
+# `workflow_call` uniquement. Ce workflow ne peut pas être déclenché par un
+# évènement de dépôt : une preuve de promotion produite par un `push` ou une
+# `pull_request` serait produite par du code non fusionné, donc par du code
+# que personne n'a approuvé sous la forme qu'il aura en production.
+#
+# Aucune clé privée n'entre ici. Le workflow *constate* ; il ne signe pas. La
+# signature appartient à la promotion, qui s'exécute derrière un Environment
+# protégé, après approbation humaine. Séparer les deux garantit qu'un
+# producteur compromis peut au pire fabriquer une preuve invalide — jamais
+# une preuve signée.
+#
+# Les entrées sont minimales et non substituables : un numéro de PR et un
+# identifiant de campagne. Tout le reste — SHA, arbres, digests — est dérivé
+# de GitHub ou du descripteur versionné. Un input qui permettrait de
+# *désigner* un corpus rendrait la campagne décorative.
+
+name: Produce H2 evidence
+
+"on":
+  workflow_call:
+    inputs:
+      pull_request_number:
+        description: Numéro de la pull request fusionnée
+        required: true
+        type: number
+      campaign_id:
+        description: Identifiant de la campagne promue
+        required: true
+        type: string
+    outputs:
+      merge_sha:
+        description: SHA de fusion vérifié
+        value: ${{ jobs.produce.outputs.merge_sha }}
+      artifact_name:
+        description: Nom exact de l'artefact de preuves
+        value: ${{ jobs.produce.outputs.artifact_name }}
+      evidence_sha256:
+        description: Digest de contenu du bundle NEXUS-H2-EVIDENCE-V1
+        value: ${{ jobs.produce.outputs.evidence_sha256 }}
+      source_oci_digest:
+        description: Digest OCI du corpus effectivement résolu
+        value: ${{ jobs.produce.outputs.source_oci_digest }}
+      manifest_sha256:
+        description: Digest du manifeste GNU régénéré
+        value: ${{ jobs.produce.outputs.manifest_sha256 }}
+      catalog_sha256:
+        description: Digest du catalogue scellé
+        value: ${{ jobs.produce.outputs.catalog_sha256 }}
+      review_view_sha256:
+        description: Digest de la vue de revue
+        value: ${{ jobs.produce.outputs.review_view_sha256 }}
+
+permissions:
+  contents: read
+  packages: read
+  pull-requests: read
+
+concurrency:
+  # Une seule production par (campagne, PR). Deux exécutions concurrentes
+  # publieraient deux artefacts au même nom, et le résolveur refuserait les
+  # deux — un échec correct, mais évitable.
+  group: h2-evidence-${{ inputs.campaign_id }}-${{ inputs.pull_request_number }}
+  cancel-in-progress: false
+
+jobs:
+  produce:
+    name: Produce H2 evidence
+    runs-on: ubuntu-24.04
+    # L'Environment `production` porte les protections : approbateurs requis
+    # et branches autorisées. Le gate H2 refuse d'ailleurs toute preuve dont
+    # `environment` diffère, de sorte qu'une exécution hors de cet
+    # Environment ne peut pas promouvoir même si elle réussit.
+    environment: production
+    timeout-minutes: 90
+    outputs:
+      merge_sha: ${{ steps.identity.outputs.merge_sha }}
+      artifact_name: ${{ steps.evidence.outputs.artifact_name }}
+      evidence_sha256: ${{ steps.evidence.outputs.evidence_sha256 }}
+      source_oci_digest: ${{ steps.resolve.outputs.source_oci_digest }}
+      manifest_sha256: ${{ steps.resolve.outputs.manifest_sha256 }}
+      catalog_sha256: ${{ steps.catalog.outputs.catalog_sha256 }}
+      review_view_sha256: ${{ steps.review.outputs.review_view_sha256 }}
+
+    steps:
+      # Le code de gouvernance est pris sur `main`, jamais sur la branche de
+      # la PR : un producteur qui exécuterait le code qu'il doit vérifier
+      # pourrait se déclarer conforme.
+      - name: Checkout governance code from main
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: refs/heads/main
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.11'
+
+      - name: Install governance tooling
+        run: |
+          set -euo pipefail
+          python -m pip install --require-hashes --no-deps -r \
+            services/rag-pedago/requirements.lock
+          python -m pip install --no-deps -e packages/contracts
+          python -m pip install --no-deps -e services/rag-pedago
+
+      # ── 1. Identité du code : dérivée de GitHub, jamais reçue en input ──
+      - name: Derive and verify merged identity
+        id: identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pull_request_number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          pr_json="$(gh api "repos/${REPOSITORY}/pulls/${PR_NUMBER}")"
+
+          merged="$(jq -r '.merged' <<<"$pr_json")"
+          if [ "$merged" != "true" ]; then
+            echo "::error::PR #${PR_NUMBER} is not merged; evidence would describe code that is not in main" >&2
+            exit 1
+          fi
+
+          head_sha="$(jq -r '.head.sha' <<<"$pr_json")"
+          merge_sha="$(jq -r '.merge_commit_sha' <<<"$pr_json")"
+          base_ref="$(jq -r '.base.ref' <<<"$pr_json")"
+          if [ "$base_ref" != "main" ]; then
+            echo "::error::PR targets ${base_ref}, not main" >&2
+            exit 1
+          fi
+
+          # Le SHA de fusion appartient-il réellement à main ? Un
+          # merge_commit_sha peut exister sans avoir été poussé sur la
+          # branche protégée.
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$merge_sha" origin/main; then
+            echo "::error::merge SHA ${merge_sha} is not an ancestor of main" >&2
+            exit 1
+          fi
+
+          head_tree="$(git rev-parse "${head_sha}^{tree}")"
+          merge_tree="$(git rev-parse "${merge_sha}^{tree}")"
+
+          # Le cœur de la garantie exact-head. Deux SHA de commit diffèrent
+          # toujours — le merge a un parent de plus — mais les arbres doivent
+          # coïncider, sinon la revue humaine ne couvre pas ce qui serait
+          # promu.
+          if [ "$head_tree" != "$merge_tree" ]; then
+            echo "::error::PR head tree ${head_tree} != merge tree ${merge_tree}; the merged tree is not the tree a human approved" >&2
+            exit 1
+          fi
+
+          {
+            echo "head_sha=${head_sha}"
+            echo "head_tree_sha=${head_tree}"
+            echo "merge_sha=${merge_sha}"
+            echo "merge_tree_sha=${merge_tree}"
+          } >>"$GITHUB_OUTPUT"
+
+      # ── 2. Découverte de la campagne : exactement une, ou refus ─────────
+      - name: Discover exactly one promoted campaign
+        id: campaign
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pull_request_number }}
+          REPOSITORY: ${{ github.repository }}
+          EXPECTED_CAMPAIGN: ${{ inputs.campaign_id }}
+        run: |
+          set -euo pipefail
+          gh api --paginate "repos/${REPOSITORY}/pulls/${PR_NUMBER}/files" \
+            --jq '.[].filename' >changed-paths.txt
+
+          python - <<'PY'
+          import os, pathlib, sys
+          sys.path.insert(0, "services/rag-pedago")
+          from rag_pedago.governance.corpus_campaign import discover_promoted_campaign
+
+          paths = pathlib.Path("changed-paths.txt").read_text().split()
+          campaign_id = discover_promoted_campaign(paths)
+          expected = os.environ["EXPECTED_CAMPAIGN"]
+          if campaign_id != expected:
+              raise SystemExit(
+                  f"::error::the diff promotes campaign {campaign_id!r} but the "
+                  f"caller declared {expected!r}"
+              )
+          with open(os.environ["GITHUB_OUTPUT"], "a") as handle:
+              handle.write(f"campaign_id={campaign_id}\n")
+          PY
+
+      # ── 3. Résolution du corpus : par digest, depuis le descripteur ─────
+      - name: Log in to GHCR (read-only)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # Le jeton n'est jamais écrit sur disque ni journalisé.
+          echo "$GH_TOKEN" | docker login ghcr.io \
+            -u "${{ github.actor }}" --password-stdin >/dev/null 2>&1
+
+      - name: Resolve corpus by digest and rehash it
+        id: resolve
+        env:
+          CAMPAIGN_ID: ${{ steps.campaign.outputs.campaign_id }}
+        run: |
+          set -euo pipefail
+          # Les trois domaines de digest sont vérifiés à l'intérieur :
+          # ce que le registre a rendu, le tar décompressé, l'arbre extrait.
+          python -m rag_pedago.governance.cli resolve-corpus \
+            --campaign "governance/corpus-campaigns/${CAMPAIGN_ID}/campaign.json" \
+            --destination "${RUNNER_TEMP}/corpus" \
+            --output "${RUNNER_TEMP}/resolved.json"
+          {
+            echo "source_oci_digest=$(jq -r .oci_digest "${RUNNER_TEMP}/resolved.json")"
+            echo "manifest_sha256=$(jq -r .manifest_sha256 "${RUNNER_TEMP}/resolved.json")"
+            echo "tree_digest=$(jq -r .tree_digest "${RUNNER_TEMP}/resolved.json")"
+            echo "archive_sha256=$(jq -r .archive_sha256 "${RUNNER_TEMP}/resolved.json")"
+          } >>"$GITHUB_OUTPUT"
+
+      # ── 4. Catalogue scellé, lié au manifeste GNU régénéré ─────────────
+      - name: Compile the sealed catalog
+        id: catalog
+        run: |
+          set -euo pipefail
+          # `--sealed-manifest` sélectionne le chemin GNU. Sans lui, la CLI
+          # compilerait l'inventaire TSV historique, explicitement non
+          # autoritaire : la voie sûre doit être demandée, jamais supposée.
+          python -m rag_pedago.imports.corpus_catalog_compiler \
+            --sealed-manifest "${RUNNER_TEMP}/corpus/00_ADMIN/SHA256SUMS.txt" \
+            --placement-catalog "${RUNNER_TEMP}/corpus/00_ADMIN/eduscol_affectations.tsv" \
+            --config services/rag-pedago/configs/corpus_zone_routing.yml \
+            --output "${RUNNER_TEMP}/catalog.json"
+          echo "catalog_sha256=$(sha256sum "${RUNNER_TEMP}/catalog.json" | cut -d' ' -f1)" \
+            >>"$GITHUB_OUTPUT"
+
+      # ── 5. Vue de revue — aide à la relecture, jamais une autorité ─────
+      - name: Render the review view
+        id: review
+        run: |
+          set -euo pipefail
+          python -m rag_pedago.governance.cli review-view \
+            --sealed-manifest "${RUNNER_TEMP}/corpus/00_ADMIN/SHA256SUMS.txt" \
+            --placement-catalog "${RUNNER_TEMP}/corpus/00_ADMIN/eduscol_affectations.tsv" \
+            --config services/rag-pedago/configs/corpus_zone_routing.yml \
+            --campaign-id "${{ steps.campaign.outputs.campaign_id }}" \
+            --source-oci-digest "${{ steps.resolve.outputs.source_oci_digest }}" \
+            --source-tree-digest "${{ steps.resolve.outputs.tree_digest }}" \
+            --catalog-sha256 "${{ steps.catalog.outputs.catalog_sha256 }}" \
+            --json "${RUNNER_TEMP}/review-view.json" \
+            --markdown "${RUNNER_TEMP}/review-view.md"
+          echo "review_view_sha256=$(sha256sum "${RUNNER_TEMP}/review-view.json" | cut -d' ' -f1)" \
+            >>"$GITHUB_OUTPUT"
+
+      # ── 6. Gate H2 : les trois drapeaux, séparément ────────────────────
+      - name: Run the H2 coverage gate
+        id: gate
+        run: |
+          set -euo pipefail
+          python -m rag_pedago.imports.h2b_coverage_report \
+            --catalog "${RUNNER_TEMP}/catalog.json" \
+            --manifest "${RUNNER_TEMP}/corpus/00_ADMIN/SHA256SUMS.txt" \
+            --routing services/rag-pedago/configs/corpus_zone_routing.yml \
+            --rights services/rag-pedago/configs/rights_registry.yml \
+            --pii services/rag-pedago/configs/pii_policy.yml \
+            --golden services/rag-pedago/configs/golden_controls.yml \
+            --authority governance/authorizations/${CAMPAIGN_ID}.json \
+            --authority-review-binding governance/review-bindings/${CAMPAIGN_ID}.json \
+            --authority-trust-anchor governance/trust-anchors/production-v1.json \
+            --authority-revocations governance/revocations/registry.json \
+            --authority-environment production \
+            --expected-manifest-sha256 "${{ steps.resolve.outputs.manifest_sha256 }}" \
+            --output "${RUNNER_TEMP}/h2-report.json"
+
+          gate="$(jq -r .h2_coverage_gate_pass "${RUNNER_TEMP}/h2-report.json")"
+          revocations="$(jq -r .authority_revocations_checked "${RUNNER_TEMP}/h2-report.json")"
+          coverage="$(jq -r .coverage_complete "${RUNNER_TEMP}/h2-report.json")"
+
+          # Vérifiés séparément : ils prouvent trois choses différentes, et
+          # un « et » global masquerait laquelle a manqué.
+          [ "$gate" = "true" ] || { echo "::error::H2_COVERAGE_GATE_PASS=${gate}" >&2; exit 1; }
+          [ "$revocations" = "true" ] || { echo "::error::AUTHORITY_REVOCATIONS_CHECKED=${revocations}: non-revocation was assumed, not proven" >&2; exit 1; }
+          [ "$coverage" = "true" ] || { echo "::error::coverage_complete=${coverage}: green on a sample is not green on the perimeter" >&2; exit 1; }
+
+          echo "h2_report_sha256=$(sha256sum "${RUNNER_TEMP}/h2-report.json" | cut -d' ' -f1)" \
+            >>"$GITHUB_OUTPUT"
+
+      # ── 7. Bundle NEXUS-H2-EVIDENCE-V1 ────────────────────────────────
+      - name: Assemble the evidence bundle
+        id: evidence
+        env:
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ inputs.pull_request_number }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          WORKFLOW_PATH: .github/workflows/_produce-h2-evidence.yml
+        run: |
+          set -euo pipefail
+          python -m rag_pedago.governance.cli h2-evidence \
+            --repository "${REPOSITORY}" \
+            --pull-request "${PR_NUMBER}" \
+            --pr-head-sha "${{ steps.identity.outputs.head_sha }}" \
+            --pr-head-tree-sha "${{ steps.identity.outputs.head_tree_sha }}" \
+            --merge-sha "${{ steps.identity.outputs.merge_sha }}" \
+            --merge-tree-sha "${{ steps.identity.outputs.merge_tree_sha }}" \
+            --campaign-id "${{ steps.campaign.outputs.campaign_id }}" \
+            --source-oci-digest "${{ steps.resolve.outputs.source_oci_digest }}" \
+            --source-archive-sha256 "${{ steps.resolve.outputs.archive_sha256 }}" \
+            --source-tree-digest "${{ steps.resolve.outputs.tree_digest }}" \
+            --manifest-sha256 "${{ steps.resolve.outputs.manifest_sha256 }}" \
+            --catalog-sha256 "${{ steps.catalog.outputs.catalog_sha256 }}" \
+            --review-view-sha256 "${{ steps.review.outputs.review_view_sha256 }}" \
+            --h2-report-sha256 "${{ steps.gate.outputs.h2_report_sha256 }}" \
+            --environment production \
+            --workflow-path "${WORKFLOW_PATH}" \
+            --run-id "${RUN_ID}" \
+            --run-attempt "${RUN_ATTEMPT}" \
+            --campaign-sha256 "$(sha256sum "governance/corpus-campaigns/${{ steps.campaign.outputs.campaign_id }}/campaign.json" | cut -d' ' -f1)" \
+            --authorization-sha256 "$(sha256sum "governance/authorizations/${{ steps.campaign.outputs.campaign_id }}.json" | cut -d' ' -f1)" \
+            --revocation-registry-sha256 "$(sha256sum governance/revocations/registry.json | cut -d' ' -f1)" \
+            --trust-anchor-sha256 "$(sha256sum governance/trust-anchors/production-v1.json | cut -d' ' -f1)" \
+            --exact-head-receipt-sha256 "$(sha256sum "governance/review-bindings/${{ steps.campaign.outputs.campaign_id }}.json" | cut -d' ' -f1)" \
+            --exact-head-receipt-issued-at "$(jq -r .issued_at "governance/review-bindings/${{ steps.campaign.outputs.campaign_id }}.json")" \
+            --routing-config-sha256 "$(sha256sum services/rag-pedago/configs/corpus_zone_routing.yml | cut -d' ' -f1)" \
+            --rights-config-sha256 "$(sha256sum services/rag-pedago/configs/rights_registry.yml | cut -d' ' -f1)" \
+            --pii-config-sha256 "$(sha256sum services/rag-pedago/configs/pii_policy.yml | cut -d' ' -f1)" \
+            --golden-config-sha256 "$(sha256sum services/rag-pedago/configs/golden_controls.yml | cut -d' ' -f1)" \
+            --h2-report "${RUNNER_TEMP}/h2-report.json" \
+            --output "${RUNNER_TEMP}/h2-evidence.json"
+
+          name="h2-evidence-${{ steps.identity.outputs.merge_sha }}-${{ steps.campaign.outputs.campaign_id }}"
+          {
+            echo "artifact_name=${name}"
+            echo "evidence_sha256=$(jq -r .content_sha256 "${RUNNER_TEMP}/h2-evidence.json")"
+          } >>"$GITHUB_OUTPUT"
+
+      - name: Stage evidence for upload
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/evidence"
+          cp "${RUNNER_TEMP}/h2-evidence.json" \
+             "${RUNNER_TEMP}/h2-report.json" \
+             "${RUNNER_TEMP}/catalog.json" \
+             "${RUNNER_TEMP}/review-view.json" \
+             "${RUNNER_TEMP}/review-view.md" \
+             "${RUNNER_TEMP}/resolved.json" \
+             "${RUNNER_TEMP}/evidence/"
+          cp "${RUNNER_TEMP}/corpus/00_ADMIN/SHA256SUMS.txt" "${RUNNER_TEMP}/evidence/"
+          # Aucun secret ne doit sortir. Contrôle explicite plutôt que
+          # confiance dans le fait qu'aucune étape n'en a écrit.
+          if grep -rIlE 'BEGIN [A-Z ]*PRIVATE KEY|ghp_[A-Za-z0-9]{36}|github_pat_' \
+               "${RUNNER_TEMP}/evidence" ; then
+            echo "::error::a credential-shaped string reached the evidence directory" >&2
+            exit 1
+          fi
+
+      # Le nom est exact et dérivé : le résolveur ne fait aucune
+      # correspondance par préfixe, et la rétention couvre le délai
+      # d'approbation humaine.
+      - name: Upload H2 evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ${{ steps.evidence.outputs.artifact_name }}
+          path: ${{ runner.temp }}/evidence
+          retention-days: 90
+          if-no-files-found: error

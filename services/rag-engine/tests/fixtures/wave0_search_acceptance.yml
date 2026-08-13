@@ -1,0 +1,63 @@
+entree_seconde_maths_v1:
+  - query: "Rendre une fraction irréductible en utilisant les facteurs premiers"
+    expected_concepts_any: ["fraction", "facteurs premiers"]
+    expected_page: 3
+  - query: "Résoudre une équation du premier degré"
+    expected_concepts_any: ["équation", "premier degré"]
+    expected_page: 3
+  - query: "Modéliser une situation avec une fonction affine"
+    expected_concepts_any: ["fonction affine", "fonction"]
+    expected_page: 5
+  - query: "Lire et interpréter la représentation graphique d’une fonction"
+    expected_concepts_any: ["représentation graphique", "fonction"]
+    expected_page: 6
+  - query: "Calculer une probabilité dans une expérience aléatoire"
+    expected_concepts_any: ["probabilité", "aléatoire"]
+    expected_page: 4
+  - query: "Utiliser le théorème de Thalès pour déterminer une longueur"
+    expected_concepts_any: ["thalès", "longueur"]
+    expected_page: 5
+  - query: "Construire l’image d’une figure par une homothétie"
+    expected_concepts_any: ["homothétie", "image"]
+    expected_page: 8
+  - query: "Calculer le volume d’un solide"
+    expected_concepts_any: ["volume", "solide"]
+    expected_page: 7
+  - query: "Représenter les résultats d’une enquête par un histogramme"
+    expected_concepts_any: ["enquête", "histogramme"]
+    expected_page: 4
+  - query: "Écrire un algorithme ou un programme simple"
+    expected_concepts_any: ["algorithme", "programme"]
+    expected_page: 10
+
+entree_seconde_francais_v1:
+  - query: "Lire un texte à voix haute de manière expressive"
+    expected_concepts_any: ["voix haute", "expressive"]
+    expected_page: 3
+  - query: "Décrire et analyser une image de propagande"
+    expected_concepts_any: ["image de propagande", "analyse"]
+    expected_page: 3
+  - query: "Formuler une interprétation personnelle d’un texte"
+    expected_concepts_any: ["interprétation", "texte"]
+    expected_page: 4
+  - query: "Rédiger un texte argumentatif structuré"
+    expected_concepts_any: ["argumentatif", "argument"]
+    expected_page: 5
+  - query: "Défendre un point de vue avec des arguments et des exemples"
+    expected_concepts_any: ["point de vue", "argument"]
+    expected_page: 2
+  - query: "Écrire un récit cohérent et organisé"
+    expected_concepts_any: ["récit", "cohérent"]
+    expected_page: 4
+  - query: "Accorder le participe passé avec l’auxiliaire avoir"
+    expected_concepts_any: ["participe passé", "auxiliaire avoir"]
+    expected_page: 7
+  - query: "Analyser le fonctionnement d’une phrase complexe"
+    expected_concepts_any: ["phrase complexe", "phrase"]
+    expected_page: 6
+  - query: "Participer à un débat en argumentant"
+    expected_concepts_any: ["débat", "argument"]
+    expected_page: 2
+  - query: "Écouter et comprendre un discours oral"
+    expected_concepts_any: ["oral", "écouter"]
+    expected_page: 2

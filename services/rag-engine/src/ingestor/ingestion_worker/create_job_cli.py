@@ -35,6 +35,10 @@ try:
     from ingestor.ingestion_control.db import get_ingestion_control_dsn
     from ingestor.ingestion_control.jobs import find_or_create_job
     from ingestor.ingestion_control.provisioning import create_ingestion_run
+    from ingestor.ingestion_profiles.readiness_gate import (
+        ReadinessGateError,
+        enforce_readiness_gate,
+    )
     from ingestor.ingestion_profiles.registry import (
         load_profile_registry,
         select_profile,
@@ -47,6 +51,10 @@ except (ImportError, ValueError):
     from ingestion_control.db import get_ingestion_control_dsn
     from ingestion_control.jobs import find_or_create_job
     from ingestion_control.provisioning import create_ingestion_run
+    from ingestion_profiles.readiness_gate import (
+        ReadinessGateError,
+        enforce_readiness_gate,
+    )
     from ingestion_profiles.registry import load_profile_registry, select_profile
     from ingestion_profiles.startup_gate import enforce_production_manifest_gate
     from ingestion_profiles.validation import validate_scope_against_profile
@@ -133,6 +141,18 @@ def _default_dedup_key(canonical_url: str) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     args = _build_arg_parser().parse_args(argv)
+
+    # ADR-0036 : la création d'un job est LA mutation qui compte. Le
+    # manifeste de readiness est donc revalidé ici, et pas seulement au
+    # démarrage du worker : un manifeste retiré ou remplacé après le
+    # démarrage ne serait jamais vu par un contrôle qui ne s'exécuterait
+    # qu'une fois. Ce contrôle précède le gate de manifest de profils, de
+    # sorte qu'aucun job ne soit créé sans preuve de promotion gouvernée.
+    try:
+        enforce_readiness_gate()
+    except ReadinessGateError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
 
     try:
         gate_result = enforce_production_manifest_gate(args.profiles_dir, args.manifest_path)

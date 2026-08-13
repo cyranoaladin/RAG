@@ -279,6 +279,16 @@ class TestDuplicateSubmissionDoesNotOrphanARun:
             assert job_count == 1, "exactly one job must exist after two identical submissions"
 
             cur.execute(
+                "SELECT payload ? 'license' FROM ingestion_control.jobs "
+                "WHERE payload->>'canonical_url' = %s",
+                (canonical_url,),
+            )
+            assert cur.fetchone() == (False,), (
+                "create_job_cli must not let an operator assert a free-form license; "
+                "the worker derives rights evidence from the live-verified LOT41A grant"
+            )
+
+            cur.execute(
                 "SELECT count(*) FROM ingestion_control.ingestion_runs WHERE status = 'planned' "
                 "AND run_id NOT IN (SELECT run_id FROM ingestion_control.jobs)"
             )

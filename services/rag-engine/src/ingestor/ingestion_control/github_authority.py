@@ -501,11 +501,81 @@ def fetch_blob_at_ref(*, repository: str, path: str, ref: str) -> GitHubBlob:
     )
 
 
+@dataclass(frozen=True)
+class PullRequestActorContext:
+    """Auteur et permission du relecteur — deux faits qu'une décision
+    d'ADR-0025 ne rend pas, mais qu'un reçu de liaison de revue (ADR-0035)
+    doit nommer pour rester vérifiable hors ligne.
+
+    ``evaluate_trusted_review`` exige déjà ces deux propriétés pour
+    approuver : les relire ici ne les *décide* pas, cela les *constate*
+    pour pouvoir les inscrire dans une preuve durable."""
+
+    repository: str
+    pull_request: int
+    author: str
+    base_ref: str
+    reviewer: str
+    reviewer_permission: str
+    reviewer_role_name: str
+
+
+def pull_request_actor_context(
+    *, repository: str, pull_request: int, reviewer: str
+) -> PullRequestActorContext:
+    """Relit l'auteur de la PR et la permission effective d'un relecteur.
+
+    Même transport que ``verify_review`` — client strictement GET, mêmes
+    délais bornés, même échec fermé. Aucune décision n'est prise ici : la
+    seule autorité sur une review reste ``evaluate_trusted_review``."""
+    deadline = _Deadline.start(_float_env(_TOTAL_TIMEOUT_ENV, _DEFAULT_TOTAL_TIMEOUT_S))
+    request_timeout = _float_env(_REQUEST_TIMEOUT_ENV, _DEFAULT_REQUEST_TIMEOUT_S)
+    with _ReadOnlyGitHubClient(
+        token=_read_token(), api_base=_api_base(), request_timeout_s=request_timeout
+    ) as client:
+        pull_request_doc = client.get_json(
+            f"repos/{repository}/pulls/{pull_request}", deadline=deadline
+        )
+        permission_doc = client.get_json(
+            f"repos/{repository}/collaborators/{reviewer}/permission", deadline=deadline
+        )
+
+    if not isinstance(pull_request_doc, dict):
+        raise GitHubAuthorityError("pull request response is not a JSON object")
+    user = pull_request_doc.get("user")
+    if not isinstance(user, dict) or not isinstance(user.get("login"), str):
+        raise GitHubAuthorityError("pull request author is missing or malformed")
+    base = pull_request_doc.get("base")
+    if not isinstance(base, dict) or not isinstance(base.get("ref"), str):
+        raise GitHubAuthorityError("pull request base ref is missing or malformed")
+
+    if not isinstance(permission_doc, dict):
+        raise GitHubAuthorityError("permission response is not a JSON object")
+    permission = permission_doc.get("permission")
+    role_name = permission_doc.get("role_name")
+    if not isinstance(permission, str) or not isinstance(role_name, str):
+        raise GitHubAuthorityError(
+            f"permission response for {reviewer} is missing permission/role_name"
+        )
+
+    return PullRequestActorContext(
+        repository=repository,
+        pull_request=pull_request,
+        author=str(user["login"]),
+        base_ref=str(base["ref"]),
+        reviewer=reviewer,
+        reviewer_permission=permission,
+        reviewer_role_name=role_name,
+    )
+
+
 __all__ = [
     "GitHubAuthorityError",
     "GitHubAuthorityTimeoutError",
     "GitHubBlob",
+    "PullRequestActorContext",
     "ReviewVerification",
     "fetch_blob_at_ref",
+    "pull_request_actor_context",
     "verify_review",
 ]

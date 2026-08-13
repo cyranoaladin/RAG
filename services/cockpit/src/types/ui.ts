@@ -67,6 +67,7 @@ export interface GovernanceLock {
 }
 
 export const NIVEAU_LABELS: Readonly<Record<string, string>> = Object.freeze({
+  quatrieme: 'Quatrième',
   troisieme: 'Troisième',
   seconde: 'Seconde',
   premiere: 'Première',

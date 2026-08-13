@@ -1,0 +1,145 @@
+# Golden Corpus Specification — H2-F final gate
+# The executable perimeter is exactly 13 controls over REAL_SEALED_CORPUS.
+
+spec_id: golden_corpus_h2f_v2
+status: active
+created_at: "2026-08-09"
+catalog_kind_required: REAL_SEALED_CORPUS
+
+# Positive controls separate local/base eligibility from the final disposition.
+# Rights and PII are cleared; live LOT41A authority is intentionally absent
+# before PR #95 merges, therefore final disposition remains REVIEW_REQUIRED.
+positive_controls:
+  - control_id: pos_01_philosophie_evaluation
+    sha256_prefix: 03f268dc1f26
+    title: "L’évaluation des travaux en classe de philosophie"
+    expected_base_disposition: INGEST
+    expected_final_disposition: REVIEW_REQUIRED
+    expected_currentness: actuel
+    expected_gate_statuses:
+      rights: PASS
+      pii: PASS
+      authority: BLOCKED_NOT_CLEARED
+
+  - control_id: pos_02_philosophie_construction_cours
+    sha256_prefix: f0dec90cafd5
+    title: "La construction des cours : notions, auteurs, repères"
+    expected_base_disposition: INGEST
+    expected_final_disposition: REVIEW_REQUIRED
+    expected_currentness: actuel
+    expected_gate_statuses:
+      rights: PASS
+      pii: PASS
+      authority: BLOCKED_NOT_CLEARED
+
+  - control_id: pos_03_philosophie_exercices
+    sha256_prefix: 846962c15217
+    title: "Les exercices en classe de philosophie"
+    expected_base_disposition: INGEST
+    expected_final_disposition: REVIEW_REQUIRED
+    expected_currentness: actuel
+    expected_gate_statuses:
+      rights: PASS
+      pii: PASS
+      authority: BLOCKED_NOT_CLEARED
+
+  - control_id: pos_04_philosophie_textes_oeuvres
+    sha256_prefix: e7cf3bdb7a1c
+    title: "L’étude des textes et des œuvres en classe de philosophie"
+    expected_base_disposition: INGEST
+    expected_final_disposition: REVIEW_REQUIRED
+    expected_currentness: actuel
+    expected_gate_statuses:
+      rights: PASS
+      pii: PASS
+      authority: BLOCKED_NOT_CLEARED
+
+  - control_id: pos_05_philosophie_recommandations
+    sha256_prefix: b5ed52b1a475
+    title: "Recommandations pour le travail en classe de philosophie"
+    expected_base_disposition: INGEST
+    expected_final_disposition: REVIEW_REQUIRED
+    expected_currentness: actuel
+    expected_gate_statuses:
+      rights: PASS
+      pii: PASS
+      authority: BLOCKED_NOT_CLEARED
+
+  - control_id: pos_06_art_multi_placement
+    sha256_prefix: 371d0c82ed1f
+    title: "Programme arts — contrôle multi-placement réel"
+    expected_base_disposition: INGEST
+    expected_final_disposition: REVIEW_REQUIRED
+    expected_currentness: actuel
+    expected_gate_statuses:
+      rights: PASS
+      pii: PASS
+      authority: BLOCKED_NOT_CLEARED
+
+# Every object in each boundary zone is authoritative for the control.
+boundary_controls:
+  - control_id: bnd_01_a_verifier_full_zone
+    title: "Zone complète 80_A_VERIFIER"
+    zone: "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/"
+    expected_count_in_zone: 805
+    expected_disposition: REVIEW_REQUIRED
+    expected_currentness: a_verifier
+
+  - control_id: bnd_02_transition_full_zone
+    title: "Zone complète 20_TRANSITION_OU_ACTUEL"
+    zone: "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/20_TRANSITION_OU_ACTUEL/"
+    expected_count_in_zone: 49
+    expected_disposition: REVIEW_REQUIRED
+    expected_currentness: transition
+
+  - control_id: bnd_03_archive_full_zone
+    title: "Zone complète 90_ARCHIVE_CATALOGUE"
+    zone: "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/90_ARCHIVE_CATALOGUE/"
+    expected_count_in_zone: 19
+    expected_disposition: ARCHIVE_ONLY
+    expected_currentness: archive
+
+# Absence is failure. Pattern and zone controls evaluate every match.
+negative_controls:
+  - control_id: neg_01_admin_manifest
+    title: "SHA256SUMS.txt"
+    path: "00_ADMIN/SHA256SUMS.txt"
+    expected_count: 1
+    expected_disposition: EXCLUDE
+
+  - control_id: neg_02_guide_famille
+    title: "Guide candidat individuel"
+    filename_pattern: "Nexus_Reussite_Guide_Candidat_Individuel_*.pdf"
+    expected_count: 1
+    expected_disposition: EXCLUDE
+
+  - control_id: neg_03_scan_blanc
+    title: "Scan blanc non pédagogique"
+    filename_pattern: "t_nexus_scan_blanc_non_pedagogique.pdf"
+    expected_count: 1
+    expected_disposition: EXCLUDE
+
+  - control_id: neg_04_geogebra_full_zone
+    title: "Zone complète des ressources GeoGebra"
+    zone: "03_RESSOURCES_INTERACTIVES/"
+    expected_count_in_zone: 37
+    expected_disposition: UNSUPPORTED
+
+# These statements are a human-readable summary only. They are not included
+# in the executable-control count; the controls above carry the authority.
+descriptive_assertions:
+  authoritative: false
+  reason: "Résumé documentaire ; aucune assertion non exécutée n’est comptée."
+  items:
+    - assertion_id: assert_positive_base_eligible_final_review
+      description: "Les positifs sont base-éligibles mais attendent LOT41A-V2."
+    - assertion_id: assert_boundary_exhaustive
+      description: "Chaque population de frontière est évaluée intégralement."
+    - assertion_id: assert_negative_exhaustive
+      description: "Chaque correspondance négative est EXCLUDE ou UNSUPPORTED."
+
+coverage_summary:
+  total_controls: 13
+  positive_controls: 6
+  boundary_controls: 3
+  negative_controls: 4

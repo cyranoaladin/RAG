@@ -43,9 +43,10 @@ from uuid import UUID
 import psycopg
 from nexus_contracts.authority_artifacts import (
     CanonicalArtifactError,
-    PublicationReviewArtifact,
+    PublicationReviewArtifactV2,
     canonical_publication_review_path,
     parse_publication_review_artifact,
+    require_publication_review_v2,
 )
 from nexus_contracts.document import Rights
 from nexus_contracts.resource_state import ResourceState
@@ -66,6 +67,11 @@ from .scope_authority import (
     VerifiedAuthorization,
     authorization_allows_rights,
     verify_scope_authorization,
+)
+from .scope_enforcement import (
+    ScopeEnforcementViolation,
+    enforce_content_sha256,
+    require_h2_content_bound_authority,
 )
 from .transitions import TransitionResult, cas_transition
 
@@ -88,7 +94,7 @@ _ATTESTATION_COLUMNS = """
     human_review_repository, human_review_pull_request, human_review_base_sha,
     human_review_head_sha, human_review_review_id, human_review_reviewer,
     human_review_submitted_at, human_review_challenge,
-    protocol_version
+    protocol_version, attributed_facts_digest
 """
 
 
@@ -103,6 +109,12 @@ class VerifiedAttestation:
     manifest_digest: str
     review_id: str
     attestation_digest: str
+    #: ADR-0035 : exposé pour que le publisher puisse exiger LOT42-V2
+    #: *explicitement*, plutôt que d'hériter silencieusement du refus
+    #: appliqué ici. Une garantie transitive est une garantie qu'un
+    #: futur refactor peut retirer sans qu'aucun test ne rougisse.
+    protocol_version: str
+    attributed_facts_digest: str
     authorization: VerifiedAuthorization
     facts: PublicationFacts
 
@@ -127,18 +139,34 @@ def _mark_invalidated(conn: psycopg.Connection, *, attestation_id: UUID, reason:
     """Meilleur effort : persiste la raison d'invalidation détectée pour
     audit. N'est jamais la condition de fail-closed elle-même — l'appelant
     lève déjà ``PublicationAttestationInvalidError`` indépendamment de la
-    réussite de cette écriture."""
-    conn.rollback()
-    with conn.cursor() as cur:
-        cur.execute(
-            """
-            UPDATE ingestion_control.publication_attestations
-            SET invalidated_at = now(), invalidated_reason = %s
-            WHERE attestation_id = %s AND invalidated_at IS NULL
-            """,
-            (reason[:2000], attestation_id),
-        )
-    conn.commit()
+    réussite de cette écriture.
+
+    Le rôle runtime est volontairement en lecture seule sur cette table et
+    la vérification gouvernée peut s'exécuter dans ``conn.transaction()``.
+    Un rollback/UPDATE alors interdit ne doit donc jamais masquer le refus
+    de sécurité déjà déterminé. Le rôle attestor, lui, conserve la
+    persistance de ce cache d'audit lors d'une vérification autonome."""
+    try:
+        conn.rollback()
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE ingestion_control.publication_attestations
+                SET invalidated_at = now(), invalidated_reason = %s
+                WHERE attestation_id = %s AND invalidated_at IS NULL
+                """,
+                (reason[:2000], attestation_id),
+            )
+        conn.commit()
+    except psycopg.Error:
+        # Hors contexte transactionnel, nettoie l'état aborted laissé par un
+        # UPDATE refusé au rôle app. Dans un ``conn.transaction()`` externe,
+        # ce rollback est lui-même interdit : l'exception de sécurité qui
+        # sortira du contexte effectuera alors le rollback atomique attendu.
+        try:
+            conn.rollback()
+        except psycopg.Error:
+            pass
 
 
 class _Invalidator:
@@ -209,9 +237,14 @@ def _verify_human_review(row: dict[str, Any], invalidator: _Invalidator) -> Revi
 
 def _verify_review_artifact(
     row: dict[str, Any], *, live: ReviewVerification, invalidator: _Invalidator
-) -> PublicationReviewArtifact:
+) -> PublicationReviewArtifactV2:
     """Item E : la décision de publication est relue depuis le blob Git
-    approuvé, jamais reconstruite depuis les colonnes de la base."""
+    approuvé, jamais reconstruite depuis les colonnes de la base.
+
+    ADR-0035 : seul un artefact **LOT42-V2** peut autoriser une
+    publication. Un V1 historique reste parsable — il doit le rester pour
+    l'audit — mais il est refusé ici, avant toute comparaison, parce qu'il
+    n'a jamais lié la provenance publiée à la relecture humaine."""
     expected_path = canonical_publication_review_path(
         review_id=row["review_id"], digest=row["attestation_digest"]
     )
@@ -230,7 +263,8 @@ def _verify_review_artifact(
     invalidator.require_equal("review_artifact_blob_sha", row["review_artifact_blob_sha"], blob.blob_sha)
 
     try:
-        artifact = parse_publication_review_artifact(blob.content)
+        parsed = parse_publication_review_artifact(blob.content)
+        artifact = require_publication_review_v2(parsed)
     except CanonicalArtifactError as exc:
         raise invalidator.fail(
             f"reviewed publication artifact is not canonical: {exc}"
@@ -241,12 +275,17 @@ def _verify_review_artifact(
 
 
 def _require_row_matches_artifact(
-    row: dict[str, Any], artifact: PublicationReviewArtifact, invalidator: _Invalidator
+    row: dict[str, Any], artifact: PublicationReviewArtifactV2, invalidator: _Invalidator
 ) -> None:
     """Toute colonne persistée doit être dérivable de l'artefact revu — un
-    UPDATE direct en base ne survit jamais à la relecture."""
+    UPDATE direct en base ne survit jamais à la relecture.
+
+    ADR-0035 : ``attributed_facts_digest`` en fait désormais partie. Sans
+    cette comparaison, la ligne pourrait citer une attribution différente
+    de celle que l'humain a relue dans les octets de l'artefact."""
     expected: dict[str, Any] = {
         "protocol_version": artifact.protocol_version,
+        "attributed_facts_digest": artifact.attributed_facts_digest,
         "review_id": artifact.review_id,
         "resource_id": str(row["resource_id"]),
         "artifact_id": str(row["artifact_id"]),
@@ -277,7 +316,7 @@ def _require_row_matches_artifact(
 
 
 def _require_facts_still_hold(
-    row: dict[str, Any], artifact: PublicationReviewArtifact, invalidator: _Invalidator,
+    row: dict[str, Any], artifact: PublicationReviewArtifactV2, invalidator: _Invalidator,
     facts: PublicationFacts,
 ) -> None:
     """Item F : les résultats du pipeline sont relus **maintenant** et
@@ -298,6 +337,36 @@ def _require_facts_still_hold(
     invalidator.require_equal(
         "facts.quality_report_digest", row["quality_report_digest"], facts.quality_report_digest
     )
+    # H2-F (défaut 6) : les quatre faits d'attribution scellés par cette
+    # attestation doivent être *exactement* ceux qui sont persistés
+    # maintenant. Le trigger de la migration 012 interdit déjà de les
+    # modifier tant qu'une attestation active les nomme ; cette
+    # comparaison ferme le cas restant — une attestation écrite avant que
+    # le scellement n'existe, ou une ligne d'attestation modifiée
+    # directement en base. Un digest absent n'est jamais interprété comme
+    # « rien à vérifier ».
+    if not row["attributed_facts_digest"]:
+        raise invalidator.fail(
+            "attestation carries no attributed_facts_digest — it predates the "
+            "H2-F attribution binding and can never authorize a publication"
+        )
+    invalidator.require_equal(
+        "facts.attribution_digest",
+        row["attributed_facts_digest"],
+        facts.attribution_digest,
+    )
+    # ADR-0035, troisième branche de l'égalité à trois voies : les octets
+    # relus par l'humain doivent désigner l'attribution vivante. Les deux
+    # autres branches (artefact ↔ ligne, ligne ↔ faits) sont vérifiées
+    # ci-dessus et dans ``_require_row_matches_artifact`` ; celle-ci est
+    # redondante par construction et le reste **volontairement** : elle
+    # tombe en panne bruyamment si l'une des deux autres était un jour
+    # affaiblie.
+    invalidator.require_equal(
+        "artifact.attributed_facts_digest",
+        artifact.attributed_facts_digest,
+        facts.attribution_digest,
+    )
     invalidator.require_equal("facts.gate_name", artifact.gate_name, facts.gate_name)
     invalidator.require_equal(
         "facts.evidence_event_ids",
@@ -313,6 +382,8 @@ def verify_publication_attestation(
     current_content_sha256: str,
     current_profile_fingerprint: str,
     current_manifest_digest: str,
+    require_content_bound_authority: bool = False,
+    expected_attestation_id: UUID | None = None,
 ) -> VerifiedAttestation:
     """Revérifie **intégralement** la chaîne LOT42 d'une ressource.
 
@@ -324,6 +395,14 @@ def verify_publication_attestation(
         raise PublicationAttestationInvalidError(
             f"no active (non-invalidated) publication_attestations row for "
             f"resource_id={resource_id}"
+        )
+    if (
+        expected_attestation_id is not None
+        and row["attestation_id"] != expected_attestation_id
+    ):
+        raise PublicationAttestationInvalidError(
+            f"expected attestation {expected_attestation_id} for resource "
+            f"{resource_id}, but the active attestation is {row['attestation_id']}"
         )
     invalidator = _Invalidator(conn, row["attestation_id"])
 
@@ -380,6 +459,34 @@ def verify_publication_attestation(
             f"current={current_manifest_digest!r})"
         )
 
+    if require_content_bound_authority:
+        try:
+            require_h2_content_bound_authority(authorization)
+        except ScopeEnforcementViolation as exc:
+            raise invalidator.fail(str(exc)) from exc
+        invalidator.require_equal(
+            "FETCHED authority id",
+            facts.content_scope_authorization_id,
+            authorization.authorization_id,
+        )
+        invalidator.require_equal(
+            "FETCHED authority digest",
+            facts.content_scope_authorization_digest,
+            authorization.authorization_digest,
+        )
+        invalidator.require_equal(
+            "FETCHED authority protocol",
+            facts.content_scope_authorization_protocol_version,
+            authorization.protocol_version,
+        )
+        try:
+            enforce_content_sha256(
+                authorization,
+                content_sha256=facts.content_sha256,
+            )
+        except ScopeEnforcementViolation as exc:
+            raise invalidator.fail(str(exc)) from exc
+
     return VerifiedAttestation(
         attestation_id=row["attestation_id"],
         resource_id=row["resource_id"],
@@ -390,6 +497,8 @@ def verify_publication_attestation(
         manifest_digest=row["manifest_digest"],
         review_id=row["review_id"],
         attestation_digest=row["attestation_digest"],
+        protocol_version=row["protocol_version"],
+        attributed_facts_digest=row["attributed_facts_digest"],
         authorization=authorization,
         facts=facts,
     )
@@ -406,6 +515,7 @@ def attempt_retrieval_eligible_transition(
     current_profile_fingerprint: str,
     current_manifest_digest: str,
     job_id: UUID | None = None,
+    expected_attestation_id: UUID | None = None,
 ) -> TransitionResult:
     """Point d'ancrage unique LOT42 (ADR-0033 § 6) : la SEULE fonction
     autorisée à faire transitionner une ressource ``REVIEWED ->
@@ -414,20 +524,21 @@ def attempt_retrieval_eligible_transition(
     échoue, et la ressource reste ``REVIEWED`` (état stable, jamais un état
     d'erreur nouveau).
 
-    Non encore appelée par ``ingestion_worker.runner`` : aucune ressource
-    n'atteint ``REVIEWED`` dans le pipeline actuel (il s'arrête à
-    ``ROUTED`` — les états ``STAGED``/``NEEDS_REVIEW``/``REVIEWED`` restent
-    hors périmètre, explicitement escaladés, cf.
-    ``LOT42_LIVE_PIPELINE_WIRED=false``). Cette fonction existe et est
-    testée indépendamment pour qu'un futur lot qui construit le pipeline
-    jusqu'à ``REVIEWED`` n'ait qu'à l'appeler — jamais à réinventer sa
-    propre vérification LOT42 ni un second point d'ancrage."""
+    Non appelée par ``ingestion_worker.runner`` : le chemin interne de
+    répétition ``governed_publication_path`` atteint ``REVIEWED`` sous tests,
+    puis appelle cette ancre. Il n'est monté ni dans le worker vivant, ni
+    dans une API, un démarrage ou un cron ;
+    ``LOT42_LIVE_PIPELINE_WIRED=false`` reste donc vrai. Toute activation
+    ultérieure doit réutiliser cette ancre — jamais réinventer sa propre
+    vérification LOT42 ni un second point d'accès."""
     verify_publication_attestation(
         conn,
         resource_id=resource_id,
         current_content_sha256=current_content_sha256,
         current_profile_fingerprint=current_profile_fingerprint,
         current_manifest_digest=current_manifest_digest,
+        require_content_bound_authority=True,
+        expected_attestation_id=expected_attestation_id,
     )
     return cas_transition(
         conn,

@@ -1,5 +1,5 @@
 version: 3
-# LOT 28 (ADR-0015): catalogue étendu à 59 collections (35 + 24). Aucune nouvelle collection instanciee dans ce lot.
+# Catalogue canonique : 61 collections. Les extensions 4e d'ADR-0040 restent dormantes.
 # ADR-0013 — Convention: rag_nexus_{matiere}_{niveau}_{statut}
 # Extension FE-06: rag_nexus_{matiere}_{niveau}_{voie}_{statut} quand voie pertinente
 # Exceptions nommées: grand_oral, exams, candidats_libres, quarantine, dnb (cf. ADR)
@@ -39,7 +39,7 @@ metadata_required:
   - chunk_id
   - chunk_sha256
 
-# Catalogue taxonomique (59 entrées — LOT 28)
+# Catalogue taxonomique (61 entrées — LOT 28 + ADR-0040)
 # Schéma validé FE-05b: nom = matière×niveau×voie ; métadonnées = dispositif, session
 # Source de vérité: services/rag-pedago/taxonomy/
 collections:
@@ -69,24 +69,33 @@ collections:
   # =====================================================================
   # Maths — multi-nature (FE-05e: routage par niveau×voie×type_enseignement)
   # =====================================================================
+  rag_nexus_maths_quatrieme_tc:
+    matiere: maths
+    niveau: quatrieme
+    voie: college
+    statut: tronc_commun
+    domain: education
+    session_policy: declared_or_null
+    taxonomy_file: maths/quatrieme.yml
+    instanciee: true
   rag_nexus_maths_troisieme_tc:
     matiere: maths
     niveau: troisieme
-    voie: null  # collège: pas de voie
+    voie: college
     statut: tronc_commun
     domain: education
     session_policy: declared_or_null
     taxonomy_file: maths/troisieme.yml
-    instanciee: false
+    instanciee: true
   rag_nexus_maths_seconde_tc:
     matiere: maths
     niveau: seconde
-    voie: null  # 2de commune: pas de voie
+    voie: generale
     statut: tronc_commun
     domain: education
     session_policy: declared_or_null
     taxonomy_file: maths/seconde_tronc_commun.yml
-    instanciee: false
+    instanciee: true
   rag_nexus_maths_premiere_gen_specialite:
     matiere: maths
     niveau: premiere
@@ -95,7 +104,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: maths/premiere_gen_specialite.yml
-    instanciee: false
+    instanciee: true
   rag_nexus_maths_premiere_gen_tc:
     matiere: maths
     niveau: premiere
@@ -123,7 +132,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: maths/terminale_gen_specialite.yml
-    instanciee: false
+    instanciee: true
   rag_nexus_maths_terminale_gen_option_comp:
     matiere: maths
     niveau: terminale
@@ -157,24 +166,33 @@ collections:
   # =====================================================================
   # Français
   # =====================================================================
+  rag_nexus_francais_quatrieme_tc:
+    matiere: francais
+    niveau: quatrieme
+    voie: college
+    statut: tronc_commun
+    domain: education
+    session_policy: declared_or_null
+    taxonomy_file: francais/quatrieme.yml
+    instanciee: true
   rag_nexus_francais_troisieme_tc:
     matiere: francais
     niveau: troisieme
-    voie: null
+    voie: college
     statut: tronc_commun
     domain: education
     session_policy: declared_or_null
     taxonomy_file: francais/troisieme.yml
-    instanciee: false
+    instanciee: true
   rag_nexus_francais_seconde_tc:
     matiere: francais
     niveau: seconde
-    voie: null
+    voie: generale
     statut: tronc_commun
     domain: education
     session_policy: declared_or_null
     taxonomy_file: francais/seconde_tc.yml
-    instanciee: false
+    instanciee: true
   rag_nexus_francais_premiere_tc:
     matiere: francais
     niveau: premiere
@@ -183,7 +201,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: francais/premiere_eaf.yml
-    instanciee: false
+    instanciee: true
 
   # =====================================================================
   # Histoire-Géo
@@ -245,7 +263,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: physique_chimie/terminale_specialite.yml
-    instanciee: false
+    instanciee: true
 
   # =====================================================================
   # SVT
@@ -302,7 +320,10 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: philosophie/terminale_tronc_commun.yml
-    instanciee: false
+    # H2-C : première vague réelle, cinq artefacts Eduscol explicitement
+    # résolus par h2_initial_placement_policy.yml. Toute autre ressource
+    # reste REVIEW_REQUIRED ; cette activation n'est pas un routeur large.
+    instanciee: true
 
   # =====================================================================
   # SNT

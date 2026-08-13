@@ -174,6 +174,34 @@ pour la même ressource), reprise (crash entre deux attestations de la
 chaîne — la reprise doit retrouver exactement l'état déterministe déjà
 construit, jamais le reconstruire différemment).
 
+### 7bis. Point de linéarisation GitHub → commit produit
+
+Une base PostgreSQL ne peut pas verrouiller l'état externe de GitHub. Une
+dernière relecture live, même placée juste avant `COMMIT`, laisserait donc
+toujours un intervalle non atomique où une review pourrait être dismissée.
+La migration 011 rend cet ordre explicite au lieu de prétendre supprimer cet
+intervalle par un verrou local :
+
+1. LOT41A et LOT42 sont revérifiés live sous les fences locales de la
+   migration 010 ;
+2. l'instantané exact des deux décisions (`repository`, PR, base/head,
+   review, reviewer, challenge, digests des artefacts et protocoles) est
+   sérialisé canoniquement et persisté dans
+   `ingestion_control.publication_commit_pins` ;
+3. cette transaction control committe **avant** toute transaction produit ;
+4. une seconde relecture live sous les mêmes fences doit reproduire le même
+   pin avant que le publisher ouvre sa transaction produit ;
+5. chaque placement produit porte déjà `publication_attestation_id`, qui est
+   aussi la clé immuable du pin.
+
+Le pin est le point de linéarisation de la décision externe : une évolution
+GitHub postérieure est ordonnée après l'opération déjà autorisée. Elle bloque
+toute nouvelle tentative, qui doit toujours refaire les vérifications live ;
+elle ne peut ni modifier ni réutiliser un pin portant une autre tête, review
+ou autorisation. Le rôle runtime ne détient que `SELECT, INSERT` sur cette
+table append-only, jamais `UPDATE`/`DELETE`. Le rollback 011 refuse une table
+non vide afin de ne pas détruire la preuve d'un commit produit potentiel.
+
 ### 8. Statut explicite du câblage (remédiation GATE H1, item L)
 
 Deux propriétés distinctes, à ne jamais confondre dans un rapport :
@@ -181,13 +209,14 @@ Deux propriétés distinctes, à ne jamais confondre dans un rapport :
 | Drapeau | Valeur | Signification |
 |---|---|---|
 | `LOT42_MECHANISM_IMPLEMENTED` | voir rapport de lot | Le mécanisme (contrat, stockage, vérification live, point d'ancrage, tests) existe et est éprouvé. |
-| `LOT42_LIVE_PIPELINE_WIRED` | **`false`** | Le chemin `STAGED -> NEEDS_REVIEW -> REVIEWED` **n'existe pas encore**. Aucune ressource n'atteint donc `REVIEWED`, et `attempt_retrieval_eligible_transition` n'a en pratique aucun appelant en production. |
+| `LOT42_PIPELINE_PATH_IMPLEMENTED` | voir rapport de lot | Le chemin interne `ROUTED -> STAGED -> NEEDS_REVIEW -> REVIEWED`, suivi de l'ancre unique, existe pour les répétitions isolées. |
+| `LOT42_LIVE_PIPELINE_WIRED` | **`false`** | Ce chemin n'est importé ni par le runner vivant, ni par une API, un démarrage ou un cron. Aucune ressource de production ne peut donc l'emprunter. |
 
 `LOT42_LIVE_PIPELINE_WIRED` reste `false` — et doit être déclaré tel quel —
-tant que ce chemin n'est pas construit. Il ne s'agit pas d'un détail de
-présentation : décrire LOT42 comme « un runtime de publication opérationnel
-de bout en bout » serait faux tant que rien ne peut atteindre `REVIEWED`.
-Ce câblage relève du Track suivant, après GATE H1.
+tant que l'activation gouvernée de ce chemin n'est pas réalisée lors de la
+phase de production autorisée. Il ne s'agit pas d'un détail de présentation :
+décrire LOT42 comme « un runtime de publication production opérationnel de
+bout en bout » serait faux tant que le runner vivant ne l'appelle pas.
 
 **Garde-fou dépôt.** `tests/test_lot42_retrieval_eligible_anchor.py` analyse
 l'AST de tout `src/` et échoue si un module autre que le point d'ancrage
@@ -203,8 +232,8 @@ l'ancre, ou faire échouer ce test.
 ## Conséquences
 
 - `RETRIEVAL_ELIGIBLE` reste, comme avant, un état terminal jamais atteint
-  par ce lot seul — aucune ressource n'y accède tant qu'aucune PR de scope
-  LOT41A ni de revue de publication LOT42 n'a été humainement approuvée.
+  par le pipeline vivant de ce lot. Une répétition isolée ne peut l'atteindre
+  qu'avec une autorisation LOT41A et une revue LOT42 revérifiées en direct.
 - La publication produit réelle (écriture dans `rag_chunks`/pgvector, hors
   périmètre de `nexus_contracts.resource_state` par sa propre docstring)
   reste un sous-système distinct et **hors périmètre de ce document** — cf.

@@ -15,6 +15,7 @@
     },
     "Niveau": {
       "enum": [
+        "quatrieme",
         "troisieme",
         "seconde",
         "premiere",
@@ -26,6 +27,36 @@
       ],
       "title": "Niveau",
       "type": "string"
+    },
+    "RetrievalCurriculumScope": {
+      "additionalProperties": false,
+      "description": "Portée de la preuve pédagogique, distincte de la cible élève.",
+      "properties": {
+        "matiere": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Matiere",
+          "type": "string"
+        },
+        "niveau": {
+          "$ref": "#/$defs/Niveau"
+        },
+        "statut_enseignement": {
+          "$ref": "#/$defs/StatutEnseignement"
+        },
+        "voie": {
+          "$ref": "#/$defs/Voie"
+        }
+      },
+      "required": [
+        "niveau",
+        "voie",
+        "matiere",
+        "statut_enseignement"
+      ],
+      "title": "RetrievalCurriculumScope",
+      "type": "object"
     },
     "RetrievalNeed": {
       "additionalProperties": false,
@@ -416,6 +447,17 @@
   "$id": "https://nexusreussite.academy/contracts/v0.5/retrieval-request.json",
   "additionalProperties": false,
   "properties": {
+    "curriculum_scope": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RetrievalCurriculumScope"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
     "need": {
       "$ref": "#/$defs/RetrievalNeed"
     },

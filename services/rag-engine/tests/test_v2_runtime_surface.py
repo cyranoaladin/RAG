@@ -38,7 +38,7 @@ def _clear_database_readiness_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         api_v2,
         "load_identity_verifier_config",
-        lambda: SimpleNamespace(artifact=object()),
+        lambda: SimpleNamespace(artifacts={"test-scope": object()}),
         raising=False,
     )
     monkeypatch.setattr(
@@ -52,6 +52,22 @@ def _clear_database_readiness_cache(monkeypatch: pytest.MonkeyPatch) -> None:
         "validate_pilot_scope_catalogue_alignment",
         lambda _artifact, _catalogue: None,
         raising=False,
+    )
+    monkeypatch.setattr(
+        api_v2,
+        "validate_scope_registry_catalogue_alignment",
+        lambda _artifacts, _catalogue: None,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        api_v2.retrieval_v2_endpoint,
+        "validate_release_startup_configuration",
+        lambda _artifacts, _catalogue: None,
+    )
+    monkeypatch.setattr(
+        api_v2.retrieval_v2_endpoint,
+        "validate_configured_release_database",
+        lambda: None,
     )
     monkeypatch.setattr(
         api_v2,
@@ -134,6 +150,16 @@ def test_v2_application_exposes_only_the_governed_runtime_surface() -> None:
         assert not any(path.startswith(forbidden_prefix) for path in routes)
 
 
+def test_v2_image_packages_release_readiness_runtime() -> None:
+    """L'image aplatie doit embarquer chaque import de l'API activée."""
+    dockerfile = V2_DOCKERFILE.read_text(encoding="utf-8")
+
+    assert (
+        "COPY services/rag-engine/src/ingestor/release_readiness.py "
+        "/app/release_readiness.py"
+    ) in dockerfile
+
+
 def test_lot41u_plan_contains_no_machine_local_absolute_path() -> None:
     plan = (
         REPOSITORY_ROOT
@@ -147,12 +173,12 @@ def test_lot41u_plan_contains_no_machine_local_absolute_path() -> None:
     assert "/Users/" not in plan
 
 
-def test_health_is_ready_only_for_schema_003_and_canonical_embedding(
+def test_health_is_ready_only_for_schema_004_and_canonical_embedding(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("PG_RAG_DSN", "postgresql://reader")
     monkeypatch.setenv("PG_REVIEW_DSN", "postgresql://reviewer")
-    monkeypatch.setattr(api_v2, "schema_head_003_ready", lambda _dsn: True)
+    monkeypatch.setattr(api_v2, "schema_head_004_ready", lambda _dsn: True)
     monkeypatch.setattr(api_v2, "retrieval_database_ready", lambda _dsn: True)
     monkeypatch.setattr(api_v2, "review_database_ready", lambda _dsn: True)
     monkeypatch.setattr(api_v2, "_model_artifacts_ready", lambda: True)
@@ -177,25 +203,25 @@ def test_health_is_ready_only_for_schema_003_and_canonical_embedding(
     assert response.status_code == 200
     assert response.json() == {
         "status": "healthy",
-        "schema_head": "003_profile_filtering",
+        "schema_head": "004_artifact_placements",
         "embedding_model": "intfloat/multilingual-e5-large",
         "embedding_dim_declared": 1024,
         "pgvector_dim": 1024,
     }
 
 
-def test_health_binds_the_identity_artifact_to_the_mounted_catalogue(
+def test_health_binds_the_identity_registry_to_the_mounted_catalogue(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("PG_RAG_DSN", "postgresql://reader")
     monkeypatch.setenv("PG_REVIEW_DSN", "postgresql://reviewer")
-    artifact = object()
+    artifacts = {"scope-a": object(), "scope-b": object()}
     catalogue = object()
     calls: list[tuple[object, object]] = []
     monkeypatch.setattr(
         api_v2,
         "load_identity_verifier_config",
-        lambda: SimpleNamespace(artifact=artifact),
+        lambda: SimpleNamespace(artifacts=artifacts),
     )
     monkeypatch.setattr(
         api_v2,
@@ -204,9 +230,9 @@ def test_health_binds_the_identity_artifact_to_the_mounted_catalogue(
     )
     monkeypatch.setattr(
         api_v2,
-        "validate_pilot_scope_catalogue_alignment",
-        lambda loaded_artifact, loaded_catalogue: calls.append(
-            (loaded_artifact, loaded_catalogue)
+        "validate_scope_registry_catalogue_alignment",
+        lambda loaded_artifacts, loaded_catalogue: calls.append(
+            (loaded_artifacts, loaded_catalogue)
         ),
         raising=False,
     )
@@ -236,7 +262,7 @@ def test_health_binds_the_identity_artifact_to_the_mounted_catalogue(
     response = TestClient(api_v2.app).get("/health")
 
     assert response.status_code == 200
-    assert calls == [(artifact, catalogue)]
+    assert calls == [(artifacts, catalogue)]
 
 
 @pytest.mark.parametrize(
@@ -362,7 +388,7 @@ def test_health_caches_deep_database_readiness_for_a_bounded_interval(
     )
     monkeypatch.setattr(
         api_v2,
-        "schema_head_003_ready",
+        "schema_head_004_ready",
         lambda _dsn: calls.append("schema") or True,
     )
     monkeypatch.setattr(
@@ -449,7 +475,7 @@ def test_deep_database_readiness_uses_one_budget_below_health_timeout(
         raising=False,
     )
     monkeypatch.setattr(api_v2, "pgvector_dimension", lambda _dsn: 1024)
-    monkeypatch.setattr(api_v2, "schema_head_003_ready", lambda _dsn: True)
+    monkeypatch.setattr(api_v2, "schema_head_004_ready", lambda _dsn: True)
     monkeypatch.setattr(api_v2, "retrieval_database_ready", lambda _dsn: True)
     monkeypatch.setattr(api_v2, "review_database_ready", lambda _dsn: True)
 
@@ -538,7 +564,7 @@ def test_deep_readiness_inherits_the_runtime_request_deadline(
         lambda _dsn: observed.append(readiness_db.remaining_readiness_budget_ms())
         or api_v2.CANONICAL_EMBED_DIM,
     )
-    monkeypatch.setattr(api_v2, "schema_head_003_ready", ready)
+    monkeypatch.setattr(api_v2, "schema_head_004_ready", ready)
     monkeypatch.setattr(api_v2, "retrieval_database_ready", ready)
     monkeypatch.setattr(api_v2, "review_database_ready", ready)
 
@@ -575,7 +601,7 @@ def test_health_fails_closed_without_internal_details(
 ) -> None:
     monkeypatch.setenv("PG_RAG_DSN", "postgresql://secret-reader")
     monkeypatch.setenv("PG_REVIEW_DSN", "postgresql://secret-reviewer")
-    monkeypatch.setattr(api_v2, "schema_head_003_ready", lambda _dsn: True)
+    monkeypatch.setattr(api_v2, "schema_head_004_ready", lambda _dsn: True)
     monkeypatch.setattr(api_v2, "retrieval_database_ready", lambda _dsn: True)
     monkeypatch.setattr(api_v2, "review_database_ready", lambda _dsn: True)
     monkeypatch.setattr(api_v2, "_model_artifacts_ready", lambda: True)
@@ -599,13 +625,13 @@ def test_health_fails_closed_without_internal_details(
     elif failure == "missing_review_dsn":
         monkeypatch.delenv("PG_REVIEW_DSN")
     elif failure == "schema":
-        monkeypatch.setattr(api_v2, "schema_head_003_ready", lambda _dsn: False)
+        monkeypatch.setattr(api_v2, "schema_head_004_ready", lambda _dsn: False)
     elif failure == "dimension":
         monkeypatch.setattr(api_v2, "pgvector_dimension", lambda _dsn: 768)
     elif failure == "rag_database":
         monkeypatch.setattr(
             api_v2,
-            "schema_head_003_ready",
+            "schema_head_004_ready",
             lambda _dsn: (_ for _ in ()).throw(RuntimeError("private database failure")),
         )
     elif failure == "retrieval_privileges":
@@ -802,6 +828,29 @@ def test_model_artifacts_are_fully_hashed_at_startup_not_on_public_health(
     ]
 
 
+def test_release_model_inventory_mismatch_refuses_startup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        api_v2.retrieval_v2_endpoint,
+        "configured_release_model_contract",
+        lambda: (
+            api_v2.CANONICAL_EMBED_MODEL,
+            "1" * 64,
+            api_v2.CANONICAL_EMBED_DIM,
+            api_v2.CANONICAL_RERANK_MODEL,
+            "2" * 64,
+        ),
+        raising=False,
+    )
+
+    with pytest.raises(RuntimeError, match="release model inventory mismatch"):
+        api_v2._validate_release_model_attestations(
+            SimpleNamespace(inventory_sha256="9" * 64),
+            SimpleNamespace(inventory_sha256="2" * 64),
+        )
+
+
 def test_lifespan_installs_then_clears_the_startup_attestations(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -809,6 +858,8 @@ def test_lifespan_installs_then_clears_the_startup_attestations(
     reranker_attestation = SimpleNamespace(root=Path("/models/reranker"))
     attestations = (embedding_attestation, reranker_attestation)
     pool_settings = object()
+    artifacts = {"scope-a": object(), "scope-b": object()}
+    catalogue = object()
     lifecycle_events: list[tuple[Path, Path] | str | None] = []
     monkeypatch.setenv("PG_RAG_DSN", "postgresql://reader")
     monkeypatch.setenv("PG_REVIEW_DSN", "postgresql://reviewer")
@@ -827,6 +878,46 @@ def test_lifespan_installs_then_clears_the_startup_attestations(
         api_v2,
         "_initialize_model_artifacts",
         lambda: attestations,
+    )
+    monkeypatch.setattr(
+        api_v2,
+        "validate_bff_service_configuration",
+        lambda: lifecycle_events.append("bff"),
+    )
+    monkeypatch.setattr(
+        api_v2,
+        "load_identity_verifier_config",
+        lambda: lifecycle_events.append("identity")
+        or SimpleNamespace(artifacts=artifacts),
+    )
+    monkeypatch.setattr(
+        api_v2,
+        "validate_collection_catalogue_v2",
+        lambda: lifecycle_events.append("catalogue") or catalogue,
+    )
+    monkeypatch.setattr(
+        api_v2,
+        "validate_scope_registry_catalogue_alignment",
+        lambda loaded_artifacts, loaded_catalogue: lifecycle_events.append(
+            "registry_alignment"
+        )
+        if (loaded_artifacts, loaded_catalogue) == (artifacts, catalogue)
+        else pytest.fail("lifespan authority binding drifted"),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        api_v2.retrieval_v2_endpoint,
+        "validate_release_startup_configuration",
+        lambda loaded_artifacts, loaded_catalogue: lifecycle_events.append(
+            "release_configuration"
+        )
+        if (loaded_artifacts, loaded_catalogue) == (artifacts, catalogue)
+        else pytest.fail("release startup authority binding drifted"),
+    )
+    monkeypatch.setattr(
+        api_v2.retrieval_v2_endpoint,
+        "validate_configured_release_database",
+        lambda: lifecycle_events.append("release_database"),
     )
     monkeypatch.setattr(api_v2, "close_pool", lambda: None)
     monkeypatch.setattr(
@@ -867,7 +958,13 @@ def test_lifespan_installs_then_clears_the_startup_attestations(
 
     assert api_v2._model_artifact_attestations is None
     assert lifecycle_events == [
+        "bff",
+        "identity",
+        "catalogue",
+        "registry_alignment",
+        "release_configuration",
         "pool",
+        "release_database",
         (embedding_attestation.root, reranker_attestation.root),
         "preload",
         None,
@@ -912,6 +1009,37 @@ def test_lifespan_refuses_startup_when_database_readiness_is_unhealthy(
 
     assert model_initialization_calls == []
     assert closed == [True]
+
+
+def test_lifespan_refuses_startup_when_release_database_is_not_exact(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pool_settings = object()
+    model_initialization_calls: list[bool] = []
+    monkeypatch.setattr(
+        api_v2.PoolSettings,
+        "from_env",
+        classmethod(lambda _cls: pool_settings),
+    )
+    monkeypatch.setattr(api_v2, "get_pool", lambda _settings: object())
+    monkeypatch.setattr(api_v2, "close_pool", lambda: None)
+    monkeypatch.setattr(api_v2, "_database_runtime_ready", lambda: True)
+    monkeypatch.setattr(
+        api_v2.retrieval_v2_endpoint,
+        "validate_configured_release_database",
+        lambda: (_ for _ in ()).throw(RuntimeError("release database reconciliation unavailable")),
+    )
+    monkeypatch.setattr(
+        api_v2,
+        "_initialize_model_artifacts",
+        lambda: model_initialization_calls.append(True),
+    )
+
+    with pytest.raises(RuntimeError, match="release database reconciliation unavailable"):
+        with TestClient(api_v2.app):
+            pytest.fail("le runtime ne doit pas accepter une release partielle")
+
+    assert model_initialization_calls == []
 
 
 def test_lifespan_refuses_startup_when_the_real_retrieval_pool_cannot_open(
@@ -1031,8 +1159,8 @@ def test_v2_dockerfile_copies_only_the_read_review_runtime() -> None:
         assert f"services/rag-engine/src/ingestor/{required_module}" in content
     assert "infra/postgres/migrations/ /app/migrations/" in content
     assert (
-        "infra/postgres/schema_head_003_fingerprints.env "
-        "/app/schema_head_003_fingerprints.env" in content
+        "infra/postgres/schema_head_004_fingerprints.env "
+        "/app/schema_head_004_fingerprints.env" in content
     )
     for forbidden_module in (
         "api.py",
@@ -1185,6 +1313,6 @@ def test_integration_make_target_exposes_the_ingestor_package() -> None:
     makefile = MAKEFILE.read_text(encoding="utf-8")
 
     assert (
-        "test-integration: install-dev\n"
+        "test-integration: install\n"
         "\tPYTHONPATH=src $(PYTEST) tests/integration -q"
     ) in makefile

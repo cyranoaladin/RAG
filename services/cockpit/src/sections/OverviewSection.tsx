@@ -7,7 +7,7 @@ import sourcesData from '@/data/sources.json'
 import type { IngestionSource, RagCollection } from '@/types/ui'
 import { NIVEAU_LABELS } from '@/types/ui'
 
-const NIVEAUX = ['troisieme', 'seconde', 'premiere', 'terminale'] as const
+const NIVEAUX = ['quatrieme', 'troisieme', 'seconde', 'premiere', 'terminale'] as const
 const INGESTION_SOURCES = sourcesData as IngestionSource[]
 
 export default function OverviewSection({ collections, demo }: { collections: RagCollection[]; demo: boolean }) {
@@ -91,7 +91,7 @@ export default function OverviewSection({ collections, demo }: { collections: Ra
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Couverture par niveau (3e → Terminale)</CardTitle>
+            <CardTitle className="text-base">Couverture par niveau (4e → Terminale)</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {stats.byNiveau.map(({ niveau, total, inst }) => (

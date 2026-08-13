@@ -12,6 +12,7 @@ class StrictBaseModel(BaseModel):
 
 
 class Niveau(str, Enum):
+    quatrieme = "quatrieme"
     troisieme = "troisieme"
     seconde = "seconde"
     premiere = "premiere"

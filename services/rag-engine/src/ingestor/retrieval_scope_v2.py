@@ -11,7 +11,8 @@ from typing import Any, Literal
 from nexus_contracts import (
     RIGHTS_ALLOWED_CONTEXTS,
     AccessContext,
-    PilotRetrievalScopeArtifact,
+    RetrievalScopeArtifact,
+    RetrievalScopeArtifactV2,
     Rights,
 )
 
@@ -143,6 +144,8 @@ def effective_signed_collections(
         artifact.validate_envelope(envelope)
     except ValueError as exc:
         raise RetrievalScopeError("retrieval scope forbidden") from exc
+    if isinstance(artifact, RetrievalScopeArtifactV2):
+        return (artifact.evidence_subject.collection,)
     matieres = set(envelope.identity.pedagogical_profile.matieres)
     effective = tuple(
         subject.collection for subject in artifact.subjects if subject.matiere in matieres
@@ -153,21 +156,53 @@ def effective_signed_collections(
 
 
 def validate_pilot_scope_catalogue_alignment(
-    artifact: PilotRetrievalScopeArtifact,
+    artifact: RetrievalScopeArtifact,
     collection_config: Mapping[str, Any],
 ) -> None:
     """Lier chaque matière signée à sa définition catalogue autoritative."""
+    _validate_scope_catalogue_alignment(
+        artifact,
+        collection_config,
+        require_instantiated=True,
+    )
+
+
+def validate_scope_registry_catalogue_alignment(
+    artifacts: Mapping[str, RetrievalScopeArtifact],
+    collection_config: Mapping[str, Any],
+) -> None:
+    """Valider tout le registre contre les collections déclarées, sans les activer."""
+    if not artifacts or any(key != artifact.scope_id for key, artifact in artifacts.items()):
+        raise RetrievalScopeError("retrieval scope forbidden")
+    for artifact in artifacts.values():
+        _validate_scope_catalogue_alignment(
+            artifact,
+            collection_config,
+            require_instantiated=False,
+        )
+
+
+def _validate_scope_catalogue_alignment(
+    artifact: RetrievalScopeArtifact,
+    collection_config: Mapping[str, Any],
+    *,
+    require_instantiated: bool,
+) -> None:
+    """Comparer un artefact aux dimensions déclarées du catalogue monté."""
     domains = collection_config.get("domains")
     if not isinstance(domains, Mapping):
         raise RetrievalScopeError("retrieval scope forbidden")
 
-    expected_identity = artifact.identity
-    for subject in artifact.subjects:
+    if isinstance(artifact, RetrievalScopeArtifactV2):
+        evidence_subjects = (artifact.evidence_subject,)
+    else:
+        evidence_subjects = artifact.subjects
+    for subject in evidence_subjects:
         try:
-            definition = resolve_collection_v2(
-                subject.collection,
-                collection_config,
+            resolver = (
+                resolve_collection_v2 if require_instantiated else resolve_declared_collection_v2
             )
+            definition = resolver(subject.collection, collection_config)
         except CollectionConfigError as exc:
             raise RetrievalScopeError("retrieval scope forbidden") from exc
 
@@ -179,12 +214,21 @@ def validate_pilot_scope_catalogue_alignment(
         ):
             raise RetrievalScopeError("retrieval scope forbidden")
 
-        expected_dimensions = {
-            "matiere": subject.matiere,
-            "niveau": expected_identity.niveau.value,
-            "voie": expected_identity.voie.value,
-            "statut": expected_identity.statut_enseignement.value,
-        }
+        if isinstance(artifact, RetrievalScopeArtifactV2):
+            expected_dimensions = {
+                "matiere": subject.matiere,
+                "niveau": subject.niveau.value,
+                "voie": subject.voie.value,
+                "statut": subject.statut_enseignement.value,
+            }
+        else:
+            expected_identity = artifact.identity
+            expected_dimensions = {
+                "matiere": subject.matiere,
+                "niveau": expected_identity.niveau.value,
+                "voie": expected_identity.voie.value,
+                "statut": expected_identity.statut_enseignement.value,
+            }
         if any(
             definition.get(dimension) != expected
             for dimension, expected in expected_dimensions.items()
@@ -259,40 +303,81 @@ def _build_server_scope(
     if collection not in effective_signed_collections(verified):
         raise RetrievalScopeError("retrieval scope forbidden")
 
-    subject = next(
-        (candidate for candidate in artifact.subjects if candidate.collection == collection),
-        None,
-    )
+    if isinstance(artifact, RetrievalScopeArtifactV2):
+        subject = (
+            artifact.evidence_subject
+            if artifact.evidence_subject.collection == collection
+            else None
+        )
+    else:
+        subject = next(
+            (candidate for candidate in artifact.subjects if candidate.collection == collection),
+            None,
+        )
     if subject is None:
         raise RetrievalScopeError("retrieval scope forbidden")
 
     identity = envelope.identity
     profile = identity.pedagogical_profile
-    dimensions = {
-        "niveau": identity.niveau.value,
-        "voie": profile.voie.value,
-        "matiere": subject.matiere,
-        "statut": profile.statut_enseignement.value,
-    }
+    if isinstance(artifact, RetrievalScopeArtifactV2):
+        evidence = artifact.evidence_subject
+        dimensions = {
+            "niveau": evidence.niveau.value,
+            "voie": evidence.voie.value,
+            "matiere": evidence.matiere,
+            "statut": evidence.statut_enseignement.value,
+        }
+        tenant = evidence.tenant
+        niveau = evidence.niveau.value
+        voie = evidence.voie.value
+        matiere = evidence.matiere
+        statut_enseignement = evidence.statut_enseignement.value
+        candidat = evidence.candidat.value
+        audiences = tuple(evidence.audiences)
+        school_year = evidence.school_year
+        programme_version = evidence.programme_version
+        allowed_rights = set(allowed_rights_for_role(identity.role))
+        rights = tuple(right for right in evidence.rights if right in allowed_rights)
+        role_visibilities = allowed_visibilities_for_role(identity.role)
+        visibilities = (evidence.visibility,) if evidence.visibility in role_visibilities else ()
+        if not rights or not visibilities:
+            raise RetrievalScopeError("retrieval scope forbidden")
+    else:
+        dimensions = {
+            "niveau": identity.niveau.value,
+            "voie": profile.voie.value,
+            "matiere": subject.matiere,
+            "statut": profile.statut_enseignement.value,
+        }
+        if subject.matiere not in profile.matieres:
+            raise RetrievalScopeError("retrieval scope forbidden")
+        tenant = identity.tenant
+        niveau = identity.niveau.value
+        voie = profile.voie.value
+        matiere = subject.matiere
+        statut_enseignement = profile.statut_enseignement.value
+        candidat = profile.candidat.value
+        audiences = tuple(dict.fromkeys((profile.audience, "tous")))
+        school_year = identity.school_year
+        programme_version = subject.programme_version
+        rights = allowed_rights_for_role(identity.role)
+        visibilities = allowed_visibilities_for_role(identity.role)
     if any(definition.get(key) != expected for key, expected in dimensions.items()):
         raise RetrievalScopeError("retrieval scope forbidden")
-    if subject.matiere not in profile.matieres:
-        raise RetrievalScopeError("retrieval scope forbidden")
 
-    audiences = tuple(dict.fromkeys((profile.audience, "tous")))
     return ServerRetrievalScope(
-        tenant=identity.tenant,
-        niveau=identity.niveau.value,
-        voie=profile.voie.value,
-        matiere=subject.matiere,
-        statut_enseignement=profile.statut_enseignement.value,
-        candidat=profile.candidat.value,
+        tenant=tenant,
+        niveau=niveau,
+        voie=voie,
+        matiere=matiere,
+        statut_enseignement=statut_enseignement,
+        candidat=candidat,
         audiences=audiences,
-        rights=allowed_rights_for_role(identity.role),
-        visibilities=allowed_visibilities_for_role(identity.role),
-        school_year=identity.school_year,
+        rights=rights,
+        visibilities=visibilities,
+        school_year=school_year,
         collection=collection,
-        programme_version=subject.programme_version,
+        programme_version=programme_version,
         scope_id=artifact.scope_id,
         scope_digest=artifact.sha256_digest(),
         source_sha256=artifact.source_sha256,
@@ -308,4 +393,5 @@ __all__ = [
     "build_server_retrieval_scope",
     "effective_signed_collections",
     "validate_pilot_scope_catalogue_alignment",
+    "validate_scope_registry_catalogue_alignment",
 ]

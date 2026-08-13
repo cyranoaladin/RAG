@@ -565,7 +565,8 @@ probe_trusted_review_ci_execution() {
     : > "$probe_root/wiring.log"
 
     set +e
-    NEXUS_CI_PROBE_PYTHON="$probe_python" \
+    NEXUS_CI_LOCAL_RUNNING=0 \
+        NEXUS_CI_PROBE_PYTHON="$probe_python" \
         NEXUS_CI_PROBE_NODE="$probe_root/fake-node" \
         NEXUS_CI_WIRING_LOG="$probe_root/wiring.log" \
         bash "$probe_root/scripts/ci-local.sh" >/dev/null 2>&1

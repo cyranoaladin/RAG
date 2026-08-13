@@ -32,9 +32,12 @@ ANCHOR_MODULE = SRC_ROOT / "ingestor" / "ingestion_control" / "publication_attes
 
 #: Modules autorisés à *mentionner* l'état sans jamais y transitionner —
 #: ``claim.py`` l'EXCLUT de l'ensemble réclamable (frozenset - {...}), ce
-#: qui est l'inverse d'une transition vers cet état.
+#: qui est l'inverse d'une transition vers cet état. Le publisher produit le
+#: LIT et refuse toute ressource qui n'a pas déjà traversé l'ancre LOT42 ; il
+#: n'importe et n'appelle aucune primitive de transition.
 _ALLOWED_NON_TRANSITION_REFERENCES = {
     SRC_ROOT / "ingestor" / "ingestion_control" / "claim.py",
+    SRC_ROOT / "ingestor" / "governed_publisher_v2.py",
 }
 
 

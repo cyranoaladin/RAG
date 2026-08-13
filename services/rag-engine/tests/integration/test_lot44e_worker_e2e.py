@@ -54,6 +54,10 @@ from ingestor.ingestion_control.jobs import create_job  # noqa: E402
 from ingestor.ingestion_control.scope_authority import (  # noqa: E402
     ScopeAuthorizationDeniedError,
 )
+from ingestor.ingestion_control.sealed_evidence import (  # noqa: E402
+    VerifiedPIIEvidenceRegistry,
+    VerifiedRightsEvidenceRegistry,
+)
 from ingestor.ingestion_profiles.registry import (  # noqa: E402
     load_profile_registry,
     profile_fingerprint,
@@ -312,9 +316,91 @@ def _always_authorized(conn, *, authorization_id, scope=None, now=None):
     )
 
 
+#: SHA-256 des octets réellement stockés par Fetcher pour les doublures de
+#: ce fichier. C'est ce digest que le worker interroge — pas celui de la
+#: réponse HTTP brute, qui peut différer après normalisation.
+#:
+#: La preuve couvre ces contenus et eux seuls : un test qui changerait son
+#: contenu sans étendre la preuve doit échouer, pas passer par défaut.
+_FETCHED_CONTENT_SHAS = (
+    "27610d4b542a4405553c0bd54bf1fb927ee2d2d7b047e38ddc85a081a358a00d",
+    "5fb448b94317a73402a717828c1fe4272ce161941b08b3534738718a13b9f26f",
+)
+
+
+def _sealed_evidence(
+    tmp_path: Path,
+) -> tuple[VerifiedPIIEvidenceRegistry, VerifiedRightsEvidenceRegistry]:
+    """Preuves scellées synthétiques mais cryptographiquement cohérentes.
+
+    Le worker en exige sur toute voie publiable. Elles sont construites
+    ici plutôt que dans le code de production : rendre le worker tolérant
+    pour satisfaire un test annulerait précisément ce qui a été fermé.
+
+    La zone de droits est le préfixe d'URL du domaine autorisé, ce test
+    travaillant sur une URL de doublure et non sur un chemin du manifeste
+    scellé.
+    """
+    import hashlib as _hashlib
+    import json as _json
+
+    evidence_dir = tmp_path / "sealed-evidence"
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+
+    pii_path = evidence_dir / "pii.json"
+    pii_path.write_text(
+        _json.dumps({
+            "evidence_kind": "REAL_CORPUS_PII_SCAN",
+            "corpus_manifest_sha256": STUB_MANIFEST_DIGEST,
+            "remote_access_mode": "READ_ONLY",
+            "remote_write_operations": 0,
+            "raw_pii_in_output": False,
+            "raw_pii_in_logs": False,
+            "results": [
+                {"content_sha256": sha, "status": "CLEARED",
+                 "pii_detected": False, "pages_scanned": 1,
+                 "characters_scanned": 46}
+                for sha in _FETCHED_CONTENT_SHAS
+            ],
+        }),
+        encoding="utf-8",
+    )
+    rights_path = evidence_dir / "rights.yml"
+    rights_path.write_text(
+        "registry_id: lot44e_test_registry\n"
+        "human_rights_decisions:\n"
+        "  eduscol:\n"
+        f"    scope_manifest_sha256: \"{STUB_MANIFEST_DIGEST}\"\n"
+        "    scope_zone: https://eduscol.education.fr/\n"
+        "    approved_for_production_rag: true\n"
+        "source_evidence:\n"
+        "  eduscol:\n"
+        "    zone: https://eduscol.education.fr/\n"
+        "    recommended_rights_category: officiel_public\n",
+        encoding="utf-8",
+    )
+    return (
+        VerifiedPIIEvidenceRegistry.load(
+            pii_path,
+            expected_evidence_sha256=_hashlib.sha256(
+                pii_path.read_bytes()
+            ).hexdigest(),
+            expected_corpus_manifest_sha256=STUB_MANIFEST_DIGEST,
+        ),
+        VerifiedRightsEvidenceRegistry.load(
+            rights_path,
+            expected_registry_sha256=_hashlib.sha256(
+                rights_path.read_bytes()
+            ).hexdigest(),
+            expected_corpus_manifest_sha256=STUB_MANIFEST_DIGEST,
+        ),
+    )
+
+
 def _worker_deps(tmp_path: Path, *, safe_fetch, owner: str = "worker-e2e") -> WorkerDeps:
     profiles_dir = tmp_path / "profiles"
     _write_profile(profiles_dir)
+    pii_registry, rights_registry = _sealed_evidence(tmp_path)
     return WorkerDeps(
         owner=owner,
         profile_registry=load_profile_registry(profiles_dir),
@@ -324,6 +410,8 @@ def _worker_deps(tmp_path: Path, *, safe_fetch, owner: str = "worker-e2e") -> Wo
         safe_fetch=safe_fetch,
         verify_scope_authorization=_always_authorized,
         manifest_digest=STUB_MANIFEST_DIGEST,
+        pii_evidence_registry=pii_registry,
+        rights_evidence_registry=rights_registry,
     )
 
 
@@ -462,6 +550,8 @@ class TestWorkerE2E:
             safe_fetch=_fake_safe_fetch_high_quality,
             verify_scope_authorization=_always_authorized,
             manifest_digest=STUB_MANIFEST_DIGEST,
+            pii_evidence_registry=_sealed_evidence(tmp_path)[0],
+            rights_evidence_registry=_sealed_evidence(tmp_path)[1],
         )
 
         # Modification post-démarrage : le profil approuvé devient désactivé
@@ -512,6 +602,8 @@ class TestWorkerE2E:
             safe_fetch=_fake_safe_fetch_success,
             verify_scope_authorization=_always_authorized,
             manifest_digest=STUB_MANIFEST_DIGEST,
+            pii_evidence_registry=_sealed_evidence(tmp_path)[0],
+            rights_evidence_registry=_sealed_evidence(tmp_path)[1],
         )
 
         outcome = run_worker_iteration(app_conn, deps=deps)
@@ -557,6 +649,8 @@ class TestWorkerE2E:
             safe_fetch=failing_safe_fetch,
             verify_scope_authorization=_always_authorized,
             manifest_digest=STUB_MANIFEST_DIGEST,
+            pii_evidence_registry=_sealed_evidence(tmp_path)[0],
+            rights_evidence_registry=_sealed_evidence(tmp_path)[1],
         )
 
         first_outcome = run_worker_iteration(app_conn, deps=failing_deps)

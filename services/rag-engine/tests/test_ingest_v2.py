@@ -107,15 +107,20 @@ class TestCollectionGate:
 
     def test_non_instanciated_rejected(self) -> None:
         """Ingesting into a non-instanciated collection must fail."""
+        from ingestor.collection_config import validate_collection_catalogue_v2
         from ingestor.ingest_v2 import ingest_document
 
+        collection = "rag_nexus_maths_premiere_gen_tc"
+        catalogue = validate_collection_catalogue_v2()
+        assert catalogue["collections"][collection]["instanciee"] is False
+
         req = IngestV2Request(
-            collection="rag_nexus_maths_seconde_tc",  # instanciee: false
+            collection=collection,
             source_label="test.pdf",
             source_uri="upload://test.pdf",
             rights="usage_interne",
             matiere="maths",
-            niveau="seconde",
+            niveau="premiere",
         )
         prov = Provenance(route="test", timestamp=0, token_hash="x", source_type="file")
 

@@ -758,17 +758,23 @@ def test_runner_pins_security_bounds_and_cleanup_contract() -> None:
     assert "postgresql://$PGVECTOR_APP_USER@127.0.0.1:" in content
     assert "LOT40_PG_ADMIN_DSN" in content
     assert "provision_runtime_roles.sh" in content
-    assert "LOGIN PASSWORD :'retrieval_password'" in provisioning
-    assert "LOGIN PASSWORD :'review_password'" in provisioning
+    assert "CREATE ROLE %I LOGIN PASSWORD %L" in provisioning
+    assert ":'retrieval_password'" in provisioning
+    assert ":'review_password'" in provisioning
+    assert ":'publisher_password'" in provisioning
     assert "NOSUPERUSER NOCREATEDB NOCREATEROLE" in provisioning
     assert "GRANT SELECT ON TABLE rag_chunks" in provisioning
     assert provisioning.count("GRANT SELECT ON TABLE rag_schema_migrations") == 1
     assert (
         provisioning.index("GRANT SELECT ON TABLE rag_schema_migrations")
-        < provisioning.index('CREATE ROLE :"review_user"')
+        < provisioning.index(":'review_user', :'review_password'")
     )
     assert "GRANT UPDATE (review_status) ON TABLE rag_chunks" in provisioning
-    assert "GRANT INSERT" not in provisioning
+    assert "GRANT SELECT, INSERT ON TABLE rag_artifacts" in provisioning
+    assert "GRANT SELECT, INSERT ON TABLE rag_artifact_placements" in provisioning
+    assert "GRANT SELECT, INSERT ON TABLE rag_chunks" in provisioning
+    assert "GRANT UPDATE ON TABLE rag_artifacts" not in provisioning
+    assert "GRANT UPDATE ON TABLE rag_artifact_placements" not in provisioning
     assert "GRANT TRUNCATE" not in provisioning
     assert '[[ "$1" =~ [Nn]o[[:space:]]such' not in content
     assert '[[ "$1" =~ [Nn]ot[[:space:]]found' not in content
@@ -778,7 +784,7 @@ def test_runner_pins_security_bounds_and_cleanup_contract() -> None:
 def test_make_target_runs_the_dedicated_runner_after_dev_install() -> None:
     content = MAKEFILE.read_text(encoding="utf-8")
     assert re.search(
-        r"^test-integration-hybrid: install-dev\n"
+        r"^test-integration-hybrid: install\n"
         r"\tbash infra/scripts/test_hybrid_integration[.]sh$",
         content,
         re.MULTILINE,
@@ -791,29 +797,42 @@ def test_runner_exercises_canonical_cycle_and_both_atomic_rollbacks() -> None:
     assert "BOOTSTRAP_002_UNREGISTERED=PASS" in content
     assert "ATOMIC_ADOPTION_002_ROLLBACK=PASS" in content
     assert "BOOTSTRAP_ADOPTION_002=PASS" in content
-    assert "expect_failure FRESH_HEAD_003_NEGATIVE" in content
+    assert "expect_failure FRESH_HEAD_004_NEGATIVE" in content
     assert "apply_pgvector_migrations.sh" in content
     assert "rollback_pgvector_migration.sh" in content
     assert "rollback_pgvector_profile_filtering.sh" in content
-    assert "MIGRATION_CYCLE_001_002_003_002_001_003=PASS" in content
+    assert "MIGRATION_CYCLE_001_002_003_004_003_002_001_004=PASS" in content
     assert content.count("SELECT 1 / 0;") == 3
     assert "ATOMIC_UP_ROLLBACK=PASS" in content
     assert "ATOMIC_DOWN_ROLLBACK=PASS" in content
     assert "ROLLBACK_003_DATA_GUARD=PASS" in content
-    assert "MIGRATION_FINAL_HEAD_003=PASS" in content
+    assert "ROLLBACK_004_DATA_GUARD=PASS" in content
+    assert "MIGRATION_FINAL_HEAD_004=PASS" in content
+    assert "HEAD_003_RUNTIME_ROLES_PROVISIONED=PASS" in content
+    assert "UPGRADE_004_RUNTIME_GRANTS=PASS" in content
 
 
-def test_runner_invokes_only_the_lot40_real_pgvector_module() -> None:
+def test_runner_invokes_lot40_and_only_opts_into_the_real_h2c_rehearsal() -> None:
     content = RUNNER.read_text(encoding="utf-8")
-    assert (
-        'PYTHONPATH="$SERVICE_ROOT/src" "$PYTEST_BIN" '
-        '"$SERVICE_ROOT/tests/integration/test_lot40_hybrid_pgvector.py" -q'
-        in content
-    )
+    assert '"$SERVICE_ROOT/tests/integration/test_lot40_hybrid_pgvector.py"' in content
+    assert 'if [[ -n "${NEXUS_H2C_REAL_REHEARSAL:-}" ]]' in content
+    assert 'if [[ -n "${NEXUS_H2C_REHEARSAL_ONLY:-}" ]]' in content
+    assert 'integration_tests=()' in content
+    assert '"$SERVICE_ROOT/tests/integration/test_h2c_governed_rehearsal.py"' in content
+    assert '"${integration_tests[@]}" -q -s' in content
     assert 'PYTEST_BIN="${NEXUS_RAG_ENGINE_PYTEST:-' in content
     assert 'LOT40_PG_DSN="$LOT40_PG_DSN"' in content
     assert 'LOT40_PG_ADMIN_DSN="$LOT40_PG_ADMIN_DSN"' in content
     assert 'LOT41_PG_REVIEW_DSN="$LOT41_PG_REVIEW_DSN"' in content
+
+
+def test_runner_reports_only_the_integration_suite_it_actually_executed() -> None:
+    content = RUNNER.read_text(encoding="utf-8")
+    assert "lot40_integration_executed=1" in content
+    assert "lot40_integration_executed=0" in content
+    assert "if (( lot40_integration_executed == 1 )); then" in content
+    assert 'echo "LOT40_HYBRID_INTEGRATION=PASS"' in content
+    assert 'echo "H2E_V2_GOVERNED_REHEARSAL=PASS"' in content
 
 
 def test_real_module_explains_the_exact_production_lexical_sql() -> None:

@@ -13,6 +13,29 @@ from fastapi.responses import JSONResponse
 from prometheus_client import CONTENT_TYPE_LATEST
 from starlette.concurrency import run_in_threadpool
 
+
+def _missing_sibling(exc: ImportError) -> bool:
+    """Le frère visé est-il absent, ou son exécution a-t-elle échoué ?
+
+    Deux situations autorisent le repli : le module frère (ou son paquet
+    parent) est introuvable, et le runtime aplati de l'image Docker, où
+    les modules n'ont pas de paquet parent et ``from .x import y`` lève
+    « attempted relative import with no known parent package ».
+
+    Tout le reste — une dépendance transitive manquante, un ``cannot
+    import name``, une configuration refusée — remonte intact : réessayer
+    par un autre chemin rejouerait le même échec sous un autre nom.
+    """
+    if not isinstance(exc, ModuleNotFoundError):
+        return exc.name is None and "relative import" in str(exc)
+    name = exc.name or ""
+    return name == name.rsplit(".", 1)[-1] or name in (
+        "src",
+        "src.ingestor",
+        "ingestor",
+    )
+
+
 try:
     from . import metrics as ingest_metrics
     from . import retrieval_v2_endpoint, review_v2_endpoint
@@ -45,16 +68,24 @@ try:
         postgres_database_authorities_share_instance,
         readiness_database_budget,
     )
-    from .reranker_contract import verify_configured_reranker_artifact
+    from .reranker_contract import (
+        CANONICAL_RERANK_MODEL,
+        verify_configured_reranker_artifact,
+    )
     from .retrieval_readiness_v2 import retrieval_database_ready
-    from .retrieval_scope_v2 import validate_pilot_scope_catalogue_alignment
+    from .retrieval_scope_v2 import validate_scope_registry_catalogue_alignment
     from .review_readiness_v2 import review_database_ready
-    from .schema_readiness_v2 import schema_head_003_ready
+    from .schema_readiness_v2 import schema_head_004_ready
     from .security_v2 import (
         require_bff_service,
         validate_bff_service_configuration,
     )
-except (ImportError, ValueError):
+except ImportError as _exc:  # repli à plat, cause réelle préservée
+    if not _missing_sibling(_exc):
+        # Le module frère existe : c'est l'une de ses dépendances qui
+        # manque, ou sa configuration qui a été refusée. Réessayer par un
+        # autre chemin rejouerait le même échec sous un autre nom.
+        raise
     import metrics as ingest_metrics  # type: ignore[no-redef]
     import retrieval_v2_endpoint  # type: ignore[no-redef]
     import review_v2_endpoint  # type: ignore[no-redef]
@@ -92,19 +123,20 @@ except (ImportError, ValueError):
         readiness_database_budget,
     )
     from reranker_contract import (  # type: ignore[no-redef]
+        CANONICAL_RERANK_MODEL,
         verify_configured_reranker_artifact,
     )
     from retrieval_readiness_v2 import (  # type: ignore[no-redef]
         retrieval_database_ready,
     )
     from retrieval_scope_v2 import (  # type: ignore[no-redef]
-        validate_pilot_scope_catalogue_alignment,
+        validate_scope_registry_catalogue_alignment,
     )
     from review_readiness_v2 import (  # type: ignore[no-redef]
         review_database_ready,
     )
     from schema_readiness_v2 import (  # type: ignore[no-redef]
-        schema_head_003_ready,
+        schema_head_004_ready,
     )
     from security_v2 import (  # type: ignore[no-redef]
         require_bff_service,
@@ -123,12 +155,10 @@ _ALLOWED_BUSINESS_ROUTES = frozenset(
     }
 )
 _OBSERVED_ROUTES = _ALLOWED_BUSINESS_ROUTES | {"/health", "/metrics"}
-_OBSERVED_METHODS = frozenset(
-    {"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"}
+_OBSERVED_METHODS = frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"})
+_model_artifact_attestations: tuple[ModelArtifactAttestation, ModelArtifactAttestation] | None = (
+    None
 )
-_model_artifact_attestations: (
-    tuple[ModelArtifactAttestation, ModelArtifactAttestation] | None
-) = None
 _READINESS_CACHE_TTL_S = 5.0
 _READINESS_LOCK_TIMEOUT_S = (READINESS_AGGREGATE_BUDGET_MS + 1000) / 1000
 _database_readiness_cache_lock = Lock()
@@ -144,10 +174,12 @@ def _required_model_inventory_anchor(environment_variable: str) -> str:
     return anchor
 
 
-def _initialize_model_artifacts() -> tuple[
-    ModelArtifactAttestation,
-    ModelArtifactAttestation,
-]:
+def _initialize_model_artifacts() -> (
+    tuple[
+        ModelArtifactAttestation,
+        ModelArtifactAttestation,
+    ]
+):
     """Hacher intégralement les deux artefacts avant d'accepter du trafic."""
     embedding_root = verify_configured_embedding_artifact()
     reranker_root = verify_configured_reranker_artifact()
@@ -164,6 +196,25 @@ def _initialize_model_artifacts() -> tuple[
         ),
     )
     return embedding_attestation, reranker_attestation
+
+
+def _validate_release_model_attestations(
+    embedding_attestation: ModelArtifactAttestation,
+    reranker_attestation: ModelArtifactAttestation,
+) -> None:
+    """Lier les poids attestés aux inventaires scellés de la release active."""
+    expected = retrieval_v2_endpoint.configured_release_model_contract()
+    if expected is None:
+        return
+    actual = (
+        CANONICAL_EMBED_MODEL,
+        embedding_attestation.inventory_sha256,
+        CANONICAL_EMBED_DIM,
+        CANONICAL_RERANK_MODEL,
+        reranker_attestation.inventory_sha256,
+    )
+    if actual != expected:
+        raise RuntimeError("release model inventory mismatch")
 
 
 def _model_artifacts_ready() -> bool:
@@ -206,7 +257,7 @@ def _probe_database_readiness(
         )
         return (
             pgvector_dimension(rag_dsn),
-            schema_head_003_ready(rag_dsn),
+            schema_head_004_ready(rag_dsn),
             retrieval_database_ready(rag_dsn),
             review_database_ready(review_dsn),
             same_database,
@@ -276,9 +327,7 @@ def _database_readiness_is_healthy(
     readiness: tuple[int, bool, bool, bool, bool],
 ) -> bool:
     """Interpréter en un seul endroit la preuve exigée par toutes les routes."""
-    database_dim, schema_ready, retrieval_ready, review_ready, same_database = (
-        readiness
-    )
+    database_dim, schema_ready, retrieval_ready, review_ready, same_database = readiness
     return (
         database_dim == CANONICAL_EMBED_DIM
         and schema_ready
@@ -291,11 +340,24 @@ def _database_readiness_is_healthy(
 def _database_runtime_ready() -> bool:
     """Fermer le runtime sur toute preuve PostgreSQL absente ou invalide."""
     try:
-        return _database_readiness_is_healthy(
-            _database_readiness_from_environment()
-        )
+        return _database_readiness_is_healthy(_database_readiness_from_environment())
     except Exception:
         return False
+
+
+def _validate_runtime_authorities() -> None:
+    """Lier au démarrage le BFF, le registre signé et le catalogue monté."""
+    validate_bff_service_configuration()
+    identity_config = load_identity_verifier_config()
+    collection_catalogue = validate_collection_catalogue_v2()
+    validate_scope_registry_catalogue_alignment(
+        identity_config.artifacts,
+        collection_catalogue,
+    )
+    retrieval_v2_endpoint.validate_release_startup_configuration(
+        identity_config.artifacts,
+        collection_catalogue,
+    )
 
 
 @asynccontextmanager
@@ -303,11 +365,17 @@ async def _app_lifespan(_app: FastAPI) -> AsyncIterator[None]:
     global _model_artifact_attestations
     try:
         _reset_database_readiness_cache()
+        _validate_runtime_authorities()
         get_pool(PoolSettings.from_env())
         if not _database_runtime_ready():
             raise RuntimeError("database readiness unavailable")
+        retrieval_v2_endpoint.validate_configured_release_database()
         _model_artifact_attestations = _initialize_model_artifacts()
         embedding_attestation, reranker_attestation = _model_artifact_attestations
+        _validate_release_model_attestations(
+            embedding_attestation,
+            reranker_attestation,
+        )
         retrieval_v2_endpoint.configure_verified_model_artifacts(
             embedding_root=embedding_attestation.root,
             reranker_root=reranker_attestation.root,
@@ -351,9 +419,7 @@ async def _metrics_middleware(request: Request, call_next):
             else:
                 try:
                     with runtime_request_budget():
-                        database_ready = await run_in_threadpool(
-                            _database_runtime_ready
-                        )
+                        database_ready = await run_in_threadpool(_database_runtime_ready)
                         if database_ready:
                             remaining_request_budget_ms()
                             response = await call_next(request)
@@ -396,13 +462,7 @@ _mount_allowed_routes()
 def health_check() -> dict[str, str | int]:
     try:
         PoolSettings.from_env()
-        validate_bff_service_configuration()
-        identity_config = load_identity_verifier_config()
-        collection_catalogue = validate_collection_catalogue_v2()
-        validate_pilot_scope_catalogue_alignment(
-            identity_config.artifact,
-            collection_catalogue,
-        )
+        _validate_runtime_authorities()
         model = declared_embedding_model()
         declared_dim = declared_embedding_dim()
         model_artifacts_ready = _model_artifacts_ready()
@@ -420,7 +480,7 @@ def health_check() -> dict[str, str | int]:
         raise HTTPException(status_code=503, detail="service unavailable")
     return {
         "status": "healthy",
-        "schema_head": "003_profile_filtering",
+        "schema_head": "004_artifact_placements",
         "embedding_model": model,
         "embedding_dim_declared": declared_dim,
         "pgvector_dim": database_dim,

@@ -1,0 +1,49 @@
+policy_version: H2C-INITIAL-PLACEMENTS-V1
+decision_type: HUMAN_ORGANIZATIONAL_PLACEMENT_APPROVAL
+decision_maker: Nexus Réussite
+decision_date: "2026-08-09"
+corpus_manifest_sha256: d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e
+pii_evidence_sha256: 3db37e916250300f0a0d538fd924802f222ce3a8880b595971f3cf4ab2b29b87
+known_quarantine_sha256: b81201b857c67e4e928a079cfe9d5b9b402537d0101bfccc730465631d5e8376
+default_decision: REVIEW_REQUIRED
+approved_artifacts:
+  03f268dc1f2628dbc76c58921ed868624437f06a15432ea055fff844f12aaf91:
+    source_scope: lycee/terminal/philosophie
+    source_subject: philosophie
+    source_level: non-classe
+    source_status: actuel
+    source_document_type: programme-officiel
+    source_url: https://eduscol.education.gouv.fr/5826/programmes-et-ressources-en-philosophie-voie-gt
+    collection: rag_nexus_philo_terminale_tc
+  846962c15217af5cfe7ba40b173e94cb225d2153ffd3131d23b2c60a2b5e9a17:
+    source_scope: lycee/terminal/philosophie
+    source_subject: philosophie
+    source_level: non-classe
+    source_status: actuel
+    source_document_type: programme-officiel
+    source_url: https://eduscol.education.gouv.fr/5826/programmes-et-ressources-en-philosophie-voie-gt
+    collection: rag_nexus_philo_terminale_tc
+  b5ed52b1a4754298f7ecdbc56cb886a438c580ebd04284be0ca878b82e7c62db:
+    source_scope: lycee/terminal/philosophie
+    source_subject: philosophie
+    source_level: non-classe
+    source_status: actuel
+    source_document_type: ressource-accompagnement
+    source_url: https://eduscol.education.gouv.fr/5826/programmes-et-ressources-en-philosophie-voie-gt
+    collection: rag_nexus_philo_terminale_tc
+  e7cf3bdb7a1c3831ccc465d842d8ab0dacb688d565cb35510aee4eac4f2bf5f9:
+    source_scope: lycee/terminal/philosophie
+    source_subject: philosophie
+    source_level: non-classe
+    source_status: actuel
+    source_document_type: ressource-accompagnement
+    source_url: https://eduscol.education.gouv.fr/5826/programmes-et-ressources-en-philosophie-voie-gt
+    collection: rag_nexus_philo_terminale_tc
+  f0dec90cafd512cb754fb71ed33dbf0a48f0e67a166be35b5b16a1daa6dd006d:
+    source_scope: lycee/terminal/philosophie
+    source_subject: philosophie
+    source_level: non-classe
+    source_status: actuel
+    source_document_type: programme-officiel
+    source_url: https://eduscol.education.gouv.fr/5826/programmes-et-ressources-en-philosophie-voie-gt
+    collection: rag_nexus_philo_terminale_tc

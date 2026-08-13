@@ -1,0 +1,56 @@
+# Test Zone Routing Configuration — H2-B fixture
+config_id: corpus_zone_routing_h2b_test_v1
+status: test
+corpus_total_objects: 10
+
+zone_rules:
+  - zone_prefix: "00_ADMIN/"
+    disposition: EXCLUDE
+    reason: "Administrative zone"
+
+  - zone_prefix: "00_INDEX_PROVENANCE/"
+    disposition: EXCLUDE
+    reason: "Provenance tracking zone"
+
+  - zone_prefix: "01_EDUSCOL_OFFICIEL/"
+    disposition: null
+    sub_zone_routing:
+      - sub_zone_suffix: "/10_ACTUEL_CONFIRME/"
+        disposition: INGEST
+        currentness: actuel
+
+      - sub_zone_suffix: "/20_TRANSITION_OU_ACTUEL/"
+        disposition: REVIEW_REQUIRED
+        currentness: transition
+        review_reason: "Regulatory status ambiguous"
+
+      - sub_zone_suffix: "/80_A_VERIFIER/"
+        disposition: REVIEW_REQUIRED
+        currentness: a_verifier
+        review_reason: "Regulatory currentness not classified"
+
+      - sub_zone_suffix: "/90_ARCHIVE_CATALOGUE/"
+        disposition: ARCHIVE_ONLY
+        currentness: archive
+        archive_reason: "Superseded by newer version"
+
+  - zone_prefix: "02_NEXUS_DIAGNOSTICS/"
+    disposition: REVIEW_REQUIRED
+    reason: "Nexus proprietary content"
+    rights_category: nexus_proprietaire
+
+  - zone_prefix: "03_RESSOURCES_INTERACTIVES/"
+    disposition: UNSUPPORTED
+    reason: "GeoGebra format not supported"
+
+  - zone_prefix: "04_COMPLEMENTS_PEDAGOGIQUES/"
+    disposition: REVIEW_REQUIRED
+    reason: "Mixed provenance"
+    sub_zone_routing:
+      - sub_zone_suffix: "/01_SOURCES_INSTITUTIONNELLES/"
+        disposition: REVIEW_REQUIRED
+        rights_category_candidate: officiel_public
+
+      - sub_zone_suffix: "/02_RESSOURCES_AUTEUR_NEXUS/"
+        disposition: REVIEW_REQUIRED
+        rights_category: nexus_proprietaire
