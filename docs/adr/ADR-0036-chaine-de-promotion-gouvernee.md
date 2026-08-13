@@ -14,8 +14,12 @@
   la même PR qui introduit à la fois ce document et le contrat qui
   implémente son mécanisme central
   (`packages/contracts/src/nexus_contracts/production_readiness.py`,
-  protocole `NEXUS-PRODUCTION-READINESS-V1`). Aucune autre PR ne touche ce
-  fichier ADR (`git log --all` le confirme).
+  protocole `NEXUS-PRODUCTION-READINESS-V1`). Aucune autre PR d'implémentation
+  ne touche ce fichier ADR — vérifié via l'API GitHub sur l'ensemble des PR,
+  tout état confondu (`gh pr list --state all`), pas via l'historique Git
+  local seul (qui ne voit que les refs déjà récupérées) : seules les PR #95
+  et #103 — cette dernière étant la présente PR documentaire d'acceptation,
+  explicitement exclue du décompte des PR d'implémentation — apparaissent.
 - **Périmètre** : la chaîne qui relie un commit relu à une unité réellement
   déployée, et la preuve conservée de cette liaison. Ce document n'autorise
   aucun déploiement et ne provisionne aucune clé.

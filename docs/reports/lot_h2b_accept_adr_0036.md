@@ -24,6 +24,36 @@ que PR #95 (ni PR #102) est la PR d'implémentation sans preuve — l'audit
 ci-dessous établit ce fait depuis l'historique Git et l'API GitHub, pas
 depuis un raisonnement par analogie avec ADR-0035.
 
+## Codex — un constat réel, corrigé avant merge
+
+Codex (review sur le HEAD `3841862`) a signalé, à raison : `git log --all`
+sur le clone local ne prouve rien d'autoritaire — cette commande ne voit
+que les refs déjà récupérées localement (pas nécessairement toutes les
+branches de PR, y compris fermées/non fusionnées/jamais récupérées), et
+ma première version de ce rapport ne distinguait pas explicitement la
+présente PR documentaire (#103, qui modifie légitimement ce même fichier)
+d'une éventuelle « autre PR d'implémentation ».
+
+**Corrigé par une preuve plus forte, interrogeant GitHub directement plutôt
+que le clone local :**
+
+```
+$ gh api "repos/cyranoaladin/RAG/commits?path=docs/adr/ADR-0036-chaine-de-promotion-gouvernee.md&per_page=100" --paginate
+→ un seul commit dans l'historique de main avant ce lot : 2182339 (PR #95)
+
+$ gh pr list --state all --json number,title,files --limit 200 \
+    --jq '.[] | select(.files[]?.path == "docs/adr/ADR-0036-chaine-de-promotion-gouvernee.md") | {number, title}'
+→ {"number":103,"title":"docs(adr): accept ADR-0036 after governed PR #95 review"}
+→ {"number":95,"title":"H2-B: corpus production-readiness authority and evidence gates "}
+```
+
+Deux résultats, tout état confondu (open/closed/merged) : PR #95
+(l'implémentation, déjà utilisée comme preuve) et PR #103 (la présente PR
+documentaire, explicitement exclue du décompte des PR d'implémentation).
+Aucune autre PR, à aucun état, n'a jamais touché ce fichier. Le texte de
+l'ADR et de ce rapport sont corrigés pour citer cette méthode plutôt que
+`git log --all`.
+
 ## Preuve vérifiée en direct (pas déduite d'un texte historique, pas réutilisée sans revérification)
 
 ```
@@ -37,11 +67,9 @@ ADR0036_TRUSTED_WORKFLOW_SUCCESS=true
 ADR0036_ACCEPTANCE_CONDITION_SATISFIED=true
 ```
 
-- **Aucune autre PR ne touche jamais ce fichier** :
-  `git log --all --oneline -- docs/adr/ADR-0036-chaine-de-promotion-
-  gouvernee.md` ne retourne que des commits appartenant à la branche de
-  PR #95 (`2182339` sur `main`, plus les commits pré-squash `98b8832`/
-  `534b8d7`/`4563e2c` de cette même branche).
+- **Aucune autre PR d'implémentation ne touche jamais ce fichier** —
+  vérifié via l'API GitHub sur toutes les PR, tout état confondu (voir
+  section Codex ci-dessus), pas via l'historique Git local seul.
 - Review GitHub `id=4923100913`, `state=APPROVED`, `commit_id` identique
   au head réel de PR #95 (`3d0cf471...`, confirmé par
   `gh pr view 95 --json headRefOid,mergeCommit,mergedAt`), soumise
