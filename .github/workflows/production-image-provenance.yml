@@ -1,0 +1,198 @@
+name: Production image provenance
+
+# ADR-0036 (chaîne de promotion gouvernée), phase B. Construit et pousse
+# les images applicatives de production (jamais construites sur l'hôte
+# cible) et publie un inventaire signé-par-provenance-GitHub
+# (NEXUS-DEPLOYMENT-IMAGE-INVENTORY-V1) qu'un opérateur/outil hors ligne
+# revérifie ensuite avant de signer un ProductionReadinessManifest.
+#
+# Ne signe RIEN : la clé prod-readiness-v1-2026-08-13 reste offline, sous
+# contrôle propriétaire (ADR-0036 §5/§10). Ce workflow ne produit que des
+# faits vérifiables ; le signer les consomme séparément.
+#
+# Ne déploie RIEN : build + push seulement. BUILD/PUSH != DEPLOY.
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: production-image-provenance-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAMESPACE: ghcr.io/${{ github.repository_owner }}
+  PLATFORM: linux/amd64
+
+jobs:
+  build-and-push:
+    name: Build and push production images
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Refuse anything but a real main commit
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::this workflow only ever runs against refs/heads/main, got ${{ github.ref }}"
+          exit 1
+
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve source identity
+        id: source
+        run: |
+          set -euo pipefail
+          commit_sha="$(git rev-parse HEAD)"
+          tree_sha="$(git rev-parse "HEAD^{tree}")"
+          if [ "$commit_sha" != "${{ github.sha }}" ]; then
+            echo "::error::checked-out HEAD ($commit_sha) does not match github.sha (${{ github.sha }})"
+            exit 1
+          fi
+          {
+            echo "commit_sha=$commit_sha"
+            echo "tree_sha=$tree_sha"
+          } >>"$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Dockerfile digests (evidence, not build inputs)
+        id: dockerfiles
+        run: |
+          set -euo pipefail
+          {
+            echo "ingestor_dockerfile_sha256=$(sha256sum services/rag-engine/infra/Dockerfile.ingestor-v2 | cut -d' ' -f1)"
+            echo "worker_dockerfile_sha256=$(sha256sum services/rag-engine/infra/Dockerfile.multilevel-worker-production | cut -d' ' -f1)"
+          } >>"$GITHUB_OUTPUT"
+
+      # ── ingestor (API v2 / plan de données) ──────────────────────────────
+      - name: Build and push ingestor
+        id: build_ingestor
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: services/rag-engine/infra/Dockerfile.ingestor-v2
+          platforms: ${{ env.PLATFORM }}
+          push: true
+          provenance: true
+          sbom: true
+          tags: |
+            ${{ env.IMAGE_NAMESPACE }}/rag-ingestor:sha-${{ steps.source.outputs.commit_sha }}
+
+      # ── multilevel-worker-production (Worker A ET Worker B partagent
+      # exactement le même contexte/Dockerfile/plateforme — un seul build,
+      # deux services qui le référencent, relation gardée explicite dans
+      # l'inventaire ci-dessous plutôt que supposée) ───────────────────────
+      - name: Build and push multilevel-worker-production
+        id: build_worker
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: services/rag-engine/infra/Dockerfile.multilevel-worker-production
+          platforms: ${{ env.PLATFORM }}
+          push: true
+          provenance: true
+          sbom: true
+          tags: |
+            ${{ env.IMAGE_NAMESPACE }}/rag-multilevel-worker-production:sha-${{ steps.source.outputs.commit_sha }}
+
+      - name: Assemble NEXUS-DEPLOYMENT-IMAGE-INVENTORY-V1
+        id: inventory
+        env:
+          REPOSITORY: ${{ github.repository }}
+          SOURCE_COMMIT_SHA: ${{ steps.source.outputs.commit_sha }}
+          SOURCE_TREE_SHA: ${{ steps.source.outputs.tree_sha }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          WORKFLOW_RUN_ATTEMPT: ${{ github.run_attempt }}
+          INGESTOR_DIGEST: ${{ steps.build_ingestor.outputs.digest }}
+          INGESTOR_DOCKERFILE_SHA256: ${{ steps.dockerfiles.outputs.ingestor_dockerfile_sha256 }}
+          WORKER_DIGEST: ${{ steps.build_worker.outputs.digest }}
+          WORKER_DOCKERFILE_SHA256: ${{ steps.dockerfiles.outputs.worker_dockerfile_sha256 }}
+          IMAGE_NAMESPACE: ${{ env.IMAGE_NAMESPACE }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          from datetime import UTC, datetime
+
+          namespace = os.environ["IMAGE_NAMESPACE"]
+          document = {
+              "protocol_version": "NEXUS-DEPLOYMENT-IMAGE-INVENTORY-V1",
+              "repository": os.environ["REPOSITORY"],
+              "source_commit_sha": os.environ["SOURCE_COMMIT_SHA"],
+              "source_tree_sha": os.environ["SOURCE_TREE_SHA"],
+              "platform": "linux/amd64",
+              "workflow_path": ".github/workflows/production-image-provenance.yml",
+              "workflow_run_id": int(os.environ["WORKFLOW_RUN_ID"]),
+              "workflow_run_attempt": int(os.environ["WORKFLOW_RUN_ATTEMPT"]),
+              "workflow_ref": "refs/heads/main",
+              "built_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+              "services": {
+                  "ingestor": {
+                      "source_kind": "build",
+                      "build_context": ".",
+                      "dockerfile": "services/rag-engine/infra/Dockerfile.ingestor-v2",
+                      "dockerfile_sha256": os.environ["INGESTOR_DOCKERFILE_SHA256"],
+                      "image_repository": f"{namespace}/rag-ingestor",
+                      "image_digest": os.environ["INGESTOR_DIGEST"],
+                  },
+                  "multilevel-worker-a-production": {
+                      "source_kind": "build",
+                      "build_context": ".",
+                      "dockerfile": "services/rag-engine/infra/Dockerfile.multilevel-worker-production",
+                      "dockerfile_sha256": os.environ["WORKER_DOCKERFILE_SHA256"],
+                      "image_repository": f"{namespace}/rag-multilevel-worker-production",
+                      "image_digest": os.environ["WORKER_DIGEST"],
+                  },
+                  "multilevel-worker-b-production": {
+                      "source_kind": "build",
+                      "build_context": ".",
+                      "dockerfile": "services/rag-engine/infra/Dockerfile.multilevel-worker-production",
+                      "dockerfile_sha256": os.environ["WORKER_DOCKERFILE_SHA256"],
+                      "image_repository": f"{namespace}/rag-multilevel-worker-production",
+                      "image_digest": os.environ["WORKER_DIGEST"],
+                  },
+              },
+          }
+          for name, service in document["services"].items():
+              if not service["image_digest"] or not service["image_digest"].startswith("sha256:"):
+                  raise SystemExit(f"service {name!r}: build-push-action produced no digest")
+
+          with open("nexus-deployment-image-inventory.json", "w", encoding="utf-8") as handle:
+              json.dump(document, handle, sort_keys=True, indent=2)
+              handle.write("\n")
+          print(json.dumps(document, sort_keys=True, indent=2))
+          PY
+
+      - name: Upload image inventory artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nexus-deployment-image-inventory
+          path: nexus-deployment-image-inventory.json
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Summary
+        run: |
+          {
+            echo "### Production image provenance"
+            echo ""
+            echo '```json'
+            cat nexus-deployment-image-inventory.json
+            echo '```'
+          } >>"$GITHUB_STEP_SUMMARY"
