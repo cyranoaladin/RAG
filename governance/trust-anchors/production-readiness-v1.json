@@ -1,0 +1,12 @@
+{
+  "keys": [
+    {
+      "algorithm": "ed25519",
+      "comment": "H2B production go-live signing key, generated 2026-08-13 by repository owner (Alaeddine Ben Rhouma), private key held offline outside this repository/host.",
+      "environment": "production",
+      "key_id": "prod-readiness-v1-2026-08-13",
+      "public_key": "9a426a443aceb14832a95052ad2ba6a1eb83a78569533f3df5d6a97dae1e305a"
+    }
+  ],
+  "protocol_version": "NEXUS-PRODUCTION-READINESS-V1"
+}

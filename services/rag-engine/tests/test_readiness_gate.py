@@ -485,19 +485,32 @@ class TestTheRealGovernedRootResolvesOnAnActualCheckout:
         for marker in gate_module._GOVERNED_ROOT_MARKERS:
             assert (root / marker).is_dir(), f"missing governed root marker: {marker}"
 
-    def test_production_without_a_provisioned_anchor_fails_on_the_anchor_alone(
+    def test_production_with_a_provisioned_anchor_fails_on_the_manifest_alone(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Sensitivity guard: against the real (unmocked) root, the only
-        thing standing between here and a resolvable production path is the
-        anchor file itself — not a broken marker/root derivation. This is
-        exactly ``PRODUCTION_TRUST_ANCHOR_PROVISIONED=false`` from the audit,
-        never a structural failure."""
+        """Sensitivity guard: against the real (unmocked) root, the governed
+        production readiness anchor is now provisioned at
+        ``governance/trust-anchors/production-readiness-v1.json`` (H2-B
+        Phase D). This proves ``PRODUCTION_TRUST_ANCHOR_PROVISIONED=true``:
+        root/marker derivation resolves, the real anchor file is found and
+        parses as a valid ``ProductionReadinessTrustAnchor``, and the
+        failure boundary correctly moves past the anchor to manifest
+        content validation — never a structural failure, and never a
+        missing-anchor failure now that one is provisioned."""
         manifest_path = tmp_path / "readiness.json"
         manifest_path.write_bytes(b"{}")
         manifest_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
 
-        with pytest.raises(ReadinessGateError, match="governed production readiness anchor"):
+        real_anchor = gate_module._GOVERNED_REPOSITORY_ROOT / GOVERNED_TRUST_ANCHOR_PATH
+        assert real_anchor.is_file(), (
+            f"expected the real governed anchor to exist at {real_anchor} — "
+            "if this fails, PRODUCTION_TRUST_ANCHOR_PROVISIONED has regressed "
+            "to false"
+        )
+
+        with pytest.raises(
+            ReadinessGateError, match="readiness manifest protocol_version is not"
+        ):
             enforce_readiness_gate(
                 manifest_path=manifest_path,
                 release_sha=MERGE_SHA,
