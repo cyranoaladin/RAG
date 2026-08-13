@@ -1,0 +1,39 @@
+# ADR-0036 (chaîne de promotion gouvernée), phase B.
+#
+# Combiné à docker-compose.v2.yml et docker-compose.production-workers.yml,
+# ce fichier retire `build:` des services applicatifs et le remplace par
+# une image immuable épinglée par digest — jamais reconstruite sur l'hôte
+# cible (services/rag-engine/scripts/deploy-prod.sh, la voie legacy break
+# -glass, reste la seule voie qui construit encore localement).
+#
+#   docker compose \
+#     -f docker-compose.v2.yml \
+#     -f docker-compose.production-workers.yml \
+#     -f docker-compose.production-release.yml \
+#     config
+#
+# `build: !reset null` — pas une simple surcharge de `image:` — est
+# nécessaire : Docker Compose fusionne `image:` et `build:` d'un service
+# plutôt que de laisser le second écraser le premier ; sans le `!reset`,
+# `docker compose up` peut encore choisir de construire localement plutôt
+# que de tirer l'image par digest. Vérifié empiriquement avec `docker
+# compose config` (Docker Compose v5.4.0) avant d'écrire ce fichier —
+# jamais supposé.
+#
+# Chaque digest vient de NEXUS-DEPLOYMENT-IMAGE-INVENTORY-V1, l'inventaire
+# produit par `.github/workflows/production-image-provenance.yml` et
+# revérifié par l'opérateur/outil de signature avant d'être substitué ici
+# — jamais une valeur choisie à la main.
+
+services:
+  ingestor:
+    build: !reset null
+    image: ${NEXUS_INGESTOR_IMAGE_DIGEST:?NEXUS_INGESTOR_IMAGE_DIGEST requis (name@sha256:... depuis l'inventaire de provenance vérifié)}
+
+  multilevel-worker-a-production:
+    build: !reset null
+    image: ${NEXUS_MULTILEVEL_WORKER_IMAGE_DIGEST:?NEXUS_MULTILEVEL_WORKER_IMAGE_DIGEST requis (name@sha256:... depuis l'inventaire de provenance vérifié)}
+
+  multilevel-worker-b-production:
+    build: !reset null
+    image: ${NEXUS_MULTILEVEL_WORKER_IMAGE_DIGEST:?NEXUS_MULTILEVEL_WORKER_IMAGE_DIGEST requis (name@sha256:... depuis l'inventaire de provenance vérifié)}
