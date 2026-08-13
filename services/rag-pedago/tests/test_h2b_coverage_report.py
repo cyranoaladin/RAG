@@ -1981,17 +1981,147 @@ class TestRehearsalCanNeverBeGreen:
             )
 
 
-def test_the_repository_ships_no_production_trust_anchor() -> None:
-    """Barrière de go-live, mesurée plutôt que promise : tant qu'aucune ancre
-    de production n'est provisionnée, aucun reçu de production ne peut être
-    vérifié. Ce test tombera le jour où l'ancre réelle sera commitée — ce
-    sera alors une décision consciente, pas un glissement."""
+def _sole_production_readiness_anchor(governance_dir: Path) -> Path:
+    """Découvre et valide l'unique ancre de production sous ``governance_dir``.
+
+    Remédiation Codex (PR #97, P2) : l'ancien canari cherchait un nom de
+    fichier (``*trust*anchor*.json``, appliqué au basename) — un fichier
+    nommé ``production-readiness-v1.json`` dans un répertoire
+    ``trust-anchors/`` ne matchait pas, donc le canari restait vert en
+    prétendant qu'aucune ancre n'existait alors qu'une l'avait déjà été
+    commitée. Cette fonction discrimine par **contenu**
+    (``protocol_version``), jamais par nom : une ancre de review-binding
+    (``ScopeAuthorizationReviewBindingV1``/``REVIEW_BINDING_PROTOCOL_VERSION``,
+    chemin gouverné distinct ``governance/trust-anchors/review-binding-v1.json``)
+    ne doit jamais compter comme une ancre de production ambiguë, et
+    inversement aucun renommage de fichier ne peut faire disparaître une
+    vraie ancre de production à ce contrôle.
+
+    Fail-closed sur toute forme inattendue : zéro ancre, plusieurs ancres,
+    JSON invalide, ou parsing refusé par
+    ``parse_production_readiness_trust_anchor`` (protocole, clé_id,
+    clé publique, champs inconnus — cf. ``StrictBaseModel``) font toutes
+    échouer l'appelant, jamais un défaut permissif."""
+    from nexus_contracts.production_readiness import (
+        PRODUCTION_READINESS_PROTOCOL_VERSION,
+        parse_production_readiness_trust_anchor,
+    )
+
+    candidates: list[Path] = []
+    if governance_dir.is_dir():
+        for path in sorted(governance_dir.rglob("*.json")):
+            try:
+                document = json.loads(path.read_bytes())
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+                continue
+            if (
+                isinstance(document, dict)
+                and document.get("protocol_version") == PRODUCTION_READINESS_PROTOCOL_VERSION
+            ):
+                candidates.append(path)
+
+    assert len(candidates) == 1, (
+        f"expected exactly one production readiness trust anchor under "
+        f"{governance_dir}, found {[str(p) for p in candidates]} — zero means "
+        "the anchor is missing (PRODUCTION_TRUST_ANCHOR_PROVISIONED=false), "
+        "more than one means an ambiguous set of production signers"
+    )
+    anchor_path = candidates[0]
+    # Parse strict : protocole exact, key_id/clé publique/algorithme valides,
+    # aucun champ inconnu (donc jamais de clé privée glissée dans le
+    # document) — refuse fermé sur toute forme malformée.
+    anchor = parse_production_readiness_trust_anchor(anchor_path.read_bytes())
+    for key in anchor.keys:
+        assert key.environment == "production", (
+            f"{anchor_path} declares key_id {key.key_id!r} for environment "
+            f"{key.environment!r} — a rehearsal/test key must never live at "
+            "the governed production path"
+        )
+    return anchor_path
+
+
+def test_the_repository_ships_exactly_the_provisioned_production_trust_anchor() -> None:
+    """H2-B Phase D : l'ancre de production readiness est désormais
+    provisionnée, réellement découverte via le même chemin gouverné que le
+    mécanisme de production (``readiness_gate.GOVERNED_TRUST_ANCHOR_PATH``),
+    jamais un chemin recalculé indépendamment qui pourrait diverger."""
+    from ingestor.ingestion_profiles.readiness_gate import GOVERNED_TRUST_ANCHOR_PATH
+
     from rag_pedago.imports.h2b_coverage_report import _REPOSITORY_ROOT
 
-    anchors = list((_REPOSITORY_ROOT / "governance").rglob("*trust*anchor*.json")) if (
-        _REPOSITORY_ROOT / "governance"
-    ).is_dir() else []
-    assert anchors == [], (
-        "a production trust anchor appeared in the repository — provisioning it "
-        "is a deliberate go-live decision that must be reviewed on its own"
+    expected_path = _REPOSITORY_ROOT / GOVERNED_TRUST_ANCHOR_PATH
+    discovered = _sole_production_readiness_anchor(_REPOSITORY_ROOT / "governance")
+    assert discovered == expected_path, (
+        f"the anchor discovered by content ({discovered}) is not at the path "
+        f"the real production gate resolves ({expected_path}) — the gate "
+        "would never find it"
     )
+
+
+class TestProductionTrustAnchorSensitivityCanaries:
+    """Preuve, par mutation, que ``_sole_production_readiness_anchor``
+    refuse effectivement chacune des dérives qu'elle prétend détecter —
+    même discipline que le reste du dépôt (ADR-0031, décision 6) : un test
+    qui ne passe que sur du code déjà correct ne prouve rien."""
+
+    @staticmethod
+    def _seed(tmp_path: Path) -> Path:
+        governance = tmp_path / "governance" / "trust-anchors"
+        governance.mkdir(parents=True)
+        real_anchor = (
+            Path(__file__).resolve().parents[3]
+            / "governance"
+            / "trust-anchors"
+            / "production-readiness-v1.json"
+        )
+        (governance / "production-readiness-v1.json").write_bytes(real_anchor.read_bytes())
+        return tmp_path / "governance"
+
+    def test_a_correctly_seeded_directory_passes(self, tmp_path: Path) -> None:
+        governance_dir = self._seed(tmp_path)
+        anchor_path = _sole_production_readiness_anchor(governance_dir)
+        assert anchor_path == governance_dir / "trust-anchors" / "production-readiness-v1.json"
+
+    def test_anchor_removed_fails_closed(self, tmp_path: Path) -> None:
+        governance_dir = self._seed(tmp_path)
+        (governance_dir / "trust-anchors" / "production-readiness-v1.json").unlink()
+        with pytest.raises(AssertionError, match="found \\[\\]"):
+            _sole_production_readiness_anchor(governance_dir)
+
+    def test_a_second_ambiguous_production_anchor_fails_closed(self, tmp_path: Path) -> None:
+        governance_dir = self._seed(tmp_path)
+        original = governance_dir / "trust-anchors" / "production-readiness-v1.json"
+        # Nom de fichier différent, mais même contenu/protocole : la
+        # détection par contenu doit refuser, contrairement à l'ancien
+        # glob qui n'aurait regardé que le nom.
+        duplicate = governance_dir / "trust-anchors" / "a-second-signer.json"
+        duplicate.write_bytes(original.read_bytes())
+        with pytest.raises(AssertionError, match="found"):
+            _sole_production_readiness_anchor(governance_dir)
+
+    def test_protocol_drift_fails_closed(self, tmp_path: Path) -> None:
+        governance_dir = self._seed(tmp_path)
+        anchor_path = governance_dir / "trust-anchors" / "production-readiness-v1.json"
+        document = json.loads(anchor_path.read_text())
+        document["protocol_version"] = "NEXUS-PRODUCTION-READINESS-V2"
+        anchor_path.write_text(json.dumps(document))
+        with pytest.raises(AssertionError, match="found \\[\\]"):
+            _sole_production_readiness_anchor(governance_dir)
+
+    def test_a_malformed_public_key_fails_closed(self, tmp_path: Path) -> None:
+        governance_dir = self._seed(tmp_path)
+        anchor_path = governance_dir / "trust-anchors" / "production-readiness-v1.json"
+        document = json.loads(anchor_path.read_text())
+        document["keys"][0]["public_key"] = "not-a-valid-hex-key"
+        anchor_path.write_text(json.dumps(document))
+        with pytest.raises(Exception):  # noqa: B017, PT011 - CanonicalArtifactError/ValidationError, contrat non importé ici
+            _sole_production_readiness_anchor(governance_dir)
+
+    def test_a_non_production_environment_key_fails_closed(self, tmp_path: Path) -> None:
+        governance_dir = self._seed(tmp_path)
+        anchor_path = governance_dir / "trust-anchors" / "production-readiness-v1.json"
+        document = json.loads(anchor_path.read_text())
+        document["keys"][0]["environment"] = "test"
+        anchor_path.write_text(json.dumps(document))
+        with pytest.raises(AssertionError, match="must never live at"):
+            _sole_production_readiness_anchor(governance_dir)
