@@ -149,6 +149,10 @@ class TestCrossFieldConsistency:
             {"pii_gate_status": "BLOCKED_INGEST_WITHOUT_CLEARANCE"},
             {"authority_review_binding_verified": False},
             {"authority_revocations_checked": False},
+            {"corpus_match": False},
+            {"sum_equals_total": False},
+            {"zero_overlap": False},
+            {"zero_gap": False},
         ],
     )
     def test_gate_pass_true_with_a_false_prerequisite_is_rejected(
@@ -157,6 +161,26 @@ class TestCrossFieldConsistency:
         with pytest.raises(ValidationError, match="inconsistent with its own prerequisites"):
             H2CoverageEvidenceV1.model_validate(
                 _fields(h2_coverage_gate_pass=True, **override)
+            )
+
+    def test_gate_pass_true_with_coverage_complete_true_but_a_false_subcheck_is_rejected(
+        self,
+    ) -> None:
+        # Codex round 2 (PR #104): the real producer's projected
+        # `coverage_complete` is `h2_coverage_gate_pass` itself, never an
+        # independent source of truth -- so a falsified document could set
+        # both true while still claiming corpus_match=false. This must be
+        # caught even when coverage_complete=true (unlike the parametrized
+        # cases above, which each also flip coverage_complete).
+        with pytest.raises(ValidationError, match="inconsistent with its own prerequisites"):
+            H2CoverageEvidenceV1.model_validate(
+                _fields(h2_coverage_gate_pass=True, coverage_complete=True, corpus_match=False)
+            )
+
+    def test_gate_pass_true_with_mismatched_corpus_totals_is_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="inconsistent with its own prerequisites"):
+            H2CoverageEvidenceV1.model_validate(
+                _fields(h2_coverage_gate_pass=True, corpus_total_expected=2583, corpus_total_actual=2582)
             )
 
     def test_gate_pass_false_with_a_false_prerequisite_is_accepted(self) -> None:

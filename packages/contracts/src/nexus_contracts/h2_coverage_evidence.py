@@ -142,7 +142,28 @@ class H2CoverageEvidenceV1(StrictBaseModel):
         brutes, qui resterait exclusivement dans `rag-pedago` (Codex P1,
         PR #104) : sans ce contrôle, un document falsifié ou substitué
         pourrait revendiquer un succès global tout en enregistrant
-        explicitement un échec de couverture ou de gouvernance."""
+        explicitement un échec de couverture ou de gouvernance.
+
+        **Round 2 (Codex, même PR).** Côté producteur réel, le champ
+        projeté ``coverage_complete`` n'est PAS ``decision_coverage_
+        complete`` (la conjonction brute des quatre sous-vérifications) —
+        c'est ``report.coverage_complete``, qui vaut ``h2_coverage_gate_
+        pass`` lui-même (`h2b_coverage_report.py`, construction de
+        `CoverageReport` : ``coverage_complete=h2_coverage_gate_pass``,
+        puis `report_to_h2_coverage_evidence` copie ce champ tel quel).
+        Vérifié en lisant le producteur, pas supposé. Cela signifie que le
+        contrôle ci-dessus sur ``self.coverage_complete`` ne peut jamais
+        détecter une incohérence : dans une donnée réelle, ce champ est
+        toujours égal à ``h2_coverage_gate_pass``, jamais une source
+        indépendante de vérité. Un document falsifié pouvait donc
+        déclarer ``h2_coverage_gate_pass=true`` avec ``coverage_complete=
+        true`` (cohérents entre eux, donc acceptés) tout en portant
+        ``corpus_match=false``/``sum_equals_total=false``/
+        ``zero_overlap=false``/``zero_gap=false``, ou des totaux de
+        corpus différents — précisément les quatre sous-vérifications
+        dont `decision_coverage_complete` est la conjonction côté
+        producteur. Ces quatre champs sont donc exigés vrais, et les
+        totaux égaux, indépendamment de ``coverage_complete``."""
         if self.h2_coverage_gate_pass and not (
             self.coverage_complete
             and self.golden_validation_pass
@@ -150,13 +171,19 @@ class H2CoverageEvidenceV1(StrictBaseModel):
             and self.pii_gate_status == "PASS"
             and self.authority_review_binding_verified
             and self.authority_revocations_checked
+            and self.corpus_match
+            and self.sum_equals_total
+            and self.zero_overlap
+            and self.zero_gap
+            and self.corpus_total_expected == self.corpus_total_actual
         ):
             raise ValueError(
                 "h2_coverage_gate_pass=true is inconsistent with its own prerequisites "
                 "(coverage_complete, golden_validation_pass, rights_gate_status, "
                 "pii_gate_status, authority_review_binding_verified, "
-                "authority_revocations_checked) — a contradictory passing verdict is "
-                "never accepted"
+                "authority_revocations_checked, corpus_match, sum_equals_total, "
+                "zero_overlap, zero_gap, corpus_total_expected == corpus_total_actual) "
+                "— a contradictory passing verdict is never accepted"
             )
         return self
 

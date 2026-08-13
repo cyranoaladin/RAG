@@ -143,6 +143,78 @@ $ cd services/rag-pedago && .venv/bin/python -m pytest tests/test_h2b_coverage_r
 # vérifié, pas supposé.
 ```
 
+## 3ter. Troisième round Codex — la même faiblesse structurelle, plus profonde
+
+Une seconde revue fraîche sur le HEAD `225040c` a signalé un troisième
+finding P1, distinct des deux premiers (les deux autres commentaires de
+cette revue étaient des ré-ancrages GitHub du round 1, déjà corrigés —
+distingués via `pull_request_review_id`, même discipline que PR #102/
+#103).
+
+**Finding 3 — `coverage_complete` ne peut jamais faire office de preuve
+indépendante.** Le validateur du round 1 vérifie `self.coverage_
+complete` comme l'un des prérequis de `h2_coverage_gate_pass=true`.
+Mais vérifié dans le producteur réel (`h2b_coverage_report.py`,
+construction de `CoverageReport`) :
+
+```python
+h2_coverage_gate_pass = (
+    decision_coverage_complete and golden_pass and rights_gate_status == "PASS"
+    and pii_gate_status == "PASS" and authority_review_binding_verified
+    and authority_revocations_checked and final_mode
+    and all(value == 0 for value in safety_invariants.values())
+)
+...
+coverage_complete=h2_coverage_gate_pass,   # <- pas decision_coverage_complete
+```
+
+Le champ nommé `coverage_complete` sur `CoverageReport` est en réalité
+`h2_coverage_gate_pass` lui-même — jamais `decision_coverage_complete`
+(la vraie conjonction brute `sum_equals_total and zero_overlap and
+zero_gap and corpus_match`). Et `report_to_h2_coverage_evidence` copie
+ce champ tel quel. Conséquence : dans toute donnée réelle,
+`evidence.coverage_complete == evidence.h2_coverage_gate_pass` toujours
+— un contrôle qui compare une valeur à elle-même ne peut jamais détecter
+d'incohérence. Un document falsifié pouvait donc déclarer
+`h2_coverage_gate_pass=true` avec `coverage_complete=true` (cohérents
+l'un avec l'autre, donc acceptés par le round 1) tout en portant
+`corpus_match=false` ou des totaux de corpus différents — sans jamais
+être détecté.
+
+Corrigé en exigeant, en plus des six prérequis du round 1, que
+`corpus_match`, `sum_equals_total`, `zero_overlap`, `zero_gap` soient
+tous vrais et que `corpus_total_expected == corpus_total_actual`
+lorsque `h2_coverage_gate_pass=true` — les quatre sous-vérifications
+brutes dont `decision_coverage_complete` est la conjonction côté
+producteur, indépendamment de ce que porte `coverage_complete`. Un test
+dédié (`test_gate_pass_true_with_coverage_complete_true_but_a_false_
+subcheck_is_rejected`) exerce précisément le cas où `coverage_complete=
+true` mais `corpus_match=false`, pour prouver que ce round ne se
+contente pas de redemander la même chose que le round précédent.
+
+```
+$ cd packages/contracts && python3 -m pytest -q tests/test_h2_coverage_evidence_contract.py
+37 passed in 0.40s
+
+$ python3 -m pytest -q
+266 passed in 1.05s
+```
+
+Les cinq nouveaux conjoints (`corpus_match`, `sum_equals_total`,
+`zero_overlap`, `zero_gap`, égalité des totaux) sont mutation-testés un
+par un (retrait individuel de chacun → au moins un test dédié passe au
+rouge → restauré → suite repassée verte).
+
+```
+$ cd services/rag-pedago && .venv/bin/python -m pytest tests/test_h2b_coverage_report.py -q
+90 passed in 1.38s
+# Le producteur réel satisfait déjà ce troisième invariant aussi.
+
+$ cd ../.. && bash scripts/check-governance-locks.sh
+Governance locks: baseline=18, config=18
+OK: all governance locks match baseline (18 keys verified).
+```
+
 ## 4. Ce que ce lot ne fait pas
 
 - N'intègre pas le signer (`sign_production_readiness_manifest_cli.py`,
@@ -158,7 +230,7 @@ $ cd services/rag-pedago && .venv/bin/python -m pytest tests/test_h2b_coverage_r
 
 ```
 $ cd packages/contracts && python3 -m pytest -q
-260 passed in 1.09s
+266 passed in 1.05s
 
 $ python3 -m ruff check src/nexus_contracts/authorization_revocations.py \
     src/nexus_contracts/h2_coverage_evidence.py \
