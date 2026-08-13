@@ -5,8 +5,8 @@ hérités de ``deployment_image_inventory``) et une troisième propre à ce
 module (``run_docker_compose_config``) sont des doubles injectés
 explicitement -- jamais un vrai ``gh`` ni un vrai ``docker`` dans ces
 tests unitaires. Une suite séparée, plus bas, exerce le vrai binaire
-``docker compose`` contre les fichiers réellement commités (skip si
-Docker est absent -- jamais un vert non démontré).
+``docker compose`` et le vrai ``git show`` contre les fichiers réellement
+commités (skip si Docker est absent -- jamais un vert non démontré).
 """
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import deployment_image_inventory as dii  # noqa: E402
 import verify_release_image_provenance_cli as vri  # noqa: E402
 
-REPOSITORY = "cyranoaladin/RAG"
+REPOSITORY = vri._CANONICAL_REPOSITORY
 RUN_ID = 777
 RUN_ATTEMPT = 1
 SOURCE_COMMIT_SHA = "a" * 40
@@ -58,6 +58,19 @@ def _provenance_images(**overrides: str) -> dict[str, str]:
 
 def _pinned_images(**overrides: str) -> dict[str, str]:
     return _provenance_images(**overrides)
+
+
+class TestCanonicalRepositoryIsNeverOperatorControlled:
+    def test_no_repository_cli_flag_exists(self) -> None:
+        # Codex P1 (PR #105): a --repository flag would let a routine
+        # operator anchor provenance verification on a repository they
+        # control. Proven both statically (no such flag) and by the
+        # module constant being the sole source of truth (used below).
+        help_text = vri._build_arg_parser().format_help()
+        assert "--repository" not in help_text
+
+    def test_canonical_repository_constant_is_the_real_repo(self) -> None:
+        assert vri._CANONICAL_REPOSITORY == "cyranoaladin/RAG"
 
 
 class TestRequirePinnedImagesMatchVerifiedProvenance:
@@ -177,7 +190,7 @@ class _Fakes:
         self.inventory = inventory
         self.resolved_compose = resolved_compose
         self.attempt_exists = attempt_exists
-        self.compose_calls: list[tuple[Path, tuple[str, ...]]] = []
+        self.compose_calls: list[tuple[Path, str, tuple[str, ...], Path]] = []
 
     def github_api_get(self, path: str) -> dict[str, Any]:
         run_path = f"repos/{REPOSITORY}/actions/runs/{RUN_ID}"
@@ -197,19 +210,20 @@ class _Fakes:
         path.write_text(json.dumps(self.inventory), encoding="utf-8")
         return path
 
-    def run_docker_compose_config(self, infra_dir: Path, compose_files: tuple[str, ...]) -> dict[str, Any]:
-        self.compose_calls.append((infra_dir, compose_files))
+    def run_docker_compose_config(
+        self, repo_root: Path, source_commit_sha: str, compose_files: tuple[str, ...], work_dir: Path
+    ) -> dict[str, Any]:
+        self.compose_calls.append((repo_root, source_commit_sha, compose_files, work_dir))
         return self.resolved_compose
 
 
 def _verify(fakes: _Fakes, tmp_path: Path, **overrides: Any) -> dict[str, str]:
     kwargs: dict[str, Any] = dict(
-        repository=REPOSITORY,
         source_commit_sha=SOURCE_COMMIT_SHA,
         source_tree_sha=SOURCE_TREE_SHA,
         provenance_run_id=RUN_ID,
         provenance_run_attempt=RUN_ATTEMPT,
-        infra_dir=tmp_path,
+        repo_root=tmp_path,
         compose_files=vri._CANONICAL_COMPOSE_FILES,
         github_api_get=fakes.github_api_get,
         download_artifact=fakes.download_artifact,
@@ -229,12 +243,26 @@ class TestVerifyReleaseImagesEndToEnd:
         assert set(result) == set(EXPECTED_SERVICES)
         assert result["ingestor"] == f"{INGESTOR_REPO}@{INGESTOR_DIGEST}"
 
-    def test_calls_docker_compose_config_with_the_canonical_files(self, tmp_path: Path) -> None:
+    def test_calls_docker_compose_config_with_the_canonical_files_and_commit(
+        self, tmp_path: Path
+    ) -> None:
         fakes = _Fakes(
             run=_run_document(), inventory=_inventory_document(), resolved_compose=_resolved_compose()
         )
         _verify(fakes, tmp_path)
-        assert fakes.compose_calls == [(tmp_path, vri._CANONICAL_COMPOSE_FILES)]
+        assert fakes.compose_calls == [
+            (tmp_path, SOURCE_COMMIT_SHA, vri._CANONICAL_COMPOSE_FILES, tmp_path)
+        ]
+
+    def test_provenance_is_always_anchored_on_the_canonical_repository(self, tmp_path: Path) -> None:
+        # Codex P1 (PR #105): the caller can no longer supply an arbitrary
+        # --repository -- verify_release_images always anchors on the
+        # module constant, proven here by a run/inventory keyed on it.
+        fakes = _Fakes(
+            run=_run_document(), inventory=_inventory_document(), resolved_compose=_resolved_compose()
+        )
+        result = _verify(fakes, tmp_path)
+        assert result  # would have raised via github_api_get's path check otherwise
 
     def test_mutable_tag_in_resolved_compose_is_refused(self, tmp_path: Path) -> None:
         fakes = _Fakes(
@@ -288,16 +316,15 @@ class TestMain:
             run=_run_document(), inventory=_inventory_document(), resolved_compose=_resolved_compose()
         )
         monkeypatch.setattr(vri.dii, "gh_api_get", fakes.github_api_get)
-        monkeypatch.setattr(vri.dii, "download_artifact_via_gh", fakes.download_artifact)
+        monkeypatch.setattr(vri.dii, "make_download_artifact_via_gh", lambda *, repository: fakes.download_artifact)
         monkeypatch.setattr(vri, "run_docker_compose_config_via_subprocess", fakes.run_docker_compose_config)
         code = vri.main(
             [
-                "--repository", REPOSITORY,
                 "--source-commit-sha", SOURCE_COMMIT_SHA,
                 "--source-tree-sha", SOURCE_TREE_SHA,
                 "--provenance-run-id", str(RUN_ID),
                 "--provenance-run-attempt", str(RUN_ATTEMPT),
-                "--infra-dir", str(tmp_path),
+                "--repo-root", str(tmp_path),
             ]
         )
         out = capsys.readouterr().out
@@ -315,16 +342,15 @@ class TestMain:
             resolved_compose=_resolved_compose(),
         )
         monkeypatch.setattr(vri.dii, "gh_api_get", fakes.github_api_get)
-        monkeypatch.setattr(vri.dii, "download_artifact_via_gh", fakes.download_artifact)
+        monkeypatch.setattr(vri.dii, "make_download_artifact_via_gh", lambda *, repository: fakes.download_artifact)
         monkeypatch.setattr(vri, "run_docker_compose_config_via_subprocess", fakes.run_docker_compose_config)
         code = vri.main(
             [
-                "--repository", REPOSITORY,
                 "--source-commit-sha", SOURCE_COMMIT_SHA,
                 "--source-tree-sha", SOURCE_TREE_SHA,
                 "--provenance-run-id", str(RUN_ID),
                 "--provenance-run-attempt", str(RUN_ATTEMPT),
-                "--infra-dir", str(tmp_path),
+                "--repo-root", str(tmp_path),
             ]
         )
         captured = capsys.readouterr()
@@ -344,30 +370,40 @@ class TestRunDockerComposeConfigViaSubprocess:
     """La frontière process réelle -- injectée par défaut dans ``main()``,
     jamais exercée réseau/registre : ``docker compose config`` ne
     contacte ni un registre ni un daemon distant, il ne fait que
-    résoudre/interpoler le YAML localement."""
+    résoudre/interpoler le YAML localement. ``git show`` ne contacte
+    jamais non plus de remote (objet déjà local)."""
 
     requires_docker = pytest.mark.skipif(
         shutil.which("docker") is None, reason="Docker not available"
     )
+    requires_git = pytest.mark.skipif(shutil.which("git") is None, reason="git not available")
 
     @requires_docker
-    def test_missing_compose_file_is_refused_before_shelling_out(self, tmp_path: Path) -> None:
-        with pytest.raises(vri.ReleaseVerificationError, match="compose file not found"):
-            vri.run_docker_compose_config_via_subprocess(tmp_path, vri._CANONICAL_COMPOSE_FILES)
+    @requires_git
+    def test_missing_git_object_is_refused_before_shelling_out_to_docker(self, tmp_path: Path) -> None:
+        repo_root = Path(__file__).resolve().parents[3]
+        with pytest.raises(vri.ReleaseVerificationError, match="git show failed"):
+            vri.run_docker_compose_config_via_subprocess(
+                repo_root, "0" * 40, vri._CANONICAL_COMPOSE_FILES, tmp_path
+            )
 
     @requires_docker
-    def test_real_repository_compose_files_resolve_with_no_build_and_pinned_images(
+    @requires_git
+    def test_real_committed_compose_files_resolve_with_no_build_and_pinned_images(
         self, tmp_path: Path
     ) -> None:
-        infra_dir = Path(__file__).resolve().parents[1] / "infra"
-        for name in vri._CANONICAL_COMPOSE_FILES:
-            assert (infra_dir / name).is_file(), name
+        repo_root = Path(__file__).resolve().parents[3]
+        head_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=repo_root, capture_output=True, text=True, check=True
+        ).stdout.strip()
 
         env_overrides = _dummy_compose_env()
         old_environ = dict(os.environ)
         try:
             os.environ.update(env_overrides)
-            resolved = vri.run_docker_compose_config_via_subprocess(infra_dir, vri._CANONICAL_COMPOSE_FILES)
+            resolved = vri.run_docker_compose_config_via_subprocess(
+                repo_root, head_sha, vri._CANONICAL_COMPOSE_FILES, tmp_path
+            )
         finally:
             os.environ.clear()
             os.environ.update(old_environ)
@@ -375,6 +411,40 @@ class TestRunDockerComposeConfigViaSubprocess:
         pinned = dii.require_resolved_compose_images_are_pinned(resolved)
         assert set(pinned) == set(EXPECTED_SERVICES)
         assert pinned["ingestor"] == f"{INGESTOR_REPO}@{INGESTOR_DIGEST}"
+
+
+class TestMakeDownloadArtifactViaGh:
+    """Codex P2 (PR #105) : le téléchargement doit être lié au dépôt
+    vérifié, jamais dépendant du CWD du process."""
+
+    def test_returned_callable_passes_dash_r_repository(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        calls: list[list[str]] = []
+
+        def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+            calls.append(command)
+            (tmp_path / dii._ARTIFACT_FILENAME).write_text("{}", encoding="utf-8")
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+        monkeypatch.setattr(dii.subprocess, "run", fake_run)
+        download = dii.make_download_artifact_via_gh(repository="cyranoaladin/RAG")
+        download(123, "some-artifact", tmp_path)
+        assert calls == [
+            ["gh", "run", "download", "123", "-n", "some-artifact", "-D", str(tmp_path), "-R", "cyranoaladin/RAG"]
+        ]
+
+    def test_plain_download_artifact_via_gh_never_passes_dash_r(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        calls: list[list[str]] = []
+
+        def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+            calls.append(command)
+            (tmp_path / dii._ARTIFACT_FILENAME).write_text("{}", encoding="utf-8")
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+        monkeypatch.setattr(dii.subprocess, "run", fake_run)
+        dii.download_artifact_via_gh(123, "some-artifact", tmp_path)
+        assert calls == [["gh", "run", "download", "123", "-n", "some-artifact", "-D", str(tmp_path)]]
 
 
 def _dummy_compose_env() -> dict[str, str]:

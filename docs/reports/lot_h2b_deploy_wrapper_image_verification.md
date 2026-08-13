@@ -70,6 +70,73 @@ est repassé en test d'intégration (`TestRunDockerComposeConfigVia
 Subprocess`, gardé par `skipif(not shutil.which("docker"))`, même
 convention que `tests/test_governance_docker_policy.py`).
 
+## 4bis. Revue Codex — trois findings réels, tous corrigés
+
+Une revue fraîche sur le HEAD `ac1c29a` (premier push de ce lot) a
+signalé trois findings, tous vérifiés avant correction.
+
+**Finding 1 (P1) — `--repository` était une entrée opérateur non
+fiable.** Le CLI acceptait `--repository` en argument libre et
+l'utilisait comme ancre de confiance pour la vérification de
+provenance. Un opérateur pouvait donc pointer vers un dépôt qu'il
+contrôle, y lancer un workflow au bon chemin, et obtenir un verdict
+positif pour une image jamais produite par le workflow Nexus de
+confiance. Corrigé en retirant purement et simplement l'argument :
+`_CANONICAL_REPOSITORY = "cyranoaladin/RAG"` est désormais une constante
+du module, jamais une entrée. Prouvé statiquement
+(`test_no_repository_cli_flag_exists` : le flag n'existe plus dans
+`--help`).
+
+**Finding 2 (P2) — le téléchargement d'artefact dépendait du CWD.**
+`deployment_image_inventory.download_artifact_via_gh` (PR #102) appelle
+`gh run download` sans `-R <repo>`, donc résout le dépôt depuis le
+répertoire courant du process. Lancé hors du bon checkout, ou depuis un
+checkout dont le remote nomme un autre dépôt, la commande peut échouer
+ou (pire) cibler le mauvais dépôt. Corrigé par l'ajout de
+`deployment_image_inventory.make_download_artifact_via_gh(repository=
+...)`, une fabrique qui lie `-R` au dépôt déjà vérifié — sans changer la
+signature ni le comportement de `download_artifact_via_gh` existante
+(toujours utilisée telle quelle ailleurs). Ce lot appelle désormais la
+fabrique avec `_CANONICAL_REPOSITORY`.
+
+**Finding 3 (P1) — les fichiers Compose n'étaient jamais liés au commit
+vérifié.** `--infra-dir` acceptait n'importe quel répertoire sur disque,
+dont le contenu pouvait diverger du commit source vérifié sans que rien
+ne le détecte : mêmes trois noms de service attendus + images pinnées
+correctement suffisaient à passer `require_resolved_compose_images_
+are_pinned`, même si un service supplémentaire à image mutable, ou un
+volume/une commande modifiés, avaient été ajoutés à côté. Corrigé en
+supprimant `--infra-dir` : les trois fichiers Compose canoniques sont
+désormais lus directement depuis l'objet git `source_commit_sha:
+services/rag-engine/infra/<fichier>` (nouvelle fonction `_git_show_
+bytes`, jamais depuis le disque non vérifié), dans un `--repo-root` qui
+est lui-même la racine de confiance de toute exécution hôte — limite
+documentée explicitement dans le docstring du module.
+
+```
+$ cd services/rag-engine && .venv/bin/python -m pytest \
+    tests/test_verify_release_image_provenance_cli.py \
+    tests/test_deployment_image_inventory.py -q
+61 passed
+
+$ .venv/bin/python -m ruff check scripts/verify_release_image_provenance_cli.py \
+    scripts/deployment_image_inventory.py tests/test_verify_release_image_provenance_cli.py
+All checks passed!
+
+$ .venv/bin/python -m mypy scripts/verify_release_image_provenance_cli.py \
+    scripts/deployment_image_inventory.py
+Success: no issues found in 2 source files
+```
+
+Les trois corrections sont mutation-testées : suppression du flag
+`--repository` prouvée statiquement ; retrait de la lecture git (retour
+au disque) dans `run_docker_compose_config_via_subprocess` → le test
+d'intégration réel Docker+git passe au rouge pour la bonne raison
+(erreur d'interpolation Compose au lieu d'un refus `git show failed`,
+preuve que c'est bien la liaison git qui est exercée) ; retrait du `-R`
+dans `make_download_artifact_via_gh` → test dédié rouge. Suite restaurée
+verte après chacune.
+
 ## 5. Ce que ce lot ne fait pas
 
 - N'intègre pas ce script dans `sign_production_readiness_manifest_
@@ -95,50 +162,56 @@ convention que `tests/test_governance_docker_policy.py`).
 ```
 $ cd services/rag-engine && .venv/bin/python -m pytest \
     tests/test_verify_release_image_provenance_cli.py -v
-15 passed
+20 passed
 
 $ .venv/bin/python -m pytest \
     tests/test_deployment_image_inventory.py \
     tests/test_verify_release_image_provenance_cli.py -q
-58 passed
+61 passed
 
 $ .venv/bin/python -m ruff check scripts/verify_release_image_provenance_cli.py \
-    tests/test_verify_release_image_provenance_cli.py
+    scripts/deployment_image_inventory.py tests/test_verify_release_image_provenance_cli.py
 All checks passed!
 
-$ .venv/bin/python -m mypy scripts/verify_release_image_provenance_cli.py
-Success: no issues found in 1 source file
+$ .venv/bin/python -m mypy scripts/verify_release_image_provenance_cli.py \
+    scripts/deployment_image_inventory.py
+Success: no issues found in 2 source files
 
 $ bash scripts/check-governance-locks.sh
 Governance locks: baseline=18, config=18
 OK: all governance locks match baseline (18 keys verified).
 
-$ gitleaks detect --source <chaque fichier ajouté> --no-git   (×2)
-no leaks found (×2)
+$ gitleaks detect --source <chaque fichier ajouté/modifié> --no-git   (×3)
+no leaks found (×3)
 ```
 
-Couverture adversariale (15 tests dédiés) : digests concordants →
-accepté ; un service avec un digest différent → refusé (message
-identifie le service) ; ensembles de services différents → refusé ;
-un digest correctement formé mais sans lien avec la provenance de ce
-commit → refusé (preuve que le croisement, pas seulement chaque moitié
+Couverture adversariale (20 tests dédiés dans ce fichier, 61 au total
+avec la non-régression PR #102) : digests concordants → accepté ; un
+service avec un digest différent → refusé (message identifie le
+service) ; ensembles de services différents → refusé ; un digest
+correctement formé mais sans lien avec la provenance de ce commit →
+refusé (preuve que le croisement, pas seulement chaque moitié
 isolément, est exercé) ; tag mutable côté Compose résolu → refusé ;
 `build:` résiduel → refusé ; run de provenance échoué → refusé ; appel
-de `run_docker_compose_config` avec les trois fichiers canoniques dans
-le bon ordre, vérifié explicitement ; `main()` : succès → code 0 +
-`RELEASE_IMAGE_PROVENANCE_VERIFIED=true` + digests listés ; échec →
-code 1 + `REFUSED:` sur stderr + **jamais** la ligne de succès sur
-stdout ; garantie statique qu'aucune sous-chaîne `"up"`/`'up'`
-n'apparaît dans le module (jamais `docker compose up` invoqué). Les
-deux nouvelles branches de `require_pinned_images_match_verified_
-provenance` sont mutation-testées directement (désactivation
-temporaire de chacune → les tests concernés passent au rouge → suite
-restaurée verte).
+de `run_docker_compose_config` avec le commit, les trois fichiers
+canoniques dans le bon ordre et le répertoire de travail, vérifié
+explicitement ; **aucun flag `--repository` dans `--help`** (Finding 1) ;
+`main()` : succès → code 0 + `RELEASE_IMAGE_PROVENANCE_VERIFIED=true` +
+digests listés ; échec → code 1 + `REFUSED:` sur stderr + **jamais** la
+ligne de succès sur stdout ; garantie statique qu'aucune sous-chaîne
+`"up"`/`'up'` n'apparaît dans le module (jamais `docker compose up`
+invoqué). Les deux branches de `require_pinned_images_match_verified_
+provenance` et les trois corrections du round Codex (§4bis) sont toutes
+mutation-testées directement (désactivation temporaire de chacune → les
+tests concernés passent au rouge → suite restaurée verte).
 
-Suite d'intégration réelle (2 tests, `skipif` sans Docker) : fichier
-Compose absent → refusé avant tout appel process ; les trois vrais
-fichiers du dépôt, résolus avec de vraies valeurs factices, produisent
-une structure conforme à `require_resolved_compose_images_are_pinned`.
+Suite d'intégration réelle (2 tests, `skipif` sans Docker/git) : objet
+git absent → refusé avant tout appel Docker ; les trois vrais fichiers
+du dépôt, lus depuis le vrai `HEAD` via `git show` et résolus avec de
+vraies valeurs factices, produisent une structure conforme à `require_
+resolved_compose_images_are_pinned`. Suite dédiée (2 tests) pour
+`make_download_artifact_via_gh`/`download_artifact_via_gh` : la
+première passe bien `-R <repo>`, la seconde jamais (non-régression).
 
 ## 7. Booléens finaux
 
