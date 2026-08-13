@@ -24,7 +24,7 @@ que PR #95 (ni PR #102) est la PR d'implémentation sans preuve — l'audit
 ci-dessous établit ce fait depuis l'historique Git et l'API GitHub, pas
 depuis un raisonnement par analogie avec ADR-0035.
 
-## Codex — deux constats réels, corrigés successivement avant merge
+## Codex — quatre constats réels, corrigés successivement avant merge
 
 **Round 1 (review sur `3841862`).** `git log --all` sur le clone local ne
 prouve rien d'autoritaire — cette commande ne voit que les refs déjà
@@ -101,6 +101,38 @@ mécanisme d'acceptation (précédent ADR-0031/ADR-0035) exige une PR
 **mergée** avec review approuvée sur son HEAD exact — une PR jamais
 fusionnée ne peut structurellement jamais être « la PR d'implémentation »
 au sens de ce mécanisme.
+
+**Round 4 (review sur `8cd3206`).** Constat exact et méthodologiquement
+important : ce rapport citait `commits?path=...` de façon abrégée dans
+son propre texte, sans jamais montrer explicitement le flag `--paginate`
+ni de preuve qu'aucune page suivante n'existe — `gh api --help` confirme
+que sans `--paginate`, une réponse multi-pages serait silencieusement
+tronquée à la première page. La commande **exécutée** l'avait bien
+utilisé dès le round 1, mais ce n'était pas démontré dans le texte —
+insuffisant comme preuve écrite, même si l'action sous-jacente était
+correcte. **Re-vérifié en direct pour ce round, avec la commande complète
+et une preuve d'absence de page suivante :**
+
+```
+$ gh api "repos/cyranoaladin/RAG/commits?path=docs/adr/ADR-0036-chaine-de-promotion-gouvernee.md&per_page=100" \
+    --paginate --jq '.[] | .sha'
+2182339fb9a0df49419370e5ead8b92ef4d62305
+
+$ gh api "repos/cyranoaladin/RAG/commits?path=docs/adr/ADR-0036-chaine-de-promotion-gouvernee.md&per_page=100" \
+    --paginate --jq '.[] | .sha' | wc -l
+1
+
+$ gh api "repos/cyranoaladin/RAG/commits?path=docs/adr/ADR-0036-chaine-de-promotion-gouvernee.md&per_page=100" -i \
+    | grep -i "^link:"
+(aucune sortie)
+```
+
+L'absence totale d'en-tête `Link` est la preuve la plus forte possible :
+GitHub n'émet cet en-tête que lorsqu'une page suivante existe
+(`rel="next"`) — son absence prouve directement, sans dépendre de
+`--paginate` pour être convaincant, qu'il n'y a qu'une seule page et donc
+qu'aucune troncature n'est possible. Les commandes du présent rapport
+sont désormais montrées en entier plutôt qu'abrégées.
 
 ## Preuve vérifiée en direct (pas déduite d'un texte historique, pas réutilisée sans revérification)
 
