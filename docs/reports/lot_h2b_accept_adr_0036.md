@@ -61,12 +61,40 @@ fragment pr on PullRequest{number,files(first: 100) {nodes {...}}}
 réparer, et s'appuyer uniquement sur le premier** (`commits?path=...`),
 qui n'est pas affecté par ce plafond — c'est un endpoint REST qui
 interroge directement l'historique serveur d'un chemin, sans passer par
-une liste de fichiers par PR. Ce dépôt fusionne exclusivement par
-squash (confirmé tout au long de cette mission — chaque merge produit
-exactement un commit sur `main` portant le diff complet de la PR) : donc
-« aucun commit autre que `2182339` ne touche ce chemin dans l'historique
-de `main` » équivaut exactement à « aucune PR fusionnée autre que #95 ne
-touche jamais ce fichier » — une preuve complète, pas un échantillon.
+une liste de fichiers par PR.
+
+**Round 3 (review sur `e434a13`), sur la justification de cette méthode,
+pas sur la méthode elle-même — encore vérifié avant d'être accepté ou
+rejeté.** La justification initiale invoquait « ce dépôt fusionne
+exclusivement par squash ». Codex a relevé que `2182339` (le commit
+cité) serait un commit de merge à deux parents, contredisant cette
+affirmation. **Vérifié directement, pas supposé :**
+
+```
+$ git rev-list --parents -n 1 2182339fb9a0df49419370e5ead8b92ef4d62305
+2182339fb9a0df49419370e5ead8b92ef4d62305 a956441645d48107ab983fad62b80f0848345e81
+```
+
+Un seul hash après le commit : **un seul parent**, pas deux — l'affirmation
+précise de Codex (« a two parents ») est factuellement fausse, vérifiée en
+direct. Vérification symétrique sur le commit de merge de PR #90 cité en
+exemple par Codex (`e539dbb71e6710d2b275c268b0d5d22aa7fb8e9a`) : lui aussi
+un seul parent. Aucun des deux n'est un commit de merge à deux parents.
+
+**Mais la conclusion plus large de Codex — ne pas fonder la preuve sur une
+hypothèse de méthode de fusion — est retenue, car la justification
+initiale n'en avait de toute façon pas besoin.** `commits?path=...`
+(comme `git log <chemin>`) parcourt le graphe de commits complet
+atteignable depuis la pointe de la branche, en remontant tous les
+parents — squash, rebase, ou merge à deux parents ne changent rien à
+cette exhaustivité : tout commit qui a un jour modifié ce chemin devient
+nécessairement un ancêtre de `main`, et apparaît donc dans ce résultat,
+quelle que soit la stratégie de fusion utilisée. La preuve ne repose donc
+pas sur « ce dépôt fusionne toujours de la même façon » (affirmation
+non vérifiée et non nécessaire), mais sur la complétude structurelle du
+parcours d'historique par chemin — vraie indépendamment de la stratégie.
+Le texte est corrigé pour ne plus invoquer le squash comme justification.
+
 Le champ des PR *non fusionnées* (ouvertes ou fermées sans merge) reste
 hors de portée de cette méthode, mais n'est pas pertinent ici : le
 mécanisme d'acceptation (précédent ADR-0031/ADR-0035) exige une PR

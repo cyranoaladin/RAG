@@ -20,8 +20,11 @@
   jamais l'historique Git local seul ni la liste de fichiers par PR de
   `gh pr list`, plafonnée à 100 fichiers par PR — voir « Preuve
   d'acceptation » pour le détail) : un seul commit avant ce lot,
-  `2182339` (PR #95). Ce dépôt fusionnant exclusivement par squash, cela
-  couvre exhaustivement toute PR fusionnée.
+  `2182339` (PR #95). Le parcours d'historique par chemin remonte tout le
+  graphe de commits atteignable depuis `main`, quelle que soit la
+  stratégie de fusion utilisée par chaque PR (squash, rebase, ou merge à
+  deux parents) : cela couvre donc exhaustivement toute PR fusionnée, sans
+  dépendre d'une hypothèse sur la méthode de fusion.
 - **Périmètre** : la chaîne qui relie un commit relu à une unité réellement
   déployée, et la preuve conservée de cette liaison. Ce document n'autorise
   aucun déploiement et ne provisionne aucune clé.
