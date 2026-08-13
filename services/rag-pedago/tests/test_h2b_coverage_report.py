@@ -2040,16 +2040,27 @@ def _sole_production_readiness_anchor(governance_dir: Path) -> Path:
     return anchor_path
 
 
+#: Verrou de gouvernance. Cette valeur appartient au gate de production
+#: readiness de ``rag-engine`` (``readiness_gate.GOVERNED_TRUST_ANCHOR_PATH``)
+#: et est répétée ici **délibérément** : ``rag-pedago`` n'importe jamais
+#: ``rag-engine`` (AGENTS.md, ADR-0001) — un `ModuleNotFoundError: No module
+#: named 'ingestor'` en CI (job ``services/rag-pedago``, isolé de
+#: ``services/rag-engine``) l'a confirmé concrètement. Même motif déjà
+#: établi pour ``REVIEW_BINDING_ANCHOR_PATH`` dans
+#: ``rag-engine/tests/test_readiness_gate.py``. Si l'un des deux chemins
+#: change, ce test doit être relu — c'est précisément son rôle.
+_PRODUCTION_READINESS_GOVERNED_PATH = "governance/trust-anchors/production-readiness-v1.json"
+
+
 def test_the_repository_ships_exactly_the_provisioned_production_trust_anchor() -> None:
     """H2-B Phase D : l'ancre de production readiness est désormais
-    provisionnée, réellement découverte via le même chemin gouverné que le
-    mécanisme de production (``readiness_gate.GOVERNED_TRUST_ANCHOR_PATH``),
-    jamais un chemin recalculé indépendamment qui pourrait diverger."""
-    from ingestor.ingestion_profiles.readiness_gate import GOVERNED_TRUST_ANCHOR_PATH
-
+    provisionnée, réellement découverte au même chemin gouverné que le
+    mécanisme de production (``readiness_gate.GOVERNED_TRUST_ANCHOR_PATH``,
+    répété ci-dessus faute d'import interservice licite), jamais un chemin
+    recalculé indépendamment qui pourrait diverger."""
     from rag_pedago.imports.h2b_coverage_report import _REPOSITORY_ROOT
 
-    expected_path = _REPOSITORY_ROOT / GOVERNED_TRUST_ANCHOR_PATH
+    expected_path = _REPOSITORY_ROOT / _PRODUCTION_READINESS_GOVERNED_PATH
     discovered = _sole_production_readiness_anchor(_REPOSITORY_ROOT / "governance")
     assert discovered == expected_path, (
         f"the anchor discovered by content ({discovered}) is not at the path "
