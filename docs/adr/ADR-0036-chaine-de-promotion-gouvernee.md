@@ -1,16 +1,66 @@
 # ADR-0036 — Chaîne de promotion gouvernée jusqu'au déploiement
 
-- **Statut** : Proposé — **non Accepté**. Une acceptation exige une review
-  humaine `APPROVED` du Code Owner `@abenrhouma` sur le HEAD exact de la PR
-  d'implémentation.
-- **Date** : 2026-08-11
-- **Décideur proposé** : à confirmer par `@abenrhouma`.
+- **Statut** : **Accepté** (2026-08-13). Décision positive rendue
+  conformément à ADR-0025 : review humaine `APPROVED` du Code Owner
+  `@abenrhouma`, `commit_id` égalant exactement le HEAD final de PR #95 au
+  moment de la review — voir « Preuve d'acceptation », plus bas, pour le
+  détail vérifiable. Même review, même head, même chaîne de preuve que
+  l'acceptation d'ADR-0035 (introduits par la même PR).
+- **Date de rédaction** : 2026-08-11
+- **Date d'acceptation** : 2026-08-13
+- **Décideur** : `@abenrhouma` (Code Owner, ADR-0025).
+- **Autorité de la décision** : ADR-0025 (autorité de revue humaine GitHub).
+- **PR de décision** : [#95](https://github.com/cyranoaladin/RAG/pull/95) —
+  la même PR qui introduit à la fois ce document et le contrat qui
+  implémente son mécanisme central
+  (`packages/contracts/src/nexus_contracts/production_readiness.py`,
+  protocole `NEXUS-PRODUCTION-READINESS-V1`). Aucune autre PR ne touche ce
+  fichier ADR (`git log --all` le confirme).
 - **Périmètre** : la chaîne qui relie un commit relu à une unité réellement
   déployée, et la preuve conservée de cette liaison. Ce document n'autorise
   aucun déploiement et ne provisionne aucune clé.
 - **S'appuie sur** : ADR-0001, ADR-0025, ADR-0031, ADR-0033, ADR-0035.
 - **Ne supersede rien.** ADR-0035 garde son sens entier : ce document
   ajoute la couche qui *consomme* son verdict.
+
+## Preuve d'acceptation
+
+Cette section documente précisément ce qui a été approuvé, par qui, vérifié
+en direct plutôt que déduit d'un texte historique — même chaîne de preuve
+que celle établie pour l'acceptation d'ADR-0035 (`docs/adr/ADR-0035-
+liaison-revue-scellee-autorisation-de-scope.md`), puisque les deux
+documents sont introduits par la même PR :
+
+1. **`3d0cf47133dfdba488890a9be3e6fe1fc83bd863`** est le HEAD exact de PR
+   #95 tel qu'il existait immédiatement avant son merge — c'est **cet état
+   précis** qui a été inspecté et approuvé humainement.
+2. La review GitHub `APPROVED` porte explicitement sur cet état :
+   **Reviewer** `@abenrhouma`, review `id=4923100913`, `state=APPROVED`,
+   `commit_id=3d0cf47133dfdba488890a9be3e6fe1fc83bd863`, soumise le
+   `2026-08-13T03:22:26Z` — recoupée via l'API GitHub paginée (45 entrées
+   au total pour PR #95), jamais prise au mot depuis un seul appel non
+   paginé. Le challenge correspondant (`NEXUS-TRUSTED-REVIEW-V1:
+   ab4e17ab79bb118ab4661cadef9f48820a02d5c9bf3c30baa9b003d07f785fff`) a
+   été revérifié par le run GitHub Actions réel `31663947902`
+   (`conclusion: success`), qui republie la même décision machine.
+3. Aucune review `DISMISSED` ni `CHANGES_REQUESTED` d'`@abenrhouma`
+   n'existe après cette approbation (vérifié à nouveau, indépendamment,
+   pour cette acceptation). Les deux seules reviews `DISMISSED` du même
+   reviewer portent sur des heads antérieurs
+   (`f2a662bc8054e35643cda0aa71cd8496aca2e8fe`,
+   `e9708feca0b3438f2667c872a70106095abf0ba1`, toutes deux du 2026-08-10,
+   bien avant l'approbation finale).
+4. GitHub a ensuite fusionné PR #95 (`merged_at`: `2026-08-13T03:35:10Z`),
+   produisant le commit `2182339fb9a0df49419370e5ead8b92ef4d62305` sur
+   `main` — 13 minutes après l'approbation, sans review intermédiaire.
+5. **Cette acceptation est architecturale et documentaire uniquement.**
+   Elle ne constitue ni un déploiement, ni une autorisation de contenu, ni
+   une clé provisionnée. La chaîne de promotion qu'elle décrit continue
+   d'être construite incrémentalement : le manifeste de readiness qu'elle
+   introduit (PR #95/#97), la liaison de revue scellée (ADR-0035/PR #99),
+   et la provenance d'image de production (PR #102) sont chacun des lots
+   séparés, gouvernés indépendamment, dont l'acceptation de ce document ne
+   dispense aucun.
 
 ## Contexte
 
