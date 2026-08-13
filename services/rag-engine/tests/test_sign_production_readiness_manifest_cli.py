@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 sys.path.insert(
@@ -51,6 +52,18 @@ MERGE_SHA = "a" * 40
 PR_HEAD_SHA = "b" * 40
 TREE_SHA = "c" * 40
 GIT_SHA1_EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+
+REPOSITORY = "cyranoaladin/RAG"
+PR_NUMBER = 98
+WORKFLOW_PATH = ".github/workflows/promote.yml"
+WORKFLOW_REF = "refs/heads/main"
+RUN_ID = 1234
+RUN_ATTEMPT = 1
+
+APPLICATION_IMAGE_SERVICE = "ingestor"
+APPLICATION_IMAGE_REF = "ghcr.io/x/ingestor@sha256:" + "1" * 64
+UPSTREAM_IMAGE_SERVICE = "pgvector"
+UPSTREAM_IMAGE_REF = "pgvector/pgvector@sha256:" + "2" * 64
 
 #: Clé de test du reçu de revue (ADR-0035) — distincte de TEST_SEED (clé de
 #: signature du manifeste lui-même) : ce sont deux ancres de confiance
@@ -189,15 +202,75 @@ def _revocation_registry_bytes(*, revoked: tuple[str, ...] = ()) -> bytes:
     ).encode("utf-8")
 
 
+def _compose_bytes(
+    *, upstream_image: str = UPSTREAM_IMAGE_REF, include_application_service: bool = True
+) -> bytes:
+    services: dict[str, Any] = {UPSTREAM_IMAGE_SERVICE: {"image": upstream_image}}
+    if include_application_service:
+        services[APPLICATION_IMAGE_SERVICE] = {"build": {"context": "."}}
+    return yaml.safe_dump({"services": services}, sort_keys=True).encode("utf-8")
+
+
+def _github_responses(
+    *,
+    pr_head_sha: str = PR_HEAD_SHA,
+    merge_sha: str = MERGE_SHA,
+    pr_head_tree_sha: str = TREE_SHA,
+    merge_tree_sha: str = TREE_SHA,
+    merged: bool = True,
+    pr_repository: str = REPOSITORY,
+    workflow_path: str = WORKFLOW_PATH,
+    workflow_repository: str = REPOSITORY,
+    head_branch: str | None = "main",
+) -> dict[str, dict[str, Any]]:
+    """Réponses GitHub par défaut : tout concorde (chemin heureux). Chaque
+    test qui a besoin d'un scénario différent mute le dict retourné par la
+    fixture ``_stub_github_api`` avant d'appeler ``assemble_and_sign``."""
+    return {
+        f"repos/{REPOSITORY}/pulls/{PR_NUMBER}": {
+            "merged": merged,
+            "merge_commit_sha": merge_sha,
+            "head": {"sha": pr_head_sha, "repo": {"full_name": pr_repository}},
+            "base": {"repo": {"full_name": REPOSITORY}},
+        },
+        f"repos/{REPOSITORY}/git/commits/{pr_head_sha}": {"tree": {"sha": pr_head_tree_sha}},
+        f"repos/{REPOSITORY}/git/commits/{merge_sha}": {"tree": {"sha": merge_tree_sha}},
+        f"repos/{REPOSITORY}/actions/runs/{RUN_ID}": {
+            "path": workflow_path,
+            "repository": {"full_name": workflow_repository},
+            "head_branch": head_branch,
+        },
+        f"repos/{REPOSITORY}/actions/runs/{RUN_ID}/attempts/{RUN_ATTEMPT}": {},
+    }
+
+
+@pytest.fixture(autouse=True)
+def _stub_github_api(monkeypatch: pytest.MonkeyPatch) -> dict[str, dict[str, Any]]:
+    """Substitue la seule frontière réseau de l'outil (``tool._github_api_get``)
+    -- aucun test de cette suite ne doit jamais atteindre le réseau réel.
+    Chemin heureux par défaut ; un test qui veut un scénario différent
+    demande cette fixture et mute son dict avant d'appeler l'outil."""
+    responses = _github_responses()
+
+    def fake(path: str) -> dict[str, Any]:
+        try:
+            return responses[path]
+        except KeyError:
+            raise tool.SigningToolError(
+                f"unexpected GitHub API path requested in test: {path!r}"
+            ) from None
+
+    monkeypatch.setattr(tool, "_github_api_get", fake)
+    return responses
+
+
 def _base_args(tmp_path: Path, **overrides: object) -> argparse.Namespace:
     parser = tool._build_arg_parser()
     argv = [
-        "--repository", "cyranoaladin/RAG",
-        "--pr-number", "98",
+        "--repository", REPOSITORY,
+        "--pr-number", str(PR_NUMBER),
         "--pr-head-sha", PR_HEAD_SHA,
-        "--pr-head-tree-sha", TREE_SHA,
         "--merge-sha", MERGE_SHA,
-        "--merge-tree-sha", TREE_SHA,
         "--environment", "production",
         "--review-binding-file", str(_write(tmp_path / "rb.json", _signed_review_binding_bytes())),
         "--review-binding-trust-anchor-file",
@@ -209,13 +282,13 @@ def _base_args(tmp_path: Path, **overrides: object) -> argparse.Namespace:
         "--catalog-file", str(_write(tmp_path / "catalog.json")),
         "--sealed-manifest-file", str(_write(tmp_path / "sealed.txt")),
         "--h2b-report-file", str(_write(tmp_path / "report.md")),
-        "--compose-file", str(_write(tmp_path / "compose.yml")),
-        "--application-image", "ingestor=ghcr.io/x/ingestor@sha256:" + "1" * 64,
-        "--upstream-image", "pgvector=pgvector/pgvector@sha256:" + "2" * 64,
-        "--workflow-path", ".github/workflows/promote.yml",
-        "--workflow-ref", "refs/heads/main",
-        "--run-id", "1234",
-        "--run-attempt", "1",
+        "--compose-file", str(_write(tmp_path / "compose.yml", _compose_bytes())),
+        "--application-image", f"{APPLICATION_IMAGE_SERVICE}={APPLICATION_IMAGE_REF}",
+        "--upstream-image", f"{UPSTREAM_IMAGE_SERVICE}={UPSTREAM_IMAGE_REF}",
+        "--workflow-path", WORKFLOW_PATH,
+        "--workflow-ref", WORKFLOW_REF,
+        "--run-id", str(RUN_ID),
+        "--run-attempt", str(RUN_ATTEMPT),
         "--key-id", TEST_KEY_ID,
         "--private-key-file", str(_write(tmp_path / "priv.hex", TEST_SEED.encode())),
         "--verification-trust-anchor-file", str(tmp_path / "verify_anchor.json"),
@@ -255,8 +328,8 @@ class TestValidManifestSignsAndVerifies:
 
         rc = tool.main([
             "--repository", "cyranoaladin/RAG", "--pr-number", "98",
-            "--pr-head-sha", PR_HEAD_SHA, "--pr-head-tree-sha", TREE_SHA,
-            "--merge-sha", MERGE_SHA, "--merge-tree-sha", TREE_SHA,
+            "--pr-head-sha", PR_HEAD_SHA,
+            "--merge-sha", MERGE_SHA,
             "--environment", "production",
             "--review-binding-file", str(tmp_path / "rb.json"),
             "--review-binding-trust-anchor-file", str(tmp_path / "rb_anchor.json"),
@@ -309,8 +382,15 @@ class TestAdversarialCanaries:
         with pytest.raises(tool.SigningToolError, match="pr_head_sha"):
             tool.assemble_and_sign(args)
 
-    def test_mismatched_tree_shas_refused_by_contract(self, tmp_path: Path) -> None:
-        args = _base_args(tmp_path, pr_head_tree_sha="d" * 40)  # differs from merge_tree_sha
+    def test_mismatched_tree_shas_refused_by_contract(
+        self, tmp_path: Path, _stub_github_api: dict[str, dict[str, Any]]
+    ) -> None:
+        # pr_head_tree_sha/merge_tree_sha are no longer CLI arguments -- they
+        # are derived from the (stubbed) live GitHub commit responses.
+        # Diverging them here exercises the same contract binding
+        # (_bindings_hold) as before, from its real source now.
+        _stub_github_api[f"repos/{REPOSITORY}/git/commits/{PR_HEAD_SHA}"]["tree"]["sha"] = "d" * 40
+        args = _base_args(tmp_path)
         with pytest.raises(tool.SigningToolError, match="pr_head_tree_sha and merge_tree_sha differ"):
             tool.assemble_and_sign(args)
 
@@ -416,8 +496,8 @@ class TestAdversarialCanaries:
         output = tmp_path / "manifest.json"
         rc = tool.main([
             "--repository", "cyranoaladin/RAG", "--pr-number", "98",
-            "--pr-head-sha", PR_HEAD_SHA, "--pr-head-tree-sha", TREE_SHA,
-            "--merge-sha", MERGE_SHA, "--merge-tree-sha", TREE_SHA,
+            "--pr-head-sha", PR_HEAD_SHA,
+            "--merge-sha", MERGE_SHA,
             "--environment", "production",
             "--review-binding-file", str(tmp_path / "rb.json"),
             "--review-binding-trust-anchor-file", str(tmp_path / "rb_anchor.json"),
@@ -581,8 +661,8 @@ class TestOutputNeverAliasesAnInput:
         original = priv.read_bytes()
         rc = tool.main([
             "--repository", "cyranoaladin/RAG", "--pr-number", "98",
-            "--pr-head-sha", PR_HEAD_SHA, "--pr-head-tree-sha", TREE_SHA,
-            "--merge-sha", MERGE_SHA, "--merge-tree-sha", TREE_SHA,
+            "--pr-head-sha", PR_HEAD_SHA,
+            "--merge-sha", MERGE_SHA,
             "--environment", "production",
             "--review-binding-file", str(tmp_path / "rb.json"),
             "--review-binding-trust-anchor-file", str(tmp_path / "rb_anchor.json"),
@@ -605,3 +685,295 @@ class TestOutputNeverAliasesAnInput:
         ])
         assert rc == 1
         assert priv.read_bytes() == original
+
+
+class TestGitAndWorkflowFactsAreLiveVerified:
+    """Codex (PR #100 §9-11) : un SHA/entier bien formé n'est pas une
+    preuve. Chaque scénario ici prouve qu'un fait qui diverge de la
+    réponse GitHub réelle (stubbée) est refusé -- jamais accepté sur le
+    seul format."""
+
+    def test_a_matching_pr_is_accepted(self, tmp_path: Path) -> None:
+        args = _base_args(tmp_path)
+        manifest = tool.assemble_and_sign(args)
+        assert manifest.pr_head_tree_sha == manifest.merge_tree_sha == TREE_SHA
+
+    def test_unmerged_pr_is_refused(
+        self, tmp_path: Path, _stub_github_api: dict[str, dict[str, Any]]
+    ) -> None:
+        _stub_github_api[f"repos/{REPOSITORY}/pulls/{PR_NUMBER}"]["merged"] = False
+        args = _base_args(tmp_path)
+        with pytest.raises(tool.SigningToolError, match="is not merged"):
+            tool.assemble_and_sign(args)
+
+    def test_merge_sha_not_matching_live_merge_commit_is_refused(
+        self, tmp_path: Path, _stub_github_api: dict[str, dict[str, Any]]
+    ) -> None:
+        _stub_github_api[f"repos/{REPOSITORY}/pulls/{PR_NUMBER}"]["merge_commit_sha"] = "f" * 40
+        args = _base_args(tmp_path)
+        with pytest.raises(tool.SigningToolError, match="does not match the live"):
+            tool.assemble_and_sign(args)
+
+    def test_pr_head_sha_not_matching_live_head_is_refused(
+        self, tmp_path: Path, _stub_github_api: dict[str, dict[str, Any]]
+    ) -> None:
+        _stub_github_api[f"repos/{REPOSITORY}/pulls/{PR_NUMBER}"]["head"]["sha"] = "f" * 40
+        args = _base_args(tmp_path)
+        with pytest.raises(tool.SigningToolError, match="does not match the live"):
+            tool.assemble_and_sign(args)
+
+    def test_fork_head_repository_is_refused(
+        self, tmp_path: Path, _stub_github_api: dict[str, dict[str, Any]]
+    ) -> None:
+        _stub_github_api[f"repos/{REPOSITORY}/pulls/{PR_NUMBER}"]["head"]["repo"]["full_name"] = (
+            "someone-else/RAG"
+        )
+        args = _base_args(tmp_path)
+        with pytest.raises(tool.SigningToolError, match="fork or cross-repository"):
+            tool.assemble_and_sign(args)
+
+    def test_workflow_path_not_matching_the_live_run_is_refused(
+        self, tmp_path: Path, _stub_github_api: dict[str, dict[str, Any]]
+    ) -> None:
+        _stub_github_api[f"repos/{REPOSITORY}/actions/runs/{RUN_ID}"]["path"] = (
+            ".github/workflows/other.yml"
+        )
+        args = _base_args(tmp_path)
+        with pytest.raises(tool.SigningToolError, match="does not match the live workflow path"):
+            tool.assemble_and_sign(args)
+
+    def test_workflow_ref_not_matching_the_live_head_branch_is_refused(
+        self, tmp_path: Path, _stub_github_api: dict[str, dict[str, Any]]
+    ) -> None:
+        _stub_github_api[f"repos/{REPOSITORY}/actions/runs/{RUN_ID}"]["head_branch"] = "some-other-branch"
+        args = _base_args(tmp_path)
+        with pytest.raises(tool.SigningToolError, match="does not match the live run"):
+            tool.assemble_and_sign(args)
+
+    def test_run_attempt_that_does_not_exist_is_refused(
+        self, tmp_path: Path, _stub_github_api: dict[str, dict[str, Any]]
+    ) -> None:
+        del _stub_github_api[f"repos/{REPOSITORY}/actions/runs/{RUN_ID}/attempts/{RUN_ATTEMPT}"]
+        args = _base_args(tmp_path)
+        with pytest.raises(tool.SigningToolError, match="unexpected GitHub API path"):
+            tool.assemble_and_sign(args)
+
+    def test_github_api_transport_failure_is_refused_not_swallowed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def boom(path: str) -> dict[str, Any]:
+            raise tool.SigningToolError(f"GitHub API call to {path!r} failed: boom")
+
+        monkeypatch.setattr(tool, "_github_api_get", boom)
+        args = _base_args(tmp_path)
+        with pytest.raises(tool.SigningToolError, match="GitHub API call"):
+            tool.assemble_and_sign(args)
+
+
+class TestComposeImageBindingIsEnforced:
+    """Codex P1 (PR #100 §2-6) : ``--application-image``/``--upstream-image``
+    ne sont plus des affirmations indépendantes du Compose haché -- chaque
+    scénario prouve qu'une divergence entre les deux est refusée."""
+
+    def test_matching_compose_and_declared_images_signs_successfully(
+        self, tmp_path: Path
+    ) -> None:
+        args = _base_args(tmp_path)
+        manifest = tool.assemble_and_sign(args)
+        assert manifest.upstream_image_digests[UPSTREAM_IMAGE_SERVICE] == UPSTREAM_IMAGE_REF
+
+    def test_upstream_image_digest_diverging_from_compose_is_refused(
+        self, tmp_path: Path
+    ) -> None:
+        args = _base_args(
+            tmp_path,
+            upstream_image=[f"{UPSTREAM_IMAGE_SERVICE}=pgvector/pgvector@sha256:" + "9" * 64],
+        )
+        with pytest.raises(tool.SigningToolError, match="does not match the compose file"):
+            tool.assemble_and_sign(args)
+
+    def test_upstream_service_omitted_from_declared_images_is_refused(
+        self, tmp_path: Path
+    ) -> None:
+        # compose.yml (default fixture) pins exactly one upstream service
+        # (pgvector); declaring zero upstream images leaves it
+        # unrepresented -- caught by _image_digest_pairs itself (it already
+        # refuses an empty list), before the cross-check even runs. Same
+        # underlying gap either way: no unrepresented service is accepted.
+        args = _base_args(tmp_path, upstream_image=[])
+        with pytest.raises(tool.SigningToolError, match="must declare at least one image"):
+            tool.assemble_and_sign(args)
+
+    def test_upstream_service_omitted_while_another_is_present_is_refused(
+        self, tmp_path: Path
+    ) -> None:
+        # Non-empty but still missing 'pgvector' -- exercises the
+        # cross-check's set-mismatch branch specifically (distinct from the
+        # empty-list case above, which never reaches it).
+        raw = yaml.safe_dump(
+            {
+                "services": {
+                    UPSTREAM_IMAGE_SERVICE: {"image": UPSTREAM_IMAGE_REF},
+                    "redis": {"image": "redis:7@sha256:" + "5" * 64},
+                    APPLICATION_IMAGE_SERVICE: {"build": {"context": "."}},
+                }
+            },
+            sort_keys=True,
+        ).encode("utf-8")
+        args = _base_args(
+            tmp_path,
+            compose_file=_write(tmp_path / "compose_two_upstream.yml", raw),
+            upstream_image=[f"{UPSTREAM_IMAGE_SERVICE}={UPSTREAM_IMAGE_REF}"],
+        )
+        with pytest.raises(tool.SigningToolError, match="image-pinned services"):
+            tool.assemble_and_sign(args)
+
+    def test_extra_invented_upstream_service_is_refused(self, tmp_path: Path) -> None:
+        args = _base_args(
+            tmp_path,
+            upstream_image=[
+                f"{UPSTREAM_IMAGE_SERVICE}={UPSTREAM_IMAGE_REF}",
+                "invented-service=ghcr.io/x/invented@sha256:" + "9" * 64,
+            ],
+        )
+        with pytest.raises(tool.SigningToolError, match="image-pinned services"):
+            tool.assemble_and_sign(args)
+
+    def test_application_service_omitted_from_declared_images_is_refused(
+        self, tmp_path: Path
+    ) -> None:
+        # compose.yml declares one build-based service (ingestor); an empty
+        # --application-image list leaves it unrepresented -- caught by the
+        # earlier "_image_digest_pairs must declare at least one image"
+        # refusal, itself a real consequence of the same underlying gap.
+        args = _base_args(tmp_path, application_image=[])
+        with pytest.raises(tool.SigningToolError, match="must declare at least one image"):
+            tool.assemble_and_sign(args)
+
+    def test_extra_invented_application_service_is_refused(self, tmp_path: Path) -> None:
+        args = _base_args(
+            tmp_path,
+            application_image=[
+                f"{APPLICATION_IMAGE_SERVICE}={APPLICATION_IMAGE_REF}",
+                "invented-worker=ghcr.io/x/invented@sha256:" + "9" * 64,
+            ],
+        )
+        with pytest.raises(tool.SigningToolError, match="build-based services"):
+            tool.assemble_and_sign(args)
+
+    def test_compose_service_with_neither_image_nor_build_is_ignored(
+        self, tmp_path: Path
+    ) -> None:
+        raw = yaml.safe_dump(
+            {
+                "services": {
+                    UPSTREAM_IMAGE_SERVICE: {"image": UPSTREAM_IMAGE_REF},
+                    APPLICATION_IMAGE_SERVICE: {"build": {"context": "."}},
+                    "network-only": {"networks": ["rag_net"]},
+                }
+            },
+            sort_keys=True,
+        ).encode("utf-8")
+        args = _base_args(tmp_path, compose_file=_write(tmp_path / "compose_extra.yml", raw))
+        manifest = tool.assemble_and_sign(args)
+        assert manifest.upstream_image_digests[UPSTREAM_IMAGE_SERVICE] == UPSTREAM_IMAGE_REF
+
+    def test_templated_compose_image_value_is_refused(self, tmp_path: Path) -> None:
+        raw = yaml.safe_dump(
+            {
+                "services": {
+                    UPSTREAM_IMAGE_SERVICE: {"image": "${PGVECTOR_IMAGE}"},
+                    APPLICATION_IMAGE_SERVICE: {"build": {"context": "."}},
+                }
+            },
+            sort_keys=True,
+        ).encode("utf-8")
+        args = _base_args(tmp_path, compose_file=_write(tmp_path / "compose_templated.yml", raw))
+        with pytest.raises(tool.SigningToolError, match="templated or non-literal"):
+            tool.assemble_and_sign(args)
+
+    def test_malformed_compose_yaml_is_refused(self, tmp_path: Path) -> None:
+        args = _base_args(
+            tmp_path, compose_file=_write(tmp_path / "compose_bad.yml", b"not: [valid: yaml")
+        )
+        with pytest.raises(tool.SigningToolError, match="not valid YAML"):
+            tool.assemble_and_sign(args)
+
+    def test_compose_without_a_services_mapping_is_refused(self, tmp_path: Path) -> None:
+        raw = yaml.safe_dump({"not_services": {}}, sort_keys=True).encode("utf-8")
+        args = _base_args(tmp_path, compose_file=_write(tmp_path / "compose_no_services.yml", raw))
+        with pytest.raises(tool.SigningToolError, match="does not declare a top-level 'services'"):
+            tool.assemble_and_sign(args)
+
+    def test_a_compose_tag_alongside_the_digest_is_normalized_away_before_comparing(
+        self, tmp_path: Path
+    ) -> None:
+        """The real docker-compose.v2.yml pins images as name:tag@sha256:...
+        (e.g. pgvector/pgvector:pg16@sha256:...). ProductionReadinessManifestV1
+        (shared contract, not modified here without an ADR) only ever accepts
+        the tagless name@sha256:... form for --upstream-image, so the compose
+        side's tag must be normalized away before the byte comparison --
+        never by relaxing what the manifest itself accepts."""
+        tagged_ref = "pgvector/pgvector:pg16@sha256:" + "2" * 64
+        args = _base_args(
+            tmp_path,
+            upstream_image=[f"{UPSTREAM_IMAGE_SERVICE}={UPSTREAM_IMAGE_REF}"],  # tagless
+            compose_file=_write(
+                tmp_path / "compose_tagged.yml", _compose_bytes(upstream_image=tagged_ref)
+            ),
+        )
+        manifest = tool.assemble_and_sign(args)
+        assert manifest.upstream_image_digests[UPSTREAM_IMAGE_SERVICE] == UPSTREAM_IMAGE_REF
+
+    def test_a_compose_image_not_pinned_by_digest_is_refused(self, tmp_path: Path) -> None:
+        raw = yaml.safe_dump(
+            {
+                "services": {
+                    UPSTREAM_IMAGE_SERVICE: {"image": "pgvector/pgvector:pg16"},  # no digest
+                    APPLICATION_IMAGE_SERVICE: {"build": {"context": "."}},
+                }
+            },
+            sort_keys=True,
+        ).encode("utf-8")
+        args = _base_args(tmp_path, compose_file=_write(tmp_path / "compose_unpinned.yml", raw))
+        with pytest.raises(tool.SigningToolError, match="not pinned by digest"):
+            tool.assemble_and_sign(args)
+
+    def test_compose_tag_mismatch_with_same_digest_is_still_accepted(
+        self, tmp_path: Path
+    ) -> None:
+        """The tag is documentation for a human reader; only the digest (and
+        repository name) is the actual deployment unit. A tag that differs
+        from what a human might expect, but the same digest, is not a
+        divergence this cross-check is meant to catch."""
+        differently_tagged_ref = "pgvector/pgvector:pg16-alpine@sha256:" + "2" * 64
+        args = _base_args(
+            tmp_path,
+            upstream_image=[f"{UPSTREAM_IMAGE_SERVICE}={UPSTREAM_IMAGE_REF}"],
+            compose_file=_write(
+                tmp_path / "compose_other_tag.yml",
+                _compose_bytes(upstream_image=differently_tagged_ref),
+            ),
+        )
+        manifest = tool.assemble_and_sign(args)
+        assert manifest.upstream_image_digests[UPSTREAM_IMAGE_SERVICE] == UPSTREAM_IMAGE_REF
+
+
+class TestRealCommittedComposeFileParsesAsExpected:
+    """Contre la vraie racine du dépôt, jamais une fixture synthétique
+    (même précédent que ``test_h2b_coverage_report.py``) : prouve que
+    ``_compose_services`` comprend réellement ``docker-compose.v2.yml`` tel
+    qu'il est commité, pas une forme imaginée."""
+
+    def test_the_real_v2_compose_file_has_the_expected_image_and_build_split(self) -> None:
+        repo_root = Path(__file__).resolve().parents[3]
+        compose_path = repo_root / "services" / "rag-engine" / "infra" / "docker-compose.v2.yml"
+        services = tool._compose_services(compose_path.read_bytes())
+        image_based = {name for name, svc in services.items() if "image" in svc}
+        build_based = {name for name, svc in services.items() if "build" in svc}
+        assert "ingestor" in build_based
+        assert {"pgvector", "prometheus"}.issubset(image_based)
+        for name in image_based:
+            image = services[name]["image"]
+            assert "$" not in image, f"service {name!r} unexpectedly templates its image"
+            assert "@sha256:" in image, f"service {name!r} is not digest-pinned"
