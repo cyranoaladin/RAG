@@ -17,7 +17,7 @@ de gouvernance pédagogique (ADR-0001).
 
 Réutilise les deux primitives déjà vérifiées et testées de
 `deployment_image_inventory.py` (PR #102) — ne les redéfinit pas — et
-ajoute deux faits nouveaux (Codex P1, PR #105) :
+ajoute trois faits nouveaux (Codex P1, PR #105) :
 
 1. Que le digest réellement câblé côté Compose et le digest issu de la
    provenance vérifiée sont, pour chaque service, EXACTEMENT le même
@@ -31,6 +31,12 @@ ajoute deux faits nouveaux (Codex P1, PR #105) :
    disque pourrait diverger du commit vérifié (service supplémentaire à
    image mutable, volume ou commande modifiés) sans que le pinning des
    trois services attendus ne le détecte.
+3. Que la résolution Compose charge le même `.env` hôte que le runbook
+   de production (`docs/runbooks/go_live.md` : `docker compose -f
+   docker-compose.v2.yml --env-file .env config --quiet`, fichier
+   host-local jamais versionné, donc jamais vérifiable contre un objet
+   git) — sans quoi ce vérificateur échouait toujours sur un hôte
+   normalement configuré, faute des dizaines de `${VAR:?...}` requis.
 
 **Frontière de confiance acceptée.** Le dépôt git local
 (``--repo-root``) est lui-même la racine de confiance de toute exécution
@@ -75,7 +81,15 @@ _CANONICAL_COMPOSE_FILES: tuple[str, ...] = (
 #: vérifié.
 _INFRA_RELATIVE_PATH = "services/rag-engine/infra"
 
-RunDockerComposeConfig = Callable[[Path, str, tuple[str, ...], Path], dict[str, Any]]
+#: Même emplacement que le runbook de production (Codex P1, PR #105) :
+#: `docs/runbooks/go_live.md` §3 — `.env` vit à côté des fichiers Compose
+#: source, jamais versionné (`.gitignore`), donc jamais lisible via
+#: `git show`. Contrairement aux fichiers Compose, ce fichier est
+#: intrinsèquement host-local : il n'existe aucun objet git vérifiable
+#: contre lequel le confronter.
+_ENV_FILE_RELATIVE_PATH = f"{_INFRA_RELATIVE_PATH}/.env"
+
+RunDockerComposeConfig = Callable[[Path, str, tuple[str, ...], Path, Path], dict[str, Any]]
 
 
 class ReleaseVerificationError(RuntimeError):
@@ -113,15 +127,27 @@ def _git_show_bytes(repo_root: Path, commit_sha: str, relative_path: str) -> byt
 
 
 def run_docker_compose_config_via_subprocess(
-    repo_root: Path, source_commit_sha: str, compose_files: tuple[str, ...], work_dir: Path
+    repo_root: Path, source_commit_sha: str, compose_files: tuple[str, ...], work_dir: Path, env_file: Path
 ) -> dict[str, Any]:
     """Frontière process par défaut. Chaque fichier Compose canonique est
     d'abord lu depuis ``git show <source_commit_sha>:<chemin>`` dans
     ``repo_root`` (jamais depuis un répertoire arbitraire), écrit dans un
     répertoire de travail scratch, puis résolu avec ``docker compose ...
-    config --format json``. Cette sous-commande ne contacte ni registre
+    --env-file <env_file> config --format json`` — même mécanisme que le
+    runbook de production. Cette sous-commande ne contacte ni registre
     ni daemon distant : elle ne fait que résoudre/interpoler le YAML
-    localement."""
+    localement.
+
+    ``env_file`` est intrinsèquement host-local (jamais versionné,
+    contient des secrets) : contrairement aux fichiers Compose, il n'est
+    jamais lu via ``git show`` — il n'existe aucun objet git vérifiable
+    contre lequel le confronter (Codex P1, PR #105)."""
+    if not env_file.is_file():
+        raise ReleaseVerificationError(
+            f"env file not found: {env_file} — the production Compose files require "
+            "dozens of ${VAR:?...} values that only a real deployment .env supplies "
+            "(see docs/runbooks/go_live.md §3)"
+        )
     scratch = work_dir / "compose"
     scratch.mkdir(parents=True, exist_ok=True)
     for name in compose_files:
@@ -129,7 +155,7 @@ def run_docker_compose_config_via_subprocess(
         content = _git_show_bytes(repo_root, source_commit_sha, relative_path)
         (scratch / name).write_bytes(content)
 
-    args = ["docker", "compose"]
+    args = ["docker", "compose", "--env-file", str(env_file)]
     for name in compose_files:
         args += ["-f", name]
     args += ["config", "--format", "json"]
@@ -190,12 +216,15 @@ def verify_release_images(
     provenance_run_attempt: int,
     repo_root: Path,
     compose_files: tuple[str, ...],
+    env_file: Path,
     github_api_get: dii.GitHubApiGet,
     download_artifact: dii.DownloadArtifact,
     run_docker_compose_config: RunDockerComposeConfig,
     work_dir: Path,
 ) -> dict[str, str]:
-    resolved_config = run_docker_compose_config(repo_root, source_commit_sha, compose_files, work_dir)
+    resolved_config = run_docker_compose_config(
+        repo_root, source_commit_sha, compose_files, work_dir, env_file
+    )
     try:
         pinned_images = dii.require_resolved_compose_images_are_pinned(resolved_config)
     except dii.DeploymentImageInventoryError as exc:
@@ -233,11 +262,21 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         "les trois fichiers Compose canoniques — jamais un répertoire "
         "arbitraire sur disque.",
     )
+    p.add_argument(
+        "--env-file",
+        type=Path,
+        default=None,
+        help="Fichier .env host-local (défaut : <repo-root>/"
+        f"{_ENV_FILE_RELATIVE_PATH}, même emplacement que le runbook de "
+        "production). Jamais vérifié contre git — intrinsèquement "
+        "host-local (secrets, .gitignore).",
+    )
     return p
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _build_arg_parser().parse_args(argv)
+    env_file = args.env_file or (args.repo_root / _ENV_FILE_RELATIVE_PATH)
     try:
         with tempfile.TemporaryDirectory() as tmp:
             verified = verify_release_images(
@@ -247,6 +286,7 @@ def main(argv: list[str] | None = None) -> int:
                 provenance_run_attempt=args.provenance_run_attempt,
                 repo_root=args.repo_root,
                 compose_files=_CANONICAL_COMPOSE_FILES,
+                env_file=env_file,
                 github_api_get=dii.gh_api_get,
                 download_artifact=dii.make_download_artifact_via_gh(repository=_CANONICAL_REPOSITORY),
                 run_docker_compose_config=run_docker_compose_config_via_subprocess,

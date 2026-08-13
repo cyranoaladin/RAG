@@ -211,9 +211,14 @@ class _Fakes:
         return path
 
     def run_docker_compose_config(
-        self, repo_root: Path, source_commit_sha: str, compose_files: tuple[str, ...], work_dir: Path
+        self,
+        repo_root: Path,
+        source_commit_sha: str,
+        compose_files: tuple[str, ...],
+        work_dir: Path,
+        env_file: Path,
     ) -> dict[str, Any]:
-        self.compose_calls.append((repo_root, source_commit_sha, compose_files, work_dir))
+        self.compose_calls.append((repo_root, source_commit_sha, compose_files, work_dir, env_file))
         return self.resolved_compose
 
 
@@ -225,6 +230,7 @@ def _verify(fakes: _Fakes, tmp_path: Path, **overrides: Any) -> dict[str, str]:
         provenance_run_attempt=RUN_ATTEMPT,
         repo_root=tmp_path,
         compose_files=vri._CANONICAL_COMPOSE_FILES,
+        env_file=tmp_path / "dummy.env",
         github_api_get=fakes.github_api_get,
         download_artifact=fakes.download_artifact,
         run_docker_compose_config=fakes.run_docker_compose_config,
@@ -251,7 +257,7 @@ class TestVerifyReleaseImagesEndToEnd:
         )
         _verify(fakes, tmp_path)
         assert fakes.compose_calls == [
-            (tmp_path, SOURCE_COMMIT_SHA, vri._CANONICAL_COMPOSE_FILES, tmp_path)
+            (tmp_path, SOURCE_COMMIT_SHA, vri._CANONICAL_COMPOSE_FILES, tmp_path, tmp_path / "dummy.env")
         ]
 
     def test_provenance_is_always_anchored_on_the_canonical_repository(self, tmp_path: Path) -> None:
@@ -380,11 +386,22 @@ class TestRunDockerComposeConfigViaSubprocess:
 
     @requires_docker
     @requires_git
+    def test_missing_env_file_is_refused_before_shelling_out_to_anything(self, tmp_path: Path) -> None:
+        repo_root = Path(__file__).resolve().parents[3]
+        with pytest.raises(vri.ReleaseVerificationError, match="env file not found"):
+            vri.run_docker_compose_config_via_subprocess(
+                repo_root, "0" * 40, vri._CANONICAL_COMPOSE_FILES, tmp_path, tmp_path / "missing.env"
+            )
+
+    @requires_docker
+    @requires_git
     def test_missing_git_object_is_refused_before_shelling_out_to_docker(self, tmp_path: Path) -> None:
         repo_root = Path(__file__).resolve().parents[3]
+        env_file = tmp_path / "dummy.env"
+        env_file.write_text("", encoding="utf-8")
         with pytest.raises(vri.ReleaseVerificationError, match="git show failed"):
             vri.run_docker_compose_config_via_subprocess(
-                repo_root, "0" * 40, vri._CANONICAL_COMPOSE_FILES, tmp_path
+                repo_root, "0" * 40, vri._CANONICAL_COMPOSE_FILES, tmp_path, env_file
             )
 
     @requires_docker
@@ -397,12 +414,20 @@ class TestRunDockerComposeConfigViaSubprocess:
             ["git", "rev-parse", "HEAD"], cwd=repo_root, capture_output=True, text=True, check=True
         ).stdout.strip()
 
+        # Shell-exported values take priority over --env-file in Docker
+        # Compose's own precedence rules -- an existing but otherwise
+        # empty env file, combined with real env vars, exercises the
+        # --env-file wiring itself (file must exist) without needing a
+        # real production .env in this sandbox.
+        env_file = tmp_path / "dummy.env"
+        env_file.write_text("", encoding="utf-8")
+
         env_overrides = _dummy_compose_env()
         old_environ = dict(os.environ)
         try:
             os.environ.update(env_overrides)
             resolved = vri.run_docker_compose_config_via_subprocess(
-                repo_root, head_sha, vri._CANONICAL_COMPOSE_FILES, tmp_path
+                repo_root, head_sha, vri._CANONICAL_COMPOSE_FILES, tmp_path, env_file
             )
         finally:
             os.environ.clear()
@@ -411,6 +436,31 @@ class TestRunDockerComposeConfigViaSubprocess:
         pinned = dii.require_resolved_compose_images_are_pinned(resolved)
         assert set(pinned) == set(EXPECTED_SERVICES)
         assert pinned["ingestor"] == f"{INGESTOR_REPO}@{INGESTOR_DIGEST}"
+
+    @requires_docker
+    @requires_git
+    def test_real_env_file_values_are_actually_loaded(self, tmp_path: Path) -> None:
+        # Distinct from the previous test: proves --env-file itself
+        # supplies values (not just that shell-exported vars mask its
+        # absence) by putting every required value in the file and
+        # exporting nothing.
+        repo_root = Path(__file__).resolve().parents[3]
+        head_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=repo_root, capture_output=True, text=True, check=True
+        ).stdout.strip()
+
+        env_file = tmp_path / "dummy.env"
+        env_file.write_text(
+            "\n".join(f"{name}={value}" for name, value in _dummy_compose_env().items()) + "\n",
+            encoding="utf-8",
+        )
+
+        resolved = vri.run_docker_compose_config_via_subprocess(
+            repo_root, head_sha, vri._CANONICAL_COMPOSE_FILES, tmp_path, env_file
+        )
+
+        pinned = dii.require_resolved_compose_images_are_pinned(resolved)
+        assert set(pinned) == set(EXPECTED_SERVICES)
 
 
 class TestMakeDownloadArtifactViaGh:

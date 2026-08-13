@@ -137,6 +137,57 @@ preuve que c'est bien la liaison git qui est exercée) ; retrait du `-R`
 dans `make_download_artifact_via_gh` → test dédié rouge. Suite restaurée
 verte après chacune.
 
+## 4ter. Revue Codex round 2 — chargement de l'environnement de déploiement
+
+Une revue fraîche sur le HEAD `0534ebb` a signalé un dernier finding
+P1, vérifié contre le runbook réel avant correction.
+
+**Finding 4 — le `.env` de déploiement n'était jamais chargé.** Vérifié
+dans `docs/runbooks/go_live.md` §3 : la voie de production réelle copie
+`.env.example` vers `.env` dans `services/rag-engine/infra/`, puis
+résout Compose avec `docker compose -f docker-compose.v2.yml --env-file
+.env config --quiet`. Ce CLI résolvait les fichiers Compose depuis un
+répertoire scratch ne contenant que les trois fichiers eux-mêmes
+(lus via `git show`, §4bis), sans jamais passer `--env-file` ni charger
+aucun `.env` — sur un hôte normalement configuré, la résolution échouait
+systématiquement faute des dizaines de `${VAR:?...}` requis, à moins que
+l'opérateur n'exporte manuellement chaque valeur.
+
+Corrigé par un nouveau paramètre `env_file` (CLI `--env-file`, défaut
+`<repo-root>/services/rag-engine/infra/.env` — même emplacement que le
+runbook), passé à `docker compose --env-file <fichier> ...`. Une
+vérification explicite (`env_file.is_file()`) refuse fail-closed avec un
+message clair avant tout appel process, plutôt que de laisser échouer
+`docker compose` avec un mur d'erreurs d'interpolation peu lisible.
+
+**Pourquoi `.env` n'est jamais vérifié contre git, contrairement aux
+fichiers Compose (§4bis).** Il est intrinsèquement host-local — jamais
+versionné (`.gitignore`, contient des secrets) — donc il n'existe aucun
+objet git contre lequel le confronter, à la différence des trois
+fichiers Compose qui, eux, sont bien commités et vérifiables.
+
+```
+$ cd services/rag-engine && .venv/bin/python -m pytest \
+    tests/test_verify_release_image_provenance_cli.py \
+    tests/test_deployment_image_inventory.py -q
+63 passed
+
+$ .venv/bin/python -m ruff check scripts/verify_release_image_provenance_cli.py \
+    tests/test_verify_release_image_provenance_cli.py
+All checks passed!
+
+$ .venv/bin/python -m mypy scripts/verify_release_image_provenance_cli.py
+Success: no issues found in 1 source file
+```
+
+Deux nouveaux tests d'intégration réelle (Docker+git) : fichier `.env`
+absent → refusé avant tout appel process ; un `.env` réel portant
+TOUTES les valeurs requises (sans aucune variable shell exportée) permet
+une résolution complète — preuve que `--env-file` fournit réellement les
+valeurs, pas seulement que son absence est masquée par des variables
+shell. Le check d'existence et le câblage `--env-file` sont
+mutation-testés individuellement.
+
 ## 5. Ce que ce lot ne fait pas
 
 - N'intègre pas ce script dans `sign_production_readiness_manifest_
@@ -162,12 +213,12 @@ verte après chacune.
 ```
 $ cd services/rag-engine && .venv/bin/python -m pytest \
     tests/test_verify_release_image_provenance_cli.py -v
-20 passed
+22 passed
 
 $ .venv/bin/python -m pytest \
     tests/test_deployment_image_inventory.py \
     tests/test_verify_release_image_provenance_cli.py -q
-61 passed
+63 passed
 
 $ .venv/bin/python -m ruff check scripts/verify_release_image_provenance_cli.py \
     scripts/deployment_image_inventory.py tests/test_verify_release_image_provenance_cli.py
