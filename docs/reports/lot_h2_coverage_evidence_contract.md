@@ -71,6 +71,78 @@ refusant en fail-closed toute forme non-hex64 restante (y compris
 optionnel fourni mais absent). Les deux bugs sont couverts par des tests
 dédiés, mutation-testés (§5).
 
+## 3bis. Deuxième round Codex — deux vulnérabilités structurelles réelles, corrigées
+
+Après un premier passage CI vert (10/10), Codex a signalé deux
+faiblesses P1 sur `H2CoverageEvidenceV1`, toutes deux vérifiées contre
+le producteur réel avant correction :
+
+**Finding 1 — un verdict de succès global n'était pas lié à ses propres
+prérequis.** Rien n'empêchait un document de déclarer
+`h2_coverage_gate_pass=true` tout en enregistrant, dans le même
+document, `coverage_complete=false` ou `rights_gate_status=
+"BLOCKED_INGEST_WITHOUT_CLEARANCE"` — une preuve falsifiée ou
+substituée aurait pu revendiquer un succès contredit par ses propres
+champs. Vérifié contre le producteur réel
+(`h2b_coverage_report.py:~1284-1294`) :
+
+```python
+h2_coverage_gate_pass = (
+    decision_coverage_complete
+    and golden_pass
+    and rights_gate_status == "PASS"
+    and pii_gate_status == "PASS"
+    and authority_review_binding_verified
+    and authority_revocations_checked
+    and final_mode
+    and all(value == 0 for value in safety_invariants.values())
+)
+```
+
+Corrigé par un `model_validator(mode="after")`
+(`_gate_pass_implies_its_own_prerequisites`) qui refuse tout document où
+`h2_coverage_gate_pass=true` contredit l'un des six prérequis qu'il
+représente — une cohérence structurelle entre verdicts déjà rendus,
+jamais un recalcul du gate lui-même (ADR-0001 respecté).
+
+**Finding 2 — `input_file_digests` n'exigeait qu'une seule clé
+arbitraire.** La seule contrainte (`min_length=1`) laissait passer
+`{"placeholder": <hex64>}` : un document formellement valide mais lié à
+aucune des quatre preuves d'entrée qu'il prétend représenter
+(`--catalog`/`--routing`/`--rights`/`--pii`, toutes obligatoires côté
+producteur `argparse`, jamais optionnelles). Corrigé par
+`_REQUIRED_INPUT_FILE_KEYS = frozenset({"catalog", "routing", "rights",
+"pii"})` et un second `model_validator(mode="after")` qui refuse toute
+`input_file_digests` où l'une des quatre clés manque.
+
+Les deux validateurs sont mutation-testés directement (désactivation
+temporaire de chacun → les tests dédiés de `TestCrossFieldConsistency`
+passent au rouge comme attendu → restauration → suite repassée verte) :
+
+```
+$ python3 -m pytest -q tests/test_h2_coverage_evidence_contract.py -k TestCrossFieldConsistency
+11 passed
+# (mutation 1 désactivée : 2 tests rouges — clé requise manquante /
+#   clé arbitraire seule — restaurée, verte)
+# (mutation 2 désactivée : 6 tests rouges — un par prérequis testé
+#   individuellement via parametrize — restaurée, verte)
+
+$ cd packages/contracts && python3 -m pytest -q
+260 passed in 1.09s
+
+$ python3 -m ruff check src/nexus_contracts/h2_coverage_evidence.py \
+    tests/test_h2_coverage_evidence_contract.py
+All checks passed!
+
+$ python3 -m mypy src/nexus_contracts/h2_coverage_evidence.py
+Success: no issues found in 1 source file
+
+$ cd services/rag-pedago && .venv/bin/python -m pytest tests/test_h2b_coverage_report.py -q
+90 passed in 1.26s
+# Le producteur réel satisfait déjà les deux nouveaux invariants —
+# vérifié, pas supposé.
+```
+
 ## 4. Ce que ce lot ne fait pas
 
 - N'intègre pas le signer (`sign_production_readiness_manifest_cli.py`,
@@ -86,7 +158,7 @@ dédiés, mutation-testés (§5).
 
 ```
 $ cd packages/contracts && python3 -m pytest -q
-249 passed in 1.03s
+260 passed in 1.09s
 
 $ python3 -m ruff check src/nexus_contracts/authorization_revocations.py \
     src/nexus_contracts/h2_coverage_evidence.py \
@@ -120,18 +192,24 @@ $ gitleaks detect --source <chaque fichier modifié> --no-git   (×7)
 no leaks found (×7)
 ```
 
-Couverture adversariale contrat `H2CoverageEvidenceV1` (34 tests
-`packages/contracts`, dont 20 dédiés) : canonicalisation déterministe et
-insensible à l'ordre des champs d'entrée ; round-trip via le parseur
-strict ; **champ inconnu → refusé** ; **champ manquant → refusé** ;
-**`protocol_version` erroné → refusé** ; **environnement non-production
-→ refusé** ; **`git_commit` mal formé → refusé** ; **`manifest_sha256`
-mal formé → refusé** ; **`input_file_digests` vide → refusé** ;
-**statut de gate hors énumération réelle → refusé** ; **total négatif →
-refusé** ; **JSON malformé/non-UTF8/non-objet → refusé** ; **octets non
-canoniques → refusés** ; **digest malformé dans `input_file_digests` →
-refusé** ; **bascule de `h2_coverage_gate_pass` → digest change** ;
-**changement de `manifest_sha256` → digest change**. Registre de
+Couverture adversariale contrat `H2CoverageEvidenceV1` (31 tests dédiés
+dans `tests/test_h2_coverage_evidence_contract.py`, 260 au total pour
+`packages/contracts`) : canonicalisation déterministe et insensible à
+l'ordre des champs d'entrée ; round-trip via le parseur strict ; **champ
+inconnu → refusé** ; **champ manquant → refusé** ; **`protocol_version`
+erroné → refusé** ; **environnement non-production → refusé** ;
+**`git_commit` mal formé → refusé** ; **`manifest_sha256` mal formé →
+refusé** ; **`input_file_digests` vide → refusé** ; **statut de gate
+hors énumération réelle → refusé** ; **total négatif → refusé** ;
+**`input_file_digests` privé d'une des quatre clés requises (ou ne
+portant qu'une clé arbitraire) → refusé** ; **`h2_coverage_gate_pass=
+true` incohérent avec l'un de ses six prérequis → refusé (6 cas
+paramétrés, un par prérequis)** ; **JSON malformé/non-UTF8/non-objet →
+refusé** ; **octets non canoniques → refusés** ; **digest malformé dans
+`input_file_digests` → refusé** ; **bascule de `h2_coverage_gate_pass`
+→ digest change** ; **changement de `manifest_sha256` → digest
+change**. Les deux nouveaux validateurs structurels sont mutation-testés
+directement (§3bis). Registre de
 révocation partagé (14 tests) : comportement identique à l'ancien
 parseur privé, canaris de mutation portés fidèlement (clé inconnue,
 protocole erroné, ID non-liste/non-chaîne/vide/espaces, doublon).

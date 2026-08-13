@@ -119,6 +119,55 @@ class TestStrictValidation:
             H2CoverageEvidenceV1.model_validate(_fields(corpus_total_actual=-1))
 
 
+class TestCrossFieldConsistency:
+    """Deux invariants structurels ajoutés après revue Codex (P1, PR #104) :
+    un document ne peut jamais revendiquer un succès global tout en
+    omettant l'une des quatre preuves d'entrée, ni tout en enregistrant
+    lui-même un échec de couverture ou de gouvernance."""
+
+    def test_input_file_digests_missing_a_required_key_is_rejected(self) -> None:
+        digests = {**_fields()["input_file_digests"]}
+        del digests["rights"]
+        with pytest.raises(ValidationError, match="missing required key"):
+            H2CoverageEvidenceV1.model_validate(_fields(input_file_digests=digests))
+
+    def test_input_file_digests_with_only_an_arbitrary_key_is_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="missing required key"):
+            H2CoverageEvidenceV1.model_validate(
+                _fields(input_file_digests={"placeholder": "c" * 64})
+            )
+
+    def test_input_file_digests_with_all_four_required_keys_is_accepted(self) -> None:
+        H2CoverageEvidenceV1.model_validate(_fields())  # no raise
+
+    @pytest.mark.parametrize(
+        "override",
+        [
+            {"coverage_complete": False},
+            {"golden_validation_pass": False},
+            {"rights_gate_status": "BLOCKED_INGEST_WITHOUT_CLEARANCE"},
+            {"pii_gate_status": "BLOCKED_INGEST_WITHOUT_CLEARANCE"},
+            {"authority_review_binding_verified": False},
+            {"authority_revocations_checked": False},
+        ],
+    )
+    def test_gate_pass_true_with_a_false_prerequisite_is_rejected(
+        self, override: dict[str, Any]
+    ) -> None:
+        with pytest.raises(ValidationError, match="inconsistent with its own prerequisites"):
+            H2CoverageEvidenceV1.model_validate(
+                _fields(h2_coverage_gate_pass=True, **override)
+            )
+
+    def test_gate_pass_false_with_a_false_prerequisite_is_accepted(self) -> None:
+        H2CoverageEvidenceV1.model_validate(
+            _fields(h2_coverage_gate_pass=False, coverage_complete=False)
+        )  # no raise
+
+    def test_gate_pass_true_with_all_prerequisites_true_is_accepted(self) -> None:
+        H2CoverageEvidenceV1.model_validate(_fields(h2_coverage_gate_pass=True))  # no raise
+
+
 class TestParseHardensAgainstNonCanonicalOrMalformedInput:
     def test_malformed_json_is_refused(self) -> None:
         with pytest.raises(H2CoverageEvidenceError, match="not valid JSON"):
@@ -152,8 +201,9 @@ class TestParseHardensAgainstNonCanonicalOrMalformedInput:
             parse_h2_coverage_evidence(non_canonical)
 
     def test_malformed_digest_inside_input_file_digests_is_refused(self) -> None:
+        digests = {**_fields()["input_file_digests"], "catalog": "not-a-hex-digest"}
         raw = H2CoverageEvidenceV1.model_validate(
-            _fields(input_file_digests={"catalog": "not-a-hex-digest"})
+            _fields(input_file_digests=digests)
         ).canonical_bytes()
         with pytest.raises(H2CoverageEvidenceError, match="malformed sha256 digest"):
             parse_h2_coverage_evidence(raw)

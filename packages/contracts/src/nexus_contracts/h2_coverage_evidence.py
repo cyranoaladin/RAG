@@ -31,7 +31,7 @@ import re
 from datetime import UTC, datetime
 from typing import Any, Literal
 
-from pydantic import AwareDatetime, Field, StrictBool, StrictInt, StrictStr
+from pydantic import AwareDatetime, Field, StrictBool, StrictInt, StrictStr, model_validator
 
 from nexus_contracts.document import StrictBaseModel
 
@@ -54,6 +54,14 @@ _HEX64 = r"^[0-9a-f]{64}$"
 #: v1 — un futur ``NEXUS-H2-COVERAGE-EVIDENCE-V2`` les couvrira si le
 #: signer en a besoin.
 _GATE_STATUS = Literal["PASS", "BLOCKED_INGEST_WITHOUT_CLEARANCE"]
+
+#: Les quatre preuves d'entrée sans lesquelles un gate H2-B n'a jamais été
+#: réellement évalué (`--catalog`/`--routing`/`--rights`/`--pii` sont tous
+#: obligatoires côté producteur, `argparse`, jamais optionnels). Un
+#: document qui n'en porterait qu'une seule (ou une clé arbitraire) ne
+#: serait lié à aucune des quatre preuves qu'il prétend représenter (Codex
+#: P1, PR #104).
+_REQUIRED_INPUT_FILE_KEYS = frozenset({"catalog", "routing", "rights", "pii"})
 
 
 def _canonical_bytes(document: dict[str, Any]) -> bytes:
@@ -102,6 +110,55 @@ class H2CoverageEvidenceV1(StrictBaseModel):
     # --- Liaison d'autorité (ADR-0025/ADR-0035) --------------------------
     authority_review_binding_verified: StrictBool
     authority_revocations_checked: StrictBool
+
+    @model_validator(mode="after")
+    def _input_file_digests_cover_the_four_required_proofs(self) -> "H2CoverageEvidenceV1":
+        """Un document qui ne porterait qu'une clé arbitraire (ex.
+        ``{"placeholder": <hex64>}``) passerait la seule contrainte
+        « non vide » sans être lié à aucune des quatre preuves qu'il
+        prétend représenter. Les quatre entrées `--catalog`/`--routing`/
+        `--rights`/`--pii` sont toutes obligatoires côté producteur
+        (Codex P1, PR #104) : leur absence ici est donc toujours un refus,
+        jamais un document partiellement lié."""
+        missing = _REQUIRED_INPUT_FILE_KEYS - set(self.input_file_digests)
+        if missing:
+            raise ValueError(
+                f"input_file_digests is missing required key(s) {sorted(missing)!r} — "
+                "a document not bound to all four core evidence files is never accepted"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _gate_pass_implies_its_own_prerequisites(self) -> "H2CoverageEvidenceV1":
+        """``h2_coverage_gate_pass`` n'est jamais un fait isolé : le
+        producteur réel (`h2b_coverage_report._compute`) ne le rend vrai
+        que si `coverage_complete`, `golden_validation_pass`, les deux
+        statuts de gate, et la liaison d'autorité complète le sont aussi
+        (`h2_coverage_gate_pass = decision_coverage_complete and golden_pass
+        and rights_gate_status == "PASS" and pii_gate_status == "PASS" and
+        authority_review_binding_verified and authority_revocations_checked
+        and ...`). Ceci est une cohérence **structurelle** entre des
+        verdicts déjà rendus — pas un recalcul du gate depuis les preuves
+        brutes, qui resterait exclusivement dans `rag-pedago` (Codex P1,
+        PR #104) : sans ce contrôle, un document falsifié ou substitué
+        pourrait revendiquer un succès global tout en enregistrant
+        explicitement un échec de couverture ou de gouvernance."""
+        if self.h2_coverage_gate_pass and not (
+            self.coverage_complete
+            and self.golden_validation_pass
+            and self.rights_gate_status == "PASS"
+            and self.pii_gate_status == "PASS"
+            and self.authority_review_binding_verified
+            and self.authority_revocations_checked
+        ):
+            raise ValueError(
+                "h2_coverage_gate_pass=true is inconsistent with its own prerequisites "
+                "(coverage_complete, golden_validation_pass, rights_gate_status, "
+                "pii_gate_status, authority_review_binding_verified, "
+                "authority_revocations_checked) — a contradictory passing verdict is "
+                "never accepted"
+            )
+        return self
 
     @staticmethod
     def _digest_map_pattern_ok(values: dict[str, str]) -> bool:
