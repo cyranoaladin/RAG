@@ -18,6 +18,7 @@ import deployment_image_inventory as dii  # noqa: E402
 
 REPOSITORY = "cyranoaladin/RAG"
 RUN_ID = 555
+RUN_ATTEMPT = 1
 SOURCE_COMMIT_SHA = "a" * 40
 SOURCE_TREE_SHA = "b" * 40
 WORKFLOW_PATH = ".github/workflows/production-image-provenance.yml"
@@ -35,6 +36,7 @@ def _run_document(**overrides: Any) -> dict[str, Any]:
         "status": "completed",
         "conclusion": "success",
         "head_sha": SOURCE_COMMIT_SHA,
+        "run_attempt": RUN_ATTEMPT,
     }
     document.update(overrides)
     return document
@@ -84,16 +86,28 @@ def _inventory_document(**overrides: Any) -> dict[str, Any]:
 
 
 class _Fakes:
-    def __init__(self, *, run: dict[str, Any], inventory: dict[str, Any] | None) -> None:
+    def __init__(
+        self,
+        *,
+        run: dict[str, Any],
+        inventory: dict[str, Any] | None,
+        attempt_exists: bool = True,
+    ) -> None:
         self.run = run
         self.inventory = inventory
+        self.attempt_exists = attempt_exists
         self.download_calls: list[tuple[int, str, Path]] = []
 
     def github_api_get(self, path: str) -> dict[str, Any]:
-        expected = f"repos/{REPOSITORY}/actions/runs/{RUN_ID}"
-        if path != expected:
-            raise dii.DeploymentImageInventoryError(f"unexpected path in test: {path!r}")
-        return self.run
+        run_path = f"repos/{REPOSITORY}/actions/runs/{RUN_ID}"
+        attempt_path = f"{run_path}/attempts/{RUN_ATTEMPT}"
+        if path == run_path:
+            return self.run
+        if path == attempt_path:
+            if not self.attempt_exists:
+                raise dii.DeploymentImageInventoryError(f"attempt not found (simulated): {path!r}")
+            return self.run
+        raise dii.DeploymentImageInventoryError(f"unexpected path in test: {path!r}")
 
     def download_artifact(self, run_id: int, artifact_name: str, dest_dir: Path) -> Path:
         self.download_calls.append((run_id, artifact_name, dest_dir))
@@ -110,6 +124,7 @@ def _verify(fakes: _Fakes, tmp_path: Path, **overrides: Any) -> dict[str, str]:
         source_commit_sha=SOURCE_COMMIT_SHA,
         source_tree_sha=SOURCE_TREE_SHA,
         provenance_run_id=RUN_ID,
+        provenance_run_attempt=RUN_ATTEMPT,
         github_api_get=fakes.github_api_get,
         download_artifact=fakes.download_artifact,
         work_dir=tmp_path,
@@ -175,6 +190,43 @@ class TestRunLevelRefusals:
             _verify(fakes, tmp_path)
 
 
+class TestRunAttemptIsBound:
+    """Instruction humaine (PR #102) : `workflow_run_attempt` était déclaré
+    dans le schéma mais jamais vérifié -- une tentative périmée (run
+    rejoué depuis) ou falsifiée dans l'artefact devait passer sans être
+    détectée. Chaque scénario ici prouve le contraire."""
+
+    def test_matching_run_attempt_is_accepted(self, tmp_path: Path) -> None:
+        fakes = _Fakes(run=_run_document(), inventory=_inventory_document())
+        digests = _verify(fakes, tmp_path)
+        assert digests
+
+    def test_rerun_since_attestation_is_refused(self, tmp_path: Path) -> None:
+        """The run's CURRENT attempt (from the general run endpoint) has
+        moved past the attempt being attested -- the workflow was re-run
+        since this artifact was produced."""
+        fakes = _Fakes(run=_run_document(run_attempt=2), inventory=_inventory_document())
+        with pytest.raises(dii.DeploymentImageInventoryError, match="current attempt is"):
+            _verify(fakes, tmp_path)
+
+    def test_inventory_claiming_a_different_attempt_is_refused(self, tmp_path: Path) -> None:
+        fakes = _Fakes(
+            run=_run_document(), inventory=_inventory_document(workflow_run_attempt=2)
+        )
+        with pytest.raises(dii.DeploymentImageInventoryError, match="workflow_run_attempt"):
+            _verify(fakes, tmp_path)
+
+    def test_nonexistent_requested_attempt_is_refused(self, tmp_path: Path) -> None:
+        fakes = _Fakes(run=_run_document(), inventory=_inventory_document(), attempt_exists=False)
+        with pytest.raises(dii.DeploymentImageInventoryError, match="attempt not found"):
+            _verify(fakes, tmp_path)
+
+    def test_non_positive_run_attempt_is_refused(self, tmp_path: Path) -> None:
+        fakes = _Fakes(run=_run_document(), inventory=_inventory_document())
+        with pytest.raises(dii.DeploymentImageInventoryError, match="positive integer"):
+            _verify(fakes, tmp_path, provenance_run_attempt=0)
+
+
 class TestArtifactLevelRefusals:
     def test_missing_artifact_is_refused(self, tmp_path: Path) -> None:
         fakes = _Fakes(run=_run_document(), inventory=None)
@@ -215,6 +267,32 @@ class TestArtifactLevelRefusals:
         with pytest.raises(dii.DeploymentImageInventoryError, match="platform"):
             _verify(fakes, tmp_path)
 
+    def test_wrong_workflow_ref_is_refused(self, tmp_path: Path) -> None:
+        fakes = _Fakes(
+            run=_run_document(), inventory=_inventory_document(workflow_ref="refs/heads/feature-x")
+        )
+        with pytest.raises(dii.DeploymentImageInventoryError, match="workflow_ref"):
+            _verify(fakes, tmp_path)
+
+    def test_malformed_built_at_is_refused(self, tmp_path: Path) -> None:
+        fakes = _Fakes(run=_run_document(), inventory=_inventory_document(built_at="not-a-timestamp"))
+        with pytest.raises(dii.DeploymentImageInventoryError, match="built_at"):
+            _verify(fakes, tmp_path)
+
+    def test_unknown_top_level_field_is_refused(self, tmp_path: Path) -> None:
+        fakes = _Fakes(
+            run=_run_document(), inventory=_inventory_document(unexpected_field="surprise")
+        )
+        with pytest.raises(dii.DeploymentImageInventoryError, match="unexpected key set"):
+            _verify(fakes, tmp_path)
+
+    def test_missing_top_level_field_is_refused(self, tmp_path: Path) -> None:
+        inventory = _inventory_document()
+        del inventory["built_at"]
+        fakes = _Fakes(run=_run_document(), inventory=inventory)
+        with pytest.raises(dii.DeploymentImageInventoryError, match="unexpected key set"):
+            _verify(fakes, tmp_path)
+
     def test_malformed_json_is_refused(self, tmp_path: Path) -> None:
         class BrokenFakes(_Fakes):
             def download_artifact(self, run_id: int, artifact_name: str, dest_dir: Path) -> Path:
@@ -250,16 +328,23 @@ class TestPerServiceRefusals:
 
     def test_missing_digest_is_refused(self, tmp_path: Path) -> None:
         inventory = _inventory_document()
-        del inventory["services"]["ingestor"]["image_digest"]
+        inventory["services"]["ingestor"]["image_digest"] = None
         fakes = _Fakes(run=_run_document(), inventory=inventory)
         with pytest.raises(dii.DeploymentImageInventoryError, match="not a valid sha256"):
             _verify(fakes, tmp_path)
 
     def test_missing_dockerfile_sha256_is_refused(self, tmp_path: Path) -> None:
         inventory = _inventory_document()
-        del inventory["services"]["ingestor"]["dockerfile_sha256"]
+        inventory["services"]["ingestor"]["dockerfile_sha256"] = None
         fakes = _Fakes(run=_run_document(), inventory=inventory)
         with pytest.raises(dii.DeploymentImageInventoryError, match="dockerfile_sha256"):
+            _verify(fakes, tmp_path)
+
+    def test_deleted_key_is_refused_by_the_exact_key_set_check(self, tmp_path: Path) -> None:
+        inventory = _inventory_document()
+        del inventory["services"]["ingestor"]["image_digest"]
+        fakes = _Fakes(run=_run_document(), inventory=inventory)
+        with pytest.raises(dii.DeploymentImageInventoryError, match="unexpected key set"):
             _verify(fakes, tmp_path)
 
     def test_invalid_image_repository_is_refused(self, tmp_path: Path) -> None:

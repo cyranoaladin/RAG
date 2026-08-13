@@ -20,6 +20,7 @@ import json
 import re
 import subprocess
 from collections.abc import Callable
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -37,6 +38,41 @@ _SUPPORTED_PLATFORM = "linux/amd64"
 #: accepté avec une carte de digests partielle (Codex P1, PR #102).
 _EXPECTED_APPLICATION_SERVICES = frozenset(
     {"ingestor", "multilevel-worker-a-production", "multilevel-worker-b-production"}
+)
+
+#: Toujours main : cet outil ne vérifie jamais une provenance construite
+#: depuis autre chose que la branche protégée (le workflow lui-même refuse
+#: de tourner ailleurs — voir `if: github.ref == 'refs/heads/main'`).
+_EXPECTED_WORKFLOW_REF = "refs/heads/main"
+
+#: Ensemble de clés exact du document top-level et de chaque entrée de
+#: service — un champ inconnu (ajouté par erreur, ou par une version
+#: divergente du workflow) est refusé plutôt que silencieusement ignoré
+#: (instruction humaine PR #102 §6).
+_EXPECTED_TOP_LEVEL_KEYS = frozenset(
+    {
+        "protocol_version",
+        "repository",
+        "source_commit_sha",
+        "source_tree_sha",
+        "platform",
+        "workflow_path",
+        "workflow_run_id",
+        "workflow_run_attempt",
+        "workflow_ref",
+        "built_at",
+        "services",
+    }
+)
+_EXPECTED_SERVICE_KEYS = frozenset(
+    {
+        "source_kind",
+        "build_context",
+        "dockerfile",
+        "dockerfile_sha256",
+        "image_repository",
+        "image_digest",
+    }
 )
 
 _HEX40 = re.compile(r"^[0-9a-f]{40}$")
@@ -132,6 +168,11 @@ def _parse_inventory_document(raw: bytes) -> dict[str, Any]:
 def _verify_service_entry(name: str, service: Any) -> tuple[str, str]:
     _require(isinstance(service, dict), f"service {name!r}: entry must be a JSON object")
     _require(
+        set(service) == _EXPECTED_SERVICE_KEYS,
+        f"service {name!r}: unexpected key set (got={sorted(service)}, "
+        f"expected={sorted(_EXPECTED_SERVICE_KEYS)})",
+    )
+    _require(
         service.get("source_kind") == "build",
         f"service {name!r}: source_kind must be 'build' (this module only verifies "
         "build-based application images, never upstream)",
@@ -161,6 +202,7 @@ def verify_application_image_provenance(
     source_commit_sha: str,
     source_tree_sha: str,
     provenance_run_id: int,
+    provenance_run_attempt: int,
     expected_workflow_path: str = _CANONICAL_WORKFLOW_PATH,
     github_api_get: GitHubApiGet,
     download_artifact: DownloadArtifact,
@@ -176,6 +218,8 @@ def verify_application_image_provenance(
     """
     _require(_HEX40.fullmatch(source_commit_sha) is not None, "source_commit_sha is malformed")
     _require(_HEX40.fullmatch(source_tree_sha) is not None, "source_tree_sha is malformed")
+    _require(provenance_run_id > 0, "provenance_run_id must be a positive integer")
+    _require(provenance_run_attempt > 0, "provenance_run_attempt must be a positive integer")
 
     run = github_api_get(f"repos/{repository}/actions/runs/{provenance_run_id}")
     _require(
@@ -204,10 +248,30 @@ def verify_application_image_provenance(
         f"run {provenance_run_id} built head_sha {run.get('head_sha')!r}, not the "
         f"commit being signed ({source_commit_sha!r})",
     )
+    # ``run_attempt`` sur l'endpoint général reflète l'attempt COURANTE
+    # (la plus récente) de ce run_id — si le workflow a été rejoué depuis
+    # que cet artefact a été publié, cette valeur a changé et ce refus se
+    # déclenche : jamais une tentative périmée acceptée silencieusement.
+    _require(
+        run.get("run_attempt") == provenance_run_attempt,
+        f"run {provenance_run_id}'s current attempt is {run.get('run_attempt')!r}, not "
+        f"the attempt being attested ({provenance_run_attempt!r}) — the run was "
+        "re-run since this attempt, or the wrong attempt was named",
+    )
+    # Confirme aussi, via l'endpoint dédié, que cette tentative précise
+    # existe réellement pour ce run — même mécanisme que le signer
+    # (sign_production_readiness_manifest_cli._verify_git_and_workflow_facts).
+    github_api_get(f"repos/{repository}/actions/runs/{provenance_run_id}/attempts/{provenance_run_attempt}")
 
     artifact_path = download_artifact(provenance_run_id, _ARTIFACT_NAME, work_dir)
     document = _parse_inventory_document(artifact_path.read_bytes())
 
+    _require(
+        set(document) == _EXPECTED_TOP_LEVEL_KEYS,
+        f"image inventory has an unexpected key set (got={sorted(document)}, "
+        f"expected={sorted(_EXPECTED_TOP_LEVEL_KEYS)}) — an unknown or missing "
+        "top-level field is never silently accepted",
+    )
     _require(
         document.get("protocol_version") == _PROTOCOL_VERSION,
         f"image inventory declares protocol_version {document.get('protocol_version')!r}, "
@@ -233,6 +297,11 @@ def verify_application_image_provenance(
         f"{provenance_run_id!r}",
     )
     _require(
+        document.get("workflow_run_attempt") == provenance_run_attempt,
+        f"image inventory workflow_run_attempt {document.get('workflow_run_attempt')!r} != "
+        f"{provenance_run_attempt!r}",
+    )
+    _require(
         document.get("workflow_path") == expected_workflow_path,
         f"image inventory workflow_path {document.get('workflow_path')!r} != "
         f"{expected_workflow_path!r}",
@@ -242,6 +311,20 @@ def verify_application_image_provenance(
         f"image inventory platform {document.get('platform')!r} != {_SUPPORTED_PLATFORM!r} "
         "— this module only verifies single-platform (linux/amd64) provenance",
     )
+    _require(
+        document.get("workflow_ref") == _EXPECTED_WORKFLOW_REF,
+        f"image inventory workflow_ref {document.get('workflow_ref')!r} != "
+        f"{_EXPECTED_WORKFLOW_REF!r}",
+    )
+    built_at = document.get("built_at")
+    if not isinstance(built_at, str):
+        raise DeploymentImageInventoryError("image inventory built_at is missing or not a string")
+    try:
+        datetime.fromisoformat(built_at.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise DeploymentImageInventoryError(
+            f"image inventory built_at {built_at!r} is not a valid ISO-8601 timestamp: {exc}"
+        ) from exc
 
     services = document.get("services")
     if not isinstance(services, dict) or not services:

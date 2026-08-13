@@ -256,11 +256,84 @@ merge de ce lot — §28 de l'instruction humaine.
   explicitement refusée, pas seulement un tag nu. 7 nouveaux tests
   (`TestResolvedComposeImagesArePinned`), mutation-testés.
 
+## 7ter. Second round — `workflow_run_attempt` réellement bindé, schéma strict
+
+Instruction humaine (pas Codex cette fois) sur le HEAD `e497eab`/`c924429` :
+le document `NEXUS-DEPLOYMENT-IMAGE-INVENTORY-V1` déclare
+`workflow_run_attempt` mais `verify_application_image_provenance()` ne le
+vérifiait nulle part — un champ présent dans le schéma, jamais exploité.
+Confirmé par `grep`, pas supposé : zéro occurrence de `run_attempt` dans
+tout le fichier avant correction. Deux autres champs déclarés
+(`workflow_ref`, `built_at`) souffraient du même défaut.
+
+**Audité avant de corriger, pas supposé :**
+
+- `gh run download` **n'offre aucune option de sélection de tentative**
+  (`gh run download --help` : aucun flag `--attempt`). On ne peut donc pas
+  demander « l'artefact de l'attempt N » directement.
+- L'action épinglée `actions/upload-artifact@ea165f8d...` correspond
+  exactement à **v4.6.2** (résolu via l'API GitHub réelle, pas deviné).
+  v4 stocke chaque artefact avec un nom **unique par run** — un
+  re-upload du même nom échoue sauf `overwrite: true`, jamais défini
+  dans ce workflow. Un rejeu du workflow ne peut donc pas remplacer
+  silencieusement l'artefact existant ; il ferait échouer l'étape
+  d'upload.
+- `repos/<repo>/actions/runs/<id>` porte lui-même un champ `run_attempt`
+  reflétant la tentative **courante** (la plus récente) — confirmé en
+  interrogeant l'API réelle sur des runs de ce dépôt
+  (`trusted-human-review`, `ci.yml`).
+
+**Corrigé** en conséquence, sans prétendre pouvoir cibler une tentative
+antérieure spécifique via le téléchargement (ce que `gh` ne permet pas) :
+
+1. `verify_application_image_provenance()` prend désormais
+   `provenance_run_attempt` (obligatoire, positif) en plus de
+   `provenance_run_id`.
+2. `run.get("run_attempt") == provenance_run_attempt` : si le workflow a
+   été rejoué depuis l'attestation de cette tentative, la tentative
+   courante a changé et ce refus se déclenche — jamais une tentative
+   périmée acceptée silencieusement.
+3. `repos/<repo>/actions/runs/<id>/attempts/<attempt>` interrogé
+   explicitement (même mécanisme que
+   `sign_production_readiness_manifest_cli._verify_git_and_workflow_facts`) :
+   preuve indépendante que cette tentative existe réellement.
+4. `document.get("workflow_run_attempt") == provenance_run_attempt` :
+   l'inventaire lui-même doit revendiquer la même tentative.
+
+**Schéma resserré** (au-delà du seul `run_attempt`) : ensemble de clés
+**exact** exigé au niveau racine (`_EXPECTED_TOP_LEVEL_KEYS`) et par
+service (`_EXPECTED_SERVICE_KEYS`) — un champ inconnu ou manquant est
+refusé, jamais silencieusement ignoré ; `workflow_ref` doit valoir
+`refs/heads/main` (seule branche que ce workflow construit jamais) ;
+`built_at` doit être un timestamp ISO-8601 valide. Volontairement
+**pas** de modèle Pydantic complet ni de déplacement vers
+`packages/contracts` dans ce lot — réservé au futur lot d'evidence
+sémantique partagée (instruction humaine §6 : ne pas élargir
+inutilement).
+
+10 nouveaux tests (`TestRunAttemptIsBound` + 4 tests de schéma strict
+dans `TestArtifactLevelRefusals`) ; mutation-testé : la comparaison
+`run_attempt` retirée fait échouer `test_rerun_since_attestation_is_
+refused` pour la raison attendue, suite repassée verte après retrait de
+la mutation (41/41).
+
+**Ce que cette correction ne prétend pas.** Un scénario « l'artefact
+téléchargé provient réellement d'une tentative antérieure différente de
+celle attestée, malgré un `run_attempt` courant concordant » n'est pas
+distinguable depuis ce dépôt seul : `gh run download` ne rend pas cette
+information, et aucun run réel n'a encore été déclenché pour observer le
+comportement empiriquement (déclenchement réel toujours différé
+post-merge, §11). Le fail-closed obtenu (tentative courante prouvée
+concordante + existence de cette tentative prouvée + contrainte
+d'unicité de nommage v4 sans `overwrite`) est le meilleur invariant
+vérifiable avec les outils disponibles, documenté ici comme tel plutôt
+que présenté comme une garantie plus forte qu'il ne l'est.
+
 ## 8. Tests — résultats exacts
 
 ```
 $ PYTHONPATH=src .venv/bin/python -m pytest tests/test_deployment_image_inventory.py -v
-31 passed in 0.15s
+41 passed in 0.16s
 
 $ .venv/bin/python -m ruff check scripts/deployment_image_inventory.py tests/test_deployment_image_inventory.py
 All checks passed!
@@ -285,7 +358,7 @@ $ gitleaks detect --source services/rag-engine/infra/docker-compose.production-r
 no leaks found
 ```
 
-Couverture adversariale (31 tests) : run/inventaire concordants →
+Couverture adversariale (41 tests) : run/inventaire concordants →
 digests dérivés corrects ; téléchargement du bon artefact pour le bon
 run ; **chemin de workflow erroné → refusé** ; **repository erroné →
 refusé** ; **déclenchement autre que `workflow_dispatch` → refusé** ;
@@ -294,12 +367,17 @@ commit signé → refusé** ; **artefact absent → refusé** ;
 **`protocol_version` erroné → refusé** ; **`repository`/
 `source_commit_sha`/`source_tree_sha`/`workflow_run_id` de l'inventaire ≠
 ceux attendus → refusés** ; **plateforme non supportée → refusée** ;
-**JSON malformé → refusé** ; **aucun service déclaré → refusé** ;
-**service omis (Worker B) → refusé, plus de carte partielle** ;
-**service inventé → refusé** ; **`source_kind=upstream` sur un service
-applicatif → refusé** ; **tag mutable au lieu d'un digest → refusé** ;
-**digest absent → refusé** ; **`dockerfile_sha256` absent → refusé** ;
-**nom de repository d'image invalide → refusé**. Compose déjà résolu
+**`workflow_ref` erroné → refusé** ; **`built_at` malformé → refusé** ;
+**champ top-level inconnu ou manquant → refusé** ; **JSON malformé →
+refusé** ; **aucun service déclaré → refusé** ; **service omis (Worker
+B) → refusé, plus de carte partielle** ; **service inventé → refusé** ;
+**`source_kind=upstream` sur un service applicatif → refusé** ; **tag
+mutable au lieu d'un digest → refusé** ; **digest absent → refusé** ;
+**`dockerfile_sha256` absent → refusé** ; **nom de repository d'image
+invalide → refusé** ; **run rejoué depuis l'attestation (attempt
+courante ≠ attestée) → refusé** ; **inventaire revendiquant une autre
+tentative → refusé** ; **tentative demandée inexistante → refusée** ;
+**`run_attempt` non positif → refusé**. Compose déjà résolu
 (`TestResolvedComposeImagesArePinned`, 7 tests) : trois services
 correctement épinglés → acceptés ; **tag mutable → refusé** ; **tag
 coexistant avec un digest → refusé** ; **clé `build` résiduelle →
@@ -307,8 +385,9 @@ refusée** ; **service manquant → refusé** ; **champ `image` absent →
 refusé** ; **Compose sans mapping `services` → refusé**.
 
 Chaque refus critique prouvé par mutation (liaison `head_sha`, format du
-digest) : régression injectée → test réagit pour la raison attendue ;
-régression retirée → suite repassée verte (23/23).
+digest, ensemble de services exact, liaison `run_attempt`, épinglage
+Compose résolu) : régression injectée → test réagit pour la raison
+attendue ; régression retirée → suite repassée verte (41/41).
 
 ## 9. Hors périmètre de ce lot — signalé, pas contourné
 
@@ -344,6 +423,7 @@ PRODUCTION_IMAGE_WORKFLOW=.github/workflows/production-image-provenance.yml
 IMAGE_PROVENANCE_PROTOCOL=NEXUS-DEPLOYMENT-IMAGE-INVENTORY-V1
 APPLICATION_IMAGES_BUILT_FROM_EXACT_GIT_SHA=true   # mécanisme ; pas encore exécuté (§8/§11)
 APPLICATION_IMAGES_IMMUTABLE_BY_DIGEST=true
+WORKFLOW_RUN_ATTEMPT_VERIFIED=true
 COMPOSE_PRODUCTION_RELEASE_VERIFIED_AGAINST_REAL_FILES=true
 REGISTRY_DIGEST_VERIFIED=false   # aucun push réel encore effectué
 DEPLOY_WRAPPER_IMAGE_VERIFICATION=false
