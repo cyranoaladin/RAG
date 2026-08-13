@@ -201,12 +201,22 @@ deux seules `DISMISSED` trouvées datent du 10/08, sur des heads antérieurs
 
 **Conclusion : la condition d'acceptation d'ADR-0035 est satisfaite.** Ce
 rapport ne prétend plus qu'il existe un gap de review sur PR #95 — il n'y
-en a pas. Le statut textuel de l'ADR (encore « Proposé ») n'est pas modifié
-par ce lot : suivant le précédent établi par ADR-0031 (commit dédié
-`8c95114`, « accept ADR-0031 after governed PR #90 review », un lot
-documentaire séparé et minimal, jamais fusionné dans la PR d'implémentation
-elle-même), la mise à jour du statut d'ADR-0035 fait l'objet d'un lot
-distinct, préparé séparément de celui-ci.
+en a pas. Suivant le précédent établi par ADR-0031 (commit dédié `8c95114`,
+« accept ADR-0031 after governed PR #90 review »), la mise à jour du statut
+textuel de l'ADR a fait l'objet d'un lot documentaire distinct et minimal,
+jamais fusionné dans la PR d'implémentation elle-même : **PR #101**
+(« docs(adr): accept ADR-0035 after governed PR #95 review »), approuvée
+humainement par `abenrhouma` (review `id=4926402363`, `state=APPROVED`,
+`commit_id=26ead2694418ba914d1e71c62d4b5d6c9d0958a5` — identique au head de
+PR #101), challenge trusted-review revérifié `SUCCESS` (run GitHub Actions
+`31695238933`), puis mergée (`merge_commit=35ec35e5f25e1e81e394d6e0280e40701134fd35`).
+Cette base (`35ec35e5f25e1e81e394d6e0280e40701134fd35`) est le point de
+rebase de la présente branche. Statut vérifié en lisant directement le
+fichier ADR sur ce commit, pas déduit du texte de PR #101 :
+
+```
+ADR0035_STATUS_ON_BASE_MAIN=ACCEPTE
+```
 
 **Ce que ce lot n'affirme toujours pas** : PR #99 (ce lot) n'est pas la
 « PR d'implémentation » d'ADR-0035 — elle provisionne la clé publique et le
