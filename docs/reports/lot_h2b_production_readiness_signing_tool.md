@@ -56,7 +56,7 @@ d'écrire quoi que ce soit sur disque.
 
 ```
 $ PYTHONPATH=src .venv/bin/python -m pytest tests/test_sign_production_readiness_manifest_cli.py -v
-13 passed in 0.27s
+25 passed in 0.37s
 
 $ .venv/bin/python -m ruff check scripts/sign_production_readiness_manifest_cli.py \
     tests/test_sign_production_readiness_manifest_cli.py
@@ -75,7 +75,7 @@ $ gitleaks detect --source services/rag-engine/tests/test_sign_production_readin
 no leaks found
 ```
 
-Couverture adversariale (13 tests) : manifeste complet valide + round-trip
+Couverture adversariale (25 tests) : manifeste complet valide + round-trip
 réel via `verify_production_readiness_manifest` ; permissions 0600 sur la
 sortie ; `pr_head_sha` mal formé refusé ; `pr_head_tree_sha` ≠
 `merge_tree_sha` refusé par le contrat (`_bindings_hold`) ; tag d'image
@@ -85,7 +85,13 @@ refusé dès `argparse` (`choices=["production"]`) ; **mauvaise clé de
 signature → revérification échoue** ; **clé déclarée `environment=test` →
 jamais acceptée en production** ; **falsification post-signature
 (`run_id`) → signature invalidée** ; **échec de revérification → aucun
-fichier de sortie écrit**.
+fichier de sortie écrit** ; **reçu de revue signé par une clé non
+reconnue → refusé** ; **reçu couvrant une autre autorisation → refusé** ;
+**auto-approbation (reviewer == author) → refusée** ; **reçu de revue
+expiré → refusé** ; **autorisation hors de sa fenêtre de validité →
+refusée** ; **autorisation révoquée → refusée** ; **registre de révocation
+malformé → refusé** ; **`--output` == `--private-key-file` (y compris via
+lien symbolique) → refusé, clé locale intacte**.
 
 ## 6. Discipline de vérification — deux bugs réels trouvés et corrigés pendant ce lot
 
@@ -109,6 +115,75 @@ la même régression après correction → le test échoue bien
 sortie effectivement écrit). Régression retirée, suite repassée verte
 (13/13), diff confirmé identique à l'état pré-injection.
 
+## 6bis. Codex — trois constats sur ce même diff, vérifiés en direct
+
+Trois commentaires Codex sont arrivés après le premier push (`c4d5b60`,
+diff inchangé au fond au moment de leur lecture) :
+
+- **P1 — « Verify governance artifacts before signing them ».** Constat
+  exact : l'outil se contentait de hacher `--review-binding-file` et
+  `--authorization-file`, jamais de vérifier qu'ils décrivent une revue
+  humaine réelle, non expirée, non révoquée, portant sur l'autorisation
+  présentée. `gate_result` était figé à `"pass"` sans lien avec ce que ces
+  fichiers contenaient réellement. **Corrigé** : `assemble_and_sign()`
+  vérifie maintenant le reçu de revue avec le vérificateur canonique
+  d'ADR-0035 (`verify_review_binding`, `require_matches_authorization`,
+  `require_challenge_is_bound` — `packages/contracts`, aucune primitive
+  réinventée), confronte l'autorisation à sa fenêtre de validité, et la
+  confronte au registre de révocation (nouveau `--review-binding-trust-
+  anchor-file`, requis). 8 canaris adversariaux nouveaux
+  (`TestReviewBindingIsActuallyVerified`), chacun vérifié par mutation :
+  désactiver le bloc de vérification fait échouer les tests attendus pour
+  la raison attendue (voir §6ter).
+- **P1 — « Bind the complete image inventory to the Compose file ».**
+  Constat exact et **non corrigé dans ce lot** : `--application-image` /
+  `--upstream-image` et `--compose-file` sont aujourd'hui deux sources
+  indépendantes — rien n'empêche qu'elles divergent (service omis, digest
+  différent). Le remède que Codex suggère (dériver les images du Compose
+  résolu) exige un analyseur YAML de Compose que ce dépôt n'a pas
+  aujourd'hui (aucune dépendance PyYAML dans `rag-engine`, aucun fichier
+  Compose commité pour valider un tel analyseur contre une forme réelle),
+  et une décision sur *où* ce Compose « résolu » est obtenu (fichier du
+  dépôt ? sortie de `docker compose config` sur l'hôte cible ?). C'est une
+  extension d'architecture, pas une correction locale à cet outil — hors
+  périmètre de ce lot signing-tool par l'esprit d'AGENTS.md (« si un lot
+  exige de toucher une logique métier hors de son périmètre... s'arrêter et
+  le signaler »). **Signalé ici explicitement** ; nécessite un lot dédié
+  avec sa propre décision de conception.
+- **P2 — « Reject output paths that alias signing inputs ».** Constat
+  exact : rien n'empêchait `--output` de désigner (y compris via lien
+  symbolique) le même fichier que `--private-key-file`, ce qui aurait
+  silencieusement écrasé la graine de signature locale sur une invocation
+  par ailleurs réussie. **Corrigé** : `_reject_output_aliasing_an_input()`
+  compare le chemin résolu de `--output` à celui de chaque entrée (clé
+  privée, ancres, preuves) avant tout traitement ; 4 nouveaux tests
+  (`TestOutputNeverAliasesAnInput`), y compris un alias via lien
+  symbolique et un passage complet par `main()` prouvant qu'aucune écriture
+  n'a lieu.
+
+## 6ter. Discipline de vérification appliquée aux trois nouveaux garde-fous
+
+Chaque nouveau chemin de refus a été prouvé par mutation, pas seulement
+écrit puis supposé correct :
+
+```
+Mutation 1 : le bloc de vérification review-binding est remplacé par un
+  raise inconditionnel.
+  -> Les tests qui doivent réussir (manifeste valide, round-trip) échouent.
+  -> Les tests qui attendent un message *différent* (fenêtre de validité,
+     registre de révocation malformé) échouent aussi, avec le message de
+     la mutation au lieu du leur -- preuve qu'ils exercent réellement leur
+     propre chemin de code en temps normal, pas un chemin déjà mort.
+  Mutation retirée, 25/25 repassés verts.
+
+Mutation 2 : l'appel à `_reject_output_aliasing_an_input(args)` est retiré
+  de `main()`.
+  -> `test_main_refuses_before_touching_any_file_when_output_aliases_the_key`
+     échoue : `rc == 0` au lieu de `1`, et le manifeste est bien écrit
+     par-dessus la graine de signature (`MANIFEST_DIGEST=...` imprimé).
+  Mutation retirée, 25/25 repassés verts.
+```
+
 ## 7. Limitations
 
 - Aucune clé privée de production n'a été utilisée par cet outil dans ce
@@ -126,6 +201,9 @@ sortie effectivement écrit). Régression retirée, suite repassée verte
 PRODUCTION_READINESS_SIGNING_TOOL_COMPLETE=true
 FREE_FORM_READINESS_BOOLEAN_ALLOWED=false
 SIGNED_MANIFEST_VERIFY_ROUNDTRIP=true
+REVIEW_BINDING_ACTUALLY_VERIFIED_BEFORE_SIGNING=true
+OUTPUT_PATH_CANNOT_ALIAS_A_SIGNING_INPUT=true
+COMPOSE_IMAGE_INVENTORY_CROSS_BINDING=false  # Codex P1, signalé §6bis, hors périmètre de ce lot
 PRODUCTION_MANIFEST_SIGNED=false
 GO_LIVE_READY=false
 ```

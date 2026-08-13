@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import re
 import sys
 from datetime import UTC, datetime
@@ -43,6 +44,11 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(_REPO_ROOT / "packages" / "contracts" / "src"))
 
+from nexus_contracts.authority_artifacts import (  # noqa: E402
+    CanonicalArtifactError,
+    git_blob_sha1,
+    parse_scope_authorization_artifact,
+)
 from nexus_contracts.production_readiness import (  # noqa: E402
     ProductionReadinessError,
     ProductionReadinessManifestV1,
@@ -50,6 +56,22 @@ from nexus_contracts.production_readiness import (  # noqa: E402
     sign_production_readiness_manifest,
     verify_production_readiness_manifest,
 )
+from nexus_contracts.review_binding import (  # noqa: E402
+    ReviewBindingError,
+    require_challenge_is_bound,
+    require_matches_authorization,
+    verify_review_binding,
+)
+from nexus_contracts.review_binding import (  # noqa: E402
+    parse_trust_anchor as parse_review_binding_trust_anchor,
+)
+
+#: Chemin gouverné du registre de révocation (F2). Dupliqué depuis
+#: ``rag_pedago.imports.h2b_coverage_report._GOVERNED_REVOCATIONS_PATH``
+#: parce qu'un service n'importe jamais le code d'un autre (AGENTS.md) —
+#: même précédent que ``_PRODUCTION_READINESS_GOVERNED_PATH`` /
+#: ``REVIEW_BINDING_ANCHOR_PATH`` ailleurs dans ce dépôt.
+_REVOCATION_REGISTRY_PROTOCOL_VERSION = "NEXUS-AUTHORIZATION-REVOCATIONS-V1"
 
 _HEX40 = re.compile(r"^[0-9a-f]{40}$")
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
@@ -68,14 +90,43 @@ def _hex(value: str, pattern: re.Pattern[str], label: str) -> str:
     return value
 
 
+def _read_bytes(path: Path, *, label: str) -> bytes:
+    try:
+        return path.read_bytes()
+    except OSError as exc:
+        raise SigningToolError(f"{label}: cannot read {path}: {exc}") from exc
+
+
 def _digest_of_file(path: Path, *, label: str) -> str:
     """Ne fait jamais confiance à un digest fourni pour un fichier local :
     le relit et le recalcule toujours lui-même."""
+    return hashlib.sha256(_read_bytes(path, label=label)).hexdigest()
+
+
+def _revoked_authorization_ids(raw: bytes, *, label: str) -> frozenset[str]:
+    """Parse minimal et local du registre de révocation gouverné (F2).
+
+    Ne réimplémente pas la validation complète de
+    ``h2b_coverage_report._parse_revocation_registry`` (duplicats interdits
+    d'unicité, etc.) : cet outil n'a besoin que de savoir si l'autorisation
+    qu'il s'apprête à signer y figure. Le format canonique lui-même est
+    revalidé plus strictement en amont, par le gate de couverture H2-B."""
     try:
-        raw = path.read_bytes()
-    except OSError as exc:
-        raise SigningToolError(f"{label}: cannot read {path}: {exc}") from exc
-    return hashlib.sha256(raw).hexdigest()
+        document = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise SigningToolError(f"{label} is not valid UTF-8 JSON: {exc}") from exc
+    if (
+        not isinstance(document, dict)
+        or document.get("protocol_version") != _REVOCATION_REGISTRY_PROTOCOL_VERSION
+    ):
+        raise SigningToolError(
+            f"{label} does not declare protocol_version "
+            f"{_REVOCATION_REGISTRY_PROTOCOL_VERSION!r}"
+        )
+    ids = document.get("revoked_authorization_ids")
+    if not isinstance(ids, list) or not all(isinstance(i, str) for i in ids):
+        raise SigningToolError(f"{label}: revoked_authorization_ids must be a list of strings")
+    return frozenset(ids)
 
 
 def _image_digest_pairs(raw_pairs: list[str], *, label: str) -> dict[str, str]:
@@ -117,6 +168,11 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     # Digests des preuves de gouvernance : chemins vers des fichiers réels,
     # jamais des valeurs affirmées. Chacun est relu et rehashé ici.
     p.add_argument("--review-binding-file", type=Path, required=True)
+    p.add_argument("--review-binding-trust-anchor-file", type=Path, required=True,
+                    help="Ancre publique NEXUS-REVIEW-BINDING-V1 (ADR-0035) utilisée "
+                         "pour vérifier la signature du reçu de revue avant de le "
+                         "faire entrer dans ce manifeste — distincte de l'ancre "
+                         "production-readiness.")
     p.add_argument("--authorization-file", type=Path, required=True)
     p.add_argument("--trust-anchor-file", type=Path, required=True,
                     help="L'ancre PRODUCTION dont le digest entre dans le manifeste "
@@ -157,14 +213,60 @@ def assemble_and_sign(args: argparse.Namespace) -> ProductionReadinessManifestV1
     merge_sha = _hex(args.merge_sha, _HEX40, "merge_sha")
     merge_tree_sha = _hex(args.merge_tree_sha, _HEX40, "merge_tree_sha")
 
-    review_binding_digest = _digest_of_file(args.review_binding_file, label="review_binding")
-    authorization_digest = _digest_of_file(args.authorization_file, label="authorization")
+    review_binding_raw = _read_bytes(args.review_binding_file, label="review_binding")
+    authorization_raw = _read_bytes(args.authorization_file, label="authorization")
+    review_binding_digest = hashlib.sha256(review_binding_raw).hexdigest()
+    authorization_digest = hashlib.sha256(authorization_raw).hexdigest()
     trust_anchor_digest = _digest_of_file(args.trust_anchor_file, label="trust_anchor")
-    revocation_registry_digest = _digest_of_file(args.revocation_registry_file, label="revocation_registry")
+    revocation_registry_raw = _read_bytes(args.revocation_registry_file, label="revocation_registry")
+    revocation_registry_digest = hashlib.sha256(revocation_registry_raw).hexdigest()
     catalog_digest = _digest_of_file(args.catalog_file, label="catalog")
     sealed_manifest_digest = _digest_of_file(args.sealed_manifest_file, label="sealed_manifest")
     h2b_report_digest = _digest_of_file(args.h2b_report_file, label="h2b_report")
     compose_digest = _digest_of_file(args.compose_file, label="compose")
+
+    # Un digest prouve que le fichier n'a pas changé depuis qu'il a été lu
+    # ici — pas qu'il décrit une revue humaine réelle, non expirée, non
+    # révoquée, portant sur *cette* autorisation précise. Sans ce bloc,
+    # n'importe quels octets acceptés par le hachage seul deviendraient un
+    # fait "review_binding_digest" dans un manifeste signé production.
+    try:
+        review_binding_anchor = parse_review_binding_trust_anchor(
+            _read_bytes(args.review_binding_trust_anchor_file, label="review_binding_trust_anchor")
+        )
+        binding = verify_review_binding(
+            review_binding_raw,
+            trust_anchor=review_binding_anchor,
+            environment="production",
+            now=datetime.now(UTC),
+        )
+        authorization = parse_scope_authorization_artifact(authorization_raw)
+        require_matches_authorization(
+            binding,
+            authorization_id=authorization.authorization_id,
+            authorization_bytes=authorization_raw,
+            authorization_git_blob_sha1=git_blob_sha1(authorization_raw),
+            expected_repository=args.repository,
+        )
+        require_challenge_is_bound(binding)
+    except (ReviewBindingError, CanonicalArtifactError) as exc:
+        raise SigningToolError(f"review binding does not authorize this authorization: {exc}") from exc
+
+    now = datetime.now(UTC)
+    if not (authorization.valid_from <= now <= authorization.valid_until):
+        raise SigningToolError(
+            f"authorization {authorization.authorization_id!r} is outside its "
+            f"validity window ({authorization.valid_from} .. {authorization.valid_until}, "
+            f"now={now}) — a manifest is never signed for an authorization that "
+            "is not currently valid"
+        )
+    revoked = _revoked_authorization_ids(revocation_registry_raw, label="revocation_registry")
+    if authorization.authorization_id in revoked:
+        raise SigningToolError(
+            f"authorization {authorization.authorization_id!r} appears in the "
+            "revocation registry — a revoked authorization is never signed "
+            "into a production readiness manifest"
+        )
 
     application_image_digests = _image_digest_pairs(args.application_image, label="--application-image")
     upstream_image_digests = _image_digest_pairs(args.upstream_image, label="--upstream-image")
@@ -205,9 +307,43 @@ def assemble_and_sign(args: argparse.Namespace) -> ProductionReadinessManifestV1
     return manifest
 
 
+_INPUT_PATH_ARGS = (
+    "trust_anchor_file",
+    "review_binding_file",
+    "review_binding_trust_anchor_file",
+    "authorization_file",
+    "revocation_registry_file",
+    "catalog_file",
+    "sealed_manifest_file",
+    "h2b_report_file",
+    "compose_file",
+    "private_key_file",
+    "verification_trust_anchor_file",
+)
+
+
+def _reject_output_aliasing_an_input(args: argparse.Namespace) -> None:
+    """``--output`` ne peut jamais résoudre vers un fichier d'entrée.
+
+    Sans ce contrôle, une erreur de sélection de chemin — y compris via un
+    lien symbolique ou physique — ferait écrire le manifeste JSON par-dessus
+    la graine de signature locale (ou toute autre preuve d'entrée),
+    détruisant un secret de production pour une invocation par ailleurs
+    réussie."""
+    output_resolved = args.output.resolve(strict=False)
+    for name in _INPUT_PATH_ARGS:
+        candidate: Path = getattr(args, name)
+        if output_resolved == candidate.resolve(strict=False):
+            raise SigningToolError(
+                f"--output resolves to the same file as --{name.replace('_', '-')} "
+                f"({candidate}) — refusing to overwrite a signing input"
+            )
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _build_arg_parser().parse_args(argv)
     try:
+        _reject_output_aliasing_an_input(args)
         manifest = assemble_and_sign(args)
 
         private_key_hex = args.private_key_file.read_text(encoding="utf-8").strip()
