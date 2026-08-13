@@ -158,33 +158,61 @@ sont nouveaux, pour review-binding et F2) :
 | Registre de révocation malformé | `TestGovernedRevocationRegistry::test_a_registry_without_protocol_version_is_refused`, `test_a_registry_with_duplicate_ids_is_refused`, `test_a_registry_with_unknown_keys_is_refused` (suite préexistante, non dupliquée) | RED confirmé par la suite existante |
 | Fichiers gouvernés valides | `test_the_repository_ships_exactly_the_provisioned_review_binding_anchor`, `test_the_repository_ships_the_governed_revocation_registry` (nouveaux, contre la vraie racine du dépôt, jamais un tmp_path synthétique) | PASS |
 
-## 9. Note ADR-0035 — statut réel, non fabriqué
+## 9. Note ADR-0035 — statut réel, vérifié en direct (corrigé)
 
-`docs/adr/ADR-0035-liaison-revue-scellee-autorisation-de-scope.md` est
-actuellement **« Proposé — non Accepté »**, avec l'exigence explicite d'une
-review humaine `APPROVED` du Code Owner sur le head exact de « la PR
-d'implémentation ».
+**Correction d'une erreur de vérification antérieure de ce rapport.** La
+version précédente affirmait « zéro review `APPROVED` » sur PR #95, sur la
+base de `gh api repos/cyranoaladin/RAG/pulls/95/reviews` **sans
+pagination** — cet appel tronque silencieusement à 30 résultats, alors que
+PR #95 en porte 45. Les deux reviews `APPROVED` existent bel et bien, mais
+tombaient au-delà de la troncature. Reproductible :
+`gh api ... --paginate` renvoie bien 45 entrées, dont deux `APPROVED`.
 
-Vérification effectuée avant ce lot : le code qui implémente réellement le
-mécanisme d'ADR-0035 (`packages/contracts/src/nexus_contracts/review_binding.py`)
-a été introduit par **PR #95** (« H2-B: corpus production-readiness
-authority and evidence gates »), déjà mergée dans `main`
-(`2182339fb9a0df49419370e5ead8b92ef4d62305`). Interrogation directe de
-`gh api repos/cyranoaladin/RAG/pulls/95/reviews` : **zéro review à l'état
-`APPROVED`** sur cette PR — uniquement des reviews `COMMENTED` (bot Codex et
-l'auteur lui-même). Comment PR #95 a satisfait la protection de branche
-Code-Owner au moment de son merge n'est pas déterminé par ce lot et n'est
-pas fabriqué ici.
+`docs/adr/ADR-0035-liaison-revue-scellee-autorisation-de-scope.md` (introduite
+par **PR #95** elle-même, même commit que le code qui implémente son
+mécanisme — `git log` ne montre aucune autre PR touchant ce fichier) exige
+une review `APPROVED` du Code Owner sur le head exact de « la PR
+d'implémentation ». Vérification complète, en direct, sur les objets de
+review individuels (jamais sur `reviewDecision` seul) :
 
-**Ce que ce lot n'affirme pas** : PR #99 (ce lot) n'est pas la « PR
-d'implémentation » d'ADR-0035 — elle ne fait que provisionner la clé
-publique et le registre F2 pour un mécanisme déjà livré en code par PR #95.
-L'approbation humaine attendue sur PR #99 (trusted-review, `@abenrhouma`,
-distinct de l'auteur) porte sur *ce lot précis* — provisionnement des deux
-fichiers gouvernés — pas sur une acceptation rétroactive d'ADR-0035. Le
-statut textuel de l'ADR n'est pas modifié par ce lot ; la question de son
-acceptation formelle reste un gap ouvert, antérieur à ce lot, signalé ici
-sans être résolu.
+```
+ADR0035_IMPLEMENTATION_PR=95
+ADR0035_REQUIRED_HEAD=3d0cf47133dfdba488890a9be3e6fe1fc83bd863
+ADR0035_APPROVED_REVIEW_FOUND=true
+ADR0035_REVIEWER=abenrhouma
+ADR0035_REVIEW_COMMIT_ID=3d0cf47133dfdba488890a9be3e6fe1fc83bd863
+ADR0035_TRUSTED_CHALLENGE_VALID=true
+ADR0035_ACCEPTANCE_CONDITION_SATISFIED=true
+```
+
+Preuve : review `id=4923100913`, `state=APPROVED`, `commit_id` identique au
+head réel de PR #95 au moment de l'approbation (`3d0cf471...`, confirmé par
+`gh pr view 95 --json headRefOid`), corps
+`NEXUS-TRUSTED-REVIEW-V1:ab4e17ab79bb118ab4661cadef9f48820a02d5c9bf3c30baa9b003d07f785fff`.
+Le challenge n'est pas pris au mot : le run GitHub Actions réel
+(`31663947902`, job `Evaluate trusted human review`, `conclusion=success`,
+`2026-08-13T03:26:57Z`) a recalculé et publié la même décision côté
+machine : `{"approved": true, "head_sha": "3d0cf471...", "reviewer":
+"abenrhouma", "review_id": 4923100913, ...}`. Aucune review `DISMISSED` ou
+`CHANGES_REQUESTED` d'`abenrhouma` n'existe après cette approbation (les
+deux seules `DISMISSED` trouvées datent du 10/08, sur des heads antérieurs
+`f2a662bc...`/`e9708fec...`, bien avant l'approbation finale du 13/08). PR
+#95 a mergé 13 minutes après, sans nouvelle review entre-temps.
+
+**Conclusion : la condition d'acceptation d'ADR-0035 est satisfaite.** Ce
+rapport ne prétend plus qu'il existe un gap de review sur PR #95 — il n'y
+en a pas. Le statut textuel de l'ADR (encore « Proposé ») n'est pas modifié
+par ce lot : suivant le précédent établi par ADR-0031 (commit dédié
+`8c95114`, « accept ADR-0031 after governed PR #90 review », un lot
+documentaire séparé et minimal, jamais fusionné dans la PR d'implémentation
+elle-même), la mise à jour du statut d'ADR-0035 fait l'objet d'un lot
+distinct, préparé séparément de celui-ci.
+
+**Ce que ce lot n'affirme toujours pas** : PR #99 (ce lot) n'est pas la
+« PR d'implémentation » d'ADR-0035 — elle provisionne la clé publique et le
+registre F2 pour un mécanisme déjà livré et déjà formellement approuvé par
+PR #95. L'approbation humaine attendue sur PR #99 porte sur *ce lot
+précis*, pas sur ADR-0035.
 
 ## 10. Limitations — ce que ce lot ne fait pas
 
