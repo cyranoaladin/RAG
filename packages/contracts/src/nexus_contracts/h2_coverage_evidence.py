@@ -29,7 +29,7 @@ from __future__ import annotations
 import json
 import re
 from datetime import UTC, datetime
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import AwareDatetime, Field, StrictBool, StrictInt, StrictStr, model_validator
 
@@ -55,13 +55,46 @@ _HEX64 = r"^[0-9a-f]{64}$"
 #: signer en a besoin.
 _GATE_STATUS = Literal["PASS", "BLOCKED_INGEST_WITHOUT_CLEARANCE"]
 
-#: Les quatre preuves d'entrée sans lesquelles un gate H2-B n'a jamais été
-#: réellement évalué (`--catalog`/`--routing`/`--rights`/`--pii` sont tous
-#: obligatoires côté producteur, `argparse`, jamais optionnels). Un
-#: document qui n'en porterait qu'une seule (ou une clé arbitraire) ne
-#: serait lié à aucune des quatre preuves qu'il prétend représenter (Codex
-#: P1, PR #104).
-_REQUIRED_INPUT_FILE_KEYS = frozenset({"catalog", "routing", "rights", "pii"})
+#: Les cinq preuves d'entrée sans lesquelles un gate H2-B n'a jamais été
+#: réellement évalué (`--catalog`/`--routing`/`--rights`/`--pii`/`--golden`
+#: sont tous obligatoires côté producteur — `generate_coverage_report`
+#: lève `ValueError` si l'un manque, `h2b_coverage_report.py:986-999`,
+#: jamais optionnels). Un document qui n'en porterait qu'une partie (ou
+#: une clé arbitraire) ne serait lié à aucune des preuves qu'il prétend
+#: représenter (Codex P1, PR #104). `golden` ajouté en round 3 : sans
+#: lui, un document pouvait revendiquer `golden_validation_pass=true`
+#: sans porter l'identité de la spécification supposément validée — le
+#: signer, qui ne reçoit que cette preuve H2 et jamais le fichier golden
+#: lui-même, ne pouvait alors distinguer une validation contre la
+#: spécification gouvernée d'une validation contre une autre.
+_REQUIRED_INPUT_FILE_KEYS = frozenset({"catalog", "routing", "rights", "pii", "golden"})
+
+#: Les neuf invariants de sécurité que `generate_coverage_report` compte
+#: (toujours initialisés à zéro puis incrémentés, jamais un sous-ensemble
+#: partiel — `h2b_coverage_report.py:1044-1054`) et dont
+#: `h2_coverage_gate_pass` exige `all(value == 0 ...)`
+#: (`h2b_coverage_report.py:1284-1294`). Round 3 (Codex, PR #104) : sans
+#: leur représentation ici, un document falsifié pouvait revendiquer
+#: `h2_coverage_gate_pass=true` avec tous les autres prérequis projetés
+#: satisfaits, malgré un invariant de sécurité réel (droits, PII,
+#: currentness, format, provenance, hachage de contenu, autorité,
+#: attribution) en échec — jamais représenté, donc jamais détectable par
+#: un vérificateur qui ne reçoit que cette preuve.
+_SAFETY_INVARIANT_KEYS = frozenset(
+    {
+        "INGEST_WITHOUT_RIGHTS_CLEARANCE",
+        "INGEST_WITHOUT_PII_CLEARANCE",
+        "INGEST_WITHOUT_CURRENTNESS_CLEARANCE",
+        "INGEST_WITH_UNSUPPORTED_FORMAT",
+        "INGEST_WITHOUT_PROVENANCE",
+        "INGEST_WITHOUT_CONTENT_SHA",
+        "INGEST_WITHOUT_AUTHORITY",
+        "INGEST_WITH_SELF_DECLARED_AUTHORITY",
+        "INGEST_WITHOUT_ATTRIBUTION_METADATA",
+    }
+)
+
+_NonNegativeInt = Annotated[StrictInt, Field(ge=0)]
 
 
 def _canonical_bytes(document: dict[str, Any]) -> bytes:
@@ -111,20 +144,40 @@ class H2CoverageEvidenceV1(StrictBaseModel):
     authority_review_binding_verified: StrictBool
     authority_revocations_checked: StrictBool
 
+    # --- Invariants de sécurité (round 3, Codex, PR #104) ------------------
+    safety_invariants: dict[str, _NonNegativeInt]
+
     @model_validator(mode="after")
-    def _input_file_digests_cover_the_four_required_proofs(self) -> "H2CoverageEvidenceV1":
+    def _input_file_digests_cover_the_five_required_proofs(self) -> "H2CoverageEvidenceV1":
         """Un document qui ne porterait qu'une clé arbitraire (ex.
         ``{"placeholder": <hex64>}``) passerait la seule contrainte
-        « non vide » sans être lié à aucune des quatre preuves qu'il
-        prétend représenter. Les quatre entrées `--catalog`/`--routing`/
-        `--rights`/`--pii` sont toutes obligatoires côté producteur
-        (Codex P1, PR #104) : leur absence ici est donc toujours un refus,
-        jamais un document partiellement lié."""
+        « non vide » sans être lié à aucune des cinq preuves qu'il
+        prétend représenter. Les cinq entrées `--catalog`/`--routing`/
+        `--rights`/`--pii`/`--golden` sont toutes obligatoires côté
+        producteur (Codex P1, PR #104 ; `golden` ajouté round 3) : leur
+        absence ici est donc toujours un refus, jamais un document
+        partiellement lié."""
         missing = _REQUIRED_INPUT_FILE_KEYS - set(self.input_file_digests)
         if missing:
             raise ValueError(
                 f"input_file_digests is missing required key(s) {sorted(missing)!r} — "
-                "a document not bound to all four core evidence files is never accepted"
+                "a document not bound to all five core evidence files is never accepted"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _safety_invariants_key_set_is_exact(self) -> "H2CoverageEvidenceV1":
+        """Le producteur réel compte toujours exactement ces neuf
+        invariants (jamais un sous-ensemble, jamais une clé inventée) —
+        un champ inconnu ou manquant est refusé plutôt que silencieusement
+        ignoré, même discipline que le reste de ce contrat (Codex P1,
+        PR #104, round 3)."""
+        if set(self.safety_invariants) != _SAFETY_INVARIANT_KEYS:
+            raise ValueError(
+                "safety_invariants has an unexpected key set "
+                f"(got={sorted(self.safety_invariants)}, "
+                f"expected={sorted(_SAFETY_INVARIANT_KEYS)}) — an unknown or missing "
+                "safety invariant is never silently accepted"
             )
         return self
 
@@ -163,7 +216,17 @@ class H2CoverageEvidenceV1(StrictBaseModel):
         corpus différents — précisément les quatre sous-vérifications
         dont `decision_coverage_complete` est la conjonction côté
         producteur. Ces quatre champs sont donc exigés vrais, et les
-        totaux égaux, indépendamment de ``coverage_complete``."""
+        totaux égaux, indépendamment de ``coverage_complete``.
+
+        **Round 3 (Codex, même PR).** `h2_coverage_gate_pass` exige aussi
+        côté producteur `all(value == 0 for value in safety_invariants.
+        values())` (`h2b_coverage_report.py:1284-1294`) — neuf compteurs
+        de violations (droits, PII, currentness, format, provenance,
+        hachage de contenu, autorité, attribution) jusque-là absents de
+        ce contrat. Un document falsifié pouvait donc revendiquer
+        `h2_coverage_gate_pass=true` avec tous les autres prérequis
+        projetés satisfaits, malgré un invariant de sécurité réel en
+        échec — jamais représenté, donc jamais détectable."""
         if self.h2_coverage_gate_pass and not (
             self.coverage_complete
             and self.golden_validation_pass
@@ -176,14 +239,16 @@ class H2CoverageEvidenceV1(StrictBaseModel):
             and self.zero_overlap
             and self.zero_gap
             and self.corpus_total_expected == self.corpus_total_actual
+            and all(value == 0 for value in self.safety_invariants.values())
         ):
             raise ValueError(
                 "h2_coverage_gate_pass=true is inconsistent with its own prerequisites "
                 "(coverage_complete, golden_validation_pass, rights_gate_status, "
                 "pii_gate_status, authority_review_binding_verified, "
                 "authority_revocations_checked, corpus_match, sum_equals_total, "
-                "zero_overlap, zero_gap, corpus_total_expected == corpus_total_actual) "
-                "— a contradictory passing verdict is never accepted"
+                "zero_overlap, zero_gap, corpus_total_expected == corpus_total_actual, "
+                "all(safety_invariants.values()) == 0) — a contradictory passing verdict "
+                "is never accepted"
             )
         return self
 
@@ -211,6 +276,7 @@ class H2CoverageEvidenceV1(StrictBaseModel):
             "protocol_version": self.protocol_version,
             "report_id": self.report_id,
             "rights_gate_status": self.rights_gate_status,
+            "safety_invariants": dict(sorted(self.safety_invariants.items())),
             "sum_equals_total": self.sum_equals_total,
             "zero_gap": self.zero_gap,
             "zero_overlap": self.zero_overlap,

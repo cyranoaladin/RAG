@@ -21,6 +21,18 @@ GIT_COMMIT = "a" * 40
 MANIFEST_SHA256 = "b" * 64
 GENERATED_AT = datetime(2026, 8, 13, 12, 0, tzinfo=UTC)
 
+ZERO_SAFETY_INVARIANTS: dict[str, int] = {
+    "INGEST_WITHOUT_RIGHTS_CLEARANCE": 0,
+    "INGEST_WITHOUT_PII_CLEARANCE": 0,
+    "INGEST_WITHOUT_CURRENTNESS_CLEARANCE": 0,
+    "INGEST_WITH_UNSUPPORTED_FORMAT": 0,
+    "INGEST_WITHOUT_PROVENANCE": 0,
+    "INGEST_WITHOUT_CONTENT_SHA": 0,
+    "INGEST_WITHOUT_AUTHORITY": 0,
+    "INGEST_WITH_SELF_DECLARED_AUTHORITY": 0,
+    "INGEST_WITHOUT_ATTRIBUTION_METADATA": 0,
+}
+
 
 def _fields(**overrides: Any) -> dict[str, Any]:
     fields: dict[str, Any] = {
@@ -36,6 +48,7 @@ def _fields(**overrides: Any) -> dict[str, Any]:
             "routing": "d" * 64,
             "rights": "e" * 64,
             "pii": "f" * 64,
+            "golden": "0" * 64,
         },
         "corpus_total_expected": 2583,
         "corpus_total_actual": 2583,
@@ -50,6 +63,7 @@ def _fields(**overrides: Any) -> dict[str, Any]:
         "h2_coverage_gate_pass": True,
         "authority_review_binding_verified": True,
         "authority_revocations_checked": True,
+        "safety_invariants": dict(ZERO_SAFETY_INVARIANTS),
     }
     fields.update(overrides)
     return fields
@@ -137,7 +151,7 @@ class TestCrossFieldConsistency:
                 _fields(input_file_digests={"placeholder": "c" * 64})
             )
 
-    def test_input_file_digests_with_all_four_required_keys_is_accepted(self) -> None:
+    def test_input_file_digests_with_all_five_required_keys_is_accepted(self) -> None:
         H2CoverageEvidenceV1.model_validate(_fields())  # no raise
 
     @pytest.mark.parametrize(
@@ -153,6 +167,8 @@ class TestCrossFieldConsistency:
             {"sum_equals_total": False},
             {"zero_overlap": False},
             {"zero_gap": False},
+            {"safety_invariants": {**ZERO_SAFETY_INVARIANTS, "INGEST_WITHOUT_RIGHTS_CLEARANCE": 1}},
+            {"safety_invariants": {**ZERO_SAFETY_INVARIANTS, "INGEST_WITHOUT_ATTRIBUTION_METADATA": 3}},
         ],
     )
     def test_gate_pass_true_with_a_false_prerequisite_is_rejected(
@@ -162,6 +178,37 @@ class TestCrossFieldConsistency:
             H2CoverageEvidenceV1.model_validate(
                 _fields(h2_coverage_gate_pass=True, **override)
             )
+
+    def test_input_file_digests_missing_golden_is_rejected(self) -> None:
+        # Codex round 3 (PR #104): without the golden digest, a passing
+        # document is not bound to the identity of the specification that
+        # golden_validation_pass claims was validated.
+        digests = {**_fields()["input_file_digests"]}
+        del digests["golden"]
+        with pytest.raises(ValidationError, match="missing required key"):
+            H2CoverageEvidenceV1.model_validate(_fields(input_file_digests=digests))
+
+    def test_safety_invariants_missing_a_key_is_rejected(self) -> None:
+        invariants = {**ZERO_SAFETY_INVARIANTS}
+        del invariants["INGEST_WITHOUT_PROVENANCE"]
+        with pytest.raises(ValidationError, match="unexpected key set"):
+            H2CoverageEvidenceV1.model_validate(_fields(safety_invariants=invariants))
+
+    def test_safety_invariants_with_an_unknown_key_is_rejected(self) -> None:
+        invariants = {**ZERO_SAFETY_INVARIANTS, "SOME_INVENTED_INVARIANT": 0}
+        with pytest.raises(ValidationError, match="unexpected key set"):
+            H2CoverageEvidenceV1.model_validate(_fields(safety_invariants=invariants))
+
+    def test_safety_invariants_negative_value_is_rejected(self) -> None:
+        invariants = {**ZERO_SAFETY_INVARIANTS, "INGEST_WITHOUT_CONTENT_SHA": -1}
+        with pytest.raises(ValidationError):
+            H2CoverageEvidenceV1.model_validate(_fields(safety_invariants=invariants))
+
+    def test_gate_pass_false_with_a_nonzero_safety_invariant_is_accepted(self) -> None:
+        invariants = {**ZERO_SAFETY_INVARIANTS, "INGEST_WITHOUT_PII_CLEARANCE": 2}
+        H2CoverageEvidenceV1.model_validate(
+            _fields(h2_coverage_gate_pass=False, safety_invariants=invariants)
+        )  # no raise
 
     def test_gate_pass_true_with_coverage_complete_true_but_a_false_subcheck_is_rejected(
         self,

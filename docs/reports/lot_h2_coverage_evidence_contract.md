@@ -215,6 +215,87 @@ Governance locks: baseline=18, config=18
 OK: all governance locks match baseline (18 keys verified).
 ```
 
+## 3quater. Quatrième round Codex — deux findings distincts, tous deux réels
+
+Une troisième revue fraîche sur le HEAD `d893266` a signalé deux
+nouveaux findings P1 (les deux autres commentaires de cette revue
+étaient à nouveau des ré-ancrages GitHub des rounds précédents,
+distingués via `pull_request_review_id`).
+
+**Finding 4 — `golden` absent des clés obligatoires.** Vérifié dans le
+producteur réel : `golden_path` est obligatoire au même titre que
+`rights`/`pii`/`routing` (`h2b_coverage_report.py:986-999`, `ValueError`
+si absent), et `input_files["golden"] = _file_sha256(golden_path)` est
+toujours renseigné pour tout rapport qui atteint le calcul du gate.
+Sans `golden` dans `_REQUIRED_INPUT_FILE_KEYS`, un document pouvait
+revendiquer `golden_validation_pass=true` sans porter l'identité de la
+spécification supposément validée — le signer (PR #100), qui ne reçoit
+que cette preuve H2 et jamais le fichier golden lui-même, ne pouvait
+alors pas distinguer une validation contre la spécification gouvernée
+d'une validation contre une autre. Corrigé : `_REQUIRED_INPUT_FILE_KEYS`
+passe à `{"catalog", "routing", "rights", "pii", "golden"}`.
+
+**Finding 5 — les neuf invariants de sécurité n'étaient pas
+représentés.** Vérifié dans le producteur réel
+(`h2b_coverage_report.py:1044-1054` et `:1284-1294`) :
+`h2_coverage_gate_pass` exige aussi `all(value == 0 for value in
+safety_invariants.values())`, où `safety_invariants` est un dict à
+neuf clés fixes (droits, PII, currentness, format, provenance, hachage
+de contenu, autorité déclarée/manquante, attribution) toujours
+initialisées à zéro puis incrémentées. Aucune de ces neuf n'était
+représentée dans le contrat — un document falsifié pouvait donc
+revendiquer `h2_coverage_gate_pass=true` avec tous les autres
+prérequis projetés satisfaits, malgré un invariant de sécurité réel en
+échec. Corrigé par un nouveau champ obligatoire `safety_invariants:
+dict[str, NonNegativeInt]`, une clé-set exacte (neuf clés, ni plus ni
+moins, `_safety_invariants_key_set_is_exact`), et l'ajout de
+`all(value == 0 for value in self.safety_invariants.values())` aux
+prérequis de `h2_coverage_gate_pass=true`.
+
+```
+$ cd packages/contracts && python3 -m pytest -q tests/test_h2_coverage_evidence_contract.py
+44 passed in 0.33s
+
+$ python3 -m pytest -q
+273 passed in 1.07s
+
+$ python3 -m ruff check src/nexus_contracts/h2_coverage_evidence.py \
+    tests/test_h2_coverage_evidence_contract.py
+All checks passed!
+
+$ python3 -m mypy src/nexus_contracts/h2_coverage_evidence.py
+Success: no issues found in 1 source file
+```
+
+Les trois nouvelles règles (clé `golden` requise, clé-set exacte de
+`safety_invariants`, conjonction ajoutée au gate) sont mutation-testées
+individuellement (retrait/désactivation de chacune → au moins un test
+dédié passe au rouge → restaurée → suite repassée verte).
+
+`report_to_h2_coverage_evidence` (rag-pedago) est mis à jour pour
+projeter `report.safety_invariants` tel quel (`golden` était déjà dans
+`_INPUT_FILE_DIGEST_KEYS`, aucun changement nécessaire côté clé) :
+
+```
+$ cd services/rag-pedago && .venv/bin/python -m pytest tests/test_h2b_coverage_report.py -q
+90 passed in 1.41s
+# Le producteur réel satisfait déjà ces deux invariants aussi.
+
+$ .venv/bin/python -m pytest tests/test_h2b_coverage_report.py \
+    tests/test_h2f_manifest_and_rights_exactness.py tests/test_h2f_golden_final_gate.py -q
+123 passed in 1.60s
+
+$ .venv/bin/python -m ruff check rag_pedago/imports/h2b_coverage_report.py tests/test_h2b_coverage_report.py
+All checks passed!
+
+$ .venv/bin/python -m mypy rag_pedago/imports/h2b_coverage_report.py
+Success: no issues found in 1 source file
+
+$ cd ../.. && bash scripts/check-governance-locks.sh
+Governance locks: baseline=18, config=18
+OK: all governance locks match baseline (18 keys verified).
+```
+
 ## 4. Ce que ce lot ne fait pas
 
 - N'intègre pas le signer (`sign_production_readiness_manifest_cli.py`,
@@ -230,7 +311,7 @@ OK: all governance locks match baseline (18 keys verified).
 
 ```
 $ cd packages/contracts && python3 -m pytest -q
-266 passed in 1.05s
+273 passed in 1.07s
 
 $ python3 -m ruff check src/nexus_contracts/authorization_revocations.py \
     src/nexus_contracts/h2_coverage_evidence.py \

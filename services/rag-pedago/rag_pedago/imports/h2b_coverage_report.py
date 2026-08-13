@@ -1705,6 +1705,7 @@ def report_to_h2_coverage_evidence(report: CoverageReport) -> H2CoverageEvidence
             "h2_coverage_gate_pass": report.h2_coverage_gate_pass,
             "authority_review_binding_verified": report.authority_review_binding_verified,
             "authority_revocations_checked": report.authority_revocations_checked,
+            "safety_invariants": dict(report.safety_invariants),
         }
     )
 
