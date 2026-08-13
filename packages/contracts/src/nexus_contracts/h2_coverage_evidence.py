@@ -42,6 +42,11 @@ H2_COVERAGE_EVIDENCE_PROTOCOL_VERSION = "NEXUS-H2-COVERAGE-EVIDENCE-V1"
 _CANONICAL_INDENT = 2
 _HEX40 = r"^[0-9a-f]{40}$"
 _HEX64 = r"^[0-9a-f]{64}$"
+#: Même motif que ``authority_artifacts._IDENTIFIER_PATTERN`` /
+#: ``review_binding.ReviewBindingV1.authorization_id`` — un identifiant
+#: d'autorisation n'a jamais de forme différente selon le contrat qui le
+#: porte.
+_IDENTIFIER = r"^[a-z0-9][a-z0-9._-]{0,127}$"
 
 #: Valeurs réellement émises par
 #: ``rag_pedago.imports.h2b_coverage_report`` pour ``rights_gate_status``/
@@ -55,7 +60,7 @@ _HEX64 = r"^[0-9a-f]{64}$"
 #: signer en a besoin.
 _GATE_STATUS = Literal["PASS", "BLOCKED_INGEST_WITHOUT_CLEARANCE"]
 
-#: Les cinq preuves d'entrée sans lesquelles un gate H2-B n'a jamais été
+#: Les six preuves d'entrée sans lesquelles un gate H2-B n'a jamais été
 #: réellement évalué (`--catalog`/`--routing`/`--rights`/`--pii`/`--golden`
 #: sont tous obligatoires côté producteur — `generate_coverage_report`
 #: lève `ValueError` si l'un manque, `h2b_coverage_report.py:986-999`,
@@ -66,8 +71,25 @@ _GATE_STATUS = Literal["PASS", "BLOCKED_INGEST_WITHOUT_CLEARANCE"]
 #: sans porter l'identité de la spécification supposément validée — le
 #: signer, qui ne reçoit que cette preuve H2 et jamais le fichier golden
 #: lui-même, ne pouvait alors distinguer une validation contre la
-#: spécification gouvernée d'une validation contre une autre.
-_REQUIRED_INPUT_FILE_KEYS = frozenset({"catalog", "routing", "rights", "pii", "golden"})
+#: spécification gouvernée d'une validation contre une autre. `authority`
+#: ajouté en round 4 : `authority_review_binding_verified=true` — donc
+#: tout `h2_coverage_gate_pass=true` — exige `authority_path is not
+#: None` côté producteur (sinon `authority_binding={}`,
+#: `authority_review_binding_verified=bool({})=False`,
+#: `h2b_coverage_report.py:1113-1151`), et cette branche renseigne
+#: toujours `input_files["authority"]` (`:1221`) : jamais absent d'un
+#: document passant réel. **Volontairement absent : `authority_
+#: revocations`.** En production, `--authority-revocations` est un refus
+#: pur et simple s'il est fourni (`:1584-1591` : « fournir cet argument
+#: est un refus ») — le registre est toujours lu au chemin gouverné, et
+#: `input_files["authority_revocations"]` n'est renseigné QUE si
+#: l'argument CLI est fourni (`:1228-1229`), ce qui n'arrive jamais en
+#: production. L'exiger ici casserait donc tout document de production
+#: réel. C'est un vrai manque côté producteur (aucun digest du registre
+#: de révocation réellement lu n'est jamais capturé pour un rapport de
+#: production), signalé dans le rapport de lot, hors du périmètre de ce
+#: module de représentation (ADR-0001) — pas contourné en silence ici.
+_REQUIRED_INPUT_FILE_KEYS = frozenset({"catalog", "routing", "rights", "pii", "golden", "authority"})
 
 #: Les neuf invariants de sécurité que `generate_coverage_report` compte
 #: (toujours initialisés à zéro puis incrémentés, jamais un sous-ensemble
@@ -143,6 +165,17 @@ class H2CoverageEvidenceV1(StrictBaseModel):
     # --- Liaison d'autorité (ADR-0025/ADR-0035) --------------------------
     authority_review_binding_verified: StrictBool
     authority_revocations_checked: StrictBool
+    #: Round 4 (Codex, PR #104) : sans identité, `authority_review_
+    #: binding_verified=true` ne dit QUI a été revu — un document
+    #: falsifié pouvait revendiquer ce booléen vrai sans qu'aucun
+    #: vérificateur en aval ne puisse corréler le verdict à une
+    #: autorisation précise (ni, par extension, la revérifier contre le
+    #: registre de révocation courant via `nexus_contracts.
+    #: authorization_revocations`, ADR-0042). Toujours présent dans
+    #: `authority_binding["authorization_id"]` dès que `authority_path`
+    #: est fourni (`h2b_coverage_report.py:760-785`), donc pour tout
+    #: rapport de production passant.
+    authorization_id: StrictStr = Field(pattern=_IDENTIFIER)
 
     # --- Invariants de sécurité (round 3, Codex, PR #104) ------------------
     safety_invariants: dict[str, _NonNegativeInt]
@@ -260,6 +293,7 @@ class H2CoverageEvidenceV1(StrictBaseModel):
         return {
             "authority_review_binding_verified": self.authority_review_binding_verified,
             "authority_revocations_checked": self.authority_revocations_checked,
+            "authorization_id": self.authorization_id,
             "coverage_complete": self.coverage_complete,
             "corpus_match": self.corpus_match,
             "corpus_total_actual": self.corpus_total_actual,

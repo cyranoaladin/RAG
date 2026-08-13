@@ -49,6 +49,7 @@ def _fields(**overrides: Any) -> dict[str, Any]:
             "rights": "e" * 64,
             "pii": "f" * 64,
             "golden": "0" * 64,
+            "authority": "1" * 64,
         },
         "corpus_total_expected": 2583,
         "corpus_total_actual": 2583,
@@ -63,6 +64,7 @@ def _fields(**overrides: Any) -> dict[str, Any]:
         "h2_coverage_gate_pass": True,
         "authority_review_binding_verified": True,
         "authority_revocations_checked": True,
+        "authorization_id": "libre-terminale-2026-h2b-001",
         "safety_invariants": dict(ZERO_SAFETY_INVARIANTS),
     }
     fields.update(overrides)
@@ -151,7 +153,7 @@ class TestCrossFieldConsistency:
                 _fields(input_file_digests={"placeholder": "c" * 64})
             )
 
-    def test_input_file_digests_with_all_five_required_keys_is_accepted(self) -> None:
+    def test_input_file_digests_with_all_six_required_keys_is_accepted(self) -> None:
         H2CoverageEvidenceV1.model_validate(_fields())  # no raise
 
     @pytest.mark.parametrize(
@@ -187,6 +189,24 @@ class TestCrossFieldConsistency:
         del digests["golden"]
         with pytest.raises(ValidationError, match="missing required key"):
             H2CoverageEvidenceV1.model_validate(_fields(input_file_digests=digests))
+
+    def test_input_file_digests_missing_authority_is_rejected(self) -> None:
+        # Codex round 4 (PR #104): without the authority digest, a
+        # passing document isn't bound to the identity of the
+        # authorization artifact its own authority_review_binding_verified
+        # claims was checked.
+        digests = {**_fields()["input_file_digests"]}
+        del digests["authority"]
+        with pytest.raises(ValidationError, match="missing required key"):
+            H2CoverageEvidenceV1.model_validate(_fields(input_file_digests=digests))
+
+    def test_malformed_authorization_id_is_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            H2CoverageEvidenceV1.model_validate(_fields(authorization_id="Not An ID!"))
+
+    def test_empty_authorization_id_is_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            H2CoverageEvidenceV1.model_validate(_fields(authorization_id=""))
 
     def test_safety_invariants_missing_a_key_is_rejected(self) -> None:
         invariants = {**ZERO_SAFETY_INVARIANTS}

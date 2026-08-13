@@ -296,6 +296,77 @@ Governance locks: baseline=18, config=18
 OK: all governance locks match baseline (18 keys verified).
 ```
 
+## 3quinquies. Cinquième round Codex — identité d'autorisation manquante
+
+Une quatrième revue fraîche sur le HEAD `ab14683` a signalé un dernier
+finding P1.
+
+**Finding 6 — aucune identité d'autorisation dans la preuve.**
+`authority_review_binding_verified=true` (et donc tout
+`h2_coverage_gate_pass=true`) exige côté producteur `authority_path is
+not None` (sinon `authority_binding={}`, le booléen est faux —
+`h2b_coverage_report.py:1113-1151`), et cette branche renseigne
+toujours `input_files["authority"]` (`:1221`). Mais aucune information
+d'identité (quelle autorisation ? quelle revue ?) n'était portée par le
+contrat — un document falsifié pouvait revendiquer ce booléen vrai sans
+qu'aucun vérificateur en aval ne puisse corréler le verdict à une
+autorisation précise, ni la revérifier contre le registre de révocation
+courant via `nexus_contracts.authorization_revocations` (ADR-0042).
+
+Corrigé par deux ajouts :
+- `"authority"` ajouté à `_REQUIRED_INPUT_FILE_KEYS` (six clés
+  désormais) — vérifié toujours présent pour tout rapport de production
+  passant.
+- Nouveau champ requis `authorization_id: StrictStr` (même motif que
+  `authority_artifacts._IDENTIFIER_PATTERN`/`review_binding.
+  ReviewBindingV1.authorization_id`), sourcé depuis `report.input_files
+  ["authority_authorization_id"]` — vérifié toujours présent dès que
+  `authority_binding` est non vide
+  (`input_files["authority_" + key] = ...` pour chaque clé de
+  `authority_binding`, dont `authorization_id`).
+
+**Volontairement PAS ajouté : `authority_revocations`.** Vérifié dans le
+producteur réel (`h2b_coverage_report.py:1584-1591`) : en production,
+fournir `--authority-revocations` est un refus pur et simple — le
+registre est toujours lu au chemin gouverné, et `input_files["authority_
+revocations"]` n'est renseigné QUE si l'argument CLI est fourni
+(`:1228-1229`), ce qui n'arrive jamais en production. L'exiger aurait
+cassé tout document de production réel. C'est un vrai manque côté
+producteur (aucun digest du registre de révocation réellement lu n'est
+jamais capturé pour un rapport de production) — signalé ici, hors du
+périmètre de ce module de représentation (ADR-0001), pas contourné en
+silence.
+
+```
+$ cd packages/contracts && python3 -m pytest -q tests/test_h2_coverage_evidence_contract.py
+47 passed in 0.27s
+
+$ python3 -m pytest -q
+276 passed in 1.06s
+
+$ python3 -m ruff check src/nexus_contracts/h2_coverage_evidence.py \
+    tests/test_h2_coverage_evidence_contract.py
+All checks passed!
+
+$ python3 -m mypy src/nexus_contracts/h2_coverage_evidence.py
+Success: no issues found in 1 source file
+
+$ cd services/rag-pedago && .venv/bin/python -m pytest tests/test_h2b_coverage_report.py -q
+90 passed in 1.28s
+# Le producteur réel porte déjà authority_authorization_id dès qu'il passe.
+
+$ .venv/bin/python -m pytest tests/test_h2b_coverage_report.py \
+    tests/test_h2f_manifest_and_rights_exactness.py tests/test_h2f_golden_final_gate.py -q
+123 passed in 1.46s
+
+$ cd ../.. && bash scripts/check-governance-locks.sh
+Governance locks: baseline=18, config=18
+OK: all governance locks match baseline (18 keys verified).
+```
+
+Les deux nouvelles règles (clé `authority` requise, motif
+`authorization_id`) sont mutation-testées individuellement.
+
 ## 4. Ce que ce lot ne fait pas
 
 - N'intègre pas le signer (`sign_production_readiness_manifest_cli.py`,
@@ -311,7 +382,7 @@ OK: all governance locks match baseline (18 keys verified).
 
 ```
 $ cd packages/contracts && python3 -m pytest -q
-273 passed in 1.07s
+276 passed in 1.06s
 
 $ python3 -m ruff check src/nexus_contracts/authorization_revocations.py \
     src/nexus_contracts/h2_coverage_evidence.py \
