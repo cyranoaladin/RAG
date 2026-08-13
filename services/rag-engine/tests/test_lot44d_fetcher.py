@@ -6,6 +6,7 @@ PostgreSQL réel (``apply_resource_transition`` monkeypatché).
 """
 from __future__ import annotations
 
+import hashlib
 from datetime import UTC, datetime
 from unittest.mock import MagicMock
 from uuid import uuid4
@@ -17,7 +18,12 @@ from nexus_contracts.ingestion import ResourceCandidate
 from nexus_contracts.resource_state import ResourceState
 
 from ingestor.ingestion_agents import fetcher as fetcher_module
-from ingestor.ingestion_agents.fetcher import FetchHTTPError, build_artifact_core, run_fetcher
+from ingestor.ingestion_agents.fetcher import (
+    ContentAuthorizationBinding,
+    FetchHTTPError,
+    build_artifact_core,
+    run_fetcher,
+)
 from ingestor.ingestion_agents.transitions import TransitionResult
 
 SCOPE = {
@@ -32,6 +38,18 @@ SCOPE = {
     "school_year": "2026-2027",
     "programme_version": "BOEN_special_8_2019-07-25",
 }
+
+BINDING = ContentAuthorizationBinding(
+    authorization_id="auth-content-test",
+    authorization_digest="d" * 64,
+    protocol_version="LOT41A-V2",
+)
+
+
+def _authorize_content(*, content_sha256: str, final_url: str) -> ContentAuthorizationBinding:
+    assert len(content_sha256) == 64
+    assert final_url.startswith("https://eduscol.education.fr/")
+    return BINDING
 
 
 def _candidate(**overrides: object) -> ResourceCandidate:
@@ -127,6 +145,7 @@ class TestRunFetcherWiring:
             max_bytes=1_000_000,
             store_artifact=fake_store_artifact,
             safe_fetch=fake_safe_fetch,
+            authorize_content=_authorize_content,
         )
 
         assert fetched is fetched_result
@@ -141,7 +160,7 @@ class TestRunFetcherWiring:
         assert second_call_kwargs["expected_version"] == fetched_result.state_version
         assert store_calls == [b"<html>algorithmique</html>"]
         assert artifact.extracted_text_ref == f"mem://{artifact_id}"
-        assert artifact.sha256 == __import__("hashlib").sha256(b"<html>algorithmique</html>").hexdigest()
+        assert artifact.sha256 == hashlib.sha256(b"<html>algorithmique</html>").hexdigest()
 
     def test_store_artifact_is_called_only_after_fetched_transition(
         self, monkeypatch: pytest.MonkeyPatch
@@ -170,6 +189,13 @@ class TestRunFetcherWiring:
             call_order.append("store")
             return "mem://x"
 
+        def recording_authorizer(
+            *, content_sha256: str, final_url: str
+        ) -> ContentAuthorizationBinding:
+            del content_sha256, final_url
+            call_order.append("authorize")
+            return BINDING
+
         monkeypatch.setattr(fetcher_module, "apply_resource_transition", recording_apply)
 
         run_fetcher(
@@ -182,9 +208,10 @@ class TestRunFetcherWiring:
             max_bytes=1_000_000,
             store_artifact=recording_store,
             safe_fetch=lambda url, **kwargs: fake_response,
+            authorize_content=recording_authorizer,
         )
 
-        assert call_order == ["transition", "store", "transition"]
+        assert call_order == ["authorize", "transition", "store", "transition"]
 
     def test_license_is_persisted_on_the_returned_artifact(
         self, monkeypatch: pytest.MonkeyPatch
@@ -217,6 +244,7 @@ class TestRunFetcherWiring:
             max_bytes=1_000_000,
             store_artifact=lambda *, artifact_id, content: "mem://x",
             safe_fetch=lambda url, **kwargs: fake_response,
+            authorize_content=_authorize_content,
             license="CC-BY-SA",
         )
 
@@ -253,6 +281,7 @@ class TestRunFetcherWiring:
             max_bytes=1_000_000,
             store_artifact=lambda *, artifact_id, content: "mem://x",
             safe_fetch=lambda url, **kwargs: fake_response,
+            authorize_content=_authorize_content,
             job_id=job_id,
         )
 
@@ -328,6 +357,7 @@ class TestRunFetcherRejectsHTTPErrors:
                 max_bytes=1_000_000,
                 store_artifact=recording_store,
                 safe_fetch=lambda url, **kwargs: fake_response,
+                authorize_content=_authorize_content,
             )
 
         assert exc_info.value.status_code == status_code
@@ -363,6 +393,7 @@ class TestRunFetcherRejectsHTTPErrors:
                 max_bytes=1_000_000,
                 store_artifact=lambda *, artifact_id, content: "mem://x",
                 safe_fetch=lambda url, **kwargs: fake_response,
+                authorize_content=_authorize_content,
             )
         mock_apply.assert_not_called()
 
@@ -398,5 +429,97 @@ class TestRunFetcherRejectsHTTPErrors:
             max_bytes=1_000_000,
             store_artifact=lambda *, artifact_id, content: "mem://x",
             safe_fetch=lambda url, **kwargs: fake_response,
+            authorize_content=_authorize_content,
         )
         assert artifact is not None
+
+    def test_authorizer_denial_precedes_transition_store_and_artifact_creation(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        candidate = _candidate()
+        content = b"same-host but unapproved bytes"
+        fake_response = httpx.Response(
+            200,
+            headers={"content-type": "application/pdf"},
+            content=content,
+            request=httpx.Request("GET", candidate.source_url),
+        )
+        mock_apply = MagicMock()
+        mock_store = MagicMock()
+        monkeypatch.setattr(fetcher_module, "apply_resource_transition", mock_apply)
+
+        def deny(*, content_sha256: str, final_url: str) -> ContentAuthorizationBinding:
+            assert content_sha256 == hashlib.sha256(content).hexdigest()
+            assert final_url == candidate.source_url
+            raise RuntimeError("content denied")
+
+        with pytest.raises(RuntimeError, match="content denied"):
+            run_fetcher(
+                conn=MagicMock(),
+                candidate=candidate,
+                artifact_id=uuid4(),
+                collected_at=datetime(2026, 8, 4, tzinfo=UTC),
+                expected_version=1,
+                actor="fetcher-test",
+                max_bytes=1_000_000,
+                store_artifact=mock_store,
+                safe_fetch=lambda url, **kwargs: fake_response,
+                authorize_content=deny,
+            )
+
+        mock_apply.assert_not_called()
+        mock_store.assert_not_called()
+
+    def test_fetched_event_contains_only_sanitized_authorization_binding(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        candidate = _candidate()
+        artifact_id = uuid4()
+        content = b"authorized bytes"
+        fake_response = httpx.Response(
+            200,
+            headers={"content-type": "application/pdf"},
+            content=content,
+            request=httpx.Request("GET", candidate.source_url),
+        )
+        mock_apply = MagicMock(
+            side_effect=[
+                TransitionResult(
+                    resource_id=candidate.resource_id,
+                    from_state=ResourceState.CANDIDATE,
+                    to_state=ResourceState.FETCHED,
+                    state_version=2,
+                ),
+                TransitionResult(
+                    resource_id=candidate.resource_id,
+                    from_state=ResourceState.FETCHED,
+                    to_state=ResourceState.STORED,
+                    state_version=3,
+                ),
+            ]
+        )
+        monkeypatch.setattr(fetcher_module, "apply_resource_transition", mock_apply)
+
+        run_fetcher(
+            conn=MagicMock(),
+            candidate=candidate,
+            artifact_id=artifact_id,
+            collected_at=datetime(2026, 8, 4, tzinfo=UTC),
+            expected_version=1,
+            actor="fetcher-test",
+            max_bytes=1_000_000,
+            store_artifact=lambda *, artifact_id, content: "mem://x",
+            safe_fetch=lambda url, **kwargs: fake_response,
+            authorize_content=_authorize_content,
+        )
+
+        payload = mock_apply.call_args_list[0].kwargs["payload"]
+        assert payload == {
+            "artifact_id": str(artifact_id),
+            "sha256": hashlib.sha256(content).hexdigest(),
+            "size_bytes": len(content),
+            "scope_authorization_id": BINDING.authorization_id,
+            "scope_authorization_digest": BINDING.authorization_digest,
+            "scope_authorization_protocol_version": BINDING.protocol_version,
+        }
+        assert content not in payload.values()

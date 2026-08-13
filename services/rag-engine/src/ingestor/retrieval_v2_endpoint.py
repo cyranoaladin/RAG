@@ -13,8 +13,10 @@ Retrieval seulement : aucun champ ni appel de génération LLM.
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import os
+import re
 import threading
 import time
 from collections.abc import Iterable, Mapping
@@ -30,8 +32,31 @@ from nexus_contracts import (
     RetrievalRequest,
     RetrievalResponse,
     RetrievalResult,
+    RetrievalScopeArtifactV2,
+    load_retrieval_scope_registry,
 )
-from pydantic import BaseModel, ConfigDict, Field, computed_field
+from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
+
+
+def _missing_sibling(exc: ImportError) -> bool:
+    """Le frère visé est-il absent, ou son exécution a-t-elle échoué ?
+
+    Deux situations autorisent le repli : le module frère (ou son paquet
+    parent) est introuvable, et le runtime aplati de l'image Docker, où
+    les modules n'ont pas de paquet parent et ``from .x import y`` lève
+    « attempted relative import with no known parent package ».
+
+    Tout le reste — une dépendance transitive manquante, un ``cannot
+    import name``, une configuration refusée — remonte intact : réessayer
+    par un autre chemin rejouerait le même échec sous un autre nom.
+    """
+    if not isinstance(exc, ModuleNotFoundError):
+        return exc.name is None and "relative import" in str(exc)
+    name = exc.name or ""
+    return name == name.rsplit(".", 1)[-1] or name in (
+        "src", "src.ingestor", "ingestor",
+    )
+
 
 try:
     from .collection_config import (
@@ -56,6 +81,14 @@ try:
         runtime_database_budget,
         runtime_request_budget,
     )
+    from .release_readiness import (
+        ReleaseReadinessError,
+        ReleaseRegistryExpectation,
+        load_release_registry,
+        load_release_registry_file,
+        validate_release_collection_readiness,
+        validate_release_registry_readiness,
+    )
     from .reranker_contract import load_reranker_model
     from .retrieval_contract_adapter import adapt_retrieval_request
     from .retrieval_hybrid_v2 import (
@@ -69,9 +102,9 @@ try:
         retrieve_hybrid,
     )
     from .retrieval_pg_v2 import (
-        _SCOPE_PREDICATE_SQL,
+        _READINESS_SCOPE_PREDICATE_SQL,
         PgCandidateStore,
-        _scope_params,
+        _readiness_scope_params,
     )
     from .retrieval_scope_v2 import (
         RetrievalScopeError,
@@ -81,7 +114,12 @@ try:
         effective_signed_collections,
     )
     from .security_v2 import SecurityRole, require_bff_service, require_role
-except (ImportError, ValueError):
+except ImportError as _exc:  # repli à plat, cause réelle préservée
+    if not _missing_sibling(_exc):
+        # Le module frère existe : c'est l'une de ses dépendances qui
+        # manque, ou sa configuration qui a été refusée. Réessayer par un
+        # autre chemin rejouerait le même échec sous un autre nom.
+        raise
     from collection_config import (  # type: ignore[no-redef]
         CollectionConfigError,
         list_instanciated_collections,
@@ -110,6 +148,14 @@ except (ImportError, ValueError):
         runtime_database_budget,
         runtime_request_budget,
     )
+    from release_readiness import (  # type: ignore[no-redef]
+        ReleaseReadinessError,
+        ReleaseRegistryExpectation,
+        load_release_registry,
+        load_release_registry_file,
+        validate_release_collection_readiness,
+        validate_release_registry_readiness,
+    )
     from reranker_contract import load_reranker_model  # type: ignore[no-redef]
     from retrieval_contract_adapter import (  # type: ignore[no-redef]
         adapt_retrieval_request,
@@ -125,9 +171,9 @@ except (ImportError, ValueError):
         retrieve_hybrid,
     )
     from retrieval_pg_v2 import (  # type: ignore[no-redef]
-        _SCOPE_PREDICATE_SQL,
+        _READINESS_SCOPE_PREDICATE_SQL,
         PgCandidateStore,
-        _scope_params,
+        _readiness_scope_params,
     )
     from retrieval_scope_v2 import (  # type: ignore[no-redef]
         RetrievalScopeError,
@@ -310,7 +356,11 @@ def _get_reranker():
     return _reranker
 
 
-def _check_retrievable(collection: str, cfg: dict) -> dict:
+def _check_retrievable(
+    collection: str,
+    cfg: dict,
+    verified: VerifiedInternalIdentity | None = None,
+) -> dict:
     """Gate retrievable FAIL-CLOSED (GG-01).
 
     Reads domain from the collection's DECLARED definition.
@@ -345,7 +395,231 @@ def _check_retrievable(collection: str, cfg: dict) -> dict:
             detail=f"Collection '{collection}' is not retrievable (domain '{domain}').",
         )
 
+    _require_release_ready_if_governed(collection, cfg, verified=verified)
     return defn
+
+
+def _configured_release_manifest() -> tuple[Path, str] | None:
+    path_raw = os.environ.get("RAG_RELEASE_MANIFEST_PATH")
+    digest = os.environ.get("RAG_RELEASE_MANIFEST_SHA256")
+    if path_raw is None and digest is None:
+        return None
+    if not path_raw or not digest:
+        raise ReleaseReadinessError("release manifest configuration incomplete")
+    return Path(path_raw), digest
+
+
+def _configured_release_registry_file() -> tuple[Path, str] | None:
+    path_raw = os.environ.get("RAG_RELEASE_REGISTRY_PATH")
+    digest = os.environ.get("RAG_RELEASE_REGISTRY_SHA256")
+    if path_raw is None and digest is None:
+        return None
+    if not path_raw or not digest:
+        raise ReleaseReadinessError("release registry configuration incomplete")
+    return Path(path_raw), digest
+
+
+def _configured_release_registry() -> ReleaseRegistryExpectation | None:
+    """Charger l'autorité release active : registre canonique borné, couple
+    de manifests explicite (``RAG_RELEASE_MANIFESTS_JSON``), ou manifest
+    historique unique — jamais plus d'un mécanisme à la fois."""
+    registry_file = _configured_release_registry_file()
+    registry_raw = os.environ.get("RAG_RELEASE_MANIFESTS_JSON")
+    legacy = _configured_release_manifest()
+    configured_mechanisms = sum(
+        mechanism is not None for mechanism in (registry_file, registry_raw, legacy)
+    )
+    if configured_mechanisms > 1:
+        raise ReleaseReadinessError("release manifest configuration is ambiguous")
+    if registry_file is not None:
+        registry_file_path, registry_file_digest = registry_file
+        return load_release_registry_file(registry_file_path, registry_file_digest)
+    if registry_raw is None:
+        return load_release_registry((legacy,)) if legacy is not None else None
+    try:
+        payload = json.loads(registry_raw)
+    except json.JSONDecodeError as exc:
+        raise ReleaseReadinessError("release manifest registry is not valid JSON") from exc
+    if not isinstance(payload, list):
+        raise ReleaseReadinessError("release manifest registry must be an array")
+    configurations: list[tuple[Path, str]] = []
+    for index, entry in enumerate(payload):
+        if not isinstance(entry, Mapping) or set(entry) != {"path", "sha256"}:
+            raise ReleaseReadinessError(
+                f"release manifest registry entry {index} is invalid"
+            )
+        path = entry.get("path")
+        digest = entry.get("sha256")
+        if not isinstance(path, str) or not path.strip() or not isinstance(digest, str):
+            raise ReleaseReadinessError(
+                f"release manifest registry entry {index} is invalid"
+            )
+        configurations.append((Path(path), digest))
+    return load_release_registry(tuple(configurations))
+
+
+def configured_release_model_contract() -> tuple[str, str, int, str, str] | None:
+    """Retourner le contrat modèles complet scellé par la release active."""
+    registry = _configured_release_registry()
+    if registry is None:
+        return None
+    return registry.model_contract
+
+
+def _release_evidence_for_collection(collection: str) -> bool | None:
+    """Retourner None hors release configurée, sinon l'état exact de la release."""
+    try:
+        registry = _configured_release_registry()
+    except ReleaseReadinessError:
+        return False
+    if registry is None:
+        return None
+    if collection not in registry.collections:
+        return None
+    try:
+        settings = PoolSettings.from_env()
+        with runtime_database_budget():
+            with pool_connection(settings) as connection:
+                return validate_release_collection_readiness(
+                    registry,
+                    collection,
+                    connection,
+                ).ready
+    except Exception:
+        logger.error("release readiness unavailable")
+        return False
+
+
+def _release_evidence_for_v2_artifact(
+    artifact: RetrievalScopeArtifactV2,
+) -> bool | None:
+    """Lier les nouveaux scopes au subject release exact, en gardant Wave 0."""
+    collection = str(artifact.evidence_subject.collection)
+    state = _release_evidence_for_collection(collection)
+    if state is not True:
+        return state
+    try:
+        registry = _configured_release_registry()
+        if registry is None:
+            return state
+    except ReleaseReadinessError:
+        return False
+    manifest = registry.manifest_for_collection(collection)
+    if manifest is None:
+        return None
+    expectation = manifest.expectation
+    if expectation.release_kind == "MULTILEVEL_AGGREGATE_RELEASE_V1":
+        subject_sha_by_collection = dict(
+            expectation.subject_manifest_sha256_by_collection
+        )
+        if artifact.source_sha256 != subject_sha_by_collection.get(collection):
+            return False
+    return state
+
+
+def _v2_evidence_collections(
+    artifacts: Mapping[str, object] | None = None,
+) -> frozenset[str]:
+    registry = load_retrieval_scope_registry() if artifacts is None else artifacts
+    return frozenset(
+        str(artifact.evidence_subject.collection)
+        for artifact in registry.values()
+        if isinstance(artifact, RetrievalScopeArtifactV2)
+    )
+
+
+def _instanciated_v2_collections(
+    artifacts: Mapping[str, object],
+    cfg: Mapping[str, Any],
+) -> frozenset[str]:
+    collections = cfg.get("collections")
+    if not isinstance(collections, Mapping):
+        raise RuntimeError("release collection catalogue malformed")
+    return frozenset(
+        collection
+        for collection in _v2_evidence_collections(artifacts)
+        if isinstance(collections.get(collection), Mapping)
+        and collections[collection].get("instanciee") is True
+    )
+
+
+def validate_release_startup_configuration(
+    artifacts: Mapping[str, object],
+    cfg: Mapping[str, Any],
+) -> None:
+    """Exiger un manifest exact dès qu'un scope V2 est instancié."""
+    required = _instanciated_v2_collections(artifacts, cfg)
+    if not required:
+        return
+    try:
+        registry = _configured_release_registry()
+        if registry is None:
+            raise ReleaseReadinessError("release manifest unavailable")
+    except ReleaseReadinessError as exc:
+        raise RuntimeError("release manifest unavailable or invalid") from exc
+    configured_collections = set(registry.collections)
+    if not configured_collections or not configured_collections <= set(required):
+        raise RuntimeError("release manifest collection set mismatch")
+    subject_sha_by_collection = {
+        collection: sha256
+        for manifest in registry.manifests
+        if manifest.expectation.release_kind == "MULTILEVEL_AGGREGATE_RELEASE_V1"
+        for collection, sha256 in (
+            manifest.expectation.subject_manifest_sha256_by_collection
+        )
+    }
+    scoped_artifacts = {
+        artifact.evidence_subject.collection: artifact
+        for artifact in artifacts.values()
+        if isinstance(artifact, RetrievalScopeArtifactV2)
+        and artifact.evidence_subject.collection in subject_sha_by_collection
+    }
+    if set(scoped_artifacts) != set(subject_sha_by_collection) or any(
+        artifact.source_sha256 != subject_sha_by_collection.get(collection)
+        for collection, artifact in scoped_artifacts.items()
+    ):
+        raise RuntimeError("scope source SHA differs from subject release")
+
+
+def validate_configured_release_database() -> None:
+    """Vérifier le manifest configuré contre PostgreSQL avant tout trafic."""
+    registry = _configured_release_registry()
+    if registry is None:
+        return
+    settings = PoolSettings.from_env()
+    with runtime_database_budget():
+        with pool_connection(settings) as connection:
+            reports = validate_release_registry_readiness(registry, connection)
+    if set(reports) != set(registry.collections) or any(
+        not report.ready for report in reports.values()
+    ):
+        raise RuntimeError("release database reconciliation unavailable")
+
+
+def _require_release_ready_if_governed(
+    collection: str,
+    cfg: Mapping[str, Any],
+    *,
+    verified: VerifiedInternalIdentity | None = None,
+) -> None:
+    collections = cfg.get("collections")
+    definition = collections.get(collection) if isinstance(collections, Mapping) else None
+    if verified is None:
+        return
+    artifact = verified.artifact
+    if not isinstance(artifact, RetrievalScopeArtifactV2):
+        return
+    if artifact.evidence_subject.collection != collection:
+        return
+    if (
+        collection not in _v2_evidence_collections()
+        or not isinstance(definition, Mapping)
+        or definition.get("instanciee") is not True
+    ):
+        return
+    state = _release_evidence_for_v2_artifact(artifact)
+    if state is not True:
+        raise HTTPException(status_code=503, detail="release evidence unavailable")
 
 
 # --- Modèle interne d'un hit avant projection contractuelle ---
@@ -361,6 +635,18 @@ class SearchV2Hit(BaseModel):
     rights: str = Field(min_length=1, pattern=r".*\S.*")
     type_doc: str
     review_status: Literal["reviewed"]  # SCALE-04: reviewed only
+    artifact_id: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    content_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    placement_id: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    placement_source_scope: str | None = Field(
+        default=None, min_length=1, pattern=r".*\S.*"
+    )
+    placement_source_id: str | None = Field(
+        default=None, min_length=1, pattern=r".*\S.*"
+    )
+    placement_source_path: str | None = Field(
+        default=None, min_length=1, pattern=r".*\S.*"
+    )
     page: int | None = Field(default=None, ge=1)
     preview: str = Field(min_length=1, pattern=r".*\S.*")
     dense_score: float | None
@@ -369,6 +655,23 @@ class SearchV2Hit(BaseModel):
     rerank_score: float
     mmr_score: float
     score_final: float = Field(ge=0, le=1)
+
+    @model_validator(mode="after")
+    def validate_governed_traceability(self) -> SearchV2Hit:
+        trace = (
+            self.artifact_id,
+            self.content_sha256,
+            self.placement_id,
+            self.placement_source_scope,
+            self.placement_source_id,
+            self.placement_source_path,
+        )
+        if any(value is not None for value in trace):
+            if any(value is None for value in trace):
+                raise ValueError("governed traceability must be complete")
+            if self.artifact_id != self.content_sha256 or self.doc_id != self.artifact_id:
+                raise ValueError("governed identity must be content-bound")
+        return self
 
     @computed_field(  # type: ignore[prop-decorator]
         return_type=float | None,
@@ -385,7 +688,7 @@ def _build_launch_readiness(
     reviewed_counts: Mapping[str, int],
     *,
     min_chunks: int,
-    release_evidence_verified: bool,
+    release_evidence_verified: bool | Mapping[str, bool],
 ) -> dict[str, Any]:
     """Expose diagnostics without turning a row count into release evidence.
 
@@ -400,7 +703,13 @@ def _build_launch_readiness(
 
     collections: list[dict[str, Any]] = []
     blockers: list[str] = []
-    if not release_evidence_verified:
+    aggregate_release_evidence = (
+        release_evidence_verified
+        if isinstance(release_evidence_verified, bool)
+        else bool(release_evidence_verified)
+        and all(release_evidence_verified.values())
+    )
+    if not aggregate_release_evidence:
         blockers.append("preuve exhaustive de release absente")
     for name in collections_raw:
         definition = collections_raw[name]
@@ -425,6 +734,11 @@ def _build_launch_readiness(
         retrievable = isinstance(domain_cfg, Mapping) and domain_cfg.get("retrievable") is True
         reviewed_chunks = max(0, int(reviewed_counts.get(name, 0)))
         reviewed_chunk_floor_met = reviewed_chunks >= min_chunks
+        collection_release_evidence = (
+            release_evidence_verified
+            if isinstance(release_evidence_verified, bool)
+            else release_evidence_verified.get(name) is True
+        )
         reasons: list[str] = []
         if not instanciee:
             reasons.append("collection non instanciée")
@@ -434,9 +748,9 @@ def _build_launch_readiness(
             reasons.append(
                 f"plancher de chunks reviewed non atteint ({reviewed_chunks}/{min_chunks})",
             )
-        if not release_evidence_verified:
+        if not collection_release_evidence:
             reasons.append("preuve exhaustive de release absente")
-        ready = release_evidence_verified and not reasons
+        ready = collection_release_evidence and not reasons
         if reasons:
             blockers.append(f"{name}: {', '.join(reasons)}")
         collections.append(
@@ -456,7 +770,7 @@ def _build_launch_readiness(
         "total_collections": len(collections),
         "ready_collections": sum(1 for item in collections if item["ready"]),
         "minimum_reviewed_chunks": min_chunks,
-        "release_evidence_verified": release_evidence_verified,
+        "release_evidence_verified": aggregate_release_evidence,
         "blockers": blockers,
         "collections": collections,
     }
@@ -477,11 +791,16 @@ def _get_reviewed_chunk_counts(
         if cached is not None and cached[0] == cache_key and cached[1] > now:
             return dict(cached[2])
 
-    clauses: list[str] = []
+    count_queries: list[str] = []
     params: list[object] = []
     for scope in resolved_scopes:
-        clauses.append(f"({_SCOPE_PREDICATE_SQL})")
-        params.extend(_scope_params(scope))
+        count_queries.append(
+            "SELECT %s::text AS collection, COUNT(*) "
+            "FROM public.rag_chunks AS chunk WHERE "
+            f"({_READINESS_SCOPE_PREDICATE_SQL})"
+        )
+        params.append(scope.collection)
+        params.extend(_readiness_scope_params(scope))
 
     try:
         settings = PoolSettings.from_env()
@@ -514,9 +833,7 @@ def _get_reviewed_chunk_counts(
                 with connection.cursor() as cursor:
                     execute_with_database_budget(
                         cursor,
-                        "SELECT collection, COUNT(*) FROM public.rag_chunks WHERE "
-                        + " OR ".join(clauses)
-                        + " GROUP BY collection",
+                        " UNION ALL ".join(count_queries),
                         tuple(params),
                         statement_timeout_ms=settings.statement_timeout_ms,
                     )
@@ -673,10 +990,20 @@ def list_retrievable_collections(request: Request) -> dict[str, Any]:
             raise RetrievalScopeError("retrieval scope forbidden")
         catalogue = _list_retrievable_collections(cfg)
         catalogue_by_name = {item["name"]: item for item in catalogue["collections"]}
+        require_exact_release = isinstance(
+            getattr(verified, "artifact", None),
+            RetrievalScopeArtifactV2,
+        )
+        verified_artifact = getattr(verified, "artifact", None)
         scoped_items = [
             catalogue_by_name[collection]
             for collection in allowed
             if collection in catalogue_by_name
+            and (
+                _release_evidence_for_v2_artifact(verified_artifact) is True
+                if require_exact_release
+                else _release_evidence_for_collection(collection) is not False
+            )
         ]
         for item in scoped_items:
             build_server_retrieval_scope(
@@ -859,11 +1186,15 @@ def get_collection_readiness(request: Request) -> dict[str, Any]:
             raise RetrievalScopeError("retrieval scope forbidden")
         with runtime_database_budget():
             counts = _get_reviewed_chunk_counts(scopes)
+        release_evidence_verified = {
+            collection: _release_evidence_for_collection(collection) is True
+            for collection in allowed
+        }
         return _build_launch_readiness(
             {**cfg, "collections": scoped_collections},
             counts,
             min_chunks=MIN_COLLECTION_SUBSTANCE_CHUNKS,
-            release_evidence_verified=False,
+            release_evidence_verified=release_evidence_verified,
         )
     except (RetrievalScopeError, CollectionConfigError) as exc:
         raise HTTPException(status_code=403, detail="Forbidden") from exc
@@ -913,7 +1244,10 @@ def _retrieve_endpoint_hits(
     scope: ServerRetrievalScope,
 ) -> list[SearchV2Hit]:
     try:
-        return [_to_search_hit(hit) for hit in _retrieve_hybrid_hits(query, collection, k, scope)]
+        return [
+            _to_search_hit(hit, query=query)
+            for hit in _retrieve_hybrid_hits(query, collection, k, scope)
+        ]
     except Exception:
         raise _retrieval_unavailable() from None
 
@@ -924,7 +1258,47 @@ def _retrieve_reviewed_hits(query: str, collection: str, k: int) -> list[SearchV
     raise _retrieval_unavailable()
 
 
-def _to_search_hit(hit: HybridHit) -> SearchV2Hit:
+_PREVIEW_LIMIT = 200
+_QUERY_PREVIEW_STOP_WORDS = frozenset(
+    {"avec", "cette", "comment", "dans", "pour", "sans", "une", "des"}
+)
+
+
+def _query_relevant_preview(text: str, query: str | None) -> str:
+    source = text.strip()
+    if len(source) <= _PREVIEW_LIMIT or not query:
+        return source[:_PREVIEW_LIMIT]
+
+    query_terms = {
+        term
+        for term in re.findall(r"[^\W\d_]{4,}", query.casefold(), flags=re.UNICODE)
+        if term not in _QUERY_PREVIEW_STOP_WORDS
+    }
+    folded = source.casefold()
+    anchors = sorted(
+        {
+            match.start()
+            for term in query_terms
+            for match in re.finditer(re.escape(term), folded)
+        }
+    )
+    if not anchors:
+        return source[:_PREVIEW_LIMIT]
+
+    candidates: list[tuple[int, int, str]] = []
+    for anchor in anchors:
+        start = max(0, anchor - (_PREVIEW_LIMIT // 3))
+        if start > 0:
+            next_space = source.find(" ", start)
+            if 0 < next_space < anchor:
+                start = next_space + 1
+        preview = source[start : start + _PREVIEW_LIMIT].strip()
+        score = sum(term in preview.casefold() for term in query_terms)
+        candidates.append((score, -start, preview))
+    return max(candidates)[2]
+
+
+def _to_search_hit(hit: HybridHit, *, query: str | None = None) -> SearchV2Hit:
     candidate = hit.candidate
     return SearchV2Hit(
         chunk_id=candidate.chunk_id,
@@ -934,8 +1308,14 @@ def _to_search_hit(hit: HybridHit) -> SearchV2Hit:
         rights=candidate.rights,
         type_doc=candidate.type_doc,
         review_status=candidate.review_status,
+        artifact_id=candidate.artifact_id,
+        content_sha256=candidate.content_sha256,
+        placement_id=candidate.placement_id,
+        placement_source_scope=candidate.placement_source_scope,
+        placement_source_id=candidate.placement_source_id,
+        placement_source_path=candidate.placement_source_path,
         page=candidate.page_start,
-        preview=candidate.text.strip()[:200],
+        preview=_query_relevant_preview(candidate.text, query),
         dense_score=candidate.dense_score,
         lexical_score=candidate.lexical_score,
         rrf_score=hit.rrf_score,
@@ -951,6 +1331,29 @@ def _to_retrieval_result(
     *,
     include_citation: bool = True,
 ) -> RetrievalResult:
+    metadata: dict[str, object] = {
+        "collection": collection,
+        "type_doc": hit.type_doc,
+        "review_status": hit.review_status,
+        "dense_score": hit.dense_score,
+        "dense_sim": hit.dense_sim,
+        "lexical_score": hit.lexical_score,
+        "rrf_score": hit.rrf_score,
+        "rerank_score": hit.rerank_score,
+        "mmr_score": hit.mmr_score,
+        "score_final": hit.score_final,
+    }
+    if hit.artifact_id is not None:
+        metadata.update(
+            {
+                "artifact_id": hit.artifact_id,
+                "content_sha256": hit.content_sha256,
+                "placement_id": hit.placement_id,
+                "placement_source_scope": hit.placement_source_scope,
+                "placement_source_id": hit.placement_source_id,
+                "placement_source_path": hit.placement_source_path,
+            }
+        )
     return RetrievalResult(
         chunk_id=hit.chunk_id,
         doc_id=hit.doc_id,
@@ -967,18 +1370,7 @@ def _to_retrieval_result(
             if include_citation
             else None
         ),
-        metadata={
-            "collection": collection,
-            "type_doc": hit.type_doc,
-            "review_status": hit.review_status,
-            "dense_score": hit.dense_score,
-            "dense_sim": hit.dense_sim,
-            "lexical_score": hit.lexical_score,
-            "rrf_score": hit.rrf_score,
-            "rerank_score": hit.rerank_score,
-            "mmr_score": hit.mmr_score,
-            "score_final": hit.score_final,
-        },
+        metadata=metadata,
     )
 
 
@@ -1001,20 +1393,37 @@ def _require_chat_profile_match(
     payload: ChatRequest,
     collections: list[str],
     scopes: Mapping[str, ServerRetrievalScope],
+    *,
+    verified: VerifiedInternalIdentity | None = None,
 ) -> None:
     """Refuser toute divergence entre le DTO historique et le scope signé."""
     if not collections:
         raise HTTPException(status_code=403, detail="Forbidden")
     first = scopes[collections[0]]
-    expected = {
-        "niveau": first.niveau,
-        "voie": first.voie,
-        "matieres": [scopes[collection].matiere for collection in collections],
-        "statut_enseignement": first.statut_enseignement,
-        "candidat": first.candidat,
-        "school_year": first.school_year,
-        "zone": first.audiences[0],
-    }
+    artifact = getattr(verified, "artifact", None)
+    if isinstance(artifact, RetrievalScopeArtifactV2):
+        if collections != [artifact.evidence_subject.collection]:
+            raise HTTPException(status_code=403, detail="Forbidden")
+        target = artifact.target_identity
+        expected = {
+            "niveau": target.niveau.value,
+            "voie": target.voie.value,
+            "matieres": [target.matiere],
+            "statut_enseignement": target.statut_enseignement.value,
+            "candidat": target.candidates[0].value,
+            "school_year": artifact.evidence_subject.school_year,
+            "zone": target.audience,
+        }
+    else:
+        expected = {
+            "niveau": first.niveau,
+            "voie": first.voie,
+            "matieres": [scopes[collection].matiere for collection in collections],
+            "statut_enseignement": first.statut_enseignement,
+            "candidat": first.candidat,
+            "school_year": first.school_year,
+            "zone": first.audiences[0],
+        }
     profile = payload.student_profile
     actual = {
         "niveau": profile.niveau.value,
@@ -1038,7 +1447,7 @@ def chat(payload: ChatRequest, request: Request) -> ChatResponse:
     scopes: dict[str, ServerRetrievalScope] = {}
     for collection in collections:
         try:
-            _check_retrievable(collection, cfg)
+            _check_retrievable(collection, cfg, verified)
             scopes[collection] = build_server_retrieval_scope(
                 verified,
                 collection=collection,
@@ -1047,7 +1456,12 @@ def chat(payload: ChatRequest, request: Request) -> ChatResponse:
         except (RetrievalScopeError, CollectionConfigError, HTTPException) as exc:
             raise HTTPException(status_code=403, detail="Forbidden") from exc
 
-    _require_chat_profile_match(payload, collections, scopes)
+    _require_chat_profile_match(
+        payload,
+        collections,
+        scopes,
+        verified=verified,
+    )
 
     all_hits: list[tuple[str, SearchV2Hit]] = []
     with runtime_request_budget():
@@ -1088,14 +1502,40 @@ def _collection_for_retrieval_request(
     verified: VerifiedInternalIdentity,
 ) -> str:
     """Résoudre une matière contractuelle vers l'artefact signé du serveur."""
+    artifact = verified.artifact
+    if isinstance(artifact, RetrievalScopeArtifactV2):
+        curriculum = payload.curriculum_scope
+        evidence = artifact.evidence_subject
+        if curriculum is None:
+            raise RetrievalScopeError("retrieval scope forbidden")
+        requested = (
+            curriculum.niveau.value,
+            curriculum.voie.value,
+            curriculum.matiere,
+            curriculum.statut_enseignement.value,
+        )
+        expected = (
+            evidence.niveau.value,
+            evidence.voie.value,
+            evidence.matiere,
+            evidence.statut_enseignement.value,
+        )
+        if requested != expected:
+            raise RetrievalScopeError("retrieval scope forbidden")
+        allowed = effective_signed_collections(verified)
+        if allowed != (evidence.collection,):
+            raise RetrievalScopeError("retrieval scope forbidden")
+        return str(evidence.collection)
+
     matieres = payload.student_profile.matieres
     if len(matieres) != 1:
         raise RetrievalScopeError("retrieval scope forbidden")
-    allowed = set(effective_signed_collections(verified))
+    allowed_collections = set(effective_signed_collections(verified))
     matches = [
         subject.collection
         for subject in verified.artifact.subjects
-        if subject.matiere == matieres[0] and subject.collection in allowed
+        if subject.matiere == matieres[0]
+        and subject.collection in allowed_collections
     ]
     if len(matches) != 1:
         raise RetrievalScopeError("retrieval scope forbidden")
@@ -1105,8 +1545,16 @@ def _collection_for_retrieval_request(
 def _require_retrieval_profile_match(
     payload: RetrievalRequest,
     scope: ServerRetrievalScope,
+    verified: VerifiedInternalIdentity | None = None,
 ) -> None:
     """Refuser toute dimension contractuelle différente du scope signé."""
+    artifact = getattr(verified, "artifact", None)
+    if isinstance(artifact, RetrievalScopeArtifactV2):
+        assert verified is not None
+        _require_student_target_match(payload, verified)
+        _require_curriculum_evidence_match(payload, scope, verified)
+        return
+
     profile = payload.student_profile
     expected = {
         "niveau": scope.niveau,
@@ -1130,6 +1578,86 @@ def _require_retrieval_profile_match(
     }
     if actual != expected:
         raise RetrievalScopeError("retrieval scope forbidden")
+    curriculum = payload.curriculum_scope
+    if curriculum is not None and (
+        curriculum.niveau.value,
+        curriculum.voie.value,
+        curriculum.matiere,
+        curriculum.statut_enseignement.value,
+    ) != (
+        scope.niveau,
+        scope.voie,
+        scope.matiere,
+        scope.statut_enseignement,
+    ):
+        raise RetrievalScopeError("retrieval scope forbidden")
+
+
+def _require_student_target_match(
+    payload: RetrievalRequest,
+    verified: VerifiedInternalIdentity,
+) -> None:
+    """Lier le profil de requête à la cible élève signée V2."""
+    artifact = verified.artifact
+    if not isinstance(artifact, RetrievalScopeArtifactV2):
+        raise RetrievalScopeError("retrieval scope forbidden")
+    profile = payload.student_profile
+    target = artifact.target_identity
+    actual = (
+        profile.niveau.value,
+        profile.voie.value,
+        tuple(profile.matieres),
+        profile.statut_enseignement.value,
+        profile.candidat.value,
+        profile.school_year,
+        profile.zone,
+        profile.audience,
+    )
+    expected = (
+        target.niveau.value,
+        target.voie.value,
+        (target.matiere,),
+        target.statut_enseignement.value,
+        verified.envelope.identity.pedagogical_profile.candidat.value,
+        artifact.evidence_subject.school_year,
+        target.audience,
+        target.audience,
+    )
+    if actual != expected:
+        raise RetrievalScopeError("retrieval scope forbidden")
+
+
+def _require_curriculum_evidence_match(
+    payload: RetrievalRequest,
+    scope: ServerRetrievalScope,
+    verified: VerifiedInternalIdentity,
+) -> None:
+    """Lier la portée curriculaire aux dimensions SQL signées V2."""
+    artifact = verified.artifact
+    curriculum = payload.curriculum_scope
+    if not isinstance(artifact, RetrievalScopeArtifactV2) or curriculum is None:
+        raise RetrievalScopeError("retrieval scope forbidden")
+    evidence = artifact.evidence_subject
+    requested = (
+        curriculum.niveau.value,
+        curriculum.voie.value,
+        curriculum.matiere,
+        curriculum.statut_enseignement.value,
+    )
+    signed = (
+        evidence.niveau.value,
+        evidence.voie.value,
+        evidence.matiere,
+        evidence.statut_enseignement.value,
+    )
+    server = (
+        scope.niveau,
+        scope.voie,
+        scope.matiere,
+        scope.statut_enseignement,
+    )
+    if requested != signed or server != signed or scope.collection != evidence.collection:
+        raise RetrievalScopeError("retrieval scope forbidden")
 
 
 @router.post("/search/v2", response_model=RetrievalResponse)
@@ -1144,13 +1672,13 @@ def search_v2(payload: RetrievalRequest, request: Request) -> RetrievalResponse:
     cfg = load_collection_config()
     try:
         collection = _collection_for_retrieval_request(payload, verified)
-        _check_retrievable(collection, cfg)
+        _check_retrievable(collection, cfg, verified)
         scope = build_server_retrieval_scope(
             verified,
             collection=collection,
             collection_config=cfg,
         )
-        _require_retrieval_profile_match(payload, scope)
+        _require_retrieval_profile_match(payload, scope, verified)
         adapted = adapt_retrieval_request(
             payload,
             collection=collection,

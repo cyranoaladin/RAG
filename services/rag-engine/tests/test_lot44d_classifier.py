@@ -13,7 +13,12 @@ from nexus_contracts.ingestion import CollectionProfile
 from nexus_contracts.resource_state import ResourceState
 
 from ingestor.ingestion_agents import classifier as classifier_module
-from ingestor.ingestion_agents.classifier import classify_conformity_core, run_classifier
+from ingestor.ingestion_agents.classifier import (
+    ConformityProvenance,
+    ConformityResult,
+    classify_conformity_core,
+    run_classifier,
+)
 from ingestor.ingestion_agents.transitions import TransitionResult
 
 VALID_SCOPE = {
@@ -100,6 +105,60 @@ class TestClassifyConformityCore:
 
 
 class TestRunClassifierWiring:
+    def test_uses_governed_conformity_and_persists_complete_provenance(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        resource_id = uuid4()
+        run_id = uuid4()
+        fake_transition = TransitionResult(
+            resource_id=resource_id,
+            from_state=ResourceState.EXTRACTED,
+            to_state=ResourceState.CLASSIFIED,
+            state_version=5,
+        )
+        mock_apply = MagicMock(return_value=fake_transition)
+        monkeypatch.setattr(classifier_module, "apply_resource_transition", mock_apply)
+        verified = ConformityResult(
+            niveau_conformity=True,
+            voie_conformity=True,
+            matiere_conformity=True,
+            programme_conformity=True,
+            matiere_evidence=("sealed_pedagogical_placement:francais",),
+            provenance=ConformityProvenance(
+                conformity_source="sealed_pedagogical_placement",
+                content_sha256="a" * 64,
+                placement_catalog_sha256="b" * 64,
+                currentness_evidence_sha256="c" * 64,
+                profile_fingerprint="d" * 64,
+            ),
+        )
+
+        result, _ = run_classifier(
+            conn=MagicMock(),
+            resource_id=resource_id,
+            run_id=run_id,
+            extracted_text="texte sans heuristique requise",
+            profile=_profile(),
+            expected_version=4,
+            actor="classifier-test",
+            verified_conformity=verified,
+        )
+
+        assert result is verified
+        payload = mock_apply.call_args.kwargs["payload"]
+        assert payload == {
+            "conformity_source": "sealed_pedagogical_placement",
+            "content_sha256": "a" * 64,
+            "placement_catalog_sha256": "b" * 64,
+            "currentness_evidence_sha256": "c" * 64,
+            "profile_fingerprint": "d" * 64,
+            "niveau_conformity": True,
+            "voie_conformity": True,
+            "matiere_conformity": True,
+            "programme_conformity": True,
+            "matiere_evidence": ["sealed_pedagogical_placement:francais"],
+        }
+
     def test_transitions_extracted_to_classified(self, monkeypatch: pytest.MonkeyPatch) -> None:
         resource_id = uuid4()
         run_id = uuid4()

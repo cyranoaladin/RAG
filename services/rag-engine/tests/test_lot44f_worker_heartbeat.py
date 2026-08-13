@@ -35,6 +35,23 @@ VALID_SCOPE = {
 }
 
 
+def _readiness_stub() -> object:
+    """Résultat de readiness minimal — jamais un contournement du gate lui-même.
+
+    Le gate réel est mesuré ailleurs ; ici il serait un bruit de fond qui
+    ferait échouer un test de heartbeat pour une raison sans rapport."""
+    from types import SimpleNamespace
+
+    return SimpleNamespace(
+        environment="production",
+        manifest=SimpleNamespace(
+            merge_sha="a" * 40,
+            release_tag="release/rag/20260811-" + "a" * 12,
+            run_id=1,
+        ),
+    )
+
+
 def _profile_payload(**overrides: object) -> dict[str, object]:
     payload: dict[str, object] = {
         "profile_version": "v1",
@@ -118,10 +135,34 @@ def _run_worker(
         "run_worker_iteration",
         lambda _conn, deps: IterationOutcome(worked=False, job_id=None, status=None, error=None),
     )
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(
+        worker_cli,
+        "load_governed_runtime_authorities",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            pii_evidence_registry=SimpleNamespace(
+                evidence_sha256="1" * 64, cleared_count=1
+            ),
+            rights_evidence_registry=SimpleNamespace(
+                registry_sha256="2" * 64, registry_id="heartbeat-test"
+            ),
+            placement_resolver=SimpleNamespace(release_manifest_sha256="3" * 64),
+        ),
+    )
     # Isolation DB (revue PR#90) : _reap_expired_leases touche aussi la base
     # réelle à chaque itération — hors périmètre de ce test, qui vérifie
     # uniquement le mécanisme de heartbeat sur une fausse connexion.
     monkeypatch.setattr(worker_cli, "_reap_expired_leases", lambda _conn: None)
+    # Isolation readiness (ADR-0036) : depuis la phase A, le worker exige
+    # un manifeste de readiness signé avant tout démarrage. Ce test mesure
+    # le mécanisme de heartbeat, pas cette barrière — qui a ses propres
+    # tests dédiés (test_readiness_gate.py et
+    # tests/integration/test_startup_gate_requires_readiness_manifest.py,
+    # lesquels prouvent que le point d'application est bien atteint).
+    monkeypatch.setattr(
+        worker_cli, "enforce_readiness_gate", _readiness_stub
+    )
     # Isolation attestation (item I) : _FakeConnection ne porte aucun
     # curseur PostgreSQL réel — hors périmètre de ce test, qui vérifie
     # uniquement le mécanisme de heartbeat, pas l'attestation de rôle
@@ -143,10 +184,75 @@ def _run_worker(
             "--artifact-store-dir", str(artifact_dir),
             "--expected-role", "ingestion_control_app_test",
             "--owner", "heartbeat-test",
+            *write_sealed_evidence(artifact_dir.parent),
+            "--catalog-path", str(artifact_dir.parent / "catalog.json"),
+            "--catalog-sha256", "3" * 64,
+            "--candidate-inventory-path", str(artifact_dir.parent / "inventory.json"),
+            "--candidate-inventory-sha256", "4" * 64,
+            "--currentness-evidence-path", str(artifact_dir.parent / "currentness.yml"),
+            "--currentness-evidence-sha256", "5" * 64,
+            "--mapping-path", str(artifact_dir.parent / "mapping.yml"),
+            "--mapping-sha256", "6" * 64,
+            "--release-manifest-path", str(artifact_dir.parent / "release.json"),
+            "--release-manifest-sha256", "7" * 64,
+            "--programme-index-path", str(artifact_dir.parent / "programme.yml"),
+            "--programme-index-sha256", "8" * 64,
+            "--collection-config-path", str(artifact_dir.parent / "collections.yml"),
+            "--collection-config-sha256", "9" * 64,
             "--once",
             *extra_args,
         ]
     )
+
+
+def write_sealed_evidence(root: Path) -> list[str]:
+    """Preuves scellées minimales mais cohérentes, pour un worker qui
+    doit désormais en exiger. Leur contenu n'est pas le sujet de ces
+    tests ; leur *présence* l'est, puisqu'un worker de production ne peut
+    plus démarrer sans elles."""
+    import hashlib
+    import json
+
+    manifest = "d" * 64
+    pii = root / "pii.json"
+    pii.write_text(
+        json.dumps(
+            {
+                "evidence_kind": "REAL_CORPUS_PII_SCAN",
+                "corpus_manifest_sha256": manifest,
+                "remote_access_mode": "READ_ONLY",
+                "remote_write_operations": 0,
+                "raw_pii_in_output": False,
+                "raw_pii_in_logs": False,
+                "results": [
+                    {"content_sha256": "a" * 64, "status": "CLEARED",
+                     "pii_detected": False},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    rights = root / "rights.yml"
+    rights.write_text(
+        "registry_id: test\n"
+        "human_rights_decisions:\n"
+        "  eduscol:\n"
+        f"    scope_manifest_sha256: \"{manifest}\"\n"
+        "    scope_zone: 01_EDUSCOL_OFFICIEL/\n"
+        "    approved_for_production_rag: true\n"
+        "source_evidence:\n"
+        "  eduscol:\n"
+        "    zone: 01_EDUSCOL_OFFICIEL/\n"
+        "    recommended_rights_category: officiel_public\n",
+        encoding="utf-8",
+    )
+    return [
+        "--pii-evidence-path", str(pii),
+        "--pii-evidence-sha256", hashlib.sha256(pii.read_bytes()).hexdigest(),
+        "--rights-evidence-path", str(rights),
+        "--rights-evidence-sha256", hashlib.sha256(rights.read_bytes()).hexdigest(),
+        "--corpus-manifest-sha256", manifest,
+    ]
 
 
 class TestWorkerHeartbeat:

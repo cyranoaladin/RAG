@@ -14,6 +14,8 @@ fichier prouve, et que les suites de contrat ne peuvent pas prouver seules :
 """
 from __future__ import annotations
 
+import hashlib
+import socket
 import sys
 import uuid
 from collections.abc import Iterator
@@ -48,6 +50,7 @@ from ingestor.ingestion_control.scope_authority import (  # noqa: E402
     ScopeAuthorizationDeniedError,
 )
 from ingestor.ingestion_profiles.registry import profile_fingerprint  # noqa: E402
+from ingestor.ingestion_worker import runner as runner_module  # noqa: E402
 from ingestor.ingestion_worker.runner import WorkerDeps, run_worker_iteration  # noqa: E402
 from ingestor.ingestion_worker.storage import (  # noqa: E402
     make_filesystem_artifact_reader,
@@ -58,6 +61,7 @@ from ingestor.ssrf_guard import safe_fetch  # noqa: E402
 pytestmark = [pytest.mark.integration, requires_docker]
 
 MANIFEST_DIGEST = "7" * 64
+FETCH_CONTENT = b"<p>Cours d'algorithmique: recursivite, tris, structures.</p>"
 
 VALID_SCOPE: dict[str, Any] = {
     "tenant": "libre_terminale",
@@ -80,7 +84,7 @@ PROFILE = CollectionProfile.model_validate({
     "owner": "equipe-nsi",
     "expected_topics": ["algorithmique"],
     "expected_resource_types": ["cours"],
-    "allowed_domains": ["eduscol.education.fr"],
+    "allowed_domains": ["eduscol.education.fr", "eduscol.education.gouv.fr"],
     "source_authority": "official",
     "search_cadence": "weekly",
     "max_queries_per_run": 10,
@@ -104,7 +108,6 @@ def job_payload(**overrides: Any) -> dict[str, Any]:
         "proposed_type_doc": "cours",
         "profile_version": "v1",
         "scope_authorization_id": STUB_AUTHORIZATION_ID,
-        "license": "CC-BY-SA",
     }
     payload.update(overrides)
     return payload
@@ -126,7 +129,7 @@ def fetch_ok(url: str, *, max_bytes: int, **kwargs: Any) -> httpx.Response:
     return httpx.Response(
         200,
         headers={"content-type": "text/html"},
-        content=b"<p>Cours d'algorithmique: recursivite, tris, structures.</p>",
+        content=FETCH_CONTENT,
         request=httpx.Request("GET", url),
     )
 
@@ -134,11 +137,16 @@ def fetch_ok(url: str, *, max_bytes: int, **kwargs: Any) -> httpx.Response:
 def deps_for(
     tmp_path: Path, *, auth: Any, safe_fetch_impl: Any = fetch_ok,
     manifest_digest: str = MANIFEST_DIGEST, owner: str = "worker-enforcement",
+    artifact_store_impl: Any = None,
 ) -> WorkerDeps:
     return WorkerDeps(
         owner=owner,
         profile_registry=REGISTRY,
-        artifact_store=make_filesystem_artifact_store(tmp_path / "artifacts"),
+        artifact_store=(
+            artifact_store_impl
+            if artifact_store_impl is not None
+            else make_filesystem_artifact_store(tmp_path / "artifacts")
+        ),
         artifact_reader=make_filesystem_artifact_reader(tmp_path / "artifacts"),
         validate_destination=lambda url: url,
         safe_fetch=safe_fetch_impl,
@@ -216,14 +224,38 @@ def submit(conn: psycopg.Connection, **payload_overrides: Any) -> uuid.UUID:
     return run_id
 
 
-class TestNominalRunPassesEveryCheckpoint:
-    def test_an_in_scope_job_completes(
+class TestRightsEvidenceIsIndependentFromScopeAuthority:
+    def test_scope_authority_alone_cannot_manufacture_rights_evidence(
         self, conn: psycopg.Connection, tmp_path: Path
     ) -> None:
         submit(conn)
         outcome = run_once(conn, deps_for(tmp_path, auth=authorization()))
-        assert outcome.status == "succeeded", outcome.error
+        assert outcome.status in ("retried", "dead_letter")
+        assert "Rights.unknown" in str(outcome.error)
         assert denial_events(conn) == []
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT j.payload ? 'license', a.payload->>'license' "
+                "FROM ingestion_control.jobs j "
+                "JOIN ingestion_control.artifacts a ON a.resource_id = j.resource_id"
+            )
+            row = cur.fetchone()
+        assert row == (False, None), (
+            "the supported job shape carries no caller-controlled license; "
+            "LOT41A constrains categories but is never itself license evidence"
+        )
+
+    def test_a_payload_license_cannot_inject_rights_evidence(
+        self, conn: psycopg.Connection, tmp_path: Path
+    ) -> None:
+        submit(conn, license="FORGED-OPERATOR-ASSERTION")
+        outcome = run_once(conn, deps_for(tmp_path, auth=authorization()))
+        assert outcome.status in ("retried", "dead_letter")
+        assert "Rights.unknown" in str(outcome.error)
+        with conn.cursor() as cur:
+            cur.execute("SELECT payload->>'license' FROM ingestion_control.artifacts")
+            row = cur.fetchone()
+        assert row == (None,)
 
 
 class TestPreFetchCheckpointIsDurable:
@@ -364,7 +396,10 @@ class TestDestinationCheckpoint:
         assert "matches exclusion" in denial_events(conn)[0]["reason"]
 
     def test_a_redirect_out_of_scope_stops_the_download(
-        self, conn: psycopg.Connection, tmp_path: Path
+        self,
+        conn: psycopg.Connection,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Scénario invisible depuis le payload : l'URL demandée est
         autorisée, la redirection ne l'est pas. Le vrai ``safe_fetch`` est
@@ -387,8 +422,25 @@ class TestDestinationCheckpoint:
                 url, max_bytes=max_bytes, transport=RedirectingTransport(), **kwargs
             )
 
+        # Le scénario porte sur la redirection et non sur le résolveur DNS de
+        # l'hôte de CI. Une résolution DNS64 (64:ff9b::/96) ferait refuser
+        # l'URL initiale par le garde SSRF avant même le premier saut.
+        monkeypatch.setattr(
+            socket,
+            "getaddrinfo",
+            lambda *_args, **_kwargs: [
+                (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 0))
+            ],
+        )
         submit(conn)
-        deps = deps_for(tmp_path, auth=authorization(), safe_fetch_impl=real_safe_fetch)
+        deps = deps_for(
+            tmp_path,
+            auth=authorization(
+                protocol_version="LOT41A-V2",
+                allowed_content_sha256=(hashlib.sha256(b"leaked").hexdigest(),),
+            ),
+            safe_fetch_impl=real_safe_fetch,
+        )
         outcome = run_once(conn, deps)
         assert outcome.status in ("retried", "dead_letter")
         assert "attacker.test" in str(outcome.error)
@@ -396,20 +448,148 @@ class TestDestinationCheckpoint:
             f"la redirection hors domaine ne doit JAMAIS être contactée, hops={hops}"
         )
 
-
-class TestRightsCheckpoint:
-    def test_a_forbidden_rights_category_denies_before_quality(
+    def test_an_allowed_sha_cannot_rescue_an_excluded_destination(
         self, conn: psycopg.Connection, tmp_path: Path
     ) -> None:
-        """Le profil produit ``officiel_public`` (source_authority=official,
-        licence présente) ; l'autorisation ne couvre que ``restricted``."""
+        content_sha = hashlib.sha256(FETCH_CONTENT).hexdigest()
+        submit(
+            conn,
+            source_url="https://eduscol.education.fr/prive/approved.pdf",
+            canonical_url="https://eduscol.education.fr/prive/approved.pdf",
+        )
+        auth = authorization(
+            protocol_version="LOT41A-V2",
+            allowed_content_sha256=(content_sha,),
+            exclusions=("/prive",),
+        )
+        fetch_calls: list[str] = []
+
+        def should_not_fetch(url: str, *, max_bytes: int, **kwargs: Any) -> httpx.Response:
+            fetch_calls.append(url)
+            return fetch_ok(url, max_bytes=max_bytes, **kwargs)
+
+        outcome = run_once(
+            conn, deps_for(tmp_path, auth=auth, safe_fetch_impl=should_not_fetch)
+        )
+        assert outcome.status in ("retried", "dead_letter")
+        assert fetch_calls == []
+        assert denial_events(conn)[0]["checkpoint"] == "destination"
+
+
+class TestContentCheckpoint:
+    def test_same_host_unlisted_bytes_are_denied_before_any_persistence_or_agent(
+        self,
+        conn: psycopg.Connection,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source_url = "https://eduscol.education.gouv.fr/philosophie/unapproved.pdf"
+        unapproved_bytes = b"same-host bytes outside reviewed allowlist"
+        approved_sha = hashlib.sha256(b"different approved bytes").hexdigest()
+        fetch_calls: list[str] = []
+        store_calls: list[bytes] = []
+        downstream_calls: list[str] = []
+
+        def same_host_fetch(url: str, *, max_bytes: int, **kwargs: Any) -> httpx.Response:
+            fetch_calls.append(url)
+            return httpx.Response(
+                200,
+                headers={"content-type": "application/pdf"},
+                content=unapproved_bytes,
+                request=httpx.Request("GET", url),
+            )
+
+        def record_store(*, artifact_id: object, content: bytes) -> str:
+            store_calls.append(content)
+            return f"mem://{artifact_id}"
+
+        def forbidden_downstream(*args: Any, **kwargs: Any) -> Any:
+            del args, kwargs
+            downstream_calls.append("called")
+            raise AssertionError("a denied document reached a downstream agent")
+
+        monkeypatch.setattr(runner_module, "run_extractor", forbidden_downstream)
+        monkeypatch.setattr(runner_module, "run_rights_agent", forbidden_downstream)
+        monkeypatch.setattr(runner_module, "run_quality_agent", forbidden_downstream)
+
+        submit(
+            conn,
+            source_url=source_url,
+            canonical_url=source_url,
+            domain="eduscol.education.gouv.fr",
+        )
+        auth = authorization(
+            protocol_version="LOT41A-V2",
+            allowed_content_sha256=(approved_sha,),
+            allowed_domains=("eduscol.education.gouv.fr",),
+        )
+        (tmp_path / "artifacts").mkdir()
+        outcome = run_once(
+            conn,
+            deps_for(
+                tmp_path,
+                auth=auth,
+                safe_fetch_impl=same_host_fetch,
+                artifact_store_impl=record_store,
+            ),
+        )
+
+        assert outcome.status in ("retried", "dead_letter")
+        assert fetch_calls == [source_url], "the allowed-domain download occurs exactly once"
+        assert store_calls == [], "unauthorized bytes must never reach artifact storage"
+        assert downstream_calls == [], "extractor/rights/quality must remain unreachable"
+        events = denial_events(conn)
+        assert len(events) == 1
+        assert events[0]["checkpoint"] == "content"
+        assert approved_sha not in events[0]["reason"]
+        with conn.cursor() as cur:
+            cur.execute("SELECT count(*) FROM ingestion_control.artifacts")
+            assert cur.fetchone() == (0,)
+            cur.execute("SELECT resource_state FROM ingestion_control.resources")
+            assert cur.fetchone() == ("CANDIDATE",)
+            cur.execute(
+                "SELECT count(*) FROM ingestion_control.workflow_events "
+                "WHERE to_state IN ('FETCHED', 'STORED', 'EXTRACTED', "
+                "'RIGHTS_CHECKED', 'QUALITY_CHECKED', 'RETRIEVAL_ELIGIBLE')"
+            )
+            assert cur.fetchone() == (0,)
+
+    def test_allowed_v2_bytes_bind_the_fetched_event_before_rights_fail_closed(
+        self, conn: psycopg.Connection, tmp_path: Path
+    ) -> None:
+        expected_sha = hashlib.sha256(FETCH_CONTENT).hexdigest()
+        auth = authorization(
+            protocol_version="LOT41A-V2",
+            allowed_content_sha256=(expected_sha,),
+        )
         submit(conn)
-        auth = authorization(rights_categories=("restricted",))
         outcome = run_once(conn, deps_for(tmp_path, auth=auth))
         assert outcome.status in ("retried", "dead_letter")
-        events = denial_events(conn)
-        assert events[0]["checkpoint"] == "rights"
-        assert "officiel_public" in events[0]["reason"]
+        assert "Rights.unknown" in str(outcome.error)
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT payload FROM ingestion_control.workflow_events "
+                "WHERE to_state = 'FETCHED'"
+            )
+            row = cur.fetchone()
+        assert row is not None
+        assert row[0]["sha256"] == expected_sha
+        assert row[0]["scope_authorization_id"] == auth.authorization_id
+        assert row[0]["scope_authorization_digest"] == auth.authorization_digest
+        assert row[0]["scope_authorization_protocol_version"] == "LOT41A-V2"
+
+
+class TestRightsCheckpoint:
+    def test_scope_categories_do_not_replace_missing_rights_evidence(
+        self, conn: psycopg.Connection, tmp_path: Path
+    ) -> None:
+        """Même une catégorie autorisée ne crée aucune licence."""
+        submit(conn)
+        auth = authorization(rights_categories=("officiel_public",))
+        outcome = run_once(conn, deps_for(tmp_path, auth=auth))
+        assert outcome.status in ("retried", "dead_letter")
+        assert "Rights.unknown" in str(outcome.error)
+        assert denial_events(conn) == []
 
     def test_the_resource_never_reaches_quality_checked_when_rights_are_denied(
         self, conn: psycopg.Connection, tmp_path: Path
@@ -430,11 +610,14 @@ class TestRevocationTakesEffectMidRun:
         self, conn: psycopg.Connection, tmp_path: Path
     ) -> None:
         """L'autorisation vérifie au premier point de contrôle puis cesse de
-        vérifier : la ressource ne franchit pas l'étape des droits. C'est la
-        preuve que la revalidation live du checkpoint ``rights`` est réelle
+        vérifier : la ressource ne franchit même pas ``FETCHED``. C'est la
+        preuve que la revalidation live du checkpoint ``content`` est réelle
         — un seul appel au démarrage aurait laissé passer ce run."""
         state = {"calls": 0}
-        auth = authorization()
+        auth = authorization(
+            protocol_version="LOT41A-V2",
+            allowed_content_sha256=(hashlib.sha256(FETCH_CONTENT).hexdigest(),),
+        )
 
         def revoking_verifier(
             connection: psycopg.Connection, *, authorization_id: str,
@@ -466,10 +649,14 @@ class TestRevocationTakesEffectMidRun:
             "contrôle — sinon une révocation en cours de run passerait"
         )
         events = denial_events(conn)
-        assert events[0]["checkpoint"] == "rights"
+        assert events[0]["checkpoint"] == "content"
         assert "revoked" in events[0]["reason"]
 
         with conn.cursor() as cur:
             cur.execute("SELECT resource_state FROM ingestion_control.resources")
             states = [row[0] for row in cur.fetchall()]
+            cur.execute("SELECT count(*) FROM ingestion_control.artifacts")
+            artifact_count = cur.fetchone()
+        assert states == ["CANDIDATE"]
+        assert artifact_count == (0,)
         assert "QUALITY_CHECKED" not in states

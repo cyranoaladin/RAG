@@ -1,0 +1,165 @@
+entree_seconde_maths_v1:
+  - query: "Rendre une fraction irréductible en utilisant les facteurs premiers"
+    expected_concepts_any: ["fraction", "facteurs premiers"]
+    expected_pages_any: [3]
+    expected_artifacts_any: ["49ccdca4d97ba4cf25875dfc731474e84d0332985c15396d3abfb9107f5f545a"]
+    artifact_probe: true
+  - query: "Résoudre une équation du premier degré"
+    expected_concepts_any: ["équation", "premier degré"]
+    expected_pages_any: [3]
+    expected_artifacts_any: ["49ccdca4d97ba4cf25875dfc731474e84d0332985c15396d3abfb9107f5f545a"]
+  - query: "Modéliser une situation avec une fonction affine"
+    expected_concepts_any: ["fonction affine", "fonction"]
+    expected_pages_any: [5]
+    expected_artifacts_any: ["49ccdca4d97ba4cf25875dfc731474e84d0332985c15396d3abfb9107f5f545a"]
+  - query: "Lire et interpréter la représentation graphique d’une fonction"
+    expected_concepts_any: ["représentation graphique", "fonction"]
+    expected_pages_any: [6]
+    expected_artifacts_any: ["49ccdca4d97ba4cf25875dfc731474e84d0332985c15396d3abfb9107f5f545a"]
+  - query: "Calculer une probabilité dans une expérience aléatoire"
+    expected_concepts_any: ["probabilité", "aléatoire"]
+    expected_pages_any: [4]
+    expected_artifacts_any: ["49ccdca4d97ba4cf25875dfc731474e84d0332985c15396d3abfb9107f5f545a"]
+  - query: "Utiliser le théorème de Thalès pour déterminer une longueur"
+    expected_concepts_any: ["thalès", "longueur"]
+    expected_pages_any: [5]
+    expected_artifacts_any: ["49ccdca4d97ba4cf25875dfc731474e84d0332985c15396d3abfb9107f5f545a"]
+  - query: "Construire l’image d’une figure par une homothétie"
+    expected_concepts_any: ["homothétie", "image"]
+    expected_pages_any: [8]
+    expected_artifacts_any: ["49ccdca4d97ba4cf25875dfc731474e84d0332985c15396d3abfb9107f5f545a"]
+  - query: "Calculer le volume d’un solide"
+    expected_concepts_any: ["volume", "solide"]
+    expected_pages_any: [7]
+    expected_artifacts_any: ["49ccdca4d97ba4cf25875dfc731474e84d0332985c15396d3abfb9107f5f545a"]
+  - query: "Représenter les résultats d’une enquête par un histogramme"
+    expected_concepts_any: ["enquête", "histogramme"]
+    expected_pages_any: [4]
+    expected_artifacts_any: ["49ccdca4d97ba4cf25875dfc731474e84d0332985c15396d3abfb9107f5f545a"]
+  - query: "Écrire un algorithme ou un programme simple"
+    expected_concepts_any: ["algorithme", "programme"]
+    expected_pages_any: [10]
+    expected_artifacts_any: ["49ccdca4d97ba4cf25875dfc731474e84d0332985c15396d3abfb9107f5f545a"]
+  - query: "Effectuer des calculs avec les puissances de dix et la notation scientifique"
+    expected_concepts_any: ["puissance", "notation scientifique"]
+    expected_pages_any: [2]
+    expected_artifacts_any: ["49ccdca4d97ba4cf25875dfc731474e84d0332985c15396d3abfb9107f5f545a"]
+  - query: "Déterminer les diviseurs d’un nombre entier avec les nombres premiers"
+    expected_concepts_any: ["diviseur", "premier"]
+    expected_pages_any: [2]
+    expected_artifacts_any: ["49ccdca4d97ba4cf25875dfc731474e84d0332985c15396d3abfb9107f5f545a"]
+  - query: "Quelle relation utiliser dans un triangle rectangle pour calculer une longueur ?"
+    expected_concepts_any: ["triangle rectangle", "longueur"]
+    expected_pages_any: [5]
+    expected_artifacts_any: ["49ccdca4d97ba4cf25875dfc731474e84d0332985c15396d3abfb9107f5f545a"]
+  - query: "Déterminer une image et un antécédent à partir d’une fonction"
+    expected_concepts_any: ["image", "antécédent"]
+    expected_pages_any: [5]
+    expected_artifacts_any: ["49ccdca4d97ba4cf25875dfc731474e84d0332985c15396d3abfb9107f5f545a"]
+  - query: "Résoudre un problème de proportion ou de pourcentage"
+    expected_concepts_any: ["proportion", "pourcentage"]
+    expected_pages_any: [5, 7]
+    expected_artifacts_any: ["49ccdca4d97ba4cf25875dfc731474e84d0332985c15396d3abfb9107f5f545a"]
+  - query: "Relier une situation de proportionnalité à une fonction linéaire"
+    expected_concepts_any: ["fonction linéaire", "proportionnalité"]
+    expected_pages_any: [5]
+    expected_artifacts_any: ["49ccdca4d97ba4cf25875dfc731474e84d0332985c15396d3abfb9107f5f545a"]
+  - query: "Comparer des fréquences observées et estimer une probabilité"
+    expected_concepts_any: ["fréquence", "probabilité"]
+    expected_pages_any: [4]
+    expected_artifacts_any: ["49ccdca4d97ba4cf25875dfc731474e84d0332985c15396d3abfb9107f5f545a"]
+  - query: "Interpréter un graphique pour résoudre un problème de fonction"
+    expected_concepts_any: ["graphique", "fonction"]
+    expected_pages_any: [5]
+    expected_artifacts_any: ["49ccdca4d97ba4cf25875dfc731474e84d0332985c15396d3abfb9107f5f545a"]
+  - query: "Décrire une transformation géométrique par translation ou rotation"
+    expected_concepts_any: ["translation", "rotation"]
+    expected_pages_any: [7, 8]
+    expected_artifacts_any: ["49ccdca4d97ba4cf25875dfc731474e84d0332985c15396d3abfb9107f5f545a"]
+  - query: "Étudier une sphère et calculer des grandeurs dans l’espace"
+    expected_concepts_any: ["sphère", "espace"]
+    expected_pages_any: [8]
+    expected_artifacts_any: ["49ccdca4d97ba4cf25875dfc731474e84d0332985c15396d3abfb9107f5f545a"]
+
+entree_seconde_francais_v1:
+  - query: "Lire un texte à voix haute de manière expressive"
+    expected_concepts_any: ["voix haute", "expressive"]
+    expected_pages_any: [3]
+    expected_artifacts_any: ["c8662b03ca8a7f08bedad5081bafc7da8d2cc8a31b07fa967421fb15304d76bf"]
+    artifact_probe: true
+  - query: "Décrire et analyser une image de propagande"
+    expected_concepts_any: ["image de propagande", "analyse"]
+    expected_pages_any: [3]
+    expected_artifacts_any: ["c8662b03ca8a7f08bedad5081bafc7da8d2cc8a31b07fa967421fb15304d76bf"]
+  - query: "Formuler une interprétation personnelle d’un texte"
+    expected_concepts_any: ["interprétation", "texte"]
+    expected_pages_any: [4]
+    expected_artifacts_any: ["c8662b03ca8a7f08bedad5081bafc7da8d2cc8a31b07fa967421fb15304d76bf"]
+  - query: "Rédiger un texte argumentatif structuré"
+    expected_concepts_any: ["argumentatif", "argument"]
+    expected_pages_any: [5]
+    expected_artifacts_any: ["c8662b03ca8a7f08bedad5081bafc7da8d2cc8a31b07fa967421fb15304d76bf"]
+  - query: "Défendre un point de vue avec des arguments et des exemples"
+    expected_concepts_any: ["point de vue", "argument"]
+    expected_pages_any: [2]
+    expected_artifacts_any: ["c8662b03ca8a7f08bedad5081bafc7da8d2cc8a31b07fa967421fb15304d76bf"]
+  - query: "Écrire un récit cohérent et organisé"
+    expected_concepts_any: ["récit", "cohérent"]
+    expected_pages_any: [4]
+    expected_artifacts_any: ["c8662b03ca8a7f08bedad5081bafc7da8d2cc8a31b07fa967421fb15304d76bf"]
+  - query: "Accorder le participe passé avec l’auxiliaire avoir"
+    expected_concepts_any: ["participe passé", "auxiliaire avoir"]
+    expected_pages_any: [7]
+    expected_artifacts_any: ["c8662b03ca8a7f08bedad5081bafc7da8d2cc8a31b07fa967421fb15304d76bf"]
+  - query: "Analyser le fonctionnement d’une phrase complexe"
+    expected_concepts_any: ["phrase complexe", "phrase"]
+    expected_pages_any: [6]
+    expected_artifacts_any: ["c8662b03ca8a7f08bedad5081bafc7da8d2cc8a31b07fa967421fb15304d76bf"]
+  - query: "Participer à un débat en argumentant"
+    expected_concepts_any: ["débat", "argument"]
+    expected_pages_any: [2]
+    expected_artifacts_any: ["c8662b03ca8a7f08bedad5081bafc7da8d2cc8a31b07fa967421fb15304d76bf"]
+  - query: "Écouter et comprendre un discours oral"
+    expected_concepts_any: ["oral", "écouter"]
+    expected_pages_any: [2]
+    expected_artifacts_any: ["c8662b03ca8a7f08bedad5081bafc7da8d2cc8a31b07fa967421fb15304d76bf"]
+  - query: "Expliquer comment les propositions s’organisent dans une phrase complexe"
+    expected_concepts_any: ["proposition", "phrase complexe"]
+    expected_pages_any: [6]
+    expected_artifacts_any: ["c8662b03ca8a7f08bedad5081bafc7da8d2cc8a31b07fa967421fb15304d76bf"]
+  - query: "Étudier les procédés d’écriture d’un poème"
+    expected_concepts_any: ["poème", "poésie"]
+    expected_pages_any: [4]
+    expected_artifacts_any: ["c8662b03ca8a7f08bedad5081bafc7da8d2cc8a31b07fa967421fb15304d76bf"]
+  - query: "Mettre en relation un texte et une image pour les interpréter"
+    expected_concepts_any: ["image", "interprétation"]
+    expected_pages_any: [3]
+    expected_artifacts_any: ["c8662b03ca8a7f08bedad5081bafc7da8d2cc8a31b07fa967421fb15304d76bf"]
+  - query: "Construire une argumentation convaincante avec des exemples précis"
+    expected_concepts_any: ["argument", "exemple"]
+    expected_pages_any: [2]
+    expected_artifacts_any: ["c8662b03ca8a7f08bedad5081bafc7da8d2cc8a31b07fa967421fb15304d76bf"]
+  - query: "Comparer plusieurs interprétations d’un texte littéraire"
+    expected_concepts_any: ["interprétation", "texte"]
+    expected_pages_any: [4]
+    expected_artifacts_any: ["c8662b03ca8a7f08bedad5081bafc7da8d2cc8a31b07fa967421fb15304d76bf"]
+  - query: "Distinguer les propositions principales et subordonnées dans une phrase"
+    expected_concepts_any: ["proposition", "subordonnée"]
+    expected_pages_any: [6]
+    expected_artifacts_any: ["c8662b03ca8a7f08bedad5081bafc7da8d2cc8a31b07fa967421fb15304d76bf"]
+  - query: "Corriger l’orthographe grammaticale et les accords dans un texte"
+    expected_concepts_any: ["orthographe", "accord"]
+    expected_pages_any: [7]
+    expected_artifacts_any: ["c8662b03ca8a7f08bedad5081bafc7da8d2cc8a31b07fa967421fb15304d76bf"]
+  - query: "Identifier les propositions subordonnées dans une phrase complexe"
+    expected_concepts_any: ["subordonnée", "phrase complexe"]
+    expected_pages_any: [6]
+    expected_artifacts_any: ["c8662b03ca8a7f08bedad5081bafc7da8d2cc8a31b07fa967421fb15304d76bf"]
+  - query: "Comprendre la valeur des temps et des modes verbaux"
+    expected_concepts_any: ["temps", "mode"]
+    expected_pages_any: [7]
+    expected_artifacts_any: ["c8662b03ca8a7f08bedad5081bafc7da8d2cc8a31b07fa967421fb15304d76bf"]
+  - query: "Enrichir son vocabulaire et choisir un lexique adapté"
+    expected_concepts_any: ["lexique", "vocabulaire"]
+    expected_pages_any: [5, 7, 8]
+    expected_artifacts_any: ["c8662b03ca8a7f08bedad5081bafc7da8d2cc8a31b07fa967421fb15304d76bf"]

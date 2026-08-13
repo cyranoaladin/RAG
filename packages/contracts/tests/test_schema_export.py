@@ -15,10 +15,11 @@ REVIEW_SCHEMAS = {
 }
 
 
-def test_package_version_is_0_5_0() -> None:
+def test_package_version_is_0_11_0() -> None:
+    """0.11.0 (ADR-0040) ajoute la Quatrième sans rupture de contrat."""
     root = Path(__file__).resolve().parents[1]
     pyproject = tomllib.loads((root / "pyproject.toml").read_text())
-    assert pyproject["project"]["version"] == "0.5.0"
+    assert pyproject["project"]["version"] == "0.11.0"
 
 
 def test_schema_export_is_deterministic(tmp_path: Path) -> None:
@@ -43,6 +44,7 @@ def test_schema_export_is_deterministic(tmp_path: Path) -> None:
         "internal-identity-envelope.json",
         "internal-identity.json",
         "pilot-retrieval-scope-artifact.json",
+        "retrieval-scope-artifact-v2.json",
         *REVIEW_SCHEMAS,
         "search-payload.json",
     }
@@ -61,3 +63,13 @@ def test_cockpit_generator_declares_review_schemas_and_validators() -> None:
     for filename, model_name in REVIEW_SCHEMAS.items():
         assert f"['{filename}', '{model_name}']" in generator
         assert f"'{model_name}'" in generator.partition("const validatorNames = [")[2]
+
+
+def test_cockpit_generator_declares_retrieval_scope_v2_schema() -> None:
+    root = Path(__file__).resolve().parents[3]
+    generator = (
+        root / "services" / "cockpit" / "scripts" / "generate-contracts.mjs"
+    ).read_text()
+
+    assert "['retrieval-scope-artifact-v2.json', 'RetrievalScopeArtifactV2']" in generator
+    assert "'RetrievalScopeArtifactV2'" in generator.partition("const validatorNames = [")[2]

@@ -1,0 +1,3 @@
+kind: RAG_COLLECTIONS_STAGING_OVERLAY_V1
+base: ../rag_collections.yml
+instanciee_overrides: {}

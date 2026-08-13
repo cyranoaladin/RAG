@@ -73,7 +73,7 @@ def test_all_education_collections_have_required_fields():
 
 def test_niveaux_coverage():
     niveaux = {d.get("niveau") for d in _load_catalogue()["collections"].values() if d.get("niveau")}
-    for niveau in ["troisieme", "seconde", "premiere", "terminale"]:
+    for niveau in ["quatrieme", "troisieme", "seconde", "premiere", "terminale"]:
         assert niveau in niveaux
 
 

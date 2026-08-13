@@ -1,4 +1,7 @@
 levels:
+  - id: quatrieme
+    label: Quatrieme
+    cycle: cycle4
   - id: troisieme
     label: Troisieme
     cycle: cycle4
@@ -16,4 +19,3 @@ groups:
   - lycee_gt
   - voie_generale
   - voie_technologique
-

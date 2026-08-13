@@ -1,0 +1,193 @@
+{
+  "artifacts": [
+    {
+      "chunk_id_set_digest": "dfce7b8247211ff72fec5cc012a1981d1f0710635c9e4dab6aba5b6ed4bf8aba",
+      "chunk_sha256_set_digest": "3a8e381c99cb991563af18c418cf59b5194aa47a481789f639b8ce2fa6fb2535",
+      "chunks": [
+        {
+          "chunk_id": "b459c50fe1fbaefa7366ff1d86a1f371eb6d7e8805f38084102aa540d69f8041",
+          "chunk_index": 0,
+          "chunk_sha256": "0bb68f7e6ed7e96dd505de5af065f017456c999e2a2f58bec32dda8ce966ac41",
+          "page_end": 1,
+          "page_start": 1
+        },
+        {
+          "chunk_id": "9d84661228da07efe4d1042cc3ca0a81dc9d1a6554069e61cff071f8c4b569ad",
+          "chunk_index": 1,
+          "chunk_sha256": "d7e80a7719f67e74f13250bc3be54d4333589e921bda012f3b084f659586ab56",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "ce213dbfcc09c790ecfc9078e061824403d058b4e697939efb959dc1d2cf6233",
+          "chunk_index": 2,
+          "chunk_sha256": "1021a70b9ea46d2102456ffba3231fd174284553e2aefd9ada10f4ff274ac7ec",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "79c14fd6028b951bd4c66efbb46b59d4fd4a6298e6d451e7516cb4890c4359d2",
+          "chunk_index": 3,
+          "chunk_sha256": "5abe027312bece578b42d04975c75a9bba9e09ed96a10ce96e8428a8c483144d",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "7b3515aab41cef7159bdcf288d7f2fb64d23bbb2690da9a8cb1a44b2ca1804a9",
+          "chunk_index": 4,
+          "chunk_sha256": "01c63c868cb74525dd886005ffdaec0d792edadd1343cfd6dd89473c0f80e867",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "f9a9821aacb846279bff152d9317702dc227fd1a2450da37dcea129c80f3d7df",
+          "chunk_index": 5,
+          "chunk_sha256": "b179e2813a99527628c5ad0f0abd9ad36824b4e61ea90d38ad06aa048e973fdb",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "d9b6fbb6928ec989bff6a66e4826ac49fd2c96aa213d7b54890f5e131b5890ca",
+          "chunk_index": 6,
+          "chunk_sha256": "3f548609e2a9185e3c1eba66bc0196e4e03c7bca0f5cb7393193702249191691",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "2c3d07a919f6daa46608f9efff4f2a8df114123c39229c6aacdce035a294d8b8",
+          "chunk_index": 7,
+          "chunk_sha256": "cd593bb65755df12a590fd8a599eb8c420e08a616421f6ae2017b6408b5faa92",
+          "page_end": 5,
+          "page_start": 5
+        },
+        {
+          "chunk_id": "a3fb43d1eaf1572bf04e56beed48b6f62a6e0a898e8e326f33557c61aae925cf",
+          "chunk_index": 8,
+          "chunk_sha256": "ec3eb1bd771b96639b8cab8fdf27ab78f372d1ca0a1c60957c82dc863ca4b2be",
+          "page_end": 5,
+          "page_start": 5
+        },
+        {
+          "chunk_id": "2c8f47241e15e8471fda3549467c6a97e6b567bf725226721d899223fe2173c0",
+          "chunk_index": 9,
+          "chunk_sha256": "b39e1a833a712f5672083538a6d32880a8422dcf9e06a5d4fae013f7752a2c66",
+          "page_end": 6,
+          "page_start": 6
+        },
+        {
+          "chunk_id": "e43e10b82b39252862825abdb46329b7b8b48a16ab54b0f7407c52a5cba896a0",
+          "chunk_index": 10,
+          "chunk_sha256": "c7b02d54a0b68c98a696c15ea52921ab21a8b03a9af36297dafac42f0f01b353",
+          "page_end": 6,
+          "page_start": 6
+        },
+        {
+          "chunk_id": "9976b51f0d4152707b251ff1ba662d8ca81217cfb8594ee66c95b2a601b895e4",
+          "chunk_index": 11,
+          "chunk_sha256": "1a6348ced7a4d3aa4a56ee462d527dbdd1fb7dec6a796db6489a67724c9ae807",
+          "page_end": 7,
+          "page_start": 7
+        },
+        {
+          "chunk_id": "1664838fa6ad8b6120f255129dc66f370eb3e07e741aa9a0bd80829a215d21dd",
+          "chunk_index": 12,
+          "chunk_sha256": "f48ed64fc251e104ce49cd949d1d9e60d6b18e4d6d83d4289a4e602fc1dae46c",
+          "page_end": 7,
+          "page_start": 7
+        },
+        {
+          "chunk_id": "9fae350d7075eea560e1ac9bca7cf70e14de2a83f0a31391cdf64ed36cf171d7",
+          "chunk_index": 13,
+          "chunk_sha256": "10a4e521e4499899ee137f8e06733e35fc64706d143cc8c80521d7e289ce5276",
+          "page_end": 7,
+          "page_start": 7
+        },
+        {
+          "chunk_id": "312595ba720a226177e9720f8e257e922b156995c4f21c5f88016c063076405f",
+          "chunk_index": 14,
+          "chunk_sha256": "762aa1c9824207a4ec74e6fb64ec2930ed18a146d0698f2fc98889c82f664f9e",
+          "page_end": 8,
+          "page_start": 8
+        },
+        {
+          "chunk_id": "2aacec2afad0f5ad0adfeeebb39ad2af9f579073747c00d3b03b7b40ef08e9e6",
+          "chunk_index": 15,
+          "chunk_sha256": "20bef5e9d94acbcb68ba65f80811084a2daab06a4da0c8625625bd258483f601",
+          "page_end": 8,
+          "page_start": 8
+        },
+        {
+          "chunk_id": "cacf477d5944e7046774245e330c64455601a5841e2646e5d60a07113a03afda",
+          "chunk_index": 16,
+          "chunk_sha256": "503348964993dadbddc0cff15d6b2b208bae4fb926919252251d1122f2aceaff",
+          "page_end": 8,
+          "page_start": 8
+        }
+      ],
+      "content_sha256": "c8662b03ca8a7f08bedad5081bafc7da8d2cc8a31b07fa967421fb15304d76bf",
+      "page_count": 8,
+      "page_coverage_digest": "b2ddd6543011e658aaebc223b42021e89fa9a18bd1f2207f6cb68e73ca5688b3",
+      "placement_id_set_digest": "f341cf80bf9ee9f6f6d4aeaf6f4f546bdcf05df09a1957b6a9be8b310f0ced4a",
+      "placements": [
+        {
+          "candidat": "libre",
+          "collection": "rag_nexus_francais_troisieme_tc",
+          "currentness": "current",
+          "matiere": "francais",
+          "niveau": "troisieme",
+          "placement_id": "d1282f0030f0fb98df5d907fbe0477a2d58551e254918b6e482103f0d59547ad",
+          "placement_status": "active",
+          "programme_version": "BOEN_special_11_2018-07-26_aj_2020",
+          "review_status": "reviewed",
+          "school_year": "2026-2027",
+          "source_placement_id": "par-scope/college/cycle-4/francais/3e/reperes-attendus/2019/attendus-de-fin-d-annee-en-francais-en-3e-pdf-971-01-ko--c8662b03ca.pdf",
+          "source_scope": "college/cycle-4/francais",
+          "statut_enseignement": "tronc_commun",
+          "tenant": "libre_troisieme",
+          "visibility": "internal",
+          "voie": "college"
+        }
+      ],
+      "source_path": "01_EDUSCOL_OFFICIEL/COLLEGE/3E/FRANCAIS/02_REPERES_ATTENDUS/2019/attendus-de-fin-d-annee-en-francais-en-3e-pdf-971-01-ko--c8662b03ca.pdf",
+      "source_url": "https://eduscol.education.gouv.fr/5733/ressources-d-accompagnement-du-programme-de-francais-au-cycle-4",
+      "title": "Attendus de fin d'année en français en 3e PDF - 971.01 Ko",
+      "type_doc": "ressource_officielle"
+    }
+  ],
+  "authorities": {
+    "candidate_inventory_sha256": "0c203af33d97f787f4fcbbf96ae822d37464d571be96074babf5abb529aaf882",
+    "corpus_manifest_sha256": "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e",
+    "currentness_evidence_sha256": "75d77994809a81ed9f9452eace75448d3869ef4b8ee1942693f66f430ec27f36",
+    "pii_evidence_sha256": "63d0879358a844b44f41c82d21c0b67349e0f7a2f1cdabe7becff2affc58f9f1",
+    "pii_policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+    "placement_catalog_sha256": "095ca37cc4c2126d06b77106f9f1663d4f5ad881ae4952dbf5b951477fd54c39",
+    "rights_registry_sha256": "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff",
+    "sealed_catalog_sha256": "301c0dcce4e49cd9b6e524708bde82b262a09b05bd52e0431233813ecf8ae04b"
+  },
+  "collection": "rag_nexus_francais_troisieme_tc",
+  "expected_counts": {
+    "artifacts": 1,
+    "chunks": 17,
+    "placements": 1
+  },
+  "models": {
+    "embedding": {
+      "dimension": 1024,
+      "inventory_sha256": "e2c7384ba36096b3f3bdfff4973f728596104aff0f1d38f1b6463e60765fe22a",
+      "model_id": "intfloat/multilingual-e5-large"
+    },
+    "reranker": {
+      "inventory_sha256": "bdcedc4d7cfe647b9aaa5a7546822dfee7826ebb3c64472bf89eae7592e08fe1",
+      "model_id": "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    }
+  },
+  "profile": {
+    "fingerprint": "78ed50c80a0ef508a76568881b843642cabaeed3ae4d66098fa2cf4b531dcd72",
+    "manifest_digest": "b478ed0febf854dbcfe61e1318f16a3f1cccbda556c9c7fb791815e4d83329f8",
+    "version": "wave0-v1"
+  },
+  "programme_version": "BOEN_special_11_2018-07-26_aj_2020",
+  "release_id": "wave0-francais-troisieme-2026-2027-v1",
+  "release_kind": "WAVE0_SUBJECT_RELEASE_V1",
+  "school_year": "2026-2027"
+}

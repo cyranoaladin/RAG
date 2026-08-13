@@ -1,0 +1,158 @@
+# Registre des preuves de droits — H2-B
+# PROVENANCE != DROITS. Les décisions ci-dessous sont organisationnelles ;
+# elles ne prétendent pas constituer un avis juridique externe.
+
+registry_id: rights_evidence_registry_h2b_v3
+status: HUMAN_ORGANIZATIONAL_DECISIONS_RECORDED
+compiled_at: "2026-08-08T21:30:00Z"
+updated_at: "2026-08-08T22:55:00Z"
+
+decision_markers:
+  EDUSCOL_RIGHTS_HUMAN_REVIEW: APPROVED
+  EDUSCOL_RIGHTS_HUMAN_DECISION_SOURCE: NEXUS_REUSSITE
+  EDUSCOL_GENERIC_RIGHTS_BLOCKER: false
+  NEXUS_RIGHTS_HUMAN_DECISION: APPROVED
+
+human_rights_decisions:
+  eduscol_generic_approval:
+    decision_type: HUMAN_ORGANIZATIONAL_RIGHTS_APPROVAL
+    decision_maker: Nexus Réussite
+    decision_source: EXPLICIT_GO_LIVE_INSTRUCTION
+    decision_date: "2026-08-08"
+    scope_manifest_sha256: d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e
+    scope_zone: "01_EDUSCOL_OFFICIEL/"
+    approved_for_internal_rag: true
+    approved_for_production_rag: true
+    generic_rights_blocker: false
+    external_legal_opinion: false
+    source_attribution_required: true
+    attribution_format: "Source : Eduscol (eduscol.education.gouv.fr)"
+    decision_statement: |
+      Nexus Réussite déclare avoir relu les conditions générales et mentions
+      applicables à Eduscol, considère l'usage prévu conforme et autorise le
+      traitement, l'indexation, le chunking, l'embedding, le retrieval, la
+      citation et l'ingestion de production du périmètre scellé ci-dessus.
+    exception_policy: |
+      Une restriction contradictoire propre à un document ou à un contenu tiers
+      reste fail-closed et place le seul artefact concerné en REVIEW_REQUIRED.
+
+  nexus_internal_approval:
+    decision_type: HUMAN_ORGANIZATIONAL_RIGHTS_APPROVAL
+    decision_maker: Nexus Réussite
+    decision_source: EXPLICIT_GO_LIVE_INSTRUCTION
+    decision_date: "2026-08-08"
+    scope_manifest_sha256: d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e
+    scope_zones:
+      - "02_NEXUS_DIAGNOSTICS/"
+      - "04_COMPLEMENTS_PEDAGOGIQUES/02_RESSOURCES_AUTEUR_NEXUS/"
+    artifact_count: 39
+    content_sha256_set_digest: 877591ddc3a1be85da2c09b61bd4e161020bb0a7cb135ad33c68b5c27de0eb38
+    set_digest_canonicalization: "lowercase SHA256 values, lexicographically sorted, one per line, final newline"
+    approved_for_internal_rag: true
+    approved_for_production_rag: true
+    generic_rights_blocker: false
+    cryptographic_signature_claimed: false
+    decision_statement: |
+      Nexus Réussite autorise l'usage RAG de ses contenus propres appartenant à
+      l'ensemble exact de SHA ci-dessus. Cette trace textuelle n'est ni une
+      signature cryptographique ni une signature manuelle fabriquée.
+
+rights_categories:
+  officiel_public:
+    description: "Contenu institutionnel autorisé par décision organisationnelle"
+    evidence_required:
+      - type: human_organizational_decision
+        description: "Décision explicite, scellée sur un manifest et un périmètre"
+
+  nexus_proprietaire:
+    description: "Contenu Nexus autorisé par son organisation propriétaire"
+    evidence_required:
+      - type: human_organizational_decision
+        description: "Décision liée à l'ensemble exact de SHA"
+
+source_evidence:
+  eduscol_education_gouv_fr:
+    zone: "01_EDUSCOL_OFFICIEL/"
+    domain: "eduscol.education.gouv.fr"
+    provenance_status: VERIFIED
+    provenance_evidence:
+      - "Domaine institutionnel du ministère français de l'Éducation nationale"
+      - "Harvester v1.10.0 exécuté le 2026-08-04T23:07:53+01:00"
+      - "2 451 PDF uniques et 2 956 placements mesurés dans les métadonnées scellées"
+    rights_status: CLEARED_BY_HUMAN_DECISION
+    rights_decision_ref: eduscol_generic_approval
+    recommended_rights_category: officiel_public
+    recommended_rights_category_rationale: |
+      La décision organisationnelle Nexus Réussite autorise l'usage RAG interne
+      et de production sous attribution. Elle ne neutralise pas une restriction
+      explicite propre à un document.
+    attribution_required: true
+    document_specific_exception_status: THIRD_PARTY_REVIEW_REQUIRED
+
+  nexus_diagnostics:
+    zone: "02_NEXUS_DIAGNOSTICS/"
+    domain: null
+    provenance_status: VERIFIED
+    provenance_evidence:
+      - "Contenu de diagnostic produit par Nexus"
+      - "38 objets physiques dans le manifest scellé"
+    rights_status: CLEARED_BY_HUMAN_DECISION
+    rights_decision_ref: nexus_internal_approval
+    recommended_rights_category: nexus_proprietaire
+    recommended_rights_category_rationale: "Autorisation organisationnelle liée au set de 39 SHA Nexus."
+
+  geogebra_ressources:
+    zone: "03_RESSOURCES_INTERACTIVES/"
+    domain: "geogebra.org"
+    provenance_status: VERIFIED
+    provenance_evidence:
+      - "37 fichiers GeoGebra (.ggb) dans le manifest scellé"
+    rights_status: UNSUPPORTED
+    disposition_override: UNSUPPORTED
+    go_live_blocking: false
+    recommended_rights_category: null
+    recommended_rights_category_rationale: |
+      Le format reste non pris en charge. Aucun fichier GeoGebra n'est autorisé
+      à l'ingestion par cette absence de blocker global.
+
+  complements_institutionnels:
+    zone: "04_COMPLEMENTS_PEDAGOGIQUES/01_SOURCES_INSTITUTIONNELLES/"
+    domain: "education.gouv.fr"
+    provenance_status: VERIFIED
+    provenance_evidence:
+      - "Deux rapports DEPP dans le manifest scellé"
+    rights_status: REVIEW_REQUIRED
+    disposition_override: REVIEW_REQUIRED
+    go_live_blocking: false
+    recommended_rights_category: null
+    recommended_rights_category_rationale: |
+      Les deux objets DEPP restent non ingestibles et pourront être promus par
+      une décision séparée. Ils ne bloquent pas les autres sources.
+
+  complements_nexus:
+    zone: "04_COMPLEMENTS_PEDAGOGIQUES/02_RESSOURCES_AUTEUR_NEXUS/"
+    domain: null
+    provenance_status: VERIFIED
+    provenance_evidence:
+      - "Un PDF auteur Nexus dans le manifest scellé"
+    rights_status: CLEARED_BY_HUMAN_DECISION
+    rights_decision_ref: nexus_internal_approval
+    recommended_rights_category: nexus_proprietaire
+    recommended_rights_category_rationale: "Autorisation organisationnelle liée au set de 39 SHA Nexus."
+
+document_specific_exception_policy:
+  status_on_explicit_contradictory_restriction: REVIEW_REQUIRED
+  exceptional_artifact_blocks_other_artifacts: false
+  accepted_exception_signals:
+    - explicit_third_party_copyright
+    - explicit_incompatible_license
+    - explicit_document_prohibition
+    - identified_third_party_material_outside_scope
+
+summary:
+  total_zones: 5
+  cleared_by_human_decision: 3
+  review_required: 1
+  unsupported: 1
+  unresolved_ingest_capable: 0
+  rights_go_live_blockers: 0

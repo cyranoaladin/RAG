@@ -17,10 +17,17 @@ from dataclasses import replace
 from pathlib import Path
 from threading import Event
 from types import SimpleNamespace
+from typing import cast
 from unittest.mock import MagicMock, patch
 
 import pytest
-from nexus_contracts import RetrievalRequest, RetrievalResponse, Rights
+from nexus_contracts import (
+    RetrievalRequest,
+    RetrievalResponse,
+    RetrievalScopeArtifactV2,
+    Rights,
+    load_retrieval_scope_artifact,
+)
 from pydantic import ValidationError
 
 # Ensure src/ is importable
@@ -28,6 +35,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from fastapi import HTTPException
 
+from ingestor.identity_v2 import VerifiedInternalIdentity
 from ingestor.retrieval_scope_v2 import ServerRetrievalScope
 from ingestor.retrieval_v2_endpoint import (
     _build_launch_readiness,
@@ -93,6 +101,12 @@ BASE_SCOPE = ServerRetrievalScope(
     scope_digest="a" * 64,
     source_sha256="b" * 64,
 )
+
+
+def _v2_gate_identity() -> VerifiedInternalIdentity:
+    artifact = load_retrieval_scope_artifact("entree_seconde_maths_v1")
+    assert isinstance(artifact, RetrievalScopeArtifactV2)
+    return cast(VerifiedInternalIdentity, SimpleNamespace(artifact=artifact))
 
 
 def _retrieval_payload(
@@ -174,9 +188,9 @@ def test_reviewed_chunk_counts_use_the_bounded_shared_pool(
     }
     assert connection_calls == 1
     assert executed["settings"] is settings
-    assert "SELECT collection, COUNT(*) FROM public.rag_chunks" in str(
-        executed["sql"]
-    )
+    assert "SELECT %s::text AS collection, COUNT(*)" in str(executed["sql"])
+    assert "FROM public.rag_chunks AS chunk" in str(executed["sql"])
+    assert "public.rag_artifact_placements" in str(executed["sql"])
     assert BASE_SCOPE.tenant in executed["params"]
 
 
@@ -637,7 +651,7 @@ class TestResponseFormat:
 
         candidate = RetrievalCandidate(
             chunk_id="chunk-1",
-            doc_id="doc-1",
+            doc_id="a" * 64,
             source_label="Programme NSI",
             source_uri="https://example.edu/nsi",
             rights="official_public_administrative",
@@ -646,6 +660,12 @@ class TestResponseFormat:
             page_start=11,
             vector=(1.0,) + (0.0,) * 1023,
             review_status="reviewed",
+            artifact_id="a" * 64,
+            content_sha256="a" * 64,
+            placement_id="b" * 64,
+            placement_source_scope="01_EDUSCOL_OFFICIEL/terminale/philosophie",
+            placement_source_id="eduscol:5793:terminale:philosophie",
+            placement_source_path="01_EDUSCOL_OFFICIEL/philosophie/source.pdf",
             dense_score=None,
             lexical_score=0.42,
         )
@@ -689,7 +709,57 @@ class TestResponseFormat:
             "rerank_score": 2.75,
             "mmr_score": 0.612,
             "score_final": 0.884,
+            "artifact_id": "a" * 64,
+            "content_sha256": "a" * 64,
+            "placement_id": "b" * 64,
+            "placement_source_scope": (
+                "01_EDUSCOL_OFFICIEL/terminale/philosophie"
+            ),
+            "placement_source_id": "eduscol:5793:terminale:philosophie",
+            "placement_source_path": (
+                "01_EDUSCOL_OFFICIEL/philosophie/source.pdf"
+            ),
         }
+
+    def test_mapping_hybrid_hit_builds_a_query_relevant_short_preview(self) -> None:
+        from ingestor.retrieval_hybrid_v2 import HybridHit, RetrievalCandidate
+        from ingestor.retrieval_v2_endpoint import _to_search_hit
+
+        candidate = RetrievalCandidate(
+            chunk_id="chunk-query-preview",
+            doc_id="a" * 64,
+            source_label="Attendus de mathématiques",
+            source_uri="https://example.edu/maths",
+            rights="officiel_public",
+            type_doc="attendus",
+            text=(
+                "Introduction générale sans le concept recherché. " * 8
+                + "Calculer avec des fractions et des nombres relatifs."
+            ),
+            page_start=5,
+            vector=(1.0,) + (0.0,) * 1023,
+            review_status="reviewed",
+            dense_score=0.8,
+            lexical_score=None,
+        )
+        hybrid_hit = HybridHit(
+            candidate=candidate,
+            dense_rank=1,
+            lexical_rank=None,
+            rrf_score=0.01,
+            rerank_score=3.2,
+            mmr_score=0.7,
+            score_final=0.9,
+        )
+
+        hit = _to_search_hit(
+            hybrid_hit,
+            query="Comment calculer des fractions avec des nombres relatifs ?",
+        )
+
+        assert len(hit.preview) <= 200
+        assert "fractions" in hit.preview
+        assert "nombres relatifs" in hit.preview
 
     def test_mapping_refuses_blank_provenance_and_preview(self) -> None:
         from ingestor.retrieval_v2_endpoint import SearchV2Hit
@@ -839,6 +909,160 @@ class TestLaunchReadiness:
 
         assert [item["name"] for item in response["collections"]] == list(allowed)
 
+    def test_readiness_uses_exact_release_evidence_for_wave0(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from ingestor import retrieval_v2_endpoint as endpoint
+
+        monkeypatch.setattr(
+            endpoint, "_require_retrieval_identity", lambda *_args, **_kwargs: object()
+        )
+        monkeypatch.setattr(endpoint, "load_collection_config", lambda: FULL_CFG)
+        monkeypatch.setattr(
+            endpoint,
+            "effective_signed_collections",
+            lambda _verified: (BASE_SCOPE.collection,),
+        )
+        monkeypatch.setattr(
+            endpoint,
+            "build_server_readiness_scope",
+            lambda *_args, **_kwargs: BASE_SCOPE,
+        )
+        monkeypatch.setattr(
+            endpoint,
+            "_get_reviewed_chunk_counts",
+            lambda _scopes: {BASE_SCOPE.collection: 12_000},
+        )
+        monkeypatch.setattr(
+            endpoint,
+            "_release_evidence_for_collection",
+            lambda collection: True if collection == BASE_SCOPE.collection else None,
+        )
+
+        response = endpoint.get_collection_readiness(SimpleNamespace())
+
+        assert response["release_evidence_verified"] is True
+        assert response["launch_ready"] is True
+
+    def test_readiness_reports_release_evidence_per_collection(self) -> None:
+        cfg = copy.deepcopy(FULL_CFG)
+        collections = (
+            "rag_nexus_nsi_terminale_specialite",
+            "rag_nexus_nsi_premiere_specialite",
+        )
+        cfg["collections"] = {
+            collection: cfg["collections"][collection] for collection in collections
+        }
+
+        readiness = _build_launch_readiness(
+            cfg,
+            {collection: 3 for collection in collections},
+            min_chunks=3,
+            release_evidence_verified={
+                collections[0]: True,
+                collections[1]: False,
+            },
+        )
+
+        by_name = {item["name"]: item for item in readiness["collections"]}
+        assert readiness["launch_ready"] is False
+        assert readiness["release_evidence_verified"] is False
+        assert readiness["ready_collections"] == 1
+        assert by_name[collections[0]]["ready"] is True
+        assert by_name[collections[1]]["ready"] is False
+        assert "preuve exhaustive de release absente" in by_name[collections[1]]["reasons"]
+
+
+def test_retrievable_gate_blocks_only_a_governed_unready_collection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ingestor import retrieval_v2_endpoint as endpoint
+
+    events: list[str] = []
+    monkeypatch.setattr(
+        endpoint,
+        "_release_evidence_for_collection",
+        lambda collection: events.append(collection) or False,
+    )
+
+    cfg = copy.deepcopy(FULL_CFG)
+    collection = "rag_nexus_maths_troisieme_tc"
+    cfg["collections"][collection] = {
+        "matiere": "maths",
+        "niveau": "troisieme",
+        "statut": "tronc_commun",
+        "domain": "education",
+        "instanciee": True,
+    }
+
+    with pytest.raises(HTTPException) as exc_info:
+        endpoint._check_retrievable(
+            collection,
+            cfg,
+            verified=_v2_gate_identity(),
+        )
+
+    assert exc_info.value.status_code == 503
+    assert events == [collection]
+
+
+def test_instanciated_v2_collection_without_manifest_is_not_retrievable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ingestor import retrieval_v2_endpoint as endpoint
+
+    cfg = copy.deepcopy(FULL_CFG)
+    collection = "rag_nexus_maths_troisieme_tc"
+    cfg["collections"][collection] = {
+        "matiere": "maths",
+        "niveau": "troisieme",
+        "statut": "tronc_commun",
+        "domain": "education",
+        "instanciee": True,
+    }
+    monkeypatch.delenv("RAG_RELEASE_MANIFEST_PATH", raising=False)
+    monkeypatch.delenv("RAG_RELEASE_MANIFEST_SHA256", raising=False)
+
+    with pytest.raises(HTTPException) as exc_info:
+        endpoint._check_retrievable(
+            collection,
+            cfg,
+            verified=_v2_gate_identity(),
+        )
+
+    assert exc_info.value.status_code == 503
+
+
+def test_picker_keeps_historical_collection_and_hides_governed_unready_collection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ingestor import retrieval_v2_endpoint as endpoint
+
+    allowed = (
+        "rag_nexus_nsi_terminale_specialite",
+        "rag_nexus_nsi_premiere_specialite",
+    )
+    monkeypatch.setattr(
+        endpoint, "_require_retrieval_identity", lambda *_args, **_kwargs: object()
+    )
+    monkeypatch.setattr(endpoint, "load_collection_config", lambda: FULL_CFG)
+    monkeypatch.setattr(endpoint, "effective_signed_collections", lambda _verified: allowed)
+    monkeypatch.setattr(endpoint, "build_server_retrieval_scope", lambda *_args, **_kwargs: BASE_SCOPE)
+    monkeypatch.setattr(
+        endpoint,
+        "_release_evidence_for_collection",
+        lambda collection: (
+            False if collection == "rag_nexus_nsi_premiere_specialite" else None
+        ),
+    )
+
+    response = endpoint.list_retrievable_collections(SimpleNamespace())
+
+    assert [item["name"] for item in response["collections"]] == [
+        "rag_nexus_nsi_terminale_specialite"
+    ]
+
 
 class TestHybridSearchDelegation:
     @pytest.mark.parametrize(
@@ -881,7 +1105,7 @@ class TestHybridSearchDelegation:
         endpoint, client = _api_client(monkeypatch)
         events: list[object] = []
 
-        def check(collection: str, _cfg: dict) -> dict:
+        def check(collection: str, _cfg: dict, _verified: object) -> dict:
             events.append(("gate", collection))
             return {"domain": "education"}
 
@@ -1201,7 +1425,7 @@ class TestCitedChat:
         _mock_retrieval_identity(endpoint, monkeypatch)
         events: list[tuple[str, str]] = []
 
-        def gate(collection: str, _cfg: dict) -> dict:
+        def gate(collection: str, _cfg: dict, _verified: object) -> dict:
             events.append(("gate", collection))
             if collection == "rag_nexus_nsi_premiere_specialite":
                 raise HTTPException(status_code=403, detail="closed")

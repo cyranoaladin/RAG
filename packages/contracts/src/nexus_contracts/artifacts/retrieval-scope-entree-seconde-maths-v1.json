@@ -1,0 +1,29 @@
+{
+  "artifact_version": "2",
+  "scope_id": "entree_seconde_maths_v1",
+  "status": "eligible_for_promotion",
+  "source_sha256": "da18f5b1bbd44ea9910b65021d0d97beb69865c61791376e65a81dde925b989d",
+  "target_identity": {
+    "tenant": "libre_seconde",
+    "niveau": "seconde",
+    "voie": "generale",
+    "matiere": "maths",
+    "statut_enseignement": "tronc_commun",
+    "audience": "libre",
+    "candidates": ["libre"]
+  },
+  "evidence_subject": {
+    "collection": "rag_nexus_maths_troisieme_tc",
+    "tenant": "libre_troisieme",
+    "niveau": "troisieme",
+    "voie": "college",
+    "matiere": "maths",
+    "statut_enseignement": "tronc_commun",
+    "candidat": "libre",
+    "audiences": ["libre", "tous"],
+    "visibility": "internal",
+    "rights": ["officiel_public"],
+    "school_year": "2026-2027",
+    "programme_version": "BOEN_special_11_2018-07-26_aj_2020"
+  }
+}

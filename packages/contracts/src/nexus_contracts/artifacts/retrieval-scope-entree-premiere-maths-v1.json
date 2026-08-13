@@ -1,0 +1,29 @@
+{
+  "artifact_version": "2",
+  "scope_id": "entree_premiere_maths_v1",
+  "status": "eligible_for_promotion",
+  "source_sha256": "fede87cc7bfa5097eecf597b90f51a1a97c7e7f2282a148a74cae0bbadad7971",
+  "target_identity": {
+    "tenant": "libre_premiere",
+    "niveau": "premiere",
+    "voie": "generale",
+    "matiere": "maths",
+    "statut_enseignement": "tronc_commun",
+    "audience": "libre",
+    "candidates": ["libre"]
+  },
+  "evidence_subject": {
+    "collection": "rag_nexus_maths_seconde_tc",
+    "tenant": "libre_seconde",
+    "niveau": "seconde",
+    "voie": "generale",
+    "matiere": "maths",
+    "statut_enseignement": "tronc_commun",
+    "candidat": "libre",
+    "audiences": ["libre", "tous"],
+    "visibility": "internal",
+    "rights": ["officiel_public"],
+    "school_year": "2026-2027",
+    "programme_version": "BOEN_14_2026-04-02_MENE2602914A"
+  }
+}

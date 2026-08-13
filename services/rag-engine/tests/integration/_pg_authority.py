@@ -27,7 +27,12 @@ INFRA_ROOT = ENGINE_ROOT / "infra"
 BOOTSTRAP_SCRIPT = INFRA_ROOT / "scripts" / "bootstrap_ingestion_control_schema.sh"
 PROVISION_SCRIPT = INFRA_ROOT / "scripts" / "provision_ingestion_control_roles.sh"
 
-PG_IMAGE = "pgvector/pgvector:pg16"
+#: Image épinglée par digest — jamais un tag mutable. La valeur est
+#: celle déjà vérifiée et versionnée dans ``infra/docker-compose.v2.yml``
+#: (source de vérité unique) : un test de gouvernance qui tournerait sur
+#: une image différente de celle du runtime ne prouverait rien sur le
+#: runtime.
+PG_IMAGE = "pgvector/pgvector:pg16@sha256:00ba258a66dac104fd5171074a0084462a64a1369d8513f3d0a634e2f24d15bc"
 PG_SUPERUSER = "raguser"
 PG_SUPERUSER_PASSWORD = secrets.token_urlsafe(24)
 PG_DB = "ragdb"
@@ -36,9 +41,64 @@ MIGRATOR_PASSWORD = secrets.token_urlsafe(24)
 AUTHORITY_PASSWORD = secrets.token_urlsafe(24)
 ATTESTOR_PASSWORD = secrets.token_urlsafe(24)
 
-DOCKER_AVAILABLE = shutil.which("docker") is not None and (
-    subprocess.run(["docker", "info"], capture_output=True, check=False).returncode == 0
-)
+#: Mode obligatoire. Positionné par ``make test-governance-pg`` dans sa
+#: propre recette — jamais hérité de l'environnement de l'appelant, pour
+#: qu'un poste mal configuré ne puisse pas désactiver la barrière.
+REQUIRE_DOCKER_ENV = "NEXUS_REQUIRE_DOCKER"
+
+
+def docker_available() -> bool:
+    """Détection réelle, réévaluée à l'appel.
+
+    Séparée de la constante pour rester substituable dans les tests de
+    politique, qui doivent prouver le fail-closed sans arrêter le daemon
+    de la machine."""
+    if shutil.which("docker") is None:
+        return False
+    return (
+        subprocess.run(["docker", "info"], capture_output=True, check=False).returncode
+        == 0
+    )
+
+
+def enforce_docker_requirement() -> bool:
+    """Barrière 2 : dans le mode obligatoire, l'absence de Docker est une
+    **erreur**, jamais un skip.
+
+    Sans cette barrière, ``requires_docker`` laissait pytest sortir 0 avec
+    zéro assertion exécutée, et le check requis passait au vert en n'ayant
+    rien prouvé. Une valeur inconnue est elle aussi refusée : revenir
+    silencieusement au mode permissif parce qu'on n'a pas compris la
+    configuration serait précisément le défaut qu'on ferme.
+
+    Rend ``True`` si Docker est disponible. Hors mode obligatoire, rend
+    simplement la disponibilité, ce qui préserve le comportement local
+    historique : une suite générale lancée sans Docker saute ses tests
+    Docker au lieu d'échouer.
+    """
+    available = docker_available()
+    raw = os.environ.get(REQUIRE_DOCKER_ENV)
+    if raw is None or raw == "":
+        return available
+    required = raw.strip()
+    if required not in ("0", "1"):
+        raise pytest.UsageError(
+            f"{REQUIRE_DOCKER_ENV}={raw!r} is not a recognised value (expected "
+            "'0' or '1'). Refusing rather than falling back to the permissive "
+            "mode: an unreadable configuration must never silently disable a "
+            "governance barrier."
+        )
+    if required == "1" and not available:
+        raise pytest.UsageError(
+            "GOVERNANCE_DOCKER_REQUIRED: Docker is unavailable while "
+            f"{REQUIRE_DOCKER_ENV}=1. The PostgreSQL governance suites are "
+            "never skipped in this mode — a green check that ran no container "
+            "would prove no invariant."
+        )
+    return available
+
+
+DOCKER_AVAILABLE = enforce_docker_requirement()
 
 requires_docker = pytest.mark.skipif(not DOCKER_AVAILABLE, reason="Docker not available")
 

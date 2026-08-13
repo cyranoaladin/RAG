@@ -11,10 +11,11 @@ qu'il prétend vérifier ne prouverait rien sur le système.
 Une seule pièce est substituée pour les scénarios *positifs* : la sortie du
 classifieur. ``classify_conformity_core`` est un placeholder documenté qui
 laisse niveau/voie/programme « non vérifiés », de sorte qu'aucune ressource
-ne peut aujourd'hui franchir le gate. Ce fait n'est pas contourné en
-silence — il est vérifié explicitement par
-``TestLivePipelineCannotYetPublish``, et c'est très exactement ce que
-``LOT42_LIVE_PIPELINE_WIRED=false`` signifie.
+ne peut aujourd'hui franchir le gate dans le worker vivant. Ce fait n'est
+pas contourné en silence — il est vérifié explicitement par
+``TestLivePipelineCannotYetPublish``. Le chemin après ``ROUTED`` est testé
+séparément sans être importé par ce worker :
+``LOT42_LIVE_PIPELINE_WIRED=false`` reste donc exact.
 
 **Item E.** L'opérateur ne fournit plus aucune donnée technique. La
 sous-commande ``propose-review`` dérive l'artefact depuis la base ; la
@@ -30,10 +31,12 @@ from __future__ import annotations
 import hashlib
 import json
 import sys
+import threading
 import uuid
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import httpx
@@ -65,7 +68,7 @@ from _pg_authority import (  # noqa: E402
     superuser_dsn,
 )
 from nexus_contracts.authority_artifacts import (  # noqa: E402
-    ScopeAuthorizationArtifact,
+    ScopeAuthorizationArtifactV2,
     canonical_authorization_path,
 )
 from nexus_contracts.document import Rights  # noqa: E402
@@ -77,11 +80,23 @@ from nexus_contracts.ingestion import (  # noqa: E402
 )
 from nexus_contracts.resource_state import ResourceState  # noqa: E402
 
+from ingestor.governed_publisher_v2 import (  # noqa: E402
+    _lock_governance_commit_fence,
+    _persist_external_authority_pins,
+)
 from ingestor.ingestion_agents.classifier import ConformityResult  # noqa: E402
 from ingestor.ingestion_agents.quality_agent import run_quality_agent  # noqa: E402
 from ingestor.ingestion_agents.rights_agent import run_rights_agent  # noqa: E402
 from ingestor.ingestion_agents.transitions import (  # noqa: E402
     apply_resource_transition,
+)
+from ingestor.ingestion_control.artifact_attribution import (  # noqa: E402
+    derive_artifact_attribution,
+    persist_artifact_attribution,
+)
+from ingestor.ingestion_control.governed_publication_path import (  # noqa: E402
+    promote_reviewed_publication,
+    stage_publication_for_review,
 )
 from ingestor.ingestion_control.jobs import create_job  # noqa: E402
 from ingestor.ingestion_control.provisioning import (  # noqa: E402
@@ -160,14 +175,15 @@ RICH_CONTENT = (
     b"classiques du programme de terminale, avec exemples et exercices "
     b"corriges pour couvrir largement la notion.</p>"
 )
+RICH_CONTENT_SHA = hashlib.sha256(RICH_CONTENT).hexdigest()
 
 
 def authorization_document() -> dict[str, Any]:
     from datetime import UTC, datetime, timedelta
 
-    now = datetime.now(UTC)
+    now = datetime(2026, 8, 9, 12, 0, tzinfo=UTC)
     return {
-        "protocol_version": "LOT41A-V1",
+        "protocol_version": "LOT41A-V2",
         "authorization_id": STUB_AUTHORIZATION_ID,
         "decision": "AUTHORIZE_INGESTION_SCOPE",
         "scope": dict(VALID_SCOPE),
@@ -178,6 +194,7 @@ def authorization_document() -> dict[str, Any]:
         "allowed_domains": ["eduscol.education.fr"],
         "rights_categories": ["officiel_public"],
         "exclusions": [],
+        "allowed_content_sha256": [RICH_CONTENT_SHA],
         "pii_absence_attested": True,
         "pii_absence_evidence": "Corpus officiel, aucune donnee personnelle.",
         "valid_from": (now - timedelta(days=1)).isoformat(),
@@ -195,7 +212,9 @@ def _clean(pg: dict[str, str]) -> Iterator[None]:
     with psycopg.connect(superuser_dsn(pg)) as conn:
         with conn.cursor() as cur:
             for table in (
-                "publication_attestations", "scope_authorizations", "workflow_events",
+                "publication_commit_pins",
+                "publication_attestations", "artifact_attributions",
+                "scope_authorizations", "workflow_events",
                 "artifacts", "resource_candidates", "jobs", "resources", "ingestion_runs",
             ):
                 cur.execute(f"DELETE FROM ingestion_control.{table}")  # noqa: S608
@@ -216,7 +235,7 @@ def github(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[LocalGit
     state.put_blob(
         path=canonical_authorization_path(STUB_AUTHORIZATION_ID),
         ref=AUTH_HEAD,
-        content=ScopeAuthorizationArtifact.model_validate(
+        content=ScopeAuthorizationArtifactV2.model_validate(
             authorization_document()
         ).canonical_bytes(),
     )
@@ -263,12 +282,11 @@ def run_real_pipeline(
     """Exécute le VRAI worker de bout en bout et rend ``(resource_id,
     artifact_id)``.
 
-    Utilisé pour le cas **négatif** : dans l'état actuel du pipeline, le
-    classifieur est un placeholder documenté qui laisse ``niveau``/``voie``/
-    ``programme`` non vérifiés, donc toute ressource porte des motifs de
-    rejet et le gate est nécessairement négatif. C'est précisément ce que
-    ``LOT42_LIVE_PIPELINE_WIRED=false`` signifie, et c'est vérifié
-    explicitement par ``TestLivePipelineCannotYetPublish``."""
+    Utilisé pour le cas **négatif** : aucun champ du job ni LOT41A ne vaut
+    preuve de licence. Le worker vivant doit donc s'arrêter explicitement à
+    ``Rights.unknown`` avant qualité tant qu'une preuve de droits distincte
+    n'est pas câblée. ``LOT42_LIVE_PIPELINE_WIRED=false`` reste ainsi
+    mesuré sur le vrai worker, sans fausse licence synthétique."""
     def fetch(url: str, *, max_bytes: int, **kwargs: Any) -> httpx.Response:
         return httpx.Response(
             200, headers={"content-type": "text/html"}, content=content,
@@ -282,6 +300,8 @@ def run_real_pipeline(
         profile_version=PROFILE.profile_version,
         profile_fingerprint=PROFILE_FINGERPRINT,
         rights_categories=("officiel_public",),
+        protocol_version="LOT41A-V2",
+        allowed_content_sha256=(hashlib.sha256(content).hexdigest(),),
     )
     deps = WorkerDeps(
         owner="worker-lot42",
@@ -311,7 +331,13 @@ def run_real_pipeline(
         )
         conn.commit()
         outcome = run_worker_iteration(conn, deps=deps)
-        assert outcome.status == "succeeded", outcome.error
+        assert outcome.status in ("retried", "dead_letter")
+        # Le worker est construit sans preuves scellées : il refuse le job
+        # avant tout téléchargement. Auparavant il allait plus loin et
+        # butait sur ``Rights.unknown`` faute de licence — la preuve de
+        # droits est désormais câblée, et c'est son absence de
+        # configuration qui arrête ce pipeline-ci.
+        assert "sealed evidence" in str(outcome.error) or "missing" in str(outcome.error)
         conn.rollback()
         with conn.cursor() as cur:
             cur.execute("SELECT resource_id FROM ingestion_control.resources")
@@ -331,9 +357,18 @@ CONFORMING = ConformityResult(
     programme_conformity=True,
     matiere_evidence=("algorithmique",),
 )
+NONCONFORMING = ConformityResult(
+    niveau_conformity=False,
+    voie_conformity=False,
+    matiere_conformity=False,
+    programme_conformity=False,
+    matiere_evidence=(),
+)
 
 
-def build_publishable_resource(pg: dict[str, str]) -> tuple[uuid.UUID, uuid.UUID]:
+def build_publishable_resource(
+    pg: dict[str, str], *, conformity: ConformityResult = CONFORMING
+) -> tuple[uuid.UUID, uuid.UUID]:
     """Produit une ressource dont la chaîne durable est POSITIVE, en
     exécutant les **vrais** émetteurs d'évidence.
 
@@ -410,6 +445,21 @@ def build_publishable_resource(pg: dict[str, str]) -> tuple[uuid.UUID, uuid.UUID
                 new_state=to_state,
                 actor="lot42-fixture",
                 run_id=run_id,
+                payload=(
+                    {
+                        "artifact_id": str(artifact.artifact_id),
+                        "sha256": artifact.sha256,
+                        "scope_authorization_id": STUB_AUTHORIZATION_ID,
+                        "scope_authorization_digest": (
+                            ScopeAuthorizationArtifactV2.model_validate(
+                                authorization_document()
+                            ).digest()
+                        ),
+                        "scope_authorization_protocol_version": "LOT41A-V2",
+                    }
+                    if to_state is ResourceState.FETCHED
+                    else None
+                ),
             )
             version = transition.state_version
 
@@ -422,7 +472,7 @@ def build_publishable_resource(pg: dict[str, str]) -> tuple[uuid.UUID, uuid.UUID
             conn,
             artifact=artifact,
             profile=PROFILE,
-            conformity=CONFORMING,
+            conformity=conformity,
             rights=rights,
             extracted_text=RICH_CONTENT.decode(),
             declared_language="fr",
@@ -432,6 +482,21 @@ def build_publishable_resource(pg: dict[str, str]) -> tuple[uuid.UUID, uuid.UUID
             decision_id=uuid.uuid4(),
             evaluated_at=now,
             expected_version=rights_transition.state_version,
+            actor="lot42-fixture",
+        )
+        # H2-F (défaut 6) : le VRAI writer, dans la même transaction que le
+        # gate — exactement ce que ``runner._process_claimed_job`` fait en
+        # production, y compris pour une chaîne négative : l'attribution est
+        # figée par le VERDICT du gate, quel que soit son signe, de sorte
+        # qu'un refus reste attribuable et soit nommé par son motif réel.
+        persist_artifact_attribution(
+            conn,
+            attribution=derive_artifact_attribution(
+                ingestion_artifact_id=artifact.artifact_id,
+                candidate=candidate,
+                profile=PROFILE,
+            ),
+            run_id=run_id,
             actor="lot42-fixture",
         )
         conn.commit()
@@ -555,7 +620,7 @@ class TestDurableEvidenceIsTheOnlySource:
         assert facts.gate_name == "routing_gate"
         assert facts.rights_status.value == "officiel_public"
         assert len(facts.quality_report_digest) == 64
-        assert len(facts.evidence_event_ids) == 3
+        assert len(facts.evidence_event_ids) == 4
 
     def test_a_resource_without_pipeline_evidence_cannot_be_attested(
         self, pg: dict[str, str]
@@ -604,10 +669,60 @@ class TestAttestationBindsTheReviewedArtifact:
     def test_the_full_chain_records_and_verifies(
         self, pg: dict[str, str], attested: dict[str, Any]
     ) -> None:
-        result = verify(pg, attested)
+        result = verify(pg, attested, require_content_bound_authority=True)
         assert result.review_id == REVIEW_ID
         assert result.scope_authorization_id == STUB_AUTHORIZATION_ID
         assert result.facts.gate_passed is True
+
+    def test_live_verified_external_reviews_are_pinned_immutably_before_product(
+        self, pg: dict[str, str], attested: dict[str, Any]
+    ) -> None:
+        with psycopg.connect(app_dsn(pg)) as conn:
+            with conn.transaction():
+                verified = verify_publication_attestation(
+                    conn,
+                    resource_id=attested["resource_id"],
+                    current_content_sha256=content_sha(pg, attested["artifact_id"]),
+                    current_profile_fingerprint=PROFILE_FINGERPRINT,
+                    current_manifest_digest=MANIFEST_DIGEST,
+                    require_content_bound_authority=True,
+                )
+                first = _persist_external_authority_pins(
+                    conn,
+                    (SimpleNamespace(attestation=verified),),
+                )
+            with conn.transaction():
+                verified_again = verify_publication_attestation(
+                    conn,
+                    resource_id=attested["resource_id"],
+                    current_content_sha256=content_sha(pg, attested["artifact_id"]),
+                    current_profile_fingerprint=PROFILE_FINGERPRINT,
+                    current_manifest_digest=MANIFEST_DIGEST,
+                    require_content_bound_authority=True,
+                )
+                second = _persist_external_authority_pins(
+                    conn,
+                    (SimpleNamespace(attestation=verified_again),),
+                )
+            row = conn.execute(
+                "SELECT publication_review_head_sha, authorization_review_head_sha, "
+                "authorization_protocol_version, pin_digest "
+                "FROM ingestion_control.publication_commit_pins "
+                "WHERE publication_attestation_id = %s",
+                (verified.attestation_id,),
+            ).fetchone()
+
+            with pytest.raises(psycopg.errors.InsufficientPrivilege):
+                conn.execute(
+                    "UPDATE ingestion_control.publication_commit_pins "
+                    "SET pin_digest = %s WHERE publication_attestation_id = %s",
+                    ("0" * 64, verified.attestation_id),
+                )
+            conn.rollback()
+
+        assert first == second
+        assert len(first) == 1
+        assert row == (PUB_HEAD, AUTH_HEAD, "LOT41A-V2", first[0])
 
     def test_an_artifact_diverging_from_the_database_is_refused_at_record_time(
         self, pg: dict[str, str], tmp_path: Path, github: LocalGitHub,
@@ -650,12 +765,14 @@ class TestAttestationBindsTheReviewedArtifact:
 
 class TestNegativeChainsNeverPublish:
     def test_a_failing_quality_chain_is_refused_at_proposal(
-        self, pg: dict[str, str], tmp_path: Path, github: LocalGitHub,
+        self, pg: dict[str, str], github: LocalGitHub,
         operator_env: None, capsys: Any,
     ) -> None:
-        """Contenu trop pauvre : le pipeline produit quality_passed=false et
-        gate_passed=false. Aucune proposition n'est possible."""
-        resource_id, artifact_id = run_real_pipeline(pg, tmp_path, content=b"<p>court</p>")
+        """Une conformité négative produit quality/gate=false ; aucune
+        proposition n'est possible."""
+        resource_id, artifact_id = build_publishable_resource(
+            pg, conformity=NONCONFORMING
+        )
         record_authorization(github)
         code, _, error = propose(resource_id, artifact_id, capsys)
         assert code == 1
@@ -667,9 +784,11 @@ class TestNegativeChainsNeverPublish:
         assert "PUBLICATION_DENIED_QUALITY" in error, error
 
     def test_a_failing_chain_can_never_be_recorded(
-        self, pg: dict[str, str], tmp_path: Path, github: LocalGitHub, operator_env: None
+        self, pg: dict[str, str], github: LocalGitHub, operator_env: None
     ) -> None:
-        resource_id, artifact_id = run_real_pipeline(pg, tmp_path, content=b"<p>court</p>")
+        resource_id, artifact_id = build_publishable_resource(
+            pg, conformity=NONCONFORMING
+        )
         record_authorization(github)
         assert attest(resource_id, artifact_id) == 1
         with psycopg.connect(superuser_dsn(pg)) as conn, conn.cursor() as cur:
@@ -751,6 +870,181 @@ class TestVerificationRejectsEveryDrift:
         with pytest.raises(PublicationAttestationInvalidError, match="no active"):
             verify(pg, attested)
 
+    def test_attestor_role_persists_standalone_invalidation_cache(
+        self, pg: dict[str, str], attested: dict[str, Any]
+    ) -> None:
+        with psycopg.connect(attestor_dsn(pg)) as conn:
+            with pytest.raises(
+                PublicationAttestationInvalidError,
+                match="content_sha256 drift",
+            ):
+                verify_publication_attestation(
+                    conn,
+                    resource_id=attested["resource_id"],
+                    current_content_sha256="9" * 64,
+                    current_profile_fingerprint=PROFILE_FINGERPRINT,
+                    current_manifest_digest=MANIFEST_DIGEST,
+                )
+
+        with psycopg.connect(superuser_dsn(pg)) as conn:
+            row = conn.execute(
+                "SELECT invalidated_at, invalidated_reason "
+                "FROM ingestion_control.publication_attestations "
+                "WHERE resource_id = %s",
+                (attested["resource_id"],),
+            ).fetchone()
+        assert row is not None
+        assert row[0] is not None
+        assert "content_sha256 drift" in str(row[1])
+
+    def test_app_role_standalone_denial_keeps_connection_usable(
+        self, pg: dict[str, str], attested: dict[str, Any]
+    ) -> None:
+        with psycopg.connect(app_dsn(pg)) as conn:
+            with pytest.raises(
+                PublicationAttestationInvalidError,
+                match="content_sha256 drift",
+            ):
+                verify_publication_attestation(
+                    conn,
+                    resource_id=attested["resource_id"],
+                    current_content_sha256="9" * 64,
+                    current_profile_fingerprint=PROFILE_FINGERPRINT,
+                    current_manifest_digest=MANIFEST_DIGEST,
+                )
+            invalidation = conn.execute(
+                "SELECT invalidated_at, invalidated_reason "
+                "FROM ingestion_control.publication_attestations "
+                "WHERE resource_id = %s",
+                (attested["resource_id"],),
+            ).fetchone()
+            connection_probe = conn.execute("SELECT 1").fetchone()
+
+        assert invalidation == (None, None)
+        assert connection_probe == (1,)
+
+
+class TestGovernanceCommitFence:
+    """Une mutation control ne peut committer avant le commit produit.
+
+    Le test structurel du publisher prouve l'imbrication des transactions ;
+    ces deux cas PostgreSQL réels prouvent que les rôles canoniques de
+    révocation rencontrent effectivement les triggers de migration 010.
+    """
+
+    def test_attestation_invalidation_waits_until_the_fence_is_released(
+        self, pg: dict[str, str], attested: dict[str, Any]
+    ) -> None:
+        attempted = threading.Event()
+        completed = threading.Event()
+        errors: list[BaseException] = []
+
+        def invalidate() -> None:
+            try:
+                with psycopg.connect(attestor_dsn(pg)) as conn:
+                    attempted.set()
+                    conn.execute(
+                        "UPDATE ingestion_control.publication_attestations "
+                        "SET invalidated_at = now(), invalidated_reason = %s "
+                        "WHERE resource_id = %s",
+                        ("concurrent invalidation", attested["resource_id"]),
+                    )
+                    conn.commit()
+            except BaseException as exc:  # pragma: no cover - assertion ci-dessous
+                errors.append(exc)
+            finally:
+                completed.set()
+
+        with psycopg.connect(app_dsn(pg)) as control_conn:
+            with control_conn.transaction():
+                _lock_governance_commit_fence(
+                    control_conn,
+                    resource_ids=(attested["resource_id"],),
+                )
+                worker = threading.Thread(target=invalidate, daemon=True)
+                worker.start()
+                assert attempted.wait(timeout=5)
+                assert not completed.wait(timeout=0.25), (
+                    "attestation invalidation committed before the fenced product commit"
+                )
+            assert completed.wait(timeout=5)
+            worker.join(timeout=5)
+
+        assert errors == []
+        with psycopg.connect(superuser_dsn(pg)) as conn:
+            invalidated = conn.execute(
+                "SELECT invalidated_at IS NOT NULL "
+                "FROM ingestion_control.publication_attestations "
+                "WHERE resource_id = %s",
+                (attested["resource_id"],),
+            ).fetchone()
+        assert invalidated == (True,)
+
+    def test_scope_revocation_waits_until_the_fence_is_released(
+        self, pg: dict[str, str], attested: dict[str, Any]
+    ) -> None:
+        attempted = threading.Event()
+        completed = threading.Event()
+        errors: list[BaseException] = []
+
+        def revoke() -> None:
+            try:
+                with psycopg.connect(authority_dsn(pg)) as conn:
+                    attempted.set()
+                    conn.execute(
+                        """
+                        UPDATE ingestion_control.scope_authorizations
+                        SET revoked_at = now(), revoked_by = 'abenrhouma',
+                            revocation_reason = 'concurrent revocation',
+                            revocation_evidence_repository = %s,
+                            revocation_evidence_pull_request = 9999,
+                            revocation_evidence_base_sha = %s,
+                            revocation_evidence_head_sha = %s,
+                            revocation_evidence_review_id = 9999,
+                            revocation_evidence_reviewer = 'abenrhouma',
+                            revocation_evidence_submitted_at = now(),
+                            revocation_evidence_challenge = %s
+                        WHERE authorization_id = %s
+                        """,
+                        (
+                            REPOSITORY,
+                            "d" * 40,
+                            "e" * 40,
+                            "NEXUS-TRUSTED-REVIEW-V1:" + "f" * 64,
+                            STUB_AUTHORIZATION_ID,
+                        ),
+                    )
+                    conn.commit()
+            except BaseException as exc:  # pragma: no cover - assertion ci-dessous
+                errors.append(exc)
+            finally:
+                completed.set()
+
+        with psycopg.connect(app_dsn(pg)) as control_conn:
+            with control_conn.transaction():
+                _lock_governance_commit_fence(
+                    control_conn,
+                    authorization_ids=(STUB_AUTHORIZATION_ID,),
+                )
+                worker = threading.Thread(target=revoke, daemon=True)
+                worker.start()
+                assert attempted.wait(timeout=5)
+                assert not completed.wait(timeout=0.25), (
+                    "scope revocation committed before the fenced product commit"
+                )
+            assert completed.wait(timeout=5)
+            worker.join(timeout=5)
+
+        assert errors == []
+        with psycopg.connect(superuser_dsn(pg)) as conn:
+            revoked = conn.execute(
+                "SELECT revoked_at IS NOT NULL "
+                "FROM ingestion_control.scope_authorizations "
+                "WHERE authorization_id = %s",
+                (STUB_AUTHORIZATION_ID,),
+            ).fetchone()
+        assert revoked == (True,)
+
 
 class TestRetrievalEligibleAnchor:
     def test_the_transition_is_never_attempted_when_verification_fails(
@@ -777,41 +1071,179 @@ class TestRetrievalEligibleAnchor:
             assert cur.fetchone()[0] != ResourceState.RETRIEVAL_ELIGIBLE.value
 
 
+class TestDormantGovernedPublicationPath:
+    def test_app_role_denial_in_transaction_is_not_masked_and_rolls_back(
+        self,
+        pg: dict[str, str],
+        attested: dict[str, Any],
+    ) -> None:
+        resource_id = attested["resource_id"]
+        artifact_id = attested["artifact_id"]
+        with psycopg.connect(app_dsn(pg)) as conn:
+            row = conn.execute(
+                "SELECT run_id, state_version FROM ingestion_control.resources "
+                "WHERE resource_id = %s",
+                (resource_id,),
+            ).fetchone()
+            assert row is not None
+            run_id, version = row
+            conn.commit()
+
+            staged = stage_publication_for_review(
+                conn,
+                resource_id=resource_id,
+                run_id=run_id,
+                expected_version=version,
+                actor="lot42-app-role-negative",
+            )
+            assert staged.needs_review.to_state is ResourceState.NEEDS_REVIEW
+
+            with pytest.raises(
+                PublicationAttestationInvalidError,
+                match="content_sha256 drift",
+            ):
+                promote_reviewed_publication(
+                    conn,
+                    resource_id=resource_id,
+                    run_id=run_id,
+                    expected_version=staged.needs_review.state_version,
+                    actor="lot42-app-role-negative",
+                    current_content_sha256="9" * 64,
+                    current_profile_fingerprint=PROFILE_FINGERPRINT,
+                    current_manifest_digest=MANIFEST_DIGEST,
+                )
+
+            state = conn.execute(
+                "SELECT resource_state FROM ingestion_control.resources "
+                "WHERE resource_id = %s",
+                (resource_id,),
+            ).fetchone()
+            invalidation = conn.execute(
+                "SELECT invalidated_at, invalidated_reason "
+                "FROM ingestion_control.publication_attestations "
+                "WHERE resource_id = %s",
+                (resource_id,),
+            ).fetchone()
+            connection_probe = conn.execute("SELECT 1").fetchone()
+
+        assert state == (ResourceState.NEEDS_REVIEW.value,)
+        assert invalidation == (None, None)
+        assert connection_probe == (1,)
+        assert content_sha(pg, artifact_id) != "9" * 64
+
+    def test_real_control_events_reach_the_unique_anchor_in_rehearsal(
+        self,
+        pg: dict[str, str],
+        attested: dict[str, Any],
+    ) -> None:
+        resource_id = attested["resource_id"]
+        artifact_id = attested["artifact_id"]
+        with psycopg.connect(app_dsn(pg)) as conn:
+            row = conn.execute(
+                "SELECT run_id, resource_state, state_version "
+                "FROM ingestion_control.resources WHERE resource_id = %s",
+                (resource_id,),
+            ).fetchone()
+            assert row is not None
+            run_id, state, version = row
+            assert state == ResourceState.ROUTED.value
+
+            staged = stage_publication_for_review(
+                conn,
+                resource_id=resource_id,
+                run_id=run_id,
+                expected_version=version,
+                actor="lot42-h2-rehearsal",
+            )
+            assert staged.staged.to_state is ResourceState.STAGED
+            assert staged.needs_review.to_state is ResourceState.NEEDS_REVIEW
+
+            promoted = promote_reviewed_publication(
+                conn,
+                resource_id=resource_id,
+                run_id=run_id,
+                expected_version=staged.needs_review.state_version,
+                actor="lot42-h2-rehearsal",
+                current_content_sha256=content_sha(pg, artifact_id),
+                current_profile_fingerprint=PROFILE_FINGERPRINT,
+                current_manifest_digest=MANIFEST_DIGEST,
+            )
+            assert promoted.reviewed.to_state is ResourceState.REVIEWED
+            assert (
+                promoted.retrieval_eligible.to_state
+                is ResourceState.RETRIEVAL_ELIGIBLE
+            )
+
+        with psycopg.connect(superuser_dsn(pg)) as conn:
+            row = conn.execute(
+                "SELECT resource_state, state_version "
+                "FROM ingestion_control.resources WHERE resource_id = %s",
+                (resource_id,),
+            ).fetchone()
+            assert row == (
+                ResourceState.RETRIEVAL_ELIGIBLE.value,
+                promoted.retrieval_eligible.state_version,
+            )
+            transitions = conn.execute(
+                """
+                SELECT from_state, to_state
+                FROM ingestion_control.workflow_events
+                WHERE resource_id = %s
+                  AND event_type = 'transition'
+                  AND from_state IN ('ROUTED', 'STAGED', 'NEEDS_REVIEW', 'REVIEWED')
+                ORDER BY CASE from_state
+                    WHEN 'ROUTED' THEN 1
+                    WHEN 'STAGED' THEN 2
+                    WHEN 'NEEDS_REVIEW' THEN 3
+                    WHEN 'REVIEWED' THEN 4
+                    ELSE 5
+                END
+                """,
+                (resource_id,),
+            ).fetchall()
+        assert transitions == [
+            (ResourceState.ROUTED.value, ResourceState.STAGED.value),
+            (ResourceState.STAGED.value, ResourceState.NEEDS_REVIEW.value),
+            (ResourceState.NEEDS_REVIEW.value, ResourceState.REVIEWED.value),
+            (ResourceState.REVIEWED.value, ResourceState.RETRIEVAL_ELIGIBLE.value),
+        ]
+
+
 class TestLivePipelineCannotYetPublish:
     """État honnête du pipeline : `LOT42_LIVE_PIPELINE_WIRED=false`.
 
-    Le classifieur de ce lot laisse niveau/voie/programme « non vérifiés »
-    (placeholder documenté, remédiation PR#90). Toute ressource porte donc
-    des motifs de rejet, le gate est négatif, et **aucune publication n'est
-    possible via le pipeline vivant** — quelle que soit la richesse du
-    contenu. Ce test fixe cet état pour qu'il ne puisse pas changer sans
-    qu'on s'en aperçoive."""
+    **La raison a changé.** Le worker s'arrêtait faute de licence prouvée ;
+    la preuve de droits est désormais câblée. Ce qui l'arrête ici, c'est
+    qu'un worker construit sans preuves scellées refuse de traiter le job
+    — avant tout téléchargement, donc avant qu'aucun fait de droits ou de
+    qualité n'existe.
 
-    def test_even_rich_content_does_not_pass_the_live_gate(
+    L'invariant protégé est le même : rien n'est fabriqué, et aucune
+    publication n'est possible par ce chemin."""
+
+    def test_even_rich_content_stops_without_sealed_evidence(
         self, pg: dict[str, str], tmp_path: Path
     ) -> None:
+        """Aucune richesse de contenu ne compense une preuve absente."""
         resource_id, artifact_id = run_real_pipeline(pg, tmp_path)
         with psycopg.connect(superuser_dsn(pg)) as conn:
-            facts = collect_publication_facts(
-                conn, resource_id=resource_id, artifact_id=artifact_id
-            )
-        assert facts.quality_passed is False
-        assert facts.gate_passed is False
+            with pytest.raises(PublicationEvidenceMissingError):
+                collect_publication_facts(
+                    conn, resource_id=resource_id, artifact_id=artifact_id
+                )
 
-    def test_the_negative_verdict_is_nonetheless_durable(
+    def test_no_quality_or_gate_fact_is_fabricated_after_rights_denial(
         self, pg: dict[str, str], tmp_path: Path
     ) -> None:
-        """Un gate négatif ne produit aucune transition d'état ; sans
-        l'événement dédié, « pas de preuve de succès » serait
-        indistinguable de « pas de preuve du tout »."""
+        """Un refus ne doit pas être reconstruit en faux gate."""
         resource_id, _ = run_real_pipeline(pg, tmp_path)
         with psycopg.connect(superuser_dsn(pg)) as conn, conn.cursor() as cur:
             cur.execute(
-                "SELECT payload FROM ingestion_control.workflow_events "
-                "WHERE resource_id = %s AND event_type = 'PUBLICATION_GATE_EVALUATED'",
+                "SELECT to_state, event_type FROM ingestion_control.workflow_events "
+                "WHERE resource_id = %s AND (to_state IN "
+                "('RIGHTS_CHECKED', 'QUALITY_CHECKED') "
+                "OR event_type = 'PUBLICATION_GATE_EVALUATED')",
                 (resource_id,),
             )
             rows = cur.fetchall()
-        assert len(rows) == 1
-        assert rows[0][0]["gate_passed"] is False
-        assert rows[0][0]["decision"] == "REJECT"
+        assert rows == []

@@ -34,6 +34,7 @@ API_TOKEN = os.getenv("INGEST_API_TOKEN", os.getenv("RAG_API_TOKEN", ""))
 
 # Labels humains pour les niveaux, voies, statuts
 NIVEAU_LABELS: dict[str, str] = {
+    "quatrieme": "4\u00e8me",
     "troisieme": "3\u00e8me",
     "seconde": "Seconde",
     "premiere": "Premi\u00e8re",

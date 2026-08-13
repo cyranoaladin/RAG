@@ -27,6 +27,7 @@ qui ne nomme pas son événement n'est pas une preuve.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -35,9 +36,16 @@ from uuid import UUID
 import psycopg
 from nexus_contracts.document import Rights
 
+from .artifact_attribution import (
+    ArtifactAttributionError,
+    attribution_digest,
+    load_artifact_attribution,
+)
+
 #: Valeur exacte écrite par ``transitions.apply_resource_transition`` —
 #: jamais une constante parallèle réinventée ici.
 _TRANSITION_EVENT_TYPE = "transition"
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 
 class PublicationEvidenceMissingError(RuntimeError):
@@ -49,13 +57,26 @@ class PublicationEvidenceMissingError(RuntimeError):
 
 @dataclass(frozen=True)
 class PublicationFacts:
-    """Ce que le pipeline a réellement produit, et rien d'autre."""
+    """Ce que le pipeline a réellement produit, et rien d'autre.
+
+    H2-F Défaut 6: Les quatre champs d'attribution (source_label,
+    official, source_kind, type_doc) sont requis et vérifiés avant
+    publication. Ils proviennent de ``ingestion_control
+    .artifact_attributions`` — le plan de contrôle, écrit par le pipeline
+    gouverné lui-même — jamais de ``public.rag_artifacts``, qui n'existe
+    pas encore lors d'une première publication et que le rôle attestor n'a
+    pas le droit de lire.
+    """
 
     resource_id: UUID
     artifact_id: UUID
     collection: str
     canonical_url: str
     content_sha256: str
+    content_event_id: UUID
+    content_scope_authorization_id: str
+    content_scope_authorization_digest: str
+    content_scope_authorization_protocol_version: str
     rights_status: Rights
     rights_assessed_at: datetime
     rights_event_id: UUID
@@ -67,6 +88,26 @@ class PublicationFacts:
     gate_name: str
     gate_evaluated_at: datetime
     gate_event_id: UUID
+    # H2-F Défaut 6: Attribution durable liée aux faits revus
+    source_label: str
+    official: bool
+    source_kind: str
+    type_doc: str
+
+    @property
+    def attribution_digest(self) -> str:
+        """Digest canonique des quatre faits d'attribution.
+
+        C'est cette valeur que l'attestation mémorise et que le publisher
+        recompare avant d'écrire : une attribution modifiée après revue
+        change son digest, et la publication s'arrête."""
+        return attribution_digest(
+            ingestion_artifact_id=self.artifact_id,
+            source_label=self.source_label,
+            official=self.official,
+            source_kind=self.source_kind,
+            type_doc=self.type_doc,
+        )
 
     @property
     def evidence_event_ids(self) -> tuple[str, ...]:
@@ -78,6 +119,7 @@ class PublicationFacts:
                     str(self.rights_event_id),
                     str(self.quality_event_id),
                     str(self.gate_event_id),
+                    str(self.content_event_id),
                 }
             )
         )
@@ -113,8 +155,9 @@ def _latest_event(
         )
         row = cur.fetchone()
     if row is None:
+        event_label = f"{to_state} {event_type}" if to_state is not None else event_type
         raise PublicationEvidenceMissingError(
-            f"resource {resource_id}: no {event_type} workflow event carrying "
+            f"resource {resource_id}: no {event_label} workflow event carrying "
             f"{required_key!r} — the pipeline never produced this fact, so it "
             "can never be attested"
         )
@@ -132,6 +175,23 @@ def _require(payload: dict[str, Any], key: str, *, resource_id: UUID, event_type
             f"resource {resource_id}: {event_type} payload is missing {key!r}"
         )
     return payload[key]
+
+
+def _require_string(
+    payload: dict[str, Any], key: str, *, resource_id: UUID, event_type: str
+) -> str:
+    value = _require(
+        payload,
+        key,
+        resource_id=resource_id,
+        event_type=event_type,
+    )
+    if not isinstance(value, str) or not value:
+        raise PublicationEvidenceMissingError(
+            f"resource {resource_id}: {event_type} payload {key!r} "
+            "must be a non-empty string"
+        )
+    return value
 
 
 def _parse_moment(value: Any, *, resource_id: UUID, label: str) -> datetime:
@@ -189,6 +249,61 @@ def collect_publication_facts(
         )
     (canonical_url,) = row
 
+    content_event_id, content_payload = _latest_event(
+        conn,
+        resource_id=resource_id,
+        event_type=_TRANSITION_EVENT_TYPE,
+        to_state="FETCHED",
+        required_key="sha256",
+    )
+    fetched_artifact_id = _require_string(
+        content_payload,
+        "artifact_id",
+        resource_id=resource_id,
+        event_type="FETCHED transition",
+    )
+    if fetched_artifact_id != str(artifact_id):
+        raise PublicationEvidenceMissingError(
+            f"resource {resource_id}: FETCHED artifact_id {fetched_artifact_id!r} "
+            f"does not match artifact {artifact_id}"
+        )
+    fetched_sha256 = _require_string(
+        content_payload,
+        "sha256",
+        resource_id=resource_id,
+        event_type="FETCHED transition",
+    )
+    if _SHA256.fullmatch(fetched_sha256) is None or fetched_sha256 != content_sha256:
+        raise PublicationEvidenceMissingError(
+            f"resource {resource_id}: FETCHED sha256 does not match artifact {artifact_id}"
+        )
+    content_authorization_id = _require_string(
+        content_payload,
+        "scope_authorization_id",
+        resource_id=resource_id,
+        event_type="FETCHED transition",
+    )
+    content_authorization_digest = _require_string(
+        content_payload,
+        "scope_authorization_digest",
+        resource_id=resource_id,
+        event_type="FETCHED transition",
+    )
+    content_authorization_protocol = _require_string(
+        content_payload,
+        "scope_authorization_protocol_version",
+        resource_id=resource_id,
+        event_type="FETCHED transition",
+    )
+    if _SHA256.fullmatch(content_authorization_digest) is None:
+        raise PublicationEvidenceMissingError(
+            f"resource {resource_id}: FETCHED scope_authorization_digest is malformed"
+        )
+    if content_authorization_protocol not in {"LOT41A-V1", "LOT41A-V2"}:
+        raise PublicationEvidenceMissingError(
+            f"resource {resource_id}: FETCHED authority protocol is unsupported"
+        )
+
     rights_event_id, rights_payload = _latest_event(
         conn,
         resource_id=resource_id,
@@ -211,6 +326,27 @@ def collect_publication_facts(
         required_key="gate_passed",
     )
 
+    # H2-F (défaut 6) : l'attribution est lue dans le PLAN DE CONTRÔLE, sous
+    # la clé canonique ``ingestion_artifact_id``. Jamais dans
+    # ``public.rag_artifacts`` : cette table n'existe pas encore lors d'une
+    # première publication (le publisher l'écrit *après* l'attestation) et
+    # le rôle attestor n'a aucun privilège sur le schéma ``public``. La
+    # lecture recalcule le digest canonique et refuse toute dérive entre
+    # les quatre faits et le digest que PostgreSQL a généré pour eux.
+    #
+    # Lue APRÈS les faits du pipeline, délibérément : une ressource que le
+    # pipeline n'a jamais menée jusqu'au gate doit être refusée en nommant
+    # l'étape qui manque (droits, qualité, gate), pas son attribution — le
+    # message d'un refus est ce qui rend ce refus diagnosticable.
+    try:
+        attribution, _stored_digest = load_artifact_attribution(
+            conn, ingestion_artifact_id=artifact_id
+        )
+    except ArtifactAttributionError as exc:
+        raise PublicationEvidenceMissingError(
+            f"resource {resource_id}: {exc}"
+        ) from exc
+
     rights_value = str(_require(
         rights_payload, "rights_status", resource_id=resource_id, event_type="RIGHTS_CHECKED transition"
     ))
@@ -227,6 +363,10 @@ def collect_publication_facts(
         collection=collection,
         canonical_url=canonical_url,
         content_sha256=content_sha256,
+        content_event_id=content_event_id,
+        content_scope_authorization_id=content_authorization_id,
+        content_scope_authorization_digest=content_authorization_digest,
+        content_scope_authorization_protocol_version=content_authorization_protocol,
         rights_status=rights_status,
         rights_assessed_at=_parse_moment(
             _require(
@@ -268,6 +408,12 @@ def collect_publication_facts(
             resource_id=resource_id, label="gate_evaluated_at",
         ),
         gate_event_id=gate_event_id,
+        # H2-F Défaut 6 : attribution durable du plan de contrôle, écrite
+        # par le pipeline gouverné avant toute attestation.
+        source_label=attribution.source_label,
+        official=attribution.official,
+        source_kind=attribution.source_kind,
+        type_doc=attribution.type_doc,
     )
 
 

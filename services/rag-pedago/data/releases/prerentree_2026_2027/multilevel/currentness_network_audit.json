@@ -1,0 +1,104 @@
+{
+  "audit_kind": "MULTILEVEL_CURRENTNESS_NETWORK_AUDIT_V1",
+  "audit_mode": "READ_ONLY_REUSED_RESULTS",
+  "candidate_inventory_sha256": "86531933e0779a739f20c347d32dd02e54672f058024d16e1198809cef965300",
+  "results": [
+    {
+      "byte_identity": true,
+      "content_sha256": "05c5403d45bfc3631fa13b5c334822de09bcd68d850d0611044045cddba270de",
+      "current_download_sha256": "05c5403d45bfc3631fa13b5c334822de09bcd68d850d0611044045cddba270de",
+      "current_download_url": "https://www.education.gouv.fr/sites/default/files/document/Annexe%20%E2%80%93%20Programme%20d%26%23039%3Benseignement%20de%20math%C3%A9matiques%20de%20la%20classe%20de%20seconde%20g%C3%A9n%C3%A9rale%20et%20technologique-515402.pdf",
+      "current_for_school_year": "2026-2027",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5817/programmes-et-ressources-en-mathematiques-voie-gt"
+    },
+    {
+      "byte_identity": true,
+      "content_sha256": "10ce34666edd722a3d8d86642a9f1ac205c7a9d128d6142a17effcba2fb85e69",
+      "current_download_sha256": "10ce34666edd722a3d8d86642a9f1ac205c7a9d128d6142a17effcba2fb85e69",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/spe247annexe1158933pdf-89502.pdf",
+      "current_for_school_year": "2026-2027",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5823/programmes-et-ressources-en-numerique-et-sciences-informatiques-voie-g"
+    },
+    {
+      "byte_identity": true,
+      "content_sha256": "447bdee89af9f0ab07460bd279f81647824c2d91ba7be1eff6daa133c5e8467d",
+      "current_download_sha256": "447bdee89af9f0ab07460bd279f81647824c2d91ba7be1eff6daa133c5e8467d",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/ralyceegnsirepdtypesconstruits1170777pdf-89511.pdf",
+      "current_for_school_year": "2026-2027",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5823/programmes-et-ressources-en-numerique-et-sciences-informatiques-voie-g"
+    },
+    {
+      "byte_identity": true,
+      "content_sha256": "5303df0fcf6335f06d00c969a61dcd82cc3fdfd105271ae5c2ef580ff49b6c08",
+      "current_download_sha256": "5303df0fcf6335f06d00c969a61dcd82cc3fdfd105271ae5c2ef580ff49b6c08",
+      "current_download_url": "https://www.education.gouv.fr/sites/default/files/document/Annexe%20%E2%80%93%20Programme%20d%26%23039%3Benseignement%20de%20sp%C3%A9cialit%C3%A9%20de%20math%C3%A9matiques%20de%20la%20classe%20de%20premi%C3%A8re%20de%20la%20voie%20g%C3%A9n%C3%A9rale-515408.pdf",
+      "current_for_school_year": "2026-2027",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5817/programmes-et-ressources-en-mathematiques-voie-gt"
+    },
+    {
+      "byte_identity": true,
+      "content_sha256": "73c001b93cf2151924da5245c4d740b56a5194c17e29c37cda2e1c0593711fae",
+      "current_download_sha256": "73c001b93cf2151924da5245c4d740b56a5194c17e29c37cda2e1c0593711fae",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/15-francais-4e-attendus-eduscolpdf-74679.pdf",
+      "current_for_school_year": "2026-2027",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5733/ressources-d-accompagnement-du-programme-de-francais-au-cycle-4"
+    },
+    {
+      "byte_identity": true,
+      "content_sha256": "7ca9a32e1823be6c1120cb0417324c3cb01688d1d194c7614a88ea851ccc60b0",
+      "current_download_sha256": "7ca9a32e1823be6c1120cb0417324c3cb01688d1d194c7614a88ea851ccc60b0",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/spe633annexe1063268pdf-89499.pdf",
+      "current_for_school_year": "2026-2027",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5823/programmes-et-ressources-en-numerique-et-sciences-informatiques-voie-g"
+    },
+    {
+      "byte_identity": true,
+      "content_sha256": "b54b6422d0eb2fb906e6ad6c79a2e95e6cae00e3fa113da5f7499eee4cc53ae7",
+      "current_download_sha256": "b54b6422d0eb2fb906e6ad6c79a2e95e6cae00e3fa113da5f7499eee4cc53ae7",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/04-annexe1francais2ebomodifiepdf-69834.pdf",
+      "current_for_school_year": "2026-2027",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5793/programmes-et-ressources-en-francais-voie-gt"
+    },
+    {
+      "byte_identity": true,
+      "content_sha256": "b88b5c685ec05d44b0c22d64f491443759fc0f544fe9ad33e626fb6cc29bf65a",
+      "current_download_sha256": "b88b5c685ec05d44b0c22d64f491443759fc0f544fe9ad33e626fb6cc29bf65a",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/04annexe2francais1egtbomodifiepdf-69837.pdf",
+      "current_for_school_year": "2026-2027",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5793/programmes-et-ressources-en-francais-voie-gt"
+    },
+    {
+      "byte_identity": true,
+      "content_sha256": "c07f8b2db9d22a6c2b9ab8386cf7ba323bc2c56abacb3f560dd97d02b383de18",
+      "current_download_sha256": "c07f8b2db9d22a6c2b9ab8386cf7ba323bc2c56abacb3f560dd97d02b383de18",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/spe249annexe1158929pdf-82269.pdf",
+      "current_for_school_year": "2026-2027",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5829/programmes-et-ressources-en-physique-chimie-voie-gt"
+    },
+    {
+      "byte_identity": true,
+      "content_sha256": "c4e3cc6fb201f4dabc78fa47206c1b498b3ed46496cf05165a74e0ecd8856fb1",
+      "current_download_sha256": "c4e3cc6fb201f4dabc78fa47206c1b498b3ed46496cf05165a74e0ecd8856fb1",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/fichecenseignerexplicitementlacomprehensiondelecritoudesecrits1168930pdf-81774.pdf",
+      "current_for_school_year": "2026-2027",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5250/tests-de-positionnement-de-seconde-et-de-cap"
+    },
+    {
+      "byte_identity": true,
+      "content_sha256": "d0edabd6a21d6345d36d32c5506ddcf225e819ddca25d27c1ecc3f97b87a8966",
+      "current_download_sha256": "d0edabd6a21d6345d36d32c5506ddcf225e819ddca25d27c1ecc3f97b87a8966",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/16-maths-4e-attendus-eduscol1114746pdf-74682.pdf",
+      "current_for_school_year": "2026-2027",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5736/ressources-d-accompagnement-du-programme-de-mathematiques-au-cycle-4"
+    },
+    {
+      "byte_identity": true,
+      "content_sha256": "eb8369e7c1611e90f51491fecc5a7c2081a9c57f9c7fbb08d0414677b56ce16f",
+      "current_download_sha256": "eb8369e7c1611e90f51491fecc5a7c2081a9c57f9c7fbb08d0414677b56ce16f",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/spe246annexe1158907pdf-84159.pdf",
+      "current_for_school_year": "2026-2027",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5817/programmes-et-ressources-en-mathematiques-voie-gt"
+    }
+  ],
+  "school_year": "2026-2027"
+}

@@ -26,6 +26,12 @@ fiches:
   statut_enseignement: specialite
   collection_cible: rag_nexus_maths_premiere_gen_specialite
   taxonomy_file: maths/premiere_gen_specialite.yml
+  programme_version: BOEN_14_2026-04-02_MENE2602917A
+- fichier: P1_SPE_NSI.md
+  matiere: nsi
+  statut_enseignement: specialite
+  collection_cible: rag_nexus_nsi_premiere_specialite
+  taxonomy_file: nsi/premiere_specialite.yml
   programme_version: BOEN_special_1_2019-01-22
 - fichier: P1_SPE_PHYSIQUE_CHIMIE.md
   matiere: pc

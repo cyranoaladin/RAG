@@ -1,0 +1,91 @@
+# Worker A / Worker B multi-niveaux — image de PRODUCTION (LOT H2-B
+# remédiation, finding P1-workers).
+#
+# Distincte de Dockerfile.ingestion-worker (Wave 0, rehearsal) pour une
+# seule raison structurelle : ``readiness_gate._GOVERNED_REPOSITORY_ROOT``
+# dérive la racine gouvernée de l'emplacement du fichier sur le disque —
+# ``services/rag-engine/src/ingestor/ingestion_profiles/readiness_gate.py``,
+# 5 niveaux sous la racine du dépôt — et vérifie que ``services/rag-engine``
+# et ``docs/adr`` existent comme enfants de cette racine avant de résoudre
+# l'ancre de confiance de production
+# (``governance/trust-anchors/production-readiness-v1.json``). La mise à
+# plat utilisée par Dockerfile.ingestion-worker (``/app/ingestor/...``)
+# casse cette résolution : le worker refuserait de démarrer en production
+# même avec toutes les preuves fournies, pas par excès de prudence mais
+# parce que la racine ne se résoudrait jamais. Cette image préserve donc la
+# profondeur réelle du dépôt sous ``/app``, jamais un raccourci.
+#
+# Aucun override de cette racine n'existe, ici ni ailleurs — seule la
+# disposition des fichiers copiés change, jamais le mécanisme.
+
+FROM python:3.11-slim@sha256:db3ff2e1800a8581e2c48a27c3995339d47bdf046da21c7627accd3d51053a93
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+  PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+# Marqueurs du checkout gouverné — répertoires vides. readiness_gate.py ne
+# vérifie que leur EXISTENCE (``_GOVERNED_ROOT_MARKERS``), jamais leur
+# contenu ; copier les ADR réels dans une image de production n'ajouterait
+# aucune preuve, seulement du poids.
+RUN mkdir -p /app/docs/adr
+
+COPY services/rag-engine/src/ingestor/requirements.ingestion-worker.txt /tmp/requirements.ingestion-worker.txt
+RUN pip install --upgrade pip==26.2 \
+ && pip install --no-cache-dir -r /tmp/requirements.ingestion-worker.txt
+
+COPY packages/contracts /tmp/nexus-contracts
+RUN pip install --no-cache-dir /tmp/nexus-contracts \
+ && python -m pip check \
+ && rm -rf /tmp/nexus-contracts
+
+# Allowlist applicative, profondeur réelle préservée sous
+# /app/services/rag-engine/src (jamais /app/ingestor/... à plat — cf.
+# l'en-tête de ce fichier). Même périmètre de fichiers que
+# Dockerfile.ingestion-worker, plus les modules multi-niveaux propres à
+# Worker A/B (release_readiness, programme_registry, multilevel_*,
+# staging_profile_manifest) qu'un worker Wave 0 n'a jamais besoin de
+# charger.
+COPY services/rag-engine/src/ingestor/__init__.py /app/services/rag-engine/src/ingestor/__init__.py
+COPY services/rag-engine/src/ingestor/ssrf_guard.py /app/services/rag-engine/src/ingestor/ssrf_guard.py
+COPY services/rag-engine/src/ingestor/ingestion_control/ /app/services/rag-engine/src/ingestor/ingestion_control/
+COPY services/rag-engine/src/ingestor/ingestion_agents/ /app/services/rag-engine/src/ingestor/ingestion_agents/
+COPY services/rag-engine/src/ingestor/ingestion_profiles/ /app/services/rag-engine/src/ingestor/ingestion_profiles/
+COPY services/rag-engine/src/ingestor/ingestion_worker/ /app/services/rag-engine/src/ingestor/ingestion_worker/
+COPY services/rag-engine/src/ingestor/collection_config.py /app/services/rag-engine/src/ingestor/collection_config.py
+COPY services/rag-engine/src/ingestor/wave0_release.py /app/services/rag-engine/src/ingestor/wave0_release.py
+COPY services/rag-engine/src/ingestor/verified_pedagogical_placement.py /app/services/rag-engine/src/ingestor/verified_pedagogical_placement.py
+COPY services/rag-engine/src/ingestor/embedding_provider.py /app/services/rag-engine/src/ingestor/embedding_provider.py
+COPY services/rag-engine/src/ingestor/embedding_contract.py /app/services/rag-engine/src/ingestor/embedding_contract.py
+COPY services/rag-engine/src/ingestor/model_artifact.py /app/services/rag-engine/src/ingestor/model_artifact.py
+COPY services/rag-engine/src/ingestor/readiness_db.py /app/services/rag-engine/src/ingestor/readiness_db.py
+COPY services/rag-engine/src/ingestor/governed_publisher_v2.py /app/services/rag-engine/src/ingestor/governed_publisher_v2.py
+COPY services/rag-engine/src/ingestor/ingest_v2.py /app/services/rag-engine/src/ingestor/ingest_v2.py
+COPY services/rag-engine/src/ingestor/pedagogical_chunker.py /app/services/rag-engine/src/ingestor/pedagogical_chunker.py
+COPY services/rag-engine/src/ingestor/publication_chunking.py /app/services/rag-engine/src/ingestor/publication_chunking.py
+COPY services/rag-engine/src/ingestor/retrieval_hybrid_v2.py /app/services/rag-engine/src/ingestor/retrieval_hybrid_v2.py
+COPY services/rag-engine/src/ingestor/reranker_contract.py /app/services/rag-engine/src/ingestor/reranker_contract.py
+COPY services/rag-engine/src/ingestor/release_readiness.py /app/services/rag-engine/src/ingestor/release_readiness.py
+COPY services/rag-engine/src/ingestor/programme_registry.py /app/services/rag-engine/src/ingestor/programme_registry.py
+COPY services/rag-engine/src/ingestor/multilevel_evidence.py /app/services/rag-engine/src/ingestor/multilevel_evidence.py
+COPY services/rag-engine/src/ingestor/multilevel_mapping.py /app/services/rag-engine/src/ingestor/multilevel_mapping.py
+COPY services/rag-engine/src/ingestor/multilevel_verified_placement.py /app/services/rag-engine/src/ingestor/multilevel_verified_placement.py
+COPY services/rag-engine/src/ingestor/staging_profile_manifest.py /app/services/rag-engine/src/ingestor/staging_profile_manifest.py
+
+COPY scripts/github/trusted_human_review.py /app/scripts/github/trusted_human_review.py
+COPY scripts/github/trusted-reviewers.json /app/scripts/github/trusted-reviewers.json
+ENV NEXUS_TRUSTED_REVIEW_MODULE=/app/scripts/github/trusted_human_review.py \
+    NEXUS_TRUSTED_REVIEWERS_CONFIG=/app/scripts/github/trusted-reviewers.json
+
+# Aucun secret n'est jamais construit dans cette image : ni ARG, ni ENV
+# portant un jeton, ni fichier de credential (même discipline que
+# Dockerfile.ingestion-worker). Le jeton GitHub en lecture seule, quand
+# nécessaire, est lu à l'exécution depuis NEXUS_GITHUB_TOKEN_FILE.
+#
+# Aucun processus HTTP démarré par cette image : pas d'EXPOSE, pas de
+# uvicorn — une boucle CLI, jamais un serveur (ADR-0024, ADR-0031).
+ENV PYTHONPATH=/app/services/rag-engine/src
+WORKDIR /app/services/rag-engine/src
+
+CMD ["python", "-m", "ingestor.ingestion_worker.multilevel_cli"]

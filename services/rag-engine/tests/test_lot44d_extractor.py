@@ -80,7 +80,22 @@ class TestExtractTextCore:
         assert text == "café"
 
     def test_unsupported_mime_type_is_rejected(self) -> None:
+        """Le PDF n'est plus l'exemple : il est désormais pris en charge par
+        le chemin de production. L'invariant testé — refuser tout type dont
+        on ne sait pas extraire le texte de façon reproductible — porte
+        maintenant sur un type qui l'est réellement."""
         with pytest.raises(UnsupportedMimeTypeError):
+            extract_text_core(
+                artifact=_artifact(mime_detected="image/png"),
+                raw_bytes=b"\x89PNG\r\n\x1a\n",
+            )
+
+    def test_pdf_is_routed_to_the_pdf_extractor_and_still_fails_closed(self) -> None:
+        """Accepté comme type, mais pas décodé optimistement : des octets
+        qui ne sont pas un PDF valide sont refusés nommément."""
+        from ingestor.ingestion_agents.extractor import PdfExtractionError
+
+        with pytest.raises(PdfExtractionError):
             extract_text_core(
                 artifact=_artifact(mime_detected="application/pdf"),
                 raw_bytes=b"%PDF-1.4",

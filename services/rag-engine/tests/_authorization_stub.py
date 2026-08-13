@@ -20,7 +20,7 @@ suites dédiées (``test_lot41a_scope_authority.py``,
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, Literal
 
 import psycopg
 from nexus_contracts.ingestion import ResourceScope
@@ -40,11 +40,19 @@ def verified_authorization(
     allowed_domains: tuple[str, ...] = ("eduscol.education.fr",),
     rights_categories: tuple[str, ...] = ("officiel_public", "public_allowed"),
     exclusions: tuple[str, ...] = (),
+    protocol_version: Literal["LOT41A-V1", "LOT41A-V2"] = "LOT41A-V1",
+    allowed_content_sha256: tuple[str, ...] | None = None,
     authorization_id: str = STUB_AUTHORIZATION_ID,
     valid_from: datetime | None = None,
     valid_until: datetime | None = None,
 ) -> VerifiedAuthorization:
     now = datetime.now(UTC)
+    if protocol_version == "LOT41A-V1" and allowed_content_sha256 is not None:
+        raise ValueError("LOT41A-V1 test authorization must not carry a content allowlist")
+    if protocol_version == "LOT41A-V2" and not allowed_content_sha256:
+        raise ValueError("LOT41A-V2 test authorization requires a content allowlist")
+    if protocol_version not in {"LOT41A-V1", "LOT41A-V2"}:
+        raise ValueError(f"unsupported test authorization protocol {protocol_version!r}")
     resolved = scope if isinstance(scope, ResourceScope) else ResourceScope.model_validate(scope)
     return VerifiedAuthorization(
         authorization_id=authorization_id,
@@ -70,6 +78,8 @@ def verified_authorization(
         evidence_reviewer="abenrhouma",
         evidence_challenge="NEXUS-TRUSTED-REVIEW-V1:" + "0" * 64,
         verified_at=now,
+        protocol_version=protocol_version,
+        allowed_content_sha256=allowed_content_sha256,
     )
 
 

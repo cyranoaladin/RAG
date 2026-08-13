@@ -1,0 +1,207 @@
+{
+  "artifacts": [
+    {
+      "chunk_id_set_digest": "01bd00a04a9c7d583ba999806bf74623ebb106a794d06379c24f4c38fac43301",
+      "chunk_sha256_set_digest": "5cb0476e48b5ac79d01dd07b2653d85742e603653438f90478ffbe4fab2f11c7",
+      "chunks": [
+        {
+          "chunk_id": "3a234160fce5bfa8c32a1cd77ffdf674437c1e9c42074eaa066468b4adc9f1ec",
+          "chunk_index": 0,
+          "chunk_sha256": "1646b5945ddab3bf3d53b22d1850a5415b0907d3839da3436b126ec63bd5e1cf",
+          "page_end": 1,
+          "page_start": 1
+        },
+        {
+          "chunk_id": "497a2f5b9184d2deb1975b69454f931c808ca5496fc2a28012d9759af0a9ff1b",
+          "chunk_index": 1,
+          "chunk_sha256": "c2e1013bd46ac6109a6b2b0740635c0de906486997fdaa284f4b3928f4af4d2b",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "877f38b34ba9ebc3716a4407c5f49e48a8aa6eec75a1008dcf943fe790edafea",
+          "chunk_index": 2,
+          "chunk_sha256": "bd64ccf97b7911f1f82d9c93776e0fd072e091b70ca5f71f10a5f6ed7cffc398",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "6e734d164de37c93ca01ce8c2eb73d55babd2e652c8a1dc8259ffd16ee11dfac",
+          "chunk_index": 3,
+          "chunk_sha256": "fef31a018144661dc1fe17d1f318cce6d9564ad79ec3c3e53f3f55b644cc09de",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "e56a191828c749a39708c127c3c022f2ce3f43fc9dbbc213d3204958e33a7416",
+          "chunk_index": 4,
+          "chunk_sha256": "846d3ab3680c336b4d61b53667fc36562d94af0bed323bc6f6e2892dc9780720",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "6dea676b9d8371459925a6cd83a94d73b9b444db964310a80f886229aec267de",
+          "chunk_index": 5,
+          "chunk_sha256": "65df8093c94d17a15586753b294ba44cbdcd4a427556a264068fb4331d59cef2",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "6324cadcc1a9f23109728ca4704fb7c9ea71b000eea6b4f10dbb91cd89e0b2c5",
+          "chunk_index": 6,
+          "chunk_sha256": "b0eb049a72a18401aaced4c834a1e22dd10074bb5fc227cc3d171c63773b0099",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "a289d75f051f1a0b8aac969064058324746490647b20eb0a4b6c5633546ae773",
+          "chunk_index": 7,
+          "chunk_sha256": "be8da9752f1b0a53414021dd0462fa92eb83ed0a9d3ee63a599b181b4070c674",
+          "page_end": 5,
+          "page_start": 5
+        },
+        {
+          "chunk_id": "be5fc5ae31b120fc3cd82a0e0ee47a4ceffb6ca9f70a4ce8bb8510e308550726",
+          "chunk_index": 8,
+          "chunk_sha256": "261894e31b1193fa2fe7516489c2097df0ff2ed2e961f414b532da5434ccffcb",
+          "page_end": 5,
+          "page_start": 5
+        },
+        {
+          "chunk_id": "b982f3f746caf075283d86b7f160f46c945c8893205c35fac14f36fb3d464e6a",
+          "chunk_index": 9,
+          "chunk_sha256": "580be09685b4039ffa0853c1421ea42ba9884d74adae02a134eabaf91e769cad",
+          "page_end": 5,
+          "page_start": 5
+        },
+        {
+          "chunk_id": "cd8e0c77b1febb480f2baed400f1619564511ac76a84a57a6c5a0417e6735c80",
+          "chunk_index": 10,
+          "chunk_sha256": "50c272bf4ed485164b515a05012912c75b2c44657be97f4c948c4bfe9e6a18f8",
+          "page_end": 6,
+          "page_start": 6
+        },
+        {
+          "chunk_id": "01aecf28277ac6245aafd57ba93e007a89ada2b80a38966bfbd73b7fd24b0c74",
+          "chunk_index": 11,
+          "chunk_sha256": "1e4472b0d00438ba0f6baca0daaeab4cb3e6d460552e8d8cbd967354fdd6af4b",
+          "page_end": 7,
+          "page_start": 7
+        },
+        {
+          "chunk_id": "dc368799b1fae6a20239a66912c36127e930da46b1fd569ab81c585bf6e87290",
+          "chunk_index": 12,
+          "chunk_sha256": "12a655875fb6d36b901228c98485f622ff08e6db5090a6839d98b55c872b9bcb",
+          "page_end": 7,
+          "page_start": 7
+        },
+        {
+          "chunk_id": "f4ccb22ec5391435990a2e66b048d212f266092cfe37bf82a2d937bb4da77d45",
+          "chunk_index": 13,
+          "chunk_sha256": "bb7b1d9b2bf8ce15ed586b8276deb8707fc87f9a04dc5583e0e697097ca2cd29",
+          "page_end": 8,
+          "page_start": 8
+        },
+        {
+          "chunk_id": "914165b9a6c3de40f2bc5d2ec143f1d78a5387c6c0eca73591fa45427ce1753d",
+          "chunk_index": 14,
+          "chunk_sha256": "c1e001de04dafa79aefc31bffbc675b5bbf30b41e83ab188c4b51d83c9ba6c15",
+          "page_end": 8,
+          "page_start": 8
+        },
+        {
+          "chunk_id": "1ca69291e7b577d17caa818d69f9437b1250d6549fe868f101a6dbc9103de922",
+          "chunk_index": 15,
+          "chunk_sha256": "cfd28d892f0d895d38a43fd84e613e4d61b11a978b91de3b59eb3c3e6c9e65d5",
+          "page_end": 9,
+          "page_start": 9
+        },
+        {
+          "chunk_id": "abdbeb0d957ed081f84a6f2d42416a55cfec46d2560278f827d4bcbf42a36ad3",
+          "chunk_index": 16,
+          "chunk_sha256": "eaef9396a17f589f95d7486fc403d59a1aca745ce3aadefff09f046553744391",
+          "page_end": 10,
+          "page_start": 10
+        },
+        {
+          "chunk_id": "85886d3bf4e5f966a9647f37185619ae8e6c866ebf1bd0a9d09b8a5fb2230bf5",
+          "chunk_index": 17,
+          "chunk_sha256": "ab91ad7ea15179bd22a4819f0e88151cc907fb7d98269903334a12c04dade423",
+          "page_end": 10,
+          "page_start": 10
+        },
+        {
+          "chunk_id": "52923db536c593997584788b8463509355b7371b8a8fb2cc0a8d82423d2176d8",
+          "chunk_index": 18,
+          "chunk_sha256": "7c6f2f6f0360896f29382a597c380a7c26eefe95c73f84b1d904bbf94f78b3a3",
+          "page_end": 11,
+          "page_start": 11
+        }
+      ],
+      "content_sha256": "49ccdca4d97ba4cf25875dfc731474e84d0332985c15396d3abfb9107f5f545a",
+      "page_count": 11,
+      "page_coverage_digest": "6ebe54dbb0f3691353595fd46c093c816284bcc18f441805359458f342b15e1d",
+      "placement_id_set_digest": "0b116d88b4dfcb6251018c35807bcf3afce920bfddb9d1fca63c6b4077d953ae",
+      "placements": [
+        {
+          "candidat": "libre",
+          "collection": "rag_nexus_maths_troisieme_tc",
+          "currentness": "current",
+          "matiere": "maths",
+          "niveau": "troisieme",
+          "placement_id": "e3fd13ed0629b710ca8550fac869ca0776efa15d8bb0d75f03d64f948267d990",
+          "placement_status": "active",
+          "programme_version": "BOEN_special_11_2018-07-26_aj_2020",
+          "review_status": "reviewed",
+          "school_year": "2026-2027",
+          "source_placement_id": "par-scope/college/cycle-4/mathematiques/3e/reperes-attendus/2019/attendus-de-fin-d-annee-en-mathematiques-en-3e-pdf-1-26-mo--49ccdca4d9.pdf",
+          "source_scope": "college/cycle-4/mathematiques",
+          "statut_enseignement": "tronc_commun",
+          "tenant": "libre_troisieme",
+          "visibility": "internal",
+          "voie": "college"
+        }
+      ],
+      "source_path": "01_EDUSCOL_OFFICIEL/COLLEGE/3E/MATHEMATIQUES/02_REPERES_ATTENDUS/2019/attendus-de-fin-d-annee-en-mathematiques-en-3e-pdf-1-26-mo--49ccdca4d9.pdf",
+      "source_url": "https://eduscol.education.gouv.fr/5736/ressources-d-accompagnement-du-programme-de-mathematiques-au-cycle-4",
+      "title": "Attendus de fin d'année en mathématiques en 3ᵉ PDF - 1.26 Mo",
+      "type_doc": "ressource_officielle"
+    }
+  ],
+  "authorities": {
+    "candidate_inventory_sha256": "0c203af33d97f787f4fcbbf96ae822d37464d571be96074babf5abb529aaf882",
+    "corpus_manifest_sha256": "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e",
+    "currentness_evidence_sha256": "75d77994809a81ed9f9452eace75448d3869ef4b8ee1942693f66f430ec27f36",
+    "pii_evidence_sha256": "63d0879358a844b44f41c82d21c0b67349e0f7a2f1cdabe7becff2affc58f9f1",
+    "pii_policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+    "placement_catalog_sha256": "095ca37cc4c2126d06b77106f9f1663d4f5ad881ae4952dbf5b951477fd54c39",
+    "rights_registry_sha256": "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff",
+    "sealed_catalog_sha256": "301c0dcce4e49cd9b6e524708bde82b262a09b05bd52e0431233813ecf8ae04b"
+  },
+  "collection": "rag_nexus_maths_troisieme_tc",
+  "expected_counts": {
+    "artifacts": 1,
+    "chunks": 19,
+    "placements": 1
+  },
+  "models": {
+    "embedding": {
+      "dimension": 1024,
+      "inventory_sha256": "e2c7384ba36096b3f3bdfff4973f728596104aff0f1d38f1b6463e60765fe22a",
+      "model_id": "intfloat/multilingual-e5-large"
+    },
+    "reranker": {
+      "inventory_sha256": "bdcedc4d7cfe647b9aaa5a7546822dfee7826ebb3c64472bf89eae7592e08fe1",
+      "model_id": "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    }
+  },
+  "profile": {
+    "fingerprint": "d9d68c1cd0cce24076593b49b5c16aa2e0c44fc31117c9929128c5a4fc3be09d",
+    "manifest_digest": "b478ed0febf854dbcfe61e1318f16a3f1cccbda556c9c7fb791815e4d83329f8",
+    "version": "wave0-v1"
+  },
+  "programme_version": "BOEN_special_11_2018-07-26_aj_2020",
+  "release_id": "wave0-mathematiques-troisieme-2026-2027-v1",
+  "release_kind": "WAVE0_SUBJECT_RELEASE_V1",
+  "school_year": "2026-2027"
+}

@@ -1,0 +1,19 @@
+{
+  "manifest_kind": "NEXUS_STAGING_PROFILE_MANIFEST_V1",
+  "provenance": "Extension multi-niveaux 2026-2027 staging",
+  "generated_at": "2026-08-12T18:49:34+01:00",
+  "authority_mode": "STAGING_LOCAL_GITHUB_ONLY",
+  "production_approval": false,
+  "profiles": [
+    {"collection": "rag_nexus_francais_premiere_tc", "profile_version": "multilevel-v1", "fingerprint": "fe416308373772f8fa96c7570d8ad78aec32e89b9f059f2d39b37a3a8649d9a6"},
+    {"collection": "rag_nexus_francais_quatrieme_tc", "profile_version": "multilevel-v1", "fingerprint": "02573ac1bdc66f9163e94334a1f6dd3469a27edded44a5d95ab2f72c0074cf4f"},
+    {"collection": "rag_nexus_francais_seconde_tc", "profile_version": "multilevel-v1", "fingerprint": "890dede86e97084d07f72f2d41ef1d09759bb1b4fc2eaa24544eac06a5b34c46"},
+    {"collection": "rag_nexus_maths_premiere_gen_specialite", "profile_version": "multilevel-v1", "fingerprint": "04c8de1c240f344c5fbfa8fed25ded968b07e0963507c22b7ab960b858dc8478"},
+    {"collection": "rag_nexus_maths_quatrieme_tc", "profile_version": "multilevel-v1", "fingerprint": "5a9a0ef45ab43f0e046b1892e0cf572b2c6fe4137d027a9077a6fe79c7314ce2"},
+    {"collection": "rag_nexus_maths_seconde_tc", "profile_version": "multilevel-v1", "fingerprint": "2320e3f3e7906ae1b76b0c704cba38cd435dd8cbe6b7d13d78671c6b4cc73d89"},
+    {"collection": "rag_nexus_maths_terminale_gen_specialite", "profile_version": "multilevel-v1", "fingerprint": "4f0b45d22ca6fcb0ffab20c20df92c1e852fcd836bc3c8b9793c01f085472f0f"},
+    {"collection": "rag_nexus_nsi_premiere_specialite", "profile_version": "multilevel-v1", "fingerprint": "2dcfca3b80266350d4185f9d9dffa673e21eeb0b947110510c6297fbf102bba1"},
+    {"collection": "rag_nexus_nsi_terminale_specialite", "profile_version": "multilevel-v1", "fingerprint": "ef417eff33177d469da58c4e3bcdd19901e97799d3bcec4c816a13d65708964c"},
+    {"collection": "rag_nexus_pc_terminale_specialite", "profile_version": "multilevel-v1", "fingerprint": "c497d2c5e11ead6ec91589b89f0ba1b824458a30939b1ba6c3b4a9905ec5e865"}
+  ]
+}

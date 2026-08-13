@@ -633,3 +633,146 @@ class TestConcurrentBootstrapInvocations:
         assert applied == expected_versions, (
             "each migration must be applied exactly once despite two concurrent runners"
         )
+
+
+def _insert_scope_authorization(
+    conn: psycopg.Connection,
+    *,
+    authorization_id: str,
+    protocol_version: str,
+    allowed_content_sha256: object = None,
+    include_allowlist: bool = True,
+) -> None:
+    allowlist_column = ", allowed_content_sha256" if include_allowlist else ""
+    allowlist_value = ", %s::text[]" if include_allowlist else ""
+    params: list[object] = [authorization_id, protocol_version, authorization_id]
+    if include_allowlist:
+        params.append(allowed_content_sha256)
+    with conn.cursor() as cur:
+        cur.execute(
+            f"""
+            INSERT INTO ingestion_control.scope_authorizations (
+                authorization_id, protocol_version, decision,
+                tenant, collection, niveau, voie, matiere, candidat, audience,
+                visibility, school_year, programme_version,
+                manifest_digest, profile_id, profile_version, profile_fingerprint,
+                allowed_domains, rights_categories, exclusions,
+                pii_absence_attested, pii_absence_evidence,
+                valid_from, valid_until,
+                artifact_path, artifact_blob_sha, authorization_digest,
+                evidence_repository, evidence_pull_request,
+                evidence_base_sha, evidence_head_sha, evidence_review_id,
+                evidence_reviewer, evidence_submitted_at, evidence_challenge
+                {allowlist_column}
+            ) VALUES (
+                %s, %s, 'AUTHORIZE_INGESTION_SCOPE',
+                'nexus', 'libre_terminale_philosophie', 'terminale', 'generale',
+                'philosophie', 'libre', ARRAY['libre'], 'internal', '2026-2027',
+                'BOEN_special_8_2019-07-25',
+                repeat('a', 64), 'terminale-philosophie', '1.0.0', repeat('b', 64),
+                ARRAY['eduscol.education.gouv.fr'], ARRAY['officiel_public'], ARRAY[]::text[],
+                true, 'sha256:evidence', now() - interval '1 minute', now() + interval '1 day',
+                'governance/authorizations/' || %s || '.json',
+                repeat('c', 40), repeat('d', 64),
+                'cyranoaladin/RAG', 96, repeat('e', 40), repeat('f', 40), 1,
+                'abenrhouma', now(), 'NEXUS-TRUSTED-REVIEW-V1:' || repeat('0', 64)
+                {allowlist_value}
+            )
+            """,
+            tuple(params),
+        )
+
+
+class TestScopeAuthorizationContentAllowlist:
+    _SHA_A = "a" * 64
+    _SHA_B = "b" * 64
+
+    def test_existing_v1_row_survives_apply_and_valid_v2_is_accepted(
+        self, pg_container: dict[str, str]
+    ) -> None:
+        with _superuser_conn(pg_container) as conn:
+            for version in range(1, 9):
+                _apply_migration_file(conn, version)
+            _insert_scope_authorization(
+                conn,
+                authorization_id="existing-v1",
+                protocol_version="LOT41A-V1",
+                include_allowlist=False,
+            )
+
+            _apply_migration_file(conn, 9)
+            _insert_scope_authorization(
+                conn,
+                authorization_id="valid-v2",
+                protocol_version="LOT41A-V2",
+                allowed_content_sha256=[self._SHA_A, self._SHA_B],
+            )
+
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT authorization_id, protocol_version, allowed_content_sha256 "
+                    "FROM ingestion_control.scope_authorizations ORDER BY authorization_id"
+                )
+                rows = cur.fetchall()
+            assert rows == [
+                ("existing-v1", "LOT41A-V1", None),
+                ("valid-v2", "LOT41A-V2", [self._SHA_A, self._SHA_B]),
+            ]
+
+    @pytest.mark.parametrize(
+        ("protocol_version", "allowlist"),
+        [
+            ("LOT41A-V2", None),
+            ("LOT41A-V2", []),
+            ("LOT41A-V2", ["g" * 64]),
+            ("LOT41A-V2", ["A" * 64]),
+            ("LOT41A-V2", ["a" * 64, "a" * 64]),
+            ("LOT41A-V2", ["b" * 64, "a" * 64]),
+            ("LOT41A-V2", f"[0:0]={{{'a' * 64}}}"),
+            ("LOT41A-V2", f"{{{{{'a' * 64},{'b' * 64}}}}}"),
+            ("LOT41A-V2", ["a" * 64, None]),
+            ("LOT41A-V1", ["a" * 64]),
+        ],
+        ids=[
+            "v2-null",
+            "v2-empty",
+            "v2-malformed",
+            "v2-uppercase",
+            "v2-duplicate",
+            "v2-unsorted",
+            "v2-lower-bound-zero",
+            "v2-two-dimensional",
+            "v2-null-member",
+            "v1-populated",
+        ],
+    )
+    def test_direct_sql_rejects_noncanonical_version_allowlist_combinations(
+        self,
+        pg_container: dict[str, str],
+        protocol_version: str,
+        allowlist: object,
+    ) -> None:
+        with _superuser_conn(pg_container) as conn:
+            for version in range(1, 10):
+                _apply_migration_file(conn, version)
+
+            with pytest.raises(psycopg.errors.CheckViolation):
+                _insert_scope_authorization(
+                    conn,
+                    authorization_id="invalid-allowlist",
+                    protocol_version=protocol_version,
+                    allowed_content_sha256=allowlist,
+                )
+
+    def test_unknown_protocol_is_rejected(self, pg_container: dict[str, str]) -> None:
+        with _superuser_conn(pg_container) as conn:
+            for version in range(1, 10):
+                _apply_migration_file(conn, version)
+
+            with pytest.raises(psycopg.errors.CheckViolation):
+                _insert_scope_authorization(
+                    conn,
+                    authorization_id="unknown-protocol",
+                    protocol_version="LOT41A-V3",
+                    allowed_content_sha256=[self._SHA_A],
+                )

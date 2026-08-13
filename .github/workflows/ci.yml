@@ -58,6 +58,146 @@ jobs:
       - working-directory: services/rag-engine
         run: make test-integration-hybrid
 
+  real-model-acceptance:
+    name: "real-model acceptance (E5 + reranker + pgvector)"
+    runs-on: ubuntu-latest
+    needs: contracts
+    timeout-minutes: 30
+    # LOT H2-B remédiation (finding P2-real-model-ci-coverage) : distinct de
+    # "rag-engine" (CI code rapide, tests réels exclus via `-m "not
+    # integration"`). Ce job matérialise les VRAIS modèles E5/reranker à
+    # des révisions HuggingFace épinglées (jamais "latest"), les vérifie
+    # par inventaire SHA-256, puis exécute une acceptance minimale contre
+    # un VRAI pgvector éphémère (service container ci-dessous, même image
+    # que docker-compose.v2.yml). Portée honnête, documentée dans
+    # docs/reports/h2_exact_head_remediation_pre_go_live.md : real E5
+    # encode + real reranker rerank + real vectors round-trip through
+    # pgvector — jamais l'ingestion complète du corpus propriétaire (PDF
+    # non commités, hors de portée d'un runner hosted).
+    env:
+      EMBEDDING_MODEL_REVISION: 3d7cfbdacd47fdda877c5cd8a79fbcc4f2a574f3
+      RERANKER_MODEL_REVISION: 233902d25c440f23af6f7d6e94d2946bac0bee0a
+    services:
+      pgvector:
+        image: pgvector/pgvector:pg16@sha256:00ba258a66dac104fd5171074a0084462a64a1369d8513f3d0a634e2f24d15bc
+        env:
+          POSTGRES_DB: real_model_acceptance
+          POSTGRES_USER: real_model_acceptance
+          POSTGRES_PASSWORD: real-model-acceptance-ci-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U real_model_acceptance"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - working-directory: services/rag-engine
+        run: make install
+      - name: Cache real embedding model artifact
+        id: cache-e5
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/model-cache/e5-large
+          key: real-model-e5-large-${{ env.EMBEDDING_MODEL_REVISION }}
+      - name: Cache real reranker model artifact
+        id: cache-reranker
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/model-cache/reranker
+          key: real-model-reranker-${{ env.RERANKER_MODEL_REVISION }}
+      - name: Prepare embedding model artifact (cache miss only)
+        if: steps.cache-e5.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          source services/rag-engine/.venv/bin/activate
+          MODEL_ARTIFACT_DIR="${{ runner.temp }}/model-cache/e5-large" \
+          EMBEDDING_MODEL_REVISION="${{ env.EMBEDDING_MODEL_REVISION }}" \
+          bash scripts/e2e/prepare-embedding-model-artifact.sh
+      - name: Prepare reranker model artifact (cache miss only)
+        if: steps.cache-reranker.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          source services/rag-engine/.venv/bin/activate
+          MODEL_ARTIFACT_DIR="${{ runner.temp }}/model-cache/reranker" \
+          RERANKER_MODEL_REVISION="${{ env.RERANKER_MODEL_REVISION }}" \
+          bash scripts/e2e/prepare-reranker-model-artifact.sh
+      - name: Fail closed if a cached artifact is missing its inventory
+        run: |
+          set -euo pipefail
+          test -f "${{ runner.temp }}/model-cache/e5-large/SHA256SUMS"
+          test -f "${{ runner.temp }}/model-cache/reranker/SHA256SUMS"
+      - name: Compute model inventory digests
+        id: digests
+        run: |
+          set -euo pipefail
+          echo "e5_sha256=$(sha256sum "${{ runner.temp }}/model-cache/e5-large/SHA256SUMS" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "reranker_sha256=$(sha256sum "${{ runner.temp }}/model-cache/reranker/SHA256SUMS" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+      - name: Real-model acceptance (E5 + reranker + pgvector)
+        working-directory: services/rag-engine
+        env:
+          RAG_EMBEDDING_MODEL_CACHE_DIR: ${{ runner.temp }}/model-cache/e5-large
+          RAG_EMBEDDING_MODEL_INVENTORY_SHA256: ${{ steps.digests.outputs.e5_sha256 }}
+          RAG_RERANKER_MODEL_CACHE_DIR: ${{ runner.temp }}/model-cache/reranker
+          RAG_RERANKER_MODEL_INVENTORY_SHA256: ${{ steps.digests.outputs.reranker_sha256 }}
+          NEXUS_REAL_MODEL_PGVECTOR_DSN: "postgresql://real_model_acceptance:real-model-acceptance-ci-only@localhost:5432/real_model_acceptance"
+          HF_HUB_OFFLINE: "1"
+          TRANSFORMERS_OFFLINE: "1"
+        run: |
+          set -euo pipefail
+          PYTHONPATH=src .venv/bin/pytest tests/integration/test_real_model_ci_acceptance.py -v
+
+  governance-postgres:
+    name: "governance postgres"
+    runs-on: ubuntu-latest
+    needs: contracts
+    # G2 : les invariants gouvernés (migration 013, LOT42-V2, attribution
+    # H2-F, rollbacks fail-closed, sérialisation writer/attestor) ne sont
+    # prouvables que sur un vrai PostgreSQL. Sans ce job, ils n'étaient
+    # protégés contre régression par aucun check.
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - working-directory: services/rag-engine
+        run: make install-dev
+      # Chaque suite démarre son propre conteneur jetable depuis une image
+      # épinglée par digest, avec des credentials générés par run. Aucune
+      # base partagée, aucun secret, aucun service externe.
+      # Inventaire AVANT : le garde-fou compare, il ne suppose pas que le
+      # runner est vierge. Un filtre par préfixe de nom serait fragile (il
+      # dépendrait des labels internes des harnais) et capterait des
+      # conteneurs sans rapport.
+      # Préflight visible : si Docker manque, la cause apparaît dans les
+      # logs GitHub avant toute exécution de pytest, plutôt qu'au travers
+      # d'une erreur de collecte. Le script est partagé avec la cible Make,
+      # de sorte que CI et poste local refusent avec le même message.
+      - name: Require a real Docker daemon
+        working-directory: services/rag-engine
+        run: bash infra/scripts/require_docker.sh
+      - name: Snapshot containers before
+        run: docker ps -aq | sort > /tmp/containers-before.txt
+      - working-directory: services/rag-engine
+        run: make test-governance-pg
+      - name: Assert no test container survived
+        if: always()
+        run: |
+          set -euo pipefail
+          docker ps -aq | sort > /tmp/containers-after.txt
+          leftover="$(comm -13 /tmp/containers-before.txt /tmp/containers-after.txt)"
+          if [ -n "$leftover" ]; then
+            echo "residual containers created by this job:" >&2
+            docker ps -a --filter "id=$(echo "$leftover" | tr '\n' ' ' | sed 's/ /" --filter "id=/g')" >&2 || true
+            echo "$leftover" | xargs -r docker rm -f
+            exit 1
+          fi
+
   cockpit:
     name: "services/cockpit"
     runs-on: ubuntu-latest

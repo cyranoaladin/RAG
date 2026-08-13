@@ -542,7 +542,7 @@ def _assert_hybrid_search_schema(path: Path) -> None:
 
 
 def test_migration_head_has_advanced_beyond_002_without_rewriting_it() -> None:
-    assert MIGRATION_HEAD.read_text(encoding="utf-8") == "003_profile_filtering\n"
+    assert MIGRATION_HEAD.read_text(encoding="utf-8") == "004_artifact_placements\n"
 
 
 def test_migration_002_adds_generated_french_fts_column_and_named_gin_index() -> None:

@@ -30,9 +30,9 @@ PGVECTOR_USER="${PGVECTOR_USER:-raguser}"
 source "$SCRIPT_DIR/lib/pgvector_migration_state.sh"
 discover_manifest "$MIGRATIONS_DIR" "$MIGRATION_HEAD_FILE"
 
-if [[ "$MIGRATION_DECLARED_HEAD" != "003_profile_filtering" \
-   || ${#MIGRATION_VERSIONS[@]} -ne 3 ]]; then
-    echo "ROLLBACK_HEAD_INVALID: declared head is not 003_profile_filtering" >&2
+if [[ ${#MIGRATION_VERSIONS[@]} -lt 3 \
+   || "${MIGRATION_NAMES[2]}" != "003_profile_filtering.sql" ]]; then
+    echo "ROLLBACK_HEAD_INVALID: migration 003_profile_filtering is unavailable" >&2
     exit 1
 fi
 if [[ ! -f "$ROLLBACK_FILE" || -L "$ROLLBACK_FILE" ]]; then

@@ -17,9 +17,9 @@ ce module ne fait qu'appeler la chaîne, sans logique de routage propre.
 Aucun profil par défaut, aucune sélection de "dernière version" : le
 ``profile_version`` doit être fourni explicitement dans le payload du job.
 
-LOT41A (ADR-0032, remédiation GATE H1 items **C** et **D**) — l'autorisation
+LOT41A (ADR-0032/ADR-0034, remédiation GATE H1 items **C** et **D**) — l'autorisation
 n'est pas un feu vert calculé une fois puis oublié, c'est une contrainte
-appliquée tout au long de la chaîne, à quatre points de contrôle :
+appliquée tout au long de la chaîne, à cinq points de contrôle :
 
 1. **pre_fetch** — avant toute requête sortante et avant toute création de
    ressource : l'autorisation *nommée par le job* (``scope_authorization_id``,
@@ -31,9 +31,12 @@ appliquée tout au long de la chaîne, à quatre points de contrôle :
 3. **redirect** — chaque saut réellement suivi par ``safe_fetch``
    (cf. ``_authorized_fetcher``) repasse par le même enforcement : une
    redirection hors domaine autorisé interrompt le téléchargement.
-4. **rights** — la catégorie de droits *produite* par le RightsAgent est
+4. **content** — après le téléchargement borné, l'autorisation est revérifiée
+   en direct et le SHA-256 des octets bruts est confronté à l'allowlist V2,
+   avant ``FETCHED``, tout stockage et toute extraction.
+5. **rights** — la catégorie de droits *produite* par le RightsAgent est
    confrontée à ``rights_categories``, et l'autorisation est **revérifiée
-   en direct une seconde fois** : une révocation ou une expiration
+   en direct une troisième fois** : une révocation ou une expiration
    survenue pendant Scout/Fetcher/Extractor prend effet avant que la
    ressource n'avance, jamais seulement au job suivant.
 
@@ -61,7 +64,11 @@ from nexus_contracts.ingestion import ResourceScope, SearchPlan
 from nexus_contracts.resource_state import ResourceState
 
 try:
-    from ingestor.ingestion_agents.classifier import run_classifier
+    from ingestor.ingestion_agents.classifier import (
+        ConformityProvenance,
+        ConformityResult,
+        run_classifier,
+    )
     from ingestor.ingestion_agents.dependencies import (
         ArtifactReader,
         ArtifactStore,
@@ -71,10 +78,17 @@ try:
         default_validate_destination,
     )
     from ingestor.ingestion_agents.extractor import run_extractor
-    from ingestor.ingestion_agents.fetcher import run_fetcher
+    from ingestor.ingestion_agents.fetcher import ContentAuthorizationBinding, run_fetcher
     from ingestor.ingestion_agents.quality_agent import run_quality_agent
     from ingestor.ingestion_agents.rights_agent import run_rights_agent
     from ingestor.ingestion_agents.scout import run_scout
+    from ingestor.ingestion_control.artifact_attribution import (
+        derive_artifact_attribution,
+        persist_artifact_attribution,
+    )
+    from ingestor.ingestion_control.governed_publication_path import (
+        stage_publication_for_review,
+    )
     from ingestor.ingestion_control.jobs import (
         JobClaim,
         JobLeaseConflictError,
@@ -101,9 +115,15 @@ try:
     )
     from ingestor.ingestion_control.scope_enforcement import (
         enforce_before_fetch,
+        enforce_content_sha256,
         enforce_destination,
         enforce_pii,
         enforce_rights,
+    )
+    from ingestor.ingestion_control.sealed_evidence import (
+        SealedEvidenceError,
+        VerifiedPIIEvidenceRegistry,
+        VerifiedRightsEvidenceRegistry,
     )
     from ingestor.ingestion_profiles.registry import (
         ProfileRegistry,
@@ -111,11 +131,19 @@ try:
         select_profile,
     )
     from ingestor.ingestion_profiles.validation import validate_scope_against_profile
+    from ingestor.verified_pedagogical_placement import (
+        VerifiedPedagogicalPlacement,
+        VerifiedPedagogicalPlacementResolver,
+    )
 except (ImportError, ValueError):
     # Image Docker aplatie (LOT44f, ADR-0029) : "ingestor" n'existe pas comme
     # paquet — ces sous-paquets sont importables directement au premier
     # niveau. Même discipline que api.py.
-    from ingestion_agents.classifier import run_classifier
+    from ingestion_agents.classifier import (
+        ConformityProvenance,
+        ConformityResult,
+        run_classifier,
+    )
     from ingestion_agents.dependencies import (
         ArtifactReader,
         ArtifactStore,
@@ -125,10 +153,17 @@ except (ImportError, ValueError):
         default_validate_destination,
     )
     from ingestion_agents.extractor import run_extractor
-    from ingestion_agents.fetcher import run_fetcher
+    from ingestion_agents.fetcher import ContentAuthorizationBinding, run_fetcher
     from ingestion_agents.quality_agent import run_quality_agent
     from ingestion_agents.rights_agent import run_rights_agent
     from ingestion_agents.scout import run_scout
+    from ingestion_control.artifact_attribution import (
+        derive_artifact_attribution,
+        persist_artifact_attribution,
+    )
+    from ingestion_control.governed_publication_path import (
+        stage_publication_for_review,
+    )
     from ingestion_control.jobs import (
         JobClaim,
         JobLeaseConflictError,
@@ -155,9 +190,15 @@ except (ImportError, ValueError):
     )
     from ingestion_control.scope_enforcement import (
         enforce_before_fetch,
+        enforce_content_sha256,
         enforce_destination,
         enforce_pii,
         enforce_rights,
+    )
+    from ingestion_control.sealed_evidence import (
+        SealedEvidenceError,
+        VerifiedPIIEvidenceRegistry,
+        VerifiedRightsEvidenceRegistry,
     )
     from ingestion_profiles.registry import (
         ProfileRegistry,
@@ -166,6 +207,10 @@ except (ImportError, ValueError):
     )
     from ingestion_profiles.validation import (
         validate_scope_against_profile,
+    )
+    from verified_pedagogical_placement import (
+        VerifiedPedagogicalPlacement,
+        VerifiedPedagogicalPlacementResolver,
     )
 
 #: Seul type de job que cette boucle sait traiter — remédiation revue
@@ -230,6 +275,56 @@ class WorkerDeps:
     #: aucune autorisation réelle — un appelant qui oublie de la fournir
     #: échoue fail-closed, jamais silencieusement en mode « non vérifié ».
     manifest_digest: str = ""
+
+    #: Preuves scellées, chargées et vérifiées **une fois** au démarrage.
+    #:
+    #: ``None`` conserve le comportement historique pour les appelants qui
+    #: ne publient rien (tests unitaires d'une seule transition). Le chemin
+    #: de production les fournit toujours : sans elles, le worker devrait
+    #: décider de la PII et des droits sans preuve, ce que ce lot supprime.
+    #:
+    #: Recharger un fichier à chaque job rouvrirait la faille — un
+    #: opérateur pourrait éditer la preuve entre deux ressources sans
+    #: qu'elle soit revérifiée.
+    pii_evidence_registry: VerifiedPIIEvidenceRegistry | None = None
+    rights_evidence_registry: VerifiedRightsEvidenceRegistry | None = None
+    #: Résolution artifact-bound commune aux Workers A/B. Son absence
+    #: conserve le Classifier non vérifié, donc structurellement non routable.
+    placement_resolver: VerifiedPedagogicalPlacementResolver | None = None
+
+    #: Worker délibérément incapable de publier.
+    #:
+    #: ``None`` sur les deux registres était ambigu : un worker de
+    #: production mal configuré et un worker de test volontairement nu
+    #: avaient exactement la même forme, et le runtime retombait
+    #: silencieusement sur ``pii_detected = False`` et
+    #: ``artifact.license``. La CLI de production ne pose jamais ce
+    #: drapeau ; un worker qui le porte ne met aucune ressource en revue,
+    #: donc rien de ce qu'il traite ne peut être publié.
+    non_publishable: bool = False
+
+    def require_sealed_evidence(
+        self,
+    ) -> tuple[VerifiedPIIEvidenceRegistry, VerifiedRightsEvidenceRegistry]:
+        """Rend les deux registres, ou refuse de traiter le job.
+
+        Appelée avant tout téléchargement : un worker sans preuve échoue
+        avant d'agir, pas après avoir écrit."""
+        if self.pii_evidence_registry is None or self.rights_evidence_registry is None:
+            missing = [
+                name
+                for name, value in (
+                    ("pii_evidence_registry", self.pii_evidence_registry),
+                    ("rights_evidence_registry", self.rights_evidence_registry),
+                )
+                if value is None
+            ]
+            raise SealedEvidenceError(
+                f"worker {self.owner!r} is missing {missing} and is not marked "
+                "non_publishable — refusing to process a job it could not prove "
+                "anything about"
+            )
+        return self.pii_evidence_registry, self.rights_evidence_registry
 
 
 @dataclass(frozen=True)
@@ -528,10 +623,38 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
             )
 
     if resource_state in (ResourceState.DISCOVERED, ResourceState.CANDIDATE):
-        # Remédiation revue PR#90 : la licence est propagée ici, avant
-        # persist_artifact, jamais reconstruite après coup sur une copie en
-        # mémoire (cf. docstring de run_fetcher) — une reprise après crash
-        # relit alors le même ArtifactRecord, licence comprise.
+        # La preuve de droits vient exclusivement de l'autorisation LOT41A
+        # revérifiée ci-dessus, jamais d'un champ libre du payload opérateur.
+        # Elle est propagée avant persist_artifact : une reprise après crash
+        # relit donc le même ArtifactRecord, lié au digest exact approuvé.
+        def authorize_downloaded_content(
+            *, content_sha256: str, final_url: str
+        ) -> ContentAuthorizationBinding:
+            """Revérifie après le téléchargement, avant ``FETCHED``.
+
+            La destination finale est reconfrontée à l'autorisation fraîche
+            avant le SHA. Une révocation/expiration/head drift survenue
+            pendant le transfert est donc durablement refusée au checkpoint
+            ``content`` avant que les octets ne quittent le buffer borné.
+            """
+            fresh_authorization = _authorize_or_record_denial(
+                conn,
+                claim=claim,
+                deps=deps,
+                authorization_id=authorization_id,
+                scope=scope,
+                checkpoint="content",
+                then=lambda auth: (
+                    enforce_destination(auth, url=final_url, checkpoint="destination"),
+                    enforce_content_sha256(auth, content_sha256=content_sha256),
+                )[-1],
+            )
+            return ContentAuthorizationBinding(
+                authorization_id=fresh_authorization.authorization_id,
+                authorization_digest=fresh_authorization.authorization_digest,
+                protocol_version=fresh_authorization.protocol_version,
+            )
+
         artifact, _fetched, stored_transition = run_fetcher(
             conn,
             candidate=candidate,
@@ -547,8 +670,14 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
             # redirection est observable ; une redirection hors domaine
             # autorisé interrompt le téléchargement immédiatement.
             safe_fetch=_authorized_fetcher(deps, authorization),
+            authorize_content=authorize_downloaded_content,
             job_id=claim.job_id,
-            license=str(payload["license"]) if payload.get("license") else None,
+            # LOT41A borne le scope et les catégories de droits admises ;
+            # il n'est jamais une preuve de licence sur l'artefact. Le job
+            # ne porte aucune preuve de droits gouvernée et ne peut donc pas
+            # en injecter une : RightsAgent doit rester fail-closed sur
+            # Rights.unknown jusqu'à l'arrivée d'une preuve distincte.
+            license=None,
         )
         persist_artifact(conn, artifact=artifact)
         conn.commit()  # point de contrôle LOT44f : Fetcher durablement franchi
@@ -561,6 +690,38 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
                 "ArtifactRecord found (expected after Fetcher committed)"
             )
 
+    verified_placement: VerifiedPedagogicalPlacement | None = None
+    if deps.placement_resolver is not None:
+        verified_placement = deps.placement_resolver.resolve(
+            content_sha256=artifact.sha256,
+            collection=str(scope.collection),
+            profile_version=profile.profile_version,
+            school_year=str(scope.school_year),
+            claimed_source_path=(
+                str(payload["source_path"]) if "source_path" in payload else None
+            ),
+            claimed_source_url=candidate.canonical_url,
+            claimed_type_doc=candidate.proposed_type_doc.value,
+        )
+
+    # La PII n'est plus un fait inventé. Le SHA interrogé est celui des
+    # octets **réellement téléchargés** — ``artifact.sha256``, calculé par
+    # Fetcher — et non celui que le job annonçait : c'est le seul qui
+    # décrive ce qui serait indexé.
+    #
+    # Toute absence de couverture est un refus qui remonte et fait échouer
+    # le job : ni extraction, ni gate qualité, ni mise en revue sur un
+    # document que personne n'a regardé.
+    if deps.non_publishable:
+        # Voie explicitement non publiable : la ressource ne sera pas mise
+        # en revue plus bas, donc rien de ce qui suit ne peut être publié.
+        pii_detected = False
+    else:
+        pii_registry, _ = deps.require_sealed_evidence()
+        pii_detected = pii_registry.verify_content_clearance(
+            artifact.sha256
+        ).pii_detected
+
     extracted_text, extract_transition = run_extractor(
         conn,
         artifact=artifact,
@@ -569,6 +730,29 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
         read_artifact=deps.artifact_reader,
         job_id=claim.job_id,
     )
+
+    verified_conformity = None
+    if verified_placement is not None:
+        verified_conformity = ConformityResult(
+            niveau_conformity=verified_placement.niveau_conformity,
+            voie_conformity=verified_placement.voie_conformity,
+            matiere_conformity=verified_placement.matiere_conformity,
+            programme_conformity=verified_placement.programme_conformity,
+            matiere_evidence=(
+                f"sealed_pedagogical_placement:{verified_placement.external_subject}",
+            ),
+            provenance=ConformityProvenance(
+                conformity_source="sealed_pedagogical_placement",
+                content_sha256=verified_placement.content_sha256,
+                placement_catalog_sha256=(
+                    verified_placement.placement_catalog_sha256
+                ),
+                currentness_evidence_sha256=(
+                    verified_placement.currentness_evidence_sha256
+                ),
+                profile_fingerprint=verified_placement.profile_fingerprint,
+            ),
+        )
 
     conformity, classify_transition = run_classifier(
         conn,
@@ -579,7 +763,29 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
         expected_version=extract_transition.state_version,
         actor=deps.owner,
         job_id=claim.job_id,
+        verified_conformity=verified_conformity,
     )
+
+    # Les droits viennent du registre gouverné, jamais de
+    # ``artifact.license`` — une valeur du payload, donc choisie par
+    # l'opérateur qui soumet la ressource.
+    #
+    # ``source_path`` est le chemin dans le manifeste scellé : la seule
+    # désignation que l'appelant ne choisit pas. En son absence on retombe
+    # sur l'URL canonique, qui ne correspondra à aucune zone approuvée et
+    # produira donc un refus nommé plutôt qu'une résolution optimiste.
+    rights_clearance = None
+    if not deps.non_publishable:
+        _, rights_registry = deps.require_sealed_evidence()
+        rights_source_path = (
+            verified_placement.source_path
+            if verified_placement is not None
+            else candidate.canonical_url
+        )
+        rights_clearance = rights_registry.resolve_rights(
+            content_sha256=artifact.sha256,
+            source_path=rights_source_path,
+        )
 
     rights, rights_transition = run_rights_agent(
         conn,
@@ -588,6 +794,7 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
         expected_version=classify_transition.state_version,
         actor=deps.owner,
         job_id=claim.job_id,
+        clearance=rights_clearance,
     )
 
     # LOT41A (item D) : troisième point de contrôle. La catégorie de droits
@@ -597,7 +804,6 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
     # révocation ou une expiration survenue pendant Scout/Fetcher/Extractor
     # (qui peuvent être longs) prend effet avant que la ressource ne
     # franchisse la qualité, jamais seulement au job suivant.
-    pii_detected = False
     _authorize_or_record_denial(
         conn,
         claim=claim,
@@ -616,7 +822,7 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
     # (ADR-0029, Décision 5), jamais une détection fabriquée. La valeur
     # traverse quand même le point de contrôle PII ci-dessus : le jour où
     # un détecteur réel la renseigne, l'enforcement est déjà en place.
-    run_quality_agent(
+    _quality_report, gate_decision, routed_transition = run_quality_agent(
         conn,
         artifact=artifact,
         profile=profile,
@@ -633,6 +839,63 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
         actor=deps.owner,
         job_id=claim.job_id,
     )
+
+    # LOT H2-F (défaut 6) : les quatre faits d'attribution deviennent
+    # définitifs exactement ici — au **verdict** du gate, quel que soit son
+    # signe. Avant lui, ``type_doc`` n'est qu'une proposition de Scout et
+    # rien n'a confronté cette proposition au profil approuvé ; après lui,
+    # aucune étape du pipeline ne les touche plus et l'étape suivante est
+    # la mise en revue de publication.
+    #
+    # Écrit aussi pour une ressource refusée, délibérément : un refus doit
+    # rester attribuable (« quelle source a produit cette ressource
+    # rejetée ? »), et l'ordre des refus en aval reste celui de leur
+    # gravité — une chaîne qualité négative est nommée comme telle plutôt
+    # que masquée par une attribution absente. La publication reste bloquée
+    # par ``gate_passed=false`` à trois niveaux indépendants.
+    #
+    # L'écriture partage la transaction de l'événement
+    # ``PUBLICATION_GATE_EVALUATED`` et, le cas échéant, de la transition
+    # ``ROUTED`` (aucun commit entre les deux) : une ressource ne peut donc
+    # jamais atteindre ``ROUTED`` sans son attribution. Toute erreur se
+    # propage et fait échouer le job — jamais une publication ultérieure
+    # sur une attribution absente ou devinée.
+    persist_artifact_attribution(
+        conn,
+        attribution=derive_artifact_attribution(
+            ingestion_artifact_id=artifact.artifact_id,
+            candidate=candidate,
+            profile=profile,
+        ),
+        run_id=claim.run_id,
+        actor=deps.owner,
+    )
+
+    # Phase A se termine ici, sur ``NEEDS_REVIEW`` — pas sur ``ROUTED``.
+    #
+    # ``ROUTED`` signifie « le gate qualité a conclu » ; il ne dit rien de
+    # la mise en revue. Laisser la ressource là obligeait un appelant
+    # extérieur — en pratique un test — à porter les deux pas suivants,
+    # donc à prouver l'appelant plutôt que le pipeline.
+    #
+    # Aucun raccourci n'est ouvert pour autant : ``stage_publication_for_review``
+    # applique ``ROUTED -> STAGED -> NEEDS_REVIEW`` par CAS sur l'état et la
+    # version exacts, et s'arrête là. Le passage à ``REVIEWED`` puis
+    # ``RETRIEVAL_ELIGIBLE`` reste derrière l'attestation LOT42, qui exige
+    # une revue humaine vérifiée — c'est la Phase B, un autre job.
+    #
+    # Une ressource refusée par le gate n'est pas mise en revue : son
+    # attribution est enregistrée (un refus doit rester attribuable) mais
+    # elle ne quitte pas l'état où le refus l'a laissée.
+    if gate_decision.decision == "ROUTE" and not deps.non_publishable:
+        stage_publication_for_review(
+            conn,
+            resource_id=artifact.resource_id,
+            run_id=claim.run_id,
+            expected_version=routed_transition.state_version,
+            actor=deps.owner,
+            job_id=claim.job_id,
+        )
 
 
 def run_worker_iteration(conn: psycopg.Connection, *, deps: WorkerDeps) -> IterationOutcome:

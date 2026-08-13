@@ -197,6 +197,12 @@ def test_hybrid_types_have_the_exact_frozen_field_contract() -> None:
         "page_start",
         "vector",
         "review_status",
+        "artifact_id",
+        "content_sha256",
+        "placement_id",
+        "placement_source_scope",
+        "placement_source_id",
+        "placement_source_path",
         "dense_score",
         "lexical_score",
     ]
@@ -220,6 +226,26 @@ def test_hybrid_types_have_the_exact_frozen_field_contract() -> None:
     item = candidate()
     with pytest.raises(FrozenInstanceError):
         item.text = "mutation interdite"  # type: ignore[misc]
+
+
+@pytest.mark.parametrize(
+    ("artifact_sha", "placement_sha"),
+    (("g" * 64, "b" * 64), ("a" * 64, "z" * 64)),
+)
+def test_candidate_rejects_non_hex_governed_identifiers(
+    artifact_sha: str,
+    placement_sha: str,
+) -> None:
+    with pytest.raises(RetrievalPipelineError, match="invalid governed traceability"):
+        candidate(
+            doc_id=artifact_sha,
+            artifact_id=artifact_sha,
+            content_sha256=artifact_sha,
+            placement_id=placement_sha,
+            placement_source_scope="01_EDUSCOL_OFFICIEL/terminale/nsi",
+            placement_source_id="eduscol:placement:1",
+            placement_source_path="01_EDUSCOL_OFFICIEL/nsi/source.pdf",
+        )
 
 
 def test_hybrid_constants_are_fixed_by_the_lot40_design() -> None:

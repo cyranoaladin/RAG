@@ -1,0 +1,179 @@
+# Corpus Zone Routing Configuration — H2-B
+# Purpose: Deterministic disposition assignment for all corpus objects
+# Reference: H2A_corpus_discovery_b512c9f_20260808T171708Z.md
+# Invariant: SUM(dispositions) = CORPUS_TOTAL (no gap, no overlap)
+
+config_id: corpus_zone_routing_h2b_v1
+status: active
+corpus_remote: "gdrive_ert:NEXUS_RAG/NEXUS_RAG_GDRIVE_READY"
+manifest_sha256: "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e"
+corpus_sealed_at: "2026-08-08T10:42:29.321949+00:00"
+corpus_total_objects: 2584
+
+# Disposition enum (mutually exclusive, exhaustive)
+dispositions:
+  INGEST: "Resource passes all gates, eligible for retrieval pipeline"
+  REVIEW_REQUIRED: "Resource needs human review before disposition"
+  QUARANTINE: "Resource has conflicts or anomalies requiring investigation"
+  ARCHIVE_ONLY: "Resource preserved for reference, not ingested"
+  EXCLUDE: "Resource not pedagogical content, excluded from corpus"
+  UNSUPPORTED: "Resource format not supported by current pipeline"
+
+# Zone routing rules (path prefix matching, first match wins)
+rights_evidence_perimeter:
+  - "01_EDUSCOL_OFFICIEL/"
+  - "02_NEXUS_DIAGNOSTICS/"
+  - "03_RESSOURCES_INTERACTIVES/"
+  - "04_COMPLEMENTS_PEDAGOGIQUES/01_SOURCES_INSTITUTIONNELLES/"
+  - "04_COMPLEMENTS_PEDAGOGIQUES/02_RESSOURCES_AUTEUR_NEXUS/"
+
+zone_rules:
+  - zone_prefix: "README_GDRIVE_IMPORT.md"
+    disposition: EXCLUDE
+    reason: "Root import instructions — administrative metadata"
+    expected_count: 1
+
+  # Administrative zones — EXCLUDE (not pedagogical content)
+  - zone_prefix: "00_ADMIN/"
+    disposition: EXCLUDE
+    reason: "Administrative zone — manifests, validations, exclusions"
+    expected_count_range: [20, 40]
+
+  - zone_prefix: "00_INDEX_PROVENANCE/"
+    disposition: EXCLUDE
+    reason: "Provenance tracking zone — catalogs, metadata, reports"
+    expected_count_range: [15, 35]
+
+  # Main pedagogical corpus — Eduscol official
+  - zone_prefix: "01_EDUSCOL_OFFICIEL/"
+    disposition: null  # Determined by sub-zone currentness rules
+    sub_zone_routing:
+      # Confirmed current documents
+      - sub_zone_suffix: "/10_ACTUEL_CONFIRME/"
+        disposition: INGEST
+        currentness: actuel
+        gates_required: [rights, pii, format]
+        expected_count: 64
+
+      # Transition or current — needs human verification
+      - sub_zone_suffix: "/20_TRANSITION_OU_ACTUEL/"
+        disposition: REVIEW_REQUIRED
+        currentness: transition
+        review_reason: "Regulatory status ambiguous (transition vs actuel)"
+        expected_count: 49
+
+      # Needs verification — regulatory status unknown
+      - sub_zone_suffix: "/80_A_VERIFIER/"
+        disposition: REVIEW_REQUIRED
+        currentness: a_verifier
+        review_reason: "Regulatory currentness not yet classified"
+        expected_count: 805
+
+      # Archive catalog — preserved but not ingested
+      - sub_zone_suffix: "/90_ARCHIVE_CATALOGUE/"
+        disposition: ARCHIVE_ONLY
+        currentness: archive
+        archive_reason: "Superseded by newer programme version"
+        expected_count: 19
+
+      # Status conflicts — quarantine for investigation
+      - sub_zone_suffix: "/99_CONFLITS_STATUTS/"
+        disposition: QUARANTINE
+        currentness: conflict
+        quarantine_reason: "Conflicting status indicators in metadata"
+        expected_count: 1
+
+      # Default for other Eduscol paths (COLLEGE, LYCEE without explicit status)
+      - sub_zone_suffix: null
+        disposition: REVIEW_REQUIRED
+        currentness: unclassified
+        review_reason: "Path does not match known currentness zone"
+        expected_count_range: [1400, 1600]
+
+  # Nexus proprietary diagnostics — selective ingestion
+  - zone_prefix: "02_NEXUS_DIAGNOSTICS/"
+    disposition: REVIEW_REQUIRED
+    reason: "Nexus proprietary content — requires selective authorization"
+    rights_category: nexus_proprietaire
+    expected_count: 38
+    file_types:
+      - extension: ".pdf"
+        expected_count: 19
+      - extension: ".yml"
+        expected_count: 17
+      - extension: ".yaml"
+        expected_count: 2
+
+  # Interactive resources — GeoGebra format not supported
+  - zone_prefix: "03_RESSOURCES_INTERACTIVES/"
+    disposition: UNSUPPORTED
+    reason: "GeoGebra .ggb format requires specialized extraction"
+    unsupported_formats: [".ggb"]
+    future_support_planned: true
+    expected_count: 37
+
+  # Complementary pedagogical resources — controlled ingestion
+  - zone_prefix: "04_COMPLEMENTS_PEDAGOGIQUES/"
+    disposition: REVIEW_REQUIRED
+    reason: "Mixed provenance — institutional + Nexus authored"
+    sub_zone_routing:
+      - sub_zone_suffix: "/01_SOURCES_INSTITUTIONNELLES/"
+        disposition: REVIEW_REQUIRED
+        rights_category_candidate: officiel_public
+        rights_evidence_required: true
+
+      - sub_zone_suffix: "/02_RESSOURCES_AUTEUR_NEXUS/"
+        disposition: REVIEW_REQUIRED
+        rights_category: nexus_proprietaire
+        rights_evidence_required: false
+    expected_count: 3
+
+# Explicit exclusions (individual files, identified in H2-A)
+explicit_exclusions:
+  - pattern: "Nexus_Reussite_Guide_Candidat_Individuel_*.pdf"
+    disposition: EXCLUDE
+    reason: "Information for families, not pedagogical content"
+
+  - pattern: "t_nexus_scan_blanc_non_pedagogique.pdf"
+    disposition: EXCLUDE
+    reason: "Non-pedagogical test scan"
+
+# Expected disposition totals (must sum to corpus_total_objects)
+expected_totals:
+  INGEST: 64  # Only 10_ACTUEL_CONFIRME after rights/PII gates pass
+  REVIEW_REQUIRED: 2395  # Bulk of corpus pending human review
+  QUARANTINE: 1
+  ARCHIVE_ONLY: 19
+  EXCLUDE: 68  # Admin zones + explicit exclusions
+  UNSUPPORTED: 37
+
+# Validation constraints
+validation:
+  sum_must_equal_total: true
+  overlap_forbidden: true
+  gap_forbidden: true
+
+# Gates required before INGEST disposition
+ingestion_gates:
+  - gate: rights_evidence
+    blocking: true
+    evidence_required: true
+
+  - gate: pii_content_scan
+    blocking: true
+    scan_scope: full_content
+
+  - gate: currentness_classification
+    blocking: true
+    allowed_values: [actuel]
+
+  - gate: format_support
+    blocking: true
+    supported_formats: [".pdf"]
+
+# ADR references
+adr_references:
+  - adr: ADR-0032
+    scope: "LOT41A scope authorization binding"
+  - adr: ADR-0033
+    scope: "LOT42 publication attestation"

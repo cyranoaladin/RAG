@@ -1,0 +1,82 @@
+{
+  "delta": {
+    "delta_kind": "APPEND_ONLY_EXACT_PLACEMENT_DELTA_V1",
+    "physical_object_additions": [],
+    "placement_additions": [
+      {
+        "content_sha256": "b88b5c685ec05d44b0c22d64f491443759fc0f544fe9ad33e626fb6cc29bf65a",
+        "physical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/_MULTI_DISCIPLINES/01_PROGRAMMES_OFFICIELS/2021/premieres-generale-et-technologique-bo-special-n-1-du-22-janvier-2019-modifie-en-2020-pdf-279-4-ko--b88b5c685e.pdf",
+        "placement": {
+          "content_sha256": "b88b5c685ec05d44b0c22d64f491443759fc0f544fe9ad33e626fb6cc29bf65a",
+          "document_type": "programme-officiel",
+          "family": "lycee-commun",
+          "level": "premiere",
+          "level_path": "par-niveau/premiere/francais/programme-officiel/2021/premieres-generale-et-technologique-bo-special-n-1-du-22-janvier-2019-modifie-en-2020-pdf-279-4-ko--b88b5c685e.pdf",
+          "scope": "lycee/commun/francais",
+          "scope_path": "par-scope/lycee/commun/francais/premiere/programme-officiel/2021/premieres-generale-et-technologique-bo-special-n-1-du-22-janvier-2019-modifie-en-2020-pdf-279-4-ko--b88b5c685e.pdf",
+          "source_object": "objects/sha256/b8/b88b5c685ec05d44b0c22d64f491443759fc0f544fe9ad33e626fb6cc29bf65a.pdf",
+          "source_url": "https://eduscol.education.gouv.fr/5793/programmes-et-ressources-en-francais-voie-gt",
+          "status": "actuel",
+          "subject": "francais",
+          "technical_path": "by_scope/lycee/commun/francais/premiere/programme-officiel/2021/premieres-generale-et-technologique-bo-special-n-1-du-22-janvier-2019-modifie-en-2020-pdf-279-4-ko--b88b5c685e.pdf",
+          "title": "Premières générale et technologique (BO spécial n° 1 du 22 janvier 2019, modifié en 2020) PDF - 279.4 Ko",
+          "year": "2021"
+        },
+        "placement_proof": {
+          "pdf_bytes_added": false,
+          "physical_object_reused": true,
+          "proof_kind": "EXPLICIT_GOVERNED_EXACT_GRADE_PLACEMENT_V1",
+          "source_catalog_placement_id": "par-scope/lycee/commun/francais/non-classe/programme-officiel/2021/premieres-generale-et-technologique-bo-special-n-1-du-22-janvier-2019-modifie-en-2020-pdf-279-4-ko--b88b5c685e.pdf"
+        },
+        "reason_code": "EXACT_GRADE_PLACEMENT_PROOF",
+        "source_placement_id": "par-scope/lycee/commun/francais/non-classe/programme-officiel/2021/premieres-generale-et-technologique-bo-special-n-1-du-22-janvier-2019-modifie-en-2020-pdf-279-4-ko--b88b5c685e.pdf",
+        "target_collection": "rag_nexus_francais_premiere_tc"
+      },
+      {
+        "content_sha256": "c07f8b2db9d22a6c2b9ab8386cf7ba323bc2c56abacb3f560dd97d02b383de18",
+        "physical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHYSIQUE_CHIMIE/01_PROGRAMMES_OFFICIELS/2019/specialite-de-terminale-generale-bo-special-n-8-du-25-juillet-2019-pdf-527-5-ko--c07f8b2db9.pdf",
+        "placement": {
+          "content_sha256": "c07f8b2db9d22a6c2b9ab8386cf7ba323bc2c56abacb3f560dd97d02b383de18",
+          "document_type": "programme-officiel",
+          "family": "lycee-general",
+          "level": "terminale",
+          "level_path": "par-niveau/terminale/physique-chimie/programme-officiel/2019/specialite-de-terminale-generale-bo-special-n-8-du-25-juillet-2019-pdf-527-5-ko--c07f8b2db9.pdf",
+          "scope": "lycee/seconde/physique-chimie",
+          "scope_path": "par-scope/lycee/seconde/physique-chimie/terminale/programme-officiel/2019/specialite-de-terminale-generale-bo-special-n-8-du-25-juillet-2019-pdf-527-5-ko--c07f8b2db9.pdf",
+          "source_object": "objects/sha256/c0/c07f8b2db9d22a6c2b9ab8386cf7ba323bc2c56abacb3f560dd97d02b383de18.pdf",
+          "source_url": "https://eduscol.education.gouv.fr/5829/programmes-et-ressources-en-physique-chimie-voie-gt",
+          "status": "actuel",
+          "subject": "physique-chimie",
+          "technical_path": "by_scope/lycee/seconde/physique-chimie/terminale/programme-officiel/2019/specialite-de-terminale-generale-bo-special-n-8-du-25-juillet-2019-pdf-527-5-ko--c07f8b2db9.pdf",
+          "title": "Spécialité de terminale générale (BO spécial n° 8 du 25 juillet 2019) PDF - 527.5 Ko",
+          "year": "2019"
+        },
+        "placement_proof": {
+          "pdf_bytes_added": false,
+          "physical_object_reused": true,
+          "proof_kind": "EXPLICIT_GOVERNED_EXACT_GRADE_PLACEMENT_V1",
+          "source_catalog_placement_id": "par-scope/lycee/seconde/physique-chimie/multi-niveaux/programme-officiel/2019/specialite-de-terminale-generale-bo-special-n-8-du-25-juillet-2019-pdf-527-5-ko--c07f8b2db9.pdf"
+        },
+        "reason_code": "EXACT_GRADE_PLACEMENT_PROOF",
+        "source_placement_id": "par-scope/lycee/seconde/physique-chimie/multi-niveaux/programme-officiel/2019/specialite-de-terminale-generale-bo-special-n-8-du-25-juillet-2019-pdf-527-5-ko--c07f8b2db9.pdf",
+        "target_collection": "rag_nexus_pc_terminale_specialite"
+      }
+    ],
+    "placement_additions_sha256": "5131ba7a72cdc59c0816d89795e6c917d8348d1b5c0beb7b07b2fc216a2276e1"
+  },
+  "descriptor_kind": "MULTILEVEL_CATALOG_VNEXT_DESCRIPTOR_V1",
+  "expected_vnext_counts": {
+    "content_artifacts": 2583,
+    "pedagogical_placements": 2958,
+    "physical_objects": 2584
+  },
+  "parent": {
+    "content_artifact_count": 2583,
+    "corpus_manifest_sha256": "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e",
+    "pedagogical_placement_count": 2956,
+    "physical_object_count": 2584,
+    "placement_catalog_sha256": "095ca37cc4c2126d06b77106f9f1663d4f5ad881ae4952dbf5b951477fd54c39",
+    "sealed_catalog_sha256": "301c0dcce4e49cd9b6e524708bde82b262a09b05bd52e0431233813ecf8ae04b"
+  },
+  "school_year": "2026-2027"
+}

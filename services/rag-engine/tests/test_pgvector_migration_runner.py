@@ -210,6 +210,14 @@ def runner_env(tmp_path: Path) -> tuple[dict[str, str], Path, Path]:
             "PGVECTOR_CONTAINER": "lot40-test-pgvector",
             "PGVECTOR_DB": "testdb",
             "PGVECTOR_USER": "testuser",
+            "PGVECTOR_RETRIEVAL_USER": "test_reader",
+            "PGVECTOR_RETRIEVAL_PASSWORD": "test-reader-password-at-least-32-chars",
+            "PGVECTOR_REVIEW_USER": "test_reviewer",
+            "PGVECTOR_REVIEW_PASSWORD": "test-review-password-at-least-32-chars",
+            "PGVECTOR_PUBLISHER_USER": "test_publisher",
+            "PGVECTOR_PUBLISHER_PASSWORD": (
+                "test-publisher-password-at-least-32-chars"
+            ),
             "TMPDIR": str(snapshot_root),
         }
     )
@@ -323,7 +331,7 @@ def test_up_recognizes_existing_001_only_after_exhaustive_validation(
     assert "CREATE EXTENSION" not in recognition
     assert "ADD COLUMN" not in recognition
     assert "MIGRATIONS_ADOPTED=1" in result.stdout
-    assert "MIGRATIONS_APPLIED=2" in result.stdout
+    assert "MIGRATIONS_APPLIED=3" in result.stdout
 
 
 def test_up_adopts_exact_existing_002_atomically_without_reapplying_ddl(
@@ -361,7 +369,7 @@ def test_up_adopts_exact_existing_002_atomically_without_reapplying_ddl(
         assert any(str(row["file_name"]) in arg for arg in adoption["args"])
         assert any(str(row["sha256"]) in arg for arg in adoption["args"])
     assert "MIGRATIONS_ADOPTED=2" in result.stdout
-    assert "MIGRATIONS_APPLIED=1" in result.stdout
+    assert "MIGRATIONS_APPLIED=2" in result.stdout
 
 
 def test_up_adoption_002_failure_stops_without_followup_transition(

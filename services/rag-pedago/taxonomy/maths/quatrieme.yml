@@ -1,0 +1,51 @@
+# Programme officiel cycle 4 applicable en 4e pour l'année scolaire 2026-2027.
+id: maths_quatrieme
+matiere: maths
+niveau: quatrieme
+voie: college
+statut_enseignement: tronc_commun
+programme_version: BOEN_special_11_2018-07-26_aj_2020
+themes:
+  - id: nombres_calculs
+    label: Nombres et calculs
+    notions:
+      - id: nombres_relatifs
+        label: Nombres relatifs et opérations
+      - id: nombres_rationnels
+        label: Fractions et nombres rationnels
+      - id: puissances
+        label: Puissances et notation scientifique
+      - id: calcul_litteral
+        label: Calcul littéral, développement et équations
+  - id: organisation_donnees_fonctions
+    label: Organisation et gestion de données, fonctions
+    notions:
+      - id: proportionnalite
+        label: Proportionnalité et pourcentages
+      - id: statistiques
+        label: Statistiques descriptives
+      - id: probabilites
+        label: Probabilités simples
+      - id: dependance_grandeurs
+        label: Dépendance entre deux grandeurs
+  - id: espace_geometrie
+    label: Espace et géométrie
+    notions:
+      - id: pythagore
+        label: Théorème de Pythagore et sa réciproque
+      - id: transformations
+        label: Transformations du plan
+      - id: geometrie_espace
+        label: Représentation de l'espace
+  - id: algorithmique_programmation
+    label: Algorithmique et programmation
+    notions:
+      - id: variables_boucles_conditions
+        label: Variables, boucles et instructions conditionnelles
+competences:
+  - chercher
+  - modeliser
+  - representer
+  - raisonner
+  - calculer
+  - communiquer

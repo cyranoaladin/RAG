@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import os
 import secrets
-import shutil
 import socket
 import subprocess
 import sys
@@ -38,15 +37,26 @@ MIGRATIONS_DIR = INFRA_ROOT / "postgres" / "ingestion_control" / "migrations"
 ROLLBACKS_DIR = INFRA_ROOT / "postgres" / "ingestion_control" / "rollbacks"
 
 sys.path.insert(0, str(ENGINE_ROOT / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-PG_IMAGE = "pgvector/pgvector:pg16"
+import _pg_authority  # noqa: E402
+
+#: Image épinglée par digest — jamais un tag mutable. La valeur est
+#: celle déjà vérifiée et versionnée dans ``infra/docker-compose.v2.yml``
+#: (source de vérité unique) : un test de gouvernance qui tournerait sur
+#: une image différente de celle du runtime ne prouverait rien sur le
+#: runtime.
+PG_IMAGE = "pgvector/pgvector:pg16@sha256:00ba258a66dac104fd5171074a0084462a64a1369d8513f3d0a634e2f24d15bc"
 PG_SUPERUSER = "raguser"
 PG_SUPERUSER_PASSWORD = secrets.token_urlsafe(24)  # revue PR#90 : jamais un litteral statique
 PG_DB = "ragdb"
 
-_DOCKER_AVAILABLE = shutil.which("docker") is not None and (
-    subprocess.run(["docker", "info"], capture_output=True, check=False).returncode == 0
-)
+# Cette suite portait sa propre détection Docker, donc sa propre porte de
+# sortie silencieuse. Elle passe désormais par la barrière partagée : en
+# mode NEXUS_REQUIRE_DOCKER=1, l'absence de Docker est une erreur, jamais
+# un skip. Deux détections indépendantes finiraient par diverger, et c'est
+# la plus permissive qui déciderait.
+_DOCKER_AVAILABLE = _pg_authority.DOCKER_AVAILABLE
 
 pytestmark = [
     pytest.mark.integration,
@@ -143,6 +153,53 @@ def _apply_rollback_file(conn: psycopg.Connection, *, version: int) -> None:
     conn.commit()
 
 
+def _insert_minimal_authorization(
+    conn: psycopg.Connection,
+    *,
+    authorization_id: str,
+    protocol_version: str,
+    allowed_content_sha256: list[str] | None,
+) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO ingestion_control.scope_authorizations (
+                authorization_id, protocol_version, decision,
+                tenant, collection, niveau, voie, matiere, candidat, audience,
+                visibility, school_year, programme_version,
+                manifest_digest, profile_id, profile_version, profile_fingerprint,
+                allowed_domains, rights_categories, exclusions,
+                pii_absence_attested, pii_absence_evidence,
+                valid_from, valid_until,
+                artifact_path, artifact_blob_sha, authorization_digest,
+                evidence_repository, evidence_pull_request,
+                evidence_base_sha, evidence_head_sha, evidence_review_id,
+                evidence_reviewer, evidence_submitted_at, evidence_challenge,
+                allowed_content_sha256
+            ) VALUES (
+                %s, %s, 'AUTHORIZE_INGESTION_SCOPE',
+                'nexus', 'libre_terminale_philosophie', 'terminale', 'generale',
+                'philosophie', 'libre', ARRAY['libre'], 'internal', '2026-2027',
+                'BOEN_special_8_2019-07-25',
+                repeat('a', 64), 'terminale-philosophie', '1.0.0', repeat('b', 64),
+                ARRAY['eduscol.education.gouv.fr'], ARRAY['officiel_public'], ARRAY[]::text[],
+                true, 'sha256:evidence', now() - interval '1 minute', now() + interval '1 day',
+                'governance/authorizations/' || %s || '.json', repeat('c', 40), repeat('d', 64),
+                'cyranoaladin/RAG', 96, repeat('e', 40), repeat('f', 40), 1,
+                'abenrhouma', now(), 'NEXUS-TRUSTED-REVIEW-V1:' || repeat('0', 64),
+                %s::text[]
+            )
+            """,
+            (
+                authorization_id,
+                protocol_version,
+                authorization_id,
+                allowed_content_sha256,
+            ),
+        )
+    conn.commit()
+
+
 class TestFullRollbackRehearsal:
     def test_apply_all_rollback_all_reapply_all(self, pg_container: dict[str, str]) -> None:
         assert _MIGRATION_VERSIONS == list(range(1, len(_MIGRATION_VERSIONS) + 1)), (
@@ -195,3 +252,106 @@ class TestFullRollbackRehearsal:
             cur.execute("SELECT version FROM ingestion_control.schema_migrations ORDER BY version")
             applied_after = [row[0] for row in cur.fetchall()]
         assert applied_after == _MIGRATION_VERSIONS
+
+
+class TestScopeAuthorizationContentAllowlistRollback:
+    def test_rollback_009_refuses_v2_rows_and_leaves_boundary_intact(
+        self, pg_container: dict[str, str]
+    ) -> None:
+        bootstrap = _run_bootstrap(pg_container)
+        assert bootstrap.returncode == 0, bootstrap.stderr
+
+        with psycopg.connect(_superuser_dsn(pg_container)) as conn:
+            _insert_minimal_authorization(
+                conn,
+                authorization_id="rollback-v2",
+                protocol_version="LOT41A-V2",
+                allowed_content_sha256=["1" * 64],
+            )
+            _apply_rollback_file(conn, version=10)
+
+            with pytest.raises(psycopg.errors.RaiseException, match="ROLLBACK_009_V2_DATA_PRESENT"):
+                _apply_rollback_file(conn, version=9)
+            conn.rollback()
+
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT allowed_content_sha256 FROM ingestion_control.scope_authorizations "
+                    "WHERE authorization_id = 'rollback-v2'"
+                )
+                row = cur.fetchone()
+                cur.execute(
+                    "SELECT version FROM ingestion_control.schema_migrations WHERE version = 9"
+                )
+                registered = cur.fetchone()
+            assert row == (["1" * 64],)
+            assert registered == (9,)
+
+    def test_rollback_009_preserves_v1_rows_restores_v1_schema_and_reapplies(
+        self, pg_container: dict[str, str]
+    ) -> None:
+        bootstrap = _run_bootstrap(pg_container)
+        assert bootstrap.returncode == 0, bootstrap.stderr
+
+        with psycopg.connect(_superuser_dsn(pg_container)) as conn:
+            _insert_minimal_authorization(
+                conn,
+                authorization_id="rollback-v1",
+                protocol_version="LOT41A-V1",
+                allowed_content_sha256=None,
+            )
+            # Ordre inverse strict, désormais depuis 013 : rembobiner
+            # jusqu'à 009 sans défaire 013 laisserait sa version enregistrée
+            # dans ``schema_migrations`` alors que ses contraintes ont
+            # disparu avec la colonne que 012 supprime — le re-bootstrap
+            # sauterait 013 et s'arrêterait à la tête 12.
+            _apply_rollback_file(conn, version=13)
+            _apply_rollback_file(conn, version=12)
+            _apply_rollback_file(conn, version=11)
+            _apply_rollback_file(conn, version=10)
+            _apply_rollback_file(conn, version=9)
+
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+                    "WHERE conrelid = 'ingestion_control.scope_authorizations'::regclass "
+                    "AND conname = 'scope_authorizations_protocol_version_valid'"
+                )
+                protocol_constraint = cur.fetchone()
+                cur.execute(
+                    "SELECT 1 FROM information_schema.columns "
+                    "WHERE table_schema = 'ingestion_control' "
+                    "AND table_name = 'scope_authorizations' "
+                    "AND column_name = 'allowed_content_sha256'"
+                )
+                allowlist_column = cur.fetchone()
+                cur.execute(
+                    "SELECT to_regprocedure("
+                    "'ingestion_control._scope_authorizations_content_allowlist_canonical(text[])')"
+                )
+                helper = cur.fetchone()
+                cur.execute(
+                    "SELECT protocol_version FROM ingestion_control.scope_authorizations "
+                    "WHERE authorization_id = 'rollback-v1'"
+                )
+                row = cur.fetchone()
+
+            assert protocol_constraint == ("CHECK ((protocol_version = 'LOT41A-V1'::text))",)
+            assert allowlist_column is None
+            assert helper == (None,)
+            assert row == ("LOT41A-V1",)
+
+        reapply = _run_bootstrap(pg_container)
+        assert reapply.returncode == 0, reapply.stderr
+        # 009 -> 013 : cinq migrations réappliquées depuis l'ajout de 013.
+        assert "MIGRATIONS_APPLIED=5" in reapply.stdout
+        assert "SCHEMA_HEAD=13" in reapply.stdout
+
+        with psycopg.connect(_superuser_dsn(pg_container)) as conn, conn.cursor() as cur:
+            cur.execute(
+                "SELECT protocol_version, allowed_content_sha256 "
+                "FROM ingestion_control.scope_authorizations "
+                "WHERE authorization_id = 'rollback-v1'"
+            )
+            row_after_reapply = cur.fetchone()
+        assert row_after_reapply == ("LOT41A-V1", None)

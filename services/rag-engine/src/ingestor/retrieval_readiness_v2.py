@@ -43,6 +43,20 @@ _REQUIRED_RETRIEVAL_PRIVILEGES: Final = (
     False,  # pas de TRUNCATE
     False,  # pas de REFERENCES, y compris au niveau colonne
     False,  # pas de TRIGGER
+    True,  # SELECT sur rag_artifacts
+    False,  # pas d'INSERT artefacts, y compris au niveau colonne
+    False,  # pas d'UPDATE artefacts, y compris au niveau colonne
+    False,  # pas de DELETE artefacts
+    False,  # pas de TRUNCATE artefacts
+    False,  # pas de REFERENCES artefacts, y compris au niveau colonne
+    False,  # pas de TRIGGER artefacts
+    True,  # SELECT sur rag_artifact_placements
+    False,  # pas d'INSERT placements, y compris au niveau colonne
+    False,  # pas d'UPDATE placements, y compris au niveau colonne
+    False,  # pas de DELETE placements
+    False,  # pas de TRUNCATE placements
+    False,  # pas de REFERENCES placements, y compris au niveau colonne
+    False,  # pas de TRIGGER placements
     True,  # SELECT sur le registre des migrations
     False,  # pas d'INSERT sur le registre, même au niveau colonne
     False,  # pas d'UPDATE sur le registre, même au niveau colonne
@@ -51,6 +65,8 @@ _REQUIRED_RETRIEVAL_PRIVILEGES: Final = (
     False,  # pas de REFERENCES sur le registre, même au niveau colonne
     False,  # pas de TRIGGER sur le registre
     False,  # aucune appartenance au propriétaire de rag_chunks
+    False,  # aucune appartenance au propriétaire de rag_artifacts
+    False,  # aucune appartenance au propriétaire de rag_artifact_placements
     False,  # aucune appartenance au propriétaire du registre
     False,  # aucun rôle atteignable par SET ROLE
     False,  # pas superuser
@@ -110,6 +126,91 @@ SELECT
           )
     ),
     has_table_privilege(current_user, 'public.rag_chunks', 'TRIGGER'),
+    has_table_privilege(current_user, 'public.rag_artifacts', 'SELECT'),
+    EXISTS (
+        SELECT 1
+        FROM pg_attribute AS artifact_column
+        WHERE artifact_column.attrelid = 'public.rag_artifacts'::regclass
+          AND artifact_column.attnum > 0
+          AND NOT artifact_column.attisdropped
+          AND has_column_privilege(
+              current_user, 'public.rag_artifacts',
+              artifact_column.attname, 'INSERT'
+          )
+    ),
+    EXISTS (
+        SELECT 1
+        FROM pg_attribute AS artifact_column
+        WHERE artifact_column.attrelid = 'public.rag_artifacts'::regclass
+          AND artifact_column.attnum > 0
+          AND NOT artifact_column.attisdropped
+          AND has_column_privilege(
+              current_user, 'public.rag_artifacts',
+              artifact_column.attname, 'UPDATE'
+          )
+    ),
+    has_table_privilege(current_user, 'public.rag_artifacts', 'DELETE'),
+    has_table_privilege(current_user, 'public.rag_artifacts', 'TRUNCATE'),
+    EXISTS (
+        SELECT 1
+        FROM pg_attribute AS artifact_column
+        WHERE artifact_column.attrelid = 'public.rag_artifacts'::regclass
+          AND artifact_column.attnum > 0
+          AND NOT artifact_column.attisdropped
+          AND has_column_privilege(
+              current_user, 'public.rag_artifacts',
+              artifact_column.attname, 'REFERENCES'
+          )
+    ),
+    has_table_privilege(current_user, 'public.rag_artifacts', 'TRIGGER'),
+    has_table_privilege(
+        current_user, 'public.rag_artifact_placements', 'SELECT'
+    ),
+    EXISTS (
+        SELECT 1
+        FROM pg_attribute AS placement_column
+        WHERE placement_column.attrelid =
+              'public.rag_artifact_placements'::regclass
+          AND placement_column.attnum > 0
+          AND NOT placement_column.attisdropped
+          AND has_column_privilege(
+              current_user, 'public.rag_artifact_placements',
+              placement_column.attname, 'INSERT'
+          )
+    ),
+    EXISTS (
+        SELECT 1
+        FROM pg_attribute AS placement_column
+        WHERE placement_column.attrelid =
+              'public.rag_artifact_placements'::regclass
+          AND placement_column.attnum > 0
+          AND NOT placement_column.attisdropped
+          AND has_column_privilege(
+              current_user, 'public.rag_artifact_placements',
+              placement_column.attname, 'UPDATE'
+          )
+    ),
+    has_table_privilege(
+        current_user, 'public.rag_artifact_placements', 'DELETE'
+    ),
+    has_table_privilege(
+        current_user, 'public.rag_artifact_placements', 'TRUNCATE'
+    ),
+    EXISTS (
+        SELECT 1
+        FROM pg_attribute AS placement_column
+        WHERE placement_column.attrelid =
+              'public.rag_artifact_placements'::regclass
+          AND placement_column.attnum > 0
+          AND NOT placement_column.attisdropped
+          AND has_column_privilege(
+              current_user, 'public.rag_artifact_placements',
+              placement_column.attname, 'REFERENCES'
+          )
+    ),
+    has_table_privilege(
+        current_user, 'public.rag_artifact_placements', 'TRIGGER'
+    ),
     has_table_privilege(current_user, 'public.rag_schema_migrations', 'SELECT'),
     EXISTS (
         SELECT 1
@@ -162,6 +263,25 @@ SELECT
             SELECT tableowner
             FROM pg_tables
             WHERE schemaname = 'public' AND tablename = 'rag_chunks'
+        ),
+        'MEMBER'
+    ),
+    pg_has_role(
+        current_user,
+        (
+            SELECT tableowner
+            FROM pg_tables
+            WHERE schemaname = 'public' AND tablename = 'rag_artifacts'
+        ),
+        'MEMBER'
+    ),
+    pg_has_role(
+        current_user,
+        (
+            SELECT tableowner
+            FROM pg_tables
+            WHERE schemaname = 'public'
+              AND tablename = 'rag_artifact_placements'
         ),
         'MEMBER'
     ),
