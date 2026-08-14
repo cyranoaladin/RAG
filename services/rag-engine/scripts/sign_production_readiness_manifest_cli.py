@@ -10,11 +10,24 @@ SHA-256 lui-même. Les faits Git (``pr_head_sha``/``merge_sha``/leurs tree
 SHA) et de provenance workflow (``run_id``/``run_attempt``/``workflow_path``/
 ``workflow_ref``) sont **vérifiés en direct** contre l'API GitHub réelle
 (``gh api``) — jamais seulement un format hexadécimal plausible. Les images
-de déploiement (``--application-image``/``--upstream-image``) sont
-confrontées au fichier Compose réellement haché dans ce même manifeste
-(``--compose-file``) : aucun service omis, aucun service inventé, et pour
-les services pilotés par une image (upstream) le digest doit être
-byte-identique à ce que Compose pin réellement.
+applicatives (``ingestor``, workers) ne sont plus une saisie opérateur
+(ancien ``--application-image``) : elles sont **dérivées** d'un run
+GitHub Actions de provenance réel et vérifié
+(``.github/workflows/production-image-provenance.yml``, PR #102, via
+``--provenance-run-id``/``--provenance-run-attempt``). Les images upstream
+(``--upstream-image``, non construites par ce dépôt) restent une entrée
+opérateur, mais confrontées au fichier Compose réellement haché dans ce
+même manifeste (``--compose-file``) : aucun service omis, aucun service
+inventé, digest byte-identique à ce que Compose pin réellement. Le rapport
+de couverture H2-B (``--h2b-report-file``, ADR-0042) n'est plus un fichier
+opaque simplement haché : il est **parsé et sémantiquement vérifié**
+(``h2_coverage_gate_pass`` doit être vrai), et lié par digest à
+l'autorisation, à l'artefact d'autorité et au manifeste scellé signés dans
+ce même manifeste — jamais quatre preuves indépendantes qui pourraient
+diverger sans qu'aucun refus ne se produise. Le registre de révocation
+(``--revocation-registry-file``) est analysé par le parseur strict partagé
+(``nexus_contracts.authorization_revocations``, ADR-0042) — plus de parseur
+minimal local.
 
 **Clé privée.** Lue depuis un fichier local (``--private-key-file``),
 jamais depuis un argument en clair, jamais depuis une variable
@@ -44,19 +57,30 @@ import json
 import re
 import subprocess
 import sys
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import yaml
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(_REPO_ROOT / "packages" / "contracts" / "src"))
 
+import deployment_image_inventory as dii  # noqa: E402
 from nexus_contracts.authority_artifacts import (  # noqa: E402
     CanonicalArtifactError,
     git_blob_sha1,
     parse_scope_authorization_artifact,
+)
+from nexus_contracts.authorization_revocations import (  # noqa: E402
+    AuthorizationRevocationsError,
+    parse_revoked_authorization_ids,
+)
+from nexus_contracts.h2_coverage_evidence import (  # noqa: E402
+    H2CoverageEvidenceError,
+    parse_h2_coverage_evidence,
 )
 from nexus_contracts.production_readiness import (  # noqa: E402
     ProductionReadinessError,
@@ -74,13 +98,6 @@ from nexus_contracts.review_binding import (  # noqa: E402
 from nexus_contracts.review_binding import (  # noqa: E402
     parse_trust_anchor as parse_review_binding_trust_anchor,
 )
-
-#: Chemin gouverné du registre de révocation (F2). Dupliqué depuis
-#: ``rag_pedago.imports.h2b_coverage_report._GOVERNED_REVOCATIONS_PATH``
-#: parce qu'un service n'importe jamais le code d'un autre (AGENTS.md) —
-#: même précédent que ``_PRODUCTION_READINESS_GOVERNED_PATH`` /
-#: ``REVIEW_BINDING_ANCHOR_PATH`` ailleurs dans ce dépôt.
-_REVOCATION_REGISTRY_PROTOCOL_VERSION = "NEXUS-AUTHORIZATION-REVOCATIONS-V1"
 
 _HEX40 = re.compile(r"^[0-9a-f]{40}$")
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
@@ -128,34 +145,16 @@ def _digest_of_file(path: Path, *, label: str) -> str:
     return hashlib.sha256(_read_bytes(path, label=label)).hexdigest()
 
 
-def _revoked_authorization_ids(raw: bytes, *, label: str) -> frozenset[str]:
-    """Parse minimal et local du registre de révocation gouverné (F2).
-
-    Ne réimplémente pas la validation complète de
-    ``h2b_coverage_report._parse_revocation_registry`` (duplicats interdits
-    d'unicité, etc.) : cet outil n'a besoin que de savoir si l'autorisation
-    qu'il s'apprête à signer y figure. Le format canonique lui-même est
-    revalidé plus strictement en amont, par le gate de couverture H2-B."""
-    try:
-        document = json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise SigningToolError(f"{label} is not valid UTF-8 JSON: {exc}") from exc
-    if (
-        not isinstance(document, dict)
-        or document.get("protocol_version") != _REVOCATION_REGISTRY_PROTOCOL_VERSION
-    ):
-        raise SigningToolError(
-            f"{label} does not declare protocol_version "
-            f"{_REVOCATION_REGISTRY_PROTOCOL_VERSION!r}"
-        )
-    ids = document.get("revoked_authorization_ids")
-    if not isinstance(ids, list) or not all(isinstance(i, str) for i in ids):
-        raise SigningToolError(f"{label}: revoked_authorization_ids must be a list of strings")
-    return frozenset(ids)
-
-
 def _image_digest_pairs(raw_pairs: list[str], *, label: str) -> dict[str, str]:
-    """``--application-image name=ref@sha256:...`` répété, jamais un tag."""
+    """``--upstream-image name=ref@sha256:...`` répété, jamais un tag.
+
+    Les images applicatives (``ingestor``, workers) ne passent plus par ce
+    chemin opérateur libre : elles sont dérivées d'une provenance GitHub
+    Actions vérifiée (``deployment_image_inventory.verify_application_
+    image_provenance``, PR #102) — voir ``_derive_application_image_
+    digests``. Seules les images upstream (non construites par ce dépôt,
+    ex. ``pgvector``) restent une entrée opérateur, confrontée au fichier
+    Compose réellement haché juste après."""
     result: dict[str, str] = {}
     for pair in raw_pairs:
         if "=" not in pair:
@@ -383,6 +382,33 @@ def _verify_git_and_workflow_facts(args: argparse.Namespace) -> tuple[str, str]:
     return pr_head_tree_sha, merge_tree_sha
 
 
+def _derive_application_image_digests(
+    args: argparse.Namespace, *, merge_sha: str, merge_tree_sha: str
+) -> dict[str, str]:
+    """Dérive les digests d'images applicatives depuis un run GitHub Actions
+    de provenance réel et vérifié (PR #102) — jamais depuis une saisie
+    opérateur libre (ancien ``--application-image``, Codex, instruction
+    humaine PR #100 §12).
+
+    Ancrée sur ``merge_sha``/``merge_tree_sha`` : c'est le commit qui
+    atterrit réellement sur ``main`` que le workflow de provenance doit
+    avoir construit, pas le head de PR avant merge."""
+    with tempfile.TemporaryDirectory() as tmp:
+        try:
+            return dii.verify_application_image_provenance(
+                repository=args.repository,
+                source_commit_sha=merge_sha,
+                source_tree_sha=merge_tree_sha,
+                provenance_run_id=args.provenance_run_id,
+                provenance_run_attempt=args.provenance_run_attempt,
+                github_api_get=_github_api_get,
+                download_artifact=dii.make_download_artifact_via_gh(repository=args.repository),
+                work_dir=Path(tmp),
+            )
+        except dii.DeploymentImageInventoryError as exc:
+            raise SigningToolError(f"application image provenance refused: {exc}") from exc
+
+
 def _build_arg_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
 
@@ -413,12 +439,20 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--revocation-registry-file", type=Path, required=True)
     p.add_argument("--catalog-file", type=Path, required=True)
     p.add_argument("--sealed-manifest-file", type=Path, required=True)
-    p.add_argument("--h2b-report-file", type=Path, required=True)
+    p.add_argument("--h2b-report-file", type=Path, required=True,
+                    help="NEXUS-H2-COVERAGE-EVIDENCE-V1 (ADR-0042) — parsé et "
+                         "sémantiquement vérifié (h2_coverage_gate_pass doit être "
+                         "vrai), jamais seulement haché comme un fichier opaque.")
 
     # Unité de déploiement.
-    p.add_argument("--application-image", action="append", default=[], metavar="name=ref@sha256:...")
     p.add_argument("--upstream-image", action="append", default=[], metavar="name=ref@sha256:...")
     p.add_argument("--compose-file", type=Path, required=True)
+    p.add_argument("--provenance-run-id", type=int, required=True,
+                    help="Run GitHub Actions de "
+                         ".github/workflows/production-image-provenance.yml (PR #102) "
+                         "dont les digests d'images applicatives (ingestor, workers) "
+                         "sont dérivés — jamais une saisie opérateur libre.")
+    p.add_argument("--provenance-run-attempt", type=int, required=True)
 
     # Provenance de l'émission.
     p.add_argument("--workflow-path", required=True)
@@ -454,7 +488,8 @@ def assemble_and_sign(args: argparse.Namespace) -> ProductionReadinessManifestV1
     revocation_registry_digest = hashlib.sha256(revocation_registry_raw).hexdigest()
     catalog_digest = _digest_of_file(args.catalog_file, label="catalog")
     sealed_manifest_digest = _digest_of_file(args.sealed_manifest_file, label="sealed_manifest")
-    h2b_report_digest = _digest_of_file(args.h2b_report_file, label="h2b_report")
+    h2b_report_raw = _read_bytes(args.h2b_report_file, label="h2b_report")
+    h2b_report_digest = hashlib.sha256(h2b_report_raw).hexdigest()
     compose_raw = _read_bytes(args.compose_file, label="compose")
     compose_digest = hashlib.sha256(compose_raw).hexdigest()
 
@@ -493,7 +528,12 @@ def assemble_and_sign(args: argparse.Namespace) -> ProductionReadinessManifestV1
             f"now={now}) — a manifest is never signed for an authorization that "
             "is not currently valid"
         )
-    revoked = _revoked_authorization_ids(revocation_registry_raw, label="revocation_registry")
+    try:
+        revoked = parse_revoked_authorization_ids(
+            revocation_registry_raw, origin="revocation_registry"
+        )
+    except AuthorizationRevocationsError as exc:
+        raise SigningToolError(f"revocation_registry failed strict validation: {exc}") from exc
     if authorization.authorization_id in revoked:
         raise SigningToolError(
             f"authorization {authorization.authorization_id!r} appears in the "
@@ -501,7 +541,54 @@ def assemble_and_sign(args: argparse.Namespace) -> ProductionReadinessManifestV1
             "into a production readiness manifest"
         )
 
-    application_image_digests = _image_digest_pairs(args.application_image, label="--application-image")
+    # ADR-0042 : le rapport de couverture H2-B n'est plus un fichier opaque
+    # simplement haché — il est analysé et son verdict est exigé passant.
+    # Sans ce bloc, un `h2b_report_digest` prouverait seulement qu'un
+    # fichier n'a pas changé, jamais qu'il décrit une campagne de
+    # gouvernance H2-B réellement réussie.
+    try:
+        h2_evidence = parse_h2_coverage_evidence(h2b_report_raw)
+    except H2CoverageEvidenceError as exc:
+        raise SigningToolError(f"h2b_report failed semantic verification: {exc}") from exc
+    if not h2_evidence.h2_coverage_gate_pass:
+        raise SigningToolError(
+            "h2b_report's own h2_coverage_gate_pass is false — a production "
+            "manifest is never signed for a non-passing H2-B coverage gate"
+        )
+    # Lie la preuve H2 à *cette même* autorisation, *ce même* fichier
+    # d'autorité et *ce même* catalogue/manifeste scellé — sans ces
+    # croisements, un rapport H2 authentique mais décrivant une toute
+    # autre campagne (autre autorisation, autre catalogue) passerait
+    # inaperçu : chaque digest, pris isolément, prouve seulement qu'un
+    # fichier n'a pas changé depuis sa lecture, jamais qu'il appartient à
+    # la même campagne que les autres (Codex, précédent établi PR #100).
+    if h2_evidence.authorization_id != authorization.authorization_id:
+        raise SigningToolError(
+            f"h2b_report authorization_id {h2_evidence.authorization_id!r} does not "
+            f"match --authorization-file's authorization_id "
+            f"{authorization.authorization_id!r}"
+        )
+    if h2_evidence.input_file_digests.get("authority") != authorization_digest:
+        raise SigningToolError(
+            "h2b_report's authority digest does not match the sha256 of "
+            "--authorization-file — the H2 evidence does not vouch for this "
+            "exact authorization artifact"
+        )
+    if h2_evidence.input_file_digests.get("catalog") != catalog_digest:
+        raise SigningToolError(
+            "h2b_report's catalog digest does not match the sha256 of "
+            "--catalog-file — the H2 evidence does not vouch for this exact catalog"
+        )
+    if h2_evidence.manifest_sha256 != sealed_manifest_digest:
+        raise SigningToolError(
+            "h2b_report's manifest_sha256 does not match the sha256 of "
+            "--sealed-manifest-file — the H2 evidence does not vouch for this "
+            "exact sealed manifest"
+        )
+
+    application_image_digests = _derive_application_image_digests(
+        args, merge_sha=merge_sha, merge_tree_sha=merge_tree_sha
+    )
     upstream_image_digests = _image_digest_pairs(args.upstream_image, label="--upstream-image")
     _verify_image_bindings(
         compose_raw,

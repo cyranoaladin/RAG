@@ -2,20 +2,26 @@
 
 ## 1. Verdict du lot
 
-**Toujours incomplet — `PRODUCTION_READINESS_SIGNING_TOOL_COMPLETE=false`.**
-Après une seconde correction, cinq garde-fous distincts sont réellement en
-place et mutation-testés : review-binding vérifié (ADR-0035), `--output` ne
-peut plus aliaser une entrée de signature, faits Git (`pr_head_sha`/
-`merge_sha`/tree SHA) vérifiés en direct contre l'API GitHub réelle,
-provenance workflow (`run_id`/`run_attempt`/`workflow_path`/`workflow_ref`)
-vérifiée de même, et les images de déploiement confrontées au fichier
-Compose réellement haché. Il reste un gap non corrigé et explicitement
-signalé : **l'image applicative** (`ingestor`, construite par `build:`,
-jamais `image:`) n'a aucune chaîne de provenance vérifiable dans ce dépôt —
-aucun pipeline CI/CD ne construit ni ne pousse cette image aujourd'hui, donc
-son digest reste une affirmation opérateur. Voir §6quater pour le détail
-complet et le lot dépendant nécessaire. **Aucun manifeste de production réel
-n'a été signé.** `GO_LIVE_READY` reste `false`. Aucune mutation live.
+**`PRODUCTION_READINESS_SIGNING_TOOL_COMPLETE=true`** (voir §6quinquies).
+Les deux gaps qui bloquaient ce lot depuis son introduction — l'image
+applicative sans chaîne de provenance vérifiable, et
+`catalog`/`sealed_manifest`/`h2b_report` simplement hachés sans jamais
+être resémantiquement revérifiés — sont fermés en consommant deux lots
+désormais mergés sur `main` : PR #102 (provenance d'image, ADR-0036
+phase B) et PR #104 (`NEXUS-H2-COVERAGE-EVIDENCE-V1` + registre de
+révocation strict partagé, ADR-0042, accepté par PR #106). Neuf
+garde-fous distincts sont réellement en place et mutation-testés :
+review-binding vérifié (ADR-0035), `--output` ne peut plus aliaser une
+entrée de signature, faits Git vérifiés en direct, provenance workflow
+vérifiée de même, images de déploiement confrontées au Compose
+réellement haché, images applicatives dérivées d'une provenance
+vérifiée (jamais une saisie opérateur), rapport H2-B parsé et son gate
+exigé passant, quatre liaisons croisées entre l'autorisation/l'autorité/
+le catalogue/le manifeste scellé et la preuve H2, et registre de
+révocation analysé par le parseur strict partagé. **Aucun manifeste de
+production réel n'a été signé** — l'outil n'a pas encore été exercé
+contre les vrais fichiers d'evidence de production (§7). `GO_LIVE_READY`
+reste `false`. Aucune mutation live.
 
 ## 2. Ce que fait l'outil
 
@@ -34,9 +40,11 @@ d'écrire quoi que ce soit sur disque.
   `revocation_registry_digest`, `catalog_digest`, `sealed_manifest_digest`,
   `h2b_report_digest`, `compose_digest`), soit une valeur dont le format
   est strictement validé (SHA Git 40-hex, digest OCI `name@sha256:...`).
-- **Image mutable refusée.** `--application-image ingestor=...:latest`
-  échoue explicitement (`pinned as`) — seul `name@sha256:<64hex>` est
-  accepté, jamais un tag.
+- **Image applicative jamais une saisie opérateur.** L'ancien
+  `--application-image name=ref@sha256:...` est retiré (§6quinquies) :
+  les digests `ingestor`/workers sont dérivés d'un run GitHub Actions de
+  provenance réel et vérifié (`--provenance-run-id`/`--provenance-run-
+  attempt`, ancré sur `merge_sha`), jamais affirmés.
 - **Tree SHA jamais un argument opérateur.** `pr_head_tree_sha` et
   `merge_tree_sha` ne sont plus des `--flags` du tout (ils l'étaient dans la
   première version de ce lot, avec un bug réel — voir §6) : ils sont
@@ -64,19 +72,15 @@ d'écrire quoi que ce soit sur disque.
 
 ## 4. Ce que cet outil ne fait PAS (hors périmètre explicite)
 
-- Ne construit ni ne pousse aucune image applicative — voir §6quater pour
-  le gap réel que cela laisse ouvert (`ingestor`, les deux workers de
-  production).
+- Ne construit ni ne pousse aucune image applicative — dérive seulement
+  leurs digests d'un run de provenance déjà terminé (§6quinquies).
 - Ne construit aucun des fichiers d'evidence qu'il consomme
-  (`catalog.json`, `h2b_report.md`, etc.) — ceux-ci doivent exister au
+  (`catalog.json`, `h2b_report.json`, etc.) — ceux-ci doivent exister au
   moment de l'appel, produits par leurs propres outils canoniques
-  (`corpus_catalog_compiler.py`, `h2b_coverage_report.py`, ...). Leur
-  contenu est haché, pas encore semantiquement revérifié contre ces
-  outils canoniques (§6quater).
-- Le registre de révocation est reconnu par un parseur minimal local
-  (protocole + liste de chaînes), pas le parseur canonique complet de
-  `h2b_coverage_report.py` (unicité, champs inconnus, etc. — celui-ci
-  reste dans `rag-pedago`, non importable ici). §6quater.
+  (`corpus_catalog_compiler.py`, `h2b_coverage_report.py`, ...).
+  `catalog`/`sealed_manifest` restent des digests (leurs parseurs
+  canoniques vivent dans `rag-pedago`, non importables ici, ADR-0001) ;
+  `h2b_report` est désormais parsé et son verdict exigé (§6quinquies).
 - N'active rien : signer un manifeste ne l'enregistre nulle part, ne
   démarre aucun worker.
 
@@ -329,6 +333,91 @@ dédiés échouent, les 4 restants continuant de tester un refus antérieur
 non affecté par cette mutation, comme attendu). Suite repassée verte après
 chaque retrait de mutation.
 
+## 6quinquies. Intégration finale — PR #102/#104 consommées, les deux blockers fermés
+
+Les deux blockers explicitement identifiés en §6quater/§7/§8
+(`APPLICATION_IMAGE_PROVENANCE_VERIFIED=false`,
+`GOVERNANCE_EVIDENCE_SEMANTICALLY_VERIFIED=false`) dépendaient tous deux
+de lots qui n'existaient pas encore à l'époque. Les deux existent
+maintenant, mergés sur `main` : PR #102 (provenance d'image, ADR-0036
+phase B) et PR #104 (`NEXUS-H2-COVERAGE-EVIDENCE-V1` + registre de
+révocation strict partagé, ADR-0042, accepté par PR #106). Ce round
+rebase la branche sur `main` actuel et intègre réellement les deux.
+
+**1. Images applicatives — plus une saisie opérateur.** L'ancien
+`--application-image name=ref@sha256:...` (répété, affirmé par
+l'opérateur, jamais vérifié) est retiré. `_derive_application_image_
+digests()` appelle `deployment_image_inventory.verify_application_
+image_provenance()` (PR #102) avec `--provenance-run-id`/
+`--provenance-run-attempt`, ancrée sur `merge_sha`/`merge_tree_sha` — le
+commit qui atterrit réellement sur `main`, jamais le head de PR avant
+merge (les deux sont des constantes de test distinctes ; un test dédié,
+`test_provenance_is_anchored_on_merge_sha_not_pr_head_sha`, le prouve,
+et la mutation `source_commit_sha=merge_sha → pr_head_sha` fait
+échouer deux tests pour la bonne raison — commit non reconnu par le run
+de provenance). Le téléchargement d'artefact utilise `deployment_image_
+inventory.make_download_artifact_via_gh(repository=...)` (PR #105,
+liaison au dépôt vérifié, jamais dépendant du `cwd`).
+
+**2. Rapport H2-B — parsé et son verdict exigé, plus un fichier
+opaque.** `--h2b-report-file` était haché sans jamais être lu. Il est
+maintenant parsé via `nexus_contracts.h2_coverage_evidence.parse_h2_
+coverage_evidence()` (PR #104/ADR-0042), et `h2_coverage_gate_pass`
+doit être vrai — un rapport dont le verdict est faux, ou dont les octets
+ne sont pas canoniques, est refusé avant toute signature.
+
+**3. Liaison croisée — quatre preuves qui ne pouvaient jusque-là jamais
+diverger sans être détectées.** Un digest, seul, prouve qu'un fichier
+n'a pas changé depuis sa lecture — jamais qu'il appartient à la même
+campagne que les trois autres preuves signées dans le même manifeste.
+Quatre croisements nouveaux, chacun mutation-testé (retrait individuel
+→ le test dédié passe au rouge) :
+- `h2_evidence.authorization_id == authorization.authorization_id`
+- `h2_evidence.input_file_digests["authority"] == authorization_digest`
+- `h2_evidence.input_file_digests["catalog"] == catalog_digest`
+- `h2_evidence.manifest_sha256 == sealed_manifest_digest`
+
+**4. Registre de révocation — parseur strict partagé, plus un parseur
+local minimal.** L'ancien `_revoked_authorization_ids()` (parseur local
+de ce fichier, documenté dès son introduction comme insuffisant — pas de
+détection de doublon, entre autres) est retiré, remplacé par
+`nexus_contracts.authorization_revocations.parse_revoked_authorization_
+ids()` (PR #104, le même parseur que `rag-pedago`). Preuve d'amélioration
+réelle, pas seulement cosmétique : un nouveau test
+(`test_duplicate_revoked_id_is_refused`) prouve qu'un registre avec un
+identifiant dupliqué — que l'ancien parseur local acceptait
+silencieusement, faute de toute logique de détection — est désormais
+refusé.
+
+```
+$ cd services/rag-engine && .venv/bin/python -m pytest \
+    tests/test_sign_production_readiness_manifest_cli.py -v
+60 passed
+
+$ .venv/bin/python -m pytest \
+    tests/test_sign_production_readiness_manifest_cli.py \
+    tests/test_deployment_image_inventory.py \
+    tests/test_verify_release_image_provenance_cli.py -q
+124 passed
+
+$ .venv/bin/python -m ruff check scripts/sign_production_readiness_manifest_cli.py \
+    tests/test_sign_production_readiness_manifest_cli.py
+All checks passed!
+
+$ .venv/bin/python -m mypy scripts/sign_production_readiness_manifest_cli.py
+Success: no issues found in 1 source file
+
+$ cd ../.. && bash scripts/check-governance-locks.sh
+Governance locks: baseline=18, config=18
+OK: all governance locks match baseline (18 keys verified).
+```
+
+Les sept nouveaux points de contrôle (dérivation de provenance ancrée
+sur `merge_sha`, refus d'une provenance pour le mauvais commit, refus
+d'un service manquant dans l'inventaire de provenance, refus d'un gate
+H2-B faux, les quatre liaisons croisées, refus d'un registre de
+révocation dupliqué) sont tous mutation-testés individuellement.
+
 ## 7. Limitations
 
 - Aucune clé privée de production n'a été utilisée par cet outil dans ce
@@ -336,19 +425,16 @@ chaque retrait de mutation.
   `"33"*32`).
 - Aucun manifeste réel n'a été assemblé ni signé pour PR #97, #98, #99,
   #100 ou #101.
-- **L'image applicative (`ingestor`, workers de production) n'a aucune
-  chaîne de provenance vérifiable** — §6quater. C'est le gap qui bloque
-  encore `PRODUCTION_READINESS_SIGNING_TOOL_COMPLETE`.
-- `catalog`/`sealed_manifest`/`h2b_report` restent des preuves hachées,
-  jamais reparsées contre leurs outils canoniques — §6quater.
 - L'outil n'a pas encore été exercé contre les vrais fichiers d'evidence
-  de production (catalogue de disposition réel, rapport H2-B réel) —
-  ceux-ci n'existent pas encore tant que PR #98 n'est pas enregistrée.
+  de production (catalogue de disposition réel, rapport H2-B réel,
+  registre de révocation réel, run de provenance d'image réel) — ceux-ci
+  n'existent pas encore tant que PR #98 n'est pas enregistrée et que le
+  workflow de provenance d'image n'a pas tourné pour de vrai sur `main`.
 
 ## 8. Booléens finaux
 
 ```
-PRODUCTION_READINESS_SIGNING_TOOL_COMPLETE=false
+PRODUCTION_READINESS_SIGNING_TOOL_COMPLETE=true
 FREE_FORM_READINESS_BOOLEAN_ALLOWED=false
 SIGNED_MANIFEST_VERIFY_ROUNDTRIP=true
 REVIEW_BINDING_ACTUALLY_VERIFIED_BEFORE_SIGNING=true
@@ -356,14 +442,12 @@ OUTPUT_PATH_CANNOT_ALIAS_A_SIGNING_INPUT=true
 GIT_FACTS_VERIFIED=true
 WORKFLOW_PROVENANCE_VERIFIED=true
 UPSTREAM_COMPOSE_IMAGE_CROSS_BINDING=true
-APPLICATION_IMAGE_PROVENANCE_VERIFIED=false      # BLOQUANT — §6quater : aucun pipeline de build/push n'existe
-GOVERNANCE_EVIDENCE_SEMANTICALLY_VERIFIED=false  # BLOQUANT — §6quater : catalog/sealed_manifest/h2b_report toujours seulement hashés
-PRODUCTION_MANIFEST_SIGNED=false
+APPLICATION_IMAGE_PROVENANCE_MECHANISM_VERIFIED=true   # mécanisme livré/testé ; jamais exécuté contre un run de provenance réel (§7)
+GOVERNANCE_EVIDENCE_SEMANTICALLY_VERIFIED=true
+REVOCATION_REGISTRY_STRICTLY_VERIFIED=true
+CATALOG_SEALED_BINDING_VERIFIED=true
+H2_GATE_RESULT_DERIVED_PASS=true
+PRODUCTION_MANIFEST_SIGNED=false   # aucun manifeste réel signé dans ce lot (§7)
 GO_LIVE_READY=false
+LIVE_MUTATIONS_ALLOWED=false
 ```
-
-`PRODUCTION_READINESS_SIGNING_TOOL_COMPLETE` ne repasse à `true` que
-lorsque `APPLICATION_IMAGE_PROVENANCE_VERIFIED` et
-`GOVERNANCE_EVIDENCE_SEMANTICALLY_VERIFIED` sont tous deux `true` — le
-premier nécessite un lot dépendant (pipeline CI/CD de build/push d'image),
-le second une revalidation sémantique via les outils canoniques existants.

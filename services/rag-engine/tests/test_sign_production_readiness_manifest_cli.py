@@ -20,11 +20,16 @@ sys.path.insert(
     0, str(Path(__file__).resolve().parents[3] / "packages" / "contracts" / "src")
 )
 
+import deployment_image_inventory as dii  # noqa: E402
 import sign_production_readiness_manifest_cli as tool  # noqa: E402
 from nexus_contracts.authority_artifacts import (  # noqa: E402
     ScopeAuthorizationArtifactV2,
     canonical_authorization_path,
     git_blob_sha1,
+)
+from nexus_contracts.h2_coverage_evidence import (  # noqa: E402
+    H2_COVERAGE_EVIDENCE_PROTOCOL_VERSION,
+    H2CoverageEvidenceV1,
 )
 from nexus_contracts.production_readiness import (  # noqa: E402
     ProductionReadinessError,
@@ -60,8 +65,25 @@ WORKFLOW_REF = "refs/heads/main"
 RUN_ID = 1234
 RUN_ATTEMPT = 1
 
-APPLICATION_IMAGE_SERVICE = "ingestor"
-APPLICATION_IMAGE_REF = "ghcr.io/x/ingestor@sha256:" + "1" * 64
+#: Les trois vrais services applicatifs (deployment_image_inventory.py,
+#: PR #102) -- jamais un seul service fictif : les digests applicatifs ne
+#: sont plus une saisie opérateur, ils sont dérivés d'une provenance
+#: vérifiée qui exige exactement cet ensemble.
+APPLICATION_SERVICES = ("ingestor", "multilevel-worker-a-production", "multilevel-worker-b-production")
+INGESTOR_REPO = "ghcr.io/cyranoaladin/rag-ingestor"
+WORKER_REPO = "ghcr.io/cyranoaladin/rag-multilevel-worker-production"
+INGESTOR_DIGEST = "sha256:" + "1" * 64
+WORKER_DIGEST = "sha256:" + "2" * 64
+DOCKERFILE_SHA = "3" * 64
+APPLICATION_IMAGE_DIGESTS = {
+    "ingestor": f"{INGESTOR_REPO}@{INGESTOR_DIGEST}",
+    "multilevel-worker-a-production": f"{WORKER_REPO}@{WORKER_DIGEST}",
+    "multilevel-worker-b-production": f"{WORKER_REPO}@{WORKER_DIGEST}",
+}
+PROVENANCE_RUN_ID = 777
+PROVENANCE_RUN_ATTEMPT = 1
+PROVENANCE_WORKFLOW_PATH = ".github/workflows/production-image-provenance.yml"
+
 UPSTREAM_IMAGE_SERVICE = "pgvector"
 UPSTREAM_IMAGE_REF = "pgvector/pgvector@sha256:" + "2" * 64
 
@@ -203,12 +225,57 @@ def _revocation_registry_bytes(*, revoked: tuple[str, ...] = ()) -> bytes:
 
 
 def _compose_bytes(
-    *, upstream_image: str = UPSTREAM_IMAGE_REF, include_application_service: bool = True
+    *, upstream_image: str = UPSTREAM_IMAGE_REF, application_services: tuple[str, ...] = APPLICATION_SERVICES
 ) -> bytes:
     services: dict[str, Any] = {UPSTREAM_IMAGE_SERVICE: {"image": upstream_image}}
-    if include_application_service:
-        services[APPLICATION_IMAGE_SERVICE] = {"build": {"context": "."}}
+    for name in application_services:
+        services[name] = {"build": {"context": "."}}
     return yaml.safe_dump({"services": services}, sort_keys=True).encode("utf-8")
+
+
+def _inventory_document(
+    *, source_commit_sha: str = MERGE_SHA, source_tree_sha: str = TREE_SHA, **overrides: Any
+) -> dict[str, Any]:
+    document: dict[str, Any] = {
+        "protocol_version": "NEXUS-DEPLOYMENT-IMAGE-INVENTORY-V1",
+        "repository": REPOSITORY,
+        "source_commit_sha": source_commit_sha,
+        "source_tree_sha": source_tree_sha,
+        "platform": "linux/amd64",
+        "workflow_path": PROVENANCE_WORKFLOW_PATH,
+        "workflow_run_id": PROVENANCE_RUN_ID,
+        "workflow_run_attempt": PROVENANCE_RUN_ATTEMPT,
+        "workflow_ref": "refs/heads/main",
+        "built_at": "2026-08-14T12:00:00Z",
+        "services": {
+            "ingestor": {
+                "source_kind": "build",
+                "build_context": ".",
+                "dockerfile": "services/rag-engine/infra/Dockerfile.ingestor-v2",
+                "dockerfile_sha256": DOCKERFILE_SHA,
+                "image_repository": INGESTOR_REPO,
+                "image_digest": INGESTOR_DIGEST,
+            },
+            "multilevel-worker-a-production": {
+                "source_kind": "build",
+                "build_context": ".",
+                "dockerfile": "services/rag-engine/infra/Dockerfile.multilevel-worker-production",
+                "dockerfile_sha256": DOCKERFILE_SHA,
+                "image_repository": WORKER_REPO,
+                "image_digest": WORKER_DIGEST,
+            },
+            "multilevel-worker-b-production": {
+                "source_kind": "build",
+                "build_context": ".",
+                "dockerfile": "services/rag-engine/infra/Dockerfile.multilevel-worker-production",
+                "dockerfile_sha256": DOCKERFILE_SHA,
+                "image_repository": WORKER_REPO,
+                "image_digest": WORKER_DIGEST,
+            },
+        },
+    }
+    document.update(overrides)
+    return document
 
 
 def _github_responses(
@@ -222,6 +289,7 @@ def _github_responses(
     workflow_path: str = WORKFLOW_PATH,
     workflow_repository: str = REPOSITORY,
     head_branch: str | None = "main",
+    provenance_conclusion: str = "success",
 ) -> dict[str, dict[str, Any]]:
     """Réponses GitHub par défaut : tout concorde (chemin heureux). Chaque
     test qui a besoin d'un scénario différent mute le dict retourné par la
@@ -241,6 +309,16 @@ def _github_responses(
             "head_branch": head_branch,
         },
         f"repos/{REPOSITORY}/actions/runs/{RUN_ID}/attempts/{RUN_ATTEMPT}": {},
+        f"repos/{REPOSITORY}/actions/runs/{PROVENANCE_RUN_ID}": {
+            "path": PROVENANCE_WORKFLOW_PATH,
+            "repository": {"full_name": REPOSITORY},
+            "event": "workflow_dispatch",
+            "status": "completed",
+            "conclusion": provenance_conclusion,
+            "head_sha": merge_sha,
+            "run_attempt": PROVENANCE_RUN_ATTEMPT,
+        },
+        f"repos/{REPOSITORY}/actions/runs/{PROVENANCE_RUN_ID}/attempts/{PROVENANCE_RUN_ATTEMPT}": {},
     }
 
 
@@ -264,7 +342,94 @@ def _stub_github_api(monkeypatch: pytest.MonkeyPatch) -> dict[str, dict[str, Any
     return responses
 
 
+@pytest.fixture(autouse=True)
+def _stub_download_artifact(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    """Substitue la seconde frontière réseau (téléchargement d'artefact de
+    provenance d'image, PR #102) -- jamais un vrai ``gh run download``.
+    Chemin heureux par défaut (inventaire des trois services réels) ; un
+    test qui veut un scénario différent mute ce dict avant d'appeler
+    l'outil."""
+    state: dict[str, Any] = {"inventory": _inventory_document()}
+
+    def fake_factory(*, repository: str) -> Any:
+        def download(run_id: int, artifact_name: str, dest_dir: Path) -> Path:
+            path = dest_dir / dii._ARTIFACT_FILENAME
+            path.write_text(json.dumps(state["inventory"]), encoding="utf-8")
+            return path
+
+        return download
+
+    monkeypatch.setattr(tool.dii, "make_download_artifact_via_gh", fake_factory)
+    return state
+
+
+def _h2_coverage_evidence_bytes(
+    *,
+    catalog_digest: str,
+    sealed_manifest_digest: str,
+    authorization_digest: str,
+    authorization_id: str = AUTHORIZATION_ID,
+    h2_coverage_gate_pass: bool = True,
+    **overrides: Any,
+) -> bytes:
+    """Preuve H2 canonique (ADR-0042) liée par digest à *ce même* catalogue,
+    manifeste scellé et artefact d'autorisation -- jamais trois fichiers
+    indépendants qui pourraient diverger sans être détectés."""
+    zero_safety_invariants = {
+        "INGEST_WITHOUT_RIGHTS_CLEARANCE": 0,
+        "INGEST_WITHOUT_PII_CLEARANCE": 0,
+        "INGEST_WITHOUT_CURRENTNESS_CLEARANCE": 0,
+        "INGEST_WITH_UNSUPPORTED_FORMAT": 0,
+        "INGEST_WITHOUT_PROVENANCE": 0,
+        "INGEST_WITHOUT_CONTENT_SHA": 0,
+        "INGEST_WITHOUT_AUTHORITY": 0,
+        "INGEST_WITH_SELF_DECLARED_AUTHORITY": 0,
+        "INGEST_WITHOUT_ATTRIBUTION_METADATA": 0,
+    }
+    document: dict[str, Any] = {
+        "protocol_version": H2_COVERAGE_EVIDENCE_PROTOCOL_VERSION,
+        "environment": "production",
+        "report_id": "sign-tool-test-h2b-report",
+        "generated_at": FAR_PAST,
+        "git_commit": MERGE_SHA,
+        "producer_version": "h2b_coverage_report/1",
+        "manifest_sha256": sealed_manifest_digest,
+        "input_file_digests": {
+            "catalog": catalog_digest,
+            "routing": "6" * 64,
+            "rights": "7" * 64,
+            "pii": "8" * 64,
+            "golden": "9" * 64,
+            "authority": authorization_digest,
+        },
+        "corpus_total_expected": 2583,
+        "corpus_total_actual": 2583,
+        "corpus_match": True,
+        "sum_equals_total": True,
+        "zero_overlap": True,
+        "zero_gap": True,
+        "coverage_complete": True,
+        "rights_gate_status": "PASS",
+        "pii_gate_status": "PASS",
+        "golden_validation_pass": True,
+        "h2_coverage_gate_pass": h2_coverage_gate_pass,
+        "authority_review_binding_verified": True,
+        "authority_revocations_checked": True,
+        "authorization_id": authorization_id,
+        "safety_invariants": zero_safety_invariants,
+    }
+    document.update(overrides)
+    return H2CoverageEvidenceV1.model_validate(document).canonical_bytes()
+
+
 def _base_args(tmp_path: Path, **overrides: object) -> argparse.Namespace:
+    catalog_bytes = b"catalog-content"
+    sealed_manifest_bytes = b"sealed-manifest-content"
+    authorization_bytes = _authorization_bytes()
+    catalog_digest = hashlib.sha256(catalog_bytes).hexdigest()
+    sealed_manifest_digest = hashlib.sha256(sealed_manifest_bytes).hexdigest()
+    authorization_digest = hashlib.sha256(authorization_bytes).hexdigest()
+
     parser = tool._build_arg_parser()
     argv = [
         "--repository", REPOSITORY,
@@ -275,15 +440,23 @@ def _base_args(tmp_path: Path, **overrides: object) -> argparse.Namespace:
         "--review-binding-file", str(_write(tmp_path / "rb.json", _signed_review_binding_bytes())),
         "--review-binding-trust-anchor-file",
         str(_write(tmp_path / "rb_anchor.json", _review_binding_trust_anchor_bytes())),
-        "--authorization-file", str(_write(tmp_path / "auth.json", _authorization_bytes())),
+        "--authorization-file", str(_write(tmp_path / "auth.json", authorization_bytes)),
         "--trust-anchor-file", str(_write(tmp_path / "anchor.json")),
         "--revocation-registry-file",
         str(_write(tmp_path / "revoc.json", _revocation_registry_bytes())),
-        "--catalog-file", str(_write(tmp_path / "catalog.json")),
-        "--sealed-manifest-file", str(_write(tmp_path / "sealed.txt")),
-        "--h2b-report-file", str(_write(tmp_path / "report.md")),
+        "--catalog-file", str(_write(tmp_path / "catalog.json", catalog_bytes)),
+        "--sealed-manifest-file", str(_write(tmp_path / "sealed.txt", sealed_manifest_bytes)),
+        "--h2b-report-file", str(_write(
+            tmp_path / "report.json",
+            _h2_coverage_evidence_bytes(
+                catalog_digest=catalog_digest,
+                sealed_manifest_digest=sealed_manifest_digest,
+                authorization_digest=authorization_digest,
+            ),
+        )),
         "--compose-file", str(_write(tmp_path / "compose.yml", _compose_bytes())),
-        "--application-image", f"{APPLICATION_IMAGE_SERVICE}={APPLICATION_IMAGE_REF}",
+        "--provenance-run-id", str(PROVENANCE_RUN_ID),
+        "--provenance-run-attempt", str(PROVENANCE_RUN_ATTEMPT),
         "--upstream-image", f"{UPSTREAM_IMAGE_SERVICE}={UPSTREAM_IMAGE_REF}",
         "--workflow-path", WORKFLOW_PATH,
         "--workflow-ref", WORKFLOW_REF,
@@ -298,6 +471,37 @@ def _base_args(tmp_path: Path, **overrides: object) -> argparse.Namespace:
     for key, value in overrides.items():
         setattr(args, key.replace("-", "_"), value)
     return args
+
+
+def _main_argv(tmp_path: Path, *, output: Path) -> list[str]:
+    """argv pour ``tool.main()`` référençant les fichiers déjà écrits par
+    ``_base_args`` (appelé séparément, comme effet de bord, par chaque
+    test qui utilise ce helper) -- jamais dupliqué trois fois."""
+    return [
+        "--repository", "cyranoaladin/RAG", "--pr-number", "98",
+        "--pr-head-sha", PR_HEAD_SHA,
+        "--merge-sha", MERGE_SHA,
+        "--environment", "production",
+        "--review-binding-file", str(tmp_path / "rb.json"),
+        "--review-binding-trust-anchor-file", str(tmp_path / "rb_anchor.json"),
+        "--authorization-file", str(tmp_path / "auth.json"),
+        "--trust-anchor-file", str(tmp_path / "anchor.json"),
+        "--revocation-registry-file", str(tmp_path / "revoc.json"),
+        "--catalog-file", str(tmp_path / "catalog.json"),
+        "--sealed-manifest-file", str(tmp_path / "sealed.txt"),
+        "--h2b-report-file", str(tmp_path / "report.json"),
+        "--compose-file", str(tmp_path / "compose.yml"),
+        "--provenance-run-id", str(PROVENANCE_RUN_ID),
+        "--provenance-run-attempt", str(PROVENANCE_RUN_ATTEMPT),
+        "--upstream-image", "pgvector=pgvector/pgvector@sha256:" + "2" * 64,
+        "--workflow-path", ".github/workflows/promote.yml",
+        "--workflow-ref", "refs/heads/main",
+        "--run-id", "1234", "--run-attempt", "1",
+        "--key-id", TEST_KEY_ID,
+        "--private-key-file", str(tmp_path / "priv.hex"),
+        "--verification-trust-anchor-file", str(tmp_path / "verify_anchor.json"),
+        "--output", str(output),
+    ]
 
 
 def _write_verification_anchor(tmp_path: Path, *, seed: str = TEST_SEED, environment: str = "production") -> None:
@@ -326,30 +530,7 @@ class TestValidManifestSignsAndVerifies:
         assert manifest.protocol_version == "NEXUS-PRODUCTION-READINESS-V1"
         assert manifest.pr_head_tree_sha == manifest.merge_tree_sha
 
-        rc = tool.main([
-            "--repository", "cyranoaladin/RAG", "--pr-number", "98",
-            "--pr-head-sha", PR_HEAD_SHA,
-            "--merge-sha", MERGE_SHA,
-            "--environment", "production",
-            "--review-binding-file", str(tmp_path / "rb.json"),
-            "--review-binding-trust-anchor-file", str(tmp_path / "rb_anchor.json"),
-            "--authorization-file", str(tmp_path / "auth.json"),
-            "--trust-anchor-file", str(tmp_path / "anchor.json"),
-            "--revocation-registry-file", str(tmp_path / "revoc.json"),
-            "--catalog-file", str(tmp_path / "catalog.json"),
-            "--sealed-manifest-file", str(tmp_path / "sealed.txt"),
-            "--h2b-report-file", str(tmp_path / "report.md"),
-            "--compose-file", str(tmp_path / "compose.yml"),
-            "--application-image", "ingestor=ghcr.io/x/ingestor@sha256:" + "1" * 64,
-            "--upstream-image", "pgvector=pgvector/pgvector@sha256:" + "2" * 64,
-            "--workflow-path", ".github/workflows/promote.yml",
-            "--workflow-ref", "refs/heads/main",
-            "--run-id", "1234", "--run-attempt", "1",
-            "--key-id", TEST_KEY_ID,
-            "--private-key-file", str(tmp_path / "priv.hex"),
-            "--verification-trust-anchor-file", str(tmp_path / "verify_anchor.json"),
-            "--output", str(tmp_path / "manifest.json"),
-        ])
+        rc = tool.main(_main_argv(tmp_path, output=tmp_path / "manifest.json"))
         assert rc == 0
         raw = (tmp_path / "manifest.json").read_bytes()
         anchor = ProductionReadinessTrustAnchor.model_validate(
@@ -394,22 +575,15 @@ class TestAdversarialCanaries:
         with pytest.raises(tool.SigningToolError, match="pr_head_tree_sha and merge_tree_sha differ"):
             tool.assemble_and_sign(args)
 
-    def test_mutable_image_tag_refused(self, tmp_path: Path) -> None:
-        args = _base_args(tmp_path, application_image=["ingestor=ghcr.io/x/ingestor:latest"])
-        with pytest.raises(tool.SigningToolError, match="pinned as"):
-            tool.assemble_and_sign(args)
-
-    def test_no_application_images_refused(self, tmp_path: Path) -> None:
-        args = _base_args(tmp_path, application_image=[])
-        with pytest.raises(tool.SigningToolError, match="at least one image"):
-            tool.assemble_and_sign(args)
-
-    def test_duplicate_image_service_name_refused(self, tmp_path: Path) -> None:
+    def test_duplicate_upstream_image_service_name_refused(self, tmp_path: Path) -> None:
+        # _image_digest_pairs is still exercised directly for --upstream-image
+        # (application images no longer go through this opaque-input path,
+        # see TestApplicationImageProvenanceIsDerivedNotDeclared instead).
         args = _base_args(
             tmp_path,
-            application_image=[
-                "ingestor=ghcr.io/x/ingestor@sha256:" + "1" * 64,
-                "ingestor=ghcr.io/x/ingestor@sha256:" + "3" * 64,
+            upstream_image=[
+                f"{UPSTREAM_IMAGE_SERVICE}={UPSTREAM_IMAGE_REF}",
+                f"{UPSTREAM_IMAGE_SERVICE}=pgvector/pgvector@sha256:" + "3" * 64,
             ],
         )
         with pytest.raises(tool.SigningToolError, match="twice"):
@@ -494,30 +668,7 @@ class TestAdversarialCanaries:
         _base_args(tmp_path)
         _write_verification_anchor(tmp_path, seed=OTHER_SEED)  # anchor won't match priv.hex (TEST_SEED)
         output = tmp_path / "manifest.json"
-        rc = tool.main([
-            "--repository", "cyranoaladin/RAG", "--pr-number", "98",
-            "--pr-head-sha", PR_HEAD_SHA,
-            "--merge-sha", MERGE_SHA,
-            "--environment", "production",
-            "--review-binding-file", str(tmp_path / "rb.json"),
-            "--review-binding-trust-anchor-file", str(tmp_path / "rb_anchor.json"),
-            "--authorization-file", str(tmp_path / "auth.json"),
-            "--trust-anchor-file", str(tmp_path / "anchor.json"),
-            "--revocation-registry-file", str(tmp_path / "revoc.json"),
-            "--catalog-file", str(tmp_path / "catalog.json"),
-            "--sealed-manifest-file", str(tmp_path / "sealed.txt"),
-            "--h2b-report-file", str(tmp_path / "report.md"),
-            "--compose-file", str(tmp_path / "compose.yml"),
-            "--application-image", "ingestor=ghcr.io/x/ingestor@sha256:" + "1" * 64,
-            "--upstream-image", "pgvector=pgvector/pgvector@sha256:" + "2" * 64,
-            "--workflow-path", ".github/workflows/promote.yml",
-            "--workflow-ref", "refs/heads/main",
-            "--run-id", "1234", "--run-attempt", "1",
-            "--key-id", TEST_KEY_ID,
-            "--private-key-file", str(tmp_path / "priv.hex"),
-            "--verification-trust-anchor-file", str(tmp_path / "verify_anchor.json"),
-            "--output", str(output),
-        ])
+        rc = tool.main(_main_argv(tmp_path, output=output))
         assert rc == 1
         assert not output.exists()
 
@@ -659,30 +810,7 @@ class TestOutputNeverAliasesAnInput:
         _write_verification_anchor(tmp_path)
         priv = tmp_path / "priv.hex"
         original = priv.read_bytes()
-        rc = tool.main([
-            "--repository", "cyranoaladin/RAG", "--pr-number", "98",
-            "--pr-head-sha", PR_HEAD_SHA,
-            "--merge-sha", MERGE_SHA,
-            "--environment", "production",
-            "--review-binding-file", str(tmp_path / "rb.json"),
-            "--review-binding-trust-anchor-file", str(tmp_path / "rb_anchor.json"),
-            "--authorization-file", str(tmp_path / "auth.json"),
-            "--trust-anchor-file", str(tmp_path / "anchor.json"),
-            "--revocation-registry-file", str(tmp_path / "revoc.json"),
-            "--catalog-file", str(tmp_path / "catalog.json"),
-            "--sealed-manifest-file", str(tmp_path / "sealed.txt"),
-            "--h2b-report-file", str(tmp_path / "report.md"),
-            "--compose-file", str(tmp_path / "compose.yml"),
-            "--application-image", "ingestor=ghcr.io/x/ingestor@sha256:" + "1" * 64,
-            "--upstream-image", "pgvector=pgvector/pgvector@sha256:" + "2" * 64,
-            "--workflow-path", ".github/workflows/promote.yml",
-            "--workflow-ref", "refs/heads/main",
-            "--run-id", "1234", "--run-attempt", "1",
-            "--key-id", TEST_KEY_ID,
-            "--private-key-file", str(priv),
-            "--verification-trust-anchor-file", str(tmp_path / "verify_anchor.json"),
-            "--output", str(priv),  # aliases the signing key itself
-        ])
+        rc = tool.main(_main_argv(tmp_path, output=priv))  # aliases the signing key itself
         assert rc == 1
         assert priv.read_bytes() == original
 
@@ -815,7 +943,7 @@ class TestComposeImageBindingIsEnforced:
                 "services": {
                     UPSTREAM_IMAGE_SERVICE: {"image": UPSTREAM_IMAGE_REF},
                     "redis": {"image": "redis:7@sha256:" + "5" * 64},
-                    APPLICATION_IMAGE_SERVICE: {"build": {"context": "."}},
+                    **{name: {"build": {"context": "."}} for name in APPLICATION_SERVICES},
                 }
             },
             sort_keys=True,
@@ -839,24 +967,43 @@ class TestComposeImageBindingIsEnforced:
         with pytest.raises(tool.SigningToolError, match="image-pinned services"):
             tool.assemble_and_sign(args)
 
-    def test_application_service_omitted_from_declared_images_is_refused(
+    def test_compose_build_service_omitted_relative_to_provenance_is_refused(
         self, tmp_path: Path
     ) -> None:
-        # compose.yml declares one build-based service (ingestor); an empty
-        # --application-image list leaves it unrepresented -- caught by the
-        # earlier "_image_digest_pairs must declare at least one image"
-        # refusal, itself a real consequence of the same underlying gap.
-        args = _base_args(tmp_path, application_image=[])
-        with pytest.raises(tool.SigningToolError, match="must declare at least one image"):
+        # Provenance always vouches for exactly the three real application
+        # services (deployment_image_inventory._EXPECTED_APPLICATION_
+        # SERVICES); a compose file that only declares two of them leaves
+        # one unrepresented -- application_image_digests no longer comes
+        # from an operator list, so this is now exercised entirely through
+        # the compose file's own build-service set.
+        raw = yaml.safe_dump(
+            {
+                "services": {
+                    UPSTREAM_IMAGE_SERVICE: {"image": UPSTREAM_IMAGE_REF},
+                    APPLICATION_SERVICES[0]: {"build": {"context": "."}},
+                }
+            },
+            sort_keys=True,
+        ).encode("utf-8")
+        args = _base_args(
+            tmp_path, compose_file=_write(tmp_path / "compose_missing_service.yml", raw)
+        )
+        with pytest.raises(tool.SigningToolError, match="build-based services"):
             tool.assemble_and_sign(args)
 
-    def test_extra_invented_application_service_is_refused(self, tmp_path: Path) -> None:
+    def test_compose_build_service_not_in_provenance_is_refused(self, tmp_path: Path) -> None:
+        raw = yaml.safe_dump(
+            {
+                "services": {
+                    UPSTREAM_IMAGE_SERVICE: {"image": UPSTREAM_IMAGE_REF},
+                    **{name: {"build": {"context": "."}} for name in APPLICATION_SERVICES},
+                    "invented-worker": {"build": {"context": "."}},
+                }
+            },
+            sort_keys=True,
+        ).encode("utf-8")
         args = _base_args(
-            tmp_path,
-            application_image=[
-                f"{APPLICATION_IMAGE_SERVICE}={APPLICATION_IMAGE_REF}",
-                "invented-worker=ghcr.io/x/invented@sha256:" + "9" * 64,
-            ],
+            tmp_path, compose_file=_write(tmp_path / "compose_extra_service.yml", raw)
         )
         with pytest.raises(tool.SigningToolError, match="build-based services"):
             tool.assemble_and_sign(args)
@@ -868,7 +1015,7 @@ class TestComposeImageBindingIsEnforced:
             {
                 "services": {
                     UPSTREAM_IMAGE_SERVICE: {"image": UPSTREAM_IMAGE_REF},
-                    APPLICATION_IMAGE_SERVICE: {"build": {"context": "."}},
+                    **{name: {"build": {"context": "."}} for name in APPLICATION_SERVICES},
                     "network-only": {"networks": ["rag_net"]},
                 }
             },
@@ -883,7 +1030,7 @@ class TestComposeImageBindingIsEnforced:
             {
                 "services": {
                     UPSTREAM_IMAGE_SERVICE: {"image": "${PGVECTOR_IMAGE}"},
-                    APPLICATION_IMAGE_SERVICE: {"build": {"context": "."}},
+                    APPLICATION_SERVICES[0]: {"build": {"context": "."}},
                 }
             },
             sort_keys=True,
@@ -930,7 +1077,7 @@ class TestComposeImageBindingIsEnforced:
             {
                 "services": {
                     UPSTREAM_IMAGE_SERVICE: {"image": "pgvector/pgvector:pg16"},  # no digest
-                    APPLICATION_IMAGE_SERVICE: {"build": {"context": "."}},
+                    APPLICATION_SERVICES[0]: {"build": {"context": "."}},
                 }
             },
             sort_keys=True,
@@ -957,6 +1104,187 @@ class TestComposeImageBindingIsEnforced:
         )
         manifest = tool.assemble_and_sign(args)
         assert manifest.upstream_image_digests[UPSTREAM_IMAGE_SERVICE] == UPSTREAM_IMAGE_REF
+
+
+class TestApplicationImageProvenanceIsDerivedNotDeclared:
+    """PR #102 integration : les digests d'images applicatives ne sont plus
+    une saisie opérateur (ancien ``--application-image``) -- ils sont
+    dérivés d'un run GitHub Actions de provenance réel et vérifié. Chaque
+    scénario ici prouve qu'une provenance invalide est refusée, jamais
+    seulement un format d'image plausible."""
+
+    def test_valid_provenance_derives_the_expected_three_service_digests(
+        self, tmp_path: Path
+    ) -> None:
+        args = _base_args(tmp_path)
+        manifest = tool.assemble_and_sign(args)
+        assert manifest.application_image_digests == APPLICATION_IMAGE_DIGESTS
+
+    def test_provenance_is_anchored_on_merge_sha_not_pr_head_sha(
+        self, tmp_path: Path, _stub_github_api: dict[str, dict[str, Any]]
+    ) -> None:
+        # The inventory document's source_commit_sha defaults to MERGE_SHA
+        # (_inventory_document's own default) and the provenance run's
+        # head_sha is likewise MERGE_SHA in _github_responses -- diverging
+        # PR_HEAD_SHA from MERGE_SHA (already true by construction, they are
+        # distinct fixture constants) and still succeeding proves the tool
+        # anchors provenance on the commit that actually lands on main, not
+        # the pre-merge PR head.
+        assert PR_HEAD_SHA != MERGE_SHA
+        args = _base_args(tmp_path)
+        manifest = tool.assemble_and_sign(args)
+        assert manifest.application_image_digests == APPLICATION_IMAGE_DIGESTS
+
+    def test_failed_provenance_run_is_refused(
+        self, tmp_path: Path, _stub_github_api: dict[str, dict[str, Any]]
+    ) -> None:
+        _stub_github_api[f"repos/{REPOSITORY}/actions/runs/{PROVENANCE_RUN_ID}"]["conclusion"] = (
+            "failure"
+        )
+        args = _base_args(tmp_path)
+        with pytest.raises(tool.SigningToolError, match="application image provenance refused"):
+            tool.assemble_and_sign(args)
+
+    def test_provenance_inventory_for_the_wrong_commit_is_refused(
+        self, tmp_path: Path, _stub_download_artifact: dict[str, Any]
+    ) -> None:
+        _stub_download_artifact["inventory"] = _inventory_document(source_commit_sha="f" * 40)
+        args = _base_args(tmp_path)
+        with pytest.raises(tool.SigningToolError, match="application image provenance refused"):
+            tool.assemble_and_sign(args)
+
+    def test_provenance_inventory_missing_a_required_service_is_refused(
+        self, tmp_path: Path, _stub_download_artifact: dict[str, Any]
+    ) -> None:
+        inventory = _inventory_document()
+        del inventory["services"]["multilevel-worker-b-production"]
+        _stub_download_artifact["inventory"] = inventory
+        args = _base_args(tmp_path)
+        with pytest.raises(tool.SigningToolError, match="application image provenance refused"):
+            tool.assemble_and_sign(args)
+
+
+class TestH2CoverageEvidenceIsSemanticallyVerified:
+    """ADR-0042 integration : le rapport de couverture H2-B n'est plus un
+    fichier opaque simplement haché -- il est parsé et son verdict, ainsi
+    que sa liaison à l'autorisation/l'autorité/le catalogue/le manifeste
+    scellé de ce même manifeste, sont exigés."""
+
+    def test_a_passing_h2_evidence_signs_successfully(self, tmp_path: Path) -> None:
+        args = _base_args(tmp_path)
+        manifest = tool.assemble_and_sign(args)
+        assert manifest.h2b_report_digest == hashlib.sha256(
+            (tmp_path / "report.json").read_bytes()
+        ).hexdigest()
+
+    def test_h2_coverage_gate_pass_false_is_refused(self, tmp_path: Path) -> None:
+        catalog_bytes = b"catalog-content"
+        sealed_manifest_bytes = b"sealed-manifest-content"
+        authorization_bytes = _authorization_bytes()
+        evidence = _h2_coverage_evidence_bytes(
+            catalog_digest=hashlib.sha256(catalog_bytes).hexdigest(),
+            sealed_manifest_digest=hashlib.sha256(sealed_manifest_bytes).hexdigest(),
+            authorization_digest=hashlib.sha256(authorization_bytes).hexdigest(),
+            h2_coverage_gate_pass=False,
+            coverage_complete=False,
+        )
+        args = _base_args(
+            tmp_path, h2b_report_file=_write(tmp_path / "report_bad.json", evidence)
+        )
+        with pytest.raises(tool.SigningToolError, match="h2_coverage_gate_pass is false"):
+            tool.assemble_and_sign(args)
+
+    def test_malformed_h2b_report_is_refused(self, tmp_path: Path) -> None:
+        args = _base_args(
+            tmp_path, h2b_report_file=_write(tmp_path / "report_bad.json", b"not json")
+        )
+        with pytest.raises(tool.SigningToolError, match="failed semantic verification"):
+            tool.assemble_and_sign(args)
+
+    def test_h2_evidence_authorization_id_mismatch_is_refused(self, tmp_path: Path) -> None:
+        catalog_bytes = b"catalog-content"
+        sealed_manifest_bytes = b"sealed-manifest-content"
+        authorization_bytes = _authorization_bytes()
+        evidence = _h2_coverage_evidence_bytes(
+            catalog_digest=hashlib.sha256(catalog_bytes).hexdigest(),
+            sealed_manifest_digest=hashlib.sha256(sealed_manifest_bytes).hexdigest(),
+            authorization_digest=hashlib.sha256(authorization_bytes).hexdigest(),
+            authorization_id="some-other-authz-v1",
+        )
+        args = _base_args(
+            tmp_path, h2b_report_file=_write(tmp_path / "report_bad.json", evidence)
+        )
+        with pytest.raises(tool.SigningToolError, match="authorization_id"):
+            tool.assemble_and_sign(args)
+
+    def test_h2_evidence_authority_digest_mismatch_is_refused(self, tmp_path: Path) -> None:
+        catalog_bytes = b"catalog-content"
+        sealed_manifest_bytes = b"sealed-manifest-content"
+        evidence = _h2_coverage_evidence_bytes(
+            catalog_digest=hashlib.sha256(catalog_bytes).hexdigest(),
+            sealed_manifest_digest=hashlib.sha256(sealed_manifest_bytes).hexdigest(),
+            authorization_digest="9" * 64,  # does not match --authorization-file's real digest
+        )
+        args = _base_args(
+            tmp_path, h2b_report_file=_write(tmp_path / "report_bad.json", evidence)
+        )
+        with pytest.raises(tool.SigningToolError, match="authority digest does not match"):
+            tool.assemble_and_sign(args)
+
+    def test_h2_evidence_catalog_digest_mismatch_is_refused(self, tmp_path: Path) -> None:
+        sealed_manifest_bytes = b"sealed-manifest-content"
+        authorization_bytes = _authorization_bytes()
+        evidence = _h2_coverage_evidence_bytes(
+            catalog_digest="9" * 64,  # does not match --catalog-file's real digest
+            sealed_manifest_digest=hashlib.sha256(sealed_manifest_bytes).hexdigest(),
+            authorization_digest=hashlib.sha256(authorization_bytes).hexdigest(),
+        )
+        args = _base_args(
+            tmp_path, h2b_report_file=_write(tmp_path / "report_bad.json", evidence)
+        )
+        with pytest.raises(tool.SigningToolError, match="catalog digest does not match"):
+            tool.assemble_and_sign(args)
+
+    def test_h2_evidence_sealed_manifest_digest_mismatch_is_refused(self, tmp_path: Path) -> None:
+        catalog_bytes = b"catalog-content"
+        authorization_bytes = _authorization_bytes()
+        evidence = _h2_coverage_evidence_bytes(
+            catalog_digest=hashlib.sha256(catalog_bytes).hexdigest(),
+            sealed_manifest_digest="9" * 64,  # does not match --sealed-manifest-file's real digest
+            authorization_digest=hashlib.sha256(authorization_bytes).hexdigest(),
+        )
+        args = _base_args(
+            tmp_path, h2b_report_file=_write(tmp_path / "report_bad.json", evidence)
+        )
+        with pytest.raises(tool.SigningToolError, match="manifest_sha256 does not match"):
+            tool.assemble_and_sign(args)
+
+
+class TestRevocationRegistryUsesTheSharedStrictParser:
+    """ADR-0042 : le registre de révocation n'est plus analysé par un
+    parseur local minimal -- ``nexus_contracts.authorization_revocations``
+    (le même parseur strict que ``rag-pedago``) est utilisé. Ce test prouve
+    une amélioration réelle : un doublon, que l'ancien parseur minimal de
+    cet outil acceptait silencieusement (aucune détection de doublon dans
+    son propre code), est désormais refusé."""
+
+    def test_duplicate_revoked_id_is_refused(self, tmp_path: Path) -> None:
+        raw = (
+            json.dumps(
+                {
+                    "protocol_version": "NEXUS-AUTHORIZATION-REVOCATIONS-V1",
+                    "revoked_authorization_ids": ["some-other-id", "some-other-id"],
+                },
+                sort_keys=True,
+                indent=2,
+            )
+            + "\n"
+        ).encode("utf-8")
+        args = _base_args(
+            tmp_path, revocation_registry_file=_write(tmp_path / "revoc_dup.json", raw)
+        )
+        with pytest.raises(tool.SigningToolError, match="repeats authorization ids"):
+            tool.assemble_and_sign(args)
 
 
 class TestRealCommittedComposeFileParsesAsExpected:
