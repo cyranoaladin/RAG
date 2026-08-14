@@ -64,7 +64,7 @@ def _fields(**overrides: Any) -> dict[str, Any]:
         "h2_coverage_gate_pass": True,
         "authority_review_binding_verified": True,
         "authority_revocations_checked": True,
-        "authorization_id": "libre-terminale-2026-h2b-001",
+        "authorization_id": "h2b-coverage-libre-terminale-v1",
         "safety_invariants": dict(ZERO_SAFETY_INVARIANTS),
     }
     fields.update(overrides)
