@@ -195,6 +195,25 @@ Success: no issues found in 1 source file
 - Reste un point d'entrée CLI construit mais non encore branché à un
   runbook opérationnel (`docs/runbooks/go_live.md`) — cela reste un
   travail de suivi.
+- **`deploy_from_bundle()` ne détecte que l'incohérence interne du
+  bundle, jamais une falsification externe cohérente.** Il recalcule le
+  SHA-256 de chaque fichier Compose présent dans `bundle_dir` et le
+  confronte à `bundle_manifest.json` — mais ce fichier de référence vit
+  dans le même répertoire que les fichiers qu'il authentifie. Un
+  attaquant disposant d'un accès en écriture à `bundle_dir` pourrait
+  altérer un fichier Compose ET l'entrée correspondante de
+  `bundle_manifest.json` de façon cohérente, sans qu'aucun contrôle ne
+  le détecte : ce mécanisme protège contre la divergence accidentelle
+  (corruption, écrasement partiel), pas contre falsification délibérée
+  avec accès disque. Ceci correspond à la même frontière de confiance
+  déjà explicitement acceptée par `verify_release_image_provenance_cli.
+  py` (PR #105, section « Frontière de confiance acceptée ») : le
+  système de fichiers local est la racine de confiance, jamais prouvé
+  lui-même. Non exploitable via ce CLI aujourd'hui : `main()` enchaîne
+  toujours matérialisation et déploiement dans un seul process, sans
+  fenêtre externe entre les deux — mais `deploy_from_bundle()` reste
+  appelable séparément par un futur appelant qui réutiliserait un bundle
+  déjà matérialisé, sans que ce cas soit couvert par un test dédié.
 
 ## 9. Booléens finaux
 
