@@ -188,6 +188,60 @@ valeurs, pas seulement que son absence est masquée par des variables
 shell. Le check d'existence et le câblage `--env-file` sont
 mutation-testés individuellement.
 
+## 4quater. Revue Codex round 3 — un bug réel corrigé, une limite documentée
+
+Une troisième revue sur le HEAD `db67850` a signalé deux findings.
+
+**Finding (P2) — un `--env-file` relatif se résolvait contre le
+mauvais répertoire.** Réel : `docker compose` est lancé avec `cwd=
+<scratch>` (le répertoire éphémère contenant les fichiers Compose
+lus depuis git), mais la chaîne `--env-file` n'était jamais résolue en
+chemin absolu avant construction de la commande. Le runbook de
+production lui-même invoque `--env-file .env` en relatif (`docs/
+runbooks/go_live.md:84`) — cet usage aurait donc échoué, `docker
+compose` cherchant `.env` dans `scratch` au lieu du répertoire réel de
+l'opérateur. Corrigé par `env_file = env_file.resolve()`, appelé après
+la vérification d'existence (qui, elle, se résout correctement contre
+le répertoire courant du process Python — jamais modifié, seul le
+sous-processus `docker` change de `cwd`) et avant construction de la
+commande. Nouveau test d'intégration réelle : `chdir` vers un
+répertoire contenant un `.env` relatif, preuve que la résolution
+fonctionne indépendamment du `cwd` du process appelant. Mutation-testé
+(retrait de `.resolve()` → le test dédié passe au rouge).
+
+**Finding (P1) — fenêtre TOCTOU entre vérification et déploiement.**
+Réel et reconnu : les fichiers Compose vérifiés vivent dans un
+répertoire scratch éphémère, nettoyé en sortie ; le `docker compose up`
+réel, séparé et manuel, relit ensuite les fichiers de l'hôte, jamais ce
+scratch. Rien n'empêche aujourd'hui une divergence entre les deux
+étapes. **Fermer cet écart intégralement exigerait soit que ce script
+exécute lui-même le déploiement — contraire à son mandat explicite,
+répété depuis le premier commit de ce lot ("il ne lance jamais
+lui-même `docker compose up`") — soit un futur wrapper de déploiement
+qui consomme un bundle vérifié immuable produit ici.** Ce wrapper
+n'existe pas dans ce dépôt et son périmètre — orchestrer le déploiement
+lui-même — dépasse celui de ce lot (vérification pré-déploiement,
+jamais l'exécution). Conformément à la clause Escalade d'AGENTS.md,
+signalé ici plutôt qu'implémenté de ma propre initiative. Documenté en
+détail dans le docstring du module (nouvelle section « Limite connue et
+acceptée ») avec une mesure compensatoire explicite : vérification et
+déploiement dans la même session opérateur, sans écart temporel, sur un
+checkout qu'aucun autre processus ne modifie entre les deux.
+
+```
+$ cd services/rag-engine && .venv/bin/python -m pytest \
+    tests/test_verify_release_image_provenance_cli.py \
+    tests/test_deployment_image_inventory.py -q
+64 passed
+
+$ .venv/bin/python -m ruff check scripts/verify_release_image_provenance_cli.py \
+    tests/test_verify_release_image_provenance_cli.py
+All checks passed!
+
+$ .venv/bin/python -m mypy scripts/verify_release_image_provenance_cli.py
+Success: no issues found in 1 source file
+```
+
 ## 5. Ce que ce lot ne fait pas
 
 - N'intègre pas ce script dans `sign_production_readiness_manifest_
@@ -207,18 +261,25 @@ mutation-testés individuellement.
   tests d'intégration Docker exercent le vrai binaire `docker compose`
   contre les fichiers réels du dépôt, avec des digests factices —
   jamais un registre distant.
+- Ne ferme pas la fenêtre TOCTOU entre vérification et déploiement
+  (Codex P1, round 3, §4quater) : les fichiers vérifiés vivent dans un
+  scratch éphémère, jamais consommés durablement par l'étape de
+  déploiement elle-même. Fermer cet écart exige un futur wrapper de
+  déploiement (hors périmètre de ce lot, cf. Escalade AGENTS.md) —
+  documenté explicitement dans le docstring du module, avec mesure
+  compensatoire (même session opérateur, sans écart temporel).
 
 ## 6. Tests — résultats exacts
 
 ```
 $ cd services/rag-engine && .venv/bin/python -m pytest \
     tests/test_verify_release_image_provenance_cli.py -v
-22 passed
+23 passed
 
 $ .venv/bin/python -m pytest \
     tests/test_deployment_image_inventory.py \
     tests/test_verify_release_image_provenance_cli.py -q
-63 passed
+64 passed
 
 $ .venv/bin/python -m ruff check scripts/verify_release_image_provenance_cli.py \
     scripts/deployment_image_inventory.py tests/test_verify_release_image_provenance_cli.py
@@ -277,6 +338,7 @@ REGISTRY_DIGEST_VERIFIED=false   # aucun push réel encore effectué
 GITHUB_ENVIRONMENT_PROTECTION_CONFIGURED=false
 NEXUS_DEPLOYER_ACCOUNT_PROVISIONED=false
 LEGACY_DEPLOY_SCRIPT_DEPRECATED=false
+VERIFY_TO_DEPLOY_TOCTOU_WINDOW_CLOSED=false   # limite documentée §4quater/§5, wrapper futur requis
 GO_LIVE_READY=false
 LIVE_MUTATIONS_ALLOWED=false
 ```
@@ -291,4 +353,6 @@ LIVE_MUTATIONS_ALLOWED=false
    contre le serveur (`korrigo`), sous HUMAN GATE explicite —
    `LIVE_MUTATIONS_ALLOWED` reste `false` jusque-là.
 4. Câblage éventuel dans un futur runbook de déploiement qui
-   remplacerait `deploy-prod.sh` (§9 du lot #102, non traité ici).
+   remplacerait `deploy-prod.sh` (§9 du lot #102, non traité ici) — ce
+   même futur lot devrait aussi fermer la fenêtre TOCTOU signalée en
+   §4quater (bundle vérifié immuable consommé par le déploiement).

@@ -462,6 +462,43 @@ class TestRunDockerComposeConfigViaSubprocess:
         pinned = dii.require_resolved_compose_images_are_pinned(resolved)
         assert set(pinned) == set(EXPECTED_SERVICES)
 
+    @requires_docker
+    @requires_git
+    def test_a_relative_env_file_path_resolves_against_the_callers_cwd_not_scratch(
+        self, tmp_path: Path
+    ) -> None:
+        # Codex P2 (PR #105): the production runbook itself invokes
+        # `--env-file .env` relative to services/rag-engine/infra
+        # (docs/runbooks/go_live.md). Docker Compose runs with
+        # cwd=<scratch>, so an unresolved relative path would silently
+        # look in the wrong place and fail -- proven here by actually
+        # chdir'ing away before calling.
+        repo_root = Path(__file__).resolve().parents[3]
+        head_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=repo_root, capture_output=True, text=True, check=True
+        ).stdout.strip()
+
+        work_dir = tmp_path / "work"
+        work_dir.mkdir()
+        env_dir = tmp_path / "operator-cwd"
+        env_dir.mkdir()
+        (env_dir / "dummy.env").write_text(
+            "\n".join(f"{name}={value}" for name, value in _dummy_compose_env().items()) + "\n",
+            encoding="utf-8",
+        )
+
+        old_cwd = Path.cwd()
+        try:
+            os.chdir(env_dir)
+            resolved = vri.run_docker_compose_config_via_subprocess(
+                repo_root, head_sha, vri._CANONICAL_COMPOSE_FILES, work_dir, Path("dummy.env")
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        pinned = dii.require_resolved_compose_images_are_pinned(resolved)
+        assert set(pinned) == set(EXPECTED_SERVICES)
+
 
 class TestMakeDownloadArtifactViaGh:
     """Codex P2 (PR #105) : le téléchargement doit être lié au dépôt

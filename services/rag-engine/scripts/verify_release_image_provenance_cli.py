@@ -47,7 +47,26 @@ tout script exécuté localement. Le nom du dépôt GitHub distant
 (`cyranoaladin/RAG`) est une constante du module, jamais une entrée
 opérateur : un opérateur ne peut donc pas faire ancrer la provenance
 sur un dépôt qu'il contrôle (Codex P1, PR #105).
-"""
+
+**Limite connue et acceptée : fenêtre TOCTOU entre vérification et
+déploiement (Codex P1, PR #105, round 2).** Ce vérificateur matérialise
+les fichiers Compose liés au commit vérifié dans un répertoire scratch
+**éphémère** (nettoyé en sortie), puis rend un verdict. L'étape de
+déploiement elle-même — un `docker compose up` séparé, lancé
+manuellement par l'opérateur — relit ensuite les fichiers réels sur
+l'hôte, jamais ce scratch. Rien n'empêche aujourd'hui que ces fichiers
+diffèrent de ceux vérifiés entre les deux étapes (checkout modifié,
+`.env` changé). Fermer entièrement cet écart demanderait soit que ce
+script exécute lui-même le déploiement (contraire à son mandat
+explicite : jamais de mutation, §"Ce qu'il ne fait jamais" ci-dessus),
+soit qu'un futur wrapper de déploiement consomme un bundle vérifié
+immuable produit ici — ce wrapper n'existe pas encore dans ce dépôt et
+reste un lot distinct, non autorisé pour celui-ci (même limite,
+documentée dans `docs/reports/lot_h2b_production_image_provenance.md`
+§9, pour la brique de provenance elle-même). **Mesure compensatoire
+documentée en attendant ce lot** : exécuter la vérification et le
+déploiement dans la même session opérateur, sans écart temporel, sur un
+checkout qu'aucun autre processus ne modifie entre les deux."""
 from __future__ import annotations
 
 import argparse
@@ -141,13 +160,22 @@ def run_docker_compose_config_via_subprocess(
     ``env_file`` est intrinsèquement host-local (jamais versionné,
     contient des secrets) : contrairement aux fichiers Compose, il n'est
     jamais lu via ``git show`` — il n'existe aucun objet git vérifiable
-    contre lequel le confronter (Codex P1, PR #105)."""
+    contre lequel le confronter (Codex P1, PR #105).
+
+    Résolu en chemin absolu AVANT construction de la commande : le
+    process ``docker compose`` est lancé avec ``cwd=<scratch>``, donc un
+    ``--env-file`` relatif fourni par l'opérateur (ex. le `.env` du
+    runbook, invoqué depuis `services/rag-engine/infra`) se résoudrait
+    sinon contre ce répertoire scratch temporaire plutôt que contre le
+    répertoire d'où l'opérateur a réellement lancé ce script (Codex P2,
+    PR #105)."""
     if not env_file.is_file():
         raise ReleaseVerificationError(
             f"env file not found: {env_file} — the production Compose files require "
             "dozens of ${VAR:?...} values that only a real deployment .env supplies "
             "(see docs/runbooks/go_live.md §3)"
         )
+    env_file = env_file.resolve()
     scratch = work_dir / "compose"
     scratch.mkdir(parents=True, exist_ok=True)
     for name in compose_files:
