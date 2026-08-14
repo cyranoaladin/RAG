@@ -124,12 +124,15 @@ def gh_api_get(path: str) -> dict[str, Any]:
     return document
 
 
-def download_artifact_via_gh(run_id: int, artifact_name: str, dest_dir: Path) -> Path:
-    """Frontière de téléchargement par défaut — ``gh run download``, le
-    sous-commande dédiée (pas un appel manuel à l'API zip/archive)."""
+def _download_artifact_via_gh(
+    run_id: int, artifact_name: str, dest_dir: Path, *, repository: str | None = None
+) -> Path:
+    command = ["gh", "run", "download", str(run_id), "-n", artifact_name, "-D", str(dest_dir)]
+    if repository is not None:
+        command += ["-R", repository]
     try:
         completed = subprocess.run(
-            ["gh", "run", "download", str(run_id), "-n", artifact_name, "-D", str(dest_dir)],
+            command,
             capture_output=True,
             text=True,
             timeout=120,
@@ -148,6 +151,32 @@ def download_artifact_via_gh(run_id: int, artifact_name: str, dest_dir: Path) ->
             f"downloaded artifact {artifact_name!r} does not contain {_ARTIFACT_FILENAME}"
         )
     return candidate
+
+
+def download_artifact_via_gh(run_id: int, artifact_name: str, dest_dir: Path) -> Path:
+    """Frontière de téléchargement par défaut — ``gh run download``, le
+    sous-commande dédiée (pas un appel manuel à l'API zip/archive).
+
+    Résout le dépôt depuis le répertoire courant de ce process (``gh``
+    sans ``-R``) — n'est correct que si ce process tourne depuis un
+    checkout du bon dépôt. Un appelant qui a déjà un dépôt vérifié
+    devrait utiliser ``make_download_artifact_via_gh`` à la place (Codex
+    P2, PR #105)."""
+    return _download_artifact_via_gh(run_id, artifact_name, dest_dir)
+
+
+def make_download_artifact_via_gh(*, repository: str) -> DownloadArtifact:
+    """Lie ``gh run download`` à un dépôt précis (``-R``), indépendamment
+    du répertoire courant du process — pour un appelant qui a déjà un
+    dépôt de confiance vérifié et ne veut jamais dépendre du CWD (Codex
+    P2, PR #105 : sans ceci, un lancement hors du bon checkout, ou depuis
+    un checkout dont le remote nomme un autre dépôt, résout silencieusement
+    vers le mauvais dépôt)."""
+
+    def _download(run_id: int, artifact_name: str, dest_dir: Path) -> Path:
+        return _download_artifact_via_gh(run_id, artifact_name, dest_dir, repository=repository)
+
+    return _download
 
 
 def _require(condition: bool, message: str) -> None:
