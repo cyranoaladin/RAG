@@ -73,37 +73,37 @@ Ce lot ajoute exactement trois fonctions nouvelles :
    chaque fichier + `bundle_digest` = SHA-256 du document lui-même,
    canonicalisé `sort_keys=True`).
 3. `deploy_from_bundle()` — relit `bundle_manifest.json`, **recalcule**
-   le SHA-256 de chaque fichier Compose présent dans `bundle_dir` et le
-   confronte à celui enregistré (§5, mutation « tampered-bundle ») avant
-   toute commande. Sans `--execute` : retourne le plan (liste de
-   commandes), n'invoque aucun sous-processus. Avec `--execute` : `pull`
-   puis `up -d --remove-orphans`, chacun contre `-f <bundle>/<fichier>...
+   le SHA-256 de chaque fichier du bundle (tous, pas seulement les
+   Compose — §10 item 5) et le confronte à celui enregistré (§5,
+   mutation « tampered-bundle ») avant toute commande. Sans `--execute` :
+   retourne le plan (liste de commandes), n'invoque aucun sous-processus.
+   Avec `--execute` : `pull` puis `up -d`, chacun contre une liste
+   explicite de services (§10 item 7) et `-f <bundle>/<fichier>...
    --env-file <bundle>/.env` exclusivement — jamais `services/rag-engine/
-   infra/*`. Un `pull` en échec interrompt avant tout `up` (§5).
+   infra/*`, jamais un nettoyage des conteneurs orphelins (§10 item 1).
+   Un `pull` en échec interrompt avant tout `up` (§5).
 
-## 4. Limite acceptée, documentée plutôt que devinée
+## 4. Limite acceptée au premier round — fermée au round 2 (§10 item 3)
 
-`verify_readiness_manifest_if_supplied()` vérifie la signature, l'ancre,
-l'environnement, le verdict du manifeste et sa liaison à `--merge-sha`
-(`require_manifest_matches_release(..., release_sha=merge_sha)`) — mais
-appelle cette fonction avec `compose_digest=None`, donc **ne confronte
-pas** le `compose_digest` signé dans le manifeste au Compose réellement
-résolu par ce wrapper.
+Au premier round, `verify_readiness_manifest_if_supplied()` appelait
+`require_manifest_matches_release(..., compose_digest=None)` — la
+sémantique exacte de `compose_digest` pour un Compose multi-fichiers
+résolu était encore activement en cours de définition dans un lot
+parallèle (PR #100, Section 11 du signer), pas encore mergée sur `main`
+au moment où ce lot a été écrit. Choisir unilatéralement une
+interprétation ici aurait risqué de figer une sémantique concurrente à
+celle que ce lot parallèle allait établir.
 
-Raison : au moment où ce lot a été écrit, la sémantique exacte de
-`compose_digest` pour un Compose multi-fichiers résolu (single-file
-hashé aujourd'hui, en cours de refonte vers le Compose résolu dans un
-lot parallèle — PR #100, Section 11 du signer) était activement en
-cours de définition ailleurs. Choisir unilatéralement une interprétation
-ici aurait risqué de figer une sémantique concurrente à celle que ce
-lot parallèle allait établir. **Ceci n'est pas une omission silencieuse** :
-c'est une limite documentée dans le docstring du module et ici, avec un
-travail de suivi explicite (fermer ce dernier écart une fois la
-sémantique de `compose_digest` stabilisée par PR #100 §11).
+**Fermé au round 2** (§10 item 3) : `verify_release_image_provenance_
+cli.canonical_resolved_compose_bytes` — la même convention de
+canonicalisation que celle établie par PR #100 Section 11 — est
+désormais la primitive partagée utilisée par ce wrapper pour calculer le
+digest réel et le lier via `compose_digest=<digest réel>`.
 
-Quand aucun manifeste n'est fourni du tout, ce wrapper ne prouve que la
-provenance des images et le pinning Compose — jamais un feu vert de
-gouvernance production complet.
+Quand aucun manifeste n'est fourni du tout (mode plan-only, jamais
+`--execute` — voir §10 item 2), ce wrapper ne prouve que la provenance
+des images et le pinning Compose — jamais un feu vert de gouvernance
+production complet.
 
 ## 5. Mutation-testing des branches de refus
 
@@ -215,14 +215,149 @@ Success: no issues found in 1 source file
   appelable séparément par un futur appelant qui réutiliserait un bundle
   déjà matérialisé, sans que ce cas soit couvert par un test dédié.
 
+## 10. Second round — neuf constats réels, revue par l'opérateur
+
+Un second round de revue (l'opérateur lui-même, Codex/cubic étant à
+quota épuisé ce mois-ci) sur la version poussée a trouvé neuf défauts
+réels. Tous fermés :
+
+1. **`--remove-orphans` retiré du chemin de mutation.** L'hôte cible
+   (`korrigo`) exécute le projet Compose `infra` partagé avec une stack
+   non-RAG — ce drapeau y aurait détruit des conteneurs étrangers. Un
+   test statique (`TestNoRemoveOrphansAnywhereInTheModule`) confirme
+   l'absence complète de la chaîne dans le module (docstring reformulée
+   sans la citer littéralement, pour que le test reste un vrai
+   grep-négatif et non un faux-positif sur sa propre documentation).
+2. **`--execute` refuse désormais sans manifeste de readiness signé ET
+   son ancre.** La seule preuve de provenance d'image ne suffit plus à
+   autoriser une mutation réelle — vérifié avant tout travail (aucun
+   appel réseau, aucune écriture de bundle) dans `main()`.
+3. **`compose_digest=None` a disparu.** `verify_readiness_manifest_if_
+   supplied` calcule désormais le digest du Compose RÉELLEMENT résolu
+   (`verify_release_image_provenance_cli.canonical_resolved_compose_
+   bytes` — nouvelle primitive partagée, extraite de ce que PR #100
+   Section 11 avait défini pour le signer, puisque cette branche a été
+   développée avant que PR #100 ne soit mergée sur `main` ; les deux
+   outils partagent maintenant la même fonction plutôt que deux
+   implémentations indépendantes qui auraient pu diverger) et le lie via
+   `require_manifest_matches_release(..., compose_digest=<digest réel>)`.
+4. **Résolution Compose une seule fois.** `verify_release_image_
+   provenance_cli.verify_release_images()` (PR #105) retourne désormais
+   un `VerifiedReleaseMaterialization` (Compose résolu, images épinglées,
+   octets source Compose, octets `.env` — lus UNE SEULE fois puis
+   figés dans un instantané avant résolution — et document de provenance
+   d'image déjà vérifié). Ce wrapper matérialise son bundle
+   exclusivement depuis cet objet : plus de second appel à
+   `run_docker_compose_config`, plus de seconde lecture de `.env`.
+   `deployment_image_inventory.verify_application_image_provenance` a
+   été scindée en une fonction interne (`fetch_and_verify_image_
+   provenance_document`, retourne le document brut déjà vérifié) et une
+   enveloppe fine préservant le comportement/la signature existants pour
+   ses appelants historiques (aucune régression sur
+   `test_deployment_image_inventory.py`, 42/42 toujours verts, inchangés).
+5. **`deploy_from_bundle()` vérifie désormais TOUS les fichiers du
+   bundle**, pas seulement les trois Compose : `.env`,
+   `resolved-compose.json`, `image-provenance-evidence.json`,
+   `readiness-manifest.json` (si présent) — chacun rehaché et confronté
+   à `bundle_manifest.json`. Un fichier supplémentaire non recensé dans
+   le manifeste est également refusé (`unexpected file`). Le manifeste
+   de bundle lui-même est validé structurellement (`protocol_version`,
+   `repository`, `merge_sha` — refuse un bundle matérialisé pour un
+   autre commit que celui en cours de déploiement) avant toute
+   confrontation de fichier.
+6. **La preuve de provenance d'image est désormais matérialisée dans le
+   bundle**, pas seulement les digests qui en sont dérivés :
+   `image-provenance-evidence.json` (le document d'inventaire brut, déjà
+   structurellement vérifié) est copié et hashé comme tout autre fichier
+   du bundle — auditable hors ligne, sans recontacter GitHub Actions.
+7. **Liste de services explicite, jamais un `docker compose up` sans
+   arguments.** `explicit_services` (dérivée directement des clés du
+   Compose résolu VÉRIFIÉ — jamais une liste figée à la main qui
+   pourrait diverger silencieusement) est enregistrée dans
+   `bundle_manifest.json` et passée explicitement à `pull`/`up`.
+8. **Vérification de labels avant toute mutation réelle.**
+   `require_no_foreign_container_collision` (frontière `list_running_
+   containers` injectée, jamais un vrai `docker ps` en test unitaire)
+   refuse si un service ciblé est déjà géré par un conteneur dont le
+   `working_dir` Compose diverge de celui de ce bundle — jamais un nom
+   de projet seul (partagé avec une stack étrangère sur l'hôte cible).
+   Ne supprime ni n'arrête jamais rien lui-même.
+9. **Rehearsal Docker réel, isolé.** `TestRealDockerRehearsal` (skip si
+   Docker absent) résout les trois vrais fichiers Compose commités avec
+   de vraies valeurs `.env` factices dérivées dynamiquement (réutilise
+   `test_verify_release_image_provenance_cli._dummy_compose_env`, jamais
+   une liste recopiée à la main), matérialise un vrai bundle, prouve le
+   dry-run et le refus sur falsification avec de vrais octets — jamais
+   contre `docker compose pull`/`up` réels (`run_subprocess` reste un
+   double y compris dans ce test, pour ne jamais risquer un registre
+   réel depuis la suite).
+
+**Un défaut de test trouvé et corrigé par le mutation-testing
+lui-même** (item 2) : la première version de
+`test_execute_without_readiness_manifest_is_refused_before_any_work`
+n'affirmait que `"REFUSED" in stderr` — cette chaîne apparaît aussi bien
+pour le refus précoce voulu que pour n'importe quel refus tardif
+générique (git/réseau en échec), donc désactiver le garde-fou laissait
+le test vert pour la mauvaise raison. Corrigé en affirmant le texte
+précis du refus précoce.
+
+```
+$ .venv/bin/python -m pytest tests/test_deploy_verified_release_cli.py \
+    tests/test_verify_release_image_provenance_cli.py \
+    tests/test_deployment_image_inventory.py -q
+139 passed
+
+$ .venv/bin/python -m ruff check scripts/ \
+    tests/test_deploy_verified_release_cli.py \
+    tests/test_verify_release_image_provenance_cli.py \
+    tests/test_deployment_image_inventory.py
+All checks passed!
+
+$ .venv/bin/python -m mypy scripts/deploy_verified_release_cli.py \
+    scripts/verify_release_image_provenance_cli.py \
+    scripts/deployment_image_inventory.py
+Success: no issues found in 3 source files
+```
+
+Quatre mutations ciblées, chacune rouge pour la bonne raison puis
+restaurée verte : garde `--execute` sans manifeste/ancre (§2), contrôle
+de collision de labels (§8), liaison `merge_sha` du bundle, liaison
+`compose_digest` du manifeste (§3).
+
+**Limite non fermée dans ce round, documentée §8ter** :
+`deploy_from_bundle()` reste self-consistency-only pour la détection de
+falsification (voir §8bis existant) — un attaquant avec accès disque au
+bundle pourrait toujours co-altérer un fichier et son entrée de
+manifeste. Non aggravé ni corrigé par ce round.
+
+## 8ter. Ce que ce round ne ferme pas
+
+- La frontière de confiance disque (§8, déjà documentée) reste
+  inchangée : self-consistency seulement.
+- Aucun vrai `docker compose up`/`pull` n'a été exécuté par ce round —
+  `run_subprocess` reste un double, y compris dans le rehearsal réel
+  (item 9 ci-dessus).
+- Aucun manifeste de readiness réel signé n'existe encore (dépend de
+  PR #100, toujours `PRODUCTION_READINESS_SIGNING_TOOL_COMPLETE=false`).
+- Le point d'entrée CLI n'est toujours pas branché à un runbook
+  opérationnel.
+
 ## 9. Booléens finaux
 
 ```
 ATOMIC_DEPLOYMENT_WRAPPER_BUILT=true
 TOCTOU_GAP_CLOSED_BY_WRAPPER=true
-WRAPPER_EXERCISED_AGAINST_REAL_DOCKER=false
+RESIDUAL_TOCTOU_MICRO_WINDOW_CLOSED=true
+REMOVE_ORPHANS_ABSENT=true
+EXECUTE_REQUIRES_READINESS_MANIFEST=true
+COMPOSE_DIGEST_BOUND_TO_READINESS_MANIFEST=true
+ALL_BUNDLE_FILES_VERIFIED_BEFORE_MUTATION=true
+IMAGE_PROVENANCE_EVIDENCE_MATERIALIZED=true
+EXPLICIT_SERVICE_TARGETING=true
+LABEL_SAFETY_CHECK_BEFORE_MUTATION=true
+BUNDLE_TAMPER_DETECTION_TRUST_BOUNDARY=SELF_CONSISTENCY_ONLY   # §8, inchangé
+WRAPPER_EXERCISED_AGAINST_REAL_DOCKER=true   # résolution/matérialisation seulement, §10 item 9 -- jamais pull/up réels
 WRAPPER_EXERCISED_AGAINST_REAL_READINESS_MANIFEST=false
-COMPOSE_DIGEST_CROSS_CHECK_WITH_READINESS_MANIFEST=false   # §4, dépend de PR #100 §11
 CONTRACTS_MODIFIED=false
 GO_LIVE_READY=false
 LIVE_MUTATIONS_ALLOWED=false
