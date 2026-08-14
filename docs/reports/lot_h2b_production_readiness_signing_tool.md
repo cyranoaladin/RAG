@@ -628,6 +628,16 @@ digest applicatif/provenance (point 2 ci-dessus), le refus d'un service
 à `build:` inconnu hors des trois attendus (point 3), le refus d'une
 image upstream non épinglée par digest dans le Compose résolu.
 
+**Correctif d'alignement (revue indépendante, avant commit)** :
+`_canonical_compose_bytes` omettait `ensure_ascii=False` alors que
+`deploy_verified_release_cli._canonical_json_bytes` (Lot C, développé en
+parallèle) l'inclut déjà pour son propre `resolved-compose.json` dans le
+bundle. Une divergence de convention entre les deux aurait produit un
+digest différent pour tout caractère non-ASCII dans le Compose résolu
+(valeur d'environnement accentuée, par exemple), rompant silencieusement
+la reproductibilité inter-outils que ce champ est censé garantir — corrigé
+avant tout commit, tests/ruff/mypy revérifiés verts après coup.
+
 **Ce qui reste ouvert.** Le workflow de promotion canonique n'existe
 toujours pas (`.github/workflows/` : `ci.yml`, `_produce-h2-evidence.
 yml`, `production-image-provenance.yml`, `trusted-human-review.yml`,

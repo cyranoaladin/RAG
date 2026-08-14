@@ -237,9 +237,19 @@ def _canonical_compose_bytes(resolved_config: dict[str, Any]) -> bytes:
     indépendamment le même digest en résolvant à nouveau les mêmes trois
     fichiers avec le même ``.env``, jamais en hachant un fichier source
     arbitraire. Sérialisation canonique (clés triées, séparateurs
-    compacts) : la sortie JSON de ``docker compose config`` n'est pas
-    elle-même garantie stable octet pour octet."""
-    return json.dumps(resolved_config, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    compacts, ``ensure_ascii=False``) : la sortie JSON de ``docker
+    compose config`` n'est pas elle-même garantie stable octet pour
+    octet. ``ensure_ascii=False`` n'est pas cosmétique : c'est exactement
+    la convention déjà utilisée par ``deploy_verified_release_cli.
+    _canonical_json_bytes`` (Lot C) pour son propre ``resolved-
+    compose.json`` dans le bundle — sans cet alignement, un futur
+    vérificateur qui recalculerait ce digest avec l'autre convention
+    obtiendrait un octet différent pour tout caractère non-ASCII (une
+    valeur d'environnement accentuée, par exemple), rompant silencieusement
+    la reproductibilité que ce digest est censé garantir."""
+    return json.dumps(resolved_config, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode(
+        "utf-8"
+    )
 
 
 def _upstream_services_from_resolved_compose(resolved_config: dict[str, Any]) -> dict[str, str]:
