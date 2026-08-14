@@ -108,5 +108,16 @@
     "matches_canonical": null,
     "superseded_by": "h2b_exhaustive_pii_scan_20260813.jsonl (for PII) and/or corpus_zone_routing.yml+rights_evidence_registry.yml (for disposition)",
     "note": "Surveyed by filename/size/date pattern, not individually opened. Reasoning: each is either (a) a policy-iteration file (_policy_v2/v3/v4/v5) whose final version's own filename says v5_final and whose scope (wave0 maths3/fr3, ~2-2.7KB each) is already narrower than and dated before the 2026-08-13 exhaustive scan, or (b) a per-commit-SHA CI verification snapshot (h2f_true_mutations_<sha>.json / h2f_golden_mutation_<sha>.json / h2f_real_coverage_<sha>.md) that verifies mutation-testing/CI state for a specific past commit, not corpus content disposition. This is a real limitation of this reconciliation: these 55 files were not opened and could theoretically contain a conflicting signal for a specific content_sha256 not caught here. Flagged honestly rather than silently treated as reviewed."
+  },
+  {
+    "path": "~/Documents/NEXUS_RAG_H2_EVIDENCE/h2b_pii_evidence_20260808.json",
+    "producer": "remote_pii_scan.py (scan_remote_corpus), scanner_version pii_scanner_h2b_v2",
+    "producer_version": "policy_version pii_gate_policy_h2b_v1",
+    "generated_at": "2026-08-08T21:57:50.100832+00:00",
+    "scope": "INITIAL_PRODUCTION_ELIGIBLE_PDFS -- exactly the 64 unique content_sha256 values in the 10_ACTUEL_CONFIRME/ (INGEST) zone, required_pdf_path_count=64, unique_pdf_content=64",
+    "sealed_manifest_sha256": "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e",
+    "matches_canonical": true,
+    "superseded_by": null,
+    "note": "FOUND during correction of this PR's original omission (the human operator's recalled 'H2F 64-PDF campaign'). Located by content: PII_EVIDENCE_SHA256=76e6ba3c... cited in h2f_4d09148976e7/pii_evidence_exit_validation.txt was matched by sha256sum against every file in the trove; this is the exact file. Verified: its 64 result content_sha256 values are EXACTLY the 64 INGEST-zone content_sha256 values (set equality confirmed), with ZERO overlap against h2b_exhaustive_pii_scan_20260813.jsonl's 2411 entries -- genuinely complementary coverage, not a duplicate or conflicting snapshot. Status: 63 CLEARED, 1 QUARANTINED_PII (postal_address signal), all with error_code=null (extraction succeeded for all 64). Used directly, joined strictly by content_sha256."
   }
 ]

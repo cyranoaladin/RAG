@@ -3,193 +3,233 @@
 ## Verdict
 
 Un index de preuves et un registre de disposition terminale ont été
-construits pour les **2583 contenus uniques** (`content_sha256`) du corpus
-scellé local (`~/Téléchargements/NEXUS_RAG_GDRIVE_READY`, 2584 fichiers
-physiques, `SEALED_MANIFEST_SHA256=d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e`).
-**Couverture de disposition terminale : 100 %** — chaque ligne porte une
-valeur `FINAL_DISPOSITION` décidée, jamais un placeholder.
+construits pour les **2582 contenus uniques** (`content_sha256`) du corpus
+scellé local (`~/Téléchargements/NEXUS_RAG_GDRIVE_READY`,
+`SEALED_MANIFEST_SHA256=d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e`).
+**Couverture de disposition terminale : 100 %** au niveau contenu ET au
+niveau placement — chaque ligne porte une valeur `FINAL_DISPOSITION`
+décidée, jamais un placeholder.
 
-**Constat le plus important : zéro objet n'est aujourd'hui éligible à
-`INGEST`.** Les 64 objets de la seule zone qui y mène
-(`01_EDUSCOL_OFFICIEL/.../10_ACTUEL_CONFIRME/`) ont tous les 64 été
-recalés en `REVIEW_REQUIRED`, non pour une raison de contenu mais parce
-qu'**aucun des 64 ne possède la moindre preuve PII** dans le scan le plus
-récent et le plus large trouvé (`h2b_exhaustive_pii_scan_20260813.jsonl`,
-2411/2583 contenus couverts). Le gate PII (`pii_gate_policy.yml`,
-`scan_incomplete → BLOCK`) est bloquant par construction : en son absence,
-aucun objet ne peut légitimement passer en `INGEST`, quel que soit son
-contenu réel.
+**Ce rapport corrige une première version de ce lot**, qui contenait deux
+défauts réels identifiés par relecture humaine :
+
+1. **Confusion entrée-de-manifeste / contenu unique.** La version précédente
+   affichait `total_unique_content_sha256=2583` — en réalité une ligne
+   parasite s'était glissée dans le calcul : le fichier manifeste
+   lui-même (`00_ADMIN/SHA256SUMS.txt`) avait été haché et traité comme
+   un « contenu » de plus, alors que le manifeste ne se liste jamais
+   lui-même (0 occurrence de `SHA256SUMS` dans ses propres lignes,
+   vérifié). Une fois cette ligne retirée : **2582 contenus uniques**
+   parmi les 2583 entrées de manifeste, avec exactement 1 groupe de
+   doublon (un même contenu à deux emplacements). Deux registres
+   distincts remplacent l'unique fichier conflaté précédent — voir
+   §Artefacts.
+2. **Conclusion PII incomplète — une campagne H2F antérieure avait été
+   ignorée.** La version précédente concluait `INGEST_ELIGIBLE=0` parce
+   que les 64 contenus de la zone `10_ACTUEL_CONFIRME/` (la seule qui
+   route vers `INGEST`) n'avaient aucune preuve PII dans le scan
+   `h2b_exhaustive_pii_scan_20260813.jsonl` (2411 entrées). Cette
+   preuve H2F existe réellement — voir §Correction PII ci-dessous —,
+   et sa découverte change la conclusion : **63 contenus sont
+   aujourd'hui réellement éligibles à `INGEST`** selon les quatre portes
+   de `corpus_zone_routing.yml` (droits, PII, actualité, format), et 1
+   est en `QUARANTINE` (PII détecté : adresse postale).
 
 Aucune ingestion, aucune écriture pgvector, aucune mutation live n'a été
-effectuée dans ce lot — travail de reconciliation pure, lecture seule.
+effectuée dans ce lot — travail de reconciliation pure, lecture seule
+(y compris le nouveau scan/relecture d'evidence : lecture seule des octets
+scellés).
 
-## Méthodologie
+## Correction 1 — deux registres, jamais un seul conflaté
 
-1. **Identité du corpus** : le manifeste scellé réel existe toujours —
-   contrairement à une hypothèse antérieure de cette mission ("gone from
-   `/tmp`"), seule une COPIE dans `/tmp` a disparu ; l'original vit dans
-   le corpus lui-même à `00_ADMIN/SHA256SUMS.txt` (2583 lignes,
-   `sha256sum` de ce fichier = `d7e5caa5...`, confirmé). Utilisé
-   directement comme source d'identité.
-2. **Disposition de base** : les règles de
-   `services/rag-pedago/configs/corpus_zone_routing.yml`
-   (`corpus_zone_routing_h2b_v1`, source committée, revue, scope pinné
-   sur le manifeste scellé) ont été retranscrites et appliquées aux 2584
-   chemins physiques réels. Vérification croisée : les totaux obtenus
-   (`INGEST=64, REVIEW_REQUIRED=2408, QUARANTINE=1, ARCHIVE_ONLY=19,
-   EXCLUDE=55, UNSUPPORTED=37`, somme=2584) reproduisent quasi exactement
-   les `expected_totals` déclarés par le fichier lui-même
-   (`REVIEW_REQUIRED=2395` attendu vs `2408` obtenu — écart de 13,
-   cohérent avec le fait que le fichier documente un total légèrement
-   différent pour `EXCLUDE`/`REVIEW_REQUIRED` dans son bloc
-   `expected_totals` que dans ses règles `sub_zone_routing` détaillées ;
-   les règles détaillées, plus précises, ont été retenues comme source de
-   vérité plutôt que le bloc résumé).
-3. **Droits** : `rights_evidence_registry.yml` (`_v3`, committé, scope
-   pinné) — clearance au niveau zone (5 zones).
-4. **PII** : `h2b_exhaustive_pii_scan_20260813.jsonl` (trove
-   `~/Documents/NEXUS_RAG_H2_EVIDENCE/`), le scan le plus récent et le
-   plus large trouvé — 2411/2583 contenus couverts, statuts `CLEARED`
-   (2223), `QUARANTINED_PII` (145), `REVIEW_REQUIRED_EXTRACTION_FAILED`
-   (43).
-5. **Actualité par contenu** : `wave0_currentness_evidence.yml`/`_v2.yml`
-   (2 contenus chacun) et `multilevel_currentness_evidence.yml` (150
-   contenus) — utilisés comme surcharge par `content_sha256` là où ils
-   couvrent un objet, au-dessus de l'heuristique de zone.
-6. **Aucun choix « le plus récent gagne »** : deux surcharges d'actualité
-   ont été trouvées en désaccord de source (wave0 v1 vs v2, 2 contenus) —
-   documentées, pas arbitrées silencieusement (voir `EVIDENCE_CONFLICT`
-   ci-dessous ; dans ce cas précis les deux sources s'accordaient déjà sur
-   la valeur `effective_currentness=actuel`, seule leur provenance
-   diffère, donc aucun contenu n'a été mal classé par ce conflit — mais il
-   est loggé comme tel par principe).
-7. **Tentative de production réelle via `h2b_coverage_report.py`** —
-   voir §Blocages ci-dessous : non exécutable de bout en bout.
-
-## Registre — répartition finale (2583 lignes)
+- **CONTENT_LEDGER** (`content_ledger_20260814.jsonl`, 2582 lignes) — une
+  ligne par `content_sha256` unique : `PII`, `CURRENTNESS`, `RIGHTS`,
+  `EXTRACTABILITY`, `ROUTING_BASELINE`, `FINAL_DISPOSITION`,
+  `REASON_CODES`, `EVIDENCE_SOURCES`, `PLACEMENT_COUNT`,
+  `PLACEMENT_PATHS`.
+- **PLACEMENT_LEDGER** (`placement_ledger_20260814.jsonl`, 2583 lignes) —
+  une ligne par entrée de manifeste (= par emplacement physique) :
+  `content_sha256`, `path`, `ROUTING_ZONE` (calculé directement depuis
+  `corpus_zone_routing.yml`, retranscription complète et vérifiée du
+  moteur de règles préfixe-de-chemin / sous-zone, premier match gagne),
+  `CONTENT_FINAL_DISPOSITION` (référence vers la disposition du contenu).
+- Le seul cas de placements divergents (`education-a-la-vie-affective-
+  et-relationnelle...pdf`, présent sous `00_INDEX_PROVENANCE/` ET sous
+  `01_EDUSCOL_OFFICIEL/COLLEGE/CYCLE_4_TRANSVERSAL/`) apparaît deux fois
+  dans `PLACEMENT_LEDGER` (chacune avec sa propre `ROUTING_ZONE`), mais
+  une seule fois dans `CONTENT_LEDGER`, résolu fail-closed à
+  `REVIEW_REQUIRED` au niveau contenu — jamais l'une des deux zones
+  choisie arbitrairement.
 
 ```
-REVIEW_REQUIRED : 2472
+PHYSICAL_FILES=2584
+MANIFEST_ENTRIES=2583
+UNIQUE_CONTENT_SHA256=2582
+DUPLICATE_CONTENT_GROUPS=1
+PLACEMENT_ROWS=2583
+```
+
+## Correction 2 — la campagne PII H2F retrouvée par contenu, pas par nom
+
+Recherche exhaustive dans `~/Documents/NEXUS_RAG_H2_EVIDENCE/` (81
+entrées + les deux sous-répertoires `h2f_4d09148976e7/` et
+`h2f_b4f8870d4b9e/`, listés intégralement). Le fichier
+`h2f_4d09148976e7/pii_evidence_exit_validation.txt` cite
+`PII_EVIDENCE_SHA256=76e6ba3cd5b1c116c8647b611eb3fdeb2aba6b8c7fdfbad9e71048354956f311`
+avec `PII_SCAN_REQUIRED=64` / `PII_SCANNED=64` / `PII_CLEARED=63` /
+`PII_QUARANTINED=1` — un compte qui coïncide exactement avec les 64
+contenus de la zone `INGEST`. Un `sha256sum` de **tous** les fichiers du
+trove a permis de retrouver le fichier exact portant ce digest :
+`h2b_pii_evidence_20260808.json` (pas dans les sous-répertoires — à la
+racine du trove, daté du 2026-08-08, jamais ouvert par la version
+précédente de ce lot).
+
+Vérifications avant usage (jamais un digest ni un nom de fichier pris au
+mot) :
+
+```
+$ sha256sum h2b_pii_evidence_20260808.json
+76e6ba3cd5b1c116c8647b611eb3fdeb2aba6b8c7fdfbad9e71048354956f311  ✓ correspond
+
+corpus_manifest_sha256 dans le fichier = d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e  ✓ correspond au manifeste scellé canonique
+evidence_kind = "REAL_CORPUS_PII_SCAN"
+scan_scope = "INITIAL_PRODUCTION_ELIGIBLE_PDFS"
+required_pdf_path_count = 64
+unique_pdf_content = 64
+scanner_version = "pii_scanner_h2b_v2"  (remote_pii_scan.py, scan_remote_corpus)
+
+set(64 content_sha256 du fichier) == set(64 content_sha256 de la zone INGEST)  → True (égalité stricte)
+set(64) ∩ set(2411 du scan du 2026-08-13)  → ∅ (0 recouvrement — couverture réellement complémentaire, jamais un doublon de snapshot)
+```
+
+Statuts des 64 (tous avec `error_code: null`, donc extraction réussie
+pour les 64 — `pages_scanned`/`characters_scanned` renseignés) :
+
+```
+CLEARED           : 63
+QUARANTINED_PII   : 1   (signal postal_address, page 1)
+```
+
+**Union PII (2411-scan + H2F-64), recalculée depuis les fichiers réels,
+jamais recopiée de mémoire** :
+
+```
+PII_PDF_UNION_COVERAGE=2475
+PII_PDF_UNION_DUPLICATES=0
+CLEARED                          : 2286
+QUARANTINED_PII                  : 146
+REVIEW_REQUIRED_EXTRACTION_FAILED: 43
+```
+
+(L'opérateur humain se souvenait d'une partition `2284 CLEARED + 146
+QUARANTINED + 45 REVIEW_REQUIRED = 2475` — le total et `QUARANTINED`
+coïncident exactement, confirmant qu'il s'agit bien de la même preuve
+retrouvée ; la répartition exacte CLEARED/REVIEW_REQUIRED calculée ici
+[2286/43] diffère légèrement du souvenir [2284/45] — les totaux réels
+des fichiers font foi, jamais un compte reconstitué de mémoire.)
+
+## Correction 2bis — les 107 contenus non-PDF
+
+`2582 - 2475 = 107` contenus sans preuve PII dans l'union — tous
+non-PDF, vérifié (`.ggb` ×37, `.tsv` ×29, `.yaml` ×18, `.json` ×9,
+`.md`/`.txt` ×4 chacun, `.zip` ×3, `.sha256` ×2, `.csv` ×1). Aucun n'est
+dans la zone `INGEST` (routing : `EXCLUDE` ×51 placements, `REVIEW_
+REQUIRED` ×19, `UNSUPPORTED` ×37).
+
+Le contrat/scanner réel (`remote_pii_scan.py::scan_remote_corpus`) filtre
+strictement `object_path.lower().endswith(".pdf")` **avant** toute
+tentative de scan — le non-PDF n'entre jamais dans son périmètre. La
+politique committée (`pii_gate_policy.yml`, section `full_content_scan`)
+est elle-même explicitement scopée PDF (`pdf_text_extraction`,
+`estimated_scope.total_pdfs`). Aucun état `NOT_APPLICABLE` n'existe dans
+ce contrat — en inventer un aurait violé l'instruction explicite de ne
+jamais introduire de vocabulaire que le contrat réel ne définit pas.
+Ces 107 lignes portent donc `PII=OUT_OF_SCANNER_SCOPE_NON_PDF`,
+accompagné du code `PII_GATE_PDF_ONLY_BY_POLICY_NON_PDF_CONTENT` — une
+frontière de politique réelle et documentée, jamais un angle mort
+silencieux. Impact sur l'éligibilité : nul (aucun des 107 ne route vers
+`INGEST`).
+
+## Registre — répartition finale corrigée (2582 contenus uniques)
+
+```
+REVIEW_REQUIRED : 2408
 UNSUPPORTED     :   37
-EXCLUDE         :   54
+EXCLUDE         :   53
 ARCHIVE_ONLY    :   19
-QUARANTINE      :    1
-INGEST          :    0
+QUARANTINE      :    2   (1 conflit de statut zone + 1 PII détecté dans la zone INGEST)
+INGEST          :   63
 ─────────────────────────
-TOTAL           : 2583
+TOTAL           : 2582
 ```
 
-- **EVIDENCE_CONFLICT (multi-placement divergent)** : 1 — un même contenu
-  (`education-a-la-vie-affective-et-relationnelle...pdf`) existe à deux
-  chemins physiques dont les règles de zone divergent (`EXCLUDE` sous
-  `00_INDEX_PROVENANCE/`, `REVIEW_REQUIRED` sous
-  `01_EDUSCOL_OFFICIEL/.../CYCLE_4_TRANSVERSAL/`). Résolu fail-closed vers
-  `REVIEW_REQUIRED`, jamais choisi arbitrairement.
-- **TO_VERIFY (zone INGEST sans preuve PII)** : 64 — voir constat
-  principal ci-dessus.
-- **Écart de couverture PII** : 172 contenus uniques sur 2583 (6,6 %)
-  n'ont aucune preuve PII dans le trove entier (au-delà des 64 déjà
-  comptés ci-dessus, car cet écart touche aussi des contenus déjà
-  `REVIEW_REQUIRED`/`ARCHIVE_ONLY` pour d'autres raisons).
+`RELEASE_ELIGIBLE_ARTIFACTS=63` — au sens des quatre portes déjà
+codifiées dans `corpus_zone_routing.yml` (droits, PII, actualité,
+format) uniquement. **Ceci ne constitue pas une autorisation de
+publication** : la chaîne d'autorisation/attribution complète (ADR-0032,
+liaison de revue, portée PR #98 — déjà jugée insuffisante et non
+étendue par cette mission) reste un layer séparé, non recalculé ici.
 
-## Blocages — `h2b_coverage_report.py` non exécutable de bout en bout
+Le zéro précédent (`INGEST_ELIGIBLE=0`) provenait uniquement de l'omission
+de la preuve H2F ci-dessus — abandonné, comme demandé, puisqu'il ne
+reflétait pas les faits une fois cette preuve retrouvée.
 
-Deux défauts réels, indépendants, empêchent une exécution complète du
-véritable producteur de preuve H2 contre le corpus réel :
+## Ce qui n'a pas changé depuis la version précédente
 
-1. **`.github/workflows/_produce-h2-evidence.yml` référence des fichiers
-   qui n'ont jamais existé** dans ce dépôt :
-   `services/rag-pedago/configs/rights_registry.yml` (réel :
-   `rights_evidence_registry.yml`), `pii_policy.yml` (réel :
-   `pii_gate_policy.yml`), `golden_controls.yml` (réel :
-   `golden_corpus_h2b.yml`), ainsi que `governance/authorizations/`,
-   `governance/review-bindings/`, `governance/revocations/`,
-   `governance/corpus-campaigns/` (aucun de ces répertoires n'existe ;
-   seul `governance/trust-anchors/` existe). `git log` confirme que le
-   workflow et les fichiers réels (différemment nommés) ont été introduits
-   dans le **même commit** (`2182339`, PR #95) — jamais un renommage
-   after-the-fact, le workflow est cassé depuis son introduction.
-   `gh run list --workflow="_produce-h2-evidence.yml"` : **0 exécution,
-   jamais**. Non corrigé dans ce lot (lecture seule, hors périmètre —
-   corriger exigerait de concevoir l'appareil de campagne/autorisation
-   manquant, une décision de gouvernance distincte).
-2. **`corpus_catalog_compiler.py` attend un schéma de placement
-   incompatible avec le vrai `00_ADMIN/eduscol_affectations.tsv` du
-   corpus scellé.** Colonnes réellement présentes : `sha256,
-   canonical_destination, source_relative, level, subject, doc_type,
-   year, is_primary, size`. Colonnes exigées par
-   `_load_eduscol_placements()` : `annee, chemin_par_niveau,
-   chemin_par_scope, chemin_technique_existant, famille,
-   matiere_ou_rubrique, niveau, objet_source, scope, statut, titre,
-   type_document, url_source`. Exécution réelle tentée, échec confirmé :
-
-   ```
-   $ python3 -m rag_pedago.imports.corpus_catalog_compiler \
-       --sealed-manifest .../00_ADMIN/SHA256SUMS.txt \
-       --placement-catalog .../00_ADMIN/eduscol_affectations.tsv \
-       --config configs/corpus_zone_routing.yml \
-       --output /tmp/catalog.json
-   ValueError: placement catalog missing required columns: annee,
-   chemin_par_niveau, chemin_par_scope, chemin_technique_existant,
-   famille, matiere_ou_rubrique, niveau, objet_source, scope, statut,
-   titre, type_document, url_source
-   ```
-
-   Sans catalogue compilé, `h2b_coverage_report.py --catalog` ne peut pas
-   être fourni avec un fichier réel issu du corpus réel.
-3. Même en contournant (2), aucun fichier d'autorité (`--authority`)
-   couvrant l'ensemble des 2582/2583 contenus n'existe — seules des
-   autorisations historiques et partielles (PR #98) existent, déjà
-   explicitement jugées insuffisantes par cette mission. `--authority`
-   est optionnel dans la CLI, donc un rapport partiel (routing/rights/PII
-   seuls, sans `h2_coverage_gate_pass`) resterait possible une fois (2)
-   résolu — non tenté faute de catalogue valide.
-
-## Limites connues de ce registre
-
-- Les 55 fichiers restants du trove `~/Documents/NEXUS_RAG_H2_EVIDENCE/`
-  n'ont pas été ouverts individuellement (voir
-  `docs/reports/evidence-index/evidence_index_20260814.json`, dernière
-  entrée) — classés par nom/taille/date comme scans PII antérieurs
-  superseded ou snapshots CI par commit, jamais comme preuve de
-  disposition de corpus. Limite explicite, pas un angle mort silencieux.
-- `rights_evidence_registry.yml` documente un mécanisme d'exception
-  par document pour `01_EDUSCOL_OFFICIEL/`
-  (`document_specific_exception_status: THIRD_PARTY_REVIEW_REQUIRED`)
-  dont aucune liste concrète par `content_sha256` n'a été trouvée dans le
-  trove — non modélisé par ligne dans ce registre, flag global uniquement.
-- `pii_gate_policy.yml` (config committée) affirme encore
-  `scan_complete: false`, contredit par l'existence réelle du scan du
-  2026-08-13 — la config committée n'a pas été mise à jour pour refléter
-  ce scan réel ; ce lot ne corrige pas la config (hors périmètre), le
-  signale seulement.
+- Les valeurs `RIGHTS`/`CURRENTNESS` pour les ~2518 contenus hors zone
+  `INGEST` (déjà calculées depuis `rights_evidence_registry.yml` et les
+  fichiers `*_currentness_evidence*.yml`, sources committées et revues)
+  sont réutilisées telles quelles — ces sources et cette logique
+  n'étaient pas mises en cause par les deux défauts corrigés ici.
+- Le conflit `currentness` documenté entre `wave0_currentness_evidence_v1`
+  et `_v2` (2 contenus, valeurs `effective_currentness` identiques,
+  provenance différente) reste flagué, non arbitré par « le plus
+  récent ».
+- `h2b_coverage_report.py` reste non exécutable de bout en bout contre le
+  corpus réel (deux défauts déjà documentés dans la version précédente de
+  ce rapport : chemins de configuration inexistants dans
+  `_produce-h2-evidence.yml`, schéma incompatible dans
+  `corpus_catalog_compiler.py`) — non corrigés par ce lot (hors
+  périmètre ; lots séparés).
 
 ## Artefacts produits
 
-- `docs/reports/evidence-index/evidence_index_20260814.json` — index des
-  10 sources de preuve distinctes consultées (producteur, version,
-  date, scope, digest scellé si applicable, superseded_by, fiabilité).
-- `docs/reports/evidence-index/terminal_disposition_ledger_20260814.jsonl`
-  — 2583 lignes, une par `content_sha256` unique : `PII`, `CURRENTNESS`,
-  `RIGHTS`, `EXTRACTABILITY`, `ROUTING_BASELINE`, `FINAL_DISPOSITION`,
-  `REASON_CODES`, `EVIDENCE_SOURCES`.
-- `docs/reports/evidence-index/summary_20260814.json` — compteurs bruts.
+- `docs/reports/evidence-index/evidence_index_20260814.json` — 11 sources
+  de preuve distinctes (10 précédentes + `h2b_pii_evidence_20260808.json`
+  nouvellement localisé et vérifié).
+- `docs/reports/evidence-index/content_ledger_20260814.jsonl` — 2582
+  lignes, une par `content_sha256` unique.
+- `docs/reports/evidence-index/placement_ledger_20260814.jsonl` — 2583
+  lignes, une par entrée de manifeste/emplacement physique.
+- `docs/reports/evidence-index/summary_20260814.json` — compteurs bruts
+  recalculés.
+- **Supprimé** : `terminal_disposition_ledger_20260814.jsonl` (l'ancien
+  fichier unique conflaté — entièrement remplacé par les deux registres
+  ci-dessus, jamais conservé en parallèle pour éviter toute ambiguïté sur
+  la source de vérité).
 
-Aucun de ces trois fichiers n'est commité par ce lot (fichiers non suivis
-laissés pour revue).
+Aucun de ces fichiers n'est signé ni ne constitue une autorisation —
+lecture seule, reconciliation de preuves existantes plus une preuve
+retrouvée, jamais une décision de gouvernance nouvelle.
 
 ## Booléens finaux
 
 ```
-TERMINAL_DISPOSITION_COVERAGE=100%
-EVIDENCE_INDEX_BUILT=true
+PHYSICAL_FILES=2584
+MANIFEST_ENTRIES=2583
+UNIQUE_CONTENT_SHA256=2582
+DUPLICATE_CONTENT_GROUPS=1
+PLACEMENT_ROWS=2583
+PII_PDF_UNION_COVERAGE=2475
+PII_PDF_UNION_DUPLICATES=0
+CONTENT_TERMINAL_DISPOSITION_COVERAGE=100.0%
+PLACEMENT_TERMINAL_DISPOSITION_COVERAGE=100.0%
+UNACCOUNTED_CONTENT=0
+UNACCOUNTED_PLACEMENTS=0
+RELEASE_ELIGIBLE_ARTIFACTS=63
+CURRENT_LEDGER_PRELIMINARY=false
 H2_COVERAGE_REPORT_PRODUCIBLE_END_TO_END=false
 FULL_CORPUS_AUTHORITY_FILE_EXISTS=false
-CORPUS_CATALOG_COMPILER_SCHEMA_COMPATIBLE_WITH_REAL_TSV=false
-H2_EVIDENCE_WORKFLOW_RUNNABLE=false
-PII_SCAN_COVERAGE=2411/2583 (93.4%)
-PII_SCAN_COVERAGE_OF_INGEST_ZONE=0/64 (0%)
-INGEST_ELIGIBLE_TODAY=0
 GOOGLE_DRIVE_ELIGIBLE_CONTENT_INGESTED=false
 PRODUCTION_VECTOR_INDEX_COMPLETE=false
 GO_LIVE_READY=false

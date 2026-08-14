@@ -1,29 +1,41 @@
 {
-  "total_unique_content_sha256": 2583,
-  "total_physical_files": 2584,
-  "multi_placement_content_count": 1,
-  "baseline_routing_counts_over_physical_paths": {
-    "EXCLUDE": 55,
+  "PHYSICAL_FILES": 2584,
+  "MANIFEST_ENTRIES": 2583,
+  "UNIQUE_CONTENT_SHA256": 2582,
+  "DUPLICATE_CONTENT_GROUPS": 1,
+  "PLACEMENT_ROWS": 2583,
+  "content_final_disposition_counts": {
+    "EXCLUDE": 53,
+    "REVIEW_REQUIRED": 2408,
+    "INGEST": 63,
+    "QUARANTINE": 2,
+    "ARCHIVE_ONLY": 19,
+    "UNSUPPORTED": 37
+  },
+  "content_pii_counts": {
+    "OUT_OF_SCANNER_SCOPE_NON_PDF": 107,
+    "QUARANTINED": 146,
+    "REVIEW_REQUIRED": 43,
+    "CLEARED": 2286
+  },
+  "placement_routing_zone_counts": {
+    "EXCLUDE": 54,
     "REVIEW_REQUIRED": 2408,
     "INGEST": 64,
     "ARCHIVE_ONLY": 19,
     "QUARANTINE": 1,
     "UNSUPPORTED": 37
   },
-  "final_disposition_counts": {
-    "REVIEW_REQUIRED": 2472,
-    "UNSUPPORTED": 37,
-    "EXCLUDE": 54,
-    "ARCHIVE_ONLY": 19,
-    "QUARANTINE": 1
-  },
-  "evidence_conflict_count": 1,
-  "to_verify_count": 64,
-  "pii_scan_coverage": 2411,
-  "pii_scan_gap": 172,
-  "currentness_override_coverage": 152,
-  "currentness_conflicts": [
-    "currentness conflict for 49ccdca4d97ba4cf25875dfc731474e84d0332985c15396d3abfb9107f5f545a: {'source': 'wave0_currentness_evidence_v1', 'effective_currentness': 'actuel', 'decision': None, 'reason_codes': []} vs {'source': 'wave0_currentness_evidence_v2', 'effective_currentness': 'actuel', 'decision': None, 'reason_codes': []}",
-    "currentness conflict for c8662b03ca8a7f08bedad5081bafc7da8d2cc8a31b07fa967421fb15304d76bf: {'source': 'wave0_currentness_evidence_v1', 'effective_currentness': 'actuel', 'decision': None, 'reason_codes': []} vs {'source': 'wave0_currentness_evidence_v2', 'effective_currentness': 'actuel', 'decision': None, 'reason_codes': []}"
-  ]
+  "evidence_conflict_content_sha256": [
+    "050b18155057cf836f42f199435d98eea36ba6e87439f593247f56c402edad5f"
+  ],
+  "PII_PDF_UNION_COVERAGE": 2475,
+  "PII_PDF_UNION_DUPLICATES": 0,
+  "PII_NON_PDF_OUT_OF_SCANNER_SCOPE": 107,
+  "CONTENT_TERMINAL_DISPOSITION_COVERAGE": "100.0%",
+  "PLACEMENT_TERMINAL_DISPOSITION_COVERAGE": "100.0%",
+  "UNACCOUNTED_CONTENT": 0,
+  "UNACCOUNTED_PLACEMENTS": 0,
+  "RELEASE_ELIGIBLE_ARTIFACTS": 63,
+  "CURRENT_LEDGER_PRELIMINARY": false
 }
