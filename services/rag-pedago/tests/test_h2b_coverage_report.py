@@ -9,6 +9,7 @@ import pytest
 import yaml
 from nexus_contracts import ScopeAuthorizationArtifactV1, ScopeAuthorizationArtifactV2
 from nexus_contracts.authority_artifacts import canonical_authorization_path, git_blob_sha1
+from nexus_contracts.h2_coverage_evidence import parse_h2_coverage_evidence
 from nexus_contracts.review_binding import (
     REVIEW_BINDING_PROTOCOL_VERSION,
     TRUSTED_REVIEW_PROTOCOL,
@@ -587,6 +588,85 @@ def test_real_catalog_proves_coverage_and_all_ingest_safety_invariants(
     markdown = render_markdown(report)
     assert "REAL_CORPUS_CATALOG_SOURCE=true" in markdown
     assert "SYNTHETIC_CATALOG_USED_FOR_FINAL_GATE=false" in markdown
+
+
+class TestH2CoverageEvidenceProjection:
+    """ADR-0042 : ``report_to_h2_coverage_evidence`` projette un
+    ``CoverageReport`` déjà calculé vers le contrat partagé — aucun
+    recalcul, une représentation fidèle et strictement validée."""
+
+    def test_a_passing_production_report_projects_to_valid_canonical_evidence(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _install_governed_root(monkeypatch, tmp_path)
+        report = _generate(
+            tmp_path,
+            _write_real_catalog(tmp_path),
+            _write_golden_spec(tmp_path),
+            include_authority=True,
+            expected_total=2,
+        )
+        assert report.coverage_complete is True  # fixture sanity, not this test's point
+
+        evidence = module.report_to_h2_coverage_evidence(report)
+
+        assert evidence.h2_coverage_gate_pass == report.h2_coverage_gate_pass
+        assert evidence.manifest_sha256 == report.manifest_sha256
+        assert evidence.git_commit == report.git_commit
+        assert evidence.rights_gate_status == report.rights_gate_status
+        assert evidence.pii_gate_status == report.pii_gate_status
+        # Round-trips through the shared contract's own strict parser --
+        # proves the projection is genuinely canonical, not "close enough".
+        reparsed = parse_h2_coverage_evidence(evidence.canonical_bytes())
+        assert reparsed.canonical_bytes() == evidence.canonical_bytes()
+
+    def test_input_file_digests_excludes_non_digest_authority_binding_fields(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """``report.input_files`` also carries ``authority_<binding-field>``
+        entries (path, git blob SHA-1, reviewer login, ...) merged in from
+        ``authority_binding`` -- these are never SHA-256 digests, and must
+        never leak into the strict digest map the shared contract expects."""
+        _install_governed_root(monkeypatch, tmp_path)
+        report = _generate(
+            tmp_path,
+            _write_real_catalog(tmp_path),
+            _write_golden_spec(tmp_path),
+            include_authority=True,
+            expected_total=2,
+        )
+        non_digest_keys = {
+            key
+            for key in report.input_files
+            if key.startswith("authority_") and key != "authority_revocations"
+        }
+        assert non_digest_keys, "fixture sanity: expected at least one authority_* binding field"
+
+        evidence = module.report_to_h2_coverage_evidence(report)
+
+        assert not (non_digest_keys & set(evidence.input_file_digests))
+        for digest in evidence.input_file_digests.values():
+            assert module.re.fullmatch(r"[0-9a-f]{64}", digest) is not None
+
+    def test_rehearsal_report_is_refused(self) -> None:
+        # Directly constructed: this test's only point is the environment
+        # gate on the pure projection function, not the full generation
+        # pipeline -- a hand-built dataclass instance is the right tool.
+        report = module.CoverageReport(
+            report_id="h2b_coverage_test",
+            generated_at="2026-08-13T12:00:00.000000Z",
+            git_commit="a" * 40,
+            git_branch="main",
+            real_corpus_catalog_source=True,
+            synthetic_catalog_used_for_final_gate=False,
+            manifest_sha256="b" * 64,
+            corpus_total_expected=1,
+            corpus_total_actual=1,
+            corpus_match=True,
+            authority_environment="rehearsal",
+        )
+        with pytest.raises(module.H2CoverageEvidenceError, match="production-only"):
+            module.report_to_h2_coverage_evidence(report)
 
 
 def test_missing_authority_keeps_coverage_gate_red(

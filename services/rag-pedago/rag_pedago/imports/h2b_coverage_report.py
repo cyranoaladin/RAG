@@ -55,7 +55,16 @@ from nexus_contracts.authority_artifacts import (
     git_blob_sha1,
     parse_scope_authorization_artifact,
 )
+from nexus_contracts.authorization_revocations import (
+    REVOCATIONS_PROTOCOL_VERSION,
+    parse_revoked_authorization_ids,
+)
 from nexus_contracts.document import Rights
+from nexus_contracts.h2_coverage_evidence import (
+    H2_COVERAGE_EVIDENCE_PROTOCOL_VERSION,
+    H2CoverageEvidenceError,
+    H2CoverageEvidenceV1,
+)
 from nexus_contracts.review_binding import (
     ReviewBindingError,
     parse_trust_anchor,
@@ -545,7 +554,10 @@ _GOVERNED_REVOCATIONS_PATH = "governance/trust-anchors/authorization-revocations
 
 #: Version de schéma du registre de révocation. Un registre sans version
 #: est refusé : sa forme pourrait changer sans que rien ne le signale.
-_REVOCATIONS_PROTOCOL_VERSION = "NEXUS-AUTHORIZATION-REVOCATIONS-V1"
+#: Alias du contrat partagé (ADR-0042) — jamais réaffirmé indépendamment,
+#: pour ne jamais diverger silencieusement de ce que le parseur vérifie
+#: réellement.
+_REVOCATIONS_PROTOCOL_VERSION = REVOCATIONS_PROTOCOL_VERSION
 
 #: Marqueurs qui identifient la racine du dépôt Nexus. Versionnés, donc
 #: présents dans tout checkout, et absents de tout ``site-packages``.
@@ -777,63 +789,23 @@ def _authority_review_binding_validation(
 def _parse_revocation_registry(raw: bytes, *, origin: Path) -> frozenset[str]:
     """Schéma strict et versionné du registre de révocation (F2).
 
+    Délègue à ``nexus_contracts.authorization_revocations`` (ADR-0042) :
+    ce parseur vit désormais dans le contrat partagé, réutilisé tel quel
+    par ``rag-engine`` (le signer de readiness) — un seul parseur strict,
+    jamais deux qui pourraient diverger. Nom et signature conservés ici
+    pour ne rien changer aux appelants existants de ce module ; le
+    comportement (messages d'erreur inclus, tous préfixés
+    ``REVOCATION_REGISTRY_INVALID``) est identique, prouvé par les tests
+    du contrat partagé (``packages/contracts/tests/test_authorization_
+    revocations_contract.py``) et par les tests historiques de ce
+    fichier, inchangés.
+
     Un registre **gouverné vide** est valide : « aucune autorisation
     révoquée » est une affirmation légitime, et le fichier prouve que
     quelqu'un l'a affirmée. C'est l'*absence* de registre qui ne l'est
     pas — elle ne distingue pas « rien n'est révoqué » de « personne n'a
-    regardé ».
-
-    Un doublon est refusé plutôt qu'absorbé par le ``frozenset`` : deux
-    lignes identiques signalent une édition concurrente mal fusionnée, et
-    un registre de révocation dont on ignore l'historique d'édition ne
-    mérite pas la confiance qu'on lui accorde.
-    """
-    try:
-        document = json.loads(raw.decode("utf-8"))
-    except UnicodeDecodeError as exc:
-        raise ValueError(
-            f"REVOCATION_REGISTRY_INVALID: {origin} is not valid UTF-8: {exc}"
-        ) from exc
-    except json.JSONDecodeError as exc:
-        raise ValueError(
-            f"REVOCATION_REGISTRY_INVALID: {origin} is not valid JSON: {exc}"
-        ) from exc
-    if not isinstance(document, dict):
-        raise ValueError(
-            f"REVOCATION_REGISTRY_INVALID: {origin} must be a JSON object"
-        )
-
-    unexpected = set(document) - {"protocol_version", "revoked_authorization_ids"}
-    if unexpected:
-        raise ValueError(
-            f"REVOCATION_REGISTRY_INVALID: {origin} carries unknown keys "
-            f"{sorted(unexpected)!r} — a governed registry never smuggles fields "
-            "past the schema"
-        )
-
-    protocol_version = document.get("protocol_version")
-    if protocol_version != _REVOCATIONS_PROTOCOL_VERSION:
-        raise ValueError(
-            f"REVOCATION_REGISTRY_INVALID: {origin} declares protocol_version "
-            f"{protocol_version!r}, expected {_REVOCATIONS_PROTOCOL_VERSION!r}"
-        )
-
-    revoked = document.get("revoked_authorization_ids")
-    if not isinstance(revoked, list) or any(
-        not isinstance(item, str) or not item.strip() for item in revoked
-    ):
-        raise ValueError(
-            f"REVOCATION_REGISTRY_INVALID: {origin} must declare "
-            "revoked_authorization_ids as a list of non-empty strings"
-        )
-    duplicates = sorted({item for item in revoked if revoked.count(item) > 1})
-    if duplicates:
-        raise ValueError(
-            f"REVOCATION_REGISTRY_INVALID: {origin} repeats authorization ids "
-            f"{duplicates!r} — a revocation registry is a set, and a duplicate "
-            "signals an unreviewed merge"
-        )
-    return frozenset(revoked)
+    regardé »."""
+    return parse_revoked_authorization_ids(raw, origin=str(origin))
 
 
 def _load_revoked_authorization_ids(
@@ -1625,6 +1597,16 @@ def main() -> int:
         help="Output path for Markdown report",
     )
     parser.add_argument(
+        "--json-output",
+        type=Path,
+        help=(
+            "ADR-0042 : chemin de sortie pour la preuve H2 machine-lisible "
+            "(NEXUS-H2-COVERAGE-EVIDENCE-V1, JSON canonique) — additif au "
+            "rapport Markdown, jamais un remplacement. Refuse si "
+            "--authority-environment n'est pas 'production'."
+        ),
+    )
+    parser.add_argument(
         "--expected-total",
         type=int,
         default=2584,
@@ -1660,7 +1642,73 @@ def main() -> int:
         args.output.write_text(markdown, encoding="utf-8")
         print(f"\nReport written to: {args.output}")
 
+    if args.json_output:
+        evidence = report_to_h2_coverage_evidence(report)
+        args.json_output.parent.mkdir(parents=True, exist_ok=True)
+        args.json_output.write_bytes(evidence.canonical_bytes())
+        print(f"\nMachine-readable evidence written to: {args.json_output}")
+
     return 0 if report.coverage_complete else 1
+
+
+#: Sous-ensemble de ``CoverageReport.input_files`` dont chaque valeur est
+#: garantie provenir de ``_file_sha256`` (jamais des sous-champs de
+#: ``authority_binding`` fusionnés dedans, qui peuvent porter un SHA-1 de
+#: blob Git, un chemin, ou un login — jamais un digest SHA-256). Le
+#: contrat partagé refuse de toute façon toute valeur non-hex64
+#: (y compris le "file_not_found" que ``_file_sha256`` peut renvoyer pour
+#: un chemin optionnel fourni mais absent) — cette liste ne fait que
+#: choisir les bonnes clés candidates, la forme est revérifiée ensuite par
+#: le contrat lui-même.
+_INPUT_FILE_DIGEST_KEYS = ("catalog", "pii", "rights", "routing", "authority", "authority_revocations", "golden")
+
+
+def report_to_h2_coverage_evidence(report: CoverageReport) -> H2CoverageEvidenceV1:
+    """Projette un ``CoverageReport`` déjà calculé vers
+    ``NEXUS-H2-COVERAGE-EVIDENCE-V1`` (ADR-0042) — aucun nouveau calcul,
+    uniquement une représentation fidèle de verdicts déjà rendus.
+
+    Refuse hors de l'environnement ``production`` : ce contrat n'existe
+    que pour nourrir un vérificateur hors ligne de production ; un
+    rehearsal n'a pas vocation à produire une preuve dans ce format."""
+    if report.authority_environment != "production":
+        raise H2CoverageEvidenceError(
+            f"cannot project a {report.authority_environment!r} coverage report to "
+            f"{H2_COVERAGE_EVIDENCE_PROTOCOL_VERSION} — this evidence format is "
+            "production-only"
+        )
+    input_file_digests = {
+        key: report.input_files[key]
+        for key in _INPUT_FILE_DIGEST_KEYS
+        if key in report.input_files
+    }
+    return H2CoverageEvidenceV1.model_validate(
+        {
+            "protocol_version": H2_COVERAGE_EVIDENCE_PROTOCOL_VERSION,
+            "environment": "production",
+            "report_id": report.report_id,
+            "generated_at": report.generated_at,
+            "git_commit": report.git_commit,
+            "producer_version": "rag_pedago.imports.h2b_coverage_report/1",
+            "manifest_sha256": report.manifest_sha256,
+            "input_file_digests": input_file_digests,
+            "corpus_total_expected": report.corpus_total_expected,
+            "corpus_total_actual": report.corpus_total_actual,
+            "corpus_match": report.corpus_match,
+            "sum_equals_total": report.sum_equals_total,
+            "zero_overlap": report.zero_overlap,
+            "zero_gap": report.zero_gap,
+            "coverage_complete": report.coverage_complete,
+            "rights_gate_status": report.rights_gate_status,
+            "pii_gate_status": report.pii_gate_status,
+            "golden_validation_pass": report.golden_validation_pass,
+            "h2_coverage_gate_pass": report.h2_coverage_gate_pass,
+            "authority_review_binding_verified": report.authority_review_binding_verified,
+            "authority_revocations_checked": report.authority_revocations_checked,
+            "authorization_id": report.input_files["authority_authorization_id"],
+            "safety_invariants": dict(report.safety_invariants),
+        }
+    )
 
 
 if __name__ == "__main__":

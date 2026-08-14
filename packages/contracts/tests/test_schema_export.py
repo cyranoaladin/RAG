@@ -15,11 +15,12 @@ REVIEW_SCHEMAS = {
 }
 
 
-def test_package_version_is_0_11_0() -> None:
-    """0.11.0 (ADR-0040) ajoute la Quatrième sans rupture de contrat."""
+def test_package_version_is_0_12_0() -> None:
+    """0.12.0 (ADR-0042) ajoute h2_coverage_evidence et
+    authorization_revocations, sans rupture de contrat existant."""
     root = Path(__file__).resolve().parents[1]
     pyproject = tomllib.loads((root / "pyproject.toml").read_text())
-    assert pyproject["project"]["version"] == "0.11.0"
+    assert pyproject["project"]["version"] == "0.12.0"
 
 
 def test_schema_export_is_deterministic(tmp_path: Path) -> None:
