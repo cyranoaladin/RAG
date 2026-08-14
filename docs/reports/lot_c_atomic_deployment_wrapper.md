@@ -301,11 +301,21 @@ générique (git/réseau en échec), donc désactiver le garde-fou laissait
 le test vert pour la mauvaise raison. Corrigé en affirmant le texte
 précis du refus précoce.
 
+**Correction (indépendante, avant merge)** : la version précédente de ce
+rapport et le message du commit `437964a` affirmaient tous deux
+`139 passed` pour cette même commande, contre exactement ce commit. Une
+revue indépendante a rejoué la commande verbatim contre `437964a` et
+obtenu `105 passed` (confirmé aussi par `--collect-only` :
+40 + 41 + 24 = 105, aucune erreur de collecte) — 0 échec dans les deux
+cas, `ruff`/`mypy` inchangés et propres, donc la substance du constat
+(« tout passe, aucune régression ») reste vraie, mais le chiffre `139`
+cité était faux et corrigé ici plutôt que laissé tel quel.
+
 ```
 $ .venv/bin/python -m pytest tests/test_deploy_verified_release_cli.py \
     tests/test_verify_release_image_provenance_cli.py \
     tests/test_deployment_image_inventory.py -q
-139 passed
+105 passed
 
 $ .venv/bin/python -m ruff check scripts/ \
     tests/test_deploy_verified_release_cli.py \
