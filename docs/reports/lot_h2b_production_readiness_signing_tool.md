@@ -529,6 +529,114 @@ head_sha/run_attempt du run de promotion, liaison git_commit, quatre
 liaisons de digest routing/rights/pii/golden, détection de lien
 physique) sont tous mutation-testés individuellement.
 
+## 6septies. Section 11 — Compose résolu multi-fichiers, plus un fichier source unique
+
+`--compose-file` (un seul fichier YAML source, jamais capable de
+représenter la topologie de production réelle — sa propre docstring
+l'admettait : « n'invoque jamais `docker compose config` ») est
+supprimé. Remplacé par exactement le mécanisme déjà construit, testé et
+utilisé par `verify_release_image_provenance_cli.py` (PR #105) :
+`docker-compose.v2.yml` + `docker-compose.production-workers.yml` +
+`docker-compose.production-release.yml`, lus depuis l'objet git
+`merge_sha:services/rag-engine/infra/<fichier>` (jamais un disque qui
+pourrait avoir divergé), résolus avec `docker compose --env-file
+<env-file> config --format json`. Réutilisé par import
+(`verify_release_image_provenance_cli.run_docker_compose_config_via_
+subprocess`), jamais réimplémenté — même primitive, déjà exercée contre
+un vrai `docker`/`git` par la suite de tests de PR #105.
+
+**Nouveaux arguments CLI** : `--repo-root` (défaut : la racine réelle du
+dépôt) et `--env-file` (requis — explicite, comme tous les autres faits
+de cet outil, jamais un défaut implicite pour un fichier qui porte des
+secrets de production).
+
+**Ce que le Compose résolu change réellement** :
+
+1. Les trois services applicatifs (`ingestor`,
+   `multilevel-worker-a/b-production`) apparaissent maintenant, dans le
+   Compose résolu réel, pleinement résolus par la release overlay
+   (`!reset null` + `image:` épinglée) — plus jamais seulement des
+   services à `build:`. `deployment_image_inventory.require_resolved_
+   compose_images_are_pinned` (déjà écrite, déjà testée, jamais exercée
+   avant ce lot par ce fichier) confronte cela : chaque service
+   applicatif attendu existe, ne porte plus `build:`, son image est
+   épinglée par digest.
+2. **Renforcement réel, pas seulement un changement de source** : ce
+   fichier ne confrontait auparavant que les NOMS des services
+   applicatifs entre Compose et provenance (jamais leurs digests
+   d'image). `verify_release_image_provenance_cli.require_pinned_
+   images_match_verified_provenance` (réutilisée, jamais réimplémentée)
+   ferme ce même défaut déjà trouvé et corrigé pour PR #105 round 2 : un
+   digest correctement formé et épinglé, mais qui n'est pas celui produit
+   par la provenance vérifiée pour ce commit exact, est maintenant
+   refusé — `test_compose_application_image_diverging_from_provenance_
+   is_refused`, mutation-testée (désactiver le croisement fait échouer
+   ce test précisément, pour la bonne raison).
+3. Les services upstream (ex. `pgvector`) sont dérivés du Compose résolu
+   entier (`_upstream_services_from_resolved_compose`) : tout service qui
+   n'est pas l'un des trois services applicatifs connus, et qui déclare
+   une image épinglée par digest, en fait partie ; un service à `build:`
+   inconnu (hors des trois attendus) est désormais refusé plutôt
+   qu'ignoré — un Compose résolu de production ne devrait plus jamais en
+   laisser passer un.
+4. Plus besoin de normaliser un tag avant comparaison (`_COMPOSE_IMAGE_
+   REF`, supprimée) : un Compose déjà résolu ne porte plus de tag pour
+   une image déjà digest-pinnée côté source — `docker compose config` le
+   retire lui-même.
+5. `compose_digest`, le fait signé dans le manifeste, est maintenant le
+   digest du Compose RÉSOLU (JSON canonique, clés triées) — pas d'un
+   fichier source. C'est exactement ce que
+   `nexus_contracts.production_readiness.require_manifest_matches_
+   release` documente déjà pour ce champ (« le fichier compose résolu »,
+   confronté par un futur vérificateur hôte qui résoudrait à nouveau les
+   mêmes fichiers avec le même `.env`) — pas un changement de contrat,
+   seulement la source réellement hachée qui s'aligne enfin sur ce que le
+   contrat documentait déjà. Contrat partagé (`packages/contracts`) non
+   modifié.
+
+**Tests.** `TestComposeImageBindingIsEnforced` entièrement réécrite (13
+scénarios contre le Compose résolu, via un nouveau double injecté
+`tool._run_docker_compose_config`, autousé — même convention que
+`_stub_github_api`/`_stub_download_artifact`). `TestRealCommittedCompose
+FileParsesAsExpected` (qui exerçait l'ancien parseur local contre le
+vrai `docker-compose.v2.yml`) est supprimée : la preuve contre de vrais
+fichiers Compose et un vrai `docker`/`git` existe déjà, exercée par
+`TestRunDockerComposeConfigViaSubprocess` dans `test_verify_release_
+image_provenance_cli.py` — la redériver ici pour une fonction que ce
+fichier ne fait qu'appeler aurait été une pure duplication (AGENTS.md,
+DRY).
+
+```
+$ .venv/bin/python -m pytest tests/test_sign_production_readiness_manifest_cli.py -v
+72 passed
+
+$ .venv/bin/python -m pytest tests/test_sign_production_readiness_manifest_cli.py \
+    tests/test_deployment_image_inventory.py tests/test_verify_release_image_provenance_cli.py -q
+136 passed
+
+$ .venv/bin/python -m ruff check scripts/sign_production_readiness_manifest_cli.py \
+    tests/test_sign_production_readiness_manifest_cli.py
+All checks passed!
+
+$ .venv/bin/python -m mypy scripts/sign_production_readiness_manifest_cli.py
+Success: no issues found in 1 source file
+```
+
+Mutation-testées individuellement (désactivation ciblée → test rouge
+pour la bonne raison → restauration → suite verte) : le croisement
+digest applicatif/provenance (point 2 ci-dessus), le refus d'un service
+à `build:` inconnu hors des trois attendus (point 3), le refus d'une
+image upstream non épinglée par digest dans le Compose résolu.
+
+**Ce qui reste ouvert.** Le workflow de promotion canonique n'existe
+toujours pas (`.github/workflows/` : `ci.yml`, `_produce-h2-evidence.
+yml`, `production-image-provenance.yml`, `trusted-human-review.yml`,
+vérifié à nouveau à la fin de ce round — toujours aucun `promote.yml` ni
+équivalent) — seul blocker restant pour
+`PRODUCTION_READINESS_SIGNING_TOOL_COMPLETE`, non fermable dans ce lot
+(§6sexies, Escalade AGENTS.md : construire ce workflow est un lot
+séparé).
+
 ## 7. Limitations
 
 - Aucune clé privée de production n'a été utilisée par cet outil dans ce
@@ -537,23 +645,22 @@ physique) sont tous mutation-testés individuellement.
 - Aucun manifeste réel n'a été assemblé ni signé pour PR #97, #98, #99,
   #100 ou #101.
 - **Aucun workflow de promotion canonique n'existe encore** — voir
-  §6sexies. `--workflow-path`/`--workflow-ref`/`--run-id`/
+  §6sexies/§6septies. `--workflow-path`/`--workflow-ref`/`--run-id`/
   `--run-attempt` restent, de fait, des entrées opérateur non ancrées à
-  un workflow pinné, faute d'un tel workflow dans ce dépôt. C'est le
-  blocker qui maintient `PRODUCTION_READINESS_SIGNING_TOOL_COMPLETE=
-  false`.
-- **Le Compose analysé n'est pas le Compose résolu final** de la
-  topologie de production réelle (§6sexies).
+  un workflow pinné, faute d'un tel workflow dans ce dépôt. C'est
+  aujourd'hui le SEUL blocker qui maintient
+  `PRODUCTION_READINESS_SIGNING_TOOL_COMPLETE=false`.
 - L'outil n'a pas encore été exercé contre les vrais fichiers d'evidence
   de production (catalogue de disposition réel, rapport H2-B réel,
-  registre de révocation réel, run de provenance d'image réel) — ceux-ci
-  n'existent pas encore tant que PR #98 n'est pas enregistrée et que le
-  workflow de provenance d'image n'a pas tourné pour de vrai sur `main`.
+  registre de révocation réel, run de provenance d'image réel, vrai
+  `.env` de production) — ceux-ci n'existent pas encore tant que PR #98
+  n'est pas enregistrée et que le workflow de provenance d'image n'a pas
+  tourné pour de vrai sur `main`.
 
 ## 8. Booléens finaux
 
 ```
-PRODUCTION_READINESS_SIGNING_TOOL_COMPLETE=false   # bloqué par le workflow de promotion manquant, §6sexies
+PRODUCTION_READINESS_SIGNING_TOOL_COMPLETE=false   # bloqué par le workflow de promotion manquant, §6sexies/§6septies
 FREE_FORM_READINESS_BOOLEAN_ALLOWED=false
 SIGNED_MANIFEST_VERIFY_ROUNDTRIP=true
 REVIEW_BINDING_ACTUALLY_VERIFIED_BEFORE_SIGNING=true
@@ -562,7 +669,7 @@ REPOSITORY_PINNED=true
 GIT_FACTS_VERIFIED=true
 WORKFLOW_PROVENANCE_VERIFIED=false   # workflow canonique de promotion inexistant, §6sexies
 UPSTREAM_COMPOSE_IMAGE_CROSS_BINDING=true
-RESOLVED_COMPOSE_BINDING=false   # analyse encore un fichier source unique, §6sexies
+RESOLVED_COMPOSE_BINDING=true   # Section 11 : Compose résolu multi-fichiers, plus un fichier source unique
 APPLICATION_IMAGE_PROVENANCE_MECHANISM_VERIFIED=true   # mécanisme livré/testé ; jamais exécuté contre un run de provenance réel (§7)
 GOVERNANCE_EVIDENCE_SEMANTICALLY_VERIFIED=true
 H2_INPUT_CATALOG_DIGEST_VERIFIED=true

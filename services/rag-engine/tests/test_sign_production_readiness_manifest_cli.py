@@ -14,7 +14,6 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 sys.path.insert(
@@ -225,13 +224,28 @@ def _revocation_registry_bytes(*, revoked: tuple[str, ...] = ()) -> bytes:
     ).encode("utf-8")
 
 
-def _compose_bytes(
-    *, upstream_image: str = UPSTREAM_IMAGE_REF, application_services: tuple[str, ...] = APPLICATION_SERVICES
-) -> bytes:
-    services: dict[str, Any] = {UPSTREAM_IMAGE_SERVICE: {"image": upstream_image}}
-    for name in application_services:
-        services[name] = {"build": {"context": "."}}
-    return yaml.safe_dump({"services": services}, sort_keys=True).encode("utf-8")
+def _resolved_compose_document(
+    *,
+    upstream_image: str | None = UPSTREAM_IMAGE_REF,
+    upstream_service: str = UPSTREAM_IMAGE_SERVICE,
+    application_images: dict[str, str] | None = None,
+    extra_services: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Compose déjà RÉSOLU (sortie de ``docker compose ... config --format
+    json``, Section 11) -- jamais un YAML source brut. Par défaut, les
+    trois services applicatifs y sont déjà pleinement résolus (plus de
+    ``build:``, image épinglée EXACTEMENT égale à ``APPLICATION_IMAGE_
+    DIGESTS``, la même provenance vérifiée que le reste de la suite) --
+    reflète la release overlay réelle (``docker-compose.production-
+    release.yml``'s ``!reset null`` + ``image: ${...}``), jamais l'ancien
+    état ``build:``-only d'un fichier source unique."""
+    app_images = application_images if application_images is not None else dict(APPLICATION_IMAGE_DIGESTS)
+    services: dict[str, Any] = {name: {"image": ref} for name, ref in app_images.items()}
+    if upstream_image is not None:
+        services[upstream_service] = {"image": upstream_image}
+    if extra_services:
+        services.update(extra_services)
+    return {"services": services}
 
 
 def _inventory_document(
@@ -372,6 +386,35 @@ def _stub_download_artifact(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     return state
 
 
+@pytest.fixture(autouse=True)
+def _stub_compose_resolution(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    """Substitue la troisième frontière process (résolution Compose,
+    Section 11) -- jamais un vrai ``docker``/``git show`` dans ces tests
+    unitaires (même convention que ``_stub_github_api``/``_stub_download_
+    artifact`` ci-dessus). Chemin heureux par défaut (les trois services
+    applicatifs pleinement résolus, épinglés à ``APPLICATION_IMAGE_
+    DIGESTS``, plus l'upstream ``pgvector``) ; un test qui veut un
+    scénario différent mute ``state["resolved"]`` avant d'appeler l'outil.
+    ``state["calls"]`` enregistre chaque invocation pour les tests de
+    câblage (repo_root/merge_sha/env_file transmis tels quels)."""
+    state: dict[str, Any] = {
+        "resolved": _resolved_compose_document(),
+        "calls": [],
+        "error": None,
+    }
+
+    def fake(repo_root: Path, merge_sha: str, work_dir: Path, env_file: Path) -> dict[str, Any]:
+        state["calls"].append(
+            {"repo_root": repo_root, "merge_sha": merge_sha, "work_dir": work_dir, "env_file": env_file}
+        )
+        if state["error"] is not None:
+            raise state["error"]
+        return state["resolved"]
+
+    monkeypatch.setattr(tool, "_run_docker_compose_config", fake)
+    return state
+
+
 ROUTING_BYTES = b"routing-content"
 RIGHTS_BYTES = b"rights-content"
 PII_BYTES = b"pii-content"
@@ -480,7 +523,7 @@ def _base_args(tmp_path: Path, **overrides: object) -> argparse.Namespace:
         "--rights-file", str(_write(tmp_path / "rights.yml", RIGHTS_BYTES)),
         "--pii-file", str(_write(tmp_path / "pii.json", PII_BYTES)),
         "--golden-file", str(_write(tmp_path / "golden.json", GOLDEN_BYTES)),
-        "--compose-file", str(_write(tmp_path / "compose.yml", _compose_bytes())),
+        "--env-file", str(_write(tmp_path / "dummy.env", b"# unused: compose resolution is stubbed in tests\n")),
         "--provenance-run-id", str(PROVENANCE_RUN_ID),
         "--provenance-run-attempt", str(PROVENANCE_RUN_ATTEMPT),
         "--upstream-image", f"{UPSTREAM_IMAGE_SERVICE}={UPSTREAM_IMAGE_REF}",
@@ -520,7 +563,7 @@ def _main_argv(tmp_path: Path, *, output: Path) -> list[str]:
         "--rights-file", str(tmp_path / "rights.yml"),
         "--pii-file", str(tmp_path / "pii.json"),
         "--golden-file", str(tmp_path / "golden.json"),
-        "--compose-file", str(tmp_path / "compose.yml"),
+        "--env-file", str(tmp_path / "dummy.env"),
         "--provenance-run-id", str(PROVENANCE_RUN_ID),
         "--provenance-run-attempt", str(PROVENANCE_RUN_ATTEMPT),
         "--upstream-image", "pgvector=pgvector/pgvector@sha256:" + "2" * 64,
@@ -996,9 +1039,14 @@ class TestGitAndWorkflowFactsAreLiveVerified:
 
 
 class TestComposeImageBindingIsEnforced:
-    """Codex P1 (PR #100 §2-6) : ``--application-image``/``--upstream-image``
-    ne sont plus des affirmations indépendantes du Compose haché -- chaque
-    scénario prouve qu'une divergence entre les deux est refusée."""
+    """Codex P1 (PR #100 §2-6, étendu Section 11) : ``--upstream-image``/
+    les digests applicatifs dérivés de la provenance ne sont plus des
+    affirmations indépendantes du Compose RÉSOLU -- chaque scénario prouve
+    qu'une divergence entre les deux est refusée. Le Compose lui-même
+    n'est plus un fichier source unique haché : c'est la sortie déjà
+    résolue (``docker compose ... config --format json``) que
+    ``_stub_compose_resolution`` fait passer par ``tool._run_docker_
+    compose_config``, jamais un vrai ``docker``/``git`` dans cette suite."""
 
     def test_matching_compose_and_declared_images_signs_successfully(
         self, tmp_path: Path
@@ -1006,6 +1054,7 @@ class TestComposeImageBindingIsEnforced:
         args = _base_args(tmp_path)
         manifest = tool.assemble_and_sign(args)
         assert manifest.upstream_image_digests[UPSTREAM_IMAGE_SERVICE] == UPSTREAM_IMAGE_REF
+        assert manifest.application_image_digests == APPLICATION_IMAGE_DIGESTS
 
     def test_upstream_image_digest_diverging_from_compose_is_refused(
         self, tmp_path: Path
@@ -1014,13 +1063,13 @@ class TestComposeImageBindingIsEnforced:
             tmp_path,
             upstream_image=[f"{UPSTREAM_IMAGE_SERVICE}=pgvector/pgvector@sha256:" + "9" * 64],
         )
-        with pytest.raises(tool.SigningToolError, match="does not match the compose file"):
+        with pytest.raises(tool.SigningToolError, match="does not match the resolved compose"):
             tool.assemble_and_sign(args)
 
     def test_upstream_service_omitted_from_declared_images_is_refused(
         self, tmp_path: Path
     ) -> None:
-        # compose.yml (default fixture) pins exactly one upstream service
+        # The default resolved compose pins exactly one upstream service
         # (pgvector); declaring zero upstream images leaves it
         # unrepresented -- caught by _image_digest_pairs itself (it already
         # refuses an empty list), before the cross-check even runs. Same
@@ -1030,26 +1079,15 @@ class TestComposeImageBindingIsEnforced:
             tool.assemble_and_sign(args)
 
     def test_upstream_service_omitted_while_another_is_present_is_refused(
-        self, tmp_path: Path
+        self, tmp_path: Path, _stub_compose_resolution: dict[str, Any]
     ) -> None:
         # Non-empty but still missing 'pgvector' -- exercises the
         # cross-check's set-mismatch branch specifically (distinct from the
         # empty-list case above, which never reaches it).
-        raw = yaml.safe_dump(
-            {
-                "services": {
-                    UPSTREAM_IMAGE_SERVICE: {"image": UPSTREAM_IMAGE_REF},
-                    "redis": {"image": "redis:7@sha256:" + "5" * 64},
-                    **{name: {"build": {"context": "."}} for name in APPLICATION_SERVICES},
-                }
-            },
-            sort_keys=True,
-        ).encode("utf-8")
-        args = _base_args(
-            tmp_path,
-            compose_file=_write(tmp_path / "compose_two_upstream.yml", raw),
-            upstream_image=[f"{UPSTREAM_IMAGE_SERVICE}={UPSTREAM_IMAGE_REF}"],
+        _stub_compose_resolution["resolved"] = _resolved_compose_document(
+            extra_services={"redis": {"image": "redis@sha256:" + "5" * 64}}
         )
+        args = _base_args(tmp_path, upstream_image=[f"{UPSTREAM_IMAGE_SERVICE}={UPSTREAM_IMAGE_REF}"])
         with pytest.raises(tool.SigningToolError, match="image-pinned services"):
             tool.assemble_and_sign(args)
 
@@ -1064,143 +1102,133 @@ class TestComposeImageBindingIsEnforced:
         with pytest.raises(tool.SigningToolError, match="image-pinned services"):
             tool.assemble_and_sign(args)
 
-    def test_compose_build_service_omitted_relative_to_provenance_is_refused(
-        self, tmp_path: Path
+    def test_compose_application_service_missing_is_refused(
+        self, tmp_path: Path, _stub_compose_resolution: dict[str, Any]
     ) -> None:
-        # Provenance always vouches for exactly the three real application
-        # services (deployment_image_inventory._EXPECTED_APPLICATION_
-        # SERVICES); a compose file that only declares two of them leaves
-        # one unrepresented -- application_image_digests no longer comes
-        # from an operator list, so this is now exercised entirely through
-        # the compose file's own build-service set.
-        raw = yaml.safe_dump(
-            {
-                "services": {
-                    UPSTREAM_IMAGE_SERVICE: {"image": UPSTREAM_IMAGE_REF},
-                    APPLICATION_SERVICES[0]: {"build": {"context": "."}},
-                }
-            },
-            sort_keys=True,
-        ).encode("utf-8")
-        args = _base_args(
-            tmp_path, compose_file=_write(tmp_path / "compose_missing_service.yml", raw)
-        )
-        with pytest.raises(tool.SigningToolError, match="build-based services"):
+        # dii.require_resolved_compose_images_are_pinned itself refuses a
+        # resolved compose that omits one of the three known application
+        # services -- proven wired here, not re-derived (dii has its own
+        # suite for the primitive itself).
+        partial = dict(APPLICATION_IMAGE_DIGESTS)
+        del partial[APPLICATION_SERVICES[0]]
+        _stub_compose_resolution["resolved"] = _resolved_compose_document(application_images=partial)
+        args = _base_args(tmp_path)
+        with pytest.raises(tool.SigningToolError, match="missing expected service"):
             tool.assemble_and_sign(args)
 
-    def test_compose_build_service_not_in_provenance_is_refused(self, tmp_path: Path) -> None:
-        raw = yaml.safe_dump(
-            {
-                "services": {
-                    UPSTREAM_IMAGE_SERVICE: {"image": UPSTREAM_IMAGE_REF},
-                    **{name: {"build": {"context": "."}} for name in APPLICATION_SERVICES},
-                    "invented-worker": {"build": {"context": "."}},
-                }
-            },
-            sort_keys=True,
-        ).encode("utf-8")
-        args = _base_args(
-            tmp_path, compose_file=_write(tmp_path / "compose_extra_service.yml", raw)
+    def test_compose_application_service_still_has_build_key_is_refused(
+        self, tmp_path: Path, _stub_compose_resolution: dict[str, Any]
+    ) -> None:
+        # The release overlay's `!reset null` failing to take effect (wrong
+        # compose files combined, or wrong order) leaves a 'build' key on a
+        # resolved application service -- dii.require_resolved_compose_
+        # images_are_pinned refuses this; proven wired here.
+        resolved = _resolved_compose_document()
+        resolved["services"][APPLICATION_SERVICES[0]] = {"build": {"context": "."}}
+        _stub_compose_resolution["resolved"] = resolved
+        args = _base_args(tmp_path)
+        with pytest.raises(tool.SigningToolError, match="still resolves with a 'build' key"):
+            tool.assemble_and_sign(args)
+
+    def test_compose_application_image_diverging_from_provenance_is_refused(
+        self, tmp_path: Path, _stub_compose_resolution: dict[str, Any]
+    ) -> None:
+        # NEW in Section 11 (previously this file only compared service
+        # NAMES between compose and provenance, never the image digest
+        # itself -- same class of gap already closed for
+        # verify_release_image_provenance_cli.py, PR #105 round 2). A
+        # correctly-formed, digest-pinned image that simply isn't the one
+        # the verified provenance run actually produced must be refused.
+        diverged = dict(APPLICATION_IMAGE_DIGESTS)
+        diverged[APPLICATION_SERVICES[0]] = f"{INGESTOR_REPO}@sha256:" + "9" * 64
+        _stub_compose_resolution["resolved"] = _resolved_compose_document(application_images=diverged)
+        args = _base_args(tmp_path)
+        with pytest.raises(tool.SigningToolError, match="do not match verified provenance"):
+            tool.assemble_and_sign(args)
+
+    def test_unexpected_build_based_service_outside_application_set_is_refused(
+        self, tmp_path: Path, _stub_compose_resolution: dict[str, Any]
+    ) -> None:
+        _stub_compose_resolution["resolved"] = _resolved_compose_document(
+            extra_services={"invented-worker": {"build": {"context": "."}}}
         )
-        with pytest.raises(tool.SigningToolError, match="build-based services"):
+        args = _base_args(tmp_path)
+        with pytest.raises(
+            tool.SigningToolError,
+            match="still resolves with a 'build' key and is not one of the known application services",
+        ):
             tool.assemble_and_sign(args)
 
     def test_compose_service_with_neither_image_nor_build_is_ignored(
-        self, tmp_path: Path
+        self, tmp_path: Path, _stub_compose_resolution: dict[str, Any]
     ) -> None:
-        raw = yaml.safe_dump(
-            {
-                "services": {
-                    UPSTREAM_IMAGE_SERVICE: {"image": UPSTREAM_IMAGE_REF},
-                    **{name: {"build": {"context": "."}} for name in APPLICATION_SERVICES},
-                    "network-only": {"networks": ["rag_net"]},
-                }
-            },
-            sort_keys=True,
-        ).encode("utf-8")
-        args = _base_args(tmp_path, compose_file=_write(tmp_path / "compose_extra.yml", raw))
+        _stub_compose_resolution["resolved"] = _resolved_compose_document(
+            extra_services={"network-only": {"networks": ["rag_net"]}}
+        )
+        args = _base_args(tmp_path)
         manifest = tool.assemble_and_sign(args)
         assert manifest.upstream_image_digests[UPSTREAM_IMAGE_SERVICE] == UPSTREAM_IMAGE_REF
 
-    def test_templated_compose_image_value_is_refused(self, tmp_path: Path) -> None:
-        raw = yaml.safe_dump(
-            {
-                "services": {
-                    UPSTREAM_IMAGE_SERVICE: {"image": "${PGVECTOR_IMAGE}"},
-                    APPLICATION_SERVICES[0]: {"build": {"context": "."}},
-                }
-            },
-            sort_keys=True,
-        ).encode("utf-8")
-        args = _base_args(tmp_path, compose_file=_write(tmp_path / "compose_templated.yml", raw))
-        with pytest.raises(tool.SigningToolError, match="templated or non-literal"):
-            tool.assemble_and_sign(args)
-
-    def test_malformed_compose_yaml_is_refused(self, tmp_path: Path) -> None:
-        args = _base_args(
-            tmp_path, compose_file=_write(tmp_path / "compose_bad.yml", b"not: [valid: yaml")
-        )
-        with pytest.raises(tool.SigningToolError, match="not valid YAML"):
-            tool.assemble_and_sign(args)
-
-    def test_compose_without_a_services_mapping_is_refused(self, tmp_path: Path) -> None:
-        raw = yaml.safe_dump({"not_services": {}}, sort_keys=True).encode("utf-8")
-        args = _base_args(tmp_path, compose_file=_write(tmp_path / "compose_no_services.yml", raw))
-        with pytest.raises(tool.SigningToolError, match="does not declare a top-level 'services'"):
-            tool.assemble_and_sign(args)
-
-    def test_a_compose_tag_alongside_the_digest_is_normalized_away_before_comparing(
-        self, tmp_path: Path
+    def test_resolved_compose_without_a_services_mapping_is_refused(
+        self, tmp_path: Path, _stub_compose_resolution: dict[str, Any]
     ) -> None:
-        """The real docker-compose.v2.yml pins images as name:tag@sha256:...
-        (e.g. pgvector/pgvector:pg16@sha256:...). ProductionReadinessManifestV1
-        (shared contract, not modified here without an ADR) only ever accepts
-        the tagless name@sha256:... form for --upstream-image, so the compose
-        side's tag must be normalized away before the byte comparison --
-        never by relaxing what the manifest itself accepts."""
-        tagged_ref = "pgvector/pgvector:pg16@sha256:" + "2" * 64
-        args = _base_args(
-            tmp_path,
-            upstream_image=[f"{UPSTREAM_IMAGE_SERVICE}={UPSTREAM_IMAGE_REF}"],  # tagless
-            compose_file=_write(
-                tmp_path / "compose_tagged.yml", _compose_bytes(upstream_image=tagged_ref)
-            ),
-        )
-        manifest = tool.assemble_and_sign(args)
-        assert manifest.upstream_image_digests[UPSTREAM_IMAGE_SERVICE] == UPSTREAM_IMAGE_REF
+        _stub_compose_resolution["resolved"] = {"not_services": {}}
+        args = _base_args(tmp_path)
+        with pytest.raises(tool.SigningToolError, match="has no 'services' mapping"):
+            tool.assemble_and_sign(args)
 
-    def test_a_compose_image_not_pinned_by_digest_is_refused(self, tmp_path: Path) -> None:
-        raw = yaml.safe_dump(
-            {
-                "services": {
-                    UPSTREAM_IMAGE_SERVICE: {"image": "pgvector/pgvector:pg16"},  # no digest
-                    APPLICATION_SERVICES[0]: {"build": {"context": "."}},
-                }
-            },
-            sort_keys=True,
-        ).encode("utf-8")
-        args = _base_args(tmp_path, compose_file=_write(tmp_path / "compose_unpinned.yml", raw))
+    def test_an_upstream_image_not_pinned_by_digest_is_refused(
+        self, tmp_path: Path, _stub_compose_resolution: dict[str, Any]
+    ) -> None:
+        # A fully resolved Compose is not supposed to leave an unpinned
+        # image behind, but this tool never assumes that -- it is refused
+        # explicitly rather than silently trusted.
+        _stub_compose_resolution["resolved"] = _resolved_compose_document(
+            upstream_image="pgvector/pgvector:pg16"  # no digest
+        )
+        args = _base_args(tmp_path)
         with pytest.raises(tool.SigningToolError, match="not pinned by digest"):
             tool.assemble_and_sign(args)
 
-    def test_compose_tag_mismatch_with_same_digest_is_still_accepted(
-        self, tmp_path: Path
+    def test_compose_digest_reflects_the_resolved_compose_content(
+        self, tmp_path: Path, _stub_compose_resolution: dict[str, Any]
     ) -> None:
-        """The tag is documentation for a human reader; only the digest (and
-        repository name) is the actual deployment unit. A tag that differs
-        from what a human might expect, but the same digest, is not a
-        divergence this cross-check is meant to catch."""
-        differently_tagged_ref = "pgvector/pgvector:pg16-alpine@sha256:" + "2" * 64
-        args = _base_args(
-            tmp_path,
-            upstream_image=[f"{UPSTREAM_IMAGE_SERVICE}={UPSTREAM_IMAGE_REF}"],
-            compose_file=_write(
-                tmp_path / "compose_other_tag.yml",
-                _compose_bytes(upstream_image=differently_tagged_ref),
-            ),
+        # compose_digest (Section 11) is a digest of the resolved config,
+        # not of a raw source file -- changing the resolved content (here,
+        # an extra ignored service) must change the signed digest.
+        args_a = _base_args(tmp_path)
+        manifest_a = tool.assemble_and_sign(args_a)
+
+        _stub_compose_resolution["resolved"] = _resolved_compose_document(
+            extra_services={"network-only": {"networks": ["rag_net"]}}
         )
-        manifest = tool.assemble_and_sign(args)
-        assert manifest.upstream_image_digests[UPSTREAM_IMAGE_SERVICE] == UPSTREAM_IMAGE_REF
+        args_b = _base_args(tmp_path)
+        manifest_b = tool.assemble_and_sign(args_b)
+        assert manifest_a.compose_digest != manifest_b.compose_digest
+
+    def test_compose_resolution_is_invoked_with_the_signed_merge_sha(
+        self, tmp_path: Path, _stub_compose_resolution: dict[str, Any]
+    ) -> None:
+        # The three canonical Compose files must be read from the exact
+        # commit being signed (merge_sha) -- never from a possibly-
+        # diverged working tree, never from the PR head before merge.
+        args = _base_args(tmp_path)
+        tool.assemble_and_sign(args)
+        assert len(_stub_compose_resolution["calls"]) == 1
+        call = _stub_compose_resolution["calls"][0]
+        assert call["merge_sha"] == MERGE_SHA
+        assert call["env_file"] == args.env_file
+        assert call["repo_root"] == args.repo_root
+
+    def test_compose_resolution_failure_is_surfaced_as_signing_tool_error(
+        self, tmp_path: Path, _stub_compose_resolution: dict[str, Any]
+    ) -> None:
+        _stub_compose_resolution["error"] = tool.SigningToolError(
+            "compose resolution refused: env file not found (simulated)"
+        )
+        args = _base_args(tmp_path)
+        with pytest.raises(tool.SigningToolError, match="env file not found"):
+            tool.assemble_and_sign(args)
 
 
 class TestApplicationImageProvenanceIsDerivedNotDeclared:
@@ -1434,21 +1462,15 @@ class TestRevocationRegistryUsesTheSharedStrictParser:
             tool.assemble_and_sign(args)
 
 
-class TestRealCommittedComposeFileParsesAsExpected:
-    """Contre la vraie racine du dépôt, jamais une fixture synthétique
-    (même précédent que ``test_h2b_coverage_report.py``) : prouve que
-    ``_compose_services`` comprend réellement ``docker-compose.v2.yml`` tel
-    qu'il est commité, pas une forme imaginée."""
-
-    def test_the_real_v2_compose_file_has_the_expected_image_and_build_split(self) -> None:
-        repo_root = Path(__file__).resolve().parents[3]
-        compose_path = repo_root / "services" / "rag-engine" / "infra" / "docker-compose.v2.yml"
-        services = tool._compose_services(compose_path.read_bytes())
-        image_based = {name for name, svc in services.items() if "image" in svc}
-        build_based = {name for name, svc in services.items() if "build" in svc}
-        assert "ingestor" in build_based
-        assert {"pgvector", "prometheus"}.issubset(image_based)
-        for name in image_based:
-            image = services[name]["image"]
-            assert "$" not in image, f"service {name!r} unexpectedly templates its image"
-            assert "@sha256:" in image, f"service {name!r} is not digest-pinned"
+# Section 11 : plus de ``_compose_services`` local à prouver contre les
+# vrais fichiers Compose commités -- la résolution elle-même délègue
+# entièrement à ``verify_release_image_provenance_cli.run_docker_compose_
+# config_via_subprocess`` (PR #105), déjà exercée contre un vrai
+# ``docker compose`` et un vrai ``git show`` par
+# ``TestRunDockerComposeConfigViaSubprocess`` dans
+# ``test_verify_release_image_provenance_cli.py`` (skip si Docker est
+# absent). Redériver cette même preuve ici pour une fonction que ce
+# fichier ne fait qu'appeler, sans logique propre, serait une pure
+# duplication (AGENTS.md, DRY) -- l'ancienne classe
+# ``TestRealCommittedComposeFileParsesAsExpected`` est supprimée plutôt
+# que réécrite.

@@ -37,6 +37,33 @@ attempt``) doit être un run **réellement terminé avec succès**, bâti sur
 le commit signé, et sa tentative courante doit correspondre exactement
 (même défaut, même correctif, que la provenance d'image PR #102).
 
+**Compose : résolu, jamais un fichier source unique (Section 11).** Ce
+qui pin les images upstream n'est plus un unique fichier YAML brut
+(ancien ``--compose-file``, jamais capable de représenter la topologie de
+production réelle) mais le Compose **résolu** — exactement le mécanisme
+déjà construit, testé et utilisé par
+``verify_release_image_provenance_cli.py`` (PR #105) :
+``docker-compose.v2.yml`` + ``docker-compose.production-workers.yml`` +
+``docker-compose.production-release.yml``, lus depuis l'objet git
+``merge_sha:services/rag-engine/infra/<fichier>`` (jamais depuis un
+disque qui pourrait avoir divergé), puis résolus avec ``docker compose
+--env-file <env-file> config --format json``. Réutilise directement
+``verify_release_image_provenance_cli.run_docker_compose_config_via_
+subprocess`` — jamais réimplémenté. Les trois services applicatifs
+doivent y apparaître pleinement résolus (plus de clé ``build:``, image
+épinglée par digest) et leur digest doit être EXACTEMENT celui de la
+provenance vérifiée (``deployment_image_inventory.require_resolved_
+compose_images_are_pinned`` + ``verify_release_image_provenance_cli.
+require_pinned_images_match_verified_provenance``, mêmes primitives que
+PR #105) — un digest correctement formé mais sans lien avec la
+provenance de ce commit n'est plus accepté silencieusement. Le
+``compose_digest`` signé dans le manifeste est le digest du Compose
+RÉSOLU (JSON canonique, clés triées) — c'est ce que
+``nexus_contracts.production_readiness.require_manifest_matches_release``
+documente déjà comme « le fichier compose résolu », vérifiable par un
+futur vérificateur hôte en résolvant à nouveau les mêmes fichiers avec le
+même ``.env``, jamais en hachant un fichier source arbitraire.
+
 **Clé privée.** Lue depuis un fichier local (``--private-key-file``),
 jamais depuis un argument en clair, jamais depuis une variable
 d'environnement qui apparaîtrait dans ``/proc/<pid>/environ``. Jamais
@@ -71,13 +98,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-import yaml
-
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(_REPO_ROOT / "packages" / "contracts" / "src"))
 
 import deployment_image_inventory as dii  # noqa: E402
+import verify_release_image_provenance_cli as vri  # noqa: E402
 from nexus_contracts.authority_artifacts import (  # noqa: E402
     CanonicalArtifactError,
     git_blob_sha1,
@@ -120,20 +146,13 @@ _OCI = re.compile(r"^sha256:[0-9a-f]{64}$")
 #: Identique à ``nexus_contracts.production_readiness._IMAGE_REF`` (jamais
 #: de tag ici — c'est le contrat partagé, versionné, qui l'exige ; le
 #: changer serait un changement de contrat silencieux, interdit sans ADR).
-#: Le fichier Compose réel, lui, pin souvent ``name:tag@sha256:...`` — voir
-#: ``_COMPOSE_IMAGE_REF`` plus bas, qui normalise cette forme avant
-#: comparaison plutôt que d'assouplir ce que le manifeste accepte.
+#: Un Compose déjà RÉSOLU (``docker compose ... config --format json``,
+#: Section 11) normalise lui-même ``name:tag@sha256:...`` en ne gardant
+#: jamais le tag pour une référence déjà digest-pinnée côté source — plus
+#: besoin d'une regex locale de normalisation de tag ici (l'ancienne
+#: ``_COMPOSE_IMAGE_REF``, qui opérait sur le YAML source brut, a disparu
+#: avec ``--compose-file``).
 _IMAGE_REF = re.compile(r"^[a-z0-9][a-z0-9._/-]*@sha256:[0-9a-f]{64}$")
-
-#: Forme que peut prendre ``image:`` dans un fichier Compose réel de ce
-#: dépôt — tag optionnel avant le digest (``docker-compose.v2.yml`` pin
-#: ``pgvector/pgvector:pg16@sha256:...``). Jamais utilisée pour construire
-#: un fait du manifeste : seule sert à reconnaître puis retirer le tag
-#: avant de comparer au format tagless qu'exige le contrat.
-_COMPOSE_IMAGE_REF = re.compile(
-    r"^(?P<name>[a-z0-9][a-z0-9._/-]*)(:(?P<tag>[a-zA-Z0-9_][a-zA-Z0-9._-]*))?"
-    r"@sha256:(?P<digest>[0-9a-f]{64})$"
-)
 
 
 class SigningToolError(RuntimeError):
@@ -188,77 +207,114 @@ def _image_digest_pairs(raw_pairs: list[str], *, label: str) -> dict[str, str]:
     return result
 
 
-def _compose_services(compose_raw: bytes) -> dict[str, dict[str, Any]]:
-    """Analyse minimale, strictement locale au fichier fourni.
+def _run_docker_compose_config(
+    repo_root: Path, merge_sha: str, work_dir: Path, env_file: Path
+) -> dict[str, Any]:
+    """Frontière process, isolée pour être substituée par un double dans les
+    tests (jamais un vrai ``docker``/``git`` en suite de tests) — même
+    convention que ``_github_api_get`` dans ce même fichier.
 
-    N'invoque jamais ``docker compose config`` : la résolution complète
-    (overlays, substitution de variables, profiles) exigerait de fournir
-    toutes les variables d'environnement de production — y compris celles
-    qui n'ont rien à voir avec les images — juste pour extraire des
-    références d'image. Correct ici uniquement parce que, vérifié sur
-    chaque fichier Compose réellement commité dans ce dépôt, aucune valeur
-    ``image:`` n'utilise de substitution ``${...}`` : voir le refus
-    ci-dessous, qui fait échouer explicitement l'hypothèse plutôt que de la
-    supposer silencieusement vraie."""
+    Délègue à ``verify_release_image_provenance_cli.run_docker_compose_
+    config_via_subprocess`` (PR #105), déjà testée contre un vrai
+    ``docker compose`` et un vrai ``git show`` — jamais réimplémentée ici
+    (Section 11 : un fichier Compose source unique ne peut pas représenter
+    la topologie de production résolue ; ``docker-compose.v2.yml`` +
+    ``docker-compose.production-workers.yml`` + ``docker-compose.
+    production-release.yml``, résolus ensemble, le peuvent)."""
     try:
-        document = yaml.safe_load(compose_raw)
-    except yaml.YAMLError as exc:
-        raise SigningToolError(f"compose file is not valid YAML: {exc}") from exc
-    services = document.get("services") if isinstance(document, dict) else None
+        return vri.run_docker_compose_config_via_subprocess(
+            repo_root, merge_sha, vri._CANONICAL_COMPOSE_FILES, work_dir, env_file
+        )
+    except vri.ReleaseVerificationError as exc:
+        raise SigningToolError(f"compose resolution refused: {exc}") from exc
+
+
+def _canonical_compose_bytes(resolved_config: dict[str, Any]) -> bytes:
+    """Le contrat (``nexus_contracts.production_readiness.require_
+    manifest_matches_release``, voir sa docstring : « le fichier compose
+    résolu ») documente ``compose_digest`` comme portant sur le Compose
+    RÉSOLU — un futur vérificateur hôte (Lot C) doit pouvoir reproduire
+    indépendamment le même digest en résolvant à nouveau les mêmes trois
+    fichiers avec le même ``.env``, jamais en hachant un fichier source
+    arbitraire. Sérialisation canonique (clés triées, séparateurs
+    compacts) : la sortie JSON de ``docker compose config`` n'est pas
+    elle-même garantie stable octet pour octet."""
+    return json.dumps(resolved_config, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+
+def _upstream_services_from_resolved_compose(resolved_config: dict[str, Any]) -> dict[str, str]:
+    """Tout service du Compose résolu qui n'est pas l'un des trois services
+    applicatifs connus (``deployment_image_inventory._EXPECTED_
+    APPLICATION_SERVICES``, dérivés d'une provenance vérifiée séparément —
+    voir ``_verify_image_bindings``) et qui déclare une image épinglée par
+    digest. Un service à ``build:`` inconnu (hors des trois attendus) ou
+    une image non épinglée par digest est refusé, jamais silencieusement
+    ignoré : la résolution Compose complète ne devrait plus jamais laisser
+    passer l'un ou l'autre dans une release de production réelle."""
+    services = resolved_config.get("services")
     if not isinstance(services, dict):
-        raise SigningToolError("compose file does not declare a top-level 'services' mapping")
-    return services
+        raise SigningToolError("resolved compose config has no 'services' mapping")
+    upstream: dict[str, str] = {}
+    for name, service in services.items():
+        if name in dii._EXPECTED_APPLICATION_SERVICES:
+            continue
+        if not isinstance(service, dict):
+            raise SigningToolError(f"resolved compose service {name!r} is not a mapping")
+        if "build" in service:
+            raise SigningToolError(
+                f"resolved compose service {name!r} still resolves with a 'build' "
+                "key and is not one of the known application services — an "
+                "unexpected build-based service is never accepted"
+            )
+        image = service.get("image")
+        if image is None:
+            # Service sans `image:` ni `build:` (rare, ex. profil désactivé) :
+            # n'engage aucune image, n'entre dans aucun ensemble.
+            continue
+        if not isinstance(image, str) or dii._PINNED_IMAGE_REF.fullmatch(image) is None:
+            raise SigningToolError(
+                f"resolved compose service {name!r} declares image {image!r}, "
+                "which is not pinned by digest (name@sha256:<64hex>) — an "
+                "unpinned upstream image can never back a production manifest"
+            )
+        upstream[name] = image
+    return upstream
 
 
 def _verify_image_bindings(
-    compose_raw: bytes,
+    resolved_config: dict[str, Any],
     *,
     application_image_digests: dict[str, str],
     upstream_image_digests: dict[str, str],
 ) -> None:
-    """Confronte les images déclarées par l'opérateur au fichier Compose
-    réellement haché dans ce manifeste — jamais deux sources indépendantes
-    qui pourraient diverger sans qu'aucun refus ne se produise (Codex P1,
-    PR #100)."""
-    services = _compose_services(compose_raw)
+    """Confronte les images déclarées au Compose RÉSOLU réellement câblé
+    dans ce manifeste — jamais deux sources indépendantes qui pourraient
+    diverger sans qu'aucun refus ne se produise (Codex P1, PR #100 ;
+    étendu Section 11).
 
-    upstream_services: dict[str, str] = {}
-    application_services: set[str] = set()
-    for name, service in services.items():
-        if not isinstance(service, dict):
-            raise SigningToolError(f"compose service {name!r} is not a mapping")
-        if "image" in service:
-            image = service["image"]
-            if not isinstance(image, str) or "$" in image:
-                raise SigningToolError(
-                    f"compose service {name!r} declares a templated or "
-                    "non-literal 'image' value — this tool only cross-checks "
-                    "an already-resolved, literal image reference"
-                )
-            match = _COMPOSE_IMAGE_REF.fullmatch(image)
-            if match is None:
-                raise SigningToolError(
-                    f"compose service {name!r} declares image {image!r}, which is "
-                    "not pinned by digest (name[:tag]@sha256:<64hex>) — an "
-                    "unpinned upstream image can never back a production manifest"
-                )
-            # Le tag (s'il existe) est une commodité de lecture pour un
-            # humain qui lit le fichier Compose ; le contrat partagé
-            # (ProductionReadinessManifestV1, jamais modifié ici sans ADR)
-            # n'accepte que la forme sans tag. On normalise donc le côté
-            # Compose avant de comparer, plutôt que d'assouplir ce que le
-            # manifeste signe.
-            upstream_services[name] = f"{match.group('name')}@sha256:{match.group('digest')}"
-        elif "build" in service:
-            application_services.add(name)
-        # Un service sans `image:` ni `build:` (rare, ex. profil désactivé
-        # dans un futur fichier) n'engage aucune image et n'entre dans
-        # aucun des deux ensembles.
+    Application (``ingestor``, workers) : le Compose résolu doit les
+    présenter pleinement résolus (plus de ``build:``, image épinglée) ET
+    ce digest doit être EXACTEMENT celui de la provenance vérifiée — pas
+    seulement « un digest valide et épinglé, dont on présume qu'il est le
+    bon » (même défaut, même correctif que ``verify_release_image_
+    provenance_cli.py``, PR #105 round 2 ; auparavant, ce fichier ne
+    confrontait que les NOMS de service, jamais les digests eux-mêmes)."""
+    try:
+        pinned_application = dii.require_resolved_compose_images_are_pinned(resolved_config)
+    except dii.DeploymentImageInventoryError as exc:
+        raise SigningToolError(str(exc)) from exc
+    try:
+        vri.require_pinned_images_match_verified_provenance(
+            pinned_images=pinned_application, provenance_images=application_image_digests
+        )
+    except vri.ReleaseVerificationError as exc:
+        raise SigningToolError(str(exc)) from exc
 
+    upstream_services = _upstream_services_from_resolved_compose(resolved_config)
     declared_upstream = set(upstream_image_digests)
     if declared_upstream != set(upstream_services):
         raise SigningToolError(
-            "--upstream-image does not name exactly the compose file's "
+            "--upstream-image does not name exactly the resolved compose's "
             f"image-pinned services (declared={sorted(declared_upstream)}, "
             f"compose={sorted(upstream_services)})"
         )
@@ -266,17 +322,9 @@ def _verify_image_bindings(
         if declared_ref != upstream_services[name]:
             raise SigningToolError(
                 f"--upstream-image {name}={declared_ref!r} does not match the "
-                f"compose file's pinned image for the same service "
-                f"(normalized to {upstream_services[name]!r}, tag ignored)"
+                f"resolved compose's pinned image for the same service "
+                f"({upstream_services[name]!r})"
             )
-
-    declared_application = set(application_image_digests)
-    if declared_application != application_services:
-        raise SigningToolError(
-            "--application-image does not name exactly the compose file's "
-            f"build-based services (declared={sorted(declared_application)}, "
-            f"compose={sorted(application_services)})"
-        )
 
 
 def _github_api_get(path: str) -> dict[str, Any]:
@@ -499,7 +547,27 @@ def _build_arg_parser() -> argparse.ArgumentParser:
 
     # Unité de déploiement.
     p.add_argument("--upstream-image", action="append", default=[], metavar="name=ref@sha256:...")
-    p.add_argument("--compose-file", type=Path, required=True)
+    p.add_argument(
+        "--repo-root",
+        type=Path,
+        default=_REPO_ROOT,
+        help="Racine du checkout git local dont l'objet "
+        "`merge-sha:services/rag-engine/infra/<fichier>` fournit les trois "
+        "fichiers Compose canoniques (Section 11) — jamais un répertoire "
+        "arbitraire sur disque (même garde-fou que "
+        "verify_release_image_provenance_cli.py, PR #105).",
+    )
+    p.add_argument(
+        "--env-file",
+        type=Path,
+        required=True,
+        help="Fichier .env host-local (même emplacement que le runbook de "
+        "production, docs/runbooks/go_live.md §3) requis pour résoudre les "
+        "dizaines de ${VAR:?requis} du Compose de production — jamais "
+        "vérifié contre git (intrinsèquement host-local, secrets, "
+        ".gitignore) ; entrée CLI explicite et requise, comme tous les "
+        "autres faits de cet outil.",
+    )
     p.add_argument("--provenance-run-id", type=int, required=True,
                     help="Run GitHub Actions de "
                          ".github/workflows/production-image-provenance.yml (PR #102) "
@@ -543,8 +611,16 @@ def assemble_and_sign(args: argparse.Namespace) -> ProductionReadinessManifestV1
     sealed_manifest_digest = _digest_of_file(args.sealed_manifest_file, label="sealed_manifest")
     h2b_report_raw = _read_bytes(args.h2b_report_file, label="h2b_report")
     h2b_report_digest = hashlib.sha256(h2b_report_raw).hexdigest()
-    compose_raw = _read_bytes(args.compose_file, label="compose")
-    compose_digest = hashlib.sha256(compose_raw).hexdigest()
+
+    # Section 11 : le Compose n'est plus un fichier source unique — c'est
+    # le Compose RÉSOLU des trois fichiers canoniques de production, lu
+    # depuis l'objet git `merge_sha` (jamais un disque qui pourrait avoir
+    # divergé), même mécanisme que verify_release_image_provenance_cli.py.
+    with tempfile.TemporaryDirectory() as compose_tmp:
+        resolved_compose = _run_docker_compose_config(
+            args.repo_root, merge_sha, Path(compose_tmp), args.env_file
+        )
+    compose_digest = hashlib.sha256(_canonical_compose_bytes(resolved_compose)).hexdigest()
 
     # Un digest prouve que le fichier n'a pas changé depuis qu'il a été lu
     # ici — pas qu'il décrit une revue humaine réelle, non expirée, non
@@ -669,7 +745,7 @@ def assemble_and_sign(args: argparse.Namespace) -> ProductionReadinessManifestV1
     )
     upstream_image_digests = _image_digest_pairs(args.upstream_image, label="--upstream-image")
     _verify_image_bindings(
-        compose_raw,
+        resolved_compose,
         application_image_digests=application_image_digests,
         upstream_image_digests=upstream_image_digests,
     )
@@ -723,7 +799,7 @@ _INPUT_PATH_ARGS = (
     "rights_file",
     "pii_file",
     "golden_file",
-    "compose_file",
+    "env_file",
     "private_key_file",
     "verification_trust_anchor_file",
 )
