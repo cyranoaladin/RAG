@@ -18,11 +18,36 @@ revue Codex, chacun vérifié contre le producteur réel
 `docs/reports/lot_h2_coverage_evidence_contract.md` pour le détail
 complet des cinq rounds.
 
-`git log --all --oneline -- docs/adr/ADR-0042-...md` confirme que seuls
-les commits de la branche de PR #104 (`bb1a2ab` sur la branche, squashé
-en `c2cf3bd` sur `main`) touchent jamais ce fichier — aucune autre PR ne
-le modifie. PR #104 est donc, sans ambiguïté, la seule PR d'implémentation
-possible pour cette acceptation.
+`git log --all` sur un clone local ne prouve rien d'autoritaire — il ne
+voit que les refs déjà récupérées localement, jamais l'historique
+serveur complet (constat déjà établi et corrigé pour l'acceptation
+d'ADR-0036, PR #103). La preuve retenue ici est l'historique de chemin
+côté serveur GitHub, paginé :
+
+```
+$ gh api "repos/cyranoaladin/RAG/commits?path=docs/adr/ADR-0042-preuve-h2-machine-lisible-et-registre-de-revocation-partage.md&per_page=100" \
+    --paginate -i | grep -i '^link:\|^HTTP'
+HTTP/2.0 200 OK
+# aucun en-tête Link — une seule page, rien de manqué (même méthode que PR #103)
+
+$ gh api ".../commits?path=...&per_page=100" --paginate --jq '.[] | {sha, message: (.commit.message | split("\n")[0])}'
+{"message":"feat(contracts): add H2 coverage evidence and shared revocation registry (ADR-0042) (#104)","sha":"c2cf3bd86199452483adcada29ed9eb11649732b"}
+```
+
+Un seul commit touche jamais ce fichier sur `main` : le squash-merge de
+PR #104. PR #106 (documentaire, cette acceptation elle-même) est
+explicitement exclue de cette preuve — elle n'apparaît pas dans
+l'historique de `main` tant qu'elle n'est pas mergée, et ne doit jamais
+y être comptée comme une seconde implémentation. PR #104 est donc, sans
+ambiguïté, la seule PR d'implémentation possible pour cette acceptation.
+
+```
+ADR0042_IMPLEMENTATION_PR=104
+ADR0042_IMPLEMENTATION_HEAD=5e3095376730595bc339fada4033f4537f519b76
+ADR0042_APPROVED_REVIEW=4936762551
+ADR0042_TRUSTED_WORKFLOW=31797022943
+ADR0042_ACCEPTANCE_CONDITION_SATISFIED=true
+```
 
 ## Preuve d'acceptation — faits vérifiés en direct
 
