@@ -139,15 +139,99 @@ verte (13/13).
 - Aucune campagne/autorisation/liaison de revue réelle n'a été créée —
   processus de gouvernance distinct (voir §1).
 
-## 6. Booléens finaux
+## 6. Rehearsal end-to-end réel (suivi, round 2)
+
+`services/rag-pedago/tests/test_h2_evidence_e2e_rehearsal.py` (9 tests)
+exécute les vrais producteurs Python de la chaîne H2 — jamais
+réimplémentés — contre un corpus scellé synthétique sûr. Aucune clé
+privée réelle, aucun accès réseau réel.
+
+**Défaut structurel réel trouvé en construisant ce rehearsal, signalé,
+pas contourné** : `corpus_catalog_compiler.compile_sealed_catalog`/
+`compile_governed_sealed_catalog` ne peuvent **jamais** produire
+`disposition="INGEST"` pour un objet — même droits et PII au vert, la
+disposition finale reste `REVIEW_REQUIRED` (`gate_statuses.authority`
+toujours `"BLOCKED_NOT_CLEARED"`), par construction explicite du
+compilateur candidat (« L'autorité n'est jamais injectée dans ce
+compilateur candidat »). Or `h2b_coverage_report.generate_coverage_
+report`'s boucle de vérification des invariants de sûreté ne s'exécute
+que pour les objets dont `disposition == "INGEST"` (jamais
+`base_disposition`) — confirmé en lisant le code puis en l'exécutant
+réellement (`test_real_catalog_compiler_never_promotes_a_candidate_to_
+ingest`, `test_gate_correctly_blocks_the_real_compilers_honest_
+output`). **Conséquence : aucun objet compilé par le vrai compilateur
+candidat ne peut jamais atteindre `h2_coverage_gate_pass=True`, même en
+mode production avec une autorité et une liaison de revue entièrement
+valides.** Il manque, dans ce dépôt, une étape automatisée réelle de
+« republication gouvernée » qui consommerait un catalogue candidat + une
+autorité vérifiée pour produire un catalogue où `disposition="INGEST"`
+— cette étape n'existe pas encore. `h2b_coverage_report.py`'s propre
+suite de tests le contournait déjà en écrivant à la main un catalogue
+qui simule cette sortie future (`_write_real_catalog`) ; ce rehearsal
+documente pourquoi, et prouve séparément (Part A) que l'incapacité
+structurelle du vrai compilateur est correctement **détectée et
+bloquée** par le gate plutôt que silencieusement ignorée. Construire
+cette étape manquante est un lot distinct, non tenté ici.
+
+**Ce qui est prouvé, pour de vrai, en mode production (jamais
+rehearsal — le mode `rehearsal` ne peut par construction jamais rendre
+`coverage_complete=True`, ADR-0035), via la technique déjà établie et
+revue de substitution de racine gouvernée en test
+(`_install_governed_root`, qui remplace `_GOVERNED_REPOSITORY_ROOT` en
+mémoire par une racine locale portant une ancre/un registre de test —
+jamais une clé de production réelle, jamais une action réservée à un
+opérateur) :**
+
+```
+H2_EVIDENCE_WORKFLOW_E2E_REHEARSAL=true        -- chaîne complète, producteurs réels, catalogue-shape "post-republication" (voir constat ci-dessus)
+H2_GATE_PASS_ARTIFACT_PRODUCED=true            -- coverage_complete=True obtenu pour de vrai (mode production, clé de test locale)
+H2_JSON_PARSE_CANONICAL=true                   -- report_to_h2_coverage_evidence + parse_h2_coverage_evidence, aller-retour octet-identique
+H2_WRONG_MANIFEST_REFUSED=true                 -- refus dur (ValueError), jamais un rapport dégradé
+H2_WRONG_AUTHORITY_REFUSED=true                -- SEMANTIC_VALIDATION failed, autorité ne couvrant pas le contenu
+H2_REVOKED_AUTHORITY_REFUSED=true              -- registre de révocation réel (nexus_contracts.authorization_revocations)
+H2_PII_FAILURE_REFUSED=true                    -- preuve PII et catalogue cohérents, tous deux "non blanchi"
+H2_RIGHTS_FAILURE_REFUSED=true                 -- même discipline côté droits
+```
+
+```
+$ cd services/rag-pedago && PYTHONPATH=$(pwd):$PYTHONPATH .venv/bin/python -m pytest \
+    tests/test_h2_evidence_e2e_rehearsal.py -v
+9 passed
+
+$ PYTHONPATH=$(pwd):$PYTHONPATH .venv/bin/python -m pytest \
+    tests/test_h2b_coverage_report.py tests/test_corpus_catalog_compiler.py \
+    tests/test_h2_evidence_e2e_rehearsal.py -q
+149 passed
+
+$ .venv/bin/python -m ruff check tests/test_h2_evidence_e2e_rehearsal.py
+All checks passed!
+
+$ .venv/bin/python -m mypy tests/test_h2_evidence_e2e_rehearsal.py
+Success: no issues found in 1 source file
+```
+
+Chaque scénario a exigé un diagnostic réel avant de passer (documenté en
+commentaire dans le fichier de test lui-même) : un premier essai de
+dictionnaires droits/PII construits à la main a été refusé par une
+revérification interne du compilateur (`verify_catalog_evidence_
+bindings`, un vrai croisement catalogue-vs-preuve, pas un artefact du
+test) ; un premier essai de falsifier directement `gate_statuses` dans
+le catalogue pour simuler un échec PII/droits a été refusé pour une
+raison différente (« catalog PII/rights gate evidence mismatch » — la
+détection de falsification elle-même, un constat positif inattendu,
+pas la panne visée) et corrigé en rendant catalogue et preuve
+cohérents plutôt qu'en les faisant diverger.
+
+## 7. Booléens finaux
 
 ```
 H2_EVIDENCE_WORKFLOW_PATHS_FIXED=true
 H2_EVIDENCE_WORKFLOW_FORBIDDEN_PRODUCTION_ARGS_REMOVED=true
 H2_EVIDENCE_WORKFLOW_PATH_REGRESSION_TESTS_ADDED=true
 H2_EVIDENCE_WORKFLOW_MUTATION_TESTED=true
-H2_EVIDENCE_WORKFLOW_END_TO_END_REHEARSAL_BUILT=false
-H2_EVIDENCE_WORKFLOW_RUNNABLE_AGAINST_REAL_CAMPAIGN=unknown   # aucune vraie campagne n'existe encore pour le vérifier
+H2_EVIDENCE_WORKFLOW_END_TO_END_REHEARSAL_BUILT=true
+H2_EVIDENCE_WORKFLOW_RUNNABLE_AGAINST_REAL_CAMPAIGN=unknown   # aucune vraie campagne n'existe encore pour le vérifier ; le mécanisme lui-même est prouvé (§6)
+GOVERNED_REPUBLISH_STEP_EXISTS=false   # constat structurel réel, §6 -- lot distinct requis avant qu'un vrai catalogue candidat puisse jamais atteindre INGEST
 GO_LIVE_READY=false
 LIVE_MUTATIONS_ALLOWED=false
 ```
