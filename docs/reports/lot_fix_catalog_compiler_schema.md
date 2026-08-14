@@ -143,6 +143,43 @@ absent — jamais un test faussement vert.
    RAISE, x2 : zéro et deux primaires), restauré → vert
 ```
 
+## Round 2 — régression mypy réelle trouvée par la CI, corrigée
+
+La CI (`make typecheck`, `mypy schema pipeline retrieval services
+rag_pedago scrapers agents` — le périmètre complet du service, plus
+large que les fichiers directement touchés par ce lot) a trouvé 3
+erreurs réelles dans `rag_pedago/governance/corpus_review_view.py`,
+un fichier que ce lot n'avait pas touché mais dont le typage dépend de
+`PedagogicalPlacement.scope_path`, élargi ici de `str` à `str | None` :
+
+```
+corpus_review_view.py:363: Invalid index type "tuple[str, str | None]"
+  for "dict[tuple[str, str], Any]"
+corpus_review_view.py:470: Argument "key" to "sorted" has incompatible
+  type "Callable[[PedagogicalPlacement], str | None]"
+```
+
+Ni la revue indépendante initiale (mypy limité aux deux fichiers de ce
+lot) ni la vérification locale du lot lui-même n'avaient exercé le
+périmètre mypy complet du service — la régression n'était donc visible
+que dans la CI réelle. Corrigé en réutilisant `_plain()`, le helper de
+normalisation `None → ""` déjà établi dans ce même fichier pour
+exactement cette classe de champ, aux deux points d'usage
+(construction de clé de dict, clé de tri) plutôt que d'assouplir le
+typage du dict ou du tri.
+
+```
+$ .venv/bin/python -m ruff check .
+All checks passed!
+
+$ .venv/bin/python -m mypy schema pipeline retrieval services rag_pedago scrapers agents
+Success: no issues found in 92 source files
+
+$ PYTHONPATH=$(pwd) .venv/bin/python -m pytest tests/test_corpus_review_view.py \
+    tests/test_corpus_catalog_compiler.py tests/test_artifact_placement_model.py -q
+112 passed
+```
+
 ## Booléens finaux
 
 ```
@@ -150,6 +187,7 @@ CATALOG_COMPILER_SCHEMA_MISMATCH_ROOT_CAUSE=DATA_NEVER_CAPTURED_NOT_A_RENAME
 CATALOG_COMPILER_TECHNICAL_SCHEMA_SUPPORTED=true
 CATALOG_COMPILER_PEDAGOGICAL_SCHEMA_REGRESSION=false
 REAL_2583_ENTRY_CORPUS_COMPILE_REHEARSAL_PASSED=true
+FULL_SERVICE_MYPY_CLEAN=true
 NO_FABRICATED_EVIDENCE=true
 CONTRACTS_MODIFIED=false
 GO_LIVE_READY=false
