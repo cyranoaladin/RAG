@@ -2,26 +2,36 @@
 
 ## 1. Verdict du lot
 
-**`PRODUCTION_READINESS_SIGNING_TOOL_COMPLETE=true`** (voir §6quinquies).
-Les deux gaps qui bloquaient ce lot depuis son introduction — l'image
-applicative sans chaîne de provenance vérifiable, et
-`catalog`/`sealed_manifest`/`h2b_report` simplement hachés sans jamais
-être resémantiquement revérifiés — sont fermés en consommant deux lots
-désormais mergés sur `main` : PR #102 (provenance d'image, ADR-0036
-phase B) et PR #104 (`NEXUS-H2-COVERAGE-EVIDENCE-V1` + registre de
-révocation strict partagé, ADR-0042, accepté par PR #106). Neuf
-garde-fous distincts sont réellement en place et mutation-testés :
-review-binding vérifié (ADR-0035), `--output` ne peut plus aliaser une
-entrée de signature, faits Git vérifiés en direct, provenance workflow
-vérifiée de même, images de déploiement confrontées au Compose
-réellement haché, images applicatives dérivées d'une provenance
-vérifiée (jamais une saisie opérateur), rapport H2-B parsé et son gate
-exigé passant, quatre liaisons croisées entre l'autorisation/l'autorité/
-le catalogue/le manifeste scellé et la preuve H2, et registre de
-révocation analysé par le parseur strict partagé. **Aucun manifeste de
-production réel n'a été signé** — l'outil n'a pas encore été exercé
-contre les vrais fichiers d'evidence de production (§7). `GO_LIVE_READY`
-reste `false`. Aucune mutation live.
+**Toujours `PRODUCTION_READINESS_SIGNING_TOOL_COMPLETE=false`.**
+Un précédent commit de ce rapport a affirmé `true` à tort — corrigé ici
+après un audit plus approfondi (§6sexies) qui a trouvé un blocker réel
+non fermé, plus cinq défauts réels distincts corrigés. Ce que ce lot
+ferme réellement (§6quinquies/§6sexies) : image applicative dérivée
+d'une provenance GitHub Actions vérifiée (PR #102) au lieu d'une saisie
+opérateur ; les six `input_file_digests` du rapport H2-B
+(`catalog`/`routing`/`rights`/`pii`/`golden`/`authority`) confrontés
+chacun à un fichier réel, plus le rapport lui-même sémantiquement
+vérifié (`h2_coverage_gate_pass` exigé vrai) et lié par commit/digest à
+l'autorisation, au manifeste scellé et au commit signés ; registre de
+révocation analysé par le parseur strict partagé (ADR-0042) ; dépôt
+GitHub épinglé (`_TRUSTED_REPOSITORY`, jamais un `--repository`
+opérateur) ; lien physique (`hardlink`) désormais détecté par
+`--output` ; documentation honnête sur l'absence de garantie
+d'effacement mémoire de la clé privée. **Ce qui reste bloquant** :
+`--workflow-path`/`--workflow-ref`/`--run-id`/`--run-attempt`
+(provenance de l'émission du manifeste lui-même) désignent toujours un
+workflow GitHub Actions **qui n'existe pas encore dans ce dépôt** —
+`.github/workflows/` ne contient que `ci.yml`, `_produce-h2-evidence.
+yml`, `production-image-provenance.yml`, `trusted-human-review.yml`,
+aucun « workflow de promotion » au sens du contrat lui-même
+(`production_readiness.py` : « le workflow de promotion, qui l'émet et
+le signe »). Le fixture de test `promote.yml` était une fiction jamais
+ancrée dans un fichier réel — corrigé dans les tests, mais le vrai
+workflow reste à construire comme lot séparé avant que ce champ puisse
+être épinglé (§6sexies). Le Compose analysé reste un unique fichier
+source (§6sexies), pas le Compose résolu final de la topologie de
+production réelle. **Aucun manifeste de production réel n'a été signé.**
+`GO_LIVE_READY` reste `false`. Aucune mutation live.
 
 ## 2. Ce que fait l'outil
 
@@ -418,6 +428,107 @@ d'un service manquant dans l'inventaire de provenance, refus d'un gate
 H2-B faux, les quatre liaisons croisées, refus d'un registre de
 révocation dupliqué) sont tous mutation-testés individuellement.
 
+## 6sexies. Sixième round — audit approfondi, un blocker réel non fermé trouvé
+
+Un audit ligne par ligne du diff complet, mené avant de déclarer ce lot
+terminé, a trouvé six défauts réels — cinq corrigés, un identifié comme
+un vrai blocker externe :
+
+1. **`--repository` restait une entrée opérateur** (même classe de
+   défaut déjà corrigée dans PR #105) — un opérateur pouvait fournir un
+   autre dépôt puis faire vérifier PR/run/workflow/provenance contre ce
+   dépôt alternatif. Retiré, remplacé par `_TRUSTED_REPOSITORY =
+   "cyranoaladin/RAG"`, une constante du module.
+2. **La provenance du workflow de promotion était incomplète.**
+   `_verify_git_and_workflow_facts` confrontait `path`/`repository`/
+   `head_branch`, mais jamais `status`/`conclusion` (un run échoué ou en
+   cours passait), jamais `head_sha` (un run bâti sur un autre commit
+   passait), et appelait l'endpoint `/attempts/<n>` sans jamais exploiter
+   sa réponse ni croiser `run_attempt` du run général (même bug, déjà
+   trouvé et corrigé dans `deployment_image_inventory.py`, PR #102).
+   Les quatre contrôles manquants sont ajoutés, reproduisant exactement
+   le correctif déjà validé côté provenance d'image.
+3. **Le rapport H2-B n'était pas lié au commit signé.** `h2_evidence.
+   git_commit` (le commit sur lequel la campagne H2-B a réellement
+   tourné) n'était jamais confronté à `--merge-sha`. Un rapport H2 PASS
+   produit pour un tout autre commit aurait pu signer cette release.
+   Corrigé.
+4. **Quatre des six digests H2 n'étaient jamais confrontés à un fichier
+   réel.** Seuls `catalog` et `authority` l'étaient ; `routing`/
+   `rights`/`pii`/`golden` pouvaient porter un digest arbitraire dans un
+   document H2 par ailleurs structurellement valide, sans jamais être
+   détectés. Corrigé par quatre nouveaux arguments (`--routing-file`/
+   `--rights-file`/`--pii-file`/`--golden-file`), chacun relu et
+   rehaché puis confronté à sa clé correspondante dans `input_file_
+   digests`.
+5. **`Path.resolve()` ne détecte jamais un lien physique** (`ln`, pas
+   `ln -s`) : deux entrées de répertoire vers le même inode, dont
+   aucune n'est un « lien » que `resolve()` puisse suivre — chacune se
+   résout vers elle-même. Le commentaire du code affirmait pourtant
+   détecter ce cas. Corrigé par `os.path.samefile()` en complément
+   (jamais en remplacement) du contrôle `resolve()` existant.
+6. **`private_key_hex = "0" * len(...)` ne garantit aucun effacement
+   mémoire réel** — réaffecter un nom Python à une nouvelle chaîne de
+   zéros ne touche jamais la mémoire de l'original (chaînes immuables) ;
+   le commentaire prétendait le contraire. `sign_production_readiness_
+   manifest` (contrat partagé, `packages/contracts`, d'autres appelants)
+   exige un `str` — changer sa signature pour un tampon mutable est hors
+   périmètre de ce lot (Escalade AGENTS.md). Corrigé en documentant
+   honnêtement l'absence de garantie plutôt qu'en la prétendant.
+
+**Blocker réel identifié, pas fermé — signalé, pas contourné.**
+`--workflow-path`/`--workflow-ref`/`--run-id`/`--run-attempt`
+prétendent vérifier « le workflow de promotion » — mais aucun tel
+workflow n'existe dans `.github/workflows/` de ce dépôt aujourd'hui
+(vérifié : `ci.yml`, `_produce-h2-evidence.yml`, `production-image-
+provenance.yml`, `trusted-human-review.yml`, aucun « promote.yml » ni
+équivalent). Le fixture de test `WORKFLOW_PATH = ".github/workflows/
+promote.yml"` était une fiction jamais ancrée dans un fichier réel du
+dépôt — les tests continuent de fonctionner (ils stubbent l'API GitHub,
+jamais un vrai fichier), mais cela masquait le fait qu'aucun opérateur
+ne pourrait aujourd'hui fournir un `--workflow-path` réellement
+canonique. Construire ce workflow de promotion est son propre lot,
+distinct de celui-ci (même pattern que PR #102 pour la provenance
+d'image) — non implémenté ici de ma propre initiative.
+
+**Également non fermé, signalé au §1** : le Compose analysé
+(`_compose_services`) reste un unique fichier source passé via
+`--compose-file`, jamais le Compose résolu de la topologie de
+production réelle (`docker-compose.v2.yml` +
+`docker-compose.production-workers.yml` +
+`docker-compose.production-release.yml`, résolution `docker compose ...
+config`, comme PR #105/futur Lot C). Un seul fichier source ne peut pas
+représenter simultanément les trois services applicatifs, `pgvector`,
+`prometheus` et les variables résolues de la release réelle.
+
+```
+$ cd services/rag-engine && .venv/bin/python -m pytest \
+    tests/test_sign_production_readiness_manifest_cli.py -v
+72 passed
+
+$ .venv/bin/python -m pytest \
+    tests/test_sign_production_readiness_manifest_cli.py \
+    tests/test_deployment_image_inventory.py \
+    tests/test_verify_release_image_provenance_cli.py -q
+136 passed
+
+$ .venv/bin/python -m ruff check scripts/sign_production_readiness_manifest_cli.py \
+    tests/test_sign_production_readiness_manifest_cli.py
+All checks passed!
+
+$ .venv/bin/python -m mypy scripts/sign_production_readiness_manifest_cli.py
+Success: no issues found in 1 source file
+
+$ cd ../.. && bash scripts/check-governance-locks.sh
+Governance locks: baseline=18, config=18
+OK: all governance locks match baseline (18 keys verified).
+```
+
+Les onze nouveaux points de contrôle (dépôt épinglé, statut/conclusion/
+head_sha/run_attempt du run de promotion, liaison git_commit, quatre
+liaisons de digest routing/rights/pii/golden, détection de lien
+physique) sont tous mutation-testés individuellement.
+
 ## 7. Limitations
 
 - Aucune clé privée de production n'a été utilisée par cet outil dans ce
@@ -425,6 +536,14 @@ révocation dupliqué) sont tous mutation-testés individuellement.
   `"33"*32`).
 - Aucun manifeste réel n'a été assemblé ni signé pour PR #97, #98, #99,
   #100 ou #101.
+- **Aucun workflow de promotion canonique n'existe encore** — voir
+  §6sexies. `--workflow-path`/`--workflow-ref`/`--run-id`/
+  `--run-attempt` restent, de fait, des entrées opérateur non ancrées à
+  un workflow pinné, faute d'un tel workflow dans ce dépôt. C'est le
+  blocker qui maintient `PRODUCTION_READINESS_SIGNING_TOOL_COMPLETE=
+  false`.
+- **Le Compose analysé n'est pas le Compose résolu final** de la
+  topologie de production réelle (§6sexies).
 - L'outil n'a pas encore été exercé contre les vrais fichiers d'evidence
   de production (catalogue de disposition réel, rapport H2-B réel,
   registre de révocation réel, run de provenance d'image réel) — ceux-ci
@@ -434,19 +553,28 @@ révocation dupliqué) sont tous mutation-testés individuellement.
 ## 8. Booléens finaux
 
 ```
-PRODUCTION_READINESS_SIGNING_TOOL_COMPLETE=true
+PRODUCTION_READINESS_SIGNING_TOOL_COMPLETE=false   # bloqué par le workflow de promotion manquant, §6sexies
 FREE_FORM_READINESS_BOOLEAN_ALLOWED=false
 SIGNED_MANIFEST_VERIFY_ROUNDTRIP=true
 REVIEW_BINDING_ACTUALLY_VERIFIED_BEFORE_SIGNING=true
 OUTPUT_PATH_CANNOT_ALIAS_A_SIGNING_INPUT=true
+REPOSITORY_PINNED=true
 GIT_FACTS_VERIFIED=true
-WORKFLOW_PROVENANCE_VERIFIED=true
+WORKFLOW_PROVENANCE_VERIFIED=false   # workflow canonique de promotion inexistant, §6sexies
 UPSTREAM_COMPOSE_IMAGE_CROSS_BINDING=true
+RESOLVED_COMPOSE_BINDING=false   # analyse encore un fichier source unique, §6sexies
 APPLICATION_IMAGE_PROVENANCE_MECHANISM_VERIFIED=true   # mécanisme livré/testé ; jamais exécuté contre un run de provenance réel (§7)
 GOVERNANCE_EVIDENCE_SEMANTICALLY_VERIFIED=true
+H2_INPUT_CATALOG_DIGEST_VERIFIED=true
+H2_INPUT_ROUTING_DIGEST_VERIFIED=true
+H2_INPUT_RIGHTS_DIGEST_VERIFIED=true
+H2_INPUT_PII_DIGEST_VERIFIED=true
+H2_INPUT_GOLDEN_DIGEST_VERIFIED=true
+H2_INPUT_AUTHORITY_DIGEST_VERIFIED=true
 REVOCATION_REGISTRY_STRICTLY_VERIFIED=true
 CATALOG_SEALED_BINDING_VERIFIED=true
 H2_GATE_RESULT_DERIVED_PASS=true
+H2_GIT_COMMIT_BOUND_TO_MERGE_SHA=true
 PRODUCTION_MANIFEST_SIGNED=false   # aucun manifeste réel signé dans ce lot (§7)
 GO_LIVE_READY=false
 LIVE_MUTATIONS_ALLOWED=false

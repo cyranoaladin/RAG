@@ -21,13 +21,21 @@ même manifeste (``--compose-file``) : aucun service omis, aucun service
 inventé, digest byte-identique à ce que Compose pin réellement. Le rapport
 de couverture H2-B (``--h2b-report-file``, ADR-0042) n'est plus un fichier
 opaque simplement haché : il est **parsé et sémantiquement vérifié**
-(``h2_coverage_gate_pass`` doit être vrai), et lié par digest à
-l'autorisation, à l'artefact d'autorité et au manifeste scellé signés dans
-ce même manifeste — jamais quatre preuves indépendantes qui pourraient
-diverger sans qu'aucun refus ne se produise. Le registre de révocation
+(``h2_coverage_gate_pass`` doit être vrai), et ses six
+``input_file_digests`` (``catalog``/``routing``/``rights``/``pii``/
+``golden``/``authority``) sont chacun confrontés à un fichier réel
+(``--routing-file``/``--rights-file``/``--pii-file``/``--golden-file``,
+en plus de ``--catalog-file``/``--authorization-file`` déjà présents) —
+plus aucun des six ne peut porter un digest arbitraire sans jamais être
+détecté. Lié aussi par digest/commit à l'autorisation, au manifeste
+scellé et au commit signés dans ce même manifeste. Le registre de
+révocation
 (``--revocation-registry-file``) est analysé par le parseur strict partagé
 (``nexus_contracts.authorization_revocations``, ADR-0042) — plus de parseur
-minimal local.
+minimal local. Le run GitHub Actions déclaré (``--run-id``/``--run-
+attempt``) doit être un run **réellement terminé avec succès**, bâti sur
+le commit signé, et sa tentative courante doit correspondre exactement
+(même défaut, même correctif, que la provenance d'image PR #102).
 
 **Clé privée.** Lue depuis un fichier local (``--private-key-file``),
 jamais depuis un argument en clair, jamais depuis une variable
@@ -40,7 +48,7 @@ avant d'être écrit sur disque — un manifeste dont la propre vérification
 Usage minimal (voir --help pour la liste complète des faits requis) :
 
     python sign_production_readiness_manifest_cli.py \\
-        --repository cyranoaladin/RAG --pr-number 98 \\
+        --pr-number 98 \\
         --pr-head-sha <40hex> --merge-sha <40hex> \\
         --environment production \\
         --private-key-file /path/held/by/operator \\
@@ -54,6 +62,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -98,6 +107,12 @@ from nexus_contracts.review_binding import (  # noqa: E402
 from nexus_contracts.review_binding import (  # noqa: E402
     parse_trust_anchor as parse_review_binding_trust_anchor,
 )
+
+#: Jamais une entrée opérateur (ancien ``--repository``, Codex, même
+#: classe de défaut déjà corrigée dans PR #105) : un opérateur ne peut
+#: pas fournir un autre dépôt puis faire vérifier PR/run/workflow/
+#: provenance d'image contre ce dépôt alternatif.
+_TRUSTED_REPOSITORY = "cyranoaladin/RAG"
 
 _HEX40 = re.compile(r"^[0-9a-f]{40}$")
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
@@ -313,7 +328,7 @@ def _verify_git_and_workflow_facts(args: argparse.Namespace) -> tuple[str, str]:
     sont **dérivés** de la réponse de l'API, jamais affirmés par
     l'opérateur ; ``run_id``/``run_attempt``/``workflow_path`` sont
     confrontés à un run GitHub Actions réel de ce dépôt."""
-    pr = _github_api_get(f"repos/{args.repository}/pulls/{args.pr_number}")
+    pr = _github_api_get(f"repos/{_TRUSTED_REPOSITORY}/pulls/{args.pr_number}")
     if pr.get("merged") is not True:
         raise SigningToolError(
             f"PR #{args.pr_number} is not merged according to the live GitHub "
@@ -332,15 +347,15 @@ def _verify_git_and_workflow_facts(args: argparse.Namespace) -> tuple[str, str]:
         )
     for side, doc in (("base", pr.get("base") or {}), ("head", head)):
         repo_full_name = (doc.get("repo") or {}).get("full_name")
-        if repo_full_name != args.repository:
+        if repo_full_name != _TRUSTED_REPOSITORY:
             raise SigningToolError(
                 f"PR #{args.pr_number} {side} repository is {repo_full_name!r}, "
-                f"not {args.repository!r} — a fork or cross-repository PR is "
+                f"not {_TRUSTED_REPOSITORY!r} — a fork or cross-repository PR is "
                 "never accepted by this tool"
             )
 
-    pr_head_commit = _github_api_get(f"repos/{args.repository}/git/commits/{args.pr_head_sha}")
-    merge_commit = _github_api_get(f"repos/{args.repository}/git/commits/{args.merge_sha}")
+    pr_head_commit = _github_api_get(f"repos/{_TRUSTED_REPOSITORY}/git/commits/{args.pr_head_sha}")
+    merge_commit = _github_api_get(f"repos/{_TRUSTED_REPOSITORY}/git/commits/{args.merge_sha}")
     pr_head_tree_sha = (pr_head_commit.get("tree") or {}).get("sha")
     merge_tree_sha = (merge_commit.get("tree") or {}).get("sha")
     if not isinstance(pr_head_tree_sha, str) or _HEX40.fullmatch(pr_head_tree_sha) is None:
@@ -352,17 +367,17 @@ def _verify_git_and_workflow_facts(args: argparse.Namespace) -> tuple[str, str]:
             f"GitHub did not return a valid tree sha for commit {args.merge_sha!r}"
         )
 
-    run = _github_api_get(f"repos/{args.repository}/actions/runs/{args.run_id}")
+    run = _github_api_get(f"repos/{_TRUSTED_REPOSITORY}/actions/runs/{args.run_id}")
     if run.get("path") != args.workflow_path:
         raise SigningToolError(
             f"--workflow-path {args.workflow_path!r} does not match the live "
             f"workflow path {run.get('path')!r} of run {args.run_id}"
         )
     run_repo_full_name = (run.get("repository") or {}).get("full_name")
-    if run_repo_full_name != args.repository:
+    if run_repo_full_name != _TRUSTED_REPOSITORY:
         raise SigningToolError(
             f"run {args.run_id} belongs to {run_repo_full_name!r}, not "
-            f"{args.repository!r}"
+            f"{_TRUSTED_REPOSITORY!r}"
         )
     head_branch = run.get("head_branch")
     expected_ref = f"refs/heads/{head_branch}" if head_branch else None
@@ -371,12 +386,38 @@ def _verify_git_and_workflow_facts(args: argparse.Namespace) -> tuple[str, str]:
             f"--workflow-ref {args.workflow_ref!r} does not match the live run's "
             f"head_branch (expected {expected_ref!r})"
         )
-    # Prouve que run_attempt désigne une tentative réelle de ce run — pas un
-    # entier choisi arbitrairement par l'opérateur. La réponse elle-même
-    # n'est pas exploitée davantage : son existence (pas de refus levé par
-    # _github_api_get) est la preuve.
+    # Codex, PR #100 §8 : un run bien identifié par chemin/branche n'est
+    # pas pour autant un run *réussi*, ni un run bâti sur le commit
+    # promu. Même défaut déjà corrigé dans `deployment_image_inventory.
+    # verify_application_image_provenance` (PR #102) : reproduit ici à
+    # l'identique.
+    if run.get("status") != "completed" or run.get("conclusion") != "success":
+        raise SigningToolError(
+            f"run {args.run_id} is not a successfully completed run "
+            f"(status={run.get('status')!r}, conclusion={run.get('conclusion')!r})"
+        )
+    if run.get("head_sha") != args.merge_sha:
+        raise SigningToolError(
+            f"run {args.run_id} built head_sha {run.get('head_sha')!r}, not the "
+            f"commit being signed ({args.merge_sha!r})"
+        )
+    # `run_attempt` sur l'endpoint général reflète l'attempt COURANTE (la
+    # plus récente) de ce run_id — si le workflow a été rejoué depuis,
+    # cette valeur a changé et ce refus se déclenche : jamais une
+    # tentative périmée acceptée silencieusement (même bug que celui
+    # trouvé et corrigé dans PR #102, reproduit ici à l'identique — cet
+    # outil appelait déjà l'endpoint `/attempts/<n>` mais n'exploitait
+    # jamais sa réponse ni ne croisait `run_attempt` du run général).
+    if run.get("run_attempt") != args.run_attempt:
+        raise SigningToolError(
+            f"run {args.run_id}'s current attempt is {run.get('run_attempt')!r}, not "
+            f"the attempt being attested ({args.run_attempt!r}) — the run was "
+            "re-run since this attempt, or the wrong attempt was named"
+        )
+    # Confirme aussi, via l'endpoint dédié, que cette tentative précise
+    # existe réellement pour ce run.
     _github_api_get(
-        f"repos/{args.repository}/actions/runs/{args.run_id}/attempts/{args.run_attempt}"
+        f"repos/{_TRUSTED_REPOSITORY}/actions/runs/{args.run_id}/attempts/{args.run_attempt}"
     )
 
     return pr_head_tree_sha, merge_tree_sha
@@ -396,13 +437,13 @@ def _derive_application_image_digests(
     with tempfile.TemporaryDirectory() as tmp:
         try:
             return dii.verify_application_image_provenance(
-                repository=args.repository,
+                repository=_TRUSTED_REPOSITORY,
                 source_commit_sha=merge_sha,
                 source_tree_sha=merge_tree_sha,
                 provenance_run_id=args.provenance_run_id,
                 provenance_run_attempt=args.provenance_run_attempt,
                 github_api_get=_github_api_get,
-                download_artifact=dii.make_download_artifact_via_gh(repository=args.repository),
+                download_artifact=dii.make_download_artifact_via_gh(repository=_TRUSTED_REPOSITORY),
                 work_dir=Path(tmp),
             )
         except dii.DeploymentImageInventoryError as exc:
@@ -413,7 +454,6 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
 
     # Identité du dépôt et de la revue.
-    p.add_argument("--repository", required=True)
     p.add_argument("--pr-number", type=int, required=True)
     p.add_argument("--pr-head-sha", required=True,
                     help="Verified live against GitHub (repos/<repo>/pulls/<pr-number>) "
@@ -443,6 +483,19 @@ def _build_arg_parser() -> argparse.ArgumentParser:
                     help="NEXUS-H2-COVERAGE-EVIDENCE-V1 (ADR-0042) — parsé et "
                          "sémantiquement vérifié (h2_coverage_gate_pass doit être "
                          "vrai), jamais seulement haché comme un fichier opaque.")
+    p.add_argument("--routing-file", type=Path, required=True,
+                    help="Fichier réel correspondant à h2b_report.input_file_"
+                         "digests['routing'] — relu et rehaché, jamais un digest "
+                         "arbitraire pris au mot.")
+    p.add_argument("--rights-file", type=Path, required=True,
+                    help="Fichier réel correspondant à h2b_report.input_file_"
+                         "digests['rights'].")
+    p.add_argument("--pii-file", type=Path, required=True,
+                    help="Fichier réel correspondant à h2b_report.input_file_"
+                         "digests['pii'].")
+    p.add_argument("--golden-file", type=Path, required=True,
+                    help="Fichier réel correspondant à h2b_report.input_file_"
+                         "digests['golden'].")
 
     # Unité de déploiement.
     p.add_argument("--upstream-image", action="append", default=[], metavar="name=ref@sha256:...")
@@ -514,7 +567,7 @@ def assemble_and_sign(args: argparse.Namespace) -> ProductionReadinessManifestV1
             authorization_id=authorization.authorization_id,
             authorization_bytes=authorization_raw,
             authorization_git_blob_sha1=git_blob_sha1(authorization_raw),
-            expected_repository=args.repository,
+            expected_repository=_TRUSTED_REPOSITORY,
         )
         require_challenge_is_bound(binding)
     except (ReviewBindingError, CanonicalArtifactError) as exc:
@@ -579,11 +632,36 @@ def assemble_and_sign(args: argparse.Namespace) -> ProductionReadinessManifestV1
             "h2b_report's catalog digest does not match the sha256 of "
             "--catalog-file — the H2 evidence does not vouch for this exact catalog"
         )
+    # Codex, PR #100 §10 : le contrat ADR-0042 exige six clés dans
+    # `input_file_digests` (catalog/routing/rights/pii/golden/authority)
+    # — seules catalog et authority étaient confrontées à un fichier réel
+    # ici ; les quatre autres pouvaient porter un digest arbitraire sans
+    # jamais être détectées. Fermé en exigeant les quatre fichiers réels
+    # correspondants, relus et rehachés (jamais un digest pris au mot).
+    for evidence_key, path_arg, cli_flag in (
+        ("routing", args.routing_file, "--routing-file"),
+        ("rights", args.rights_file, "--rights-file"),
+        ("pii", args.pii_file, "--pii-file"),
+        ("golden", args.golden_file, "--golden-file"),
+    ):
+        real_digest = _digest_of_file(path_arg, label=evidence_key)
+        if h2_evidence.input_file_digests.get(evidence_key) != real_digest:
+            raise SigningToolError(
+                f"h2b_report's {evidence_key} digest does not match the sha256 of "
+                f"{cli_flag} — the H2 evidence does not vouch for this exact "
+                f"{evidence_key} file"
+            )
     if h2_evidence.manifest_sha256 != sealed_manifest_digest:
         raise SigningToolError(
             "h2b_report's manifest_sha256 does not match the sha256 of "
             "--sealed-manifest-file — the H2 evidence does not vouch for this "
             "exact sealed manifest"
+        )
+    if h2_evidence.git_commit != merge_sha:
+        raise SigningToolError(
+            f"h2b_report git_commit {h2_evidence.git_commit!r} does not match "
+            f"--merge-sha {merge_sha!r} — an H2 pass produced for a different "
+            "commit is never used to sign this release"
         )
 
     application_image_digests = _derive_application_image_digests(
@@ -601,7 +679,7 @@ def assemble_and_sign(args: argparse.Namespace) -> ProductionReadinessManifestV1
     try:
         manifest = ProductionReadinessManifestV1(
             protocol_version="NEXUS-PRODUCTION-READINESS-V1",
-            repository=args.repository,
+            repository=_TRUSTED_REPOSITORY,
             pr_number=args.pr_number,
             pr_head_sha=pr_head_sha,
             pr_head_tree_sha=pr_head_tree_sha,
@@ -641,6 +719,10 @@ _INPUT_PATH_ARGS = (
     "catalog_file",
     "sealed_manifest_file",
     "h2b_report_file",
+    "routing_file",
+    "rights_file",
+    "pii_file",
+    "golden_file",
     "compose_file",
     "private_key_file",
     "verification_trust_anchor_file",
@@ -650,17 +732,34 @@ _INPUT_PATH_ARGS = (
 def _reject_output_aliasing_an_input(args: argparse.Namespace) -> None:
     """``--output`` ne peut jamais résoudre vers un fichier d'entrée.
 
-    Sans ce contrôle, une erreur de sélection de chemin — y compris via un
-    lien symbolique ou physique — ferait écrire le manifeste JSON par-dessus
-    la graine de signature locale (ou toute autre preuve d'entrée),
-    détruisant un secret de production pour une invocation par ailleurs
-    réussie."""
+    Sans ce contrôle, une erreur de sélection de chemin ferait écrire le
+    manifeste JSON par-dessus la graine de signature locale (ou toute
+    autre preuve d'entrée), détruisant un secret de production pour une
+    invocation par ailleurs réussie.
+
+    Deux contrôles distincts, aucun ne subsume l'autre :
+    ``Path.resolve()`` (chemin identique, lien symbolique) compare des
+    chaînes de chemin canoniques — mais un lien physique (``ln``, pas
+    ``ln -s``) est une seconde entrée de répertoire vers le **même
+    inode**, sans jamais être un « lien » que ``resolve()`` puisse
+    suivre : ses deux chemins se résolvent chacun vers eux-mêmes,
+    identiques en apparence. Codex, PR #100 : le commentaire précédent
+    affirmait détecter ce cas sans jamais le faire réellement. Corrigé
+    par une comparaison d'inode (``os.path.samefile``, st_dev/st_ino)
+    quand les deux fichiers existent déjà — la seule situation où un
+    lien physique peut exister."""
     output_resolved = args.output.resolve(strict=False)
+    output_exists = args.output.exists()
     for name in _INPUT_PATH_ARGS:
         candidate: Path = getattr(args, name)
         if output_resolved == candidate.resolve(strict=False):
             raise SigningToolError(
                 f"--output resolves to the same file as --{name.replace('_', '-')} "
+                f"({candidate}) — refusing to overwrite a signing input"
+            )
+        if output_exists and candidate.exists() and os.path.samefile(args.output, candidate):
+            raise SigningToolError(
+                f"--output is a hard link to the same file as --{name.replace('_', '-')} "
                 f"({candidate}) — refusing to overwrite a signing input"
             )
 
@@ -671,14 +770,24 @@ def main(argv: list[str] | None = None) -> int:
         _reject_output_aliasing_an_input(args)
         manifest = assemble_and_sign(args)
 
+        # Pas d'effacement mémoire déterministe ici, et ce commentaire ne
+        # le prétend plus (Codex, PR #100) : `sign_production_readiness_
+        # manifest` (contrat partagé, packages/contracts) exige un `str`,
+        # immuable en Python — réaffecter le nom local à une chaîne de
+        # zéros crée un NOUVEL objet et ne touche jamais la mémoire de
+        # l'original, qui reste présente jusqu'au ramasse-miettes (et
+        # au-delà, la page mémoire sous-jacente n'étant elle-même pas
+        # garantie effacée). Une vraie garantie exigerait soit de changer
+        # la signature du contrat partagé pour accepter un tampon
+        # mutable (hors périmètre de ce lot, cf. Escalade AGENTS.md — ce
+        # contrat a d'autres appelants), soit un verrouillage mémoire
+        # spécifique à l'OS, disproportionné pour un CLI opérateur. La
+        # frontière de sécurité réelle est la durée de vie du process et
+        # les protections mémoire du système, pas ce code.
         private_key_hex = args.private_key_file.read_text(encoding="utf-8").strip()
         signed = sign_production_readiness_manifest(
             manifest, private_key_hex=private_key_hex, key_id=args.key_id
         )
-        # La clé privée ne survit pas au-delà de cette fonction locale ;
-        # la variable est explicitement effacée avant toute écriture disque.
-        private_key_hex = "0" * len(private_key_hex)
-        del private_key_hex
 
         verification_anchor = parse_production_readiness_trust_anchor(
             args.verification_trust_anchor_file.read_bytes()

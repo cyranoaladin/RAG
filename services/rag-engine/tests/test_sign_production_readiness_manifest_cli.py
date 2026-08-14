@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -289,6 +290,10 @@ def _github_responses(
     workflow_path: str = WORKFLOW_PATH,
     workflow_repository: str = REPOSITORY,
     head_branch: str | None = "main",
+    run_status: str = "completed",
+    run_conclusion: str = "success",
+    run_head_sha: str = MERGE_SHA,
+    run_attempt_value: int = RUN_ATTEMPT,
     provenance_conclusion: str = "success",
 ) -> dict[str, dict[str, Any]]:
     """Réponses GitHub par défaut : tout concorde (chemin heureux). Chaque
@@ -307,6 +312,10 @@ def _github_responses(
             "path": workflow_path,
             "repository": {"full_name": workflow_repository},
             "head_branch": head_branch,
+            "status": run_status,
+            "conclusion": run_conclusion,
+            "head_sha": run_head_sha,
+            "run_attempt": run_attempt_value,
         },
         f"repos/{REPOSITORY}/actions/runs/{RUN_ID}/attempts/{RUN_ATTEMPT}": {},
         f"repos/{REPOSITORY}/actions/runs/{PROVENANCE_RUN_ID}": {
@@ -363,11 +372,25 @@ def _stub_download_artifact(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     return state
 
 
+ROUTING_BYTES = b"routing-content"
+RIGHTS_BYTES = b"rights-content"
+PII_BYTES = b"pii-content"
+GOLDEN_BYTES = b"golden-content"
+ROUTING_DIGEST = hashlib.sha256(ROUTING_BYTES).hexdigest()
+RIGHTS_DIGEST = hashlib.sha256(RIGHTS_BYTES).hexdigest()
+PII_DIGEST = hashlib.sha256(PII_BYTES).hexdigest()
+GOLDEN_DIGEST = hashlib.sha256(GOLDEN_BYTES).hexdigest()
+
+
 def _h2_coverage_evidence_bytes(
     *,
     catalog_digest: str,
     sealed_manifest_digest: str,
     authorization_digest: str,
+    routing_digest: str = ROUTING_DIGEST,
+    rights_digest: str = RIGHTS_DIGEST,
+    pii_digest: str = PII_DIGEST,
+    golden_digest: str = GOLDEN_DIGEST,
     authorization_id: str = AUTHORIZATION_ID,
     h2_coverage_gate_pass: bool = True,
     **overrides: Any,
@@ -396,10 +419,10 @@ def _h2_coverage_evidence_bytes(
         "manifest_sha256": sealed_manifest_digest,
         "input_file_digests": {
             "catalog": catalog_digest,
-            "routing": "6" * 64,
-            "rights": "7" * 64,
-            "pii": "8" * 64,
-            "golden": "9" * 64,
+            "routing": routing_digest,
+            "rights": rights_digest,
+            "pii": pii_digest,
+            "golden": golden_digest,
             "authority": authorization_digest,
         },
         "corpus_total_expected": 2583,
@@ -432,7 +455,6 @@ def _base_args(tmp_path: Path, **overrides: object) -> argparse.Namespace:
 
     parser = tool._build_arg_parser()
     argv = [
-        "--repository", REPOSITORY,
         "--pr-number", str(PR_NUMBER),
         "--pr-head-sha", PR_HEAD_SHA,
         "--merge-sha", MERGE_SHA,
@@ -454,6 +476,10 @@ def _base_args(tmp_path: Path, **overrides: object) -> argparse.Namespace:
                 authorization_digest=authorization_digest,
             ),
         )),
+        "--routing-file", str(_write(tmp_path / "routing.yml", ROUTING_BYTES)),
+        "--rights-file", str(_write(tmp_path / "rights.yml", RIGHTS_BYTES)),
+        "--pii-file", str(_write(tmp_path / "pii.json", PII_BYTES)),
+        "--golden-file", str(_write(tmp_path / "golden.json", GOLDEN_BYTES)),
         "--compose-file", str(_write(tmp_path / "compose.yml", _compose_bytes())),
         "--provenance-run-id", str(PROVENANCE_RUN_ID),
         "--provenance-run-attempt", str(PROVENANCE_RUN_ATTEMPT),
@@ -478,7 +504,7 @@ def _main_argv(tmp_path: Path, *, output: Path) -> list[str]:
     ``_base_args`` (appelé séparément, comme effet de bord, par chaque
     test qui utilise ce helper) -- jamais dupliqué trois fois."""
     return [
-        "--repository", "cyranoaladin/RAG", "--pr-number", "98",
+        "--pr-number", "98",
         "--pr-head-sha", PR_HEAD_SHA,
         "--merge-sha", MERGE_SHA,
         "--environment", "production",
@@ -490,6 +516,10 @@ def _main_argv(tmp_path: Path, *, output: Path) -> list[str]:
         "--catalog-file", str(tmp_path / "catalog.json"),
         "--sealed-manifest-file", str(tmp_path / "sealed.txt"),
         "--h2b-report-file", str(tmp_path / "report.json"),
+        "--routing-file", str(tmp_path / "routing.yml"),
+        "--rights-file", str(tmp_path / "rights.yml"),
+        "--pii-file", str(tmp_path / "pii.json"),
+        "--golden-file", str(tmp_path / "golden.json"),
         "--compose-file", str(tmp_path / "compose.yml"),
         "--provenance-run-id", str(PROVENANCE_RUN_ID),
         "--provenance-run-attempt", str(PROVENANCE_RUN_ATTEMPT),
@@ -555,6 +585,19 @@ class TestValidManifestSignsAndVerifies:
         import stat
         mode = stat.S_IMODE(out.stat().st_mode)
         assert mode == 0o600
+
+
+class TestRepositoryIsNeverOperatorControlled:
+    """Codex, PR #100 (même classe de défaut que PR #105) : le dépôt qui
+    ancre PR/run/workflow/provenance d'image n'est plus un argument
+    opérateur."""
+
+    def test_no_repository_cli_flag_exists(self) -> None:
+        help_text = tool._build_arg_parser().format_help()
+        assert "--repository" not in help_text
+
+    def test_trusted_repository_constant_is_the_real_repo(self) -> None:
+        assert tool._TRUSTED_REPOSITORY == "cyranoaladin/RAG"
 
 
 class TestAdversarialCanaries:
@@ -799,6 +842,22 @@ class TestOutputNeverAliasesAnInput:
         with pytest.raises(tool.SigningToolError, match="private-key-file"):
             tool._reject_output_aliasing_an_input(args)
 
+    def test_output_hardlinked_to_the_private_key_file_is_refused(self, tmp_path: Path) -> None:
+        # Codex, PR #100: Path.resolve() never detects a hard link -- two
+        # distinct directory entries pointing to the same inode, neither
+        # of which is a symlink for resolve() to follow. Both paths
+        # resolve to themselves, identical only by content/inode, which
+        # only os.path.samefile()/st_ino catches.
+        priv = tmp_path / "priv.hex"
+        args = _base_args(tmp_path)
+        hardlink = tmp_path / "priv_hardlink.hex"
+        os.link(priv, hardlink)
+        args.output = hardlink
+        original = priv.read_bytes()
+        with pytest.raises(tool.SigningToolError, match="hard link.*private-key-file"):
+            tool._reject_output_aliasing_an_input(args)
+        assert priv.read_bytes() == original
+
     def test_distinct_output_path_is_accepted(self, tmp_path: Path) -> None:
         args = _base_args(tmp_path)
         tool._reject_output_aliasing_an_input(args)  # does not raise
@@ -884,6 +943,44 @@ class TestGitAndWorkflowFactsAreLiveVerified:
         del _stub_github_api[f"repos/{REPOSITORY}/actions/runs/{RUN_ID}/attempts/{RUN_ATTEMPT}"]
         args = _base_args(tmp_path)
         with pytest.raises(tool.SigningToolError, match="unexpected GitHub API path"):
+            tool.assemble_and_sign(args)
+
+    def test_failed_promotion_run_is_refused(
+        self, tmp_path: Path, _stub_github_api: dict[str, dict[str, Any]]
+    ) -> None:
+        _stub_github_api[f"repos/{REPOSITORY}/actions/runs/{RUN_ID}"]["conclusion"] = "failure"
+        args = _base_args(tmp_path)
+        with pytest.raises(tool.SigningToolError, match="successfully completed"):
+            tool.assemble_and_sign(args)
+
+    def test_in_progress_promotion_run_is_refused(
+        self, tmp_path: Path, _stub_github_api: dict[str, dict[str, Any]]
+    ) -> None:
+        _stub_github_api[f"repos/{REPOSITORY}/actions/runs/{RUN_ID}"]["status"] = "in_progress"
+        _stub_github_api[f"repos/{REPOSITORY}/actions/runs/{RUN_ID}"]["conclusion"] = None
+        args = _base_args(tmp_path)
+        with pytest.raises(tool.SigningToolError, match="successfully completed"):
+            tool.assemble_and_sign(args)
+
+    def test_promotion_run_built_a_different_commit_is_refused(
+        self, tmp_path: Path, _stub_github_api: dict[str, dict[str, Any]]
+    ) -> None:
+        _stub_github_api[f"repos/{REPOSITORY}/actions/runs/{RUN_ID}"]["head_sha"] = "f" * 40
+        args = _base_args(tmp_path)
+        with pytest.raises(tool.SigningToolError, match="not the commit being signed"):
+            tool.assemble_and_sign(args)
+
+    def test_promotion_run_current_attempt_diverging_from_declared_is_refused(
+        self, tmp_path: Path, _stub_github_api: dict[str, dict[str, Any]]
+    ) -> None:
+        # The run was re-run since --run-attempt was recorded: its current
+        # attempt (on the general run endpoint) no longer matches, even
+        # though the /attempts/<n> sub-endpoint for the stale attempt
+        # still exists and would otherwise pass unnoticed (Codex, same bug
+        # class as PR #102).
+        _stub_github_api[f"repos/{REPOSITORY}/actions/runs/{RUN_ID}"]["run_attempt"] = 2
+        args = _base_args(tmp_path)
+        with pytest.raises(tool.SigningToolError, match="was re-run since this attempt"):
             tool.assemble_and_sign(args)
 
     def test_github_api_transport_failure_is_refused_not_swallowed(
@@ -1245,6 +1342,38 @@ class TestH2CoverageEvidenceIsSemanticallyVerified:
         with pytest.raises(tool.SigningToolError, match="catalog digest does not match"):
             tool.assemble_and_sign(args)
 
+    @pytest.mark.parametrize(
+        "evidence_kwarg,cli_arg,expected_key",
+        [
+            ("routing_digest", "routing_file", "routing"),
+            ("rights_digest", "rights_file", "rights"),
+            ("pii_digest", "pii_file", "pii"),
+            ("golden_digest", "golden_file", "golden"),
+        ],
+    )
+    def test_h2_evidence_routing_rights_pii_golden_digest_mismatch_is_refused(
+        self, tmp_path: Path, evidence_kwarg: str, cli_arg: str, expected_key: str
+    ) -> None:
+        # Codex, PR #100 §10: catalog/authority were confronted to real
+        # files, but routing/rights/pii/golden could carry an arbitrary
+        # digest -- an H2 report structurally valid but unbound to any
+        # real evidence for these four inputs would still pass. Each
+        # parametrized case proves one of the four is now refused.
+        catalog_bytes = b"catalog-content"
+        sealed_manifest_bytes = b"sealed-manifest-content"
+        authorization_bytes = _authorization_bytes()
+        evidence = _h2_coverage_evidence_bytes(
+            catalog_digest=hashlib.sha256(catalog_bytes).hexdigest(),
+            sealed_manifest_digest=hashlib.sha256(sealed_manifest_bytes).hexdigest(),
+            authorization_digest=hashlib.sha256(authorization_bytes).hexdigest(),
+            **{evidence_kwarg: "9" * 64},
+        )
+        args = _base_args(
+            tmp_path, h2b_report_file=_write(tmp_path / "report_bad.json", evidence)
+        )
+        with pytest.raises(tool.SigningToolError, match=f"{expected_key} digest does not match"):
+            tool.assemble_and_sign(args)
+
     def test_h2_evidence_sealed_manifest_digest_mismatch_is_refused(self, tmp_path: Path) -> None:
         catalog_bytes = b"catalog-content"
         authorization_bytes = _authorization_bytes()
@@ -1257,6 +1386,24 @@ class TestH2CoverageEvidenceIsSemanticallyVerified:
             tmp_path, h2b_report_file=_write(tmp_path / "report_bad.json", evidence)
         )
         with pytest.raises(tool.SigningToolError, match="manifest_sha256 does not match"):
+            tool.assemble_and_sign(args)
+
+    def test_h2_evidence_git_commit_not_matching_merge_sha_is_refused(
+        self, tmp_path: Path
+    ) -> None:
+        catalog_bytes = b"catalog-content"
+        sealed_manifest_bytes = b"sealed-manifest-content"
+        authorization_bytes = _authorization_bytes()
+        evidence = _h2_coverage_evidence_bytes(
+            catalog_digest=hashlib.sha256(catalog_bytes).hexdigest(),
+            sealed_manifest_digest=hashlib.sha256(sealed_manifest_bytes).hexdigest(),
+            authorization_digest=hashlib.sha256(authorization_bytes).hexdigest(),
+            git_commit="f" * 40,  # does not match --merge-sha
+        )
+        args = _base_args(
+            tmp_path, h2b_report_file=_write(tmp_path / "report_bad.json", evidence)
+        )
+        with pytest.raises(tool.SigningToolError, match="git_commit .* does not match"):
             tool.assemble_and_sign(args)
 
 
