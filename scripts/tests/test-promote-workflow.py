@@ -75,7 +75,11 @@ class PromoteWorkflowTests(unittest.TestCase):
         jobs = self.workflow.get("jobs")
         self.assertEqual(set(jobs), {"identity", "h2-evidence", "image-provenance", "assemble"})
 
-        self.assertEqual(jobs["identity"].get("if"), "github.ref == 'refs/heads/main'")
+        # No job-level `if:` here -- see
+        # test_identity_job_has_no_top_level_if_and_fails_closed_on_wrong_ref
+        # for why (a job-level `if:` would make a wrong-ref dispatch
+        # `skipped`, never `failure`).
+        self.assertNotIn("if", jobs["identity"])
 
         # Reusable-workflow call: must reference the real, existing local
         # workflow by relative path, never a fork/tag/branch reference.
@@ -143,6 +147,23 @@ class PromoteWorkflowTests(unittest.TestCase):
             with self.subTest(fragment=fragment):
                 self.assertIn(fragment, run)
 
+    def test_image_provenance_job_independently_verifies_event_and_branch(self) -> None:
+        # Defense in depth: production-image-provenance.yml carries its
+        # own job-level `if: github.ref == 'refs/heads/main'` restriction
+        # -- the same class of fail-open gate this workflow's own
+        # `identity` job used to have. Never rely solely on the other
+        # workflow's guarantee: re-verify independently here that the
+        # cited run really was a workflow_dispatch against main.
+        job = self.workflow["jobs"]["image-provenance"]
+        verify = next(s for s in job["steps"] if s.get("id") == "verify")
+        run = verify["run"]
+        for fragment in (
+            '"$event" != "workflow_dispatch"',
+            '"$head_branch" != "main"',
+        ):
+            with self.subTest(fragment=fragment):
+                self.assertIn(fragment, run)
+
     def test_identity_job_requires_tree_equality_and_ancestry(self) -> None:
         job = self.workflow["jobs"]["identity"]
         steps = job["steps"]
@@ -156,6 +177,19 @@ class PromoteWorkflowTests(unittest.TestCase):
         ):
             with self.subTest(fragment=fragment):
                 self.assertIn(fragment, run)
+
+    def test_identity_job_has_no_top_level_if_and_fails_closed_on_wrong_ref(self) -> None:
+        # A job-level `if:` that evaluates false yields status=skipped,
+        # never status=failure -- the whole run would then show green
+        # (with one skipped job) for a dispatch against the wrong ref,
+        # instead of genuinely failing. Fail-closed must live in a step
+        # that actually exits non-zero, never in a job-level `if:`.
+        job = self.workflow["jobs"]["identity"]
+        self.assertNotIn("if", job, "identity job must never gate itself with a job-level `if:`")
+        steps = job["steps"]
+        refuse = steps[0]
+        self.assertEqual(refuse.get("if"), "github.ref != 'refs/heads/main'")
+        self.assertIn("exit 1", refuse["run"])
 
     def test_all_actions_are_pinned_by_commit_sha(self) -> None:
         for m in re.finditer(r"uses:\s*(actions/[a-z0-9-]+@[^\s]+)", self.source):

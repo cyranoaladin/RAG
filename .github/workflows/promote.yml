@@ -66,7 +66,13 @@ jobs:
   identity:
     name: Verify merged PR identity
     runs-on: ubuntu-24.04
-    if: github.ref == 'refs/heads/main'
+    # Jamais de `if:` au niveau du job ici : un `if:` de job qui échoue
+    # produit un statut `skipped`, jamais `failure` -- le run entier
+    # apparaîtrait alors vert (avec un job "skipped"), pas rouge, pour un
+    # dispatch sur la mauvaise ref (Codex/opérateur, corrigé avant tout
+    # run réel). Le refus fail-closed vit uniquement dans la première
+    # étape ci-dessous, qui échoue réellement (`exit 1`), faisant échouer
+    # le job et donc tout le workflow.
     timeout-minutes: 10
     outputs:
       merge_sha: ${{ steps.identity.outputs.merge_sha }}
@@ -181,6 +187,27 @@ jobs:
           path="$(jq -r '.path' <<<"$run_json")"
           if [ "$path" != ".github/workflows/production-image-provenance.yml" ]; then
             echo "::error::run ${RUN_ID} is not a production-image-provenance.yml run (path=${path})" >&2
+            exit 1
+          fi
+
+          # Défense en profondeur : production-image-provenance.yml porte
+          # aujourd'hui son propre `if:` de job pour restreindre à `main`
+          # -- une garantie qui peut, comme celle que ce même workflow
+          # portait avant correction (voir plus haut), rendre un run sur
+          # la mauvaise ref simplement "skipped" plutôt que "failure"
+          # dans certains cas. Ne jamais dépendre uniquement de la
+          # garantie de l'autre workflow : revérifier ici, indépendamment,
+          # que ce run précis est bien un `workflow_dispatch` déclenché
+          # sur `main`.
+          event="$(jq -r '.event' <<<"$run_json")"
+          if [ "$event" != "workflow_dispatch" ]; then
+            echo "::error::run ${RUN_ID} was triggered by ${event}, not workflow_dispatch" >&2
+            exit 1
+          fi
+
+          head_branch="$(jq -r '.head_branch' <<<"$run_json")"
+          if [ "$head_branch" != "main" ]; then
+            echo "::error::run ${RUN_ID} ran against branch ${head_branch}, not main" >&2
             exit 1
           fi
 

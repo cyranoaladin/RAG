@@ -196,6 +196,56 @@ bien, et que le format `--workflow-ref` correspond à ce que PR #100
 vérifie réellement — lu directement depuis la branche `ops/production-
 readiness-signing-tool-20260813`, jamais deviné).
 
+## 8bis. Second round — deux défauts réels trouvés par revue indépendante
+
+1. **Le job `identity` portait un `if:` de job en plus du refus par
+   étape.** `if: github.ref == 'refs/heads/main'` au niveau du job
+   produit un statut `skipped` quand la condition est fausse — jamais
+   `failure`. Un dispatch sur la mauvaise ref aurait donc laissé le run
+   entier apparaître **vert** (avec un job « skipped »), pas rouge :
+   l'étape de refus explicite (`exit 1`) n'aurait jamais eu l'occasion
+   de s'exécuter, le job entier étant sauté avant elle. Corrigé en
+   retirant le `if:` de job — seul le refus par étape, qui échoue
+   réellement, porte désormais la garantie fail-closed. Nouveau test
+   `test_identity_job_has_no_top_level_if_and_fails_closed_on_wrong_ref`,
+   mutation-testé (réintroduire le `if:` de job fait échouer ce test et
+   `test_expected_jobs_exist_with_correct_shape` pour la bonne raison ;
+   restauré, suite verte).
+2. **En cherchant ce même défaut ailleurs, le même bug a été trouvé dans
+   `.github/workflows/production-image-provenance.yml` (PR #102, déjà
+   mergé sur `main`)** : `if: github.ref == 'refs/heads/main'` au niveau
+   du job, ligne 35. Non corrigé ici (fichier déjà mergé, hors périmètre
+   de ce lot — nécessite son propre lot dédié, signalé séparément).
+   Cela justifie directement le point suivant : ne jamais dépendre
+   uniquement de la garantie fail-closed d'un workflow tiers déjà
+   mergé tant qu'elle n'est pas elle-même prouvée.
+3. **Défense en profondeur ajoutée au job `image-provenance`** :
+   au-delà de `path`/`status`/`conclusion`/`head_sha`/`run_attempt`
+   déjà vérifiés, ce job revérifie désormais indépendamment que le run
+   cité est bien un `workflow_dispatch` (`run.event`) déclenché sur
+   `main` (`run.head_branch`) — précisément parce que la garantie
+   équivalente côté `production-image-provenance.yml` porte le même
+   défaut que celui corrigé au point 1 ci-dessus, et ne peut donc pas
+   être présumée fiable avant sa propre correction. Nouveau test
+   `test_image_provenance_job_independently_verifies_event_and_branch`,
+   mutation-testé (retrait des deux contrôles → 2 échecs pour la bonne
+   raison ; restauré, suite verte).
+
+```
+$ python3 -c "import yaml; yaml.safe_load(open('.github/workflows/promote.yml'))"
+YAML OK
+
+$ python3 -m pytest scripts/tests/test-promote-workflow.py -q
+15 passed, 34 subtests passed
+
+$ python3 -m ruff check scripts/tests/test-promote-workflow.py
+All checks passed!
+```
+
+`CANONICAL_PROMOTION_WORKFLOW_VERIFIED` reste `false` : ce round ferme
+deux défauts réels mais ne change rien à la séquence de dépendance déjà
+documentée en §6 (attente de PR #109 + rebase avant tout audit final).
+
 ## 9. Ce que ce lot ne fait jamais
 
 - Ne modifie pas `packages/contracts`.
