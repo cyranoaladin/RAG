@@ -32,7 +32,8 @@ après les notifications d'approbation de l'opérateur pour #108/#112/#113.
 
 | Heure | Événement |
 |---|---|
-| 09:54–09:56 | Challenges `/nexus-trusted-review` postés pour #107 (`d8cdb59`), #108 (`dad6d30`), #112 (`17fde45`), #113 (`6850d93`) — base commune `3308fcf` (tip de `main` après merge de PR#115). |
+| 09:54–09:56 | Rebase de #107/#108/#112/#113 sur `main` (tip `3308fcf`, après merge de PR#115) ; runs `pull_request_target` automatiques (non déclencheurs du challenge remis à l'opérateur). |
+| 10:05:29–10:05:32 | Commentaires `/nexus-trusted-review` postés explicitement sur les quatre PR ; challenges calculés et communiqués à l'opérateur pour #107 (`d8cdb59`), #108 (`dad6d30`), #112 (`17fde45`), #113 (`6850d93`) — base commune `3308fcf`. |
 | 10:15:13 | Review APPROVED sur #107, `commit_id=d8cdb59` — identique au head challengé. |
 | 10:15:21 | PR#107 mergée (`439255f`). `main` avance. |
 | 10:15:51 | Review APPROVED sur #108, `commit_id=21d4e9b` — le head de #108 avait déjà bougé (merge de `main`/#107) depuis le challenge posté pour `dad6d30`. |
