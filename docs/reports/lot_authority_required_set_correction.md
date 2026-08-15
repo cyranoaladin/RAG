@@ -57,6 +57,11 @@ qui l'importe) :
   indépendante de l'ordre d'itération d'un `frozenset` **et** du hash
   seed de l'interpréteur (`PYTHONHASHSEED`).
 
+L'ancienne `ingest_candidate_facts` (le périmètre pré-Finding, borné sur
+`base_disposition` seul) est **supprimée** — plus aucun appelant après
+migration des deux producteurs vers la nouvelle primitive ; la garder
+aurait laissé du code mort non testé dans un fichier de gate de sécurité.
+
 Les deux producteurs sont restructurés pour appeler cette primitive
 **après** toute promotion non liée à l'autorité
 (`_promote_currentness_verified_candidates`), jamais avant :

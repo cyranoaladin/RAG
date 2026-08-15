@@ -1218,62 +1218,16 @@ def _promote_authority_cleared_candidates(
     return promoted
 
 
-def ingest_candidate_facts(
-    physical_objects: list[Any],
-) -> tuple[frozenset[str], tuple[tuple[str, str | None], ...]]:
-    """Empreintes et catégories de droits du périmètre réel d'ingestion.
-
-    Extrait de ``generate_coverage_report`` pour être réutilisé tel quel
-    par ``catalog_republish`` (matérialisation gouvernée du catalogue
-    promu) : les deux appelants doivent mesurer le même périmètre
-    ``base_disposition == "INGEST"`` de la même façon, jamais deux
-    implémentations qui pourraient diverger silencieusement.
-
-    H2 authority promotion (PR #109's E2E rehearsal finding, "Finding
-    C") : le périmètre de complétude doit être ``base_disposition``, le
-    véritable ensemble de candidats qu'un compilateur réel produit —
-    jamais ``disposition``, qui vaut toujours ``BLOCKED_NOT_CLEARED``
-    côté autorité pour des données réelles (le compilateur candidat n'a
-    jamais l'autorité LOT41A réelle) : borner sur ``disposition`` rend
-    ce contrôle vacuement satisfait sur un ensemble vide, pour tout
-    catalogue réel.
-    """
-    ingest_content_sha256 = frozenset(
-        str(item.get("content_sha256"))
-        for item in physical_objects
-        if isinstance(item, dict)
-        and item.get("base_disposition") == "INGEST"
-        and isinstance(item.get("content_sha256"), str)
-    )
-    # F4 : les catégories de droits réellement portées par les objets
-    # routés vers l'ingestion. Collectées sur **tous** ces objets, pas sur
-    # un échantillon, et gardées avec l'identité de l'objet pour que le
-    # refus puisse nommer le fautif. Deux objets de même contenu mais de
-    # catégories différentes produisent donc deux entrées : les deux
-    # catégories devront être couvertes.
-    ingest_rights_candidates: tuple[tuple[str, str | None], ...] = tuple(
-        (
-            str(item.get("content_sha256")),
-            item.get("rights_category_candidate")
-            if isinstance(item.get("rights_category_candidate"), str)
-            else None,
-        )
-        for item in physical_objects
-        if isinstance(item, dict) and item.get("base_disposition") == "INGEST"
-    )
-    return ingest_content_sha256, ingest_rights_candidates
-
-
 def authority_required_candidate_facts(
     physical_objects: list[Any],
 ) -> tuple[frozenset[str], tuple[tuple[str, str | None], ...]]:
-    """Le vrai périmètre que l'autorité doit couvrir — pas
-    ``ingest_candidate_facts``.
+    """Le vrai périmètre que l'autorité doit couvrir.
 
-    Finding du 2026-08-15 (audit post-PR#124) : ``ingest_candidate_facts``
-    mesure *tout* candidat ``base_disposition == "INGEST"``, sans exiger
-    qu'aucun autre gate indépendant soit déjà au vert. Deux conséquences
-    réelles, pas seulement théoriques :
+    Remplace l'ancien ``ingest_candidate_facts`` (supprimé — plus aucun
+    appelant après ce correctif), qui mesurait *tout* candidat
+    ``base_disposition == "INGEST"``, sans exiger qu'aucun autre gate
+    indépendant soit déjà au vert. Finding du 2026-08-15 (audit
+    post-PR#124), deux conséquences réelles, pas seulement théoriques :
 
     1. **Périmètre figé avant promotion currentness.** Si ce périmètre est
        mesuré avant ``_promote_currentness_verified_candidates``, les
@@ -1284,8 +1238,8 @@ def authority_required_candidate_facts(
     2. **Un candidat bloqué PII entrerait dans le périmètre requis.** Un
        objet dont ``gates["pii"] != "PASS"`` ne sera *jamais* promu par
        ``_promote_authority_cleared_candidates`` (qui exige lui aussi PII
-       au vert) — mais ``ingest_candidate_facts`` l'exigerait quand même
-       de l'allowlist de l'autorité. Or ``ScopeAuthorizationArtifactV2``
+       au vert) — mais l'ancienne fonction l'exigerait quand même de
+       l'allowlist de l'autorité. Or ``ScopeAuthorizationArtifactV2``
        exige ``pii_absence_attested=true`` sur tout son périmètre : aucune
        autorisation réelle ne pourrait jamais satisfaire les deux
        exigences à la fois pour un tel objet — une autorité authentique
