@@ -1,10 +1,8 @@
 # ADR-0042 — Preuve H2 machine-lisible et registre de révocation partagés
 
-- **Statut** : Proposé — **non Accepté**. Une acceptation exige une review
-  humaine `APPROVED` du Code Owner `@abenrhouma` sur le HEAD exact de la PR
-  d'implémentation.
+- **Statut** : **Accepté** (voir « Preuve d'acceptation » ci-dessous).
 - **Date** : 2026-08-13
-- **Décideur proposé** : à confirmer par `@abenrhouma`.
+- **Décideur** : `@abenrhouma`.
 - **Périmètre** : deux structures de représentation partagées dans
   `packages/contracts`, consommées par `rag-pedago` (productrice) et
   `rag-engine` (vérificatrice hors ligne). Ce document n'autorise aucun
@@ -12,6 +10,48 @@
   existant.
 - **S'appuie sur** : ADR-0001, ADR-0025, ADR-0035, ADR-0036.
 - **Ne supersede rien.**
+
+## Preuve d'acceptation
+
+Cette section documente précisément ce qui a été approuvé, par qui, vérifié
+en direct plutôt que déduit d'un texte historique — même chaîne de preuve
+que celle établie pour l'acceptation d'ADR-0035 (PR #101) et ADR-0036
+(PR #103) :
+
+1. **`5e3095376730595bc339fada4033f4537f519b76`** est le HEAD exact de PR
+   #104 tel qu'il existait immédiatement avant son merge — c'est **cet état
+   précis** qui a été inspecté et approuvé humainement (après cinq rounds de
+   revue Codex, chacun vérifié contre le producteur réel avant correction :
+   voir `docs/reports/lot_h2_coverage_evidence_contract.md`).
+2. La review GitHub `APPROVED` porte explicitement sur cet état :
+   **Reviewer** `@abenrhouma`, review `id=4936762551`, `state=APPROVED`,
+   `commit_id=5e3095376730595bc339fada4033f4537f519b76`, soumise le
+   `2026-08-14T11:37:33Z`, corps de review portant exactement le challenge
+   `NEXUS-TRUSTED-REVIEW-V1:
+   c02da391865b2dff0e514e7fa274fbdae6e1ef65c185c73f31e70441b1590414` — même
+   discipline de liaison cryptographique qu'ADR-0025/ADR-0035, revérifiée
+   par le run GitHub Actions réel `31797022943` (`conclusion: success`, le
+   workflow `trusted-human-review.yml` republiant `"approved": true,
+   "reason": "approved"` pour ce `review_id` exact).
+3. La liste complète des reviews de PR #104 (6 au total, un seul appel API
+   non paginé suffisant à l'établir puisqu'aucun en-tête `Link` n'est
+   renvoyé) ne contient aucune review `DISMISSED` ni `CHANGES_REQUESTED` —
+   les quatre autres reviews sont les commentaires `chatgpt-codex-connector
+   [bot]` des rounds de correction, tous `state=COMMENTED`, jamais des
+   décisions humaines. Une première review `@abenrhouma` `APPROVED`
+   (`id=4933937961`, `2026-08-14T04:17:37Z`) existe sur le même commit mais
+   sans le challenge dans son corps (`"ok"`) — insuffisante pour le
+   protocole `/nexus-trusted-review`, elle a été explicitement remplacée
+   par la review `id=4936762551` ci-dessus avant toute décision d'acceptation.
+4. GitHub a ensuite fusionné PR #104 (`merged_at`: `2026-08-14T11:39:34Z`),
+   produisant le commit `c2cf3bd86199452483adcada29ed9eb11649732b` sur
+   `main` — moins de deux minutes après l'approbation valide, sans review
+   intermédiaire.
+5. **Cette acceptation est architecturale et documentaire uniquement.**
+   Elle ne constitue ni un déploiement, ni une autorisation de contenu, ni
+   une clé provisionnée. L'intégration de ces deux contrats dans le signer
+   `sign_production_readiness_manifest_cli.py` (PR #100) reste un lot
+   séparé, non dispensé par cette acceptation.
 
 ## Contexte
 

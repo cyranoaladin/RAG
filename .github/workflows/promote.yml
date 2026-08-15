@@ -1,0 +1,340 @@
+name: Promote governed release evidence
+
+# ADR-0036 (chaîne de promotion gouvernée). Pour un commit de merge exact,
+# déjà fusionné dans `main`, assemble le paquet de preuves qu'un opérateur
+# humain confrontera ensuite hors ligne pour signer un
+# ProductionReadinessManifestV1
+# (services/rag-engine/scripts/sign_production_readiness_manifest_cli.py) :
+# identité PR/merge/arbre vérifiée en direct, preuve H2 (via
+# _produce-h2-evidence.yml, appelé tel quel, jamais réimplémenté), et
+# provenance d'un run production-image-provenance.yml pour ce même commit.
+#
+# Ne signe RIEN : aucune clé privée n'entre jamais dans ce workflow — la
+# signature reste strictement offline, sur la machine de l'opérateur (même
+# garantie que production-image-provenance.yml : "la clé ... reste
+# offline, sous contrôle propriétaire", ADR-0036 §5/§10).
+#
+# Ne déploie RIEN — c'est le rôle séparé de
+# services/rag-engine/scripts/deploy_verified_release_cli.py (Lot C), avec
+# sa propre autorisation `--execute` distincte.
+#
+# Ne résout pas le Compose de production. Cette résolution exige le
+# `.env` hôte réel (secrets de production), qui n'existe jamais en CI par
+# construction — c'est pourquoi sign_production_readiness_manifest_cli.py
+# (Section 11) la fait lui-même, hors ligne, avec un accès réel à cet
+# `.env`. Un digest de Compose résolu avec des valeurs factices
+# n'authentifierait rien : dupliquer cette vérification ici produirait une
+# preuve illusoire plutôt qu'une preuve absente. Ce n'est donc pas une
+# omission mais une frontière structurelle, documentée dans
+# docs/reports/lot_canonical_promotion_workflow.md.
+#
+# N'autorise aucun contenu pédagogique (ADR-0001) — ce workflow atteste
+# une release technique, jamais une décision de gouvernance de contenu.
+
+"on":
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Numéro de la pull request fusionnée dans main à promouvoir
+        required: true
+        type: number
+      campaign_id:
+        description: Identifiant de la campagne H2 (transmis tel quel à _produce-h2-evidence.yml)
+        required: true
+        type: string
+      image_provenance_run_id:
+        description: run_id de production-image-provenance.yml pour ce même commit de merge
+        required: true
+        type: number
+      image_provenance_run_attempt:
+        description: run_attempt exact de ce run de provenance d'image
+        required: true
+        type: number
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+
+concurrency:
+  group: promote-${{ inputs.pr_number }}
+  cancel-in-progress: false
+
+jobs:
+  # ── 1. Identité : PR fusionnée, arbre PR == arbre merge, merge_sha
+  #      ancêtre réel de main ────────────────────────────────────────────
+  identity:
+    name: Verify merged PR identity
+    runs-on: ubuntu-24.04
+    # Jamais de `if:` au niveau du job ici : un `if:` de job qui échoue
+    # produit un statut `skipped`, jamais `failure` -- le run entier
+    # apparaîtrait alors vert (avec un job "skipped"), pas rouge, pour un
+    # dispatch sur la mauvaise ref (Codex/opérateur, corrigé avant tout
+    # run réel). Le refus fail-closed vit uniquement dans la première
+    # étape ci-dessous, qui échoue réellement (`exit 1`), faisant échouer
+    # le job et donc tout le workflow.
+    timeout-minutes: 10
+    outputs:
+      merge_sha: ${{ steps.identity.outputs.merge_sha }}
+      merge_tree_sha: ${{ steps.identity.outputs.merge_tree_sha }}
+      pr_head_sha: ${{ steps.identity.outputs.pr_head_sha }}
+      pr_head_tree_sha: ${{ steps.identity.outputs.pr_head_tree_sha }}
+    steps:
+      - name: Refuse anything but a real main dispatch
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::this workflow only ever runs against refs/heads/main, got ${{ github.ref }}"
+          exit 1
+
+      - name: Checkout main
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: refs/heads/main
+          persist-credentials: false
+          fetch-depth: 0
+
+      # Même méthode que _produce-h2-evidence.yml : ce workflow ne
+      # requiert jamais que `github.sha` égale le merge_sha promu — ADR-
+      # 0036 §7 autorise explicitement le rejeu d'un ancien merge_sha
+      # (rollback/redéploiement idempotent). Il suffit que ce merge_sha
+      # soit réellement un ancêtre de `main` aujourd'hui.
+      - name: Derive and verify merged identity
+        id: identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          pr_json="$(gh api "repos/${REPOSITORY}/pulls/${PR_NUMBER}")"
+
+          merged="$(jq -r '.merged' <<<"$pr_json")"
+          if [ "$merged" != "true" ]; then
+            echo "::error::PR #${PR_NUMBER} is not merged; a promotion is never proven for an unmerged change" >&2
+            exit 1
+          fi
+
+          base_ref="$(jq -r '.base.ref' <<<"$pr_json")"
+          if [ "$base_ref" != "main" ]; then
+            echo "::error::PR #${PR_NUMBER} targets ${base_ref}, not main" >&2
+            exit 1
+          fi
+
+          head_sha="$(jq -r '.head.sha' <<<"$pr_json")"
+          merge_sha="$(jq -r '.merge_commit_sha' <<<"$pr_json")"
+
+          if ! git merge-base --is-ancestor "$merge_sha" origin/main; then
+            echo "::error::merge SHA ${merge_sha} is not an ancestor of main" >&2
+            exit 1
+          fi
+
+          head_tree="$(git rev-parse "${head_sha}^{tree}")"
+          merge_tree="$(git rev-parse "${merge_sha}^{tree}")"
+          if [ "$head_tree" != "$merge_tree" ]; then
+            echo "::error::PR head tree ${head_tree} != merge tree ${merge_tree} (ADR-0036 §2) -- the merged tree is not the tree a human approved" >&2
+            exit 1
+          fi
+
+          {
+            echo "pr_head_sha=${head_sha}"
+            echo "pr_head_tree_sha=${head_tree}"
+            echo "merge_sha=${merge_sha}"
+            echo "merge_tree_sha=${merge_tree}"
+          } >>"$GITHUB_OUTPUT"
+
+  # ── 2. Preuve H2 : jamais réimplémentée, appelée telle quelle ──────────
+  h2-evidence:
+    name: Produce H2 evidence
+    needs: identity
+    uses: ./.github/workflows/_produce-h2-evidence.yml
+    with:
+      pull_request_number: ${{ inputs.pr_number }}
+      campaign_id: ${{ inputs.campaign_id }}
+    permissions:
+      contents: read
+      packages: read
+      pull-requests: read
+
+  # ── 3. Provenance d'image : run réellement terminé, réellement bâti sur
+  #      ce merge_sha, tentative exacte -- même classe de contrôle que
+  #      deployment_image_inventory.verify_application_image_provenance,
+  #      revérifiée ici indépendamment en défense en profondeur (le signer
+  #      hors ligne revérifie aussi ce même run, séparément) ─────────────
+  image-provenance:
+    name: Verify image-provenance run
+    needs: identity
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      run_id: ${{ steps.verify.outputs.run_id }}
+      run_attempt: ${{ steps.verify.outputs.run_attempt }}
+    steps:
+      - name: Verify the declared run really built this merge_sha
+        id: verify
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ inputs.image_provenance_run_id }}
+          RUN_ATTEMPT: ${{ inputs.image_provenance_run_attempt }}
+          MERGE_SHA: ${{ needs.identity.outputs.merge_sha }}
+        run: |
+          set -euo pipefail
+          run_json="$(gh api "repos/${REPOSITORY}/actions/runs/${RUN_ID}")"
+
+          path="$(jq -r '.path' <<<"$run_json")"
+          if [ "$path" != ".github/workflows/production-image-provenance.yml" ]; then
+            echo "::error::run ${RUN_ID} is not a production-image-provenance.yml run (path=${path})" >&2
+            exit 1
+          fi
+
+          # Défense en profondeur : production-image-provenance.yml porte
+          # aujourd'hui son propre `if:` de job pour restreindre à `main`
+          # -- une garantie qui peut, comme celle que ce même workflow
+          # portait avant correction (voir plus haut), rendre un run sur
+          # la mauvaise ref simplement "skipped" plutôt que "failure"
+          # dans certains cas. Ne jamais dépendre uniquement de la
+          # garantie de l'autre workflow : revérifier ici, indépendamment,
+          # que ce run précis est bien un `workflow_dispatch` déclenché
+          # sur `main`.
+          event="$(jq -r '.event' <<<"$run_json")"
+          if [ "$event" != "workflow_dispatch" ]; then
+            echo "::error::run ${RUN_ID} was triggered by ${event}, not workflow_dispatch" >&2
+            exit 1
+          fi
+
+          head_branch="$(jq -r '.head_branch' <<<"$run_json")"
+          if [ "$head_branch" != "main" ]; then
+            echo "::error::run ${RUN_ID} ran against branch ${head_branch}, not main" >&2
+            exit 1
+          fi
+
+          status="$(jq -r '.status' <<<"$run_json")"
+          conclusion="$(jq -r '.conclusion' <<<"$run_json")"
+          if [ "$status" != "completed" ] || [ "$conclusion" != "success" ]; then
+            echo "::error::run ${RUN_ID} is not a successfully completed run (status=${status}, conclusion=${conclusion})" >&2
+            exit 1
+          fi
+
+          head_sha="$(jq -r '.head_sha' <<<"$run_json")"
+          if [ "$head_sha" != "$MERGE_SHA" ]; then
+            echo "::error::run ${RUN_ID} built head_sha ${head_sha}, not the merge SHA being promoted (${MERGE_SHA})" >&2
+            exit 1
+          fi
+
+          current_attempt="$(jq -r '.run_attempt' <<<"$run_json")"
+          if [ "$current_attempt" != "$RUN_ATTEMPT" ]; then
+            echo "::error::run ${RUN_ID}'s current attempt is ${current_attempt}, not the attempt declared (${RUN_ATTEMPT}) -- the run was re-run since, or the wrong attempt was named" >&2
+            exit 1
+          fi
+
+          # Confirme aussi, via l'endpoint dédié, que cette tentative
+          # précise existe réellement.
+          gh api "repos/${REPOSITORY}/actions/runs/${RUN_ID}/attempts/${RUN_ATTEMPT}" >/dev/null
+
+          {
+            echo "run_id=${RUN_ID}"
+            echo "run_attempt=${RUN_ATTEMPT}"
+          } >>"$GITHUB_OUTPUT"
+
+  # ── 4. Assemblage : le paquet de preuves de promotion, jamais une
+  #      signature ────────────────────────────────────────────────────────
+  assemble:
+    name: Assemble promotion evidence bundle
+    needs: [identity, h2-evidence, image-provenance]
+    runs-on: ubuntu-24.04
+    environment: production
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Write NEXUS-PROMOTION-EVIDENCE-V1
+        id: bundle
+        env:
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          CAMPAIGN_ID: ${{ inputs.campaign_id }}
+          MERGE_SHA: ${{ needs.identity.outputs.merge_sha }}
+          MERGE_TREE_SHA: ${{ needs.identity.outputs.merge_tree_sha }}
+          PR_HEAD_SHA: ${{ needs.identity.outputs.pr_head_sha }}
+          PR_HEAD_TREE_SHA: ${{ needs.identity.outputs.pr_head_tree_sha }}
+          H2_ARTIFACT_NAME: ${{ needs.h2-evidence.outputs.artifact_name }}
+          H2_EVIDENCE_SHA256: ${{ needs.h2-evidence.outputs.evidence_sha256 }}
+          H2_CATALOG_SHA256: ${{ needs.h2-evidence.outputs.catalog_sha256 }}
+          H2_MANIFEST_SHA256: ${{ needs.h2-evidence.outputs.manifest_sha256 }}
+          H2_REVIEW_VIEW_SHA256: ${{ needs.h2-evidence.outputs.review_view_sha256 }}
+          IMAGE_PROVENANCE_RUN_ID: ${{ needs.image-provenance.outputs.run_id }}
+          IMAGE_PROVENANCE_RUN_ATTEMPT: ${{ needs.image-provenance.outputs.run_attempt }}
+          PROMOTION_WORKFLOW_PATH: .github/workflows/promote.yml
+          PROMOTION_RUN_ID: ${{ github.run_id }}
+          PROMOTION_RUN_ATTEMPT: ${{ github.run_attempt }}
+          # `sign_production_readiness_manifest_cli.py._verify_git_and_
+          # workflow_facts` compares `--workflow-ref` against
+          # `f"refs/heads/{run.head_branch}"` derived from the live run --
+          # never `github.workflow_ref` (a different, longer context
+          # value: `owner/repo/.github/workflows/promote.yml@refs/heads/
+          # main`). `github.ref` is the correct match here.
+          PROMOTION_WORKFLOW_REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/promotion"
+          jq -n \
+            --arg protocol_version "NEXUS-PROMOTION-EVIDENCE-V1" \
+            --arg repository "$REPOSITORY" \
+            --argjson pr_number "$PR_NUMBER" \
+            --arg campaign_id "$CAMPAIGN_ID" \
+            --arg merge_sha "$MERGE_SHA" \
+            --arg merge_tree_sha "$MERGE_TREE_SHA" \
+            --arg pr_head_sha "$PR_HEAD_SHA" \
+            --arg pr_head_tree_sha "$PR_HEAD_TREE_SHA" \
+            --arg h2_artifact_name "$H2_ARTIFACT_NAME" \
+            --arg h2_evidence_sha256 "$H2_EVIDENCE_SHA256" \
+            --arg h2_catalog_sha256 "$H2_CATALOG_SHA256" \
+            --arg h2_manifest_sha256 "$H2_MANIFEST_SHA256" \
+            --arg h2_review_view_sha256 "$H2_REVIEW_VIEW_SHA256" \
+            --argjson image_provenance_run_id "$IMAGE_PROVENANCE_RUN_ID" \
+            --argjson image_provenance_run_attempt "$IMAGE_PROVENANCE_RUN_ATTEMPT" \
+            --arg promotion_workflow_path "$PROMOTION_WORKFLOW_PATH" \
+            --argjson promotion_run_id "$PROMOTION_RUN_ID" \
+            --argjson promotion_run_attempt "$PROMOTION_RUN_ATTEMPT" \
+            --arg promotion_workflow_ref "$PROMOTION_WORKFLOW_REF" \
+            '{
+              protocol_version: $protocol_version,
+              repository: $repository,
+              pr_number: $pr_number,
+              campaign_id: $campaign_id,
+              merge_sha: $merge_sha,
+              merge_tree_sha: $merge_tree_sha,
+              pr_head_sha: $pr_head_sha,
+              pr_head_tree_sha: $pr_head_tree_sha,
+              h2_evidence: {
+                artifact_name: $h2_artifact_name,
+                evidence_sha256: $h2_evidence_sha256,
+                catalog_sha256: $h2_catalog_sha256,
+                manifest_sha256: $h2_manifest_sha256,
+                review_view_sha256: $h2_review_view_sha256
+              },
+              image_provenance: {
+                run_id: $image_provenance_run_id,
+                run_attempt: $image_provenance_run_attempt
+              },
+              promotion_provenance: {
+                workflow_path: $promotion_workflow_path,
+                run_id: $promotion_run_id,
+                run_attempt: $promotion_run_attempt,
+                workflow_ref: $promotion_workflow_ref
+              }
+            }' >"${RUNNER_TEMP}/promotion/promotion-evidence.json"
+
+          echo "bundle_sha256=$(sha256sum "${RUNNER_TEMP}/promotion/promotion-evidence.json" | cut -d' ' -f1)" \
+            >>"$GITHUB_OUTPUT"
+
+      - name: Upload promotion evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: promotion-evidence-${{ needs.identity.outputs.merge_sha }}-${{ inputs.campaign_id }}
+          path: ${{ runner.temp }}/promotion
+          retention-days: 90
+          if-no-files-found: error
