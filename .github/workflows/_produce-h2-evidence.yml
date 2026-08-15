@@ -254,6 +254,18 @@ jobs:
             >>"$GITHUB_OUTPUT"
 
       # ── 6. Gate H2 : les trois drapeaux, séparément ────────────────────
+      # Ni --authority-trust-anchor ni --authority-revocations ne sont
+      # passés ici : en `--authority-environment production`,
+      # h2b_coverage_report.py les REFUSE explicitement si fournis
+      # (TRUST_ANCHOR_ARGUMENT_FORBIDDEN / REVOCATION_REGISTRY_ARGUMENT_
+      # FORBIDDEN — voir son --help et _resolve_trust_anchor_path/
+      # _load_revoked_authorization_ids) et les lit lui-même aux chemins
+      # gouvernés governance/trust-anchors/review-binding-v1.json et
+      # governance/trust-anchors/authorization-revocations-v1.json. Ce
+      # n'était pas seulement un nom de fichier erroné dans la version
+      # précédente de ce workflow (governance/trust-anchors/production-
+      # v1.json, governance/revocations/registry.json) : ces deux
+      # arguments n'auraient jamais dû être passés du tout en production.
       - name: Run the H2 coverage gate
         id: gate
         run: |
@@ -262,13 +274,11 @@ jobs:
             --catalog "${RUNNER_TEMP}/catalog.json" \
             --manifest "${RUNNER_TEMP}/corpus/00_ADMIN/SHA256SUMS.txt" \
             --routing services/rag-pedago/configs/corpus_zone_routing.yml \
-            --rights services/rag-pedago/configs/rights_registry.yml \
-            --pii services/rag-pedago/configs/pii_policy.yml \
-            --golden services/rag-pedago/configs/golden_controls.yml \
+            --rights services/rag-pedago/configs/rights_evidence_registry.yml \
+            --pii services/rag-pedago/configs/pii_gate_policy.yml \
+            --golden services/rag-pedago/configs/golden_corpus_h2b.yml \
             --authority governance/authorizations/${CAMPAIGN_ID}.json \
             --authority-review-binding governance/review-bindings/${CAMPAIGN_ID}.json \
-            --authority-trust-anchor governance/trust-anchors/production-v1.json \
-            --authority-revocations governance/revocations/registry.json \
             --authority-environment production \
             --expected-manifest-sha256 "${{ steps.resolve.outputs.manifest_sha256 }}" \
             --output "${RUNNER_TEMP}/h2-report.json"
@@ -318,14 +328,14 @@ jobs:
             --run-attempt "${RUN_ATTEMPT}" \
             --campaign-sha256 "$(sha256sum "governance/corpus-campaigns/${{ steps.campaign.outputs.campaign_id }}/campaign.json" | cut -d' ' -f1)" \
             --authorization-sha256 "$(sha256sum "governance/authorizations/${{ steps.campaign.outputs.campaign_id }}.json" | cut -d' ' -f1)" \
-            --revocation-registry-sha256 "$(sha256sum governance/revocations/registry.json | cut -d' ' -f1)" \
-            --trust-anchor-sha256 "$(sha256sum governance/trust-anchors/production-v1.json | cut -d' ' -f1)" \
+            --revocation-registry-sha256 "$(sha256sum governance/trust-anchors/authorization-revocations-v1.json | cut -d' ' -f1)" \
+            --trust-anchor-sha256 "$(sha256sum governance/trust-anchors/review-binding-v1.json | cut -d' ' -f1)" \
             --exact-head-receipt-sha256 "$(sha256sum "governance/review-bindings/${{ steps.campaign.outputs.campaign_id }}.json" | cut -d' ' -f1)" \
             --exact-head-receipt-issued-at "$(jq -r .issued_at "governance/review-bindings/${{ steps.campaign.outputs.campaign_id }}.json")" \
             --routing-config-sha256 "$(sha256sum services/rag-pedago/configs/corpus_zone_routing.yml | cut -d' ' -f1)" \
-            --rights-config-sha256 "$(sha256sum services/rag-pedago/configs/rights_registry.yml | cut -d' ' -f1)" \
-            --pii-config-sha256 "$(sha256sum services/rag-pedago/configs/pii_policy.yml | cut -d' ' -f1)" \
-            --golden-config-sha256 "$(sha256sum services/rag-pedago/configs/golden_controls.yml | cut -d' ' -f1)" \
+            --rights-config-sha256 "$(sha256sum services/rag-pedago/configs/rights_evidence_registry.yml | cut -d' ' -f1)" \
+            --pii-config-sha256 "$(sha256sum services/rag-pedago/configs/pii_gate_policy.yml | cut -d' ' -f1)" \
+            --golden-config-sha256 "$(sha256sum services/rag-pedago/configs/golden_corpus_h2b.yml | cut -d' ' -f1)" \
             --h2-report "${RUNNER_TEMP}/h2-report.json" \
             --output "${RUNNER_TEMP}/h2-evidence.json"
 
