@@ -128,9 +128,10 @@ sur un couple `(base_sha, head_sha)` différent du commit réellement mergé.
 ### 7.1 Protection de branche
 
 Avant modification, sauvegarde intégrale de la configuration de protection de
-`main`, horodatée `20260815T123848Z`, conservée en artefact d'audit local
-(scratchpad de session, hors dépôt — sortie brute de
-`gh api repos/cyranoaladin/RAG/branches/main/protection`) :
+`main`, horodatée `20260815T123848Z` (sortie brute de
+`gh api repos/cyranoaladin/RAG/branches/main/protection`), versionnée dans ce
+même commit :
+- `docs/reports/evidence-index/branch-protection/branch_protection_backup_20260815T123848Z.json`
 - `sha256=f49b5d112e2b84ceded59e0b120043f691aba197b361147ed9afdeb9bab58275`
 
 `required_status_checks.contexts` avant :
@@ -163,11 +164,12 @@ aucune autre clé de la protection (reviews requises, enforce_admins, linear
 history, force-push, deletion, conversation resolution, lock_branch,
 fork_syncing) n'a été modifiée.
 
-**Commande de rollback** (à n'exécuter que sur décision explicite) :
+**Commande de rollback** (à n'exécuter que sur décision explicite ; vérifier le
+sha256 du fichier avant tout usage) :
 ```
 gh api repos/cyranoaladin/RAG/branches/main/protection \
   --method PUT \
-  --input branch_protection_backup_20260815T123848Z.json
+  --input docs/reports/evidence-index/branch-protection/branch_protection_backup_20260815T123848Z.json
 ```
 
 ### 7.2 Nouvelle règle de sérialisation des human gates
