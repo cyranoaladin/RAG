@@ -225,7 +225,7 @@ def _verify_service_entry(name: str, service: Any) -> tuple[str, str]:
     return name, f"{repository}@{digest}"
 
 
-def verify_application_image_provenance(
+def fetch_and_verify_image_provenance_document(
     *,
     repository: str,
     source_commit_sha: str,
@@ -236,15 +236,19 @@ def verify_application_image_provenance(
     github_api_get: GitHubApiGet,
     download_artifact: DownloadArtifact,
     work_dir: Path,
-) -> dict[str, str]:
-    """Dérive ``{service_name: "repo@sha256:..."}`` depuis un run GitHub
-    Actions réel et vérifié — jamais depuis une saisie opérateur.
+) -> dict[str, Any]:
+    """Récupère et vérifie structurellement le document d'inventaire brut
+    publié par le run de provenance — jamais seulement les digests qui en
+    sont dérivés.
 
-    Chaque fait est confronté à sa source d'autorité : le run (chemin de
-    workflow canonique, succès, déclenchement manuel, même commit que ce
-    qui est signé) puis l'artefact qu'il a publié (même protocole, même
-    commit, même run, mêmes arbres, chaque image réellement digest-pinnée).
-    """
+    Extrait de ``verify_application_image_provenance`` (qui reste le seul
+    point d'entrée pour les appelants qui ne veulent que les digests, et
+    dont le comportement/signature ne changent pas) pour que d'autres
+    appelants (``deploy_verified_release_cli.py``, Lot C) puissent
+    matérialiser ce document complet, déjà vérifié, comme preuve
+    auditable hors ligne — sans jamais re-télécharger/re-vérifier
+    l'artefact une seconde fois pour l'obtenir (même discipline
+    « vérifier une fois » que la résolution Compose)."""
     _require(_HEX40.fullmatch(source_commit_sha) is not None, "source_commit_sha is malformed")
     _require(_HEX40.fullmatch(source_tree_sha) is not None, "source_tree_sha is malformed")
     _require(provenance_run_id > 0, "provenance_run_id must be a positive integer")
@@ -366,10 +370,50 @@ def verify_application_image_provenance(
             "invented service is never silently accepted"
         )
 
-    digests: dict[str, str] = {}
     for name, service in services.items():
-        verified_name, image_ref = _verify_service_entry(name, service)
-        digests[verified_name] = image_ref
+        _verify_service_entry(name, service)
+    return document
+
+
+def verify_application_image_provenance(
+    *,
+    repository: str,
+    source_commit_sha: str,
+    source_tree_sha: str,
+    provenance_run_id: int,
+    provenance_run_attempt: int,
+    expected_workflow_path: str = _CANONICAL_WORKFLOW_PATH,
+    github_api_get: GitHubApiGet,
+    download_artifact: DownloadArtifact,
+    work_dir: Path,
+) -> dict[str, str]:
+    """Dérive ``{service_name: "repo@sha256:..."}`` depuis un run GitHub
+    Actions réel et vérifié — jamais depuis une saisie opérateur.
+
+    Chaque fait est confronté à sa source d'autorité : le run (chemin de
+    workflow canonique, succès, déclenchement manuel, même commit que ce
+    qui est signé) puis l'artefact qu'il a publié (même protocole, même
+    commit, même run, mêmes arbres, chaque image réellement digest-pinnée).
+
+    Enveloppe fine autour de ``fetch_and_verify_image_provenance_document``
+    (comportement/signature inchangés pour les appelants existants) — ne
+    revérifie rien, se contente de projeter le document déjà vérifié sur
+    la carte de digests."""
+    document = fetch_and_verify_image_provenance_document(
+        repository=repository,
+        source_commit_sha=source_commit_sha,
+        source_tree_sha=source_tree_sha,
+        provenance_run_id=provenance_run_id,
+        provenance_run_attempt=provenance_run_attempt,
+        expected_workflow_path=expected_workflow_path,
+        github_api_get=github_api_get,
+        download_artifact=download_artifact,
+        work_dir=work_dir,
+    )
+    digests: dict[str, str] = {}
+    for name, service in document["services"].items():
+        _, image_ref = _verify_service_entry(name, service)
+        digests[name] = image_ref
     return digests
 
 
