@@ -32,7 +32,14 @@ jobs:
   build-and-push:
     name: Build and push production images
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    # Jamais de `if:` au niveau du job ici : un `if:` de job qui échoue
+    # produit un statut `skipped`, jamais `failure` -- un dispatch sur la
+    # mauvaise ref apparaîtrait alors vert (job "skipped"), jamais rouge,
+    # et l'étape de refus explicite ci-dessous n'aurait jamais l'occasion
+    # de s'exécuter (le job entier serait sauté avant elle). Le refus
+    # fail-closed vit uniquement dans cette première étape, qui échoue
+    # réellement (`exit 1`) -- même défaut trouvé et corrigé dans
+    # promote.yml, PR #110, corrigé ici à l'identique.
     steps:
       - name: Refuse anything but a real main commit
         if: github.ref != 'refs/heads/main'
