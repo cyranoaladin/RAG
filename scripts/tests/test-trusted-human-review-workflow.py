@@ -2,7 +2,8 @@
 """Contrat statique du workflow privilégié de revue humaine LOT41V.
 
 Étend la couverture d'origine avec la correction du ciblage SHA du
-check-run (voir `docs/reports/lot_fix_trusted_review_check_sha.md`) :
+required check (voir `docs/reports/lot_fix_trusted_review_check_sha.md`
+puis `docs/reports/trusted_review_head_drift_incident_20260815.md`) :
 déclenché par `issue_comment` (la commande `/nexus-trusted-review`), ce
 workflow n'a pas de `head_sha` naturel côté GitHub (contrairement à
 `pull_request_target`) : le check-run IMPLICITE que GitHub Actions crée
@@ -10,10 +11,24 @@ pour ce job s'attache par défaut au tip de `main` au moment du
 déclenchement, jamais au head réel de la PR commentée -- confirmé
 empiriquement deux fois cette session (PR #104, PR #106) via
 `gh api repos/.../check-runs/<id>` montrant `head_sha` = le tip de main
-à ce moment, pas le head de la PR. Ce fichier ne déclenche jamais le
-workflow réellement : il parse son YAML et confronte sa structure au
-correctif (un check-run explicite, publié via l'API Checks, épinglé au
-vrai head résolu en sortie de step)."""
+à ce moment, pas le head de la PR.
+
+Une première correction (PR#114) a publié un check-run explicite,
+épinglé au vrai head, via l'API Checks. Ce check-run s'est révélé peu
+fiable comme required status check (PR#116) : un check-run ajouté par un
+déclenchement `issue_comment` ultérieur rejoint le check_suite déjà
+`completed` de la toute première évaluation pour ce head_sha, dont le
+rollup ne se rafraîchit jamais ; la branch-protection GitHub, qui
+s'appuie sur ce rollup, continue de rapporter le required check comme
+"expected" même quand le check-run individuel est bien `success` --
+prouvé par rehearsal isolé, voir
+`docs/reports/trusted_review_branch_protection_rehearsal_20260815.md`.
+Remplacé ici par un Commit Status explicite (API Statuses), sans notion
+de suite/rollup -- chaque POST est un enregistrement plat, immédiatement
+pris en compte.
+
+Ce fichier ne déclenche jamais le workflow réellement : il parse son
+YAML et confronte sa structure au correctif."""
 
 from __future__ import annotations
 
@@ -57,15 +72,16 @@ class TrustedHumanReviewWorkflowTests(unittest.TestCase):
         self.assertEqual(events["issue_comment"]["types"], ["created"])
 
     def test_permissions_are_minimal_and_explicit(self) -> None:
-        # `checks: write` added: required to publish the head-pinned
-        # check-run explicitly (see module docstring) -- still nothing
-        # beyond the minimum this job actually needs.
+        # `statuses: write` (not `checks: write`): required to publish
+        # the head-pinned Commit Status explicitly (see module
+        # docstring) -- still nothing beyond the minimum this job
+        # actually needs.
         self.assertEqual(
             self.workflow.get("permissions"),
             {
                 "contents": "read",
                 "pull-requests": "read",
-                "checks": "write",
+                "statuses": "write",
             },
         )
 
@@ -163,28 +179,41 @@ class TrustedHumanReviewWorkflowTests(unittest.TestCase):
         evaluate_step = next(s for s in self.steps if s.get("id") == "evaluate")
         self.assertTrue(evaluate_step.get("continue-on-error"))
 
-    def test_check_run_is_published_explicitly_pinned_to_the_resolved_head(self) -> None:
+    def test_status_is_published_explicitly_pinned_to_the_resolved_head(self) -> None:
         publish_step = next(
-            s for s in self.steps if s.get("name") == "Publish head-pinned check-run"
+            s for s in self.steps if s.get("name") == "Publish head-pinned trusted-review status"
         )
         self.assertEqual(publish_step.get("if"), "always() && steps.scope.outputs.in_scope == 'true'")
         run = publish_step["run"]
-        self.assertIn("check-runs", run)
-        self.assertIn('head_sha="$EXPECTED_HEAD"', run)
+        self.assertIn("statuses/$EXPECTED_HEAD", run)
+        self.assertIn('context="trusted-human-review/head-pinned"', run)
         self.assertEqual(
             publish_step["env"]["EXPECTED_HEAD"],
             "${{ steps.scope.outputs.expected_head }}",
         )
 
-    def test_check_run_conclusion_reflects_the_evaluate_step_outcome(self) -> None:
+    def test_status_uses_the_statuses_api_not_checks_api(self) -> None:
+        # The Checks API (check-runs, grouped into check_suites) was
+        # abandoned after PR#116 proved its required-check recognition
+        # unreliable (stale suite rollup). The Statuses API has no such
+        # grouping layer.
         publish_step = next(
-            s for s in self.steps if s.get("name") == "Publish head-pinned check-run"
+            s for s in self.steps if s.get("name") == "Publish head-pinned trusted-review status"
+        )
+        run = publish_step["run"]
+        self.assertIn("repos/$GITHUB_REPOSITORY/statuses/", run)
+        self.assertNotIn("check-runs", run)
+
+    def test_status_state_reflects_the_evaluate_step_outcome(self) -> None:
+        publish_step = next(
+            s for s in self.steps if s.get("name") == "Publish head-pinned trusted-review status"
         )
         self.assertEqual(publish_step["env"]["OUTCOME"], "${{ steps.evaluate.outcome }}")
         run = publish_step["run"]
         self.assertIn('"$OUTCOME" == "success"', run)
-        self.assertIn("conclusion=success", run)
-        self.assertIn("conclusion=failure", run)
+        self.assertIn("state=success", run)
+        self.assertIn("state=failure", run)
+        self.assertIn('-f state="$state"', run)
 
     def test_job_still_fails_for_real_when_review_is_not_approved(self) -> None:
         # continue-on-error on the `evaluate` step would otherwise leave

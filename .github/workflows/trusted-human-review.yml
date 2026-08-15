@@ -10,7 +10,7 @@ name: Trusted human review
 permissions:
   contents: read
   pull-requests: read
-  checks: write
+  statuses: write
 
 concurrency:
   group: trusted-human-review-${{ github.event.pull_request.number || github.event.issue.number }}
@@ -38,8 +38,8 @@ jobs:
       # IMPLICITE que GitHub Actions crée pour ce job s'attache par
       # défaut au tip de `main` au moment du déclenchement, jamais au
       # head réel de la PR commentée. Corrigé ci-dessous en publiant un
-      # second check-run, explicite, épinglé au vrai head via l'API
-      # Checks -- le check-run implicite (mal épinglé côté SHA pour
+      # Commit Status explicite, épinglé au vrai head via l'API Statuses
+      # -- le check-run implicite (mal épinglé côté SHA pour
       # `issue_comment`) reste inoffensif mais ne doit jamais être
       # l'unique source de vérité.
       - name: Resolve PR scope
@@ -89,29 +89,46 @@ jobs:
             --expected-head "${{ steps.scope.outputs.expected_head }}" \
             --check
 
-      # Check-run explicite, épinglé au VRAI head via l'API Checks --
+      # Commit Status explicite, épinglé au VRAI head via l'API Statuses --
       # jamais dépendant de la résolution implicite de SHA de GitHub
       # Actions pour un événement `issue_comment`. Toujours publié
       # (`if: always()`), y compris quand l'étape précédente a été
       # sautée (PR hors scope) ou a échoué.
-      - name: Publish head-pinned check-run
+      #
+      # Remplace un check-run explicite (API Checks) utilisé jusqu'au
+      # 2026-08-15 : celui-ci s'est révélé peu fiable comme required
+      # status check -- un check-run ajouté par un déclenchement
+      # `issue_comment` ultérieur rejoint le check_suite déjà `completed`
+      # de la toute première évaluation pour ce head_sha, dont le rollup
+      # ne se rafraîchit jamais ; la branch-protection GitHub, qui
+      # s'appuie sur ce rollup, continue de rapporter le required check
+      # comme "expected" même quand le check-run individuel est bien
+      # `success` (confirmé sur PR#116 : merge bloqué malgré un
+      # check-run `success` fraîchement republié -- voir
+      # docs/reports/trusted_review_head_drift_incident_20260815.md et
+      # docs/reports/trusted_review_branch_protection_rehearsal_20260815.md).
+      # L'API Statuses n'a pas cette notion de suite/rollup : chaque
+      # POST est un enregistrement plat, immédiatement pris en compte --
+      # confirmé par rehearsal isolé (reconnaissance en moins de 10s).
+      - name: Publish head-pinned trusted-review status
         if: always() && steps.scope.outputs.in_scope == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           EXPECTED_HEAD: ${{ steps.scope.outputs.expected_head }}
           OUTCOME: ${{ steps.evaluate.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
           if [[ "$OUTCOME" == "success" ]]; then
-            conclusion=success
+            state=success
           else
-            conclusion=failure
+            state=failure
           fi
-          gh api "repos/$GITHUB_REPOSITORY/check-runs" \
-            -f name="Evaluate trusted human review (head-pinned)" \
-            -f head_sha="$EXPECTED_HEAD" \
-            -f status=completed \
-            -f conclusion="$conclusion" \
+          gh api "repos/$GITHUB_REPOSITORY/statuses/$EXPECTED_HEAD" \
+            -f state="$state" \
+            -f context="trusted-human-review/head-pinned" \
+            -f description="Trusted human review evaluation: $state" \
+            -f target_url="$RUN_URL" \
             >/dev/null
 
       - name: Fail the job if the review was not approved
