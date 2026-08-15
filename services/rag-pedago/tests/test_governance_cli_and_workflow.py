@@ -147,10 +147,29 @@ class TestProducerWorkflowShape:
 
 
 class TestGovernanceCli:
-    def test_the_three_subcommands_exist(self) -> None:
+    def test_the_four_subcommands_exist(self) -> None:
         parser = build_parser()
         choices = parser._subparsers._group_actions[0].choices  # type: ignore[union-attr]
-        assert set(choices) == {"resolve-corpus", "review-view", "h2-evidence"}
+        assert set(choices) == {
+            "resolve-corpus",
+            "review-view",
+            "h2-evidence",
+            "republish-catalog",
+        }
+
+    def test_republish_catalog_requires_every_binding(self) -> None:
+        """Un champ optionnel serait un champ qu'un producteur peut omettre
+        en silence — même discipline que ``h2-evidence``."""
+        parser = build_parser()
+        republish = parser._subparsers._group_actions[0].choices["republish-catalog"]  # type: ignore[union-attr]
+        optional = [
+            action.option_strings[0]
+            for action in republish._actions
+            if action.option_strings
+            and action.option_strings[0] != "-h"
+            and not action.required
+        ]
+        assert optional == []
 
     def test_resolve_corpus_takes_no_reference_argument(self) -> None:
         """La référence est dérivée du descripteur ; aucun argument ne peut
