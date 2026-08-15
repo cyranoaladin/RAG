@@ -1,0 +1,80 @@
+{
+  "current_main_sha": "a2a69dd472865c944b7cae463d4a50d1ee27bca0",
+  "generated_at": "2026-08-15",
+  "pr_merges": {
+    "PR100_SIGNER_MERGED": true,
+    "PR107_ATOMIC_DEPLOY_MERGED": true,
+    "PR108_LEDGER_MERGED": true,
+    "PR109_H2_WORKFLOW_MERGED": true,
+    "PR110_PROMOTION_WORKFLOW_MERGED": true,
+    "PR111_CATALOG_COMPILER_MERGED": true,
+    "PR112_IMAGE_REF_GATE_FIX_MERGED": true,
+    "PR114_HEAD_PINNED_CHECK_FIX_MERGED": true,
+    "PR115_AUTHORITY_PROMOTION_MERGED": true,
+    "PR116_RATIFICATION_MERGED": true,
+    "PR119_STATUS_TRANSPORT_FIX_MERGED": true
+  },
+  "adr_status": {
+    "ADR0035_STATUS": "Accepte",
+    "ADR0036_STATUS": "Accepte",
+    "ADR0042_STATUS": "Accepte"
+  },
+  "governance_gate": {
+    "TRUSTED_REQUIRED_GATE_RELIABLY_ENFORCED": true,
+    "required_context_final_name": "trusted-human-review/head-pinned"
+  },
+  "technical_readiness": {
+    "PRODUCTION_READINESS_SIGNING_TOOL_COMPLETE": true,
+    "CATALOG_REAL_CORPUS_COMPILE_PASS": true,
+    "H2_WORKFLOW_E2E_REHEARSAL_PASS": true,
+    "ATOMIC_DEPLOY_REHEARSAL_PASS": "PARTIAL",
+    "atomic_deploy_rehearsal_note": "wrapper logic proven with real Compose files and real bytes; run_subprocess remains a double, no real docker compose pull/up executed yet"
+  },
+  "corpus_eligibility": {
+    "PHYSICAL_FILES": 2584,
+    "MANIFEST_ENTRIES": 2583,
+    "UNIQUE_CONTENT_SHA256": 2582,
+    "DUPLICATE_CONTENT_GROUPS": 1,
+    "PII_PDF_UNION_COVERAGE": 2475,
+    "RELEASE_ELIGIBLE_ARTIFACTS": 63,
+    "AUTHORIZED_ELIGIBLE_ARTIFACTS": null,
+    "AUTHORIZED_ELIGIBLE_ARTIFACTS_STATUS": "BLOCKED_TECHNICAL",
+    "INGESTED_ELIGIBLE_ARTIFACTS": 0,
+    "API_DISCOVERABLE_ELIGIBLE_ARTIFACTS": 0
+  },
+  "governed_republish": {
+    "GOVERNED_REPUBLISH_STEP_EXISTS": false,
+    "status": "BLOCKED_TECHNICAL"
+  },
+  "google_drive": {
+    "DRIVE_MIRROR_COMPLETE": "UNVERIFIED_THIS_SESSION",
+    "last_known_value": true,
+    "last_known_value_source": "prior session summary, not re-verified live this session"
+  },
+  "production_github_environment": {
+    "PRODUCTION_ENVIRONMENT_EXISTS": false,
+    "REQUIRED_REVIEWER_CONFIGURED": false,
+    "MAIN_ONLY_POLICY": false,
+    "SELF_REVIEW_PREVENTED": false,
+    "ADMIN_BYPASS_DISABLED": false,
+    "LONG_LIVED_SECRETS": "UNKNOWN",
+    "status": "NOT_STARTED"
+  },
+  "consolidated_status": [
+    {"item": "Gouvernance PR#100/107/108/109/110/111/112/114/115/116/119", "status": "DONE"},
+    {"item": "Gate trusted-review fiable (Commit Status)", "status": "DONE"},
+    {"item": "Signing tool / catalog compile / H2 E2E rehearsals", "status": "DONE"},
+    {"item": "Atomic deploy - logique wrapper", "status": "DONE_PARTIAL"},
+    {"item": "Governed republish (catalogue -> INGEST materialise)", "status": "BLOCKED_TECHNICAL"},
+    {"item": "Strategie d'autorisation exacte-content (63 objets)", "status": "BLOCKED_TECHNICAL"},
+    {"item": "Currentness Tier A (1253 objets)", "status": "NOT_STARTED"},
+    {"item": "Google Drive mirror", "status": "UNVERIFIED_THIS_SESSION"},
+    {"item": "Production GitHub Environment", "status": "NOT_STARTED_BLOCKED_HUMAN"},
+    {"item": "Vrai deploiement Docker end-to-end", "status": "NOT_STARTED"},
+    {"item": "production-image-provenance.yml run reel", "status": "NOT_STARTED"},
+    {"item": "promote.yml run reel", "status": "NOT_STARTED"},
+    {"item": "FINAL_RAG_MAIN_SHA freeze", "status": "NOT_STARTED"},
+    {"item": "Signature offline", "status": "NOT_STARTED_HUMAN_GATE_FINAL"},
+    {"item": "Cutover production", "status": "NOT_STARTED_HUMAN_GATE_FINAL"}
+  ]
+}
