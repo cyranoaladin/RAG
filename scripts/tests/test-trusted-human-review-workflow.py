@@ -1,15 +1,27 @@
 #!/usr/bin/env python3
-"""Contrat statique du workflow privilégié de revue humaine LOT41V."""
+"""Contrat statique du workflow privilégié de revue humaine LOT41V.
+
+Étend la couverture d'origine avec la correction du ciblage SHA du
+check-run (voir `docs/reports/lot_fix_trusted_review_check_sha.md`) :
+déclenché par `issue_comment` (la commande `/nexus-trusted-review`), ce
+workflow n'a pas de `head_sha` naturel côté GitHub (contrairement à
+`pull_request_target`) : le check-run IMPLICITE que GitHub Actions crée
+pour ce job s'attache par défaut au tip de `main` au moment du
+déclenchement, jamais au head réel de la PR commentée -- confirmé
+empiriquement deux fois cette session (PR #104, PR #106) via
+`gh api repos/.../check-runs/<id>` montrant `head_sha` = le tip de main
+à ce moment, pas le head de la PR. Ce fichier ne déclenche jamais le
+workflow réellement : il parse son YAML et confronte sa structure au
+correctif (un check-run explicite, publié via l'API Checks, épinglé au
+vrai head résolu en sortie de step)."""
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
 import re
 import unittest
+from pathlib import Path
 
 import yaml
-
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "trusted-human-review.yml"
@@ -24,6 +36,7 @@ class TrustedHumanReviewWorkflowTests(unittest.TestCase):
         if not isinstance(document, dict):
             raise AssertionError("workflow must be a YAML object")
         cls.workflow = document
+        cls.steps = document["jobs"]["evaluate"]["steps"]
 
     def test_only_trusted_events_are_enabled(self) -> None:
         events = self.workflow.get("on")
@@ -44,11 +57,15 @@ class TrustedHumanReviewWorkflowTests(unittest.TestCase):
         self.assertEqual(events["issue_comment"]["types"], ["created"])
 
     def test_permissions_are_minimal_and_explicit(self) -> None:
+        # `checks: write` added: required to publish the head-pinned
+        # check-run explicitly (see module docstring) -- still nothing
+        # beyond the minimum this job actually needs.
         self.assertEqual(
             self.workflow.get("permissions"),
             {
                 "contents": "read",
                 "pull-requests": "read",
+                "checks": "write",
             },
         )
 
@@ -66,7 +83,12 @@ class TrustedHumanReviewWorkflowTests(unittest.TestCase):
             "github.event.issue.pull_request != null && "
             "github.event.comment.body == '/nexus-trusted-review') }}",
         )
-        self.assertNotIn("continue-on-error", json.dumps(job))
+        # `continue-on-error` now legitimately appears on the `evaluate`
+        # step (see test_evaluate_step_continues_on_error_so_the_check_run_step_still_runs)
+        # -- deliberate, so the head-pinned check-run can still be
+        # published even when the review evaluation itself fails. The
+        # dedicated test below (`test_job_still_fails_for_real_when_review_is_not_approved`)
+        # proves this never silently turns a real failure green.
 
         steps = job.get("steps")
         self.assertIsInstance(steps, list)
@@ -104,38 +126,78 @@ class TrustedHumanReviewWorkflowTests(unittest.TestCase):
             self.assertNotIn("${{ github.event", run)
             self.assertNotIn("${{ inputs", run)
 
-    def test_adapter_receives_numeric_pr_and_exact_event_head_via_env(self) -> None:
-        job = self.workflow["jobs"]["evaluate"]
-        steps = job["steps"]
-        publish = next(
-            step
-            for step in steps
-            if isinstance(step, dict)
-            and "trusted_human_review_github.py" in str(step.get("run", ""))
-        )
-        self.assertEqual(publish["env"]["GH_TOKEN"], "${{ github.token }}")
+    def test_scope_step_resolves_numeric_pr_and_exact_event_head_via_env(self) -> None:
+        scope = next(s for s in self.steps if s.get("id") == "scope")
+        self.assertEqual(scope["env"]["GH_TOKEN"], "${{ github.token }}")
         self.assertEqual(
-            publish["env"]["PR_NUMBER"],
+            scope["env"]["PR_NUMBER"],
             "${{ github.event.pull_request.number || "
             "github.event.issue.number }}",
         )
         self.assertEqual(
-            publish["env"]["EXPECTED_HEAD"],
+            scope["env"]["EXPECTED_HEAD"],
             "${{ github.event.pull_request.head.sha }}",
         )
-        run = publish["run"]
+        run = scope["run"]
         self.assertIn('[[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]', run)
         self.assertIn('if [[ -z "$EXPECTED_HEAD" ]]', run)
-        self.assertIn('pulls/$PR_NUMBER', run)
+        self.assertIn("pulls/$PR_NUMBER", run)
         self.assertIn("[.base.ref, .head.sha] | @tsv", run)
         self.assertIn('[[ "$OBSERVED_BASE_REF" == "main" ]]', run)
         self.assertIn("PR hors main ignorée", run)
         self.assertIn('[[ "$EXPECTED_HEAD" =~ ^[0-9a-f]{40}$ ]]', run)
+        self.assertIn("expected_head=$EXPECTED_HEAD", run)
+        self.assertIn("in_scope=true", run)
+
+    def test_evaluate_step_invokes_the_unchanged_adapter_script(self) -> None:
+        evaluate = next(s for s in self.steps if s.get("id") == "evaluate")
+        run = evaluate["run"]
+        self.assertIn("trusted_human_review_github.py", run)
         self.assertIn("--check", run)
         self.assertNotIn("--publish", run)
         self.assertNotIn("--target-url", run)
-        self.assertIn('"$PR_NUMBER"', run)
-        self.assertIn('"$EXPECTED_HEAD"', run)
+        self.assertIn("${{ steps.scope.outputs.pr_number }}", run)
+        self.assertIn("${{ steps.scope.outputs.expected_head }}", run)
+
+    def test_evaluate_step_continues_on_error_so_the_check_run_step_still_runs(self) -> None:
+        evaluate_step = next(s for s in self.steps if s.get("id") == "evaluate")
+        self.assertTrue(evaluate_step.get("continue-on-error"))
+
+    def test_check_run_is_published_explicitly_pinned_to_the_resolved_head(self) -> None:
+        publish_step = next(
+            s for s in self.steps if s.get("name") == "Publish head-pinned check-run"
+        )
+        self.assertEqual(publish_step.get("if"), "always() && steps.scope.outputs.in_scope == 'true'")
+        run = publish_step["run"]
+        self.assertIn("check-runs", run)
+        self.assertIn('head_sha="$EXPECTED_HEAD"', run)
+        self.assertEqual(
+            publish_step["env"]["EXPECTED_HEAD"],
+            "${{ steps.scope.outputs.expected_head }}",
+        )
+
+    def test_check_run_conclusion_reflects_the_evaluate_step_outcome(self) -> None:
+        publish_step = next(
+            s for s in self.steps if s.get("name") == "Publish head-pinned check-run"
+        )
+        self.assertEqual(publish_step["env"]["OUTCOME"], "${{ steps.evaluate.outcome }}")
+        run = publish_step["run"]
+        self.assertIn('"$OUTCOME" == "success"', run)
+        self.assertIn("conclusion=success", run)
+        self.assertIn("conclusion=failure", run)
+
+    def test_job_still_fails_for_real_when_review_is_not_approved(self) -> None:
+        # continue-on-error on the `evaluate` step would otherwise leave
+        # the whole job green even when the review was refused -- a
+        # dedicated final step must still fail it for real.
+        fail_step = next(
+            s for s in self.steps if s.get("name") == "Fail the job if the review was not approved"
+        )
+        self.assertEqual(
+            fail_step.get("if"),
+            "steps.scope.outputs.in_scope == 'true' && steps.evaluate.outcome != 'success'",
+        )
+        self.assertIn("exit 1", fail_step["run"])
 
     def test_concurrency_is_bound_to_the_pull_request(self) -> None:
         concurrency = self.workflow.get("concurrency")
