@@ -14,13 +14,18 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
 import pytest
 import yaml
 
-from rag_pedago.imports.h2b_coverage_report import (
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import test_h2b_coverage_report as gate_fixtures  # noqa: E402
+
+from rag_pedago.imports.h2b_coverage_report import (  # noqa: E402
     _load_currentness_verification_evidence,
     _promote_currentness_verified_candidates,
     generate_coverage_report,
@@ -627,3 +632,133 @@ class TestGenerateCoverageReportWiresCurrentnessPromotion:
         # a real INGEST candidate -- the unclassified one never appears.
         assert report.blocked_ingest_candidates == 1
         assert report.mandatory_gate_blockers == {"authority": 1}
+
+    def test_currentness_promoted_candidate_is_required_by_authority(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Régression directe pour le Finding #1 (audit du 2026-08-15,
+        « correction de séquence ») : le périmètre requis par l'autorité
+        doit être mesuré APRÈS la promotion currentness. Une autorité qui
+        ne couvre que l'ancien candidat (``CONTENT_ACTUEL``) et jamais
+        celui promu par currentness (``CONTENT_UNCLASSIFIED``) doit être
+        refusée -- si elle passait, ce serait la preuve que le périmètre
+        requis a été mesuré sur l'état pré-promotion, exactement le
+        défaut que ce lot corrige."""
+        gate_fixtures._install_governed_root(monkeypatch, tmp_path)
+        paths = _write_integration_fixtures(tmp_path)
+        authority_document = {
+            "protocol_version": "LOT41A-V2",
+            "authorization_id": "currentness_ordering_regression_v1",
+            "decision": "AUTHORIZE_INGESTION_SCOPE",
+            "manifest_digest": _INTEGRATION_MANIFEST_SHA256,
+            "profile_id": "currentness_ordering_profile",
+            "profile_version": "1.0.0",
+            "profile_fingerprint": "f" * 64,
+            "allowed_domains": ["eduscol.education.fr"],
+            "rights_categories": ["officiel_public"],
+            "exclusions": [],
+            "pii_absence_attested": True,
+            "pii_absence_evidence": "Manual review",
+            "valid_from": "2026-01-01T00:00:00.000000Z",
+            "valid_until": "2026-12-31T23:59:59.999999Z",
+            # Ne couvre QUE l'ancien candidat -- jamais celui promu par
+            # currentness, exactement le défaut historique.
+            "allowed_content_sha256": [CONTENT_ACTUEL],
+            "scope": {
+                "audience": ["libre"],
+                "candidat": "libre",
+                "collection": "test",
+                "matiere": "maths",
+                "niveau": "terminale",
+                "programme_version": "v1",
+                "school_year": "2026-2027",
+                "tenant": "libre_terminale",
+                "visibility": "public",
+                "voie": "generale",
+            },
+        }
+        authority_path = gate_fixtures._write_authority(
+            tmp_path / "authority.json", authority_document
+        )
+        gate_fixtures._write_review_binding(tmp_path, authority_document)
+
+        with pytest.raises(ValueError, match="SEMANTIC_VALIDATION"):
+            generate_coverage_report(
+                paths["catalog"],
+                rights_path=paths["rights"],
+                pii_path=paths["pii"],
+                routing_path=paths["routing"],
+                golden_path=paths["golden"],
+                manifest_path=paths["manifest"],
+                authority_path=authority_path,
+                authority_review_binding_path=tmp_path / "review_binding.json",
+                authority_trust_anchor_path=gate_fixtures._write_trust_anchor(tmp_path),
+                authority_environment="rehearsal",
+                expected_total=3,
+                expected_manifest_sha256=_INTEGRATION_MANIFEST_SHA256,
+                authority_now=gate_fixtures.AUTHORITY_NOW,
+                currentness_verification_path=paths["currentness_evidence"],
+            )
+
+    def test_currentness_promoted_candidate_is_covered_when_authority_names_it(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Contrôle de sensibilité pour le test précédent : la même
+        promotion currentness, mais avec une autorité qui couvre
+        réellement les DEUX candidats -- doit passer la validation
+        sémantique (aucune levée), confirmant que le refus ci-dessus tient
+        à la couverture, pas à un défaut indépendant de la fixture."""
+        gate_fixtures._install_governed_root(monkeypatch, tmp_path)
+        paths = _write_integration_fixtures(tmp_path)
+        authority_document = {
+            "protocol_version": "LOT41A-V2",
+            "authorization_id": "currentness_ordering_regression_v2",
+            "decision": "AUTHORIZE_INGESTION_SCOPE",
+            "manifest_digest": _INTEGRATION_MANIFEST_SHA256,
+            "profile_id": "currentness_ordering_profile",
+            "profile_version": "1.0.0",
+            "profile_fingerprint": "f" * 64,
+            "allowed_domains": ["eduscol.education.fr"],
+            "rights_categories": ["officiel_public"],
+            "exclusions": [],
+            "pii_absence_attested": True,
+            "pii_absence_evidence": "Manual review",
+            "valid_from": "2026-01-01T00:00:00.000000Z",
+            "valid_until": "2026-12-31T23:59:59.999999Z",
+            "allowed_content_sha256": [CONTENT_ACTUEL, CONTENT_UNCLASSIFIED],
+            "scope": {
+                "audience": ["libre"],
+                "candidat": "libre",
+                "collection": "test",
+                "matiere": "maths",
+                "niveau": "terminale",
+                "programme_version": "v1",
+                "school_year": "2026-2027",
+                "tenant": "libre_terminale",
+                "visibility": "public",
+                "voie": "generale",
+            },
+        }
+        authority_path = gate_fixtures._write_authority(
+            tmp_path / "authority.json", authority_document
+        )
+        gate_fixtures._write_review_binding(tmp_path, authority_document)
+
+        report = generate_coverage_report(
+            paths["catalog"],
+            rights_path=paths["rights"],
+            pii_path=paths["pii"],
+            routing_path=paths["routing"],
+            golden_path=paths["golden"],
+            manifest_path=paths["manifest"],
+            authority_path=authority_path,
+            authority_review_binding_path=tmp_path / "review_binding.json",
+            authority_trust_anchor_path=gate_fixtures._write_trust_anchor(tmp_path),
+            authority_environment="rehearsal",
+            expected_total=3,
+            expected_manifest_sha256=_INTEGRATION_MANIFEST_SHA256,
+            authority_now=gate_fixtures.AUTHORITY_NOW,
+            currentness_verification_path=paths["currentness_evidence"],
+        )
+        assert report.authority_required_count == 2
+        assert report.authority_covered_count == 2

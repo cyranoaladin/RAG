@@ -122,6 +122,17 @@ class CoverageReport:
     blocked_ingest_candidates: int = 0
     mandatory_gate_blockers: dict[str, int] = field(default_factory=dict)
 
+    # Périmètre requis par l'autorité — mesuré après toute promotion non
+    # liée à l'autorité, jamais avant (finding du 2026-08-15).
+    authority_required_count: int = 0
+    authority_required_set_sha256: str = ""
+    authority_covered_count: int = 0
+    final_ingest_count: int = 0
+    #: Candidats base_disposition=INGEST dont le blocage n'est PAS
+    #: l'autorité (ex: PII-blocked) — terminaux, jamais un trou
+    #: d'autorisation à combler.
+    non_authority_blocked_final_count: int = 0
+
     # Artifact / placement integration
     content_artifact_count: int = 0
     eduscol_unique_artifacts: int = 0
@@ -1207,50 +1218,107 @@ def _promote_authority_cleared_candidates(
     return promoted
 
 
-def ingest_candidate_facts(
+def authority_required_candidate_facts(
     physical_objects: list[Any],
 ) -> tuple[frozenset[str], tuple[tuple[str, str | None], ...]]:
-    """Empreintes et catégories de droits du périmètre réel d'ingestion.
+    """Le vrai périmètre que l'autorité doit couvrir.
 
-    Extrait de ``generate_coverage_report`` pour être réutilisé tel quel
-    par ``catalog_republish`` (matérialisation gouvernée du catalogue
-    promu) : les deux appelants doivent mesurer le même périmètre
-    ``base_disposition == "INGEST"`` de la même façon, jamais deux
-    implémentations qui pourraient diverger silencieusement.
+    Remplace l'ancien ``ingest_candidate_facts`` (supprimé — plus aucun
+    appelant après ce correctif), qui mesurait *tout* candidat
+    ``base_disposition == "INGEST"``, sans exiger qu'aucun autre gate
+    indépendant soit déjà au vert. Finding du 2026-08-15 (audit
+    post-PR#124), deux conséquences réelles, pas seulement théoriques :
 
-    H2 authority promotion (PR #109's E2E rehearsal finding, "Finding
-    C") : le périmètre de complétude doit être ``base_disposition``, le
-    véritable ensemble de candidats qu'un compilateur réel produit —
-    jamais ``disposition``, qui vaut toujours ``BLOCKED_NOT_CLEARED``
-    côté autorité pour des données réelles (le compilateur candidat n'a
-    jamais l'autorité LOT41A réelle) : borner sur ``disposition`` rend
-    ce contrôle vacuement satisfait sur un ensemble vide, pour tout
-    catalogue réel.
+    1. **Périmètre figé avant promotion currentness.** Si ce périmètre est
+       mesuré avant ``_promote_currentness_verified_candidates``, les
+       candidats qu'elle promeut (base_disposition passe à ``INGEST``
+       après coup) ne sont jamais exigés d'une autorisation — une
+       autorisation étroite validerait alors sa complétude sur un
+       périmètre déjà obsolète, silencieusement.
+    2. **Un candidat bloqué PII entrerait dans le périmètre requis.** Un
+       objet dont ``gates["pii"] != "PASS"`` ne sera *jamais* promu par
+       ``_promote_authority_cleared_candidates`` (qui exige lui aussi PII
+       au vert) — mais l'ancienne fonction l'exigerait quand même de
+       l'allowlist de l'autorité. Or ``ScopeAuthorizationArtifactV2``
+       exige ``pii_absence_attested=true`` sur tout son périmètre : aucune
+       autorisation réelle ne pourrait jamais satisfaire les deux
+       exigences à la fois pour un tel objet — une autorité authentique
+       serait structurellement condamnée à échouer la validation, pour un
+       objet dont elle n'a de toute façon aucune prise.
+
+    Cette fonction reprend **exactement** les mêmes conditions que
+    ``_promote_authority_cleared_candidates`` (même liste de gates, même
+    ordre de lecture) — l'invariant recherché est ``authority couvre X``
+    ⟺ ``X sera promu`` : les deux fonctions ne doivent jamais diverger.
+
+    **Doit toujours être appelée après toute promotion non liée à
+    l'autorité** (actuellement : ``_promote_currentness_verified_candidates``)
+    — jamais avant, sous peine de recalculer une complétude sur un
+    périmètre déjà dépassé.
     """
-    ingest_content_sha256 = frozenset(
-        str(item.get("content_sha256"))
-        for item in physical_objects
-        if isinstance(item, dict)
-        and item.get("base_disposition") == "INGEST"
-        and isinstance(item.get("content_sha256"), str)
+    required: list[dict[str, Any]] = []
+    for item in physical_objects:
+        if not isinstance(item, dict):
+            continue
+        if item.get("base_disposition") != "INGEST":
+            continue
+        if item.get("disposition") == "INGEST":
+            continue
+        gates = item.get("gate_statuses")
+        if not isinstance(gates, dict):
+            continue
+        if gates.get("authority") != "BLOCKED_NOT_CLEARED":
+            continue
+        if gates.get("rights") != "PASS":
+            continue
+        if gates.get("pii") != "PASS":
+            continue
+        content_sha256 = item.get("content_sha256")
+        if not isinstance(content_sha256, str) or re.fullmatch(
+            r"[0-9a-f]{64}", content_sha256
+        ) is None:
+            continue
+        if item.get("currentness") != "actuel":
+            continue
+        path_value = item.get("path")
+        if not isinstance(path_value, str) or not path_value.lower().endswith(".pdf"):
+            continue
+        if item.get("provenance_status") != "VERIFIED":
+            continue
+        attribution = item.get("attribution_metadata")
+        if not isinstance(attribution, dict) or not all(
+            isinstance(attribution.get(field_name), str)
+            and bool(attribution.get(field_name))
+            for field_name in ("source", "source_url")
+        ):
+            continue
+        required.append(item)
+
+    authority_required_sha256 = frozenset(
+        str(item["content_sha256"]) for item in required
     )
-    # F4 : les catégories de droits réellement portées par les objets
-    # routés vers l'ingestion. Collectées sur **tous** ces objets, pas sur
-    # un échantillon, et gardées avec l'identité de l'objet pour que le
-    # refus puisse nommer le fautif. Deux objets de même contenu mais de
-    # catégories différentes produisent donc deux entrées : les deux
-    # catégories devront être couvertes.
-    ingest_rights_candidates: tuple[tuple[str, str | None], ...] = tuple(
+    authority_required_rights_candidates: tuple[tuple[str, str | None], ...] = tuple(
         (
-            str(item.get("content_sha256")),
+            str(item["content_sha256"]),
             item.get("rights_category_candidate")
             if isinstance(item.get("rights_category_candidate"), str)
             else None,
         )
-        for item in physical_objects
-        if isinstance(item, dict) and item.get("base_disposition") == "INGEST"
+        for item in required
     )
-    return ingest_content_sha256, ingest_rights_candidates
+    return authority_required_sha256, authority_required_rights_candidates
+
+
+def authority_required_set_digest(authority_required_sha256: frozenset[str]) -> str:
+    """Empreinte canonique du périmètre requis — empreintes triées, une
+    par ligne, LF final.
+
+    Partagée par ``generate_coverage_report`` et
+    ``catalog_republish.republish_catalog`` : les deux doivent produire
+    le même périmètre pour le même catalogue promu, jamais deux calculs
+    qui pourraient diverger silencieusement. Un test dédié le prouve."""
+    canonical = "".join(f"{value}\n" for value in sorted(authority_required_sha256))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def generate_coverage_report(
@@ -1397,50 +1465,10 @@ def generate_coverage_report(
         pii_evidence,
     )
 
-    # H2-F Défaut 5 : les trois couches de validation d'autorité. La
-    # complétude de l'allowlist est vérifiée sur le périmètre RÉEL (tous
-    # les objets routés vers l'ingestion), jamais sur un échantillon —
-    # d'où la collecte préalable de leurs empreintes.
-    ingest_content_sha256, ingest_rights_candidates = ingest_candidate_facts(
-        physical_objects
-    )
-    authority_allowlist: frozenset[str] | None = None
-    authority_binding: dict[str, str] = {}
-    # Fail-closed par défaut : sans artefact d'autorité, aucune révocation
-    # n'a été vérifiée, et le rapport doit le dire.
-    authority_revocations_checked: bool = False
     if authority_environment not in ("production", "rehearsal"):
         raise ValueError(
             f"authority_environment must be 'production' or 'rehearsal', got "
             f"{authority_environment!r}"
-        )
-    if authority_path is not None:
-        # ADR-0035 : aucune de ces trois preuves n'est optionnelle. Rendre
-        # le reçu ou l'ancre facultatifs reviendrait à laisser le gate
-        # vert sur une autorisation que personne n'a relue — le défaut
-        # exact que ce lot ferme.
-        if authority_review_binding_path is None:
-            raise ValueError(
-                "REVIEW_BINDING_VALIDATION failed: an authority artifact requires "
-                "a sealed review binding receipt — a locally authored "
-                "authorization is not evidence of human review"
-            )
-        # L'ancre n'est plus un argument obligatoire : en production elle
-        # est gouvernée (F1) et fournir l'argument est un refus ; en
-        # rehearsal ``_resolve_trust_anchor_path`` exige la fixture.
-        authority_allowlist, authority_binding, authority_revocations_checked = _load_authority_evidence(
-            authority_path,
-            manifest_sha256,
-            ingest_content_sha256=ingest_content_sha256,
-            ingest_rights_candidates=ingest_rights_candidates,
-            now=authority_now or datetime.now(UTC),
-            revocations_path=authority_revocations_path,
-            binding_path=authority_review_binding_path,
-            trust_anchor_path=authority_trust_anchor_path,
-            # Le mode ``rehearsal`` exerce les clés de test et ne peut jamais
-            # produire un verdict final vert (cf. ``coverage_complete``).
-            environment="test" if authority_environment == "rehearsal" else "production",
-            repository_root=repository_root or _REPOSITORY_ROOT,
         )
 
     # La promotion opère sur une copie profonde : ``physical_objects`` est
@@ -1448,6 +1476,12 @@ def generate_coverage_report(
     # la validation golden-corpus, plus bas, exige que ``catalog`` reste
     # bit-à-bit identique au fichier catalogue sur disque. Seule cette
     # copie voit l'état promu ; le catalogue original n'est jamais muté.
+    #
+    # Finding du 2026-08-15 : la promotion currentness doit s'appliquer
+    # AVANT que le périmètre requis par l'autorité ne soit mesuré — sinon
+    # les candidats qu'elle promeut ne sont jamais exigés d'une
+    # autorisation, et une autorisation étroite validerait sa complétude
+    # sur un périmètre déjà obsolète.
     promoted_physical_objects = copy.deepcopy(physical_objects)
     if currentness_verification_path is not None:
         # Gap Tier A (audit du 2026-08-15) : une preuve de currentness par
@@ -1485,9 +1519,75 @@ def generate_coverage_report(
             pii_cleared_sha256=frozenset(pii_cleared_sha256_set),
             pii_quarantined_sha256=frozenset(pii_quarantined_sha256_set),
         )
+
+    # H2-F Défaut 5 : les trois couches de validation d'autorité. La
+    # complétude de l'allowlist est vérifiée sur le vrai périmètre requis
+    # — mesuré ICI, après toute promotion non liée à l'autorité, jamais
+    # avant (voir la docstring d'``authority_required_candidate_facts``).
+    authority_required_sha256, authority_required_rights_candidates = (
+        authority_required_candidate_facts(promoted_physical_objects)
+    )
+    authority_required_set_sha256 = authority_required_set_digest(
+        authority_required_sha256
+    )
+    authority_allowlist: frozenset[str] | None = None
+    authority_binding: dict[str, str] = {}
+    # Fail-closed par défaut : sans artefact d'autorité, aucune révocation
+    # n'a été vérifiée, et le rapport doit le dire.
+    authority_revocations_checked: bool = False
+    if authority_path is not None:
+        # ADR-0035 : aucune de ces trois preuves n'est optionnelle. Rendre
+        # le reçu ou l'ancre facultatifs reviendrait à laisser le gate
+        # vert sur une autorisation que personne n'a relue — le défaut
+        # exact que ce lot ferme.
+        if authority_review_binding_path is None:
+            raise ValueError(
+                "REVIEW_BINDING_VALIDATION failed: an authority artifact requires "
+                "a sealed review binding receipt — a locally authored "
+                "authorization is not evidence of human review"
+            )
+        # L'ancre n'est plus un argument obligatoire : en production elle
+        # est gouvernée (F1) et fournir l'argument est un refus ; en
+        # rehearsal ``_resolve_trust_anchor_path`` exige la fixture.
+        authority_allowlist, authority_binding, authority_revocations_checked = _load_authority_evidence(
+            authority_path,
+            manifest_sha256,
+            ingest_content_sha256=authority_required_sha256,
+            ingest_rights_candidates=authority_required_rights_candidates,
+            now=authority_now or datetime.now(UTC),
+            revocations_path=authority_revocations_path,
+            binding_path=authority_review_binding_path,
+            trust_anchor_path=authority_trust_anchor_path,
+            # Le mode ``rehearsal`` exerce les clés de test et ne peut jamais
+            # produire un verdict final vert (cf. ``coverage_complete``).
+            environment="test" if authority_environment == "rehearsal" else "production",
+            repository_root=repository_root or _REPOSITORY_ROOT,
+        )
     _promote_authority_cleared_candidates(
         promoted_physical_objects,
         authority_allowlist=authority_allowlist,
+    )
+
+    authority_covered_count = (
+        len(authority_required_sha256 & authority_allowlist)
+        if authority_allowlist
+        else 0
+    )
+    final_ingest_count = sum(
+        1
+        for item in promoted_physical_objects
+        if isinstance(item, dict) and item.get("disposition") == "INGEST"
+    )
+    #: Base-INGEST candidates that are NOT part of the authority-required
+    #: perimeter — some OTHER gate (typically PII) blocks them, terminally,
+    #: never an authority gap the operator needs to close.
+    non_authority_blocked_final_count = sum(
+        1
+        for item in promoted_physical_objects
+        if isinstance(item, dict)
+        and item.get("base_disposition") == "INGEST"
+        and item.get("disposition") != "INGEST"
+        and str(item.get("content_sha256")) not in authority_required_sha256
     )
 
     blocked_ingest_candidates = 0
@@ -1659,6 +1759,11 @@ def generate_coverage_report(
         safety_invariants=safety_invariants,
         blocked_ingest_candidates=blocked_ingest_candidates,
         mandatory_gate_blockers=dict(sorted(mandatory_gate_blockers.items())),
+        authority_required_count=len(authority_required_sha256),
+        authority_required_set_sha256=authority_required_set_sha256,
+        authority_covered_count=authority_covered_count,
+        final_ingest_count=final_ingest_count,
+        non_authority_blocked_final_count=non_authority_blocked_final_count,
         content_artifact_count=catalog.get("content_artifact_count", 0),
         eduscol_unique_artifacts=catalog.get("eduscol_unique_artifacts", 0),
         eduscol_placement_count=catalog.get("eduscol_placement_count", 0),
@@ -1739,6 +1844,11 @@ def render_markdown(report: CoverageReport) -> str:
         f"| Unclassified objects | **{report.unclassified}** |",
         f"| Multiple primary dispositions | **{report.multiple_primary_disposition}** |",
         f"| Blocked ingest candidates | **{report.blocked_ingest_candidates}** |",
+        f"| Authority-required candidates | **{report.authority_required_count}** |",
+        f"| Authority-covered candidates | **{report.authority_covered_count}** |",
+        f"| Final INGEST count | **{report.final_ingest_count}** |",
+        "| Non-authority-blocked (terminal) | "
+        f"**{report.non_authority_blocked_final_count}** |",
         f"| Decision coverage complete | **{'PASS' if report.decision_coverage_complete else 'FAIL'}** |",
         f"| Golden validation | **{'PASS' if report.golden_validation_pass else 'FAIL'}** |",
         "| Authority review binding (ADR-0035) | "
@@ -1749,6 +1859,11 @@ def render_markdown(report: CoverageReport) -> str:
         f"| H2 coverage gate | **{'PASS' if report.h2_coverage_gate_pass else 'FAIL'}** |",
         "",
         f"BLOCKED_INGEST_CANDIDATES={report.blocked_ingest_candidates}",
+        f"AUTHORITY_REQUIRED_COUNT={report.authority_required_count}",
+        f"AUTHORITY_REQUIRED_SET_SHA256={report.authority_required_set_sha256}",
+        f"AUTHORITY_COVERED_COUNT={report.authority_covered_count}",
+        f"FINAL_INGEST_COUNT={report.final_ingest_count}",
+        f"NON_AUTHORITY_BLOCKED_FINAL_COUNT={report.non_authority_blocked_final_count}",
         "DECISION_COVERAGE_COMPLETE="
         f"{'true' if report.decision_coverage_complete else 'false'}",
         "GOLDEN_VALIDATION_PASS="

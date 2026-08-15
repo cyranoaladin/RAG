@@ -1,6 +1,9 @@
 """Tests for the real sealed-corpus H2-B coverage report."""
 import hashlib
 import json
+import os
+import subprocess
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -24,6 +27,8 @@ from pydantic import ValidationError
 from rag_pedago.imports import h2b_coverage_report as module
 from rag_pedago.imports.h2b_coverage_report import (
     _promote_authority_cleared_candidates,
+    authority_required_candidate_facts,
+    authority_required_set_digest,
     generate_coverage_report,
     render_markdown,
 )
@@ -1052,6 +1057,639 @@ class TestPromoteAuthorityClearedCandidatesUnit:
         assert item["disposition"] == "INGEST"
 
 
+class TestAuthorityRequiredCandidateFactsUnit:
+    """Couverture par branche, une par condition, pour
+    ``authority_required_candidate_facts`` -- même discipline que
+    ``TestPromoteAuthorityClearedCandidatesUnit``, dont cette fonction
+    reprend délibérément les mêmes conditions (l'invariant recherché :
+    « autorité couvre X » ⟺ « X sera promu »). Chaque test isole une
+    branche pour qu'une mutation puisse être attribuée sans ambiguïté."""
+
+    def _item(self) -> dict[str, Any]:
+        item = _valid_promotable_item()
+        item["rights_category_candidate"] = "officiel_public"
+        return item
+
+    def _required(self, item: dict[str, Any]) -> frozenset[str]:
+        required_sha256, _ = authority_required_candidate_facts([item])
+        return required_sha256
+
+    def test_baseline_item_is_in_the_required_set(self) -> None:
+        item = self._item()
+        assert self._required(item) == {item["content_sha256"]}
+
+    def test_non_dict_entries_are_skipped(self) -> None:
+        required_sha256, required_rights = authority_required_candidate_facts(
+            ["not-a-dict"]
+        )
+        assert required_sha256 == frozenset()
+        assert required_rights == ()
+
+    def test_non_ingest_base_disposition_is_excluded(self) -> None:
+        item = self._item()
+        item["base_disposition"] = "EXCLUDE"
+        assert self._required(item) == frozenset()
+
+    def test_already_ingest_disposition_is_excluded(self) -> None:
+        """Un candidat déjà ``disposition=INGEST`` n'est plus « requis » --
+        il l'est déjà, et la réutilisation de la condition
+        ``_promote_authority_cleared_candidates`` évite de le recompter,
+        exactement le défaut historique borné sur ``disposition`` que ce
+        Finding corrige dans l'autre sens (Finding #1)."""
+        item = self._item()
+        item["disposition"] = "INGEST"
+        assert self._required(item) == frozenset()
+
+    def test_missing_gate_statuses_is_excluded(self) -> None:
+        item = self._item()
+        del item["gate_statuses"]
+        assert self._required(item) == frozenset()
+
+    def test_authority_gate_not_blocked_not_cleared_is_excluded(self) -> None:
+        item = self._item()
+        item["gate_statuses"]["authority"] = "BLOCKED_PII_DETECTED"
+        assert self._required(item) == frozenset()
+
+    def test_rights_not_pass_is_excluded(self) -> None:
+        item = self._item()
+        item["gate_statuses"]["rights"] = "BLOCKED_NOT_CLEARED"
+        assert self._required(item) == frozenset()
+
+    def test_pii_not_pass_is_excluded(self) -> None:
+        """Preuve directe du Finding #2 : un candidat bloqué PII n'est
+        jamais dans le périmètre requis."""
+        item = self._item()
+        item["gate_statuses"]["pii"] = "BLOCKED_PII_DETECTED"
+        assert self._required(item) == frozenset()
+
+    def test_malformed_content_sha256_is_excluded(self) -> None:
+        item = self._item()
+        item["content_sha256"] = "not-a-real-sha"
+        assert self._required(item) == frozenset()
+
+    def test_stale_currentness_is_excluded(self) -> None:
+        item = self._item()
+        item["currentness"] = "transition"
+        assert self._required(item) == frozenset()
+
+    def test_non_pdf_path_is_excluded(self) -> None:
+        item = self._item()
+        item["path"] = "01_EDUSCOL_OFFICIEL/current.docx"
+        assert self._required(item) == frozenset()
+
+    def test_unverified_provenance_is_excluded(self) -> None:
+        item = self._item()
+        item["provenance_status"] = "UNVERIFIED"
+        assert self._required(item) == frozenset()
+
+    def test_missing_attribution_is_excluded(self) -> None:
+        item = self._item()
+        del item["attribution_metadata"]
+        assert self._required(item) == frozenset()
+
+    def test_incomplete_attribution_is_excluded(self) -> None:
+        item = self._item()
+        item["attribution_metadata"] = {"source": "Eduscol", "source_url": ""}
+        assert self._required(item) == frozenset()
+
+    def test_rights_candidates_carry_the_declared_category(self) -> None:
+        item = self._item()
+        _, required_rights = authority_required_candidate_facts([item])
+        assert required_rights == ((item["content_sha256"], "officiel_public"),)
+
+    def test_rights_candidate_none_when_not_a_string(self) -> None:
+        item = self._item()
+        item["rights_category_candidate"] = None
+        _, required_rights = authority_required_candidate_facts([item])
+        assert required_rights == ((item["content_sha256"], None),)
+
+
+class TestAuthorityRequiredSetDigestUnit:
+    """``authority_required_set_digest`` : sensibilité à l'ordre (jamais),
+    au contenu (toujours) -- l'invariant partagé avec
+    ``catalog_republish.republish_catalog`` (§8 de l'audit du
+    2026-08-15) dépend de sa stabilité exacte."""
+
+    def test_empty_set_has_a_stable_digest(self) -> None:
+        assert authority_required_set_digest(frozenset()) == hashlib.sha256(
+            b""
+        ).hexdigest()
+
+    def test_digest_is_order_independent(self) -> None:
+        a = authority_required_set_digest(frozenset({"1" * 64, "2" * 64}))
+        b = authority_required_set_digest(frozenset({"2" * 64, "1" * 64}))
+        assert a == b
+
+    def test_digest_changes_when_the_set_changes(self) -> None:
+        a = authority_required_set_digest(frozenset({"1" * 64}))
+        b = authority_required_set_digest(frozenset({"1" * 64, "2" * 64}))
+        assert a != b
+
+    def test_digest_matches_the_documented_canonical_form(self) -> None:
+        expected = hashlib.sha256(f"{'1' * 64}\n{'2' * 64}\n".encode()).hexdigest()
+        assert (
+            authority_required_set_digest(frozenset({"2" * 64, "1" * 64})) == expected
+        )
+
+    def test_digest_is_independent_of_the_interpreter_hash_seed(self) -> None:
+        """La stabilité inter-processus (``H2_...SHA256 ==
+        REPUBLISH_...SHA256``, §8 de l'audit du 2026-08-15) dépend de
+        ``sorted()`` -- l'ordre d'itération naturel d'un ``frozenset[str]``
+        varie avec ``PYTHONHASHSEED`` (randomisé par défaut entre
+        processus Python). Un test dans un seul processus ne peut pas
+        distinguer les deux : il exécute donc un second interpréteur avec
+        un ``PYTHONHASHSEED`` différent et exige un digest identique."""
+        script = (
+            "from rag_pedago.imports.h2b_coverage_report import "
+            "authority_required_set_digest\n"
+            "print(authority_required_set_digest(frozenset("
+            "{'1'*64, '2'*64, '3'*64, '9'*64, '8'*64})))\n"
+        )
+        digests = set()
+        for seed in ("0", "1", "2", "3", "4"):
+            proc = subprocess.run(
+                [sys.executable, "-c", script],
+                capture_output=True,
+                text=True,
+                env={**os.environ, "PYTHONHASHSEED": seed},
+                cwd=Path(__file__).resolve().parent.parent,
+                check=True,
+            )
+            digests.add(proc.stdout.strip())
+        assert len(digests) == 1, (
+            f"digest is not PYTHONHASHSEED-independent: {digests}"
+        )
+
+
+class TestAuthorityRequiredSetTopologyABCDEF:
+    """Régression pour la topologie réelle constatée après PR#124 : 73
+    candidats ``base_disposition=INGEST`` (64 historiques + 9 promus par
+    la vérification de currentness), dont 72 passent tous les gates
+    non-autorité et 1 reste bloqué PII en permanence. Réduite ici à 2
+    candidats « bons » (stand-in pour les 72) et 1 candidat bloqué PII
+    (stand-in pour le 1) -- même structure, lisible sans 73 lignes.
+
+    Cas A-F de l'audit du 2026-08-15 (correction de séquence)."""
+
+    _GOOD_A_SHA256 = "1" * 64
+    _GOOD_B_SHA256 = "2" * 64
+    _PII_BLOCKED_SHA256 = "3" * 64
+
+    def _topology(self) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+        good_a = _valid_promotable_item()
+        good_a["content_sha256"] = self._GOOD_A_SHA256
+        good_a["rights_category_candidate"] = "officiel_public"
+        good_b = _valid_promotable_item()
+        good_b["content_sha256"] = self._GOOD_B_SHA256
+        good_b["rights_category_candidate"] = "officiel_public"
+        pii_blocked = _valid_promotable_item()
+        pii_blocked["content_sha256"] = self._PII_BLOCKED_SHA256
+        pii_blocked["rights_category_candidate"] = "officiel_public"
+        pii_blocked["gate_statuses"]["pii"] = "BLOCKED_PII_DETECTED"
+        return good_a, good_b, pii_blocked
+
+    def _validate(
+        self,
+        allowed_content_sha256: frozenset[str],
+        *,
+        ingest_content_sha256: frozenset[str],
+        ingest_rights_candidates: tuple[tuple[str, str | None], ...],
+    ) -> frozenset[str]:
+        artifact = ScopeAuthorizationArtifactV2.model_validate(
+            {
+                **_valid_authority_document(),
+                "allowed_content_sha256": sorted(allowed_content_sha256),
+            }
+        )
+        return module._authority_semantic_validation(
+            artifact,
+            manifest_sha256=artifact.manifest_digest,
+            ingest_content_sha256=ingest_content_sha256,
+            ingest_rights_candidates=ingest_rights_candidates,
+            now=AUTHORITY_NOW,
+            revoked_authorization_ids=frozenset(),
+        )
+
+    def test_required_set_excludes_the_pii_blocked_candidate(self) -> None:
+        """Preuve directe du Finding #2 : le candidat bloqué PII n'entre
+        jamais dans le périmètre requis, quelle que soit l'autorité --
+        exclu structurellement avant même qu'aucune autorité ne soit
+        consultée."""
+        good_a, good_b, pii_blocked = self._topology()
+        required_sha256, _ = authority_required_candidate_facts(
+            [good_a, good_b, pii_blocked]
+        )
+        assert required_sha256 == {self._GOOD_A_SHA256, self._GOOD_B_SHA256}
+        assert self._PII_BLOCKED_SHA256 not in required_sha256
+
+    def test_case_a_authority_covering_none_of_the_required_set_is_refused(
+        self,
+    ) -> None:
+        """(A) Stand-in pour « l'autorité ne couvre que les 64 anciens sur
+        73 » : une autorité qui ne couvre AUCUN des candidats requis
+        (elle nomme un contenu totalement étranger au périmètre requis)
+        est refusée."""
+        good_a, good_b, pii_blocked = self._topology()
+        required_sha256, required_rights = authority_required_candidate_facts(
+            [good_a, good_b, pii_blocked]
+        )
+        with pytest.raises(ValueError, match="does not cover"):
+            self._validate(
+                frozenset({"9" * 64}),  # ni good_a ni good_b
+                ingest_content_sha256=required_sha256,
+                ingest_rights_candidates=required_rights,
+            )
+
+    def test_case_b_authority_covering_all_but_one_is_refused(self) -> None:
+        """(B) Stand-in pour « l'autorité couvre 71 objets sur 72 » : il
+        manque UN SEUL candidat requis -- toujours un refus complet,
+        jamais un crédit partiel."""
+        good_a, good_b, pii_blocked = self._topology()
+        required_sha256, required_rights = authority_required_candidate_facts(
+            [good_a, good_b, pii_blocked]
+        )
+        with pytest.raises(ValueError, match="does not cover"):
+            self._validate(
+                frozenset({self._GOOD_A_SHA256}),  # good_b manquant
+                ingest_content_sha256=required_sha256,
+                ingest_rights_candidates=required_rights,
+            )
+
+    def test_case_c_authority_covering_exactly_the_required_set_passes(
+        self,
+    ) -> None:
+        """(C) Stand-in pour « l'autorité couvre exactement 72 sur 72 » :
+        validation sémantique acceptée, l'allowlist retournée est
+        exactement le périmètre requis."""
+        good_a, good_b, pii_blocked = self._topology()
+        required_sha256, required_rights = authority_required_candidate_facts(
+            [good_a, good_b, pii_blocked]
+        )
+        allowlist = self._validate(
+            required_sha256,
+            ingest_content_sha256=required_sha256,
+            ingest_rights_candidates=required_rights,
+        )
+        assert allowlist == required_sha256
+
+    def test_case_d_authority_naming_the_pii_blocked_candidate_never_promotes_it(
+        self,
+    ) -> None:
+        """(D) Même si l'autorité nomme EXPLICITEMENT le candidat bloqué
+        PII dans son allowlist (autorité mal formée ou trop large), la
+        promotion refuse toujours de le faire passer à INGEST -- le gate
+        PII, indépendant de l'autorité, reste la dernière ligne de
+        défense : aucune autorisation ne peut jamais rendre INGEST un
+        contenu que le scan PII a bloqué."""
+        good_a, good_b, pii_blocked = self._topology()
+        wide_allowlist = frozenset(
+            {self._GOOD_A_SHA256, self._GOOD_B_SHA256, self._PII_BLOCKED_SHA256}
+        )
+        promoted = _promote_authority_cleared_candidates(
+            [good_a, good_b, pii_blocked], authority_allowlist=wide_allowlist
+        )
+        assert promoted == 2
+        assert pii_blocked["disposition"] == "REVIEW_REQUIRED"
+        assert pii_blocked["gate_statuses"]["authority"] == "BLOCKED_NOT_CLEARED"
+
+    def test_case_e_exact_coverage_promotes_the_two_good_candidates_only(
+        self,
+    ) -> None:
+        """(E) Stand-in pour « PROMOTED_TO_INGEST=72,
+        PII_BLOCKED_REMAINS_NON_INGEST=1 » : une autorité couvrant
+        exactement le périmètre requis promeut les bons candidats et
+        laisse le candidat bloqué PII non-INGEST."""
+        good_a, good_b, pii_blocked = self._topology()
+        required_sha256, _ = authority_required_candidate_facts(
+            [good_a, good_b, pii_blocked]
+        )
+        promoted = _promote_authority_cleared_candidates(
+            [good_a, good_b, pii_blocked], authority_allowlist=required_sha256
+        )
+        assert promoted == 2
+        assert good_a["disposition"] == "INGEST"
+        assert good_b["disposition"] == "INGEST"
+        assert pii_blocked["disposition"] == "REVIEW_REQUIRED"
+
+    def _write_case_f_catalog_and_evidence(
+        self, tmp_path: Path
+    ) -> tuple[Path, Path, Path, Path, Path]:
+        """Catalogue + preuves réels à 4 objets (2 bons + 1 bloqué PII +
+        l'entrée manifeste) -- juste assez pour exercer le gate final de
+        bout en bout sans reproduire les 73 lignes réelles."""
+        manifest_content = (
+            f"{self._GOOD_A_SHA256}  01_EDUSCOL_OFFICIEL/good-a.pdf\n"
+            f"{self._GOOD_B_SHA256}  01_EDUSCOL_OFFICIEL/good-b.pdf\n"
+            f"{self._PII_BLOCKED_SHA256}  01_EDUSCOL_OFFICIEL/pii-blocked.pdf\n"
+        )
+        manifest_sha256 = hashlib.sha256(manifest_content.encode()).hexdigest()
+        manifest_path = tmp_path / "00_ADMIN" / "SHA256SUMS.txt"
+        manifest_path.parent.mkdir(parents=True, exist_ok=True)
+        manifest_path.write_text(manifest_content, encoding="utf-8")
+
+        def _item(content_sha256: str, filename: str, pii_status: str) -> dict[str, Any]:
+            return {
+                "content_sha256": content_sha256,
+                "path": f"01_EDUSCOL_OFFICIEL/{filename}",
+                "base_disposition": "INGEST",
+                "disposition": "REVIEW_REQUIRED",
+                "zone": "01_EDUSCOL_OFFICIEL/",
+                "currentness": "actuel",
+                "rights_category_candidate": "officiel_public",
+                "gate_statuses": {
+                    "rights": "PASS",
+                    "pii": pii_status,
+                    "authority": "BLOCKED_NOT_CLEARED",
+                },
+                "provenance_status": "VERIFIED",
+                "attribution_metadata": {
+                    "source": "Eduscol",
+                    "source_url": f"https://eduscol.education.gouv.fr/{filename}",
+                },
+            }
+
+        catalog = {
+            "catalog_kind": "REAL_SEALED_CORPUS",
+            "manifest_sha256": manifest_sha256,
+            "manifest_entries": 3,
+            "physical_object_count": 4,
+            "content_artifact_count": 4,
+            "eduscol_unique_artifacts": 3,
+            "eduscol_placement_count": 3,
+            "eduscol_placements_classified": 3,
+            "eduscol_placements_unclassified": 0,
+            "multi_placement_artifacts": 0,
+            "disposition_counts": {
+                "INGEST": 0,
+                "REVIEW_REQUIRED": 3,
+                "QUARANTINE": 0,
+                "ARCHIVE_ONLY": 0,
+                "EXCLUDE": 1,
+                "UNSUPPORTED": 0,
+            },
+            "unclassified": 0,
+            "multiple_primary_disposition": 0,
+            "verification_passed": True,
+            "verification_errors": [],
+            "physical_objects": [
+                _item(self._GOOD_A_SHA256, "good-a.pdf", "PASS"),
+                _item(self._GOOD_B_SHA256, "good-b.pdf", "PASS"),
+                _item(
+                    self._PII_BLOCKED_SHA256, "pii-blocked.pdf", "BLOCKED_PII_DETECTED"
+                ),
+                {
+                    "content_sha256": manifest_sha256,
+                    "path": "00_ADMIN/SHA256SUMS.txt",
+                    "base_disposition": "EXCLUDE",
+                    "disposition": "EXCLUDE",
+                    "zone": "00_ADMIN/",
+                    "currentness": None,
+                    "gate_statuses": {},
+                    "provenance_status": "VERIFIED",
+                    "attribution_metadata": {
+                        "source": "NEXUS_CORPUS_GOVERNANCE",
+                        "source_reference": "00_ADMIN/SHA256SUMS.txt",
+                    },
+                },
+            ],
+        }
+        catalog_path = tmp_path / "case_f_catalog.json"
+        catalog_path.write_text(json.dumps(catalog), encoding="utf-8")
+
+        routing = {
+            "config_id": "case-f-routing-v1",
+            "manifest_sha256": manifest_sha256,
+            "rights_evidence_perimeter": ["00_ADMIN/", "01_EDUSCOL_OFFICIEL/"],
+            "zone_rules": [
+                {"zone_prefix": "00_ADMIN/", "disposition": "EXCLUDE", "reason": "admin"},
+                {
+                    "zone_prefix": "01_EDUSCOL_OFFICIEL/",
+                    "disposition": "INGEST",
+                    "currentness": "actuel",
+                },
+            ],
+        }
+        rights = {
+            "registry_id": "case-f-rights-v1",
+            "human_rights_decisions": {
+                "eduscol": {
+                    "decision_type": "HUMAN_ORGANIZATIONAL_RIGHTS_APPROVAL",
+                    "decision_maker": "Nexus Réussite",
+                    "decision_date": "2026-08-08",
+                    "scope_manifest_sha256": manifest_sha256,
+                    "scope_zone": "01_EDUSCOL_OFFICIEL/",
+                    "approved_for_production_rag": True,
+                    "generic_rights_blocker": False,
+                }
+            },
+            "source_evidence": {
+                "admin": {
+                    "zone": "00_ADMIN/",
+                    "rights_status": "REVIEW_REQUIRED",
+                    "disposition_override": "EXCLUDE",
+                },
+                "eduscol": {
+                    "zone": "01_EDUSCOL_OFFICIEL/",
+                    "rights_status": "CLEARED_BY_HUMAN_DECISION",
+                    "rights_decision_ref": "eduscol",
+                },
+            },
+            "summary": {"total_zones": 2},
+        }
+        required_paths = sorted(
+            [
+                "01_EDUSCOL_OFFICIEL/good-a.pdf",
+                "01_EDUSCOL_OFFICIEL/good-b.pdf",
+                "01_EDUSCOL_OFFICIEL/pii-blocked.pdf",
+            ]
+        )
+        pii = {
+            "evidence_kind": "REAL_CORPUS_PII_SCAN",
+            "scanner_version": "case-f-scanner-v1",
+            "scanner_sha256": "1" * 64,
+            "policy_version": "case-f-policy-v1",
+            "policy_sha256": "2" * 64,
+            "corpus_manifest_sha256": manifest_sha256,
+            "remote_access_mode": "READ_ONLY",
+            "remote_write_operations": 0,
+            "raw_pii_in_output": False,
+            "raw_pii_in_logs": False,
+            "required_pdf_path_count": len(required_paths),
+            "required_pdf_path_set_digest": hashlib.sha256(
+                "".join(f"{value}\n" for value in required_paths).encode()
+            ).hexdigest(),
+            "summary": {
+                "sha256_mismatches": 0,
+                "pii_scan_scope": "ALL_CORPUS_PDFS",
+                "pii_scan_required": len(required_paths),
+                "pii_scan_exempt": 0,
+            },
+            "results": [
+                {
+                    "content_sha256": self._GOOD_A_SHA256,
+                    "physical_object_count": 1,
+                    "status": "CLEARED",
+                    "error_code": None,
+                },
+                {
+                    "content_sha256": self._GOOD_B_SHA256,
+                    "physical_object_count": 1,
+                    "status": "CLEARED",
+                    "error_code": None,
+                },
+                {
+                    "content_sha256": self._PII_BLOCKED_SHA256,
+                    "physical_object_count": 1,
+                    "status": "QUARANTINED_PII",
+                    "error_code": None,
+                },
+            ],
+        }
+        routing_path = tmp_path / "case_f_routing.yml"
+        rights_path = tmp_path / "case_f_rights.yml"
+        pii_path = tmp_path / "case_f_pii.json"
+        routing_path.write_text(yaml.safe_dump(routing), encoding="utf-8")
+        rights_path.write_text(yaml.safe_dump(rights), encoding="utf-8")
+        pii_path.write_text(json.dumps(pii), encoding="utf-8")
+        return catalog_path, routing_path, rights_path, pii_path, manifest_path
+
+    def test_case_f_h2_final_gate_passes_without_authorizing_the_pii_blocked_content(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """(F) Le gate H2 final peut devenir PASS sans jamais exiger que
+        le contenu bloqué PII soit autorisé -- ``blocked_ingest_
+        candidates == 0`` n'est PAS une condition du gate final, seul le
+        périmètre requis (les candidats réellement éligibles à
+        l'autorité) doit être intégralement couvert et promu."""
+        _install_governed_root(monkeypatch, tmp_path)
+        (
+            catalog_path,
+            routing_path,
+            rights_path,
+            pii_path,
+            manifest_path,
+        ) = self._write_case_f_catalog_and_evidence(tmp_path)
+        manifest_sha256 = json.loads(catalog_path.read_text(encoding="utf-8"))[
+            "manifest_sha256"
+        ]
+        golden_path = tmp_path / "case_f_golden.yml"
+        golden_path.write_text(
+            yaml.safe_dump(
+                {
+                    "spec_id": "case_f_topology_v1",
+                    "catalog_kind_required": "REAL_SEALED_CORPUS",
+                    "positive_controls": [
+                        {
+                            "control_id": "pos_good_a",
+                            "sha256_prefix": self._GOOD_A_SHA256[:12],
+                            "expected_base_disposition": "INGEST",
+                            "expected_final_disposition": "REVIEW_REQUIRED",
+                            "expected_currentness": "actuel",
+                            "expected_gate_statuses": {
+                                "rights": "PASS",
+                                "pii": "PASS",
+                                "authority": "BLOCKED_NOT_CLEARED",
+                            },
+                        },
+                        {
+                            "control_id": "pos_good_b",
+                            "sha256_prefix": self._GOOD_B_SHA256[:12],
+                            "expected_base_disposition": "INGEST",
+                            "expected_final_disposition": "REVIEW_REQUIRED",
+                            "expected_currentness": "actuel",
+                            "expected_gate_statuses": {
+                                "rights": "PASS",
+                                "pii": "PASS",
+                                "authority": "BLOCKED_NOT_CLEARED",
+                            },
+                        },
+                    ],
+                    "boundary_controls": [],
+                    "negative_controls": [
+                        {
+                            "control_id": "neg_manifest",
+                            "path": "00_ADMIN/SHA256SUMS.txt",
+                            "expected_count": 1,
+                            "expected_disposition": "EXCLUDE",
+                        }
+                    ],
+                    "descriptive_assertions": {"authoritative": False, "items": []},
+                    "coverage_summary": {
+                        "total_controls": 3,
+                        "positive_controls": 2,
+                        "boundary_controls": 0,
+                        "negative_controls": 1,
+                    },
+                },
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+        authority_document = {
+            "protocol_version": "LOT41A-V2",
+            "authorization_id": "case_f_authority_v1",
+            "decision": "AUTHORIZE_INGESTION_SCOPE",
+            "manifest_digest": manifest_sha256,
+            "profile_id": "case_f_profile",
+            "profile_version": "1.0.0",
+            "profile_fingerprint": "f" * 64,
+            "allowed_domains": ["eduscol.education.fr"],
+            "rights_categories": ["officiel_public"],
+            "exclusions": [],
+            "pii_absence_attested": True,
+            "pii_absence_evidence": "Manual review: no PII found in the two good objects",
+            "valid_from": "2026-01-01T00:00:00.000000Z",
+            "valid_until": "2026-12-31T23:59:59.999999Z",
+            # Couvre exactement le périmètre requis -- jamais le candidat
+            # bloqué PII, qui n'y figure pas.
+            "allowed_content_sha256": [self._GOOD_A_SHA256, self._GOOD_B_SHA256],
+            "scope": {
+                "audience": ["libre"],
+                "candidat": "libre",
+                "collection": "case_f",
+                "matiere": "maths",
+                "niveau": "terminale",
+                "programme_version": "v1",
+                "school_year": "2026-2027",
+                "tenant": "libre_terminale",
+                "visibility": "public",
+                "voie": "generale",
+            },
+        }
+        authority_path = _write_authority(
+            tmp_path / "case_f_authority.json", authority_document
+        )
+        _write_review_binding(tmp_path, authority_document)
+
+        report = generate_coverage_report(
+            catalog_path,
+            rights_path=rights_path,
+            pii_path=pii_path,
+            routing_path=routing_path,
+            golden_path=golden_path,
+            manifest_path=manifest_path,
+            authority_path=authority_path,
+            authority_review_binding_path=tmp_path / "review_binding.json",
+            authority_environment="production",
+            expected_total=4,
+            expected_manifest_sha256=manifest_sha256,
+            authority_now=AUTHORITY_NOW,
+        )
+
+        assert report.coverage_complete is True
+        assert report.blocked_ingest_candidates == 1  # le candidat bloqué PII
+        # Le candidat bloqué PII n'est jamais promu (il est hors du
+        # périmètre requis), donc son gate authority reste lui aussi
+        # BLOCKED_NOT_CLEARED -- les deux gates apparaissent, sans que cela
+        # affecte le verdict final (aucun invariant INGEST_* n'y est
+        # jamais évalué, puisqu'il n'atteint jamais disposition=INGEST).
+        assert report.mandatory_gate_blockers == {"pii": 1, "authority": 1}
+        assert report.authority_required_count == 2
+        assert report.authority_covered_count == 2
+        assert report.final_ingest_count == 2
+        assert report.non_authority_blocked_final_count == 1
+
+
 def test_authority_not_covering_the_real_base_disposition_ingest_candidate_is_rejected(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1381,6 +2019,14 @@ def test_h2f_defaut5_content_not_in_authority_allowlist_fails(
 ) -> None:
     """H2-F Défaut 5: Content not in authority allowlist must be flagged."""
     catalog_path = _write_real_catalog(tmp_path)
+    catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+    catalog["physical_objects"][0]["disposition"] = "REVIEW_REQUIRED"
+    catalog["physical_objects"][0]["gate_statuses"]["authority"] = (
+        "BLOCKED_NOT_CLEARED"
+    )
+    catalog["disposition_counts"]["INGEST"] = 0
+    catalog["disposition_counts"]["REVIEW_REQUIRED"] = 1
+    catalog_path.write_text(json.dumps(catalog), encoding="utf-8")
     golden_path = _write_golden_spec(tmp_path)
     routing_path, rights_path, pii_path, _, manifest_path = _write_external_evidence(
         tmp_path, include_authority=False
@@ -2126,6 +2772,27 @@ class TestRightsCategoriesAreCoveredExhaustively:
         path.write_text(json.dumps(catalog), encoding="utf-8")
         return path
 
+    def _pending_authority_catalog_with(
+        self, tmp_path: Path, **object_overrides: Any
+    ) -> Path:
+        """Comme ``_catalog_with``, mais pour un candidat réellement en
+        attente d'autorité (``base_disposition=INGEST``,
+        ``disposition=REVIEW_REQUIRED``,
+        ``gate_statuses.authority=BLOCKED_NOT_CLEARED``) -- le seul état
+        qu'un compilateur réel produit avant autorisation, et le seul état
+        que ``authority_required_candidate_facts`` inclut dans le
+        périmètre requis."""
+        path = _write_real_catalog(tmp_path)
+        catalog = json.loads(path.read_text(encoding="utf-8"))
+        physical_object = catalog["physical_objects"][0]
+        physical_object["disposition"] = "REVIEW_REQUIRED"
+        physical_object["gate_statuses"]["authority"] = "BLOCKED_NOT_CLEARED"
+        physical_object.update(object_overrides)
+        catalog["disposition_counts"]["INGEST"] = 0
+        catalog["disposition_counts"]["REVIEW_REQUIRED"] = 1
+        path.write_text(json.dumps(catalog), encoding="utf-8")
+        return path
+
     def _run(self, tmp_path: Path, catalog_path: Path):
         return _generate_with_authority(
             tmp_path,
@@ -2143,7 +2810,9 @@ class TestRightsCategoriesAreCoveredExhaustively:
         assert report.safety_invariants["INGEST_WITHOUT_AUTHORITY"] == 0
 
     def test_a_missing_category_is_refused(self, tmp_path: Path) -> None:
-        catalog_path = self._catalog_with(tmp_path, rights_category_candidate=None)
+        catalog_path = self._pending_authority_catalog_with(
+            tmp_path, rights_category_candidate=None
+        )
         with pytest.raises(ValueError, match="without a rights_category_candidate"):
             self._run(tmp_path, catalog_path)
 
@@ -2151,6 +2820,12 @@ class TestRightsCategoriesAreCoveredExhaustively:
         path = _write_real_catalog(tmp_path)
         catalog = json.loads(path.read_text(encoding="utf-8"))
         del catalog["physical_objects"][0]["rights_category_candidate"]
+        catalog["physical_objects"][0]["disposition"] = "REVIEW_REQUIRED"
+        catalog["physical_objects"][0]["gate_statuses"]["authority"] = (
+            "BLOCKED_NOT_CLEARED"
+        )
+        catalog["disposition_counts"]["INGEST"] = 0
+        catalog["disposition_counts"]["REVIEW_REQUIRED"] = 1
         path.write_text(json.dumps(catalog), encoding="utf-8")
         with pytest.raises(ValueError, match="without a rights_category_candidate"):
             self._run(tmp_path, path)
@@ -2158,7 +2833,7 @@ class TestRightsCategoriesAreCoveredExhaustively:
     def test_a_value_outside_the_canonical_vocabulary_is_refused(
         self, tmp_path: Path
     ) -> None:
-        catalog_path = self._catalog_with(
+        catalog_path = self._pending_authority_catalog_with(
             tmp_path, rights_category_candidate="totally_made_up"
         )
         with pytest.raises(ValueError, match="not in the canonical vocabulary"):
@@ -2167,7 +2842,7 @@ class TestRightsCategoriesAreCoveredExhaustively:
     def test_a_category_the_authorization_does_not_grant_is_refused(
         self, tmp_path: Path
     ) -> None:
-        catalog_path = self._catalog_with(
+        catalog_path = self._pending_authority_catalog_with(
             tmp_path, rights_category_candidate="nexus_proprietaire"
         )
         with pytest.raises(ValueError, match="does not cover every rights category"):
