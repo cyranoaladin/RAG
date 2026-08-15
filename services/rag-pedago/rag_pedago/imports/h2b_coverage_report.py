@@ -36,6 +36,7 @@ Le reçu de liaison de revue est émis par le plan de données :
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import json
 import os
@@ -941,6 +942,90 @@ def _load_authority_evidence(
     return allowlist, binding, revocations_checked
 
 
+def _promote_authority_cleared_candidates(
+    physical_objects: list[Any],
+    *,
+    authority_allowlist: frozenset[str] | None,
+) -> int:
+    """Promote real candidates whose only remaining blocker was authority.
+
+    ``corpus_catalog_compiler.py`` can never itself mark a real
+    candidate's authority gate anything but ``BLOCKED_NOT_CLEARED`` — it
+    deliberately never has real LOT41A authority available to it; that
+    only ever exists at runtime, in rag-engine. This is the one place a
+    real, externally verified authority artifact can legitimately close
+    that specific gate.
+
+    An item is promoted to ``disposition="INGEST"`` (and its
+    ``gate_statuses["authority"]`` to ``"PASS"``) only when ALL of the
+    following hold:
+    - it is a genuine candidate (``base_disposition == "INGEST"``) that
+      is not already ingesting (``disposition != "INGEST"``);
+    - its authority gate is exactly ``"BLOCKED_NOT_CLEARED"`` (the only
+      state a real compiler ever produces for a candidate — anything
+      else means this function does not know why it is blocked, so it
+      never touches it);
+    - its ``content_sha256`` is covered by ``authority_allowlist``;
+    - every OTHER mandatory gate independently already passes: rights,
+      PII, currentness, PDF format, provenance, a well-formed content
+      hash, and attribution metadata. Authority coverage never
+      substitutes for another clearance.
+
+    Mutates ``physical_objects`` in place — callers must pass a copy
+    they own, never the list embedded in the on-disk catalog object,
+    since golden-corpus validation requires that object to stay
+    byte-identical to the catalog file. Returns the number of items
+    promoted.
+    """
+    if not authority_allowlist:
+        return 0
+    promoted = 0
+    for item in physical_objects:
+        if not isinstance(item, dict):
+            continue
+        if item.get("base_disposition") != "INGEST":
+            continue
+        if item.get("disposition") == "INGEST":
+            continue
+        gates = item.get("gate_statuses")
+        if not isinstance(gates, dict):
+            continue
+        if gates.get("authority") != "BLOCKED_NOT_CLEARED":
+            continue
+        if gates.get("rights") != "PASS":
+            continue
+        if gates.get("pii") != "PASS":
+            continue
+        content_sha256 = item.get("content_sha256")
+        if not isinstance(content_sha256, str) or content_sha256 not in authority_allowlist:
+            continue
+        if re.fullmatch(r"[0-9a-f]{64}", content_sha256) is None:
+            continue
+        if item.get("currentness") != "actuel":
+            continue
+        path_value = item.get("path")
+        if not isinstance(path_value, str) or not path_value.lower().endswith(".pdf"):
+            continue
+        if item.get("provenance_status") != "VERIFIED":
+            continue
+        attribution = item.get("attribution_metadata")
+        if not isinstance(attribution, dict) or not all(
+            isinstance(attribution.get(field_name), str)
+            and bool(attribution.get(field_name))
+            for field_name in ("source", "source_url")
+        ):
+            continue
+        item["disposition"] = "INGEST"
+        item["gate_statuses"] = {**gates, "authority": "PASS"}
+        item["disposition_reason"] = (
+            "Promu : preuve d'autorité externe couvrant le content_sha256 "
+            "et toutes les autres portes obligatoires déjà indépendamment "
+            "au vert"
+        )
+        promoted += 1
+    return promoted
+
+
 def generate_coverage_report(
     catalog_path: Path,
     rights_path: Path | None = None,
@@ -1088,11 +1173,19 @@ def generate_coverage_report(
     # complétude de l'allowlist est vérifiée sur le périmètre RÉEL (tous
     # les objets routés vers l'ingestion), jamais sur un échantillon —
     # d'où la collecte préalable de leurs empreintes.
+    # H2 authority promotion (PR #109's E2E rehearsal finding, "Finding
+    # C") : le périmètre de complétude doit être ``base_disposition``, le
+    # véritable ensemble de candidats qu'un compilateur réel produit —
+    # jamais ``disposition``, qui vaut toujours ``BLOCKED_NOT_CLEARED``
+    # côté autorité pour des données réelles (le compilateur candidat n'a
+    # jamais l'autorité LOT41A réelle) : borner sur ``disposition`` rend
+    # ce contrôle vacuement satisfait sur un ensemble vide, pour tout
+    # catalogue réel.
     ingest_content_sha256 = frozenset(
         str(item.get("content_sha256"))
         for item in physical_objects
         if isinstance(item, dict)
-        and item.get("disposition") == "INGEST"
+        and item.get("base_disposition") == "INGEST"
         and isinstance(item.get("content_sha256"), str)
     )
     # F4 : les catégories de droits réellement portées par les objets
@@ -1109,7 +1202,7 @@ def generate_coverage_report(
             else None,
         )
         for item in physical_objects
-        if isinstance(item, dict) and item.get("disposition") == "INGEST"
+        if isinstance(item, dict) and item.get("base_disposition") == "INGEST"
     )
     authority_allowlist: frozenset[str] | None = None
     authority_binding: dict[str, str] = {}
@@ -1150,9 +1243,20 @@ def generate_coverage_report(
             repository_root=repository_root or _REPOSITORY_ROOT,
         )
 
+    # La promotion opère sur une copie profonde : ``physical_objects`` est
+    # la même liste (mêmes objets) que ``catalog["physical_objects"]``, et
+    # la validation golden-corpus, plus bas, exige que ``catalog`` reste
+    # bit-à-bit identique au fichier catalogue sur disque. Seule cette
+    # copie voit l'état promu ; le catalogue original n'est jamais muté.
+    promoted_physical_objects = copy.deepcopy(physical_objects)
+    _promote_authority_cleared_candidates(
+        promoted_physical_objects,
+        authority_allowlist=authority_allowlist,
+    )
+
     blocked_ingest_candidates = 0
     mandatory_gate_blockers: dict[str, int] = {}
-    for item in physical_objects:
+    for item in promoted_physical_objects:
         if not isinstance(item, dict):
             continue
         gates = item.get("gate_statuses")
