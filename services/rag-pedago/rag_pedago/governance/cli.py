@@ -19,6 +19,7 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+from rag_pedago.governance.catalog_republish import republish_catalog
 from rag_pedago.governance.corpus_campaign import parse_corpus_campaign
 from rag_pedago.governance.corpus_review_view import (
     build_review_view,
@@ -210,6 +211,24 @@ def cmd_h2_evidence(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_republish_catalog(args: argparse.Namespace) -> int:
+    """Matérialise le catalogue gouverné promu d'une campagne (§ module
+    ``catalog_republish``)."""
+    campaign = parse_corpus_campaign(args.campaign.read_bytes())
+    result = republish_catalog(
+        campaign=campaign,
+        catalog_path=args.catalog,
+        authority_path=args.authority,
+        authority_review_binding_path=args.authority_review_binding,
+        out_root=args.out_root,
+    )
+    print(f"catalog republished: {result.catalog_path}")
+    print(f"catalog_sha256: {result.catalog_sha256}")
+    print(f"promoted_count: {result.promoted_count}")
+    print(f"already_published: {result.already_published}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="rag-pedago-governance",
@@ -278,6 +297,27 @@ def build_parser() -> argparse.ArgumentParser:
     evidence.add_argument("--h2-report", type=Path, required=True)
     evidence.add_argument("--output", type=Path, required=True)
     evidence.set_defaults(func=cmd_h2_evidence)
+
+    republish = sub.add_parser(
+        "republish-catalog",
+        help=(
+            "Matérialise le catalogue candidat promu (autorité "
+            "LOT41A-V2 appliquée) sous governance/corpus-campaigns/<id>/."
+        ),
+    )
+    republish.add_argument("--campaign", type=Path, required=True)
+    republish.add_argument("--catalog", type=Path, required=True)
+    republish.add_argument("--authority", type=Path, required=True)
+    republish.add_argument(
+        "--authority-review-binding", type=Path, required=True
+    )
+    republish.add_argument(
+        "--out-root",
+        type=Path,
+        required=True,
+        help="Racine sous laquelle governance/corpus-campaigns/<id>/ est écrit.",
+    )
+    republish.set_defaults(func=cmd_republish_catalog)
 
     return parser
 
