@@ -359,8 +359,13 @@ def _diff_placements(
         for artifact in catalog.artifacts.values():
             for placement in artifact.pedagogical_placements:
                 # ``scope_path`` désambiguïse deux placements du même
-                # contenu vers deux audiences distinctes.
-                mapping[(placement.content_sha256, placement.scope_path)] = placement
+                # contenu vers deux audiences distinctes. Peut être
+                # ``None`` pour un placement dérivé du schéma technique
+                # réel (aucune notion de portée pédagogique dans ce
+                # schéma) -- normalisé comme le reste du fichier via
+                # ``_plain`` plutôt que de fuiter ``str | None`` dans une
+                # clé typée ``tuple[str, str]``.
+                mapping[(placement.content_sha256, _plain(placement.scope_path))] = placement
         return mapping
 
     previous_map = by_key(baseline)
@@ -467,7 +472,7 @@ def _collect_anomalies(
     for sha in sorted(catalog.artifacts):
         artifact = catalog.artifacts[sha]
         for placement in sorted(
-            artifact.pedagogical_placements, key=lambda p: p.scope_path
+            artifact.pedagogical_placements, key=lambda p: _plain(p.scope_path)
         ):
             status = _plain(placement.status).upper()
             if any(marker in status for marker in DRAFT_STATUSES):
