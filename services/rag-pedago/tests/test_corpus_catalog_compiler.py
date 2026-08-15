@@ -17,6 +17,11 @@ from rag_pedago.imports.corpus_catalog_compiler import (
 
 FIXTURES = Path(__file__).parent.parent / "data" / "fixtures" / "corpus_h2b"
 
+#: Chemin réel du corpus scellé sur cette machine — les tests qui en
+#: dépendent sont explicitement ignorés (jamais faussement verts) quand
+#: il est absent, par exemple en CI où ce répertoire local n'existe pas.
+_REAL_SEALED_CORPUS = Path.home() / "Téléchargements" / "NEXUS_RAG_GDRIVE_READY"
+
 
 def _sha(value: str) -> str:
     return value * 64
@@ -1122,3 +1127,271 @@ class TestSealedPathRemainsGnuBound:
         assert compute_file_sha256(manifest_file) == generated.manifest_sha256
         parsed = _parse_sealed_manifest(manifest_file)
         assert [(d, p) for d, p in parsed] == list(generated.entries)
+
+
+_TECHNICAL_HEADER = (
+    "sha256",
+    "canonical_destination",
+    "source_relative",
+    "level",
+    "subject",
+    "doc_type",
+    "year",
+    "is_primary",
+    "size",
+)
+
+
+def _technical_row(
+    sha: str,
+    *,
+    destination: str,
+    source_relative: str,
+    level: str = "terminale",
+    subject: str = "MATHEMATIQUES",
+    doc_type: str = "01_PROGRAMMES_OFFICIELS",
+    year: str = "2026",
+    is_primary: str = "1",
+    size: str = "100",
+) -> tuple[str, ...]:
+    return (sha, destination, source_relative, level, subject, doc_type, year, is_primary, size)
+
+
+def _write_technical_sealed_fixture(
+    tmp_path: Path, placement_rows: list[tuple[str, ...]]
+) -> tuple[Path, Path, dict]:
+    """Même structure que ``_write_sealed_fixture``, schéma technique réel
+    (``sha256, canonical_destination, source_relative, level, subject,
+    doc_type, year, is_primary, size`` — vérifié directement contre
+    ``00_ADMIN/eduscol_affectations.tsv`` du corpus scellé réel)."""
+    manifest = tmp_path / "SHA256SUMS.txt"
+    manifest.write_text(
+        "\n".join(
+            (
+                f"{_sha('a')}  01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/10_ACTUEL_CONFIRME/MATHS/doc.pdf",
+                f"{_sha('b')}  00_ADMIN/BUILD_INFO.json",
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    placements = tmp_path / "eduscol_affectations.tsv"
+    lines = ["\t".join(_TECHNICAL_HEADER)]
+    lines.extend("\t".join(row) for row in placement_rows)
+    placements.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    manifest_digest = hashlib.sha256(manifest.read_bytes()).hexdigest()
+    config = {
+        "config_id": "sealed-technical-test-v1",
+        "manifest_sha256": manifest_digest,
+        "rights_evidence_perimeter": [
+            "00_ADMIN/",
+            "01_EDUSCOL_OFFICIEL/",
+        ],
+        "zone_rules": [
+            {
+                "zone_prefix": "00_ADMIN/",
+                "disposition": "EXCLUDE",
+                "reason": "admin",
+            },
+            {
+                "zone_prefix": "01_EDUSCOL_OFFICIEL/",
+                "sub_zone_routing": [
+                    {
+                        "path_contains": "10_ACTUEL_CONFIRME",
+                        "disposition": "INGEST",
+                        "reason": "actuel",
+                    },
+                ],
+                "disposition": "REVIEW_REQUIRED",
+                "reason": "default",
+            },
+        ],
+    }
+    return manifest, placements, config
+
+
+class TestTechnicalPlacementSchema:
+    """Le schéma réellement produit par la chaîne d'acquisition du corpus
+    scellé (``00_ADMIN/eduscol_affectations.tsv``) — distinct du schéma
+    pédagogique riche testé ci-dessus, jamais capable de le remplacer
+    (aucune donnée titre/URL/famille/scope/statut réelle n'existe pour ce
+    corpus). Section 21 du lot de remédiation post-mission (correction du
+    mismatch de schéma confirmé dans PR #108)."""
+
+    def test_real_header_parses(self, tmp_path: Path) -> None:
+        manifest, placements, config = _write_technical_sealed_fixture(
+            tmp_path,
+            [_technical_row(_sha("a"), destination="x/doc.pdf", source_relative="x/doc.pdf")],
+        )
+        catalog = compile_sealed_catalog(manifest, placements, config)
+        assert catalog.manifest_entries == 2
+        placement = catalog.artifacts[_sha("a")].pedagogical_placements[0]
+        assert placement.subject == "MATHEMATIQUES"
+        assert placement.level == "terminale"
+        assert placement.scope is None
+        assert placement.title is None
+        assert placement.source_url is None
+
+    def test_missing_column_is_refused(self, tmp_path: Path) -> None:
+        """Une colonne technique manquante fait perdre au header sa
+        correspondance exacte avec le schéma technique : le routeur de
+        schéma refuse (« matches neither ») plutôt que de deviner quel
+        schéma était visé — toujours fail-closed, message informatif
+        listant les deux schémas attendus et les colonnes reçues."""
+        manifest, placements, _config = _write_technical_sealed_fixture(
+            tmp_path,
+            [_technical_row(_sha("a"), destination="x/doc.pdf", source_relative="x/doc.pdf")],
+        )
+        # Retire la colonne `size` du header et de la ligne.
+        rows = placements.read_text(encoding="utf-8").splitlines()
+        header = rows[0].split("\t")[:-1]
+        data = rows[1].split("\t")[:-1]
+        placements.write_text("\t".join(header) + "\n" + "\t".join(data) + "\n", encoding="utf-8")
+
+        from rag_pedago.imports.corpus_catalog_compiler import _load_eduscol_placements
+
+        with pytest.raises(ValueError, match="matches neither"):
+            _load_eduscol_placements(placements)
+
+    def test_extra_unknown_column_is_refused(self, tmp_path: Path) -> None:
+        manifest, placements, _config = _write_technical_sealed_fixture(
+            tmp_path,
+            [_technical_row(_sha("a"), destination="x/doc.pdf", source_relative="x/doc.pdf")],
+        )
+        rows = placements.read_text(encoding="utf-8").splitlines()
+        header = rows[0] + "\tunexpected_column"
+        data = rows[1] + "\tsurprise"
+        placements.write_text(header + "\n" + data + "\n", encoding="utf-8")
+
+        from rag_pedago.imports.corpus_catalog_compiler import _load_eduscol_placements
+
+        with pytest.raises(ValueError, match="unexpected column"):
+            _load_eduscol_placements(placements)
+
+    def test_multi_placement_same_destination_different_source_relative_is_accepted(
+        self, tmp_path: Path
+    ) -> None:
+        """Motif réel vérifié sur ``eduscol_affectations.tsv`` : un même
+        contenu peut avoir deux lignes de classement candidat partageant
+        la MÊME ``canonical_destination`` (un seul emplacement physique)
+        mais des ``source_relative``/``subject`` différents — ``is_primary``
+        désambiguïse laquelle fait foi."""
+        manifest, placements, config = _write_technical_sealed_fixture(
+            tmp_path,
+            [
+                _technical_row(
+                    _sha("a"),
+                    destination="x/doc.pdf",
+                    source_relative="etlv/doc.pdf",
+                    subject="ETLV",
+                    is_primary="1",
+                ),
+                _technical_row(
+                    _sha("a"),
+                    destination="x/doc.pdf",
+                    source_relative="langues-vivantes/doc.pdf",
+                    subject="LANGUES_VIVANTES",
+                    is_primary="0",
+                ),
+            ],
+        )
+        catalog = compile_sealed_catalog(manifest, placements, config)
+        placements_for_a = catalog.artifacts[_sha("a")].pedagogical_placements
+        assert len(placements_for_a) == 2
+        assert {p.subject for p in placements_for_a} == {"ETLV", "LANGUES_VIVANTES"}
+        primaries = [p for p in placements_for_a if p.is_primary]
+        assert len(primaries) == 1
+        assert primaries[0].subject == "ETLV"
+
+    def test_duplicate_row_same_sha_and_source_relative_is_refused(self, tmp_path: Path) -> None:
+        _manifest, placements, _config = _write_technical_sealed_fixture(
+            tmp_path,
+            [
+                _technical_row(_sha("a"), destination="x/doc.pdf", source_relative="x/doc.pdf"),
+                _technical_row(_sha("a"), destination="x/doc.pdf", source_relative="x/doc.pdf"),
+            ],
+        )
+        from rag_pedago.imports.corpus_catalog_compiler import _load_eduscol_placements
+
+        with pytest.raises(ValueError, match="duplicate placement row"):
+            _load_eduscol_placements(placements)
+
+    def test_zero_is_primary_rows_for_a_group_is_refused(self, tmp_path: Path) -> None:
+        _manifest, placements, _config = _write_technical_sealed_fixture(
+            tmp_path,
+            [
+                _technical_row(
+                    _sha("a"), destination="x/doc.pdf", source_relative="x/doc.pdf", is_primary="0"
+                ),
+            ],
+        )
+        from rag_pedago.imports.corpus_catalog_compiler import _load_eduscol_placements
+
+        with pytest.raises(ValueError, match="exactly one is_primary=1"):
+            _load_eduscol_placements(placements)
+
+    def test_two_is_primary_rows_for_a_group_is_refused(self, tmp_path: Path) -> None:
+        _manifest, placements, _config = _write_technical_sealed_fixture(
+            tmp_path,
+            [
+                _technical_row(
+                    _sha("a"), destination="x/doc.pdf", source_relative="a.pdf", is_primary="1"
+                ),
+                _technical_row(
+                    _sha("a"), destination="x/doc.pdf", source_relative="b.pdf", is_primary="1"
+                ),
+            ],
+        )
+        from rag_pedago.imports.corpus_catalog_compiler import _load_eduscol_placements
+
+        with pytest.raises(ValueError, match="exactly one is_primary=1"):
+            _load_eduscol_placements(placements)
+
+    def test_placement_referencing_unknown_manifest_sha_is_refused(self, tmp_path: Path) -> None:
+        """Liaison au manifeste : une ligne de placement dont le sha256
+        n'apparaît nulle part sous ``01_EDUSCOL_OFFICIEL/`` dans le
+        manifeste réel doit être refusée, jamais silencieusement
+        acceptée."""
+        manifest, placements, config = _write_technical_sealed_fixture(
+            tmp_path,
+            [
+                _technical_row(_sha("a"), destination="x/doc.pdf", source_relative="x/doc.pdf"),
+                _technical_row(_sha("c"), destination="y/doc.pdf", source_relative="y/doc.pdf"),
+            ],
+        )
+        with pytest.raises(ValueError, match="unknown Eduscol content SHA256"):
+            compile_sealed_catalog(manifest, placements, config)
+
+    def test_header_matching_neither_schema_is_refused(self, tmp_path: Path) -> None:
+        placements = tmp_path / "ambiguous.tsv"
+        placements.write_text("sha256\tsomething_else\nabc\tvalue\n", encoding="utf-8")
+
+        from rag_pedago.imports.corpus_catalog_compiler import _load_eduscol_placements
+
+        with pytest.raises(ValueError, match="matches neither"):
+            _load_eduscol_placements(placements)
+
+    @pytest.mark.skipif(
+        not _REAL_SEALED_CORPUS.exists(),
+        reason="real sealed corpus not present on this machine",
+    )
+    def test_real_2583_entry_corpus_compiles_end_to_end(self) -> None:
+        """Preuve d'acceptation : le compilateur corrigé produit un
+        catalogue complet contre le VRAI manifeste et le VRAI TSV de
+        placement du corpus scellé — pas seulement contre des fixtures
+        synthétiques."""
+        import yaml
+
+        config = yaml.safe_load(
+            (Path(__file__).parent.parent / "configs" / "corpus_zone_routing.yml").read_text()
+        )
+        manifest = _REAL_SEALED_CORPUS / "00_ADMIN" / "SHA256SUMS.txt"
+        placements = _REAL_SEALED_CORPUS / "00_ADMIN" / "eduscol_affectations.tsv"
+
+        catalog = compile_sealed_catalog(manifest, placements, config)
+
+        assert catalog.manifest_entries == 2583
+        assert len(catalog.physical_objects) == 2584
+        assert len(catalog.artifacts) == 2583
+        assert catalog.verification_passed is True
