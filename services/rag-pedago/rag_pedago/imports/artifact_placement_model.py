@@ -106,22 +106,39 @@ class CorpusPlacement:
 
 @dataclass(frozen=True)
 class PedagogicalPlacement:
-    """A retrieval scope attached to content, independent of its physical path."""
+    """A retrieval scope attached to content, independent of its physical path.
+
+    ``scope``/``family``/``status``/``title``/``source_url``/``level_path``/
+    ``scope_path`` are ``None`` rather than a required ``str`` because the
+    real, committed corpus's technical placement TSV
+    (``00_ADMIN/eduscol_affectations.tsv``: ``sha256, canonical_destination,
+    source_relative, level, subject, doc_type, year, is_primary, size``)
+    never captured this richer pedagogical taxonomy — no per-object title,
+    source URL, family, or workflow status exists anywhere in this corpus
+    build (verified: no committed file under ``00_ADMIN/`` carries these
+    columns). None of these fields are load-bearing for any PII/rights/
+    currentness/routing gate (verified: never read outside this module and
+    ``_placement_attribution``'s purely descriptive output) — inventing a
+    plausible-looking value for them would be fabricated evidence; ``None``
+    states the honest absence instead. ``is_primary`` is real, present data
+    from that same technical schema, disambiguating which of several
+    physical placements for one ``content_sha256`` is canonical."""
 
     content_sha256: str
-    scope: str
-    family: str
     subject: str
     level: str
     document_type: str
     year: str
-    status: str
-    title: str
-    source_url: str
-    source_object: str
-    technical_path: str
-    level_path: str
-    scope_path: str
+    scope: str | None = None
+    family: str | None = None
+    status: str | None = None
+    title: str | None = None
+    source_url: str | None = None
+    source_object: str | None = None
+    technical_path: str | None = None
+    level_path: str | None = None
+    scope_path: str | None = None
+    is_primary: bool = True
 
     @property
     def classified(self) -> bool:
@@ -129,7 +146,7 @@ class PedagogicalPlacement:
         normalized = self.level.strip().lower().replace("_", "-")
         return bool(normalized) and normalized != "non-classe"
 
-    def to_dict(self) -> dict[str, str | bool]:
+    def to_dict(self) -> dict[str, str | bool | None]:
         return {
             "content_sha256": self.content_sha256,
             "scope": self.scope,
@@ -145,6 +162,7 @@ class PedagogicalPlacement:
             "technical_path": self.technical_path,
             "level_path": self.level_path,
             "scope_path": self.scope_path,
+            "is_primary": self.is_primary,
             "classified": self.classified,
         }
 
