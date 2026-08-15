@@ -7,9 +7,15 @@ contrat est un argument CLI **typé et validé** — jamais un booléen libre
 (``--ready true``). Les digests d'evidence locale ne sont jamais fournis "à
 l'œil" : pour chaque fichier, l'outil relit le fichier et **recalcule** son
 SHA-256 lui-même. Les faits Git (``pr_head_sha``/``merge_sha``/leurs tree
-SHA) et de provenance workflow (``run_id``/``run_attempt``/``workflow_path``/
-``workflow_ref``) sont **vérifiés en direct** contre l'API GitHub réelle
-(``gh api``) — jamais seulement un format hexadécimal plausible. Les images
+SHA) et de provenance workflow (``run_id``/``run_attempt``/``workflow_ref``)
+sont **vérifiés en direct** contre l'API GitHub réelle (``gh api``) — jamais
+seulement un format hexadécimal plausible. Le chemin du workflow de
+promotion n'est plus une entrée opérateur (``--workflow-path``, ancien
+défaut) : le workflow canonique (``.github/workflows/promote.yml``,
+ADR-0036, PR #110) est une constante du module,
+``_CANONICAL_PROMOTION_WORKFLOW_PATH`` — ``--workflow-path`` reste accepté,
+optionnel, uniquement comme assertion redondante confrontée à cette
+constante. Les images
 applicatives (``ingestor``, workers) ne sont plus une saisie opérateur
 (ancien ``--application-image``) : elles sont **dérivées** d'un run
 GitHub Actions de provenance réel et vérifié
@@ -139,6 +145,14 @@ from nexus_contracts.review_binding import (  # noqa: E402
 #: pas fournir un autre dépôt puis faire vérifier PR/run/workflow/
 #: provenance d'image contre ce dépôt alternatif.
 _TRUSTED_REPOSITORY = "cyranoaladin/RAG"
+
+#: Jamais une entrée opérateur (ancien ``--workflow-path``, même classe
+#: de défaut que ``_TRUSTED_REPOSITORY`` ci-dessus) : le workflow de
+#: promotion canonique (ADR-0036, PR #110) est fixe, pas un chemin que
+#: l'opérateur pourrait faire pointer vers un workflow qu'il contrôle.
+#: ``--workflow-path`` reste accepté en entrée, mais uniquement comme
+#: assertion redondante confrontée à cette constante — jamais l'autorité.
+_CANONICAL_PROMOTION_WORKFLOW_PATH = ".github/workflows/promote.yml"
 
 _HEX40 = re.compile(r"^[0-9a-f]{40}$")
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
@@ -384,8 +398,10 @@ def _verify_git_and_workflow_facts(args: argparse.Namespace) -> tuple[str, str]:
     sur GitHub (mergée, même commit de merge, même repository des deux
     côtés) ; les tree SHA ne sont plus des arguments CLI acceptés — ils
     sont **dérivés** de la réponse de l'API, jamais affirmés par
-    l'opérateur ; ``run_id``/``run_attempt``/``workflow_path`` sont
-    confrontés à un run GitHub Actions réel de ce dépôt."""
+    l'opérateur ; ``run_id``/``run_attempt`` sont confrontés à un run
+    GitHub Actions réel de ce dépôt, dont le chemin doit être exactement
+    ``_CANONICAL_PROMOTION_WORKFLOW_PATH`` (jamais ``--workflow-path``,
+    qui n'est plus qu'une assertion redondante optionnelle)."""
     pr = _github_api_get(f"repos/{_TRUSTED_REPOSITORY}/pulls/{args.pr_number}")
     if pr.get("merged") is not True:
         raise SigningToolError(
@@ -425,11 +441,17 @@ def _verify_git_and_workflow_facts(args: argparse.Namespace) -> tuple[str, str]:
             f"GitHub did not return a valid tree sha for commit {args.merge_sha!r}"
         )
 
-    run = _github_api_get(f"repos/{_TRUSTED_REPOSITORY}/actions/runs/{args.run_id}")
-    if run.get("path") != args.workflow_path:
+    if args.workflow_path is not None and args.workflow_path != _CANONICAL_PROMOTION_WORKFLOW_PATH:
         raise SigningToolError(
-            f"--workflow-path {args.workflow_path!r} does not match the live "
-            f"workflow path {run.get('path')!r} of run {args.run_id}"
+            f"--workflow-path {args.workflow_path!r} does not match the canonical "
+            f"promotion workflow {_CANONICAL_PROMOTION_WORKFLOW_PATH!r} — an operator "
+            "cannot point signing verification at a different workflow"
+        )
+    run = _github_api_get(f"repos/{_TRUSTED_REPOSITORY}/actions/runs/{args.run_id}")
+    if run.get("path") != _CANONICAL_PROMOTION_WORKFLOW_PATH:
+        raise SigningToolError(
+            f"run {args.run_id}'s workflow path {run.get('path')!r} is not the "
+            f"canonical promotion workflow {_CANONICAL_PROMOTION_WORKFLOW_PATH!r}"
         )
     run_repo_full_name = (run.get("repository") or {}).get("full_name")
     if run_repo_full_name != _TRUSTED_REPOSITORY:
@@ -585,8 +607,14 @@ def _build_arg_parser() -> argparse.ArgumentParser:
                          "sont dérivés — jamais une saisie opérateur libre.")
     p.add_argument("--provenance-run-attempt", type=int, required=True)
 
-    # Provenance de l'émission.
-    p.add_argument("--workflow-path", required=True)
+    # Provenance de l'émission. ``--workflow-path`` n'est plus l'autorité
+    # (PR #100, suivi de PR #110) : le workflow de promotion canonique est
+    # une constante (_CANONICAL_PROMOTION_WORKFLOW_PATH), jamais une
+    # saisie opérateur. Cet argument reste accepté, optionnel, uniquement
+    # comme assertion redondante confrontée à cette constante.
+    p.add_argument("--workflow-path", default=None,
+                    help="Assertion redondante optionnelle, confrontée à la "
+                         "constante canonique — jamais l'autorité elle-même.")
     p.add_argument("--workflow-ref", required=True)
     p.add_argument("--run-id", type=int, required=True)
     p.add_argument("--run-attempt", type=int, required=True)
@@ -784,7 +812,7 @@ def assemble_and_sign(args: argparse.Namespace) -> ProductionReadinessManifestV1
             application_image_digests=application_image_digests,
             upstream_image_digests=upstream_image_digests,
             compose_digest=compose_digest,
-            workflow_path=args.workflow_path,
+            workflow_path=_CANONICAL_PROMOTION_WORKFLOW_PATH,
             workflow_ref=args.workflow_ref,
             run_id=args.run_id,
             run_attempt=args.run_attempt,

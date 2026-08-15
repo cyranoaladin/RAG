@@ -647,37 +647,90 @@ vérifié à nouveau à la fin de ce round — toujours aucun `promote.yml` ni
 (§6sexies, Escalade AGENTS.md : construire ce workflow est un lot
 séparé).
 
+## 6octies. Septième round — pinning du workflow de promotion canonique (PR #110 mergée)
+
+PR #110 (ADR-0036, workflow `.github/workflows/promote.yml`) a mergé —
+le blocker unique identifié en §6sexies/§6septies (« aucun workflow de
+promotion canonique n'existe encore ») est fermé. Ce round ferme le
+suivi exact que PR #110's propre rapport exigeait (§6 de
+`lot_canonical_promotion_workflow.md`) :
+
+1. **`--workflow-path` n'est plus l'autorité.** Nouvelle constante
+   `_CANONICAL_PROMOTION_WORKFLOW_PATH = ".github/workflows/promote.yml"`
+   (même classe de correctif que `_TRUSTED_REPOSITORY`, PR #105). Le run
+   déclaré par `--run-id` doit avoir exactement ce chemin — vérifié
+   contre le fait live de l'API, jamais contre une saisie opérateur.
+2. **`--workflow-path` reste accepté, optionnel, comme assertion
+   redondante** confrontée à la constante avant même le premier appel
+   API — un opérateur qui fournit une valeur divergente est refusé
+   immédiatement, jamais silencieusement ignoré.
+3. **Le manifeste signé enregistre toujours la constante**
+   (`workflow_path=_CANONICAL_PROMOTION_WORKFLOW_PATH`), jamais
+   `args.workflow_path` — même quand l'assertion redondante est fournie
+   et correcte, la valeur qui atterrit dans le manifeste signé est
+   celle que ce module contrôle, pas celle que l'opérateur a tapée.
+4. `--workflow-ref refs/heads/main` était déjà correct (confirmé PR #110
+   §6.2 : compare contre `f"refs/heads/{run.head_branch}"`, jamais
+   `github.workflow_ref`) — aucun changement nécessaire.
+
+```
+$ .venv/bin/python -m pytest tests/test_sign_production_readiness_manifest_cli.py -v
+75 passed   # 72 → 75, +3 tests dédiés à ce round
+
+$ .venv/bin/python -m ruff check scripts/sign_production_readiness_manifest_cli.py \
+    tests/test_sign_production_readiness_manifest_cli.py
+All checks passed!
+
+$ .venv/bin/python -m mypy scripts/sign_production_readiness_manifest_cli.py
+Success: no issues found in 1 source file
+```
+
+Mutation-testées : les deux nouveaux contrôles (assertion redondante
+`--workflow-path` vs constante ; run live vs constante) désactivés
+ensemble → 2 tests dédiés échouent pour la bonne raison
+(`DID NOT RAISE`) ; restauré → suite verte.
+
+**Avec ce round, le seul blocker qui maintenait
+`PRODUCTION_READINESS_SIGNING_TOOL_COMPLETE=false` est fermé.** Tous les
+défauts réels trouvés au fil des rounds précédents (repository pinning,
+six digests H2, git_commit binding, statut/conclusion/head_sha/
+run_attempt du run, détection de lien physique, honnêteté de
+zéroisation, Compose résolu Section 11, et maintenant le pinning du
+workflow de promotion) sont fermés. Ce qui reste (§7) concerne
+l'exécution réelle contre de vraies données de production — pas un
+défaut de l'outil lui-même.
+
 ## 7. Limitations
 
 - Aucune clé privée de production n'a été utilisée par cet outil dans ce
   lot — seulement des graines de test triviales (`"11"*32`, `"22"*32`,
   `"33"*32`).
 - Aucun manifeste réel n'a été assemblé ni signé pour PR #97, #98, #99,
-  #100 ou #101.
-- **Aucun workflow de promotion canonique n'existe encore** — voir
-  §6sexies/§6septies. `--workflow-path`/`--workflow-ref`/`--run-id`/
-  `--run-attempt` restent, de fait, des entrées opérateur non ancrées à
-  un workflow pinné, faute d'un tel workflow dans ce dépôt. C'est
-  aujourd'hui le SEUL blocker qui maintient
-  `PRODUCTION_READINESS_SIGNING_TOOL_COMPLETE=false`.
+  #100 ou #101 — aucune campagne de production réelle (autorisation,
+  rapport H2-B réel, run de promotion réel) n'existe encore.
 - L'outil n'a pas encore été exercé contre les vrais fichiers d'evidence
   de production (catalogue de disposition réel, rapport H2-B réel,
-  registre de révocation réel, run de provenance d'image réel, vrai
-  `.env` de production) — ceux-ci n'existent pas encore tant que PR #98
-  n'est pas enregistrée et que le workflow de provenance d'image n'a pas
-  tourné pour de vrai sur `main`.
+  registre de révocation réel, run de promotion réel, run de provenance
+  d'image réel, vrai `.env` de production) — ceux-ci n'existent pas
+  encore tant qu'une campagne de production réelle n'a pas été
+  enregistrée et qu'un run réel de `promote.yml` n'a pas eu lieu sur
+  `main`. Même distinction déjà établie pour
+  `APPLICATION_IMAGE_PROVENANCE_MECHANISM_VERIFIED` (§8) : mécanisme
+  livré/testé, jamais encore exercé contre un run réel — pas un défaut
+  de l'outil, une attente de données de production réelles.
 
 ## 8. Booléens finaux
 
 ```
-PRODUCTION_READINESS_SIGNING_TOOL_COMPLETE=false   # bloqué par le workflow de promotion manquant, §6sexies/§6septies
+PRODUCTION_READINESS_SIGNING_TOOL_COMPLETE=true   # dernier blocker (workflow de promotion manquant) fermé par PR #110 + ce round, §6octies
 FREE_FORM_READINESS_BOOLEAN_ALLOWED=false
 SIGNED_MANIFEST_VERIFY_ROUNDTRIP=true
 REVIEW_BINDING_ACTUALLY_VERIFIED_BEFORE_SIGNING=true
 OUTPUT_PATH_CANNOT_ALIAS_A_SIGNING_INPUT=true
 REPOSITORY_PINNED=true
 GIT_FACTS_VERIFIED=true
-WORKFLOW_PROVENANCE_VERIFIED=false   # workflow canonique de promotion inexistant, §6sexies
+WORKFLOW_PATH_PINNED=true   # §6octies : constante _CANONICAL_PROMOTION_WORKFLOW_PATH, jamais une saisie opérateur
+WORKFLOW_PROVENANCE_VERIFIED=true   # mécanisme livré/testé contre le workflow canonique réel ; jamais encore exercé contre un run de promotion réel (§7)
 UPSTREAM_COMPOSE_IMAGE_CROSS_BINDING=true
 RESOLVED_COMPOSE_BINDING=true   # Section 11 : Compose résolu multi-fichiers, plus un fichier source unique
 APPLICATION_IMAGE_PROVENANCE_MECHANISM_VERIFIED=true   # mécanisme livré/testé ; jamais exécuté contre un run de provenance réel (§7)

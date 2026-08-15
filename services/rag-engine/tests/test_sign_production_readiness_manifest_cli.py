@@ -969,8 +969,36 @@ class TestGitAndWorkflowFactsAreLiveVerified:
             ".github/workflows/other.yml"
         )
         args = _base_args(tmp_path)
-        with pytest.raises(tool.SigningToolError, match="does not match the live workflow path"):
+        with pytest.raises(tool.SigningToolError, match="is not the canonical promotion workflow"):
             tool.assemble_and_sign(args)
+
+    def test_workflow_path_omitted_still_verifies_against_canonical_constant(
+        self, tmp_path: Path, _stub_github_api: dict[str, dict[str, Any]]
+    ) -> None:
+        """``--workflow-path`` is optional -- verification against the
+        canonical constant happens regardless of whether an operator
+        supplies this now-redundant assertion."""
+        args = _base_args(tmp_path, **{"workflow_path": None})
+        manifest = tool.assemble_and_sign(args)
+        assert manifest.workflow_path == tool._CANONICAL_PROMOTION_WORKFLOW_PATH
+
+    def test_workflow_path_mismatching_the_canonical_constant_is_refused_before_any_live_check(
+        self, tmp_path: Path, _stub_github_api: dict[str, dict[str, Any]]
+    ) -> None:
+        """An operator-supplied ``--workflow-path`` that disagrees with
+        the canonical constant is refused immediately -- it is never the
+        authority, only a redundant assertion checked against it."""
+        args = _base_args(tmp_path, **{"workflow_path": ".github/workflows/some-other.yml"})
+        with pytest.raises(tool.SigningToolError, match="does not match the canonical promotion workflow"):
+            tool.assemble_and_sign(args)
+
+    def test_manifest_workflow_path_is_always_the_canonical_constant(
+        self, tmp_path: Path, _stub_github_api: dict[str, dict[str, Any]]
+    ) -> None:
+        args = _base_args(tmp_path)
+        manifest = tool.assemble_and_sign(args)
+        assert manifest.workflow_path == ".github/workflows/promote.yml"
+        assert manifest.workflow_path == tool._CANONICAL_PROMOTION_WORKFLOW_PATH
 
     def test_workflow_ref_not_matching_the_live_head_branch_is_refused(
         self, tmp_path: Path, _stub_github_api: dict[str, dict[str, Any]]
