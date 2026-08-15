@@ -23,6 +23,7 @@ from pydantic import ValidationError
 
 from rag_pedago.imports import h2b_coverage_report as module
 from rag_pedago.imports.h2b_coverage_report import (
+    _promote_authority_cleared_candidates,
     generate_coverage_report,
     render_markdown,
 )
@@ -684,9 +685,27 @@ def test_missing_authority_keeps_coverage_gate_red(
     assert report.coverage_complete is False
 
 
-def test_expected_authority_blocked_candidate_can_pass_inert_h2_gate(
+def test_real_authority_covering_a_blocked_candidate_promotes_it_to_ingest(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """H2 authority promotion (PR #109's E2E rehearsal finding).
+
+    Formerly ``test_expected_authority_blocked_candidate_can_pass_inert_
+    h2_gate`` -- same exact fixture (a real candidate the compiler could
+    only ever mark ``REVIEW_REQUIRED``/``BLOCKED_NOT_CLEARED``, since
+    ``corpus_catalog_compiler.py`` deliberately never has real LOT41A
+    authority available to it, with a real, covering LOT41A-V2 authority
+    provided via the default ``include_authority=True``), but its old
+    assertions (``blocked_ingest_candidates == 1``,
+    ``coverage_complete is True`` *despite* real covering evidence being
+    available) described the pre-fix gap this promotion closes, not a
+    genuine safety requirement -- corrected here, renamed to match.
+
+    The candidate catalog FILE itself stays exactly as compiled (golden
+    spec still expects ``REVIEW_REQUIRED``/``BLOCKED_NOT_CLEARED`` -- the
+    golden corpus validator checks the catalog file's own claims, never
+    a promoted, evidence-informed state); promotion is evaluated
+    separately and only affects safety-invariant/gate-pass computation."""
     _install_governed_root(monkeypatch, tmp_path)
     path = _write_real_catalog(tmp_path)
     catalog = json.loads(path.read_text(encoding="utf-8"))
@@ -706,13 +725,399 @@ def test_expected_authority_blocked_candidate_can_pass_inert_h2_gate(
             expected_final="REVIEW_REQUIRED",
             expected_authority="BLOCKED_NOT_CLEARED",
         ),
+        # default include_authority=True: a real LOT41A-V2 authority
+        # covering exactly CONTENT_SHA256 is provided (see
+        # _write_external_evidence) -- this is what promotes the
+        # candidate.
+        expected_total=2,
+    )
+
+    assert report.blocked_ingest_candidates == 0
+    assert report.mandatory_gate_blockers == {}
+    assert report.safety_invariants == {
+        "INGEST_WITHOUT_RIGHTS_CLEARANCE": 0,
+        "INGEST_WITHOUT_PII_CLEARANCE": 0,
+        "INGEST_WITHOUT_CURRENTNESS_CLEARANCE": 0,
+        "INGEST_WITH_UNSUPPORTED_FORMAT": 0,
+        "INGEST_WITHOUT_PROVENANCE": 0,
+        "INGEST_WITHOUT_CONTENT_SHA": 0,
+        "INGEST_WITHOUT_AUTHORITY": 0,
+        "INGEST_WITH_SELF_DECLARED_AUTHORITY": 0,
+        "INGEST_WITHOUT_ATTRIBUTION_METADATA": 0,
+    }
+    assert report.coverage_complete is True
+
+
+def test_no_authority_evidence_at_all_leaves_the_candidate_blocked(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Without any authority evidence file, promotion never fabricates
+    coverage: the candidate stays blocked, and the overall gate stays red
+    regardless (``authority_review_binding_verified``/
+    ``authority_revocations_checked`` both require a real authority file
+    to ever be provided at all, independent of any single item's
+    coverage)."""
+    _install_governed_root(monkeypatch, tmp_path)
+    path = _write_real_catalog(tmp_path)
+    catalog = json.loads(path.read_text(encoding="utf-8"))
+    catalog["physical_objects"][0]["disposition"] = "REVIEW_REQUIRED"
+    catalog["physical_objects"][0]["gate_statuses"]["authority"] = (
+        "BLOCKED_NOT_CLEARED"
+    )
+    catalog["disposition_counts"]["INGEST"] = 0
+    catalog["disposition_counts"]["REVIEW_REQUIRED"] = 1
+    path.write_text(json.dumps(catalog), encoding="utf-8")
+
+    report = _generate(
+        tmp_path,
+        path,
+        _write_golden_spec(
+            tmp_path,
+            expected_final="REVIEW_REQUIRED",
+            expected_authority="BLOCKED_NOT_CLEARED",
+        ),
+        include_authority=False,
         expected_total=2,
     )
 
     assert report.blocked_ingest_candidates == 1
     assert report.mandatory_gate_blockers == {"authority": 1}
-    assert report.coverage_complete is True
+    assert report.authority_review_binding_verified is False
+    assert report.coverage_complete is False
     assert "BLOCKED_INGEST_CANDIDATES=1" in render_markdown(report)
+
+
+def test_authority_covers_candidate_but_rights_gate_still_blocks_promotion() -> None:
+    """Authority coverage never substitutes for an independently-failed
+    gate -- it only unblocks the one gate it actually speaks to. Here
+    ``rights`` is still ``BLOCKED_NOT_CLEARED`` even though the covering
+    authority is present: promotion must not happen.
+
+    Exercised directly against ``_promote_authority_cleared_candidates``
+    (unit-level) rather than through the full ``generate_coverage_report``
+    pipeline: fabricating a whole real-catalog fixture where the declared
+    ``rights`` gate is blocked while every other independently-recomputed
+    evidence binding (``verify_catalog_evidence_bindings``, which
+    recomputes rights/PII clearance from the routing/rights registries
+    and rejects any mismatch) still agrees would require faking a real
+    rights-registry non-clearance -- orthogonal to what this test is
+    about, and exactly the kind of unrelated coupling a dedicated,
+    independently-testable promotion function is meant to avoid."""
+    item = {
+        "content_sha256": CONTENT_SHA256,
+        "path": "01_EDUSCOL_OFFICIEL/current.pdf",
+        "base_disposition": "INGEST",
+        "disposition": "REVIEW_REQUIRED",
+        "currentness": "actuel",
+        "gate_statuses": {
+            "rights": "BLOCKED_NOT_CLEARED",
+            "pii": "PASS",
+            "authority": "BLOCKED_NOT_CLEARED",
+        },
+        "provenance_status": "VERIFIED",
+        "attribution_metadata": {
+            "source": "Eduscol",
+            "source_url": "https://eduscol.education.gouv.fr/test",
+        },
+    }
+
+    promoted = _promote_authority_cleared_candidates(
+        [item],
+        authority_allowlist=frozenset({CONTENT_SHA256}),
+    )
+
+    assert promoted == 0
+    assert item["disposition"] == "REVIEW_REQUIRED"
+    assert item["gate_statuses"]["authority"] == "BLOCKED_NOT_CLEARED"
+
+
+def test_authority_covers_candidate_but_stale_currentness_still_blocks_promotion(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Promotion also checks the item-level facts the safety-invariant
+    loop itself checks (currentness, format, provenance) -- not just the
+    ``gate_statuses`` dict -- so a stale document is never promoted just
+    because rights/PII/authority all clear. ``currentness`` is never a
+    ``gate_statuses`` key (only ``rights``/``pii``/``authority`` are, by
+    design -- see ``_apply_mandatory_ingest_gates``), so the reported
+    blocker still only names ``authority``, which stays
+    ``BLOCKED_NOT_CLEARED`` because promotion never happened."""
+    _install_governed_root(monkeypatch, tmp_path)
+    path = _write_real_catalog(tmp_path)
+    catalog = json.loads(path.read_text(encoding="utf-8"))
+    catalog["physical_objects"][0]["disposition"] = "REVIEW_REQUIRED"
+    catalog["physical_objects"][0]["gate_statuses"]["authority"] = (
+        "BLOCKED_NOT_CLEARED"
+    )
+    catalog["physical_objects"][0]["currentness"] = "transition"
+    catalog["disposition_counts"]["INGEST"] = 0
+    catalog["disposition_counts"]["REVIEW_REQUIRED"] = 1
+    path.write_text(json.dumps(catalog), encoding="utf-8")
+
+    report = _generate(
+        tmp_path,
+        path,
+        _write_golden_spec(
+            tmp_path,
+            expected_final="REVIEW_REQUIRED",
+            expected_authority="BLOCKED_NOT_CLEARED",
+        ),
+        expected_total=2,
+    )
+
+    assert report.blocked_ingest_candidates == 1
+    assert report.mandatory_gate_blockers == {"authority": 1}
+    assert report.coverage_complete is False
+
+
+def _valid_promotable_item() -> dict[str, Any]:
+    """A minimal item that ``_promote_authority_cleared_candidates``
+    promotes as-is -- every unit test below flips exactly one field away
+    from this baseline and asserts promotion is refused."""
+    return {
+        "content_sha256": CONTENT_SHA256,
+        "path": "01_EDUSCOL_OFFICIEL/current.pdf",
+        "base_disposition": "INGEST",
+        "disposition": "REVIEW_REQUIRED",
+        "currentness": "actuel",
+        "gate_statuses": {
+            "rights": "PASS",
+            "pii": "PASS",
+            "authority": "BLOCKED_NOT_CLEARED",
+        },
+        "provenance_status": "VERIFIED",
+        "attribution_metadata": {
+            "source": "Eduscol",
+            "source_url": "https://eduscol.education.gouv.fr/test",
+        },
+    }
+
+
+class TestPromoteAuthorityClearedCandidatesUnit:
+    """Unit-level branch coverage for ``_promote_authority_cleared_candidates``,
+    one dedicated test per conditional so each can be mutation-tested in
+    isolation: temporarily invert the branch, confirm the matching test
+    below (and only that one) fails, then restore."""
+
+    def _run(self, item: dict[str, Any], **allowlist_kwargs: Any) -> int:
+        allowlist = allowlist_kwargs.get(
+            "authority_allowlist", frozenset({CONTENT_SHA256})
+        )
+        return _promote_authority_cleared_candidates(
+            [item], authority_allowlist=allowlist
+        )
+
+    def test_baseline_item_is_promoted(self) -> None:
+        item = _valid_promotable_item()
+        promoted = self._run(item)
+        assert promoted == 1
+        assert item["disposition"] == "INGEST"
+        assert item["gate_statuses"]["authority"] == "PASS"
+
+    def test_empty_allowlist_promotes_nothing(self) -> None:
+        item = _valid_promotable_item()
+        promoted = _promote_authority_cleared_candidates(
+            [item], authority_allowlist=frozenset()
+        )
+        assert promoted == 0
+        assert item["disposition"] == "REVIEW_REQUIRED"
+
+    def test_none_allowlist_promotes_nothing(self) -> None:
+        item = _valid_promotable_item()
+        promoted = _promote_authority_cleared_candidates(
+            [item], authority_allowlist=None
+        )
+        assert promoted == 0
+        assert item["disposition"] == "REVIEW_REQUIRED"
+
+    def test_non_dict_entries_are_skipped(self) -> None:
+        promoted = _promote_authority_cleared_candidates(
+            ["not-a-dict"], authority_allowlist=frozenset({CONTENT_SHA256})
+        )
+        assert promoted == 0
+
+    def test_non_ingest_base_disposition_is_not_promoted(self) -> None:
+        item = _valid_promotable_item()
+        item["base_disposition"] = "EXCLUDE"
+        promoted = self._run(item)
+        assert promoted == 0
+        assert item["disposition"] == "REVIEW_REQUIRED"
+
+    def test_already_ingest_disposition_is_left_untouched(self) -> None:
+        """``disposition`` is already ``INGEST`` -- promotion must never
+        re-process it, even though every other field here still looks
+        promotable (including an inconsistent ``authority`` gate that a
+        real compiler would never produce alongside ``disposition==
+        INGEST``, chosen specifically so this test cannot pass by
+        accident via a later guard)."""
+        item = _valid_promotable_item()
+        item["disposition"] = "INGEST"
+        promoted = self._run(item)
+        assert promoted == 0
+        assert item["gate_statuses"]["authority"] == "BLOCKED_NOT_CLEARED"
+
+    def test_missing_gate_statuses_is_not_promoted(self) -> None:
+        item = _valid_promotable_item()
+        del item["gate_statuses"]
+        promoted = self._run(item)
+        assert promoted == 0
+        assert item["disposition"] == "REVIEW_REQUIRED"
+
+    def test_authority_gate_not_blocked_not_cleared_is_not_promoted(self) -> None:
+        item = _valid_promotable_item()
+        item["gate_statuses"]["authority"] = "BLOCKED_PII_DETECTED"
+        promoted = self._run(item)
+        assert promoted == 0
+        assert item["gate_statuses"]["authority"] == "BLOCKED_PII_DETECTED"
+
+    def test_rights_not_pass_is_not_promoted(self) -> None:
+        item = _valid_promotable_item()
+        item["gate_statuses"]["rights"] = "BLOCKED_NOT_CLEARED"
+        promoted = self._run(item)
+        assert promoted == 0
+        assert item["disposition"] == "REVIEW_REQUIRED"
+
+    def test_pii_not_pass_is_not_promoted(self) -> None:
+        item = _valid_promotable_item()
+        item["gate_statuses"]["pii"] = "BLOCKED_PII_DETECTED"
+        promoted = self._run(item)
+        assert promoted == 0
+        assert item["disposition"] == "REVIEW_REQUIRED"
+
+    def test_content_sha256_outside_the_allowlist_is_not_promoted(self) -> None:
+        item = _valid_promotable_item()
+        promoted = _promote_authority_cleared_candidates(
+            [item], authority_allowlist=frozenset({"c" * 64})
+        )
+        assert promoted == 0
+        assert item["disposition"] == "REVIEW_REQUIRED"
+
+    def test_malformed_content_sha256_is_not_promoted(self) -> None:
+        item = _valid_promotable_item()
+        item["content_sha256"] = "not-a-real-sha"
+        promoted = _promote_authority_cleared_candidates(
+            [item], authority_allowlist=frozenset({"not-a-real-sha"})
+        )
+        assert promoted == 0
+        assert item["disposition"] == "REVIEW_REQUIRED"
+
+    def test_stale_currentness_is_not_promoted(self) -> None:
+        item = _valid_promotable_item()
+        item["currentness"] = "transition"
+        promoted = self._run(item)
+        assert promoted == 0
+        assert item["disposition"] == "REVIEW_REQUIRED"
+
+    def test_non_pdf_path_is_not_promoted(self) -> None:
+        item = _valid_promotable_item()
+        item["path"] = "01_EDUSCOL_OFFICIEL/current.docx"
+        promoted = self._run(item)
+        assert promoted == 0
+        assert item["disposition"] == "REVIEW_REQUIRED"
+
+    def test_unverified_provenance_is_not_promoted(self) -> None:
+        item = _valid_promotable_item()
+        item["provenance_status"] = "UNVERIFIED"
+        promoted = self._run(item)
+        assert promoted == 0
+        assert item["disposition"] == "REVIEW_REQUIRED"
+
+    def test_missing_attribution_is_not_promoted(self) -> None:
+        item = _valid_promotable_item()
+        del item["attribution_metadata"]
+        promoted = self._run(item)
+        assert promoted == 0
+        assert item["disposition"] == "REVIEW_REQUIRED"
+
+    def test_incomplete_attribution_is_not_promoted(self) -> None:
+        item = _valid_promotable_item()
+        item["attribution_metadata"] = {"source": "Eduscol", "source_url": ""}
+        promoted = self._run(item)
+        assert promoted == 0
+        assert item["disposition"] == "REVIEW_REQUIRED"
+
+    def test_original_list_object_is_mutated_in_place_not_replaced(self) -> None:
+        """Confirms the promotion contract callers rely on: the function
+        mutates the items it is given directly, so a caller-owned deep
+        copy of ``physical_objects`` is what must be passed -- never the
+        catalog's own list, which golden-corpus validation requires to
+        stay byte-identical to the file on disk."""
+        item = _valid_promotable_item()
+        items = [item]
+        promoted = _promote_authority_cleared_candidates(
+            items, authority_allowlist=frozenset({CONTENT_SHA256})
+        )
+        assert promoted == 1
+        assert items[0] is item
+        assert item["disposition"] == "INGEST"
+
+
+def test_authority_not_covering_the_real_base_disposition_ingest_candidate_is_rejected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression guard for the candidate-set scoping defect found while
+    implementing authority promotion: the completeness check
+    (``_authority_semantic_validation``) must be evaluated against
+    ``base_disposition == INGEST`` (the true candidate set a real
+    compiler ever produces), never ``disposition == INGEST`` (which is
+    never true for real compiler output, since authority is always
+    ``BLOCKED_NOT_CLEARED`` there -- checking that set would make the
+    completeness check vacuous, always trivially satisfied against an
+    empty set, for every real catalog). Here ``base_disposition`` is
+    ``INGEST`` but the provided authority's allowlist does not cover this
+    ``content_sha256`` -- this must still raise, exactly like
+    ``test_h2f_defaut5_content_not_in_authority_allowlist_fails`` already
+    proves for the (less realistic) case where ``disposition`` is also
+    already ``INGEST`` in the raw fixture."""
+    _install_governed_root(monkeypatch, tmp_path)
+    path = _write_real_catalog(tmp_path)
+    catalog = json.loads(path.read_text(encoding="utf-8"))
+    catalog["physical_objects"][0]["disposition"] = "REVIEW_REQUIRED"
+    catalog["physical_objects"][0]["gate_statuses"]["authority"] = (
+        "BLOCKED_NOT_CLEARED"
+    )
+    catalog["disposition_counts"]["INGEST"] = 0
+    catalog["disposition_counts"]["REVIEW_REQUIRED"] = 1
+    path.write_text(json.dumps(catalog), encoding="utf-8")
+
+    routing_path, rights_path, pii_path, _, manifest_path = _write_external_evidence(
+        tmp_path, include_authority=False
+    )
+    different_content_sha256 = "c" * 64
+    authority = dict(_valid_authority_document())
+    authority["allowed_content_sha256"] = [different_content_sha256]
+    authority_path = _write_authority(tmp_path / "narrow_authority.json", authority)
+
+    with pytest.raises(
+        ValueError,
+        match="SEMANTIC_VALIDATION failed: the authority allowlist does not cover",
+    ):
+        generate_coverage_report(
+            path,
+            rights_path=rights_path,
+            pii_path=pii_path,
+            routing_path=routing_path,
+            golden_path=_write_golden_spec(
+                tmp_path,
+                expected_final="REVIEW_REQUIRED",
+                expected_authority="BLOCKED_NOT_CLEARED",
+            ),
+            manifest_path=manifest_path,
+            authority_path=authority_path,
+            # La liaison de revue doit correspondre EXACTEMENT aux octets de
+            # l'autorité réellement écrite (narrow, pas le document valide
+            # par défaut) -- sinon un défaut différent (liaison, pas
+            # complétude) serait déclenché en premier, et ce test ne
+            # prouverait plus ce qu'il prétend.
+            authority_review_binding_path=_write_review_binding(
+                tmp_path, authority
+            ),
+            authority_trust_anchor_path=_write_trust_anchor(tmp_path),
+            authority_environment="rehearsal",
+            expected_total=2,
+            expected_manifest_sha256=MANIFEST_SHA256,
+            authority_now=AUTHORITY_NOW,
+        )
 
 
 def test_rejects_catalog_rights_pass_not_derived_from_registry(
@@ -1772,15 +2177,28 @@ class TestRightsCategoriesAreCoveredExhaustively:
         self, tmp_path: Path
     ) -> None:
         """Un objet EXCLUDE n'est pas publié : sa catégorie n'a pas à être
-        couverte, et l'exiger rendrait le gate faussement rouge."""
+        couverte, et l'exiger rendrait le gate faussement rouge.
+
+        Corrigé pendant l'implémentation de la promotion d'autorité
+        (Finding C, ``docs/reports/lot_h2_authority_promotion.md``) : la
+        fixture précédente ne modifiait que ``disposition``
+        (``REVIEW_REQUIRED``) en laissant ``base_disposition`` à son
+        défaut ``INGEST`` -- avant le correctif de périmètre
+        (``base_disposition`` au lieu de ``disposition``), cela ne
+        prouvait rien de plus que le défaut bogué lui-même : le
+        périmètre de complétude était borné sur ``disposition``, donc
+        toujours vide pour un candidat réel, quelle que soit sa
+        catégorie. Un objet réellement « hors périmètre » est un objet
+        dont ``base_disposition`` n'est pas ``INGEST``."""
         catalog_path = self._catalog_with(
             tmp_path,
-            disposition="REVIEW_REQUIRED",
+            base_disposition="EXCLUDE",
+            disposition="EXCLUDE",
             rights_category_candidate="nexus_proprietaire",
         )
         catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
         catalog["disposition_counts"]["INGEST"] = 0
-        catalog["disposition_counts"]["REVIEW_REQUIRED"] = 1
+        catalog["disposition_counts"]["EXCLUDE"] = 2
         catalog_path.write_text(json.dumps(catalog), encoding="utf-8")
         report = self._run(tmp_path, catalog_path)
         assert report.safety_invariants["INGEST_WITHOUT_AUTHORITY"] == 0
