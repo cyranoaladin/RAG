@@ -1,6 +1,8 @@
 {
-  "current_main_sha": "a2a69dd472865c944b7cae463d4a50d1ee27bca0",
-  "generated_at": "2026-08-15",
+  "state_generated_at": "2026-08-15T20:40:00Z",
+  "state_observed_at_main_sha": "353703f96ee58345e9a46cd1c2fa7aed952a6e9f",
+  "state_observed_at_tree_sha": "cc4e96f69d140750913ca8102cde5752f31401c7",
+  "updates_prior_version_merged_via": "PR#120",
   "pr_merges": {
     "PR100_SIGNER_MERGED": true,
     "PR107_ATOMIC_DEPLOY_MERGED": true,
@@ -12,12 +14,10 @@
     "PR114_HEAD_PINNED_CHECK_FIX_MERGED": true,
     "PR115_AUTHORITY_PROMOTION_MERGED": true,
     "PR116_RATIFICATION_MERGED": true,
-    "PR119_STATUS_TRANSPORT_FIX_MERGED": true
-  },
-  "adr_status": {
-    "ADR0035_STATUS": "Accepte",
-    "ADR0036_STATUS": "Accepte",
-    "ADR0042_STATUS": "Accepte"
+    "PR119_STATUS_TRANSPORT_FIX_MERGED": true,
+    "PR120_MASTER_STATE_V1_MERGED": true,
+    "PR121_GOVERNED_REPUBLISH_MERGED": true,
+    "PR122_CURRENTNESS_PROMOTION_MERGED": true
   },
   "governance_gate": {
     "TRUSTED_REQUIRED_GATE_RELIABLY_ENFORCED": true,
@@ -27,50 +27,80 @@
     "PRODUCTION_READINESS_SIGNING_TOOL_COMPLETE": true,
     "CATALOG_REAL_CORPUS_COMPILE_PASS": true,
     "H2_WORKFLOW_E2E_REHEARSAL_PASS": true,
-    "ATOMIC_DEPLOY_REHEARSAL_PASS": "PARTIAL",
-    "atomic_deploy_rehearsal_note": "wrapper logic proven with real Compose files and real bytes; run_subprocess remains a double, no real docker compose pull/up executed yet"
+    "GOVERNED_REPUBLISH_STEP_EXISTS": true,
+    "GOVERNED_REPUBLISH_REAL_CAMPAIGN_EXECUTED": false,
+    "CURRENTNESS_VERIFIED_PROMOTION_STEP_EXISTS": true,
+    "CURRENTNESS_VERIFIED_PROMOTION_REAL_RUN_EXECUTED": false,
+    "ATOMIC_DEPLOY_REHEARSAL_PASS": "PARTIAL"
+  },
+  "atomic_deploy_audit": {
+    "run_subprocess_injection_point": "services/rag-engine/scripts/deploy_verified_release_cli.py:290-294,419",
+    "existing_dev_stack_found_on_host": "infra (rag_worker, rag_ui, rag_pgvector, rag_redis)",
+    "safe_fixture_compose_available": "services/rag-engine/infra/docker-compose.test.yml",
+    "orphaned_untracked_stack_found": "rag-smoke-ci3 (flagged only, not touched)"
   },
   "corpus_eligibility": {
     "PHYSICAL_FILES": 2584,
     "MANIFEST_ENTRIES": 2583,
     "UNIQUE_CONTENT_SHA256": 2582,
     "DUPLICATE_CONTENT_GROUPS": 1,
-    "PII_PDF_UNION_COVERAGE": 2475,
-    "RELEASE_ELIGIBLE_ARTIFACTS": 63,
-    "AUTHORIZED_ELIGIBLE_ARTIFACTS": null,
-    "AUTHORIZED_ELIGIBLE_ARTIFACTS_STATUS": "BLOCKED_TECHNICAL",
+    "CURRENT_RELEASE_ELIGIBLE_ARTIFACTS": 63,
+    "FINAL_RELEASE_ELIGIBLE_ARTIFACTS": null,
+    "FINAL_RELEASE_ELIGIBLE_ARTIFACTS_STATUS": "UNKNOWN_PENDING_TIER_A_CLOSURE",
+    "AUTHORIZED_ELIGIBLE_ARTIFACTS": 0,
     "INGESTED_ELIGIBLE_ARTIFACTS": 0,
     "API_DISCOVERABLE_ELIGIBLE_ARTIFACTS": 0
   },
-  "governed_republish": {
-    "GOVERNED_REPUBLISH_STEP_EXISTS": false,
-    "status": "BLOCKED_TECHNICAL"
+  "tier_a_investigation": {
+    "TIER_A_REAL_POPULATION": 1252,
+    "TIER_A_A_VERIFIER_POPULATION": 805,
+    "ROUTING_CONFIG_GAP_FOUND": false,
+    "REASONABLY_RESOLVABLE_NOW": "10-11",
+    "GENUINELY_NEEDS_MANUAL_REVIEW": "805+38",
+    "NOT_YET_INVESTIGATED": true,
+    "RIGHTS_AS_BLOCKER": false
+  },
+  "pr96_pr98_audit": {
+    "PR96_ACTION": "KEEP_OPEN",
+    "PR98_ACTION": "REUSE_AS_SUBSET",
+    "PR96_PR98_OVERLAP": "none",
+    "decision_pending": "operator"
   },
   "google_drive": {
-    "DRIVE_MIRROR_COMPLETE": "UNVERIFIED_THIS_SESSION",
-    "last_known_value": true,
-    "last_known_value_source": "prior session summary, not re-verified live this session"
+    "DRIVE_MIRROR_COMPLETE": true,
+    "DRIVE_CURRENT_CONTENT_FILES": 2584,
+    "DRIVE_MANIFEST_ENTRIES_MATCHED": 2583,
+    "DRIVE_EXTRA_UNACCOUNTED": 1,
+    "DRIVE_CANONICAL_FILES_MISSING": 0,
+    "DRIVE_SHA_MISMATCH": 0,
+    "drive_remote": "gdrive_ert:NEXUS_RAG/NEXUS_RAG_GDRIVE_READY",
+    "rclone_check_result": "0 differences found, 2584 matching files",
+    "drive_snapshot_id": "drive-snapshot-20260815T180436Z",
+    "drive_snapshot_mapping_sha256": "75ac6bd288882939d2bb8fcad758730238037c5266913166fcbc61c3be47cdc8",
+    "drive_snapshot_metadata_sha256": "15d517a49517d94a9dcccfbc6767815afc0b09b933dd2022eb8830dcd09fb7fb"
   },
   "production_github_environment": {
     "PRODUCTION_ENVIRONMENT_EXISTS": false,
-    "REQUIRED_REVIEWER_CONFIGURED": false,
-    "MAIN_ONLY_POLICY": false,
-    "SELF_REVIEW_PREVENTED": false,
-    "ADMIN_BYPASS_DISABLED": false,
-    "LONG_LIVED_SECRETS": "UNKNOWN",
-    "status": "NOT_STARTED"
+    "status": "NOT_STARTED_BLOCKED_HUMAN"
   },
   "consolidated_status": [
-    {"item": "Gouvernance PR#100/107/108/109/110/111/112/114/115/116/119", "status": "DONE"},
+    {"item": "Gouvernance PR#100-#122 (hors #96/#98)", "status": "DONE"},
     {"item": "Gate trusted-review fiable (Commit Status)", "status": "DONE"},
-    {"item": "Signing tool / catalog compile / H2 E2E rehearsals", "status": "DONE"},
+    {"item": "Governed republish - mecanisme", "status": "DONE"},
+    {"item": "Governed republish - execution reelle", "status": "NOT_STARTED"},
+    {"item": "Currentness-verified promotion - mecanisme", "status": "DONE"},
+    {"item": "Currentness-verified promotion - execution reelle", "status": "NOT_STARTED"},
     {"item": "Atomic deploy - logique wrapper", "status": "DONE_PARTIAL"},
-    {"item": "Governed republish (catalogue -> INGEST materialise)", "status": "BLOCKED_TECHNICAL"},
-    {"item": "Strategie d'autorisation exacte-content (63 objets)", "status": "BLOCKED_TECHNICAL"},
-    {"item": "Currentness Tier A (1253 objets)", "status": "NOT_STARTED"},
-    {"item": "Google Drive mirror", "status": "UNVERIFIED_THIS_SESSION"},
+    {"item": "Atomic deploy - rehearsal Docker reel isole", "status": "NOT_STARTED"},
+    {"item": "Tier A - investigation", "status": "DONE"},
+    {"item": "Tier A - resolution complete", "status": "NOT_STARTED"},
+    {"item": "PR#96/#98 - audit", "status": "DONE"},
+    {"item": "PR#96/#98 - decision + action", "status": "BLOCKED_HUMAN"},
+    {"item": "Google Drive mirror", "status": "DONE"},
     {"item": "Production GitHub Environment", "status": "NOT_STARTED_BLOCKED_HUMAN"},
-    {"item": "Vrai deploiement Docker end-to-end", "status": "NOT_STARTED"},
+    {"item": "FINAL_ELIGIBLE_SHA_SET fige", "status": "NOT_STARTED"},
+    {"item": "Strategie d'autorisation exacte-content", "status": "NOT_STARTED"},
+    {"item": "Campagne reelle + republish reel", "status": "NOT_STARTED"},
     {"item": "production-image-provenance.yml run reel", "status": "NOT_STARTED"},
     {"item": "promote.yml run reel", "status": "NOT_STARTED"},
     {"item": "FINAL_RAG_MAIN_SHA freeze", "status": "NOT_STARTED"},
