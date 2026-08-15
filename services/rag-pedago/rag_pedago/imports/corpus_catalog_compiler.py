@@ -412,6 +412,53 @@ def _parse_sealed_manifest(path: Path) -> list[tuple[str, str]]:
     return entries
 
 
+#: Colonnes du schéma pédagogique riche (curation manuelle antérieure,
+#: jamais produit par la chaîne d'acquisition réelle du corpus scellé
+#: actuel — voir ``services/rag-pedago/tests/test_corpus_catalog_
+#: compiler.py`` et ``test_corpus_review_view.py``, qui construisent
+#: encore ce format). Conservé tel quel : aucune régression sur ce
+#: chemin déjà testé.
+_PEDAGOGICAL_PLACEMENT_COLUMNS = frozenset(
+    {
+        "sha256",
+        "scope",
+        "famille",
+        "matiere_ou_rubrique",
+        "niveau",
+        "type_document",
+        "annee",
+        "statut",
+        "titre",
+        "url_source",
+        "objet_source",
+        "chemin_technique_existant",
+        "chemin_par_niveau",
+        "chemin_par_scope",
+    }
+)
+
+#: Colonnes du schéma technique réellement produit par la chaîne
+#: d'acquisition du corpus scellé actuel (``00_ADMIN/eduscol_
+#: affectations.tsv`` — vérifié directement contre le fichier réel).
+#: Strict, jamais un sur-ensemble accepté silencieusement : ce schéma
+#: est celui de la seule source technique connue, une colonne
+#: inattendue signale un producteur divergent, pas une évolution
+#: bénigne.
+_TECHNICAL_PLACEMENT_COLUMNS = frozenset(
+    {
+        "sha256",
+        "canonical_destination",
+        "source_relative",
+        "level",
+        "subject",
+        "doc_type",
+        "year",
+        "is_primary",
+        "size",
+    }
+)
+
+
 def _pedagogical_placement_from_row(row: dict[str, str]) -> PedagogicalPlacement:
     return PedagogicalPlacement(
         content_sha256=row["sha256"],
@@ -431,30 +478,31 @@ def _pedagogical_placement_from_row(row: dict[str, str]) -> PedagogicalPlacement
     )
 
 
-def _load_eduscol_placements(
+def _technical_placement_from_row(row: dict[str, str]) -> PedagogicalPlacement:
+    """Construit depuis le schéma technique réel — jamais un champ
+    inventé pour ``scope``/``family``/``status``/``title``/``source_url``/
+    ``level_path``/``scope_path`` : ces données n'existent nulle part dans
+    ce corpus scellé (voir la docstring de ``PedagogicalPlacement``)."""
+    return PedagogicalPlacement(
+        content_sha256=row["sha256"],
+        subject=row["subject"],
+        level=row["level"],
+        document_type=row["doc_type"],
+        year=row["year"],
+        source_object=row["source_relative"],
+        technical_path=row["canonical_destination"],
+        is_primary=row["is_primary"].strip() == "1",
+    )
+
+
+def _load_pedagogical_eduscol_placements(
     placement_catalog_path: Path,
 ) -> list[PedagogicalPlacement]:
-    required_columns = {
-        "sha256",
-        "scope",
-        "famille",
-        "matiere_ou_rubrique",
-        "niveau",
-        "type_document",
-        "annee",
-        "statut",
-        "titre",
-        "url_source",
-        "objet_source",
-        "chemin_technique_existant",
-        "chemin_par_niveau",
-        "chemin_par_scope",
-    }
     placements: list[PedagogicalPlacement] = []
     with placement_catalog_path.open(encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle, delimiter="\t")
         columns = set(reader.fieldnames or ())
-        missing = sorted(required_columns - columns)
+        missing = sorted(_PEDAGOGICAL_PLACEMENT_COLUMNS - columns)
         if missing:
             raise ValueError(
                 "placement catalog missing required columns: " + ", ".join(missing)
@@ -468,6 +516,93 @@ def _load_eduscol_placements(
                 )
             placements.append(placement)
     return placements
+
+
+def _load_technical_eduscol_placements(
+    placement_catalog_path: Path,
+) -> list[PedagogicalPlacement]:
+    """Schéma réellement produit par la chaîne d'acquisition du corpus
+    scellé (``00_ADMIN/eduscol_affectations.tsv``). Plusieurs lignes pour
+    un même ``sha256`` sont attendues et acceptées (multi-placement réel,
+    vérifié : le fichier committé en contient) — désambiguïsées par
+    ``is_primary``, jamais une seule ligne arbitrairement retenue.
+    ``canonical_destination`` (``technical_path``) est le chemin physique
+    final et peut être IDENTIQUE entre plusieurs lignes d'un même
+    ``sha256`` (vérifié sur le fichier réel : le même objet physique peut
+    être un candidat de classement sous plusieurs ``subject``, une seule
+    destination retenue) — ce n'est donc jamais la clé de duplication.
+    ``source_relative`` (``source_object``), qui identifie le chemin de
+    classement candidat lui-même, l'est : une ligne strictement dupliquée
+    (même sha256 ET même ``source_relative``) est un défaut d'intégrité
+    de la source, refusée."""
+    placements: list[PedagogicalPlacement] = []
+    seen_sha_source_relative: set[tuple[str, str]] = set()
+    with placement_catalog_path.open(encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle, delimiter="\t")
+        columns = set(reader.fieldnames or ())
+        missing = sorted(_TECHNICAL_PLACEMENT_COLUMNS - columns)
+        if missing:
+            raise ValueError(
+                "placement catalog missing required columns: " + ", ".join(missing)
+            )
+        extra = sorted(columns - _TECHNICAL_PLACEMENT_COLUMNS)
+        if extra:
+            raise ValueError(
+                "placement catalog declares unexpected column(s): " + ", ".join(extra)
+            )
+        for line_number, row in enumerate(reader, start=2):
+            placement = _technical_placement_from_row(row)
+            if re.fullmatch(r"[0-9a-f]{64}", placement.content_sha256) is None:
+                raise ValueError(
+                    "invalid Eduscol content SHA256 at placement line "
+                    f"{line_number}: {placement.content_sha256}"
+                )
+            key = (placement.content_sha256, placement.source_object or "")
+            if key in seen_sha_source_relative:
+                raise ValueError(
+                    "duplicate placement row (same sha256 and source_relative) at "
+                    f"line {line_number}: {placement.content_sha256}"
+                )
+            seen_sha_source_relative.add(key)
+            placements.append(placement)
+    for content_sha256, group in _group_by_content_sha256(placements).items():
+        primary_count = sum(1 for p in group if p.is_primary)
+        if primary_count != 1:
+            raise ValueError(
+                f"placement catalog must declare exactly one is_primary=1 row "
+                f"per sha256, found {primary_count} for {content_sha256}"
+            )
+    return placements
+
+
+def _group_by_content_sha256(
+    placements: list[PedagogicalPlacement],
+) -> dict[str, list[PedagogicalPlacement]]:
+    grouped: dict[str, list[PedagogicalPlacement]] = {}
+    for placement in placements:
+        grouped.setdefault(placement.content_sha256, []).append(placement)
+    return grouped
+
+
+def _load_eduscol_placements(
+    placement_catalog_path: Path,
+) -> list[PedagogicalPlacement]:
+    """Détecte le schéma réel du fichier fourni et route vers le parseur
+    correspondant — jamais un schéma unique supposé, puisque ce dépôt en
+    a réellement produit deux au fil de sa vie (voir les deux constantes
+    ``_PEDAGOGICAL_PLACEMENT_COLUMNS``/``_TECHNICAL_PLACEMENT_COLUMNS``
+    ci-dessus)."""
+    with placement_catalog_path.open(encoding="utf-8", newline="") as handle:
+        columns = set(csv.DictReader(handle, delimiter="\t").fieldnames or ())
+    if _PEDAGOGICAL_PLACEMENT_COLUMNS <= columns:
+        return _load_pedagogical_eduscol_placements(placement_catalog_path)
+    if _TECHNICAL_PLACEMENT_COLUMNS <= columns:
+        return _load_technical_eduscol_placements(placement_catalog_path)
+    raise ValueError(
+        "placement catalog header matches neither the pedagogical schema "
+        f"({sorted(_PEDAGOGICAL_PLACEMENT_COLUMNS)}) nor the technical schema "
+        f"({sorted(_TECHNICAL_PLACEMENT_COLUMNS)}) — got {sorted(columns)}"
+    )
 
 
 def _attach_eduscol_placements(
@@ -488,13 +623,22 @@ def _attach_eduscol_placements(
         artifact.pedagogical_placements.append(placement)
 
 
+#: Utilisé quand aucune des placements d'un contenu ne porte de
+#: ``source_url`` réelle (schéma technique, jamais le schéma
+#: pédagogique riche qui en fournit toujours une) — un marqueur
+#: explicite, jamais une URL inventée. Le schéma pédagogique riche
+#: continue de produire une vraie URL pour chaque contenu ; ce cas ne
+#: s'y déclenche donc jamais (aucune régression sur ce chemin).
+_NO_SOURCE_URL_AVAILABLE = "UNKNOWN"
+
+
 def _placement_attribution(
     placements: list[PedagogicalPlacement],
 ) -> dict[str, dict[str, str]]:
     references: dict[str, set[str]] = {}
     for placement in placements:
         references.setdefault(placement.content_sha256, set()).add(
-            placement.source_url
+            placement.source_url or _NO_SOURCE_URL_AVAILABLE
         )
     result: dict[str, dict[str, str]] = {}
     for content_sha256, source_urls in references.items():
