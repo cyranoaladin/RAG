@@ -74,7 +74,11 @@ from nexus_contracts.review_binding import (
     verify_review_binding,
 )
 
+from rag_pedago.imports.artifact_placement_model import Disposition
 from rag_pedago.imports.corpus_catalog_compiler import (
+    _apply_mandatory_ingest_gates,  # noqa: SLF001 - réutilisation intentionnelle
+    _derive_pii_clearances,  # noqa: SLF001
+    _derive_rights_clearances,  # noqa: SLF001
     verify_catalog_evidence_bindings,
 )
 from rag_pedago.imports.golden_corpus_validator import (
@@ -942,6 +946,183 @@ def _load_authority_evidence(
     return allowlist, binding, revocations_checked
 
 
+#: Protocole du registre de vérification de currentness par preuve
+#: primaire (byte-identity contre la source officielle). Versionné :
+#: un futur format ne peut jamais être relu comme celui-ci par accident.
+_CURRENTNESS_VERIFICATION_PROTOCOL = "MULTILEVEL_ARTIFACT_CURRENTNESS_V1"
+
+
+def _load_currentness_verification_evidence(
+    path: Path, *, manifest_sha256: str
+) -> frozenset[str]:
+    """Charge les empreintes dont la currentness a été prouvée par
+    identité d'octets contre une source primaire officielle.
+
+    Ne fait jamais confiance au drapeau ``byte_identity`` déclaratif seul
+    (voir constat de l'audit Tier A : le fichier lui-même documente que la
+    plupart de ses lignes proviennent d'un audit *réutilisé*,
+    ``decision_basis: READ_ONLY_OFFICIAL_NETWORK_AUDIT_REUSED_FAIL_CLOSED``)
+    — la preuve retenue ici est la ré-égalité explicite entre
+    ``current_download_sha256`` et ``content_sha256`` pour chaque entrée
+    ``decision == "CURRENT"``, jamais le booléen seul.
+    """
+    if not path.is_file():
+        raise ValueError(
+            f"currentness verification evidence file does not exist: {path}"
+        )
+    try:
+        document = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except yaml.YAMLError as exc:
+        raise ValueError(
+            f"currentness verification evidence is not valid YAML: {exc}"
+        ) from exc
+    if not isinstance(document, dict):
+        raise ValueError("currentness verification evidence must be a mapping")
+    if document.get("evidence_kind") != _CURRENTNESS_VERIFICATION_PROTOCOL:
+        raise ValueError(
+            "currentness verification evidence has unsupported evidence_kind "
+            f"{document.get('evidence_kind')!r}, expected "
+            f"{_CURRENTNESS_VERIFICATION_PROTOCOL!r}"
+        )
+    if document.get("corpus_manifest_sha256") != manifest_sha256:
+        raise ValueError(
+            "currentness verification evidence is bound to another manifest "
+            f"(evidence={document.get('corpus_manifest_sha256')!r}, "
+            f"catalog={manifest_sha256!r})"
+        )
+    artifacts = document.get("artifacts")
+    if not isinstance(artifacts, list):
+        raise ValueError("currentness verification evidence must list artifacts")
+
+    verified: set[str] = set()
+    for entry in artifacts:
+        if not isinstance(entry, dict):
+            raise ValueError("currentness verification artifact must be a mapping")
+        if entry.get("decision") != "CURRENT":
+            continue
+        content_sha256 = entry.get("content_sha256")
+        if not isinstance(content_sha256, str) or re.fullmatch(
+            r"[0-9a-f]{64}", content_sha256
+        ) is None:
+            raise ValueError(
+                "currentness verification artifact has an invalid content_sha256"
+            )
+        if entry.get("byte_identity") is not True:
+            raise ValueError(
+                f"currentness verification artifact {content_sha256} declares "
+                "decision=CURRENT without byte_identity=true — a CURRENT "
+                "decision unsupported by byte-identity proves nothing"
+            )
+        # La preuve retenue : l'empreinte téléchargée depuis la source
+        # primaire doit être EXACTEMENT celle de l'objet du corpus scellé
+        # — jamais le drapeau ``byte_identity`` seul, qui pourrait être
+        # positionné sans que les deux empreintes soient ré-vérifiées ici.
+        if entry.get("current_download_sha256") != content_sha256:
+            raise ValueError(
+                f"currentness verification artifact {content_sha256} declares "
+                "byte_identity=true but current_download_sha256 does not equal "
+                "content_sha256 — the claimed proof does not match the object "
+                "it claims to cover"
+            )
+        if entry.get("effective_currentness") != "actuel":
+            raise ValueError(
+                f"currentness verification artifact {content_sha256} declares "
+                "decision=CURRENT but effective_currentness is not 'actuel'"
+            )
+        verified.add(content_sha256)
+    return frozenset(verified)
+
+
+def _promote_currentness_verified_candidates(
+    physical_objects: list[Any],
+    *,
+    currentness_verified_sha256: frozenset[str],
+    rights_cleared_sha256: frozenset[str],
+    pii_cleared_sha256: frozenset[str],
+    pii_quarantined_sha256: frozenset[str],
+) -> int:
+    """Promote candidates whose only structural blocker was an
+    unclassified/unverified currentness zone, now resolved by primary-
+    source byte-identity evidence.
+
+    ``corpus_zone_routing.yml`` assigns ``base_disposition`` — the
+    compiler's own structural fact — purely from the object's physical
+    path, statically, never from a per-content evidence file
+    (``01_EDUSCOL_OFFICIEL``'s catch-all sub-zone routes every path
+    without an explicit currentness-status subfolder to
+    ``REVIEW_REQUIRED``/``currentness=unclassified``, regardless of what
+    is actually inside the file). Because
+    ``_apply_mandatory_ingest_gates`` never evaluates rights/PII for a
+    candidate whose ``base_disposition`` is not already ``INGEST``, these
+    items carry empty ``gate_statuses`` — promoting them requires
+    genuinely evaluating those gates for the first time, not merely
+    flipping a label.
+
+    An item is promoted only when ALL of the following hold:
+    - ``base_disposition == "REVIEW_REQUIRED"`` (never touch any other
+      structural disposition — ``ARCHIVE_ONLY``/``QUARANTINE``/``EXCLUDE``
+      are decided facts, not currentness-pending ones);
+    - its recorded ``currentness`` is exactly ``"unclassified"`` or
+      ``"a_verifier"`` (the two catch-all/pending zones this evidence can
+      legitimately resolve — never override a zone that already carries a
+      *different* decided reason, e.g. ``"transition"``/``"conflict"``);
+    - its ``content_sha256`` is covered by ``currentness_verified_sha256``;
+    - rights AND PII, freshly evaluated via
+      ``_apply_mandatory_ingest_gates`` (the exact same pure function the
+      compiler itself uses for real INGEST-zone candidates — reused, never
+      duplicated), both independently pass.
+
+    Promotion flips ``base_disposition`` to ``"INGEST"`` and
+    ``currentness`` to ``"actuel"`` on this deep copy only — this makes
+    the item a genuine INGEST *candidate*, exactly as if the corpus had
+    been organized with an explicit ``10_ACTUEL_CONFIRME/`` path from the
+    start. Authority is deliberately left untouched
+    (``_apply_mandatory_ingest_gates`` never sets it to ``PASS``): a
+    currentness-promoted item still requires the same
+    ``_promote_authority_cleared_candidates`` step as any other candidate
+    before it can ever reach ``disposition="INGEST"``.
+    """
+    if not currentness_verified_sha256:
+        return 0
+    promoted = 0
+    for item in physical_objects:
+        if not isinstance(item, dict):
+            continue
+        if item.get("base_disposition") != "REVIEW_REQUIRED":
+            continue
+        if item.get("currentness") not in ("unclassified", "a_verifier"):
+            continue
+        content_sha256 = item.get("content_sha256")
+        if (
+            not isinstance(content_sha256, str)
+            or content_sha256 not in currentness_verified_sha256
+        ):
+            continue
+        disposition, _reason, gate_statuses = _apply_mandatory_ingest_gates(
+            Disposition.INGEST,
+            content_sha256,
+            rights_cleared_sha256,
+            pii_cleared_sha256,
+            pii_quarantined_sha256,
+        )
+        if (
+            gate_statuses.get("rights") != "PASS"
+            or gate_statuses.get("pii") != "PASS"
+        ):
+            continue
+        item["base_disposition"] = Disposition.INGEST.value
+        item["disposition"] = disposition.value
+        item["currentness"] = "actuel"
+        item["gate_statuses"] = gate_statuses
+        item["disposition_reason"] = (
+            "Currentness verified against primary source (byte-identity "
+            "confirmed): promoted from REVIEW_REQUIRED to an INGEST "
+            "candidate — authority still required"
+        )
+        promoted += 1
+    return promoted
+
+
 def _promote_authority_cleared_candidates(
     physical_objects: list[Any],
     *,
@@ -1088,6 +1269,7 @@ def generate_coverage_report(
     repository_root: Path | None = None,
     expected_total: int = 2584,
     expected_manifest_sha256: str | None = None,
+    currentness_verification_path: Path | None = None,
 ) -> CoverageReport:
     """Generate H2-B coverage report.
 
@@ -1267,6 +1449,42 @@ def generate_coverage_report(
     # bit-à-bit identique au fichier catalogue sur disque. Seule cette
     # copie voit l'état promu ; le catalogue original n'est jamais muté.
     promoted_physical_objects = copy.deepcopy(physical_objects)
+    if currentness_verification_path is not None:
+        # Gap Tier A (audit du 2026-08-15) : une preuve de currentness par
+        # identité d'octets contre la source primaire peut faire d'un
+        # candidat REVIEW_REQUIRED un candidat INGEST authentique, avant
+        # même que la promotion d'autorité ne s'applique -- droits et PII
+        # sont ici évalués pour de vrai avec la même fonction pure que le
+        # compilateur, jamais dupliquée.
+        currentness_verified_sha256 = _load_currentness_verification_evidence(
+            currentness_verification_path, manifest_sha256=str(manifest_sha256)
+        )
+        entries_for_clearances = [
+            (str(item.get("content_sha256")), str(item.get("path")))
+            for item in physical_objects
+            if isinstance(item, dict)
+        ]
+        rights_cleared_sha256 = frozenset(
+            _derive_rights_clearances(
+                entries_for_clearances,
+                str(manifest_sha256),
+                rights_registry,
+                routing_config,
+            )
+        )
+        pii_cleared_sha256_set, pii_quarantined_sha256_set = _derive_pii_clearances(
+            entries_for_clearances,
+            str(manifest_sha256),
+            pii_evidence,
+            routing_config,
+        )
+        _promote_currentness_verified_candidates(
+            promoted_physical_objects,
+            currentness_verified_sha256=currentness_verified_sha256,
+            rights_cleared_sha256=rights_cleared_sha256,
+            pii_cleared_sha256=frozenset(pii_cleared_sha256_set),
+            pii_quarantined_sha256=frozenset(pii_quarantined_sha256_set),
+        )
     _promote_authority_cleared_candidates(
         promoted_physical_objects,
         authority_allowlist=authority_allowlist,
@@ -1714,6 +1932,19 @@ def main() -> int:
         ),
     )
     parser.add_argument(
+        "--currentness-verification",
+        type=Path,
+        help=(
+            "Registre de vérification de currentness par identité d'octets "
+            "contre une source primaire (NEXUS-CATALOG-REPUBLISH gap Tier A, "
+            "audit du 2026-08-15). Un candidat REVIEW_REQUIRED dont la "
+            "currentness était 'unclassified'/'a_verifier' devient un "
+            "candidat INGEST authentique quand ce registre le couvre et que "
+            "droits+PII, réévalués pour de vrai, passent — jamais un défaut "
+            "implicite."
+        ),
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         help="Output path for Markdown report",
@@ -1754,6 +1985,7 @@ def main() -> int:
         authority_environment=args.authority_environment,
         expected_total=args.expected_total,
         expected_manifest_sha256=args.expected_manifest_sha256,
+        currentness_verification_path=args.currentness_verification,
     )
 
     markdown = render_markdown(report)

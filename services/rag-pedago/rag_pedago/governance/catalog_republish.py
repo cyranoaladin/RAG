@@ -52,9 +52,16 @@ from pathlib import Path
 from typing import Any
 
 from rag_pedago.governance.corpus_campaign import CorpusCampaignV1
+from rag_pedago.imports.corpus_catalog_compiler import (
+    _derive_pii_clearances,  # noqa: SLF001 - réutilisation intentionnelle
+    _derive_rights_clearances,  # noqa: SLF001
+)
 from rag_pedago.imports.h2b_coverage_report import (
     _load_authority_evidence,  # noqa: SLF001 - réutilisation intentionnelle, cf. docstring
+    _load_currentness_verification_evidence,  # noqa: SLF001
+    _load_yaml_mapping,  # noqa: SLF001
     _promote_authority_cleared_candidates,  # noqa: SLF001
+    _promote_currentness_verified_candidates,  # noqa: SLF001
     ingest_candidate_facts,
     load_catalog,
 )
@@ -119,6 +126,10 @@ def republish_catalog(
     out_root: Path,
     now: datetime | None = None,
     repository_root: Path | None = None,
+    currentness_verification_path: Path | None = None,
+    rights_path: Path | None = None,
+    pii_path: Path | None = None,
+    routing_path: Path | None = None,
 ) -> CatalogRepublishResult:
     """Charge, promeut et matérialise le catalogue gouverné d'une campagne.
 
@@ -126,6 +137,13 @@ def republish_catalog(
     sont jamais des paramètres : en production ils sont **toujours** lus
     aux chemins gouvernés par ``_load_authority_evidence`` lui-même — les
     exposer ici referait exister le défaut qu'ADR-0035 a fermé.
+
+    ``currentness_verification_path`` (gap Tier A, audit du 2026-08-15)
+    est optionnel — mais quand il est fourni, ``rights_path``/
+    ``pii_path``/``routing_path`` le deviennent aussi : la promotion par
+    currentness réévalue réellement droits et PII (voir
+    ``h2b_coverage_report._promote_currentness_verified_candidates``),
+    elle ne peut jamais s'appliquer sans cette évidence.
     """
     if campaign.environment != "production":
         raise CatalogRepublishError(
@@ -193,6 +211,48 @@ def republish_catalog(
     )
 
     promoted_physical_objects = copy.deepcopy(physical_objects)
+    if currentness_verification_path is not None:
+        if rights_path is None or pii_path is None or routing_path is None:
+            raise CatalogRepublishError(
+                "currentness_verification_path requires rights_path, "
+                "pii_path and routing_path — currentness promotion "
+                "re-evaluates rights and PII for real, it can never "
+                "apply without this evidence"
+            )
+        currentness_verified_sha256 = _load_currentness_verification_evidence(
+            currentness_verification_path, manifest_sha256=str(manifest_sha256)
+        )
+        entries_for_clearances = [
+            (str(item.get("content_sha256")), str(item.get("path")))
+            for item in physical_objects
+            if isinstance(item, dict)
+        ]
+        rights_registry = _load_yaml_mapping(rights_path, label="rights registry")
+        routing_config = _load_yaml_mapping(routing_path, label="routing policy")
+        pii_evidence = load_catalog(pii_path)
+        if not isinstance(pii_evidence, dict):
+            raise CatalogRepublishError("PII evidence must be a mapping")
+        rights_cleared_sha256 = frozenset(
+            _derive_rights_clearances(
+                entries_for_clearances,
+                str(manifest_sha256),
+                rights_registry,
+                routing_config,
+            )
+        )
+        pii_cleared_sha256_set, pii_quarantined_sha256_set = _derive_pii_clearances(
+            entries_for_clearances,
+            str(manifest_sha256),
+            pii_evidence,
+            routing_config,
+        )
+        _promote_currentness_verified_candidates(
+            promoted_physical_objects,
+            currentness_verified_sha256=currentness_verified_sha256,
+            rights_cleared_sha256=rights_cleared_sha256,
+            pii_cleared_sha256=frozenset(pii_cleared_sha256_set),
+            pii_quarantined_sha256=frozenset(pii_quarantined_sha256_set),
+        )
     promoted_count = _promote_authority_cleared_candidates(
         promoted_physical_objects,
         authority_allowlist=authority_allowlist,
