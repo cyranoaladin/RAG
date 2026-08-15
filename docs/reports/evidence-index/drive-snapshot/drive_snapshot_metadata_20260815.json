@@ -1,0 +1,14 @@
+{
+  "drive_canonical_files_missing": 0,
+  "drive_current_content_files": 2584,
+  "drive_extra_unaccounted": 1,
+  "drive_manifest_entries_matched": 2583,
+  "drive_remote": "gdrive_ert:NEXUS_RAG/NEXUS_RAG_GDRIVE_READY",
+  "drive_snapshot_id": "drive-snapshot-20260815T180436Z",
+  "generated_at": "2026-08-15T18:04:36.240381Z",
+  "mapping_file_sha256": "75ac6bd288882939d2bb8fcad758730238037c5266913166fcbc61c3be47cdc8",
+  "note": "content_sha256 and canonical_path come exclusively from the local sealed manifest (00_ADMIN/SHA256SUMS.txt) -- Drive fileId is provenance only, never identity authority, per the standing additive-only mirror protocol.",
+  "protocol_version": "NEXUS-DRIVE-SNAPSHOT-V1",
+  "rclone_check_result": "0 differences found, 2584 matching files",
+  "sealed_manifest_sha256": "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e"
+}
