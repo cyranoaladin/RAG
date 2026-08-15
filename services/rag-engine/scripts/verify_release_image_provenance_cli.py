@@ -75,6 +75,7 @@ import subprocess
 import sys
 import tempfile
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -109,6 +110,59 @@ _INFRA_RELATIVE_PATH = "services/rag-engine/infra"
 _ENV_FILE_RELATIVE_PATH = f"{_INFRA_RELATIVE_PATH}/.env"
 
 RunDockerComposeConfig = Callable[[Path, str, tuple[str, ...], Path, Path], dict[str, Any]]
+GitShowBytes = Callable[[Path, str, str], bytes]
+
+
+def canonical_resolved_compose_bytes(resolved_config: dict[str, Any]) -> bytes:
+    """Sérialisation canonique unique d'un Compose déjà résolu (clés
+    triées, séparateurs compacts, ``ensure_ascii=False``) — LA convention
+    partagée entre chaque outil qui doit produire ou revérifier
+    ``compose_digest`` : le signer (``sign_production_readiness_manifest_
+    cli.py``, PR #100 Section 11) et ce module (Lot C). Une divergence de
+    convention entre deux implémentations indépendantes romprait
+    silencieusement la reproductibilité que ce digest est censé
+    garantir — ``ensure_ascii=False`` n'est pas cosmétique : sans lui, un
+    caractère non-ASCII dans le Compose résolu (une valeur
+    d'environnement accentuée, par exemple) hacherait différemment selon
+    l'implémentation qui l'a calculé."""
+    return json.dumps(resolved_config, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode(
+        "utf-8"
+    )
+
+
+@dataclass(frozen=True)
+class VerifiedReleaseMaterialization:
+    """Tout ce qu'une vérification réussie a effectivement lu et prouvé —
+    jamais redemandé ni re-résolu par un appelant en aval. Le wrapper de
+    déploiement (Lot C) matérialise son bundle EXCLUSIVEMENT depuis ces
+    champs : aucune seconde résolution Compose, aucune seconde lecture de
+    ``.env``, aucun second téléchargement de la preuve de provenance —
+    fermant la micro-fenêtre TOCTOU résiduelle qu'une double résolution
+    aurait laissée ouverte, notamment sur ``.env`` (host-local, mutable).
+
+    - ``resolved_compose`` : sortie JSON de ``docker compose ... config``
+      (déjà interpolée) — source du digest ``compose_digest``.
+    - ``pinned_images`` : ``{service: image@sha256:...}``, croisé avec la
+      provenance vérifiée (voir ``require_pinned_images_match_verified_
+      provenance``).
+    - ``compose_source_bytes`` : octets bruts des trois fichiers Compose
+      source tels que lus depuis l'objet git ``source_commit_sha`` (jamais
+      depuis un disque qui pourrait avoir divergé).
+    - ``env_bytes`` : octets exacts du fichier ``.env`` hôte, lus UNE
+      SEULE fois — c'est ce même instantané qui a servi à la résolution
+      Compose ci-dessus (jamais un second ``read_bytes()`` qui pourrait
+      voir un fichier modifié entre-temps).
+    - ``image_provenance_document`` : document d'inventaire de provenance
+      d'image brut, déjà structurellement vérifié (voir
+      ``deployment_image_inventory.fetch_and_verify_image_provenance_
+      document``) — preuve auditable hors ligne, pas seulement les
+      digests qui en sont dérivés."""
+
+    resolved_compose: dict[str, Any]
+    pinned_images: dict[str, str]
+    compose_source_bytes: dict[str, bytes]
+    env_bytes: bytes
+    image_provenance_document: dict[str, Any]
 
 
 class ReleaseVerificationError(RuntimeError):
@@ -249,16 +303,47 @@ def verify_release_images(
     download_artifact: dii.DownloadArtifact,
     run_docker_compose_config: RunDockerComposeConfig,
     work_dir: Path,
-) -> dict[str, str]:
+    git_show_bytes: GitShowBytes = _git_show_bytes,
+) -> VerifiedReleaseMaterialization:
+    """Vérifie une fois, matérialise les octets exacts vérifiés — jamais
+    une seconde lecture de ``.env`` ni une seconde résolution Compose
+    pour un appelant en aval (Lot C, voir ``VerifiedReleaseMaterialization``).
+
+    ``git_show_bytes`` est injectable (même convention que
+    ``github_api_get``/``download_artifact``/``run_docker_compose_
+    config``) : lire les octets source des fichiers Compose pour les
+    exposer dans le résultat est un fait supplémentaire distinct de leur
+    résolution — jamais un vrai ``git show`` exercé dans les tests
+    unitaires de ce module."""
+    if not env_file.is_file():
+        raise ReleaseVerificationError(
+            f"env file not found: {env_file} — the production Compose files require "
+            "dozens of ${VAR:?...} values that only a real deployment .env supplies "
+            "(see docs/runbooks/go_live.md §3)"
+        )
+    # Lu UNE SEULE fois : cet instantané, jamais un second `read_bytes()`
+    # du chemin d'origine, est ce qui sert à la fois à la résolution
+    # Compose ci-dessous et à tout appelant en aval qui matérialise un
+    # bundle depuis le résultat retourné.
+    env_bytes = env_file.read_bytes()
+    env_snapshot_path = work_dir / "env-snapshot" / ".env"
+    env_snapshot_path.parent.mkdir(parents=True, exist_ok=True)
+    env_snapshot_path.write_bytes(env_bytes)
+
+    compose_source_bytes = {
+        name: git_show_bytes(repo_root, source_commit_sha, f"{_INFRA_RELATIVE_PATH}/{name}")
+        for name in compose_files
+    }
+
     resolved_config = run_docker_compose_config(
-        repo_root, source_commit_sha, compose_files, work_dir, env_file
+        repo_root, source_commit_sha, compose_files, work_dir, env_snapshot_path
     )
     try:
         pinned_images = dii.require_resolved_compose_images_are_pinned(resolved_config)
     except dii.DeploymentImageInventoryError as exc:
         raise ReleaseVerificationError(str(exc)) from exc
     try:
-        provenance_images = dii.verify_application_image_provenance(
+        image_provenance_document = dii.fetch_and_verify_image_provenance_document(
             repository=_CANONICAL_REPOSITORY,
             source_commit_sha=source_commit_sha,
             source_tree_sha=source_tree_sha,
@@ -270,8 +355,19 @@ def verify_release_images(
         )
     except dii.DeploymentImageInventoryError as exc:
         raise ReleaseVerificationError(str(exc)) from exc
-    return require_pinned_images_match_verified_provenance(
+    provenance_images = {
+        name: f"{service['image_repository']}@{service['image_digest']}"
+        for name, service in image_provenance_document["services"].items()
+    }
+    verified_images = require_pinned_images_match_verified_provenance(
         pinned_images=pinned_images, provenance_images=provenance_images
+    )
+    return VerifiedReleaseMaterialization(
+        resolved_compose=resolved_config,
+        pinned_images=verified_images,
+        compose_source_bytes=compose_source_bytes,
+        env_bytes=env_bytes,
+        image_provenance_document=image_provenance_document,
     )
 
 
@@ -319,12 +415,13 @@ def main(argv: list[str] | None = None) -> int:
                 download_artifact=dii.make_download_artifact_via_gh(repository=_CANONICAL_REPOSITORY),
                 run_docker_compose_config=run_docker_compose_config_via_subprocess,
                 work_dir=Path(tmp),
+                git_show_bytes=_git_show_bytes,
             )
     except ReleaseVerificationError as exc:
         print(f"REFUSED: {exc}", file=sys.stderr)
         return 1
 
-    for name, ref in sorted(verified.items()):
+    for name, ref in sorted(verified.pinned_images.items()):
         print(f"VERIFIED {name}={ref}")
     print("RELEASE_IMAGE_PROVENANCE_VERIFIED=true")
     print(
