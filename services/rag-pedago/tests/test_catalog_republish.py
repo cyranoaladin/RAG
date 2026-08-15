@@ -11,17 +11,23 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import pytest
-from nexus_contracts.authority_artifacts import (
+import yaml
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import test_h2b_coverage_report as gate_fixtures  # noqa: E402
+from nexus_contracts.authority_artifacts import (  # noqa: E402
     ScopeAuthorizationArtifactV2,
     canonical_authorization_path,
     git_blob_sha1,
 )
-from nexus_contracts.review_binding import (
+from nexus_contracts.review_binding import (  # noqa: E402
     REVIEW_BINDING_PROTOCOL_VERSION,
     TRUSTED_REVIEW_PROTOCOL,
     ScopeAuthorizationReviewBindingV1,
@@ -30,13 +36,13 @@ from nexus_contracts.review_binding import (
     sign_review_binding,
 )
 
-from rag_pedago.governance.catalog_republish import (
+from rag_pedago.governance.catalog_republish import (  # noqa: E402
     CATALOG_DIGEST_PROTOCOL_VERSION,
     CatalogRepublishError,
     republish_catalog,
 )
-from rag_pedago.governance.corpus_campaign import CorpusCampaignV1
-from rag_pedago.imports import h2b_coverage_report as h2b_module
+from rag_pedago.governance.corpus_campaign import CorpusCampaignV1  # noqa: E402
+from rag_pedago.imports import h2b_coverage_report as h2b_module  # noqa: E402
 
 AUTHORITY_NOW = datetime(2026, 6, 1, tzinfo=UTC)
 TEST_SIGNING_SEED = "44" * 32
@@ -207,12 +213,27 @@ def _write_real_catalog(tmp_path: Path) -> Path:
     catalog = {
         "catalog_kind": "REAL_SEALED_CORPUS",
         "manifest_sha256": MANIFEST_SHA256,
+        "manifest_entries": 1,
+        "physical_object_count": 2,
+        "content_artifact_count": 2,
+        "disposition_counts": {
+            "INGEST": 0,
+            "REVIEW_REQUIRED": 1,
+            "QUARANTINE": 0,
+            "ARCHIVE_ONLY": 0,
+            "EXCLUDE": 1,
+            "UNSUPPORTED": 0,
+        },
+        "unclassified": 0,
+        "multiple_primary_disposition": 0,
+        "verification_passed": True,
+        "verification_errors": [],
         "physical_objects": [
             {
                 "content_sha256": CONTENT_SHA256,
                 "path": "01_EDUSCOL_OFFICIEL/current.pdf",
                 "base_disposition": "INGEST",
-                "disposition": "BLOCKED_NOT_CLEARED",
+                "disposition": "REVIEW_REQUIRED",
                 "zone": "01_EDUSCOL_OFFICIEL/",
                 "currentness": "actuel",
                 "rights_category_candidate": "officiel_public",
@@ -373,6 +394,313 @@ def test_real_authority_republishes_a_promoted_catalog_matching_the_approved_dig
 
     assert result.catalog_path == out_root / "governance/corpus-campaigns" / CAMPAIGN_ID / "catalog.json"
     assert result.digest_path == out_root / "governance/corpus-campaigns" / CAMPAIGN_ID / "catalog.digest.json"
+
+
+def test_republish_and_h2_report_compute_the_same_authority_required_set(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """§8 de l'audit du 2026-08-15 :
+    ``H2_AUTHORITY_REQUIRED_SET_SHA256 == REPUBLISH_AUTHORITY_REQUIRED_SET_SHA256``
+    pour le même catalogue promu -- les deux producteurs réutilisent
+    ``authority_required_candidate_facts``/``authority_required_set_digest``,
+    ils ne doivent jamais diverger silencieusement."""
+    campaign, catalog_path, authority_path, binding_path = _setup_real(
+        tmp_path, monkeypatch
+    )
+
+    result = republish_catalog(
+        campaign=campaign,
+        catalog_path=catalog_path,
+        authority_path=authority_path,
+        authority_review_binding_path=binding_path,
+        out_root=tmp_path / "repo",
+        now=AUTHORITY_NOW,
+    )
+    assert result.authority_required_set_sha256
+
+    # CONTENT_SHA256/MANIFEST_SHA256 ici sont dérivés de la même formule
+    # que dans ``test_h2b_coverage_report.py`` (même contenu, même chemin)
+    # -- les preuves externes de ce module s'appliquent donc telles
+    # quelles au catalogue local de ce fichier.
+    assert gate_fixtures.CONTENT_SHA256 == CONTENT_SHA256
+    assert gate_fixtures.MANIFEST_SHA256 == MANIFEST_SHA256
+    routing_path, rights_path, pii_path, _unused, manifest_path = (
+        gate_fixtures._write_external_evidence(tmp_path, include_authority=False)
+    )
+    golden_path = gate_fixtures._write_golden_spec(
+        tmp_path,
+        expected_final="REVIEW_REQUIRED",
+        expected_authority="BLOCKED_NOT_CLEARED",
+    )
+
+    report = h2b_module.generate_coverage_report(
+        catalog_path,
+        rights_path=rights_path,
+        pii_path=pii_path,
+        routing_path=routing_path,
+        golden_path=golden_path,
+        manifest_path=manifest_path,
+        authority_path=authority_path,
+        authority_review_binding_path=binding_path,
+        authority_environment="production",
+        expected_total=2,
+        expected_manifest_sha256=MANIFEST_SHA256,
+        authority_now=AUTHORITY_NOW,
+    )
+    assert report.authority_required_set_sha256
+
+    assert report.authority_required_set_sha256 == result.authority_required_set_sha256
+
+
+_ORDERING_CONTENT_OLD = "5" * 64
+_ORDERING_CONTENT_NEW = "6" * 64
+_ORDERING_MANIFEST_CONTENT = (
+    f"{_ORDERING_CONTENT_OLD}  01_EDUSCOL_OFFICIEL/old.pdf\n"
+    f"{_ORDERING_CONTENT_NEW}  01_EDUSCOL_OFFICIEL/new.pdf\n"
+)
+_ORDERING_MANIFEST_SHA256 = hashlib.sha256(_ORDERING_MANIFEST_CONTENT.encode()).hexdigest()
+
+
+def _write_ordering_regression_fixtures(
+    tmp_path: Path,
+) -> tuple[Path, Path, Path, Path, Path]:
+    """Deux candidats : l'un déjà ``actuel`` (stand-in pour les 64
+    historiques), l'autre ``unclassified`` qui ne devient un candidat
+    INGEST réel qu'après promotion par currentness (stand-in pour les 9
+    de PR#122). Rend ``(catalog, routing, rights, pii, currentness_evidence)``."""
+    manifest_path = tmp_path / "00_ADMIN" / "SHA256SUMS.txt"
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(_ORDERING_MANIFEST_CONTENT, encoding="utf-8")
+
+    catalog = {
+        "catalog_kind": "REAL_SEALED_CORPUS",
+        "manifest_sha256": _ORDERING_MANIFEST_SHA256,
+        "manifest_entries": 2,
+        "physical_object_count": 3,
+        "content_artifact_count": 2,
+        "disposition_counts": {
+            "INGEST": 0,
+            "REVIEW_REQUIRED": 2,
+            "QUARANTINE": 0,
+            "ARCHIVE_ONLY": 0,
+            "EXCLUDE": 1,
+            "UNSUPPORTED": 0,
+        },
+        "unclassified": 0,
+        "multiple_primary_disposition": 0,
+        "verification_passed": True,
+        "verification_errors": [],
+        "physical_objects": [
+            {
+                "content_sha256": _ORDERING_CONTENT_OLD,
+                "path": "01_EDUSCOL_OFFICIEL/old.pdf",
+                "base_disposition": "INGEST",
+                "disposition": "REVIEW_REQUIRED",
+                "zone": "01_EDUSCOL_OFFICIEL/",
+                "currentness": "actuel",
+                "rights_category_candidate": "officiel_public",
+                "gate_statuses": {
+                    "rights": "PASS",
+                    "pii": "PASS",
+                    "authority": "BLOCKED_NOT_CLEARED",
+                },
+                "provenance_status": "VERIFIED",
+                "attribution_metadata": {
+                    "source": "Eduscol",
+                    "source_url": "https://eduscol.education.gouv.fr/old",
+                },
+            },
+            {
+                "content_sha256": _ORDERING_CONTENT_NEW,
+                "path": "01_EDUSCOL_OFFICIEL/new.pdf",
+                "base_disposition": "REVIEW_REQUIRED",
+                "disposition": "REVIEW_REQUIRED",
+                "zone": "01_EDUSCOL_OFFICIEL/",
+                "currentness": "unclassified",
+                "rights_category_candidate": "officiel_public",
+                "gate_statuses": {},
+                "provenance_status": "VERIFIED",
+                "attribution_metadata": {
+                    "source": "Eduscol",
+                    "source_url": "https://eduscol.education.gouv.fr/new",
+                },
+            },
+            {
+                "content_sha256": _ORDERING_MANIFEST_SHA256,
+                "path": "00_ADMIN/SHA256SUMS.txt",
+                "base_disposition": "EXCLUDE",
+                "disposition": "EXCLUDE",
+                "zone": "00_ADMIN/",
+                "currentness": None,
+                "gate_statuses": {},
+                "provenance_status": "VERIFIED",
+                "attribution_metadata": {
+                    "source": "NEXUS_CORPUS_GOVERNANCE",
+                    "source_reference": "00_ADMIN/SHA256SUMS.txt",
+                },
+            },
+        ],
+    }
+    catalog_path = tmp_path / "ordering-catalog.json"
+    catalog_path.write_text(json.dumps(catalog), encoding="utf-8")
+
+    routing = {
+        "config_id": "ordering-routing-v1",
+        "manifest_sha256": _ORDERING_MANIFEST_SHA256,
+        "rights_evidence_perimeter": ["00_ADMIN/", "01_EDUSCOL_OFFICIEL/"],
+        "zone_rules": [
+            {"zone_prefix": "00_ADMIN/", "disposition": "EXCLUDE", "reason": "admin"},
+            {
+                "zone_prefix": "01_EDUSCOL_OFFICIEL/",
+                "disposition": "INGEST",
+                "currentness": "actuel",
+            },
+        ],
+    }
+    rights = {
+        "registry_id": "ordering-rights-v1",
+        "human_rights_decisions": {
+            "eduscol": {
+                "decision_type": "HUMAN_ORGANIZATIONAL_RIGHTS_APPROVAL",
+                "decision_maker": "Nexus Réussite",
+                "decision_date": "2026-08-08",
+                "scope_manifest_sha256": _ORDERING_MANIFEST_SHA256,
+                "scope_zone": "01_EDUSCOL_OFFICIEL/",
+                "approved_for_production_rag": True,
+                "generic_rights_blocker": False,
+            }
+        },
+        "source_evidence": {
+            "admin": {
+                "zone": "00_ADMIN/",
+                "rights_status": "REVIEW_REQUIRED",
+                "disposition_override": "EXCLUDE",
+            },
+            "eduscol": {
+                "zone": "01_EDUSCOL_OFFICIEL/",
+                "rights_status": "CLEARED_BY_HUMAN_DECISION",
+                "rights_decision_ref": "eduscol",
+            },
+        },
+        "summary": {"total_zones": 2},
+    }
+    required_paths = sorted(
+        ["01_EDUSCOL_OFFICIEL/old.pdf", "01_EDUSCOL_OFFICIEL/new.pdf"]
+    )
+    pii = {
+        "evidence_kind": "REAL_CORPUS_PII_SCAN",
+        "scanner_version": "ordering-scanner-v1",
+        "scanner_sha256": "1" * 64,
+        "policy_version": "ordering-policy-v1",
+        "policy_sha256": "2" * 64,
+        "corpus_manifest_sha256": _ORDERING_MANIFEST_SHA256,
+        "remote_access_mode": "READ_ONLY",
+        "remote_write_operations": 0,
+        "raw_pii_in_output": False,
+        "raw_pii_in_logs": False,
+        "required_pdf_path_count": len(required_paths),
+        "required_pdf_path_set_digest": hashlib.sha256(
+            "".join(f"{value}\n" for value in required_paths).encode()
+        ).hexdigest(),
+        "summary": {
+            "sha256_mismatches": 0,
+            "pii_scan_scope": "ALL_CORPUS_PDFS",
+            "pii_scan_required": len(required_paths),
+            "pii_scan_exempt": 0,
+        },
+        "results": [
+            {
+                "content_sha256": _ORDERING_CONTENT_OLD,
+                "physical_object_count": 1,
+                "status": "CLEARED",
+                "error_code": None,
+            },
+            {
+                "content_sha256": _ORDERING_CONTENT_NEW,
+                "physical_object_count": 1,
+                "status": "CLEARED",
+                "error_code": None,
+            },
+        ],
+    }
+    routing_path = tmp_path / "ordering-routing.yml"
+    rights_path = tmp_path / "ordering-rights.yml"
+    pii_path = tmp_path / "ordering-pii.json"
+    routing_path.write_text(yaml.safe_dump(routing), encoding="utf-8")
+    rights_path.write_text(yaml.safe_dump(rights), encoding="utf-8")
+    pii_path.write_text(json.dumps(pii), encoding="utf-8")
+
+    currentness_evidence_path = tmp_path / "ordering-currentness.yml"
+    currentness_evidence_path.write_text(
+        yaml.safe_dump(
+            {
+                "evidence_kind": "MULTILEVEL_ARTIFACT_CURRENTNESS_V1",
+                "corpus_manifest_sha256": _ORDERING_MANIFEST_SHA256,
+                "artifacts": [
+                    {
+                        "content_sha256": _ORDERING_CONTENT_NEW,
+                        "decision": "CURRENT",
+                        "byte_identity": True,
+                        "current_download_sha256": _ORDERING_CONTENT_NEW,
+                        "effective_currentness": "actuel",
+                    }
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    return catalog_path, routing_path, rights_path, pii_path, currentness_evidence_path
+
+
+def test_republish_refuses_when_authority_misses_the_currentness_promoted_candidate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Régression directe pour ``catalog_republish.py`` du même Finding
+    #1 que ``test_currentness_promoted_candidate_is_required_by_authority``
+    (``test_currentness_verification_promotion.py``) : le périmètre requis
+    doit être mesuré ICI aussi après la promotion currentness, jamais
+    avant -- une autorité qui ne couvre que l'ancien candidat doit être
+    refusée."""
+    _install_governed_root(monkeypatch, tmp_path)
+    (
+        catalog_path,
+        routing_path,
+        rights_path,
+        pii_path,
+        currentness_evidence_path,
+    ) = _write_ordering_regression_fixtures(tmp_path)
+
+    authority_document = _authority_document(
+        authorization_id="ordering-regression-authority",
+        manifest_digest=_ORDERING_MANIFEST_SHA256,
+        # Ne couvre QUE l'ancien candidat -- jamais celui promu par
+        # currentness.
+        allowed_content_sha256=[_ORDERING_CONTENT_OLD],
+    )
+    authority_path = _write_authority(tmp_path / "authority.json", authority_document)
+    binding_path = _write_review_binding(tmp_path, authority_document)
+
+    campaign = _campaign(
+        expected_manifest_sha256=_ORDERING_MANIFEST_SHA256,
+        authorization_id="ordering-regression-authority",
+        expected_catalog_digest="0" * 64,  # jamais atteint : refus avant
+    )
+
+    with pytest.raises(ValueError, match="SEMANTIC_VALIDATION"):
+        republish_catalog(
+            campaign=campaign,
+            catalog_path=catalog_path,
+            authority_path=authority_path,
+            authority_review_binding_path=binding_path,
+            out_root=tmp_path / "repo",
+            now=AUTHORITY_NOW,
+            currentness_verification_path=currentness_evidence_path,
+            rights_path=rights_path,
+            pii_path=pii_path,
+            routing_path=routing_path,
+        )
 
 
 def test_rehearsal_campaign_is_refused(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

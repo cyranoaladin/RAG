@@ -328,6 +328,19 @@ class TestE2ERehearsalAdversarial:
     def test_authority_not_covering_the_content_is_refused(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         gate_fixtures._install_governed_root(monkeypatch, tmp_path)
         catalog_path = _catalog_with_ingest_candidate(tmp_path)
+        # Un candidat encore en attente d'autorité (base_disposition=INGEST,
+        # disposition=REVIEW_REQUIRED, authority=BLOCKED_NOT_CLEARED) -- le
+        # seul état qu'un compilateur réel produit avant autorisation, et le
+        # seul état qu'``authority_required_candidate_facts`` inclut dans le
+        # périmètre requis.
+        catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+        catalog["physical_objects"][0]["disposition"] = "REVIEW_REQUIRED"
+        catalog["physical_objects"][0]["gate_statuses"]["authority"] = (
+            "BLOCKED_NOT_CLEARED"
+        )
+        catalog["disposition_counts"]["INGEST"] = 0
+        catalog["disposition_counts"]["REVIEW_REQUIRED"] = 1
+        catalog_path.write_text(json.dumps(catalog), encoding="utf-8")
         golden_path = gate_fixtures._write_golden_spec(tmp_path)
         routing_path, rights_path, pii_path, _unused, manifest_path = gate_fixtures._write_external_evidence(
             tmp_path, include_authority=False

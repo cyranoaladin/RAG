@@ -62,7 +62,8 @@ from rag_pedago.imports.h2b_coverage_report import (
     _load_yaml_mapping,  # noqa: SLF001
     _promote_authority_cleared_candidates,  # noqa: SLF001
     _promote_currentness_verified_candidates,  # noqa: SLF001
-    ingest_candidate_facts,
+    authority_required_candidate_facts,
+    authority_required_set_digest,
     load_catalog,
 )
 
@@ -88,6 +89,11 @@ class CatalogRepublishResult:
     catalog_path: Path
     digest_path: Path
     already_published: bool
+    #: Empreinte du périmètre requis par l'autorité — doit égaler
+    #: ``CoverageReport.authority_required_set_sha256`` produit par
+    #: ``generate_coverage_report`` sur le même catalogue promu (§8 de
+    #: l'audit du 2026-08-15). Un test dédié le prouve.
+    authority_required_set_sha256: str
 
 
 def _canonical_catalog_bytes(catalog: dict[str, Any]) -> bytes:
@@ -193,23 +199,12 @@ def republish_catalog(
     if not isinstance(physical_objects, list):
         raise CatalogRepublishError("catalog must include physical_objects")
 
-    ingest_content_sha256, ingest_rights_candidates = ingest_candidate_facts(
-        physical_objects
-    )
     moment = now or datetime.now(UTC)
-    authority_allowlist, _binding, _revocations_checked = _load_authority_evidence(
-        authority_path,
-        str(manifest_sha256),
-        ingest_content_sha256=ingest_content_sha256,
-        ingest_rights_candidates=ingest_rights_candidates,
-        now=moment,
-        revocations_path=None,
-        binding_path=authority_review_binding_path,
-        trust_anchor_path=None,
-        environment="production",
-        repository_root=repository_root or Path(__file__).resolve().parents[4],
-    )
 
+    # Finding du 2026-08-15 : la promotion currentness doit s'appliquer
+    # AVANT que le périmètre requis par l'autorité ne soit mesuré — même
+    # défaut, même correctif, que ``generate_coverage_report`` (voir la
+    # docstring d'``authority_required_candidate_facts``).
     promoted_physical_objects = copy.deepcopy(physical_objects)
     if currentness_verification_path is not None:
         if rights_path is None or pii_path is None or routing_path is None:
@@ -253,6 +248,29 @@ def republish_catalog(
             pii_cleared_sha256=frozenset(pii_cleared_sha256_set),
             pii_quarantined_sha256=frozenset(pii_quarantined_sha256_set),
         )
+    # Mesuré ICI, après toute promotion non liée à l'autorité — jamais
+    # avant. ``catalog_republish`` doit produire exactement le même
+    # périmètre requis que ``generate_coverage_report`` pour le même
+    # catalogue promu (§8 de l'audit du 2026-08-15) : réutilise la même
+    # primitive, ne recalcule jamais un périmètre parallèle.
+    authority_required_sha256, authority_required_rights_candidates = (
+        authority_required_candidate_facts(promoted_physical_objects)
+    )
+    authority_required_set_sha256 = authority_required_set_digest(
+        authority_required_sha256
+    )
+    authority_allowlist, _binding, _revocations_checked = _load_authority_evidence(
+        authority_path,
+        str(manifest_sha256),
+        ingest_content_sha256=authority_required_sha256,
+        ingest_rights_candidates=authority_required_rights_candidates,
+        now=moment,
+        revocations_path=None,
+        binding_path=authority_review_binding_path,
+        trust_anchor_path=None,
+        environment="production",
+        repository_root=repository_root or Path(__file__).resolve().parents[4],
+    )
     promoted_count = _promote_authority_cleared_candidates(
         promoted_physical_objects,
         authority_allowlist=authority_allowlist,
@@ -300,6 +318,7 @@ def republish_catalog(
             catalog_path=catalog_out_path,
             digest_path=digest_out_path,
             already_published=True,
+            authority_required_set_sha256=authority_required_set_sha256,
         )
 
     campaign_dir.mkdir(parents=True, exist_ok=True)
@@ -313,6 +332,7 @@ def republish_catalog(
         catalog_path=catalog_out_path,
         digest_path=digest_out_path,
         already_published=False,
+        authority_required_set_sha256=authority_required_set_sha256,
     )
 
 
