@@ -9,30 +9,30 @@ producteurs Python (jamais réimplémentés) contre un corpus synthétique
 sûr, jamais des données réelles, jamais une clé de signature réelle,
 jamais un accès réseau réel.
 
-**Défaut structurel réel trouvé en construisant ce rehearsal, pas
-contourné** : `corpus_catalog_compiler.compile_sealed_catalog`/
-`compile_governed_sealed_catalog` ne peuvent JAMAIS produire
-`disposition="INGEST"` pour un objet -- même droits et PII au vert, la
-disposition finale reste `REVIEW_REQUIRED` (`gate_statuses.authority`
-toujours `"BLOCKED_NOT_CLEARED"`), par construction explicite
-("L'autorité n'est jamais injectée dans ce compilateur candidat").
-`h2b_coverage_report.generate_coverage_report`'s propre boucle de
-vérification des invariants de sûreté ne s'exécute que pour les objets
-dont `disposition == "INGEST"` (jamais `base_disposition`) -- donc
-aucun objet compilé par le vrai compilateur candidat ne peut jamais
-atteindre `h2_coverage_gate_pass=True`, même en mode production avec une
-autorité et une liaison de revue entièrement valides. Il manque, dans ce
-dépôt, une étape automatisée réelle de « republication gouvernée » qui
-consommerait un catalogue candidat + une autorité vérifiée pour produire
-un catalogue où `disposition="INGEST"` -- cette étape n'existe pas
-aujourd'hui (`h2b_coverage_report.py`'s propre suite de tests le
-contourne déjà en écrivant à la main un catalogue qui simule cette
-sortie future, `_write_real_catalog`). Ce fichier documente et
-reproduit ce même contournement établi pour prouver le MÉCANISME du
-gate (droits/PII/autorité/révocation/manifeste), tout en prouvant
-séparément, avec le VRAI compilateur, que son incapacité structurelle à
-promouvoir un candidat est correctement détectée et bloquée par le gate
-plutôt que silencieusement ignorée.
+**Défaut structurel réel trouvé en construisant ce rehearsal, corrigé
+depuis (voir `docs/reports/lot_h2_authority_promotion.md`, Finding C)** :
+`corpus_catalog_compiler.compile_sealed_catalog`/
+`compile_governed_sealed_catalog` ne peuvent TOUJOURS PAS produire
+`disposition="INGEST"` pour un objet dans le fichier catalogue lui-même
+-- même droits et PII au vert, la disposition qu'ils écrivent reste
+`REVIEW_REQUIRED` (`gate_statuses.authority` toujours
+`"BLOCKED_NOT_CLEARED"`), par construction explicite ("L'autorité n'est
+jamais injectée dans ce compilateur candidat") ; il n'existe toujours
+aucune étape de « republication gouvernée » qui réécrirait ce fichier.
+Ce qui a changé : `h2b_coverage_report.generate_coverage_report` sait
+désormais reconnaître, sur une copie interne jamais écrite sur disque,
+qu'une preuve d'autorité externe réelle et vérifiée couvre un tel
+candidat lorsque toutes les autres portes obligatoires sont déjà
+indépendamment au vert (`_promote_authority_cleared_candidates`) -- le
+périmètre de complétude que cette preuve doit couvrir était d'ailleurs
+lui-même erroné avant ce correctif (borné sur `disposition`, toujours
+vide pour un candidat réel, plutôt que sur `base_disposition`, Finding
+C). `test_gate_correctly_recognizes_real_authority_over_the_real_compilers_output`,
+ci-dessous, prouve que le VRAI compilateur, chaîné pour de vrai, produit
+une sortie que ce mécanisme reconnaît et peut désormais couvrir --
+tandis que `coverage_complete` reste correctement faux ici, ce test
+s'exécutant en mode `rehearsal`, qui ne peut par construction jamais
+rendre un verdict final vert.
 
 Aucune clé privée réelle, aucun accès réseau réel, aucune mutation
 pgvector. `LIVE_MUTATIONS_ALLOWED=false`.
@@ -106,7 +106,16 @@ def _write_synthetic_sealed_corpus(tmp_path: Path) -> tuple[Path, Path, dict[str
         "rights_evidence_perimeter": ["00_ADMIN/", "01_EDUSCOL_OFFICIEL/"],
         "zone_rules": [
             {"zone_prefix": "00_ADMIN/", "disposition": "EXCLUDE", "reason": "admin"},
-            {"zone_prefix": "01_EDUSCOL_OFFICIEL/", "disposition": "INGEST", "currentness": "actuel"},
+            {
+                "zone_prefix": "01_EDUSCOL_OFFICIEL/",
+                "disposition": "INGEST",
+                "currentness": "actuel",
+                # F4 : sans cette clé, le vrai compilateur produit
+                # rights_category_candidate=None -- ce que la couverture
+                # de complétude (Finding C) refuse désormais à raison
+                # pour tout candidat base_disposition==INGEST.
+                "rights_category": "officiel_public",
+            },
         ],
     }
     return manifest_path, placement_path, config
@@ -151,11 +160,19 @@ def test_real_catalog_compiler_never_promotes_a_candidate_to_ingest(tmp_path: Pa
     assert physical.disposition_reason == "Mandatory gates not cleared: authority"
 
 
-def test_gate_correctly_blocks_the_real_compilers_honest_output(tmp_path: Path) -> None:
-    """Le catalogue RÉEL (jamais promu, §ci-dessus) est ensuite soumis au
-    vrai gate H2 -- même en fournissant une autorité par ailleurs valide
-    couvrant ce ``content_sha256``, le gate doit refuser de le compter
-    comme couvert, puisque le catalogue lui-même ne l'a jamais promu."""
+def test_gate_correctly_recognizes_real_authority_over_the_real_compilers_output(
+    tmp_path: Path,
+) -> None:
+    """Le catalogue RÉEL (jamais promu dans son propre fichier, §ci-dessus)
+    est ensuite soumis au vrai gate H2, avec une autorité par ailleurs
+    valide couvrant ce ``content_sha256`` -- le mécanisme de promotion
+    (Finding C) doit le reconnaître comme couvert, puisque toutes les
+    autres portes obligatoires (droits, PII, actualité, format,
+    provenance, attribution) sont déjà indépendamment au vert.
+    ``coverage_complete`` reste néanmoins faux ici, parce que ce test
+    s'exécute en mode ``rehearsal``, qui ne peut jamais rendre un verdict
+    final vert par construction -- pas à cause d'une incapacité du gate
+    à reconnaître la couverture elle-même."""
     manifest_path, placement_path, config = _write_synthetic_sealed_corpus(tmp_path)
     rights_registry, pii_evidence = _rights_and_pii_dicts(tmp_path)
     catalog = compile_governed_sealed_catalog(
@@ -185,6 +202,13 @@ def test_gate_correctly_blocks_the_real_compilers_honest_output(tmp_path: Path) 
                 "zone": physical.zone,
                 "currentness": "actuel",
                 "gate_statuses": physical.gate_statuses,
+                # F4 : un vrai catalogue compilé porte toujours cette
+                # valeur pour un candidat base_disposition==INGEST --
+                # l'omission ici (avant Finding C) n'était jamais exercée,
+                # ce candidat tombant hors du périmètre de complétude par
+                # erreur borné sur ``disposition`` plutôt que
+                # ``base_disposition``.
+                "rights_category_candidate": physical.rights_category_candidate,
                 "provenance_status": physical.provenance_status,
                 "attribution_metadata": physical.attribution_metadata,
             },
@@ -226,7 +250,8 @@ def test_gate_correctly_blocks_the_real_compilers_honest_output(tmp_path: Path) 
         authority_environment="rehearsal",
         expected_total=1,
     )
-    assert report.blocked_ingest_candidates == 1
+    assert report.blocked_ingest_candidates == 0
+    assert report.mandatory_gate_blockers == {}
     assert report.coverage_complete is False
 
 
