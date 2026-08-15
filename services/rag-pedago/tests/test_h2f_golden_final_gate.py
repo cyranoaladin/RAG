@@ -61,6 +61,7 @@ def _object(
     currentness: str | None,
     gates: dict[str, str] | None = None,
     content_sha256_override: str | None = None,
+    rights_category_candidate: str | None = None,
 ) -> dict[str, object]:
     return {
         "content_sha256": content_sha256_override or _sha(index),
@@ -69,6 +70,7 @@ def _object(
         "disposition": final,
         "currentness": currentness,
         "gate_statuses": gates or {},
+        "rights_category_candidate": rights_category_candidate,
         "provenance_status": "VERIFIED",
         "attribution_metadata": {
             "source": path.split("/", maxsplit=1)[0],
@@ -90,6 +92,16 @@ def _catalog() -> dict[str, object]:
                 "pii": "PASS",
                 "authority": "BLOCKED_NOT_CLEARED",
             },
+            # F4 : la catégorie de droits fait partie du périmètre que
+            # l'autorisation doit couvrir exhaustivement (voir
+            # ``_authority_document`` : ``rights_categories=
+            # ["officiel_public"]``). Un vrai catalogue compilé porte
+            # toujours cette valeur pour un candidat ``base_disposition==
+            # INGEST`` -- l'absence ici (avant le correctif de périmètre,
+            # Finding C) n'était jamais exercée car ce candidat tombait
+            # hors du périmètre de complétude, borné par erreur sur
+            # ``disposition`` plutôt que ``base_disposition``.
+            rights_category_candidate="officiel_public",
         ),
         _object(
             2,
@@ -363,11 +375,15 @@ HEAD_SHA = "2" * 40
 
 
 def _authority_document() -> dict[str, object]:
-    """Autorisation minimale mais complète. Le catalogue golden ne route
-    aucun objet vers l'ingestion : l'allowlist n'a donc rien à couvrir, mais
-    le gate final exige quand même une autorité revue — c'est précisément
-    ce que ce lot corrige (auparavant, zéro objet INGEST suffisait à passer
-    sans la moindre preuve d'autorité)."""
+    """Autorisation minimale mais complète. Aucun objet du catalogue golden
+    n'a de ``disposition`` ``INGEST`` (le seul candidat réel,
+    ``_sha(1)``, reste ``REVIEW_REQUIRED`` — un compilateur réel ne peut
+    jamais lui-même lever son autorité) ; le périmètre de complétude que
+    cette autorisation doit couvrir est donc celui des candidats
+    ``base_disposition==INGEST`` (voir ``_promote_authority_cleared_
+    candidates`` / Finding C), pas celui des objets déjà promus. C'est
+    pourquoi ``allowed_content_sha256`` nomme ``_sha(1)`` et
+    ``rights_categories`` couvre ``officiel_public``."""
     return {
         "protocol_version": "LOT41A-V2",
         "authorization_id": AUTHORITY_ID,
