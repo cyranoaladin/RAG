@@ -221,8 +221,16 @@ class _Fakes:
         self.compose_calls.append((repo_root, source_commit_sha, compose_files, work_dir, env_file))
         return self.resolved_compose
 
+    def git_show_bytes(self, repo_root: Path, commit_sha: str, relative_path: str) -> bytes:
+        return f"fake-compose-source:{commit_sha}:{relative_path}".encode()
 
-def _verify(fakes: _Fakes, tmp_path: Path, **overrides: Any) -> dict[str, str]:
+
+def _verify(
+    fakes: _Fakes, tmp_path: Path, **overrides: Any
+) -> vri.VerifiedReleaseMaterialization:
+    env_file = tmp_path / "dummy.env"
+    if not env_file.is_file():
+        env_file.write_text("", encoding="utf-8")
     kwargs: dict[str, Any] = dict(
         source_commit_sha=SOURCE_COMMIT_SHA,
         source_tree_sha=SOURCE_TREE_SHA,
@@ -230,11 +238,12 @@ def _verify(fakes: _Fakes, tmp_path: Path, **overrides: Any) -> dict[str, str]:
         provenance_run_attempt=RUN_ATTEMPT,
         repo_root=tmp_path,
         compose_files=vri._CANONICAL_COMPOSE_FILES,
-        env_file=tmp_path / "dummy.env",
+        env_file=env_file,
         github_api_get=fakes.github_api_get,
         download_artifact=fakes.download_artifact,
         run_docker_compose_config=fakes.run_docker_compose_config,
         work_dir=tmp_path,
+        git_show_bytes=fakes.git_show_bytes,
     )
     kwargs.update(overrides)
     return vri.verify_release_images(**kwargs)
@@ -246,19 +255,31 @@ class TestVerifyReleaseImagesEndToEnd:
             run=_run_document(), inventory=_inventory_document(), resolved_compose=_resolved_compose()
         )
         result = _verify(fakes, tmp_path)
-        assert set(result) == set(EXPECTED_SERVICES)
-        assert result["ingestor"] == f"{INGESTOR_REPO}@{INGESTOR_DIGEST}"
+        assert set(result.pinned_images) == set(EXPECTED_SERVICES)
+        assert result.pinned_images["ingestor"] == f"{INGESTOR_REPO}@{INGESTOR_DIGEST}"
+        assert result.resolved_compose == _resolved_compose()
+        assert set(result.compose_source_bytes) == set(vri._CANONICAL_COMPOSE_FILES)
+        assert result.env_bytes == b""
+        assert result.image_provenance_document == _inventory_document()
 
-    def test_calls_docker_compose_config_with_the_canonical_files_and_commit(
+    def test_calls_docker_compose_config_with_the_canonical_files_and_an_env_snapshot(
         self, tmp_path: Path
     ) -> None:
         fakes = _Fakes(
             run=_run_document(), inventory=_inventory_document(), resolved_compose=_resolved_compose()
         )
         _verify(fakes, tmp_path)
-        assert fakes.compose_calls == [
-            (tmp_path, SOURCE_COMMIT_SHA, vri._CANONICAL_COMPOSE_FILES, tmp_path, tmp_path / "dummy.env")
-        ]
+        assert len(fakes.compose_calls) == 1
+        repo_root, commit_sha, compose_files, work_dir, env_snapshot = fakes.compose_calls[0]
+        assert (repo_root, commit_sha, compose_files, work_dir) == (
+            tmp_path, SOURCE_COMMIT_SHA, vri._CANONICAL_COMPOSE_FILES, tmp_path,
+        )
+        # Jamais le chemin .env d'origine directement : un instantané pris
+        # une seule fois par verify_release_images (fix TOCTOU résiduel,
+        # PR #107 round 2), pour qu'aucun appelant en aval n'ait besoin de
+        # relire ce fichier mutable une seconde fois.
+        assert env_snapshot == tmp_path / "env-snapshot" / ".env"
+        assert env_snapshot.read_bytes() == (tmp_path / "dummy.env").read_bytes()
 
     def test_provenance_is_always_anchored_on_the_canonical_repository(self, tmp_path: Path) -> None:
         # Codex P1 (PR #105): the caller can no longer supply an arbitrary
@@ -268,7 +289,15 @@ class TestVerifyReleaseImagesEndToEnd:
             run=_run_document(), inventory=_inventory_document(), resolved_compose=_resolved_compose()
         )
         result = _verify(fakes, tmp_path)
-        assert result  # would have raised via github_api_get's path check otherwise
+        assert result.pinned_images  # would have raised via github_api_get's path check otherwise
+
+    def test_missing_env_file_is_refused_before_any_compose_resolution(self, tmp_path: Path) -> None:
+        fakes = _Fakes(
+            run=_run_document(), inventory=_inventory_document(), resolved_compose=_resolved_compose()
+        )
+        with pytest.raises(vri.ReleaseVerificationError, match="env file not found"):
+            _verify(fakes, tmp_path, env_file=tmp_path / "does-not-exist.env")
+        assert fakes.compose_calls == []
 
     def test_mutable_tag_in_resolved_compose_is_refused(self, tmp_path: Path) -> None:
         fakes = _Fakes(
@@ -321,9 +350,12 @@ class TestMain:
         fakes = _Fakes(
             run=_run_document(), inventory=_inventory_document(), resolved_compose=_resolved_compose()
         )
+        (tmp_path / vri._ENV_FILE_RELATIVE_PATH).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / vri._ENV_FILE_RELATIVE_PATH).write_text("", encoding="utf-8")
         monkeypatch.setattr(vri.dii, "gh_api_get", fakes.github_api_get)
         monkeypatch.setattr(vri.dii, "make_download_artifact_via_gh", lambda *, repository: fakes.download_artifact)
         monkeypatch.setattr(vri, "run_docker_compose_config_via_subprocess", fakes.run_docker_compose_config)
+        monkeypatch.setattr(vri, "_git_show_bytes", fakes.git_show_bytes)
         code = vri.main(
             [
                 "--source-commit-sha", SOURCE_COMMIT_SHA,
@@ -347,9 +379,12 @@ class TestMain:
             inventory=_inventory_document(),
             resolved_compose=_resolved_compose(),
         )
+        (tmp_path / vri._ENV_FILE_RELATIVE_PATH).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / vri._ENV_FILE_RELATIVE_PATH).write_text("", encoding="utf-8")
         monkeypatch.setattr(vri.dii, "gh_api_get", fakes.github_api_get)
         monkeypatch.setattr(vri.dii, "make_download_artifact_via_gh", lambda *, repository: fakes.download_artifact)
         monkeypatch.setattr(vri, "run_docker_compose_config_via_subprocess", fakes.run_docker_compose_config)
+        monkeypatch.setattr(vri, "_git_show_bytes", fakes.git_show_bytes)
         code = vri.main(
             [
                 "--source-commit-sha", SOURCE_COMMIT_SHA,
