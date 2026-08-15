@@ -550,3 +550,23 @@ def test_missing_review_binding_is_refused(tmp_path: Path, monkeypatch: pytest.M
             out_root=tmp_path / "repo",
             now=AUTHORITY_NOW,
         )
+
+
+def test_currentness_verification_without_rights_pii_routing_paths_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """La promotion par currentness réévalue réellement droits et PII --
+    elle ne peut jamais s'appliquer sans cette évidence, même si un
+    chemin de vérification de currentness est fourni."""
+    campaign, catalog_path, authority_path, binding_path = _setup_real(tmp_path, monkeypatch)
+
+    with pytest.raises(CatalogRepublishError, match="rights_path, pii_path and routing_path"):
+        republish_catalog(
+            campaign=campaign,
+            catalog_path=catalog_path,
+            authority_path=authority_path,
+            authority_review_binding_path=binding_path,
+            out_root=tmp_path / "repo",
+            now=AUTHORITY_NOW,
+            currentness_verification_path=tmp_path / "currentness_evidence.yml",
+        )
