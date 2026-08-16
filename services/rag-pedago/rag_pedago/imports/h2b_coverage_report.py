@@ -2146,6 +2146,26 @@ def report_to_h2_coverage_evidence(report: CoverageReport) -> H2CoverageEvidence
             f"{H2_COVERAGE_EVIDENCE_PROTOCOL_VERSION} — this evidence format is "
             "production-only"
         )
+    # H2CoverageEvidenceV1.authorization_id is non-optional by contract
+    # (ADR-0042 round 4): this evidence format exists to prove a
+    # production authority was verified, never to describe a run that
+    # had none. Without authority_path, generate_coverage_report leaves
+    # authority_binding={} and never writes authority_authorization_id
+    # into input_files (h2b_coverage_report.py, authority_path is not
+    # None branch) — refuse explicitly here, the same way the
+    # environment check above does, rather than let the dict access
+    # below raise a bare KeyError. The Markdown report stays unaffected
+    # (render_markdown never requires authority) — this refusal is
+    # specific to the JSON production-evidence projection.
+    if "authority_authorization_id" not in report.input_files:
+        raise H2CoverageEvidenceError(
+            f"cannot project this coverage report to "
+            f"{H2_COVERAGE_EVIDENCE_PROTOCOL_VERSION} — no authority was verified "
+            "(authority_path was not provided to generate_coverage_report), and "
+            "authorization_id is a required, non-nullable field of this evidence "
+            "format: it exists to prove a production authority was verified, never "
+            "to describe a run that had none"
+        )
     input_file_digests = {
         key: report.input_files[key]
         for key in _INPUT_FILE_DIGEST_KEYS
