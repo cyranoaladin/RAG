@@ -674,6 +674,64 @@ class TestH2CoverageEvidenceProjection:
         with pytest.raises(module.H2CoverageEvidenceError, match="production-only"):
             module.report_to_h2_coverage_evidence(report)
 
+    def test_production_report_without_authority_is_an_explicit_typed_refusal(
+        self,
+    ) -> None:
+        """Pré-existant à ce lot : sans autorité fournie,
+        ``generate_coverage_report`` ne renseigne jamais
+        ``input_files["authority_authorization_id"]`` (``authority_binding``
+        reste ``{}``) -- l'accès direct levait un ``KeyError`` brut plutôt
+        qu'un refus typé. ``authorization_id`` est un champ non-nullable
+        du contrat (ADR-0042 round 4) : jamais rendu optionnel ici, le
+        refus est explicite et porte le même type que le refus
+        d'environnement ci-dessus."""
+        report = module.CoverageReport(
+            report_id="h2b_coverage_test_no_authority",
+            generated_at="2026-08-13T12:00:00.000000Z",
+            git_commit="a" * 40,
+            git_branch="main",
+            real_corpus_catalog_source=True,
+            synthetic_catalog_used_for_final_gate=False,
+            manifest_sha256="b" * 64,
+            corpus_total_expected=1,
+            corpus_total_actual=1,
+            corpus_match=True,
+            authority_environment="production",
+            input_files={"catalog": "c" * 64},  # jamais de clé authority_*
+        )
+        with pytest.raises(
+            module.H2CoverageEvidenceError, match="no authority was verified"
+        ):
+            module.report_to_h2_coverage_evidence(report)
+
+    def test_real_production_report_without_authority_path_is_refused(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Même refus, mais par le vrai pipeline bout en bout (jamais
+        seulement une construction directe de dataclass) -- exactement le
+        scénario CLI ``--json-output`` sans ``--authority`` qui levait le
+        ``KeyError`` d'origine."""
+        _install_governed_root(monkeypatch, tmp_path)
+        report = _generate(
+            tmp_path,
+            _write_real_catalog(tmp_path, authority_status="MISSING"),
+            _write_golden_spec(tmp_path),
+            include_authority=False,
+            expected_total=2,
+        )
+        assert "authority_authorization_id" not in report.input_files
+
+        with pytest.raises(
+            module.H2CoverageEvidenceError, match="no authority was verified"
+        ):
+            module.report_to_h2_coverage_evidence(report)
+
+        # Le rapport Markdown, lui, n'a jamais exigé d'autorité -- reste
+        # utilisable comme diagnostic (rouge), ce refus est spécifique à
+        # la projection JSON de preuve de production.
+        markdown = render_markdown(report)
+        assert "H2_COVERAGE_GATE_PASS=false" in markdown
+
 
 def test_missing_authority_keeps_coverage_gate_red(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
