@@ -320,6 +320,223 @@ class H2CoverageEvidenceV1(StrictBaseModel):
         return _canonical_bytes(self.canonical_document())
 
 
+#: Les cinq preuves d'entrée qu'un rapport H2 V2 doit toujours nommer —
+#: identique à V1 moins ``authority`` : la liaison d'autorité de V2 se fait
+#: désormais par ``authorization_set_digest``, un champ de premier niveau,
+#: jamais une clé de ``input_file_digests`` (ADR-0044 §5).
+_REQUIRED_INPUT_FILE_KEYS_V2 = frozenset({"catalog", "routing", "rights", "pii", "golden"})
+
+
+class H2CoverageEvidenceV2(StrictBaseModel):
+    """`NEXUS-H2-COVERAGE-EVIDENCE-V2` (ADR-0044) — remplace la liaison
+    d'autorité 1:1 de V1 par une référence à un ``AuthorizationSetV1``
+    gouverné, capable de représenter N autorisations mono-scope prouvées
+    ensemble complètes contre le set authority-required réel.
+
+    **Pourquoi V1 ne pouvait pas simplement grandir.** ``H2CoverageEvidenceV1
+    .input_file_digests["authority"]`` est le ``sha256`` des octets bruts
+    d'un seul fichier d'autorisation. Y placer un digest portant sur N
+    fichiers n'est pas « le même champ avec plus de données » : c'est un
+    digest de nature différente, avec une sémantique de vérification
+    différente (recalculer ``sha256(fichier)`` en un coup ne suffit plus,
+    il faut disposer de l'``AuthorizationSetV1`` complet). Combiné à
+    ``authorization_id`` (singulier, borné par motif), aucune extension
+    additive de V1 ne pouvait représenter « N autorisations conjointement
+    prouvées complètes ». D'où ce protocole distinct plutôt qu'un champ
+    ajouté en place.
+
+    **Frontière ADR-0001, comme V1.** Ce module ne reçoit jamais
+    l'``AuthorizationSetV1`` référencé lui-même — seulement son digest. La
+    confrontation ``authority_required_set_sha256 == authorization_set
+    .union_content_sha256_digest`` et la vérification par-membre
+    (révocation, expiration, review binding) restent dans l'orchestration
+    appelante (``rag-pedago``), jamais recalculées ici. Ce contrat
+    n'exige donc, en interne, que la cohérence structurelle entre ses
+    propres champs : ``authority_covered_count <= authority_required_count``,
+    et ``h2_coverage_gate_pass=true`` implique leur égalité stricte — la
+    preuve que cette égalité correspond réellement à l'ensemble
+    d'autorisations désigné par ``authorization_set_digest`` est une
+    responsabilité du vérificateur en aval (le signer de readiness), pas
+    de cette représentation.
+    """
+
+    protocol_version: Literal["NEXUS-H2-COVERAGE-EVIDENCE-V2"]
+    environment: Literal["production"]
+
+    # --- Identité de la production de cette preuve --------------------
+    report_id: StrictStr = Field(min_length=1, max_length=128)
+    generated_at: AwareDatetime
+    git_commit: StrictStr = Field(pattern=_HEX40)
+    producer_version: StrictStr = Field(min_length=1, max_length=128)
+
+    # --- Identité des preuves d'entrée ---------------------------------
+    manifest_sha256: StrictStr = Field(pattern=_HEX64)
+    input_file_digests: dict[str, StrictStr] = Field(min_length=1)
+
+    # --- Verdicts de couverture -----------------------------------------
+    corpus_total_expected: StrictInt = Field(ge=0)
+    corpus_total_actual: StrictInt = Field(ge=0)
+    corpus_match: StrictBool
+    sum_equals_total: StrictBool
+    zero_overlap: StrictBool
+    zero_gap: StrictBool
+    coverage_complete: StrictBool
+
+    # --- Verdicts de gate -------------------------------------------------
+    rights_gate_status: _GATE_STATUS
+    pii_gate_status: _GATE_STATUS
+    golden_validation_pass: StrictBool
+    h2_coverage_gate_pass: StrictBool
+
+    # --- Liaison d'autorité multi-scope (ADR-0044) -----------------------
+    authority_review_binding_verified: StrictBool
+    authority_revocations_checked: StrictBool
+    #: Référence l'``AuthorizationSetV1`` complet dont l'union des
+    #: ``allowed_content_sha256`` a été confrontée au set authority-required
+    #: réel — jamais un seul fichier d'autorisation.
+    authorization_set_digest: StrictStr = Field(pattern=_HEX64)
+    authorization_count: StrictInt = Field(ge=1)
+    authority_required_count: StrictInt = Field(ge=0)
+    authority_covered_count: StrictInt = Field(ge=0)
+    authority_required_set_sha256: StrictStr = Field(pattern=_HEX64)
+
+    # --- Invariants de sécurité (round 3, Codex, PR #104 — inchangés) ------
+    safety_invariants: dict[str, _NonNegativeInt]
+
+    @model_validator(mode="after")
+    def _input_file_digests_cover_the_five_required_proofs(self) -> "H2CoverageEvidenceV2":
+        missing = _REQUIRED_INPUT_FILE_KEYS_V2 - set(self.input_file_digests)
+        if missing:
+            raise ValueError(
+                f"input_file_digests is missing required key(s) {sorted(missing)!r} — "
+                "a V2 document not bound to all five core evidence files is never accepted"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _safety_invariants_key_set_is_exact(self) -> "H2CoverageEvidenceV2":
+        if set(self.safety_invariants) != _SAFETY_INVARIANT_KEYS:
+            raise ValueError(
+                "safety_invariants has an unexpected key set "
+                f"(got={sorted(self.safety_invariants)}, "
+                f"expected={sorted(_SAFETY_INVARIANT_KEYS)}) — an unknown or missing "
+                "safety invariant is never silently accepted"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _authority_counts_are_coherent(self) -> "H2CoverageEvidenceV2":
+        """``authority_covered_count`` ne peut jamais dépasser
+        ``authority_required_count`` — un rapport ne « couvre » pas plus
+        que ce qui est réellement requis."""
+        if self.authority_covered_count > self.authority_required_count:
+            raise ValueError(
+                f"authority_covered_count ({self.authority_covered_count}) exceeds "
+                f"authority_required_count ({self.authority_required_count})"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _gate_pass_implies_its_own_prerequisites(self) -> "H2CoverageEvidenceV2":
+        """Même discipline que ``H2CoverageEvidenceV1`` (ADR-0042, rounds
+        2-3) — cohérence structurelle entre verdicts déjà rendus, jamais un
+        recalcul du gate depuis les preuves brutes (ADR-0001). Étendue par
+        ADR-0044 : ``h2_coverage_gate_pass`` exige désormais aussi
+        l'égalité stricte ``authority_covered_count ==
+        authority_required_count`` — la généralisation multi-scope de
+        l'ancienne liaison d'autorité 1:1 de V1."""
+        if self.h2_coverage_gate_pass and not (
+            self.coverage_complete
+            and self.golden_validation_pass
+            and self.rights_gate_status == "PASS"
+            and self.pii_gate_status == "PASS"
+            and self.authority_review_binding_verified
+            and self.authority_revocations_checked
+            and self.corpus_match
+            and self.sum_equals_total
+            and self.zero_overlap
+            and self.zero_gap
+            and self.corpus_total_expected == self.corpus_total_actual
+            and self.authority_covered_count == self.authority_required_count
+            and all(value == 0 for value in self.safety_invariants.values())
+        ):
+            raise ValueError(
+                "h2_coverage_gate_pass=true is inconsistent with its own prerequisites "
+                "(coverage_complete, golden_validation_pass, rights_gate_status, "
+                "pii_gate_status, authority_review_binding_verified, "
+                "authority_revocations_checked, corpus_match, sum_equals_total, "
+                "zero_overlap, zero_gap, corpus_total_expected == corpus_total_actual, "
+                "authority_covered_count == authority_required_count, "
+                "all(safety_invariants.values()) == 0) — a contradictory passing verdict "
+                "is never accepted"
+            )
+        return self
+
+    @staticmethod
+    def _digest_map_pattern_ok(values: dict[str, str]) -> bool:
+        return all(re.fullmatch(_HEX64, v) is not None for v in values.values())
+
+    def canonical_document(self) -> dict[str, Any]:
+        return {
+            "authority_covered_count": self.authority_covered_count,
+            "authority_required_count": self.authority_required_count,
+            "authority_required_set_sha256": self.authority_required_set_sha256,
+            "authority_review_binding_verified": self.authority_review_binding_verified,
+            "authority_revocations_checked": self.authority_revocations_checked,
+            "authorization_count": self.authorization_count,
+            "authorization_set_digest": self.authorization_set_digest,
+            "coverage_complete": self.coverage_complete,
+            "corpus_match": self.corpus_match,
+            "corpus_total_actual": self.corpus_total_actual,
+            "corpus_total_expected": self.corpus_total_expected,
+            "environment": self.environment,
+            "generated_at": _canonical_moment(self.generated_at),
+            "git_commit": self.git_commit,
+            "golden_validation_pass": self.golden_validation_pass,
+            "h2_coverage_gate_pass": self.h2_coverage_gate_pass,
+            "input_file_digests": dict(sorted(self.input_file_digests.items())),
+            "manifest_sha256": self.manifest_sha256,
+            "pii_gate_status": self.pii_gate_status,
+            "producer_version": self.producer_version,
+            "protocol_version": self.protocol_version,
+            "report_id": self.report_id,
+            "rights_gate_status": self.rights_gate_status,
+            "safety_invariants": dict(sorted(self.safety_invariants.items())),
+            "sum_equals_total": self.sum_equals_total,
+            "zero_gap": self.zero_gap,
+            "zero_overlap": self.zero_overlap,
+        }
+
+    def canonical_bytes(self) -> bytes:
+        return _canonical_bytes(self.canonical_document())
+
+
+def parse_h2_coverage_evidence_v2(raw: bytes) -> H2CoverageEvidenceV2:
+    """Même discipline que ``parse_h2_coverage_evidence`` (V1) — parse
+    strict et canonicité octet à octet."""
+    try:
+        document = json.loads(raw.decode("utf-8"))
+    except UnicodeDecodeError as exc:
+        raise H2CoverageEvidenceError(f"evidence bytes are not valid UTF-8: {exc}") from exc
+    except json.JSONDecodeError as exc:
+        raise H2CoverageEvidenceError(f"evidence bytes are not valid JSON: {exc}") from exc
+    if not isinstance(document, dict):
+        raise H2CoverageEvidenceError("evidence must be a JSON object")
+    try:
+        parsed = H2CoverageEvidenceV2.model_validate(document)
+    except Exception as exc:  # noqa: BLE001 - frontière de parsing, jamais silencieuse
+        raise H2CoverageEvidenceError(f"evidence failed strict validation: {exc}") from exc
+    if not H2CoverageEvidenceV2._digest_map_pattern_ok(parsed.input_file_digests):
+        raise H2CoverageEvidenceError("input_file_digests contains a malformed sha256 digest")
+    reserialized = parsed.canonical_bytes()
+    if reserialized != raw:
+        raise H2CoverageEvidenceError(
+            "evidence bytes are not in canonical form — the reviewed bytes and "
+            "their canonical re-serialization differ. Commit the canonical form."
+        )
+    return parsed
+
+
 class H2CoverageEvidenceError(ValueError):
     """La preuve H2 ne prouve rien — fail-closed.
 
