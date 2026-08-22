@@ -196,9 +196,25 @@ Diagnostic confirmé (contrôles `1.1.1.1`/`google.com` OK, DNS résout bien,
 URLs distinctes (pas une extrapolation depuis un échantillon), aucune
 tentative d'évasion. **`SOURCE_UNAVAILABLE` ≠ `NOT_CURRENT`** : les 138
 restent `pending`, aucune promotion, aucune démotion, aucun archivage.
-Suite requise : accès réseau non filtré (poste opérateur réel) ou
-arrangement d'accès — hors périmètre technique de ce lot, décision
-opérateur.
+
+**Investigation bornée d'une voie alternative (seconde passe)** : recherche
+explicite d'une URL directe/alternative dans le TSV de provenance (aucune
+trouvée — seule une URL d'article existe par contenu), variations d'en-têtes
+légitimes essayées (toujours 403, page de blocage Cloudflare standard,
+`robots.txt` autorise pourtant ces chemins), aucun contournement tenté.
+**Terminalisation** : le vocabulaire attendu
+`REVIEW_REQUIRED_AFTER_INVESTIGATION`/`PRIMARY_SOURCE_UNAVAILABLE` a été
+cherché et **n'existe pas** dans `currentness_gate.py` (énumération réelle :
+`ACTUEL|TRANSITION|A_VERIFIER|ARCHIVE|CONFLICT|UNCLASSIFIED`). Décision :
+ne pas fabriquer de nouvelle valeur de contrat unilatéralement (changement
+de taxonomie hors périmètre de ce lot en lecture seule) — les 138 restent
+à leur statut réel `A_VERIFIER`/`REVIEW_REQUIRED` (terminal légitime, ne
+bloque pas le go-live), avec l'artefact d'audit réseau joint comme preuve
+qu'ils ont été **réellement investigués**, pas laissés de côté :
+`TIER_A_NOT_INVESTIGATED=0`. Décision opérateur signalée, non prise ici :
+soit accepter cet état durablement, soit statuer sur l'ajout d'une valeur
+de taxonomie dédiée (propriétaire du contrat `currentness_gate.py`), soit
+obtenir un accès réseau non filtré pour retenter plus tard.
 
 ## 6. PR#96 / PR#98 — audit (DONE, décision toujours réservée à l'opérateur)
 
@@ -263,30 +279,63 @@ humaine, pas résolue par ce lot.
 
 ### 8.1 Architecture multi-scope — audit uniquement, aucun code touché
 
+Verdict affiné par un second audit de composition (demandé explicitement
+pour ne pas conclure prématurément qu'un champ `scope` singulier implique
+une architecture globalement mono-scope) :
+
 ```
-MULTISCOPE_ARCHITECTURE_DECISION=Chaque étage de la chaîne d'autorisation est architecturé pour exactement un ResourceScope par run ; le vrai set de 72 couvre >=22 couples (niveau, matiere) distincts, donc il ne peut pas être prouvé complet en un seul passage sans élargir artificiellement le scope.
+MULTISCOPE_ARCHITECTURE_RESOLVED=false
 EXISTING_CONTRACT_SUFFICIENT=false
 CONTRACT_CHANGE_REQUIRED=true
+ARCHITECTURE_AMBIGUOUS=false
+PROFILE_INVENTORY_GAP=true
+RESOURCE_SCOPE_CONTRACT_GAP=true   # étroit : uniquement production_readiness.py.authorization_digest
 ```
-Preuve par lecture directe (vérifiée indépendamment) :
-`ScopeAuthorizationArtifactV2.scope: ResourceScope`
-(`packages/contracts/src/nexus_contracts/authority_artifacts.py:360`,
-singulier) et `CorpusCampaignV1.scope: ResourceScope`
-(`services/rag-pedago/rag_pedago/governance/corpus_campaign.py:119`,
-singulier) ; `generate_coverage_report --authority` ne prend qu'un fichier ;
-`catalog_republish.republish_catalog` ne prend qu'un `authority_path` ;
-`promote.yml` ne prend qu'un `campaign_id` ; le worker runtime
-(`runtime_authority.py:41-70`) ne prend qu'un `collection_config_path`. Les
-six composants, sur les deux services, sont cohérents entre eux —
-mono-scope par design, pas une lacune isolée.
 
-Piste minimale identifiée (non rédigée, non codée) : étendre
-l'orchestration (pas le modèle `ResourceScope`/`ScopeAuthorizationArtifactV2`
-lui-même) pour accepter plusieurs autorisations à scopes disjoints, et
-redéfinir la complétude comme l'union de leurs `allowed_content_sha256` ==
-le set global authority-required. Nécessiterait son propre ADR et sa
-propre PR — **explicitement pas une résurrection d'ADR-0043** (quarantiné,
-sujet sans rapport : migration H2 V1→V2, pas le multi-scope).
+**Ce qui n'a PAS besoin de changer** : `_authority_semantic_validation`
+(`h2b_coverage_report.py:434-499`) ne croise jamais `scope` avec
+`allowed_content_sha256` — un `scope` singulier par artefact n'est donc pas
+le blocage. `ScopeAuthorizationArtifactV2`, `CorpusCampaignV1` et
+`H2CoverageEvidenceV1` n'ont besoin d'aucune modification : H2 évalue
+toujours le corpus complet (2584 objets, `expected_total=2584`) en un seul
+passage — il n'y a jamais eu N runs H2 partiels à composer, seulement un
+run unique qui doit pouvoir accepter N autorisations en entrée.
+
+**Le seul blocage de contrat réel, précis** :
+`packages/contracts/src/nexus_contracts/production_readiness.py` →
+`ProductionReadinessManifestV1.authorization_digest: StrictStr` (hex64
+singulier) ne peut référencer qu'une seule autorisation — devrait devenir
+une collection/digest-agrégat. **Code non-contractuel manquant** (pas un
+blocage de contrat) : `generate_coverage_report`
+(`h2b_coverage_report.py:1324`) et `republish_catalog`
+(`catalog_republish.py:126-172`) prennent `authority_path` singulier —
+aucune fonction n'existe pour charger/unir N autorisations ; ceci vit dans
+`rag_pedago/imports/`/`rag_pedago/governance/`, pas dans
+`packages/contracts`, et est extensible par du nouveau code
+d'orchestration (pas un ADR).
+
+Fausses pistes vérifiées et écartées : `ingestion_profiles/manifest.py:100`
+`ProfileAuthority` (LOT44f, explicitement documenté comme n'étant pas
+LOT41A), `Wave0ReleaseAuthority.authorities` (exige des autorités
+identiques entre sujets combinés — l'inverse de composer des scopes
+distincts), `docs/reports/evidence-index/` (ledger de disposition, pas un
+agrégateur d'autorisation). Aucun `bundle`/`ReleaseRegistry`/
+`CampaignCollection`/`ScopeSet` n'existe dans le repo.
+
+`PROFILE_INVENTORY_GAP=true` confirmé séparément : un seul profil de
+production existe aujourd'hui (`philosophie_terminale_tc_h2c_v1.yml`) — un
+manque d'inventaire pur, corrigible par la création de profils sous le
+schéma `ResourceScope` à 10 dimensions déjà existant, sans toucher aucun
+contrat.
+
+Piste minimale identifiée (non rédigée, non codée) : (1) élargir
+`ProductionReadinessManifestV1.authorization_digest` en collection/digest
+agrégat — SemVer bump + ADR requis ; (2) ajouter, dans
+`rag_pedago/imports/`/`rag_pedago/governance/` (pas dans
+`packages/contracts`), la capacité de charger/valider/unir N autorisations
+disjointes avec un contrôle qu'aucun `content_sha256` n'est réclamé deux
+fois. **Explicitement pas une résurrection d'ADR-0043** (quarantiné, sujet
+sans rapport : migration H2 V1→V2, pas le multi-scope).
 
 ## 9. Production GitHub Environment (NOT_STARTED — non revérifié dans ce lot)
 

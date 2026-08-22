@@ -1,6 +1,68 @@
 # Lot — Audit scope/profile et architecture multi-scope (2026-08-22, read-only)
 
-## Conclusion (résumé exécutif)
+## Addendum (2026-08-22, second pass) — verdict affiné par audit de composition
+
+Le résumé exécutif ci-dessous (première passe) concluait que le champ
+singulier `scope` de `ScopeAuthorizationArtifactV2`/`CorpusCampaignV1`
+impliquait une architecture globalement mono-scope. Un second audit,
+demandé explicitement pour ne pas conclure prématurément, a lu
+`_authority_semantic_validation` (h2b_coverage_report.py:434-499) en
+entier : **le champ `scope` n'est en réalité jamais croisé avec
+`allowed_content_sha256` au gate H2** — un `scope` singulier par artefact
+n'est donc pas, en lui-même, le blocage structurel.
+
+Le blocage réel, précis, est plus étroit :
+
+```
+MULTISCOPE_ARCHITECTURE_RESOLVED=false
+EXISTING_CONTRACT_SUFFICIENT=false
+CONTRACT_CHANGE_REQUIRED=true
+ARCHITECTURE_AMBIGUOUS=false
+PROFILE_INVENTORY_GAP=true
+RESOURCE_SCOPE_CONTRACT_GAP=true   # étroit : uniquement production_readiness.py.authorization_digest
+```
+
+- **`ScopeAuthorizationArtifactV2`, `CorpusCampaignV1`, `H2CoverageEvidenceV1`
+  n'ont besoin d'aucun changement.** H2 évalue toujours le corpus complet
+  (2584 objets) en un seul passage (`expected_total=2584`,
+  `sum_equals_total` global) — il n'y a jamais eu N passages H2 partiels à
+  composer, un seul run qui doit simplement pouvoir accepter N
+  autorisations en entrée.
+- **Le seul point de contrat réellement bloquant** :
+  `packages/contracts/src/nexus_contracts/production_readiness.py` →
+  `ProductionReadinessManifestV1.authorization_digest: StrictStr` (digest
+  hex64 singulier) ne peut référencer qu'une seule autorisation. C'est le
+  seul champ qui devrait devenir une collection/digest-agrégat.
+- **Code non-contractuel manquant** (pas un blocage de contrat) :
+  `generate_coverage_report` (h2b_coverage_report.py:1324) et
+  `republish_catalog` (catalog_republish.py:126-172) prennent
+  `authority_path: Path` singulier — aucune fonction n'existe pour charger
+  et unir N autorisations. Ceci vit dans `rag_pedago/imports/` et
+  `rag_pedago/governance/`, **pas** dans `packages/contracts` — extensible
+  par du nouveau code d'orchestration (pas un ADR), plus une nouvelle
+  vérification qu'aucun `content_sha256` n'est réclamé par deux
+  autorisations à la fois.
+- Fausses pistes vérifiées et écartées (avec preuve) : `manifest.py:100`
+  `ProfileAuthority` (LOT44f sign-off humain, explicitement documenté comme
+  n'étant *pas* LOT41A), `Wave0ReleaseAuthority.authorities` (exige des
+  autorités **identiques** entre sujets combinés — l'inverse de composer
+  des scopes distincts), `docs/reports/evidence-index/` (ledger de
+  disposition, pas un agrégateur d'autorisation). Aucun `bundle`/
+  `ReleaseRegistry`/`CampaignCollection`/`ScopeSet` n'existe nulle part
+  dans le repo.
+- `PROFILE_INVENTORY_GAP=true` confirmé séparément : un seul profil de
+  production existe aujourd'hui — un manque d'inventaire, corrigible par
+  la création de profils sous le schéma `ResourceScope` à 10 dimensions
+  déjà existant, sans toucher aucun contrat.
+
+**Conséquence pour ce lot** : `CONTRACT_CHANGE_REQUIRED=true` reste vrai,
+mais le changement minimal identifié est **beaucoup plus étroit** qu'une
+refonte de `ScopeAuthorizationArtifactV2`/`CorpusCampaignV1`. Ce lot ne
+code rien de ce changement (hors périmètre, nécessite son propre SemVer
+bump + ADR + PR + HUMAN GATE d'architecture séparé, par l'instruction
+explicite de ne pas mélanger ce chantier avec le lot Tier A courant).
+
+## Conclusion (résumé exécutif, première passe — voir addendum ci-dessus pour le verdict affiné)
 
 ```
 MULTISCOPE_ARCHITECTURE_DECISION=Le pipeline d'autorisation actuel (CorpusCampaignV1

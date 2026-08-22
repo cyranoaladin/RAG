@@ -102,6 +102,14 @@
     "BYTE_IDENTITY_AMBIGUOUS": 0,
     "BYTE_IDENTITY_CONFLICT": 0,
     "SOURCE_UNAVAILABLE_TREATED_AS_NOT_CURRENT": false,
+    "second_pass_20260822": {
+      "ALTERNATE_ACCESS_PATH_FOUND": false,
+      "BYPASS_ATTEMPTED": false,
+      "CANONICAL_TERMINAL_VOCABULARY_EXISTS": false,
+      "NEW_TAXONOMY_VALUE_INTRODUCED": false,
+      "TERMINALIZATION_DECISION": "kept at real existing status A_VERIFIER/REVIEW_REQUIRED with the network-audit artifact attached as investigation proof; inventing REVIEW_REQUIRED_AFTER_INVESTIGATION would be a currentness_gate.py taxonomy contract change, out of scope for this read-only lot, flagged for the contract owner",
+      "TIER_A_NOT_INVESTIGATED": 0
+    },
     "evidence": [
       "docs/reports/tier_a_byte_identity_network_audit_20260822.json",
       "docs/reports/lot_tier_a_byte_identity_network_audit_20260822.md"
@@ -118,9 +126,15 @@
     "AUTHORITY_REQUIRED_MAPPED_STAGING": 0,
     "AUTHORITY_REQUIRED_NO_PROFILE": 72,
     "AUTHORITY_REQUIRED_AMBIGUOUS_PROFILE": 0,
-    "MULTISCOPE_ARCHITECTURE_DECISION": "Every stage of the authorization pipeline (ScopeAuthorizationArtifactV2, CorpusCampaignV1, catalog_republish, generate_coverage_report, runtime authority consumer, promote.yml, readiness signer) is architected for exactly one ResourceScope per run; the real 72-item set spans >=22 distinct (niveau, matiere) pairs, so it cannot be proven complete in one pass without an artificially widened scope.",
+    "MULTISCOPE_ARCHITECTURE_DECISION": "Refined by a second composition audit: scope is never cross-checked against allowed_content_sha256 at the H2 gate (_authority_semantic_validation, h2b_coverage_report.py:434-499), so a singular scope field per artifact is not itself the blocker. ScopeAuthorizationArtifactV2/CorpusCampaignV1/H2CoverageEvidenceV1 need no change - H2 always evaluates the full 2584-object corpus in one pass. The one real contract blocker is narrow: ProductionReadinessManifestV1.authorization_digest (production_readiness.py) is a single hex64 digest that cannot reference N authorizations. generate_coverage_report/republish_catalog also lack (non-contract) orchestration code to load and union N authorizations.",
+    "MULTISCOPE_ARCHITECTURE_RESOLVED": false,
     "EXISTING_CONTRACT_SUFFICIENT": false,
     "CONTRACT_CHANGE_REQUIRED": true,
+    "ARCHITECTURE_AMBIGUOUS": false,
+    "PROFILE_INVENTORY_GAP": true,
+    "RESOURCE_SCOPE_CONTRACT_GAP": true,
+    "RESOURCE_SCOPE_CONTRACT_GAP_SCOPE_NOTE": "narrow - production_readiness.py authorization_digest only, not ResourceScope/ScopeAuthorizationArtifactV2/CorpusCampaignV1",
+    "MINIMAL_CHANGE_PROPOSED": "(1) widen ProductionReadinessManifestV1.authorization_digest into a collection/aggregate digest - needs SemVer bump + ADR; (2) add (non-contract) orchestration in rag_pedago/imports and rag_pedago/governance to load/validate/union N disjoint-scope authorizations with a check that no content_sha256 is claimed twice",
     "ADR0043_REUSED": false,
     "evidence": [
       "docs/reports/tier_a_scope_profile_audit_clean_20260822.json",

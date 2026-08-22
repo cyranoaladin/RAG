@@ -1,5 +1,66 @@
 # Lot — Audit réseau byte-identity Tier A (2026-08-22)
 
+## Addendum (2026-08-22, second pass) — investigation bornée d'une voie alternative, et terminalisation
+
+Une seconde passe, strictement bornée (pas de boucle), a cherché une voie
+d'accès légitime alternative avant d'accepter "138/138 bloqués" comme
+définitif :
+
+- **Colonnes du TSV de provenance** (`sha256, scope, famille,
+  matiere_ou_rubrique, niveau, type_document, annee, statut, titre,
+  url_source, objet_source, chemin_technique_existant, chemin_par_scope,
+  taille_octets, pages_pdf, integrite`) : aucune URL alternative
+  (CDN/archive/téléchargement direct) n'existe pour ces 8 pages —
+  `objet_source` est un chemin d'objet interne (`objects/sha256/...`), pas
+  une URL primaire alternative.
+- Variations légitimes essayées (UA navigateur + `Accept-Language: fr-FR`,
+  slash final, http/https) : toujours 403. Page de blocage confirmée comme
+  un template Cloudflare standard (`cf-ray` présent, gate JS-cookie
+  « Sorry, you have been blocked »), pas une erreur de rate-limit ni de
+  maintenance — pas de `Retry-After`, pas de contact, rien suggérant un
+  blocage temporaire.
+- `robots.txt` reconfirmé : le tiers générique (`User-agent: *`) autorise
+  explicitement `/*.pdf$` et `/sites/default/files/`, et les pages article
+  elles-mêmes ne sont pas `Disallow`. Le blocage vient de l'infrastructure
+  Cloudflare, pas d'une politique déclarée du site.
+- **Aucun contournement tenté** (pas de résolution de challenge JS, pas de
+  navigateur automatisé, pas de substitution par une copie tierce).
+
+**Conclusion : aucune voie d'accès légitime alternative trouvée.**
+
+### Vocabulaire terminal canonique — recherché, absent
+
+Le vocabulaire attendu (`REVIEW_REQUIRED_AFTER_INVESTIGATION` /
+`PRIMARY_SOURCE_UNAVAILABLE`) a été cherché explicitement dans
+`currentness_gate.py` et tout `rag_pedago`/`packages/contracts` : **il
+n'existe pas**. L'énumération réelle `Currentness` est
+`ACTUEL | TRANSITION | A_VERIFIER | ARCHIVE | CONFLICT | UNCLASSIFIED`,
+mappée uniquement vers les dispositions
+`INGEST | REVIEW_REQUIRED | ARCHIVE_ONLY | QUARANTINE`. `SOURCE_UNAVAILABLE`
+est un vocabulaire introduit par ce lot pour son propre artefact d'audit —
+pas une valeur de contrat pré-existante.
+
+**Décision de terminalisation (sans inventer de nouvelle valeur de
+contrat)** : les 138 items restent à leur statut réel déjà existant
+(`A_VERIFIER`/`REVIEW_REQUIRED`) — un statut terminal légitime pour ce
+go-live (ne bloque pas indéfiniment, ne devient pas `CURRENT` par défaut).
+L'artefact `tier_a_byte_identity_network_audit_20260822.json` (decision
+`SOURCE_UNAVAILABLE` par item, 403 Cloudflare documenté) est joint comme
+**preuve d'investigation réelle** — ces 138 items ne sont plus
+`REVIEW_REQUIRED_NOT_YET_INVESTIGATED` (ils ont été vérifiés en réseau
+pour de vrai), ils restent `REVIEW_REQUIRED` avec preuve d'investigation.
+Créer une nouvelle valeur d'énumération (`REVIEW_REQUIRED_AFTER_INVESTIGATION`)
+serait un changement de contrat de taxonomie sur `currentness_gate.py` —
+hors périmètre de ce lot en lecture seule, non fait unilatéralement ;
+signalé ici pour décision de l'opérateur propriétaire de ce contrat,
+conformément à la règle d'escalade d'AGENTS.md.
+
+```
+TIER_A_NOT_INVESTIGATED=0   # les 138 ont été réellement vérifiés en réseau
+TIER_A_ALL_CURRENT=false    # honnête -- zéro promotion, ce n'est pas l'objectif de ce lot
+NEW_TAXONOMY_VALUE_INTRODUCED=false
+```
+
 ## 1. Périmètre
 
 Entrée : les 138 `content_sha256` de `byte_identity_audit_input` dans
