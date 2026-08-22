@@ -1,0 +1,2172 @@
+{
+  "byte_identity_audit_input": [
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2020/telechargez-le-texte--03788d7855.pdf",
+      "content_sha256": "03788d78554bd28fc68458da9fc325d5255179e06884e5ad46a224d85fe37e20",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2020/telechargez-l-analyse--03a19e82fc.pdf",
+      "content_sha256": "03a19e82fcf28419b23a69f2e45faa9ee14241bd002938ec77dac9d142384b31",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/MATHEMATIQUES/09_AUTRES/2022/etablir-une-strategie-au-jeu-de-monty-hall-pdf-1-38-mo--07791b9022.pdf",
+      "content_sha256": "07791b9022ab71dbd63b8e7329b76145358dd636b9017dc959b794e9bea38a2d",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/MATHEMATIQUES/01_PROGRAMMES_OFFICIELS/2022/les-enjeux-des-mathematiques-integrees-a-l-enseignement-scientifique-pdf-353-62-ko--08008aaebb.pdf",
+      "content_sha256": "08008aaebb6754c653434c9b63bf8ff7c646ae87b48c6f145bd1d672c0030428",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED",
+        "PROGRAMME_ALIGNMENT_REVIEW_REQUIRED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2021/telechargez-l-analyse--0b75310187.pdf",
+      "content_sha256": "0b75310187bbda9f9df7baa660b3ee068c23d209cbd9ed43e923b8403197c667",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2020/telechargez-le-texte--0d7f21bbc0.pdf",
+      "content_sha256": "0d7f21bbc0b3f670935d80f2672254e73ada4430eac89cff18e44f6e545adbf8",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2020/telechargez-l-analyse--12a3940f0e.pdf",
+      "content_sha256": "12a3940f0eb1af58af2429484b647db289c1d03777a1e3f4efc81302f2b8cefa",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/COLLEGE/4E/FRANCAIS/02_REPERES_ATTENDUS/2023/fiche-d-accompagnement-pour-le-professeur--1353162992.pdf",
+      "content_sha256": "1353162992d9eb58da292c4a98a5918710c62c95ab80bd3605db3b7b344b06e5",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2021/telechargez-le-texte--1552a0d2cc.pdf",
+      "content_sha256": "1552a0d2cc59d6bb5875b9e5a0acc4494aff8b717bba1f3592cfffa3ec14c021",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2020/telechargez-l-analyse--15af1a9b52.pdf",
+      "content_sha256": "15af1a9b52ec8b579958e4f5e6f66db097b966ab3a75aa0c88604776df404f12",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/COLLEGE/4E/FRANCAIS/02_REPERES_ATTENDUS/2023/fiche-d-accompagnement-pour-le-professeur--1661a43d35.pdf",
+      "content_sha256": "1661a43d35c7486d69eaadde2b9602742152ccea00c01ce543aba2adb07f38d5",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/04_EVALUATIONS_EXAMENS/2021/telechargez-l-analyse--175d3ea566.pdf",
+      "content_sha256": "175d3ea566ae70d26ffc731570b97547bff41cf45ac9150adf243c6ab39e98f7",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/06_GUIDES/2021/telechargez-l-analyse--198d559623.pdf",
+      "content_sha256": "198d55962321c1877e5c7d7f7375568b31d3988d76cfd7bf27dd7266313c9201",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/MATHEMATIQUES/01_PROGRAMMES_OFFICIELS/2020/geometrie-pour-tous-et-partout-le-produit-scalaire-premiere-g-pdf-721-84-ko--19e93ee980.pdf",
+      "content_sha256": "19e93ee98040d5301c8b7f1a0d133af39f44a837867049e49eb6d5dcd5d53102",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED",
+        "PROGRAMME_ALIGNMENT_REVIEW_REQUIRED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/05_ANNALES_SUJETS_CORRIGES/2021/telechargez-le-texte--1a339b3b7b.pdf",
+      "content_sha256": "1a339b3b7bf2dc3153d0b09846dcbf870354b0b7baf41c46d4df7cee938e7778",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/NSI/03_RESSOURCES_ACCOMPAGNEMENT/2020/programmation-dynamique-pdf-785-04-ko--1b34f7fade.pdf",
+      "content_sha256": "1b34f7fade7fbf3180d54cd650bd466f1e4f1d83e8940faac1ed40ab44d7b029",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/NSI/03_RESSOURCES_ACCOMPAGNEMENT/2021/modularite-et-api-pdf-257-42-ko--1ddb97cf73.pdf",
+      "content_sha256": "1ddb97cf73d859ba5aaf4510a2ede99952333fe007fa0a0860c17c8ea34b30a5",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2020/telechargez-l-analyse--1f1344c11d.pdf",
+      "content_sha256": "1f1344c11dfa005508c68e3b10f1dd7860216fb86877534a744bcc4e89fe1c3d",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2021/telechargez-l-analyse--205ed40f42.pdf",
+      "content_sha256": "205ed40f429905ede609871b75655fdeaf899ba5f3b8418c6f092ed1797b19a6",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2020/telechargez-l-analyse--217cb73d8e.pdf",
+      "content_sha256": "217cb73d8e9a2ea709c751352d8af61e69d23264329e1533217f47837b9270da",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/MATHEMATIQUES/01_PROGRAMMES_OFFICIELS/2026/programme-de-l-enseignement-optionnel-de-mathematiques-complementaires-de-la-classe-terminale-de-la-voie-generale--24d24d6cbf.pdf",
+      "content_sha256": "24d24d6cbf25bab57cbcf91daba46b6286b0b602ee3cda4c6606c8d2b8dfe1d4",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED",
+        "PROGRAMME_ALIGNMENT_REVIEW_REQUIRED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2021/telechargez-le-texte--262463e40e.pdf",
+      "content_sha256": "262463e40ef019b07ff3e4c567e829827311dba394dd91a856fc8291096faf49",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/NSI/03_RESSOURCES_ACCOMPAGNEMENT/2021/ecriture-de-tests-pdf-543-48-ko--28f92cfe1c.pdf",
+      "content_sha256": "28f92cfe1c81f2a4bab17aa2a9bff9a05f43a265ecad03214fe452a4ac53202d",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2021/telechargez-le-texte--2ade3f0ca2.pdf",
+      "content_sha256": "2ade3f0ca2285ef658992cbda6f41497305a6952f34f5437f68f15a92c72e9ac",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/MATHEMATIQUES/01_PROGRAMMES_OFFICIELS/2019/premiere-technologique-bo-special-n-1-du-22-janvier-2019-pdf-546-79-ko--2d02927a1c.pdf",
+      "content_sha256": "2d02927a1cd8bce7fad20c6492b1da3303af34227b1e954eca4e4dfc00767b9e",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED",
+        "PROGRAMME_ALIGNMENT_REVIEW_REQUIRED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/04_EVALUATIONS_EXAMENS/2019/exemple-pour-une-classe-de-premiere-technologique--2dc0676aef.pdf",
+      "content_sha256": "2dc0676aef5fcfc259bd41f2d51818de052c4b03940a681213b15859f3eece8b",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/MATHEMATIQUES/01_PROGRAMMES_OFFICIELS/2019/seconde-sthr-bo-special-n-1-du-22-janvier-2019-pdf-369-53-ko--2e4cf73987.pdf",
+      "content_sha256": "2e4cf73987c49c22f5b699c772f594025281fab42157604e5c5bec797dc10803",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED",
+        "PROGRAMME_ALIGNMENT_REVIEW_REQUIRED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/NSI/03_RESSOURCES_ACCOMPAGNEMENT/2021/mise-au-point-des-programmes-gestion-des-bugs-pdf-230-29-ko--2ef39773d2.pdf",
+      "content_sha256": "2ef39773d21814ebda8f2e4e0b5d2970b5c81c5042285685cce28c263b2a562f",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/NSI/03_RESSOURCES_ACCOMPAGNEMENT/2021/diviser-pour-regner-pdf-625-24-ko--2fb28b71ad.pdf",
+      "content_sha256": "2fb28b71adff69e6c022c3b77e05ecfcb646005b4d36ff44fd7f203026248295",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/MATHEMATIQUES/01_PROGRAMMES_OFFICIELS/2021/structure-de-la-consommation-des-menages-en-france-enseignement-commun-de-seconde-pdf-219-97-ko--304c652957.pdf",
+      "content_sha256": "304c6529578b8f1ade69375f5e463f50849b25271253d61bfb002aef4ba0c789",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED",
+        "PROGRAMME_ALIGNMENT_REVIEW_REQUIRED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/HLP/04_EVALUATIONS_EXAMENS/2021/l-experimentation-de-l-oral-de-lecteur--31903807f1.pdf",
+      "content_sha256": "31903807f1db276944ca63b4cd00011d3294e5f475374bb32490516ccbe69e7a",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED",
+        "PHYSICAL_SUBJECT_ALIGNMENT_REVIEW_REQUIRED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/04_EVALUATIONS_EXAMENS/2021/telecharger-l-analyse--340784293b.pdf",
+      "content_sha256": "340784293b39005bd06c374946ec99641b8e30e7c71c36788b7e3b66317e140a",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2021/telechargez-l-analyse--35391baf52.pdf",
+      "content_sha256": "35391baf521bad1be9355fed7fc28e811f5a77a2f1d453782eb0786b4fc6dd80",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/04_EVALUATIONS_EXAMENS/2020/telechargez-l-analyse--3730b790fb.pdf",
+      "content_sha256": "3730b790fb8457b45cfaea2e27aa73e4843a2efcd3a9b8e2b227f052435b1126",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2020/telechargez-l-analyse--3a3ee74972.pdf",
+      "content_sha256": "3a3ee74972291e37a88b16ae320f7a0a0f1f5c733555cec952b054321125898c",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/FRANCAIS/01_PROGRAMMES_OFFICIELS/2019/fiche-d-integrer-l-enseignement-de-la-comprehension-a-l-etude-des-textes-exemple-pour-la-voie-generale-et-technologique--3b67a8c439.pdf",
+      "content_sha256": "3b67a8c43981ee05b58862dbb48766f1a738c9b149c9fa6a221dd2c8d57a9f16",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED",
+        "PROGRAMME_ALIGNMENT_REVIEW_REQUIRED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2020/telechargez-le-texte--3fa5c53b24.pdf",
+      "content_sha256": "3fa5c53b24cdb626050a7e67b52adea6013c80f3c8c986036f456508fd0f0914",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/FRANCAIS/04_EVALUATIONS_EXAMENS/2019/fiche-b-la-fluidite-de-la-lecture--403eccd579.pdf",
+      "content_sha256": "403eccd579176da6f1ae2b97c2cf2ad186050931f227aa34f337f6dc8961b2b3",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/07_DIAPORAMAS_SUPPORTS/2021/telechargez-l-analyse--44e4bd5998.pdf",
+      "content_sha256": "44e4bd5998e354ea61362f1540e9f9c715df8db677561ce8413c20aa09757825",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2020/telechargez-le-texte--45a87602cf.pdf",
+      "content_sha256": "45a87602cfefb2a551b8e70133a23df854d5401540b3af5e5b5c8c626de30cf5",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/NSI/07_DIAPORAMAS_SUPPORTS/2019/manipulation-de-tables-pdf-144-44-ko--461e89b1b1.pdf",
+      "content_sha256": "461e89b1b1a24a83a1598fe3d55a1aa040d9e305f63b8348bc6042ce96d5687b",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/HLP/04_EVALUATIONS_EXAMENS/2020/annexe--4b7f7204fd.pdf",
+      "content_sha256": "4b7f7204fd5ad677cd323579fcd1e220f3f843f966fa5ec00cd5c277e08f934d",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED",
+        "PHYSICAL_SUBJECT_ALIGNMENT_REVIEW_REQUIRED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2021/telechargez-le-texte--53754bc855.pdf",
+      "content_sha256": "53754bc8556aab5e74a47df47c9622d2d9525b7952b70806ec2d53dd428df1ce",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/05_ANNALES_SUJETS_CORRIGES/2021/telechargez-l-analyse--54da913e02.pdf",
+      "content_sha256": "54da913e0208595ad2f15b4d2e0b2406a1e7ee8467ac9c863e7ff3923aa82797",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/FRANCAIS/09_AUTRES/2019/fiche-f-annexes--5e23b528a2.pdf",
+      "content_sha256": "5e23b528a2c2963841cd99d4597825f6b1379be09e712df940ac1775a30018f9",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2020/telechargez-l-analyse--625c18760b.pdf",
+      "content_sha256": "625c18760b6c7257ede013c9de8555c2097d796d63db350e32a3fc4f07b8ff00",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/COLLEGE/4E/FRANCAIS/07_DIAPORAMAS_SUPPORTS/2016/carte-d-exploration-lexicale-dire-l-amour-niveau-4e-au-format-pdf--64ada4ca62.pdf",
+      "content_sha256": "64ada4ca6239329913bbe815ba6577dd1b2f413f707a90cff6ddd84733242f09",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2021/telechargez-l-analyse--65bc5a26c5.pdf",
+      "content_sha256": "65bc5a26c55dfa46623d2d918112aa3af67db0534b45654e8214c6e0211c483a",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/HLP/03_RESSOURCES_ACCOMPAGNEMENT/2021/groupement-de-textes-n-2-pour-un-art-de-la-parole-politique-pdf-140-15-ko--6636473e54.pdf",
+      "content_sha256": "6636473e5411b5393bceb7be19d65176230eb39736f36f7b9f498899f82989b8",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED",
+        "PHYSICAL_SUBJECT_ALIGNMENT_REVIEW_REQUIRED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2021/telechargez-le-texte--66c3005e5d.pdf",
+      "content_sha256": "66c3005e5d31fe32cacae9160765063350086dd1feee27a002013d77b640e154",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/HLP/04_EVALUATIONS_EXAMENS/2019/presentation--672229ad2d.pdf",
+      "content_sha256": "672229ad2d434591d1e79db72cfe1c779a8820ddc4b9af52debf803386b1fc7c",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED",
+        "PHYSICAL_SUBJECT_ALIGNMENT_REVIEW_REQUIRED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/COLLEGE/4E/FRANCAIS/02_REPERES_ATTENDUS/2023/fiche-d-accompagnement-pour-le-professeur--6785b69e3b.pdf",
+      "content_sha256": "6785b69e3b2042393fc7717fe9955e530a1f2253add2cacc60b833e5be5fc86a",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/01_PROGRAMMES_OFFICIELS/2022/la-question-de-grammaire-de-l-epreuve-anticipee-orale-de-francais-precisions-sur-sa-definition--6a7942128b.pdf",
+      "content_sha256": "6a7942128b8404ac0b98e819c0f1482a6bac353bd2ea5a6269f7081676a65150",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED",
+        "PROGRAMME_ALIGNMENT_REVIEW_REQUIRED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2021/telechargez-l-analyse--6b813bd52f.pdf",
+      "content_sha256": "6b813bd52f782bf50eaf7abd66e9568401505c612b852d0bee2015d66855031e",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2020/telechargez-l-analyse--6faf2dcd07.pdf",
+      "content_sha256": "6faf2dcd07750352a03cb106a84afb1a1da355c354b6392be041c21a1d4c1d52",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/NSI/04_EVALUATIONS_EXAMENS/2021/le-paradigme-fonctionnel-pdf-404-66-ko--703cbd7598.pdf",
+      "content_sha256": "703cbd759841b016d5acac15df02a3c17ef273430e28f46fd5d9498b0606d3f5",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2020/telechargez-le-texte--725ce7c370.pdf",
+      "content_sha256": "725ce7c370157f0adbbdcc6863587c63c5f262a8952e621e3d1f915207b21cd3",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/NSI/07_DIAPORAMAS_SUPPORTS/2021/pourquoi-choisir-la-specialite-nsi-pdf-138-77-ko--732bf55ee8.pdf",
+      "content_sha256": "732bf55ee80af1b5c8a13243652a4784be134ce4b636ac8d9893f7377a28e7df",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2021/telechargez-le-texte--762ba62c44.pdf",
+      "content_sha256": "762ba62c44159d6717170dc7bc4ab72e9ce119c624b43542249bba7dab767f9f",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/MATHEMATIQUES/01_PROGRAMMES_OFFICIELS/2021/la-consommation-des-menages-en-france-et-en-europe-enseignement-commun-de-seconde-pdf-156-54-ko--779d2c850a.pdf",
+      "content_sha256": "779d2c850af0e9b84543cde5cf7f887c8688df58cb6c0a9890a9d94f59833efe",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED",
+        "PROGRAMME_ALIGNMENT_REVIEW_REQUIRED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/07_DIAPORAMAS_SUPPORTS/2021/telechargez-l-analyse--7db6f78180.pdf",
+      "content_sha256": "7db6f781808d069a4024f2a92e60bd5d60233a2ac4de9eabe380ffd3149de11a",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/HLP/07_DIAPORAMAS_SUPPORTS/2021/presentation-pdf-146-4-ko--7e4121f2ea.pdf",
+      "content_sha256": "7e4121f2eac0784e2cb5f5f75b5521ecdcb36044fc9adbc929614b686a71b07c",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED",
+        "PHYSICAL_SUBJECT_ALIGNMENT_REVIEW_REQUIRED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/MATHEMATIQUES/01_PROGRAMMES_OFFICIELS/2026/programme-de-mathematiques-integre-a-l-enseignement-scientifique-en-classe-de-premiere-generale--7e48c40413.pdf",
+      "content_sha256": "7e48c40413ca57a5dcf66230648ea69eaef55d40e620736f0c7eff7bbc82069f",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED",
+        "PROGRAMME_ALIGNMENT_REVIEW_REQUIRED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/MATHEMATIQUES/01_PROGRAMMES_OFFICIELS/2019/seconde-generale-et-technologique-bo-special-n-1-du-22-janvier-2019-pdf-400-72-ko--7f4fe97474.pdf",
+      "content_sha256": "7f4fe9747468bc08e188cfa798edac2ad621426c59d512c151c6d9f4e93ca8e4",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED",
+        "PROGRAMME_ALIGNMENT_REVIEW_REQUIRED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/MATHEMATIQUES/01_PROGRAMMES_OFFICIELS/2019/specialite-de-premiere-generale-bo-special-n-1-du-22-janvier-2019-pdf-473-07-ko--80b8ef1440.pdf",
+      "content_sha256": "80b8ef1440548faeb5861adc764e6c9740cc2d2c806685287b72eabb5aeeea73",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED",
+        "PROGRAMME_ALIGNMENT_REVIEW_REQUIRED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/NSI/03_RESSOURCES_ACCOMPAGNEMENT/2020/l-algorithme-de-boyer-et-moore-pdf-1-15-mo--852f56f2b7.pdf",
+      "content_sha256": "852f56f2b7de9b0137db59de6ca646079958452f29f77c5d2d29b1670469b406",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2020/telechargez-l-analyse--85a762fa93.pdf",
+      "content_sha256": "85a762fa9358222ad68296842c49d8de6f44ef7a3f7c696cad450709c7d5e892",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2020/telechargez-l-analyse--861db0641d.pdf",
+      "content_sha256": "861db0641d5ee6ec44e698d00155c8e3d518610408e78a6a891bc25fc6b26f8f",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2021/telechargez-le-texte--8679534f23.pdf",
+      "content_sha256": "8679534f23867eca9018bfc811abee222aa019ef828e0b30ec21dfa0bc54d63e",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2020/telechargez-le-texte--8b0e8e9a61.pdf",
+      "content_sha256": "8b0e8e9a61faf826c76b34ea27aef4fece406b0d6ecc57a2be84daf4c5984775",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2021/telechargez-le-texte--8bcce2891c.pdf",
+      "content_sha256": "8bcce2891c997cb0ee7319fbd261c4c3f7c9ed20f7269fb3ab7a005c11b8a7cf",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/04_EVALUATIONS_EXAMENS/2020/telechargez-le-texte--8cd68fa374.pdf",
+      "content_sha256": "8cd68fa37419dfa8545fc2d6231394d9e927c9e980fcd29306110b9035667d59",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/03_RESSOURCES_ACCOMPAGNEMENT/2021/accompagnement-de-la-lecture-pdf-91-93-ko--8d8d833b40.pdf",
+      "content_sha256": "8d8d833b4051c7c709a90866263284f67e8246ff9ad6a8938d95bcf396e70ad5",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/COLLEGE/4E/FRANCAIS/02_REPERES_ATTENDUS/2023/fiche-d-accompagnement-pour-le-professeur--91a47029cf.pdf",
+      "content_sha256": "91a47029cfd21dd02f00a65a575c804ffcc660dae62fe575104c3fc2ea0284e8",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2021/telechargez-le-texte--924d7be788.pdf",
+      "content_sha256": "924d7be788d12cf014d8b010ba9a39241ebe81bc2a5704c6f360e3e983639d75",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2020/telechargez-le-texte--92dd9de47d.pdf",
+      "content_sha256": "92dd9de47df5faacda229ef71672da8d33cebc2654f1aa3eb29d3683e920a7ab",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2020/telechargez-l-analyse--950e7b8e08.pdf",
+      "content_sha256": "950e7b8e08bfb62135e514c7ad91e3e219e74e65f7cd4824052c4a32ab0a8efe",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2020/telechargez-le-texte--951a2ea262.pdf",
+      "content_sha256": "951a2ea262c2d8707dc0a1edc54ade120930665a063a40a8e091b85030b53501",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2021/telechargez-l-analyse--9721d0d489.pdf",
+      "content_sha256": "9721d0d489d5fc495958d787a4be9aa94454ce90929c669fe4bc9bc6a1eeb433",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2021/telechargez-le-texte--97ff99342a.pdf",
+      "content_sha256": "97ff99342a3c7a980ffeb65f888c78aee4ab4785071c05f76fc8c47821659173",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2021/telechargez-l-analyse--999309fc46.pdf",
+      "content_sha256": "999309fc465ff84d106d7f679df036d97d7d260a60ebce9058ab2d835df8f622",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/HLP/04_EVALUATIONS_EXAMENS/2021/proposition-d-evaluation-corneille-cinna-acte-iii-scene-4-vers-1111-1167-pdf-111-05-ko--9a711d61af.pdf",
+      "content_sha256": "9a711d61afbe6488fb459f0cc66564de39a89a824bc63849706a21c098cbf1f3",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED",
+        "PHYSICAL_SUBJECT_ALIGNMENT_REVIEW_REQUIRED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/NSI/07_DIAPORAMAS_SUPPORTS/2019/types-mutables-et-problemes-associes-pdf-164-37-ko--9b0f2814e2.pdf",
+      "content_sha256": "9b0f2814e2a6c21c9a4981b3734ad89ef8a32c2d25fe2fa9616a4f593b04538b",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/MATHEMATIQUES/01_PROGRAMMES_OFFICIELS/2026/programme-d-enseignement-de-mathematiques-de-la-classe-de-premiere-de-la-voie-technologique--9ba787513e.pdf",
+      "content_sha256": "9ba787513e326fc9e8fe803a6324cff91289a77d8a0f64835e3bd25cbb425dff",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED",
+        "PROGRAMME_ALIGNMENT_REVIEW_REQUIRED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/MATHEMATIQUES/01_PROGRAMMES_OFFICIELS/2026/programme-de-l-enseignement-de-specialite-de-mathematiques-de-la-classe-terminale-de-la-voie-generale--9c99a32bb3.pdf",
+      "content_sha256": "9c99a32bb3e5f14d8906783f86a9a0fd86a99543b032a20fe388841d024ed4a5",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED",
+        "PROGRAMME_ALIGNMENT_REVIEW_REQUIRED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2020/telechargez-l-analyse--a05f8caf81.pdf",
+      "content_sha256": "a05f8caf81c600909731ac30f586aa6f420e8d837604fbbea7435859c7eab697",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/06_GUIDES/2021/telechargez-l-analyse--a13ec16ea7.pdf",
+      "content_sha256": "a13ec16ea7628cc5e9a14b21cd36f85dd62f51b2fe06ad228a6d7b32d2b8e4d0",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/HLP/04_EVALUATIONS_EXAMENS/2020/se-saisir-des-outils-numeriques-d-enregistrement-pour-apprendre-a-faire-des-choix-et-a-les-exprimer-mettre-la-technique-au-service--a33a12a6c4.pdf",
+      "content_sha256": "a33a12a6c4f3206776c834a359a46962aa264f4364ca51e860e41afbe4292470",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED",
+        "PHYSICAL_SUBJECT_ALIGNMENT_REVIEW_REQUIRED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2020/telechargez-le-texte--a66af1168d.pdf",
+      "content_sha256": "a66af1168d146e6961a2cf5be7f66f4dfb32635e28cf4db0eadc35d64a3e2d32",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2021/telechargez-l-analyse--a748dfe26b.pdf",
+      "content_sha256": "a748dfe26bef104ba7a463cf5182a64e844388cb05b1e4193223b4e9429a7a96",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/HLP/04_EVALUATIONS_EXAMENS/2020/s-organiser-pour-un-enseignement-de-l-oral-donnant-corps-a-la-lecture-des-eleves--a7aa8d3753.pdf",
+      "content_sha256": "a7aa8d3753d202f387d02cd22731f409962b536576b5da4b678d3eb904e67880",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED",
+        "PHYSICAL_SUBJECT_ALIGNMENT_REVIEW_REQUIRED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/COLLEGE/4E/FRANCAIS/07_DIAPORAMAS_SUPPORTS/2016/carte-de-faisceaux-de-problematiques-et-de-corpus-dire-l-amour-niveau-4e-au-format-pdf--a7c58f6d6e.pdf",
+      "content_sha256": "a7c58f6d6efbaf9cb2a9ef35f04b880670b3fc5630a204577a1c640f44fd0c56",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/MATHEMATIQUES/01_PROGRAMMES_OFFICIELS/2019/raisonnement-et-demonstration-seconde-gt-pdf-1-09-mo--acebc5228c.pdf",
+      "content_sha256": "acebc5228c464ee1a5122587c4a407e01db692dc590ef9b33856af33cefffba0",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED",
+        "PROGRAMME_ALIGNMENT_REVIEW_REQUIRED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2021/telechargez-le-texte--ada21b5f9d.pdf",
+      "content_sha256": "ada21b5f9dc2e93461b95ff10d73610818601a10b012dc14a8ac4ce103624160",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/01_PROGRAMMES_OFFICIELS/2020/comprendre-les-enjeux-de-l-enseignement-du-francais-en-classe-de-premiere--af3eaa9c37.pdf",
+      "content_sha256": "af3eaa9c37d902063bcdb6a35d1973307c78f1bbb58ee3aec0b6c56770b05ac8",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED",
+        "PROGRAMME_ALIGNMENT_REVIEW_REQUIRED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/COLLEGE/4E/FRANCAIS/02_REPERES_ATTENDUS/2023/fiche-d-accompagnement-pour-le-professeur--b0a46d4909.pdf",
+      "content_sha256": "b0a46d4909697a6eeda5c21bd721b8d644c140e766873aaff4d5a18eedcd171b",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/04_EVALUATIONS_EXAMENS/2021/telechargez-l-analyse--b7603cb79a.pdf",
+      "content_sha256": "b7603cb79a8c164d8d4d5ddc1e11a83a2b866df12dcaa72440eb3f4ea9eb9caa",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/NSI/07_DIAPORAMAS_SUPPORTS/2019/representation-des-entiers-relatifs-pdf-142-45-ko--b826be9b15.pdf",
+      "content_sha256": "b826be9b151801ff936a29859b36b68cd2febca6870dca8e9dd842894f83dd80",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/FRANCAIS/09_AUTRES/2019/fiche-f-integrer-l-enseignement-de-la-comprehension-de-l-oral-a-l-etude-de-textes--b9cc16e59b.pdf",
+      "content_sha256": "b9cc16e59be0d9d797369048240c506162a80f06f855fda24333561c473f15d5",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/FRANCAIS/09_AUTRES/2019/travailler-la-comprehension-a-la-suite-du-test-de-positionnement-introduction--be520aa904.pdf",
+      "content_sha256": "be520aa9043f050fabd2570ada553fc2c59ed1b3762c84374c67c9c28dfdbd38",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2021/telechargez-le-texte--bf74787fb5.pdf",
+      "content_sha256": "bf74787fb5074c460501a62abf6b11c5ce1b63eb63776feea4cc2502f2b1a4c5",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/MATHEMATIQUES/01_PROGRAMMES_OFFICIELS/2019/option-mathematiques-expertes-de-terminale-generale-bo-special-n-8-du-25-juillet-2019-pdf-441-79-ko--c491ac1ccb.pdf",
+      "content_sha256": "c491ac1ccb63dbce86f59767d6826f4d13afb3efa782ed1176621aa691329ebd",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED",
+        "PROGRAMME_ALIGNMENT_REVIEW_REQUIRED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/NSI/01_PROGRAMMES_OFFICIELS/2019/p-uplets-nommes-et-dictionnaires-pdf-158-82-ko--c6af1ff6a2.pdf",
+      "content_sha256": "c6af1ff6a268086dd12262f93a6c5412dead79ba1b2d8ab2b74ffbffc0fb16ae",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED",
+        "PROGRAMME_ALIGNMENT_REVIEW_REQUIRED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/HLP/03_RESSOURCES_ACCOMPAGNEMENT/2021/groupement-de-textes-n-1-il-faut-que-la-parole-brule-pdf-126-38-ko--cbc5415887.pdf",
+      "content_sha256": "cbc5415887bdad979236635b07645938e0792f0bc1bfad653e43de54830a51d0",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED",
+        "PHYSICAL_SUBJECT_ALIGNMENT_REVIEW_REQUIRED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2021/telechargez-l-analyse--ce1c36a1b8.pdf",
+      "content_sha256": "ce1c36a1b8d9cae0624c334409fe1f5239420d9948ee75db474a5b597c944f06",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/HLP/04_EVALUATIONS_EXAMENS/2019/exemple-pour-une-classe-de-premiere-avec-questions-de-grammaire--d22bdad4ec.pdf",
+      "content_sha256": "d22bdad4ec497c898a5ce3047e8150d3539505520c5852805ea73b50835bd860",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED",
+        "PHYSICAL_SUBJECT_ALIGNMENT_REVIEW_REQUIRED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/MATHEMATIQUES/07_DIAPORAMAS_SUPPORTS/2021/suites-exponentielle-probabilites-modeliser-et-representer-premiere-g-pdf-1-65-mo--d26151f93a.pdf",
+      "content_sha256": "d26151f93aa87061f84302ea3ad8679f1b9c245c383abf269fcf651d1b389fd0",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/HLP/09_AUTRES/2019/exemple-pour-une-classe-de-premiere-technologique--d604d6a973.pdf",
+      "content_sha256": "d604d6a97323968ad6efca34cc1debc4e857a5cc2ef916df7ce9e95df181feef",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED",
+        "PHYSICAL_SUBJECT_ALIGNMENT_REVIEW_REQUIRED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2020/telechargez-l-analyse--d6846fd984.pdf",
+      "content_sha256": "d6846fd984ef06ce7583e5a0c65f3e5dd10d0bb67a65a180e8bfb451d4c8c5f1",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/01_PROGRAMMES_OFFICIELS/2020/les-attendus-d-une-prestation-d-eleve-aux-eaf-en-explication-de-texte--d9079f7999.pdf",
+      "content_sha256": "d9079f79992de3dbce0b238423d7f8a87273fcce74f8aa5bb17e25dc7dcd528a",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED",
+        "PROGRAMME_ALIGNMENT_REVIEW_REQUIRED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/MATHEMATIQUES/01_PROGRAMMES_OFFICIELS/2021/evolution-de-la-consommation-des-menages-en-france-enseignement-de-specialite-et-enseignement-optionnel-de-terminale-pdf-386-55-ko--d9ab739cf2.pdf",
+      "content_sha256": "d9ab739cf2ae5232a0f09e7346314a833c397259dbc959cf06d00c9c736cc841",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED",
+        "PROGRAMME_ALIGNMENT_REVIEW_REQUIRED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/MATHEMATIQUES/01_PROGRAMMES_OFFICIELS/2019/raisonnement-et-demonstration-premiere-g-pdf-1-22-mo--db9e06168e.pdf",
+      "content_sha256": "db9e06168efff6568971a2625d99bfb264fad1e87f0a1dd88b107b9fb8c34415",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED",
+        "PROGRAMME_ALIGNMENT_REVIEW_REQUIRED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2021/telechargez-l-analyse--dc684395e1.pdf",
+      "content_sha256": "dc684395e15830f3c45817afa0781ed1ee05af3b85ad4541f2bb7de62a03524e",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2021/telechargez-le-texte--de148d1dba.pdf",
+      "content_sha256": "de148d1dba2a07ba2b4197260b682a8b2905b8941b20e97451b2bbff5d25a459",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/MATHEMATIQUES/09_AUTRES/2022/exploitation-des-donnees-de-la-plateforme-parcoursup-pdf-1-13-mo--df03a74b6f.pdf",
+      "content_sha256": "df03a74b6f788dd1a29be8d793f898391ae94c0a819111f19b89fe72b74070f3",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2021/telechargez-l-analyse--df3346bd9c.pdf",
+      "content_sha256": "df3346bd9ccc2be16c48dcd0a96e9dd353494d2a909491f84503b73391ed7e29",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/MATHEMATIQUES/01_PROGRAMMES_OFFICIELS/2026/programme-de-mathematiques-de-la-classe-terminale-de-la-voie-technologique--df8f8b8609.pdf",
+      "content_sha256": "df8f8b860960adfed1c9dbbf069f99f091e96f5b901d10dfcb4cbdeacaab67aa",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED",
+        "PROGRAMME_ALIGNMENT_REVIEW_REQUIRED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2021/telechargez-le-texte--e068c65d1a.pdf",
+      "content_sha256": "e068c65d1a156f96ea60276406611cfbb57145189046c98fad51c1d23db51b2f",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/NSI/07_DIAPORAMAS_SUPPORTS/2021/vocabulaire-de-la-programmation-objet-pdf-260-45-ko--e20a163eb2.pdf",
+      "content_sha256": "e20a163eb24d6a6d1b5e602887e8c6cd6c6f74e76f7b8ae1f798da6346100712",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/NSI/07_DIAPORAMAS_SUPPORTS/2019/representation-des-entiers-naturels-pdf-167-2-ko--e20b73d10c.pdf",
+      "content_sha256": "e20b73d10c46a2e681422756b7f981911d752fe8ae3721db4c0156a099070bdc",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2021/telechargez-le-texte--e3e80cf82b.pdf",
+      "content_sha256": "e3e80cf82b341c713f689cfe79591b3c435243127c3dbac440a422b7ff3a0915",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/07_DIAPORAMAS_SUPPORTS/2020/telechargez-l-analyse--e486ccb564.pdf",
+      "content_sha256": "e486ccb56403933ad6a189130382a209a6bdaa6504d317669d210ad5844041c2",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/COLLEGE/4E/FRANCAIS/02_REPERES_ATTENDUS/2023/fiche-d-accompagnement-pour-le-professeur--e4e4ee96bb.pdf",
+      "content_sha256": "e4e4ee96bb093fa266ec3544725d2d11c93b2026700e0493ba9292d0cd1fe54f",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/01_PROGRAMMES_OFFICIELS/2019/specialite-hlp-en-premiere-bo-special-n-1-du-22-janvier-2019-pdf-239-21-ko--e57dc041b1.pdf",
+      "content_sha256": "e57dc041b1eb7ce7d68ecf8a3adde8613eba65dc8472d0747c93cb341346765e",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED",
+        "PROGRAMME_ALIGNMENT_REVIEW_REQUIRED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/HLP/03_RESSOURCES_ACCOMPAGNEMENT/2021/une-rhetorique-a-fonds-multiples-jeux-et-enjeux-de-la-parole-en-quatre-etudes-pdf-167-39-ko--e772ccd8d6.pdf",
+      "content_sha256": "e772ccd8d680588dcd898c2e10fd7603fa540027b4140f3c4318fc5d90badf8e",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED",
+        "PHYSICAL_SUBJECT_ALIGNMENT_REVIEW_REQUIRED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2021/telechargez-le-texte--e92251099c.pdf",
+      "content_sha256": "e92251099c30fc4b171e5c31a189f48f0b522f249cd20662fd3cb89e29c24dd9",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/MATHEMATIQUES/01_PROGRAMMES_OFFICIELS/2022/premiere-generale-mathematiques-integrees-a-l-enseignement-scientifique-bo-n-27-du-7-juillet-2022-pdf-87-73-ko--e938314178.pdf",
+      "content_sha256": "e938314178c2198be07ab3d14a953fc87898320c3ec17c1e9dc50aaebf9ae578",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED",
+        "PROGRAMME_ALIGNMENT_REVIEW_REQUIRED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/07_DIAPORAMAS_SUPPORTS/2021/telechargez-l-analyse--e9c110c133.pdf",
+      "content_sha256": "e9c110c13397be4f6a2398b783a6ea1a0041f293de68427b6faf075f3a4ffd63",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/MATHEMATIQUES/01_PROGRAMMES_OFFICIELS/2019/terminale-technologique-bo-special-n-8-du-25-juillet-2019-pdf-420-19-ko--ec52fcecf7.pdf",
+      "content_sha256": "ec52fcecf7c0b8d11b2670c8fec3a65f864c1a210fc7006099d8c7e55d7d9097",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED",
+        "PROGRAMME_ALIGNMENT_REVIEW_REQUIRED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/NSI/07_DIAPORAMAS_SUPPORTS/2019/manipulation-de-tables-avec-la-bibliotheque-pandas-pdf-146-17-ko--f21c80ab3a.pdf",
+      "content_sha256": "f21c80ab3aaa9084fe631f7c38d6ca1451f77c529f8ab2d62296817741bf8963",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2021/telechargez-l-analyse--f342f4efc5.pdf",
+      "content_sha256": "f342f4efc55b105db4250b17d671daa00860dd878430fa23cdc26301b9741cd0",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/NSI/07_DIAPORAMAS_SUPPORTS/2020/structures-de-donnees-pdf-443-07-ko--f5516f1bbc.pdf",
+      "content_sha256": "f5516f1bbcaae63e9aeaa833299cf0318769bce2b0eee74007ec0dd72e2c16ca",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/NSI/03_RESSOURCES_ACCOMPAGNEMENT/2020/calculabilite-et-decidabilite-pdf-433-14-ko--f636ef6038.pdf",
+      "content_sha256": "f636ef6038c2379502bae01d5fdf06556aea70500a42b7adf9bd9f3996fe1d13",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2021/telechargez-l-analyse--f97d7c8adb.pdf",
+      "content_sha256": "f97d7c8adb40ba032b6bb5f9dabc67f3c555805209574bc3a6faad619b87c1c6",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/MATHEMATIQUES/01_PROGRAMMES_OFFICIELS/2019/option-mathematiques-complementaires-de-terminale-generale-bo-special-n-8-du-25-juillet-2019-pdf-418-46-ko--f9ea141d0d.pdf",
+      "content_sha256": "f9ea141d0d5dd692a1d870f5d7370734803625f1eef9ffb8b22e2179d859437b",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED",
+        "PROGRAMME_ALIGNMENT_REVIEW_REQUIRED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/09_AUTRES/2020/telechargez-le-texte--fb064ccb32.pdf",
+      "content_sha256": "fb064ccb320e5b13b3d62b5d67a7fb0b5f9cfba3cbcd4ade5d78e62c1bef18c1",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/NSI/03_RESSOURCES_ACCOMPAGNEMENT/2021/recursivite-pdf-1-21-mo--fb89457f3b.pdf",
+      "content_sha256": "fb89457f3bb84300cee45d5ad833fb7d8f44dc1f5b43a7a760487faac3ddae00",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    },
+    {
+      "byte_identity": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/FRANCAIS/09_AUTRES/2019/fiche-a-comprendre-et-savoir-lire-rappels-scientifiques--fbdc74fa24.pdf",
+      "content_sha256": "fbdc74fa24cd996a63d845576018bc78deaf753f28e7dfb54d06df1afebe5fe0",
+      "decision": null,
+      "download_sha256": null,
+      "effective_currentness": null,
+      "http_result": null,
+      "programme_version": "2026-2027",
+      "reason_code": [
+        "CURRENT_SOURCE_BYTE_IDENTITY_NOT_AUDITED"
+      ],
+      "source_registry": "multilevel_currentness_evidence.yml",
+      "source_url": null
+    }
+  ],
+  "byte_identity_audit_input_count": 138,
+  "generated_at": "2026-08-22T10:27:17.589753+00:00",
+  "h2_baseline_reproduction": {
+    "authority_required_count": 72,
+    "authority_required_set_sha256": "3705935f306a52cde0f398db20f685dce82d0bb9acd7909c8e6955d6356643e0",
+    "blocked_ingest_candidates": 73,
+    "golden_validation_pass": true,
+    "h2_coverage_gate_pass": false,
+    "pii_blocked_count": 1
+  },
+  "historical_delta": {
+    "current_reproduced_historical_predicate": 1252,
+    "delta": 0,
+    "forensically_resolvable": true,
+    "historical_reported_tier_a": 1252
+  },
+  "input_set_sha256": "152bd6fc0f2441beff9a8f41744c0f58289f1c05900fe607c19be32f4f3f2a89",
+  "manifest_sha256": "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e",
+  "pii_and_rights_cleared_currentness_undetermined": {
+    "A_VERIFIER": 746,
+    "TOTAL_CURRENTNESS_UNDETERMINED": 2139,
+    "UNCLASSIFIED_REGISTRY_COVERED": 141,
+    "UNCLASSIFIED_ZERO_REGISTRY": 1252
+  },
+  "pii_cleared_currentness_undetermined": {
+    "A_VERIFIER": 746,
+    "TOTAL_CURRENTNESS_UNDETERMINED": 2139,
+    "UNCLASSIFIED_REGISTRY_COVERED": 141,
+    "UNCLASSIFIED_ZERO_REGISTRY": 1252
+  },
+  "producer_version": "nexus-tier-a-set-algebra-report/1.0.0",
+  "protocol_version": "NEXUS-TIER-A-SET-ALGEBRA-V1",
+  "set_algebra": {
+    "current_intersect_review_required": 0,
+    "current_intersect_wave0": 0,
+    "multilevel_current_already_elsewhere_ingest": 2,
+    "multilevel_current_total": 12,
+    "multilevel_review_required_not_in_undetermined_pool": 0,
+    "multilevel_review_required_total": 138,
+    "raw_registry_union_all_decisions": 152,
+    "set_current": 10,
+    "set_review_required_pending": 138,
+    "set_wave0": 2,
+    "triple_intersection": 0,
+    "union_registry_covered_unclassified": 150,
+    "wave0_intersect_review_required": 0,
+    "wave0_outside_undetermined_pool": 0,
+    "wave0_total_real_artifacts": 2
+  },
+  "sets_debug": {
+    "current_already_elsewhere_ingest_sha": [
+      "b88b5c685ec05d44b0c22d64f491443759fc0f544fe9ad33e626fb6cc29bf65a",
+      "c07f8b2db9d22a6c2b9ab8386cf7ba323bc2c56abacb3f560dd97d02b383de18"
+    ],
+    "wave0_outside_pool_sha": [],
+    "wave0_sha": [
+      "49ccdca4d97ba4cf25875dfc731474e84d0332985c15396d3abfb9107f5f545a",
+      "c8662b03ca8a7f08bedad5081bafc7da8d2cc8a31b07fa967421fb15304d76bf"
+    ]
+  }
+}
