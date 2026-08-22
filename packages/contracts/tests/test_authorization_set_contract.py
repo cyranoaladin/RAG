@@ -348,7 +348,7 @@ class TestParseAuthorizationSet:
         document = json.loads(valid.canonical_bytes())
         document["members"] = list(reversed(document["members"]))
         tampered = (json.dumps(document, sort_keys=False) + "\n").encode("utf-8")
-        with pytest.raises(Exception):
+        with pytest.raises(AuthorizationSetError, match="must be committed sorted"):
             parse_authorization_set(tampered)
 
     def test_refuses_wrong_protocol_version(self) -> None:
