@@ -291,6 +291,141 @@ class CorpusCampaignV1(StrictBaseModel):
         )
 
 
+#: Version de protocole V2 (ADR-0044). Distincte de V1 : un descripteur V2
+#: ne peut jamais être relu comme V1, et réciproquement.
+CORPUS_CAMPAIGN_V2_PROTOCOL_VERSION = "NEXUS-CORPUS-CAMPAIGN-V2"
+
+
+class CorpusCampaignV2(StrictBaseModel):
+    """Identité approuvée d'un corpus — `NEXUS-CORPUS-CAMPAIGN-V2` (ADR-0044).
+
+    Remplace le couple ``scope``/``authorization_id`` de V1 (un seul
+    ``ResourceScope``, une seule autorisation, inlinés dans l'identité
+    canonique de la campagne) par une référence unique à un
+    ``AuthorizationSetV1`` gouverné, capable de porter N autorisations
+    mono-scope. La campagne ne représente plus un scope individuel : elle
+    représente l'état gouverné du corpus complet pour une release ; les
+    scopes individuels vivent désormais dans les membres de l'ensemble
+    d'autorisations référencé (ADR-0044 §6).
+
+    ``discover_promoted_campaign`` (refus si zéro ou plus d'une campagne
+    modifiée par événement de promotion) opère sur l'identité
+    ``campaign_id`` seule et n'est **pas** modifié par cette version — la
+    garantie anti-hasard qu'il porte reste valide et nécessaire quel que
+    soit le nombre d'autorisations sous-jacentes.
+    """
+
+    protocol_version: Literal["NEXUS-CORPUS-CAMPAIGN-V2"]
+    campaign_id: StrictStr = Field(min_length=1, max_length=64)
+
+    # — Identité immuable des octets — (inchangé depuis V1)
+    source_kind: Literal["ghcr-oci"]
+    source_registry: Literal["ghcr.io"]
+    source_repository: Literal["cyranoaladin/rag-corpus"]
+    source_oci_digest: StrictStr = Field(pattern=_OCI_DIGEST)
+    source_archive_sha256: StrictStr = Field(pattern=_HEX64)
+    source_tree_digest: StrictStr = Field(pattern=_HEX64)
+    archive_format: Literal["tar.zst"]
+    source_root: StrictStr = Field(min_length=1, max_length=255)
+
+    # — Identité attendue des preuves dérivées — (inchangé depuis V1)
+    expected_manifest_sha256: StrictStr = Field(pattern=_HEX64)
+    expected_catalog_digest: StrictStr = Field(pattern=_HEX64)
+
+    # — Autorité multi-scope (ADR-0044), et règles de compilation —
+    #: Référence le même ``AuthorizationSetV1`` que ``H2CoverageEvidenceV2``
+    #: pour cette release — cohérence croisée vérifiée par le signer, pas
+    #: recopiée ici comme une liste parallèle.
+    authorization_set_digest: StrictStr = Field(pattern=_HEX64)
+    compiler_version: StrictStr = Field(min_length=1, max_length=64)
+    routing_config_digest: StrictStr = Field(pattern=_HEX64)
+    rights_config_digest: StrictStr = Field(pattern=_HEX64)
+    pii_config_digest: StrictStr = Field(pattern=_HEX64)
+    golden_spec_digest: StrictStr = Field(pattern=_HEX64)
+
+    environment: Literal["production", "rehearsal"]
+    retention_days: StrictInt = Field(ge=1, le=400)
+
+    @field_validator("campaign_id")
+    @classmethod
+    def _campaign_id_is_canonical(cls, value: str) -> str:
+        return CorpusCampaignV1._campaign_id_is_canonical(value)
+
+    @field_validator("source_root")
+    @classmethod
+    def _source_root_is_confined(cls, value: str) -> str:
+        return CorpusCampaignV1._source_root_is_confined(value)
+
+    @model_validator(mode="after")
+    def _identities_are_distinct(self) -> CorpusCampaignV2:
+        """Même contrôle de défense en profondeur que V1
+        (``CorpusCampaignV1._identities_are_distinct``) — voir sa
+        docstring pour ce que cette vérification prouve et ne prouve pas."""
+        oci_hex = self.source_oci_digest.split(":", 1)[1]
+        if len({oci_hex, self.source_archive_sha256, self.source_tree_digest}) != 3:
+            raise ValueError(
+                "source_oci_digest, source_archive_sha256 and source_tree_digest "
+                "must be three distinct values — three digests over three "
+                "different domains never coincide in practice, so equality here "
+                "means a value was copied from one field into another."
+            )
+        return self
+
+    def canonical_document(self) -> dict[str, Any]:
+        return {
+            "archive_format": self.archive_format,
+            "authorization_set_digest": self.authorization_set_digest,
+            "campaign_id": self.campaign_id,
+            "compiler_version": self.compiler_version,
+            "environment": self.environment,
+            "expected_catalog_digest": self.expected_catalog_digest,
+            "expected_manifest_sha256": self.expected_manifest_sha256,
+            "golden_spec_digest": self.golden_spec_digest,
+            "pii_config_digest": self.pii_config_digest,
+            "protocol_version": self.protocol_version,
+            "retention_days": self.retention_days,
+            "rights_config_digest": self.rights_config_digest,
+            "routing_config_digest": self.routing_config_digest,
+            "source_archive_sha256": self.source_archive_sha256,
+            "source_kind": self.source_kind,
+            "source_oci_digest": self.source_oci_digest,
+            "source_registry": self.source_registry,
+            "source_repository": self.source_repository,
+            "source_root": self.source_root,
+            "source_tree_digest": self.source_tree_digest,
+        }
+
+    def canonical_bytes(self) -> bytes:
+        return _canonical_bytes(self.canonical_document())
+
+    def digest(self) -> str:
+        return sha256(self.canonical_bytes()).hexdigest()
+
+    def canonical_dir(self) -> str:
+        return f"{CAMPAIGNS_DIR}/{self.campaign_id}"
+
+    def canonical_path(self) -> str:
+        return f"{self.canonical_dir()}/campaign.json"
+
+    def sealed_manifest_path(self) -> str:
+        return f"{self.canonical_dir()}/{SEALED_MANIFEST_NAME}"
+
+    def catalog_digest_path(self) -> str:
+        return f"{self.canonical_dir()}/catalog.digest.json"
+
+    def review_view_path(self) -> str:
+        return f"{self.canonical_dir()}/review-view.json"
+
+    def oci_reference(self) -> str:
+        """Référence complète, **toujours par digest**.
+
+        Aucune surcharge par tag n'est représentable : le champ tag
+        n'existe pas dans ce modèle."""
+        return (
+            f"{self.source_registry}/{self.source_repository}@{self.source_oci_digest}"
+        )
+
+
 def parse_corpus_campaign(raw: bytes) -> CorpusCampaignV1:
     """Parse strict + exigence de canonicité **octet à octet**.
 
@@ -372,6 +507,40 @@ def discover_promoted_campaign(changed_paths: list[str]) -> str:
     return campaign_id
 
 
+def parse_corpus_campaign_v2(raw: bytes) -> CorpusCampaignV2:
+    """Même discipline que ``parse_corpus_campaign`` (V1) — parse strict
+    et exigence de canonicité **octet à octet**."""
+    try:
+        document = json.loads(raw.decode("utf-8"))
+    except UnicodeDecodeError as exc:
+        raise CorpusCampaignError(
+            f"campaign descriptor is not valid UTF-8: {exc}"
+        ) from exc
+    except json.JSONDecodeError as exc:
+        raise CorpusCampaignError(
+            f"campaign descriptor is not valid JSON: {exc}"
+        ) from exc
+    if not isinstance(document, dict):
+        raise CorpusCampaignError("campaign descriptor must be a JSON object")
+    if document.get("protocol_version") != CORPUS_CAMPAIGN_V2_PROTOCOL_VERSION:
+        raise CorpusCampaignError(
+            f"campaign protocol_version is not {CORPUS_CAMPAIGN_V2_PROTOCOL_VERSION!r}"
+        )
+    try:
+        parsed = CorpusCampaignV2.model_validate(document)
+    except Exception as exc:  # noqa: BLE001 - frontière de parsing, jamais silencieuse
+        raise CorpusCampaignError(
+            f"campaign descriptor failed strict validation: {exc}"
+        ) from exc
+    if parsed.canonical_bytes() != raw:
+        raise CorpusCampaignError(
+            "campaign descriptor bytes are not in canonical form — the reviewed "
+            "bytes and their canonical re-serialization differ, so the human "
+            "review cannot be bound to this content. Commit the canonical form."
+        )
+    return parsed
+
+
 __all__ = [
     "AUTHORIZATIONS_DIR",
     "CAMPAIGNS_DIR",
@@ -379,11 +548,14 @@ __all__ = [
     "CANONICAL_CORPUS_REGISTRY",
     "CANONICAL_CORPUS_REPOSITORY",
     "CORPUS_CAMPAIGN_PROTOCOL_VERSION",
+    "CORPUS_CAMPAIGN_V2_PROTOCOL_VERSION",
     "CORPUS_SOURCE_OCI_PROTOCOL_VERSION",
     "MANIFEST_SELF_PATH",
     "SEALED_MANIFEST_NAME",
     "CorpusCampaignError",
     "CorpusCampaignV1",
+    "CorpusCampaignV2",
     "discover_promoted_campaign",
     "parse_corpus_campaign",
+    "parse_corpus_campaign_v2",
 ]

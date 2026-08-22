@@ -45,19 +45,21 @@ from __future__ import annotations
 
 import copy
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
-from rag_pedago.governance.corpus_campaign import CorpusCampaignV1
+from rag_pedago.governance.corpus_campaign import CorpusCampaignV1, CorpusCampaignV2
 from rag_pedago.imports.corpus_catalog_compiler import (
     _derive_pii_clearances,  # noqa: SLF001 - réutilisation intentionnelle
     _derive_rights_clearances,  # noqa: SLF001
 )
 from rag_pedago.imports.h2b_coverage_report import (
     _load_authority_evidence,  # noqa: SLF001 - réutilisation intentionnelle, cf. docstring
+    _load_authority_set_evidence,  # noqa: SLF001 - ADR-0044, même réutilisation
     _load_currentness_verification_evidence,  # noqa: SLF001
     _load_yaml_mapping,  # noqa: SLF001
     _promote_authority_cleared_candidates,  # noqa: SLF001
@@ -270,6 +272,208 @@ def republish_catalog(
         trust_anchor_path=None,
         environment="production",
         repository_root=repository_root or Path(__file__).resolve().parents[4],
+    )
+    promoted_count = _promote_authority_cleared_candidates(
+        promoted_physical_objects,
+        authority_allowlist=authority_allowlist,
+    )
+
+    promoted_catalog = dict(catalog)
+    promoted_catalog["physical_objects"] = promoted_physical_objects
+    catalog_bytes = _canonical_catalog_bytes(promoted_catalog)
+    catalog_sha256 = sha256(catalog_bytes).hexdigest()
+
+    if catalog_sha256 != campaign.expected_catalog_digest:
+        raise CatalogRepublishError(
+            "computed catalog digest does not match the campaign's approved "
+            f"expected_catalog_digest (computed={catalog_sha256}, "
+            f"approved={campaign.expected_catalog_digest}) — the promoted "
+            "catalog is not the one a human reviewed"
+        )
+
+    campaign_dir = out_root / campaign.canonical_dir()
+    catalog_out_path = out_root / f"{campaign.canonical_dir()}/catalog.json"
+    digest_out_path = out_root / campaign.catalog_digest_path()
+
+    generated_at = moment.astimezone(UTC).isoformat().replace("+00:00", "Z")
+    digest_bytes = _digest_document(
+        campaign_id=campaign.campaign_id,
+        catalog_sha256=catalog_sha256,
+        promoted_count=promoted_count,
+        generated_at=generated_at,
+    )
+
+    if digest_out_path.is_file():
+        existing = json.loads(digest_out_path.read_text(encoding="utf-8"))
+        existing_sha256 = existing.get("catalog_sha256") if isinstance(existing, dict) else None
+        if existing_sha256 != catalog_sha256:
+            raise CatalogRepublishError(
+                f"{digest_out_path} already exists with catalog_sha256="
+                f"{existing_sha256!r}, which differs from the freshly computed "
+                f"{catalog_sha256!r} — a previously published governed catalog "
+                "is never silently overwritten with different content"
+            )
+        return CatalogRepublishResult(
+            campaign_id=campaign.campaign_id,
+            catalog_sha256=catalog_sha256,
+            promoted_count=promoted_count,
+            catalog_path=catalog_out_path,
+            digest_path=digest_out_path,
+            already_published=True,
+            authority_required_set_sha256=authority_required_set_sha256,
+        )
+
+    campaign_dir.mkdir(parents=True, exist_ok=True)
+    catalog_out_path.write_bytes(catalog_bytes)
+    digest_out_path.write_bytes(digest_bytes)
+
+    return CatalogRepublishResult(
+        campaign_id=campaign.campaign_id,
+        catalog_sha256=catalog_sha256,
+        promoted_count=promoted_count,
+        catalog_path=catalog_out_path,
+        digest_path=digest_out_path,
+        already_published=False,
+        authority_required_set_sha256=authority_required_set_sha256,
+    )
+
+
+def republish_catalog_v2(
+    *,
+    campaign: CorpusCampaignV2,
+    catalog_path: Path,
+    authority_paths: Sequence[Path],
+    authority_review_binding_paths: Sequence[Path],
+    out_root: Path,
+    now: datetime | None = None,
+    repository_root: Path | None = None,
+    currentness_verification_path: Path | None = None,
+    rights_path: Path | None = None,
+    pii_path: Path | None = None,
+    routing_path: Path | None = None,
+) -> CatalogRepublishResult:
+    """ADR-0044 : équivalent ``CorpusCampaignV2`` de ``republish_catalog``.
+
+    Même déroulé exact (promotion currentness optionnelle, calcul du
+    périmètre requis, matérialisation du catalogue, idempotence par
+    digest) — seule la liaison d'autorité change : au lieu d'une égalité
+    stricte 1:1 sur ``authorization_id``, l'ensemble gouverné construit
+    depuis les N autorisations fournies doit référencer exactement le
+    même ``authorization_set_digest`` que celui déjà approuvé par la
+    campagne. ``authority_revocations_path``/``authority_trust_anchor_path``
+    restent absents des paramètres pour la même raison qu'en V1 : toujours
+    lus aux chemins gouvernés en production, jamais exposés ici.
+    """
+    if campaign.environment != "production":
+        raise CatalogRepublishError(
+            f"republish_catalog_v2 refuses environment={campaign.environment!r} — "
+            "only a 'production' campaign may materialize the catalog a real "
+            "ingestion pipeline will read; a rehearsal key can never gate what "
+            "actually ships"
+        )
+    if not authority_paths:
+        raise CatalogRepublishError(
+            "republish_catalog_v2 requires at least one authority evidence file"
+        )
+    for path in authority_paths:
+        if not path.is_file():
+            raise CatalogRepublishError(f"authority evidence file does not exist: {path}")
+    for path in authority_review_binding_paths:
+        if not path.is_file():
+            raise CatalogRepublishError(
+                "an authority artifact requires a sealed review binding receipt — "
+                f"{path} does not exist"
+            )
+
+    catalog = load_catalog(catalog_path)
+    if not isinstance(catalog, dict):
+        raise CatalogRepublishError("catalog must be a JSON object")
+    manifest_sha256 = catalog.get("manifest_sha256")
+    if manifest_sha256 != campaign.expected_manifest_sha256:
+        raise CatalogRepublishError(
+            f"catalog is bound to manifest {manifest_sha256!r}, but the campaign "
+            f"expects {campaign.expected_manifest_sha256!r}"
+        )
+    physical_objects = catalog.get("physical_objects")
+    if not isinstance(physical_objects, list):
+        raise CatalogRepublishError("catalog must include physical_objects")
+
+    moment = now or datetime.now(UTC)
+
+    promoted_physical_objects = copy.deepcopy(physical_objects)
+    if currentness_verification_path is not None:
+        if rights_path is None or pii_path is None or routing_path is None:
+            raise CatalogRepublishError(
+                "currentness_verification_path requires rights_path, "
+                "pii_path and routing_path — currentness promotion "
+                "re-evaluates rights and PII for real, it can never "
+                "apply without this evidence"
+            )
+        currentness_verified_sha256 = _load_currentness_verification_evidence(
+            currentness_verification_path, manifest_sha256=str(manifest_sha256)
+        )
+        entries_for_clearances = [
+            (str(item.get("content_sha256")), str(item.get("path")))
+            for item in physical_objects
+            if isinstance(item, dict)
+        ]
+        rights_registry = _load_yaml_mapping(rights_path, label="rights registry")
+        routing_config = _load_yaml_mapping(routing_path, label="routing policy")
+        pii_evidence = load_catalog(pii_path)
+        if not isinstance(pii_evidence, dict):
+            raise CatalogRepublishError("PII evidence must be a mapping")
+        rights_cleared_sha256 = frozenset(
+            _derive_rights_clearances(
+                entries_for_clearances,
+                str(manifest_sha256),
+                rights_registry,
+                routing_config,
+            )
+        )
+        pii_cleared_sha256_set, pii_quarantined_sha256_set = _derive_pii_clearances(
+            entries_for_clearances,
+            str(manifest_sha256),
+            pii_evidence,
+            routing_config,
+        )
+        _promote_currentness_verified_candidates(
+            promoted_physical_objects,
+            currentness_verified_sha256=currentness_verified_sha256,
+            rights_cleared_sha256=rights_cleared_sha256,
+            pii_cleared_sha256=frozenset(pii_cleared_sha256_set),
+            pii_quarantined_sha256=frozenset(pii_quarantined_sha256_set),
+        )
+
+    authority_required_sha256, authority_required_rights_candidates = (
+        authority_required_candidate_facts(promoted_physical_objects)
+    )
+    authority_required_set_sha256 = authority_required_set_digest(
+        authority_required_sha256
+    )
+    authorization_set, _revocations_checked = _load_authority_set_evidence(
+        authority_paths,
+        authority_review_binding_paths,
+        str(manifest_sha256),
+        ingest_content_sha256=authority_required_sha256,
+        ingest_rights_candidates=authority_required_rights_candidates,
+        now=moment,
+        revocations_path=None,
+        trust_anchor_path=None,
+        environment="production",
+        repository_root=repository_root or Path(__file__).resolve().parents[4],
+    )
+    if authorization_set.authorization_set_digest != campaign.authorization_set_digest:
+        raise CatalogRepublishError(
+            "the authorization set built from the provided --authority files "
+            f"(digest={authorization_set.authorization_set_digest}) does not "
+            "match the campaign's approved "
+            f"authorization_set_digest ({campaign.authorization_set_digest}) — a "
+            "different set of authorizations authorizes nothing here"
+        )
+    authority_allowlist = frozenset(
+        content_sha256
+        for member in authorization_set.members
+        for content_sha256 in member.allowed_content_sha256
     )
     promoted_count = _promote_authority_cleared_candidates(
         promoted_physical_objects,

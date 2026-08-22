@@ -31,6 +31,7 @@ et par l'exécutant n'est plus une preuve.
 """
 from __future__ import annotations
 
+import json
 import os
 import stat
 from dataclasses import dataclass
@@ -38,11 +39,15 @@ from pathlib import Path
 
 from nexus_contracts.production_readiness import (
     PRODUCTION_ENVIRONMENT,
+    PRODUCTION_READINESS_PROTOCOL_VERSION,
+    PRODUCTION_READINESS_V2_PROTOCOL_VERSION,
     ProductionReadinessError,
     ProductionReadinessManifestV1,
+    ProductionReadinessManifestV2,
     parse_production_readiness_trust_anchor,
     require_manifest_matches_release,
     verify_production_readiness_manifest,
+    verify_production_readiness_manifest_v2,
 )
 
 #: Chemin du manifeste déposé par le wrapper de déploiement, monté en
@@ -102,10 +107,27 @@ class ReadinessGateError(RuntimeError):
 
 @dataclass(frozen=True)
 class ReadinessGateResult:
-    manifest: ProductionReadinessManifestV1
+    manifest: ProductionReadinessManifestV1 | ProductionReadinessManifestV2
     manifest_path: Path
     environment: str
     release_sha: str
+
+
+def _peek_protocol_version(raw: bytes) -> object:
+    """Lit uniquement ``manifest.protocol_version`` (valeur brute, absente
+    ou de tout type) pour choisir le vérificateur (V1 ou V2, ADR-0044) —
+    jamais une seconde validation complète : le dispatch précède toute
+    vérification cryptographique ou structurelle, qui reste entièrement
+    déléguée au contrat partagé correspondant. Une valeur absente ou de
+    mauvais type est traitée exactement comme une valeur reconnue ni V1 ni
+    V2 par l'appelant, jamais un refus séparé ici."""
+    try:
+        document = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise _fail(f"readiness manifest is not valid UTF-8 JSON: {exc}") from exc
+    if not isinstance(document, dict):
+        raise _fail("readiness manifest must be a JSON object")
+    return (document.get("manifest") or {}).get("protocol_version")
 
 
 def _fail(reason: str) -> ReadinessGateError:
@@ -239,16 +261,33 @@ def enforce_readiness_gate(
 
     raw = _read_manifest_file(Path(raw_manifest_path))
     anchor_bytes = _resolve_anchor_bytes(resolved_environment)
+    protocol_version = _peek_protocol_version(raw)
 
     try:
         anchor = parse_production_readiness_trust_anchor(anchor_bytes)
         # ``environment`` reste ``production`` dans les deux modes : c'est
         # la valeur que le contrat impose au manifeste, et l'isolation
         # d'une répétition tient au fichier d'ancre consulté, jamais à un
-        # assouplissement du contrat.
-        manifest = verify_production_readiness_manifest(
-            raw, trust_anchor=anchor, environment=PRODUCTION_ENVIRONMENT
-        )
+        # assouplissement du contrat. Le dispatch V1/V2 (ADR-0044) précède
+        # cette vérification — un manifeste dont le protocole n'est ni l'un
+        # ni l'autre est refusé avant toute tentative de parsing, jamais
+        # traité comme "probablement V1".
+        manifest: ProductionReadinessManifestV1 | ProductionReadinessManifestV2
+        if protocol_version == PRODUCTION_READINESS_PROTOCOL_VERSION:
+            manifest = verify_production_readiness_manifest(
+                raw, trust_anchor=anchor, environment=PRODUCTION_ENVIRONMENT
+            )
+        elif protocol_version == PRODUCTION_READINESS_V2_PROTOCOL_VERSION:
+            manifest = verify_production_readiness_manifest_v2(
+                raw, trust_anchor=anchor, environment=PRODUCTION_ENVIRONMENT
+            )
+        else:
+            raise _fail(
+                "readiness manifest protocol_version is not "
+                f"{PRODUCTION_READINESS_PROTOCOL_VERSION!r} or "
+                f"{PRODUCTION_READINESS_V2_PROTOCOL_VERSION!r} (got "
+                f"{protocol_version!r}) — never treated as one of them by default"
+            )
         require_manifest_matches_release(
             manifest, release_sha=resolved_release_sha
         )

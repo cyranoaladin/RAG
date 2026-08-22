@@ -79,11 +79,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import deployment_image_inventory as dii  # noqa: E402
 import verify_release_image_provenance_cli as vri  # noqa: E402
 from nexus_contracts.production_readiness import (  # noqa: E402
+    PRODUCTION_READINESS_PROTOCOL_VERSION,
+    PRODUCTION_READINESS_V2_PROTOCOL_VERSION,
     ProductionReadinessError,
     ProductionReadinessManifestV1,
+    ProductionReadinessManifestV2,
     parse_production_readiness_trust_anchor,
     require_manifest_matches_release,
     verify_production_readiness_manifest,
+    verify_production_readiness_manifest_v2,
 )
 
 #: Jamais une entrée opérateur — même constante que le vérificateur
@@ -145,6 +149,23 @@ def _canonical_json_bytes(document: dict[str, Any]) -> bytes:
     )
 
 
+def _peek_readiness_protocol_version(raw: bytes) -> object:
+    """Lit uniquement ``manifest.protocol_version`` pour choisir le
+    vérificateur (V1 ou V2, ADR-0044) — jamais une seconde validation
+    complète, même discipline que ``readiness_gate._peek_protocol_version``
+    (dupliquée ici plutôt qu'importée : ce fichier ne dépend jamais du
+    package ``ingestor``, une frontière déjà établie par ce module)."""
+    try:
+        document = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ProductionReadinessError(
+            f"readiness manifest is not valid UTF-8 JSON: {exc}"
+        ) from exc
+    if not isinstance(document, dict):
+        raise ProductionReadinessError("readiness manifest must be a JSON object")
+    return (document.get("manifest") or {}).get("protocol_version")
+
+
 def verify_readiness_manifest_if_supplied(
     *,
     readiness_manifest_raw: bytes | None,
@@ -152,7 +173,7 @@ def verify_readiness_manifest_if_supplied(
     environment: str,
     merge_sha: str,
     resolved_compose_digest: str,
-) -> ProductionReadinessManifestV1 | None:
+) -> ProductionReadinessManifestV1 | ProductionReadinessManifestV2 | None:
     """Vérifie le manifeste de readiness signé s'il est fourni — jamais
     un manifeste non vérifié consommé silencieusement, jamais un
     manifeste requis quand l'opérateur choisit de n'en fournir aucun en
@@ -163,7 +184,11 @@ def verify_readiness_manifest_if_supplied(
     par ce wrapper (PR #107 round 2) — plus de ``compose_digest=None`` :
     un manifeste signé pour un Compose résolu différent de celui que ce
     wrapper s'apprête à déployer est refusé, jamais silencieusement
-    ignoré."""
+    ignoré.
+
+    Accepte ``NEXUS-PRODUCTION-READINESS-V2`` (ADR-0044) en plus de V1 —
+    dispatch par ``protocol_version``, jamais un mélange, jamais un
+    protocole non reconnu traité comme l'un ou l'autre par défaut."""
     if readiness_manifest_raw is None:
         return None
     if trust_anchor_raw is None:
@@ -172,10 +197,24 @@ def verify_readiness_manifest_if_supplied(
             "a readiness manifest can never be trusted without its trust anchor"
         )
     try:
+        protocol_version = _peek_readiness_protocol_version(readiness_manifest_raw)
         trust_anchor = parse_production_readiness_trust_anchor(trust_anchor_raw)
-        manifest = verify_production_readiness_manifest(
-            readiness_manifest_raw, trust_anchor=trust_anchor, environment=environment
-        )
+        manifest: ProductionReadinessManifestV1 | ProductionReadinessManifestV2
+        if protocol_version == PRODUCTION_READINESS_PROTOCOL_VERSION:
+            manifest = verify_production_readiness_manifest(
+                readiness_manifest_raw, trust_anchor=trust_anchor, environment=environment
+            )
+        elif protocol_version == PRODUCTION_READINESS_V2_PROTOCOL_VERSION:
+            manifest = verify_production_readiness_manifest_v2(
+                readiness_manifest_raw, trust_anchor=trust_anchor, environment=environment
+            )
+        else:
+            raise ProductionReadinessError(
+                "readiness manifest protocol_version is not "
+                f"{PRODUCTION_READINESS_PROTOCOL_VERSION!r} or "
+                f"{PRODUCTION_READINESS_V2_PROTOCOL_VERSION!r} (got "
+                f"{protocol_version!r})"
+            )
         require_manifest_matches_release(
             manifest, release_sha=merge_sha, compose_digest=resolved_compose_digest
         )

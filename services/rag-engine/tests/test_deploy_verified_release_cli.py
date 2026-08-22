@@ -29,9 +29,12 @@ import deployment_image_inventory as dii  # noqa: E402
 import verify_release_image_provenance_cli as vri  # noqa: E402
 from nexus_contracts.production_readiness import (  # noqa: E402
     PRODUCTION_READINESS_PROTOCOL_VERSION,
+    PRODUCTION_READINESS_V2_PROTOCOL_VERSION,
     ProductionReadinessManifestV1,
+    ProductionReadinessManifestV2,
     public_readiness_key_hex,
     sign_production_readiness_manifest,
+    sign_production_readiness_manifest_v2,
 )
 
 from tests.test_verify_release_image_provenance_cli import (  # noqa: E402
@@ -378,6 +381,22 @@ def _signed_manifest_bytes(**overrides: object) -> bytes:
     ).canonical_bytes()
 
 
+def _manifest_v2_fields(**overrides: object) -> dict[str, object]:
+    fields = _manifest_fields(**overrides)
+    fields["protocol_version"] = PRODUCTION_READINESS_V2_PROTOCOL_VERSION
+    del fields["review_binding_digest"]
+    del fields["authorization_digest"]
+    fields["authorization_set_digest"] = "22" * 32
+    return fields
+
+
+def _signed_manifest_v2_bytes(**overrides: object) -> bytes:
+    manifest = ProductionReadinessManifestV2(**_manifest_v2_fields(**overrides))  # type: ignore[arg-type]
+    return sign_production_readiness_manifest_v2(
+        manifest, private_key_hex=READINESS_SEED, key_id=KEY_ID
+    ).canonical_bytes()
+
+
 def _trust_anchor_bytes(*, key_id: str = KEY_ID, environment: str = "production") -> bytes:
     return json.dumps(
         {
@@ -426,6 +445,36 @@ class TestReadinessManifestOptionalVerification:
         assert result is not None
         assert result.merge_sha == MERGE_SHA
         assert result.compose_digest == RESOLVED_COMPOSE_DIGEST
+
+    def test_valid_v2_manifest_bound_to_merge_sha_and_compose_digest_is_accepted(self) -> None:
+        """ADR-0044 : le vérificateur accepte NEXUS-PRODUCTION-READINESS-V2
+        (ensemble d'autorisations) en plus de V1 — même ancre, dispatch par
+        ``protocol_version`` uniquement."""
+        result = dep.verify_readiness_manifest_if_supplied(
+            readiness_manifest_raw=_signed_manifest_v2_bytes(compose_digest=RESOLVED_COMPOSE_DIGEST),
+            trust_anchor_raw=_trust_anchor_bytes(),
+            environment="production",
+            merge_sha=MERGE_SHA,
+            resolved_compose_digest=RESOLVED_COMPOSE_DIGEST,
+        )
+        assert result is not None
+        assert isinstance(result, ProductionReadinessManifestV2)
+        assert result.merge_sha == MERGE_SHA
+        assert result.compose_digest == RESOLVED_COMPOSE_DIGEST
+
+    def test_manifest_with_unrecognized_protocol_version_is_refused(self) -> None:
+        v1_bytes = _signed_manifest_bytes(compose_digest=RESOLVED_COMPOSE_DIGEST)
+        document = json.loads(v1_bytes)
+        document["manifest"]["protocol_version"] = "NEXUS-PRODUCTION-READINESS-V9"
+        tampered = (json.dumps(document, sort_keys=True, indent=2) + "\n").encode("utf-8")
+        with pytest.raises(dep.DeploymentWrapperError, match="protocol_version is not"):
+            dep.verify_readiness_manifest_if_supplied(
+                readiness_manifest_raw=tampered,
+                trust_anchor_raw=_trust_anchor_bytes(),
+                environment="production",
+                merge_sha=MERGE_SHA,
+                resolved_compose_digest=RESOLVED_COMPOSE_DIGEST,
+            )
 
     def test_manifest_signed_for_a_different_compose_digest_is_refused(self) -> None:
         # PR #107 round 2: compose_digest=None is gone -- a manifest signed
