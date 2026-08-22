@@ -35,7 +35,7 @@ from collections.abc import Mapping, Sequence
 from hashlib import sha256
 from typing import Any, Literal
 
-from pydantic import Field, StrictInt, StrictStr, field_validator, model_validator
+from pydantic import Field, StrictInt, StrictStr, ValidationError, field_validator, model_validator
 
 from nexus_contracts.authority_artifacts import ScopeAuthorizationArtifactV2
 from nexus_contracts.document import StrictBaseModel
@@ -430,15 +430,27 @@ def build_authorization_set(
 
     union = _union_content_sha256(members)
     members_bytes = _canonical_bytes({"members": [m.canonical_document() for m in members]})
-    return AuthorizationSetV1(
-        protocol_version="NEXUS-AUTHORIZATION-SET-V1",
-        manifest_digest=manifest_digest,
-        members=tuple(members),
-        authorization_count=len(members),
-        authorization_set_digest=sha256(members_bytes).hexdigest(),
-        union_content_sha256_digest=_union_digest(union),
-        union_content_count=len(union),
-    )
+    try:
+        return AuthorizationSetV1(
+            protocol_version="NEXUS-AUTHORIZATION-SET-V1",
+            manifest_digest=manifest_digest,
+            members=tuple(members),
+            authorization_count=len(members),
+            authorization_set_digest=sha256(members_bytes).hexdigest(),
+            union_content_sha256_digest=_union_digest(union),
+            union_content_count=len(union),
+        )
+    except ValidationError as exc:
+        # La construction ci-dessus garantit déjà l'ordre trié et l'absence
+        # d'authorization_id dupliqué (vérifiés plus haut dans cette
+        # fonction) : le seul validateur du modèle qui peut encore refuser
+        # ici est l'anti-chevauchement de contenu entre membres. Même
+        # discipline que ``parse_authorization_set`` — jamais une
+        # ``pydantic.ValidationError`` brute qui fuiterait hors de ce
+        # module vers un appelant CLI.
+        raise AuthorizationSetError(
+            f"authorization set failed strict validation: {exc}"
+        ) from exc
 
 
 def _git_blob_sha1(raw: bytes) -> str:

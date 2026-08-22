@@ -21,7 +21,6 @@ import pytest
 import test_h2b_coverage_report as v1
 import yaml
 from nexus_contracts.authorization_set import AuthorizationSetError
-from pydantic import ValidationError
 
 from rag_pedago.imports import h2b_coverage_report as module
 from rag_pedago.imports.h2b_coverage_report import (
@@ -604,11 +603,11 @@ class TestAuthorizationSetAdversarial:
         path_b = v1._write_authority(tmp_path / "b.json", doc_b_overlap)
         binding_a = v1._write_review_binding(tmp_path, doc_a, filename="a_binding.json")
         binding_b = v1._write_review_binding(tmp_path, doc_b_overlap, filename="b_binding.json")
-        # AuthorizationSetV1's own model_validator raises this -- build_
-        # authorization_set constructs it directly and does not wrap a
-        # raw pydantic ValidationError into AuthorizationSetError here
-        # (unlike the other refusals in this module, which do wrap).
-        with pytest.raises(ValidationError, match="overlap on content_sha256"):
+        # AuthorizationSetV1's own model_validator raises this as a
+        # pydantic ValidationError; build_authorization_set now wraps it
+        # into AuthorizationSetError (same discipline as every other
+        # refusal in this module and in parse_authorization_set).
+        with pytest.raises(AuthorizationSetError, match="overlap on content_sha256"):
             module._load_authority_set_evidence(
                 [path_a, path_b],
                 [binding_a, binding_b],

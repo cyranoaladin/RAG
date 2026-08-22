@@ -750,7 +750,7 @@ def verify_production_readiness_manifest(
 
 
 def require_manifest_matches_release(
-    manifest: ProductionReadinessManifestV1,
+    manifest: ProductionReadinessManifestV1 | ProductionReadinessManifestV2,
     *,
     release_sha: str,
     compose_digest: str | None = None,
