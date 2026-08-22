@@ -419,7 +419,7 @@ def _v2_fixture(tmp_path: Path, *, revoked: tuple[str, ...] = (), member_overrid
         "rights_gate_status": "PASS", "pii_gate_status": "PASS",
         "golden_validation_pass": True, "h2_coverage_gate_pass": True,
         "authority_review_binding_verified": True, "authority_revocations_checked": True,
-        "authorization_set_digest": authorization_set.digest(),
+        "authorization_set_digest": authorization_set.authorization_set_digest,
         "authorization_count": authorization_set.authorization_count,
         "authority_required_count": authorization_set.union_content_count,
         "authority_covered_count": authorization_set.union_content_count,
@@ -491,7 +491,10 @@ class TestValidAuthorizationSetSignsAndVerifies:
             ),
             environment="production",
         )
-        assert verified.authorization_set_digest == fixture["authorization_set"].digest()
+        assert (
+            verified.authorization_set_digest
+            == fixture["authorization_set"].authorization_set_digest
+        )
 
 
 class TestTamperedAuthorizationSetIsRefused:

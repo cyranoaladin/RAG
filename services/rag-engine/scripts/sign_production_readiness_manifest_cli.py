@@ -936,7 +936,15 @@ def assemble_and_sign_v2(args: argparse.Namespace) -> ProductionReadinessManifes
         authorization_set = parse_authorization_set(authorization_set_raw)
     except AuthorizationSetError as exc:
         raise SigningToolError(f"authorization_set failed strict validation: {exc}") from exc
-    authorization_set_digest = authorization_set.digest()
+    #: L'identité de l'ensemble, jamais le digest du fichier complet
+    #: (`.digest()`) — c'est cette même valeur, `authorization_set_digest`
+    #: (sha256 des seuls membres canoniques triés), que le producteur H2
+    #: (`rag_pedago.imports.h2b_coverage_report`) écrit dans
+    #: `H2CoverageEvidenceV2.authorization_set_digest` et que
+    #: `CorpusCampaignV2`/`catalog_republish_v2` comparent — les trois
+    #: composants doivent référencer exactement la même notion d'identité,
+    #: jamais un mélange des deux digests distincts que porte l'objet.
+    authorization_set_digest = authorization_set.authorization_set_digest
 
     trust_anchor_digest = _digest_of_file(args.trust_anchor_file, label="trust_anchor")
     revocation_registry_raw = _read_bytes(args.revocation_registry_file, label="revocation_registry")
