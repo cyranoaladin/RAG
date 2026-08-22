@@ -15,9 +15,12 @@ from pathlib import Path
 import pytest
 from nexus_contracts.production_readiness import (
     PRODUCTION_READINESS_PROTOCOL_VERSION,
+    PRODUCTION_READINESS_V2_PROTOCOL_VERSION,
     ProductionReadinessManifestV1,
+    ProductionReadinessManifestV2,
     public_readiness_key_hex,
     sign_production_readiness_manifest,
+    sign_production_readiness_manifest_v2,
 )
 
 from ingestor.ingestion_profiles import readiness_gate as gate_module
@@ -516,3 +519,76 @@ class TestTheRealGovernedRootResolvesOnAnActualCheckout:
                 release_sha=MERGE_SHA,
                 environment="production",
             )
+
+
+def _manifest_v2(**overrides: object) -> ProductionReadinessManifestV2:
+    fields: dict[str, object] = {
+        "protocol_version": PRODUCTION_READINESS_V2_PROTOCOL_VERSION,
+        "repository": "cyranoaladin/RAG",
+        "pr_number": 128,
+        "pr_head_sha": "c" * 40,
+        "pr_head_tree_sha": TREE_SHA,
+        "merge_sha": MERGE_SHA,
+        "merge_tree_sha": TREE_SHA,
+        "release_tag": f"release/rag/20260822-{MERGE_SHA[:12]}",
+        "environment": "production",
+        "authorization_set_digest": "22" * 32,
+        "trust_anchor_digest": "33" * 32,
+        "revocation_registry_digest": "44" * 32,
+        "catalog_digest": "55" * 32,
+        "sealed_manifest_digest": "66" * 32,
+        "h2b_report_digest": "77" * 32,
+        "gate_result": "pass",
+        "application_image_digests": {
+            "ingestion-worker": "ghcr.io/o/rag-ingestion-worker@sha256:" + "1" * 64
+        },
+        "upstream_image_digests": {"pgvector": "pgvector/pgvector@sha256:" + "3" * 64},
+        "compose_digest": "88" * 32,
+        "workflow_path": ".github/workflows/promote-rag-production.yml",
+        "workflow_ref": "refs/heads/main",
+        "run_id": 4242,
+        "run_attempt": 1,
+        "issued_at": datetime(2026, 8, 22, 12, 0, tzinfo=UTC),
+        "key_id": KEY_ID,
+    }
+    fields.update(overrides)
+    return ProductionReadinessManifestV2(**fields)  # type: ignore[arg-type]
+
+
+def _write_manifest_v2(tmp_path: Path, *, seed: str = SEED, **overrides: object) -> Path:
+    path = tmp_path / "readiness-manifest-v2.json"
+    path.write_bytes(
+        sign_production_readiness_manifest_v2(
+            _manifest_v2(**overrides), private_key_hex=seed, key_id=KEY_ID
+        ).canonical_bytes()
+    )
+    path.chmod(0o444)
+    return path
+
+
+class TestV2AuthorizationSetManifestIsAccepted:
+    """ADR-0044 : le gate accepte NEXUS-PRODUCTION-READINESS-V2 (ensemble
+    d'autorisations) en plus de V1 — même ancre, même discipline, dispatch
+    par ``protocol_version`` uniquement."""
+
+    def test_a_valid_v2_manifest_is_accepted(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _install_governed_root(monkeypatch, tmp_path, anchor=_anchor_bytes())
+        path = _write_manifest_v2(tmp_path)
+        result = enforce_readiness_gate(manifest_path=path, release_sha=MERGE_SHA)
+        assert result.manifest.merge_sha == MERGE_SHA
+        assert isinstance(result.manifest, ProductionReadinessManifestV2)
+        assert result.manifest.authorization_set_digest == "22" * 32
+
+    def test_a_v1_manifest_is_still_accepted_alongside_v2(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Garde-fou de non-régression explicite : ajouter le dispatch V2
+        ne doit jamais faire régresser le chemin V1 déjà couvert ailleurs
+        dans ce fichier — revérifié ici, à côté du nouveau test V2, pour
+        que les deux vivent l'un à côté de l'autre."""
+        _install_governed_root(monkeypatch, tmp_path, anchor=_anchor_bytes())
+        path = _write_manifest(tmp_path)
+        result = enforce_readiness_gate(manifest_path=path, release_sha=MERGE_SHA)
+        assert isinstance(result.manifest, ProductionReadinessManifestV1)

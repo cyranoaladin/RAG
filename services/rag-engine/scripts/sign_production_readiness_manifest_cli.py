@@ -119,16 +119,24 @@ from nexus_contracts.authorization_revocations import (  # noqa: E402
     AuthorizationRevocationsError,
     parse_revoked_authorization_ids,
 )
+from nexus_contracts.authorization_set import (  # noqa: E402
+    AuthorizationSetError,
+    parse_authorization_set,
+)
 from nexus_contracts.h2_coverage_evidence import (  # noqa: E402
     H2CoverageEvidenceError,
     parse_h2_coverage_evidence,
+    parse_h2_coverage_evidence_v2,
 )
 from nexus_contracts.production_readiness import (  # noqa: E402
     ProductionReadinessError,
     ProductionReadinessManifestV1,
+    ProductionReadinessManifestV2,
     parse_production_readiness_trust_anchor,
     sign_production_readiness_manifest,
+    sign_production_readiness_manifest_v2,
     verify_production_readiness_manifest,
+    verify_production_readiness_manifest_v2,
 )
 from nexus_contracts.review_binding import (  # noqa: E402
     ReviewBindingError,
@@ -546,13 +554,48 @@ def _build_arg_parser() -> argparse.ArgumentParser:
 
     # Digests des preuves de gouvernance : chemins vers des fichiers réels,
     # jamais des valeurs affirmées. Chacun est relu et rehashé ici.
-    p.add_argument("--review-binding-file", type=Path, required=True)
+    # V1 (une seule autorisation) : les deux ci-dessous restent le mode par
+    # défaut historique. V2 (ADR-0044, ensemble de N autorisations) : voir
+    # le groupe --authorization-set-file/--member-*-file plus bas.
+    # Ni `required=True` pour aucun des deux : exactement un des deux modes
+    # doit être fourni, appliqué par `_resolve_authorization_mode` (refus
+    # explicite, jamais un mélange silencieux) — le comportement du mode V1
+    # lui-même, une fois choisi, reste identique à l'ancien `required=True`.
+    p.add_argument("--review-binding-file", type=Path, default=None,
+                    help="Mode V1 : reçu de revue unique. Requiert --authorization-file.")
     p.add_argument("--review-binding-trust-anchor-file", type=Path, required=True,
                     help="Ancre publique NEXUS-REVIEW-BINDING-V1 (ADR-0035) utilisée "
-                         "pour vérifier la signature du reçu de revue avant de le "
-                         "faire entrer dans ce manifeste — distincte de l'ancre "
+                         "pour vérifier la signature du/des reçu(s) de revue — "
+                         "partagée entre les modes V1 et V2, distincte de l'ancre "
                          "production-readiness.")
-    p.add_argument("--authorization-file", type=Path, required=True)
+    p.add_argument("--authorization-file", type=Path, default=None,
+                    help="Mode V1 : autorisation unique. Requiert --review-binding-file.")
+
+    # V2 (ADR-0044) : ensemble gouverné NEXUS-AUTHORIZATION-SET-V1 de N
+    # autorisations mono-scope. --member-authorization-file et
+    # --member-review-binding-file sont répétables (une paire par membre
+    # de l'ensemble) ; chaque autorisation et chaque reçu de revue sont
+    # revérifiés individuellement ici (révocation, expiration, signature,
+    # liaison) — jamais une seule fois pour l'ensemble entier (ADR-0044 §4.4/§8).
+    p.add_argument("--authorization-set-file", type=Path, default=None,
+                    help="Mode V2 : fichier NEXUS-AUTHORIZATION-SET-V1 (ADR-0044).")
+    p.add_argument("--member-authorization-file", type=Path, action="append", default=[],
+                    metavar="PATH",
+                    help="Mode V2, répétable : un fichier ScopeAuthorizationArtifactV2 "
+                         "réel par membre de --authorization-set-file — chacun "
+                         "revérifié (digest, fenêtre de validité) contre le membre "
+                         "correspondant de l'ensemble.")
+    p.add_argument("--member-review-binding-file", type=Path, action="append", default=[],
+                    metavar="PATH",
+                    help="Mode V2, répétable : un reçu de revue signé réel par membre — "
+                         "chacun revérifié individuellement (signature, challenge, "
+                         "correspondance à son autorisation) — jamais une seule revue "
+                         "humaine pour tout l'ensemble.")
+    p.add_argument("--expected-authority-required-set-sha256", default=None,
+                    help="Mode V2, requis : le set authority-required réel attendu "
+                         "(ADR-0044 §8) — confronté à h2b_report.authority_required_"
+                         "set_sha256, refus explicite en cas d'écart.")
+
     p.add_argument("--trust-anchor-file", type=Path, required=True,
                     help="L'ancre PRODUCTION dont le digest entre dans le manifeste "
                          "(distincte de celle utilisée pour vérifier LA signature de ce manifeste).")
@@ -631,6 +674,56 @@ def _build_arg_parser() -> argparse.ArgumentParser:
 
     p.add_argument("--output", type=Path, required=True)
     return p
+
+
+def _resolve_authorization_mode(args: argparse.Namespace) -> bool:
+    """Détermine V1 (une autorisation) vs V2 (ADR-0044, ensemble de N) —
+    refuse tout mélange, refuse toute absence des deux. Retourne ``True``
+    pour V2, ``False`` pour V1. Le comportement du mode V1 lui-même, une
+    fois choisi, reste inchangé — seul le mécanisme d'application de « les
+    deux champs V1 sont requis ensemble » est devenu une vérification
+    explicite ici plutôt que ``required=True`` côté argparse, pour laisser
+    la place au mode V2."""
+    v1_given = args.authorization_file is not None or args.review_binding_file is not None
+    v2_given = bool(
+        args.authorization_set_file is not None
+        or args.member_authorization_file
+        or args.member_review_binding_file
+        or args.expected_authority_required_set_sha256 is not None
+    )
+    if v1_given and v2_given:
+        raise SigningToolError(
+            "mixing V1 authorization flags (--authorization-file/--review-binding-file) "
+            "with V2 flags (--authorization-set-file/--member-authorization-file/"
+            "--member-review-binding-file/--expected-authority-required-set-sha256) is "
+            "never accepted — exactly one mode per invocation"
+        )
+    if not v1_given and not v2_given:
+        raise SigningToolError(
+            "exactly one of --authorization-file (V1, single authorization) or "
+            "--authorization-set-file (V2, N-authorization set, ADR-0044) is required"
+        )
+    if v2_given:
+        if args.authorization_set_file is None:
+            raise SigningToolError("V2 mode requires --authorization-set-file")
+        if not args.member_authorization_file:
+            raise SigningToolError(
+                "V2 mode requires at least one --member-authorization-file"
+            )
+        if not args.member_review_binding_file:
+            raise SigningToolError(
+                "V2 mode requires at least one --member-review-binding-file"
+            )
+        if args.expected_authority_required_set_sha256 is None:
+            raise SigningToolError(
+                "V2 mode requires --expected-authority-required-set-sha256 in production"
+            )
+        return True
+    if args.authorization_file is None or args.review_binding_file is None:
+        raise SigningToolError(
+            "V1 mode requires both --authorization-file and --review-binding-file"
+        )
+    return False
 
 
 def assemble_and_sign(args: argparse.Namespace) -> ProductionReadinessManifestV1:
@@ -824,11 +917,270 @@ def assemble_and_sign(args: argparse.Namespace) -> ProductionReadinessManifestV1
     return manifest
 
 
+def assemble_and_sign_v2(args: argparse.Namespace) -> ProductionReadinessManifestV2:
+    """Mode V2 (ADR-0044) : lie le manifeste à un ``AuthorizationSetV1``
+    gouverné de N autorisations plutôt qu'à une seule.
+
+    ``AuthorizationSetV1`` lui-même ne vérifie ni révocation ni expiration
+    (voir la note de portée en tête de ``authorization_set.py``) — cette
+    fonction est l'orchestration appelante qui le fait, **par membre**,
+    jamais une fois pour l'ensemble entier : exactement la même discipline
+    que le mode V1 applique déjà à son autorisation unique, reproduite ici
+    N fois plutôt qu'assouplie."""
+    pr_head_sha = _hex(args.pr_head_sha, _HEX40, "pr_head_sha")
+    merge_sha = _hex(args.merge_sha, _HEX40, "merge_sha")
+    pr_head_tree_sha, merge_tree_sha = _verify_git_and_workflow_facts(args)
+
+    authorization_set_raw = _read_bytes(args.authorization_set_file, label="authorization_set")
+    try:
+        authorization_set = parse_authorization_set(authorization_set_raw)
+    except AuthorizationSetError as exc:
+        raise SigningToolError(f"authorization_set failed strict validation: {exc}") from exc
+    authorization_set_digest = authorization_set.digest()
+
+    trust_anchor_digest = _digest_of_file(args.trust_anchor_file, label="trust_anchor")
+    revocation_registry_raw = _read_bytes(args.revocation_registry_file, label="revocation_registry")
+    revocation_registry_digest = hashlib.sha256(revocation_registry_raw).hexdigest()
+    catalog_digest = _digest_of_file(args.catalog_file, label="catalog")
+    sealed_manifest_digest = _digest_of_file(args.sealed_manifest_file, label="sealed_manifest")
+    h2b_report_raw = _read_bytes(args.h2b_report_file, label="h2b_report")
+    h2b_report_digest = hashlib.sha256(h2b_report_raw).hexdigest()
+
+    if authorization_set.manifest_digest != sealed_manifest_digest:
+        raise SigningToolError(
+            "authorization_set's manifest_digest does not match the sha256 of "
+            "--sealed-manifest-file — the set was built against a different sealed manifest"
+        )
+
+    # Charge chaque autorisation membre réelle, jamais un digest affirmé.
+    member_authorizations: dict[str, tuple[Any, bytes]] = {}
+    for path in args.member_authorization_file:
+        raw = _read_bytes(path, label=f"member_authorization[{path}]")
+        try:
+            authorization = parse_scope_authorization_artifact(raw)
+        except CanonicalArtifactError as exc:
+            raise SigningToolError(f"--member-authorization-file {path}: {exc}") from exc
+        if authorization.authorization_id in member_authorizations:
+            raise SigningToolError(
+                f"--member-authorization-file lists authorization_id "
+                f"{authorization.authorization_id!r} more than once"
+            )
+        member_authorizations[authorization.authorization_id] = (authorization, raw)
+
+    # Charge et vérifie chaque reçu de revue individuellement — jamais une
+    # seule vérification pour l'ensemble (ADR-0044 §4.4, point le plus
+    # important à ne jamais relâcher).
+    review_binding_anchor = parse_review_binding_trust_anchor(
+        _read_bytes(args.review_binding_trust_anchor_file, label="review_binding_trust_anchor")
+    )
+    now = datetime.now(UTC)
+    member_bindings: dict[str, tuple[Any, bytes]] = {}
+    for path in args.member_review_binding_file:
+        raw = _read_bytes(path, label=f"member_review_binding[{path}]")
+        try:
+            binding = verify_review_binding(
+                raw, trust_anchor=review_binding_anchor, environment="production", now=now
+            )
+        except ReviewBindingError as exc:
+            raise SigningToolError(f"--member-review-binding-file {path}: {exc}") from exc
+        if binding.authorization_id in member_bindings:
+            raise SigningToolError(
+                f"--member-review-binding-file lists authorization_id "
+                f"{binding.authorization_id!r} more than once"
+            )
+        member_bindings[binding.authorization_id] = (binding, raw)
+
+    set_ids = {member.authorization_id for member in authorization_set.members}
+    auth_ids = set(member_authorizations)
+    binding_ids = set(member_bindings)
+    if auth_ids != set_ids:
+        raise SigningToolError(
+            "--member-authorization-file ids do not exactly match "
+            f"--authorization-set-file's members (given={sorted(auth_ids)!r}, "
+            f"set={sorted(set_ids)!r})"
+        )
+    if binding_ids != set_ids:
+        raise SigningToolError(
+            "--member-review-binding-file ids do not exactly match "
+            f"--authorization-set-file's members (given={sorted(binding_ids)!r}, "
+            f"set={sorted(set_ids)!r})"
+        )
+
+    try:
+        revoked = parse_revoked_authorization_ids(
+            revocation_registry_raw, origin="revocation_registry"
+        )
+    except AuthorizationRevocationsError as exc:
+        raise SigningToolError(f"revocation_registry failed strict validation: {exc}") from exc
+
+    # Par membre, jamais une fois pour l'ensemble : digest d'autorisation,
+    # digest de reçu, liaison revue<->autorisation, challenge, fenêtre de
+    # validité, révocation.
+    for member in authorization_set.members:
+        authorization, authorization_raw = member_authorizations[member.authorization_id]
+        binding, binding_raw = member_bindings[member.authorization_id]
+
+        if authorization.digest() != member.authorization_digest:
+            raise SigningToolError(
+                f"--member-authorization-file for {member.authorization_id!r} does not "
+                "match the authorization set's recorded authorization_digest"
+            )
+        if hashlib.sha256(binding_raw).hexdigest() != member.review_binding_digest:
+            raise SigningToolError(
+                f"--member-review-binding-file for {member.authorization_id!r} does not "
+                "match the authorization set's recorded review_binding_digest"
+            )
+        try:
+            require_matches_authorization(
+                binding,
+                authorization_id=authorization.authorization_id,
+                authorization_bytes=authorization_raw,
+                authorization_git_blob_sha1=git_blob_sha1(authorization_raw),
+                expected_repository=_TRUSTED_REPOSITORY,
+            )
+            require_challenge_is_bound(binding)
+        except ReviewBindingError as exc:
+            raise SigningToolError(
+                f"review binding for authorization {member.authorization_id!r} does not "
+                f"authorize it: {exc}"
+            ) from exc
+
+        if not (authorization.valid_from <= now <= authorization.valid_until):
+            raise SigningToolError(
+                f"authorization {member.authorization_id!r} is outside its validity "
+                f"window ({authorization.valid_from} .. {authorization.valid_until}, "
+                f"now={now}) — a manifest is never signed while any member authorization "
+                "is not currently valid"
+            )
+        if member.authorization_id in revoked:
+            raise SigningToolError(
+                f"authorization {member.authorization_id!r} appears in the revocation "
+                "registry — a revoked authorization is never signed into a production "
+                "readiness manifest, even as one member of a larger set"
+            )
+
+    try:
+        h2_evidence = parse_h2_coverage_evidence_v2(h2b_report_raw)
+    except H2CoverageEvidenceError as exc:
+        raise SigningToolError(f"h2b_report failed semantic verification: {exc}") from exc
+    if not h2_evidence.h2_coverage_gate_pass:
+        raise SigningToolError(
+            "h2b_report's own h2_coverage_gate_pass is false — a production "
+            "manifest is never signed for a non-passing H2-B coverage gate"
+        )
+    if h2_evidence.authorization_set_digest != authorization_set_digest:
+        raise SigningToolError(
+            "h2b_report's authorization_set_digest does not match the sha256 of "
+            "--authorization-set-file — the H2 evidence does not vouch for this "
+            "exact authorization set"
+        )
+    if h2_evidence.authorization_count != authorization_set.authorization_count:
+        raise SigningToolError(
+            "h2b_report's authorization_count does not match "
+            "--authorization-set-file's own authorization_count"
+        )
+    if h2_evidence.authority_required_set_sha256 != authorization_set.union_content_sha256_digest:
+        raise SigningToolError(
+            "h2b_report's authority_required_set_sha256 does not match "
+            "--authorization-set-file's union_content_sha256_digest — the H2 evidence "
+            "does not vouch for coverage of exactly this authorization set's content"
+        )
+    if h2_evidence.authority_required_set_sha256 != args.expected_authority_required_set_sha256:
+        raise SigningToolError(
+            "h2b_report's authority_required_set_sha256 "
+            f"({h2_evidence.authority_required_set_sha256!r}) does not match "
+            "--expected-authority-required-set-sha256 "
+            f"({args.expected_authority_required_set_sha256!r})"
+        )
+    if h2_evidence.input_file_digests.get("catalog") != catalog_digest:
+        raise SigningToolError(
+            "h2b_report's catalog digest does not match the sha256 of "
+            "--catalog-file — the H2 evidence does not vouch for this exact catalog"
+        )
+    for evidence_key, path_arg, cli_flag in (
+        ("routing", args.routing_file, "--routing-file"),
+        ("rights", args.rights_file, "--rights-file"),
+        ("pii", args.pii_file, "--pii-file"),
+        ("golden", args.golden_file, "--golden-file"),
+    ):
+        real_digest = _digest_of_file(path_arg, label=evidence_key)
+        if h2_evidence.input_file_digests.get(evidence_key) != real_digest:
+            raise SigningToolError(
+                f"h2b_report's {evidence_key} digest does not match the sha256 of "
+                f"{cli_flag} — the H2 evidence does not vouch for this exact "
+                f"{evidence_key} file"
+            )
+    if h2_evidence.manifest_sha256 != sealed_manifest_digest:
+        raise SigningToolError(
+            "h2b_report's manifest_sha256 does not match the sha256 of "
+            "--sealed-manifest-file — the H2 evidence does not vouch for this "
+            "exact sealed manifest"
+        )
+    if h2_evidence.git_commit != merge_sha:
+        raise SigningToolError(
+            f"h2b_report git_commit {h2_evidence.git_commit!r} does not match "
+            f"--merge-sha {merge_sha!r} — an H2 pass produced for a different "
+            "commit is never used to sign this release"
+        )
+
+    application_image_digests = _derive_application_image_digests(
+        args, merge_sha=merge_sha, merge_tree_sha=merge_tree_sha
+    )
+    upstream_image_digests = _image_digest_pairs(args.upstream_image, label="--upstream-image")
+    with tempfile.TemporaryDirectory() as compose_tmp:
+        resolved_compose = _run_docker_compose_config(
+            args.repo_root, merge_sha, Path(compose_tmp), args.env_file
+        )
+    compose_digest = hashlib.sha256(_canonical_compose_bytes(resolved_compose)).hexdigest()
+    _verify_image_bindings(
+        resolved_compose,
+        application_image_digests=application_image_digests,
+        upstream_image_digests=upstream_image_digests,
+    )
+
+    release_tag = f"release/rag/{datetime.now(UTC):%Y%m%d}-{merge_sha[:12]}"
+
+    try:
+        manifest = ProductionReadinessManifestV2(
+            protocol_version="NEXUS-PRODUCTION-READINESS-V2",
+            repository=_TRUSTED_REPOSITORY,
+            pr_number=args.pr_number,
+            pr_head_sha=pr_head_sha,
+            pr_head_tree_sha=pr_head_tree_sha,
+            merge_sha=merge_sha,
+            merge_tree_sha=merge_tree_sha,
+            release_tag=release_tag,
+            environment=args.environment,
+            authorization_set_digest=authorization_set_digest,
+            trust_anchor_digest=trust_anchor_digest,
+            revocation_registry_digest=revocation_registry_digest,
+            catalog_digest=catalog_digest,
+            sealed_manifest_digest=sealed_manifest_digest,
+            h2b_report_digest=h2b_report_digest,
+            gate_result="pass",
+            application_image_digests=application_image_digests,
+            upstream_image_digests=upstream_image_digests,
+            compose_digest=compose_digest,
+            workflow_path=_CANONICAL_PROMOTION_WORKFLOW_PATH,
+            workflow_ref=args.workflow_ref,
+            run_id=args.run_id,
+            run_attempt=args.run_attempt,
+            issued_at=datetime.now(UTC),
+            key_id=args.key_id,
+        )
+    except Exception as exc:  # noqa: BLE001 - frontière CLI, jamais silencieuse
+        raise SigningToolError(f"manifest assembly refused: {exc}") from exc
+    return manifest
+
+
+#: Arguments à valeur ``Path | None`` — ``None`` en mode V2 pour les deux
+#: premiers (V1 uniquement), toujours renseignés pour les autres.
 _INPUT_PATH_ARGS = (
     "trust_anchor_file",
     "review_binding_file",
     "review_binding_trust_anchor_file",
     "authorization_file",
+    "authorization_set_file",
     "revocation_registry_file",
     "catalog_file",
     "sealed_manifest_file",
@@ -840,6 +1192,13 @@ _INPUT_PATH_ARGS = (
     "env_file",
     "private_key_file",
     "verification_trust_anchor_file",
+)
+
+#: Arguments répétables (``list[Path]``, mode V2 uniquement) — vérifiés
+#: séparément, un ``Path.resolve()`` par élément plutôt que sur la liste.
+_INPUT_PATH_LIST_ARGS = (
+    "member_authorization_file",
+    "member_review_binding_file",
 )
 
 
@@ -864,8 +1223,8 @@ def _reject_output_aliasing_an_input(args: argparse.Namespace) -> None:
     lien physique peut exister."""
     output_resolved = args.output.resolve(strict=False)
     output_exists = args.output.exists()
-    for name in _INPUT_PATH_ARGS:
-        candidate: Path = getattr(args, name)
+
+    def _check(name: str, candidate: Path) -> None:
         if output_resolved == candidate.resolve(strict=False):
             raise SigningToolError(
                 f"--output resolves to the same file as --{name.replace('_', '-')} "
@@ -877,12 +1236,26 @@ def _reject_output_aliasing_an_input(args: argparse.Namespace) -> None:
                 f"({candidate}) — refusing to overwrite a signing input"
             )
 
+    for name in _INPUT_PATH_ARGS:
+        candidate: Path | None = getattr(args, name)
+        if candidate is None:
+            # V1-only ou V2-only, absent selon le mode — rien à vérifier.
+            continue
+        _check(name, candidate)
+    for name in _INPUT_PATH_LIST_ARGS:
+        for candidate in getattr(args, name):
+            _check(name, candidate)
+
 
 def main(argv: list[str] | None = None) -> int:
     args = _build_arg_parser().parse_args(argv)
     try:
+        is_v2 = _resolve_authorization_mode(args)
         _reject_output_aliasing_an_input(args)
-        manifest = assemble_and_sign(args)
+        if is_v2:
+            manifest_v2 = assemble_and_sign_v2(args)
+        else:
+            manifest_v1 = assemble_and_sign(args)
 
         # Pas d'effacement mémoire déterministe ici, et ce commentaire ne
         # le prétend plus (Codex, PR #100) : `sign_production_readiness_
@@ -899,26 +1272,41 @@ def main(argv: list[str] | None = None) -> int:
         # frontière de sécurité réelle est la durée de vie du process et
         # les protections mémoire du système, pas ce code.
         private_key_hex = args.private_key_file.read_text(encoding="utf-8").strip()
-        signed = sign_production_readiness_manifest(
-            manifest, private_key_hex=private_key_hex, key_id=args.key_id
-        )
-
         verification_anchor = parse_production_readiness_trust_anchor(
             args.verification_trust_anchor_file.read_bytes()
         )
-        verify_production_readiness_manifest(
-            signed.canonical_bytes(),
-            trust_anchor=verification_anchor,
-            environment=args.environment,
-        )
+        if is_v2:
+            signed_v2 = sign_production_readiness_manifest_v2(
+                manifest_v2, private_key_hex=private_key_hex, key_id=args.key_id
+            )
+            verify_production_readiness_manifest_v2(
+                signed_v2.canonical_bytes(),
+                trust_anchor=verification_anchor,
+                environment=args.environment,
+            )
+            signed_bytes = signed_v2.canonical_bytes()
+            manifest_digest = signed_v2.manifest_digest
+            key_id = signed_v2.key_id
+        else:
+            signed_v1 = sign_production_readiness_manifest(
+                manifest_v1, private_key_hex=private_key_hex, key_id=args.key_id
+            )
+            verify_production_readiness_manifest(
+                signed_v1.canonical_bytes(),
+                trust_anchor=verification_anchor,
+                environment=args.environment,
+            )
+            signed_bytes = signed_v1.canonical_bytes()
+            manifest_digest = signed_v1.manifest_digest
+            key_id = signed_v1.key_id
     except (SigningToolError, ProductionReadinessError) as exc:
         print(f"REFUSED: {exc}", file=sys.stderr)
         return 1
 
-    args.output.write_bytes(signed.canonical_bytes())
+    args.output.write_bytes(signed_bytes)
     args.output.chmod(0o600)
-    print(f"MANIFEST_DIGEST={signed.manifest_digest}")
-    print(f"KEY_ID={signed.key_id}")
+    print(f"MANIFEST_DIGEST={manifest_digest}")
+    print(f"KEY_ID={key_id}")
     print(f"OUTPUT={args.output}")
     print("SIGNED_MANIFEST_VERIFY_ROUNDTRIP=true")
     return 0
