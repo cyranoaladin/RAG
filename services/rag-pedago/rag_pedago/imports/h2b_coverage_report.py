@@ -43,6 +43,7 @@ import os
 import re
 import subprocess
 from collections import Counter
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -60,14 +61,22 @@ from nexus_contracts.authorization_revocations import (
     REVOCATIONS_PROTOCOL_VERSION,
     parse_revoked_authorization_ids,
 )
+from nexus_contracts.authorization_set import (
+    AuthorizationSetError,
+    AuthorizationSetV1,
+    build_authorization_set,
+)
 from nexus_contracts.document import Rights
 from nexus_contracts.h2_coverage_evidence import (
     H2_COVERAGE_EVIDENCE_PROTOCOL_VERSION,
     H2CoverageEvidenceError,
     H2CoverageEvidenceV1,
+    H2CoverageEvidenceV2,
 )
 from nexus_contracts.review_binding import (
     ReviewBindingError,
+    SignedScopeAuthorizationReviewBinding,
+    parse_signed_review_binding,
     parse_trust_anchor,
     require_challenge_is_bound,
     require_matches_authorization,
@@ -85,6 +94,12 @@ from rag_pedago.imports.golden_corpus_validator import (
     load_spec,
     validate_golden_corpus,
 )
+
+#: `H2CoverageEvidenceV2`'s own module defines no top-level protocol-version
+#: constant (unlike V1's `H2_COVERAGE_EVIDENCE_PROTOCOL_VERSION`) — the
+#: literal lives only on the field's `Literal[...]` annotation. Named here
+#: once so producer code never repeats the bare string.
+H2_COVERAGE_EVIDENCE_V2_PROTOCOL_VERSION = "NEXUS-H2-COVERAGE-EVIDENCE-V2"
 
 
 @dataclass
@@ -164,6 +179,12 @@ class CoverageReport:
     #: gouverné, ou seulement supposée faute de registre ? Le rapport
     #: publie la différence au lieu de la lisser.
     authority_revocations_checked: bool = False
+
+    # ADR-0044 — ensemble gouverné multi-scope. ``None`` pour tout run
+    # utilisant l'ancienne autorité singulière (V1) ; peuplé uniquement
+    # quand ``authority_paths``/``authority_review_binding_paths`` ont été
+    # fournis à ``generate_coverage_report``.
+    authorization_set: AuthorizationSetV1 | None = None
 
     # Files and hashes
     input_files: dict[str, str] = field(default_factory=dict)
@@ -434,21 +455,24 @@ def _authority_structural_validation(
     return artifact, raw
 
 
-def _authority_semantic_validation(
+def _authority_semantic_validation_core(
     artifact: ScopeAuthorizationArtifactV2,
     *,
     manifest_sha256: str,
-    ingest_content_sha256: frozenset[str],
-    ingest_rights_candidates: tuple[tuple[str, str | None], ...],
     now: datetime,
     revoked_authorization_ids: frozenset[str],
-) -> frozenset[str]:
-    """SEMANTIC_VALIDATION — l'autorisation dit-elle réellement *ceci* ?
+) -> None:
+    """Les contrôles SEMANTIC_VALIDATION qui portent sur **une seule**
+    autorisation, indépendamment de tout périmètre d'ingestion à couvrir :
+    décision, périmètre du manifest, non-révocation, attestation PII,
+    vocabulaire de droits, fenêtre de validité.
 
-    Un JSON bien formé n'est pas une autorisation. Chaque contrôle
-    ci-dessous refuse seul, et chacun a son test de rejet dédié :
-    décision, périmètre du manifest, complétude de l'allowlist, catégories
-    de droits, attestation PII, fenêtre de validité, non-révocation.
+    Extrait de ``_authority_semantic_validation`` (ADR-0044) pour être
+    réutilisé tel quel par la validation à N autorisations
+    (``_load_authority_set_evidence``) : une autorisation individuelle
+    d'un ``AuthorizationSetV1`` n'a jamais à couvrir, seule, le périmètre
+    complet — seule l'union du set le doit (ADR-0044 §4.3) — mais chacun
+    de ces sept contrôles reste exigé, sans exception, par autorisation.
     """
     if artifact.decision != "AUTHORIZE_INGESTION_SCOPE":
         raise ValueError(
@@ -488,6 +512,31 @@ def _authority_semantic_validation(
             "SEMANTIC_VALIDATION failed: authorization expired at "
             f"{artifact.valid_until.isoformat()} (now={now.isoformat()})"
         )
+
+
+def _authority_semantic_validation(
+    artifact: ScopeAuthorizationArtifactV2,
+    *,
+    manifest_sha256: str,
+    ingest_content_sha256: frozenset[str],
+    ingest_rights_candidates: tuple[tuple[str, str | None], ...],
+    now: datetime,
+    revoked_authorization_ids: frozenset[str],
+) -> frozenset[str]:
+    """SEMANTIC_VALIDATION — l'autorisation dit-elle réellement *ceci* ?
+
+    Un JSON bien formé n'est pas une autorisation. Chaque contrôle
+    ci-dessous refuse seul, et chacun a son test de rejet dédié :
+    décision, périmètre du manifest, complétude de l'allowlist, catégories
+    de droits, attestation PII, fenêtre de validité, non-révocation.
+    """
+    _authority_semantic_validation_core(
+        artifact,
+        manifest_sha256=manifest_sha256,
+        now=now,
+        revoked_authorization_ids=revoked_authorization_ids,
+    )
+    rights = tuple(category.value for category in artifact.rights_categories)
 
     allowlist = frozenset(artifact.allowed_content_sha256)
     # Complétude, pas échantillon : chaque objet destiné à l'ingestion doit
@@ -957,6 +1006,167 @@ def _load_authority_evidence(
     return allowlist, binding, revocations_checked
 
 
+def _load_authority_set_evidence(
+    authority_paths: Sequence[Path],
+    binding_paths: Sequence[Path],
+    manifest_sha256: str,
+    *,
+    ingest_content_sha256: frozenset[str],
+    ingest_rights_candidates: tuple[tuple[str, str | None], ...],
+    now: datetime,
+    revocations_path: Path | None,
+    trust_anchor_path: Path | None,
+    environment: str,
+    repository_root: Path,
+) -> tuple[AuthorizationSetV1, bool]:
+    """N-authority equivalent of ``_load_authority_evidence`` (ADR-0044).
+
+    Each authorization is validated **individually** — structural,
+    ``_authority_semantic_validation_core`` (decision, manifest scope,
+    revocation, PII attestation, rights vocabulary, validity window —
+    never completeness against the full ingest perimeter, which no single
+    mono-scope authorization is required to name alone), and its own
+    review binding — exactly the same three layers as the singular path,
+    reusing the same functions, never a parallel re-implementation. The
+    N validated authorizations are then composed into a governed
+    ``AuthorizationSetV1`` (anti-permutation, anti-overlap, per-member
+    manifest consistency all enforced by the contract itself), and
+    **only then**, once, is the union checked for exact completeness
+    against the real ingest perimeter — never a sample, never a
+    per-member requirement.
+    """
+    if len(authority_paths) != len(binding_paths):
+        raise AuthorizationSetError(
+            "AUTHORIZATION_SET_VALIDATION failed: got "
+            f"{len(authority_paths)} --authority path(s) but "
+            f"{len(binding_paths)} --authority-review-binding path(s) — each "
+            "authorization in a set names its own individually verified review "
+            "binding, one-to-one, in the same order, never a shared or "
+            "mismatched count"
+        )
+    if not authority_paths:
+        raise AuthorizationSetError(
+            "AUTHORIZATION_SET_VALIDATION failed: at least one authorization is "
+            "required to build an authorization set"
+        )
+
+    trust_anchor_path = _resolve_trust_anchor_path(
+        trust_anchor_path, environment=environment
+    )
+    revoked, revocations_checked = _load_revoked_authorization_ids(
+        revocations_path, environment=environment
+    )
+
+    artifacts: list[ScopeAuthorizationArtifactV2] = []
+    review_bindings: dict[str, SignedScopeAuthorizationReviewBinding] = {}
+    for authority_path, binding_path in zip(authority_paths, binding_paths, strict=True):
+        artifact, raw = _authority_structural_validation(authority_path)
+        _authority_semantic_validation_core(
+            artifact,
+            manifest_sha256=manifest_sha256,
+            now=now,
+            revoked_authorization_ids=revoked,
+        )
+        _authority_review_binding_validation(
+            artifact,
+            raw,
+            binding_path=binding_path,
+            trust_anchor_path=trust_anchor_path,
+            environment=environment,
+            now=now,
+            revoked_authorization_ids=revoked,
+            repository_root=repository_root,
+        )
+        if artifact.authorization_id in review_bindings:
+            raise AuthorizationSetError(
+                "AUTHORIZATION_SET_VALIDATION failed: authorization_id "
+                f"{artifact.authorization_id!r} was named by more than one "
+                "--authority path — an authorization set never contains the "
+                "same authorization twice"
+            )
+        artifacts.append(artifact)
+        review_bindings[artifact.authorization_id] = parse_signed_review_binding(
+            binding_path.read_bytes()
+        )
+
+    repository, _reviewers = _load_trusted_reviewers(
+        repository_root, environment=environment
+    )
+    authorization_set = build_authorization_set(
+        artifacts,
+        review_bindings,
+        manifest_digest=manifest_sha256,
+        expected_repository=repository,
+    )
+
+    # Complétude et catégories de droits, une seule fois, sur l'union —
+    # jamais par membre (ADR-0044 §4.3). Chaque contenu a au plus un
+    # propriétaire : l'anti-overlap du contrat le garantit déjà.
+    content_owner: dict[str, ScopeAuthorizationArtifactV2] = {
+        content_sha256: artifact
+        for artifact in artifacts
+        for content_sha256 in artifact.allowed_content_sha256
+    }
+    union = frozenset(content_owner)
+
+    extra = union - ingest_content_sha256
+    if extra:
+        sample = sorted(extra)[:3]
+        raise AuthorizationSetError(
+            "AUTHORIZATION_SET_VALIDATION failed: the authorization set covers "
+            f"{len(extra)} content_sha256 outside the real authority-required "
+            f"perimeter (e.g. {sample}) — an authorization set can never claim "
+            "more than the perimeter it is measured against (artificially "
+            "widened scope)"
+        )
+
+    missing_category: dict[str, list[str]] = {}
+    for content_sha, candidate in ingest_rights_candidates:
+        if candidate is None:
+            raise AuthorizationSetError(
+                "AUTHORIZATION_SET_VALIDATION failed: object "
+                f"{content_sha!r} is routed to ingestion without a "
+                "rights_category_candidate — an object whose rights category is "
+                "unknown is never covered by any authorization"
+            )
+        if candidate not in _RIGHTS_VOCABULARY:
+            raise AuthorizationSetError(
+                "AUTHORIZATION_SET_VALIDATION failed: object "
+                f"{content_sha!r} declares rights_category_candidate "
+                f"{candidate!r}, which is not in the canonical vocabulary "
+                f"{sorted(_RIGHTS_VOCABULARY)!r}"
+            )
+        owner = content_owner.get(content_sha)
+        if owner is None:
+            continue  # déjà détecté par ``uncovered`` ci-dessous
+        granted = frozenset(category.value for category in owner.rights_categories)
+        if candidate not in granted:
+            missing_category.setdefault(candidate, []).append(content_sha)
+    if missing_category:
+        detail = ", ".join(
+            f"{category} ({len(shas)} object(s), e.g. {sorted(shas)[0]})"
+            for category, shas in sorted(missing_category.items())
+        )
+        raise AuthorizationSetError(
+            "AUTHORIZATION_SET_VALIDATION failed: the members grant rights "
+            f"categories that leave {detail} uncovered — an authorization that "
+            "does not cover every rights category in its own perimeter "
+            "authorizes none of it"
+        )
+
+    uncovered = ingest_content_sha256 - union
+    if uncovered:
+        sample = sorted(uncovered)[:3]
+        raise AuthorizationSetError(
+            "AUTHORIZATION_SET_VALIDATION failed: the authorization set does not "
+            f"cover {len(uncovered)} of the {len(ingest_content_sha256)} objects "
+            f"routed to ingestion (e.g. {sample}) — an authorization set that "
+            "names only part of its perimeter authorizes none of it"
+        )
+
+    return authorization_set, revocations_checked
+
+
 #: Protocole du registre de vérification de currentness par preuve
 #: primaire (byte-identity contre la source officielle). Versionné :
 #: un futur format ne peut jamais être relu comme celui-ci par accident.
@@ -1338,8 +1548,20 @@ def generate_coverage_report(
     expected_total: int = 2584,
     expected_manifest_sha256: str | None = None,
     currentness_verification_path: Path | None = None,
+    authority_paths: Sequence[Path] | None = None,
+    authority_review_binding_paths: Sequence[Path] | None = None,
 ) -> CoverageReport:
     """Generate H2-B coverage report.
+
+    ADR-0044: ``authority_paths``/``authority_review_binding_paths`` are
+    the N-authority equivalent of ``authority_path``/
+    ``authority_review_binding_path`` — mutually exclusive with them.
+    When provided, the report is bound to a governed ``AuthorizationSetV1``
+    (``report.authorization_set``) instead of a single authorization, and
+    must be projected via ``report_to_h2_coverage_evidence_v2`` rather than
+    ``report_to_h2_coverage_evidence``. The singular path is completely
+    unaffected by this addition — same functions, same behavior, same
+    tests.
 
     H2-F Défaut 1: If manifest_path is provided, the report will verify
     exact binding between the sealed manifest file and the catalog entries.
@@ -1532,9 +1754,16 @@ def generate_coverage_report(
     )
     authority_allowlist: frozenset[str] | None = None
     authority_binding: dict[str, str] = {}
+    authorization_set: AuthorizationSetV1 | None = None
     # Fail-closed par défaut : sans artefact d'autorité, aucune révocation
     # n'a été vérifiée, et le rapport doit le dire.
     authority_revocations_checked: bool = False
+    if authority_path is not None and authority_paths:
+        raise ValueError(
+            "AUTHORIZATION_SET_VALIDATION failed: authority_path (singular, V1) "
+            "and authority_paths (plural, ADR-0044 V2) were both provided — a "
+            "run is bound to exactly one authority mechanism, never a mix"
+        )
     if authority_path is not None:
         # ADR-0035 : aucune de ces trois preuves n'est optionnelle. Rendre
         # le reçu ou l'ancre facultatifs reviendrait à laisser le gate
@@ -1563,6 +1792,41 @@ def generate_coverage_report(
             environment="test" if authority_environment == "rehearsal" else "production",
             repository_root=repository_root or _REPOSITORY_ROOT,
         )
+    elif authority_paths:
+        # ADR-0044 : équivalent N-autorités. Mêmes trois couches par
+        # membre, jamais dupliquées ; complétude vérifiée une seule fois
+        # sur l'union — voir ``_load_authority_set_evidence``.
+        if not authority_review_binding_paths:
+            raise ValueError(
+                "REVIEW_BINDING_VALIDATION failed: an authorization set requires "
+                "a sealed review binding receipt for every member — a locally "
+                "authored authorization is not evidence of human review"
+            )
+        authorization_set, authority_revocations_checked = _load_authority_set_evidence(
+            authority_paths,
+            authority_review_binding_paths,
+            manifest_sha256,
+            ingest_content_sha256=authority_required_sha256,
+            ingest_rights_candidates=authority_required_rights_candidates,
+            now=authority_now or datetime.now(UTC),
+            revocations_path=authority_revocations_path,
+            trust_anchor_path=authority_trust_anchor_path,
+            environment="test" if authority_environment == "rehearsal" else "production",
+            repository_root=repository_root or _REPOSITORY_ROOT,
+        )
+        authority_allowlist = frozenset(
+            content_sha256
+            for member in authorization_set.members
+            for content_sha256 in member.allowed_content_sha256
+        )
+        # Comme le chemin V1 : sans liaison de revue, ``authority_binding``
+        # resterait ``{}`` et ``authority_review_binding_verified`` faux
+        # plus bas. Ici les N liaisons ont chacune été vérifiées
+        # individuellement par ``_load_authority_set_evidence`` — ce
+        # marqueur non vide fait le même travail que pour le chemin
+        # singulier, sans dupliquer les faits déjà portés par
+        # ``authorization_set`` lui-même.
+        authority_binding = {"authorization_set_digest": authorization_set.authorization_set_digest}
     _promote_authority_cleared_candidates(
         promoted_physical_objects,
         authority_allowlist=authority_allowlist,
@@ -2004,15 +2268,24 @@ def main() -> int:
     parser.add_argument(
         "--authority",
         type=Path,
-        help="H2-F Défaut 5: Path to LOT41A authority evidence (JSON)",
+        action="append",
+        help=(
+            "H2-F Défaut 5: Path to LOT41A authority evidence (JSON). Répétable "
+            "(ADR-0044) : une occurrence produit NEXUS-H2-COVERAGE-EVIDENCE-V1 "
+            "(autorité singulière) ; deux occurrences ou plus produisent "
+            "NEXUS-H2-COVERAGE-EVIDENCE-V2 (AuthorizationSetV1 gouverné) — "
+            "jamais un mélange des deux formats dans le même run."
+        ),
     )
     parser.add_argument(
         "--authority-review-binding",
         type=Path,
+        action="append",
         help=(
             "ADR-0035 : reçu de liaison de revue scellé (JSON signé) qui prouve "
             "hors ligne que l'autorisation a été approuvée sur GitHub par un "
-            "relecteur habilité, distinct de son auteur, au HEAD exact"
+            "relecteur habilité, distinct de son auteur, au HEAD exact. "
+            "Répétable, un par --authority, dans le même ordre."
         ),
     )
     parser.add_argument(
@@ -2086,22 +2359,48 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    report = generate_coverage_report(
-        catalog_path=args.catalog,
-        rights_path=args.rights,
-        pii_path=args.pii,
-        routing_path=args.routing,
-        golden_path=args.golden,
-        manifest_path=args.manifest,
-        authority_path=args.authority,
-        authority_revocations_path=args.authority_revocations,
-        authority_review_binding_path=args.authority_review_binding,
-        authority_trust_anchor_path=args.authority_trust_anchor,
-        authority_environment=args.authority_environment,
-        expected_total=args.expected_total,
-        expected_manifest_sha256=args.expected_manifest_sha256,
-        currentness_verification_path=args.currentness_verification,
-    )
+    # ADR-0044 : une occurrence de --authority reste le chemin V1 exact
+    # (mêmes noms de paramètres qu'avant cette évolution, aucun changement
+    # de comportement) ; deux occurrences ou plus basculent vers le
+    # chemin N-autorités (V2). Comptes différents entre --authority et
+    # --authority-review-binding : refus explicite plus bas, jamais un
+    # zip silencieusement tronqué.
+    authority_list = args.authority or []
+    binding_list = args.authority_review_binding or []
+    if len(authority_list) > 1:
+        report = generate_coverage_report(
+            catalog_path=args.catalog,
+            rights_path=args.rights,
+            pii_path=args.pii,
+            routing_path=args.routing,
+            golden_path=args.golden,
+            manifest_path=args.manifest,
+            authority_paths=authority_list,
+            authority_review_binding_paths=binding_list,
+            authority_revocations_path=args.authority_revocations,
+            authority_trust_anchor_path=args.authority_trust_anchor,
+            authority_environment=args.authority_environment,
+            expected_total=args.expected_total,
+            expected_manifest_sha256=args.expected_manifest_sha256,
+            currentness_verification_path=args.currentness_verification,
+        )
+    else:
+        report = generate_coverage_report(
+            catalog_path=args.catalog,
+            rights_path=args.rights,
+            pii_path=args.pii,
+            routing_path=args.routing,
+            golden_path=args.golden,
+            manifest_path=args.manifest,
+            authority_path=authority_list[0] if authority_list else None,
+            authority_revocations_path=args.authority_revocations,
+            authority_review_binding_path=binding_list[0] if binding_list else None,
+            authority_trust_anchor_path=args.authority_trust_anchor,
+            authority_environment=args.authority_environment,
+            expected_total=args.expected_total,
+            expected_manifest_sha256=args.expected_manifest_sha256,
+            currentness_verification_path=args.currentness_verification,
+        )
 
     markdown = render_markdown(report)
     print(markdown)
@@ -2112,9 +2411,17 @@ def main() -> int:
         print(f"\nReport written to: {args.output}")
 
     if args.json_output:
-        evidence = report_to_h2_coverage_evidence(report)
+        # ADR-0044 : un run bâti sur un AuthorizationSetV1 (deux --authority
+        # ou plus) projette vers V2 ; un run bâti sur une autorité
+        # singulière (au plus une --authority) projette vers V1, exactement
+        # comme avant cette évolution.
+        evidence_v1_or_v2 = (
+            report_to_h2_coverage_evidence_v2(report)
+            if report.authorization_set is not None
+            else report_to_h2_coverage_evidence(report)
+        )
         args.json_output.parent.mkdir(parents=True, exist_ok=True)
-        args.json_output.write_bytes(evidence.canonical_bytes())
+        args.json_output.write_bytes(evidence_v1_or_v2.canonical_bytes())
         print(f"\nMachine-readable evidence written to: {args.json_output}")
 
     return 0 if report.coverage_complete else 1
@@ -2195,6 +2502,77 @@ def report_to_h2_coverage_evidence(report: CoverageReport) -> H2CoverageEvidence
             "authority_review_binding_verified": report.authority_review_binding_verified,
             "authority_revocations_checked": report.authority_revocations_checked,
             "authorization_id": report.input_files["authority_authorization_id"],
+            "safety_invariants": dict(report.safety_invariants),
+        }
+    )
+
+
+#: Les cinq preuves d'entrée d'un rapport V2 — identique à V1 moins
+#: ``authority`` (ADR-0044 §5 : la liaison d'autorité de V2 se fait par
+#: ``authorization_set_digest``, jamais une clé de ``input_file_digests``).
+_INPUT_FILE_DIGEST_KEYS_V2 = ("catalog", "pii", "rights", "routing", "golden")
+
+
+def report_to_h2_coverage_evidence_v2(report: CoverageReport) -> H2CoverageEvidenceV2:
+    """Projette un ``CoverageReport`` construit avec
+    ``authority_paths``/``authority_review_binding_paths`` vers
+    ``NEXUS-H2-COVERAGE-EVIDENCE-V2`` (ADR-0044) — aucun nouveau calcul,
+    uniquement une représentation fidèle de verdicts déjà rendus par
+    ``generate_coverage_report`` + ``_load_authority_set_evidence``.
+
+    Refuse hors de l'environnement ``production``, même discipline que la
+    projection V1. Refuse également si ``report.authorization_set`` est
+    ``None`` : ce format n'existe que pour un run bâti sur un
+    ``AuthorizationSetV1`` gouverné, jamais pour décrire un run qui n'en
+    avait aucun (V1 reste le format pour ce cas)."""
+    if report.authority_environment != "production":
+        raise H2CoverageEvidenceError(
+            f"cannot project a {report.authority_environment!r} coverage report to "
+            f"{H2_COVERAGE_EVIDENCE_V2_PROTOCOL_VERSION} — this evidence format is "
+            "production-only"
+        )
+    if report.authorization_set is None:
+        raise H2CoverageEvidenceError(
+            f"cannot project this coverage report to "
+            f"{H2_COVERAGE_EVIDENCE_V2_PROTOCOL_VERSION} — no authorization set "
+            "was verified (authority_paths was not provided to "
+            "generate_coverage_report); a run bound to a singular authority "
+            "projects to NEXUS-H2-COVERAGE-EVIDENCE-V1 instead"
+        )
+    authorization_set = report.authorization_set
+    input_file_digests = {
+        key: report.input_files[key]
+        for key in _INPUT_FILE_DIGEST_KEYS_V2
+        if key in report.input_files
+    }
+    return H2CoverageEvidenceV2.model_validate(
+        {
+            "protocol_version": H2_COVERAGE_EVIDENCE_V2_PROTOCOL_VERSION,
+            "environment": "production",
+            "report_id": report.report_id,
+            "generated_at": report.generated_at,
+            "git_commit": report.git_commit,
+            "producer_version": "rag_pedago.imports.h2b_coverage_report/2",
+            "manifest_sha256": report.manifest_sha256,
+            "input_file_digests": input_file_digests,
+            "corpus_total_expected": report.corpus_total_expected,
+            "corpus_total_actual": report.corpus_total_actual,
+            "corpus_match": report.corpus_match,
+            "sum_equals_total": report.sum_equals_total,
+            "zero_overlap": report.zero_overlap,
+            "zero_gap": report.zero_gap,
+            "coverage_complete": report.coverage_complete,
+            "rights_gate_status": report.rights_gate_status,
+            "pii_gate_status": report.pii_gate_status,
+            "golden_validation_pass": report.golden_validation_pass,
+            "h2_coverage_gate_pass": report.h2_coverage_gate_pass,
+            "authority_review_binding_verified": report.authority_review_binding_verified,
+            "authority_revocations_checked": report.authority_revocations_checked,
+            "authorization_set_digest": authorization_set.authorization_set_digest,
+            "authorization_count": authorization_set.authorization_count,
+            "authority_required_count": report.authority_required_count,
+            "authority_covered_count": report.authority_covered_count,
+            "authority_required_set_sha256": report.authority_required_set_sha256,
             "safety_invariants": dict(report.safety_invariants),
         }
     )
