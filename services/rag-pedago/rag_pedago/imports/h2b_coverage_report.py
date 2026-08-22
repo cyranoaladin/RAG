@@ -2005,6 +2005,7 @@ def generate_coverage_report(
         real_corpus_catalog_source=True,
         synthetic_catalog_used_for_final_gate=False,
         manifest_sha256=manifest_sha256,
+        authorization_set=authorization_set,
         corpus_total_expected=expected_total,
         corpus_total_actual=actual_total,
         corpus_match=corpus_match,
