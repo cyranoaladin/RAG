@@ -5,6 +5,7 @@ n'est pas une inspection de texte : ce sont les clés que GitHub Actions
 lit réellement, et une propriété comme « `workflow_call` uniquement » n'a
 pas d'autre représentation vérifiable.
 """
+
 from __future__ import annotations
 
 import subprocess
@@ -67,9 +68,7 @@ class TestProducerWorkflowShape:
     def test_it_publishes_the_derived_artifact_name(self, workflow: dict) -> None:
         upload = workflow["jobs"]["produce"]["steps"][-1]
         assert upload["uses"].startswith("actions/upload-artifact@")
-        assert upload["with"]["name"] == (
-            "${{ steps.evidence.outputs.artifact_name }}"
-        )
+        assert upload["with"]["name"] == ("${{ steps.evidence.outputs.artifact_name }}")
         assert upload["with"]["if-no-files-found"] == "error"
 
     def test_evidence_is_retained_through_human_approval(self, workflow: dict) -> None:
@@ -107,14 +106,10 @@ class TestProducerWorkflowShape:
         assert checkout["with"]["ref"] == "refs/heads/main"
         assert checkout["with"]["persist-credentials"] is False
 
-    def test_it_calls_the_sealed_compiler_not_the_legacy_one(
-        self, workflow: dict
-    ) -> None:
+    def test_it_calls_the_sealed_compiler_not_the_legacy_one(self, workflow: dict) -> None:
         """Sans `--sealed-manifest`, la CLI compilerait l'inventaire TSV
         historique, explicitement non autoritaire."""
-        body = "\n".join(
-            step.get("run", "") for step in workflow["jobs"]["produce"]["steps"]
-        )
+        body = "\n".join(step.get("run", "") for step in workflow["jobs"]["produce"]["steps"])
         assert "--sealed-manifest" in body
         assert "corpus_catalog_compiler \\\n            --manifest" not in body
 
@@ -125,9 +120,7 @@ class TestProducerWorkflowShape:
         garde, avec son propre message : trois lectures, trois sorties en
         erreur distinctes."""
         gate_step = next(
-            step
-            for step in workflow["jobs"]["produce"]["steps"]
-            if step.get("id") == "gate"
+            step for step in workflow["jobs"]["produce"]["steps"] if step.get("id") == "gate"
         )
         body = gate_step["run"]
         for flag in (
@@ -138,16 +131,14 @@ class TestProducerWorkflowShape:
             assert f".{flag}" in body, f"{flag} is never read from the report"
 
         guards = [line for line in body.splitlines() if "exit 1" in line]
-        assert len(guards) == 3, (
-            f"expected one guard per flag, found {len(guards)}"
-        )
+        assert len(guards) == 3, f"expected one guard per flag, found {len(guards)}"
         # Trois messages distincts : un opérateur doit savoir laquelle des
         # trois preuves a manqué sans relire le rapport.
         assert len({line.strip() for line in guards}) == 3
 
 
 class TestGovernanceCli:
-    def test_the_four_subcommands_exist(self) -> None:
+    def test_the_five_subcommands_exist(self) -> None:
         parser = build_parser()
         choices = parser._subparsers._group_actions[0].choices  # type: ignore[union-attr]
         assert set(choices) == {
@@ -155,6 +146,7 @@ class TestGovernanceCli:
             "review-view",
             "h2-evidence",
             "republish-catalog",
+            "release-scope-placement",
         }
 
     def test_republish_catalog_requires_every_binding(self) -> None:
@@ -165,9 +157,7 @@ class TestGovernanceCli:
         optional = [
             action.option_strings[0]
             for action in republish._actions
-            if action.option_strings
-            and action.option_strings[0] != "-h"
-            and not action.required
+            if action.option_strings and action.option_strings[0] != "-h" and not action.required
         ]
         assert optional == []
 
@@ -176,11 +166,7 @@ class TestGovernanceCli:
         la remplacer."""
         parser = build_parser()
         resolve = parser._subparsers._group_actions[0].choices["resolve-corpus"]  # type: ignore[union-attr]
-        flags = {
-            option
-            for action in resolve._actions
-            for option in action.option_strings
-        }
+        flags = {option for action in resolve._actions for option in action.option_strings}
         for forbidden in ("--reference", "--registry", "--tag", "--digest", "--url"):
             assert forbidden not in flags
 
@@ -192,9 +178,7 @@ class TestGovernanceCli:
         optional = [
             action.option_strings[0]
             for action in evidence._actions
-            if action.option_strings
-            and action.option_strings[0] != "-h"
-            and not action.required
+            if action.option_strings and action.option_strings[0] != "-h" and not action.required
         ]
         assert optional == []
 
@@ -219,16 +203,22 @@ class TestCompilerCliModes:
     def test_both_modes_at_once_are_refused(self) -> None:
         """Deux identités sans que rien ne dise laquelle prévaut."""
         result = self._run(
-            "--manifest", "a.tsv", "--sealed-manifest", "b.txt",
-            "--config", "configs/corpus_zone_routing.yml",
+            "--manifest",
+            "a.tsv",
+            "--sealed-manifest",
+            "b.txt",
+            "--config",
+            "configs/corpus_zone_routing.yml",
         )
         assert result.returncode != 0
         assert "exactly one of" in result.stderr
 
     def test_the_sealed_mode_requires_a_placement_catalog(self) -> None:
         result = self._run(
-            "--sealed-manifest", "b.txt",
-            "--config", "configs/corpus_zone_routing.yml",
+            "--sealed-manifest",
+            "b.txt",
+            "--config",
+            "configs/corpus_zone_routing.yml",
         )
         assert result.returncode != 0
         assert "--placement-catalog is required" in result.stderr

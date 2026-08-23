@@ -9,6 +9,7 @@ description = "Shared retrieval contract for the Nexus RAG platform"
 requires-python = ">=3.11"
 dependencies = [
     "pydantic==2.13.4",
+    "PyYAML==6.0.3",
     # ADR-0035 : vérification hors ligne des reçus de liaison de revue
     # (Ed25519). Importée uniquement par nexus_contracts.review_binding,
     # jamais au niveau du paquet — un consommateur qui n'utilise pas la
@@ -18,7 +19,6 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "PyYAML==6.0.3",
     "pytest==9.1.1",
     "ruff==0.15.19",
 ]
