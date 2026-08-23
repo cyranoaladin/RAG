@@ -33,6 +33,24 @@ REAL_INPUTS = {
     "pii_exhaustive": EVIDENCE_ROOT / "h2b_exhaustive_pii_scan_20260813.jsonl",
     "pii_campaign": EVIDENCE_ROOT / "h2b_pii_evidence_20260808.json",
 }
+VERSIONED_INPUTS = {
+    "routing": SERVICE_ROOT / "configs/corpus_zone_routing.yml",
+    "rights": SERVICE_ROOT / "configs/rights_evidence_registry.yml",
+    "golden": SERVICE_ROOT / "configs/golden_corpus_h2b.yml",
+    "currentness": (
+        SERVICE_ROOT / "configs/prerentree_2026_2027/multilevel_currentness_evidence.yml"
+    ),
+}
+EXPECTED_REAL_INPUT_DIGESTS = {
+    "manifest": "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e",
+    "placements": "25cf40cec8a98692d4532a71b58a9685821bbc2b9a4785c25fac7138a49906ec",
+    "pii_exhaustive": "0229a0f2d7edbd1bb1b1412a8ccd447b3c6d2ce71dc73a0f2e726751156fa357",
+    "pii_campaign": "76e6ba3cd5b1c116c8647b611eb3fdeb2aba6b8c7fdfbad9e71048354956f311",
+    "routing": "0d4d25215cb0ed40c439ff172c9dbce3f2a1b0b945313a042285b2e57bffc833",
+    "rights": "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff",
+    "golden": "28856e0655eca7695f273a5934925785c49ecf828d930804984f6e58f4da6f69",
+    "currentness": "2ad7209f28cd7cbf9f1ea91724b687983579c36c91619e8d107d28b72b849122",
+}
 
 SHA_A = "a" * 64
 SHA_B = "b" * 64
@@ -222,6 +240,9 @@ def test_recompute_final_release_set_from_real_inputs(tmp_path: Path) -> None:
     terminal_rows = (
         (output / "terminal_content_dispositions.jsonl").read_text(encoding="utf-8").splitlines()
     )
+
+    for label, path in {**REAL_INPUTS, **VERSIONED_INPUTS}.items():
+        assert summary["input_digests"][str(path)] == EXPECTED_REAL_INPUT_DIGESTS[label]
 
     assert summary["final_base_ingest_candidates"] == 73
     assert summary["final_non_authority_blocked_count"] == 1

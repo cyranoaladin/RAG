@@ -66,7 +66,8 @@
 - [ ] `GET /collections/v2` avec token → 200 (liste collections)
 - [ ] `POST /ingest/v2/upload-files` avec token ingest_agent → 200/202
 - [ ] `POST /ingest/v2/upload-files` avec token student → 403
-- [ ] `nexus-contracts==0.5.0` est installé côté moteur et ses cinq schémas de review sont générés côté Cockpit
+- [ ] `nexus-contracts==0.13.0` est installé côté moteur ; les fixtures V1
+      restent lisibles et les protocoles V2 restent strictement distincts
 - [ ] `GET /api/review/queue` avec session Auth.js `reviewer` ou `admin` → 200
 - [ ] `POST /api/review/decide` avec session Auth.js `reviewer` ou `admin` → 200
 - [ ] Cookie jars Netscape de test obtenus par le provider Credentials Auth.js avec des jetons SSO Nexus éphémères ; aucun JWT/cookie fabriqué manuellement
@@ -104,6 +105,43 @@
 - [ ] `bash scripts/check-governance-locks.sh` → PASS
 - [ ] 18 verrous vérifiés
 - [ ] Aucun verrou modifié sans ADR
+
+## Release corpus et multi-autorisation V2
+
+Le mécanisme est préparé par ADR-0044 et `nexus-contracts==0.13.0`. Les cases
+ci-dessous portent sur les vraies preuves de release ; elles ne doivent pas
+être cochées parce que le code existe.
+
+- [x] Set final recalculé : 73 candidats de base, 1 blocage non-authority,
+      72 contenus authority-required
+- [x] Set exact figé :
+      `3705935f306a52cde0f398db20f685dce82d0bb9acd7909c8e6955d6356643e0`
+- [x] 2 582 contenus terminalement comptabilisés, zéro non-comptabilisé
+- [x] Architecture `AuthorizationSetV1` + campaign/H2/promotion/readiness V2
+      documentée par ADR-0044 sans mutation des V1
+- [ ] Décisions de profils rendues pour les 61 contenus encore non ancrés
+- [ ] Chaque contenu du set final possède exactement un profil et un scope
+- [ ] Autorisations exactes, non chevauchantes et sans gap créées puis revues
+- [ ] Vraie campagne globale exécutée
+- [ ] Vrai republish gouverné exécuté à 72/72
+- [ ] Vrai H2 V2 vert à 72/72
+- [ ] Rehearsal Docker atomique et rollback verts
+- [ ] Cible DB production vérifiée en lecture seule et plan de migration prêt
+- [ ] GitHub Environment `production` provisionné selon le plan exact
+
+```text
+REAL_AUTHORIZATIONS_CREATED=false
+REAL_CAMPAIGN_EXECUTED=false
+REAL_GOVERNED_REPUBLISH_EXECUTED=false
+REAL_H2_GATE_PASS=false
+PRODUCTION_ENVIRONMENT_PROVISIONED=false
+PROD_DB_TARGET_VERIFIED=UNKNOWN
+ATOMIC_DOCKER_REHEARSAL_PASS=UNKNOWN
+```
+
+Ces deux valeurs sont `UNKNOWN` car les transcripts initiaux ne sont pas
+versionnés. Elles restent des cases ouvertes jusqu'à un audit/rehearsal frais
+avec artefact auditable ; aucune observation historique ne les valide.
 
 ## Décision finale
 

@@ -1,0 +1,23 @@
+{
+  "protocol_version": "NEXUS-GITHUB-ENVIRONMENT-READ-ONLY-OBSERVATION-V1",
+  "observed_at": "2026-08-24T06:53:53Z",
+  "repository": "cyranoaladin/RAG",
+  "read_only": true,
+  "queries": [
+    "gh api repos/cyranoaladin/RAG/environments",
+    "gh api repos/cyranoaladin/RAG/collaborators/abenrhouma/permission"
+  ],
+  "environment_query_result": {
+    "total_count": 0,
+    "names": []
+  },
+  "reviewer_query_result": {
+    "login": "abenrhouma",
+    "user_id": 67140603,
+    "permission": "write"
+  },
+  "production_environment_exists": false,
+  "production_environment_provisioned": false,
+  "mutation_performed": false,
+  "sensitive_response_metadata_recorded": false
+}

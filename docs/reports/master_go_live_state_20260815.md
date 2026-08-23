@@ -1,394 +1,199 @@
-# Master Go-Live State — snapshot du 2026-08-15 (soir), mis à jour 2026-08-22
+# Master Go-Live State — état observé après PR #127
 
-> Source de vérité unique, séquencée, pour la suite de la mission go-live RAG
-> Nexus. **Ceci est un instantané d'un état observé, pas une API live de la
-> branche `main`** — un document committé ne peut jamais maintenir
-> honnêtement un `current_main_sha` puisque son propre merge fait avancer
-> `main`. Le SHA live doit toujours être relu depuis GitHub/Git ; les champs
-> `state_observed_at_*` ci-dessous décrivent l'état au moment de la
-> génération, jamais un pointeur vivant.
->
-> Mise à jour de ce même document (version initiale mergée via PR#120,
-> rafraîchie via PR#123, puis à nouveau ici après PR#124/#125/#126 et le lot
-> Tier A byte-identity + scope/profile du 2026-08-22) — pas un nouveau
-> fichier daté parallèle. Chaque ligne porte sa preuve.
+Ce document met à jour l'instantané historique du 2026-08-15. Il décrit la
+baseline `main` après PR #127 et le candidat contractuel multi-autorisation ;
+il n'est pas un pointeur live auto-référent vers la branche.
 
-```
-state_generated_at=2026-08-22T00:00:00Z
-state_observed_at_main_sha=b9e3b47dd952991236e44b3afb605bf6e63d388f
+```text
+STATE_GENERATED_AT=2026-08-24T06:55:17Z
+STATE_OBSERVED_AT_MAIN_SHA=3548bf300c99685ff6ede0dce2e5bfe8c044d213
+PR127_MERGED=true
 ```
 
-> Ce SHA décrit l'état observé **au moment de la génération**. Une fois ce
-> lot mergé, `main` aura déjà avancé d'au moins ce merge lui-même — c'est
-> attendu et normal pour un instantané, jamais un défaut à corriger en
-> committant un SHA auto-référent.
+## 1. Release corpus finalisée
 
-## 1. PR merges (DONE — revérifié live, `gh pr view --json state,mergedAt,mergeCommit`)
+Le script versionné
+`services/rag-pedago/scripts/recompute_final_release_set.py` recompose le
+catalogue et les gates PII, droits, routing, currentness, manifest et golden,
+sans autorité. Le lot détaillé consigne la commande, les huit digests d'entrée
+et la comparaison octet par octet du résultat.
 
-| PR | Sujet | Statut | Merge SHA | Merged at |
-|---|---|---|---|---|
-| #100 | Signing tool production readiness | DONE | `057e93c` | 2026-08-15T08:26:37Z |
-| #107 | Atomic deployment wrapper (Lot C) | DONE | `439255f` | 2026-08-15T10:15:21Z |
-| #108 | Evidence-index / terminal-disposition ledger | DONE | `5f44a46` | 2026-08-15T10:31:15Z |
-| #109 | H2 workflow E2E rehearsal | DONE | `7117a41` | 2026-08-14T21:53:42Z |
-| #110 | Canonical promotion workflow | DONE | `a8a41c7` | 2026-08-14T23:12:58Z |
-| #111 | Catalog compiler schema fix | DONE | `fc4d80a` | 2026-08-15T09:12:10Z |
-| #112 | Image-provenance fail-open fix | DONE | `c2c08dd` | 2026-08-15T10:45:43Z |
-| #114 | Trusted-review check-SHA fix (check-run, superseded by #119) | DONE | `0d98475` | 2026-08-15T09:32:43Z |
-| #115 | H2 authority-promotion gap (Finding C) | DONE | `3308fcf` | 2026-08-15T09:52:50Z |
-| #116 | Ratification post head-drift incident | DONE | `6867f98` | 2026-08-15T13:16:23Z |
-| #119 | Trusted-review status transport fix (Commit Status) | DONE | `a2a69dd` | 2026-08-15T15:33:18Z |
-| #120 | Master go-live state (v1, superseded) | DONE | `4b2f611` | 2026-08-15T16:05:43Z |
-| #121 | Governed catalog republish mechanism | DONE | `8ad8741` | 2026-08-15T17:18:23Z |
-| #122 | Currentness-verified promotion | DONE | `353703f` | 2026-08-15T20:35:48Z |
-| #123 | Master go-live state refresh (v2, superseded by this doc), Drive snapshot | DONE | `8844407` | 2026-08-15T20:52:44Z |
-| #124 | Reconcile the two real PII scans into a complete gate input | DONE | `1d7cf45` | 2026-08-15T21:15:47Z |
-| #125 | Bind authority completeness to post-currentness, non-authority-cleared candidates | DONE | `3167b1c` | 2026-08-15T23:42:14Z |
-| #126 | Refuse `report_to_h2_coverage_evidence` without authority explicitly | DONE | `b9e3b47` | 2026-08-16T07:45:20Z |
-
-PR#96 et PR#98 : voir §6 (audit dédié, ni mergées ni fermées — revérifié live
-le 2026-08-22, toujours `OPEN`, non-`Draft`).
-
-## 2. Gate d'intégrité gouvernance (DONE — inchangé)
-
-```
-TRUSTED_REQUIRED_GATE_RELIABLY_ENFORCED=true
-required_context_final_name=trusted-human-review/head-pinned
-```
-Confirmé en conditions réelles sur PR#120/#121/#122 : approbation réelle →
-Commit Status `success` → branch protection reconnaît nativement → merge
-sans aucun rollback de protection. Preuve :
-`docs/reports/trusted_review_head_drift_incident_20260815.md`,
-`docs/reports/trusted_review_branch_protection_rehearsal_20260815.md`.
-
-## 3. Booleans techniques de préparation (DONE — inchangé depuis PR#123)
-
-```
-PRODUCTION_READINESS_SIGNING_TOOL_COMPLETE=true
-CATALOG_REAL_CORPUS_COMPILE_PASS=true
-H2_WORKFLOW_E2E_REHEARSAL_PASS=true
-GOVERNED_REPUBLISH_STEP_EXISTS=true
-GOVERNED_REPUBLISH_REAL_CAMPAIGN_EXECUTED=false   # mécanisme prêt, jamais encore exécuté pour de vrai
-CURRENTNESS_VERIFIED_PROMOTION_STEP_EXISTS=true
-CURRENTNESS_VERIFIED_PROMOTION_REAL_RUN_EXECUTED=false   # mécanisme prêt, jamais encore exécuté pour de vrai
-ATOMIC_DEPLOY_REHEARSAL_PASS=PARTIAL
-```
-Non retouché par le lot du 2026-08-22 (hors périmètre annoncé de ce lot).
-Danger réel toujours présent sur cet hôte, non revérifié dans ce lot :
-stack `infra` dev locale + stack orpheline `rag-smoke-ci3` — signalées le
-2026-08-15, non touchées.
-
-## 4. Corpus / éligibilité (revérifié depuis l'artefact canonique commité)
-
-```
-PHYSICAL_FILES=2584
-MANIFEST_ENTRIES=2583
-UNIQUE_CONTENT_SHA256=2582
-DUPLICATE_CONTENT_GROUPS=1
-
-CURRENT_RELEASE_ELIGIBLE_ARTIFACTS=63
-BASE_INGEST_CANDIDATES=73          # inchangé — reconfirmé bit-à-bit le 2026-08-22
-CURRENT_AUTHORITY_REQUIRED_COUNT=72   # inchangé — reconfirmé bit-à-bit le 2026-08-22
-CURRENT_AUTHORITY_REQUIRED_SET_SHA256=3705935f306a52cde0f398db20f685dce82d0bb9acd7909c8e6955d6356643e0
-PII_BLOCKED_COUNT=1
-FINAL_RELEASE_ELIGIBLE_ARTIFACTS=UNKNOWN   # tant que Tier A n'est pas clos pour cette release
+```text
+FINAL_BASE_INGEST_CANDIDATES=73
+FINAL_NON_AUTHORITY_BLOCKED_COUNT=1
+FINAL_AUTHORITY_REQUIRED_COUNT=72
+FINAL_AUTHORITY_REQUIRED_SET_SHA256=3705935f306a52cde0f398db20f685dce82d0bb9acd7909c8e6955d6356643e0
+FINAL_RELEASE_ELIGIBLE_ARTIFACTS=72
+FINAL_ELIGIBLE_SET_FROZEN=true
 ```
 
-**Pourquoi le baseline 73/72 n'a pas bougé le 2026-08-22** : le lot Tier A
-byte-identity de ce jour (§5) a audité en réseau, pour de vrai, les 138
-candidats `REVIEW_REQUIRED` en attente de vérification de source — zéro
-n'a pu être promu (voir §5, blocage Cloudflare, pas un verdict de
-currentness). Sans nouvelle entrée `CURRENT_BYTE_IDENTICAL`, le registre de
-currentness-verification n'a pas changé, donc le catalogue recompilé est
-identique et 73/72/`3705935f...` ne pouvaient pas changer — ceci a été
-constaté par raisonnement direct sur les entrées, pas supposé par
-convention (l'instruction de ce lot était explicitement de ne jamais
-préserver 72 par convention).
+Le fichier `docs/reports/final_authority_required_set_20260823.txt` contient
+exactement 72 SHA-256 minuscules, uniques, triés, un par ligne avec LF final.
+Le rejeu non-skippé est consigné dans
+`docs/reports/final_release_recomputation_evidence_20260824.json`, avec les
+huit digests d'entrée, le digest du `summary.json` produit, le digest des
+dispositions et la comparaison octet par octet du set commité. Digest de cette
+preuve : `f68f5c525c7bd9280e03a1bbc5fd4a434de1b1d64e8a0a4eff8e32a3caa4f47d`.
+La valeur historique `CURRENT_RELEASE_ELIGIBLE_ARTIFACTS=63` est conservée
+uniquement comme fait d'un ancien snapshot ; elle est remplacée par ce calcul,
+jamais par une substitution manuelle.
 
-## 5. Tier A / currentness — réconciliation complète et audit réseau réel (2026-08-22)
+## 2. Comptabilité terminale exhaustive
 
-Remplace entièrement le §5 précédent (investigation du 2026-08-15, jamais
-chiffrée exactement). Reproduit depuis `main` propre
-(`b9e3b47dd952991236e44b3afb605bf6e63d388f`) dans un worktree dédié
-(`rag-pedago/tier-a-currentness-clean-20260822`), sans reprendre aucune
-donnée d'un WIP non revu trouvé et mis en quarantaine sur cet hôte
-(`rag-pedago/tier-a-currentness-byte-identity-20260820`, 44 commits non
-revus + modifications non commitées touchant des contrats cœur et un
-ADR-0043 non ratifié — photographié en lecture seule dans
-`~/Documents/NEXUS_RAG_WIP_QUARANTINE/tier-a-20260822/`, jamais utilisé
-comme preuve).
-
-### 5.1 Algèbre exacte des registres de currentness
-
-Preuve : `docs/reports/tier_a_set_algebra_reconciliation_20260822.json` +
-`docs/reports/lot_tier_a_set_algebra_20260822.md`.
-
-```
-SET_CURRENT=10
-SET_WAVE0=2
-SET_REVIEW_REQUIRED_PENDING=138
-(toutes intersections pairwise et triple = 0 — partition garantie par construction)
-UNION_REGISTRY_COVERED_UNCLASSIFIED=150
+```text
+UNIQUE_CONTENTS=2582
+INGEST_CANDIDATE=72
+REVIEW_REQUIRED=2399
+QUARANTINE=2
+ARCHIVE_ONLY=19
+EXCLUDE=53
+UNSUPPORTED=37
+UNACCOUNTED_CONTENTS=0
+TERMINAL_DISPOSITION_COVERAGE=100%
 ```
 
-**Clarification importante** : la mission attendait une union à 141. 141 est
-réel, mais désigne une quantité différente (voir 5.2) — pas l'union
-ci-dessus, qui est 150. Les deux quantités ont été fusionnées à tort sous
-le même nom dans le cadrage initial ; elles sont maintenant produites
-séparément et documentées.
+La couverture terminale signifie que 100 % des contenus ont une décision pour
+cette release, pas qu'ils doivent tous être ingérés. Les 138 contenus dont la
+source officielle reste inaccessible derrière Cloudflare demeurent
+`A_VERIFIER` / `REVIEW_REQUIRED`, avec la preuve réseau de PR #127.
 
-### 5.2 Deux univers séparés : PII-cleared vs PII+droits-cleared, currentness indéterminée
-
+```text
+CLOUDFLARE_OPERATOR_DECISION=ACCEPT_REVIEW_REQUIRED_FOR_THIS_RELEASE
+NETWORK_WORK_CLOSED_FOR_RELEASE=true
+CLOUDFLARE_BLOCKS_GO_LIVE=false
 ```
-PII_CLEARED_CURRENTNESS_UNDETERMINED:
-  UNCLASSIFIED_ZERO_REGISTRY=1252
-  UNCLASSIFIED_REGISTRY_COVERED=141   # <- ici que 141 est le nombre exact attendu
-  A_VERIFIER=746
-  TOTAL=2139
 
-PII_AND_RIGHTS_CLEARED_CURRENTNESS_UNDETERMINED:
-  UNCLASSIFIED_ZERO_REGISTRY=1252
-  UNCLASSIFIED_REGISTRY_COVERED=141
-  A_VERIFIER=746
-  TOTAL=2139
+## 3. Profils de production
+
+La matrice proposée versionnée contient 24 partitions et couvre les 72
+contenus. L'engagement opérateur reste une borne `>=22`, pas un exact 22 : la
+matrice porte 23 couples bruts `(niveau, matière)`, dont 21 sans valeur nulle.
+Son SHA-256 est
+`8009596c0cce54f816a1a1307a9ba5663146cfa2d7d95e381e84819d3be9c963`.
+
+```text
+DISTINCT_LEVEL_SUBJECT_PAIRS_MINIMUM=22
+MATRIX_RAW_DISTINCT_LEVEL_SUBJECT_PAIRS=23
+MATRIX_FULLY_SPECIFIED_LEVEL_SUBJECT_PAIRS=21
+GROUNDED_PARTITION_COUNT=10
+GROUNDED_CONTENT_COUNT=11
+DECISION_REQUIRED_PARTITION_COUNT=14
+DECISION_REQUIRED_CONTENT_COUNT=61
+PROFILE_EXACT_MATCH_COUNT=0
+PROFILE_NO_MATCH_COUNT=72
+PROFILE_AMBIGUOUS_COUNT=0
+DISTINCT_CANONICAL_RESOURCE_SCOPES=UNKNOWN_PENDING_PROFILE_DECISIONS
+PROFILE_DECISION_REQUIRED=true
+FABRICATED_PROFILE_COUNT=0
 ```
-Les deux univers coïncident numériquement sur ce périmètre précis (cohérent
-avec `RIGHTS_AS_BLOCKER=false` déjà constaté le 2026-08-15 : 2405/2408
-`REVIEW_REQUIRED` déjà `CLEARED_BY_HUMAN_DECISION`) — un futur lot ne doit
-jamais supposer que cela reste vrai sans revérifier, les deux ensembles ne
-sont pas identiques par construction.
 
-### 5.3 Delta historique
+Les 61 contenus non ancrables restent une vraie décision produit. Aucun profil
+n'a été inventé pour atteindre artificiellement 72 matches.
 
-```
-HISTORICAL_REPORTED_TIER_A=1252
-CURRENT_REPRODUCED_HISTORICAL_PREDICATE=1252
-HISTORICAL_MEASUREMENT_DELTA=0
-```
-Le nombre historique de 1252 (déjà versionné en §`tier_a_investigation`
-depuis PR#123) se reproduit exactement. Le cadrage initial mentionnait une
-reproduction courante à 1253 (delta de 1, non résolu) — cette reproduction
-indépendante ne la confirme pas.
+## 4. Architecture multi-autorisation
 
-### 5.4 Audit byte-identity réseau réel (138 sources primaires)
+L'ancien constat « seul `ProductionReadinessManifestV1.authorization_digest`
+est bloquant » est historiquement conservé mais explicitement **superseded**.
+L'audit adversarial recense 45 surfaces exécutables/contractuelles et confirme
+les singularités H2, campaign, report/republish, workflow, signer, readiness,
+deploy et runtime.
 
-Preuve : `docs/reports/tier_a_byte_identity_network_audit_20260822.json` +
-`docs/reports/lot_tier_a_byte_identity_network_audit_20260822.md`.
-
-Provenance URL réelle trouvée dans le corpus scellé lui-même
-(`00_INDEX_PROVENANCE/EDUSCOL_CATALOGUES/catalogue-complet.tsv`, colonne
-`url_source`, clé `sha256`) — 138/138 résolus vers 8 URLs distinctes
-(plusieurs PDF cités depuis la même page article Éduscol).
-
-```
-NETWORK_PROBE_PASS=false
-DIAGNOSIS=CLOUDFLARE_BOT_PROTECTION_403_DOMAIN_WIDE   # pas DNS/TLS/no-egress/local
-BYTE_IDENTITY_CURRENT=0
-BYTE_IDENTITY_CHANGED=0
-BYTE_IDENTITY_NOT_FOUND=0
-BYTE_IDENTITY_UNAVAILABLE=138
-BYTE_IDENTITY_AMBIGUOUS=0
-BYTE_IDENTITY_CONFLICT=0
-```
-Diagnostic confirmé (contrôles `1.1.1.1`/`google.com` OK, DNS résout bien,
-`robots.txt` d'Éduscol autorise explicitement le crawl) : le blocage est un
-403 Cloudflare au niveau du domaine, vérifié individuellement sur les 8
-URLs distinctes (pas une extrapolation depuis un échantillon), aucune
-tentative d'évasion. **`SOURCE_UNAVAILABLE` ≠ `NOT_CURRENT`** : les 138
-restent `pending`, aucune promotion, aucune démotion, aucun archivage.
-
-**Investigation bornée d'une voie alternative (seconde passe)** : recherche
-explicite d'une URL directe/alternative dans le TSV de provenance (aucune
-trouvée — seule une URL d'article existe par contenu), variations d'en-têtes
-légitimes essayées (toujours 403, page de blocage Cloudflare standard,
-`robots.txt` autorise pourtant ces chemins), aucun contournement tenté.
-**Terminalisation** : le vocabulaire attendu
-`REVIEW_REQUIRED_AFTER_INVESTIGATION`/`PRIMARY_SOURCE_UNAVAILABLE` a été
-cherché et **n'existe pas** dans `currentness_gate.py` (énumération réelle :
-`ACTUEL|TRANSITION|A_VERIFIER|ARCHIVE|CONFLICT|UNCLASSIFIED`). Décision :
-ne pas fabriquer de nouvelle valeur de contrat unilatéralement (changement
-de taxonomie hors périmètre de ce lot en lecture seule) — les 138 restent
-à leur statut réel `A_VERIFIER`/`REVIEW_REQUIRED` (terminal légitime, ne
-bloque pas le go-live), avec l'artefact d'audit réseau joint comme preuve
-qu'ils ont été **réellement investigués**, pas laissés de côté :
-`TIER_A_NOT_INVESTIGATED=0`. Décision opérateur signalée, non prise ici :
-soit accepter cet état durablement, soit statuer sur l'ajout d'une valeur
-de taxonomie dédiée (propriétaire du contrat `currentness_gate.py`), soit
-obtenir un accès réseau non filtré pour retenter plus tard.
-
-## 6. PR#96 / PR#98 — audit (DONE, décision toujours réservée à l'opérateur)
-
-```
-PR96_ACTION=KEEP_OPEN
-PR98_ACTION=REUSE_AS_SUBSET
-PR96_PR98_OVERLAP=none
-```
-Revérifié live le 2026-08-22 (`gh pr view 96/98`) : les deux toujours
-`OPEN`, non-`Draft`. Aucune action prise — décision opérateur requise avant
-construction des autorisations finales.
-
-## 7. Google Drive (DONE — non rescanné dans ce lot, lecture seule du mirroir)
-
-```
-DRIVE_MIRROR_COMPLETE=true
-DRIVE_CURRENT_CONTENT_FILES=2584
-DRIVE_MANIFEST_ENTRIES_MATCHED=2583
-DRIVE_EXTRA_UNACCOUNTED=1
-DRIVE_CANONICAL_FILES_MISSING=0
-DRIVE_SHA_MISMATCH=0
-```
-Preuve inchangée depuis le 2026-08-15 :
-`docs/reports/evidence-index/drive-snapshot/drive_snapshot_mapping_20260815.json`,
-`drive_snapshot_metadata_20260815.json`. Le lot du 2026-08-22 a **lu** le
-mirroir local (`~/Téléchargements/NEXUS_RAG_GDRIVE_READY/`) comme source
-d'évidence (manifeste scellé, TSV de provenance) sans le rescanner ni
-revérifier sa complétude — usage en lecture, pas un audit Drive.
-
-## 8. Scope / profils gouvernés — audit réel (NOUVEAU, 2026-08-22)
-
-Preuve : `docs/reports/tier_a_scope_profile_audit_clean_20260822.json` +
-`docs/reports/lot_tier_a_scope_profile_multiscope_audit_20260822.md`.
-
-```
-AUTHORITY_REQUIRED_CONTENT_COUNT=72
-DISTINCT_LEVEL_SUBJECT_PAIRS=22
-DISTINCT_CANONICAL_RESOURCE_SCOPES (10 dimensions, entièrement ancré)=0
-ITEMS_WITH_UNRESOLVED_DIMENSION=72/72
-```
-**Constat structurel, pas un bug** : sur les 10 dimensions de
-`ResourceScope`, seules `matiere`/`niveau` (placements pédagogiques réels)
-et `school_year` (config de release) sont ancrables depuis une donnée de
-contenu réelle. `tenant`/`collection`/`voie`/`candidat`/`audience`/
-`visibility`/`programme_version` sont assignées par profil ou campagne,
-jamais intrinsèques au contenu — c'est pourquoi aucun des 72 n'obtient un
-tuple à 10 dimensions entièrement ancré indépendamment d'un profil.
-
-```
-PRODUCTION_PROFILE_FILES=1
-STAGING_PROFILE_FILES=2   (+ 1 sous-répertoire multilevel, + 1 manifest)
-AUTHORITY_REQUIRED_MAPPED_PRODUCTION=0
-AUTHORITY_REQUIRED_MAPPED_STAGING=0
-AUTHORITY_REQUIRED_NO_PROFILE=72
-AUTHORITY_REQUIRED_AMBIGUOUS_PROFILE=0
-```
-Cas notable signalé, non résolu ici : les 5 items Philosophie s'ancrent à
-`niveau=non-classe` (Éduscol ne grade-tag jamais la Philosophie), donc même
-eux échouent un match exact contre l'unique profil de production
-(`philosophie_terminale_tc_h2c_v1.yml`, `niveau=terminale`) — décision
-humaine, pas résolue par ce lot.
-
-### 8.1 Architecture multi-scope — audit uniquement, aucun code touché
-
-Verdict affiné par un second audit de composition (demandé explicitement
-pour ne pas conclure prématurément qu'un champ `scope` singulier implique
-une architecture globalement mono-scope) :
-
-```
-MULTISCOPE_ARCHITECTURE_RESOLVED=false
-EXISTING_CONTRACT_SUFFICIENT=false
+```text
+MULTIAUTH_CONTRACT_SURFACE_AUDIT_REQUIRED=true
 CONTRACT_CHANGE_REQUIRED=true
-ARCHITECTURE_AMBIGUOUS=false
-PROFILE_INVENTORY_GAP=true
-RESOURCE_SCOPE_CONTRACT_GAP=true   # étroit : uniquement production_readiness.py.authorization_digest
+ADR=ADR-0044
+CONTRACT_VERSION=0.13.0
+AUTHORIZATION_SET_PROTOCOL=NEXUS-AUTHORIZATION-SET-V1
+V1_LEGACY_READABLE_AND_UNCHANGED=true
+V2_MECHANISM_IMPLEMENTED_ON_BRANCH=true
 ```
 
-**Ce qui n'a PAS besoin de changer** : `_authority_semantic_validation`
-(`h2b_coverage_report.py:434-499`) ne croise jamais `scope` avec
-`allowed_content_sha256` — un `scope` singulier par artefact n'est donc pas
-le blocage. `ScopeAuthorizationArtifactV2`, `CorpusCampaignV1` et
-`H2CoverageEvidenceV1` n'ont besoin d'aucune modification : H2 évalue
-toujours le corpus complet (2584 objets, `expected_total=2584`) en un seul
-passage — il n'y a jamais eu N runs H2 partiels à composer, seulement un
-run unique qui doit pouvoir accepter N autorisations en entrée.
+La décision choisit un `AuthorizationSetV1` canonique comme source globale et
+des V2 explicites pour campaign, H2, promotion et readiness. Les autorisations
+`ScopeAuthorizationArtifactV2` et review bindings individuels restent les
+primitives de révocation et de revue. Les V1 ne changent ni de signification ni
+d'octets. ADR-0043 reste
+`UNREVIEWED_WIP/NON_AUTHORITATIVE/NOT_REUSED`.
 
-**Le seul blocage de contrat réel, précis** :
-`packages/contracts/src/nexus_contracts/production_readiness.py` →
-`ProductionReadinessManifestV1.authorization_digest: StrictStr` (hex64
-singulier) ne peut référencer qu'une seule autorisation — devrait devenir
-une collection/digest-agrégat. **Code non-contractuel manquant** (pas un
-blocage de contrat) : `generate_coverage_report`
-(`h2b_coverage_report.py:1324`) et `republish_catalog`
-(`catalog_republish.py:126-172`) prennent `authority_path` singulier —
-aucune fonction n'existe pour charger/unir N autorisations ; ceci vit dans
-`rag_pedago/imports/`/`rag_pedago/governance/`, pas dans
-`packages/contracts`, et est extensible par du nouveau code
-d'orchestration (pas un ADR).
+Les mécanismes sont présents sur la branche contractuelle, mais aucune vraie
+autorisation, campagne ou preuve H2 de production n'a encore été créée :
 
-Fausses pistes vérifiées et écartées : `ingestion_profiles/manifest.py:100`
-`ProfileAuthority` (LOT44f, explicitement documenté comme n'étant pas
-LOT41A), `Wave0ReleaseAuthority.authorities` (exige des autorités
-identiques entre sujets combinés — l'inverse de composer des scopes
-distincts), `docs/reports/evidence-index/` (ledger de disposition, pas un
-agrégateur d'autorisation). Aucun `bundle`/`ReleaseRegistry`/
-`CampaignCollection`/`ScopeSet` n'existe dans le repo.
-
-`PROFILE_INVENTORY_GAP=true` confirmé séparément : un seul profil de
-production existe aujourd'hui (`philosophie_terminale_tc_h2c_v1.yml`) — un
-manque d'inventaire pur, corrigible par la création de profils sous le
-schéma `ResourceScope` à 10 dimensions déjà existant, sans toucher aucun
-contrat.
-
-Piste minimale identifiée (non rédigée, non codée) : (1) élargir
-`ProductionReadinessManifestV1.authorization_digest` en collection/digest
-agrégat — SemVer bump + ADR requis ; (2) ajouter, dans
-`rag_pedago/imports/`/`rag_pedago/governance/` (pas dans
-`packages/contracts`), la capacité de charger/valider/unir N autorisations
-disjointes avec un contrôle qu'aucun `content_sha256` n'est réclamé deux
-fois. **Explicitement pas une résurrection d'ADR-0043** (quarantiné, sujet
-sans rapport : migration H2 V1→V2, pas le multi-scope).
-
-## 9. Production GitHub Environment (NOT_STARTED — non revérifié dans ce lot)
-
+```text
+REAL_AUTHORIZATIONS_CREATED=false
+REAL_CAMPAIGN_EXECUTED=false
+REAL_GOVERNED_REPUBLISH_EXECUTED=false
+REAL_H2_GATE_PASS=false
 ```
-PRODUCTION_ENVIRONMENT_EXISTS=false
+
+## 5. Chantiers go-live parallèles — état réel
+
+### Rehearsal Docker isolé
+
+Le transcript du rehearsal initial n'est ni récupérable ni versionné. Les
+valeurs résumées précédemment (`atomic=false`, `rollback=false`, services
+étrangers touchés `0`, mauvais digest/readiness refusés) restent une
+observation opérateur **historique non vérifiée**, jamais une preuve du lot.
+Le blocker technique exact ne peut pas être reconstruit honnêtement.
+
+```text
+DOCKER_REHEARSAL_EVIDENCE_STATUS=UNVERIFIED_TRANSCRIPT_NOT_VERSIONED
+ATOMIC_DOCKER_REHEARSAL_PASS=UNKNOWN
+ROLLBACK_REHEARSAL_PASS=UNKNOWN
+FOREIGN_SERVICES_TOUCHED=UNKNOWN
+BAD_DIGEST_REFUSED=UNKNOWN
+BAD_READINESS_REFUSED=UNKNOWN
+EXACT_TECHNICAL_BLOCKER=UNKNOWN_TRANSCRIPT_UNAVAILABLE
 ```
-Plan mergé (PR#113) mais configuration réelle jamais provisionnée. HUMAN GATE
-repo-admin séparé, avant le premier vrai run de `promote.yml`.
 
-## 10. Statut consolidé
+### Audit DB production read-only
 
-| Item | Statut | Preuve |
-|---|---|---|
-| Gouvernance PR#100→#126 (hors #96/#98) | **DONE** | §1 |
-| Gate trusted-review fiable (Commit Status) | **DONE** | §2 |
-| Governed republish — mécanisme | **DONE** | §3 |
-| Governed republish — exécution réelle | **NOT_STARTED** | §3 |
-| Currentness-verified promotion — mécanisme | **DONE** | §3 |
-| Currentness-verified promotion — exécution réelle | **NOT_STARTED** | §3 |
-| Atomic deploy — logique wrapper | **DONE (partiel)** | §3 |
-| Atomic deploy — rehearsal Docker réel isolé | **NOT_STARTED** | §3 |
-| Tier A — algèbre exacte + univers PII/droits | **DONE** | §5.1-5.3 |
-| Tier A — audit byte-identity réseau réel | **DONE (bloqué Cloudflare, 0 promotion)** | §5.4 |
-| Tier A — résolution complète (accès réseau non filtré requis) | **BLOCKED_HUMAN/INFRA** | §5.4 |
-| Scope/profil — mapping réel sur le set actuel | **DONE (0 match, 72 NO_PROFILE)** | §8 |
-| Architecture multi-scope — audit | **DONE** | §8.1 |
-| Architecture multi-scope — changement de contrat | **NOT_STARTED — nécessite ADR + PR dédiée** | §8.1 |
-| PR#96/#98 — audit | **DONE** | §6 |
-| PR#96/#98 — décision + action | **BLOCKED_HUMAN** | §6 |
-| Google Drive mirror | **DONE** | §7 |
-| Production GitHub Environment | **NOT_STARTED — BLOCKED_HUMAN (repo-admin)** | §9 |
-| `FINAL_ELIGIBLE_SHA_SET` figé | **NOT_STARTED** — reste 73/72 tant que Tier A n'est pas clos | §4, §5 |
-| Stratégie d'autorisation exacte-content | **NOT_STARTED — bloqué sur le changement de contrat multi-scope** | §8.1 |
-| Campagne réelle + republish réel | **NOT_STARTED** | §3 |
-| `promote.yml` run réel | **NOT_STARTED** | dépend du freeze |
-| `FINAL_RAG_MAIN_SHA` freeze | **NOT_STARTED** | dépend de tout ce qui précède |
-| Signature offline | **NOT_STARTED — HUMAN GATE final** | |
-| Cutover production | **NOT_STARTED — HUMAN GATE final** | |
+Le résumé opérateur indiquait une tentative SSH arrêtée sur une clé d'hôte
+inconnue et zéro écriture, mais aucun transcript versionné ne le démontre. Ces
+valeurs sont donc conservées uniquement comme observation historique non
+vérifiée. La base locale de développement n'est pas assimilée à la production.
 
-## 11. Prochaine séquence recommandée
+```text
+DB_AUDIT_EVIDENCE_STATUS=UNVERIFIED_TRANSCRIPT_NOT_VERSIONED
+PROD_DB_TARGET_VERIFIED=UNKNOWN
+PROD_DB_MIGRATION_PLAN_READY=UNKNOWN
+PROD_DB_WRITES=UNKNOWN
+```
 
-1. **Décision opérateur** : comment lever le blocage Cloudflare sur
-   eduscol.education.gouv.fr (poste réseau non filtré, ou accepter les 138
-   comme `REVIEW_REQUIRED` permanents pour cette release) — §5.4.
-2. **ADR + PR dédiée** pour l'extension d'orchestration multi-scope — §8.1 —
-   avant toute construction d'autorisation réelle sur le set de 72.
-3. **Décision opérateur sur PR#96/#98** — §6.
-4. Une fois 1-3 tranchés : construire la stratégie d'autorisation
-   exacte-content sur le set final (jamais sur 63 ou 72 seuls si le
-   multi-scope change le périmètre), créer la première vraie campagne,
-   exécuter `republish-catalog` pour de vrai.
-5. Rehearsal Docker réel isolé (atomic deploy), sans toucher la stack
-   `infra` déjà en cours sur cet hôte.
-6. Production GitHub Environment — HUMAN GATE repo-admin.
-7. Freeze → provenance réelle → promotion réelle → signature offline →
-   cutover.
+### GitHub Environment `production`
+
+L'Environment est absent et non provisionné. Le geste admin exact est préparé
+dans `docs/reports/plan_production_github_environment.md` : reviewer
+`abenrhouma` (`user id 67140603`), branche `main` uniquement, prévention de
+l'auto-revue, aucun bypass admin, wait timer 0, secrets 0.
+La lecture API nettoyée du 2026-08-24 est versionnée dans
+`docs/reports/github_environment_read_only_observation_20260824.json` : zéro
+Environment et permission reviewer `write`, sans mutation. Digest :
+`8880808bf1b46032e69141793d34815f4db836692a2e3f44d8f280db9f020d8a`.
+
+```text
+PRODUCTION_ENVIRONMENT_PROVISIONED=false
+HUMAN_ADMIN_ACTION_REQUIRED=true
+```
+
+## 6. Drive, PR historiques et état de release
+
+`DRIVE_MIRROR_COMPLETE=true` reste fondé sur le snapshot précédent ; le Drive
+n'a pas été rescanné dans ce lot. PR #96 reste legacy/inactive et ne doit pas
+être approuvée. PR #98 reste un candidat V2 partiel de cinq contenus ; sa
+réutilisation sera décidée après construction du vrai set.
+
+```text
+PRODUCTION_READY=false
+GO_LIVE_READY=false
+RAG_PRODUCTION_DEPLOYED=false
+DRIVE_MIRROR_COMPLETE=true
+AUTHORIZED_ELIGIBLE_ARTIFACTS=0
+INGESTED_ELIGIBLE_ARTIFACTS=0
+API_DISCOVERABLE_ELIGIBLE_ARTIFACTS=0
+```
+
+La prochaine barrière est la PR contractuelle multi-autorisation elle-même.
+Les gates réels suivants restent, dans l'ordre : décisions de profils,
+autorisations exactes, campagne/republish, H2, rehearsal Docker corrigé, cible
+DB vérifiée, Environment provisionné, provenance/promotion, signature offline,
+puis cutover.

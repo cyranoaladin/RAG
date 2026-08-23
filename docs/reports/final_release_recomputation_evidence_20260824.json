@@ -1,0 +1,70 @@
+{
+  "protocol_version": "NEXUS-FINAL-RELEASE-RECOMPUTATION-EVIDENCE-V1",
+  "observed_at": "2026-08-24T06:54:04Z",
+  "baseline_main_sha": "3548bf300c99685ff6ede0dce2e5bfe8c044d213",
+  "producer": "services/rag-pedago/scripts/recompute_final_release_set.py",
+  "producer_exit_code": 0,
+  "input_path_labels": {
+    "sealed_manifest": "sealed-corpus/00_ADMIN/SHA256SUMS.txt",
+    "placements": "sealed-corpus/00_ADMIN/eduscol_affectations.tsv",
+    "pii_exhaustive": "h2-evidence/h2b_exhaustive_pii_scan_20260813.jsonl",
+    "pii_campaign": "h2-evidence/h2b_pii_evidence_20260808.json",
+    "routing": "services/rag-pedago/configs/corpus_zone_routing.yml",
+    "rights": "services/rag-pedago/configs/rights_evidence_registry.yml",
+    "golden": "services/rag-pedago/configs/golden_corpus_h2b.yml",
+    "currentness": "services/rag-pedago/configs/prerentree_2026_2027/multilevel_currentness_evidence.yml"
+  },
+  "input_digests": {
+    "sealed_manifest": "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e",
+    "placements": "25cf40cec8a98692d4532a71b58a9685821bbc2b9a4785c25fac7138a49906ec",
+    "pii_exhaustive": "0229a0f2d7edbd1bb1b1412a8ccd447b3c6d2ce71dc73a0f2e726751156fa357",
+    "pii_campaign": "76e6ba3cd5b1c116c8647b611eb3fdeb2aba6b8c7fdfbad9e71048354956f311",
+    "routing": "0d4d25215cb0ed40c439ff172c9dbce3f2a1b0b945313a042285b2e57bffc833",
+    "rights": "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff",
+    "golden": "28856e0655eca7695f273a5934925785c49ecf828d930804984f6e58f4da6f69",
+    "currentness": "2ad7209f28cd7cbf9f1ea91724b687983579c36c91619e8d107d28b72b849122"
+  },
+  "output_digests": {
+    "generated_summary": "ff0d8a156e82717fdea3b18b9c26083b6c96361c680301bcaca8036e6034b4b5",
+    "final_authority_required_set": "3705935f306a52cde0f398db20f685dce82d0bb9acd7909c8e6955d6356643e0",
+    "terminal_content_dispositions": "127231629e94260170c69c841b29278bf4b74b56a276097e885c574853464a10"
+  },
+  "committed_set_path": "docs/reports/final_authority_required_set_20260823.txt",
+  "committed_set_byte_identity": true,
+  "result": {
+    "physical_object_count": 2584,
+    "manifest_entry_count": 2583,
+    "unique_content_sha256": 2582,
+    "final_base_ingest_candidates": 73,
+    "final_non_authority_blocked_count": 1,
+    "final_authority_required_count": 72,
+    "final_authority_required_set_sha256": "3705935f306a52cde0f398db20f685dce82d0bb9acd7909c8e6955d6356643e0",
+    "release_terminal_disposition_counts": {
+      "ARCHIVE_ONLY": 19,
+      "EXCLUDE": 53,
+      "INGEST_CANDIDATE": 72,
+      "QUARANTINE": 2,
+      "REVIEW_REQUIRED": 2399,
+      "UNSUPPORTED": 37
+    },
+    "unaccounted_contents": 0,
+    "unexpected_contents": 0,
+    "terminal_disposition_coverage_percent": 100.0,
+    "canonical_conflict_count": 1,
+    "canonical_conflict": {
+      "content_sha256": "050b18155057cf836f42f199435d98eea36ba6e87439f593247f56c402edad5f",
+      "base_dispositions": [
+        "EXCLUDE",
+        "REVIEW_REQUIRED"
+      ],
+      "dispositions": [
+        "EXCLUDE",
+        "REVIEW_REQUIRED"
+      ],
+      "release_resolution": "REVIEW_REQUIRED"
+    },
+    "golden_controls": "13/13",
+    "golden_validation_pass": true,
+    "h2_coverage_gate_pass_without_authority": false
+  }
+}
