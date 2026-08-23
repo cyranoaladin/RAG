@@ -137,6 +137,13 @@ exclusivement le manifeste corpus. Le republish V2 vérifie le set une fois,
 publie exactement l'union et annote chaque contenu avec l'autorisation,
 le profil et le scope uniques qui le gouvernent.
 
+Le dépôt ne contient pas encore de producteur batch qui transforme ce
+catalogue republié en jobs. Le présent lot matérialise donc la fonction
+canonique `content_sha256 → scope_authorization_id` sans inventer un appelant.
+Le lot de campagne réelle devra copier cet ID exact dans le payload singulier
+et le tester de bout en bout ; il ne pourra ni choisir une autorisation
+« récente », ni reconstruire localement la partition globale.
+
 ### H2
 
 `H2CoverageEvidenceV2` remplace l'identité singulière par
