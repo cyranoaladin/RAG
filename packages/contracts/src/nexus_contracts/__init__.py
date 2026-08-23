@@ -167,6 +167,15 @@ from nexus_contracts.release_evidence import (
     verify_h2_evidence_bundle_v2_freshness,
     verify_promotion_evidence_v2,
 )
+from nexus_contracts.release_scope_placement import (
+    ProducedReleaseScopePlacement,
+    ReleaseScopePlacementGitInputs,
+    ReleaseScopePlacementProducerError,
+    ReleaseScopePlacementProvenance,
+    VerifiedReleaseScopePlacement,
+    produce_release_scope_placement_from_blobs,
+    produce_release_scope_placement_from_git,
+)
 
 __all__ = [
     "AccessContext",
@@ -255,6 +264,13 @@ __all__ = [
     "parse_promotion_evidence_v2",
     "verify_h2_evidence_bundle_v2_freshness",
     "verify_promotion_evidence_v2",
+    "ProducedReleaseScopePlacement",
+    "ReleaseScopePlacementGitInputs",
+    "ReleaseScopePlacementProducerError",
+    "ReleaseScopePlacementProvenance",
+    "VerifiedReleaseScopePlacement",
+    "produce_release_scope_placement_from_blobs",
+    "produce_release_scope_placement_from_git",
     "AUTHORIZATIONS_DIR",
     "AUTHORIZE_INGESTION_SCOPE_DECISION",
     "AUTHORIZE_PUBLICATION_DECISION",

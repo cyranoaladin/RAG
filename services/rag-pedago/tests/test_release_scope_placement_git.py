@@ -18,6 +18,9 @@ from nexus_contracts.ingestion import (
     collection_profile_fingerprint,
     profile_manifest_fingerprint,
 )
+from nexus_contracts.release_scope_placement import (
+    produce_release_scope_placement_from_blobs,
+)
 
 from rag_pedago.governance.cli import main
 from rag_pedago.governance.release_scope_placement import (
@@ -304,6 +307,40 @@ def test_public_producer_reads_and_binds_only_exact_tree_blobs(tmp_path: Path) -
     assert all(
         entry.startswith("100644 blob ") for entry in produced.provenance.input_git_entries.values()
     )
+
+
+def test_service_git_wrapper_matches_shared_frozen_blob_verifier(tmp_path: Path) -> None:
+    repo, tree = _repository(tmp_path)
+    paths = subprocess.run(
+        ["git", "ls-tree", "-r", "--name-only", "-z", tree],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+    ).stdout.rstrip(b"\0").split(b"\0")
+    blobs = {
+        path.decode(): subprocess.run(
+            ["git", "show", f"{tree}:{path.decode()}"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+        ).stdout
+        for path in paths
+    }
+
+    shared = produce_release_scope_placement_from_blobs(
+        source_blobs=blobs,
+        profile_proposal_matrix_path=MATRIX_PATH,
+        accepted_placements_path=PLACEMENTS_PATH,
+        release_registry_path=REGISTRY_PATH,
+        expected_contents_path=CONTENTS_PATH,
+        verified_profiles_path=PROFILES_PATH,
+        profile_manifest_path=PROFILE_MANIFEST_PATH,
+    )
+    service = _produce(repo, tree)
+
+    assert shared.placement == service.placement
+    assert shared.verified_profile_facts == service.verified_profile_facts
+    assert shared.input_blob_sha256 == service.provenance.input_blob_sha256
 
 
 def test_every_verified_profile_fact_requires_exact_tree_source(tmp_path: Path) -> None:

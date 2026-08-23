@@ -34,6 +34,36 @@ from nexus_contracts.production_readiness import (  # noqa: E402
     sign_production_readiness_manifest,
 )
 
+from tests.test_sign_production_readiness_manifest_cli import (  # noqa: E402
+    APPLICATION_IMAGE_DIGESTS as V2_APPLICATION_IMAGES,
+)
+from tests.test_sign_production_readiness_manifest_cli import (
+    PR_HEAD_SHA as V2_PR_HEAD_SHA,
+)
+from tests.test_sign_production_readiness_manifest_cli import (
+    PR_NUMBER as V2_PR_NUMBER,
+)
+from tests.test_sign_production_readiness_manifest_cli import (
+    TEST_KEY_ID as V2_KEY_ID,
+)
+from tests.test_sign_production_readiness_manifest_cli import (
+    TEST_SEED as V2_SEED,
+)
+from tests.test_sign_production_readiness_manifest_cli import (
+    TREE_SHA as V2_TREE_SHA,
+)
+from tests.test_sign_production_readiness_manifest_cli import (
+    UPSTREAM_IMAGE_REF as V2_UPSTREAM_IMAGE_REF,
+)
+from tests.test_sign_production_readiness_manifest_cli import (
+    UPSTREAM_IMAGE_SERVICE as V2_UPSTREAM_IMAGE_SERVICE,
+)
+from tests.test_sign_production_readiness_manifest_cli import (
+    WORKFLOW_REF as V2_WORKFLOW_REF,
+)
+from tests.test_sign_production_readiness_manifest_cli import (
+    _v2_material,
+)
 from tests.test_verify_release_image_provenance_cli import (  # noqa: E402
     _dummy_compose_env,
 )
@@ -440,6 +470,228 @@ class TestReadinessManifestOptionalVerification:
                 resolved_compose_digest=RESOLVED_COMPOSE_DIGEST,
             )
 
+
+class TestReadinessManifestV2ExactMaterialVerification:
+    def _signed(self) -> tuple[bytes, bytes, Any]:
+        material = _v2_material()
+        manifest = dep.signer.assemble_and_sign_v2(
+            material,
+            repository=REPOSITORY,
+            pr_number=V2_PR_NUMBER,
+            pr_head_sha=V2_PR_HEAD_SHA,
+            pr_head_tree_sha=V2_TREE_SHA,
+            application_image_digests=V2_APPLICATION_IMAGES,
+            upstream_image_digests={V2_UPSTREAM_IMAGE_SERVICE: V2_UPSTREAM_IMAGE_REF},
+            compose_digest=RESOLVED_COMPOSE_DIGEST,
+            key_id=V2_KEY_ID,
+            workflow_ref=V2_WORKFLOW_REF,
+        )
+        signed = dep.signer.sign_production_readiness_manifest_v2(
+            manifest, private_key_hex=V2_SEED, key_id=V2_KEY_ID
+        ).canonical_bytes()
+        anchor = _trust_anchor_bytes(key_id=V2_KEY_ID)
+        document = json.loads(anchor)
+        document["keys"][0]["public_key"] = public_readiness_key_hex(V2_SEED)
+        return signed, json.dumps(document).encode(), material
+
+    def test_v2_signature_and_all_material_are_reverified(self) -> None:
+        signed, anchor, material = self._signed()
+        manifest = dep.verify_readiness_manifest_v2_with_material(
+            readiness_manifest_raw=signed,
+            trust_anchor_raw=anchor,
+            material=material,
+            environment="production",
+            merge_sha=MERGE_SHA,
+            resolved_compose_digest=RESOLVED_COMPOSE_DIGEST,
+        )
+        assert manifest.authorization_set_digest == hashlib.sha256(
+            material.authorization_set_raw
+        ).hexdigest()
+
+    def test_changed_set_is_refused_before_deployment(self) -> None:
+        signed, anchor, material = self._signed()
+        changed = dep.dataclasses.replace(material, authorization_set_raw=b"{}\n")
+        with pytest.raises(dep.DeploymentWrapperError, match="authorization set"):
+            dep.verify_readiness_manifest_v2_with_material(
+                readiness_manifest_raw=signed,
+                trust_anchor_raw=anchor,
+                material=changed,
+                environment="production",
+                merge_sha=MERGE_SHA,
+                resolved_compose_digest=RESOLVED_COMPOSE_DIGEST,
+            )
+
+    @pytest.mark.parametrize(
+        "updates",
+        [
+            {"repository": "other/repo"},
+            {"pr_number": V2_PR_NUMBER + 901},
+            {"pr_head_sha": "7" * 40},
+            {"pr_head_tree_sha": "8" * 40, "merge_tree_sha": "8" * 40},
+            {
+                "repository": "other/repo",
+                "pr_number": V2_PR_NUMBER + 901,
+                "pr_head_sha": "7" * 40,
+                "pr_head_tree_sha": "8" * 40,
+                "merge_tree_sha": "8" * 40,
+            },
+        ],
+    )
+    def test_signed_release_identity_must_equal_verified_promotion(
+        self, updates: dict[str, object]
+    ) -> None:
+        _signed, anchor, material = self._signed()
+        manifest = dep.signer.assemble_and_sign_v2(
+            material,
+            repository=REPOSITORY,
+            pr_number=V2_PR_NUMBER,
+            pr_head_sha=V2_PR_HEAD_SHA,
+            pr_head_tree_sha=V2_TREE_SHA,
+            application_image_digests=V2_APPLICATION_IMAGES,
+            upstream_image_digests={V2_UPSTREAM_IMAGE_SERVICE: V2_UPSTREAM_IMAGE_REF},
+            compose_digest=RESOLVED_COMPOSE_DIGEST,
+            key_id=V2_KEY_ID,
+            workflow_ref=V2_WORKFLOW_REF,
+        ).model_copy(update=updates)
+        changed = dep.signer.sign_production_readiness_manifest_v2(
+            manifest, private_key_hex=V2_SEED, key_id=V2_KEY_ID
+        ).canonical_bytes()
+
+        with pytest.raises(dep.DeploymentWrapperError, match="material mismatch"):
+            dep.verify_readiness_manifest_v2_with_material(
+                readiness_manifest_raw=changed,
+                trust_anchor_raw=anchor,
+                material=material,
+                environment="production",
+                merge_sha=MERGE_SHA,
+                resolved_compose_digest=RESOLVED_COMPOSE_DIGEST,
+            )
+
+    def test_pr_head_tree_is_explicitly_compared_to_verified_promotion(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        signed, anchor, material = self._signed()
+        verified = dep.signer.verify_v2_release_material(material)
+        changed_promotion = verified.promotion.model_copy(
+            update={"pr_head_tree_sha": "8" * 40}
+        )
+        monkeypatch.setattr(
+            dep.signer,
+            "verify_v2_release_material",
+            lambda _material: dep.dataclasses.replace(
+                verified, promotion=changed_promotion
+            ),
+        )
+
+        with pytest.raises(dep.DeploymentWrapperError, match="pr_head_tree_sha"):
+            dep.verify_readiness_manifest_v2_with_material(
+                readiness_manifest_raw=signed,
+                trust_anchor_raw=anchor,
+                material=material,
+                environment="production",
+                merge_sha=MERGE_SHA,
+                resolved_compose_digest=RESOLVED_COMPOSE_DIGEST,
+            )
+
+    def test_v1_signed_document_never_falls_back_into_v2(self) -> None:
+        _signed, anchor, material = self._signed()
+        with pytest.raises(dep.DeploymentWrapperError, match="V2"):
+            dep.verify_readiness_manifest_v2_with_material(
+                readiness_manifest_raw=_signed_manifest_bytes(
+                    compose_digest=RESOLVED_COMPOSE_DIGEST
+                ),
+                trust_anchor_raw=anchor,
+                material=material,
+                environment="production",
+                merge_sha=MERGE_SHA,
+                resolved_compose_digest=RESOLVED_COMPOSE_DIGEST,
+            )
+
+    def test_v2_bundle_materializes_and_reverifies_every_governance_file(
+        self, tmp_path: Path
+    ) -> None:
+        material = _v2_material()
+        resolved = _resolved_compose(
+            pgvector={"image": V2_UPSTREAM_IMAGE_REF}
+        )
+        compose_digest = hashlib.sha256(
+            vri.canonical_resolved_compose_bytes(resolved)
+        ).hexdigest()
+        manifest = dep.signer.assemble_and_sign_v2(
+            material,
+            repository=REPOSITORY,
+            pr_number=V2_PR_NUMBER,
+            pr_head_sha=V2_PR_HEAD_SHA,
+            pr_head_tree_sha=V2_TREE_SHA,
+            application_image_digests=V2_APPLICATION_IMAGES,
+            upstream_image_digests={V2_UPSTREAM_IMAGE_SERVICE: V2_UPSTREAM_IMAGE_REF},
+            compose_digest=compose_digest,
+            key_id=V2_KEY_ID,
+            workflow_ref=V2_WORKFLOW_REF,
+        )
+        readiness = tmp_path / "readiness-v2.json"
+        readiness.write_bytes(
+            dep.signer.sign_production_readiness_manifest_v2(
+                manifest, private_key_hex=V2_SEED, key_id=V2_KEY_ID
+            ).canonical_bytes()
+        )
+        anchor = tmp_path / "readiness-anchor.json"
+        anchor_document = json.loads(_trust_anchor_bytes(key_id=V2_KEY_ID))
+        anchor_document["keys"][0]["public_key"] = public_readiness_key_hex(V2_SEED)
+        anchor.write_text(json.dumps(anchor_document), encoding="utf-8")
+        fakes = _Fakes(
+            run=_run_document(),
+            inventory=_inventory_document(source_tree_sha=V2_TREE_SHA),
+            resolved_compose=resolved,
+        )
+        bundle_dir = tmp_path / "bundle-v2"
+        document = _materialize(
+            fakes,
+            tmp_path,
+            bundle_dir=bundle_dir,
+            merge_tree_sha=V2_TREE_SHA,
+            readiness_manifest_file=readiness,
+            trust_anchor_file=anchor,
+            readiness_protocol="NEXUS-PRODUCTION-READINESS-V2",
+            v2_release_material=material,
+        )
+        assert document["readiness_protocol"] == "NEXUS-PRODUCTION-READINESS-V2"
+        assert (bundle_dir / dep._AUTHORIZATION_SET_BUNDLE_NAME).read_bytes() == (
+            material.authorization_set_raw
+        )
+        assert dep.deploy_from_bundle(
+            bundle_dir=bundle_dir,
+            merge_sha=MERGE_SHA,
+            execute=False,
+            trusted_readiness_anchor_raw=anchor.read_bytes(),
+            run_bundle_compose_config=lambda *_args: resolved,
+        )
+
+        revocations_path = bundle_dir / dep._REVOCATIONS_BUNDLE_NAME
+        outside = tmp_path / "outside-revocations.json"
+        revocations_path.replace(outside)
+        revocations_path.symlink_to(outside)
+        with pytest.raises(dep.DeploymentWrapperError, match="symlink"):
+            dep.deploy_from_bundle(
+                bundle_dir=bundle_dir,
+                merge_sha=MERGE_SHA,
+                execute=True,
+                run_subprocess=lambda _args, _cwd: pytest.fail("mutation executed"),
+                list_running_containers=lambda: [],
+            )
+        revocations_path.unlink()
+        revocations_path.write_bytes(
+            b'{"protocol_version":"NEXUS-AUTHORIZATION-REVOCATIONS-V1"}\n'
+        )
+        with pytest.raises(dep.DeploymentWrapperError, match="modified"):
+            dep.deploy_from_bundle(
+                bundle_dir=bundle_dir,
+                merge_sha=MERGE_SHA,
+                execute=True,
+                run_subprocess=lambda _args, _cwd: pytest.fail("mutation executed"),
+                list_running_containers=lambda: [],
+            )
+
     def test_manifest_without_trust_anchor_is_refused(self) -> None:
         with pytest.raises(dep.DeploymentWrapperError, match="trust-anchor-file"):
             dep.verify_readiness_manifest_if_supplied(
@@ -580,7 +832,7 @@ class TestDeployFromBundle:
     def test_execute_runs_pull_then_up_with_explicit_services_against_bundle_paths_only(
         self, tmp_path: Path
     ) -> None:
-        bundle_dir = self._bundle(tmp_path)
+        bundle_dir, anchor_raw = _signed_v1_bundle(tmp_path)
         calls: list[list[str]] = []
 
         class _Result:
@@ -598,6 +850,8 @@ class TestDeployFromBundle:
             execute=True,
             run_subprocess=_run_subprocess,
             list_running_containers=lambda: [],
+            trusted_readiness_anchor_raw=anchor_raw,
+            run_bundle_compose_config=lambda *_args: _resolved_compose(),
         )
         assert len(calls) == 2
         expected_services = sorted({*EXPECTED_SERVICES, "pgvector"})
@@ -610,7 +864,7 @@ class TestDeployFromBundle:
             assert "--remove-orphans" not in call
 
     def test_pull_failure_aborts_before_up_is_ever_invoked(self, tmp_path: Path) -> None:
-        bundle_dir = self._bundle(tmp_path)
+        bundle_dir, anchor_raw = _signed_v1_bundle(tmp_path)
         calls: list[list[str]] = []
 
         class _Failed:
@@ -628,6 +882,8 @@ class TestDeployFromBundle:
                 execute=True,
                 run_subprocess=_run_subprocess,
                 list_running_containers=lambda: [],
+                trusted_readiness_anchor_raw=anchor_raw,
+                run_bundle_compose_config=lambda *_args: _resolved_compose(),
             )
         assert len(calls) == 1
 
@@ -680,7 +936,11 @@ class TestDeployFromBundle:
         manifest_path = bundle_dir / "bundle_manifest.json"
         document = json.loads(manifest_path.read_bytes())
         document["protocol_version"] = "SOMETHING-ELSE-V1"
-        manifest_path.write_bytes(json.dumps(document).encode("utf-8"))
+        document.pop("bundle_digest")
+        document["bundle_digest"] = hashlib.sha256(
+            dep._canonical_json_bytes(document)
+        ).hexdigest()
+        manifest_path.write_bytes(dep._canonical_json_bytes(document))
         with pytest.raises(dep.DeploymentWrapperError, match="protocol_version"):
             dep.deploy_from_bundle(bundle_dir=bundle_dir, merge_sha=MERGE_SHA, execute=False)
 
@@ -689,7 +949,11 @@ class TestDeployFromBundle:
         manifest_path = bundle_dir / "bundle_manifest.json"
         document = json.loads(manifest_path.read_bytes())
         document["repository"] = "someone-else/fork"
-        manifest_path.write_bytes(json.dumps(document).encode("utf-8"))
+        document.pop("bundle_digest")
+        document["bundle_digest"] = hashlib.sha256(
+            dep._canonical_json_bytes(document)
+        ).hexdigest()
+        manifest_path.write_bytes(dep._canonical_json_bytes(document))
         with pytest.raises(dep.DeploymentWrapperError, match="repository"):
             dep.deploy_from_bundle(bundle_dir=bundle_dir, merge_sha=MERGE_SHA, execute=False)
 
@@ -718,7 +982,7 @@ class TestLabelSafetyBeforeMutation:
     def test_foreign_container_with_colliding_service_name_refuses_before_any_mutation(
         self, tmp_path: Path
     ) -> None:
-        bundle_dir = self._bundle(tmp_path)
+        bundle_dir, anchor_raw = _signed_v1_bundle(tmp_path)
         calls: list[list[str]] = []
 
         def _run_subprocess(args: list[str], cwd: Path) -> Any:
@@ -739,13 +1003,15 @@ class TestLabelSafetyBeforeMutation:
                 execute=True,
                 run_subprocess=_run_subprocess,
                 list_running_containers=lambda: [foreign],
+                trusted_readiness_anchor_raw=anchor_raw,
+                run_bundle_compose_config=lambda *_args: _resolved_compose(),
             )
         assert calls == []
 
     def test_container_already_running_from_the_same_bundle_working_dir_is_not_a_collision(
         self, tmp_path: Path
     ) -> None:
-        bundle_dir = self._bundle(tmp_path)
+        bundle_dir, anchor_raw = _signed_v1_bundle(tmp_path)
 
         class _Result:
             returncode = 0
@@ -764,10 +1030,12 @@ class TestLabelSafetyBeforeMutation:
             execute=True,
             run_subprocess=lambda args, cwd: _Result(),
             list_running_containers=lambda: [own],
+            trusted_readiness_anchor_raw=anchor_raw,
+            run_bundle_compose_config=lambda *_args: _resolved_compose(),
         )  # must not raise
 
     def test_unrelated_service_name_running_elsewhere_is_not_a_collision(self, tmp_path: Path) -> None:
-        bundle_dir = self._bundle(tmp_path)
+        bundle_dir, anchor_raw = _signed_v1_bundle(tmp_path)
 
         class _Result:
             returncode = 0
@@ -786,6 +1054,8 @@ class TestLabelSafetyBeforeMutation:
             execute=True,
             run_subprocess=lambda args, cwd: _Result(),
             list_running_containers=lambda: [unrelated],
+            trusted_readiness_anchor_raw=anchor_raw,
+            run_bundle_compose_config=lambda *_args: _resolved_compose(),
         )  # must not raise
 
 
@@ -795,8 +1065,230 @@ class TestNoRemoveOrphansAnywhereInTheModule:
             Path(__file__).resolve().parents[1] / "scripts" / "deploy_verified_release_cli.py"
         ).read_text()
         assert "--remove-orphans" not in source
-        assert "remove_orphans" not in source
-        assert "remove-orphans" not in source
+
+
+def _rewrite_bundle_manifest(bundle_dir: Path, mutate: Any) -> dict[str, Any]:
+    path = bundle_dir / dep._BUNDLE_MANIFEST_NAME
+    document = json.loads(path.read_bytes())
+    document.pop("bundle_digest", None)
+    mutate(document)
+    document["bundle_digest"] = hashlib.sha256(
+        dep._canonical_json_bytes(document)
+    ).hexdigest()
+    path.write_bytes(dep._canonical_json_bytes(document))
+    return document
+
+
+def _signed_v1_bundle(tmp_path: Path) -> tuple[Path, bytes]:
+    resolved = _resolved_compose()
+    fakes = _Fakes(
+        run=_run_document(),
+        inventory=_inventory_document(),
+        resolved_compose=resolved,
+    )
+    readiness_path = tmp_path / "readiness-v1.json"
+    readiness_path.write_bytes(
+        _signed_manifest_bytes(
+            compose_digest=RESOLVED_COMPOSE_DIGEST,
+            application_image_digests={
+                "ingestor": f"{INGESTOR_REPO}@{INGESTOR_DIGEST}",
+                "multilevel-worker-a-production": f"{WORKER_REPO}@{WORKER_DIGEST}",
+                "multilevel-worker-b-production": f"{WORKER_REPO}@{WORKER_DIGEST}",
+            },
+            upstream_image_digests={
+                "pgvector": "pgvector/pgvector@sha256:" + "9" * 64
+            },
+        )
+    )
+    anchor_raw = _trust_anchor_bytes()
+    anchor_path = tmp_path / "readiness-anchor.json"
+    anchor_path.write_bytes(anchor_raw)
+    bundle_dir = tmp_path / "signed-v1-bundle"
+    _materialize(
+        fakes,
+        tmp_path,
+        bundle_dir=bundle_dir,
+        readiness_manifest_file=readiness_path,
+        trust_anchor_file=anchor_path,
+    )
+    return bundle_dir, anchor_raw
+
+
+class TestBundleTrustAndEffectiveCompose:
+    def test_bundle_manifest_digest_is_verified(self, tmp_path: Path) -> None:
+        bundle_dir, anchor_raw = _signed_v1_bundle(tmp_path)
+        document = json.loads((bundle_dir / dep._BUNDLE_MANIFEST_NAME).read_bytes())
+        document["explicit_services"] = ["attacker"]
+        (bundle_dir / dep._BUNDLE_MANIFEST_NAME).write_bytes(
+            dep._canonical_json_bytes(document)
+        )
+        with pytest.raises(dep.DeploymentWrapperError, match="bundle_digest"):
+            dep.deploy_from_bundle(
+                bundle_dir=bundle_dir,
+                merge_sha=MERGE_SHA,
+                execute=False,
+                trusted_readiness_anchor_raw=anchor_raw,
+                run_bundle_compose_config=lambda *_args: _resolved_compose(),
+            )
+
+    def test_signed_v2_labeled_v1_is_refused_before_compose_resolution(
+        self, tmp_path: Path
+    ) -> None:
+        material = _v2_material()
+        manifest = dep.signer.assemble_and_sign_v2(
+            material,
+            repository=REPOSITORY,
+            pr_number=V2_PR_NUMBER,
+            pr_head_sha=V2_PR_HEAD_SHA,
+            pr_head_tree_sha=V2_TREE_SHA,
+            application_image_digests=V2_APPLICATION_IMAGES,
+            upstream_image_digests={V2_UPSTREAM_IMAGE_SERVICE: V2_UPSTREAM_IMAGE_REF},
+            compose_digest=RESOLVED_COMPOSE_DIGEST,
+            key_id=V2_KEY_ID,
+            workflow_ref=V2_WORKFLOW_REF,
+        )
+        bundle_dir, _anchor_raw = _signed_v1_bundle(tmp_path)
+        (bundle_dir / dep._READINESS_MANIFEST_BUNDLE_NAME).write_bytes(
+            dep.signer.sign_production_readiness_manifest_v2(
+                manifest, private_key_hex=V2_SEED, key_id=V2_KEY_ID
+            ).canonical_bytes()
+        )
+        bundle_document = json.loads(
+            (bundle_dir / dep._BUNDLE_MANIFEST_NAME).read_bytes()
+        )
+        bundle_document["files"][dep._READINESS_MANIFEST_BUNDLE_NAME] = hashlib.sha256(
+            (bundle_dir / dep._READINESS_MANIFEST_BUNDLE_NAME).read_bytes()
+        ).hexdigest()
+        bundle_document["readiness_protocol"] = "NEXUS-PRODUCTION-READINESS-V1"
+        bundle_document.pop("bundle_digest")
+        bundle_document["bundle_digest"] = hashlib.sha256(
+            dep._canonical_json_bytes(bundle_document)
+        ).hexdigest()
+        (bundle_dir / dep._BUNDLE_MANIFEST_NAME).write_bytes(
+            dep._canonical_json_bytes(bundle_document)
+        )
+        calls = 0
+
+        def resolver(*_args: Any) -> dict[str, Any]:
+            nonlocal calls
+            calls += 1
+            return _resolved_compose()
+
+        with pytest.raises(dep.DeploymentWrapperError, match="protocol"):
+            dep.deploy_from_bundle(
+                bundle_dir=bundle_dir,
+                merge_sha=MERGE_SHA,
+                execute=False,
+                trusted_readiness_anchor_raw=_trust_anchor_bytes(
+                    key_id=V2_KEY_ID
+                ),
+                run_bundle_compose_config=resolver,
+            )
+        assert calls == 0
+
+    def test_unknown_signed_protocol_is_refused_before_compose_resolution(
+        self, tmp_path: Path
+    ) -> None:
+        bundle_dir, anchor_raw = _signed_v1_bundle(tmp_path)
+        readiness = bundle_dir / dep._READINESS_MANIFEST_BUNDLE_NAME
+        readiness.write_bytes(b'{"manifest":{"protocol_version":"GARBAGE"}}')
+        _rewrite_bundle_manifest(
+            bundle_dir,
+            lambda document: document["files"].update(
+                {dep._READINESS_MANIFEST_BUNDLE_NAME: hashlib.sha256(readiness.read_bytes()).hexdigest()}
+            ),
+        )
+        calls = 0
+
+        def resolver(*_args: Any) -> dict[str, Any]:
+            nonlocal calls
+            calls += 1
+            return _resolved_compose()
+
+        with pytest.raises(dep.DeploymentWrapperError, match="unsupported signed readiness"):
+            dep.deploy_from_bundle(
+                bundle_dir=bundle_dir,
+                merge_sha=MERGE_SHA,
+                execute=False,
+                trusted_readiness_anchor_raw=anchor_raw,
+                run_bundle_compose_config=resolver,
+            )
+        assert calls == 0
+
+    def test_effective_compose_must_match_signed_resolved_digest(
+        self, tmp_path: Path
+    ) -> None:
+        bundle_dir, anchor_raw = _signed_v1_bundle(tmp_path)
+        changed = _resolved_compose(
+            pgvector={"image": "pgvector/pgvector@sha256:" + "7" * 64}
+        )
+        with pytest.raises(dep.DeploymentWrapperError, match="effective compose"):
+            dep.deploy_from_bundle(
+                bundle_dir=bundle_dir,
+                merge_sha=MERGE_SHA,
+                execute=True,
+                trusted_readiness_anchor_raw=anchor_raw,
+                run_bundle_compose_config=lambda *_args: changed,
+                run_subprocess=lambda *_args: pytest.fail("mutation executed"),
+                list_running_containers=lambda: [],
+            )
+
+    def test_rehashed_explicit_services_tamper_is_refused(self, tmp_path: Path) -> None:
+        bundle_dir, anchor_raw = _signed_v1_bundle(tmp_path)
+        _rewrite_bundle_manifest(
+            bundle_dir,
+            lambda document: document.update(explicit_services=["attacker"]),
+        )
+        with pytest.raises(dep.DeploymentWrapperError, match="explicit_services"):
+            dep.deploy_from_bundle(
+                bundle_dir=bundle_dir,
+                merge_sha=MERGE_SHA,
+                execute=False,
+                trusted_readiness_anchor_raw=anchor_raw,
+                run_bundle_compose_config=lambda *_args: _resolved_compose(),
+            )
+
+    def test_rehashed_env_override_cannot_change_executed_config(self, tmp_path: Path) -> None:
+        bundle_dir, anchor_raw = _signed_v1_bundle(tmp_path)
+        env = bundle_dir / dep._ENV_BUNDLE_NAME
+        env.write_bytes(b"PGVECTOR_IMAGE=attacker\n")
+        _rewrite_bundle_manifest(
+            bundle_dir,
+            lambda document: document["files"].update(
+                {dep._ENV_BUNDLE_NAME: hashlib.sha256(env.read_bytes()).hexdigest()}
+            ),
+        )
+        changed = _resolved_compose(
+            pgvector={"image": "attacker/pgvector@sha256:" + "7" * 64}
+        )
+        with pytest.raises(dep.DeploymentWrapperError, match="effective compose"):
+            dep.deploy_from_bundle(
+                bundle_dir=bundle_dir,
+                merge_sha=MERGE_SHA,
+                execute=False,
+                trusted_readiness_anchor_raw=anchor_raw,
+                run_bundle_compose_config=lambda *_args: changed,
+            )
+
+    def test_mutation_after_container_check_is_refused_before_pull(
+        self, tmp_path: Path
+    ) -> None:
+        bundle_dir, anchor_raw = _signed_v1_bundle(tmp_path)
+
+        def mutate_after_check() -> list[dep.RunningContainerInfo]:
+            (bundle_dir / dep._ENV_BUNDLE_NAME).write_bytes(b"ATTACK=true\n")
+            return []
+
+        with pytest.raises(dep.DeploymentWrapperError, match="modified"):
+            dep.deploy_from_bundle(
+                bundle_dir=bundle_dir,
+                merge_sha=MERGE_SHA,
+                execute=True,
+                trusted_readiness_anchor_raw=anchor_raw,
+                run_bundle_compose_config=lambda *_args: _resolved_compose(),
+                run_subprocess=lambda *_args: pytest.fail("mutation executed"),
+                list_running_containers=mutate_after_check,
+            )
 
 
 class TestMainRequiresReadinessManifestForExecute:

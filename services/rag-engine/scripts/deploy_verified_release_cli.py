@@ -64,6 +64,7 @@ aucun conteneur lui-même."""
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import hashlib
 import json
 import subprocess
@@ -71,19 +72,23 @@ import sys
 import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass
-from pathlib import Path
+from datetime import UTC, datetime
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import deployment_image_inventory as dii  # noqa: E402
+import sign_production_readiness_manifest_cli as signer  # noqa: E402
 import verify_release_image_provenance_cli as vri  # noqa: E402
 from nexus_contracts.production_readiness import (  # noqa: E402
     ProductionReadinessError,
     ProductionReadinessManifestV1,
+    ProductionReadinessManifestV2,
     parse_production_readiness_trust_anchor,
     require_manifest_matches_release,
     verify_production_readiness_manifest,
+    verify_production_readiness_manifest_v2,
 )
 
 #: Jamais une entrée opérateur — même constante que le vérificateur
@@ -103,11 +108,23 @@ _ENV_BUNDLE_NAME = ".env"
 _RESOLVED_COMPOSE_BUNDLE_NAME = "resolved-compose.json"
 _IMAGE_PROVENANCE_BUNDLE_NAME = "image-provenance-evidence.json"
 _READINESS_MANIFEST_BUNDLE_NAME = "readiness-manifest.json"
+_READINESS_TRUST_ANCHOR_BUNDLE_NAME = "readiness-trust-anchor.json"
+_AUTHORIZATION_SET_BUNDLE_NAME = "authorization-set.json"
+_REVOCATIONS_BUNDLE_NAME = "authorization-revocations.json"
+_PLACEMENT_BUNDLE_NAME = "release-scope-placement.jsonl"
+_VERIFIED_PROFILES_BUNDLE_NAME = "verified-profiles.json"
+_PROFILE_MANIFEST_BUNDLE_NAME = "profile-manifest.yml"
+_AUTHORITY_REQUIRED_BUNDLE_NAME = "authority-required.txt"
+_H2_COVERAGE_BUNDLE_NAME = "h2-coverage.json"
+_H2_EVIDENCE_BUNDLE_NAME = "h2-evidence.json"
+_PROMOTION_BUNDLE_NAME = "promotion-evidence.json"
+_SEALED_MANIFEST_BUNDLE_NAME = "sealed-manifest.txt"
 _BUNDLE_MANIFEST_NAME = "bundle_manifest.json"
 
-RunDockerComposeConfig = vri.RunDockerComposeConfig
-GitShowBytes = vri.GitShowBytes
+RunDockerComposeConfig = Callable[[Path, str, tuple[str, ...], Path, Path], dict[str, Any]]
+GitShowBytes = Callable[[Path, str, str], bytes]
 RunSubprocess = Callable[[list[str], Path], "subprocess.CompletedProcess[str]"]
+RunBundleComposeConfig = Callable[[Path, Path, tuple[str, ...]], dict[str, Any]]
 
 
 @dataclass(frozen=True)
@@ -143,6 +160,36 @@ def _canonical_json_bytes(document: dict[str, Any]) -> bytes:
     return json.dumps(document, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode(
         "utf-8"
     )
+
+
+def _run_bundle_compose_config(
+    bundle_dir: Path, env_file: Path, compose_files: tuple[str, ...]
+) -> dict[str, Any]:
+    """Résout les octets exacts que la commande de mutation consommera."""
+    args = ["docker", "compose", "--env-file", str(env_file)]
+    for name in compose_files:
+        args += ["-f", str(bundle_dir / name)]
+    args += ["config", "--format", "json"]
+    try:
+        completed = subprocess.run(
+            args, cwd=bundle_dir, capture_output=True, text=True, timeout=60, check=False
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise DeploymentWrapperError(f"docker compose config failed: {exc}") from exc
+    if completed.returncode != 0:
+        raise DeploymentWrapperError(
+            f"docker compose config failed (exit {completed.returncode}): "
+            f"{completed.stderr.strip()[:1000]}"
+        )
+    try:
+        document = json.loads(completed.stdout)
+    except json.JSONDecodeError as exc:
+        raise DeploymentWrapperError(
+            f"docker compose config produced non-JSON output: {exc}"
+        ) from exc
+    if not isinstance(document, dict):
+        raise DeploymentWrapperError("docker compose config did not produce a JSON object")
+    return document
 
 
 def verify_readiness_manifest_if_supplied(
@@ -184,6 +231,100 @@ def verify_readiness_manifest_if_supplied(
     return manifest
 
 
+def verify_readiness_manifest_v2_with_material(
+    *,
+    readiness_manifest_raw: bytes,
+    trust_anchor_raw: bytes,
+    material: signer.V2ReleaseMaterial,
+    environment: str,
+    merge_sha: str,
+    resolved_compose_digest: str,
+) -> ProductionReadinessManifestV2:
+    """Chemin V2 explicite : signature puis toutes les preuves exactes.
+
+    Aucun fallback V1 et aucun digest seul : le même snapshot de release est
+    revérifié par le boundary global avant qu'un bundle puisse être écrit.
+    """
+    try:
+        trust_anchor = parse_production_readiness_trust_anchor(trust_anchor_raw)
+        manifest = verify_production_readiness_manifest_v2(
+            readiness_manifest_raw,
+            trust_anchor=trust_anchor,
+            environment=environment,
+        )
+        verified = signer.verify_v2_release_material(material)
+    except (ProductionReadinessError, signer.SigningToolError) as exc:
+        raise DeploymentWrapperError(f"readiness V2 rejected: {exc}") from exc
+
+    comparisons = {
+        "repository": (
+            manifest.repository,
+            _CANONICAL_REPOSITORY,
+            verified.promotion.repository,
+        ),
+        "pr_number": (manifest.pr_number, verified.promotion.pull_request_number),
+        "pr_head_sha": (manifest.pr_head_sha, verified.promotion.pr_head_sha),
+        "pr_head_tree_sha": (
+            manifest.pr_head_tree_sha,
+            verified.promotion.pr_head_tree_sha,
+        ),
+        "merge_sha": (manifest.merge_sha, merge_sha, material.merge_sha),
+        "merge_tree_sha": (manifest.merge_tree_sha, material.merge_tree_sha),
+        "compose_digest": (manifest.compose_digest, resolved_compose_digest),
+        "authorization_set_digest": (
+            manifest.authorization_set_digest,
+            verified.authorization_set.digest(),
+        ),
+        "trust_anchor_digest": (
+            manifest.trust_anchor_digest,
+            _sha256_bytes(material.review_binding_trust_anchor_raw),
+        ),
+        "revocation_registry_digest": (
+            manifest.revocation_registry_digest,
+            _sha256_bytes(material.revocation_registry_raw),
+        ),
+        "catalog_digest": (
+            manifest.catalog_digest,
+            _sha256_bytes(material.evidence_files["catalog"]),
+        ),
+        "sealed_manifest_digest": (
+            manifest.sealed_manifest_digest,
+            _sha256_bytes(material.sealed_manifest_raw),
+        ),
+        "h2b_report_digest": (
+            manifest.h2b_report_digest,
+            _sha256_bytes(material.promotion_evidence_raw),
+        ),
+        "promotion_run_id": (manifest.run_id, verified.promotion.promotion_run_id),
+        "promotion_run_attempt": (
+            manifest.run_attempt,
+            verified.promotion.promotion_run_attempt,
+        ),
+        "promotion_workflow_path": (
+            manifest.workflow_path,
+            verified.promotion.promotion_workflow_path,
+        ),
+        "promotion_workflow_ref": (
+            manifest.workflow_ref,
+            verified.promotion.promotion_workflow_ref,
+        ),
+    }
+    mismatches = [
+        name for name, values in comparisons.items() if any(v != values[0] for v in values[1:])
+    ]
+    if mismatches:
+        raise DeploymentWrapperError(
+            f"readiness V2 material mismatch: {sorted(mismatches)!r}"
+        )
+    if not (
+        verified.verified_authorization_set.authorizations_effective_valid_from
+        <= material.now
+        < verified.verified_authorization_set.authorizations_effective_valid_until
+    ):
+        raise DeploymentWrapperError("readiness V2 authorization window is not active")
+    return manifest
+
+
 def materialize_verified_bundle(
     *,
     merge_sha: str,
@@ -201,6 +342,9 @@ def materialize_verified_bundle(
     work_dir: Path,
     bundle_dir: Path,
     git_show_bytes: GitShowBytes = vri._git_show_bytes,
+    readiness_protocol: str = "NEXUS-PRODUCTION-READINESS-V1",
+    v2_release_material: signer.V2ReleaseMaterial | None = None,
+    frozen_trust_anchor_raw: bytes | None = None,
 ) -> dict[str, Any]:
     """Phase 1 (vérifier, une seule fois) + phase 2 (matérialiser) —
     jamais l'inverse, et jamais une seconde résolution/lecture d'une
@@ -229,17 +373,72 @@ def materialize_verified_bundle(
     resolved_compose_bytes = vri.canonical_resolved_compose_bytes(materialization.resolved_compose)
     resolved_compose_digest = _sha256_bytes(resolved_compose_bytes)
 
-    readiness_manifest_raw = (
-        readiness_manifest_file.read_bytes() if readiness_manifest_file is not None else None
-    )
-    trust_anchor_raw = trust_anchor_file.read_bytes() if trust_anchor_file is not None else None
-    verify_readiness_manifest_if_supplied(
-        readiness_manifest_raw=readiness_manifest_raw,
-        trust_anchor_raw=trust_anchor_raw,
-        environment=environment,
-        merge_sha=merge_sha,
-        resolved_compose_digest=resolved_compose_digest,
-    )
+    if readiness_protocol == "NEXUS-PRODUCTION-READINESS-V2":
+        readiness_manifest_raw = (
+            signer._read_bytes_no_follow(  # noqa: SLF001 - shared service boundary
+                readiness_manifest_file, label="readiness_manifest"
+            )
+            if readiness_manifest_file is not None
+            else None
+        )
+        trust_anchor_raw = frozen_trust_anchor_raw if frozen_trust_anchor_raw is not None else (
+            signer._read_bytes_no_follow(  # noqa: SLF001 - shared service boundary
+                trust_anchor_file, label="readiness_trust_anchor"
+            )
+            if trust_anchor_file is not None
+            else None
+        )
+    else:
+        readiness_manifest_raw = (
+            signer._read_bytes_no_follow(  # noqa: SLF001 - même gel V1/V2
+                readiness_manifest_file, label="readiness_manifest"
+            )
+            if readiness_manifest_file is not None
+            else None
+        )
+        trust_anchor_raw = frozen_trust_anchor_raw if frozen_trust_anchor_raw is not None else (
+            signer._read_bytes_no_follow(  # noqa: SLF001 - même gel V1/V2
+                trust_anchor_file, label="readiness_trust_anchor"
+            )
+            if trust_anchor_file is not None
+            else None
+        )
+    readiness_v2: ProductionReadinessManifestV2 | None = None
+    if readiness_protocol == "NEXUS-PRODUCTION-READINESS-V1":
+        if v2_release_material is not None:
+            raise DeploymentWrapperError("V1 deployment never accepts V2 release material")
+        verify_readiness_manifest_if_supplied(
+            readiness_manifest_raw=readiness_manifest_raw,
+            trust_anchor_raw=trust_anchor_raw,
+            environment=environment,
+            merge_sha=merge_sha,
+            resolved_compose_digest=resolved_compose_digest,
+        )
+    elif readiness_protocol == "NEXUS-PRODUCTION-READINESS-V2":
+        if readiness_manifest_raw is None or trust_anchor_raw is None or v2_release_material is None:
+            raise DeploymentWrapperError(
+                "readiness V2 requires the signed manifest, trust anchor and exact release material"
+            )
+        readiness_v2 = verify_readiness_manifest_v2_with_material(
+            readiness_manifest_raw=readiness_manifest_raw,
+            trust_anchor_raw=trust_anchor_raw,
+            material=v2_release_material,
+            environment=environment,
+            merge_sha=merge_sha,
+            resolved_compose_digest=resolved_compose_digest,
+        )
+        if (
+            readiness_v2.application_image_digests != materialization.pinned_images
+            or readiness_v2.upstream_image_digests
+            != signer._upstream_services_from_resolved_compose(  # noqa: SLF001
+                materialization.resolved_compose
+            )
+        ):
+            raise DeploymentWrapperError(
+                "readiness V2 image inventory differs from verified provenance/Compose"
+            )
+    else:
+        raise DeploymentWrapperError(f"unsupported readiness protocol {readiness_protocol!r}")
 
     if bundle_dir.exists():
         raise DeploymentWrapperError(
@@ -249,24 +448,78 @@ def materialize_verified_bundle(
     bundle_dir.mkdir(parents=True)
 
     file_digests: dict[str, str] = {}
+
+    def write_bundle_file(name: str, raw: bytes) -> None:
+        path = bundle_dir / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(raw)
+        file_digests[name] = _sha256_bytes(raw)
+
     for name in _CANONICAL_COMPOSE_FILES:
         content = materialization.compose_source_bytes[name]
-        (bundle_dir / name).write_bytes(content)
-        file_digests[name] = _sha256_bytes(content)
+        write_bundle_file(name, content)
 
-    (bundle_dir / _ENV_BUNDLE_NAME).write_bytes(materialization.env_bytes)
-    file_digests[_ENV_BUNDLE_NAME] = _sha256_bytes(materialization.env_bytes)
+    write_bundle_file(_ENV_BUNDLE_NAME, materialization.env_bytes)
 
-    (bundle_dir / _RESOLVED_COMPOSE_BUNDLE_NAME).write_bytes(resolved_compose_bytes)
-    file_digests[_RESOLVED_COMPOSE_BUNDLE_NAME] = resolved_compose_digest
+    write_bundle_file(_RESOLVED_COMPOSE_BUNDLE_NAME, resolved_compose_bytes)
 
     image_provenance_bytes = _canonical_json_bytes(materialization.image_provenance_document)
-    (bundle_dir / _IMAGE_PROVENANCE_BUNDLE_NAME).write_bytes(image_provenance_bytes)
-    file_digests[_IMAGE_PROVENANCE_BUNDLE_NAME] = _sha256_bytes(image_provenance_bytes)
+    write_bundle_file(_IMAGE_PROVENANCE_BUNDLE_NAME, image_provenance_bytes)
 
     if readiness_manifest_raw is not None:
-        (bundle_dir / _READINESS_MANIFEST_BUNDLE_NAME).write_bytes(readiness_manifest_raw)
-        file_digests[_READINESS_MANIFEST_BUNDLE_NAME] = _sha256_bytes(readiness_manifest_raw)
+        write_bundle_file(_READINESS_MANIFEST_BUNDLE_NAME, readiness_manifest_raw)
+        assert trust_anchor_raw is not None
+        write_bundle_file(_READINESS_TRUST_ANCHOR_BUNDLE_NAME, trust_anchor_raw)
+
+    v2_release_files: dict[str, str] = {}
+    v2_evidence_files: dict[str, str] = {}
+    v2_source_blobs: dict[str, str] = {}
+    if readiness_v2 is not None and v2_release_material is not None:
+        assert trust_anchor_raw is not None  # vérifié dans la branche V2
+        fixed = {
+            _AUTHORIZATION_SET_BUNDLE_NAME: v2_release_material.authorization_set_raw,
+            _REVOCATIONS_BUNDLE_NAME: v2_release_material.revocation_registry_raw,
+            _PLACEMENT_BUNDLE_NAME: v2_release_material.release_scope_placement_raw,
+            _PROFILE_MANIFEST_BUNDLE_NAME: v2_release_material.profile_manifest_raw,
+            _AUTHORITY_REQUIRED_BUNDLE_NAME: "".join(
+                f"{value}\n" for value in v2_release_material.authority_required_content_sha256
+            ).encode(),
+            _H2_COVERAGE_BUNDLE_NAME: v2_release_material.h2_coverage_raw,
+            _H2_EVIDENCE_BUNDLE_NAME: v2_release_material.h2_evidence_bundle_raw,
+            _PROMOTION_BUNDLE_NAME: v2_release_material.promotion_evidence_raw,
+            _SEALED_MANIFEST_BUNDLE_NAME: v2_release_material.sealed_manifest_raw,
+            _VERIFIED_PROFILES_BUNDLE_NAME: (
+                json.dumps(
+                    {
+                        "profile_manifest_digest": signer.parse_authorization_set(
+                            v2_release_material.authorization_set_raw
+                        ).profile_manifest_digest,
+                        "profiles": [
+                            fact.model_dump(mode="json")
+                            for fact in v2_release_material.verified_profiles
+                        ],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n"
+            ).encode(),
+        }
+        for name, raw in fixed.items():
+            write_bundle_file(name, raw)
+        for relative, raw in sorted(v2_release_material.release_files.items()):
+            bundle_name = f"release-material/{relative}"
+            write_bundle_file(bundle_name, raw)
+            v2_release_files[relative] = bundle_name
+        for evidence_name, raw in sorted(v2_release_material.evidence_files.items()):
+            bundle_name = f"evidence/{evidence_name}.bin"
+            write_bundle_file(bundle_name, raw)
+            v2_evidence_files[evidence_name] = bundle_name
+        for source_path, raw in sorted(v2_release_material.release_scope_source_blobs.items()):
+            bundle_name = f"release-scope-sources/{source_path}"
+            write_bundle_file(bundle_name, raw)
+            v2_source_blobs[source_path] = bundle_name
 
     explicit_services = sorted(materialization.resolved_compose.get("services", {}))
     bundle_document = {
@@ -280,6 +533,15 @@ def materialize_verified_bundle(
         "explicit_services": explicit_services,
         "files": dict(sorted(file_digests.items())),
         "readiness_manifest_included": readiness_manifest_raw is not None,
+        "readiness_protocol": readiness_protocol,
+        "v2_release_files": v2_release_files,
+        "v2_evidence_files": v2_evidence_files,
+        "v2_source_blobs": v2_source_blobs,
+        "v2_release_scope_git_paths": (
+            dict(sorted(v2_release_material.release_scope_git_paths.items()))
+            if v2_release_material is not None
+            else {}
+        ),
     }
     bundle_bytes = _canonical_json_bytes(bundle_document)
     bundle_document["bundle_digest"] = _sha256_bytes(bundle_bytes)
@@ -359,7 +621,14 @@ def _require_bundle_files_match_manifest(bundle_dir: Path, bundle_document: dict
     if not isinstance(files, dict) or not files:
         raise DeploymentWrapperError("bundle_manifest.json has no (or an empty) 'files' entry")
     for name, expected_digest in files.items():
+        if not isinstance(name, str):
+            raise DeploymentWrapperError("bundle file name is not a string")
+        relative = PurePosixPath(name)
+        if relative.is_absolute() or ".." in relative.parts or not name:
+            raise DeploymentWrapperError(f"bundle file path is unsafe: {name!r}")
         path = bundle_dir / name
+        if path.is_symlink():
+            raise DeploymentWrapperError(f"bundle file {name!r} is a symlink")
         if not path.is_file():
             raise DeploymentWrapperError(f"bundle is missing file {name!r} recorded in its own manifest")
         actual_digest = _sha256_bytes(path.read_bytes())
@@ -369,7 +638,11 @@ def _require_bundle_files_match_manifest(bundle_dir: Path, bundle_document: dict
                 f"(sha256 {actual_digest} != recorded {expected_digest}) — a "
                 "bundle is deployed byte-identical to what was verified, or not at all"
             )
-    on_disk = {p.name for p in bundle_dir.iterdir() if p.is_file() and p.name != _BUNDLE_MANIFEST_NAME}
+    on_disk = {
+        p.relative_to(bundle_dir).as_posix()
+        for p in bundle_dir.rglob("*")
+        if p.is_file() and p.name != _BUNDLE_MANIFEST_NAME
+    }
     unexpected = on_disk - set(files)
     if unexpected:
         raise DeploymentWrapperError(
@@ -381,17 +654,32 @@ def _require_bundle_files_match_manifest(bundle_dir: Path, bundle_document: dict
 
 def _load_and_verify_bundle_manifest(bundle_dir: Path, *, merge_sha: str) -> dict[str, Any]:
     bundle_manifest_path = bundle_dir / _BUNDLE_MANIFEST_NAME
+    if bundle_manifest_path.is_symlink():
+        raise DeploymentWrapperError("bundle_manifest.json is a symlink")
     if not bundle_manifest_path.is_file():
         raise DeploymentWrapperError(
             f"{bundle_manifest_path} is missing — this is not a bundle produced by "
             "materialize_verified_bundle, or it was tampered with"
         )
+    raw = signer._read_bytes_no_follow(  # noqa: SLF001 - même frontière no-follow
+        bundle_manifest_path, label="bundle_manifest"
+    )
     try:
-        bundle_document = json.loads(bundle_manifest_path.read_bytes())
+        bundle_document = json.loads(raw)
     except json.JSONDecodeError as exc:
         raise DeploymentWrapperError(f"bundle_manifest.json is not valid JSON: {exc}") from exc
     if not isinstance(bundle_document, dict):
         raise DeploymentWrapperError("bundle_manifest.json must be a JSON object")
+    if _canonical_json_bytes(bundle_document) != raw:
+        raise DeploymentWrapperError("bundle_manifest.json is not canonical JSON")
+    claimed_digest = bundle_document.get("bundle_digest")
+    unsigned_document = dict(bundle_document)
+    unsigned_document.pop("bundle_digest", None)
+    actual_digest = _sha256_bytes(_canonical_json_bytes(unsigned_document))
+    if claimed_digest != actual_digest:
+        raise DeploymentWrapperError(
+            f"bundle_manifest.json bundle_digest mismatch ({claimed_digest!r} != {actual_digest!r})"
+        )
     if bundle_document.get("protocol_version") != _BUNDLE_PROTOCOL_VERSION:
         raise DeploymentWrapperError(
             f"bundle_manifest.json protocol_version {bundle_document.get('protocol_version')!r} "
@@ -411,6 +699,207 @@ def _load_and_verify_bundle_manifest(bundle_dir: Path, *, merge_sha: str) -> dic
     return bundle_document
 
 
+def _signed_readiness_protocol(raw: bytes) -> str:
+    """Inspecte le discriminant signé; chaque branche reparse ensuite strictement."""
+    try:
+        document = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise DeploymentWrapperError(f"readiness manifest is not valid JSON: {exc}") from exc
+    manifest = document.get("manifest") if isinstance(document, dict) else None
+    protocol = manifest.get("protocol_version") if isinstance(manifest, dict) else None
+    if not isinstance(protocol, str) or protocol not in {
+        "NEXUS-PRODUCTION-READINESS-V1",
+        "NEXUS-PRODUCTION-READINESS-V2",
+    }:
+        raise DeploymentWrapperError(f"unsupported signed readiness protocol {protocol!r}")
+    return protocol
+
+
+@dataclass(frozen=True)
+class _VerifiedDeployInputs:
+    bundle_document: dict[str, Any]
+    explicit_services: list[str]
+    effective_compose_bytes: bytes
+
+
+def _load_v2_release_material_from_bundle(
+    bundle_dir: Path, bundle_document: dict[str, Any]
+) -> signer.V2ReleaseMaterial:
+    release_map = bundle_document.get("v2_release_files")
+    evidence_map = bundle_document.get("v2_evidence_files")
+    source_blob_map = bundle_document.get("v2_source_blobs")
+    release_scope_git_paths = bundle_document.get("v2_release_scope_git_paths")
+    if not isinstance(release_map, dict) or not release_map:
+        raise DeploymentWrapperError("V2 bundle has no exact release member mapping")
+    if not isinstance(evidence_map, dict) or not evidence_map:
+        raise DeploymentWrapperError("V2 bundle has no exact evidence mapping")
+    if not isinstance(source_blob_map, dict) or not source_blob_map:
+        raise DeploymentWrapperError("V2 bundle has no exact-tree source blob mapping")
+    if (
+        not isinstance(release_scope_git_paths, dict)
+        or set(release_scope_git_paths) != signer._RELEASE_SCOPE_GIT_PATH_KEYS  # noqa: SLF001
+        or any(not isinstance(value, str) for value in release_scope_git_paths.values())
+    ):
+        raise DeploymentWrapperError("V2 bundle has no exact release scope path roles")
+
+    def read(name: str) -> bytes:
+        path = bundle_dir / name
+        if not path.is_file():
+            raise DeploymentWrapperError(f"V2 bundle is missing {name!r}")
+        return signer._read_bytes_no_follow(path, label=f"bundle:{name}")  # noqa: SLF001
+
+    authorization_set_raw = read(_AUTHORIZATION_SET_BUNDLE_NAME)
+    h2_coverage_raw = read(_H2_COVERAGE_BUNDLE_NAME)
+    try:
+        authorization_set = signer.parse_authorization_set(authorization_set_raw)
+        h2_coverage = signer.parse_h2_coverage_evidence_v2(h2_coverage_raw)
+    except (signer.AuthorizationSetError, signer.H2CoverageEvidenceError) as exc:
+        raise DeploymentWrapperError(f"V2 bundle mappings cannot be derived: {exc}") from exc
+    expected_release_paths = {
+        relative
+        for member in authorization_set.members
+        for relative in (member.authorization_path, member.review_binding_path)
+    }
+    expected_release_map = {
+        relative: f"release-material/{relative}" for relative in expected_release_paths
+    }
+    expected_evidence_map = {
+        name: f"evidence/{name}.bin" for name in h2_coverage.input_file_digests
+    }
+    expected_source_blob_map = {
+        path: f"release-scope-sources/{path}"
+        for path in h2_coverage.release_scope_source_blob_digests
+    }
+    if release_map != expected_release_map:
+        raise DeploymentWrapperError("V2 release member mapping is not derived from authorization set")
+    if evidence_map != expected_evidence_map:
+        raise DeploymentWrapperError("V2 evidence mapping is not derived from H2 coverage")
+    if source_blob_map != expected_source_blob_map:
+        raise DeploymentWrapperError("V2 source mapping is not derived from H2 coverage")
+
+    try:
+        profiles = signer._parse_verified_profiles(  # noqa: SLF001 - même boundary CLI
+            read(_VERIFIED_PROFILES_BUNDLE_NAME)
+        )
+        required = signer._parse_authority_required(  # noqa: SLF001 - même boundary CLI
+            read(_AUTHORITY_REQUIRED_BUNDLE_NAME)
+        )
+    except signer.SigningToolError as exc:
+        raise DeploymentWrapperError(f"V2 bundle facts rejected: {exc}") from exc
+    return signer.V2ReleaseMaterial(
+        authorization_set_raw=authorization_set_raw,
+        release_files={str(key): read(str(value)) for key, value in release_map.items()},
+        review_binding_trust_anchor_raw=read("evidence/review_binding_trust_anchor.bin"),
+        trusted_reviewers_raw=read("evidence/trusted_reviewers.bin"),
+        revocation_registry_raw=read(_REVOCATIONS_BUNDLE_NAME),
+        release_scope_placement_raw=read(_PLACEMENT_BUNDLE_NAME),
+        release_scope_source_blobs={
+            str(key): read(str(value)) for key, value in source_blob_map.items()
+        },
+        verified_profiles=profiles,
+        profile_manifest_raw=read(_PROFILE_MANIFEST_BUNDLE_NAME),
+        authority_required_content_sha256=required,
+        h2_coverage_raw=h2_coverage_raw,
+        h2_evidence_bundle_raw=read(_H2_EVIDENCE_BUNDLE_NAME),
+        promotion_evidence_raw=read(_PROMOTION_BUNDLE_NAME),
+        evidence_files={str(key): read(str(value)) for key, value in evidence_map.items()},
+        sealed_manifest_raw=read(_SEALED_MANIFEST_BUNDLE_NAME),
+        now=datetime.now(UTC),
+        merge_sha=str(bundle_document["merge_sha"]),
+        merge_tree_sha=str(bundle_document["merge_tree_sha"]),
+        release_scope_git_paths={
+            str(key): str(value) for key, value in release_scope_git_paths.items()
+        },
+    )
+
+
+def _verify_deploy_inputs(
+    *,
+    bundle_dir: Path,
+    merge_sha: str,
+    execute: bool,
+    trusted_readiness_anchor_raw: bytes | None,
+    run_bundle_compose_config: RunBundleComposeConfig,
+) -> _VerifiedDeployInputs:
+    bundle_document = _load_and_verify_bundle_manifest(bundle_dir, merge_sha=merge_sha)
+    readiness_path = bundle_dir / _READINESS_MANIFEST_BUNDLE_NAME
+    readiness_raw = (
+        signer._read_bytes_no_follow(readiness_path, label="readiness_manifest")  # noqa: SLF001
+        if readiness_path.is_file()
+        else None
+    )
+    if readiness_raw is None:
+        if execute:
+            raise DeploymentWrapperError("a signed readiness manifest is required before mutation")
+        explicit = bundle_document.get("explicit_services")
+        if not isinstance(explicit, list) or not explicit:
+            raise DeploymentWrapperError("bundle manifest has no explicit_services")
+        stored = signer._read_bytes_no_follow(  # noqa: SLF001
+            bundle_dir / _RESOLVED_COMPOSE_BUNDLE_NAME, label="resolved_compose"
+        )
+        return _VerifiedDeployInputs(bundle_document, explicit, stored)
+    if trusted_readiness_anchor_raw is None:
+        raise DeploymentWrapperError("trusted readiness anchor bytes are required")
+
+    actual_protocol = _signed_readiness_protocol(readiness_raw)
+    if bundle_document.get("readiness_protocol") != actual_protocol:
+        raise DeploymentWrapperError(
+            "bundle readiness protocol does not match the signed readiness protocol"
+        )
+
+    effective = run_bundle_compose_config(
+        bundle_dir, bundle_dir / _ENV_BUNDLE_NAME, _CANONICAL_COMPOSE_FILES
+    )
+    effective_bytes = vri.canonical_resolved_compose_bytes(effective)
+    stored_bytes = signer._read_bytes_no_follow(  # noqa: SLF001
+        bundle_dir / _RESOLVED_COMPOSE_BUNDLE_NAME, label="resolved_compose"
+    )
+    if effective_bytes != stored_bytes:
+        raise DeploymentWrapperError(
+            "effective compose differs from the signed/materialized resolved compose"
+        )
+    compose_digest = _sha256_bytes(effective_bytes)
+    if actual_protocol == "NEXUS-PRODUCTION-READINESS-V1":
+        manifest = verify_readiness_manifest_if_supplied(
+            readiness_manifest_raw=readiness_raw,
+            trust_anchor_raw=trusted_readiness_anchor_raw,
+            environment="production",
+            merge_sha=merge_sha,
+            resolved_compose_digest=compose_digest,
+        )
+        assert manifest is not None
+    elif actual_protocol == "NEXUS-PRODUCTION-READINESS-V2":
+        manifest = verify_readiness_manifest_v2_with_material(
+            readiness_manifest_raw=readiness_raw,
+            trust_anchor_raw=trusted_readiness_anchor_raw,
+            material=_load_v2_release_material_from_bundle(bundle_dir, bundle_document),
+            environment="production",
+            merge_sha=merge_sha,
+            resolved_compose_digest=compose_digest,
+        )
+    else:  # pragma: no cover - exhaustivité imposée par _signed_readiness_protocol
+        raise DeploymentWrapperError(f"unsupported signed readiness protocol {actual_protocol!r}")
+
+    if bundle_document.get("readiness_manifest_included") is not True:
+        raise DeploymentWrapperError("bundle readiness presence flag contradicts signed bytes")
+    if bundle_document.get("merge_tree_sha") != manifest.merge_tree_sha:
+        raise DeploymentWrapperError("bundle merge_tree_sha differs from signed readiness")
+
+    services = effective.get("services")
+    if not isinstance(services, dict) or not services:
+        raise DeploymentWrapperError("effective compose has no services")
+    explicit_services = sorted(services)
+    if bundle_document.get("explicit_services") != explicit_services:
+        raise DeploymentWrapperError("bundle explicit_services differ from effective compose")
+    if bundle_document.get("verified_images") != manifest.application_image_digests:
+        raise DeploymentWrapperError("bundle verified_images differ from signed readiness")
+    if signer._upstream_services_from_resolved_compose(effective) != (  # noqa: SLF001
+        manifest.upstream_image_digests
+    ):
+        raise DeploymentWrapperError("effective upstream images differ from signed readiness")
+    return _VerifiedDeployInputs(bundle_document, explicit_services, effective_bytes)
+
+
 def deploy_from_bundle(
     *,
     bundle_dir: Path,
@@ -418,6 +907,8 @@ def deploy_from_bundle(
     execute: bool,
     run_subprocess: RunSubprocess = _default_run_subprocess,
     list_running_containers: ListRunningContainers = _default_list_running_containers,
+    trusted_readiness_anchor_raw: bytes | None = None,
+    run_bundle_compose_config: RunBundleComposeConfig = _run_bundle_compose_config,
 ) -> list[str]:
     """Phase 3 (déployer) — toujours et uniquement depuis ``bundle_dir``,
     contre une liste explicite de services.
@@ -430,10 +921,14 @@ def deploy_from_bundle(
     d'un `up`. Jamais d'option de nettoyage des conteneurs orphelins :
     le projet Compose de production est partagé avec une stack non-RAG
     sur l'hôte cible."""
-    bundle_document = _load_and_verify_bundle_manifest(bundle_dir, merge_sha=merge_sha)
-    explicit_services = bundle_document.get("explicit_services")
-    if not isinstance(explicit_services, list) or not explicit_services:
-        raise DeploymentWrapperError("bundle_manifest.json has no (or an empty) 'explicit_services' list")
+    verified = _verify_deploy_inputs(
+        bundle_dir=bundle_dir,
+        merge_sha=merge_sha,
+        execute=execute,
+        trusted_readiness_anchor_raw=trusted_readiness_anchor_raw,
+        run_bundle_compose_config=run_bundle_compose_config,
+    )
+    explicit_services = verified.explicit_services
 
     compose_args = ["docker", "compose", "--env-file", str(bundle_dir / _ENV_BUNDLE_NAME)]
     for name in _CANONICAL_COMPOSE_FILES:
@@ -446,22 +941,55 @@ def deploy_from_bundle(
     if not execute:
         return plan
 
-    require_no_foreign_container_collision(
-        target_services=explicit_services,
-        expected_working_dir=str(bundle_dir),
-        running_containers=list_running_containers(),
-    )
+    with tempfile.TemporaryDirectory(prefix="nexus-verified-compose-") as temporary:
+        snapshot = Path(temporary)
+        for name in (*_CANONICAL_COMPOSE_FILES, _ENV_BUNDLE_NAME):
+            raw = signer._read_bytes_no_follow(bundle_dir / name, label=name)  # noqa: SLF001
+            expected = verified.bundle_document["files"].get(name)
+            if _sha256_bytes(raw) != expected:
+                raise DeploymentWrapperError(f"bundle file {name!r} changed before snapshot")
+            signer._atomic_private_write(snapshot / name, raw)  # noqa: SLF001
 
-    pull = run_subprocess(compose_args + ["pull", *explicit_services], bundle_dir)
-    if pull.returncode != 0:
-        raise DeploymentWrapperError(
-            f"docker compose pull failed (exit {pull.returncode}): {pull.stderr.strip()[:1000]}"
+        snapshot_args = [
+            "docker",
+            "compose",
+            "--project-directory",
+            str(bundle_dir),
+            "--env-file",
+            str(snapshot / _ENV_BUNDLE_NAME),
+        ]
+        for name in _CANONICAL_COMPOSE_FILES:
+            snapshot_args += ["-f", str(snapshot / name)]
+
+        require_no_foreign_container_collision(
+            target_services=explicit_services,
+            expected_working_dir=str(bundle_dir),
+            running_containers=list_running_containers(),
         )
-    up = run_subprocess(compose_args + ["up", "-d", *explicit_services], bundle_dir)
-    if up.returncode != 0:
-        raise DeploymentWrapperError(
-            f"docker compose up failed (exit {up.returncode}): {up.stderr.strip()[:1000]}"
+
+        reverified = _verify_deploy_inputs(
+            bundle_dir=bundle_dir,
+            merge_sha=merge_sha,
+            execute=True,
+            trusted_readiness_anchor_raw=trusted_readiness_anchor_raw,
+            run_bundle_compose_config=run_bundle_compose_config,
         )
+        if (
+            reverified.effective_compose_bytes != verified.effective_compose_bytes
+            or reverified.explicit_services != explicit_services
+        ):
+            raise DeploymentWrapperError("effective compose changed immediately before mutation")
+
+        pull = run_subprocess(snapshot_args + ["pull", *explicit_services], bundle_dir)
+        if pull.returncode != 0:
+            raise DeploymentWrapperError(
+                f"docker compose pull failed (exit {pull.returncode}): {pull.stderr.strip()[:1000]}"
+            )
+        up = run_subprocess(snapshot_args + ["up", "-d", *explicit_services], bundle_dir)
+        if up.returncode != 0:
+            raise DeploymentWrapperError(
+                f"docker compose up failed (exit {up.returncode}): {up.stderr.strip()[:1000]}"
+            )
     return plan
 
 
@@ -475,6 +1003,45 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--env-file", type=Path, default=None)
     p.add_argument("--readiness-manifest-file", type=Path, default=None)
     p.add_argument("--trust-anchor-file", type=Path, default=None)
+    p.add_argument(
+        "--readiness-protocol",
+        choices=[
+            "NEXUS-PRODUCTION-READINESS-V1",
+            "NEXUS-PRODUCTION-READINESS-V2",
+        ],
+        default="NEXUS-PRODUCTION-READINESS-V1",
+    )
+    for flag in (
+        "authorization-set-file",
+        "governed-root",
+        "review-binding-trust-anchor-file",
+        "trusted-reviewers-file",
+        "revocation-registry-file",
+        "release-scope-placement-file",
+        "verified-profiles-file",
+        "profile-manifest-file",
+        "authority-required-file",
+        "h2b-report-file",
+        "h2-evidence-bundle-file",
+        "promotion-evidence-file",
+        "catalog-file",
+        "sealed-manifest-file",
+        "routing-file",
+        "rights-file",
+        "pii-file",
+        "golden-file",
+        "currentness-file",
+    ):
+        p.add_argument(f"--{flag}", type=Path, default=None)
+    for flag in (
+        "profile-proposal-matrix-path",
+        "accepted-placements-path",
+        "release-registry-path",
+        "expected-contents-path",
+        "verified-profiles-path",
+        "profile-manifest-path",
+    ):
+        p.add_argument(f"--{flag}", default=None)
     p.add_argument("--environment", default="production")
     p.add_argument("--bundle-dir", type=Path, required=True)
     p.add_argument(
@@ -487,6 +1054,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         "--trust-anchor-file est absent — la seule preuve de provenance d'image ne "
         "suffit jamais à autoriser une mutation réelle.",
     )
+    p.add_argument("--json-output", action="store_true", default=False)
     return p
 
 
@@ -502,6 +1070,55 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     env_file = args.env_file or (args.repo_root / vri._ENV_FILE_RELATIVE_PATH)
     try:
+        trusted_anchor_raw = (
+            signer._read_bytes_no_follow(  # noqa: SLF001 - gel externe unique
+                args.trust_anchor_file, label="readiness_trust_anchor"
+            )
+            if args.trust_anchor_file is not None
+            else None
+        )
+        v2_material: signer.V2ReleaseMaterial | None = None
+        if args.readiness_protocol == "NEXUS-PRODUCTION-READINESS-V2":
+            required_v2 = (
+                "authorization_set_file",
+                "governed_root",
+                "review_binding_trust_anchor_file",
+                "trusted_reviewers_file",
+                "revocation_registry_file",
+                "release_scope_placement_file",
+                "verified_profiles_file",
+                "profile_manifest_file",
+                "authority_required_file",
+                "h2b_report_file",
+                "h2_evidence_bundle_file",
+                "promotion_evidence_file",
+                "catalog_file",
+                "sealed_manifest_file",
+                "routing_file",
+                "rights_file",
+                "pii_file",
+                "golden_file",
+                "currentness_file",
+                "profile_proposal_matrix_path",
+                "accepted_placements_path",
+                "release_registry_path",
+                "expected_contents_path",
+                "verified_profiles_path",
+                "profile_manifest_path",
+            )
+            missing = [name for name in required_v2 if getattr(args, name) is None]
+            if missing or not args.json_output:
+                detail = f"missing {missing!r}" if missing else "--json-output is required"
+                raise DeploymentWrapperError(f"readiness V2 arguments incomplete: {detail}")
+            v2_material = dataclasses.replace(
+                signer._load_v2_release_material(  # noqa: SLF001 - même bundle de service
+                    args,
+                    now=datetime.now(UTC),
+                    merge_tree_sha=args.merge_tree_sha,
+                ),
+                merge_sha=args.merge_sha,
+                merge_tree_sha=args.merge_tree_sha,
+            )
         with tempfile.TemporaryDirectory() as tmp:
             bundle_document = materialize_verified_bundle(
                 merge_sha=args.merge_sha,
@@ -519,14 +1136,35 @@ def main(argv: list[str] | None = None) -> int:
                 work_dir=Path(tmp),
                 bundle_dir=args.bundle_dir,
                 git_show_bytes=vri._git_show_bytes,
+                readiness_protocol=args.readiness_protocol,
+                v2_release_material=v2_material,
+                frozen_trust_anchor_raw=trusted_anchor_raw,
             )
         plan = deploy_from_bundle(
-            bundle_dir=args.bundle_dir, merge_sha=args.merge_sha, execute=args.execute
+            bundle_dir=args.bundle_dir,
+            merge_sha=args.merge_sha,
+            execute=args.execute,
+            trusted_readiness_anchor_raw=trusted_anchor_raw,
         )
     except (DeploymentWrapperError, vri.ReleaseVerificationError) as exc:
         print(f"REFUSED: {exc}", file=sys.stderr)
         return 1
 
+    if args.json_output:
+        print(
+            json.dumps(
+                {
+                    "bundle_digest": bundle_document["bundle_digest"],
+                    "deployed": args.execute,
+                    "readiness_protocol": bundle_document["readiness_protocol"],
+                    "verified_images": bundle_document["verified_images"],
+                },
+                ensure_ascii=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            )
+        )
+        return 0
     print(f"BUNDLE_DIGEST={bundle_document['bundle_digest']}")
     for name, ref in sorted(bundle_document["verified_images"].items()):
         print(f"VERIFIED {name}={ref}")
