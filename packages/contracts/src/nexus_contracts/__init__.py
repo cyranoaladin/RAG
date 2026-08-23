@@ -155,6 +155,18 @@ from nexus_contracts.production_readiness import (
     sign_production_readiness_manifest_v2,
     verify_production_readiness_manifest_v2,
 )
+from nexus_contracts.release_evidence import (
+    EXACT_HEAD_RECEIPT_MAX_AGE,
+    H2_EVIDENCE_V2_PROTOCOL_VERSION,
+    PROMOTION_EVIDENCE_V2_PROTOCOL_VERSION,
+    H2EvidenceBundleV2,
+    PromotionEvidenceV2,
+    ReleaseEvidenceError,
+    parse_h2_evidence_bundle_v2,
+    parse_promotion_evidence_v2,
+    verify_h2_evidence_bundle_v2_freshness,
+    verify_promotion_evidence_v2,
+)
 
 __all__ = [
     "AccessContext",
@@ -233,6 +245,16 @@ __all__ = [
     "NORMAL_SEQUENCE",
     "ResourceState",
     "is_valid_resource_transition",
+    "EXACT_HEAD_RECEIPT_MAX_AGE",
+    "H2_EVIDENCE_V2_PROTOCOL_VERSION",
+    "PROMOTION_EVIDENCE_V2_PROTOCOL_VERSION",
+    "H2EvidenceBundleV2",
+    "PromotionEvidenceV2",
+    "ReleaseEvidenceError",
+    "parse_h2_evidence_bundle_v2",
+    "parse_promotion_evidence_v2",
+    "verify_h2_evidence_bundle_v2_freshness",
+    "verify_promotion_evidence_v2",
     "AUTHORIZATIONS_DIR",
     "AUTHORIZE_INGESTION_SCOPE_DECISION",
     "AUTHORIZE_PUBLICATION_DECISION",

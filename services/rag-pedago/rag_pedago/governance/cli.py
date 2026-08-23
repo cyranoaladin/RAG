@@ -23,8 +23,20 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+from nexus_contracts.release_evidence import (
+    PromotionEvidenceV2,
+    parse_h2_evidence_bundle_v2,
+    verify_h2_evidence_bundle_v2_freshness,
+    verify_promotion_evidence_v2,
+)
+
 from rag_pedago.governance.catalog_republish import republish_catalog
-from rag_pedago.governance.corpus_campaign import parse_corpus_campaign
+from rag_pedago.governance.corpus_campaign import (
+    CorpusCampaignV1,
+    CorpusCampaignV2,
+    parse_corpus_campaign,
+    parse_corpus_campaign_v2,
+)
 from rag_pedago.governance.corpus_review_view import (
     build_review_view,
     render_markdown,
@@ -33,7 +45,10 @@ from rag_pedago.governance.corpus_source_resolver import (
     CorpusSourceUnavailable,
     resolve_corpus_source,
 )
-from rag_pedago.governance.h2_evidence import H2EvidenceBundle
+from rag_pedago.governance.h2_evidence import (
+    H2EvidenceBundle,
+    build_h2_evidence_bundle_v2,
+)
 from rag_pedago.governance.release_scope_placement import (
     ReleaseScopePlacementProducerError,
     produce_release_scope_placement_from_git,
@@ -78,9 +93,9 @@ def _oras_pull(reference: str) -> tuple[bytes, str]:
     return completed.stdout, resolved.stdout.decode().strip()
 
 
-def cmd_resolve_corpus(args: argparse.Namespace) -> int:
-    """Résout, rematérialise et rehache le corpus décrit par la campagne."""
-    campaign = parse_corpus_campaign(args.campaign.read_bytes())
+def _resolve_corpus(
+    args: argparse.Namespace, *, campaign: CorpusCampaignV1 | CorpusCampaignV2
+) -> int:
     resolved = resolve_corpus_source(campaign, destination=args.destination, pull=_oras_pull)
     _write_canonical(
         args.output,
@@ -96,6 +111,20 @@ def cmd_resolve_corpus(args: argparse.Namespace) -> int:
     )
     print(f"corpus resolved: {resolved.manifest.object_count} objects")
     return 0
+
+
+def cmd_resolve_corpus(args: argparse.Namespace) -> int:
+    """Résout explicitement une campagne legacy V1."""
+    return _resolve_corpus(
+        args, campaign=parse_corpus_campaign(args.campaign.read_bytes())
+    )
+
+
+def cmd_resolve_corpus_v2(args: argparse.Namespace) -> int:
+    """Résout explicitement une campagne multi-autorisation V2."""
+    return _resolve_corpus(
+        args, campaign=parse_corpus_campaign_v2(args.campaign.read_bytes())
+    )
 
 
 def cmd_review_view(args: argparse.Namespace) -> int:
@@ -202,6 +231,68 @@ def cmd_h2_evidence(args: argparse.Namespace) -> int:
     )
     print(f"h2 evidence: {bundle.content_sha256}")
     print(f"artifact name: {bundle.artifact_name}")
+    return 0
+
+
+def cmd_h2_evidence_v2(args: argparse.Namespace) -> int:
+    """Assemble le bundle V2 à partir des artefacts canoniques relus."""
+    bundle = build_h2_evidence_bundle_v2(
+        campaign_raw=args.campaign.read_bytes(),
+        authorization_set_raw=args.authorization_set.read_bytes(),
+        h2_coverage_evidence_raw=args.h2_coverage_evidence.read_bytes(),
+        review_view_sha256=args.review_view_sha256,
+        repository=args.repository,
+        pull_request_number=args.pull_request,
+        pr_head_sha=args.pr_head_sha,
+        pr_head_tree_sha=args.pr_head_tree_sha,
+        merge_sha=args.merge_sha,
+        merge_tree_sha=args.merge_tree_sha,
+        workflow_path=args.workflow_path,
+        run_id=args.run_id,
+        run_attempt=args.run_attempt,
+    )
+    args.json_output.write_bytes(bundle.canonical_bytes())
+    print(
+        json.dumps(
+            {
+                "artifact_name": bundle.artifact_name,
+                "evidence_sha256": bundle.digest(),
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    )
+    return 0
+
+
+def cmd_promotion_evidence_v2(args: argparse.Namespace) -> int:
+    """Lie une promotion au bundle H2 V2 exact et encore frais."""
+    bundle = parse_h2_evidence_bundle_v2(args.h2_evidence.read_bytes())
+    try:
+        promotion_time = datetime.fromisoformat(args.promotion_time)
+    except ValueError as exc:
+        raise ValueError("--promotion-time must be an ISO-8601 instant") from exc
+    verify_h2_evidence_bundle_v2_freshness(bundle, now=promotion_time)
+    promotion = PromotionEvidenceV2.model_validate(
+        PromotionEvidenceV2.fields_from_h2_bundle(
+            bundle,
+            image_provenance_run_id=args.image_provenance_run_id,
+            image_provenance_run_attempt=args.image_provenance_run_attempt,
+            promotion_workflow_path=args.promotion_workflow_path,
+            promotion_run_id=args.promotion_run_id,
+            promotion_run_attempt=args.promotion_run_attempt,
+            promotion_workflow_ref=args.promotion_workflow_ref,
+        )
+    )
+    verify_promotion_evidence_v2(promotion, h2_bundle=bundle)
+    args.json_output.write_bytes(promotion.canonical_bytes())
+    print(
+        json.dumps(
+            {"promotion_evidence_sha256": promotion.digest()},
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    )
     return 0
 
 
@@ -378,6 +469,15 @@ def build_parser() -> argparse.ArgumentParser:
     resolve.add_argument("--output", type=Path, required=True)
     resolve.set_defaults(func=cmd_resolve_corpus)
 
+    resolve_v2 = sub.add_parser(
+        "resolve-corpus-v2",
+        help="Résout un corpus OCI depuis NEXUS-CORPUS-CAMPAIGN-V2.",
+    )
+    resolve_v2.add_argument("--campaign", type=Path, required=True)
+    resolve_v2.add_argument("--destination", type=Path, required=True)
+    resolve_v2.add_argument("--output", type=Path, required=True)
+    resolve_v2.set_defaults(func=cmd_resolve_corpus_v2)
+
     review = sub.add_parser("review-view", help="Rend la vue de revue humaine.")
     review.add_argument("--sealed-manifest", type=Path, required=True)
     review.add_argument("--placement-catalog", type=Path, required=True)
@@ -428,6 +528,46 @@ def build_parser() -> argparse.ArgumentParser:
     evidence.add_argument("--h2-report", type=Path, required=True)
     evidence.add_argument("--output", type=Path, required=True)
     evidence.set_defaults(func=cmd_h2_evidence)
+
+    evidence_v2 = sub.add_parser(
+        "h2-evidence-v2",
+        help="Assemble le bundle NEXUS-H2-EVIDENCE-V2 multi-autorisation.",
+    )
+    for flag in (
+        "--repository",
+        "--pr-head-sha",
+        "--pr-head-tree-sha",
+        "--merge-sha",
+        "--merge-tree-sha",
+        "--review-view-sha256",
+        "--workflow-path",
+        "--run-id",
+    ):
+        evidence_v2.add_argument(flag, required=True)
+    evidence_v2.add_argument("--pull-request", type=int, required=True)
+    evidence_v2.add_argument("--run-attempt", type=int, required=True)
+    evidence_v2.add_argument("--campaign", type=Path, required=True)
+    evidence_v2.add_argument("--authorization-set", type=Path, required=True)
+    evidence_v2.add_argument("--h2-coverage-evidence", type=Path, required=True)
+    evidence_v2.add_argument("--json-output", type=Path, required=True)
+    evidence_v2.set_defaults(func=cmd_h2_evidence_v2)
+
+    promotion_v2 = sub.add_parser(
+        "promotion-evidence-v2",
+        help="Assemble NEXUS-PROMOTION-EVIDENCE-V2 depuis le bundle H2 V2.",
+    )
+    promotion_v2.add_argument("--h2-evidence", type=Path, required=True)
+    promotion_v2.add_argument("--promotion-time", required=True)
+    promotion_v2.add_argument("--image-provenance-run-id", type=int, required=True)
+    promotion_v2.add_argument(
+        "--image-provenance-run-attempt", type=int, required=True
+    )
+    promotion_v2.add_argument("--promotion-workflow-path", required=True)
+    promotion_v2.add_argument("--promotion-run-id", type=int, required=True)
+    promotion_v2.add_argument("--promotion-run-attempt", type=int, required=True)
+    promotion_v2.add_argument("--promotion-workflow-ref", required=True)
+    promotion_v2.add_argument("--json-output", type=Path, required=True)
+    promotion_v2.set_defaults(func=cmd_promotion_evidence_v2)
 
     republish = sub.add_parser(
         "republish-catalog",

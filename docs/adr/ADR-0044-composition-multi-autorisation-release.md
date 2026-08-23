@@ -178,6 +178,14 @@ deux digests singuliers d'autorisation/binding par ce digest unique ; le
 digest du set engage sans ambiguïté chaque binding individuel. Une enveloppe
 signée V2 et des parseurs V2 explicites empêchent tout fallback V2 vers V1.
 
+La production de preuves H2/promotion V2 fraîches est limitée au commit de
+merge qui est exactement le HEAD courant de `main`. Un ancêtre de `main` est
+refusé : exécuter les producteurs et relire les fichiers courants tout en
+nommant une ancienne identité mélangerait deux releases. Cette restriction ne
+modifie pas ADR-0036 §7 : le rollback peut rejouer une readiness déjà signée,
+immuable et conservée, mais ne régénère pas de nouvelles preuves pour cet
+ancien commit.
+
 ### Signer, deploy et startup
 
 Le signer V2 reçoit le set et une racine gouvernée, dérive les chemins des

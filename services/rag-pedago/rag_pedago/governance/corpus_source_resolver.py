@@ -45,7 +45,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from rag_pedago.governance.corpus_campaign import CorpusCampaignV1
+from rag_pedago.governance.corpus_campaign import CorpusCampaignV1, CorpusCampaignV2
 from rag_pedago.governance.sealed_corpus import (
     MANIFEST_SELF_PATH,
     MAX_COMPRESSION_RATIO,
@@ -210,7 +210,7 @@ def extract_canonical_archive(tar_bytes: bytes, destination: Path) -> None:
 
 
 def resolve_corpus_source(
-    campaign: CorpusCampaignV1,
+    campaign: CorpusCampaignV1 | CorpusCampaignV2,
     *,
     destination: Path,
     pull: OciPull,

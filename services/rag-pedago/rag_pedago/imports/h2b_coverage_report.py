@@ -2532,6 +2532,24 @@ def main() -> int:
         ),
     )
     parser.add_argument(
+        "--authorization-set",
+        type=Path,
+        help="NEXUS-AUTHORIZATION-SET-V1 pour la voie V2 explicite.",
+    )
+    parser.add_argument(
+        "--authorization-material-root",
+        type=Path,
+        help="Racine exacte contenant les chemins dérivés des membres du set.",
+    )
+    parser.add_argument("--repository-root", type=Path)
+    parser.add_argument("--release-scope-source-tree-sha")
+    parser.add_argument("--profile-proposal-matrix")
+    parser.add_argument("--accepted-placements")
+    parser.add_argument("--release-registry")
+    parser.add_argument("--authority-required-contents")
+    parser.add_argument("--verified-profiles")
+    parser.add_argument("--profile-manifest")
+    parser.add_argument(
         "--authority-trust-anchor",
         type=Path,
         help=(
@@ -2602,6 +2620,42 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    release_scope_git_inputs = None
+    if args.authorization_set is not None:
+        required_v2 = {
+            "authorization_material_root": args.authorization_material_root,
+            "repository_root": args.repository_root,
+            "release_scope_source_tree_sha": args.release_scope_source_tree_sha,
+            "profile_proposal_matrix": args.profile_proposal_matrix,
+            "accepted_placements": args.accepted_placements,
+            "release_registry": args.release_registry,
+            "authority_required_contents": args.authority_required_contents,
+            "verified_profiles": args.verified_profiles,
+            "profile_manifest": args.profile_manifest,
+            "currentness_verification": args.currentness_verification,
+            "json_output": args.json_output,
+        }
+        missing = sorted(name for name, value in required_v2.items() if value is None)
+        if missing:
+            parser.error(
+                "--authorization-set V2 requires " + ", ".join(missing)
+            )
+        if args.authority is not None or args.authority_review_binding is not None:
+            parser.error(
+                "--authorization-set is an explicit V2 protocol and cannot use "
+                "singular --authority/--authority-review-binding"
+            )
+        release_scope_git_inputs = ReleaseScopePlacementGitInputs(
+            repository_root=args.repository_root,
+            source_tree_sha=args.release_scope_source_tree_sha,
+            profile_proposal_matrix_path=args.profile_proposal_matrix,
+            accepted_placements_path=args.accepted_placements,
+            release_registry_path=args.release_registry,
+            expected_contents_path=args.authority_required_contents,
+            verified_profiles_path=args.verified_profiles,
+            profile_manifest_path=args.profile_manifest,
+        )
+
     report = generate_coverage_report(
         catalog_path=args.catalog,
         rights_path=args.rights,
@@ -2617,6 +2671,10 @@ def main() -> int:
         expected_total=args.expected_total,
         expected_manifest_sha256=args.expected_manifest_sha256,
         currentness_verification_path=args.currentness_verification,
+        authorization_set_path=args.authorization_set,
+        authorization_material_root=args.authorization_material_root,
+        repository_root=args.repository_root,
+        release_scope_git_inputs=release_scope_git_inputs,
     )
 
     markdown = render_markdown(report)
@@ -2628,7 +2686,11 @@ def main() -> int:
         print(f"\nReport written to: {args.output}")
 
     if args.json_output:
-        evidence = report_to_h2_coverage_evidence(report)
+        evidence = (
+            report_to_h2_coverage_evidence_v2(report)
+            if args.authorization_set is not None
+            else report_to_h2_coverage_evidence(report)
+        )
         args.json_output.parent.mkdir(parents=True, exist_ok=True)
         args.json_output.write_bytes(evidence.canonical_bytes())
         print(f"\nMachine-readable evidence written to: {args.json_output}")

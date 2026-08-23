@@ -12,13 +12,35 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
+from nexus_contracts.authorization_set import (
+    AuthorizationSetMemberV1,
+    AuthorizationSetV1,
+    content_set_digest,
+    scope_digest,
+)
+from nexus_contracts.h2_coverage_evidence import (
+    H2_COVERAGE_EVIDENCE_V2_PROTOCOL_VERSION,
+    H2CoverageEvidenceV2,
+)
+from nexus_contracts.ingestion import ResourceScope
+from nexus_contracts.release_evidence import (
+    H2_EVIDENCE_V2_PROTOCOL_VERSION,
+    ReleaseEvidenceError,
+    parse_h2_evidence_bundle_v2,
+    verify_h2_evidence_bundle_v2_freshness,
+)
 
+from rag_pedago.governance.corpus_campaign import (
+    CORPUS_CAMPAIGN_V2_PROTOCOL_VERSION,
+    CorpusCampaignV2,
+)
 from rag_pedago.governance.h2_evidence import (
     H2_EVIDENCE_PROTOCOL,
     EvidenceCandidate,
     H2EvidenceBundle,
     H2EvidenceError,
     build_evidence_index,
+    build_h2_evidence_bundle_v2,
     cross_check_review_view,
     resolve_evidence_artifact,
     verify_gate_outcome,
@@ -34,9 +56,190 @@ NOW = datetime(2026, 8, 10, 12, 0, 0, tzinfo=UTC)
 LEGACY_V1_FIXTURE = (
     Path(__file__).parent / "fixtures/legacy_v1/h2_evidence_bundle_v1.json"
 )
+LEGACY_CAMPAIGN_V1_FIXTURE = (
+    Path(__file__).parent / "fixtures/legacy_v1/corpus_campaign_v1.json"
+)
 LEGACY_V1_FIXTURE_SHA256 = (
     "8bc7e2a903945f4f63d800fe1a4b2d68d7d518871be7eacec17c04c90f5c8cba"
 )
+
+
+def _v2_scope() -> ResourceScope:
+    return ResourceScope.model_validate(
+        {
+            "tenant": "libre_terminale",
+            "collection": "rag_nexus_philo_terminale_tc",
+            "niveau": "terminale",
+            "voie": "generale",
+            "matiere": "philosophie",
+            "candidat": "libre",
+            "audience": ["libre"],
+            "visibility": "internal",
+            "school_year": "2026-2027",
+            "programme_version": "BOEN_special_8_2019-07-25",
+        }
+    )
+
+
+def _authorization_set() -> AuthorizationSetV1:
+    scope = _v2_scope()
+    content = "0" * 64
+    member = AuthorizationSetMemberV1.model_validate(
+        {
+            "authorization_id": "release-philo",
+            "authorization_digest": "1" * 64,
+            "review_binding_digest": "2" * 64,
+            "scope": scope,
+            "scope_digest": scope_digest(scope),
+            "allowed_content_sha256": [content],
+            "allowed_content_count": 1,
+            "allowed_content_set_sha256": content_set_digest([content]),
+            "valid_from": NOW - timedelta(days=8),
+            "valid_until": NOW + timedelta(days=2),
+        }
+    )
+    return AuthorizationSetV1.build(
+        members=[member],
+        corpus_manifest_sha256="5" * 64,
+        profile_manifest_digest="b" * 64,
+        release_scope_placement_digest="c" * 64,
+        authority_required_content_sha256=[content],
+    )
+
+
+def _campaign_v2(authorization_set: AuthorizationSetV1) -> CorpusCampaignV2:
+    return CorpusCampaignV2.model_validate(
+        {
+            "protocol_version": CORPUS_CAMPAIGN_V2_PROTOCOL_VERSION,
+            "campaign_id": "release-2026-08",
+            "source_kind": "ghcr-oci",
+            "source_registry": "ghcr.io",
+            "source_repository": "cyranoaladin/rag-corpus",
+            "source_oci_digest": "sha256:" + "3" * 64,
+            "source_archive_sha256": "4" * 64,
+            "source_tree_digest": "6" * 64,
+            "archive_format": "tar.zst",
+            "source_root": "corpus",
+            "expected_manifest_sha256": authorization_set.corpus_manifest_sha256,
+            "expected_catalog_digest": "7" * 64,
+            "authorization_set_digest": authorization_set.digest(),
+            "authority_required_count": authorization_set.authority_required_count,
+            "authority_required_set_sha256": (
+                authorization_set.authority_required_set_sha256
+            ),
+            "profile_manifest_digest": authorization_set.profile_manifest_digest,
+            "release_scope_placement_digest": (
+                authorization_set.release_scope_placement_digest
+            ),
+            "compiler_version": "corpus-catalog-compiler/2",
+            "routing_config_digest": "8" * 64,
+            "rights_config_digest": "9" * 64,
+            "pii_config_digest": "a" * 64,
+            "golden_spec_digest": "d" * 64,
+            "environment": "production",
+            "retention_days": 90,
+        }
+    )
+
+
+def _h2_coverage_v2(
+    authorization_set: AuthorizationSetV1, **overrides: object
+) -> H2CoverageEvidenceV2:
+    input_digests = {
+        "authorization_set": authorization_set.digest(),
+        "authority_revocations": "e" * 64,
+        "catalog": "7" * 64,
+        "currentness_verification": "f" * 64,
+        "golden": "d" * 64,
+        "pii": "a" * 64,
+        "release_scope_placement": authorization_set.release_scope_placement_digest,
+        "review_binding_trust_anchor": "1" * 64,
+        "rights": "9" * 64,
+        "routing": "8" * 64,
+        "trusted_reviewers": "2" * 64,
+    }
+    fields: dict[str, object] = {
+        "protocol_version": H2_COVERAGE_EVIDENCE_V2_PROTOCOL_VERSION,
+        "environment": "production",
+        "report_id": "release-2026-08",
+        "generated_at": NOW,
+        "git_commit": "3" * 40,
+        "producer_version": "rag-pedago/2",
+        "corpus_manifest_sha256": authorization_set.corpus_manifest_sha256,
+        "profile_manifest_digest": authorization_set.profile_manifest_digest,
+        "authorization_set_digest": authorization_set.digest(),
+        "authorization_count": authorization_set.authorization_count,
+        "authorization_set_verified_at": NOW - timedelta(hours=1),
+        "earliest_review_submitted_at": NOW - timedelta(days=7),
+        "earliest_review_binding_verified_at": NOW - timedelta(days=6),
+        "earliest_review_binding_expires_at": NOW + timedelta(days=1),
+        "authorizations_effective_valid_until": (
+            authorization_set.authorizations_effective_valid_until
+        ),
+        "release_scope_source_tree_sha": "2" * 40,
+        "release_scope_placement_digest": (
+            authorization_set.release_scope_placement_digest
+        ),
+        "release_scope_source_blob_digests": {"profiles.yml": "5" * 64},
+        "input_file_digests": input_digests,
+        "corpus_total_expected": 1,
+        "corpus_total_actual": 1,
+        "corpus_match": True,
+        "sum_equals_total": True,
+        "zero_overlap": True,
+        "zero_gap": True,
+        "coverage_complete": True,
+        "rights_gate_status": "PASS",
+        "pii_gate_status": "PASS",
+        "golden_validation_pass": True,
+        "h2_coverage_gate_pass": True,
+        "authority_review_bindings_verified": True,
+        "authority_revocations_checked": True,
+        "authority_required_count": authorization_set.authority_required_count,
+        "authority_covered_count": authorization_set.authority_required_count,
+        "authority_required_set_sha256": (
+            authorization_set.authority_required_set_sha256
+        ),
+        "authorization_overlap_count": 0,
+        "authorization_gap_count": 0,
+        "authorization_extra_count": 0,
+        "safety_invariants": {
+            "INGEST_WITHOUT_RIGHTS_CLEARANCE": 0,
+            "INGEST_WITHOUT_PII_CLEARANCE": 0,
+            "INGEST_WITHOUT_CURRENTNESS_CLEARANCE": 0,
+            "INGEST_WITH_UNSUPPORTED_FORMAT": 0,
+            "INGEST_WITHOUT_PROVENANCE": 0,
+            "INGEST_WITHOUT_CONTENT_SHA": 0,
+            "INGEST_WITHOUT_AUTHORITY": 0,
+            "INGEST_WITH_SELF_DECLARED_AUTHORITY": 0,
+            "INGEST_WITHOUT_ATTRIBUTION_METADATA": 0,
+        },
+    }
+    fields.update(overrides)
+    return H2CoverageEvidenceV2.model_validate(fields)
+
+
+def _assemble_v2(**overrides: object):
+    authorization_set = _authorization_set()
+    campaign = _campaign_v2(authorization_set)
+    coverage = _h2_coverage_v2(authorization_set)
+    arguments: dict[str, object] = {
+        "campaign_raw": campaign.canonical_bytes(),
+        "authorization_set_raw": authorization_set.canonical_bytes(),
+        "h2_coverage_evidence_raw": coverage.canonical_bytes(),
+        "review_view_sha256": "a" * 64,
+        "repository": "cyranoaladin/RAG",
+        "pull_request_number": 127,
+        "pr_head_sha": "1" * 40,
+        "pr_head_tree_sha": "2" * 40,
+        "merge_sha": coverage.git_commit,
+        "merge_tree_sha": "2" * 40,
+        "workflow_path": WORKFLOW,
+        "run_id": "123",
+        "run_attempt": 1,
+    }
+    arguments.update(overrides)
+    return build_h2_evidence_bundle_v2(**arguments)
 
 
 def make_bundle(**overrides) -> H2EvidenceBundle:
@@ -455,3 +658,87 @@ class TestArtifactName:
     def test_replacing_the_campaign_changes_the_name(self) -> None:
         bundle = replace(make_bundle(), campaign_id="2026-09-corpus-public")
         assert bundle.artifact_name.endswith("2026-09-corpus-public")
+
+
+class TestH2EvidenceBundleV2:
+    def test_assembles_only_from_three_cross_bound_v2_documents(self) -> None:
+        bundle = _assemble_v2()
+        assert bundle.protocol_version == H2_EVIDENCE_V2_PROTOCOL_VERSION
+        assert bundle.authorization_set_digest == bundle.input_file_digests[
+            "authorization_set"
+        ]
+        assert bundle.authority_required_count == bundle.authority_covered_count == 1
+        assert parse_h2_evidence_bundle_v2(bundle.canonical_bytes()) == bundle
+
+    def test_changed_authorization_set_is_refused(self) -> None:
+        changed = _authorization_set().model_copy(
+            update={"corpus_manifest_sha256": "f" * 64}
+        )
+        with pytest.raises(ReleaseEvidenceError, match="authorization_set_digest"):
+            _assemble_v2(authorization_set_raw=changed.canonical_bytes())
+
+    def test_changed_campaign_is_refused(self) -> None:
+        authorization_set = _authorization_set()
+        changed = _campaign_v2(authorization_set).model_copy(
+            update={"expected_catalog_digest": "f" * 64}
+        )
+        with pytest.raises(ReleaseEvidenceError, match="catalog"):
+            _assemble_v2(campaign_raw=changed.canonical_bytes())
+
+    def test_changed_h2_coverage_is_refused(self) -> None:
+        authorization_set = _authorization_set()
+        changed = _h2_coverage_v2(
+            authorization_set,
+            authority_required_set_sha256="f" * 64,
+        )
+        with pytest.raises(ReleaseEvidenceError, match="authority_required_set_sha256"):
+            _assemble_v2(h2_coverage_evidence_raw=changed.canonical_bytes())
+
+    @pytest.mark.parametrize("offset", [timedelta(seconds=-1), timedelta(seconds=1)])
+    def test_h2_expiry_must_equal_the_signed_authorization_set_minimum(
+        self, offset: timedelta
+    ) -> None:
+        authorization_set = _authorization_set()
+        changed = _h2_coverage_v2(
+            authorization_set,
+            authorizations_effective_valid_until=(
+                authorization_set.authorizations_effective_valid_until + offset
+            ),
+        )
+        with pytest.raises(
+            ReleaseEvidenceError,
+            match="authorizations_effective_valid_until",
+        ):
+            _assemble_v2(h2_coverage_evidence_raw=changed.canonical_bytes())
+
+    def test_placement_provenance_must_come_from_the_merge_tree(self) -> None:
+        authorization_set = _authorization_set()
+        changed = _h2_coverage_v2(
+            authorization_set,
+            release_scope_source_tree_sha="4" * 40,
+        )
+        with pytest.raises(
+            ReleaseEvidenceError,
+            match="release_scope_source_tree_sha",
+        ):
+            _assemble_v2(h2_coverage_evidence_raw=changed.canonical_bytes())
+
+    def test_signed_minimum_expiry_is_a_half_open_promotion_boundary(self) -> None:
+        authorization_set = _authorization_set()
+        coverage = _h2_coverage_v2(
+            authorization_set,
+            earliest_review_submitted_at=NOW - timedelta(days=5),
+            earliest_review_binding_verified_at=NOW - timedelta(days=4),
+            authorization_set_verified_at=NOW - timedelta(days=3),
+            earliest_review_binding_expires_at=NOW + timedelta(days=3),
+        )
+        bundle = _assemble_v2(h2_coverage_evidence_raw=coverage.canonical_bytes())
+        with pytest.raises(ReleaseEvidenceError, match="authorizations expired"):
+            verify_h2_evidence_bundle_v2_freshness(
+                bundle,
+                now=authorization_set.authorizations_effective_valid_until,
+            )
+
+    def test_v1_documents_never_fall_back_into_v2(self) -> None:
+        with pytest.raises(ReleaseEvidenceError, match="campaign V2"):
+            _assemble_v2(campaign_raw=LEGACY_CAMPAIGN_V1_FIXTURE.read_bytes())

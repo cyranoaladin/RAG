@@ -20,10 +20,21 @@ _REPO_ROOT = Path(__file__).resolve().parents[3]
 _WORKFLOW_PATH = (
     _REPO_ROOT / ".github" / "workflows" / "_produce-h2-evidence.yml"
 )
+_PROMOTE_WORKFLOW_PATH = _REPO_ROOT / ".github" / "workflows" / "promote.yml"
 
 #: Drapeaux dont l'argument est un chemin de fichier LITTÉRAL (jamais
 #: interpolé par une variable de campagne) qui doit exister à HEAD.
-_STATIC_PATH_FLAGS = ("--routing", "--rights", "--pii", "--golden", "--config")
+_STATIC_PATH_FLAGS = (
+    "--routing",
+    "--rights",
+    "--pii",
+    "--golden",
+    "--config",
+    "--profile-proposal-matrix",
+    "--release-registry",
+    "--authority-required-contents",
+    "--currentness-verification",
+)
 
 #: Interdits absolus dans un step `run:` réel (jamais seulement en
 #: commentaire) : `h2b_coverage_report.py` les REFUSE explicitement en
@@ -110,7 +121,9 @@ def test_sha256sum_static_paths_exist_on_disk() -> None:
                 f"sha256sum references {relative_path!r}, which does not "
                 f"exist at {candidate}"
             )
-    assert checked >= 6, "expected multiple static sha256sum references to check"
+    # V2 rehache les inputs dans le producteur Python et ne duplique plus
+    # leurs chemins gouvernés dans des commandes sha256sum du workflow.
+    assert checked == 0
 
 
 @pytest.mark.parametrize("forbidden_flag", _FORBIDDEN_PRODUCTION_FLAGS)
@@ -135,11 +148,100 @@ def test_governed_trust_anchor_and_revocation_registry_are_hashed_from_real_path
     consultés par le gate en production (chemins gouvernés dans
     `h2b_coverage_report._resolve_trust_anchor_path`/`_load_revoked_
     authorization_ids`), jamais un chemin fictif qui n'a jamais existé."""
-    document = _load_workflow()
-    run_blocks = _run_blocks(document)
-    combined = "\n".join(run_blocks)
-    assert "governance/trust-anchors/review-binding-v1.json" in combined
-    assert "governance/trust-anchors/authorization-revocations-v1.json" in combined
+    producer = (
+        _REPO_ROOT
+        / "services/rag-pedago/rag_pedago/imports/h2b_coverage_report.py"
+    ).read_text(encoding="utf-8")
+    assert '"governance/trust-anchors/review-binding-v1.json"' in producer
+    assert '"governance/trust-anchors/authorization-revocations-v1.json"' in producer
+    combined = "\n".join(_run_blocks(_load_workflow()))
+    assert '--json-output "${RUNNER_TEMP}/h2-coverage-evidence.json"' in combined
+
+
+def test_v2_route_has_one_set_and_no_singular_authority_fallback() -> None:
+    combined = "\n".join(_run_blocks(_load_workflow()))
+    assert "--authorization-set" in combined
+    assert "--h2-coverage-evidence" in combined
+    assert "h2-evidence-v2" in combined
+    tokens = re.findall(r"(?<![A-Za-z0-9-])--[a-z0-9-]+", combined)
+    assert "--authority" not in tokens
+    assert "--authority-review-binding" not in tokens
+    assert "--authorization-sha256" not in tokens
+
+
+def test_untrusted_expressions_never_enter_shell_source() -> None:
+    for path in (_WORKFLOW_PATH, _PROMOTE_WORKFLOW_PATH):
+        document = yaml.safe_load(path.read_text(encoding="utf-8"))
+        for job in document["jobs"].values():
+            for step in job.get("steps", []):
+                assert "${{" not in step.get("run", ""), (
+                    f"{path.name}:{step.get('name')} interpolates a GitHub "
+                    "expression into shell source instead of passing it via env"
+                )
+
+
+def test_promotion_v2_downloads_and_verifies_the_exact_h2_artifact() -> None:
+    document = yaml.safe_load(_PROMOTE_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    steps = document["jobs"]["assemble"]["steps"]
+    download = next(step for step in steps if step.get("name") == "Download exact H2 V2 artifact")
+    assert download["with"]["name"] == "${{ needs.h2-evidence.outputs.artifact_name }}"
+    combined = "\n".join(step.get("run", "") for step in steps)
+    assert "promotion-evidence-v2" in combined
+    assert "H2_EVIDENCE_SHA256" in combined
+    assert "NEXUS-PROMOTION-EVIDENCE-V1" not in combined
+
+
+def test_v2_evidence_and_promotion_refuse_an_old_main_ancestor() -> None:
+    """Fresh V2 evidence is produced only for the checked-out trusted HEAD.
+
+    Replaying an already signed immutable readiness release remains a separate
+    deploy concern; regenerating fresh H2/promotion evidence for an ancestor
+    would mix current producer inputs with a foreign release identity.
+    """
+    for path, job_name in (
+        (_WORKFLOW_PATH, "produce"),
+        (_PROMOTE_WORKFLOW_PATH, "identity"),
+    ):
+        document = yaml.safe_load(path.read_text(encoding="utf-8"))
+        identity = next(
+            step
+            for step in document["jobs"][job_name]["steps"]
+            if step.get("id") == "identity"
+        )
+        body = identity["run"]
+        assert 'current_main_sha="$(git rev-parse HEAD)"' in body
+        assert '[ "$merge_sha" != "$current_main_sha" ]' in body
+        assert "git merge-base --is-ancestor" not in body
+
+
+def test_promotion_assembly_is_pinned_and_rechecks_main_before_publication() -> None:
+    document = yaml.safe_load(_PROMOTE_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    steps = document["jobs"]["assemble"]["steps"]
+    checkout = steps[0]
+    assert checkout["uses"].startswith("actions/checkout@")
+    assert checkout["with"]["ref"] == "${{ needs.identity.outputs.merge_sha }}"
+    assert checkout["with"]["persist-credentials"] is False
+
+    upload_index = next(
+        index
+        for index, step in enumerate(steps)
+        if step.get("name") == "Upload promotion evidence"
+    )
+    recheck = steps[upload_index - 1]
+    assert recheck["name"] == "Recheck frozen merge is still main HEAD"
+    assert recheck["env"]["FROZEN_MERGE_SHA"] == (
+        "${{ needs.identity.outputs.merge_sha }}"
+    )
+    body = recheck["run"]
+    assert "git fetch --no-tags origin main" in body
+    assert 'current_main_sha="$(git rev-parse origin/main)"' in body
+    assert '[ "$current_main_sha" != "$FROZEN_MERGE_SHA" ]' in body
+
+    # No step output is published before the final main-HEAD recheck.
+    assert all(
+        "GITHUB_OUTPUT" not in step.get("run", "")
+        for step in steps[: upload_index - 1]
+    )
 
 
 def test_actions_are_pinned_by_commit_sha() -> None:

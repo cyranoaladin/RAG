@@ -138,16 +138,29 @@ class TestProducerWorkflowShape:
 
 
 class TestGovernanceCli:
-    def test_the_five_subcommands_exist(self) -> None:
+    def test_the_eight_subcommands_exist(self) -> None:
         parser = build_parser()
         choices = parser._subparsers._group_actions[0].choices  # type: ignore[union-attr]
         assert set(choices) == {
             "resolve-corpus",
+            "resolve-corpus-v2",
             "review-view",
             "h2-evidence",
+            "h2-evidence-v2",
+            "promotion-evidence-v2",
             "republish-catalog",
             "release-scope-placement",
         }
+
+    def test_resolve_v2_has_no_legacy_protocol_fallback(self) -> None:
+        parser = build_parser()
+        resolve = parser._subparsers._group_actions[0].choices["resolve-corpus-v2"]  # type: ignore[union-attr]
+        flags = {
+            option
+            for action in resolve._actions
+            for option in action.option_strings
+        }
+        assert flags == {"-h", "--help", "--campaign", "--destination", "--output"}
 
     def test_republish_catalog_requires_every_binding(self) -> None:
         """Un champ optionnel serait un champ qu'un producteur peut omettre
@@ -158,6 +171,47 @@ class TestGovernanceCli:
             action.option_strings[0]
             for action in republish._actions
             if action.option_strings and action.option_strings[0] != "-h" and not action.required
+        ]
+        assert optional == []
+
+    def test_promotion_v2_consumes_the_exact_h2_bundle(self) -> None:
+        parser = build_parser()
+        promotion = parser._subparsers._group_actions[0].choices["promotion-evidence-v2"]  # type: ignore[union-attr]
+        flags = {
+            option
+            for action in promotion._actions
+            for option in action.option_strings
+        }
+        assert {"--h2-evidence", "--promotion-time", "--json-output"} <= flags
+        for forbidden in ("--authorization", "--authority", "--review-binding"):
+            assert forbidden not in flags
+
+    def test_h2_evidence_v2_requires_set_and_json_output_without_singular_fallback(
+        self,
+    ) -> None:
+        parser = build_parser()
+        evidence = parser._subparsers._group_actions[0].choices["h2-evidence-v2"]  # type: ignore[union-attr]
+        flags = {
+            option
+            for action in evidence._actions
+            for option in action.option_strings
+        }
+        assert "--authorization-set" in flags
+        assert "--h2-coverage-evidence" in flags
+        assert "--json-output" in flags
+        for forbidden in (
+            "--authorization-file",
+            "--authorization-sha256",
+            "--authority",
+            "--authority-review-binding",
+        ):
+            assert forbidden not in flags
+        optional = [
+            action.option_strings[0]
+            for action in evidence._actions
+            if action.option_strings
+            and action.option_strings[0] != "-h"
+            and not action.required
         ]
         assert optional == []
 

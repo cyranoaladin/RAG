@@ -1,9 +1,9 @@
 name: Promote governed release evidence
 
-# ADR-0036 (chaîne de promotion gouvernée). Pour un commit de merge exact,
-# déjà fusionné dans `main`, assemble le paquet de preuves qu'un opérateur
+# ADR-0036 (chaîne de promotion gouvernée). Pour le commit de merge exact
+# qui est le HEAD courant de `main`, assemble le paquet de preuves qu'un opérateur
 # humain confrontera ensuite hors ligne pour signer un
-# ProductionReadinessManifestV1
+# ProductionReadinessManifestV2
 # (services/rag-engine/scripts/sign_production_readiness_manifest_cli.py) :
 # identité PR/merge/arbre vérifiée en direct, preuve H2 (via
 # _produce-h2-evidence.yml, appelé tel quel, jamais réimplémenté), et
@@ -62,7 +62,7 @@ concurrency:
 
 jobs:
   # ── 1. Identité : PR fusionnée, arbre PR == arbre merge, merge_sha
-  #      ancêtre réel de main ────────────────────────────────────────────
+  #      exactement égal au HEAD de main ────────────────────────────────
   identity:
     name: Verify merged PR identity
     runs-on: ubuntu-24.04
@@ -82,8 +82,10 @@ jobs:
     steps:
       - name: Refuse anything but a real main dispatch
         if: github.ref != 'refs/heads/main'
+        env:
+          ACTUAL_REF: ${{ github.ref }}
         run: |
-          echo "::error::this workflow only ever runs against refs/heads/main, got ${{ github.ref }}"
+          echo "::error::this workflow only ever runs against refs/heads/main, got ${ACTUAL_REF}"
           exit 1
 
       - name: Checkout main
@@ -93,11 +95,10 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
-      # Même méthode que _produce-h2-evidence.yml : ce workflow ne
-      # requiert jamais que `github.sha` égale le merge_sha promu — ADR-
-      # 0036 §7 autorise explicitement le rejeu d'un ancien merge_sha
-      # (rollback/redéploiement idempotent). Il suffit que ce merge_sha
-      # soit réellement un ancêtre de `main` aujourd'hui.
+      # Même méthode que _produce-h2-evidence.yml : une promotion V2 fraîche
+      # porte uniquement sur le HEAD de main dont elle exécute les producteurs.
+      # ADR-0036 §7 autorise le rejeu d'une readiness déjà signée et immuable,
+      # pas la régénération de preuves fraîches pour un ancêtre historique.
       - name: Derive and verify merged identity
         id: identity
         env:
@@ -123,8 +124,15 @@ jobs:
           head_sha="$(jq -r '.head.sha' <<<"$pr_json")"
           merge_sha="$(jq -r '.merge_commit_sha' <<<"$pr_json")"
 
-          if ! git merge-base --is-ancestor "$merge_sha" origin/main; then
-            echo "::error::merge SHA ${merge_sha} is not an ancestor of main" >&2
+          git fetch --no-tags origin main
+          current_main_sha="$(git rev-parse HEAD)"
+          fetched_main_sha="$(git rev-parse origin/main)"
+          if [ "$current_main_sha" != "$fetched_main_sha" ]; then
+            echo "::error::main advanced from checked-out ${current_main_sha} to ${fetched_main_sha}; retry against the new trusted HEAD" >&2
+            exit 1
+          fi
+          if [ "$merge_sha" != "$current_main_sha" ]; then
+            echo "::error::merge SHA ${merge_sha} is not the current trusted main HEAD (${current_main_sha}); historical promotion evidence regeneration is forbidden" >&2
             exit 1
           fi
 
@@ -249,22 +257,40 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
+      actions: read
     steps:
-      - name: Write NEXUS-PROMOTION-EVIDENCE-V1
-        id: bundle
+      - name: Checkout governed producer at frozen merge
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          # Freeze the producer code to the identity job's exact release.
+          # A moving branch ref here would let main advance between jobs and
+          # execute governance code from a different release.
+          ref: ${{ needs.identity.outputs.merge_sha }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.11'
+
+      - name: Install governance tooling
+        run: |
+          set -euo pipefail
+          python -m pip install --require-hashes --no-deps -r \
+            services/rag-pedago/requirements.lock
+          python -m pip install --no-deps -e packages/contracts
+          python -m pip install --no-deps -e services/rag-pedago
+
+      - name: Download exact H2 V2 artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: ${{ needs.h2-evidence.outputs.artifact_name }}
+          path: ${{ runner.temp }}/h2-evidence
+
+      - name: Write NEXUS-PROMOTION-EVIDENCE-V2
         env:
-          REPOSITORY: ${{ github.repository }}
-          PR_NUMBER: ${{ inputs.pr_number }}
-          CAMPAIGN_ID: ${{ inputs.campaign_id }}
-          MERGE_SHA: ${{ needs.identity.outputs.merge_sha }}
-          MERGE_TREE_SHA: ${{ needs.identity.outputs.merge_tree_sha }}
-          PR_HEAD_SHA: ${{ needs.identity.outputs.pr_head_sha }}
-          PR_HEAD_TREE_SHA: ${{ needs.identity.outputs.pr_head_tree_sha }}
-          H2_ARTIFACT_NAME: ${{ needs.h2-evidence.outputs.artifact_name }}
           H2_EVIDENCE_SHA256: ${{ needs.h2-evidence.outputs.evidence_sha256 }}
-          H2_CATALOG_SHA256: ${{ needs.h2-evidence.outputs.catalog_sha256 }}
-          H2_MANIFEST_SHA256: ${{ needs.h2-evidence.outputs.manifest_sha256 }}
-          H2_REVIEW_VIEW_SHA256: ${{ needs.h2-evidence.outputs.review_view_sha256 }}
           IMAGE_PROVENANCE_RUN_ID: ${{ needs.image-provenance.outputs.run_id }}
           IMAGE_PROVENANCE_RUN_ATTEMPT: ${{ needs.image-provenance.outputs.run_attempt }}
           PROMOTION_WORKFLOW_PATH: .github/workflows/promote.yml
@@ -280,54 +306,39 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "${RUNNER_TEMP}/promotion"
-          jq -n \
-            --arg protocol_version "NEXUS-PROMOTION-EVIDENCE-V1" \
-            --arg repository "$REPOSITORY" \
-            --argjson pr_number "$PR_NUMBER" \
-            --arg campaign_id "$CAMPAIGN_ID" \
-            --arg merge_sha "$MERGE_SHA" \
-            --arg merge_tree_sha "$MERGE_TREE_SHA" \
-            --arg pr_head_sha "$PR_HEAD_SHA" \
-            --arg pr_head_tree_sha "$PR_HEAD_TREE_SHA" \
-            --arg h2_artifact_name "$H2_ARTIFACT_NAME" \
-            --arg h2_evidence_sha256 "$H2_EVIDENCE_SHA256" \
-            --arg h2_catalog_sha256 "$H2_CATALOG_SHA256" \
-            --arg h2_manifest_sha256 "$H2_MANIFEST_SHA256" \
-            --arg h2_review_view_sha256 "$H2_REVIEW_VIEW_SHA256" \
-            --argjson image_provenance_run_id "$IMAGE_PROVENANCE_RUN_ID" \
-            --argjson image_provenance_run_attempt "$IMAGE_PROVENANCE_RUN_ATTEMPT" \
-            --arg promotion_workflow_path "$PROMOTION_WORKFLOW_PATH" \
-            --argjson promotion_run_id "$PROMOTION_RUN_ID" \
-            --argjson promotion_run_attempt "$PROMOTION_RUN_ATTEMPT" \
-            --arg promotion_workflow_ref "$PROMOTION_WORKFLOW_REF" \
-            '{
-              protocol_version: $protocol_version,
-              repository: $repository,
-              pr_number: $pr_number,
-              campaign_id: $campaign_id,
-              merge_sha: $merge_sha,
-              merge_tree_sha: $merge_tree_sha,
-              pr_head_sha: $pr_head_sha,
-              pr_head_tree_sha: $pr_head_tree_sha,
-              h2_evidence: {
-                artifact_name: $h2_artifact_name,
-                evidence_sha256: $h2_evidence_sha256,
-                catalog_sha256: $h2_catalog_sha256,
-                manifest_sha256: $h2_manifest_sha256,
-                review_view_sha256: $h2_review_view_sha256
-              },
-              image_provenance: {
-                run_id: $image_provenance_run_id,
-                run_attempt: $image_provenance_run_attempt
-              },
-              promotion_provenance: {
-                workflow_path: $promotion_workflow_path,
-                run_id: $promotion_run_id,
-                run_attempt: $promotion_run_attempt,
-                workflow_ref: $promotion_workflow_ref
-              }
-            }' >"${RUNNER_TEMP}/promotion/promotion-evidence.json"
+          h2_file="${RUNNER_TEMP}/h2-evidence/h2-evidence.json"
+          actual_h2_digest="$(sha256sum "${h2_file}" | cut -d' ' -f1)"
+          if [ "${actual_h2_digest}" != "${H2_EVIDENCE_SHA256}" ]; then
+            echo "::error::downloaded H2 evidence digest does not match the called producer output" >&2
+            exit 1
+          fi
+          promotion_time="$(date --utc +%Y-%m-%dT%H:%M:%S.%6NZ)"
+          python -m rag_pedago.governance.cli promotion-evidence-v2 \
+            --h2-evidence "${h2_file}" \
+            --promotion-time "${promotion_time}" \
+            --image-provenance-run-id "${IMAGE_PROVENANCE_RUN_ID}" \
+            --image-provenance-run-attempt "${IMAGE_PROVENANCE_RUN_ATTEMPT}" \
+            --promotion-workflow-path "${PROMOTION_WORKFLOW_PATH}" \
+            --promotion-run-id "${PROMOTION_RUN_ID}" \
+            --promotion-run-attempt "${PROMOTION_RUN_ATTEMPT}" \
+            --promotion-workflow-ref "${PROMOTION_WORKFLOW_REF}" \
+            --json-output "${RUNNER_TEMP}/promotion/promotion-evidence.json"
 
+      # The identity was current when the earlier job ran. Re-read main at
+      # the last possible instant so an advance during H2/assembly refuses
+      # publication instead of emitting evidence for a now-historical merge.
+      - name: Recheck frozen merge is still main HEAD
+        id: bundle
+        env:
+          FROZEN_MERGE_SHA: ${{ needs.identity.outputs.merge_sha }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          current_main_sha="$(git rev-parse origin/main)"
+          if [ "$current_main_sha" != "$FROZEN_MERGE_SHA" ]; then
+            echo "::error::main advanced to ${current_main_sha} after identity froze ${FROZEN_MERGE_SHA}; refusing publication" >&2
+            exit 1
+          fi
           echo "bundle_sha256=$(sha256sum "${RUNNER_TEMP}/promotion/promotion-evidence.json" | cut -d' ' -f1)" \
             >>"$GITHUB_OUTPUT"
 
