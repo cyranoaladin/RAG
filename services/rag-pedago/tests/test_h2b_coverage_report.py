@@ -1,9 +1,12 @@
 """Tests for the real sealed-corpus H2-B coverage report."""
+
 import hashlib
+import inspect
 import json
 import os
 import subprocess
 import sys
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -11,8 +14,27 @@ from typing import Any
 import pytest
 import yaml
 from nexus_contracts import ScopeAuthorizationArtifactV1, ScopeAuthorizationArtifactV2
-from nexus_contracts.authority_artifacts import canonical_authorization_path, git_blob_sha1
+from nexus_contracts.authority_artifacts import (
+    canonical_authorization_path,
+    git_blob_sha1,
+)
+from nexus_contracts.authorization_set import (
+    AuthorizationSetError,
+    AuthorizationSetMemberV1,
+    AuthorizationSetV1,
+    ReleaseScopePlacementEntryV1,
+    ReleaseScopePlacementV1,
+    VerifiedAuthorizationSetV1,
+    VerifiedProfileFactV1,
+    content_set_digest,
+    scope_digest,
+)
 from nexus_contracts.h2_coverage_evidence import parse_h2_coverage_evidence
+from nexus_contracts.ingestion import (
+    CollectionProfile,
+    collection_profile_fingerprint,
+    profile_manifest_fingerprint,
+)
 from nexus_contracts.review_binding import (
     REVIEW_BINDING_PROTOCOL_VERSION,
     TRUSTED_REVIEW_PROTOCOL,
@@ -24,6 +46,9 @@ from nexus_contracts.review_binding import (
 )
 from pydantic import ValidationError
 
+from rag_pedago.governance.release_scope_placement import (
+    ReleaseScopePlacementGitInputs,
+)
 from rag_pedago.imports import h2b_coverage_report as module
 from rag_pedago.imports.h2b_coverage_report import (
     _promote_authority_cleared_candidates,
@@ -31,6 +56,7 @@ from rag_pedago.imports.h2b_coverage_report import (
     authority_required_set_digest,
     generate_coverage_report,
     render_markdown,
+    report_to_h2_coverage_evidence_v2,
 )
 
 #: Instant fixe DANS la fenêtre de validité des autorisations de test — la
@@ -138,9 +164,9 @@ def _install_governed_root(
     reviewers_path = root / module._TRUSTED_REVIEWERS_CONFIG
     reviewers_path.parent.mkdir(parents=True, exist_ok=True)
     reviewers_path.write_text(
-        (
-            module._REPOSITORY_ROOT / module._TRUSTED_REVIEWERS_CONFIG
-        ).read_text(encoding="utf-8"),
+        (module._REPOSITORY_ROOT / module._TRUSTED_REVIEWERS_CONFIG).read_text(
+            encoding="utf-8"
+        ),
         encoding="utf-8",
     )
     monkeypatch.setattr(module, "_GOVERNED_REPOSITORY_ROOT", root)
@@ -240,6 +266,7 @@ def _write_authority(path: Path, document: dict[str, object]) -> Path:
         ScopeAuthorizationArtifactV2.model_validate(document).canonical_bytes()
     )
     return path
+
 
 CONTENT_SHA256 = "a" * 64  # SHA256 of the PDF content
 # P1: Manifest content and SHA256 must be consistent across all fixtures
@@ -411,8 +438,10 @@ def _generate(
 
     If include_authority=True (default), LOT41A-V2 authority evidence is included.
     """
-    routing_path, rights_path, pii_path, authority_path, manifest_path = _write_external_evidence(
-        tmp_path, include_authority=include_authority, environment=environment
+    routing_path, rights_path, pii_path, authority_path, manifest_path = (
+        _write_external_evidence(
+            tmp_path, include_authority=include_authority, environment=environment
+        )
     )
     return generate_coverage_report(
         catalog_path,
@@ -646,7 +675,9 @@ class TestH2CoverageEvidenceProjection:
             for key in report.input_files
             if key.startswith("authority_") and key != "authority_revocations"
         }
-        assert non_digest_keys, "fixture sanity: expected at least one authority_* binding field"
+        assert non_digest_keys, (
+            "fixture sanity: expected at least one authority_* binding field"
+        )
 
         evidence = module.report_to_h2_coverage_evidence(report)
 
@@ -773,9 +804,7 @@ def test_real_authority_covering_a_blocked_candidate_promotes_it_to_ingest(
     path = _write_real_catalog(tmp_path)
     catalog = json.loads(path.read_text(encoding="utf-8"))
     catalog["physical_objects"][0]["disposition"] = "REVIEW_REQUIRED"
-    catalog["physical_objects"][0]["gate_statuses"]["authority"] = (
-        "BLOCKED_NOT_CLEARED"
-    )
+    catalog["physical_objects"][0]["gate_statuses"]["authority"] = "BLOCKED_NOT_CLEARED"
     catalog["disposition_counts"]["INGEST"] = 0
     catalog["disposition_counts"]["REVIEW_REQUIRED"] = 1
     path.write_text(json.dumps(catalog), encoding="utf-8")
@@ -824,9 +853,7 @@ def test_no_authority_evidence_at_all_leaves_the_candidate_blocked(
     path = _write_real_catalog(tmp_path)
     catalog = json.loads(path.read_text(encoding="utf-8"))
     catalog["physical_objects"][0]["disposition"] = "REVIEW_REQUIRED"
-    catalog["physical_objects"][0]["gate_statuses"]["authority"] = (
-        "BLOCKED_NOT_CLEARED"
-    )
+    catalog["physical_objects"][0]["gate_statuses"]["authority"] = "BLOCKED_NOT_CLEARED"
     catalog["disposition_counts"]["INGEST"] = 0
     catalog["disposition_counts"]["REVIEW_REQUIRED"] = 1
     path.write_text(json.dumps(catalog), encoding="utf-8")
@@ -909,9 +936,7 @@ def test_authority_covers_candidate_but_stale_currentness_still_blocks_promotion
     path = _write_real_catalog(tmp_path)
     catalog = json.loads(path.read_text(encoding="utf-8"))
     catalog["physical_objects"][0]["disposition"] = "REVIEW_REQUIRED"
-    catalog["physical_objects"][0]["gate_statuses"]["authority"] = (
-        "BLOCKED_NOT_CLEARED"
-    )
+    catalog["physical_objects"][0]["gate_statuses"]["authority"] = "BLOCKED_NOT_CLEARED"
     catalog["physical_objects"][0]["currentness"] = "transition"
     catalog["disposition_counts"]["INGEST"] = 0
     catalog["disposition_counts"]["REVIEW_REQUIRED"] = 1
@@ -1229,9 +1254,10 @@ class TestAuthorityRequiredSetDigestUnit:
     2026-08-15) dépend de sa stabilité exacte."""
 
     def test_empty_set_has_a_stable_digest(self) -> None:
-        assert authority_required_set_digest(frozenset()) == hashlib.sha256(
-            b""
-        ).hexdigest()
+        assert (
+            authority_required_set_digest(frozenset())
+            == hashlib.sha256(b"").hexdigest()
+        )
 
     def test_digest_is_order_independent(self) -> None:
         a = authority_required_set_digest(frozenset({"1" * 64, "2" * 64}))
@@ -1274,9 +1300,7 @@ class TestAuthorityRequiredSetDigestUnit:
                 check=True,
             )
             digests.add(proc.stdout.strip())
-        assert len(digests) == 1, (
-            f"digest is not PYTHONHASHSEED-independent: {digests}"
-        )
+        assert len(digests) == 1, f"digest is not PYTHONHASHSEED-independent: {digests}"
 
 
 class TestAuthorityRequiredSetTopologyABCDEF:
@@ -1445,7 +1469,9 @@ class TestAuthorityRequiredSetTopologyABCDEF:
         manifest_path.parent.mkdir(parents=True, exist_ok=True)
         manifest_path.write_text(manifest_content, encoding="utf-8")
 
-        def _item(content_sha256: str, filename: str, pii_status: str) -> dict[str, Any]:
+        def _item(
+            content_sha256: str, filename: str, pii_status: str
+        ) -> dict[str, Any]:
             return {
                 "content_sha256": content_sha256,
                 "path": f"01_EDUSCOL_OFFICIEL/{filename}",
@@ -1519,7 +1545,11 @@ class TestAuthorityRequiredSetTopologyABCDEF:
             "manifest_sha256": manifest_sha256,
             "rights_evidence_perimeter": ["00_ADMIN/", "01_EDUSCOL_OFFICIEL/"],
             "zone_rules": [
-                {"zone_prefix": "00_ADMIN/", "disposition": "EXCLUDE", "reason": "admin"},
+                {
+                    "zone_prefix": "00_ADMIN/",
+                    "disposition": "EXCLUDE",
+                    "reason": "admin",
+                },
                 {
                     "zone_prefix": "01_EDUSCOL_OFFICIEL/",
                     "disposition": "INGEST",
@@ -1769,9 +1799,7 @@ def test_authority_not_covering_the_real_base_disposition_ingest_candidate_is_re
     path = _write_real_catalog(tmp_path)
     catalog = json.loads(path.read_text(encoding="utf-8"))
     catalog["physical_objects"][0]["disposition"] = "REVIEW_REQUIRED"
-    catalog["physical_objects"][0]["gate_statuses"]["authority"] = (
-        "BLOCKED_NOT_CLEARED"
-    )
+    catalog["physical_objects"][0]["gate_statuses"]["authority"] = "BLOCKED_NOT_CLEARED"
     catalog["disposition_counts"]["INGEST"] = 0
     catalog["disposition_counts"]["REVIEW_REQUIRED"] = 1
     path.write_text(json.dumps(catalog), encoding="utf-8")
@@ -1805,9 +1833,7 @@ def test_authority_not_covering_the_real_base_disposition_ingest_candidate_is_re
             # par défaut) -- sinon un défaut différent (liaison, pas
             # complétude) serait déclenché en premier, et ce test ne
             # prouverait plus ce qu'il prétend.
-            authority_review_binding_path=_write_review_binding(
-                tmp_path, authority
-            ),
+            authority_review_binding_path=_write_review_binding(tmp_path, authority),
             authority_trust_anchor_path=_write_trust_anchor(tmp_path),
             authority_environment="rehearsal",
             expected_total=2,
@@ -1821,12 +1847,12 @@ def test_rejects_catalog_rights_pass_not_derived_from_registry(
 ) -> None:
     catalog_path = _write_real_catalog(tmp_path)
     golden_path = _write_golden_spec(tmp_path)
-    routing_path, rights_path, pii_path, _, manifest_path = _write_external_evidence(tmp_path)
+    routing_path, rights_path, pii_path, _, manifest_path = _write_external_evidence(
+        tmp_path
+    )
     rights = yaml.safe_load(rights_path.read_text(encoding="utf-8"))
     rights["source_evidence"]["eduscol"]["rights_status"] = "REVIEW_REQUIRED"
-    rights["source_evidence"]["eduscol"]["disposition_override"] = (
-        "REVIEW_REQUIRED"
-    )
+    rights["source_evidence"]["eduscol"]["disposition_override"] = "REVIEW_REQUIRED"
     rights_path.write_text(yaml.safe_dump(rights), encoding="utf-8")
 
     with pytest.raises(ValueError, match="catalog rights gate evidence mismatch"):
@@ -1847,7 +1873,9 @@ def test_rejects_catalog_pii_pass_not_derived_from_sealed_scan(
 ) -> None:
     catalog_path = _write_real_catalog(tmp_path)
     golden_path = _write_golden_spec(tmp_path)
-    routing_path, rights_path, pii_path, _, manifest_path = _write_external_evidence(tmp_path)
+    routing_path, rights_path, pii_path, _, manifest_path = _write_external_evidence(
+        tmp_path
+    )
     pii = json.loads(pii_path.read_text(encoding="utf-8"))
     pii["results"][0]["status"] = "REVIEW_REQUIRED_EXTRACTION_FAILED"
     pii_path.write_text(json.dumps(pii), encoding="utf-8")
@@ -2001,10 +2029,12 @@ def test_h2f_defaut5_authority_pass_autodeclare_is_not_sufficient(
     )
 
     # H2-F Défaut 5: Self-declared authority=PASS MUST be flagged
-    assert report.safety_invariants.get("INGEST_WITH_SELF_DECLARED_AUTHORITY", 0) == 1, \
-        "Self-declared authority=PASS should be counted as a violation"
-    assert report.coverage_complete is False, \
+    assert (
+        report.safety_invariants.get("INGEST_WITH_SELF_DECLARED_AUTHORITY", 0) == 1
+    ), "Self-declared authority=PASS should be counted as a violation"
+    assert report.coverage_complete is False, (
         "Coverage cannot be complete with self-declared authority"
+    )
 
 
 def test_h2f_defaut5_authority_bound_to_wrong_manifest_is_rejected(
@@ -2079,9 +2109,7 @@ def test_h2f_defaut5_content_not_in_authority_allowlist_fails(
     catalog_path = _write_real_catalog(tmp_path)
     catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
     catalog["physical_objects"][0]["disposition"] = "REVIEW_REQUIRED"
-    catalog["physical_objects"][0]["gate_statuses"]["authority"] = (
-        "BLOCKED_NOT_CLEARED"
-    )
+    catalog["physical_objects"][0]["gate_statuses"]["authority"] = "BLOCKED_NOT_CLEARED"
     catalog["disposition_counts"]["INGEST"] = 0
     catalog["disposition_counts"]["REVIEW_REQUIRED"] = 1
     catalog_path.write_text(json.dumps(catalog), encoding="utf-8")
@@ -2298,6 +2326,1018 @@ def _generate_with_authority(
         expected_total=2,
         expected_manifest_sha256=MANIFEST_SHA256,
     )
+
+
+def _v2_profile_document() -> dict[str, object]:
+    return {
+        "profile_version": "1.0.0",
+        "enabled": True,
+        "scope": _valid_authority_document()["scope"],
+        "title": "Profil H2 V2",
+        "owner": "tests",
+        "expected_topics": ["notion"],
+        "expected_resource_types": ["cours"],
+        "allowed_domains": ["eduscol.education.fr"],
+        "source_authority": "official",
+        "search_cadence": "weekly",
+        "max_queries_per_run": 1,
+        "max_documents_per_run": 1,
+        "max_chunk_size": 800,
+        "chunk_overlap": 100,
+        "min_source_confidence": 0.7,
+        "min_scope_confidence": 0.7,
+        "min_extraction_quality": 0.7,
+    }
+
+
+def _v2_profile_manifest_document(profile_fingerprint: str) -> dict[str, object]:
+    return {
+        "manifest_version": "1",
+        "provenance": "fixture exacte H2 V2",
+        "generated_at": "2026-08-23T00:00:00Z",
+        "profiles": [
+            {
+                "collection": "test_collection",
+                "profile_version": "1.0.0",
+                "fingerprint": profile_fingerprint,
+                "approved_by": "test-authority",
+                "approved_at": "2026-08-23T00:00:00Z",
+            }
+        ],
+    }
+
+
+def _write_v2_authorization_set_inputs(
+    tmp_path: Path,
+    **authority_overrides: object,
+) -> tuple[Path, Path, Path, tuple[VerifiedProfileFactV1, ...], AuthorizationSetV1]:
+    authority_document = _valid_authority_document()
+    authority_document["profile_id"] = "test_collection"
+    profile = CollectionProfile.model_validate(_v2_profile_document())
+    profile_fingerprint = collection_profile_fingerprint(profile)
+    profile_manifest_digest = profile_manifest_fingerprint(
+        _v2_profile_manifest_document(profile_fingerprint)
+    )
+    # En V2 le manifeste de l'autorisation est celui des profils, jamais
+    # celui du corpus SHA256SUMS.
+    authority_document["manifest_digest"] = profile_manifest_digest
+    authority_document["profile_fingerprint"] = profile_fingerprint
+    authority_document.update(authority_overrides)
+    authority = ScopeAuthorizationArtifactV2.model_validate(authority_document)
+    binding_path = _write_review_binding(tmp_path, authority_document)
+    scope = authority.scope
+    placement = ReleaseScopePlacementV1.build(
+        profile_manifest_digest=profile_manifest_digest,
+        placements=(
+            ReleaseScopePlacementEntryV1(
+                content_sha256=CONTENT_SHA256,
+                profile_id=authority.profile_id,
+                profile_version=authority.profile_version,
+                profile_fingerprint=authority.profile_fingerprint,
+                scope=scope,
+            ),
+        ),
+    )
+    member = AuthorizationSetMemberV1(
+        authorization_id=authority.authorization_id,
+        authorization_digest=authority.digest(),
+        review_binding_digest=hashlib.sha256(binding_path.read_bytes()).hexdigest(),
+        scope=scope,
+        scope_digest=scope_digest(scope),
+        allowed_content_sha256=(CONTENT_SHA256,),
+        allowed_content_count=1,
+        allowed_content_set_sha256=content_set_digest((CONTENT_SHA256,)),
+        valid_from=authority.valid_from,
+        valid_until=authority.valid_until,
+    )
+    authorization_set = AuthorizationSetV1.build(
+        members=(member,),
+        corpus_manifest_sha256=MANIFEST_SHA256,
+        profile_manifest_digest=profile_manifest_digest,
+        release_scope_placement_digest=placement.digest(),
+        authority_required_content_sha256=(CONTENT_SHA256,),
+    )
+    set_path = tmp_path / "authorization-set.json"
+    set_path.write_bytes(authorization_set.canonical_bytes())
+    placement_path = tmp_path / "release-scope-placement.jsonl"
+    placement_path.write_bytes(placement.canonical_bytes())
+    material_root = tmp_path / "material"
+    authorization_path = material_root / member.authorization_path
+    authorization_path.parent.mkdir(parents=True, exist_ok=True)
+    authorization_path.write_bytes(authority.canonical_bytes())
+    canonical_binding_path = material_root / member.review_binding_path
+    canonical_binding_path.parent.mkdir(parents=True, exist_ok=True)
+    canonical_binding_path.write_bytes(binding_path.read_bytes())
+    profiles = (
+        VerifiedProfileFactV1(
+            profile_id=authority.profile_id,
+            profile_version=authority.profile_version,
+            profile_fingerprint=authority.profile_fingerprint,
+            scope=scope,
+        ),
+    )
+    return set_path, placement_path, material_root, profiles, authorization_set
+
+
+def _write_empty_currentness_evidence(tmp_path: Path) -> Path:
+    path = tmp_path / "currentness.yml"
+    path.write_text(
+        yaml.safe_dump(
+            {
+                "evidence_kind": "MULTILEVEL_ARTIFACT_CURRENTNESS_V1",
+                "corpus_manifest_sha256": MANIFEST_SHA256,
+                "artifacts": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+def _write_v2_exact_tree_inputs(
+    tmp_path: Path,
+    *,
+    profile_fact: VerifiedProfileFactV1,
+) -> ReleaseScopePlacementGitInputs:
+    repository = tmp_path / "profile-evidence-repository"
+    repository.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repository, check=True)
+    paths = {
+        "matrix": "governance/profile-matrix.json",
+        "placements": "governance/placements.json",
+        "registry": "governance/release-registry.json",
+        "contents": "governance/expected-contents.txt",
+        "profiles": "governance/verified-profiles.json",
+        "manifest": "governance/profile-manifest.yml",
+        "profile": "profiles/h2b-test.yml",
+    }
+
+    def write(relative: str, raw: bytes) -> None:
+        path = repository / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(raw)
+
+    scope = profile_fact.scope.model_dump(mode="json")
+    matrix = [
+        {
+            "partition_id": "P01",
+            "partition_kind": "EXACT_VERSIONED_RELEASE_PROFILE",
+            "content_count": 1,
+            "content_sha256": [CONTENT_SHA256],
+            "profile_decision_required": False,
+            "evidence_sources": [paths["profile"]],
+            "dimensions": {
+                name: {
+                    "value": value,
+                    "grounded": True,
+                    "source_of_truth": paths["profile"],
+                }
+                for name, value in scope.items()
+            },
+        }
+    ]
+    placements = [
+        {
+            "content_sha256": CONTENT_SHA256,
+            "release_id": "release-h2-v2",
+            "collection": profile_fact.profile_id,
+            "profile_version": profile_fact.profile_version,
+        }
+    ]
+    registry = {
+        "registry_version": "1",
+        "school_year": "2026-2027",
+        "releases": [
+            {
+                "release_id": "release-h2-v2",
+                "collections": [profile_fact.profile_id],
+            }
+        ],
+    }
+    manifest = _v2_profile_manifest_document(profile_fact.profile_fingerprint)
+    manifest_digest = profile_manifest_fingerprint(manifest)
+    profiles = {
+        "profile_manifest_digest": manifest_digest,
+        "profiles": [
+            {
+                **profile_fact.model_dump(mode="json"),
+                "source_path": paths["profile"],
+            }
+        ],
+    }
+    json_bytes = lambda value: (  # noqa: E731 - fixture locale compacte
+        json.dumps(value, sort_keys=True, indent=2) + "\n"
+    ).encode()
+    write(paths["matrix"], json_bytes(matrix))
+    write(paths["placements"], json_bytes(placements))
+    write(paths["registry"], json_bytes(registry))
+    write(paths["contents"], f"{CONTENT_SHA256}\n".encode())
+    write(paths["profiles"], json_bytes(profiles))
+    write(paths["manifest"], yaml.safe_dump(manifest, sort_keys=True).encode())
+    write(paths["profile"], yaml.safe_dump(_v2_profile_document()).encode())
+    subprocess.run(["git", "add", "."], cwd=repository, check=True)
+    subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.name=Nexus Tests",
+            "-c",
+            "user.email=tests@nexus.invalid",
+            "commit",
+            "-qm",
+            "exact profile evidence",
+        ],
+        cwd=repository,
+        check=True,
+    )
+    source_tree_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD^{tree}"],
+        cwd=repository,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    return ReleaseScopePlacementGitInputs(
+        repository_root=repository,
+        source_tree_sha=source_tree_sha,
+        profile_proposal_matrix_path=paths["matrix"],
+        accepted_placements_path=paths["placements"],
+        release_registry_path=paths["registry"],
+        expected_contents_path=paths["contents"],
+        verified_profiles_path=paths["profiles"],
+        profile_manifest_path=paths["manifest"],
+    )
+
+
+def _write_authority_blocked_catalog(tmp_path: Path) -> Path:
+    path = _write_real_catalog(tmp_path, authority_status="BLOCKED_NOT_CLEARED")
+    document = json.loads(path.read_text(encoding="utf-8"))
+    document["physical_objects"][0]["disposition"] = "REVIEW_REQUIRED"
+    document["disposition_counts"]["INGEST"] = 0
+    document["disposition_counts"]["REVIEW_REQUIRED"] = 1
+    path.write_text(json.dumps(document), encoding="utf-8")
+    return path
+
+
+def _generate_v2(
+    tmp_path: Path,
+    *,
+    authorization_set_path: Path,
+    authorization_material_root: Path,
+    release_scope_git_inputs: ReleaseScopePlacementGitInputs,
+    revoked: list[str] | None = None,
+    currentness_verification_path: Path | None = None,
+) -> module.CoverageReport:
+    catalog_path = _write_authority_blocked_catalog(tmp_path)
+    golden_path = _write_golden_spec(
+        tmp_path,
+        expected_final="REVIEW_REQUIRED",
+        expected_authority="BLOCKED_NOT_CLEARED",
+    )
+    routing_path, rights_path, pii_path, _, manifest_path = _write_external_evidence(
+        tmp_path, include_authority=False
+    )
+    return generate_coverage_report(
+        catalog_path,
+        rights_path=rights_path,
+        pii_path=pii_path,
+        routing_path=routing_path,
+        golden_path=golden_path,
+        manifest_path=manifest_path,
+        authorization_set_path=authorization_set_path,
+        authorization_material_root=authorization_material_root,
+        release_scope_git_inputs=release_scope_git_inputs,
+        authority_revocations_path=_write_revocations(
+            tmp_path / "revocations.json", revoked or []
+        ),
+        authority_trust_anchor_path=_write_trust_anchor(tmp_path),
+        authority_environment="rehearsal",
+        authority_now=AUTHORITY_NOW,
+        currentness_verification_path=(
+            currentness_verification_path
+            if currentness_verification_path is not None
+            else _write_empty_currentness_evidence(tmp_path)
+        ),
+        expected_total=2,
+        expected_manifest_sha256=MANIFEST_SHA256,
+    )
+
+
+class TestAuthorizationSetCoverageV2:
+    def test_v2_api_has_no_caller_constructed_profile_or_placement_inputs(self) -> None:
+        parameters = inspect.signature(generate_coverage_report).parameters
+
+        assert "verified_profiles" not in parameters
+        assert "release_scope_placement_path" not in parameters
+        assert "release_scope_git_inputs" in parameters
+
+    def test_real_global_verifier_accepts_the_exact_release_bundle(
+        self, tmp_path: Path
+    ) -> None:
+        set_path, placement_path, material_root, profiles, authorization_set = (
+            _write_v2_authorization_set_inputs(tmp_path)
+        )
+        del placement_path
+        release_inputs = _write_v2_exact_tree_inputs(
+            tmp_path, profile_fact=profiles[0]
+        )
+
+        report = _generate_v2(
+            tmp_path,
+            authorization_set_path=set_path,
+            authorization_material_root=material_root,
+            release_scope_git_inputs=release_inputs,
+        )
+
+        assert report.authorization_set_digest == authorization_set.digest()
+        assert report.authority_required_count == report.authority_covered_count == 1
+        assert report.final_ingest_count == 1
+        assert report.release_scope_source_tree_sha == release_inputs.source_tree_sha
+        assert (
+            report.input_files["release_scope_placement"]
+            == authorization_set.release_scope_placement_digest
+        )
+        assert any(
+            key.startswith("release_scope_source:") for key in report.input_files
+        )
+        # Une répétition exerce toute la chaîne mais ne produit jamais un
+        # verdict final de production vert.
+        assert report.h2_coverage_gate_pass is False
+
+    def test_dirty_tracked_profile_bytes_cannot_change_exact_tree_result(
+        self, tmp_path: Path
+    ) -> None:
+        set_path, placement_path, material_root, profiles, authorization_set = (
+            _write_v2_authorization_set_inputs(tmp_path)
+        )
+        del placement_path
+        release_inputs = _write_v2_exact_tree_inputs(
+            tmp_path, profile_fact=profiles[0]
+        )
+        (release_inputs.repository_root / release_inputs.verified_profiles_path).write_text(
+            '{"profile_manifest_digest":"forged","profiles":[]}\n',
+            encoding="utf-8",
+        )
+        report = _generate_v2(
+            tmp_path,
+            authorization_set_path=set_path,
+            authorization_material_root=material_root,
+            release_scope_git_inputs=release_inputs,
+        )
+
+        assert report.authorization_set_digest == authorization_set.digest()
+
+    def test_an_untracked_profile_fact_source_is_refused(
+        self, tmp_path: Path
+    ) -> None:
+        set_path, placement_path, material_root, profiles, _ = (
+            _write_v2_authorization_set_inputs(tmp_path)
+        )
+        del placement_path
+        release_inputs = _write_v2_exact_tree_inputs(
+            tmp_path, profile_fact=profiles[0]
+        )
+        untracked_path = "governance/untracked-forged-profiles.json"
+        (release_inputs.repository_root / untracked_path).write_text(
+            '{"profile_manifest_digest":"forged","profiles":[]}\n',
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ValueError, match="INVALID_GIT_TREE_ENTRY"):
+            _generate_v2(
+                tmp_path,
+                authorization_set_path=set_path,
+                authorization_material_root=material_root,
+                release_scope_git_inputs=replace(
+                    release_inputs, verified_profiles_path=untracked_path
+                ),
+            )
+
+    def test_a_different_committed_profile_source_is_refused(
+        self, tmp_path: Path
+    ) -> None:
+        set_path, placement_path, material_root, profiles, _ = (
+            _write_v2_authorization_set_inputs(tmp_path)
+        )
+        del placement_path
+        release_inputs = _write_v2_exact_tree_inputs(
+            tmp_path, profile_fact=profiles[0]
+        )
+        profile_path = release_inputs.repository_root / "profiles/h2b-test.yml"
+        changed_profile = _v2_profile_document()
+        changed_profile["enabled"] = False
+        profile_path.write_text(yaml.safe_dump(changed_profile), encoding="utf-8")
+        subprocess.run(["git", "add", "."], cwd=release_inputs.repository_root, check=True)
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "user.name=Nexus Tests",
+                "-c",
+                "user.email=tests@nexus.invalid",
+                "commit",
+                "-qm",
+                "changed profile source",
+            ],
+            cwd=release_inputs.repository_root,
+            check=True,
+        )
+        changed_tree = subprocess.run(
+            ["git", "rev-parse", "HEAD^{tree}"],
+            cwd=release_inputs.repository_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+
+        with pytest.raises(ValueError, match="PROFILE_SOURCE_DISABLED"):
+            _generate_v2(
+                tmp_path,
+                authorization_set_path=set_path,
+                authorization_material_root=material_root,
+                release_scope_git_inputs=replace(
+                    release_inputs, source_tree_sha=changed_tree
+                ),
+            )
+
+    def test_forged_profiles_without_exact_tree_sources_are_refused(
+        self, tmp_path: Path
+    ) -> None:
+        set_path, placement_path, material_root, profiles, _ = (
+            _write_v2_authorization_set_inputs(tmp_path)
+        )
+        del placement_path, profiles
+        forged_inputs = ReleaseScopePlacementGitInputs(
+            repository_root=tmp_path / "no-exact-tree-sources",
+            source_tree_sha="e" * 40,
+            profile_proposal_matrix_path="governance/forged-matrix.json",
+            accepted_placements_path="governance/forged-placements.json",
+            release_registry_path="governance/forged-registry.json",
+            expected_contents_path="governance/forged-contents.txt",
+            verified_profiles_path="governance/forged-profiles.json",
+            profile_manifest_path="governance/forged-profile-manifest.yml",
+        )
+        with pytest.raises(ValueError, match="GIT_READ_FAILED"):
+            _generate_v2(
+                tmp_path,
+                authorization_set_path=set_path,
+                authorization_material_root=material_root,
+                release_scope_git_inputs=forged_inputs,
+            )
+
+    def test_real_global_verifier_refuses_one_revoked_member(
+        self, tmp_path: Path
+    ) -> None:
+        set_path, placement_path, material_root, profiles, _ = (
+            _write_v2_authorization_set_inputs(tmp_path)
+        )
+        del placement_path
+        with pytest.raises(AuthorizationSetError, match="is revoked"):
+            _generate_v2(
+                tmp_path,
+                authorization_set_path=set_path,
+                authorization_material_root=material_root,
+                release_scope_git_inputs=_write_v2_exact_tree_inputs(
+                    tmp_path, profile_fact=profiles[0]
+                ),
+                revoked=["h2b_test_authority_v1"],
+            )
+
+    def test_v2_keeps_rights_semantics_after_global_verification(
+        self, tmp_path: Path
+    ) -> None:
+        set_path, placement_path, material_root, profiles, _ = (
+            _write_v2_authorization_set_inputs(
+                tmp_path, rights_categories=["usage_interne"]
+            )
+        )
+        del placement_path
+        with pytest.raises(ValueError, match="rights category"):
+            _generate_v2(
+                tmp_path,
+                authorization_set_path=set_path,
+                authorization_material_root=material_root,
+                release_scope_git_inputs=_write_v2_exact_tree_inputs(
+                    tmp_path, profile_fact=profiles[0]
+                ),
+            )
+
+    def test_v2_refuses_divergent_rights_for_duplicate_content_sha(
+        self, tmp_path: Path
+    ) -> None:
+        set_path, placement_path, material_root, profiles, authorization_set = (
+            _write_v2_authorization_set_inputs(tmp_path)
+        )
+        del set_path, placement_path, profiles
+        release_files = {
+            authorization_set.members[0].authorization_path: (
+                material_root / authorization_set.members[0].authorization_path
+            ).read_bytes()
+        }
+
+        with pytest.raises(ValueError, match="divergent rights categories"):
+            module._verify_v2_catalog_rights_semantics(
+                authorization_set,
+                release_files=release_files,
+                required_rights_candidates=(
+                    (CONTENT_SHA256, "usage_interne"),
+                    (CONTENT_SHA256, "officiel_public"),
+                ),
+            )
+
+    def test_currentness_semantics_and_digest_use_one_frozen_snapshot(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        set_path, placement_path, material_root, profiles, _ = (
+            _write_v2_authorization_set_inputs(tmp_path)
+        )
+        del placement_path
+        release_inputs = _write_v2_exact_tree_inputs(
+            tmp_path, profile_fact=profiles[0]
+        )
+        currentness_path = _write_empty_currentness_evidence(tmp_path)
+        initial_digest = hashlib.sha256(currentness_path.read_bytes()).hexdigest()
+        real_loader = module._load_currentness_verification_evidence
+
+        def mutating_loader(raw: bytes, *, manifest_sha256: str) -> frozenset[str]:
+            result = real_loader(raw, manifest_sha256=manifest_sha256)
+            currentness_path.write_text("forged: after-parse\n", encoding="utf-8")
+            return result
+
+        monkeypatch.setattr(
+            module, "_load_currentness_verification_evidence", mutating_loader
+        )
+
+        report = _generate_v2(
+            tmp_path,
+            authorization_set_path=set_path,
+            authorization_material_root=material_root,
+            release_scope_git_inputs=release_inputs,
+            currentness_verification_path=currentness_path,
+        )
+
+        assert report.input_files["currentness_verification"] == initial_digest
+
+    @pytest.mark.parametrize("case", ["foreign_repository", "wrong_tree"])
+    def test_production_scope_provenance_is_bound_to_release_head(
+        self, tmp_path: Path, case: str
+    ) -> None:
+        governed = tmp_path / "governed"
+        governed.mkdir()
+        supplied_root = governed if case == "wrong_tree" else tmp_path / "foreign"
+        supplied_root.mkdir(exist_ok=True)
+
+        with pytest.raises(ValueError, match="RELEASE_SCOPE_PROVENANCE"):
+            module._validate_v2_release_scope_provenance(
+                ReleaseScopePlacementGitInputs(
+                    repository_root=supplied_root,
+                    source_tree_sha="f" * 40,
+                    profile_proposal_matrix_path="matrix.json",
+                    accepted_placements_path="placements.json",
+                    release_registry_path="registry.json",
+                    expected_contents_path="contents.txt",
+                    verified_profiles_path="profiles.json",
+                    profile_manifest_path="manifest.yml",
+                ),
+                environment="production",
+                governed_repository_root=governed,
+                release_tree_sha="e" * 40,
+            )
+
+    def test_production_report_ignores_an_older_ambient_worktree_head(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        catalog_path = _write_authority_blocked_catalog(tmp_path)
+        golden_path = _write_golden_spec(
+            tmp_path,
+            expected_final="REVIEW_REQUIRED",
+            expected_authority="BLOCKED_NOT_CLEARED",
+        )
+        routing_path, rights_path, pii_path, _, manifest_path = (
+            _write_external_evidence(tmp_path, include_authority=False)
+        )
+        set_path, placement_path, material_root, profiles, authorization_set = (
+            _write_v2_authorization_set_inputs(tmp_path)
+        )
+        del placement_path
+        release_inputs = _write_v2_exact_tree_inputs(
+            tmp_path, profile_fact=profiles[0]
+        )
+        governed = release_inputs.repository_root
+        older_head = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=governed,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+
+        for marker in module._GOVERNED_ROOT_MARKERS:
+            target = governed / marker
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if "." in target.name:
+                target.write_text("governed\n", encoding="utf-8")
+            else:
+                target.mkdir(parents=True, exist_ok=True)
+        trust_anchor = governed / module._GOVERNED_TRUST_ANCHOR_PATH
+        trust_anchor.parent.mkdir(parents=True, exist_ok=True)
+        trust_anchor.write_bytes(
+            _write_trust_anchor(tmp_path, environment="production").read_bytes()
+        )
+        revocations = governed / module._GOVERNED_REVOCATIONS_PATH
+        revocations.parent.mkdir(parents=True, exist_ok=True)
+        revocations.write_bytes(
+            _write_revocations(tmp_path / "production-revocations.json", []).read_bytes()
+        )
+        reviewers = governed / module._TRUSTED_REVIEWERS_CONFIG
+        reviewers.parent.mkdir(parents=True, exist_ok=True)
+        reviewers.write_bytes(
+            (module._REPOSITORY_ROOT / module._TRUSTED_REVIEWERS_CONFIG).read_bytes()
+        )
+        for member in authorization_set.members:
+            for relative_path in (
+                member.authorization_path,
+                member.review_binding_path,
+            ):
+                destination = governed / relative_path
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                destination.write_bytes((material_root / relative_path).read_bytes())
+        subprocess.run(["git", "add", "."], cwd=governed, check=True)
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "user.name=Nexus Tests",
+                "-c",
+                "user.email=tests@nexus.invalid",
+                "commit",
+                "-qm",
+                "governed production release",
+            ],
+            cwd=governed,
+            check=True,
+        )
+        governed_head = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=governed,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        governed_tree = subprocess.run(
+            ["git", "rev-parse", "HEAD^{tree}"],
+            cwd=governed,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        governed_branch = subprocess.run(
+            ["git", "branch", "--show-current"],
+            cwd=governed,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        ambient = tmp_path / "older-ambient-worktree"
+        subprocess.run(
+            ["git", "worktree", "add", "--detach", str(ambient), older_head],
+            cwd=governed,
+            check=True,
+            capture_output=True,
+        )
+        monkeypatch.chdir(ambient)
+        monkeypatch.setattr(module, "_GOVERNED_REPOSITORY_ROOT", governed)
+        verification_time = datetime.now(UTC)
+        monkeypatch.setattr(
+            module,
+            "verify_authorization_set",
+            lambda *args, **kwargs: VerifiedAuthorizationSetV1(
+                authorization_set_bytes=authorization_set.canonical_bytes(),
+                authorization_set_digest=authorization_set.digest(),
+                authorization_ids=("h2b_test_authority_v1",),
+                content_authorization_ids=(
+                    (CONTENT_SHA256, "h2b_test_authority_v1"),
+                ),
+                scope_authorization_ids=(
+                    (
+                        authorization_set.members[0].scope_digest,
+                        "h2b_test_authority_v1",
+                    ),
+                ),
+                authorizations_effective_valid_from=datetime(
+                    2026, 1, 1, tzinfo=UTC
+                ),
+                authorizations_effective_valid_until=datetime(
+                    2026, 12, 31, tzinfo=UTC
+                ),
+                earliest_review_submitted_at=datetime(2026, 5, 1, tzinfo=UTC),
+                earliest_review_binding_verified_at=datetime(
+                    2026, 5, 2, tzinfo=UTC
+                ),
+                earliest_review_binding_expires_at=datetime(
+                    2026, 12, 1, tzinfo=UTC
+                ),
+                verified_at=verification_time,
+            ),
+        )
+
+        report = generate_coverage_report(
+            catalog_path,
+            rights_path=rights_path,
+            pii_path=pii_path,
+            routing_path=routing_path,
+            golden_path=golden_path,
+            manifest_path=manifest_path,
+            authorization_set_path=set_path,
+            authorization_material_root=governed,
+            release_scope_git_inputs=replace(
+                release_inputs, source_tree_sha=governed_tree
+            ),
+            authority_environment="production",
+            currentness_verification_path=_write_empty_currentness_evidence(tmp_path),
+            expected_total=2,
+            expected_manifest_sha256=MANIFEST_SHA256,
+        )
+
+        assert older_head != governed_head
+        assert report.git_commit == governed_head
+        assert report.git_branch == governed_branch
+        assert report.release_scope_source_tree_sha == governed_tree
+
+    def test_production_v2_refuses_caller_supplied_authority_clock(self) -> None:
+        with pytest.raises(ValueError, match="AUTHORITY_CLOCK_ARGUMENT_FORBIDDEN"):
+            module._v2_authority_verification_now(
+                environment="production", supplied=AUTHORITY_NOW
+            )
+
+    def test_real_global_verifier_refuses_missing_canonical_member_material(
+        self, tmp_path: Path
+    ) -> None:
+        set_path, placement_path, material_root, profiles, authorization_set = (
+            _write_v2_authorization_set_inputs(tmp_path)
+        )
+        del placement_path
+        release_inputs = _write_v2_exact_tree_inputs(
+            tmp_path, profile_fact=profiles[0]
+        )
+        (material_root / authorization_set.members[0].authorization_path).unlink()
+        with pytest.raises(AuthorizationSetError, match="missing release material"):
+            _generate_v2(
+                tmp_path,
+                authorization_set_path=set_path,
+                authorization_material_root=material_root,
+                release_scope_git_inputs=release_inputs,
+            )
+
+    def test_uses_the_single_global_verifier_and_projects_only_its_facts(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        catalog_path = _write_authority_blocked_catalog(tmp_path)
+        golden_path = _write_golden_spec(
+            tmp_path,
+            expected_final="REVIEW_REQUIRED",
+            expected_authority="BLOCKED_NOT_CLEARED",
+        )
+        routing_path, rights_path, pii_path, _, manifest_path = (
+            _write_external_evidence(tmp_path, include_authority=False)
+        )
+        set_path, placement_path, material_root, profiles, authorization_set = (
+            _write_v2_authorization_set_inputs(tmp_path)
+        )
+        del placement_path
+        release_inputs = _write_v2_exact_tree_inputs(
+            tmp_path, profile_fact=profiles[0]
+        )
+        revocations_path = _write_revocations(tmp_path / "revocations.json", [])
+        trust_anchor_path = _write_trust_anchor(tmp_path)
+        verified = VerifiedAuthorizationSetV1(
+            authorization_set_bytes=authorization_set.canonical_bytes(),
+            authorization_set_digest=authorization_set.digest(),
+            authorization_ids=("h2b_test_authority_v1",),
+            content_authorization_ids=((CONTENT_SHA256, "h2b_test_authority_v1"),),
+            scope_authorization_ids=(
+                (authorization_set.members[0].scope_digest, "h2b_test_authority_v1"),
+            ),
+            authorizations_effective_valid_from=datetime(2026, 1, 1, tzinfo=UTC),
+            authorizations_effective_valid_until=datetime(
+                2026, 12, 31, 23, 59, 59, 999999, tzinfo=UTC
+            ),
+            earliest_review_submitted_at=datetime(2026, 5, 1, 10, tzinfo=UTC),
+            earliest_review_binding_verified_at=datetime(2026, 5, 15, 9, tzinfo=UTC),
+            earliest_review_binding_expires_at=datetime(2026, 12, 1, 9, tzinfo=UTC),
+            verified_at=AUTHORITY_NOW,
+        )
+        calls: list[dict[str, Any]] = []
+
+        def fake_verify(
+            value: AuthorizationSetV1, **kwargs: Any
+        ) -> VerifiedAuthorizationSetV1:
+            calls.append({"set": value, **kwargs})
+            return verified
+
+        monkeypatch.setattr(module, "verify_authorization_set", fake_verify)
+        report = generate_coverage_report(
+            catalog_path,
+            rights_path=rights_path,
+            pii_path=pii_path,
+            routing_path=routing_path,
+            golden_path=golden_path,
+            manifest_path=manifest_path,
+            authorization_set_path=set_path,
+            authorization_material_root=material_root,
+            release_scope_git_inputs=release_inputs,
+            authority_revocations_path=revocations_path,
+            authority_trust_anchor_path=trust_anchor_path,
+            authority_environment="rehearsal",
+            authority_now=AUTHORITY_NOW,
+            currentness_verification_path=_write_empty_currentness_evidence(tmp_path),
+            expected_total=2,
+            expected_manifest_sha256=MANIFEST_SHA256,
+        )
+
+        assert len(calls) == 1
+        assert calls[0]["authority_required_content_sha256"] == (CONTENT_SHA256,)
+        assert (
+            calls[0]["release_scope_placement"].digest()
+            == authorization_set.release_scope_placement_digest
+        )
+        assert calls[0]["verified_profiles"] == profiles
+        assert set(calls[0]["release_files"]) == {
+            authorization_set.members[0].authorization_path,
+            authorization_set.members[0].review_binding_path,
+        }
+        assert report.authorization_set_digest == authorization_set.digest()
+        assert report.authorization_count == 1
+        assert report.authority_required_count == report.authority_covered_count == 1
+        assert report.authorization_overlap_count == 0
+        assert report.authorization_gap_count == 0
+        assert report.authorization_extra_count == 0
+        assert report.input_files["currentness_verification"] == module._file_sha256(
+            tmp_path / "currentness.yml"
+        )
+        assert report.authorization_set_verified_at == AUTHORITY_NOW
+        assert report.earliest_review_submitted_at == datetime(
+            2026, 5, 1, 10, tzinfo=UTC
+        )
+        assert report.earliest_review_binding_verified_at == datetime(
+            2026, 5, 15, 9, tzinfo=UTC
+        )
+        assert report.earliest_review_binding_expires_at == datetime(
+            2026, 12, 1, 9, tzinfo=UTC
+        )
+
+    @pytest.mark.parametrize(
+        "failure",
+        [
+            "missing release material",
+            "extra release material",
+            "authorization_digest mismatch",
+            "review_binding_digest mismatch",
+            "authorization overlap",
+            "authorization union has a gap",
+            "authorization union has extra content",
+            "scope mismatch",
+            "profile manifest digest mismatch",
+            "is revoked",
+            "is expired",
+            "is not valid yet",
+            "review binding is expired",
+            "verified_at in the future",
+        ],
+    )
+    def test_every_global_verifier_refusal_is_terminal(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str
+    ) -> None:
+        set_path, placement_path, material_root, profiles, _ = (
+            _write_v2_authorization_set_inputs(tmp_path)
+        )
+        del placement_path
+        monkeypatch.setattr(
+            module,
+            "verify_authorization_set",
+            lambda *args, **kwargs: (_ for _ in ()).throw(
+                AuthorizationSetError(failure)
+            ),
+        )
+        with pytest.raises(AuthorizationSetError, match=failure):
+            _generate_v2(
+                tmp_path,
+                authorization_set_path=set_path,
+                authorization_material_root=material_root,
+                release_scope_git_inputs=_write_v2_exact_tree_inputs(
+                    tmp_path, profile_fact=profiles[0]
+                ),
+            )
+
+    def test_corpus_manifest_domain_mismatch_refuses_before_global_verification(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        set_path, placement_path, material_root, profiles, authorization_set = (
+            _write_v2_authorization_set_inputs(tmp_path)
+        )
+        del placement_path
+        changed = authorization_set.model_copy(
+            update={"corpus_manifest_sha256": "e" * 64}
+        )
+        set_path.write_bytes(changed.canonical_bytes())
+        verifier = monkeypatch.setattr(
+            module,
+            "verify_authorization_set",
+            lambda *a, **k: pytest.fail("must not verify"),
+        )
+        del verifier
+        with pytest.raises(ValueError, match="corpus manifest"):
+            _generate_v2(
+                tmp_path,
+                authorization_set_path=set_path,
+                authorization_material_root=material_root,
+                release_scope_git_inputs=_write_v2_exact_tree_inputs(
+                    tmp_path, profile_fact=profiles[0]
+                ),
+            )
+
+    def test_v2_projection_contains_real_input_digests_and_human_times(self) -> None:
+        report = module.CoverageReport(
+            report_id="h2-v2",
+            generated_at="2026-06-01T00:00:01+00:00",
+            git_commit="1" * 40,
+            git_branch="main",
+            real_corpus_catalog_source=True,
+            synthetic_catalog_used_for_final_gate=False,
+            manifest_sha256="2" * 64,
+            profile_manifest_digest="3" * 64,
+            corpus_total_expected=1,
+            corpus_total_actual=1,
+            corpus_match=True,
+            sum_equals_total=True,
+            zero_overlap=True,
+            zero_gap=True,
+            decision_coverage_complete=True,
+            coverage_complete=True,
+            rights_gate_status="PASS",
+            pii_gate_status="PASS",
+            golden_validation_pass=True,
+            h2_coverage_gate_pass=True,
+            authority_environment="production",
+            authority_review_binding_verified=True,
+            authority_review_bindings_verified=True,
+            authority_revocations_checked=True,
+            authority_required_count=1,
+            authority_covered_count=1,
+            authorization_set_digest="4" * 64,
+            authorization_count=1,
+            authority_required_set_sha256="5" * 64,
+            authorization_overlap_count=0,
+            authorization_gap_count=0,
+            authorization_extra_count=0,
+            authorization_set_verified_at=datetime(2026, 6, 1, tzinfo=UTC),
+            earliest_review_submitted_at=datetime(2026, 5, 1, tzinfo=UTC),
+            earliest_review_binding_verified_at=datetime(2026, 5, 2, tzinfo=UTC),
+            earliest_review_binding_expires_at=datetime(2026, 7, 1, tzinfo=UTC),
+            authorizations_effective_valid_until=datetime(
+                2026, 8, 1, tzinfo=UTC
+            ),
+            release_scope_source_tree_sha="e" * 40,
+            safety_invariants={
+                "INGEST_WITHOUT_RIGHTS_CLEARANCE": 0,
+                "INGEST_WITHOUT_PII_CLEARANCE": 0,
+                "INGEST_WITHOUT_CURRENTNESS_CLEARANCE": 0,
+                "INGEST_WITH_UNSUPPORTED_FORMAT": 0,
+                "INGEST_WITHOUT_PROVENANCE": 0,
+                "INGEST_WITHOUT_CONTENT_SHA": 0,
+                "INGEST_WITHOUT_AUTHORITY": 0,
+                "INGEST_WITH_SELF_DECLARED_AUTHORITY": 0,
+                "INGEST_WITHOUT_ATTRIBUTION_METADATA": 0,
+            },
+            input_files={
+                "authorization_set": "4" * 64,
+                "authority_revocations": "6" * 64,
+                "catalog": "7" * 64,
+                "currentness_verification": "8" * 64,
+                "golden": "9" * 64,
+                "pii": "a" * 64,
+                "review_binding_trust_anchor": "b" * 64,
+                "rights": "c" * 64,
+                "routing": "d" * 64,
+                "release_scope_placement": "f" * 64,
+                "release_scope_source:governance/matrix.json": "1" * 64,
+                "trusted_reviewers": "2" * 64,
+            },
+        )
+        evidence = report_to_h2_coverage_evidence_v2(report)
+        assert evidence.authorization_set_digest == "4" * 64
+        assert (
+            evidence.earliest_review_submitted_at.isoformat()
+            == "2026-05-01T00:00:00+00:00"
+        )
+        assert evidence.authorizations_effective_valid_until == datetime(
+            2026, 8, 1, tzinfo=UTC
+        )
+        assert evidence.release_scope_source_tree_sha == "e" * 40
+        assert evidence.release_scope_placement_digest == "f" * 64
+        assert evidence.release_scope_source_blob_digests == {
+            "governance/matrix.json": "1" * 64
+        }
 
 
 class TestAuthorityStructuralValidation:
@@ -2659,7 +3699,9 @@ class TestFinalGateRequiresReviewBinding:
                 ),
             )
 
-    def test_an_insufficient_permission_is_unrepresentable(self, tmp_path: Path) -> None:
+    def test_an_insufficient_permission_is_unrepresentable(
+        self, tmp_path: Path
+    ) -> None:
         with pytest.raises(Exception, match="reviewer_permission"):
             _write_review_binding(
                 tmp_path, _valid_authority_document(), reviewer_permission="read"
@@ -3152,7 +4194,9 @@ class TestGovernedRevocationRegistry:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         _install_governed_root(
-            monkeypatch, tmp_path, revoked=[_valid_authority_document()["authorization_id"]]
+            monkeypatch,
+            tmp_path,
+            revoked=[_valid_authority_document()["authorization_id"]],
         )
         with pytest.raises(ValueError, match="revocation registry"):
             _generate_with_binding(tmp_path, environment="production")
@@ -3164,7 +4208,9 @@ class TestGovernedRevocationRegistry:
         registry.write_text(
             json.dumps({"revoked_authorization_ids": []}), encoding="utf-8"
         )
-        with pytest.raises(ValueError, match="REVOCATION_REGISTRY_INVALID.*protocol_version"):
+        with pytest.raises(
+            ValueError, match="REVOCATION_REGISTRY_INVALID.*protocol_version"
+        ):
             _generate_with_authority(
                 tmp_path,
                 authority_path=_write_authority(
@@ -3198,7 +4244,9 @@ class TestGovernedRevocationRegistry:
             ),
             encoding="utf-8",
         )
-        with pytest.raises(ValueError, match="REVOCATION_REGISTRY_INVALID.*unknown keys"):
+        with pytest.raises(
+            ValueError, match="REVOCATION_REGISTRY_INVALID.*unknown keys"
+        ):
             _generate_with_authority(
                 tmp_path,
                 authority_path=_write_authority(
@@ -3307,7 +4355,8 @@ def _sole_production_readiness_anchor(governance_dir: Path) -> Path:
                 continue
             if (
                 isinstance(document, dict)
-                and document.get("protocol_version") == PRODUCTION_READINESS_PROTOCOL_VERSION
+                and document.get("protocol_version")
+                == PRODUCTION_READINESS_PROTOCOL_VERSION
             ):
                 candidates.append(path)
 
@@ -3340,7 +4389,9 @@ def _sole_production_readiness_anchor(governance_dir: Path) -> Path:
 #: établi pour ``REVIEW_BINDING_ANCHOR_PATH`` dans
 #: ``rag-engine/tests/test_readiness_gate.py``. Si l'un des deux chemins
 #: change, ce test doit être relu — c'est précisément son rôle.
-_PRODUCTION_READINESS_GOVERNED_PATH = "governance/trust-anchors/production-readiness-v1.json"
+_PRODUCTION_READINESS_GOVERNED_PATH = (
+    "governance/trust-anchors/production-readiness-v1.json"
+)
 
 
 def test_the_repository_ships_exactly_the_provisioned_production_trust_anchor() -> None:
@@ -3376,13 +4427,18 @@ class TestProductionTrustAnchorSensitivityCanaries:
             / "trust-anchors"
             / "production-readiness-v1.json"
         )
-        (governance / "production-readiness-v1.json").write_bytes(real_anchor.read_bytes())
+        (governance / "production-readiness-v1.json").write_bytes(
+            real_anchor.read_bytes()
+        )
         return tmp_path / "governance"
 
     def test_a_correctly_seeded_directory_passes(self, tmp_path: Path) -> None:
         governance_dir = self._seed(tmp_path)
         anchor_path = _sole_production_readiness_anchor(governance_dir)
-        assert anchor_path == governance_dir / "trust-anchors" / "production-readiness-v1.json"
+        assert (
+            anchor_path
+            == governance_dir / "trust-anchors" / "production-readiness-v1.json"
+        )
 
     def test_anchor_removed_fails_closed(self, tmp_path: Path) -> None:
         governance_dir = self._seed(tmp_path)
@@ -3390,7 +4446,9 @@ class TestProductionTrustAnchorSensitivityCanaries:
         with pytest.raises(AssertionError, match="found \\[\\]"):
             _sole_production_readiness_anchor(governance_dir)
 
-    def test_a_second_ambiguous_production_anchor_fails_closed(self, tmp_path: Path) -> None:
+    def test_a_second_ambiguous_production_anchor_fails_closed(
+        self, tmp_path: Path
+    ) -> None:
         governance_dir = self._seed(tmp_path)
         original = governance_dir / "trust-anchors" / "production-readiness-v1.json"
         # Nom de fichier différent, mais même contenu/protocole : la
@@ -3419,7 +4477,9 @@ class TestProductionTrustAnchorSensitivityCanaries:
         with pytest.raises(Exception):  # noqa: B017, PT011 - CanonicalArtifactError/ValidationError, contrat non importé ici
             _sole_production_readiness_anchor(governance_dir)
 
-    def test_a_non_production_environment_key_fails_closed(self, tmp_path: Path) -> None:
+    def test_a_non_production_environment_key_fails_closed(
+        self, tmp_path: Path
+    ) -> None:
         governance_dir = self._seed(tmp_path)
         anchor_path = governance_dir / "trust-anchors" / "production-readiness-v1.json"
         document = json.loads(anchor_path.read_text())

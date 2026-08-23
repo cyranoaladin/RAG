@@ -100,8 +100,10 @@ _REQUIRED_V2_INPUT_FILE_KEYS = frozenset(
         "golden",
         "pii",
         "review_binding_trust_anchor",
+        "release_scope_placement",
         "rights",
         "routing",
+        "trusted_reviewers",
     }
 )
 
@@ -353,6 +355,10 @@ class H2CoverageEvidenceV2(StrictBaseModel):
     earliest_review_submitted_at: AwareDatetime
     earliest_review_binding_verified_at: AwareDatetime
     earliest_review_binding_expires_at: AwareDatetime
+    authorizations_effective_valid_until: AwareDatetime
+    release_scope_source_tree_sha: StrictStr = Field(pattern=_HEX40)
+    release_scope_placement_digest: StrictStr = Field(pattern=_HEX64)
+    release_scope_source_blob_digests: dict[StrictStr, StrictStr] = Field(min_length=1)
     input_file_digests: dict[str, StrictStr] = Field(min_length=1)
 
     corpus_total_expected: StrictInt = Field(ge=0)
@@ -400,6 +406,22 @@ class H2CoverageEvidenceV2(StrictBaseModel):
                 "authorization_set_digest does not match "
                 "input_file_digests['authorization_set']"
             )
+        if (
+            self.input_file_digests["release_scope_placement"]
+            != self.release_scope_placement_digest
+        ):
+            raise ValueError(
+                "release_scope_placement_digest does not match "
+                "input_file_digests['release_scope_placement']"
+            )
+        if not all(
+            path
+            and not path.startswith("/")
+            and ".." not in path.split("/")
+            and re.fullmatch(_HEX64, digest) is not None
+            for path, digest in self.release_scope_source_blob_digests.items()
+        ):
+            raise ValueError("release scope source blob provenance is malformed")
         return self
 
     @model_validator(mode="after")
@@ -438,6 +460,7 @@ class H2CoverageEvidenceV2(StrictBaseModel):
             <= self.authorization_set_verified_at
             <= self.generated_at
             < self.earliest_review_binding_expires_at
+            and self.generated_at < self.authorizations_effective_valid_until
         ):
             raise ValueError(
                 "h2_coverage_gate_pass=true is inconsistent with its own prerequisites"
@@ -453,6 +476,9 @@ class H2CoverageEvidenceV2(StrictBaseModel):
             "authorization_set_digest": self.authorization_set_digest,
             "authorization_set_verified_at": _canonical_moment(
                 self.authorization_set_verified_at
+            ),
+            "authorizations_effective_valid_until": _canonical_moment(
+                self.authorizations_effective_valid_until
             ),
             "authority_covered_count": self.authority_covered_count,
             "authority_required_count": self.authority_required_count,
@@ -482,6 +508,11 @@ class H2CoverageEvidenceV2(StrictBaseModel):
             "pii_gate_status": self.pii_gate_status,
             "producer_version": self.producer_version,
             "profile_manifest_digest": self.profile_manifest_digest,
+            "release_scope_placement_digest": self.release_scope_placement_digest,
+            "release_scope_source_blob_digests": dict(
+                sorted(self.release_scope_source_blob_digests.items())
+            ),
+            "release_scope_source_tree_sha": self.release_scope_source_tree_sha,
             "protocol_version": self.protocol_version,
             "report_id": self.report_id,
             "rights_gate_status": self.rights_gate_status,

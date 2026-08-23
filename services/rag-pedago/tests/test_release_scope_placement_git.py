@@ -285,6 +285,10 @@ def test_public_producer_reads_and_binds_only_exact_tree_blobs(tmp_path: Path) -
         _profile_manifest_document()
     )
     assert produced.provenance.source_tree_sha == tree
+    assert produced.verified_profile_facts == (
+        _fact("collection_francais"),
+        _fact("collection_maths"),
+    )
     expected_inputs = {
         MATRIX_PATH,
         PLACEMENTS_PATH,

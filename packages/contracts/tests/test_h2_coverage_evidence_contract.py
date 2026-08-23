@@ -104,6 +104,14 @@ def _v2_fields(**overrides: Any) -> dict[str, Any]:
         "earliest_review_binding_expires_at": datetime(
             2026, 8, 26, 10, 0, tzinfo=UTC
         ),
+        "authorizations_effective_valid_until": datetime(
+            2026, 8, 31, 10, 0, tzinfo=UTC
+        ),
+        "release_scope_source_tree_sha": "7" * 40,
+        "release_scope_placement_digest": "8" * 64,
+        "release_scope_source_blob_digests": {
+            "governance/profile-matrix.json": "a" * 64,
+        },
         "input_file_digests": {
             "catalog": "c" * 64,
             "routing": "d" * 64,
@@ -114,6 +122,8 @@ def _v2_fields(**overrides: Any) -> dict[str, Any]:
             "authorization_set": "3" * 64,
             "authority_revocations": "4" * 64,
             "review_binding_trust_anchor": "5" * 64,
+            "release_scope_placement": "8" * 64,
+            "trusted_reviewers": "b" * 64,
         },
         "corpus_total_expected": 2582,
         "corpus_total_actual": 2582,
@@ -160,6 +170,10 @@ class TestH2CoverageEvidenceV2:
             "earliest_review_submitted_at",
             "earliest_review_binding_verified_at",
             "earliest_review_binding_expires_at",
+            "authorizations_effective_valid_until",
+            "release_scope_source_tree_sha",
+            "release_scope_placement_digest",
+            "release_scope_source_blob_digests",
         ],
     )
     def test_v2_requires_each_set_and_review_aggregate(self, field: str) -> None:
@@ -250,6 +264,8 @@ class TestH2CoverageEvidenceV2:
             "authorization_set",
             "authority_revocations",
             "review_binding_trust_anchor",
+            "release_scope_placement",
+            "trusted_reviewers",
         ],
     )
     def test_v2_requires_the_exact_input_digest_set(self, missing_key: str) -> None:
@@ -308,6 +324,24 @@ class TestH2CoverageEvidenceV2:
         with pytest.raises(ValidationError, match="authorization_set_digest"):
             h2_contract.H2CoverageEvidenceV2.model_validate(
                 _v2_fields(input_file_digests=digests)
+            )
+
+    def test_v2_release_scope_placement_digest_matches_its_input_digest(self) -> None:
+        digests = {
+            **_v2_fields()["input_file_digests"],
+            "release_scope_placement": "9" * 64,
+        }
+        with pytest.raises(ValidationError, match="release_scope_placement_digest"):
+            h2_contract.H2CoverageEvidenceV2.model_validate(
+                _v2_fields(input_file_digests=digests)
+            )
+
+    def test_v2_passing_gate_refuses_expired_authorization_union(self) -> None:
+        with pytest.raises(
+            ValidationError, match="inconsistent with its own prerequisites"
+        ):
+            h2_contract.H2CoverageEvidenceV2.model_validate(
+                _v2_fields(authorizations_effective_valid_until=GENERATED_AT)
             )
 
     def test_v2_refuses_an_empty_authority_required_set(self) -> None:

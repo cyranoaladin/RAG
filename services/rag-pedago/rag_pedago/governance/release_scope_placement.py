@@ -68,7 +68,22 @@ class ReleaseScopePlacementProvenance:
 @dataclass(frozen=True)
 class ProducedReleaseScopePlacement:
     placement: ReleaseScopePlacementV1
+    verified_profile_facts: tuple[VerifiedProfileFactV1, ...]
     provenance: ReleaseScopePlacementProvenance
+
+
+@dataclass(frozen=True)
+class ReleaseScopePlacementGitInputs:
+    """Descripteur complet des blobs relus depuis un tree Git immuable."""
+
+    repository_root: Path
+    source_tree_sha: str
+    profile_proposal_matrix_path: str
+    accepted_placements_path: str
+    release_registry_path: str
+    expected_contents_path: str
+    verified_profiles_path: str
+    profile_manifest_path: str
 
 
 def _reject_duplicate_json_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -784,6 +799,9 @@ def produce_release_scope_placement_from_git(
     )
     return ProducedReleaseScopePlacement(
         placement=placement,
+        verified_profile_facts=tuple(
+            sorted(profile_facts, key=lambda fact: (fact.profile_id, fact.profile_version))
+        ),
         provenance=ReleaseScopePlacementProvenance(
             source_tree_sha=source_tree_sha,
             input_blob_sha256=dict(sorted(reader.input_blob_sha256.items())),
@@ -794,6 +812,7 @@ def produce_release_scope_placement_from_git(
 
 __all__ = [
     "ProducedReleaseScopePlacement",
+    "ReleaseScopePlacementGitInputs",
     "ReleaseScopePlacementProducerError",
     "ReleaseScopePlacementProvenance",
     "produce_release_scope_placement_from_git",

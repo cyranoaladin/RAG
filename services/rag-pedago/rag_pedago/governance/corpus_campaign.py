@@ -35,6 +35,7 @@ dans ce module. Les rendre configurables reviendrait à laisser une
 campagne désigner son propre registre de confiance — le défaut exact que
 la gouvernance des ancres a déjà fermé ailleurs.
 """
+
 from __future__ import annotations
 
 import json
@@ -49,6 +50,7 @@ from pydantic import Field, StrictInt, StrictStr, field_validator, model_validat
 
 #: Version de protocole. Absente ou inconnue, le descripteur n'est pas parsé.
 CORPUS_CAMPAIGN_PROTOCOL_VERSION = "NEXUS-CORPUS-CAMPAIGN-V1"
+CORPUS_CAMPAIGN_V2_PROTOCOL_VERSION = "NEXUS-CORPUS-CAMPAIGN-V2"
 
 #: Protocole de la source OCI, distinct : il pourra évoluer sans changer
 #: la structure de la campagne.
@@ -92,7 +94,9 @@ class CorpusCampaignError(ValueError):
 
 def _canonical_bytes(document: dict[str, Any]) -> bytes:
     return (
-        json.dumps(document, sort_keys=True, indent=_CANONICAL_INDENT, ensure_ascii=False)
+        json.dumps(
+            document, sort_keys=True, indent=_CANONICAL_INDENT, ensure_ascii=False
+        )
         + "\n"
     ).encode("utf-8")
 
@@ -291,6 +295,106 @@ class CorpusCampaignV1(StrictBaseModel):
         )
 
 
+class CorpusCampaignV2(StrictBaseModel):
+    """Identité globale d'un corpus composé par un AuthorizationSet.
+
+    Le manifeste attendu reste celui du corpus scellé. Les domaines profils,
+    placements et autorité ont chacun leur champ : aucune comparaison croisée
+    n'est représentable dans le descripteur.
+    """
+
+    protocol_version: Literal["NEXUS-CORPUS-CAMPAIGN-V2"]
+    campaign_id: StrictStr = Field(min_length=1, max_length=64)
+    source_kind: Literal["ghcr-oci"]
+    source_registry: Literal["ghcr.io"]
+    source_repository: Literal["cyranoaladin/rag-corpus"]
+    source_oci_digest: StrictStr = Field(pattern=_OCI_DIGEST)
+    source_archive_sha256: StrictStr = Field(pattern=_HEX64)
+    source_tree_digest: StrictStr = Field(pattern=_HEX64)
+    archive_format: Literal["tar.zst"]
+    source_root: StrictStr = Field(min_length=1, max_length=255)
+    expected_manifest_sha256: StrictStr = Field(pattern=_HEX64)
+    expected_catalog_digest: StrictStr = Field(pattern=_HEX64)
+    authorization_set_digest: StrictStr = Field(pattern=_HEX64)
+    authority_required_count: StrictInt = Field(gt=0)
+    authority_required_set_sha256: StrictStr = Field(pattern=_HEX64)
+    profile_manifest_digest: StrictStr = Field(pattern=_HEX64)
+    release_scope_placement_digest: StrictStr = Field(pattern=_HEX64)
+    compiler_version: StrictStr = Field(min_length=1, max_length=64)
+    routing_config_digest: StrictStr = Field(pattern=_HEX64)
+    rights_config_digest: StrictStr = Field(pattern=_HEX64)
+    pii_config_digest: StrictStr = Field(pattern=_HEX64)
+    golden_spec_digest: StrictStr = Field(pattern=_HEX64)
+    environment: Literal["production", "rehearsal"]
+    retention_days: StrictInt = Field(ge=1, le=400)
+
+    @field_validator("campaign_id")
+    @classmethod
+    def _campaign_id_is_canonical(cls, value: str) -> str:
+        if _CAMPAIGN_ID.fullmatch(value) is None:
+            raise ValueError(f"campaign_id {value!r} must match {_CAMPAIGN_ID.pattern}")
+        return value
+
+    @field_validator("source_root")
+    @classmethod
+    def _source_root_is_confined(cls, value: str) -> str:
+        if value.startswith("/") or ".." in Path(value).parts:
+            raise ValueError(
+                f"source_root {value!r} must be a relative path without '..'"
+            )
+        if _SOURCE_ROOT.fullmatch(value) is None:
+            raise ValueError(f"source_root {value!r} must match {_SOURCE_ROOT.pattern}")
+        return value
+
+    @model_validator(mode="after")
+    def _identities_are_distinct(self) -> CorpusCampaignV2:
+        oci_hex = self.source_oci_digest.split(":", 1)[1]
+        if len({oci_hex, self.source_archive_sha256, self.source_tree_digest}) != 3:
+            raise ValueError(
+                "source_oci_digest, source_archive_sha256 and source_tree_digest "
+                "must be three distinct values"
+            )
+        return self
+
+    @classmethod
+    def build(cls, **fields: Any) -> CorpusCampaignV2:
+        """Construit explicitement le protocole V2, sans fallback V1."""
+        fields["protocol_version"] = CORPUS_CAMPAIGN_V2_PROTOCOL_VERSION
+        try:
+            return cls.model_validate(fields)
+        except Exception as exc:  # noqa: BLE001 - frontière de contrat
+            raise CorpusCampaignError(f"V2 campaign failed validation: {exc}") from exc
+
+    def canonical_document(self) -> dict[str, Any]:
+        return self.model_dump(mode="json")
+
+    def canonical_bytes(self) -> bytes:
+        return _canonical_bytes(self.canonical_document())
+
+    def digest(self) -> str:
+        return sha256(self.canonical_bytes()).hexdigest()
+
+    def canonical_dir(self) -> str:
+        return f"{CAMPAIGNS_DIR}/{self.campaign_id}"
+
+    def canonical_path(self) -> str:
+        return f"{self.canonical_dir()}/campaign.json"
+
+    def sealed_manifest_path(self) -> str:
+        return f"{self.canonical_dir()}/{SEALED_MANIFEST_NAME}"
+
+    def catalog_digest_path(self) -> str:
+        return f"{self.canonical_dir()}/catalog.digest.json"
+
+    def review_view_path(self) -> str:
+        return f"{self.canonical_dir()}/review-view.json"
+
+    def oci_reference(self) -> str:
+        return (
+            f"{self.source_registry}/{self.source_repository}@{self.source_oci_digest}"
+        )
+
+
 def parse_corpus_campaign(raw: bytes) -> CorpusCampaignV1:
     """Parse strict + exigence de canonicité **octet à octet**.
 
@@ -327,6 +431,75 @@ def parse_corpus_campaign(raw: bytes) -> CorpusCampaignV1:
             "review cannot be bound to this content. Commit the canonical form."
         )
     return parsed
+
+
+def parse_corpus_campaign_v2(raw: bytes) -> CorpusCampaignV2:
+    """Parse uniquement V2 et exige les octets canoniques relus."""
+    try:
+        document = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise CorpusCampaignError(
+            f"V2 campaign descriptor is not valid JSON: {exc}"
+        ) from exc
+    if not isinstance(document, dict):
+        raise CorpusCampaignError("V2 campaign descriptor must be a JSON object")
+    if document.get("protocol_version") != CORPUS_CAMPAIGN_V2_PROTOCOL_VERSION:
+        raise CorpusCampaignError(
+            f"campaign protocol_version is not {CORPUS_CAMPAIGN_V2_PROTOCOL_VERSION!r}"
+        )
+    try:
+        parsed = CorpusCampaignV2.model_validate(document)
+    except Exception as exc:  # noqa: BLE001 - frontière de parsing stricte
+        raise CorpusCampaignError(
+            f"V2 campaign descriptor failed strict validation: {exc}"
+        ) from exc
+    if parsed.canonical_bytes() != raw:
+        raise CorpusCampaignError("V2 campaign descriptor bytes are not canonical")
+    return parsed
+
+
+def load_corpus_campaign_v2(path: Path) -> CorpusCampaignV2:
+    """Charge le descripteur exact ; l'absence n'est jamais une campagne vide."""
+    if not path.is_file():
+        raise CorpusCampaignError(f"V2 campaign descriptor does not exist: {path}")
+    return parse_corpus_campaign_v2(path.read_bytes())
+
+
+def verify_corpus_campaign_v2(
+    campaign: CorpusCampaignV2,
+    *,
+    corpus_manifest_sha256: str,
+    authorization_set_digest: str,
+    authority_required_count: int,
+    authority_required_set_sha256: str,
+    profile_manifest_digest: str,
+    release_scope_placement_digest: str,
+) -> CorpusCampaignV2:
+    """Lie une campagne parsée aux six identités réellement vérifiées.
+
+    Les champs sont comparés dans leur domaine ; le manifeste corpus n'est
+    notamment jamais comparé au manifeste de profils.
+    """
+    campaign = parse_corpus_campaign_v2(campaign.canonical_bytes())
+    expected = {
+        "expected_manifest_sha256": corpus_manifest_sha256,
+        "authorization_set_digest": authorization_set_digest,
+        "authority_required_count": authority_required_count,
+        "authority_required_set_sha256": authority_required_set_sha256,
+        "profile_manifest_digest": profile_manifest_digest,
+        "release_scope_placement_digest": release_scope_placement_digest,
+    }
+    for field_name, expected_value in expected.items():
+        if getattr(campaign, field_name) != expected_value:
+            public_name = (
+                "corpus_manifest_sha256"
+                if field_name == "expected_manifest_sha256"
+                else field_name
+            )
+            raise CorpusCampaignError(
+                f"{public_name} does not match the verified release identity"
+            )
+    return campaign
 
 
 def discover_promoted_campaign(changed_paths: list[str]) -> str:
@@ -379,11 +552,16 @@ __all__ = [
     "CANONICAL_CORPUS_REGISTRY",
     "CANONICAL_CORPUS_REPOSITORY",
     "CORPUS_CAMPAIGN_PROTOCOL_VERSION",
+    "CORPUS_CAMPAIGN_V2_PROTOCOL_VERSION",
     "CORPUS_SOURCE_OCI_PROTOCOL_VERSION",
     "MANIFEST_SELF_PATH",
     "SEALED_MANIFEST_NAME",
     "CorpusCampaignError",
     "CorpusCampaignV1",
+    "CorpusCampaignV2",
     "discover_promoted_campaign",
+    "load_corpus_campaign_v2",
     "parse_corpus_campaign",
+    "parse_corpus_campaign_v2",
+    "verify_corpus_campaign_v2",
 ]

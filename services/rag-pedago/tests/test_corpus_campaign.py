@@ -5,6 +5,7 @@ des digests de test triviaux et déterministes, et l'environnement des
 fixtures est explicite. Rien dans ce fichier ne peut être pris pour une
 identité de corpus réelle.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -17,10 +18,15 @@ from pydantic import ValidationError
 from rag_pedago.governance.corpus_campaign import (
     CAMPAIGNS_DIR,
     CORPUS_CAMPAIGN_PROTOCOL_VERSION,
+    CORPUS_CAMPAIGN_V2_PROTOCOL_VERSION,
     CorpusCampaignError,
     CorpusCampaignV1,
+    CorpusCampaignV2,
     discover_promoted_campaign,
+    load_corpus_campaign_v2,
     parse_corpus_campaign,
+    parse_corpus_campaign_v2,
+    verify_corpus_campaign_v2,
 )
 
 OCI = "sha256:" + "1" * 64
@@ -79,6 +85,28 @@ def _campaign(**overrides: object) -> CorpusCampaignV1:
     return CorpusCampaignV1(**_fields(**overrides))  # type: ignore[arg-type]
 
 
+def _v2_fields(**overrides: object) -> dict[str, object]:
+    fields = _fields()
+    fields.pop("scope")
+    fields.pop("authorization_id")
+    fields.update(
+        {
+            "protocol_version": CORPUS_CAMPAIGN_V2_PROTOCOL_VERSION,
+            "authorization_set_digest": "a" * 64,
+            "authority_required_count": 72,
+            "authority_required_set_sha256": "b" * 64,
+            "profile_manifest_digest": "c" * 64,
+            "release_scope_placement_digest": "d" * 64,
+        }
+    )
+    fields.update(overrides)
+    return fields
+
+
+def _campaign_v2(**overrides: object) -> CorpusCampaignV2:
+    return CorpusCampaignV2.model_validate(_v2_fields(**overrides))
+
+
 class TestTheSourceIsNotSubstitutable:
     def test_another_registry_is_irrepresentable(self) -> None:
         """Un champ libre laisserait une campagne désigner son propre
@@ -114,9 +142,7 @@ class TestTheSourceIsNotSubstitutable:
             _campaign(source_path="/tmp/corpus")
 
     def test_the_reference_is_always_by_digest(self) -> None:
-        assert _campaign().oci_reference() == (
-            f"ghcr.io/cyranoaladin/rag-corpus@{OCI}"
-        )
+        assert _campaign().oci_reference() == (f"ghcr.io/cyranoaladin/rag-corpus@{OCI}")
 
 
 class TestThreeIndependentIdentities:
@@ -200,6 +226,85 @@ class TestStrictParsing:
         del scope["visibility"]
         with pytest.raises(ValidationError):
             _campaign(scope=scope)
+
+
+class TestCorpusCampaignV2:
+    def test_builds_one_global_campaign_without_singular_authority_fields(self) -> None:
+        campaign = _campaign_v2()
+
+        assert campaign.authorization_set_digest == "a" * 64
+        assert campaign.authority_required_count == 72
+        assert campaign.expected_manifest_sha256 == "4" * 64
+        assert "authorization_id" not in campaign.canonical_document()
+        assert "scope" not in campaign.canonical_document()
+
+    def test_v2_round_trips_only_through_its_explicit_parser(self) -> None:
+        raw = _campaign_v2().canonical_bytes()
+
+        assert parse_corpus_campaign_v2(raw).canonical_bytes() == raw
+        with pytest.raises(CorpusCampaignError, match="NEXUS-CORPUS-CAMPAIGN-V1"):
+            parse_corpus_campaign(raw)
+
+    def test_v1_is_never_parsed_as_v2(self) -> None:
+        with pytest.raises(CorpusCampaignError, match="NEXUS-CORPUS-CAMPAIGN-V2"):
+            parse_corpus_campaign_v2(_campaign().canonical_bytes())
+
+    def test_load_and_verify_bind_every_release_domain(self, tmp_path: Path) -> None:
+        path = tmp_path / "campaign.json"
+        path.write_bytes(_campaign_v2().canonical_bytes())
+        loaded = load_corpus_campaign_v2(path)
+
+        assert verify_corpus_campaign_v2(
+            loaded,
+            corpus_manifest_sha256="4" * 64,
+            authorization_set_digest="a" * 64,
+            authority_required_count=72,
+            authority_required_set_sha256="b" * 64,
+            profile_manifest_digest="c" * 64,
+            release_scope_placement_digest="d" * 64,
+        ) == loaded
+
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [
+            ("corpus_manifest_sha256", "e" * 64),
+            ("authorization_set_digest", "e" * 64),
+            ("authority_required_count", 71),
+            ("authority_required_set_sha256", "e" * 64),
+            ("profile_manifest_digest", "e" * 64),
+            ("release_scope_placement_digest", "e" * 64),
+        ],
+    )
+    def test_verify_refuses_a_changed_release_domain(
+        self, field: str, value: object
+    ) -> None:
+        expected: dict[str, object] = {
+            "corpus_manifest_sha256": "4" * 64,
+            "authorization_set_digest": "a" * 64,
+            "authority_required_count": 72,
+            "authority_required_set_sha256": "b" * 64,
+            "profile_manifest_digest": "c" * 64,
+            "release_scope_placement_digest": "d" * 64,
+        }
+        expected[field] = value
+        with pytest.raises(CorpusCampaignError, match=field):
+            verify_corpus_campaign_v2(_campaign_v2(), **expected)  # type: ignore[arg-type]
+
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [
+            ("authorization_set_digest", "not-a-digest"),
+            ("authority_required_count", 0),
+            ("authority_required_set_sha256", "0"),
+            ("profile_manifest_digest", "0"),
+            ("release_scope_placement_digest", "0"),
+        ],
+    )
+    def test_v2_refuses_invalid_release_identity(
+        self, field: str, value: object
+    ) -> None:
+        with pytest.raises(ValidationError):
+            _campaign_v2(**{field: value})
 
 
 class TestCampaignDiscovery:
