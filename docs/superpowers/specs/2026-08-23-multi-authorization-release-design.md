@@ -62,14 +62,20 @@ La preuve de scope est une égalité à trois branches :
 4. ce scope doit être exactement celui du profil versionné nommé par
    l'autorisation dans le manifeste de profils vérifié.
 
-La projection de placements est la source indépendante de l'affectation :
-elle est dérivée des placements canoniques et du registre de release, pas du
-set ni des autorisations. Sa forme canonique trie les lignes par
-`content_sha256`, exige une seule ligne par contenu, encode le scope avec les
-règles canoniques ci-dessus et termine chaque ligne JSON par `LF`. Son digest
-est le SHA-256 de ces octets. Le builder de set ne peut donc pas rendre valide
-un contenu déplacé vers un scope inventé en modifiant les deux copies qu'il
-contrôle.
+La projection de placements est la source indépendante de l'affectation.
+`ReleaseScopePlacementV1` est un contrat canonique pur
+`NEXUS-RELEASE-SCOPE-PLACEMENT-V1` : il ne lit aucun fichier de service et
+n'importe aucun service. Un producteur dans `rag-pedago` la dérive des
+placements canoniques, du registre de release et du manifeste de profils
+accepté, jamais du set ni des autorisations. Sa forme canonique trie les
+lignes par `content_sha256`, exige une seule ligne par contenu, encode le
+scope avec les règles canoniques ci-dessus et termine chaque ligne JSON par
+`LF`. Son digest est le SHA-256 de ces octets. Les adaptateurs de
+`rag-pedago` et `rag-engine` vérifient localement leurs propres profils et
+passent seulement les faits canoniques au contrat partagé ; aucun service
+n'importe le code d'un autre. Le builder de set ne peut donc pas rendre
+valide un contenu déplacé vers un scope inventé en modifiant les deux copies
+qu'il contrôle.
 
 Le global set est lui-même relu dans la PR de campagne exacte. Ainsi une permutation est neutre, mais toute modification d'une partition, d'un profil, d'un scope ou d'un contenu change le digest du set. Une entrée `content_sha256` ne peut apparaître que dans un membre ; cette unicité fournit aussi la fonction totale `content_sha256 → authorization_id` utilisée au republish et par les jobs.
 
@@ -77,7 +83,23 @@ Le global set est lui-même relu dans la PR de campagne exacte. Ainsi une permut
 
 `CorpusCampaignV2` conserve l'identité immuable du corpus et remplace le `scope`/`authorization_id` singulier par `authorization_set_digest`, `authority_required_count`, `authority_required_set_sha256` et `profile_manifest_digest`. Son `expected_manifest_sha256` reste exclusivement le SHA-256 du manifeste corpus scellé. Le republish V2 vérifie le set global une seule fois puis promeut exactement son union. Pour chaque contenu promu il matérialise `scope_authorization_id`, le scope et l'identité de profil issus de l'unique membre qui le couvre. `CorpusCampaignV1` et son parser restent inchangés pour les fixtures/releases historiques.
 
-La création de job singulière conserve `--scope-authorization-id`, mais doit confronter cette valeur à `scope_authorization_id` matérialisé dans le catalogue republié. Le planificateur batch la dérive de ce catalogue et ne sélectionne jamais « la plus récente ». Le worker continue de revérifier l'autorisation nommée. Aucun set global n'est injecté dans un job.
+La création de job singulière conserve `--scope-authorization-id`. Le CLI
+opérateur traite une URL avant que ses octets et donc son `content_sha256`
+soient connus : il ne peut pas consulter honnêtement une clé contenu. Il
+charge alors le set immuable dont le digest est scellé par readiness V2 et
+exige que l'ID fourni soit l'unique membre dont le `scope_digest` correspond
+au `ResourceScope` validé du job. Après fetch, le worker exige en plus que le
+`content_sha256` réel appartienne à l'allowlist de cette autorisation. Pour
+les contenus déjà republiés, le catalogue expose le champ
+`scope_authorization_id`, indexé par `content_sha256`. Le dépôt ne contient
+actuellement aucun producteur de jobs batch consommant ce catalogue : ce PR
+matérialise et teste le mapping canonique mais ne prétend pas livrer un
+caller inexistant. L'exécuteur de la vraie campagne, après profils et
+autorisations, devra copier cet ID exact dans le payload et sera testé dans
+le lot de campagne ; il ne sélectionnera jamais « la plus récente ». Aucun
+set global n'est injecté dans le payload d'un job ; seul son digest de
+readiness et l'autorisation individuelle nommée gouvernent les deux
+checkpoints.
 
 ### H2
 
@@ -103,7 +125,15 @@ Un verdict passant exige l'égalité des counts, l'union exacte, zéro gap, zér
 
 Le signer de cette release reçoit le set global et une racine gouvernée, puis dérive les chemins canoniques de ses membres ; il ne reçoit pas N chemins libres. Il revérifie chaque autorisation/binding, le registre canonique courant, H2 V2, les deux domaines de manifest et les liens corpus/profil avant signature. La fenêtre est uniforme : `valid_from <= now < valid_until` pour chaque autorisation et `now < expires_at` pour chaque binding.
 
-Le bundle de déploiement V2 matérialise, en plus du readiness signé, l'`AuthorizationSet` et le registre de révocation canonique. Le deploy et le startup :
+Le bundle de déploiement V2 matérialise, en plus du readiness signé,
+l'`AuthorizationSet` et le registre de révocation canonique. Le Compose de
+production monte explicitement les octets du set en lecture seule sous
+`/app/production/authorization-set.json`, depuis un host-file obligatoire.
+Le deploy résout la source effective de ce bind avant toute mutation, la
+rehash et exige son égalité au digest du set vérifié par readiness ; il
+refuse donc un bundle correct accompagné d'un host-file différent avant tout
+`docker compose pull/up`. Readiness gate, CLI de job et worker lisent tous ce
+même chemin. Le deploy et le startup :
 
 - vérifient `authorization_set_digest` et `revocation_registry_digest` contre readiness V2 ;
 - refusent un ID du set présent dans le registre courant ;
