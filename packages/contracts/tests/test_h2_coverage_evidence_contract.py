@@ -5,7 +5,9 @@ non canonique, sans jamais recalculer lui-même un verdict de gate.
 """
 from __future__ import annotations
 
+import hashlib
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -20,6 +22,12 @@ from pydantic import ValidationError
 GIT_COMMIT = "a" * 40
 MANIFEST_SHA256 = "b" * 64
 GENERATED_AT = datetime(2026, 8, 13, 12, 0, tzinfo=UTC)
+LEGACY_V1_FIXTURE = (
+    Path(__file__).parent / "fixtures/legacy_v1/h2_coverage_evidence_v1.json"
+)
+LEGACY_V1_FIXTURE_SHA256 = (
+    "5c50e304475a50eeb52c09110284951035c08691fa7505ab193f292870c9fbfb"
+)
 
 ZERO_SAFETY_INVARIANTS: dict[str, int] = {
     "INGEST_WITHOUT_RIGHTS_CLEARANCE": 0,
@@ -76,6 +84,14 @@ def _valid_bytes(**overrides: Any) -> bytes:
 
 
 class TestCanonicalization:
+    def test_legacy_v1_fixture_bytes_are_immutable(self) -> None:
+        raw = LEGACY_V1_FIXTURE.read_bytes()
+        assert hashlib.sha256(raw).hexdigest() == LEGACY_V1_FIXTURE_SHA256
+
+        parsed = parse_h2_coverage_evidence(raw)
+        assert parsed.protocol_version == "NEXUS-H2-COVERAGE-EVIDENCE-V1"
+        assert parsed.canonical_bytes() == raw
+
     def test_canonical_bytes_are_deterministic(self) -> None:
         a = H2CoverageEvidenceV1.model_validate(_fields())
         b = H2CoverageEvidenceV1.model_validate(_fields())

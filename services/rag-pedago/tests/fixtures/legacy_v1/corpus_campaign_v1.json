@@ -1,0 +1,36 @@
+{
+  "archive_format": "tar.zst",
+  "authorization_id": "test-authorization",
+  "campaign_id": "eduscol-philo-terminale-test",
+  "compiler_version": "corpus-catalog-compiler/1",
+  "environment": "rehearsal",
+  "expected_catalog_digest": "5555555555555555555555555555555555555555555555555555555555555555",
+  "expected_manifest_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+  "golden_spec_digest": "9999999999999999999999999999999999999999999999999999999999999999",
+  "pii_config_digest": "8888888888888888888888888888888888888888888888888888888888888888",
+  "protocol_version": "NEXUS-CORPUS-CAMPAIGN-V1",
+  "retention_days": 90,
+  "rights_config_digest": "7777777777777777777777777777777777777777777777777777777777777777",
+  "routing_config_digest": "6666666666666666666666666666666666666666666666666666666666666666",
+  "scope": {
+    "audience": [
+      "libre"
+    ],
+    "candidat": "libre",
+    "collection": "rag_nexus_philo_terminale_tc",
+    "matiere": "philosophie",
+    "niveau": "terminale",
+    "programme_version": "BOEN_special_8_2019-07-25",
+    "school_year": "2026-2027",
+    "tenant": "libre_terminale",
+    "visibility": "internal",
+    "voie": "generale"
+  },
+  "source_archive_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+  "source_kind": "ghcr-oci",
+  "source_oci_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "source_registry": "ghcr.io",
+  "source_repository": "cyranoaladin/rag-corpus",
+  "source_root": "corpus",
+  "source_tree_digest": "3333333333333333333333333333333333333333333333333333333333333333"
+}

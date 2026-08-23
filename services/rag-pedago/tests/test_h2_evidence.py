@@ -5,9 +5,11 @@ assertion ne porte sur le texte du code.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pytest
 
@@ -29,6 +31,12 @@ TREE_SHA = "b" * 40
 HEAD_SHA = "c" * 40
 WORKFLOW = ".github/workflows/_produce-h2-evidence.yml"
 NOW = datetime(2026, 8, 10, 12, 0, 0, tzinfo=UTC)
+LEGACY_V1_FIXTURE = (
+    Path(__file__).parent / "fixtures/legacy_v1/h2_evidence_bundle_v1.json"
+)
+LEGACY_V1_FIXTURE_SHA256 = (
+    "8bc7e2a903945f4f63d800fe1a4b2d68d7d518871be7eacec17c04c90f5c8cba"
+)
 
 
 def make_bundle(**overrides) -> H2EvidenceBundle:
@@ -84,6 +92,16 @@ def make_candidate(**overrides) -> EvidenceCandidate:
 
 
 class TestDeterminism:
+    def test_legacy_v1_fixture_bytes_are_immutable(self) -> None:
+        raw = LEGACY_V1_FIXTURE.read_bytes()
+        assert hashlib.sha256(raw).hexdigest() == LEGACY_V1_FIXTURE_SHA256
+
+        document = json.loads(raw.decode("utf-8"))
+        assert set(document) == {"protocol", "content"}
+        assert document["protocol"] == "NEXUS-H2-EVIDENCE-V1"
+        parsed = H2EvidenceBundle.from_content_dict(document["content"])
+        assert parsed.to_canonical_json() == raw
+
     def test_the_content_digest_is_reproducible_from_the_content_alone(self) -> None:
         assert make_bundle().content_sha256 == make_bundle().content_sha256
 

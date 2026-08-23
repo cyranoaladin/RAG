@@ -10,8 +10,10 @@ ancre réelle n'est écrite dans le dépôt.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import UTC, datetime
+from pathlib import Path
 
 import pytest
 from nexus_contracts.production_readiness import (
@@ -36,6 +38,15 @@ MERGE_SHA = "a" * 40
 TREE_SHA = "b" * 40
 PR_HEAD_SHA = "c" * 40
 ISSUED_AT = datetime(2026, 8, 11, 12, 0, tzinfo=UTC)
+LEGACY_V1_FIXTURE = (
+    Path(__file__).parent / "fixtures/legacy_v1/production_readiness_signed_v1.json"
+)
+LEGACY_V1_FIXTURE_SHA256 = (
+    "b709335c20f949b2e9b08ed2610e921d5684f5602e1ef5ce38355d4fa51a8009"
+)
+FROZEN_READINESS_PUBLIC_KEY = (
+    "d04ab232742bb4ab3a1368bd4615e4e6d0224ab71a016baf8520a332c9778737"
+)
 
 
 def _manifest_fields(**overrides: object) -> dict[str, object]:
@@ -107,6 +118,34 @@ def _signed_bytes(**overrides: object) -> bytes:
 
 
 class TestCanonicalisation:
+    def test_legacy_v1_signed_fixture_bytes_and_signature_are_immutable(self) -> None:
+        raw = LEGACY_V1_FIXTURE.read_bytes()
+        assert hashlib.sha256(raw).hexdigest() == LEGACY_V1_FIXTURE_SHA256
+
+        signed = parse_signed_production_readiness_manifest(raw)
+        assert signed.manifest.protocol_version == "NEXUS-PRODUCTION-READINESS-V1"
+        assert signed.canonical_bytes() == raw
+
+        frozen_anchor = parse_production_readiness_trust_anchor(
+            json.dumps(
+                {
+                    "protocol_version": "NEXUS-PRODUCTION-READINESS-V1",
+                    "keys": [
+                        {
+                            "key_id": KEY_ID,
+                            "algorithm": "ed25519",
+                            "public_key": FROZEN_READINESS_PUBLIC_KEY,
+                            "environment": "production",
+                        }
+                    ],
+                }
+            ).encode("utf-8")
+        )
+        verified = verify_production_readiness_manifest(
+            raw, trust_anchor=frozen_anchor
+        )
+        assert verified.canonical_bytes() == signed.manifest.canonical_bytes()
+
     def test_the_bytes_round_trip(self) -> None:
         raw = _signed_bytes()
         assert parse_signed_production_readiness_manifest(raw).canonical_bytes() == raw

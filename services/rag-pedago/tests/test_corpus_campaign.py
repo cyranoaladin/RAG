@@ -7,7 +7,9 @@ identité de corpus réelle.
 """
 from __future__ import annotations
 
+import hashlib
 import json
+from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
@@ -24,6 +26,10 @@ from rag_pedago.governance.corpus_campaign import (
 OCI = "sha256:" + "1" * 64
 ARCHIVE = "2" * 64
 TREE = "3" * 64
+LEGACY_V1_FIXTURE = Path(__file__).parent / "fixtures/legacy_v1/corpus_campaign_v1.json"
+LEGACY_V1_FIXTURE_SHA256 = (
+    "9b66216795d92977675b2744389bc202ea23bbceaf80af39e966f28b6a3e1169"
+)
 
 
 def _scope() -> dict[str, object]:
@@ -152,6 +158,14 @@ class TestPathConfinement:
 
 
 class TestStrictParsing:
+    def test_legacy_v1_fixture_bytes_are_immutable(self) -> None:
+        raw = LEGACY_V1_FIXTURE.read_bytes()
+        assert hashlib.sha256(raw).hexdigest() == LEGACY_V1_FIXTURE_SHA256
+
+        parsed = parse_corpus_campaign(raw)
+        assert parsed.protocol_version == "NEXUS-CORPUS-CAMPAIGN-V1"
+        assert parsed.canonical_bytes() == raw
+
     def test_canonical_bytes_round_trip(self) -> None:
         raw = _campaign().canonical_bytes()
         assert parse_corpus_campaign(raw).canonical_bytes() == raw
