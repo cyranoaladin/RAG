@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import nexus_contracts.h2_coverage_evidence as h2_contract
 from nexus_contracts.h2_coverage_evidence import (
     H2_COVERAGE_EVIDENCE_PROTOCOL_VERSION,
     H2CoverageEvidenceError,
@@ -81,6 +82,281 @@ def _fields(**overrides: Any) -> dict[str, Any]:
 
 def _valid_bytes(**overrides: Any) -> bytes:
     return H2CoverageEvidenceV1.model_validate(_fields(**overrides)).canonical_bytes()
+
+
+def _v2_fields(**overrides: Any) -> dict[str, Any]:
+    fields: dict[str, Any] = {
+        "protocol_version": "NEXUS-H2-COVERAGE-EVIDENCE-V2",
+        "environment": "production",
+        "report_id": "h2b-coverage-20260823",
+        "generated_at": GENERATED_AT,
+        "git_commit": GIT_COMMIT,
+        "producer_version": "h2b_coverage_report/2",
+        "corpus_manifest_sha256": MANIFEST_SHA256,
+        "profile_manifest_digest": "2" * 64,
+        "authorization_set_digest": "3" * 64,
+        "authorization_count": 24,
+        "authorization_set_verified_at": datetime(2026, 8, 13, 11, 30, tzinfo=UTC),
+        "earliest_review_submitted_at": datetime(2026, 8, 12, 9, 0, tzinfo=UTC),
+        "earliest_review_binding_verified_at": datetime(
+            2026, 8, 12, 10, 0, tzinfo=UTC
+        ),
+        "earliest_review_binding_expires_at": datetime(
+            2026, 8, 26, 10, 0, tzinfo=UTC
+        ),
+        "input_file_digests": {
+            "catalog": "c" * 64,
+            "routing": "d" * 64,
+            "rights": "e" * 64,
+            "pii": "f" * 64,
+            "currentness_verification": "9" * 64,
+            "golden": "0" * 64,
+            "authorization_set": "3" * 64,
+            "authority_revocations": "4" * 64,
+            "review_binding_trust_anchor": "5" * 64,
+        },
+        "corpus_total_expected": 2582,
+        "corpus_total_actual": 2582,
+        "corpus_match": True,
+        "sum_equals_total": True,
+        "zero_overlap": True,
+        "zero_gap": True,
+        "coverage_complete": True,
+        "rights_gate_status": "PASS",
+        "pii_gate_status": "PASS",
+        "golden_validation_pass": True,
+        "h2_coverage_gate_pass": True,
+        "authority_review_bindings_verified": True,
+        "authority_revocations_checked": True,
+        "authority_required_count": 72,
+        "authority_covered_count": 72,
+        "authority_required_set_sha256": "6" * 64,
+        "authorization_overlap_count": 0,
+        "authorization_gap_count": 0,
+        "authorization_extra_count": 0,
+        "safety_invariants": dict(ZERO_SAFETY_INVARIANTS),
+    }
+    fields.update(overrides)
+    return fields
+
+
+class TestH2CoverageEvidenceV2:
+    def test_passing_v2_carries_exact_multi_authority_identity(self) -> None:
+        evidence = h2_contract.H2CoverageEvidenceV2.model_validate(_v2_fields())
+
+        assert evidence.protocol_version == "NEXUS-H2-COVERAGE-EVIDENCE-V2"
+        assert evidence.authorization_set_digest == "3" * 64
+        assert evidence.authorization_count == 24
+        assert evidence.authority_required_count == 72
+        assert evidence.authority_covered_count == 72
+        assert "authorization_id" not in type(evidence).model_fields
+        assert "manifest_sha256" not in type(evidence).model_fields
+
+    @pytest.mark.parametrize(
+        "field",
+        [
+            "authorization_count",
+            "authorization_set_verified_at",
+            "earliest_review_submitted_at",
+            "earliest_review_binding_verified_at",
+            "earliest_review_binding_expires_at",
+        ],
+    )
+    def test_v2_requires_each_set_and_review_aggregate(self, field: str) -> None:
+        fields = _v2_fields()
+        del fields[field]
+        with pytest.raises(ValidationError):
+            h2_contract.H2CoverageEvidenceV2.model_validate(fields)
+
+    @pytest.mark.parametrize(
+        "field",
+        [
+            "authorization_set_verified_at",
+            "earliest_review_submitted_at",
+            "earliest_review_binding_verified_at",
+            "earliest_review_binding_expires_at",
+        ],
+    )
+    def test_v2_refuses_naive_aggregate_timestamps(self, field: str) -> None:
+        with pytest.raises(ValidationError):
+            h2_contract.H2CoverageEvidenceV2.model_validate(
+                _v2_fields(**{field: datetime(2026, 8, 13, 12, 0)})
+            )
+
+    def test_v2_refuses_an_empty_authorization_set(self) -> None:
+        with pytest.raises(ValidationError):
+            h2_contract.H2CoverageEvidenceV2.model_validate(
+                _v2_fields(authorization_count=0)
+            )
+
+    @pytest.mark.parametrize(
+        "overrides",
+        [
+            {
+                "earliest_review_submitted_at": datetime(
+                    2026, 8, 12, 11, 0, tzinfo=UTC
+                ),
+                "earliest_review_binding_verified_at": datetime(
+                    2026, 8, 12, 10, 0, tzinfo=UTC
+                ),
+            },
+            {
+                "earliest_review_binding_verified_at": datetime(
+                    2026, 8, 13, 12, 0, tzinfo=UTC
+                ),
+            },
+            {
+                "authorization_set_verified_at": datetime(
+                    2026, 8, 13, 12, 30, tzinfo=UTC
+                ),
+            },
+            {"earliest_review_binding_expires_at": GENERATED_AT},
+        ],
+    )
+    def test_v2_passing_gate_refuses_each_impossible_temporal_history(
+        self, overrides: dict[str, datetime]
+    ) -> None:
+        with pytest.raises(
+            ValidationError, match="inconsistent with its own prerequisites"
+        ):
+            h2_contract.H2CoverageEvidenceV2.model_validate(_v2_fields(**overrides))
+
+    def test_v2_canonical_roundtrip_preserves_distinct_aggregate_timestamps(
+        self,
+    ) -> None:
+        evidence = h2_contract.H2CoverageEvidenceV2.model_validate(_v2_fields())
+        parsed = h2_contract.parse_h2_coverage_evidence_v2(
+            evidence.canonical_bytes()
+        )
+
+        assert parsed.authorization_set_verified_at == datetime(
+            2026, 8, 13, 11, 30, tzinfo=UTC
+        )
+        assert parsed.earliest_review_binding_expires_at == datetime(
+            2026, 8, 26, 10, 0, tzinfo=UTC
+        )
+        assert parsed.input_file_digests["currentness_verification"] == "9" * 64
+        assert parsed.canonical_bytes() == evidence.canonical_bytes()
+
+    @pytest.mark.parametrize(
+        "missing_key",
+        [
+            "catalog",
+            "routing",
+            "rights",
+            "pii",
+            "currentness_verification",
+            "golden",
+            "authorization_set",
+            "authority_revocations",
+            "review_binding_trust_anchor",
+        ],
+    )
+    def test_v2_requires_the_exact_input_digest_set(self, missing_key: str) -> None:
+        digests = dict(_v2_fields()["input_file_digests"])
+        del digests[missing_key]
+        with pytest.raises(ValidationError, match="input_file_digests"):
+            h2_contract.H2CoverageEvidenceV2.model_validate(
+                _v2_fields(input_file_digests=digests)
+            )
+
+    def test_v2_refuses_an_extra_input_digest(self) -> None:
+        digests = {**_v2_fields()["input_file_digests"], "authority": "7" * 64}
+        with pytest.raises(ValidationError, match="input_file_digests"):
+            h2_contract.H2CoverageEvidenceV2.model_validate(
+                _v2_fields(input_file_digests=digests)
+            )
+
+    def test_v2_refuses_a_malformed_currentness_digest(self) -> None:
+        digests = {
+            **_v2_fields()["input_file_digests"],
+            "currentness_verification": "not-a-sha256",
+        }
+        with pytest.raises(ValidationError, match="malformed sha256"):
+            h2_contract.H2CoverageEvidenceV2.model_validate(
+                _v2_fields(input_file_digests=digests)
+            )
+
+    @pytest.mark.parametrize(
+        "override",
+        [
+            {"authority_covered_count": 71},
+            {"authorization_overlap_count": 1},
+            {"authorization_gap_count": 1},
+            {"authorization_extra_count": 1},
+            {"authority_review_bindings_verified": False},
+            {"authority_revocations_checked": False},
+            {"golden_validation_pass": False},
+            {
+                "safety_invariants": {
+                    **ZERO_SAFETY_INVARIANTS,
+                    "INGEST_WITHOUT_AUTHORITY": 1,
+                }
+            },
+        ],
+    )
+    def test_v2_passing_gate_requires_exact_authority_coverage(
+        self, override: dict[str, Any]
+    ) -> None:
+        with pytest.raises(
+            ValidationError, match="inconsistent with its own prerequisites"
+        ):
+            h2_contract.H2CoverageEvidenceV2.model_validate(_v2_fields(**override))
+
+    def test_v2_authorization_set_digest_matches_its_input_digest(self) -> None:
+        digests = {**_v2_fields()["input_file_digests"], "authorization_set": "8" * 64}
+        with pytest.raises(ValidationError, match="authorization_set_digest"):
+            h2_contract.H2CoverageEvidenceV2.model_validate(
+                _v2_fields(input_file_digests=digests)
+            )
+
+    def test_v2_refuses_an_empty_authority_required_set(self) -> None:
+        with pytest.raises(ValidationError):
+            h2_contract.H2CoverageEvidenceV2.model_validate(
+                _v2_fields(authority_required_count=0, authority_covered_count=0)
+            )
+
+    @pytest.mark.parametrize(
+        "overrides",
+        [
+            {"authorization_count": 73, "authority_covered_count": 72},
+            {
+                "authority_required_count": 2583,
+                "authority_covered_count": 2583,
+                "corpus_total_actual": 2582,
+            },
+        ],
+    )
+    def test_v2_passing_gate_refuses_impossible_count_history(
+        self, overrides: dict[str, int]
+    ) -> None:
+        with pytest.raises(
+            ValidationError, match="inconsistent with its own prerequisites"
+        ):
+            h2_contract.H2CoverageEvidenceV2.model_validate(_v2_fields(**overrides))
+
+
+class TestH2ProtocolDispatch:
+    def test_v2_parser_accepts_only_canonical_v2_bytes(self) -> None:
+        raw = h2_contract.H2CoverageEvidenceV2.model_validate(
+            _v2_fields()
+        ).canonical_bytes()
+
+        parsed = h2_contract.parse_h2_coverage_evidence_v2(raw)
+
+        assert parsed.protocol_version == "NEXUS-H2-COVERAGE-EVIDENCE-V2"
+        assert parsed.canonical_bytes() == raw
+
+    def test_v1_parser_refuses_v2(self) -> None:
+        raw = h2_contract.H2CoverageEvidenceV2.model_validate(
+            _v2_fields()
+        ).canonical_bytes()
+        with pytest.raises(H2CoverageEvidenceError, match="failed strict validation"):
+            parse_h2_coverage_evidence(raw)
+
+    def test_v2_parser_refuses_v1(self) -> None:
+        with pytest.raises(H2CoverageEvidenceError, match="protocol_version"):
+            h2_contract.parse_h2_coverage_evidence_v2(_valid_bytes())
 
 
 class TestCanonicalization:

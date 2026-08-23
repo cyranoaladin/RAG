@@ -828,6 +828,18 @@ def verify_authorization_set(
         expected_repository=expected_repository,
         accepted_reviewers=accepted_reviewers,
     )
+    for member in validated_set.members:
+        binding = resolved[member.authorization_id].review_binding.binding
+        if binding.submitted_at > binding.verified_at:
+            raise AuthorizationSetError(
+                f"review binding {member.authorization_id!r} has submitted_at "
+                "after verified_at"
+            )
+        if binding.verified_at > now:
+            raise AuthorizationSetError(
+                f"review binding {member.authorization_id!r} has verified_at "
+                "in the future"
+            )
     _verify_authorization_set_scope_facts(
         validated_set,
         verified_members=resolved,

@@ -38,6 +38,7 @@ from nexus_contracts.document import StrictBaseModel
 #: Versionné : un futur format ne peut jamais être relu comme celui-ci par
 #: accident.
 H2_COVERAGE_EVIDENCE_PROTOCOL_VERSION = "NEXUS-H2-COVERAGE-EVIDENCE-V1"
+H2_COVERAGE_EVIDENCE_V2_PROTOCOL_VERSION = "NEXUS-H2-COVERAGE-EVIDENCE-V2"
 
 _CANONICAL_INDENT = 2
 _HEX40 = r"^[0-9a-f]{40}$"
@@ -90,6 +91,19 @@ _GATE_STATUS = Literal["PASS", "BLOCKED_INGEST_WITHOUT_CLEARANCE"]
 #: production), signalé dans le rapport de lot, hors du périmètre de ce
 #: module de représentation (ADR-0001) — pas contourné en silence ici.
 _REQUIRED_INPUT_FILE_KEYS = frozenset({"catalog", "routing", "rights", "pii", "golden", "authority"})
+_REQUIRED_V2_INPUT_FILE_KEYS = frozenset(
+    {
+        "authorization_set",
+        "authority_revocations",
+        "catalog",
+        "currentness_verification",
+        "golden",
+        "pii",
+        "review_binding_trust_anchor",
+        "rights",
+        "routing",
+    }
+)
 
 #: Les neuf invariants de sécurité que `generate_coverage_report` compte
 #: (toujours initialisés à zéro puis incrémentés, jamais un sous-ensemble
@@ -320,6 +334,167 @@ class H2CoverageEvidenceV1(StrictBaseModel):
         return _canonical_bytes(self.canonical_document())
 
 
+class H2CoverageEvidenceV2(StrictBaseModel):
+    """Preuve H2 structurée liée à un set d'autorisations exact."""
+
+    protocol_version: Literal["NEXUS-H2-COVERAGE-EVIDENCE-V2"]
+    environment: Literal["production"]
+
+    report_id: StrictStr = Field(min_length=1, max_length=128)
+    generated_at: AwareDatetime
+    git_commit: StrictStr = Field(pattern=_HEX40)
+    producer_version: StrictStr = Field(min_length=1, max_length=128)
+
+    corpus_manifest_sha256: StrictStr = Field(pattern=_HEX64)
+    profile_manifest_digest: StrictStr = Field(pattern=_HEX64)
+    authorization_set_digest: StrictStr = Field(pattern=_HEX64)
+    authorization_count: StrictInt = Field(gt=0)
+    authorization_set_verified_at: AwareDatetime
+    earliest_review_submitted_at: AwareDatetime
+    earliest_review_binding_verified_at: AwareDatetime
+    earliest_review_binding_expires_at: AwareDatetime
+    input_file_digests: dict[str, StrictStr] = Field(min_length=1)
+
+    corpus_total_expected: StrictInt = Field(ge=0)
+    corpus_total_actual: StrictInt = Field(ge=0)
+    corpus_match: StrictBool
+    sum_equals_total: StrictBool
+    zero_overlap: StrictBool
+    zero_gap: StrictBool
+    coverage_complete: StrictBool
+
+    rights_gate_status: _GATE_STATUS
+    pii_gate_status: _GATE_STATUS
+    golden_validation_pass: StrictBool
+    h2_coverage_gate_pass: StrictBool
+
+    authority_review_bindings_verified: StrictBool
+    authority_revocations_checked: StrictBool
+    authority_required_count: StrictInt = Field(gt=0)
+    authority_covered_count: _NonNegativeInt
+    authority_required_set_sha256: StrictStr = Field(pattern=_HEX64)
+    authorization_overlap_count: _NonNegativeInt
+    authorization_gap_count: _NonNegativeInt
+    authorization_extra_count: _NonNegativeInt
+
+    safety_invariants: dict[str, _NonNegativeInt]
+
+    @model_validator(mode="after")
+    def _input_file_digests_are_exact(self) -> H2CoverageEvidenceV2:
+        if set(self.input_file_digests) != _REQUIRED_V2_INPUT_FILE_KEYS:
+            raise ValueError(
+                "input_file_digests has an unexpected key set "
+                f"(got={sorted(self.input_file_digests)}, "
+                f"expected={sorted(_REQUIRED_V2_INPUT_FILE_KEYS)})"
+            )
+        if not all(
+            re.fullmatch(_HEX64, digest) is not None
+            for digest in self.input_file_digests.values()
+        ):
+            raise ValueError("input_file_digests contains a malformed sha256 digest")
+        if (
+            self.input_file_digests["authorization_set"]
+            != self.authorization_set_digest
+        ):
+            raise ValueError(
+                "authorization_set_digest does not match "
+                "input_file_digests['authorization_set']"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _safety_invariants_are_exact(self) -> H2CoverageEvidenceV2:
+        if set(self.safety_invariants) != _SAFETY_INVARIANT_KEYS:
+            raise ValueError(
+                "safety_invariants has an unexpected key set "
+                f"(got={sorted(self.safety_invariants)}, "
+                f"expected={sorted(_SAFETY_INVARIANT_KEYS)})"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _passing_gate_is_structurally_consistent(self) -> H2CoverageEvidenceV2:
+        if self.h2_coverage_gate_pass and not (
+            self.coverage_complete
+            and self.golden_validation_pass
+            and self.rights_gate_status == "PASS"
+            and self.pii_gate_status == "PASS"
+            and self.authority_review_bindings_verified
+            and self.authority_revocations_checked
+            and self.corpus_match
+            and self.sum_equals_total
+            and self.zero_overlap
+            and self.zero_gap
+            and self.corpus_total_expected == self.corpus_total_actual
+            and self.authorization_count <= self.authority_covered_count
+            and self.authority_required_count == self.authority_covered_count
+            and self.authority_required_count <= self.corpus_total_actual
+            and self.authorization_overlap_count == 0
+            and self.authorization_gap_count == 0
+            and self.authorization_extra_count == 0
+            and all(value == 0 for value in self.safety_invariants.values())
+            and self.earliest_review_submitted_at
+            <= self.earliest_review_binding_verified_at
+            <= self.authorization_set_verified_at
+            <= self.generated_at
+            < self.earliest_review_binding_expires_at
+        ):
+            raise ValueError(
+                "h2_coverage_gate_pass=true is inconsistent with its own prerequisites"
+            )
+        return self
+
+    def canonical_document(self) -> dict[str, Any]:
+        return {
+            "authorization_extra_count": self.authorization_extra_count,
+            "authorization_gap_count": self.authorization_gap_count,
+            "authorization_overlap_count": self.authorization_overlap_count,
+            "authorization_count": self.authorization_count,
+            "authorization_set_digest": self.authorization_set_digest,
+            "authorization_set_verified_at": _canonical_moment(
+                self.authorization_set_verified_at
+            ),
+            "authority_covered_count": self.authority_covered_count,
+            "authority_required_count": self.authority_required_count,
+            "authority_required_set_sha256": self.authority_required_set_sha256,
+            "authority_review_bindings_verified": self.authority_review_bindings_verified,
+            "authority_revocations_checked": self.authority_revocations_checked,
+            "corpus_manifest_sha256": self.corpus_manifest_sha256,
+            "corpus_match": self.corpus_match,
+            "corpus_total_actual": self.corpus_total_actual,
+            "corpus_total_expected": self.corpus_total_expected,
+            "coverage_complete": self.coverage_complete,
+            "earliest_review_binding_expires_at": _canonical_moment(
+                self.earliest_review_binding_expires_at
+            ),
+            "earliest_review_binding_verified_at": _canonical_moment(
+                self.earliest_review_binding_verified_at
+            ),
+            "earliest_review_submitted_at": _canonical_moment(
+                self.earliest_review_submitted_at
+            ),
+            "environment": self.environment,
+            "generated_at": _canonical_moment(self.generated_at),
+            "git_commit": self.git_commit,
+            "golden_validation_pass": self.golden_validation_pass,
+            "h2_coverage_gate_pass": self.h2_coverage_gate_pass,
+            "input_file_digests": dict(sorted(self.input_file_digests.items())),
+            "pii_gate_status": self.pii_gate_status,
+            "producer_version": self.producer_version,
+            "profile_manifest_digest": self.profile_manifest_digest,
+            "protocol_version": self.protocol_version,
+            "report_id": self.report_id,
+            "rights_gate_status": self.rights_gate_status,
+            "safety_invariants": dict(sorted(self.safety_invariants.items())),
+            "sum_equals_total": self.sum_equals_total,
+            "zero_gap": self.zero_gap,
+            "zero_overlap": self.zero_overlap,
+        }
+
+    def canonical_bytes(self) -> bytes:
+        return _canonical_bytes(self.canonical_document())
+
+
 class H2CoverageEvidenceError(ValueError):
     """La preuve H2 ne prouve rien — fail-closed.
 
@@ -349,6 +524,39 @@ def parse_h2_coverage_evidence(raw: bytes) -> H2CoverageEvidenceV1:
         raise H2CoverageEvidenceError("input_file_digests contains a malformed sha256 digest")
     reserialized = parsed.canonical_bytes()
     if reserialized != raw:
+        raise H2CoverageEvidenceError(
+            "evidence bytes are not in canonical form — the reviewed bytes and "
+            "their canonical re-serialization differ. Commit the canonical form."
+        )
+    return parsed
+
+
+def parse_h2_coverage_evidence_v2(raw: bytes) -> H2CoverageEvidenceV2:
+    """Parse strictement le protocole V2, sans fallback vers V1."""
+    try:
+        document = json.loads(raw.decode("utf-8"))
+    except UnicodeDecodeError as exc:
+        raise H2CoverageEvidenceError(
+            f"evidence bytes are not valid UTF-8: {exc}"
+        ) from exc
+    except json.JSONDecodeError as exc:
+        raise H2CoverageEvidenceError(
+            f"evidence bytes are not valid JSON: {exc}"
+        ) from exc
+    if not isinstance(document, dict):
+        raise H2CoverageEvidenceError("evidence must be a JSON object")
+    if document.get("protocol_version") != H2_COVERAGE_EVIDENCE_V2_PROTOCOL_VERSION:
+        raise H2CoverageEvidenceError(
+            "evidence protocol_version is not "
+            f"{H2_COVERAGE_EVIDENCE_V2_PROTOCOL_VERSION!r}"
+        )
+    try:
+        parsed = H2CoverageEvidenceV2.model_validate(document)
+    except Exception as exc:  # noqa: BLE001 - strict parsing boundary
+        raise H2CoverageEvidenceError(
+            f"evidence failed strict validation: {exc}"
+        ) from exc
+    if parsed.canonical_bytes() != raw:
         raise H2CoverageEvidenceError(
             "evidence bytes are not in canonical form — the reviewed bytes and "
             "their canonical re-serialization differ. Commit the canonical form."

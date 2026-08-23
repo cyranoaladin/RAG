@@ -142,6 +142,19 @@ from nexus_contracts.authorization_set import (
     scope_digest,
     verify_authorization_set,
 )
+from nexus_contracts.h2_coverage_evidence import (
+    H2_COVERAGE_EVIDENCE_V2_PROTOCOL_VERSION,
+    H2CoverageEvidenceV2,
+    parse_h2_coverage_evidence_v2,
+)
+from nexus_contracts.production_readiness import (
+    PRODUCTION_READINESS_V2_PROTOCOL_VERSION,
+    ProductionReadinessManifestV2,
+    SignedProductionReadinessManifestV2,
+    parse_signed_production_readiness_manifest_v2,
+    sign_production_readiness_manifest_v2,
+    verify_production_readiness_manifest_v2,
+)
 
 __all__ = [
     "AccessContext",
@@ -260,4 +273,13 @@ __all__ = [
     "resolve_authorization_set_material",
     "scope_digest",
     "verify_authorization_set",
+    "H2_COVERAGE_EVIDENCE_V2_PROTOCOL_VERSION",
+    "H2CoverageEvidenceV2",
+    "parse_h2_coverage_evidence_v2",
+    "PRODUCTION_READINESS_V2_PROTOCOL_VERSION",
+    "ProductionReadinessManifestV2",
+    "SignedProductionReadinessManifestV2",
+    "parse_signed_production_readiness_manifest_v2",
+    "sign_production_readiness_manifest_v2",
+    "verify_production_readiness_manifest_v2",
 ]

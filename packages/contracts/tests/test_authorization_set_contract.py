@@ -297,6 +297,92 @@ def _verified_scope_inputs() -> tuple[
     )
 
 
+def _two_member_global_inputs(
+    *,
+    second_binding_overrides: dict[str, Any] | None = None,
+) -> tuple[
+    AuthorizationSetV1,
+    dict[str, bytes],
+    ReleaseScopePlacementV1,
+    tuple[VerifiedProfileFactV1, ...],
+]:
+    first = _authorization()
+    second_scope = _scope(collection="maths_seconde", matiere="maths")
+    second = _authorization(
+        authorization_id="auth-maths-v1",
+        scope=second_scope,
+        contents=(SHA_B,),
+        profile_id="profile-maths-seconde",
+        profile_fingerprint="5" * 64,
+    )
+    first_binding = _binding_bytes(
+        first,
+        submitted_at=NOW - timedelta(days=5),
+        verified_at=NOW - timedelta(days=1),
+        expires_at=NOW + timedelta(days=5),
+    )
+    second_binding_facts: dict[str, Any] = {
+        "submitted_at": NOW - timedelta(days=4),
+        "verified_at": NOW - timedelta(days=3),
+        "expires_at": NOW + timedelta(days=3),
+    }
+    second_binding_facts.update(second_binding_overrides or {})
+    second_binding = _binding_bytes(second, **second_binding_facts)
+    first_raw = first.canonical_bytes()
+    second_raw = second.canonical_bytes()
+    members = (
+        _member(
+            authorization_id=first.authorization_id,
+            scope=first.scope,
+            contents=first.allowed_content_sha256,
+            authorization_digest=sha256(first_raw).hexdigest(),
+            review_binding_digest=sha256(first_binding).hexdigest(),
+        ),
+        _member(
+            authorization_id=second.authorization_id,
+            scope=second.scope,
+            contents=second.allowed_content_sha256,
+            authorization_digest=sha256(second_raw).hexdigest(),
+            review_binding_digest=sha256(second_binding).hexdigest(),
+        ),
+    )
+    placement = _placement(
+        _placement_entry(),
+        _placement_entry(
+            content_sha256=SHA_B,
+            profile_id="profile-maths-seconde",
+            profile_fingerprint="5" * 64,
+            scope=second_scope,
+        ),
+    )
+    authorization_set = AuthorizationSetV1.build(
+        members=members,
+        corpus_manifest_sha256="c" * 64,
+        profile_manifest_digest="d" * 64,
+        release_scope_placement_digest=placement.digest(),
+        authority_required_content_sha256=(SHA_A, SHA_B),
+    )
+    material = {
+        first.canonical_path(): first_raw,
+        canonical_review_binding_path(first.authorization_id): first_binding,
+        second.canonical_path(): second_raw,
+        canonical_review_binding_path(second.authorization_id): second_binding,
+    }
+    return (
+        authorization_set,
+        material,
+        placement,
+        (
+            _profile_fact(),
+            _profile_fact(
+                profile_id="profile-maths-seconde",
+                profile_fingerprint="5" * 64,
+                scope=second_scope,
+            ),
+        ),
+    )
+
+
 class TestStructureAndCanonicalization:
     def test_zero_members_is_refused(self) -> None:
         with pytest.raises(AuthorizationSetError, match="at least one member"):
@@ -917,70 +1003,33 @@ class TestGlobalVerificationBoundary:
         with pytest.raises(AuthorizationSetError, match="revoked"):
             self._verify(revoked=("auth-francais-v1",))
 
+    def test_global_boundary_checks_submission_time_for_every_member(self) -> None:
+        authorization_set, material, placement, profiles = _two_member_global_inputs(
+            second_binding_overrides={
+                "submitted_at": NOW - timedelta(days=2),
+                "verified_at": NOW - timedelta(days=3),
+            }
+        )
+
+        with pytest.raises(AuthorizationSetError, match="submitted_at"):
+            verify_authorization_set(
+                authorization_set,
+                release_files=material,
+                trust_anchor=_trust_anchor(),
+                environment="test",
+                now=NOW,
+                expected_repository="cyranoaladin/RAG",
+                accepted_reviewers=("abenrhouma",),
+                release_scope_placement=placement,
+                verified_profiles=profiles,
+                revocation_registry_raw=_revocations(),
+                authority_required_content_sha256=(SHA_A, SHA_B),
+            )
+
     def test_review_time_aggregates_cover_all_cryptographically_verified_bindings(
         self,
     ) -> None:
-        first = _authorization()
-        second_scope = _scope(collection="maths_seconde", matiere="maths")
-        second = _authorization(
-            authorization_id="auth-maths-v1",
-            scope=second_scope,
-            contents=(SHA_B,),
-            profile_id="profile-maths-seconde",
-            profile_fingerprint="5" * 64,
-        )
-        first_binding = _binding_bytes(
-            first,
-            submitted_at=NOW - timedelta(days=5),
-            verified_at=NOW - timedelta(days=1),
-            expires_at=NOW + timedelta(days=5),
-        )
-        second_binding = _binding_bytes(
-            second,
-            submitted_at=NOW - timedelta(days=4),
-            verified_at=NOW - timedelta(days=3),
-            expires_at=NOW + timedelta(days=3),
-        )
-        first_raw = first.canonical_bytes()
-        second_raw = second.canonical_bytes()
-        members = (
-            _member(
-                authorization_id=first.authorization_id,
-                scope=first.scope,
-                contents=first.allowed_content_sha256,
-                authorization_digest=sha256(first_raw).hexdigest(),
-                review_binding_digest=sha256(first_binding).hexdigest(),
-            ),
-            _member(
-                authorization_id=second.authorization_id,
-                scope=second.scope,
-                contents=second.allowed_content_sha256,
-                authorization_digest=sha256(second_raw).hexdigest(),
-                review_binding_digest=sha256(second_binding).hexdigest(),
-            ),
-        )
-        placement = _placement(
-            _placement_entry(),
-            _placement_entry(
-                content_sha256=SHA_B,
-                profile_id="profile-maths-seconde",
-                profile_fingerprint="5" * 64,
-                scope=second_scope,
-            ),
-        )
-        authorization_set = AuthorizationSetV1.build(
-            members=members,
-            corpus_manifest_sha256="c" * 64,
-            profile_manifest_digest="d" * 64,
-            release_scope_placement_digest=placement.digest(),
-            authority_required_content_sha256=(SHA_A, SHA_B),
-        )
-        material = {
-            first.canonical_path(): first_raw,
-            canonical_review_binding_path(first.authorization_id): first_binding,
-            second.canonical_path(): second_raw,
-            canonical_review_binding_path(second.authorization_id): second_binding,
-        }
+        authorization_set, material, placement, profiles = _two_member_global_inputs()
         result = verify_authorization_set(
             authorization_set,
             release_files=material,
@@ -990,14 +1039,7 @@ class TestGlobalVerificationBoundary:
             expected_repository="cyranoaladin/RAG",
             accepted_reviewers=("abenrhouma",),
             release_scope_placement=placement,
-            verified_profiles=(
-                _profile_fact(),
-                _profile_fact(
-                    profile_id="profile-maths-seconde",
-                    profile_fingerprint="5" * 64,
-                    scope=second_scope,
-                ),
-            ),
+            verified_profiles=profiles,
             revocation_registry_raw=_revocations(),
             authority_required_content_sha256=(SHA_A, SHA_B),
         )
