@@ -46,6 +46,8 @@ class AuthorizationMapping:
     authority_required_set_sha256: str
     content_authorization_ids: tuple[tuple[str, str], ...]
     scope_authorization_ids: tuple[tuple[str, str], ...]
+    authorization_digests: tuple[tuple[str, str], ...]
+    profile_manifest_digest: str
 
     def __init__(
         self,
@@ -55,6 +57,8 @@ class AuthorizationMapping:
         authority_required_set_sha256: str,
         content_authorization_ids: tuple[tuple[str, str], ...],
         scope_authorization_ids: tuple[tuple[str, str], ...],
+        authorization_digests: tuple[tuple[str, str], ...] = (),
+        profile_manifest_digest: str = "",
         _factory_token: object | None = None,
     ) -> None:
         if _factory_token is not _FACTORY_TOKEN:
@@ -68,6 +72,16 @@ class AuthorizationMapping:
         )
         object.__setattr__(self, "content_authorization_ids", content_authorization_ids)
         object.__setattr__(self, "scope_authorization_ids", scope_authorization_ids)
+        object.__setattr__(self, "authorization_digests", authorization_digests)
+        object.__setattr__(self, "profile_manifest_digest", profile_manifest_digest)
+
+    def authorization_digest(self, authorization_id: str) -> str:
+        for candidate, digest in self.authorization_digests:
+            if candidate == authorization_id:
+                return digest
+        raise AuthorizationMappingError(
+            f"unknown authorization_id {authorization_id!r} in the signed authorization set"
+        )
 
     def authorization_id_for_content(self, content_sha256: str) -> str:
         """Retourne l'unique autorisation couvrant les octets téléchargés."""
@@ -169,6 +183,11 @@ def build_authorization_mapping(
         authority_required_set_sha256=required_digest,
         content_authorization_ids=owners,
         scope_authorization_ids=scope_owners,
+        authorization_digests=tuple(
+            (member.authorization_id, member.authorization_digest)
+            for member in authorization_set.members
+        ),
+        profile_manifest_digest=authorization_set.profile_manifest_digest,
         _factory_token=_FACTORY_TOKEN,
     )
 

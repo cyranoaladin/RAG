@@ -99,8 +99,24 @@ def test_builds_immutable_exact_content_and_scope_lookups() -> None:
     assert mapping.authorization_id_for_scope_digest(
         scope_digest(_scope(collection="francais_terminale"))
     ) == "auth-b"
+    assert mapping.authorization_digest("auth-a") == next(
+        member.authorization_digest
+        for member in authorization_set.members
+        if member.authorization_id == "auth-a"
+    )
     assert isinstance(mapping.content_authorization_ids, tuple)
     assert isinstance(mapping.scope_authorization_ids, tuple)
+
+
+def test_refuses_unknown_authorization_digest_lookup() -> None:
+    authorization_set = _set()
+    mapping = build_authorization_mapping(
+        authorization_set_bytes=authorization_set.canonical_bytes(),
+        expected_authorization_set_digest=authorization_set.digest(),
+        authority_required_content_sha256=[CONTENT_A, CONTENT_B],
+    )
+    with pytest.raises(AuthorizationMappingError, match="unknown authorization"):
+        mapping.authorization_digest("auth-missing")
 
 
 @pytest.mark.parametrize(

@@ -67,6 +67,9 @@ import argparse
 import dataclasses
 import hashlib
 import json
+import os
+import secrets
+import stat
 import subprocess
 import sys
 import tempfile
@@ -720,6 +723,418 @@ class _VerifiedDeployInputs:
     bundle_document: dict[str, Any]
     explicit_services: list[str]
     effective_compose_bytes: bytes
+    authorization_set_bind_source: Path | None = None
+    authorization_set_digest: str | None = None
+
+
+@dataclass(frozen=True)
+class _DurableAuthorizationSetGeneration:
+    """Source privée adressée par contenu et identité d'inodes épinglée."""
+
+    path: Path
+    generation_directory: Path
+    file_device: int
+    file_inode: int
+    directory_device: int
+    directory_inode: int
+    directory_chain: tuple[tuple[int, int], ...]
+
+
+def _require_trusted_ancestor(metadata: os.stat_result, *, label: str) -> None:
+    deploy_uid = os.geteuid()
+    if metadata.st_uid not in {0, deploy_uid}:
+        raise DeploymentWrapperError(f"{label} has an untrusted owner")
+    writable_by_others = metadata.st_mode & (stat.S_IWGRP | stat.S_IWOTH)
+    sticky_trusted = metadata.st_mode & stat.S_ISVTX and metadata.st_uid in {
+        0,
+        deploy_uid,
+    }
+    if writable_by_others and not sticky_trusted:
+        raise DeploymentWrapperError(f"{label} is a group/world-writable ancestor")
+
+
+def _open_directory_chain_no_follow(
+    path: Path,
+) -> tuple[int, tuple[tuple[int, int], ...]]:
+    """Ouvre et épingle chaque composant sans suivre de lien."""
+    absolute = Path(os.path.abspath(path))
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_DIRECTORY", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+    )
+    descriptor = os.open(absolute.anchor, flags)
+    identities: list[tuple[int, int]] = []
+    walked = Path(absolute.anchor)
+    try:
+        metadata = os.fstat(descriptor)
+        _require_trusted_ancestor(metadata, label=f"deployment ancestor {walked}")
+        identities.append((metadata.st_dev, metadata.st_ino))
+        for part in absolute.parts[1:]:
+            child = os.open(part, flags, dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = child
+            walked /= part
+            metadata = os.fstat(descriptor)
+            _require_trusted_ancestor(metadata, label=f"deployment ancestor {walked}")
+            identities.append((metadata.st_dev, metadata.st_ino))
+        return descriptor, tuple(identities)
+    except Exception:
+        os.close(descriptor)
+        raise
+
+
+def _open_directory_no_follow(path: Path) -> int:
+    descriptor, _identities = _open_directory_chain_no_follow(path)
+    return descriptor
+
+
+def _require_private_directory(descriptor: int, *, label: str) -> os.stat_result:
+    metadata = os.fstat(descriptor)
+    if not stat.S_ISDIR(metadata.st_mode):
+        raise DeploymentWrapperError(f"{label} is not a directory")
+    if stat.S_IMODE(metadata.st_mode) != 0o700:
+        raise DeploymentWrapperError(f"{label} must have mode 0700")
+    if metadata.st_uid != os.geteuid():
+        raise DeploymentWrapperError(f"{label} owner must be the effective deploy UID")
+    return metadata
+
+
+def _open_or_create_private_child(parent: int, name: str, *, label: str) -> tuple[int, bool]:
+    created = False
+    try:
+        os.mkdir(name, 0o700, dir_fd=parent)
+        created = True
+        os.fsync(parent)
+    except FileExistsError:
+        pass
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_DIRECTORY", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+    )
+    try:
+        descriptor = os.open(name, flags, dir_fd=parent)
+    except OSError as exc:
+        raise DeploymentWrapperError(f"{label} cannot be opened safely: {exc}") from exc
+    try:
+        _require_private_directory(descriptor, label=label)
+    except Exception:
+        os.close(descriptor)
+        raise
+    return descriptor, created
+
+
+def _materialize_authorization_set_generation(
+    *,
+    state_root: Path,
+    bundle_digest: str,
+    authorization_set_digest: str,
+    raw: bytes,
+) -> _DurableAuthorizationSetGeneration:
+    """Crée sans écrasement le bind durable 0600 d'une release vérifiée."""
+    for value, label in (
+        (bundle_digest, "bundle digest"),
+        (authorization_set_digest, "authorization set digest"),
+    ):
+        if len(value) != 64 or any(character not in "0123456789abcdef" for character in value):
+            raise DeploymentWrapperError(f"{label} is not canonical lowercase SHA-256")
+    if _sha256_bytes(raw) != authorization_set_digest:
+        raise DeploymentWrapperError("authorization set bytes differ from their signed digest")
+
+    absolute_root = Path(os.path.abspath(state_root))
+    if absolute_root == Path(absolute_root.anchor):
+        raise DeploymentWrapperError("deployment state root cannot be a filesystem root")
+    try:
+        parent = _open_directory_no_follow(absolute_root.parent)
+    except OSError as exc:
+        raise DeploymentWrapperError(
+            f"deployment state parent cannot be opened safely: {exc}"
+        ) from exc
+    root = generations = generation = -1
+    filename = "authorization-set.json"
+    generation_name = f"{bundle_digest}-{authorization_set_digest}"
+    try:
+        root, _ = _open_or_create_private_child(
+            parent, absolute_root.name, label="deployment state root"
+        )
+        generations, _ = _open_or_create_private_child(
+            root, "generations", label="deployment generations directory"
+        )
+        generation, _ = _open_or_create_private_child(
+            generations,
+            generation_name,
+            label="deployment release generation",
+        )
+        generation_metadata = os.fstat(generation)
+        create_flags = (
+            os.O_WRONLY
+            | os.O_CREAT
+            | os.O_EXCL
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_NOFOLLOW", 0)
+        )
+        temporary_name = f".authorization-set.{secrets.token_hex(16)}"
+        file_descriptor = os.open(
+            temporary_name, create_flags, 0o600, dir_fd=generation
+        )
+        try:
+            try:
+                os.fchmod(file_descriptor, 0o600)
+                remaining = memoryview(raw)
+                while remaining:
+                    written = os.write(file_descriptor, remaining)
+                    if written == 0:
+                        raise DeploymentWrapperError(
+                            "deployment authorization set write made no progress"
+                        )
+                    remaining = remaining[written:]
+                os.fsync(file_descriptor)
+            finally:
+                os.close(file_descriptor)
+        except Exception:
+            os.unlink(temporary_name, dir_fd=generation)
+            os.fsync(generation)
+            raise
+        try:
+            try:
+                os.link(
+                    temporary_name,
+                    filename,
+                    src_dir_fd=generation,
+                    dst_dir_fd=generation,
+                    follow_symlinks=False,
+                )
+            except FileExistsError:
+                pass
+        finally:
+            os.unlink(temporary_name, dir_fd=generation)
+            os.fsync(generation)
+
+        read_flags = (
+            os.O_RDONLY
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_NOFOLLOW", 0)
+        )
+        file_descriptor = os.open(filename, read_flags, dir_fd=generation)
+        try:
+            file_metadata = os.fstat(file_descriptor)
+            chunks: list[bytes] = []
+            while chunk := os.read(file_descriptor, 1024 * 1024):
+                chunks.append(chunk)
+        finally:
+            os.close(file_descriptor)
+        if b"".join(chunks) != raw:
+            raise DeploymentWrapperError(
+                "existing deployment generation differs from signed authorization set"
+            )
+        if not stat.S_ISREG(file_metadata.st_mode):
+            raise DeploymentWrapperError("deployment authorization set is not a regular file")
+        if stat.S_IMODE(file_metadata.st_mode) != 0o600:
+            raise DeploymentWrapperError("deployment authorization set must have mode 0600")
+        if file_metadata.st_uid != os.geteuid():
+            raise DeploymentWrapperError(
+                "deployment authorization set owner must be the effective deploy UID"
+            )
+        if file_metadata.st_nlink != 1:
+            raise DeploymentWrapperError(
+                "deployment authorization set has a non-unique hardlink count"
+            )
+        generation_directory = absolute_root / "generations" / generation_name
+        pinned_generation, directory_chain = _open_directory_chain_no_follow(
+            generation_directory
+        )
+        try:
+            pinned_metadata = _require_private_directory(
+                pinned_generation, label="deployment release generation"
+            )
+        finally:
+            os.close(pinned_generation)
+        if (pinned_metadata.st_dev, pinned_metadata.st_ino) != (
+            generation_metadata.st_dev,
+            generation_metadata.st_ino,
+        ):
+            raise DeploymentWrapperError(
+                "deployment release generation was substituted while materializing"
+            )
+        return _DurableAuthorizationSetGeneration(
+            path=generation_directory / filename,
+            generation_directory=generation_directory,
+            file_device=file_metadata.st_dev,
+            file_inode=file_metadata.st_ino,
+            directory_device=generation_metadata.st_dev,
+            directory_inode=generation_metadata.st_ino,
+            directory_chain=directory_chain,
+        )
+    finally:
+        for descriptor in (generation, generations, root, parent):
+            if descriptor >= 0:
+                os.close(descriptor)
+
+
+def _require_generation_identity(generation: _DurableAuthorizationSetGeneration) -> None:
+    """Revalide la chaîne et les inodes épinglés avant chaque mutation Docker."""
+    try:
+        directory, current_chain = _open_directory_chain_no_follow(
+            generation.generation_directory
+        )
+        metadata = _require_private_directory(
+            directory, label="deployment release generation"
+        )
+        if current_chain != generation.directory_chain or (
+            metadata.st_dev,
+            metadata.st_ino,
+        ) != (generation.directory_device, generation.directory_inode):
+            raise DeploymentWrapperError("deployment generation path was substituted")
+        flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+        file_descriptor = os.open(generation.path.name, flags, dir_fd=directory)
+        try:
+            file_metadata = os.fstat(file_descriptor)
+        finally:
+            os.close(file_descriptor)
+    except OSError as exc:
+        raise DeploymentWrapperError(
+            f"deployment generation identity cannot be reverified: {exc}"
+        ) from exc
+    finally:
+        if "directory" in locals():
+            os.close(directory)
+    if not stat.S_ISREG(file_metadata.st_mode):
+        raise DeploymentWrapperError("deployment authorization set is not a regular file")
+    if stat.S_IMODE(file_metadata.st_mode) != 0o600:
+        raise DeploymentWrapperError("deployment authorization set must have mode 0600")
+    if file_metadata.st_uid != os.geteuid():
+        raise DeploymentWrapperError(
+            "deployment authorization set owner must be the effective deploy UID"
+        )
+    if file_metadata.st_nlink != 1:
+        raise DeploymentWrapperError(
+            "deployment authorization set has a non-unique hardlink count"
+        )
+    if (file_metadata.st_dev, file_metadata.st_ino) != (
+        generation.file_device,
+        generation.file_inode,
+    ):
+        raise DeploymentWrapperError("deployment authorization set path was substituted")
+
+
+def require_effective_authorization_set_bind(
+    *, effective_compose: dict[str, Any], expected_digest: str
+) -> Path:
+    """Vérifie le bind réellement résolu, pas seulement le bundle.
+
+    Les deux workers doivent partager un unique fichier régulier, absolu,
+    monté en lecture seule au chemin runtime canonique. Chaque composant du
+    chemin est refusé s'il est un symlink, puis les octets sont ouverts avec
+    ``O_NOFOLLOW`` par la primitive du signer et rehashés.
+    """
+    services = effective_compose.get("services")
+    if not isinstance(services, dict):
+        raise DeploymentWrapperError("effective compose has no services")
+    sources: list[Path] = []
+    for service_name in (
+        "multilevel-worker-a-production",
+        "multilevel-worker-b-production",
+    ):
+        service = services.get(service_name)
+        if not isinstance(service, dict):
+            raise DeploymentWrapperError(
+                f"effective compose is missing production service {service_name!r}"
+            )
+        volumes = service.get("volumes")
+        if not isinstance(volumes, list):
+            raise DeploymentWrapperError(
+                f"{service_name} has no resolved authorization set bind"
+            )
+        matches = [
+            volume
+            for volume in volumes
+            if isinstance(volume, dict)
+            and volume.get("target") == "/app/production/authorization-set.json"
+        ]
+        if len(matches) != 1:
+            raise DeploymentWrapperError(
+                f"{service_name} must have exactly one authorization set bind"
+            )
+        volume = matches[0]
+        if volume.get("type") != "bind" or volume.get("read_only") is not True:
+            raise DeploymentWrapperError(
+                f"{service_name} authorization set bind must be a read-only bind"
+            )
+        source_raw = volume.get("source")
+        if not isinstance(source_raw, str) or not source_raw:
+            raise DeploymentWrapperError(
+                f"{service_name} authorization set bind source is missing"
+            )
+        source = Path(source_raw)
+        if not source.is_absolute():
+            raise DeploymentWrapperError(
+                "effective authorization set bind source must be absolute"
+            )
+        walked = Path(source.anchor)
+        for part in source.parts[1:]:
+            walked /= part
+            if walked.is_symlink():
+                raise DeploymentWrapperError(
+                    f"effective authorization set bind source {walked} is a symlink"
+                )
+        sources.append(source)
+    if sources[0] != sources[1]:
+        raise DeploymentWrapperError(
+            "production workers resolve different authorization set bind sources"
+        )
+    source = sources[0]
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(source, flags)
+        try:
+            before = os.fstat(descriptor)
+            if not stat.S_ISREG(before.st_mode):
+                raise DeploymentWrapperError(
+                    "effective authorization set bind source is not a regular file"
+                )
+            if before.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
+                raise DeploymentWrapperError(
+                    "effective authorization set bind source is group/world-writable"
+                )
+            if before.st_nlink != 1:
+                raise DeploymentWrapperError(
+                    "effective authorization set bind source has a non-unique hardlink count"
+                )
+            chunks: list[bytes] = []
+            while chunk := os.read(descriptor, 1024 * 1024):
+                chunks.append(chunk)
+            after = os.fstat(descriptor)
+        finally:
+            os.close(descriptor)
+        path_after = os.stat(source, follow_symlinks=False)
+    except OSError as exc:
+        raise DeploymentWrapperError(
+            f"effective authorization set bind cannot be frozen safely: {exc}"
+        ) from exc
+    if (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns) != (
+        after.st_dev,
+        after.st_ino,
+        after.st_size,
+        after.st_mtime_ns,
+    ):
+        raise DeploymentWrapperError(
+            "effective authorization set bind mutated while it was read"
+        )
+    if (before.st_dev, before.st_ino) != (path_after.st_dev, path_after.st_ino):
+        raise DeploymentWrapperError(
+            "effective authorization set bind path was substituted while it was read"
+        )
+    raw = b"".join(chunks)
+    actual = _sha256_bytes(raw)
+    if actual != expected_digest:
+        raise DeploymentWrapperError(
+            "effective authorization set bind digest differs from signed readiness "
+            f"({actual} != {expected_digest})"
+        )
+    return source.resolve(strict=True)
 
 
 def _load_v2_release_material_from_bundle(
@@ -897,7 +1312,21 @@ def _verify_deploy_inputs(
         manifest.upstream_image_digests
     ):
         raise DeploymentWrapperError("effective upstream images differ from signed readiness")
-    return _VerifiedDeployInputs(bundle_document, explicit_services, effective_bytes)
+    authorization_source = None
+    authorization_digest = None
+    if isinstance(manifest, ProductionReadinessManifestV2):
+        authorization_digest = manifest.authorization_set_digest
+        authorization_source = require_effective_authorization_set_bind(
+            effective_compose=effective,
+            expected_digest=authorization_digest,
+        )
+    return _VerifiedDeployInputs(
+        bundle_document,
+        explicit_services,
+        effective_bytes,
+        authorization_source,
+        authorization_digest,
+    )
 
 
 def deploy_from_bundle(
@@ -909,6 +1338,7 @@ def deploy_from_bundle(
     list_running_containers: ListRunningContainers = _default_list_running_containers,
     trusted_readiness_anchor_raw: bytes | None = None,
     run_bundle_compose_config: RunBundleComposeConfig = _run_bundle_compose_config,
+    deployment_state_root: Path | None = None,
 ) -> list[str]:
     """Phase 3 (déployer) — toujours et uniquement depuis ``bundle_dir``,
     contre une liste explicite de services.
@@ -920,7 +1350,16 @@ def deploy_from_bundle(
     la suivante ne soit lancée — un `pull` en échec n'est jamais suivi
     d'un `up`. Jamais d'option de nettoyage des conteneurs orphelins :
     le projet Compose de production est partagé avec une stack non-RAG
-    sur l'hôte cible."""
+    sur l'hôte cible.
+
+    En V2, la source de bind de l'AuthorizationSet vit dans une génération
+    durable adressée par les digests du bundle et du set, et non dans le
+    scratch Compose. Toute génération complètement matérialisée est conservée,
+    même si le déploiement échoue avant ``compose up`` : un autre processus a
+    pu la réutiliser entre-temps. Le garbage collection est donc une opération
+    séparée, hors de cette frontière concurrente; les générations antérieures
+    restent utilisables pour rollback.
+    """
     verified = _verify_deploy_inputs(
         bundle_dir=bundle_dir,
         merge_sha=merge_sha,
@@ -941,14 +1380,50 @@ def deploy_from_bundle(
     if not execute:
         return plan
 
+    authorization_generation: _DurableAuthorizationSetGeneration | None = None
     with tempfile.TemporaryDirectory(prefix="nexus-verified-compose-") as temporary:
         snapshot = Path(temporary)
-        for name in (*_CANONICAL_COMPOSE_FILES, _ENV_BUNDLE_NAME):
+        for name in _CANONICAL_COMPOSE_FILES:
             raw = signer._read_bytes_no_follow(bundle_dir / name, label=name)  # noqa: SLF001
             expected = verified.bundle_document["files"].get(name)
             if _sha256_bytes(raw) != expected:
                 raise DeploymentWrapperError(f"bundle file {name!r} changed before snapshot")
             signer._atomic_private_write(snapshot / name, raw)  # noqa: SLF001
+
+        env_raw = signer._read_bytes_no_follow(  # noqa: SLF001
+            bundle_dir / _ENV_BUNDLE_NAME, label=_ENV_BUNDLE_NAME
+        )
+        if _sha256_bytes(env_raw) != verified.bundle_document["files"].get(
+            _ENV_BUNDLE_NAME
+        ):
+            raise DeploymentWrapperError("bundle .env changed before snapshot")
+        snapshot_authorization_set: Path | None = None
+        if verified.authorization_set_digest is not None:
+            authorization_raw = signer._read_bytes_no_follow(  # noqa: SLF001
+                bundle_dir / _AUTHORIZATION_SET_BUNDLE_NAME,
+                label=_AUTHORIZATION_SET_BUNDLE_NAME,
+            )
+            if _sha256_bytes(authorization_raw) != verified.authorization_set_digest:
+                raise DeploymentWrapperError(
+                    "bundled authorization set differs from signed readiness"
+                )
+            authorization_generation = _materialize_authorization_set_generation(
+                state_root=(
+                    deployment_state_root
+                    if deployment_state_root is not None
+                    else bundle_dir.parent / ".nexus-deployment-state"
+                ),
+                bundle_digest=verified.bundle_document["bundle_digest"],
+                authorization_set_digest=verified.authorization_set_digest,
+                raw=authorization_raw,
+            )
+            snapshot_authorization_set = authorization_generation.path
+            env_raw = env_raw.rstrip(b"\n") + (
+                b"\nPRODUCTION_AUTHORIZATION_SET_HOST_FILE="
+                + str(snapshot_authorization_set).encode("utf-8")
+                + b"\n"
+            )
+        signer._atomic_private_write(snapshot / _ENV_BUNDLE_NAME, env_raw)  # noqa: SLF001
 
         snapshot_args = [
             "docker",
@@ -980,16 +1455,58 @@ def deploy_from_bundle(
         ):
             raise DeploymentWrapperError("effective compose changed immediately before mutation")
 
+        if (
+            reverified.authorization_set_bind_source
+            != verified.authorization_set_bind_source
+            or reverified.authorization_set_digest != verified.authorization_set_digest
+        ):
+            raise DeploymentWrapperError(
+                "effective authorization set bind changed immediately before mutation"
+            )
+        if verified.authorization_set_bind_source is not None:
+            assert verified.authorization_set_digest is not None
+            assert authorization_generation is not None
+            _require_generation_identity(authorization_generation)
+            snapshot_effective = run_bundle_compose_config(
+                    snapshot,
+                    snapshot / _ENV_BUNDLE_NAME,
+                    _CANONICAL_COMPOSE_FILES,
+                )
+            effective_snapshot_source = require_effective_authorization_set_bind(
+                effective_compose=snapshot_effective,
+                expected_digest=verified.authorization_set_digest,
+            )
+            if effective_snapshot_source != snapshot_authorization_set:
+                raise DeploymentWrapperError(
+                    "effective Compose does not use the private authorization set snapshot"
+                )
+            _require_generation_identity(authorization_generation)
+
         pull = run_subprocess(snapshot_args + ["pull", *explicit_services], bundle_dir)
         if pull.returncode != 0:
             raise DeploymentWrapperError(
                 f"docker compose pull failed (exit {pull.returncode}): {pull.stderr.strip()[:1000]}"
             )
+        if verified.authorization_set_bind_source is not None:
+            assert verified.authorization_set_digest is not None
+            assert authorization_generation is not None
+            _require_generation_identity(authorization_generation)
+            require_effective_authorization_set_bind(
+                effective_compose=run_bundle_compose_config(
+                    snapshot,
+                    snapshot / _ENV_BUNDLE_NAME,
+                    _CANONICAL_COMPOSE_FILES,
+                ),
+                expected_digest=verified.authorization_set_digest,
+            )
+            _require_generation_identity(authorization_generation)
         up = run_subprocess(snapshot_args + ["up", "-d", *explicit_services], bundle_dir)
         if up.returncode != 0:
             raise DeploymentWrapperError(
                 f"docker compose up failed (exit {up.returncode}): {up.stderr.strip()[:1000]}"
             )
+        if authorization_generation is not None:
+            _require_generation_identity(authorization_generation)
     return plan
 
 
@@ -1044,6 +1561,13 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         p.add_argument(f"--{flag}", default=None)
     p.add_argument("--environment", default="production")
     p.add_argument("--bundle-dir", type=Path, required=True)
+    p.add_argument(
+        "--deployment-state-root",
+        type=Path,
+        default=None,
+        help="Répertoire privé durable des générations de bind V2; par défaut, "
+        "un état frère du bundle de release.",
+    )
     p.add_argument(
         "--execute",
         action="store_true",
@@ -1145,6 +1669,7 @@ def main(argv: list[str] | None = None) -> int:
             merge_sha=args.merge_sha,
             execute=args.execute,
             trusted_readiness_anchor_raw=trusted_anchor_raw,
+            deployment_state_root=args.deployment_state_root,
         )
     except (DeploymentWrapperError, vri.ReleaseVerificationError) as exc:
         print(f"REFUSED: {exc}", file=sys.stderr)

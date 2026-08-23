@@ -14,6 +14,8 @@ une fois.
 """
 from __future__ import annotations
 
+import dataclasses
+import hashlib
 import os
 import secrets
 import shutil
@@ -23,6 +25,7 @@ import sys
 import time
 import uuid
 from collections.abc import Iterator
+from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
@@ -38,16 +41,23 @@ PROVISION_SCRIPT = INFRA_ROOT / "scripts" / "provision_ingestion_control_roles.s
 
 sys.path.insert(0, str(ENGINE_ROOT / "src"))
 sys.path.insert(0, str(ENGINE_ROOT / "tests"))
+sys.path.insert(0, str(ENGINE_ROOT / "scripts"))
 
 from _authorization_stub import (  # noqa: E402
     STUB_AUTHORIZATION_ID,
     verified_authorization,
 )
+from nexus_contracts.authority_artifacts import (  # noqa: E402
+    parse_scope_authorization_artifact,
+)
+from nexus_contracts.authorization_set import parse_authorization_set  # noqa: E402
+from test_sign_production_readiness_manifest_cli import _v2_material  # noqa: E402
 
 from ingestor.ingestion_control.jobs import create_job  # noqa: E402
 from ingestor.ingestion_control.scope_authority import (  # noqa: E402
     ScopeAuthorizationDeniedError,
 )
+from ingestor.ingestion_profiles import readiness_gate as readiness_v2  # noqa: E402
 from ingestor.ingestion_profiles.registry import (  # noqa: E402
     load_profile_registry,
     profile_fingerprint,
@@ -330,6 +340,71 @@ def _worker_deps(tmp_path: Path, *, safe_fetch, owner: str = "worker-e2e") -> Wo
     )
 
 
+def _real_v2_runtime() -> tuple[
+    readiness_v2.RuntimeAuthorizationContext,
+    object,
+]:
+    material = _v2_material()
+    runtime = readiness_v2.RuntimeV2ReleaseMaterial.from_signing_material(material)
+    _verified, mapping = readiness_v2._verify_v2_material(runtime)
+    member = parse_authorization_set(material.authorization_set_raw).members[0]
+    authorization = parse_scope_authorization_artifact(
+        material.release_files[member.authorization_path]
+    )
+
+    def refresh():
+        _, refreshed = readiness_v2._verify_v2_material(
+            dataclasses.replace(runtime, now=datetime.now(UTC))
+        )
+        return refreshed
+
+    return readiness_v2.RuntimeAuthorizationContext(mapping, refresh), authorization
+
+
+def _v2_worker_deps(tmp_path: Path, *, safe_fetch, artifact_store=None) -> WorkerDeps:
+    context, authorization = _real_v2_runtime()
+    base = _worker_deps(tmp_path, safe_fetch=safe_fetch)
+    profiles_dir = tmp_path / "profiles"
+    (profiles_dir / "nsi.yml").write_bytes(
+        _v2_material().release_scope_source_blobs["profiles/nsi.yml"]
+    )
+    live = verified_authorization(
+        scope=authorization.scope,
+        manifest_digest=authorization.manifest_digest,
+        profile_id=authorization.profile_id,
+        profile_version=authorization.profile_version,
+        profile_fingerprint=authorization.profile_fingerprint,
+        allowed_domains=tuple(authorization.allowed_domains),
+        rights_categories=tuple(value.value for value in authorization.rights_categories),
+        protocol_version="LOT41A-V2",
+        allowed_content_sha256=tuple(authorization.allowed_content_sha256),
+        authorization_id=authorization.authorization_id,
+        valid_from=authorization.valid_from,
+        valid_until=authorization.valid_until,
+    )
+    live = dataclasses.replace(
+        live,
+        authorization_digest=context.mapping.authorization_digest(
+            authorization.authorization_id
+        ),
+    )
+
+    def verify_live(_conn, *, authorization_id, scope=None, now=None):
+        if authorization_id != live.authorization_id:
+            raise ScopeAuthorizationDeniedError("unknown authorization")
+        return live
+
+    return dataclasses.replace(
+        base,
+        profile_registry=load_profile_registry(profiles_dir),
+        artifact_store=artifact_store or base.artifact_store,
+        verify_scope_authorization=verify_live,
+        manifest_digest=authorization.manifest_digest,
+        authorization_mapping=context.mapping,
+        authorization_context=context,
+    )
+
+
 def _fake_safe_fetch_success(url: str, *, max_bytes: int, **kwargs: object) -> httpx.Response:
     return httpx.Response(
         200,
@@ -337,6 +412,162 @@ def _fake_safe_fetch_success(url: str, *, max_bytes: int, **kwargs: object) -> h
         content=b"<p>Cours d'algorithmique pour la terminale (reprise).</p>",
         request=httpx.Request("GET", url),
     )
+
+
+class TestRuntimeAuthorizationSetCheckpoints:
+    def test_unknown_downloaded_sha_is_refused_before_artifact_write(
+        self, tmp_path: Path, clean_db: None, app_conn: psycopg.Connection
+    ) -> None:
+        context, authorization = _real_v2_runtime()
+        run_id = _insert_run(app_conn)
+        create_job(
+            app_conn,
+            run_id=run_id,
+            job_type="resource_pipeline",
+            payload=_job_payload(
+                scope_authorization_id=authorization.authorization_id,
+            ),
+        )
+        app_conn.commit()
+        writes: list[bytes] = []
+
+        def store(*, artifact_id, content):
+            writes.append(content)
+            return str(tmp_path / str(artifact_id))
+
+        deps = _v2_worker_deps(
+            tmp_path,
+            safe_fetch=_fake_safe_fetch_success,
+            artifact_store=store,
+        )
+        outcome = run_worker_iteration(app_conn, deps=deps)
+
+        assert outcome.status == "retried"
+        assert "unknown content_sha256" in (outcome.error or "")
+        assert writes == []
+        with app_conn.cursor() as cur:
+            cur.execute(
+                "SELECT count(*) FROM ingestion_control.artifacts",
+            )
+            assert cur.fetchone()[0] == 0
+
+    def test_revocation_between_prefetch_and_live_check_stops_before_fetch_or_write(
+        self, tmp_path: Path, clean_db: None, app_conn: psycopg.Connection
+    ) -> None:
+        context, authorization = _real_v2_runtime()
+        run_id = _insert_run(app_conn)
+        create_job(
+            app_conn,
+            run_id=run_id,
+            job_type="resource_pipeline",
+            payload=_job_payload(
+                scope_authorization_id=authorization.authorization_id,
+            ),
+        )
+        app_conn.commit()
+
+        class RevokedAfterPrefetch:
+            mapping = context.mapping
+            calls = 0
+
+            def reverify(self):
+                self.calls += 1
+                if self.calls > 1:
+                    raise readiness_v2.ReadinessGateError("authorization revoked")
+                return context.reverify()
+
+        fetches: list[str] = []
+
+        def forbidden_fetch(url: str, *, max_bytes: int, **kwargs: object):
+            fetches.append(url)
+            raise AssertionError("fetch reached after runtime revocation")
+
+        deps = dataclasses.replace(
+            _v2_worker_deps(tmp_path, safe_fetch=forbidden_fetch),
+            authorization_context=RevokedAfterPrefetch(),
+        )
+        outcome = run_worker_iteration(app_conn, deps=deps)
+
+        assert outcome.status == "retried"
+        assert "revoked" in (outcome.error or "")
+        assert fetches == []
+        with app_conn.cursor() as cur:
+            cur.execute(
+                "SELECT count(*) FROM ingestion_control.artifacts",
+            )
+            assert cur.fetchone()[0] == 0
+
+    def test_stored_resume_cannot_bypass_the_real_set_postfetch_checkpoint(
+        self, tmp_path: Path, clean_db: None, app_conn: psycopg.Connection
+    ) -> None:
+        context, authorization = _real_v2_runtime()
+        run_id = _insert_run(app_conn)
+        job_id = create_job(
+            app_conn,
+            run_id=run_id,
+            job_type="resource_pipeline",
+            payload=_job_payload(
+                scope_authorization_id=authorization.authorization_id,
+            ),
+        )
+        app_conn.commit()
+        downloaded = b"<p>Cours d'algorithmique pour la terminale (reprise).</p>"
+        downloaded_sha = hashlib.sha256(downloaded).hexdigest()
+        permissive = verified_authorization(
+            scope=authorization.scope,
+            manifest_digest=authorization.manifest_digest,
+            profile_id=authorization.profile_id,
+            profile_version=authorization.profile_version,
+            profile_fingerprint=authorization.profile_fingerprint,
+            allowed_domains=tuple(authorization.allowed_domains),
+            rights_categories=tuple(
+                value.value for value in authorization.rights_categories
+            ),
+            protocol_version="LOT41A-V2",
+            allowed_content_sha256=(downloaded_sha,),
+            authorization_id=authorization.authorization_id,
+            valid_from=authorization.valid_from,
+            valid_until=authorization.valid_until,
+        )
+        permissive = dataclasses.replace(
+            permissive,
+            authorization_digest=context.mapping.authorization_digest(
+                authorization.authorization_id
+            ),
+        )
+
+        def verify_permissive(_conn, *, authorization_id, scope=None, now=None):
+            assert authorization_id == permissive.authorization_id
+            return permissive
+
+        first_deps = dataclasses.replace(
+            _v2_worker_deps(tmp_path, safe_fetch=_fake_safe_fetch_success),
+            authorization_mapping=None,
+            authorization_context=None,
+            verify_scope_authorization=verify_permissive,
+            artifact_reader=lambda _path: (_ for _ in ()).throw(
+                RuntimeError("crash after STORED")
+            ),
+        )
+        first = run_worker_iteration(app_conn, deps=first_deps)
+        assert first.status == "retried"
+        _reset_next_attempt_now(app_conn, job_id=job_id)
+
+        reads: list[str] = []
+
+        def forbidden_read(path: str) -> bytes:
+            reads.append(path)
+            raise AssertionError("extractor reached after STORED mapping refusal")
+
+        second_deps = dataclasses.replace(
+            _v2_worker_deps(tmp_path, safe_fetch=lambda *_a, **_k: pytest.fail("refetch")),
+            artifact_reader=forbidden_read,
+        )
+        second = run_worker_iteration(app_conn, deps=second_deps)
+
+        assert second.status == "retried"
+        assert "unknown content_sha256" in (second.error or "")
+        assert reads == []
 
 
 def _reset_next_attempt_now(conn: psycopg.Connection, *, job_id: uuid.UUID) -> None:

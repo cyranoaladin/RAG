@@ -39,6 +39,13 @@ MERGE_SHA = "a" * 40
 TREE_SHA = "b" * 40
 
 
+@pytest.fixture(autouse=True)
+def _pin_v1_protocol(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(
+        gate_module.EXPECTED_PROTOCOL_ENV, "NEXUS-PRODUCTION-READINESS-V1"
+    )
+
+
 def _signed_manifest_bytes() -> bytes:
     manifest = ProductionReadinessManifestV1(
         protocol_version=PRODUCTION_READINESS_PROTOCOL_VERSION,

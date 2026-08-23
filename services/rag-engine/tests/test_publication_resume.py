@@ -666,6 +666,46 @@ def test_resume_after_crash_at_eligibility_reuses_exact_promotion_events(
     assert verifies[0]["expected_attestation_id"] == attestation_id
 
 
+def test_runtime_revocation_immediately_before_publication_keeps_pgvector_at_zero(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    resource_id, run_id, attestation_id = uuid4(), uuid4(), uuid4()
+    deps, calls = _install_recovery_context(
+        monkeypatch,
+        resource_id=resource_id,
+        run_id=run_id,
+        attestation_id=attestation_id,
+        raw_bytes=b"must never reach pgvector",
+        publish_embedded=True,
+    )
+
+    class RevokedContext:
+        mapping = None
+
+        def reverify(self):
+            raise RuntimeError("authorization revoked immediately before publication")
+
+    deps.authorization_context = RevokedContext()
+    control_conn = _RecoveryControlConnection(
+        _completed_promotion_events(attestation_id)
+    )
+
+    with pytest.raises(PublicationResumeError, match="revoked"):
+        resume_publication(
+            control_conn,
+            claim=_claim(
+                resource_id=resource_id,
+                run_id=run_id,
+                attestation_id=attestation_id,
+                state_version=7,
+            ),
+            deps=deps,
+        )
+
+    assert calls["publish"] == 0
+    assert calls["encoded"] == 0
+
+
 @pytest.mark.parametrize(
     "events",
     [

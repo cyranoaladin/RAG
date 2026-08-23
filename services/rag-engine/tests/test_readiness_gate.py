@@ -34,6 +34,13 @@ MERGE_SHA = "a" * 40
 TREE_SHA = "b" * 40
 
 
+@pytest.fixture(autouse=True)
+def _pin_legacy_protocol(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(
+        gate_module.EXPECTED_PROTOCOL_ENV, "NEXUS-PRODUCTION-READINESS-V1"
+    )
+
+
 def _manifest(**overrides: object) -> ProductionReadinessManifestV1:
     fields: dict[str, object] = {
         "protocol_version": PRODUCTION_READINESS_PROTOCOL_VERSION,

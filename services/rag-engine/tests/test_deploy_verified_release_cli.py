@@ -611,8 +611,27 @@ class TestReadinessManifestV2ExactMaterialVerification:
         self, tmp_path: Path
     ) -> None:
         material = _v2_material()
+        effective_set = tmp_path / "effective-authorization-set.json"
+        effective_set.write_bytes(material.authorization_set_raw)
+        effective_set.chmod(0o600)
+        set_bind = {
+            "type": "bind",
+            "source": str(effective_set.resolve()),
+            "target": "/app/production/authorization-set.json",
+            "read_only": True,
+        }
         resolved = _resolved_compose(
-            pgvector={"image": V2_UPSTREAM_IMAGE_REF}
+            pgvector={"image": V2_UPSTREAM_IMAGE_REF},
+            **{
+                "multilevel-worker-a-production": {
+                    "image": f"{WORKER_REPO}@{WORKER_DIGEST}",
+                    "volumes": [set_bind],
+                },
+                "multilevel-worker-b-production": {
+                    "image": f"{WORKER_REPO}@{WORKER_DIGEST}",
+                    "volumes": [set_bind],
+                },
+            },
         )
         compose_digest = hashlib.sha256(
             vri.canonical_resolved_compose_bytes(resolved)
@@ -659,14 +678,213 @@ class TestReadinessManifestV2ExactMaterialVerification:
         assert (bundle_dir / dep._AUTHORIZATION_SET_BUNDLE_NAME).read_bytes() == (
             material.authorization_set_raw
         )
+
+        def resolve_effective_bind(
+            _compose_root: Path,
+            env_file: Path,
+            _compose_files: tuple[str, ...],
+        ) -> dict[str, Any]:
+            configured_source = effective_set.resolve()
+            for line in env_file.read_text(encoding="utf-8").splitlines():
+                if line.startswith("PRODUCTION_AUTHORIZATION_SET_HOST_FILE="):
+                    configured_source = Path(line.split("=", 1)[1])
+            document = json.loads(json.dumps(resolved))
+            for worker in (
+                "multilevel-worker-a-production",
+                "multilevel-worker-b-production",
+            ):
+                document["services"][worker]["volumes"][0]["source"] = str(
+                    configured_source
+                )
+            return document
+
         assert dep.deploy_from_bundle(
             bundle_dir=bundle_dir,
             merge_sha=MERGE_SHA,
             execute=False,
             trusted_readiness_anchor_raw=anchor.read_bytes(),
-            run_bundle_compose_config=lambda *_args: resolved,
+            run_bundle_compose_config=resolve_effective_bind,
         )
 
+        commands: list[list[str]] = []
+        executed_set_sources: list[Path] = []
+        deployment_state_root = tmp_path / "deployment-state"
+
+        def mutate_set_after_pull(
+            args: list[str], _cwd: Path
+        ) -> subprocess.CompletedProcess[str]:
+            commands.append(args)
+            snapshot_env = Path(args[args.index("--env-file") + 1])
+            snapshot_source = next(
+                Path(line.split("=", 1)[1])
+                for line in snapshot_env.read_text(encoding="utf-8").splitlines()
+                if line.startswith("PRODUCTION_AUTHORIZATION_SET_HOST_FILE=")
+            )
+            executed_set_sources.append(snapshot_source)
+            assert snapshot_source.read_bytes() == material.authorization_set_raw
+            if "pull" in args:
+                effective_set.write_bytes(b"changed between pull and up\n")
+            return subprocess.CompletedProcess(args, 0, "", "")
+
+        dep.deploy_from_bundle(
+            bundle_dir=bundle_dir,
+            merge_sha=MERGE_SHA,
+            execute=True,
+            trusted_readiness_anchor_raw=anchor.read_bytes(),
+            run_subprocess=mutate_set_after_pull,
+            list_running_containers=lambda: [],
+            run_bundle_compose_config=resolve_effective_bind,
+            deployment_state_root=deployment_state_root,
+        )
+        assert sum("pull" in command for command in commands) == 1
+        assert sum("up" in command for command in commands) == 1
+        assert executed_set_sources
+        durable_source = executed_set_sources[-1]
+        assert durable_source.exists()
+        assert durable_source.read_bytes() == material.authorization_set_raw
+        durable_stat = durable_source.stat()
+        assert durable_stat.st_mode & 0o777 == 0o600
+        assert durable_stat.st_nlink == 1
+        assert durable_source.is_relative_to(deployment_state_root)
+        effective_set.write_bytes(material.authorization_set_raw)
+
+        recreate_sources: list[Path] = []
+
+        def recreate_from_published_generation(
+            args: list[str], _cwd: Path
+        ) -> subprocess.CompletedProcess[str]:
+            snapshot_env = Path(args[args.index("--env-file") + 1])
+            recreate_sources.append(
+                next(
+                    Path(line.split("=", 1)[1])
+                    for line in snapshot_env.read_text(encoding="utf-8").splitlines()
+                    if line.startswith("PRODUCTION_AUTHORIZATION_SET_HOST_FILE=")
+                )
+            )
+            return subprocess.CompletedProcess(args, 0, "", "")
+
+        dep.deploy_from_bundle(
+            bundle_dir=bundle_dir,
+            merge_sha=MERGE_SHA,
+            execute=True,
+            trusted_readiness_anchor_raw=anchor.read_bytes(),
+            run_subprocess=recreate_from_published_generation,
+            list_running_containers=lambda: [],
+            run_bundle_compose_config=resolve_effective_bind,
+            deployment_state_root=deployment_state_root,
+        )
+        assert recreate_sources
+        assert set(recreate_sources) == {durable_source}
+
+        displaced_generation = durable_source.parent.with_name(
+            durable_source.parent.name + ".displaced"
+        )
+        replacement_commands: list[list[str]] = []
+
+        def replace_generation_after_pull(
+            args: list[str], _cwd: Path
+        ) -> subprocess.CompletedProcess[str]:
+            replacement_commands.append(args)
+            if "pull" in args:
+                durable_source.parent.rename(displaced_generation)
+                durable_source.parent.mkdir(mode=0o700)
+                durable_source.write_bytes(material.authorization_set_raw)
+                durable_source.chmod(0o600)
+            return subprocess.CompletedProcess(args, 0, "", "")
+
+        try:
+            with pytest.raises(dep.DeploymentWrapperError, match="generation.*substituted"):
+                dep.deploy_from_bundle(
+                    bundle_dir=bundle_dir,
+                    merge_sha=MERGE_SHA,
+                    execute=True,
+                    trusted_readiness_anchor_raw=anchor.read_bytes(),
+                    run_subprocess=replace_generation_after_pull,
+                    list_running_containers=lambda: [],
+                    run_bundle_compose_config=resolve_effective_bind,
+                    deployment_state_root=deployment_state_root,
+                )
+        finally:
+            if displaced_generation.exists():
+                durable_source.unlink()
+                durable_source.parent.rmdir()
+                displaced_generation.rename(durable_source.parent)
+        assert sum("pull" in command for command in replacement_commands) == 1
+        assert sum("up" in command for command in replacement_commands) == 0
+
+        failed_state_root = tmp_path / "failed-deployment-state"
+        with pytest.raises(dep.DeploymentWrapperError, match="compose pull failed"):
+            dep.deploy_from_bundle(
+                bundle_dir=bundle_dir,
+                merge_sha=MERGE_SHA,
+                execute=True,
+                trusted_readiness_anchor_raw=anchor.read_bytes(),
+                run_subprocess=lambda args, _cwd: subprocess.CompletedProcess(
+                    args, 1 if "pull" in args else 0, "", "refused"
+                ),
+                list_running_containers=lambda: [],
+                run_bundle_compose_config=resolve_effective_bind,
+                deployment_state_root=failed_state_root,
+            )
+        retained_after_failure = list(
+            failed_state_root.rglob("authorization-set.json")
+        )
+        assert len(retained_after_failure) == 1
+        assert retained_after_failure[0].read_bytes() == material.authorization_set_raw
+        assert durable_source.exists()
+
+        concurrent_state_root = tmp_path / "concurrent-deployment-state"
+        concurrent_sources: list[Path] = []
+
+        def record_concurrent_source(args: list[str]) -> None:
+            snapshot_env = Path(args[args.index("--env-file") + 1])
+            concurrent_sources.append(
+                next(
+                    Path(line.split("=", 1)[1])
+                    for line in snapshot_env.read_text(encoding="utf-8").splitlines()
+                    if line.startswith("PRODUCTION_AUTHORIZATION_SET_HOST_FILE=")
+                )
+            )
+
+        def successful_concurrent_deploy(
+            args: list[str], _cwd: Path
+        ) -> subprocess.CompletedProcess[str]:
+            record_concurrent_source(args)
+            return subprocess.CompletedProcess(args, 0, "", "")
+
+        def fail_creator_after_reuser_succeeds(
+            args: list[str], _cwd: Path
+        ) -> subprocess.CompletedProcess[str]:
+            record_concurrent_source(args)
+            if "pull" in args:
+                dep.deploy_from_bundle(
+                    bundle_dir=bundle_dir,
+                    merge_sha=MERGE_SHA,
+                    execute=True,
+                    trusted_readiness_anchor_raw=anchor.read_bytes(),
+                    run_subprocess=successful_concurrent_deploy,
+                    list_running_containers=lambda: [],
+                    run_bundle_compose_config=resolve_effective_bind,
+                    deployment_state_root=concurrent_state_root,
+                )
+                return subprocess.CompletedProcess(args, 1, "", "creator refused")
+            return subprocess.CompletedProcess(args, 0, "", "")
+
+        with pytest.raises(dep.DeploymentWrapperError, match="compose pull failed"):
+            dep.deploy_from_bundle(
+                bundle_dir=bundle_dir,
+                merge_sha=MERGE_SHA,
+                execute=True,
+                trusted_readiness_anchor_raw=anchor.read_bytes(),
+                run_subprocess=fail_creator_after_reuser_succeeds,
+                list_running_containers=lambda: [],
+                run_bundle_compose_config=resolve_effective_bind,
+                deployment_state_root=concurrent_state_root,
+            )
+        assert concurrent_sources
+        assert len(set(concurrent_sources)) == 1
+        assert concurrent_sources[0].exists()
+        assert concurrent_sources[0].read_bytes() == material.authorization_set_raw
         revocations_path = bundle_dir / dep._REVOCATIONS_BUNDLE_NAME
         outside = tmp_path / "outside-revocations.json"
         revocations_path.replace(outside)

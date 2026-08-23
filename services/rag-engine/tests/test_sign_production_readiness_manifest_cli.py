@@ -1989,7 +1989,7 @@ class TestMultiAuthorizationReadinessV2Verification:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         material = _v2_material()
-        original = tool.verify_authorization_set
+        original = tool.rv2.verify_authorization_set
         calls = 0
 
         def counted(*args: Any, **kwargs: Any) -> Any:
@@ -1997,7 +1997,7 @@ class TestMultiAuthorizationReadinessV2Verification:
             calls += 1
             return original(*args, **kwargs)
 
-        monkeypatch.setattr(tool, "verify_authorization_set", counted)
+        monkeypatch.setattr(tool.rv2, "verify_authorization_set", counted)
         verified = tool.verify_v2_release_material(material)
         assert calls == 1
         assert verified.authorization_set.digest() == verified.h2_bundle.authorization_set_digest

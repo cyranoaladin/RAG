@@ -18,6 +18,7 @@ from ingestor.ingestion_control.jobs import reap_expired_job_leases
 from ingestor.ingestion_control.lease_reaper import reap_expired_leases
 from ingestor.ingestion_control.revocation_registry import (
     load_revocation_registry,
+    load_shared_authorization_revocations,
     require_revocation_registry_matches_manifest,
 )
 from ingestor.ingestion_profiles.readiness_gate import (
@@ -133,7 +134,13 @@ def _enforce_production_evidence(
             "production requires a governed revocation registry "
             "(--revocation-registry-path/--revocation-registry-sha256)"
         )
-    revocation = load_revocation_registry(
+    loader = (
+        load_shared_authorization_revocations
+        if getattr(readiness.manifest, "protocol_version", "")
+        == "NEXUS-PRODUCTION-READINESS-V2"
+        else load_revocation_registry
+    )
+    revocation = loader(
         args.revocation_registry_path,
         expected_sha256=args.revocation_registry_sha256,
     )
@@ -158,6 +165,15 @@ def main(argv: list[str] | None = None) -> int:
             multilevel_runtime_authority_inputs_from_args(args),
             profile_registry=profiles,
         )
+        readiness_mapping = getattr(readiness, "authorization_mapping", None)
+        if (
+            readiness_mapping is not None
+            and authorities.placement_resolver.release_profile_manifest_digest
+            != readiness_mapping.profile_manifest_digest
+        ):
+            raise RuntimeAuthorityStartupError(
+                "loaded profile manifest digest differs from the signed authorization set"
+            )
     except Exception as exc:
         # Frontière CLI fail-closed avant PostgreSQL. Le ``Exception`` final
         # nomme aussi les digests et fichiers malformés des autorités scellées.
@@ -190,6 +206,8 @@ def main(argv: list[str] | None = None) -> int:
         rights_evidence_registry=authorities.rights_evidence_registry,
         placement_resolver=authorities.placement_resolver,
         manifest_digest=authorities.placement_resolver.release_profile_manifest_digest,
+        authorization_mapping=getattr(readiness, "authorization_mapping", None),
+        authorization_context=getattr(readiness, "authorization_context", None),
     )
     max_iterations = 1 if args.once else args.max_iterations
     iterations = 0

@@ -165,6 +165,8 @@ def main(argv: list[str] | None = None) -> int:
         rights_evidence_registry=authorities.rights_evidence_registry,
         manifest_digest=gate_result.manifest.manifest_fingerprint,
         placement_resolver=resolver,
+        authorization_mapping=getattr(readiness, "authorization_mapping", None),
+        authorization_context=getattr(readiness, "authorization_context", None),
     )
     max_iterations = 1 if args.once else args.max_iterations
     iterations = 0

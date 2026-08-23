@@ -5,6 +5,7 @@ create_job_cli`` — idempotence collection-scopée (Cubic P1
 """
 from __future__ import annotations
 
+import dataclasses
 import os
 import secrets
 import shutil
@@ -14,7 +15,9 @@ import sys
 import time
 import uuid
 from collections.abc import Iterator
+from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 
 import psycopg
 import pytest
@@ -26,9 +29,14 @@ BOOTSTRAP_SCRIPT = INFRA_ROOT / "scripts" / "bootstrap_ingestion_control_schema.
 PROVISION_SCRIPT = INFRA_ROOT / "scripts" / "provision_ingestion_control_roles.sh"
 
 sys.path.insert(0, str(ENGINE_ROOT / "src"))
+sys.path.insert(0, str(ENGINE_ROOT / "tests"))
+sys.path.insert(0, str(ENGINE_ROOT / "scripts"))
 
+from nexus_contracts.authorization_set import parse_authorization_set  # noqa: E402
 from nexus_contracts.ingestion import CollectionProfile  # noqa: E402
+from test_sign_production_readiness_manifest_cli import _v2_material  # noqa: E402
 
+from ingestor.ingestion_profiles import readiness_gate as readiness_v2  # noqa: E402
 from ingestor.ingestion_profiles.registry import profile_fingerprint  # noqa: E402
 from ingestor.ingestion_worker import create_job_cli  # noqa: E402
 
@@ -63,6 +71,16 @@ VALID_SCOPE = {
     "school_year": "2026-2027",
     "programme_version": "BOEN_special_8_2019-07-25",
 }
+
+
+@pytest.fixture(autouse=True)
+def _explicit_legacy_readiness(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ce lot DB historique exerce V1 ; le gate V2 a sa suite dédiée."""
+    monkeypatch.setattr(
+        create_job_cli,
+        "enforce_readiness_gate",
+        lambda: SimpleNamespace(authorization_mapping=None),
+    )
 
 
 def _free_port() -> int:
@@ -287,7 +305,6 @@ class TestDuplicateSubmissionDoesNotOrphanARun:
                 "create_job_cli must not let an operator assert a free-form license; "
                 "the worker derives rights evidence from the live-verified LOT41A grant"
             )
-
             cur.execute(
                 "SELECT count(*) FROM ingestion_control.ingestion_runs WHERE status = 'planned' "
                 "AND run_id NOT IN (SELECT run_id FROM ingestion_control.jobs)"
@@ -384,3 +401,60 @@ class TestDuplicateSubmissionDoesNotOrphanARun:
             )
             (job_count,) = cur.fetchone()
             assert job_count == 2
+
+
+class TestCreateJobWithRealV2ReleaseMapping:
+    def test_exact_scope_is_created_and_caller_authority_override_is_not(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        pg_container: dict[str, str],
+        clean_db: None,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        material = _v2_material()
+        runtime = readiness_v2.RuntimeV2ReleaseMaterial.from_signing_material(material)
+        _verified, mapping = readiness_v2._verify_v2_material(runtime)
+
+        def refresh():
+            _, current = readiness_v2._verify_v2_material(
+                dataclasses.replace(runtime, now=datetime.now(UTC))
+            )
+            return current
+
+        context = readiness_v2.RuntimeAuthorizationContext(mapping, refresh)
+        monkeypatch.setattr(
+            create_job_cli,
+            "enforce_readiness_gate",
+            lambda: SimpleNamespace(
+                authorization_mapping=mapping,
+                authorization_context=context,
+            ),
+        )
+        monkeypatch.setenv("PG_INGESTION_CONTROL_DSN", _app_dsn(pg_container))
+        profiles = tmp_path / "profiles-v2"
+        profiles.mkdir()
+        (profiles / "nsi.yml").write_bytes(
+            material.release_scope_source_blobs["profiles/nsi.yml"]
+        )
+        manifest = tmp_path / "profile-manifest-v2.yml"
+        manifest.write_bytes(material.profile_manifest_raw)
+        authorization_id = parse_authorization_set(
+            material.authorization_set_raw
+        ).members[0].authorization_id
+
+        valid_url = f"https://eduscol.education.fr/v2-{uuid.uuid4().hex}"
+        valid_args = _cli_args(profiles, manifest, canonical_url=valid_url)
+        valid_args[valid_args.index("--scope-authorization-id") + 1] = authorization_id
+        assert create_job_cli.main(valid_args) == 0
+        assert "JOB_CREATED" in capsys.readouterr().out
+
+        wrong_url = f"https://eduscol.education.fr/v2-{uuid.uuid4().hex}"
+        wrong_args = _cli_args(profiles, manifest, canonical_url=wrong_url)
+        wrong_args[wrong_args.index("--scope-authorization-id") + 1] = "caller-free-form"
+        assert create_job_cli.main(wrong_args) == 1
+        assert "JOB_AUTHORIZATION_MAPPING_FAILED" in capsys.readouterr().err
+
+        with _superuser_conn(pg_container) as conn, conn.cursor() as cur:
+            cur.execute("SELECT count(*) FROM ingestion_control.jobs")
+            assert cur.fetchone() == (1,)

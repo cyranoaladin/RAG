@@ -25,7 +25,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol
 from uuid import UUID
 
 import psycopg
@@ -64,6 +64,10 @@ try:
         collect_publication_facts,
     )
     from ingestor.ingestion_control.sealed_evidence import SealedEvidenceError
+    from ingestor.ingestion_worker.authorization_mapping import (
+        AuthorizationMapping,
+        AuthorizationMappingError,
+    )
     from ingestor.verified_pedagogical_placement import to_eligible_placement
 except ImportError as _exc:  # repli à plat, cause réelle préservée
     if not (_exc.name is None and "relative import" in str(_exc)) and (
@@ -105,6 +109,10 @@ except ImportError as _exc:  # repli à plat, cause réelle préservée
     from ingestion_control.sealed_evidence import (
         SealedEvidenceError,
     )
+    from ingestion_worker.authorization_mapping import (
+        AuthorizationMapping,
+        AuthorizationMappingError,
+    )
     from verified_pedagogical_placement import (
         to_eligible_placement,
     )
@@ -142,6 +150,12 @@ class PublicationResumeOutcome:
     embedded: bool | None = None
 
 
+class AuthorizationContext(Protocol):
+    mapping: AuthorizationMapping
+
+    def reverify(self) -> AuthorizationMapping: ...
+
+
 @dataclass
 class PublicationResumeDeps:
     """Dépendances de Worker B.
@@ -159,6 +173,8 @@ class PublicationResumeDeps:
     rights_evidence_registry: Any = None
     manifest_digest: str = ""
     placement_resolver: Any = None
+    authorization_mapping: AuthorizationMapping | None = None
+    authorization_context: AuthorizationContext | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.embedding_provider, EmbeddingProvider):
@@ -190,6 +206,24 @@ def _require_payload(payload: dict[str, Any]) -> dict[str, Any]:
             "what it publishes; it never resolves 'the latest' anything"
         )
     return payload
+
+
+def require_publication_authorization_mapping(
+    *,
+    mapping: AuthorizationMapping,
+    content_sha256: str,
+    durable_authorization_id: str,
+) -> None:
+    """Dernière barrière avant promotion/publication produit."""
+    try:
+        expected = mapping.authorization_id_for_content(content_sha256)
+    except AuthorizationMappingError as exc:
+        raise PublicationResumeError(str(exc)) from exc
+    if durable_authorization_id != expected:
+        raise PublicationResumeError(
+            f"durable authorization {durable_authorization_id!r} differs from "
+            f"signed mapping member {expected!r} for {content_sha256}"
+        )
 
 
 def _load_run_placement_context(
@@ -348,6 +382,25 @@ def resume_publication(
         resource_id=resource_id,
         artifact_id=artifact_record.artifact_id,
     )
+    current_mapping = deps.authorization_mapping
+    if deps.authorization_context is not None:
+        try:
+            current_mapping = deps.authorization_context.reverify()
+        except RuntimeError as exc:
+            raise PublicationResumeError(str(exc)) from exc
+        if (
+            deps.authorization_mapping is not None
+            and current_mapping != deps.authorization_mapping
+        ):
+            raise PublicationResumeError(
+                "refreshed authorization mapping differs from worker startup mapping"
+            )
+    if current_mapping is not None:
+        require_publication_authorization_mapping(
+            mapping=current_mapping,
+            content_sha256=artifact_record.sha256,
+            durable_authorization_id=durable_facts.content_scope_authorization_id,
+        )
     if deps.placement_resolver is not None:
         if not deps.manifest_digest:
             raise PublicationResumeError(
