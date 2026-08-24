@@ -120,6 +120,7 @@ ci-dessous portent sur les vraies preuves de release ; elles ne doivent pas
 - [x] Architecture `AuthorizationSetV1` + campaign/H2/promotion/readiness V2
       documentée par ADR-0044 sans mutation des V1
 - [ ] Décisions de profils rendues pour les 56 contenus encore non ancrés
+- [ ] Promouvoir ou superseder explicitement les 10 partitions staging / 11 contenus
 - [ ] Chaque contenu du set final possède exactement un profil et un scope
 - [ ] Autorisations exactes, non chevauchantes et sans gap créées puis revues
 - [ ] Vraie campagne globale exécutée

@@ -111,5 +111,19 @@ GOVERNANCE_LOCKS=PASS
 GIT_DIFF_CHECK=PASS
 ```
 
+Commande exacte du compteur ciblé :
+
+```bash
+PYTHONPATH=packages/contracts/src:services/rag-engine/src:services/rag-pedago python3 -m pytest -q \
+  services/rag-pedago/tests/test_multi_authorization_release_report.py \
+  services/rag-pedago/tests/test_release_scope_placement_git.py \
+  services/rag-engine/tests/test_h2c_placement_readiness.py \
+  services/rag-engine/tests/test_h2c_governed_rehearsal_script.py \
+  services/rag-engine/tests/test_lot44c_profile_manifest.py \
+  services/rag-engine/tests/test_lot44c_profile_registry.py \
+  services/rag-engine/tests/test_profile_manifest_parity.py \
+  services/rag-engine/tests/test_release_scope_placement.py
+```
+
 La CI distante n'est pas exécutée dans ce lot local ; `CI_GREEN` reste donc
 `false` jusqu'aux checks de la PR.

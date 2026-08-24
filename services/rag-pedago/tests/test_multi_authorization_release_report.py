@@ -342,6 +342,8 @@ def test_grounded_production_profile_report_records_only_proven_p24_promotion() 
     ):
         assert fragment in report
     assert "PRODUCTION_PROFILE_EXACT_MATCH_COUNT=16" not in report
+    assert "services/rag-engine/tests/test_h2c_placement_readiness.py" in report
+    assert "services/rag-engine/tests/test_release_scope_placement.py" in report
 
 
 def test_current_master_and_checklist_do_not_claim_final_scope_count() -> None:
@@ -357,9 +359,11 @@ def test_current_master_and_checklist_do_not_claim_final_scope_count() -> None:
     )
     assert "GROUNDED_DISTINCT_CANONICAL_RESOURCE_SCOPES=1" in master_md
     assert "DISTINCT_CANONICAL_RESOURCE_SCOPES=UNKNOWN_PENDING_PROFILE_DECISIONS" in master_md
+    assert "P24_RELEASE_REGISTRY_MAPPING_READY=false" in master_md
     assert "PR129_MERGED=true" in master_md
     assert "61 contenus encore non ancrés" not in checklist
     assert "56 contenus encore non ancrés" in checklist
+    assert "10 partitions staging / 11 contenus" in checklist
 
 
 def test_master_marks_unversioned_parallel_observations_unknown() -> None:
