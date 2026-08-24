@@ -3,7 +3,7 @@
 ## Statut runtime v2 LOT41U
 
 Le runtime v2 canonique est un service **lecture/revue** lancé par
-`api_v2:app`, adossé à PostgreSQL/pgvector au head `003_profile_filtering`.
+`api_v2:app`, adossé à PostgreSQL/pgvector au head `004_artifact_placements`.
 L'image ne contient aucun writer ni route d'ingestion. Les appels métier passent
 uniquement par le **Cockpit BFF**, son credential machine et une identité interne
 signée.
@@ -15,10 +15,11 @@ démarrage ni sur une requête. Le processus canonique unique vérifie intégral
 canonique, leurs poids et leur inventaire SHA-256 avant d'accepter du trafic ;
 `/health` contrôle ensuite une attestation bornée sans rehacher les poids, puis
 prouve aussi la connexion et les privilèges minimaux du rôle `PG_REVIEW_DSN`.
-Le schéma n'est prêt que si les 31 colonnes ont leurs types, typmods — dont
-`vector(1024)` — nullabilités, générations et valeurs par défaut exacts, si les
-cinq contraintes sont validées et si l'ensemble des dix index est strictement
-identique au head canonique.
+Le schéma n'est prêt que si les 32 colonnes de `rag_chunks` ont leurs types,
+typmods — dont `vector(1024)` — nullabilités, générations et valeurs par défaut
+exacts, si `rag_artifacts` et `rag_artifact_placements` possèdent leur schéma
+canonique, et si les inventaires complets de contraintes et d'index sont
+strictement identiques au head canonique.
 La sonde profonde est coalescée et mémorisée cinq secondes : une rafale ne peut
 ouvrir qu'un cycle de connexions PostgreSQL. Les vhosts limitent `/health` et
 `/metrics` au loopback. Uvicorn reste à un worker, car le registre Prometheus

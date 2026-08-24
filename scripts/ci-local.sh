@@ -179,6 +179,9 @@ run_target "ci-topology-tests" bash scripts/tests/test-ci-local-topology.sh
 run_target "main-protection-policy-tests" \
   "$PYTHON_BIN" scripts/tests/test-main-protection-policy.py
 
+# --- go-live evidence refresh ---
+run_target "go-live-evidence-refresh-tests" "$PYTHON_BIN" scripts/tests/test-go-live-evidence-refresh.py
+
 # --- trusted human review ---
 run_target "trusted-human-review-core-tests" "$PYTHON_BIN" scripts/tests/test-trusted-human-review.py
 run_target "trusted-human-review-github-tests" "$PYTHON_BIN" scripts/tests/test-trusted-human-review-github.py

@@ -116,33 +116,46 @@ dans `SHA256SUMS` doit être régénéré avec
 ### Volume neuf
 
 Au premier démarrage uniquement, PostgreSQL applique dans l'ordre
-`00_init.sql`, puis `01_003_profile_filtering.sql`, enregistre les migrations et
-crée enfin les rôles minimaux avec `03_provision_runtime_roles.sh`. Son
-healthcheck échoue tant
-que le head `003_profile_filtering`, les SHA-256 canoniques, les définitions
-exactes des 31 colonnes, des dix index, de l'expression générée `text_tsv` et
-des cinq contraintes validées ne sont pas présents. Les colonnes incluent leurs
-valeurs par défaut et leurs typmods exacts (`vector(1024)`), et tout index
-supplémentaire, activation RLS ou policy RLS rend également la base non prête.
-Le script
-`02_register_bootstrap_migrations.sh` calcule les SHA-256 des trois migrations
-canoniques et enregistre atomiquement `001`, `002` et `003` dans
+`00_init.sql`, `01_003_profile_filtering.sql`, puis
+`02_004_artifact_placements.sql`. Il enregistre ensuite les migrations avec
+`03_register_bootstrap_migrations.sh` et crée les rôles minimaux avec
+`04_provision_runtime_roles.sh`. Son healthcheck échoue tant que le head
+`004_artifact_placements`, les SHA-256 canoniques, les 32 colonnes de
+`rag_chunks`, les tables `rag_artifacts` et `rag_artifact_placements`, et leurs
+inventaires exacts de contraintes et d'index ne sont pas présents. Les colonnes
+incluent leurs valeurs par défaut et leurs typmods exacts (`vector(1024)`), et
+tout index supplémentaire, activation RLS ou policy RLS rend également la base
+non prête. Le script de registre calcule les SHA-256 des quatre migrations
+canoniques et enregistre atomiquement `001`, `002`, `003` et `004` dans
 `rag_schema_migrations`. Le runner transactionnel doit ensuite reconnaître ce
 volume avec `MIGRATIONS_APPLIED=0` et `MIGRATIONS_ADOPTED=0`.
 
 ### Volume existant
 
 Ne pas compter sur les scripts d'initialisation Docker, qui ne sont rejoués que
-sur un volume vide. Sauvegarder, puis appliquer le runner transactionnel :
+sur un volume vide. Pour la cible auditée le 24 août 2026, le plan exact est :
+
+1. prendre un backup frais de la base avant la première mutation ;
+2. laisser le runner valider puis adopter le head structurel non enregistré
+   `001` ;
+3. appliquer `002`, `003`, puis `004` dans cet ordre ;
+4. appliquer ensuite les migrations `ingestion_control` de `001` à `013` et
+   provisionner leurs rôles dédiés selon `ingestion_control_go_live.md` ;
+5. valider les deux registres, le schéma exact, les rôles et l'absence de lock
+   en attente ;
+6. exercer restore et rollback depuis le backup frais avant le cutover.
+
+Le runner produit prend lui-même son backup frais avant sa frontière de
+mutation :
 
 ```bash
 cd services/rag-engine/infra
 BACKUP_ROOT=/backup/rag ./scripts/apply_pgvector_migrations.sh
 ```
 
-Le runner doit terminer au head 003. En cas d'échec ou de données incompatibles,
-arrêter la procédure et restaurer selon le runbook de rollback ; ne jamais
-forcer le démarrage de l'API.
+Le runner doit terminer au head `004_artifact_placements`. En cas d'échec ou de
+données incompatibles, arrêter la procédure et restaurer selon le runbook de
+rollback ; ne jamais forcer le démarrage de l'API.
 
 Avant promotion, relire les `GRANT` effectifs et prouver que les deux DSN
 runtime n'ont ni création, ni suppression, ni modification de contenu ou de
@@ -196,7 +209,7 @@ Contrôles locaux :
 
 ```bash
 curl -fsS http://127.0.0.1:8001/health | jq -e \
-  '.status == "healthy" and .schema_head == "003_profile_filtering" and .pgvector_dim == 1024'
+  '.status == "healthy" and .schema_head == "004_artifact_placements" and .pgvector_dim == 1024'
 
 test "$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:8001/ingest)" = 404
 test "$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1/admin)" = 404
