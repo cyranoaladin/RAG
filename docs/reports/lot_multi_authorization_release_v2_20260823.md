@@ -11,10 +11,11 @@ CONTRACT_VERSION=0.13.0
 CI_GREEN=false
 ```
 
-`CI_GREEN=false` est intentionnel dans ce rapport de Task9 : les suites
-intégrées complètes, la revue finale, la CI distante et la création de PR sont
-la Task10. Le document ne prédit ni HEAD final, ni TREE final, ni numéro de PR,
-ni challenge de revue.
+`CI_GREEN=false` reste intentionnel après la vérification locale Task10 : ce
+champ décrit les checks de la future PR, pas un raccourci calculé depuis les
+commandes locales. Il ne pourra passer à `true` qu'après exécution réussie des
+checks distants sur le HEAD immuable de la PR. Le document ne prédit ni HEAD
+final, ni TREE final, ni numéro de PR, ni challenge de revue.
 
 Le lot ferme le périmètre corpus de cette release, remplace l'audit
 mono-autorité trop étroit, et implémente les primitives V2 nécessaires. Il ne
@@ -199,9 +200,8 @@ V1. ADR-0043 reste
 - `7ec6132dc9c2196889b55bef71faa6f1ea590f7d` — startup/runtime et Compose.
 
 Chaque lot a suivi RED → GREEN et revue de conformité/qualité avant le lot
-suivant. La vérification intégrée complète reste volontairement réservée à
-Task10 ; aucune de ces validations partielles n'est présentée comme une CI
-globale verte.
+suivant. La matrice locale Task10 est consignée au §8 ; elle n'est pas
+présentée comme une CI distante verte.
 
 ## 7. Vérité des chantiers go-live parallèles
 
@@ -245,29 +245,72 @@ de l'observation :
 `DRIVE_MIRROR_COMPLETE=true` provient des preuves déjà acceptées ; le mirror
 n'a pas été rescanné dans ce lot.
 
-## 8. Tests, dette préexistante et CI
+## 8. Vérification Task10, dettes reproduites et CI
 
-Le cycle RED de Task9 a produit `6 failed, 1 passed` : les six échecs visaient
-exactement le rapport absent et les valeurs master/checklist/environment
-historiques. Le test du set canonique passait déjà.
+Le cycle RED de Task9 avait produit `6 failed, 1 passed`, puis le cycle GREEN
+avec les entrées scellées montées a produit `16 passed`, aucun skip. Les deux
+limites provisoires de Task9 sont maintenant remplacées par la vérification
+fraîche :
 
-Deux limites d'environnement sont consignées sans les transformer en défauts
-du lot :
+```text
+MAKE_INTERPRETER_PYYAML_ENV_FAILURE=SUPERSEDED_BY_TASK10
+KNOWN_UNTOUCHED_MYPY_ERRORS=SUPERSEDED_BY_TASK10
+```
 
-- `MAKE_INTERPRETER_PYYAML_ENV_FAILURE` : une invocation Make a sélectionné un
-  interpréteur d'environnement incomplet sans PyYAML et s'est arrêtée avant la
-  vérification métier ; Task10 doit rejouer le target après installation avec
-  l'interpréteur canonique du service ;
-- `KNOWN_UNTOUCHED_MYPY_ERRORS` : quatre erreurs connues dans
-  `services/rag-pedago/tests/test_h2b_coverage_report.py`, déjà documentées et
-  prouvées contre le parent dans
-  `docs/reports/lot_h2b_review_binding_trust_anchor.md`, ne sont pas corrigées
-  hors périmètre.
+### 8.1 `packages/contracts`
 
-Une exécution full-suite baseline rag-pedago a aussi observé un échec transitoire
-du test de propreté Git pendant qu'un audit Docker parallèle créait/retirait un
-fichier non suivi ; le rejeu isolé a passé. Ce cas de pollution inter-processus
-doit être évité pendant la vérification finale sérialisée.
+```text
+PYTEST=PASS (465 passed)
+RUFF=PASS
+MYPY_SRC=FAIL_PREEXISTING_BASELINE
+```
+
+Le seul échec mypy est
+`src/nexus_contracts/review_binding.py:315` : argument `str` incompatible avec
+`Literal['ed25519']`. La même erreur a été reproduite sur la baseline
+`3548bf300c99685ff6ede0dce2e5bfe8c044d213` ; elle n'est pas introduite par
+ce lot.
+
+### 8.2 `services/rag-pedago`
+
+```text
+LINT=PASS
+MYPY=PASS (95 source files)
+PYTEST=PASS (2767 passed, 2 skipped)
+```
+
+### 8.3 `services/rag-engine`
+
+```text
+LINT=PASS
+MYPY=PASS (121 source files)
+PYTEST_NON_INTEGRATION_COMPLETE=PASS
+MAKE_SMOKE=FAIL_PREEXISTING_BASELINE
+```
+
+`make smoke` échoue avant le smoke applicatif avec les deux diagnostics
+`service web has neither image nor build context` et
+`docker compose config --services returned no services`. Les mêmes erreurs ont
+été reproduites sur la baseline `3548bf3` ; elles ne proviennent pas du diff
+multi-autorisation.
+
+### 8.4 Cockpit et CI locale racine
+
+Le cockpit est entièrement vert : lint PASS, `179 tests` PASS, build PASS et
+audit dépendances `0`. Toutes les autres gates repository passent.
+
+La CI locale complète a utilisé Python `3.12.3` et Node `22.22.0` :
+
+```text
+CI_LOCAL=15 PASS / 1 FAIL
+UNIQUE_FAILURE=rag-engine dependency installation
+FAILURE_PHASE=pip install, before tests
+FAILURE=OSError [Errno 28] No space left on device
+```
+
+Cet échec est une saturation disque de l'environnement de vérification, pas un
+résultat de test. Les environnements virtuels générés dans le worktree ont été
+supprimés après la campagne ; aucune donnée de ces venvs n'est versionnée.
 
 Commandes Task9 :
 
@@ -282,15 +325,12 @@ bash scripts/check-governance-locks.sh
 git diff --check
 ```
 
-Les résultats GREEN sont renseignés seulement après leur exécution fraîche
-avant commit. Jusqu'à la vérification complète Task10 :
+Le test réel Task9 réexécute le producteur, revérifie les huit digests et
+compare les octets du set. Le test hermétique redérive le set, les dispositions,
+Cloudflare et la matrice depuis quatre artefacts versionnés indépendants.
 
-Résultat Task9 avec les entrées scellées montées : `16 passed`, aucun skip. Le
-test réel réexécute le producteur, revérifie les huit digests et compare les
-octets du set. Le nouveau test hermétique redérive en outre le set, les
-dispositions, Cloudflare et la matrice depuis quatre artefacts versionnés
-indépendants. Ce passage ciblé ne permet toujours pas de déclarer la CI globale
-verte avant Task10.
+Malgré la matrice locale ci-dessus, `CI_GREEN` reste `false` tant que les checks
+de la PR n'ont pas exécuté et accepté le HEAD final :
 
 ```text
 CI_GREEN=false
