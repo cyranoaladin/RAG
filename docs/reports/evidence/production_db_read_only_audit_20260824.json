@@ -1,88 +1,91 @@
 {
-  "PROD_DB_MIGRATION_PLAN_READY": true,
-  "PROD_DB_TARGET_VERIFIED": true,
-  "PROD_DB_WRITES": 0,
-  "archive_mode": "off",
-  "connections": {
-    "active": 1,
-    "audit_session_included": true,
-    "total": 1
-  },
-  "database_size_bytes": 8289303,
-  "fresh_backup_required_before_migration": true,
-  "latest_database_backup_age_days": 42,
-  "latest_database_backup_date": "2026-07-13",
-  "latest_database_backup_stale": true,
+  "PROD_DB_MIGRATION_PLAN_READY": null,
+  "PROD_DB_TARGET_VERIFIED": null,
+  "PROD_DB_WRITES": null,
+  "commands_versioned": false,
+  "evidence_status": "UNVERIFIED_SUMMARY_NO_TRANSCRIPT",
   "main_sha": "8aa65fb3fb5f077bcd6dfa427c8902bd6d5c28b0",
   "main_tree_sha": "184613ba98608fd358f41859061e0a99156e469d",
-  "migration_plan": [
-    "take_fresh_database_backup",
-    "adopt_unregistered_product_head_001",
-    "apply_product_migrations_002_003_004",
-    "apply_ingestion_control_migrations_001_through_013",
-    "validate_registries_schema_roles_and_zero_waiting_locks",
-    "exercise_verified_restore_and_rollback_before_cutover"
-  ],
-  "observed_at": "2026-08-24T15:36:25Z",
-  "protocol_version": "NEXUS-PROD-DB-READ-ONLY-AUDIT-V1",
-  "rag_chunks_exact_count": 0,
-  "rag_chunks_indexes": {
-    "idx_rag_chunks_text_tsv_present": false,
-    "primary_key": "rag_chunks_pkey",
-    "secondary_indexes": [
-      "idx_rag_chunks_audience",
-      "idx_rag_chunks_collection",
-      "idx_rag_chunks_matiere",
-      "idx_rag_chunks_niveau",
-      "idx_rag_chunks_review",
-      "idx_rag_chunks_rights",
-      "idx_rag_chunks_vector"
-    ]
-  },
-  "read_only": true,
-  "schema": {
-    "ingestion_control_applied": [],
-    "ingestion_control_pending": [
-      1,
-      2,
-      3,
-      4,
-      5,
-      6,
-      7,
-      8,
-      9,
-      10,
-      11,
-      12,
-      13
+  "observed_at_reported": "2026-08-24T15:36:25Z",
+  "protocol_version": "NEXUS-PROD-DB-READ-ONLY-AUDIT-ASSESSMENT-V1",
+  "transcript_versioned": false,
+  "unverified_operator_observation": {
+    "fresh_backup_required_before_migration": true,
+    "reported_archive_mode": "off",
+    "reported_connections": {
+      "active": 1,
+      "audit_session_included": true,
+      "total": 1
+    },
+    "reported_database_size_bytes": 8289303,
+    "reported_latest_database_backup_age_days": 42,
+    "reported_latest_database_backup_date": "2026-07-13",
+    "reported_latest_database_backup_stale": true,
+    "reported_migration_plan": [
+      "take_fresh_database_backup",
+      "adopt_unregistered_product_head_001",
+      "apply_product_migrations_002_003_004",
+      "apply_ingestion_control_migrations_001_through_013",
+      "validate_registries_schema_roles_and_zero_waiting_locks",
+      "exercise_verified_restore_and_rollback_before_cutover"
     ],
-    "product_applied_registered": [],
-    "product_pending": [
-      2,
-      3,
-      4
-    ],
-    "product_structural_head": 1,
-    "product_structural_head_registered": false
-  },
-  "storage": {
-    "filesystem_available": "151G",
-    "filesystem_device": "/dev/md2",
-    "filesystem_total": "929G",
-    "filesystem_used_percent": 83,
-    "postgres_data_directory_size": "47M"
-  },
-  "table_exact_counts": {
-    "rag_api_keys": 0,
-    "rag_chunks": 0,
-    "rag_eval_runs": 0
-  },
-  "target": {
-    "container": "rag_pgvector",
-    "database": "ragdb",
-    "postgres_version": "16.14",
-    "vector_extension_version": "0.8.2"
-  },
-  "waiting_locks": 0
+    "reported_rag_chunks_indexes": {
+      "idx_rag_chunks_text_tsv_present": false,
+      "primary_key": "rag_chunks_pkey",
+      "secondary_indexes": [
+        "idx_rag_chunks_audience",
+        "idx_rag_chunks_collection",
+        "idx_rag_chunks_matiere",
+        "idx_rag_chunks_niveau",
+        "idx_rag_chunks_review",
+        "idx_rag_chunks_rights",
+        "idx_rag_chunks_vector"
+      ]
+    },
+    "reported_read_only": true,
+    "reported_schema": {
+      "ingestion_control_applied": [],
+      "ingestion_control_pending": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13
+      ],
+      "product_applied_registered": [],
+      "product_pending": [
+        2,
+        3,
+        4
+      ],
+      "product_structural_head": 1,
+      "product_structural_head_registered": false
+    },
+    "reported_storage": {
+      "filesystem_available": "151G",
+      "filesystem_total": "929G",
+      "filesystem_used_percent": 83,
+      "postgres_data_directory_size": "47M"
+    },
+    "reported_table_exact_counts": {
+      "rag_api_keys": 0,
+      "rag_chunks": 0,
+      "rag_eval_runs": 0
+    },
+    "reported_target": {
+      "container": "rag_pgvector",
+      "database": "ragdb",
+      "postgres_version": "16.14",
+      "vector_extension_version": "0.8.2"
+    },
+    "reported_waiting_locks": 0
+  }
 }

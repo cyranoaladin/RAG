@@ -133,7 +133,10 @@ volume avec `MIGRATIONS_APPLIED=0` et `MIGRATIONS_ADOPTED=0`.
 ### Volume existant
 
 Ne pas compter sur les scripts d'initialisation Docker, qui ne sont rejoués que
-sur un volume vide. Pour la cible auditée le 24 août 2026, le plan exact est :
+sur un volume vide. Le résumé opérateur du 24 août 2026 n'a ni commandes ni
+transcript versionnés : il ne prouve donc pas la cible, l'absence d'écriture ou
+l'état des migrations. Après un nouvel audit read-only attesté, l'ordre de
+migration à valider est :
 
 1. prendre un backup frais de la base avant la première mutation ;
 2. laisser le runner valider puis adopter le head structurel non enregistré
@@ -143,7 +146,11 @@ sur un volume vide. Pour la cible auditée le 24 août 2026, le plan exact est :
    provisionner leurs rôles dédiés selon `ingestion_control_go_live.md` ;
 5. valider les deux registres, le schéma exact, les rôles et l'absence de lock
    en attente ;
-6. exercer restore et rollback depuis le backup frais avant le cutover.
+6. exercer `pg_restore` et rollback depuis le backup frais, dans un projet
+   isolé et sans démarrer API ou workers, selon `rollback.md`.
+
+Ne lancer aucune migration tant que `PROD_DB_TARGET_VERIFIED`,
+`PROD_DB_WRITES` et `PROD_DB_MIGRATION_PLAN_READY` restent `UNKNOWN`.
 
 Le runner produit prend lui-même son backup frais avant sa frontière de
 mutation :

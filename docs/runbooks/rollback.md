@@ -63,19 +63,102 @@ sudo nginx -t && sudo systemctl reload nginx
 
 ### pgvector (v2)
 
+Les backups produits par `apply_pgvector_migrations.sh` et les runners de
+rollback utilisent `pg_dump -Fc`. Ce format custom ne se restaure jamais avec
+une redirection vers `psql` : utiliser `pg_restore` et vérifier le dump avant
+toute mutation. L'exercice ci-dessous est isolé ; il ne touche pas la stack de
+production et ne démarre ni API, ni worker.
+
 ```bash
-# Arrêter le stack
-docker compose -f docker-compose.v2.yml down
+cd services/rag-engine/infra
 
-# Restaurer depuis backup SQL
-docker compose -f docker-compose.v2.yml up -d pgvector
-sleep 10  # Attendre que pgvector soit healthy
+# Valeurs explicites : jamais le projet production, jamais le projet infra.
+RESTORE_PROJECT="nexus-pg-restore-rehearsal-$(date -u +%Y%m%dT%H%M%SZ)"
+RESTORE_BACKUP_FILE=/backup/rag/pgvector-migration-YYYYMMDD/ragdb-before-migrations.dump
+umask 077
+RESTORE_FIXTURE_DIR="$(mktemp -d)"
+RESTORE_COMPOSE="$RESTORE_FIXTURE_DIR/compose.yml"
+test -f "$RESTORE_BACKUP_FILE"
+test "$RESTORE_PROJECT" != infra
+test "$RESTORE_PROJECT" != production
 
-docker exec -i rag_pgvector psql -U raguser ragdb < /backup/ragdb_YYYYMMDD.sql
+# Fixture autonome : seulement la base isolée et un client de restauration.
+# Les placeholders restent littéraux dans ce fichier privé ; Compose les résout
+# depuis .env sans y recopier les secrets.
+cat >"$RESTORE_COMPOSE" <<'YAML'
+services:
+  pgvector:
+    image: pgvector/pgvector:pg16@sha256:00ba258a66dac104fd5171074a0084462a64a1369d8513f3d0a634e2f24d15bc
+    restart: "no"
+    environment:
+      POSTGRES_DB: ${PGVECTOR_DB:-ragdb}
+      POSTGRES_USER: ${PGVECTOR_USER:-raguser}
+      POSTGRES_PASSWORD: ${PGVECTOR_PASSWORD:?PGVECTOR_PASSWORD requis}
+    volumes: [restore_pgvector_data:/var/lib/postgresql/data]
+    networks: [restore_net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    security_opt: [no-new-privileges:true]
+  restore-migrator:
+    image: postgres:16-alpine@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
+    restart: "no"
+    environment:
+      PGPASSWORD: ${PGVECTOR_PASSWORD:?PGVECTOR_PASSWORD requis}
+    networks: [restore_net]
+    entrypoint: ["pg_restore"]
+    security_opt: [no-new-privileges:true]
+networks:
+  restore_net: {}
+volumes:
+  restore_pgvector_data: {}
+YAML
 
-# Relancer le reste
-docker compose -f docker-compose.v2.yml up -d
+restore_compose=(
+  docker compose -p "$RESTORE_PROJECT" --env-file .env
+  -f "$RESTORE_COMPOSE"
+)
+
+cleanup_restore_fixture() {
+  "${restore_compose[@]}" down -v >/dev/null 2>&1 || true
+  rm -f -- "$RESTORE_COMPOSE"
+  rmdir -- "$RESTORE_FIXTURE_DIR" 2>/dev/null || true
+}
+trap cleanup_restore_fixture EXIT
+
+# Refuser toute extension accidentelle de la fixture avant sa création.
+test "$("${restore_compose[@]}" config --services)" = \
+  $'pgvector\nrestore-migrator'
+
+# Vérifier que le fichier est bien un dump custom avant de créer la fixture.
+"${restore_compose[@]}" run --rm --no-deps \
+  --volume "$RESTORE_BACKUP_FILE:/restore/source.dump:ro" \
+  restore-migrator \
+  --list --format=custom /restore/source.dump >/dev/null
+
+# Démarrer uniquement PostgreSQL, puis restaurer avec le client migrateur.
+"${restore_compose[@]}" up -d --wait pgvector
+"${restore_compose[@]}" run --rm --no-deps \
+  --volume "$RESTORE_BACKUP_FILE:/restore/source.dump:ro" \
+  restore-migrator \
+  --exit-on-error --clean --if-exists --no-owner --no-privileges \
+  --single-transaction --format=custom --host=pgvector \
+  --username="${PGVECTOR_USER:-raguser}" \
+  --dbname="${PGVECTOR_DB:-ragdb}" /restore/source.dump
+
+# Aucun service applicatif ne doit exister dans le projet de rehearsal.
+test "$("${restore_compose[@]}" ps --services --status running)" = pgvector
+
+# Après validation du schéma restauré, détruire la seule fixture isolée.
+"${restore_compose[@]}" down -v
 ```
+
+Ne jamais ajouter `--remove-orphans`. Une restauration réelle de production
+reste un human gate distinct : backup frais, arrêt contrôlé des writers,
+validation de l'identité de la cible, restauration, migrations via le seul
+migrateur, contrôles de schéma, puis seulement redémarrage des runtimes.
 
 ### Chroma (v1)
 

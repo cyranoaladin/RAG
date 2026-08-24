@@ -26,7 +26,14 @@ ENVIRONMENT_EVIDENCE = (
 REPORT = REPO_ROOT / "docs/reports/lot_go_live_evidence_refresh_20260824.md"
 RUNBOOK = REPO_ROOT / "docs/runbooks/go_live.md"
 README_PROD = REPO_ROOT / "services/rag-engine/README-PROD.md"
+ROLLBACK_RUNBOOK = REPO_ROOT / "docs/runbooks/rollback.md"
 CI_LOCAL = REPO_ROOT / "scripts/ci-local.sh"
+
+
+def _canonical_json_bytes(document: object) -> bytes:
+    return (
+        json.dumps(document, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+    ).encode()
 
 
 def _load_canonical_json(path: Path) -> tuple[dict[str, object], bytes]:
@@ -34,9 +41,7 @@ def _load_canonical_json(path: Path) -> tuple[dict[str, object], bytes]:
     document = json.loads(raw)
     if not isinstance(document, dict):
         raise AssertionError(f"{path} must contain a JSON object")
-    canonical = (
-        json.dumps(document, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
-    ).encode()
+    canonical = _canonical_json_bytes(document)
     if raw != canonical:
         raise AssertionError(f"{path} must use canonical sorted JSON")
     return document, raw
@@ -51,14 +56,23 @@ class GoLiveEvidenceRefreshTests(unittest.TestCase):
             ci_source,
         )
 
-    def test_atomic_docker_rehearsal_is_exact_and_isolated(self) -> None:
+    def test_atomic_docker_rehearsal_is_synthetic_v1_and_unverified_for_v2(
+        self,
+    ) -> None:
         document, raw = _load_canonical_json(DOCKER_EVIDENCE)
+        observation = document["synthetic_v1_observation"]
         self.assertEqual(
-            hashlib.sha256(raw).hexdigest(),
+            document["source_evidence_sha256"],
             "0fe6d56453462dd76360ae45627a4d4549bd486cf039a163140bc28987b34865",
         )
         self.assertEqual(
-            document,
+            hashlib.sha256(_canonical_json_bytes(observation)).hexdigest(),
+            document["source_evidence_sha256"],
+        )
+        self.assertEqual(document["evidence_class"], "SYNTHETIC_V1")
+        self.assertEqual(document["verification_status"], "UNVERIFIED")
+        self.assertEqual(
+            observation,
             {
                 "ATOMIC_DOCKER_REHEARSAL_PASS": True,
                 "BAD_DIGEST_REFUSED": True,
@@ -77,31 +91,52 @@ class GoLiveEvidenceRefreshTests(unittest.TestCase):
                 "remove_orphans_used": False,
             },
         )
+        self.assertEqual(
+            document["production_v2_rehearsal"],
+            {
+                "ATOMIC_DOCKER_REHEARSAL_PASS": None,
+                "BAD_DIGEST_REFUSED": None,
+                "BAD_READINESS_REFUSED": None,
+                "FOREIGN_SERVICES_TOUCHED": None,
+                "ROLLBACK_REHEARSAL_PASS": None,
+                "readiness_protocol_required": "NEXUS-PRODUCTION-READINESS-V2",
+                "reproducible_harness_versioned": False,
+                "transcript_versioned": False,
+            },
+        )
+        self.assertNotIn(b'"ATOMIC_DOCKER_REHEARSAL_PASS": true', raw.split(b'"synthetic_v1_observation"')[0])
 
         protocol = DOCKER_PROTOCOL.read_text(encoding="utf-8")
         self.assertIn("fixture synthétique", protocol)
         self.assertIn("clé Ed25519 éphémère", protocol)
         self.assertIn("`--remove-orphans` n'est jamais utilisé", protocol)
-        self.assertIn("la future release de production", protocol)
+        self.assertIn("futures images de production", protocol)
         self.assertNotIn("/home/", protocol)
         self.assertNotIn("TEST_SEED", protocol)
 
-    def test_production_db_audit_is_read_only_and_complete(self) -> None:
+    def test_production_db_summary_stays_unverified_without_transcript(self) -> None:
         document, raw = _load_canonical_json(DB_EVIDENCE)
-        self.assertEqual(document["protocol_version"], "NEXUS-PROD-DB-READ-ONLY-AUDIT-V1")
+        self.assertEqual(
+            document["protocol_version"],
+            "NEXUS-PROD-DB-READ-ONLY-AUDIT-ASSESSMENT-V1",
+        )
         self.assertEqual(document["main_sha"], "8aa65fb3fb5f077bcd6dfa427c8902bd6d5c28b0")
         self.assertEqual(document["main_tree_sha"], "184613ba98608fd358f41859061e0a99156e469d")
-        self.assertIs(document["read_only"], True)
-        self.assertEqual(document["PROD_DB_WRITES"], 0)
-        self.assertIs(document["PROD_DB_TARGET_VERIFIED"], True)
-        self.assertIs(document["PROD_DB_MIGRATION_PLAN_READY"], True)
-        self.assertEqual(document["target"], {
+        self.assertEqual(document["evidence_status"], "UNVERIFIED_SUMMARY_NO_TRANSCRIPT")
+        self.assertIsNone(document["PROD_DB_WRITES"])
+        self.assertIsNone(document["PROD_DB_TARGET_VERIFIED"])
+        self.assertIsNone(document["PROD_DB_MIGRATION_PLAN_READY"])
+        self.assertIs(document["commands_versioned"], False)
+        self.assertIs(document["transcript_versioned"], False)
+        observation = document["unverified_operator_observation"]
+        self.assertIs(observation["reported_read_only"], True)
+        self.assertEqual(observation["reported_target"], {
             "container": "rag_pgvector",
             "database": "ragdb",
             "postgres_version": "16.14",
             "vector_extension_version": "0.8.2",
         })
-        self.assertEqual(document["schema"], {
+        self.assertEqual(observation["reported_schema"], {
             "ingestion_control_applied": [],
             "ingestion_control_pending": list(range(1, 14)),
             "product_applied_registered": [],
@@ -109,13 +144,12 @@ class GoLiveEvidenceRefreshTests(unittest.TestCase):
             "product_structural_head": 1,
             "product_structural_head_registered": False,
         })
-        self.assertEqual(document["rag_chunks_exact_count"], 0)
-        self.assertEqual(document["table_exact_counts"], {
+        self.assertEqual(observation["reported_table_exact_counts"], {
             "rag_api_keys": 0,
             "rag_chunks": 0,
             "rag_eval_runs": 0,
         })
-        self.assertEqual(document["rag_chunks_indexes"], {
+        self.assertEqual(observation["reported_rag_chunks_indexes"], {
             "idx_rag_chunks_text_tsv_present": False,
             "primary_key": "rag_chunks_pkey",
             "secondary_indexes": [
@@ -128,40 +162,52 @@ class GoLiveEvidenceRefreshTests(unittest.TestCase):
                 "idx_rag_chunks_vector",
             ],
         })
-        self.assertEqual(document["waiting_locks"], 0)
-        self.assertEqual(document["connections"], {
+        self.assertEqual(observation["reported_waiting_locks"], 0)
+        self.assertEqual(observation["reported_connections"], {
             "active": 1,
             "audit_session_included": True,
             "total": 1,
         })
-        self.assertEqual(document["storage"], {
+        self.assertEqual(observation["reported_storage"], {
             "filesystem_available": "151G",
-            "filesystem_device": "/dev/md2",
             "filesystem_total": "929G",
             "filesystem_used_percent": 83,
             "postgres_data_directory_size": "47M",
         })
-        self.assertEqual(document["latest_database_backup_date"], "2026-07-13")
-        self.assertEqual(document["latest_database_backup_age_days"], 42)
-        self.assertIs(document["latest_database_backup_stale"], True)
-        self.assertIs(document["fresh_backup_required_before_migration"], True)
+        self.assertEqual(observation["reported_latest_database_backup_date"], "2026-07-13")
+        self.assertEqual(observation["reported_latest_database_backup_age_days"], 42)
+        self.assertIs(observation["reported_latest_database_backup_stale"], True)
+        self.assertIs(observation["fresh_backup_required_before_migration"], True)
         decoded = raw.decode()
         self.assertNotIn("/home/", decoded)
+        self.assertNotIn("/dev/md2", decoded)
         self.assertNotIn("88.99.", decoded)
         self.assertNotIn("HostName", decoded)
+
+    def test_environment_observation_is_refreshed_and_point_in_time(self) -> None:
+        document, _ = _load_canonical_json(ENVIRONMENT_EVIDENCE)
+        self.assertEqual(document["observed_at"], "2026-08-24T22:51:18Z")
+        self.assertIs(document["point_in_time_only"], True)
+        self.assertEqual(document["environment_query_result"], {"names": [], "total_count": 0})
+        self.assertEqual(document["reviewer_query_result"], {
+            "login": "abenrhouma",
+            "permission": "write",
+            "user_id": 67140603,
+        })
+        self.assertIs(document["mutation_performed"], False)
 
     def test_report_publishes_proven_booleans_and_defers_master_reconciliation(self) -> None:
         report = REPORT.read_text(encoding="utf-8")
         normalized_report = " ".join(report.split())
         for expected in (
-            "ATOMIC_DOCKER_REHEARSAL_PASS=true",
-            "FOREIGN_SERVICES_TOUCHED=0",
-            "ROLLBACK_REHEARSAL_PASS=true",
-            "BAD_DIGEST_REFUSED=true",
-            "BAD_READINESS_REFUSED=true",
-            "PROD_DB_TARGET_VERIFIED=true",
-            "PROD_DB_MIGRATION_PLAN_READY=true",
-            "PROD_DB_WRITES=0",
+            "DOCKER_REHEARSAL_EVIDENCE_CLASS=SYNTHETIC_V1",
+            "DOCKER_REHEARSAL_VERIFICATION_STATUS=UNVERIFIED",
+            "ATOMIC_DOCKER_REHEARSAL_PASS=UNKNOWN",
+            "PROD_DB_AUDIT_VERIFICATION_STATUS=UNVERIFIED_SUMMARY_NO_TRANSCRIPT",
+            "PROD_DB_TARGET_VERIFIED=UNKNOWN",
+            "PROD_DB_MIGRATION_PLAN_READY=UNKNOWN",
+            "PROD_DB_WRITES=UNKNOWN",
+            "PRODUCTION_ENVIRONMENT_OBSERVED_AT=2026-08-24T22:51:18Z",
             "PRODUCTION_ENVIRONMENT_EXISTS=false",
             "MASTER_RECONCILIATION_DEFERRED=true",
         ):
@@ -172,7 +218,15 @@ class GoLiveEvidenceRefreshTests(unittest.TestCase):
         self.assertIn(DB_EVIDENCE.relative_to(REPO_ROOT).as_posix(), report)
         self.assertIn(ENVIRONMENT_EVIDENCE.relative_to(REPO_ROOT).as_posix(), report)
         self.assertIn("fixture synthétique signée V1", normalized_report)
-        self.assertIn("pas la future release de production", normalized_report)
+        self.assertIn("future release de production V2", normalized_report)
+        for forbidden in (
+            "ATOMIC_DOCKER_REHEARSAL_PASS=true",
+            "PROD_DB_TARGET_VERIFIED=true",
+            "PROD_DB_MIGRATION_PLAN_READY=true",
+            "PROD_DB_WRITES=0",
+            "/dev/md2",
+        ):
+            self.assertNotIn(forbidden, report)
 
     def test_operator_docs_require_head_004_and_exact_migration_sequence(self) -> None:
         runbook = RUNBOOK.read_text(encoding="utf-8")
@@ -196,6 +250,32 @@ class GoLiveEvidenceRefreshTests(unittest.TestCase):
         ):
             with self.subTest(expected=expected):
                 self.assertIn(expected, normalized_runbook)
+
+    def test_custom_dump_restore_is_isolated_and_migrator_only(self) -> None:
+        rollback = ROLLBACK_RUNBOOK.read_text(encoding="utf-8")
+        normalized = " ".join(rollback.split())
+        for expected in (
+            "pg_dump -Fc",
+            "pg_restore",
+            "--format=custom",
+            "--exit-on-error",
+            "--clean",
+            "--if-exists",
+            "--no-owner",
+            "--no-privileges",
+            "--single-transaction",
+            "restore-migrator",
+            "run --rm --no-deps",
+            "nexus-pg-restore-rehearsal-",
+            "up -d --wait pgvector",
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, normalized)
+        self.assertNotIn("psql -U raguser ragdb < /backup/ragdb_YYYYMMDD.sql", rollback)
+        self.assertNotIn("docker-compose.ingestion.yml", rollback)
+        self.assertNotIn("ports:", rollback)
+        self.assertNotIn("down --remove-orphans", rollback)
+        self.assertIn("ne démarre ni API, ni worker", normalized)
 
 
 if __name__ == "__main__":

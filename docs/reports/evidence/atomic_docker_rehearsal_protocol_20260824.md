@@ -1,20 +1,21 @@
-# Protocole reproductible — rehearsal Docker atomique du 24 août 2026
+# Description de l'observation — rehearsal Docker synthétique du 24 août 2026
 
 ## Nature de la preuve
 
 Le rehearsal porte sur une fixture synthétique signée V1. Les fichiers
 effectivement consommés sont vérifiés byte-identical à l'intérieur de chaque
 bundle par leurs SHA-256 et par le manifeste du bundle. Cette preuve valide le
-chemin de vérification et la mécanique atomique Docker ; elle ne prétend pas
-que la fixture est la future release de production, ni que ses digests sont
-ceux des futures images de production.
+chemin V1 de la fixture uniquement. Elle ne prouve ni le protocole readiness V2,
+ni les vrais fichiers de release, ni les futures images de production. En
+l'absence du harnais et d'un transcript versionnés, son statut pour la release
+V2 reste explicitement `UNVERIFIED`.
 
 Le résultat canonique est
 `docs/reports/evidence/atomic_docker_rehearsal_20260824.json`. Le SHA-256 du
 harnais temporaire observé était
 `b4e1ca4330fca43f0ea4fcd8fd162c777f8d5dd8d8fea09084c4c549b418e037`.
 
-## Reproduction sûre
+## Exigences d'un futur harnais reproductible V2
 
 1. Créer un répertoire temporaire privé en mode `0700`, hors des répertoires
    de production.
@@ -24,11 +25,11 @@ harnais temporaire observé était
 3. Choisir un `COMPOSE_PROJECT_NAME` unique préfixé
    `nexus-go-live-rehearsal-` et refuser explicitement le nom de projet de
    production.
-4. Construire trois bundles synthétiques : un bundle valide, un bundle dont un
+4. Construire trois bundles V2 : un bundle valide, un bundle dont un
    fichier Compose est altéré après calcul du manifeste, et un bundle signé
    dont le digest Compose déclaré est faux.
 5. Résoudre Compose, canonicaliser ses octets, calculer les SHA-256 de chaque
-   fichier, signer le readiness manifest V1 et lier tous ces digests dans le
+   fichier, signer le readiness manifest V2 et lier tous ces digests dans le
    manifeste de bundle.
 6. Photographier les conteneurs déjà actifs par identifiant, heure de
    démarrage, projet et service.
@@ -47,8 +48,9 @@ harnais temporaire observé était
 
 Le harnais temporaire original n'est pas archivé : il contenait un chemin
 machine absolu et une graine privée de test déterministe, incompatibles avec
-les règles de versionnement. Le présent protocole en conserve les opérations et
-le SHA-256 de provenance sans persister la clé. L'artefact JSON est la copie
-byte-identical du résultat produit ; il n'est pas un transcript horodaté des
-commandes Docker et ne remplace pas le rehearsal de la vraie release après
-freeze des images et manifests.
+les règles de versionnement. La présente description en conserve les opérations
+et le SHA-256 de provenance sans persister la clé, mais elle n'est ni un harnais
+exécutable ni un transcript horodaté. L'artefact JSON conserve l'observation V1
+originale sous `synthetic_v1_observation` et publie séparément les verdicts V2 à
+`null`. Un nouveau rehearsal de la vraie release reste obligatoire après freeze
+des images et manifests.
