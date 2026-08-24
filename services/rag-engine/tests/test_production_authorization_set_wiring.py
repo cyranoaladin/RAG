@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,7 @@ import deploy_verified_release_cli as deploy  # noqa: E402
 
 COMPOSE = Path(__file__).resolve().parents[1] / "infra/docker-compose.production-workers.yml"
 CONTAINER_PATH = "/app/production/authorization-set.json"
+MATERIAL_CONTAINER_PATH = "/app/production/v2-material"
 
 
 def test_both_production_workers_mount_the_exact_authorization_set_read_only() -> None:
@@ -29,6 +31,14 @@ def test_both_production_workers_mount_the_exact_authorization_set_read_only() -
             "${PRODUCTION_AUTHORIZATION_SET_HOST_FILE:?"
             "PRODUCTION_AUTHORIZATION_SET_HOST_FILE requis}:"
             f"{CONTAINER_PATH}:ro"
+        ) in service["volumes"]
+        assert service["environment"]["NEXUS_V2_RELEASE_MATERIAL_ROOT"] == (
+            MATERIAL_CONTAINER_PATH
+        )
+        assert (
+            "${PRODUCTION_V2_RELEASE_MATERIAL_HOST_DIR:?"
+            "PRODUCTION_V2_RELEASE_MATERIAL_HOST_DIR requis}:"
+            f"{MATERIAL_CONTAINER_PATH}:ro"
         ) in service["volumes"]
 
 
@@ -51,6 +61,95 @@ def _effective(source: Path) -> dict[str, object]:
             "multilevel-worker-b-production": {"volumes": [volume]},
         }
     }
+
+
+def _effective_material(source_a: Path, source_b: Path | None = None) -> dict[str, object]:
+    def volume(source: Path) -> dict[str, object]:
+        return {
+            "type": "bind",
+            "source": str(source),
+            "target": MATERIAL_CONTAINER_PATH,
+            "read_only": True,
+        }
+
+    return {
+        "services": {
+            "multilevel-worker-a-production": {"volumes": [volume(source_a)]},
+            "multilevel-worker-b-production": {
+                "volumes": [volume(source_a if source_b is None else source_b)]
+            },
+        }
+    }
+
+
+def test_effective_v2_material_bind_is_private_shared_and_read_only(tmp_path: Path) -> None:
+    source = tmp_path / "v2-material"
+    source.mkdir(mode=0o700)
+    assert deploy.require_effective_v2_material_bind(
+        effective_compose=_effective_material(source)
+    ) == source.resolve()
+
+    other = tmp_path / "other-material"
+    other.mkdir(mode=0o700)
+    with pytest.raises(deploy.DeploymentWrapperError, match="different V2"):
+        deploy.require_effective_v2_material_bind(
+            effective_compose=_effective_material(source, other)
+        )
+
+    writable = _effective_material(source)
+    writable["services"]["multilevel-worker-a-production"]["volumes"][0][
+        "read_only"
+    ] = False
+    with pytest.raises(deploy.DeploymentWrapperError, match="read-only"):
+        deploy.require_effective_v2_material_bind(effective_compose=writable)
+
+    masked = _effective_material(source)
+    masked["services"]["multilevel-worker-a-production"]["volumes"].append(
+        {
+            "type": "bind",
+            "source": str(other),
+            "target": f"{MATERIAL_CONTAINER_PATH}/evidence",
+            "read_only": True,
+        }
+    )
+    with pytest.raises(deploy.DeploymentWrapperError, match="masking V2"):
+        deploy.require_effective_v2_material_bind(effective_compose=masked)
+
+
+def test_snapshot_dotenv_path_refuses_line_injection(tmp_path: Path) -> None:
+    with pytest.raises(deploy.DeploymentWrapperError, match="NUL, CR or LF"):
+        deploy._dotenv_path_value(tmp_path / "state\nINJECTED=true", label="state path")
+
+
+def test_parallel_material_publication_keeps_temporary_files_outside_runtime_root(
+    tmp_path: Path,
+) -> None:
+    staging = tmp_path / "generation"
+    runtime = staging / "v2-material"
+    staging.mkdir(mode=0o700)
+    runtime.mkdir(mode=0o700)
+    staging_fd = os.open(staging, os.O_RDONLY | os.O_DIRECTORY)
+    runtime_fd = os.open(runtime, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        def publish() -> os.stat_result:
+            return deploy._publish_private_generation_file(
+                directory=runtime_fd,
+                staging_directory=staging_fd,
+                filename="h2-coverage.json",
+                raw=b"verified\n",
+                label="test material",
+            )
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            results = list(executor.map(lambda _index: publish(), range(2)))
+    finally:
+        os.close(runtime_fd)
+        os.close(staging_fd)
+
+    assert len(results) == 2
+    assert (runtime / "h2-coverage.json").read_bytes() == b"verified\n"
+    assert {path.name for path in runtime.iterdir()} == {"h2-coverage.json"}
+    assert not any(path.name.startswith(".h2-coverage") for path in staging.iterdir())
 
 
 def test_effective_bind_is_rehashed_and_must_match_signed_set(tmp_path: Path) -> None:

@@ -203,6 +203,15 @@ Chaque lot a suivi RED → GREEN et revue de conformité/qualité avant le lot
 suivant. La matrice locale Task10 est consignée au §8 ; elle n'est pas
 présentée comme une CI distante verte.
 
+La remédiation de revue finale ferme aussi la dernière fenêtre V2 du wrapper
+de déploiement : `PRODUCTION_V2_RELEASE_MATERIAL_HOST_DIR` est désormais
+remplacé, comme le set, par une génération privée durable. Son inventaire
+runtime est une allowlist exacte, sans `.env` ni Compose ; chaque fichier et
+chaque inode sont revalidés avant `pull`, après `pull` avant `up`, puis après
+`up`. Les tests adversariaux refusent substitution de génération, fichier
+modifié, fichier supplémentaire et injection de ligne dotenv avant la
+mutation Docker suivante.
+
 ## 7. Vérité des chantiers go-live parallèles
 
 Le transcript du rehearsal Docker initial n'est pas disponible sous une forme

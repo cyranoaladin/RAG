@@ -728,6 +728,14 @@ class _VerifiedDeployInputs:
 
 
 @dataclass(frozen=True)
+class _PinnedGenerationFile:
+    relative_path: str
+    digest: str
+    device: int
+    inode: int
+
+
+@dataclass(frozen=True)
 class _DurableAuthorizationSetGeneration:
     """Source privée adressée par contenu et identité d'inodes épinglée."""
 
@@ -738,6 +746,10 @@ class _DurableAuthorizationSetGeneration:
     directory_device: int
     directory_inode: int
     directory_chain: tuple[tuple[int, int], ...]
+    material_root: Path | None = None
+    material_root_device: int | None = None
+    material_root_inode: int | None = None
+    material_files: tuple[_PinnedGenerationFile, ...] = ()
 
 
 def _require_trusted_ancestor(metadata: os.stat_result, *, label: str) -> None:
@@ -974,6 +986,201 @@ def _materialize_authorization_set_generation(
                 os.close(descriptor)
 
 
+def _v2_runtime_material_bundle_paths(bundle_document: dict[str, Any]) -> tuple[str, ...]:
+    """Retourne l'arbre minimal exact relu par le readiness gate runtime V2."""
+    fixed = {
+        _BUNDLE_MANIFEST_NAME,
+        "evidence/review_binding_trust_anchor.bin",
+        "evidence/trusted_reviewers.bin",
+        _REVOCATIONS_BUNDLE_NAME,
+        _PLACEMENT_BUNDLE_NAME,
+        _VERIFIED_PROFILES_BUNDLE_NAME,
+        _PROFILE_MANIFEST_BUNDLE_NAME,
+        _AUTHORITY_REQUIRED_BUNDLE_NAME,
+        _H2_COVERAGE_BUNDLE_NAME,
+        _H2_EVIDENCE_BUNDLE_NAME,
+        _PROMOTION_BUNDLE_NAME,
+        _SEALED_MANIFEST_BUNDLE_NAME,
+    }
+    for field in ("v2_release_files", "v2_evidence_files", "v2_source_blobs"):
+        mapping = bundle_document.get(field)
+        if not isinstance(mapping, dict) or not mapping:
+            raise DeploymentWrapperError(f"V2 bundle has no exact {field!r} mapping")
+        for value in mapping.values():
+            if not isinstance(value, str):
+                raise DeploymentWrapperError(f"V2 bundle {field!r} path is not a string")
+            fixed.add(value)
+    for name in fixed:
+        relative = PurePosixPath(name)
+        if relative.is_absolute() or ".." in relative.parts or not name:
+            raise DeploymentWrapperError(f"V2 runtime material path is unsafe: {name!r}")
+    return tuple(sorted(fixed))
+
+
+def _publish_private_generation_file(
+    *, directory: int, staging_directory: int, filename: str, raw: bytes, label: str
+) -> os.stat_result:
+    """Publie une cible complète sans écrasement, puis relit les octets publiés."""
+    create_flags = (
+        os.O_WRONLY
+        | os.O_CREAT
+        | os.O_EXCL
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+    )
+    temporary_name = f".{filename}.{secrets.token_hex(16)}"
+    descriptor = os.open(temporary_name, create_flags, 0o600, dir_fd=staging_directory)
+    try:
+        try:
+            os.fchmod(descriptor, 0o600)
+            remaining = memoryview(raw)
+            while remaining:
+                written = os.write(descriptor, remaining)
+                if written == 0:
+                    raise DeploymentWrapperError(f"{label} write made no progress")
+                remaining = remaining[written:]
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+    except Exception:
+        os.unlink(temporary_name, dir_fd=staging_directory)
+        os.fsync(staging_directory)
+        raise
+    try:
+        try:
+            os.link(
+                temporary_name,
+                filename,
+                src_dir_fd=staging_directory,
+                dst_dir_fd=directory,
+                follow_symlinks=False,
+            )
+        except FileExistsError:
+            pass
+    finally:
+        os.unlink(temporary_name, dir_fd=staging_directory)
+        os.fsync(staging_directory)
+        os.fsync(directory)
+
+    read_flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(filename, read_flags, dir_fd=directory)
+    try:
+        metadata = os.fstat(descriptor)
+        chunks: list[bytes] = []
+        while chunk := os.read(descriptor, 1024 * 1024):
+            chunks.append(chunk)
+    finally:
+        os.close(descriptor)
+    if b"".join(chunks) != raw:
+        raise DeploymentWrapperError(f"existing {label} differs from verified bundle bytes")
+    if not stat.S_ISREG(metadata.st_mode):
+        raise DeploymentWrapperError(f"{label} is not a regular file")
+    if stat.S_IMODE(metadata.st_mode) != 0o600:
+        raise DeploymentWrapperError(f"{label} must have mode 0600")
+    if metadata.st_uid != os.geteuid():
+        raise DeploymentWrapperError(f"{label} owner must be the effective deploy UID")
+    if metadata.st_nlink != 1:
+        raise DeploymentWrapperError(f"{label} has a non-unique hardlink count")
+    return metadata
+
+
+def _materialize_v2_release_generation(
+    *,
+    state_root: Path,
+    bundle_dir: Path,
+    bundle_document: dict[str, Any],
+    authorization_set_digest: str,
+    authorization_set_raw: bytes,
+) -> _DurableAuthorizationSetGeneration:
+    """Fige le set et tout l'arbre runtime V2 dans une même génération privée."""
+    _dotenv_path_value(Path(os.path.abspath(state_root)), label="deployment state root")
+    generation = _materialize_authorization_set_generation(
+        state_root=state_root,
+        bundle_digest=str(bundle_document["bundle_digest"]),
+        authorization_set_digest=authorization_set_digest,
+        raw=authorization_set_raw,
+    )
+    runtime_paths = _v2_runtime_material_bundle_paths(bundle_document)
+    raw_files: dict[str, bytes] = {}
+    file_digests = bundle_document.get("files")
+    assert isinstance(file_digests, dict)
+    for name in runtime_paths:
+        raw = signer._read_bytes_no_follow(bundle_dir / name, label=f"bundle:{name}")  # noqa: SLF001
+        if name == _BUNDLE_MANIFEST_NAME:
+            expected = _sha256_bytes(_canonical_json_bytes(bundle_document))
+        else:
+            claimed = file_digests.get(name)
+            if not isinstance(claimed, str):
+                raise DeploymentWrapperError(
+                    f"V2 release material {name!r} has no recorded bundle digest"
+                )
+            expected = claimed
+        if _sha256_bytes(raw) != expected:
+            raise DeploymentWrapperError(
+                f"V2 release material {name!r} changed before durable publication"
+            )
+        raw_files[name] = raw
+
+    generation_fd, chain = _open_directory_chain_no_follow(generation.generation_directory)
+    material_fd = -1
+    try:
+        generation_metadata = _require_private_directory(
+            generation_fd, label="deployment release generation"
+        )
+        if chain != generation.directory_chain or (
+            generation_metadata.st_dev,
+            generation_metadata.st_ino,
+        ) != (generation.directory_device, generation.directory_inode):
+            raise DeploymentWrapperError("deployment generation path was substituted")
+        material_fd, _ = _open_or_create_private_child(
+            generation_fd, "v2-material", label="deployment V2 release material root"
+        )
+        material_metadata = _require_private_directory(
+            material_fd, label="deployment V2 release material root"
+        )
+        pinned: list[_PinnedGenerationFile] = []
+        for name, raw in sorted(raw_files.items()):
+            relative = PurePosixPath(name)
+            parent_fd = os.dup(material_fd)
+            try:
+                for part in relative.parts[:-1]:
+                    child_fd, _ = _open_or_create_private_child(
+                        parent_fd,
+                        part,
+                        label=f"deployment V2 material directory {part!r}",
+                    )
+                    os.close(parent_fd)
+                    parent_fd = child_fd
+                metadata = _publish_private_generation_file(
+                    directory=parent_fd,
+                    staging_directory=generation_fd,
+                    filename=relative.name,
+                    raw=raw,
+                    label=f"deployment V2 release material {name!r}",
+                )
+            finally:
+                os.close(parent_fd)
+            pinned.append(
+                _PinnedGenerationFile(
+                    relative_path=name,
+                    digest=_sha256_bytes(raw),
+                    device=metadata.st_dev,
+                    inode=metadata.st_ino,
+                )
+            )
+    finally:
+        if material_fd >= 0:
+            os.close(material_fd)
+        os.close(generation_fd)
+    return dataclasses.replace(
+        generation,
+        material_root=generation.generation_directory / "v2-material",
+        material_root_device=material_metadata.st_dev,
+        material_root_inode=material_metadata.st_ino,
+        material_files=tuple(pinned),
+    )
+
+
 def _require_generation_identity(generation: _DurableAuthorizationSetGeneration) -> None:
     """Revalide la chaîne et les inodes épinglés avant chaque mutation Docker."""
     try:
@@ -1018,6 +1225,135 @@ def _require_generation_identity(generation: _DurableAuthorizationSetGeneration)
         generation.file_inode,
     ):
         raise DeploymentWrapperError("deployment authorization set path was substituted")
+    if generation.material_root is None:
+        return
+    try:
+        material_root_fd, _material_chain = _open_directory_chain_no_follow(
+            generation.material_root
+        )
+        material_metadata = _require_private_directory(
+            material_root_fd, label="deployment V2 release material root"
+        )
+        if (material_metadata.st_dev, material_metadata.st_ino) != (
+            generation.material_root_device,
+            generation.material_root_inode,
+        ):
+            raise DeploymentWrapperError("deployment V2 release material root was substituted")
+        expected_inventory = {item.relative_path for item in generation.material_files}
+        expected_directories = {
+            PurePosixPath(*PurePosixPath(path).parts[:index]).as_posix()
+            for path in expected_inventory
+            for index in range(1, len(PurePosixPath(path).parts))
+        }
+        actual_inventory: set[str] = set()
+        actual_directories: set[str] = set()
+
+        def walk(directory_fd: int, prefix: PurePosixPath) -> None:
+            with os.scandir(directory_fd) as entries:
+                for entry in entries:
+                    relative = prefix / entry.name
+                    if entry.is_symlink():
+                        raise DeploymentWrapperError(
+                            f"deployment V2 release material {relative.as_posix()!r} changed"
+                        )
+                    if entry.is_dir(follow_symlinks=False):
+                        actual_directories.add(relative.as_posix())
+                        flags = (
+                            os.O_RDONLY
+                            | getattr(os, "O_CLOEXEC", 0)
+                            | getattr(os, "O_DIRECTORY", 0)
+                            | getattr(os, "O_NOFOLLOW", 0)
+                        )
+                        child = os.open(entry.name, flags, dir_fd=directory_fd)
+                        try:
+                            _require_private_directory(
+                                child,
+                                label=(
+                                    "deployment V2 material directory "
+                                    f"{relative.as_posix()!r}"
+                                ),
+                            )
+                            walk(child, relative)
+                        finally:
+                            os.close(child)
+                    elif entry.is_file(follow_symlinks=False):
+                        actual_inventory.add(relative.as_posix())
+                    else:
+                        raise DeploymentWrapperError(
+                            f"deployment V2 release material {relative.as_posix()!r} changed"
+                        )
+
+        walk(material_root_fd, PurePosixPath())
+        if actual_inventory != expected_inventory:
+            raise DeploymentWrapperError(
+                "deployment V2 release material inventory changed "
+                f"(missing={sorted(expected_inventory - actual_inventory)!r}, "
+                f"extra={sorted(actual_inventory - expected_inventory)!r})"
+            )
+        if actual_directories != expected_directories:
+            raise DeploymentWrapperError(
+                "deployment V2 release material directory inventory changed "
+                f"(missing={sorted(expected_directories - actual_directories)!r}, "
+                f"extra={sorted(actual_directories - expected_directories)!r})"
+            )
+        for pinned in generation.material_files:
+            relative = PurePosixPath(pinned.relative_path)
+            parent_fd = os.dup(material_root_fd)
+            try:
+                for part in relative.parts[:-1]:
+                    flags = (
+                        os.O_RDONLY
+                        | getattr(os, "O_CLOEXEC", 0)
+                        | getattr(os, "O_DIRECTORY", 0)
+                        | getattr(os, "O_NOFOLLOW", 0)
+                    )
+                    child_fd = os.open(part, flags, dir_fd=parent_fd)
+                    os.close(parent_fd)
+                    parent_fd = child_fd
+                    _require_private_directory(
+                        parent_fd,
+                        label=f"deployment V2 material directory {part!r}",
+                    )
+                flags = (
+                    os.O_RDONLY
+                    | getattr(os, "O_CLOEXEC", 0)
+                    | getattr(os, "O_NOFOLLOW", 0)
+                )
+                descriptor = os.open(relative.name, flags, dir_fd=parent_fd)
+                try:
+                    metadata = os.fstat(descriptor)
+                    chunks: list[bytes] = []
+                    while chunk := os.read(descriptor, 1024 * 1024):
+                        chunks.append(chunk)
+                finally:
+                    os.close(descriptor)
+            finally:
+                os.close(parent_fd)
+            if (
+                not stat.S_ISREG(metadata.st_mode)
+                or stat.S_IMODE(metadata.st_mode) != 0o600
+                or metadata.st_uid != os.geteuid()
+                or metadata.st_nlink != 1
+                or (metadata.st_dev, metadata.st_ino) != (pinned.device, pinned.inode)
+                or _sha256_bytes(b"".join(chunks)) != pinned.digest
+            ):
+                raise DeploymentWrapperError(
+                    f"deployment V2 release material {pinned.relative_path!r} changed"
+                )
+    except OSError as exc:
+        raise DeploymentWrapperError(
+            f"deployment V2 release material changed or cannot be reverified: {exc}"
+        ) from exc
+    finally:
+        if "material_root_fd" in locals():
+            os.close(material_root_fd)
+
+
+def _dotenv_path_value(path: Path, *, label: str) -> bytes:
+    raw = str(path).encode("utf-8")
+    if any(marker in raw for marker in (b"\x00", b"\r", b"\n")):
+        raise DeploymentWrapperError(f"{label} cannot contain NUL, CR or LF")
+    return raw
 
 
 def require_effective_authorization_set_bind(
@@ -1135,6 +1471,75 @@ def require_effective_authorization_set_bind(
             f"({actual} != {expected_digest})"
         )
     return source.resolve(strict=True)
+
+
+def require_effective_v2_material_bind(*, effective_compose: dict[str, Any]) -> Path:
+    """Exige le répertoire runtime V2 unique, absolu et monté en lecture seule."""
+    services = effective_compose.get("services")
+    if not isinstance(services, dict):
+        raise DeploymentWrapperError("effective compose has no services")
+    sources: list[Path] = []
+    for service_name in (
+        "multilevel-worker-a-production",
+        "multilevel-worker-b-production",
+    ):
+        service = services.get(service_name)
+        volumes = service.get("volumes") if isinstance(service, dict) else None
+        if not isinstance(volumes, list):
+            raise DeploymentWrapperError(f"{service_name} has no resolved V2 material bind")
+        matches = [
+            volume
+            for volume in volumes
+            if isinstance(volume, dict)
+            and volume.get("target") == "/app/production/v2-material"
+        ]
+        if len(matches) != 1:
+            raise DeploymentWrapperError(
+                f"{service_name} must have exactly one V2 release material bind"
+            )
+        nested_targets = [
+            volume.get("target")
+            for volume in volumes
+            if isinstance(volume, dict)
+            and isinstance(volume.get("target"), str)
+            and volume.get("target").startswith("/app/production/v2-material/")
+        ]
+        if nested_targets:
+            raise DeploymentWrapperError(
+                f"{service_name} has a bind masking V2 release material: "
+                f"{sorted(nested_targets)!r}"
+            )
+        volume = matches[0]
+        if volume.get("type") != "bind" or volume.get("read_only") is not True:
+            raise DeploymentWrapperError(
+                f"{service_name} V2 release material bind must be a read-only bind"
+            )
+        source_raw = volume.get("source")
+        if not isinstance(source_raw, str) or not source_raw:
+            raise DeploymentWrapperError(
+                f"{service_name} V2 release material bind source is missing"
+            )
+        source = Path(source_raw)
+        if not source.is_absolute():
+            raise DeploymentWrapperError("effective V2 release material bind source must be absolute")
+        try:
+            descriptor, _chain = _open_directory_chain_no_follow(source)
+            try:
+                _require_private_directory(
+                    descriptor, label="effective V2 release material bind source"
+                )
+            finally:
+                os.close(descriptor)
+        except OSError as exc:
+            raise DeploymentWrapperError(
+                f"effective V2 release material bind cannot be frozen safely: {exc}"
+            ) from exc
+        sources.append(source)
+    if sources[0] != sources[1]:
+        raise DeploymentWrapperError(
+            "production workers resolve different V2 release material bind sources"
+        )
+    return sources[0].resolve(strict=True)
 
 
 def _load_v2_release_material_from_bundle(
@@ -1352,13 +1757,15 @@ def deploy_from_bundle(
     le projet Compose de production est partagé avec une stack non-RAG
     sur l'hôte cible.
 
-    En V2, la source de bind de l'AuthorizationSet vit dans une génération
-    durable adressée par les digests du bundle et du set, et non dans le
-    scratch Compose. Toute génération complètement matérialisée est conservée,
-    même si le déploiement échoue avant ``compose up`` : un autre processus a
-    pu la réutiliser entre-temps. Le garbage collection est donc une opération
-    séparée, hors de cette frontière concurrente; les générations antérieures
-    restent utilisables pour rollback.
+    En V2, la source de bind de l'AuthorizationSet et l'allowlist exacte des
+    fichiers relus par le readiness gate vivent dans une génération durable
+    adressée par les digests du bundle et du set, et non dans le scratch
+    Compose ni dans un répertoire opérateur résiduel. Toute génération
+    complètement matérialisée est conservée, même si le déploiement échoue
+    avant ``compose up`` : un autre processus a pu la réutiliser entre-temps.
+    Le garbage collection est donc une opération séparée, hors de cette
+    frontière concurrente; les générations antérieures restent utilisables
+    pour rollback.
     """
     verified = _verify_deploy_inputs(
         bundle_dir=bundle_dir,
@@ -1407,20 +1814,29 @@ def deploy_from_bundle(
                 raise DeploymentWrapperError(
                     "bundled authorization set differs from signed readiness"
                 )
-            authorization_generation = _materialize_authorization_set_generation(
+            authorization_generation = _materialize_v2_release_generation(
                 state_root=(
                     deployment_state_root
                     if deployment_state_root is not None
                     else bundle_dir.parent / ".nexus-deployment-state"
                 ),
-                bundle_digest=verified.bundle_document["bundle_digest"],
+                bundle_dir=bundle_dir,
+                bundle_document=verified.bundle_document,
                 authorization_set_digest=verified.authorization_set_digest,
-                raw=authorization_raw,
+                authorization_set_raw=authorization_raw,
             )
             snapshot_authorization_set = authorization_generation.path
+            assert authorization_generation.material_root is not None
             env_raw = env_raw.rstrip(b"\n") + (
                 b"\nPRODUCTION_AUTHORIZATION_SET_HOST_FILE="
-                + str(snapshot_authorization_set).encode("utf-8")
+                + _dotenv_path_value(
+                    snapshot_authorization_set, label="authorization set snapshot path"
+                )
+                + b"\nPRODUCTION_V2_RELEASE_MATERIAL_HOST_DIR="
+                + _dotenv_path_value(
+                    authorization_generation.material_root,
+                    label="V2 release material snapshot path",
+                )
                 + b"\n"
             )
         signer._atomic_private_write(snapshot / _ENV_BUNDLE_NAME, env_raw)  # noqa: SLF001
@@ -1480,6 +1896,13 @@ def deploy_from_bundle(
                 raise DeploymentWrapperError(
                     "effective Compose does not use the private authorization set snapshot"
                 )
+            effective_material_root = require_effective_v2_material_bind(
+                effective_compose=snapshot_effective
+            )
+            if effective_material_root != authorization_generation.material_root:
+                raise DeploymentWrapperError(
+                    "effective Compose does not use the private V2 release material snapshot"
+                )
             _require_generation_identity(authorization_generation)
 
         pull = run_subprocess(snapshot_args + ["pull", *explicit_services], bundle_dir)
@@ -1499,6 +1922,17 @@ def deploy_from_bundle(
                 ),
                 expected_digest=verified.authorization_set_digest,
             )
+            effective_material_root = require_effective_v2_material_bind(
+                effective_compose=run_bundle_compose_config(
+                    snapshot,
+                    snapshot / _ENV_BUNDLE_NAME,
+                    _CANONICAL_COMPOSE_FILES,
+                )
+            )
+            if effective_material_root != authorization_generation.material_root:
+                raise DeploymentWrapperError(
+                    "effective Compose changed its private V2 release material snapshot"
+                )
             _require_generation_identity(authorization_generation)
         up = run_subprocess(snapshot_args + ["up", "-d", *explicit_services], bundle_dir)
         if up.returncode != 0:

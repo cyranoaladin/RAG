@@ -204,12 +204,18 @@ distincte `republish-catalog-v2`. Cette dernière ne reçoit aucune autorité ni
 review binding singulier : elle relit campagne, `AuthorizationSet` et membres
 depuis le tree Git exact, puis délègue à la frontière V2 partagée.
 
-Le bundle de déploiement V2 matérialise le set et le registre de révocation.
-Deploy et startup rehashent les octets montés, exigent le digest readiness,
-refusent tout membre révoqué ou hors fenêtre, et vérifient le manifeste de
-profils réellement chargé. Toute divergence est refusée avant mutation
-Docker. Le runtime V2 utilise le parseur partagé du registre ; le parseur
-historique reste uniquement sur le chemin legacy explicite.
+Le bundle de déploiement V2 matérialise le set et l'allowlist exacte de tout
+le matériel relu par le runtime (registre, placement, profils, H2, promotion,
+membres, preuves et sources). Le deploy en produit une génération privée
+adressée par le digest du bundle et du set, remplace dans son snapshot les
+deux binds opérateur par cette génération, puis revalide chemins, inventaire,
+inodes et digests avant `pull`, entre `pull` et `up`, et après `up`. Aucun
+`.env` ni fichier hors allowlist n'entre dans le bind runtime. Deploy et
+startup exigent le digest readiness, refusent tout membre révoqué ou hors
+fenêtre, et vérifient le manifeste de profils réellement chargé. Toute
+divergence est refusée avant la mutation Docker suivante. Le runtime V2
+utilise le parseur partagé du registre ; le parseur historique reste
+uniquement sur le chemin legacy explicite.
 
 ### Exécution par job et révocation live
 

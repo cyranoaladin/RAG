@@ -614,10 +614,18 @@ class TestReadinessManifestV2ExactMaterialVerification:
         effective_set = tmp_path / "effective-authorization-set.json"
         effective_set.write_bytes(material.authorization_set_raw)
         effective_set.chmod(0o600)
+        stale_material_root = tmp_path / "stale-v2-material"
+        stale_material_root.mkdir()
         set_bind = {
             "type": "bind",
             "source": str(effective_set.resolve()),
             "target": "/app/production/authorization-set.json",
+            "read_only": True,
+        }
+        material_bind = {
+            "type": "bind",
+            "source": str(stale_material_root.resolve()),
+            "target": "/app/production/v2-material",
             "read_only": True,
         }
         resolved = _resolved_compose(
@@ -625,11 +633,11 @@ class TestReadinessManifestV2ExactMaterialVerification:
             **{
                 "multilevel-worker-a-production": {
                     "image": f"{WORKER_REPO}@{WORKER_DIGEST}",
-                    "volumes": [set_bind],
+                    "volumes": [set_bind, material_bind],
                 },
                 "multilevel-worker-b-production": {
                     "image": f"{WORKER_REPO}@{WORKER_DIGEST}",
-                    "volumes": [set_bind],
+                    "volumes": [set_bind, material_bind],
                 },
             },
         )
@@ -685,17 +693,22 @@ class TestReadinessManifestV2ExactMaterialVerification:
             _compose_files: tuple[str, ...],
         ) -> dict[str, Any]:
             configured_source = effective_set.resolve()
+            configured_material_root = stale_material_root.resolve()
             for line in env_file.read_text(encoding="utf-8").splitlines():
                 if line.startswith("PRODUCTION_AUTHORIZATION_SET_HOST_FILE="):
                     configured_source = Path(line.split("=", 1)[1])
+                if line.startswith("PRODUCTION_V2_RELEASE_MATERIAL_HOST_DIR="):
+                    configured_material_root = Path(line.split("=", 1)[1])
             document = json.loads(json.dumps(resolved))
             for worker in (
                 "multilevel-worker-a-production",
                 "multilevel-worker-b-production",
             ):
-                document["services"][worker]["volumes"][0]["source"] = str(
-                    configured_source
-                )
+                for volume in document["services"][worker]["volumes"]:
+                    if volume["target"] == "/app/production/authorization-set.json":
+                        volume["source"] = str(configured_source)
+                    elif volume["target"] == "/app/production/v2-material":
+                        volume["source"] = str(configured_material_root)
             return document
 
         assert dep.deploy_from_bundle(
@@ -708,6 +721,7 @@ class TestReadinessManifestV2ExactMaterialVerification:
 
         commands: list[list[str]] = []
         executed_set_sources: list[Path] = []
+        executed_material_roots: list[Path] = []
         deployment_state_root = tmp_path / "deployment-state"
 
         def mutate_set_after_pull(
@@ -721,9 +735,22 @@ class TestReadinessManifestV2ExactMaterialVerification:
                 if line.startswith("PRODUCTION_AUTHORIZATION_SET_HOST_FILE=")
             )
             executed_set_sources.append(snapshot_source)
+            material_root = next(
+                Path(line.split("=", 1)[1])
+                for line in snapshot_env.read_text(encoding="utf-8").splitlines()
+                if line.startswith("PRODUCTION_V2_RELEASE_MATERIAL_HOST_DIR=")
+            )
+            executed_material_roots.append(material_root)
             assert snapshot_source.read_bytes() == material.authorization_set_raw
+            assert (material_root / "h2-coverage.json").read_bytes() == (
+                material.h2_coverage_raw
+            )
+            assert (material_root / "bundle_manifest.json").is_file()
             if "pull" in args:
                 effective_set.write_bytes(b"changed between pull and up\n")
+                (stale_material_root / "untrusted-after-pull").write_text(
+                    "ignored", encoding="utf-8"
+                )
             return subprocess.CompletedProcess(args, 0, "", "")
 
         dep.deploy_from_bundle(
@@ -739,13 +766,17 @@ class TestReadinessManifestV2ExactMaterialVerification:
         assert sum("pull" in command for command in commands) == 1
         assert sum("up" in command for command in commands) == 1
         assert executed_set_sources
+        assert executed_material_roots
         durable_source = executed_set_sources[-1]
+        durable_material_root = executed_material_roots[-1]
         assert durable_source.exists()
         assert durable_source.read_bytes() == material.authorization_set_raw
         durable_stat = durable_source.stat()
         assert durable_stat.st_mode & 0o777 == 0o600
         assert durable_stat.st_nlink == 1
         assert durable_source.is_relative_to(deployment_state_root)
+        assert durable_material_root.is_relative_to(deployment_state_root)
+        assert durable_material_root != stale_material_root.resolve()
         effective_set.write_bytes(material.authorization_set_raw)
 
         recreate_sources: list[Path] = []
@@ -811,6 +842,59 @@ class TestReadinessManifestV2ExactMaterialVerification:
                 displaced_generation.rename(durable_source.parent)
         assert sum("pull" in command for command in replacement_commands) == 1
         assert sum("up" in command for command in replacement_commands) == 0
+
+        extra_material_commands: list[list[str]] = []
+        unexpected_material = durable_material_root / "unexpected.env"
+
+        def add_material_after_pull(
+            args: list[str], _cwd: Path
+        ) -> subprocess.CompletedProcess[str]:
+            extra_material_commands.append(args)
+            if "pull" in args:
+                unexpected_material.write_bytes(b"never mounted\n")
+                unexpected_material.chmod(0o600)
+            return subprocess.CompletedProcess(args, 0, "", "")
+
+        try:
+            with pytest.raises(dep.DeploymentWrapperError, match="inventory changed"):
+                dep.deploy_from_bundle(
+                    bundle_dir=bundle_dir,
+                    merge_sha=MERGE_SHA,
+                    execute=True,
+                    trusted_readiness_anchor_raw=anchor.read_bytes(),
+                    run_subprocess=add_material_after_pull,
+                    list_running_containers=lambda: [],
+                    run_bundle_compose_config=resolve_effective_bind,
+                    deployment_state_root=deployment_state_root,
+                )
+        finally:
+            unexpected_material.unlink(missing_ok=True)
+        assert sum("pull" in command for command in extra_material_commands) == 1
+        assert sum("up" in command for command in extra_material_commands) == 0
+
+        material_mutation_commands: list[list[str]] = []
+
+        def mutate_material_after_pull(
+            args: list[str], _cwd: Path
+        ) -> subprocess.CompletedProcess[str]:
+            material_mutation_commands.append(args)
+            if "pull" in args:
+                (durable_material_root / "h2-coverage.json").write_bytes(b"changed\n")
+            return subprocess.CompletedProcess(args, 0, "", "")
+
+        with pytest.raises(dep.DeploymentWrapperError, match="release material.*changed"):
+            dep.deploy_from_bundle(
+                bundle_dir=bundle_dir,
+                merge_sha=MERGE_SHA,
+                execute=True,
+                trusted_readiness_anchor_raw=anchor.read_bytes(),
+                run_subprocess=mutate_material_after_pull,
+                list_running_containers=lambda: [],
+                run_bundle_compose_config=resolve_effective_bind,
+                deployment_state_root=deployment_state_root,
+            )
+        assert sum("pull" in command for command in material_mutation_commands) == 1
+        assert sum("up" in command for command in material_mutation_commands) == 0
 
         failed_state_root = tmp_path / "failed-deployment-state"
         with pytest.raises(dep.DeploymentWrapperError, match="compose pull failed"):
