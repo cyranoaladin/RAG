@@ -7,9 +7,15 @@ from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
 
+import yaml
+from nexus_contracts.ingestion import CollectionProfile, collection_profile_fingerprint
+
 SERVICE_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = SERVICE_ROOT.parents[1]
 REPORT = REPO_ROOT / "docs/reports/lot_multi_authorization_release_v2_20260823.md"
+GROUNDED_PROFILE_REPORT = (
+    REPO_ROOT / "docs/reports/lot_grounded_production_profiles_20260824.md"
+)
 MASTER_JSON = REPO_ROOT / "docs/reports/master_go_live_state_20260815.json"
 MASTER_MD = REPO_ROOT / "docs/reports/master_go_live_state_20260815.md"
 CHECKLIST = REPO_ROOT / "docs/checklists/production_go_live_checklist.md"
@@ -26,10 +32,23 @@ SCOPE_AUDIT = REPO_ROOT / "docs/reports/tier_a_scope_profile_audit_clean_2026082
 SET_ALGEBRA = REPO_ROOT / "docs/reports/tier_a_set_algebra_reconciliation_20260822.json"
 NETWORK_AUDIT = REPO_ROOT / "docs/reports/tier_a_byte_identity_network_audit_20260822.json"
 CONTENT_LEDGER = REPO_ROOT / "docs/reports/evidence-index/content_ledger_20260814.jsonl"
+PRODUCTION_PLACEMENT_POLICY = (
+    REPO_ROOT / "services/rag-engine/configs/h2_initial_placement_policy.yml"
+)
+PRODUCTION_PROFILE = (
+    REPO_ROOT
+    / "services/rag-engine/configs/ingestion_profiles/philosophie_terminale_tc_h2c_v1.yml"
+)
+PRODUCTION_PROFILE_MANIFEST = (
+    REPO_ROOT / "services/rag-engine/configs/ingestion_manifest.yml"
+)
 
 BASE_SHA = "3548bf300c99685ff6ede0dce2e5bfe8c044d213"
 FINAL_SET_SHA256 = "3705935f306a52cde0f398db20f685dce82d0bb9acd7909c8e6955d6356643e0"
-PROFILE_MATRIX_SHA256 = "8009596c0cce54f816a1a1307a9ba5663146cfa2d7d95e381e84819d3be9c963"
+PROFILE_MATRIX_SHA256 = "b1fb997b56f080101493ac1efb151fc228109e110a9d8d86ce74f730eff544fe"
+PRODUCTION_PROFILE_FINGERPRINT = (
+    "993b350071ffa961c2be47738aa138b95db56317f117d7b4086461dbfd0acefc"
+)
 HEX64 = re.compile(r"[0-9a-f]{64}")
 
 
@@ -196,14 +215,16 @@ def test_master_records_closed_cloudflare_work_and_unresolved_profile_decisions(
         "DISTINCT_LEVEL_SUBJECT_PAIRS_MINIMUM": 22,
         "MATRIX_RAW_DISTINCT_LEVEL_SUBJECT_PAIRS": 23,
         "MATRIX_FULLY_SPECIFIED_LEVEL_SUBJECT_PAIRS": 21,
-        "GROUNDED_PARTITION_COUNT": 10,
-        "GROUNDED_CONTENT_COUNT": 11,
-        "DECISION_REQUIRED_PARTITION_COUNT": 14,
-        "DECISION_REQUIRED_CONTENT_COUNT": 61,
-        "PROFILE_EXACT_MATCH_COUNT": 0,
-        "PROFILE_NO_MATCH_COUNT": 72,
+        "GROUNDED_PARTITION_COUNT": 11,
+        "GROUNDED_CONTENT_COUNT": 16,
+        "STAGING_NON_PRODUCTION_PARTITION_COUNT": 10,
+        "STAGING_NON_PRODUCTION_CONTENT_COUNT": 11,
+        "DECISION_REQUIRED_PARTITION_COUNT": 13,
+        "DECISION_REQUIRED_CONTENT_COUNT": 56,
+        "PROFILE_EXACT_MATCH_COUNT": 5,
+        "PROFILE_NO_MATCH_COUNT": 67,
         "PROFILE_AMBIGUOUS_COUNT": 0,
-        "DISTINCT_CANONICAL_RESOURCE_SCOPES": None,
+        "DISTINCT_CANONICAL_RESOURCE_SCOPES": 1,
         "PROFILE_DECISION_REQUIRED": True,
         "FABRICATED_PROFILE_COUNT": 0,
     }
@@ -215,18 +236,101 @@ def test_master_records_closed_cloudflare_work_and_unresolved_profile_decisions(
     assert {sha for row in matrix for sha in row["content_sha256"]} == set(
         FINAL_SET.read_text(encoding="ascii").splitlines()
     )
-    assert sum(not row["profile_decision_required"] for row in matrix) == 10
+    assert sum(not row["profile_decision_required"] for row in matrix) == 11
     assert sum(
         row["content_count"] for row in matrix if not row["profile_decision_required"]
-    ) == 11
-    assert sum(row["profile_decision_required"] for row in matrix) == 14
-    assert sum(row["content_count"] for row in matrix if row["profile_decision_required"]) == 61
+    ) == 16
+    assert sum(row["profile_decision_required"] for row in matrix) == 13
+    assert sum(row["content_count"] for row in matrix if row["profile_decision_required"]) == 56
     raw_pairs = {
         (row["dimensions"]["niveau"]["value"], row["dimensions"]["matiere"]["value"])
         for row in matrix
     }
     assert len(raw_pairs) == 23
     assert sum(None not in pair for pair in raw_pairs) == 21
+
+
+def test_p24_is_bound_to_the_exact_production_profile_and_staging_is_not_production() -> None:
+    matrix = json.loads(PROFILE_MATRIX.read_text(encoding="utf-8"))
+    p24 = next(row for row in matrix if row["partition_id"] == "P24")
+    policy = yaml.safe_load(PRODUCTION_PLACEMENT_POLICY.read_text(encoding="utf-8"))
+    profile = CollectionProfile.model_validate(
+        yaml.safe_load(PRODUCTION_PROFILE.read_text(encoding="utf-8"))
+    )
+    manifest = yaml.safe_load(PRODUCTION_PROFILE_MANIFEST.read_text(encoding="utf-8"))
+    profile_path = PRODUCTION_PROFILE.relative_to(REPO_ROOT).as_posix()
+    policy_path = PRODUCTION_PLACEMENT_POLICY.relative_to(REPO_ROOT).as_posix()
+    manifest_path = PRODUCTION_PROFILE_MANIFEST.relative_to(REPO_ROOT).as_posix()
+
+    assert p24["content_sha256"] == sorted(policy["approved_artifacts"])
+    assert len(p24["content_sha256"]) == 5
+    assert {
+        rule["collection"] for rule in policy["approved_artifacts"].values()
+    } == {profile.scope.collection}
+    assert p24["partition_kind"] == "EXACT_VERSIONED_RELEASE_PROFILE"
+    assert p24["profile_decision_required"] is False
+    assert p24["evidence_sources"] == [policy_path, profile_path, manifest_path]
+    assert all(
+        dimension == {
+            "grounded": True,
+            "source_of_truth": profile_path,
+            "value": profile.scope.model_dump(mode="json")[name],
+        }
+        for name, dimension in p24["dimensions"].items()
+    )
+
+    fingerprint = collection_profile_fingerprint(profile)
+    assert fingerprint == PRODUCTION_PROFILE_FINGERPRINT
+    assert manifest["profiles"] == [
+        {
+            "collection": profile.scope.collection,
+            "profile_version": profile.profile_version,
+            "fingerprint": fingerprint,
+            "approved_by": "Nexus Réussite",
+            "approved_at": "2026-08-09T00:00:00+01:00",
+        }
+    ]
+
+    staging = [
+        row
+        for row in matrix
+        if any("/ingestion_profiles/staging/" in source for source in row["evidence_sources"])
+    ]
+    production = [
+        row
+        for row in matrix
+        if PRODUCTION_PROFILE.relative_to(REPO_ROOT).as_posix() in row["evidence_sources"]
+    ]
+    assert len(staging) == 10
+    assert sum(row["content_count"] for row in staging) == 11
+    assert all(row["partition_id"] != "P24" for row in staging)
+    assert [row["partition_id"] for row in production] == ["P24"]
+    assert sum(row["content_count"] for row in production) == 5
+    assert 72 - sum(row["content_count"] for row in production) == 67
+
+
+def test_grounded_production_profile_report_records_only_proven_p24_promotion() -> None:
+    report = GROUNDED_PROFILE_REPORT.read_text(encoding="utf-8")
+
+    for fragment in (
+        "BASE_SHA=8aa65fb3fb5f077bcd6dfa427c8902bd6d5c28b0",
+        "PRODUCTION_PROFILE_EXACT_MATCH_COUNT=5",
+        "PROFILE_NO_MATCH_COUNT=67",
+        "DECISION_REQUIRED_PARTITION_COUNT=13",
+        "DECISION_REQUIRED_CONTENT_COUNT=56",
+        "STAGING_NON_PRODUCTION_PARTITION_COUNT=10",
+        "STAGING_NON_PRODUCTION_CONTENT_COUNT=11",
+        PRODUCTION_PROFILE_FINGERPRINT,
+        "services/rag-engine/configs/h2_initial_placement_policy.yml",
+        "services/rag-engine/configs/ingestion_profiles/philosophie_terminale_tc_h2c_v1.yml",
+        "services/rag-engine/configs/ingestion_manifest.yml",
+        "P01-P10_NOT_PROMOTED=true",
+        "PRODUCTION_READY=false",
+        "GO_LIVE_READY=false",
+        "RAG_PRODUCTION_DEPLOYED=false",
+    ):
+        assert fragment in report
+    assert "PRODUCTION_PROFILE_EXACT_MATCH_COUNT=16" not in report
 
 
 def test_master_marks_unversioned_parallel_observations_unknown() -> None:

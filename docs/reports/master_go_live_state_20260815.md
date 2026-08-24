@@ -69,26 +69,32 @@ La matrice proposée versionnée contient 24 partitions et couvre les 72
 contenus. L'engagement opérateur reste une borne `>=22`, pas un exact 22 : la
 matrice porte 23 couples bruts `(niveau, matière)`, dont 21 sans valeur nulle.
 Son SHA-256 est
-`8009596c0cce54f816a1a1307a9ba5663146cfa2d7d95e381e84819d3be9c963`.
+`b1fb997b56f080101493ac1efb151fc228109e110a9d8d86ce74f730eff544fe`.
 
 ```text
 DISTINCT_LEVEL_SUBJECT_PAIRS_MINIMUM=22
 MATRIX_RAW_DISTINCT_LEVEL_SUBJECT_PAIRS=23
 MATRIX_FULLY_SPECIFIED_LEVEL_SUBJECT_PAIRS=21
-GROUNDED_PARTITION_COUNT=10
-GROUNDED_CONTENT_COUNT=11
-DECISION_REQUIRED_PARTITION_COUNT=14
-DECISION_REQUIRED_CONTENT_COUNT=61
-PROFILE_EXACT_MATCH_COUNT=0
-PROFILE_NO_MATCH_COUNT=72
+GROUNDED_PARTITION_COUNT=11
+GROUNDED_CONTENT_COUNT=16
+STAGING_NON_PRODUCTION_PARTITION_COUNT=10
+STAGING_NON_PRODUCTION_CONTENT_COUNT=11
+DECISION_REQUIRED_PARTITION_COUNT=13
+DECISION_REQUIRED_CONTENT_COUNT=56
+PROFILE_EXACT_MATCH_COUNT=5
+PROFILE_NO_MATCH_COUNT=67
 PROFILE_AMBIGUOUS_COUNT=0
-DISTINCT_CANONICAL_RESOURCE_SCOPES=UNKNOWN_PENDING_PROFILE_DECISIONS
+DISTINCT_CANONICAL_RESOURCE_SCOPES=1
 PROFILE_DECISION_REQUIRED=true
 FABRICATED_PROFILE_COUNT=0
 ```
 
-Les 61 contenus non ancrables restent une vraie décision produit. Aucun profil
-n'a été inventé pour atteindre artificiellement 72 matches.
+Les cinq contenus P24 sont liés au profil de production philosophie Terminale
+déjà approuvé et à son fingerprint `993b350071ffa961c2be47738aa138b95db56317f117d7b4086461dbfd0acefc`.
+Les 11 contenus P01–P10 restent liés à des profils `staging` et ne sont pas
+comptés comme matches de production. Les 56 autres contenus restent une vraie
+décision produit. Aucun profil n'a été inventé pour atteindre artificiellement
+72 matches.
 
 ## 4. Architecture multi-autorisation
 

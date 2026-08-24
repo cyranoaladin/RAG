@@ -464,7 +464,7 @@ def test_dirty_tracked_replacement_cannot_change_exact_tree_result(tmp_path: Pat
     assert after == before
 
 
-def test_exact_current_matrix_still_refuses_fourteen_partitions_sixty_one_contents(
+def test_exact_current_matrix_still_refuses_thirteen_partitions_fifty_six_contents(
     tmp_path: Path,
 ) -> None:
     repo, _ = _repository(tmp_path)
@@ -491,7 +491,7 @@ def test_exact_current_matrix_still_refuses_fourteen_partitions_sixty_one_conten
 
     with pytest.raises(
         ReleaseScopePlacementProducerError,
-        match="PROFILE_DECISION_REQUIRED: 14 partitions / 61 contents",
+        match="PROFILE_DECISION_REQUIRED: 13 partitions / 56 contents",
     ):
         _produce(repo, tree)
 
