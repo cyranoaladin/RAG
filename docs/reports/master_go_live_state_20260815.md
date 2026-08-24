@@ -1,13 +1,14 @@
-# Master Go-Live State — état observé après PR #127
+# Master Go-Live State — état observé après PR #129
 
 Ce document met à jour l'instantané historique du 2026-08-15. Il décrit la
-baseline `main` après PR #127 et le candidat contractuel multi-autorisation ;
-il n'est pas un pointeur live auto-référent vers la branche.
+baseline `main` après PR #129 et le candidat de correction des profils ; il
+n'est pas un pointeur live auto-référent vers la branche.
 
 ```text
-STATE_GENERATED_AT=2026-08-24T06:55:17Z
-STATE_OBSERVED_AT_MAIN_SHA=3548bf300c99685ff6ede0dce2e5bfe8c044d213
+STATE_GENERATED_AT=2026-08-24T22:32:37Z
+STATE_OBSERVED_AT_MAIN_SHA=8aa65fb3fb5f077bcd6dfa427c8902bd6d5c28b0
 PR127_MERGED=true
+PR129_MERGED=true
 ```
 
 ## 1. Release corpus finalisée
@@ -69,26 +70,37 @@ La matrice proposée versionnée contient 24 partitions et couvre les 72
 contenus. L'engagement opérateur reste une borne `>=22`, pas un exact 22 : la
 matrice porte 23 couples bruts `(niveau, matière)`, dont 21 sans valeur nulle.
 Son SHA-256 est
-`8009596c0cce54f816a1a1307a9ba5663146cfa2d7d95e381e84819d3be9c963`.
+`b1fb997b56f080101493ac1efb151fc228109e110a9d8d86ce74f730eff544fe`.
 
 ```text
 DISTINCT_LEVEL_SUBJECT_PAIRS_MINIMUM=22
 MATRIX_RAW_DISTINCT_LEVEL_SUBJECT_PAIRS=23
 MATRIX_FULLY_SPECIFIED_LEVEL_SUBJECT_PAIRS=21
-GROUNDED_PARTITION_COUNT=10
-GROUNDED_CONTENT_COUNT=11
-DECISION_REQUIRED_PARTITION_COUNT=14
-DECISION_REQUIRED_CONTENT_COUNT=61
-PROFILE_EXACT_MATCH_COUNT=0
-PROFILE_NO_MATCH_COUNT=72
+GROUNDED_PARTITION_COUNT=11
+GROUNDED_CONTENT_COUNT=16
+STAGING_NON_PRODUCTION_PARTITION_COUNT=10
+STAGING_NON_PRODUCTION_CONTENT_COUNT=11
+DECISION_REQUIRED_PARTITION_COUNT=13
+DECISION_REQUIRED_CONTENT_COUNT=56
+PROFILE_EXACT_MATCH_COUNT=5
+PROFILE_NO_MATCH_COUNT=67
 PROFILE_AMBIGUOUS_COUNT=0
+GROUNDED_DISTINCT_CANONICAL_RESOURCE_SCOPES=1
 DISTINCT_CANONICAL_RESOURCE_SCOPES=UNKNOWN_PENDING_PROFILE_DECISIONS
+PROFILE_MAPPED_COUNT=0
+P24_RELEASE_REGISTRY_MAPPING_READY=false
 PROFILE_DECISION_REQUIRED=true
 FABRICATED_PROFILE_COUNT=0
 ```
 
-Les 61 contenus non ancrables restent une vraie décision produit. Aucun profil
-n'a été inventé pour atteindre artificiellement 72 matches.
+Les cinq contenus P24 sont liés au profil de production philosophie Terminale
+déjà approuvé et à son fingerprint `993b350071ffa961c2be47738aa138b95db56317f117d7b4086461dbfd0acefc`.
+Ils ne sont pas encore mappés par le producteur canonique : la collection est
+absente du release registry courant, qui refuse donc P24 fail-closed.
+Les 11 contenus P01–P10 restent liés à des profils `staging` et ne sont pas
+comptés comme matches de production. Les 56 autres contenus restent une vraie
+décision produit. Aucun profil n'a été inventé pour atteindre artificiellement
+72 matches.
 
 ## 4. Architecture multi-autorisation
 
@@ -105,7 +117,7 @@ ADR=ADR-0044
 CONTRACT_VERSION=0.13.0
 AUTHORIZATION_SET_PROTOCOL=NEXUS-AUTHORIZATION-SET-V1
 V1_LEGACY_READABLE_AND_UNCHANGED=true
-V2_MECHANISM_IMPLEMENTED_ON_BRANCH=true
+V2_MECHANISM_ON_MAIN=true
 ```
 
 La décision choisit un `AuthorizationSetV1` canonique comme source globale et
@@ -115,7 +127,7 @@ primitives de révocation et de revue. Les V1 ne changent ni de signification ni
 d'octets. ADR-0043 reste
 `UNREVIEWED_WIP/NON_AUTHORITATIVE/NOT_REUSED`.
 
-Les mécanismes sont présents sur la branche contractuelle, mais aucune vraie
+Les mécanismes sont présents sur `main` depuis PR #129, mais aucune vraie
 autorisation, campagne ou preuve H2 de production n'a encore été créée :
 
 ```text
@@ -192,8 +204,8 @@ INGESTED_ELIGIBLE_ARTIFACTS=0
 API_DISCOVERABLE_ELIGIBLE_ARTIFACTS=0
 ```
 
-La prochaine barrière est la PR contractuelle multi-autorisation elle-même.
-Les gates réels suivants restent, dans l'ordre : décisions de profils,
+La prochaine barrière est la revue humaine du présent lot de correction des
+profils. Les gates réels suivants restent, dans l'ordre : décisions de profils,
 autorisations exactes, campagne/republish, H2, rehearsal Docker corrigé, cible
 DB vérifiée, Environment provisionné, provenance/promotion, signature offline,
 puis cutover.

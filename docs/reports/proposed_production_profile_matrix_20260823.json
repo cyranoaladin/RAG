@@ -1718,58 +1718,63 @@
     ],
     "dimensions": {
       "audience": {
-        "grounded": false,
-        "source_of_truth": null,
-        "value": null
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/philosophie_terminale_tc_h2c_v1.yml",
+        "value": [
+          "libre",
+          "tous"
+        ]
       },
       "candidat": {
-        "grounded": false,
-        "source_of_truth": null,
-        "value": null
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/philosophie_terminale_tc_h2c_v1.yml",
+        "value": "libre"
       },
       "collection": {
-        "grounded": false,
-        "source_of_truth": null,
-        "value": null
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/philosophie_terminale_tc_h2c_v1.yml",
+        "value": "rag_nexus_philo_terminale_tc"
       },
       "matiere": {
         "grounded": true,
-        "source_of_truth": "docs/reports/tier_a_scope_profile_audit_clean_20260822.json -> matiere_evidence (compiled placement catalog)",
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/philosophie_terminale_tc_h2c_v1.yml",
         "value": "philosophie"
       },
       "niveau": {
-        "grounded": false,
-        "source_of_truth": "docs/reports/tier_a_scope_profile_audit_clean_20260822.json -> niveau_evidence (compiled placement catalog)",
-        "value": "non-classe"
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/philosophie_terminale_tc_h2c_v1.yml",
+        "value": "terminale"
       },
       "programme_version": {
-        "grounded": false,
-        "source_of_truth": null,
-        "value": null
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/philosophie_terminale_tc_h2c_v1.yml",
+        "value": "BOEN_special_8_2019-07-25"
       },
       "school_year": {
         "grounded": true,
-        "source_of_truth": "services/rag-pedago/data/releases/prerentree_2026_2027/release-registry.json -> school_year",
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/philosophie_terminale_tc_h2c_v1.yml",
         "value": "2026-2027"
       },
       "tenant": {
-        "grounded": false,
-        "source_of_truth": null,
-        "value": null
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/philosophie_terminale_tc_h2c_v1.yml",
+        "value": "libre_terminale"
       },
       "visibility": {
-        "grounded": false,
-        "source_of_truth": null,
-        "value": null
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/philosophie_terminale_tc_h2c_v1.yml",
+        "value": "internal"
       },
       "voie": {
-        "grounded": false,
-        "source_of_truth": null,
-        "value": null
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/philosophie_terminale_tc_h2c_v1.yml",
+        "value": "generale"
       }
     },
     "evidence_sources": [
-      "docs/reports/tier_a_scope_profile_audit_clean_20260822.json"
+      "services/rag-engine/configs/h2_initial_placement_policy.yml",
+      "services/rag-engine/configs/ingestion_profiles/philosophie_terminale_tc_h2c_v1.yml",
+      "services/rag-engine/configs/ingestion_manifest.yml"
     ],
     "observed_matiere_evidence": [
       "PHILOSOPHIE"
@@ -1778,7 +1783,7 @@
       "non-classe"
     ],
     "partition_id": "P24",
-    "partition_kind": "PLACEMENT_ONLY_UNRESOLVED",
-    "profile_decision_required": true
+    "partition_kind": "EXACT_VERSIONED_RELEASE_PROFILE",
+    "profile_decision_required": false
   }
 ]

@@ -464,7 +464,7 @@ def test_dirty_tracked_replacement_cannot_change_exact_tree_result(tmp_path: Pat
     assert after == before
 
 
-def test_exact_current_matrix_still_refuses_fourteen_partitions_sixty_one_contents(
+def test_exact_current_matrix_still_refuses_thirteen_partitions_fifty_six_contents(
     tmp_path: Path,
 ) -> None:
     repo, _ = _repository(tmp_path)
@@ -491,8 +491,80 @@ def test_exact_current_matrix_still_refuses_fourteen_partitions_sixty_one_conten
 
     with pytest.raises(
         ReleaseScopePlacementProducerError,
-        match="PROFILE_DECISION_REQUIRED: 14 partitions / 61 contents",
+        match="PROFILE_DECISION_REQUIRED: 13 partitions / 56 contents",
     ):
+        _produce(repo, tree)
+
+
+def test_p24_profile_match_still_refuses_unregistered_release_collection(
+    tmp_path: Path,
+) -> None:
+    repo, _ = _repository(tmp_path)
+    root = Path(__file__).resolve().parents[3]
+    matrix_path = "docs/reports/proposed_production_profile_matrix_20260823.json"
+    policy_path = "services/rag-engine/configs/h2_initial_placement_policy.yml"
+    profile_path = (
+        "services/rag-engine/configs/ingestion_profiles/"
+        "philosophie_terminale_tc_h2c_v1.yml"
+    )
+    manifest_path = "services/rag-engine/configs/ingestion_manifest.yml"
+    registry_path = (
+        "services/rag-pedago/data/releases/prerentree_2026_2027/"
+        "release-registry.json"
+    )
+
+    matrix = json.loads((root / matrix_path).read_text(encoding="utf-8"))
+    p24 = next(row for row in matrix if row["partition_id"] == "P24")
+    profile_document = yaml.safe_load((root / profile_path).read_text(encoding="utf-8"))
+    profile = CollectionProfile.model_validate(profile_document)
+    manifest_document = yaml.safe_load((root / manifest_path).read_text(encoding="utf-8"))
+    profile_fact = VerifiedProfileFactV1(
+        profile_id=profile.scope.collection,
+        profile_version=profile.profile_version,
+        profile_fingerprint=collection_profile_fingerprint(profile),
+        scope=profile.scope,
+    )
+
+    _write(repo, MATRIX_PATH, _json_bytes([p24]))
+    _write(repo, CONTENTS_PATH, ("\n".join(p24["content_sha256"]) + "\n").encode())
+    _write(repo, REGISTRY_PATH, (root / registry_path).read_bytes())
+    _write(repo, PROFILE_MANIFEST_PATH, (root / manifest_path).read_bytes())
+    _write(repo, profile_path, (root / profile_path).read_bytes())
+    _write(repo, policy_path, (root / policy_path).read_bytes())
+    _write(repo, manifest_path, (root / manifest_path).read_bytes())
+    _write(
+        repo,
+        PROFILES_PATH,
+        _json_bytes(
+            {
+                "profile_manifest_digest": profile_manifest_fingerprint(manifest_document),
+                "profiles": [
+                    {
+                        **profile_fact.model_dump(mode="json"),
+                        "source_path": profile_path,
+                    }
+                ],
+            }
+        ),
+    )
+    _write(
+        repo,
+        PLACEMENTS_PATH,
+        _json_bytes(
+            [
+                {
+                    "content_sha256": content_sha256,
+                    "release_id": "multilevel-2026-2027-v1",
+                    "collection": profile.scope.collection,
+                    "profile_version": profile.profile_version,
+                }
+                for content_sha256 in p24["content_sha256"]
+            ]
+        ),
+    )
+    tree = _commit(repo, "P24 current production inputs")
+
+    with pytest.raises(ReleaseScopePlacementProducerError, match="UNACCEPTED_COLLECTION"):
         _produce(repo, tree)
 
 
