@@ -201,6 +201,18 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as exc:  # noqa: BLE001 - frontière CLI volontaire, jamais silencieuse
         print(f"WORKER_STARTUP_GATE_FAILED: {exc}", file=sys.stderr)
         return 1
+    readiness_mapping = getattr(readiness, "authorization_mapping", None)
+    if (
+        readiness_mapping is not None
+        and gate_result.manifest.manifest_fingerprint
+        != readiness_mapping.profile_manifest_digest
+    ):
+        print(
+            "WORKER_STARTUP_GATE_FAILED: loaded profile manifest digest differs "
+            "from the signed authorization set",
+            file=sys.stderr,
+        )
+        return 1
 
     # Traçabilité d'autorité (LOT44f, ADR-0031) : consigne, à chaque
     # démarrage, sous quelle autorité nommée et quelle empreinte de manifest
@@ -254,6 +266,8 @@ def main(argv: list[str] | None = None) -> int:
         # qui tourne sur un autre manifest que celui autorisé ne traite
         # plus aucun job de ce scope.
         manifest_digest=gate_result.manifest.manifest_fingerprint,
+        authorization_mapping=getattr(readiness, "authorization_mapping", None),
+        authorization_context=getattr(readiness, "authorization_context", None),
     )
 
     max_iterations = 1 if args.once else args.max_iterations

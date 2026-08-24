@@ -56,7 +56,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 from uuid import UUID, uuid4
 
 import psycopg
@@ -131,6 +131,10 @@ try:
         select_profile,
     )
     from ingestor.ingestion_profiles.validation import validate_scope_against_profile
+    from ingestor.ingestion_worker.authorization_mapping import (
+        AuthorizationMapping,
+        AuthorizationMappingError,
+    )
     from ingestor.verified_pedagogical_placement import (
         VerifiedPedagogicalPlacement,
         VerifiedPedagogicalPlacementResolver,
@@ -208,6 +212,10 @@ except (ImportError, ValueError):
     from ingestion_profiles.validation import (
         validate_scope_against_profile,
     )
+    from ingestion_worker.authorization_mapping import (
+        AuthorizationMapping,
+        AuthorizationMappingError,
+    )
     from verified_pedagogical_placement import (
         VerifiedPedagogicalPlacement,
         VerifiedPedagogicalPlacementResolver,
@@ -246,6 +254,12 @@ class ScopeAuthorizationVerifier(Protocol):
     ) -> VerifiedAuthorization: ...
 
 
+class AuthorizationContext(Protocol):
+    mapping: AuthorizationMapping
+
+    def reverify(self) -> AuthorizationMapping: ...
+
+
 @dataclass(frozen=True)
 class WorkerDeps:
     """``profile_registry`` (remédiation revue PR#90) : le ``ProfileRegistry``
@@ -275,6 +289,11 @@ class WorkerDeps:
     #: aucune autorisation réelle — un appelant qui oublie de la fournir
     #: échoue fail-closed, jamais silencieusement en mode « non vérifié ».
     manifest_digest: str = ""
+    #: Mapping de release V2 vérifié au startup gate. ``None`` désigne
+    #: exclusivement le chemin legacy V1 ; le runtime V2 le fournit une fois
+    #: et ne relit jamais le set entre deux checkpoints.
+    authorization_mapping: AuthorizationMapping | None = None
+    authorization_context: AuthorizationContext | None = None
 
     #: Preuves scellées, chargées et vérifiées **une fois** au démarrage.
     #:
@@ -340,6 +359,60 @@ class MissingPayloadFieldError(ValueError):
     jamais une valeur par défaut devinée."""
 
 
+class AuthorizationCheckpointError(ValueError):
+    """Le job diverge du mapping immutable de sa release V2."""
+
+
+def _current_authorization_mapping(deps: WorkerDeps) -> AuthorizationMapping | None:
+    if deps.authorization_context is None:
+        return deps.authorization_mapping
+    try:
+        refreshed = deps.authorization_context.reverify()
+    except RuntimeError as exc:
+        raise AuthorizationCheckpointError(str(exc)) from exc
+    if deps.authorization_mapping is not None and refreshed != deps.authorization_mapping:
+        raise AuthorizationCheckpointError(
+            "refreshed authorization mapping differs from worker startup mapping"
+        )
+    return refreshed
+
+
+def require_prefetch_authorization_mapping(
+    *,
+    mapping: AuthorizationMapping,
+    scope: ResourceScope,
+    claimed_authorization_id: str,
+) -> str:
+    """Checkpoint 1 : scope exact -> unique autorisation, avant réseau."""
+    try:
+        expected = mapping.authorization_id_for_scope(scope)
+    except AuthorizationMappingError as exc:
+        raise AuthorizationCheckpointError(str(exc)) from exc
+    if claimed_authorization_id != expected:
+        raise AuthorizationCheckpointError(
+            f"job claims {claimed_authorization_id!r}, signed mapping requires {expected!r}"
+        )
+    return cast(str, expected)
+
+
+def require_postfetch_authorization_mapping(
+    *,
+    mapping: AuthorizationMapping,
+    content_sha256: str,
+    authorization_id: str,
+) -> None:
+    """Checkpoint 2 : les octets réels restent dans le même membre."""
+    try:
+        expected = mapping.authorization_id_for_content(content_sha256)
+    except AuthorizationMappingError as exc:
+        raise AuthorizationCheckpointError(str(exc)) from exc
+    if authorization_id != expected:
+        raise AuthorizationCheckpointError(
+            f"downloaded content belongs to {expected!r}, not job authorization "
+            f"{authorization_id!r}"
+        )
+
+
 class ResumeStateInconsistentError(RuntimeError):
     """La ressource est dans un état qui implique qu'un candidat/artefact
     aurait déjà dû être persisté (LOT44f), mais aucun n'est trouvé — jamais
@@ -381,9 +454,19 @@ def _authorize_or_record_denial(
         authorization = deps.verify_scope_authorization(
             conn, authorization_id=authorization_id, scope=scope
         )
+        current_mapping = _current_authorization_mapping(deps)
+        if current_mapping is not None:
+            expected_digest = current_mapping.authorization_digest(
+                authorization_id
+            )
+            if authorization.authorization_digest != expected_digest:
+                raise AuthorizationCheckpointError(
+                    f"live authorization digest differs from signed set for "
+                    f"{authorization_id!r}"
+                )
         if then is not None:
             then(authorization)
-    except ScopeAuthorizationDeniedError as exc:
+    except (ScopeAuthorizationDeniedError, AuthorizationCheckpointError) as exc:
         conn.rollback()
         record_scope_authorization_denied(
             conn,
@@ -501,6 +584,14 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
 
     scope = ResourceScope.model_validate(payload["scope"])
     authorization_id = str(payload["scope_authorization_id"])
+
+    current_mapping = _current_authorization_mapping(deps)
+    if current_mapping is not None:
+        require_prefetch_authorization_mapping(
+            mapping=current_mapping,
+            scope=scope,
+            claimed_authorization_id=authorization_id,
+        )
 
     # Remédiation revue PR#90 : jamais un rechargement depuis le disque ici
     # — le registre approuvé au démarrage (deps.profile_registry) reste la
@@ -637,6 +728,13 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
             pendant le transfert est donc durablement refusée au checkpoint
             ``content`` avant que les octets ne quittent le buffer borné.
             """
+            current_mapping = _current_authorization_mapping(deps)
+            if current_mapping is not None:
+                require_postfetch_authorization_mapping(
+                    mapping=current_mapping,
+                    content_sha256=content_sha256,
+                    authorization_id=authorization_id,
+                )
             fresh_authorization = _authorize_or_record_denial(
                 conn,
                 claim=claim,
@@ -689,6 +787,17 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
                 f"resource {resource_id} at state={resource_state} but no persisted "
                 "ArtifactRecord found (expected after Fetcher committed)"
             )
+
+    # Une reprise depuis STORED saute volontairement le réseau, mais jamais
+    # le deuxième checkpoint d'autorité : les octets persistés sont revalidés
+    # contre le même membre avant extraction, revue ou publication.
+    current_mapping = _current_authorization_mapping(deps)
+    if current_mapping is not None:
+        require_postfetch_authorization_mapping(
+            mapping=current_mapping,
+            content_sha256=artifact.sha256,
+            authorization_id=authorization_id,
+        )
 
     verified_placement: VerifiedPedagogicalPlacement | None = None
     if deps.placement_resolver is not None:
@@ -952,11 +1061,14 @@ def run_worker_iteration(conn: psycopg.Connection, *, deps: WorkerDeps) -> Itera
 
 
 __all__ = [
+    "AuthorizationCheckpointError",
     "REQUIRED_PAYLOAD_KEYS",
     "SUPPORTED_JOB_TYPES",
     "IterationOutcome",
     "MissingPayloadFieldError",
     "ResumeStateInconsistentError",
     "WorkerDeps",
+    "require_postfetch_authorization_mapping",
+    "require_prefetch_authorization_mapping",
     "run_worker_iteration",
 ]

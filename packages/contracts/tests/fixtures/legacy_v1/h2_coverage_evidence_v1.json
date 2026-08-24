@@ -1,0 +1,42 @@
+{
+  "authority_review_binding_verified": true,
+  "authority_revocations_checked": true,
+  "authorization_id": "h2b-coverage-libre-terminale-v1",
+  "corpus_match": true,
+  "corpus_total_actual": 2583,
+  "corpus_total_expected": 2583,
+  "coverage_complete": true,
+  "environment": "production",
+  "generated_at": "2026-08-13T12:00:00.000000Z",
+  "git_commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "golden_validation_pass": true,
+  "h2_coverage_gate_pass": true,
+  "input_file_digests": {
+    "authority": "1111111111111111111111111111111111111111111111111111111111111111",
+    "catalog": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "golden": "0000000000000000000000000000000000000000000000000000000000000000",
+    "pii": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "rights": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "routing": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+  },
+  "manifest_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "pii_gate_status": "PASS",
+  "producer_version": "h2b_coverage_report/1",
+  "protocol_version": "NEXUS-H2-COVERAGE-EVIDENCE-V1",
+  "report_id": "h2b-coverage-20260813",
+  "rights_gate_status": "PASS",
+  "safety_invariants": {
+    "INGEST_WITHOUT_ATTRIBUTION_METADATA": 0,
+    "INGEST_WITHOUT_AUTHORITY": 0,
+    "INGEST_WITHOUT_CONTENT_SHA": 0,
+    "INGEST_WITHOUT_CURRENTNESS_CLEARANCE": 0,
+    "INGEST_WITHOUT_PII_CLEARANCE": 0,
+    "INGEST_WITHOUT_PROVENANCE": 0,
+    "INGEST_WITHOUT_RIGHTS_CLEARANCE": 0,
+    "INGEST_WITH_SELF_DECLARED_AUTHORITY": 0,
+    "INGEST_WITH_UNSUPPORTED_FORMAT": 0
+  },
+  "sum_equals_total": true,
+  "zero_gap": true,
+  "zero_overlap": true
+}

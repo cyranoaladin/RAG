@@ -61,6 +61,7 @@ from nexus_contracts.document import StrictBaseModel
 
 #: Version de protocole. Absente ou inconnue, le manifeste n'est pas parsé.
 PRODUCTION_READINESS_PROTOCOL_VERSION = "NEXUS-PRODUCTION-READINESS-V1"
+PRODUCTION_READINESS_V2_PROTOCOL_VERSION = "NEXUS-PRODUCTION-READINESS-V2"
 
 #: Le manifeste n'existe que pour la production. Un mode répétition ne
 #: réutilise pas ce protocole en l'affaiblissant : il utilise ses propres
@@ -237,10 +238,150 @@ class ProductionReadinessManifestV1(StrictBaseModel):
         return sha256(self.canonical_bytes()).hexdigest()
 
 
+class ProductionReadinessManifestV2(StrictBaseModel):
+    """Readiness liée à l'identité canonique du set d'autorisations."""
+
+    protocol_version: Literal["NEXUS-PRODUCTION-READINESS-V2"]
+
+    repository: StrictStr = Field(pattern=_REPOSITORY)
+    pr_number: StrictInt = Field(gt=0)
+    pr_head_sha: StrictStr = Field(pattern=_GIT_SHA1)
+    pr_head_tree_sha: StrictStr = Field(pattern=_GIT_SHA1)
+    merge_sha: StrictStr = Field(pattern=_GIT_SHA1)
+    merge_tree_sha: StrictStr = Field(pattern=_GIT_SHA1)
+    release_tag: StrictStr = Field(min_length=1, max_length=128)
+    environment: Literal["production"]
+
+    authorization_set_digest: StrictStr = Field(pattern=_HEX64)
+    trust_anchor_digest: StrictStr = Field(pattern=_HEX64)
+    revocation_registry_digest: StrictStr = Field(pattern=_HEX64)
+    catalog_digest: StrictStr = Field(pattern=_HEX64)
+    sealed_manifest_digest: StrictStr = Field(pattern=_HEX64)
+    h2b_report_digest: StrictStr = Field(pattern=_HEX64)
+    gate_result: Literal["pass"]
+
+    application_image_digests: dict[str, str] = Field(min_length=1)
+    upstream_image_digests: dict[str, str] = Field(min_length=1)
+    compose_digest: StrictStr = Field(pattern=_HEX64)
+
+    workflow_path: StrictStr = Field(pattern=_WORKFLOW_PATH)
+    workflow_ref: StrictStr = Field(min_length=1, max_length=255)
+    run_id: StrictInt = Field(gt=0)
+    run_attempt: StrictInt = Field(gt=0)
+    issued_at: AwareDatetime
+    key_id: StrictStr = Field(pattern=_KEY_ID)
+
+    @field_validator("application_image_digests", "upstream_image_digests")
+    @classmethod
+    def _image_digests_are_pinned(cls, values: dict[str, str]) -> dict[str, str]:
+        for service, reference in values.items():
+            if (
+                not isinstance(service, str)
+                or re.fullmatch(_SERVICE_NAME, service) is None
+            ):
+                raise ValueError(f"service name {service!r} must match {_SERVICE_NAME}")
+            if (
+                not isinstance(reference, str)
+                or re.fullmatch(_IMAGE_REF, reference) is None
+            ):
+                raise ValueError(
+                    f"image reference for {service!r} must be pinned as "
+                    f"name@sha256:<64 hex> — a mutable tag is never a deployment unit"
+                )
+        return _canonical_digest_map(values)
+
+    @field_validator("release_tag")
+    @classmethod
+    def _tag_is_canonical(cls, value: str) -> str:
+        if _RELEASE_TAG.fullmatch(value) is None:
+            raise ValueError(
+                f"release_tag {value!r} must match release/rag/YYYYMMDD-<merge_sha12>"
+            )
+        return value
+
+    @model_validator(mode="after")
+    def _bindings_hold(self) -> ProductionReadinessManifestV2:
+        if self.pr_head_tree_sha != self.merge_tree_sha:
+            raise ValueError(
+                "pr_head_tree_sha and merge_tree_sha differ — the merge commit "
+                "does not carry the exact tree that was reviewed, so the human "
+                "approval does not cover what would be deployed"
+            )
+        match = _RELEASE_TAG.fullmatch(self.release_tag)
+        assert match is not None  # noqa: S101 - already validated above
+        if match.group(2) != self.merge_sha[:12]:
+            raise ValueError(
+                f"release_tag suffix {match.group(2)!r} does not match the first "
+                f"12 characters of merge_sha ({self.merge_sha[:12]!r})"
+            )
+        return self
+
+    def canonical_document(self) -> dict[str, Any]:
+        return {
+            "application_image_digests": _canonical_digest_map(
+                self.application_image_digests
+            ),
+            "authorization_set_digest": self.authorization_set_digest,
+            "catalog_digest": self.catalog_digest,
+            "compose_digest": self.compose_digest,
+            "environment": self.environment,
+            "gate_result": self.gate_result,
+            "h2b_report_digest": self.h2b_report_digest,
+            "issued_at": _canonical_moment(self.issued_at),
+            "key_id": self.key_id,
+            "merge_sha": self.merge_sha,
+            "merge_tree_sha": self.merge_tree_sha,
+            "pr_head_sha": self.pr_head_sha,
+            "pr_head_tree_sha": self.pr_head_tree_sha,
+            "pr_number": self.pr_number,
+            "protocol_version": self.protocol_version,
+            "release_tag": self.release_tag,
+            "repository": self.repository,
+            "revocation_registry_digest": self.revocation_registry_digest,
+            "run_attempt": self.run_attempt,
+            "run_id": self.run_id,
+            "sealed_manifest_digest": self.sealed_manifest_digest,
+            "trust_anchor_digest": self.trust_anchor_digest,
+            "upstream_image_digests": _canonical_digest_map(
+                self.upstream_image_digests
+            ),
+            "workflow_path": self.workflow_path,
+            "workflow_ref": self.workflow_ref,
+        }
+
+    def canonical_bytes(self) -> bytes:
+        return _canonical_bytes(self.canonical_document())
+
+    def digest(self) -> str:
+        return sha256(self.canonical_bytes()).hexdigest()
+
+
 class SignedProductionReadinessManifest(StrictBaseModel):
     """Le manifeste tel qu'il est déposé sur l'hôte : faits + digest + signature."""
 
     manifest: ProductionReadinessManifestV1
+    manifest_digest: StrictStr = Field(pattern=_HEX64)
+    signature_algorithm: Literal["ed25519"]
+    key_id: StrictStr = Field(pattern=_KEY_ID)
+    signature: StrictStr = Field(pattern=_SIGNATURE_HEX)
+
+    def canonical_document(self) -> dict[str, Any]:
+        return {
+            "key_id": self.key_id,
+            "manifest": self.manifest.canonical_document(),
+            "manifest_digest": self.manifest_digest,
+            "signature": self.signature,
+            "signature_algorithm": self.signature_algorithm,
+        }
+
+    def canonical_bytes(self) -> bytes:
+        return _canonical_bytes(self.canonical_document())
+
+
+class SignedProductionReadinessManifestV2(StrictBaseModel):
+    """Enveloppe signée dédiée au manifeste V2, sans union permissive."""
+
+    manifest: ProductionReadinessManifestV2
     manifest_digest: StrictStr = Field(pattern=_HEX64)
     signature_algorithm: Literal["ed25519"]
     key_id: StrictStr = Field(pattern=_KEY_ID)
@@ -364,6 +505,45 @@ def sign_production_readiness_manifest(
     )
 
 
+def sign_production_readiness_manifest_v2(
+    manifest: ProductionReadinessManifestV2,
+    *,
+    private_key_hex: str,
+    key_id: str,
+) -> SignedProductionReadinessManifestV2:
+    """Signe exclusivement un manifeste V2 sur ses octets canoniques."""
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+    if not isinstance(manifest, ProductionReadinessManifestV2):
+        raise TypeError("manifest must be a ProductionReadinessManifestV2")
+    if not isinstance(private_key_hex, str) or re.fullmatch(
+        _HEX_ED25519, private_key_hex.strip()
+    ) is None:
+        raise ProductionReadinessError(
+            "the production readiness signing key must be 64 lowercase hex "
+            "characters (an Ed25519 seed)"
+        )
+    if re.fullmatch(_KEY_ID, key_id) is None:
+        raise ProductionReadinessError(f"key_id {key_id!r} must match {_KEY_ID}")
+    if manifest.key_id != key_id:
+        raise ProductionReadinessError(
+            f"manifest declares key_id {manifest.key_id!r} but is being signed "
+            f"with {key_id!r} — a manifest never names a signer other than its own"
+        )
+
+    private_key = Ed25519PrivateKey.from_private_bytes(
+        bytes.fromhex(private_key_hex.strip())
+    )
+    payload = manifest.canonical_bytes()
+    return SignedProductionReadinessManifestV2(
+        manifest=manifest,
+        manifest_digest=sha256(payload).hexdigest(),
+        signature_algorithm="ed25519",
+        key_id=key_id,
+        signature=private_key.sign(payload).hex(),
+    )
+
+
 def public_readiness_key_hex(private_key_hex: str) -> str:
     """Clé publique d'une graine — sert à publier une ancre, jamais à signer."""
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -423,6 +603,43 @@ def parse_signed_production_readiness_manifest(
     return parsed
 
 
+def parse_signed_production_readiness_manifest_v2(
+    raw: bytes,
+) -> SignedProductionReadinessManifestV2:
+    """Parse uniquement l'enveloppe V2 et exige ses octets canoniques."""
+    try:
+        document = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ProductionReadinessError(
+            f"readiness manifest is not valid UTF-8 JSON: {exc}"
+        ) from exc
+    if not isinstance(document, dict):
+        raise ProductionReadinessError("readiness manifest must be a JSON object")
+    manifest_document = document.get("manifest")
+    protocol_version = (
+        manifest_document.get("protocol_version")
+        if isinstance(manifest_document, dict)
+        else None
+    )
+    if protocol_version != PRODUCTION_READINESS_V2_PROTOCOL_VERSION:
+        raise ProductionReadinessError(
+            "readiness manifest protocol_version is not "
+            f"{PRODUCTION_READINESS_V2_PROTOCOL_VERSION!r}"
+        )
+    try:
+        parsed = SignedProductionReadinessManifestV2.model_validate(document)
+    except Exception as exc:  # noqa: BLE001 - parsing boundary
+        raise ProductionReadinessError(
+            f"readiness manifest failed strict validation: {exc}"
+        ) from exc
+    if parsed.canonical_bytes() != raw:
+        raise ProductionReadinessError(
+            "readiness manifest bytes are not in canonical form — the signed "
+            "bytes and their canonical re-serialization differ"
+        )
+    return parsed
+
+
 def verify_production_readiness_manifest(
     raw: bytes,
     *,
@@ -442,6 +659,56 @@ def verify_production_readiness_manifest(
             "binding anchor is a different authority and is never accepted here"
         )
     signed = parse_signed_production_readiness_manifest(raw)
+    payload = signed.manifest.canonical_bytes()
+
+    if signed.manifest_digest != sha256(payload).hexdigest():
+        raise ProductionReadinessError(
+            "manifest_digest does not match the canonical manifest bytes"
+        )
+    if signed.key_id != signed.manifest.key_id:
+        raise ProductionReadinessError(
+            "the signed envelope and the manifest name different key_id values"
+        )
+
+    key = trust_anchor.key(signed.key_id, environment=environment)
+    try:
+        Ed25519PublicKey.from_public_bytes(bytes.fromhex(key.public_key)).verify(
+            bytes.fromhex(signed.signature), payload
+        )
+    except InvalidSignature as exc:
+        raise ProductionReadinessError(
+            f"readiness manifest signature is invalid under key_id {signed.key_id!r}"
+        ) from exc
+
+    if signed.manifest.environment != environment:
+        raise ProductionReadinessError(
+            f"readiness manifest declares environment "
+            f"{signed.manifest.environment!r} but is being verified for "
+            f"{environment!r}"
+        )
+    if signed.manifest.gate_result != "pass":
+        raise ProductionReadinessError(
+            "readiness manifest carries a non-passing gate result"
+        )
+    return signed.manifest
+
+
+def verify_production_readiness_manifest_v2(
+    raw: bytes,
+    *,
+    trust_anchor: ProductionReadinessTrustAnchor,
+    environment: str = PRODUCTION_ENVIRONMENT,
+) -> ProductionReadinessManifestV2:
+    """Vérifie exclusivement signature, ancre et verdict d'un manifeste V2."""
+    from cryptography.exceptions import InvalidSignature
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
+    if not isinstance(trust_anchor, ProductionReadinessTrustAnchor):
+        raise TypeError(
+            "trust_anchor must be a ProductionReadinessTrustAnchor — the review "
+            "binding anchor is a different authority and is never accepted here"
+        )
+    signed = parse_signed_production_readiness_manifest_v2(raw)
     payload = signed.manifest.canonical_bytes()
 
     if signed.manifest_digest != sha256(payload).hexdigest():
@@ -507,15 +774,21 @@ def require_manifest_matches_release(
 __all__ = [
     "PRODUCTION_ENVIRONMENT",
     "PRODUCTION_READINESS_PROTOCOL_VERSION",
+    "PRODUCTION_READINESS_V2_PROTOCOL_VERSION",
     "ProductionReadinessError",
     "ProductionReadinessManifestV1",
+    "ProductionReadinessManifestV2",
     "ProductionReadinessTrustAnchor",
     "ProductionReadinessTrustAnchorKey",
     "SignedProductionReadinessManifest",
+    "SignedProductionReadinessManifestV2",
     "parse_production_readiness_trust_anchor",
     "parse_signed_production_readiness_manifest",
+    "parse_signed_production_readiness_manifest_v2",
     "public_readiness_key_hex",
     "require_manifest_matches_release",
     "sign_production_readiness_manifest",
+    "sign_production_readiness_manifest_v2",
     "verify_production_readiness_manifest",
+    "verify_production_readiness_manifest_v2",
 ]

@@ -10,17 +10,36 @@ Toutes les sorties sont canoniques : clés triées, indentation fixe, LF
 final. Les digests qui en découlent identifient donc un contenu, jamais
 une exécution.
 """
+
 from __future__ import annotations
 
 import argparse
 import json
+import os
+import secrets
+import stat
 import subprocess
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-from rag_pedago.governance.catalog_republish import republish_catalog
-from rag_pedago.governance.corpus_campaign import parse_corpus_campaign
+from nexus_contracts.release_evidence import (
+    PromotionEvidenceV2,
+    parse_h2_evidence_bundle_v2,
+    verify_h2_evidence_bundle_v2_freshness,
+    verify_promotion_evidence_v2,
+)
+
+from rag_pedago.governance.catalog_republish import (
+    republish_catalog,
+    republish_catalog_v2,
+)
+from rag_pedago.governance.corpus_campaign import (
+    CorpusCampaignV1,
+    CorpusCampaignV2,
+    parse_corpus_campaign,
+    parse_corpus_campaign_v2,
+)
 from rag_pedago.governance.corpus_review_view import (
     build_review_view,
     render_markdown,
@@ -29,7 +48,15 @@ from rag_pedago.governance.corpus_source_resolver import (
     CorpusSourceUnavailable,
     resolve_corpus_source,
 )
-from rag_pedago.governance.h2_evidence import H2EvidenceBundle
+from rag_pedago.governance.h2_evidence import (
+    H2EvidenceBundle,
+    build_h2_evidence_bundle_v2,
+)
+from rag_pedago.governance.release_scope_placement import (
+    ReleaseScopePlacementGitInputs,
+    ReleaseScopePlacementProducerError,
+    produce_release_scope_placement_from_git,
+)
 from rag_pedago.imports.artifact_placement_model import compute_file_sha256
 
 
@@ -37,9 +64,7 @@ def _write_canonical(path: Path, payload: dict) -> str:
     """Écrit un JSON canonique et rend son digest."""
     import hashlib
 
-    raw = (
-        json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
-    ).encode("utf-8")
+    raw = (json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode("utf-8")
     path.write_bytes(raw)
     return hashlib.sha256(raw).hexdigest()
 
@@ -60,9 +85,7 @@ def _oras_pull(reference: str) -> tuple[bytes, str]:
     except FileNotFoundError as exc:  # pragma: no cover - dépend du runner
         raise CorpusSourceUnavailable("'oras' is not installed") from exc
     if completed.returncode != 0:
-        raise CorpusSourceUnavailable(
-            f"oras pull failed with exit code {completed.returncode}"
-        )
+        raise CorpusSourceUnavailable(f"oras pull failed with exit code {completed.returncode}")
     resolved = subprocess.run(
         ["oras", "resolve", reference],
         capture_output=True,
@@ -74,12 +97,10 @@ def _oras_pull(reference: str) -> tuple[bytes, str]:
     return completed.stdout, resolved.stdout.decode().strip()
 
 
-def cmd_resolve_corpus(args: argparse.Namespace) -> int:
-    """Résout, rematérialise et rehache le corpus décrit par la campagne."""
-    campaign = parse_corpus_campaign(args.campaign.read_bytes())
-    resolved = resolve_corpus_source(
-        campaign, destination=args.destination, pull=_oras_pull
-    )
+def _resolve_corpus(
+    args: argparse.Namespace, *, campaign: CorpusCampaignV1 | CorpusCampaignV2
+) -> int:
+    resolved = resolve_corpus_source(campaign, destination=args.destination, pull=_oras_pull)
     _write_canonical(
         args.output,
         {
@@ -94,6 +115,20 @@ def cmd_resolve_corpus(args: argparse.Namespace) -> int:
     )
     print(f"corpus resolved: {resolved.manifest.object_count} objects")
     return 0
+
+
+def cmd_resolve_corpus(args: argparse.Namespace) -> int:
+    """Résout explicitement une campagne legacy V1."""
+    return _resolve_corpus(
+        args, campaign=parse_corpus_campaign(args.campaign.read_bytes())
+    )
+
+
+def cmd_resolve_corpus_v2(args: argparse.Namespace) -> int:
+    """Résout explicitement une campagne multi-autorisation V2."""
+    return _resolve_corpus(
+        args, campaign=parse_corpus_campaign_v2(args.campaign.read_bytes())
+    )
 
 
 def cmd_review_view(args: argparse.Namespace) -> int:
@@ -112,16 +147,12 @@ def cmd_review_view(args: argparse.Namespace) -> int:
 
     config = load_routing_config(args.config)
     config["manifest_sha256"] = compute_file_sha256(args.sealed_manifest)
-    catalog = compile_sealed_catalog(
-        args.sealed_manifest, args.placement_catalog, config
-    )
+    catalog = compile_sealed_catalog(args.sealed_manifest, args.placement_catalog, config)
 
     baseline = None
     if args.baseline_manifest:
         baseline_config = load_routing_config(args.config)
-        baseline_config["manifest_sha256"] = compute_file_sha256(
-            args.baseline_manifest
-        )
+        baseline_config["manifest_sha256"] = compute_file_sha256(args.baseline_manifest)
         baseline = compile_sealed_catalog(
             args.baseline_manifest,
             args.baseline_placement_catalog or args.placement_catalog,
@@ -187,9 +218,7 @@ def cmd_h2_evidence(args: argparse.Namespace) -> int:
         golden_config_sha256=args.golden_config_sha256,
         h2_report_sha256=args.h2_report_sha256,
         h2_coverage_gate_pass=bool(report.get("h2_coverage_gate_pass")),
-        authority_revocations_checked=bool(
-            report.get("authority_revocations_checked")
-        ),
+        authority_revocations_checked=bool(report.get("authority_revocations_checked")),
         coverage_complete=bool(report.get("coverage_complete")),
         environment=args.environment,
         workflow_path=args.workflow_path,
@@ -202,12 +231,72 @@ def cmd_h2_evidence(args: argparse.Namespace) -> int:
     produced_at = datetime.now(UTC).isoformat()
     envelope = bundle.to_envelope(produced_at=produced_at)
     args.output.write_bytes(
-        (
-            json.dumps(envelope, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
-        ).encode("utf-8")
+        (json.dumps(envelope, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode("utf-8")
     )
     print(f"h2 evidence: {bundle.content_sha256}")
     print(f"artifact name: {bundle.artifact_name}")
+    return 0
+
+
+def cmd_h2_evidence_v2(args: argparse.Namespace) -> int:
+    """Assemble le bundle V2 à partir des artefacts canoniques relus."""
+    bundle = build_h2_evidence_bundle_v2(
+        campaign_raw=args.campaign.read_bytes(),
+        authorization_set_raw=args.authorization_set.read_bytes(),
+        h2_coverage_evidence_raw=args.h2_coverage_evidence.read_bytes(),
+        review_view_sha256=args.review_view_sha256,
+        repository=args.repository,
+        pull_request_number=args.pull_request,
+        pr_head_sha=args.pr_head_sha,
+        pr_head_tree_sha=args.pr_head_tree_sha,
+        merge_sha=args.merge_sha,
+        merge_tree_sha=args.merge_tree_sha,
+        workflow_path=args.workflow_path,
+        run_id=args.run_id,
+        run_attempt=args.run_attempt,
+    )
+    args.json_output.write_bytes(bundle.canonical_bytes())
+    print(
+        json.dumps(
+            {
+                "artifact_name": bundle.artifact_name,
+                "evidence_sha256": bundle.digest(),
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    )
+    return 0
+
+
+def cmd_promotion_evidence_v2(args: argparse.Namespace) -> int:
+    """Lie une promotion au bundle H2 V2 exact et encore frais."""
+    bundle = parse_h2_evidence_bundle_v2(args.h2_evidence.read_bytes())
+    try:
+        promotion_time = datetime.fromisoformat(args.promotion_time)
+    except ValueError as exc:
+        raise ValueError("--promotion-time must be an ISO-8601 instant") from exc
+    verify_h2_evidence_bundle_v2_freshness(bundle, now=promotion_time)
+    promotion = PromotionEvidenceV2.model_validate(
+        PromotionEvidenceV2.fields_from_h2_bundle(
+            bundle,
+            image_provenance_run_id=args.image_provenance_run_id,
+            image_provenance_run_attempt=args.image_provenance_run_attempt,
+            promotion_workflow_path=args.promotion_workflow_path,
+            promotion_run_id=args.promotion_run_id,
+            promotion_run_attempt=args.promotion_run_attempt,
+            promotion_workflow_ref=args.promotion_workflow_ref,
+        )
+    )
+    verify_promotion_evidence_v2(promotion, h2_bundle=bundle)
+    args.json_output.write_bytes(promotion.canonical_bytes())
+    print(
+        json.dumps(
+            {"promotion_evidence_sha256": promotion.digest()},
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    )
     return 0
 
 
@@ -229,6 +318,177 @@ def cmd_republish_catalog(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_republish_catalog_v2(args: argparse.Namespace) -> int:
+    """Publie le catalogue V2 depuis un tree Git et un AuthorizationSet exact."""
+    release_scope_git_inputs = ReleaseScopePlacementGitInputs(
+        repository_root=args.repository_root,
+        source_tree_sha=args.source_tree_sha,
+        profile_proposal_matrix_path=args.profile_proposal_matrix,
+        accepted_placements_path=args.placements,
+        release_registry_path=args.release_registry,
+        expected_contents_path=args.expected_contents,
+        verified_profiles_path=args.verified_profiles,
+        profile_manifest_path=args.profile_manifest,
+    )
+    result = republish_catalog_v2(
+        campaign_relative_path=args.campaign_relative_path,
+        catalog_path=args.catalog,
+        authorization_set_relative_path=args.authorization_set_relative_path,
+        release_scope_git_inputs=release_scope_git_inputs,
+        out_root=args.out_root,
+        currentness_verification_path=args.currentness_verification,
+        rights_path=args.rights,
+        pii_path=args.pii,
+        routing_path=args.routing,
+    )
+    print(f"catalog republished V2: {result.catalog_path}")
+    print(f"catalog_sha256: {result.catalog_sha256}")
+    print(f"promoted_count: {result.promoted_count}")
+    print(f"mapped_content_count: {result.mapped_content_count}")
+    print(f"authorization_set_digest: {result.authorization_set_digest}")
+    print(f"already_published: {result.already_published}")
+    return 0
+
+
+def cmd_release_scope_placement(args: argparse.Namespace) -> int:
+    """Écrit la projection canonique dans l'unique chemin demandé."""
+    try:
+        produced = produce_release_scope_placement_from_git(
+            repository_root=args.repository_root,
+            source_tree_sha=args.source_tree_sha,
+            profile_proposal_matrix_path=args.profile_proposal_matrix,
+            accepted_placements_path=args.placements,
+            release_registry_path=args.release_registry,
+            expected_contents_path=args.expected_contents,
+            verified_profiles_path=args.verified_profiles,
+            profile_manifest_path=args.profile_manifest,
+        )
+        _write_atomic_output(
+            args.output,
+            produced.placement.canonical_bytes(),
+            repository_root=args.repository_root,
+            input_paths=tuple(produced.provenance.input_blob_sha256),
+        )
+    except (ReleaseScopePlacementProducerError, OSError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    print(f"release scope placement: {produced.placement.digest()}")
+    print(
+        json.dumps(
+            {
+                "input_blob_sha256": produced.provenance.input_blob_sha256,
+                "input_git_entries": produced.provenance.input_git_entries,
+                "source_tree_sha": produced.provenance.source_tree_sha,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    )
+    return 0
+
+
+def _write_atomic_output(
+    output: Path,
+    raw: bytes,
+    *,
+    repository_root: Path,
+    input_paths: tuple[str, ...],
+) -> None:
+    """Écrit après validation complète, sans suivre de symlink ni alias input."""
+    output_absolute = Path(os.path.abspath(output))
+    _reject_existing_symlink_components(output_absolute)
+    parent = output_absolute.parent
+    if not parent.is_dir():
+        raise OSError("UNSAFE_OUTPUT: output parent must already exist")
+    root_absolute = repository_root.resolve(strict=True)
+    forbidden = tuple(root_absolute / path for path in input_paths)
+    if output_absolute in forbidden or any(
+        output_absolute.exists()
+        and candidate.exists()
+        and os.path.samefile(output_absolute, candidate)
+        for candidate in forbidden
+    ):
+        raise OSError("UNSAFE_OUTPUT: output aliases a governed input")
+
+    directory_fd = _open_directory_components(parent)
+    temporary_name: str | None = None
+    try:
+        parent_path = os.stat(parent, follow_symlinks=False)
+        parent_opened = os.fstat(directory_fd)
+        if (parent_path.st_dev, parent_path.st_ino) != (
+            parent_opened.st_dev,
+            parent_opened.st_ino,
+        ):
+            raise OSError("UNSAFE_OUTPUT: output parent changed while opening")
+        descriptor: int | None = None
+        for _attempt in range(16):
+            candidate = f".{output_absolute.name}.{secrets.token_hex(8)}.tmp"
+            flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+            try:
+                descriptor = os.open(candidate, flags, 0o600, dir_fd=directory_fd)
+            except FileExistsError:
+                continue
+            temporary_name = candidate
+            break
+        if descriptor is None:
+            raise OSError("ATOMIC_WRITE_FAILED: cannot allocate sibling temp file")
+        try:
+            remaining = memoryview(raw)
+            while remaining:
+                written = os.write(descriptor, remaining)
+                if written <= 0:
+                    raise OSError("ATOMIC_WRITE_FAILED: short write")
+                remaining = remaining[written:]
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+        if temporary_name is None:  # pragma: no cover - protégé par descriptor
+            raise OSError("ATOMIC_WRITE_FAILED: missing sibling temp file")
+        os.replace(
+            temporary_name,
+            output_absolute.name,
+            src_dir_fd=directory_fd,
+            dst_dir_fd=directory_fd,
+        )
+        temporary_name = None
+        os.fsync(directory_fd)
+    finally:
+        if temporary_name is not None:
+            try:
+                os.unlink(temporary_name, dir_fd=directory_fd)
+            except FileNotFoundError:
+                pass
+        os.close(directory_fd)
+
+
+def _reject_existing_symlink_components(path: Path) -> None:
+    current = Path(path.anchor)
+    for component in path.parts[1:]:
+        current /= component
+        try:
+            metadata = os.lstat(current)
+        except FileNotFoundError:
+            break
+        if stat.S_ISLNK(metadata.st_mode):
+            raise OSError(f"UNSAFE_OUTPUT: path component {current} is a symlink")
+
+
+def _open_directory_components(path: Path) -> int:
+    """Ouvre chaque composant sous dir-fd, sans jamais suivre un symlink."""
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+    flags |= getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
+    descriptor = os.open(path.anchor, flags)
+    try:
+        for component in path.parts[1:]:
+            child = os.open(component, flags, dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = child
+        return descriptor
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="rag-pedago-governance",
@@ -245,6 +505,15 @@ def build_parser() -> argparse.ArgumentParser:
     resolve.add_argument("--output", type=Path, required=True)
     resolve.set_defaults(func=cmd_resolve_corpus)
 
+    resolve_v2 = sub.add_parser(
+        "resolve-corpus-v2",
+        help="Résout un corpus OCI depuis NEXUS-CORPUS-CAMPAIGN-V2.",
+    )
+    resolve_v2.add_argument("--campaign", type=Path, required=True)
+    resolve_v2.add_argument("--destination", type=Path, required=True)
+    resolve_v2.add_argument("--output", type=Path, required=True)
+    resolve_v2.set_defaults(func=cmd_resolve_corpus_v2)
+
     review = sub.add_parser("review-view", help="Rend la vue de revue humaine.")
     review.add_argument("--sealed-manifest", type=Path, required=True)
     review.add_argument("--placement-catalog", type=Path, required=True)
@@ -260,9 +529,7 @@ def build_parser() -> argparse.ArgumentParser:
     review.add_argument("--markdown", type=Path)
     review.set_defaults(func=cmd_review_view)
 
-    evidence = sub.add_parser(
-        "h2-evidence", help="Assemble le bundle NEXUS-H2-EVIDENCE-V1."
-    )
+    evidence = sub.add_parser("h2-evidence", help="Assemble le bundle NEXUS-H2-EVIDENCE-V1.")
     for flag in (
         "--repository",
         "--pr-head-sha",
@@ -298,6 +565,46 @@ def build_parser() -> argparse.ArgumentParser:
     evidence.add_argument("--output", type=Path, required=True)
     evidence.set_defaults(func=cmd_h2_evidence)
 
+    evidence_v2 = sub.add_parser(
+        "h2-evidence-v2",
+        help="Assemble le bundle NEXUS-H2-EVIDENCE-V2 multi-autorisation.",
+    )
+    for flag in (
+        "--repository",
+        "--pr-head-sha",
+        "--pr-head-tree-sha",
+        "--merge-sha",
+        "--merge-tree-sha",
+        "--review-view-sha256",
+        "--workflow-path",
+        "--run-id",
+    ):
+        evidence_v2.add_argument(flag, required=True)
+    evidence_v2.add_argument("--pull-request", type=int, required=True)
+    evidence_v2.add_argument("--run-attempt", type=int, required=True)
+    evidence_v2.add_argument("--campaign", type=Path, required=True)
+    evidence_v2.add_argument("--authorization-set", type=Path, required=True)
+    evidence_v2.add_argument("--h2-coverage-evidence", type=Path, required=True)
+    evidence_v2.add_argument("--json-output", type=Path, required=True)
+    evidence_v2.set_defaults(func=cmd_h2_evidence_v2)
+
+    promotion_v2 = sub.add_parser(
+        "promotion-evidence-v2",
+        help="Assemble NEXUS-PROMOTION-EVIDENCE-V2 depuis le bundle H2 V2.",
+    )
+    promotion_v2.add_argument("--h2-evidence", type=Path, required=True)
+    promotion_v2.add_argument("--promotion-time", required=True)
+    promotion_v2.add_argument("--image-provenance-run-id", type=int, required=True)
+    promotion_v2.add_argument(
+        "--image-provenance-run-attempt", type=int, required=True
+    )
+    promotion_v2.add_argument("--promotion-workflow-path", required=True)
+    promotion_v2.add_argument("--promotion-run-id", type=int, required=True)
+    promotion_v2.add_argument("--promotion-run-attempt", type=int, required=True)
+    promotion_v2.add_argument("--promotion-workflow-ref", required=True)
+    promotion_v2.add_argument("--json-output", type=Path, required=True)
+    promotion_v2.set_defaults(func=cmd_promotion_evidence_v2)
+
     republish = sub.add_parser(
         "republish-catalog",
         help=(
@@ -308,9 +615,7 @@ def build_parser() -> argparse.ArgumentParser:
     republish.add_argument("--campaign", type=Path, required=True)
     republish.add_argument("--catalog", type=Path, required=True)
     republish.add_argument("--authority", type=Path, required=True)
-    republish.add_argument(
-        "--authority-review-binding", type=Path, required=True
-    )
+    republish.add_argument("--authority-review-binding", type=Path, required=True)
     republish.add_argument(
         "--out-root",
         type=Path,
@@ -318,6 +623,46 @@ def build_parser() -> argparse.ArgumentParser:
         help="Racine sous laquelle governance/corpus-campaigns/<id>/ est écrit.",
     )
     republish.set_defaults(func=cmd_republish_catalog)
+
+    republish_v2 = sub.add_parser(
+        "republish-catalog-v2",
+        help=(
+            "Matérialise un catalogue V2 depuis l'AuthorizationSet et les "
+            "review bindings relus dans le tree Git exact."
+        ),
+    )
+    republish_v2.add_argument("--campaign-relative-path", required=True)
+    republish_v2.add_argument("--catalog", type=Path, required=True)
+    republish_v2.add_argument("--authorization-set-relative-path", required=True)
+    republish_v2.add_argument("--repository-root", type=Path, required=True)
+    republish_v2.add_argument("--source-tree-sha", required=True)
+    republish_v2.add_argument("--profile-proposal-matrix", required=True)
+    republish_v2.add_argument("--placements", required=True)
+    republish_v2.add_argument("--release-registry", required=True)
+    republish_v2.add_argument("--expected-contents", required=True)
+    republish_v2.add_argument("--verified-profiles", required=True)
+    republish_v2.add_argument("--profile-manifest", required=True)
+    republish_v2.add_argument("--out-root", type=Path, required=True)
+    republish_v2.add_argument("--currentness-verification", type=Path)
+    republish_v2.add_argument("--rights", type=Path)
+    republish_v2.add_argument("--pii", type=Path)
+    republish_v2.add_argument("--routing", type=Path)
+    republish_v2.set_defaults(func=cmd_republish_catalog_v2)
+
+    placement = sub.add_parser(
+        "release-scope-placement",
+        help="Produit NEXUS-RELEASE-SCOPE-PLACEMENT-V1 sans lire d'autorité.",
+    )
+    placement.add_argument("--repository-root", type=Path, required=True)
+    placement.add_argument("--source-tree-sha", required=True)
+    placement.add_argument("--placements", required=True)
+    placement.add_argument("--release-registry", required=True)
+    placement.add_argument("--verified-profiles", required=True)
+    placement.add_argument("--profile-manifest", required=True)
+    placement.add_argument("--expected-contents", required=True)
+    placement.add_argument("--profile-proposal-matrix", required=True)
+    placement.add_argument("--output", type=Path, required=True)
+    placement.set_defaults(func=cmd_release_scope_placement)
 
     return parser
 

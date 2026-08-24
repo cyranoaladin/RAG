@@ -60,7 +60,10 @@ services:
     environment:
       TZ: ${TZ:-UTC}
       NEXUS_ENVIRONMENT: production
+      NEXUS_EXPECTED_READINESS_PROTOCOL: NEXUS-PRODUCTION-READINESS-V2
       NEXUS_READINESS_MANIFEST_PATH: /app/production/readiness-manifest.json
+      NEXUS_AUTHORIZATION_SET_PATH: /app/production/authorization-set.json
+      NEXUS_V2_RELEASE_MATERIAL_ROOT: /app/production/v2-material
       NEXUS_RELEASE_SHA: "${NEXUS_RELEASE_SHA:?NEXUS_RELEASE_SHA requis (merge commit deploye)}"
       # Rôle applicatif du plan de contrôle d'ingestion uniquement — jamais
       # le rôle migrateur/autorité/attestateur (même séparation que
@@ -82,6 +85,8 @@ services:
       # gouverné existant.
       - ${PRODUCTION_TRUST_ANCHOR_HOST_FILE:-./data/.no-production-trust-anchor}:/app/governance/trust-anchors/production-readiness-v1.json:ro
       - ${PRODUCTION_READINESS_MANIFEST_HOST_FILE:?PRODUCTION_READINESS_MANIFEST_HOST_FILE requis}:/app/production/readiness-manifest.json:ro
+      - ${PRODUCTION_AUTHORIZATION_SET_HOST_FILE:?PRODUCTION_AUTHORIZATION_SET_HOST_FILE requis}:/app/production/authorization-set.json:ro
+      - ${PRODUCTION_V2_RELEASE_MATERIAL_HOST_DIR:?PRODUCTION_V2_RELEASE_MATERIAL_HOST_DIR requis}:/app/production/v2-material:ro
       - ${RAG_INGESTION_PROFILES_HOST_DIR:-./configs/ingestion_profiles}:/app/configs/ingestion_profiles:ro
       # Registre de releases canonique (LOT H2-B, finding P1-api-release) et
       # les manifests qu'il nomme — même racine montée que docker-compose.v2.yml.
@@ -155,7 +160,10 @@ services:
     environment:
       TZ: ${TZ:-UTC}
       NEXUS_ENVIRONMENT: production
+      NEXUS_EXPECTED_READINESS_PROTOCOL: NEXUS-PRODUCTION-READINESS-V2
       NEXUS_READINESS_MANIFEST_PATH: /app/production/readiness-manifest.json
+      NEXUS_AUTHORIZATION_SET_PATH: /app/production/authorization-set.json
+      NEXUS_V2_RELEASE_MATERIAL_ROOT: /app/production/v2-material
       NEXUS_RELEASE_SHA: "${NEXUS_RELEASE_SHA:?NEXUS_RELEASE_SHA requis (merge commit deploye)}"
       PG_INGESTION_CONTROL_DSN: "${PG_INGESTION_CONTROL_DSN:?PG_INGESTION_CONTROL_DSN requis (role ingestion_control_app)}"
       # DSN produit distinct du DSN de contrôle d'ingestion ci-dessus —
@@ -177,6 +185,8 @@ services:
     volumes:
       - ${PRODUCTION_TRUST_ANCHOR_HOST_FILE:-./data/.no-production-trust-anchor}:/app/governance/trust-anchors/production-readiness-v1.json:ro
       - ${PRODUCTION_READINESS_MANIFEST_HOST_FILE:?PRODUCTION_READINESS_MANIFEST_HOST_FILE requis}:/app/production/readiness-manifest.json:ro
+      - ${PRODUCTION_AUTHORIZATION_SET_HOST_FILE:?PRODUCTION_AUTHORIZATION_SET_HOST_FILE requis}:/app/production/authorization-set.json:ro
+      - ${PRODUCTION_V2_RELEASE_MATERIAL_HOST_DIR:?PRODUCTION_V2_RELEASE_MATERIAL_HOST_DIR requis}:/app/production/v2-material:ro
       - ${RAG_INGESTION_PROFILES_HOST_DIR:-./configs/ingestion_profiles}:/app/configs/ingestion_profiles:ro
       - ${RAG_RELEASE_REGISTRY_HOST_DIR:-../../rag-pedago/data/releases/prerentree_2026_2027}:/app/production/release:ro
       - ${PRODUCTION_REVOCATION_REGISTRY_HOST_FILE:?PRODUCTION_REVOCATION_REGISTRY_HOST_FILE requis}:/app/production/revocation-registry.json:ro

@@ -274,6 +274,7 @@ def _readiness_env(tmp_path: Path) -> dict[str, str]:
     return {
         "NEXUS_ENVIRONMENT": "rehearsal",
         "NEXUS_READINESS_MANIFEST_PATH": str(manifest_path),
+        "NEXUS_EXPECTED_READINESS_PROTOCOL": "NEXUS-PRODUCTION-READINESS-V1",
         "NEXUS_READINESS_REHEARSAL_TRUST_ANCHOR": str(anchor_path),
         "NEXUS_RELEASE_SHA": merge_sha,
     }

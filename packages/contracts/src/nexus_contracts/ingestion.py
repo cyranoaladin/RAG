@@ -19,17 +19,33 @@ Invariants portés par ce module :
 - Aucun de ces modèles ne référence un état ou un champ de publication —
   cf. ``nexus_contracts.resource_state`` pour la machine d'état complète.
 """
+
 from __future__ import annotations
 
+import hashlib
+import json
 from datetime import datetime
-from typing import Literal
+from collections.abc import Mapping
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import Field, field_validator, model_validator
 
 from nexus_contracts.chunk import Audience
-from nexus_contracts.document import Candidat, Niveau, Rights, StrictBaseModel, TypeDoc, Voie
-from nexus_contracts.identity import BoundedSlug, CollectionName, SchoolYear, Sha256Digest
+from nexus_contracts.document import (
+    Candidat,
+    Niveau,
+    Rights,
+    StrictBaseModel,
+    TypeDoc,
+    Voie,
+)
+from nexus_contracts.identity import (
+    BoundedSlug,
+    CollectionName,
+    SchoolYear,
+    Sha256Digest,
+)
 from nexus_contracts.scope import ProgrammeVersion
 
 Visibility = Literal["public", "internal", "restricted", "private"]
@@ -137,8 +153,24 @@ class CollectionProfile(StrictBaseModel):
     @model_validator(mode="after")
     def validate_chunk_overlap_smaller_than_chunk_size(self) -> "CollectionProfile":
         if self.chunk_overlap >= self.max_chunk_size:
-            raise ValueError("chunk_overlap must be strictly smaller than max_chunk_size")
+            raise ValueError(
+                "chunk_overlap must be strictly smaller than max_chunk_size"
+            )
         return self
+
+
+def collection_profile_fingerprint(profile: CollectionProfile) -> str:
+    """Empreinte pure et déterministe du contenu complet d'un profil."""
+    canonical = json.dumps(
+        profile.model_dump(mode="json"), sort_keys=True, ensure_ascii=True
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def profile_manifest_fingerprint(manifest_data: Mapping[str, Any]) -> str:
+    """Empreinte pure canonique du manifeste de profils vérifié."""
+    canonical = json.dumps(manifest_data, sort_keys=True, ensure_ascii=True)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 class SearchPlan(StrictBaseModel):
@@ -271,7 +303,9 @@ class IngestionRun(StrictBaseModel):
     profile_version: str = Field(min_length=1)
     trigger: Literal["scheduled", "manual"]
     mode: Literal["auto_stage"] = "auto_stage"
-    status: Literal["planned", "running", "succeeded", "failed", "partial", "cancelled"] = "planned"
+    status: Literal[
+        "planned", "running", "succeeded", "failed", "partial", "cancelled"
+    ] = "planned"
 
     started_at: datetime | None = None
     finished_at: datetime | None = None

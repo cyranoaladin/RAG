@@ -1,7 +1,7 @@
 {
-  "state_generated_at": "2026-08-22T00:00:00Z",
-  "state_observed_at_main_sha": "b9e3b47dd952991236e44b3afb605bf6e63d388f",
-  "updates_prior_version_merged_via": "PR#123 (v2), this update after PR#124/#125/#126 + tier-a-currentness-clean-20260822 lot",
+  "state_generated_at": "2026-08-24T06:55:17Z",
+  "state_observed_at_main_sha": "3548bf300c99685ff6ede0dce2e5bfe8c044d213",
+  "state_scope": "PR #127 merged baseline plus the dedicated multi-authorization V2 candidate branch; this file is not a live pointer to main",
   "pr_merges": {
     "PR100_SIGNER_MERGED": true,
     "PR107_ATOMIC_DEPLOY_MERGED": true,
@@ -20,143 +20,144 @@
     "PR123_MASTER_STATE_V2_MERGED": true,
     "PR124_PII_SCAN_RECONCILIATION_MERGED": true,
     "PR125_AUTHORITY_REQUIRED_SET_CORRECTION_MERGED": true,
-    "PR126_H2_NO_AUTHORITY_TYPED_REFUSAL_MERGED": true
+    "PR126_H2_NO_AUTHORITY_TYPED_REFUSAL_MERGED": true,
+    "PR127_MERGED": true
   },
   "governance_gate": {
     "TRUSTED_REQUIRED_GATE_RELIABLY_ENFORCED": true,
     "required_context_final_name": "trusted-human-review/head-pinned"
   },
-  "technical_readiness": {
-    "PRODUCTION_READINESS_SIGNING_TOOL_COMPLETE": true,
+  "historical_technical_readiness_before_this_lot": {
+    "PRODUCTION_READINESS_SIGNING_TOOL_COMPLETE_V1": true,
     "CATALOG_REAL_CORPUS_COMPILE_PASS": true,
-    "H2_WORKFLOW_E2E_REHEARSAL_PASS": true,
-    "GOVERNED_REPUBLISH_STEP_EXISTS": true,
+    "H2_WORKFLOW_E2E_REHEARSAL_PASS_V1": true,
+    "GOVERNED_REPUBLISH_STEP_EXISTS_V1": true,
     "GOVERNED_REPUBLISH_REAL_CAMPAIGN_EXECUTED": false,
-    "CURRENTNESS_VERIFIED_PROMOTION_STEP_EXISTS": true,
+    "CURRENTNESS_VERIFIED_PROMOTION_STEP_EXISTS_V1": true,
     "CURRENTNESS_VERIFIED_PROMOTION_REAL_RUN_EXECUTED": false,
-    "ATOMIC_DEPLOY_REHEARSAL_PASS": "PARTIAL"
-  },
-  "atomic_deploy_audit": {
-    "run_subprocess_injection_point": "services/rag-engine/scripts/deploy_verified_release_cli.py:290-294,419",
-    "existing_dev_stack_found_on_host": "infra (rag_worker, rag_ui, rag_pgvector, rag_redis)",
-    "safe_fixture_compose_available": "services/rag-engine/infra/docker-compose.test.yml",
-    "orphaned_untracked_stack_found": "rag-smoke-ci3 (flagged only, not touched)"
+    "ATOMIC_DEPLOY_REHEARSAL_PASS_REPORTED": "PARTIAL"
   },
   "corpus_eligibility": {
     "PHYSICAL_FILES": 2584,
     "MANIFEST_ENTRIES": 2583,
     "UNIQUE_CONTENT_SHA256": 2582,
     "DUPLICATE_CONTENT_GROUPS": 1,
-    "CURRENT_RELEASE_ELIGIBLE_ARTIFACTS": 63,
-    "BASE_INGEST_CANDIDATES": 73,
-    "CURRENT_AUTHORITY_REQUIRED_COUNT": 72,
-    "CURRENT_AUTHORITY_REQUIRED_SET_SHA256": "3705935f306a52cde0f398db20f685dce82d0bb9acd7909c8e6955d6356643e0",
-    "PII_BLOCKED_COUNT": 1,
-    "FINAL_RELEASE_ELIGIBLE_ARTIFACTS": null,
-    "FINAL_RELEASE_ELIGIBLE_ARTIFACTS_STATUS": "UNKNOWN_PENDING_TIER_A_NETWORK_ACCESS_AND_MULTISCOPE_CONTRACT_CHANGE",
+    "FINAL_BASE_INGEST_CANDIDATES": 73,
+    "FINAL_NON_AUTHORITY_BLOCKED_COUNT": 1,
+    "FINAL_AUTHORITY_REQUIRED_COUNT": 72,
+    "FINAL_AUTHORITY_REQUIRED_SET_SHA256": "3705935f306a52cde0f398db20f685dce82d0bb9acd7909c8e6955d6356643e0",
+    "FINAL_RELEASE_ELIGIBLE_ARTIFACTS": 72,
+    "FINAL_ELIGIBLE_SET_FROZEN": true,
+    "RECOMPUTATION_EVIDENCE_PATH": "docs/reports/final_release_recomputation_evidence_20260824.json",
+    "RECOMPUTATION_EVIDENCE_SHA256": "f68f5c525c7bd9280e03a1bbc5fd4a434de1b1d64e8a0a4eff8e32a3caa4f47d",
     "AUTHORIZED_ELIGIBLE_ARTIFACTS": 0,
     "INGESTED_ELIGIBLE_ARTIFACTS": 0,
     "API_DISCOVERABLE_ELIGIBLE_ARTIFACTS": 0
   },
-  "tier_a_set_algebra_20260822": {
-    "SET_CURRENT": 10,
-    "SET_WAVE0": 2,
-    "SET_REVIEW_REQUIRED_PENDING": 138,
-    "CURRENT_INTERSECT_WAVE0": 0,
-    "CURRENT_INTERSECT_REVIEW_REQUIRED": 0,
-    "WAVE0_INTERSECT_REVIEW_REQUIRED": 0,
-    "TRIPLE_INTERSECTION": 0,
-    "UNION_REGISTRY_COVERED_UNCLASSIFIED": 150,
-    "note": "141 is a real, separately-confirmed number (see pii_cleared_currentness_undetermined.UNCLASSIFIED_REGISTRY_COVERED) but is NOT this union - the initial mission framing conflated the two",
-    "PII_CLEARED_CURRENTNESS_UNDETERMINED": {
-      "UNCLASSIFIED_ZERO_REGISTRY": 1252,
-      "UNCLASSIFIED_REGISTRY_COVERED": 141,
-      "A_VERIFIER": 746,
-      "TOTAL": 2139
-    },
-    "PII_AND_RIGHTS_CLEARED_CURRENTNESS_UNDETERMINED": {
-      "UNCLASSIFIED_ZERO_REGISTRY": 1252,
-      "UNCLASSIFIED_REGISTRY_COVERED": 141,
-      "A_VERIFIER": 746,
-      "TOTAL": 2139
-    },
-    "HISTORICAL_REPORTED_TIER_A": 1252,
-    "CURRENT_REPRODUCED_HISTORICAL_PREDICATE": 1252,
-    "HISTORICAL_MEASUREMENT_DELTA": 0,
-    "evidence": [
-      "docs/reports/tier_a_set_algebra_reconciliation_20260822.json",
-      "docs/reports/lot_tier_a_set_algebra_20260822.md"
-    ]
+  "terminal_disposition_20260823": {
+    "UNIQUE_CONTENTS": 2582,
+    "INGEST_CANDIDATE": 72,
+    "REVIEW_REQUIRED": 2399,
+    "QUARANTINE": 2,
+    "ARCHIVE_ONLY": 19,
+    "EXCLUDE": 53,
+    "UNSUPPORTED": 37,
+    "UNACCOUNTED_CONTENTS": 0,
+    "TERMINAL_DISPOSITION_COVERAGE": 100.0
   },
-  "tier_a_byte_identity_network_audit_20260822": {
-    "BYTE_IDENTITY_AUDIT_INPUT_COUNT": 138,
-    "SOURCE_URL_REGISTRY_MISSING": false,
-    "SOURCE_URL_REGISTRY_USED": "00_INDEX_PROVENANCE/EDUSCOL_CATALOGUES/catalogue-complet.tsv (sealed corpus mirror)",
-    "DISTINCT_SOURCE_URLS": 8,
-    "NETWORK_PROBE_PASS": false,
-    "DIAGNOSIS": "CLOUDFLARE_BOT_PROTECTION_403_DOMAIN_WIDE",
-    "BYTE_IDENTITY_CURRENT": 0,
-    "BYTE_IDENTITY_CHANGED": 0,
-    "BYTE_IDENTITY_NOT_FOUND": 0,
-    "BYTE_IDENTITY_UNAVAILABLE": 138,
-    "BYTE_IDENTITY_AMBIGUOUS": 0,
-    "BYTE_IDENTITY_CONFLICT": 0,
-    "SOURCE_UNAVAILABLE_TREATED_AS_NOT_CURRENT": false,
-    "second_pass_20260822": {
-      "ALTERNATE_ACCESS_PATH_FOUND": false,
-      "BYPASS_ATTEMPTED": false,
-      "CANONICAL_TERMINAL_VOCABULARY_EXISTS": false,
-      "NEW_TAXONOMY_VALUE_INTRODUCED": false,
-      "TERMINALIZATION_DECISION": "kept at real existing status A_VERIFIER/REVIEW_REQUIRED with the network-audit artifact attached as investigation proof; inventing REVIEW_REQUIRED_AFTER_INVESTIGATION would be a currentness_gate.py taxonomy contract change, out of scope for this read-only lot, flagged for the contract owner",
-      "TIER_A_NOT_INVESTIGATED": 0
-    },
-    "evidence": [
-      "docs/reports/tier_a_byte_identity_network_audit_20260822.json",
-      "docs/reports/lot_tier_a_byte_identity_network_audit_20260822.md"
-    ]
+  "cloudflare_release_decision_20260823": {
+    "CLOUDFLARE_OPERATOR_DECISION": "ACCEPT_REVIEW_REQUIRED_FOR_THIS_RELEASE",
+    "INVESTIGATED_CONTENT_COUNT": 138,
+    "TERMINAL_DISPOSITION": "REVIEW_REQUIRED",
+    "NETWORK_WORK_CLOSED_FOR_RELEASE": true,
+    "CLOUDFLARE_BLOCKS_GO_LIVE": false
   },
-  "scope_profile_audit_20260822": {
-    "AUTHORITY_REQUIRED_CONTENT_COUNT": 72,
-    "DISTINCT_LEVEL_SUBJECT_PAIRS": 22,
-    "DISTINCT_CANONICAL_RESOURCE_SCOPES_FULLY_GROUNDED": 0,
-    "ITEMS_WITH_UNRESOLVED_DIMENSION": 72,
-    "PRODUCTION_PROFILE_FILES": 1,
-    "STAGING_PROFILE_FILES": 2,
-    "AUTHORITY_REQUIRED_MAPPED_PRODUCTION": 0,
-    "AUTHORITY_REQUIRED_MAPPED_STAGING": 0,
-    "AUTHORITY_REQUIRED_NO_PROFILE": 72,
-    "AUTHORITY_REQUIRED_AMBIGUOUS_PROFILE": 0,
-    "MULTISCOPE_ARCHITECTURE_DECISION": "Refined by a second composition audit: scope is never cross-checked against allowed_content_sha256 at the H2 gate (_authority_semantic_validation, h2b_coverage_report.py:434-499), so a singular scope field per artifact is not itself the blocker. ScopeAuthorizationArtifactV2/CorpusCampaignV1/H2CoverageEvidenceV1 need no change - H2 always evaluates the full 2584-object corpus in one pass. The one real contract blocker is narrow: ProductionReadinessManifestV1.authorization_digest (production_readiness.py) is a single hex64 digest that cannot reference N authorizations. generate_coverage_report/republish_catalog also lack (non-contract) orchestration code to load and union N authorizations.",
-    "MULTISCOPE_ARCHITECTURE_RESOLVED": false,
-    "EXISTING_CONTRACT_SUFFICIENT": false,
-    "CONTRACT_CHANGE_REQUIRED": true,
-    "ARCHITECTURE_AMBIGUOUS": false,
-    "PROFILE_INVENTORY_GAP": true,
-    "RESOURCE_SCOPE_CONTRACT_GAP": true,
-    "RESOURCE_SCOPE_CONTRACT_GAP_SCOPE_NOTE": "narrow - production_readiness.py authorization_digest only, not ResourceScope/ScopeAuthorizationArtifactV2/CorpusCampaignV1",
-    "MINIMAL_CHANGE_PROPOSED": "(1) widen ProductionReadinessManifestV1.authorization_digest into a collection/aggregate digest - needs SemVer bump + ADR; (2) add (non-contract) orchestration in rag_pedago/imports and rag_pedago/governance to load/validate/union N disjoint-scope authorizations with a check that no content_sha256 is claimed twice",
-    "ADR0043_REUSED": false,
-    "evidence": [
-      "docs/reports/tier_a_scope_profile_audit_clean_20260822.json",
-      "docs/reports/lot_tier_a_scope_profile_multiscope_audit_20260822.md"
-    ]
+  "production_profile_proposal_20260823": {
+    "MATRIX_PATH": "docs/reports/proposed_production_profile_matrix_20260823.json",
+    "MATRIX_SHA256": "8009596c0cce54f816a1a1307a9ba5663146cfa2d7d95e381e84819d3be9c963",
+    "PARTITION_COUNT": 24,
+    "DISTINCT_LEVEL_SUBJECT_PAIRS_MINIMUM": 22,
+    "MATRIX_RAW_DISTINCT_LEVEL_SUBJECT_PAIRS": 23,
+    "MATRIX_FULLY_SPECIFIED_LEVEL_SUBJECT_PAIRS": 21,
+    "GROUNDED_PARTITION_COUNT": 10,
+    "GROUNDED_CONTENT_COUNT": 11,
+    "DECISION_REQUIRED_PARTITION_COUNT": 14,
+    "DECISION_REQUIRED_CONTENT_COUNT": 61,
+    "PROFILE_EXACT_MATCH_COUNT": 0,
+    "PROFILE_NO_MATCH_COUNT": 72,
+    "PROFILE_AMBIGUOUS_COUNT": 0,
+    "DISTINCT_CANONICAL_RESOURCE_SCOPES": null,
+    "PROFILE_DECISION_REQUIRED": true,
+    "FABRICATED_PROFILE_COUNT": 0
+  },
+  "multi_authorization_protocol_20260823": {
+    "AUDIT_PATH": "docs/reports/multi_authority_contract_surface_audit_20260823.md",
+    "AUDIT_SURFACE_COUNT": 45,
+    "OLD_NARROW_CONCLUSION_SUPERSEDED": true,
+    "ADR": "ADR-0044",
+    "CONTRACT_VERSION": "0.13.0",
+    "AUTHORIZATION_SET_PROTOCOL": "NEXUS-AUTHORIZATION-SET-V1",
+    "V1_LEGACY_READABLE_AND_UNCHANGED": true,
+    "V2_MECHANISM_IMPLEMENTED_ON_BRANCH": true,
+    "REAL_AUTHORIZATION_SET_CREATED": false,
+    "REAL_H2_GATE_PASS": false
+  },
+  "docker_rehearsal_20260823": {
+    "DOCKER_REHEARSAL_EVIDENCE_STATUS": "UNVERIFIED_TRANSCRIPT_NOT_VERSIONED",
+    "ATOMIC_DOCKER_REHEARSAL_PASS": null,
+    "FOREIGN_SERVICES_TOUCHED": null,
+    "ROLLBACK_REHEARSAL_PASS": null,
+    "BAD_DIGEST_REFUSED": null,
+    "BAD_READINESS_REFUSED": null,
+    "EXACT_TECHNICAL_BLOCKER": "UNKNOWN_TRANSCRIPT_UNAVAILABLE",
+    "TECHNICAL_FIX_REQUIRES_SEPARATE_PR": null,
+    "HISTORICAL_OPERATOR_OBSERVATION_UNVERIFIED": {
+      "ATOMIC_DOCKER_REHEARSAL_PASS": false,
+      "FOREIGN_SERVICES_TOUCHED": 0,
+      "ROLLBACK_REHEARSAL_PASS": false,
+      "BAD_DIGEST_REFUSED": true,
+      "BAD_READINESS_REFUSED": true,
+      "TECHNICAL_FIX_REQUIRES_SEPARATE_PR": true
+    }
+  },
+  "production_database_read_only_audit_20260823": {
+    "DB_AUDIT_EVIDENCE_STATUS": "UNVERIFIED_TRANSCRIPT_NOT_VERSIONED",
+    "AUDIT_ATTEMPTED": null,
+    "BLOCKER": null,
+    "LOCAL_DEVELOPMENT_DATABASE_TREATED_AS_PRODUCTION": false,
+    "PROD_DB_TARGET_VERIFIED": null,
+    "PROD_DB_MIGRATION_PLAN_READY": null,
+    "PROD_DB_WRITES": null,
+    "HISTORICAL_OPERATOR_OBSERVATION_UNVERIFIED": {
+      "AUDIT_ATTEMPTED": true,
+      "BLOCKER": "SSH_UNKNOWN_HOST_KEY",
+      "PROD_DB_TARGET_VERIFIED": false,
+      "PROD_DB_MIGRATION_PLAN_READY": false,
+      "PROD_DB_WRITES": 0
+    }
+  },
+  "production_github_environment": {
+    "PRODUCTION_ENVIRONMENT_EXISTS": false,
+    "PRODUCTION_ENVIRONMENT_PROVISIONED": false,
+    "REQUIRED_REVIEWER": "abenrhouma",
+    "REQUIRED_REVIEWER_USER_ID": 67140603,
+    "MAIN_ONLY": true,
+    "PREVENT_SELF_REVIEW": true,
+    "ADMIN_BYPASS": false,
+    "WAIT_TIMER_MINUTES": 0,
+    "SECRETS": 0,
+    "HUMAN_ADMIN_ACTION_REQUIRED": true,
+    "READ_ONLY_EVIDENCE_PATH": "docs/reports/github_environment_read_only_observation_20260824.json",
+    "READ_ONLY_EVIDENCE_SHA256": "8880808bf1b46032e69141793d34815f4db836692a2e3f44d8f280db9f020d8a"
   },
   "quarantine_20260822": {
     "QUARANTINED_BRANCH": "rag-pedago/tier-a-currentness-byte-identity-20260820",
     "QUARANTINE_HEAD_SHA": "ed5eb7c02805f13103238e0f8f65cc74b3af1c09",
     "QUARANTINE_COMMIT_COUNT": 44,
-    "ADR0043_STATUS": "UNREVIEWED_WIP",
+    "ADR0043_STATUS": "UNREVIEWED_WIP/NON_AUTHORITATIVE/NOT_REUSED",
     "UNTRUSTED_CODE_REUSED": 0,
     "UNTRUSTED_CONTRACT_CHANGES_REUSED": 0,
-    "UNTRUSTED_ADR_REUSED": 0,
-    "QUARANTINE_DIR": "~/Documents/NEXUS_RAG_WIP_QUARANTINE/tier-a-20260822/"
-  },
-  "pr96_pr98_audit": {
-    "PR96_ACTION": "KEEP_OPEN",
-    "PR98_ACTION": "REUSE_AS_SUBSET",
-    "PR96_PR98_OVERLAP": "none",
-    "decision_pending": "operator",
-    "reverified_live_20260822": true
+    "UNTRUSTED_ADR_REUSED": 0
   },
   "google_drive": {
     "DRIVE_MIRROR_COMPLETE": true,
@@ -165,43 +166,65 @@
     "DRIVE_EXTRA_UNACCOUNTED": 1,
     "DRIVE_CANONICAL_FILES_MISSING": 0,
     "DRIVE_SHA_MISMATCH": 0,
-    "drive_remote": "gdrive_ert:NEXUS_RAG/NEXUS_RAG_GDRIVE_READY",
-    "rclone_check_result": "0 differences found, 2584 matching files",
     "drive_snapshot_id": "drive-snapshot-20260815T180436Z",
     "drive_snapshot_mapping_sha256": "75ac6bd288882939d2bb8fcad758730238037c5266913166fcbc61c3be47cdc8",
     "drive_snapshot_metadata_sha256": "15d517a49517d94a9dcccfbc6767815afc0b09b933dd2022eb8830dcd09fb7fb",
-    "not_rescanned_20260822": true
+    "not_rescanned_for_this_release_freeze": true
   },
-  "production_github_environment": {
-    "PRODUCTION_ENVIRONMENT_EXISTS": false,
-    "status": "NOT_STARTED_BLOCKED_HUMAN"
+  "real_execution": {
+    "REAL_AUTHORIZATIONS_CREATED": false,
+    "REAL_CAMPAIGN_EXECUTED": false,
+    "REAL_GOVERNED_REPUBLISH_EXECUTED": false,
+    "REAL_H2_GATE_PASS": false,
+    "PRODUCTION_IMAGE_PROVENANCE_EXECUTED": false,
+    "PROMOTION_EXECUTED": false,
+    "OFFLINE_READINESS_SIGNATURE_CREATED": false,
+    "FINAL_CUTOVER_EXECUTED": false
   },
-  "consolidated_status": [
-    {"item": "Gouvernance PR#100-#126 (hors #96/#98)", "status": "DONE"},
-    {"item": "Gate trusted-review fiable (Commit Status)", "status": "DONE"},
-    {"item": "Governed republish - mecanisme", "status": "DONE"},
-    {"item": "Governed republish - execution reelle", "status": "NOT_STARTED"},
-    {"item": "Currentness-verified promotion - mecanisme", "status": "DONE"},
-    {"item": "Currentness-verified promotion - execution reelle", "status": "NOT_STARTED"},
-    {"item": "Atomic deploy - logique wrapper", "status": "DONE_PARTIAL"},
-    {"item": "Atomic deploy - rehearsal Docker reel isole", "status": "NOT_STARTED"},
-    {"item": "Tier A - algebre exacte + univers PII/droits", "status": "DONE"},
-    {"item": "Tier A - audit byte-identity reseau reel", "status": "DONE_BLOCKED_CLOUDFLARE_ZERO_PROMOTION"},
-    {"item": "Tier A - resolution complete", "status": "BLOCKED_HUMAN_INFRA"},
-    {"item": "Scope/profil - mapping reel", "status": "DONE_ZERO_MATCH"},
-    {"item": "Architecture multi-scope - audit", "status": "DONE"},
-    {"item": "Architecture multi-scope - changement de contrat", "status": "NOT_STARTED_NEEDS_ADR_AND_PR"},
-    {"item": "PR#96/#98 - audit", "status": "DONE"},
-    {"item": "PR#96/#98 - decision + action", "status": "BLOCKED_HUMAN"},
-    {"item": "Google Drive mirror", "status": "DONE"},
-    {"item": "Production GitHub Environment", "status": "NOT_STARTED_BLOCKED_HUMAN"},
-    {"item": "FINAL_ELIGIBLE_SHA_SET fige", "status": "NOT_STARTED"},
-    {"item": "Strategie d'autorisation exacte-content", "status": "NOT_STARTED_BLOCKED_ON_MULTISCOPE_CONTRACT"},
-    {"item": "Campagne reelle + republish reel", "status": "NOT_STARTED"},
-    {"item": "production-image-provenance.yml run reel", "status": "NOT_STARTED"},
-    {"item": "promote.yml run reel", "status": "NOT_STARTED"},
-    {"item": "FINAL_RAG_MAIN_SHA freeze", "status": "NOT_STARTED"},
-    {"item": "Signature offline", "status": "NOT_STARTED_HUMAN_GATE_FINAL"},
-    {"item": "Cutover production", "status": "NOT_STARTED_HUMAN_GATE_FINAL"}
-  ]
+  "release_status": {
+    "PRODUCTION_READY": false,
+    "GO_LIVE_READY": false,
+    "RAG_PRODUCTION_DEPLOYED": false,
+    "DRIVE_MIRROR_COMPLETE": true
+  },
+  "historical_state_superseded": {
+    "CURRENT_RELEASE_ELIGIBLE_ARTIFACTS_63": "historical snapshot only; superseded by reproducible final 73/1/72 calculation",
+    "FINAL_RELEASE_ELIGIBLE_ARTIFACTS_UNKNOWN": "superseded by operator Cloudflare decision and final release calculation",
+    "SINGLE_BLOCKER_AUTHORIZATION_DIGEST_CONCLUSION": "superseded by the exhaustive 45-surface audit and ADR-0044",
+    "TIER_A_NETWORK_BLOCKED_GO_LIVE": "superseded; the 138 are terminal REVIEW_REQUIRED for this release",
+    "PR96": "DO NOT APPROVE; legacy/inactive and not a blocker for this lot",
+    "PR98": "partial five-content V2 candidate; reuse decision deferred until the real AuthorizationSet",
+    "TIER_A_SET_ALGEBRA_20260822": {
+      "SET_CURRENT": 10,
+      "SET_WAVE0": 2,
+      "SET_REVIEW_REQUIRED_PENDING": 138,
+      "PAIRWISE_AND_TRIPLE_INTERSECTIONS": 0,
+      "UNION_REGISTRY_COVERED_UNCLASSIFIED": 150,
+      "PII_CLEARED_CURRENTNESS_UNDETERMINED": 2139,
+      "HISTORICAL_PREDICATE": 1252,
+      "MEASUREMENT_DELTA": 0
+    },
+    "BYTE_IDENTITY_NETWORK_AUDIT_20260822": {
+      "INPUT_COUNT": 138,
+      "DISTINCT_SOURCE_URLS": 8,
+      "DIAGNOSIS": "CLOUDFLARE_BOT_PROTECTION_403_DOMAIN_WIDE",
+      "BYTE_IDENTITY_UNAVAILABLE": 138,
+      "BYPASS_ATTEMPTED": false,
+      "TIER_A_NOT_INVESTIGATED": 0
+    },
+    "SCOPE_PROFILE_AUDIT_20260822": {
+      "AUTHORITY_REQUIRED_CONTENT_COUNT": 72,
+      "HISTORICAL_AUDIT_REPORTED_DISTINCT_LEVEL_SUBJECT_PAIRS": 22,
+      "PRODUCTION_PROFILE_FILES": 1,
+      "STAGING_PROFILE_FILES": 2,
+      "AUTHORITY_REQUIRED_MAPPED_PRODUCTION": 0,
+      "AUTHORITY_REQUIRED_NO_PROFILE": 72,
+      "NARROW_ARCHITECTURE_CONCLUSION": "historical only; superseded by the 45-surface adversarial audit"
+    },
+    "ATOMIC_DEPLOY_AUDIT_20260815": {
+      "EXISTING_DEV_STACK_FOUND_ON_HOST": "infra",
+      "SAFE_FIXTURE_COMPOSE": "services/rag-engine/infra/docker-compose.test.yml",
+      "ORPHANED_STACK_FLAGGED_NOT_TOUCHED": "rag-smoke-ci3"
+    }
+  }
 }

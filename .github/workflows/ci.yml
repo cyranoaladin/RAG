@@ -212,7 +212,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install PyYAML==6.0.3 pydantic==2.13.4
+      - run: pip install -e packages/contracts
       - working-directory: services/cockpit
         run: npm ci
       - working-directory: services/cockpit

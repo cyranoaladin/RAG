@@ -10,10 +10,14 @@ ancre réelle n'est écrite dans le dépôt.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import UTC, datetime
+from pathlib import Path
 
 import pytest
+import nexus_contracts
+import nexus_contracts.production_readiness as readiness_contract
 from nexus_contracts.production_readiness import (
     PRODUCTION_READINESS_PROTOCOL_VERSION,
     ProductionReadinessError,
@@ -36,6 +40,15 @@ MERGE_SHA = "a" * 40
 TREE_SHA = "b" * 40
 PR_HEAD_SHA = "c" * 40
 ISSUED_AT = datetime(2026, 8, 11, 12, 0, tzinfo=UTC)
+LEGACY_V1_FIXTURE = (
+    Path(__file__).parent / "fixtures/legacy_v1/production_readiness_signed_v1.json"
+)
+LEGACY_V1_FIXTURE_SHA256 = (
+    "b709335c20f949b2e9b08ed2610e921d5684f5602e1ef5ce38355d4fa51a8009"
+)
+FROZEN_READINESS_PUBLIC_KEY = (
+    "d04ab232742bb4ab3a1368bd4615e4e6d0224ab71a016baf8520a332c9778737"
+)
 
 
 def _manifest_fields(**overrides: object) -> dict[str, object]:
@@ -106,7 +119,143 @@ def _signed_bytes(**overrides: object) -> bytes:
     ).canonical_bytes()
 
 
+def _v2_manifest_fields(**overrides: object) -> dict[str, object]:
+    fields = _manifest_fields()
+    del fields["review_binding_digest"]
+    del fields["authorization_digest"]
+    fields["protocol_version"] = "NEXUS-PRODUCTION-READINESS-V2"
+    fields["authorization_set_digest"] = "99" * 32
+    fields.update(overrides)
+    return fields
+
+
+def _v2_manifest(
+    **overrides: object,
+) -> readiness_contract.ProductionReadinessManifestV2:
+    return readiness_contract.ProductionReadinessManifestV2(
+        **_v2_manifest_fields(**overrides)
+    )
+
+
+class TestProductionReadinessV2:
+    def test_v2_replaces_singular_authority_digests_with_the_set_digest(self) -> None:
+        manifest = _v2_manifest()
+
+        assert manifest.protocol_version == "NEXUS-PRODUCTION-READINESS-V2"
+        assert manifest.authorization_set_digest == "99" * 32
+        assert "authorization_digest" not in type(manifest).model_fields
+        assert "review_binding_digest" not in type(manifest).model_fields
+
+    def test_v2_refuses_the_legacy_singular_authority_fields(self) -> None:
+        with pytest.raises(ValidationError):
+            _v2_manifest(
+                authorization_digest="22" * 32,
+                review_binding_digest="11" * 32,
+            )
+
+    def test_v2_canonical_sign_and_verify_are_explicit(self) -> None:
+        manifest = _v2_manifest()
+        signed = readiness_contract.sign_production_readiness_manifest_v2(
+            manifest,
+            private_key_hex=READINESS_SEED,
+            key_id=KEY_ID,
+        )
+        raw = signed.canonical_bytes()
+
+        parsed = readiness_contract.parse_signed_production_readiness_manifest_v2(raw)
+        verified = readiness_contract.verify_production_readiness_manifest_v2(
+            raw,
+            trust_anchor=_anchor(),
+        )
+        assert parsed.canonical_bytes() == raw
+        assert verified.canonical_bytes() == manifest.canonical_bytes()
+
+    def test_changing_the_authorization_set_changes_signed_identity(self) -> None:
+        first = _v2_manifest(authorization_set_digest="98" * 32)
+        second = _v2_manifest(authorization_set_digest="99" * 32)
+
+        assert first.canonical_bytes() != second.canonical_bytes()
+        assert first.digest() != second.digest()
+
+    def test_v1_signer_refuses_a_v2_manifest(self) -> None:
+        with pytest.raises(TypeError, match="ProductionReadinessManifestV1"):
+            sign_production_readiness_manifest(
+                _v2_manifest(),  # type: ignore[arg-type]
+                private_key_hex=READINESS_SEED,
+                key_id=KEY_ID,
+            )
+
+    def test_v2_signer_refuses_a_v1_manifest(self) -> None:
+        with pytest.raises(TypeError, match="ProductionReadinessManifestV2"):
+            readiness_contract.sign_production_readiness_manifest_v2(
+                _manifest(),
+                private_key_hex=READINESS_SEED,
+                key_id=KEY_ID,
+            )
+
+
+class TestReadinessProtocolDispatch:
+    def test_v1_parser_refuses_v2(self) -> None:
+        signed = readiness_contract.sign_production_readiness_manifest_v2(
+            _v2_manifest(),
+            private_key_hex=READINESS_SEED,
+            key_id=KEY_ID,
+        )
+        with pytest.raises(ProductionReadinessError, match="protocol_version is not"):
+            parse_signed_production_readiness_manifest(signed.canonical_bytes())
+
+    def test_v2_parser_refuses_v1(self) -> None:
+        with pytest.raises(ProductionReadinessError, match="protocol_version is not"):
+            readiness_contract.parse_signed_production_readiness_manifest_v2(
+                _signed_bytes()
+            )
+
+
+def test_v2_contracts_have_explicit_package_exports() -> None:
+    expected_exports = {
+        "H2_COVERAGE_EVIDENCE_V2_PROTOCOL_VERSION",
+        "H2CoverageEvidenceV2",
+        "PRODUCTION_READINESS_V2_PROTOCOL_VERSION",
+        "ProductionReadinessManifestV2",
+        "SignedProductionReadinessManifestV2",
+        "parse_h2_coverage_evidence_v2",
+        "parse_signed_production_readiness_manifest_v2",
+        "sign_production_readiness_manifest_v2",
+        "verify_production_readiness_manifest_v2",
+    }
+    assert expected_exports <= set(nexus_contracts.__all__)
+    assert all(hasattr(nexus_contracts, name) for name in expected_exports)
+
+
 class TestCanonicalisation:
+    def test_legacy_v1_signed_fixture_bytes_and_signature_are_immutable(self) -> None:
+        raw = LEGACY_V1_FIXTURE.read_bytes()
+        assert hashlib.sha256(raw).hexdigest() == LEGACY_V1_FIXTURE_SHA256
+
+        signed = parse_signed_production_readiness_manifest(raw)
+        assert signed.manifest.protocol_version == "NEXUS-PRODUCTION-READINESS-V1"
+        assert signed.canonical_bytes() == raw
+
+        frozen_anchor = parse_production_readiness_trust_anchor(
+            json.dumps(
+                {
+                    "protocol_version": "NEXUS-PRODUCTION-READINESS-V1",
+                    "keys": [
+                        {
+                            "key_id": KEY_ID,
+                            "algorithm": "ed25519",
+                            "public_key": FROZEN_READINESS_PUBLIC_KEY,
+                            "environment": "production",
+                        }
+                    ],
+                }
+            ).encode("utf-8")
+        )
+        verified = verify_production_readiness_manifest(
+            raw, trust_anchor=frozen_anchor
+        )
+        assert verified.canonical_bytes() == signed.manifest.canonical_bytes()
+
     def test_the_bytes_round_trip(self) -> None:
         raw = _signed_bytes()
         assert parse_signed_production_readiness_manifest(raw).canonical_bytes() == raw

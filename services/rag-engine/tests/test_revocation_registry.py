@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from ingestor.ingestion_control.revocation_registry import (  # noqa: E402
     RevocationRegistryError,
     load_revocation_registry,
+    load_shared_authorization_revocations,
     require_revocation_registry_matches_manifest,
 )
 
@@ -136,3 +137,41 @@ def test_require_matches_manifest_refuses_drift(tmp_path: Path) -> None:
         require_revocation_registry_matches_manifest(
             registry, manifest_revocation_registry_digest="9" * 64
         )
+
+
+def test_v2_loads_only_the_shared_authorization_revocation_schema(tmp_path: Path) -> None:
+    path = tmp_path / "revocations.json"
+    digest = _write_registry(
+        path,
+        {
+            "protocol_version": "NEXUS-AUTHORIZATION-REVOCATIONS-V1",
+            "revoked_authorization_ids": ["auth-b", "auth-a"],
+        },
+    )
+
+    registry = load_shared_authorization_revocations(path, expected_sha256=digest)
+
+    assert registry.revoked_authorization_ids == frozenset({"auth-a", "auth-b"})
+    assert registry.revoked_publication_attestation_ids == frozenset()
+
+
+def test_v2_refuses_the_legacy_runtime_revocation_schema(tmp_path: Path) -> None:
+    path = tmp_path / "legacy.json"
+    digest = _write_registry(path, {"registry_version": "1", "revoked": []})
+
+    with pytest.raises(RevocationRegistryError, match="REVOCATION_REGISTRY_INVALID"):
+        load_shared_authorization_revocations(path, expected_sha256=digest)
+
+
+def test_legacy_loader_refuses_the_shared_v2_schema(tmp_path: Path) -> None:
+    path = tmp_path / "shared.json"
+    digest = _write_registry(
+        path,
+        {
+            "protocol_version": "NEXUS-AUTHORIZATION-REVOCATIONS-V1",
+            "revoked_authorization_ids": [],
+        },
+    )
+
+    with pytest.raises(RevocationRegistryError, match="version is unsupported"):
+        load_revocation_registry(path, expected_sha256=digest)

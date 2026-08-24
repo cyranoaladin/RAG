@@ -39,6 +39,16 @@ from dataclasses import dataclass, fields
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from nexus_contracts.authorization_set import parse_authorization_set
+from nexus_contracts.h2_coverage_evidence import parse_h2_coverage_evidence_v2
+from nexus_contracts.release_evidence import (
+    H2_EVIDENCE_V2_PROTOCOL_VERSION,
+    H2EvidenceBundleV2,
+    ReleaseEvidenceError,
+)
+
+from rag_pedago.governance.corpus_campaign import parse_corpus_campaign_v2
+
 #: Identifiant de protocole. Toute évolution du jeu de champs doit le
 #: changer : deux formats ne peuvent pas partager une identité.
 H2_EVIDENCE_PROTOCOL = "NEXUS-H2-EVIDENCE-V1"
@@ -371,6 +381,205 @@ def cross_check_review_view(
         )
 
 
+def build_h2_evidence_bundle_v2(
+    *,
+    campaign_raw: bytes,
+    authorization_set_raw: bytes,
+    h2_coverage_evidence_raw: bytes,
+    review_view_sha256: str,
+    repository: str,
+    pull_request_number: int,
+    pr_head_sha: str,
+    pr_head_tree_sha: str,
+    merge_sha: str,
+    merge_tree_sha: str,
+    workflow_path: str,
+    run_id: str,
+    run_attempt: int,
+) -> H2EvidenceBundleV2:
+    """Assemble V2 depuis les trois documents canoniques, jamais des flags libres.
+
+    Les digests de configuration, d'autorité, de révocation et de placement
+    proviennent de la preuve H2 structurée. La campagne et le set sont relus et
+    rehachés ici, puis chaque identité dupliquée est confrontée.
+    """
+    try:
+        campaign = parse_corpus_campaign_v2(campaign_raw)
+    except ValueError as exc:
+        raise ReleaseEvidenceError(f"campaign V2 is invalid: {exc}") from exc
+    try:
+        authorization_set = parse_authorization_set(authorization_set_raw)
+    except ValueError as exc:
+        raise ReleaseEvidenceError(f"authorization set is invalid: {exc}") from exc
+    try:
+        h2_coverage = parse_h2_coverage_evidence_v2(h2_coverage_evidence_raw)
+    except ValueError as exc:
+        raise ReleaseEvidenceError(f"H2 coverage V2 is invalid: {exc}") from exc
+
+    authorization_set_digest = hashlib.sha256(authorization_set_raw).hexdigest()
+    h2_coverage_digest = hashlib.sha256(h2_coverage_evidence_raw).hexdigest()
+    campaign_digest = hashlib.sha256(campaign_raw).hexdigest()
+    comparisons = {
+        "authorization_set_digest": (
+            authorization_set_digest,
+            campaign.authorization_set_digest,
+            h2_coverage.authorization_set_digest,
+        ),
+        "corpus_manifest_sha256": (
+            authorization_set.corpus_manifest_sha256,
+            campaign.expected_manifest_sha256,
+            h2_coverage.corpus_manifest_sha256,
+        ),
+        "profile_manifest_digest": (
+            authorization_set.profile_manifest_digest,
+            campaign.profile_manifest_digest,
+            h2_coverage.profile_manifest_digest,
+        ),
+        "release_scope_placement_digest": (
+            authorization_set.release_scope_placement_digest,
+            campaign.release_scope_placement_digest,
+            h2_coverage.release_scope_placement_digest,
+        ),
+        "authority_required_count": (
+            authorization_set.authority_required_count,
+            campaign.authority_required_count,
+            h2_coverage.authority_required_count,
+            h2_coverage.authority_covered_count,
+        ),
+        "authority_required_set_sha256": (
+            authorization_set.authority_required_set_sha256,
+            campaign.authority_required_set_sha256,
+            h2_coverage.authority_required_set_sha256,
+        ),
+        "authorization_count": (
+            authorization_set.authorization_count,
+            h2_coverage.authorization_count,
+        ),
+        "authorizations_effective_valid_until": (
+            authorization_set.authorizations_effective_valid_until,
+            h2_coverage.authorizations_effective_valid_until,
+        ),
+        "catalog": (
+            campaign.expected_catalog_digest,
+            h2_coverage.input_file_digests["catalog"],
+        ),
+        "routing": (
+            campaign.routing_config_digest,
+            h2_coverage.input_file_digests["routing"],
+        ),
+        "rights": (
+            campaign.rights_config_digest,
+            h2_coverage.input_file_digests["rights"],
+        ),
+        "pii": (
+            campaign.pii_config_digest,
+            h2_coverage.input_file_digests["pii"],
+        ),
+        "golden": (
+            campaign.golden_spec_digest,
+            h2_coverage.input_file_digests["golden"],
+        ),
+    }
+    for label, values in comparisons.items():
+        if len(set(values)) != 1:
+            raise ReleaseEvidenceError(f"{label} differs across release evidence")
+    if campaign.environment != "production":
+        raise ReleaseEvidenceError("campaign V2 is not a production campaign")
+    if h2_coverage.git_commit != merge_sha:
+        raise ReleaseEvidenceError("H2 coverage git_commit does not match merge_sha")
+    if h2_coverage.release_scope_source_tree_sha != merge_tree_sha:
+        raise ReleaseEvidenceError(
+            "H2 coverage release_scope_source_tree_sha does not match merge_tree_sha"
+        )
+
+    try:
+        return H2EvidenceBundleV2.model_validate(
+            {
+                "protocol_version": H2_EVIDENCE_V2_PROTOCOL_VERSION,
+                "repository": repository,
+                "pull_request_number": pull_request_number,
+                "pr_head_sha": pr_head_sha,
+                "pr_head_tree_sha": pr_head_tree_sha,
+                "merge_sha": merge_sha,
+                "merge_tree_sha": merge_tree_sha,
+                "campaign_id": campaign.campaign_id,
+                "campaign_digest": campaign_digest,
+                "source_oci_digest": campaign.source_oci_digest,
+                "source_archive_sha256": campaign.source_archive_sha256,
+                "source_tree_digest": campaign.source_tree_digest,
+                "corpus_manifest_sha256": h2_coverage.corpus_manifest_sha256,
+                "catalog_sha256": h2_coverage.input_file_digests["catalog"],
+                "review_view_sha256": review_view_sha256,
+                "profile_manifest_digest": h2_coverage.profile_manifest_digest,
+                "authorization_set_digest": authorization_set_digest,
+                "authorization_count": authorization_set.authorization_count,
+                "authority_required_count": authorization_set.authority_required_count,
+                "authority_required_set_sha256": (
+                    authorization_set.authority_required_set_sha256
+                ),
+                "release_scope_source_tree_sha": (
+                    h2_coverage.release_scope_source_tree_sha
+                ),
+                "release_scope_placement_digest": (
+                    h2_coverage.release_scope_placement_digest
+                ),
+                "release_scope_source_blob_digests": (
+                    h2_coverage.release_scope_source_blob_digests
+                ),
+                "revocation_registry_sha256": h2_coverage.input_file_digests[
+                    "authority_revocations"
+                ],
+                "review_binding_trust_anchor_sha256": (
+                    h2_coverage.input_file_digests["review_binding_trust_anchor"]
+                ),
+                "trusted_reviewers_sha256": h2_coverage.input_file_digests[
+                    "trusted_reviewers"
+                ],
+                "input_file_digests": h2_coverage.input_file_digests,
+                "authorization_set_verified_at": (
+                    h2_coverage.authorization_set_verified_at
+                ),
+                "earliest_review_submitted_at": (
+                    h2_coverage.earliest_review_submitted_at
+                ),
+                "earliest_review_binding_verified_at": (
+                    h2_coverage.earliest_review_binding_verified_at
+                ),
+                "earliest_review_binding_expires_at": (
+                    h2_coverage.earliest_review_binding_expires_at
+                ),
+                "authorizations_effective_valid_from": (
+                    authorization_set.authorizations_effective_valid_from
+                ),
+                "authorizations_effective_valid_until": (
+                    h2_coverage.authorizations_effective_valid_until
+                ),
+                "h2_coverage_generated_at": h2_coverage.generated_at,
+                "h2_coverage_evidence_sha256": h2_coverage_digest,
+                "h2_coverage_gate_pass": h2_coverage.h2_coverage_gate_pass,
+                "authority_revocations_checked": (
+                    h2_coverage.authority_revocations_checked
+                ),
+                "authority_review_bindings_verified": (
+                    h2_coverage.authority_review_bindings_verified
+                ),
+                "coverage_complete": h2_coverage.coverage_complete,
+                "authority_covered_count": h2_coverage.authority_covered_count,
+                "authorization_overlap_count": (
+                    h2_coverage.authorization_overlap_count
+                ),
+                "authorization_gap_count": h2_coverage.authorization_gap_count,
+                "authorization_extra_count": h2_coverage.authorization_extra_count,
+                "environment": h2_coverage.environment,
+                "workflow_path": workflow_path,
+                "run_id": run_id,
+                "run_attempt": run_attempt,
+            }
+        )
+    except Exception as exc:  # noqa: BLE001 - frontière de contrat stricte
+        raise ReleaseEvidenceError(f"H2 evidence V2 bundle is invalid: {exc}") from exc
+
+
 # ─────────────────────────────────────────────────────────────────────────
 # Résolution — §5.3
 # ─────────────────────────────────────────────────────────────────────────
@@ -502,6 +711,7 @@ __all__ = [
     "EvidenceCandidate",
     "H2EvidenceBundle",
     "H2EvidenceError",
+    "build_h2_evidence_bundle_v2",
     "build_evidence_index",
     "cross_check_review_view",
     "resolve_evidence_artifact",

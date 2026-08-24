@@ -93,20 +93,24 @@ Usage minimal (voir --help pour la liste complète des faits requis) :
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import hashlib
 import json
 import os
 import re
+import stat
 import subprocess
 import sys
 import tempfile
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(_REPO_ROOT / "packages" / "contracts" / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import deployment_image_inventory as dii  # noqa: E402
 import verify_release_image_provenance_cli as vri  # noqa: E402
@@ -119,16 +123,25 @@ from nexus_contracts.authorization_revocations import (  # noqa: E402
     AuthorizationRevocationsError,
     parse_revoked_authorization_ids,
 )
+from nexus_contracts.authorization_set import (  # noqa: E402
+    AuthorizationSetError,
+    VerifiedProfileFactV1,
+    parse_authorization_set,
+)
 from nexus_contracts.h2_coverage_evidence import (  # noqa: E402
     H2CoverageEvidenceError,
     parse_h2_coverage_evidence,
+    parse_h2_coverage_evidence_v2,
 )
 from nexus_contracts.production_readiness import (  # noqa: E402
     ProductionReadinessError,
     ProductionReadinessManifestV1,
+    ProductionReadinessManifestV2,
     parse_production_readiness_trust_anchor,
     sign_production_readiness_manifest,
+    sign_production_readiness_manifest_v2,
     verify_production_readiness_manifest,
+    verify_production_readiness_manifest_v2,
 )
 from nexus_contracts.review_binding import (  # noqa: E402
     ReviewBindingError,
@@ -139,6 +152,8 @@ from nexus_contracts.review_binding import (  # noqa: E402
 from nexus_contracts.review_binding import (  # noqa: E402
     parse_trust_anchor as parse_review_binding_trust_anchor,
 )
+
+from ingestor.ingestion_profiles import release_verification_v2 as rv2  # noqa: E402
 
 #: Jamais une entrée opérateur (ancien ``--repository``, Codex, même
 #: classe de défaut déjà corrigée dans PR #105) : un opérateur ne peut
@@ -185,6 +200,63 @@ def _read_bytes(path: Path, *, label: str) -> bytes:
         return path.read_bytes()
     except OSError as exc:
         raise SigningToolError(f"{label}: cannot read {path}: {exc}") from exc
+
+
+def _read_bytes_no_follow(path: Path, *, label: str) -> bytes:
+    """Gèle un fichier régulier local par un unique descripteur no-follow."""
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        fd = os.open(path, flags)
+    except OSError as exc:
+        detail = "symlink or unreadable path" if path.is_symlink() else str(exc)
+        raise SigningToolError(f"{label}: cannot open without following symlink: {detail}") from exc
+    try:
+        metadata = os.fstat(fd)
+        if not stat.S_ISREG(metadata.st_mode):
+            raise SigningToolError(f"{label}: {path} is not a regular file")
+        chunks: list[bytes] = []
+        while True:
+            chunk = os.read(fd, 1024 * 1024)
+            if not chunk:
+                break
+            chunks.append(chunk)
+        return b"".join(chunks)
+    finally:
+        os.close(fd)
+
+
+def _atomic_private_write(path: Path, raw: bytes) -> None:
+    """Écrit 0600, fsync, puis replace atomique sans suivre une cible lien."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.is_symlink():
+        raise SigningToolError(f"output {path} is a symlink and is never followed")
+    fd, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    temporary = Path(temporary_name)
+    try:
+        os.fchmod(fd, 0o600)
+        view = memoryview(raw)
+        while view:
+            written = os.write(fd, view)
+            view = view[written:]
+        os.fsync(fd)
+        os.close(fd)
+        fd = -1
+        if path.is_symlink():
+            raise SigningToolError(f"output {path} became a symlink and is never followed")
+        os.replace(temporary, path)
+        directory_fd = os.open(path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    except Exception:
+        if fd >= 0:
+            os.close(fd)
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
+        raise
 
 
 def _digest_of_file(path: Path, *, label: str) -> str:
@@ -236,8 +308,11 @@ def _run_docker_compose_config(
     ``docker-compose.production-workers.yml`` + ``docker-compose.
     production-release.yml``, résolus ensemble, le peuvent)."""
     try:
-        return vri.run_docker_compose_config_via_subprocess(
-            repo_root, merge_sha, vri._CANONICAL_COMPOSE_FILES, work_dir, env_file
+        return cast(
+            dict[str, Any],
+            vri.run_docker_compose_config_via_subprocess(
+                repo_root, merge_sha, vri._CANONICAL_COMPOSE_FILES, work_dir, env_file
+            ),
         )
     except vri.ReleaseVerificationError as exc:
         raise SigningToolError(f"compose resolution refused: {exc}") from exc
@@ -503,6 +578,66 @@ def _verify_git_and_workflow_facts(args: argparse.Namespace) -> tuple[str, str]:
     return pr_head_tree_sha, merge_tree_sha
 
 
+def _require_live_main_head(merge_sha: str) -> None:
+    """Refuse de créer une nouvelle signature pour un ``main`` historique.
+
+    Le workflow de promotion effectue déjà ce contrôle avant de publier son
+    artefact. Le signer le répète au dernier instant avant l'accès à la clé :
+    une révocation ou un correctif fusionné après le run ne peut donc pas être
+    contourné en créant une nouvelle readiness pour l'ancien commit.
+    """
+    reference = _github_api_get(
+        f"repos/{_TRUSTED_REPOSITORY}/git/ref/heads/main"
+    )
+    live_sha = (reference.get("object") or {}).get("sha")
+    if live_sha != merge_sha:
+        raise SigningToolError(
+            f"live main HEAD {live_sha!r} does not match the merge being signed "
+            f"({merge_sha!r})"
+        )
+
+
+def _download_promotion_artifact_via_gh(
+    run_id: int, artifact_name: str, dest_dir: Path
+) -> Path:
+    """Télécharge l'artefact de promotion depuis le dépôt canonique."""
+    try:
+        completed = subprocess.run(
+            [
+                "gh",
+                "run",
+                "download",
+                str(run_id),
+                "-n",
+                artifact_name,
+                "-D",
+                str(dest_dir),
+                "-R",
+                _TRUSTED_REPOSITORY,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise SigningToolError(
+            f"promotion artifact download failed: {exc}"
+        ) from exc
+    if completed.returncode != 0:
+        raise SigningToolError(
+            "promotion artifact download failed "
+            f"(exit {completed.returncode}): {completed.stderr.strip()[:500]}"
+        )
+    candidate = dest_dir / "promotion-evidence.json"
+    if not candidate.is_file():
+        raise SigningToolError(
+            f"downloaded artifact {artifact_name!r} does not contain "
+            "promotion-evidence.json"
+        )
+    return candidate
+
+
 def _derive_application_image_digests(
     args: argparse.Namespace, *, merge_sha: str, merge_tree_sha: str
 ) -> dict[str, str]:
@@ -516,15 +651,20 @@ def _derive_application_image_digests(
     avoir construit, pas le head de PR avant merge."""
     with tempfile.TemporaryDirectory() as tmp:
         try:
-            return dii.verify_application_image_provenance(
-                repository=_TRUSTED_REPOSITORY,
-                source_commit_sha=merge_sha,
-                source_tree_sha=merge_tree_sha,
-                provenance_run_id=args.provenance_run_id,
-                provenance_run_attempt=args.provenance_run_attempt,
-                github_api_get=_github_api_get,
-                download_artifact=dii.make_download_artifact_via_gh(repository=_TRUSTED_REPOSITORY),
-                work_dir=Path(tmp),
+            return cast(
+                dict[str, str],
+                dii.verify_application_image_provenance(
+                    repository=_TRUSTED_REPOSITORY,
+                    source_commit_sha=merge_sha,
+                    source_tree_sha=merge_tree_sha,
+                    provenance_run_id=args.provenance_run_id,
+                    provenance_run_attempt=args.provenance_run_attempt,
+                    github_api_get=_github_api_get,
+                    download_artifact=dii.make_download_artifact_via_gh(
+                        repository=_TRUSTED_REPOSITORY
+                    ),
+                    work_dir=Path(tmp),
+                ),
             )
         except dii.DeploymentImageInventoryError as exc:
             raise SigningToolError(f"application image provenance refused: {exc}") from exc
@@ -532,6 +672,11 @@ def _derive_application_image_digests(
 
 def _build_arg_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument(
+        "--protocol-version",
+        choices=["NEXUS-PRODUCTION-READINESS-V1"],
+        default="NEXUS-PRODUCTION-READINESS-V1",
+    )
 
     # Identité du dépôt et de la revue.
     p.add_argument("--pr-number", type=int, required=True)
@@ -630,6 +775,60 @@ def _build_arg_parser() -> argparse.ArgumentParser:
                          "governance/trust-anchors/production-readiness-v1.json).")
 
     p.add_argument("--output", type=Path, required=True)
+    return p
+
+
+def _build_v2_arg_parser() -> argparse.ArgumentParser:
+    """Parser dédié V2 : aucun flag d'autorité/binding singulier."""
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument(
+        "--protocol-version",
+        required=True,
+        choices=["NEXUS-PRODUCTION-READINESS-V2"],
+    )
+    p.add_argument("--pr-number", type=int, required=True)
+    p.add_argument("--pr-head-sha", required=True)
+    p.add_argument("--merge-sha", required=True)
+    p.add_argument("--environment", choices=["production"], default="production")
+    p.add_argument("--authorization-set-file", type=Path, required=True)
+    p.add_argument("--governed-root", type=Path, required=True)
+    p.add_argument("--review-binding-trust-anchor-file", type=Path, required=True)
+    p.add_argument("--trusted-reviewers-file", type=Path, required=True)
+    p.add_argument("--revocation-registry-file", type=Path, required=True)
+    p.add_argument("--release-scope-placement-file", type=Path, required=True)
+    p.add_argument("--verified-profiles-file", type=Path, required=True)
+    p.add_argument("--profile-manifest-file", type=Path, required=True)
+    p.add_argument("--profile-proposal-matrix-path", required=True)
+    p.add_argument("--accepted-placements-path", required=True)
+    p.add_argument("--release-registry-path", required=True)
+    p.add_argument("--expected-contents-path", required=True)
+    p.add_argument("--verified-profiles-path", required=True)
+    p.add_argument("--profile-manifest-path", required=True)
+    p.add_argument("--authority-required-file", type=Path, required=True)
+    p.add_argument("--h2b-report-file", type=Path, required=True)
+    p.add_argument("--h2-evidence-bundle-file", type=Path, required=True)
+    p.add_argument("--promotion-evidence-file", type=Path, required=True)
+    p.add_argument("--catalog-file", type=Path, required=True)
+    p.add_argument("--sealed-manifest-file", type=Path, required=True)
+    p.add_argument("--routing-file", type=Path, required=True)
+    p.add_argument("--rights-file", type=Path, required=True)
+    p.add_argument("--pii-file", type=Path, required=True)
+    p.add_argument("--golden-file", type=Path, required=True)
+    p.add_argument("--currentness-file", type=Path, required=True)
+    p.add_argument("--upstream-image", action="append", default=[], metavar="name=ref@sha256:...")
+    p.add_argument("--repo-root", type=Path, default=_REPO_ROOT)
+    p.add_argument("--env-file", type=Path, required=True)
+    p.add_argument("--provenance-run-id", type=int, required=True)
+    p.add_argument("--provenance-run-attempt", type=int, required=True)
+    p.add_argument("--workflow-path", default=None)
+    p.add_argument("--workflow-ref", required=True)
+    p.add_argument("--run-id", type=int, required=True)
+    p.add_argument("--run-attempt", type=int, required=True)
+    p.add_argument("--key-id", required=True)
+    p.add_argument("--private-key-file", type=Path, required=True)
+    p.add_argument("--verification-trust-anchor-file", type=Path, required=True)
+    p.add_argument("--output", type=Path, required=True)
+    p.add_argument("--json-output", action="store_true", required=True)
     return p
 
 
@@ -824,6 +1023,374 @@ def assemble_and_sign(args: argparse.Namespace) -> ProductionReadinessManifestV1
     return manifest
 
 
+# Source unique de vérité utilisée aussi au runtime. Les alias conservent
+# l'API historique du CLI et des tests Task7 sans conserver deux exécutions
+# divergentes de la vérification.
+V2ReleaseMaterial = rv2.V2ReleaseMaterial
+VerifiedV2ReleaseMaterial = rv2.VerifiedV2ReleaseMaterial
+_RELEASE_SCOPE_GIT_PATH_KEYS = rv2.RELEASE_SCOPE_GIT_PATH_KEYS
+PromotionEvidenceV2 = rv2.PromotionEvidenceV2
+parse_h2_evidence_bundle_v2 = rv2.parse_h2_evidence_bundle_v2
+
+
+def verify_v2_release_material(
+    material: V2ReleaseMaterial,
+) -> VerifiedV2ReleaseMaterial:
+    try:
+        return rv2.verify_v2_release_material(material)
+    except rv2.V2ReleaseVerificationError as exc:
+        raise SigningToolError(str(exc)) from exc
+
+
+def _verify_promotion_artifact_matches_run(
+    args: argparse.Namespace, material: rv2.V2ReleaseMaterial
+) -> None:
+    """Lie byte-for-byte la promotion locale à l'artefact du run vérifié."""
+    verified = verify_v2_release_material(material)
+    promotion = verified.promotion
+    _require_equal("promotion run id", args.run_id, promotion.promotion_run_id)
+    _require_equal(
+        "promotion run attempt",
+        args.run_attempt,
+        promotion.promotion_run_attempt,
+    )
+    expected_name = (
+        f"promotion-evidence-{material.merge_sha}-{promotion.campaign_id}"
+    )
+    response = _github_api_get(
+        f"repos/{_TRUSTED_REPOSITORY}/actions/runs/{args.run_id}/artifacts?per_page=100"
+    )
+    artifacts = response.get("artifacts")
+    total_count = response.get("total_count")
+    if (
+        not isinstance(artifacts, list)
+        or not isinstance(total_count, int)
+        or isinstance(total_count, bool)
+        or total_count != len(artifacts)
+    ):
+        raise SigningToolError(
+            "promotion artifact listing is malformed or incomplete"
+        )
+    matches = [
+        item
+        for item in artifacts
+        if isinstance(item, dict) and item.get("name") == expected_name
+    ]
+    if len(matches) != 1:
+        raise SigningToolError(
+            f"expected exactly one promotion artifact named {expected_name!r}, "
+            f"found {len(matches)}"
+        )
+    if matches[0].get("expired") is not False:
+        raise SigningToolError(
+            f"promotion artifact {expected_name!r} is expired or has no current status"
+        )
+
+    with tempfile.TemporaryDirectory() as temporary:
+        downloaded_path = _download_promotion_artifact_via_gh(
+            args.run_id,
+            expected_name,
+            Path(temporary),
+        )
+        downloaded_raw = _read_bytes_no_follow(
+            downloaded_path,
+            label="downloaded_promotion_evidence",
+        )
+    if downloaded_raw != material.promotion_evidence_raw:
+        raise SigningToolError(
+            "local promotion evidence is not byte-identical to the exact "
+            "promotion evidence artifact published by the verified run"
+        )
+
+
+def _require_equal(label: str, *values: object) -> None:
+    if not values or any(value != values[0] for value in values[1:]):
+        raise SigningToolError(f"{label} does not match across V2 release evidence")
+
+
+def assemble_and_sign_v2(
+    material: V2ReleaseMaterial,
+    *,
+    repository: str,
+    pr_number: int,
+    pr_head_sha: str,
+    pr_head_tree_sha: str,
+    application_image_digests: Mapping[str, str],
+    upstream_image_digests: Mapping[str, str],
+    compose_digest: str,
+    key_id: str,
+    workflow_ref: str,
+    promotion_run_id: int | None = None,
+    promotion_run_attempt: int | None = None,
+    provenance_run_id: int | None = None,
+    provenance_run_attempt: int | None = None,
+) -> ProductionReadinessManifestV2:
+    """Assemble V2 uniquement depuis le snapshot global revérifié."""
+    verified = verify_v2_release_material(material)
+    promotion = verified.promotion
+    _require_equal("repository", repository, _TRUSTED_REPOSITORY, promotion.repository)
+    _require_equal("PR number", pr_number, promotion.pull_request_number)
+    _require_equal("PR head SHA", pr_head_sha, promotion.pr_head_sha)
+    _require_equal("PR head tree SHA", pr_head_tree_sha, promotion.pr_head_tree_sha)
+    _require_equal("promotion workflow ref", workflow_ref, promotion.promotion_workflow_ref)
+    if promotion_run_id is not None:
+        _require_equal("promotion run id", promotion_run_id, promotion.promotion_run_id)
+    if promotion_run_attempt is not None:
+        _require_equal(
+            "promotion run attempt", promotion_run_attempt, promotion.promotion_run_attempt
+        )
+    if provenance_run_id is not None:
+        _require_equal(
+            "image provenance run id",
+            provenance_run_id,
+            promotion.image_provenance_run_id,
+        )
+    if provenance_run_attempt is not None:
+        _require_equal(
+            "image provenance run attempt",
+            provenance_run_attempt,
+            promotion.image_provenance_run_attempt,
+        )
+    try:
+        return ProductionReadinessManifestV2(
+            protocol_version="NEXUS-PRODUCTION-READINESS-V2",
+            repository=repository,
+            pr_number=pr_number,
+            pr_head_sha=pr_head_sha,
+            pr_head_tree_sha=pr_head_tree_sha,
+            merge_sha=material.merge_sha,
+            merge_tree_sha=material.merge_tree_sha,
+            release_tag=f"release/rag/{material.now:%Y%m%d}-{material.merge_sha[:12]}",
+            environment="production",
+            authorization_set_digest=verified.authorization_set.digest(),
+            trust_anchor_digest=hashlib.sha256(
+                material.review_binding_trust_anchor_raw
+            ).hexdigest(),
+            revocation_registry_digest=hashlib.sha256(
+                material.revocation_registry_raw
+            ).hexdigest(),
+            catalog_digest=hashlib.sha256(material.evidence_files["catalog"]).hexdigest(),
+            sealed_manifest_digest=hashlib.sha256(material.sealed_manifest_raw).hexdigest(),
+            # Le digest signé porte la promotion V2 exacte ; celle-ci engage
+            # elle-même par digest le bundle H2 et la couverture structurée.
+            h2b_report_digest=hashlib.sha256(material.promotion_evidence_raw).hexdigest(),
+            gate_result="pass",
+            application_image_digests=dict(application_image_digests),
+            upstream_image_digests=dict(upstream_image_digests),
+            compose_digest=compose_digest,
+            workflow_path=_CANONICAL_PROMOTION_WORKFLOW_PATH,
+            workflow_ref=workflow_ref,
+            run_id=promotion.promotion_run_id,
+            run_attempt=promotion.promotion_run_attempt,
+            issued_at=material.now,
+            key_id=key_id,
+        )
+    except Exception as exc:  # noqa: BLE001 - frontière CLI stricte
+        raise SigningToolError(f"V2 readiness assembly refused: {exc}") from exc
+
+
+def _parse_verified_profiles(raw: bytes) -> tuple[VerifiedProfileFactV1, ...]:
+    try:
+        document = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise SigningToolError(f"verified profiles is not valid UTF-8 JSON: {exc}") from exc
+    if not isinstance(document, dict) or set(document) != {
+        "profile_manifest_digest",
+        "profiles",
+    }:
+        raise SigningToolError("verified profiles has an unexpected field set")
+    records = document.get("profiles")
+    if not isinstance(records, list) or not records:
+        raise SigningToolError("verified profiles declares zero profiles")
+    facts: list[VerifiedProfileFactV1] = []
+    expected = set(VerifiedProfileFactV1.model_fields)
+    for index, record in enumerate(records):
+        if not isinstance(record, dict):
+            raise SigningToolError(f"verified profile #{index} is not an object")
+        # Le producteur exact-tree peut porter source_path ; ce chemin n'est
+        # jamais une donnée de contrat transmise au vérificateur global.
+        if set(record) not in (expected, expected | {"source_path"}):
+            raise SigningToolError(f"verified profile #{index} has unexpected fields")
+        try:
+            facts.append(
+                VerifiedProfileFactV1.model_validate(
+                    {name: record[name] for name in expected}
+                )
+            )
+        except Exception as exc:  # noqa: BLE001 - frontière de parsing
+            raise SigningToolError(f"verified profile #{index} is invalid: {exc}") from exc
+    manifest_digest = document.get("profile_manifest_digest")
+    if not isinstance(manifest_digest, str):
+        raise SigningToolError("verified profiles has no profile_manifest_digest")
+    return tuple(facts)
+
+
+def _parse_authority_required(raw: bytes) -> tuple[str, ...]:
+    if not raw or not raw.endswith(b"\n") or b"\r" in raw:
+        raise SigningToolError("authority-required set must use canonical LF-final lines")
+    try:
+        values = tuple(raw[:-1].decode("ascii").split("\n"))
+    except UnicodeDecodeError as exc:
+        raise SigningToolError("authority-required set is not ASCII") from exc
+    if (
+        not values
+        or any(_HEX64.fullmatch(value) is None for value in values)
+        or tuple(sorted(values)) != values
+        or len(values) != len(set(values))
+    ):
+        raise SigningToolError("authority-required set is not canonical and unique")
+    return values
+
+
+def _read_exact_tree_blob(
+    repository_root: Path, *, tree_sha: str, relative_path: str
+) -> bytes:
+    """Lit un blob ordinaire 100644 depuis le tree Git exact, jamais le worktree."""
+    if _HEX40.fullmatch(tree_sha) is None:
+        raise SigningToolError("release scope source tree SHA is malformed")
+    path = Path(relative_path)
+    if path.is_absolute() or ".." in path.parts or not relative_path:
+        raise SigningToolError(f"release scope source path is unsafe: {relative_path!r}")
+    listed = subprocess.run(
+        ["git", "ls-tree", "-z", tree_sha, "--", relative_path],
+        cwd=repository_root,
+        capture_output=True,
+        timeout=30,
+        check=False,
+    )
+    if listed.returncode != 0:
+        raise SigningToolError(
+            f"git ls-tree refused {relative_path!r}: {listed.stderr.decode(errors='replace')[:500]}"
+        )
+    rows = [row for row in listed.stdout.split(b"\0") if row]
+    if len(rows) != 1 or b"\t" not in rows[0]:
+        raise SigningToolError(f"release scope source {relative_path!r} is not one exact tree entry")
+    metadata, raw_path = rows[0].split(b"\t", 1)
+    fields = metadata.split()
+    if len(fields) != 3 or fields[0] != b"100644" or fields[1] != b"blob":
+        raise SigningToolError(
+            f"release scope source {relative_path!r} is not a regular 100644 blob"
+        )
+    if raw_path.decode("utf-8", errors="strict") != relative_path:
+        raise SigningToolError(f"release scope source path mismatch for {relative_path!r}")
+    blob = subprocess.run(
+        ["git", "cat-file", "blob", fields[2].decode("ascii")],
+        cwd=repository_root,
+        capture_output=True,
+        timeout=30,
+        check=False,
+    )
+    if blob.returncode != 0:
+        raise SigningToolError(
+            f"git cat-file refused {relative_path!r}: {blob.stderr.decode(errors='replace')[:500]}"
+        )
+    return blob.stdout
+
+
+def _load_v2_release_material(
+    args: argparse.Namespace, *, now: datetime, merge_tree_sha: str
+) -> V2ReleaseMaterial:
+    authorization_set_raw = _read_bytes_no_follow(
+        args.authorization_set_file, label="authorization_set"
+    )
+    try:
+        authorization_set = parse_authorization_set(authorization_set_raw)
+    except AuthorizationSetError as exc:
+        raise SigningToolError(f"authorization set refused: {exc}") from exc
+    governed_root = args.governed_root.resolve(strict=True)
+    release_files: dict[str, bytes] = {}
+    for member in authorization_set.members:
+        for relative in (member.authorization_path, member.review_binding_path):
+            path = governed_root.joinpath(*relative.split("/"))
+            if governed_root not in path.resolve(strict=False).parents:
+                raise SigningToolError(f"governed member path escapes root: {relative!r}")
+            release_files[relative] = _read_bytes_no_follow(path, label=relative)
+
+    review_anchor_raw = _read_bytes_no_follow(
+        args.review_binding_trust_anchor_file,
+        label="review_binding_trust_anchor",
+    )
+    trusted_reviewers_raw = _read_bytes_no_follow(
+        args.trusted_reviewers_file, label="trusted_reviewers"
+    )
+    revocations_raw = _read_bytes_no_follow(
+        args.revocation_registry_file, label="authority_revocations"
+    )
+    placement_raw = _read_bytes_no_follow(
+        args.release_scope_placement_file, label="release_scope_placement"
+    )
+    catalog_raw = _read_bytes_no_follow(args.catalog_file, label="catalog")
+    evidence_files = {
+        "authorization_set": authorization_set_raw,
+        "authority_revocations": revocations_raw,
+        "catalog": catalog_raw,
+        "currentness_verification": _read_bytes_no_follow(
+            args.currentness_file, label="currentness_verification"
+        ),
+        "golden": _read_bytes_no_follow(args.golden_file, label="golden"),
+        "pii": _read_bytes_no_follow(args.pii_file, label="pii"),
+        "release_scope_placement": placement_raw,
+        "review_binding_trust_anchor": review_anchor_raw,
+        "rights": _read_bytes_no_follow(args.rights_file, label="rights"),
+        "routing": _read_bytes_no_follow(args.routing_file, label="routing"),
+        "trusted_reviewers": trusted_reviewers_raw,
+    }
+    try:
+        h2_coverage = parse_h2_coverage_evidence_v2(
+            _read_bytes_no_follow(args.h2b_report_file, label="h2_coverage")
+        )
+    except H2CoverageEvidenceError as exc:
+        raise SigningToolError(f"H2 coverage refused: {exc}") from exc
+    source_blobs = {
+        path: _read_exact_tree_blob(
+            args.repo_root,
+            tree_sha=merge_tree_sha,
+            relative_path=path,
+        )
+        for path in h2_coverage.release_scope_source_blob_digests
+    }
+    return V2ReleaseMaterial(
+        authorization_set_raw=authorization_set_raw,
+        release_files=release_files,
+        review_binding_trust_anchor_raw=review_anchor_raw,
+        trusted_reviewers_raw=trusted_reviewers_raw,
+        revocation_registry_raw=revocations_raw,
+        release_scope_placement_raw=placement_raw,
+        release_scope_source_blobs=source_blobs,
+        verified_profiles=_parse_verified_profiles(
+            _read_bytes_no_follow(args.verified_profiles_file, label="verified_profiles")
+        ),
+        profile_manifest_raw=_read_bytes_no_follow(
+            args.profile_manifest_file, label="profile_manifest"
+        ),
+        authority_required_content_sha256=_parse_authority_required(
+            _read_bytes_no_follow(args.authority_required_file, label="authority_required")
+        ),
+        h2_coverage_raw=h2_coverage.canonical_bytes(),
+        h2_evidence_bundle_raw=_read_bytes_no_follow(
+            args.h2_evidence_bundle_file, label="h2_evidence_bundle"
+        ),
+        promotion_evidence_raw=_read_bytes_no_follow(
+            args.promotion_evidence_file, label="promotion_evidence"
+        ),
+        evidence_files=evidence_files,
+        sealed_manifest_raw=_read_bytes_no_follow(
+            args.sealed_manifest_file, label="sealed_manifest"
+        ),
+        now=now,
+        merge_sha=args.merge_sha,
+        merge_tree_sha="",  # remplacé après vérification Git live
+        release_scope_git_paths={
+            "profile_proposal_matrix_path": args.profile_proposal_matrix_path,
+            "accepted_placements_path": args.accepted_placements_path,
+            "release_registry_path": args.release_registry_path,
+            "expected_contents_path": args.expected_contents_path,
+            "verified_profiles_path": args.verified_profiles_path,
+            "profile_manifest_path": args.profile_manifest_path,
+        },
+    )
+
+
 _INPUT_PATH_ARGS = (
     "trust_anchor_file",
     "review_binding_file",
@@ -878,8 +1445,150 @@ def _reject_output_aliasing_an_input(args: argparse.Namespace) -> None:
             )
 
 
+def _reject_v2_output_aliasing_an_input(args: argparse.Namespace) -> None:
+    output = args.output
+    if output.is_symlink():
+        raise SigningToolError("--output is a symlink and is never followed")
+    output_resolved = output.resolve(strict=False)
+    governed_root = args.governed_root.resolve(strict=True)
+    if output_resolved == governed_root or governed_root in output_resolved.parents:
+        raise SigningToolError("--output must remain outside the governed root")
+    for name, candidate in vars(args).items():
+        if name in {"output", "governed_root"} or not isinstance(candidate, Path):
+            continue
+        candidate_resolved = candidate.resolve(strict=False)
+        if candidate.is_dir() and (
+            output_resolved == candidate_resolved
+            or candidate_resolved in output_resolved.parents
+        ):
+            raise SigningToolError(
+                f"--output must remain outside input directory --{name.replace('_', '-')}"
+            )
+        if output_resolved == candidate_resolved:
+            raise SigningToolError(
+                f"--output aliases --{name.replace('_', '-')} ({candidate})"
+            )
+        if output.exists() and candidate.exists() and os.path.samefile(output, candidate):
+            raise SigningToolError(
+                f"--output is a hard link to --{name.replace('_', '-')} ({candidate})"
+            )
+
+    authorization_set_raw = _read_bytes_no_follow(
+        args.authorization_set_file, label="authorization_set"
+    )
+    try:
+        authorization_set = parse_authorization_set(authorization_set_raw)
+    except AuthorizationSetError as exc:
+        raise SigningToolError(f"authorization set refused: {exc}") from exc
+    for member in authorization_set.members:
+        for relative in (member.authorization_path, member.review_binding_path):
+            candidate = governed_root.joinpath(*relative.split("/"))
+            candidate_resolved = candidate.resolve(strict=False)
+            if governed_root not in candidate_resolved.parents:
+                raise SigningToolError(f"governed member path escapes root: {relative!r}")
+            if output_resolved == candidate_resolved:
+                raise SigningToolError(f"--output aliases governed member {relative!r}")
+            if output.exists() and candidate.exists() and os.path.samefile(output, candidate):
+                raise SigningToolError(f"--output is a hard link to governed member {relative!r}")
+
+
+def _main_v2(argv: list[str]) -> int:
+    args = _build_v2_arg_parser().parse_args(argv)
+    try:
+        _reject_v2_output_aliasing_an_input(args)
+        pr_head_sha = _hex(args.pr_head_sha, _HEX40, "pr_head_sha")
+        merge_sha = _hex(args.merge_sha, _HEX40, "merge_sha")
+        pr_head_tree_sha, merge_tree_sha = _verify_git_and_workflow_facts(args)
+        now = datetime.now(UTC)
+        material = dataclasses.replace(
+            _load_v2_release_material(
+                args, now=now, merge_tree_sha=merge_tree_sha
+            ),
+            merge_sha=merge_sha,
+            merge_tree_sha=merge_tree_sha,
+        )
+        _verify_promotion_artifact_matches_run(args, material)
+        with tempfile.TemporaryDirectory() as compose_tmp:
+            resolved_compose = _run_docker_compose_config(
+                args.repo_root, merge_sha, Path(compose_tmp), args.env_file
+            )
+        compose_digest = hashlib.sha256(_canonical_compose_bytes(resolved_compose)).hexdigest()
+        application_images = _derive_application_image_digests(
+            args, merge_sha=merge_sha, merge_tree_sha=merge_tree_sha
+        )
+        upstream_images = _image_digest_pairs(
+            args.upstream_image, label="--upstream-image"
+        )
+        _verify_image_bindings(
+            resolved_compose,
+            application_image_digests=application_images,
+            upstream_image_digests=upstream_images,
+        )
+        manifest = assemble_and_sign_v2(
+            material,
+            repository=_TRUSTED_REPOSITORY,
+            pr_number=args.pr_number,
+            pr_head_sha=pr_head_sha,
+            pr_head_tree_sha=pr_head_tree_sha,
+            application_image_digests=application_images,
+            upstream_image_digests=upstream_images,
+            compose_digest=compose_digest,
+            key_id=args.key_id,
+            workflow_ref=args.workflow_ref,
+            promotion_run_id=args.run_id,
+            promotion_run_attempt=args.run_attempt,
+            provenance_run_id=args.provenance_run_id,
+            provenance_run_attempt=args.provenance_run_attempt,
+        )
+        _require_live_main_head(merge_sha)
+        private_key_hex = _read_bytes_no_follow(
+            args.private_key_file, label="private_key"
+        ).decode("ascii").strip()
+        signed = sign_production_readiness_manifest_v2(
+            manifest, private_key_hex=private_key_hex, key_id=args.key_id
+        )
+        verification_anchor = parse_production_readiness_trust_anchor(
+            _read_bytes_no_follow(
+                args.verification_trust_anchor_file,
+                label="verification_trust_anchor",
+            )
+        )
+        verify_production_readiness_manifest_v2(
+            signed.canonical_bytes(),
+            trust_anchor=verification_anchor,
+            environment=args.environment,
+        )
+        _atomic_private_write(args.output, signed.canonical_bytes())
+    except (SigningToolError, ProductionReadinessError, UnicodeDecodeError, OSError) as exc:
+        print(f"REFUSED: {exc}", file=sys.stderr)
+        return 1
+    print(
+        json.dumps(
+            {
+                "authorization_set_digest": manifest.authorization_set_digest,
+                "key_id": signed.key_id,
+                "manifest_digest": signed.manifest_digest,
+                "output": str(args.output),
+                "protocol_version": manifest.protocol_version,
+                "signed_manifest_verify_roundtrip": True,
+            },
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
-    args = _build_arg_parser().parse_args(argv)
+    selected_argv = list(sys.argv[1:] if argv is None else argv)
+    if "--protocol-version" in selected_argv:
+        version_index = selected_argv.index("--protocol-version") + 1
+        if version_index >= len(selected_argv):
+            return _main_v2(selected_argv)
+        if selected_argv[version_index] == "NEXUS-PRODUCTION-READINESS-V2":
+            return _main_v2(selected_argv)
+    args = _build_arg_parser().parse_args(selected_argv)
     try:
         _reject_output_aliasing_an_input(args)
         manifest = assemble_and_sign(args)
@@ -915,8 +1624,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"REFUSED: {exc}", file=sys.stderr)
         return 1
 
-    args.output.write_bytes(signed.canonical_bytes())
-    args.output.chmod(0o600)
+    _atomic_private_write(args.output, signed.canonical_bytes())
     print(f"MANIFEST_DIGEST={signed.manifest_digest}")
     print(f"KEY_ID={signed.key_id}")
     print(f"OUTPUT={args.output}")

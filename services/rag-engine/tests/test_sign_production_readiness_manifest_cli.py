@@ -6,10 +6,13 @@ production (production-readiness PR #97, review-binding PR #99).
 from __future__ import annotations
 
 import argparse
+import ast
 import hashlib
 import json
 import os
 import sys
+from datetime import UTC, datetime, timedelta
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
@@ -27,9 +30,24 @@ from nexus_contracts.authority_artifacts import (  # noqa: E402
     canonical_authorization_path,
     git_blob_sha1,
 )
+from nexus_contracts.authorization_set import (  # noqa: E402
+    AuthorizationSetMemberV1,
+    AuthorizationSetV1,
+    ReleaseScopePlacementEntryV1,
+    ReleaseScopePlacementV1,
+    VerifiedProfileFactV1,
+    canonical_review_binding_path,
+    content_set_digest,
+    scope_digest,
+)
 from nexus_contracts.h2_coverage_evidence import (  # noqa: E402
     H2_COVERAGE_EVIDENCE_PROTOCOL_VERSION,
     H2CoverageEvidenceV1,
+    H2CoverageEvidenceV2,
+)
+from nexus_contracts.ingestion import (  # noqa: E402
+    CollectionProfile,
+    collection_profile_fingerprint,
 )
 from nexus_contracts.production_readiness import (  # noqa: E402
     ProductionReadinessError,
@@ -37,6 +55,12 @@ from nexus_contracts.production_readiness import (  # noqa: E402
     ProductionReadinessTrustAnchorKey,
     public_readiness_key_hex,
     verify_production_readiness_manifest,
+    verify_production_readiness_manifest_v2,
+)
+from nexus_contracts.profile_manifest import validate_production_profile_manifest  # noqa: E402
+from nexus_contracts.release_evidence import (  # noqa: E402
+    H2EvidenceBundleV2,
+    PromotionEvidenceV2,
 )
 from nexus_contracts.review_binding import (  # noqa: E402
     ScopeAuthorizationReviewBindingV1,
@@ -106,6 +130,7 @@ AUTHORIZATION_ID = "sign-tool-test-authz-v1"
 #: compare l'autorisation à ``datetime.now(UTC)``).
 FAR_PAST = "2020-01-01T00:00:00Z"
 FAR_FUTURE = "2099-01-01T00:00:00Z"
+V2_NOW = datetime(2026, 8, 23, 12, 0, tzinfo=UTC)
 
 
 def _write(path: Path, content: bytes = b"content") -> Path:
@@ -322,6 +347,7 @@ def _github_responses(
         },
         f"repos/{REPOSITORY}/git/commits/{pr_head_sha}": {"tree": {"sha": pr_head_tree_sha}},
         f"repos/{REPOSITORY}/git/commits/{merge_sha}": {"tree": {"sha": merge_tree_sha}},
+        f"repos/{REPOSITORY}/git/ref/heads/main": {"object": {"sha": merge_sha}},
         f"repos/{REPOSITORY}/actions/runs/{RUN_ID}": {
             "path": workflow_path,
             "repository": {"full_name": workflow_repository},
@@ -332,6 +358,16 @@ def _github_responses(
             "run_attempt": run_attempt_value,
         },
         f"repos/{REPOSITORY}/actions/runs/{RUN_ID}/attempts/{RUN_ATTEMPT}": {},
+        f"repos/{REPOSITORY}/actions/runs/{RUN_ID}/artifacts?per_page=100": {
+            "total_count": 1,
+            "artifacts": [
+                {
+                    "id": 9001,
+                    "name": f"promotion-evidence-{merge_sha}-release-v2-test",
+                    "expired": False,
+                }
+            ],
+        },
         f"repos/{REPOSITORY}/actions/runs/{PROVENANCE_RUN_ID}": {
             "path": PROVENANCE_WORKFLOW_PATH,
             "repository": {"full_name": REPOSITORY},
@@ -1488,6 +1524,806 @@ class TestRevocationRegistryUsesTheSharedStrictParser:
         )
         with pytest.raises(tool.SigningToolError, match="repeats authorization ids"):
             tool.assemble_and_sign(args)
+
+
+class TestMultiAuthorizationReadinessV2Surface:
+    def test_v2_verification_boundary_is_explicit(self) -> None:
+        """Le nouveau chemin ne peut pas retomber sur l'assembleur V1."""
+        assert callable(tool.verify_v2_release_material)
+        assert callable(tool.assemble_and_sign_v2)
+
+    def test_signer_never_imports_another_service(self) -> None:
+        source = Path(tool.__file__).read_text(encoding="utf-8")
+        assert "rag_pedago" not in source
+        assert "services/rag-pedago" not in source
+
+    def test_rag_engine_production_code_has_no_cross_service_python_import(self) -> None:
+        service_root = Path(__file__).resolve().parents[1]
+        violations: list[str] = []
+        for source_path in sorted(
+            path
+            for directory in ("backend", "scripts", "src")
+            for path in (service_root / directory).rglob("*.py")
+        ):
+            tree = ast.parse(source_path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                modules = (
+                    [node.module]
+                    if isinstance(node, ast.ImportFrom)
+                    else [alias.name for alias in node.names]
+                    if isinstance(node, ast.Import)
+                    else []
+                )
+                if any(
+                    module == "rag_pedago" or module.startswith("rag_pedago.")
+                    for module in modules
+                    if module is not None
+                ):
+                    violations.append(f"{source_path.relative_to(service_root)}:{node.lineno}")
+        assert violations == []
+
+    def test_v2_cli_exposes_only_set_based_authority_flags(self) -> None:
+        parser = tool._build_v2_arg_parser()
+        help_text = parser.format_help()
+        flags = {flag for action in parser._actions for flag in action.option_strings}
+        assert "--authorization-set-file" in help_text
+        assert "--governed-root" in help_text
+        assert "--authorization-file" not in flags
+        assert "--review-binding-file" not in flags
+        assert "--json-output" in help_text
+
+    def test_v2_signing_requires_the_exact_promotion_artifact_from_the_run(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        material = _v2_material()
+        downloaded = material.promotion_evidence_raw + b" "
+
+        def fake_download(run_id: int, artifact_name: str, dest_dir: Path) -> Path:
+            assert run_id == RUN_ID
+            assert artifact_name == f"promotion-evidence-{MERGE_SHA}-release-v2-test"
+            return _write(dest_dir / "promotion-evidence.json", downloaded)
+
+        monkeypatch.setattr(tool, "_download_promotion_artifact_via_gh", fake_download)
+        args = argparse.Namespace(run_id=RUN_ID, run_attempt=RUN_ATTEMPT)
+
+        with pytest.raises(tool.SigningToolError, match="exact promotion evidence artifact"):
+            tool._verify_promotion_artifact_matches_run(args, material)
+
+    def test_v2_signing_accepts_only_one_current_exact_named_artifact(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        material = _v2_material()
+        calls: list[tuple[int, str]] = []
+
+        def fake_download(run_id: int, artifact_name: str, dest_dir: Path) -> Path:
+            calls.append((run_id, artifact_name))
+            return _write(
+                dest_dir / "promotion-evidence.json",
+                material.promotion_evidence_raw,
+            )
+
+        monkeypatch.setattr(tool, "_download_promotion_artifact_via_gh", fake_download)
+        args = argparse.Namespace(run_id=RUN_ID, run_attempt=RUN_ATTEMPT)
+
+        tool._verify_promotion_artifact_matches_run(args, material)
+
+        assert calls == [
+            (RUN_ID, f"promotion-evidence-{MERGE_SHA}-release-v2-test")
+        ]
+
+    def test_v2_signing_refuses_when_main_advanced_after_promotion(
+        self, _stub_github_api: dict[str, dict[str, Any]]
+    ) -> None:
+        endpoint = f"repos/{REPOSITORY}/git/ref/heads/main"
+        _stub_github_api[endpoint]["object"]["sha"] = "f" * 40
+
+        with pytest.raises(tool.SigningToolError, match="main HEAD"):
+            tool._require_live_main_head(MERGE_SHA)
+
+    def test_v2_main_rechecks_main_immediately_before_private_key_use(self) -> None:
+        source = Path(tool.__file__).read_text(encoding="utf-8")
+        main_v2 = source[source.index("def _main_v2(") : source.index("def main(", source.index("def _main_v2("))]
+        recheck = main_v2.index("_require_live_main_head(merge_sha)")
+        key_read = main_v2.index("args.private_key_file")
+        assert recheck < key_read
+
+    @pytest.mark.parametrize(
+        ("artifact_mutation", "message"),
+        [
+            (lambda artifacts: [], "exactly one"),
+            (lambda artifacts: artifacts + [dict(artifacts[0], id=9002)], "exactly one"),
+            (lambda artifacts: [dict(artifacts[0], expired=True)], "expired"),
+        ],
+    )
+    def test_v2_signing_refuses_missing_duplicate_or_expired_promotion_artifact(
+        self,
+        artifact_mutation: Any,
+        message: str,
+        _stub_github_api: dict[str, dict[str, Any]],
+    ) -> None:
+        material = _v2_material()
+        endpoint = f"repos/{REPOSITORY}/actions/runs/{RUN_ID}/artifacts?per_page=100"
+        response = _stub_github_api[endpoint]
+        artifacts = artifact_mutation(response["artifacts"])
+        response["artifacts"] = artifacts
+        response["total_count"] = len(artifacts)
+
+        with pytest.raises(tool.SigningToolError, match=message):
+            tool._verify_promotion_artifact_matches_run(
+                argparse.Namespace(run_id=RUN_ID, run_attempt=RUN_ATTEMPT),
+                material,
+            )
+
+    @staticmethod
+    def _v2_alias_args(tmp_path: Path, *, output: Path) -> argparse.Namespace:
+        material = _v2_material()
+        repository = tmp_path / "repository"
+        governed = repository / "governed"
+        for relative, raw in material.release_files.items():
+            (governed / relative).parent.mkdir(parents=True, exist_ok=True)
+            _write(governed / relative, raw)
+        authorization_set = _write(
+            tmp_path / "authorization-set.json", material.authorization_set_raw
+        )
+        return argparse.Namespace(
+            output=output,
+            governed_root=governed,
+            repo_root=repository,
+            authorization_set_file=authorization_set,
+            trust_anchor_file=_write(tmp_path / "readiness-anchor.json", b"anchor"),
+            revocation_registry_file=_write(
+                tmp_path / "revocations.json", material.revocation_registry_raw
+            ),
+        )
+
+    def test_v2_output_inside_governed_root_is_refused(self, tmp_path: Path) -> None:
+        args = self._v2_alias_args(
+            tmp_path, output=tmp_path / "repository" / "governed" / "out.json"
+        )
+        with pytest.raises(tool.SigningToolError, match="governed root"):
+            tool._reject_v2_output_aliasing_an_input(args)
+
+    def test_v2_output_inside_repository_input_directory_is_refused(
+        self, tmp_path: Path
+    ) -> None:
+        args = self._v2_alias_args(
+            tmp_path, output=tmp_path / "repository" / "readiness.json"
+        )
+        with pytest.raises(tool.SigningToolError, match="repo-root"):
+            tool._reject_v2_output_aliasing_an_input(args)
+
+    def test_v2_output_hardlink_to_dynamic_member_is_refused(self, tmp_path: Path) -> None:
+        args = self._v2_alias_args(tmp_path, output=tmp_path / "outside.json")
+        material = _v2_material()
+        member = args.governed_root / next(iter(material.release_files))
+        args.output.hardlink_to(member)
+        with pytest.raises(tool.SigningToolError, match="member"):
+            tool._reject_v2_output_aliasing_an_input(args)
+
+    @pytest.mark.parametrize(
+        "target",
+        [
+            "authorization_member",
+            "review_binding_member",
+            "authorization_set_file",
+            "trust_anchor_file",
+            "revocation_registry_file",
+        ],
+    )
+    def test_v2_output_equal_to_every_sensitive_input_is_refused(
+        self, tmp_path: Path, target: str
+    ) -> None:
+        args = self._v2_alias_args(tmp_path, output=tmp_path / "outside.json")
+        material = _v2_material()
+        if target == "authorization_member":
+            args.output = args.governed_root / next(
+                path for path in material.release_files if "/authorizations/" in path
+            )
+        elif target == "review_binding_member":
+            args.output = args.governed_root / next(
+                path for path in material.release_files if "/review-bindings/" in path
+            )
+        else:
+            args.output = getattr(args, target)
+        with pytest.raises(tool.SigningToolError, match="output"):
+            tool._reject_v2_output_aliasing_an_input(args)
+
+    def test_v2_output_symlink_alias_is_refused(self, tmp_path: Path) -> None:
+        args = self._v2_alias_args(tmp_path, output=tmp_path / "outside.json")
+        args.output.symlink_to(args.authorization_set_file)
+        with pytest.raises(tool.SigningToolError, match="symlink"):
+            tool._reject_v2_output_aliasing_an_input(args)
+
+
+def _v2_material() -> tool.V2ReleaseMaterial:
+    profile_source_document = {
+        "profile_version": "v1",
+        "enabled": True,
+        "scope": {
+            "tenant": "libre_terminale",
+            "collection": "rag_nexus_nsi_terminale_specialite",
+            "niveau": "terminale",
+            "voie": "generale",
+            "matiere": "nsi",
+            "candidat": "libre",
+            "audience": ["libre", "tous"],
+            "visibility": "internal",
+            "school_year": "2026-2027",
+            "programme_version": "BOEN_special_8_2019-07-25",
+        },
+        "title": "Profil NSI terminale",
+        "owner": "tests",
+        "expected_topics": ["notion"],
+        "expected_resource_types": ["cours"],
+        "allowed_domains": ["eduscol.education.fr"],
+        "source_authority": "official",
+        "search_cadence": "weekly",
+        "max_queries_per_run": 1,
+        "max_documents_per_run": 1,
+        "max_chunk_size": 800,
+        "chunk_overlap": 100,
+        "min_source_confidence": 0.7,
+        "min_scope_confidence": 0.7,
+        "min_extraction_quality": 0.7,
+    }
+    profile_fingerprint = collection_profile_fingerprint(
+        CollectionProfile.model_validate(profile_source_document)
+    )
+    profile_manifest_raw = f'''manifest_version: "1"
+provenance: "test"
+generated_at: "2026-08-23T08:00:00+00:00"
+profiles:
+  - collection: rag_nexus_nsi_terminale_specialite
+    profile_version: v1
+    fingerprint: {profile_fingerprint}
+    approved_by: abenrhouma
+    approved_at: "2026-08-23T08:00:00+00:00"
+'''.encode()
+    profile_digest = validate_production_profile_manifest(
+        profile_manifest_raw,
+        profile_fingerprints={
+            ("rag_nexus_nsi_terminale_specialite", "v1"): profile_fingerprint
+        },
+        source="profiles-manifest.yml",
+    ).manifest_fingerprint
+    authorization_raw = _authorization_bytes(
+        manifest_digest=profile_digest,
+        profile_fingerprint=profile_fingerprint,
+    )
+    authorization = tool.parse_scope_authorization_artifact(authorization_raw)
+    binding_raw = _signed_review_binding_bytes(
+        authorization_bytes=authorization_raw,
+        submitted_at=V2_NOW - timedelta(hours=4),
+        verified_at=V2_NOW - timedelta(hours=3),
+        expires_at=V2_NOW + timedelta(days=7),
+    )
+    member = AuthorizationSetMemberV1.model_validate(
+        {
+            "authorization_id": authorization.authorization_id,
+            "authorization_digest": sha256(authorization_raw).hexdigest(),
+            "review_binding_digest": sha256(binding_raw).hexdigest(),
+            "scope": authorization.scope,
+            "scope_digest": scope_digest(authorization.scope),
+            "allowed_content_sha256": authorization.allowed_content_sha256,
+            "allowed_content_count": 1,
+            "allowed_content_set_sha256": content_set_digest(
+                authorization.allowed_content_sha256
+            ),
+            "valid_from": authorization.valid_from,
+            "valid_until": authorization.valid_until,
+        }
+    )
+    profile = VerifiedProfileFactV1(
+        profile_id=authorization.profile_id,
+        profile_version=authorization.profile_version,
+        profile_fingerprint=authorization.profile_fingerprint,
+        scope=authorization.scope,
+    )
+    placement = ReleaseScopePlacementV1.build(
+        placements=(
+            ReleaseScopePlacementEntryV1(
+                content_sha256=authorization.allowed_content_sha256[0],
+                profile_id=authorization.profile_id,
+                profile_version=authorization.profile_version,
+                profile_fingerprint=authorization.profile_fingerprint,
+                scope=authorization.scope,
+            ),
+        ),
+        profile_manifest_digest=profile_digest,
+    )
+    sealed_manifest_raw = b"sealed-corpus-manifest\n"
+    authorization_set = AuthorizationSetV1.build(
+        members=(member,),
+        corpus_manifest_sha256=sha256(sealed_manifest_raw).hexdigest(),
+        profile_manifest_digest=profile_digest,
+        release_scope_placement_digest=placement.digest(),
+        authority_required_content_sha256=authorization.allowed_content_sha256,
+    )
+    trust_anchor_raw = _review_binding_trust_anchor_bytes()
+    revocations_raw = _revocation_registry_bytes()
+    catalog_raw = b"catalog-v2\n"
+    trusted_reviewers_raw = (
+        json.dumps(
+            {"repository": REPOSITORY, "reviewers": [RB_REVIEWER]},
+            sort_keys=True,
+            indent=2,
+        )
+        + "\n"
+    ).encode()
+    evidence_files = {
+        "catalog": catalog_raw,
+        "routing": b"routing-v2\n",
+        "rights": b"rights-v2\n",
+        "pii": b"pii-v2\n",
+        "golden": b"golden-v2\n",
+        "currentness_verification": b"currentness-v2\n",
+        "authorization_set": authorization_set.canonical_bytes(),
+        "authority_revocations": revocations_raw,
+        "review_binding_trust_anchor": trust_anchor_raw,
+        "release_scope_placement": placement.canonical_bytes(),
+        "trusted_reviewers": trusted_reviewers_raw,
+    }
+    input_digests = {name: sha256(raw).hexdigest() for name, raw in evidence_files.items()}
+    release_scope_git_paths = {
+        "profile_proposal_matrix_path": "governance/profile-matrix.json",
+        "accepted_placements_path": "governance/placements.json",
+        "release_registry_path": "governance/release-registry.json",
+        "expected_contents_path": "governance/expected-contents.txt",
+        "verified_profiles_path": "governance/verified-profiles.json",
+        "profile_manifest_path": "governance/profile-manifest.yml",
+    }
+    profile_source_path = "profiles/nsi.yml"
+
+    def canonical_fixture(document: Any) -> bytes:
+        return (json.dumps(document, sort_keys=True, indent=2) + "\n").encode()
+
+    scope_document = authorization.scope.model_dump(mode="json")
+    release_scope_source_blobs = {
+        release_scope_git_paths["profile_proposal_matrix_path"]: canonical_fixture(
+            [
+                {
+                    "partition_id": "P01",
+                    "partition_kind": "EXACT_VERSIONED_RELEASE_PROFILE",
+                    "content_count": 1,
+                    "content_sha256": list(authorization.allowed_content_sha256),
+                    "profile_decision_required": False,
+                    "evidence_sources": [profile_source_path],
+                    "dimensions": {
+                        name: {
+                            "value": value,
+                            "grounded": True,
+                            "source_of_truth": profile_source_path,
+                        }
+                        for name, value in scope_document.items()
+                    },
+                }
+            ]
+        ),
+        release_scope_git_paths["accepted_placements_path"]: canonical_fixture(
+            [
+                {
+                    "content_sha256": authorization.allowed_content_sha256[0],
+                    "release_id": "release-v2-test",
+                    "collection": authorization.profile_id,
+                    "profile_version": authorization.profile_version,
+                }
+            ]
+        ),
+        release_scope_git_paths["release_registry_path"]: canonical_fixture(
+            {
+                "registry_version": "1",
+                "school_year": authorization.scope.school_year,
+                "releases": [
+                    {
+                        "release_id": "release-v2-test",
+                        "collections": [authorization.profile_id],
+                    }
+                ],
+            }
+        ),
+        release_scope_git_paths["expected_contents_path"]: (
+            f"{authorization.allowed_content_sha256[0]}\n".encode()
+        ),
+        release_scope_git_paths["verified_profiles_path"]: canonical_fixture(
+            {
+                "profile_manifest_digest": profile_digest,
+                "profiles": [
+                    {**profile.model_dump(mode="json"), "source_path": profile_source_path}
+                ],
+            }
+        ),
+        release_scope_git_paths["profile_manifest_path"]: profile_manifest_raw,
+        profile_source_path: canonical_fixture(profile_source_document),
+    }
+    release_scope_source_digests = {
+        path: sha256(raw).hexdigest()
+        for path, raw in release_scope_source_blobs.items()
+    }
+    safety = {
+        "INGEST_WITHOUT_RIGHTS_CLEARANCE": 0,
+        "INGEST_WITHOUT_PII_CLEARANCE": 0,
+        "INGEST_WITHOUT_CURRENTNESS_CLEARANCE": 0,
+        "INGEST_WITH_UNSUPPORTED_FORMAT": 0,
+        "INGEST_WITHOUT_PROVENANCE": 0,
+        "INGEST_WITHOUT_CONTENT_SHA": 0,
+        "INGEST_WITHOUT_AUTHORITY": 0,
+        "INGEST_WITH_SELF_DECLARED_AUTHORITY": 0,
+        "INGEST_WITHOUT_ATTRIBUTION_METADATA": 0,
+    }
+    coverage = H2CoverageEvidenceV2(
+        protocol_version="NEXUS-H2-COVERAGE-EVIDENCE-V2",
+        environment="production",
+        report_id="v2-readiness-test",
+        generated_at=V2_NOW - timedelta(hours=1),
+        git_commit=MERGE_SHA,
+        producer_version="h2b/2",
+        corpus_manifest_sha256=authorization_set.corpus_manifest_sha256,
+        profile_manifest_digest=profile_digest,
+        authorization_set_digest=authorization_set.digest(),
+        authorization_count=1,
+        authorization_set_verified_at=V2_NOW - timedelta(hours=2),
+        earliest_review_submitted_at=V2_NOW - timedelta(hours=4),
+        earliest_review_binding_verified_at=V2_NOW - timedelta(hours=3),
+        earliest_review_binding_expires_at=V2_NOW + timedelta(days=7),
+        authorizations_effective_valid_until=authorization_set.authorizations_effective_valid_until,
+        release_scope_source_tree_sha=TREE_SHA,
+        release_scope_placement_digest=placement.digest(),
+        release_scope_source_blob_digests=release_scope_source_digests,
+        input_file_digests=input_digests,
+        corpus_total_expected=1,
+        corpus_total_actual=1,
+        corpus_match=True,
+        sum_equals_total=True,
+        zero_overlap=True,
+        zero_gap=True,
+        coverage_complete=True,
+        rights_gate_status="PASS",
+        pii_gate_status="PASS",
+        golden_validation_pass=True,
+        h2_coverage_gate_pass=True,
+        authority_review_bindings_verified=True,
+        authority_revocations_checked=True,
+        authority_required_count=1,
+        authority_covered_count=1,
+        authority_required_set_sha256=authorization_set.authority_required_set_sha256,
+        authorization_overlap_count=0,
+        authorization_gap_count=0,
+        authorization_extra_count=0,
+        safety_invariants=safety,
+    )
+    bundle = H2EvidenceBundleV2(
+        protocol_version="NEXUS-H2-EVIDENCE-V2",
+        repository=REPOSITORY,
+        pull_request_number=PR_NUMBER,
+        pr_head_sha=PR_HEAD_SHA,
+        pr_head_tree_sha=TREE_SHA,
+        merge_sha=MERGE_SHA,
+        merge_tree_sha=TREE_SHA,
+        campaign_id="release-v2-test",
+        campaign_digest="1" * 64,
+        source_oci_digest="sha256:" + "2" * 64,
+        source_archive_sha256="3" * 64,
+        source_tree_digest="4" * 64,
+        corpus_manifest_sha256=authorization_set.corpus_manifest_sha256,
+        catalog_sha256=sha256(catalog_raw).hexdigest(),
+        review_view_sha256="5" * 64,
+        profile_manifest_digest=profile_digest,
+        authorization_set_digest=authorization_set.digest(),
+        authorization_count=1,
+        authority_required_count=1,
+        authority_required_set_sha256=authorization_set.authority_required_set_sha256,
+        release_scope_source_tree_sha=TREE_SHA,
+        release_scope_placement_digest=placement.digest(),
+        release_scope_source_blob_digests=release_scope_source_digests,
+        revocation_registry_sha256=sha256(revocations_raw).hexdigest(),
+        review_binding_trust_anchor_sha256=sha256(trust_anchor_raw).hexdigest(),
+        trusted_reviewers_sha256=sha256(trusted_reviewers_raw).hexdigest(),
+        input_file_digests=input_digests,
+        authorization_set_verified_at=coverage.authorization_set_verified_at,
+        earliest_review_submitted_at=coverage.earliest_review_submitted_at,
+        earliest_review_binding_verified_at=coverage.earliest_review_binding_verified_at,
+        earliest_review_binding_expires_at=coverage.earliest_review_binding_expires_at,
+        authorizations_effective_valid_from=authorization_set.authorizations_effective_valid_from,
+        authorizations_effective_valid_until=authorization_set.authorizations_effective_valid_until,
+        h2_coverage_generated_at=coverage.generated_at,
+        h2_coverage_evidence_sha256=sha256(coverage.canonical_bytes()).hexdigest(),
+        h2_coverage_gate_pass=True,
+        authority_revocations_checked=True,
+        authority_review_bindings_verified=True,
+        coverage_complete=True,
+        authority_covered_count=1,
+        authorization_overlap_count=0,
+        authorization_gap_count=0,
+        authorization_extra_count=0,
+        environment="production",
+        workflow_path=".github/workflows/_produce-h2-evidence.yml",
+        run_id="123",
+        run_attempt=1,
+    )
+    promotion = PromotionEvidenceV2.model_validate(
+        PromotionEvidenceV2.fields_from_h2_bundle(
+            bundle,
+            image_provenance_run_id=PROVENANCE_RUN_ID,
+            image_provenance_run_attempt=PROVENANCE_RUN_ATTEMPT,
+            promotion_workflow_path=WORKFLOW_PATH,
+            promotion_run_id=RUN_ID,
+            promotion_run_attempt=RUN_ATTEMPT,
+            promotion_workflow_ref=WORKFLOW_REF,
+        )
+    )
+    return tool.V2ReleaseMaterial(
+        authorization_set_raw=authorization_set.canonical_bytes(),
+        release_files={
+            authorization.canonical_path(): authorization_raw,
+            canonical_review_binding_path(authorization.authorization_id): binding_raw,
+        },
+        review_binding_trust_anchor_raw=trust_anchor_raw,
+        trusted_reviewers_raw=trusted_reviewers_raw,
+        revocation_registry_raw=revocations_raw,
+        release_scope_placement_raw=placement.canonical_bytes(),
+        release_scope_source_blobs=release_scope_source_blobs,
+        verified_profiles=(profile,),
+        profile_manifest_raw=profile_manifest_raw,
+        authority_required_content_sha256=authorization.allowed_content_sha256,
+        h2_coverage_raw=coverage.canonical_bytes(),
+        h2_evidence_bundle_raw=bundle.canonical_bytes(),
+        promotion_evidence_raw=promotion.canonical_bytes(),
+        evidence_files=evidence_files,
+        sealed_manifest_raw=sealed_manifest_raw,
+        now=V2_NOW,
+        merge_sha=MERGE_SHA,
+        merge_tree_sha=TREE_SHA,
+        release_scope_git_paths=release_scope_git_paths,
+    )
+
+
+class TestMultiAuthorizationReadinessV2Verification:
+    def test_exact_release_material_is_verified_by_one_global_boundary(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        material = _v2_material()
+        original = tool.rv2.verify_authorization_set
+        calls = 0
+
+        def counted(*args: Any, **kwargs: Any) -> Any:
+            nonlocal calls
+            calls += 1
+            return original(*args, **kwargs)
+
+        monkeypatch.setattr(tool.rv2, "verify_authorization_set", counted)
+        verified = tool.verify_v2_release_material(material)
+        assert calls == 1
+        assert verified.authorization_set.digest() == verified.h2_bundle.authorization_set_digest
+
+    @pytest.mark.parametrize(
+        ("field", "replacement", "message"),
+        [
+            ("authorization_set_raw", b"{}\n", "authorization set"),
+            ("release_scope_placement_raw", b"{}\n", "placement"),
+            ("sealed_manifest_raw", b"other\n", "corpus manifest"),
+            ("revocation_registry_raw", _revocation_registry_bytes(revoked=(AUTHORIZATION_ID,)), "revoked"),
+        ],
+    )
+    def test_substituted_or_revoked_material_is_refused(
+        self, field: str, replacement: bytes, message: str
+    ) -> None:
+        material = _v2_material()
+        changed = tool.dataclasses.replace(material, **{field: replacement})
+        with pytest.raises(tool.SigningToolError, match=message):
+            tool.verify_v2_release_material(changed)
+
+    def test_v2_readiness_is_signed_and_never_parses_as_v1(self) -> None:
+        material = _v2_material()
+        manifest = tool.assemble_and_sign_v2(
+            material,
+            repository=REPOSITORY,
+            pr_number=PR_NUMBER,
+            pr_head_sha=PR_HEAD_SHA,
+            pr_head_tree_sha=TREE_SHA,
+            application_image_digests=APPLICATION_IMAGE_DIGESTS,
+            upstream_image_digests={UPSTREAM_IMAGE_SERVICE: UPSTREAM_IMAGE_REF},
+            compose_digest="8" * 64,
+            key_id=TEST_KEY_ID,
+            workflow_ref=WORKFLOW_REF,
+        )
+        signed = tool.sign_production_readiness_manifest_v2(
+            manifest, private_key_hex=TEST_SEED, key_id=TEST_KEY_ID
+        )
+        anchor = ProductionReadinessTrustAnchor(
+            protocol_version="NEXUS-PRODUCTION-READINESS-V1",
+            keys=(
+                ProductionReadinessTrustAnchorKey(
+                    key_id=TEST_KEY_ID,
+                    algorithm="ed25519",
+                    public_key=public_readiness_key_hex(TEST_SEED),
+                    environment="production",
+                ),
+            ),
+        )
+        assert verify_production_readiness_manifest_v2(
+            signed.canonical_bytes(), trust_anchor=anchor
+        ).authorization_set_digest == sha256(material.authorization_set_raw).hexdigest()
+        with pytest.raises(ProductionReadinessError, match="V1"):
+            verify_production_readiness_manifest(signed.canonical_bytes(), trust_anchor=anchor)
+
+    def test_v2_inputs_are_opened_without_following_symlinks(self, tmp_path: Path) -> None:
+        target = _write(tmp_path / "real.json", b"secret")
+        link = tmp_path / "link.json"
+        link.symlink_to(target)
+        with pytest.raises(tool.SigningToolError, match="symlink"):
+            tool._read_bytes_no_follow(link, label="authorization_set")
+
+    def test_signed_output_is_atomic_private_and_does_not_follow_symlinks(
+        self, tmp_path: Path
+    ) -> None:
+        output = tmp_path / "readiness.json"
+        tool._atomic_private_write(output, b"signed\n")
+        assert output.read_bytes() == b"signed\n"
+        assert output.stat().st_mode & 0o777 == 0o600
+        victim = _write(tmp_path / "victim", b"unchanged")
+        alias = tmp_path / "alias"
+        alias.symlink_to(victim)
+        with pytest.raises(tool.SigningToolError, match="symlink"):
+            tool._atomic_private_write(alias, b"overwrite")
+        assert victim.read_bytes() == b"unchanged"
+
+    def test_missing_and_extra_member_files_are_refused(self) -> None:
+        material = _v2_material()
+        missing = dict(material.release_files)
+        missing.pop(next(iter(missing)))
+        with pytest.raises(tool.SigningToolError, match="missing release material"):
+            tool.verify_v2_release_material(
+                tool.dataclasses.replace(material, release_files=missing)
+            )
+        extra = dict(material.release_files)
+        extra["governance/authorizations/extra.json"] = b"{}\n"
+        with pytest.raises(tool.SigningToolError, match="extra release material"):
+            tool.verify_v2_release_material(
+                tool.dataclasses.replace(material, release_files=extra)
+            )
+
+    def test_bad_member_and_review_binding_digests_are_refused(self) -> None:
+        material = _v2_material()
+        files = dict(material.release_files)
+        authorization_path = next(path for path in files if "/authorizations/" in path)
+        files[authorization_path] += b" "
+        with pytest.raises(tool.SigningToolError, match="authorization_digest"):
+            tool.verify_v2_release_material(
+                tool.dataclasses.replace(material, release_files=files)
+            )
+
+    def test_release_scope_exact_tree_source_substitution_is_refused(self) -> None:
+        material = _v2_material()
+        profile_source = next(
+            path for path in material.release_scope_source_blobs if path.startswith("profiles/")
+        )
+        with pytest.raises(tool.SigningToolError, match="exact-tree"):
+            tool.verify_v2_release_material(
+                tool.dataclasses.replace(
+                    material,
+                    release_scope_source_blobs={
+                        **material.release_scope_source_blobs,
+                        profile_source: b"opaque-invalid-profile-bytes\n",
+                    },
+                )
+            )
+
+    def test_forged_verified_profile_fact_is_refused_by_exact_tree_producer(self) -> None:
+        material = _v2_material()
+        forged = material.verified_profiles[0].model_copy(
+            update={"profile_fingerprint": "f" * 64}
+        )
+        with pytest.raises(tool.SigningToolError, match="profile facts"):
+            tool.verify_v2_release_material(
+                tool.dataclasses.replace(material, verified_profiles=(forged,))
+            )
+
+    def test_profile_source_mismatch_is_refused_by_shared_producer(self) -> None:
+        material = _v2_material()
+        profile_source = next(
+            path for path in material.release_scope_source_blobs if path.startswith("profiles/")
+        )
+        document = json.loads(material.release_scope_source_blobs[profile_source])
+        document["scope"]["matiere"] = "francais"
+        blobs = dict(material.release_scope_source_blobs)
+        blobs[profile_source] = (json.dumps(document, sort_keys=True, indent=2) + "\n").encode()
+        with pytest.raises(tool.SigningToolError, match="PROFILE_SOURCE_MISMATCH"):
+            tool.verify_v2_release_material(
+                tool.dataclasses.replace(material, release_scope_source_blobs=blobs)
+            )
+
+    def test_private_key_material_is_never_echoed_in_a_signing_error(self) -> None:
+        material = _v2_material()
+        manifest = tool.assemble_and_sign_v2(
+            material,
+            repository=REPOSITORY,
+            pr_number=PR_NUMBER,
+            pr_head_sha=PR_HEAD_SHA,
+            pr_head_tree_sha=TREE_SHA,
+            application_image_digests=APPLICATION_IMAGE_DIGESTS,
+            upstream_image_digests={UPSTREAM_IMAGE_SERVICE: UPSTREAM_IMAGE_REF},
+            compose_digest="8" * 64,
+            key_id=TEST_KEY_ID,
+            workflow_ref=WORKFLOW_REF,
+        )
+        private_material = "TOP-SECRET-NOT-A-KEY"
+        with pytest.raises(ProductionReadinessError) as error:
+            tool.sign_production_readiness_manifest_v2(
+                manifest,
+                private_key_hex=private_material,
+                key_id=TEST_KEY_ID,
+            )
+        assert private_material not in str(error.value)
+
+        files = dict(material.release_files)
+        binding_path = next(path for path in files if "/review-bindings/" in path)
+        files[binding_path] += b" "
+        with pytest.raises(tool.SigningToolError, match="review_binding_digest"):
+            tool.verify_v2_release_material(
+                tool.dataclasses.replace(material, release_files=files)
+            )
+
+    def test_half_open_authorization_and_binding_expiry_are_refused(self) -> None:
+        material = _v2_material()
+        authorization = tool.parse_scope_authorization_artifact(
+            next(raw for path, raw in material.release_files.items() if "/authorizations/" in path)
+        )
+        with pytest.raises(tool.SigningToolError, match="expired"):
+            tool.verify_v2_release_material(
+                tool.dataclasses.replace(material, now=authorization.valid_until)
+            )
+
+        coverage = tool.parse_h2_coverage_evidence_v2(material.h2_coverage_raw)
+        with pytest.raises(tool.SigningToolError, match="expired"):
+            tool.verify_v2_release_material(
+                tool.dataclasses.replace(
+                    material,
+                    now=coverage.earliest_review_binding_expires_at,
+                )
+            )
+
+    @pytest.mark.parametrize(
+        ("field", "message"),
+        [
+            ("h2_coverage_raw", "H2"),
+            ("h2_evidence_bundle_raw", "H2"),
+            ("promotion_evidence_raw", "promotion"),
+        ],
+    )
+    def test_substituted_h2_or_promotion_document_is_refused(
+        self, field: str, message: str
+    ) -> None:
+        material = _v2_material()
+        with pytest.raises(tool.SigningToolError, match=message):
+            tool.verify_v2_release_material(
+                tool.dataclasses.replace(material, **{field: b"{}\n"})
+            )
+
+    def test_repromoted_h2_bundle_with_changed_routing_digest_is_refused(self) -> None:
+        material = _v2_material()
+        bundle = tool.parse_h2_evidence_bundle_v2(material.h2_evidence_bundle_raw)
+        changed_inputs = dict(bundle.input_file_digests)
+        changed_inputs["routing"] = "f" * 64
+        changed_bundle = bundle.model_copy(update={"input_file_digests": changed_inputs})
+        promotion = tool.PromotionEvidenceV2.model_validate(
+            tool.PromotionEvidenceV2.fields_from_h2_bundle(
+                changed_bundle,
+                image_provenance_run_id=PROVENANCE_RUN_ID,
+                image_provenance_run_attempt=PROVENANCE_RUN_ATTEMPT,
+                promotion_workflow_path=WORKFLOW_PATH,
+                promotion_run_id=RUN_ID,
+                promotion_run_attempt=RUN_ATTEMPT,
+                promotion_workflow_ref=WORKFLOW_REF,
+            )
+        )
+        with pytest.raises(tool.SigningToolError, match="input_file_digests"):
+            tool.verify_v2_release_material(
+                tool.dataclasses.replace(
+                    material,
+                    h2_evidence_bundle_raw=changed_bundle.canonical_bytes(),
+                    promotion_evidence_raw=promotion.canonical_bytes(),
+                )
+            )
 
 
 # Section 11 : plus de ``_compose_services`` local à prouver contre les

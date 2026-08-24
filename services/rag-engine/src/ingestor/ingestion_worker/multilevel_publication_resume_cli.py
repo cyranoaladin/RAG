@@ -19,6 +19,7 @@ from ingestor.ingestion_control.db import get_ingestion_control_dsn
 from ingestor.ingestion_control.jobs import reap_expired_job_leases
 from ingestor.ingestion_control.revocation_registry import (
     load_revocation_registry,
+    load_shared_authorization_revocations,
     require_revocation_registry_matches_manifest,
 )
 from ingestor.ingestion_profiles.readiness_gate import (
@@ -148,7 +149,13 @@ def _enforce_production_evidence(
             "production requires a governed revocation registry "
             "(--revocation-registry-path/--revocation-registry-sha256)"
         )
-    revocation = load_revocation_registry(
+    loader = (
+        load_shared_authorization_revocations
+        if getattr(readiness.manifest, "protocol_version", "")
+        == "NEXUS-PRODUCTION-READINESS-V2"
+        else load_revocation_registry
+    )
+    revocation = loader(
         args.revocation_registry_path,
         expected_sha256=args.revocation_registry_sha256,
     )
@@ -192,6 +199,15 @@ def main(argv: list[str] | None = None) -> int:
             profile_registry=profiles,
         )
         resolver = authorities.placement_resolver
+        readiness_mapping = getattr(readiness, "authorization_mapping", None)
+        if (
+            readiness_mapping is not None
+            and resolver.release_profile_manifest_digest
+            != readiness_mapping.profile_manifest_digest
+        ):
+            raise RuntimeAuthorityStartupError(
+                "loaded profile manifest digest differs from the signed authorization set"
+            )
         if (
             resolver.release_embedding_model_id != VerifiedE5EmbeddingProvider.model_id
             or resolver.release_embedding_dimension != VerifiedE5EmbeddingProvider.dimension
@@ -238,6 +254,8 @@ def main(argv: list[str] | None = None) -> int:
         rights_evidence_registry=authorities.rights_evidence_registry,
         manifest_digest=resolver.release_profile_manifest_digest,
         placement_resolver=resolver,
+        authorization_mapping=getattr(readiness, "authorization_mapping", None),
+        authorization_context=getattr(readiness, "authorization_context", None),
     )
     max_iterations = 1 if args.once else args.max_iterations
     iterations = 0

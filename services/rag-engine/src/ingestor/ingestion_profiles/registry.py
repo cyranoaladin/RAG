@@ -11,18 +11,25 @@ versionnée dans le dépôt (LOT44b a délibérément laissé ``profile_version`
 comme colonne texte libre, sans table ``collection_profiles`` ni FK — cf.
 ADR-0026, ADR-0027). Ce module ne crée donc aucune migration.
 """
+
 from __future__ import annotations
 
-import hashlib
-import json
 import os
-import re
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, cast
+from typing import cast
 
-import yaml
-from nexus_contracts.ingestion import CollectionProfile
+from nexus_contracts.ingestion import (
+    CollectionProfile,
+    collection_profile_fingerprint,
+)
+from nexus_contracts.profile_manifest import (
+    CANONICAL_PROFILE_VERSION_PATTERN,
+    CanonicalProfileVersionError,
+    StrictYamlError,
+    require_canonical_profile_version,
+    strict_yaml_mapping,
+)
 from pydantic import ValidationError
 
 PROFILES_DIR_ENV = "RAG_ENGINE_INGESTION_PROFILES_DIR"
@@ -36,7 +43,7 @@ PROFILES_DIRNAME = "ingestion_profiles"
 #: rejette les espaces, sauts de ligne et caractères de contrôle, borne la
 #: longueur, sans modifier le contrat LOT44a lui-même (vérification
 #: additionnelle, appliquée uniquement au chargement du registre).
-PROFILE_VERSION_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+PROFILE_VERSION_PATTERN = CANONICAL_PROFILE_VERSION_PATTERN
 
 ProfileKey = tuple[str, str]
 ProfileRegistry = dict[ProfileKey, CollectionProfile]
@@ -79,8 +86,7 @@ def profile_fingerprint(profile: CollectionProfile) -> str:
     résultat précédent pour la même identité — mécanisme habilitant, pas
     encore un contrôle automatique (cf. ADR-0028, réserve documentée).
     """
-    canonical = json.dumps(profile.model_dump(mode="json"), sort_keys=True, ensure_ascii=True)
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return cast(str, collection_profile_fingerprint(profile))
 
 
 def _resolve_profiles_dir(directory: Path | None) -> Path:
@@ -94,14 +100,14 @@ def _resolve_profiles_dir(directory: Path | None) -> Path:
     return engine_root / "configs" / PROFILES_DIRNAME
 
 
-def _read_yaml(path: Path) -> dict[str, Any]:
+def _read_yaml(path: Path) -> dict[str, object]:
     try:
-        data = yaml.safe_load(path.read_text(encoding="utf-8"))
-    except yaml.YAMLError as exc:
-        raise ProfileRegistryLoadError(f"Invalid YAML in {path.name}: {exc}") from exc
-    if not isinstance(data, dict):
-        raise ProfileRegistryLoadError(f"Invalid YAML mapping in {path.name}")
-    return cast(dict[str, Any], data)
+        return cast(
+            dict[str, object],
+            strict_yaml_mapping(path.read_bytes(), source=path.name),
+        )
+    except StrictYamlError as exc:
+        raise ProfileRegistryLoadError(str(exc)) from exc
 
 
 def load_profile_registry(directory: Path | None = None) -> ProfileRegistry:
@@ -134,13 +140,15 @@ def load_profile_registry(directory: Path | None = None) -> ProfileRegistry:
                 f"Profile file {path.name} does not validate against CollectionProfile: {exc}"
             ) from exc
 
-        if PROFILE_VERSION_PATTERN.fullmatch(profile.profile_version) is None:
-            raise ProfileRegistryLoadError(
-                f"Profile file {path.name}: profile_version {profile.profile_version!r} "
-                f"does not match the required pattern {PROFILE_VERSION_PATTERN.pattern!r} "
-                "(LOT44c registry constraint, stricter than the frozen CollectionProfile "
-                "contract — identity stability requires a bounded, unambiguous version string)"
+        try:
+            require_canonical_profile_version(
+                profile.profile_version, source=f"Profile file {path.name}"
             )
+        except CanonicalProfileVersionError as exc:
+            raise ProfileRegistryLoadError(
+                f"{exc} (LOT44c registry constraint, stricter than the frozen "
+                "CollectionProfile contract)"
+            ) from exc
 
         key: ProfileKey = (profile.scope.collection, profile.profile_version)
         if key in registry:

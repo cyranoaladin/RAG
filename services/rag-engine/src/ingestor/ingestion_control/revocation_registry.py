@@ -18,6 +18,10 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
+from nexus_contracts.authorization_revocations import (
+    parse_revoked_authorization_ids,
+)
+
 _SHA256 = re.compile(r"\A[0-9a-f]{64}\Z")
 _SUPPORTED_VERSIONS = frozenset({"1"})
 _ENTRY_FIELDS = frozenset({"kind", "id"})
@@ -103,6 +107,40 @@ def load_revocation_registry(path: Path, *, expected_sha256: str) -> RevocationR
     )
 
 
+def load_shared_authorization_revocations(
+    path: Path, *, expected_sha256: str
+) -> RevocationRegistry:
+    """Charge exclusivement le registre partagé des releases V2.
+
+    Le parseur historique reste dans :func:`load_revocation_registry`. Deux
+    points d'entrée nommés rendent impossible un fallback silencieux entre
+    des schémas qui n'ont ni les mêmes champs ni la même sémantique.
+    """
+    if not isinstance(expected_sha256, str) or _SHA256.fullmatch(expected_sha256) is None:
+        raise RevocationRegistryError(
+            "expected revocation registry digest must be a lowercase 64-hex SHA-256"
+        )
+    try:
+        raw = Path(path).read_bytes()
+    except OSError as exc:
+        raise RevocationRegistryError(f"revocation registry unavailable at {path}") from exc
+    actual = hashlib.sha256(raw).hexdigest()
+    if actual != expected_sha256:
+        raise RevocationRegistryError(
+            "revocation registry digest differs from the pinned expectation"
+        )
+    try:
+        revoked = parse_revoked_authorization_ids(raw, origin=str(path))
+    except ValueError as exc:
+        raise RevocationRegistryError(str(exc)) from exc
+    return RevocationRegistry(
+        sha256=actual,
+        registry_version="NEXUS-AUTHORIZATION-REVOCATIONS-V1",
+        revoked_authorization_ids=frozenset(revoked),
+        revoked_publication_attestation_ids=frozenset(),
+    )
+
+
 def require_revocation_registry_matches_manifest(
     registry: RevocationRegistry,
     *,
@@ -123,5 +161,6 @@ __all__ = [
     "RevocationRegistry",
     "RevocationRegistryError",
     "load_revocation_registry",
+    "load_shared_authorization_revocations",
     "require_revocation_registry_matches_manifest",
 ]

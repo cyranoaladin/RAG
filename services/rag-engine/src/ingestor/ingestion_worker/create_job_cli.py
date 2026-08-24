@@ -45,6 +45,10 @@ try:
     )
     from ingestor.ingestion_profiles.startup_gate import enforce_production_manifest_gate
     from ingestor.ingestion_profiles.validation import validate_scope_against_profile
+    from ingestor.ingestion_worker.runner import (
+        AuthorizationCheckpointError,
+        require_prefetch_authorization_mapping,
+    )
 except (ImportError, ValueError):
     # Image Docker aplatie (LOT44f, ADR-0029/ADR-0031) : même discipline que
     # cli.py et runner.py — "ingestor" n'existe pas comme paquet ici.
@@ -58,6 +62,10 @@ except (ImportError, ValueError):
     from ingestion_profiles.registry import load_profile_registry, select_profile
     from ingestion_profiles.startup_gate import enforce_production_manifest_gate
     from ingestion_profiles.validation import validate_scope_against_profile
+    from ingestion_worker.runner import (
+        AuthorizationCheckpointError,
+        require_prefetch_authorization_mapping,
+    )
 
 #: Même contrainte que ``nexus_contracts.identity.Sha256Digest`` — répétée
 #: ici pour valider un ``--dedup-key`` fourni par l'opérateur sans tirer une
@@ -149,7 +157,7 @@ def main(argv: list[str] | None = None) -> int:
     # qu'une fois. Ce contrôle précède le gate de manifest de profils, de
     # sorte qu'aucun job ne soit créé sans preuve de promotion gouvernée.
     try:
-        enforce_readiness_gate()
+        readiness = enforce_readiness_gate()
     except ReadinessGateError as exc:
         print(str(exc), file=sys.stderr)
         return 1
@@ -186,6 +194,25 @@ def main(argv: list[str] | None = None) -> int:
         "school_year": args.school_year,
         "programme_version": args.programme_version,
     }
+    scope = ResourceScope.model_validate(scope_dict)
+    mapping = getattr(readiness, "authorization_mapping", None)
+    authorization_context = getattr(readiness, "authorization_context", None)
+    if authorization_context is not None:
+        try:
+            mapping = authorization_context.reverify()
+        except RuntimeError as exc:
+            print(f"JOB_AUTHORIZATION_MAPPING_FAILED: {exc}", file=sys.stderr)
+            return 1
+    if mapping is not None:
+        try:
+            require_prefetch_authorization_mapping(
+                mapping=mapping,
+                scope=scope,
+                claimed_authorization_id=args.scope_authorization_id,
+            )
+        except AuthorizationCheckpointError as exc:
+            print(f"JOB_AUTHORIZATION_MAPPING_FAILED: {exc}", file=sys.stderr)
+            return 1
 
     dedup_key = args.dedup_key or _default_dedup_key(args.canonical_url)
     if not _SHA256_HEX_PATTERN.match(dedup_key):
@@ -221,7 +248,6 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 1
 
-        scope = ResourceScope.model_validate(scope_dict)
         run_id: UUID = create_ingestion_run(
             conn, scope=scope, profile_version=args.profile_version, trigger=args.trigger
         )
