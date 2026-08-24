@@ -375,6 +375,15 @@ def test_current_master_and_checklist_do_not_claim_final_scope_count() -> None:
     assert "10 partitions staging / 11 contenus" in checklist
 
 
+def test_master_names_the_current_ops_review_before_later_profile_decisions() -> None:
+    master_md = MASTER_MD.read_text(encoding="utf-8")
+    normalized = " ".join(master_md.split())
+
+    assert "revue humaine du présent lot de rafraîchissement des preuves go-live" in normalized
+    assert "présent lot de correction des profils" not in master_md
+    assert "décisions de profils" in master_md
+
+
 def test_master_reconciles_versioned_ops_assessments_fail_closed() -> None:
     master = _master()
 

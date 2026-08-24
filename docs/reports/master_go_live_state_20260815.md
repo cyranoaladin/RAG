@@ -211,8 +211,8 @@ INGESTED_ELIGIBLE_ARTIFACTS=0
 API_DISCOVERABLE_ELIGIBLE_ARTIFACTS=0
 ```
 
-La prochaine barrière est la revue humaine du présent lot de correction des
-profils. Les gates réels suivants restent, dans l'ordre : décisions de profils,
-autorisations exactes, campagne/republish, H2, rehearsal Docker corrigé, cible
-DB vérifiée, Environment provisionné, provenance/promotion, signature offline,
-puis cutover.
+La prochaine barrière est la revue humaine du présent lot de rafraîchissement
+des preuves go-live (PR #131). Les gates réels suivants restent, dans l'ordre :
+décisions de profils, autorisations exactes, campagne/republish, H2, rehearsal
+Docker V2 attesté, cible DB vérifiée, Environment provisionné,
+provenance/promotion, signature offline, puis cutover.
