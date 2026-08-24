@@ -1,7 +1,7 @@
 {
   "state_generated_at": "2026-08-24T22:32:37Z",
-  "state_observed_at_main_sha": "3548bf300c99685ff6ede0dce2e5bfe8c044d213",
-  "state_scope": "PR #127 merged baseline plus the dedicated multi-authorization V2 candidate branch; this file is not a live pointer to main",
+  "state_observed_at_main_sha": "8aa65fb3fb5f077bcd6dfa427c8902bd6d5c28b0",
+  "state_scope": "PR #129 merged baseline plus the grounded production-profile correction candidate; this file is not a live pointer to main",
   "pr_merges": {
     "PR100_SIGNER_MERGED": true,
     "PR107_ATOMIC_DEPLOY_MERGED": true,
@@ -21,7 +21,8 @@
     "PR124_PII_SCAN_RECONCILIATION_MERGED": true,
     "PR125_AUTHORITY_REQUIRED_SET_CORRECTION_MERGED": true,
     "PR126_H2_NO_AUTHORITY_TYPED_REFUSAL_MERGED": true,
-    "PR127_MERGED": true
+    "PR127_MERGED": true,
+    "PR129_MERGED": true
   },
   "governance_gate": {
     "TRUSTED_REQUIRED_GATE_RELIABLY_ENFORCED": true,
@@ -88,7 +89,10 @@
     "PROFILE_EXACT_MATCH_COUNT": 5,
     "PROFILE_NO_MATCH_COUNT": 67,
     "PROFILE_AMBIGUOUS_COUNT": 0,
-    "DISTINCT_CANONICAL_RESOURCE_SCOPES": 1,
+    "GROUNDED_DISTINCT_CANONICAL_RESOURCE_SCOPES": 1,
+    "DISTINCT_CANONICAL_RESOURCE_SCOPES": "UNKNOWN_PENDING_PROFILE_DECISIONS",
+    "PROFILE_MAPPED_COUNT": 0,
+    "P24_RELEASE_REGISTRY_MAPPING_READY": false,
     "PROFILE_DECISION_REQUIRED": true,
     "FABRICATED_PROFILE_COUNT": 0
   },
@@ -100,7 +104,7 @@
     "CONTRACT_VERSION": "0.13.0",
     "AUTHORIZATION_SET_PROTOCOL": "NEXUS-AUTHORIZATION-SET-V1",
     "V1_LEGACY_READABLE_AND_UNCHANGED": true,
-    "V2_MECHANISM_IMPLEMENTED_ON_BRANCH": true,
+    "V2_MECHANISM_ON_MAIN": true,
     "REAL_AUTHORIZATION_SET_CREATED": false,
     "REAL_H2_GATE_PASS": false
   },

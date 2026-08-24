@@ -137,36 +137,30 @@ CLOUDFLARE_BLOCKS_GO_LIVE=false
 
 L'artefact
 `docs/reports/proposed_production_profile_matrix_20260823.json` a pour SHA-256
-`b1fb997b56f080101493ac1efb151fc228109e110a9d8d86ce74f730eff544fe`.
+`8009596c0cce54f816a1a1307a9ba5663146cfa2d7d95e381e84819d3be9c963`.
 
 ```text
 PARTITION_COUNT=24
 DISTINCT_LEVEL_SUBJECT_PAIRS_MINIMUM=22
 MATRIX_RAW_DISTINCT_LEVEL_SUBJECT_PAIRS=23
 MATRIX_FULLY_SPECIFIED_LEVEL_SUBJECT_PAIRS=21
-GROUNDED_PARTITION_COUNT=11
-GROUNDED_CONTENT_COUNT=16
-STAGING_NON_PRODUCTION_PARTITION_COUNT=10
-STAGING_NON_PRODUCTION_CONTENT_COUNT=11
-DECISION_REQUIRED_PARTITION_COUNT=13
-DECISION_REQUIRED_CONTENT_COUNT=56
-PROFILE_EXACT_MATCH_COUNT=5
-PROFILE_NO_MATCH_COUNT=67
+GROUNDED_PARTITION_COUNT=10
+GROUNDED_CONTENT_COUNT=11
+DECISION_REQUIRED_PARTITION_COUNT=14
+DECISION_REQUIRED_CONTENT_COUNT=61
+PROFILE_EXACT_MATCH_COUNT=0
+PROFILE_NO_MATCH_COUNT=72
 PROFILE_AMBIGUOUS_COUNT=0
-DISTINCT_CANONICAL_RESOURCE_SCOPES=1
+DISTINCT_CANONICAL_RESOURCE_SCOPES=UNKNOWN_PENDING_PROFILE_DECISIONS
 PROFILE_DECISION_REQUIRED=true
 FABRICATED_PROFILE_COUNT=0
 ```
 
-Chaque dimension indique valeur, source de vérité et ancrage. Les cinq SHA P24
-sont maintenant liés à la policy H2-C, au profil de production philosophie
-Terminale et au manifest portant le fingerprint
-`993b350071ffa961c2be47738aa138b95db56317f117d7b4086461dbfd0acefc`.
-Les 11 contenus P01–P10 conservent leurs profils staging et ne sont pas comptés
-comme matches production. Les 56 contenus restants attendent une vraie décision
-produit ; la branche ne fabrique aucun profil afin de masquer ce gate. La borne
-opérateur `>=22` n'est pas réécrite comme une égalité : les valeurs de dimension
-de la matrice donnent 23 couples bruts, dont 21 entièrement spécifiés.
+Chaque dimension indique valeur, source de vérité et ancrage. Les 61 contenus
+non ancrables attendent une vraie décision produit ; la branche ne fabrique
+aucun profil afin de masquer ce gate. La borne opérateur `>=22` n'est pas
+réécrite comme une égalité : les valeurs de dimension de la matrice donnent 23
+couples bruts, dont 21 entièrement spécifiés.
 
 ## 5. Audit et architecture
 

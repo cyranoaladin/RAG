@@ -43,9 +43,13 @@ PRODUCTION_PROFILE_MANIFEST = (
     REPO_ROOT / "services/rag-engine/configs/ingestion_manifest.yml"
 )
 
-BASE_SHA = "3548bf300c99685ff6ede0dce2e5bfe8c044d213"
+PR127_BASE_SHA = "3548bf300c99685ff6ede0dce2e5bfe8c044d213"
+BASE_SHA = "8aa65fb3fb5f077bcd6dfa427c8902bd6d5c28b0"
 FINAL_SET_SHA256 = "3705935f306a52cde0f398db20f685dce82d0bb9acd7909c8e6955d6356643e0"
 PROFILE_MATRIX_SHA256 = "b1fb997b56f080101493ac1efb151fc228109e110a9d8d86ce74f730eff544fe"
+PR129_PROFILE_MATRIX_SHA256 = (
+    "8009596c0cce54f816a1a1307a9ba5663146cfa2d7d95e381e84819d3be9c963"
+)
 PRODUCTION_PROFILE_FINGERPRINT = (
     "993b350071ffa961c2be47738aa138b95db56317f117d7b4086461dbfd0acefc"
 )
@@ -76,6 +80,8 @@ def test_master_freezes_recomputed_release_algebra_and_terminal_accounting() -> 
 
     assert master["state_observed_at_main_sha"] == BASE_SHA
     assert master["pr_merges"]["PR127_MERGED"] is True
+    assert master["pr_merges"]["PR129_MERGED"] is True
+    assert master["multi_authorization_protocol_20260823"]["V2_MECHANISM_ON_MAIN"] is True
     assert corpus == {
         "PHYSICAL_FILES": 2584,
         "MANIFEST_ENTRIES": 2583,
@@ -163,7 +169,7 @@ def test_recomputation_evidence_records_actual_non_skipped_producer_run() -> Non
         "RECOMPUTATION_EVIDENCE_SHA256"
     ]
     assert evidence["protocol_version"] == "NEXUS-FINAL-RELEASE-RECOMPUTATION-EVIDENCE-V1"
-    assert evidence["baseline_main_sha"] == BASE_SHA
+    assert evidence["baseline_main_sha"] == PR127_BASE_SHA
     assert evidence["producer"] == "services/rag-pedago/scripts/recompute_final_release_set.py"
     assert evidence["producer_exit_code"] == 0
     assert evidence["committed_set_byte_identity"] is True
@@ -224,7 +230,10 @@ def test_master_records_closed_cloudflare_work_and_unresolved_profile_decisions(
         "PROFILE_EXACT_MATCH_COUNT": 5,
         "PROFILE_NO_MATCH_COUNT": 67,
         "PROFILE_AMBIGUOUS_COUNT": 0,
-        "DISTINCT_CANONICAL_RESOURCE_SCOPES": 1,
+        "GROUNDED_DISTINCT_CANONICAL_RESOURCE_SCOPES": 1,
+        "DISTINCT_CANONICAL_RESOURCE_SCOPES": "UNKNOWN_PENDING_PROFILE_DECISIONS",
+        "PROFILE_MAPPED_COUNT": 0,
+        "P24_RELEASE_REGISTRY_MAPPING_READY": False,
         "PROFILE_DECISION_REQUIRED": True,
         "FABRICATED_PROFILE_COUNT": 0,
     }
@@ -325,12 +334,32 @@ def test_grounded_production_profile_report_records_only_proven_p24_promotion() 
         "services/rag-engine/configs/ingestion_profiles/philosophie_terminale_tc_h2c_v1.yml",
         "services/rag-engine/configs/ingestion_manifest.yml",
         "P01-P10_NOT_PROMOTED=true",
+        "P24_RELEASE_REGISTRY_MAPPING_READY=false",
+        "PROFILE_MAPPED_COUNT=0",
         "PRODUCTION_READY=false",
         "GO_LIVE_READY=false",
         "RAG_PRODUCTION_DEPLOYED=false",
     ):
         assert fragment in report
     assert "PRODUCTION_PROFILE_EXACT_MATCH_COUNT=16" not in report
+
+
+def test_current_master_and_checklist_do_not_claim_final_scope_count() -> None:
+    master = _master()
+    profile_state = master["production_profile_proposal_20260823"]
+    master_md = MASTER_MD.read_text(encoding="utf-8")
+    checklist = CHECKLIST.read_text(encoding="utf-8")
+
+    assert profile_state["GROUNDED_DISTINCT_CANONICAL_RESOURCE_SCOPES"] == 1
+    assert (
+        profile_state["DISTINCT_CANONICAL_RESOURCE_SCOPES"]
+        == "UNKNOWN_PENDING_PROFILE_DECISIONS"
+    )
+    assert "GROUNDED_DISTINCT_CANONICAL_RESOURCE_SCOPES=1" in master_md
+    assert "DISTINCT_CANONICAL_RESOURCE_SCOPES=UNKNOWN_PENDING_PROFILE_DECISIONS" in master_md
+    assert "PR129_MERGED=true" in master_md
+    assert "61 contenus encore non ancrés" not in checklist
+    assert "56 contenus encore non ancrés" in checklist
 
 
 def test_master_marks_unversioned_parallel_observations_unknown() -> None:
@@ -437,7 +466,7 @@ def test_master_replaces_narrow_audit_with_v2_architecture_without_mutating_v1()
     assert multi_auth["CONTRACT_VERSION"] == "0.13.0"
     assert multi_auth["AUTHORIZATION_SET_PROTOCOL"] == "NEXUS-AUTHORIZATION-SET-V1"
     assert multi_auth["V1_LEGACY_READABLE_AND_UNCHANGED"] is True
-    assert multi_auth["V2_MECHANISM_IMPLEMENTED_ON_BRANCH"] is True
+    assert multi_auth["V2_MECHANISM_ON_MAIN"] is True
     assert multi_auth["REAL_AUTHORIZATION_SET_CREATED"] is False
     assert multi_auth["REAL_H2_GATE_PASS"] is False
     assert master["quarantine_20260822"]["ADR0043_STATUS"] == (
@@ -448,7 +477,7 @@ def test_master_replaces_narrow_audit_with_v2_architecture_without_mutating_v1()
 def test_report_cites_reproducible_recomputation_inputs_commands_and_commits() -> None:
     report = REPORT.read_text(encoding="utf-8")
     required_fragments = (
-        BASE_SHA,
+        PR127_BASE_SHA,
         "services/rag-pedago/scripts/recompute_final_release_set.py",
         "NEXUS_SEALED_CORPUS_ROOT",
         "NEXUS_H2_EVIDENCE_ROOT",
@@ -462,7 +491,7 @@ def test_report_cites_reproducible_recomputation_inputs_commands_and_commits() -
         "28856e0655eca7695f273a5934925785c49ecf828d930804984f6e58f4da6f69",
         "2ad7209f28cd7cbf9f1ea91724b687983579c36c91619e8d107d28b72b849122",
         FINAL_SET_SHA256,
-        PROFILE_MATRIX_SHA256,
+        PR129_PROFILE_MATRIX_SHA256,
         "ADR-0044",
         "CONTRACT_VERSION=0.13.0",
         "CI_GREEN=false",

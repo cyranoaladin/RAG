@@ -12,6 +12,10 @@ DECISION_REQUIRED_CONTENT_COUNT=56
 STAGING_NON_PRODUCTION_PARTITION_COUNT=10
 STAGING_NON_PRODUCTION_CONTENT_COUNT=11
 P01-P10_NOT_PROMOTED=true
+P24_RELEASE_REGISTRY_MAPPING_READY=false
+PROFILE_MAPPED_COUNT=0
+GROUNDED_DISTINCT_CANONICAL_RESOURCE_SCOPES=1
+DISTINCT_CANONICAL_RESOURCE_SCOPES=UNKNOWN_PENDING_PROFILE_DECISIONS
 PRODUCTION_READY=false
 GO_LIVE_READY=false
 RAG_PRODUCTION_DEPLOYED=false
@@ -32,13 +36,13 @@ compteurs recopiés isolément.
 
 Les cinq SHA de P24 sont exactement les clés `approved_artifacts` de :
 
-- `services/rag-engine/configs/h2_initial_placement_policy.yml` ;
-- `services/rag-engine/configs/ingestion_profiles/philosophie_terminale_tc_h2c_v1.yml` ;
-- `services/rag-engine/configs/ingestion_manifest.yml`.
+- `services/rag-engine/configs/h2_initial_placement_policy.yml`.
 
-La policy lie chacun des cinq contenus à
-`rag_nexus_philo_terminale_tc`. Le profil fournit les dix dimensions du
-`ResourceScope` et le manifest approuve son identité exacte :
+La policy lie chacun des cinq contenus à `rag_nexus_philo_terminale_tc`. Le
+profil `services/rag-engine/configs/ingestion_profiles/philosophie_terminale_tc_h2c_v1.yml`
+fournit les dix dimensions du `ResourceScope` et le manifest
+`services/rag-engine/configs/ingestion_manifest.yml` approuve son identité
+exacte :
 
 ```text
 PROFILE_ID=rag_nexus_philo_terminale_tc
@@ -49,6 +53,12 @@ PROFILE_FINGERPRINT=993b350071ffa961c2be47738aa138b95db56317f117d7b4086461dbfd0a
 Le test recalcule le fingerprint depuis le YAML du profil, compare le résultat
 au manifest et exige l'égalité exacte entre les cinq SHA P24 et les cinq clés
 de la policy.
+
+Ce match de profil ne constitue pas encore un placement release exécutable :
+la collection `rag_nexus_philo_terminale_tc` est absente du release registry
+`prerentree_2026_2027`. Un test P24-only exerce le producteur canonique et exige
+son refus `UNACCEPTED_COLLECTION`. Le présent lot ne fabrique donc ni release
+registry entry ni placement accepté ; `PROFILE_MAPPED_COUNT` reste à zéro.
 
 ## Séparation staging / production
 
@@ -68,8 +78,9 @@ STAGING_NON_PRODUCTION_CONTENT_COUNT=11
 56+11=67
 ```
 
-P24 apporte un unique `ResourceScope` canonique de production. Les 13
-partitions P11–P23 restent fail-closed.
+P24 apporte un unique `ResourceScope` canonique de production actuellement
+groundé. Le total final `M` reste inconnu tant que les 56 contenus non décidés
+n'ont pas chacun un scope exact. Les 13 partitions P11–P23 restent fail-closed.
 
 ## TDD
 
@@ -93,8 +104,7 @@ producer refusal=PROFILE_DECISION_REQUIRED: 13 partitions / 56 contents
 Vérification locale fraîche :
 
 ```text
-RAG_PEDAGO_PROFILE_AND_PRODUCER_TESTS=70 passed
-RAG_ENGINE_H2C_PLACEMENT_READINESS_TESTS=38 passed
+TARGETED_PROFILE_AND_H2C_TESTS=248 passed
 RUFF_TARGETED=PASS
 JSON_PARSE=PASS
 GOVERNANCE_LOCKS=PASS

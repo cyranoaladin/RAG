@@ -119,7 +119,7 @@ ci-dessous portent sur les vraies preuves de release ; elles ne doivent pas
 - [x] 2 582 contenus terminalement comptabilisés, zéro non-comptabilisé
 - [x] Architecture `AuthorizationSetV1` + campaign/H2/promotion/readiness V2
       documentée par ADR-0044 sans mutation des V1
-- [ ] Décisions de profils rendues pour les 61 contenus encore non ancrés
+- [ ] Décisions de profils rendues pour les 56 contenus encore non ancrés
 - [ ] Chaque contenu du set final possède exactement un profil et un scope
 - [ ] Autorisations exactes, non chevauchantes et sans gap créées puis revues
 - [ ] Vraie campagne globale exécutée
