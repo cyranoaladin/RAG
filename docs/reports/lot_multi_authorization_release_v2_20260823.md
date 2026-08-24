@@ -332,6 +332,15 @@ Cloudflare et la matrice depuis quatre artefacts versionnés indépendants.
 Malgré la matrice locale ci-dessus, `CI_GREEN` reste `false` tant que les checks
 de la PR n'ont pas exécuté et accepté le HEAD final :
 
+La revue adversariale finale a identifié puis fait corriger trois bloqueurs P1
+avant publication : absence de voie CLI pour le republish V2, absence de
+liaison entre la preuve locale et l'artefact exact du run de promotion, et
+possibilité de créer une nouvelle signature après avancement de `main`. Les
+régressions ajoutées exigent désormais une CLI V2 sans flags singuliers,
+l'unicité/non-expiration/identité byte-for-byte de l'artefact de promotion, et
+une relecture live de `main` au dernier instant avant accès à la clé. Une
+seconde revue du nouveau HEAD reste obligatoire avant ouverture de la PR.
+
 ```text
 CI_GREEN=false
 PRODUCTION_READY=false

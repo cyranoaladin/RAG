@@ -191,7 +191,18 @@ ancien commit.
 Le signer V2 reçoit le set et une racine gouvernée, dérive les chemins des
 membres, vérifie chaque autorisation/binding, le registre canonique, H2 V2,
 les deux domaines de manifest et la fenêtre uniforme
-`valid_from <= now < valid_until` avant de signer.
+`valid_from <= now < valid_until` avant de signer. Il résout l'unique artefact
+`promotion-evidence-<merge_sha>-<campaign_id>` du run de promotion vérifié et
+exige que son `promotion-evidence.json` soit identique octet par octet à la
+preuve locale utilisée. Enfin, immédiatement avant de lire la clé privée, il
+relit `refs/heads/main` et refuse de créer une nouvelle signature si le merge
+n'en est plus le HEAD ; cela n'interdit pas le rejeu d'une readiness historique
+déjà signée pour rollback.
+
+La CLI opérateur conserve `republish-catalog` pour V1 et expose une voie
+distincte `republish-catalog-v2`. Cette dernière ne reçoit aucune autorité ni
+review binding singulier : elle relit campagne, `AuthorizationSet` et membres
+depuis le tree Git exact, puis délègue à la frontière V2 partagée.
 
 Le bundle de déploiement V2 matérialise le set et le registre de révocation.
 Deploy et startup rehashent les octets montés, exigent le digest readiness,

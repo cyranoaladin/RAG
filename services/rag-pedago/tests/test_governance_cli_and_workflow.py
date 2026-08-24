@@ -11,11 +11,16 @@ from __future__ import annotations
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import yaml
 
+from rag_pedago.governance import cli as governance_cli
 from rag_pedago.governance.cli import build_parser
+from rag_pedago.governance.release_scope_placement import (
+    ReleaseScopePlacementGitInputs,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 PRODUCER = REPO_ROOT / ".github" / "workflows" / "_produce-h2-evidence.yml"
@@ -138,7 +143,37 @@ class TestProducerWorkflowShape:
 
 
 class TestGovernanceCli:
-    def test_the_eight_subcommands_exist(self) -> None:
+    @staticmethod
+    def _valid_republish_v2_argv(tmp_path: Path) -> list[str]:
+        return [
+            "republish-catalog-v2",
+            "--campaign-relative-path",
+            "governance/corpus-campaigns/campaign-v2/campaign.json",
+            "--catalog",
+            str(tmp_path / "catalog.json"),
+            "--authorization-set-relative-path",
+            "governance/authorization-sets/release-v1.json",
+            "--repository-root",
+            str(tmp_path / "repo"),
+            "--source-tree-sha",
+            "a" * 40,
+            "--profile-proposal-matrix",
+            "docs/reports/profile-matrix.json",
+            "--placements",
+            "governance/release-scope/accepted.json",
+            "--release-registry",
+            "governance/releases/release.json",
+            "--expected-contents",
+            "docs/reports/final-set.txt",
+            "--verified-profiles",
+            "governance/profiles/verified.json",
+            "--profile-manifest",
+            "services/rag-engine/configs/ingestion_profiles/manifest.yml",
+            "--out-root",
+            str(tmp_path / "out"),
+        ]
+
+    def test_the_nine_subcommands_exist(self) -> None:
         parser = build_parser()
         choices = parser._subparsers._group_actions[0].choices  # type: ignore[union-attr]
         assert set(choices) == {
@@ -149,6 +184,7 @@ class TestGovernanceCli:
             "h2-evidence-v2",
             "promotion-evidence-v2",
             "republish-catalog",
+            "republish-catalog-v2",
             "release-scope-placement",
         }
 
@@ -173,6 +209,113 @@ class TestGovernanceCli:
             if action.option_strings and action.option_strings[0] != "-h" and not action.required
         ]
         assert optional == []
+
+    def test_republish_catalog_v2_uses_set_and_exact_git_placement_only(self) -> None:
+        parser = build_parser()
+        republish = parser._subparsers._group_actions[0].choices[  # type: ignore[union-attr]
+            "republish-catalog-v2"
+        ]
+        flags = {
+            option
+            for action in republish._actions
+            for option in action.option_strings
+        }
+        assert {
+            "--campaign-relative-path",
+            "--catalog",
+            "--authorization-set-relative-path",
+            "--repository-root",
+            "--source-tree-sha",
+            "--profile-proposal-matrix",
+            "--placements",
+            "--release-registry",
+            "--expected-contents",
+            "--verified-profiles",
+            "--profile-manifest",
+            "--out-root",
+        } <= flags
+        for forbidden in (
+            "--authority",
+            "--authority-review-binding",
+            "--authorization-file",
+            "--review-binding",
+        ):
+            assert forbidden not in flags
+
+    def test_republish_v1_and_v2_arguments_cannot_be_mixed(self, tmp_path: Path) -> None:
+        parser = build_parser()
+        v2 = self._valid_republish_v2_argv(tmp_path)
+        with pytest.raises(SystemExit):
+            parser.parse_args([*v2, "--authority", str(tmp_path / "authority.json")])
+
+        v1 = [
+            "republish-catalog",
+            "--campaign",
+            str(tmp_path / "campaign.json"),
+            "--catalog",
+            str(tmp_path / "catalog.json"),
+            "--authority",
+            str(tmp_path / "authority.json"),
+            "--authority-review-binding",
+            str(tmp_path / "binding.json"),
+            "--out-root",
+            str(tmp_path / "out"),
+        ]
+        with pytest.raises(SystemExit):
+            parser.parse_args(
+                [
+                    *v1,
+                    "--authorization-set-relative-path",
+                    "governance/authorization-sets/release-v1.json",
+                ]
+            )
+
+    def test_republish_catalog_v2_builds_the_frozen_git_input_descriptor(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        captured: dict[str, object] = {}
+
+        def fake_republish_catalog_v2(**kwargs: object) -> SimpleNamespace:
+            captured.update(kwargs)
+            return SimpleNamespace(
+                catalog_path=tmp_path / "out/catalog.json",
+                catalog_sha256="b" * 64,
+                promoted_count=72,
+                mapped_content_count=72,
+                authorization_set_digest="c" * 64,
+                already_published=False,
+            )
+
+        monkeypatch.setattr(
+            governance_cli,
+            "republish_catalog_v2",
+            fake_republish_catalog_v2,
+            raising=False,
+        )
+        parser = build_parser()
+        args = parser.parse_args(self._valid_republish_v2_argv(tmp_path))
+
+        assert args.func(args) == 0
+        assert captured["campaign_relative_path"] == (
+            "governance/corpus-campaigns/campaign-v2/campaign.json"
+        )
+        assert captured["authorization_set_relative_path"] == (
+            "governance/authorization-sets/release-v1.json"
+        )
+        assert captured["release_scope_git_inputs"] == ReleaseScopePlacementGitInputs(
+            repository_root=tmp_path / "repo",
+            source_tree_sha="a" * 40,
+            profile_proposal_matrix_path="docs/reports/profile-matrix.json",
+            accepted_placements_path="governance/release-scope/accepted.json",
+            release_registry_path="governance/releases/release.json",
+            expected_contents_path="docs/reports/final-set.txt",
+            verified_profiles_path="governance/profiles/verified.json",
+            profile_manifest_path=(
+                "services/rag-engine/configs/ingestion_profiles/manifest.yml"
+            ),
+        )
 
     def test_promotion_v2_consumes_the_exact_h2_bundle(self) -> None:
         parser = build_parser()

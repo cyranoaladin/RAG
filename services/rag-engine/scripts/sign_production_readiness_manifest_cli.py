@@ -578,6 +578,66 @@ def _verify_git_and_workflow_facts(args: argparse.Namespace) -> tuple[str, str]:
     return pr_head_tree_sha, merge_tree_sha
 
 
+def _require_live_main_head(merge_sha: str) -> None:
+    """Refuse de créer une nouvelle signature pour un ``main`` historique.
+
+    Le workflow de promotion effectue déjà ce contrôle avant de publier son
+    artefact. Le signer le répète au dernier instant avant l'accès à la clé :
+    une révocation ou un correctif fusionné après le run ne peut donc pas être
+    contourné en créant une nouvelle readiness pour l'ancien commit.
+    """
+    reference = _github_api_get(
+        f"repos/{_TRUSTED_REPOSITORY}/git/ref/heads/main"
+    )
+    live_sha = (reference.get("object") or {}).get("sha")
+    if live_sha != merge_sha:
+        raise SigningToolError(
+            f"live main HEAD {live_sha!r} does not match the merge being signed "
+            f"({merge_sha!r})"
+        )
+
+
+def _download_promotion_artifact_via_gh(
+    run_id: int, artifact_name: str, dest_dir: Path
+) -> Path:
+    """Télécharge l'artefact de promotion depuis le dépôt canonique."""
+    try:
+        completed = subprocess.run(
+            [
+                "gh",
+                "run",
+                "download",
+                str(run_id),
+                "-n",
+                artifact_name,
+                "-D",
+                str(dest_dir),
+                "-R",
+                _TRUSTED_REPOSITORY,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise SigningToolError(
+            f"promotion artifact download failed: {exc}"
+        ) from exc
+    if completed.returncode != 0:
+        raise SigningToolError(
+            "promotion artifact download failed "
+            f"(exit {completed.returncode}): {completed.stderr.strip()[:500]}"
+        )
+    candidate = dest_dir / "promotion-evidence.json"
+    if not candidate.is_file():
+        raise SigningToolError(
+            f"downloaded artifact {artifact_name!r} does not contain "
+            "promotion-evidence.json"
+        )
+    return candidate
+
+
 def _derive_application_image_digests(
     args: argparse.Namespace, *, merge_sha: str, merge_tree_sha: str
 ) -> dict[str, str]:
@@ -980,6 +1040,67 @@ def verify_v2_release_material(
         return rv2.verify_v2_release_material(material)
     except rv2.V2ReleaseVerificationError as exc:
         raise SigningToolError(str(exc)) from exc
+
+
+def _verify_promotion_artifact_matches_run(
+    args: argparse.Namespace, material: rv2.V2ReleaseMaterial
+) -> None:
+    """Lie byte-for-byte la promotion locale à l'artefact du run vérifié."""
+    verified = verify_v2_release_material(material)
+    promotion = verified.promotion
+    _require_equal("promotion run id", args.run_id, promotion.promotion_run_id)
+    _require_equal(
+        "promotion run attempt",
+        args.run_attempt,
+        promotion.promotion_run_attempt,
+    )
+    expected_name = (
+        f"promotion-evidence-{material.merge_sha}-{promotion.campaign_id}"
+    )
+    response = _github_api_get(
+        f"repos/{_TRUSTED_REPOSITORY}/actions/runs/{args.run_id}/artifacts?per_page=100"
+    )
+    artifacts = response.get("artifacts")
+    total_count = response.get("total_count")
+    if (
+        not isinstance(artifacts, list)
+        or not isinstance(total_count, int)
+        or isinstance(total_count, bool)
+        or total_count != len(artifacts)
+    ):
+        raise SigningToolError(
+            "promotion artifact listing is malformed or incomplete"
+        )
+    matches = [
+        item
+        for item in artifacts
+        if isinstance(item, dict) and item.get("name") == expected_name
+    ]
+    if len(matches) != 1:
+        raise SigningToolError(
+            f"expected exactly one promotion artifact named {expected_name!r}, "
+            f"found {len(matches)}"
+        )
+    if matches[0].get("expired") is not False:
+        raise SigningToolError(
+            f"promotion artifact {expected_name!r} is expired or has no current status"
+        )
+
+    with tempfile.TemporaryDirectory() as temporary:
+        downloaded_path = _download_promotion_artifact_via_gh(
+            args.run_id,
+            expected_name,
+            Path(temporary),
+        )
+        downloaded_raw = _read_bytes_no_follow(
+            downloaded_path,
+            label="downloaded_promotion_evidence",
+        )
+    if downloaded_raw != material.promotion_evidence_raw:
+        raise SigningToolError(
+            "local promotion evidence is not byte-identical to the exact "
+            "promotion evidence artifact published by the verified run"
+        )
 
 
 def _require_equal(label: str, *values: object) -> None:
@@ -1386,6 +1507,7 @@ def _main_v2(argv: list[str]) -> int:
             merge_sha=merge_sha,
             merge_tree_sha=merge_tree_sha,
         )
+        _verify_promotion_artifact_matches_run(args, material)
         with tempfile.TemporaryDirectory() as compose_tmp:
             resolved_compose = _run_docker_compose_config(
                 args.repo_root, merge_sha, Path(compose_tmp), args.env_file
@@ -1418,6 +1540,7 @@ def _main_v2(argv: list[str]) -> int:
             provenance_run_id=args.provenance_run_id,
             provenance_run_attempt=args.provenance_run_attempt,
         )
+        _require_live_main_head(merge_sha)
         private_key_hex = _read_bytes_no_follow(
             args.private_key_file, label="private_key"
         ).decode("ascii").strip()

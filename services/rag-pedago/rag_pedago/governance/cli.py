@@ -30,7 +30,10 @@ from nexus_contracts.release_evidence import (
     verify_promotion_evidence_v2,
 )
 
-from rag_pedago.governance.catalog_republish import republish_catalog
+from rag_pedago.governance.catalog_republish import (
+    republish_catalog,
+    republish_catalog_v2,
+)
 from rag_pedago.governance.corpus_campaign import (
     CorpusCampaignV1,
     CorpusCampaignV2,
@@ -50,6 +53,7 @@ from rag_pedago.governance.h2_evidence import (
     build_h2_evidence_bundle_v2,
 )
 from rag_pedago.governance.release_scope_placement import (
+    ReleaseScopePlacementGitInputs,
     ReleaseScopePlacementProducerError,
     produce_release_scope_placement_from_git,
 )
@@ -310,6 +314,38 @@ def cmd_republish_catalog(args: argparse.Namespace) -> int:
     print(f"catalog republished: {result.catalog_path}")
     print(f"catalog_sha256: {result.catalog_sha256}")
     print(f"promoted_count: {result.promoted_count}")
+    print(f"already_published: {result.already_published}")
+    return 0
+
+
+def cmd_republish_catalog_v2(args: argparse.Namespace) -> int:
+    """Publie le catalogue V2 depuis un tree Git et un AuthorizationSet exact."""
+    release_scope_git_inputs = ReleaseScopePlacementGitInputs(
+        repository_root=args.repository_root,
+        source_tree_sha=args.source_tree_sha,
+        profile_proposal_matrix_path=args.profile_proposal_matrix,
+        accepted_placements_path=args.placements,
+        release_registry_path=args.release_registry,
+        expected_contents_path=args.expected_contents,
+        verified_profiles_path=args.verified_profiles,
+        profile_manifest_path=args.profile_manifest,
+    )
+    result = republish_catalog_v2(
+        campaign_relative_path=args.campaign_relative_path,
+        catalog_path=args.catalog,
+        authorization_set_relative_path=args.authorization_set_relative_path,
+        release_scope_git_inputs=release_scope_git_inputs,
+        out_root=args.out_root,
+        currentness_verification_path=args.currentness_verification,
+        rights_path=args.rights,
+        pii_path=args.pii,
+        routing_path=args.routing,
+    )
+    print(f"catalog republished V2: {result.catalog_path}")
+    print(f"catalog_sha256: {result.catalog_sha256}")
+    print(f"promoted_count: {result.promoted_count}")
+    print(f"mapped_content_count: {result.mapped_content_count}")
+    print(f"authorization_set_digest: {result.authorization_set_digest}")
     print(f"already_published: {result.already_published}")
     return 0
 
@@ -587,6 +623,31 @@ def build_parser() -> argparse.ArgumentParser:
         help="Racine sous laquelle governance/corpus-campaigns/<id>/ est écrit.",
     )
     republish.set_defaults(func=cmd_republish_catalog)
+
+    republish_v2 = sub.add_parser(
+        "republish-catalog-v2",
+        help=(
+            "Matérialise un catalogue V2 depuis l'AuthorizationSet et les "
+            "review bindings relus dans le tree Git exact."
+        ),
+    )
+    republish_v2.add_argument("--campaign-relative-path", required=True)
+    republish_v2.add_argument("--catalog", type=Path, required=True)
+    republish_v2.add_argument("--authorization-set-relative-path", required=True)
+    republish_v2.add_argument("--repository-root", type=Path, required=True)
+    republish_v2.add_argument("--source-tree-sha", required=True)
+    republish_v2.add_argument("--profile-proposal-matrix", required=True)
+    republish_v2.add_argument("--placements", required=True)
+    republish_v2.add_argument("--release-registry", required=True)
+    republish_v2.add_argument("--expected-contents", required=True)
+    republish_v2.add_argument("--verified-profiles", required=True)
+    republish_v2.add_argument("--profile-manifest", required=True)
+    republish_v2.add_argument("--out-root", type=Path, required=True)
+    republish_v2.add_argument("--currentness-verification", type=Path)
+    republish_v2.add_argument("--rights", type=Path)
+    republish_v2.add_argument("--pii", type=Path)
+    republish_v2.add_argument("--routing", type=Path)
+    republish_v2.set_defaults(func=cmd_republish_catalog_v2)
 
     placement = sub.add_parser(
         "release-scope-placement",

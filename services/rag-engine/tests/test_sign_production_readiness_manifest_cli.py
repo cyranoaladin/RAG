@@ -347,6 +347,7 @@ def _github_responses(
         },
         f"repos/{REPOSITORY}/git/commits/{pr_head_sha}": {"tree": {"sha": pr_head_tree_sha}},
         f"repos/{REPOSITORY}/git/commits/{merge_sha}": {"tree": {"sha": merge_tree_sha}},
+        f"repos/{REPOSITORY}/git/ref/heads/main": {"object": {"sha": merge_sha}},
         f"repos/{REPOSITORY}/actions/runs/{RUN_ID}": {
             "path": workflow_path,
             "repository": {"full_name": workflow_repository},
@@ -357,6 +358,16 @@ def _github_responses(
             "run_attempt": run_attempt_value,
         },
         f"repos/{REPOSITORY}/actions/runs/{RUN_ID}/attempts/{RUN_ATTEMPT}": {},
+        f"repos/{REPOSITORY}/actions/runs/{RUN_ID}/artifacts?per_page=100": {
+            "total_count": 1,
+            "artifacts": [
+                {
+                    "id": 9001,
+                    "name": f"promotion-evidence-{merge_sha}-release-v2-test",
+                    "expired": False,
+                }
+            ],
+        },
         f"repos/{REPOSITORY}/actions/runs/{PROVENANCE_RUN_ID}": {
             "path": PROVENANCE_WORKFLOW_PATH,
             "repository": {"full_name": REPOSITORY},
@@ -1560,6 +1571,88 @@ class TestMultiAuthorizationReadinessV2Surface:
         assert "--authorization-file" not in flags
         assert "--review-binding-file" not in flags
         assert "--json-output" in help_text
+
+    def test_v2_signing_requires_the_exact_promotion_artifact_from_the_run(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        material = _v2_material()
+        downloaded = material.promotion_evidence_raw + b" "
+
+        def fake_download(run_id: int, artifact_name: str, dest_dir: Path) -> Path:
+            assert run_id == RUN_ID
+            assert artifact_name == f"promotion-evidence-{MERGE_SHA}-release-v2-test"
+            return _write(dest_dir / "promotion-evidence.json", downloaded)
+
+        monkeypatch.setattr(tool, "_download_promotion_artifact_via_gh", fake_download)
+        args = argparse.Namespace(run_id=RUN_ID, run_attempt=RUN_ATTEMPT)
+
+        with pytest.raises(tool.SigningToolError, match="exact promotion evidence artifact"):
+            tool._verify_promotion_artifact_matches_run(args, material)
+
+    def test_v2_signing_accepts_only_one_current_exact_named_artifact(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        material = _v2_material()
+        calls: list[tuple[int, str]] = []
+
+        def fake_download(run_id: int, artifact_name: str, dest_dir: Path) -> Path:
+            calls.append((run_id, artifact_name))
+            return _write(
+                dest_dir / "promotion-evidence.json",
+                material.promotion_evidence_raw,
+            )
+
+        monkeypatch.setattr(tool, "_download_promotion_artifact_via_gh", fake_download)
+        args = argparse.Namespace(run_id=RUN_ID, run_attempt=RUN_ATTEMPT)
+
+        tool._verify_promotion_artifact_matches_run(args, material)
+
+        assert calls == [
+            (RUN_ID, f"promotion-evidence-{MERGE_SHA}-release-v2-test")
+        ]
+
+    def test_v2_signing_refuses_when_main_advanced_after_promotion(
+        self, _stub_github_api: dict[str, dict[str, Any]]
+    ) -> None:
+        endpoint = f"repos/{REPOSITORY}/git/ref/heads/main"
+        _stub_github_api[endpoint]["object"]["sha"] = "f" * 40
+
+        with pytest.raises(tool.SigningToolError, match="main HEAD"):
+            tool._require_live_main_head(MERGE_SHA)
+
+    def test_v2_main_rechecks_main_immediately_before_private_key_use(self) -> None:
+        source = Path(tool.__file__).read_text(encoding="utf-8")
+        main_v2 = source[source.index("def _main_v2(") : source.index("def main(", source.index("def _main_v2("))]
+        recheck = main_v2.index("_require_live_main_head(merge_sha)")
+        key_read = main_v2.index("args.private_key_file")
+        assert recheck < key_read
+
+    @pytest.mark.parametrize(
+        ("artifact_mutation", "message"),
+        [
+            (lambda artifacts: [], "exactly one"),
+            (lambda artifacts: artifacts + [dict(artifacts[0], id=9002)], "exactly one"),
+            (lambda artifacts: [dict(artifacts[0], expired=True)], "expired"),
+        ],
+    )
+    def test_v2_signing_refuses_missing_duplicate_or_expired_promotion_artifact(
+        self,
+        artifact_mutation: Any,
+        message: str,
+        _stub_github_api: dict[str, dict[str, Any]],
+    ) -> None:
+        material = _v2_material()
+        endpoint = f"repos/{REPOSITORY}/actions/runs/{RUN_ID}/artifacts?per_page=100"
+        response = _stub_github_api[endpoint]
+        artifacts = artifact_mutation(response["artifacts"])
+        response["artifacts"] = artifacts
+        response["total_count"] = len(artifacts)
+
+        with pytest.raises(tool.SigningToolError, match=message):
+            tool._verify_promotion_artifact_matches_run(
+                argparse.Namespace(run_id=RUN_ID, run_attempt=RUN_ATTEMPT),
+                material,
+            )
 
     @staticmethod
     def _v2_alias_args(tmp_path: Path, *, output: Path) -> argparse.Namespace:
