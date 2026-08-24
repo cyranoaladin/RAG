@@ -276,6 +276,36 @@ class GoLiveEvidenceRefreshTests(unittest.TestCase):
         self.assertNotIn("ports:", rollback)
         self.assertNotIn("down --remove-orphans", rollback)
         self.assertIn("ne démarre ni API, ni worker", normalized)
+        self.assertIn(
+            '"${restore_compose[@]}" config --services | sort',
+            rollback,
+        )
+
+    def test_restore_requires_the_real_backup_path_without_overwriting_it(self) -> None:
+        rollback = ROLLBACK_RUNBOOK.read_text(encoding="utf-8")
+
+        self.assertIn(': "${RESTORE_BACKUP_FILE:?', rollback)
+        self.assertNotIn(
+            "RESTORE_BACKUP_FILE=/backup/rag/pgvector-migration-YYYYMMDD/",
+            rollback,
+        )
+
+    def test_restore_reprovisions_runtime_roles_after_acl_free_restore(self) -> None:
+        rollback = ROLLBACK_RUNBOOK.read_text(encoding="utf-8")
+
+        restore = rollback.index("--no-privileges")
+        reprovision = rollback.index("provision_runtime_roles.sh", restore)
+        self.assertLess(restore, reprovision)
+        for variable in (
+            "PGVECTOR_RETRIEVAL_USER",
+            "PGVECTOR_RETRIEVAL_PASSWORD",
+            "PGVECTOR_REVIEW_USER",
+            "PGVECTOR_REVIEW_PASSWORD",
+            "PGVECTOR_PUBLISHER_USER",
+            "PGVECTOR_PUBLISHER_PASSWORD",
+        ):
+            with self.subTest(variable=variable):
+                self.assertIn(variable, rollback[reprovision - 2500 :])
 
 
 if __name__ == "__main__":

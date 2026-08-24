@@ -57,9 +57,12 @@ PROD_DB_WRITES=UNKNOWN
 
 Le runbook documente désormais l'ordre candidat vers le head
 `004_artifact_placements` et corrige la restauration des backups `pg_dump -Fc`
-par `pg_restore` dans un projet isolé, via le seul client migrateur. Le plan ne
-passera à `READY` qu'après un audit DB attesté et un exercice restore/rollback
-réellement prouvé.
+par `pg_restore` dans un projet isolé, via le seul client migrateur. Le chemin
+exact publié par `BACKUP_COMPLETE` est un input opérateur obligatoire et n'est
+plus écrasé par un placeholder. Après la restauration sans ACL, le même client
+rejoue explicitement la source canonique `provision_runtime_roles.sh`, y compris
+quand le registre restauré est déjà au head 004. Le plan ne passera à `READY`
+qu'après un audit DB attesté et un exercice restore/rollback réellement prouvé.
 
 ## GitHub Environment
 
@@ -93,9 +96,11 @@ MASTER_RECONCILIATION_DEFERRED=true
 
 Le premier test RED a produit 25 échecs et une erreur en exigeant les statuts
 fail-closed absents. Un second RED ciblé a produit trois échecs avant
-l'isolation complète du restore Compose. Après correction :
+l'isolation complète du restore Compose. La revue de PR a ensuite produit un
+échec et une erreur ciblés sur l'input backup et le reprovisionnement des ACL.
+Après correction :
 
-- `python scripts/tests/test-go-live-evidence-refresh.py` : 7 tests passés ;
+- `python3 scripts/tests/test-go-live-evidence-refresh.py` : 9 tests passés ;
 - `bash scripts/tests/test-ci-local-topology.sh` : fixture canonique acceptée,
   22 mutations refusées, topologie acyclique ;
 - suites ciblées schéma/migrations/Compose : 176 tests passés ;

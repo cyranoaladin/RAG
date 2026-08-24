@@ -74,11 +74,13 @@ cd services/rag-engine/infra
 
 # Valeurs explicites : jamais le projet production, jamais le projet infra.
 RESTORE_PROJECT="nexus-pg-restore-rehearsal-$(date -u +%Y%m%dT%H%M%SZ)"
-RESTORE_BACKUP_FILE=/backup/rag/pgvector-migration-YYYYMMDD/ragdb-before-migrations.dump
+: "${RESTORE_BACKUP_FILE:?exporter le chemin exact publié par BACKUP_COMPLETE}"
 umask 077
 RESTORE_FIXTURE_DIR="$(mktemp -d)"
 RESTORE_COMPOSE="$RESTORE_FIXTURE_DIR/compose.yml"
+RUNTIME_ROLE_PROVISIONING="$PWD/postgres/provision_runtime_roles.sh"
 test -f "$RESTORE_BACKUP_FILE"
+test -f "$RUNTIME_ROLE_PROVISIONING"
 test "$RESTORE_PROJECT" != infra
 test "$RESTORE_PROJECT" != production
 
@@ -106,7 +108,16 @@ services:
     image: postgres:16-alpine@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
     restart: "no"
     environment:
+      PGHOST: pgvector
       PGPASSWORD: ${PGVECTOR_PASSWORD:?PGVECTOR_PASSWORD requis}
+      POSTGRES_DB: ${PGVECTOR_DB:-ragdb}
+      POSTGRES_USER: ${PGVECTOR_USER:-raguser}
+      PGVECTOR_RETRIEVAL_USER: ${PGVECTOR_RETRIEVAL_USER:?PGVECTOR_RETRIEVAL_USER requis}
+      PGVECTOR_RETRIEVAL_PASSWORD: ${PGVECTOR_RETRIEVAL_PASSWORD:?PGVECTOR_RETRIEVAL_PASSWORD requis}
+      PGVECTOR_REVIEW_USER: ${PGVECTOR_REVIEW_USER:?PGVECTOR_REVIEW_USER requis}
+      PGVECTOR_REVIEW_PASSWORD: ${PGVECTOR_REVIEW_PASSWORD:?PGVECTOR_REVIEW_PASSWORD requis}
+      PGVECTOR_PUBLISHER_USER: ${PGVECTOR_PUBLISHER_USER:?PGVECTOR_PUBLISHER_USER requis}
+      PGVECTOR_PUBLISHER_PASSWORD: ${PGVECTOR_PUBLISHER_PASSWORD:?PGVECTOR_PUBLISHER_PASSWORD requis}
     networks: [restore_net]
     entrypoint: ["pg_restore"]
     security_opt: [no-new-privileges:true]
@@ -129,7 +140,7 @@ cleanup_restore_fixture() {
 trap cleanup_restore_fixture EXIT
 
 # Refuser toute extension accidentelle de la fixture avant sa création.
-test "$("${restore_compose[@]}" config --services)" = \
+test "$("${restore_compose[@]}" config --services | sort)" = \
   $'pgvector\nrestore-migrator'
 
 # Vérifier que le fichier est bien un dump custom avant de créer la fixture.
@@ -148,6 +159,14 @@ test "$("${restore_compose[@]}" config --services)" = \
   --username="${PGVECTOR_USER:-raguser}" \
   --dbname="${PGVECTOR_DB:-ragdb}" /restore/source.dump
 
+# `--no-privileges` est volontaire : réimposer ensuite les rôles et ACL runtime
+# depuis leur source canonique. Cette étape reste obligatoire même si le registre
+# restauré est déjà au head 004, cas où le runner de migrations n'a rien à jouer.
+"${restore_compose[@]}" run --rm --no-deps \
+  --volume "$RUNTIME_ROLE_PROVISIONING:/opt/nexus/provision_runtime_roles.sh:ro" \
+  --entrypoint bash restore-migrator \
+  /opt/nexus/provision_runtime_roles.sh
+
 # Aucun service applicatif ne doit exister dans le projet de rehearsal.
 test "$("${restore_compose[@]}" ps --services --status running)" = pgvector
 
@@ -158,7 +177,8 @@ test "$("${restore_compose[@]}" ps --services --status running)" = pgvector
 Ne jamais ajouter `--remove-orphans`. Une restauration réelle de production
 reste un human gate distinct : backup frais, arrêt contrôlé des writers,
 validation de l'identité de la cible, restauration, migrations via le seul
-migrateur, contrôles de schéma, puis seulement redémarrage des runtimes.
+migrateur, reprovisionnement explicite des rôles runtime, contrôles de schéma,
+puis seulement redémarrage des runtimes.
 
 ### Chroma (v1)
 
