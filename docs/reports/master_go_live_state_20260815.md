@@ -1,14 +1,16 @@
-# Master Go-Live State — état observé après PR #129
+# Master Go-Live State — état observé après PR #130
 
 Ce document met à jour l'instantané historique du 2026-08-15. Il décrit la
-baseline `main` après PR #129 et le candidat de correction des profils ; il
+baseline `main` après PR #130 et le candidat de rafraîchissement des preuves
+go-live ; il
 n'est pas un pointeur live auto-référent vers la branche.
 
 ```text
-STATE_GENERATED_AT=2026-08-24T22:32:37Z
-STATE_OBSERVED_AT_MAIN_SHA=8aa65fb3fb5f077bcd6dfa427c8902bd6d5c28b0
+STATE_GENERATED_AT=2026-08-24T23:21:37Z
+STATE_OBSERVED_AT_MAIN_SHA=e6c476bf746ae840b3f0d7f8fc1a279f8bd4731e
 PR127_MERGED=true
 PR129_MERGED=true
+PR130_MERGED=true
 ```
 
 ## 1. Release corpus finalisée
@@ -141,31 +143,35 @@ REAL_H2_GATE_PASS=false
 
 ### Rehearsal Docker isolé
 
-Le transcript du rehearsal initial n'est ni récupérable ni versionné. Les
-valeurs résumées précédemment (`atomic=false`, `rollback=false`, services
-étrangers touchés `0`, mauvais digest/readiness refusés) restent une
-observation opérateur **historique non vérifiée**, jamais une preuve du lot.
-Le blocker technique exact ne peut pas être reconstruit honnêtement.
+L'artefact versionné
+`docs/reports/evidence/atomic_docker_rehearsal_20260824.json` (SHA-256
+`58f55e7e499dfb3e9648387932af9a8edda35e8a51170afc3fd47ee52d70525c`)
+conserve une observation synthétique V1 positive, mais aucun harnais ni
+transcript reproductible. Elle ne prouve donc aucun verdict du protocole de
+production V2 et reste explicitement `UNVERIFIED`.
 
 ```text
-DOCKER_REHEARSAL_EVIDENCE_STATUS=UNVERIFIED_TRANSCRIPT_NOT_VERSIONED
+DOCKER_REHEARSAL_EVIDENCE_CLASS=SYNTHETIC_V1
+DOCKER_REHEARSAL_VERIFICATION_STATUS=UNVERIFIED
 ATOMIC_DOCKER_REHEARSAL_PASS=UNKNOWN
 ROLLBACK_REHEARSAL_PASS=UNKNOWN
 FOREIGN_SERVICES_TOUCHED=UNKNOWN
 BAD_DIGEST_REFUSED=UNKNOWN
 BAD_READINESS_REFUSED=UNKNOWN
-EXACT_TECHNICAL_BLOCKER=UNKNOWN_TRANSCRIPT_UNAVAILABLE
 ```
 
 ### Audit DB production read-only
 
-Le résumé opérateur indiquait une tentative SSH arrêtée sur une clé d'hôte
-inconnue et zéro écriture, mais aucun transcript versionné ne le démontre. Ces
-valeurs sont donc conservées uniquement comme observation historique non
-vérifiée. La base locale de développement n'est pas assimilée à la production.
+L'artefact versionné
+`docs/reports/evidence/production_db_read_only_audit_20260824.json` (SHA-256
+`524d9afcf49c64f4d832570da9faa01e4c567e5501b72b994ff095db171c5568`)
+conserve le résumé opérateur détaillé, mais aucune commande ni transcript ne
+prouve l'identité de la cible, la transaction read-only ou l'absence
+d'écriture. Ces verdicts restent donc inconnus. La base locale de développement
+n'est pas assimilée à la production.
 
 ```text
-DB_AUDIT_EVIDENCE_STATUS=UNVERIFIED_TRANSCRIPT_NOT_VERSIONED
+DB_AUDIT_EVIDENCE_STATUS=UNVERIFIED_SUMMARY_NO_TRANSCRIPT
 PROD_DB_TARGET_VERIFIED=UNKNOWN
 PROD_DB_MIGRATION_PLAN_READY=UNKNOWN
 PROD_DB_WRITES=UNKNOWN
@@ -177,10 +183,11 @@ L'Environment est absent et non provisionné. Le geste admin exact est préparé
 dans `docs/reports/plan_production_github_environment.md` : reviewer
 `abenrhouma` (`user id 67140603`), branche `main` uniquement, prévention de
 l'auto-revue, aucun bypass admin, wait timer 0, secrets 0.
-La lecture API nettoyée du 2026-08-24 est versionnée dans
+La lecture API nettoyée du `2026-08-24T22:51:18Z` est versionnée dans
 `docs/reports/github_environment_read_only_observation_20260824.json` : zéro
-Environment et permission reviewer `write`, sans mutation. Digest :
-`8880808bf1b46032e69141793d34815f4db836692a2e3f44d8f280db9f020d8a`.
+Environment et permission reviewer `write`, sans mutation, comme observation
+ponctuelle uniquement. Digest :
+`24ce5bf71ad40e5fa393e33d9d7fabfba7b2fcb4dfc982bf300606e9dec2181e`.
 
 ```text
 PRODUCTION_ENVIRONMENT_PROVISIONED=false

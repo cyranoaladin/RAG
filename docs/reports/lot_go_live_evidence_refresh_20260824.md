@@ -83,13 +83,14 @@ GITHUB_REPO_ADMIN_WRITES=0
 
 ## Sérialisation avec le lot profils
 
-Le master go-live et son test sont volontairement exclus de ce lot, car le lot
-profils les modifie en parallèle. Ils seront réconciliés après sérialisation,
-depuis les artefacts canoniques ci-dessus, sans recopier une observation
-intermédiaire.
+Après fusion du lot profils PR #130, le master go-live et son test ont été
+réconciliés sur cette branche depuis les trois artefacts canoniques ci-dessus.
+Les digests sont vérifiés sur les octets versionnés ; les verdicts Docker V2 et
+DB restent fail-closed à `UNKNOWN` et aucune observation intermédiaire n'est
+promue en preuve.
 
 ```text
-MASTER_RECONCILIATION_DEFERRED=true
+MASTER_RECONCILIATION_COMPLETE=true
 ```
 
 ## Validation TDD
@@ -98,6 +99,9 @@ Le premier test RED a produit 25 échecs et une erreur en exigeant les statuts
 fail-closed absents. Un second RED ciblé a produit trois échecs avant
 l'isolation complète du restore Compose. La revue de PR a ensuite produit un
 échec et une erreur ciblés sur l'input backup et le reprovisionnement des ACL.
+Après sérialisation, la CI a exposé un dernier RED sur l'ancien digest
+Environment resté dans le master ; la réconciliation couvre désormais les
+trois évaluations ops versionnées.
 Après correction :
 
 - `python3 scripts/tests/test-go-live-evidence-refresh.py` : 9 tests passés ;

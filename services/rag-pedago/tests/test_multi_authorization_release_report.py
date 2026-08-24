@@ -28,6 +28,12 @@ RECOMPUTATION_EVIDENCE = (
 GITHUB_ENVIRONMENT_EVIDENCE = (
     REPO_ROOT / "docs/reports/github_environment_read_only_observation_20260824.json"
 )
+DOCKER_REHEARSAL_EVIDENCE = (
+    REPO_ROOT / "docs/reports/evidence/atomic_docker_rehearsal_20260824.json"
+)
+PRODUCTION_DB_EVIDENCE = (
+    REPO_ROOT / "docs/reports/evidence/production_db_read_only_audit_20260824.json"
+)
 SCOPE_AUDIT = REPO_ROOT / "docs/reports/tier_a_scope_profile_audit_clean_20260822.json"
 SET_ALGEBRA = REPO_ROOT / "docs/reports/tier_a_set_algebra_reconciliation_20260822.json"
 NETWORK_AUDIT = REPO_ROOT / "docs/reports/tier_a_byte_identity_network_audit_20260822.json"
@@ -45,6 +51,7 @@ PRODUCTION_PROFILE_MANIFEST = (
 
 PR127_BASE_SHA = "3548bf300c99685ff6ede0dce2e5bfe8c044d213"
 BASE_SHA = "8aa65fb3fb5f077bcd6dfa427c8902bd6d5c28b0"
+MASTER_MAIN_SHA = "e6c476bf746ae840b3f0d7f8fc1a279f8bd4731e"
 FINAL_SET_SHA256 = "3705935f306a52cde0f398db20f685dce82d0bb9acd7909c8e6955d6356643e0"
 PROFILE_MATRIX_SHA256 = "b1fb997b56f080101493ac1efb151fc228109e110a9d8d86ce74f730eff544fe"
 PR129_PROFILE_MATRIX_SHA256 = (
@@ -78,9 +85,10 @@ def test_master_freezes_recomputed_release_algebra_and_terminal_accounting() -> 
     corpus = master["corpus_eligibility"]
     terminal = master["terminal_disposition_20260823"]
 
-    assert master["state_observed_at_main_sha"] == BASE_SHA
+    assert master["state_observed_at_main_sha"] == MASTER_MAIN_SHA
     assert master["pr_merges"]["PR127_MERGED"] is True
     assert master["pr_merges"]["PR129_MERGED"] is True
+    assert master["pr_merges"]["PR130_MERGED"] is True
     assert master["multi_authorization_protocol_20260823"]["V2_MECHANISM_ON_MAIN"] is True
     assert corpus == {
         "PHYSICAL_FILES": 2584,
@@ -361,47 +369,55 @@ def test_current_master_and_checklist_do_not_claim_final_scope_count() -> None:
     assert "DISTINCT_CANONICAL_RESOURCE_SCOPES=UNKNOWN_PENDING_PROFILE_DECISIONS" in master_md
     assert "P24_RELEASE_REGISTRY_MAPPING_READY=false" in master_md
     assert "PR129_MERGED=true" in master_md
+    assert "PR130_MERGED=true" in master_md
     assert "61 contenus encore non ancrés" not in checklist
     assert "56 contenus encore non ancrés" in checklist
     assert "10 partitions staging / 11 contenus" in checklist
 
 
-def test_master_marks_unversioned_parallel_observations_unknown() -> None:
+def test_master_reconciles_versioned_ops_assessments_fail_closed() -> None:
     master = _master()
 
-    assert master["docker_rehearsal_20260823"] == {
-        "DOCKER_REHEARSAL_EVIDENCE_STATUS": "UNVERIFIED_TRANSCRIPT_NOT_VERSIONED",
+    assert master["docker_rehearsal_20260824"] == {
+        "EVIDENCE_CLASS": "SYNTHETIC_V1",
+        "VERIFICATION_STATUS": "UNVERIFIED",
+        "EVIDENCE_PATH": (
+            "docs/reports/evidence/atomic_docker_rehearsal_20260824.json"
+        ),
+        "EVIDENCE_SHA256": (
+            "58f55e7e499dfb3e9648387932af9a8edda35e8a51170afc3fd47ee52d70525c"
+        ),
         "ATOMIC_DOCKER_REHEARSAL_PASS": None,
         "FOREIGN_SERVICES_TOUCHED": None,
         "ROLLBACK_REHEARSAL_PASS": None,
         "BAD_DIGEST_REFUSED": None,
         "BAD_READINESS_REFUSED": None,
-        "EXACT_TECHNICAL_BLOCKER": "UNKNOWN_TRANSCRIPT_UNAVAILABLE",
-        "TECHNICAL_FIX_REQUIRES_SEPARATE_PR": None,
-        "HISTORICAL_OPERATOR_OBSERVATION_UNVERIFIED": {
-            "ATOMIC_DOCKER_REHEARSAL_PASS": False,
+        "READINESS_PROTOCOL_REQUIRED": "NEXUS-PRODUCTION-READINESS-V2",
+        "REPRODUCIBLE_HARNESS_VERSIONED": False,
+        "TRANSCRIPT_VERSIONED": False,
+        "SYNTHETIC_V1_OBSERVATION_UNVERIFIED": {
+            "ATOMIC_DOCKER_REHEARSAL_PASS": True,
             "FOREIGN_SERVICES_TOUCHED": 0,
-            "ROLLBACK_REHEARSAL_PASS": False,
+            "ROLLBACK_REHEARSAL_PASS": True,
             "BAD_DIGEST_REFUSED": True,
             "BAD_READINESS_REFUSED": True,
-            "TECHNICAL_FIX_REQUIRES_SEPARATE_PR": True,
         },
     }
-    assert master["production_database_read_only_audit_20260823"] == {
-        "DB_AUDIT_EVIDENCE_STATUS": "UNVERIFIED_TRANSCRIPT_NOT_VERSIONED",
-        "AUDIT_ATTEMPTED": None,
-        "BLOCKER": None,
-        "LOCAL_DEVELOPMENT_DATABASE_TREATED_AS_PRODUCTION": False,
+    assert master["production_database_read_only_audit_20260824"] == {
+        "EVIDENCE_STATUS": "UNVERIFIED_SUMMARY_NO_TRANSCRIPT",
+        "EVIDENCE_PATH": (
+            "docs/reports/evidence/production_db_read_only_audit_20260824.json"
+        ),
+        "EVIDENCE_SHA256": (
+            "524d9afcf49c64f4d832570da9faa01e4c567e5501b72b994ff095db171c5568"
+        ),
         "PROD_DB_TARGET_VERIFIED": None,
         "PROD_DB_MIGRATION_PLAN_READY": None,
         "PROD_DB_WRITES": None,
-        "HISTORICAL_OPERATOR_OBSERVATION_UNVERIFIED": {
-            "AUDIT_ATTEMPTED": True,
-            "BLOCKER": "SSH_UNKNOWN_HOST_KEY",
-            "PROD_DB_TARGET_VERIFIED": False,
-            "PROD_DB_MIGRATION_PLAN_READY": False,
-            "PROD_DB_WRITES": 0,
-        },
+        "COMMANDS_VERSIONED": False,
+        "TRANSCRIPT_VERSIONED": False,
+        "LOCAL_DEVELOPMENT_DATABASE_TREATED_AS_PRODUCTION": False,
+        "UNVERIFIED_OPERATOR_OBSERVATION_PRESENT": True,
     }
     assert master["production_github_environment"] == {
         "PRODUCTION_ENVIRONMENT_EXISTS": False,
@@ -414,13 +430,23 @@ def test_master_marks_unversioned_parallel_observations_unknown() -> None:
         "WAIT_TIMER_MINUTES": 0,
         "SECRETS": 0,
         "HUMAN_ADMIN_ACTION_REQUIRED": True,
+        "OBSERVED_AT": "2026-08-24T22:51:18Z",
+        "POINT_IN_TIME_ONLY": True,
+        "REVIEWER_PERMISSION": "write",
+        "MUTATION_PERFORMED": False,
         "READ_ONLY_EVIDENCE_PATH": (
             "docs/reports/github_environment_read_only_observation_20260824.json"
         ),
         "READ_ONLY_EVIDENCE_SHA256": (
-            "8880808bf1b46032e69141793d34815f4db836692a2e3f44d8f280db9f020d8a"
+            "24ce5bf71ad40e5fa393e33d9d7fabfba7b2fcb4dfc982bf300606e9dec2181e"
         ),
     }
+    assert hashlib.sha256(DOCKER_REHEARSAL_EVIDENCE.read_bytes()).hexdigest() == master[
+        "docker_rehearsal_20260824"
+    ]["EVIDENCE_SHA256"]
+    assert hashlib.sha256(PRODUCTION_DB_EVIDENCE.read_bytes()).hexdigest() == master[
+        "production_database_read_only_audit_20260824"
+    ]["EVIDENCE_SHA256"]
     assert master["release_status"] == {
         "PRODUCTION_READY": False,
         "GO_LIVE_READY": False,

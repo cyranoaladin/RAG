@@ -1,7 +1,7 @@
 {
-  "state_generated_at": "2026-08-24T22:32:37Z",
-  "state_observed_at_main_sha": "8aa65fb3fb5f077bcd6dfa427c8902bd6d5c28b0",
-  "state_scope": "PR #129 merged baseline plus the grounded production-profile correction candidate; this file is not a live pointer to main",
+  "state_generated_at": "2026-08-24T23:21:37Z",
+  "state_observed_at_main_sha": "e6c476bf746ae840b3f0d7f8fc1a279f8bd4731e",
+  "state_scope": "PR #130 merged baseline plus the go-live evidence refresh candidate; this file is not a live pointer to main",
   "pr_merges": {
     "PR100_SIGNER_MERGED": true,
     "PR107_ATOMIC_DEPLOY_MERGED": true,
@@ -22,7 +22,8 @@
     "PR125_AUTHORITY_REQUIRED_SET_CORRECTION_MERGED": true,
     "PR126_H2_NO_AUTHORITY_TYPED_REFUSAL_MERGED": true,
     "PR127_MERGED": true,
-    "PR129_MERGED": true
+    "PR129_MERGED": true,
+    "PR130_MERGED": true
   },
   "governance_gate": {
     "TRUSTED_REQUIRED_GATE_RELIABLY_ENFORCED": true,
@@ -108,39 +109,38 @@
     "REAL_AUTHORIZATION_SET_CREATED": false,
     "REAL_H2_GATE_PASS": false
   },
-  "docker_rehearsal_20260823": {
-    "DOCKER_REHEARSAL_EVIDENCE_STATUS": "UNVERIFIED_TRANSCRIPT_NOT_VERSIONED",
+  "docker_rehearsal_20260824": {
+    "EVIDENCE_CLASS": "SYNTHETIC_V1",
+    "VERIFICATION_STATUS": "UNVERIFIED",
+    "EVIDENCE_PATH": "docs/reports/evidence/atomic_docker_rehearsal_20260824.json",
+    "EVIDENCE_SHA256": "58f55e7e499dfb3e9648387932af9a8edda35e8a51170afc3fd47ee52d70525c",
     "ATOMIC_DOCKER_REHEARSAL_PASS": null,
     "FOREIGN_SERVICES_TOUCHED": null,
     "ROLLBACK_REHEARSAL_PASS": null,
     "BAD_DIGEST_REFUSED": null,
     "BAD_READINESS_REFUSED": null,
-    "EXACT_TECHNICAL_BLOCKER": "UNKNOWN_TRANSCRIPT_UNAVAILABLE",
-    "TECHNICAL_FIX_REQUIRES_SEPARATE_PR": null,
-    "HISTORICAL_OPERATOR_OBSERVATION_UNVERIFIED": {
-      "ATOMIC_DOCKER_REHEARSAL_PASS": false,
+    "READINESS_PROTOCOL_REQUIRED": "NEXUS-PRODUCTION-READINESS-V2",
+    "REPRODUCIBLE_HARNESS_VERSIONED": false,
+    "TRANSCRIPT_VERSIONED": false,
+    "SYNTHETIC_V1_OBSERVATION_UNVERIFIED": {
+      "ATOMIC_DOCKER_REHEARSAL_PASS": true,
       "FOREIGN_SERVICES_TOUCHED": 0,
-      "ROLLBACK_REHEARSAL_PASS": false,
+      "ROLLBACK_REHEARSAL_PASS": true,
       "BAD_DIGEST_REFUSED": true,
-      "BAD_READINESS_REFUSED": true,
-      "TECHNICAL_FIX_REQUIRES_SEPARATE_PR": true
+      "BAD_READINESS_REFUSED": true
     }
   },
-  "production_database_read_only_audit_20260823": {
-    "DB_AUDIT_EVIDENCE_STATUS": "UNVERIFIED_TRANSCRIPT_NOT_VERSIONED",
-    "AUDIT_ATTEMPTED": null,
-    "BLOCKER": null,
-    "LOCAL_DEVELOPMENT_DATABASE_TREATED_AS_PRODUCTION": false,
+  "production_database_read_only_audit_20260824": {
+    "EVIDENCE_STATUS": "UNVERIFIED_SUMMARY_NO_TRANSCRIPT",
+    "EVIDENCE_PATH": "docs/reports/evidence/production_db_read_only_audit_20260824.json",
+    "EVIDENCE_SHA256": "524d9afcf49c64f4d832570da9faa01e4c567e5501b72b994ff095db171c5568",
     "PROD_DB_TARGET_VERIFIED": null,
     "PROD_DB_MIGRATION_PLAN_READY": null,
     "PROD_DB_WRITES": null,
-    "HISTORICAL_OPERATOR_OBSERVATION_UNVERIFIED": {
-      "AUDIT_ATTEMPTED": true,
-      "BLOCKER": "SSH_UNKNOWN_HOST_KEY",
-      "PROD_DB_TARGET_VERIFIED": false,
-      "PROD_DB_MIGRATION_PLAN_READY": false,
-      "PROD_DB_WRITES": 0
-    }
+    "COMMANDS_VERSIONED": false,
+    "TRANSCRIPT_VERSIONED": false,
+    "LOCAL_DEVELOPMENT_DATABASE_TREATED_AS_PRODUCTION": false,
+    "UNVERIFIED_OPERATOR_OBSERVATION_PRESENT": true
   },
   "production_github_environment": {
     "PRODUCTION_ENVIRONMENT_EXISTS": false,
@@ -153,8 +153,12 @@
     "WAIT_TIMER_MINUTES": 0,
     "SECRETS": 0,
     "HUMAN_ADMIN_ACTION_REQUIRED": true,
+    "OBSERVED_AT": "2026-08-24T22:51:18Z",
+    "POINT_IN_TIME_ONLY": true,
+    "REVIEWER_PERMISSION": "write",
+    "MUTATION_PERFORMED": false,
     "READ_ONLY_EVIDENCE_PATH": "docs/reports/github_environment_read_only_observation_20260824.json",
-    "READ_ONLY_EVIDENCE_SHA256": "8880808bf1b46032e69141793d34815f4db836692a2e3f44d8f280db9f020d8a"
+    "READ_ONLY_EVIDENCE_SHA256": "24ce5bf71ad40e5fa393e33d9d7fabfba7b2fcb4dfc982bf300606e9dec2181e"
   },
   "quarantine_20260822": {
     "QUARANTINED_BRANCH": "rag-pedago/tier-a-currentness-byte-identity-20260820",

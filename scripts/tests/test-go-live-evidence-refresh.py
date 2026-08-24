@@ -209,7 +209,7 @@ class GoLiveEvidenceRefreshTests(unittest.TestCase):
             "PROD_DB_WRITES=UNKNOWN",
             "PRODUCTION_ENVIRONMENT_OBSERVED_AT=2026-08-24T22:51:18Z",
             "PRODUCTION_ENVIRONMENT_EXISTS=false",
-            "MASTER_RECONCILIATION_DEFERRED=true",
+            "MASTER_RECONCILIATION_COMPLETE=true",
         ):
             with self.subTest(expected=expected):
                 self.assertIn(expected, report)
