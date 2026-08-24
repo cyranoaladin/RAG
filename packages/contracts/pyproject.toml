@@ -11,9 +11,9 @@ dependencies = [
     "pydantic==2.13.4",
     "PyYAML==6.0.3",
     # ADR-0035 : vérification hors ligne des reçus de liaison de revue
-    # (Ed25519). Importée uniquement par nexus_contracts.review_binding,
-    # jamais au niveau du paquet — un consommateur qui n'utilise pas la
-    # gouvernance ne paie pas cet import.
+    # (Ed25519). Les surfaces globales d'autorisation l'importent désormais
+    # depuis le package public ; tout consommateur des schémas installe donc
+    # le package et ses dépendances déclarées, sans liste CI parallèle.
     "cryptography==49.0.0",
 ]
 

@@ -985,7 +985,7 @@ required_commands: tuple[tuple[str, str | None], ...] = (
     ("python3 scripts/tests/test-cockpit-snapshot-coherence.py", None),
     ("bash scripts/tests/test-cockpit-clean-build.sh", None),
 )
-required_python_dependencies = "pip install PyYAML==6.0.3 pydantic==2.13.4"
+required_python_dependencies = "pip install -e packages/contracts"
 
 for forbidden_key in ("if", "continue-on-error", "shell"):
     if forbidden_key in cockpit:

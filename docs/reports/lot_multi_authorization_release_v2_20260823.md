@@ -338,8 +338,17 @@ liaison entre la preuve locale et l'artefact exact du run de promotion, et
 possibilité de créer une nouvelle signature après avancement de `main`. Les
 régressions ajoutées exigent désormais une CLI V2 sans flags singuliers,
 l'unicité/non-expiration/identité byte-for-byte de l'artefact de promotion, et
-une relecture live de `main` au dernier instant avant accès à la clé. Une
-seconde revue du nouveau HEAD reste obligatoire avant ouverture de la PR.
+une relecture live de `main` au dernier instant avant accès à la clé. Deux
+secondes revues indépendantes du nouveau HEAD ont conclu `APPROVE`, sans
+finding P0-P2, avant ouverture de la PR.
+
+Le premier run GitHub de la PR a ensuite révélé un défaut de bootstrap du job
+cockpit : le package public importe désormais la composition multi-auth, donc
+le check de génération de schémas a besoin de la dépendance `cryptography`
+déclarée par `nexus-contracts`. Le workflow installait encore une liste
+parallèle réduite à PyYAML/Pydantic. Le correctif installe le package éditable
+et ses dépendances déclarées ; le garde-fou structurel du workflow est passé de
+RED (`50 passed, 1 failed`) à GREEN (`51 passed, 0 failed`).
 
 ```text
 CI_GREEN=false
