@@ -151,6 +151,7 @@ n'a été faite.
 
 ```text
 PROFILE_RELEASE_TARGETED_TESTS=PASS
+PRODUCTION_RELEASE_OFFLINE_REPLAY=PASS
 PROFILE_PLACEMENT_EXACT_TREE_TESTS=PASS
 CONTRACT_TARGETED_TESTS=PASS
 RUNTIME_PROFILE_AND_RELEASE_TESTS=PASS
@@ -174,6 +175,15 @@ GITLEAKS_DIFFERENTIAL=PASS (8.21.2, 0 leak)
 FRESH_CONTRADICTORY_PROFILE_REVIEWS=REQUIRED_ON_FINAL_HEAD
 GITHUB_CI=REQUIRED_ON_PR_HEAD
 ```
+
+Le build de release rejoue par défaut sans réseau depuis l'audit de
+currentness scellé. Il vérifie que cet audit correspond exactement aux SHA et
+URL du set courant et échoue fermé en cas d'absence ou de dérive. Le mode
+`--verify-official-downloads` reste une opération explicite d'acquisition et
+de revalidation. Un replay avec `TRANSFORMERS_OFFLINE=1` et
+`HF_HUB_OFFLINE=1`, les snapshots modèles figés et le miroir PDF vérifié a
+reproduit exactement 26 contenus, 18 collections et le digest de release
+`2aadfa96e6ce669abcaa6d336bdd44c680d4d3206d33e464a9eccc90f8a5944c`.
 
 Les commandes mypy canoniques restent rouges sur la baseline : 10 erreurs
 dans `scrapers/fetch.py`, 3 dans le runtime engine et 1 dans

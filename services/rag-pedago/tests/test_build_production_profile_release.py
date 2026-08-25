@@ -71,6 +71,14 @@ class Builder(Protocol):
 
     def require_canonical_token_counter(self, token_counter: object) -> None: ...
 
+    def resolve_currentness_network_audit(
+        self,
+        records: list[dict[str, Any]],
+        *,
+        verify_official_downloads: bool,
+        audit_path: Path,
+    ) -> tuple[dict[str, Any], list[dict[str, Any]]]: ...
+
 
 class VerifiedPdf(Protocol):
     path: Path
@@ -238,6 +246,90 @@ def test_pdf_mirror_returns_an_immutable_verified_snapshot(tmp_path: Path) -> No
     assert verified.path == path.resolve()
     assert verified.content == original
     assert hashlib.sha256(verified.content).hexdigest() == content_sha256
+
+
+def test_offline_release_replay_consumes_the_sealed_currentness_audit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    builder = _module()
+    network_calls: list[list[dict[str, Any]]] = []
+
+    def unexpected_network(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        network_calls.append(records)
+        raise AssertionError("offline replay must not call the network verifier")
+
+    monkeypatch.setattr(builder, "_verify_official_downloads", unexpected_network)
+    content_sha256 = "a" * 64
+    record = {
+        "content_sha256": content_sha256,
+        "source_url": "https://eduscol.education.gouv.fr/listing",
+        "current_download_url": "https://eduscol.education.gouv.fr/document.pdf",
+    }
+    artifact = {
+        "content_sha256": content_sha256,
+        "current_source_listing_url": record["source_url"],
+        "current_download_url": record["current_download_url"],
+        "downloaded_sha256": content_sha256,
+        "byte_identity": True,
+    }
+    audit = {
+        "audit_kind": "PRODUCTION_PROFILE_GATE_CURRENTNESS_AUDIT_V1",
+        "verified_at": "2026-08-25T00:00:00Z",
+        "network_mode": "READ_ONLY",
+        "write_operations": 0,
+        "counts": {"verified": 1, "digest_mismatch": 0},
+        "artifacts": [artifact],
+    }
+    audit_path = tmp_path / "currentness_network_audit.json"
+    audit_path.write_bytes(builder.canonical_json_bytes(audit))
+
+    network_audit, rows = builder.resolve_currentness_network_audit(
+        [record],
+        verify_official_downloads=False,
+        audit_path=audit_path,
+    )
+
+    assert network_audit == audit
+    assert rows == [artifact]
+    assert network_calls == []
+
+
+def test_offline_release_replay_rejects_a_drifted_currentness_audit(
+    tmp_path: Path,
+) -> None:
+    builder = _module()
+    content_sha256 = "a" * 64
+    record = {
+        "content_sha256": content_sha256,
+        "source_url": "https://eduscol.education.gouv.fr/listing",
+        "current_download_url": "https://eduscol.education.gouv.fr/document.pdf",
+    }
+    audit = {
+        "audit_kind": "PRODUCTION_PROFILE_GATE_CURRENTNESS_AUDIT_V1",
+        "verified_at": "2026-08-25T00:00:00Z",
+        "network_mode": "READ_ONLY",
+        "write_operations": 0,
+        "counts": {"verified": 1, "digest_mismatch": 0},
+        "artifacts": [
+            {
+                "content_sha256": content_sha256,
+                "current_source_listing_url": record["source_url"],
+                "current_download_url": record["current_download_url"],
+                "downloaded_sha256": "b" * 64,
+                "byte_identity": True,
+            }
+        ],
+    }
+    audit_path = tmp_path / "currentness_network_audit.json"
+    audit_path.write_bytes(builder.canonical_json_bytes(audit))
+
+    with pytest.raises(ValueError, match="sealed currentness audit differs"):
+        builder.resolve_currentness_network_audit(
+            [record],
+            verify_official_downloads=False,
+            audit_path=audit_path,
+        )
 
 
 def test_release_order_is_stable_and_duplicate_content_is_refused() -> None:

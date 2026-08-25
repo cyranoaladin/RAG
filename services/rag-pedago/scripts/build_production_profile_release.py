@@ -57,6 +57,7 @@ RELEASE_ROOT = (
     REPOSITORY_ROOT
     / "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate"
 )
+CURRENTNESS_NETWORK_AUDIT_PATH = RELEASE_ROOT / "currentness_network_audit.json"
 FINAL_MATRIX_PATH = REPOSITORY_ROOT / "docs/reports/final_production_profile_matrix_20260825.json"
 FINAL_PRODUCTION_SET_PATH = (
     REPOSITORY_ROOT / "docs/reports/final_production_eligible_set_20260825.txt"
@@ -631,14 +632,10 @@ def _verify_official_downloads(records: list[dict[str, Any]]) -> list[dict[str, 
     return audit
 
 
-def _currentness_documents(
-    records: list[dict[str, Any]],
-    *,
-    inventory: Mapping[str, Any],
-    inventory_sha256: str,
+def _currentness_network_audit_document(
     network_rows: list[dict[str, Any]],
-) -> tuple[dict[str, Any], dict[str, Any]]:
-    network_audit = {
+) -> dict[str, Any]:
+    return {
         "audit_kind": "PRODUCTION_PROFILE_GATE_CURRENTNESS_AUDIT_V1",
         "verified_at": "2026-08-25T00:00:00Z",
         "network_mode": "READ_ONLY",
@@ -646,6 +643,52 @@ def _currentness_documents(
         "counts": {"verified": len(network_rows), "digest_mismatch": 0},
         "artifacts": network_rows,
     }
+
+
+def _expected_currentness_network_rows(
+    records: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    return [
+        {
+            "content_sha256": row["content_sha256"],
+            "current_source_listing_url": row["source_url"],
+            "current_download_url": row["current_download_url"],
+            "downloaded_sha256": row["content_sha256"],
+            "byte_identity": True,
+        }
+        for row in records
+    ]
+
+
+def resolve_currentness_network_audit(
+    records: list[dict[str, Any]],
+    *,
+    verify_official_downloads: bool,
+    audit_path: Path = CURRENTNESS_NETWORK_AUDIT_PATH,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Separate optional live acquisition from deterministic offline replay."""
+    if verify_official_downloads:
+        network_rows = _verify_official_downloads(records)
+        return _currentness_network_audit_document(network_rows), network_rows
+
+    if not audit_path.is_file():
+        raise ValueError("sealed currentness audit is missing")
+    network_audit = _load_json(audit_path)
+    expected_rows = _expected_currentness_network_rows(records)
+    expected_audit = _currentness_network_audit_document(expected_rows)
+    if network_audit != expected_audit:
+        raise ValueError("sealed currentness audit differs from release inputs")
+    return network_audit, expected_rows
+
+
+def _currentness_documents(
+    records: list[dict[str, Any]],
+    *,
+    inventory: Mapping[str, Any],
+    inventory_sha256: str,
+    network_audit: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    network_rows = network_audit["artifacts"]
     audit_sha = _sha256_bytes(canonical_json_bytes(network_audit))
     by_sha = {row["content_sha256"]: row for row in network_rows}
     artifacts = []
@@ -1050,15 +1093,15 @@ def build_release(
     delta, effective = _catalog_documents(records)
     inventory = _candidate_inventory(records, delta=delta, effective=effective)
     inventory_sha = _sha256_bytes(canonical_json_bytes(inventory))
-    if verify_official_downloads:
-        network_rows = _verify_official_downloads(records)
-    else:
-        raise ValueError("official download revalidation is required")
+    network_audit, _network_rows = resolve_currentness_network_audit(
+        records,
+        verify_official_downloads=verify_official_downloads,
+    )
     network_audit, currentness = _currentness_documents(
         records,
         inventory=inventory,
         inventory_sha256=inventory_sha,
-        network_rows=network_rows,
+        network_audit=network_audit,
     )
     pii = _pii_evidence(records, pdfs=pdfs, inventory_sha256=inventory_sha)
     preflight = _preflight(records, pdfs=pdfs, token_counter=token_counter)
