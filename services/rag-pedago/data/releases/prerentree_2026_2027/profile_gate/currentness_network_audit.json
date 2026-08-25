@@ -1,0 +1,194 @@
+{
+  "artifacts": [
+    {
+      "byte_identity": true,
+      "content_sha256": "e591a87aee633ca3b2593e2d4fd5b183e518ebe0f9d4861e4cdfe0f494f39439",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/annexeprogrammedgemcmodifiepdf-84138.pdf",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5781/programmes-et-ressources-en-droit-et-grands-enjeux-du-monde-contemporain-voie-gt",
+      "downloaded_sha256": "e591a87aee633ca3b2593e2d4fd5b183e518ebe0f9d4861e4cdfe0f494f39439"
+    },
+    {
+      "byte_identity": true,
+      "content_sha256": "b88b5c685ec05d44b0c22d64f491443759fc0f544fe9ad33e626fb6cc29bf65a",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/04annexe2francais1egtbomodifiepdf-69837.pdf",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/sites/default/files/document/04annexe2francais1egtbomodifiepdf-69837.pdf",
+      "downloaded_sha256": "b88b5c685ec05d44b0c22d64f491443759fc0f544fe9ad33e626fb6cc29bf65a"
+    },
+    {
+      "byte_identity": true,
+      "content_sha256": "73c001b93cf2151924da5245c4d740b56a5194c17e29c37cda2e1c0593711fae",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/15-francais-4e-attendus-eduscolpdf-74679.pdf",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/sites/default/files/document/15-francais-4e-attendus-eduscolpdf-74679.pdf",
+      "downloaded_sha256": "73c001b93cf2151924da5245c4d740b56a5194c17e29c37cda2e1c0593711fae"
+    },
+    {
+      "byte_identity": true,
+      "content_sha256": "b54b6422d0eb2fb906e6ad6c79a2e95e6cae00e3fa113da5f7499eee4cc53ae7",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/04-annexe1francais2ebomodifiepdf-69834.pdf",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/sites/default/files/document/04-annexe1francais2ebomodifiepdf-69834.pdf",
+      "downloaded_sha256": "b54b6422d0eb2fb906e6ad6c79a2e95e6cae00e3fa113da5f7499eee4cc53ae7"
+    },
+    {
+      "byte_identity": true,
+      "content_sha256": "c4e3cc6fb201f4dabc78fa47206c1b498b3ed46496cf05165a74e0ecd8856fb1",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/fichecenseignerexplicitementlacomprehensiondelecritoudesecrits1168930pdf-81774.pdf",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/sites/default/files/document/fichecenseignerexplicitementlacomprehensiondelecritoudesecrits1168930pdf-81774.pdf",
+      "downloaded_sha256": "c4e3cc6fb201f4dabc78fa47206c1b498b3ed46496cf05165a74e0ecd8856fb1"
+    },
+    {
+      "byte_identity": true,
+      "content_sha256": "4433fee96b6e803c71edf2764d99bd269e649dcff646aee97327fdfeed143f13",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg1-thlpexemple-sujet-commentesujet-zero21205357pdf-83931.pdf",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5805/programmes-et-ressources-en-humanites-litterature-et-philosophie-voie-g",
+      "downloaded_sha256": "4433fee96b6e803c71edf2764d99bd269e649dcff646aee97327fdfeed143f13"
+    },
+    {
+      "byte_identity": true,
+      "content_sha256": "60eeb7dd1ee55d1ed2bb2c7671ecf3c971aeef6996db2bc7cd9c7919ae4b19ac",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg1-t-hlplitterature-apprentissage-oral-etude-textes1219746pdf-83940.pdf",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5805/programmes-et-ressources-en-humanites-litterature-et-philosophie-voie-g",
+      "downloaded_sha256": "60eeb7dd1ee55d1ed2bb2c7671ecf3c971aeef6996db2bc7cd9c7919ae4b19ac"
+    },
+    {
+      "byte_identity": true,
+      "content_sha256": "64f5b3427dee3b23d421fe03cb2f3aac75e0e47cee31be91b197d4e09c012987",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg1-t-hlpphilosophie-apprentissage-oral-etude-textes1219750pdf-83943.pdf",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5805/programmes-et-ressources-en-humanites-litterature-et-philosophie-voie-g",
+      "downloaded_sha256": "64f5b3427dee3b23d421fe03cb2f3aac75e0e47cee31be91b197d4e09c012987"
+    },
+    {
+      "byte_identity": true,
+      "content_sha256": "9357dfdebca347264787dfebacb674666d87660b82f789657ddd230c7ff224aa",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg1-thlpexemple-sujet-commentesujet-zero31205359pdf-83934.pdf",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5805/programmes-et-ressources-en-humanites-litterature-et-philosophie-voie-g",
+      "downloaded_sha256": "9357dfdebca347264787dfebacb674666d87660b82f789657ddd230c7ff224aa"
+    },
+    {
+      "byte_identity": true,
+      "content_sha256": "5303df0fcf6335f06d00c969a61dcd82cc3fdfd105271ae5c2ef580ff49b6c08",
+      "current_download_url": "https://www.education.gouv.fr/sites/default/files/document/Annexe%20%E2%80%93%20Programme%20d%26%23039%3Benseignement%20de%20sp%C3%A9cialit%C3%A9%20de%20math%C3%A9matiques%20de%20la%20classe%20de%20premi%C3%A8re%20de%20la%20voie%20g%C3%A9n%C3%A9rale-515408.pdf",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5817/programmes-et-ressources-en-mathematiques-voie-gt",
+      "downloaded_sha256": "5303df0fcf6335f06d00c969a61dcd82cc3fdfd105271ae5c2ef580ff49b6c08"
+    },
+    {
+      "byte_identity": true,
+      "content_sha256": "d0edabd6a21d6345d36d32c5506ddcf225e819ddca25d27c1ecc3f97b87a8966",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/16-maths-4e-attendus-eduscol1114746pdf-74682.pdf",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/sites/default/files/document/16-maths-4e-attendus-eduscol1114746pdf-74682.pdf",
+      "downloaded_sha256": "d0edabd6a21d6345d36d32c5506ddcf225e819ddca25d27c1ecc3f97b87a8966"
+    },
+    {
+      "byte_identity": true,
+      "content_sha256": "05c5403d45bfc3631fa13b5c334822de09bcd68d850d0611044045cddba270de",
+      "current_download_url": "https://www.education.gouv.fr/sites/default/files/document/Annexe%20%E2%80%93%20Programme%20d%26%23039%3Benseignement%20de%20math%C3%A9matiques%20de%20la%20classe%20de%20seconde%20g%C3%A9n%C3%A9rale%20et%20technologique-515402.pdf",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5817/programmes-et-ressources-en-mathematiques-voie-gt",
+      "downloaded_sha256": "05c5403d45bfc3631fa13b5c334822de09bcd68d850d0611044045cddba270de"
+    },
+    {
+      "byte_identity": true,
+      "content_sha256": "eb8369e7c1611e90f51491fecc5a7c2081a9c57f9c7fbb08d0414677b56ce16f",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/spe246annexe1158907pdf-84159.pdf",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/sites/default/files/document/spe246annexe1158907pdf-84159.pdf",
+      "downloaded_sha256": "eb8369e7c1611e90f51491fecc5a7c2081a9c57f9c7fbb08d0414677b56ce16f"
+    },
+    {
+      "byte_identity": true,
+      "content_sha256": "7ca9a32e1823be6c1120cb0417324c3cb01688d1d194c7614a88ea851ccc60b0",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/spe633annexe1063268pdf-89499.pdf",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/sites/default/files/document/spe633annexe1063268pdf-89499.pdf",
+      "downloaded_sha256": "7ca9a32e1823be6c1120cb0417324c3cb01688d1d194c7614a88ea851ccc60b0"
+    },
+    {
+      "byte_identity": true,
+      "content_sha256": "10ce34666edd722a3d8d86642a9f1ac205c7a9d128d6142a17effcba2fb85e69",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/spe247annexe1158933pdf-89502.pdf",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/sites/default/files/document/spe247annexe1158933pdf-89502.pdf",
+      "downloaded_sha256": "10ce34666edd722a3d8d86642a9f1ac205c7a9d128d6142a17effcba2fb85e69"
+    },
+    {
+      "byte_identity": true,
+      "content_sha256": "db43d342edf55e162d0153028b43287e4ece0ce81b4dc75f0730bf368b98c0f0",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/spe635annexe1063432pdf-82266.pdf",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5829/programmes-et-ressources-en-physique-chimie-voie-gt",
+      "downloaded_sha256": "db43d342edf55e162d0153028b43287e4ece0ce81b4dc75f0730bf368b98c0f0"
+    },
+    {
+      "byte_identity": true,
+      "content_sha256": "c07f8b2db9d22a6c2b9ab8386cf7ba323bc2c56abacb3f560dd97d02b383de18",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/spe249annexe1158929pdf-82269.pdf",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/sites/default/files/document/spe249annexe1158929pdf-82269.pdf",
+      "downloaded_sha256": "c07f8b2db9d22a6c2b9ab8386cf7ba323bc2c56abacb3f560dd97d02b383de18"
+    },
+    {
+      "byte_identity": true,
+      "content_sha256": "03f268dc1f2628dbc76c58921ed868624437f06a15432ea055fff844f12aaf91",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtterphiloevaluations1318475pdf-83655.pdf",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5826/programmes-et-ressources-en-philosophie-voie-gt",
+      "downloaded_sha256": "03f268dc1f2628dbc76c58921ed868624437f06a15432ea055fff844f12aaf91"
+    },
+    {
+      "byte_identity": true,
+      "content_sha256": "846962c15217af5cfe7ba40b173e94cb225d2153ffd3131d23b2c60a2b5e9a17",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtterphiloexercices21307357pdf-83652.pdf",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5826/programmes-et-ressources-en-philosophie-voie-gt",
+      "downloaded_sha256": "846962c15217af5cfe7ba40b173e94cb225d2153ffd3131d23b2c60a2b5e9a17"
+    },
+    {
+      "byte_identity": true,
+      "content_sha256": "b5ed52b1a4754298f7ecdbc56cb886a438c580ebd04284be0ca878b82e7c62db",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/ra21lyceegtterphilorecommandations2-73131.pdf",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5826/programmes-et-ressources-en-philosophie-voie-gt",
+      "downloaded_sha256": "b5ed52b1a4754298f7ecdbc56cb886a438c580ebd04284be0ca878b82e7c62db"
+    },
+    {
+      "byte_identity": true,
+      "content_sha256": "e7cf3bdb7a1c3831ccc465d842d8ab0dacb688d565cb35510aee4eac4f2bf5f9",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtterphiloetudestextes1294343pdf-83649.pdf",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5826/programmes-et-ressources-en-philosophie-voie-gt",
+      "downloaded_sha256": "e7cf3bdb7a1c3831ccc465d842d8ab0dacb688d565cb35510aee4eac4f2bf5f9"
+    },
+    {
+      "byte_identity": true,
+      "content_sha256": "f0dec90cafd512cb754fb71ed33dbf0a48f0e67a166be35b5b16a1daa6dd006d",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtterphilonotionsauteursreperes1304038pdf-83646.pdf",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5826/programmes-et-ressources-en-philosophie-voie-gt",
+      "downloaded_sha256": "f0dec90cafd512cb754fb71ed33dbf0a48f0e67a166be35b5b16a1daa6dd006d"
+    },
+    {
+      "byte_identity": true,
+      "content_sha256": "06e491d369c5164d9f746176edeef45363cef53d3de2d5fb55153e6e96f98f2e",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/spe639annexe1063544pdf-82752.pdf",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5838/programmes-et-ressources-en-sciences-economiques-et-sociales-voie-gt",
+      "downloaded_sha256": "06e491d369c5164d9f746176edeef45363cef53d3de2d5fb55153e6e96f98f2e"
+    },
+    {
+      "byte_identity": true,
+      "content_sha256": "2f1035c74db485d12e80d7c887cb9090807be32e5f79a6074d2decb1073ec154",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/spe253annexe1158821pdf-82755.pdf",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5838/programmes-et-ressources-en-sciences-economiques-et-sociales-voie-gt",
+      "downloaded_sha256": "2f1035c74db485d12e80d7c887cb9090807be32e5f79a6074d2decb1073ec154"
+    },
+    {
+      "byte_identity": true,
+      "content_sha256": "8eb0e41f95bf4aca37e6231c06109579faf6bf410d6bd2bc210574e66e2762fa",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/spe648annexe1063542pdf-82878.pdf",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5835/programmes-et-ressources-en-sciences-de-la-vie-et-de-la-terre-voie-gt",
+      "downloaded_sha256": "8eb0e41f95bf4aca37e6231c06109579faf6bf410d6bd2bc210574e66e2762fa"
+    },
+    {
+      "byte_identity": true,
+      "content_sha256": "d2cbd06f2e8099d9080f17f3abb5b0fc90460b86b3c11f808b99daa01f77f897",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/spe252annexe1159114pdf-82881.pdf",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5835/programmes-et-ressources-en-sciences-de-la-vie-et-de-la-terre-voie-gt",
+      "downloaded_sha256": "d2cbd06f2e8099d9080f17f3abb5b0fc90460b86b3c11f808b99daa01f77f897"
+    }
+  ],
+  "audit_kind": "PRODUCTION_PROFILE_GATE_CURRENTNESS_AUDIT_V1",
+  "counts": {
+    "digest_mismatch": 0,
+    "verified": 26
+  },
+  "network_mode": "READ_ONLY",
+  "verified_at": "2026-08-25T00:00:00Z",
+  "write_operations": 0
+}

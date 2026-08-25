@@ -1,0 +1,32 @@
+id: dgemc_terminale_option
+matiere: dgemc
+niveau: terminale
+voie: generale
+statut_enseignement: option
+programme_version: BOEN_special_8_2019-07-25_MENE1921266A_MENE2208320A
+themes:
+  - id: introduction_droit
+    label: Qu'est-ce que le droit ?
+    notions:
+      - id: fonctions_droit
+        label: Le droit et ses fonctions
+      - id: regle_droit
+        label: Les caractéristiques de la règle de droit
+  - id: organisation_droit
+    label: Comment le droit est-il organisé ?
+    notions:
+      - id: sources_droit
+        label: Les sources du droit
+      - id: organisation_judiciaire
+        label: L'organisation judiciaire en France
+      - id: relations_internationales
+        label: Les relations internationales et le droit
+  - id: questions_juridiques_contemporaines
+    label: Des questions juridiques contemporaines
+    notions:
+      - id: sujets_droits
+        label: Les sujets de droits
+      - id: liberte_egalite_fraternite
+        label: Liberté, égalité, fraternité
+      - id: personne_famille
+        label: Personne et famille

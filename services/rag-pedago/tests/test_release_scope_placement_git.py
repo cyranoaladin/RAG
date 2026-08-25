@@ -496,7 +496,7 @@ def test_exact_current_matrix_still_refuses_thirteen_partitions_fifty_six_conten
         _produce(repo, tree)
 
 
-def test_p24_profile_match_still_refuses_unregistered_release_collection(
+def test_p24_profile_match_is_accepted_by_current_release_registry(
     tmp_path: Path,
 ) -> None:
     repo, _ = _repository(tmp_path)
@@ -517,18 +517,34 @@ def test_p24_profile_match_still_refuses_unregistered_release_collection(
     p24 = next(row for row in matrix if row["partition_id"] == "P24")
     profile_document = yaml.safe_load((root / profile_path).read_text(encoding="utf-8"))
     profile = CollectionProfile.model_validate(profile_document)
-    manifest_document = yaml.safe_load((root / manifest_path).read_text(encoding="utf-8"))
     profile_fact = VerifiedProfileFactV1(
         profile_id=profile.scope.collection,
         profile_version=profile.profile_version,
         profile_fingerprint=collection_profile_fingerprint(profile),
         scope=profile.scope,
     )
+    manifest_entry = next(
+        entry
+        for entry in yaml.safe_load((root / manifest_path).read_text(encoding="utf-8"))[
+            "profiles"
+        ]
+        if entry["collection"] == profile.scope.collection
+    )
+    manifest_document = {
+        "manifest_version": "1",
+        "provenance": "fixture P24 acceptée",
+        "generated_at": "2026-08-25T00:00:00+01:00",
+        "profiles": [manifest_entry],
+    }
 
     _write(repo, MATRIX_PATH, _json_bytes([p24]))
     _write(repo, CONTENTS_PATH, ("\n".join(p24["content_sha256"]) + "\n").encode())
     _write(repo, REGISTRY_PATH, (root / registry_path).read_bytes())
-    _write(repo, PROFILE_MANIFEST_PATH, (root / manifest_path).read_bytes())
+    _write(
+        repo,
+        PROFILE_MANIFEST_PATH,
+        yaml.safe_dump(manifest_document, sort_keys=False).encode(),
+    )
     _write(repo, profile_path, (root / profile_path).read_bytes())
     _write(repo, policy_path, (root / policy_path).read_bytes())
     _write(repo, manifest_path, (root / manifest_path).read_bytes())
@@ -554,7 +570,7 @@ def test_p24_profile_match_still_refuses_unregistered_release_collection(
             [
                 {
                     "content_sha256": content_sha256,
-                    "release_id": "multilevel-2026-2027-v1",
+                    "release_id": "production-profile-gate-2026-2027-v1",
                     "collection": profile.scope.collection,
                     "profile_version": profile.profile_version,
                 }
@@ -564,8 +580,14 @@ def test_p24_profile_match_still_refuses_unregistered_release_collection(
     )
     tree = _commit(repo, "P24 current production inputs")
 
-    with pytest.raises(ReleaseScopePlacementProducerError, match="UNACCEPTED_COLLECTION"):
-        _produce(repo, tree)
+    produced = _produce(repo, tree)
+
+    assert [row.content_sha256 for row in produced.placement.placements] == sorted(
+        p24["content_sha256"]
+    )
+    assert {row.profile_id for row in produced.placement.placements} == {
+        profile.scope.collection
+    }
 
 
 def test_symlink_and_untracked_substitution_cannot_change_tree_bytes(tmp_path: Path) -> None:

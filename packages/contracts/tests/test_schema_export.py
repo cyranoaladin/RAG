@@ -15,12 +15,12 @@ REVIEW_SCHEMAS = {
 }
 
 
-def test_package_version_is_0_13_0() -> None:
-    """0.13.0 (ADR-0044) ajoute la composition multi-autorisation V2
+def test_package_version_is_0_14_0() -> None:
+    """0.14.0 (ADR-0045) ajoute les scopes retrieval production immuables
     sans rupture des contrats V1 existants."""
     root = Path(__file__).resolve().parents[1]
     pyproject = tomllib.loads((root / "pyproject.toml").read_text())
-    assert pyproject["project"]["version"] == "0.13.0"
+    assert pyproject["project"]["version"] == "0.14.0"
 
 
 def test_schema_export_is_deterministic(tmp_path: Path) -> None:

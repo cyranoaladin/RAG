@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import shutil
 import sys
 from pathlib import Path
 
@@ -38,6 +39,7 @@ RELEASE_REGISTRY = (
     REPO_ROOT
     / "services/rag-pedago/data/releases/prerentree_2026_2027/release-registry.json"
 )
+PRODUCTION_PROFILE_RELEASE_ROOT = RELEASE_REGISTRY.parent / "profile_gate"
 ARTIFACT_SHA = "a" * 64
 PLACEMENT_ID = "b" * 64
 CHUNK_ID = "c" * 64
@@ -300,6 +302,9 @@ def test_multilevel_aggregate_uses_its_extended_authority_contract(
     }
     subject["release_kind"] = "MULTILEVEL_SUBJECT_RELEASE_V1"
     subject["authorities"] = authorities
+    subject["profile"]["manifest_digest"] = authorities[
+        "profile_manifest_sha256"
+    ]
     subject_sha = _write_json(subject_path, subject)
     aggregate["release_kind"] = "MULTILEVEL_AGGREGATE_RELEASE_V1"
     aggregate["authorities"] = authorities
@@ -681,6 +686,55 @@ def test_release_registry_refuses_artifact_collision(tmp_path: Path) -> None:
         readiness.load_release_registry((first, second))
 
 
+@pytest.mark.parametrize(
+    ("shared_field", "message"),
+    [("placement", "placement"), ("chunk", "chunk")],
+)
+def test_release_aggregate_refuses_cross_subject_identity_collision(
+    tmp_path: Path,
+    shared_field: str,
+    message: str,
+) -> None:
+    aggregate_path, _digest = _release_files(tmp_path)
+    first_subject_path = tmp_path / "maths_troisieme.release.json"
+    first_subject = json.loads(first_subject_path.read_text())
+    second_subject = copy.deepcopy(first_subject)
+    second_collection = "rag_nexus_francais_seconde_tc"
+    second_subject["collection"] = second_collection
+    second_subject["artifacts"][0]["content_sha256"] = "3" * 64
+    second_subject["artifacts"][0]["placements"][0]["collection"] = second_collection
+    if shared_field != "placement":
+        second_subject["artifacts"][0]["placements"][0]["placement_id"] = "4" * 64
+    if shared_field != "chunk":
+        second_subject["artifacts"][0]["chunks"][0]["chunk_id"] = "5" * 64
+    artifact = second_subject["artifacts"][0]
+    artifact["placement_id_set_digest"] = _set_digest(
+        [artifact["placements"][0]["placement_id"]]
+    )
+    artifact["chunk_id_set_digest"] = _set_digest(
+        [artifact["chunks"][0]["chunk_id"]]
+    )
+    second_path = tmp_path / "francais_seconde.release.json"
+    second_sha = _write_json(second_path, second_subject)
+    aggregate = json.loads(aggregate_path.read_text())
+    aggregate["subjects"].append(
+        {
+            "path": second_path.name,
+            "sha256": second_sha,
+            "collection": second_collection,
+        }
+    )
+    aggregate["expected_counts"] = {
+        "artifacts": 2,
+        "placements": 2,
+        "chunks": 2,
+    }
+    digest = _write_json(aggregate_path, aggregate)
+
+    with pytest.raises(ReleaseReadinessError, match=message):
+        load_release_expectation(aggregate_path, digest)
+
+
 def test_release_registry_refuses_model_contract_drift(tmp_path: Path) -> None:
     first = _release_files(tmp_path / "first")
     second = _release_files(
@@ -904,15 +958,15 @@ def _registry_entry(
     }
 
 
-def test_real_release_registry_file_preserves_all_twelve_collections() -> None:
+def test_real_release_registry_file_exposes_all_eighteen_production_collections() -> None:
     registry_sha256 = hashlib.sha256(RELEASE_REGISTRY.read_bytes()).hexdigest()
 
     registry = load_release_registry_file(RELEASE_REGISTRY, registry_sha256)
 
-    assert len(registry.collections) == 12
+    assert len(registry.collections) == 18
     assert {
-        "rag_nexus_maths_troisieme_tc",
-        "rag_nexus_francais_troisieme_tc",
+        "rag_nexus_philo_terminale_tc",
+        "rag_nexus_dgemc_terminale_option",
     } < set(registry.collections)
 
 
@@ -927,7 +981,7 @@ def test_release_registry_file_refuses_digest_mismatch(tmp_path: Path) -> None:
                 _registry_entry(
                     manifest,
                     digest,
-                    release_id="r1",
+                    release_id="wave0-2026-2027",
                     collections=[COLLECTION],
                     registry_root=tmp_path,
                 )
@@ -937,6 +991,21 @@ def test_release_registry_file_refuses_digest_mismatch(tmp_path: Path) -> None:
 
     with pytest.raises(ReleaseReadinessError, match="digest mismatch"):
         load_release_registry_file(registry_path, "0" * 64)
+
+
+def test_release_manifest_refuses_duplicate_json_object_keys(tmp_path: Path) -> None:
+    manifest, _digest = _release_files(tmp_path)
+    raw = manifest.read_text(encoding="utf-8").replace(
+        '  "release_id": "wave0-2026-2027",',
+        '  "release_id": "shadowed",\n  "release_id": "wave0-2026-2027",',
+        1,
+    )
+    manifest.write_text(raw, encoding="utf-8")
+
+    with pytest.raises(ReleaseReadinessError, match="duplicate JSON object key"):
+        load_release_expectation(
+            manifest, hashlib.sha256(manifest.read_bytes()).hexdigest()
+        )
 
 
 def test_release_registry_file_refuses_missing_file(tmp_path: Path) -> None:
@@ -955,7 +1024,7 @@ def test_release_registry_file_refuses_manifest_digest_drift(tmp_path: Path) -> 
                 _registry_entry(
                     manifest,
                     "0" * 64,
-                    release_id="r1",
+                    release_id="wave0-2026-2027",
                     collections=[COLLECTION],
                     registry_root=tmp_path,
                 )
@@ -1071,6 +1140,45 @@ def test_release_registry_file_refuses_duplicate_release_id(tmp_path: Path) -> N
         load_release_registry_file(registry_path, registry_digest)
 
 
+def test_release_registry_file_refuses_release_id_drift(tmp_path: Path) -> None:
+    manifest, digest = _release_files(tmp_path / "wave0")
+    registry_path, registry_digest = _write_registry(
+        tmp_path,
+        {
+            "registry_version": "1",
+            "school_year": "2026-2027",
+            "releases": [
+                _registry_entry(
+                    manifest,
+                    digest,
+                    release_id="not-the-manifest-release-id",
+                    collections=[COLLECTION],
+                    registry_root=tmp_path,
+                )
+            ],
+        },
+    )
+
+    with pytest.raises(ReleaseReadinessError, match="release_id"):
+        load_release_registry_file(registry_path, registry_digest)
+
+
+def test_multilevel_subject_profile_manifest_matches_authority(tmp_path: Path) -> None:
+    release_root = tmp_path / "profile_gate"
+    shutil.copytree(PRODUCTION_PROFILE_RELEASE_ROOT, release_root)
+    aggregate_path = release_root / "production-profile-gate.release.json"
+    aggregate = json.loads(aggregate_path.read_text())
+    subject_entry = aggregate["subjects"][0]
+    subject_path = release_root / subject_entry["path"]
+    subject = json.loads(subject_path.read_text())
+    subject["profile"]["manifest_digest"] = "0" * 64
+    subject_entry["sha256"] = _write_json(subject_path, subject)
+    digest = _write_json(aggregate_path, aggregate)
+
+    with pytest.raises(ReleaseReadinessError, match="profile manifest"):
+        load_release_expectation(aggregate_path, digest)
+
+
 def test_release_registry_file_refuses_declared_collection_collision(
     tmp_path: Path,
 ) -> None:
@@ -1124,7 +1232,7 @@ def test_release_registry_file_refuses_declared_collections_not_matching_manifes
                 _registry_entry(
                     manifest,
                     digest,
-                    release_id="r1",
+                    release_id="wave0-2026-2027",
                     collections=["rag_nexus_this_collection_does_not_exist"],
                     registry_root=tmp_path,
                 )
@@ -1147,7 +1255,7 @@ def test_release_registry_file_refuses_release_kind_drift(tmp_path: Path) -> Non
                 _registry_entry(
                     manifest,
                     digest,
-                    release_id="r1",
+                    release_id="wave0-2026-2027",
                     collections=[COLLECTION],
                     release_kind="MULTILEVEL_AGGREGATE_RELEASE_V1",
                     registry_root=tmp_path,
@@ -1175,7 +1283,7 @@ def test_runtime_uses_release_registry_file_as_primary_mechanism(
     registry = endpoint._configured_release_registry()
 
     assert registry is not None
-    assert len(registry.collections) == 12
+    assert len(registry.collections) == 18
 
 
 def test_runtime_release_registry_file_refuses_ambiguous_with_manifests_json(
@@ -1254,6 +1362,31 @@ def test_runtime_startup_accepts_release_registry_file(
     )
 
 
+def test_runtime_startup_refuses_two_scopes_for_the_same_release_subject(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import yaml
+    from nexus_contracts import load_retrieval_scope_registry
+
+    from ingestor import retrieval_v2_endpoint as endpoint
+
+    registry_sha256 = hashlib.sha256(RELEASE_REGISTRY.read_bytes()).hexdigest()
+    monkeypatch.delenv("RAG_RELEASE_MANIFEST_PATH", raising=False)
+    monkeypatch.delenv("RAG_RELEASE_MANIFEST_SHA256", raising=False)
+    monkeypatch.delenv("RAG_RELEASE_MANIFESTS_JSON", raising=False)
+    monkeypatch.setenv("RAG_RELEASE_REGISTRY_PATH", str(RELEASE_REGISTRY))
+    monkeypatch.setenv("RAG_RELEASE_REGISTRY_SHA256", registry_sha256)
+    config = yaml.safe_load(CANONICAL_COLLECTIONS.read_text(encoding="utf-8"))
+    artifacts = dict(load_retrieval_scope_registry())
+    original = artifacts["prod_philo_terminale_tc_v1"]
+    artifacts["prod_philo_terminale_tc_duplicate_v1"] = original.model_copy(
+        update={"scope_id": "prod_philo_terminale_tc_duplicate_v1"}
+    )
+
+    with pytest.raises(RuntimeError, match="ambiguous"):
+        endpoint.validate_release_startup_configuration(artifacts, config)
+
+
 def test_runtime_blocks_retrieval_for_a_collection_outside_the_active_registry(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1282,7 +1415,7 @@ def test_runtime_blocks_retrieval_for_a_collection_outside_the_active_registry(
             "school_year": "2026-2027",
             "releases": [
                 {
-                    "release_id": "wave0-only",
+                        "release_id": "wave0-exact-grade-troisieme-2026-2027-v1",
                     "collections": [
                         "rag_nexus_francais_troisieme_tc",
                         "rag_nexus_maths_troisieme_tc",

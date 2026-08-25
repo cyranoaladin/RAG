@@ -11,6 +11,7 @@ from ingestor.ingestion_control.sealed_evidence import (
     VerifiedPIIEvidenceRegistry,
     VerifiedRightsEvidenceRegistry,
 )
+from ingestor.ingestion_profiles.manifest import verify_profile_manifest
 from ingestor.ingestion_profiles.registry import ProfileRegistry
 from ingestor.multilevel_evidence import (
     load_multilevel_candidate_inventory,
@@ -20,6 +21,7 @@ from ingestor.multilevel_mapping import load_multilevel_mapping
 from ingestor.multilevel_verified_placement import (
     MultilevelVerifiedPedagogicalPlacementResolver,
     load_multilevel_release_eligibility,
+    production_profile_manifest_verification,
 )
 from ingestor.programme_registry import load_programme_index_registry
 from ingestor.staging_profile_manifest import verify_staging_profile_manifest
@@ -127,6 +129,7 @@ def load_multilevel_runtime_authorities(
     inputs: MultilevelRuntimeAuthorityInputs,
     *,
     profile_registry: ProfileRegistry,
+    environment: str,
 ) -> GovernedRuntimeAuthorities:
     """Construire une seule autorité cohérente avant toute connexion DB."""
     try:
@@ -162,11 +165,20 @@ def load_multilevel_runtime_authorities(
             expected_registry_sha256=inputs.programme_registry_sha256,
             repository_root=inputs.repository_root,
         )
-        profile_manifest = verify_staging_profile_manifest(
-            profile_registry, inputs.profile_manifest_path
-        )
-        if profile_manifest.manifest_sha256 != profile_manifest_sha:
-            raise RuntimeAuthorityStartupError("profile manifest digest differs")
+        if environment == "production":
+            profile_manifest = production_profile_manifest_verification(
+                verify_profile_manifest(profile_registry, inputs.profile_manifest_path)
+            )
+        elif environment == "rehearsal":
+            profile_manifest = verify_staging_profile_manifest(
+                profile_registry, inputs.profile_manifest_path
+            )
+            if profile_manifest.manifest_sha256 != profile_manifest_sha:
+                raise RuntimeAuthorityStartupError("profile manifest digest differs")
+        else:
+            raise RuntimeAuthorityStartupError(
+                "multilevel authority environment must be rehearsal or production"
+            )
         release = load_multilevel_release_eligibility(
             inputs.release_manifest_path,
             expected_sha256=inputs.release_manifest_sha256,
@@ -177,6 +189,7 @@ def load_multilevel_runtime_authorities(
             mapping=mapping,
             profiles=profile_registry,
             profile_manifest=profile_manifest,
+            environment=environment,
             programme_registry=programme,
             collection_config=load_collection_config(inputs.collection_config_path),
             release_eligibility=release,

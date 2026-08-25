@@ -40,6 +40,9 @@ VERSIONED_INPUTS = {
     "currentness": (
         SERVICE_ROOT / "configs/prerentree_2026_2027/multilevel_currentness_evidence.yml"
     ),
+    "production_profile_set": (
+        REPO_ROOT / "docs/reports/final_production_eligible_set_20260825.txt"
+    ),
 }
 EXPECTED_REAL_INPUT_DIGESTS = {
     "manifest": "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e",
@@ -50,6 +53,9 @@ EXPECTED_REAL_INPUT_DIGESTS = {
     "rights": "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff",
     "golden": "28856e0655eca7695f273a5934925785c49ecf828d930804984f6e58f4da6f69",
     "currentness": "2ad7209f28cd7cbf9f1ea91724b687983579c36c91619e8d107d28b72b849122",
+    "production_profile_set": (
+        "fe97b3410791fa78d4734a8c495443296b3f2ec3e77627e12fc34f90e0b2b5f0"
+    ),
 }
 
 SHA_A = "a" * 64
@@ -191,6 +197,96 @@ def test_exact_set_and_accounting_are_deterministic() -> None:
     assert first_rows == second_rows
 
 
+def test_profile_gate_moves_preprofile_residuals_to_review_required() -> None:
+    module = _load_script()
+    physical = [
+        _physical(
+            SHA_A,
+            disposition="INGEST",
+            base_disposition="INGEST",
+            path="a.pdf",
+        ),
+        _physical(
+            SHA_B,
+            disposition="INGEST",
+            base_disposition="INGEST",
+            path="b.pdf",
+        ),
+    ]
+
+    rows, conflicts = module._terminal_accounting(
+        physical,
+        frozenset({SHA_A}),
+        profile_review_required=frozenset({SHA_B}),
+    )
+
+    assert conflicts == []
+    assert [row["release_terminal_disposition"] for row in rows] == [
+        "INGEST_CANDIDATE",
+        "REVIEW_REQUIRED",
+    ]
+
+
+def test_profile_gate_must_partition_preprofile_authority_set() -> None:
+    module = _load_script()
+
+    with pytest.raises(ValueError, match="partition"):
+        module._validate_profile_gate_partition(
+            pre_profile_set=frozenset({SHA_A, SHA_B}),
+            final_profile_set=frozenset({SHA_A}),
+            profile_review_required=frozenset(),
+        )
+
+
+def test_versioned_ledger_recomputes_final_profile_gate_accounting(tmp_path: Path) -> None:
+    module = _load_script()
+    output = tmp_path / "terminal-disposition-summary.json"
+
+    summary = module.recompute_profile_gate_terminal_summary(
+        content_ledger=(
+            REPO_ROOT / "docs/reports/evidence-index/content_ledger_20260814.jsonl"
+        ),
+        pre_profile_set=(
+            REPO_ROOT / "docs/reports/final_authority_required_set_20260823.txt"
+        ),
+        production_profile_set=(
+            REPO_ROOT / "docs/reports/final_production_eligible_set_20260825.txt"
+        ),
+        output=output,
+    )
+
+    assert json.loads(output.read_text(encoding="utf-8")) == summary
+    assert summary["FINAL_PRE_PROFILE_ELIGIBLE_COUNT"] == 72
+    assert summary["FINAL_PRODUCTION_ELIGIBLE_COUNT"] == 26
+    assert summary["FINAL_PROFILE_REVIEW_REQUIRED_COUNT"] == 46
+    assert summary["FINAL_AUTHORITY_REQUIRED_COUNT"] == 26
+    assert summary["FINAL_AUTHORITY_REQUIRED_SET_SHA256"] == (
+        "fe97b3410791fa78d4734a8c495443296b3f2ec3e77627e12fc34f90e0b2b5f0"
+    )
+    assert summary["terminal_disposition_counts"] == {
+        "ARCHIVE_ONLY": 19,
+        "EXCLUDE": 53,
+        "INGEST_CANDIDATE": 26,
+        "QUARANTINE": 2,
+        "REVIEW_REQUIRED": 2445,
+        "UNSUPPORTED": 37,
+    }
+    assert len(summary["profile_review_required_content_sha256"]) == 46
+    resolution = json.loads(
+        (
+            REPO_ROOT / "docs/reports/production_profile_resolution_records_20260825.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert set(summary["profile_review_required_content_sha256"]) == {
+        row["content_sha256"]
+        for row in resolution["records"]
+        if row["resolution_status"] != "EXACTLY_GROUNDED"
+    }
+    assert summary["UNIQUE_CONTENTS"] == 2582
+    assert summary["UNACCOUNTED_CONTENTS"] == 0
+    assert summary["TERMINAL_DISPOSITION_COVERAGE"] == 100.0
+
+
 def test_parser_uses_portable_evidence_root_overrides(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -207,6 +303,9 @@ def test_parser_uses_portable_evidence_root_overrides(
     assert args.placements == sealed / "00_ADMIN/eduscol_affectations.tsv"
     assert args.pii_exhaustive == evidence / "h2b_exhaustive_pii_scan_20260813.jsonl"
     assert args.pii_campaign == evidence / "h2b_pii_evidence_20260808.json"
+    assert args.production_profile_set == (
+        REPO_ROOT / "docs/reports/final_production_eligible_set_20260825.txt"
+    )
 
 
 @pytest.mark.skipif(
@@ -235,7 +334,7 @@ def test_recompute_final_release_set_from_real_inputs(tmp_path: Path) -> None:
     summary = json.loads((output / "summary.json").read_text(encoding="utf-8"))
     exact_set = (output / "final_authority_required_set.txt").read_bytes()
     expected_set = (
-        REPO_ROOT / "docs/reports/final_authority_required_set_20260823.txt"
+        REPO_ROOT / "docs/reports/final_production_eligible_set_20260825.txt"
     ).read_bytes()
     terminal_rows = (
         (output / "terminal_content_dispositions.jsonl").read_text(encoding="utf-8").splitlines()
@@ -246,13 +345,18 @@ def test_recompute_final_release_set_from_real_inputs(tmp_path: Path) -> None:
 
     assert summary["final_base_ingest_candidates"] == 73
     assert summary["final_non_authority_blocked_count"] == 1
-    assert summary["final_authority_required_count"] == 72
-    assert summary["final_authority_required_set_sha256"] == (
+    assert summary["final_pre_profile_eligible_count"] == 72
+    assert summary["final_pre_profile_eligible_set_sha256"] == (
         "3705935f306a52cde0f398db20f685dce82d0bb9acd7909c8e6955d6356643e0"
+    )
+    assert summary["final_profile_review_required_count"] == 46
+    assert summary["final_authority_required_count"] == 26
+    assert summary["final_authority_required_set_sha256"] == (
+        "fe97b3410791fa78d4734a8c495443296b3f2ec3e77627e12fc34f90e0b2b5f0"
     )
     assert exact_set == expected_set
     assert exact_set.endswith(b"\n")
-    assert len(exact_set.splitlines()) == 72
+    assert len(exact_set.splitlines()) == 26
     assert hashlib.sha256(exact_set).hexdigest() == summary["final_authority_required_set_sha256"]
     assert len(terminal_rows) == 2582
     assert summary["terminal_content_accounting"]["unaccounted_contents"] == 0
@@ -261,8 +365,8 @@ def test_recompute_final_release_set_from_real_inputs(tmp_path: Path) -> None:
     assert summary["terminal_content_accounting"]["release_terminal_disposition_counts"] == {
         "ARCHIVE_ONLY": 19,
         "EXCLUDE": 53,
-        "INGEST_CANDIDATE": 72,
+        "INGEST_CANDIDATE": 26,
         "QUARANTINE": 2,
-        "REVIEW_REQUIRED": 2399,
+        "REVIEW_REQUIRED": 2445,
         "UNSUPPORTED": 37,
     }

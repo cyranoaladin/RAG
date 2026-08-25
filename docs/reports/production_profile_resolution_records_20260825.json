@@ -1,0 +1,1874 @@
+{
+  "exactly_grounded_count": 10,
+  "input_content_count": 56,
+  "primary_evidence_path": "docs/reports/production_profile_primary_evidence_20260825.json",
+  "primary_evidence_sha256": "cd48b3c327da49e32da89be46c1fd5ed91938bf9b1efcca303a6bcf13bb3250d",
+  "records": [
+    {
+      "audience": [
+        "libre",
+        "tous"
+      ],
+      "candidat": "libre",
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/SES/01_PROGRAMMES_OFFICIELS/2019/specialite-ses-de-premiere-generale-bo-special-n-1-du-22-janvier-2019-pdf-174-71-ko--06e491d369.pdf",
+      "collection": "rag_nexus_ses_premiere_specialite",
+      "content_sha256": "06e491d369c5164d9f746176edeef45363cef53d3de2d5fb55153e6e96f98f2e",
+      "matiere": "ses",
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=06e491d369c5164d9f746176edeef45363cef53d3de2d5fb55153e6e96f98f2e"
+      ],
+      "niveau": "premiere",
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=06e491d369c5164d9f746176edeef45363cef53d3de2d5fb55153e6e96f98f2e"
+      ],
+      "partition_id": "P18",
+      "product_policy_evidence": [
+        "services/rag-pedago/configs/production_profile_decisions_20260825.json#product_defaults"
+      ],
+      "profile_fingerprint": "b9aa5b13c38cd603ac1c0f39ddfe03e16cf320a5d7b13dc47c1c45f59ccf8eaa",
+      "profile_id": "rag_nexus_ses_premiere_specialite",
+      "profile_version": "profile-gate-v1",
+      "programme_version": "BOEN_special_1_2019-01-22",
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=06e491d369c5164d9f746176edeef45363cef53d3de2d5fb55153e6e96f98f2e",
+        "BOEN_special_1_2019-01-22"
+      ],
+      "reason_code": "PRIMARY_SCOPE_PROVEN",
+      "resolution_status": "EXACTLY_GROUNDED",
+      "school_year": "2026-2027",
+      "tenant": "libre_premiere",
+      "visibility": "internal",
+      "voie": "generale",
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=06e491d369c5164d9f746176edeef45363cef53d3de2d5fb55153e6e96f98f2e"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/_MULTI_DISCIPLINES/01_PROGRAMMES_OFFICIELS/2020/cooperation-entre-professeurs-de-lettres-et-professeurs-de-philosophie-pdf-153-91-ko--0db1ad85cb.pdf",
+      "collection": null,
+      "content_sha256": "0db1ad85cb67e6b9cdf91f5cab888f94d8711cab3512f364355bdd756a21d0dd",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=0db1ad85cb67e6b9cdf91f5cab888f94d8711cab3512f364355bdd756a21d0dd"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=0db1ad85cb67e6b9cdf91f5cab888f94d8711cab3512f364355bdd756a21d0dd"
+      ],
+      "partition_id": "P23",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=0db1ad85cb67e6b9cdf91f5cab888f94d8711cab3512f364355bdd756a21d0dd"
+      ],
+      "reason_code": "MULTI_LEVEL_OR_NON_HLP_SCOPE",
+      "resolution_status": "AMBIGUOUS",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=0db1ad85cb67e6b9cdf91f5cab888f94d8711cab3512f364355bdd756a21d0dd"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/EPS/09_AUTRES/2021/enseignement-optionnel-d-eps-en-lycee-general-et-technologique-bo-n-25-du-24-juin-2021-pdf-1-23-mo--10a323a860.pdf",
+      "collection": null,
+      "content_sha256": "10a323a860621a9ca9d56f74753f8ad0da9983495912759a0bb2aa3c4f129be8",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=10a323a860621a9ca9d56f74753f8ad0da9983495912759a0bb2aa3c4f129be8"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=10a323a860621a9ca9d56f74753f8ad0da9983495912759a0bb2aa3c4f129be8"
+      ],
+      "partition_id": "P22",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=10a323a860621a9ca9d56f74753f8ad0da9983495912759a0bb2aa3c4f129be8"
+      ],
+      "reason_code": "MULTI_LEVEL_OR_CURRENTNESS_UNRESOLVED",
+      "resolution_status": "AMBIGUOUS",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=10a323a860621a9ca9d56f74753f8ad0da9983495912759a0bb2aa3c4f129be8"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHYSIQUE_CHIMIE/01_PROGRAMMES_OFFICIELS/2019/specialite-de-sciences-et-techniques-sanitaires-et-sociales-de-terminale-st2s-bo-special-n-8-du-25-juillet-2019-pdf-270-03-ko--110927ea81.pdf",
+      "collection": null,
+      "content_sha256": "110927ea81b43ebb987e06b70f088929a06cee360a9e994184162e8e553163d0",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=110927ea81b43ebb987e06b70f088929a06cee360a9e994184162e8e553163d0"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=110927ea81b43ebb987e06b70f088929a06cee360a9e994184162e8e553163d0"
+      ],
+      "partition_id": "P16",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=110927ea81b43ebb987e06b70f088929a06cee360a9e994184162e8e553163d0"
+      ],
+      "reason_code": "TECHNOLOGICAL_OR_UNRESOLVED_SCOPE_NOT_RELEASED",
+      "resolution_status": "UNRESOLVED",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=110927ea81b43ebb987e06b70f088929a06cee360a9e994184162e8e553163d0"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/SCIENCES_INGENIEUR/01_PROGRAMMES_OFFICIELS/2019/specialite-de-sciences-de-l-ingenieur-de-premiere-et-terminale-de-la-voie-generale-bo-special-n-1-du-22-janvier-2019-pdf-307-16-ko--158d751dda.pdf",
+      "collection": null,
+      "content_sha256": "158d751dda6c5fb891a7b9292dd6406e34e890a303a0de9728ee8911eb290feb",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=158d751dda6c5fb891a7b9292dd6406e34e890a303a0de9728ee8911eb290feb"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=158d751dda6c5fb891a7b9292dd6406e34e890a303a0de9728ee8911eb290feb"
+      ],
+      "partition_id": "P17",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=158d751dda6c5fb891a7b9292dd6406e34e890a303a0de9728ee8911eb290feb"
+      ],
+      "reason_code": "MULTI_LEVEL_DOCUMENT",
+      "resolution_status": "AMBIGUOUS",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=158d751dda6c5fb891a7b9292dd6406e34e890a303a0de9728ee8911eb290feb"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHYSIQUE_CHIMIE/01_PROGRAMMES_OFFICIELS/2019/specialite-de-biologie-et-physiopathologie-humaines-de-premiere-st2s-bo-special-n-1-du-22-janvier-2019-pdf-252-28-ko--180da15944.pdf",
+      "collection": null,
+      "content_sha256": "180da15944b05620a0ac52f43114f1d884f3c5a51f8caa49edf6570476586f63",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=180da15944b05620a0ac52f43114f1d884f3c5a51f8caa49edf6570476586f63"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=180da15944b05620a0ac52f43114f1d884f3c5a51f8caa49edf6570476586f63"
+      ],
+      "partition_id": "P16",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=180da15944b05620a0ac52f43114f1d884f3c5a51f8caa49edf6570476586f63"
+      ],
+      "reason_code": "TECHNOLOGICAL_OR_UNRESOLVED_SCOPE_NOT_RELEASED",
+      "resolution_status": "UNRESOLVED",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=180da15944b05620a0ac52f43114f1d884f3c5a51f8caa49edf6570476586f63"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHYSIQUE_CHIMIE/01_PROGRAMMES_OFFICIELS/2019/specialite-de-biotechnologies-de-premiere-stl-bo-special-n-1-du-22-janvier-2019-pdf-445-33-ko--18aa40aa5d.pdf",
+      "collection": null,
+      "content_sha256": "18aa40aa5d1edc2f16b89942977e1e720c6ce386e23ac2010e60ac3362d8c96a",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=18aa40aa5d1edc2f16b89942977e1e720c6ce386e23ac2010e60ac3362d8c96a"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=18aa40aa5d1edc2f16b89942977e1e720c6ce386e23ac2010e60ac3362d8c96a"
+      ],
+      "partition_id": "P16",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=18aa40aa5d1edc2f16b89942977e1e720c6ce386e23ac2010e60ac3362d8c96a"
+      ],
+      "reason_code": "TECHNOLOGICAL_OR_UNRESOLVED_SCOPE_NOT_RELEASED",
+      "resolution_status": "UNRESOLVED",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=18aa40aa5d1edc2f16b89942977e1e720c6ce386e23ac2010e60ac3362d8c96a"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHYSIQUE_CHIMIE/04_EVALUATIONS_EXAMENS/2019/autour-des-espaces-de-couleurs-pdf-2-61-mo--1f4030b239.pdf",
+      "collection": null,
+      "content_sha256": "1f4030b23915dafe0daf17044b104eafcabb2286056db635fc2a15a18f2701df",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=1f4030b23915dafe0daf17044b104eafcabb2286056db635fc2a15a18f2701df"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=1f4030b23915dafe0daf17044b104eafcabb2286056db635fc2a15a18f2701df"
+      ],
+      "partition_id": "P16",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=1f4030b23915dafe0daf17044b104eafcabb2286056db635fc2a15a18f2701df"
+      ],
+      "reason_code": "TECHNOLOGICAL_OR_UNRESOLVED_SCOPE_NOT_RELEASED",
+      "resolution_status": "UNRESOLVED",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=1f4030b23915dafe0daf17044b104eafcabb2286056db635fc2a15a18f2701df"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHYSIQUE_CHIMIE/01_PROGRAMMES_OFFICIELS/2019/specialites-de-design-et-metiers-d-arts-de-premiere-d-analyse-et-methode-en-design-et-de-conception-et-creation-en-design-et-metie--2b27e6d191.pdf",
+      "collection": null,
+      "content_sha256": "2b27e6d1915bfd96921c1432534b3d69dc2e72009a4d1cdf21969bd87189bbf0",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=2b27e6d1915bfd96921c1432534b3d69dc2e72009a4d1cdf21969bd87189bbf0"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=2b27e6d1915bfd96921c1432534b3d69dc2e72009a4d1cdf21969bd87189bbf0"
+      ],
+      "partition_id": "P16",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=2b27e6d1915bfd96921c1432534b3d69dc2e72009a4d1cdf21969bd87189bbf0"
+      ],
+      "reason_code": "TECHNOLOGICAL_OR_UNRESOLVED_SCOPE_NOT_RELEASED",
+      "resolution_status": "UNRESOLVED",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=2b27e6d1915bfd96921c1432534b3d69dc2e72009a4d1cdf21969bd87189bbf0"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/_MULTI_DISCIPLINES/01_PROGRAMMES_OFFICIELS/2019/option-arts-en-premiere-et-terminale-des-voies-generale-et-technologique-bo-special-n-1-du-22-janvier-2019-pdf-458-97-ko--2b7b89b5ac.pdf",
+      "collection": null,
+      "content_sha256": "2b7b89b5ac4794716bc38bef88c18c2cc23194ceea985df0b9c24934cccc5857",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=2b7b89b5ac4794716bc38bef88c18c2cc23194ceea985df0b9c24934cccc5857"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=2b7b89b5ac4794716bc38bef88c18c2cc23194ceea985df0b9c24934cccc5857"
+      ],
+      "partition_id": "P12",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=2b7b89b5ac4794716bc38bef88c18c2cc23194ceea985df0b9c24934cccc5857"
+      ],
+      "reason_code": "MULTIPLE_ARTS_SUBJECTS_LEVELS_AND_VOIES",
+      "resolution_status": "AMBIGUOUS",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=2b7b89b5ac4794716bc38bef88c18c2cc23194ceea985df0b9c24934cccc5857"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHYSIQUE_CHIMIE/01_PROGRAMMES_OFFICIELS/2019/specialite-de-chimie-biologie-et-physiopathologie-humaines-de-terminale-st2s-bo-special-n-8-du-25-juillet-2019-pdf-530-92-ko--2c3b0bed5c.pdf",
+      "collection": null,
+      "content_sha256": "2c3b0bed5cac0678a08d9e3c25f68ba4e607d995a40ab549a7a5a870fae7538c",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=2c3b0bed5cac0678a08d9e3c25f68ba4e607d995a40ab549a7a5a870fae7538c"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=2c3b0bed5cac0678a08d9e3c25f68ba4e607d995a40ab549a7a5a870fae7538c"
+      ],
+      "partition_id": "P16",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=2c3b0bed5cac0678a08d9e3c25f68ba4e607d995a40ab549a7a5a870fae7538c"
+      ],
+      "reason_code": "TECHNOLOGICAL_OR_UNRESOLVED_SCOPE_NOT_RELEASED",
+      "resolution_status": "UNRESOLVED",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=2c3b0bed5cac0678a08d9e3c25f68ba4e607d995a40ab549a7a5a870fae7538c"
+      ]
+    },
+    {
+      "audience": [
+        "libre",
+        "tous"
+      ],
+      "candidat": "libre",
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/SES/01_PROGRAMMES_OFFICIELS/2019/specialite-ses-de-terminale-generale-bo-special-n-8-du-25-juillet-2019-pdf-193-63-ko--2f1035c74d.pdf",
+      "collection": "rag_nexus_ses_terminale_specialite",
+      "content_sha256": "2f1035c74db485d12e80d7c887cb9090807be32e5f79a6074d2decb1073ec154",
+      "matiere": "ses",
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=2f1035c74db485d12e80d7c887cb9090807be32e5f79a6074d2decb1073ec154"
+      ],
+      "niveau": "terminale",
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=2f1035c74db485d12e80d7c887cb9090807be32e5f79a6074d2decb1073ec154"
+      ],
+      "partition_id": "P18",
+      "product_policy_evidence": [
+        "services/rag-pedago/configs/production_profile_decisions_20260825.json#product_defaults"
+      ],
+      "profile_fingerprint": "41ab44973d81f6b4b53e91ff65a74fcab1cb0940476ba078007ae272cc653256",
+      "profile_id": "rag_nexus_ses_terminale_specialite",
+      "profile_version": "profile-gate-v1",
+      "programme_version": "BOEN_special_8_2019-07-25",
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=2f1035c74db485d12e80d7c887cb9090807be32e5f79a6074d2decb1073ec154",
+        "BOEN_special_8_2019-07-25"
+      ],
+      "reason_code": "PRIMARY_SCOPE_PROVEN",
+      "resolution_status": "EXACTLY_GROUNDED",
+      "school_year": "2026-2027",
+      "tenant": "libre_terminale",
+      "visibility": "internal",
+      "voie": "generale",
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=2f1035c74db485d12e80d7c887cb9090807be32e5f79a6074d2decb1073ec154"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHYSIQUE_CHIMIE/03_RESSOURCES_ACCOMPAGNEMENT/2019/idees-d-activites-pour-une-sequence-comment-les-aliments-sont-ils-transformes-dans-le-tube-digestif-pdf-509-16-ko--35c722211a.pdf",
+      "collection": null,
+      "content_sha256": "35c722211ab08dce596b2298ee34b7070fe305bdb31228738a49535b73369134",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=35c722211ab08dce596b2298ee34b7070fe305bdb31228738a49535b73369134"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=35c722211ab08dce596b2298ee34b7070fe305bdb31228738a49535b73369134"
+      ],
+      "partition_id": "P16",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=35c722211ab08dce596b2298ee34b7070fe305bdb31228738a49535b73369134"
+      ],
+      "reason_code": "TECHNOLOGICAL_OR_UNRESOLVED_SCOPE_NOT_RELEASED",
+      "resolution_status": "UNRESOLVED",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=35c722211ab08dce596b2298ee34b7070fe305bdb31228738a49535b73369134"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/_MULTI_DISCIPLINES/01_PROGRAMMES_OFFICIELS/2019/specialite-arts-en-premiere-et-terminale-de-la-voie-generale-bo-special-n-1-du-22-janvier-2019-pdf-637-88-ko--371d0c82ed.pdf",
+      "collection": null,
+      "content_sha256": "371d0c82ed1f47614ee9cbfdaa86cfb4add1f239a84882d9731fbd125105925d",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=371d0c82ed1f47614ee9cbfdaa86cfb4add1f239a84882d9731fbd125105925d"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=371d0c82ed1f47614ee9cbfdaa86cfb4add1f239a84882d9731fbd125105925d"
+      ],
+      "partition_id": "P11",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=371d0c82ed1f47614ee9cbfdaa86cfb4add1f239a84882d9731fbd125105925d"
+      ],
+      "reason_code": "MULTIPLE_ARTS_SUBJECTS_AND_LEVELS",
+      "resolution_status": "AMBIGUOUS",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=371d0c82ed1f47614ee9cbfdaa86cfb4add1f239a84882d9731fbd125105925d"
+      ]
+    },
+    {
+      "audience": [
+        "libre",
+        "tous"
+      ],
+      "candidat": "libre",
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/_MULTI_DISCIPLINES/05_ANNALES_SUJETS_CORRIGES/2019/exemple-de-sujet-commente-sujet-zero-n-2-sur-le-theme-de-la-parole-pdf-153-37-ko--4433fee96b.pdf",
+      "collection": "rag_nexus_hlp_premiere_specialite",
+      "content_sha256": "4433fee96b6e803c71edf2764d99bd269e649dcff646aee97327fdfeed143f13",
+      "matiere": "hlp",
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=4433fee96b6e803c71edf2764d99bd269e649dcff646aee97327fdfeed143f13"
+      ],
+      "niveau": "premiere",
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=4433fee96b6e803c71edf2764d99bd269e649dcff646aee97327fdfeed143f13"
+      ],
+      "partition_id": "P23",
+      "product_policy_evidence": [
+        "services/rag-pedago/configs/production_profile_decisions_20260825.json#product_defaults"
+      ],
+      "profile_fingerprint": "48d961d273ab30eefd5d473b6680b2037176eb74934b314db28625b21c65bc35",
+      "profile_id": "rag_nexus_hlp_premiere_specialite",
+      "profile_version": "profile-gate-v1",
+      "programme_version": "BOEN_special_1_2019-01-22",
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=4433fee96b6e803c71edf2764d99bd269e649dcff646aee97327fdfeed143f13",
+        "BOEN_special_1_2019-01-22"
+      ],
+      "reason_code": "PRIMARY_SCOPE_PROVEN",
+      "resolution_status": "EXACTLY_GROUNDED",
+      "school_year": "2026-2027",
+      "tenant": "libre_premiere",
+      "visibility": "internal",
+      "voie": "generale",
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=4433fee96b6e803c71edf2764d99bd269e649dcff646aee97327fdfeed143f13"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/DANSE/01_PROGRAMMES_OFFICIELS/2020/les-pourcentages-horaires-pdf-155-25-ko--50f41ad38f.pdf",
+      "collection": null,
+      "content_sha256": "50f41ad38fe81e21bbebac7cc377f9c67b060444bca196d4a1d27bd7050b4f8b",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=50f41ad38fe81e21bbebac7cc377f9c67b060444bca196d4a1d27bd7050b4f8b"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=50f41ad38fe81e21bbebac7cc377f9c67b060444bca196d4a1d27bd7050b4f8b"
+      ],
+      "partition_id": "P20",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=50f41ad38fe81e21bbebac7cc377f9c67b060444bca196d4a1d27bd7050b4f8b"
+      ],
+      "reason_code": "TECHNOLOGICAL_TRANSVERSAL_SCOPE_NOT_RELEASED",
+      "resolution_status": "UNRESOLVED",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=50f41ad38fe81e21bbebac7cc377f9c67b060444bca196d4a1d27bd7050b4f8b"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/DANSE/01_PROGRAMMES_OFFICIELS/2019/specialite-de-culture-et-sciences-choregraphiques-musicales-ou-theatrales-et-de-pratique-choregraphique-musicale-ou-theatrale-de-p--5d5ec2767c.pdf",
+      "collection": null,
+      "content_sha256": "5d5ec2767ce9daed3c270a55be860198e089ed6fe4fe72c9b9ea93024e45c9fa",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=5d5ec2767ce9daed3c270a55be860198e089ed6fe4fe72c9b9ea93024e45c9fa"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=5d5ec2767ce9daed3c270a55be860198e089ed6fe4fe72c9b9ea93024e45c9fa"
+      ],
+      "partition_id": "P13",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=5d5ec2767ce9daed3c270a55be860198e089ed6fe4fe72c9b9ea93024e45c9fa"
+      ],
+      "reason_code": "TECHNOLOGICAL_SCOPE_NOT_RELEASED",
+      "resolution_status": "UNRESOLVED",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=5d5ec2767ce9daed3c270a55be860198e089ed6fe4fe72c9b9ea93024e45c9fa"
+      ]
+    },
+    {
+      "audience": [
+        "libre",
+        "tous"
+      ],
+      "candidat": "libre",
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/_MULTI_DISCIPLINES/03_RESSOURCES_ACCOMPAGNEMENT/2019/litterature-l-apprentissage-de-l-oral-au-service-de-l-etude-des-textes-pdf-211-27-ko--60eeb7dd1e.pdf",
+      "collection": "rag_nexus_hlp_premiere_specialite",
+      "content_sha256": "60eeb7dd1ee55d1ed2bb2c7671ecf3c971aeef6996db2bc7cd9c7919ae4b19ac",
+      "matiere": "hlp",
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=60eeb7dd1ee55d1ed2bb2c7671ecf3c971aeef6996db2bc7cd9c7919ae4b19ac"
+      ],
+      "niveau": "premiere",
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=60eeb7dd1ee55d1ed2bb2c7671ecf3c971aeef6996db2bc7cd9c7919ae4b19ac"
+      ],
+      "partition_id": "P23",
+      "product_policy_evidence": [
+        "services/rag-pedago/configs/production_profile_decisions_20260825.json#product_defaults"
+      ],
+      "profile_fingerprint": "48d961d273ab30eefd5d473b6680b2037176eb74934b314db28625b21c65bc35",
+      "profile_id": "rag_nexus_hlp_premiere_specialite",
+      "profile_version": "profile-gate-v1",
+      "programme_version": "BOEN_special_1_2019-01-22",
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=60eeb7dd1ee55d1ed2bb2c7671ecf3c971aeef6996db2bc7cd9c7919ae4b19ac",
+        "BOEN_special_1_2019-01-22"
+      ],
+      "reason_code": "PRIMARY_SCOPE_PROVEN",
+      "resolution_status": "EXACTLY_GROUNDED",
+      "school_year": "2026-2027",
+      "tenant": "libre_premiere",
+      "visibility": "internal",
+      "voie": "generale",
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=60eeb7dd1ee55d1ed2bb2c7671ecf3c971aeef6996db2bc7cd9c7919ae4b19ac"
+      ]
+    },
+    {
+      "audience": [
+        "libre",
+        "tous"
+      ],
+      "candidat": "libre",
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/_MULTI_DISCIPLINES/03_RESSOURCES_ACCOMPAGNEMENT/2019/philosophie-l-apprentissage-de-l-oral-au-service-de-l-etude-des-textes-pdf-157-47-ko--64f5b3427d.pdf",
+      "collection": "rag_nexus_hlp_premiere_specialite",
+      "content_sha256": "64f5b3427dee3b23d421fe03cb2f3aac75e0e47cee31be91b197d4e09c012987",
+      "matiere": "hlp",
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=64f5b3427dee3b23d421fe03cb2f3aac75e0e47cee31be91b197d4e09c012987"
+      ],
+      "niveau": "premiere",
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=64f5b3427dee3b23d421fe03cb2f3aac75e0e47cee31be91b197d4e09c012987"
+      ],
+      "partition_id": "P23",
+      "product_policy_evidence": [
+        "services/rag-pedago/configs/production_profile_decisions_20260825.json#product_defaults"
+      ],
+      "profile_fingerprint": "48d961d273ab30eefd5d473b6680b2037176eb74934b314db28625b21c65bc35",
+      "profile_id": "rag_nexus_hlp_premiere_specialite",
+      "profile_version": "profile-gate-v1",
+      "programme_version": "BOEN_special_1_2019-01-22",
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=64f5b3427dee3b23d421fe03cb2f3aac75e0e47cee31be91b197d4e09c012987",
+        "BOEN_special_1_2019-01-22"
+      ],
+      "reason_code": "PRIMARY_SCOPE_PROVEN",
+      "resolution_status": "EXACTLY_GROUNDED",
+      "school_year": "2026-2027",
+      "tenant": "libre_premiere",
+      "visibility": "internal",
+      "voie": "generale",
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=64f5b3427dee3b23d421fe03cb2f3aac75e0e47cee31be91b197d4e09c012987"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHYSIQUE_CHIMIE/01_PROGRAMMES_OFFICIELS/2019/specialite-de-sciences-physiques-et-chimiques-en-laboratoire-de-terminale-stl-bo-special-n-8-du-25-juillet-2019-pdf-458-74-ko--6a4e9ac308.pdf",
+      "collection": null,
+      "content_sha256": "6a4e9ac308d03294bf2cd59cbe829cce41fd2912eca5f3bbeafa2430e96959c6",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=6a4e9ac308d03294bf2cd59cbe829cce41fd2912eca5f3bbeafa2430e96959c6"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=6a4e9ac308d03294bf2cd59cbe829cce41fd2912eca5f3bbeafa2430e96959c6"
+      ],
+      "partition_id": "P16",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=6a4e9ac308d03294bf2cd59cbe829cce41fd2912eca5f3bbeafa2430e96959c6"
+      ],
+      "reason_code": "TECHNOLOGICAL_OR_UNRESOLVED_SCOPE_NOT_RELEASED",
+      "resolution_status": "UNRESOLVED",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=6a4e9ac308d03294bf2cd59cbe829cce41fd2912eca5f3bbeafa2430e96959c6"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHYSIQUE_CHIMIE/01_PROGRAMMES_OFFICIELS/2019/specialite-de-sciences-et-techniques-sanitaires-et-sociales-de-premiere-st2s-bo-special-n-1-du-22-janvier-2019-pdf-189-51-ko--6a87dabbee.pdf",
+      "collection": null,
+      "content_sha256": "6a87dabbeebdd35025b7e839545552d3b0a3fd155779473372e5e4c736c7e9b6",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=6a87dabbeebdd35025b7e839545552d3b0a3fd155779473372e5e4c736c7e9b6"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=6a87dabbeebdd35025b7e839545552d3b0a3fd155779473372e5e4c736c7e9b6"
+      ],
+      "partition_id": "P16",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=6a87dabbeebdd35025b7e839545552d3b0a3fd155779473372e5e4c736c7e9b6"
+      ],
+      "reason_code": "TECHNOLOGICAL_OR_UNRESOLVED_SCOPE_NOT_RELEASED",
+      "resolution_status": "UNRESOLVED",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=6a87dabbeebdd35025b7e839545552d3b0a3fd155779473372e5e4c736c7e9b6"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHYSIQUE_CHIMIE/01_PROGRAMMES_OFFICIELS/2019/specialite-de-physique-chimie-de-premiere-std2a-bo-special-n-1-du-22-janvier-2019-pdf-303-34-ko--6d5ae8e1d2.pdf",
+      "collection": null,
+      "content_sha256": "6d5ae8e1d2972cd658e2ae3eeeac57dfe2f9dcd1313c3669e3b18536eafb37eb",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=6d5ae8e1d2972cd658e2ae3eeeac57dfe2f9dcd1313c3669e3b18536eafb37eb"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=6d5ae8e1d2972cd658e2ae3eeeac57dfe2f9dcd1313c3669e3b18536eafb37eb"
+      ],
+      "partition_id": "P16",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=6d5ae8e1d2972cd658e2ae3eeeac57dfe2f9dcd1313c3669e3b18536eafb37eb"
+      ],
+      "reason_code": "TECHNOLOGICAL_OR_UNRESOLVED_SCOPE_NOT_RELEASED",
+      "resolution_status": "UNRESOLVED",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=6d5ae8e1d2972cd658e2ae3eeeac57dfe2f9dcd1313c3669e3b18536eafb37eb"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/_MULTI_DISCIPLINES/01_PROGRAMMES_OFFICIELS/2023/la-peau-de-chagrin-textes-complementaires-pdf-184-36-ko--6df4bf3b94.pdf",
+      "collection": null,
+      "content_sha256": "6df4bf3b942c64956696e26f44b5760e9755e435b239098e1aa9d79f44472d4b",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=6df4bf3b942c64956696e26f44b5760e9755e435b239098e1aa9d79f44472d4b"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=6df4bf3b942c64956696e26f44b5760e9755e435b239098e1aa9d79f44472d4b"
+      ],
+      "partition_id": "P23",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=6df4bf3b942c64956696e26f44b5760e9755e435b239098e1aa9d79f44472d4b"
+      ],
+      "reason_code": "MULTI_LEVEL_OR_NON_HLP_SCOPE",
+      "resolution_status": "AMBIGUOUS",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=6df4bf3b942c64956696e26f44b5760e9755e435b239098e1aa9d79f44472d4b"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/EPS/02_REPERES_ATTENDUS/2019/enseignement-commun-d-eps-en-lycee-general-et-technologique-bo-special-n-1-du-22-janvier-2019-pdf-286-11-ko--6dfd563ac7.pdf",
+      "collection": null,
+      "content_sha256": "6dfd563ac720e8a91f5a0b8a536cc9554d27da9984014351e0dd92c1f88d66fb",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=6dfd563ac720e8a91f5a0b8a536cc9554d27da9984014351e0dd92c1f88d66fb"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=6dfd563ac720e8a91f5a0b8a536cc9554d27da9984014351e0dd92c1f88d66fb"
+      ],
+      "partition_id": "P22",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=6dfd563ac720e8a91f5a0b8a536cc9554d27da9984014351e0dd92c1f88d66fb"
+      ],
+      "reason_code": "MULTI_LEVEL_OR_CURRENTNESS_UNRESOLVED",
+      "resolution_status": "AMBIGUOUS",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=6dfd563ac720e8a91f5a0b8a536cc9554d27da9984014351e0dd92c1f88d66fb"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/MATHEMATIQUES/01_PROGRAMMES_OFFICIELS/2019/automatismes-seconde-gt-premiere-gt-pdf-949-91-ko--8082e4da17.pdf",
+      "collection": null,
+      "content_sha256": "8082e4da17d8da5985bdae8f5651ae8e0ee5314f8a571d5c8912e7ab87110263",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=8082e4da17d8da5985bdae8f5651ae8e0ee5314f8a571d5c8912e7ab87110263"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=8082e4da17d8da5985bdae8f5651ae8e0ee5314f8a571d5c8912e7ab87110263"
+      ],
+      "partition_id": "P15",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=8082e4da17d8da5985bdae8f5651ae8e0ee5314f8a571d5c8912e7ab87110263"
+      ],
+      "reason_code": "MULTI_LEVEL_MULTI_VOIE_DOCUMENT",
+      "resolution_status": "AMBIGUOUS",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=8082e4da17d8da5985bdae8f5651ae8e0ee5314f8a571d5c8912e7ab87110263"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHYSIQUE_CHIMIE/01_PROGRAMMES_OFFICIELS/2019/specialite-d-outils-et-langages-numeriques-de-premiere-std2a-bo-special-n-1-du-22-janvier-2019-pdf-180-28-ko--894a0abfb3.pdf",
+      "collection": null,
+      "content_sha256": "894a0abfb369a133327697df30a46bceceed62eecc66ece982a706fe7c23d69f",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=894a0abfb369a133327697df30a46bceceed62eecc66ece982a706fe7c23d69f"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=894a0abfb369a133327697df30a46bceceed62eecc66ece982a706fe7c23d69f"
+      ],
+      "partition_id": "P16",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=894a0abfb369a133327697df30a46bceceed62eecc66ece982a706fe7c23d69f"
+      ],
+      "reason_code": "TECHNOLOGICAL_OR_UNRESOLVED_SCOPE_NOT_RELEASED",
+      "resolution_status": "UNRESOLVED",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=894a0abfb369a133327697df30a46bceceed62eecc66ece982a706fe7c23d69f"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHYSIQUE_CHIMIE/01_PROGRAMMES_OFFICIELS/2019/specialite-de-physique-chimie-et-mathematiques-de-terminale-stl-bo-special-n-8-du-25-juillet-2019-pdf-529-03-ko--8c206f7143.pdf",
+      "collection": null,
+      "content_sha256": "8c206f7143c667f43bdcb4ad5bff04ec0de9417f50847730b01810c569898c32",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=8c206f7143c667f43bdcb4ad5bff04ec0de9417f50847730b01810c569898c32"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=8c206f7143c667f43bdcb4ad5bff04ec0de9417f50847730b01810c569898c32"
+      ],
+      "partition_id": "P16",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=8c206f7143c667f43bdcb4ad5bff04ec0de9417f50847730b01810c569898c32"
+      ],
+      "reason_code": "TECHNOLOGICAL_OR_UNRESOLVED_SCOPE_NOT_RELEASED",
+      "resolution_status": "UNRESOLVED",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=8c206f7143c667f43bdcb4ad5bff04ec0de9417f50847730b01810c569898c32"
+      ]
+    },
+    {
+      "audience": [
+        "libre",
+        "tous"
+      ],
+      "candidat": "libre",
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/SVT/01_PROGRAMMES_OFFICIELS/2019/specialite-svt-de-premiere-generale-bo-special-n-1-du-22-janvier-2019-pdf-405-48-ko--8eb0e41f95.pdf",
+      "collection": "rag_nexus_svt_premiere_specialite",
+      "content_sha256": "8eb0e41f95bf4aca37e6231c06109579faf6bf410d6bd2bc210574e66e2762fa",
+      "matiere": "svt",
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=8eb0e41f95bf4aca37e6231c06109579faf6bf410d6bd2bc210574e66e2762fa"
+      ],
+      "niveau": "premiere",
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=8eb0e41f95bf4aca37e6231c06109579faf6bf410d6bd2bc210574e66e2762fa"
+      ],
+      "partition_id": "P19",
+      "product_policy_evidence": [
+        "services/rag-pedago/configs/production_profile_decisions_20260825.json#product_defaults"
+      ],
+      "profile_fingerprint": "de3a4b05be3c066ad531347f400279bf42192e286d23394ecd2566b677bc409d",
+      "profile_id": "rag_nexus_svt_premiere_specialite",
+      "profile_version": "profile-gate-v1",
+      "programme_version": "BOEN_special_1_2019-01-22",
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=8eb0e41f95bf4aca37e6231c06109579faf6bf410d6bd2bc210574e66e2762fa",
+        "BOEN_special_1_2019-01-22"
+      ],
+      "reason_code": "PRIMARY_SCOPE_PROVEN",
+      "resolution_status": "EXACTLY_GROUNDED",
+      "school_year": "2026-2027",
+      "tenant": "libre_premiere",
+      "visibility": "internal",
+      "voie": "generale",
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=8eb0e41f95bf4aca37e6231c06109579faf6bf410d6bd2bc210574e66e2762fa"
+      ]
+    },
+    {
+      "audience": [
+        "libre",
+        "tous"
+      ],
+      "candidat": "libre",
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/_MULTI_DISCIPLINES/05_ANNALES_SUJETS_CORRIGES/2019/exemple-de-sujet-commente-sujet-zero-n-3-sur-le-theme-des-representations-du-monde-pdf-172-29-ko--9357dfdebc.pdf",
+      "collection": "rag_nexus_hlp_premiere_specialite",
+      "content_sha256": "9357dfdebca347264787dfebacb674666d87660b82f789657ddd230c7ff224aa",
+      "matiere": "hlp",
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=9357dfdebca347264787dfebacb674666d87660b82f789657ddd230c7ff224aa"
+      ],
+      "niveau": "premiere",
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=9357dfdebca347264787dfebacb674666d87660b82f789657ddd230c7ff224aa"
+      ],
+      "partition_id": "P23",
+      "product_policy_evidence": [
+        "services/rag-pedago/configs/production_profile_decisions_20260825.json#product_defaults"
+      ],
+      "profile_fingerprint": "48d961d273ab30eefd5d473b6680b2037176eb74934b314db28625b21c65bc35",
+      "profile_id": "rag_nexus_hlp_premiere_specialite",
+      "profile_version": "profile-gate-v1",
+      "programme_version": "BOEN_special_1_2019-01-22",
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=9357dfdebca347264787dfebacb674666d87660b82f789657ddd230c7ff224aa",
+        "BOEN_special_1_2019-01-22"
+      ],
+      "reason_code": "PRIMARY_SCOPE_PROVEN",
+      "resolution_status": "EXACTLY_GROUNDED",
+      "school_year": "2026-2027",
+      "tenant": "libre_premiere",
+      "visibility": "internal",
+      "voie": "generale",
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=9357dfdebca347264787dfebacb674666d87660b82f789657ddd230c7ff224aa"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/_MULTI_DISCIPLINES/03_RESSOURCES_ACCOMPAGNEMENT/2019/l-oral-dans-l-enseignement-humanites-litterature-et-philosophie-pdf-146-22-ko--9584c59a1c.pdf",
+      "collection": null,
+      "content_sha256": "9584c59a1cacaabf1e8325de74904e3015168b2abee3f66a2635746ff7e5cbc6",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=9584c59a1cacaabf1e8325de74904e3015168b2abee3f66a2635746ff7e5cbc6"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=9584c59a1cacaabf1e8325de74904e3015168b2abee3f66a2635746ff7e5cbc6"
+      ],
+      "partition_id": "P23",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=9584c59a1cacaabf1e8325de74904e3015168b2abee3f66a2635746ff7e5cbc6"
+      ],
+      "reason_code": "MULTI_LEVEL_OR_NON_HLP_SCOPE",
+      "resolution_status": "AMBIGUOUS",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=9584c59a1cacaabf1e8325de74904e3015168b2abee3f66a2635746ff7e5cbc6"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHYSIQUE_CHIMIE/01_PROGRAMMES_OFFICIELS/2019/specialite-de-sciences-physiques-et-chimiques-en-laboratoire-de-premiere-stl-bo-special-n-1-du-22-janvier-2019-pdf-394-95-ko--95c2136960.pdf",
+      "collection": null,
+      "content_sha256": "95c2136960602d83c393fb2c779a55077da5992ace8e5a28ead5c115f5d139c1",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=95c2136960602d83c393fb2c779a55077da5992ace8e5a28ead5c115f5d139c1"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=95c2136960602d83c393fb2c779a55077da5992ace8e5a28ead5c115f5d139c1"
+      ],
+      "partition_id": "P16",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=95c2136960602d83c393fb2c779a55077da5992ace8e5a28ead5c115f5d139c1"
+      ],
+      "reason_code": "TECHNOLOGICAL_OR_UNRESOLVED_SCOPE_NOT_RELEASED",
+      "resolution_status": "UNRESOLVED",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=95c2136960602d83c393fb2c779a55077da5992ace8e5a28ead5c115f5d139c1"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHYSIQUE_CHIMIE/01_PROGRAMMES_OFFICIELS/2019/specialite-de-physique-chimie-et-mathematiques-de-terminale-sti2d-bo-special-n-8-du-25-juillet-2019-pdf-624-61-ko--9827a07fef.pdf",
+      "collection": null,
+      "content_sha256": "9827a07fefd9c196160ab320207e4676d580f9300fe54647ac37a178056438ef",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=9827a07fefd9c196160ab320207e4676d580f9300fe54647ac37a178056438ef"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=9827a07fefd9c196160ab320207e4676d580f9300fe54647ac37a178056438ef"
+      ],
+      "partition_id": "P16",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=9827a07fefd9c196160ab320207e4676d580f9300fe54647ac37a178056438ef"
+      ],
+      "reason_code": "TECHNOLOGICAL_OR_UNRESOLVED_SCOPE_NOT_RELEASED",
+      "resolution_status": "UNRESOLVED",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=9827a07fefd9c196160ab320207e4676d580f9300fe54647ac37a178056438ef"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/DANSE/03_RESSOURCES_ACCOMPAGNEMENT/2020/modele-de-convention-s2tmd-pdf-219-39-ko--9b48e35c1f.pdf",
+      "collection": null,
+      "content_sha256": "9b48e35c1f9826101ad6e2460291024e395713b25d0e8452d0ca9c24ba7b3090",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=9b48e35c1f9826101ad6e2460291024e395713b25d0e8452d0ca9c24ba7b3090"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=9b48e35c1f9826101ad6e2460291024e395713b25d0e8452d0ca9c24ba7b3090"
+      ],
+      "partition_id": "P20",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=9b48e35c1f9826101ad6e2460291024e395713b25d0e8452d0ca9c24ba7b3090"
+      ],
+      "reason_code": "TECHNOLOGICAL_TRANSVERSAL_SCOPE_NOT_RELEASED",
+      "resolution_status": "UNRESOLVED",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=9b48e35c1f9826101ad6e2460291024e395713b25d0e8452d0ca9c24ba7b3090"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHYSIQUE_CHIMIE/01_PROGRAMMES_OFFICIELS/2019/notice-de-presentation-de-l-outil-d-aide-a-l-elaboration-d-une-progression-pedagogique-en-enseignement-de-specialite-biochimie-bio--9ba95c3e46.pdf",
+      "collection": null,
+      "content_sha256": "9ba95c3e46b3af343b03868fa1cea4155bac556c49184e40c1b5fecef22b26ee",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=9ba95c3e46b3af343b03868fa1cea4155bac556c49184e40c1b5fecef22b26ee"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=9ba95c3e46b3af343b03868fa1cea4155bac556c49184e40c1b5fecef22b26ee"
+      ],
+      "partition_id": "P16",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=9ba95c3e46b3af343b03868fa1cea4155bac556c49184e40c1b5fecef22b26ee"
+      ],
+      "reason_code": "TECHNOLOGICAL_OR_UNRESOLVED_SCOPE_NOT_RELEASED",
+      "resolution_status": "UNRESOLVED",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=9ba95c3e46b3af343b03868fa1cea4155bac556c49184e40c1b5fecef22b26ee"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/_MULTI_DISCIPLINES/04_EVALUATIONS_EXAMENS/2019/les-attendus-des-epreuves-et-elements-d-evaluation-pdf-115-94-ko--a96e0f4b3b.pdf",
+      "collection": null,
+      "content_sha256": "a96e0f4b3b2d13528dc69f91ec01f26c81bfd17901306bd9bfa8841894233910",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=a96e0f4b3b2d13528dc69f91ec01f26c81bfd17901306bd9bfa8841894233910"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=a96e0f4b3b2d13528dc69f91ec01f26c81bfd17901306bd9bfa8841894233910"
+      ],
+      "partition_id": "P23",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=a96e0f4b3b2d13528dc69f91ec01f26c81bfd17901306bd9bfa8841894233910"
+      ],
+      "reason_code": "MULTI_LEVEL_OR_NON_HLP_SCOPE",
+      "resolution_status": "AMBIGUOUS",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=a96e0f4b3b2d13528dc69f91ec01f26c81bfd17901306bd9bfa8841894233910"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHYSIQUE_CHIMIE/03_RESSOURCES_ACCOMPAGNEMENT/2019/de-la-chimie-pour-une-exposition-art-et-sciences-pdf-1019-9-ko--b02a5c81ce.pdf",
+      "collection": null,
+      "content_sha256": "b02a5c81ce687aced5b626393b8fb0a61f4c40a6d73a99b6557eab0f19b91aa1",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=b02a5c81ce687aced5b626393b8fb0a61f4c40a6d73a99b6557eab0f19b91aa1"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=b02a5c81ce687aced5b626393b8fb0a61f4c40a6d73a99b6557eab0f19b91aa1"
+      ],
+      "partition_id": "P16",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=b02a5c81ce687aced5b626393b8fb0a61f4c40a6d73a99b6557eab0f19b91aa1"
+      ],
+      "reason_code": "TECHNOLOGICAL_OR_UNRESOLVED_SCOPE_NOT_RELEASED",
+      "resolution_status": "UNRESOLVED",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=b02a5c81ce687aced5b626393b8fb0a61f4c40a6d73a99b6557eab0f19b91aa1"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHYSIQUE_CHIMIE/01_PROGRAMMES_OFFICIELS/2019/specialite-de-physique-chimie-et-mathematiques-de-premiere-sti2d-bo-special-n-1-du-22-janvier-2019-pdf-551-16-ko--b244f70da5.pdf",
+      "collection": null,
+      "content_sha256": "b244f70da586a12b698d83df558741e3e060ea27606c6463ab3b38b82961e957",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=b244f70da586a12b698d83df558741e3e060ea27606c6463ab3b38b82961e957"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=b244f70da586a12b698d83df558741e3e060ea27606c6463ab3b38b82961e957"
+      ],
+      "partition_id": "P16",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=b244f70da586a12b698d83df558741e3e060ea27606c6463ab3b38b82961e957"
+      ],
+      "reason_code": "TECHNOLOGICAL_OR_UNRESOLVED_SCOPE_NOT_RELEASED",
+      "resolution_status": "UNRESOLVED",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=b244f70da586a12b698d83df558741e3e060ea27606c6463ab3b38b82961e957"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHYSIQUE_CHIMIE/03_RESSOURCES_ACCOMPAGNEMENT/2019/comment-caracteriser-une-couleur-pdf-853-56-ko--ba3c0600b3.pdf",
+      "collection": null,
+      "content_sha256": "ba3c0600b3912fdec61a7fdb77e248d75e8d233e581c3dd6625a4ba91be4cae1",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=ba3c0600b3912fdec61a7fdb77e248d75e8d233e581c3dd6625a4ba91be4cae1"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=ba3c0600b3912fdec61a7fdb77e248d75e8d233e581c3dd6625a4ba91be4cae1"
+      ],
+      "partition_id": "P16",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=ba3c0600b3912fdec61a7fdb77e248d75e8d233e581c3dd6625a4ba91be4cae1"
+      ],
+      "reason_code": "TECHNOLOGICAL_OR_UNRESOLVED_SCOPE_NOT_RELEASED",
+      "resolution_status": "UNRESOLVED",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=ba3c0600b3912fdec61a7fdb77e248d75e8d233e581c3dd6625a4ba91be4cae1"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/EPS/09_AUTRES/2021/enseignement-de-specialite-d-education-physique-pratiques-et-culture-sportives-pour-les-classes-de-premiere-et-terminale-de-la-voi--c11076f9dd.pdf",
+      "collection": null,
+      "content_sha256": "c11076f9ddd124abcbe5f8691ba9814a3b49b9fb171c4a4b5eac3ddabf09393b",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=c11076f9ddd124abcbe5f8691ba9814a3b49b9fb171c4a4b5eac3ddabf09393b"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=c11076f9ddd124abcbe5f8691ba9814a3b49b9fb171c4a4b5eac3ddabf09393b"
+      ],
+      "partition_id": "P14",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=c11076f9ddd124abcbe5f8691ba9814a3b49b9fb171c4a4b5eac3ddabf09393b"
+      ],
+      "reason_code": "MULTI_LEVEL_DOCUMENT",
+      "resolution_status": "AMBIGUOUS",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=c11076f9ddd124abcbe5f8691ba9814a3b49b9fb171c4a4b5eac3ddabf09393b"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHYSIQUE_CHIMIE/03_RESSOURCES_ACCOMPAGNEMENT/2019/activite-experimentale-sur-la-gravure-a-l-acide-pdf-559-18-ko--c1f1ed8682.pdf",
+      "collection": null,
+      "content_sha256": "c1f1ed86826fbe60856d77b2bd2187c9b3269e1c20a6786faface11ab4de554e",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=c1f1ed86826fbe60856d77b2bd2187c9b3269e1c20a6786faface11ab4de554e"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=c1f1ed86826fbe60856d77b2bd2187c9b3269e1c20a6786faface11ab4de554e"
+      ],
+      "partition_id": "P16",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=c1f1ed86826fbe60856d77b2bd2187c9b3269e1c20a6786faface11ab4de554e"
+      ],
+      "reason_code": "TECHNOLOGICAL_OR_UNRESOLVED_SCOPE_NOT_RELEASED",
+      "resolution_status": "UNRESOLVED",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=c1f1ed86826fbe60856d77b2bd2187c9b3269e1c20a6786faface11ab4de554e"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHYSIQUE_CHIMIE/03_RESSOURCES_ACCOMPAGNEMENT/2019/textile-eclairant-dans-l-automobile-pdf-648-99-ko--c61930f33e.pdf",
+      "collection": null,
+      "content_sha256": "c61930f33e28a7835055b075d6f2443c2226f280ecc46290db51bea2c2c7adc6",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=c61930f33e28a7835055b075d6f2443c2226f280ecc46290db51bea2c2c7adc6"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=c61930f33e28a7835055b075d6f2443c2226f280ecc46290db51bea2c2c7adc6"
+      ],
+      "partition_id": "P16",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=c61930f33e28a7835055b075d6f2443c2226f280ecc46290db51bea2c2c7adc6"
+      ],
+      "reason_code": "TECHNOLOGICAL_OR_UNRESOLVED_SCOPE_NOT_RELEASED",
+      "resolution_status": "UNRESOLVED",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=c61930f33e28a7835055b075d6f2443c2226f280ecc46290db51bea2c2c7adc6"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHYSIQUE_CHIMIE/03_RESSOURCES_ACCOMPAGNEMENT/2019/textile-chauffant-dans-l-automobile-pdf-248-5-ko--d01f7ccec1.pdf",
+      "collection": null,
+      "content_sha256": "d01f7ccec14a74fdc4d9d7dced867da8d11ce4fe271f7345b56f54b0af7b3566",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=d01f7ccec14a74fdc4d9d7dced867da8d11ce4fe271f7345b56f54b0af7b3566"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=d01f7ccec14a74fdc4d9d7dced867da8d11ce4fe271f7345b56f54b0af7b3566"
+      ],
+      "partition_id": "P16",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=d01f7ccec14a74fdc4d9d7dced867da8d11ce4fe271f7345b56f54b0af7b3566"
+      ],
+      "reason_code": "TECHNOLOGICAL_OR_UNRESOLVED_SCOPE_NOT_RELEASED",
+      "resolution_status": "UNRESOLVED",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=d01f7ccec14a74fdc4d9d7dced867da8d11ce4fe271f7345b56f54b0af7b3566"
+      ]
+    },
+    {
+      "audience": [
+        "libre",
+        "tous"
+      ],
+      "candidat": "libre",
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/SVT/01_PROGRAMMES_OFFICIELS/2019/specialite-svt-de-terminale-generale-bo-special-n-8-du-25-juillet-2019-pdf-455-06-ko--d2cbd06f2e.pdf",
+      "collection": "rag_nexus_svt_terminale_specialite",
+      "content_sha256": "d2cbd06f2e8099d9080f17f3abb5b0fc90460b86b3c11f808b99daa01f77f897",
+      "matiere": "svt",
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=d2cbd06f2e8099d9080f17f3abb5b0fc90460b86b3c11f808b99daa01f77f897"
+      ],
+      "niveau": "terminale",
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=d2cbd06f2e8099d9080f17f3abb5b0fc90460b86b3c11f808b99daa01f77f897"
+      ],
+      "partition_id": "P19",
+      "product_policy_evidence": [
+        "services/rag-pedago/configs/production_profile_decisions_20260825.json#product_defaults"
+      ],
+      "profile_fingerprint": "223c6a49a224a2636865c1b5fc15012f61b6f2888f408dca547142d961ae1f58",
+      "profile_id": "rag_nexus_svt_terminale_specialite",
+      "profile_version": "profile-gate-v1",
+      "programme_version": "BOEN_special_8_2019-07-25",
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=d2cbd06f2e8099d9080f17f3abb5b0fc90460b86b3c11f808b99daa01f77f897",
+        "BOEN_special_8_2019-07-25"
+      ],
+      "reason_code": "PRIMARY_SCOPE_PROVEN",
+      "resolution_status": "EXACTLY_GROUNDED",
+      "school_year": "2026-2027",
+      "tenant": "libre_terminale",
+      "visibility": "internal",
+      "voie": "generale",
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=d2cbd06f2e8099d9080f17f3abb5b0fc90460b86b3c11f808b99daa01f77f897"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHYSIQUE_CHIMIE/01_PROGRAMMES_OFFICIELS/2019/ressources-en-biochimie-biologie-pour-la-partie-c-du-module-thematique-2-physiologie-de-la-reproduction-pdf-1-52-mo--d3d47e1327.pdf",
+      "collection": null,
+      "content_sha256": "d3d47e13279c5b5d7086594bb480f6cf75d826e28a02aeb64183431ecf898d51",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=d3d47e13279c5b5d7086594bb480f6cf75d826e28a02aeb64183431ecf898d51"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=d3d47e13279c5b5d7086594bb480f6cf75d826e28a02aeb64183431ecf898d51"
+      ],
+      "partition_id": "P16",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=d3d47e13279c5b5d7086594bb480f6cf75d826e28a02aeb64183431ecf898d51"
+      ],
+      "reason_code": "TECHNOLOGICAL_OR_UNRESOLVED_SCOPE_NOT_RELEASED",
+      "resolution_status": "UNRESOLVED",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=d3d47e13279c5b5d7086594bb480f6cf75d826e28a02aeb64183431ecf898d51"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHYSIQUE_CHIMIE/01_PROGRAMMES_OFFICIELS/2019/specialite-de-biochimie-biologie-de-premiere-stl-bo-special-n-1-du-22-janvier-2019-pdf-419-02-ko--d7e1759c4f.pdf",
+      "collection": null,
+      "content_sha256": "d7e1759c4ffcc3a4920f9d4474dc24cb94359e55110a1c29e7fc187042d7a7dd",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=d7e1759c4ffcc3a4920f9d4474dc24cb94359e55110a1c29e7fc187042d7a7dd"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=d7e1759c4ffcc3a4920f9d4474dc24cb94359e55110a1c29e7fc187042d7a7dd"
+      ],
+      "partition_id": "P16",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=d7e1759c4ffcc3a4920f9d4474dc24cb94359e55110a1c29e7fc187042d7a7dd"
+      ],
+      "reason_code": "TECHNOLOGICAL_OR_UNRESOLVED_SCOPE_NOT_RELEASED",
+      "resolution_status": "UNRESOLVED",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=d7e1759c4ffcc3a4920f9d4474dc24cb94359e55110a1c29e7fc187042d7a7dd"
+      ]
+    },
+    {
+      "audience": [
+        "libre",
+        "tous"
+      ],
+      "candidat": "libre",
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHYSIQUE_CHIMIE/01_PROGRAMMES_OFFICIELS/2019/specialite-de-premiere-generale-bo-special-n-1-du-22-janvier-2019-pdf-383-44-ko--db43d342ed.pdf",
+      "collection": "rag_nexus_pc_premiere_specialite",
+      "content_sha256": "db43d342edf55e162d0153028b43287e4ece0ce81b4dc75f0730bf368b98c0f0",
+      "matiere": "physique_chimie",
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=db43d342edf55e162d0153028b43287e4ece0ce81b4dc75f0730bf368b98c0f0"
+      ],
+      "niveau": "premiere",
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=db43d342edf55e162d0153028b43287e4ece0ce81b4dc75f0730bf368b98c0f0"
+      ],
+      "partition_id": "P16",
+      "product_policy_evidence": [
+        "services/rag-pedago/configs/production_profile_decisions_20260825.json#product_defaults"
+      ],
+      "profile_fingerprint": "ca2fb2d2d4a7228bcfa3564d86588be12b425b6ae6acd15de5f66f341d4e22c5",
+      "profile_id": "rag_nexus_pc_premiere_specialite",
+      "profile_version": "profile-gate-v1",
+      "programme_version": "BOEN_special_1_2019-01-22",
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=db43d342edf55e162d0153028b43287e4ece0ce81b4dc75f0730bf368b98c0f0",
+        "BOEN_special_1_2019-01-22"
+      ],
+      "reason_code": "PRIMARY_SCOPE_PROVEN",
+      "resolution_status": "EXACTLY_GROUNDED",
+      "school_year": "2026-2027",
+      "tenant": "libre_premiere",
+      "visibility": "internal",
+      "voie": "generale",
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=db43d342edf55e162d0153028b43287e4ece0ce81b4dc75f0730bf368b98c0f0"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHYSIQUE_CHIMIE/01_PROGRAMMES_OFFICIELS/2019/specialite-de-biochimie-biologie-biotechnologies-de-terminale-stl-bo-special-n-8-du-25-juillet-2019-pdf-740-17-ko--e046e66d42.pdf",
+      "collection": null,
+      "content_sha256": "e046e66d420541c2cca3fe7809e1dac03c8e105bc3ae937045bf0fdecc48f5cc",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=e046e66d420541c2cca3fe7809e1dac03c8e105bc3ae937045bf0fdecc48f5cc"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=e046e66d420541c2cca3fe7809e1dac03c8e105bc3ae937045bf0fdecc48f5cc"
+      ],
+      "partition_id": "P16",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=e046e66d420541c2cca3fe7809e1dac03c8e105bc3ae937045bf0fdecc48f5cc"
+      ],
+      "reason_code": "TECHNOLOGICAL_OR_UNRESOLVED_SCOPE_NOT_RELEASED",
+      "resolution_status": "UNRESOLVED",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=e046e66d420541c2cca3fe7809e1dac03c8e105bc3ae937045bf0fdecc48f5cc"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/_MULTI_DISCIPLINES/04_EVALUATIONS_EXAMENS/2021/questions-d-evaluation-exercices-et-travaux-en-classe-partie-philosophie-pdf-160-68-ko--e34d4b98c7.pdf",
+      "collection": null,
+      "content_sha256": "e34d4b98c7567622889ee50407e9042f12554b31d1c6f5ed413f4cfcf8d32b87",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=e34d4b98c7567622889ee50407e9042f12554b31d1c6f5ed413f4cfcf8d32b87"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=e34d4b98c7567622889ee50407e9042f12554b31d1c6f5ed413f4cfcf8d32b87"
+      ],
+      "partition_id": "P23",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=e34d4b98c7567622889ee50407e9042f12554b31d1c6f5ed413f4cfcf8d32b87"
+      ],
+      "reason_code": "MULTI_LEVEL_OR_NON_HLP_SCOPE",
+      "resolution_status": "AMBIGUOUS",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=e34d4b98c7567622889ee50407e9042f12554b31d1c6f5ed413f4cfcf8d32b87"
+      ]
+    },
+    {
+      "audience": [
+        "libre",
+        "tous"
+      ],
+      "candidat": "libre",
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/DGEMC/01_PROGRAMMES_OFFICIELS/2023/telechargez-le-programme-de-dgemc-en-terminales-generale-et-technologique-pdf-930-41-ko--e591a87aee.pdf",
+      "collection": "rag_nexus_dgemc_terminale_option",
+      "content_sha256": "e591a87aee633ca3b2593e2d4fd5b183e518ebe0f9d4861e4cdfe0f494f39439",
+      "matiere": "dgemc",
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=e591a87aee633ca3b2593e2d4fd5b183e518ebe0f9d4861e4cdfe0f494f39439"
+      ],
+      "niveau": "terminale",
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=e591a87aee633ca3b2593e2d4fd5b183e518ebe0f9d4861e4cdfe0f494f39439"
+      ],
+      "partition_id": "P21",
+      "product_policy_evidence": [
+        "services/rag-pedago/configs/production_profile_decisions_20260825.json#product_defaults"
+      ],
+      "profile_fingerprint": "685dac09676143417b08756b2bb2577d85777c3f599f9263595abad722ad4f00",
+      "profile_id": "rag_nexus_dgemc_terminale_option",
+      "profile_version": "profile-gate-v1",
+      "programme_version": "BOEN_special_8_2019-07-25_MENE1921266A_MENE2208320A",
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=e591a87aee633ca3b2593e2d4fd5b183e518ebe0f9d4861e4cdfe0f494f39439",
+        "BOEN_special_8_2019-07-25_MENE1921266A_MENE2208320A"
+      ],
+      "reason_code": "PRIMARY_SCOPE_PROVEN",
+      "resolution_status": "EXACTLY_GROUNDED",
+      "school_year": "2026-2027",
+      "tenant": "libre_terminale",
+      "visibility": "internal",
+      "voie": "generale",
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=e591a87aee633ca3b2593e2d4fd5b183e518ebe0f9d4861e4cdfe0f494f39439"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/_MULTI_DISCIPLINES/01_PROGRAMMES_OFFICIELS/2019/introduction-a-l-enseignement-humanites-litterature-et-philosophie-pdf-126-03-ko--e888540f46.pdf",
+      "collection": null,
+      "content_sha256": "e888540f4698020c2b324573101cff3573cbfb6cdd0eb59a71da5313a42acfc9",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=e888540f4698020c2b324573101cff3573cbfb6cdd0eb59a71da5313a42acfc9"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=e888540f4698020c2b324573101cff3573cbfb6cdd0eb59a71da5313a42acfc9"
+      ],
+      "partition_id": "P23",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=e888540f4698020c2b324573101cff3573cbfb6cdd0eb59a71da5313a42acfc9"
+      ],
+      "reason_code": "MULTI_LEVEL_OR_NON_HLP_SCOPE",
+      "resolution_status": "AMBIGUOUS",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=e888540f4698020c2b324573101cff3573cbfb6cdd0eb59a71da5313a42acfc9"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/EPS/09_AUTRES/2005/note-de-service-securite-des-eleves-en-pratique-aps--ea07a671eb.pdf",
+      "collection": null,
+      "content_sha256": "ea07a671eb9508115855028a8d082a82af83e1b9e6bb155786a0a314afafa45c",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=ea07a671eb9508115855028a8d082a82af83e1b9e6bb155786a0a314afafa45c"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=ea07a671eb9508115855028a8d082a82af83e1b9e6bb155786a0a314afafa45c"
+      ],
+      "partition_id": "P22",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=ea07a671eb9508115855028a8d082a82af83e1b9e6bb155786a0a314afafa45c"
+      ],
+      "reason_code": "MULTI_LEVEL_OR_CURRENTNESS_UNRESOLVED",
+      "resolution_status": "AMBIGUOUS",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=ea07a671eb9508115855028a8d082a82af83e1b9e6bb155786a0a314afafa45c"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHYSIQUE_CHIMIE/01_PROGRAMMES_OFFICIELS/2019/specialite-de-physique-chimie-et-mathematiques-de-premiere-stl-bo-special-n-1-du-22-janvier-2019-pdf-586-85-ko--ea20ffd9f3.pdf",
+      "collection": null,
+      "content_sha256": "ea20ffd9f3e952215c8eef5351d0270bf2dfdfbfc43a540fefe11f1357078354",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=ea20ffd9f3e952215c8eef5351d0270bf2dfdfbfc43a540fefe11f1357078354"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=ea20ffd9f3e952215c8eef5351d0270bf2dfdfbfc43a540fefe11f1357078354"
+      ],
+      "partition_id": "P16",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=ea20ffd9f3e952215c8eef5351d0270bf2dfdfbfc43a540fefe11f1357078354"
+      ],
+      "reason_code": "TECHNOLOGICAL_OR_UNRESOLVED_SCOPE_NOT_RELEASED",
+      "resolution_status": "UNRESOLVED",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=ea20ffd9f3e952215c8eef5351d0270bf2dfdfbfc43a540fefe11f1357078354"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/_MULTI_DISCIPLINES/01_PROGRAMMES_OFFICIELS/2023/deux-groupements-de-textes-pour-le-parcours-raison-et-sentiments-pdf-156-12-ko--eb41272a7a.pdf",
+      "collection": null,
+      "content_sha256": "eb41272a7a574bdb64c8547982892dadf1bd1324895d5b4a1e206de2493b9b1d",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=eb41272a7a574bdb64c8547982892dadf1bd1324895d5b4a1e206de2493b9b1d"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=eb41272a7a574bdb64c8547982892dadf1bd1324895d5b4a1e206de2493b9b1d"
+      ],
+      "partition_id": "P23",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=eb41272a7a574bdb64c8547982892dadf1bd1324895d5b4a1e206de2493b9b1d"
+      ],
+      "reason_code": "MULTI_LEVEL_OR_NON_HLP_SCOPE",
+      "resolution_status": "AMBIGUOUS",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=eb41272a7a574bdb64c8547982892dadf1bd1324895d5b4a1e206de2493b9b1d"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHYSIQUE_CHIMIE/07_DIAPORAMAS_SUPPORTS/2019/activite-documentaire-sur-les-analyses-scientifiques-d-objets-d-art-pdf-1-03-mo--ebb85531ae.pdf",
+      "collection": null,
+      "content_sha256": "ebb85531ae680d5b382a2a50d5234af6232d71c101b8fb7b91c0e95e30ef2570",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=ebb85531ae680d5b382a2a50d5234af6232d71c101b8fb7b91c0e95e30ef2570"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=ebb85531ae680d5b382a2a50d5234af6232d71c101b8fb7b91c0e95e30ef2570"
+      ],
+      "partition_id": "P16",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=ebb85531ae680d5b382a2a50d5234af6232d71c101b8fb7b91c0e95e30ef2570"
+      ],
+      "reason_code": "TECHNOLOGICAL_OR_UNRESOLVED_SCOPE_NOT_RELEASED",
+      "resolution_status": "UNRESOLVED",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=ebb85531ae680d5b382a2a50d5234af6232d71c101b8fb7b91c0e95e30ef2570"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/DANSE/03_RESSOURCES_ACCOMPAGNEMENT/2020/les-champs-de-questionnement-pdf-170-39-ko--ed2873bc09.pdf",
+      "collection": null,
+      "content_sha256": "ed2873bc09901befac948a713551d7237ff382010a39465f363480b894d576dc",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=ed2873bc09901befac948a713551d7237ff382010a39465f363480b894d576dc"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=ed2873bc09901befac948a713551d7237ff382010a39465f363480b894d576dc"
+      ],
+      "partition_id": "P20",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=ed2873bc09901befac948a713551d7237ff382010a39465f363480b894d576dc"
+      ],
+      "reason_code": "TECHNOLOGICAL_TRANSVERSAL_SCOPE_NOT_RELEASED",
+      "resolution_status": "UNRESOLVED",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=ed2873bc09901befac948a713551d7237ff382010a39465f363480b894d576dc"
+      ]
+    },
+    {
+      "audience": null,
+      "candidat": null,
+      "canonical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHYSIQUE_CHIMIE/01_PROGRAMMES_OFFICIELS/2019/specialite-de-physique-chimie-pour-la-sante-de-premiere-st2s-bo-special-n-1-du-22-janvier-2019-pdf-460-2-ko--fa79435f1f.pdf",
+      "collection": null,
+      "content_sha256": "fa79435f1f88d14dba36107394d42b1cdc6f0a98e21d3df76ef7134c8b6aebee",
+      "matiere": null,
+      "matiere_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=fa79435f1f88d14dba36107394d42b1cdc6f0a98e21d3df76ef7134c8b6aebee"
+      ],
+      "niveau": null,
+      "niveau_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=fa79435f1f88d14dba36107394d42b1cdc6f0a98e21d3df76ef7134c8b6aebee"
+      ],
+      "partition_id": "P16",
+      "profile_fingerprint": null,
+      "profile_id": null,
+      "profile_version": null,
+      "programme_version": null,
+      "programme_version_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=fa79435f1f88d14dba36107394d42b1cdc6f0a98e21d3df76ef7134c8b6aebee"
+      ],
+      "reason_code": "TECHNOLOGICAL_OR_UNRESOLVED_SCOPE_NOT_RELEASED",
+      "resolution_status": "UNRESOLVED",
+      "school_year": null,
+      "tenant": null,
+      "visibility": null,
+      "voie": null,
+      "voie_evidence": [
+        "docs/reports/production_profile_primary_evidence_20260825.json#content_sha256=fa79435f1f88d14dba36107394d42b1cdc6f0a98e21d3df76ef7134c8b6aebee"
+      ]
+    }
+  ],
+  "residual_policy": "MOVE_TO_REVIEW_REQUIRED_FOR_THIS_RELEASE",
+  "review_required_count": 46,
+  "schema_version": "PRODUCTION_PROFILE_RESOLUTION_V1",
+  "source_tree_commit": "3f0317e91c9ac8eff8ff1089d100a25f7c875793"
+}

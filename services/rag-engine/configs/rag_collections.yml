@@ -1,5 +1,5 @@
 version: 3
-# Catalogue canonique : 61 collections. Les extensions 4e d'ADR-0040 restent dormantes.
+# Catalogue canonique : 62 collections. Les extensions 4e d'ADR-0040 restent dormantes.
 # ADR-0013 — Convention: rag_nexus_{matiere}_{niveau}_{statut}
 # Extension FE-06: rag_nexus_{matiere}_{niveau}_{voie}_{statut} quand voie pertinente
 # Exceptions nommées: grand_oral, exams, candidats_libres, quarantine, dnb (cf. ADR)
@@ -324,6 +324,19 @@ collections:
     # résolus par h2_initial_placement_policy.yml. Toute autre ressource
     # reste REVIEW_REQUIRED ; cette activation n'est pas un routeur large.
     instanciee: true
+
+  # =====================================================================
+  # DGEMC — option de Terminale générale
+  # =====================================================================
+  rag_nexus_dgemc_terminale_option:
+    matiere: dgemc
+    niveau: terminale
+    voie: gen
+    statut: option
+    domain: education
+    session_policy: declared_or_null
+    taxonomy_file: dgemc/terminale_option.yml
+    instanciee: false
 
   # =====================================================================
   # SNT

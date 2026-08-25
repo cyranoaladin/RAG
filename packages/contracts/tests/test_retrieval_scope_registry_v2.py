@@ -62,12 +62,13 @@ def _wave0_envelope(artifact: RetrievalScopeArtifactV2) -> InternalIdentityEnvel
     )
 
 
-def test_registry_contains_only_the_legacy_wave0_and_multilevel_scopes() -> None:
+def test_registry_preserves_the_legacy_wave0_and_multilevel_scopes() -> None:
     registry = load_retrieval_scope_registry()
     maths = registry["entree_seconde_maths_v1"]
     francais = registry["entree_seconde_francais_v1"]
 
-    assert set(registry) == EXPECTED
+    assert EXPECTED <= set(registry)
+    assert len(registry) == 31
     assert isinstance(maths, RetrievalScopeArtifactV2)
     assert isinstance(francais, RetrievalScopeArtifactV2)
     assert maths.evidence_subject.collection == (

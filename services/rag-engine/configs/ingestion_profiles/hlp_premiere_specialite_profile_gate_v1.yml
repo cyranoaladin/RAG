@@ -1,0 +1,47 @@
+profile_version: profile-gate-v1
+enabled: true
+scope:
+  tenant: libre_premiere
+  collection: rag_nexus_hlp_premiere_specialite
+  niveau: premiere
+  voie: generale
+  matiere: hlp
+  candidat: libre
+  audience:
+  - libre
+  - tous
+  visibility: internal
+  school_year: 2026-2027
+  programme_version: BOEN_special_1_2019-01-22
+title: HLP spécialité Première — gate profils production
+language: fr
+owner: Nexus Réussite
+expected_topics:
+- pouvoirs de la parole
+- représentations du monde
+- littérature
+- philosophie
+expected_resource_types:
+- programme_officiel
+- ressource_officielle
+excluded_topics:
+- données personnelles
+- classe de terminale
+allowed_domains:
+- eduscol.education.gouv.fr
+seed_urls:
+- https://eduscol.education.gouv.fr/5805/programmes-et-ressources-en-humanites-litterature-et-philosophie-voie-g
+source_authority: official
+search_cadence: manual
+max_queries_per_run: 16
+max_documents_per_run: 64
+max_chunk_size: 800
+chunk_overlap: 100
+min_source_confidence: 0.9
+min_scope_confidence: 0.9
+min_extraction_quality: 0.1
+reject_unknown_rights: true
+reject_ambiguous_routing: true
+publication:
+  mode: human_review
+  auto_publish: false

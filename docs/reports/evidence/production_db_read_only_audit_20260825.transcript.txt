@@ -1,0 +1,248 @@
+PROTOCOL=NEXUS-PROD-DB-SANITIZED-TRANSCRIPT-V2
+OBSERVED_AT_UTC=2026-08-25T04:11:28Z
+SOURCE_MAIN_SHA=3f0317e91c9ac8eff8ff1089d100a25f7c875793
+SSH_STRICT_HOST_KEY_CHECKING=true
+TARGET_HOST_KEY_ED25519_SHA256=SHA256:L1IIJU0FBVGRvtd30x+0yczollnSpmMHkDrsMoNAras
+BASTION_HOST_KEY_ED25519_SHA256=SHA256:DahlCqA249tRmD2ODRg16prz+FBgKWebCfEylTDhUx8
+
+=== TARGET_METADATA ===
+protocol=NEXUS-PROD-DB-BACKUP-V1
+captured_at_utc=2026-08-25T04:11:28Z
+production_db_mutated=false
+container=rag_pgvector
+database=ragdb
+compose_project=infra
+compose_service=pgvector
+volume=infra_rag_pgvector_data
+host_port=127.0.0.1:5436
+deployment_root=/opt/rag-v2/releases/rag-v2-main-27a4558-lot27p3-20260715T133534Z
+deployment_commit=27a4558a1abca304d415240b9ec0c06000cd2db5
+audit_main_sha=3f0317e91c9ac8eff8ff1089d100a25f7c875793
+image=pgvector/pgvector:pg16 image_id=sha256:00ba258a66dac104fd5171074a0084462a64a1369d8513f3d0a634e2f24d15bc config_files=/opt/rag-v2/current/services/rag-engine/infra/docker-compose.v2.yml
+72d3d1490a9c90849cab0c56901d558ac187d77409d8e30403541d29fba52d8e  /opt/rag-v2/releases/rag-v2-main-27a4558-lot27p3-20260715T133534Z/services/rag-engine/infra/docker-compose.v2.yml
+48619270	/var/lib/docker/volumes/infra_rag_pgvector_data/_data
+/dev/md2       997333516288 785012752384 161583562752  83% /
+
+=== READ_ONLY_DATABASE_STATE ===
+Output format is unaligned.
+Field separator is "|".
+BEGIN
+captured_at_utc|2026-08-25T04:11:59.221074Z
+transaction_read_only|on
+database|ragdb
+server_version|16.14 (Debian 16.14-1.pgdg12+1)
+vector_extension|0.8.2
+data_directory|/var/lib/postgresql/data
+archive_mode|off
+database_size_bytes|8289303
+exact_count|public.rag_chunks|0
+exact_count|public.rag_api_keys|0
+exact_count|public.rag_eval_runs|0
+relation|public|rag_api_keys
+relation|public|rag_chunks
+relation|public|rag_eval_runs
+column|public|rag_api_keys|1|id|uuid|uuid|NO|gen_random_uuid()
+column|public|rag_api_keys|2|tenant|character varying|varchar|NO|
+column|public|rag_api_keys|3|key_hash|character varying|varchar|NO|
+column|public|rag_api_keys|4|label|character varying|varchar|YES|
+column|public|rag_api_keys|5|created_at|timestamp with time zone|timestamptz|YES|now()
+column|public|rag_api_keys|6|last_used_at|timestamp with time zone|timestamptz|YES|
+column|public|rag_api_keys|7|expires_at|timestamp with time zone|timestamptz|YES|
+column|public|rag_api_keys|8|is_active|boolean|bool|YES|true
+column|public|rag_chunks|1|chunk_id|text|text|NO|
+column|public|rag_chunks|2|doc_id|text|text|NO|
+column|public|rag_chunks|3|chunk_sha256|text|text|NO|
+column|public|rag_chunks|4|vector|USER-DEFINED|vector|YES|
+column|public|rag_chunks|5|collection|text|text|NO|
+column|public|rag_chunks|6|niveau|text|text|NO|
+column|public|rag_chunks|7|voie|text|text|NO|'generale'::text
+column|public|rag_chunks|8|audience|ARRAY|_text|NO|'{tous}'::text[]
+column|public|rag_chunks|9|matiere|text|text|NO|
+column|public|rag_chunks|10|statut_enseignement|text|text|NO|'unknown'::text
+column|public|rag_chunks|11|notions|ARRAY|_text|NO|'{}'::text[]
+column|public|rag_chunks|12|domain|text|text|NO|'education'::text
+column|public|rag_chunks|13|source_label|text|text|NO|
+column|public|rag_chunks|14|source_uri|text|text|NO|
+column|public|rag_chunks|15|rights|text|text|NO|
+column|public|rag_chunks|16|type_doc|text|text|NO|
+column|public|rag_chunks|17|official|boolean|bool|NO|false
+column|public|rag_chunks|18|text|text|text|YES|
+column|public|rag_chunks|19|chunk_index|integer|int4|NO|0
+column|public|rag_chunks|20|page_start|integer|int4|YES|
+column|public|rag_chunks|21|page_end|integer|int4|YES|
+column|public|rag_chunks|22|review_status|text|text|NO|'needs_review'::text
+column|public|rag_chunks|23|model|text|text|YES|
+column|public|rag_chunks|24|source_kind|text|text|NO|'unknown'::text
+column|public|rag_chunks|25|indexed_at|timestamp with time zone|timestamptz|NO|now()
+column|public|rag_eval_runs|1|id|uuid|uuid|NO|gen_random_uuid()
+column|public|rag_eval_runs|2|tenant|character varying|varchar|NO|
+column|public|rag_eval_runs|3|run_at|timestamp with time zone|timestamptz|YES|now()
+column|public|rag_eval_runs|4|embed_model|character varying|varchar|YES|
+column|public|rag_eval_runs|5|precision_at_5|double precision|float8|YES|
+column|public|rag_eval_runs|6|recall_at_5|double precision|float8|YES|
+column|public|rag_eval_runs|7|mrr|double precision|float8|YES|
+column|public|rag_eval_runs|8|ndcg|double precision|float8|YES|
+column|public|rag_eval_runs|9|avg_latency_ms|double precision|float8|YES|
+column|public|rag_eval_runs|10|gold_set_version|character varying|varchar|YES|
+column|public|rag_eval_runs|11|metadata|jsonb|jsonb|YES|'{}'::jsonb
+index|public|rag_api_keys|rag_api_keys_key_hash_key|CREATE UNIQUE INDEX rag_api_keys_key_hash_key ON public.rag_api_keys USING btree (key_hash)
+index|public|rag_api_keys|rag_api_keys_pkey|CREATE UNIQUE INDEX rag_api_keys_pkey ON public.rag_api_keys USING btree (id)
+index|public|rag_chunks|idx_rag_chunks_audience|CREATE INDEX idx_rag_chunks_audience ON public.rag_chunks USING gin (audience)
+index|public|rag_chunks|idx_rag_chunks_collection|CREATE INDEX idx_rag_chunks_collection ON public.rag_chunks USING btree (collection)
+index|public|rag_chunks|idx_rag_chunks_matiere|CREATE INDEX idx_rag_chunks_matiere ON public.rag_chunks USING btree (matiere)
+index|public|rag_chunks|idx_rag_chunks_niveau|CREATE INDEX idx_rag_chunks_niveau ON public.rag_chunks USING btree (niveau)
+index|public|rag_chunks|idx_rag_chunks_review|CREATE INDEX idx_rag_chunks_review ON public.rag_chunks USING btree (review_status)
+index|public|rag_chunks|idx_rag_chunks_rights|CREATE INDEX idx_rag_chunks_rights ON public.rag_chunks USING btree (rights)
+index|public|rag_chunks|idx_rag_chunks_vector|CREATE INDEX idx_rag_chunks_vector ON public.rag_chunks USING hnsw (vector vector_cosine_ops) WITH (m='16', ef_construction='64')
+index|public|rag_chunks|rag_chunks_pkey|CREATE UNIQUE INDEX rag_chunks_pkey ON public.rag_chunks USING btree (chunk_id)
+index|public|rag_eval_runs|rag_eval_runs_pkey|CREATE UNIQUE INDEX rag_eval_runs_pkey ON public.rag_eval_runs USING btree (id)
+migration_registry||
+COMMIT
+
+=== BACKUP_HASH_INVENTORY ===
+f492fa328d66be4e27e864f5efb254d13a5651ddbf704e0f39b5a6cad36aebd5  ./catalog_fingerprint.sql
+e0ba9d26cf8145b6bd5645922a2f707b0701a238428ce5d34c5caf4fd346d643  ./deployed-migration-sha256.txt
+aba7cdbaef87208ca606e09bca2f264e83756c04ee2d2e562a05b6d5dc5c148b  ./env-keys-redacted.txt
+00dd0f04728cf1256124f78434a16d6e8acd2197128410e6731bd61de56395a3  ./globals-no-passwords.sql
+4bdd977f60bb3299c68183e58e0295e63677999a94494bc7e46789fd0ebafc1c  ./migration-schema-fingerprints.txt
+c75360f2ea07699bbc07d259b4b773fd3584c9e2260780ce9f945e92764c2d0b  ./production-db-audit-20260825.json
+b72d9eafa8d50947a4ba48a4654f274687daac885e73cebb43a04f5b805cd6bd  ./production-db-migration-plan-20260825.json
+e9efc0c5b4e85a680eb8ed0497ccaeaaa987e0e40a6498b23e12122b47821d8f  ./ragdb.dump
+1f72caf0e971deb6bd0f56e2f67d938be5030c33160211afac11e24f2404124b  ./restore-rehearsal.txt
+3089d6518467ffe90326ecfff3e46bcd89cc1ffe303968d370abd90e0afef838  ./schema-migration-state.txt
+6f2aec8f44922571c121adaac4fd88193e49b07129755ad671447e757b1328f5  ./target-metadata.txt
+
+=== ISOLATED_RESTORE_REHEARSAL ===
+./deployed-migration-sha256.txt: OK
+./env-keys-redacted.txt: OK
+./globals-no-passwords.sql: OK
+./ragdb.dump: OK
+./schema-migration-state.txt: OK
+./target-metadata.txt: OK
+ Network nexus-pg-restore-rehearsal-20260825t041128z_restore_net Creating
+ Network nexus-pg-restore-rehearsal-20260825t041128z_restore_net Created
+ Container nexus-pg-restore-rehearsal-20260825t041128z-restore-migrator-run-16107eabc23e Creating
+ Container nexus-pg-restore-rehearsal-20260825t041128z-restore-migrator-run-16107eabc23e Created
+ Volume nexus-pg-restore-rehearsal-20260825t041128z_restore_pgvector_data Creating
+ Volume nexus-pg-restore-rehearsal-20260825t041128z_restore_pgvector_data Created
+ Container nexus-pg-restore-rehearsal-20260825t041128z-pgvector-1 Creating
+ Container nexus-pg-restore-rehearsal-20260825t041128z-pgvector-1 Created
+ Container nexus-pg-restore-rehearsal-20260825t041128z-pgvector-1 Starting
+ Container nexus-pg-restore-rehearsal-20260825t041128z-pgvector-1 Started
+ Container nexus-pg-restore-rehearsal-20260825t041128z-pgvector-1 Waiting
+ Container nexus-pg-restore-rehearsal-20260825t041128z-pgvector-1 Healthy
+ Container nexus-pg-restore-rehearsal-20260825t041128z-restore-migrator-run-bf7f8d2545f2 Creating
+ Container nexus-pg-restore-rehearsal-20260825t041128z-restore-migrator-run-bf7f8d2545f2 Created
+pre_migration_restore|25|0|0|0|0|0
+BACKUP_COMPLETE=<isolated-temp>/migration-backups/pgvector-migration-20260825T041617Z-2002764/ragdb-before-migrations.dump
+MIGRATIONS_APPLIED=3
+MIGRATIONS_ADOPTED=1
+SCHEMA_VERIFICATION=OK
+UPGRADE_COMPLETE
+ Container nexus-pg-restore-rehearsal-20260825t041128z-restore-migrator-run-72799e386080 Creating
+ Container nexus-pg-restore-rehearsal-20260825t041128z-restore-migrator-run-72799e386080 Created
+REVOKE
+REVOKE
+ALTER ROLE
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+ALTER ROLE
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+ALTER ROLE
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+ Container nexus-pg-restore-rehearsal-20260825t041128z-restore-migrator-run-d39ffde4f6e5 Creating
+ Container nexus-pg-restore-rehearsal-20260825t041128z-restore-migrator-run-d39ffde4f6e5 Created
+STEP=bootstrap_schema
+NOTICE:  schema "ingestion_control" already exists, skipping
+NOTICE:  relation "schema_migrations" already exists, skipping
+NOTICE:  schema "ingestion_control" already exists, skipping
+NOTICE:  schema "ingestion_control" already exists, skipping
+NOTICE:  relation "schema_migrations" already exists, skipping
+NOTICE:  schema "ingestion_control" already exists, skipping
+NOTICE:  relation "schema_migrations" already exists, skipping
+NOTICE:  schema "ingestion_control" already exists, skipping
+NOTICE:  relation "schema_migrations" already exists, skipping
+NOTICE:  schema "ingestion_control" already exists, skipping
+NOTICE:  relation "schema_migrations" already exists, skipping
+NOTICE:  schema "ingestion_control" already exists, skipping
+NOTICE:  relation "schema_migrations" already exists, skipping
+NOTICE:  schema "ingestion_control" already exists, skipping
+NOTICE:  relation "schema_migrations" already exists, skipping
+NOTICE:  index "idx_ingestion_control_scope_authorizations_lookup" does not exist, skipping
+NOTICE:  schema "ingestion_control" already exists, skipping
+NOTICE:  relation "schema_migrations" already exists, skipping
+NOTICE:  schema "ingestion_control" already exists, skipping
+NOTICE:  relation "schema_migrations" already exists, skipping
+NOTICE:  constraint "scope_authorizations_content_allowlist_by_protocol" of relation "scope_authorizations" does not exist, skipping
+NOTICE:  schema "ingestion_control" already exists, skipping
+NOTICE:  relation "schema_migrations" already exists, skipping
+NOTICE:  trigger "trg_governed_publication_fence_resources" for relation "ingestion_control.resources" does not exist, skipping
+NOTICE:  trigger "trg_governed_publication_fence_resource_candidates" for relation "ingestion_control.resource_candidates" does not exist, skipping
+NOTICE:  trigger "trg_governed_publication_fence_artifacts" for relation "ingestion_control.artifacts" does not exist, skipping
+NOTICE:  trigger "trg_governed_publication_fence_workflow_events" for relation "ingestion_control.workflow_events" does not exist, skipping
+NOTICE:  trigger "trg_governed_publication_fence_publication_attestations" for relation "ingestion_control.publication_attestations" does not exist, skipping
+NOTICE:  trigger "trg_governed_publication_fence_scope_authorizations" for relation "ingestion_control.scope_authorizations" does not exist, skipping
+NOTICE:  schema "ingestion_control" already exists, skipping
+NOTICE:  relation "schema_migrations" already exists, skipping
+NOTICE:  schema "ingestion_control" already exists, skipping
+NOTICE:  relation "schema_migrations" already exists, skipping
+NOTICE:  trigger "trg_artifact_attributions_sealed" for relation "ingestion_control.artifact_attributions" does not exist, skipping
+NOTICE:  schema "ingestion_control" already exists, skipping
+NOTICE:  relation "schema_migrations" already exists, skipping
+NOTICE:  constraint "publication_attestations_attribution_digest_matches_protocol" of relation "publication_attestations" does not exist, skipping
+MIGRATIONS_APPLIED=13
+SCHEMA_VERIFICATION=OK
+BOOTSTRAP_COMPLETE
+SCHEMA_HEAD=13
+STEP=provision_roles
+ROLES_PROVISIONED=1
+MIGRATOR_ROLE=ingestion_control_migrator
+APP_ROLE=ingestion_control_app
+AUTHORITY_ROLE=ingestion_control_authority
+ATTESTOR_ROLE=ingestion_control_attestor
+PROVISION_AND_BOOTSTRAP_COMPLETE
+post_migration_restore|32|4|4|13|13|0.8.2|0|0|0|0|0|10|23|8|9|13|12|2|6|8|t|t|t|t|t|t
+product_migration|1|001_rag_chunks_v2_schema.sql|c0ce69353bd04c87a9bf7adf885ebf9e915885b8e0b286faffc620b74cebc88c
+product_migration|2|002_hybrid_retrieval.sql|6fef12777291653611aa8b561709e2090b169b40629ce99acf0767ebb388f89d
+product_migration|3|003_profile_filtering.sql|069cd391d77ee47a6daae037221dbef7403e7710d35abecaecb0484f05d0428a
+product_migration|4|004_artifact_placements.sql|fe32b14e6c9cdce8eb9f76e67285967ed8fd4e7f875ca2aaf3436a2e34f37489
+ingestion_control_migration|1|001_ingestion_control_schema.sql|6df7ca2aaa76f3d52d9c2422385d2b2799b51ae05748fb99d745f1aea9b566cc
+ingestion_control_migration|2|002_resource_candidates_and_artifacts.sql|c432c11885e93aaff5a32fdebe9627e8fa473cee9016260c5aadd2f9d9bac870
+ingestion_control_migration|3|003_workflow_events.sql|9b7353e672aa28d1380314f583528d8e40795fdd5cf4bc3896f542d505b6b5d4
+ingestion_control_migration|4|004_jobs.sql|ee527a952ebc32b99cadce61b34839838e8382b63d1675749e1f46314a089e85
+ingestion_control_migration|5|005_jobs_status_reconcile.sql|1709f3226c12081fa29cc5d61611c1a92b515b765f1351c54bd5aa37fe97a621
+ingestion_control_migration|6|006_resource_candidates_and_artifacts_payload.sql|f3fa3c8d16352e59c95fa819cd25945fe5da4178b59aaf216d05bb265474ddce
+ingestion_control_migration|7|007_scope_authorizations.sql|1c48c74a18d601603ff9d4ee59b80cf8d0d0d5821564bdfc372aedefd14b7f32
+ingestion_control_migration|8|008_publication_attestations.sql|0b0441c0bc1a9b0446fc4495b413c4febef154c73bc3bc6c2e63d33a54936349
+ingestion_control_migration|9|009_scope_authorization_content_allowlist.sql|6d1c93f6116e80e566c70f3352526f3dec13925e7267d953750c12aec0c4ae61
+ingestion_control_migration|10|010_governed_publication_commit_fence.sql|1bdbcbca5859ddeea49d835a1de990f0aad7b782e6a599511fdc86508f119397
+ingestion_control_migration|11|011_external_authority_commit_pins.sql|5c850429de0d7d1c3c8a54880eb1091cc9b6b03225a1a6ec273f291b54a24bc1
+ingestion_control_migration|12|012_artifact_attributions.sql|295613f94bdc970eb904ec96c9d6d97fe8f6910e21390333ea53e5841f6d1b8a
+ingestion_control_migration|13|013_lot42_v2_attribution_bound_reviews.sql|61b7538e88cad2a78eda3683f2e66a305a2603987a205d7a3e43fb99cdaa9eef
+ Container nexus-pg-restore-rehearsal-20260825t041128z-pgvector-1 Stopping
+ Container nexus-pg-restore-rehearsal-20260825t041128z-pgvector-1 Stopped
+ Container nexus-pg-restore-rehearsal-20260825t041128z-pgvector-1 Removing
+ Container nexus-pg-restore-rehearsal-20260825t041128z-pgvector-1 Removed
+ Network nexus-pg-restore-rehearsal-20260825t041128z_restore_net Removing
+ Volume nexus-pg-restore-rehearsal-20260825t041128z_restore_pgvector_data Removing
+ Volume nexus-pg-restore-rehearsal-20260825t041128z_restore_pgvector_data Removed
+ Network nexus-pg-restore-rehearsal-20260825t041128z_restore_net Removed
+production_unchanged|25|0|0|0
+RESTORE_REHEARSAL_PASS=true
+PRODUCTION_DB_MUTATED=false
+FOREIGN_CONTAINERS_TOUCHED=0
+PROJECT_CONTAINERS_REMAINING=0

@@ -1,0 +1,11 @@
+mapping_kind: EDUSCOL_MULTILEVEL_SUBJECTS_V1
+external_subjects:
+  dgemc: dgemc
+  francais: francais
+  hlp: hlp
+  mathematiques: maths
+  nsi: nsi
+  philosophie: philosophie
+  physique-chimie: physique_chimie
+  ses: ses
+  svt: svt

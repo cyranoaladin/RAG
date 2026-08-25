@@ -643,6 +643,7 @@ def _resolver(
         mapping=mapping,
         profiles=profiles,
         profile_manifest=profile_manifest,
+        environment="rehearsal",
         programme_registry=programme_registry,
         collection_config=collection_config,
         release_eligibility=release_eligibility,

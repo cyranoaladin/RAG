@@ -113,7 +113,7 @@ def test_quatrieme_collections_are_declared_and_release_activated_exactly() -> N
     }
 
 
-def test_instanciated_match_perimetre() -> None:
+def test_instanciated_match_perimetre_excludes_pre_cutover_profile_gate_scopes() -> None:
     config = _load_yaml(CONFIG_PATH)
     inst = {n for n, d in config["collections"].items() if d.get("instanciee") is True}
     assert inst == {

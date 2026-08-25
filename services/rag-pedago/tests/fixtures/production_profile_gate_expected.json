@@ -1,0 +1,76 @@
+{
+  "schema_version": "PRODUCTION_PROFILE_GATE_EXPECTED_V1",
+  "input_content_count": 56,
+  "exactly_grounded_count": 10,
+  "review_required_count": 46,
+  "final_production_eligible_count": 26,
+  "final_profile_review_required_count": 46,
+  "final_production_eligible_set_sha256": "fe97b3410791fa78d4734a8c495443296b3f2ec3e77627e12fc34f90e0b2b5f0",
+  "primary_evidence_sha256": "cd48b3c327da49e32da89be46c1fd5ed91938bf9b1efcca303a6bcf13bb3250d",
+  "p11_p23_exactly_grounded": [
+    "06e491d369c5164d9f746176edeef45363cef53d3de2d5fb55153e6e96f98f2e",
+    "2f1035c74db485d12e80d7c887cb9090807be32e5f79a6074d2decb1073ec154",
+    "4433fee96b6e803c71edf2764d99bd269e649dcff646aee97327fdfeed143f13",
+    "60eeb7dd1ee55d1ed2bb2c7671ecf3c971aeef6996db2bc7cd9c7919ae4b19ac",
+    "64f5b3427dee3b23d421fe03cb2f3aac75e0e47cee31be91b197d4e09c012987",
+    "8eb0e41f95bf4aca37e6231c06109579faf6bf410d6bd2bc210574e66e2762fa",
+    "9357dfdebca347264787dfebacb674666d87660b82f789657ddd230c7ff224aa",
+    "d2cbd06f2e8099d9080f17f3abb5b0fc90460b86b3c11f808b99daa01f77f897",
+    "db43d342edf55e162d0153028b43287e4ece0ce81b4dc75f0730bf368b98c0f0",
+    "e591a87aee633ca3b2593e2d4fd5b183e518ebe0f9d4861e4cdfe0f494f39439"
+  ],
+  "new_profiles": [
+    {
+      "profile_id": "rag_nexus_dgemc_terminale_option",
+      "profile_version": "profile-gate-v1",
+      "content_sha256": [
+        "e591a87aee633ca3b2593e2d4fd5b183e518ebe0f9d4861e4cdfe0f494f39439"
+      ]
+    },
+    {
+      "profile_id": "rag_nexus_hlp_premiere_specialite",
+      "profile_version": "profile-gate-v1",
+      "content_sha256": [
+        "4433fee96b6e803c71edf2764d99bd269e649dcff646aee97327fdfeed143f13",
+        "60eeb7dd1ee55d1ed2bb2c7671ecf3c971aeef6996db2bc7cd9c7919ae4b19ac",
+        "64f5b3427dee3b23d421fe03cb2f3aac75e0e47cee31be91b197d4e09c012987",
+        "9357dfdebca347264787dfebacb674666d87660b82f789657ddd230c7ff224aa"
+      ]
+    },
+    {
+      "profile_id": "rag_nexus_pc_premiere_specialite",
+      "profile_version": "profile-gate-v1",
+      "content_sha256": [
+        "db43d342edf55e162d0153028b43287e4ece0ce81b4dc75f0730bf368b98c0f0"
+      ]
+    },
+    {
+      "profile_id": "rag_nexus_ses_premiere_specialite",
+      "profile_version": "profile-gate-v1",
+      "content_sha256": [
+        "06e491d369c5164d9f746176edeef45363cef53d3de2d5fb55153e6e96f98f2e"
+      ]
+    },
+    {
+      "profile_id": "rag_nexus_ses_terminale_specialite",
+      "profile_version": "profile-gate-v1",
+      "content_sha256": [
+        "2f1035c74db485d12e80d7c887cb9090807be32e5f79a6074d2decb1073ec154"
+      ]
+    },
+    {
+      "profile_id": "rag_nexus_svt_premiere_specialite",
+      "profile_version": "profile-gate-v1",
+      "content_sha256": [
+        "8eb0e41f95bf4aca37e6231c06109579faf6bf410d6bd2bc210574e66e2762fa"
+      ]
+    },
+    {
+      "profile_id": "rag_nexus_svt_terminale_specialite",
+      "profile_version": "profile-gate-v1",
+      "content_sha256": [
+        "d2cbd06f2e8099d9080f17f3abb5b0fc90460b86b3c11f808b99daa01f77f897"
+      ]
+    }
+  ]
+}

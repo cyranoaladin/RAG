@@ -24,6 +24,10 @@ jobs:
     needs: contracts
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The production placement tests replay from their recorded source
+          # tree, which can be an earlier commit in this PR branch.
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"

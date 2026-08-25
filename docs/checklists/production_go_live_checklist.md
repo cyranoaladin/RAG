@@ -66,7 +66,7 @@
 - [ ] `GET /collections/v2` avec token → 200 (liste collections)
 - [ ] `POST /ingest/v2/upload-files` avec token ingest_agent → 200/202
 - [ ] `POST /ingest/v2/upload-files` avec token student → 403
-- [ ] `nexus-contracts==0.13.0` est installé côté moteur ; les fixtures V1
+- [ ] `nexus-contracts==0.14.0` est installé côté moteur ; les fixtures V1
       restent lisibles et les protocoles V2 restent strictement distincts
 - [ ] `GET /api/review/queue` avec session Auth.js `reviewer` ou `admin` → 200
 - [ ] `POST /api/review/decide` avec session Auth.js `reviewer` ou `admin` → 200
@@ -112,37 +112,41 @@ Le mécanisme est préparé par ADR-0044 et `nexus-contracts==0.13.0`. Les cases
 ci-dessous portent sur les vraies preuves de release ; elles ne doivent pas
 être cochées parce que le code existe.
 
-- [x] Set final recalculé : 73 candidats de base, 1 blocage non-authority,
-      72 contenus authority-required
+- [x] Set pré-profile recalculé : 73 candidats de base, 1 blocage
+      non-authority, 72 contenus pré-profile
+- [x] Profile gate fail-closed : 26 contenus production et 46 contenus
+      déplacés vers `REVIEW_REQUIRED`
 - [x] Set exact figé :
-      `3705935f306a52cde0f398db20f685dce82d0bb9acd7909c8e6955d6356643e0`
+      `fe97b3410791fa78d4734a8c495443296b3f2ec3e77627e12fc34f90e0b2b5f0`
 - [x] 2 582 contenus terminalement comptabilisés, zéro non-comptabilisé
 - [x] Architecture `AuthorizationSetV1` + campaign/H2/promotion/readiness V2
       documentée par ADR-0044 sans mutation des V1
-- [ ] Décisions de profils rendues pour les 56 contenus encore non ancrés
-- [ ] Promouvoir ou superseder explicitement les 10 partitions staging / 11 contenus
-- [ ] Chaque contenu du set final possède exactement un profil et un scope
+- [x] Les 56 contenus P11–P23 sont résolus : 10 exactement grounded et 46
+      `REVIEW_REQUIRED`
+- [x] Les 10 partitions staging / 11 contenus sont promues sans dérive de scope
+- [x] Chaque contenu du set final possède exactement un profil et un scope
 - [ ] Autorisations exactes, non chevauchantes et sans gap créées puis revues
 - [ ] Vraie campagne globale exécutée
-- [ ] Vrai republish gouverné exécuté à 72/72
-- [ ] Vrai H2 V2 vert à 72/72
-- [ ] Rehearsal Docker atomique et rollback verts
-- [ ] Cible DB production vérifiée en lecture seule et plan de migration prêt
-- [ ] GitHub Environment `production` provisionné selon le plan exact
+- [ ] Vrai republish gouverné exécuté à 26/26
+- [ ] Vrai H2 V2 vert à 26/26
+- [x] Rehearsal Docker V2 atomique et rollback verts dans la PR technique #132
+- [ ] PR technique Docker V2 #132 mergée après revue humaine exact-head
+- [x] Cible DB production vérifiée en lecture seule et plan de migration prêt
+- [x] Backup frais vérifié et restore rehearsal isolé vert
+- [x] GitHub Environment `production` provisionné selon le plan exact
 
 ```text
 REAL_AUTHORIZATIONS_CREATED=false
 REAL_CAMPAIGN_EXECUTED=false
 REAL_GOVERNED_REPUBLISH_EXECUTED=false
 REAL_H2_GATE_PASS=false
-PRODUCTION_ENVIRONMENT_PROVISIONED=false
-PROD_DB_TARGET_VERIFIED=UNKNOWN
-ATOMIC_DOCKER_REHEARSAL_PASS=UNKNOWN
+PRODUCTION_ENVIRONMENT_PROVISIONED=true
+PROD_DB_TARGET_VERIFIED=true
+PROD_DB_MIGRATION_PLAN_READY=true
+RESTORE_REHEARSAL_PASS=true
+ATOMIC_DOCKER_V2_REHEARSAL_PASS=true
+DOCKER_V2_EVIDENCE_MERGED=false
 ```
-
-Ces deux valeurs sont `UNKNOWN` car les transcripts initiaux ne sont pas
-versionnés. Elles restent des cases ouvertes jusqu'à un audit/rehearsal frais
-avec artefact auditable ; aucune observation historique ne les valide.
 
 ## Décision finale
 

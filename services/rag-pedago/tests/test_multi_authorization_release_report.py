@@ -13,6 +13,9 @@ from nexus_contracts.ingestion import CollectionProfile, collection_profile_fing
 SERVICE_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = SERVICE_ROOT.parents[1]
 REPORT = REPO_ROOT / "docs/reports/lot_multi_authorization_release_v2_20260823.md"
+PRODUCTION_PROFILE_REPORT = (
+    REPO_ROOT / "docs/reports/lot_production_profiles_20260825.md"
+)
 GROUNDED_PROFILE_REPORT = (
     REPO_ROOT / "docs/reports/lot_grounded_production_profiles_20260824.md"
 )
@@ -26,13 +29,26 @@ RECOMPUTATION_EVIDENCE = (
     REPO_ROOT / "docs/reports/final_release_recomputation_evidence_20260824.json"
 )
 GITHUB_ENVIRONMENT_EVIDENCE = (
-    REPO_ROOT / "docs/reports/github_environment_read_only_observation_20260824.json"
+    REPO_ROOT / "docs/reports/evidence/github_production_environment_20260825.json"
+)
+TERMINAL_DISPOSITION_EVIDENCE = (
+    REPO_ROOT / "docs/reports/terminal_disposition_summary_20260825.json"
+)
+FINAL_PRODUCTION_SET = (
+    REPO_ROOT / "docs/reports/final_production_eligible_set_20260825.txt"
 )
 DOCKER_REHEARSAL_EVIDENCE = (
     REPO_ROOT / "docs/reports/evidence/atomic_docker_rehearsal_20260824.json"
 )
 PRODUCTION_DB_EVIDENCE = (
     REPO_ROOT / "docs/reports/evidence/production_db_read_only_audit_20260824.json"
+)
+CURRENT_PRODUCTION_DB_EVIDENCE = (
+    REPO_ROOT / "docs/reports/evidence/production_db_read_only_audit_20260825.json"
+)
+CURRENT_PRODUCTION_DB_TRANSCRIPT = (
+    REPO_ROOT
+    / "docs/reports/evidence/production_db_read_only_audit_20260825.transcript.txt"
 )
 SCOPE_AUDIT = REPO_ROOT / "docs/reports/tier_a_scope_profile_audit_clean_20260822.json"
 SET_ALGEBRA = REPO_ROOT / "docs/reports/tier_a_set_algebra_reconciliation_20260822.json"
@@ -51,8 +67,11 @@ PRODUCTION_PROFILE_MANIFEST = (
 
 PR127_BASE_SHA = "3548bf300c99685ff6ede0dce2e5bfe8c044d213"
 BASE_SHA = "8aa65fb3fb5f077bcd6dfa427c8902bd6d5c28b0"
-MASTER_MAIN_SHA = "e6c476bf746ae840b3f0d7f8fc1a279f8bd4731e"
+MASTER_MAIN_SHA = "3f0317e91c9ac8eff8ff1089d100a25f7c875793"
 FINAL_SET_SHA256 = "3705935f306a52cde0f398db20f685dce82d0bb9acd7909c8e6955d6356643e0"
+FINAL_PRODUCTION_SET_SHA256 = (
+    "fe97b3410791fa78d4734a8c495443296b3f2ec3e77627e12fc34f90e0b2b5f0"
+)
 PROFILE_MATRIX_SHA256 = "b1fb997b56f080101493ac1efb151fc228109e110a9d8d86ce74f730eff544fe"
 PR129_PROFILE_MATRIX_SHA256 = (
     "8009596c0cce54f816a1a1307a9ba5663146cfa2d7d95e381e84819d3be9c963"
@@ -80,15 +99,42 @@ def test_final_authority_set_is_exact_canonical_artifact() -> None:
     assert hashlib.sha256(payload).hexdigest() == FINAL_SET_SHA256
 
 
+def test_current_production_profile_report_is_fail_closed_and_exact() -> None:
+    report = PRODUCTION_PROFILE_REPORT.read_text(encoding="utf-8")
+
+    for fact in (
+        "FINAL_PRE_PROFILE_ELIGIBLE_COUNT=72",
+        "FINAL_PRODUCTION_ELIGIBLE_COUNT=26",
+        f"FINAL_PRODUCTION_ELIGIBLE_SET_SHA256={FINAL_PRODUCTION_SET_SHA256}",
+        "FINAL_PROFILE_REVIEW_REQUIRED_COUNT=46",
+        "P01_P10_SCOPE_DRIFT=0",
+        "P24_PROFILE_MATCH=5",
+        "PROFILE_EXACT_MATCH_COUNT=26",
+        "PROFILE_NO_MATCH_COUNT=0",
+        "RELEASE_SCOPE_PLACEMENT_GAP=0",
+        "UNACCOUNTED_CONTENTS=0",
+        "TERMINAL_DISPOSITION_COVERAGE=100%",
+        "PROD_DB_WRITES=0",
+        "PRODUCTION_DB_MUTATED=false",
+        "REAL_AUTHORIZATIONS_CREATED=false",
+        "AUTHORIZED=0",
+        "RAG_PRODUCTION_DEPLOYED=false",
+    ):
+        assert fact in report
+    assert "voie=unknown" not in report
+    assert "FINAL_PRODUCTION_ELIGIBLE_COUNT=72" not in report
+
+
 def test_master_freezes_recomputed_release_algebra_and_terminal_accounting() -> None:
     master = _master()
     corpus = master["corpus_eligibility"]
-    terminal = master["terminal_disposition_20260823"]
+    terminal = master["terminal_disposition_20260825"]
 
     assert master["state_observed_at_main_sha"] == MASTER_MAIN_SHA
     assert master["pr_merges"]["PR127_MERGED"] is True
     assert master["pr_merges"]["PR129_MERGED"] is True
     assert master["pr_merges"]["PR130_MERGED"] is True
+    assert master["pr_merges"]["PR131_MERGED"] is True
     assert master["multi_authorization_protocol_20260823"]["V2_MECHANISM_ON_MAIN"] is True
     assert corpus == {
         "PHYSICAL_FILES": 2584,
@@ -97,24 +143,31 @@ def test_master_freezes_recomputed_release_algebra_and_terminal_accounting() -> 
         "DUPLICATE_CONTENT_GROUPS": 1,
         "FINAL_BASE_INGEST_CANDIDATES": 73,
         "FINAL_NON_AUTHORITY_BLOCKED_COUNT": 1,
-        "FINAL_AUTHORITY_REQUIRED_COUNT": 72,
-        "FINAL_AUTHORITY_REQUIRED_SET_SHA256": FINAL_SET_SHA256,
-        "FINAL_RELEASE_ELIGIBLE_ARTIFACTS": 72,
+        "FINAL_PRE_PROFILE_ELIGIBLE_COUNT": 72,
+        "FINAL_PRE_PROFILE_ELIGIBLE_SET_SHA256": FINAL_SET_SHA256,
+        "FINAL_PRODUCTION_ELIGIBLE_COUNT": 26,
+        "FINAL_PRODUCTION_ELIGIBLE_SET_SHA256": FINAL_PRODUCTION_SET_SHA256,
+        "FINAL_PROFILE_REVIEW_REQUIRED_COUNT": 46,
+        "FINAL_AUTHORITY_REQUIRED_COUNT": 26,
+        "FINAL_AUTHORITY_REQUIRED_SET_SHA256": FINAL_PRODUCTION_SET_SHA256,
+        "FINAL_RELEASE_ELIGIBLE_ARTIFACTS": 26,
         "FINAL_ELIGIBLE_SET_FROZEN": True,
-        "RECOMPUTATION_EVIDENCE_PATH": (
-            "docs/reports/final_release_recomputation_evidence_20260824.json"
+        "TERMINAL_DISPOSITION_EVIDENCE_PATH": (
+            "docs/reports/terminal_disposition_summary_20260825.json"
         ),
-        "RECOMPUTATION_EVIDENCE_SHA256": (
-            "f68f5c525c7bd9280e03a1bbc5fd4a434de1b1d64e8a0a4eff8e32a3caa4f47d"
+        "TERMINAL_DISPOSITION_EVIDENCE_SHA256": (
+            "41ed6ff6ef160b5fedd36b2316dd91bed1f1b8be223958eec8587b9f30e4571a"
         ),
         "AUTHORIZED_ELIGIBLE_ARTIFACTS": 0,
+        "REPUBLISHED_ELIGIBLE_ARTIFACTS": 0,
+        "H2_COVERED_ELIGIBLE_ARTIFACTS": 0,
         "INGESTED_ELIGIBLE_ARTIFACTS": 0,
         "API_DISCOVERABLE_ELIGIBLE_ARTIFACTS": 0,
     }
     assert terminal == {
         "UNIQUE_CONTENTS": 2582,
-        "INGEST_CANDIDATE": 72,
-        "REVIEW_REQUIRED": 2399,
+        "INGEST_CANDIDATE": 26,
+        "REVIEW_REQUIRED": 2445,
         "QUARANTINE": 2,
         "ARCHIVE_ONLY": 19,
         "EXCLUDE": 53,
@@ -173,9 +226,12 @@ def test_recomputation_evidence_records_actual_non_skipped_producer_run() -> Non
     evidence_bytes = RECOMPUTATION_EVIDENCE.read_bytes()
     evidence = json.loads(evidence_bytes)
 
-    assert hashlib.sha256(evidence_bytes).hexdigest() == _master()["corpus_eligibility"][
-        "RECOMPUTATION_EVIDENCE_SHA256"
-    ]
+    assert hashlib.sha256(evidence_bytes).hexdigest() == (
+        "f68f5c525c7bd9280e03a1bbc5fd4a434de1b1d64e8a0a4eff8e32a3caa4f47d"
+    )
+    assert _master()["corpus_eligibility"]["FINAL_PRE_PROFILE_ELIGIBLE_SET_SHA256"] == (
+        evidence["result"]["final_authority_required_set_sha256"]
+    )
     assert evidence["protocol_version"] == "NEXUS-FINAL-RELEASE-RECOMPUTATION-EVIDENCE-V1"
     assert evidence["baseline_main_sha"] == PR127_BASE_SHA
     assert evidence["producer"] == "services/rag-pedago/scripts/recompute_final_release_set.py"
@@ -298,15 +354,14 @@ def test_p24_is_bound_to_the_exact_production_profile_and_staging_is_not_product
 
     fingerprint = collection_profile_fingerprint(profile)
     assert fingerprint == PRODUCTION_PROFILE_FINGERPRINT
-    assert manifest["profiles"] == [
-        {
-            "collection": profile.scope.collection,
-            "profile_version": profile.profile_version,
-            "fingerprint": fingerprint,
-            "approved_by": "Nexus Réussite",
-            "approved_at": "2026-08-09T00:00:00+01:00",
-        }
-    ]
+    assert len(manifest["profiles"]) == 18
+    assert {
+        "collection": profile.scope.collection,
+        "profile_version": profile.profile_version,
+        "fingerprint": fingerprint,
+        "approved_by": "Nexus Réussite",
+        "approved_at": "2026-08-09T00:00:00+01:00",
+    } in manifest["profiles"]
 
     staging = [
         row
@@ -354,34 +409,33 @@ def test_grounded_production_profile_report_records_only_proven_p24_promotion() 
     assert "services/rag-engine/tests/test_release_scope_placement.py" in report
 
 
-def test_current_master_and_checklist_do_not_claim_final_scope_count() -> None:
+def test_current_master_and_checklist_freeze_final_profile_scope_count() -> None:
     master = _master()
-    profile_state = master["production_profile_proposal_20260823"]
+    profile_state = master["production_profile_release_20260825"]
     master_md = MASTER_MD.read_text(encoding="utf-8")
     checklist = CHECKLIST.read_text(encoding="utf-8")
 
-    assert profile_state["GROUNDED_DISTINCT_CANONICAL_RESOURCE_SCOPES"] == 1
-    assert (
-        profile_state["DISTINCT_CANONICAL_RESOURCE_SCOPES"]
-        == "UNKNOWN_PENDING_PROFILE_DECISIONS"
-    )
-    assert "GROUNDED_DISTINCT_CANONICAL_RESOURCE_SCOPES=1" in master_md
-    assert "DISTINCT_CANONICAL_RESOURCE_SCOPES=UNKNOWN_PENDING_PROFILE_DECISIONS" in master_md
-    assert "P24_RELEASE_REGISTRY_MAPPING_READY=false" in master_md
+    assert profile_state["PRODUCTION_PROFILE_COUNT"] == 18
+    assert profile_state["PROFILE_EXACT_MATCH_COUNT"] == 26
+    assert profile_state["PROFILE_NO_MATCH_COUNT"] == 0
+    assert profile_state["P24_RELEASE_REGISTRY_ACCEPTED"] is True
+    assert "PRODUCTION_PROFILE_COUNT=18" in master_md
+    assert "PROFILE_EXACT_MATCH_COUNT=26" in master_md
+    assert "P24_RELEASE_REGISTRY_ACCEPTED=true" in master_md
     assert "PR129_MERGED=true" in master_md
     assert "PR130_MERGED=true" in master_md
-    assert "61 contenus encore non ancrés" not in checklist
-    assert "56 contenus encore non ancrés" in checklist
-    assert "10 partitions staging / 11 contenus" in checklist
+    assert "26 contenus production" in checklist
+    assert "10 exactement grounded" in checklist
+    assert "10 partitions staging / 11 contenus sont promues" in checklist
 
 
-def test_master_names_the_current_ops_review_before_later_profile_decisions() -> None:
+def test_master_names_the_current_production_profile_review() -> None:
     master_md = MASTER_MD.read_text(encoding="utf-8")
     normalized = " ".join(master_md.split())
 
-    assert "revue humaine du présent lot de rafraîchissement des preuves go-live" in normalized
-    assert "présent lot de correction des profils" not in master_md
-    assert "décisions de profils" in master_md
+    assert "trusted-human-review/head-pinned" in normalized
+    assert "de la PR profils production" in normalized
+    assert "décisions de profils" not in master_md
 
 
 def test_master_reconciles_versioned_ops_assessments_fail_closed() -> None:
@@ -429,25 +483,26 @@ def test_master_reconciles_versioned_ops_assessments_fail_closed() -> None:
         "UNVERIFIED_OPERATOR_OBSERVATION_PRESENT": True,
     }
     assert master["production_github_environment"] == {
-        "PRODUCTION_ENVIRONMENT_EXISTS": False,
-        "PRODUCTION_ENVIRONMENT_PROVISIONED": False,
+        "PRODUCTION_ENVIRONMENT_EXISTS": True,
+        "PRODUCTION_ENVIRONMENT_PROVISIONED": True,
         "REQUIRED_REVIEWER": "abenrhouma",
         "REQUIRED_REVIEWER_USER_ID": 67140603,
+        "REQUIRED_REVIEWER_CONFIGURED": True,
         "MAIN_ONLY": True,
         "PREVENT_SELF_REVIEW": True,
         "ADMIN_BYPASS": False,
         "WAIT_TIMER_MINUTES": 0,
         "SECRETS": 0,
-        "HUMAN_ADMIN_ACTION_REQUIRED": True,
-        "OBSERVED_AT": "2026-08-24T22:51:18Z",
+        "HUMAN_ADMIN_ACTION_REQUIRED": False,
+        "OBSERVED_AT": "2026-08-25T05:03:17Z",
         "POINT_IN_TIME_ONLY": True,
-        "REVIEWER_PERMISSION": "write",
-        "MUTATION_PERFORMED": False,
-        "READ_ONLY_EVIDENCE_PATH": (
-            "docs/reports/github_environment_read_only_observation_20260824.json"
+        "MUTATION_PERFORMED": True,
+        "ENVIRONMENT_PRODUCTION_READY": True,
+        "EVIDENCE_PATH": (
+            "docs/reports/evidence/github_production_environment_20260825.json"
         ),
-        "READ_ONLY_EVIDENCE_SHA256": (
-            "24ce5bf71ad40e5fa393e33d9d7fabfba7b2fcb4dfc982bf300606e9dec2181e"
+        "EVIDENCE_SHA256": (
+            "55543e699dfaf5e5692ccac6b4567deffce605c6c37c487fa5b78c7ec63b31e4"
         ),
     }
     assert hashlib.sha256(DOCKER_REHEARSAL_EVIDENCE.read_bytes()).hexdigest() == master[
@@ -456,6 +511,30 @@ def test_master_reconciles_versioned_ops_assessments_fail_closed() -> None:
     assert hashlib.sha256(PRODUCTION_DB_EVIDENCE.read_bytes()).hexdigest() == master[
         "production_database_read_only_audit_20260824"
     ]["EVIDENCE_SHA256"]
+    assert master["production_database_read_only_audit_20260825"][
+        "PROD_DB_TARGET_VERIFIED"
+    ] is True
+    assert master["production_database_read_only_audit_20260825"]["PROD_DB_WRITES"] == 0
+    assert master["production_database_read_only_audit_20260825"][
+        "RESTORE_REHEARSAL_PASS"
+    ] is True
+    current_db_evidence = json.loads(
+        CURRENT_PRODUCTION_DB_EVIDENCE.read_text(encoding="utf-8")
+    )
+    current_db_transcript = CURRENT_PRODUCTION_DB_TRANSCRIPT.read_bytes()
+    assert hashlib.sha256(CURRENT_PRODUCTION_DB_EVIDENCE.read_bytes()).hexdigest() == master[
+        "production_database_read_only_audit_20260825"
+    ]["EVIDENCE_SHA256"]
+    assert hashlib.sha256(current_db_transcript).hexdigest() == current_db_evidence[
+        "sanitized_versioned_transcript"
+    ]["sha256"]
+    assert b"/tmp/" not in current_db_transcript
+    assert b"BEGIN PRIVATE KEY" not in current_db_transcript
+    assert b"Authorization:" not in current_db_transcript
+    assert master["docker_rehearsal_20260825"][
+        "ATOMIC_DOCKER_V2_REHEARSAL_PASS"
+    ] is True
+    assert master["docker_rehearsal_20260825"]["FOREIGN_SERVICES_TOUCHED"] == 0
     assert master["release_status"] == {
         "PRODUCTION_READY": False,
         "GO_LIVE_READY": False,
@@ -471,27 +550,28 @@ def test_github_environment_observation_is_sanitized_and_state_timestamp_is_real
 
     assert hashlib.sha256(evidence_bytes).hexdigest() == master[
         "production_github_environment"
-    ]["READ_ONLY_EVIDENCE_SHA256"]
-    assert evidence["read_only"] is True
+    ]["EVIDENCE_SHA256"]
+    assert evidence["schema_version"] == (
+        "NEXUS-GITHUB-PRODUCTION-ENVIRONMENT-EVIDENCE-V1"
+    )
     assert evidence["repository"] == "cyranoaladin/RAG"
-    assert evidence["environment_query_result"] == {"total_count": 0, "names": []}
-    assert evidence["reviewer_query_result"] == {
+    assert evidence["environment"] == "production"
+    assert evidence["live_readback"]["required_reviewer"] == {
         "login": "abenrhouma",
         "user_id": 67140603,
-        "permission": "write",
+        "prevent_self_review": True,
     }
+    assert evidence["live_readback"]["deployment_branch_policy"]["branch_policies"] == [
+        {"name": "main", "type": "branch"}
+    ]
+    assert evidence["live_readback"]["can_admins_bypass"] is False
+    assert evidence["live_readback"]["environment_secret_count"] == 0
     assert b"token" not in evidence_bytes.lower()
     assert b"authorization:" not in evidence_bytes.lower()
     generated_at = datetime.fromisoformat(master["state_generated_at"].replace("Z", "+00:00"))
     github_observed_at = datetime.fromisoformat(evidence["observed_at"].replace("Z", "+00:00"))
-    recompute_observed_at = datetime.fromisoformat(
-        json.loads(RECOMPUTATION_EVIDENCE.read_text(encoding="utf-8"))["observed_at"].replace(
-            "Z", "+00:00"
-        )
-    )
     assert generated_at.tzinfo is not None
     assert generated_at >= github_observed_at
-    assert generated_at >= recompute_observed_at
     assert generated_at <= datetime.now(UTC)
 
 
@@ -562,11 +642,14 @@ def test_human_gate_documents_are_exact_and_do_not_mark_real_execution_done() ->
     environment_plan = ENVIRONMENT_PLAN.read_text(encoding="utf-8")
 
     for token in (
-        "FINAL_RELEASE_ELIGIBLE_ARTIFACTS=72",
+        "FINAL_RELEASE_ELIGIBLE_ARTIFACTS=26",
+        "FINAL_PRE_PROFILE_ELIGIBLE_COUNT=72",
+        "FINAL_PRODUCTION_ELIGIBLE_COUNT=26",
         "FINAL_ELIGIBLE_SET_FROZEN=true",
         "UNACCOUNTED_CONTENTS=0",
         "TERMINAL_DISPOSITION_COVERAGE=100%",
-        "PROFILE_DECISION_REQUIRED=true",
+        "PROFILE_EXACT_MATCH_COUNT=26",
+        "PROFILE_NO_MATCH_COUNT=0",
         "PRODUCTION_READY=false",
         "GO_LIVE_READY=false",
         "RAG_PRODUCTION_DEPLOYED=false",
@@ -578,9 +661,10 @@ def test_human_gate_documents_are_exact_and_do_not_mark_real_execution_done() ->
         "REAL_CAMPAIGN_EXECUTED=false",
         "REAL_GOVERNED_REPUBLISH_EXECUTED=false",
         "REAL_H2_GATE_PASS=false",
-        "PRODUCTION_ENVIRONMENT_PROVISIONED=false",
-        "PROD_DB_TARGET_VERIFIED=UNKNOWN",
-        "ATOMIC_DOCKER_REHEARSAL_PASS=UNKNOWN",
+        "PRODUCTION_ENVIRONMENT_PROVISIONED=true",
+        "PROD_DB_TARGET_VERIFIED=true",
+        "ATOMIC_DOCKER_V2_REHEARSAL_PASS=true",
+        "DOCKER_V2_EVIDENCE_MERGED=false",
     ):
         assert pending in checklist
 
@@ -592,6 +676,6 @@ def test_human_gate_documents_are_exact_and_do_not_mark_real_execution_done() ->
         "ADMIN_BYPASS=false",
         "WAIT_TIMER_MINUTES=0",
         "ENVIRONMENT_SECRETS=0",
-        "PRODUCTION_GITHUB_ENVIRONMENT_PROVISIONED=false",
+        "PRODUCTION_GITHUB_ENVIRONMENT_PROVISIONED=true",
     ):
         assert exact_gate in environment_plan

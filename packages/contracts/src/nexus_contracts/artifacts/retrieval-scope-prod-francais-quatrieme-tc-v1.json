@@ -1,0 +1,36 @@
+{
+  "artifact_version": "2",
+  "scope_id": "prod_francais_quatrieme_tc_v1",
+  "status": "eligible_for_promotion",
+  "source_sha256": "836b02555dba0f4f8d9c16dc64c6f5964e86ba92d4b967eda3e2397b2fb58775",
+  "target_identity": {
+    "tenant": "libre_quatrieme",
+    "niveau": "quatrieme",
+    "voie": "college",
+    "matiere": "francais",
+    "statut_enseignement": "tronc_commun",
+    "audience": "libre",
+    "candidates": [
+      "libre"
+    ]
+  },
+  "evidence_subject": {
+    "collection": "rag_nexus_francais_quatrieme_tc",
+    "tenant": "libre_quatrieme",
+    "niveau": "quatrieme",
+    "voie": "college",
+    "matiere": "francais",
+    "statut_enseignement": "tronc_commun",
+    "candidat": "libre",
+    "audiences": [
+      "libre",
+      "tous"
+    ],
+    "visibility": "internal",
+    "rights": [
+      "officiel_public"
+    ],
+    "school_year": "2026-2027",
+    "programme_version": "BOEN_special_11_2018-07-26_aj_2020"
+  }
+}

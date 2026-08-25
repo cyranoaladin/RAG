@@ -1,0 +1,36 @@
+{
+  "artifact_version": "2",
+  "scope_id": "prod_nsi_premiere_specialite_v1",
+  "status": "eligible_for_promotion",
+  "source_sha256": "af49291a8b5d5ffe50157f1b7d595b5c7466c36893df99c7c8293e57bde0fee7",
+  "target_identity": {
+    "tenant": "libre_premiere",
+    "niveau": "premiere",
+    "voie": "generale",
+    "matiere": "nsi",
+    "statut_enseignement": "specialite",
+    "audience": "libre",
+    "candidates": [
+      "libre"
+    ]
+  },
+  "evidence_subject": {
+    "collection": "rag_nexus_nsi_premiere_specialite",
+    "tenant": "libre_premiere",
+    "niveau": "premiere",
+    "voie": "generale",
+    "matiere": "nsi",
+    "statut_enseignement": "specialite",
+    "candidat": "libre",
+    "audiences": [
+      "libre",
+      "tous"
+    ],
+    "visibility": "internal",
+    "rights": [
+      "officiel_public"
+    ],
+    "school_year": "2026-2027",
+    "programme_version": "BOEN_special_1_2019-01-22"
+  }
+}

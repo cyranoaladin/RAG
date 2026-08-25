@@ -1,0 +1,36 @@
+{
+  "artifact_version": "2",
+  "scope_id": "prod_dgemc_terminale_option_v1",
+  "status": "eligible_for_promotion",
+  "source_sha256": "02408bcf498ec56225852525758396152f2ed1c919c24528fd5f0fb59f54627f",
+  "target_identity": {
+    "tenant": "libre_terminale",
+    "niveau": "terminale",
+    "voie": "generale",
+    "matiere": "dgemc",
+    "statut_enseignement": "option",
+    "audience": "libre",
+    "candidates": [
+      "libre"
+    ]
+  },
+  "evidence_subject": {
+    "collection": "rag_nexus_dgemc_terminale_option",
+    "tenant": "libre_terminale",
+    "niveau": "terminale",
+    "voie": "generale",
+    "matiere": "dgemc",
+    "statut_enseignement": "option",
+    "candidat": "libre",
+    "audiences": [
+      "libre",
+      "tous"
+    ],
+    "visibility": "internal",
+    "rights": [
+      "officiel_public"
+    ],
+    "school_year": "2026-2027",
+    "programme_version": "BOEN_special_8_2019-07-25_MENE1921266A_MENE2208320A"
+  }
+}

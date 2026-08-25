@@ -71,6 +71,18 @@
     ]
   },
   {
+    "id": "eduscol_dgemc",
+    "url": "https://eduscol.education.gouv.fr/5781/programmes-et-ressources-en-droit-et-grands-enjeux-du-monde-contemporain-voie-gt",
+    "status": "to_verify",
+    "matiere": "dgemc",
+    "niveaux": [
+      "terminale"
+    ],
+    "collections": [
+      "rag_nexus_dgemc_terminale_option"
+    ]
+  },
+  {
     "id": "eduscol_eam",
     "url": "https://eduscol.education.gouv.fr/5688/epreuve-anticipee-de-mathematiques-aux-baccalaureats-general-et-technologique",
     "status": "verified",

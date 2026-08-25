@@ -59,11 +59,14 @@ class CockpitSnapshotCoherenceTest(unittest.TestCase):
         return json.loads(COLLECTIONS_JSON.read_text(encoding="utf-8"))
 
     def test_snapshots_canoniques_sont_exhaustivement_concordants(self) -> None:
+        expected_source_count = len(
+            json.loads(SOURCES_JSON.read_text(encoding="utf-8"))
+        )
         expected_count = len(self.load_collections())
         result = self.run_validator()
 
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("PASS (20 sources)", result.stdout)
+        self.assertIn(f"PASS ({expected_source_count} sources)", result.stdout)
         self.assertIn(
             f"PASS ({expected_count} collections; catalogue uniquement, corpus non validé)",
             result.stdout,

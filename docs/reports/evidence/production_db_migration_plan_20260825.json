@@ -1,0 +1,249 @@
+{
+  "protocol_version": "NEXUS-PROD-DB-MIGRATION-PLAN-V2",
+  "source_main_sha": "3f0317e91c9ac8eff8ff1089d100a25f7c875793",
+  "source_main_tree_sha": "5bc5234ea395486810638d553c3c9bc2e7d57d75",
+  "target_identity": {
+    "container": "rag_pgvector",
+    "database": "ragdb",
+    "host_bind": "127.0.0.1:5436",
+    "volume": "infra_rag_pgvector_data"
+  },
+  "observed_start_state": {
+    "product_structural_head": 1,
+    "product_registry_present": false,
+    "ingestion_control_registry_present": false,
+    "rag_chunks_rows": 0
+  },
+  "execution_contract": {
+    "no_skips": true,
+    "product_runner": "services/rag-engine/infra/scripts/apply_pgvector_migrations.sh",
+    "ingestion_control_runner": "services/rag-engine/infra/scripts/provision_and_bootstrap_ingestion_control.sh",
+    "fresh_pre_cutover_backup_required": true,
+    "mutations_require_final_cutover_go": true,
+    "fingerprint_method_sha256": "f492fa328d66be4e27e864f5efb254d13a5651ddbf704e0f39b5a6cad36aebd5",
+    "fingerprints_measured_on_isolated_restore": true,
+    "global_rollback_boundary": "restore the fresh pre-cutover pg_dump -Fc backup; never continue API/worker startup after a failed transition"
+  },
+  "steps": [
+    {
+      "order": 1,
+      "id": "product_001_adopt",
+      "action": "validate and register the already-present structural head without replaying DDL",
+      "path": "services/rag-engine/infra/postgres/migrations/001_rag_chunks_v2_schema.sql",
+      "sha256": "c0ce69353bd04c87a9bf7adf885ebf9e915885b8e0b286faffc620b74cebc88c",
+      "precondition": "rag_chunks has the exact 25-column structural-001 shape, zero rows, no text_tsv, no LOT41 columns, no artifact tables, and no product registry",
+      "postcondition": "rag_schema_migrations contains only version 1 with the exact path and SHA",
+      "expected_schema_fingerprint_sha256": "b05ac701db1c5f3914004c0a201bd99972ca83a866ffcf5cc1454073d6b634b2",
+      "expected_catalog_fact_count": 311,
+      "rollback_boundary": "restore fresh backup; do not delete registry rows manually"
+    },
+    {
+      "order": 2,
+      "id": "product_002",
+      "action": "apply hybrid retrieval column and GIN index transactionally",
+      "path": "services/rag-engine/infra/postgres/migrations/002_hybrid_retrieval.sql",
+      "sha256": "6fef12777291653611aa8b561709e2090b169b40629ce99acf0767ebb388f89d",
+      "precondition": "registered product head is exactly 1",
+      "postcondition": "text_tsv and idx_rag_chunks_text_tsv exist and registered product head is exactly 2",
+      "expected_schema_fingerprint_sha256": "e0676c62d070a53601d6d0f55b9319ef93b8560b29e138fe6e87c894ee351298",
+      "expected_catalog_fact_count": 314,
+      "rollback_boundary": "current transition is atomic; on failure keep go-live closed and restore fresh backup"
+    },
+    {
+      "order": 3,
+      "id": "product_003",
+      "action": "apply profile filtering columns, checks, and reviewed profile index transactionally",
+      "path": "services/rag-engine/infra/postgres/migrations/003_profile_filtering.sql",
+      "sha256": "069cd391d77ee47a6daae037221dbef7403e7710d35abecaecb0484f05d0428a",
+      "precondition": "registered product head is exactly 2",
+      "postcondition": "five LOT41 profile columns and their validated checks exist and registered product head is exactly 3",
+      "expected_schema_fingerprint_sha256": "6ddeee0ef6b11f8fe6ba439643488ec555a0c4661ce90e00af703e9b85828452",
+      "expected_catalog_fact_count": 331,
+      "rollback_boundary": "current transition is atomic; on failure keep go-live closed and restore fresh backup"
+    },
+    {
+      "order": 4,
+      "id": "product_004",
+      "action": "apply artifact identity and placement tables, constraints, indexes, and canonical runtime roles transactionally",
+      "path": "services/rag-engine/infra/postgres/migrations/004_artifact_placements.sql",
+      "sha256": "fe32b14e6c9cdce8eb9f76e67285967ed8fd4e7f875ca2aaf3436a2e34f37489",
+      "precondition": "registered product head is exactly 3 and all head-003 validators pass",
+      "postcondition": "rag_chunks has 32 columns, rag_artifacts has 10, rag_artifact_placements has 23, exact constraints/indexes pass, runtime roles are canonical, and product head is exactly 4",
+      "expected_schema_fingerprint_sha256": "ba5f1c4f977ef36347477948109669dbac924933b8c3edcebe7f6793a80c737f",
+      "expected_catalog_fact_count": 402,
+      "additional_fingerprint_sources": {
+        "schema_head_004_fingerprints_env_sha256": "13fee2ea856a340c7020a098288a171c31fa49e7566790ceff47a6ffea7ed65b",
+        "schema_head_004_columns_tsv_sha256": "ac5f361814585c081b966a1d1574f792aa307eba3c4dcdf7c9d7a0aa70307d86",
+        "runtime_role_script_sha256": "7ad4671eb843b0f292821562d36a71d167d8b39f7cb00877d2074b696ca9e164"
+      },
+      "rollback_boundary": "current transition is atomic; on failure keep go-live closed and restore fresh backup"
+    },
+    {
+      "order": 5,
+      "id": "ingestion_control_001",
+      "path": "services/rag-engine/infra/postgres/ingestion_control/migrations/001_ingestion_control_schema.sql",
+      "sha256": "6df7ca2aaa76f3d52d9c2422385d2b2799b51ae05748fb99d745f1aea9b566cc",
+      "precondition": "product head is exactly 4 and ingestion_control registry is absent",
+      "postcondition": "ingestion_control registry head is exactly 1",
+      "expected_schema_fingerprint_sha256": "ce999d008c329b8504d6785d2e6f0a9d54b41bcf2eb6301719cdfd34573f4fe1",
+      "expected_catalog_fact_count": 498,
+      "rollback_boundary": "transaction atomic; rollback only with 001 down migration in an approved reverse sequence or restore fresh backup"
+    },
+    {
+      "order": 6,
+      "id": "ingestion_control_002",
+      "path": "services/rag-engine/infra/postgres/ingestion_control/migrations/002_resource_candidates_and_artifacts.sql",
+      "sha256": "c432c11885e93aaff5a32fdebe9627e8fa473cee9016260c5aadd2f9d9bac870",
+      "precondition": "ingestion_control head is exactly 1",
+      "postcondition": "ingestion_control head is exactly 2",
+      "expected_schema_fingerprint_sha256": "a5a0c8e5a0e7b2a82c801365ed5740ceb7f4ca0017ffa977c889d95ab46330af",
+      "expected_catalog_fact_count": 544,
+      "rollback_boundary": "transaction atomic; reverse with exact 002 down migration or restore fresh backup"
+    },
+    {
+      "order": 7,
+      "id": "ingestion_control_003",
+      "path": "services/rag-engine/infra/postgres/ingestion_control/migrations/003_workflow_events.sql",
+      "sha256": "9b7353e672aa28d1380314f583528d8e40795fdd5cf4bc3896f542d505b6b5d4",
+      "precondition": "ingestion_control head is exactly 2",
+      "postcondition": "ingestion_control head is exactly 3",
+      "expected_schema_fingerprint_sha256": "1dd405eeba309738f3cedda79c1df4ffff67586546f3a89270b81ba16b12cd76",
+      "expected_catalog_fact_count": 568,
+      "rollback_boundary": "transaction atomic; reverse with exact 003 down migration or restore fresh backup"
+    },
+    {
+      "order": 8,
+      "id": "ingestion_control_004",
+      "path": "services/rag-engine/infra/postgres/ingestion_control/migrations/004_jobs.sql",
+      "sha256": "ee527a952ebc32b99cadce61b34839838e8382b63d1675749e1f46314a089e85",
+      "precondition": "ingestion_control head is exactly 3",
+      "postcondition": "ingestion_control head is exactly 4",
+      "expected_schema_fingerprint_sha256": "481f920f5d1977d15d78759a57472ccb73adc2dd463d2f4c10e523a055220ec5",
+      "expected_catalog_fact_count": 599,
+      "rollback_boundary": "transaction atomic; reverse with exact 004 down migration or restore fresh backup"
+    },
+    {
+      "order": 9,
+      "id": "ingestion_control_005",
+      "path": "services/rag-engine/infra/postgres/ingestion_control/migrations/005_jobs_status_reconcile.sql",
+      "sha256": "1709f3226c12081fa29cc5d61611c1a92b515b765f1351c54bd5aa37fe97a621",
+      "precondition": "ingestion_control head is exactly 4",
+      "postcondition": "ingestion_control head is exactly 5",
+      "expected_schema_fingerprint_sha256": "6860076de40f7f8a9f7145bd6b7cd48d67a9b730c340c8178f18ebe7ed5b1c1e",
+      "expected_catalog_fact_count": 600,
+      "rollback_boundary": "transaction atomic; reverse with exact 005 down migration or restore fresh backup"
+    },
+    {
+      "order": 10,
+      "id": "ingestion_control_006",
+      "path": "services/rag-engine/infra/postgres/ingestion_control/migrations/006_resource_candidates_and_artifacts_payload.sql",
+      "sha256": "f3fa3c8d16352e59c95fa819cd25945fe5da4178b59aaf216d05bb265474ddce",
+      "precondition": "ingestion_control head is exactly 5",
+      "postcondition": "ingestion_control head is exactly 6",
+      "expected_schema_fingerprint_sha256": "777823342b5e6c237b6dbd7bd218f41c300f2476c2c9768ba46887ab1f697300",
+      "expected_catalog_fact_count": 603,
+      "rollback_boundary": "transaction atomic; reverse with exact 006 down migration or restore fresh backup"
+    },
+    {
+      "order": 11,
+      "id": "ingestion_control_007",
+      "path": "services/rag-engine/infra/postgres/ingestion_control/migrations/007_scope_authorizations.sql",
+      "sha256": "1c48c74a18d601603ff9d4ee59b80cf8d0d0d5821564bdfc372aedefd14b7f32",
+      "precondition": "ingestion_control head is exactly 6",
+      "postcondition": "ingestion_control head is exactly 7",
+      "expected_schema_fingerprint_sha256": "d13dfb053bcef4dfe82b297cf66d4f264074972bfdcd2fae3f5c2b339e230e9f",
+      "expected_catalog_fact_count": 696,
+      "rollback_boundary": "transaction atomic; reverse with exact 007 down migration or restore fresh backup"
+    },
+    {
+      "order": 12,
+      "id": "ingestion_control_008",
+      "path": "services/rag-engine/infra/postgres/ingestion_control/migrations/008_publication_attestations.sql",
+      "sha256": "0b0441c0bc1a9b0446fc4495b413c4febef154c73bc3bc6c2e63d33a54936349",
+      "precondition": "ingestion_control head is exactly 7",
+      "postcondition": "ingestion_control head is exactly 8",
+      "expected_schema_fingerprint_sha256": "a384cbc29917dd2f58e07b87b2f1bb2b79a9ae893f145b0eeef1c5a6a56211b7",
+      "expected_catalog_fact_count": 769,
+      "rollback_boundary": "transaction atomic; reverse with exact 008 down migration or restore fresh backup"
+    },
+    {
+      "order": 13,
+      "id": "ingestion_control_009",
+      "path": "services/rag-engine/infra/postgres/ingestion_control/migrations/009_scope_authorization_content_allowlist.sql",
+      "sha256": "6d1c93f6116e80e566c70f3352526f3dec13925e7267d953750c12aec0c4ae61",
+      "precondition": "ingestion_control head is exactly 8",
+      "postcondition": "ingestion_control head is exactly 9",
+      "expected_schema_fingerprint_sha256": "3e5396c173780a0a8c3ec4e2b2cb7d15b791e05bab80c8e8be60fa64fb637bc5",
+      "expected_catalog_fact_count": 773,
+      "rollback_boundary": "transaction atomic; reverse with exact 009 down migration or restore fresh backup"
+    },
+    {
+      "order": 14,
+      "id": "ingestion_control_010",
+      "path": "services/rag-engine/infra/postgres/ingestion_control/migrations/010_governed_publication_commit_fence.sql",
+      "sha256": "1bdbcbca5859ddeea49d835a1de990f0aad7b782e6a599511fdc86508f119397",
+      "precondition": "ingestion_control head is exactly 9",
+      "postcondition": "ingestion_control head is exactly 10",
+      "expected_schema_fingerprint_sha256": "7817a87ab2c69098d56a51bb51105deb35ba697177f8d539c4b87d6217b8f9c0",
+      "expected_catalog_fact_count": 782,
+      "rollback_boundary": "transaction atomic; reverse with exact 010 down migration or restore fresh backup"
+    },
+    {
+      "order": 15,
+      "id": "ingestion_control_011",
+      "path": "services/rag-engine/infra/postgres/ingestion_control/migrations/011_external_authority_commit_pins.sql",
+      "sha256": "5c850429de0d7d1c3c8a54880eb1091cc9b6b03225a1a6ec273f291b54a24bc1",
+      "precondition": "ingestion_control head is exactly 10",
+      "postcondition": "ingestion_control head is exactly 11",
+      "expected_schema_fingerprint_sha256": "af502189b7ca840c2d98f8c6a549bece583429fc97a42fc5720af1502e14650e",
+      "expected_catalog_fact_count": 844,
+      "rollback_boundary": "transaction atomic; reverse with exact 011 down migration or restore fresh backup"
+    },
+    {
+      "order": 16,
+      "id": "ingestion_control_012",
+      "path": "services/rag-engine/infra/postgres/ingestion_control/migrations/012_artifact_attributions.sql",
+      "sha256": "295613f94bdc970eb904ec96c9d6d97fe8f6910e21390333ea53e5841f6d1b8a",
+      "precondition": "ingestion_control head is exactly 11",
+      "postcondition": "ingestion_control head is exactly 12",
+      "expected_schema_fingerprint_sha256": "d27a65778c1093a497317d787f81c944febf098c0b823768b2c05fc8fcac0dae",
+      "expected_catalog_fact_count": 873,
+      "rollback_boundary": "transaction atomic; reverse with exact 012 down migration or restore fresh backup"
+    },
+    {
+      "order": 17,
+      "id": "ingestion_control_013",
+      "path": "services/rag-engine/infra/postgres/ingestion_control/migrations/013_lot42_v2_attribution_bound_reviews.sql",
+      "sha256": "61b7538e88cad2a78eda3683f2e66a305a2603987a205d7a3e43fb99cdaa9eef",
+      "precondition": "ingestion_control head is exactly 12",
+      "postcondition": "ingestion_control head is exactly 13",
+      "expected_schema_fingerprint_sha256": "1fad61d5389c91f0f3e8ed9b4a206af9db1f8eadbf0213d2c38daf8729660ff0",
+      "expected_catalog_fact_count": 875,
+      "rollback_boundary": "transaction atomic; reverse with exact 013 down migration or restore fresh backup"
+    },
+    {
+      "order": 18,
+      "id": "ingestion_control_roles",
+      "action": "provision and verify four distinct least-privilege roles with operator-supplied secrets",
+      "path": "services/rag-engine/infra/scripts/provision_ingestion_control_roles.sh",
+      "sha256": "7ae9e1387c4ab5a9c7e0b4c9a71e558fed8ce5871d2a35b7f8ce039e8e0790fb",
+      "precondition": "ingestion_control head is exactly 13 and all four distinct passwords are available from the production secret manager",
+      "postcondition": "migrator, app, authority, and attestor roles have the canonical attributes and grants",
+      "expected_schema_fingerprint_sha256": "47077f5e51bc9b5c264e8d797f96e6f00480e03234f56155920e13daabceda6c",
+      "expected_catalog_fact_count": 875,
+      "rollback_boundary": "keep go-live closed; rerun canonical provisioning after correcting secret/role input or restore fresh backup"
+    }
+  ],
+  "final_postconditions": {
+    "product_head": "004_artifact_placements",
+    "ingestion_control_head": "013_lot42_v2_attribution_bound_reviews",
+    "waiting_locks": 0,
+    "runtime_roles_verified": true,
+    "ingestion_control_roles_verified": true,
+    "api_and_workers_must_remain_stopped_until_all_checks_pass": true
+  },
+  "verdict": {
+    "PROD_DB_MIGRATION_PLAN_READY": true,
+    "PRODUCTION_MIGRATIONS_EXECUTED": false
+  }
+}
