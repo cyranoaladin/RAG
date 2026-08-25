@@ -103,4 +103,23 @@ mypy, Git/GitHub CLI.
 4. Attendre CI GitHub verte et zéro thread non résolu.
 5. Figer base/head, calculer le challenge exact et demander la vraie review
    humaine autorisée sans simuler l’identité.
-6. S’arrêter à `=== HUMAN GATE — PRODUCTION AUTHORIZATION PR ===`.
+6. Ne jamais fusionner cette PR : son état ouvert et son HEAD immuable font
+   partie de l’autorité révocable définie par ADR-0032.
+7. S’arrêter à `=== HUMAN GATE — PRODUCTION AUTHORIZATION PR ===`.
+
+### Task 7: Émettre les bindings opérateur avant toute fermeture
+
+**Files:** Artefacts exacts de la PR d’autorité ouverte ; sorties opérateur
+hors branche d’autorité.
+
+1. Revalider live que la PR est ouverte, non draft, approuvée au HEAD exact et
+   que le challenge/reviewer sont valides.
+2. Préparer ensemble les 18 commandes `issue_review_binding_cli.py issue`, une
+   par `authorization_id`, avec le même PR/HEAD exact.
+3. Présenter `=== OPERATOR SIGNING GATE — REVIEW BINDINGS ===` sans demander,
+   lire ou journaliser la clé privée.
+4. L’opérateur exécute les commandes depuis son poste avec accès GitHub et la
+   clé détenue localement ; aucun secret ne transite par Git, CI ou serveur.
+5. Vérifier localement chaque reçu contre l’ancre publique, son artefact exact
+   et son digest, puis conserver les 18 reçus pour le lot AuthorizationSet.
+6. Garder la PR ouverte et la branche inchangée pendant toute la validité.

@@ -29,8 +29,13 @@ offline détenue par l’opérateur. Ainsi, la revue peut couvrir le même HEAD 
 affaiblir la liaison individuelle artefact/reçu.
 
 Les bindings ne peuvent pas être ajoutés à la PR qu’ils attestent : modifier
-le HEAD invaliderait la revue. Ils seront donc intégrés dans un lot suivant,
-avec l’`AuthorizationSetV1`, après fusion des candidats et signature offline.
+le HEAD invaliderait la revue. La PR d’autorité reste donc ouverte et son HEAD
+immuable pendant toute la durée des autorisations, conformément à ADR-0032.
+Les 18 bindings sont émis après la review exacte, tant que cette PR est encore
+ouverte, puis conservés avec les octets exacts des artefacts pour construire le
+bundle de release et l’`AuthorizationSetV1` dans un lot suivant. La PR
+d’autorité n’est jamais fusionnée ; sa fermeture ou le dismissal de la review
+révoque le chemin live fail-closed.
 
 ## Entrées figées et contrôles fail-closed
 
@@ -85,7 +90,7 @@ Pour chaque scope :
 
 ## Sorties et auditabilité
 
-Les sorties versionnées sont :
+Les sorties versionnées sur la branche d’autorité dédiée sont :
 
 - `governance/authorizations/<authorization_id>.json` pour les 18 artefacts
   canoniques ;
@@ -103,7 +108,12 @@ partition, la canonicalisation et le replay byte-identique.
 
 Après CI et deux revues contradictoires fraîches, la PR s’arrête au vrai gate
 `trusted-human-review` sur son HEAD exact. Une fois cette review obtenue, les
-18 commandes de production des `ReviewBinding` sont préparées ensemble. La clé
-privée n’est jamais demandée, stockée, affichée ou transmise ; l’opérateur les
-exécute offline. Le lot suivant vérifie les 18 reçus, construit
-`AuthorizationSetV1`, puis enchaîne campagne V2, republish et H2 V2.
+18 commandes de production des `ReviewBinding` sont préparées ensemble et
+exécutées avant toute fermeture de la PR. Le producteur existant doit accéder
+à GitHub pour revalider la PR et son HEAD au moment de signer ; « clé offline »
+signifie ici que la clé reste détenue par l’opérateur, hors Git, CI, serveur et
+logs, pas que la commande est air-gapped. La clé privée n’est jamais demandée,
+stockée, affichée ou transmise. Le lot suivant vérifie les 18 reçus avec les
+octets exacts issus de la branche ouverte, construit `AuthorizationSetV1`, puis
+enchaîne campagne V2, republish et H2 V2. La PR d’autorité reste ouverte et
+inchangée jusqu’à l’expiration ou la révocation explicite de la release.
