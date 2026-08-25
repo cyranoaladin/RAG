@@ -1,0 +1,43 @@
+{
+  "schema_version": "NEXUS-GITHUB-PRODUCTION-ENVIRONMENT-EVIDENCE-V1",
+  "observed_at": "2026-08-25T05:03:17Z",
+  "repository": "cyranoaladin/RAG",
+  "environment": "production",
+  "mutation": {
+    "method": "PUT",
+    "reversible_configuration_only": true,
+    "created_at": "2026-08-25T04:08:43Z",
+    "updated_at": "2026-08-25T05:03:17Z"
+  },
+  "live_readback": {
+    "required_reviewer": {
+      "login": "abenrhouma",
+      "user_id": 67140603,
+      "prevent_self_review": true
+    },
+    "deployment_branch_policy": {
+      "protected_branches": false,
+      "custom_branch_policies": true,
+      "branch_policies": [
+        {
+          "name": "main",
+          "type": "branch"
+        }
+      ]
+    },
+    "can_admins_bypass": false,
+    "configured_wait_timer_minutes": 0,
+    "wait_timer_rule_present": false,
+    "environment_secret_count": 0
+  },
+  "verdict": {
+    "PRODUCTION_ENVIRONMENT_EXISTS": true,
+    "REQUIRED_REVIEWER_CONFIGURED": true,
+    "MAIN_ONLY": true,
+    "SELF_REVIEW_PREVENTED": true,
+    "ADMIN_BYPASS_DISABLED": true,
+    "WAIT_TIMER": 0,
+    "ENVIRONMENT_SECRETS": 0,
+    "ENVIRONMENT_PRODUCTION_READY": true
+  }
+}

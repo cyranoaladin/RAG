@@ -1,0 +1,131 @@
+{
+  "protocol_version": "NEXUS-PROD-DB-READ-ONLY-AUDIT-V2",
+  "observed_at_utc": "2026-08-25T04:11:28Z",
+  "source_main_sha": "3f0317e91c9ac8eff8ff1089d100a25f7c875793",
+  "source_main_tree_sha": "5bc5234ea395486810638d553c3c9bc2e7d57d75",
+  "ssh_trust": {
+    "strict_host_key_checking": true,
+    "user_known_hosts_file_explicit": true,
+    "target_alias": "nexus-prod-direct",
+    "target_ed25519_sha256": "SHA256:L1IIJU0FBVGRvtd30x+0yczollnSpmMHkDrsMoNAras",
+    "bastion_ed25519_sha256": "SHA256:DahlCqA249tRmD2ODRg16prz+FBgKWebCfEylTDhUx8"
+  },
+  "target": {
+    "host_identity": "korrigo",
+    "container": "rag_pgvector",
+    "database": "ragdb",
+    "owner_role": "raguser",
+    "host_bind": "127.0.0.1:5436",
+    "container_port": 5432,
+    "postgres_version": "16.14 (Debian 16.14-1.pgdg12+1)",
+    "pgvector_version": "0.8.2",
+    "data_directory": "/var/lib/postgresql/data",
+    "volume": "infra_rag_pgvector_data",
+    "volume_size_bytes": 48619270,
+    "compose_project": "infra",
+    "compose_service": "pgvector",
+    "compose_config": "/opt/rag-v2/current/services/rag-engine/infra/docker-compose.v2.yml",
+    "image": "pgvector/pgvector:pg16",
+    "image_digest": "sha256:00ba258a66dac104fd5171074a0084462a64a1369d8513f3d0a634e2f24d15bc",
+    "deployed_release_commit": "27a4558a1abca304d415240b9ec0c06000cd2db5",
+    "deployed_release_manifest_sha256": "2ddda7aed001c878b91a053d876fe3dd2579cafa5607c9f2c55499212c8bcbe5"
+  },
+  "excluded_foreign_postgresql": {
+    "kind": "native PostgreSQL cluster",
+    "cluster": "16/main",
+    "host_bind": "127.0.0.1:5433",
+    "data_directory": "/var/lib/postgresql/16/main",
+    "service_active": true,
+    "queried": false,
+    "mutated": false
+  },
+  "read_only_proof": {
+    "audit_transactions_read_only": true,
+    "production_dml_statements": 0,
+    "production_ddl_statements": 0,
+    "production_migration_commands": 0,
+    "production_database_writes": 0
+  },
+  "database_state": {
+    "database_size_bytes": 8289303,
+    "archive_mode": "off",
+    "connections": {
+      "total": 1,
+      "active": 1,
+      "audit_session_included": true
+    },
+    "waiting_locks": 0,
+    "exact_table_counts": {
+      "public.rag_api_keys": 0,
+      "public.rag_chunks": 0,
+      "public.rag_eval_runs": 0
+    },
+    "rag_chunks_columns": 25,
+    "rag_chunks_indexes": [
+      "idx_rag_chunks_audience",
+      "idx_rag_chunks_collection",
+      "idx_rag_chunks_matiere",
+      "idx_rag_chunks_niveau",
+      "idx_rag_chunks_review",
+      "idx_rag_chunks_rights",
+      "idx_rag_chunks_vector",
+      "rag_chunks_pkey"
+    ],
+    "idx_rag_chunks_text_tsv_present": false,
+    "filesystem": {
+      "total_bytes": 997333516288,
+      "used_bytes": 785011048448,
+      "available_bytes": 161585266688,
+      "used_percent": 83
+    }
+  },
+  "migration_state": {
+    "product_structural_head": 1,
+    "product_structural_head_registered": false,
+    "product_applied_registered": [],
+    "product_pending": [2, 3, 4],
+    "ingestion_control_registry_present": false,
+    "ingestion_control_applied": [],
+    "ingestion_control_pending": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+  },
+  "fresh_backup": {
+    "path": "/backup/rag/pre-production-db-20260825T041128Z",
+    "custom_dump": "ragdb.dump",
+    "custom_dump_sha256": "e9efc0c5b4e85a680eb8ed0497ccaeaaa987e0e40a6498b23e12122b47821d8f",
+    "custom_dump_bytes": 9095,
+    "globals_without_passwords": true,
+    "schema_state_captured": true,
+    "redacted_environment_metadata": true,
+    "checksum_manifest_verified": true
+  },
+  "restore_rehearsal": {
+    "project": "nexus-pg-restore-rehearsal-20260825t041128z",
+    "pg_restore_no_privileges": true,
+    "pre_migration_shape_matched_production": true,
+    "product_migrations_adopted": 1,
+    "product_migrations_applied": 3,
+    "ingestion_control_migrations_applied": 13,
+    "runtime_roles_reprovisioned_canonically": true,
+    "final_product_head": 4,
+    "final_ingestion_control_head": 13,
+    "constraints_and_indexes_validated": true,
+    "foreign_containers_touched": 0,
+    "project_containers_remaining": 0,
+    "production_database_mutated": false,
+    "transcript_sha256": "1f72caf0e971deb6bd0f56e2f67d938be5030c33160211afac11e24f2404124b"
+  },
+  "sanitized_versioned_transcript": {
+    "path": "docs/reports/evidence/production_db_read_only_audit_20260825.transcript.txt",
+    "sha256": "ac1b171d9cd907c4b86ee1db344f2a1b54381302ea0777619da3f76e880ca81a",
+    "credentials_included": false,
+    "temporary_paths_sanitized": true
+  },
+  "verdict": {
+    "PROD_DB_TARGET_VERIFIED": true,
+    "PROD_DB_WRITES": 0,
+    "FRESH_BACKUP_CREATED": true,
+    "BACKUP_CHECKSUM_VERIFIED": true,
+    "RESTORE_REHEARSAL_PASS": true,
+    "PRODUCTION_DB_MUTATED": false
+  }
+}
