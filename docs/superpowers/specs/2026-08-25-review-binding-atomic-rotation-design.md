@@ -48,6 +48,8 @@ produite directement depuis le fichier primaire vers le ciphertext : aucun
 plaintext temporaire n'est écrit sous `NEXUS_REVIEW_BINDING_BACKUP_ROOT`. Seul
 le checksum du ciphertext est publié ; aucun hash de la graine privée ne l'est.
 Le fichier chiffré conserve des permissions restrictives.
+Le helper opérateur local durci consomme la même variable ; l'exécution probante
+du présent lot a utilisé sa valeur par défaut.
 
 Une restauration est écrite uniquement dans un répertoire temporaire `0700`,
 puis détruite. Elle doit établir l'invariant exact :

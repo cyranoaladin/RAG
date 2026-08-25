@@ -163,7 +163,9 @@ git commit -m "governance: remplacer l'ancre review-binding perdue"
 > écrasement par identité device/inode, rollback borné, écriture complète,
 > relecture et `fsync`. Le producteur est désormais exercé uniquement par la
 > fixture `environment=test`; la vraie clé ne sert qu'au nonce et à la preuve
-> de restauration.
+> de restauration. Ce helper local consomme
+> `NEXUS_REVIEW_BINDING_BACKUP_ROOT` ; l'exécution probante a utilisé sa valeur
+> par défaut.
 
 - [x] **Step 0: Exécuter la recette opérateur durcie hors Git**
 
