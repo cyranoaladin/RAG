@@ -6,7 +6,7 @@ candidats ne deviennent pas des autorisations effectives avant la vraie revue
 GitHub exact-head et les `ReviewBinding` signés.
 
 ```text
-STATE_GENERATED_AT=2026-08-25T08:38:19Z
+STATE_GENERATED_AT=2026-08-25T08:59:03Z
 STATE_OBSERVED_AT_MAIN_SHA=3566cafb44138d6a7f00296dc0654257f9bf0ad6
 STATE_OBSERVED_AT_MAIN_TREE_SHA=8c5081a52096d531f1bd027790e600eb83b05bd5
 PR129_MERGED=true

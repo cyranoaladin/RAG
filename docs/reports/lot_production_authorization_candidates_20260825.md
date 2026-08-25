@@ -53,18 +53,25 @@ symlinké est refusé.
 
 ```text
 pytest tests/test_production_authorization_candidates.py = 40 passed
+pytest packages/contracts/tests = 467 passed
+pytest services/rag-pedago = 2848 passed, 2 skipped
+pytest rag-engine profile/release-scope = 170 passed
 ruff targeted = pass
 mypy targeted = pass
+ruff rag-pedago/rag-engine = pass
+mypy rag-pedago/rag-engine = pass
 write replay = pass
 check replay = pass
 missing output refused = true
 modified output refused = true
 extra output refused = true
 symlinked ancestor refused = true
+governance locks + mutation tests = pass
+repository controls + failsafe mutations = pass
+gitleaks differential 3566caf..HEAD = no leaks found
 ```
 
-Les vérifications repository-wide et GitHub CI sont consignées après leur
-exécution finale sur le HEAD de PR figé.
+La CI GitHub est consignée après son exécution sur le HEAD de PR figé.
 
 ## Statut d’autorité
 
