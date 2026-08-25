@@ -187,6 +187,11 @@ environ 50 kB/s. Il n'est donc pas déclaré vert. Les suites et garde-fous
 ci-dessus ont été exécutés directement ; la preuve clean-room finale reste le
 run GitHub du HEAD exact de la PR.
 
+Le job GitHub `services/rag-pedago` récupère l'historique Git complet. Cette
+profondeur est requise par le replay fail-closed du placement : son tree source
+figé peut être un commit antérieur du même lot et un checkout superficiel ne
+contient pas nécessairement cet objet Git.
+
 ## Gates non franchis par ce lot
 
 ```text
