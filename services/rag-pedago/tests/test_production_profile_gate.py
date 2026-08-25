@@ -22,6 +22,8 @@ RESOLUTION_PATH = (
 FINAL_MATRIX_PATH = (
     REPO_ROOT / "docs/reports/final_production_profile_matrix_20260825.json"
 )
+PROFILE_ROOT = REPO_ROOT / "services/rag-engine/configs/ingestion_profiles"
+STAGING_MULTILEVEL_ROOT = PROFILE_ROOT / "staging/multilevel"
 
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 REQUIRED_RESOLUTION_FIELDS = {
@@ -227,3 +229,24 @@ def test_final_matrix_contains_only_grounded_p11_p23_rows() -> None:
         for row in rows
         for dimension in row["dimensions"].values()
     )
+
+
+def test_p01_p10_profiles_are_promoted_with_identical_bytes() -> None:
+    proposed = _load(PROPOSED_MATRIX_PATH)
+    sources = {
+        dimension["source_of_truth"]
+        for row in proposed
+        if re.fullmatch(r"P(?:0[1-9]|10)", row["partition_id"])
+        for dimension in row["dimensions"].values()
+    }
+    staging_paths = {
+        REPO_ROOT / source
+        for source in sources
+        if "/staging/multilevel/" in source
+    }
+
+    assert len(staging_paths) == 10
+    for staging_path in staging_paths:
+        production_path = PROFILE_ROOT / staging_path.name
+        assert production_path.is_file(), production_path
+        assert production_path.read_bytes() == staging_path.read_bytes()

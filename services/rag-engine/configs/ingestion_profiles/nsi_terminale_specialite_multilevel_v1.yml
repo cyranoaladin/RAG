@@ -1,0 +1,33 @@
+profile_version: multilevel-v1
+enabled: true
+scope:
+  tenant: libre_terminale
+  collection: rag_nexus_nsi_terminale_specialite
+  niveau: terminale
+  voie: generale
+  matiere: nsi
+  candidat: libre
+  audience: [libre, tous]
+  visibility: internal
+  school_year: "2026-2027"
+  programme_version: BOEN_special_8_2019-07-25
+title: "NSI spécialité Terminale — release multi-niveaux"
+language: fr
+owner: "Nexus Réussite"
+expected_topics: [structures de données, algorithmique, bases de données, architectures]
+expected_resource_types: [programme_officiel, ressource_officielle]
+excluded_topics: [données personnelles]
+allowed_domains: [eduscol.education.gouv.fr]
+seed_urls: [https://eduscol.education.gouv.fr/5823/programmes-et-ressources-en-numerique-et-sciences-informatiques-voie-g]
+source_authority: official
+search_cadence: manual
+max_queries_per_run: 16
+max_documents_per_run: 64
+max_chunk_size: 800
+chunk_overlap: 100
+min_source_confidence: 0.9
+min_scope_confidence: 0.9
+min_extraction_quality: 0.1
+reject_unknown_rights: true
+reject_ambiguous_routing: true
+publication: {mode: human_review, auto_publish: false}
