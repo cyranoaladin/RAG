@@ -165,7 +165,8 @@ git commit -m "governance: remplacer l'ancre review-binding perdue"
 > fixture `environment=test`; la vraie clé ne sert qu'au nonce et à la preuve
 > de restauration. Ce helper local consomme
 > `NEXUS_REVIEW_BINDING_BACKUP_ROOT` ; l'exécution probante a utilisé sa valeur
-> par défaut.
+> par défaut. Il exige une racine absolue et refuse avant GPG tout support dont
+> le `st_dev` est identique à celui de la clé primaire.
 
 - [x] **Step 0: Exécuter la recette opérateur durcie hors Git**
 
