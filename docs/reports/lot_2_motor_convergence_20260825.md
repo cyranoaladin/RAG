@@ -18,7 +18,7 @@ ou autorisation de cutover n'est déclarée.
 | Baseline `origin/main` | `ca0a21f59bd25c7e472cf2d6accc5b8e79ed74bd` |
 | Branche | `rag-engine/motor-convergence-20260825` |
 | Head implémentation avant rapport | `091b29c19e429c793456e2653c78a7c8c7812a41` |
-| Head code après corrections de revue | `096f221d8f61dce310503a11803db92d14336819` |
+| Head code après corrections de revue | `910071b587f8b3c2dfc33cfcca033ba096f94604` |
 | Contrat canonique | `packages/contracts`, `nexus-contracts` 0.14.0 |
 | Moteur canonique | B — `rag-pedago` + `rag-engine` + pgvector + e5-large 1024D |
 | Moteur de continuité | A — Streamlit/FastAPI legacy + ChromaDB + Ollama + SQLite |
@@ -151,6 +151,7 @@ sont ni des digests de corpus réel ni des preuves de production.
 | `7dd1ca7` | normalisation du fichier de test de politique |
 | `7d23d22` | preuves locales du Lot 2 |
 | `096f221` | invariants de droits et lectures locales bornées |
+| `910071b` | entrées YAML récursives et droits globaux par passage |
 
 ## TDD et revues adversariales
 
@@ -167,13 +168,19 @@ Les cycles rouges ont notamment reproduit puis fermé :
   topologie inversée et smoke sans canary.
 
 Deux agents indépendants ont relu contradictoirement chaque frontière majeure.
-La revue complète a détecté puis fait reproduire deux P1 : divergence de droits
-A/B non refusée et lecteurs YAML/JSONL susceptibles de suivre un symlink ou de
-bloquer sur une FIFO. Les cycles rouges correspondants sont fermés par un
-contexte d'accès explicite, l'égalité des droits par passage et des ouvertures
+La revue complète a détecté puis fait reproduire deux P1 initiaux : divergence
+de droits A/B non refusée et lecteurs YAML/JSONL susceptibles de suivre un
+symlink ou de bloquer sur une FIFO. Une seconde passe a détecté la comparaison
+des droits limitée à chaque requête ainsi qu'une profondeur YAML susceptible
+de produire une exception brute. Les cycles rouges correspondants sont fermés
+par un contexte d'accès explicite, l'égalité globale des droits par identité de
+passage même après déplacement inter-requêtes, le rejet des contradictions
+intra-capture, une erreur YAML assainie et des ouvertures
 `O_NONBLOCK`/`O_NOFOLLOW` suivies de `fstat`, contrôle de fichier régulier et
-bornes de taille. Les revues restent des contrôles de code ; elles ne sont pas
-une trusted-human-review GitHub et ne fournissent aucune identité humaine.
+bornes de taille. Les deux agents contradictoires ont approuvé l'exact head
+`910071b587f8b3c2dfc33cfcca033ba096f94604` sans P0/P1/P2. Ces revues restent
+des contrôles de code ; elles ne sont pas une trusted-human-review GitHub et ne
+fournissent aucune identité humaine.
 
 ## Vérifications
 
@@ -205,12 +212,16 @@ exhaustive ci-dessus a donc été relancée sans changement dépôt avec un shim
 temporaire `python3.11` vers Python 3.12.3, version compatible avec la règle
 Python 3.11+, puis le shim a été supprimé automatiquement.
 
-Sur le head corrigé `096f221d8f61dce310503a11803db92d14336819` :
+Sur le head corrigé `910071b587f8b3c2dfc33cfcca033ba096f94604` :
 
-- suite ciblée Lot 2 : `170 passed` ;
-- cinq suites directement affectées : `101 passed` ;
-- Ruff sur les neuf fichiers modifiés : PASS ;
-- mypy ciblé sur les trois modules, imports externes ignorés : PASS.
+- suite ciblée Lot 2 : `173 passed` ;
+- frontières existantes de non-régression : `174 passed` ;
+- suites politique et parité directement affectées : `44 passed` ;
+- Ruff sur tous les fichiers Python du Lot 2 : PASS ;
+- mypy ciblé sur les quatre modules, contrat partagé résolu via `MYPYPATH` :
+  PASS ;
+- gouvernance : `18/18` verrous conformes ;
+- deux revues contradictoires exact-head : APPROVED, aucun P0/P1/P2.
 
 Après le commit documentaire final, les garde-fous et la CI seront rejoués sur
 le nouveau head ; leurs résultats ne sont pas pré-déclarés dans ce rapport.
@@ -241,4 +252,4 @@ En conséquence :
 
 | Lot | Branche | PR | SHA | CI | Revue | Déployé | Preuve réelle | Rollback | Verdict |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2 | `rag-engine/motor-convergence-20260825` | à ouvrir | code corrigé `096f221d8f61dce310503a11803db92d14336819` ; head documentaire à figer | ciblée `170/170` ; exhaustive antérieure `17/17` | corrections P1 vérifiées ; relecture exact-head et trusted-human-review à obtenir | non | non | contrat local seulement | `NO_GO` |
+| 2 | `rag-engine/motor-convergence-20260825` | à ouvrir | code corrigé et approuvé `910071b587f8b3c2dfc33cfcca033ba096f94604` ; head documentaire à figer | ciblée `173/173` ; non-régression `174/174` ; exhaustive antérieure `17/17` | deux revues contradictoires exact-head approuvées ; trusted-human-review GitHub à obtenir | non | non | contrat local seulement | `NO_GO` |

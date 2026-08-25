@@ -590,12 +590,12 @@ bash scripts/ci-local.sh
 Tout échec préexistant doit être reproduit contre le commit parent et consigné
 selon `AGENTS.md`. Aucun secret ni contenu legacy brut ne doit être détecté.
 
-- [ ] **Step 5: Deux revues indépendantes**
+- [x] **Step 5: Deux revues indépendantes**
 
 Faire relire le diff complet par deux agents contradictoires : sécurité/
 correctness et respect spec/tests. Corriger tout P0/P1 avec nouveau cycle TDD.
 
-- [ ] **Step 6: Commit final de rapport si nécessaire**
+- [x] **Step 6: Commit final de rapport si nécessaire**
 
 Mettre à jour uniquement les résultats réellement observés, puis commit scoped.
 
