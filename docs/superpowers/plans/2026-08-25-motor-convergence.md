@@ -477,24 +477,24 @@ git commit -m "rag-engine: rendre le cutover fail-closed"
 - Add: `docs/reports/lot_2_motor_convergence_20260825.md`
 - Add: `docs/runbooks/engine_convergence_shadow_cutover.md`
 
-- [ ] **Step 1: Amendement ADR**
+- [x] **Step 1: Amendement ADR**
 
 Documenter tombstone, capture/disposition exhaustive, passage canonique,
 quiescence, états A et preuve cutover non substituable. Ne lever aucun verrou.
 
-- [ ] **Step 2: Runbook shadow/canary/rollback**
+- [x] **Step 2: Runbook shadow/canary/rollback**
 
 Décrire l'ordre exact sans exécuter : quiescence, capture, backup, inventaire,
 réingestion gouvernée, parité réelle, restore rehearsal isolé, canary, rollback
 trafic, observation et gates humaines.
 
-- [ ] **Step 3: Rapport de lot**
+- [x] **Step 3: Rapport de lot**
 
 Inclure matrice A/B par fonctionnalité, fichiers/commits, cycles Red/Green,
 tests, digests locaux, statut `VERIFIED_LOCAL`, preuves réelles absentes et
 verdict global `NO_GO`. Reporter Web/Drive/API/UI aux lots propriétaires.
 
-- [ ] **Step 4: Vérifier la cohérence documentaire**
+- [x] **Step 4: Vérifier la cohérence documentaire**
 
 ```bash
 rg -n "GO_LIVE_READY|VERIFIED_PRODUCTION|migration_complete.*true" \
@@ -505,7 +505,7 @@ rg -n "GO_LIVE_READY|VERIFIED_PRODUCTION|migration_complete.*true" \
 
 Toute occurrence doit être une condition/refus explicite, jamais un verdict.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add docs/adr/ADR-0013-convergence-dual-engine.md \
