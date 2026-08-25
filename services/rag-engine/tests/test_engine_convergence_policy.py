@@ -336,4 +336,3 @@ def test_yaml_loader_rejects_duplicate_policy_and_catalogue_keys(tmp_path: Path)
             POLICY_PATH,
             collection_catalogue_path=duplicate_catalogue,
         )
-
