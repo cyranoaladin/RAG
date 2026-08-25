@@ -319,6 +319,96 @@ _RETRIEVAL_SCOPE_RESOURCES: Mapping[str, tuple[str, str, Literal["1", "2"]]] = (
                 "16ffcc4090f5e04531668ceaa66c19fad9eeb13e6d076b2793d607aefb9079f5",
                 "2",
             ),
+            "prod_dgemc_terminale_option_v1": (
+                "artifacts/retrieval-scope-prod-dgemc-terminale-option-v1.json",
+                "ab2da910d50abed9c030dc9eba2520b31cf430a1f89610988b529657a9903b5c",
+                "2",
+            ),
+            "prod_francais_premiere_tc_v1": (
+                "artifacts/retrieval-scope-prod-francais-premiere-tc-v1.json",
+                "3dfb9da4f92d38c566eda0b0dba57d4881e4c63429c04c1ef6bb656b68669bb9",
+                "2",
+            ),
+            "prod_francais_quatrieme_tc_v1": (
+                "artifacts/retrieval-scope-prod-francais-quatrieme-tc-v1.json",
+                "409f2256169fbed99273e690c3d36a0718787e91b37159bf03ef7ab75d19c670",
+                "2",
+            ),
+            "prod_francais_seconde_tc_v1": (
+                "artifacts/retrieval-scope-prod-francais-seconde-tc-v1.json",
+                "8ea7e3e62ea93e3ccdb4eec2be3b6564f4cdd4a024a7ec1828234ecb186f81dc",
+                "2",
+            ),
+            "prod_hlp_premiere_specialite_v1": (
+                "artifacts/retrieval-scope-prod-hlp-premiere-specialite-v1.json",
+                "abc0a93328455ecb1673420c5620175b5db487db8edb0a57bc4dc2876f24a6ba",
+                "2",
+            ),
+            "prod_maths_premiere_gen_specialite_v1": (
+                "artifacts/retrieval-scope-prod-maths-premiere-gen-specialite-v1.json",
+                "0235f1c56462b4834f1c57eaf88119807055f533a22e0a5f25f86e772c42b34a",
+                "2",
+            ),
+            "prod_maths_quatrieme_tc_v1": (
+                "artifacts/retrieval-scope-prod-maths-quatrieme-tc-v1.json",
+                "18da5383c0bb8173fc28189646580788425d079a1d0fbb4dc3674b8a086ea44d",
+                "2",
+            ),
+            "prod_maths_seconde_tc_v1": (
+                "artifacts/retrieval-scope-prod-maths-seconde-tc-v1.json",
+                "a01dfb8a9463199aeb9838aa0c1e84cf7b85aefc4135edf5af11166ca3a5df41",
+                "2",
+            ),
+            "prod_maths_terminale_gen_specialite_v1": (
+                "artifacts/retrieval-scope-prod-maths-terminale-gen-specialite-v1.json",
+                "5aea0f29bb2993700f462321f5d781557f73fa83c84ff1cf02c7d093ec2af9c3",
+                "2",
+            ),
+            "prod_nsi_premiere_specialite_v1": (
+                "artifacts/retrieval-scope-prod-nsi-premiere-specialite-v1.json",
+                "06665cc215419fa597bf475d281f8c0d7f2b45232e0819960fedb065f845f231",
+                "2",
+            ),
+            "prod_nsi_terminale_specialite_v1": (
+                "artifacts/retrieval-scope-prod-nsi-terminale-specialite-v1.json",
+                "a1bd4723de03a7a75903ba907d60687dc8140416d28f9707afbf6a2f4d46a5b8",
+                "2",
+            ),
+            "prod_pc_premiere_specialite_v1": (
+                "artifacts/retrieval-scope-prod-pc-premiere-specialite-v1.json",
+                "9d04d5843ccc6d1630a4f8f34418ad46a52c8c8cddcc1a6ce9796a22a01d585c",
+                "2",
+            ),
+            "prod_pc_terminale_specialite_v1": (
+                "artifacts/retrieval-scope-prod-pc-terminale-specialite-v1.json",
+                "fcaf1430f51c1f5ccb8067ec875cc8675be1ed2b9bba84752c32a96f6f08e66c",
+                "2",
+            ),
+            "prod_philo_terminale_tc_v1": (
+                "artifacts/retrieval-scope-prod-philo-terminale-tc-v1.json",
+                "16798b67cca720b38813b8e811efc17d2317f03a9bfeb752749b7a6ad51f1a5f",
+                "2",
+            ),
+            "prod_ses_premiere_specialite_v1": (
+                "artifacts/retrieval-scope-prod-ses-premiere-specialite-v1.json",
+                "d722374f719d070a18b374772cdb336e7eda0422a80360f70b16fea24e022e13",
+                "2",
+            ),
+            "prod_ses_terminale_specialite_v1": (
+                "artifacts/retrieval-scope-prod-ses-terminale-specialite-v1.json",
+                "9b9763f5afe249d2a3ae1fa2ed1bdb3de16136fe69e869760e32f95c0e97175b",
+                "2",
+            ),
+            "prod_svt_premiere_specialite_v1": (
+                "artifacts/retrieval-scope-prod-svt-premiere-specialite-v1.json",
+                "49a4618951ed114103c5c77c029597b81555f2b459cd80c6b7ccd7788cbd6646",
+                "2",
+            ),
+            "prod_svt_terminale_specialite_v1": (
+                "artifacts/retrieval-scope-prod-svt-terminale-specialite-v1.json",
+                "8256a1a8b2c7f83fd601e0fd312f0dfb94c49416b42e779ffcff12a06e023256",
+                "2",
+            ),
         }
     )
 )

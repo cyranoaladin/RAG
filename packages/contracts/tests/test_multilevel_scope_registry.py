@@ -205,11 +205,11 @@ def _teacher_envelope(artifact: RetrievalScopeArtifactV2) -> InternalIdentityEnv
     )
 
 
-def test_registry_contains_exactly_three_historical_and_ten_multilevel_scopes() -> None:
+def test_registry_preserves_three_historical_and_ten_multilevel_scopes() -> None:
     registry = load_retrieval_scope_registry()
 
-    assert set(registry) == HISTORICAL_SCOPES | set(MULTILEVEL_SCOPES)
-    assert len(registry) == 13
+    assert HISTORICAL_SCOPES | set(MULTILEVEL_SCOPES) <= set(registry)
+    assert len(registry) == 31
 
 
 @pytest.mark.parametrize(("scope_id", "facts"), MULTILEVEL_SCOPES.items())

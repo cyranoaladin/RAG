@@ -1,0 +1,36 @@
+{
+  "artifact_version": "2",
+  "scope_id": "prod_maths_quatrieme_tc_v1",
+  "status": "eligible_for_promotion",
+  "source_sha256": "0a4974a3bee7e2dbf05412d47086da68ed6a9bf182c9bb14aa972325184c6772",
+  "target_identity": {
+    "tenant": "libre_quatrieme",
+    "niveau": "quatrieme",
+    "voie": "college",
+    "matiere": "maths",
+    "statut_enseignement": "tronc_commun",
+    "audience": "libre",
+    "candidates": [
+      "libre"
+    ]
+  },
+  "evidence_subject": {
+    "collection": "rag_nexus_maths_quatrieme_tc",
+    "tenant": "libre_quatrieme",
+    "niveau": "quatrieme",
+    "voie": "college",
+    "matiere": "maths",
+    "statut_enseignement": "tronc_commun",
+    "candidat": "libre",
+    "audiences": [
+      "libre",
+      "tous"
+    ],
+    "visibility": "internal",
+    "rights": [
+      "officiel_public"
+    ],
+    "school_year": "2026-2027",
+    "programme_version": "BOEN_special_11_2018-07-26_aj_2020"
+  }
+}

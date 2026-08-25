@@ -1,0 +1,36 @@
+{
+  "artifact_version": "2",
+  "scope_id": "prod_francais_seconde_tc_v1",
+  "status": "eligible_for_promotion",
+  "source_sha256": "bd5cf80b953266548e41b0733315883316b11a243db99250b956e4b4a2ee7da9",
+  "target_identity": {
+    "tenant": "libre_seconde",
+    "niveau": "seconde",
+    "voie": "generale",
+    "matiere": "francais",
+    "statut_enseignement": "tronc_commun",
+    "audience": "libre",
+    "candidates": [
+      "libre"
+    ]
+  },
+  "evidence_subject": {
+    "collection": "rag_nexus_francais_seconde_tc",
+    "tenant": "libre_seconde",
+    "niveau": "seconde",
+    "voie": "generale",
+    "matiere": "francais",
+    "statut_enseignement": "tronc_commun",
+    "candidat": "libre",
+    "audiences": [
+      "libre",
+      "tous"
+    ],
+    "visibility": "internal",
+    "rights": [
+      "officiel_public"
+    ],
+    "school_year": "2026-2027",
+    "programme_version": "BOEN_special_1_2019-01-22"
+  }
+}
