@@ -53,14 +53,14 @@ moteurs`).
 - Add: `services/rag-engine/tests/test_legacy_convergence_tombstone.py`
 - Modify: `services/rag-engine/scripts/migrate_chroma_to_pgvector.py`
 
-- [ ] **Step 1: Écrire le test rouge du refus avant mutation**
+- [x] **Step 1: Écrire le test rouge du refus avant mutation**
 
 Le test lance le script avec plusieurs argumentaires, dont options inconnues et
 une valeur canari sensible. Il exige : code 78 constant, stdout vide, stderr
 constant ne contenant aucun argument, aucun import `asyncpg`/`chromadb`, aucun
 `INSERT`, aucune fonction de migration et aucune ouverture réseau/DB.
 
-- [ ] **Step 2: Vérifier le rouge attendu**
+- [x] **Step 2: Vérifier le rouge attendu**
 
 ```bash
 PYTHONPATH=services/rag-engine/src python3 -m pytest -q \
@@ -70,16 +70,16 @@ PYTHONPATH=services/rag-engine/src python3 -m pytest -q \
 Expected : échec parce que le script parse encore les arguments et contient le
 writer direct.
 
-- [ ] **Step 3: Implémenter le tombstone minimal**
+- [x] **Step 3: Implémenter le tombstone minimal**
 
 Le script ne lit pas `sys.argv`, n'importe aucune dépendance réseau/DB, écrit un
 message constant sur stderr et retourne `EX_CONFIG=78`.
 
-- [ ] **Step 4: Rejouer le test et refactorer**
+- [x] **Step 4: Rejouer le test et refactorer**
 
 Expected : PASS, sans duplication de message ni logique CLI superflue.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add services/rag-engine/scripts/migrate_chroma_to_pgvector.py \
