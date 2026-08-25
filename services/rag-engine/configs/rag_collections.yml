@@ -254,7 +254,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: physique_chimie/premiere_specialite.yml
-    instanciee: false
+    instanciee: true
   rag_nexus_pc_terminale_specialite:
     matiere: physique_chimie
     niveau: terminale
@@ -276,7 +276,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: svt/premiere_specialite.yml
-    instanciee: false
+    instanciee: true
   rag_nexus_svt_terminale_specialite:
     matiere: svt
     niveau: terminale
@@ -285,7 +285,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: svt/terminale_specialite.yml
-    instanciee: false
+    instanciee: true
 
   # =====================================================================
   # SES
@@ -298,7 +298,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: ses/premiere_specialite.yml
-    instanciee: false
+    instanciee: true
   rag_nexus_ses_terminale_specialite:
     matiere: ses
     niveau: terminale
@@ -307,7 +307,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: ses/terminale_specialite.yml
-    instanciee: false
+    instanciee: true
 
   # =====================================================================
   # Philosophie
@@ -323,6 +323,19 @@ collections:
     # H2-C : première vague réelle, cinq artefacts Eduscol explicitement
     # résolus par h2_initial_placement_policy.yml. Toute autre ressource
     # reste REVIEW_REQUIRED ; cette activation n'est pas un routeur large.
+    instanciee: true
+
+  # =====================================================================
+  # DGEMC — option de Terminale générale
+  # =====================================================================
+  rag_nexus_dgemc_terminale_option:
+    matiere: dgemc
+    niveau: terminale
+    voie: gen
+    statut: option
+    domain: education
+    session_policy: declared_or_null
+    taxonomy_file: dgemc/terminale_option.yml
     instanciee: true
 
   # =====================================================================
@@ -550,7 +563,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: hlp/premiere_specialite.yml
-    instanciee: false
+    instanciee: true
   rag_nexus_hlp_terminale_specialite:
     matiere: hlp
     niveau: terminale

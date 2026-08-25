@@ -1,0 +1,47 @@
+profile_version: profile-gate-v1
+enabled: true
+scope:
+  tenant: libre_terminale
+  collection: rag_nexus_dgemc_terminale_option
+  niveau: terminale
+  voie: generale
+  matiere: dgemc
+  candidat: libre
+  audience:
+  - libre
+  - tous
+  visibility: internal
+  school_year: 2026-2027
+  programme_version: BOEN_special_8_2019-07-25_MENE1921266A_MENE2208320A
+title: DGEMC option Terminale générale — gate profils production
+language: fr
+owner: Nexus Réussite
+expected_topics:
+- sources du droit
+- organisation judiciaire
+- questions juridiques contemporaines
+expected_resource_types:
+- programme_officiel
+- ressource_officielle
+excluded_topics:
+- données personnelles
+- voie technologique
+allowed_domains:
+- eduscol.education.gouv.fr
+- legifrance.gouv.fr
+seed_urls:
+- https://eduscol.education.gouv.fr/5781/programmes-et-ressources-en-droit-et-grands-enjeux-du-monde-contemporain-voie-gt
+source_authority: official
+search_cadence: manual
+max_queries_per_run: 8
+max_documents_per_run: 32
+max_chunk_size: 800
+chunk_overlap: 100
+min_source_confidence: 0.9
+min_scope_confidence: 0.9
+min_extraction_quality: 0.1
+reject_unknown_rights: true
+reject_ambiguous_routing: true
+publication:
+  mode: human_review
+  auto_publish: false

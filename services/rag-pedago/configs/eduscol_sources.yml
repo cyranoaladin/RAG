@@ -78,6 +78,15 @@ sources:
       - rag_nexus_hlp_terminale_specialite
     note: "Programmes HLP 1re/Tle + documents d'accompagnement."
 
+  - id: eduscol_dgemc
+    url: https://eduscol.education.gouv.fr/5781/programmes-et-ressources-en-droit-et-grands-enjeux-du-monde-contemporain-voie-gt
+    status: verified
+    matiere: dgemc
+    niveaux: [terminale]
+    voies: [generale]
+    collections_cibles: [rag_nexus_dgemc_terminale_option]
+    note: "Programme optionnel DGEMC consolidé : BOEN spécial n°8 du 25 juillet 2019 et JORF du 4 mai 2022."
+
   - id: eduscol_eam
     url: https://eduscol.education.gouv.fr/5688/epreuve-anticipee-de-mathematiques-aux-baccalaureats-general-et-technologique
     status: verified

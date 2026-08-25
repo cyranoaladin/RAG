@@ -8,6 +8,9 @@ import re
 from pathlib import Path
 from typing import Any
 
+import yaml
+from nexus_contracts.ingestion import CollectionProfile, collection_profile_fingerprint
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
 EXPECTED_PATH = Path(__file__).parent / "fixtures/production_profile_gate_expected.json"
 PROPOSED_MATRIX_PATH = (
@@ -24,6 +27,12 @@ FINAL_MATRIX_PATH = (
 )
 PROFILE_ROOT = REPO_ROOT / "services/rag-engine/configs/ingestion_profiles"
 STAGING_MULTILEVEL_ROOT = PROFILE_ROOT / "staging/multilevel"
+DECISIONS_PATH = (
+    REPO_ROOT
+    / "services/rag-pedago/configs/production_profile_decisions_20260825.json"
+)
+COLLECTIONS_PATH = REPO_ROOT / "services/rag-engine/configs/rag_collections.yml"
+EDUSCOL_SOURCES_PATH = REPO_ROOT / "services/rag-pedago/configs/eduscol_sources.yml"
 
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 REQUIRED_RESOLUTION_FIELDS = {
@@ -250,3 +259,66 @@ def test_p01_p10_profiles_are_promoted_with_identical_bytes() -> None:
         production_path = PROFILE_ROOT / staging_path.name
         assert production_path.is_file(), production_path
         assert production_path.read_bytes() == staging_path.read_bytes()
+
+
+def test_seven_new_profiles_match_the_grounded_decisions_exactly() -> None:
+    decisions = _load(DECISIONS_PATH)
+
+    assert len(decisions["profiles"]) == 7
+    for profile_id, expected in decisions["profiles"].items():
+        source_path = REPO_ROOT / expected["profile_source"]
+        assert source_path.is_file(), source_path
+        actual_document = yaml.safe_load(source_path.read_text(encoding="utf-8"))
+        assert actual_document == expected["profile"]
+        actual = CollectionProfile.model_validate(actual_document)
+        assert actual.scope.collection == profile_id
+        expected_model = CollectionProfile.model_validate(expected["profile"])
+        assert collection_profile_fingerprint(actual) == (
+            collection_profile_fingerprint(expected_model)
+        )
+
+
+def test_new_profile_collections_are_declared_and_instantiated() -> None:
+    decisions = _load(DECISIONS_PATH)
+    collections = yaml.safe_load(COLLECTIONS_PATH.read_text(encoding="utf-8"))[
+        "collections"
+    ]
+
+    for profile_id, decision in decisions["profiles"].items():
+        expected_scope = decision["profile"]["scope"]
+        declared = collections[profile_id]
+        assert declared["instanciee"] is True
+        assert declared["matiere"] == expected_scope["matiere"]
+        assert declared["niveau"] == expected_scope["niveau"]
+        assert declared["voie"] in {expected_scope["voie"], "gen"}
+        taxonomy_path = (
+            REPO_ROOT / "services/rag-pedago/taxonomy" / declared["taxonomy_file"]
+        )
+        assert taxonomy_path.is_file(), taxonomy_path
+        taxonomy = yaml.safe_load(taxonomy_path.read_text(encoding="utf-8"))
+        assert taxonomy["matiere"] == expected_scope["matiere"]
+        assert taxonomy["niveau"] == expected_scope["niveau"]
+        assert taxonomy["voie"] == expected_scope["voie"]
+        assert taxonomy["programme_version"] == expected_scope["programme_version"]
+        assert taxonomy["themes"]
+
+
+def test_dgemc_official_source_is_verified_and_routes_only_to_its_collection() -> None:
+    document = yaml.safe_load(EDUSCOL_SOURCES_PATH.read_text(encoding="utf-8"))
+    matches = [source for source in document["sources"] if source["id"] == "eduscol_dgemc"]
+
+    assert matches == [
+        {
+            "id": "eduscol_dgemc",
+            "url": "https://eduscol.education.gouv.fr/5781/programmes-et-ressources-en-droit-et-grands-enjeux-du-monde-contemporain-voie-gt",
+            "status": "verified",
+            "matiere": "dgemc",
+            "niveaux": ["terminale"],
+            "voies": ["generale"],
+            "collections_cibles": ["rag_nexus_dgemc_terminale_option"],
+            "note": (
+                "Programme optionnel DGEMC consolidé : BOEN spécial n°8 du "
+                "25 juillet 2019 et JORF du 4 mai 2022."
+            ),
+        }
+    ]
