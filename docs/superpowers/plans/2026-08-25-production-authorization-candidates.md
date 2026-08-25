@@ -27,9 +27,10 @@ mypy, Git/GitHub CLI.
 1. Écrire les tests de chargement du module attendu et des constantes figées.
 2. Exiger 18 autorisations, union 26, digest final exact et zéro overlap/gap/extra.
 3. Exiger la correspondance exacte scope/profil/manifest pour chaque placement.
-4. Exécuter le seul nouveau fichier de tests et constater l’échec par absence
+4. Exiger byte-for-byte le template `pii_absence_evidence` fixé par la spec.
+5. Exécuter le seul nouveau fichier de tests et constater l’échec par absence
    du producteur.
-5. Commit: `rag-pedago: définir le contrat des autorisations production`.
+6. Commit: `rag-pedago: définir le contrat des autorisations production`.
 
 ### Task 2: Implémenter le producteur minimal en GREEN
 

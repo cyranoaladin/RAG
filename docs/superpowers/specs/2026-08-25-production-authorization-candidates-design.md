@@ -97,7 +97,9 @@ Pour chaque scope :
 - `rights_categories=["officiel_public"]`, car les 26 sources sont dans la
   zone scellée `01_EDUSCOL_OFFICIEL` couverte par le registre de droits ;
 - `pii_absence_attested=true` et `pii_absence_evidence` lie le chemin et le
-  SHA-256 exact de la preuve PII couvrant les 26 contenus ;
+  SHA-256 exact de la preuve PII couvrant les 26 contenus. Pour rendre les
+  octets et digests reproductibles, la valeur littérale uniforme est
+  `sha256:cec9baca680439afa0dd6b4aadbb0f805514424a853a10303e6216dd8ffa7e99 path:services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/pii_evidence.json` ;
 - `exclusions=[]`, aucune restriction documentaire contradictoire n’étant
   présente dans les faits versionnés retenus ;
 - la fenêtre uniforme est
