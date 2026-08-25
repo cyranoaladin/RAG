@@ -96,40 +96,43 @@ git commit -m "rag-engine: bloquer la migration directe Chroma pgvector"
 - Add: `services/rag-engine/src/ingestor/engine_convergence_policy.py`
 - Add: `services/rag-engine/tests/test_engine_convergence_policy.py`
 
-- [ ] **Step 1: Cycle protocole et propriétaire canonique**
+- [x] **Step 1: Cycle protocole et propriétaire canonique**
 
 Ajouter `test_policy_requires_v1_protocol_and_engine_b`, lancer ce seul test et
 observer le rouge. Ajouter le YAML minimal et les dataclasses immuables qui
 valident protocole, moteur B et contrat `packages/contracts`. Rejouer le test au
 vert, puis supprimer toute généralisation non utilisée.
 
-- [ ] **Step 2: Cycle états et capacités fermés**
+- [x] **Step 2: Cycle états et capacités fermés**
 
 Ajouter `test_policy_rejects_unknown_state_or_ownerless_capability`, rouge avec
 état inconnu/capacité sans propriétaire, puis implémenter uniquement les enums
 `compatibility_only|rollback_only|blocked`, les lots responsables et le rejet
 du writer A déclaré. Rejouer au vert.
 
-- [ ] **Step 3: Cycle collections découvertes et cibles fines**
+- [x] **Step 3: Cycle collections découvertes et cibles fines**
 
 Ajouter `test_policy_closes_legacy_collections_and_rejects_silos`, rouge sur
 collection absente, doublon, cible `rag_nexus_education`/`rag_nexus_web3` et
 cible absente du catalogue. Implémenter la liste exacte observée et la
 validation contre `rag_collections.yml`, puis vert.
 
-- [ ] **Step 4: Cycle frontière `api_v2.py`**
+- [x] **Step 4: Rejouer la frontière canonique `api_v2.py`**
 
-Ajouter `test_canonical_api_has_no_legacy_writer_or_fallback`, constater le
-rouge tant que l'audit n'est pas codé, puis implémenter le contrôle séparé des
-imports et routes canoniques. Ne jamais utiliser le YAML comme preuve runtime.
+Réutiliser les barrières runtime existantes
+`test_v2_runtime_surface.py` et
+`test_ingestion_embedding_path_audit_contract.py`. Ne pas ajouter au module de
+politique un analyseur AST contournable et ne jamais utiliser le YAML comme
+preuve runtime.
 
-- [ ] **Step 5: Cycle frontière image v2**
+- [x] **Step 5: Rejouer la frontière image v2**
 
-Ajouter `test_canonical_image_excludes_chroma_and_writer_sources`, rouge puis
-contrôle minimal de `Dockerfile.ingestor-v2`; exiger aucune source writer A,
-aucun client Chroma et aucun fallback. Rejouer au vert.
+Réutiliser l'allowlist d'image et de dépendances de
+`test_v2_runtime_surface.py`; exiger aucune source writer A, aucun client
+Chroma et aucun fallback. Une seconde source de vérité n'est pas créée dans le
+validateur YAML.
 
-- [ ] **Step 6: Rejouer la suite et refactorer**
+- [x] **Step 6: Rejouer la suite et refactorer**
 
 ```bash
 PYTHONPATH=services/rag-engine/src python3 -m pytest -q \
@@ -138,7 +141,7 @@ PYTHONPATH=services/rag-engine/src python3 -m pytest -q \
 
 Expected : PASS. Les erreurs ne reprennent aucune valeur non validée.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add services/rag-engine/configs/engine_convergence_v1.yml \
