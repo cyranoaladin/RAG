@@ -76,8 +76,8 @@ Les 26 contenus sont répartis dans 18 profils/scopes exacts. Le manifeste
 sémantique a pour digest
 `57d532ca0c80f0e70218e74902f1d47a4ca9f21d7e6bafa209f6f89426125b6c`.
 Le placement est produit depuis le commit
-`21a0e7efe01deb8aff14386220f8c976d81cd856`, tree
-`d2d7b81d4d80bd61cc7a1c6b0efac66282805b3c`, et son SHA-256 est
+`5c9e8f7f4fda53114c51aa638304a59e662b22a7`, tree
+`fc225ae2ca0bb6d6d1f7c73e2616c5d57d58d152`, et son SHA-256 est
 `b1a36aef251d05f0098bfe88d7eae45b36333452f1613741e15dc6a89de75315`.
 
 ```text

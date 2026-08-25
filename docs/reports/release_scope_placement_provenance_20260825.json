@@ -1,7 +1,7 @@
 {
   "producer": "nexus_contracts.produce_release_scope_placement_from_git",
-  "source_commit_sha": "21a0e7efe01deb8aff14386220f8c976d81cd856",
-  "source_tree_sha": "d2d7b81d4d80bd61cc7a1c6b0efac66282805b3c",
+  "source_commit_sha": "5c9e8f7f4fda53114c51aa638304a59e662b22a7",
+  "source_tree_sha": "fc225ae2ca0bb6d6d1f7c73e2616c5d57d58d152",
   "release_scope_placement_digest": "b1a36aef251d05f0098bfe88d7eae45b36333452f1613741e15dc6a89de75315",
   "input_blob_sha256": {
     "docs/reports/final_production_eligible_set_20260825.txt": "fe97b3410791fa78d4734a8c495443296b3f2ec3e77627e12fc34f90e0b2b5f0",
@@ -39,7 +39,7 @@
     "services/rag-pedago/data/releases/prerentree_2026_2027/multilevel/terminale/maths_specialite.release.json": "e6e7adc97b5904eec39a9fca05a10795f8d2cd81662f9df1275c6f6ba4e516ff",
     "services/rag-pedago/data/releases/prerentree_2026_2027/multilevel/terminale/nsi_specialite.release.json": "07e2b2e539bfc4fb7db89d82617622a746692d4a955b8a17e965e433cd9df612",
     "services/rag-pedago/data/releases/prerentree_2026_2027/multilevel/terminale/physique_chimie_specialite.release.json": "6522eff27c492a4a8a3e934093b12e5ad6a09f135a96196604689bb95f9eb563",
-    "services/rag-pedago/data/releases/prerentree_2026_2027/release-registry.json": "0eebdb05fcb4f4595c08f03313aff1b30caefe7161bbd6d87c0e5fa3e1d83952"
+    "services/rag-pedago/data/releases/prerentree_2026_2027/release-registry.json": "2a963bd956ff434384f990c60493917789f69ef4fce8fb724dd17a6bc8eb6468"
   },
   "input_git_entries": {
     "docs/reports/final_production_eligible_set_20260825.txt": "100644 blob 13c85b4823e9098f45ead4497c370ff582911227",
@@ -77,6 +77,6 @@
     "services/rag-pedago/data/releases/prerentree_2026_2027/multilevel/terminale/maths_specialite.release.json": "100644 blob 70ff454e820436cc8b167a3cb85febaead7be60d",
     "services/rag-pedago/data/releases/prerentree_2026_2027/multilevel/terminale/nsi_specialite.release.json": "100644 blob 98969c23cfa16e41b1fe9c97e76ea98576a8e4f5",
     "services/rag-pedago/data/releases/prerentree_2026_2027/multilevel/terminale/physique_chimie_specialite.release.json": "100644 blob d65f7ab870e2b03475341c56229adb1ae5689fc1",
-    "services/rag-pedago/data/releases/prerentree_2026_2027/release-registry.json": "100644 blob ea1a5c8a86d271852b6880a7ac28850f6d353322"
+    "services/rag-pedago/data/releases/prerentree_2026_2027/release-registry.json": "100644 blob 24dc5f3f9f47f41f15fa42b2d2c7c85102947843"
   }
 }
