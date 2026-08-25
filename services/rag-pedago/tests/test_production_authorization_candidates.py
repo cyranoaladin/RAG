@@ -9,6 +9,7 @@ import os
 import subprocess
 import sys
 from collections.abc import Mapping
+from copy import deepcopy
 from pathlib import Path
 from typing import Protocol, cast
 
@@ -18,6 +19,7 @@ from nexus_contracts import (
     parse_release_scope_placement,
     scope_digest,
 )
+from nexus_contracts.profile_manifest import strict_yaml_mapping
 
 ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = (
@@ -33,6 +35,11 @@ PII_EVIDENCE_PATH = (
     "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/"
     "pii_evidence.json"
 )
+CURRENTNESS_EVIDENCE_PATH = (
+    "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/"
+    "currentness_evidence.json"
+)
+RIGHTS_EVIDENCE_PATH = "services/rag-pedago/configs/rights_evidence_registry.yml"
 
 SOURCE_COMMIT_SHA = "3566cafb44138d6a7f00296dc0654257f9bf0ad6"
 SOURCE_TREE_SHA = "8c5081a52096d531f1bd027790e600eb83b05bd5"
@@ -87,6 +94,16 @@ class Producer(Protocol):
         actual_collection: str | None,
     ) -> None: ...
 
+    def _verify_pii(
+        self, document: dict[str, object], *, final_contents: set[str]
+    ) -> None: ...
+
+    def _verify_currentness(
+        self, document: dict[str, object], *, final_contents: set[str]
+    ) -> None: ...
+
+    def _verify_rights(self, document: dict[str, object]) -> None: ...
+
 
 def _module() -> Producer:
     spec = importlib.util.spec_from_file_location(
@@ -136,6 +153,20 @@ def _build() -> CandidateResult:
         repository_root=ROOT,
         source_commit_sha=SOURCE_COMMIT_SHA,
     )
+
+
+def _candidate_contents(result: CandidateResult) -> set[str]:
+    return {
+        content
+        for candidate in result.candidates
+        for content in candidate.allowed_content_sha256
+    }
+
+
+def _exact_json_document(result: CandidateResult, path: str) -> dict[str, object]:
+    document = json.loads(_exact_tree_blob(result.provenance, path))
+    assert isinstance(document, dict)
+    return document
 
 
 def test_candidates_partition_the_frozen_production_set_exactly() -> None:
@@ -302,3 +333,83 @@ def test_cli_rejects_a_wrong_source_commit() -> None:
 
     assert completed.returncode != 0
     assert "source_commit_sha" in completed.stderr
+
+
+@pytest.mark.parametrize(
+    ("mutation_path", "mutated_value"),
+    [
+        (("evidence_kind",), "DECLARATIVE_PII_ASSERTION"),
+        (("school_year",), "2025-2026"),
+        (("corpus_manifest_sha256",), "0" * 64),
+        (("summary", "pii_scan_coverage"), 0.5),
+    ],
+)
+def test_pii_verifier_rejects_non_real_or_partial_evidence(
+    mutation_path: tuple[str, ...], mutated_value: object
+) -> None:
+    producer = _module()
+    result = _build()
+    document = deepcopy(_exact_json_document(result, PII_EVIDENCE_PATH))
+    target: dict[str, object] = document
+    for key in mutation_path[:-1]:
+        nested = target[key]
+        assert isinstance(nested, dict)
+        target = nested
+    target[mutation_path[-1]] = mutated_value
+
+    with pytest.raises(ValueError, match="PII_EVIDENCE_MISMATCH"):
+        producer._verify_pii(document, final_contents=_candidate_contents(result))
+
+
+@pytest.mark.parametrize(
+    ("field", "mutated_value"),
+    [
+        ("evidence_kind", "DECLARATIVE_CURRENTNESS"),
+        ("school_year", "2025-2026"),
+    ],
+)
+def test_currentness_verifier_rejects_wrong_evidence_identity(
+    field: str, mutated_value: object
+) -> None:
+    producer = _module()
+    result = _build()
+    document = deepcopy(_exact_json_document(result, CURRENTNESS_EVIDENCE_PATH))
+    document[field] = mutated_value
+
+    with pytest.raises(ValueError, match="CURRENTNESS_EVIDENCE_MISMATCH"):
+        producer._verify_currentness(
+            document, final_contents=_candidate_contents(result)
+        )
+
+
+def test_currentness_verifier_rejects_an_unapproved_download_domain() -> None:
+    producer = _module()
+    result = _build()
+    document = deepcopy(_exact_json_document(result, CURRENTNESS_EVIDENCE_PATH))
+    artifacts = document["artifacts"]
+    assert isinstance(artifacts, list) and artifacts
+    first = artifacts[0]
+    assert isinstance(first, dict)
+    first["current_download_url"] = "https://attacker.invalid/programme.pdf"
+
+    with pytest.raises(ValueError, match="CURRENTNESS_EVIDENCE_MISMATCH"):
+        producer._verify_currentness(
+            document, final_contents=_candidate_contents(result)
+        )
+
+
+def test_rights_verifier_rejects_a_relabelled_human_decision() -> None:
+    producer = _module()
+    result = _build()
+    document = strict_yaml_mapping(
+        _exact_tree_blob(result.provenance, RIGHTS_EVIDENCE_PATH),
+        source=RIGHTS_EVIDENCE_PATH,
+    )
+    decisions = document["human_rights_decisions"]
+    assert isinstance(decisions, dict)
+    approval = decisions["eduscol_generic_approval"]
+    assert isinstance(approval, dict)
+    approval["decision_source"] = "SYNTHETIC_FALLBACK"
+
+    with pytest.raises(ValueError, match="RIGHTS_EVIDENCE_MISMATCH"):
+        producer._verify_rights(document)

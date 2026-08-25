@@ -323,7 +323,10 @@ def _verify_pii(document: dict[str, Any], *, final_contents: set[str]) -> None:
         by_content[content] = row
     summary = _require_mapping(document.get("summary"), label="PII summary")
     if (
-        set(by_content) != final_contents
+        document.get("evidence_kind") != "REAL_CORPUS_PII_SCAN"
+        or document.get("school_year") != "2026-2027"
+        or document.get("corpus_manifest_sha256") != CORPUS_MANIFEST_SHA256
+        or set(by_content) != final_contents
         or document.get("required_pdf_path_count") != FINAL_CONTENT_COUNT
         or document.get("remote_access_mode") != "READ_ONLY"
         or document.get("remote_write_operations") != 0
@@ -331,6 +334,7 @@ def _verify_pii(document: dict[str, Any], *, final_contents: set[str]) -> None:
         or document.get("raw_pii_in_output") is not False
         or summary.get("pii_scan_required") != FINAL_CONTENT_COUNT
         or summary.get("pii_scanned") != FINAL_CONTENT_COUNT
+        or summary.get("pii_scan_coverage") != 1.0
         or summary.get("pii_not_scanned") != 0
         or summary.get("sha256_mismatches") != 0
         or any(
@@ -357,7 +361,9 @@ def _verify_currentness(
         document.get("partition"), label="currentness partition"
     )
     if (
-        set(by_content) != final_contents
+        document.get("evidence_kind") != "MULTILEVEL_ARTIFACT_CURRENTNESS_V1"
+        or document.get("school_year") != "2026-2027"
+        or set(by_content) != final_contents
         or counts
         != {
             "artifacts": FINAL_CONTENT_COUNT,
@@ -378,6 +384,15 @@ def _verify_currentness(
         )
     ):
         raise _fail("CURRENTNESS_EVIDENCE_MISMATCH", "not exactly 26 CURRENT results")
+    for row in by_content.values():
+        try:
+            _source_domain(row.get("current_download_url"))
+            _source_domain(row.get("current_source_listing_url"))
+        except AuthorizationCandidateError as exc:
+            raise _fail(
+                "CURRENTNESS_EVIDENCE_MISMATCH",
+                "currentness URL is outside the approved institutional domains",
+            ) from exc
 
 
 def _verify_rights(document: dict[str, Any]) -> None:
@@ -398,12 +413,19 @@ def _verify_rights(document: dict[str, Any]) -> None:
         label="Eduscol source evidence",
     )
     if (
-        decision.get("scope_manifest_sha256") != CORPUS_MANIFEST_SHA256
+        decision.get("decision_type") != "HUMAN_ORGANIZATIONAL_RIGHTS_APPROVAL"
+        or decision.get("decision_maker") != "Nexus Réussite"
+        or decision.get("decision_source") != "EXPLICIT_GO_LIVE_INSTRUCTION"
+        or decision.get("decision_date") != "2026-08-08"
+        or decision.get("scope_manifest_sha256") != CORPUS_MANIFEST_SHA256
         or decision.get("scope_zone") != "01_EDUSCOL_OFFICIEL/"
         or decision.get("approved_for_internal_rag") is not True
         or decision.get("approved_for_production_rag") is not True
         or decision.get("generic_rights_blocker") is not False
         or "officiel_public" not in categories
+        or eduscol.get("zone") != "01_EDUSCOL_OFFICIEL/"
+        or eduscol.get("domain") != "eduscol.education.gouv.fr"
+        or eduscol.get("provenance_status") != "VERIFIED"
         or eduscol.get("rights_status") != "CLEARED_BY_HUMAN_DECISION"
         or eduscol.get("rights_decision_ref") != "eduscol_generic_approval"
         or eduscol.get("recommended_rights_category") != "officiel_public"
