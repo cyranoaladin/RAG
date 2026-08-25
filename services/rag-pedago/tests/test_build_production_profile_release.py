@@ -57,7 +57,7 @@ class Builder(Protocol):
 
     def validate_pdf_mirror(
         self, *, pdf_root: Path, content_sha256: list[str]
-    ) -> dict[str, Path]: ...
+    ) -> dict[str, VerifiedPdf]: ...
 
     def validate_authority_bindings(
         self,
@@ -70,6 +70,11 @@ class Builder(Protocol):
     def stable_release_order(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]: ...
 
     def require_canonical_token_counter(self, token_counter: object) -> None: ...
+
+
+class VerifiedPdf(Protocol):
+    path: Path
+    content: bytes
 
 
 def _module() -> Builder:
@@ -215,6 +220,24 @@ def test_pdf_mirror_refuses_missing_and_digest_drift(tmp_path: Path) -> None:
     (tmp_path / f"{content}.pdf").write_bytes(b"not the declared content")
     with pytest.raises(ValueError, match="digest"):
         builder.validate_pdf_mirror(pdf_root=tmp_path, content_sha256=[content])
+
+
+def test_pdf_mirror_returns_an_immutable_verified_snapshot(tmp_path: Path) -> None:
+    builder = _module()
+    original = b"verified PDF bytes"
+    content_sha256 = hashlib.sha256(original).hexdigest()
+    path = tmp_path / f"{content_sha256}.pdf"
+    path.write_bytes(original)
+
+    verified = builder.validate_pdf_mirror(
+        pdf_root=tmp_path,
+        content_sha256=[content_sha256],
+    )[content_sha256]
+    path.write_bytes(b"attacker replaced path after verification")
+
+    assert verified.path == path.resolve()
+    assert verified.content == original
+    assert hashlib.sha256(verified.content).hexdigest() == content_sha256
 
 
 def test_release_order_is_stable_and_duplicate_content_is_refused() -> None:

@@ -22,6 +22,7 @@ import json
 import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from io import BytesIO
 from pathlib import Path
 from typing import Any
 
@@ -241,6 +242,22 @@ def extract_pdf_text(pdf_path: Path) -> tuple[list[str], str | None]:
         return [], f"PDF extraction failed: {type(e).__name__}: {e}"
 
 
+def extract_pdf_text_bytes(pdf_content: bytes) -> tuple[list[str], str | None]:
+    """Extract text from one immutable PDF byte snapshot."""
+    if PdfReader is None:
+        return [], "pypdf not installed"
+
+    try:
+        reader = PdfReader(BytesIO(pdf_content))
+        pages = []
+        for page in reader.pages:
+            text = page.extract_text() or ""
+            pages.append(text)
+        return pages, None
+    except Exception as exc:
+        return [], f"PDF extraction failed: {type(exc).__name__}: {exc}"
+
+
 def scan_text_for_pii(
     text: str,
     patterns: list[PIIPattern],
@@ -279,22 +296,22 @@ def compute_file_sha256(path: Path) -> str:
     return sha.hexdigest()
 
 
-def scan_pdf(
-    pdf_path: Path,
+def scan_pdf_bytes(
+    pdf_content: bytes,
+    *,
+    source_path: str,
     patterns: list[PIIPattern] | None = None,
 ) -> PIIScanResult:
-    """Scan a single PDF for PII."""
+    """Scan one immutable PDF byte snapshot for PII."""
     import time
 
     start = time.monotonic()
     patterns = patterns or DEFAULT_PII_PATTERNS
-
-    sha256 = compute_file_sha256(pdf_path) if pdf_path.exists() else ""
-
-    pages_text, error = extract_pdf_text(pdf_path)
+    sha256 = hashlib.sha256(pdf_content).hexdigest()
+    pages_text, error = extract_pdf_text_bytes(pdf_content)
     if error:
         return PIIScanResult(
-            file_path=str(pdf_path),
+            file_path=source_path,
             sha256=sha256,
             pages_scanned=0,
             characters_scanned=0,
@@ -305,7 +322,7 @@ def scan_pdf(
         )
     if not pages_text or not any(page_text.strip() for page_text in pages_text):
         return PIIScanResult(
-            file_path=str(pdf_path),
+            file_path=source_path,
             sha256=sha256,
             pages_scanned=0,
             characters_scanned=0,
@@ -316,7 +333,7 @@ def scan_pdf(
         )
     if any(not page_text.strip() for page_text in pages_text):
         return PIIScanResult(
-            file_path=str(pdf_path),
+            file_path=source_path,
             sha256=sha256,
             pages_scanned=0,
             characters_scanned=0,
@@ -337,7 +354,7 @@ def scan_pdf(
     duration_ms = int((time.monotonic() - start) * 1000)
 
     return PIIScanResult(
-        file_path=str(pdf_path),
+        file_path=source_path,
         sha256=sha256,
         pages_scanned=len(pages_text),
         characters_scanned=total_chars,
@@ -345,6 +362,34 @@ def scan_pdf(
         matches=all_matches,
         extraction_error=None,
         scan_duration_ms=duration_ms,
+    )
+
+
+def scan_pdf(
+    pdf_path: Path,
+    patterns: list[PIIPattern] | None = None,
+) -> PIIScanResult:
+    """Read a PDF once, then scan exactly the bytes that were hashed."""
+    import time
+
+    start = time.monotonic()
+    try:
+        pdf_content = pdf_path.read_bytes()
+    except OSError as exc:
+        return PIIScanResult(
+            file_path=str(pdf_path),
+            sha256="",
+            pages_scanned=0,
+            characters_scanned=0,
+            pii_detected=False,
+            matches=[],
+            extraction_error=f"PDF read failed: {type(exc).__name__}: {exc}",
+            scan_duration_ms=int((time.monotonic() - start) * 1000),
+        )
+    return scan_pdf_bytes(
+        pdf_content,
+        source_path=str(pdf_path),
+        patterns=patterns,
     )
 
 

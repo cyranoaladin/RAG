@@ -114,7 +114,7 @@ La seule collection à créer est
 Elle reste `instanciee: false` tant que le cutover et l'ingestion réels ne
 l'activent pas. Aucun verrou `*_allowed` n'est modifié.
 
-Les sept profils nouveaux ont `profile_version: production-v1`, candidat
+Les sept profils nouveaux ont `profile_version: profile-gate-v1`, candidat
 `libre`, audience `[libre, tous]`, visibilité `internal` et année
 `2026-2027`. Leurs autres dimensions viennent exclusivement des sources
 primaires listées dans les records.

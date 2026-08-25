@@ -13,7 +13,7 @@ from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, NamedTuple, Protocol
 
 import yaml
 from pypdf import PdfReader
@@ -38,7 +38,7 @@ from nexus_contracts.embedding_utils import format_passage  # noqa: E402
 
 from rag_pedago.imports.pii_scanner import (  # noqa: E402
     load_patterns_from_config,
-    scan_pdf,
+    scan_pdf_bytes,
 )
 
 SCHOOL_YEAR = "2026-2027"
@@ -200,20 +200,28 @@ def _repo_relative(path: Path) -> str:
     return path.resolve().relative_to(REPOSITORY_ROOT.resolve()).as_posix()
 
 
+class VerifiedPdf(NamedTuple):
+    """Path identity and immutable bytes verified in one read."""
+
+    path: Path
+    content: bytes
+
+
 def validate_pdf_mirror(
     *, pdf_root: Path, content_sha256: list[str]
-) -> dict[str, Path]:
+) -> dict[str, VerifiedPdf]:
     if len(content_sha256) != len(set(content_sha256)):
         raise ValueError("PDF mirror request contains duplicate content")
-    resolved: dict[str, Path] = {}
+    resolved: dict[str, VerifiedPdf] = {}
     root = pdf_root.resolve()
     for content_sha in sorted(content_sha256):
         path = (root / f"{content_sha}.pdf").resolve()
         if not path.is_relative_to(root) or not path.is_file():
             raise ValueError(f"PDF mirror is missing content {content_sha}")
-        if _file_sha256(path) != content_sha:
+        content = path.read_bytes()
+        if _sha256_bytes(content) != content_sha:
             raise ValueError(f"PDF mirror digest differs for {content_sha}")
-        resolved[content_sha] = path
+        resolved[content_sha] = VerifiedPdf(path=path, content=content)
     return resolved
 
 
@@ -700,12 +708,22 @@ def _currentness_documents(
 
 
 def _pii_evidence(
-    records: list[dict[str, Any]], *, pdfs: Mapping[str, Path], inventory_sha256: str
+    records: list[dict[str, Any]],
+    *,
+    pdfs: Mapping[str, VerifiedPdf],
+    inventory_sha256: str,
 ) -> dict[str, Any]:
     patterns = load_patterns_from_config(PII_POLICY_PATH)
     results = []
     for row in records:
-        result = scan_pdf(pdfs[row["content_sha256"]], patterns)
+        pdf = pdfs[row["content_sha256"]]
+        result = scan_pdf_bytes(
+            pdf.content,
+            source_path=str(pdf.path),
+            patterns=patterns,
+        )
+        if result.sha256 != row["content_sha256"]:
+            raise ValueError(f"PII scan digest differs for {row['content_sha256']}")
         if result.extraction_error or result.pii_detected or result.matches:
             raise ValueError(f"PII scan did not clear {row['content_sha256']}")
         core = {
@@ -750,14 +768,14 @@ def _pii_evidence(
 def _preflight(
     records: list[dict[str, Any]],
     *,
-    pdfs: Mapping[str, Path],
+    pdfs: Mapping[str, VerifiedPdf],
     token_counter: CanonicalTokenCounter,
 ) -> dict[str, Any]:
     require_canonical_token_counter(token_counter)
     artifacts = []
     chunks_total = 0
     for row in records:
-        content = pdfs[row["content_sha256"]].read_bytes()
+        content = pdfs[row["content_sha256"]].content
         page_count = len(PdfReader(BytesIO(content)).pages)
         chunks = chunk_publication(
             content=content,

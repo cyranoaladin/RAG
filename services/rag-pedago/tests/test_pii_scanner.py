@@ -182,6 +182,31 @@ class TestPDFScanning:
         assert result.pii_detected is False
         assert result.pages_scanned == 0
 
+    def test_scan_pdf_bytes_binds_digest_and_extraction_to_one_snapshot(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        content = b"immutable PDF snapshot"
+        monkeypatch.setattr(
+            pii_scanner,
+            "extract_pdf_text_bytes",
+            lambda value: (["Contenu pedagogique inspecte"], None)
+            if value is content
+            else pytest.fail("the scanner did not use the verified snapshot"),
+            raising=False,
+        )
+
+        result = pii_scanner.scan_pdf_bytes(
+            content,
+            source_path="verified/source.pdf",
+            patterns=DEFAULT_PII_PATTERNS,
+        )
+
+        assert result.sha256 == hashlib.sha256(content).hexdigest()
+        assert result.file_path == "verified/source.pdf"
+        assert result.pages_scanned == 1
+        assert result.extraction_error is None
+
     def test_scan_pdf_rejects_pages_without_extractable_text(
         self,
         monkeypatch: pytest.MonkeyPatch,
@@ -191,8 +216,8 @@ class TestPDFScanning:
         pdf.write_bytes(b"synthetic image-only pdf")
         monkeypatch.setattr(
             pii_scanner,
-            "extract_pdf_text",
-            lambda _path: (["", " \n\t"], None),
+            "extract_pdf_text_bytes",
+            lambda _content: (["", " \n\t"], None),
         )
 
         result = scan_pdf(pdf)
@@ -214,8 +239,8 @@ class TestPDFScanning:
         pdf.write_bytes(b"synthetic mixed pdf")
         monkeypatch.setattr(
             pii_scanner,
-            "extract_pdf_text",
-            lambda _path: (["Texte inspectable", " \n\t", "Autre texte"], None),
+            "extract_pdf_text_bytes",
+            lambda _content: (["Texte inspectable", " \n\t", "Autre texte"], None),
         )
 
         result = scan_pdf(pdf)

@@ -119,28 +119,28 @@ e9efc0c5b4e85a680eb8ed0497ccaeaaa987e0e40a6498b23e12122b47821d8f  ./ragdb.dump
 ./ragdb.dump: OK
 ./schema-migration-state.txt: OK
 ./target-metadata.txt: OK
- Network nexus-pg-restore-rehearsal-20260825t041128z_restore_net Creating 
- Network nexus-pg-restore-rehearsal-20260825t041128z_restore_net Created 
- Container nexus-pg-restore-rehearsal-20260825t041128z-restore-migrator-run-16107eabc23e Creating 
- Container nexus-pg-restore-rehearsal-20260825t041128z-restore-migrator-run-16107eabc23e Created 
- Volume nexus-pg-restore-rehearsal-20260825t041128z_restore_pgvector_data Creating 
- Volume nexus-pg-restore-rehearsal-20260825t041128z_restore_pgvector_data Created 
- Container nexus-pg-restore-rehearsal-20260825t041128z-pgvector-1 Creating 
- Container nexus-pg-restore-rehearsal-20260825t041128z-pgvector-1 Created 
- Container nexus-pg-restore-rehearsal-20260825t041128z-pgvector-1 Starting 
- Container nexus-pg-restore-rehearsal-20260825t041128z-pgvector-1 Started 
- Container nexus-pg-restore-rehearsal-20260825t041128z-pgvector-1 Waiting 
- Container nexus-pg-restore-rehearsal-20260825t041128z-pgvector-1 Healthy 
- Container nexus-pg-restore-rehearsal-20260825t041128z-restore-migrator-run-bf7f8d2545f2 Creating 
- Container nexus-pg-restore-rehearsal-20260825t041128z-restore-migrator-run-bf7f8d2545f2 Created 
+ Network nexus-pg-restore-rehearsal-20260825t041128z_restore_net Creating
+ Network nexus-pg-restore-rehearsal-20260825t041128z_restore_net Created
+ Container nexus-pg-restore-rehearsal-20260825t041128z-restore-migrator-run-16107eabc23e Creating
+ Container nexus-pg-restore-rehearsal-20260825t041128z-restore-migrator-run-16107eabc23e Created
+ Volume nexus-pg-restore-rehearsal-20260825t041128z_restore_pgvector_data Creating
+ Volume nexus-pg-restore-rehearsal-20260825t041128z_restore_pgvector_data Created
+ Container nexus-pg-restore-rehearsal-20260825t041128z-pgvector-1 Creating
+ Container nexus-pg-restore-rehearsal-20260825t041128z-pgvector-1 Created
+ Container nexus-pg-restore-rehearsal-20260825t041128z-pgvector-1 Starting
+ Container nexus-pg-restore-rehearsal-20260825t041128z-pgvector-1 Started
+ Container nexus-pg-restore-rehearsal-20260825t041128z-pgvector-1 Waiting
+ Container nexus-pg-restore-rehearsal-20260825t041128z-pgvector-1 Healthy
+ Container nexus-pg-restore-rehearsal-20260825t041128z-restore-migrator-run-bf7f8d2545f2 Creating
+ Container nexus-pg-restore-rehearsal-20260825t041128z-restore-migrator-run-bf7f8d2545f2 Created
 pre_migration_restore|25|0|0|0|0|0
 BACKUP_COMPLETE=<isolated-temp>/migration-backups/pgvector-migration-20260825T041617Z-2002764/ragdb-before-migrations.dump
 MIGRATIONS_APPLIED=3
 MIGRATIONS_ADOPTED=1
 SCHEMA_VERIFICATION=OK
 UPGRADE_COMPLETE
- Container nexus-pg-restore-rehearsal-20260825t041128z-restore-migrator-run-72799e386080 Creating 
- Container nexus-pg-restore-rehearsal-20260825t041128z-restore-migrator-run-72799e386080 Created 
+ Container nexus-pg-restore-rehearsal-20260825t041128z-restore-migrator-run-72799e386080 Creating
+ Container nexus-pg-restore-rehearsal-20260825t041128z-restore-migrator-run-72799e386080 Created
 REVOKE
 REVOKE
 ALTER ROLE
@@ -164,8 +164,8 @@ GRANT
 GRANT
 GRANT
 GRANT
- Container nexus-pg-restore-rehearsal-20260825t041128z-restore-migrator-run-d39ffde4f6e5 Creating 
- Container nexus-pg-restore-rehearsal-20260825t041128z-restore-migrator-run-d39ffde4f6e5 Created 
+ Container nexus-pg-restore-rehearsal-20260825t041128z-restore-migrator-run-d39ffde4f6e5 Creating
+ Container nexus-pg-restore-rehearsal-20260825t041128z-restore-migrator-run-d39ffde4f6e5 Created
 STEP=bootstrap_schema
 NOTICE:  schema "ingestion_control" already exists, skipping
 NOTICE:  relation "schema_migrations" already exists, skipping
@@ -233,14 +233,14 @@ ingestion_control_migration|10|010_governed_publication_commit_fence.sql|1bdbcbc
 ingestion_control_migration|11|011_external_authority_commit_pins.sql|5c850429de0d7d1c3c8a54880eb1091cc9b6b03225a1a6ec273f291b54a24bc1
 ingestion_control_migration|12|012_artifact_attributions.sql|295613f94bdc970eb904ec96c9d6d97fe8f6910e21390333ea53e5841f6d1b8a
 ingestion_control_migration|13|013_lot42_v2_attribution_bound_reviews.sql|61b7538e88cad2a78eda3683f2e66a305a2603987a205d7a3e43fb99cdaa9eef
- Container nexus-pg-restore-rehearsal-20260825t041128z-pgvector-1 Stopping 
- Container nexus-pg-restore-rehearsal-20260825t041128z-pgvector-1 Stopped 
- Container nexus-pg-restore-rehearsal-20260825t041128z-pgvector-1 Removing 
- Container nexus-pg-restore-rehearsal-20260825t041128z-pgvector-1 Removed 
- Network nexus-pg-restore-rehearsal-20260825t041128z_restore_net Removing 
- Volume nexus-pg-restore-rehearsal-20260825t041128z_restore_pgvector_data Removing 
- Volume nexus-pg-restore-rehearsal-20260825t041128z_restore_pgvector_data Removed 
- Network nexus-pg-restore-rehearsal-20260825t041128z_restore_net Removed 
+ Container nexus-pg-restore-rehearsal-20260825t041128z-pgvector-1 Stopping
+ Container nexus-pg-restore-rehearsal-20260825t041128z-pgvector-1 Stopped
+ Container nexus-pg-restore-rehearsal-20260825t041128z-pgvector-1 Removing
+ Container nexus-pg-restore-rehearsal-20260825t041128z-pgvector-1 Removed
+ Network nexus-pg-restore-rehearsal-20260825t041128z_restore_net Removing
+ Volume nexus-pg-restore-rehearsal-20260825t041128z_restore_pgvector_data Removing
+ Volume nexus-pg-restore-rehearsal-20260825t041128z_restore_pgvector_data Removed
+ Network nexus-pg-restore-rehearsal-20260825t041128z_restore_net Removed
 production_unchanged|25|0|0|0
 RESTORE_REHEARSAL_PASS=true
 PRODUCTION_DB_MUTATED=false

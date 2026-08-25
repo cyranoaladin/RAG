@@ -272,7 +272,7 @@ def build_outputs() -> tuple[dict[str, Any], list[dict[str, Any]]]:
                 "observed_matiere_evidence": [scope["matiere"]],
                 "observed_niveau_evidence": [scope["niveau"]],
                 "partition_id": f"{source_partitions}-{suffix}",
-                "partition_kind": "PRIMARY_EVIDENCE_EXACT_PROFILE",
+                "partition_kind": "EXACT_VERSIONED_RELEASE_PROFILE",
                 "profile_decision_required": False,
             }
         )

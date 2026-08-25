@@ -5,6 +5,8 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -35,6 +37,9 @@ DECISIONS_PATH = (
 COLLECTIONS_PATH = REPO_ROOT / "services/rag-engine/configs/rag_collections.yml"
 EDUSCOL_SOURCES_PATH = REPO_ROOT / "services/rag-pedago/configs/eduscol_sources.yml"
 PROFILE_MANIFEST_PATH = REPO_ROOT / "services/rag-engine/configs/ingestion_manifest.yml"
+PROFILE_GATE_BUILDER = (
+    REPO_ROOT / "services/rag-pedago/scripts/build_production_profile_gate.py"
+)
 
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 REQUIRED_RESOLUTION_FIELDS = {
@@ -242,6 +247,18 @@ def test_final_matrix_contains_only_grounded_p11_p23_rows() -> None:
     )
 
 
+def test_profile_gate_builder_reproduces_committed_outputs_byte_for_byte() -> None:
+    completed = subprocess.run(
+        [sys.executable, str(PROFILE_GATE_BUILDER), "--check"],
+        cwd=REPO_ROOT / "services/rag-pedago",
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+
+
 def test_p01_p10_profiles_are_promoted_with_identical_bytes() -> None:
     proposed = _load(PROPOSED_MATRIX_PATH)
     sources = {
@@ -280,7 +297,7 @@ def test_seven_new_profiles_match_the_grounded_decisions_exactly() -> None:
         )
 
 
-def test_new_profile_collections_are_declared_and_instantiated() -> None:
+def test_new_profile_collections_are_declared_but_dormant_before_cutover() -> None:
     decisions = _load(DECISIONS_PATH)
     collections = yaml.safe_load(COLLECTIONS_PATH.read_text(encoding="utf-8"))[
         "collections"
@@ -289,7 +306,7 @@ def test_new_profile_collections_are_declared_and_instantiated() -> None:
     for profile_id, decision in decisions["profiles"].items():
         expected_scope = decision["profile"]["scope"]
         declared = collections[profile_id]
-        assert declared["instanciee"] is True
+        assert declared["instanciee"] is False
         assert declared["matiere"] == expected_scope["matiere"]
         assert declared["niveau"] == expected_scope["niveau"]
         assert declared["voie"] in {expected_scope["voie"], "gen"}

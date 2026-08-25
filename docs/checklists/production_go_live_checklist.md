@@ -66,7 +66,7 @@
 - [ ] `GET /collections/v2` avec token → 200 (liste collections)
 - [ ] `POST /ingest/v2/upload-files` avec token ingest_agent → 200/202
 - [ ] `POST /ingest/v2/upload-files` avec token student → 403
-- [ ] `nexus-contracts==0.13.0` est installé côté moteur ; les fixtures V1
+- [ ] `nexus-contracts==0.14.0` est installé côté moteur ; les fixtures V1
       restent lisibles et les protocoles V2 restent strictement distincts
 - [ ] `GET /api/review/queue` avec session Auth.js `reviewer` ou `admin` → 200
 - [ ] `POST /api/review/decide` avec session Auth.js `reviewer` ou `admin` → 200

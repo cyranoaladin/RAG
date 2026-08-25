@@ -113,11 +113,10 @@ def test_quatrieme_collections_are_declared_and_release_activated_exactly() -> N
     }
 
 
-def test_instanciated_match_perimetre() -> None:
+def test_instanciated_match_perimetre_excludes_pre_cutover_profile_gate_scopes() -> None:
     config = _load_yaml(CONFIG_PATH)
     inst = {n for n, d in config["collections"].items() if d.get("instanciee") is True}
     assert inst == {
-        "rag_nexus_dgemc_terminale_option",
         "rag_nexus_francais_premiere_tc",
         "rag_nexus_francais_quatrieme_tc",
         "rag_nexus_francais_seconde_tc",
@@ -130,14 +129,8 @@ def test_instanciated_match_perimetre() -> None:
         "rag_nexus_nsi_premiere_specialite",
         "rag_nexus_nsi_terminale_specialite",
         "rag_nexus_pc_terminale_specialite",
-        "rag_nexus_pc_premiere_specialite",
         "rag_nexus_philo_terminale_tc",
         "rag_nexus_quarantine",
-        "rag_nexus_ses_premiere_specialite",
-        "rag_nexus_ses_terminale_specialite",
-        "rag_nexus_svt_premiere_specialite",
-        "rag_nexus_svt_terminale_specialite",
-        "rag_nexus_hlp_premiere_specialite",
     }
 
 

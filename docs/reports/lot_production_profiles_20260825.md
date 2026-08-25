@@ -84,7 +84,7 @@ FINAL_PROFILE_MATRIX_SHA256=10316991c8a2b0fa65aae6c725f77a3ac38abd985f9a80666e30
 RELEASE_SCOPE_PLACEMENT_SHA256=b1a36aef251d05f0098bfe88d7eae45b36333452f1613741e15dc6a89de75315
 PLACEMENT_SOURCE_COMMIT=21a0e7efe01deb8aff14386220f8c976d81cd856
 PLACEMENT_SOURCE_TREE=d2d7b81d4d80bd61cc7a1c6b0efac66282805b3c
-PRODUCTION_RELEASE_SHA256=7ce2cfcdae1ba92d51ef17bc8b8edfccac4bd8f1fea5ad0efa9abe4edd8aec73
+PRODUCTION_RELEASE_SHA256=2aadfa96e6ce669abcaa6d336bdd44c680d4d3206d33e464a9eccc90f8a5944c
 ```
 
 Le runtime refuse les clés JSON dupliquées, les collisions inter-sujets, les
@@ -118,7 +118,7 @@ La cible est `rag_pgvector/ragdb` sur `127.0.0.1:5436`. Le PostgreSQL natif
 SHA-256
 `e9efc0c5b4e85a680eb8ed0497ccaeaaa987e0e40a6498b23e12122b47821d8f`.
 Le transcript nettoyé et versionné a pour SHA-256
-`ac1b171d9cd907c4b86ee1db344f2a1b54381302ea0777619da3f76e880ca81a`.
+`22a02d259c568a2c90cc8b502c52d2edc11e30fdc677554f0adc63ea66e8abc8`.
 
 ### Environment GitHub
 

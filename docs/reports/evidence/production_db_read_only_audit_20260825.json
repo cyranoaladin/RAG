@@ -116,7 +116,7 @@
   },
   "sanitized_versioned_transcript": {
     "path": "docs/reports/evidence/production_db_read_only_audit_20260825.transcript.txt",
-    "sha256": "ac1b171d9cd907c4b86ee1db344f2a1b54381302ea0777619da3f76e880ca81a",
+    "sha256": "22a02d259c568a2c90cc8b502c52d2edc11e30fdc677554f0adc63ea66e8abc8",
     "credentials_included": false,
     "temporary_paths_sanitized": true
   },
