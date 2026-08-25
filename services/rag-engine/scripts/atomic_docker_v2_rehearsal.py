@@ -1323,6 +1323,11 @@ def run_rehearsal(
         "isolation_preflight": preflight_inventories,
         "published_ports": published_ports,
         "mutation_command_count": len(mutation_commands),
+        "image_preexisting_before_harness": True,
+        "compose_pull_invoked": any(
+            "pull" in command for command in mutation_commands
+        ),
+        "build_invoked": any("build" in command for command in mutation_commands),
         "readiness_public_anchor_sha256": (
             hashlib.sha256(readiness_anchor_raw).hexdigest()
             if "readiness_anchor_raw" in locals()
@@ -1429,7 +1434,11 @@ def _write_evidence(
         "image": {
             "reference": result["image_ref"],
             "local_id": result["image_id"],
-            "pulled_or_built_by_harness": False,
+            "preexisting_before_harness": result[
+                "image_preexisting_before_harness"
+            ],
+            "compose_pull_invoked": result["compose_pull_invoked"],
+            "build_invoked": result["build_invoked"],
         },
         "docker": result["docker"],
         "health_observation": result["health_observation"],

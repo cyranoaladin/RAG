@@ -6,6 +6,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+import subprocess
 import unittest
 
 
@@ -40,6 +41,9 @@ DOCKER_V2_HASHES = (
 )
 DOCKER_V2_HARNESS = (
     REPO_ROOT / "services/rag-engine/scripts/atomic_docker_v2_rehearsal.py"
+)
+DOCKER_V2_FIXTURE = (
+    REPO_ROOT / "services/rag-engine/scripts/atomic_docker_v2_rehearsal_fixture.py"
 )
 
 
@@ -142,6 +146,16 @@ class GoLiveEvidenceRefreshTests(unittest.TestCase):
         self.assertRegex(document["bundle_digest"], r"^[0-9a-f]{64}$")
         self.assertRegex(document["image"]["reference"], r"@sha256:[0-9a-f]{64}$")
         self.assertRegex(document["image"]["local_id"], r"^sha256:[0-9a-f]{64}$")
+        self.assertEqual(
+            document["image"],
+            {
+                "build_invoked": False,
+                "compose_pull_invoked": True,
+                "local_id": document["image"]["local_id"],
+                "preexisting_before_harness": True,
+                "reference": document["image"]["reference"],
+            },
+        )
         self.assertTrue(document["docker"]["engine_version"])
         self.assertTrue(document["docker"]["compose_version"])
 
@@ -226,6 +240,39 @@ class GoLiveEvidenceRefreshTests(unittest.TestCase):
         self.assertEqual(
             document["harness"]["sha256"],
             hashlib.sha256(DOCKER_V2_HARNESS.read_bytes()).hexdigest(),
+        )
+        source_tree = subprocess.run(
+            ["git", "rev-parse", f"{document['git_commit']}^{{tree}}"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        self.assertEqual(document["git_tree"], source_tree)
+        harness_at_source = subprocess.run(
+            ["git", "show", f"{document['git_commit']}:{document['harness']['path']}"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            check=True,
+        ).stdout
+        self.assertEqual(
+            document["harness"]["sha256"],
+            hashlib.sha256(harness_at_source).hexdigest(),
+        )
+        fixture_relative = DOCKER_V2_FIXTURE.relative_to(REPO_ROOT).as_posix()
+        fixture_at_source = subprocess.run(
+            ["git", "show", f"{document['git_commit']}:{fixture_relative}"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            check=True,
+        ).stdout
+        self.assertEqual(
+            document["fixture_builder_sha256"],
+            hashlib.sha256(DOCKER_V2_FIXTURE.read_bytes()).hexdigest(),
+        )
+        self.assertEqual(
+            document["fixture_builder_sha256"],
+            hashlib.sha256(fixture_at_source).hexdigest(),
         )
         self.assertEqual(
             document["transcript_sha256"],

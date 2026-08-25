@@ -21,6 +21,10 @@ n'est écrite dans le bundle, les preuves, le transcript ou Git. Seuls les
 digests des ancres publiques sont consignés. Deux fabrications successives
 doivent produire des digests de clés publiques distincts.
 
+Les faits de ReviewBinding, d'auteur et d'approbation emploient uniquement les
+acteurs explicites `nexus-fixture-reviewer` et `nexus-fixture-author`. La
+fixture ne simule jamais l'identité GitHub d'un humain prescrit par le protocole.
+
 La fixture Compose contient exactement les trois services applicatifs attendus
 par la provenance (`ingestor`, `multilevel-worker-a-production`,
 `multilevel-worker-b-production`) plus un upstream synthétique obligatoire pour

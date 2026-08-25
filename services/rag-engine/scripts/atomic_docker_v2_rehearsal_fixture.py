@@ -51,8 +51,8 @@ from nexus_contracts.review_binding import (
 
 REPOSITORY = "cyranoaladin/RAG"
 PR_NUMBER = 9001
-REVIEWER = "abenrhouma"
-AUTHOR = "cyranoaladin"
+REVIEWER = "nexus-fixture-reviewer"
+AUTHOR = "nexus-fixture-author"
 AUTHORIZATION_ID = "atomic-docker-v2-rehearsal-authz-v1"
 REVIEW_KEY_ID = "atomic-docker-v2-rehearsal-review-ephemeral"
 READINESS_KEY_ID = "atomic-docker-v2-rehearsal-readiness-ephemeral"
@@ -229,7 +229,7 @@ profiles:
   - collection: rag_nexus_nsi_terminale_specialite
     profile_version: v1
     fingerprint: {fingerprint}
-    approved_by: abenrhouma
+    approved_by: {REVIEWER}
     approved_at: "2026-08-25T12:00:00+00:00"
 '''.encode()
     digest = validate_production_profile_manifest(

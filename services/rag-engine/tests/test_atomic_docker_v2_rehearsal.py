@@ -271,6 +271,22 @@ def test_private_review_seed_is_not_serialized_in_release_material() -> None:
     assert seed.encode() not in serialized
 
 
+def test_fixture_never_impersonates_prescribed_human_identities() -> None:
+    built = _release_fixture(secrets.token_hex(32))
+    serialized = b"\n".join(
+        [
+            *built.material.release_files.values(),
+            built.material.profile_manifest_raw,
+            built.material.trusted_reviewers_raw,
+        ]
+    )
+    assert b'"reviewer_login": "abenrhouma"' not in serialized
+    assert b'"author_login": "cyranoaladin"' not in serialized
+    assert b"approved_by: abenrhouma" not in serialized
+    assert b"nexus-fixture-reviewer" in serialized
+    assert b"nexus-fixture-author" in serialized
+
+
 def test_authorization_set_fixture_is_real_v1_and_verified() -> None:
     built = _release_fixture(secrets.token_hex(32))
     authorization_set = parse_authorization_set(built.material.authorization_set_raw)

@@ -7,6 +7,9 @@ une fixture contractuelle `AuthorizationSetV1` +
 `ProductionReadinessManifestV2`. Il utilise uniquement des projets isolés
 préfixés `nexus-go-live-rehearsal-v2-`, l'image Alpine déjà présente et épinglée
 par digest, aucun port et deux clés Ed25519 générées en mémoire pour ce run.
+Les faits de revue utilisent exclusivement les acteurs synthétiques
+`nexus-fixture-reviewer` et `nexus-fixture-author`, jamais les identités GitHub
+humaines prescrites par le protocole de production.
 
 ```text
 ATOMIC_DOCKER_V2_REHEARSAL_PASS=true
