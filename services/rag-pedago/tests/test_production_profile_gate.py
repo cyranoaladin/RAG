@@ -200,12 +200,12 @@ def test_new_profile_identities_cover_exactly_the_ten_grounded_contents() -> Non
 
 def test_final_matrix_contains_only_grounded_p11_p23_rows() -> None:
     expected = _expected()
-    matrix = _load(FINAL_MATRIX_PATH)
-    rows = matrix["rows"]
+    rows = _load(FINAL_MATRIX_PATH)
+    assert isinstance(rows, list)
     p11_p23_rows = [
         row
         for row in rows
-        if re.fullmatch(r"P(?:1[1-9]|2[0-3])", row["partition_id"])
+        if re.match(r"P(?:1[1-9]|2[0-3])(?:-|$)", row["partition_id"])
     ]
 
     assert {content for row in p11_p23_rows for content in row["content_sha256"]} == set(
@@ -215,5 +215,15 @@ def test_final_matrix_contains_only_grounded_p11_p23_rows() -> None:
     assert all(
         dimension["grounded"] is True
         for row in p11_p23_rows
+        for dimension in row["dimensions"].values()
+    )
+    assert all(
+        "/staging/" not in source
+        for row in rows
+        for source in row["evidence_sources"]
+    )
+    assert all(
+        "/staging/" not in dimension["source_of_truth"]
+        for row in rows
         for dimension in row["dimensions"].values()
     )

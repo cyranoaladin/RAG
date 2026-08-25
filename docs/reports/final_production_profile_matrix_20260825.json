@@ -1,0 +1,1345 @@
+[
+  {
+    "content_count": 1,
+    "content_sha256": [
+      "b88b5c685ec05d44b0c22d64f491443759fc0f544fe9ad33e626fb6cc29bf65a"
+    ],
+    "dimensions": {
+      "audience": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/francais_premiere_tc_multilevel_v1.yml",
+        "value": [
+          "libre",
+          "tous"
+        ]
+      },
+      "candidat": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/francais_premiere_tc_multilevel_v1.yml",
+        "value": "libre"
+      },
+      "collection": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/francais_premiere_tc_multilevel_v1.yml",
+        "value": "rag_nexus_francais_premiere_tc"
+      },
+      "matiere": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/francais_premiere_tc_multilevel_v1.yml",
+        "value": "francais"
+      },
+      "niveau": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/francais_premiere_tc_multilevel_v1.yml",
+        "value": "premiere"
+      },
+      "programme_version": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/francais_premiere_tc_multilevel_v1.yml",
+        "value": "BOEN_special_1_2019-01-22"
+      },
+      "school_year": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/francais_premiere_tc_multilevel_v1.yml",
+        "value": "2026-2027"
+      },
+      "tenant": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/francais_premiere_tc_multilevel_v1.yml",
+        "value": "libre_premiere"
+      },
+      "visibility": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/francais_premiere_tc_multilevel_v1.yml",
+        "value": "internal"
+      },
+      "voie": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/francais_premiere_tc_multilevel_v1.yml",
+        "value": "generale"
+      }
+    },
+    "evidence_sources": [
+      "services/rag-pedago/data/releases/prerentree_2026_2027/multilevel/premiere/francais.release.json",
+      "services/rag-engine/configs/ingestion_profiles/francais_premiere_tc_multilevel_v1.yml"
+    ],
+    "observed_matiere_evidence": [
+      "FRANCAIS",
+      "HLP"
+    ],
+    "observed_niveau_evidence": [
+      "non-classe"
+    ],
+    "partition_id": "P01",
+    "partition_kind": "EXACT_VERSIONED_RELEASE_PROFILE",
+    "profile_decision_required": false
+  },
+  {
+    "content_count": 1,
+    "content_sha256": [
+      "73c001b93cf2151924da5245c4d740b56a5194c17e29c37cda2e1c0593711fae"
+    ],
+    "dimensions": {
+      "audience": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/francais_quatrieme_tc_multilevel_v1.yml",
+        "value": [
+          "libre",
+          "tous"
+        ]
+      },
+      "candidat": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/francais_quatrieme_tc_multilevel_v1.yml",
+        "value": "libre"
+      },
+      "collection": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/francais_quatrieme_tc_multilevel_v1.yml",
+        "value": "rag_nexus_francais_quatrieme_tc"
+      },
+      "matiere": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/francais_quatrieme_tc_multilevel_v1.yml",
+        "value": "francais"
+      },
+      "niveau": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/francais_quatrieme_tc_multilevel_v1.yml",
+        "value": "quatrieme"
+      },
+      "programme_version": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/francais_quatrieme_tc_multilevel_v1.yml",
+        "value": "BOEN_special_11_2018-07-26_aj_2020"
+      },
+      "school_year": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/francais_quatrieme_tc_multilevel_v1.yml",
+        "value": "2026-2027"
+      },
+      "tenant": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/francais_quatrieme_tc_multilevel_v1.yml",
+        "value": "libre_quatrieme"
+      },
+      "visibility": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/francais_quatrieme_tc_multilevel_v1.yml",
+        "value": "internal"
+      },
+      "voie": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/francais_quatrieme_tc_multilevel_v1.yml",
+        "value": "college"
+      }
+    },
+    "evidence_sources": [
+      "services/rag-pedago/data/releases/prerentree_2026_2027/multilevel/quatrieme/francais.release.json",
+      "services/rag-engine/configs/ingestion_profiles/francais_quatrieme_tc_multilevel_v1.yml"
+    ],
+    "observed_matiere_evidence": [
+      "FRANCAIS"
+    ],
+    "observed_niveau_evidence": [
+      "4e"
+    ],
+    "partition_id": "P02",
+    "partition_kind": "EXACT_VERSIONED_RELEASE_PROFILE",
+    "profile_decision_required": false
+  },
+  {
+    "content_count": 2,
+    "content_sha256": [
+      "b54b6422d0eb2fb906e6ad6c79a2e95e6cae00e3fa113da5f7499eee4cc53ae7",
+      "c4e3cc6fb201f4dabc78fa47206c1b498b3ed46496cf05165a74e0ecd8856fb1"
+    ],
+    "dimensions": {
+      "audience": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/francais_seconde_tc_multilevel_v1.yml",
+        "value": [
+          "libre",
+          "tous"
+        ]
+      },
+      "candidat": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/francais_seconde_tc_multilevel_v1.yml",
+        "value": "libre"
+      },
+      "collection": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/francais_seconde_tc_multilevel_v1.yml",
+        "value": "rag_nexus_francais_seconde_tc"
+      },
+      "matiere": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/francais_seconde_tc_multilevel_v1.yml",
+        "value": "francais"
+      },
+      "niveau": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/francais_seconde_tc_multilevel_v1.yml",
+        "value": "seconde"
+      },
+      "programme_version": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/francais_seconde_tc_multilevel_v1.yml",
+        "value": "BOEN_special_1_2019-01-22"
+      },
+      "school_year": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/francais_seconde_tc_multilevel_v1.yml",
+        "value": "2026-2027"
+      },
+      "tenant": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/francais_seconde_tc_multilevel_v1.yml",
+        "value": "libre_seconde"
+      },
+      "visibility": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/francais_seconde_tc_multilevel_v1.yml",
+        "value": "internal"
+      },
+      "voie": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/francais_seconde_tc_multilevel_v1.yml",
+        "value": "generale"
+      }
+    },
+    "evidence_sources": [
+      "services/rag-pedago/data/releases/prerentree_2026_2027/multilevel/seconde/francais.release.json",
+      "services/rag-engine/configs/ingestion_profiles/francais_seconde_tc_multilevel_v1.yml"
+    ],
+    "observed_matiere_evidence": [
+      "FRANCAIS",
+      "HLP"
+    ],
+    "observed_niveau_evidence": [
+      "seconde"
+    ],
+    "partition_id": "P03",
+    "partition_kind": "EXACT_VERSIONED_RELEASE_PROFILE",
+    "profile_decision_required": false
+  },
+  {
+    "content_count": 1,
+    "content_sha256": [
+      "5303df0fcf6335f06d00c969a61dcd82cc3fdfd105271ae5c2ef580ff49b6c08"
+    ],
+    "dimensions": {
+      "audience": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/maths_premiere_gen_specialite_multilevel_v1.yml",
+        "value": [
+          "libre",
+          "tous"
+        ]
+      },
+      "candidat": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/maths_premiere_gen_specialite_multilevel_v1.yml",
+        "value": "libre"
+      },
+      "collection": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/maths_premiere_gen_specialite_multilevel_v1.yml",
+        "value": "rag_nexus_maths_premiere_gen_specialite"
+      },
+      "matiere": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/maths_premiere_gen_specialite_multilevel_v1.yml",
+        "value": "maths"
+      },
+      "niveau": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/maths_premiere_gen_specialite_multilevel_v1.yml",
+        "value": "premiere"
+      },
+      "programme_version": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/maths_premiere_gen_specialite_multilevel_v1.yml",
+        "value": "BOEN_14_2026-04-02_MENE2602917A"
+      },
+      "school_year": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/maths_premiere_gen_specialite_multilevel_v1.yml",
+        "value": "2026-2027"
+      },
+      "tenant": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/maths_premiere_gen_specialite_multilevel_v1.yml",
+        "value": "libre_premiere"
+      },
+      "visibility": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/maths_premiere_gen_specialite_multilevel_v1.yml",
+        "value": "internal"
+      },
+      "voie": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/maths_premiere_gen_specialite_multilevel_v1.yml",
+        "value": "generale"
+      }
+    },
+    "evidence_sources": [
+      "services/rag-pedago/data/releases/prerentree_2026_2027/multilevel/premiere/maths_specialite.release.json",
+      "services/rag-engine/configs/ingestion_profiles/maths_premiere_gen_specialite_multilevel_v1.yml"
+    ],
+    "observed_matiere_evidence": [
+      "MATHEMATIQUES"
+    ],
+    "observed_niveau_evidence": [
+      "premiere"
+    ],
+    "partition_id": "P04",
+    "partition_kind": "EXACT_VERSIONED_RELEASE_PROFILE",
+    "profile_decision_required": false
+  },
+  {
+    "content_count": 1,
+    "content_sha256": [
+      "d0edabd6a21d6345d36d32c5506ddcf225e819ddca25d27c1ecc3f97b87a8966"
+    ],
+    "dimensions": {
+      "audience": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/maths_quatrieme_tc_multilevel_v1.yml",
+        "value": [
+          "libre",
+          "tous"
+        ]
+      },
+      "candidat": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/maths_quatrieme_tc_multilevel_v1.yml",
+        "value": "libre"
+      },
+      "collection": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/maths_quatrieme_tc_multilevel_v1.yml",
+        "value": "rag_nexus_maths_quatrieme_tc"
+      },
+      "matiere": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/maths_quatrieme_tc_multilevel_v1.yml",
+        "value": "maths"
+      },
+      "niveau": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/maths_quatrieme_tc_multilevel_v1.yml",
+        "value": "quatrieme"
+      },
+      "programme_version": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/maths_quatrieme_tc_multilevel_v1.yml",
+        "value": "BOEN_special_11_2018-07-26_aj_2020"
+      },
+      "school_year": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/maths_quatrieme_tc_multilevel_v1.yml",
+        "value": "2026-2027"
+      },
+      "tenant": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/maths_quatrieme_tc_multilevel_v1.yml",
+        "value": "libre_quatrieme"
+      },
+      "visibility": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/maths_quatrieme_tc_multilevel_v1.yml",
+        "value": "internal"
+      },
+      "voie": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/maths_quatrieme_tc_multilevel_v1.yml",
+        "value": "college"
+      }
+    },
+    "evidence_sources": [
+      "services/rag-pedago/data/releases/prerentree_2026_2027/multilevel/quatrieme/maths.release.json",
+      "services/rag-engine/configs/ingestion_profiles/maths_quatrieme_tc_multilevel_v1.yml"
+    ],
+    "observed_matiere_evidence": [
+      "MATHEMATIQUES"
+    ],
+    "observed_niveau_evidence": [
+      "4e"
+    ],
+    "partition_id": "P05",
+    "partition_kind": "EXACT_VERSIONED_RELEASE_PROFILE",
+    "profile_decision_required": false
+  },
+  {
+    "content_count": 1,
+    "content_sha256": [
+      "05c5403d45bfc3631fa13b5c334822de09bcd68d850d0611044045cddba270de"
+    ],
+    "dimensions": {
+      "audience": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/maths_seconde_tc_multilevel_v1.yml",
+        "value": [
+          "libre",
+          "tous"
+        ]
+      },
+      "candidat": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/maths_seconde_tc_multilevel_v1.yml",
+        "value": "libre"
+      },
+      "collection": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/maths_seconde_tc_multilevel_v1.yml",
+        "value": "rag_nexus_maths_seconde_tc"
+      },
+      "matiere": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/maths_seconde_tc_multilevel_v1.yml",
+        "value": "maths"
+      },
+      "niveau": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/maths_seconde_tc_multilevel_v1.yml",
+        "value": "seconde"
+      },
+      "programme_version": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/maths_seconde_tc_multilevel_v1.yml",
+        "value": "BOEN_14_2026-04-02_MENE2602914A"
+      },
+      "school_year": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/maths_seconde_tc_multilevel_v1.yml",
+        "value": "2026-2027"
+      },
+      "tenant": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/maths_seconde_tc_multilevel_v1.yml",
+        "value": "libre_seconde"
+      },
+      "visibility": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/maths_seconde_tc_multilevel_v1.yml",
+        "value": "internal"
+      },
+      "voie": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/maths_seconde_tc_multilevel_v1.yml",
+        "value": "generale"
+      }
+    },
+    "evidence_sources": [
+      "services/rag-pedago/data/releases/prerentree_2026_2027/multilevel/seconde/maths.release.json",
+      "services/rag-engine/configs/ingestion_profiles/maths_seconde_tc_multilevel_v1.yml"
+    ],
+    "observed_matiere_evidence": [
+      "MATHEMATIQUES"
+    ],
+    "observed_niveau_evidence": [
+      "seconde"
+    ],
+    "partition_id": "P06",
+    "partition_kind": "EXACT_VERSIONED_RELEASE_PROFILE",
+    "profile_decision_required": false
+  },
+  {
+    "content_count": 1,
+    "content_sha256": [
+      "eb8369e7c1611e90f51491fecc5a7c2081a9c57f9c7fbb08d0414677b56ce16f"
+    ],
+    "dimensions": {
+      "audience": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/maths_terminale_gen_specialite_multilevel_v1.yml",
+        "value": [
+          "libre",
+          "tous"
+        ]
+      },
+      "candidat": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/maths_terminale_gen_specialite_multilevel_v1.yml",
+        "value": "libre"
+      },
+      "collection": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/maths_terminale_gen_specialite_multilevel_v1.yml",
+        "value": "rag_nexus_maths_terminale_gen_specialite"
+      },
+      "matiere": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/maths_terminale_gen_specialite_multilevel_v1.yml",
+        "value": "maths"
+      },
+      "niveau": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/maths_terminale_gen_specialite_multilevel_v1.yml",
+        "value": "terminale"
+      },
+      "programme_version": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/maths_terminale_gen_specialite_multilevel_v1.yml",
+        "value": "BOEN_special_8_2019-07-25"
+      },
+      "school_year": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/maths_terminale_gen_specialite_multilevel_v1.yml",
+        "value": "2026-2027"
+      },
+      "tenant": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/maths_terminale_gen_specialite_multilevel_v1.yml",
+        "value": "libre_terminale"
+      },
+      "visibility": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/maths_terminale_gen_specialite_multilevel_v1.yml",
+        "value": "internal"
+      },
+      "voie": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/maths_terminale_gen_specialite_multilevel_v1.yml",
+        "value": "generale"
+      }
+    },
+    "evidence_sources": [
+      "services/rag-pedago/data/releases/prerentree_2026_2027/multilevel/terminale/maths_specialite.release.json",
+      "services/rag-engine/configs/ingestion_profiles/maths_terminale_gen_specialite_multilevel_v1.yml"
+    ],
+    "observed_matiere_evidence": [
+      "MATHEMATIQUES"
+    ],
+    "observed_niveau_evidence": [
+      "terminale"
+    ],
+    "partition_id": "P07",
+    "partition_kind": "EXACT_VERSIONED_RELEASE_PROFILE",
+    "profile_decision_required": false
+  },
+  {
+    "content_count": 1,
+    "content_sha256": [
+      "7ca9a32e1823be6c1120cb0417324c3cb01688d1d194c7614a88ea851ccc60b0"
+    ],
+    "dimensions": {
+      "audience": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/nsi_premiere_specialite_multilevel_v1.yml",
+        "value": [
+          "libre",
+          "tous"
+        ]
+      },
+      "candidat": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/nsi_premiere_specialite_multilevel_v1.yml",
+        "value": "libre"
+      },
+      "collection": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/nsi_premiere_specialite_multilevel_v1.yml",
+        "value": "rag_nexus_nsi_premiere_specialite"
+      },
+      "matiere": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/nsi_premiere_specialite_multilevel_v1.yml",
+        "value": "nsi"
+      },
+      "niveau": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/nsi_premiere_specialite_multilevel_v1.yml",
+        "value": "premiere"
+      },
+      "programme_version": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/nsi_premiere_specialite_multilevel_v1.yml",
+        "value": "BOEN_special_1_2019-01-22"
+      },
+      "school_year": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/nsi_premiere_specialite_multilevel_v1.yml",
+        "value": "2026-2027"
+      },
+      "tenant": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/nsi_premiere_specialite_multilevel_v1.yml",
+        "value": "libre_premiere"
+      },
+      "visibility": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/nsi_premiere_specialite_multilevel_v1.yml",
+        "value": "internal"
+      },
+      "voie": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/nsi_premiere_specialite_multilevel_v1.yml",
+        "value": "generale"
+      }
+    },
+    "evidence_sources": [
+      "services/rag-pedago/data/releases/prerentree_2026_2027/multilevel/premiere/nsi_specialite.release.json",
+      "services/rag-engine/configs/ingestion_profiles/nsi_premiere_specialite_multilevel_v1.yml"
+    ],
+    "observed_matiere_evidence": [
+      "NSI"
+    ],
+    "observed_niveau_evidence": [
+      "premiere"
+    ],
+    "partition_id": "P08",
+    "partition_kind": "EXACT_VERSIONED_RELEASE_PROFILE",
+    "profile_decision_required": false
+  },
+  {
+    "content_count": 1,
+    "content_sha256": [
+      "10ce34666edd722a3d8d86642a9f1ac205c7a9d128d6142a17effcba2fb85e69"
+    ],
+    "dimensions": {
+      "audience": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/nsi_terminale_specialite_multilevel_v1.yml",
+        "value": [
+          "libre",
+          "tous"
+        ]
+      },
+      "candidat": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/nsi_terminale_specialite_multilevel_v1.yml",
+        "value": "libre"
+      },
+      "collection": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/nsi_terminale_specialite_multilevel_v1.yml",
+        "value": "rag_nexus_nsi_terminale_specialite"
+      },
+      "matiere": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/nsi_terminale_specialite_multilevel_v1.yml",
+        "value": "nsi"
+      },
+      "niveau": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/nsi_terminale_specialite_multilevel_v1.yml",
+        "value": "terminale"
+      },
+      "programme_version": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/nsi_terminale_specialite_multilevel_v1.yml",
+        "value": "BOEN_special_8_2019-07-25"
+      },
+      "school_year": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/nsi_terminale_specialite_multilevel_v1.yml",
+        "value": "2026-2027"
+      },
+      "tenant": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/nsi_terminale_specialite_multilevel_v1.yml",
+        "value": "libre_terminale"
+      },
+      "visibility": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/nsi_terminale_specialite_multilevel_v1.yml",
+        "value": "internal"
+      },
+      "voie": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/nsi_terminale_specialite_multilevel_v1.yml",
+        "value": "generale"
+      }
+    },
+    "evidence_sources": [
+      "services/rag-pedago/data/releases/prerentree_2026_2027/multilevel/terminale/nsi_specialite.release.json",
+      "services/rag-engine/configs/ingestion_profiles/nsi_terminale_specialite_multilevel_v1.yml"
+    ],
+    "observed_matiere_evidence": [
+      "NSI"
+    ],
+    "observed_niveau_evidence": [
+      "terminale"
+    ],
+    "partition_id": "P09",
+    "partition_kind": "EXACT_VERSIONED_RELEASE_PROFILE",
+    "profile_decision_required": false
+  },
+  {
+    "content_count": 1,
+    "content_sha256": [
+      "c07f8b2db9d22a6c2b9ab8386cf7ba323bc2c56abacb3f560dd97d02b383de18"
+    ],
+    "dimensions": {
+      "audience": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/pc_terminale_specialite_multilevel_v1.yml",
+        "value": [
+          "libre",
+          "tous"
+        ]
+      },
+      "candidat": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/pc_terminale_specialite_multilevel_v1.yml",
+        "value": "libre"
+      },
+      "collection": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/pc_terminale_specialite_multilevel_v1.yml",
+        "value": "rag_nexus_pc_terminale_specialite"
+      },
+      "matiere": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/pc_terminale_specialite_multilevel_v1.yml",
+        "value": "physique_chimie"
+      },
+      "niveau": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/pc_terminale_specialite_multilevel_v1.yml",
+        "value": "terminale"
+      },
+      "programme_version": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/pc_terminale_specialite_multilevel_v1.yml",
+        "value": "BOEN_special_8_2019-07-25"
+      },
+      "school_year": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/pc_terminale_specialite_multilevel_v1.yml",
+        "value": "2026-2027"
+      },
+      "tenant": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/pc_terminale_specialite_multilevel_v1.yml",
+        "value": "libre_terminale"
+      },
+      "visibility": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/pc_terminale_specialite_multilevel_v1.yml",
+        "value": "internal"
+      },
+      "voie": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/pc_terminale_specialite_multilevel_v1.yml",
+        "value": "generale"
+      }
+    },
+    "evidence_sources": [
+      "services/rag-pedago/data/releases/prerentree_2026_2027/multilevel/terminale/physique_chimie_specialite.release.json",
+      "services/rag-engine/configs/ingestion_profiles/pc_terminale_specialite_multilevel_v1.yml"
+    ],
+    "observed_matiere_evidence": [
+      "PHYSIQUE_CHIMIE"
+    ],
+    "observed_niveau_evidence": [
+      "multi-niveaux"
+    ],
+    "partition_id": "P10",
+    "partition_kind": "EXACT_VERSIONED_RELEASE_PROFILE",
+    "profile_decision_required": false
+  },
+  {
+    "content_count": 1,
+    "content_sha256": [
+      "db43d342edf55e162d0153028b43287e4ece0ce81b4dc75f0730bf368b98c0f0"
+    ],
+    "dimensions": {
+      "audience": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/pc_premiere_specialite_profile_gate_v1.yml",
+        "value": [
+          "libre",
+          "tous"
+        ]
+      },
+      "candidat": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/pc_premiere_specialite_profile_gate_v1.yml",
+        "value": "libre"
+      },
+      "collection": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/pc_premiere_specialite_profile_gate_v1.yml",
+        "value": "rag_nexus_pc_premiere_specialite"
+      },
+      "matiere": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/pc_premiere_specialite_profile_gate_v1.yml",
+        "value": "physique_chimie"
+      },
+      "niveau": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/pc_premiere_specialite_profile_gate_v1.yml",
+        "value": "premiere"
+      },
+      "programme_version": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/pc_premiere_specialite_profile_gate_v1.yml",
+        "value": "BOEN_special_1_2019-01-22"
+      },
+      "school_year": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/pc_premiere_specialite_profile_gate_v1.yml",
+        "value": "2026-2027"
+      },
+      "tenant": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/pc_premiere_specialite_profile_gate_v1.yml",
+        "value": "libre_premiere"
+      },
+      "visibility": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/pc_premiere_specialite_profile_gate_v1.yml",
+        "value": "internal"
+      },
+      "voie": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/pc_premiere_specialite_profile_gate_v1.yml",
+        "value": "generale"
+      }
+    },
+    "evidence_sources": [
+      "docs/reports/production_profile_primary_evidence_20260825.json",
+      "services/rag-engine/configs/ingestion_profiles/pc_premiere_specialite_profile_gate_v1.yml"
+    ],
+    "observed_matiere_evidence": [
+      "physique_chimie"
+    ],
+    "observed_niveau_evidence": [
+      "premiere"
+    ],
+    "partition_id": "P16-PC-PREMIERE-SPECIALITE",
+    "partition_kind": "PRIMARY_EVIDENCE_EXACT_PROFILE",
+    "profile_decision_required": false
+  },
+  {
+    "content_count": 1,
+    "content_sha256": [
+      "06e491d369c5164d9f746176edeef45363cef53d3de2d5fb55153e6e96f98f2e"
+    ],
+    "dimensions": {
+      "audience": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/ses_premiere_specialite_profile_gate_v1.yml",
+        "value": [
+          "libre",
+          "tous"
+        ]
+      },
+      "candidat": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/ses_premiere_specialite_profile_gate_v1.yml",
+        "value": "libre"
+      },
+      "collection": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/ses_premiere_specialite_profile_gate_v1.yml",
+        "value": "rag_nexus_ses_premiere_specialite"
+      },
+      "matiere": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/ses_premiere_specialite_profile_gate_v1.yml",
+        "value": "ses"
+      },
+      "niveau": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/ses_premiere_specialite_profile_gate_v1.yml",
+        "value": "premiere"
+      },
+      "programme_version": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/ses_premiere_specialite_profile_gate_v1.yml",
+        "value": "BOEN_special_1_2019-01-22"
+      },
+      "school_year": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/ses_premiere_specialite_profile_gate_v1.yml",
+        "value": "2026-2027"
+      },
+      "tenant": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/ses_premiere_specialite_profile_gate_v1.yml",
+        "value": "libre_premiere"
+      },
+      "visibility": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/ses_premiere_specialite_profile_gate_v1.yml",
+        "value": "internal"
+      },
+      "voie": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/ses_premiere_specialite_profile_gate_v1.yml",
+        "value": "generale"
+      }
+    },
+    "evidence_sources": [
+      "docs/reports/production_profile_primary_evidence_20260825.json",
+      "services/rag-engine/configs/ingestion_profiles/ses_premiere_specialite_profile_gate_v1.yml"
+    ],
+    "observed_matiere_evidence": [
+      "ses"
+    ],
+    "observed_niveau_evidence": [
+      "premiere"
+    ],
+    "partition_id": "P18-SES-PREMIERE-SPECIALITE",
+    "partition_kind": "PRIMARY_EVIDENCE_EXACT_PROFILE",
+    "profile_decision_required": false
+  },
+  {
+    "content_count": 1,
+    "content_sha256": [
+      "2f1035c74db485d12e80d7c887cb9090807be32e5f79a6074d2decb1073ec154"
+    ],
+    "dimensions": {
+      "audience": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/ses_terminale_specialite_profile_gate_v1.yml",
+        "value": [
+          "libre",
+          "tous"
+        ]
+      },
+      "candidat": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/ses_terminale_specialite_profile_gate_v1.yml",
+        "value": "libre"
+      },
+      "collection": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/ses_terminale_specialite_profile_gate_v1.yml",
+        "value": "rag_nexus_ses_terminale_specialite"
+      },
+      "matiere": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/ses_terminale_specialite_profile_gate_v1.yml",
+        "value": "ses"
+      },
+      "niveau": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/ses_terminale_specialite_profile_gate_v1.yml",
+        "value": "terminale"
+      },
+      "programme_version": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/ses_terminale_specialite_profile_gate_v1.yml",
+        "value": "BOEN_special_8_2019-07-25"
+      },
+      "school_year": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/ses_terminale_specialite_profile_gate_v1.yml",
+        "value": "2026-2027"
+      },
+      "tenant": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/ses_terminale_specialite_profile_gate_v1.yml",
+        "value": "libre_terminale"
+      },
+      "visibility": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/ses_terminale_specialite_profile_gate_v1.yml",
+        "value": "internal"
+      },
+      "voie": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/ses_terminale_specialite_profile_gate_v1.yml",
+        "value": "generale"
+      }
+    },
+    "evidence_sources": [
+      "docs/reports/production_profile_primary_evidence_20260825.json",
+      "services/rag-engine/configs/ingestion_profiles/ses_terminale_specialite_profile_gate_v1.yml"
+    ],
+    "observed_matiere_evidence": [
+      "ses"
+    ],
+    "observed_niveau_evidence": [
+      "terminale"
+    ],
+    "partition_id": "P18-SES-TERMINALE-SPECIALITE",
+    "partition_kind": "PRIMARY_EVIDENCE_EXACT_PROFILE",
+    "profile_decision_required": false
+  },
+  {
+    "content_count": 1,
+    "content_sha256": [
+      "8eb0e41f95bf4aca37e6231c06109579faf6bf410d6bd2bc210574e66e2762fa"
+    ],
+    "dimensions": {
+      "audience": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/svt_premiere_specialite_profile_gate_v1.yml",
+        "value": [
+          "libre",
+          "tous"
+        ]
+      },
+      "candidat": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/svt_premiere_specialite_profile_gate_v1.yml",
+        "value": "libre"
+      },
+      "collection": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/svt_premiere_specialite_profile_gate_v1.yml",
+        "value": "rag_nexus_svt_premiere_specialite"
+      },
+      "matiere": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/svt_premiere_specialite_profile_gate_v1.yml",
+        "value": "svt"
+      },
+      "niveau": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/svt_premiere_specialite_profile_gate_v1.yml",
+        "value": "premiere"
+      },
+      "programme_version": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/svt_premiere_specialite_profile_gate_v1.yml",
+        "value": "BOEN_special_1_2019-01-22"
+      },
+      "school_year": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/svt_premiere_specialite_profile_gate_v1.yml",
+        "value": "2026-2027"
+      },
+      "tenant": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/svt_premiere_specialite_profile_gate_v1.yml",
+        "value": "libre_premiere"
+      },
+      "visibility": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/svt_premiere_specialite_profile_gate_v1.yml",
+        "value": "internal"
+      },
+      "voie": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/svt_premiere_specialite_profile_gate_v1.yml",
+        "value": "generale"
+      }
+    },
+    "evidence_sources": [
+      "docs/reports/production_profile_primary_evidence_20260825.json",
+      "services/rag-engine/configs/ingestion_profiles/svt_premiere_specialite_profile_gate_v1.yml"
+    ],
+    "observed_matiere_evidence": [
+      "svt"
+    ],
+    "observed_niveau_evidence": [
+      "premiere"
+    ],
+    "partition_id": "P19-SVT-PREMIERE-SPECIALITE",
+    "partition_kind": "PRIMARY_EVIDENCE_EXACT_PROFILE",
+    "profile_decision_required": false
+  },
+  {
+    "content_count": 1,
+    "content_sha256": [
+      "d2cbd06f2e8099d9080f17f3abb5b0fc90460b86b3c11f808b99daa01f77f897"
+    ],
+    "dimensions": {
+      "audience": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/svt_terminale_specialite_profile_gate_v1.yml",
+        "value": [
+          "libre",
+          "tous"
+        ]
+      },
+      "candidat": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/svt_terminale_specialite_profile_gate_v1.yml",
+        "value": "libre"
+      },
+      "collection": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/svt_terminale_specialite_profile_gate_v1.yml",
+        "value": "rag_nexus_svt_terminale_specialite"
+      },
+      "matiere": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/svt_terminale_specialite_profile_gate_v1.yml",
+        "value": "svt"
+      },
+      "niveau": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/svt_terminale_specialite_profile_gate_v1.yml",
+        "value": "terminale"
+      },
+      "programme_version": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/svt_terminale_specialite_profile_gate_v1.yml",
+        "value": "BOEN_special_8_2019-07-25"
+      },
+      "school_year": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/svt_terminale_specialite_profile_gate_v1.yml",
+        "value": "2026-2027"
+      },
+      "tenant": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/svt_terminale_specialite_profile_gate_v1.yml",
+        "value": "libre_terminale"
+      },
+      "visibility": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/svt_terminale_specialite_profile_gate_v1.yml",
+        "value": "internal"
+      },
+      "voie": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/svt_terminale_specialite_profile_gate_v1.yml",
+        "value": "generale"
+      }
+    },
+    "evidence_sources": [
+      "docs/reports/production_profile_primary_evidence_20260825.json",
+      "services/rag-engine/configs/ingestion_profiles/svt_terminale_specialite_profile_gate_v1.yml"
+    ],
+    "observed_matiere_evidence": [
+      "svt"
+    ],
+    "observed_niveau_evidence": [
+      "terminale"
+    ],
+    "partition_id": "P19-SVT-TERMINALE-SPECIALITE",
+    "partition_kind": "PRIMARY_EVIDENCE_EXACT_PROFILE",
+    "profile_decision_required": false
+  },
+  {
+    "content_count": 1,
+    "content_sha256": [
+      "e591a87aee633ca3b2593e2d4fd5b183e518ebe0f9d4861e4cdfe0f494f39439"
+    ],
+    "dimensions": {
+      "audience": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/dgemc_terminale_option_profile_gate_v1.yml",
+        "value": [
+          "libre",
+          "tous"
+        ]
+      },
+      "candidat": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/dgemc_terminale_option_profile_gate_v1.yml",
+        "value": "libre"
+      },
+      "collection": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/dgemc_terminale_option_profile_gate_v1.yml",
+        "value": "rag_nexus_dgemc_terminale_option"
+      },
+      "matiere": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/dgemc_terminale_option_profile_gate_v1.yml",
+        "value": "dgemc"
+      },
+      "niveau": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/dgemc_terminale_option_profile_gate_v1.yml",
+        "value": "terminale"
+      },
+      "programme_version": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/dgemc_terminale_option_profile_gate_v1.yml",
+        "value": "BOEN_special_8_2019-07-25_MENE1921266A_MENE2208320A"
+      },
+      "school_year": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/dgemc_terminale_option_profile_gate_v1.yml",
+        "value": "2026-2027"
+      },
+      "tenant": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/dgemc_terminale_option_profile_gate_v1.yml",
+        "value": "libre_terminale"
+      },
+      "visibility": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/dgemc_terminale_option_profile_gate_v1.yml",
+        "value": "internal"
+      },
+      "voie": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/dgemc_terminale_option_profile_gate_v1.yml",
+        "value": "generale"
+      }
+    },
+    "evidence_sources": [
+      "docs/reports/production_profile_primary_evidence_20260825.json",
+      "services/rag-engine/configs/ingestion_profiles/dgemc_terminale_option_profile_gate_v1.yml"
+    ],
+    "observed_matiere_evidence": [
+      "dgemc"
+    ],
+    "observed_niveau_evidence": [
+      "terminale"
+    ],
+    "partition_id": "P21-DGEMC-TERMINALE-OPTION",
+    "partition_kind": "PRIMARY_EVIDENCE_EXACT_PROFILE",
+    "profile_decision_required": false
+  },
+  {
+    "content_count": 4,
+    "content_sha256": [
+      "4433fee96b6e803c71edf2764d99bd269e649dcff646aee97327fdfeed143f13",
+      "60eeb7dd1ee55d1ed2bb2c7671ecf3c971aeef6996db2bc7cd9c7919ae4b19ac",
+      "64f5b3427dee3b23d421fe03cb2f3aac75e0e47cee31be91b197d4e09c012987",
+      "9357dfdebca347264787dfebacb674666d87660b82f789657ddd230c7ff224aa"
+    ],
+    "dimensions": {
+      "audience": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/hlp_premiere_specialite_profile_gate_v1.yml",
+        "value": [
+          "libre",
+          "tous"
+        ]
+      },
+      "candidat": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/hlp_premiere_specialite_profile_gate_v1.yml",
+        "value": "libre"
+      },
+      "collection": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/hlp_premiere_specialite_profile_gate_v1.yml",
+        "value": "rag_nexus_hlp_premiere_specialite"
+      },
+      "matiere": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/hlp_premiere_specialite_profile_gate_v1.yml",
+        "value": "hlp"
+      },
+      "niveau": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/hlp_premiere_specialite_profile_gate_v1.yml",
+        "value": "premiere"
+      },
+      "programme_version": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/hlp_premiere_specialite_profile_gate_v1.yml",
+        "value": "BOEN_special_1_2019-01-22"
+      },
+      "school_year": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/hlp_premiere_specialite_profile_gate_v1.yml",
+        "value": "2026-2027"
+      },
+      "tenant": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/hlp_premiere_specialite_profile_gate_v1.yml",
+        "value": "libre_premiere"
+      },
+      "visibility": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/hlp_premiere_specialite_profile_gate_v1.yml",
+        "value": "internal"
+      },
+      "voie": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/hlp_premiere_specialite_profile_gate_v1.yml",
+        "value": "generale"
+      }
+    },
+    "evidence_sources": [
+      "docs/reports/production_profile_primary_evidence_20260825.json",
+      "services/rag-engine/configs/ingestion_profiles/hlp_premiere_specialite_profile_gate_v1.yml"
+    ],
+    "observed_matiere_evidence": [
+      "hlp"
+    ],
+    "observed_niveau_evidence": [
+      "premiere"
+    ],
+    "partition_id": "P23-HLP-PREMIERE-SPECIALITE",
+    "partition_kind": "PRIMARY_EVIDENCE_EXACT_PROFILE",
+    "profile_decision_required": false
+  },
+  {
+    "content_count": 5,
+    "content_sha256": [
+      "03f268dc1f2628dbc76c58921ed868624437f06a15432ea055fff844f12aaf91",
+      "846962c15217af5cfe7ba40b173e94cb225d2153ffd3131d23b2c60a2b5e9a17",
+      "b5ed52b1a4754298f7ecdbc56cb886a438c580ebd04284be0ca878b82e7c62db",
+      "e7cf3bdb7a1c3831ccc465d842d8ab0dacb688d565cb35510aee4eac4f2bf5f9",
+      "f0dec90cafd512cb754fb71ed33dbf0a48f0e67a166be35b5b16a1daa6dd006d"
+    ],
+    "dimensions": {
+      "audience": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/philosophie_terminale_tc_h2c_v1.yml",
+        "value": [
+          "libre",
+          "tous"
+        ]
+      },
+      "candidat": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/philosophie_terminale_tc_h2c_v1.yml",
+        "value": "libre"
+      },
+      "collection": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/philosophie_terminale_tc_h2c_v1.yml",
+        "value": "rag_nexus_philo_terminale_tc"
+      },
+      "matiere": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/philosophie_terminale_tc_h2c_v1.yml",
+        "value": "philosophie"
+      },
+      "niveau": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/philosophie_terminale_tc_h2c_v1.yml",
+        "value": "terminale"
+      },
+      "programme_version": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/philosophie_terminale_tc_h2c_v1.yml",
+        "value": "BOEN_special_8_2019-07-25"
+      },
+      "school_year": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/philosophie_terminale_tc_h2c_v1.yml",
+        "value": "2026-2027"
+      },
+      "tenant": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/philosophie_terminale_tc_h2c_v1.yml",
+        "value": "libre_terminale"
+      },
+      "visibility": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/philosophie_terminale_tc_h2c_v1.yml",
+        "value": "internal"
+      },
+      "voie": {
+        "grounded": true,
+        "source_of_truth": "services/rag-engine/configs/ingestion_profiles/philosophie_terminale_tc_h2c_v1.yml",
+        "value": "generale"
+      }
+    },
+    "evidence_sources": [
+      "services/rag-engine/configs/h2_initial_placement_policy.yml",
+      "services/rag-engine/configs/ingestion_profiles/philosophie_terminale_tc_h2c_v1.yml",
+      "services/rag-engine/configs/ingestion_manifest.yml"
+    ],
+    "observed_matiere_evidence": [
+      "PHILOSOPHIE"
+    ],
+    "observed_niveau_evidence": [
+      "non-classe"
+    ],
+    "partition_id": "P24",
+    "partition_kind": "EXACT_VERSIONED_RELEASE_PROFILE",
+    "profile_decision_required": false
+  }
+]

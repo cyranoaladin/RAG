@@ -1,0 +1,139 @@
+{
+  "schema_version": "PRODUCTION_PROFILE_DECISIONS_V1",
+  "source_tree_commit": "3f0317e91c9ac8eff8ff1089d100a25f7c875793",
+  "primary_evidence_sha256": "cd48b3c327da49e32da89be46c1fd5ed91938bf9b1efcca303a6bcf13bb3250d",
+  "product_defaults": {
+    "candidat": "libre",
+    "audience": ["libre", "tous"],
+    "visibility": "internal",
+    "school_year": "2026-2027",
+    "residual_policy": "MOVE_TO_REVIEW_REQUIRED_FOR_THIS_RELEASE"
+  },
+  "partition_residuals": {
+    "P11": {"resolution_status": "AMBIGUOUS", "reason_code": "MULTIPLE_ARTS_SUBJECTS_AND_LEVELS"},
+    "P12": {"resolution_status": "AMBIGUOUS", "reason_code": "MULTIPLE_ARTS_SUBJECTS_LEVELS_AND_VOIES"},
+    "P13": {"resolution_status": "UNRESOLVED", "reason_code": "TECHNOLOGICAL_SCOPE_NOT_RELEASED"},
+    "P14": {"resolution_status": "AMBIGUOUS", "reason_code": "MULTI_LEVEL_DOCUMENT"},
+    "P15": {"resolution_status": "AMBIGUOUS", "reason_code": "MULTI_LEVEL_MULTI_VOIE_DOCUMENT"},
+    "P16": {"resolution_status": "UNRESOLVED", "reason_code": "TECHNOLOGICAL_OR_UNRESOLVED_SCOPE_NOT_RELEASED"},
+    "P17": {"resolution_status": "AMBIGUOUS", "reason_code": "MULTI_LEVEL_DOCUMENT"},
+    "P20": {"resolution_status": "UNRESOLVED", "reason_code": "TECHNOLOGICAL_TRANSVERSAL_SCOPE_NOT_RELEASED"},
+    "P22": {"resolution_status": "AMBIGUOUS", "reason_code": "MULTI_LEVEL_OR_CURRENTNESS_UNRESOLVED"},
+    "P23": {"resolution_status": "AMBIGUOUS", "reason_code": "MULTI_LEVEL_OR_NON_HLP_SCOPE"}
+  },
+  "profiles": {
+    "rag_nexus_pc_premiere_specialite": {
+      "content_sha256": ["db43d342edf55e162d0153028b43287e4ece0ce81b4dc75f0730bf368b98c0f0"],
+      "profile_source": "services/rag-engine/configs/ingestion_profiles/pc_premiere_specialite_profile_gate_v1.yml",
+      "profile": {
+        "profile_version": "profile-gate-v1",
+        "enabled": true,
+        "scope": {
+          "tenant": "libre_premiere",
+          "collection": "rag_nexus_pc_premiere_specialite",
+          "niveau": "premiere",
+          "voie": "generale",
+          "matiere": "physique_chimie",
+          "candidat": "libre",
+          "audience": ["libre", "tous"],
+          "visibility": "internal",
+          "school_year": "2026-2027",
+          "programme_version": "BOEN_special_1_2019-01-22"
+        },
+        "title": "Physique-Chimie spécialité Première — gate profils production",
+        "language": "fr",
+        "owner": "Nexus Réussite",
+        "expected_topics": ["constitution de la matière", "transformations de la matière", "mouvement", "ondes et signaux"],
+        "expected_resource_types": ["programme_officiel", "ressource_officielle"],
+        "excluded_topics": ["données personnelles", "séries technologiques"],
+        "allowed_domains": ["eduscol.education.gouv.fr"],
+        "seed_urls": ["https://eduscol.education.gouv.fr/5829/programmes-et-ressources-en-physique-chimie-voie-gt"],
+        "source_authority": "official",
+        "search_cadence": "manual",
+        "max_queries_per_run": 16,
+        "max_documents_per_run": 64,
+        "max_chunk_size": 800,
+        "chunk_overlap": 100,
+        "min_source_confidence": 0.9,
+        "min_scope_confidence": 0.9,
+        "min_extraction_quality": 0.1,
+        "reject_unknown_rights": true,
+        "reject_ambiguous_routing": true,
+        "publication": {"mode": "human_review", "auto_publish": false}
+      }
+    },
+    "rag_nexus_ses_premiere_specialite": {
+      "content_sha256": ["06e491d369c5164d9f746176edeef45363cef53d3de2d5fb55153e6e96f98f2e"],
+      "profile_source": "services/rag-engine/configs/ingestion_profiles/ses_premiere_specialite_profile_gate_v1.yml",
+      "profile": {
+        "profile_version": "profile-gate-v1",
+        "enabled": true,
+        "scope": {"tenant": "libre_premiere", "collection": "rag_nexus_ses_premiere_specialite", "niveau": "premiere", "voie": "generale", "matiere": "ses", "candidat": "libre", "audience": ["libre", "tous"], "visibility": "internal", "school_year": "2026-2027", "programme_version": "BOEN_special_1_2019-01-22"},
+        "title": "SES spécialité Première — gate profils production",
+        "language": "fr",
+        "owner": "Nexus Réussite",
+        "expected_topics": ["science économique", "sociologie", "science politique"],
+        "expected_resource_types": ["programme_officiel", "ressource_officielle"],
+        "excluded_topics": ["données personnelles", "séries technologiques"],
+        "allowed_domains": ["eduscol.education.gouv.fr"],
+        "seed_urls": ["https://eduscol.education.gouv.fr/5838/programmes-et-ressources-en-sciences-economiques-et-sociales-voie-gt"],
+        "source_authority": "official", "search_cadence": "manual", "max_queries_per_run": 16, "max_documents_per_run": 64, "max_chunk_size": 800, "chunk_overlap": 100, "min_source_confidence": 0.9, "min_scope_confidence": 0.9, "min_extraction_quality": 0.1, "reject_unknown_rights": true, "reject_ambiguous_routing": true, "publication": {"mode": "human_review", "auto_publish": false}
+      }
+    },
+    "rag_nexus_ses_terminale_specialite": {
+      "content_sha256": ["2f1035c74db485d12e80d7c887cb9090807be32e5f79a6074d2decb1073ec154"],
+      "profile_source": "services/rag-engine/configs/ingestion_profiles/ses_terminale_specialite_profile_gate_v1.yml",
+      "profile": {
+        "profile_version": "profile-gate-v1", "enabled": true,
+        "scope": {"tenant": "libre_terminale", "collection": "rag_nexus_ses_terminale_specialite", "niveau": "terminale", "voie": "generale", "matiere": "ses", "candidat": "libre", "audience": ["libre", "tous"], "visibility": "internal", "school_year": "2026-2027", "programme_version": "BOEN_special_8_2019-07-25"},
+        "title": "SES spécialité Terminale — gate profils production", "language": "fr", "owner": "Nexus Réussite",
+        "expected_topics": ["science économique", "sociologie", "science politique"], "expected_resource_types": ["programme_officiel", "ressource_officielle"], "excluded_topics": ["données personnelles", "séries technologiques"], "allowed_domains": ["eduscol.education.gouv.fr"], "seed_urls": ["https://eduscol.education.gouv.fr/5838/programmes-et-ressources-en-sciences-economiques-et-sociales-voie-gt"],
+        "source_authority": "official", "search_cadence": "manual", "max_queries_per_run": 16, "max_documents_per_run": 64, "max_chunk_size": 800, "chunk_overlap": 100, "min_source_confidence": 0.9, "min_scope_confidence": 0.9, "min_extraction_quality": 0.1, "reject_unknown_rights": true, "reject_ambiguous_routing": true, "publication": {"mode": "human_review", "auto_publish": false}
+      }
+    },
+    "rag_nexus_svt_premiere_specialite": {
+      "content_sha256": ["8eb0e41f95bf4aca37e6231c06109579faf6bf410d6bd2bc210574e66e2762fa"],
+      "profile_source": "services/rag-engine/configs/ingestion_profiles/svt_premiere_specialite_profile_gate_v1.yml",
+      "profile": {
+        "profile_version": "profile-gate-v1", "enabled": true,
+        "scope": {"tenant": "libre_premiere", "collection": "rag_nexus_svt_premiere_specialite", "niveau": "premiere", "voie": "generale", "matiere": "svt", "candidat": "libre", "audience": ["libre", "tous"], "visibility": "internal", "school_year": "2026-2027", "programme_version": "BOEN_special_1_2019-01-22"},
+        "title": "SVT spécialité Première — gate profils production", "language": "fr", "owner": "Nexus Réussite",
+        "expected_topics": ["organisation du vivant", "enjeux contemporains de la planète", "corps humain et santé"], "expected_resource_types": ["programme_officiel", "ressource_officielle"], "excluded_topics": ["données personnelles", "séries technologiques"], "allowed_domains": ["eduscol.education.gouv.fr"], "seed_urls": ["https://eduscol.education.gouv.fr/5835/programmes-et-ressources-en-sciences-de-la-vie-et-de-la-terre-voie-gt"],
+        "source_authority": "official", "search_cadence": "manual", "max_queries_per_run": 16, "max_documents_per_run": 64, "max_chunk_size": 800, "chunk_overlap": 100, "min_source_confidence": 0.9, "min_scope_confidence": 0.9, "min_extraction_quality": 0.1, "reject_unknown_rights": true, "reject_ambiguous_routing": true, "publication": {"mode": "human_review", "auto_publish": false}
+      }
+    },
+    "rag_nexus_svt_terminale_specialite": {
+      "content_sha256": ["d2cbd06f2e8099d9080f17f3abb5b0fc90460b86b3c11f808b99daa01f77f897"],
+      "profile_source": "services/rag-engine/configs/ingestion_profiles/svt_terminale_specialite_profile_gate_v1.yml",
+      "profile": {
+        "profile_version": "profile-gate-v1", "enabled": true,
+        "scope": {"tenant": "libre_terminale", "collection": "rag_nexus_svt_terminale_specialite", "niveau": "terminale", "voie": "generale", "matiere": "svt", "candidat": "libre", "audience": ["libre", "tous"], "visibility": "internal", "school_year": "2026-2027", "programme_version": "BOEN_special_8_2019-07-25"},
+        "title": "SVT spécialité Terminale — gate profils production", "language": "fr", "owner": "Nexus Réussite",
+        "expected_topics": ["organisation du vivant", "enjeux planétaires contemporains", "corps humain et santé"], "expected_resource_types": ["programme_officiel", "ressource_officielle"], "excluded_topics": ["données personnelles", "séries technologiques"], "allowed_domains": ["eduscol.education.gouv.fr"], "seed_urls": ["https://eduscol.education.gouv.fr/5835/programmes-et-ressources-en-sciences-de-la-vie-et-de-la-terre-voie-gt"],
+        "source_authority": "official", "search_cadence": "manual", "max_queries_per_run": 16, "max_documents_per_run": 64, "max_chunk_size": 800, "chunk_overlap": 100, "min_source_confidence": 0.9, "min_scope_confidence": 0.9, "min_extraction_quality": 0.1, "reject_unknown_rights": true, "reject_ambiguous_routing": true, "publication": {"mode": "human_review", "auto_publish": false}
+      }
+    },
+    "rag_nexus_dgemc_terminale_option": {
+      "content_sha256": ["e591a87aee633ca3b2593e2d4fd5b183e518ebe0f9d4861e4cdfe0f494f39439"],
+      "profile_source": "services/rag-engine/configs/ingestion_profiles/dgemc_terminale_option_profile_gate_v1.yml",
+      "profile": {
+        "profile_version": "profile-gate-v1", "enabled": true,
+        "scope": {"tenant": "libre_terminale", "collection": "rag_nexus_dgemc_terminale_option", "niveau": "terminale", "voie": "generale", "matiere": "dgemc", "candidat": "libre", "audience": ["libre", "tous"], "visibility": "internal", "school_year": "2026-2027", "programme_version": "BOEN_special_8_2019-07-25_MENE1921266A_MENE2208320A"},
+        "title": "DGEMC option Terminale générale — gate profils production", "language": "fr", "owner": "Nexus Réussite",
+        "expected_topics": ["sources du droit", "organisation judiciaire", "questions juridiques contemporaines"], "expected_resource_types": ["programme_officiel", "ressource_officielle"], "excluded_topics": ["données personnelles", "voie technologique"], "allowed_domains": ["eduscol.education.gouv.fr", "legifrance.gouv.fr"], "seed_urls": ["https://eduscol.education.gouv.fr/5781/programmes-et-ressources-en-droit-et-grands-enjeux-du-monde-contemporain-voie-gt"],
+        "source_authority": "official", "search_cadence": "manual", "max_queries_per_run": 8, "max_documents_per_run": 32, "max_chunk_size": 800, "chunk_overlap": 100, "min_source_confidence": 0.9, "min_scope_confidence": 0.9, "min_extraction_quality": 0.1, "reject_unknown_rights": true, "reject_ambiguous_routing": true, "publication": {"mode": "human_review", "auto_publish": false}
+      }
+    },
+    "rag_nexus_hlp_premiere_specialite": {
+      "content_sha256": ["4433fee96b6e803c71edf2764d99bd269e649dcff646aee97327fdfeed143f13", "60eeb7dd1ee55d1ed2bb2c7671ecf3c971aeef6996db2bc7cd9c7919ae4b19ac", "64f5b3427dee3b23d421fe03cb2f3aac75e0e47cee31be91b197d4e09c012987", "9357dfdebca347264787dfebacb674666d87660b82f789657ddd230c7ff224aa"],
+      "profile_source": "services/rag-engine/configs/ingestion_profiles/hlp_premiere_specialite_profile_gate_v1.yml",
+      "profile": {
+        "profile_version": "profile-gate-v1", "enabled": true,
+        "scope": {"tenant": "libre_premiere", "collection": "rag_nexus_hlp_premiere_specialite", "niveau": "premiere", "voie": "generale", "matiere": "hlp", "candidat": "libre", "audience": ["libre", "tous"], "visibility": "internal", "school_year": "2026-2027", "programme_version": "BOEN_special_1_2019-01-22"},
+        "title": "HLP spécialité Première — gate profils production", "language": "fr", "owner": "Nexus Réussite",
+        "expected_topics": ["pouvoirs de la parole", "représentations du monde", "littérature", "philosophie"], "expected_resource_types": ["programme_officiel", "ressource_officielle"], "excluded_topics": ["données personnelles", "classe de terminale"], "allowed_domains": ["eduscol.education.gouv.fr"], "seed_urls": ["https://eduscol.education.gouv.fr/5805/programmes-et-ressources-en-humanites-litterature-et-philosophie-voie-g"],
+        "source_authority": "official", "search_cadence": "manual", "max_queries_per_run": 16, "max_documents_per_run": 64, "max_chunk_size": 800, "chunk_overlap": 100, "min_source_confidence": 0.9, "min_scope_confidence": 0.9, "min_extraction_quality": 0.1, "reject_unknown_rights": true, "reject_ambiguous_routing": true, "publication": {"mode": "human_review", "auto_publish": false}
+      }
+    }
+  }
+}
