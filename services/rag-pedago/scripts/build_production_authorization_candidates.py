@@ -3,11 +3,13 @@
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import os
 import re
 import subprocess
+import sys
 from collections import defaultdict
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -75,6 +77,7 @@ ALLOWED_SOURCE_DOMAINS = frozenset(
 )
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 GIT_OID_RE = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
+REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 
 
 class AuthorizationCandidateError(ValueError):
@@ -173,6 +176,7 @@ class _ExactGitTreeReader:
     def _git(self, *args: str) -> bytes:
         environment = dict(os.environ)
         environment["GIT_LITERAL_PATHSPECS"] = "1"
+        environment["GIT_NO_REPLACE_OBJECTS"] = "1"
         try:
             completed = subprocess.run(
                 ["git", "-C", str(self.repository_root), *args],
@@ -423,16 +427,50 @@ def _source_domain(source_url: Any) -> str:
     return parsed.hostname
 
 
+def _canonical_official_source_path(value: object) -> str:
+    if not isinstance(value, str) or not value or "\\" in value:
+        raise _fail("INVALID_SOURCE_PATH", repr(value))
+    path = PurePosixPath(value)
+    if (
+        path.is_absolute()
+        or ".." in path.parts
+        or path.as_posix() != value
+        or len(path.parts) < 2
+        or path.parts[0] != "01_EDUSCOL_OFFICIEL"
+    ):
+        raise _fail("INVALID_SOURCE_PATH", value)
+    return value
+
+
+def _require_artifact_collection(
+    *,
+    content_sha256: str,
+    expected_collection: str,
+    actual_collection: str | None,
+) -> None:
+    if actual_collection != expected_collection:
+        raise _fail(
+            "SUBJECT_RELEASE_MISMATCH",
+            f"{content_sha256} belongs to {actual_collection!r}, not {expected_collection!r}",
+        )
+
+
 def _subject_artifacts(
     *,
     reader: _ExactGitTreeReader,
     aggregate: dict[str, Any],
     final_contents: set[str],
-) -> tuple[dict[str, dict[str, Any]], dict[str, set[str]], dict[str, dict[str, Any]]]:
+) -> tuple[
+    dict[str, dict[str, Any]],
+    dict[str, str],
+    dict[str, set[str]],
+    dict[str, dict[str, Any]],
+]:
     subjects = _require_list(aggregate.get("subjects"), label="aggregate subjects")
     if len(subjects) != AUTHORIZATION_COUNT:
         raise _fail("AGGREGATE_MISMATCH", "subject count")
     artifacts: dict[str, dict[str, Any]] = {}
+    artifact_collections: dict[str, str] = {}
     domains: dict[str, set[str]] = defaultdict(set)
     subject_by_collection: dict[str, dict[str, Any]] = {}
     for raw_subject_ref in subjects:
@@ -463,21 +501,20 @@ def _subject_artifacts(
         ):
             artifact = _require_mapping(raw_artifact, label=f"artifact {collection}")
             content = artifact.get("content_sha256")
-            source_path = artifact.get("source_path")
             if (
                 not isinstance(content, str)
                 or content in artifacts
-                or not isinstance(source_path, str)
-                or not source_path.startswith("01_EDUSCOL_OFFICIEL/")
             ):
                 raise _fail("SUBJECT_RELEASE_MISMATCH", f"artifact {content!r}")
+            _canonical_official_source_path(artifact.get("source_path"))
             artifacts[content] = artifact
+            artifact_collections[content] = collection
             domains[collection].add(_source_domain(artifact.get("source_url")))
     if set(artifacts) != final_contents or set(subject_by_collection) != {
         subject.get("collection") for subject in subjects
     }:
         raise _fail("SUBJECT_RELEASE_MISMATCH", "content or collection union")
-    return artifacts, domains, subject_by_collection
+    return artifacts, artifact_collections, domains, subject_by_collection
 
 
 def build_authorization_candidates(
@@ -542,7 +579,7 @@ def build_authorization_candidates(
         raise _fail("AGGREGATE_MISMATCH", "header")
     _verify_authority_bindings(reader=reader, aggregate=aggregate)
 
-    artifacts, domains_by_collection, subjects = _subject_artifacts(
+    artifacts, artifact_collections, domains_by_collection, subjects = _subject_artifacts(
         reader=reader,
         aggregate=aggregate,
         final_contents=final_contents,
@@ -589,6 +626,11 @@ def build_authorization_candidates(
             or row.content_sha256 not in artifacts
         ):
             raise _fail("SUBJECT_RELEASE_MISMATCH", row.content_sha256)
+        _require_artifact_collection(
+            content_sha256=row.content_sha256,
+            expected_collection=row.scope.collection,
+            actual_collection=artifact_collections.get(row.content_sha256),
+        )
         key = (
             row.profile_id,
             row.profile_version,
@@ -650,6 +692,55 @@ def build_authorization_candidates(
     )
 
 
+def _argument_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Construit et vérifie les candidats d'autorisation production."
+    )
+    parser.add_argument(
+        "--source-commit",
+        required=True,
+        help="Commit Git exact contenant les preuves métier fusionnées.",
+    )
+    parser.add_argument(
+        "--repository-root",
+        type=Path,
+        default=REPOSITORY_ROOT,
+        help="Racine du dépôt Git (défaut dérivé de l'emplacement du script).",
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _argument_parser().parse_args(argv)
+    try:
+        result = build_authorization_candidates(
+            repository_root=args.repository_root,
+            source_commit_sha=args.source_commit,
+        )
+    except (AuthorizationCandidateError, OSError, ValueError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    contents = {
+        content
+        for candidate in result.candidates
+        for content in candidate.allowed_content_sha256
+    }
+    print(
+        json.dumps(
+            {
+                "authorization_count": len(result.candidates),
+                "content_count": len(contents),
+                "content_set_sha256": _content_set_digest(contents),
+                "source_commit_sha": result.provenance.source_commit_sha,
+                "source_tree_sha": result.provenance.source_tree_sha,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    )
+    return 0
+
+
 __all__ = [
     "AUTHORIZATION_COUNT",
     "FINAL_CONTENT_COUNT",
@@ -660,4 +751,9 @@ __all__ = [
     "AuthorizationCandidateProvenance",
     "ProducedAuthorizationCandidates",
     "build_authorization_candidates",
+    "main",
 ]
+
+
+if __name__ == "__main__":
+    sys.exit(main())

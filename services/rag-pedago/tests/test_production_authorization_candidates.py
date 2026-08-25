@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 from collections.abc import Mapping
@@ -65,6 +66,7 @@ class CandidateResult(Protocol):
 
 
 class Producer(Protocol):
+    subprocess: object
     AUTHORIZATION_COUNT: int
     FINAL_CONTENT_COUNT: int
     FINAL_SET_SHA256: str
@@ -74,6 +76,16 @@ class Producer(Protocol):
     def build_authorization_candidates(
         self, *, repository_root: Path, source_commit_sha: str
     ) -> CandidateResult: ...
+
+    def _canonical_official_source_path(self, value: object) -> str: ...
+
+    def _require_artifact_collection(
+        self,
+        *,
+        content_sha256: str,
+        expected_collection: str,
+        actual_collection: str | None,
+    ) -> None: ...
 
 
 def _module() -> Producer:
@@ -221,3 +233,72 @@ def test_a_tree_object_cannot_be_used_as_the_source_commit() -> None:
             repository_root=ROOT,
             source_commit_sha=SOURCE_TREE_SHA,
         )
+
+
+def test_git_object_reads_disable_local_replace_refs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    producer = _module()
+    actual_run = subprocess.run
+    replace_guards: list[str | None] = []
+
+    def observed_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        environment = kwargs.get("env")
+        assert isinstance(environment, dict)
+        replace_guards.append(environment.get("GIT_NO_REPLACE_OBJECTS"))
+        return actual_run(*args, **kwargs)  # type: ignore[call-overload]
+
+    monkeypatch.setattr(subprocess, "run", observed_run)
+    producer.build_authorization_candidates(
+        repository_root=ROOT,
+        source_commit_sha=SOURCE_COMMIT_SHA,
+    )
+
+    assert replace_guards
+    assert set(replace_guards) == {"1"}
+
+
+def test_official_source_path_cannot_escape_the_approved_zone() -> None:
+    producer = _module()
+    valid = "01_EDUSCOL_OFFICIEL/LYCEE/programme.pdf"
+    assert producer._canonical_official_source_path(valid) == valid
+
+    for invalid in (
+        "01_EDUSCOL_OFFICIEL/../secret.pdf",
+        "01_EDUSCOL_OFFICIEL//programme.pdf",
+        "01_EDUSCOL_OFFICIEL\\programme.pdf",
+        "/01_EDUSCOL_OFFICIEL/programme.pdf",
+    ):
+        with pytest.raises(ValueError, match="SOURCE_PATH"):
+            producer._canonical_official_source_path(invalid)
+
+
+def test_artifact_must_belong_to_the_placed_collection() -> None:
+    with pytest.raises(ValueError, match="SUBJECT_RELEASE_MISMATCH"):
+        _module()._require_artifact_collection(
+            content_sha256="a" * 64,
+            expected_collection="rag_nexus_maths_seconde_tc",
+            actual_collection="rag_nexus_philo_terminale_tc",
+        )
+
+
+def test_cli_rejects_a_wrong_source_commit() -> None:
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--source-commit",
+            "definitely-wrong",
+        ],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+        env={
+            **os.environ,
+            "PYTHONPATH": "packages/contracts/src:services/rag-pedago",
+        },
+    )
+
+    assert completed.returncode != 0
+    assert "source_commit_sha" in completed.stderr
