@@ -158,7 +158,7 @@ git commit -m "rag-engine: verrouiller la politique de convergence"
 - Add: `services/rag-engine/tests/fixtures/legacy_convergence_capture_v1.jsonl`
 - Add: `services/rag-engine/tests/test_legacy_convergence.py`
 
-- [ ] **Step 1: Écrire une capture miniature exhaustive**
+- [x] **Step 1: Écrire une capture miniature exhaustive**
 
 La ligne d'en-tête contient le producteur, sa version/commit, l'instant UTC, la
 preuve read-only et les composants explicitement séparés :
@@ -175,7 +175,7 @@ preuve read-only et les composants explicitement séparés :
 Les lignes objets contiennent seulement IDs, hashes, longueurs, provenance et
 scope. Aucun texte, embedding ou secret.
 
-- [ ] **Step 2: Vérifier que la fixture elle-même est sans contenu**
+- [x] **Step 2: Vérifier que la fixture elle-même est sans contenu**
 
 Ajouter un test statique qui refuse les clés `text`, `document`, `embedding`,
 `embeddings` et les images non digestées. Ce test peut être vert avant le
@@ -187,68 +187,68 @@ module : il protège l'actif témoin, sans prétendre tester le préparateur.
 - Add: `services/rag-engine/src/ingestor/legacy_convergence.py`
 - Test: `services/rag-engine/tests/test_legacy_convergence.py`
 
-- [ ] **Step 1: Cycle en-tête, protocole et provenance**
+- [x] **Step 1: Cycle en-tête, protocole et provenance**
 
 Ajouter `test_capture_requires_producer_read_only_identity`, lancer avec `-k`
 et observer l'import rouge. Implémenter seulement les types immuables et la
 validation de protocole/producteur/version/commit/instant/preuve read-only.
 Rejouer au vert.
 
-- [ ] **Step 2: Cycle inventaire Chroma**
+- [x] **Step 2: Cycle inventaire Chroma**
 
 Ajouter `test_capture_requires_chroma_identity_dimension_counts_and_digests`,
 rouge sur chaque omission, puis implémenter ce composant et vert.
 
-- [ ] **Step 3: Cycle des deux SQLite indépendants**
+- [x] **Step 3: Cycle des deux SQLite indépendants**
 
 Ajouter `test_capture_requires_both_sqlite_consistent_backups`, rouge si une
 base manque ou sans schéma/WAL/méthode/integrity. Implémenter la validation
 distincte de `catalog.sqlite` et `drive_sync_state.db`, puis vert.
 
-- [ ] **Step 4: Cycle pgvector et actifs reconstructibles**
+- [x] **Step 4: Cycle pgvector et actifs reconstructibles**
 
 Ajouter `test_capture_requires_pgvector_uploads_configs_images_and_models`,
 rouge sur identité/head/comptes/digests ou image mutable, puis implémenter le
 minimum et vert.
 
-- [ ] **Step 5: Cycle lecteur borné et champs interdits**
+- [x] **Step 5: Cycle lecteur borné et champs interdits**
 
 Ajouter deux tests ciblés : ligne trop grande et champ texte/embedding. Pour
 chacun : rouge, implémentation streaming minimale, vert. L'exception ne reprend
 jamais la ligne fautive.
 
-- [ ] **Step 6: Cycle digest et découverte exhaustive**
+- [x] **Step 6: Cycle digest et découverte exhaustive**
 
 Ajouter successivement un test mauvais SHA-256, un test compte source faux, un
 test collection découverte omise et un test collection inconnue. Effectuer un
 petit cycle rouge/vert pour chaque invariant, puis factoriser la comparaison
 exacte politique↔découverte.
 
-- [ ] **Step 7: Cycle précédence de disposition**
+- [x] **Step 7: Cycle précédence de disposition**
 
 Ajouter un test paramétré par reason code, mais faire passer les cas un à un :
 `SOURCE_UNAVAILABLE`, quarantine, scope/droits/provenance incomplets,
 NSI Première/Terminale exact, collection ambiguë et collection vide. Chaque
 nouveau cas est rouge avant le minimum de logique qui le rend vert.
 
-- [ ] **Step 8: Cycle non-autorisation de `REINGEST_GOVERNED`**
+- [x] **Step 8: Cycle non-autorisation de `REINGEST_GOVERNED`**
 
 Ajouter `test_reingest_candidate_never_grants_rights_review_or_retrieval`,
 rouge si le manifeste transporte un droit, `reviewed`, `retrievable` ou une
 autorisation. Implémenter une sortie candidate sans ces pouvoirs, puis vert.
 
-- [ ] **Step 9: Cycle déduplication sans perte**
+- [x] **Step 9: Cycle déduplication sans perte**
 
 Ajouter d'abord le test d'identité canonique et `duplicate_of`, rouge/vert,
 puis le test que chaque doublon reste compté exactement une fois, rouge/vert.
 
-- [ ] **Step 10: Cycle scellement canonique**
+- [x] **Step 10: Cycle scellement canonique**
 
 Ajouter les tests du tri, compteurs, digest d'entrée et digest de sortie un par
 un. Finir par `migration_complete=false` et l'absence d'API d'écriture
 pgvector/Chroma.
 
-- [ ] **Step 11: Rejouer et refactorer**
+- [x] **Step 11: Rejouer et refactorer**
 
 ```bash
 PYTHONPATH=services/rag-engine/src python3 -m pytest -q \
@@ -263,29 +263,29 @@ Expected : PASS.
 - Add: `services/rag-engine/scripts/prepare_legacy_migration.py`
 - Add: `services/rag-engine/tests/test_prepare_legacy_migration_cli.py`
 
-- [ ] **Step 1: Cycle dry-run sans contenu**
+- [x] **Step 1: Cycle dry-run sans contenu**
 
 Ajouter `test_cli_defaults_to_summary_only`, rouge car le script manque,
 implémenter le parseur minimal et la sortie compteurs/digest, puis vert. Ajouter
 ensuite le canari contenu, rouge si écho, corriger sans afficher l'entrée.
 
-- [ ] **Step 2: Cycle scellement obligatoire pour écriture**
+- [x] **Step 2: Cycle scellement obligatoire pour écriture**
 
 Ajouter le refus sans `--expected-input-sha256`, rouge/vert, puis le mauvais
 digest, rouge/vert. Aucun argument DSN ou réseau n'est accepté.
 
-- [ ] **Step 3: Cycle création exclusive**
+- [x] **Step 3: Cycle création exclusive**
 
 Ajouter le test chemin existant, rouge/vert, puis le test fichier nouveau.
 Implémenter ouverture exclusive, écriture complète, flush/fsync et publication
 sans écrasement.
 
-- [ ] **Step 4: Cycle erreurs assainies**
+- [x] **Step 4: Cycle erreurs assainies**
 
 Ajouter une entrée invalide contenant un canari, constater le rouge si la ligne
 est répétée, puis réduire l'erreur à type/numéro de ligne sans contenu.
 
-- [ ] **Step 5: Rejouer les deux suites**
+- [x] **Step 5: Rejouer les deux suites**
 
 ```bash
 PYTHONPATH=services/rag-engine/src python3 -m pytest -q \
@@ -293,7 +293,7 @@ PYTHONPATH=services/rag-engine/src python3 -m pytest -q \
   services/rag-engine/tests/test_prepare_legacy_migration_cli.py
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add services/rag-engine/src/ingestor/legacy_convergence.py \
@@ -314,14 +314,14 @@ git commit -m "rag-engine: préparer la réingestion legacy gouvernée"
 - Add: `services/rag-engine/tests/fixtures/engine_parity_b_v1.json`
 - Add: `services/rag-engine/tests/test_engine_parity.py`
 
-- [ ] **Step 1: Écrire des fixtures minimales scellables**
+- [x] **Step 1: Écrire des fixtures minimales scellables**
 
 Inclure requêtes allowlistées, scope attendu, unités
 `source_sha256 + canonical_span_id + content_hash`, résultats ordonnés,
 citations, droits et review status. Ajouter un témoin hors collection pour la
 tolérance zéro.
 
-- [ ] **Step 2: Vérifier statiquement les fixtures**
+- [x] **Step 2: Vérifier statiquement les fixtures**
 
 Un test sans module contrôle l'absence de réponses longues/contenu sensible et
 la présence des trois composantes de chaque passage. Le comportement du
@@ -334,53 +334,53 @@ comparateur sera développé par petits cycles dans Task 7.
 - Add: `services/rag-engine/scripts/compare_engine_parity.py`
 - Add: `services/rag-engine/tests/test_compare_engine_parity_cli.py`
 
-- [ ] **Step 1: Cycle unité canonique de passage**
+- [x] **Step 1: Cycle unité canonique de passage**
 
 Ajouter le test de composante manquante, observer le rouge, implémenter la
 dataclass `source_sha256 + canonical_span_id + content_hash`, puis vert. Ajouter
 ensuite le résultat non mappable, rouge/vert.
 
-- [ ] **Step 2: Cycle liaison témoin/captures**
+- [x] **Step 2: Cycle liaison témoin/captures**
 
 Ajouter successivement mauvais digest témoin, requête en trop et requête
 manquante. Chaque invariant suit son propre rouge/vert. Ne lire que du JSON
 local et ne jamais reprendre une réponse brute dans l'erreur.
 
-- [ ] **Step 3: Cycle bornes `k` et taille**
+- [x] **Step 3: Cycle bornes `k` et taille**
 
 Ajouter `k=0`, `k` trop grand puis capture trop volumineuse comme trois petits
 cycles. Implémenter uniquement les bornes décidées dans le témoin.
 
-- [ ] **Step 4: Cycle tolérance zéro — scope**
+- [x] **Step 4: Cycle tolérance zéro — scope**
 
 Ajouter fuite collection puis fuite niveau séparément ; chacune doit d'abord
 échouer puis produire `FAIL_CLOSED` avec un reason code sans contenu.
 
-- [ ] **Step 5: Cycle tolérance zéro — citation et gouvernance**
+- [x] **Step 5: Cycle tolérance zéro — citation et gouvernance**
 
 Ajouter citation incomplète, droit inconnu et statut non reviewé comme trois
 cycles rouges/verts distincts. Aucun seuil opérateur ne peut neutraliser ces
 refus.
 
-- [ ] **Step 6: Cycle métriques**
+- [x] **Step 6: Cycle métriques**
 
 Ajouter rappel, rang réciproque, couverture puis divergences par passage un par
 un, avec valeurs calculables à la main. Refactorer seulement après les quatre
 verts.
 
-- [ ] **Step 7: Cycle verdict sans seuil**
+- [x] **Step 7: Cycle verdict sans seuil**
 
 Ajouter le nominal attendu
 `METRICS_ONLY_THRESHOLDS_UNAPPROVED`, constater le rouge si `PASS`, implémenter
 la règle puis vérifier le déterminisme/digests des trois entrées.
 
-- [ ] **Step 8: Cycle CLI hors réseau**
+- [x] **Step 8: Cycle CLI hors réseau**
 
 Dans `test_compare_engine_parity_cli.py`, ajouter successivement : entrées
 explicites, stdout résumé seulement, fichier nouveau seulement et erreur
 assainie. Pour chaque test : rouge, code minimal, vert.
 
-- [ ] **Step 9: Rejouer les tests**
+- [x] **Step 9: Rejouer les tests**
 
 ```bash
 PYTHONPATH=services/rag-engine/src python3 -m pytest -q \
@@ -388,7 +388,7 @@ PYTHONPATH=services/rag-engine/src python3 -m pytest -q \
   services/rag-engine/tests/test_compare_engine_parity_cli.py
 ```
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add services/rag-engine/src/ingestor/engine_parity.py \
