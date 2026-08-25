@@ -322,7 +322,7 @@ def test_new_profile_collections_are_declared_but_dormant_before_cutover() -> No
         assert taxonomy["themes"]
 
 
-def test_dgemc_official_source_is_verified_and_routes_only_to_its_collection() -> None:
+def test_dgemc_official_hub_stays_to_verify_and_routes_only_to_its_collection() -> None:
     document = yaml.safe_load(EDUSCOL_SOURCES_PATH.read_text(encoding="utf-8"))
     matches = [source for source in document["sources"] if source["id"] == "eduscol_dgemc"]
 
@@ -330,14 +330,15 @@ def test_dgemc_official_source_is_verified_and_routes_only_to_its_collection() -
         {
             "id": "eduscol_dgemc",
             "url": "https://eduscol.education.gouv.fr/5781/programmes-et-ressources-en-droit-et-grands-enjeux-du-monde-contemporain-voie-gt",
-            "status": "verified",
+            "status": "to_verify",
             "matiere": "dgemc",
             "niveaux": ["terminale"],
             "voies": ["generale"],
             "collections_cibles": ["rag_nexus_dgemc_terminale_option"],
             "note": (
-                "Programme optionnel DGEMC consolidé : BOEN spécial n°8 du "
-                "25 juillet 2019 et JORF du 4 mai 2022."
+                "Hub officiel DGEMC ; le validator v5 confirme HTTP/droits "
+                "mais refuse la substance du hub. Le profil production reste "
+                "fondé sur le PDF primaire exact."
             ),
         }
     ]

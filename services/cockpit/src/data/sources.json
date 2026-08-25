@@ -73,7 +73,7 @@
   {
     "id": "eduscol_dgemc",
     "url": "https://eduscol.education.gouv.fr/5781/programmes-et-ressources-en-droit-et-grands-enjeux-du-monde-contemporain-voie-gt",
-    "status": "verified",
+    "status": "to_verify",
     "matiere": "dgemc",
     "niveaux": [
       "terminale"

@@ -1,9 +1,9 @@
 {
-  "exported_at": "2026-07-26T19:18:52.191567+00:00",
+  "exported_at": "2026-08-25T06:48:13.288578+00:00",
   "validator_schema": "source_validator_v5",
   "ledger": "services/rag-pedago/data/ledger/source_validation.jsonl",
-  "ledger_sha256": "51fad14b033d817e01c9fc0e41916a88fd37af618ab4d30bfcebae76998ebe09",
-  "verdicts_count": 11,
+  "ledger_sha256": "092f2c39736fe798da0935bd0fbb3672a14a22c82e8b93671f03b173e0b712f8",
+  "verdicts_count": 12,
   "verdicts": [
     {
       "source_id": "eduscol_pc_voie_gt",
@@ -237,6 +237,27 @@
       "validated_at": "2026-07-26T19:18:19.079163+00:00",
       "validator": "source_validator_v5",
       "signature": "20d9b4bf75fee6a1"
+    },
+    {
+      "source_id": "eduscol_dgemc",
+      "url": "https://eduscol.education.gouv.fr/5781/programmes-et-ressources-en-droit-et-grands-enjeux-du-monde-contemporain-voie-gt",
+      "verdict": "stays_to_verify",
+      "http_status": 200,
+      "words": 773,
+      "content_sha256": "451d3d62bce1361ab3afd7244723b6c825107a45b66702fa4169cc4422bc2c3c",
+      "final_url": "https://eduscol.education.gouv.fr/5781/programmes-et-ressources-en-droit-et-grands-enjeux-du-monde-contemporain-voie-gt",
+      "final_rights": "official_public_administrative",
+      "rules_fired": [
+        "rights_resolved_by_provenance",
+        "subject_expert:rejected"
+      ],
+      "reasons": [
+        "provenance 'eduscol.education.gouv.fr' -> droits 'official_public_administrative'",
+        "pertinence pedagogique insuffisante — couverture notions insuffisante sur 1/1 collections cibles (rag_nexus_dgemc_terminale_option 0.0%) < 5% — contenu hors programme presume"
+      ],
+      "validated_at": "2026-08-25T06:47:41.570011+00:00",
+      "validator": "source_validator_v5",
+      "signature": "9df802adc2b1302c"
     }
   ]
 }

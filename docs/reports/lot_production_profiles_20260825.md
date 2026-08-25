@@ -161,6 +161,8 @@ RAG_ENGINE_FULL_NON_INTEGRATION_TESTS=PASS
 COCKPIT_TESTS=179 passed
 COCKPIT_SNAPSHOT_COHERENCE=PASS (21 sources, 62 collections)
 COCKPIT_CLEAN_ARCHIVE_BUILD=PASS
+DGEMC_HUB_SOURCE_VALIDATOR_V5=stays_to_verify
+SOURCE_VALIDATION_EVIDENCE=PASS (12 signed verdicts)
 RUFF_CONTRACTS=PASS
 RUFF_RAG_PEDAGO=PASS
 RUFF_RAG_ENGINE=PASS
@@ -191,6 +193,12 @@ Le job GitHub `services/rag-pedago` récupère l'historique Git complet. Cette
 profondeur est requise par le replay fail-closed du placement : son tree source
 figé peut être un commit antérieur du même lot et un checkout superficiel ne
 contient pas nécessairement cet objet Git.
+
+Le hub HTML DGEMC officiel répond en HTTP 200 et ses droits sont résolus, mais
+le `source_validator_v5` ne démontre pas la couverture de substance exigée par
+la taxonomie. Il reste donc `to_verify` dans la collecte continue. Cette
+disposition ne réduit pas le profil DGEMC : celui-ci est fondé sur le PDF
+primaire exact `e591a87a…`, vérifié octet par octet dans le bundle de release.
 
 ## Gates non franchis par ce lot
 

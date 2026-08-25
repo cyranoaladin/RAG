@@ -80,12 +80,12 @@ sources:
 
   - id: eduscol_dgemc
     url: https://eduscol.education.gouv.fr/5781/programmes-et-ressources-en-droit-et-grands-enjeux-du-monde-contemporain-voie-gt
-    status: verified
+    status: to_verify
     matiere: dgemc
     niveaux: [terminale]
     voies: [generale]
     collections_cibles: [rag_nexus_dgemc_terminale_option]
-    note: "Programme optionnel DGEMC consolidé : BOEN spécial n°8 du 25 juillet 2019 et JORF du 4 mai 2022."
+    note: "Hub officiel DGEMC ; le validator v5 confirme HTTP/droits mais refuse la substance du hub. Le profil production reste fondé sur le PDF primaire exact."
 
   - id: eduscol_eam
     url: https://eduscol.education.gouv.fr/5688/epreuve-anticipee-de-mathematiques-aux-baccalaureats-general-et-technologique
