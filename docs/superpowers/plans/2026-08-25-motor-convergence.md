@@ -408,30 +408,30 @@ git commit -m "rag-engine: mesurer la parité sur passages scellés"
 - Add: `services/rag-engine/tests/fixtures/engine_cutover_no_go_v1.json`
 - Add: `services/rag-engine/tests/test_engine_cutover.py`
 
-- [ ] **Step 1: Cycle identité release et images**
+- [x] **Step 1: Cycle identité release et images**
 
 Ajouter le test SHA Git/digests d'images immuables, rouge, implémenter seulement
 ces types et validations, puis vert.
 
-- [ ] **Step 2: Cycle inventaire A/B reconstructible**
+- [x] **Step 2: Cycle inventaire A/B reconstructible**
 
 Ajouter d'abord le composant Chroma, puis les deux SQLite séparés, puis
 uploads/config/modèles, puis pgvector/migrations. Chaque omission est un cycle
 rouge/vert distinct ; réutiliser les types validés du manifeste legacy si
 possible, sans dupliquer le schéma.
 
-- [ ] **Step 3: Cycle quiescence et stabilité**
+- [x] **Step 3: Cycle quiescence et stabilité**
 
 Ajouter writers/cron désactivés, ordre de capture et comptes/digests
 avant-après comme trois cycles. Une archive live ne peut pas poser
 `snapshot_declared=true`.
 
-- [ ] **Step 4: Cycle topologie et smokes bornés**
+- [x] **Step 4: Cycle topologie et smokes bornés**
 
-Ajouter cible canary=rollback (rouge/vert), puis smoke sans timeout/borne
-(rouge/vert).
+Ajouter les cibles distinctes canary/rollback (rouge/vert), puis smoke sans
+timeout/borne (rouge/vert).
 
-- [ ] **Step 5: Matrice de non-substitution des preuves**
+- [x] **Step 5: Matrice de non-substitution des preuves**
 
 Paramétrer les cinq faits : `snapshot_restored_verified`,
 `real_parity_executed`, `restore_rehearsal_verified`,
@@ -445,19 +445,19 @@ Paramétrer les cinq faits : `snapshot_restored_verified`,
 
 Aucune évidence d'un type ne peut satisfaire un autre fait.
 
-- [ ] **Step 6: Cycle verdict et vocabulaire interdits**
+- [x] **Step 6: Cycle verdict et vocabulaire interdits**
 
 Ajouter `READY`, `GO_LIVE_READY` puis un synonyme de readiness comme petits
 cycles rouges/verts. Le résultat nominal Lot 2 doit lister les cinq gates et
 rendre exclusivement `NO_GO`.
 
-- [ ] **Step 7: Vérifier l'absence de primitives de mutation**
+- [x] **Step 7: Vérifier l'absence de primitives de mutation**
 
 Ajouter un test statique avant l'implémentation finale : aucun subprocess,
 client Docker/DB, commande restore/deploy ou écriture de service dans le
 module.
 
-- [ ] **Step 8: Rejouer et commit**
+- [x] **Step 8: Rejouer et commit**
 
 ```bash
 PYTHONPATH=services/rag-engine/src python3 -m pytest -q \

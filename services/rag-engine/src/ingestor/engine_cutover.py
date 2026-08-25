@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import stat
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
@@ -36,6 +39,8 @@ _CAPTURE_ORDER = (
     "uploads",
 )
 _CAPTURE_VALIDITY = timedelta(hours=24)
+_MAX_MANIFEST_BYTES = 1024 * 1024
+_MAX_JSON_DEPTH = 32
 _CAPTURE_CONTEXTS = frozenset({"SYNTHETIC_TEST", "OPERATOR_READ_ONLY_CAPTURE"})
 _FACT_EVIDENCE_TYPES = {
     "snapshot_restored_verified": "SNAPSHOT_RESTORE_VERIFICATION",
@@ -64,7 +69,9 @@ class EngineAInventory:
 
     chroma: ChromaInventory
     catalog_sqlite: SQLiteSnapshot
+    catalog_object_count: int
     drive_sync_sqlite: SQLiteSnapshot
+    drive_sync_object_count: int
     assets: ReconstructibleAssets
 
 
@@ -75,6 +82,9 @@ class PgvectorBackup:
     method: str
     integrity_check: str
     digest_sha256: str
+    source_database_id: str
+    source_migration_head: str
+    source_pgvector_digest_sha256: str
 
 
 @dataclass(frozen=True)
@@ -177,6 +187,7 @@ def _mapping(
 ) -> dict[str, Any]:
     if (
         not isinstance(value, dict)
+        or not all(isinstance(key, str) for key in value)
         or not required <= frozenset(value)
         or frozenset(value) - required - optional
     ):
@@ -237,12 +248,44 @@ def _engine_a(document: dict[str, Any]) -> EngineAInventory:
             {"chroma", "catalog_sqlite", "drive_sync_sqlite", "assets"}
         ),
     )
+
+    def sqlite_with_count(
+        value: Any, *, expected_identity: str
+    ) -> tuple[SQLiteSnapshot, int]:
+        raw = _mapping(
+            value,
+            field="sqlite inventory",
+            required=frozenset(
+                {
+                    "identity",
+                    "schema_version",
+                    "wal_state",
+                    "backup_method",
+                    "integrity_check",
+                    "digest_sha256",
+                    "object_count",
+                }
+            ),
+        )
+        count = raw.get("object_count")
+        if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+            raise EngineCutoverError("sqlite inventory count is invalid")
+        snapshot_document = {
+            key: value for key, value in raw.items() if key != "object_count"
+        }
+        return (
+            _sqlite_snapshot(
+                snapshot_document, expected_identity=expected_identity
+            ),
+            count,
+        )
+
     try:
         chroma = _chroma(engine_a)
-        catalog_sqlite = _sqlite_snapshot(
+        catalog_sqlite, catalog_object_count = sqlite_with_count(
             engine_a.get("catalog_sqlite"), expected_identity="catalog.sqlite"
         )
-        drive_sync_sqlite = _sqlite_snapshot(
+        drive_sync_sqlite, drive_sync_object_count = sqlite_with_count(
             engine_a.get("drive_sync_sqlite"),
             expected_identity="drive_sync_state.db",
         )
@@ -252,7 +295,9 @@ def _engine_a(document: dict[str, Any]) -> EngineAInventory:
     return EngineAInventory(
         chroma=chroma,
         catalog_sqlite=catalog_sqlite,
+        catalog_object_count=catalog_object_count,
         drive_sync_sqlite=drive_sync_sqlite,
+        drive_sync_object_count=drive_sync_object_count,
         assets=assets,
     )
 
@@ -270,14 +315,32 @@ def _engine_b(document: dict[str, Any]) -> EngineBInventory:
     backup = _mapping(
         engine_b.get("backup"),
         field="pgvector backup",
-        required=frozenset({"method", "integrity_check", "digest_sha256"}),
+        required=frozenset(
+            {
+                "method",
+                "integrity_check",
+                "digest_sha256",
+                "source_database_id",
+                "source_migration_head",
+                "source_pgvector_digest_sha256",
+            }
+        ),
     )
     if backup.get("method") != "pg_dump_custom":
         raise EngineCutoverError("pgvector backup method is invalid")
     if backup.get("integrity_check") != "verified":
         raise EngineCutoverError("pgvector backup integrity is invalid")
     digest = backup.get("digest_sha256")
-    if not isinstance(digest, str) or _SHA256.fullmatch(digest) is None:
+    source_database_id = backup.get("source_database_id")
+    source_migration_head = backup.get("source_migration_head")
+    source_pgvector_digest = backup.get("source_pgvector_digest_sha256")
+    if (
+        not isinstance(digest, str)
+        or _SHA256.fullmatch(digest) is None
+        or source_database_id != pgvector.database_id
+        or source_migration_head != pgvector.migration_head
+        or source_pgvector_digest != pgvector.digest_sha256
+    ):
         raise EngineCutoverError("pgvector backup digest is invalid")
     return EngineBInventory(
         pgvector=pgvector,
@@ -285,6 +348,9 @@ def _engine_b(document: dict[str, Any]) -> EngineBInventory:
             method="pg_dump_custom",
             integrity_check="verified",
             digest_sha256=digest,
+            source_database_id=source_database_id,
+            source_migration_head=source_migration_head,
+            source_pgvector_digest_sha256=source_pgvector_digest,
         ),
     )
 
@@ -379,7 +445,10 @@ def _quiescence(
         "SYNTHETIC_TEST": frozenset({"SYNTHETIC_TEST"}),
         "OPERATOR_READ_ONLY_CAPTURE": frozenset({"QUIESCED_SNAPSHOT", "LIVE"}),
     }
-    if capture_mode not in expected_modes[capture_context]:
+    if (
+        not isinstance(capture_mode, str)
+        or capture_mode not in expected_modes[capture_context]
+    ):
         raise EngineCutoverError("quiescence capture mode is invalid")
     if capture_context == "OPERATOR_READ_ONLY_CAPTURE" and not captured <= now <= expiry:
         raise EngineCutoverError("quiescence proof is not fresh")
@@ -427,8 +496,8 @@ def _topology(document: dict[str, Any]) -> CutoverTopology:
         or rollback not in {"engine_a", "engine_b"}
     ):
         raise EngineCutoverError("cutover topology target is invalid")
-    if canary == rollback:
-        raise EngineCutoverError("canary and rollback targets must be distinct")
+    if (active, canary, rollback) != ("engine_a", "engine_b", "engine_a"):
+        raise EngineCutoverError("cutover topology is invalid for Lot 2")
     return CutoverTopology(
         active_target=active,
         canary_target=canary,
@@ -465,6 +534,7 @@ def _smokes(document: dict[str, Any]) -> tuple[SmokeProbe, ...]:
             not isinstance(check_id, str)
             or _IDENTIFIER.fullmatch(check_id) is None
             or check_id in identifiers
+            or not isinstance(target, str)
             or target not in {"engine_a", "engine_b"}
             or not isinstance(timeout, int)
             or isinstance(timeout, bool)
@@ -534,11 +604,108 @@ def _facts(document: dict[str, Any]) -> tuple[CutoverGate, ...]:
 
 def _verdict(document: dict[str, Any]) -> str:
     verdict = document.get("verdict")
+    if not isinstance(verdict, str):
+        raise EngineCutoverError("cutover verdict is invalid")
     if verdict in {"READY", "GO_LIVE_READY", "CUTOVER_READY"}:
         raise EngineCutoverError("readiness vocabulary is forbidden")
     if verdict != "NO_GO":
         raise EngineCutoverError("cutover verdict must be NO_GO")
     return "NO_GO"
+
+
+def _reject_excessive_nesting(value: Any) -> None:
+    def reject_invalid_string(candidate: str) -> None:
+        try:
+            candidate.encode("utf-8")
+        except UnicodeError:
+            raise EngineCutoverError("cutover manifest string is invalid") from None
+
+    pending: list[tuple[Any, int]] = [(value, 0)]
+    while pending:
+        current, depth = pending.pop()
+        if depth > _MAX_JSON_DEPTH:
+            raise EngineCutoverError("cutover manifest nesting is invalid")
+        if isinstance(current, dict):
+            for key in current:
+                reject_invalid_string(key)
+            pending.extend((nested, depth + 1) for nested in current.values())
+        elif isinstance(current, list):
+            pending.extend((nested, depth + 1) for nested in current)
+        elif isinstance(current, str):
+            reject_invalid_string(current)
+
+
+def _read_manifest(path: Path) -> dict[str, Any]:
+    descriptor = -1
+    try:
+        flags = os.O_RDONLY | os.O_NONBLOCK | getattr(os, "O_NOFOLLOW", 0)
+        descriptor = os.open(path, flags)
+        metadata = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or metadata.st_size > _MAX_MANIFEST_BYTES
+        ):
+            raise EngineCutoverError("cutover manifest is unavailable")
+        with os.fdopen(descriptor, "rb", closefd=True) as stream:
+            descriptor = -1
+            raw = stream.read(_MAX_MANIFEST_BYTES + 1)
+        if len(raw) > _MAX_MANIFEST_BYTES:
+            raise EngineCutoverError("cutover manifest is unavailable")
+        document = json.loads(raw, object_pairs_hook=_reject_duplicate_keys)
+    except EngineCutoverError:
+        raise
+    except (
+        OSError,
+        UnicodeError,
+        json.JSONDecodeError,
+        RecursionError,
+        ValueError,
+    ):
+        raise EngineCutoverError("cutover manifest is unavailable") from None
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+    if not isinstance(document, dict):
+        raise EngineCutoverError("cutover manifest is invalid")
+    _reject_excessive_nesting(document)
+    return document
+
+
+def _chroma_inventory_digest(chroma: ChromaInventory) -> str:
+    collections = [
+        {
+            "digest_sha256": item.digest_sha256,
+            "name": item.name,
+            "object_count": item.object_count,
+        }
+        for item in sorted(chroma.collections, key=lambda item: item.name)
+    ]
+    raw = json.dumps(
+        collections,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return sha256(raw).hexdigest()
+
+
+def _bind_quiescence_inventory(
+    engine_a: EngineAInventory, quiescence: QuiescenceProof
+) -> None:
+    expected = SnapshotState(
+        chroma_count=sum(
+            collection.object_count for collection in engine_a.chroma.collections
+        ),
+        catalog_count=engine_a.catalog_object_count,
+        drive_sync_count=engine_a.drive_sync_object_count,
+        uploads_count=engine_a.assets.uploads.file_count,
+        chroma_digest_sha256=_chroma_inventory_digest(engine_a.chroma),
+        catalog_digest_sha256=engine_a.catalog_sqlite.digest_sha256,
+        drive_sync_digest_sha256=engine_a.drive_sync_sqlite.digest_sha256,
+        uploads_digest_sha256=engine_a.assets.uploads.digest_sha256,
+    )
+    if quiescence.before != expected or quiescence.after != expected:
+        raise EngineCutoverError("quiescence inventory binding is invalid")
 
 
 def validate_engine_cutover(
@@ -548,15 +715,7 @@ def validate_engine_cutover(
 ) -> EngineCutoverDecision:
     """Valider un manifeste local sans exécuter de primitive de bascule."""
 
-    try:
-        document = json.loads(
-            path.read_text(encoding="utf-8"),
-            object_pairs_hook=_reject_duplicate_keys,
-        )
-    except (OSError, UnicodeError, json.JSONDecodeError):
-        raise EngineCutoverError("cutover manifest is unavailable") from None
-    if not isinstance(document, dict):
-        raise EngineCutoverError("cutover manifest is invalid")
+    document = _read_manifest(path)
     _mapping(
         document,
         field="cutover manifest",
@@ -579,10 +738,13 @@ def validate_engine_cutover(
     if document.get("protocol_version") != _PROTOCOL_VERSION:
         raise EngineCutoverError("cutover protocol is invalid")
     capture_context = document.get("capture_context")
-    if capture_context not in _CAPTURE_CONTEXTS:
+    if (
+        not isinstance(capture_context, str)
+        or capture_context not in _CAPTURE_CONTEXTS
+    ):
         raise EngineCutoverError("cutover context is invalid")
     reference_instant = now or datetime.now(UTC)
-    if reference_instant.tzinfo != UTC:
+    if not isinstance(reference_instant, datetime) or reference_instant.tzinfo != UTC:
         raise EngineCutoverError("reference instant is invalid")
     snapshot_declared = document.get("snapshot_declared")
     if not isinstance(snapshot_declared, bool):
@@ -594,14 +756,22 @@ def validate_engine_cutover(
     )
     if quiescence.capture_mode == "LIVE" and snapshot_declared:
         raise EngineCutoverError("live archive cannot declare a snapshot")
+    release = _release(document)
+    engine_a = _engine_a(document)
+    engine_b = _engine_b(document)
+    topology = _topology(document)
+    smokes = _smokes(document)
+    if not any(probe.target == topology.canary_target for probe in smokes):
+        raise EngineCutoverError("smoke probes do not cover the canary")
+    _bind_quiescence_inventory(engine_a, quiescence)
     return EngineCutoverDecision(
         capture_context=capture_context,
-        release=_release(document),
-        engine_a=_engine_a(document),
-        engine_b=_engine_b(document),
+        release=release,
+        engine_a=engine_a,
+        engine_b=engine_b,
         quiescence=quiescence,
-        topology=_topology(document),
-        smokes=_smokes(document),
+        topology=topology,
+        smokes=smokes,
         snapshot_declared=snapshot_declared,
         gates=_facts(document),
         verdict=_verdict(document),

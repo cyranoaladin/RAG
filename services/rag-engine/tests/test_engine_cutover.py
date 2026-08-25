@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import ast
 import json
+import os
+import subprocess
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -81,12 +84,19 @@ def test_engine_a_requires_two_distinct_sqlite_snapshots(tmp_path: Path) -> None
     assert decision.engine_a.drive_sync_sqlite.identity == "drive_sync_state.db"
     assert decision.engine_a.catalog_sqlite.integrity_check == "ok"
     assert decision.engine_a.drive_sync_sqlite.integrity_check == "ok"
+    assert decision.engine_a.catalog_object_count == 7
+    assert decision.engine_a.drive_sync_object_count == 3
 
     for field in ("catalog_sqlite", "drive_sync_sqlite"):
         missing = _manifest()
         del missing["engine_a"][field]
         with pytest.raises(EngineCutoverError):
             _validate(_write_manifest(tmp_path / f"missing-{field}.json", missing))
+
+    missing_count = _manifest()
+    del missing_count["engine_a"]["catalog_sqlite"]["object_count"]
+    with pytest.raises(EngineCutoverError):
+        _validate(_write_manifest(tmp_path / "missing-sqlite-count.json", missing_count))
 
 
 def test_engine_a_requires_uploads_configs_images_and_models(tmp_path: Path) -> None:
@@ -128,11 +138,32 @@ def test_engine_b_requires_sealed_pgvector_backup(tmp_path: Path) -> None:
     assert backup.method == "pg_dump_custom"
     assert backup.integrity_check == "verified"
     assert len(backup.digest_sha256) == 64
+    assert backup.source_database_id == "synthetic-empty-b"
+    assert backup.source_migration_head == "004"
+    assert backup.source_pgvector_digest_sha256 == "a" * 64
 
     missing = _manifest()
     del missing["engine_b"]["backup"]
     with pytest.raises(EngineCutoverError):
         _validate(_write_manifest(tmp_path / "missing-pgvector-backup.json", missing))
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("source_database_id", "foreign-database"),
+        ("source_migration_head", "005"),
+        ("source_pgvector_digest_sha256", "0" * 64),
+    ),
+)
+def test_pgvector_backup_is_bound_to_inventory(
+    tmp_path: Path, field: str, value: str
+) -> None:
+    document = _manifest()
+    document["engine_b"]["backup"][field] = value
+
+    with pytest.raises(EngineCutoverError, match="backup"):
+        _validate(_write_manifest(tmp_path / "foreign-backup.json", document))
 
 
 @pytest.mark.parametrize("field", ("writers_disabled", "scheduled_tasks_disabled"))
@@ -197,6 +228,53 @@ def test_quiescence_requires_stable_digests(tmp_path: Path, field: str) -> None:
         _validate(_write_manifest(tmp_path / f"changed-{field}.json", changed))
 
 
+@pytest.mark.parametrize(
+    ("path", "replacement"),
+    (
+        (("engine_a", "chroma", "collections", 0, "object_count"), 999),
+        (("engine_a", "catalog_sqlite", "object_count"), 999),
+        (("engine_a", "drive_sync_sqlite", "object_count"), 999),
+        (("engine_a", "uploads_placeholder"), None),
+    ),
+)
+def test_quiescence_is_bound_to_engine_a_inventory(
+    tmp_path: Path, path: tuple[Any, ...], replacement: Any
+) -> None:
+    changed = _manifest()
+    if path[-1] == "uploads_placeholder":
+        changed["engine_a"]["assets"]["uploads"]["file_count"] = 999
+    else:
+        target: Any = changed
+        for field in path[:-1]:
+            target = target[field]
+        target[path[-1]] = replacement
+
+    with pytest.raises(EngineCutoverError, match="inventory"):
+        _validate(_write_manifest(tmp_path / "foreign-inventory.json", changed))
+
+
+@pytest.mark.parametrize(
+    "path",
+    (
+        ("engine_a", "chroma", "collections", 0, "digest_sha256"),
+        ("engine_a", "catalog_sqlite", "digest_sha256"),
+        ("engine_a", "drive_sync_sqlite", "digest_sha256"),
+        ("engine_a", "assets", "uploads", "digest_sha256"),
+    ),
+)
+def test_quiescence_digests_are_bound_to_engine_a_inventory(
+    tmp_path: Path, path: tuple[Any, ...]
+) -> None:
+    changed = _manifest()
+    target: Any = changed
+    for field in path[:-1]:
+        target = target[field]
+    target[path[-1]] = "0" * 64
+
+    with pytest.raises(EngineCutoverError, match="inventory"):
+        _validate(_write_manifest(tmp_path / "foreign-digest.json", changed))
+
+
 def test_operator_quiescence_must_be_fresh(tmp_path: Path) -> None:
     operator = _manifest()
     operator["capture_context"] = "OPERATOR_READ_ONLY_CAPTURE"
@@ -233,6 +311,36 @@ def test_canary_and_rollback_targets_must_be_distinct(tmp_path: Path) -> None:
     conflated["topology"]["rollback_target"] = "engine_b"
     with pytest.raises(EngineCutoverError):
         _validate(_write_manifest(tmp_path / "same-target.json", conflated))
+
+
+@pytest.mark.parametrize(
+    ("active", "canary", "rollback"),
+    (
+        ("engine_b", "engine_a", "engine_b"),
+        ("engine_b", "engine_b", "engine_a"),
+        ("engine_a", "engine_a", "engine_b"),
+    ),
+)
+def test_lot2_topology_is_exactly_a_to_b_with_a_rollback(
+    tmp_path: Path, active: str, canary: str, rollback: str
+) -> None:
+    document = _manifest()
+    document["topology"] = {
+        "active_target": active,
+        "canary_target": canary,
+        "rollback_target": rollback,
+    }
+
+    with pytest.raises(EngineCutoverError, match="topology"):
+        _validate(_write_manifest(tmp_path / "wrong-topology.json", document))
+
+
+def test_smokes_cover_the_declared_canary(tmp_path: Path) -> None:
+    document = _manifest()
+    document["smokes"][0]["target"] = "engine_a"
+
+    with pytest.raises(EngineCutoverError, match="canary"):
+        _validate(_write_manifest(tmp_path / "missing-canary-smoke.json", document))
 
 
 @pytest.mark.parametrize("field", ("timeout_seconds", "max_attempts"))
@@ -345,6 +453,101 @@ def test_manifest_refuses_duplicate_json_keys(tmp_path: Path) -> None:
 
     with pytest.raises(EngineCutoverError, match="duplicate"):
         _validate(duplicate)
+
+
+def test_manifest_reader_is_size_bounded(tmp_path: Path) -> None:
+    oversized = tmp_path / "oversized.json"
+    oversized.write_bytes(FIXTURE_PATH.read_bytes() + b" " * (1024 * 1024))
+
+    with pytest.raises(EngineCutoverError, match="unavailable"):
+        _validate(oversized)
+
+
+def test_manifest_reader_refuses_fifo_without_blocking(tmp_path: Path) -> None:
+    fifo = tmp_path / "CANARY-CUTOVER-FIFO.json"
+    os.mkfifo(fifo, mode=0o600)
+    environment = os.environ.copy()
+    environment["PYTHONPATH"] = os.pathsep.join(
+        (str(ENGINE_ROOT / "src"), str(ENGINE_ROOT.parents[1] / "packages" / "contracts" / "src"))
+    )
+    program = (
+        "from pathlib import Path; import sys; "
+        "from src.ingestor.engine_cutover import EngineCutoverError, validate_engine_cutover; "
+        "\ntry: validate_engine_cutover(Path(sys.argv[1]))"
+        "\nexcept EngineCutoverError: raise SystemExit(0)"
+        "\nraise SystemExit(1)"
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-c", program, str(fifo)],
+        cwd=ENGINE_ROOT,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=1,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert result.stdout == ""
+    assert "CANARY-CUTOVER-FIFO" not in result.stderr
+
+
+@pytest.mark.parametrize(
+    ("path", "value"),
+    (
+        (("capture_context",), {}),
+        (("quiescence", "capture_mode"), {}),
+        (("smokes", 0, "target"), {}),
+        (("verdict",), {}),
+    ),
+)
+def test_manifest_malformed_types_raise_only_cutover_error(
+    tmp_path: Path, path: tuple[Any, ...], value: Any
+) -> None:
+    document = _manifest()
+    target: Any = document
+    for field in path[:-1]:
+        target = target[field]
+    target[path[-1]] = value
+
+    with pytest.raises(EngineCutoverError):
+        _validate(_write_manifest(tmp_path / "malformed-type.json", document))
+
+
+def test_manifest_json_parser_sanitizes_huge_integer(tmp_path: Path) -> None:
+    raw = FIXTURE_PATH.read_text(encoding="utf-8").replace(
+        '"snapshot_declared": false',
+        f'"snapshot_declared": {"9" * 5000}',
+    )
+    hostile = tmp_path / "hostile-integer.json"
+    hostile.write_text(raw, encoding="utf-8")
+
+    with pytest.raises(EngineCutoverError):
+        _validate(hostile)
+
+
+def test_manifest_json_depth_is_bounded(tmp_path: Path) -> None:
+    document = _manifest()
+    nested: list[Any] = []
+    document["release"]["images"][0]["nested"] = nested
+    for _ in range(40):
+        child: list[Any] = []
+        nested.append(child)
+        nested = child
+
+    with pytest.raises(EngineCutoverError, match="nesting"):
+        _validate(_write_manifest(tmp_path / "too-deep.json", document))
+
+
+def test_manifest_rejects_non_utf8_scalar_without_raw_exception(
+    tmp_path: Path,
+) -> None:
+    document = _manifest()
+    document["engine_a"]["chroma"]["collections"][0]["name"] = "\ud800"
+
+    with pytest.raises(EngineCutoverError, match="string"):
+        _validate(_write_manifest(tmp_path / "invalid-unicode.json", document))
 
 
 def test_validator_has_no_mutation_process_database_or_docker_primitives() -> None:

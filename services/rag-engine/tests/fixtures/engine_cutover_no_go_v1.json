@@ -29,6 +29,7 @@
     },
     "catalog_sqlite": {
       "identity": "catalog.sqlite",
+      "object_count": 7,
       "schema_version": "1",
       "wal_state": "checkpointed",
       "backup_method": "sqlite_backup_api",
@@ -37,6 +38,7 @@
     },
     "drive_sync_sqlite": {
       "identity": "drive_sync_state.db",
+      "object_count": 3,
       "schema_version": "1",
       "wal_state": "preserved",
       "backup_method": "quiesced_checkpoint",
@@ -79,7 +81,10 @@
     "backup": {
       "method": "pg_dump_custom",
       "integrity_check": "verified",
-      "digest_sha256": "abababababababababababababababababababababababababababababababab"
+      "digest_sha256": "abababababababababababababababababababababababababababababababab",
+      "source_database_id": "synthetic-empty-b",
+      "source_migration_head": "004",
+      "source_pgvector_digest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     }
   },
   "quiescence": {
@@ -100,20 +105,20 @@
       "catalog_count": 7,
       "drive_sync_count": 3,
       "uploads_count": 3,
-      "chroma_digest_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-      "catalog_digest_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-      "drive_sync_digest_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
-      "uploads_digest_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+      "chroma_digest_sha256": "30a1f0da8e10dee0815ac61ecd148a1227e55cbd010e6be141cd5e9f41c241b9",
+      "catalog_digest_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+      "drive_sync_digest_sha256": "5555555555555555555555555555555555555555555555555555555555555555",
+      "uploads_digest_sha256": "6666666666666666666666666666666666666666666666666666666666666666"
     },
     "after": {
       "chroma_count": 7,
       "catalog_count": 7,
       "drive_sync_count": 3,
       "uploads_count": 3,
-      "chroma_digest_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-      "catalog_digest_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-      "drive_sync_digest_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
-      "uploads_digest_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+      "chroma_digest_sha256": "30a1f0da8e10dee0815ac61ecd148a1227e55cbd010e6be141cd5e9f41c241b9",
+      "catalog_digest_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+      "drive_sync_digest_sha256": "5555555555555555555555555555555555555555555555555555555555555555",
+      "uploads_digest_sha256": "6666666666666666666666666666666666666666666666666666666666666666"
     }
   },
   "topology": {
