@@ -149,23 +149,41 @@ n'a été faite.
 
 ## Vérifications
 
-État avant le run final :
-
 ```text
 PROFILE_RELEASE_TARGETED_TESTS=PASS
 PROFILE_PLACEMENT_EXACT_TREE_TESTS=PASS
 CONTRACT_TARGETED_TESTS=PASS
 RUNTIME_PROFILE_AND_RELEASE_TESTS=PASS
-RUFF_TARGETED=PASS
-FULL_LOCAL_CI=PENDING_FINAL_RUN
+PROFILE_MUTATION_AND_ADVERSARIAL_TESTS=PASS
+CONTRACTS_FULL_TESTS=467 passed
+RAG_PEDAGO_FULL_TESTS=2802 passed, 2 skipped
+RAG_ENGINE_FULL_NON_INTEGRATION_TESTS=PASS
+COCKPIT_TESTS=179 passed
+RUFF_CONTRACTS=PASS
+RUFF_RAG_PEDAGO=PASS
+RUFF_RAG_ENGINE=PASS
+GOVERNANCE_LOCKS=PASS (18/18)
+GOVERNANCE_GUARD_MUTATIONS=PASS (16/16)
+REPOSITORY_CONTROLS=PASS
+CI_TOPOLOGY_MUTATIONS=PASS (22/22)
+GITLEAKS_DIFFERENTIAL=PASS (8.21.2, 16 commits, 0 leak)
 FRESH_CONTRADICTORY_PROFILE_REVIEWS=PENDING
 GITHUB_CI=PENDING
 ```
 
-Les erreurs mypy observées hors des fichiers modifiés sont préexistantes dans
-`pedagogical_chunker.py`, `retrieval_scope_v2.py`, `embedding_provider.py` et
-`review_binding.py`; le run final doit prouver leur antériorité contre la
-baseline avant toute qualification de dette.
+Les commandes mypy canoniques restent rouges sur la baseline : 10 erreurs
+dans `scrapers/fetch.py`, 3 dans le runtime engine et 1 dans
+`review_binding.py`. Les blob IDs de ces cinq fichiers sont identiques entre
+`origin/main` et ce lot ; aucun fichier modifié par cette branche n'apparaît
+dans les erreurs. Un contrôle supplémentaire incluant les scripts historiques
+de `rag-pedago` retrouve 43 erreurs dans 11 autres fichiers également
+inchangés.
+
+Le script agrégé `scripts/ci-local.sh` n'a pas pu être mené à terme dans le
+venv éphémère : la résolution des dépendances sur le réseau local plafonnait à
+environ 50 kB/s. Il n'est donc pas déclaré vert. Les suites et garde-fous
+ci-dessus ont été exécutés directement ; la preuve clean-room finale reste le
+run GitHub du HEAD exact de la PR.
 
 ## Gates non franchis par ce lot
 

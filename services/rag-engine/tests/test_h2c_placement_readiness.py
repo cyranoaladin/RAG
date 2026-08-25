@@ -580,11 +580,16 @@ def test_canonical_profile_manifest_is_exact_and_organizationally_attributed() -
     registry = load_profile_registry(PROFILES_DIR)
     verification = verify_profile_manifest(registry, MANIFEST_PATH)
 
-    assert verification.declared_count == 1
+    assert verification.declared_count == len(registry) == 18
+    assert len(verification.authorities) == 18
     key = ("rag_nexus_philo_terminale_tc", "h2c-v1")
     assert registry[key].scope.niveau.value == "terminale"
     assert registry[key].scope.matiere == "philosophie"
     assert verification.authorities[key].approved_by == "Nexus Réussite"
+    assert sum(
+        authority.approved_by == "Direction projet RAG — décisions P01-P24"
+        for authority in verification.authorities.values()
+    ) == 17
 
 
 def test_philosophy_profile_uses_the_canonical_terminale_programme() -> None:
