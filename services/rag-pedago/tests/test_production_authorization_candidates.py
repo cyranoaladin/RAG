@@ -16,7 +16,9 @@ from typing import Any, Protocol, cast
 import pytest
 from nexus_contracts import (
     ScopeAuthorizationArtifactV2,
+    canonical_authorization_path,
     parse_release_scope_placement,
+    parse_scope_authorization_artifact,
     scope_digest,
 )
 from nexus_contracts.profile_manifest import strict_yaml_mapping
@@ -93,6 +95,18 @@ class Producer(Protocol):
         self, *, repository_root: Path, source_commit_sha: str
     ) -> CandidateResult: ...
 
+    def authorization_candidate_outputs(
+        self, result: CandidateResult
+    ) -> Mapping[str, bytes]: ...
+
+    def write_authorization_candidates(
+        self, result: CandidateResult, *, output_root: Path
+    ) -> None: ...
+
+    def check_authorization_candidates(
+        self, result: CandidateResult, *, output_root: Path
+    ) -> None: ...
+
     def _canonical_official_source_path(self, value: object) -> str: ...
 
     def _require_artifact_collection(
@@ -141,6 +155,14 @@ def _module() -> Producer:
 
 def _set_digest(values: set[str]) -> str:
     return hashlib.sha256(("\n".join(sorted(values)) + "\n").encode()).hexdigest()
+
+
+def _is_sha256(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
 
 
 def _git(*args: str) -> bytes:
@@ -737,3 +759,85 @@ def test_builder_rejects_an_overlapping_placement(
             repository_root=ROOT,
             source_commit_sha=SOURCE_COMMIT_SHA,
         )
+
+
+def test_materialized_outputs_are_canonical_and_fully_auditable() -> None:
+    producer = _module()
+    result = _build()
+    outputs = producer.authorization_candidate_outputs(result)
+    authorization_paths = {
+        canonical_authorization_path(candidate.authorization_id)
+        for candidate in result.candidates
+    }
+    matrix_path = "docs/reports/production_authorization_matrix_20260825.json"
+
+    assert set(outputs) == authorization_paths | {matrix_path}
+    for candidate in result.candidates:
+        raw = outputs[canonical_authorization_path(candidate.authorization_id)]
+        parsed = parse_scope_authorization_artifact(raw)
+        assert isinstance(parsed, ScopeAuthorizationArtifactV2)
+        assert parsed == candidate
+        assert raw == candidate.canonical_bytes()
+
+    matrix = json.loads(outputs[matrix_path])
+    assert matrix["protocol_version"] == "NEXUS-PRODUCTION-AUTHORIZATION-MATRIX-V1"
+    assert matrix["source_commit_sha"] == SOURCE_COMMIT_SHA
+    assert matrix["source_tree_sha"] == SOURCE_TREE_SHA
+    assert matrix["authorization_count"] == AUTHORIZATION_COUNT
+    assert matrix["authorization_content_union"] == FINAL_CONTENT_COUNT
+    assert matrix["authorization_overlap"] == 0
+    assert matrix["authorization_gap"] == 0
+    assert matrix["authorization_extra"] == 0
+    assert matrix["authorization_union_sha256"] == FINAL_SET_SHA256
+    assert len(matrix["authorizations"]) == AUTHORIZATION_COUNT
+    assert len(matrix["input_blobs"]) == len(result.provenance.input_blob_sha256)
+    for row in matrix["authorizations"]:
+        assert row["authorization_path"] in authorization_paths
+        assert _is_sha256(row["authorization_digest"])
+        assert _is_sha256(row["scope_digest"])
+        assert _is_sha256(row["content_set_sha256"])
+        assert row["rights_evidence_path"] == RIGHTS_EVIDENCE_PATH
+        assert row["currentness_evidence_path"] == CURRENTNESS_EVIDENCE_PATH
+        assert row["currentness_audit_path"] == CURRENTNESS_AUDIT_PATH
+        assert row["pii_evidence_path"] == PII_EVIDENCE_PATH
+        assert row["subject_release_path"] in result.provenance.input_blob_sha256
+
+
+def test_write_replays_byte_identical_outputs(tmp_path: Path) -> None:
+    producer = _module()
+    result = _build()
+    expected = producer.authorization_candidate_outputs(result)
+
+    producer.write_authorization_candidates(result, output_root=tmp_path)
+    first_replay = {
+        path: (tmp_path / path).read_bytes() for path in sorted(expected)
+    }
+    producer.write_authorization_candidates(result, output_root=tmp_path)
+    second_replay = {
+        path: (tmp_path / path).read_bytes() for path in sorted(expected)
+    }
+
+    assert first_replay == second_replay == expected
+    producer.check_authorization_candidates(result, output_root=tmp_path)
+
+
+@pytest.mark.parametrize("mutation", ["missing", "modified", "extra"])
+def test_check_rejects_missing_modified_or_extra_outputs(
+    mutation: str, tmp_path: Path
+) -> None:
+    producer = _module()
+    result = _build()
+    producer.write_authorization_candidates(result, output_root=tmp_path)
+    target = tmp_path / canonical_authorization_path(
+        result.candidates[0].authorization_id
+    )
+    if mutation == "missing":
+        target.unlink()
+    elif mutation == "modified":
+        target.write_bytes(b"{}\n")
+    else:
+        extra = tmp_path / "governance/authorizations/unexpected.json"
+        extra.write_bytes(b"{}\n")
+
+    with pytest.raises(ValueError, match="MATERIALIZATION_MISMATCH"):
+        producer.check_authorization_candidates(result, output_root=tmp_path)

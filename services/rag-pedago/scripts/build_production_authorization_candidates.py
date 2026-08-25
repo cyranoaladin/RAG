@@ -10,6 +10,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from collections import defaultdict
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -20,7 +21,9 @@ from urllib.parse import urlsplit
 
 from nexus_contracts import (
     ScopeAuthorizationArtifactV2,
+    canonical_authorization_path,
     parse_release_scope_placement,
+    parse_scope_authorization_artifact,
     scope_digest,
 )
 from nexus_contracts.profile_manifest import strict_yaml_mapping
@@ -72,6 +75,9 @@ CURRENTNESS_AUDIT_PATH = f"{RELEASE_ROOT}/currentness_network_audit.json"
 RIGHTS_EVIDENCE_PATH = "services/rag-pedago/configs/rights_evidence_registry.yml"
 PII_EVIDENCE_REFERENCE = (
     f"sha256:{PII_EVIDENCE_SHA256} path:{PII_EVIDENCE_PATH}"
+)
+AUTHORIZATION_MATRIX_PATH = (
+    "docs/reports/production_authorization_matrix_20260825.json"
 )
 
 VALID_FROM = datetime(2026, 8, 25, tzinfo=UTC)
@@ -811,6 +817,218 @@ def build_authorization_candidates(
     )
 
 
+def _canonical_json_bytes(document: object) -> bytes:
+    return (
+        json.dumps(
+            document,
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    ).encode("utf-8")
+
+
+def _authorization_matrix(
+    result: ProducedAuthorizationCandidates,
+) -> dict[str, Any]:
+    authorization_rows: list[dict[str, Any]] = []
+    for candidate in result.candidates:
+        subject_path = (
+            f"{RELEASE_ROOT}/subjects/{candidate.scope.collection}.release.json"
+        )
+        subject_sha256 = result.provenance.input_blob_sha256.get(subject_path)
+        if subject_sha256 is None:
+            raise _fail(
+                "MATERIALIZATION_MISMATCH",
+                f"missing subject release provenance for {candidate.authorization_id}",
+            )
+        content_set = set(candidate.allowed_content_sha256)
+        authorization_rows.append(
+            {
+                "allowed_domains": list(candidate.allowed_domains),
+                "authorization_digest": candidate.digest(),
+                "authorization_id": candidate.authorization_id,
+                "authorization_path": canonical_authorization_path(
+                    candidate.authorization_id
+                ),
+                "content_count": len(content_set),
+                "content_set_sha256": _content_set_digest(content_set),
+                "currentness_audit_path": CURRENTNESS_AUDIT_PATH,
+                "currentness_audit_sha256": CURRENTNESS_AUDIT_SHA256,
+                "currentness_evidence_path": CURRENTNESS_EVIDENCE_PATH,
+                "currentness_evidence_sha256": CURRENTNESS_EVIDENCE_SHA256,
+                "pii_evidence_path": PII_EVIDENCE_PATH,
+                "pii_evidence_sha256": PII_EVIDENCE_SHA256,
+                "profile_fingerprint": candidate.profile_fingerprint,
+                "profile_id": candidate.profile_id,
+                "profile_version": candidate.profile_version,
+                "rights_evidence_path": RIGHTS_EVIDENCE_PATH,
+                "rights_evidence_sha256": RIGHTS_EVIDENCE_SHA256,
+                "scope": candidate.scope.model_dump(mode="json"),
+                "scope_digest": scope_digest(candidate.scope),
+                "subject_release_path": subject_path,
+                "subject_release_sha256": subject_sha256,
+            }
+        )
+    contents = [
+        content
+        for candidate in result.candidates
+        for content in candidate.allowed_content_sha256
+    ]
+    unique_contents = set(contents)
+    if (
+        len(contents) != len(unique_contents)
+        or len(unique_contents) != FINAL_CONTENT_COUNT
+        or _content_set_digest(unique_contents) != FINAL_SET_SHA256
+    ):
+        raise _fail("MATERIALIZATION_MISMATCH", "authorization partition")
+    return {
+        "aggregate_release_path": AGGREGATE_PATH,
+        "aggregate_release_sha256": AGGREGATE_RELEASE_SHA256,
+        "authorization_candidate_status": (
+            "PENDING_TRUSTED_HUMAN_REVIEW_AND_SIGNED_REVIEW_BINDINGS"
+        ),
+        "authorization_content_union": len(unique_contents),
+        "authorization_count": len(result.candidates),
+        "authorization_extra": 0,
+        "authorization_gap": 0,
+        "authorization_overlap": 0,
+        "authorization_union_sha256": _content_set_digest(unique_contents),
+        "authorizations": authorization_rows,
+        "authority_bindings_path": AUTHORITY_BINDINGS_PATH,
+        "authority_bindings_sha256": AUTHORITY_BINDINGS_SHA256,
+        "corpus_manifest_sha256": CORPUS_MANIFEST_SHA256,
+        "currentness_audit_path": CURRENTNESS_AUDIT_PATH,
+        "currentness_audit_sha256": CURRENTNESS_AUDIT_SHA256,
+        "currentness_evidence_path": CURRENTNESS_EVIDENCE_PATH,
+        "currentness_evidence_sha256": CURRENTNESS_EVIDENCE_SHA256,
+        "final_content_set_path": FINAL_SET_PATH,
+        "final_content_set_sha256": FINAL_SET_SHA256,
+        "input_blobs": [
+            {
+                "file_sha256": digest,
+                "git_entry": result.provenance.input_git_entries[path],
+                "path": path,
+            }
+            for path, digest in sorted(result.provenance.input_blob_sha256.items())
+        ],
+        "pii_evidence_path": PII_EVIDENCE_PATH,
+        "pii_evidence_sha256": PII_EVIDENCE_SHA256,
+        "profile_manifest_digest": PROFILE_MANIFEST_FINGERPRINT,
+        "protocol_version": "NEXUS-PRODUCTION-AUTHORIZATION-MATRIX-V1",
+        "release_scope_placement_path": PLACEMENT_PATH,
+        "release_scope_placement_sha256": RELEASE_SCOPE_PLACEMENT_SHA256,
+        "rights_evidence_path": RIGHTS_EVIDENCE_PATH,
+        "rights_evidence_sha256": RIGHTS_EVIDENCE_SHA256,
+        "source_commit_sha": result.provenance.source_commit_sha,
+        "source_tree_sha": result.provenance.source_tree_sha,
+        "valid_from": VALID_FROM.isoformat().replace("+00:00", "Z"),
+        "valid_until": VALID_UNTIL.isoformat().replace("+00:00", "Z"),
+        "verified_profiles_path": VERIFIED_PROFILES_PATH,
+    }
+
+
+def authorization_candidate_outputs(
+    result: ProducedAuthorizationCandidates,
+) -> dict[str, bytes]:
+    """Retourne les 18 artefacts et leur matrice sous forme canonique."""
+    if len(result.candidates) != AUTHORIZATION_COUNT:
+        raise _fail("MATERIALIZATION_MISMATCH", "authorization count")
+    outputs: dict[str, bytes] = {}
+    for candidate in result.candidates:
+        path = canonical_authorization_path(candidate.authorization_id)
+        raw = candidate.canonical_bytes()
+        parsed = parse_scope_authorization_artifact(raw)
+        if not isinstance(parsed, ScopeAuthorizationArtifactV2) or parsed != candidate:
+            raise _fail("MATERIALIZATION_MISMATCH", path)
+        if path in outputs:
+            raise _fail("MATERIALIZATION_MISMATCH", f"duplicate path {path}")
+        outputs[path] = raw
+    outputs[AUTHORIZATION_MATRIX_PATH] = _canonical_json_bytes(
+        _authorization_matrix(result)
+    )
+    return dict(sorted(outputs.items()))
+
+
+def _output_path(*, output_root: Path, relative_path: str) -> Path:
+    canonical = _canonical_repo_path(relative_path)
+    root = output_root.resolve()
+    target = output_root / canonical
+    if not target.resolve(strict=False).is_relative_to(root):
+        raise _fail("MATERIALIZATION_MISMATCH", f"unsafe output path {canonical}")
+    return target
+
+
+def _atomic_write(path: Path, raw: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(
+        dir=path.parent,
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+    )
+    temporary_path = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(raw)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary_path, path)
+    except BaseException:
+        temporary_path.unlink(missing_ok=True)
+        raise
+
+
+def write_authorization_candidates(
+    result: ProducedAuthorizationCandidates, *, output_root: Path
+) -> None:
+    """Écrit chaque sortie de manière atomique dans la racine prescrite."""
+    outputs = authorization_candidate_outputs(result)
+    for relative_path, raw in outputs.items():
+        _atomic_write(
+            _output_path(output_root=output_root, relative_path=relative_path),
+            raw,
+        )
+    check_authorization_candidates(result, output_root=output_root)
+
+
+def check_authorization_candidates(
+    result: ProducedAuthorizationCandidates, *, output_root: Path
+) -> None:
+    """Refuse toute sortie absente, altérée ou autorisation supplémentaire."""
+    outputs = authorization_candidate_outputs(result)
+    for relative_path, expected in outputs.items():
+        target = _output_path(
+            output_root=output_root,
+            relative_path=relative_path,
+        )
+        if target.is_symlink() or not target.is_file() or target.read_bytes() != expected:
+            raise _fail("MATERIALIZATION_MISMATCH", relative_path)
+    authorization_directory = _output_path(
+        output_root=output_root,
+        relative_path="governance/authorizations",
+    )
+    expected_authorizations = {
+        path
+        for path in outputs
+        if path.startswith("governance/authorizations/")
+    }
+    actual_authorizations = (
+        {
+            f"governance/authorizations/{entry.name}"
+            for entry in authorization_directory.iterdir()
+        }
+        if authorization_directory.is_dir()
+        and not authorization_directory.is_symlink()
+        else set()
+    )
+    if actual_authorizations != expected_authorizations:
+        raise _fail(
+            "MATERIALIZATION_MISMATCH",
+            "authorization paths contain missing or extra entries",
+        )
+
+
 def _argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Construit et vérifie les candidats d'autorisation production."
@@ -826,6 +1044,17 @@ def _argument_parser() -> argparse.ArgumentParser:
         default=REPOSITORY_ROOT,
         help="Racine du dépôt Git (défaut dérivé de l'emplacement du script).",
     )
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--write",
+        action="store_true",
+        help="Matérialise les artefacts et la matrice dans la racine du dépôt.",
+    )
+    mode.add_argument(
+        "--check",
+        action="store_true",
+        help="Vérifie les sorties déjà matérialisées sans les modifier.",
+    )
     return parser
 
 
@@ -836,6 +1065,10 @@ def main(argv: list[str] | None = None) -> int:
             repository_root=args.repository_root,
             source_commit_sha=args.source_commit,
         )
+        if args.write:
+            write_authorization_candidates(result, output_root=args.repository_root)
+        elif args.check:
+            check_authorization_candidates(result, output_root=args.repository_root)
     except (AuthorizationCandidateError, OSError, ValueError) as exc:
         print(str(exc), file=sys.stderr)
         return 1
@@ -850,6 +1083,7 @@ def main(argv: list[str] | None = None) -> int:
                 "authorization_count": len(result.candidates),
                 "content_count": len(contents),
                 "content_set_sha256": _content_set_digest(contents),
+                "mode": "write" if args.write else "check" if args.check else "verify",
                 "source_commit_sha": result.provenance.source_commit_sha,
                 "source_tree_sha": result.provenance.source_tree_sha,
             },
@@ -869,8 +1103,11 @@ __all__ = [
     "AuthorizationCandidateError",
     "AuthorizationCandidateProvenance",
     "ProducedAuthorizationCandidates",
+    "authorization_candidate_outputs",
     "build_authorization_candidates",
+    "check_authorization_candidates",
     "main",
+    "write_authorization_candidates",
 ]
 
 

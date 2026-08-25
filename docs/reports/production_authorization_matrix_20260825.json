@@ -1,0 +1,954 @@
+{
+  "aggregate_release_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/production-profile-gate.release.json",
+  "aggregate_release_sha256": "2aadfa96e6ce669abcaa6d336bdd44c680d4d3206d33e464a9eccc90f8a5944c",
+  "authority_bindings_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/authority_bindings.json",
+  "authority_bindings_sha256": "5db45988fdbb19be74850f85890647397d514243266f5bb6ad34008fee4b80e1",
+  "authorization_candidate_status": "PENDING_TRUSTED_HUMAN_REVIEW_AND_SIGNED_REVIEW_BINDINGS",
+  "authorization_content_union": 26,
+  "authorization_count": 18,
+  "authorization_extra": 0,
+  "authorization_gap": 0,
+  "authorization_overlap": 0,
+  "authorization_union_sha256": "fe97b3410791fa78d4734a8c495443296b3f2ec3e77627e12fc34f90e0b2b5f0",
+  "authorizations": [
+    {
+      "allowed_domains": [
+        "eduscol.education.gouv.fr"
+      ],
+      "authorization_digest": "602f8ef1b51723e37b3b66426d3f9347b385e81906b35afa2adb13ca93816c7f",
+      "authorization_id": "prerentree-2026-2027-rag_nexus_dgemc_terminale_option-v1",
+      "authorization_path": "governance/authorizations/prerentree-2026-2027-rag_nexus_dgemc_terminale_option-v1.json",
+      "content_count": 1,
+      "content_set_sha256": "69cc3a732720761247c809181cda98a1acefdaa75628feed9abe3b3b2f07c49d",
+      "currentness_audit_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/currentness_network_audit.json",
+      "currentness_audit_sha256": "4c6395e3ce4c9a61a0d3a8a3b7f94da75ba91b00419c3f0c042f2d2e7adcf520",
+      "currentness_evidence_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/currentness_evidence.json",
+      "currentness_evidence_sha256": "822677cb14987f1069ff849241e33d6f7c9fb66425a5d00c3e38d71b592b793c",
+      "pii_evidence_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/pii_evidence.json",
+      "pii_evidence_sha256": "cec9baca680439afa0dd6b4aadbb0f805514424a853a10303e6216dd8ffa7e99",
+      "profile_fingerprint": "685dac09676143417b08756b2bb2577d85777c3f599f9263595abad722ad4f00",
+      "profile_id": "rag_nexus_dgemc_terminale_option",
+      "profile_version": "profile-gate-v1",
+      "rights_evidence_path": "services/rag-pedago/configs/rights_evidence_registry.yml",
+      "rights_evidence_sha256": "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff",
+      "scope": {
+        "audience": [
+          "libre",
+          "tous"
+        ],
+        "candidat": "libre",
+        "collection": "rag_nexus_dgemc_terminale_option",
+        "matiere": "dgemc",
+        "niveau": "terminale",
+        "programme_version": "BOEN_special_8_2019-07-25_MENE1921266A_MENE2208320A",
+        "school_year": "2026-2027",
+        "tenant": "libre_terminale",
+        "visibility": "internal",
+        "voie": "generale"
+      },
+      "scope_digest": "1fac98114effafb3ec86136805dc79e61c58a29092ea5790bad4283a2c40ceb5",
+      "subject_release_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/subjects/rag_nexus_dgemc_terminale_option.release.json",
+      "subject_release_sha256": "02408bcf498ec56225852525758396152f2ed1c919c24528fd5f0fb59f54627f"
+    },
+    {
+      "allowed_domains": [
+        "eduscol.education.gouv.fr"
+      ],
+      "authorization_digest": "8deee3227d5909702c9f85c2657edfb262befe18d3991160eacd626b0e01bc53",
+      "authorization_id": "prerentree-2026-2027-rag_nexus_francais_premiere_tc-v1",
+      "authorization_path": "governance/authorizations/prerentree-2026-2027-rag_nexus_francais_premiere_tc-v1.json",
+      "content_count": 1,
+      "content_set_sha256": "2f8dd390faf6754c41381ada3cfb1f0a56ee880ce46c7f2cafee9d272c83d257",
+      "currentness_audit_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/currentness_network_audit.json",
+      "currentness_audit_sha256": "4c6395e3ce4c9a61a0d3a8a3b7f94da75ba91b00419c3f0c042f2d2e7adcf520",
+      "currentness_evidence_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/currentness_evidence.json",
+      "currentness_evidence_sha256": "822677cb14987f1069ff849241e33d6f7c9fb66425a5d00c3e38d71b592b793c",
+      "pii_evidence_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/pii_evidence.json",
+      "pii_evidence_sha256": "cec9baca680439afa0dd6b4aadbb0f805514424a853a10303e6216dd8ffa7e99",
+      "profile_fingerprint": "fe416308373772f8fa96c7570d8ad78aec32e89b9f059f2d39b37a3a8649d9a6",
+      "profile_id": "rag_nexus_francais_premiere_tc",
+      "profile_version": "multilevel-v1",
+      "rights_evidence_path": "services/rag-pedago/configs/rights_evidence_registry.yml",
+      "rights_evidence_sha256": "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff",
+      "scope": {
+        "audience": [
+          "libre",
+          "tous"
+        ],
+        "candidat": "libre",
+        "collection": "rag_nexus_francais_premiere_tc",
+        "matiere": "francais",
+        "niveau": "premiere",
+        "programme_version": "BOEN_special_1_2019-01-22",
+        "school_year": "2026-2027",
+        "tenant": "libre_premiere",
+        "visibility": "internal",
+        "voie": "generale"
+      },
+      "scope_digest": "6c922ca3a7480669c1bc745a9627c6d54fa82eb2fe0509c9215f1edbb7cf2026",
+      "subject_release_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/subjects/rag_nexus_francais_premiere_tc.release.json",
+      "subject_release_sha256": "12d592364da6dfaf7934222195f908215e48c3f8a77dcb070990cd09055c12ad"
+    },
+    {
+      "allowed_domains": [
+        "eduscol.education.gouv.fr"
+      ],
+      "authorization_digest": "e0deb28cf0a31ca3e25666dcfb8c3901735ccaf40fd1bb7733dada6ec7448655",
+      "authorization_id": "prerentree-2026-2027-rag_nexus_francais_quatrieme_tc-v1",
+      "authorization_path": "governance/authorizations/prerentree-2026-2027-rag_nexus_francais_quatrieme_tc-v1.json",
+      "content_count": 1,
+      "content_set_sha256": "339be3623946907bb2e307e61c27c7f141ec86953241e3d1fd3b8106e685f9ab",
+      "currentness_audit_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/currentness_network_audit.json",
+      "currentness_audit_sha256": "4c6395e3ce4c9a61a0d3a8a3b7f94da75ba91b00419c3f0c042f2d2e7adcf520",
+      "currentness_evidence_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/currentness_evidence.json",
+      "currentness_evidence_sha256": "822677cb14987f1069ff849241e33d6f7c9fb66425a5d00c3e38d71b592b793c",
+      "pii_evidence_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/pii_evidence.json",
+      "pii_evidence_sha256": "cec9baca680439afa0dd6b4aadbb0f805514424a853a10303e6216dd8ffa7e99",
+      "profile_fingerprint": "02573ac1bdc66f9163e94334a1f6dd3469a27edded44a5d95ab2f72c0074cf4f",
+      "profile_id": "rag_nexus_francais_quatrieme_tc",
+      "profile_version": "multilevel-v1",
+      "rights_evidence_path": "services/rag-pedago/configs/rights_evidence_registry.yml",
+      "rights_evidence_sha256": "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff",
+      "scope": {
+        "audience": [
+          "libre",
+          "tous"
+        ],
+        "candidat": "libre",
+        "collection": "rag_nexus_francais_quatrieme_tc",
+        "matiere": "francais",
+        "niveau": "quatrieme",
+        "programme_version": "BOEN_special_11_2018-07-26_aj_2020",
+        "school_year": "2026-2027",
+        "tenant": "libre_quatrieme",
+        "visibility": "internal",
+        "voie": "college"
+      },
+      "scope_digest": "00483e7c5906127821e87cea772ece12e277cd1597d460786ac56eed3d1e154a",
+      "subject_release_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/subjects/rag_nexus_francais_quatrieme_tc.release.json",
+      "subject_release_sha256": "836b02555dba0f4f8d9c16dc64c6f5964e86ba92d4b967eda3e2397b2fb58775"
+    },
+    {
+      "allowed_domains": [
+        "eduscol.education.gouv.fr"
+      ],
+      "authorization_digest": "e04f13a45463163bf00bf7c904ecc3ddaaed0d33593ed1617799cf778b77e3a7",
+      "authorization_id": "prerentree-2026-2027-rag_nexus_francais_seconde_tc-v1",
+      "authorization_path": "governance/authorizations/prerentree-2026-2027-rag_nexus_francais_seconde_tc-v1.json",
+      "content_count": 2,
+      "content_set_sha256": "5abbce3c92d8311cb6d0e26394ee9fffa6f87da193ca76a96d944e4ac9cdb2ce",
+      "currentness_audit_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/currentness_network_audit.json",
+      "currentness_audit_sha256": "4c6395e3ce4c9a61a0d3a8a3b7f94da75ba91b00419c3f0c042f2d2e7adcf520",
+      "currentness_evidence_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/currentness_evidence.json",
+      "currentness_evidence_sha256": "822677cb14987f1069ff849241e33d6f7c9fb66425a5d00c3e38d71b592b793c",
+      "pii_evidence_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/pii_evidence.json",
+      "pii_evidence_sha256": "cec9baca680439afa0dd6b4aadbb0f805514424a853a10303e6216dd8ffa7e99",
+      "profile_fingerprint": "890dede86e97084d07f72f2d41ef1d09759bb1b4fc2eaa24544eac06a5b34c46",
+      "profile_id": "rag_nexus_francais_seconde_tc",
+      "profile_version": "multilevel-v1",
+      "rights_evidence_path": "services/rag-pedago/configs/rights_evidence_registry.yml",
+      "rights_evidence_sha256": "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff",
+      "scope": {
+        "audience": [
+          "libre",
+          "tous"
+        ],
+        "candidat": "libre",
+        "collection": "rag_nexus_francais_seconde_tc",
+        "matiere": "francais",
+        "niveau": "seconde",
+        "programme_version": "BOEN_special_1_2019-01-22",
+        "school_year": "2026-2027",
+        "tenant": "libre_seconde",
+        "visibility": "internal",
+        "voie": "generale"
+      },
+      "scope_digest": "2591e776d53a4fcfa45a2aea5b6a5a46bae4b4b3239aab4443adf4733ef73045",
+      "subject_release_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/subjects/rag_nexus_francais_seconde_tc.release.json",
+      "subject_release_sha256": "975ff077553830fb2e4c0da24a6baa7f59f81e9fc6029102329feb662e7ea88d"
+    },
+    {
+      "allowed_domains": [
+        "eduscol.education.gouv.fr"
+      ],
+      "authorization_digest": "ca3928605cda17498a3ac3020f0689c6618fbad65ec92e93f72dddd9e6521a61",
+      "authorization_id": "prerentree-2026-2027-rag_nexus_hlp_premiere_specialite-v1",
+      "authorization_path": "governance/authorizations/prerentree-2026-2027-rag_nexus_hlp_premiere_specialite-v1.json",
+      "content_count": 4,
+      "content_set_sha256": "0d97d15c047f7448232571a110630349112041d91c51205bc3bdea951c8d0b0f",
+      "currentness_audit_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/currentness_network_audit.json",
+      "currentness_audit_sha256": "4c6395e3ce4c9a61a0d3a8a3b7f94da75ba91b00419c3f0c042f2d2e7adcf520",
+      "currentness_evidence_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/currentness_evidence.json",
+      "currentness_evidence_sha256": "822677cb14987f1069ff849241e33d6f7c9fb66425a5d00c3e38d71b592b793c",
+      "pii_evidence_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/pii_evidence.json",
+      "pii_evidence_sha256": "cec9baca680439afa0dd6b4aadbb0f805514424a853a10303e6216dd8ffa7e99",
+      "profile_fingerprint": "48d961d273ab30eefd5d473b6680b2037176eb74934b314db28625b21c65bc35",
+      "profile_id": "rag_nexus_hlp_premiere_specialite",
+      "profile_version": "profile-gate-v1",
+      "rights_evidence_path": "services/rag-pedago/configs/rights_evidence_registry.yml",
+      "rights_evidence_sha256": "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff",
+      "scope": {
+        "audience": [
+          "libre",
+          "tous"
+        ],
+        "candidat": "libre",
+        "collection": "rag_nexus_hlp_premiere_specialite",
+        "matiere": "hlp",
+        "niveau": "premiere",
+        "programme_version": "BOEN_special_1_2019-01-22",
+        "school_year": "2026-2027",
+        "tenant": "libre_premiere",
+        "visibility": "internal",
+        "voie": "generale"
+      },
+      "scope_digest": "e3ef4b9b6b63c02fefe37b8e5e03851a68ae45f600f85dc6073c7246f658093e",
+      "subject_release_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/subjects/rag_nexus_hlp_premiere_specialite.release.json",
+      "subject_release_sha256": "5e5afe7badcb497af1044359d9961a9c41f58984630fd38bd41fefbdbe313c6c"
+    },
+    {
+      "allowed_domains": [
+        "www.education.gouv.fr"
+      ],
+      "authorization_digest": "e674165bbfeff8d172679d264d5ba645f268815ca91cd81816e253064faa1318",
+      "authorization_id": "prerentree-2026-2027-rag_nexus_maths_premiere_gen_specialite-v1",
+      "authorization_path": "governance/authorizations/prerentree-2026-2027-rag_nexus_maths_premiere_gen_specialite-v1.json",
+      "content_count": 1,
+      "content_set_sha256": "e6ff5c9c006962a437d1e7aa967f350c76dc97b2fe282d8e402e0103cb5771c5",
+      "currentness_audit_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/currentness_network_audit.json",
+      "currentness_audit_sha256": "4c6395e3ce4c9a61a0d3a8a3b7f94da75ba91b00419c3f0c042f2d2e7adcf520",
+      "currentness_evidence_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/currentness_evidence.json",
+      "currentness_evidence_sha256": "822677cb14987f1069ff849241e33d6f7c9fb66425a5d00c3e38d71b592b793c",
+      "pii_evidence_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/pii_evidence.json",
+      "pii_evidence_sha256": "cec9baca680439afa0dd6b4aadbb0f805514424a853a10303e6216dd8ffa7e99",
+      "profile_fingerprint": "04c8de1c240f344c5fbfa8fed25ded968b07e0963507c22b7ab960b858dc8478",
+      "profile_id": "rag_nexus_maths_premiere_gen_specialite",
+      "profile_version": "multilevel-v1",
+      "rights_evidence_path": "services/rag-pedago/configs/rights_evidence_registry.yml",
+      "rights_evidence_sha256": "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff",
+      "scope": {
+        "audience": [
+          "libre",
+          "tous"
+        ],
+        "candidat": "libre",
+        "collection": "rag_nexus_maths_premiere_gen_specialite",
+        "matiere": "maths",
+        "niveau": "premiere",
+        "programme_version": "BOEN_14_2026-04-02_MENE2602917A",
+        "school_year": "2026-2027",
+        "tenant": "libre_premiere",
+        "visibility": "internal",
+        "voie": "generale"
+      },
+      "scope_digest": "e27f3ca136151565a278ee8a8c7323480594499ebd474e0659bb5d81611524ae",
+      "subject_release_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/subjects/rag_nexus_maths_premiere_gen_specialite.release.json",
+      "subject_release_sha256": "309ca9d5f116b8e0217b9d12549bd945cc1a1868b93fb54bcf7574676cd668d4"
+    },
+    {
+      "allowed_domains": [
+        "eduscol.education.gouv.fr"
+      ],
+      "authorization_digest": "3212ec3bb14d4766bb3a88fb99ec7a589a3d4cdb5ce681285e224d6d438ae89b",
+      "authorization_id": "prerentree-2026-2027-rag_nexus_maths_quatrieme_tc-v1",
+      "authorization_path": "governance/authorizations/prerentree-2026-2027-rag_nexus_maths_quatrieme_tc-v1.json",
+      "content_count": 1,
+      "content_set_sha256": "3863f9c48788ab222c50784f1d8fc2ce6913b14020cb99805abfbb841d992a6d",
+      "currentness_audit_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/currentness_network_audit.json",
+      "currentness_audit_sha256": "4c6395e3ce4c9a61a0d3a8a3b7f94da75ba91b00419c3f0c042f2d2e7adcf520",
+      "currentness_evidence_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/currentness_evidence.json",
+      "currentness_evidence_sha256": "822677cb14987f1069ff849241e33d6f7c9fb66425a5d00c3e38d71b592b793c",
+      "pii_evidence_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/pii_evidence.json",
+      "pii_evidence_sha256": "cec9baca680439afa0dd6b4aadbb0f805514424a853a10303e6216dd8ffa7e99",
+      "profile_fingerprint": "5a9a0ef45ab43f0e046b1892e0cf572b2c6fe4137d027a9077a6fe79c7314ce2",
+      "profile_id": "rag_nexus_maths_quatrieme_tc",
+      "profile_version": "multilevel-v1",
+      "rights_evidence_path": "services/rag-pedago/configs/rights_evidence_registry.yml",
+      "rights_evidence_sha256": "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff",
+      "scope": {
+        "audience": [
+          "libre",
+          "tous"
+        ],
+        "candidat": "libre",
+        "collection": "rag_nexus_maths_quatrieme_tc",
+        "matiere": "maths",
+        "niveau": "quatrieme",
+        "programme_version": "BOEN_special_11_2018-07-26_aj_2020",
+        "school_year": "2026-2027",
+        "tenant": "libre_quatrieme",
+        "visibility": "internal",
+        "voie": "college"
+      },
+      "scope_digest": "2ba46a996e99eb2eb71902cd1ca0bf2eb793491ef6b8b2eb0c2b79d225fc9a89",
+      "subject_release_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/subjects/rag_nexus_maths_quatrieme_tc.release.json",
+      "subject_release_sha256": "37975e4faf5aa976ff51493b18b56e3ed8d2787af3f1e15dcad0bcfc448b5da9"
+    },
+    {
+      "allowed_domains": [
+        "www.education.gouv.fr"
+      ],
+      "authorization_digest": "8e960caebf1e7f306dd44aad5460c41ced1bfbca94c10bdb21b4d9ca09cc26be",
+      "authorization_id": "prerentree-2026-2027-rag_nexus_maths_seconde_tc-v1",
+      "authorization_path": "governance/authorizations/prerentree-2026-2027-rag_nexus_maths_seconde_tc-v1.json",
+      "content_count": 1,
+      "content_set_sha256": "434adf41b5b5d96ee267667518dcb9b6c28f055eb1563a992d95066b6ee35ef4",
+      "currentness_audit_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/currentness_network_audit.json",
+      "currentness_audit_sha256": "4c6395e3ce4c9a61a0d3a8a3b7f94da75ba91b00419c3f0c042f2d2e7adcf520",
+      "currentness_evidence_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/currentness_evidence.json",
+      "currentness_evidence_sha256": "822677cb14987f1069ff849241e33d6f7c9fb66425a5d00c3e38d71b592b793c",
+      "pii_evidence_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/pii_evidence.json",
+      "pii_evidence_sha256": "cec9baca680439afa0dd6b4aadbb0f805514424a853a10303e6216dd8ffa7e99",
+      "profile_fingerprint": "2320e3f3e7906ae1b76b0c704cba38cd435dd8cbe6b7d13d78671c6b4cc73d89",
+      "profile_id": "rag_nexus_maths_seconde_tc",
+      "profile_version": "multilevel-v1",
+      "rights_evidence_path": "services/rag-pedago/configs/rights_evidence_registry.yml",
+      "rights_evidence_sha256": "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff",
+      "scope": {
+        "audience": [
+          "libre",
+          "tous"
+        ],
+        "candidat": "libre",
+        "collection": "rag_nexus_maths_seconde_tc",
+        "matiere": "maths",
+        "niveau": "seconde",
+        "programme_version": "BOEN_14_2026-04-02_MENE2602914A",
+        "school_year": "2026-2027",
+        "tenant": "libre_seconde",
+        "visibility": "internal",
+        "voie": "generale"
+      },
+      "scope_digest": "f7c0cc5d731e747895dc099dcb566cf884464036cd1c58207c1a25b2c221a7fe",
+      "subject_release_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/subjects/rag_nexus_maths_seconde_tc.release.json",
+      "subject_release_sha256": "715b78d9e1eb73ddbe4b69c363c0b1922697801cce0277673fe14d0d8c97c909"
+    },
+    {
+      "allowed_domains": [
+        "eduscol.education.gouv.fr"
+      ],
+      "authorization_digest": "74543fcee494905804bfcee5951f177551a8152c458e40b0b921404b85db53a6",
+      "authorization_id": "prerentree-2026-2027-rag_nexus_maths_terminale_gen_specialite-v1",
+      "authorization_path": "governance/authorizations/prerentree-2026-2027-rag_nexus_maths_terminale_gen_specialite-v1.json",
+      "content_count": 1,
+      "content_set_sha256": "ea7be0b10d024cbb50300866ed2017384db1afa89f7906b7d5b7a17d23927c0f",
+      "currentness_audit_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/currentness_network_audit.json",
+      "currentness_audit_sha256": "4c6395e3ce4c9a61a0d3a8a3b7f94da75ba91b00419c3f0c042f2d2e7adcf520",
+      "currentness_evidence_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/currentness_evidence.json",
+      "currentness_evidence_sha256": "822677cb14987f1069ff849241e33d6f7c9fb66425a5d00c3e38d71b592b793c",
+      "pii_evidence_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/pii_evidence.json",
+      "pii_evidence_sha256": "cec9baca680439afa0dd6b4aadbb0f805514424a853a10303e6216dd8ffa7e99",
+      "profile_fingerprint": "4f0b45d22ca6fcb0ffab20c20df92c1e852fcd836bc3c8b9793c01f085472f0f",
+      "profile_id": "rag_nexus_maths_terminale_gen_specialite",
+      "profile_version": "multilevel-v1",
+      "rights_evidence_path": "services/rag-pedago/configs/rights_evidence_registry.yml",
+      "rights_evidence_sha256": "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff",
+      "scope": {
+        "audience": [
+          "libre",
+          "tous"
+        ],
+        "candidat": "libre",
+        "collection": "rag_nexus_maths_terminale_gen_specialite",
+        "matiere": "maths",
+        "niveau": "terminale",
+        "programme_version": "BOEN_special_8_2019-07-25",
+        "school_year": "2026-2027",
+        "tenant": "libre_terminale",
+        "visibility": "internal",
+        "voie": "generale"
+      },
+      "scope_digest": "c2e1927fcc3da1bbe903e5c4a1edce454cec6af4095d9f765742dd455dc1ba93",
+      "subject_release_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/subjects/rag_nexus_maths_terminale_gen_specialite.release.json",
+      "subject_release_sha256": "16e30edd3cf25e80447924a3a61d5a3323dccdf776c1e49a188b8d51de9be362"
+    },
+    {
+      "allowed_domains": [
+        "eduscol.education.gouv.fr"
+      ],
+      "authorization_digest": "8cc5d36569c77a870b915814546edc2a6b66ddccf950b0d1b98c0335401f5b91",
+      "authorization_id": "prerentree-2026-2027-rag_nexus_nsi_premiere_specialite-v1",
+      "authorization_path": "governance/authorizations/prerentree-2026-2027-rag_nexus_nsi_premiere_specialite-v1.json",
+      "content_count": 1,
+      "content_set_sha256": "fb7cdb06f4e864ac474a75a8acea0a85bad7eeba49af18ab20fef0415cadb8f6",
+      "currentness_audit_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/currentness_network_audit.json",
+      "currentness_audit_sha256": "4c6395e3ce4c9a61a0d3a8a3b7f94da75ba91b00419c3f0c042f2d2e7adcf520",
+      "currentness_evidence_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/currentness_evidence.json",
+      "currentness_evidence_sha256": "822677cb14987f1069ff849241e33d6f7c9fb66425a5d00c3e38d71b592b793c",
+      "pii_evidence_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/pii_evidence.json",
+      "pii_evidence_sha256": "cec9baca680439afa0dd6b4aadbb0f805514424a853a10303e6216dd8ffa7e99",
+      "profile_fingerprint": "2dcfca3b80266350d4185f9d9dffa673e21eeb0b947110510c6297fbf102bba1",
+      "profile_id": "rag_nexus_nsi_premiere_specialite",
+      "profile_version": "multilevel-v1",
+      "rights_evidence_path": "services/rag-pedago/configs/rights_evidence_registry.yml",
+      "rights_evidence_sha256": "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff",
+      "scope": {
+        "audience": [
+          "libre",
+          "tous"
+        ],
+        "candidat": "libre",
+        "collection": "rag_nexus_nsi_premiere_specialite",
+        "matiere": "nsi",
+        "niveau": "premiere",
+        "programme_version": "BOEN_special_1_2019-01-22",
+        "school_year": "2026-2027",
+        "tenant": "libre_premiere",
+        "visibility": "internal",
+        "voie": "generale"
+      },
+      "scope_digest": "405c465a46cb8a91b4045e67f606813fe456f88a4ed874339e6dde0036a6373d",
+      "subject_release_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/subjects/rag_nexus_nsi_premiere_specialite.release.json",
+      "subject_release_sha256": "af49291a8b5d5ffe50157f1b7d595b5c7466c36893df99c7c8293e57bde0fee7"
+    },
+    {
+      "allowed_domains": [
+        "eduscol.education.gouv.fr"
+      ],
+      "authorization_digest": "023c9cf66a85b48d485539659424fccc4d1fada727e877312c8f2b12e96dc722",
+      "authorization_id": "prerentree-2026-2027-rag_nexus_nsi_terminale_specialite-v1",
+      "authorization_path": "governance/authorizations/prerentree-2026-2027-rag_nexus_nsi_terminale_specialite-v1.json",
+      "content_count": 1,
+      "content_set_sha256": "d3822032bb547df4130b5578d77de98e1739b1bbb03c0d416da44c31212c6527",
+      "currentness_audit_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/currentness_network_audit.json",
+      "currentness_audit_sha256": "4c6395e3ce4c9a61a0d3a8a3b7f94da75ba91b00419c3f0c042f2d2e7adcf520",
+      "currentness_evidence_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/currentness_evidence.json",
+      "currentness_evidence_sha256": "822677cb14987f1069ff849241e33d6f7c9fb66425a5d00c3e38d71b592b793c",
+      "pii_evidence_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/pii_evidence.json",
+      "pii_evidence_sha256": "cec9baca680439afa0dd6b4aadbb0f805514424a853a10303e6216dd8ffa7e99",
+      "profile_fingerprint": "ef417eff33177d469da58c4e3bcdd19901e97799d3bcec4c816a13d65708964c",
+      "profile_id": "rag_nexus_nsi_terminale_specialite",
+      "profile_version": "multilevel-v1",
+      "rights_evidence_path": "services/rag-pedago/configs/rights_evidence_registry.yml",
+      "rights_evidence_sha256": "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff",
+      "scope": {
+        "audience": [
+          "libre",
+          "tous"
+        ],
+        "candidat": "libre",
+        "collection": "rag_nexus_nsi_terminale_specialite",
+        "matiere": "nsi",
+        "niveau": "terminale",
+        "programme_version": "BOEN_special_8_2019-07-25",
+        "school_year": "2026-2027",
+        "tenant": "libre_terminale",
+        "visibility": "internal",
+        "voie": "generale"
+      },
+      "scope_digest": "03ee245313b75ae70bf9553ef482790f28bfb818c78f785677f7199df289c92b",
+      "subject_release_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/subjects/rag_nexus_nsi_terminale_specialite.release.json",
+      "subject_release_sha256": "27710247f2cf796b279bfa1ae05708af13519b517d28b72880527c90bd279595"
+    },
+    {
+      "allowed_domains": [
+        "eduscol.education.gouv.fr"
+      ],
+      "authorization_digest": "b5d16ce32b7d473adc5efed54cb62b7a880acbd3d79baff3dc8adf2bcbea515f",
+      "authorization_id": "prerentree-2026-2027-rag_nexus_pc_premiere_specialite-v1",
+      "authorization_path": "governance/authorizations/prerentree-2026-2027-rag_nexus_pc_premiere_specialite-v1.json",
+      "content_count": 1,
+      "content_set_sha256": "2eb538cfcf8a1c4b7b8383928a22bcaf2c6bec0ce3c7a37f8cfb9c6f7aad15bb",
+      "currentness_audit_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/currentness_network_audit.json",
+      "currentness_audit_sha256": "4c6395e3ce4c9a61a0d3a8a3b7f94da75ba91b00419c3f0c042f2d2e7adcf520",
+      "currentness_evidence_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/currentness_evidence.json",
+      "currentness_evidence_sha256": "822677cb14987f1069ff849241e33d6f7c9fb66425a5d00c3e38d71b592b793c",
+      "pii_evidence_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/pii_evidence.json",
+      "pii_evidence_sha256": "cec9baca680439afa0dd6b4aadbb0f805514424a853a10303e6216dd8ffa7e99",
+      "profile_fingerprint": "ca2fb2d2d4a7228bcfa3564d86588be12b425b6ae6acd15de5f66f341d4e22c5",
+      "profile_id": "rag_nexus_pc_premiere_specialite",
+      "profile_version": "profile-gate-v1",
+      "rights_evidence_path": "services/rag-pedago/configs/rights_evidence_registry.yml",
+      "rights_evidence_sha256": "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff",
+      "scope": {
+        "audience": [
+          "libre",
+          "tous"
+        ],
+        "candidat": "libre",
+        "collection": "rag_nexus_pc_premiere_specialite",
+        "matiere": "physique_chimie",
+        "niveau": "premiere",
+        "programme_version": "BOEN_special_1_2019-01-22",
+        "school_year": "2026-2027",
+        "tenant": "libre_premiere",
+        "visibility": "internal",
+        "voie": "generale"
+      },
+      "scope_digest": "0800faec674e6efae8db6fddc439e760c66598420ca5efae09264c4c56ec4fa6",
+      "subject_release_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/subjects/rag_nexus_pc_premiere_specialite.release.json",
+      "subject_release_sha256": "9fb1dd7abe303dc9a9e930ce301edb94b546dc6f28b52257f788ff78c194a7ee"
+    },
+    {
+      "allowed_domains": [
+        "eduscol.education.gouv.fr"
+      ],
+      "authorization_digest": "9dec9687b9dda074e6896d2f891736e3e0ac5ba154d805212a82de6fb101ab2c",
+      "authorization_id": "prerentree-2026-2027-rag_nexus_pc_terminale_specialite-v1",
+      "authorization_path": "governance/authorizations/prerentree-2026-2027-rag_nexus_pc_terminale_specialite-v1.json",
+      "content_count": 1,
+      "content_set_sha256": "9f1dc40c0e6534429af8ecc2d9dd06f604673f802ba5e6c467af588f8eb5c80d",
+      "currentness_audit_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/currentness_network_audit.json",
+      "currentness_audit_sha256": "4c6395e3ce4c9a61a0d3a8a3b7f94da75ba91b00419c3f0c042f2d2e7adcf520",
+      "currentness_evidence_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/currentness_evidence.json",
+      "currentness_evidence_sha256": "822677cb14987f1069ff849241e33d6f7c9fb66425a5d00c3e38d71b592b793c",
+      "pii_evidence_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/pii_evidence.json",
+      "pii_evidence_sha256": "cec9baca680439afa0dd6b4aadbb0f805514424a853a10303e6216dd8ffa7e99",
+      "profile_fingerprint": "c497d2c5e11ead6ec91589b89f0ba1b824458a30939b1ba6c3b4a9905ec5e865",
+      "profile_id": "rag_nexus_pc_terminale_specialite",
+      "profile_version": "multilevel-v1",
+      "rights_evidence_path": "services/rag-pedago/configs/rights_evidence_registry.yml",
+      "rights_evidence_sha256": "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff",
+      "scope": {
+        "audience": [
+          "libre",
+          "tous"
+        ],
+        "candidat": "libre",
+        "collection": "rag_nexus_pc_terminale_specialite",
+        "matiere": "physique_chimie",
+        "niveau": "terminale",
+        "programme_version": "BOEN_special_8_2019-07-25",
+        "school_year": "2026-2027",
+        "tenant": "libre_terminale",
+        "visibility": "internal",
+        "voie": "generale"
+      },
+      "scope_digest": "0067299f7835568860d960f64ffb7adcc543cb97b35685a070c17af883c0c393",
+      "subject_release_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/subjects/rag_nexus_pc_terminale_specialite.release.json",
+      "subject_release_sha256": "fb8134a8fe88478b01c73f10136f027c1dc24158466b90ba7c752cf4d0db1462"
+    },
+    {
+      "allowed_domains": [
+        "eduscol.education.gouv.fr"
+      ],
+      "authorization_digest": "a84847ec27220969eb87edfd68cc50562cdeb7e8258fc544d5258c2e06860d8b",
+      "authorization_id": "prerentree-2026-2027-rag_nexus_philo_terminale_tc-v1",
+      "authorization_path": "governance/authorizations/prerentree-2026-2027-rag_nexus_philo_terminale_tc-v1.json",
+      "content_count": 5,
+      "content_set_sha256": "a8fab59c6b1ccd4f777b9128180092362c3d7e98a3077f97f9080e7a7bbec642",
+      "currentness_audit_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/currentness_network_audit.json",
+      "currentness_audit_sha256": "4c6395e3ce4c9a61a0d3a8a3b7f94da75ba91b00419c3f0c042f2d2e7adcf520",
+      "currentness_evidence_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/currentness_evidence.json",
+      "currentness_evidence_sha256": "822677cb14987f1069ff849241e33d6f7c9fb66425a5d00c3e38d71b592b793c",
+      "pii_evidence_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/pii_evidence.json",
+      "pii_evidence_sha256": "cec9baca680439afa0dd6b4aadbb0f805514424a853a10303e6216dd8ffa7e99",
+      "profile_fingerprint": "993b350071ffa961c2be47738aa138b95db56317f117d7b4086461dbfd0acefc",
+      "profile_id": "rag_nexus_philo_terminale_tc",
+      "profile_version": "h2c-v1",
+      "rights_evidence_path": "services/rag-pedago/configs/rights_evidence_registry.yml",
+      "rights_evidence_sha256": "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff",
+      "scope": {
+        "audience": [
+          "libre",
+          "tous"
+        ],
+        "candidat": "libre",
+        "collection": "rag_nexus_philo_terminale_tc",
+        "matiere": "philosophie",
+        "niveau": "terminale",
+        "programme_version": "BOEN_special_8_2019-07-25",
+        "school_year": "2026-2027",
+        "tenant": "libre_terminale",
+        "visibility": "internal",
+        "voie": "generale"
+      },
+      "scope_digest": "270fbb68266912deb1b03670f40e6eef4eebac6e2e9dc48e4cb9e6fb3c63943f",
+      "subject_release_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/subjects/rag_nexus_philo_terminale_tc.release.json",
+      "subject_release_sha256": "be4645b174e9b7e9be375708e4fa6949cc1866bb31c567fc8f5f533fb121079c"
+    },
+    {
+      "allowed_domains": [
+        "eduscol.education.gouv.fr"
+      ],
+      "authorization_digest": "5efff03584c97bf7d8d2de6abf5440ecb596314d7621579dc71794caea54c229",
+      "authorization_id": "prerentree-2026-2027-rag_nexus_ses_premiere_specialite-v1",
+      "authorization_path": "governance/authorizations/prerentree-2026-2027-rag_nexus_ses_premiere_specialite-v1.json",
+      "content_count": 1,
+      "content_set_sha256": "97bd5bc067e3fc0bd8ca96787ed086126b28ed19a38d7800b8889cf4e22c3388",
+      "currentness_audit_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/currentness_network_audit.json",
+      "currentness_audit_sha256": "4c6395e3ce4c9a61a0d3a8a3b7f94da75ba91b00419c3f0c042f2d2e7adcf520",
+      "currentness_evidence_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/currentness_evidence.json",
+      "currentness_evidence_sha256": "822677cb14987f1069ff849241e33d6f7c9fb66425a5d00c3e38d71b592b793c",
+      "pii_evidence_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/pii_evidence.json",
+      "pii_evidence_sha256": "cec9baca680439afa0dd6b4aadbb0f805514424a853a10303e6216dd8ffa7e99",
+      "profile_fingerprint": "b9aa5b13c38cd603ac1c0f39ddfe03e16cf320a5d7b13dc47c1c45f59ccf8eaa",
+      "profile_id": "rag_nexus_ses_premiere_specialite",
+      "profile_version": "profile-gate-v1",
+      "rights_evidence_path": "services/rag-pedago/configs/rights_evidence_registry.yml",
+      "rights_evidence_sha256": "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff",
+      "scope": {
+        "audience": [
+          "libre",
+          "tous"
+        ],
+        "candidat": "libre",
+        "collection": "rag_nexus_ses_premiere_specialite",
+        "matiere": "ses",
+        "niveau": "premiere",
+        "programme_version": "BOEN_special_1_2019-01-22",
+        "school_year": "2026-2027",
+        "tenant": "libre_premiere",
+        "visibility": "internal",
+        "voie": "generale"
+      },
+      "scope_digest": "8f9c0748621cc9cef62c38ae400133f8d1890253bb25529f8d6fa563ca0e17a6",
+      "subject_release_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/subjects/rag_nexus_ses_premiere_specialite.release.json",
+      "subject_release_sha256": "03014f387da2840c1590c9bda4a58073a1a270c5fa5be11ea1e61e613f0007f9"
+    },
+    {
+      "allowed_domains": [
+        "eduscol.education.gouv.fr"
+      ],
+      "authorization_digest": "4367811504d9bfecb4a18ce7066d6c2a403ad412aaa9eaf9995083c4f8c09644",
+      "authorization_id": "prerentree-2026-2027-rag_nexus_ses_terminale_specialite-v1",
+      "authorization_path": "governance/authorizations/prerentree-2026-2027-rag_nexus_ses_terminale_specialite-v1.json",
+      "content_count": 1,
+      "content_set_sha256": "61de8fae6750ea41d3997e6176ca58d0697a6e40fb2124a1c4fd19093c827a2a",
+      "currentness_audit_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/currentness_network_audit.json",
+      "currentness_audit_sha256": "4c6395e3ce4c9a61a0d3a8a3b7f94da75ba91b00419c3f0c042f2d2e7adcf520",
+      "currentness_evidence_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/currentness_evidence.json",
+      "currentness_evidence_sha256": "822677cb14987f1069ff849241e33d6f7c9fb66425a5d00c3e38d71b592b793c",
+      "pii_evidence_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/pii_evidence.json",
+      "pii_evidence_sha256": "cec9baca680439afa0dd6b4aadbb0f805514424a853a10303e6216dd8ffa7e99",
+      "profile_fingerprint": "41ab44973d81f6b4b53e91ff65a74fcab1cb0940476ba078007ae272cc653256",
+      "profile_id": "rag_nexus_ses_terminale_specialite",
+      "profile_version": "profile-gate-v1",
+      "rights_evidence_path": "services/rag-pedago/configs/rights_evidence_registry.yml",
+      "rights_evidence_sha256": "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff",
+      "scope": {
+        "audience": [
+          "libre",
+          "tous"
+        ],
+        "candidat": "libre",
+        "collection": "rag_nexus_ses_terminale_specialite",
+        "matiere": "ses",
+        "niveau": "terminale",
+        "programme_version": "BOEN_special_8_2019-07-25",
+        "school_year": "2026-2027",
+        "tenant": "libre_terminale",
+        "visibility": "internal",
+        "voie": "generale"
+      },
+      "scope_digest": "d2be6768e2be8b289d6d37b68d565f6dc8c1c707d526b1aecb6690c3ed3d66b9",
+      "subject_release_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/subjects/rag_nexus_ses_terminale_specialite.release.json",
+      "subject_release_sha256": "6dedcd0a5060fa918cb4cb68f420cbe829c2f56bcf77239389c80a8cd1cde4df"
+    },
+    {
+      "allowed_domains": [
+        "eduscol.education.gouv.fr"
+      ],
+      "authorization_digest": "a7c691c223fd51ef65c96bc7fb419fe0ea8835f3b612eef3097c1858b47971ca",
+      "authorization_id": "prerentree-2026-2027-rag_nexus_svt_premiere_specialite-v1",
+      "authorization_path": "governance/authorizations/prerentree-2026-2027-rag_nexus_svt_premiere_specialite-v1.json",
+      "content_count": 1,
+      "content_set_sha256": "1c4eb665e6d2e1570edad1e90bb32a613436b6c9e362548130e6256ade8bd5b3",
+      "currentness_audit_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/currentness_network_audit.json",
+      "currentness_audit_sha256": "4c6395e3ce4c9a61a0d3a8a3b7f94da75ba91b00419c3f0c042f2d2e7adcf520",
+      "currentness_evidence_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/currentness_evidence.json",
+      "currentness_evidence_sha256": "822677cb14987f1069ff849241e33d6f7c9fb66425a5d00c3e38d71b592b793c",
+      "pii_evidence_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/pii_evidence.json",
+      "pii_evidence_sha256": "cec9baca680439afa0dd6b4aadbb0f805514424a853a10303e6216dd8ffa7e99",
+      "profile_fingerprint": "de3a4b05be3c066ad531347f400279bf42192e286d23394ecd2566b677bc409d",
+      "profile_id": "rag_nexus_svt_premiere_specialite",
+      "profile_version": "profile-gate-v1",
+      "rights_evidence_path": "services/rag-pedago/configs/rights_evidence_registry.yml",
+      "rights_evidence_sha256": "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff",
+      "scope": {
+        "audience": [
+          "libre",
+          "tous"
+        ],
+        "candidat": "libre",
+        "collection": "rag_nexus_svt_premiere_specialite",
+        "matiere": "svt",
+        "niveau": "premiere",
+        "programme_version": "BOEN_special_1_2019-01-22",
+        "school_year": "2026-2027",
+        "tenant": "libre_premiere",
+        "visibility": "internal",
+        "voie": "generale"
+      },
+      "scope_digest": "372809a4fdce75de99161eb4f74c0241b53d348c4d9d03a9fc30538a24b7fba7",
+      "subject_release_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/subjects/rag_nexus_svt_premiere_specialite.release.json",
+      "subject_release_sha256": "776178d0a077a137ee3b5db724d5071a01f3d22f3ae3543b035452374802a94d"
+    },
+    {
+      "allowed_domains": [
+        "eduscol.education.gouv.fr"
+      ],
+      "authorization_digest": "02e87fb9d4d3e009f33f92e44130f49011cdce52276bdec0478924b10bc8288b",
+      "authorization_id": "prerentree-2026-2027-rag_nexus_svt_terminale_specialite-v1",
+      "authorization_path": "governance/authorizations/prerentree-2026-2027-rag_nexus_svt_terminale_specialite-v1.json",
+      "content_count": 1,
+      "content_set_sha256": "06d9913077ea1b5cf283c9b1ebfd13532f6d1c5069c19e3fc9813bc907eb590a",
+      "currentness_audit_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/currentness_network_audit.json",
+      "currentness_audit_sha256": "4c6395e3ce4c9a61a0d3a8a3b7f94da75ba91b00419c3f0c042f2d2e7adcf520",
+      "currentness_evidence_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/currentness_evidence.json",
+      "currentness_evidence_sha256": "822677cb14987f1069ff849241e33d6f7c9fb66425a5d00c3e38d71b592b793c",
+      "pii_evidence_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/pii_evidence.json",
+      "pii_evidence_sha256": "cec9baca680439afa0dd6b4aadbb0f805514424a853a10303e6216dd8ffa7e99",
+      "profile_fingerprint": "223c6a49a224a2636865c1b5fc15012f61b6f2888f408dca547142d961ae1f58",
+      "profile_id": "rag_nexus_svt_terminale_specialite",
+      "profile_version": "profile-gate-v1",
+      "rights_evidence_path": "services/rag-pedago/configs/rights_evidence_registry.yml",
+      "rights_evidence_sha256": "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff",
+      "scope": {
+        "audience": [
+          "libre",
+          "tous"
+        ],
+        "candidat": "libre",
+        "collection": "rag_nexus_svt_terminale_specialite",
+        "matiere": "svt",
+        "niveau": "terminale",
+        "programme_version": "BOEN_special_8_2019-07-25",
+        "school_year": "2026-2027",
+        "tenant": "libre_terminale",
+        "visibility": "internal",
+        "voie": "generale"
+      },
+      "scope_digest": "8075221b146190a7dfa487e9daa60688d08e9d4a13dd7221e297469b0d38c132",
+      "subject_release_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/subjects/rag_nexus_svt_terminale_specialite.release.json",
+      "subject_release_sha256": "29bd5d9363e737e49b9fca9654a46c04f4a6e23224b306897c57f12d2e9f5d8d"
+    }
+  ],
+  "corpus_manifest_sha256": "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e",
+  "currentness_audit_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/currentness_network_audit.json",
+  "currentness_audit_sha256": "4c6395e3ce4c9a61a0d3a8a3b7f94da75ba91b00419c3f0c042f2d2e7adcf520",
+  "currentness_evidence_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/currentness_evidence.json",
+  "currentness_evidence_sha256": "822677cb14987f1069ff849241e33d6f7c9fb66425a5d00c3e38d71b592b793c",
+  "final_content_set_path": "docs/reports/final_production_eligible_set_20260825.txt",
+  "final_content_set_sha256": "fe97b3410791fa78d4734a8c495443296b3f2ec3e77627e12fc34f90e0b2b5f0",
+  "input_blobs": [
+    {
+      "file_sha256": "75ac6bd288882939d2bb8fcad758730238037c5266913166fcbc61c3be47cdc8",
+      "git_entry": "100644 blob d0f341017bdfa020a34171bdd73f32c56f390f01",
+      "path": "docs/reports/evidence-index/drive-snapshot/drive_snapshot_mapping_20260815.json"
+    },
+    {
+      "file_sha256": "88bf51621c1a75fd0cd951a3d8292596eb3e7ce6fd243b77b1bad325df958370",
+      "git_entry": "100644 blob 37f7bf6b0668306e529086527c171fb4c7bd57e1",
+      "path": "docs/reports/evidence-index/placement_ledger_20260814.jsonl"
+    },
+    {
+      "file_sha256": "fe97b3410791fa78d4734a8c495443296b3f2ec3e77627e12fc34f90e0b2b5f0",
+      "git_entry": "100644 blob 13c85b4823e9098f45ead4497c370ff582911227",
+      "path": "docs/reports/final_production_eligible_set_20260825.txt"
+    },
+    {
+      "file_sha256": "b1a36aef251d05f0098bfe88d7eae45b36333452f1613741e15dc6a89de75315",
+      "git_entry": "100644 blob c12074ca0ffdae53c46490253846d04539ee683a",
+      "path": "docs/reports/release_scope_placement_20260825.jsonl"
+    },
+    {
+      "file_sha256": "76912d6238f79379823a3da12d63a8e70001820038f50e8889108b56bcfd9acd",
+      "git_entry": "100644 blob 66edc6fcd9b3ace07dbb89c4e2a1ec758922a3ef",
+      "path": "docs/reports/verified_production_profiles_20260825.json"
+    },
+    {
+      "file_sha256": "0ff9f6ff2676273c1a21e32d82851a8033f45313b3009d2a3506f35d25e8379e",
+      "git_entry": "100644 blob 017018460ac28656adadbf69a97dac0894b19aa7",
+      "path": "services/rag-engine/configs/ingestion_manifest.yml"
+    },
+    {
+      "file_sha256": "ce5e51b7c6890120bec1e7394d2f649ce0b4a2590ea8765d964a5576b99f871f",
+      "git_entry": "100644 blob 029eab78df7614f216e8e9273c74ae67cf2a1ca1",
+      "path": "services/rag-engine/configs/mappings/eduscol_multilevel_document_types.yml"
+    },
+    {
+      "file_sha256": "8ad9e7a6d62e26e5c233f8a3c62fba7a1df72da29f690a3c17d5e7660e740e1e",
+      "git_entry": "100644 blob be335c168b6a0513869fb8d2070d166f1433f263",
+      "path": "services/rag-engine/configs/mappings/eduscol_multilevel_levels.yml"
+    },
+    {
+      "file_sha256": "85a8efa17a9b04659800363ea3386208b46874ca673bdcb0889c6270bfc9c71c",
+      "git_entry": "100644 blob d08e49301997108c94b928abba4b1a5dcd4db722",
+      "path": "services/rag-engine/configs/mappings/eduscol_profile_gate_subjects.yml"
+    },
+    {
+      "file_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+      "git_entry": "100644 blob d7b65d414461eef40c52474232b8abea51804830",
+      "path": "services/rag-pedago/configs/pii_gate_policy.yml"
+    },
+    {
+      "file_sha256": "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff",
+      "git_entry": "100644 blob c3ac1f3a09e7b39ee35c3e510ee01a1dfbdb9853",
+      "path": "services/rag-pedago/configs/rights_evidence_registry.yml"
+    },
+    {
+      "file_sha256": "5db45988fdbb19be74850f85890647397d514243266f5bb6ad34008fee4b80e1",
+      "git_entry": "100644 blob 9fce716783ac3f586b09cafa287ba2a5d7464531",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/authority_bindings.json"
+    },
+    {
+      "file_sha256": "fbb8aa3af44efa1484c65640ddbaebf357dff923a0ebd45b6ce80ccc7e8ed7a1",
+      "git_entry": "100644 blob 98306e779e8772c8379f3e57e7670ea3c2d93cf1",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/candidate_inventory.json"
+    },
+    {
+      "file_sha256": "8b914d6239b87cbb3dcd11039e8e7d392aeee5c5996236a580235d7515919a04",
+      "git_entry": "100644 blob 0546723ac17774ed07c5f2dbe78e94c91c531d5f",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/catalog_delta.json"
+    },
+    {
+      "file_sha256": "5ce13fac8b74e12ac9538a710b733aeb6a78f3d49434a44ac49e4c0b38296df7",
+      "git_entry": "100644 blob 6f50d0090b5b3bd1cff03a611526bd2b76948555",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/corpus_manifest_authority.json"
+    },
+    {
+      "file_sha256": "822677cb14987f1069ff849241e33d6f7c9fb66425a5d00c3e38d71b592b793c",
+      "git_entry": "100644 blob 2e2b2a3c4e1de59a2c458496a0a85e587d2e7f4c",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/currentness_evidence.json"
+    },
+    {
+      "file_sha256": "4c6395e3ce4c9a61a0d3a8a3b7f94da75ba91b00419c3f0c042f2d2e7adcf520",
+      "git_entry": "100644 blob b28297db79e02433377682a4dba1f316dd23b48a",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/currentness_network_audit.json"
+    },
+    {
+      "file_sha256": "28af42d0c2f0f722def744da68fc30dcb362930d4fcff6c0ed2852896c757c9c",
+      "git_entry": "100644 blob 1793e08b4f0371575a39bed4b61091b0e576798f",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/effective_catalog_authority.json"
+    },
+    {
+      "file_sha256": "e15ab71babe2f392318c8f702a045b36ec13f7be86e7d5bad414d5d17f8c6d6c",
+      "git_entry": "100644 blob eab93c633524807171db079a3185b2b87ee4a713",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/models/embedding/SHA256SUMS"
+    },
+    {
+      "file_sha256": "d7c1b418087e10bb11ebb98b92cb62d286d60e6f592987dc5f4b236ed6fcc660",
+      "git_entry": "100644 blob ccd14eacaddb923feedfedb61e46dfda7b8d8c96",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/models/reranker/SHA256SUMS"
+    },
+    {
+      "file_sha256": "cec9baca680439afa0dd6b4aadbb0f805514424a853a10303e6216dd8ffa7e99",
+      "git_entry": "100644 blob edf56cd0a94854afddc7ecd486867edf437e6417",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/pii_evidence.json"
+    },
+    {
+      "file_sha256": "5f128e9635e1433cad6f3c66e48a3639d65e91be39c8022c60da87f9f24902a1",
+      "git_entry": "100644 blob b1506b3659aad5b839f6a2cbe57a9c2fa4e27863",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/preflight_evidence.json"
+    },
+    {
+      "file_sha256": "2aadfa96e6ce669abcaa6d336bdd44c680d4d3206d33e464a9eccc90f8a5944c",
+      "git_entry": "100644 blob 6836209ec2191cb5ed9be20bf79910f5288899ce",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/production-profile-gate.release.json"
+    },
+    {
+      "file_sha256": "a596f45819d3f43bc9f7128a7a1719c673c13660d8d1ae9a9ccad064f4f9887d",
+      "git_entry": "100644 blob 291d916c9a2484eb6431c1961baeef525182dabf",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/programme_registry.json"
+    },
+    {
+      "file_sha256": "02408bcf498ec56225852525758396152f2ed1c919c24528fd5f0fb59f54627f",
+      "git_entry": "100644 blob 50aabc203412c318d7b3ab2b60bc6530a9f6239f",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/subjects/rag_nexus_dgemc_terminale_option.release.json"
+    },
+    {
+      "file_sha256": "12d592364da6dfaf7934222195f908215e48c3f8a77dcb070990cd09055c12ad",
+      "git_entry": "100644 blob 92d163a920c003f0c00ecf917528ecc152f2e88a",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/subjects/rag_nexus_francais_premiere_tc.release.json"
+    },
+    {
+      "file_sha256": "836b02555dba0f4f8d9c16dc64c6f5964e86ba92d4b967eda3e2397b2fb58775",
+      "git_entry": "100644 blob be9a22cd1e142898b35a1e3db3eaa119644e6a63",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/subjects/rag_nexus_francais_quatrieme_tc.release.json"
+    },
+    {
+      "file_sha256": "975ff077553830fb2e4c0da24a6baa7f59f81e9fc6029102329feb662e7ea88d",
+      "git_entry": "100644 blob 842ad7bf622660e78a92df69feac227bd3bcf225",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/subjects/rag_nexus_francais_seconde_tc.release.json"
+    },
+    {
+      "file_sha256": "5e5afe7badcb497af1044359d9961a9c41f58984630fd38bd41fefbdbe313c6c",
+      "git_entry": "100644 blob 3fc9c369c807c7029447f66ed2ad761643c98b88",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/subjects/rag_nexus_hlp_premiere_specialite.release.json"
+    },
+    {
+      "file_sha256": "309ca9d5f116b8e0217b9d12549bd945cc1a1868b93fb54bcf7574676cd668d4",
+      "git_entry": "100644 blob 0b25bcba91fe787609708d878e1374584f88615c",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/subjects/rag_nexus_maths_premiere_gen_specialite.release.json"
+    },
+    {
+      "file_sha256": "37975e4faf5aa976ff51493b18b56e3ed8d2787af3f1e15dcad0bcfc448b5da9",
+      "git_entry": "100644 blob 84928cbc4706a251c0d2082a2c95129cef685d4b",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/subjects/rag_nexus_maths_quatrieme_tc.release.json"
+    },
+    {
+      "file_sha256": "715b78d9e1eb73ddbe4b69c363c0b1922697801cce0277673fe14d0d8c97c909",
+      "git_entry": "100644 blob d9d026d7288e7be4a4059aea82df7f204bef081a",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/subjects/rag_nexus_maths_seconde_tc.release.json"
+    },
+    {
+      "file_sha256": "16e30edd3cf25e80447924a3a61d5a3323dccdf776c1e49a188b8d51de9be362",
+      "git_entry": "100644 blob d3583df9e16542b8aaf149e0668b8e42ee9d62f3",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/subjects/rag_nexus_maths_terminale_gen_specialite.release.json"
+    },
+    {
+      "file_sha256": "af49291a8b5d5ffe50157f1b7d595b5c7466c36893df99c7c8293e57bde0fee7",
+      "git_entry": "100644 blob f45c4e9114c06bc7e4a19a9c3ee796d51c735db4",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/subjects/rag_nexus_nsi_premiere_specialite.release.json"
+    },
+    {
+      "file_sha256": "27710247f2cf796b279bfa1ae05708af13519b517d28b72880527c90bd279595",
+      "git_entry": "100644 blob 5edcf9d08e3ca2dc57c264ba9fea8644b4449ff1",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/subjects/rag_nexus_nsi_terminale_specialite.release.json"
+    },
+    {
+      "file_sha256": "9fb1dd7abe303dc9a9e930ce301edb94b546dc6f28b52257f788ff78c194a7ee",
+      "git_entry": "100644 blob 2759a0dd32ba8cd622e62454b945b0221d66cbe3",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/subjects/rag_nexus_pc_premiere_specialite.release.json"
+    },
+    {
+      "file_sha256": "fb8134a8fe88478b01c73f10136f027c1dc24158466b90ba7c752cf4d0db1462",
+      "git_entry": "100644 blob 7438ae95b9e47d4430003e9c1385fe824518370e",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/subjects/rag_nexus_pc_terminale_specialite.release.json"
+    },
+    {
+      "file_sha256": "be4645b174e9b7e9be375708e4fa6949cc1866bb31c567fc8f5f533fb121079c",
+      "git_entry": "100644 blob da81d250cf3c02093712aea2990cbeb9e86895df",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/subjects/rag_nexus_philo_terminale_tc.release.json"
+    },
+    {
+      "file_sha256": "03014f387da2840c1590c9bda4a58073a1a270c5fa5be11ea1e61e613f0007f9",
+      "git_entry": "100644 blob 16211bff4bd8fcc3d10fd785a64d3931e09a6e30",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/subjects/rag_nexus_ses_premiere_specialite.release.json"
+    },
+    {
+      "file_sha256": "6dedcd0a5060fa918cb4cb68f420cbe829c2f56bcf77239389c80a8cd1cde4df",
+      "git_entry": "100644 blob 380b0ce65abcea086ff7c5ca0fc1ec2844321077",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/subjects/rag_nexus_ses_terminale_specialite.release.json"
+    },
+    {
+      "file_sha256": "776178d0a077a137ee3b5db724d5071a01f3d22f3ae3543b035452374802a94d",
+      "git_entry": "100644 blob 5e836e46d50fca07989d25e1b9b591319d519b7d",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/subjects/rag_nexus_svt_premiere_specialite.release.json"
+    },
+    {
+      "file_sha256": "29bd5d9363e737e49b9fca9654a46c04f4a6e23224b306897c57f12d2e9f5d8d",
+      "git_entry": "100644 blob 08565f346d49740f02a53030bef945a452d21e98",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/subjects/rag_nexus_svt_terminale_specialite.release.json"
+    },
+    {
+      "file_sha256": "8ec8af5510a734c6bed4a07f00de6d188c5b37831f0adbe8f9a88cdd38e531d3",
+      "git_entry": "100644 blob 506c99afc190df6877e47238a502706fdacb43d1",
+      "path": "services/rag-pedago/rag_pedago/imports/pii_scanner.py"
+    }
+  ],
+  "pii_evidence_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/pii_evidence.json",
+  "pii_evidence_sha256": "cec9baca680439afa0dd6b4aadbb0f805514424a853a10303e6216dd8ffa7e99",
+  "profile_manifest_digest": "57d532ca0c80f0e70218e74902f1d47a4ca9f21d7e6bafa209f6f89426125b6c",
+  "protocol_version": "NEXUS-PRODUCTION-AUTHORIZATION-MATRIX-V1",
+  "release_scope_placement_path": "docs/reports/release_scope_placement_20260825.jsonl",
+  "release_scope_placement_sha256": "b1a36aef251d05f0098bfe88d7eae45b36333452f1613741e15dc6a89de75315",
+  "rights_evidence_path": "services/rag-pedago/configs/rights_evidence_registry.yml",
+  "rights_evidence_sha256": "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff",
+  "source_commit_sha": "3566cafb44138d6a7f00296dc0654257f9bf0ad6",
+  "source_tree_sha": "8c5081a52096d531f1bd027790e600eb83b05bd5",
+  "valid_from": "2026-08-25T00:00:00Z",
+  "valid_until": "2027-08-25T00:00:00Z",
+  "verified_profiles_path": "docs/reports/verified_production_profiles_20260825.json"
+}
