@@ -1,23 +1,24 @@
 {
+  "environment_query_result": {
+    "names": [],
+    "total_count": 0
+  },
+  "mutation_performed": false,
+  "observed_at": "2026-08-24T22:51:18Z",
+  "point_in_time_only": true,
+  "production_environment_exists": false,
+  "production_environment_provisioned": false,
   "protocol_version": "NEXUS-GITHUB-ENVIRONMENT-READ-ONLY-OBSERVATION-V1",
-  "observed_at": "2026-08-24T06:53:53Z",
-  "repository": "cyranoaladin/RAG",
-  "read_only": true,
   "queries": [
     "gh api repos/cyranoaladin/RAG/environments",
     "gh api repos/cyranoaladin/RAG/collaborators/abenrhouma/permission"
   ],
-  "environment_query_result": {
-    "total_count": 0,
-    "names": []
-  },
+  "read_only": true,
+  "repository": "cyranoaladin/RAG",
   "reviewer_query_result": {
     "login": "abenrhouma",
-    "user_id": 67140603,
-    "permission": "write"
+    "permission": "write",
+    "user_id": 67140603
   },
-  "production_environment_exists": false,
-  "production_environment_provisioned": false,
-  "mutation_performed": false,
   "sensitive_response_metadata_recorded": false
 }

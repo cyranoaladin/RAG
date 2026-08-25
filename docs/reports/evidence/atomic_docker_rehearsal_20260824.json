@@ -1,0 +1,33 @@
+{
+  "evidence_class": "SYNTHETIC_V1",
+  "production_v2_rehearsal": {
+    "ATOMIC_DOCKER_REHEARSAL_PASS": null,
+    "BAD_DIGEST_REFUSED": null,
+    "BAD_READINESS_REFUSED": null,
+    "FOREIGN_SERVICES_TOUCHED": null,
+    "ROLLBACK_REHEARSAL_PASS": null,
+    "readiness_protocol_required": "NEXUS-PRODUCTION-READINESS-V2",
+    "reproducible_harness_versioned": false,
+    "transcript_versioned": false
+  },
+  "protocol_version": "NEXUS-DOCKER-REHEARSAL-ASSESSMENT-V1",
+  "source_evidence_sha256": "0fe6d56453462dd76360ae45627a4d4549bd486cf039a163140bc28987b34865",
+  "synthetic_v1_observation": {
+    "ATOMIC_DOCKER_REHEARSAL_PASS": true,
+    "BAD_DIGEST_REFUSED": true,
+    "BAD_READINESS_REFUSED": true,
+    "FOREIGN_SERVICES_TOUCHED": 0,
+    "ROLLBACK_REHEARSAL_PASS": true,
+    "foreign_changes_after_rollback": [],
+    "foreign_changes_after_up": [],
+    "main_sha": "8aa65fb3fb5f077bcd6dfa427c8902bd6d5c28b0",
+    "main_tree_sha": "184613ba98608fd358f41859061e0a99156e469d",
+    "pass": true,
+    "production_project_name_used": false,
+    "project_containers_remaining": [],
+    "project_name": "nexus-go-live-rehearsal-2455258",
+    "protocol_version": "NEXUS-ATOMIC-DOCKER-REHEARSAL-EVIDENCE-V1",
+    "remove_orphans_used": false
+  },
+  "verification_status": "UNVERIFIED"
+}
