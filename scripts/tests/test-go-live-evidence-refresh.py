@@ -28,6 +28,19 @@ RUNBOOK = REPO_ROOT / "docs/runbooks/go_live.md"
 README_PROD = REPO_ROOT / "services/rag-engine/README-PROD.md"
 ROLLBACK_RUNBOOK = REPO_ROOT / "docs/runbooks/rollback.md"
 CI_LOCAL = REPO_ROOT / "scripts/ci-local.sh"
+DOCKER_V2_EVIDENCE = (
+    REPO_ROOT / "docs/reports/evidence/atomic_docker_v2_rehearsal_20260825.json"
+)
+DOCKER_V2_TRANSCRIPT = (
+    REPO_ROOT
+    / "docs/reports/evidence/atomic_docker_v2_rehearsal_20260825.transcript.txt"
+)
+DOCKER_V2_HASHES = (
+    REPO_ROOT / "docs/reports/evidence/atomic_docker_v2_rehearsal_20260825.sha256"
+)
+DOCKER_V2_HARNESS = (
+    REPO_ROOT / "services/rag-engine/scripts/atomic_docker_v2_rehearsal.py"
+)
 
 
 def _canonical_json_bytes(document: object) -> bytes:
@@ -113,6 +126,146 @@ class GoLiveEvidenceRefreshTests(unittest.TestCase):
         self.assertIn("futures images de production", protocol)
         self.assertNotIn("/home/", protocol)
         self.assertNotIn("TEST_SEED", protocol)
+
+    def test_atomic_docker_v2_rehearsal_is_canonical_complete_and_bound(self) -> None:
+        document, _raw = _load_canonical_json(DOCKER_V2_EVIDENCE)
+        self.assertEqual(
+            document["protocol_version"],
+            "NEXUS-ATOMIC-DOCKER-V2-REHEARSAL-EVIDENCE-V1",
+        )
+        self.assertEqual(document["evidence_class"], "SYNTHETIC_V2_REPRODUCIBLE")
+        self.assertEqual(document["verification_status"], "VERIFIED")
+        self.assertEqual(document["readiness_protocol"], "NEXUS-PRODUCTION-READINESS-V2")
+        self.assertEqual(document["authorization_set_protocol"], "NEXUS-AUTHORIZATION-SET-V1")
+        self.assertRegex(document["git_commit"], r"^[0-9a-f]{40}$")
+        self.assertRegex(document["git_tree"], r"^[0-9a-f]{40}$")
+        self.assertRegex(document["bundle_digest"], r"^[0-9a-f]{64}$")
+        self.assertRegex(document["image"]["reference"], r"@sha256:[0-9a-f]{64}$")
+        self.assertRegex(document["image"]["local_id"], r"^sha256:[0-9a-f]{64}$")
+        self.assertTrue(document["docker"]["engine_version"])
+        self.assertTrue(document["docker"]["compose_version"])
+
+        verdicts = document["verdicts"]
+        self.assertEqual(
+            verdicts,
+            {
+                "ATOMIC_DOCKER_V2_REHEARSAL_PASS": True,
+                "BAD_AUTHORIZATION_SET_REFUSED": True,
+                "BAD_DIGEST_REFUSED": True,
+                "BAD_READINESS_REFUSED": True,
+                "FOREIGN_COLLISION_REFUSED": True,
+                "FOREIGN_SERVICES_TOUCHED": 0,
+                "ISOLATION_PREFLIGHT_PASS": True,
+                "PROJECT_CONTAINERS_REMAINING": 0,
+                "PRODUCTION_PORTS_PUBLISHED": 0,
+                "PRODUCTION_PROJECT_NAME_USED": False,
+                "REMOVE_ORPHANS_USED": False,
+                "ROLLBACK_REHEARSAL_PASS": True,
+            },
+        )
+        for name in (
+            "bad_digest",
+            "bad_readiness",
+            "bad_authorization_set",
+            "foreign_collision",
+        ):
+            with self.subTest(name=name):
+                scenario = document["scenarios"][name]
+                self.assertIs(scenario["passed"], True)
+                self.assertEqual(scenario["exit_code"], 1)
+                self.assertEqual(scenario["mutation_boundary_calls"], 0)
+                self.assertEqual(scenario["docker_events"], [])
+                self.assertEqual(
+                    scenario["docker_inventory_before"],
+                    scenario["docker_inventory_after"],
+                )
+
+        self.assertEqual(document["generated_project_residue"], {
+            "containers": [],
+            "networks": [],
+            "volumes": [],
+        })
+        self.assertRegex(
+            document["bundle_attestation"]["bundle_manifest_sha256"],
+            r"^[0-9a-f]{64}$",
+        )
+        self.assertEqual(
+            document["bundle_attestation"]["bundle_digest"],
+            document["bundle_digest"],
+        )
+        member_paths = {
+            member["path"]
+            for member in document["bundle_attestation"]["member_sha256"]
+        }
+        self.assertIn("authorization-set.json", member_paths)
+        self.assertIn(
+            "readiness-manifest.json",
+            member_paths,
+        )
+        self.assertEqual(
+            set(document["health_observation"]),
+            {
+                "fixture-upstream",
+                "ingestor",
+                "multilevel-worker-a-production",
+                "multilevel-worker-b-production",
+            },
+        )
+        self.assertTrue(
+            all(
+                fact["health"] == "healthy"
+                for fact in document["health_observation"].values()
+            )
+        )
+        self.assertEqual(document["rollback"]["exit_code"], 0)
+        self.assertEqual(document["rollback"]["project_inventory_after"], {
+            "containers": [],
+            "networks": [],
+            "volumes": [],
+        })
+        self.assertEqual(
+            document["harness"]["sha256"],
+            hashlib.sha256(DOCKER_V2_HARNESS.read_bytes()).hexdigest(),
+        )
+        self.assertEqual(
+            document["transcript_sha256"],
+            hashlib.sha256(DOCKER_V2_TRANSCRIPT.read_bytes()).hexdigest(),
+        )
+
+    def test_atomic_docker_v2_transcript_and_hash_inventory_are_sanitized(self) -> None:
+        transcript = DOCKER_V2_TRANSCRIPT.read_text(encoding="utf-8")
+        self.assertNotIn("/home/", transcript)
+        self.assertNotIn("/tmp/", transcript)
+        self.assertNotIn("private_key", transcript.lower())
+        self.assertNotIn("seed=", transcript.lower())
+        self.assertNotIn("--remove-orphans", transcript)
+        hashes = DOCKER_V2_HASHES.read_text(encoding="utf-8").splitlines()
+        parsed = {}
+        for line in hashes:
+            digest, relative = line.split("  ", 1)
+            self.assertRegex(digest, r"^[0-9a-f]{64}$")
+            parsed[relative] = digest
+        for relative in (
+            "services/rag-engine/scripts/atomic_docker_v2_rehearsal.py",
+            "services/rag-engine/scripts/atomic_docker_v2_rehearsal_fixture.py",
+            "docs/reports/evidence/atomic_docker_v2_rehearsal_20260825.json",
+            "docs/reports/evidence/atomic_docker_v2_rehearsal_20260825.transcript.txt",
+        ):
+            with self.subTest(relative=relative):
+                self.assertEqual(
+                    parsed[relative],
+                    hashlib.sha256((REPO_ROOT / relative).read_bytes()).hexdigest(),
+                )
+
+    def test_atomic_docker_v1_historical_evidence_is_unchanged(self) -> None:
+        self.assertEqual(
+            hashlib.sha256(DOCKER_EVIDENCE.read_bytes()).hexdigest(),
+            "58f55e7e499dfb3e9648387932af9a8edda35e8a51170afc3fd47ee52d70525c",
+        )
+        self.assertEqual(
+            hashlib.sha256(DOCKER_PROTOCOL.read_bytes()).hexdigest(),
+            "63df9f357c6b20a0ced8b15e19099a40a61004110fe27aed09c67278efc6d563",
+        )
 
     def test_production_db_summary_stays_unverified_without_transcript(self) -> None:
         document, raw = _load_canonical_json(DB_EVIDENCE)
