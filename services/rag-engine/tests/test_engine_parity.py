@@ -449,6 +449,31 @@ def test_parity_rejects_rights_drift_for_the_same_passage(tmp_path: Path) -> Non
     assert ParityReasonCode.RIGHTS_MISMATCH in report.reason_codes
 
 
+def test_parity_rejects_global_rights_drift_when_passages_move_queries(
+    tmp_path: Path,
+) -> None:
+    capture = _capture("B")
+    first = capture["queries"][0]["ordered_results"][0]
+    second = capture["queries"][1]["ordered_results"][0]
+    first_unit = first["unit"]
+    second_unit = second["unit"]
+    first["unit"], second["unit"] = second_unit, first_unit
+    for result in (first, second):
+        result["citation"]["source_sha256"] = result["unit"]["source_sha256"]
+        result["citation"]["canonical_span_id"] = result["unit"][
+            "canonical_span_id"
+        ]
+
+    report = compare_engine_parity(
+        WITNESS_PATH,
+        CAPTURE_PATHS[0],
+        _write_json(tmp_path / "global-rights-drift.json", capture),
+    )
+
+    assert report.verdict is ParityVerdict.FAIL_CLOSED
+    assert ParityReasonCode.RIGHTS_MISMATCH in report.reason_codes
+
+
 def test_parity_rejects_rights_outside_the_witness_access_context(
     tmp_path: Path,
 ) -> None:

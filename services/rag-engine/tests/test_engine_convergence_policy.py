@@ -411,3 +411,21 @@ def test_policy_loader_rejects_oversized_yaml(
             policy_path,
             collection_catalogue_path=catalogue_path,
         )
+
+
+@pytest.mark.parametrize("input_name", ["policy", "catalogue"])
+def test_policy_loader_sanitizes_deeply_nested_yaml(
+    tmp_path: Path, input_name: str
+) -> None:
+    deeply_nested = tmp_path / f"deep-{input_name}.yml"
+    deeply_nested.write_text("[" * 500 + "0" + "]" * 500, encoding="utf-8")
+    policy_path = deeply_nested if input_name == "policy" else POLICY_PATH
+    catalogue_path = (
+        deeply_nested if input_name == "catalogue" else COLLECTION_CATALOGUE_PATH
+    )
+
+    with pytest.raises(EngineConvergencePolicyError, match="YAML document is invalid"):
+        load_engine_convergence_policy(
+            policy_path,
+            collection_catalogue_path=catalogue_path,
+        )

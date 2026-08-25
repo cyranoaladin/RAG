@@ -510,15 +510,22 @@ def _safety_reasons(
                     and result.unit == witness.out_unit
                 ):
                     reasons.add(ParityReasonCode.OUT_OF_COLLECTION_RESULT)
-    capture_a, capture_b = captures
-    for query_a, query_b in zip(capture_a, capture_b, strict=True):
-        rights_a = {result.unit: result.rights for result in query_a.results}
-        rights_b = {result.unit: result.rights for result in query_b.results}
-        if any(
-            rights_a[unit] != rights_b[unit]
-            for unit in rights_a.keys() & rights_b.keys()
-        ):
+    rights_by_capture: list[dict[PassageUnit, set[str]]] = []
+    for capture in captures:
+        rights_by_unit: dict[PassageUnit, set[str]] = {}
+        for query in capture:
+            for result in query.results:
+                rights_by_unit.setdefault(result.unit, set()).add(result.rights)
+        rights_by_capture.append(rights_by_unit)
+        if any(len(values) != 1 for values in rights_by_unit.values()):
             reasons.add(ParityReasonCode.RIGHTS_MISMATCH)
+
+    rights_a, rights_b = rights_by_capture
+    if any(
+        rights_a[unit] != rights_b[unit]
+        for unit in rights_a.keys() & rights_b.keys()
+    ):
+        reasons.add(ParityReasonCode.RIGHTS_MISMATCH)
     return tuple(sorted(reasons, key=lambda item: item.value))
 
 

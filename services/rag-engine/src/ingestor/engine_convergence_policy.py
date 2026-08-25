@@ -109,7 +109,7 @@ def _strict_yaml_load(content: str) -> Any:
         raise EngineConvergencePolicyError(
             "YAML document contains duplicate keys"
         ) from exc
-    except yaml.YAMLError as exc:
+    except (yaml.YAMLError, RecursionError, ValueError) as exc:
         raise EngineConvergencePolicyError("YAML document is invalid") from exc
 
 
