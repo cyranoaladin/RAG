@@ -141,7 +141,8 @@ python scripts/compare_engine_parity.py \
 Le code de sortie `3` signifie `FAIL_CLOSED`. Le code `0` avec
 `METRICS_ONLY_THRESHOLDS_UNAPPROVED` n'est pas un PASS : les seuils de rappel,
 rang, couverture et divergence doivent être approuvés dans un artefact
-opérateur versionné. Les invariants scope, citation, droits, review et absence
+opérateur versionné. Les invariants scope, citation, droits compatibles avec le
+contexte d'accès, égalité des droits A/B sur un même passage, review et absence
 de fuite restent à tolérance zéro.
 
 Avant une parité réelle, un lot futur doit définir et faire revoir un protocole

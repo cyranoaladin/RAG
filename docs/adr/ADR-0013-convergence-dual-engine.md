@@ -131,16 +131,17 @@ L'unité comparable entre A et B est le triplet exact :
 
 `source_sha256 + canonical_span_id + content_hash`.
 
-Le témoin scelle une allowlist de requêtes, `k`, scopes attendus et passages
-attendus. Les captures A/B portent des résultats ordonnés, citations, droits
-canoniques et statut de revue. Le comparateur local :
+Le témoin scelle une allowlist de requêtes, `k`, scopes attendus, contexte
+d'accès canonique et passages attendus. Les captures A/B portent des résultats
+ordonnés, citations, droits canoniques et statut de revue. Le comparateur local :
 
 - refuse les fichiers non réguliers, les entrées surdimensionnées, les
   schémas ouverts et les identifiants sensibles ;
 - calcule rappel, rang réciproque du passage primaire, couverture et
   divergence positionnelle ;
 - rend `FAIL_CLOSED` pour toute fuite de collection/niveau/scope, citation
-  incomplète, droit inconnu, résultat non revu ou témoin hors collection ;
+  incomplète, droit inconnu ou incompatible avec le contexte, divergence de
+  droits A/B sur le même passage, résultat non revu ou témoin hors collection ;
 - rend seulement `METRICS_ONLY_THRESHOLDS_UNAPPROVED` en l'absence de seuils
   opérateur approuvés.
 

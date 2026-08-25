@@ -18,7 +18,7 @@ ou autorisation de cutover n'est déclarée.
 | Baseline `origin/main` | `ca0a21f59bd25c7e472cf2d6accc5b8e79ed74bd` |
 | Branche | `rag-engine/motor-convergence-20260825` |
 | Head implémentation avant rapport | `091b29c19e429c793456e2653c78a7c8c7812a41` |
-| Head exact vérifié avant clôture documentaire | `7dd1ca7293d4557506d366de1c41edd2eeb35e0d` |
+| Head code après corrections de revue | `096f221d8f61dce310503a11803db92d14336819` |
 | Contrat canonique | `packages/contracts`, `nexus-contracts` 0.14.0 |
 | Moteur canonique | B — `rag-pedago` + `rag-engine` + pgvector + e5-large 1024D |
 | Moteur de continuité | A — Streamlit/FastAPI legacy + ChromaDB + Ollama + SQLite |
@@ -88,10 +88,12 @@ retrievability, ni autorisation ; `migration_complete=false`.
 Le comparateur consomme trois fichiers locaux réguliers et bornés, marqués
 exclusivement `SYNTHETIC_TEST_ONLY` et `NOT_REAL_PARITY_EVIDENCE`. Il lie les
 captures au SHA-256 du témoin, ferme l'allowlist et compare les séquences par
-unités `source_sha256 + canonical_span_id + content_hash`. Les invariants de
-scope, citation, droits, review et témoin hors collection sont indépendants des
-seuils de métriques. Un protocole opérateur distinct reste à construire avant
-toute capture réelle.
+unités `source_sha256 + canonical_span_id + content_hash`. Le contexte d'accès
+`internal` est explicite et validé par le contrat partagé. Les invariants de
+scope, citation, compatibilité des droits avec ce contexte, égalité des droits
+A/B sur un même passage, review et témoin hors collection sont indépendants
+des seuils de métriques. Un protocole opérateur distinct reste à construire
+avant toute capture réelle.
 
 Le CLI publie un rapport nouveau par lien atomique, ne remplace jamais une
 cible, refuse les FIFOs et renvoie :
@@ -125,9 +127,9 @@ positives ; le validateur du Lot 2 ne peut pas servir à ce cutover.
 | --- | --- |
 | Politique de convergence | `63980d9cd9944feef0ca3a7d7b1cecdcc9bfbffe2a2467793e9a717693e2cef4` |
 | Capture legacy synthétique | `12f0a1e07c35cf44018a6a0142ca31d61a392e7be9a1ea3b19b750a480b35e1a` |
-| Témoin de parité synthétique | `bd212e0bb63d51c8e889b21332d4e5488837ee940cb20fed1893a8d8addd72f1` |
-| Capture A synthétique | `69c6af83fffaef381c0786fd7c22f0ddac9d23d9e7972d547e449f080d7e8cec` |
-| Capture B synthétique | `2fe6e2ce7315986b4b5ba44625dc4d809ea62bef3151a957cc2c3ec78415a8c4` |
+| Témoin de parité synthétique | `23994eb04af4313dbc4a6a5448512860f82a2ce053525527177c1d90527707ba` |
+| Capture A synthétique | `7c73bea64a2840797fbba61a062be354ce6533e8f2722a9871bb2b29f9c408fc` |
+| Capture B synthétique | `c20409dc4193b8f880c7d7ddf04b24e712f05d9da2cf62c0fd96c1a4a1e46aa9` |
 | Cutover `NO_GO` synthétique | `30fa420835cb56fc20cf4e1fe4d9cb8f113a508435970eff99c7e2580e960bfa` |
 
 Ces digests authentifient seulement des fixtures de test versionnées. Ils ne
@@ -147,6 +149,8 @@ sont ni des digests de corpus réel ni des preuves de production.
 | `091b29c19e429c793456e2653c78a7c8c7812a41` | liaisons de preuves du cutover |
 | `cafca11` | ADR, runbook et rapport de convergence |
 | `7dd1ca7` | normalisation du fichier de test de politique |
+| `7d23d22` | preuves locales du Lot 2 |
+| `096f221` | invariants de droits et lectures locales bornées |
 
 ## TDD et revues adversariales
 
@@ -163,14 +167,18 @@ Les cycles rouges ont notamment reproduit puis fermé :
   topologie inversée et smoke sans canary.
 
 Deux agents indépendants ont relu contradictoirement chaque frontière majeure.
-Les derniers verdicts sur la parité et le cutover sont `APPROVED`. Les revues
-restent des contrôles de code ; elles ne sont pas une trusted-human-review
-GitHub et ne fournissent aucune identité humaine.
+La revue complète a détecté puis fait reproduire deux P1 : divergence de droits
+A/B non refusée et lecteurs YAML/JSONL susceptibles de suivre un symlink ou de
+bloquer sur une FIFO. Les cycles rouges correspondants sont fermés par un
+contexte d'accès explicite, l'égalité des droits par passage et des ouvertures
+`O_NONBLOCK`/`O_NOFOLLOW` suivies de `fstat`, contrôle de fichier régulier et
+bornes de taille. Les revues restent des contrôles de code ; elles ne sont pas
+une trusted-human-review GitHub et ne fournissent aucune identité humaine.
 
 ## Vérifications
 
-Les vérifications fraîches suivantes ont été exécutées sur le head de code
-exact `7dd1ca7293d4557506d366de1c41edd2eeb35e0d` :
+Les vérifications exhaustives suivantes ont été exécutées sur le head de code
+`7dd1ca7293d4557506d366de1c41edd2eeb35e0d`, avant les corrections de revue :
 
 - suite ciblée Lot 2 : `160 passed` ;
 - frontières existantes de non-régression : `174 passed` ;
@@ -196,6 +204,13 @@ installation uv relocalisée dont la bibliothèque standard pointe vers
 exhaustive ci-dessus a donc été relancée sans changement dépôt avec un shim
 temporaire `python3.11` vers Python 3.12.3, version compatible avec la règle
 Python 3.11+, puis le shim a été supprimé automatiquement.
+
+Sur le head corrigé `096f221d8f61dce310503a11803db92d14336819` :
+
+- suite ciblée Lot 2 : `170 passed` ;
+- cinq suites directement affectées : `101 passed` ;
+- Ruff sur les neuf fichiers modifiés : PASS ;
+- mypy ciblé sur les trois modules, imports externes ignorés : PASS.
 
 Après le commit documentaire final, les garde-fous et la CI seront rejoués sur
 le nouveau head ; leurs résultats ne sont pas pré-déclarés dans ce rapport.
@@ -226,4 +241,4 @@ En conséquence :
 
 | Lot | Branche | PR | SHA | CI | Revue | Déployé | Preuve réelle | Rollback | Verdict |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2 | `rag-engine/motor-convergence-20260825` | à ouvrir | code vérifié `7dd1ca7293d4557506d366de1c41edd2eeb35e0d` ; head documentaire à figer | locale `17/17` | revues techniques approuvées ; trusted-human-review absente | non | non | contrat local seulement | `NO_GO` |
+| 2 | `rag-engine/motor-convergence-20260825` | à ouvrir | code corrigé `096f221d8f61dce310503a11803db92d14336819` ; head documentaire à figer | ciblée `170/170` ; exhaustive antérieure `17/17` | corrections P1 vérifiées ; relecture exact-head et trusted-human-review à obtenir | non | non | contrat local seulement | `NO_GO` |
