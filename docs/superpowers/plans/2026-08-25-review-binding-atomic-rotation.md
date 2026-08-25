@@ -4,7 +4,7 @@
 
 **Goal:** Remplacer atomiquement l'ancre review-binding perdue avant premier usage par une nouvelle clé opérateur sauvegardée, restaurée et vérifiée, sans exposer de matière privée.
 
-**Architecture:** Le privé reste exclusivement hors dépôt dans le répertoire opérateur `0700`; le dépôt ne reçoit que l'entrée publique canonique, l'ADR, les tests et le rapport. Le contrat existant reste inchangé : les tests relient l'ancre réelle au producteur et au vérificateur en mode production, tandis qu'un round-trip jetable exerce la clé hors dépôt.
+**Architecture:** Le privé reste exclusivement hors dépôt dans le répertoire opérateur `0700`; le dépôt ne reçoit que l'entrée publique canonique, l'ADR, les tests et le rapport. Le contrat existant reste inchangé : la vraie clé est exercée par nonce et restauration, tandis que le round-trip producteur utilise exclusivement une graine et une ancre `environment=test`. Le round-trip synthétique production-format exécuté avant cette correction est une déviation historique non reproductible, jamais persistée ni liée à une autorisation réelle.
 
 **Tech Stack:** Python 3.11+, `cryptography`, Pydantic/nexus-contracts, pytest, GnuPG 2.4, Git/GitHub CLI, gitleaks.
 

@@ -95,10 +95,10 @@ Le lot doit produire les preuves locales suivantes avant PR :
   nouvel identifiant et refuse l'ancien ;
 - nonce aléatoire signé par la clé primaire, puis vérifié avec la clé publique
   chargée depuis l'ancre canonique ;
-- round-trip factice et jetable : producteur, sérialisation canonique,
-  `parse_trust_anchor` du fichier gouverné,
-  `verify_review_binding(..., environment="production")`, puis contrôles de
-  liaison aux octets de l'autorisation factice ;
+- round-trip factice et jetable du producteur avec une graine de fixture, une
+  ancre `environment="test"`, sérialisation canonique et contrôles de liaison
+  aux octets de l'autorisation factice ; la vraie clé ne signe que le nonce et
+  la preuve de restauration ;
 - suppression du reçu et de l'autorisation temporaires après le test, sans
   commit ;
 - sauvegarde GPG créée, checksum vérifié, restauration testée et clé publique
@@ -109,8 +109,12 @@ Le lot doit produire les preuves locales suivantes avant PR :
 - preuve que le privé est absent des fichiers suivis, du diff, des artefacts et
   des arguments de processus.
 
-Aucun reçu de production ne sera signé. La fusion restera soumise à une
-trusted-human-review conforme sur le HEAD exact de la PR.
+Déviation historique non reproductible : durant l'exécution initiale, un reçu
+synthétique production-format a été créé en mémoire avec la vraie clé avant la
+correction de cette conception. Il n'a jamais été persisté, publié ou lié à une
+review/autorisation réelle. Aucun reçu gouverné utilisable en production n'a
+été signé. La fusion restera soumise à une trusted-human-review conforme sur le
+HEAD exact de la PR.
 
 ## Livrables Git et gates
 
