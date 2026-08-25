@@ -2,7 +2,7 @@
   "artifact_version": "2",
   "scope_id": "prod_hlp_premiere_specialite_v1",
   "status": "eligible_for_promotion",
-  "source_sha256": "6462fde6f5fc2aca36ca6846d4d9d6eb6505f08552e4b064d49f389b568f3739",
+  "source_sha256": "5e5afe7badcb497af1044359d9961a9c41f58984630fd38bd41fefbdbe313c6c",
   "target_identity": {
     "tenant": "libre_premiere",
     "niveau": "premiere",

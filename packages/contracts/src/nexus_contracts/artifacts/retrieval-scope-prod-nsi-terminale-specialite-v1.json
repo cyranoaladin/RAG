@@ -2,7 +2,7 @@
   "artifact_version": "2",
   "scope_id": "prod_nsi_terminale_specialite_v1",
   "status": "eligible_for_promotion",
-  "source_sha256": "8693b36b36ae142034cff1376cd55d01b3e731b6d127edfdf547746bbfc08444",
+  "source_sha256": "27710247f2cf796b279bfa1ae05708af13519b517d28b72880527c90bd279595",
   "target_identity": {
     "tenant": "libre_terminale",
     "niveau": "terminale",

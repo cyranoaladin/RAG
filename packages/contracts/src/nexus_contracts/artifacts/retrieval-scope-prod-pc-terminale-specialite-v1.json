@@ -2,7 +2,7 @@
   "artifact_version": "2",
   "scope_id": "prod_pc_terminale_specialite_v1",
   "status": "eligible_for_promotion",
-  "source_sha256": "9244cf7e316968583e57b4af4be4eb0e162e62c0b4e84e16dfc0a1abc2fc8f2e",
+  "source_sha256": "fb8134a8fe88478b01c73f10136f027c1dc24158466b90ba7c752cf4d0db1462",
   "target_identity": {
     "tenant": "libre_terminale",
     "niveau": "terminale",

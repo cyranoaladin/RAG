@@ -2,7 +2,7 @@
   "artifact_version": "2",
   "scope_id": "prod_nsi_premiere_specialite_v1",
   "status": "eligible_for_promotion",
-  "source_sha256": "6e4ec07e59371e60c0562e284f8e42be1fc059e8aeadba7280aa44a29284fc71",
+  "source_sha256": "af49291a8b5d5ffe50157f1b7d595b5c7466c36893df99c7c8293e57bde0fee7",
   "target_identity": {
     "tenant": "libre_premiere",
     "niveau": "premiere",

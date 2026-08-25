@@ -2,7 +2,7 @@
   "artifact_version": "2",
   "scope_id": "prod_philo_terminale_tc_v1",
   "status": "eligible_for_promotion",
-  "source_sha256": "55598466178cf6929e18f909fc835c4a54d26207554af7c84f9acecb9fb87b1b",
+  "source_sha256": "be4645b174e9b7e9be375708e4fa6949cc1866bb31c567fc8f5f533fb121079c",
   "target_identity": {
     "tenant": "libre_terminale",
     "niveau": "terminale",

@@ -558,7 +558,13 @@ def validate_release_startup_configuration(
     except ReleaseReadinessError as exc:
         raise RuntimeError("release manifest unavailable or invalid") from exc
     configured_collections = set(registry.collections)
-    if not configured_collections or not configured_collections <= set(required):
+    catalogue = cfg.get("collections")
+    if (
+        not configured_collections
+        or not configured_collections & set(required)
+        or not isinstance(catalogue, Mapping)
+        or not configured_collections <= set(catalogue)
+    ):
         raise RuntimeError("release manifest collection set mismatch")
     subject_sha_by_collection = {
         collection: sha256

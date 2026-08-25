@@ -2,7 +2,7 @@
   "artifact_version": "2",
   "scope_id": "prod_maths_seconde_tc_v1",
   "status": "eligible_for_promotion",
-  "source_sha256": "a5f1810dac14d08963f6c5b848a147ffa9505e44fd80723c477eac30d6a73aaf",
+  "source_sha256": "715b78d9e1eb73ddbe4b69c363c0b1922697801cce0277673fe14d0d8c97c909",
   "target_identity": {
     "tenant": "libre_seconde",
     "niveau": "seconde",

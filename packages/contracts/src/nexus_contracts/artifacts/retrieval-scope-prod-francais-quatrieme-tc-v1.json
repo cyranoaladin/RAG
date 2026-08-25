@@ -2,7 +2,7 @@
   "artifact_version": "2",
   "scope_id": "prod_francais_quatrieme_tc_v1",
   "status": "eligible_for_promotion",
-  "source_sha256": "28222d7b5a4e57717a26247a509906f4937155948cfc14b6ec0b8a397fb209d8",
+  "source_sha256": "836b02555dba0f4f8d9c16dc64c6f5964e86ba92d4b967eda3e2397b2fb58775",
   "target_identity": {
     "tenant": "libre_quatrieme",
     "niveau": "quatrieme",

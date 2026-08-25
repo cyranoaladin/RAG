@@ -20,58 +20,58 @@ class ScopeFacts(NamedTuple):
 
 PRODUCTION_PROFILE_SCOPES = {
     "prod_dgemc_terminale_option_v1": ScopeFacts(
-        "rag_nexus_dgemc_terminale_option", "d336d22c53b01ee2cc73a80924c5282ebb59ef10edca335a6e958d77201b1dcf", "libre_terminale", "terminale", "generale", "dgemc", "option", "BOEN_special_8_2019-07-25_MENE1921266A_MENE2208320A"
+        "rag_nexus_dgemc_terminale_option", "02408bcf498ec56225852525758396152f2ed1c919c24528fd5f0fb59f54627f", "libre_terminale", "terminale", "generale", "dgemc", "option", "BOEN_special_8_2019-07-25_MENE1921266A_MENE2208320A"
     ),
     "prod_francais_premiere_tc_v1": ScopeFacts(
-        "rag_nexus_francais_premiere_tc", "fce743e623671b4443da4aac919037a9017039c40fc6a1cf1d50c9384305c28b", "libre_premiere", "premiere", "generale", "francais", "tronc_commun", "BOEN_special_1_2019-01-22"
+        "rag_nexus_francais_premiere_tc", "12d592364da6dfaf7934222195f908215e48c3f8a77dcb070990cd09055c12ad", "libre_premiere", "premiere", "generale", "francais", "tronc_commun", "BOEN_special_1_2019-01-22"
     ),
     "prod_francais_quatrieme_tc_v1": ScopeFacts(
-        "rag_nexus_francais_quatrieme_tc", "28222d7b5a4e57717a26247a509906f4937155948cfc14b6ec0b8a397fb209d8", "libre_quatrieme", "quatrieme", "college", "francais", "tronc_commun", "BOEN_special_11_2018-07-26_aj_2020"
+        "rag_nexus_francais_quatrieme_tc", "836b02555dba0f4f8d9c16dc64c6f5964e86ba92d4b967eda3e2397b2fb58775", "libre_quatrieme", "quatrieme", "college", "francais", "tronc_commun", "BOEN_special_11_2018-07-26_aj_2020"
     ),
     "prod_francais_seconde_tc_v1": ScopeFacts(
-        "rag_nexus_francais_seconde_tc", "bd5cf80b953266548e41b0733315883316b11a243db99250b956e4b4a2ee7da9", "libre_seconde", "seconde", "generale", "francais", "tronc_commun", "BOEN_special_1_2019-01-22"
+        "rag_nexus_francais_seconde_tc", "975ff077553830fb2e4c0da24a6baa7f59f81e9fc6029102329feb662e7ea88d", "libre_seconde", "seconde", "generale", "francais", "tronc_commun", "BOEN_special_1_2019-01-22"
     ),
     "prod_hlp_premiere_specialite_v1": ScopeFacts(
-        "rag_nexus_hlp_premiere_specialite", "6462fde6f5fc2aca36ca6846d4d9d6eb6505f08552e4b064d49f389b568f3739", "libre_premiere", "premiere", "generale", "hlp", "specialite", "BOEN_special_1_2019-01-22"
+        "rag_nexus_hlp_premiere_specialite", "5e5afe7badcb497af1044359d9961a9c41f58984630fd38bd41fefbdbe313c6c", "libre_premiere", "premiere", "generale", "hlp", "specialite", "BOEN_special_1_2019-01-22"
     ),
     "prod_maths_premiere_gen_specialite_v1": ScopeFacts(
-        "rag_nexus_maths_premiere_gen_specialite", "2b1aa2b47e5c5f9b010bdd9a7b6ba8b4c21cdc1afd00e3a9bcfd9469de96316b", "libre_premiere", "premiere", "generale", "maths", "specialite", "BOEN_14_2026-04-02_MENE2602917A"
+        "rag_nexus_maths_premiere_gen_specialite", "309ca9d5f116b8e0217b9d12549bd945cc1a1868b93fb54bcf7574676cd668d4", "libre_premiere", "premiere", "generale", "maths", "specialite", "BOEN_14_2026-04-02_MENE2602917A"
     ),
     "prod_maths_quatrieme_tc_v1": ScopeFacts(
-        "rag_nexus_maths_quatrieme_tc", "0a4974a3bee7e2dbf05412d47086da68ed6a9bf182c9bb14aa972325184c6772", "libre_quatrieme", "quatrieme", "college", "maths", "tronc_commun", "BOEN_special_11_2018-07-26_aj_2020"
+        "rag_nexus_maths_quatrieme_tc", "37975e4faf5aa976ff51493b18b56e3ed8d2787af3f1e15dcad0bcfc448b5da9", "libre_quatrieme", "quatrieme", "college", "maths", "tronc_commun", "BOEN_special_11_2018-07-26_aj_2020"
     ),
     "prod_maths_seconde_tc_v1": ScopeFacts(
-        "rag_nexus_maths_seconde_tc", "a5f1810dac14d08963f6c5b848a147ffa9505e44fd80723c477eac30d6a73aaf", "libre_seconde", "seconde", "generale", "maths", "tronc_commun", "BOEN_14_2026-04-02_MENE2602914A"
+        "rag_nexus_maths_seconde_tc", "715b78d9e1eb73ddbe4b69c363c0b1922697801cce0277673fe14d0d8c97c909", "libre_seconde", "seconde", "generale", "maths", "tronc_commun", "BOEN_14_2026-04-02_MENE2602914A"
     ),
     "prod_maths_terminale_gen_specialite_v1": ScopeFacts(
-        "rag_nexus_maths_terminale_gen_specialite", "c885ca363bad5901d87c0f29a6230129e8ccf958bb4b63980220c5749cc42382", "libre_terminale", "terminale", "generale", "maths", "specialite", "BOEN_special_8_2019-07-25"
+        "rag_nexus_maths_terminale_gen_specialite", "16e30edd3cf25e80447924a3a61d5a3323dccdf776c1e49a188b8d51de9be362", "libre_terminale", "terminale", "generale", "maths", "specialite", "BOEN_special_8_2019-07-25"
     ),
     "prod_nsi_premiere_specialite_v1": ScopeFacts(
-        "rag_nexus_nsi_premiere_specialite", "6e4ec07e59371e60c0562e284f8e42be1fc059e8aeadba7280aa44a29284fc71", "libre_premiere", "premiere", "generale", "nsi", "specialite", "BOEN_special_1_2019-01-22"
+        "rag_nexus_nsi_premiere_specialite", "af49291a8b5d5ffe50157f1b7d595b5c7466c36893df99c7c8293e57bde0fee7", "libre_premiere", "premiere", "generale", "nsi", "specialite", "BOEN_special_1_2019-01-22"
     ),
     "prod_nsi_terminale_specialite_v1": ScopeFacts(
-        "rag_nexus_nsi_terminale_specialite", "8693b36b36ae142034cff1376cd55d01b3e731b6d127edfdf547746bbfc08444", "libre_terminale", "terminale", "generale", "nsi", "specialite", "BOEN_special_8_2019-07-25"
+        "rag_nexus_nsi_terminale_specialite", "27710247f2cf796b279bfa1ae05708af13519b517d28b72880527c90bd279595", "libre_terminale", "terminale", "generale", "nsi", "specialite", "BOEN_special_8_2019-07-25"
     ),
     "prod_pc_premiere_specialite_v1": ScopeFacts(
-        "rag_nexus_pc_premiere_specialite", "e6940fc6f70b7aac6933b05987e053a9b2026a7ecea1d9974b60f873e501834f", "libre_premiere", "premiere", "generale", "physique_chimie", "specialite", "BOEN_special_1_2019-01-22"
+        "rag_nexus_pc_premiere_specialite", "9fb1dd7abe303dc9a9e930ce301edb94b546dc6f28b52257f788ff78c194a7ee", "libre_premiere", "premiere", "generale", "physique_chimie", "specialite", "BOEN_special_1_2019-01-22"
     ),
     "prod_pc_terminale_specialite_v1": ScopeFacts(
-        "rag_nexus_pc_terminale_specialite", "9244cf7e316968583e57b4af4be4eb0e162e62c0b4e84e16dfc0a1abc2fc8f2e", "libre_terminale", "terminale", "generale", "physique_chimie", "specialite", "BOEN_special_8_2019-07-25"
+        "rag_nexus_pc_terminale_specialite", "fb8134a8fe88478b01c73f10136f027c1dc24158466b90ba7c752cf4d0db1462", "libre_terminale", "terminale", "generale", "physique_chimie", "specialite", "BOEN_special_8_2019-07-25"
     ),
     "prod_philo_terminale_tc_v1": ScopeFacts(
-        "rag_nexus_philo_terminale_tc", "55598466178cf6929e18f909fc835c4a54d26207554af7c84f9acecb9fb87b1b", "libre_terminale", "terminale", "generale", "philosophie", "tronc_commun", "BOEN_special_8_2019-07-25"
+        "rag_nexus_philo_terminale_tc", "be4645b174e9b7e9be375708e4fa6949cc1866bb31c567fc8f5f533fb121079c", "libre_terminale", "terminale", "generale", "philosophie", "tronc_commun", "BOEN_special_8_2019-07-25"
     ),
     "prod_ses_premiere_specialite_v1": ScopeFacts(
-        "rag_nexus_ses_premiere_specialite", "dd6119bce6de846155cd9d68ffa88fe5cc0266c2e03b551a44b020dde5ffd9dc", "libre_premiere", "premiere", "generale", "ses", "specialite", "BOEN_special_1_2019-01-22"
+        "rag_nexus_ses_premiere_specialite", "03014f387da2840c1590c9bda4a58073a1a270c5fa5be11ea1e61e613f0007f9", "libre_premiere", "premiere", "generale", "ses", "specialite", "BOEN_special_1_2019-01-22"
     ),
     "prod_ses_terminale_specialite_v1": ScopeFacts(
-        "rag_nexus_ses_terminale_specialite", "9b22795d9c17ac17c03d2b88c0774eb7a5e4c930face555626dc3b59ba1dde7e", "libre_terminale", "terminale", "generale", "ses", "specialite", "BOEN_special_8_2019-07-25"
+        "rag_nexus_ses_terminale_specialite", "6dedcd0a5060fa918cb4cb68f420cbe829c2f56bcf77239389c80a8cd1cde4df", "libre_terminale", "terminale", "generale", "ses", "specialite", "BOEN_special_8_2019-07-25"
     ),
     "prod_svt_premiere_specialite_v1": ScopeFacts(
-        "rag_nexus_svt_premiere_specialite", "965a6df7066ddb3caec43c58f26e377ad97f18f4d86f38a21822a9208710ece4", "libre_premiere", "premiere", "generale", "svt", "specialite", "BOEN_special_1_2019-01-22"
+        "rag_nexus_svt_premiere_specialite", "776178d0a077a137ee3b5db724d5071a01f3d22f3ae3543b035452374802a94d", "libre_premiere", "premiere", "generale", "svt", "specialite", "BOEN_special_1_2019-01-22"
     ),
     "prod_svt_terminale_specialite_v1": ScopeFacts(
-        "rag_nexus_svt_terminale_specialite", "91c37631bac09e63eeb6734a0afe9814cd4eaea3baedcb7aafcf8f1bd02cca41", "libre_terminale", "terminale", "generale", "svt", "specialite", "BOEN_special_8_2019-07-25"
+        "rag_nexus_svt_terminale_specialite", "29bd5d9363e737e49b9fca9654a46c04f4a6e23224b306897c57f12d2e9f5d8d", "libre_terminale", "terminale", "generale", "svt", "specialite", "BOEN_special_8_2019-07-25"
     ),
 }
 

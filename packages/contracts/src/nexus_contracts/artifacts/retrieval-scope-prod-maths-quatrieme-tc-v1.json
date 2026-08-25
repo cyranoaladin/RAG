@@ -2,7 +2,7 @@
   "artifact_version": "2",
   "scope_id": "prod_maths_quatrieme_tc_v1",
   "status": "eligible_for_promotion",
-  "source_sha256": "0a4974a3bee7e2dbf05412d47086da68ed6a9bf182c9bb14aa972325184c6772",
+  "source_sha256": "37975e4faf5aa976ff51493b18b56e3ed8d2787af3f1e15dcad0bcfc448b5da9",
   "target_identity": {
     "tenant": "libre_quatrieme",
     "niveau": "quatrieme",

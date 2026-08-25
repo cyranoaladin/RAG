@@ -2,7 +2,7 @@
   "artifact_version": "2",
   "scope_id": "prod_maths_premiere_gen_specialite_v1",
   "status": "eligible_for_promotion",
-  "source_sha256": "2b1aa2b47e5c5f9b010bdd9a7b6ba8b4c21cdc1afd00e3a9bcfd9469de96316b",
+  "source_sha256": "309ca9d5f116b8e0217b9d12549bd945cc1a1868b93fb54bcf7574676cd668d4",
   "target_identity": {
     "tenant": "libre_premiere",
     "niveau": "premiere",

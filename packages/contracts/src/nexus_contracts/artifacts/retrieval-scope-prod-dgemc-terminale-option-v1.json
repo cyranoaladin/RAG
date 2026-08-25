@@ -2,7 +2,7 @@
   "artifact_version": "2",
   "scope_id": "prod_dgemc_terminale_option_v1",
   "status": "eligible_for_promotion",
-  "source_sha256": "d336d22c53b01ee2cc73a80924c5282ebb59ef10edca335a6e958d77201b1dcf",
+  "source_sha256": "02408bcf498ec56225852525758396152f2ed1c919c24528fd5f0fb59f54627f",
   "target_identity": {
     "tenant": "libre_terminale",
     "niveau": "terminale",

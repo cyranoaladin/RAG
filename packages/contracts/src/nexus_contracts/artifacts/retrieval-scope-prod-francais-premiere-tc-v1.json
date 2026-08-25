@@ -2,7 +2,7 @@
   "artifact_version": "2",
   "scope_id": "prod_francais_premiere_tc_v1",
   "status": "eligible_for_promotion",
-  "source_sha256": "fce743e623671b4443da4aac919037a9017039c40fc6a1cf1d50c9384305c28b",
+  "source_sha256": "12d592364da6dfaf7934222195f908215e48c3f8a77dcb070990cd09055c12ad",
   "target_identity": {
     "tenant": "libre_premiere",
     "niveau": "premiere",

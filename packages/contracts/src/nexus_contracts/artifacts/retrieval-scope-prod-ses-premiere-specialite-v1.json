@@ -2,7 +2,7 @@
   "artifact_version": "2",
   "scope_id": "prod_ses_premiere_specialite_v1",
   "status": "eligible_for_promotion",
-  "source_sha256": "dd6119bce6de846155cd9d68ffa88fe5cc0266c2e03b551a44b020dde5ffd9dc",
+  "source_sha256": "03014f387da2840c1590c9bda4a58073a1a270c5fa5be11ea1e61e613f0007f9",
   "target_identity": {
     "tenant": "libre_premiere",
     "niveau": "premiere",
