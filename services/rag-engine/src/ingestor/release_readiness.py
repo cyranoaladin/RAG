@@ -203,6 +203,17 @@ def _require_list(value: object, field: str) -> list[Any]:
     return value
 
 
+def _reject_duplicate_object_pairs(
+    pairs: list[tuple[str, Any]],
+) -> dict[str, Any]:
+    document: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in document:
+            raise ReleaseReadinessError(f"duplicate JSON object key: {key!r}")
+        document[key] = value
+    return document
+
+
 def _read_json_with_digest(path: Path, expected_sha256: str, label: str) -> Mapping[str, Any]:
     _require_sha256(expected_sha256, f"{label}.sha256")
     try:
@@ -212,7 +223,7 @@ def _read_json_with_digest(path: Path, expected_sha256: str, label: str) -> Mapp
     if _sha256_bytes(data) != expected_sha256:
         raise ReleaseReadinessError(f"{label} digest mismatch")
     try:
-        payload = json.loads(data)
+        payload = json.loads(data, object_pairs_hook=_reject_duplicate_object_pairs)
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ReleaseReadinessError(f"{label} is not valid JSON") from exc
     return _require_mapping(payload, label)
@@ -312,6 +323,13 @@ def _parse_subject(
     profile_manifest_digest = _require_sha256(
         profile.get("manifest_digest"), f"{field}.profile.manifest_digest"
     )
+    if (
+        "profile_manifest_sha256" in authority_fields
+        and profile_manifest_digest != authorities.get("profile_manifest_sha256")
+    ):
+        raise ReleaseReadinessError(
+            f"{field}.profile manifest digest differs from authority"
+        )
     models = _require_mapping(payload.get("models"), f"{field}.models")
     if set(models) != {"embedding", "reranker"}:
         raise ReleaseReadinessError(f"{field}.models fields mismatch")
@@ -516,6 +534,20 @@ def load_release_expectation(path: Path, expected_sha256: str) -> ReleaseExpecta
         artifacts.extend(subject_artifacts)
     if len({item.content_sha256 for item in artifacts}) != len(artifacts):
         raise ReleaseReadinessError("artifact is duplicated across subjects")
+    placement_ids = [
+        str(placement["placement_id"])
+        for artifact in artifacts
+        for placement in artifact.placements
+    ]
+    if len(set(placement_ids)) != len(placement_ids):
+        raise ReleaseReadinessError("placement is duplicated across subjects")
+    chunk_ids = [
+        str(chunk["chunk_id"])
+        for artifact in artifacts
+        for chunk in artifact.chunks
+    ]
+    if len(set(chunk_ids)) != len(chunk_ids):
+        raise ReleaseReadinessError("chunk is duplicated across subjects")
     counts = _require_mapping(aggregate.get("expected_counts"), "expected_counts")
     aggregate_counts = {
         "artifacts": len(artifacts),
@@ -635,6 +667,7 @@ def load_release_registry_file(
     configurations: list[tuple[Path, str]] = []
     declared_collections_by_index: list[tuple[str, ...]] = []
     declared_kind_by_index: list[str] = []
+    declared_release_id_by_index: list[str] = []
     seen_release_ids: set[str] = set()
     seen_manifest_paths: set[Path] = set()
     seen_declared_collections: set[str] = set()
@@ -683,15 +716,21 @@ def load_release_registry_file(
         configurations.append((manifest_path, expected_manifest_sha256))
         declared_collections_by_index.append(collections)
         declared_kind_by_index.append(release_kind)
+        declared_release_id_by_index.append(release_id)
 
     registry = load_release_registry(tuple(configurations))
 
-    for binding, declared_collections, declared_kind in zip(
+    for binding, declared_collections, declared_kind, declared_release_id in zip(
         registry.manifests,
         declared_collections_by_index,
         declared_kind_by_index,
+        declared_release_id_by_index,
         strict=True,
     ):
+        if binding.expectation.release_id != declared_release_id:
+            raise ReleaseReadinessError(
+                "release registry release_id does not match the manifest it names"
+            )
         if binding.expectation.release_kind != declared_kind:
             raise ReleaseReadinessError(
                 "release registry release_kind does not match the manifest it names"

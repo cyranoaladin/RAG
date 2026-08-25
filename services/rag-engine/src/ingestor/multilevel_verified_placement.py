@@ -13,6 +13,7 @@ from urllib.parse import urlparse
 from nexus_contracts.document import Voie
 
 from .collection_config import CollectionConfigError, canonicalize_catalogue_voie
+from .ingestion_profiles.manifest import ManifestVerification
 from .ingestion_profiles.registry import (
     ProfileRegistry,
     ProfileRegistryError,
@@ -36,6 +37,67 @@ _SHA256 = re.compile(r"\A[0-9a-f]{64}\Z")
 
 class MultilevelPlacementResolutionError(RuntimeError):
     """Un placement multi-niveaux n'est pas exactement gouverné."""
+
+
+@dataclass(frozen=True)
+class ProductionProfileManifestVerification:
+    """Identité sémantique normalisée du manifeste production partagé."""
+
+    manifest_sha256: str
+    declared_count: int
+    authority_mode: str = "PRODUCTION_PROFILE_MANIFEST"
+
+
+def production_profile_manifest_verification(
+    verification: ManifestVerification,
+) -> ProductionProfileManifestVerification:
+    """Adapter le contrat production sans confondre fingerprint et SHA YAML."""
+    return ProductionProfileManifestVerification(
+        manifest_sha256=_require_sha256(
+            verification.manifest_fingerprint,
+            label="production profile manifest fingerprint",
+        ),
+        declared_count=verification.declared_count,
+    )
+
+
+def require_profile_manifest_authority(
+    verification: StagingProfileManifestVerification
+    | ProductionProfileManifestVerification,
+    *,
+    environment: str,
+    profile_count: int,
+) -> None:
+    """Refuser explicitement tout croisement staging/production."""
+    if environment == "production":
+        if not isinstance(verification, ProductionProfileManifestVerification):
+            raise MultilevelPlacementResolutionError(
+                "production requires a production profile manifest"
+            )
+        if verification.authority_mode != "PRODUCTION_PROFILE_MANIFEST":
+            raise MultilevelPlacementResolutionError(
+                "production profile manifest authority is invalid"
+            )
+    elif environment == "rehearsal":
+        if not isinstance(verification, StagingProfileManifestVerification):
+            raise MultilevelPlacementResolutionError(
+                "staging rehearsal requires a staging profile manifest"
+            )
+        if (
+            verification.authority_mode != "STAGING_LOCAL_GITHUB_ONLY"
+            or verification.production_approval is not False
+        ):
+            raise MultilevelPlacementResolutionError(
+                "staging profile manifest authority is invalid"
+            )
+    else:
+        raise MultilevelPlacementResolutionError(
+            "profile manifest environment must be rehearsal or production"
+        )
+    if verification.declared_count != profile_count:
+        raise MultilevelPlacementResolutionError(
+            "profile manifest count differs from loaded registry"
+        )
 
 
 def _require_sha256(value: object, *, label: str) -> str:
@@ -278,7 +340,9 @@ class MultilevelVerifiedPedagogicalPlacementResolver:
         currentness: MultilevelCurrentnessEvidence,
         mapping: ClosedMultilevelMapping,
         profiles: ProfileRegistry,
-        profile_manifest: StagingProfileManifestVerification,
+        profile_manifest: StagingProfileManifestVerification
+        | ProductionProfileManifestVerification,
+        environment: str,
         programme_registry: ProgrammeIndexRegistry,
         collection_config: Mapping[str, object],
         release_eligibility: MultilevelReleaseEligibility,
@@ -307,14 +371,11 @@ class MultilevelVerifiedPedagogicalPlacementResolver:
             raise MultilevelPlacementResolutionError(
                 "release allowlist authority digest differs"
             )
-        if (
-            profile_manifest.authority_mode != "STAGING_LOCAL_GITHUB_ONLY"
-            or profile_manifest.production_approval is not False
-            or profile_manifest.declared_count != len(profiles)
-        ):
-            raise MultilevelPlacementResolutionError(
-                "staging profile manifest authority is invalid"
-            )
+        require_profile_manifest_authority(
+            profile_manifest,
+            environment=environment,
+            profile_count=len(profiles),
+        )
         candidate_keys = {
             (item.collection, item.content_sha256, item.source_placement_id)
             for item in candidate_inventory.placements
@@ -323,7 +384,11 @@ class MultilevelVerifiedPedagogicalPlacementResolver:
             (item.collection, item.content_sha256, item.source_placement_id)
             for item in release_eligibility.placements
         }
-        if not release_keys <= candidate_keys:
+        if environment == "production" and release_keys != candidate_keys:
+            raise MultilevelPlacementResolutionError(
+                "production release allowlist differs from candidate inventory"
+            )
+        if environment != "production" and not release_keys <= candidate_keys:
             raise MultilevelPlacementResolutionError(
                 "release allowlist contains a placement absent from candidate inventory"
             )

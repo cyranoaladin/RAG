@@ -342,6 +342,7 @@ def _build_runtime_authorities() -> dict[str, Any]:
         mapping=mapping,
         profiles=profiles,
         profile_manifest=profile_manifest,
+        environment="rehearsal",
         programme_registry=programme,
         collection_config=load_collection_config(),
         release_eligibility=eligibility,

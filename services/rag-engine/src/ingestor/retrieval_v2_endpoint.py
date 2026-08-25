@@ -568,17 +568,18 @@ def validate_release_startup_configuration(
             manifest.expectation.subject_manifest_sha256_by_collection
         )
     }
-    scoped_artifacts = {
-        artifact.evidence_subject.collection: artifact
-        for artifact in artifacts.values()
-        if isinstance(artifact, RetrievalScopeArtifactV2)
-        and artifact.evidence_subject.collection in subject_sha_by_collection
-    }
-    if set(scoped_artifacts) != set(subject_sha_by_collection) or any(
-        artifact.source_sha256 != subject_sha_by_collection.get(collection)
-        for collection, artifact in scoped_artifacts.items()
-    ):
-        raise RuntimeError("scope source SHA differs from subject release")
+    for collection, source_sha256 in subject_sha_by_collection.items():
+        matches = [
+            artifact
+            for artifact in artifacts.values()
+            if isinstance(artifact, RetrievalScopeArtifactV2)
+            and artifact.evidence_subject.collection == collection
+            and artifact.source_sha256 == source_sha256
+        ]
+        if not matches:
+            raise RuntimeError("scope source SHA differs from subject release")
+        if len(matches) != 1:
+            raise RuntimeError("scope source SHA is ambiguous for subject release")
 
 
 def validate_configured_release_database() -> None:

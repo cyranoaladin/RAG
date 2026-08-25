@@ -164,6 +164,7 @@ def main(argv: list[str] | None = None) -> int:
         authorities = load_multilevel_runtime_authorities(
             multilevel_runtime_authority_inputs_from_args(args),
             profile_registry=profiles,
+            environment=readiness.environment,
         )
         readiness_mapping = getattr(readiness, "authorization_mapping", None)
         if (
