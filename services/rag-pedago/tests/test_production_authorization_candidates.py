@@ -7,11 +7,11 @@ import importlib.util
 import json
 import subprocess
 import sys
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Mapping, Protocol, cast
+from typing import Protocol, cast
 
 import pytest
-
 from nexus_contracts import (
     ScopeAuthorizationArtifactV2,
     parse_release_scope_placement,
