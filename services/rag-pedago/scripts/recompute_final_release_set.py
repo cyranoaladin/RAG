@@ -44,9 +44,156 @@ def _canonical_sha_set_bytes(values: frozenset[str]) -> bytes:
     return "".join(f"{value}\n" for value in sorted(values)).encode("ascii")
 
 
+def _load_canonical_sha_set(path: Path) -> frozenset[str]:
+    payload = path.read_bytes()
+    lines = payload.splitlines()
+    if not payload.endswith(b"\n") or payload != b"".join(line + b"\n" for line in lines):
+        raise ValueError(f"non-canonical SHA set serialization: {path}")
+    try:
+        values = [line.decode("ascii") for line in lines]
+    except UnicodeDecodeError as exc:
+        raise ValueError(f"non-ASCII SHA set: {path}") from exc
+    if values != sorted(values) or len(values) != len(set(values)):
+        raise ValueError(f"SHA set must be sorted and unique: {path}")
+    if any(len(value) != 64 or any(char not in "0123456789abcdef" for char in value) for value in values):
+        raise ValueError(f"invalid SHA-256 in set: {path}")
+    return frozenset(values)
+
+
+def _validate_profile_gate_partition(
+    *,
+    pre_profile_set: frozenset[str],
+    final_profile_set: frozenset[str],
+    profile_review_required: frozenset[str],
+) -> None:
+    if final_profile_set & profile_review_required:
+        raise ValueError("profile gate partition overlaps")
+    if final_profile_set | profile_review_required != pre_profile_set:
+        raise ValueError("profile gate does not partition the pre-profile authority set")
+
+
+def _repo_relative(path: Path) -> str:
+    try:
+        return path.resolve().relative_to(REPO_ROOT.resolve()).as_posix()
+    except ValueError:
+        return path.name
+
+
+def recompute_profile_gate_terminal_summary(
+    *,
+    content_ledger: Path,
+    pre_profile_set: Path,
+    production_profile_set: Path,
+    output: Path,
+) -> dict[str, Any]:
+    """Recalcule le set final et les dispositions depuis les preuves versionnées."""
+    pre_profile = _load_canonical_sha_set(pre_profile_set)
+    final_profile = _load_canonical_sha_set(production_profile_set)
+    profile_review_required = pre_profile - final_profile
+    _validate_profile_gate_partition(
+        pre_profile_set=pre_profile,
+        final_profile_set=final_profile,
+        profile_review_required=profile_review_required,
+    )
+
+    ledger: dict[str, dict[str, Any]] = {}
+    for line_number, line in enumerate(
+        content_ledger.read_text(encoding="utf-8").splitlines(),
+        start=1,
+    ):
+        row = json.loads(line)
+        content_sha256 = str(row.get("content_sha256", ""))
+        if len(content_sha256) != 64 or any(
+            char not in "0123456789abcdef" for char in content_sha256
+        ):
+            raise ValueError(f"invalid ledger SHA-256 at line {line_number}")
+        if content_sha256 in ledger:
+            raise ValueError(f"duplicate ledger SHA-256: {content_sha256}")
+        ledger[content_sha256] = row
+
+    missing_pre_profile = sorted(pre_profile - ledger.keys())
+    if missing_pre_profile:
+        raise ValueError(
+            f"pre-profile set is not fully present in content ledger: {missing_pre_profile!r}"
+        )
+
+    allowed_dispositions = {
+        "ARCHIVE_ONLY",
+        "EXCLUDE",
+        "INGEST_CANDIDATE",
+        "QUARANTINE",
+        "REVIEW_REQUIRED",
+        "UNSUPPORTED",
+    }
+    counts: Counter[str] = Counter()
+    unaccounted: list[str] = []
+    for content_sha256, row in ledger.items():
+        if content_sha256 in final_profile:
+            disposition = "INGEST_CANDIDATE"
+        elif content_sha256 in profile_review_required:
+            disposition = "REVIEW_REQUIRED"
+        else:
+            disposition = str(row.get("FINAL_DISPOSITION", ""))
+        if disposition not in allowed_dispositions:
+            unaccounted.append(content_sha256)
+            continue
+        counts[disposition] += 1
+
+    unique_contents = len(ledger)
+    accounted_contents = sum(counts.values())
+    coverage = accounted_contents / unique_contents * 100 if unique_contents else 0.0
+    summary: dict[str, Any] = {
+        "schema_version": "NEXUS-TERMINAL-DISPOSITION-SUMMARY-V2",
+        "input_digests": {
+            "content_ledger": {
+                "path": _repo_relative(content_ledger),
+                "sha256": _sha256_file(content_ledger),
+            },
+            "pre_profile_set": {
+                "path": _repo_relative(pre_profile_set),
+                "sha256": _sha256_file(pre_profile_set),
+            },
+            "production_profile_set": {
+                "path": _repo_relative(production_profile_set),
+                "sha256": _sha256_file(production_profile_set),
+            },
+        },
+        "FINAL_PRE_PROFILE_ELIGIBLE_COUNT": len(pre_profile),
+        "FINAL_PRE_PROFILE_ELIGIBLE_SET_SHA256": h2b.authority_required_set_digest(
+            pre_profile
+        ),
+        "FINAL_PRODUCTION_ELIGIBLE_COUNT": len(final_profile),
+        "FINAL_PRODUCTION_ELIGIBLE_SET_SHA256": h2b.authority_required_set_digest(
+            final_profile
+        ),
+        "FINAL_PROFILE_REVIEW_REQUIRED_COUNT": len(profile_review_required),
+        "FINAL_PROFILE_REVIEW_REQUIRED_SET_SHA256": hashlib.sha256(
+            _canonical_sha_set_bytes(profile_review_required)
+        ).hexdigest(),
+        "FINAL_AUTHORITY_REQUIRED_COUNT": len(final_profile),
+        "FINAL_AUTHORITY_REQUIRED_SET_SHA256": h2b.authority_required_set_digest(
+            final_profile
+        ),
+        "AMBIGUOUS_OR_UNRESOLVED_PROFILE_POLICY": (
+            "MOVE_TO_REVIEW_REQUIRED_FOR_THIS_RELEASE"
+        ),
+        "profile_review_required_content_sha256": sorted(profile_review_required),
+        "UNIQUE_CONTENTS": unique_contents,
+        "UNACCOUNTED_CONTENTS": len(unaccounted),
+        "unaccounted_content_sha256": sorted(unaccounted),
+        "TERMINAL_DISPOSITION_COVERAGE": coverage,
+        "terminal_disposition_counts": dict(sorted(counts.items())),
+    }
+    output.parent.mkdir(parents=True, exist_ok=True)
+    _write_json(output, summary)
+    return summary
+
+
 def _terminal_accounting(
     physical_objects: list[dict[str, Any]],
     authority_required: frozenset[str],
+    *,
+    profile_review_required: frozenset[str] = frozenset(),
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Résout une disposition terminale fail-closed par identité de contenu."""
     by_sha: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -84,9 +231,12 @@ def _terminal_accounting(
         canonical_disposition = (
             dispositions[0] if not final_conflict and not base_conflict else "REVIEW_REQUIRED"
         )
-        release_disposition = (
-            "INGEST_CANDIDATE" if content_sha256 in authority_required else canonical_disposition
-        )
+        if content_sha256 in authority_required:
+            release_disposition = "INGEST_CANDIDATE"
+        elif content_sha256 in profile_review_required:
+            release_disposition = "REVIEW_REQUIRED"
+        else:
+            release_disposition = canonical_disposition
         rows.append(
             {
                 "base_dispositions": base_dispositions,
@@ -181,7 +331,15 @@ def recompute(args: argparse.Namespace) -> dict[str, Any]:
         pii_cleared_sha256=frozenset(pii_cleared),
         pii_quarantined_sha256=frozenset(pii_quarantined),
     )
-    required_set, _required_rights = h2b.authority_required_candidate_facts(physical_objects)
+    pre_profile_set, _required_rights = h2b.authority_required_candidate_facts(physical_objects)
+    pre_profile_digest = h2b.authority_required_set_digest(pre_profile_set)
+    required_set = _load_canonical_sha_set(args.production_profile_set)
+    profile_review_required = pre_profile_set - required_set
+    _validate_profile_gate_partition(
+        pre_profile_set=pre_profile_set,
+        final_profile_set=required_set,
+        profile_review_required=profile_review_required,
+    )
     required_digest = h2b.authority_required_set_digest(required_set)
     exact_set_bytes = _canonical_sha_set_bytes(required_set)
     (output_dir / "final_authority_required_set.txt").write_bytes(exact_set_bytes)
@@ -189,6 +347,7 @@ def recompute(args: argparse.Namespace) -> dict[str, Any]:
     terminal_rows, canonical_conflicts = _terminal_accounting(
         physical_objects,
         required_set,
+        profile_review_required=profile_review_required,
     )
     (output_dir / "terminal_content_dispositions.jsonl").write_text(
         "".join(
@@ -225,6 +384,7 @@ def recompute(args: argparse.Namespace) -> dict[str, Any]:
                 args.rights,
                 args.golden,
                 args.currentness,
+                args.production_profile_set,
             )
         },
         "catalog": {
@@ -236,6 +396,9 @@ def recompute(args: argparse.Namespace) -> dict[str, Any]:
         },
         "final_base_ingest_candidates": base_ingest_candidates,
         "final_non_authority_blocked_count": report.non_authority_blocked_final_count,
+        "final_pre_profile_eligible_count": len(pre_profile_set),
+        "final_pre_profile_eligible_set_sha256": pre_profile_digest,
+        "final_profile_review_required_count": len(profile_review_required),
         "final_authority_required_count": len(required_set),
         "final_authority_required_set_sha256": required_digest,
         "h2_report": {
@@ -330,12 +493,41 @@ def _parser() -> argparse.ArgumentParser:
         type=Path,
         default=(configs / "prerentree_2026_2027" / "multilevel_currentness_evidence.yml"),
     )
+    parser.add_argument(
+        "--production-profile-set",
+        type=Path,
+        default=(REPO_ROOT / "docs/reports/final_production_eligible_set_20260825.txt"),
+    )
+    parser.add_argument(
+        "--pre-profile-set",
+        type=Path,
+        default=(REPO_ROOT / "docs/reports/final_authority_required_set_20260823.txt"),
+    )
+    parser.add_argument(
+        "--content-ledger",
+        type=Path,
+        default=(REPO_ROOT / "docs/reports/evidence-index/content_ledger_20260814.jsonl"),
+    )
+    parser.add_argument("--profile-gate-only", action="store_true")
+    parser.add_argument("--terminal-summary-output", type=Path)
     parser.add_argument("--output-dir", type=Path, required=True)
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
-    summary = recompute(_parser().parse_args(argv))
+    args = _parser().parse_args(argv)
+    if args.profile_gate_only:
+        summary = recompute_profile_gate_terminal_summary(
+            content_ledger=args.content_ledger,
+            pre_profile_set=args.pre_profile_set,
+            production_profile_set=args.production_profile_set,
+            output=(
+                args.terminal_summary_output
+                or args.output_dir / "terminal_disposition_summary.json"
+            ),
+        )
+    else:
+        summary = recompute(args)
     print(json.dumps(summary, ensure_ascii=False, sort_keys=True))
     return 0
 
