@@ -1,17 +1,18 @@
-# Master Go-Live State — candidat profils production
+# Master Go-Live State — candidats d’autorisation production
 
-Ce document remplace l'interprétation historique « final eligible = 72 » par
-le résultat du profile gate. Il décrit la baseline `main` figée et les
-artefacts de la PR profils ; il n'est pas un pointeur auto-référent vers la
-branche.
+Ce document conserve le résultat du profile gate fusionné et décrit les
+candidats d'autorisation construits depuis cette baseline `main` figée. Les
+candidats ne deviennent pas des autorisations effectives avant la vraie revue
+GitHub exact-head et les `ReviewBinding` signés.
 
 ```text
-STATE_GENERATED_AT=2026-08-25T05:03:17Z
-STATE_OBSERVED_AT_MAIN_SHA=3f0317e91c9ac8eff8ff1089d100a25f7c875793
-STATE_OBSERVED_AT_MAIN_TREE_SHA=5bc5234ea395486810638d553c3c9bc2e7d57d75
+STATE_GENERATED_AT=2026-08-25T08:38:19Z
+STATE_OBSERVED_AT_MAIN_SHA=3566cafb44138d6a7f00296dc0654257f9bf0ad6
+STATE_OBSERVED_AT_MAIN_TREE_SHA=8c5081a52096d531f1bd027790e600eb83b05bd5
 PR129_MERGED=true
 PR130_MERGED=true
 PR131_MERGED=true
+PR133_PRODUCTION_PROFILES_MERGED=true
 ```
 
 ## 1. Set final après profile gate
@@ -161,9 +162,33 @@ Preuve :
 
 ## 4. Autorisations et exécution réelle
 
-Le mécanisme `AuthorizationSetV1` est sur `main`, mais aucune autorisation
-production réelle n'est incluse dans la PR profils. Les compteurs restent
-donc strictement à zéro.
+Les 18 candidats `ScopeAuthorizationArtifactV2` partitionnent exactement les
+26 contenus. Ils ont été produits depuis le commit `main`
+`3566cafb44138d6a7f00296dc0654257f9bf0ad6`, tree
+`8c5081a52096d531f1bd027790e600eb83b05bd5`, puis matérialisés sous leurs
+chemins gouvernés canoniques. La matrice d'audit est
+`docs/reports/production_authorization_matrix_20260825.json` (SHA-256
+`9ac6a4fb4959dac8449ea418d4d92151e18f823a523e5f85b80791176cacfa74`).
+
+Les preuves droits/currentness/PII ne sont pas inventées comme champs V3 :
+leurs paths et digests exacts sont inscrits par scope dans la matrice et le
+HEAD intégral de la PR sera lié par la revue et chaque `ReviewBinding`.
+
+```text
+AUTHORIZATION_CANDIDATE_COUNT=18
+AUTHORIZATION_CANDIDATE_CONTENT_UNION=26
+AUTHORIZATION_CANDIDATE_OVERLAP=0
+AUTHORIZATION_CANDIDATE_GAP=0
+AUTHORIZATION_CANDIDATE_EXTRA=0
+AUTHORIZATION_CANDIDATE_UNION_SHA256=fe97b3410791fa78d4734a8c495443296b3f2ec3e77627e12fc34f90e0b2b5f0
+AUTHORIZATION_CANDIDATES_MATERIALIZED=true
+AUTHORIZATION_CANDIDATE_REPLAY_CHECK=true
+EFFECTIVE_AUTHORIZATION_COUNT=0
+```
+
+La PR d'autorité doit rester ouverte et son HEAD immuable pendant toute la
+validité. Sans vraie review GitHub et sans les 18 signatures opérateur, les
+compteurs effectifs restent strictement à zéro.
 
 ```text
 REAL_AUTHORIZATIONS_CREATED=false
@@ -191,7 +216,9 @@ DRIVE_MIRROR_COMPLETE=true
 ```
 
 La prochaine barrière de cette branche est la vraie
-`trusted-human-review/head-pinned` de la PR profils production. Après merge,
-le chemin critique reprend avec les autorisations exactes, l'AuthorizationSet,
-la campagne, le republish et H2 V2 réels. La signature offline et le cutover
+`trusted-human-review/head-pinned` de la PR d'autorisations production. Cette
+PR ne sera pas fusionnée : après sa review exacte, les 18 `ReviewBinding`
+seront préparés ensemble pour la signature avec la clé privée détenue par
+l'opérateur. L'AuthorizationSet, la campagne, le republish et H2 V2 réels
+restent donc non exécutés ; la signature readiness offline et le cutover
 restent des gates opérateur distincts.
