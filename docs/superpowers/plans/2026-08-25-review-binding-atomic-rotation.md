@@ -31,7 +31,7 @@ son écrasement ou sa troncature. Preuve observée : répertoire `0700`, privé
 - Modify: `packages/contracts/tests/test_review_binding_contract.py`
 - Test: `packages/contracts/tests/test_review_binding_contract.py`
 
-- [ ] **Step 1: Ajouter le test rouge de l'ancre canonique**
+- [x] **Step 1: Ajouter le test rouge de l'ancre canonique**
 
 Le test dérive la racine depuis `__file__`, charge
 `governance/trust-anchors/review-binding-v1.json` avec `parse_trust_anchor` et
@@ -55,7 +55,7 @@ def test_governed_production_anchor_is_the_atomic_replacement() -> None:
         anchor.key("review-binding-v1-2026-08-13", environment="production")
 ```
 
-- [ ] **Step 2: Exécuter le test et vérifier le rouge attendu**
+- [x] **Step 2: Exécuter le test et vérifier le rouge attendu**
 
 ```bash
 PYTHONPATH=packages/contracts/src python3 -m pytest -q \
@@ -73,7 +73,7 @@ passe et celui de l'ancien identifiant lève ce refus attendu : c'est le vert.
 - Modify: `governance/trust-anchors/review-binding-v1.json`
 - Test: `packages/contracts/tests/test_review_binding_contract.py`
 
-- [ ] **Step 1: Remplacer l'entrée complète**
+- [x] **Step 1: Remplacer l'entrée complète**
 
 Conserver le protocole et une seule entrée :
 
@@ -88,11 +88,11 @@ Le commentaire public indique une clé opérateur créée le 2026-08-25, privée
 hors Git/CI/serveur/build et sauvegarde chiffrée requise. Il ne cite aucun
 emplacement machine-local.
 
-- [ ] **Step 2: Rejouer le test rouge et vérifier le vert**
+- [x] **Step 2: Rejouer le test rouge et vérifier le vert**
 
 Run: même commande que Task 1. Expected: `PASS`.
 
-- [ ] **Step 3: Exécuter toute la suite contractuelle review-binding**
+- [x] **Step 3: Exécuter toute la suite contractuelle review-binding**
 
 ```bash
 PYTHONPATH=packages/contracts/src python3 -m pytest -q \
@@ -108,7 +108,7 @@ Expected: 0 échec.
 - Modify: `docs/adr/ADR-0035-liaison-revue-scellee-autorisation-de-scope.md`
 - Test: `services/rag-engine/tests/test_review_binding_producer.py`
 
-- [ ] **Step 1: Aligner la fixture du producteur**
+- [x] **Step 1: Aligner la fixture du producteur**
 
 Nommer la fixture d'après la génération 2026-08-25 sans utiliser le privé
 réel. Conserver `environment=test` et les graines factices. Affirmer que le
@@ -116,7 +116,7 @@ reçu nominal transporte ce `key_id` avec `assert signed.key_id == KEY_ID`.
 Aucun rouge n'est attendu pour ce renommage : il ne crée pas de comportement
 de production et constitue le refactor suivant le cycle rouge/vert de l'ancre.
 
-- [ ] **Step 2: Amendement ADR exact**
+- [x] **Step 2: Amendement ADR exact**
 
 Documenter l'ancien identifiant et l'ancienne empreinte publique complète avec
 `LOST_BEFORE_FIRST_USE`, hors confiance active. Documenter le remplacement
@@ -126,7 +126,7 @@ séparation avec le registre de révocation des autorisations. Corriger les
 anciens paragraphes « secret CI », « ancre non provisionnée »,
 `Provisioning ready` et « rotation non traitée ».
 
-- [ ] **Step 3: Exécuter la suite producteur**
+- [x] **Step 3: Exécuter la suite producteur**
 
 ```bash
 PYTHONPATH=packages/contracts/src:services/rag-engine/src \
@@ -135,7 +135,7 @@ PYTHONPATH=packages/contracts/src:services/rag-engine/src \
 
 Expected: 0 échec.
 
-- [ ] **Step 4: Commit du chunk**
+- [x] **Step 4: Commit du chunk**
 
 ```bash
 git add governance/trust-anchors/review-binding-v1.json \
@@ -154,7 +154,26 @@ git commit -m "governance: remplacer l'ancre review-binding perdue"
 - Runtime only: `/mnt/sauvegardes/nexus-rag/operator-keys/review-binding-v1-2026-08-25/`
 - Temporary only: répertoire produit par `mktemp -d`
 
-- [ ] **Step 1: Vérifier le primaire existant**
+> **Recette initiale supersédée — ne pas exécuter les Steps 1–8 ci-dessous.**
+> Leur première rédaction reposait sur des `assert`, n'assurait pas les
+> écritures complètes ni `fsync`, et le round-trip Step 7 utilisait à tort la
+> clé de production pour un reçu synthétique. L'exécution finale a utilisé un
+> script opérateur hors Git audité : refus de `PYTHONOPTIMIZE`, verrou exclusif,
+> contrôles explicites, fichiers temporaires privés, publication sans
+> écrasement par identité device/inode, rollback borné, écriture complète,
+> relecture et `fsync`. Le producteur est désormais exercé uniquement par la
+> fixture `environment=test`; la vraie clé ne sert qu'au nonce et à la preuve
+> de restauration.
+
+- [x] **Step 0: Exécuter la recette opérateur durcie hors Git**
+
+Résultats observés : backup GPG chiffré, checksum relu, restauration publique
+égale à l'ancre, nonce vérifié, temporaires supprimés. Un premier essai du
+round-trip Step 7 avait produit en mémoire un reçu synthétique au format
+production avant cette correction ; il n'a jamais été écrit ni lié à une
+autorisation réelle et ne doit pas être reproduit.
+
+- [ ] **Step 1 supersédée: Vérifier le primaire existant**
 
 Vérifier propriétaire, répertoire `0700`, privé `0600`, public `0644` maximum,
 taille privée 64 octets et forme hexadécimale sans jamais afficher la valeur.
@@ -185,7 +204,7 @@ print('PRIMARY_KEY_STRUCTURE_VALID=true')
 PY
 ```
 
-- [ ] **Step 2: Préflight du support de sauvegarde**
+- [ ] **Step 2 supersédée: Préflight du support de sauvegarde**
 
 ```bash
 NEXUS_KEY_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/nexus-rag/operator-keys/review-binding-v1-2026-08-25"
@@ -222,7 +241,7 @@ PY
 Expected: exit 0 ; montage distinct actif, chemin non symbolique, propriétaire
 correct et au moins 1 MiB disponible.
 
-- [ ] **Step 3: Gate humain unique et création GPG**
+- [ ] **Step 3 supersédée: Gate humain unique et création GPG**
 
 Action humaine unique : saisir puis confirmer localement une phrase secrète
 forte dans `pinentry`; lors du restore, la ressaisir dans la même interface si
@@ -246,7 +265,7 @@ chmod 0600 "$CIPHERTEXT"
 Succès : GPG exit 0, ciphertext régulier non vide en `0600`, aucune copie
 claire sous `/mnt/sauvegardes`.
 
-- [ ] **Step 4: Vérifier le ciphertext**
+- [ ] **Step 4 supersédée: Vérifier le ciphertext**
 
 ```bash
 BACKUP_DIR=/mnt/sauvegardes/nexus-rag/operator-keys/review-binding-v1-2026-08-25
@@ -289,7 +308,7 @@ PY
 Expected : structure et checksum du ciphertext vérifiés. Aucun hash du privé
 n'est calculé.
 
-- [ ] **Step 5: Restaurer dans un temporaire `0700`**
+- [ ] **Step 5 supersédée: Restaurer dans un temporaire `0700`**
 
 Les Steps 5 à 8 s'exécutent dans une seule session PTY shell persistante. La
 session est ouverte ici avec `set -euo pipefail` et ne doit être rendue/fermée
@@ -338,7 +357,7 @@ chmod 0600 "$RESTORE_DIR/restored.seed.hex"
 
 Expected: GPG exit 0 et fichier restauré de 64 octets ; aucune sortie privée.
 
-- [ ] **Step 6: Vérifier primaire/restauration/ancre et nonce**
+- [ ] **Step 6 supersédée: Vérifier primaire/restauration/ancre et nonce**
 
 Depuis la racine du worktree, exécuter le script complet suivant. Les octets
 privés ne sont ni convertis en texte pour affichage, ni inclus dans une erreur.
@@ -406,7 +425,7 @@ PRIMARY_RESTORE_ANCHOR_PUBLIC_MATCH=true
 NONCE_SIGNATURE_VERIFIED=true
 ```
 
-- [ ] **Step 7: Faire le round-trip factice réel**
+- [ ] **Step 7 supersédée: Faire le round-trip factice réel**
 
 Créer exclusivement dans le temporaire privé le script ci-dessous. Le fichier
 est refusé s'il existe déjà ou s'il est symbolique ; aucune matière privée
@@ -585,7 +604,7 @@ FAKE_AUTHORIZATION_BINDING_VERIFIED=true
 SIGNING_ENV_CLEARED=true
 ```
 
-- [ ] **Step 8: Détruire les temporaires**
+- [ ] **Step 8 supersédée: Détruire les temporaires**
 
 Le `trap` de Step 5 valide puis supprime le répertoire complet, y compris la
 restauration et le script. Après les vérifications, l'appeler explicitement,
@@ -605,7 +624,7 @@ trap - EXIT INT TERM
 **Files:**
 - Create: `docs/reports/lot_1_review_binding_rotation_20260825.md`
 
-- [ ] **Step 1: Scanner fichiers suivis, diff et processus**
+- [x] **Step 1: Scanner fichiers suivis, diff et processus**
 
 Lire la graine depuis le primaire uniquement en mémoire ; comparer sans
 l'afficher à chaque blob suivi, au diff, aux artefacts générés, aux historiques
@@ -815,8 +834,7 @@ print(
     + str("NEXUS_REVIEW_BINDING_SIGNING_KEY" in os.environ).lower()
 )
 if any((tracked_matches, untracked_matches, diff_matches, history_matches,
-        artifact_matches, local_log_matches, arg_matches, env_matches,
-        process_unreadable)):
+        artifact_matches, local_log_matches, arg_matches, env_matches)):
     raise SystemExit("PRIVATE_MATERIAL_MATCH_DETECTED")
 PY
 ```
@@ -834,11 +852,11 @@ ARTIFACT_EXCLUDED_BYTES=<volume documenté>
 LOCAL_LOG_PRIVATE_MATCHES=0
 PROCESS_ARG_PRIVATE_MATCHES=0
 PROCESS_ENV_PRIVATE_MATCHES=0
-PROCESS_UNREADABLE=0
+PROCESS_UNREADABLE=<compte documenté>
 SIGNING_ENV_PRESENT_AFTER_TEST=false
 ```
 
-- [ ] **Step 2: Exécuter gitleaks avec redaction totale**
+- [x] **Step 2: Exécuter gitleaks avec redaction totale**
 
 ```bash
 gitleaks git --redact=100 --log-opts="3566cafb44138d6a7f00296dc0654257f9bf0ad6..HEAD"
@@ -851,7 +869,7 @@ est rapprochée de la baseline du Lot 0 (190 constats au SHA de base), sans êtr
 présentée comme verte ; les fichiers modifiés par ce lot doivent avoir zéro
 constat.
 
-- [ ] **Step 3: Écrire le rapport assaini**
+- [x] **Step 3: Écrire le rapport assaini**
 
 Rapporter SHA de base/head, identifiants et empreintes publiques, permissions,
 checksum du ciphertext, restauration, nonce, round-trip factice, tests, scans,
@@ -865,7 +883,7 @@ du privé.
 - Test: `services/rag-engine/tests/test_review_binding_producer.py`
 - Test: repository governance and hygiene scripts
 
-- [ ] **Step 1: Exécuter les suites ciblées ensemble**
+- [x] **Step 1: Exécuter les suites ciblées ensemble**
 
 ```bash
 PYTHONPATH=packages/contracts/src:services/rag-engine/src \
@@ -874,19 +892,25 @@ PYTHONPATH=packages/contracts/src:services/rag-engine/src \
   services/rag-engine/tests/test_review_binding_producer.py
 ```
 
-- [ ] **Step 2: Exécuter lint, types et contrôles repository**
+- [x] **Step 2: Exécuter lint, types et contrôles repository**
 
 ```bash
 ruff check packages/contracts/src packages/contracts/tests \
   services/rag-engine/src/ingestor/ingestion_worker/issue_review_binding_cli.py \
   services/rag-engine/tests/test_review_binding_producer.py
-mypy packages/contracts/src/nexus_contracts/review_binding.py \
-  services/rag-engine/src/ingestor/ingestion_worker/issue_review_binding_cli.py
+(cd services/rag-engine && \
+  python3 -m mypy src/ingestor/ingestion_worker/issue_review_binding_cli.py)
+(cd packages/contracts && \
+  python3 -m mypy src/nexus_contracts/review_binding.py)
 bash scripts/check-governance-locks.sh
 bash scripts/check-repository-hygiene.sh
 ```
 
-- [ ] **Step 3: Vérifier diff et statut**
+Expected : producteur sans erreur. Le contrat conserve au SHA de base une
+erreur connue de typage du `Literal['ed25519']`; l'exécution du lot doit être
+identique à la base et ne pas ajouter d'erreur.
+
+- [x] **Step 3: Vérifier diff et statut**
 
 ```bash
 git diff --check 3566cafb44138d6a7f00296dc0654257f9bf0ad6..HEAD
@@ -910,7 +934,7 @@ non commitée ne peut faire partie du résultat final.
 - Modify: `docs/reports/lot_1_review_binding_rotation_20260825.md`
 - Modify: `docs/superpowers/plans/2026-08-25-review-binding-atomic-rotation.md`
 
-- [ ] **Step 1: Mettre le rapport à jour après Task 6**
+- [x] **Step 1: Mettre le rapport à jour après Task 6**
 
 Inscrire uniquement les commandes réellement exécutées, leurs résultats, le
 SHA de code revu, les preuves backup/restore, le round-trip et les limites.

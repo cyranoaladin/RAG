@@ -2,7 +2,7 @@
   "keys": [
     {
       "algorithm": "ed25519",
-      "comment": "Production review-binding signing key (ADR-0035), rotated atomically on 2026-08-25 after the prior key was classified LOST_BEFORE_FIRST_USE; private key is operator-held outside Git, CI, servers and build artifacts.",
+      "comment": "Production review-binding signing key (ADR-0035), rotated atomically on 2026-08-25 after the prior key was classified LOST_BEFORE_FIRST_USE; private key is operator-held outside Git, CI, servers and build artifacts, with an encrypted backup and verified restore required before operational use.",
       "environment": "production",
       "key_id": "review-binding-v1-2026-08-25",
       "public_key": "1f34648789fe7ebdfde6c64197039c0ffa0cd36b98317ce7cad4836a26a058d8"
