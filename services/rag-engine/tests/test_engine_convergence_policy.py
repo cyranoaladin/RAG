@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 from dataclasses import FrozenInstanceError
 from pathlib import Path
 from typing import Any
@@ -335,4 +338,76 @@ def test_yaml_loader_rejects_duplicate_policy_and_catalogue_keys(tmp_path: Path)
         load_engine_convergence_policy(
             POLICY_PATH,
             collection_catalogue_path=duplicate_catalogue,
+        )
+
+
+@pytest.mark.parametrize("input_name", ["policy", "catalogue"])
+def test_policy_loader_rejects_symlink_inputs(
+    tmp_path: Path, input_name: str
+) -> None:
+    policy_path = POLICY_PATH
+    catalogue_path = COLLECTION_CATALOGUE_PATH
+    target = policy_path if input_name == "policy" else catalogue_path
+    linked = tmp_path / f"{input_name}.yml"
+    linked.symlink_to(target)
+    if input_name == "policy":
+        policy_path = linked
+    else:
+        catalogue_path = linked
+
+    with pytest.raises(EngineConvergencePolicyError, match="unavailable"):
+        load_engine_convergence_policy(
+            policy_path,
+            collection_catalogue_path=catalogue_path,
+        )
+
+
+def test_policy_loader_refuses_fifo_without_blocking(tmp_path: Path) -> None:
+    fifo = tmp_path / "policy.fifo"
+    os.mkfifo(fifo)
+    program = """
+from pathlib import Path
+import os
+from src.ingestor.engine_convergence_policy import (
+    EngineConvergencePolicyError,
+    load_engine_convergence_policy,
+)
+try:
+    load_engine_convergence_policy(Path(os.environ["NEXUS_TEST_POLICY_PATH"]))
+except EngineConvergencePolicyError:
+    raise SystemExit(2)
+raise SystemExit(0)
+"""
+    environment = os.environ.copy()
+    environment["NEXUS_TEST_POLICY_PATH"] = str(fifo)
+
+    completed = subprocess.run(
+        [sys.executable, "-c", program],
+        cwd=ENGINE_ROOT,
+        env=environment,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        timeout=5,
+        check=False,
+    )
+
+    assert completed.returncode == 2
+
+
+@pytest.mark.parametrize("input_name", ["policy", "catalogue"])
+def test_policy_loader_rejects_oversized_yaml(
+    tmp_path: Path, input_name: str
+) -> None:
+    oversized = tmp_path / f"oversized-{input_name}.yml"
+    oversized.write_bytes(b"x" * (1024 * 1024 + 1))
+    policy_path = oversized if input_name == "policy" else POLICY_PATH
+    catalogue_path = (
+        oversized if input_name == "catalogue" else COLLECTION_CATALOGUE_PATH
+    )
+
+    with pytest.raises(EngineConvergencePolicyError, match="too large"):
+        load_engine_convergence_policy(
+            policy_path,
+            collection_catalogue_path=catalogue_path,
         )

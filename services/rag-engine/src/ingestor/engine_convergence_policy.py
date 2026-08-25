@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import stat
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -15,6 +17,7 @@ _CANONICAL_ENGINE = "B"
 _CONTRACT_PACKAGE = "nexus-contracts"
 _CONTRACT_SOURCE = "packages/contracts"
 _CONTRACT_VERSION = "0.14.0"
+_MAX_YAML_BYTES = 1024 * 1024
 _EXPECTED_CAPABILITY_MATRIX = {
     "governed_reingestion": ("B", "blocked", 2),
     "file_ingestion": ("B", "compatibility_only", 3),
@@ -108,6 +111,34 @@ def _strict_yaml_load(content: str) -> Any:
         ) from exc
     except yaml.YAMLError as exc:
         raise EngineConvergencePolicyError("YAML document is invalid") from exc
+
+
+def _read_bounded_yaml(path: Path, *, field: str) -> str:
+    descriptor = -1
+    try:
+        flags = os.O_RDONLY | os.O_NONBLOCK | getattr(os, "O_NOFOLLOW", 0)
+        descriptor = os.open(path, flags)
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISREG(metadata.st_mode):
+            raise EngineConvergencePolicyError(f"{field} is unavailable")
+        if metadata.st_size > _MAX_YAML_BYTES:
+            raise EngineConvergencePolicyError(f"{field} is too large")
+        with os.fdopen(descriptor, "rb", closefd=True) as stream:
+            descriptor = -1
+            raw = stream.read(_MAX_YAML_BYTES + 1)
+    except EngineConvergencePolicyError:
+        raise
+    except OSError:
+        raise EngineConvergencePolicyError(f"{field} is unavailable") from None
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+    if len(raw) > _MAX_YAML_BYTES:
+        raise EngineConvergencePolicyError(f"{field} is too large")
+    try:
+        return raw.decode("utf-8")
+    except UnicodeError:
+        raise EngineConvergencePolicyError(f"{field} is invalid") from None
 
 
 class EngineAState(StrEnum):
@@ -245,10 +276,7 @@ def _parse_closed_string_list(value: Any, *, field: str) -> tuple[str, ...]:
 
 
 def _load_collection_names(path: Path) -> frozenset[str]:
-    try:
-        content = path.read_text(encoding="utf-8")
-    except OSError as exc:
-        raise EngineConvergencePolicyError("collection catalogue is unavailable") from exc
+    content = _read_bounded_yaml(path, field="collection catalogue")
     raw = _strict_yaml_load(content)
     document = _require_mapping(raw, field="collection catalogue")
     collections = _require_mapping(document.get("collections"), field="catalogue collections")
@@ -328,10 +356,7 @@ def load_engine_convergence_policy(
 ) -> EngineConvergencePolicy:
     """Charger une politique V1 en refusant toute valeur hors contrat."""
 
-    try:
-        content = path.read_text(encoding="utf-8")
-    except OSError as exc:
-        raise EngineConvergencePolicyError("policy document is unavailable") from exc
+    content = _read_bounded_yaml(path, field="policy document")
     raw = _strict_yaml_load(content)
 
     document = _require_mapping(raw, field="policy")

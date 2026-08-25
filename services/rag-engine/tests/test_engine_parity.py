@@ -73,6 +73,7 @@ WITNESS_KEYS = {
     "fixture_marker",
     "evidence_status",
     "witness_id",
+    "access_context",
     "thresholds_status",
     "limits",
     "query_allowlist",
@@ -126,6 +127,7 @@ def test_parity_fixtures_are_explicitly_synthetic_and_bound_to_witness() -> None
 
     assert set(witness) == WITNESS_KEYS
     assert OPAQUE_ID.fullmatch(witness["witness_id"])
+    assert witness["access_context"] == "internal"
     assert witness["thresholds_status"] == "UNAPPROVED"
     for document in [witness, *captures]:
         assert document["fixture_marker"] == SYNTHETIC_MARKER
@@ -265,6 +267,21 @@ def _write_json(path: Path, document: dict[str, Any]) -> Path:
         encoding="utf-8",
     )
     return path
+
+
+def _write_bound_inputs(
+    tmp_path: Path, witness: dict[str, Any]
+) -> tuple[Path, Path, Path]:
+    witness_path = _write_json(tmp_path / "witness.json", witness)
+    witness_sha256 = hashlib.sha256(witness_path.read_bytes()).hexdigest()
+    capture_paths: list[Path] = []
+    for engine in ("A", "B"):
+        capture = _capture(engine)
+        capture["witness_sha256"] = witness_sha256
+        capture_paths.append(
+            _write_json(tmp_path / f"capture-{engine.lower()}.json", capture)
+        )
+    return witness_path, capture_paths[0], capture_paths[1]
 
 
 def _capture(engine: str) -> dict[str, Any]:
@@ -416,6 +433,47 @@ def test_parity_uses_canonical_rights_categories(tmp_path: Path) -> None:
     )
 
     assert ParityReasonCode.RIGHTS_UNKNOWN not in report.reason_codes
+
+
+def test_parity_rejects_rights_drift_for_the_same_passage(tmp_path: Path) -> None:
+    capture = _capture("B")
+    capture["queries"][1]["ordered_results"][0]["rights"] = "public_allowed"
+
+    report = compare_engine_parity(
+        WITNESS_PATH,
+        CAPTURE_PATHS[0],
+        _write_json(tmp_path / "rights-drift.json", capture),
+    )
+
+    assert report.verdict is ParityVerdict.FAIL_CLOSED
+    assert ParityReasonCode.RIGHTS_MISMATCH in report.reason_codes
+
+
+def test_parity_rejects_rights_outside_the_witness_access_context(
+    tmp_path: Path,
+) -> None:
+    capture = _capture("B")
+    capture["queries"][0]["ordered_results"][0]["rights"] = "student_private"
+
+    report = compare_engine_parity(
+        WITNESS_PATH,
+        CAPTURE_PATHS[0],
+        _write_json(tmp_path / "private-rights.json", capture),
+    )
+
+    assert report.verdict is ParityVerdict.FAIL_CLOSED
+    assert ParityReasonCode.RIGHTS_ACCESS_CONTEXT_MISMATCH in report.reason_codes
+
+
+def test_witness_rejects_unknown_access_context(tmp_path: Path) -> None:
+    witness = _load(WITNESS_PATH)
+    witness["access_context"] = "operator"
+    witness_path, capture_a_path, capture_b_path = _write_bound_inputs(
+        tmp_path, witness
+    )
+
+    with pytest.raises(EngineParityError, match="witness access context"):
+        compare_engine_parity(witness_path, capture_a_path, capture_b_path)
 
 
 def test_out_of_collection_witness_is_zero_tolerance(tmp_path: Path) -> None:

@@ -13,7 +13,7 @@ from itertools import zip_longest
 from pathlib import Path
 from typing import Any
 
-from nexus_contracts.document import Rights
+from nexus_contracts.document import RIGHTS_ALLOWED_CONTEXTS, AccessContext, Rights
 
 _SHA256 = re.compile(r"[0-9a-f]{64}")
 _OPAQUE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:#-]{0,127}")
@@ -31,6 +31,7 @@ _WITNESS_KEYS = frozenset(
         "fixture_marker",
         "evidence_status",
         "witness_id",
+        "access_context",
         "thresholds_status",
         "limits",
         "query_allowlist",
@@ -71,6 +72,8 @@ class ParityReasonCode(StrEnum):
     CITATION_INCOMPLETE = "CITATION_INCOMPLETE"
     CITATION_MISMATCH = "CITATION_MISMATCH"
     RIGHTS_UNKNOWN = "RIGHTS_UNKNOWN"
+    RIGHTS_ACCESS_CONTEXT_MISMATCH = "RIGHTS_ACCESS_CONTEXT_MISMATCH"
+    RIGHTS_MISMATCH = "RIGHTS_MISMATCH"
     NOT_REVIEWED = "NOT_REVIEWED"
     OUT_OF_COLLECTION_RESULT = "OUT_OF_COLLECTION_RESULT"
 
@@ -187,6 +190,7 @@ class EngineParityReport:
 @dataclass(frozen=True)
 class _Witness:
     digest: str
+    access_context: AccessContext
     max_capture_bytes: int
     queries: tuple[_ExpectedQuery, ...]
     out_query_id: str
@@ -274,6 +278,11 @@ def _parse_witness(path: Path) -> _Witness:
     ):
         raise EngineParityError("witness identity is invalid")
     _opaque(document.get("witness_id"), field="witness id")
+    raw_access_context = document.get("access_context")
+    try:
+        access_context = AccessContext(raw_access_context)
+    except (TypeError, ValueError) as exc:
+        raise EngineParityError("witness access context is invalid") from exc
     limits = _exact_mapping(
         document.get("limits"),
         expected=frozenset({"max_capture_bytes", "max_k"}),
@@ -355,6 +364,7 @@ def _parse_witness(path: Path) -> _Witness:
         raise EngineParityError("out-of-collection scope is invalid")
     return _Witness(
         digest=digest,
+        access_context=access_context,
         max_capture_bytes=max_capture_bytes,
         queries=tuple(queries),
         out_query_id=out_query_id,
@@ -489,6 +499,10 @@ def _safety_reasons(
                     rights = Rights.unknown
                 if rights is Rights.unknown:
                     reasons.add(ParityReasonCode.RIGHTS_UNKNOWN)
+                elif witness.access_context not in RIGHTS_ALLOWED_CONTEXTS[rights]:
+                    reasons.add(
+                        ParityReasonCode.RIGHTS_ACCESS_CONTEXT_MISMATCH
+                    )
                 if result.review_status != "reviewed":
                     reasons.add(ParityReasonCode.NOT_REVIEWED)
                 if (
@@ -496,6 +510,15 @@ def _safety_reasons(
                     and result.unit == witness.out_unit
                 ):
                     reasons.add(ParityReasonCode.OUT_OF_COLLECTION_RESULT)
+    capture_a, capture_b = captures
+    for query_a, query_b in zip(capture_a, capture_b, strict=True):
+        rights_a = {result.unit: result.rights for result in query_a.results}
+        rights_b = {result.unit: result.rights for result in query_b.results}
+        if any(
+            rights_a[unit] != rights_b[unit]
+            for unit in rights_a.keys() & rights_b.keys()
+        ):
+            reasons.add(ParityReasonCode.RIGHTS_MISMATCH)
     return tuple(sorted(reasons, key=lambda item: item.value))
 
 

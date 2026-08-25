@@ -3,6 +3,7 @@
   "fixture_marker": "SYNTHETIC_TEST_ONLY",
   "evidence_status": "NOT_REAL_PARITY_EVIDENCE",
   "witness_id": "engine-parity-witness-v1-synthetic",
+  "access_context": "internal",
   "thresholds_status": "UNAPPROVED",
   "limits": {
     "max_capture_bytes": 65536,

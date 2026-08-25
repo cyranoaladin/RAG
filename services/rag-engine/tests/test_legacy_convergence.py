@@ -3,6 +3,9 @@ from __future__ import annotations
 import ast
 import hashlib
 import json
+import os
+import subprocess
+import sys
 from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
@@ -158,6 +161,43 @@ def test_capture_rejects_duplicate_json_keys(tmp_path: Path) -> None:
 
     with pytest.raises(LegacyCaptureError, match="duplicate key"):
         _prepare(capture)
+
+
+def test_capture_reader_rejects_symlink_input(tmp_path: Path) -> None:
+    linked_capture = tmp_path / "capture.jsonl"
+    linked_capture.symlink_to(FIXTURE_PATH)
+
+    with pytest.raises(LegacyCaptureError, match="unavailable"):
+        _prepare(linked_capture)
+
+
+def test_capture_reader_refuses_fifo_without_blocking(tmp_path: Path) -> None:
+    fifo = tmp_path / "capture.fifo"
+    os.mkfifo(fifo)
+    environment = os.environ.copy()
+    environment["PYTHONPATH"] = os.pathsep.join(
+        (str(ENGINE_ROOT), str(ENGINE_ROOT.parents[1] / "packages/contracts/src"))
+    )
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(CLI_PATH),
+            "--capture",
+            str(fifo),
+            "--policy",
+            str(POLICY_PATH),
+        ],
+        cwd=ENGINE_ROOT,
+        env=environment,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        timeout=5,
+        check=False,
+    )
+
+    assert completed.returncode == 2
 
 
 def test_capture_requires_chroma_identity_dimension_counts_and_digests(

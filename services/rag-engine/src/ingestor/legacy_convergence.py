@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import stat
 from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
@@ -801,8 +803,17 @@ def _read_records(
     records: list[dict[str, Any]] = []
     input_hasher = sha256()
     total_bytes = 0
+    descriptor = -1
     try:
-        with path.open("rb") as stream:
+        flags = os.O_RDONLY | os.O_NONBLOCK | getattr(os, "O_NOFOLLOW", 0)
+        descriptor = os.open(path, flags)
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISREG(metadata.st_mode):
+            raise LegacyCaptureError("capture is unavailable")
+        if metadata.st_size > max_total_bytes:
+            raise LegacyCaptureError("capture is too large")
+        with os.fdopen(descriptor, "rb", closefd=True) as stream:
+            descriptor = -1
             line_number = 0
             while raw_line := stream.readline(max_line_bytes + 1):
                 line_number += 1
@@ -815,8 +826,13 @@ def _read_records(
                     raise LegacyCaptureError("capture contains too many records")
                 input_hasher.update(raw_line)
                 records.append(_decode_record(raw_line, line_number=line_number))
+    except LegacyCaptureError:
+        raise
     except OSError:
         raise LegacyCaptureError("capture is unavailable") from None
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
     if not records:
         raise LegacyCaptureError("capture header is unavailable")
     return tuple(records), input_hasher.hexdigest()
