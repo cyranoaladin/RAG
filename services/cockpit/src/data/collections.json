@@ -310,6 +310,16 @@
     "instanciee": false
   },
   {
+    "name": "rag_nexus_dgemc_terminale_option",
+    "matiere": "dgemc",
+    "niveau": "terminale",
+    "voie": "gen",
+    "statut": "option",
+    "domain": "education",
+    "taxonomy_file": "dgemc/terminale_option.yml",
+    "instanciee": false
+  },
+  {
     "name": "rag_nexus_droiteco_terminale_stmg_specialite",
     "matiere": "droit_economie",
     "niveau": "terminale",
