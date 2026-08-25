@@ -1,0 +1,12 @@
+index_version: '1.0'
+niveau: terminale
+voie: generale
+school_year: 2026-2027
+description: Programme DGEMC exact retenu pour la release production 2026-2027
+fiches:
+  - fichier: DGEMC_TERMINALE_OPTION.md
+    matiere: dgemc
+    statut_enseignement: option
+    collection_cible: rag_nexus_dgemc_terminale_option
+    taxonomy_file: dgemc/terminale_option.yml
+    programme_version: BOEN_special_8_2019-07-25_MENE1921266A_MENE2208320A

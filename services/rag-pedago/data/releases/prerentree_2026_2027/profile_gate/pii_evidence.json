@@ -1,0 +1,258 @@
+{
+  "candidate_inventory_sha256": "fbb8aa3af44efa1484c65640ddbaebf357dff923a0ebd45b6ce80ccc7e8ed7a1",
+  "corpus_manifest_sha256": "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e",
+  "evidence_kind": "REAL_CORPUS_PII_SCAN",
+  "policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+  "policy_version": "pii_gate_policy_h2b_v5",
+  "raw_pii_in_logs": false,
+  "raw_pii_in_output": false,
+  "remote_access_mode": "READ_ONLY",
+  "remote_write_operations": 0,
+  "required_pdf_path_count": 26,
+  "results": [
+    {
+      "characters_scanned": 53246,
+      "content_sha256": "e591a87aee633ca3b2593e2d4fd5b183e518ebe0f9d4861e4cdfe0f494f39439",
+      "evidence_sha256": "924813e54b7a14db7bf8bdead217f939d742faadce3bde25f9d93a7b8f03dcdc",
+      "pages_scanned": 16,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/DGEMC/01_PROGRAMMES_OFFICIELS/2023/telechargez-le-programme-de-dgemc-en-terminales-generale-et-technologique-pdf-930-41-ko--e591a87aee.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 45453,
+      "content_sha256": "b88b5c685ec05d44b0c22d64f491443759fc0f544fe9ad33e626fb6cc29bf65a",
+      "evidence_sha256": "01d8128918ee58bbf2933f718e17d972a13ec28ba9f932045cd52e00ca8b351f",
+      "pages_scanned": 14,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/_MULTI_DISCIPLINES/01_PROGRAMMES_OFFICIELS/2021/premieres-generale-et-technologique-bo-special-n-1-du-22-janvier-2019-modifie-en-2020-pdf-279-4-ko--b88b5c685e.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 22419,
+      "content_sha256": "73c001b93cf2151924da5245c4d740b56a5194c17e29c37cda2e1c0593711fae",
+      "evidence_sha256": "b648689dc7a3ff4cdc8728f78ae0c2015c8b312353d583fb336cc55c5e03e619",
+      "pages_scanned": 9,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/COLLEGE/4E/FRANCAIS/02_REPERES_ATTENDUS/2019/attendus-de-fin-d-annee-en-francais-en-4e-pdf-1-05-mo--73c001b93c.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 42852,
+      "content_sha256": "b54b6422d0eb2fb906e6ad6c79a2e95e6cae00e3fa113da5f7499eee4cc53ae7",
+      "evidence_sha256": "8221c2e7ee2b14b938c7d3aeb8d6b7ddc2500c9b18d6e20310c20a3400b71e10",
+      "pages_scanned": 13,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/HLP/01_PROGRAMMES_OFFICIELS/2021/seconde-generale-et-technologique-bo-special-n-1-du-22-janvier-2019-modifie-en-2020-pdf-275-51-ko--b54b6422d0.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 12242,
+      "content_sha256": "c4e3cc6fb201f4dabc78fa47206c1b498b3ed46496cf05165a74e0ecd8856fb1",
+      "evidence_sha256": "d9c4072b1e830a710bef6486bf155bae77f1cfd3d96a6d4911c2206bb8a11a61",
+      "pages_scanned": 4,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/FRANCAIS/02_REPERES_ATTENDUS/2019/fiche-c-enseigner-explicitement-la-comprehension-de-l-ecrit-ou-des-ecrits--c4e3cc6fb2.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 12500,
+      "content_sha256": "4433fee96b6e803c71edf2764d99bd269e649dcff646aee97327fdfeed143f13",
+      "evidence_sha256": "60c4564dd00bc29705627f64b0666384c8b7f03e25313b936ed5e7b938185205",
+      "pages_scanned": 4,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/_MULTI_DISCIPLINES/05_ANNALES_SUJETS_CORRIGES/2019/exemple-de-sujet-commente-sujet-zero-n-2-sur-le-theme-de-la-parole-pdf-153-37-ko--4433fee96b.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 19661,
+      "content_sha256": "60eeb7dd1ee55d1ed2bb2c7671ecf3c971aeef6996db2bc7cd9c7919ae4b19ac",
+      "evidence_sha256": "e589ec4438568f1e72e8f72f7e9f13caaa149412816fd03e34a16ade98cb3523",
+      "pages_scanned": 7,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/_MULTI_DISCIPLINES/03_RESSOURCES_ACCOMPAGNEMENT/2019/litterature-l-apprentissage-de-l-oral-au-service-de-l-etude-des-textes-pdf-211-27-ko--60eeb7dd1e.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 13910,
+      "content_sha256": "64f5b3427dee3b23d421fe03cb2f3aac75e0e47cee31be91b197d4e09c012987",
+      "evidence_sha256": "df8bddb5f1658997e6e9b36dc654011b73ce7923aa9dc305a6970b989fa5a378",
+      "pages_scanned": 5,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/_MULTI_DISCIPLINES/03_RESSOURCES_ACCOMPAGNEMENT/2019/philosophie-l-apprentissage-de-l-oral-au-service-de-l-etude-des-textes-pdf-157-47-ko--64f5b3427d.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 17540,
+      "content_sha256": "9357dfdebca347264787dfebacb674666d87660b82f789657ddd230c7ff224aa",
+      "evidence_sha256": "601837816edf197a8dbbb4e3d6b6bfff957e7501e4e28879846edc13c112ae1f",
+      "pages_scanned": 5,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/_MULTI_DISCIPLINES/05_ANNALES_SUJETS_CORRIGES/2019/exemple-de-sujet-commente-sujet-zero-n-3-sur-le-theme-des-representations-du-monde-pdf-172-29-ko--9357dfdebc.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 49109,
+      "content_sha256": "5303df0fcf6335f06d00c969a61dcd82cc3fdfd105271ae5c2ef580ff49b6c08",
+      "evidence_sha256": "22f9b23478a99c962d27e20df6d7dfbb95f51361f2029051565aa462d20f3672",
+      "pages_scanned": 11,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/MATHEMATIQUES/01_PROGRAMMES_OFFICIELS/2026/programme-d-enseignement-de-specialite-de-mathematiques-de-la-classe-de-premiere-de-la-voie-generale--5303df0fcf.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 19227,
+      "content_sha256": "d0edabd6a21d6345d36d32c5506ddcf225e819ddca25d27c1ecc3f97b87a8966",
+      "evidence_sha256": "7eb67a59741b2be5dfe32329a2f506bb9d94676adb9a6867afcb08907817bd70",
+      "pages_scanned": 12,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/COLLEGE/4E/MATHEMATIQUES/02_REPERES_ATTENDUS/2019/attendus-de-fin-d-annee-en-mathematiques-en-4e-pdf-1-47-mo--d0edabd6a2.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 55840,
+      "content_sha256": "05c5403d45bfc3631fa13b5c334822de09bcd68d850d0611044045cddba270de",
+      "evidence_sha256": "078610e2be8b868c7bea076746b8b5094e40d54e58ad48f634179b5e82920598",
+      "pages_scanned": 13,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/MATHEMATIQUES/01_PROGRAMMES_OFFICIELS/2026/programme-d-enseignement-de-mathematiques-de-la-classe-de-seconde-generale-et-technologique--05c5403d45.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 60637,
+      "content_sha256": "eb8369e7c1611e90f51491fecc5a7c2081a9c57f9c7fbb08d0414677b56ce16f",
+      "evidence_sha256": "083e9e61152409741c6abf01ccc85e707b4a0b01f4b60ac64de74835dd7dd882",
+      "pages_scanned": 21,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/MATHEMATIQUES/01_PROGRAMMES_OFFICIELS/2019/specialite-de-terminale-generale-bo-special-n-8-du-25-juillet-2019-pdf-475-8-ko--eb8369e7c1.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 23051,
+      "content_sha256": "7ca9a32e1823be6c1120cb0417324c3cb01688d1d194c7614a88ea851ccc60b0",
+      "evidence_sha256": "8e44a9fecdeba5590c4e07ecada08f62c353f7c47aee43e4fc7705c153974f0d",
+      "pages_scanned": 9,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/NSI/01_PROGRAMMES_OFFICIELS/2019/specialite-numerique-et-sciences-informatiques-en-premiere-bo-special-n-1-du-22-janvier-2019-pdf-300-73-ko--7ca9a32e18.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 23984,
+      "content_sha256": "10ce34666edd722a3d8d86642a9f1ac205c7a9d128d6142a17effcba2fb85e69",
+      "evidence_sha256": "e9804e78b061b0abb127bbacf7d1b8eabdcfce4195e3fa3ec18ad1a32efefe0f",
+      "pages_scanned": 9,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/NSI/01_PROGRAMMES_OFFICIELS/2019/specialite-numerique-et-sciences-informatiques-en-terminale-bo-special-n-8-du-25-juillet-2019-pdf-196-38-ko--10ce34666e.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 49054,
+      "content_sha256": "db43d342edf55e162d0153028b43287e4ece0ce81b4dc75f0730bf368b98c0f0",
+      "evidence_sha256": "7a05e05caa29ca1cb81859c6942d5e3fe2aee07918f33c2232f997aabda11722",
+      "pages_scanned": 17,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHYSIQUE_CHIMIE/01_PROGRAMMES_OFFICIELS/2019/specialite-de-premiere-generale-bo-special-n-1-du-22-janvier-2019-pdf-383-44-ko--db43d342ed.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 64613,
+      "content_sha256": "c07f8b2db9d22a6c2b9ab8386cf7ba323bc2c56abacb3f560dd97d02b383de18",
+      "evidence_sha256": "d34738f09d5851ca03c5868427a68fa56a705480c54a21088b389ac7f4045d3e",
+      "pages_scanned": 22,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHYSIQUE_CHIMIE/01_PROGRAMMES_OFFICIELS/2019/specialite-de-terminale-generale-bo-special-n-8-du-25-juillet-2019-pdf-527-5-ko--c07f8b2db9.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 9745,
+      "content_sha256": "03f268dc1f2628dbc76c58921ed868624437f06a15432ea055fff844f12aaf91",
+      "evidence_sha256": "b0d09eaed60fc9ae3b64746f3fc1940eff93894ded81c603a7b3910816966fe3",
+      "pages_scanned": 4,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHILOSOPHIE/01_PROGRAMMES_OFFICIELS/2020/l-evaluation-des-travaux-en-classe-de-philosophie-pdf-136-84-ko--03f268dc1f.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 27872,
+      "content_sha256": "846962c15217af5cfe7ba40b173e94cb225d2153ffd3131d23b2c60a2b5e9a17",
+      "evidence_sha256": "88d27240632b349b8a278a668ceb488ffe2a5ad0cf5d44f3ef74bc8b083c2c53",
+      "pages_scanned": 8,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHILOSOPHIE/01_PROGRAMMES_OFFICIELS/2020/les-exercices-en-classe-de-philosophie-pdf-171-6-ko--846962c152.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 21708,
+      "content_sha256": "b5ed52b1a4754298f7ecdbc56cb886a438c580ebd04284be0ca878b82e7c62db",
+      "evidence_sha256": "a16fa194653363e0cd8826dd186f384b6f812f035ffa9b659456dbb0deb2730e",
+      "pages_scanned": 7,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHILOSOPHIE/03_RESSOURCES_ACCOMPAGNEMENT/2021/recommandations-concernant-le-travail-dans-les-classes-de-philosophie-pdf-136-23-ko--b5ed52b1a4.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 8693,
+      "content_sha256": "e7cf3bdb7a1c3831ccc465d842d8ab0dacb688d565cb35510aee4eac4f2bf5f9",
+      "evidence_sha256": "3684cb6b9fe65340bc1a1ed537b5e8798889b2e51d27227f1c56270583a990c9",
+      "pages_scanned": 3,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHILOSOPHIE/03_RESSOURCES_ACCOMPAGNEMENT/2020/l-etude-des-textes-et-des-uvres-en-classe-de-philosophie-pdf-150-99-ko--e7cf3bdb7a.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 20238,
+      "content_sha256": "f0dec90cafd512cb754fb71ed33dbf0a48f0e67a166be35b5b16a1daa6dd006d",
+      "evidence_sha256": "b1765c2680a0462394da88878a912fd7b2997ab5f67d1e131f8821ceb8cf9d2c",
+      "pages_scanned": 7,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHILOSOPHIE/01_PROGRAMMES_OFFICIELS/2020/la-construction-des-cours-notions-auteurs-reperes-pdf-184-72-ko--f0dec90caf.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 19155,
+      "content_sha256": "06e491d369c5164d9f746176edeef45363cef53d3de2d5fb55153e6e96f98f2e",
+      "evidence_sha256": "e9c34d5f4683d12075aaf63b397464e756d71234c516987d723f87c28608266a",
+      "pages_scanned": 7,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/SES/01_PROGRAMMES_OFFICIELS/2019/specialite-ses-de-premiere-generale-bo-special-n-1-du-22-janvier-2019-pdf-174-71-ko--06e491d369.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 21800,
+      "content_sha256": "2f1035c74db485d12e80d7c887cb9090807be32e5f79a6074d2decb1073ec154",
+      "evidence_sha256": "b532b3ce96fa6ea7baf14cbea18c350f940552cd6fb5040fda4970371ef39d3f",
+      "pages_scanned": 9,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/SES/01_PROGRAMMES_OFFICIELS/2019/specialite-ses-de-terminale-generale-bo-special-n-8-du-25-juillet-2019-pdf-193-63-ko--2f1035c74d.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 66698,
+      "content_sha256": "8eb0e41f95bf4aca37e6231c06109579faf6bf410d6bd2bc210574e66e2762fa",
+      "evidence_sha256": "4406fd380641c7cdf91a1c4ab55cab3d3bd0bdf96e94ec4ef16c47151f7b9d79",
+      "pages_scanned": 22,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/SVT/01_PROGRAMMES_OFFICIELS/2019/specialite-svt-de-premiere-generale-bo-special-n-1-du-22-janvier-2019-pdf-405-48-ko--8eb0e41f95.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 86729,
+      "content_sha256": "d2cbd06f2e8099d9080f17f3abb5b0fc90460b86b3c11f808b99daa01f77f897",
+      "evidence_sha256": "d8323919190f4f2117160a27e90e1ea7a7ce1d8236bc5f75e8dbd0ec53c6f733",
+      "pages_scanned": 27,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/SVT/01_PROGRAMMES_OFFICIELS/2019/specialite-svt-de-terminale-generale-bo-special-n-8-du-25-juillet-2019-pdf-455-06-ko--d2cbd06f2e.pdf",
+      "status": "CLEARED"
+    }
+  ],
+  "scanner_sha256": "0517a34c1b18eee05e3b9694cc2d774754b3a04b694c90aca1faaa48e262e1b7",
+  "scanner_version": "production-profile-gate-v1",
+  "school_year": "2026-2027",
+  "summary": {
+    "pii_not_scanned": 0,
+    "pii_scan_coverage": 1.0,
+    "pii_scan_required": 26,
+    "pii_scanned": 26,
+    "sha256_mismatches": 0
+  }
+}

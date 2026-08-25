@@ -1,0 +1,7 @@
+{
+  "authority_kind": "EFFECTIVE_PROFILE_GATE_CATALOG_V1",
+  "authority_sha256": "6806a6be645d0a9b82a007d1ff7a2e608be72c2956b4a5f571c67071f2ebdb2a",
+  "catalog_delta_payload_sha256": "7cb194b0f09e587bd455e412ec08282cf24f3543fa7118e75b54e200a9155b20",
+  "catalog_delta_sha256": "8b914d6239b87cbb3dcd11039e8e7d392aeee5c5996236a580235d7515919a04",
+  "parent_sealed_catalog_sha256": "75ac6bd288882939d2bb8fcad758730238037c5266913166fcbc61c3be47cdc8"
+}

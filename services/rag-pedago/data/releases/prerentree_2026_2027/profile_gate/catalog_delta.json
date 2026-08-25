@@ -1,0 +1,169 @@
+{
+  "catalog_delta_kind": "PRODUCTION_PROFILE_GATE_CATALOG_PROJECTION_V1",
+  "catalog_delta_payload_sha256": "7cb194b0f09e587bd455e412ec08282cf24f3543fa7118e75b54e200a9155b20",
+  "counts": {
+    "contents": 26,
+    "placements": 26
+  },
+  "parent_catalog_path": "docs/reports/evidence-index/drive-snapshot/drive_snapshot_mapping_20260815.json",
+  "parent_catalog_sha256": "75ac6bd288882939d2bb8fcad758730238037c5266913166fcbc61c3be47cdc8",
+  "placements": [
+    {
+      "collection": "rag_nexus_dgemc_terminale_option",
+      "content_sha256": "e591a87aee633ca3b2593e2d4fd5b183e518ebe0f9d4861e4cdfe0f494f39439",
+      "physical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/DGEMC/01_PROGRAMMES_OFFICIELS/2023/telechargez-le-programme-de-dgemc-en-terminales-generale-et-technologique-pdf-930-41-ko--e591a87aee.pdf",
+      "source_placement_id": "8064e465df905f7d18b79bd5a306bb2022b0f5eb5dd4a9f92ef4cb35f9735570"
+    },
+    {
+      "collection": "rag_nexus_francais_premiere_tc",
+      "content_sha256": "b88b5c685ec05d44b0c22d64f491443759fc0f544fe9ad33e626fb6cc29bf65a",
+      "physical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/_MULTI_DISCIPLINES/01_PROGRAMMES_OFFICIELS/2021/premieres-generale-et-technologique-bo-special-n-1-du-22-janvier-2019-modifie-en-2020-pdf-279-4-ko--b88b5c685e.pdf",
+      "source_placement_id": "39bac68bb943054486d290ef5490c40454e57ad086e6dce83ebb98b89ae4dd3a"
+    },
+    {
+      "collection": "rag_nexus_francais_quatrieme_tc",
+      "content_sha256": "73c001b93cf2151924da5245c4d740b56a5194c17e29c37cda2e1c0593711fae",
+      "physical_path": "01_EDUSCOL_OFFICIEL/COLLEGE/4E/FRANCAIS/02_REPERES_ATTENDUS/2019/attendus-de-fin-d-annee-en-francais-en-4e-pdf-1-05-mo--73c001b93c.pdf",
+      "source_placement_id": "2364a3d0c5a2e042747f18dce939fa85abb2e8f9437bba63597355f41c0ed988"
+    },
+    {
+      "collection": "rag_nexus_francais_seconde_tc",
+      "content_sha256": "b54b6422d0eb2fb906e6ad6c79a2e95e6cae00e3fa113da5f7499eee4cc53ae7",
+      "physical_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/HLP/01_PROGRAMMES_OFFICIELS/2021/seconde-generale-et-technologique-bo-special-n-1-du-22-janvier-2019-modifie-en-2020-pdf-275-51-ko--b54b6422d0.pdf",
+      "source_placement_id": "c51545c7f66ed8631c02275a1c2b33e126a6c1158c466e965170529be3abe805"
+    },
+    {
+      "collection": "rag_nexus_francais_seconde_tc",
+      "content_sha256": "c4e3cc6fb201f4dabc78fa47206c1b498b3ed46496cf05165a74e0ecd8856fb1",
+      "physical_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/FRANCAIS/02_REPERES_ATTENDUS/2019/fiche-c-enseigner-explicitement-la-comprehension-de-l-ecrit-ou-des-ecrits--c4e3cc6fb2.pdf",
+      "source_placement_id": "34aefcc2fba35bfe23d192e3c864e06afe8d1f0443ff5d9056c04469956fc3ae"
+    },
+    {
+      "collection": "rag_nexus_hlp_premiere_specialite",
+      "content_sha256": "4433fee96b6e803c71edf2764d99bd269e649dcff646aee97327fdfeed143f13",
+      "physical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/_MULTI_DISCIPLINES/05_ANNALES_SUJETS_CORRIGES/2019/exemple-de-sujet-commente-sujet-zero-n-2-sur-le-theme-de-la-parole-pdf-153-37-ko--4433fee96b.pdf",
+      "source_placement_id": "78dbbb7aca281889248856d9a60bee4978d9177c172307a7988d36e4d9fde146"
+    },
+    {
+      "collection": "rag_nexus_hlp_premiere_specialite",
+      "content_sha256": "60eeb7dd1ee55d1ed2bb2c7671ecf3c971aeef6996db2bc7cd9c7919ae4b19ac",
+      "physical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/_MULTI_DISCIPLINES/03_RESSOURCES_ACCOMPAGNEMENT/2019/litterature-l-apprentissage-de-l-oral-au-service-de-l-etude-des-textes-pdf-211-27-ko--60eeb7dd1e.pdf",
+      "source_placement_id": "87ec6dbeb8c384b3d66a2f6b562d0ba4251d7b03f0a639dc2327a47ed258c0f7"
+    },
+    {
+      "collection": "rag_nexus_hlp_premiere_specialite",
+      "content_sha256": "64f5b3427dee3b23d421fe03cb2f3aac75e0e47cee31be91b197d4e09c012987",
+      "physical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/_MULTI_DISCIPLINES/03_RESSOURCES_ACCOMPAGNEMENT/2019/philosophie-l-apprentissage-de-l-oral-au-service-de-l-etude-des-textes-pdf-157-47-ko--64f5b3427d.pdf",
+      "source_placement_id": "9b6a008165bd407b189f2a7b64d706f6ea291f8f3ef9a5949040bba9eacc5f61"
+    },
+    {
+      "collection": "rag_nexus_hlp_premiere_specialite",
+      "content_sha256": "9357dfdebca347264787dfebacb674666d87660b82f789657ddd230c7ff224aa",
+      "physical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/_MULTI_DISCIPLINES/05_ANNALES_SUJETS_CORRIGES/2019/exemple-de-sujet-commente-sujet-zero-n-3-sur-le-theme-des-representations-du-monde-pdf-172-29-ko--9357dfdebc.pdf",
+      "source_placement_id": "201890cb08f619293a9fef83637cb9da590a496a0ec579c563ade5cf48a77c8e"
+    },
+    {
+      "collection": "rag_nexus_maths_premiere_gen_specialite",
+      "content_sha256": "5303df0fcf6335f06d00c969a61dcd82cc3fdfd105271ae5c2ef580ff49b6c08",
+      "physical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/MATHEMATIQUES/01_PROGRAMMES_OFFICIELS/2026/programme-d-enseignement-de-specialite-de-mathematiques-de-la-classe-de-premiere-de-la-voie-generale--5303df0fcf.pdf",
+      "source_placement_id": "00c83816301cd79f8f48966721ee840e680002b381d5aefe17a052a4b44d4ffc"
+    },
+    {
+      "collection": "rag_nexus_maths_quatrieme_tc",
+      "content_sha256": "d0edabd6a21d6345d36d32c5506ddcf225e819ddca25d27c1ecc3f97b87a8966",
+      "physical_path": "01_EDUSCOL_OFFICIEL/COLLEGE/4E/MATHEMATIQUES/02_REPERES_ATTENDUS/2019/attendus-de-fin-d-annee-en-mathematiques-en-4e-pdf-1-47-mo--d0edabd6a2.pdf",
+      "source_placement_id": "45842417fb4eff17f72b3b1f134ff5240745403bb066f430ad9204bd4b392f56"
+    },
+    {
+      "collection": "rag_nexus_maths_seconde_tc",
+      "content_sha256": "05c5403d45bfc3631fa13b5c334822de09bcd68d850d0611044045cddba270de",
+      "physical_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/MATHEMATIQUES/01_PROGRAMMES_OFFICIELS/2026/programme-d-enseignement-de-mathematiques-de-la-classe-de-seconde-generale-et-technologique--05c5403d45.pdf",
+      "source_placement_id": "0eb6f9831296a57b4a3cffb68fe26727b229920f2197f4839f3bf99080cc0db6"
+    },
+    {
+      "collection": "rag_nexus_maths_terminale_gen_specialite",
+      "content_sha256": "eb8369e7c1611e90f51491fecc5a7c2081a9c57f9c7fbb08d0414677b56ce16f",
+      "physical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/MATHEMATIQUES/01_PROGRAMMES_OFFICIELS/2019/specialite-de-terminale-generale-bo-special-n-8-du-25-juillet-2019-pdf-475-8-ko--eb8369e7c1.pdf",
+      "source_placement_id": "5cd1965bd38641f661031013c68d4d456d7e2dfd6b90de4a70d229b53699a8b2"
+    },
+    {
+      "collection": "rag_nexus_nsi_premiere_specialite",
+      "content_sha256": "7ca9a32e1823be6c1120cb0417324c3cb01688d1d194c7614a88ea851ccc60b0",
+      "physical_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/NSI/01_PROGRAMMES_OFFICIELS/2019/specialite-numerique-et-sciences-informatiques-en-premiere-bo-special-n-1-du-22-janvier-2019-pdf-300-73-ko--7ca9a32e18.pdf",
+      "source_placement_id": "18e2da3191805fc3c645ae563b1bb212054075063a831dca066f76d44a810351"
+    },
+    {
+      "collection": "rag_nexus_nsi_terminale_specialite",
+      "content_sha256": "10ce34666edd722a3d8d86642a9f1ac205c7a9d128d6142a17effcba2fb85e69",
+      "physical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/NSI/01_PROGRAMMES_OFFICIELS/2019/specialite-numerique-et-sciences-informatiques-en-terminale-bo-special-n-8-du-25-juillet-2019-pdf-196-38-ko--10ce34666e.pdf",
+      "source_placement_id": "88a3e1a4505dda72ecde8d62b4c98c90be36cd0985b880f9278e054c76f421cb"
+    },
+    {
+      "collection": "rag_nexus_pc_premiere_specialite",
+      "content_sha256": "db43d342edf55e162d0153028b43287e4ece0ce81b4dc75f0730bf368b98c0f0",
+      "physical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHYSIQUE_CHIMIE/01_PROGRAMMES_OFFICIELS/2019/specialite-de-premiere-generale-bo-special-n-1-du-22-janvier-2019-pdf-383-44-ko--db43d342ed.pdf",
+      "source_placement_id": "93df20f68378000bf279a599893bbd1dacccc77baf72d9f17db422b77d995edb"
+    },
+    {
+      "collection": "rag_nexus_pc_terminale_specialite",
+      "content_sha256": "c07f8b2db9d22a6c2b9ab8386cf7ba323bc2c56abacb3f560dd97d02b383de18",
+      "physical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHYSIQUE_CHIMIE/01_PROGRAMMES_OFFICIELS/2019/specialite-de-terminale-generale-bo-special-n-8-du-25-juillet-2019-pdf-527-5-ko--c07f8b2db9.pdf",
+      "source_placement_id": "37747f9ee2dd2c325a442fc71469ec40b91864e8c3e5ced06651955b467d0b37"
+    },
+    {
+      "collection": "rag_nexus_philo_terminale_tc",
+      "content_sha256": "03f268dc1f2628dbc76c58921ed868624437f06a15432ea055fff844f12aaf91",
+      "physical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHILOSOPHIE/01_PROGRAMMES_OFFICIELS/2020/l-evaluation-des-travaux-en-classe-de-philosophie-pdf-136-84-ko--03f268dc1f.pdf",
+      "source_placement_id": "93a90f694588888e7c5ca1c868dc48ce00f3369110f18d277d684398db93fdbb"
+    },
+    {
+      "collection": "rag_nexus_philo_terminale_tc",
+      "content_sha256": "846962c15217af5cfe7ba40b173e94cb225d2153ffd3131d23b2c60a2b5e9a17",
+      "physical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHILOSOPHIE/01_PROGRAMMES_OFFICIELS/2020/les-exercices-en-classe-de-philosophie-pdf-171-6-ko--846962c152.pdf",
+      "source_placement_id": "bba1ff6d66e8760b6cfd2415f882f4c51d138025d324c76280038b2eb7ef12de"
+    },
+    {
+      "collection": "rag_nexus_philo_terminale_tc",
+      "content_sha256": "b5ed52b1a4754298f7ecdbc56cb886a438c580ebd04284be0ca878b82e7c62db",
+      "physical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHILOSOPHIE/03_RESSOURCES_ACCOMPAGNEMENT/2021/recommandations-concernant-le-travail-dans-les-classes-de-philosophie-pdf-136-23-ko--b5ed52b1a4.pdf",
+      "source_placement_id": "3ed4e6719fdbef2174588e5d25ee36078552d99df38a237bd865ce2a3a5c1c1e"
+    },
+    {
+      "collection": "rag_nexus_philo_terminale_tc",
+      "content_sha256": "e7cf3bdb7a1c3831ccc465d842d8ab0dacb688d565cb35510aee4eac4f2bf5f9",
+      "physical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHILOSOPHIE/03_RESSOURCES_ACCOMPAGNEMENT/2020/l-etude-des-textes-et-des-uvres-en-classe-de-philosophie-pdf-150-99-ko--e7cf3bdb7a.pdf",
+      "source_placement_id": "9c14e9abb47684ac6d6706d909a415bad233044d6e67a5b7506986052036ff90"
+    },
+    {
+      "collection": "rag_nexus_philo_terminale_tc",
+      "content_sha256": "f0dec90cafd512cb754fb71ed33dbf0a48f0e67a166be35b5b16a1daa6dd006d",
+      "physical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHILOSOPHIE/01_PROGRAMMES_OFFICIELS/2020/la-construction-des-cours-notions-auteurs-reperes-pdf-184-72-ko--f0dec90caf.pdf",
+      "source_placement_id": "309e7b7662f2526def2f2a755f25cbdc79c99980ad5e15ba7f5af1e68578a083"
+    },
+    {
+      "collection": "rag_nexus_ses_premiere_specialite",
+      "content_sha256": "06e491d369c5164d9f746176edeef45363cef53d3de2d5fb55153e6e96f98f2e",
+      "physical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/SES/01_PROGRAMMES_OFFICIELS/2019/specialite-ses-de-premiere-generale-bo-special-n-1-du-22-janvier-2019-pdf-174-71-ko--06e491d369.pdf",
+      "source_placement_id": "9e79944b0a0532d6d1c209991d9ef4a57a4cbb732d4481eb6a7212562f659f1b"
+    },
+    {
+      "collection": "rag_nexus_ses_terminale_specialite",
+      "content_sha256": "2f1035c74db485d12e80d7c887cb9090807be32e5f79a6074d2decb1073ec154",
+      "physical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/SES/01_PROGRAMMES_OFFICIELS/2019/specialite-ses-de-terminale-generale-bo-special-n-8-du-25-juillet-2019-pdf-193-63-ko--2f1035c74d.pdf",
+      "source_placement_id": "32504470306682180efe0bf3f013664d430aa0ea7d378870906bf949d711d239"
+    },
+    {
+      "collection": "rag_nexus_svt_premiere_specialite",
+      "content_sha256": "8eb0e41f95bf4aca37e6231c06109579faf6bf410d6bd2bc210574e66e2762fa",
+      "physical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/SVT/01_PROGRAMMES_OFFICIELS/2019/specialite-svt-de-premiere-generale-bo-special-n-1-du-22-janvier-2019-pdf-405-48-ko--8eb0e41f95.pdf",
+      "source_placement_id": "1679ec6c38196b33c9e361c59e02eccfc09e5820d69edcf5572e56fe7a3c78e0"
+    },
+    {
+      "collection": "rag_nexus_svt_terminale_specialite",
+      "content_sha256": "d2cbd06f2e8099d9080f17f3abb5b0fc90460b86b3c11f808b99daa01f77f897",
+      "physical_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/SVT/01_PROGRAMMES_OFFICIELS/2019/specialite-svt-de-terminale-generale-bo-special-n-8-du-25-juillet-2019-pdf-455-06-ko--d2cbd06f2e.pdf",
+      "source_placement_id": "7aba871d2f49ce67907f663f3547b361c79fbc68a775e809cb179561bd4ad60f"
+    }
+  ],
+  "school_year": "2026-2027"
+}

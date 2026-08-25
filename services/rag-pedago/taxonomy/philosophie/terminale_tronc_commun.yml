@@ -3,7 +3,7 @@ matiere: philosophie
 niveau: terminale
 voie: generale
 statut_enseignement: tronc_commun
-programme_version: BO_2019-01-22
+programme_version: BOEN_special_8_2019-07-25
 themes:
   - id: morale_politique
     label: "La morale et la politique"

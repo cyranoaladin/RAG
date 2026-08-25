@@ -1,0 +1,232 @@
+{
+  "artifacts": [
+    {
+      "chunk_id_set_digest": "b3e65b4d9ffb52660e814d55ef01d9fabce0d51c3afd4ca28363fcf28e433b62",
+      "chunk_sha256_set_digest": "6739b4e61e4db82642832311ef4475eb8781f7aca1257d3508286ecd1dc712ac",
+      "chunks": [
+        {
+          "chunk_id": "9ace2b55eb6979bb4d325b315d7af42d415b1ddb141404f7f06006402cdae752",
+          "chunk_index": 0,
+          "chunk_sha256": "54db1b0bba49e152add6424b4112b7d8313a10e45c2f697b7f3ca7440aca7a6f",
+          "page_end": 1,
+          "page_start": 1
+        },
+        {
+          "chunk_id": "3b535ec7ec253658c1c75a82383338008373f1fcf096fa153368b79707d5d322",
+          "chunk_index": 1,
+          "chunk_sha256": "33b35875b005c2c8b4cbe15d31b21780ca11f75dcc91f24ea56226512cbe3318",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "0f8de647ade9b8ba0f1fb3140af07ebaf5f938dc4af27c96611038602482433b",
+          "chunk_index": 2,
+          "chunk_sha256": "c0a1c442fd445bbce10513d64fc449e146b7f96ef9df46974537a1cb3365eb46",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "71d219283b655638ad57591b024ca35296cff90734ed5b35251ec2380a153542",
+          "chunk_index": 3,
+          "chunk_sha256": "b382a5c5597d13292b93130205544cdc97557e516be3c6793a1a739053edb3e8",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "5ca3405d28b44785708074ec435927a636213a5d5b7331247408881e080f10cc",
+          "chunk_index": 4,
+          "chunk_sha256": "68af0591451506aab78ec05ab44329184a6c33aadd7c6b9555c58b819132cc1f",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "bd58ab9d921d3e97b53a63ffe762b04af3c5329baf576f62f6e01375e8b2cf15",
+          "chunk_index": 5,
+          "chunk_sha256": "50fe841af81b765ebacb1cd322c1c8643667875b5ca5f0d610939daef03f4a65",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "f0b64718f3045b8a24bf6a4344823c56e09f494d4e757dbbeb03d33f8c6012f5",
+          "chunk_index": 6,
+          "chunk_sha256": "fb3e359786c09bd48ca2593e416d508a71f88abf4359a10f9ba5a516fe209c03",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "899171e04c245db179751209dd3bace7712dd6a2d7d672560f70574a35b7cd19",
+          "chunk_index": 7,
+          "chunk_sha256": "ef0c3055e16d63a5edb1db6f33c45ee072caf4f69488ad362cedf1b5bc9feef5",
+          "page_end": 5,
+          "page_start": 5
+        },
+        {
+          "chunk_id": "70769a560f38363407e80aac31e8aa07ab901ce42954bd77fcb6c0fa470ebc3e",
+          "chunk_index": 8,
+          "chunk_sha256": "fd5a35028e0ccd52f3c5ca99f664822b61541a368f4e124e20b8cab25da243ca",
+          "page_end": 5,
+          "page_start": 5
+        },
+        {
+          "chunk_id": "bb0c2a20e73e6caaba29cb13aab653bc0eb6ad3aaa38714781fa6f4f4d6d9eae",
+          "chunk_index": 9,
+          "chunk_sha256": "ab5b253cdda22534b9932014dcf4aa97ece37f0f46667f94e2ed08d93913b918",
+          "page_end": 6,
+          "page_start": 6
+        },
+        {
+          "chunk_id": "d8ecfa828687f786fe63b1d2cd8651f0a6de37f52608a9f884cede6e4de4bd54",
+          "chunk_index": 10,
+          "chunk_sha256": "4eeb7d4200b0a4f8a93f1cd3aebe4a93988c4f0b61c8a58b732ab3eb67a39d74",
+          "page_end": 6,
+          "page_start": 6
+        },
+        {
+          "chunk_id": "e6843c3e9a87fbf7740595e4c54e28b04748287d170313288781496f6e7595b5",
+          "chunk_index": 11,
+          "chunk_sha256": "a36fbde81227ec6dafe45dc898c27498863f8e4ce91ead02808914362d571670",
+          "page_end": 6,
+          "page_start": 6
+        },
+        {
+          "chunk_id": "bfddc46635b8340b00dd0c86ed103c4625b132bc728e54286554f315a1e3338e",
+          "chunk_index": 12,
+          "chunk_sha256": "25a0b88dabdba3807b9bc59ffde87ee1ab69259ef9875e78ba28d9505fab3463",
+          "page_end": 7,
+          "page_start": 7
+        },
+        {
+          "chunk_id": "f337eb75d63a24992a9d3b2ff0a569465c304920156bcd9cea9db40495ca8219",
+          "chunk_index": 13,
+          "chunk_sha256": "46f3611a50b6ae021d6d698fb361559d881ce8fdc5a46a0a87880e1ae0cefa9a",
+          "page_end": 8,
+          "page_start": 8
+        },
+        {
+          "chunk_id": "3d2f1351350c33485193f49a9696199b8562d99dce5b322acaa5b6f0283599fa",
+          "chunk_index": 14,
+          "chunk_sha256": "79959b20eb3e89ed2075505a5bef3605ac5c12cdee956d9175c000ce25d72582",
+          "page_end": 8,
+          "page_start": 8
+        },
+        {
+          "chunk_id": "f5859079af72697fd72c050ec8246f65f03868738b21dc8933246913ee95ef36",
+          "chunk_index": 15,
+          "chunk_sha256": "a6c4c1ce26d64216f3b853df2088316db3dd5bf441cb381d7f1836b19bfeb0df",
+          "page_end": 9,
+          "page_start": 9
+        },
+        {
+          "chunk_id": "7f75c2b93e725d14626310d48af1ff37ed3fd5c452b7cd5b6adc9f1a804fda58",
+          "chunk_index": 16,
+          "chunk_sha256": "6f9af1007845bd7ccb7503cda42fea951e2f7b42a0b6f3e8330b78ea4319f3a4",
+          "page_end": 10,
+          "page_start": 10
+        },
+        {
+          "chunk_id": "c4d598c10432d2984bfc061a0a2199b3f79da9784f687a5e9c7acf78bd93a99b",
+          "chunk_index": 17,
+          "chunk_sha256": "1589f7fcf31059905555ef2d63417b96f2a9719e3963a49f246a982c9fb92876",
+          "page_end": 10,
+          "page_start": 10
+        },
+        {
+          "chunk_id": "f3f803bf6728d8b70651ea5e09b54bdd3896586523d83966b7421dc7f4dc5a24",
+          "chunk_index": 18,
+          "chunk_sha256": "adf50cd501be93c475c62b557f71691d013ec535aa7d862de9570aca9376b155",
+          "page_end": 11,
+          "page_start": 11
+        },
+        {
+          "chunk_id": "8a52641e599b19162ac297d52e7318ed2decef116950d46fc83efa7ddb2d94e8",
+          "chunk_index": 19,
+          "chunk_sha256": "0c0e3dfba34ccd6537694c00573eb05f7e98b3b7cc140ffd3d60b97ad8336c99",
+          "page_end": 11,
+          "page_start": 11
+        },
+        {
+          "chunk_id": "d9800cad8557779e9489c0bb46701391635626e1143596fa53a0292f9fee1ded",
+          "chunk_index": 20,
+          "chunk_sha256": "6088f1445bace204c030354ebc5137ac8ebdc373a9397164637d852c0ef8ac0a",
+          "page_end": 12,
+          "page_start": 12
+        }
+      ],
+      "content_sha256": "d0edabd6a21d6345d36d32c5506ddcf225e819ddca25d27c1ecc3f97b87a8966",
+      "page_count": 12,
+      "page_coverage_digest": "8791fbd8d439f9800961a1ad2d1ca24ea293a7f3cc71155e6ddeda396b31d896",
+      "placement_id_set_digest": "4814e93e3da3e6a8e26436275a242860f13c2ee2c279d88ead90e5abb0433574",
+      "placements": [
+        {
+          "candidat": "libre",
+          "collection": "rag_nexus_maths_quatrieme_tc",
+          "currentness": "current",
+          "matiere": "maths",
+          "niveau": "quatrieme",
+          "placement_id": "889adb1695729084d4e10f775563c2ce6c5d01463d99d71f5bf0f8da9936761a",
+          "placement_status": "active",
+          "programme_version": "BOEN_special_11_2018-07-26_aj_2020",
+          "review_status": "reviewed",
+          "school_year": "2026-2027",
+          "source_placement_id": "45842417fb4eff17f72b3b1f134ff5240745403bb066f430ad9204bd4b392f56",
+          "source_scope": "college/4e/mathematiques",
+          "statut_enseignement": "tronc_commun",
+          "tenant": "libre_quatrieme",
+          "visibility": "internal",
+          "voie": "college"
+        }
+      ],
+      "source_path": "01_EDUSCOL_OFFICIEL/COLLEGE/4E/MATHEMATIQUES/02_REPERES_ATTENDUS/2019/attendus-de-fin-d-annee-en-mathematiques-en-4e-pdf-1-47-mo--d0edabd6a2.pdf",
+      "source_url": "https://eduscol.education.gouv.fr/sites/default/files/document/16-maths-4e-attendus-eduscol1114746pdf-74682.pdf",
+      "title": "Attendus de fin d'année en mathématiques en 4ᵉ PDF - 1.47 Mo",
+      "type_doc": "ressource_officielle"
+    }
+  ],
+  "authorities": {
+    "candidate_inventory_sha256": "fbb8aa3af44efa1484c65640ddbaebf357dff923a0ebd45b6ce80ccc7e8ed7a1",
+    "catalog_delta_sha256": "8b914d6239b87cbb3dcd11039e8e7d392aeee5c5996236a580235d7515919a04",
+    "corpus_manifest_sha256": "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e",
+    "currentness_evidence_sha256": "822677cb14987f1069ff849241e33d6f7c9fb66425a5d00c3e38d71b592b793c",
+    "document_type_mapping_sha256": "ce5e51b7c6890120bec1e7394d2f649ce0b4a2590ea8765d964a5576b99f871f",
+    "effective_catalog_authority_sha256": "6806a6be645d0a9b82a007d1ff7a2e608be72c2956b4a5f571c67071f2ebdb2a",
+    "embedding_inventory_sha256": "e15ab71babe2f392318c8f702a045b36ec13f7be86e7d5bad414d5d17f8c6d6c",
+    "level_mapping_sha256": "8ad9e7a6d62e26e5c233f8a3c62fba7a1df72da29f690a3c17d5e7660e740e1e",
+    "parent_sealed_catalog_sha256": "75ac6bd288882939d2bb8fcad758730238037c5266913166fcbc61c3be47cdc8",
+    "pii_evidence_sha256": "e11bec050acb5887927507df149ce2aa23997c24db2a93af6cdda7b841e2f866",
+    "pii_policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+    "pii_scanner_sha256": "0517a34c1b18eee05e3b9694cc2d774754b3a04b694c90aca1faaa48e262e1b7",
+    "placement_catalog_sha256": "88bf51621c1a75fd0cd951a3d8292596eb3e7ce6fd243b77b1bad325df958370",
+    "preflight_evidence_sha256": "5f128e9635e1433cad6f3c66e48a3639d65e91be39c8022c60da87f9f24902a1",
+    "profile_manifest_sha256": "57d532ca0c80f0e70218e74902f1d47a4ca9f21d7e6bafa209f6f89426125b6c",
+    "programme_registry_sha256": "a596f45819d3f43bc9f7128a7a1719c673c13660d8d1ae9a9ccad064f4f9887d",
+    "reranker_inventory_sha256": "d7c1b418087e10bb11ebb98b92cb62d286d60e6f592987dc5f4b236ed6fcc660",
+    "rights_registry_sha256": "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff",
+    "subject_mapping_sha256": "85a8efa17a9b04659800363ea3386208b46874ca673bdcb0889c6270bfc9c71c"
+  },
+  "collection": "rag_nexus_maths_quatrieme_tc",
+  "expected_counts": {
+    "artifacts": 1,
+    "chunks": 21,
+    "placements": 1
+  },
+  "models": {
+    "embedding": {
+      "dimension": 1024,
+      "inventory_sha256": "e15ab71babe2f392318c8f702a045b36ec13f7be86e7d5bad414d5d17f8c6d6c",
+      "model_id": "intfloat/multilingual-e5-large"
+    },
+    "reranker": {
+      "inventory_sha256": "d7c1b418087e10bb11ebb98b92cb62d286d60e6f592987dc5f4b236ed6fcc660",
+      "model_id": "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    }
+  },
+  "profile": {
+    "fingerprint": "5a9a0ef45ab43f0e046b1892e0cf572b2c6fe4137d027a9077a6fe79c7314ce2",
+    "manifest_digest": "57d532ca0c80f0e70218e74902f1d47a4ca9f21d7e6bafa209f6f89426125b6c",
+    "version": "multilevel-v1"
+  },
+  "programme_version": "BOEN_special_11_2018-07-26_aj_2020",
+  "release_id": "production-profile-gate-2026-2027-v1-rag_nexus_maths_quatrieme_tc",
+  "release_kind": "MULTILEVEL_SUBJECT_RELEASE_V1",
+  "school_year": "2026-2027"
+}
