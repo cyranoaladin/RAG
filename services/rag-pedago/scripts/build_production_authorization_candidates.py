@@ -51,6 +51,9 @@ PII_EVIDENCE_SHA256 = (
 CURRENTNESS_EVIDENCE_SHA256 = (
     "822677cb14987f1069ff849241e33d6f7c9fb66425a5d00c3e38d71b592b793c"
 )
+CURRENTNESS_AUDIT_SHA256 = (
+    "4c6395e3ce4c9a61a0d3a8a3b7f94da75ba91b00419c3f0c042f2d2e7adcf520"
+)
 RIGHTS_EVIDENCE_SHA256 = (
     "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff"
 )
@@ -65,6 +68,7 @@ AGGREGATE_PATH = f"{RELEASE_ROOT}/production-profile-gate.release.json"
 AUTHORITY_BINDINGS_PATH = f"{RELEASE_ROOT}/authority_bindings.json"
 PII_EVIDENCE_PATH = f"{RELEASE_ROOT}/pii_evidence.json"
 CURRENTNESS_EVIDENCE_PATH = f"{RELEASE_ROOT}/currentness_evidence.json"
+CURRENTNESS_AUDIT_PATH = f"{RELEASE_ROOT}/currentness_network_audit.json"
 RIGHTS_EVIDENCE_PATH = "services/rag-pedago/configs/rights_evidence_registry.yml"
 PII_EVIDENCE_REFERENCE = (
     f"sha256:{PII_EVIDENCE_SHA256} path:{PII_EVIDENCE_PATH}"
@@ -312,7 +316,12 @@ def _verify_authority_bindings(
     return document
 
 
-def _verify_pii(document: dict[str, Any], *, final_contents: set[str]) -> None:
+def _verify_pii(
+    document: dict[str, Any],
+    *,
+    final_contents: set[str],
+    artifacts: Mapping[str, Mapping[str, Any]],
+) -> None:
     results = _require_list(document.get("results"), label="PII results")
     by_content: dict[str, dict[str, Any]] = {}
     for raw in results:
@@ -338,15 +347,36 @@ def _verify_pii(document: dict[str, Any], *, final_contents: set[str]) -> None:
         or summary.get("pii_not_scanned") != 0
         or summary.get("sha256_mismatches") != 0
         or any(
-            row.get("status") != "CLEARED" or row.get("pii_detected") is not False
-            for row in by_content.values()
+            row.get("status") != "CLEARED"
+            or row.get("pii_detected") is not False
+            or type(row.get("characters_scanned")) is not int
+            or row["characters_scanned"] <= 0
+            or type(row.get("pages_scanned")) is not int
+            or row["pages_scanned"] <= 0
+            or not isinstance(row.get("evidence_sha256"), str)
+            or not SHA256_RE.fullmatch(row["evidence_sha256"])
+            or artifacts.get(content, {}).get("source_path")
+            != row.get("source_path")
+            for content, row in by_content.items()
         )
     ):
         raise _fail("PII_EVIDENCE_MISMATCH", "not exactly 26 CLEARED results")
+    for row in by_content.values():
+        try:
+            _canonical_official_source_path(row.get("source_path"))
+        except AuthorizationCandidateError as exc:
+            raise _fail(
+                "PII_EVIDENCE_MISMATCH", "PII source path is not canonical"
+            ) from exc
 
 
 def _verify_currentness(
-    document: dict[str, Any], *, final_contents: set[str]
+    document: dict[str, Any],
+    *,
+    final_contents: set[str],
+    network_audit: dict[str, Any],
+    network_audit_sha256: str,
+    artifacts: Mapping[str, Mapping[str, Any]],
 ) -> None:
     rows = _require_list(document.get("artifacts"), label="currentness artifacts")
     by_content: dict[str, dict[str, Any]] = {}
@@ -360,10 +390,31 @@ def _verify_currentness(
     partition = _require_mapping(
         document.get("partition"), label="currentness partition"
     )
+    audit_rows = _require_list(
+        network_audit.get("artifacts"), label="currentness network artifacts"
+    )
+    audit_by_content: dict[str, dict[str, Any]] = {}
+    for raw in audit_rows:
+        audit_row = _require_mapping(raw, label="currentness network artifact")
+        content = audit_row.get("content_sha256")
+        if not isinstance(content, str) or content in audit_by_content:
+            raise _fail("CURRENTNESS_EVIDENCE_MISMATCH", "duplicate audit content")
+        audit_by_content[content] = audit_row
+    audit_counts = _require_mapping(
+        network_audit.get("counts"), label="currentness network counts"
+    )
     if (
         document.get("evidence_kind") != "MULTILEVEL_ARTIFACT_CURRENTNESS_V1"
         or document.get("school_year") != "2026-2027"
+        or document.get("currentness_audit_sha256") != CURRENTNESS_AUDIT_SHA256
+        or network_audit_sha256 != CURRENTNESS_AUDIT_SHA256
+        or network_audit.get("audit_kind")
+        != "PRODUCTION_PROFILE_GATE_CURRENTNESS_AUDIT_V1"
+        or network_audit.get("network_mode") != "READ_ONLY"
+        or network_audit.get("write_operations") != 0
+        or audit_counts != {"digest_mismatch": 0, "verified": FINAL_CONTENT_COUNT}
         or set(by_content) != final_contents
+        or set(audit_by_content) != final_contents
         or counts
         != {
             "artifacts": FINAL_CONTENT_COUNT,
@@ -378,20 +429,31 @@ def _verify_currentness(
         or any(
             row.get("decision") != "CURRENT"
             or row.get("byte_identity") is not True
+            or row.get("effective_currentness") != "actuel"
             or row.get("current_for_school_year") != "2026-2027"
             or row.get("current_download_sha256") != content
+            or artifacts.get(content, {}).get("source_path") != row.get("exact_path")
+            or artifacts.get(content, {}).get("source_url")
+            != row.get("current_download_url")
+            or audit_by_content.get(content, {}).get("downloaded_sha256") != content
+            or audit_by_content.get(content, {}).get("byte_identity") is not True
+            or audit_by_content.get(content, {}).get("current_download_url")
+            != row.get("current_download_url")
+            or audit_by_content.get(content, {}).get("current_source_listing_url")
+            != row.get("current_source_listing_url")
             for content, row in by_content.items()
         )
     ):
         raise _fail("CURRENTNESS_EVIDENCE_MISMATCH", "not exactly 26 CURRENT results")
     for row in by_content.values():
         try:
+            _canonical_official_source_path(row.get("exact_path"))
             _source_domain(row.get("current_download_url"))
             _source_domain(row.get("current_source_listing_url"))
         except AuthorizationCandidateError as exc:
             raise _fail(
                 "CURRENTNESS_EVIDENCE_MISMATCH",
-                "currentness URL is outside the approved institutional domains",
+                "currentness source fact is not canonical or approved",
             ) from exc
 
 
@@ -610,7 +672,11 @@ def build_authorization_candidates(
         _json(reader.read_blob(PII_EVIDENCE_PATH), path=PII_EVIDENCE_PATH),
         label="PII evidence",
     )
-    _verify_pii(pii_document, final_contents=final_contents)
+    _verify_pii(
+        pii_document,
+        final_contents=final_contents,
+        artifacts=artifacts,
+    )
     currentness_document = _require_mapping(
         _json(
             reader.read_blob(CURRENTNESS_EVIDENCE_PATH),
@@ -618,7 +684,18 @@ def build_authorization_candidates(
         ),
         label="currentness evidence",
     )
-    _verify_currentness(currentness_document, final_contents=final_contents)
+    currentness_audit_raw = reader.read_blob(CURRENTNESS_AUDIT_PATH)
+    currentness_audit = _require_mapping(
+        _json(currentness_audit_raw, path=CURRENTNESS_AUDIT_PATH),
+        label="currentness network audit",
+    )
+    _verify_currentness(
+        currentness_document,
+        final_contents=final_contents,
+        network_audit=currentness_audit,
+        network_audit_sha256=_sha256(currentness_audit_raw),
+        artifacts=artifacts,
+    )
     rights_document = strict_yaml_mapping(
         reader.read_blob(RIGHTS_EVIDENCE_PATH), source=RIGHTS_EVIDENCE_PATH
     )

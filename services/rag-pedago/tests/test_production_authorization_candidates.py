@@ -8,10 +8,10 @@ import json
 import os
 import subprocess
 import sys
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from copy import deepcopy
 from pathlib import Path
-from typing import Protocol, cast
+from typing import Any, Protocol, cast
 
 import pytest
 from nexus_contracts import (
@@ -30,7 +30,12 @@ SCRIPT = (
     / "build_production_authorization_candidates.py"
 )
 PLACEMENT_PATH = "docs/reports/release_scope_placement_20260825.jsonl"
+FINAL_SET_PATH = "docs/reports/final_production_eligible_set_20260825.txt"
 VERIFIED_PROFILES_PATH = "docs/reports/verified_production_profiles_20260825.json"
+AGGREGATE_PATH = (
+    "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/"
+    "production-profile-gate.release.json"
+)
 PII_EVIDENCE_PATH = (
     "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/"
     "pii_evidence.json"
@@ -38,6 +43,10 @@ PII_EVIDENCE_PATH = (
 CURRENTNESS_EVIDENCE_PATH = (
     "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/"
     "currentness_evidence.json"
+)
+CURRENTNESS_AUDIT_PATH = (
+    "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/"
+    "currentness_network_audit.json"
 )
 RIGHTS_EVIDENCE_PATH = "services/rag-pedago/configs/rights_evidence_registry.yml"
 
@@ -95,11 +104,21 @@ class Producer(Protocol):
     ) -> None: ...
 
     def _verify_pii(
-        self, document: dict[str, object], *, final_contents: set[str]
+        self,
+        document: dict[str, object],
+        *,
+        final_contents: set[str],
+        artifacts: Mapping[str, Mapping[str, object]],
     ) -> None: ...
 
     def _verify_currentness(
-        self, document: dict[str, object], *, final_contents: set[str]
+        self,
+        document: dict[str, object],
+        *,
+        final_contents: set[str],
+        network_audit: dict[str, object],
+        network_audit_sha256: str,
+        artifacts: Mapping[str, Mapping[str, object]],
     ) -> None: ...
 
     def _verify_rights(self, document: dict[str, object]) -> None: ...
@@ -167,6 +186,77 @@ def _exact_json_document(result: CandidateResult, path: str) -> dict[str, object
     document = json.loads(_exact_tree_blob(result.provenance, path))
     assert isinstance(document, dict)
     return document
+
+
+def _subject_artifacts_from_currentness(
+    document: Mapping[str, object],
+) -> dict[str, Mapping[str, object]]:
+    rows = document["artifacts"]
+    assert isinstance(rows, list)
+    result: dict[str, Mapping[str, object]] = {}
+    for raw in rows:
+        assert isinstance(raw, dict)
+        content = raw["content_sha256"]
+        source_path = raw["exact_path"]
+        source_url = raw["current_download_url"]
+        assert isinstance(content, str)
+        result[content] = {
+            "content_sha256": content,
+            "source_path": source_path,
+            "source_url": source_url,
+        }
+    return result
+
+
+def _pii_artifacts(document: Mapping[str, object]) -> dict[str, Mapping[str, object]]:
+    rows = document["results"]
+    assert isinstance(rows, list)
+    result: dict[str, Mapping[str, object]] = {}
+    for raw in rows:
+        assert isinstance(raw, dict)
+        content = raw["content_sha256"]
+        assert isinstance(content, str)
+        result[content] = {
+            "content_sha256": content,
+            "source_path": raw["source_path"],
+        }
+    return result
+
+
+def _verify_exact_currentness(
+    producer: Producer,
+    result: CandidateResult,
+    document: dict[str, object],
+) -> None:
+    audit_raw = _exact_tree_blob(result.provenance, CURRENTNESS_AUDIT_PATH)
+    audit = json.loads(audit_raw)
+    assert isinstance(audit, dict)
+    producer._verify_currentness(
+        document,
+        final_contents=_candidate_contents(result),
+        network_audit=audit,
+        network_audit_sha256=hashlib.sha256(audit_raw).hexdigest(),
+        artifacts=_subject_artifacts_from_currentness(
+            _exact_json_document(result, CURRENTNESS_EVIDENCE_PATH)
+        ),
+    )
+
+
+def _mutate_reader_blob(
+    producer: Producer,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    path: str,
+    mutation: Callable[[bytes], bytes],
+) -> None:
+    reader_type = cast(Any, producer)._ExactGitTreeReader
+    original = reader_type.read_blob
+
+    def read_blob(instance: object, current_path: str) -> bytes:
+        raw = cast(bytes, original(instance, current_path))
+        return mutation(raw) if current_path == path else raw
+
+    monkeypatch.setattr(reader_type, "read_blob", read_blob)
 
 
 def test_candidates_partition_the_frozen_production_set_exactly() -> None:
@@ -358,7 +448,43 @@ def test_pii_verifier_rejects_non_real_or_partial_evidence(
     target[mutation_path[-1]] = mutated_value
 
     with pytest.raises(ValueError, match="PII_EVIDENCE_MISMATCH"):
-        producer._verify_pii(document, final_contents=_candidate_contents(result))
+        producer._verify_pii(
+            document,
+            final_contents=_candidate_contents(result),
+            artifacts=_pii_artifacts(
+                _exact_json_document(result, PII_EVIDENCE_PATH)
+            ),
+        )
+
+
+@pytest.mark.parametrize(
+    ("field", "mutated_value"),
+    [
+        ("characters_scanned", 0),
+        ("pages_scanned", 0),
+        ("evidence_sha256", "not-a-sha256"),
+        ("source_path", "01_EDUSCOL_OFFICIEL/../escape.pdf"),
+    ],
+)
+def test_pii_verifier_rejects_an_empty_or_unbound_scan_result(
+    field: str, mutated_value: object
+) -> None:
+    producer = _module()
+    result = _build()
+    exact_document = _exact_json_document(result, PII_EVIDENCE_PATH)
+    document = deepcopy(exact_document)
+    rows = document["results"]
+    assert isinstance(rows, list) and rows
+    first = rows[0]
+    assert isinstance(first, dict)
+    first[field] = mutated_value
+
+    with pytest.raises(ValueError, match="PII_EVIDENCE_MISMATCH"):
+        producer._verify_pii(
+            document,
+            final_contents=_candidate_contents(result),
+            artifacts=_pii_artifacts(exact_document),
+        )
 
 
 @pytest.mark.parametrize(
@@ -377,9 +503,7 @@ def test_currentness_verifier_rejects_wrong_evidence_identity(
     document[field] = mutated_value
 
     with pytest.raises(ValueError, match="CURRENTNESS_EVIDENCE_MISMATCH"):
-        producer._verify_currentness(
-            document, final_contents=_candidate_contents(result)
-        )
+        _verify_exact_currentness(producer, result, document)
 
 
 def test_currentness_verifier_rejects_an_unapproved_download_domain() -> None:
@@ -393,8 +517,55 @@ def test_currentness_verifier_rejects_an_unapproved_download_domain() -> None:
     first["current_download_url"] = "https://attacker.invalid/programme.pdf"
 
     with pytest.raises(ValueError, match="CURRENTNESS_EVIDENCE_MISMATCH"):
+        _verify_exact_currentness(producer, result, document)
+
+
+@pytest.mark.parametrize(
+    ("field", "mutated_value"),
+    [
+        ("effective_currentness", "obsolete"),
+        ("exact_path", "01_EDUSCOL_OFFICIEL/../escape.pdf"),
+        (
+            "current_download_url",
+            "https://eduscol.education.gouv.fr/substituted-programme.pdf",
+        ),
+        (
+            "current_source_listing_url",
+            "https://eduscol.education.gouv.fr/substituted-listing",
+        ),
+    ],
+)
+def test_currentness_verifier_rejects_an_obsolete_or_substituted_source_fact(
+    field: str, mutated_value: object
+) -> None:
+    producer = _module()
+    result = _build()
+    document = deepcopy(_exact_json_document(result, CURRENTNESS_EVIDENCE_PATH))
+    rows = document["artifacts"]
+    assert isinstance(rows, list) and rows
+    first = rows[0]
+    assert isinstance(first, dict)
+    first[field] = mutated_value
+
+    with pytest.raises(ValueError, match="CURRENTNESS_EVIDENCE_MISMATCH"):
+        _verify_exact_currentness(producer, result, document)
+
+
+def test_currentness_verifier_rejects_an_unbound_network_audit() -> None:
+    producer = _module()
+    result = _build()
+    document = _exact_json_document(result, CURRENTNESS_EVIDENCE_PATH)
+    audit_raw = _exact_tree_blob(result.provenance, CURRENTNESS_AUDIT_PATH)
+    audit = json.loads(audit_raw)
+    assert isinstance(audit, dict)
+
+    with pytest.raises(ValueError, match="CURRENTNESS_EVIDENCE_MISMATCH"):
         producer._verify_currentness(
-            document, final_contents=_candidate_contents(result)
+            document,
+            final_contents=_candidate_contents(result),
+            network_audit=audit,
+            network_audit_sha256="0" * 64,
+            artifacts=_subject_artifacts_from_currentness(document),
         )
 
 
@@ -413,3 +584,107 @@ def test_rights_verifier_rejects_a_relabelled_human_decision() -> None:
 
     with pytest.raises(ValueError, match="RIGHTS_EVIDENCE_MISMATCH"):
         producer._verify_rights(document)
+
+
+def test_builder_rejects_a_mutated_aggregate_digest(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    producer = _module()
+    _mutate_reader_blob(
+        producer,
+        monkeypatch,
+        path=AGGREGATE_PATH,
+        mutation=lambda raw: raw + b" ",
+    )
+
+    with pytest.raises(ValueError, match="AGGREGATE_MISMATCH"):
+        producer.build_authorization_candidates(
+            repository_root=ROOT,
+            source_commit_sha=SOURCE_COMMIT_SHA,
+        )
+
+
+def test_builder_rejects_a_mutated_profile_fingerprint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    producer = _module()
+
+    def mutate(raw: bytes) -> bytes:
+        document = json.loads(raw)
+        profiles = document["profiles"]
+        assert isinstance(profiles, list) and profiles
+        first = profiles[0]
+        assert isinstance(first, dict)
+        first["profile_fingerprint"] = "0" * 64
+        return (
+            json.dumps(document, sort_keys=True, separators=(",", ":")).encode()
+            + b"\n"
+        )
+
+    _mutate_reader_blob(
+        producer,
+        monkeypatch,
+        path=VERIFIED_PROFILES_PATH,
+        mutation=mutate,
+    )
+
+    with pytest.raises(ValueError, match="PROFILE_MISMATCH"):
+        producer.build_authorization_candidates(
+            repository_root=ROOT,
+            source_commit_sha=SOURCE_COMMIT_SHA,
+        )
+
+
+@pytest.mark.parametrize("mutation", ["missing", "extra"])
+def test_builder_rejects_a_final_set_gap_or_extra(
+    mutation: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    producer = _module()
+
+    def mutate(raw: bytes) -> bytes:
+        values = raw.decode("ascii").splitlines()
+        if mutation == "missing":
+            values.pop()
+        else:
+            values.append("f" * 64)
+        return ("\n".join(sorted(values)) + "\n").encode("ascii")
+
+    _mutate_reader_blob(
+        producer,
+        monkeypatch,
+        path=FINAL_SET_PATH,
+        mutation=mutate,
+    )
+
+    with pytest.raises(ValueError, match="INVALID_FINAL_SET"):
+        producer.build_authorization_candidates(
+            repository_root=ROOT,
+            source_commit_sha=SOURCE_COMMIT_SHA,
+        )
+
+
+def test_builder_rejects_an_overlapping_placement(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    producer = _module()
+    original = _git("show", f"{SOURCE_COMMIT_SHA}:{PLACEMENT_PATH}")
+    duplicate = original.splitlines(keepends=True)[1]
+    mutated = original + duplicate
+    monkeypatch.setattr(
+        cast(Any, producer),
+        "RELEASE_SCOPE_PLACEMENT_SHA256",
+        hashlib.sha256(mutated).hexdigest(),
+    )
+    _mutate_reader_blob(
+        producer,
+        monkeypatch,
+        path=PLACEMENT_PATH,
+        mutation=lambda _raw: mutated,
+    )
+
+    with pytest.raises(ValueError, match="repeats content_sha256"):
+        producer.build_authorization_candidates(
+            repository_root=ROOT,
+            source_commit_sha=SOURCE_COMMIT_SHA,
+        )
