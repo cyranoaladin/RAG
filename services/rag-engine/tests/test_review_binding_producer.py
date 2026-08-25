@@ -29,6 +29,7 @@ from nexus_contracts.review_binding import (
     ReviewBindingError,
     TrustAnchor,
     expected_challenge_digest,
+    parse_signed_review_binding,
     public_key_hex,
     verify_review_binding,
 )
@@ -44,7 +45,7 @@ from ingestor.ingestion_control.github_authority import (
 #: Graine de test — l'ancre qui la déclare porte ``environment="test"``, et
 #: le contrat refuse de l'exercer en mode production.
 TEST_SEED = "33" * 32
-KEY_ID = "nexus-governance-test-1"
+KEY_ID = "review-binding-v1-2026-08-25-test"
 
 REPOSITORY = "cyranoaladin/RAG"
 PULL_REQUEST = 95
@@ -217,9 +218,11 @@ class TestNominalIssuance:
         self, github: dict[str, Any]
     ) -> None:
         raw = producer._issue_binding(_args(), now=NOW)
+        signed = parse_signed_review_binding(raw)
         binding = verify_review_binding(
             raw, trust_anchor=_trust_anchor(), environment="test", now=NOW
         )
+        assert signed.key_id == KEY_ID
         assert binding.repository == REPOSITORY
         assert binding.pull_request == PULL_REQUEST
         assert binding.base_sha == BASE_SHA
