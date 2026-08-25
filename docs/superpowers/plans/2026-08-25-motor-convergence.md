@@ -522,7 +522,7 @@ git commit -m "docs: consigner la convergence des moteurs RAG"
 **Files:**
 - Verify all Lot 2 files
 
-- [ ] **Step 1: Tests ciblés frais**
+- [x] **Step 1: Tests ciblés frais**
 
 ```bash
 PYTHONPATH=services/rag-engine/src python3 -m pytest -q \
@@ -535,7 +535,7 @@ PYTHONPATH=services/rag-engine/src python3 -m pytest -q \
   services/rag-engine/tests/test_engine_cutover.py
 ```
 
-- [ ] **Step 2: Tests de non-régression des frontières existantes**
+- [x] **Step 2: Tests de non-régression des frontières existantes**
 
 ```bash
 PYTHONPATH=services/rag-engine/src python3 -m pytest -q \
@@ -546,7 +546,7 @@ PYTHONPATH=services/rag-engine/src python3 -m pytest -q \
   services/rag-engine/tests/test_ingestion_embedding_path_audit_contract.py
 ```
 
-- [ ] **Step 3: Qualité Python**
+- [x] **Step 3: Qualité Python**
 
 ```bash
 (cd services/rag-engine && python3 -m ruff check \
@@ -571,7 +571,7 @@ PYTHONPATH=services/rag-engine/src python3 -m pytest -q \
   src/ingestor/engine_cutover.py)
 ```
 
-- [ ] **Step 4: Garde-fous dépôt**
+- [x] **Step 4: Garde-fous dépôt**
 
 ```bash
 bash scripts/check-governance-locks.sh

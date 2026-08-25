@@ -18,6 +18,7 @@ ou autorisation de cutover n'est déclarée.
 | Baseline `origin/main` | `ca0a21f59bd25c7e472cf2d6accc5b8e79ed74bd` |
 | Branche | `rag-engine/motor-convergence-20260825` |
 | Head implémentation avant rapport | `091b29c19e429c793456e2653c78a7c8c7812a41` |
+| Head exact vérifié avant clôture documentaire | `7dd1ca7293d4557506d366de1c41edd2eeb35e0d` |
 | Contrat canonique | `packages/contracts`, `nexus-contracts` 0.14.0 |
 | Moteur canonique | B — `rag-pedago` + `rag-engine` + pgvector + e5-large 1024D |
 | Moteur de continuité | A — Streamlit/FastAPI legacy + ChromaDB + Ollama + SQLite |
@@ -144,6 +145,8 @@ sont ni des digests de corpus réel ni des preuves de production.
 | `c2759a767efe3764215d11fbee45238e0a07634d` | parité sur passages scellés |
 | `b24a163e4be8945e0c76f43efad036b6500a31c1` | manifeste de cutover fail-closed |
 | `091b29c19e429c793456e2653c78a7c8c7812a41` | liaisons de preuves du cutover |
+| `cafca11` | ADR, runbook et rapport de convergence |
+| `7dd1ca7` | normalisation du fichier de test de politique |
 
 ## TDD et revues adversariales
 
@@ -166,15 +169,36 @@ GitHub et ne fournissent aucune identité humaine.
 
 ## Vérifications
 
-Les vérifications fraîches exact-head du lot sont consignées après le commit
-documentaire final. Pendant les cycles d'implémentation :
+Les vérifications fraîches suivantes ont été exécutées sur le head de code
+exact `7dd1ca7293d4557506d366de1c41edd2eeb35e0d` :
 
-- parité/CLI : 34 tests, Ruff et mypy verts ;
-- cutover : 64 tests, Ruff et mypy verts ;
-- scanner de secrets différentiel sur les commits applicatifs : aucune fuite.
+- suite ciblée Lot 2 : `160 passed` ;
+- frontières existantes de non-régression : `174 passed` ;
+- Ruff sur tous les fichiers Python du lot : PASS ;
+- mypy sur les quatre modules source : PASS ;
+- gouvernance : `18/18` verrous conformes ;
+- hygiène du dépôt et `git diff --check` : PASS ;
+- gitleaks différentiel `origin/main..HEAD`, dix commits, redaction totale :
+  aucune fuite ;
+- CI locale exhaustive : `17 passed, 0 failed` ;
+- `rag-pedago` dans cette CI : `2807 passed, 2 skipped` ;
+- `rag-engine` : lint, mypy sur 125 fichiers, suite non-intégration et smoke
+  Docker hybride réels : PASS ;
+- `cockpit` : lint, `179 passed`, build Next.js et audit npm sans
+  vulnérabilité : PASS ;
+- contrats, topologie CI, trusted-human-review, taxonomie et contrôles de
+  gouvernance : PASS.
 
-La CI locale exhaustive et les garde-fous dépôt doivent encore être rejoués
-sur le head incluant ce rapport. Aucun résultat futur n'est pré-déclaré ici.
+La première création de venv par `scripts/ci-local.sh` a exposé un défaut
+machine préexistant : le binaire utilisateur `python3.11` sélectionné est une
+installation uv relocalisée dont la bibliothèque standard pointe vers
+`/install`. Le script et les Makefiles sont identiques à `origin/main`. La CI
+exhaustive ci-dessus a donc été relancée sans changement dépôt avec un shim
+temporaire `python3.11` vers Python 3.12.3, version compatible avec la règle
+Python 3.11+, puis le shim a été supprimé automatiquement.
+
+Après le commit documentaire final, les garde-fous et la CI seront rejoués sur
+le nouveau head ; leurs résultats ne sont pas pré-déclarés dans ce rapport.
 
 ## Preuves réelles absentes et gates
 
@@ -202,4 +226,4 @@ En conséquence :
 
 | Lot | Branche | PR | SHA | CI | Revue | Déployé | Preuve réelle | Rollback | Verdict |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2 | `rag-engine/motor-convergence-20260825` | à ouvrir | head documentaire à figer | à rejouer | revues techniques approuvées ; trusted-human-review absente | non | non | contrat local seulement | `NO_GO` |
+| 2 | `rag-engine/motor-convergence-20260825` | à ouvrir | code vérifié `7dd1ca7293d4557506d366de1c41edd2eeb35e0d` ; head documentaire à figer | locale `17/17` | revues techniques approuvées ; trusted-human-review absente | non | non | contrat local seulement | `NO_GO` |
