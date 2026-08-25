@@ -316,6 +316,23 @@ def _verify_authority_bindings(
     return document
 
 
+def _pii_result_digest(row: Mapping[str, Any]) -> str:
+    core = {
+        "content_sha256": row.get("content_sha256"),
+        "pages_scanned": row.get("pages_scanned"),
+        "characters_scanned": row.get("characters_scanned"),
+        "status": row.get("status"),
+        "pii_detected": row.get("pii_detected"),
+    }
+    raw = json.dumps(
+        core,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return _sha256(raw)
+
+
 def _verify_pii(
     document: dict[str, Any],
     *,
@@ -355,6 +372,9 @@ def _verify_pii(
             or row["pages_scanned"] <= 0
             or not isinstance(row.get("evidence_sha256"), str)
             or not SHA256_RE.fullmatch(row["evidence_sha256"])
+            or row["evidence_sha256"] != _pii_result_digest(row)
+            or type(artifacts.get(content, {}).get("page_count")) is not int
+            or artifacts[content]["page_count"] != row["pages_scanned"]
             or artifacts.get(content, {}).get("source_path")
             != row.get("source_path")
             for content, row in by_content.items()

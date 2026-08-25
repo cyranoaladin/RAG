@@ -218,6 +218,7 @@ def _pii_artifacts(document: Mapping[str, object]) -> dict[str, Mapping[str, obj
         assert isinstance(content, str)
         result[content] = {
             "content_sha256": content,
+            "page_count": raw["pages_scanned"],
             "source_path": raw["source_path"],
         }
     return result
@@ -478,6 +479,54 @@ def test_pii_verifier_rejects_an_empty_or_unbound_scan_result(
     first = rows[0]
     assert isinstance(first, dict)
     first[field] = mutated_value
+
+    with pytest.raises(ValueError, match="PII_EVIDENCE_MISMATCH"):
+        producer._verify_pii(
+            document,
+            final_contents=_candidate_contents(result),
+            artifacts=_pii_artifacts(exact_document),
+        )
+
+
+def test_pii_verifier_rejects_a_well_formed_but_false_evidence_digest() -> None:
+    producer = _module()
+    result = _build()
+    exact_document = _exact_json_document(result, PII_EVIDENCE_PATH)
+    document = deepcopy(exact_document)
+    rows = document["results"]
+    assert isinstance(rows, list) and rows
+    first = rows[0]
+    assert isinstance(first, dict)
+    first["evidence_sha256"] = "0" * 64
+
+    with pytest.raises(ValueError, match="PII_EVIDENCE_MISMATCH"):
+        producer._verify_pii(
+            document,
+            final_contents=_candidate_contents(result),
+            artifacts=_pii_artifacts(exact_document),
+        )
+
+
+def test_pii_verifier_rejects_a_digest_valid_partial_page_scan() -> None:
+    producer = _module()
+    result = _build()
+    exact_document = _exact_json_document(result, PII_EVIDENCE_PATH)
+    document = deepcopy(exact_document)
+    rows = document["results"]
+    assert isinstance(rows, list) and rows
+    first = rows[0]
+    assert isinstance(first, dict)
+    first["pages_scanned"] = 1
+    core = {
+        "content_sha256": first["content_sha256"],
+        "pages_scanned": first["pages_scanned"],
+        "characters_scanned": first["characters_scanned"],
+        "status": first["status"],
+        "pii_detected": first["pii_detected"],
+    }
+    first["evidence_sha256"] = hashlib.sha256(
+        json.dumps(core, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
 
     with pytest.raises(ValueError, match="PII_EVIDENCE_MISMATCH"):
         producer._verify_pii(
