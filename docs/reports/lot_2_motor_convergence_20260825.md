@@ -174,10 +174,13 @@ symlink ou de bloquer sur une FIFO. Une seconde passe a détecté la comparaison
 des droits limitée à chaque requête ainsi qu'une profondeur YAML susceptible
 de produire une exception brute. Les cycles rouges correspondants sont fermés
 par un contexte d'accès explicite, l'égalité globale des droits par identité de
-passage même après déplacement inter-requêtes, le rejet des contradictions
-intra-capture, une erreur YAML assainie et des ouvertures
-`O_NONBLOCK`/`O_NOFOLLOW` suivies de `fstat`, contrôle de fichier régulier et
-bornes de taille. Les deux agents contradictoires ont approuvé l'exact head
+passage même après déplacement inter-requêtes, une erreur YAML assainie et des
+ouvertures `O_NONBLOCK`/`O_NOFOLLOW` suivies de `fstat`, contrôle de fichier
+régulier et bornes de taille. La revue adversariale a en plus vérifié
+manuellement que des droits contradictoires sur un même passage au sein d'une
+capture produisent `FAIL_CLOSED / RIGHTS_MISMATCH` ; cette vérification n'est
+pas présentée comme un cycle TDD conservé. Les deux agents contradictoires ont
+approuvé l'exact head
 `910071b587f8b3c2dfc33cfcca033ba096f94604` sans P0/P1/P2. Ces revues restent
 des contrôles de code ; elles ne sont pas une trusted-human-review GitHub et ne
 fournissent aucune identité humaine.
@@ -218,8 +221,8 @@ Sur le head corrigé `910071b587f8b3c2dfc33cfcca033ba096f94604` :
 - frontières existantes de non-régression : `174 passed` ;
 - suites politique et parité directement affectées : `44 passed` ;
 - Ruff sur tous les fichiers Python du Lot 2 : PASS ;
-- mypy ciblé sur les quatre modules, contrat partagé résolu via `MYPYPATH` :
-  PASS ;
+- mypy ciblé sur les quatre modules depuis la racine avec
+  `MYPYPATH=packages/contracts/src` et `--follow-imports=skip` : PASS ;
 - gouvernance : `18/18` verrous conformes ;
 - deux revues contradictoires exact-head : APPROVED, aucun P0/P1/P2.
 
