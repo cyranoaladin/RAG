@@ -22,13 +22,16 @@ SHA-256, pytest, ruff, mypy, Git/GitHub CLI.
 **Files:**
 - Create `services/rag-pedago/tests/test_production_profile_gate.py`
 - Create `services/rag-pedago/tests/fixtures/production_profile_gate_expected.json`
+- Create `docs/reports/production_profile_primary_evidence_20260825.json`
 
 1. Add RED tests requiring 56 individual P11-P23 records, exactly ten
    `EXACTLY_GROUNDED`, 46 review-required residuals, and no production
    `unknown` or fallback `lycee_gt`.
 2. Add RED tests for the exact ten eligible SHA and their seven expected
    profile identities.
-3. Add RED tests requiring evidence paths to exist in the frozen Git tree.
+3. Add RED tests requiring a per-content primary-evidence record with exact
+   PDF/Drive identity, page/section locators, bounded decisive facts and
+   BO/NOR identifiers; validate its coverage and digest, not only paths.
 4. Run the focused module and record the failures.
 5. Commit tests only: `rag-pedago: specify production profile gate`.
 
@@ -36,15 +39,19 @@ SHA-256, pytest, ruff, mypy, Git/GitHub CLI.
 
 **Files:**
 - Create `services/rag-pedago/scripts/build_production_profile_gate.py`
+- Create `services/rag-pedago/configs/production_profile_decisions_20260825.json`
 - Create `docs/reports/production_profile_resolution_records_20260825.json`
 - Create `docs/reports/final_production_profile_matrix_20260825.json`
 - Modify `services/rag-pedago/tests/test_production_profile_gate.py`
 
 1. Implement the minimum data-driven resolver over the frozen proposed
-   matrix, Drive mapping, scope audit and a versioned decisions document.
+   matrix, Drive mapping, scope audit, primary-evidence artifact and the named
+   versioned decisions document.
 2. Require each record to expose every field requested by the Direction.
 3. Produce only grounded rows in the final placement matrix; emit residuals
-   with `REVIEW_REQUIRED` reason codes.
+   with `REVIEW_REQUIRED` reason codes. Rewrite every P01-P10 dimension source
+   and evidence list to the promoted production-root YAML; add RED coverage
+   for `MATRIX_PROFILE_SOURCE_MISMATCH` on any staging path.
 4. Run focused tests GREEN, refactor duplicated validation, run ruff/mypy.
 5. Commit: `rag-pedago: resolve final production profile set`.
 
@@ -87,25 +94,38 @@ SHA-256, pytest, ruff, mypy, Git/GitHub CLI.
 3. Run shared profile-manifest and engine startup/profile tests GREEN.
 4. Commit: `rag-engine: seal production profile manifest`.
 
-## Task 6: Build the executable 15-content release
+## Task 6: Build the executable 26-content release
 
 **Files:**
 - Create `services/rag-pedago/scripts/build_production_profile_release.py`
 - Create release manifests under
   `services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/`
 - Modify `services/rag-pedago/data/releases/prerentree_2026_2027/release-registry.json`
+- Modify `services/rag-engine/src/ingestor/multilevel_verified_placement.py`
 - Create/modify focused tests in both services
 
 1. Add RED unit tests for SHA mismatch, missing PDF, wrong profile,
    out-of-set content, empty page/chunk, non-E5-bounded chunk and unstable
    output ordering.
-2. Implement the producer by reusing the runtime page-aware chunking
+2. Add RED exact-coverage and mutation tests for candidate inventory,
+   currentness, PII, rights, preflight, programme registry, catalog/mappings,
+   model inventories and profile manifest. Name every source path/digest in
+   `authority_bindings.json`; never accept a shape-only digest.
+3. Implement the producer by reusing the runtime page-aware chunking
    primitives and real local E5 tokenizer; do not create a second splitter.
-3. Generate eight subject manifests plus one aggregate for P24 + new ten.
-4. Add the pinned registry entry and digest.
-5. Run `load_release_registry_file` and profile release tests GREEN,
-   including P24 5/5/profile match 5/5.
-6. Commit: `rag-pedago: register production profile release`.
+   Reuse P01-P10 historical chunk facts only after exact validation.
+4. Generate 18 subject manifests plus one aggregate for all 26 contents,
+   each bound to the production profile manifest. Replace every historical
+   registry entry, including Wave 0 and multilevel; retain their files
+   unmodified as unregistered audit evidence.
+5. Extend the multilevel resolver with strict production-manifest dispatch,
+   preserving strict staging behavior. Add crossed-schema refusals.
+6. Add the pinned registry entry and digest.
+7. Assert that the registered artifact union is exactly the final 26 contents
+   and 18 collections, with no Wave 0 or other extra.
+8. Run `load_release_registry_file`, the actual production runtime consumer,
+   and profile release tests GREEN, including P24 5/5/profile match 5/5.
+9. Commit: `rag-pedago: register production profile release`.
 
 ## Task 7: Produce exact accepted placements from a Git tree
 
@@ -119,10 +139,14 @@ SHA-256, pytest, ruff, mypy, Git/GitHub CLI.
 1. Add RED tests for 26/26 exact coverage and mutations: profile source,
    fingerprint, manifest, release, gap, extra, overlap, residual placement.
 2. Generate verified profile facts and accepted placements mechanically.
-3. Run `produce_release_scope_placement_from_git` against a committed exact
-   tree, then write the canonical output and reverify its digest.
-4. Run focused tests GREEN.
-5. Commit: `rag-pedago: place final production release scopes`.
+3. Commit every producer input and every referenced evidence/profile blob as
+   an immutable source-tree commit. Record its commit and tree SHA.
+4. Run `produce_release_scope_placement_from_git` against that exact commit.
+   Add only the canonical output/provenance in a second commit.
+5. Add a final HEAD check comparing all producer input blob SHA to the source
+   commit; any rebase or mutation forces regeneration.
+6. Run focused tests GREEN.
+7. Commit: `rag-pedago: place final production release scopes`.
 
 ## Task 8: Recompute terminal dispositions and Master Go-Live
 

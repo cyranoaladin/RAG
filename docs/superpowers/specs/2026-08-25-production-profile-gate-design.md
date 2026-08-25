@@ -38,7 +38,14 @@ sanitisées avant versionnement.
 
 Les 61 PDF examinés localement (56 P11-P23 et 5 P24) ont été récupérés par ID
 Drive figé. Le SHA-256 de chaque fichier est égal au nom de contenu attendu.
-Ils restent hors Git et ne deviennent pas une nouvelle source de vérité.
+Ils restent hors Git et ne deviennent pas une nouvelle source de vérité. Leur
+inspection produit toutefois
+`docs/reports/production_profile_primary_evidence_20260825.json` : un record
+par contenu avec ID Drive, SHA du PDF, chemin canonique, URL officielle,
+pages/sections contrôlées, courts faits textuels déterminants et identifiants
+BO/NOR. Le digest de ce document est lié aux records de résolution. Ainsi les
+affirmations HLP/DGEMC sont auditables et ne reposent pas sur la seule
+existence d'un chemin.
 
 ## Résolution P01-P10 et P24
 
@@ -88,7 +95,8 @@ Le résultat attendu est donc :
 - `FINAL_PROFILE_REVIEW_REQUIRED_COUNT=46` ;
 - 18 profils de production : P24, dix promotions et sept nouveaux profils ;
 - un digest final recalculé depuis les 26 SHA triés avec LF final, forcément
-  différent du digest historique des 72.
+  différent du digest historique des 72 :
+  `fe97b3410791fa78d4734a8c495443296b3f2ec3e77627e12fc34f90e0b2b5f0`.
 
 ## Collections et profils nouveaux
 
@@ -117,26 +125,62 @@ primaires listées dans les records.
 exact des 18 profils chargés par le registre non récursif. Chaque fingerprint
 est recalculé avec le contrat partagé, jamais copié à la main.
 
-La release existante P01-P10 reste inchangée. Une release additionnelle
-`production-profile-gate-2026-2027-v1` contient les cinq contenus P24 et les
-dix nouveaux contenus. Elle réutilise le format
-`MULTILEVEL_AGGREGATE_RELEASE_V1`, déjà accepté par le runtime. Ses chunks
-sont produits par le chunker PDF page-aware canonique
+Les manifests historiques Wave 0 et P01-P10 restent byte-identiques et
+auditables, mais toutes leurs anciennes entrées de registre sont remplacées
+par une release unique
+`production-profile-gate-2026-2027-v1` couvrant les 26 contenus et les 18
+profils. Cela évite que P01-P10 restent liés au digest du manifeste staging
+alors que les placements et autorisations futurs utilisent le manifeste de
+production, et empêche les deux contenus Wave 0 hors set final d'entrer dans
+la readiness runtime. Le registre de production contient exactement cette
+release unique ; les anciens fichiers restent seulement des preuves
+historiques non enregistrées. La release réutilise le format
+`MULTILEVEL_AGGREGATE_RELEASE_V1`, déjà accepté par le runtime. Les chunks
+P01-P10 sont repris après validation des manifests historiques ; ceux des 15
+autres contenus sont produits par le chunker PDF page-aware canonique
 `publication_chunking.chunk_publication`, avec le tokenizer E5 réel et sans
 vecteurs. Les manifests ne stockent que les identités/digests/pages déjà
 attendus par `release_readiness`.
 
-Un producteur déterministe prend uniquement : PDF dont le SHA est vérifié,
-records de résolution, profils vérifiés et preuves versionnées. Il refuse un
-fichier absent ou changé, un profil non exact, une page vide, un chunk trop
-long, une collection non déclarée ou un contenu hors set final. Le format de
-release existant et son loader ne sont pas élargis.
+Le bundle lie réellement, par digest, les entrées versionnées suivantes sous
+`services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/` :
+
+- `candidate_inventory.json` — exactement 26 contenus/placements ;
+- `currentness_evidence.json` — exactement les 26 identités de téléchargement
+  et l'année 2026-2027 ;
+- `pii_evidence.json` — projection exacte des décisions PII du ledger et de
+  leurs preuves antérieures ;
+- `preflight_evidence.json` — extraction, pages, chunks et comptages complets ;
+- `programme_registry.json` — les 18 scopes et identifiants primaires ;
+- `level_mapping.json`, `subject_mapping.json` et
+  `document_type_mapping.json` ;
+- le registre de droits existant, la policy PII, les inventaires de modèles,
+  le catalogue scellé et son delta, tous nommés avec chemin et digest dans
+  `authority_bindings.json` ;
+- le manifeste des 18 profils de production.
+
+Un producteur déterministe prend ces preuves, les PDF dont le SHA est vérifié,
+les profils vérifiés et les manifests historiques P01-P10. Il prouve que
+chaque autorité couvre exactement les 26 SHA avant d'en inscrire le digest.
+Il refuse un fichier absent ou changé, une couverture partielle, un profil non
+exact, une page vide, un chunk trop long, une collection non déclarée ou un
+contenu hors set final. Chaque binding d'autorité possède un test de mutation.
+Le format de release existant et son loader ne sont pas élargis.
+
+Le consommateur production est testé au-delà de
+`load_release_registry_file` : le chemin runtime charge le registre, les
+profils production et le bundle exact. Le resolver multi-niveaux accepte un
+manifeste de profils production strict en plus du manifeste staging historique
+strict ; aucun fallback entre les deux schémas n'est permis et les tests
+staging restent inchangés.
 
 ## Projection `ReleaseScopePlacementV1`
 
 Le producteur exact-Git de PR #129 lit depuis le même tree :
 
-- la matrice finale ne contenant que les 26 contenus groundés ;
+- la matrice finale ne contenant que les 26 contenus groundés ; pour P01-P10,
+  tous les `source_of_truth` et `evidence_sources` nomment les copies YAML de
+  production, jamais les chemins staging ;
 - les placements acceptés ;
 - le registre de releases ;
 - le set final ;
@@ -147,6 +191,12 @@ Il doit produire exactement 26 lignes, zéro gap/extra/ambiguïté et relire
 chaque source de profil par blob Git. Les 46 résiduels ne sont pas placés ;
 leur disposition `REVIEW_REQUIRED` est prouvée séparément dans le ledger
 terminal final.
+
+La génération n'est pas auto-référentielle : un premier commit fige tous les
+inputs et blobs de preuve ; le producteur lit ce commit exact ; un second
+commit ajoute uniquement la projection dérivée et sa provenance. Un contrôle
+final compare les blob SHA de tous les inputs entre le commit source et le
+HEAD de PR. Tout changement ou rebase régénère la projection.
 
 ## Comptabilité globale
 
@@ -167,11 +217,14 @@ Le rapport Master Go-Live nomme explicitement l'ancien set
 ## TDD et cas adversariaux
 
 Les tests rouges précèdent chaque comportement : promotion byte-identique,
-résolution exhaustive 56/56, refus `unknown`/`lycee_gt`/programme synthétique,
-digest final exact, manifest 18/18, release registry réellement chargeable,
-P24 5/5, profil/source/fingerprint modifié, PDF modifié, mauvais digest de
-release, gap/extra/overlap de placement, résiduel placé, et comptabilité
-2 582/2 582.
+résolution exhaustive 56/56, preuve primaire page/section et digest, refus
+`unknown`/`lycee_gt`/programme synthétique, digest final exact, manifest
+18/18, release registry réellement consommable par le runtime, mutations de
+chaque autorité, P24 5/5, profil/source/fingerprint modifié, PDF modifié,
+mauvais digest de release, source staging dans la matrice production,
+union du registre différente des 26 contenus ou des 18 collections,
+gap/extra/overlap de placement, résiduel placé, dérive post-freeze d'un input,
+et comptabilité 2 582/2 582.
 
 La vérification finale comprend contrats, rag-pedago, rag-engine, ruff, mypy,
 governance locks, repository controls, gitleaks différentiel et mutations.
