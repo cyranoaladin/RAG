@@ -8,9 +8,10 @@ import hashlib
 import json
 import os
 import re
+import secrets
+import stat
 import subprocess
 import sys
-import tempfile
 from collections import defaultdict
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -846,6 +847,7 @@ def _authorization_matrix(
         content_set = set(candidate.allowed_content_sha256)
         authorization_rows.append(
             {
+                "allowed_content_sha256": list(candidate.allowed_content_sha256),
                 "allowed_domains": list(candidate.allowed_domains),
                 "authorization_digest": candidate.digest(),
                 "authorization_id": candidate.authorization_id,
@@ -951,32 +953,118 @@ def authorization_candidate_outputs(
     return dict(sorted(outputs.items()))
 
 
-def _output_path(*, output_root: Path, relative_path: str) -> Path:
+def _output_parts(relative_path: str) -> tuple[tuple[str, ...], str]:
     canonical = _canonical_repo_path(relative_path)
-    root = output_root.resolve()
-    target = output_root / canonical
-    if not target.resolve(strict=False).is_relative_to(root):
+    parts = PurePosixPath(canonical).parts
+    if len(parts) < 2:
         raise _fail("MATERIALIZATION_MISMATCH", f"unsafe output path {canonical}")
-    return target
+    return tuple(parts[:-1]), parts[-1]
 
 
-def _atomic_write(path: Path, raw: bytes) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary_name = tempfile.mkstemp(
-        dir=path.parent,
-        prefix=f".{path.name}.",
-        suffix=".tmp",
-    )
-    temporary_path = Path(temporary_name)
+def _open_output_directory(
+    *, output_root: Path, parts: tuple[str, ...], create: bool
+) -> int:
+    flags = os.O_RDONLY | os.O_CLOEXEC | os.O_DIRECTORY | os.O_NOFOLLOW
+    absolute_root = output_root.absolute()
     try:
+        if absolute_root.resolve(strict=True) != absolute_root:
+            raise _fail("MATERIALIZATION_MISMATCH", "output root uses a symlink")
+        descriptor = os.open(absolute_root, flags)
+    except AuthorizationCandidateError:
+        raise
+    except OSError as exc:
+        raise _fail("MATERIALIZATION_MISMATCH", "output root is not safe") from exc
+    try:
+        for part in parts:
+            if create:
+                try:
+                    os.mkdir(part, mode=0o755, dir_fd=descriptor)
+                except FileExistsError:
+                    pass
+            child = os.open(part, flags, dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = child
+        return descriptor
+    except OSError as exc:
+        os.close(descriptor)
+        raise _fail(
+            "MATERIALIZATION_MISMATCH",
+            "output ancestor is missing, symlinked or not a directory",
+        ) from exc
+
+
+def _atomic_write_at(*, directory_fd: int, filename: str, raw: bytes) -> None:
+    temporary_name = (
+        f".{filename}.{os.getpid()}.{secrets.token_hex(8)}.tmp"
+    )
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW
+    try:
+        try:
+            existing = os.stat(
+                filename,
+                dir_fd=directory_fd,
+                follow_symlinks=False,
+            )
+        except FileNotFoundError:
+            existing = None
+        if existing is not None and not stat.S_ISREG(existing.st_mode):
+            raise _fail(
+                "MATERIALIZATION_MISMATCH",
+                f"output target {filename} is not a regular file",
+            )
+        descriptor = os.open(
+            temporary_name,
+            flags,
+            mode=0o644,
+            dir_fd=directory_fd,
+        )
         with os.fdopen(descriptor, "wb") as handle:
             handle.write(raw)
             handle.flush()
             os.fsync(handle.fileno())
-        os.replace(temporary_path, path)
+        os.replace(
+            temporary_name,
+            filename,
+            src_dir_fd=directory_fd,
+            dst_dir_fd=directory_fd,
+        )
+        os.fsync(directory_fd)
     except BaseException:
-        temporary_path.unlink(missing_ok=True)
+        try:
+            os.unlink(temporary_name, dir_fd=directory_fd)
+        except FileNotFoundError:
+            pass
         raise
+
+
+def _read_output(*, output_root: Path, relative_path: str) -> bytes:
+    parent_parts, filename = _output_parts(relative_path)
+    directory_fd = _open_output_directory(
+        output_root=output_root,
+        parts=parent_parts,
+        create=False,
+    )
+    try:
+        descriptor = os.open(
+            filename,
+            os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW,
+            dir_fd=directory_fd,
+        )
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISREG(metadata.st_mode):
+            os.close(descriptor)
+            raise _fail(
+                "MATERIALIZATION_MISMATCH",
+                f"output {relative_path} is not a regular file",
+            )
+        with os.fdopen(descriptor, "rb") as handle:
+            return handle.read()
+    except AuthorizationCandidateError:
+        raise
+    except OSError as exc:
+        raise _fail("MATERIALIZATION_MISMATCH", relative_path) from exc
+    finally:
+        os.close(directory_fd)
 
 
 def write_authorization_candidates(
@@ -984,11 +1072,26 @@ def write_authorization_candidates(
 ) -> None:
     """Écrit chaque sortie de manière atomique dans la racine prescrite."""
     outputs = authorization_candidate_outputs(result)
-    for relative_path, raw in outputs.items():
-        _atomic_write(
-            _output_path(output_root=output_root, relative_path=relative_path),
-            raw,
-        )
+    opened_directories: dict[tuple[str, ...], int] = {}
+    try:
+        for relative_path in outputs:
+            parent_parts, _filename = _output_parts(relative_path)
+            if parent_parts not in opened_directories:
+                opened_directories[parent_parts] = _open_output_directory(
+                    output_root=output_root,
+                    parts=parent_parts,
+                    create=True,
+                )
+        for relative_path, raw in outputs.items():
+            parent_parts, filename = _output_parts(relative_path)
+            _atomic_write_at(
+                directory_fd=opened_directories[parent_parts],
+                filename=filename,
+                raw=raw,
+            )
+    finally:
+        for descriptor in opened_directories.values():
+            os.close(descriptor)
     check_authorization_candidates(result, output_root=output_root)
 
 
@@ -998,30 +1101,28 @@ def check_authorization_candidates(
     """Refuse toute sortie absente, altérée ou autorisation supplémentaire."""
     outputs = authorization_candidate_outputs(result)
     for relative_path, expected in outputs.items():
-        target = _output_path(
+        if _read_output(
             output_root=output_root,
             relative_path=relative_path,
-        )
-        if target.is_symlink() or not target.is_file() or target.read_bytes() != expected:
+        ) != expected:
             raise _fail("MATERIALIZATION_MISMATCH", relative_path)
-    authorization_directory = _output_path(
+    authorization_parts, _placeholder = _output_parts(
+        "governance/authorizations/placeholder"
+    )
+    authorization_directory_fd = _open_output_directory(
         output_root=output_root,
-        relative_path="governance/authorizations",
+        parts=authorization_parts,
+        create=False,
     )
     expected_authorizations = {
-        path
+        PurePosixPath(path).name
         for path in outputs
         if path.startswith("governance/authorizations/")
     }
-    actual_authorizations = (
-        {
-            f"governance/authorizations/{entry.name}"
-            for entry in authorization_directory.iterdir()
-        }
-        if authorization_directory.is_dir()
-        and not authorization_directory.is_symlink()
-        else set()
-    )
+    try:
+        actual_authorizations = set(os.listdir(authorization_directory_fd))
+    finally:
+        os.close(authorization_directory_fd)
     if actual_authorizations != expected_authorizations:
         raise _fail(
             "MATERIALIZATION_MISMATCH",

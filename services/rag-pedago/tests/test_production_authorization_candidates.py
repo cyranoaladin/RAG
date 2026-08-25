@@ -791,6 +791,7 @@ def test_materialized_outputs_are_canonical_and_fully_auditable() -> None:
     assert matrix["authorization_union_sha256"] == FINAL_SET_SHA256
     assert len(matrix["authorizations"]) == AUTHORIZATION_COUNT
     assert len(matrix["input_blobs"]) == len(result.provenance.input_blob_sha256)
+    matrix_contents: list[str] = []
     for row in matrix["authorizations"]:
         assert row["authorization_path"] in authorization_paths
         assert _is_sha256(row["authorization_digest"])
@@ -801,6 +802,16 @@ def test_materialized_outputs_are_canonical_and_fully_auditable() -> None:
         assert row["currentness_audit_path"] == CURRENTNESS_AUDIT_PATH
         assert row["pii_evidence_path"] == PII_EVIDENCE_PATH
         assert row["subject_release_path"] in result.provenance.input_blob_sha256
+        assert row["allowed_content_sha256"] == sorted(
+            row["allowed_content_sha256"]
+        )
+        assert len(row["allowed_content_sha256"]) == row["content_count"]
+        assert _set_digest(set(row["allowed_content_sha256"])) == row[
+            "content_set_sha256"
+        ]
+        matrix_contents.extend(row["allowed_content_sha256"])
+    assert len(matrix_contents) == len(set(matrix_contents)) == FINAL_CONTENT_COUNT
+    assert _set_digest(set(matrix_contents)) == FINAL_SET_SHA256
 
 
 def test_write_replays_byte_identical_outputs(tmp_path: Path) -> None:
@@ -841,3 +852,17 @@ def test_check_rejects_missing_modified_or_extra_outputs(
 
     with pytest.raises(ValueError, match="MATERIALIZATION_MISMATCH"):
         producer.check_authorization_candidates(result, output_root=tmp_path)
+
+
+@pytest.mark.parametrize("ancestor", ["governance", "docs"])
+def test_write_rejects_a_symlinked_output_ancestor(
+    ancestor: str, tmp_path: Path
+) -> None:
+    producer = _module()
+    result = _build()
+    redirected = tmp_path / f"redirected-{ancestor}"
+    redirected.mkdir()
+    (tmp_path / ancestor).symlink_to(redirected, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="MATERIALIZATION_MISMATCH"):
+        producer.write_authorization_candidates(result, output_root=tmp_path)
