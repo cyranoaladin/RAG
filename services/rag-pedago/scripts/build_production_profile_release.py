@@ -58,6 +58,16 @@ RELEASE_ROOT = (
     / "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate"
 )
 FINAL_MATRIX_PATH = REPOSITORY_ROOT / "docs/reports/final_production_profile_matrix_20260825.json"
+FINAL_PRODUCTION_SET_PATH = (
+    REPOSITORY_ROOT / "docs/reports/final_production_eligible_set_20260825.txt"
+)
+ACCEPTED_PLACEMENTS_PATH = (
+    REPOSITORY_ROOT
+    / "docs/reports/production_profile_accepted_placements_20260825.json"
+)
+VERIFIED_PROFILES_PATH = (
+    REPOSITORY_ROOT / "docs/reports/verified_production_profiles_20260825.json"
+)
 PRIMARY_EVIDENCE_PATH = REPOSITORY_ROOT / "docs/reports/production_profile_primary_evidence_20260825.json"
 DRIVE_MAPPING_PATH = (
     REPOSITORY_ROOT
@@ -520,6 +530,67 @@ def _candidate_inventory(
     }
 
 
+def _release_scope_inputs(
+    *,
+    matrix: list[dict[str, Any]],
+    profiles: Mapping[str, Any],
+    profile_manifest_digest: str,
+) -> tuple[bytes, bytes, bytes]:
+    placements: list[dict[str, str]] = []
+    profile_sources: dict[str, str] = {}
+    for row in matrix:
+        dimensions = row["dimensions"]
+        collection = dimensions["collection"]["value"]
+        profile = profiles[collection]
+        sources = {
+            dimension["source_of_truth"] for dimension in dimensions.values()
+        }
+        if len(sources) != 1:
+            raise ValueError(f"profile source is ambiguous for {collection}")
+        source_path = next(iter(sources))
+        expected_prefix = "services/rag-engine/configs/ingestion_profiles/"
+        if not source_path.startswith(expected_prefix) or not source_path.endswith(
+            ".yml"
+        ):
+            raise ValueError(f"profile source is not canonical for {collection}")
+        if collection in profile_sources and profile_sources[collection] != source_path:
+            raise ValueError(f"profile source differs for {collection}")
+        profile_sources[collection] = source_path
+        for content_sha256 in row["content_sha256"]:
+            placements.append(
+                {
+                    "content_sha256": content_sha256,
+                    "release_id": RELEASE_ID,
+                    "collection": collection,
+                    "profile_version": profile.profile_version,
+                }
+            )
+    placements = sorted(placements, key=lambda row: row["content_sha256"])
+    contents = [row["content_sha256"] for row in placements]
+    if len(contents) != 26 or _final_set_digest(contents) != FINAL_SET_SHA256:
+        raise ValueError("release scope inputs differ from the final set")
+    verified_profiles = {
+        "profile_manifest_digest": profile_manifest_digest,
+        "profiles": [
+            {
+                "profile_id": collection,
+                "profile_version": profiles[collection].profile_version,
+                "profile_fingerprint": profile_fingerprint(profiles[collection]),
+                "scope": profiles[collection].scope.model_dump(mode="json"),
+                "source_path": profile_sources[collection],
+            }
+            for collection in sorted(profile_sources)
+        ],
+    }
+    if len(verified_profiles["profiles"]) != 18:
+        raise ValueError("verified production profile count differs")
+    return (
+        ("\n".join(contents) + "\n").encode("utf-8"),
+        canonical_json_bytes(placements),
+        canonical_json_bytes(verified_profiles),
+    )
+
+
 def _verify_official_downloads(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
     audit = []
     for row in records:
@@ -930,6 +1001,13 @@ def build_release(
     if len(profiles) != 18 or manifest.declared_count != 18:
         raise ValueError("production profile registry/manifest count differs")
     records = _source_records(matrix=matrix, profiles=profiles)
+    final_set_raw, accepted_placements_raw, verified_profiles_raw = (
+        _release_scope_inputs(
+            matrix=matrix,
+            profiles=profiles,
+            profile_manifest_digest=manifest.manifest_fingerprint,
+        )
+    )
     pdfs = validate_pdf_mirror(
         pdf_root=pdf_root,
         content_sha256=[row["content_sha256"] for row in records],
@@ -1145,6 +1223,9 @@ def build_release(
     documents[RELEASE_ROOT.parent / "release-registry.json"] = canonical_json_bytes(
         release_registry
     )
+    documents[FINAL_PRODUCTION_SET_PATH] = final_set_raw
+    documents[ACCEPTED_PLACEMENTS_PATH] = accepted_placements_raw
+    documents[VERIFIED_PROFILES_PATH] = verified_profiles_raw
     return documents
 
 

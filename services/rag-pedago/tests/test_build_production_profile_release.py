@@ -33,6 +33,15 @@ BINDINGS = RELEASE_ROOT / "authority_bindings.json"
 REGISTRY = RELEASE_ROOT.parent / "release-registry.json"
 FINAL_MATRIX = ROOT / "docs/reports/final_production_profile_matrix_20260825.json"
 PROFILE_MANIFEST = ROOT / "services/rag-engine/configs/ingestion_manifest.yml"
+FINAL_PRODUCTION_SET = (
+    ROOT / "docs/reports/final_production_eligible_set_20260825.txt"
+)
+ACCEPTED_PLACEMENTS = (
+    ROOT / "docs/reports/production_profile_accepted_placements_20260825.json"
+)
+VERIFIED_PROFILES = (
+    ROOT / "docs/reports/verified_production_profiles_20260825.json"
+)
 
 FINAL_SET_SHA256 = "fe97b3410791fa78d4734a8c495443296b3f2ec3e77627e12fc34f90e0b2b5f0"
 PROFILE_MANIFEST_FINGERPRINT = (
@@ -142,6 +151,25 @@ def test_aggregate_covers_exactly_26_contents_and_18_profiles() -> None:
             } == set(range(1, artifact["page_count"] + 1))
     assert contents == _final_set()
     assert len(collections) == 18
+
+
+def test_release_scope_inputs_cover_the_exact_final_set_and_profiles() -> None:
+    final_contents = tuple(FINAL_PRODUCTION_SET.read_text().splitlines())
+    placements = _load(ACCEPTED_PLACEMENTS)
+    verified = _load(VERIFIED_PROFILES)
+
+    assert len(final_contents) == len(set(final_contents)) == 26
+    assert list(final_contents) == sorted(final_contents)
+    assert _set_digest(set(final_contents)) == FINAL_SET_SHA256
+    assert len(placements) == 26
+    assert {row["content_sha256"] for row in placements} == set(final_contents)
+    assert {row["release_id"] for row in placements} == {
+        "production-profile-gate-2026-2027-v1"
+    }
+    assert verified["profile_manifest_digest"] == PROFILE_MANIFEST_FINGERPRINT
+    assert len(verified["profiles"]) == 18
+    assert len({row["profile_id"] for row in verified["profiles"]}) == 18
+    assert all(row["source_path"].endswith(".yml") for row in verified["profiles"])
 
 
 def test_every_authority_is_named_path_bound_and_digest_checked() -> None:
