@@ -813,7 +813,7 @@
       "premiere"
     ],
     "partition_id": "P16-PC-PREMIERE-SPECIALITE",
-    "partition_kind": "PRIMARY_EVIDENCE_EXACT_PROFILE",
+    "partition_kind": "EXACT_VERSIONED_RELEASE_PROFILE",
     "profile_decision_required": false
   },
   {
@@ -887,7 +887,7 @@
       "premiere"
     ],
     "partition_id": "P18-SES-PREMIERE-SPECIALITE",
-    "partition_kind": "PRIMARY_EVIDENCE_EXACT_PROFILE",
+    "partition_kind": "EXACT_VERSIONED_RELEASE_PROFILE",
     "profile_decision_required": false
   },
   {
@@ -961,7 +961,7 @@
       "terminale"
     ],
     "partition_id": "P18-SES-TERMINALE-SPECIALITE",
-    "partition_kind": "PRIMARY_EVIDENCE_EXACT_PROFILE",
+    "partition_kind": "EXACT_VERSIONED_RELEASE_PROFILE",
     "profile_decision_required": false
   },
   {
@@ -1035,7 +1035,7 @@
       "premiere"
     ],
     "partition_id": "P19-SVT-PREMIERE-SPECIALITE",
-    "partition_kind": "PRIMARY_EVIDENCE_EXACT_PROFILE",
+    "partition_kind": "EXACT_VERSIONED_RELEASE_PROFILE",
     "profile_decision_required": false
   },
   {
@@ -1109,7 +1109,7 @@
       "terminale"
     ],
     "partition_id": "P19-SVT-TERMINALE-SPECIALITE",
-    "partition_kind": "PRIMARY_EVIDENCE_EXACT_PROFILE",
+    "partition_kind": "EXACT_VERSIONED_RELEASE_PROFILE",
     "profile_decision_required": false
   },
   {
@@ -1183,7 +1183,7 @@
       "terminale"
     ],
     "partition_id": "P21-DGEMC-TERMINALE-OPTION",
-    "partition_kind": "PRIMARY_EVIDENCE_EXACT_PROFILE",
+    "partition_kind": "EXACT_VERSIONED_RELEASE_PROFILE",
     "profile_decision_required": false
   },
   {
@@ -1260,7 +1260,7 @@
       "premiere"
     ],
     "partition_id": "P23-HLP-PREMIERE-SPECIALITE",
-    "partition_kind": "PRIMARY_EVIDENCE_EXACT_PROFILE",
+    "partition_kind": "EXACT_VERSIONED_RELEASE_PROFILE",
     "profile_decision_required": false
   },
   {

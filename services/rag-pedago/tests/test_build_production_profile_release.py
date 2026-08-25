@@ -157,6 +157,7 @@ def test_release_scope_inputs_cover_the_exact_final_set_and_profiles() -> None:
     final_contents = tuple(FINAL_PRODUCTION_SET.read_text().splitlines())
     placements = _load(ACCEPTED_PLACEMENTS)
     verified = _load(VERIFIED_PROFILES)
+    matrix = _load(FINAL_MATRIX)
 
     assert len(final_contents) == len(set(final_contents)) == 26
     assert list(final_contents) == sorted(final_contents)
@@ -170,6 +171,9 @@ def test_release_scope_inputs_cover_the_exact_final_set_and_profiles() -> None:
     assert len(verified["profiles"]) == 18
     assert len({row["profile_id"] for row in verified["profiles"]}) == 18
     assert all(row["source_path"].endswith(".yml") for row in verified["profiles"])
+    assert {row["partition_kind"] for row in matrix} == {
+        "EXACT_VERSIONED_RELEASE_PROFILE"
+    }
 
 
 def test_every_authority_is_named_path_bound_and_digest_checked() -> None:
