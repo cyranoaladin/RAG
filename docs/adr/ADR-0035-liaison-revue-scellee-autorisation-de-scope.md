@@ -26,6 +26,9 @@
   nouvelles ; la section « Ancre de confiance » est resserrée. Ce constat
   historique reste vrai ; le statut est passé à **Accepté** depuis (voir
   « Preuve d'acceptation », plus bas).
+- **Amendé le 2026-08-25** pour remplacer atomiquement une première ancre
+  perdue avant tout usage. Aucun reçu réel n'ayant été émis avec cette
+  ancre, aucune compatibilité ni période de chevauchement n'est requise.
 
 ## Preuve d'acceptation
 
@@ -162,10 +165,13 @@ Décision : **Ed25519**, via `cryptography` (déjà présent dans
 cryptographique artisanale : la canonicalisation réutilise celle
 d'`authority_artifacts`, la signature est celle de la bibliothèque.
 
-- La clé privée n'est fournie au producteur que par la variable
-  d'environnement `NEXUS_REVIEW_BINDING_SIGNING_KEY` (secret CI), jamais
-  lue depuis un fichier du dépôt, jamais générée automatiquement, jamais
-  imprimée.
+- La clé privée est une graine Ed25519 Raw de 32 octets, encodée en 64
+  caractères hexadécimaux minuscules. Elle est détenue uniquement par
+  l'opérateur hors Git, CI, serveur et artefact de build. Elle n'est
+  fournie au producteur par `NEXUS_REVIEW_BINDING_SIGNING_KEY` que dans
+  l'environnement local transitoire du processus de signature, puis la
+  variable est supprimée ; la valeur n'est jamais placée dans un argument
+  de processus ni imprimée.
 - La clé publique est déclarée dans un fichier d'ancre de confiance
   versionné, lu au **chemin canonique gouverné** (§ 5) — jamais passé en
   argument en production.
@@ -173,10 +179,21 @@ d'`authority_artifacts`, la signature est celle de la bibliothèque.
   **Le mode production refuse toute clé `test`**, et le mode test refuse
   toute clé `production` : une clé de fixture ne peut jamais valider un
   gate final, et la barrière est mesurée par un test dédié.
-- Aucune clé publique de production fictive n'est écrite dans ce dépôt.
-  L'ancre de production reste à provisionner ; tant qu'elle ne l'est pas,
-  le gate final ne peut pas être vert en mode production. C'est une
-  barrière de go-live explicite, distincte de la complétude du code.
+- L'unique ancre active est `review-binding-v1-2026-08-25`, clé publique
+  `1f34648789fe7ebdfde6c64197039c0ffa0cd36b98317ce7cad4836a26a058d8`,
+  pour l'environnement `production`.
+- L'ancre précédente `review-binding-v1-2026-08-13`, clé publique
+  `bae8268bc4192be5fd382db70d1b1036cfc7fb58b2cfc42b21a64cd6292b0d4f`,
+  est classée `LOST_BEFORE_FIRST_USE`. Elle n'a produit aucun reçu réel et
+  n'accorde plus aucune confiance. Son remplacement est atomique : elle
+  est retirée du fichier gouverné au même changement que l'ajout de la
+  nouvelle ancre, sans chevauchement.
+- L'emplacement primaire opérateur est dérivé de
+  `${XDG_DATA_HOME:-$HOME/.local/share}/nexus-rag/operator-keys/` et reste
+  hors dépôt. Avant de déclarer la rotation opérationnelle, une sauvegarde
+  chiffrée sur un emplacement distinct doit être créée, vérifiée par son
+  empreinte puis restaurée dans un répertoire temporaire ; la clé publique
+  redérivée de cette restauration doit être identique à l'ancre active.
 
 ### Mode final et mode répétition
 
@@ -242,6 +259,11 @@ qui ne l'est pas — elle ne distingue pas « rien n'est révoqué » de
 « personne n'a regardé ». Le rapport publie donc
 `AUTHORITY_REVOCATIONS_CHECKED=true|false`, et `coverage_complete` reste
 faux quand la preuve manque.
+
+Ce registre révoque des **autorisations de corpus**, jamais des clés de
+signature. Il n'est donc pas utilisé pour représenter la perte, la rotation
+ou le retrait d'une ancre Ed25519 : la confiance dans une clé est définie
+exclusivement par l'ensemble courant du fichier d'ancre gouverné.
 
 En mode `rehearsal`, une fixture d'ancre et de registre reste autorisée ;
 leur absence est visible (`false`) et ne peut jamais produire un verdict
@@ -344,7 +366,7 @@ de `cryptography`.
 | État | Signification | Aujourd'hui |
 |---|---|---|
 | **Code ready** | Le code, les migrations et les tests sont complets et verts. | Atteint sous réserve de l'audit pré-commit. |
-| **Provisioning ready** | La clé privée de production est provisionnée, l'ancre publique et le registre de révocation sont commités aux chemins gouvernés. | **Non atteint** — aucun de ces fichiers n'existe, et ce lot n'a pas le droit de les créer. |
+| **Provisioning ready** | La clé privée opérateur existe hors dépôt, son backup chiffré a été restauré et vérifié, et l'ancre publique ainsi que le registre de révocation des autorisations sont commités aux chemins gouvernés. | Conditionné à la preuve de sauvegarde/restauration consignée dans le rapport de rotation ; la présence de l'ancre seule ne suffit pas. |
 | **Go-live ready** | Cet ADR est `Accepted`, et un corpus réel est autorisé. | **Non atteint.** |
 
 Conséquence directe et voulue : tant que « provisioning ready » n'est pas
@@ -359,14 +381,17 @@ La frontière réseau reste unique (ADR-0025). Le reçu est rejouable et
 auditable : il nomme tout ce sur quoi il s'appuie.
 
 **Négatives, assumées.** Une nouvelle dépendance (`cryptography`) entre dans
-`packages/contracts` et `services/rag-pedago`. Un secret de signature de
-production doit être provisionné avant tout go-live — sans lui, aucune
-preuve valide ne peut être émise. Un reçu expiré doit être réémis, ce qui
-suppose que la PR d'autorisation reste approuvée à son HEAD.
+`packages/contracts` et `services/rag-pedago`. Une clé opérateur de
+signature de production doit être disponible avant tout go-live — sans
+elle, aucune preuve valide ne peut être émise. Un reçu expiré doit être
+réémis, ce qui suppose que la PR d'autorisation reste approuvée à son HEAD.
 
-**Non traité ici.** La rotation de clé et la révocation d'une clé
-compromise se font en retirant l'entrée du fichier d'ancre de confiance,
-qui est versionné et donc lui-même soumis à revue. Un mécanisme de
+**Rotation.** Une clé perdue ou compromise est retirée du fichier d'ancre
+de confiance, qui est versionné et soumis à revue. Si aucun reçu à préserver
+n'existe, comme pour `review-binding-v1-2026-08-13`, le remplacement est
+atomique et sans chevauchement. Une politique distincte serait nécessaire
+pour préserver des reçus historiques réels ; elle ne doit jamais être
+simulée par le registre des révocations d'autorisations. Un mécanisme de
 transparence (log append-only des reçus émis) n'est pas retenu à ce stade.
 
 ## Alternatives écartées

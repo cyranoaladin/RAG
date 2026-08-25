@@ -2,10 +2,10 @@
   "keys": [
     {
       "algorithm": "ed25519",
-      "comment": "H2B production review-binding signing key (ADR-0035), generated 2026-08-13 by repository owner (Alaeddine Ben Rhouma), distinct from the production-readiness key, private key held offline outside this repository/host.",
+      "comment": "Production review-binding signing key (ADR-0035), rotated atomically on 2026-08-25 after the prior key was classified LOST_BEFORE_FIRST_USE; private key is operator-held outside Git, CI, servers and build artifacts.",
       "environment": "production",
-      "key_id": "review-binding-v1-2026-08-13",
-      "public_key": "bae8268bc4192be5fd382db70d1b1036cfc7fb58b2cfc42b21a64cd6292b0d4f"
+      "key_id": "review-binding-v1-2026-08-25",
+      "public_key": "1f34648789fe7ebdfde6c64197039c0ffa0cd36b98317ce7cad4836a26a058d8"
     }
   ],
   "protocol_version": "NEXUS-REVIEW-BINDING-V1"

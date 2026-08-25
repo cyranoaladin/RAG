@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -294,6 +295,28 @@ class TestSignature:
 
 
 class TestTrustAnchorParsing:
+    def test_governed_production_anchor_declares_only_the_rotated_key(self) -> None:
+        repository_root = Path(__file__).resolve().parents[3]
+        anchor = parse_trust_anchor(
+            (
+                repository_root
+                / "governance/trust-anchors/review-binding-v1.json"
+            ).read_bytes()
+        )
+
+        assert anchor.protocol_version == REVIEW_BINDING_PROTOCOL_VERSION
+        assert len(anchor.keys) == 1
+        key = anchor.keys[0]
+        assert key.key_id == "review-binding-v1-2026-08-25"
+        assert key.algorithm == "ed25519"
+        assert key.environment == "production"
+        assert (
+            key.public_key
+            == "1f34648789fe7ebdfde6c64197039c0ffa0cd36b98317ce7cad4836a26a058d8"
+        )
+        with pytest.raises(ReviewBindingError, match="not declared"):
+            anchor.key("review-binding-v1-2026-08-13", environment="production")
+
     def test_duplicate_key_ids_are_refused(self) -> None:
         key = {
             "key_id": "dup",
