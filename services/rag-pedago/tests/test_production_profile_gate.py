@@ -10,6 +10,7 @@ from typing import Any
 
 import yaml
 from nexus_contracts.ingestion import CollectionProfile, collection_profile_fingerprint
+from nexus_contracts.profile_manifest import validate_production_profile_manifest
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 EXPECTED_PATH = Path(__file__).parent / "fixtures/production_profile_gate_expected.json"
@@ -33,6 +34,7 @@ DECISIONS_PATH = (
 )
 COLLECTIONS_PATH = REPO_ROOT / "services/rag-engine/configs/rag_collections.yml"
 EDUSCOL_SOURCES_PATH = REPO_ROOT / "services/rag-pedago/configs/eduscol_sources.yml"
+PROFILE_MANIFEST_PATH = REPO_ROOT / "services/rag-engine/configs/ingestion_manifest.yml"
 
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 REQUIRED_RESOLUTION_FIELDS = {
@@ -322,3 +324,36 @@ def test_dgemc_official_source_is_verified_and_routes_only_to_its_collection() -
             ),
         }
     ]
+
+
+def test_production_manifest_matches_all_eighteen_profiles_exactly() -> None:
+    profile_documents = {
+        (profile.scope.collection, profile.profile_version): profile
+        for path in sorted(PROFILE_ROOT.glob("*.yml"))
+        for profile in [
+            CollectionProfile.model_validate(
+                yaml.safe_load(path.read_text(encoding="utf-8"))
+            )
+        ]
+    }
+    fingerprints = {
+        identity: collection_profile_fingerprint(profile)
+        for identity, profile in profile_documents.items()
+    }
+
+    assert len(profile_documents) == 18
+    verified = validate_production_profile_manifest(
+        PROFILE_MANIFEST_PATH.read_bytes(),
+        profile_fingerprints=fingerprints,
+        source=str(PROFILE_MANIFEST_PATH),
+    )
+    assert verified.declared_count == 18
+    assert set(verified.authorities) == set(fingerprints)
+    declared = yaml.safe_load(PROFILE_MANIFEST_PATH.read_text(encoding="utf-8"))
+    assert {
+        (entry["collection"], entry["profile_version"], entry["fingerprint"])
+        for entry in declared["profiles"]
+    } == {
+        (collection, version, fingerprint)
+        for (collection, version), fingerprint in fingerprints.items()
+    }
