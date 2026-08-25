@@ -38,13 +38,17 @@ mypy, Git/GitHub CLI.
 - Create: `services/rag-pedago/scripts/build_production_authorization_candidates.py`
 - Modify: `services/rag-pedago/tests/test_production_authorization_candidates.py`
 
-1. Charger les JSON/JSONL/YAML avec erreurs fail-closed explicites.
-2. Vérifier les digests liés par `authority_bindings.json` et l’agrégat.
-3. Indexer les 26 artefacts release et refuser toute collision ou absence.
-4. Vérifier PII/currentness/droits/domaine pour chaque contenu.
-5. Grouper par tuple exact profil/scope et construire 18 modèles V2 canoniques.
-6. Relancer les tests ciblés jusqu’au GREEN, sans encore écrire les sorties.
-7. Commit: `rag-pedago: construire les candidats d’autorisation production`.
+1. Exiger `--source-commit`, résoudre son tree et refuser tout couple différent
+   de `3566caf…` / `8c5081…` pour cette release.
+2. Lire les JSON/JSONL/YAML comme blobs Git du tree exact, avec chemins
+   littéraux et erreurs fail-closed ; ne lire aucune preuve via le worktree.
+3. Vérifier les digests liés par `authority_bindings.json` et l’agrégat.
+4. Indexer les 26 artefacts release et refuser toute collision ou absence.
+5. Vérifier PII/currentness/droits/domaine pour chaque contenu.
+6. Grouper par tuple exact profil/scope et construire 18 modèles V2 canoniques.
+7. Enregistrer commit/tree, blob IDs et SHA-256 de chaque input consommé.
+8. Relancer les tests ciblés jusqu’au GREEN, sans encore écrire les sorties.
+9. Commit: `rag-pedago: construire les candidats d’autorisation production`.
 
 ### Task 3: Couvrir les mutations de preuves en RED puis GREEN
 
@@ -86,12 +90,15 @@ mypy, Git/GitHub CLI.
 - Modify: `docs/reports/master_go_live_state_20260815.json`
 
 1. Reporter `N=26`, `M=18`, union/gap/overlap/extra et les digests exacts.
-2. Déclarer explicitement bindings/set/campagne/republish/H2 encore faux tant
+2. Reporter par scope les paths/digests droits et currentness dans la matrice,
+   et préciser qu’ils sont liés par le HEAD de review/H2 plutôt que par des
+   champs inexistants de `ScopeAuthorizationArtifactV2`.
+3. Déclarer explicitement bindings/set/campagne/republish/H2 encore faux tant
    qu’ils n’ont pas été réellement exécutés.
-3. Exécuter les tests ciblés puis les suites contrats/rag-pedago concernées.
-4. Exécuter ruff, mypy ciblé, gouvernance locks, repository controls, gitleaks
+4. Exécuter les tests ciblés puis les suites contrats/rag-pedago concernées.
+5. Exécuter ruff, mypy ciblé, gouvernance locks, repository controls, gitleaks
    différentiel et tests mutation/adversariaux applicables.
-5. Commit: `rag-pedago: consigner le lot d’autorisations production`.
+6. Commit: `rag-pedago: consigner le lot d’autorisations production`.
 
 ### Task 6: Revues contradictoires, CI et PR exacte
 
@@ -118,8 +125,16 @@ hors branche d’autorité.
    par `authorization_id`, avec le même PR/HEAD exact.
 3. Présenter `=== OPERATOR SIGNING GATE — REVIEW BINDINGS ===` sans demander,
    lire ou journaliser la clé privée.
-4. L’opérateur exécute les commandes depuis son poste avec accès GitHub et la
+4. Créer un checkout détaché propre au commit de confiance `3566caf…`, vérifier
+   son tree `8c5081…` et exécuter exclusivement le producteur fusionné de ce
+   checkout ; ne jamais exécuter le code Python de la branche candidate avec
+   accès à la clé.
+5. L’opérateur exécute les commandes depuis son poste avec accès GitHub et la
    clé détenue localement ; aucun secret ne transite par Git, CI ou serveur.
-5. Vérifier localement chaque reçu contre l’ancre publique, son artefact exact
+6. Vérifier localement chaque reçu contre l’ancre publique, son artefact exact
    et son digest, puis conserver les 18 reçus pour le lot AuthorizationSet.
-6. Garder la PR ouverte et la branche inchangée pendant toute la validité.
+7. Dans le lot de release suivant, matérialiser sous les chemins gouvernés des
+   copies byte-identiques des 18 artefacts et bindings ; revérifier tous les
+   digests/signatures avant de construire le set, sans pointer H2 vers le
+   worktree d’autorité.
+8. Garder la PR ouverte et la branche inchangée pendant toute la validité.

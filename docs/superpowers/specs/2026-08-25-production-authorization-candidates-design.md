@@ -37,9 +37,26 @@ bundle de release et l’`AuthorizationSetV1` dans un lot suivant. La PR
 d’autorité n’est jamais fusionnée ; sa fermeture ou le dismissal de la review
 révoque le chemin live fail-closed.
 
+Le lot suivant matérialise dans son bundle gouverné, sur une PR de release
+fusionnable, des copies byte-identiques des 18 autorisations et des 18 bindings.
+Ces copies sont du matériau de vérification H2, pas une seconde autorité : leurs
+digests, chemins canoniques, blobs relus au HEAD d’autorité et signatures sont
+revérifiés avant composition du set. La PR d’autorité ouverte reste la source
+révocable ; H2 ne reçoit jamais un chemin libre vers son worktree.
+
 ## Entrées figées et contrôles fail-closed
 
-Le producteur relit et recoupe les sources suivantes :
+Le producteur exige `--source-commit` et résout son tree avec Git. Pour cette
+release, le seul couple accepté est :
+
+- commit `3566cafb44138d6a7f00296dc0654257f9bf0ad6` ;
+- tree `8c5081a52096d531f1bd027790e600eb83b05bd5`.
+
+Toutes les preuves métier sont lues comme blobs de ce tree, jamais depuis le
+filesystem du worktree candidat. Le mécanisme reprend la discipline du
+producteur exact-tree de `nexus_contracts.release_scope_placement` : entrée Git
+unique, chemin littéral, objet blob régulier, blob ID et SHA-256 enregistrés.
+Le producteur relit et recoupe ainsi les sources suivantes :
 
 - `docs/reports/final_production_eligible_set_20260825.txt` pour l’union exacte ;
 - `docs/reports/release_scope_placement_20260825.jsonl` pour la fonction totale
@@ -88,6 +105,17 @@ Pour chaque scope :
   an à partir du profile gate. Toute prolongation exigera une nouvelle
   autorisation ou un nouveau protocole de renouvellement.
 
+`ScopeAuthorizationArtifactV2` ne possède pas de champs
+`rights_evidence_digest` ou `currentness_evidence_digest`, et son mode strict
+interdit d’en inventer. Les preuves exactes de droits et currentness sont donc
+engagées sans nouveau protocole par la matrice candidate : pour chaque scope,
+elle porte leurs chemins et SHA-256 issus du tree source. La review lie le HEAD
+exact qui contient simultanément les 18 artefacts et cette matrice ; H2 V2
+revalide ensuite ces mêmes faits. Le digest individuel d’autorisation engage
+directement les catégories de droits, les domaines, le scope et les contenus,
+mais pas les deux digests de preuve absents du contrat ; cette distinction est
+rapportée explicitement et jamais présentée comme une liaison directe fictive.
+
 ## Sorties et auditabilité
 
 Les sorties versionnées sur la branche d’autorité dédiée sont :
@@ -95,7 +123,8 @@ Les sorties versionnées sur la branche d’autorité dédiée sont :
 - `governance/authorizations/<authorization_id>.json` pour les 18 artefacts
   canoniques ;
 - `docs/reports/production_authorization_matrix_20260825.json` pour les
-  digests, counts, scopes, contenus et références de preuve ;
+  digests, counts, scopes, contenus, références de preuve, commit/tree source,
+  blob IDs Git et SHA-256 de chaque input consommé ;
 - `docs/reports/lot_production_authorization_candidates_20260825.md` pour les
   invariants de lot et le gate opérateur suivant.
 
@@ -112,8 +141,11 @@ Après CI et deux revues contradictoires fraîches, la PR s’arrête au vrai ga
 exécutées avant toute fermeture de la PR. Le producteur existant doit accéder
 à GitHub pour revalider la PR et son HEAD au moment de signer ; « clé offline »
 signifie ici que la clé reste détenue par l’opérateur, hors Git, CI, serveur et
-logs, pas que la commande est air-gapped. La clé privée n’est jamais demandée,
-stockée, affichée ou transmise. Le lot suivant vérifie les 18 reçus avec les
-octets exacts issus de la branche ouverte, construit `AuthorizationSetV1`, puis
-enchaîne campagne V2, republish et H2 V2. La PR d’autorité reste ouverte et
-inchangée jusqu’à l’expiration ou la révocation explicite de la release.
+logs, pas que la commande est air-gapped. Ces commandes sont lancées depuis un
+checkout détaché propre du producteur au commit de confiance `3566caf…`, jamais
+depuis la branche candidate : aucun code non fusionné ne doit s’exécuter avec
+la clé en mémoire. La clé privée n’est jamais demandée, stockée, affichée ou
+transmise. Le lot suivant vérifie les 18 reçus avec les octets exacts issus de
+la branche ouverte, construit `AuthorizationSetV1`, puis enchaîne campagne V2,
+republish et H2 V2. La PR d’autorité reste ouverte et inchangée jusqu’à
+l’expiration ou la révocation explicite de la release.
