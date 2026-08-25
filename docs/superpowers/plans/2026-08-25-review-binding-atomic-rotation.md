@@ -151,7 +151,7 @@ git commit -m "governance: remplacer l'ancre review-binding perdue"
 
 **Files:**
 - Runtime only: `~/.local/share/nexus-rag/operator-keys/review-binding-v1-2026-08-25/`
-- Runtime only: `/mnt/sauvegardes/nexus-rag/operator-keys/review-binding-v1-2026-08-25/`
+- Runtime only: `${NEXUS_REVIEW_BINDING_BACKUP_ROOT:-/mnt/sauvegardes}/nexus-rag/operator-keys/review-binding-v1-2026-08-25/`
 - Temporary only: répertoire produit par `mktemp -d`
 
 > **Recette initiale supersédée — ne pas exécuter les Steps 1–8 ci-dessous.**
@@ -208,27 +208,29 @@ PY
 
 ```bash
 NEXUS_KEY_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/nexus-rag/operator-keys/review-binding-v1-2026-08-25"
-BACKUP_DIR=/mnt/sauvegardes/nexus-rag/operator-keys/review-binding-v1-2026-08-25
-test "$(findmnt -rn -T /mnt/sauvegardes -o TARGET)" = /mnt/sauvegardes
-test "$(findmnt -rn -T /mnt/sauvegardes -o SOURCE)" != "$(findmnt -rn -T / -o SOURCE)"
-test "$(df -Pk /mnt/sauvegardes | awk 'NR==2 {print $4}')" -gt 1024
-export BACKUP_DIR
+NEXUS_REVIEW_BINDING_BACKUP_ROOT="${NEXUS_REVIEW_BINDING_BACKUP_ROOT:-/mnt/sauvegardes}"
+BACKUP_DIR="$NEXUS_REVIEW_BINDING_BACKUP_ROOT/nexus-rag/operator-keys/review-binding-v1-2026-08-25"
+test "$(findmnt -rn -T "$NEXUS_REVIEW_BINDING_BACKUP_ROOT" -o TARGET)" = "$NEXUS_REVIEW_BINDING_BACKUP_ROOT"
+test "$(findmnt -rn -T "$NEXUS_REVIEW_BINDING_BACKUP_ROOT" -o SOURCE)" != "$(findmnt -rn -T / -o SOURCE)"
+test "$(df -Pk "$NEXUS_REVIEW_BINDING_BACKUP_ROOT" | awk 'NR==2 {print $4}')" -gt 1024
+export NEXUS_REVIEW_BINDING_BACKUP_ROOT BACKUP_DIR
 python3 - <<'PY'
 import os
 import stat
 from pathlib import Path
 
 root = Path(os.environ["BACKUP_DIR"])
+backup_root = Path(os.environ["NEXUS_REVIEW_BINDING_BACKUP_ROOT"])
 for component in (
-    Path("/mnt/sauvegardes"),
-    Path("/mnt/sauvegardes/nexus-rag"),
-    Path("/mnt/sauvegardes/nexus-rag/operator-keys"),
+    backup_root,
+    backup_root / "nexus-rag",
+    backup_root / "nexus-rag/operator-keys",
     root,
 ):
     meta = component.lstat()
     assert stat.S_ISDIR(meta.st_mode) and not stat.S_ISLNK(meta.st_mode)
     assert meta.st_uid == os.getuid()
-    if component == Path("/mnt/sauvegardes"):
+    if component == backup_root:
         assert meta.st_mode & 0o022 == 0
     else:
         assert meta.st_mode & 0o777 == 0o700
@@ -251,7 +253,8 @@ GPG le demande. Ne rien saisir dans la conversation.
 set -euo pipefail
 set -C
 NEXUS_KEY_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/nexus-rag/operator-keys/review-binding-v1-2026-08-25"
-BACKUP_DIR=/mnt/sauvegardes/nexus-rag/operator-keys/review-binding-v1-2026-08-25
+NEXUS_REVIEW_BINDING_BACKUP_ROOT="${NEXUS_REVIEW_BINDING_BACKUP_ROOT:-/mnt/sauvegardes}"
+BACKUP_DIR="$NEXUS_REVIEW_BINDING_BACKUP_ROOT/nexus-rag/operator-keys/review-binding-v1-2026-08-25"
 CIPHERTEXT="$BACKUP_DIR/review-binding-v1-2026-08-25.seed.hex.gpg"
 test ! -e "$CIPHERTEXT"
 test ! -L "$CIPHERTEXT"
@@ -263,13 +266,14 @@ chmod 0600 "$CIPHERTEXT"
 ```
 
 Succès : GPG exit 0, ciphertext régulier non vide en `0600`, aucune copie
-claire sous `/mnt/sauvegardes`.
+claire sous `NEXUS_REVIEW_BINDING_BACKUP_ROOT`.
 
 - [ ] **Step 4 supersédée: Vérifier le ciphertext**
 
 ```bash
-BACKUP_DIR=/mnt/sauvegardes/nexus-rag/operator-keys/review-binding-v1-2026-08-25
-export BACKUP_DIR
+NEXUS_REVIEW_BINDING_BACKUP_ROOT="${NEXUS_REVIEW_BINDING_BACKUP_ROOT:-/mnt/sauvegardes}"
+BACKUP_DIR="$NEXUS_REVIEW_BINDING_BACKUP_ROOT/nexus-rag/operator-keys/review-binding-v1-2026-08-25"
+export NEXUS_REVIEW_BINDING_BACKUP_ROOT BACKUP_DIR
 python3 - <<'PY'
 import os
 import stat
@@ -319,7 +323,8 @@ variables et traps persistent et le cleanup `EXIT` ne court pas prématurément.
 set -euo pipefail
 umask 077
 NEXUS_KEY_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/nexus-rag/operator-keys/review-binding-v1-2026-08-25"
-BACKUP_DIR=/mnt/sauvegardes/nexus-rag/operator-keys/review-binding-v1-2026-08-25
+NEXUS_REVIEW_BINDING_BACKUP_ROOT="${NEXUS_REVIEW_BINDING_BACKUP_ROOT:-/mnt/sauvegardes}"
+BACKUP_DIR="$NEXUS_REVIEW_BINDING_BACKUP_ROOT/nexus-rag/operator-keys/review-binding-v1-2026-08-25"
 RESTORE_DIR="$(mktemp -d /tmp/nexus-review-binding-restore-20260825.XXXXXX)"
 case "$RESTORE_DIR" in /tmp/nexus-review-binding-restore-20260825.*) ;; *) exit 2;; esac
 cleanup_restore() {

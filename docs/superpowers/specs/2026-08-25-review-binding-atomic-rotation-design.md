@@ -36,15 +36,18 @@ Le répertoire primaire est
 - aucun passage de la graine en argument de processus ;
 - aucune copie dans Git, les artefacts de build ou les journaux.
 
-Le support `/mnt/sauvegardes` est actuellement un système ext4 monté en clair.
-La sauvegarde sera donc un fichier GPG symétrique chiffré, créé sous
-`/mnt/sauvegardes/nexus-rag/operator-keys/`. La phrase secrète sera saisie par
-l'opérateur dans une invite locale masquée, jamais dans la conversation ni
-une variable d'environnement. La sauvegarde est produite directement depuis le
-fichier primaire vers le ciphertext : aucun plaintext temporaire n'est écrit
-sur `/mnt/sauvegardes`. Seul le checksum du ciphertext est publié ; aucun hash
-de la graine privée ne l'est. Le fichier chiffré conserve des permissions
-restrictives.
+La racine du support est fournie par `NEXUS_REVIEW_BINDING_BACKUP_ROOT`, avec
+`NEXUS_REVIEW_BINDING_BACKUP_ROOT=/mnt/sauvegardes` comme valeur par défaut.
+Lors de cette rotation, cette valeur par défaut désignait un système ext4 monté
+en clair. La sauvegarde est donc un
+fichier GPG symétrique chiffré, créé sous
+`${NEXUS_REVIEW_BINDING_BACKUP_ROOT:-/mnt/sauvegardes}/nexus-rag/operator-keys/`.
+La phrase secrète est saisie par l'opérateur dans une invite locale masquée,
+jamais dans la conversation ni une variable d'environnement. La sauvegarde est
+produite directement depuis le fichier primaire vers le ciphertext : aucun
+plaintext temporaire n'est écrit sous `NEXUS_REVIEW_BINDING_BACKUP_ROOT`. Seul
+le checksum du ciphertext est publié ; aucun hash de la graine privée ne l'est.
+Le fichier chiffré conserve des permissions restrictives.
 
 Une restauration est écrite uniquement dans un répertoire temporaire `0700`,
 puis détruite. Elle doit établir l'invariant exact :
