@@ -84,6 +84,13 @@ def _exclusive_publish(path: Path, raw: bytes) -> None:
             except OSError:
                 pass
         raise PreparationCliError("output publication failed") from exc
+    except BaseException:
+        if published:
+            try:
+                path.unlink()
+            except OSError:
+                pass
+        raise
     finally:
         if file_descriptor >= 0:
             os.close(file_descriptor)

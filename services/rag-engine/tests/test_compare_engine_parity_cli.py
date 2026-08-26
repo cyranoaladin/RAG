@@ -4,6 +4,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -170,6 +171,27 @@ def test_report_publication_is_atomic_on_interrupted_write(
         raise KeyboardInterrupt
 
     monkeypatch.setattr(module.os, "write", interrupted_write)
+
+    with pytest.raises(KeyboardInterrupt):
+        module._exclusive_write(output, b"complete report\n")
+
+    assert not output.exists()
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_report_publication_removes_link_on_directory_sync_interrupt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = _load_cli_module()
+    output = tmp_path / "report.json"
+    original_fsync = module.os.fsync
+
+    def interrupt_directory_sync(descriptor: int) -> None:
+        if stat.S_ISDIR(module.os.fstat(descriptor).st_mode):
+            raise KeyboardInterrupt
+        original_fsync(descriptor)
+
+    monkeypatch.setattr(module.os, "fsync", interrupt_directory_sync)
 
     with pytest.raises(KeyboardInterrupt):
         module._exclusive_write(output, b"complete report\n")

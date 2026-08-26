@@ -83,6 +83,13 @@ def _exclusive_write(path: Path, raw: bytes) -> None:
             except OSError:
                 pass
         raise ParityCliError("output publication failed") from exc
+    except BaseException:
+        if published:
+            try:
+                path.unlink()
+            except OSError:
+                pass
+        raise
     finally:
         if descriptor >= 0:
             os.close(descriptor)

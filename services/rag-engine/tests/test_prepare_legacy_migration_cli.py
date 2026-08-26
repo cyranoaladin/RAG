@@ -155,6 +155,27 @@ def test_manifest_publication_removes_link_when_directory_sync_fails(
     assert list(tmp_path.iterdir()) == []
 
 
+def test_manifest_publication_removes_link_on_directory_sync_interrupt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = _load_cli_module()
+    output = tmp_path / "manifest.json"
+    original_fsync = module.os.fsync
+
+    def interrupt_directory_sync(descriptor: int) -> None:
+        if stat.S_ISDIR(module.os.fstat(descriptor).st_mode):
+            raise KeyboardInterrupt
+        original_fsync(descriptor)
+
+    monkeypatch.setattr(module.os, "fsync", interrupt_directory_sync)
+
+    with pytest.raises(KeyboardInterrupt):
+        module._exclusive_publish(output, b"complete manifest\n")
+
+    assert not output.exists()
+    assert list(tmp_path.iterdir()) == []
+
+
 def test_cli_sanitizes_invalid_capture_errors(tmp_path: Path) -> None:
     canary = "CANARY-DOCUMENT-CONTENT-MUST-NOT-LEAK"
     capture = tmp_path / "invalid.jsonl"
