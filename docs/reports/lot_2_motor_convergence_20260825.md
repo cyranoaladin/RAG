@@ -18,7 +18,7 @@ ou autorisation de cutover n'est déclarée.
 | Baseline `origin/main` | `ca0a21f59bd25c7e472cf2d6accc5b8e79ed74bd` |
 | Branche | `rag-engine/motor-convergence-20260825` |
 | Head implémentation avant rapport | `091b29c19e429c793456e2653c78a7c8c7812a41` |
-| Head code après corrections de revue | `dc43288f174921b3c43a0c6eb4a6925e4947a4ff` |
+| Head code après corrections de revue | `3ac40c2a0e518c478ad3439f74708ec55f21b97c` |
 | Contrat canonique | `packages/contracts`, `nexus-contracts` 0.14.0 |
 | Moteur canonique | B — `rag-pedago` + `rag-engine` + pgvector + e5-large 1024D |
 | Moteur de continuité | A — Streamlit/FastAPI legacy + ChromaDB + Ollama + SQLite |
@@ -154,6 +154,7 @@ sont ni des digests de corpus réel ni des preuves de production.
 | `910071b` | entrées YAML récursives et droits globaux par passage |
 | `661fceb` | scellement du protocole et publication legacy atomique |
 | `dc43288` | rollback des publications interrompues après hardlink |
+| `3ac40c2` | identification inode des hardlinks avant rollback |
 
 ## TDD et revues adversariales
 
@@ -196,7 +197,10 @@ destination est retiré si la confirmation de durabilité échoue.
 Une relecture contradictoire a ensuite étendu ce cycle aux interruptions
 `KeyboardInterrupt` postérieures au hardlink : les deux publishers retirent la
 cible et propagent l'interruption, sans convertir celle-ci en succès ni en
-erreur opérateur trompeuse.
+erreur opérateur trompeuse. Un test de mutation supplémentaire interrompt
+`os.link` après la création réelle de la cible ; le rollback compare alors
+`st_dev + st_ino` du temporaire et de la cible, afin de retirer uniquement le
+lien créé par l'invocation et de préserver une cible préexistante étrangère.
 
 ## Vérifications
 
@@ -256,6 +260,13 @@ relecture des interruptions :
 - suites CLI directement affectées : `17 passed` ;
 - Ruff et mypy ciblé : PASS.
 
+Sur le head code `3ac40c2a0e518c478ad3439f74708ec55f21b97c` après la
+fermeture de la fenêtre `os.link` :
+
+- suite ciblée Lot 2 : `179 passed` ;
+- suites CLI directement affectées : `19 passed` ;
+- Ruff et mypy ciblé : PASS.
+
 Après le commit documentaire final, les garde-fous et la CI seront rejoués sur
 le nouveau head ; leurs résultats ne sont pas pré-déclarés dans ce rapport.
 
@@ -285,4 +296,4 @@ En conséquence :
 
 | Lot | Branche | PR | SHA | CI | Revue | Déployé | Preuve réelle | Rollback | Verdict |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2 | `rag-engine/motor-convergence-20260825` | #137 | code corrigé `dc43288f174921b3c43a0c6eb4a6925e4947a4ff` ; head documentaire à figer | ciblée `177/177` ; non-régression antérieure `174/174` ; exhaustive antérieure `17/17` | corrections P2 à relire exact-head ; trusted-human-review à obtenir | non | non | contrat local seulement | `NO_GO` |
+| 2 | `rag-engine/motor-convergence-20260825` | #137 | code corrigé `3ac40c2a0e518c478ad3439f74708ec55f21b97c` ; head documentaire à figer | ciblée `179/179` ; non-régression antérieure `174/174` ; exhaustive antérieure `17/17` | corrections P2 à relire exact-head ; trusted-human-review à obtenir | non | non | contrat local seulement | `NO_GO` |
