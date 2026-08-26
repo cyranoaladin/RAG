@@ -250,6 +250,38 @@ def test_report_publication_removes_link_on_directory_sync_interrupt(
     assert _recovery_capture(tmp_path).read_bytes() == b"complete report\n"
 
 
+def test_report_rollback_remains_bound_to_the_open_parent_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = _load_cli_module()
+    live_parent = tmp_path / "live"
+    redirected_parent = tmp_path / "redirected"
+    original_parent = tmp_path / "original"
+    live_parent.mkdir()
+    redirected_parent.mkdir()
+    output = live_parent / "report.json"
+    original_fsync = module.os.fsync
+    redirected = False
+
+    def redirect_then_interrupt(descriptor: int) -> None:
+        nonlocal redirected
+        if stat.S_ISDIR(module.os.fstat(descriptor).st_mode) and not redirected:
+            redirected = True
+            os.rename(live_parent, original_parent)
+            os.rename(redirected_parent, live_parent)
+            raise KeyboardInterrupt
+        original_fsync(descriptor)
+
+    monkeypatch.setattr(module.os, "fsync", redirect_then_interrupt)
+
+    with pytest.raises(KeyboardInterrupt):
+        module._exclusive_write(output, b"complete report\n")
+
+    assert not (original_parent / output.name).exists()
+    assert not output.exists()
+    assert _recovery_capture(original_parent).read_bytes() == b"complete report\n"
+
+
 def test_report_publication_removes_link_when_link_is_interrupted_after_create(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -280,6 +312,7 @@ def test_report_rollback_preserves_target_replaced_during_identity_check(
     temporary.write_bytes(b"owned")
     foreign.write_bytes(b"foreign")
     os.link(temporary, output)
+    parent_descriptor = os.open(tmp_path, os.O_RDONLY | os.O_DIRECTORY)
     temporary_descriptor = os.open(temporary, os.O_RDONLY)
     original_fstat = module.os.fstat
     replaced = False
@@ -297,9 +330,12 @@ def test_report_rollback_preserves_target_replaced_during_identity_check(
     monkeypatch.setattr(module.os, "fstat", fstat_then_replace)
 
     try:
-        module._rollback_matching_link(output, temporary_descriptor)
+        module._rollback_matching_link(
+            parent_descriptor, output.name, temporary_descriptor
+        )
     finally:
         os.close(temporary_descriptor)
+        os.close(parent_descriptor)
 
     assert output.read_bytes() == b"foreign"
 
@@ -314,6 +350,7 @@ def test_report_rollback_never_unlinks_a_substituted_recovery_entry(
     temporary.write_bytes(b"owned")
     foreign.write_bytes(b"foreign")
     os.link(temporary, output)
+    parent_descriptor = os.open(tmp_path, os.O_RDONLY | os.O_DIRECTORY)
     temporary_descriptor = os.open(temporary, os.O_RDONLY)
     foreign_descriptor = os.open(foreign, os.O_RDONLY)
     original_fstat = module.os.fstat
@@ -333,10 +370,13 @@ def test_report_rollback_never_unlinks_a_substituted_recovery_entry(
     monkeypatch.setattr(module.os, "fstat", fstat_then_substitute)
 
     try:
-        module._rollback_matching_link(output, temporary_descriptor)
+        module._rollback_matching_link(
+            parent_descriptor, output.name, temporary_descriptor
+        )
         assert os.fstat(foreign_descriptor).st_nlink >= 1
     finally:
         os.close(temporary_descriptor)
+        os.close(parent_descriptor)
         os.close(foreign_descriptor)
 
 
@@ -348,20 +388,26 @@ def test_report_rollback_preserves_captured_target_when_replace_is_interrupted(
     output = tmp_path / "report.json"
     temporary.write_bytes(b"owned")
     output.write_bytes(b"foreign")
+    parent_descriptor = os.open(tmp_path, os.O_RDONLY | os.O_DIRECTORY)
     temporary_descriptor = os.open(temporary, os.O_RDONLY)
     original_replace = module.os.replace
 
-    def interrupt_after_replace(source: Path, target: Path) -> None:
-        original_replace(source, target)
+    def interrupt_after_replace(
+        source: object, target: object, **kwargs: object
+    ) -> None:
+        original_replace(source, target, **kwargs)
         raise KeyboardInterrupt
 
     monkeypatch.setattr(module.os, "replace", interrupt_after_replace)
 
     try:
         with pytest.raises(KeyboardInterrupt):
-            module._rollback_matching_link(output, temporary_descriptor)
+            module._rollback_matching_link(
+                parent_descriptor, output.name, temporary_descriptor
+            )
     finally:
         os.close(temporary_descriptor)
+        os.close(parent_descriptor)
 
     assert output.read_bytes() == b"foreign"
     assert _recovery_capture(tmp_path).read_bytes() == b"foreign"
@@ -399,8 +445,12 @@ def test_existing_report_refusal_does_not_invoke_rollback(
     output = tmp_path / "report.json"
     output.write_bytes(b"existing")
 
-    def unexpected_rollback(path: Path, temporary_descriptor: int) -> None:
-        del path, temporary_descriptor
+    def unexpected_rollback(
+        parent_descriptor: int,
+        output_name: str,
+        temporary_descriptor: int,
+    ) -> None:
+        del parent_descriptor, output_name, temporary_descriptor
         raise AssertionError("rollback must not inspect a pre-existing target")
 
     monkeypatch.setattr(module, "_rollback_matching_link", unexpected_rollback)

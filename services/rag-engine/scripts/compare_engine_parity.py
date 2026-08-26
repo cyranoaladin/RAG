@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import os
+import secrets
 import stat
 import sys
 import tempfile
@@ -45,22 +46,74 @@ def _canonical_json(document: dict[str, Any]) -> bytes:
     ).encode("utf-8")
 
 
-def _rollback_matching_link(path: Path, temporary_descriptor: int) -> None:
-    rescue_directory: Path | None = None
-    rescue_path: Path | None = None
+def _open_private_directory(
+    parent_descriptor: int, *, prefix: str
+) -> tuple[str, int]:
+    for _ in range(64):
+        directory_name = f"{prefix}{secrets.token_hex(12)}"
+        try:
+            os.mkdir(directory_name, 0o700, dir_fd=parent_descriptor)
+        except FileExistsError:
+            continue
+        directory_descriptor = -1
+        try:
+            directory_descriptor = os.open(
+                directory_name,
+                os.O_RDONLY
+                | getattr(os, "O_DIRECTORY", 0)
+                | getattr(os, "O_NOFOLLOW", 0),
+                dir_fd=parent_descriptor,
+            )
+            os.fchmod(directory_descriptor, 0o700)
+            directory_status = os.fstat(directory_descriptor)
+            if (
+                not stat.S_ISDIR(directory_status.st_mode)
+                or stat.S_IMODE(directory_status.st_mode) != 0o700
+                or directory_status.st_uid != os.geteuid()
+            ):
+                raise OSError("private directory validation failed")
+            return directory_name, directory_descriptor
+        except BaseException:
+            if directory_descriptor >= 0:
+                try:
+                    os.close(directory_descriptor)
+                except OSError:
+                    pass
+            try:
+                os.rmdir(directory_name, dir_fd=parent_descriptor)
+            except OSError:
+                pass
+            raise
+    raise OSError("private directory allocation failed")
+
+
+def _rollback_matching_link(
+    parent_descriptor: int,
+    output_name: str,
+    temporary_descriptor: int,
+) -> None:
+    rescue_name: str | None = None
+    rescue_descriptor = -1
     try:
-        rescue_name = tempfile.mkdtemp(
-            prefix=".nexus-rollback.", dir=path.parent
+        rescue_name, rescue_descriptor = _open_private_directory(
+            parent_descriptor, prefix=".nexus-rollback."
         )
-        rescue_directory = Path(rescue_name)
-        rescue_path = rescue_directory / "captured"
-        os.replace(path, rescue_path)
+        os.replace(
+            output_name,
+            "captured",
+            src_dir_fd=parent_descriptor,
+            dst_dir_fd=rescue_descriptor,
+        )
     except OSError:
         return
     finally:
-        if rescue_path is not None:
+        if rescue_descriptor >= 0:
             try:
-                captured_status = os.stat(rescue_path, follow_symlinks=False)
+                captured_status = os.stat(
+                    "captured",
+                    dir_fd=rescue_descriptor,
+                    follow_symlinks=False,
+                )
             except OSError:
                 pass
             else:
@@ -80,15 +133,23 @@ def _rollback_matching_link(path: Path, temporary_descriptor: int) -> None:
                     if captured_identity != temporary_identity:
                         try:
                             os.link(
-                                rescue_path,
-                                path,
+                                "captured",
+                                output_name,
+                                src_dir_fd=rescue_descriptor,
+                                dst_dir_fd=parent_descriptor,
                                 follow_symlinks=False,
                             )
                         except OSError:
                             pass
-        if rescue_directory is not None:
+            descriptor_to_close = rescue_descriptor
+            rescue_descriptor = -1
             try:
-                os.rmdir(rescue_directory)
+                os.close(descriptor_to_close)
+            except OSError:
+                pass
+        if rescue_name is not None:
+            try:
+                os.rmdir(rescue_name, dir_fd=parent_descriptor)
             except OSError:
                 pass
 
@@ -173,7 +234,11 @@ def _exclusive_write(path: Path, raw: bytes) -> None:
         raise
     finally:
         if rollback_required and payload_descriptor >= 0:
-            _rollback_matching_link(path, payload_descriptor)
+            _rollback_matching_link(
+                parent_descriptor,
+                path.name,
+                payload_descriptor,
+            )
         if payload_descriptor >= 0:
             descriptor_to_close = payload_descriptor
             payload_descriptor = -1
