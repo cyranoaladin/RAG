@@ -18,7 +18,7 @@ ou autorisation de cutover n'est déclarée.
 | Baseline `origin/main` | `ca0a21f59bd25c7e472cf2d6accc5b8e79ed74bd` |
 | Branche | `rag-engine/motor-convergence-20260825` |
 | Head implémentation avant rapport | `091b29c19e429c793456e2653c78a7c8c7812a41` |
-| Head code après corrections de revue | `2b21214368f6ae27a615c69be1b9f7a67bc19e84` |
+| Head code après corrections de revue | `5bf55af2dbcf81a16b83d24fcdff9c9dd56ab008` |
 | Contrat canonique | `packages/contracts`, `nexus-contracts` 0.14.0 |
 | Moteur canonique | B — `rag-pedago` + `rag-engine` + pgvector + e5-large 1024D |
 | Moteur de continuité | A — Streamlit/FastAPI legacy + ChromaDB + Ollama + SQLite |
@@ -157,6 +157,7 @@ sont ni des digests de corpus réel ni des preuves de production.
 | `3ac40c2` | identification inode des hardlinks avant rollback |
 | `5841942` | capture atomique des rollbacks sans suppression TOCTOU |
 | `2b21214` | identification du placeholder au point de commit du rollback |
+| `5bf55af` | conservation fail-safe des remnants de rollback |
 
 ## TDD et revues adversariales
 
@@ -211,10 +212,17 @@ n'invoque pas ce rollback et laisse donc la cible préexistante entièrement
 intacte. La dernière relecture contradictoire a reproduit une interruption
 livrée immédiatement après le succès noyau de `os.replace`, avant toute
 affectation Python : la cible capturée pouvait alors être confondue avec le
-placeholder et supprimée. Le placeholder reste désormais ouvert et identifié
-par `st_dev + st_ino` ; le bloc final déduit l'état réel depuis les inodes,
-restaure une cible étrangère sans écrasement et ne supprime que le placeholder
-ou le hardlink temporaire appartenant au publisher.
+placeholder et supprimée. Une première correction a gardé le placeholder
+ouvert et identifié par `st_dev + st_ino`, mais la relecture exact-head a
+ensuite démontré qu'aucun `stat → unlink(pathname)` ne permet un effacement
+conditionnel atomique par inode avec les primitives POSIX/Python disponibles.
+Le rollback capture donc désormais dans un répertoire privé `0700`, restaure
+une entrée étrangère par hardlink sans écrasement et conserve toujours le
+fichier capturé comme remnant de récupération. Une collision ou une ambiguïté
+ne déclenche aucune suppression. Les fermetures de descripteurs de nettoyage
+sont best-effort et ne masquent plus l'interruption initiale. La suppression
+d'un remnant exige une inspection opérateur ultérieure hors de ce chemin
+d'erreur.
 
 ## Vérifications
 
@@ -296,6 +304,14 @@ fermeture du point de commit `os.replace` :
 - Ruff sur les deux scripts et leurs deux fichiers de tests : PASS ;
 - mypy ciblé sur les deux scripts : PASS.
 
+Sur le head code `5bf55af2dbcf81a16b83d24fcdff9c9dd56ab008` après la
+suppression des effacements TOCTOU dans le chemin de rollback :
+
+- suite ciblée Lot 2 : `191 passed` ;
+- suites CLI directement affectées : `31 passed` ;
+- Ruff sur les deux scripts et leurs deux fichiers de tests : PASS ;
+- mypy ciblé sur les deux scripts : PASS.
+
 Après le commit documentaire final, les garde-fous et la CI seront rejoués sur
 le nouveau head ; leurs résultats ne sont pas pré-déclarés dans ce rapport.
 
@@ -325,4 +341,4 @@ En conséquence :
 
 | Lot | Branche | PR | SHA | CI | Revue | Déployé | Preuve réelle | Rollback | Verdict |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2 | `rag-engine/motor-convergence-20260825` | #137 | code corrigé `2b21214368f6ae27a615c69be1b9f7a67bc19e84` ; head documentaire à figer | ciblée `187/187` ; CLI `27/27` ; non-régression antérieure `174/174` ; exhaustive antérieure `17/17` | correction du point de commit à relire exact-head ; trusted-human-review à obtenir | non | non | contrat local seulement | `NO_GO` |
+| 2 | `rag-engine/motor-convergence-20260825` | #137 | code corrigé `5bf55af2dbcf81a16b83d24fcdff9c9dd56ab008` ; head documentaire à figer | ciblée `191/191` ; CLI `31/31` ; non-régression antérieure `174/174` ; exhaustive antérieure `17/17` | remnants fail-safe et fermetures cleanup à relire exact-head ; trusted-human-review à obtenir | non | non | contrat local seulement | `NO_GO` |
