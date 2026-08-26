@@ -57,13 +57,19 @@ def _run(
 
 
 def _recovery_capture(directory: Path) -> Path:
-    recovery_directories = list(directory.glob(".nexus-rollback.*"))
+    recovery_directories = list(directory.glob(".nexus-staging.*"))
     assert len(recovery_directories) == 1
     recovery_directory = recovery_directories[0]
     assert stat.S_IMODE(recovery_directory.stat().st_mode) == 0o700
     capture = recovery_directory / "captured"
     assert capture.is_file()
     return capture
+
+
+def _open_test_staging(directory: Path) -> int:
+    staging_directory = directory / ".nexus-staging.test"
+    staging_directory.mkdir(mode=0o700)
+    return os.open(staging_directory, os.O_RDONLY | os.O_DIRECTORY)
 
 
 def _staging_payload(directory: Path) -> Path:
@@ -282,6 +288,42 @@ def test_report_rollback_remains_bound_to_the_open_parent_directory(
     assert _recovery_capture(original_parent).read_bytes() == b"complete report\n"
 
 
+def test_report_rollback_does_not_allocate_after_publication(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = _load_cli_module()
+    output = tmp_path / "report.json"
+    original_fsync = module.os.fsync
+    original_mkdir = module.os.mkdir
+    rollback_mkdir_calls = 0
+
+    def fail_parent_sync(descriptor: int) -> None:
+        if stat.S_ISDIR(module.os.fstat(descriptor).st_mode):
+            raise OSError("simulated directory sync failure")
+        original_fsync(descriptor)
+
+    def interrupt_rollback_mkdir(
+        candidate: object,
+        mode: int = 0o777,
+        *,
+        dir_fd: int | None = None,
+    ) -> None:
+        nonlocal rollback_mkdir_calls
+        original_mkdir(candidate, mode, dir_fd=dir_fd)
+        if str(candidate).startswith(".nexus-rollback."):
+            rollback_mkdir_calls += 1
+            raise KeyboardInterrupt
+
+    monkeypatch.setattr(module.os, "fsync", fail_parent_sync)
+    monkeypatch.setattr(module.os, "mkdir", interrupt_rollback_mkdir)
+
+    with pytest.raises((KeyboardInterrupt, module.ParityCliError)):
+        module._exclusive_write(output, b"complete report\n")
+
+    assert rollback_mkdir_calls == 0
+    assert not output.exists()
+
+
 def test_report_publication_removes_link_when_link_is_interrupted_after_create(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -313,6 +355,7 @@ def test_report_rollback_preserves_target_replaced_during_identity_check(
     foreign.write_bytes(b"foreign")
     os.link(temporary, output)
     parent_descriptor = os.open(tmp_path, os.O_RDONLY | os.O_DIRECTORY)
+    staging_descriptor = _open_test_staging(tmp_path)
     temporary_descriptor = os.open(temporary, os.O_RDONLY)
     original_fstat = module.os.fstat
     replaced = False
@@ -331,10 +374,14 @@ def test_report_rollback_preserves_target_replaced_during_identity_check(
 
     try:
         module._rollback_matching_link(
-            parent_descriptor, output.name, temporary_descriptor
+            parent_descriptor,
+            staging_descriptor,
+            output.name,
+            temporary_descriptor,
         )
     finally:
         os.close(temporary_descriptor)
+        os.close(staging_descriptor)
         os.close(parent_descriptor)
 
     assert output.read_bytes() == b"foreign"
@@ -351,6 +398,7 @@ def test_report_rollback_never_unlinks_a_substituted_recovery_entry(
     foreign.write_bytes(b"foreign")
     os.link(temporary, output)
     parent_descriptor = os.open(tmp_path, os.O_RDONLY | os.O_DIRECTORY)
+    staging_descriptor = _open_test_staging(tmp_path)
     temporary_descriptor = os.open(temporary, os.O_RDONLY)
     foreign_descriptor = os.open(foreign, os.O_RDONLY)
     original_fstat = module.os.fstat
@@ -362,7 +410,7 @@ def test_report_rollback_never_unlinks_a_substituted_recovery_entry(
         status = original_fstat(candidate)
         if candidate == temporary_descriptor and not substituted:
             substituted = True
-            rescue_path = next(tmp_path.glob(".nexus-rollback.*")) / "captured"
+            rescue_path = next(tmp_path.glob(".nexus-staging.*")) / "captured"
             rescue_path.unlink()
             original_replace(foreign, rescue_path)
         return status
@@ -371,11 +419,15 @@ def test_report_rollback_never_unlinks_a_substituted_recovery_entry(
 
     try:
         module._rollback_matching_link(
-            parent_descriptor, output.name, temporary_descriptor
+            parent_descriptor,
+            staging_descriptor,
+            output.name,
+            temporary_descriptor,
         )
         assert os.fstat(foreign_descriptor).st_nlink >= 1
     finally:
         os.close(temporary_descriptor)
+        os.close(staging_descriptor)
         os.close(parent_descriptor)
         os.close(foreign_descriptor)
 
@@ -389,6 +441,7 @@ def test_report_rollback_preserves_captured_target_when_replace_is_interrupted(
     temporary.write_bytes(b"owned")
     output.write_bytes(b"foreign")
     parent_descriptor = os.open(tmp_path, os.O_RDONLY | os.O_DIRECTORY)
+    staging_descriptor = _open_test_staging(tmp_path)
     temporary_descriptor = os.open(temporary, os.O_RDONLY)
     original_replace = module.os.replace
 
@@ -403,10 +456,14 @@ def test_report_rollback_preserves_captured_target_when_replace_is_interrupted(
     try:
         with pytest.raises(KeyboardInterrupt):
             module._rollback_matching_link(
-                parent_descriptor, output.name, temporary_descriptor
+                parent_descriptor,
+                staging_descriptor,
+                output.name,
+                temporary_descriptor,
             )
     finally:
         os.close(temporary_descriptor)
+        os.close(staging_descriptor)
         os.close(parent_descriptor)
 
     assert output.read_bytes() == b"foreign"
@@ -447,10 +504,11 @@ def test_existing_report_refusal_does_not_invoke_rollback(
 
     def unexpected_rollback(
         parent_descriptor: int,
+        staging_descriptor: int,
         output_name: str,
         temporary_descriptor: int,
     ) -> None:
-        del parent_descriptor, output_name, temporary_descriptor
+        del parent_descriptor, staging_descriptor, output_name, temporary_descriptor
         raise AssertionError("rollback must not inspect a pre-existing target")
 
     monkeypatch.setattr(module, "_rollback_matching_link", unexpected_rollback)

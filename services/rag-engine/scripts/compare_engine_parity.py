@@ -10,7 +10,6 @@ import os
 import secrets
 import stat
 import sys
-import tempfile
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Never
@@ -89,69 +88,53 @@ def _open_private_directory(
 
 def _rollback_matching_link(
     parent_descriptor: int,
+    staging_descriptor: int,
     output_name: str,
     temporary_descriptor: int,
 ) -> None:
-    rescue_name: str | None = None
-    rescue_descriptor = -1
     try:
-        rescue_name, rescue_descriptor = _open_private_directory(
-            parent_descriptor, prefix=".nexus-rollback."
-        )
         os.replace(
             output_name,
             "captured",
             src_dir_fd=parent_descriptor,
-            dst_dir_fd=rescue_descriptor,
+            dst_dir_fd=staging_descriptor,
         )
     except OSError:
         return
     finally:
-        if rescue_descriptor >= 0:
+        try:
+            captured_status = os.stat(
+                "captured",
+                dir_fd=staging_descriptor,
+                follow_symlinks=False,
+            )
+        except OSError:
+            pass
+        else:
+            captured_identity = (
+                captured_status.st_dev,
+                captured_status.st_ino,
+            )
             try:
-                captured_status = os.stat(
-                    "captured",
-                    dir_fd=rescue_descriptor,
-                    follow_symlinks=False,
-                )
+                temporary_status = os.fstat(temporary_descriptor)
             except OSError:
                 pass
             else:
-                captured_identity = (
-                    captured_status.st_dev,
-                    captured_status.st_ino,
+                temporary_identity = (
+                    temporary_status.st_dev,
+                    temporary_status.st_ino,
                 )
-                try:
-                    temporary_status = os.fstat(temporary_descriptor)
-                except OSError:
-                    pass
-                else:
-                    temporary_identity = (
-                        temporary_status.st_dev,
-                        temporary_status.st_ino,
-                    )
-                    if captured_identity != temporary_identity:
-                        try:
-                            os.link(
-                                "captured",
-                                output_name,
-                                src_dir_fd=rescue_descriptor,
-                                dst_dir_fd=parent_descriptor,
-                                follow_symlinks=False,
-                            )
-                        except OSError:
-                            pass
-            descriptor_to_close = rescue_descriptor
-            rescue_descriptor = -1
-            try:
-                os.close(descriptor_to_close)
-            except OSError:
-                pass
-        if rescue_name is not None:
-            try:
-                os.rmdir(rescue_name, dir_fd=parent_descriptor)
-            except OSError:
-                pass
+                if captured_identity != temporary_identity:
+                    try:
+                        os.link(
+                            "captured",
+                            output_name,
+                            src_dir_fd=staging_descriptor,
+                            dst_dir_fd=parent_descriptor,
+                            follow_symlinks=False,
+                        )
+                    except OSError:
+                        pass
 
 
 def _exclusive_write(path: Path, raw: bytes) -> None:
@@ -159,7 +142,7 @@ def _exclusive_write(path: Path, raw: bytes) -> None:
         raise ParityCliError("output directory is unavailable")
     parent_descriptor = -1
     staging_descriptor = -1
-    staging_directory: Path | None = None
+    staging_name: str | None = None
     payload_descriptor = -1
     publication_attempted = False
     rollback_required = False
@@ -176,28 +159,10 @@ def _exclusive_write(path: Path, raw: bytes) -> None:
             or parent_status.st_mode & stat.S_ISVTX
         ):
             raise ParityCliError("output directory is unavailable")
-        staging_directory = Path(
-            tempfile.mkdtemp(prefix=".nexus-staging.", dir=path.parent)
+        staging_name, staging_descriptor = _open_private_directory(
+            parent_descriptor,
+            prefix=".nexus-staging.",
         )
-        staging_descriptor = os.open(
-            staging_directory,
-            os.O_RDONLY
-            | getattr(os, "O_DIRECTORY", 0)
-            | getattr(os, "O_NOFOLLOW", 0),
-        )
-        os.fchmod(staging_descriptor, 0o700)
-        staging_status = os.fstat(staging_descriptor)
-        staging_parent_status = os.stat(
-            "..", dir_fd=staging_descriptor, follow_symlinks=False
-        )
-        if (
-            not stat.S_ISDIR(staging_status.st_mode)
-            or stat.S_IMODE(staging_status.st_mode) != 0o700
-            or staging_status.st_uid != os.geteuid()
-            or (staging_parent_status.st_dev, staging_parent_status.st_ino)
-            != (parent_status.st_dev, parent_status.st_ino)
-        ):
-            raise ParityCliError("output staging is unavailable")
         payload_descriptor = os.open(
             "payload",
             os.O_WRONLY
@@ -236,6 +201,7 @@ def _exclusive_write(path: Path, raw: bytes) -> None:
         if rollback_required and payload_descriptor >= 0:
             _rollback_matching_link(
                 parent_descriptor,
+                staging_descriptor,
                 path.name,
                 payload_descriptor,
             )
@@ -262,11 +228,11 @@ def _exclusive_write(path: Path, raw: bytes) -> None:
                 pass
         if (
             not rollback_required
-            and staging_directory is not None
+            and staging_name is not None
             and parent_descriptor >= 0
         ):
             try:
-                os.rmdir(staging_directory.name, dir_fd=parent_descriptor)
+                os.rmdir(staging_name, dir_fd=parent_descriptor)
             except OSError:
                 pass
         if parent_descriptor >= 0:
