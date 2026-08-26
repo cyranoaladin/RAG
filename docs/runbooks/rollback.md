@@ -167,6 +167,17 @@ test "$("${restore_compose[@]}" config --services | sort)" = \
   --entrypoint bash restore-migrator \
   /opt/nexus/provision_runtime_roles.sh
 
+# Troisième jambe obligatoire : PROUVER que les droits sont revenus.
+# `pg_dump -Fc` ne transporte pas les rôles — ils sont globaux au cluster — et
+# `pg_restore` signale les GRANT orphelins en erreurs ignorées, sans échouer.
+# Une restauration faite avant le provisionnement produit donc une base
+# complète, silencieusement dépourvue de tout privilège runtime.
+#
+#   provision cluster-global roles -> restore database -> verify grants
+#
+PGVECTOR_CONTAINER="$("${restore_compose[@]}" ps -q pgvector)" \
+  bash "$PWD/scripts/verify_runtime_role_grants.sh"
+
 # Aucun service applicatif ne doit exister dans le projet de rehearsal.
 test "$("${restore_compose[@]}" ps --services --status running)" = pgvector
 
@@ -179,6 +190,15 @@ reste un human gate distinct : backup frais, arrêt contrôlé des writers,
 validation de l'identité de la cible, restauration, migrations via le seul
 migrateur, reprovisionnement explicite des rôles runtime, contrôles de schéma,
 puis seulement redémarrage des runtimes.
+
+`verify_runtime_role_grants.sh` rend l'ordre incorrect **détectable** au lieu de
+silencieux. Il refuse, avec un motif explicite : rôles absents
+(`roles_absent_restore_ran_before_provisioning` — la signature exacte d'une
+restauration antérieure au provisionnement), droit de lecture perdu, portée
+d'`UPDATE` de revue élargie au-delà de `review_status`, droit d'écriture ou de
+suppression acquis par un rôle de lecture, attribut administratif sur un rôle
+runtime, ou accès à `rag_api_keys`/`rag_eval_runs`. Un `PASS` de ce script est
+la seule preuve acceptable qu'une restauration est terminée.
 
 ### Chroma (v1)
 
