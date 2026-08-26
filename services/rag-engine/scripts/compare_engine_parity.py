@@ -45,24 +45,19 @@ def _canonical_json(document: dict[str, Any]) -> bytes:
 
 
 def _rollback_matching_link(path: Path, temporary_path: Path) -> None:
-    rescue_descriptor = -1
+    rescue_directory: Path | None = None
     rescue_path: Path | None = None
-    placeholder_identity: tuple[int, int] | None = None
     try:
-        rescue_descriptor, rescue_name = tempfile.mkstemp(
+        rescue_name = tempfile.mkdtemp(
             prefix=".nexus-rollback.", dir=path.parent
         )
-        rescue_path = Path(rescue_name)
-        placeholder_status = os.fstat(rescue_descriptor)
-        placeholder_identity = (
-            placeholder_status.st_dev,
-            placeholder_status.st_ino,
-        )
+        rescue_directory = Path(rescue_name)
+        rescue_path = rescue_directory / "captured"
         os.replace(path, rescue_path)
     except OSError:
         return
     finally:
-        if rescue_path is not None and placeholder_identity is not None:
+        if rescue_path is not None:
             try:
                 captured_status = os.stat(rescue_path, follow_symlinks=False)
             except OSError:
@@ -72,40 +67,31 @@ def _rollback_matching_link(path: Path, temporary_path: Path) -> None:
                     captured_status.st_dev,
                     captured_status.st_ino,
                 )
-                if captured_identity == placeholder_identity:
-                    try:
-                        rescue_path.unlink()
-                    except OSError:
-                        pass
+                try:
+                    temporary_status = os.stat(
+                        temporary_path, follow_symlinks=False
+                    )
+                except OSError:
+                    pass
                 else:
-                    try:
-                        temporary_status = os.stat(
-                            temporary_path, follow_symlinks=False
-                        )
-                    except OSError:
-                        pass
-                    else:
-                        temporary_identity = (
-                            temporary_status.st_dev,
-                            temporary_status.st_ino,
-                        )
-                        if captured_identity == temporary_identity:
-                            try:
-                                rescue_path.unlink()
-                            except OSError:
-                                pass
-                        else:
-                            try:
-                                os.link(rescue_path, path, follow_symlinks=False)
-                            except OSError:
-                                pass
-                            else:
-                                try:
-                                    rescue_path.unlink()
-                                except OSError:
-                                    pass
-        if rescue_descriptor >= 0:
-            os.close(rescue_descriptor)
+                    temporary_identity = (
+                        temporary_status.st_dev,
+                        temporary_status.st_ino,
+                    )
+                    if captured_identity != temporary_identity:
+                        try:
+                            os.link(
+                                rescue_path,
+                                path,
+                                follow_symlinks=False,
+                            )
+                        except OSError:
+                            pass
+        if rescue_directory is not None:
+            try:
+                os.rmdir(rescue_directory)
+            except OSError:
+                pass
 
 
 def _exclusive_write(path: Path, raw: bytes) -> None:
@@ -128,8 +114,9 @@ def _exclusive_write(path: Path, raw: bytes) -> None:
                 raise OSError("short output write")
             remaining = remaining[written:]
         os.fsync(descriptor)
-        os.close(descriptor)
+        descriptor_to_close = descriptor
         descriptor = -1
+        os.close(descriptor_to_close)
         link_started = True
         os.link(temporary_path, path, follow_symlinks=False)
         directory_descriptor = os.open(
@@ -138,7 +125,10 @@ def _exclusive_write(path: Path, raw: bytes) -> None:
         try:
             os.fsync(directory_descriptor)
         finally:
-            os.close(directory_descriptor)
+            try:
+                os.close(directory_descriptor)
+            except OSError:
+                pass
     except FileExistsError as exc:
         raise ParityCliError("output already exists") from exc
     except OSError as exc:
@@ -149,7 +139,12 @@ def _exclusive_write(path: Path, raw: bytes) -> None:
         raise
     finally:
         if descriptor >= 0:
-            os.close(descriptor)
+            descriptor_to_close = descriptor
+            descriptor = -1
+            try:
+                os.close(descriptor_to_close)
+            except OSError:
+                pass
         if temporary_path is not None:
             if rollback_required:
                 _rollback_matching_link(path, temporary_path)

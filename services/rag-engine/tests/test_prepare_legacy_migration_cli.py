@@ -52,6 +52,16 @@ def _run(*arguments: str) -> subprocess.CompletedProcess[str]:
     )
 
 
+def _recovery_capture(directory: Path) -> Path:
+    recovery_directories = list(directory.glob(".nexus-rollback.*"))
+    assert len(recovery_directories) == 1
+    recovery_directory = recovery_directories[0]
+    assert stat.S_IMODE(recovery_directory.stat().st_mode) == 0o700
+    capture = recovery_directory / "captured"
+    assert capture.is_file()
+    return capture
+
+
 def test_cli_defaults_to_summary_only_without_payload() -> None:
     result = _run()
 
@@ -152,7 +162,7 @@ def test_manifest_publication_removes_link_when_directory_sync_fails(
         module._exclusive_publish(output, b"complete manifest\n")
 
     assert not output.exists()
-    assert list(tmp_path.iterdir()) == []
+    assert _recovery_capture(tmp_path).read_bytes() == b"complete manifest\n"
 
 
 def test_manifest_publication_removes_link_on_directory_sync_interrupt(
@@ -173,7 +183,7 @@ def test_manifest_publication_removes_link_on_directory_sync_interrupt(
         module._exclusive_publish(output, b"complete manifest\n")
 
     assert not output.exists()
-    assert list(tmp_path.iterdir()) == []
+    assert _recovery_capture(tmp_path).read_bytes() == b"complete manifest\n"
 
 
 def test_manifest_publication_removes_link_when_link_is_interrupted_after_create(
@@ -193,7 +203,7 @@ def test_manifest_publication_removes_link_when_link_is_interrupted_after_create
         module._exclusive_publish(output, b"complete manifest\n")
 
     assert not output.exists()
-    assert list(tmp_path.iterdir()) == []
+    assert _recovery_capture(tmp_path).read_bytes() == b"complete manifest\n"
 
 
 def test_manifest_rollback_preserves_target_replaced_during_identity_check(
@@ -226,6 +236,40 @@ def test_manifest_rollback_preserves_target_replaced_during_identity_check(
     assert output.read_bytes() == b"foreign"
 
 
+def test_manifest_rollback_never_unlinks_a_substituted_recovery_entry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = _load_cli_module()
+    temporary = tmp_path / ".manifest.json.owned"
+    output = tmp_path / "manifest.json"
+    foreign = tmp_path / "foreign.json"
+    temporary.write_bytes(b"owned")
+    foreign.write_bytes(b"foreign")
+    os.link(temporary, output)
+    foreign_descriptor = os.open(foreign, os.O_RDONLY)
+    original_stat = module.os.stat
+    original_replace = module.os.replace
+    substituted = False
+
+    def stat_then_substitute(candidate: Path, **kwargs: object):
+        nonlocal substituted
+        status = original_stat(candidate, **kwargs)
+        if Path(candidate) == temporary and not substituted:
+            substituted = True
+            rescue_path = next(tmp_path.glob(".nexus-rollback.*")) / "captured"
+            rescue_path.unlink()
+            original_replace(foreign, rescue_path)
+        return status
+
+    monkeypatch.setattr(module.os, "stat", stat_then_substitute)
+
+    try:
+        module._rollback_matching_link(output, temporary)
+        assert os.fstat(foreign_descriptor).st_nlink >= 1
+    finally:
+        os.close(foreign_descriptor)
+
+
 def test_manifest_rollback_preserves_captured_target_when_replace_is_interrupted(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -246,7 +290,32 @@ def test_manifest_rollback_preserves_captured_target_when_replace_is_interrupted
         module._rollback_matching_link(output, temporary)
 
     assert output.read_bytes() == b"foreign"
-    assert not list(tmp_path.glob(".nexus-rollback.*"))
+    assert _recovery_capture(tmp_path).read_bytes() == b"foreign"
+
+
+def test_manifest_cleanup_close_error_does_not_mask_write_interrupt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = _load_cli_module()
+    output = tmp_path / "manifest.json"
+    original_close = module.os.close
+
+    def interrupt_write(descriptor: int, raw: memoryview) -> int:
+        del descriptor, raw
+        raise KeyboardInterrupt
+
+    def fail_after_close(descriptor: int) -> None:
+        original_close(descriptor)
+        raise OSError("simulated cleanup close failure")
+
+    monkeypatch.setattr(module.os, "write", interrupt_write)
+    monkeypatch.setattr(module.os, "close", fail_after_close)
+
+    with pytest.raises(KeyboardInterrupt):
+        module._exclusive_publish(output, b"complete manifest\n")
+
+    assert not output.exists()
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_existing_manifest_refusal_does_not_invoke_rollback(
@@ -293,8 +362,8 @@ def test_manifest_cleanup_error_does_not_mask_directory_sync_interrupt(
         module._exclusive_publish(output, b"complete manifest\n")
 
     assert not output.exists()
-    for leftover in tmp_path.iterdir():
-        original_unlink(leftover)
+    assert _recovery_capture(tmp_path).read_bytes() == b"complete manifest\n"
+    assert any(path.name.startswith(".manifest.json.") for path in tmp_path.iterdir())
 
 
 def test_cli_sanitizes_invalid_capture_errors(tmp_path: Path) -> None:
