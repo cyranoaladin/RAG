@@ -18,7 +18,7 @@ ou autorisation de cutover n'est déclarée.
 | Baseline `origin/main` | `ca0a21f59bd25c7e472cf2d6accc5b8e79ed74bd` |
 | Branche | `rag-engine/motor-convergence-20260825` |
 | Head implémentation avant rapport | `091b29c19e429c793456e2653c78a7c8c7812a41` |
-| Head code après corrections de revue | `5841942007a72df375f8d3a0439e55a254281d55` |
+| Head code après corrections de revue | `2b21214368f6ae27a615c69be1b9f7a67bc19e84` |
 | Contrat canonique | `packages/contracts`, `nexus-contracts` 0.14.0 |
 | Moteur canonique | B — `rag-pedago` + `rag-engine` + pgvector + e5-large 1024D |
 | Moteur de continuité | A — Streamlit/FastAPI legacy + ChromaDB + Ollama + SQLite |
@@ -156,6 +156,7 @@ sont ni des digests de corpus réel ni des preuves de production.
 | `dc43288` | rollback des publications interrompues après hardlink |
 | `3ac40c2` | identification inode des hardlinks avant rollback |
 | `5841942` | capture atomique des rollbacks sans suppression TOCTOU |
+| `2b21214` | identification du placeholder au point de commit du rollback |
 
 ## TDD et revues adversariales
 
@@ -207,7 +208,13 @@ par hardlink sans écrasement ; en cas de collision, l'entrée capturée reste a
 chemin privé de récupération plutôt que d'être supprimée. Une erreur de
 nettoyage ne masque jamais l'interruption initiale. Un `FileExistsError` normal
 n'invoque pas ce rollback et laisse donc la cible préexistante entièrement
-intacte.
+intacte. La dernière relecture contradictoire a reproduit une interruption
+livrée immédiatement après le succès noyau de `os.replace`, avant toute
+affectation Python : la cible capturée pouvait alors être confondue avec le
+placeholder et supprimée. Le placeholder reste désormais ouvert et identifié
+par `st_dev + st_ino` ; le bloc final déduit l'état réel depuis les inodes,
+restaure une cible étrangère sans écrasement et ne supprime que le placeholder
+ou le hardlink temporaire appartenant au publisher.
 
 ## Vérifications
 
@@ -281,6 +288,14 @@ fermeture TOCTOU :
 - suites CLI directement affectées : `25 passed` ;
 - Ruff et mypy ciblé : PASS.
 
+Sur le head code `2b21214368f6ae27a615c69be1b9f7a67bc19e84` après la
+fermeture du point de commit `os.replace` :
+
+- suite ciblée Lot 2 : `187 passed` ;
+- suites CLI directement affectées : `27 passed` ;
+- Ruff sur les deux scripts et leurs deux fichiers de tests : PASS ;
+- mypy ciblé sur les deux scripts : PASS.
+
 Après le commit documentaire final, les garde-fous et la CI seront rejoués sur
 le nouveau head ; leurs résultats ne sont pas pré-déclarés dans ce rapport.
 
@@ -310,4 +325,4 @@ En conséquence :
 
 | Lot | Branche | PR | SHA | CI | Revue | Déployé | Preuve réelle | Rollback | Verdict |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2 | `rag-engine/motor-convergence-20260825` | #137 | code corrigé `5841942007a72df375f8d3a0439e55a254281d55` ; head documentaire à figer | ciblée `185/185` ; non-régression antérieure `174/174` ; exhaustive antérieure `17/17` | corrections TOCTOU à relire exact-head ; trusted-human-review à obtenir | non | non | contrat local seulement | `NO_GO` |
+| 2 | `rag-engine/motor-convergence-20260825` | #137 | code corrigé `2b21214368f6ae27a615c69be1b9f7a67bc19e84` ; head documentaire à figer | ciblée `187/187` ; CLI `27/27` ; non-régression antérieure `174/174` ; exhaustive antérieure `17/17` | correction du point de commit à relire exact-head ; trusted-human-review à obtenir | non | non | contrat local seulement | `NO_GO` |
