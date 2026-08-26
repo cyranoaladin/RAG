@@ -18,7 +18,7 @@ ou autorisation de cutover n'est déclarée.
 | Baseline `origin/main` | `ca0a21f59bd25c7e472cf2d6accc5b8e79ed74bd` |
 | Branche | `rag-engine/motor-convergence-20260825` |
 | Head implémentation avant rapport | `091b29c19e429c793456e2653c78a7c8c7812a41` |
-| Head code après corrections de revue | `58c4f1aa31f40973f7163c4f34cb7618e1481e03` |
+| Head code après corrections de revue | `39a571547c6c044757b5e3c03a859f6d533850ee` |
 | Contrat canonique | `packages/contracts`, `nexus-contracts` 0.14.0 |
 | Moteur canonique | B — `rag-pedago` + `rag-engine` + pgvector + e5-large 1024D |
 | Moteur de continuité | A — Streamlit/FastAPI legacy + ChromaDB + Ollama + SQLite |
@@ -159,6 +159,7 @@ sont ni des digests de corpus réel ni des preuves de production.
 | `2b21214` | identification du placeholder au point de commit du rollback |
 | `5bf55af` | conservation fail-safe des remnants de rollback |
 | `58c4f1a` | isolation `0700` du staging de publication |
+| `39a5715` | ancrage du rollback au descripteur parent vérifié |
 
 ## TDD et revues adversariales
 
@@ -232,6 +233,13 @@ recovery. Le modèle de menace couvre interruptions, erreurs de syscall et
 processus non autorisés par les permissions. Un processus hostile du même UID
 ou du code injecté dans le publisher est explicitement hors frontière POSIX :
 il pourrait aussi modifier les fichiers du processus malgré le mode `0700`.
+Enfin, le rollback ne résout jamais une seconde fois `path.parent` : son
+répertoire privé, la capture par `replace`, la restauration sans écrasement et
+le nettoyage du répertoire vide sont tous ancrés par `dir_fd` au descripteur du
+parent qui a servi au hardlink. Deux mutations permutent réellement un
+composant de chemin entre le hardlink et le `fsync` ; l'artefact est retiré du
+parent original ouvert et conservé dans son recovery, jamais abandonné dans
+l'ancien namespace.
 
 ## Vérifications
 
@@ -329,6 +337,14 @@ l'isolation du staging initial :
 - Ruff sur les deux scripts et leurs deux fichiers de tests : PASS ;
 - mypy ciblé sur les deux scripts : PASS.
 
+Sur le head code `39a571547c6c044757b5e3c03a859f6d533850ee` après
+l'ancrage intégral du rollback au parent ouvert :
+
+- suite ciblée Lot 2 : `195 passed` ;
+- suites CLI directement affectées : `35 passed` ;
+- Ruff sur les deux scripts et leurs deux fichiers de tests : PASS ;
+- mypy ciblé sur les deux scripts : PASS.
+
 Après le commit documentaire final, les garde-fous et la CI seront rejoués sur
 le nouveau head ; leurs résultats ne sont pas pré-déclarés dans ce rapport.
 
@@ -358,4 +374,4 @@ En conséquence :
 
 | Lot | Branche | PR | SHA | CI | Revue | Déployé | Preuve réelle | Rollback | Verdict |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2 | `rag-engine/motor-convergence-20260825` | #137 | code corrigé `58c4f1aa31f40973f7163c4f34cb7618e1481e03` ; head documentaire à figer | ciblée `193/193` ; CLI `33/33` ; non-régression antérieure `174/174` ; exhaustive antérieure `17/17` | staging privé et remnants fail-safe à relire exact-head ; trusted-human-review à obtenir | non | non | contrat local seulement | `NO_GO` |
+| 2 | `rag-engine/motor-convergence-20260825` | #137 | code corrigé `39a571547c6c044757b5e3c03a859f6d533850ee` ; head documentaire à figer | ciblée `195/195` ; CLI `35/35` ; non-régression antérieure `174/174` ; exhaustive antérieure `17/17` | rollback `dir_fd` à relire exact-head ; trusted-human-review à obtenir | non | non | contrat local seulement | `NO_GO` |
