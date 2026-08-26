@@ -1,0 +1,258 @@
+{
+  "collections": [
+    {
+      "collection": "rag_nexus_dgemc_terminale_option",
+      "expected_artifacts": 1,
+      "expected_chunks": 44,
+      "expected_placements": 1,
+      "in_catalogue": true,
+      "in_release_registry": true,
+      "ingestible_by_current_policy": false,
+      "ingestion_profile": "dgemc_terminale_option_profile_gate_v1.yml",
+      "instanciee": false,
+      "verdict": "P0_RELEASE_NAMES_A_NON_INSTANCIATED_COLLECTION"
+    },
+    {
+      "collection": "rag_nexus_francais_premiere_tc",
+      "expected_artifacts": 1,
+      "expected_chunks": 38,
+      "expected_placements": 1,
+      "in_catalogue": true,
+      "in_release_registry": true,
+      "ingestible_by_current_policy": true,
+      "ingestion_profile": "francais_premiere_tc_multilevel_v1.yml",
+      "instanciee": true,
+      "verdict": "COHERENT"
+    },
+    {
+      "collection": "rag_nexus_francais_quatrieme_tc",
+      "expected_artifacts": 1,
+      "expected_chunks": 20,
+      "expected_placements": 1,
+      "in_catalogue": true,
+      "in_release_registry": true,
+      "ingestible_by_current_policy": true,
+      "ingestion_profile": "francais_quatrieme_tc_multilevel_v1.yml",
+      "instanciee": true,
+      "verdict": "COHERENT"
+    },
+    {
+      "collection": "rag_nexus_francais_seconde_tc",
+      "expected_artifacts": 2,
+      "expected_chunks": 44,
+      "expected_placements": 2,
+      "in_catalogue": true,
+      "in_release_registry": true,
+      "ingestible_by_current_policy": true,
+      "ingestion_profile": "francais_seconde_tc_multilevel_v1.yml",
+      "instanciee": true,
+      "verdict": "COHERENT"
+    },
+    {
+      "collection": "rag_nexus_hlp_premiere_specialite",
+      "expected_artifacts": 4,
+      "expected_chunks": 56,
+      "expected_placements": 4,
+      "in_catalogue": true,
+      "in_release_registry": true,
+      "ingestible_by_current_policy": false,
+      "ingestion_profile": "hlp_premiere_specialite_profile_gate_v1.yml",
+      "instanciee": false,
+      "verdict": "P0_RELEASE_NAMES_A_NON_INSTANCIATED_COLLECTION"
+    },
+    {
+      "collection": "rag_nexus_maths_premiere_gen_specialite",
+      "expected_artifacts": 1,
+      "expected_chunks": 38,
+      "expected_placements": 1,
+      "in_catalogue": true,
+      "in_release_registry": true,
+      "ingestible_by_current_policy": true,
+      "ingestion_profile": "maths_premiere_gen_specialite_multilevel_v1.yml",
+      "instanciee": true,
+      "verdict": "COHERENT"
+    },
+    {
+      "collection": "rag_nexus_maths_quatrieme_tc",
+      "expected_artifacts": 1,
+      "expected_chunks": 21,
+      "expected_placements": 1,
+      "in_catalogue": true,
+      "in_release_registry": true,
+      "ingestible_by_current_policy": true,
+      "ingestion_profile": "maths_quatrieme_tc_multilevel_v1.yml",
+      "instanciee": true,
+      "verdict": "COHERENT"
+    },
+    {
+      "collection": "rag_nexus_maths_seconde_tc",
+      "expected_artifacts": 1,
+      "expected_chunks": 44,
+      "expected_placements": 1,
+      "in_catalogue": true,
+      "in_release_registry": true,
+      "ingestible_by_current_policy": true,
+      "ingestion_profile": "maths_seconde_tc_multilevel_v1.yml",
+      "instanciee": true,
+      "verdict": "COHERENT"
+    },
+    {
+      "collection": "rag_nexus_maths_terminale_gen_specialite",
+      "expected_artifacts": 1,
+      "expected_chunks": 55,
+      "expected_placements": 1,
+      "in_catalogue": true,
+      "in_release_registry": true,
+      "ingestible_by_current_policy": true,
+      "ingestion_profile": "maths_terminale_gen_specialite_multilevel_v1.yml",
+      "instanciee": true,
+      "verdict": "COHERENT"
+    },
+    {
+      "collection": "rag_nexus_nsi_premiere_specialite",
+      "expected_artifacts": 1,
+      "expected_chunks": 19,
+      "expected_placements": 1,
+      "in_catalogue": true,
+      "in_release_registry": true,
+      "ingestible_by_current_policy": true,
+      "ingestion_profile": "nsi_premiere_specialite_multilevel_v1.yml",
+      "instanciee": true,
+      "verdict": "COHERENT"
+    },
+    {
+      "collection": "rag_nexus_nsi_terminale_specialite",
+      "expected_artifacts": 1,
+      "expected_chunks": 18,
+      "expected_placements": 1,
+      "in_catalogue": true,
+      "in_release_registry": true,
+      "ingestible_by_current_policy": true,
+      "ingestion_profile": "nsi_terminale_specialite_multilevel_v1.yml",
+      "instanciee": true,
+      "verdict": "COHERENT"
+    },
+    {
+      "collection": "rag_nexus_pc_premiere_specialite",
+      "expected_artifacts": 1,
+      "expected_chunks": 39,
+      "expected_placements": 1,
+      "in_catalogue": true,
+      "in_release_registry": true,
+      "ingestible_by_current_policy": false,
+      "ingestion_profile": "pc_premiere_specialite_profile_gate_v1.yml",
+      "instanciee": false,
+      "verdict": "P0_RELEASE_NAMES_A_NON_INSTANCIATED_COLLECTION"
+    },
+    {
+      "collection": "rag_nexus_pc_terminale_specialite",
+      "expected_artifacts": 1,
+      "expected_chunks": 56,
+      "expected_placements": 1,
+      "in_catalogue": true,
+      "in_release_registry": true,
+      "ingestible_by_current_policy": true,
+      "ingestion_profile": "pc_terminale_specialite_multilevel_v1.yml",
+      "instanciee": true,
+      "verdict": "COHERENT"
+    },
+    {
+      "collection": "rag_nexus_philo_terminale_tc",
+      "expected_artifacts": 5,
+      "expected_chunks": 75,
+      "expected_placements": 5,
+      "in_catalogue": true,
+      "in_release_registry": true,
+      "ingestible_by_current_policy": true,
+      "ingestion_profile": "philosophie_terminale_tc_h2c_v1.yml",
+      "instanciee": true,
+      "verdict": "COHERENT"
+    },
+    {
+      "collection": "rag_nexus_ses_premiere_specialite",
+      "expected_artifacts": 1,
+      "expected_chunks": 16,
+      "expected_placements": 1,
+      "in_catalogue": true,
+      "in_release_registry": true,
+      "ingestible_by_current_policy": false,
+      "ingestion_profile": "ses_premiere_specialite_profile_gate_v1.yml",
+      "instanciee": false,
+      "verdict": "P0_RELEASE_NAMES_A_NON_INSTANCIATED_COLLECTION"
+    },
+    {
+      "collection": "rag_nexus_ses_terminale_specialite",
+      "expected_artifacts": 1,
+      "expected_chunks": 18,
+      "expected_placements": 1,
+      "in_catalogue": true,
+      "in_release_registry": true,
+      "ingestible_by_current_policy": false,
+      "ingestion_profile": "ses_terminale_specialite_profile_gate_v1.yml",
+      "instanciee": false,
+      "verdict": "P0_RELEASE_NAMES_A_NON_INSTANCIATED_COLLECTION"
+    },
+    {
+      "collection": "rag_nexus_svt_premiere_specialite",
+      "expected_artifacts": 1,
+      "expected_chunks": 57,
+      "expected_placements": 1,
+      "in_catalogue": true,
+      "in_release_registry": true,
+      "ingestible_by_current_policy": false,
+      "ingestion_profile": "svt_premiere_specialite_profile_gate_v1.yml",
+      "instanciee": false,
+      "verdict": "P0_RELEASE_NAMES_A_NON_INSTANCIATED_COLLECTION"
+    },
+    {
+      "collection": "rag_nexus_svt_terminale_specialite",
+      "expected_artifacts": 1,
+      "expected_chunks": 72,
+      "expected_placements": 1,
+      "in_catalogue": true,
+      "in_release_registry": true,
+      "ingestible_by_current_policy": false,
+      "ingestion_profile": "svt_terminale_specialite_profile_gate_v1.yml",
+      "instanciee": false,
+      "verdict": "P0_RELEASE_NAMES_A_NON_INSTANCIATED_COLLECTION"
+    }
+  ],
+  "protocol_version": "NEXUS-RELEASE-CATALOGUE-COHERENCE-V1",
+  "summary": {
+    "coherent_collections": 11,
+    "coherent_totals": {
+      "artifacts": 16,
+      "chunks": 428,
+      "placements": 16
+    },
+    "declared_totals": {
+      "artifacts": 26,
+      "chunks": 730,
+      "placements": 26
+    },
+    "incoherent_collection_ids": [
+      "rag_nexus_dgemc_terminale_option",
+      "rag_nexus_hlp_premiere_specialite",
+      "rag_nexus_pc_premiere_specialite",
+      "rag_nexus_ses_premiere_specialite",
+      "rag_nexus_ses_terminale_specialite",
+      "rag_nexus_svt_premiere_specialite",
+      "rag_nexus_svt_terminale_specialite"
+    ],
+    "incoherent_collections": 7,
+    "manifest_expected_counts": {
+      "artifacts": 26,
+      "chunks": 730,
+      "placements": 26
+    },
+    "manifest_subjects": 18,
+    "registry_collections": 18,
+    "release_id": "production-profile-gate-2026-2027-v1",
+    "school_year": "2026-2027",
+    "unservable_work_if_kept": {
+      "artifacts": 10,
+      "chunks": 302,
+      "placements": 10
+    }
+  }
+}
