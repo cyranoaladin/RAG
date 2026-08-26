@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import shlex
 from pathlib import Path
 from types import SimpleNamespace
@@ -1316,3 +1317,42 @@ def test_integration_make_target_exposes_the_ingestor_package() -> None:
         "test-integration: install\n"
         "\tPYTHONPATH=src $(PYTEST) tests/integration -q"
     ) in makefile
+
+
+def test_env_example_documents_every_required_compose_variable() -> None:
+    """Suivre `.env.example` doit suffire à démarrer la topologie canonique.
+
+    `docker-compose.v2.yml` refuse le démarrage sur toute variable `:?` absente.
+    Une variable requise mais non documentée rend le modèle inutilisable en
+    l'état : l'opérateur découvre l'omission au premier `up`, sans savoir quelle
+    valeur fournir.
+    """
+    compose = (ENGINE_ROOT / "infra" / "docker-compose.v2.yml").read_text(encoding="utf-8")
+    required = set(re.findall(r"\$\{([A-Z0-9_]+):\?", compose))
+    assert required, "the canonical compose must declare required variables"
+
+    example = V2_ENV_EXAMPLE.read_text(encoding="utf-8")
+    documented = set(re.findall(r"^([A-Z0-9_]+)=", example, flags=re.MULTILINE))
+
+    assert not (required - documented), sorted(required - documented)
+
+
+def test_env_example_documents_every_runtime_role_variable() -> None:
+    """Les trois rôles runtime sont provisionnés par la migration 004.
+
+    `provision_runtime_roles.sh` refuse fail-closed sans le couple
+    utilisateur/mot de passe de chacun ; les trois doivent donc figurer dans le
+    modèle, pas seulement les deux rôles de lecture et de revue.
+    """
+    example = V2_ENV_EXAMPLE.read_text(encoding="utf-8")
+    documented = set(re.findall(r"^([A-Z0-9_]+)=", example, flags=re.MULTILINE))
+
+    expected = {
+        "PGVECTOR_RETRIEVAL_USER",
+        "PGVECTOR_RETRIEVAL_PASSWORD",
+        "PGVECTOR_REVIEW_USER",
+        "PGVECTOR_REVIEW_PASSWORD",
+        "PGVECTOR_PUBLISHER_USER",
+        "PGVECTOR_PUBLISHER_PASSWORD",
+    }
+    assert not (expected - documented), sorted(expected - documented)

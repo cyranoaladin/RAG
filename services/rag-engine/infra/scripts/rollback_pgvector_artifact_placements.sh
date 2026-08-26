@@ -14,20 +14,17 @@ MIGRATIONS_DIR="$INFRA_DIR/postgres/migrations"
 MIGRATION_HEAD_FILE="$MIGRATIONS_DIR/HEAD"
 ROLLBACK_FILE="$INFRA_DIR/postgres/rollbacks/004_artifact_placements.down.sql"
 
-if [[ -f "$INFRA_DIR/.env" ]]; then
-    set -a
-    # shellcheck disable=SC1091
-    source "$INFRA_DIR/.env"
-    set +a
-fi
+# shellcheck source=lib/pgvector_migration_state.sh
+source "$SCRIPT_DIR/lib/pgvector_migration_state.sh"
+
+# Load the deployment environment without displaying it.
+load_deployment_environment "$INFRA_DIR/.env"
 
 PGVECTOR_CONTAINER="${PGVECTOR_CONTAINER:-rag_pgvector}"
 PGVECTOR_DB="${PGVECTOR_DB:-ragdb}"
 PGVECTOR_USER="${PGVECTOR_USER:-raguser}"
 : "${BACKUP_ROOT:?BACKUP_ROOT must be set to a persistent backup directory}"
 
-# shellcheck source=lib/pgvector_migration_state.sh
-source "$SCRIPT_DIR/lib/pgvector_migration_state.sh"
 discover_manifest "$MIGRATIONS_DIR" "$MIGRATION_HEAD_FILE"
 
 if [[ "$MIGRATION_DECLARED_HEAD" != "004_artifact_placements" \
