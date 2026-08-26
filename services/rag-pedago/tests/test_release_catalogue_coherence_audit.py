@@ -150,3 +150,155 @@ def test_the_machine_readable_evidence_is_versioned_and_matches_the_audit(
     assert [entry["collection"] for entry in evidence["collections"]] == [
         row.collection for row in rows
     ]
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Algèbre des ensembles et matrice de périmètre GO-LIVE
+# ═══════════════════════════════════════════════════════════════════════
+
+
+@pytest.fixture(scope="module")
+def sets(audited: tuple[Any, list[Any], dict[str, Any]]) -> dict[str, Any]:
+    module, _rows, _summary = audited
+    return module.collection_sets()
+
+
+@pytest.fixture(scope="module")
+def matrix(audited: tuple[Any, list[Any], dict[str, Any]]) -> list[dict[str, Any]]:
+    module, _rows, _summary = audited
+    return module.go_live_scope_matrix()
+
+
+def test_quarantine_is_never_counted_as_a_servable_instanciated_collection(
+    sets: dict[str, Any],
+) -> None:
+    """`rag_nexus_quarantine` est instanciée mais non retrievable par design.
+
+    La compter comme servable fausserait chaque différence : c'est exactement
+    l'erreur qui avait donné « 13 autorités pour 11 collections » dans un
+    rapport antérieur.
+    """
+    assert set(sets["QUARANTINE"]) <= set(sets["INSTANCIEE_RAW"])
+    assert not set(sets["QUARANTINE"]) & set(sets["INSTANCIEE"])
+    assert len(sets["INSTANCIEE"]) == len(sets["INSTANCIEE_RAW"]) - len(
+        sets["QUARANTINE"]
+    )
+
+
+def test_the_three_differences_partition_the_two_sets_exactly(
+    sets: dict[str, Any],
+) -> None:
+    release = set(sets["CURRENT_RELEASE"])
+    instanciee = set(sets["INSTANCIEE"])
+
+    intersection = set(sets["CURRENT_RELEASE_INTERSECT_INSTANCIEE"])
+    only_release = set(sets["CURRENT_RELEASE_MINUS_INSTANCIEE"])
+    only_instanciee = set(sets["INSTANCIEE_MINUS_CURRENT_RELEASE"])
+
+    assert intersection | only_release == release
+    assert intersection | only_instanciee == instanciee
+    assert not intersection & only_release
+    assert not intersection & only_instanciee
+    assert len(release) == len(intersection) + len(only_release)
+    assert len(instanciee) == len(intersection) + len(only_instanciee)
+
+
+def test_the_first_release_candidate_is_exactly_the_intersection(
+    sets: dict[str, Any],
+) -> None:
+    assert sets["FIRST_RELEASE_CANDIDATE"] == sets[
+        "CURRENT_RELEASE_INTERSECT_INSTANCIEE"
+    ]
+
+
+def test_no_collection_is_activation_authorized_without_being_instanciated(
+    sets: dict[str, Any],
+) -> None:
+    """Une ADR qui active une collection non instanciée serait restée sans effet."""
+    assert sets["AUTHORIZED_NOT_INSTANCIEE"] == []
+
+
+def test_instanciated_collections_without_a_named_authority_stay_visible(
+    sets: dict[str, Any],
+) -> None:
+    """Instancier sans ADR reste possible, mais jamais implicite.
+
+    Les deux collections NSI précèdent le régime ADR-0039/ADR-0041. L'audit
+    doit continuer de les nommer plutôt que de les fondre dans un total.
+    """
+    for collection in sets["INSTANCIEE_WITHOUT_NAMED_AUTHORITY"]:
+        assert collection in sets["INSTANCIEE"]
+        assert collection not in sets["ACTIVATION_AUTHORIZED"]
+
+
+def test_the_scope_matrix_classifies_every_catalogue_collection_exactly_once(
+    sets: dict[str, Any], matrix: list[dict[str, Any]]
+) -> None:
+    assert len(matrix) == len(sets["CATALOGUE"])
+    assert [row["collection"] for row in matrix] == sets["CATALOGUE"]
+    assert all(row["exists_in_catalogue"] for row in matrix)
+
+
+def test_every_scope_row_names_the_source_that_governs_it(
+    matrix: list[dict[str, Any]],
+) -> None:
+    for row in matrix:
+        assert row["governing_source"], row["collection"]
+        assert len(row["reason"]) > 40, row["collection"]
+
+
+def test_final_go_live_requirement_comes_from_the_roadmap_pilot_only(
+    matrix: list[dict[str, Any]],
+) -> None:
+    """Le référentiel scolaire décrit le système éducatif, pas le produit.
+
+    L'autorité de périmètre est la décision de cadrage du ROADMAP — vertical
+    pilote Terminale générale, spécialités Maths + NSI — et rien d'autre.
+    """
+    required = [row for row in matrix if row["final_go_live_required"]]
+    assert {row["collection"] for row in required} == {
+        "rag_nexus_maths_terminale_gen_specialite",
+        "rag_nexus_nsi_terminale_specialite",
+    }
+    for row in required:
+        assert row["product_scope"] == "pilot_vertical"
+        assert row["governing_source"] == "roadmap_pilot"
+
+
+def test_the_pilot_vertical_is_covered_by_the_first_release_candidate(
+    sets: dict[str, Any], matrix: list[dict[str, Any]]
+) -> None:
+    """Réduire la release aux collections instanciées ne rétrécit pas le produit.
+
+    Si le pilote n'était pas entièrement couvert, le retrait des collections non
+    instanciées serait une réduction silencieuse de périmètre, pas une
+    correction de cohérence.
+    """
+    pilot = {row["collection"] for row in matrix if row["product_scope"] == "pilot_vertical"}
+    assert pilot <= set(sets["FIRST_RELEASE_CANDIDATE"]), pilot - set(
+        sets["FIRST_RELEASE_CANDIDATE"]
+    )
+
+
+def test_first_release_required_never_exceeds_the_release_itself(
+    sets: dict[str, Any], matrix: list[dict[str, Any]]
+) -> None:
+    required = {row["collection"] for row in matrix if row["first_release_required"]}
+    assert required == set(sets["FIRST_RELEASE_CANDIDATE"])
+
+
+def test_the_report_verdict_does_not_depend_on_the_check_flag(
+    monkeypatch: pytest.MonkeyPatch,
+    audited: tuple[Any, list[Any], dict[str, Any]],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Un rapport affichant PASS sous une table d'incohérences serait pire que muet."""
+    module, rows, summary = audited
+    broken = dict(summary)
+    broken["incoherent_collections"] = 3
+    monkeypatch.setattr(module, "audit", lambda: (rows, broken))
+
+    assert module.main([]) == 0
+    captured = capsys.readouterr()
+    assert "RELEASE_CATALOGUE_COHERENCE=FAIL" in captured.err
+    assert "RELEASE_CATALOGUE_COHERENCE=PASS" not in captured.out

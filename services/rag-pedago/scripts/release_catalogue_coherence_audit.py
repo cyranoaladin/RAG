@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -36,6 +37,20 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 CATALOGUE = REPOSITORY_ROOT / "services/rag-engine/configs/rag_collections.yml"
 PROFILES = REPOSITORY_ROOT / "services/rag-engine/configs/ingestion_profiles"
 RELEASES = REPOSITORY_ROOT / "services/rag-pedago/data/releases/prerentree_2026_2027"
+GO_LIVE_SCOPE = REPOSITORY_ROOT / "services/rag-pedago/configs/go_live_scope.yml"
+ADR_ACTIVATION_SOURCES = (
+    "docs/adr/ADR-0039-activation-wave0-apres-release-readiness.md",
+    "docs/adr/ADR-0041-activation-multi-niveaux-apres-readiness.md",
+    "docs/adr/ADR-0040-extension-multi-niveaux-prioritaire.md",
+    "services/rag-engine/configs/h2_initial_placement_policy.yml",
+)
+SCOPE_CLASSES = (
+    "pilot_vertical",
+    "complete_coverage_target",
+    "out_of_v1",
+    "architecture_target",
+    "infrastructure",
+)
 
 VERDICT_COHERENT = "COHERENT"
 VERDICT_INCOHERENT = "P0_RELEASE_NAMES_A_NON_INSTANCIATED_COLLECTION"
@@ -150,6 +165,117 @@ def audit() -> tuple[list[CollectionCoherence], dict[str, Any]]:
     return rows, summary
 
 
+# ═══════════════════════════════════════════════════════════════════════
+# Algèbre des ensembles et matrice de périmètre GO-LIVE
+# ═══════════════════════════════════════════════════════════════════════
+
+
+def _catalogue() -> dict[str, Any]:
+    return _load_yaml(CATALOGUE)["collections"]
+
+
+def _current_release() -> dict[str, Any]:
+    registry = json.loads((RELEASES / "release-registry.json").read_text("utf-8"))
+    return registry["releases"][0]
+
+
+def activation_authorized() -> dict[str, list[str]]:
+    """Collections nommées par une autorité d'activation versionnée.
+
+    Instancier une collection sans qu'aucune ADR ne la nomme reste possible —
+    c'est le cas des deux collections NSI, antérieures au régime
+    ADR-0039/ADR-0041 — mais cela doit être visible, pas implicite.
+    """
+    named: dict[str, list[str]] = {}
+    for relative in ADR_ACTIVATION_SOURCES:
+        text = (REPOSITORY_ROOT / relative).read_text(encoding="utf-8")
+        for collection in sorted(set(re.findall(r"rag_nexus_[a-z0-9_]+", text))):
+            named.setdefault(collection, []).append(Path(relative).name)
+    return named
+
+
+def collection_sets() -> dict[str, Any]:
+    """Les cinq ensembles canoniques et leurs différences, calculés — jamais cités."""
+    catalogue = _catalogue()
+    release = _current_release()
+
+    catalogue_ids = set(catalogue)
+    quarantine = {
+        name for name, entry in catalogue.items() if entry.get("domain") == "quarantine"
+    }
+    instanciee_raw = {
+        name for name, entry in catalogue.items() if entry.get("instanciee") is True
+    }
+    # `rag_nexus_quarantine` est instanciée mais non retrievable par design :
+    # la compter comme servable fausserait chaque différence ci-dessous.
+    instanciee = instanciee_raw - quarantine
+    current_release = set(release["collections"])
+    authorized = set(activation_authorized())
+
+    return {
+        "CATALOGUE": sorted(catalogue_ids),
+        "INSTANCIEE_RAW": sorted(instanciee_raw),
+        "INSTANCIEE": sorted(instanciee),
+        "QUARANTINE": sorted(quarantine),
+        "ACTIVATION_AUTHORIZED": sorted(authorized),
+        "CURRENT_RELEASE": sorted(current_release),
+        "FIRST_RELEASE_CANDIDATE": sorted(current_release & instanciee),
+        "CURRENT_RELEASE_INTERSECT_INSTANCIEE": sorted(current_release & instanciee),
+        "CURRENT_RELEASE_MINUS_INSTANCIEE": sorted(current_release - instanciee),
+        "INSTANCIEE_MINUS_CURRENT_RELEASE": sorted(instanciee - current_release),
+        "INSTANCIEE_WITHOUT_NAMED_AUTHORITY": sorted(instanciee - authorized),
+        "AUTHORIZED_NOT_INSTANCIEE": sorted(authorized - instanciee),
+    }
+
+
+def go_live_scope_matrix() -> list[dict[str, Any]]:
+    """Une ligne par collection du catalogue, classée par une source nommée."""
+    declaration = _load_yaml(GO_LIVE_SCOPE)
+    catalogue = _catalogue()
+    release = set(_current_release()["collections"])
+    authorized = activation_authorized()
+    instanciee = {
+        name for name, entry in catalogue.items() if entry.get("instanciee") is True
+    }
+
+    scope_of: dict[str, str] = {}
+    for scope_class in SCOPE_CLASSES:
+        block = declaration[scope_class]
+        for collection in block["collections"]:
+            if collection in scope_of:
+                raise ValueError(
+                    f"{collection} is classified twice: {scope_of[collection]} "
+                    f"and {scope_class}"
+                )
+            scope_of[collection] = scope_class
+
+    unclassified = set(catalogue) - set(scope_of)
+    if unclassified:
+        raise ValueError(f"unclassified catalogue collections: {sorted(unclassified)}")
+    unknown = set(scope_of) - set(catalogue)
+    if unknown:
+        raise ValueError(f"scope names collections absent from catalogue: {sorted(unknown)}")
+
+    first_release = release & instanciee
+    rows: list[dict[str, Any]] = []
+    for collection in sorted(catalogue):
+        scope_class = scope_of[collection]
+        rows.append(
+            {
+                "collection": collection,
+                "exists_in_catalogue": True,
+                "product_scope": scope_class,
+                "activation_authorized": authorized.get(collection, []),
+                "instanciee": catalogue[collection].get("instanciee") is True,
+                "first_release_required": collection in first_release,
+                "final_go_live_required": scope_class == "pilot_vertical",
+                "governing_source": declaration[scope_class]["source"],
+                "reason": declaration["sources"][declaration[scope_class]["source"]].strip(),
+            }
+        )
+    return rows
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--json", type=Path, help="écrire la preuve machine ici")
@@ -195,6 +321,25 @@ def main(argv: list[str] | None = None) -> int:
     print()
     print(json.dumps(summary, indent=2, ensure_ascii=False, sort_keys=True))
 
+    sets = collection_sets()
+    matrix = go_live_scope_matrix()
+    print()
+    print("SET_ALGEBRA")
+    for name in (
+        "CATALOGUE",
+        "INSTANCIEE",
+        "ACTIVATION_AUTHORIZED",
+        "CURRENT_RELEASE",
+        "FIRST_RELEASE_CANDIDATE",
+        "CURRENT_RELEASE_INTERSECT_INSTANCIEE",
+        "CURRENT_RELEASE_MINUS_INSTANCIEE",
+        "INSTANCIEE_MINUS_CURRENT_RELEASE",
+        "INSTANCIEE_WITHOUT_NAMED_AUTHORITY",
+    ):
+        print(f"  {name:38s} = {len(sets[name])}")
+    required = [row["collection"] for row in matrix if row["final_go_live_required"]]
+    print(f"  {'FINAL_GO_LIVE_REQUIRED':38s} = {len(required)} {required}")
+
     if arguments.json:
         arguments.json.write_text(
             json.dumps(
@@ -202,6 +347,8 @@ def main(argv: list[str] | None = None) -> int:
                     "protocol_version": "NEXUS-RELEASE-CATALOGUE-COHERENCE-V1",
                     "collections": [asdict(row) for row in rows],
                     "summary": summary,
+                    "sets": sets,
+                    "go_live_scope_matrix": matrix,
                 },
                 indent=2,
                 ensure_ascii=False,
@@ -211,13 +358,16 @@ def main(argv: list[str] | None = None) -> int:
             encoding="utf-8",
         )
 
-    if arguments.check and summary["incoherent_collections"]:
+    # Le verdict ne dépend jamais de `--check` : un rapport qui afficherait
+    # `PASS` sous une table de sept incohérences serait pire que muet.
+    # `--check` ne décide que du code de sortie.
+    if summary["incoherent_collections"]:
         print(
             f"\nRELEASE_CATALOGUE_COHERENCE=FAIL "
             f"({summary['incoherent_collections']} collections)",
             file=sys.stderr,
         )
-        return 1
+        return 1 if arguments.check else 0
     print("\nRELEASE_CATALOGUE_COHERENCE=PASS")
     return 0
 
