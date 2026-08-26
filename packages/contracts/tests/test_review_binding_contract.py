@@ -538,3 +538,26 @@ class TestChallengeBinding:
                 reviewer="abenrhouma",
             )
         )
+
+
+def test_public_key_hex_refuses_a_malformed_seed_without_quoting_it() -> None:
+    """Un secret mal formé reste un secret, et le refus reste typé.
+
+    Sans cette barrière, ``bytes.fromhex`` remontait une ``ValueError`` brute —
+    un type que les appelants du producteur ne rattrapent pas, sur le chemin
+    qui manipule précisément la clé de signature.
+    """
+    for malformed in ("not-a-valid-seed-value", "AB" * 32, "ab" * 31, "", "  "):
+        with pytest.raises(ReviewBindingError) as failure:
+            public_key_hex(malformed)
+        if malformed.strip():
+            assert malformed.strip() not in str(failure.value)
+        assert "64 lowercase hexadecimal" in str(failure.value)
+
+
+def test_public_key_hex_still_accepts_a_canonical_seed() -> None:
+    seed = "33" * 32
+    derived = public_key_hex(seed)
+    assert len(derived) == 64
+    assert derived == derived.lower()
+    assert public_key_hex(f"  {seed}  ") == derived

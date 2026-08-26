@@ -320,8 +320,24 @@ def sign_review_binding(
 
 def public_key_hex(private_key_hex: str) -> str:
     """Clé publique correspondante — pour publier une ancre sans jamais
-    manipuler la clé privée ailleurs que dans le producteur."""
-    private_key = Ed25519PrivateKey.from_private_bytes(bytes.fromhex(private_key_hex))
+    manipuler la clé privée ailleurs que dans le producteur.
+
+    Même discipline que ``sign_review_binding`` : une graine mal formée est
+    refusée avant tout appel cryptographique, et le message ne cite jamais la
+    valeur reçue. Sans cette barrière, ``bytes.fromhex`` remontait une
+    ``ValueError`` brute — un type que les appelants ne rattrapent pas, sur un
+    chemin qui manipule un secret.
+    """
+    if not isinstance(private_key_hex, str) or re.fullmatch(
+        _HEX_ED25519, private_key_hex.strip()
+    ) is None:
+        raise ReviewBindingError(
+            "the Ed25519 signing key must be exactly 64 lowercase hexadecimal "
+            "characters (32 bytes of seed)"
+        )
+    private_key = Ed25519PrivateKey.from_private_bytes(
+        bytes.fromhex(private_key_hex.strip())
+    )
     from cryptography.hazmat.primitives.serialization import (
         Encoding,
         PublicFormat,

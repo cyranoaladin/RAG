@@ -31,6 +31,7 @@ import json
 import os
 import sys
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 try:
     from ingestor.ingestion_control.github_authority import (
@@ -61,7 +62,9 @@ from nexus_contracts.review_binding import (
     TRUSTED_REVIEW_PROTOCOL,
     ReviewBindingError,
     ScopeAuthorizationReviewBindingV1,
+    TrustAnchor,
     expected_challenge_digest,
+    parse_trust_anchor,
     public_key_hex,
     require_challenge_is_bound,
     require_matches_authorization,
@@ -81,6 +84,84 @@ SIGNING_KEY_ENV = "NEXUS_REVIEW_BINDING_SIGNING_KEY"
 
 class ReviewBindingProductionError(RuntimeError):
     """Le reçu ne peut pas être produit — aucun octet n'est émis."""
+
+
+#: Motifs de refus du préflight. Déterministes et stables : un opérateur, un
+#: script de bundle et la CI doivent pouvoir brancher dessus sans lire de prose.
+REASON_ANCHOR_ROTATED = "trust_anchor_rotated"
+REASON_ANCHOR_UNREADABLE = "trust_anchor_unreadable"
+REASON_ANCHOR_ENVIRONMENT = "trust_anchor_environment_mismatch"
+REASON_PROTOCOL_MISMATCH = "review_binding_protocol_mismatch"
+REASON_HEAD_DRIFTED = "pull_request_head_drifted"
+REASON_CHALLENGE_MISMATCH = "challenge_mismatch"
+REASON_KEY_UNDECLARED = "signing_key_not_declared_by_trust_anchor"
+
+
+class SigningPreflightRefusal(ReviewBindingProductionError):
+    """Refus du préflight, porteur d'un motif déterministe."""
+
+    def __init__(self, reason: str, detail: str = "") -> None:
+        self.reason = reason
+        super().__init__(f"{reason}: {detail}" if detail else reason)
+
+
+def _load_current_trust_anchor(path: str) -> tuple[TrustAnchor, str]:
+    """Lire l'ancre **canonique courante**, jamais celle d'un worktree figé.
+
+    C'est le coeur du défaut fermé ici : un bundle validé contre l'arbre
+    producteur qui l'a créé reste éternellement cohérent avec lui-même, y
+    compris après qu'une clé a été déclarée perdue et remplacée. La seule
+    autorité acceptable est le fichier d'ancre courant.
+    """
+    try:
+        raw = Path(path).read_bytes()
+    except OSError as exc:
+        raise SigningPreflightRefusal(REASON_ANCHOR_UNREADABLE, str(exc)) from exc
+    try:
+        anchor = parse_trust_anchor(raw)
+    except ReviewBindingError as exc:
+        message = str(exc)
+        if "protocol_version" in message:
+            raise SigningPreflightRefusal(REASON_PROTOCOL_MISMATCH, message) from exc
+        raise SigningPreflightRefusal(REASON_ANCHOR_UNREADABLE, message) from exc
+    if anchor.protocol_version != REVIEW_BINDING_PROTOCOL_VERSION:  # pragma: no cover
+        raise SigningPreflightRefusal(REASON_PROTOCOL_MISMATCH, anchor.protocol_version)
+    return anchor, hashlib.sha256(raw).hexdigest()
+
+
+def _declared_key(anchor: TrustAnchor, key_id: str, environment: str):
+    """Résoudre la clé dans l'ancre courante, en distinguant les deux refus.
+
+    Un ``key_id`` absent est la signature exacte d'une rotation ; un
+    environnement divergent est une erreur de cible, pas une rotation.
+    """
+    try:
+        return anchor.key(key_id, environment=environment)
+    except ReviewBindingError as exc:
+        if "is not declared in the trust anchor" in str(exc):
+            raise SigningPreflightRefusal(
+                REASON_ANCHOR_ROTATED,
+                f"key_id {key_id!r} is no longer declared by the current trust "
+                f"anchor (declared: {', '.join(key.key_id for key in anchor.keys)})",
+            ) from exc
+        raise SigningPreflightRefusal(REASON_ANCHOR_ENVIRONMENT, str(exc)) from exc
+
+
+def _require_anchor_declares_signing_key(
+    anchor: TrustAnchor, key_id: str, environment: str, signing_key: str
+) -> None:
+    """Porte non contournable : l'émission consulte l'ancre elle-même.
+
+    Le préflight est une commodité opérateur. Un bundle qui l'omettrait ne
+    doit pas pouvoir sceller un reçu avec une clé que l'ancre ne déclare pas.
+    """
+    declared = _declared_key(anchor, key_id, environment)
+    if public_key_hex(signing_key) != declared.public_key:
+        raise SigningPreflightRefusal(
+            REASON_KEY_UNDECLARED,
+            f"the configured signing key does not match the public key declared "
+            f"for {key_id!r} by the current trust anchor",
+        )
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
@@ -126,6 +207,66 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         required=True,
         help="Identifiant de la clé de signature, déclaré dans l'ancre de confiance.",
     )
+    issue.add_argument(
+        "--trust-anchor",
+        required=True,
+        help=(
+            "Chemin de l'ancre de confiance CANONIQUE COURANTE. Jamais celle "
+            "d'un worktree producteur figé : une ancre tournée doit rester "
+            "visible."
+        ),
+    )
+    issue.add_argument(
+        "--environment",
+        default="production",
+        choices=("production", "test"),
+        help="Environnement attendu de la clé (défaut production).",
+    )
+
+    preflight = subparsers.add_parser(
+        "preflight",
+        help=(
+            "Vérifie, sans clé privée et sans rien émettre, qu'un bundle de "
+            "signature est encore aligné sur l'état canonique courant."
+        ),
+    )
+    preflight.add_argument("--repository", required=True)
+    preflight.add_argument("--pull-request", required=True, type=int)
+    preflight.add_argument("--expected-head", required=True)
+    preflight.add_argument("--key-id", required=True)
+    preflight.add_argument(
+        "--trust-anchor",
+        required=True,
+        help="Ancre de confiance CANONIQUE COURANTE.",
+    )
+    preflight.add_argument(
+        "--expected-anchor-sha256",
+        default=None,
+        help=(
+            "SHA-256 de l'ancre contre laquelle le bundle a été construit. Une "
+            "rotation qui conserverait le key_id reste ainsi détectable."
+        ),
+    )
+    preflight.add_argument(
+        "--expected-public-key",
+        default=None,
+        help="Clé publique que le bundle a enregistrée pour ce key_id.",
+    )
+    preflight.add_argument(
+        "--expected-challenge",
+        default=None,
+        help="Challenge exact attendu, tel qu'il figure dans la review.",
+    )
+    preflight.add_argument(
+        "--environment",
+        default="production",
+        choices=("production", "test"),
+    )
+    preflight.add_argument(
+        "--offline",
+        action="store_true",
+        help="Ne pas interroger GitHub : ne vérifie alors que l'ancre.",
+    )
 
     public = subparsers.add_parser(
         "public-key",
@@ -165,6 +306,17 @@ def _issue_binding(args: argparse.Namespace, *, now: datetime) -> bytes:
             "review is not a proof"
         )
     signing_key = _signing_key()
+
+    # 0. Ancre de confiance canonique COURANTE. Cette porte précède tout : une
+    #    clé que l'ancre ne déclare plus ne doit sceller aucun reçu, même si le
+    #    bundle qui l'invoque reste cohérent avec l'arbre qui l'a produit.
+    anchor, _anchor_digest = _load_current_trust_anchor(args.trust_anchor)
+    _require_anchor_declares_signing_key(
+        anchor,
+        args.key_id,
+        getattr(args, "environment", "production"),
+        signing_key,
+    )
 
     # 1. Décision de review : rendue par le vérificateur canonique d'ADR-0025,
     #    jamais recalculée ici.
@@ -361,10 +513,99 @@ def _cmd_public_key(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_preflight(args: argparse.Namespace) -> dict[str, str]:
+    """Confronter le bundle à l'état canonique courant. N'émet aucun octet."""
+    anchor, anchor_digest = _load_current_trust_anchor(args.trust_anchor)
+
+    if (
+        args.expected_anchor_sha256 is not None
+        and args.expected_anchor_sha256.strip().lower() != anchor_digest
+    ):
+        raise SigningPreflightRefusal(
+            REASON_ANCHOR_ROTATED,
+            "the trust anchor changed since this bundle was produced",
+        )
+
+    declared = _declared_key(anchor, args.key_id, args.environment)
+
+    if (
+        args.expected_public_key is not None
+        and args.expected_public_key.strip().lower() != declared.public_key
+    ):
+        raise SigningPreflightRefusal(
+            REASON_ANCHOR_ROTATED,
+            f"the public key declared for {args.key_id!r} is not the one this "
+            "bundle recorded",
+        )
+
+    observed = {
+        "TRUST_ANCHOR_KEY_ID": declared.key_id,
+        "TRUST_ANCHOR_PUBLIC_KEY": declared.public_key,
+        "TRUST_ANCHOR_ENVIRONMENT": declared.environment,
+        "TRUST_ANCHOR_SHA256": anchor_digest,
+    }
+    if args.offline:
+        observed["PULL_REQUEST_VERIFIED"] = "false"
+        return observed
+
+    try:
+        live = verify_review(
+            repository=args.repository,
+            pull_request=args.pull_request,
+            expected_head=args.expected_head,
+        )
+    except GitHubAuthorityError as exc:
+        raise SigningPreflightRefusal(
+            REASON_HEAD_DRIFTED,
+            f"the pull request could not be verified live: {exc}",
+        ) from exc
+
+    if live.head_sha != args.expected_head:
+        raise SigningPreflightRefusal(
+            REASON_HEAD_DRIFTED,
+            "the pull request head is no longer the reviewed one",
+        )
+    if not live.approved:
+        raise SigningPreflightRefusal(
+            REASON_HEAD_DRIFTED,
+            f"the pull request is not approved at this head ({live.reason})",
+        )
+    if args.expected_challenge is not None and live.challenge != args.expected_challenge:
+        raise SigningPreflightRefusal(
+            REASON_CHALLENGE_MISMATCH,
+            "the live review challenge is not the one this bundle recorded",
+        )
+
+    observed["PULL_REQUEST_VERIFIED"] = "true"
+    observed["PULL_REQUEST_HEAD"] = live.head_sha
+    return observed
+
+
+def _cmd_preflight(args: argparse.Namespace) -> int:
+    try:
+        observed = _run_preflight(args)
+    except SigningPreflightRefusal as refusal:
+        print("SIGNING_PREFLIGHT_PASS=false", file=sys.stderr)
+        print(f"REASON={refusal.reason}", file=sys.stderr)
+        print(f"DETAIL={refusal}", file=sys.stderr)
+        return 1
+    except (ReviewBindingProductionError, ReviewBindingError, ValueError) as exc:
+        print("SIGNING_PREFLIGHT_PASS=false", file=sys.stderr)
+        print(f"REASON={REASON_ANCHOR_UNREADABLE}", file=sys.stderr)
+        print(f"DETAIL={exc}", file=sys.stderr)
+        return 1
+    print("SIGNING_PREFLIGHT_PASS=true")
+    for key, value in observed.items():
+        print(f"{key}={value}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _build_arg_parser().parse_args(argv)
     if args.command == "issue":
         return _cmd_issue(args)
+    if args.command == "preflight":
+        return _cmd_preflight(args)
     if args.command == "public-key":
         return _cmd_public_key(args)
     raise AssertionError(f"unreachable: unknown command {args.command!r}")  # pragma: no cover
@@ -376,6 +617,8 @@ if __name__ == "__main__":  # pragma: no cover - couvert par appel direct de mai
 
 __all__ = [
     "DEFAULT_VALIDITY_DAYS",
+    "REASON_ANCHOR_ROTATED",
+    "SigningPreflightRefusal",
     "SIGNING_KEY_ENV",
     "VERIFIER_VERSION",
     "ReviewBindingProductionError",
