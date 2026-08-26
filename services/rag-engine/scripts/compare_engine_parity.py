@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -114,10 +115,15 @@ def main(argv: list[str] | None = None) -> int:
             arguments.engine_a,
             arguments.engine_b,
         )
-        full_document = {
+        unsigned_document = {
             "protocol_version": _REPORT_PROTOCOL,
             **asdict(report),
-            "report_sha256": report.digest(),
+        }
+        full_document = {
+            **unsigned_document,
+            "report_sha256": hashlib.sha256(
+                _canonical_json(unsigned_document)
+            ).hexdigest(),
         }
         if arguments.write_report is not None:
             _exclusive_write(

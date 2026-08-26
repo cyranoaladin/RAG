@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import os
@@ -85,6 +86,30 @@ def test_cli_writes_only_a_new_report(tmp_path: Path) -> None:
     assert refused.returncode != 0
     assert output.read_bytes() == before
     assert "already exists" in refused.stderr
+
+
+def test_report_digest_seals_the_protocol_envelope(tmp_path: Path) -> None:
+    output = tmp_path / "report.json"
+
+    created = _run("--write-report", str(output))
+
+    assert created.returncode == 0, created.stderr
+    document = json.loads(output.read_text(encoding="utf-8"))
+    unsigned = {
+        key: value for key, value in document.items() if key != "report_sha256"
+    }
+    expected = hashlib.sha256(
+        (
+            json.dumps(
+                unsigned,
+                ensure_ascii=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            )
+            + "\n"
+        ).encode("utf-8")
+    ).hexdigest()
+    assert document["report_sha256"] == expected
 
 
 def test_cli_sanitizes_invalid_capture_content(tmp_path: Path) -> None:

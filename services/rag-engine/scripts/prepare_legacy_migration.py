@@ -49,6 +49,7 @@ def _exclusive_publish(path: Path, raw: bytes) -> None:
         raise PreparationCliError("output directory is unavailable")
     file_descriptor = -1
     temporary_path: Path | None = None
+    published = False
     try:
         file_descriptor, temporary_name = tempfile.mkstemp(
             prefix=f".{path.name}.", dir=path.parent
@@ -66,6 +67,7 @@ def _exclusive_publish(path: Path, raw: bytes) -> None:
             os.link(temporary_path, path, follow_symlinks=False)
         except FileExistsError as exc:
             raise PreparationCliError("output already exists") from exc
+        published = True
         directory_descriptor = os.open(
             path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
         )
@@ -76,6 +78,11 @@ def _exclusive_publish(path: Path, raw: bytes) -> None:
     except PreparationCliError:
         raise
     except OSError as exc:
+        if published:
+            try:
+                path.unlink()
+            except OSError:
+                pass
         raise PreparationCliError("output publication failed") from exc
     finally:
         if file_descriptor >= 0:

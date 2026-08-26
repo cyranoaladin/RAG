@@ -1,16 +1,31 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import os
+import stat
 import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 ENGINE_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_PATH = ENGINE_ROOT / "scripts" / "prepare_legacy_migration.py"
 CAPTURE_PATH = ENGINE_ROOT / "tests" / "fixtures" / "legacy_convergence_capture_v1.jsonl"
 POLICY_PATH = ENGINE_ROOT / "configs" / "engine_convergence_v1.yml"
+
+
+def _load_cli_module():
+    spec = importlib.util.spec_from_file_location(
+        "prepare_legacy_migration_cli", SCRIPT_PATH
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def _run(*arguments: str) -> subprocess.CompletedProcess[str]:
@@ -115,6 +130,29 @@ def test_cli_publishes_new_manifest_exclusively(tmp_path: Path) -> None:
     assert refused.returncode != 0
     assert output.read_bytes() == original
     assert "already exists" in refused.stderr
+
+
+def test_manifest_publication_removes_link_when_directory_sync_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = _load_cli_module()
+    output = tmp_path / "manifest.json"
+    original_fsync = module.os.fsync
+
+    def fail_directory_sync(descriptor: int) -> None:
+        if stat.S_ISDIR(module.os.fstat(descriptor).st_mode):
+            raise OSError("simulated directory sync failure")
+        original_fsync(descriptor)
+
+    monkeypatch.setattr(module.os, "fsync", fail_directory_sync)
+
+    with pytest.raises(
+        module.PreparationCliError, match="output publication failed"
+    ):
+        module._exclusive_publish(output, b"complete manifest\n")
+
+    assert not output.exists()
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_cli_sanitizes_invalid_capture_errors(tmp_path: Path) -> None:
