@@ -18,7 +18,7 @@ ou autorisation de cutover n'est déclarée.
 | Baseline `origin/main` | `ca0a21f59bd25c7e472cf2d6accc5b8e79ed74bd` |
 | Branche | `rag-engine/motor-convergence-20260825` |
 | Head implémentation avant rapport | `091b29c19e429c793456e2653c78a7c8c7812a41` |
-| Head code après corrections de revue | `661fceb0eea0b50d5abaae34c35bf00a53de20a5` |
+| Head code après corrections de revue | `dc43288f174921b3c43a0c6eb4a6925e4947a4ff` |
 | Contrat canonique | `packages/contracts`, `nexus-contracts` 0.14.0 |
 | Moteur canonique | B — `rag-pedago` + `rag-engine` + pgvector + e5-large 1024D |
 | Moteur de continuité | A — Streamlit/FastAPI legacy + ChromaDB + Ollama + SQLite |
@@ -153,6 +153,7 @@ sont ni des digests de corpus réel ni des preuves de production.
 | `096f221` | invariants de droits et lectures locales bornées |
 | `910071b` | entrées YAML récursives et droits globaux par passage |
 | `661fceb` | scellement du protocole et publication legacy atomique |
+| `dc43288` | rollback des publications interrompues après hardlink |
 
 ## TDD et revues adversariales
 
@@ -192,6 +193,10 @@ P2 supplémentaires : le digest persisté omettait la version du protocole et un
 publiée. Deux nouveaux tests rouges ferment ces cas : le SHA-256 couvre
 désormais toute l'enveloppe canonique hors champ `report_sha256`, et le lien de
 destination est retiré si la confirmation de durabilité échoue.
+Une relecture contradictoire a ensuite étendu ce cycle aux interruptions
+`KeyboardInterrupt` postérieures au hardlink : les deux publishers retirent la
+cible et propagent l'interruption, sans convertir celle-ci en succès ni en
+erreur opérateur trompeuse.
 
 ## Vérifications
 
@@ -244,6 +249,13 @@ GitHub :
   `MYPYPATH=services/rag-engine:packages/contracts/src` et
   `--follow-imports=skip` : PASS.
 
+Sur le head code `dc43288f174921b3c43a0c6eb4a6925e4947a4ff` après la
+relecture des interruptions :
+
+- suite ciblée Lot 2 : `177 passed` ;
+- suites CLI directement affectées : `17 passed` ;
+- Ruff et mypy ciblé : PASS.
+
 Après le commit documentaire final, les garde-fous et la CI seront rejoués sur
 le nouveau head ; leurs résultats ne sont pas pré-déclarés dans ce rapport.
 
@@ -257,7 +269,7 @@ Les éléments suivants restent explicitement non satisfaits :
 - backup frais et restore rehearsal isolé ;
 - canary et rollback de trafic réellement exécutés ;
 - observation staging/production ;
-- trusted-human-review GitHub liée au head de la future PR ;
+- trusted-human-review GitHub de la PR #137, liée au head final ;
 - autorisation opérateur de mutation production.
 
 En conséquence :
@@ -273,4 +285,4 @@ En conséquence :
 
 | Lot | Branche | PR | SHA | CI | Revue | Déployé | Preuve réelle | Rollback | Verdict |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2 | `rag-engine/motor-convergence-20260825` | #137 | code corrigé `661fceb0eea0b50d5abaae34c35bf00a53de20a5` ; head documentaire à figer | ciblée `175/175` ; non-régression antérieure `174/174` ; exhaustive antérieure `17/17` | deux revues contradictoires approuvées sur `910071b` ; corrections P2 GitHub à relire ; trusted-human-review à obtenir | non | non | contrat local seulement | `NO_GO` |
+| 2 | `rag-engine/motor-convergence-20260825` | #137 | code corrigé `dc43288f174921b3c43a0c6eb4a6925e4947a4ff` ; head documentaire à figer | ciblée `177/177` ; non-régression antérieure `174/174` ; exhaustive antérieure `17/17` | corrections P2 à relire exact-head ; trusted-human-review à obtenir | non | non | contrat local seulement | `NO_GO` |
