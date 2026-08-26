@@ -18,7 +18,7 @@ ou autorisation de cutover n'est déclarée.
 | Baseline `origin/main` | `ca0a21f59bd25c7e472cf2d6accc5b8e79ed74bd` |
 | Branche | `rag-engine/motor-convergence-20260825` |
 | Head implémentation avant rapport | `091b29c19e429c793456e2653c78a7c8c7812a41` |
-| Head code après corrections de revue | `5bf55af2dbcf81a16b83d24fcdff9c9dd56ab008` |
+| Head code après corrections de revue | `58c4f1aa31f40973f7163c4f34cb7618e1481e03` |
 | Contrat canonique | `packages/contracts`, `nexus-contracts` 0.14.0 |
 | Moteur canonique | B — `rag-pedago` + `rag-engine` + pgvector + e5-large 1024D |
 | Moteur de continuité | A — Streamlit/FastAPI legacy + ChromaDB + Ollama + SQLite |
@@ -158,6 +158,7 @@ sont ni des digests de corpus réel ni des preuves de production.
 | `5841942` | capture atomique des rollbacks sans suppression TOCTOU |
 | `2b21214` | identification du placeholder au point de commit du rollback |
 | `5bf55af` | conservation fail-safe des remnants de rollback |
+| `58c4f1a` | isolation `0700` du staging de publication |
 
 ## TDD et revues adversariales
 
@@ -222,7 +223,15 @@ fichier capturé comme remnant de récupération. Une collision ou une ambiguït
 ne déclenche aucune suppression. Les fermetures de descripteurs de nettoyage
 sont best-effort et ne masquent plus l'interruption initiale. La suppression
 d'un remnant exige une inspection opérateur ultérieure hors de ce chemin
-d'erreur.
+d'erreur. La dernière mutation a ensuite déplacé le temporaire initial hors du
+répertoire partagé : chaque invocation utilise un staging sibling `0700`,
+possédé par l'UID courant et vérifié par des descripteurs de répertoire, puis
+publie par `link` exclusif avec `src_dir_fd` et `dst_dir_fd`. Un succès confirmé
+nettoie ce staging privé ; toute ambiguïté post-publication conserve staging et
+recovery. Le modèle de menace couvre interruptions, erreurs de syscall et
+processus non autorisés par les permissions. Un processus hostile du même UID
+ou du code injecté dans le publisher est explicitement hors frontière POSIX :
+il pourrait aussi modifier les fichiers du processus malgré le mode `0700`.
 
 ## Vérifications
 
@@ -312,6 +321,14 @@ suppression des effacements TOCTOU dans le chemin de rollback :
 - Ruff sur les deux scripts et leurs deux fichiers de tests : PASS ;
 - mypy ciblé sur les deux scripts : PASS.
 
+Sur le head code `58c4f1aa31f40973f7163c4f34cb7618e1481e03` après
+l'isolation du staging initial :
+
+- suite ciblée Lot 2 : `193 passed` ;
+- suites CLI directement affectées : `33 passed` ;
+- Ruff sur les deux scripts et leurs deux fichiers de tests : PASS ;
+- mypy ciblé sur les deux scripts : PASS.
+
 Après le commit documentaire final, les garde-fous et la CI seront rejoués sur
 le nouveau head ; leurs résultats ne sont pas pré-déclarés dans ce rapport.
 
@@ -341,4 +358,4 @@ En conséquence :
 
 | Lot | Branche | PR | SHA | CI | Revue | Déployé | Preuve réelle | Rollback | Verdict |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2 | `rag-engine/motor-convergence-20260825` | #137 | code corrigé `5bf55af2dbcf81a16b83d24fcdff9c9dd56ab008` ; head documentaire à figer | ciblée `191/191` ; CLI `31/31` ; non-régression antérieure `174/174` ; exhaustive antérieure `17/17` | remnants fail-safe et fermetures cleanup à relire exact-head ; trusted-human-review à obtenir | non | non | contrat local seulement | `NO_GO` |
+| 2 | `rag-engine/motor-convergence-20260825` | #137 | code corrigé `58c4f1aa31f40973f7163c4f34cb7618e1481e03` ; head documentaire à figer | ciblée `193/193` ; CLI `33/33` ; non-régression antérieure `174/174` ; exhaustive antérieure `17/17` | staging privé et remnants fail-safe à relire exact-head ; trusted-human-review à obtenir | non | non | contrat local seulement | `NO_GO` |
