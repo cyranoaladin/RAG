@@ -5,6 +5,7 @@ networks:
 volumes:
   rag_pgvector_data:
   rag_prometheus_data:
+  rag_alertmanager_data:
 
 services:
   pgvector:
@@ -132,11 +133,16 @@ services:
   prometheus:
     image: prom/prometheus:v2.54.1@sha256:f6639335d34a77d9d9db382b92eeb7fc00934be8eae81dbc03b31cfe90411a94
     restart: unless-stopped
+    # Aucune dépendance de démarrage sur `ingestor` : la supervision doit
+    # observer précisément le cas où le moteur ne démarre pas. Attendre qu'il
+    # soit sain avant de lancer Prometheus rendrait `RagEngineV2Down`
+    # inobservable exactement quand elle est utile.
     depends_on:
-      ingestor:
-        condition: service_healthy
+      alertmanager:
+        condition: service_started
     volumes:
       - ./prometheus/prometheus.v2.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/rules/rag-engine-v2.rules.yml:/etc/prometheus/rules/rag-engine-v2.rules.yml:ro
       - rag_prometheus_data:/prometheus
     ports:
       - "127.0.0.1:${PROMETHEUS_PORT:-19091}:9090"
@@ -155,3 +161,33 @@ services:
         limits:
           cpus: "0.5"
           memory: 512M
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0@sha256:e13b6ed5cb929eeaee733479dce55e10eb3bc2e9c4586c705a4e8da41e5eacf5
+    restart: unless-stopped
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - rag_alertmanager_data:/alertmanager
+    ports:
+      - "127.0.0.1:${ALERTMANAGER_PORT:-19093}:9093"
+    networks: [rag_net]
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:9093/-/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M

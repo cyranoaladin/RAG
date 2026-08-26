@@ -249,10 +249,38 @@ def test_v2_compose_mounts_exact_release_registry_authority_read_only() -> None:
 
 
 def test_v2_compose_contains_only_the_read_review_stack() -> None:
+    """La topologie canonique reste lecture/revue, plus sa seule supervision.
+
+    P0-L6A ajoute `alertmanager` : une règle qui se déclenche n'allait nulle
+    part. Comme Prometheus, il n'apporte aucune capacité métier — ni writer, ni
+    parseur, ni client de source distante, ni interface — et n'est joignable
+    que sur la boucle locale. L'invariant protégé par ce test n'est pas le
+    nombre de services : c'est qu'aucune capacité du moteur A ne réapparaisse
+    ici.
+    """
     compose = _load_compose(V2_COMPOSE_PATH)
 
-    assert set(compose["services"]) == {"pgvector", "ingestor", "prometheus"}
-    assert set(compose["volumes"]) == {"rag_pgvector_data", "rag_prometheus_data"}
+    assert set(compose["services"]) == {
+        "pgvector",
+        "ingestor",
+        "prometheus",
+        "alertmanager",
+    }
+    assert set(compose["volumes"]) == {
+        "rag_pgvector_data",
+        "rag_prometheus_data",
+        "rag_alertmanager_data",
+    }
+
+    forbidden = {"chroma", "ollama", "ui", "redis", "worker", "celery", "nginx"}
+    assert not forbidden & set(compose["services"])
+
+    for name in ("prometheus", "alertmanager"):
+        published = compose["services"][name].get("ports", [])
+        assert published, f"{name} must publish on loopback only, never nothing"
+        assert all(
+            str(port).startswith("127.0.0.1:") for port in published
+        ), (name, published)
 
 
 def test_v2_compose_ingestion_control_lives_in_a_separate_opt_in_file() -> None:

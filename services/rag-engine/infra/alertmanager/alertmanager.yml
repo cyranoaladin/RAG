@@ -1,0 +1,36 @@
+# Routage des alertes du runtime v2 (P0-L6A).
+#
+# La destination externe (courriel, Slack, PagerDuty) exige un secret opérateur
+# qui n'existe pas dans ce dépôt : elle reste une dépendance explicite, pas un
+# branchement implicite. Le récepteur par défaut est local et sans secret, ce
+# qui rend la chaîne Prometheus -> Alertmanager vérifiable de bout en bout dès
+# maintenant. Ajouter la destination réelle consiste à remplacer ce récepteur,
+# sans toucher aux règles ni au routage.
+
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: nexus-default
+  group_by: ["alertname", "service"]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - matchers:
+        - severity = "critical"
+      receiver: nexus-default
+      group_wait: 10s
+      repeat_interval: 1h
+
+receivers:
+  - name: nexus-default
+
+inhibit_rules:
+  # Un moteur injoignable explique déjà ses propres 5xx : ne pas doubler.
+  - source_matchers:
+      - alertname = "RagEngineV2Down"
+    target_matchers:
+      - service = "rag-engine-v2"
+      - severity = "warning"
+    equal: ["service"]

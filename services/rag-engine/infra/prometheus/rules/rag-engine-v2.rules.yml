@@ -1,0 +1,107 @@
+# Règles d'alerte du runtime v2 (P0-L6A).
+#
+# Portée volontairement étroite : ces règles ne citent que des séries que le
+# runtime lecture/revue produit réellement — `up` du job déclaré dans
+# prometheus.v2.yml, et les deux séries émises par `record_http_request`.
+#
+# `rules/rag-alerts.yml` reste en place pour le moteur A ; il vise les jobs
+# `ingestor`, `chroma`, `ollama`, `ui`, `redis`, `celery-worker` et les métriques
+# `rag_local_*` que le runtime v2 n'incrémente jamais. Le charger ici
+# produirait des règles qui ne peuvent pas se déclencher — une supervision
+# verte qui n'observe rien.
+
+groups:
+  - name: rag_engine_v2_availability
+    interval: 30s
+    rules:
+      - alert: RagEngineV2Down
+        expr: up{job="rag-engine-v2"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: rag-engine-v2
+        annotations:
+          summary: "Le runtime RAG v2 ne répond plus"
+          description: >-
+            La cible {{ $labels.instance }} est injoignable depuis plus de
+            2 minutes. Le moteur refuse aussi de démarrer tant que la
+            réconciliation de release échoue : vérifier d'abord les journaux de
+            démarrage du conteneur.
+          runbook_url: "https://github.com/cyranoaladin/RAG/blob/main/docs/runbooks/rag_incident_response.md"
+
+      - alert: RagEngineV2TargetMissing
+        expr: absent(up{job="rag-engine-v2"}) == 1
+        for: 5m
+        labels:
+          severity: critical
+          service: rag-engine-v2
+        annotations:
+          summary: "La cible RAG v2 a disparu de Prometheus"
+          description: >-
+            Aucune série `up` pour le job `rag-engine-v2`. Une panne de service
+            fait passer `up` à 0 ; son absence totale signale une dérive de la
+            configuration de scrape, que `RagEngineV2Down` ne peut pas voir.
+          runbook_url: "https://github.com/cyranoaladin/RAG/blob/main/docs/runbooks/rag_incident_response.md"
+
+  - name: rag_engine_v2_traffic
+    interval: 30s
+    rules:
+      - alert: RagEngineV2ServiceUnavailable
+        expr: sum(rate(ingestor_requests_total{code="503"}[5m])) > 0
+        for: 10m
+        labels:
+          severity: critical
+          service: rag-engine-v2
+        annotations:
+          summary: "Le runtime RAG v2 refuse le trafic métier en 503"
+          description: >-
+            Le moteur est fail-closed : un 503 durable signale une preuve de
+            base de données, de schéma ou de release devenue invalide, pas une
+            surcharge. Corréler avec le `request_id` des lignes de journal.
+          runbook_url: "https://github.com/cyranoaladin/RAG/blob/main/docs/runbooks/rag_incident_response.md"
+
+      - alert: RagEngineV2ServerErrors
+        expr: sum(rate(ingestor_requests_total{code=~"5..", code!="503"}[5m])) > 0
+        for: 5m
+        labels:
+          severity: critical
+          service: rag-engine-v2
+        annotations:
+          summary: "Le runtime RAG v2 renvoie des erreurs serveur"
+          description: >-
+            Des réponses 5xx autres que le refus fail-closed 503 indiquent un
+            défaut applicatif. Chaque requête concernée porte un `request_id`
+            dans le journal structuré.
+          runbook_url: "https://github.com/cyranoaladin/RAG/blob/main/docs/runbooks/rag_incident_response.md"
+
+      - alert: RagEngineV2UnauthorizedSurge
+        expr: sum(rate(ingestor_requests_total{code="401"}[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+          service: rag-engine-v2
+        annotations:
+          summary: "Rafale de refus d'authentification sur le runtime RAG v2"
+          description: >-
+            Plus d'un refus 401 par seconde sur 5 minutes. Le moteur n'a pas de
+            limitation par principal : la seule protection est celle de Nginx,
+            par adresse.
+          runbook_url: "https://github.com/cyranoaladin/RAG/blob/main/docs/runbooks/rag_incident_response.md"
+
+      - alert: RagEngineV2LatencyP99High
+        expr: |
+          histogram_quantile(
+            0.99,
+            sum(rate(ingestor_request_latency_seconds_bucket[5m])) by (le, path)
+          ) > 5
+        for: 10m
+        labels:
+          severity: warning
+          service: rag-engine-v2
+        annotations:
+          summary: "Latence p99 élevée sur {{ $labels.path }}"
+          description: >-
+            Le p99 dépasse 5 s sur {{ $labels.path }}. Le budget PostgreSQL
+            agrégé d'une requête est borné à `PG_DATABASE_BUDGET_MS` : une
+            latence supérieure vient du reranking ou de la file d'attente.
+          runbook_url: "https://github.com/cyranoaladin/RAG/blob/main/docs/runbooks/rag_incident_response.md"
