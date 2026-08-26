@@ -200,6 +200,26 @@ def test_report_publication_removes_link_on_directory_sync_interrupt(
     assert list(tmp_path.iterdir()) == []
 
 
+def test_report_publication_removes_link_when_link_is_interrupted_after_create(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = _load_cli_module()
+    output = tmp_path / "report.json"
+    original_link = module.os.link
+
+    def interrupt_after_link(source: Path, target: Path, **kwargs: object) -> None:
+        original_link(source, target, **kwargs)
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(module.os, "link", interrupt_after_link)
+
+    with pytest.raises(KeyboardInterrupt):
+        module._exclusive_write(output, b"complete report\n")
+
+    assert not output.exists()
+    assert list(tmp_path.iterdir()) == []
+
+
 def test_report_publication_sanitizes_temporary_creation_failure(
     tmp_path: Path,
 ) -> None:

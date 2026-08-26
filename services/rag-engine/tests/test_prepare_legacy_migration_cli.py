@@ -176,6 +176,26 @@ def test_manifest_publication_removes_link_on_directory_sync_interrupt(
     assert list(tmp_path.iterdir()) == []
 
 
+def test_manifest_publication_removes_link_when_link_is_interrupted_after_create(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = _load_cli_module()
+    output = tmp_path / "manifest.json"
+    original_link = module.os.link
+
+    def interrupt_after_link(source: Path, target: Path, **kwargs: object) -> None:
+        original_link(source, target, **kwargs)
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(module.os, "link", interrupt_after_link)
+
+    with pytest.raises(KeyboardInterrupt):
+        module._exclusive_publish(output, b"complete manifest\n")
+
+    assert not output.exists()
+    assert list(tmp_path.iterdir()) == []
+
+
 def test_cli_sanitizes_invalid_capture_errors(tmp_path: Path) -> None:
     canary = "CANARY-DOCUMENT-CONTENT-MUST-NOT-LEAK"
     capture = tmp_path / "invalid.jsonl"

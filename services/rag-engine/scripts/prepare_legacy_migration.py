@@ -42,6 +42,23 @@ def _canonical_json(document: dict[str, Any]) -> bytes:
     ).encode("utf-8")
 
 
+def _rollback_matching_link(path: Path, temporary_path: Path) -> None:
+    try:
+        target_status = os.stat(path, follow_symlinks=False)
+        temporary_status = os.stat(temporary_path, follow_symlinks=False)
+    except OSError:
+        return
+    if (target_status.st_dev, target_status.st_ino) != (
+        temporary_status.st_dev,
+        temporary_status.st_ino,
+    ):
+        return
+    try:
+        path.unlink()
+    except OSError:
+        pass
+
+
 def _exclusive_publish(path: Path, raw: bytes) -> None:
     """Publier un nouveau fichier complet sans jamais écraser une cible."""
 
@@ -49,7 +66,7 @@ def _exclusive_publish(path: Path, raw: bytes) -> None:
         raise PreparationCliError("output directory is unavailable")
     file_descriptor = -1
     temporary_path: Path | None = None
-    published = False
+    publication_confirmed = False
     try:
         file_descriptor, temporary_name = tempfile.mkstemp(
             prefix=f".{path.name}.", dir=path.parent
@@ -67,7 +84,6 @@ def _exclusive_publish(path: Path, raw: bytes) -> None:
             os.link(temporary_path, path, follow_symlinks=False)
         except FileExistsError as exc:
             raise PreparationCliError("output already exists") from exc
-        published = True
         directory_descriptor = os.open(
             path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
         )
@@ -75,26 +91,17 @@ def _exclusive_publish(path: Path, raw: bytes) -> None:
             os.fsync(directory_descriptor)
         finally:
             os.close(directory_descriptor)
+        publication_confirmed = True
     except PreparationCliError:
         raise
     except OSError as exc:
-        if published:
-            try:
-                path.unlink()
-            except OSError:
-                pass
         raise PreparationCliError("output publication failed") from exc
-    except BaseException:
-        if published:
-            try:
-                path.unlink()
-            except OSError:
-                pass
-        raise
     finally:
         if file_descriptor >= 0:
             os.close(file_descriptor)
         if temporary_path is not None:
+            if not publication_confirmed:
+                _rollback_matching_link(path, temporary_path)
             try:
                 temporary_path.unlink()
             except FileNotFoundError:
