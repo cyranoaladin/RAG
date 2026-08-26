@@ -18,7 +18,7 @@ ou autorisation de cutover n'est déclarée.
 | Baseline `origin/main` | `ca0a21f59bd25c7e472cf2d6accc5b8e79ed74bd` |
 | Branche | `rag-engine/motor-convergence-20260825` |
 | Head implémentation avant rapport | `091b29c19e429c793456e2653c78a7c8c7812a41` |
-| Head code après corrections de revue | `39a571547c6c044757b5e3c03a859f6d533850ee` |
+| Head code après corrections de revue | `b3babef7369e650165135cd2712988052d222e38` |
 | Contrat canonique | `packages/contracts`, `nexus-contracts` 0.14.0 |
 | Moteur canonique | B — `rag-pedago` + `rag-engine` + pgvector + e5-large 1024D |
 | Moteur de continuité | A — Streamlit/FastAPI legacy + ChromaDB + Ollama + SQLite |
@@ -160,6 +160,7 @@ sont ni des digests de corpus réel ni des preuves de production.
 | `5bf55af` | conservation fail-safe des remnants de rollback |
 | `58c4f1a` | isolation `0700` du staging de publication |
 | `39a5715` | ancrage du rollback au descripteur parent vérifié |
+| `b3babef` | préallocation du rollback dans le staging ouvert |
 
 ## TDD et revues adversariales
 
@@ -218,18 +219,19 @@ placeholder et supprimée. Une première correction a gardé le placeholder
 ouvert et identifié par `st_dev + st_ino`, mais la relecture exact-head a
 ensuite démontré qu'aucun `stat → unlink(pathname)` ne permet un effacement
 conditionnel atomique par inode avec les primitives POSIX/Python disponibles.
-Le rollback capture donc désormais dans un répertoire privé `0700`, restaure
-une entrée étrangère par hardlink sans écrasement et conserve toujours le
-fichier capturé comme remnant de récupération. Une collision ou une ambiguïté
-ne déclenche aucune suppression. Les fermetures de descripteurs de nettoyage
-sont best-effort et ne masquent plus l'interruption initiale. La suppression
-d'un remnant exige une inspection opérateur ultérieure hors de ce chemin
-d'erreur. La dernière mutation a ensuite déplacé le temporaire initial hors du
+Le rollback restaure une entrée étrangère par hardlink sans écrasement et
+conserve toujours le fichier capturé comme remnant de récupération. Une
+collision ou une ambiguïté ne déclenche aucune suppression. Les fermetures de
+descripteurs de nettoyage sont best-effort et ne masquent plus l'interruption
+initiale. La suppression d'un remnant exige une inspection opérateur ultérieure
+hors de ce chemin d'erreur. Le temporaire initial a ensuite été déplacé hors du
 répertoire partagé : chaque invocation utilise un staging sibling `0700`,
 possédé par l'UID courant et vérifié par des descripteurs de répertoire, puis
 publie par `link` exclusif avec `src_dir_fd` et `dst_dir_fd`. Un succès confirmé
-nettoie ce staging privé ; toute ambiguïté post-publication conserve staging et
-recovery. Le modèle de menace couvre interruptions, erreurs de syscall et
+nettoie ce staging privé ; toute ambiguïté post-publication conserve le staging
+et son entrée `captured`. Le rollback ne réalise aucune allocation après le
+hardlink : il réutilise ce staging déjà ouvert comme destination atomique. Le
+modèle de menace couvre interruptions, erreurs de syscall et
 processus non autorisés par les permissions. Un processus hostile du même UID
 ou du code injecté dans le publisher est explicitement hors frontière POSIX :
 il pourrait aussi modifier les fichiers du processus malgré le mode `0700`.
@@ -238,7 +240,7 @@ répertoire privé, la capture par `replace`, la restauration sans écrasement e
 le nettoyage du répertoire vide sont tous ancrés par `dir_fd` au descripteur du
 parent qui a servi au hardlink. Deux mutations permutent réellement un
 composant de chemin entre le hardlink et le `fsync` ; l'artefact est retiré du
-parent original ouvert et conservé dans son recovery, jamais abandonné dans
+parent original ouvert et conservé dans son staging, jamais abandonné dans
 l'ancien namespace.
 
 ## Vérifications
@@ -345,6 +347,14 @@ l'ancrage intégral du rollback au parent ouvert :
 - Ruff sur les deux scripts et leurs deux fichiers de tests : PASS ;
 - mypy ciblé sur les deux scripts : PASS.
 
+Sur le head code `b3babef7369e650165135cd2712988052d222e38` après la
+préallocation du rollback dans le staging :
+
+- suite ciblée Lot 2 : `197 passed` ;
+- suites CLI directement affectées : `37 passed` ;
+- Ruff sur les deux scripts et leurs deux fichiers de tests : PASS ;
+- mypy ciblé sur les deux scripts : PASS.
+
 Après le commit documentaire final, les garde-fous et la CI seront rejoués sur
 le nouveau head ; leurs résultats ne sont pas pré-déclarés dans ce rapport.
 
@@ -374,4 +384,4 @@ En conséquence :
 
 | Lot | Branche | PR | SHA | CI | Revue | Déployé | Preuve réelle | Rollback | Verdict |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2 | `rag-engine/motor-convergence-20260825` | #137 | code corrigé `39a571547c6c044757b5e3c03a859f6d533850ee` ; head documentaire à figer | ciblée `195/195` ; CLI `35/35` ; non-régression antérieure `174/174` ; exhaustive antérieure `17/17` | rollback `dir_fd` à relire exact-head ; trusted-human-review à obtenir | non | non | contrat local seulement | `NO_GO` |
+| 2 | `rag-engine/motor-convergence-20260825` | #137 | code corrigé `b3babef7369e650165135cd2712988052d222e38` ; head documentaire à figer | ciblée `197/197` ; CLI `37/37` ; non-régression antérieure `174/174` ; exhaustive antérieure `17/17` | rollback préalloué à relire exact-head ; trusted-human-review à obtenir | non | non | contrat local seulement | `NO_GO` |
