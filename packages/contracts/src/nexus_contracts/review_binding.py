@@ -441,12 +441,21 @@ def require_matches_authorization(
     authorization_git_blob_sha1: str,
     expected_repository: str,
     accepted_reviewers: tuple[str, ...] | None = None,
+    expected_head_sha: str | None = None,
 ) -> None:
     """Confronte le reçu à l'autorisation qu'il prétend couvrir.
 
     Une signature valide prouve seulement *qui* a émis le reçu. Cette
     fonction prouve *sur quoi* il porte : sans elle, un reçu authentique
     émis pour une autre autorisation validerait n'importe quel corpus.
+
+    ``expected_head_sha`` ferme le dernier cas : un reçu authentique, signé
+    par la clé courante, portant sur des octets d'autorisation **inchangés**,
+    mais émis à un HEAD qui n'est plus celui d'où l'on publie. Les octets
+    seuls l'accepteraient — la revue porte bien sur eux — mais un
+    consommateur qui sait de quel HEAD il publie doit pouvoir l'exiger. Les
+    consommateurs qui n'ont pas de HEAD à opposer laissent ce paramètre à
+    ``None`` et restent liés aux octets, ce qui reste vrai mais plus faible.
     """
     if binding.repository != expected_repository:
         raise ReviewBindingError(
@@ -502,6 +511,12 @@ def require_matches_authorization(
     if binding.challenge_protocol != TRUSTED_REVIEW_PROTOCOL:
         raise ReviewBindingError(  # pragma: no cover - borné par le Literal
             f"challenge protocol {binding.challenge_protocol!r} is unsupported"
+        )
+    if expected_head_sha is not None and binding.head_sha != expected_head_sha:
+        raise ReviewBindingError(
+            f"receipt was reviewed at head {binding.head_sha} but this "
+            f"consumption publishes from {expected_head_sha} — a review of "
+            "another head authorizes nothing here"
         )
 
 

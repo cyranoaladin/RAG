@@ -881,6 +881,12 @@ def assemble_and_sign(args: argparse.Namespace) -> ProductionReadinessManifestV1
             authorization_bytes=authorization_raw,
             authorization_git_blob_sha1=git_blob_sha1(authorization_raw),
             expected_repository=_TRUSTED_REPOSITORY,
+            # `--pr-head-sha` a déjà été confronté à l'état réel de la PR sur
+            # GitHub plus haut. L'opposer au reçu ferme le dernier cas : un
+            # reçu authentique, signé par la clé courante, portant sur des
+            # octets d'autorisation inchangés, mais émis à un HEAD qui n'est
+            # plus celui d'où l'on publie.
+            expected_head_sha=args.pr_head_sha,
         )
         require_challenge_is_bound(binding)
     except (ReviewBindingError, CanonicalArtifactError) as exc:
