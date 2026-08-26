@@ -220,6 +220,84 @@ def test_report_publication_removes_link_when_link_is_interrupted_after_create(
     assert list(tmp_path.iterdir()) == []
 
 
+def test_report_rollback_preserves_target_replaced_during_identity_check(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = _load_cli_module()
+    temporary = tmp_path / ".parity-report.owned.tmp"
+    output = tmp_path / "report.json"
+    foreign = tmp_path / "foreign.json"
+    temporary.write_bytes(b"owned")
+    foreign.write_bytes(b"foreign")
+    os.link(temporary, output)
+    original_stat = module.os.stat
+    replaced = False
+
+    def stat_then_replace(candidate: Path, **kwargs: object):
+        nonlocal replaced
+        status = original_stat(candidate, **kwargs)
+        if Path(candidate) == temporary and not replaced:
+            replaced = True
+            if output.exists():
+                output.unlink()
+            os.link(foreign, output)
+        return status
+
+    monkeypatch.setattr(module.os, "stat", stat_then_replace)
+
+    module._rollback_matching_link(output, temporary)
+
+    assert output.read_bytes() == b"foreign"
+
+
+def test_existing_report_refusal_does_not_invoke_rollback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = _load_cli_module()
+    output = tmp_path / "report.json"
+    output.write_bytes(b"existing")
+
+    def unexpected_rollback(path: Path, temporary_path: Path) -> None:
+        del path, temporary_path
+        raise AssertionError("rollback must not inspect a pre-existing target")
+
+    monkeypatch.setattr(module, "_rollback_matching_link", unexpected_rollback)
+
+    with pytest.raises(module.ParityCliError, match="output already exists"):
+        module._exclusive_write(output, b"complete report\n")
+
+    assert output.read_bytes() == b"existing"
+
+
+def test_report_cleanup_error_does_not_mask_directory_sync_interrupt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = _load_cli_module()
+    output = tmp_path / "report.json"
+    original_fsync = module.os.fsync
+    original_unlink = module.Path.unlink
+
+    def interrupt_directory_sync(descriptor: int) -> None:
+        if stat.S_ISDIR(module.os.fstat(descriptor).st_mode):
+            raise KeyboardInterrupt
+        original_fsync(descriptor)
+
+    def fail_temporary_unlink(path: Path, *args: object, **kwargs: object) -> None:
+        if path.name.startswith(".parity-report."):
+            raise OSError("simulated temporary cleanup failure")
+        original_unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(module.os, "fsync", interrupt_directory_sync)
+    monkeypatch.setattr(module.Path, "unlink", fail_temporary_unlink)
+
+    with pytest.raises(KeyboardInterrupt):
+        module._exclusive_write(output, b"complete report\n")
+
+    assert not output.exists()
+    for leftover in tmp_path.iterdir():
+        original_unlink(leftover)
+
+
 def test_report_publication_sanitizes_temporary_creation_failure(
     tmp_path: Path,
 ) -> None:

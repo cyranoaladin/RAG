@@ -45,20 +45,48 @@ def _canonical_json(document: dict[str, Any]) -> bytes:
 
 
 def _rollback_matching_link(path: Path, temporary_path: Path) -> None:
+    rescue_descriptor = -1
+    rescue_path: Path | None = None
+    captured = False
     try:
-        target_status = os.stat(path, follow_symlinks=False)
+        rescue_descriptor, rescue_name = tempfile.mkstemp(
+            prefix=".nexus-rollback.", dir=path.parent
+        )
+        rescue_path = Path(rescue_name)
+        os.close(rescue_descriptor)
+        rescue_descriptor = -1
+        os.replace(path, rescue_path)
+        captured = True
+        captured_status = os.stat(rescue_path, follow_symlinks=False)
         temporary_status = os.stat(temporary_path, follow_symlinks=False)
     except OSError:
         return
-    if (target_status.st_dev, target_status.st_ino) != (
-        temporary_status.st_dev,
-        temporary_status.st_ino,
-    ):
-        return
-    try:
-        path.unlink()
-    except OSError:
-        pass
+    else:
+        if (captured_status.st_dev, captured_status.st_ino) == (
+            temporary_status.st_dev,
+            temporary_status.st_ino,
+        ):
+            try:
+                rescue_path.unlink()
+            except OSError:
+                pass
+            return
+        try:
+            os.link(rescue_path, path, follow_symlinks=False)
+        except OSError:
+            return
+        try:
+            rescue_path.unlink()
+        except OSError:
+            pass
+    finally:
+        if rescue_descriptor >= 0:
+            os.close(rescue_descriptor)
+        if rescue_path is not None and not captured:
+            try:
+                rescue_path.unlink()
+            except OSError:
+                pass
 
 
 def _exclusive_write(path: Path, raw: bytes) -> None:
@@ -66,7 +94,8 @@ def _exclusive_write(path: Path, raw: bytes) -> None:
         raise ParityCliError("output directory is unavailable")
     descriptor = -1
     temporary_path: Path | None = None
-    publication_confirmed = False
+    link_started = False
+    rollback_required = False
     try:
         descriptor, temporary_name = tempfile.mkstemp(
             prefix=".parity-report.", suffix=".tmp", dir=path.parent
@@ -82,6 +111,7 @@ def _exclusive_write(path: Path, raw: bytes) -> None:
         os.fsync(descriptor)
         os.close(descriptor)
         descriptor = -1
+        link_started = True
         os.link(temporary_path, path, follow_symlinks=False)
         directory_descriptor = os.open(
             path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
@@ -90,24 +120,26 @@ def _exclusive_write(path: Path, raw: bytes) -> None:
             os.fsync(directory_descriptor)
         finally:
             os.close(directory_descriptor)
-        publication_confirmed = True
     except FileExistsError as exc:
         raise ParityCliError("output already exists") from exc
     except OSError as exc:
+        rollback_required = link_started
         raise ParityCliError("output publication failed") from exc
+    except BaseException:
+        rollback_required = link_started
+        raise
     finally:
         if descriptor >= 0:
             os.close(descriptor)
         if temporary_path is not None:
-            if not publication_confirmed:
+            if rollback_required:
                 _rollback_matching_link(path, temporary_path)
             try:
                 temporary_path.unlink()
             except FileNotFoundError:
                 pass
             except OSError:
-                if not publication_confirmed:
-                    raise ParityCliError("temporary output cleanup failed") from None
+                pass
 
 
 def _parser() -> argparse.ArgumentParser:
