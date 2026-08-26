@@ -1,0 +1,162 @@
+{
+  "protocol_version": "NEXUS-ENGINE-CUTOVER-V1",
+  "capture_context": "SYNTHETIC_TEST",
+  "release": {
+    "git_commit": "0123456789abcdef0123456789abcdef01234567",
+    "images": [
+      {
+        "name": "rag-engine-v2",
+        "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+      },
+      {
+        "name": "rag-engine-legacy",
+        "digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+      }
+    ]
+  },
+  "engine_a": {
+    "chroma": {
+      "service_id": "synthetic-legacy-chroma",
+      "volume_id": "synthetic-legacy-chroma-volume",
+      "embedding_dimension": 768,
+      "collections": [
+        {
+          "name": "nsi_corpus",
+          "object_count": 7,
+          "digest_sha256": "3333333333333333333333333333333333333333333333333333333333333333"
+        }
+      ]
+    },
+    "catalog_sqlite": {
+      "identity": "catalog.sqlite",
+      "object_count": 7,
+      "schema_version": "1",
+      "wal_state": "checkpointed",
+      "backup_method": "sqlite_backup_api",
+      "integrity_check": "ok",
+      "digest_sha256": "4444444444444444444444444444444444444444444444444444444444444444"
+    },
+    "drive_sync_sqlite": {
+      "identity": "drive_sync_state.db",
+      "object_count": 3,
+      "schema_version": "1",
+      "wal_state": "preserved",
+      "backup_method": "quiesced_checkpoint",
+      "integrity_check": "ok",
+      "digest_sha256": "5555555555555555555555555555555555555555555555555555555555555555"
+    },
+    "assets": {
+      "uploads": {
+        "logical_root": "synthetic-legacy-uploads",
+        "file_count": 3,
+        "digest_sha256": "6666666666666666666666666666666666666666666666666666666666666666"
+      },
+      "configs": {
+        "file_count": 4,
+        "digest_sha256": "7777777777777777777777777777777777777777777777777777777777777777"
+      },
+      "images": [
+        {
+          "name": "legacy-ingestor",
+          "digest": "sha256:8888888888888888888888888888888888888888888888888888888888888888"
+        }
+      ],
+      "models": [
+        {
+          "name": "nomic-embed-text:v1.5",
+          "digest_sha256": "9999999999999999999999999999999999999999999999999999999999999999",
+          "dimension": 768
+        }
+      ]
+    }
+  },
+  "engine_b": {
+    "pgvector": {
+      "service_id": "synthetic-pgvector",
+      "database_id": "synthetic-empty-b",
+      "migration_head": "004",
+      "object_count": 0,
+      "digest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "backup": {
+      "method": "pg_dump_custom",
+      "integrity_check": "verified",
+      "digest_sha256": "abababababababababababababababababababababababababababababababab",
+      "source_database_id": "synthetic-empty-b",
+      "source_migration_head": "004",
+      "source_pgvector_digest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  },
+  "quiescence": {
+    "captured_at": "2026-08-25T10:00:00Z",
+    "valid_until": "2026-08-26T10:00:00Z",
+    "capture_mode": "SYNTHETIC_TEST",
+    "writers_disabled": true,
+    "scheduled_tasks_disabled": true,
+    "capture_order": [
+      "chroma",
+      "catalog.sqlite",
+      "drive_sync_state.db",
+      "uploads"
+    ],
+    "mutation_free_until_decision": true,
+    "before": {
+      "chroma_count": 7,
+      "catalog_count": 7,
+      "drive_sync_count": 3,
+      "uploads_count": 3,
+      "chroma_digest_sha256": "30a1f0da8e10dee0815ac61ecd148a1227e55cbd010e6be141cd5e9f41c241b9",
+      "catalog_digest_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+      "drive_sync_digest_sha256": "5555555555555555555555555555555555555555555555555555555555555555",
+      "uploads_digest_sha256": "6666666666666666666666666666666666666666666666666666666666666666"
+    },
+    "after": {
+      "chroma_count": 7,
+      "catalog_count": 7,
+      "drive_sync_count": 3,
+      "uploads_count": 3,
+      "chroma_digest_sha256": "30a1f0da8e10dee0815ac61ecd148a1227e55cbd010e6be141cd5e9f41c241b9",
+      "catalog_digest_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+      "drive_sync_digest_sha256": "5555555555555555555555555555555555555555555555555555555555555555",
+      "uploads_digest_sha256": "6666666666666666666666666666666666666666666666666666666666666666"
+    }
+  },
+  "topology": {
+    "active_target": "engine_a",
+    "canary_target": "engine_b",
+    "rollback_target": "engine_a"
+  },
+  "smokes": [
+    {
+      "check_id": "engine-b-health",
+      "target": "engine_b",
+      "timeout_seconds": 10,
+      "max_attempts": 3,
+      "evidence_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    }
+  ],
+  "snapshot_declared": false,
+  "facts": {
+    "snapshot_restored_verified": {
+      "value": false,
+      "evidence": null
+    },
+    "real_parity_executed": {
+      "value": false,
+      "evidence": null
+    },
+    "restore_rehearsal_verified": {
+      "value": false,
+      "evidence": null
+    },
+    "traffic_rollback_tested": {
+      "value": false,
+      "evidence": null
+    },
+    "cutover_authorized": {
+      "value": false,
+      "evidence": null
+    }
+  },
+  "verdict": "NO_GO"
+}

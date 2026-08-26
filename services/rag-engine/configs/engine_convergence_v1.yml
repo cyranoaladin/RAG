@@ -1,0 +1,82 @@
+protocol_version: NEXUS-ENGINE-CONVERGENCE-V1
+canonical_engine: B
+contract:
+  package: nexus-contracts
+  source: packages/contracts
+  version: 0.14.0
+capabilities:
+  - name: governed_reingestion
+    canonical_owner: B
+    engine_a_state: blocked
+    responsible_lot: 2
+  - name: file_ingestion
+    canonical_owner: B
+    engine_a_state: compatibility_only
+    responsible_lot: 3
+  - name: external_api
+    canonical_owner: B
+    engine_a_state: blocked
+    responsible_lot: 3
+  - name: web_ingestion
+    canonical_owner: B
+    engine_a_state: compatibility_only
+    responsible_lot: 4
+  - name: drive_ingestion
+    canonical_owner: B
+    engine_a_state: compatibility_only
+    responsible_lot: 5
+  - name: cockpit
+    canonical_owner: B
+    engine_a_state: blocked
+    responsible_lot: 6
+  - name: retrieval
+    canonical_owner: B
+    engine_a_state: compatibility_only
+    responsible_lot: 8
+  - name: rollback
+    canonical_owner: B
+    engine_a_state: rollback_only
+    responsible_lot: 8
+cutover_status: NO_GO
+discovered_legacy_collections:
+  - nsi_corpus
+  - nsi_corpus_v2
+  - rag_education
+  - rag_francais_premiere
+  - rag_maths_premiere
+  - rag_math_correction
+  - rag_web3
+  - rag_divers
+  - ressources_pedagogiques_terminale
+legacy_collections:
+  - name: nsi_corpus
+    default_disposition: REVIEW_REQUIRED
+    allowed_targets:
+      - rag_nexus_nsi_premiere_specialite
+      - rag_nexus_nsi_terminale_specialite
+  - name: nsi_corpus_v2
+    default_disposition: REVIEW_REQUIRED
+    allowed_targets:
+      - rag_nexus_nsi_premiere_specialite
+      - rag_nexus_nsi_terminale_specialite
+  - name: rag_education
+    default_disposition: REVIEW_REQUIRED
+    allowed_targets: []
+  - name: rag_francais_premiere
+    default_disposition: REVIEW_REQUIRED
+    allowed_targets: []
+  - name: rag_maths_premiere
+    default_disposition: REVIEW_REQUIRED
+    allowed_targets: []
+  - name: rag_math_correction
+    default_disposition: REVIEW_REQUIRED
+    allowed_targets: []
+  - name: rag_web3
+    default_disposition: QUARANTINE
+    allowed_targets: []
+  - name: rag_divers
+    default_disposition: QUARANTINE
+    allowed_targets: []
+  - name: ressources_pedagogiques_terminale
+    default_disposition: REVIEW_REQUIRED
+    allowed_targets: []

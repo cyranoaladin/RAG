@@ -1,0 +1,86 @@
+{
+  "protocol_version": "NEXUS-ENGINE-PARITY-V1",
+  "fixture_marker": "SYNTHETIC_TEST_ONLY",
+  "evidence_status": "NOT_REAL_PARITY_EVIDENCE",
+  "capture_id": "engine-b-parity-v1-synthetic",
+  "engine": "B",
+  "witness_sha256": "23994eb04af4313dbc4a6a5448512860f82a2ce053525527177c1d90527707ba",
+  "queries": [
+    {
+      "query_id": "q-nsi-premiere-pile",
+      "ordered_results": [
+        {
+          "rank": 1,
+          "unit": {
+            "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "canonical_span_id": "section-piles#definition",
+            "content_hash": "1111111111111111111111111111111111111111111111111111111111111111"
+          },
+          "scope": {
+            "collection": "rag_nexus_nsi_premiere_specialite",
+            "matiere": "nsi",
+            "niveau": "premiere",
+            "voie": "gen",
+            "statut_enseignement": "specialite"
+          },
+          "citation": {
+            "source_id": "synthetic-nsi-premiere",
+            "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "canonical_span_id": "section-piles#definition"
+          },
+          "rights": "officiel_public",
+          "review_status": "reviewed"
+        },
+        {
+          "rank": 2,
+          "unit": {
+            "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "canonical_span_id": "section-piles#operations",
+            "content_hash": "2222222222222222222222222222222222222222222222222222222222222222"
+          },
+          "scope": {
+            "collection": "rag_nexus_nsi_premiere_specialite",
+            "matiere": "nsi",
+            "niveau": "premiere",
+            "voie": "gen",
+            "statut_enseignement": "specialite"
+          },
+          "citation": {
+            "source_id": "synthetic-nsi-premiere",
+            "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "canonical_span_id": "section-piles#operations"
+          },
+          "rights": "officiel_public",
+          "review_status": "reviewed"
+        }
+      ]
+    },
+    {
+      "query_id": "q-nsi-terminale-complexite",
+      "ordered_results": [
+        {
+          "rank": 1,
+          "unit": {
+            "source_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "canonical_span_id": "complexite#ordre",
+            "content_hash": "3333333333333333333333333333333333333333333333333333333333333333"
+          },
+          "scope": {
+            "collection": "rag_nexus_nsi_terminale_specialite",
+            "matiere": "nsi",
+            "niveau": "terminale",
+            "voie": "gen",
+            "statut_enseignement": "specialite"
+          },
+          "citation": {
+            "source_id": "synthetic-nsi-terminale",
+            "source_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "canonical_span_id": "complexite#ordre"
+          },
+          "rights": "usage_interne",
+          "review_status": "reviewed"
+        }
+      ]
+    }
+  ]
+}

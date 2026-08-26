@@ -1,0 +1,77 @@
+{
+  "protocol_version": "NEXUS-ENGINE-PARITY-V1",
+  "fixture_marker": "SYNTHETIC_TEST_ONLY",
+  "evidence_status": "NOT_REAL_PARITY_EVIDENCE",
+  "witness_id": "engine-parity-witness-v1-synthetic",
+  "access_context": "internal",
+  "thresholds_status": "UNAPPROVED",
+  "limits": {
+    "max_capture_bytes": 65536,
+    "max_k": 3
+  },
+  "query_allowlist": [
+    "q-nsi-premiere-pile",
+    "q-nsi-terminale-complexite"
+  ],
+  "queries": [
+    {
+      "query_id": "q-nsi-premiere-pile",
+      "query": "Définir une pile en NSI.",
+      "k": 2,
+      "expected_scope": {
+        "collection": "rag_nexus_nsi_premiere_specialite",
+        "matiere": "nsi",
+        "niveau": "premiere",
+        "voie": "gen",
+        "statut_enseignement": "specialite"
+      },
+      "expected_units": [
+        {
+          "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "canonical_span_id": "section-piles#definition",
+          "content_hash": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "canonical_span_id": "section-piles#operations",
+          "content_hash": "2222222222222222222222222222222222222222222222222222222222222222"
+        }
+      ]
+    },
+    {
+      "query_id": "q-nsi-terminale-complexite",
+      "query": "Identifier un ordre de complexité.",
+      "k": 1,
+      "expected_scope": {
+        "collection": "rag_nexus_nsi_terminale_specialite",
+        "matiere": "nsi",
+        "niveau": "terminale",
+        "voie": "gen",
+        "statut_enseignement": "specialite"
+      },
+      "expected_units": [
+        {
+          "source_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "canonical_span_id": "complexite#ordre",
+          "content_hash": "3333333333333333333333333333333333333333333333333333333333333333"
+        }
+      ]
+    }
+  ],
+  "out_of_collection_witness": {
+    "query_id": "q-nsi-premiere-pile",
+    "expected_disposition": "OUT_OF_COLLECTION",
+    "scope": {
+      "collection": "rag_nexus_nsi_terminale_specialite",
+      "matiere": "nsi",
+      "niveau": "terminale",
+      "voie": "gen",
+      "statut_enseignement": "specialite"
+    },
+    "unit": {
+      "source_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "canonical_span_id": "section-graphes#parcours",
+      "content_hash": "4444444444444444444444444444444444444444444444444444444444444444"
+    }
+  }
+}
