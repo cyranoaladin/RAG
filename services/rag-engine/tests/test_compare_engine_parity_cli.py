@@ -66,6 +66,16 @@ def _recovery_capture(directory: Path) -> Path:
     return capture
 
 
+def _staging_payload(directory: Path) -> Path:
+    staging_directories = list(directory.glob(".nexus-staging.*"))
+    assert len(staging_directories) == 1
+    staging_directory = staging_directories[0]
+    assert stat.S_IMODE(staging_directory.stat().st_mode) == 0o700
+    payload = staging_directory / "payload"
+    assert payload.is_file()
+    return payload
+
+
 def test_cli_emits_summary_only_for_explicit_local_inputs() -> None:
     result = _run()
 
@@ -165,6 +175,36 @@ def test_cli_returns_nonzero_for_fail_closed_report(tmp_path: Path) -> None:
     assert result.stderr == ""
 
 
+def test_report_publication_uses_a_private_staging_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = _load_cli_module()
+    output = tmp_path / "report.json"
+    original_link = module.os.link
+    staging_checked = False
+
+    def inspect_staging(source: object, target: object, **kwargs: object) -> None:
+        nonlocal staging_checked
+        assert source == "payload"
+        assert target == output.name
+        staging_descriptor = kwargs["src_dir_fd"]
+        assert isinstance(staging_descriptor, int)
+        staging_status = module.os.fstat(staging_descriptor)
+        assert stat.S_ISDIR(staging_status.st_mode)
+        assert stat.S_IMODE(staging_status.st_mode) == 0o700
+        assert staging_status.st_uid == module.os.geteuid()
+        staging_checked = True
+        original_link(source, target, **kwargs)
+
+    monkeypatch.setattr(module.os, "link", inspect_staging)
+
+    module._exclusive_write(output, b"complete report\n")
+
+    assert staging_checked
+    assert output.read_bytes() == b"complete report\n"
+    assert list(tmp_path.iterdir()) == [output]
+
+
 def test_report_publication_is_atomic_on_interrupted_write(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -240,22 +280,26 @@ def test_report_rollback_preserves_target_replaced_during_identity_check(
     temporary.write_bytes(b"owned")
     foreign.write_bytes(b"foreign")
     os.link(temporary, output)
-    original_stat = module.os.stat
+    temporary_descriptor = os.open(temporary, os.O_RDONLY)
+    original_fstat = module.os.fstat
     replaced = False
 
-    def stat_then_replace(candidate: Path, **kwargs: object):
+    def fstat_then_replace(candidate: int):
         nonlocal replaced
-        status = original_stat(candidate, **kwargs)
-        if Path(candidate) == temporary and not replaced:
+        status = original_fstat(candidate)
+        if candidate == temporary_descriptor and not replaced:
             replaced = True
             if output.exists():
                 output.unlink()
             os.link(foreign, output)
         return status
 
-    monkeypatch.setattr(module.os, "stat", stat_then_replace)
+    monkeypatch.setattr(module.os, "fstat", fstat_then_replace)
 
-    module._rollback_matching_link(output, temporary)
+    try:
+        module._rollback_matching_link(output, temporary_descriptor)
+    finally:
+        os.close(temporary_descriptor)
 
     assert output.read_bytes() == b"foreign"
 
@@ -270,27 +314,29 @@ def test_report_rollback_never_unlinks_a_substituted_recovery_entry(
     temporary.write_bytes(b"owned")
     foreign.write_bytes(b"foreign")
     os.link(temporary, output)
+    temporary_descriptor = os.open(temporary, os.O_RDONLY)
     foreign_descriptor = os.open(foreign, os.O_RDONLY)
-    original_stat = module.os.stat
+    original_fstat = module.os.fstat
     original_replace = module.os.replace
     substituted = False
 
-    def stat_then_substitute(candidate: Path, **kwargs: object):
+    def fstat_then_substitute(candidate: int):
         nonlocal substituted
-        status = original_stat(candidate, **kwargs)
-        if Path(candidate) == temporary and not substituted:
+        status = original_fstat(candidate)
+        if candidate == temporary_descriptor and not substituted:
             substituted = True
             rescue_path = next(tmp_path.glob(".nexus-rollback.*")) / "captured"
             rescue_path.unlink()
             original_replace(foreign, rescue_path)
         return status
 
-    monkeypatch.setattr(module.os, "stat", stat_then_substitute)
+    monkeypatch.setattr(module.os, "fstat", fstat_then_substitute)
 
     try:
-        module._rollback_matching_link(output, temporary)
+        module._rollback_matching_link(output, temporary_descriptor)
         assert os.fstat(foreign_descriptor).st_nlink >= 1
     finally:
+        os.close(temporary_descriptor)
         os.close(foreign_descriptor)
 
 
@@ -302,6 +348,7 @@ def test_report_rollback_preserves_captured_target_when_replace_is_interrupted(
     output = tmp_path / "report.json"
     temporary.write_bytes(b"owned")
     output.write_bytes(b"foreign")
+    temporary_descriptor = os.open(temporary, os.O_RDONLY)
     original_replace = module.os.replace
 
     def interrupt_after_replace(source: Path, target: Path) -> None:
@@ -310,8 +357,11 @@ def test_report_rollback_preserves_captured_target_when_replace_is_interrupted(
 
     monkeypatch.setattr(module.os, "replace", interrupt_after_replace)
 
-    with pytest.raises(KeyboardInterrupt):
-        module._rollback_matching_link(output, temporary)
+    try:
+        with pytest.raises(KeyboardInterrupt):
+            module._rollback_matching_link(output, temporary_descriptor)
+    finally:
+        os.close(temporary_descriptor)
 
     assert output.read_bytes() == b"foreign"
     assert _recovery_capture(tmp_path).read_bytes() == b"foreign"
@@ -349,8 +399,8 @@ def test_existing_report_refusal_does_not_invoke_rollback(
     output = tmp_path / "report.json"
     output.write_bytes(b"existing")
 
-    def unexpected_rollback(path: Path, temporary_path: Path) -> None:
-        del path, temporary_path
+    def unexpected_rollback(path: Path, temporary_descriptor: int) -> None:
+        del path, temporary_descriptor
         raise AssertionError("rollback must not inspect a pre-existing target")
 
     monkeypatch.setattr(module, "_rollback_matching_link", unexpected_rollback)
@@ -361,33 +411,26 @@ def test_existing_report_refusal_does_not_invoke_rollback(
     assert output.read_bytes() == b"existing"
 
 
-def test_report_cleanup_error_does_not_mask_directory_sync_interrupt(
+def test_report_sync_interrupt_retains_private_staging(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     module = _load_cli_module()
     output = tmp_path / "report.json"
     original_fsync = module.os.fsync
-    original_unlink = module.Path.unlink
 
     def interrupt_directory_sync(descriptor: int) -> None:
         if stat.S_ISDIR(module.os.fstat(descriptor).st_mode):
             raise KeyboardInterrupt
         original_fsync(descriptor)
 
-    def fail_temporary_unlink(path: Path, *args: object, **kwargs: object) -> None:
-        if path.name.startswith(".parity-report."):
-            raise OSError("simulated temporary cleanup failure")
-        original_unlink(path, *args, **kwargs)
-
     monkeypatch.setattr(module.os, "fsync", interrupt_directory_sync)
-    monkeypatch.setattr(module.Path, "unlink", fail_temporary_unlink)
 
     with pytest.raises(KeyboardInterrupt):
         module._exclusive_write(output, b"complete report\n")
 
     assert not output.exists()
     assert _recovery_capture(tmp_path).read_bytes() == b"complete report\n"
-    assert any(path.name.startswith(".parity-report.") for path in tmp_path.iterdir())
+    assert _staging_payload(tmp_path).read_bytes() == b"complete report\n"
 
 
 def test_report_publication_sanitizes_temporary_creation_failure(
@@ -402,7 +445,7 @@ def test_report_publication_sanitizes_temporary_creation_failure(
     assert result.stdout == ""
     assert result.stderr == "REFUSED: output publication failed\n"
     assert canary not in result.stderr
-    assert list(tmp_path.iterdir()) == []
+    assert _staging_payload(tmp_path).is_file()
 
 
 def test_cli_refuses_network_or_database_arguments_without_echoing_values() -> None:

@@ -7,6 +7,7 @@ import argparse
 import json
 import os
 import re
+import stat
 import sys
 import tempfile
 from dataclasses import asdict
@@ -42,7 +43,7 @@ def _canonical_json(document: dict[str, Any]) -> bytes:
     ).encode("utf-8")
 
 
-def _rollback_matching_link(path: Path, temporary_path: Path) -> None:
+def _rollback_matching_link(path: Path, temporary_descriptor: int) -> None:
     rescue_directory: Path | None = None
     rescue_path: Path | None = None
     try:
@@ -66,9 +67,7 @@ def _rollback_matching_link(path: Path, temporary_path: Path) -> None:
                     captured_status.st_ino,
                 )
                 try:
-                    temporary_status = os.stat(
-                        temporary_path, follow_symlinks=False
-                    )
+                    temporary_status = os.fstat(temporary_descriptor)
                 except OSError:
                     pass
                 else:
@@ -97,62 +96,120 @@ def _exclusive_publish(path: Path, raw: bytes) -> None:
 
     if not path.parent.is_dir():
         raise PreparationCliError("output directory is unavailable")
-    file_descriptor = -1
-    temporary_path: Path | None = None
-    link_started = False
+    parent_descriptor = -1
+    staging_descriptor = -1
+    staging_directory: Path | None = None
+    payload_descriptor = -1
+    publication_attempted = False
     rollback_required = False
     try:
-        file_descriptor, temporary_name = tempfile.mkstemp(
-            prefix=f".{path.name}.", dir=path.parent
+        parent_descriptor = os.open(
+            path.parent,
+            os.O_RDONLY
+            | getattr(os, "O_DIRECTORY", 0)
+            | getattr(os, "O_NOFOLLOW", 0),
         )
-        temporary_path = Path(temporary_name)
-        os.fchmod(file_descriptor, 0o600)
+        parent_status = os.fstat(parent_descriptor)
+        if not stat.S_ISDIR(parent_status.st_mode) or not (
+            parent_status.st_uid == os.geteuid()
+            or parent_status.st_mode & stat.S_ISVTX
+        ):
+            raise PreparationCliError("output directory is unavailable")
+        staging_directory = Path(
+            tempfile.mkdtemp(prefix=".nexus-staging.", dir=path.parent)
+        )
+        staging_descriptor = os.open(
+            staging_directory,
+            os.O_RDONLY
+            | getattr(os, "O_DIRECTORY", 0)
+            | getattr(os, "O_NOFOLLOW", 0),
+        )
+        os.fchmod(staging_descriptor, 0o700)
+        staging_status = os.fstat(staging_descriptor)
+        staging_parent_status = os.stat(
+            "..", dir_fd=staging_descriptor, follow_symlinks=False
+        )
+        if (
+            not stat.S_ISDIR(staging_status.st_mode)
+            or stat.S_IMODE(staging_status.st_mode) != 0o700
+            or staging_status.st_uid != os.geteuid()
+            or (staging_parent_status.st_dev, staging_parent_status.st_ino)
+            != (parent_status.st_dev, parent_status.st_ino)
+        ):
+            raise PreparationCliError("output staging is unavailable")
+        payload_descriptor = os.open(
+            "payload",
+            os.O_WRONLY
+            | os.O_CREAT
+            | os.O_EXCL
+            | getattr(os, "O_NOFOLLOW", 0),
+            0o600,
+            dir_fd=staging_descriptor,
+        )
+        os.fchmod(payload_descriptor, 0o600)
         remaining = memoryview(raw)
         while remaining:
-            written = os.write(file_descriptor, remaining)
+            written = os.write(payload_descriptor, remaining)
             remaining = remaining[written:]
-        os.fsync(file_descriptor)
-        descriptor_to_close = file_descriptor
-        file_descriptor = -1
-        os.close(descriptor_to_close)
+        os.fsync(payload_descriptor)
         try:
-            link_started = True
-            os.link(temporary_path, path, follow_symlinks=False)
+            publication_attempted = True
+            os.link(
+                "payload",
+                path.name,
+                src_dir_fd=staging_descriptor,
+                dst_dir_fd=parent_descriptor,
+                follow_symlinks=False,
+            )
         except FileExistsError as exc:
             raise PreparationCliError("output already exists") from exc
-        directory_descriptor = os.open(
-            path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
-        )
-        try:
-            os.fsync(directory_descriptor)
-        finally:
-            try:
-                os.close(directory_descriptor)
-            except OSError:
-                pass
+        os.fsync(parent_descriptor)
     except PreparationCliError:
         raise
     except OSError as exc:
-        rollback_required = link_started
+        rollback_required = publication_attempted
         raise PreparationCliError("output publication failed") from exc
     except BaseException:
-        rollback_required = link_started
+        rollback_required = publication_attempted
         raise
     finally:
-        if file_descriptor >= 0:
-            descriptor_to_close = file_descriptor
-            file_descriptor = -1
+        if rollback_required and payload_descriptor >= 0:
+            _rollback_matching_link(path, payload_descriptor)
+        if payload_descriptor >= 0:
+            descriptor_to_close = payload_descriptor
+            payload_descriptor = -1
             try:
                 os.close(descriptor_to_close)
             except OSError:
                 pass
-        if temporary_path is not None:
-            if rollback_required:
-                _rollback_matching_link(path, temporary_path)
+        if not rollback_required and staging_descriptor >= 0:
             try:
-                temporary_path.unlink()
+                os.unlink("payload", dir_fd=staging_descriptor)
             except FileNotFoundError:
                 pass
+            except OSError:
+                pass
+        if staging_descriptor >= 0:
+            descriptor_to_close = staging_descriptor
+            staging_descriptor = -1
+            try:
+                os.close(descriptor_to_close)
+            except OSError:
+                pass
+        if (
+            not rollback_required
+            and staging_directory is not None
+            and parent_descriptor >= 0
+        ):
+            try:
+                os.rmdir(staging_directory.name, dir_fd=parent_descriptor)
+            except OSError:
+                pass
+        if parent_descriptor >= 0:
+            descriptor_to_close = parent_descriptor
+            parent_descriptor = -1
+            try:
+                os.close(descriptor_to_close)
             except OSError:
                 pass
 
