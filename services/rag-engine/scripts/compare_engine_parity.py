@@ -47,46 +47,65 @@ def _canonical_json(document: dict[str, Any]) -> bytes:
 def _rollback_matching_link(path: Path, temporary_path: Path) -> None:
     rescue_descriptor = -1
     rescue_path: Path | None = None
-    captured = False
+    placeholder_identity: tuple[int, int] | None = None
     try:
         rescue_descriptor, rescue_name = tempfile.mkstemp(
             prefix=".nexus-rollback.", dir=path.parent
         )
         rescue_path = Path(rescue_name)
-        os.close(rescue_descriptor)
-        rescue_descriptor = -1
+        placeholder_status = os.fstat(rescue_descriptor)
+        placeholder_identity = (
+            placeholder_status.st_dev,
+            placeholder_status.st_ino,
+        )
         os.replace(path, rescue_path)
-        captured = True
-        captured_status = os.stat(rescue_path, follow_symlinks=False)
-        temporary_status = os.stat(temporary_path, follow_symlinks=False)
     except OSError:
         return
-    else:
-        if (captured_status.st_dev, captured_status.st_ino) == (
-            temporary_status.st_dev,
-            temporary_status.st_ino,
-        ):
+    finally:
+        if rescue_path is not None and placeholder_identity is not None:
             try:
-                rescue_path.unlink()
+                captured_status = os.stat(rescue_path, follow_symlinks=False)
             except OSError:
                 pass
-            return
-        try:
-            os.link(rescue_path, path, follow_symlinks=False)
-        except OSError:
-            return
-        try:
-            rescue_path.unlink()
-        except OSError:
-            pass
-    finally:
+            else:
+                captured_identity = (
+                    captured_status.st_dev,
+                    captured_status.st_ino,
+                )
+                if captured_identity == placeholder_identity:
+                    try:
+                        rescue_path.unlink()
+                    except OSError:
+                        pass
+                else:
+                    try:
+                        temporary_status = os.stat(
+                            temporary_path, follow_symlinks=False
+                        )
+                    except OSError:
+                        pass
+                    else:
+                        temporary_identity = (
+                            temporary_status.st_dev,
+                            temporary_status.st_ino,
+                        )
+                        if captured_identity == temporary_identity:
+                            try:
+                                rescue_path.unlink()
+                            except OSError:
+                                pass
+                        else:
+                            try:
+                                os.link(rescue_path, path, follow_symlinks=False)
+                            except OSError:
+                                pass
+                            else:
+                                try:
+                                    rescue_path.unlink()
+                                except OSError:
+                                    pass
         if rescue_descriptor >= 0:
             os.close(rescue_descriptor)
-        if rescue_path is not None and not captured:
-            try:
-                rescue_path.unlink()
-            except OSError:
-                pass
 
 
 def _exclusive_write(path: Path, raw: bytes) -> None:

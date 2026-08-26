@@ -250,6 +250,29 @@ def test_report_rollback_preserves_target_replaced_during_identity_check(
     assert output.read_bytes() == b"foreign"
 
 
+def test_report_rollback_preserves_captured_target_when_replace_is_interrupted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = _load_cli_module()
+    temporary = tmp_path / ".parity-report.owned.tmp"
+    output = tmp_path / "report.json"
+    temporary.write_bytes(b"owned")
+    output.write_bytes(b"foreign")
+    original_replace = module.os.replace
+
+    def interrupt_after_replace(source: Path, target: Path) -> None:
+        original_replace(source, target)
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(module.os, "replace", interrupt_after_replace)
+
+    with pytest.raises(KeyboardInterrupt):
+        module._rollback_matching_link(output, temporary)
+
+    assert output.read_bytes() == b"foreign"
+    assert not list(tmp_path.glob(".nexus-rollback.*"))
+
+
 def test_existing_report_refusal_does_not_invoke_rollback(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
