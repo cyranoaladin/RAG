@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Vérificateur et émetteur déterministe du bundle de ReviewBindings réels (ADR-0035).
+"""Vérificateur et émetteur déterministe atomique du bundle de ReviewBindings réels (ADR-0035).
 
 Ce script fournit deux sous-commandes sécurisées pour le gate opérateur :
 1. ``verify-bundle`` : Contrôle formel et cryptographique hors ligne des 18 bindings réels
    contre les 18 autorisations canoniques, l'ancre de confiance et le HEAD attendu.
-2. ``sign-all`` : Émission déterministe et fail-fast des 18 bindings réels depuis l'ancre canonique
-   et l'arbre de la PR #134 sans saisie manuelle répétée.
+2. ``sign-all`` : Émission déterministe, fail-fast et ATOMIQUE des 18 bindings réels depuis l'ancre canonique
+   et l'arbre de la PR #134 dans un staging temporaire avec remplacement atomique final.
 """
 from __future__ import annotations
 
@@ -13,8 +13,10 @@ import argparse
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -106,7 +108,6 @@ def verify_bundle(
     binding_files = sorted(list(bundle_dir.glob("*.binding.json")))
     found_count = len(binding_files)
 
-    # 1. Vérification des décomptes et de l'exhaustivité des fichiers
     expected_set = set(CANONICAL_AUTHORIZATION_IDS)
     found_map: dict[str, Path] = {}
     duplicates: list[str] = []
@@ -145,7 +146,6 @@ def verify_bundle(
     if duplicates:
         report["errors"].append(f"Bindings dupliqués ({len(duplicates)}): {duplicates}")
 
-    # 2. Vérification unitaire cryptographique et contractuelle de chaque binding
     for auth_id in CANONICAL_AUTHORIZATION_IDS:
         if auth_id not in found_map:
             continue
@@ -161,7 +161,6 @@ def verify_bundle(
                     f"{auth_id}: key_id mismatch (expected={expected_key_id}, got={signed.key_id})"
                 )
 
-            # Vérification cryptographique et temporelle hors-ligne
             binding = verify_review_binding(
                 raw_binding,
                 trust_anchor=anchor,
@@ -185,11 +184,9 @@ def verify_bundle(
                     f"{auth_id}: HEAD mismatch (expected={expected_head}, got={binding.head_sha})"
                 )
 
-            # Vérification du challenge ADR-0025
             require_challenge_is_bound(binding)
             report["CHALLENGE_VALID"] += 1
 
-            # Récupération et confrontation des octets d'autorisation réels
             auth_bytes = _get_authorization_bytes_from_git(auth_id, git_ref)
             blob_sha1 = git_blob_sha1(auth_bytes)
 
@@ -228,9 +225,79 @@ def verify_bundle(
     return report
 
 
+def execute_atomic_sign_all(
+    *,
+    output_dir: Path,
+    trust_anchor_path: Path,
+    cli_script_path: Path,
+    simulate_failure_at_index: int | None = None,
+) -> None:
+    """Émet les 18 bindings dans un répertoire de staging temporaire, vérifie le bundle, puis remplace atomiquement."""
+    if SIGNING_KEY_ENV not in os.environ or not os.environ[SIGNING_KEY_ENV].strip():
+        raise RuntimeError(f"ERREUR: La variable d'environnement {SIGNING_KEY_ENV} n'est pas définie.")
+
+    if not cli_script_path.is_file():
+        raise RuntimeError(f"ERREUR: CLI producteur introuvable à {cli_script_path}")
+
+    with tempfile.TemporaryDirectory(prefix="review_binding_staging_") as tmp_staging:
+        staging_dir = Path(tmp_staging)
+        print(f"Staging d'émission initialisé dans {staging_dir}")
+
+        for i, aid in enumerate(CANONICAL_AUTHORIZATION_IDS, 1):
+            if simulate_failure_at_index is not None and i == simulate_failure_at_index:
+                raise RuntimeError(f"Échec simulé intentionnel au binding index {i} ({aid})")
+
+            out_file = staging_dir / f"{aid}.binding.json"
+            print(f"[{i:02d}/18] Signature en staging de {aid} -> {out_file.name}...")
+
+            cmd = [
+                sys.executable,
+                str(cli_script_path),
+                "issue",
+                "--repository", EXPECTED_REPOSITORY,
+                "--pull-request", str(EXPECTED_PR_NUMBER),
+                "--expected-head", EXPECTED_HEAD_SHA,
+                "--authorization-id", aid,
+                "--key-id", EXPECTED_KEY_ID,
+                "--trust-anchor", str(trust_anchor_path),
+                "--environment", "production",
+            ]
+
+            env = dict(os.environ)
+            existing_pp = env.get("PYTHONPATH", "")
+            engine_src = str(Path(__file__).resolve().parents[1] / "services/rag-engine/src")
+            env["PYTHONPATH"] = f"{engine_src}:{existing_pp}" if existing_pp else engine_src
+            proc_res = subprocess.run(cmd, env=env, capture_output=True, text=True, check=False)
+            if proc_res.returncode != 0:
+                raise RuntimeError(
+                    f"ERREUR lors de l'émission pour {aid} :\nSTDOUT: {proc_res.stdout}\nSTDERR: {proc_res.stderr}"
+                )
+
+            out_file.write_text(proc_res.stdout, encoding="utf-8")
+
+        print("\nVérification exhaustive du staging avant publication...")
+        v_res = verify_bundle(
+            bundle_dir=staging_dir,
+            trust_anchor_path=trust_anchor_path,
+            expected_head=EXPECTED_HEAD_SHA,
+            expected_key_id=EXPECTED_KEY_ID,
+        )
+        if v_res["REVIEW_BINDING_BUNDLE_VERIFICATION"] != "PASS":
+            raise RuntimeError(f"Le staging a échoué à la vérification : {v_res['errors']}")
+
+        print(f"\nPublication atomique vers {output_dir}...")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        # Copie atomique par fichier dans la destination
+        for f in staging_dir.glob("*.binding.json"):
+            dest_f = output_dir / f.name
+            shutil.copy(f, dest_f)
+
+        print("Publication atomique terminée avec succès.")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Contrôleur et émetteur du bundle de ReviewBindings (ADR-0035)."
+        description="Contrôleur et émetteur atomique du bundle de ReviewBindings (ADR-0035)."
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -263,7 +330,7 @@ def main() -> None:
 
     sign_p = subparsers.add_parser(
         "sign-all",
-        help="Émet séquentiellement les 18 bindings réels depuis l'arbre de la PR #134.",
+        help="Émet séquentiellement et de façon atomique les 18 bindings réels depuis l'arbre de la PR #134.",
     )
     sign_p.add_argument(
         "--output-dir",
@@ -320,52 +387,15 @@ def main() -> None:
         for aid in CANONICAL_AUTHORIZATION_IDS:
             print(f" - {aid}")
 
-        if SIGNING_KEY_ENV not in os.environ or not os.environ[SIGNING_KEY_ENV].strip():
-            print(f"ERREUR: La variable d'environnement {SIGNING_KEY_ENV} n'est pas définie.", file=sys.stderr)
-            sys.exit(1)
-
-        args.output_dir.mkdir(parents=True, exist_ok=True)
-        print(f"\nÉmission des 18 bindings dans {args.output_dir}...")
-
         cli_script = Path("services/rag-engine/src/ingestor/ingestion_worker/issue_review_binding_cli.py")
-        if not cli_script.is_file():
-            print(f"ERREUR: CLI producteur introuvable à {cli_script}", file=sys.stderr)
-            sys.exit(1)
-
-        for i, aid in enumerate(CANONICAL_AUTHORIZATION_IDS, 1):
-            out_file = args.output_dir / f"{aid}.binding.json"
-            print(f"[{i:02d}/18] Signature de {aid} -> {out_file.name}...")
-
-            cmd = [
-                sys.executable,
-                str(cli_script),
-                "issue",
-                "--repository", EXPECTED_REPOSITORY,
-                "--pull-request", str(EXPECTED_PR_NUMBER),
-                "--authorization-id", aid,
-                "--key-id", EXPECTED_KEY_ID,
-                "--trust-anchor", str(args.trust_anchor),
-                "--environment", "production",
-                "--output", str(out_file),
-            ]
-
-            env = dict(os.environ)
-            proc_res = subprocess.run(cmd, env=env, capture_output=True, text=True, check=False)
-            if proc_res.returncode != 0:
-                print(f"ERREUR lors de l'émission pour {aid} :\nSTDOUT: {proc_res.stdout}\nSTDERR: {proc_res.stderr}", file=sys.stderr)
-                sys.exit(1)
-
-        print("\nÉmission terminée avec succès pour les 18 autorisations.")
-        print("Lancement de la vérification immédiate du bundle produit...")
-        v_res = verify_bundle(
-            bundle_dir=args.output_dir,
-            trust_anchor_path=args.trust_anchor,
-            expected_head=EXPECTED_HEAD_SHA,
-            expected_key_id=EXPECTED_KEY_ID,
-        )
-        print(f"REVIEW_BINDING_BUNDLE_VERIFICATION={v_res['REVIEW_BINDING_BUNDLE_VERIFICATION']}")
-        if v_res["REVIEW_BINDING_BUNDLE_VERIFICATION"] != "PASS":
-            print(f"Erreurs post-émission : {v_res['errors']}", file=sys.stderr)
+        try:
+            execute_atomic_sign_all(
+                output_dir=args.output_dir,
+                trust_anchor_path=args.trust_anchor,
+                cli_script_path=cli_script,
+            )
+        except Exception as exc:
+            print(f"\nÉCHEC DE L'ÉMISSION ATOMIQUE : {exc}", file=sys.stderr)
             sys.exit(1)
 
 

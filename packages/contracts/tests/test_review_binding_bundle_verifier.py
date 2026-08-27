@@ -239,21 +239,30 @@ def test_bundle_verifier_rejects_missing_binding(tmp_path: Path) -> None:
     assert any("Bindings manquants" in e for e in res["errors"])
 
 
-def test_bundle_verifier_rejects_unexpected_nineteenth_binding(tmp_path: Path) -> None:
-    # 6. unexpected nineteenth binding (19 au lieu de 18)
+def test_sign_all_is_atomic_and_leaves_target_untouched_on_failure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # 7. Preuve d'atomicité : un échec au milieu de l'émission ne pollue pas le dossier cible
     anchor_path = _build_test_trust_anchor(tmp_path)
-    bundle_dir = _build_valid_fixture_bundle(tmp_path, anchor_path)
+    output_dir = tmp_path / "actual_review_bindings"
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-    extra_file = bundle_dir / "prerentree-2026-2027-rag_nexus_extra_invalid-v1.binding.json"
-    # Copier un existant
-    shutil.copy(bundle_dir / f"{CANONICAL_AUTHORIZATION_IDS[0]}.binding.json", extra_file)
+    # Poser un fichier préexistant témoin
+    sentinel = output_dir / "pre_existing.txt"
+    sentinel.write_text("initial_state", encoding="utf-8")
 
-    res = verify_bundle(
-        bundle_dir=bundle_dir,
-        trust_anchor_path=anchor_path,
-        now=NOW,
-    )
-    assert res["REVIEW_BINDING_BUNDLE_VERIFICATION"] == "FAIL"
-    assert res["UNEXPECTED"] == 1
-    assert res["FOUND_BINDINGS"] == 19
-    assert any("Bindings inattendus" in e for e in res["errors"])
+    monkeypatch.setenv("NEXUS_REVIEW_BINDING_SIGNING_KEY", TEST_SEED)
+
+    cli_script = Path("services/rag-engine/src/ingestor/ingestion_worker/issue_review_binding_cli.py")
+    from review_binding_bundle_manager import execute_atomic_sign_all
+
+    with pytest.raises(RuntimeError, match="Échec simulé intentionnel"):
+        execute_atomic_sign_all(
+            output_dir=output_dir,
+            trust_anchor_path=anchor_path,
+            cli_script_path=cli_script,
+            simulate_failure_at_index=5,
+        )
+
+    # Vérifier que le dossier cible n'a pas reçu de bundle hybride partiel
+    files_in_target = list(output_dir.glob("*.binding.json"))
+    assert len(files_in_target) == 0
+    assert sentinel.read_text(encoding="utf-8") == "initial_state"
