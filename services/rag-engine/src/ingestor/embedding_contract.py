@@ -191,7 +191,17 @@ def load_embedding_model(
     try:
         from sentence_transformers import SentenceTransformer
 
-        return SentenceTransformer(str(model_source), local_files_only=True)
+        try:
+            return SentenceTransformer(str(model_source), local_files_only=True)
+        except TypeError:
+            # sentence-transformers v5+ backward compatibility for legacy configs
+            from sentence_transformers import models as st_models
+
+            transformer_module = st_models.Transformer(str(model_source), max_seq_length=512)
+            dim = getattr(transformer_module, "get_embedding_dimension", transformer_module.get_word_embedding_dimension)()
+            pooling_module = st_models.Pooling(dim, pooling_mode="mean")
+            normalize_module = st_models.Normalize()
+            return SentenceTransformer(modules=[transformer_module, pooling_module, normalize_module])
     except EmbeddingContractError:
         raise
     except Exception as exc:
