@@ -61,7 +61,7 @@ TRUSTED_REVIEW_PROTOCOL = "NEXUS-TRUSTED-REVIEW-V1"
 
 #: Le seul algorithme de signature accepté. Une valeur inconnue est un refus,
 #: jamais un repli.
-SIGNATURE_ALGORITHM = "ed25519"
+SIGNATURE_ALGORITHM: Literal["ed25519"] = "ed25519"
 
 #: Permissions GitHub qui valent habilitation à approuver — même ensemble
 #: que ``trusted_human_review._WRITE_PERMISSIONS``, dupliqué ici parce que

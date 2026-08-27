@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, cast
 
-import yaml
+import yaml  # type: ignore[import-untyped]
 
 from nexus_contracts.ingestion import profile_manifest_fingerprint
 

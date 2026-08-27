@@ -23,6 +23,7 @@ SAFE_METADATA_ONLY:
   - metadata-governance-chain-audit
   - metadata-review-handoff-audit
   - source-evidence-check
+  - release-coherence-check
 
 SAFE_CLEANUP_REVIEW:
   - cleanup-dry-run
