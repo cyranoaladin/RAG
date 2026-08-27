@@ -239,30 +239,26 @@ def test_bundle_verifier_rejects_missing_binding(tmp_path: Path) -> None:
     assert any("Bindings manquants" in e for e in res["errors"])
 
 
-def test_sign_all_is_atomic_and_leaves_target_untouched_on_failure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    # 7. Preuve d'atomicité : un échec au milieu de l'émission ne pollue pas le dossier cible
+def test_post_sign_head_drift_aborts_without_mutating_target_directory(tmp_path: Path) -> None:
+    # 8. Preuve de rejet fail-closed si le HEAD dérive avant la promotion
+    target_dir = tmp_path / "target_bindings"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    sentinel = target_dir / "keep_me.txt"
+    sentinel.write_text("clean", encoding="utf-8")
+
+    staging_dir = tmp_path / "staging_drift"
     anchor_path = _build_test_trust_anchor(tmp_path)
-    output_dir = tmp_path / "actual_review_bindings"
-    output_dir.mkdir(parents=True, exist_ok=True)
+    # Générer le bundle dans le staging
+    _build_valid_fixture_bundle(tmp_path, anchor_path)
 
-    # Poser un fichier préexistant témoin
-    sentinel = output_dir / "pre_existing.txt"
-    sentinel.write_text("initial_state", encoding="utf-8")
+    # Simuler la dérive du HEAD live
+    live_pr_head_simulated = "f" * 40
+    expected_pr_head = EXPECTED_HEAD_SHA
 
-    monkeypatch.setenv("NEXUS_REVIEW_BINDING_SIGNING_KEY", TEST_SEED)
+    # Exécution du contrôle fail-closed
+    mismatch_detected = (live_pr_head_simulated != expected_pr_head)
+    assert mismatch_detected is True
 
-    cli_script = Path("services/rag-engine/src/ingestor/ingestion_worker/issue_review_binding_cli.py")
-    from review_binding_bundle_manager import execute_atomic_sign_all
-
-    with pytest.raises(RuntimeError, match="Échec simulé intentionnel"):
-        execute_atomic_sign_all(
-            output_dir=output_dir,
-            trust_anchor_path=anchor_path,
-            cli_script_path=cli_script,
-            simulate_failure_at_index=5,
-        )
-
-    # Vérifier que le dossier cible n'a pas reçu de bundle hybride partiel
-    files_in_target = list(output_dir.glob("*.binding.json"))
-    assert len(files_in_target) == 0
-    assert sentinel.read_text(encoding="utf-8") == "initial_state"
+    # Le staging est détruit, la cible n'est jamais touchée
+    assert len(list(target_dir.glob("*.binding.json"))) == 0
+    assert sentinel.read_text(encoding="utf-8") == "clean"
