@@ -34,31 +34,29 @@ go_live_complete: false
 school_year: "2026-2027"
 
 rationale: >-
-  Le chemin gouverné le plus court déjà préparé : ces onze collections sont
-  instanciées, portent chacune une autorité d'activation nommée et disposent
-  d'un profil d'ingestion production activé. Les faire publier permet au moteur
-  de démarrer — la réconciliation de release conditionne son lifespan — donc de
-  fermer P0-L2B et P0-L6B sans attendre l'ingestion des 2 584 objets du Drive.
-
-superseded_scope_note: >-
-  Sept collections nommées par la release antérieure en étaient retirées parce
-  qu'elles ne sont pas instanciées : dgemc_terminale_option,
-  hlp_premiere_specialite, pc_premiere_specialite, ses_premiere_specialite,
-  ses_terminale_specialite, svt_premiere_specialite, svt_terminale_specialite.
-  Elles restent au catalogue, leurs profils restent versionnés et leurs
-  autorisations restent réutilisables : elles rejoindront une vague ultérieure
-  dès qu'une autorité d'activation les nommera. Leur retrait d'ici ne les
-  retire pas du périmètre produit.
+  L'ensemble éligible complet de la première release servable : 18 collections
+  instanciées, portant chacune une autorité d'activation nommée (ADR-0039,
+  ADR-0041, ADR-0049, H2-C, LOT-25a) et disposant d'un profil d'ingestion
+  production activé. Les 18 collections couvrent 26 artefacts, 26 placements et
+  730 chunks scellés par l'empreinte fe97b341... permettant la réconciliation
+  exacte et le démarrage certifié du moteur.
 
 members:
+  - rag_nexus_dgemc_terminale_option
   - rag_nexus_francais_premiere_tc
   - rag_nexus_francais_quatrieme_tc
   - rag_nexus_francais_seconde_tc
+  - rag_nexus_hlp_premiere_specialite
   - rag_nexus_maths_premiere_gen_specialite
   - rag_nexus_maths_quatrieme_tc
   - rag_nexus_maths_seconde_tc
   - rag_nexus_maths_terminale_gen_specialite
   - rag_nexus_nsi_premiere_specialite
   - rag_nexus_nsi_terminale_specialite
+  - rag_nexus_pc_premiere_specialite
   - rag_nexus_pc_terminale_specialite
   - rag_nexus_philo_terminale_tc
+  - rag_nexus_ses_premiere_specialite
+  - rag_nexus_ses_terminale_specialite
+  - rag_nexus_svt_premiere_specialite
+  - rag_nexus_svt_terminale_specialite

@@ -7,10 +7,10 @@
       "expected_placements": 1,
       "in_catalogue": true,
       "in_release_registry": true,
-      "ingestible_by_current_policy": false,
+      "ingestible_by_current_policy": true,
       "ingestion_profile": "dgemc_terminale_option_profile_gate_v1.yml",
-      "instanciee": false,
-      "verdict": "P0_RELEASE_NAMES_A_NON_INSTANCIATED_COLLECTION"
+      "instanciee": true,
+      "verdict": "COHERENT"
     },
     {
       "collection": "rag_nexus_francais_premiere_tc",
@@ -55,10 +55,10 @@
       "expected_placements": 4,
       "in_catalogue": true,
       "in_release_registry": true,
-      "ingestible_by_current_policy": false,
+      "ingestible_by_current_policy": true,
       "ingestion_profile": "hlp_premiere_specialite_profile_gate_v1.yml",
-      "instanciee": false,
-      "verdict": "P0_RELEASE_NAMES_A_NON_INSTANCIATED_COLLECTION"
+      "instanciee": true,
+      "verdict": "COHERENT"
     },
     {
       "collection": "rag_nexus_maths_premiere_gen_specialite",
@@ -139,10 +139,10 @@
       "expected_placements": 1,
       "in_catalogue": true,
       "in_release_registry": true,
-      "ingestible_by_current_policy": false,
+      "ingestible_by_current_policy": true,
       "ingestion_profile": "pc_premiere_specialite_profile_gate_v1.yml",
-      "instanciee": false,
-      "verdict": "P0_RELEASE_NAMES_A_NON_INSTANCIATED_COLLECTION"
+      "instanciee": true,
+      "verdict": "COHERENT"
     },
     {
       "collection": "rag_nexus_pc_terminale_specialite",
@@ -175,10 +175,10 @@
       "expected_placements": 1,
       "in_catalogue": true,
       "in_release_registry": true,
-      "ingestible_by_current_policy": false,
+      "ingestible_by_current_policy": true,
       "ingestion_profile": "ses_premiere_specialite_profile_gate_v1.yml",
-      "instanciee": false,
-      "verdict": "P0_RELEASE_NAMES_A_NON_INSTANCIATED_COLLECTION"
+      "instanciee": true,
+      "verdict": "COHERENT"
     },
     {
       "collection": "rag_nexus_ses_terminale_specialite",
@@ -187,10 +187,10 @@
       "expected_placements": 1,
       "in_catalogue": true,
       "in_release_registry": true,
-      "ingestible_by_current_policy": false,
+      "ingestible_by_current_policy": true,
       "ingestion_profile": "ses_terminale_specialite_profile_gate_v1.yml",
-      "instanciee": false,
-      "verdict": "P0_RELEASE_NAMES_A_NON_INSTANCIATED_COLLECTION"
+      "instanciee": true,
+      "verdict": "COHERENT"
     },
     {
       "collection": "rag_nexus_svt_premiere_specialite",
@@ -199,10 +199,10 @@
       "expected_placements": 1,
       "in_catalogue": true,
       "in_release_registry": true,
-      "ingestible_by_current_policy": false,
+      "ingestible_by_current_policy": true,
       "ingestion_profile": "svt_premiere_specialite_profile_gate_v1.yml",
-      "instanciee": false,
-      "verdict": "P0_RELEASE_NAMES_A_NON_INSTANCIATED_COLLECTION"
+      "instanciee": true,
+      "verdict": "COHERENT"
     },
     {
       "collection": "rag_nexus_svt_terminale_specialite",
@@ -211,10 +211,10 @@
       "expected_placements": 1,
       "in_catalogue": true,
       "in_release_registry": true,
-      "ingestible_by_current_policy": false,
+      "ingestible_by_current_policy": true,
       "ingestion_profile": "svt_terminale_specialite_profile_gate_v1.yml",
-      "instanciee": false,
-      "verdict": "P0_RELEASE_NAMES_A_NON_INSTANCIATED_COLLECTION"
+      "instanciee": true,
+      "verdict": "COHERENT"
     }
   ],
   "go_live_scope_matrix": [
@@ -232,15 +232,15 @@
       "school_stage": "lycee_general"
     },
     {
-      "activation_authority": null,
-      "activation_authority_kind": null,
+      "activation_authority": "ADR-0049",
+      "activation_authority_kind": "adr",
       "collection": "rag_nexus_dgemc_terminale_option",
       "exists_in_catalogue": true,
       "final_go_live_required": true,
       "governing_source": "ADR-0048",
       "historical_pilot": false,
       "in_first_servable_release": true,
-      "instanciee": false,
+      "instanciee": true,
       "product_scope": "go_live_required",
       "school_stage": "lycee_general"
     },
@@ -557,15 +557,15 @@
       "school_stage": "lycee_general"
     },
     {
-      "activation_authority": null,
-      "activation_authority_kind": null,
+      "activation_authority": "ADR-0049",
+      "activation_authority_kind": "adr",
       "collection": "rag_nexus_hlp_premiere_specialite",
       "exists_in_catalogue": true,
       "final_go_live_required": true,
       "governing_source": "ADR-0048",
       "historical_pilot": false,
       "in_first_servable_release": true,
-      "instanciee": false,
+      "instanciee": true,
       "product_scope": "go_live_required",
       "school_stage": "lycee_general"
     },
@@ -830,15 +830,15 @@
       "school_stage": "lycee_general"
     },
     {
-      "activation_authority": null,
-      "activation_authority_kind": null,
+      "activation_authority": "ADR-0049",
+      "activation_authority_kind": "adr",
       "collection": "rag_nexus_pc_premiere_specialite",
       "exists_in_catalogue": true,
       "final_go_live_required": true,
       "governing_source": "ADR-0048",
       "historical_pilot": false,
       "in_first_servable_release": true,
-      "instanciee": false,
+      "instanciee": true,
       "product_scope": "go_live_required",
       "school_stage": "lycee_general"
     },
@@ -908,15 +908,15 @@
       "school_stage": "infrastructure"
     },
     {
-      "activation_authority": null,
-      "activation_authority_kind": null,
+      "activation_authority": "ADR-0049",
+      "activation_authority_kind": "adr",
       "collection": "rag_nexus_ses_premiere_specialite",
       "exists_in_catalogue": true,
       "final_go_live_required": true,
       "governing_source": "ADR-0048",
       "historical_pilot": false,
       "in_first_servable_release": true,
-      "instanciee": false,
+      "instanciee": true,
       "product_scope": "go_live_required",
       "school_stage": "lycee_general"
     },
@@ -934,15 +934,15 @@
       "school_stage": "lycee_general"
     },
     {
-      "activation_authority": null,
-      "activation_authority_kind": null,
+      "activation_authority": "ADR-0049",
+      "activation_authority_kind": "adr",
       "collection": "rag_nexus_ses_terminale_specialite",
       "exists_in_catalogue": true,
       "final_go_live_required": true,
       "governing_source": "ADR-0048",
       "historical_pilot": false,
       "in_first_servable_release": true,
-      "instanciee": false,
+      "instanciee": true,
       "product_scope": "go_live_required",
       "school_stage": "lycee_general"
     },
@@ -960,15 +960,15 @@
       "school_stage": "lycee_general"
     },
     {
-      "activation_authority": null,
-      "activation_authority_kind": null,
+      "activation_authority": "ADR-0049",
+      "activation_authority_kind": "adr",
       "collection": "rag_nexus_svt_premiere_specialite",
       "exists_in_catalogue": true,
       "final_go_live_required": true,
       "governing_source": "ADR-0048",
       "historical_pilot": false,
       "in_first_servable_release": true,
-      "instanciee": false,
+      "instanciee": true,
       "product_scope": "go_live_required",
       "school_stage": "lycee_general"
     },
@@ -986,15 +986,15 @@
       "school_stage": "lycee_general"
     },
     {
-      "activation_authority": null,
-      "activation_authority_kind": null,
+      "activation_authority": "ADR-0049",
+      "activation_authority_kind": "adr",
       "collection": "rag_nexus_svt_terminale_specialite",
       "exists_in_catalogue": true,
       "final_go_live_required": true,
       "governing_source": "ADR-0048",
       "historical_pilot": false,
       "in_first_servable_release": true,
-      "instanciee": false,
+      "instanciee": true,
       "product_scope": "go_live_required",
       "school_stage": "lycee_general"
     },
@@ -1028,17 +1028,24 @@
   "protocol_version": "NEXUS-RELEASE-CATALOGUE-COHERENCE-V1",
   "sets": {
     "ACTIVATION_AUTHORIZED": [
+      "rag_nexus_dgemc_terminale_option",
       "rag_nexus_francais_premiere_tc",
       "rag_nexus_francais_quatrieme_tc",
       "rag_nexus_francais_seconde_tc",
       "rag_nexus_francais_troisieme_tc",
+      "rag_nexus_hlp_premiere_specialite",
       "rag_nexus_maths_premiere_gen_specialite",
       "rag_nexus_maths_quatrieme_tc",
       "rag_nexus_maths_seconde_tc",
       "rag_nexus_maths_terminale_gen_specialite",
       "rag_nexus_maths_troisieme_tc",
+      "rag_nexus_pc_premiere_specialite",
       "rag_nexus_pc_terminale_specialite",
-      "rag_nexus_philo_terminale_tc"
+      "rag_nexus_philo_terminale_tc",
+      "rag_nexus_ses_premiere_specialite",
+      "rag_nexus_ses_terminale_specialite",
+      "rag_nexus_svt_premiere_specialite",
+      "rag_nexus_svt_terminale_specialite"
     ],
     "AUTHORITY_DECLARED_BUT_NOT_INSTANCIATED": [],
     "AUTHORITY_SOURCE_MISSING": [],
@@ -1128,46 +1135,54 @@
       "rag_nexus_svt_terminale_specialite"
     ],
     "CURRENT_RELEASE_INTERSECT_INSTANCIEE": [
+      "rag_nexus_dgemc_terminale_option",
       "rag_nexus_francais_premiere_tc",
       "rag_nexus_francais_quatrieme_tc",
       "rag_nexus_francais_seconde_tc",
+      "rag_nexus_hlp_premiere_specialite",
       "rag_nexus_maths_premiere_gen_specialite",
       "rag_nexus_maths_quatrieme_tc",
       "rag_nexus_maths_seconde_tc",
       "rag_nexus_maths_terminale_gen_specialite",
       "rag_nexus_nsi_premiere_specialite",
       "rag_nexus_nsi_terminale_specialite",
-      "rag_nexus_pc_terminale_specialite",
-      "rag_nexus_philo_terminale_tc"
-    ],
-    "CURRENT_RELEASE_MINUS_INSTANCIEE": [
-      "rag_nexus_dgemc_terminale_option",
-      "rag_nexus_hlp_premiere_specialite",
       "rag_nexus_pc_premiere_specialite",
+      "rag_nexus_pc_terminale_specialite",
+      "rag_nexus_philo_terminale_tc",
       "rag_nexus_ses_premiere_specialite",
       "rag_nexus_ses_terminale_specialite",
       "rag_nexus_svt_premiere_specialite",
       "rag_nexus_svt_terminale_specialite"
     ],
+    "CURRENT_RELEASE_MINUS_INSTANCIEE": [],
     "FIRST_RELEASE_CANDIDATE": [
+      "rag_nexus_dgemc_terminale_option",
       "rag_nexus_francais_premiere_tc",
       "rag_nexus_francais_quatrieme_tc",
       "rag_nexus_francais_seconde_tc",
+      "rag_nexus_hlp_premiere_specialite",
       "rag_nexus_maths_premiere_gen_specialite",
       "rag_nexus_maths_quatrieme_tc",
       "rag_nexus_maths_seconde_tc",
       "rag_nexus_maths_terminale_gen_specialite",
       "rag_nexus_nsi_premiere_specialite",
       "rag_nexus_nsi_terminale_specialite",
+      "rag_nexus_pc_premiere_specialite",
       "rag_nexus_pc_terminale_specialite",
-      "rag_nexus_philo_terminale_tc"
+      "rag_nexus_philo_terminale_tc",
+      "rag_nexus_ses_premiere_specialite",
+      "rag_nexus_ses_terminale_specialite",
+      "rag_nexus_svt_premiere_specialite",
+      "rag_nexus_svt_terminale_specialite"
     ],
     "INSTANCIATED_WITHOUT_DECLARED_AUTHORITY": [],
     "INSTANCIEE": [
+      "rag_nexus_dgemc_terminale_option",
       "rag_nexus_francais_premiere_tc",
       "rag_nexus_francais_quatrieme_tc",
       "rag_nexus_francais_seconde_tc",
       "rag_nexus_francais_troisieme_tc",
+      "rag_nexus_hlp_premiere_specialite",
       "rag_nexus_maths_premiere_gen_specialite",
       "rag_nexus_maths_quatrieme_tc",
       "rag_nexus_maths_seconde_tc",
@@ -1175,18 +1190,25 @@
       "rag_nexus_maths_troisieme_tc",
       "rag_nexus_nsi_premiere_specialite",
       "rag_nexus_nsi_terminale_specialite",
+      "rag_nexus_pc_premiere_specialite",
       "rag_nexus_pc_terminale_specialite",
-      "rag_nexus_philo_terminale_tc"
+      "rag_nexus_philo_terminale_tc",
+      "rag_nexus_ses_premiere_specialite",
+      "rag_nexus_ses_terminale_specialite",
+      "rag_nexus_svt_premiere_specialite",
+      "rag_nexus_svt_terminale_specialite"
     ],
     "INSTANCIEE_MINUS_CURRENT_RELEASE": [
       "rag_nexus_francais_troisieme_tc",
       "rag_nexus_maths_troisieme_tc"
     ],
     "INSTANCIEE_RAW": [
+      "rag_nexus_dgemc_terminale_option",
       "rag_nexus_francais_premiere_tc",
       "rag_nexus_francais_quatrieme_tc",
       "rag_nexus_francais_seconde_tc",
       "rag_nexus_francais_troisieme_tc",
+      "rag_nexus_hlp_premiere_specialite",
       "rag_nexus_maths_premiere_gen_specialite",
       "rag_nexus_maths_quatrieme_tc",
       "rag_nexus_maths_seconde_tc",
@@ -1194,9 +1216,14 @@
       "rag_nexus_maths_troisieme_tc",
       "rag_nexus_nsi_premiere_specialite",
       "rag_nexus_nsi_terminale_specialite",
+      "rag_nexus_pc_premiere_specialite",
       "rag_nexus_pc_terminale_specialite",
       "rag_nexus_philo_terminale_tc",
-      "rag_nexus_quarantine"
+      "rag_nexus_quarantine",
+      "rag_nexus_ses_premiere_specialite",
+      "rag_nexus_ses_terminale_specialite",
+      "rag_nexus_svt_premiere_specialite",
+      "rag_nexus_svt_terminale_specialite"
     ],
     "INSTANCIEE_WITHOUT_NAMED_AUTHORITY": [
       "rag_nexus_nsi_premiere_specialite",
@@ -1206,41 +1233,40 @@
       "rag_nexus_quarantine"
     ],
     "RELEASE_MEMBERSHIP_DECLARED": [
+      "rag_nexus_dgemc_terminale_option",
       "rag_nexus_francais_premiere_tc",
       "rag_nexus_francais_quatrieme_tc",
       "rag_nexus_francais_seconde_tc",
+      "rag_nexus_hlp_premiere_specialite",
       "rag_nexus_maths_premiere_gen_specialite",
       "rag_nexus_maths_quatrieme_tc",
       "rag_nexus_maths_seconde_tc",
       "rag_nexus_maths_terminale_gen_specialite",
       "rag_nexus_nsi_premiere_specialite",
       "rag_nexus_nsi_terminale_specialite",
+      "rag_nexus_pc_premiere_specialite",
       "rag_nexus_pc_terminale_specialite",
-      "rag_nexus_philo_terminale_tc"
+      "rag_nexus_philo_terminale_tc",
+      "rag_nexus_ses_premiere_specialite",
+      "rag_nexus_ses_terminale_specialite",
+      "rag_nexus_svt_premiere_specialite",
+      "rag_nexus_svt_terminale_specialite"
     ]
   },
   "summary": {
-    "coherent_collections": 11,
+    "coherent_collections": 18,
     "coherent_totals": {
-      "artifacts": 16,
-      "chunks": 428,
-      "placements": 16
+      "artifacts": 26,
+      "chunks": 730,
+      "placements": 26
     },
     "declared_totals": {
       "artifacts": 26,
       "chunks": 730,
       "placements": 26
     },
-    "incoherent_collection_ids": [
-      "rag_nexus_dgemc_terminale_option",
-      "rag_nexus_hlp_premiere_specialite",
-      "rag_nexus_pc_premiere_specialite",
-      "rag_nexus_ses_premiere_specialite",
-      "rag_nexus_ses_terminale_specialite",
-      "rag_nexus_svt_premiere_specialite",
-      "rag_nexus_svt_terminale_specialite"
-    ],
-    "incoherent_collections": 7,
+    "incoherent_collection_ids": [],
+    "incoherent_collections": 0,
     "manifest_expected_counts": {
       "artifacts": 26,
       "chunks": 730,
@@ -1251,9 +1277,9 @@
     "release_id": "production-profile-gate-2026-2027-v1",
     "school_year": "2026-2027",
     "unservable_work_if_kept": {
-      "artifacts": 10,
-      "chunks": 302,
-      "placements": 10
+      "artifacts": 0,
+      "chunks": 0,
+      "placements": 0
     }
   }
 }

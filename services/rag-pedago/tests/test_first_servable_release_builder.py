@@ -65,7 +65,7 @@ def test_a_member_that_is_not_instanciated_is_refused_not_dropped(
     with pytest.raises(builder.ReleaseMembershipError) as failure:
         builder.require_membership_is_admissible(
             [*yaml.safe_load(builder.MEMBERSHIP.read_text("utf-8"))["members"],
-             "rag_nexus_svt_terminale_specialite"]
+             "rag_nexus_maths_premiere_stmg_tc"]
         )
     assert "RELEASE_MEMBER => INSTANCIEE" in str(failure.value)
     assert "never drops a declared member" in str(failure.value)

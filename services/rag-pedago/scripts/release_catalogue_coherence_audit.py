@@ -48,6 +48,7 @@ RELEASE_MEMBERSHIP = (
 ADR_ACTIVATION_SOURCES = (
     "docs/adr/ADR-0039-activation-wave0-apres-release-readiness.md",
     "docs/adr/ADR-0041-activation-multi-niveaux-apres-readiness.md",
+    "docs/adr/ADR-0049-activation-7-collections-lycee-general.md",
     "docs/adr/ADR-0040-extension-multi-niveaux-prioritaire.md",
     "services/rag-engine/configs/h2_initial_placement_policy.yml",
 )
