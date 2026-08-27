@@ -38,6 +38,13 @@ CATALOGUE = REPOSITORY_ROOT / "services/rag-engine/configs/rag_collections.yml"
 PROFILES = REPOSITORY_ROOT / "services/rag-engine/configs/ingestion_profiles"
 RELEASES = REPOSITORY_ROOT / "services/rag-pedago/data/releases/prerentree_2026_2027"
 GO_LIVE_SCOPE = REPOSITORY_ROOT / "services/rag-pedago/configs/go_live_scope.yml"
+ACTIVATION_AUTHORITIES = (
+    REPOSITORY_ROOT / "services/rag-pedago/configs/activation_authorities.yml"
+)
+RELEASE_MEMBERSHIP = (
+    REPOSITORY_ROOT
+    / "services/rag-pedago/configs/first_servable_release_members.yml"
+)
 ADR_ACTIVATION_SOURCES = (
     "docs/adr/ADR-0039-activation-wave0-apres-release-readiness.md",
     "docs/adr/ADR-0041-activation-multi-niveaux-apres-readiness.md",
@@ -179,6 +186,44 @@ def _current_release() -> dict[str, Any]:
     return registry["releases"][0]
 
 
+def declared_activation_authorities() -> dict[str, dict[str, Any]]:
+    """L'autorité déclarée de chaque collection instanciée.
+
+    Une ADR qui nomme la collection, ou une activation antérieure au régime des
+    ADR encodée telle qu'elle a eu lieu. `unknown` n'est pas une valeur : c'est
+    l'absence d'entrée, et l'auditeur la refuse.
+    """
+    document = _load_yaml(ACTIVATION_AUTHORITIES) or {}
+    return dict(document.get("collections") or {})
+
+
+def activation_authority_gaps() -> dict[str, list[str]]:
+    """Les deux façons dont l'autorité d'activation peut être en défaut."""
+    catalogue = _catalogue()
+    declared = declared_activation_authorities()
+    instanciee = {
+        name for name, entry in catalogue.items() if entry.get("instanciee") is True
+    }
+    missing_source = [
+        name
+        for name, entry in sorted(declared.items())
+        if not (REPOSITORY_ROOT / entry.get("source", "")).is_file()
+    ]
+    return {
+        # Une collection servable dont personne ne peut dire qui l'a activée.
+        "INSTANCIATED_WITHOUT_DECLARED_AUTHORITY": sorted(instanciee - set(declared)),
+        # Une autorité déclarée pour une collection qui n'est pas activée.
+        "AUTHORITY_DECLARED_BUT_NOT_INSTANCIATED": sorted(set(declared) - instanciee),
+        # Une autorité dont la source citée n'existe pas dans le dépôt.
+        "AUTHORITY_SOURCE_MISSING": missing_source,
+    }
+
+
+def release_membership() -> dict[str, Any]:
+    """Le membership déclaré — une énumération, jamais un filtre."""
+    return _load_yaml(RELEASE_MEMBERSHIP) or {}
+
+
 def activation_authorized() -> dict[str, list[str]]:
     """Collections nommées par une autorité d'activation versionnée.
 
@@ -225,53 +270,80 @@ def collection_sets() -> dict[str, Any]:
         "INSTANCIEE_MINUS_CURRENT_RELEASE": sorted(instanciee - current_release),
         "INSTANCIEE_WITHOUT_NAMED_AUTHORITY": sorted(instanciee - authorized),
         "AUTHORIZED_NOT_INSTANCIEE": sorted(authorized - instanciee),
+        "RELEASE_MEMBERSHIP_DECLARED": sorted(release_membership().get("members", [])),
+        **activation_authority_gaps(),
     }
+
+
+def school_stage_of(collection: str, entry: dict[str, Any], declaration: dict[str, Any]) -> str:
+    """Dériver l'étage scolaire du couple (niveau, voie) déclaré au catalogue.
+
+    Dérivé, jamais recopié collection par collection : une collection ajoutée
+    au catalogue hérite de son étage et entre donc dans le périmètre sans
+    intervention. C'est ce qui empêche un futur ajout d'échapper au périmètre
+    par simple omission d'une liste.
+    """
+    if collection in (declaration.get("infrastructure") or {}).get("collections", []):
+        return "infrastructure"
+    if collection in (declaration.get("out_of_scope") or {}).get("collections", []):
+        return "out_of_scope"
+
+    voie = entry.get("voie")
+    niveau = entry.get("niveau")
+    for stage, block in (declaration.get("school_stages") or {}).items():
+        if voie in block.get("voies", []) and niveau in block.get("levels", []):
+            return str(stage)
+    # `voie: null` existe au catalogue pour des collections transversales
+    # (examens, DNB, candidats libres) : leur étage se déduit alors du seul
+    # niveau, sans quoi elles échapperaient au périmètre par une valeur absente.
+    if voie is None:
+        for stage, block in (declaration.get("school_stages") or {}).items():
+            if niveau in block.get("levels", []):
+                return str(stage)
+    return "unclassified"
 
 
 def go_live_scope_matrix() -> list[dict[str, Any]]:
-    """Une ligne par collection du catalogue, classée par une source nommée."""
+    """Une ligne par collection du catalogue, avec son étage et son exigence."""
     declaration = _load_yaml(GO_LIVE_SCOPE)
+    required_stages = set(declaration["go_live_required_scope"])
     catalogue = _catalogue()
     release = set(_current_release()["collections"])
-    authorized = activation_authorized()
-    instanciee = {
-        name for name, entry in catalogue.items() if entry.get("instanciee") is True
-    }
+    authorities = declared_activation_authorities()
+    historical = set((declaration.get("historical_pilot") or {}).get("collections", []))
 
-    scope_of: dict[str, str] = {}
-    for scope_class in SCOPE_CLASSES:
-        block = declaration[scope_class]
-        for collection in block["collections"]:
-            if collection in scope_of:
-                raise ValueError(
-                    f"{collection} is classified twice: {scope_of[collection]} "
-                    f"and {scope_class}"
-                )
-            scope_of[collection] = scope_class
-
-    unclassified = set(catalogue) - set(scope_of)
-    if unclassified:
-        raise ValueError(f"unclassified catalogue collections: {sorted(unclassified)}")
-    unknown = set(scope_of) - set(catalogue)
-    if unknown:
-        raise ValueError(f"scope names collections absent from catalogue: {sorted(unknown)}")
-
-    first_release = release & instanciee
     rows: list[dict[str, Any]] = []
     for collection in sorted(catalogue):
-        scope_class = scope_of[collection]
+        entry = catalogue[collection]
+        stage = school_stage_of(collection, entry, declaration)
+        authority = authorities.get(collection)
         rows.append(
             {
                 "collection": collection,
                 "exists_in_catalogue": True,
-                "product_scope": scope_class,
-                "activation_authorized": authorized.get(collection, []),
-                "instanciee": catalogue[collection].get("instanciee") is True,
-                "first_release_required": collection in first_release,
-                "final_go_live_required": scope_class == "pilot_vertical",
-                "governing_source": declaration[scope_class]["source"],
-                "reason": declaration["sources"][declaration[scope_class]["source"]].strip(),
+                "school_stage": stage,
+                "product_scope": (
+                    "go_live_required" if stage in required_stages else stage
+                ),
+                "activation_authority": (
+                    authority.get("authority") if authority else None
+                ),
+                "activation_authority_kind": (
+                    authority.get("kind") if authority else None
+                ),
+                "instanciee": entry.get("instanciee") is True,
+                "in_first_servable_release": collection in release,
+                "final_go_live_required": stage in required_stages,
+                "historical_pilot": collection in historical,
+                "governing_source": declaration["authority"],
             }
+        )
+
+    unclassified = [row["collection"] for row in rows if row["school_stage"] == "unclassified"]
+    if unclassified:
+        raise ValueError(
+            "collections whose school stage cannot be derived from the catalogue: "
+            f"{unclassified}"
         )
     return rows
 
@@ -335,6 +407,9 @@ def main(argv: list[str] | None = None) -> int:
         "CURRENT_RELEASE_MINUS_INSTANCIEE",
         "INSTANCIEE_MINUS_CURRENT_RELEASE",
         "INSTANCIEE_WITHOUT_NAMED_AUTHORITY",
+        "INSTANCIATED_WITHOUT_DECLARED_AUTHORITY",
+        "AUTHORITY_SOURCE_MISSING",
+        "RELEASE_MEMBERSHIP_DECLARED",
     ):
         print(f"  {name:38s} = {len(sets[name])}")
     required = [row["collection"] for row in matrix if row["final_go_live_required"]]

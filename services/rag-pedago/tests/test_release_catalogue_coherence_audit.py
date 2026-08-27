@@ -140,7 +140,7 @@ def test_the_machine_readable_evidence_is_versioned_and_matches_the_audit(
     import json
 
     evidence_path = (
-        ROOT / "docs/reports/evidence/release_catalogue_coherence_20260826.json"
+        ROOT / "docs/reports/evidence/release_catalogue_coherence_20260827.json"
     )
     evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
     _module_, rows, summary = audited
@@ -231,60 +231,140 @@ def test_instanciated_collections_without_a_named_authority_stay_visible(
         assert collection not in sets["ACTIVATION_AUTHORIZED"]
 
 
-def test_the_scope_matrix_classifies_every_catalogue_collection_exactly_once(
+def test_the_scope_matrix_covers_every_catalogue_collection(
     sets: dict[str, Any], matrix: list[dict[str, Any]]
 ) -> None:
     assert len(matrix) == len(sets["CATALOGUE"])
     assert [row["collection"] for row in matrix] == sets["CATALOGUE"]
     assert all(row["exists_in_catalogue"] for row in matrix)
+    assert all(row["school_stage"] != "unclassified" for row in matrix)
 
 
-def test_every_scope_row_names_the_source_that_governs_it(
-    matrix: list[dict[str, Any]],
+def test_the_go_live_scope_is_college_lycee_general_and_stmg(
+    audited: tuple[Any, list[Any], dict[str, Any]],
 ) -> None:
-    for row in matrix:
-        assert row["governing_source"], row["collection"]
-        assert len(row["reason"]) > 40, row["collection"]
+    """ADR-0048 : le périmètre obligatoire n'est plus le vertical pilote.
 
-
-def test_final_go_live_requirement_comes_from_the_roadmap_pilot_only(
-    matrix: list[dict[str, Any]],
-) -> None:
-    """Le référentiel scolaire décrit le système éducatif, pas le produit.
-
-    L'autorité de périmètre est la décision de cadrage du ROADMAP — vertical
-    pilote Terminale générale, spécialités Maths + NSI — et rien d'autre.
+    Ce test existe pour qu'aucun audit futur ne puisse redériver
+    « GO_LIVE_READY = Maths + NSI Terminale ». Le périmètre est une donnée
+    vérifiable, pas une reconstruction depuis des documents narratifs.
     """
-    required = [row for row in matrix if row["final_go_live_required"]]
-    assert {row["collection"] for row in required} == {
+    module, _rows, _summary = audited
+    declaration = module._load_yaml(module.GO_LIVE_SCOPE)
+
+    assert declaration["authority"] == "ADR-0048"
+    assert set(declaration["go_live_required_scope"]) == {
+        "college",
+        "lycee_general",
+        "stmg",
+    }
+    assert (module.REPOSITORY_ROOT / "docs/adr/ADR-0048-perimetre-go-live-college-lycee-stmg.md").is_file()
+
+
+def test_the_historical_pilot_no_longer_commands_the_final_verdict(
+    matrix: list[dict[str, Any]],
+) -> None:
+    """Le pilote reste tracé, mais ne définit plus rien."""
+    pilot = {row["collection"] for row in matrix if row["historical_pilot"]}
+    required = {row["collection"] for row in matrix if row["final_go_live_required"]}
+
+    assert pilot == {
         "rag_nexus_maths_terminale_gen_specialite",
         "rag_nexus_nsi_terminale_specialite",
     }
-    for row in required:
-        assert row["product_scope"] == "pilot_vertical"
-        assert row["governing_source"] == "roadmap_pilot"
+    # Le pilote est strictement inclus dans le périmètre requis : s'il lui était
+    # égal, la décision opérateur aurait été perdue.
+    assert pilot < required, "le périmètre requis s'est réduit au pilote"
 
 
-def test_the_pilot_vertical_is_covered_by_the_first_release_candidate(
-    sets: dict[str, Any], matrix: list[dict[str, Any]]
+def test_absence_of_source_material_never_shrinks_the_required_scope(
+    matrix: list[dict[str, Any]],
 ) -> None:
-    """Réduire la release aux collections instanciées ne rétrécit pas le produit.
+    """Une collection sans ressource reste requise structurellement.
 
-    Si le pilote n'était pas entièrement couvert, le retrait des collections non
-    instanciées serait une réduction silencieuse de périmètre, pas une
-    correction de cohérence.
+    C'est l'erreur exacte qu'ADR-0048 ferme : la 6e, sans aucun fichier Drive,
+    avait été déclarée hors périmètre. Structure et contenu sont deux axes
+    indépendants.
     """
-    pilot = {row["collection"] for row in matrix if row["product_scope"] == "pilot_vertical"}
-    assert pilot <= set(sets["FIRST_RELEASE_CANDIDATE"]), pilot - set(
-        sets["FIRST_RELEASE_CANDIDATE"]
+    required = [row for row in matrix if row["final_go_live_required"]]
+    not_instanciated = [row for row in required if not row["instanciee"]]
+
+    # Le périmètre requis contient nécessairement des collections non encore
+    # instanciées : sinon il aurait été aligné sur l'état courant du catalogue.
+    assert not_instanciated, "le périmètre requis a été aligné sur l'existant"
+    assert all(row["school_stage"] != "out_of_scope" for row in required)
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Les trois invariants qui exigent la release CORRIGÉE arrivent avec la
+# régénération, pas avant : `release ⊆ instanciee`, `membership == release`
+# et l'idempotence de `--check`. Les poser ici rendrait la suite rouge sur
+# `main` pour documenter un travail non fait — ce que le projet interdit.
+# Ils sont nommés dans le rapport de lot comme critère de fermeture.
+# ─────────────────────────────────────────────────────────────────────────
+
+
+def test_being_instanciated_never_grants_release_membership(
+    sets: dict[str, Any],
+) -> None:
+    """INSTANCIEE =/=> RELEASE_MEMBER — l'appartenance reste choisie.
+
+    Si l'ensemble des instanciées coïncidait avec la release, rien ne
+    distinguerait plus une énumération explicite d'un filtre automatique.
+    """
+    assert sets["INSTANCIEE_MINUS_CURRENT_RELEASE"], (
+        "toutes les collections instanciées sont dans la release : "
+        "l'appartenance n'est plus une décision"
     )
 
 
-def test_first_release_required_never_exceeds_the_release_itself(
-    sets: dict[str, Any], matrix: list[dict[str, Any]]
+def test_no_collection_is_activated_without_a_declared_authority(
+    sets: dict[str, Any],
 ) -> None:
-    required = {row["collection"] for row in matrix if row["first_release_required"]}
-    assert required == set(sets["FIRST_RELEASE_CANDIDATE"])
+    """`instanciee=true AND activation_authority=unknown` doit être impossible."""
+    assert sets["INSTANCIATED_WITHOUT_DECLARED_AUTHORITY"] == []
+    assert sets["AUTHORITY_SOURCE_MISSING"] == []
+
+
+def test_the_historical_nsi_activation_is_encoded_not_rewritten(
+    audited: tuple[Any, list[Any], dict[str, Any]],
+) -> None:
+    """LOT 25a a activé NSI avant le régime des ADR d'activation.
+
+    Inventer rétroactivement une ADR falsifierait l'histoire. L'autorité réelle
+    est encodée comme `grandfathered`, avec sa source et sa preuve.
+    """
+    module, _rows, _summary = audited
+    authorities = module.declared_activation_authorities()
+
+    for collection in (
+        "rag_nexus_nsi_premiere_specialite",
+        "rag_nexus_nsi_terminale_specialite",
+    ):
+        entry = authorities[collection]
+        assert entry["kind"] == "grandfathered"
+        assert entry["authority"] == "LOT-25a"
+        assert entry["evidence"].strip()
+        assert (module.REPOSITORY_ROOT / entry["source"]).is_file()
+
+
+def test_the_first_servable_release_is_never_the_go_live_verdict(
+    audited: tuple[Any, list[Any], dict[str, Any]],
+) -> None:
+    """Aucun rapport ne doit pouvoir dériver FIRST_SERVABLE => GO_LIVE_READY."""
+    module, _rows, _summary = audited
+    membership = module.release_membership()
+
+    assert membership["release_name"] == "FIRST_SERVABLE_RELEASE"
+    assert membership["release_type"] == "intermediate"
+    assert membership["go_live_complete"] is False
+
+    matrix = module.go_live_scope_matrix()
+    required = {row["collection"] for row in matrix if row["final_go_live_required"]}
+    assert set(membership["members"]) < required, (
+        "la release intermédiaire couvre tout le périmètre requis : "
+        "la distinction avec GO_LIVE_READY a disparu"
+    )
 
 
 def test_the_report_verdict_does_not_depend_on_the_check_flag(

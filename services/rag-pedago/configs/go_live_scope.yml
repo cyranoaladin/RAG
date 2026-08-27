@@ -1,139 +1,111 @@
 # Périmètre produit du GO-LIVE — déclaration canonique versionnée.
 #
-# Ce fichier ne décide rien : il transcrit, collection par collection, ce que
-# les autorités de périmètre déjà versionnées du dépôt disent. Chaque classe
-# cite sa source ; l'auditeur refuse toute collection du catalogue qui ne serait
-# classée nulle part, et toute collection classée deux fois.
+# ═══════════════════════════════════════════════════════════════════════
+# AUTORITÉ : ADR-0048. Décision opérateur du 2026-08-27.
 #
-# Pourquoi ce fichier existe : le référentiel scolaire décrit le système
-# éducatif français, pas le périmètre du produit. S'en servir comme autorité de
-# périmètre conduit à surestimer ce que le GO-LIVE exige — c'est l'erreur que
-# cette déclaration ferme.
+#     GO_LIVE_REQUIRED_SCOPE = college + lycee_general + stmg
+#
+# Elle SUPERSÈDE, pour le verdict `GO_LIVE_READY`, le vertical pilote
+# « Terminale générale, spécialités Maths + NSI » de docs/ROADMAP.md. Ce
+# pilote reste un jalon historique — conservé ci-dessous sous
+# `historical_pilot` — mais il ne commande plus aucun verdict final.
+#
+# Un audit futur ne doit jamais pouvoir redériver
+# « GO_LIVE_READY = Maths + NSI Terminale ». Le périmètre est ici une
+# donnée machine-vérifiable, pas une reconstruction depuis des documents
+# narratifs.
+# ═══════════════════════════════════════════════════════════════════════
+#
+# DEUX AXES INDÉPENDANTS, jamais confondus :
+#
+#   CURRICULUM_STRUCTURE_COMPLETE — le modèle représente tous les programmes
+#       du périmètre. Ne dépend pas de la quantité de ressources disponibles.
+#   PEDAGOGICAL_CONTENT_COVERAGE  — il existe assez de matière exploitable
+#       pour chaque programme requis.
+#
+# Une entrée sans ressource dans le Drive reste REQUISE structurellement et
+# porte `COVERAGE_GAP_NO_SOURCE_MATERIAL`. L'absence de matière n'a jamais
+# retiré un niveau du périmètre, et ne le fera pas.
 
-protocol_version: NEXUS-GO-LIVE-SCOPE-V1
+protocol_version: NEXUS-GO-LIVE-SCOPE-V2
+authority: ADR-0048
+supersedes: NEXUS-GO-LIVE-SCOPE-V1
 school_year: "2026-2027"
 
-sources:
-  roadmap_pilot: >-
-    docs/ROADMAP.md, « Cadrage » : « Vertical pilote décidé : Candidat libre —
-    Terminale générale, spécialités Maths + NSI (taxonomie déjà présente,
-    corpus le plus mûr, expertise interne pour juger la qualité). Les autres
-    niveaux/matières se déploient ensuite par réplication. »
-  roadmap_phase5: >-
-    docs/ROADMAP.md, Phase 5 « Mise à l'échelle » : « Déploiement des autres
-    niveaux/matières et du track AEFE ». Postérieure au déploiement du vertical
-    pilote, donc hors du périmètre exigé par le GO-LIVE initial.
-  lot27_out_of_v1: >-
-    docs/reports/lot_27_business_coverage_matrix.md, « Hors perimetre v1 (non
-    declare) », repris par l'en-tête « Périmètre v1 (D-PERIMETRE-EXPLICITE) »
-    de services/rag-engine/configs/rag_collections.yml.
-  lot27_complete_coverage: >-
-    docs/reports/lot_27_business_coverage_matrix.md, « LOT 28 requis —
-    couverture pedagogique complete » : la cible de couverture disciplinaire,
-    explicitement postérieure au pilote.
-  adr_0015: >-
-    docs/adr/ADR-0015-corpus-tous-niveaux.md : extension du catalogue à
-    l'architecture cible. Déclarer une collection n'est pas la mettre au
-    périmètre du GO-LIVE ; ADR-0015 §5 laisse les 24 nouvelles entrées
-    instanciee=false en attente de vagues progressives.
+# Le périmètre obligatoire. Une collection dont le `school_stage` figure ici
+# est structurellement requise par le GO-LIVE.
+go_live_required_scope:
+  - college
+  - lycee_general
+  - stmg
+
+# Étages dérivés du couple (niveau, voie) du catalogue. La dérivation est
+# faite par l'auditeur, jamais recopiée à la main collection par collection :
+# une collection ajoutée au catalogue hérite automatiquement de son étage, et
+# entre donc dans le périmètre sans intervention.
+school_stages:
+  college:
+    label: Collège
+    levels: [sixieme, cinquieme, quatrieme, troisieme]
+    voies: [college]
+    note: >-
+      Les niveaux `sixieme` et `cinquieme` ne sont pas encore représentables :
+      l'enum `Niveau` de nexus-contracts s'arrête à `quatrieme`. C'est un
+      blocker structurel du périmètre, traité par une évolution de contrat, et
+      non une raison de retirer ces niveaux.
+  lycee_general:
+    label: Lycée général
+    levels: [seconde, premiere, terminale]
+    voies: [gen, generale]
+    note: >-
+      Enseignements communs, spécialités, options et enseignements
+      facultatifs. Les ressources transversales et liées au baccalauréat en
+      relèvent également.
+  stmg:
+    label: Lycée technologique STMG
+    levels: [premiere, terminale]
+    voies: [stmg]
+    note: >-
+      Enseignements communs, spécialités et enseignements spécifiques. Les
+      cinq collections historiques ne définissent pas la couverture cible.
+
+# Hors périmètre produit. Seule exclusion admise, et elle est explicite.
+out_of_scope:
+  source: >-
+    Décision opérateur ADR-0048 : le périmètre technologique se limite à
+    STMG. Repris de l'en-tête « Périmètre v1 » de rag_collections.yml, qui
+    exclut déjà ST2S, STI2D, STL, STD2A, STHR et S2TMD.
+  voies: [professionnelle]
+  series: [st2s, sti2d, stl, std2a, sthr, s2tmd]
+  collections: []
+
+# Hors arborescence disciplinaire : isolement, non retrievable par design.
+infrastructure:
+  collections:
+    - rag_nexus_quarantine
 
 # ─────────────────────────────────────────────────────────────────────────
-# Le seul périmètre que le GO-LIVE initial doit couvrir.
-# final_go_live_required = true exactement pour ces collections.
+# Jalon historique, conservé pour la traçabilité. Ne commande aucun verdict.
 # ─────────────────────────────────────────────────────────────────────────
-pilot_vertical:
-  source: roadmap_pilot
+historical_pilot:
+  name: first_served_vertical
+  source: >-
+    docs/ROADMAP.md, « Cadrage » : « Vertical pilote décidé : Candidat libre —
+    Terminale générale, spécialités Maths + NSI ». Superseded par ADR-0048
+    pour la définition de GO_LIVE_READY.
+  status: superseded_for_go_live_verdict
   collections:
     - rag_nexus_maths_terminale_gen_specialite
     - rag_nexus_nsi_terminale_specialite
 
 # ─────────────────────────────────────────────────────────────────────────
-# Cible de couverture disciplinaire, nommée par LOT 27 comme travail LOT 28.
-# Requise pour la « couverture pedagogique complete », jamais pour le pilote.
+# États de couverture admis. Fermés : `UNKNOWN` n'en fait pas partie.
 # ─────────────────────────────────────────────────────────────────────────
-complete_coverage_target:
-  source: lot27_complete_coverage
-  collections:
-    - rag_nexus_emc_premiere_tc
-    - rag_nexus_emc_seconde_tc
-    - rag_nexus_emc_terminale_tc
-    - rag_nexus_francais_premiere_tc
-    - rag_nexus_francais_seconde_tc
-    - rag_nexus_francais_troisieme_tc
-    - rag_nexus_hg_premiere_tc
-    - rag_nexus_hg_seconde_tc
-    - rag_nexus_hg_terminale_tc
-    - rag_nexus_hg_troisieme_tc
-    - rag_nexus_maths_premiere_gen_specialite
-    - rag_nexus_maths_premiere_gen_tc
-    - rag_nexus_maths_premiere_stmg_tc
-    - rag_nexus_maths_seconde_tc
-    - rag_nexus_maths_terminale_gen_option_comp
-    - rag_nexus_maths_terminale_gen_option_exp
-    - rag_nexus_maths_terminale_stmg_tc
-    - rag_nexus_maths_troisieme_tc
-    - rag_nexus_nsi_premiere_specialite
-    - rag_nexus_pc_premiere_specialite
-    - rag_nexus_pc_terminale_specialite
-    - rag_nexus_ses_premiere_specialite
-    - rag_nexus_ses_terminale_specialite
-    - rag_nexus_snt_seconde_tc
-    - rag_nexus_svt_premiere_specialite
-    - rag_nexus_svt_terminale_specialite
-
-# ─────────────────────────────────────────────────────────────────────────
-# Explicitement hors périmètre v1.
-# ─────────────────────────────────────────────────────────────────────────
-out_of_v1:
-  source: lot27_out_of_v1
-  collections:
-    - rag_nexus_hggsp_premiere_specialite
-    - rag_nexus_hggsp_terminale_specialite
-    - rag_nexus_pc_seconde_tc
-    - rag_nexus_pc_troisieme_tc
-    - rag_nexus_ses_seconde_tc
-    - rag_nexus_svt_seconde_tc
-    - rag_nexus_svt_troisieme_tc
-
-# ─────────────────────────────────────────────────────────────────────────
-# Déclarées au catalogue pour l'architecture cible, nommées par aucune
-# autorité de périmètre produit. Ni pilote, ni cible de couverture, ni
-# exclusion explicite — leur activation attend sa propre décision.
-# ─────────────────────────────────────────────────────────────────────────
-architecture_target:
-  source: adr_0015
-  collections:
-    - rag_nexus_candidats_libres_terminale
-    - rag_nexus_dgemc_terminale_option
-    - rag_nexus_dnb
-    - rag_nexus_droiteco_premiere_stmg_specialite
-    - rag_nexus_droiteco_terminale_stmg_specialite
-    - rag_nexus_eps_premiere_tc
-    - rag_nexus_eps_seconde_tc
-    - rag_nexus_eps_terminale_tc
-    - rag_nexus_es_premiere_tc
-    - rag_nexus_es_terminale_tc
-    - rag_nexus_exams_anticipee_maths
-    - rag_nexus_exams_bac_general
-    - rag_nexus_francais_quatrieme_tc
-    - rag_nexus_grand_oral_terminale
-    - rag_nexus_hlp_premiere_specialite
-    - rag_nexus_hlp_terminale_specialite
-    - rag_nexus_llce_premiere_specialite
-    - rag_nexus_llce_terminale_specialite
-    - rag_nexus_lv_premiere_tc
-    - rag_nexus_lv_seconde_tc
-    - rag_nexus_lv_terminale_tc
-    - rag_nexus_lv_troisieme_tc
-    - rag_nexus_maths_quatrieme_tc
-    - rag_nexus_msdgn_terminale_stmg_specialite
-    - rag_nexus_philo_terminale_tc
-    - rag_nexus_techno_troisieme_tc
-
-# ─────────────────────────────────────────────────────────────────────────
-# Hors arborescence disciplinaire : isolement, non retrievable par design.
-# ─────────────────────────────────────────────────────────────────────────
-infrastructure:
-  source: adr_0015
-  collections:
-    - rag_nexus_quarantine
+coverage_states:
+  - COVERED_AND_RETRIEVABLE
+  - COVERED_NOT_YET_ACTIVATED
+  - COVERAGE_GAP_NO_SOURCE_MATERIAL
+  - COVERAGE_BLOCKED_BY_GOVERNANCE
+  - COVERAGE_BLOCKED_BY_PARSER
+  - COVERAGE_BLOCKED_BY_ROUTING
+  - COVERAGE_BLOCKED_BY_CONTRACT

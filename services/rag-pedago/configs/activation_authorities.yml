@@ -1,0 +1,111 @@
+# Autorité d'activation de chaque collection instanciée.
+#
+# `instanciee: true` rend une collection interrogeable. Cette bascule doit
+# toujours pouvoir être rattachée à une décision nommée — sinon une collection
+# devient servable sans qu'on puisse dire qui l'a décidé, ni sur quelles
+# preuves.
+#
+# Deux formes d'autorité seulement :
+#
+#   * `adr`          — une ADR d'activation qui nomme explicitement la
+#                      collection ;
+#   * `grandfathered` — une activation antérieure au régime des ADR
+#                      d'activation, encodée telle qu'elle a réellement eu
+#                      lieu, avec sa preuve. On n'invente pas rétroactivement
+#                      une ADR qui n'a pas existé ; on rend l'autorité
+#                      historique explicite et vérifiable.
+#
+# Invariant imposé par l'auditeur et par la CI :
+#     instanciee == true  =>  une entrée ici
+#     `activation_authority = unknown` est impossible.
+
+protocol_version: NEXUS-ACTIVATION-AUTHORITY-V1
+
+collections:
+
+  # ── ADR-0039 — Wave 0, après release readiness ──────────────────────
+  rag_nexus_maths_troisieme_tc:
+    kind: adr
+    authority: ADR-0039
+    source: docs/adr/ADR-0039-activation-wave0-apres-release-readiness.md
+  rag_nexus_francais_troisieme_tc:
+    kind: adr
+    authority: ADR-0039
+    source: docs/adr/ADR-0039-activation-wave0-apres-release-readiness.md
+
+  # ── ADR-0041 — activation multi-niveaux après readiness ─────────────
+  rag_nexus_maths_seconde_tc:
+    kind: adr
+    authority: ADR-0041
+    source: docs/adr/ADR-0041-activation-multi-niveaux-apres-readiness.md
+  rag_nexus_francais_seconde_tc:
+    kind: adr
+    authority: ADR-0041
+    source: docs/adr/ADR-0041-activation-multi-niveaux-apres-readiness.md
+  rag_nexus_maths_quatrieme_tc:
+    kind: adr
+    authority: ADR-0041
+    source: docs/adr/ADR-0041-activation-multi-niveaux-apres-readiness.md
+  rag_nexus_francais_quatrieme_tc:
+    kind: adr
+    authority: ADR-0041
+    source: docs/adr/ADR-0041-activation-multi-niveaux-apres-readiness.md
+  rag_nexus_maths_premiere_gen_specialite:
+    kind: adr
+    authority: ADR-0041
+    source: docs/adr/ADR-0041-activation-multi-niveaux-apres-readiness.md
+  rag_nexus_francais_premiere_tc:
+    kind: adr
+    authority: ADR-0041
+    source: docs/adr/ADR-0041-activation-multi-niveaux-apres-readiness.md
+  rag_nexus_maths_terminale_gen_specialite:
+    kind: adr
+    authority: ADR-0041
+    source: docs/adr/ADR-0041-activation-multi-niveaux-apres-readiness.md
+  rag_nexus_pc_terminale_specialite:
+    kind: adr
+    authority: ADR-0041
+    source: docs/adr/ADR-0041-activation-multi-niveaux-apres-readiness.md
+
+  # ── H2-C — politique de placement initial, cinq artefacts nommés ────
+  rag_nexus_philo_terminale_tc:
+    kind: adr
+    authority: h2_initial_placement_policy
+    source: services/rag-engine/configs/h2_initial_placement_policy.yml
+
+  # ── Activations antérieures au régime des ADR d'activation ──────────
+  # LOT 25a a instancié les deux collections NSI et y a publié 16 892
+  # chunks, avant qu'ADR-0039/ADR-0041 n'existent. Aucune ADR ne les nomme :
+  # la réécrire aujourd'hui inventerait une décision qui n'a pas eu lieu.
+  # L'autorité réelle est le lot lui-même, et elle est encodée comme telle.
+  rag_nexus_nsi_premiere_specialite:
+    kind: grandfathered
+    authority: LOT-25a
+    source: docs/reports/lot_25a_notebooks_base64.md
+    predates: ADR-0039
+    evidence: >-
+      Catalogue `rag_collections.yml` : « NSI (instanciées — 16 892 chunks
+      LOT 25a) ». Matrice de couverture métier LOT 27 : NSI Première et
+      Terminale sont les deux seules collections instanciées et retrievable
+      à cette date.
+  rag_nexus_nsi_terminale_specialite:
+    kind: grandfathered
+    authority: LOT-25a
+    source: docs/reports/lot_25a_notebooks_base64.md
+    predates: ADR-0039
+    evidence: >-
+      Même autorité que la collection Première : LOT 25a les a instanciées
+      ensemble.
+
+  # ── Hors arborescence disciplinaire ─────────────────────────────────
+  # Instanciée mais `retrievable: false` par construction (domaine
+  # `quarantine`). Son activation n'expose rien : elle isole.
+  rag_nexus_quarantine:
+    kind: grandfathered
+    authority: ADR-0013
+    source: docs/adr/ADR-0013-convergence-dual-engine.md
+    predates: ADR-0039
+    evidence: >-
+      Collection d'isolement déclarée par la convention de nomenclature ;
+      le domaine `quarantine` porte `retrievable: false`, donc aucune
+      exposition n'en découle.
