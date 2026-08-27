@@ -15,12 +15,12 @@ REVIEW_SCHEMAS = {
 }
 
 
-def test_package_version_is_0_14_0() -> None:
-    """0.14.0 (ADR-0045) ajoute les scopes retrieval production immuables
+def test_package_version_is_0_15_0() -> None:
+    """0.15.0 (ADR-0050) ajoute sixieme et cinquieme à l'enum Niveau
     sans rupture des contrats V1 existants."""
     root = Path(__file__).resolve().parents[1]
     pyproject = tomllib.loads((root / "pyproject.toml").read_text())
-    assert pyproject["project"]["version"] == "0.14.0"
+    assert pyproject["project"]["version"] == "0.15.0"
 
 
 def test_schema_export_is_deterministic(tmp_path: Path) -> None:
