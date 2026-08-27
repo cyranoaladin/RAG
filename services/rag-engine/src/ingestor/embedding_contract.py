@@ -195,12 +195,12 @@ def load_embedding_model(
             return SentenceTransformer(str(model_source), local_files_only=True)
         except TypeError:
             # sentence-transformers v5+ backward compatibility for legacy configs
-            from sentence_transformers import models as st_models
+            from sentence_transformers.models import Normalize, Pooling, Transformer
 
-            transformer_module = st_models.Transformer(str(model_source), max_seq_length=512)
+            transformer_module = Transformer(str(model_source), max_seq_length=512)
             dim = getattr(transformer_module, "get_embedding_dimension", transformer_module.get_word_embedding_dimension)()
-            pooling_module = st_models.Pooling(dim, pooling_mode="mean")
-            normalize_module = st_models.Normalize()
+            pooling_module = Pooling(dim, pooling_mode="mean")
+            normalize_module = Normalize()
             return SentenceTransformer(modules=[transformer_module, pooling_module, normalize_module])
     except EmbeddingContractError:
         raise

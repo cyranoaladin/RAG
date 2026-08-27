@@ -16,14 +16,9 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import json
 import logging
 import os
-import sys
-import time
 import urllib.request
-from collections.abc import Sequence
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -31,9 +26,8 @@ import psycopg
 from nexus_contracts.embedding_utils import format_passage
 from sentence_transformers import SentenceTransformer
 
-from ingestor.publication_chunking import PDF_MIME_TYPE, PublicationChunk, chunk_publication
+from ingestor.publication_chunking import PDF_MIME_TYPE, chunk_publication
 from ingestor.release_readiness import (
-    ReleaseRegistryExpectation,
     load_release_registry_file,
     validate_release_registry_readiness,
 )
@@ -169,7 +163,7 @@ def ingest_first_servable_release(
                 embeddings = model.encode(passages, normalize_embeddings=True, show_progress_bar=False)
 
                 # 3. Insertion dans public.rag_chunks
-                for idx, (chunk, emb, exp_chunk) in enumerate(zip(chunks, embeddings, exp_artifact.chunks)):
+                for idx, (chunk, emb, exp_chunk) in enumerate(zip(chunks, embeddings, exp_artifact.chunks, strict=True)):
                     text = chunk.text
                     chunk_sha = hashlib.sha256(text.encode("utf-8")).hexdigest()
                     chunk_id = hashlib.sha256(f"{content_sha}:{idx}:{chunk_sha}".encode()).hexdigest()
