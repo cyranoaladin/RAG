@@ -1,0 +1,197 @@
+# Surcharge opt-in — pile asynchrone héritée (redis + worker Celery + UI Streamlit).
+#
+# ═══════════════════════════════════════════════════════════════════════════
+# POURQUOI CE FICHIER EXISTE, ET POURQUOI PAS DANS docker-compose.v2.yml
+# ═══════════════════════════════════════════════════════════════════════════
+# `docker-compose.v2.yml` décrit une topologie GOUVERNÉE : lecture/revue plus
+# sa seule supervision. Elle est verrouillée par la suite de tests, qui exige
+# que son jeu de services soit exactement
+# {pgvector, ingestor, prometheus, alertmanager} et interdit nommément
+# {chroma, ollama, ui, redis, worker, celery, nginx} :
+#
+#   tests/test_prod_compose_config_mount.py
+#     ::test_v2_compose_contains_only_the_read_review_stack
+#     ::test_v2_compose_has_no_writer_worker
+#   tests/test_ui_runtime_dependency_lock.py
+#     ::test_ui_is_not_part_of_the_governed_v2_runtime
+#     ::test_historical_ui_is_not_referenced_by_v2_compose
+#   tests/test_embedding_model_artifact_contract.py
+#     ::TestComposeModelMount::test_compose_has_no_embedding_writer_worker
+#
+# L'invariant protégé n'est pas le nombre de services : c'est qu'aucune
+# capacité d'écriture du moteur A ne réapparaisse dans le runtime gouverné.
+#
+# Ces trois services tournaient jusqu'ici en ORPHELINS, créés par deux fichiers
+# de surcharge conservés dans `/tmp` et effacés depuis. Autrement dit : le
+# garde-fou ci-dessus était contourné par des fichiers hors dépôt. Les remettre
+# dans `docker-compose.v2.yml` aurait rendu ce contournement permanent et fait
+# passer six tests verts au rouge.
+#
+# Ce fichier applique donc le motif que le dépôt sanctionne déjà pour
+# `docker-compose.ingestion.yml` : un fichier séparé, strictement additif,
+# chargé uniquement par un second `-f` explicite. Le `up` normal du runtime v2
+# ne le voit jamais.
+#
+# ═══════════════════════════════════════════════════════════════════════════
+# USAGE
+# ═══════════════════════════════════════════════════════════════════════════
+#   docker compose -p infra \
+#       -f docker-compose.v2.yml \
+#       -f docker-compose.legacy-async.yml \
+#       up -d
+#
+# Le projet est `infra` : le passer explicitement est impératif, `.env` déclare
+# `COMPOSE_PROJECT_NAME=nexusrag` et l'omettre adresse une AUTRE pile, avec
+# d'autres volumes (cf. docs/reports/lot_dette_infra_rag_20260827.md §0).
+#
+# Configuration restituée depuis `~/diag-reseau/orphelins-rag.json`. Trois
+# dettes purgées au passage : le montage de modèles ne pointe plus `/tmp`, les
+# identifiants ne sont plus en dur, et les DSN sont dérivés des variables
+# canoniques — celui du worker portait un mot de passe hérité du moteur A, qui
+# ne correspond plus à `PGVECTOR_PASSWORD`, de sorte que le worker orphelin ne
+# pouvait pas joindre la base.
+
+volumes:
+  # Volume déjà existant sous le nom `infra_rag_redis_data` : le déclarer ici
+  # le rattache au projet au lieu de le laisser orphelin. L'AOF Celery est
+  # conservé.
+  rag_redis_data:
+
+services:
+  redis:
+    image: redis:7-alpine@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2
+    restart: unless-stopped
+    command:
+      - redis-server
+      - "--requirepass"
+      - "${REDIS_PASSWORD:?REDIS_PASSWORD requis}"
+      - "--maxmemory"
+      - "1gb"
+      - "--maxmemory-policy"
+      - "allkeys-lru"
+      - "--appendonly"
+      - "yes"
+    volumes:
+      - rag_redis_data:/data
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6381}:6379"
+    networks: [rag_net]
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:?REDIS_PASSWORD requis}", "ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    security_opt: [no-new-privileges:true]
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 1280M
+
+  worker:
+    build:
+      context: ../../..
+      # Dockerfile RESTITUÉ depuis `docker history infra-worker:latest`, non
+      # revalidé par une reconstruction. Lire son en-tête avant tout
+      # `compose build worker`.
+      dockerfile: services/rag-engine/infra/Dockerfile.celery-worker
+    restart: unless-stopped
+    depends_on:
+      pgvector:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      TZ: ${TZ:-UTC}
+      DATABASE_URL: "postgresql+asyncpg://${PGVECTOR_USER:-raguser}:${PGVECTOR_PASSWORD:?PGVECTOR_PASSWORD requis}@pgvector:5432/${PGVECTOR_DB:-ragdb}"
+      DATABASE_URL_SYNC: "postgresql://${PGVECTOR_USER:-raguser}:${PGVECTOR_PASSWORD:?PGVECTOR_PASSWORD requis}@pgvector:5432/${PGVECTOR_DB:-ragdb}"
+      REDIS_URL: "redis://:${REDIS_PASSWORD:?REDIS_PASSWORD requis}@redis:6379/0"
+      REDIS_CACHE_URL: "redis://:${REDIS_PASSWORD:?REDIS_PASSWORD requis}@redis:6379/1"
+      API_SECRET_KEY: "${WORKER_API_SECRET_KEY:?WORKER_API_SECRET_KEY requis}"
+      EMBED_MODEL: intfloat/multilingual-e5-large
+      EMBED_DIM: "1024"
+      # Remplace le montage `/tmp/rag-lot-v2-models` de la configuration perdue.
+      RAG_EMBEDDING_MODEL_CACHE_DIR: /models/e5-large
+      MAX_CHUNK_SIZE: "${MAX_CHUNK_SIZE:-1000}"
+      CHUNK_OVERLAP: "${CHUNK_OVERLAP:-200}"
+      MAX_REMOTE_BYTES: "${MAX_REMOTE_BYTES:-26214400}"
+      LOCAL_SOURCE_ROOT: /data/uploads
+      METRICS_ENABLED: "${METRICS_ENABLED:-true}"
+      # Le service `ollama` n'existe PAS dans cette pile. La variable est
+      # transmise telle quelle, vide par défaut : ni service inventé, ni valeur
+      # devinée. Dette ouverte, cf. rapport de lot §3.3.
+      OLLAMA_URL: "${OLLAMA_URL:-}"
+      OLLAMA_BASE_URL: "${OLLAMA_URL:-}"
+      XDG_CACHE_HOME: /tmp
+    volumes:
+      - ./data/uploads:/data/uploads:rw
+      - ${RAG_EMBEDDING_MODEL_ARTIFACT_HOST_DIR:-./data/.no-model-cache}:/models/e5-large:ro
+    networks: [rag_net]
+    command:
+      - celery
+      - "-A"
+      - tasks
+      - worker
+      - "--loglevel=info"
+      - "--concurrency=${WORKER_CONCURRENCY:-2}"
+    security_opt: [no-new-privileges:true]
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 8G
+
+  ui:
+    build:
+      context: ../../..
+      dockerfile: services/rag-engine/src/ui/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      ingestor:
+        condition: service_healthy
+    environment:
+      TZ: ${TZ:-UTC}
+      RAG_API_URL: http://ingestor:8001
+      RAG_API_TOKEN: "${UI_RAG_API_TOKEN:?UI_RAG_API_TOKEN requis}"
+      STREAMLIT_SERVER_HEADLESS: "true"
+      XDG_CACHE_HOME: /tmp
+    ports:
+      - "127.0.0.1:${UI_PORT:-8502}:8501"
+    networks: [rag_net]
+    command:
+      - streamlit
+      - run
+      - app_v2.py
+      - "--server.headless=true"
+      - "--server.port=8501"
+      - "--server.address=0.0.0.0"
+    read_only: true
+    tmpfs: ["/tmp", "/root/.streamlit"]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8501/_stcore/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 25s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 2G
