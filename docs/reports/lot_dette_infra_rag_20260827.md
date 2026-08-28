@@ -903,6 +903,7 @@ Chantier de paquet, exigeant un ADR et un bump SemVer : hors de ce lot.
 | 21 | Dépréciation des 18 scopes `_v1` : exige de prouver qu'aucune enveloppe émise ne les référence. Hors périmètre d'ADR-0052, à trancher séparément | basse |
 | 22 | Un scope `_v2` ne dit pas qu'il procède d'un rescellement plutôt que d'un contenu nouveau : le lien vit dans ADR-0052, pas dans l'artefact. Évolution de contrat à envisager | basse |
 | 23 | `release_impact_closure.py` couvre deux formes d'empreinte (octets, JSON canonique compact). Étendre : recenser les `canonical_bytes`/`_canonical_bytes` de `nexus_contracts`, associer chaque forme aux modèles qui l'emploient, et faire valider chaque JSON contre les modèles candidats. Énumérer les producteurs, pas les formes | moyenne |
+| 25 | Le balayage de fermeture porte sur le dépôt ; les runtimes figés (image Docker, `pip install` non éditable) lui sont invisibles par construction. Couvert par `check_runtime_conformance.py`, à exécuter après tout changement de `packages/contracts` | moyenne |
 | 24 | **`nexus-contracts` porte au moins cinq canonicalisations JSON divergentes**, plus des empreintes sur projection de champs. Deux modules censés s'accorder sur une empreinte peuvent diverger sans que rien ne le détecte — défaut de paquet, même famille que la dette n°13 (§3decies) | **haute** |
 
 ---

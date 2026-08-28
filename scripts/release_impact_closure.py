@@ -39,6 +39,25 @@ modifié, et non une valeur **dans** son contenu. `release-registry.json` a chan
 de contenu ; son propre sha256 n'apparaît nulle part dans le diff, par
 construction — et c'est précisément lui qu'épinglaient les couches 4 et 5.
 
+═══ FRONTIÈRE DE VALIDITÉ — LE RUNTIME N'EST PAS LE DÉPÔT ═══════════════════
+
+Cet outil balaie **le dépôt**. Tout ce qui exécute du code hors versionnement lui
+est invisible **par construction**, et non par omission :
+
+- **images Docker** : le contrat est copié dans l'image au build, puis figé ;
+- **environnements virtuels** : `pip install -e` suit les sources, un
+  `pip install` ordinaire fige une copie ;
+- **caches** de toute nature.
+
+Le 28/08/2026, la seconde émission des scopes a été committée, testée verte sur
+trois paquets, et le runtime a continué de refuser de démarrer : l'image de
+l'ingestor embarquait `nexus-contracts` 0.14.0, 31 scopes, aucun `_v2`. Aucun
+balayage du dépôt ne pouvait le voir.
+
+Une fermeture complète ne prouve donc **rien** sur ce que les runtimes exécutent.
+`scripts/check_runtime_conformance.py` couvre cette seconde question ; les deux
+outils sont complémentaires et aucun ne remplace l'autre.
+
 ═══ CLASSIFICATION ══════════════════════════════════════════════════════════
 
 Chaque site est classé, et la classe décide du traitement :
@@ -48,6 +67,12 @@ Chaque site est classé, et la classe décide du traitement :
 - **propagateur** : son contenu change, donc son empreinte change, donc il ouvre
   potentiellement une couche de plus.
 - **terminal** : il référence une valeur mais rien ne référence son empreinte.
+
+Limite connue : deux formes d'empreinte sont recherchées — octets et JSON
+canonique compact. `nexus-contracts` en emploie au moins cinq, plus des
+empreintes calculées sur une *projection de champs* (`canonical_document()`),
+qu'aucune fonction générique appliquée au fichier ne peut reproduire. La carte
+est complète **sous ces deux modes**, pas absolument (dettes n°23 et n°24).
 
 ═══ USAGE ═══════════════════════════════════════════════════════════════════
 

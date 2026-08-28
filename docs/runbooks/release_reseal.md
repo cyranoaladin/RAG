@@ -291,6 +291,42 @@ print(f'couples={len(pairs)} distincts={len(set(pairs))} collisions={len(dup)}')
 "
 ```
 
+### 2.4 Le runtime n'est pas le dépôt — frontière de la méthode
+
+Le balayage du §2.3 porte sur **le dépôt**. Il ne dit rien de ce que les runtimes
+exécutent, et cette limite est structurelle, pas accidentelle.
+
+Un runtime porte le code du dépôt de deux manières, et la distinction décide de
+tout :
+
+| Portage | Reconnaissance | Comportement |
+|---|---|---|
+| **lié** | installation éditable, le module pointe une source du dépôt | le code suit le dépôt ; la *métadonnée* de version peut dater de l'installation |
+| **figé** | copie embarquée : image Docker, `pip install` non éditable | code **et** métadonnée datent de la copie, et divergent en silence |
+
+Le 28/08/2026, la seconde émission des scopes a été committée, testée verte sur
+les trois paquets, et l'ingestor a continué de refuser de démarrer sur
+`scope source SHA differs from subject release`. Son image embarquait
+`nexus-contracts` 0.14.0 — 31 scopes, aucun `_v2` — figé au build. **Aucun
+balayage du dépôt ne pouvait le voir.**
+
+```bash
+python3 scripts/check_runtime_conformance.py
+```
+
+L'outil énumère les paquets locaux par leurs `pyproject.toml`, interroge chaque
+runtime, établit son portage et signale les écarts. Il sort en **code 1** sur un
+runtime *figé* qui diverge — condition bloquante — et se contente d'un
+avertissement sur un runtime *lié* dont seule la métadonnée a vieilli.
+
+> **Toute modification de `packages/contracts` impose de reconstruire l'image de
+> l'ingestor.** Le contrôle porte sur la version *embarquée*, jamais sur celle du
+> dépôt.
+
+```bash
+./scripts/rag-stack.sh build ingestor
+```
+
 ## 3. Ce que la ré-émission ne touche pas — vérification obligatoire
 
 Les 18 **ReviewBindings Ed25519** de `governance/review-bindings/` lient des
@@ -509,11 +545,18 @@ octet pour octet. Les tests passent par le CLI, jamais par un appel parallèle :
 | 10 | **Commit** — la provenance a besoin d'un arbre git | §4ter |
 | 11 | **Placement de scope et provenance, depuis le nouveau HEAD** | §4ter |
 | 12 | Second commit, puis rejeu du test de dérive | §4ter |
+| 13 | **Reconstruction des runtimes figés** — image de l'ingestor | §2.4 |
+| 14 | `check_runtime_conformance.py` : 0 écart bloquant | §2.4 |
+| 15 | Démarrage et contrôle de bout en bout | §4 |
 
 Les étapes 9 à 12 forment une boucle : toute correction exigée par la CI après
 l'étape 11 modifie l'arbre, donc périme la provenance. Dans ce cas, **reprendre à
 l'étape 9** — CI, commit, provenance, commit — jusqu'à ce que la CI et le test de
 dérive soient verts ensemble sur le même arbre.
+
+Les étapes 13 à 15 sont **les seules qui prouvent quelque chose sur le runtime**.
+Une CI verte sur un dépôt correct n'établit rien sur ce qu'exécute une image
+construite la veille : ne pas les traiter comme une formalité de clôture.
 
 C'est le seul point de la procédure où l'ordre ne peut pas être relâché : une
 provenance produite hors séquence est fausse **sans être détectable**, puisqu'elle
