@@ -365,6 +365,84 @@ docker info --format '{{json .DefaultAddressPools}}'
 **Non appliqué dans ce lot** : le redémarrage du démon dépasse le périmètre et
 demande une fenêtre choisie par l'opérateur.
 
+### Fenêtre de redémarrage proposée — 28/08/2026
+
+Relevé de l'état réel avant de proposer quoi que ce soit : **15 conteneurs**, six
+piles distinctes. Ce qui décide de la durée n'est pas Docker, c'est ce qui ne
+revient pas tout seul.
+
+| Pile | Conteneurs | `restart` | Au redémarrage du démon |
+|---|---|---|---|
+| `nexusrag` | ingestor, pgvector, prometheus, alertmanager | `unless-stopped` | reviennent seuls |
+| `korrigo-local` | 6 conteneurs | `unless-stopped` | reviennent seuls |
+| `workflow_correction` | 3 conteneurs | `unless-stopped` | reviennent seuls |
+| `nexus-postgres-test` | 1 | **`no`** | **ne revient pas** |
+| `nexus-lot42-770fba690b` | 1 | **`no`** | **ne revient pas** |
+
+**Deux conteneurs ne reviendront pas.** Ils tournent depuis 3 et 26 heures ; ce
+sont des bases d'essai, sans volume nommé déclaré. Leur relance est manuelle et
+leur contenu, s'il n'est pas dans un volume, est perdu. C'est le seul vrai coût
+de la fenêtre, et il n'apparaît nulle part dans le geste `systemctl restart`.
+
+#### Durée à prévoir
+
+| Étape | Durée |
+|---|---|
+| Sauvegarde de `daemon.json` + validation JSON | 2 min |
+| `systemctl restart docker` | 10–30 s |
+| Retour des 13 conteneurs `unless-stopped` | 1–3 min |
+| Rechargement du modèle e5-large par l'ingestor | **40–60 s** (mesuré) |
+| Relance manuelle des 2 conteneurs `restart: no` | 2–5 min |
+| Vérification (`/health`, une requête servie) | 3 min |
+| **Total** | **10 à 15 minutes** |
+
+#### Fenêtre recommandée
+
+**Avant la mise en service publique, et de préférence avant l'ingestion des
+2451 documents.** Trois raisons, dans cet ordre :
+
+1. **Aucun utilisateur n'est encore servi.** L'indisponibilité coûte aujourd'hui
+   zéro. Après mise en service, la même fenêtre devient une interruption
+   annoncée.
+2. **L'ingestion complète est un travail de plusieurs heures.** La redémarrer au
+   milieu serait bien pire que de la précéder — et ce poste est itinérant, donc
+   exposé précisément au défaut que le correctif traite.
+3. **Le correctif ne renumérote rien.** `default-address-pools` ne vaut que pour
+   les réseaux créés *ensuite*. Les onze bridges existants restent. Pour que le
+   correctif serve, il faut aussi supprimer et recréer
+   `bilan-foundation-main-baseline_default` — donc arrêter sa pile. Le faire
+   pendant qu'elle est déjà arrêtée est le moment le moins cher qui existera.
+
+#### Ordre d'exécution proposé
+
+```bash
+# 1. Recenser ce qui ne reviendra pas — avant, pas après.
+docker inspect $(docker ps -q) --format '{{.Name}} {{.HostConfig.RestartPolicy.Name}}' \
+  | grep ' no$'
+
+# 2. Sauvegarder et valider (étapes 1 à 3 ci-dessus, non facultatives).
+
+# 3. Redémarrer.
+sudo systemctl restart docker
+
+# 4. Vérifier le retour, puis relancer manuellement les conteneurs `restart: no`.
+docker ps --format '{{.Names}}\t{{.Status}}'
+curl -sf http://127.0.0.1:8011/health
+
+# 5. Seulement ensuite : recréer le bridge fautif.
+docker network rm bilan-foundation-main-baseline_default
+```
+
+**Ce qui reste à la décision de l'opérateur** : la date, et le sort des deux
+conteneurs d'essai. Rien de tout cela n'est exécuté ici.
+
+#### Ce que cette fenêtre ne résout pas
+
+Le poste reste itinérant. Le correctif déplace l'auto-allocation hors de
+`192.168.0.0/16` ; il ne garantit pas qu'aucun réseau futur n'entrera jamais en
+collision. Un plan d'adressage qui recouvre les plages grand public restera
+recouvrant sur *une* box quelque part.
+
 ## 3ter. Gate opérateur — artefact embedding scellé mais incomplet
 
 Constaté le 28/08/2026 en démarrant l'ingestor sur la base canonique.
@@ -903,19 +981,35 @@ le chemin de requête est **infirmée par la mesure**.
 
 Décomposition du temps, mesurée dans le conteneur avec les modèles chauds :
 
-| Étape | Coût |
+| Étape | Coût mesuré |
 |---|---|
 | Encodage de la requête (e5-large, CPU) | 0,59 s |
 | Rerank 10 paires | 1,11 s |
 | Rerank 30 paires | 3,30 s |
-| **Rerank 50 paires** (`CHANNEL_LIMIT`) | **5,39 s** |
+| Rerank 50 paires | 5,39 s |
 
-Le cross-encoder domine tout, et croît linéairement avec le nombre de candidats.
-**À `CHANNEL_LIMIT = 50`, le reranking seul dépasse le budget
-`PG_DATABASE_BUDGET_MS = 6000`**, avant même l'encodage et la base.
+> **Ces chiffres de rerank ne mesurent PAS le chemin réel.** Ils ont été relevés
+> dans un `docker exec` concurrent au serveur — donc en contention CPU — sur des
+> paires fabriquées. Et surtout, `CHANNEL_LIMIT = 50` n'est pas une taille de
+> lot : c'est un **plafond de refus** (`raise RetrievalPipelineError` si
+> dépassé). La collection interrogée porte **18 chunks** ; le reranking réel en
+> traite au plus 18, soit ~1,9 s par extrapolation linéaire — cohérent avec les
+> 4,5–4,9 s observés de bout en bout.
+>
+> L'énoncé « le reranking seul dépasse le budget » était **faux** : un composant
+> ne peut pas coûter plus que le tout qui le contient. Une dette fondée sur un
+> nombre qui ne mesure pas ce qu'il annonce serait le contrôle qui affirme plus
+> qu'il n'a vérifié, appliqué à une métrique.
 
-Le régime observé (~4,8 s) correspond à un jeu de candidats plus petit : la base
-ne porte que 730 chunks et une seule collection répond à la requête d'essai.
+**Ce que les mesures établissent réellement** : le cross-encoder domine le temps
+de réponse et croît **linéairement** avec le nombre de candidats — ~0,11 s par
+paire sur ce matériel. C'est la pente qui est le fait, pas le point à 50.
+
+Le régime nominal est de **4,5 à 4,9 s pour 18 candidats**, contre un budget de
+6 s. La marge est d'environ 20 %, et elle se consomme à mesure qu'une collection
+s'enrichit : à 50 candidats — plafond structurel du pipeline — la pente mesurée
+place le seul reranking au-delà du budget. **Ce point n'a pas été observé**, il
+est extrapolé, et c'est à ce titre qu'il figure ici.
 
 Le 503 initial est survenu sur la **toute première requête après reconstruction de
 l'image**, quand les 2,2 Go de poids n'étaient pas dans le cache de pages de
@@ -926,10 +1020,13 @@ non-reproductibilité.
 ### Pourquoi le réchauffement de bout en bout ne suffit pas
 
 Encoder une requête factice avant de déclarer le service prêt ferait disparaître
-le cas « cache de pages froid ». Cela ne toucherait pas le cas « 50 candidats »,
-qui est le pire cas structurel. Le prochain déclencheur ne serait pas un
+le cas « cache de pages froid ». Cela ne toucherait pas la **pente** du
+reranking, qui est le fait structurel. Le prochain déclencheur ne serait pas un
 redémarrage mais **une collection mieux fournie** — c'est-à-dire le succès du
 produit.
+
+Mesurer avant d'arbitrer : un tir à nombre de candidats croissant donnerait le
+point de bascule réel, aujourd'hui extrapolé d'une pente et non observé.
 
 Corriger le symptôme le moins probable en laissant le pire cas ouvert
 donnerait une assurance que la mesure ne soutient pas.
@@ -952,9 +1049,11 @@ technique.
 séquentielle**, sur CPU, sans GPU sur cette machine (l'ingestion a tourné avec
 `CUDA_VISIBLE_DEVICES=""`).
 
-Deux requêtes concurrentes se disputent les mêmes cœurs. Le reranking étant
-CPU-bound et dominant, **deux requêtes simultanées font sauter le budget de 6 s**
-— sans qu'aucune ne soit anormale prise isolément.
+Le reranking est CPU-bound et domine le temps de réponse : deux requêtes
+simultanées se disputent les mêmes cœurs. Avec une marge nominale d'environ 20 %,
+**il est plausible que deux requêtes concurrentes franchissent le budget** sans
+qu'aucune soit anormale prise isolément — mais cela **n'a pas été mesuré**, et ne
+doit pas être énoncé comme un fait.
 
 Le facteur dimensionnant est donc la **concurrence**, pas le volume d'index. Un
 index dix fois plus grand ne changerait pas le coût du rerank de 50 candidats ;
@@ -993,14 +1092,16 @@ le point de rupture, qui est aujourd'hui une inconnue et non une estimation.
 | 15 | L'artefact d'ingestion du 26/08 est scellé au format antérieur à `374b231` (manifeste non scellé) : rejeté par l'attestation du runtime (§3quinquies) | moyenne |
 | 16 | La release active scelle `e15ab71b…`, l'empreinte de l'artefact embedding défectueux : le runtime ne peut pas démarrer sans rescellement de la release (§3sexies) | **bloquante** |
 | 17 | Les manifests `multilevel/` déclarent `e2c7384b…`, empreinte ne correspondant à aucun artefact sur disque — inertes aujourd'hui, bloquants à l'activation (§3sexies) | moyenne |
-| 18 | Dépendance de la pile à `/tmp` : deux incidents (surcharges Compose perdues, miroir PDF menacé). Défaut corrigé, mise à l'abri faite — dimensionnement à trancher avant le passage aux 2451 contenus (§3septies) | **haute** |
+| 18 | **Chemins de machine personnelle comme défauts de code** — un motif, trois occurrences : `--cache-dir=/tmp/...`, `NEXUS_SEALED_CORPUS_ROOT=~/Téléchargements/...`, `--model-path=/home/<nom>/...`. **Corrigés** (lire la configuration, défaut neutre, échec explicite) et verrouillés par `check_disclosure_patterns.py`. Reste ouvert : le dimensionnement du miroir PDF aux 2451 contenus | moyenne |
 | 19 | Deux producteurs d'inventaire embedding aux `manifest.json` incompatibles, sans autorité déclarée — cause de fond dont l'artefact amputé était le symptôme. Répartition arrêtée et documentée (§3octies) | **haute** |
 | 20 | La reproductibilité de la release dépend de `~/.cache/huggingface` (3ᵉ emplacement volatil). Copie faite et équivalence prouvée ; aucun garde-fou n'interdit encore de repasser le chemin du cache (§3nonies) | moyenne |
 | 21 | Dépréciation des 18 scopes `_v1` : exige de prouver qu'aucune enveloppe émise ne les référence. Hors périmètre d'ADR-0052, à trancher séparément | basse |
 | 22 | Un scope `_v2` ne dit pas qu'il procède d'un rescellement plutôt que d'un contenu nouveau : le lien vit dans ADR-0052, pas dans l'artefact. Évolution de contrat à envisager | basse |
 | 23 | `release_impact_closure.py` couvre deux formes d'empreinte (octets, JSON canonique compact). Étendre : recenser les `canonical_bytes`/`_canonical_bytes` de `nexus_contracts`, associer chaque forme aux modèles qui l'emploient, et faire valider chaque JSON contre les modèles candidats. Énumérer les producteurs, pas les formes | moyenne |
-| 26 | **Latence de retrieval** : le rerank de 50 candidats coûte 5,39 s seul, au-dessus du budget de 6 s. Préchargement et healthcheck hors de cause, mesurés (§3undecies) | **haute** |
-| 27 | **Concurrence non mesurée** : 4 955 ms pour une requête séquentielle CPU ; deux requêtes simultanées franchissent le budget. Aucun test de charge, point de rupture inconnu (§3duodecies) | **haute** |
+| 28 | **Divulgation** : un contrôle anti-secret ne couvre qu'un tiers du risque — donnée personnelle et identifiants d'accès sont deux catégories distinctes. Politique écrite (`docs/runbooks/disclosure_policy.md`) et contrôle CI `disclosure-patterns`. La grille reste un plancher, pas une preuve | moyenne |
+| 26 | **PANNE DE SERVICE — le retrieval ne répond pas.** 18 collections sur 18 renvoient `503` à concurrence 1, budget de 6 s dépassé. Cause mesurée : le conteneur ne dispose que de **2 CPU sur 16**, avec 8 threads torch en sur-souscription ; le rerank de 50 paires y coûte 5 597 ms, plus 631 ms d'encodage. Correctif mesuré : 8 CPU → 1 438 ms (×3,9), GPU local inutilisé → 265 ms (×21). Voir `tir_de_charge_20260828.md` | **BLOQUANTE** |
+| 28 | **Aucun rôle `student` ne peut interroger le corpus** : les 18 collections sont en `visibility: internal`, et `allowed_visibilities_for_role` réserve `internal` à `teacher`/`admin`/`reviewer`/`ingest_agent`. Manque fonctionnel pour une plateforme destinée aux élèves. Arbitrage de gouvernance : collections en `public`, ou `internal` ouvert à `student` | **BLOQUANTE** |
+| 27 | **Courbe de concurrence toujours inconnue** : impossible à tracer tant que le service échoue à concurrence 1 — mesurer la concurrence produirait des chiffres sur des refus. Reste dû **après** correction de l'allocation CPU (§ n°26) | **haute** |
 | 25 | Le balayage de fermeture porte sur le dépôt ; les runtimes figés (image Docker, `pip install` non éditable) lui sont invisibles par construction. Couvert par `check_runtime_conformance.py`, à exécuter après tout changement de `packages/contracts` | moyenne |
 | 24 | **`nexus-contracts` porte au moins cinq canonicalisations JSON divergentes**, plus des empreintes sur projection de champs. Deux modules censés s'accorder sur une empreinte peuvent diverger sans que rien ne le détecte — défaut de paquet, même famille que la dette n°13 (§3decies) | **haute** |
 
