@@ -89,7 +89,12 @@ print(json.dumps(report))
 #: divergence y est double : une version très en retard **et** une build
 #: CPU-only là où les venvs portent CUDA. Un contrôle qui n'a regardé que les
 #: paquets du dépôt a laissé passer les deux.
-DEPENDANCES_PARTAGEES = ("torch",)
+#:
+#: `pypdf` est le troisième, et le plus insidieux : il ne casse rien, il change
+#: le TEXTE extrait. `chunk_id = sha256(content_sha:index:sha256(texte))` — un
+#: digest censé identifier « un contenu » identifiait en fait « un contenu ET une
+#: version de pypdf ». 4.2.0 rendait « enseigneme nt », 6.14.2 « enseignement ».
+DEPENDANCES_PARTAGEES = ("torch", "pypdf")
 
 _SONDE_DEPENDANCES = """
 import importlib.metadata as metadata

@@ -1,5 +1,18 @@
 # Runtime Nexus v2 lecture/revue uniquement.
---extra-index-url https://download.pytorch.org/whl/cpu
+# Index CUDA 13.0, aligné sur `services/rag-engine/.venv` — la roue `cpu`
+# donnait `torch 2.4.1+cpu` dans l'image quand les venvs portaient `2.13.0+cu130`.
+# Double divergence : build CPU-only ET version très en retard. Un runtime
+# CPU-only ne se plaint pas de l'être : rien dans les journaux ne le disait, et
+# le service saturait ses cœurs sur un rerank que le GPU décharge.
+#
+# La pile ML entière est alignée, pas seulement `torch` : `transformers` et
+# `sentence-transformers` sautent une version majeure. Aligner `torch` seul
+# aurait fermé une divergence en en laissant deux.
+#
+# Contrôle de non-régression : la preuve cosinus est rejouée DEPUIS LE CONTENEUR
+# après reconstruction — le conteneur encode les requêtes, changer sa pile change
+# potentiellement les vecteurs. Seuil 10⁻⁷.
+--extra-index-url https://download.pytorch.org/whl/cu130
 
 fastapi==0.115.0
 uvicorn[standard]==0.30.6
@@ -9,7 +22,7 @@ psycopg==3.2.1
 psycopg-binary==3.2.1
 psycopg-pool==3.2.1
 numpy==1.26.4
-torch==2.4.1+cpu
-transformers==4.44.2
-sentence-transformers==3.0.1
+torch==2.13.0
+transformers==5.16.1
+sentence-transformers==5.6.0
 prometheus-client==0.21.0
