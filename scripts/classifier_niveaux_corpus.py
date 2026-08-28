@@ -127,6 +127,92 @@ def _dominants(trouves: list[tuple[str, str, int]]) -> set[str]:
     return {niv for niv, _, n in trouves if n >= seuil}
 
 
+#: Un document ne se lit pas comme un sac de mots. Il DÉCLARE son niveau — dans
+#: son titre, son intitulé de programme, sa phrase d'ouverture — et il en
+#: MENTIONNE d'autres, en prérequis, en rappel, en renvoi au cycle précédent.
+#:
+#: L'appariement de motifs confond les deux, et c'est exactement ce que le
+#: diagnostic avait montré : « la notion de marché étudiée en classe de seconde »
+#: dans un document de première faisait gagner `seconde`. 81,8 % n'était pas la
+#: précision d'une lecture, c'était celle d'une expression régulière.
+#:
+#: Ces deux grilles encodent la distinction. Un contexte de RENVOI annule le
+#: niveau qu'il cite ; un contexte de DÉCLARATION le renforce.
+
+#: Ce qui précède un niveau et en fait un simple renvoi.
+_RENVOI = re.compile(
+    r"(vu[e]?s? en|etudie[e]?s? en|abord[e]?[e]?s? en|acquis (de|du)|"
+    r"prerequis|rappel|reinvestir|consolider|deja (vu|etudie|rencontre)|"
+    r"au cycle precedent|des la|depuis la|en amont|anterieur|"
+    r"comme en|ainsi qu[e'] en|de meme qu[e'] en|par rapport a la|"
+    r"contrairement a la|apres la|avant la|issu[e]?s? de|venant de|"
+    r"a l[a'] issue de|preparation a|vers la)\s*$")
+
+#: Ce qui précède un niveau et en fait une déclaration de portée.
+_DECLARATION = re.compile(
+    r"(programme[s]? (de |d[e']|pour )?(l[a']?)?(enseignement)?[^.]{0,40}|"
+    r"specialite[^.]{0,40}|option[^.]{0,40}|enseignement[^.]{0,40}|"
+    r"attendus de fin d[e']annee[^.]{0,30}|reperes[^.]{0,30}|"
+    r"ressources? d[e']accompagnement[^.]{0,40}|"
+    r"a destination des (eleves|professeurs)[^.]{0,30}|"
+    r"en classe de|classe de|au niveau|niveau)\s*$")
+
+
+def p1_lecture_du_document(chemin: Path | None) -> Preuve | None:
+    """Palier 1 — LIRE la première page : ce que le document est, non ce qu'il cite.
+
+    Chaque mention de niveau est pesée par son contexte immédiat et sa position.
+    Une mention en tête de page, précédée d'un mot de portée (« programme de »,
+    « spécialité »), déclare. Une mention précédée d'un mot de renvoi
+    (« vu en », « prérequis ») ne déclare rien et se voit annulée.
+
+    Un document dont AUCUNE mention n'est déclarative ne reçoit pas de décision :
+    il n'a pas dit de quel niveau il est, et on ne le devine pas.
+    """
+    if chemin is None or not chemin.is_file():
+        return None
+    try:
+        from pypdf import PdfReader
+        pages = PdfReader(str(chemin)).pages[:2]
+        texte = "\n".join((p.extract_text() or "") for p in pages)
+    except Exception:                                        # noqa: BLE001
+        return None
+
+    plat = " ".join(sans_accent(texte).split())
+    if not plat:
+        return None
+
+    scores: dict[str, float] = {}
+    extraits: dict[str, str] = {}
+    for niveau_brut, motif in _MOTIFS:
+        niveau = _ANNEE_VERS_CYCLE.get(niveau_brut, niveau_brut)
+        for m in motif.finditer(plat):
+            avant = plat[max(0, m.start() - 60):m.start()]
+            if _RENVOI.search(avant):
+                continue                    # citation, pas déclaration
+            # Le poids décroît avec la distance au début : un document se
+            # présente en tête, il cite plus loin.
+            position = m.start()
+            poids = 3.0 if position < 300 else (1.5 if position < 1200 else 0.6)
+            if _DECLARATION.search(avant):
+                poids *= 2.0
+            scores[niveau] = scores.get(niveau, 0.0) + poids
+            extraits.setdefault(
+                niveau, plat[max(0, position - 70):m.end() + 70])
+
+    if not scores:
+        return None
+    maxi = max(scores.values())
+    # Un niveau retenu doit peser au moins la moitié du dominant : un document
+    # réellement multi-niveaux en garde plusieurs, un document qui cite une fois
+    # un autre niveau n'en garde qu'un.
+    retenus = {niv for niv, s in scores.items() if s >= maxi * 0.5}
+    dominant = max(scores, key=lambda k: scores[k])
+    return Preuve("P1_lecture_document",
+                  f"{chemin.name} (pages 1-2, lecture pondérée)",
+                  extraits[dominant], retenus)
+
+
 def p1_texte_du_document(chemin: Path | None) -> Preuve | None:
     """Palier 1 — ce que le document dit de lui-même, en première page."""
     if chemin is None or not chemin.is_file():
@@ -216,7 +302,7 @@ def classer(ligne: dict[str, str], chemin: Path | None,
         p3_reference_bo(ligne.get("titre", ""), table_bo),
     ]
     if avec_p1:
-        preuves.append(p1_texte_du_document(chemin))
+        preuves.append(p1_lecture_du_document(chemin))
     preuves.extend((
         p4_destination(ligne.get("chemin_par_scope", "")),
         p5_titre(ligne.get("titre", "")),

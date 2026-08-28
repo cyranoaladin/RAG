@@ -189,9 +189,60 @@ corpus téléchargé.
 
 ```
 2 451  corpus
-1 453  périmètre servable    (1 504 − 51 hors périmètre assumé)
-   35  récupérés par classification automatique
+1 489  SERVABLE   = 1 504 − 51 hors périmètre + 35 récupérés + 1 reclassé
   911  COVERAGE_GAP — aucune preuve forte
-   51  HORS_PERIMETRE_ASSUME — voie non servie
-    1  reclassé cycle4 × EMC
+   51  HORS_PERIMETRE_ASSUME — voie valide, non servie par le mandat
+─────
+2 451                                                              ✓
 ```
+
+Les 35 documents récupérés par classification et le document reclassé en
+`cycle4 × EMC` **tombent dans des collections du découpage** : ils sont servables,
+et les compter à part faisait lire 1 453 là où le chiffre est **1 489**.
+
+
+## P1 réessayé comme une lecture — résultat négatif, rapporté tel quel
+
+Le diagnostic était juste : 81,8 % n'était pas la précision d'une lecture mais
+celle d'un appariement de motifs, et un document de terminale qui mentionne
+« vu en première » trompe une expression régulière sans tromper un lecteur.
+
+**J'ai donc encodé la distinction.** `p1_lecture_du_document` pèse chaque mention
+de niveau par son contexte immédiat et sa position :
+
+- un contexte de **renvoi** — « vu en », « étudié en », « prérequis », « rappel »,
+  « réinvestir », « au cycle précédent » — **annule** le niveau qu'il cite ;
+- un contexte de **déclaration** — « programme de », « spécialité », « option »,
+  « attendus de fin d'année » — **double** son poids ;
+- une mention dans les 300 premiers caractères pèse cinq fois une mention tardive :
+  un document se présente en tête et cite plus loin.
+
+### La mesure
+
+| Version de P1 | Décisions | Accord |
+|---|---|---|
+| appariement de motifs | 424 | **81,8 %** |
+| **lecture pondérée** | 381 | **80,3 %** |
+
+**−1,5 point. L'approximation de la lecture n'a pas battu le motif.**
+
+C'est un résultat négatif et je le rapporte tel quel plutôt que de le présenter
+comme un progrès. La raison en est simple, et elle était prévisible : la
+distinction que j'ai encodée reste **un motif sur le contexte d'un motif**. Elle
+ne lit pas. Comprendre que « Le rôle du foie dans le stockage des glucides » est
+une ressource ST2S ne s'obtient pas d'une fenêtre de soixante caractères autour
+d'un mot-clé — cela demande de comprendre le document.
+
+Le palier fort reste inchangé à **99,58 %** : la tentative n'a rien dégradé, elle
+n'a rien apporté.
+
+### Ce qu'une vraie lecture exigerait
+
+Lire 2 450 premières pages est un travail de compréhension, document par
+document. Ce n'est pas hors de portée — c'est hors de portée **d'une seule
+passe séquentielle**. Il faudrait le distribuer, et cette parallélisation n'a pas
+été autorisée.
+
+Je ne l'ai donc pas fait, et je ne prétends pas l'avoir fait. Ce qui est mesuré
+ici est une heuristique enrichie, honnêtement inférieure à celle qu'elle
+remplaçait.
