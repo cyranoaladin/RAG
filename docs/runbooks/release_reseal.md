@@ -256,6 +256,66 @@ cd services/rag-engine/infra && ./scripts/rag-stack.sh up -d ingestor
 Critère de succès : `GET /health` à 200, `schema_head = 004_artifact_placements`,
 et aucun `release model inventory mismatch` au journal.
 
+## 4bis. Matérialiser l'artefact runtime — étape obligatoire après toute ré-émission
+
+**Une ré-émission seule ne suffit jamais à faire redémarrer le runtime.**
+L'inventaire scellé change ; l'artefact monté doit changer avec lui, et porter
+*exactement* la nouvelle empreinte.
+
+### Ne pas se tromper d'outil
+
+| Outil | Métier | À utiliser ici ? |
+|---|---|---|
+| `prepare-embedding-model-artifact.sh` | fabrique un artefact **candidat** pour une release *future* | **non** |
+| `build_production_profile_release.py` | **scelle** la release, fait autorité | non (c'est le §4) |
+| `materialize-release-model-artifact.py` | **matérialise** l'artefact runtime depuis la release scellée | **oui** |
+
+Les deux premiers écrivent chacun leur `manifest.json` — dix clés contre trois —
+première ligne de l'inventaire, donc empreintes irréconciliables pour les mêmes
+poids. Servir une release scellée avec un artefact du premier échoue en
+`release model inventory mismatch` (dette n°19).
+
+### Exécution
+
+```bash
+python3 scripts/e2e/materialize-release-model-artifact.py \
+    --release-models-dir services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/models/embedding \
+    --snapshot "$EMBEDDING_SNAPSHOT" \
+    --output ~/rag-model-artifacts/e5-large-prerentree-2026-2027-$(date +%Y%m%d) \
+    --expected-inventory-sha256 "$(sha256sum services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/models/embedding/SHA256SUMS | cut -d' ' -f1)"
+```
+
+L'outil **copie** : il reprend le `manifest.json` et le `SHA256SUMS` de la
+release, y joint les fichiers de poids du snapshot, vérifie chaque empreinte, et
+refuse tout écart. Il ne recalcule rien.
+
+> **Si l'empreinte produite ne coïncide pas, ne rien ajuster.** L'outil ou son
+> entrée est en faute. Un ajustement recréerait précisément le défaut des deux
+> producteurs.
+
+Il refuse d'écraser un répertoire existant : toujours produire un artefact
+**nouveau et horodaté**, pour que le retour arrière reste deux lignes de `.env`.
+
+### Contrôles
+
+```bash
+MODEL_ARTIFACT_DIR=<nouvel artefact> MODEL_ARTIFACT_INVENTORY_SHA256=<empreinte> \
+  scripts/e2e/verify-embedding-model-artifact.sh
+```
+
+Attendu : `runtime artifact contract verified` (contrôle de complétude compris)
+et `model loaded offline, dimension=1024`.
+
+Puis **preuve de non-dérive du retrieval**, sur l'artefact final et non sur un
+cache : ré-encoder le texte de chunks existants avec la convention d'ingestion
+(`format_passage` → `"passage: "`, `normalize_embeddings=True`) et comparer aux
+vecteurs stockés. Trois collections distinctes au minimum.
+
+**Seuil d'arrêt : écart à 1 supérieur à 10⁻⁷.** L'écart normal est de l'ordre de
+10⁻⁹, plancher imposé par la sérialisation à huit décimales à l'ingestion. Au-delà
+du seuil, ne pas poursuivre : ce serait le signe que le modèle de requête n'est
+pas le modèle d'index.
+
 ## 5. Rollback
 
 Le bundle est **entièrement versionné** : le retour arrière est un `git checkout`,
