@@ -122,3 +122,18 @@ Le contrôle a porté sur un document sur vingt-six.
 **Un contrôle doit s'exercer sur tout son périmètre.** La vérification des 26 est
 un préalable à l'ingestion des 2451, et elle n'est pas faite ici — elle demande
 un rejeu complet, qui est exactement l'opération que le correctif rend possible.
+
+## Vérification sur le périmètre complet — 26/26
+
+Le premier contrôle ne portait que sur un document. Un contrôle doit s'exercer
+sur tout son périmètre ; celui-ci balaie les vingt-six, sous pypdf 6.14.2 :
+
+```
+artefacts scellés : 26   PDF au miroir : 26
+concordants : 26/26
+résistants  : 0
+PDF absents : 0
+```
+
+**Aucun document ne résiste.** Le correctif est validé sur l'intégralité du
+corpus servi, et non par extrapolation depuis un cas.

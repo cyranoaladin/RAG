@@ -1,6 +1,12 @@
 # Dette n°28 — ce que coûte l'ouverture du corpus aux élèves
 
-*Analyse, 28 août 2026. **Rien n'est appliqué.***
+*Analyse, 28 août 2026.*
+
+> **DÉCISION OPÉRATEUR — voie B appliquée le 28/08/2026.** Le rôle `student`
+> reçoit `internal`. Condition posée par l'opérateur — « vérifie d'abord que le
+> contrat ne définit pas `internal` comme *exclu des utilisateurs finaux* » —
+> **vérifiée et non satisfaite** : voir « Vérification de la condition » ci-dessous.
+> Résultat : les 18 collections répondent sous rôle élève, en 300 à 1 165 ms.
 
 ## Le constat
 
@@ -96,3 +102,85 @@ produit est destiné**. Le défaut n'apparaît qu'au premier tir avec un profil
 Les tests d'intégration existants passent parce qu'ils utilisent des rôles
 privilégiés. Un test qui interroge en `student` chacune des collections servies
 manque, et c'est lui qui aurait mordu.
+
+
+## Vérification de la condition posée par l'opérateur
+
+*« Vérifie d'abord que le contrat ne définit pas `internal` comme "exclu des
+utilisateurs finaux". Si c'est le cas, ma décision tombe. »*
+
+**Le contrat ne le définit pas ainsi.** Trois constats, tous vérifiables :
+
+1. **Le contrat n'attache aucune sémantique au terme.** `Visibility` est un
+   `Literal["public", "internal", "restricted", "private"]`
+   (`nexus_contracts/ingestion.py:51`), sans docstring ni commentaire. Les trois
+   déclarations du dépôt — `ingestion.py`, `scope.py`, `document.py` — sont des
+   énumérations nues.
+
+2. **Là où « revue seulement » est visé, un terme distinct est employé.**
+   `source_admission_policy.yml:89` écrit `visibility: internal_review_only`
+   pour un cas explicitement non servi (`real_file_attached: false`,
+   `human_review_required: true`). Le vocabulaire distingue donc les deux
+   notions : `internal` seul n'est pas `internal_review_only`.
+
+3. **La décision de droits autorise nommément le service.** Pour la zone
+   `01_EDUSCOL_OFFICIEL/` — celle des 26 documents —
+   `rights_evidence_registry.yml` porte `approved_for_internal_rag: true`,
+   `approved_for_production_rag: true`, et la déclaration signée de Nexus
+   Réussite autorise « le traitement, l'indexation, le chunking, l'embedding,
+   **le retrieval, la citation** et l'ingestion de production ».
+
+Une recherche inverse — toute cooccurrence de `internal` avec *utilisateur*,
+*élève*, *student*, *final*, *interdit*, *exclu* dans `packages/contracts`,
+`docs/adr` et `services/rag-pedago/configs` — **ne rend aucune occurrence**.
+
+Un négatif vaut ce que vaut son périmètre : celui-ci couvre le contrat, les ADR
+et la configuration de gouvernance. Il ne couvre pas une définition qui
+n'existerait que dans la tête d'un rédacteur.
+
+### Une valeur hors contrat, rencontrée en chemin
+
+`retrieval_metadata_eval.yml` emploie `visibility: student_visible` — une
+quatrième valeur, absente du `Literal` du contrat. Ce fichier porte
+`status: metadata_only_eval` et `real_documents_allowed: false` : c'est une
+fixture d'évaluation avec son vocabulaire propre, non la taxonomie faisant foi.
+Signalé sans être corrigé — hors périmètre, mais c'est une divergence de
+vocabulaire de plus.
+
+## Ce qui a été appliqué
+
+```python
+"student": ("public", "internal"),   # au lieu de ("public",)
+```
+
+Une ligne dans `_ROLE_VISIBILITIES` (`retrieval_scope_v2.py`). **Aucun sceau
+touché** : ni manifeste, ni agrégat, ni `source_sha256`, ni scope, ni contrat, ni
+base. Le champ `visibility` des 26 documents reste `internal`.
+
+`restricted` et `private` **restent fermés** au rôle `student` : la décision
+portait sur `internal` seul, et un test le verrouille — élargir au-delà de ce qui
+a été décidé serait le glissement que la gouvernance refuse.
+
+### Preuve de bout en bout
+
+Requête HTTP réelle, rôle `student`, pipeline complet, 18 collections :
+
+```
+rag_nexus_ses_premiere_specialite      300 ms  OK
+rag_nexus_nsi_terminale_specialite     329 ms  OK
+…
+rag_nexus_dgemc_terminale_option      1165 ms  OK
+-> 18 cibles servies
+```
+
+**18 sur 18**, de 300 à 1 165 ms. Auparavant : 18 refus `403`.
+
+### Le test qui manquait
+
+`test_student_can_read_served_corpus.py` vérifie que **toutes** les visibilités
+portées par les scopes `_v2` servis sont couvertes par le rôle `student` — pas un
+échantillon. Vérifié rouge sans le correctif.
+
+C'est ce test qui aurait mordu il y a des semaines. Le pipeline entier a été
+construit, scellé, ingéré, mis sous CI verte et servi sans que quiconque
+n'interroge jamais sous le rôle auquel le produit est destiné.
