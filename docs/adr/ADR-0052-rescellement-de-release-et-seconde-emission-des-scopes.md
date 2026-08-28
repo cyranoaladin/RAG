@@ -144,6 +144,39 @@ ré-émission future réécrivait un `_v1` au lieu d'ajouter un `_v2`.
 - cet ADR ne constitue ni une autorisation de contenu, ni une ingestion, ni un
   cutover production.
 
+## Statut de revue du contenu servi
+
+La release, les placements et les chunks portent `review_status = reviewed`.
+Cette valeur provenait d'un **littéral** dans le script d'ingestion : la base
+affirmait une décision humaine sans qu'aucune trace n'en existât. Le contrat
+distingue pourtant `REVIEWED` — « la décision humaine a été validée » — du
+constat automatique `RETRIEVAL_ELIGIBLE`.
+
+La décision existait ; c'est sa trace qui manquait. Elle est désormais
+enregistrée :
+
+> **[Attestation de validation du corpus — Nexus, 28 août 2026](../reviews/2026-08-28-attestation-validation-corpus-nexus.md)**
+> Décideur : l'opérateur de la plateforme, nommé. Portée : l'intégralité du
+> corpus. Les 26 documents y sont énumérés par `content_sha256`, avec les 18
+> collections. Enregistrement explicitement **a posteriori**.
+
+Deux correctifs empêchent la réouverture de l'écart :
+
+1. `--review-status` est **requis et sans défaut** dans
+   `canonical_release_corpus_ingestion.py`. L'omission échoue en nommant la
+   raison ; aucun statut de revue n'est plus hérité. Un défaut à `needs_review`
+   a été écarté délibérément : il aurait créé un blocage circulaire —
+   `release_readiness` compte `wrong_review_status` comme bloqueur, l'ingestor
+   refuse alors de démarrer, et c'est lui qui héberge `POST /review/decide`.
+2. Les deux INSERT — chunks **et** placements — lisent le paramètre. Le premier
+   correctif n'avait touché que le premier site : un contrôle doit s'exercer sur
+   tout son périmètre.
+
+Le littéral homologue de `build_production_profile_release.py` (champ
+`artifacts.placements.review_status` du bundle scellé) n'est **pas** touché ici :
+le modifier relancerait la cascade de rescellement et exigerait des scopes `_v3`.
+Il est porté en dette, adossé à la même attestation.
+
 ## Ce que cet ADR ne tranche pas
 
 - la **dépréciation** des scopes `_v1` (dette n°21) ;

@@ -71,6 +71,7 @@ def fetch_artifact_bytes(source_url: str, expected_sha256: str, cache_dir: Path)
 
 def ingest_first_servable_release(
     *,
+    review_status: str,
     db_dsn: str,
     registry_path: Path,
     registry_sha256: str,
@@ -217,7 +218,7 @@ def ingest_first_servable_release(
                             idx,
                             chunk.page_start,
                             chunk.page_end,
-                            "reviewed",
+                            review_status,
                             exp_artifact.embedding_model,
                             source_kind,
                             plc["tenant"],
@@ -265,7 +266,7 @@ def ingest_first_servable_release(
                             plc["programme_version"],
                             "current",
                             "active",
-                            "reviewed",
+                            review_status,
                             plc["source_scope"],
                             plc["source_placement_id"],
                             exp_artifact.source_path,
@@ -318,7 +319,52 @@ def main() -> None:
             "RAG_RELEASE_REGISTRY_SHA256. Jamais dérivée du fichier lui-même."
         ),
     )
-    parser.add_argument("--model-path", type=Path, default=Path("/home/alaeddine/rag-model-artifacts/intfloat-multilingual-e5-large-3d7cfbdacd47fdda877c5cd8a79fbcc4f2a574f3"))
+    # `review_status` était un littéral `"reviewed"` : le script AFFIRMAIT une
+    # décision humaine pour tout contenu qu'il ingérerait jamais, y compris
+    # celui que personne n'aurait examiné. Le contrat est explicite —
+    # `REVIEWED` signifie « la décision humaine a été validée »
+    # (`nexus_contracts.resource_state`), quand `RETRIEVAL_ELIGIBLE` est un
+    # constat automatique. Affirmer l'un pour l'autre était le défaut de ce
+    # dépôt appliqué à la revue : un contrôle qui affirme plus qu'il n'a vérifié.
+    #
+    # `needs_review` par défaut créerait un blocage circulaire :
+    # `release_readiness` compte `wrong_review_status` comme bloqueur, la
+    # release devient non prête, l'ingestor refuse de démarrer — et c'est lui
+    # qui héberge `POST /review/decide`. Le service qui doit enregistrer la
+    # décision ne démarrerait plus.
+    #
+    # Donc REQUIS et SANS DÉFAUT : chaque ingestion déclare explicitement ce
+    # qu'elle affirme, et l'omission échoue au lieu d'hériter.
+    parser.add_argument(
+        "--review-status",
+        required=True,
+        choices=["needs_review", "reviewed"],
+        help=(
+            "Statut de revue inscrit en base. `reviewed` AFFIRME qu'une "
+            "décision humaine a été prise sur ce contenu : ne le passer que "
+            "si c'est vrai, et consigner la décision dans docs/reviews/."
+        ),
+    )
+    # Troisième occurrence du même motif : un chemin de machine personnelle
+    # figé comme défaut de code partagé, après `--cache-dir=/tmp/...` et
+    # `NEXUS_SEALED_CORPUS_ROOT`. Un défaut est une décision : celui-ci
+    # divulguait un nom d'utilisateur et ne fonctionnait que sur un poste.
+    #
+    # Correctif uniforme : lire la configuration, aucun défaut deviné, échec
+    # explicite si non configuré.
+    parser.add_argument(
+        "--model-path",
+        type=Path,
+        default=(
+            Path(os.environ["RAG_EMBEDDING_MODEL_ARTIFACT_DIR"])
+            if os.environ.get("RAG_EMBEDDING_MODEL_ARTIFACT_DIR")
+            else None
+        ),
+        help=(
+            "Répertoire de l'artefact embedding. Défaut : variable "
+            "RAG_EMBEDDING_MODEL_ARTIFACT_DIR. Aucun chemin n'est deviné."
+        ),
+    )
     # Le miroir PDF n'est PAS un cache de commodité : c'est une pièce d'archive.
     # Si Éduscol réédite un document, son empreinte ne correspondra plus à celle
     # scellée par la release, et ce miroir devient la seule source des octets
@@ -337,6 +383,12 @@ def main() -> None:
         ),
     )
     args = parser.parse_args()
+    if not args.model_path:
+        parser.error(
+            "chemin de l'artefact embedding absent : passer --model-path ou "
+            "définir RAG_EMBEDDING_MODEL_ARTIFACT_DIR. Deviner un chemin de "
+            "machine ferait dépendre une ingestion gouvernée d'un poste précis."
+        )
     if not args.registry_sha256:
         parser.error(
             "empreinte du registre absente : passer --registry-sha256 ou définir "
@@ -349,6 +401,7 @@ def main() -> None:
         registry_path=args.registry_path,
         registry_sha256=args.registry_sha256,
         model_path=args.model_path,
+        review_status=args.review_status,
         cache_dir=args.cache_dir,
     )
 
