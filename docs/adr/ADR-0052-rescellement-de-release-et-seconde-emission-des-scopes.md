@@ -177,6 +177,31 @@ Le littéral homologue de `build_production_profile_release.py` (champ
 le modifier relancerait la cascade de rescellement et exigerait des scopes `_v3`.
 Il est porté en dette, adossé à la même attestation.
 
+## La leçon de la séquence
+
+Le rôle `student` n'obtenait pas la visibilité `internal`, que portent les dix-huit
+collections servies. Aucun profil élève ne pouvait donc interroger le corpus.
+
+> **Le pipeline entier a été construit, scellé, ingéré, mis sous CI verte et servi
+> sans que quiconque n'interroge jamais sous le rôle auquel le produit est
+> destiné.**
+
+Les tests d'intégration passaient parce qu'ils emploient des rôles privilégiés —
+`teacher`, `admin`, `reviewer`. Le défaut n'apparaît qu'au premier tir avec un
+profil élève réel, et il aura fallu un tir de charge pour le rencontrer.
+
+C'est la même famille que tout le reste de cette séquence : un contrôle qui
+affirme plus qu'il n'a vérifié. Le sceau qui attestait une liste sans vérifier
+qu'elle couvrait ce que l'artefact déclarait. La release scellant l'empreinte
+d'un artefact qui ne pouvait pas exister. Le `chunk_id` prétendant identifier un
+contenu quand il identifiait un contenu **et** une version de `pypdf`. Et ici :
+une CI verte attestant qu'un produit fonctionne, sans l'avoir éprouvé pour qui il
+fonctionne.
+
+Un test interrogeant chaque collection servie sous le rôle `student` est ajouté
+(`test_student_can_read_served_corpus.py`). Il porte sur **toutes** les
+visibilités des scopes `_v2`, pas un échantillon.
+
 ## Ce que cet ADR ne tranche pas
 
 - la **dépréciation** des scopes `_v1` (dette n°21) ;
