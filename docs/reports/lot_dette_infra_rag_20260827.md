@@ -876,6 +876,102 @@ préservées explicitement, sous un nom qui dit qu'elles le sont
 
 Chantier de paquet, exigeant un ADR et un bump SemVer : hors de ce lot.
 
+## 3undecies. Latence de retrieval — le budget est calibré sous le pire cas
+
+Diagnostic conduit le 28/08/2026 après un 503 sur la première requête réelle.
+
+### Ce qui n'est PAS en cause
+
+`preload_runtime_models()` s'exécute dans le lifespan **avant le `yield`** :
+l'application n'accepte aucun trafic tant que les modèles ne sont pas chargés.
+`_get_embed_model()` met en cache dans un global, sous verrou, avec double
+vérification. Le conteneur ne passe `healthy` qu'ensuite.
+
+Mesuré sur un conteneur redémarré, cinq requêtes consécutives :
+
+```
+#1  4531 ms  200      #2  4746 ms  200      #3  4926 ms  200
+#4  4798 ms  200      #5  4864 ms  200
+```
+
+**La première requête ne porte aucun surcoût.** Le healthcheck n'affirme donc pas
+plus que ce qu'il a vérifié : ce n'est pas la famille de défaut du sceau attestant
+un artefact inutilisable. L'hypothèse d'un préchargement qui ne réchaufferait pas
+le chemin de requête est **infirmée par la mesure**.
+
+### Ce qui est en cause
+
+Décomposition du temps, mesurée dans le conteneur avec les modèles chauds :
+
+| Étape | Coût |
+|---|---|
+| Encodage de la requête (e5-large, CPU) | 0,59 s |
+| Rerank 10 paires | 1,11 s |
+| Rerank 30 paires | 3,30 s |
+| **Rerank 50 paires** (`CHANNEL_LIMIT`) | **5,39 s** |
+
+Le cross-encoder domine tout, et croît linéairement avec le nombre de candidats.
+**À `CHANNEL_LIMIT = 50`, le reranking seul dépasse le budget
+`PG_DATABASE_BUDGET_MS = 6000`**, avant même l'encodage et la base.
+
+Le régime observé (~4,8 s) correspond à un jeu de candidats plus petit : la base
+ne porte que 730 chunks et une seule collection répond à la requête d'essai.
+
+Le 503 initial est survenu sur la **toute première requête après reconstruction de
+l'image**, quand les 2,2 Go de poids n'étaient pas dans le cache de pages de
+l'hôte. Ce surcoût unique a suffi à franchir les 6 s. L'OS conserve ensuite le
+fichier en cache, y compris à travers les redémarrages de conteneur — d'où la
+non-reproductibilité.
+
+### Pourquoi le réchauffement de bout en bout ne suffit pas
+
+Encoder une requête factice avant de déclarer le service prêt ferait disparaître
+le cas « cache de pages froid ». Cela ne toucherait pas le cas « 50 candidats »,
+qui est le pire cas structurel. Le prochain déclencheur ne serait pas un
+redémarrage mais **une collection mieux fournie** — c'est-à-dire le succès du
+produit.
+
+Corriger le symptôme le moins probable en laissant le pire cas ouvert
+donnerait une assurance que la mesure ne soutient pas.
+
+### Trois leviers, aucun neutre
+
+1. **Élargir le budget** — sans effet sur l'expérience : l'utilisateur attend
+   toujours 5 s.
+2. **Réduire `CHANNEL_LIMIT`** — moins de candidats rerankés, donc une qualité de
+   retrieval moindre. Arbitrage produit.
+3. **Sortir le reranking du chemin synchrone** — deux temps de réponse, ou
+   reranking asynchrone. Refonte du contrat de l'endpoint.
+
+Le choix engage la qualité du retrieval, pas seulement la latence : il n'est pas
+technique.
+
+## 3duodecies. Concurrence — le facteur dimensionnant
+
+À distinguer de la latence nominale : **4 955 ms mesurent UNE requête
+séquentielle**, sur CPU, sans GPU sur cette machine (l'ingestion a tourné avec
+`CUDA_VISIBLE_DEVICES=""`).
+
+Deux requêtes concurrentes se disputent les mêmes cœurs. Le reranking étant
+CPU-bound et dominant, **deux requêtes simultanées font sauter le budget de 6 s**
+— sans qu'aucune ne soit anormale prise isolément.
+
+Le facteur dimensionnant est donc la **concurrence**, pas le volume d'index. Un
+index dix fois plus grand ne changerait pas le coût du rerank de 50 candidats ;
+deux utilisateurs simultanés, si.
+
+Conséquences à considérer avant toute mise en service :
+
+- `deploy.resources.limits.cpus: "2.0"` sur l'ingestor plafonne le parallélisme
+  disponible ;
+- `--workers 1` est **délibéré** (registre Prometheus process-local), donc la
+  capacité ne se scale que par réplicas derrière un agrégateur ;
+- aucun test de charge n'a été conduit : le comportement à 2, 5 ou 10 requêtes
+  concurrentes est **inconnu**, non pas mauvais.
+
+Mesurer avant de dimensionner : un simple tir à concurrence croissante donnerait
+le point de rupture, qui est aujourd'hui une inconnue et non une estimation.
+
 ## 4. Dettes résiduelles
 
 | # | Dette | Gravité |
@@ -903,6 +999,8 @@ Chantier de paquet, exigeant un ADR et un bump SemVer : hors de ce lot.
 | 21 | Dépréciation des 18 scopes `_v1` : exige de prouver qu'aucune enveloppe émise ne les référence. Hors périmètre d'ADR-0052, à trancher séparément | basse |
 | 22 | Un scope `_v2` ne dit pas qu'il procède d'un rescellement plutôt que d'un contenu nouveau : le lien vit dans ADR-0052, pas dans l'artefact. Évolution de contrat à envisager | basse |
 | 23 | `release_impact_closure.py` couvre deux formes d'empreinte (octets, JSON canonique compact). Étendre : recenser les `canonical_bytes`/`_canonical_bytes` de `nexus_contracts`, associer chaque forme aux modèles qui l'emploient, et faire valider chaque JSON contre les modèles candidats. Énumérer les producteurs, pas les formes | moyenne |
+| 26 | **Latence de retrieval** : le rerank de 50 candidats coûte 5,39 s seul, au-dessus du budget de 6 s. Préchargement et healthcheck hors de cause, mesurés (§3undecies) | **haute** |
+| 27 | **Concurrence non mesurée** : 4 955 ms pour une requête séquentielle CPU ; deux requêtes simultanées franchissent le budget. Aucun test de charge, point de rupture inconnu (§3duodecies) | **haute** |
 | 25 | Le balayage de fermeture porte sur le dépôt ; les runtimes figés (image Docker, `pip install` non éditable) lui sont invisibles par construction. Couvert par `check_runtime_conformance.py`, à exécuter après tout changement de `packages/contracts` | moyenne |
 | 24 | **`nexus-contracts` porte au moins cinq canonicalisations JSON divergentes**, plus des empreintes sur projection de champs. Deux modules censés s'accorder sur une empreinte peuvent diverger sans que rien ne le détecte — défaut de paquet, même famille que la dette n°13 (§3decies) | **haute** |
 
