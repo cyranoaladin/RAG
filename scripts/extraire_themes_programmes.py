@@ -115,12 +115,49 @@ def main(argv: list[str] | None = None) -> int:
         if cle:
             groupes[cle].append(ligne)
 
-    # Programme global du cycle 4 : un seul document couvre TOUT le cycle. Le
-    # retenir pour les collections cycle 4 qui n'ont pas le leur est une
-    # dérivation — le document énonce lui-même sa portée — non une invention.
-    global_cycle4 = next(
-        (s for s, c in catalogue.items()
-         if "cycle des approfondissements" in sans_accent(c["titre"])), None)
+    # Les B.O. CONSOLIDÉS : un même arrêté couvre plusieurs disciplines, parfois
+    # plusieurs niveaux. Une collection sans programme propre y puise
+    # légitimement — le document énonce lui-même sa portée. Ce n'est pas un
+    # repli par défaut : c'est le programme de cette collection, publié groupé.
+    #
+    #   • cycle 4, 138 pages, toutes disciplines du cycle
+    #   • « Spécialité arts en première et terminale de la voie générale », 60 p
+    #   • « Option arts en seconde générale et technologique », 47 p
+    #
+    # Le second est de surcroît un cas de MULTI-PLACEMENT : un artefact, deux
+    # niveaux. Le forcer sur un niveau unique perdrait ce qu'il déclare.
+    def _consolide(*fragments: str) -> str | None:
+        meilleur, pages_max = None, 0
+        for sha, ligne in catalogue.items():
+            titre = sans_accent(ligne["titre"])
+            if all(f in titre for f in fragments):
+                try:
+                    pages = int(ligne.get("pages_pdf") or 0)
+                except ValueError:
+                    pages = 0
+                if pages > pages_max:
+                    meilleur, pages_max = sha, pages
+        return meilleur
+
+    CONSOLIDES = {
+        "cycle4": _consolide("cycle des approfondissements"),
+        "arts_lycee": _consolide("specialite arts", "premiere et terminale"),
+        "arts_seconde": _consolide("option arts", "seconde"),
+    }
+    #: Disciplines artistiques : leur programme est publié groupé, jamais seul.
+    ARTS = {"MUSIQUE", "ARTS_PLASTIQUES", "DANSE", "THEATRE", "ARTS_DU_CIRQUE",
+            "CINEMA_AUDIOVISUEL", "HISTOIRE_DES_ARTS", "EDUCATION_MUSICALE"}
+
+    def programme_consolide(niveau: str, matiere: str) -> tuple[str | None, str]:
+        if niveau == "cycle4" and CONSOLIDES["cycle4"]:
+            return CONSOLIDES["cycle4"], "B.O. consolidé du cycle 4"
+        if matiere in ARTS:
+            if niveau in ("premiere", "terminale") and CONSOLIDES["arts_lycee"]:
+                return CONSOLIDES["arts_lycee"], "B.O. arts première-terminale"
+            if niveau == "seconde" and CONSOLIDES["arts_seconde"]:
+                return CONSOLIDES["arts_seconde"], "B.O. option arts seconde"
+        return None, ""
+
 
     from pypdf import PdfReader
 
@@ -132,8 +169,10 @@ def main(argv: list[str] | None = None) -> int:
                       if MOTIF_BO.search(sans_accent(
                           catalogue.get(d["sha256"], {}).get("titre", "")))]
         origine = "programme de la collection"
-        if not programmes and niveau == "cycle4" and global_cycle4:
-            programmes, origine = [global_cycle4], "programme global du cycle 4"
+        if not programmes:
+            sha_cons, libelle = programme_consolide(niveau, matiere)
+            if sha_cons:
+                programmes, origine = [sha_cons], libelle
 
         themes: list[str] = []
         source_titre = None

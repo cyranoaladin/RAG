@@ -116,3 +116,82 @@ titre, un chantier pédagogique et non technique.
 
 Le classifieur reste utile : il traitera les corpus futurs dont les URL portent
 le niveau, et il documente ce qui manque sur celui-ci.
+
+
+## Les deux arbitrages, résolus par le signal
+
+### « Propositions pédagogiques pour la catégorie 2 (cycle 4) »
+
+Première page du document, extraite :
+
+> « À partir de la rentrée 2026, le nouveau programme **d'enseignement moral et
+> civique (EMC – 2024) en 3e** s'intitule "Faire vivre la démocratie" »
+
+**Classement : `cycle4 × EMC`**, palier P1, extrait cité. Ce n'était pas un
+arbitrage : le document se nomme lui-même. Même confusion DGEMC/EMC que le
+vademecum — deux occurrences du même défaut de catalogue.
+
+### 51 documents hors périmètre assumé, dont 50 invisibles jusqu'ici
+
+Le palier P1 appliqué aux 1 504 documents du périmètre :
+
+| Série | Documents |
+|---|---|
+| ST2S | 20 |
+| STL | 13 |
+| STI2D | 7 |
+| STD2A | 6 |
+| S2TMD | 4 |
+| Seconde STHR | 1 |
+| **Total** | **51** |
+
+Ils se cachaient sous des couples **génériques** — l'essentiel sous
+`seconde × PHYSIQUE_CHIMIE (générale)` : « Le rôle du foie dans le stockage des
+glucides », « Fruits secs et semi-marathon », « Quel menu choisir au petit
+déjeuner ? » sont des ressources **ST2S**, pas de la physique-chimie de seconde
+générale.
+
+**Ce ne sont pas des documents mal classés : ce sont des documents valides d'une
+voie que le mandat ne sert pas.** La nuance décide de leur sort — ils sortent en
+HORS_PERIMETRE_ASSUME, ils ne sont pas corrigés.
+
+Détail complet, avec palier et extrait par document :
+`docs/reports/hors_perimetre_voies_20260829.json`.
+
+**Le rendement de cette vérification est de 51, pas de 1.** Ma mesure initiale
+n'avait vu que le document STHR, repéré par son titre. Les 50 autres n'étaient
+lisibles que dans le texte — le palier que je n'exploitais pas.
+
+## expected_topics — les B.O. consolidés
+
+Un même arrêté couvre plusieurs disciplines, parfois plusieurs niveaux :
+
+| Document consolidé | Pages | Portée |
+|---|---|---|
+| Programme du cycle des approfondissements (cycle 4) | 138 | toutes disciplines du cycle |
+| Spécialité arts en première **et terminale** de la voie générale | 60 | 7 disciplines, **2 niveaux** |
+| Option arts en seconde générale et technologique | 47 | disciplines artistiques |
+
+Le second est de surcroît un cas de **multi-placement** : un artefact, deux
+niveaux.
+
+| | Avant | Après |
+|---|---|---|
+| Collections avec thèmes dérivés | 47 | **50** |
+| Sans programme extractible | 27 | **24** |
+
+Les 24 restantes partent **sans thèmes**, jamais avec de l'inventé. Elles sont
+dominées par LLCER (50 documents), les langues vivantes (14) et l'EPS (8) —
+disciplines dont les programmes sont publiés par langue ou par activité, hors du
+corpus téléchargé.
+
+## Périmètre final
+
+```
+2 451  corpus
+1 453  périmètre servable    (1 504 − 51 hors périmètre assumé)
+   35  récupérés par classification automatique
+  911  COVERAGE_GAP — aucune preuve forte
+   51  HORS_PERIMETRE_ASSUME — voie non servie
+    1  reclassé cycle4 × EMC
+```
