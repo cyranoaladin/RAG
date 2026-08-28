@@ -35,14 +35,17 @@
 # ═══════════════════════════════════════════════════════════════════════════
 # USAGE
 # ═══════════════════════════════════════════════════════════════════════════
-#   docker compose -p infra \
+#   RAG_STACK_OVERLAYS=docker-compose.legacy-async.yml ./scripts/rag-stack.sh up -d
+#
+# ou, sans l'enveloppe, depuis `services/rag-engine/infra/` et SANS `-p` :
+#   docker compose \
 #       -f docker-compose.v2.yml \
 #       -f docker-compose.legacy-async.yml \
 #       up -d
 #
-# Le projet est `infra` : le passer explicitement est impératif, `.env` déclare
-# `COMPOSE_PROJECT_NAME=nexusrag` et l'omettre adresse une AUTRE pile, avec
-# d'autres volumes (cf. docs/reports/lot_dette_infra_rag_20260827.md §0).
+# Ne jamais passer `-p` : `.env` fournit `COMPOSE_PROJECT_NAME=nexusrag`, qui
+# sélectionne la base canonique. Un `-p` l'emporte et bascule silencieusement
+# vers un autre volume (ADR-0051).
 #
 # Configuration restituée depuis `~/diag-reseau/orphelins-rag.json`. Trois
 # dettes purgées au passage : le montage de modèles ne pointe plus `/tmp`, les

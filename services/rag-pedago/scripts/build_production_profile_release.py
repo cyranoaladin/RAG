@@ -275,13 +275,40 @@ class E5TokenCounter:
 def _model_inventory(
     *, snapshot: Path, manifest: Mapping[str, object]
 ) -> tuple[bytes, bytes]:
+    """Sceller la totalité du snapshot, sous-répertoires compris.
+
+    Le parcours était `snapshot.iterdir()` — non récursif — filtré par
+    `is_file()`, qui écarte les répertoires **sans erreur ni avertissement**.
+    Tout sous-répertoire disparaissait donc du sceau, et l'artefact construit
+    sur cet inventaire en était amputé.
+
+    Le 27/08/2026, cela a produit un artefact embedding sans `1_Pooling/` :
+    conforme à son empreinte, et incapable de se charger — `sentence_transformers`
+    lit `modules.json`, ne trouve pas le module de pooling en local, et retombe
+    sur un téléchargement distant qui échoue. Le seul garde-fou existant
+    (« model inventory has no weights ») protégeait les poids, pas la structure.
+
+    `rglob` aligne ce producteur sur `scripts/e2e/prepare-embedding-model-artifact.sh`,
+    qui scelle par `find . -type f`. Les chemins restent relatifs à la racine du
+    snapshot, avec un tri déterministe sur le chemin POSIX complet.
+    """
     if not snapshot.is_dir():
         raise ValueError(f"model snapshot is missing: {snapshot}")
     manifest_bytes = canonical_json_bytes(manifest)
     rows = [f"{_sha256_bytes(manifest_bytes)}  manifest.json"]
-    for path in sorted(snapshot.iterdir(), key=lambda item: item.name):
-        if path.is_file():
-            rows.append(f"{_file_sha256(path)}  {path.name}")
+    entries = sorted(
+        (
+            path
+            for path in snapshot.rglob("*")
+            if path.is_file() and not path.is_symlink()
+        ),
+        key=lambda item: item.relative_to(snapshot).as_posix(),
+    )
+    for path in entries:
+        relative = path.relative_to(snapshot).as_posix()
+        if relative in {"manifest.json", "SHA256SUMS"}:
+            continue
+        rows.append(f"{_file_sha256(path)}  {relative}")
     if not any(row.endswith("model.safetensors") for row in rows):
         raise ValueError("model inventory has no weights")
     return manifest_bytes, ("\n".join(rows) + "\n").encode()

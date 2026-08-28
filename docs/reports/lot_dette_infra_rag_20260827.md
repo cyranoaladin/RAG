@@ -269,6 +269,446 @@ besoin, soit un service Ollama doit être ajouté explicitement.
 
 ---
 
+## 3bis. Dette réseau — auto-allocation Docker et plages de box (DOCUMENTÉE, NON APPLIQUÉE)
+
+`docker-compose.v2.yml` n'épingle plus de sous-réseau (ADR-0051 §6) : Docker
+auto-alloue. C'est le bon choix pour ce fichier, mais l'auto-allocation par
+défaut du démon est dangereuse **sur ce poste précis**.
+
+### Le risque, mesuré
+
+Sans `default-address-pools`, Docker puise dans `172.17.0.0/16` → `172.31.0.0/16`,
+puis dans **`192.168.0.0/16` par tranches de /20**. Onze bridges occupent déjà
+cette seconde zone :
+
+| Bridge | Sous-réseau | Couvre |
+|---|---|---|
+| `bilan-foundation-main-baseline_default` | **192.168.0.0/20** | **192.168.0.0/24 et 192.168.1.0/24** |
+| `nexus-bilans-p0d-release-quality_e2e-network` | 192.168.16.0/20 | 192.168.16–31 |
+| `candidat-libre-diagnostic_default` | 192.168.32.0/20 | 192.168.32–47 |
+| `candidat-libre-diagnostic_e2e-network` | 192.168.48.0/20 | 192.168.48–63 |
+| `saisie-papier-email-differe_default` | 192.168.64.0/20 | 192.168.64–79 |
+| `korrigo-local_default` | 192.168.80.0/20 | 192.168.80–95 |
+| `deploy-main-142-53db37319_default` | 192.168.112.0/20 | 192.168.112–127 |
+| `nexus-release-e32137e_default` | 192.168.128.0/20 | 192.168.128–143 |
+| `nexus-project_v0_default` | 192.168.144.0/20 | 192.168.144–159 |
+| `nexusrag_rag_net` | 192.168.160.0/20 | 192.168.160–175 |
+| `t3a-headcount-workflow_default` | 192.168.176.0/20 | 192.168.176–191 |
+
+Ce poste est **itinérant** : douze réseaux Wi-Fi enregistrés, dont cinq box
+grand public de fournisseurs d'accès. Ces box servent typiquement
+`192.168.0.1`, `192.168.1.1`, `192.168.8.1` ou
+`192.168.100.1` comme passerelle.
+
+**La première ligne du tableau est la collision effective** :
+`bilan-foundation-main-baseline_default` occupe `192.168.0.0/20`, donc capture
+`192.168.0.1` **et** `192.168.1.1`. Sur un réseau utilisant l'une de ces
+passerelles, le poste ne joint plus sa box : le bridge Docker l'emporte, avec
+une route locale plus spécifique. Symptôme observé côté utilisateur : « le Wi-Fi
+est connecté mais rien ne passe ».
+
+Le LAN courant (`192.168.100.0/24`) tombe dans `192.168.96.0/20`, tranche non
+encore allouée. **La machine n'est indemne que par chance** : la prochaine
+création de réseau Docker peut prendre cette tranche.
+
+### Correctif — au niveau du démon, pas de Compose
+
+Aucun fichier Compose ne peut corriger cela : l'auto-allocation est une propriété
+du démon. Le réglage est `default-address-pools` dans `/etc/docker/daemon.json`
+(actuellement `null`, donc défauts d'usine — vérifié par
+`docker info --format '{{json .DefaultAddressPools}}'`).
+
+```jsonc
+// /etc/docker/daemon.json — fusionner avec le contenu existant, ne pas écraser
+{
+  "default-address-pools": [
+    { "base": "10.200.0.0/13", "size": 24 }
+  ]
+}
+```
+
+`10.200.0.0/13` couvre `10.200.0.0` → `10.207.255.255`, soit 2048 réseaux /24.
+Cette plage est hors du `10.0.3.0/24` de `lxcbr0` déjà présent, et hors de toute
+plage de box grand public.
+
+```bash
+# 1. Sauvegarder la configuration existante.
+sudo cp -a /etc/docker/daemon.json /etc/docker/daemon.json.bak_$(date +%Y%m%d_%H%M%S)
+
+# 2. Éditer (fusionner la clé, ne pas remplacer le fichier).
+
+# 3. Valider le JSON AVANT de redémarrer — un daemon.json invalide
+#    empêche Docker de redémarrer du tout.
+python3 -m json.tool /etc/docker/daemon.json >/dev/null && echo "JSON valide"
+
+# 4. Redémarrer le démon.
+sudo systemctl restart docker
+
+# 5. Contrôler la prise en compte.
+docker info --format '{{json .DefaultAddressPools}}'
+```
+
+### Conséquences, à assumer avant d'appliquer
+
+- **`systemctl restart docker` arrête tous les conteneurs de la machine** — les
+  quatre piles Nexus, `korrigo-local`, `workflow_correction`, et tout le reste.
+  Ceux en `restart: unless-stopped` redémarrent ; les autres non.
+- **Aucune renumérotation des réseaux existants.** Le réglage ne vaut que pour
+  les réseaux *créés ensuite*. Les onze bridges du tableau — dont celui qui
+  capture `192.168.0.0/20` — **restent en place**. Les renuméroter exige
+  `docker network rm` sur chacun, donc l'arrêt des piles concernées.
+- Traiter en priorité `bilan-foundation-main-baseline_default` : c'est le seul
+  qui recouvre des passerelles réellement rencontrées.
+- Un `daemon.json` syntaxiquement invalide empêche Docker de démarrer. L'étape 3
+  n'est pas facultative.
+
+**Non appliqué dans ce lot** : le redémarrage du démon dépasse le périmètre et
+demande une fenêtre choisie par l'opérateur.
+
+## 3ter. Gate opérateur — artefact embedding scellé mais incomplet
+
+Constaté le 28/08/2026 en démarrant l'ingestor sur la base canonique.
+
+**Le gate release est franchi.** `validate_configured_release_database()` passe
+sans aucun contournement : ni registre réduit, ni contrôle désactivé, ni seuil
+assoupli. Les 18 collections déclarées sont réconciliées contre les 730 chunks
+ingérés. Zéro occurrence d'erreur de release dans les journaux.
+
+Le démarrage échoue plus loin, sur `EMBEDDING_MODEL_UNAVAILABLE`.
+
+### Nature exacte du défaut
+
+L'artefact `~/rag-model-artifacts/e5-large-prerentree-2026-2027` **satisfait son
+propre sceau** : `_initialize_model_artifacts()` et
+`_validate_release_model_attestations()` passent, donc
+`RAG_EMBEDDING_MODEL_INVENTORY_SHA256=e15ab71b…` correspond bien au contenu.
+
+Mais `SHA256SUMS` ne scelle que dix fichiers plats, et `modules.json` — lui-même
+scellé — déclare trois modules :
+
+| idx | type | `path` | présent |
+|---|---|---|---|
+| 0 | `models.Transformer` | `""` (racine) | oui |
+| 1 | `models.Pooling` | `1_Pooling` | **NON** |
+| 2 | `models.Normalize` | `2_Normalize` | non |
+
+L'artefact est donc **fidèlement scellé et intrinsèquement inutilisable** : le
+sceau est cohérent avec un répertoire qui l'est pas. `sentence_transformers` lit
+`modules.json`, ne trouve pas `1_Pooling` en local, retombe sur un
+`snapshot_download` et échoue en `HFValidationError: Repo id must be in the form
+'repo_name' or 'namespace/repo_name': '/models/e5-large'`.
+
+Vérifié au code source de `sentence-transformers` 3.0.1 embarqué dans l'image :
+
+```python
+Pooling.load(input_path)    # open(os.path.join(input_path, "config.json")) -> REQUIS
+Normalize.load(input_path)  # return Normalize()                            -> sans effet
+```
+
+Seul `1_Pooling/` manque réellement. L'absence de `2_Normalize/` est inoffensive,
+et l'artefact d'ingestion du 26/08 ne le contenait pas davantage.
+
+Le reranker n'a pas ce défaut : `ms-marco-MiniLM-L-6-v2-prerentree-2026-2027` est
+un cross-encoder, sans `modules.json`.
+
+### Correctif — action opérateur, non appliquée
+
+Le fichier manquant est connu ; il est présent dans l'artefact d'ingestion
+`intfloat-multilingual-e5-large-3d7cfbdacd47fdda877c5cd8a79fbcc4f2a574f3` :
+
+```json
+{
+    "word_embedding_dimension": 1024,
+    "pooling_mode_cls_token": false,
+    "pooling_mode_mean_tokens": true,
+    "pooling_mode_max_tokens": false,
+    "pooling_mode_mean_sqrt_len_tokens": false
+}
+```
+
+La remise en état suppose de **resceller** l'artefact : ajouter
+`1_Pooling/config.json`, régénérer `SHA256SUMS`, puis reporter la nouvelle
+empreinte dans `RAG_EMBEDDING_MODEL_INVENTORY_SHA256`.
+
+**Non appliqué délibérément.** `docker-compose.v2.yml` qualifie cette valeur
+d'« empreinte SHA-256 **externe** de l'inventaire embedding » : elle est fournie
+par la gouvernance, pas dérivée du contenu par le service. La recalculer
+soi-même reviendrait à faire signer l'artefact par celui qui le modifie, ce qui
+vide l'attestation de sa fonction. Le pooling `mean` retenu ci-dessus est de
+surcroît une caractéristique du modèle, pas un détail d'emballage : il doit être
+confirmé, pas déduit d'un autre répertoire.
+
+C'est un gate opérateur au sens strict : la décision et la nouvelle empreinte
+appartiennent à l'autorité qui a scellé l'artefact.
+
+## 3quater. Dette du format de sceau — `SHA256SUMS` n'atteste pas la complétude
+
+Cette dette **survivra au rescellement** de l'artefact du §3ter : elle est dans le
+format, pas dans son application.
+
+### Le défaut
+
+`SHA256SUMS` scelle **une liste de fichiers** et garantit que chacun est intact.
+Il ne vérifie jamais que cette liste **couvre ce que l'artefact déclare avoir
+besoin**. `verify-embedding-model-artifact.sh` confirme la liste et l'empreinte
+d'inventaire, sans jamais ouvrir `modules.json`.
+
+Conséquence observée : un artefact amputé de `1_Pooling/` — donc incapable de se
+charger — est déclaré **conforme** par l'attestation. Le contrôle a fonctionné
+exactement comme spécifié, et a laissé passer un artefact inutilisable.
+
+### La cause racine, identifiée
+
+Deux producteurs coexistent, et un seul est récursif.
+
+`scripts/e2e/prepare-embedding-model-artifact.sh` — script sanctionné :
+
+```bash
+find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum
+```
+
+`services/rag-pedago/scripts/build_production_profile_release.py::_model_inventory` :
+
+```python
+for path in sorted(snapshot.iterdir(), key=lambda item: item.name):
+    if path.is_file():
+        rows.append(f"{_file_sha256(path)}  {path.name}")
+```
+
+`Path.iterdir()` n'est **pas récursif**, et `if path.is_file()` écarte les
+répertoires **sans erreur ni avertissement**. Tout sous-répertoire est
+silencieusement absent du sceau — et, l'artefact étant construit sur ce même
+inventaire, absent de l'artefact.
+
+Vérifié par reproduction à l'octet près sur l'artefact du 27/08 : `manifest.json`
+et `SHA256SUMS` sont reproduits exactement par `_model_inventory`, et
+l'empreinte d'inventaire recalculée vaut `e15ab71b…`, la valeur de `.env`. Le
+producteur est identifié sans ambiguïté.
+
+Le seul garde-fou existant est indirect : `_model_inventory` lève
+`"model inventory has no weights"` si `model.safetensors` manque. Le poids est
+protégé ; la structure ne l'est pas.
+
+### Correctif recommandé
+
+**L'attestation doit vérifier que chaque chemin déclaré par `modules.json` existe
+et est couvert par le sceau.** Concrètement, dans `verify-embedding-model-artifact.sh`
+et dans `src/ingestor/model_artifact.py` :
+
+1. lire `modules.json` (lui-même scellé, donc digne de confiance) ;
+2. pour chaque module de `path` non vide, exiger que `<path>/config.json` soit
+   présent **et** listé dans `SHA256SUMS` ;
+3. échouer en `MODEL_ARTIFACT_INCOMPLETE` sinon, avec le chemin fautif.
+
+`Normalize` est la seule exception légitime : `Normalize.load()` ne lit aucun
+fichier (vérifié au source de `sentence-transformers` 3.0.1). La règle doit donc
+porter sur les modules qui chargent un `config.json`, pas sur tous.
+
+Rendre `_model_inventory` récursif est nécessaire mais **insuffisant** : cela
+corrige un producteur, pas le format. Un sceau qui n'atteste pas sa propre
+complétude reproduira ce défaut au prochain producteur ad hoc. C'est
+précisément la classe de défaut qui a laissé passer un artefact inutilisable en
+le déclarant conforme.
+
+## 3quinquies. Régénération de l'artefact — gate hors ligne, 28/08/2026
+
+Suite au §3ter et §3quater. Arbitrage opérateur : régénérer par le script
+sanctionné (`prepare-embedding-model-artifact.sh`), **hors ligne d'abord**.
+
+### Les deux correctifs de code sont appliqués
+
+- `build_production_profile_release.py::_model_inventory` est **récursif**
+  (`rglob`), aligné sur le `find . -type f` du script sanctionné. Deux tests de
+  non-régression, vérifiés rouges sur l'implémentation d'origine.
+- `model_artifact.py::_assert_declared_modules_are_sealed` exige que chaque
+  module de `modules.json` à `path` non vide ait son `config.json` présent
+  **et** scellé, en échouant sur `MODEL_ARTIFACT_INCOMPLETE: <chemin>`.
+  `Normalize` reste exempté nominativement. Trois tests, dont un vérifié rouge
+  sans le correctif (`DID NOT RAISE`).
+
+`verify-embedding-model-artifact.sh` n'a pas eu à changer : il délègue déjà au
+vérificateur du runtime. Confronté à l'artefact du 27/08 il rapporte désormais
+`MODEL_ARTIFACT_INCOMPLETE: 1_Pooling/config.json` — auparavant il affichait
+`OK: runtime artifact contract verified` et n'échouait que sur le test de
+chargement, sans nommer la cause.
+
+### Le gate : le script ne peut pas fonctionner hors ligne
+
+`HF_HUB_OFFLINE=1` échoue en `LocalEntryNotFoundError`. La cause est
+**structurelle, pas une affaire de configuration** :
+
+```python
+snapshot_download(repo_id=model_id, revision=revision, local_dir=target)
+```
+
+La docstring de `huggingface_hub` est explicite : avec `local_dir`, « the
+`cache_dir` will not be used, and a `.cache/huggingface/` folder will be created
+at the root of `local_dir` ». Le mode `local_dir` **contourne le cache hub par
+conception**. Le répertoire cible étant neuf, il n'y a rien à résoudre.
+
+Vérifié : **sans** `local_dir`, la révision épinglée se résout hors ligne
+parfaitement, depuis
+`~/.cache/huggingface/hub/models--intfloat--multilingual-e5-large/snapshots/3d7cfbda…`,
+qui contient les 11 fichiers utiles — `1_Pooling/` compris — pour 2,2 Go.
+
+Le script code `local_dir=target` en dur. L'écarter de ce comportement est une
+modification du script, donc une sortie du périmètre délégué.
+
+### Correction d'une analyse antérieure
+
+Il avait été avancé que la voie B produirait un artefact plus léger que la voie A.
+**C'est faux** : `snapshot_download` sans `allow_patterns` récupère l'intégralité
+du dépôt. Un lancement **en ligne** produirait ~9,5 Go (`onnx/`, `openvino/`,
+`pytorch_model.bin`, `.eval_results/`) — soit *plus* que les 2,2 Go du cache
+local. La légèreté vient du cache, pas du script : elle plaide pour la voie hors
+ligne, pas contre elle.
+
+### La voie A est écartée, pour une raison nouvelle
+
+L'artefact d'ingestion du 26/08 est complet et cohérent (134 fichiers, sceau
+vérifié, `1_Pooling/` présent), mais il est **scellé au format obsolète** :
+`manifest.json` n'y figure pas.
+
+Preuve : il porte `repo_commit: ec4bb1cf…`, et l'historique montre que
+`ec4bb1c` (17/07) scellait avec `find … ! -name manifest.json`, tandis que
+`374b231` (03/08) a corrigé en scellant le manifeste — « The manifest carries the
+canonical identity and must itself be authenticated ».
+
+Or `verify_model_artifact` exige `"manifest.json" in checksums`. L'artefact
+d'ingestion est donc **rejeté par l'attestation du runtime**
+(`MODEL_ARTIFACT_INVALID`), indépendamment de la dette n°13. Le déclarer tel quel
+est impossible.
+
+### Preuve empirique de non-dérive du retrieval
+
+Faite **sans attendre l'artefact scellé** : le cache hub porte les mêmes poids
+(`model.safetensors` = `020afdeb…`, identique aux deux artefacts).
+
+Protocole : charger le modèle depuis le cache hub hors ligne, ré-encoder le
+texte de chunks existants avec la convention exacte de l'ingestion
+(`format_passage` → préfixe `"passage: "`, `normalize_embeddings=True`), et
+comparer au vecteur stocké en base. Trois chunks de trois collections
+différentes, pour ne pas conclure sur un cas isolé.
+
+| Collection | Similarité cosinus | Écart à 1 |
+|---|---|---|
+| `rag_nexus_dgemc_terminale_option` | 1,000000000075469 | 7,5·10⁻¹¹ |
+| `rag_nexus_svt_terminale_specialite` | 1,000000001056675 | 1,1·10⁻⁹ |
+| `rag_nexus_maths_seconde_tc` | 0,999999998755483 | 1,2·10⁻⁹ |
+
+L'écart résiduel s'explique entièrement par la quantification au stockage :
+`canonical_release_corpus_ingestion.py` sérialise les composantes en
+`f"{c:.8f}"`, soit huit décimales. À cette précision, 10⁻⁹ est le plancher
+atteignable — il n'y a aucune dérive de modèle.
+
+Observation annexe confirmée empiriquement : le snapshot charge bien
+`['Transformer', 'Pooling', 'Normalize']` alors que `2_Normalize/` est absent du
+répertoire. L'exemption de `Normalize` dans le contrôle de complétude est donc
+correcte, et non une commodité.
+
+### Ce qui reste à trancher
+
+1. Rendre le script capable de résoudre depuis le cache hub quand
+   `HF_HUB_OFFLINE=1` — c'est-à-dire appeler `snapshot_download` sans
+   `local_dir` puis recopier le snapshot résolu dans le répertoire d'artefact.
+   Modification du script sanctionné, à valider explicitement.
+2. Ou pré-alimenter le répertoire cible pour que le mode `local_dir` trouve ses
+   métadonnées hors ligne — étape manuelle hors script, et qui produirait le
+   jeu à 9 Go.
+3. Ou autoriser un lancement **en ligne**, avec ~9,5 Go rapatriés.
+
+L'option 1 est recommandée : elle conserve l'autorité de scellement au script,
+n'exige aucun téléchargement, et produit l'artefact épuré qui contient
+exactement ce dont `sentence-transformers` a besoin.
+
+**Rien n'a été régénéré.** La délégation opérateur du report d'empreinte portait
+sur une régénération *sans écart au script* ; l'écart étant nécessaire, elle est
+caduque et la décision revient à l'opérateur.
+
+## 3sexies. Gate opérateur — la release scelle l'artefact défectueux
+
+Constaté le 28/08/2026 après rescellement de l'artefact embedding.
+
+### Symptôme
+
+Avec l'artefact rescellé (`…-20260828`, inventaire
+`9788d8e5…`), le démarrage progresse d'un cran de plus qu'avant et échoue sur :
+
+```
+api_v2.py:380 _validate_release_model_attestations
+RuntimeError: release model inventory mismatch
+```
+
+Progression : `validate_configured_release_database()` **passe** (gate release
+franchi), `_initialize_model_artifacts()` **passe** (l'artefact rescellé est
+valide, contrôle de complétude compris). L'échec est la comparaison entre
+l'inventaire attesté et celui que **la release scelle**.
+
+### Le fond
+
+La release active — `release-registry.json` ne référence que
+`profile_gate/production-profile-gate.release.json` — scelle
+`embedding_inventory_sha256= e15ab71b…` dans son agrégat **et dans ses 18
+manifests-sujets**.
+
+`e15ab71b…` est l'empreinte de l'**artefact défectueux du 27/08**, celui qui est
+amputé de `1_Pooling/` et incapable de se charger.
+
+Autrement dit : **la release de production est scellée contre un artefact
+embedding qui ne peut pas servir**. Ce n'est pas une conséquence du
+rescellement — c'était vrai avant, et c'est ce qui rendait le blocage
+inévitable quel que soit le chemin choisi.
+
+### Chaîne causale
+
+Les horodatages excluent l'hypothèse simple :
+
+| Objet | Horodatage |
+|---|---|
+| `production-profile-gate.release.json` | 27/08 **08:08:15** |
+| `SHA256SUMS` de l'artefact défectueux | 27/08 **20:02:10** |
+
+La release **précède l'artefact de douze heures**. Elle n'a donc pas été scellée
+*à partir* de ce répertoire : c'est `_model_inventory`, non récursif, qui a
+produit `e15ab71b…` au moment du build de release à 08:08 ; le répertoire
+d'artefact a été matérialisé plus tard, à 20:02, pour correspondre à cette
+empreinte déjà scellée — donc nécessairement plat, donc nécessairement
+inutilisable.
+
+Un seul défaut (`snapshot.iterdir()` + `is_file()`), deux conséquences : un
+artefact amputé **et** une release qui le sanctifie. Corriger le producteur —
+fait — n'annule pas le sceau déjà émis.
+
+### Anomalie dormante, signalée sans être traitée
+
+Les manifests sous `multilevel/` déclarent une **troisième** empreinte,
+`e2c7384b…`, qui ne correspond à **aucun artefact présent sur le disque**. Ces
+manifests ne sont pas référencés par `release-registry.json` : ils sont
+inertes aujourd'hui. Activer la release multilevel sans rescellement ferait
+resurgir le même blocage.
+
+### Ce qui est requis, et pourquoi je ne l'ai pas fait
+
+Rendre le runtime démarrable exige de **resceller la release** avec l'inventaire
+correct : rejouer `build_production_profile_release.py` — maintenant que
+`_model_inventory` est récursif — pour régénérer l'agrégat, les 18
+manifests-sujets et leurs liaisons d'autorité.
+
+C'est la régénération d'une release scellée, avec sa chaîne de preuves et ses
+`authority_bindings`. La délégation reçue portait sur *un artefact, une fois*, et
+sur le report d'une empreinte dans `.env`. Rebâtir la release en sort
+franchement. Aucun contournement n'a été tenté : ni édition des manifests, ni
+assouplissement de `_validate_release_model_attestations`, ni retour à
+l'artefact défectueux.
+
+### État laissé
+
+`.env` pointe l'artefact **correct** (`…-20260828`, `9788d8e5…`). Les deux états
+échouent au démarrage — l'ancien sur `EMBEDDING_MODEL_UNAVAILABLE`, le nouveau
+sur `release model inventory mismatch` — mais pointer l'artefact valide rend
+l'action restante explicite. Le retour arrière tient en deux lignes de `.env`,
+l'artefact du 27/08 étant intact.
+
 ## 4. Dettes résiduelles
 
 | # | Dette | Gravité |
@@ -281,6 +721,15 @@ besoin, soit un service Ollama doit être ajouté explicitement.
 | 6 | `REDIS_PASSWORD` — identifiant de développement faible hérité du moteur A (valeur en clair dans `.env`, non versionné), à faire tourner | moyenne |
 | 7 | `OLLAMA_URL` sans service correspondant (§3.3) | basse |
 | 8 | Volume `rag_v2_redis_data` orphelin (label compose divergent) — laissé intact, signalé par Docker | basse |
+| 9 | Auto-allocation Docker sur `192.168.0.0/16` : `bilan-foundation-main-baseline_default` capture `192.168.0.1` et `192.168.1.1`, passerelles de box rencontrées par ce poste itinérant (§3bis) | **haute** |
+| 10 | Commit `9b1c2bf` : message limité à cockpit/collections alors que le diff modifie `docker-compose.v2.yml` — décision d'infrastructure invisible dans l'historique (ADR-0051 §6) | moyenne |
+| 11 | `WORKER_API_SECRET_KEY` dans `.env` est un espace réservé de développement (`dev_admin_secret_64hex_…`), pas un secret généré | moyenne |
+| 12 | Artefact embedding scellé sans `1_Pooling/` : conforme à son empreinte, inutilisable au chargement — resceller (§3ter) | **bloquante** |
+| 13 | ~~Format de sceau : `SHA256SUMS` n'atteste pas la complétude~~ — **corrigé** (§3quinquies) : `_model_inventory` récursif + `MODEL_ARTIFACT_INCOMPLETE` | résolue |
+| 14 | `prepare-embedding-model-artifact.sh` ne peut pas fonctionner hors ligne : `local_dir=` contourne le cache hub par conception (§3quinquies) | **bloquante** |
+| 15 | L'artefact d'ingestion du 26/08 est scellé au format antérieur à `374b231` (manifeste non scellé) : rejeté par l'attestation du runtime (§3quinquies) | moyenne |
+| 16 | La release active scelle `e15ab71b…`, l'empreinte de l'artefact embedding défectueux : le runtime ne peut pas démarrer sans rescellement de la release (§3sexies) | **bloquante** |
+| 17 | Les manifests `multilevel/` déclarent `e2c7384b…`, empreinte ne correspondant à aucun artefact sur disque — inertes aujourd'hui, bloquants à l'activation (§3sexies) | moyenne |
 
 ---
 

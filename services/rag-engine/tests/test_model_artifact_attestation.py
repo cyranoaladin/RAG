@@ -51,6 +51,108 @@ def _verified_attestation(root: Path):
     )
 
 
+def _write_modular_artifact(
+    root: Path, *, include_pooling: bool, seal_pooling: bool = True
+) -> str:
+    """Artefact déclarant Transformer + Pooling + Normalize dans `modules.json`."""
+    root.mkdir()
+    modules = [
+        {"idx": 0, "name": "0", "path": "", "type": "sentence_transformers.models.Transformer"},
+        {"idx": 1, "name": "1", "path": "1_Pooling", "type": "sentence_transformers.models.Pooling"},
+        {"idx": 2, "name": "2", "path": "2_Normalize", "type": "sentence_transformers.models.Normalize"},
+    ]
+    files = {
+        "manifest.json": json.dumps({"model_id": "nexus/test"}) + "\n",
+        "model.safetensors": "poids déterministes\n",
+        "modules.json": json.dumps(modules) + "\n",
+    }
+    if include_pooling:
+        (root / "1_Pooling").mkdir()
+        files["1_Pooling/config.json"] = (
+            json.dumps({"pooling_mode_mean_tokens": True}) + "\n"
+        )
+    for relative, content in files.items():
+        (root / relative).write_text(content, encoding="utf-8")
+
+    sealed = dict(files)
+    if include_pooling and not seal_pooling:
+        del sealed["1_Pooling/config.json"]
+    inventory = "".join(
+        f"{hashlib.sha256(content.encode()).hexdigest()}  {relative}\n"
+        for relative, content in sorted(sealed.items())
+    )
+    (root / "SHA256SUMS").write_text(inventory, encoding="utf-8")
+    return hashlib.sha256(inventory.encode()).hexdigest()
+
+
+def test_verification_rejects_a_module_declared_but_absent(tmp_path: Path) -> None:
+    """Un artefact amputé d'un module déclaré doit être refusé, pas accepté.
+
+    `SHA256SUMS` scelle une liste de fichiers et garantit que chacun est intact.
+    Il ne vérifie pas que cette liste couvre ce que `modules.json` déclare. Le
+    27/08/2026, un artefact embedding sans `1_Pooling/` a été jugé **conforme**
+    par l'attestation : chaque fichier scellé était intact, et l'artefact était
+    incapable de se charger — `sentence_transformers` retombait sur un
+    téléchargement distant qui échouait au démarrage du runtime.
+    """
+    root = tmp_path / "artefact"
+    inventory_sha256 = _write_modular_artifact(root, include_pooling=False)
+
+    with pytest.raises(model_artifact_module.ModelArtifactError) as failure:
+        verify_model_artifact(
+            root,
+            expected_inventory_sha256=inventory_sha256,
+            expected_manifest={"model_id": "nexus/test"},
+            require_model_weights=True,
+        )
+
+    assert "MODEL_ARTIFACT_INCOMPLETE" in str(failure.value)
+    assert "1_Pooling/config.json" in str(failure.value)
+
+
+def test_verification_accepts_a_complete_modular_artifact(tmp_path: Path) -> None:
+    """Aucun faux positif : un artefact complet reste accepté.
+
+    `2_Normalize/` est absent ici comme dans les snapshots amont légitimes :
+    `Normalize.load()` ne lit aucun fichier (vérifié au source de
+    `sentence-transformers` 3.0.1) et doit rester exempté.
+    """
+    root = tmp_path / "artefact"
+    inventory_sha256 = _write_modular_artifact(root, include_pooling=True)
+
+    verified = verify_model_artifact(
+        root,
+        expected_inventory_sha256=inventory_sha256,
+        expected_manifest={"model_id": "nexus/test"},
+        require_model_weights=True,
+    )
+
+    assert verified == root.resolve()
+
+
+def test_verification_rejects_a_module_present_but_unsealed(tmp_path: Path) -> None:
+    """Présent sur le disque ne suffit pas : le module doit être scellé.
+
+    Un fichier hors sceau peut être remplacé sans que l'empreinte d'inventaire
+    bouge — c'est-à-dire exactement le trou que l'attestation existe pour
+    fermer.
+    """
+    root = tmp_path / "artefact"
+    inventory_sha256 = _write_modular_artifact(
+        root, include_pooling=True, seal_pooling=False
+    )
+
+    with pytest.raises(model_artifact_module.ModelArtifactError) as failure:
+        verify_model_artifact(
+            root,
+            expected_inventory_sha256=inventory_sha256,
+            expected_manifest={"model_id": "nexus/test"},
+            require_model_weights=True,
+        )
+
+    assert "MODEL_ARTIFACT" in str(failure.value)
+
+
 def test_bounded_attestation_accepts_the_unchanged_verified_artifact(
     tmp_path: Path,
 ) -> None:

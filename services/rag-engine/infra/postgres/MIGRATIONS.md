@@ -59,44 +59,55 @@ initialisé. Une base créée avant l'introduction de 003/004 y reste donc
 indéfiniment : le healthcheck échoue, `ingestor` ne démarre pas, et rien ne
 corrige la situation tout seul. C'est le chemin de rattrapage :
 
+> **Cibler la bonne base.** Le conteneur pgvector dépend du projet Compose, et
+> le projet décide du volume atteint (ADR-0051). La pile canonique est
+> `nexusrag`. Résoudre le conteneur par son étiquette Compose plutôt que par un
+> nom codé en dur — un nom codé en dur atteint la mauvaise base sans le dire.
+
 ```bash
 cd services/rag-engine/infra
+
+# Conteneur pgvector du projet canonique, résolu par étiquette.
+PGC=$(docker ps --filter label=com.docker.compose.project=nexusrag \
+                --filter label=com.docker.compose.service=pgvector \
+                --format '{{.Names}}')
+test -n "$PGC" || { echo "pile canonique non demarree" >&2; exit 1; }
 
 # 1. Sauvegarder — obligatoire, aucune écriture avant que le dump existe.
 mkdir -p ~/sauvegardes-rag && chmod 700 ~/sauvegardes-rag
 TS=$(date +%Y%m%d_%H%M%S)
-docker exec infra-pgvector-1 pg_dump -U raguser -d ragdb \
+docker exec "$PGC" pg_dump -U raguser -d ragdb \
     --format=custom --file=/tmp/ragdb_$TS.dump
-docker cp infra-pgvector-1:/tmp/ragdb_$TS.dump ~/sauvegardes-rag/
-docker exec infra-pgvector-1 rm -f /tmp/ragdb_$TS.dump
+docker cp "$PGC":/tmp/ragdb_$TS.dump ~/sauvegardes-rag/
+docker exec "$PGC" rm -f /tmp/ragdb_$TS.dump
 
 # 2. Vérifier que le dump se RESTAURE (le lister ne suffit pas).
-docker cp ~/sauvegardes-rag/ragdb_$TS.dump infra-pgvector-1:/tmp/verif.dump
-docker exec infra-pgvector-1 psql -U raguser -d postgres \
+docker cp ~/sauvegardes-rag/ragdb_$TS.dump "$PGC":/tmp/verif.dump
+docker exec "$PGC" psql -U raguser -d postgres \
     -c "DROP DATABASE IF EXISTS ragdb_verif;" -c "CREATE DATABASE ragdb_verif;"
-docker exec infra-pgvector-1 pg_restore -U raguser -d ragdb_verif \
+docker exec "$PGC" pg_restore -U raguser -d ragdb_verif \
     --exit-on-error /tmp/verif.dump
 
 # 3. Répéter la remédiation sur la copie jetable, puis la valider
 #    contre le healthcheck réel.
 PGVECTOR_DB=ragdb_verif ./scripts/remediate-pgvector-to-head-004.sh
 docker exec -e POSTGRES_DB=ragdb_verif -e POSTGRES_USER=raguser \
-    infra-pgvector-1 bash /docker-entrypoint-healthcheck.sh && echo "contrat OK"
+    "$PGC" bash /docker-entrypoint-healthcheck.sh && echo "contrat OK"
 
 # 4. Répétition à blanc sur la vraie base, puis application.
 ./scripts/remediate-pgvector-to-head-004.sh --dry-run
 ./scripts/remediate-pgvector-to-head-004.sh
 
 # 5. Provisionner les rôles runtime s'ils manquent (script idempotent).
-docker exec infra-pgvector-1 bash \
+docker exec "$PGC" bash \
     /docker-entrypoint-initdb.d/04_provision_runtime_roles.sh
 
 # 6. Nettoyer la base jetable.
-docker exec infra-pgvector-1 psql -U raguser -d postgres \
+docker exec "$PGC" psql -U raguser -d postgres \
     -c "DROP DATABASE IF EXISTS ragdb_verif;"
 
 # 7. Relancer la pile.
-docker compose -p infra -f docker-compose.v2.yml up -d
+./scripts/rag-stack.sh up -d   # jamais de -p : cf. ADR-0051
 ```
 
 `remediate-pgvector-to-head-004.sh` est **idempotent** : un second passage sur

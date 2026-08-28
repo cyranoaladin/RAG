@@ -332,6 +332,71 @@ def test_offline_release_replay_rejects_a_drifted_currentness_audit(
         )
 
 
+def test_model_inventory_seals_subdirectories(tmp_path: Path) -> None:
+    """Le sceau doit couvrir les sous-répertoires, pas seulement la racine.
+
+    `_model_inventory` parcourait `snapshot.iterdir()` — non récursif — filtré
+    par `is_file()`, qui écarte les répertoires sans erreur. Le 27/08/2026 cela
+    a scellé un artefact embedding amputé de `1_Pooling/` : conforme à son
+    empreinte d'inventaire, et incapable de se charger, `sentence_transformers`
+    ne trouvant pas son module de pooling en local.
+
+    Le garde-fou existant (« model inventory has no weights ») ne protégeait que
+    les poids. Celui-ci protège la structure.
+    """
+    module = _module()
+    snapshot = tmp_path / "snapshot"
+    (snapshot / "1_Pooling").mkdir(parents=True)
+    (snapshot / "model.safetensors").write_bytes(b"poids")
+    (snapshot / "modules.json").write_text("[]", encoding="utf-8")
+    (snapshot / "1_Pooling" / "config.json").write_text(
+        '{"pooling_mode_mean_tokens": true}', encoding="utf-8"
+    )
+
+    _manifest, inventory = module._model_inventory(
+        snapshot=snapshot,
+        manifest={"model_id": "x", "revision": "y", "canonical_dim": 1024},
+    )
+    sealed = {
+        line.split("  ", 1)[1]
+        for line in inventory.decode("utf-8").splitlines()
+        if line.strip()
+    }
+
+    assert "1_Pooling/config.json" in sealed, sorted(sealed)
+    assert sealed == {
+        "manifest.json",
+        "model.safetensors",
+        "modules.json",
+        "1_Pooling/config.json",
+    }, sorted(sealed)
+
+
+def test_model_inventory_never_seals_its_own_outputs(tmp_path: Path) -> None:
+    """Rejouer l'inventaire sur un artefact déjà scellé doit être stable.
+
+    `manifest.json` est déjà porté par la première ligne, et `SHA256SUMS` est le
+    sceau lui-même : les inclure rendrait l'inventaire non reproductible d'une
+    exécution à l'autre.
+    """
+    module = _module()
+    snapshot = tmp_path / "snapshot"
+    snapshot.mkdir()
+    (snapshot / "model.safetensors").write_bytes(b"poids")
+    manifest = {"model_id": "x", "revision": "y", "canonical_dim": 1024}
+
+    _first_manifest, first = module._model_inventory(
+        snapshot=snapshot, manifest=manifest
+    )
+    (snapshot / "SHA256SUMS").write_bytes(first)
+    (snapshot / "manifest.json").write_bytes(_first_manifest)
+    _second_manifest, second = module._model_inventory(
+        snapshot=snapshot, manifest=manifest
+    )
+
+    assert second == first
+
+
 def test_release_order_is_stable_and_duplicate_content_is_refused() -> None:
     builder = _module()
     rows = [
