@@ -172,6 +172,17 @@ run_target "repository-hygiene" bash scripts/check-repository-hygiene.sh
 # --- repository hygiene tests ---
 run_target "repository-hygiene-tests" bash scripts/tests/test-repository-hygiene.sh
 
+# --- divulgation : donnée personnelle et identifiants d'accès ---
+#
+# Distinct du contrôle anti-secret : un identifiant Drive n'est ni un secret ni
+# une donnée personnelle, et celui versionné le 28/08/2026 ouvrait le corpus en
+# écriture. Trois catégories, pas une.
+#
+# Un résultat vert signifie « aucun motif connu détecté », jamais « rien à
+# signaler » — la grille est un plancher, pas une preuve.
+run_target "disclosure-patterns" \
+  "$PYTHON_BIN" scripts/check_disclosure_patterns.py --base origin/main
+
 # --- CI topology tests ---
 run_target "ci-topology-tests" bash scripts/tests/test-ci-local-topology.sh
 
